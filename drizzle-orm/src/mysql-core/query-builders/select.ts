@@ -34,7 +34,6 @@ import type {
 	LockConfig,
 	LockStrength,
 	MySqlCreateSetOperatorFn,
-	MySqlCrossJoinFn,
 	MySqlJoinFn,
 	MySqlSelectConfig,
 	MySqlSelectDynamic,
@@ -223,12 +222,12 @@ export abstract class MySqlSelectQueryBuilderBase<
 
 	private createJoin<TJoinType extends JoinType>(
 		joinType: TJoinType,
-	): TJoinType extends 'cross' ? MySqlCrossJoinFn<this, TDynamic, TJoinType> : MySqlJoinFn<this, TDynamic, TJoinType> {
-		return (<
+	): MySqlJoinFn<this, TDynamic, TJoinType> {
+		return <
 			TJoinedTable extends MySqlTable | Subquery | MySqlViewBase | SQL,
 		>(
 			table: MySqlTable | Subquery | MySqlViewBase | SQL,
-			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
+			on?: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
 			onIndex?: TJoinedTable extends MySqlTable ? IndexConfig
 				: 'Index hint configuration is allowed only for MySqlTable and not for subqueries or views',
 		) => {
@@ -315,7 +314,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 			}
 
 			return this as any;
-		}) as any;
+		};
 	}
 
 	/**

@@ -110,22 +110,17 @@ export type SingleStoreJoinFn<
 	T extends AnySingleStoreSelectQueryBuilder,
 	TDynamic extends boolean,
 	TJoinType extends JoinType,
-> = <
-	TJoinedTable extends SingleStoreTable | Subquery | SQL, // | SingleStoreViewBase
-	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
->(
-	table: TJoinedTable,
-	on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
-) => SingleStoreJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
-
-export type SingleStoreCrossJoinFn<
-	T extends AnySingleStoreSelectQueryBuilder,
-	TDynamic extends boolean,
-	TJoinType extends JoinType,
-> = <
-	TJoinedTable extends SingleStoreTable | Subquery | SQL,
-	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
->(table: TJoinedTable) => SingleStoreJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
+> = 'cross' extends TJoinType ? <
+		TJoinedTable extends SingleStoreTable | Subquery | SQL,
+		TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
+	>(table: TJoinedTable) => SingleStoreJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>
+	: <
+		TJoinedTable extends SingleStoreTable | Subquery | SQL, // | SingleStoreViewBase
+		TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
+	>(
+		table: TJoinedTable,
+		on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
+	) => SingleStoreJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
 
 export type SelectedFieldsFlat = SelectedFieldsFlatBase<SingleStoreColumn>;
 

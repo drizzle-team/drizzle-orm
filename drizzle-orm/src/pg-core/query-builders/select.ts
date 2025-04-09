@@ -43,7 +43,6 @@ import type {
 	LockStrength,
 	PgCreateSetOperatorFn,
 	PgSelectConfig,
-	PgSelectCrossJoinFn,
 	PgSelectDynamic,
 	PgSelectHKT,
 	PgSelectHKTBase,
@@ -215,12 +214,10 @@ export abstract class PgSelectQueryBuilderBase<
 
 	private createJoin<TJoinType extends JoinType>(
 		joinType: TJoinType,
-	): TJoinType extends 'cross' ? PgSelectCrossJoinFn<this, TDynamic, TJoinType>
-		: PgSelectJoinFn<this, TDynamic, TJoinType>
-	{
+	): PgSelectJoinFn<this, TDynamic, TJoinType> {
 		return ((
 			table: PgTable | Subquery | PgViewBase | SQL,
-			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
+			on?: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
 		) => {
 			const baseTableName = this.tableName;
 			const tableName = getTableLikeName(table);

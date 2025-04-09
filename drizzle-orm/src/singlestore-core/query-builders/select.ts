@@ -42,7 +42,6 @@ import type {
 	SelectedFields,
 	SetOperatorRightSelect,
 	SingleStoreCreateSetOperatorFn,
-	SingleStoreCrossJoinFn,
 	SingleStoreJoinFn,
 	SingleStoreSelectConfig,
 	SingleStoreSelectDynamic,
@@ -195,12 +194,10 @@ export abstract class SingleStoreSelectQueryBuilderBase<
 
 	private createJoin<TJoinType extends JoinType>(
 		joinType: TJoinType,
-	): TJoinType extends 'cross' ? SingleStoreCrossJoinFn<this, TDynamic, TJoinType>
-		: SingleStoreJoinFn<this, TDynamic, TJoinType>
-	{
-		return ((
+	): SingleStoreJoinFn<this, TDynamic, TJoinType> {
+		return (
 			table: SingleStoreTable | Subquery | SQL, // | SingleStoreViewBase
-			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
+			on?: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
 		) => {
 			const baseTableName = this.tableName;
 			const tableName = getTableLikeName(table);
@@ -254,6 +251,7 @@ export abstract class SingleStoreSelectQueryBuilderBase<
 						this.joinsNotNullableMap[tableName] = true;
 						break;
 					}
+					case 'cross':
 					case 'inner': {
 						this.joinsNotNullableMap[tableName] = true;
 						break;
@@ -269,7 +267,7 @@ export abstract class SingleStoreSelectQueryBuilderBase<
 			}
 
 			return this as any;
-		}) as any;
+		};
 	}
 
 	/**

@@ -4198,13 +4198,14 @@ describe('some', async () => {
 				city: citiesTable.name,
 			})
 			.from(usersTable)
-			.crossJoin(citiesTable);
+			.crossJoin(citiesTable)
+			.orderBy(usersTable.name, citiesTable.name);
 
 		expect(result).toStrictEqual([
-			{ city: 'Seattle', user: 'John' },
+			{ city: 'New York City', user: 'Jane' },
 			{ city: 'Seattle', user: 'Jane' },
 			{ city: 'New York City', user: 'John' },
-			{ city: 'New York City', user: 'Jane' },
+			{ city: 'Seattle', user: 'John' },
 		]);
 	});
 
