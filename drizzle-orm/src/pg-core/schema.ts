@@ -1,8 +1,12 @@
 import { entityKind, is } from '~/entity.ts';
+import { SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
+import type { pgEnum } from './columns/enum.ts';
+import { pgEnumWithSchema } from './columns/enum.ts';
+import { type pgSequence, pgSequenceWithSchema } from './sequence.ts';
 import { type PgTableFn, pgTableWithSchema } from './table.ts';
 import { type pgMaterializedView, pgMaterializedViewWithSchema, type pgView, pgViewWithSchema } from './view.ts';
 
-export class PgSchema<TName extends string = string> {
+export class PgSchema<TName extends string = string> implements SQLWrapper {
 	static readonly [entityKind]: string = 'PgSchema';
 	constructor(
 		public readonly schemaName: TName,
@@ -19,6 +23,22 @@ export class PgSchema<TName extends string = string> {
 	materializedView = ((name, columns) => {
 		return pgMaterializedViewWithSchema(name, columns, this.schemaName);
 	}) as typeof pgMaterializedView;
+
+	enum: typeof pgEnum = ((name, values) => {
+		return pgEnumWithSchema(name, values, this.schemaName);
+	});
+
+	sequence: typeof pgSequence = ((name, options) => {
+		return pgSequenceWithSchema(name, options, this.schemaName);
+	});
+
+	getSQL(): SQL {
+		return new SQL([sql.identifier(this.schemaName)]);
+	}
+
+	shouldOmitSQLParens(): boolean {
+		return true;
+	}
 }
 
 export function isPgSchema(obj: unknown): obj is PgSchema {

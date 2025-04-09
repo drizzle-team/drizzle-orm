@@ -21,12 +21,15 @@ import {
 	notLike,
 	or,
 } from '~/expressions.ts';
-import { param, sql } from '~/sql/sql.ts';
+import { type InferSelectViewModel, param, sql } from '~/sql/sql.ts';
 import { alias } from '~/sqlite-core/alias.ts';
 
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
+import { integer, text } from '~/sqlite-core/index.ts';
 import type { SQLiteSelect, SQLiteSelectQueryBuilder } from '~/sqlite-core/query-builders/select.types.ts';
+import { sqliteTable } from '~/sqlite-core/table.ts';
+import { sqliteView } from '~/sqlite-core/view.ts';
 import { db } from './db.ts';
 import { cities, classes, newYorkers, users } from './tables.ts';
 
@@ -578,4 +581,41 @@ Expect<
 		.limit(10)
 		// @ts-expect-error method was already called
 		.offset(10);
+}
+
+{
+	const table1 = sqliteTable('table1', {
+		id: integer().primaryKey(),
+		name: text().notNull(),
+	});
+	const table2 = sqliteTable('table2', {
+		id: integer().primaryKey(),
+		age: integer().notNull(),
+	});
+	const table3 = sqliteTable('table3', {
+		id: integer().primaryKey(),
+		phone: text().notNull(),
+	});
+	const view = sqliteView('view').as((qb) =>
+		qb.select({
+			table: table1,
+			column: table2.age,
+			nested: {
+				column: table3.phone,
+			},
+		}).from(table1).innerJoin(table2, sql``).leftJoin(table3, sql``)
+	);
+	const result = await db.select().from(view);
+
+	Expect<
+		Equal<typeof result, {
+			table: typeof table1.$inferSelect;
+			column: number;
+			nested: {
+				column: string | null;
+			};
+		}[]>
+	>;
+	Expect<Equal<typeof result, typeof view.$inferSelect[]>>;
+	Expect<Equal<typeof result, InferSelectViewModel<typeof view>[]>>;
 }
