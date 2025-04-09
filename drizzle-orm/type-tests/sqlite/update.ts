@@ -6,7 +6,7 @@ import { sql } from '~/sql/sql.ts';
 import type { SQLiteUpdate } from '~/sqlite-core/query-builders/update.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
 import { bunDb, db } from './db.ts';
-import { users } from './tables.ts';
+import { cities, users } from './tables.ts';
 
 const updateRun = db.update(users)
 	.set({
@@ -132,4 +132,66 @@ Expect<Equal<typeof users.$inferSelect, typeof updateGetReturningAllBun>>;
 		.where(sql``)
 		// @ts-expect-error method was already called
 		.where(sql``);
+}
+
+{
+	db
+		.update(users)
+		.set({})
+		.from(sql``)
+		.leftJoin(sql``, (table, from) => {
+			Expect<Equal<typeof users['_']['columns'], typeof table>>;
+			Expect<Equal<never, typeof from>>;
+			return sql``;
+		});
+
+	db
+		.update(users)
+		.set({})
+		.from(cities)
+		.leftJoin(sql``, (table, from) => {
+			Expect<Equal<typeof users['_']['columns'], typeof table>>;
+			Expect<Equal<typeof cities['_']['columns'], typeof from>>;
+			return sql``;
+		});
+
+	const citiesSq = db.$with('cities_sq').as(db.select({ id: cities.id }).from(cities));
+
+	db
+		.with(citiesSq)
+		.update(users)
+		.set({})
+		.from(citiesSq)
+		.leftJoin(sql``, (table, from) => {
+			Expect<Equal<typeof users['_']['columns'], typeof table>>;
+			Expect<Equal<typeof citiesSq['_']['selectedFields'], typeof from>>;
+			return sql``;
+		});
+
+	db
+		.with(citiesSq)
+		.update(users)
+		.set({
+			homeCity: citiesSq.id,
+		})
+		.from(citiesSq);
+}
+
+{
+	const result = await db.update(users).set({}).from(cities).returning();
+	Expect<
+		Equal<typeof users.$inferSelect[], typeof result>
+	>;
+}
+
+{
+	const result = await db.update(users).set({}).from(cities).returning({
+		id: users.id,
+	});
+	Expect<
+		Equal<{
+			id: number;
+		}[], typeof result>
+	>;
+	db.update(users).set({}).where(sql``).limit(1).orderBy(sql``);
 }
