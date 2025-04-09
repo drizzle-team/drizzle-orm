@@ -461,6 +461,8 @@ export type SQLChunk =
 	| FakePrimitiveParam
 	| Placeholder;
 
+export type SQLGenerator<T = unknown> = typeof sql<T>;
+
 export function sql<T>(strings: TemplateStringsArray, ...params: any[]): SQL<T>;
 /*
 	The type of `params` is specified as `SQLChunk[]`, but that's slightly incorrect -

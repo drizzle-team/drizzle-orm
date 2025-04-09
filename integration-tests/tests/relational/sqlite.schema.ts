@@ -2,6 +2,7 @@ import {
 	alias,
 	type AnySQLiteColumn,
 	blob,
+	customType,
 	integer,
 	numeric,
 	primaryKey,
@@ -193,4 +194,62 @@ export const studentGrades = sqliteTable('student_grades', {
 	courseId: integer('course_id').notNull(),
 	semester: text().notNull(),
 	grade: text(),
+});
+
+const customBigInt = customType<{
+	data: bigint;
+	driverData: Buffer;
+	jsonData: string;
+}>({
+	dataType: () => 'blob',
+	fromDriver: (value) => {
+		return BigInt(value.toString());
+	},
+	fromJson: (value) => {
+		return BigInt(Buffer.from(value, 'hex').toString());
+	},
+	toDriver: (value) => Buffer.from(value.toString()),
+});
+
+const customBytes = customType<{
+	data: Buffer;
+	driverData: Buffer;
+	jsonData: string;
+}>({
+	dataType: () => 'blob',
+	fromJson: (value) => {
+		return Buffer.from(value, 'hex');
+	},
+	forJsonSelect: (identifier, sql) => {
+		return sql`hex(${identifier})`;
+	},
+});
+
+const customTimestamp = customType<{
+	data: Date;
+	driverData: number;
+	jsonData: number;
+}>({
+	dataType: () => 'integer',
+	fromDriver: (value: number) => {
+		return new Date(value);
+	},
+	toDriver: (value: Date) => {
+		return value.getTime();
+	},
+});
+
+const customInt = customType<{
+	data: number;
+	driverData: number;
+}>({
+	dataType: () => 'integer',
+});
+
+export const customTypesTable = sqliteTable('custom_types', {
+	id: integer('id'),
+	big: customBigInt(),
+	bytes: customBytes(),
+	time: customTimestamp(),
+	int: customInt(),
 });
