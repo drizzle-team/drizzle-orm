@@ -1,9 +1,9 @@
 import { entityKind, is } from '~/entity.ts';
 import type { MySqlColumn } from '~/mysql-core/columns/index.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
-import type { MySqlSession, PreparedQueryConfig, PreparedQueryHKTBase } from '~/mysql-core/session.ts';
+import type { MySqlPreparedQueryConfig, MySqlSession, PreparedQueryHKTBase } from '~/mysql-core/session.ts';
 import type { SubqueryWithSelection } from '~/mysql-core/subquery.ts';
-import type { MySqlTable } from '~/mysql-core/table.ts';
+import { MySqlTable } from '~/mysql-core/table.ts';
 import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	BuildSubquerySelection,
@@ -17,13 +17,15 @@ import type {
 } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { ColumnsSelection, Query } from '~/sql/sql.ts';
+import type { ColumnsSelection, Placeholder, Query } from '~/sql/sql.ts';
 import { SQL, View } from '~/sql/sql.ts';
-import { Subquery, SubqueryConfig } from '~/subquery.ts';
+import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
-import { applyMixins, getTableColumns, getTableLikeName, haveSameKeys, type ValueOrArray } from '~/utils.ts';
-import { orderSelectedFields } from '~/utils.ts';
+import type { ValueOrArray } from '~/utils.ts';
+import { applyMixins, getTableColumns, getTableLikeName, haveSameKeys, orderSelectedFields } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import type { IndexBuilder } from '../indexes.ts';
+import { convertIndexToString, toArray } from '../utils.ts';
 import { MySqlViewBase } from '../view-base.ts';
 import type {
 	AnyMySqlSelect,
@@ -45,6 +47,14 @@ import type {
 	SelectedFields,
 	SetOperatorRightSelect,
 } from './select.types.ts';
+
+export type IndexForHint = IndexBuilder | string;
+
+export type IndexConfig = {
+	useIndex?: IndexForHint | IndexForHint[];
+	forceIndex?: IndexForHint | IndexForHint[];
+	ignoreIndex?: IndexForHint | IndexForHint[];
+};
 
 export class MySqlSelectBuilder<
 	TSelection extends SelectedFields | undefined,
@@ -79,6 +89,8 @@ export class MySqlSelectBuilder<
 
 	from<TFrom extends MySqlTable | Subquery | MySqlViewBase | SQL>(
 		source: TFrom,
+		onIndex?: TFrom extends MySqlTable ? IndexConfig
+			: 'Index hint configuration is allowed only for MySqlTable and not for subqueries or views',
 	): CreateMySqlSelectFromBuilderMode<
 		TBuilderMode,
 		GetSelectTableName<TFrom>,
@@ -94,7 +106,7 @@ export class MySqlSelectBuilder<
 		} else if (is(source, Subquery)) {
 			// This is required to use the proxy handler to get the correct field values from the subquery
 			fields = Object.fromEntries(
-				Object.keys(source[SubqueryConfig].selection).map((
+				Object.keys(source._.selectedFields).map((
 					key,
 				) => [key, source[key as unknown as keyof typeof source] as unknown as SelectedFields[string]]),
 			);
@@ -106,6 +118,21 @@ export class MySqlSelectBuilder<
 			fields = getTableColumns<MySqlTable>(source);
 		}
 
+		let useIndex: string[] = [];
+		let forceIndex: string[] = [];
+		let ignoreIndex: string[] = [];
+		if (is(source, MySqlTable) && onIndex && typeof onIndex !== 'string') {
+			if (onIndex.useIndex) {
+				useIndex = convertIndexToString(toArray(onIndex.useIndex));
+			}
+			if (onIndex.forceIndex) {
+				forceIndex = convertIndexToString(toArray(onIndex.forceIndex));
+			}
+			if (onIndex.ignoreIndex) {
+				ignoreIndex = convertIndexToString(toArray(onIndex.ignoreIndex));
+			}
+		}
+
 		return new MySqlSelectBase(
 			{
 				table: source,
@@ -115,6 +142,9 @@ export class MySqlSelectBuilder<
 				dialect: this.dialect,
 				withList: this.withList,
 				distinct: this.distinct,
+				useIndex,
+				forceIndex,
+				ignoreIndex,
 			},
 		) as any;
 	}
@@ -133,7 +163,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends TypedQueryBuilder<TSelectedFields, TResult> {
-	static readonly [entityKind]: string = 'MySqlSelectQueryBuilder';
+	static override readonly [entityKind]: string = 'MySqlSelectQueryBuilder';
 
 	override readonly _: {
 		readonly hkt: THKT;
@@ -157,7 +187,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	protected dialect: MySqlDialect;
 
 	constructor(
-		{ table, fields, isPartialSelect, session, dialect, withList, distinct }: {
+		{ table, fields, isPartialSelect, session, dialect, withList, distinct, useIndex, forceIndex, ignoreIndex }: {
 			table: MySqlSelectConfig['table'];
 			fields: MySqlSelectConfig['fields'];
 			isPartialSelect: boolean;
@@ -165,6 +195,9 @@ export abstract class MySqlSelectQueryBuilderBase<
 			dialect: MySqlDialect;
 			withList: Subquery[];
 			distinct: boolean | undefined;
+			useIndex?: string[];
+			forceIndex?: string[];
+			ignoreIndex?: string[];
 		},
 	) {
 		super();
@@ -174,6 +207,9 @@ export abstract class MySqlSelectQueryBuilderBase<
 			fields: { ...fields },
 			distinct,
 			setOperators: [],
+			useIndex,
+			forceIndex,
+			ignoreIndex,
 		};
 		this.isPartialSelect = isPartialSelect;
 		this.session = session;
@@ -188,9 +224,13 @@ export abstract class MySqlSelectQueryBuilderBase<
 	private createJoin<TJoinType extends JoinType>(
 		joinType: TJoinType,
 	): TJoinType extends 'cross' ? MySqlCrossJoinFn<this, TDynamic, TJoinType> : MySqlJoinFn<this, TDynamic, TJoinType> {
-		return ((
+		return (<
+			TJoinedTable extends MySqlTable | Subquery | MySqlViewBase | SQL,
+		>(
 			table: MySqlTable | Subquery | MySqlViewBase | SQL,
 			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
+			onIndex?: TJoinedTable extends MySqlTable ? IndexConfig
+				: 'Index hint configuration is allowed only for MySqlTable and not for subqueries or views',
 		) => {
 			const baseTableName = this.tableName;
 			const tableName = getTableLikeName(table);
@@ -208,7 +248,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 				}
 				if (typeof tableName === 'string' && !is(table, SQL)) {
 					const selection = is(table, Subquery)
-						? table[SubqueryConfig].selection
+						? table._.selectedFields
 						: is(table, View)
 						? table[ViewBaseConfig].selectedFields
 						: table[Table.Symbol.Columns];
@@ -229,7 +269,22 @@ export abstract class MySqlSelectQueryBuilderBase<
 				this.config.joins = [];
 			}
 
-			this.config.joins.push({ on, table, joinType, alias: tableName });
+			let useIndex: string[] = [];
+			let forceIndex: string[] = [];
+			let ignoreIndex: string[] = [];
+			if (is(table, MySqlTable) && onIndex && typeof onIndex !== 'string') {
+				if (onIndex.useIndex) {
+					useIndex = convertIndexToString(toArray(onIndex.useIndex));
+				}
+				if (onIndex.forceIndex) {
+					forceIndex = convertIndexToString(toArray(onIndex.forceIndex));
+				}
+				if (onIndex.ignoreIndex) {
+					ignoreIndex = convertIndexToString(toArray(onIndex.ignoreIndex));
+				}
+			}
+
+			this.config.joins.push({ on, table, joinType, alias: tableName, useIndex, forceIndex, ignoreIndex });
 
 			if (typeof tableName === 'string') {
 				switch (joinType) {
@@ -265,22 +320,22 @@ export abstract class MySqlSelectQueryBuilderBase<
 
 	/**
 	 * Executes a `left join` operation by adding another table to the current query.
-	 * 
+	 *
 	 * Calling this method associates each row of the table with the corresponding row from the joined table, if a match is found. If no matching row exists, it sets all columns of the joined table to null.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/joins#left-join}
-	 * 
+	 *
 	 * @param table the table to join.
 	 * @param on the `on` clause.
-	 * 
+	 *
 	 * @example
-	 * 
+	 *
 	 * ```ts
 	 * // Select all users and their pets
 	 * const usersWithPets: { user: User; pets: Pet | null; }[] = await db.select()
 	 *   .from(users)
 	 *   .leftJoin(pets, eq(users.id, pets.ownerId))
-	 * 
+	 *
 	 * // Select userId and petId
 	 * const usersIdsAndPetIds: { userId: number; petId: number | null; }[] = await db.select({
 	 *   userId: users.id,
@@ -288,28 +343,38 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 * })
 	 *   .from(users)
 	 *   .leftJoin(pets, eq(users.id, pets.ownerId))
+	 *
+	 * // Select userId and petId with use index hint
+	 * const usersIdsAndPetIds: { userId: number; petId: number | null }[] = await db.select({
+	 *   userId: users.id,
+	 *   petId: pets.id,
+	 * })
+	 *   .from(users)
+	 *   .leftJoin(pets, eq(users.id, pets.ownerId), {
+	 *     useIndex: ['pets_owner_id_index']
+	 * })
 	 * ```
 	 */
 	leftJoin = this.createJoin('left');
-	
+
 	/**
 	 * Executes a `right join` operation by adding another table to the current query.
-	 * 
+	 *
 	 * Calling this method associates each row of the joined table with the corresponding row from the main table, if a match is found. If no matching row exists, it sets all columns of the main table to null.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/joins#right-join}
-	 * 
+	 *
 	 * @param table the table to join.
 	 * @param on the `on` clause.
-	 * 
+	 *
 	 * @example
-	 * 
+	 *
 	 * ```ts
 	 * // Select all users and their pets
 	 * const usersWithPets: { user: User | null; pets: Pet; }[] = await db.select()
 	 *   .from(users)
 	 *   .rightJoin(pets, eq(users.id, pets.ownerId))
-	 * 
+	 *
 	 * // Select userId and petId
 	 * const usersIdsAndPetIds: { userId: number | null; petId: number; }[] = await db.select({
 	 *   userId: users.id,
@@ -317,28 +382,38 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 * })
 	 *   .from(users)
 	 *   .rightJoin(pets, eq(users.id, pets.ownerId))
+	 *
+	 * // Select userId and petId with use index hint
+	 * const usersIdsAndPetIds: { userId: number; petId: number | null }[] = await db.select({
+	 *   userId: users.id,
+	 *   petId: pets.id,
+	 * })
+	 *   .from(users)
+	 *   .leftJoin(pets, eq(users.id, pets.ownerId), {
+	 *     useIndex: ['pets_owner_id_index']
+	 * })
 	 * ```
 	 */
 	rightJoin = this.createJoin('right');
 
 	/**
 	 * Executes an `inner join` operation, creating a new table by combining rows from two tables that have matching values.
-	 * 
+	 *
 	 * Calling this method retrieves rows that have corresponding entries in both joined tables. Rows without matching entries in either table are excluded, resulting in a table that includes only matching pairs.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/joins#inner-join}
-	 * 
+	 *
 	 * @param table the table to join.
 	 * @param on the `on` clause.
-	 * 
+	 *
 	 * @example
-	 * 
+	 *
 	 * ```ts
 	 * // Select all users and their pets
 	 * const usersWithPets: { user: User; pets: Pet; }[] = await db.select()
 	 *   .from(users)
 	 *   .innerJoin(pets, eq(users.id, pets.ownerId))
-	 * 
+	 *
 	 * // Select userId and petId
 	 * const usersIdsAndPetIds: { userId: number; petId: number; }[] = await db.select({
 	 *   userId: users.id,
@@ -346,28 +421,38 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 * })
 	 *   .from(users)
 	 *   .innerJoin(pets, eq(users.id, pets.ownerId))
+	 *
+	 * // Select userId and petId with use index hint
+	 * const usersIdsAndPetIds: { userId: number; petId: number | null }[] = await db.select({
+	 *   userId: users.id,
+	 *   petId: pets.id,
+	 * })
+	 *   .from(users)
+	 *   .leftJoin(pets, eq(users.id, pets.ownerId), {
+	 *     useIndex: ['pets_owner_id_index']
+	 * })
 	 * ```
 	 */
 	innerJoin = this.createJoin('inner');
-	
+
 	/**
 	 * Executes a `full join` operation by combining rows from two tables into a new table.
-	 * 
+	 *
 	 * Calling this method retrieves all rows from both main and joined tables, merging rows with matching values and filling in `null` for non-matching columns.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/joins#full-join}
-	 * 
+	 *
 	 * @param table the table to join.
 	 * @param on the `on` clause.
-	 * 
+	 *
 	 * @example
-	 * 
+	 *
 	 * ```ts
 	 * // Select all users and their pets
 	 * const usersWithPets: { user: User | null; pets: Pet | null; }[] = await db.select()
 	 *   .from(users)
 	 *   .fullJoin(pets, eq(users.id, pets.ownerId))
-	 * 
+	 *
 	 * // Select userId and petId
 	 * const usersIdsAndPetIds: { userId: number | null; petId: number | null; }[] = await db.select({
 	 *   userId: users.id,
@@ -375,27 +460,37 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 * })
 	 *   .from(users)
 	 *   .fullJoin(pets, eq(users.id, pets.ownerId))
+	 *
+	 * // Select userId and petId with use index hint
+	 * const usersIdsAndPetIds: { userId: number; petId: number | null }[] = await db.select({
+	 *   userId: users.id,
+	 *   petId: pets.id,
+	 * })
+	 *   .from(users)
+	 *   .leftJoin(pets, eq(users.id, pets.ownerId), {
+	 *     useIndex: ['pets_owner_id_index']
+	 * })
 	 * ```
 	 */
 	fullJoin = this.createJoin('full');
 
 	/**
 	 * Executes a `cross join` operation by combining rows from two tables into a new table.
-	 * 
+	 *
 	 * Calling this method retrieves all rows from both main and joined tables, merging all rows from each table.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/joins#full-join}
-	 * 
+	 *
 	 * @param table the table to join.
-	 * 
+	 *
 	 * @example
-	 * 
+	 *
 	 * ```ts
 	 * // Select all users, each user with every pet
 	 * const usersWithPets: { user: User; pets: Pet; }[] = await db.select()
 	 *   .from(users)
 	 *   .crossJoin(pets)
-	 * 
+	 *
 	 * // Select userId and petId
 	 * const usersIdsAndPetIds: { userId: number; petId: number; }[] = await db.select({
 	 *   userId: users.id,
@@ -441,13 +536,13 @@ export abstract class MySqlSelectQueryBuilderBase<
 
 	/**
 	 * Adds `union` set operator to the query.
-	 * 
+	 *
 	 * Calling this method will combine the result sets of the `select` statements and remove any duplicate rows that appear across them.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/set-operations#union}
-	 * 
+	 *
 	 * @example
-	 * 
+	 *
 	 * ```ts
 	 * // Select all unique names from customers and users tables
 	 * await db.select({ name: users.name })
@@ -457,9 +552,9 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 *   );
 	 * // or
 	 * import { union } from 'drizzle-orm/mysql-core'
-	 * 
+	 *
 	 * await union(
-	 *   db.select({ name: users.name }).from(users), 
+	 *   db.select({ name: users.name }).from(users),
 	 *   db.select({ name: customers.name }).from(customers)
 	 * );
 	 * ```
@@ -468,13 +563,13 @@ export abstract class MySqlSelectQueryBuilderBase<
 
 	/**
 	 * Adds `union all` set operator to the query.
-	 * 
+	 *
 	 * Calling this method will combine the result-set of the `select` statements and keep all duplicate rows that appear across them.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/set-operations#union-all}
-	 * 
+	 *
 	 * @example
-	 * 
+	 *
 	 * ```ts
 	 * // Select all transaction ids from both online and in-store sales
 	 * await db.select({ transaction: onlineSales.transactionId })
@@ -484,7 +579,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 *   );
 	 * // or
 	 * import { unionAll } from 'drizzle-orm/mysql-core'
-	 * 
+	 *
 	 * await unionAll(
 	 *   db.select({ transaction: onlineSales.transactionId }).from(onlineSales),
 	 *   db.select({ transaction: inStoreSales.transactionId }).from(inStoreSales)
@@ -495,13 +590,13 @@ export abstract class MySqlSelectQueryBuilderBase<
 
 	/**
 	 * Adds `intersect` set operator to the query.
-	 * 
+	 *
 	 * Calling this method will retain only the rows that are present in both result sets and eliminate duplicates.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/set-operations#intersect}
-	 * 
+	 *
 	 * @example
-	 * 
+	 *
 	 * ```ts
 	 * // Select course names that are offered in both departments A and B
 	 * await db.select({ courseName: depA.courseName })
@@ -511,7 +606,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 *   );
 	 * // or
 	 * import { intersect } from 'drizzle-orm/mysql-core'
-	 * 
+	 *
 	 * await intersect(
 	 *   db.select({ courseName: depA.courseName }).from(depA),
 	 *   db.select({ courseName: depB.courseName }).from(depB)
@@ -522,30 +617,30 @@ export abstract class MySqlSelectQueryBuilderBase<
 
 	/**
 	 * Adds `intersect all` set operator to the query.
-	 * 
+	 *
 	 * Calling this method will retain only the rows that are present in both result sets including all duplicates.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/set-operations#intersect-all}
-	 * 
+	 *
 	 * @example
-	 * 
+	 *
 	 * ```ts
 	 * // Select all products and quantities that are ordered by both regular and VIP customers
-	 * await db.select({ 
-	 *   productId: regularCustomerOrders.productId, 
+	 * await db.select({
+	 *   productId: regularCustomerOrders.productId,
 	 *   quantityOrdered: regularCustomerOrders.quantityOrdered
 	 * })
 	 * .from(regularCustomerOrders)
 	 * .intersectAll(
-	 *   db.select({ 
-	 *     productId: vipCustomerOrders.productId, 
-	 *     quantityOrdered: vipCustomerOrders.quantityOrdered 
+	 *   db.select({
+	 *     productId: vipCustomerOrders.productId,
+	 *     quantityOrdered: vipCustomerOrders.quantityOrdered
 	 *   })
 	 *   .from(vipCustomerOrders)
 	 * );
 	 * // or
 	 * import { intersectAll } from 'drizzle-orm/mysql-core'
-	 * 
+	 *
 	 * await intersectAll(
 	 *   db.select({
 	 *     productId: regularCustomerOrders.productId,
@@ -564,13 +659,13 @@ export abstract class MySqlSelectQueryBuilderBase<
 
 	/**
 	 * Adds `except` set operator to the query.
-	 * 
+	 *
 	 * Calling this method will retrieve all unique rows from the left query, except for the rows that are present in the result set of the right query.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/set-operations#except}
-	 * 
+	 *
 	 * @example
-	 * 
+	 *
 	 * ```ts
 	 * // Select all courses offered in department A but not in department B
 	 * await db.select({ courseName: depA.courseName })
@@ -580,7 +675,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 *   );
 	 * // or
 	 * import { except } from 'drizzle-orm/mysql-core'
-	 * 
+	 *
 	 * await except(
 	 *   db.select({ courseName: depA.courseName }).from(depA),
 	 *   db.select({ courseName: depB.courseName }).from(depB)
@@ -591,13 +686,13 @@ export abstract class MySqlSelectQueryBuilderBase<
 
 	/**
 	 * Adds `except all` set operator to the query.
-	 * 
+	 *
 	 * Calling this method will retrieve all rows from the left query, except for the rows that are present in the result set of the right query.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/set-operations#except-all}
-	 * 
+	 *
 	 * @example
-	 * 
+	 *
 	 * ```ts
 	 * // Select all products that are ordered by regular customers but not by VIP customers
 	 * await db.select({
@@ -614,7 +709,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 * );
 	 * // or
 	 * import { exceptAll } from 'drizzle-orm/mysql-core'
-	 * 
+	 *
 	 * await exceptAll(
 	 *   db.select({
 	 *     productId: regularCustomerOrders.productId,
@@ -642,35 +737,35 @@ export abstract class MySqlSelectQueryBuilderBase<
 		return this as any;
 	}
 
-	/** 
+	/**
 	 * Adds a `where` clause to the query.
-	 * 
+	 *
 	 * Calling this method will select only those rows that fulfill a specified condition.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/select#filtering}
-	 * 
+	 *
 	 * @param where the `where` clause.
-	 * 
+	 *
 	 * @example
 	 * You can use conditional operators and `sql function` to filter the rows to be selected.
-	 * 
+	 *
 	 * ```ts
 	 * // Select all cars with green color
 	 * await db.select().from(cars).where(eq(cars.color, 'green'));
 	 * // or
 	 * await db.select().from(cars).where(sql`${cars.color} = 'green'`)
 	 * ```
-	 * 
+	 *
 	 * You can logically combine conditional operators with `and()` and `or()` operators:
-	 * 
+	 *
 	 * ```ts
 	 * // Select all BMW cars with a green color
 	 * await db.select().from(cars).where(and(eq(cars.color, 'green'), eq(cars.brand, 'BMW')));
-	 * 
+	 *
 	 * // Select all cars with the green or blue color
 	 * await db.select().from(cars).where(or(eq(cars.color, 'green'), eq(cars.color, 'blue')));
 	 * ```
-	*/
+	 */
 	where(
 		where: ((aliases: this['_']['selection']) => SQL | undefined) | SQL | undefined,
 	): MySqlSelectWithout<this, TDynamic, 'where'> {
@@ -688,15 +783,15 @@ export abstract class MySqlSelectQueryBuilderBase<
 
 	/**
 	 * Adds a `having` clause to the query.
-	 * 
+	 *
 	 * Calling this method will select only those rows that fulfill a specified condition. It is typically used with aggregate functions to filter the aggregated data based on a specified condition.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/select#aggregations}
-	 * 
+	 *
 	 * @param having the `having` clause.
-	 * 
+	 *
 	 * @example
-	 * 
+	 *
 	 * ```ts
 	 * // Select all brands with more than one car
 	 * await db.select({
@@ -725,13 +820,13 @@ export abstract class MySqlSelectQueryBuilderBase<
 
 	/**
 	 * Adds a `group by` clause to the query.
-	 * 
+	 *
 	 * Calling this method will group rows that have the same values into summary rows, often used for aggregation purposes.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/select#aggregations}
 	 *
 	 * @example
-	 * 
+	 *
 	 * ```ts
 	 * // Group and count people by their last names
 	 * await db.select({
@@ -767,9 +862,9 @@ export abstract class MySqlSelectQueryBuilderBase<
 
 	/**
 	 * Adds an `order by` clause to the query.
-	 * 
+	 *
 	 * Calling this method will sort the result-set in ascending or descending order. By default, the sort order is ascending.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/select#order-by}
 	 *
 	 * @example
@@ -778,13 +873,13 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 * // Select cars ordered by year
 	 * await db.select().from(cars).orderBy(cars.year);
 	 * ```
-	 * 
+	 *
 	 * You can specify whether results are in ascending or descending order with the `asc()` and `desc()` operators.
-	 * 
+	 *
 	 * ```ts
 	 * // Select cars ordered by year in descending order
 	 * await db.select().from(cars).orderBy(desc(cars.year));
-	 * 
+	 *
 	 * // Select cars ordered by year and price
 	 * await db.select().from(cars).orderBy(asc(cars.year), desc(cars.price));
 	 * ```
@@ -827,13 +922,13 @@ export abstract class MySqlSelectQueryBuilderBase<
 
 	/**
 	 * Adds a `limit` clause to the query.
-	 * 
+	 *
 	 * Calling this method will set the maximum number of rows that will be returned by this query.
 	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/select#limit--offset}
-	 * 
+	 *
 	 * @param limit the `limit` clause.
-	 * 
+	 *
 	 * @example
 	 *
 	 * ```ts
@@ -841,7 +936,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 * await db.select().from(people).limit(10);
 	 * ```
 	 */
-	limit(limit: number): MySqlSelectWithout<this, TDynamic, 'limit'> {
+	limit(limit: number | Placeholder): MySqlSelectWithout<this, TDynamic, 'limit'> {
 		if (this.config.setOperators.length > 0) {
 			this.config.setOperators.at(-1)!.limit = limit;
 		} else {
@@ -852,13 +947,13 @@ export abstract class MySqlSelectQueryBuilderBase<
 
 	/**
 	 * Adds an `offset` clause to the query.
-	 * 
+	 *
 	 * Calling this method will skip a number of rows when returning results from this query.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/select#limit--offset}
-	 * 
+	 *
 	 * @param offset the `offset` clause.
-	 * 
+	 *
 	 * @example
 	 *
 	 * ```ts
@@ -866,7 +961,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 * await db.select().from(people).offset(10).limit(10);
 	 * ```
 	 */
-	offset(offset: number): MySqlSelectWithout<this, TDynamic, 'offset'> {
+	offset(offset: number | Placeholder): MySqlSelectWithout<this, TDynamic, 'offset'> {
 		if (this.config.setOperators.length > 0) {
 			this.config.setOperators.at(-1)!.offset = offset;
 		} else {
@@ -877,11 +972,11 @@ export abstract class MySqlSelectQueryBuilderBase<
 
 	/**
 	 * Adds a `for` clause to the query.
-	 * 
+	 *
 	 * Calling this method will specify a lock strength for this query that controls how strictly it acquires exclusive access to the rows being queried.
-	 * 
+	 *
 	 * See docs: {@link https://dev.mysql.com/doc/refman/8.0/en/innodb-locking-reads.html}
-	 * 
+	 *
 	 * @param strength the lock strength.
 	 * @param config the lock configuration.
 	 */
@@ -972,7 +1067,7 @@ export class MySqlSelectBase<
 	TResult,
 	TSelectedFields
 > {
-	static readonly [entityKind]: string = 'MySqlSelect';
+	static override readonly [entityKind]: string = 'MySqlSelect';
 
 	prepare(): MySqlSelectPrepare<this> {
 		if (!this.session) {
@@ -980,7 +1075,7 @@ export class MySqlSelectBase<
 		}
 		const fieldsList = orderSelectedFields<MySqlColumn>(this.config.fields);
 		const query = this.session.prepareQuery<
-			PreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] },
+			MySqlPreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] },
 			TPreparedQueryHKT
 		>(this.dialect.sqlToQuery(this.getSQL()), fieldsList);
 		query.joinsNotNullableMap = this.joinsNotNullableMap;
@@ -1034,19 +1129,19 @@ const getMySqlSetOperators = () => ({
 
 /**
  * Adds `union` set operator to the query.
- * 
+ *
  * Calling this method will combine the result sets of the `select` statements and remove any duplicate rows that appear across them.
- * 
+ *
  * See docs: {@link https://orm.drizzle.team/docs/set-operations#union}
- * 
+ *
  * @example
- * 
+ *
  * ```ts
  * // Select all unique names from customers and users tables
  * import { union } from 'drizzle-orm/mysql-core'
- * 
+ *
  * await union(
- *   db.select({ name: users.name }).from(users), 
+ *   db.select({ name: users.name }).from(users),
  *   db.select({ name: customers.name }).from(customers)
  * );
  * // or
@@ -1061,17 +1156,17 @@ export const union = createSetOperator('union', false);
 
 /**
  * Adds `union all` set operator to the query.
- * 
+ *
  * Calling this method will combine the result-set of the `select` statements and keep all duplicate rows that appear across them.
- * 
+ *
  * See docs: {@link https://orm.drizzle.team/docs/set-operations#union-all}
- * 
+ *
  * @example
- * 
+ *
  * ```ts
  * // Select all transaction ids from both online and in-store sales
  * import { unionAll } from 'drizzle-orm/mysql-core'
- * 
+ *
  * await unionAll(
  *   db.select({ transaction: onlineSales.transactionId }).from(onlineSales),
  *   db.select({ transaction: inStoreSales.transactionId }).from(inStoreSales)
@@ -1088,17 +1183,17 @@ export const unionAll = createSetOperator('union', true);
 
 /**
  * Adds `intersect` set operator to the query.
- * 
+ *
  * Calling this method will retain only the rows that are present in both result sets and eliminate duplicates.
- * 
+ *
  * See docs: {@link https://orm.drizzle.team/docs/set-operations#intersect}
- * 
+ *
  * @example
- * 
+ *
  * ```ts
  * // Select course names that are offered in both departments A and B
  * import { intersect } from 'drizzle-orm/mysql-core'
- * 
+ *
  * await intersect(
  *   db.select({ courseName: depA.courseName }).from(depA),
  *   db.select({ courseName: depB.courseName }).from(depB)
@@ -1115,17 +1210,17 @@ export const intersect = createSetOperator('intersect', false);
 
 /**
  * Adds `intersect all` set operator to the query.
- * 
+ *
  * Calling this method will retain only the rows that are present in both result sets including all duplicates.
- * 
+ *
  * See docs: {@link https://orm.drizzle.team/docs/set-operations#intersect-all}
- * 
+ *
  * @example
- * 
+ *
  * ```ts
  * // Select all products and quantities that are ordered by both regular and VIP customers
  * import { intersectAll } from 'drizzle-orm/mysql-core'
- * 
+ *
  * await intersectAll(
  *   db.select({
  *     productId: regularCustomerOrders.productId,
@@ -1139,15 +1234,15 @@ export const intersect = createSetOperator('intersect', false);
  *   .from(vipCustomerOrders)
  * );
  * // or
- * await db.select({ 
- *   productId: regularCustomerOrders.productId, 
+ * await db.select({
+ *   productId: regularCustomerOrders.productId,
  *   quantityOrdered: regularCustomerOrders.quantityOrdered
  * })
  * .from(regularCustomerOrders)
  * .intersectAll(
- *   db.select({ 
- *     productId: vipCustomerOrders.productId, 
- *     quantityOrdered: vipCustomerOrders.quantityOrdered 
+ *   db.select({
+ *     productId: vipCustomerOrders.productId,
+ *     quantityOrdered: vipCustomerOrders.quantityOrdered
  *   })
  *   .from(vipCustomerOrders)
  * );
@@ -1157,17 +1252,17 @@ export const intersectAll = createSetOperator('intersect', true);
 
 /**
  * Adds `except` set operator to the query.
- * 
+ *
  * Calling this method will retrieve all unique rows from the left query, except for the rows that are present in the result set of the right query.
- * 
+ *
  * See docs: {@link https://orm.drizzle.team/docs/set-operations#except}
- * 
+ *
  * @example
- * 
+ *
  * ```ts
  * // Select all courses offered in department A but not in department B
  * import { except } from 'drizzle-orm/mysql-core'
- * 
+ *
  * await except(
  *   db.select({ courseName: depA.courseName }).from(depA),
  *   db.select({ courseName: depB.courseName }).from(depB)
@@ -1184,17 +1279,17 @@ export const except = createSetOperator('except', false);
 
 /**
  * Adds `except all` set operator to the query.
- * 
+ *
  * Calling this method will retrieve all rows from the left query, except for the rows that are present in the result set of the right query.
- * 
+ *
  * See docs: {@link https://orm.drizzle.team/docs/set-operations#except-all}
- * 
+ *
  * @example
- * 
+ *
  * ```ts
  * // Select all products that are ordered by regular customers but not by VIP customers
  * import { exceptAll } from 'drizzle-orm/mysql-core'
- * 
+ *
  * await exceptAll(
  *   db.select({
  *     productId: regularCustomerOrders.productId,

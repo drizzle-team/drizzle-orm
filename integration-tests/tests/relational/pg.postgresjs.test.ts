@@ -10,7 +10,7 @@ import * as schema from './pg.schema.ts';
 
 const ENABLE_LOGGING = false;
 
-const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable } = schema;
+const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable, usersV1, usersTableV1 } = schema;
 
 /*
 	Test cases:
@@ -72,10 +72,12 @@ beforeAll(async () => {
 	do {
 		try {
 			client = postgres(connectionString, {
+				max: 1,
 				onnotice: () => {
 					// disable notices
 				},
 			});
+			await client`select 1`;
 			connected = true;
 			break;
 		} catch (e) {
@@ -105,7 +107,9 @@ beforeEach(async (ctx) => {
 	ctx.pgContainer = pgContainer;
 
 	await ctx.pgjsDb.execute(sql`drop schema public cascade`);
+	await ctx.pgjsDb.execute(sql`drop schema if exists "schemaV1" cascade`);
 	await ctx.pgjsDb.execute(sql`create schema public`);
+	await ctx.pgjsDb.execute(sql`create schema "schemaV1"`);
 	await ctx.pgjsDb.execute(
 		sql`
 			CREATE TABLE "users" (
@@ -113,6 +117,26 @@ beforeEach(async (ctx) => {
 				"name" text NOT NULL,
 				"verified" boolean DEFAULT false NOT NULL,
 				"invited_by" int REFERENCES "users"("id")
+			);
+		`,
+	);
+	await ctx.pgjsDb.execute(
+		sql`
+			CREATE TABLE "schemaV1"."usersV1" (
+				"id" serial PRIMARY KEY NOT NULL,
+				"name" text NOT NULL,
+				"verified" boolean DEFAULT false NOT NULL,
+				"invited_by" int
+			);
+		`,
+	);
+	await ctx.pgjsDb.execute(
+		sql`
+			CREATE TABLE "schemaV1"."users_table_V1" (
+				"id" serial PRIMARY KEY NOT NULL,
+				"name" text NOT NULL,
+				"verified" boolean DEFAULT false NOT NULL,
+				"invited_by" int
 			);
 		`,
 	);
@@ -4087,6 +4111,101 @@ test('Get user with posts and posts with comments and comments with owner', asyn
 	});
 });
 
+test('Get user with posts and posts with comments and comments with owner where exists', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(postsTable).values([
+		{ id: 1, ownerId: 1, content: 'Post1' },
+		{ id: 2, ownerId: 2, content: 'Post2' },
+		{ id: 3, ownerId: 3, content: 'Post3' },
+	]);
+
+	await db.insert(commentsTable).values([
+		{ postId: 1, content: 'Comment1', creator: 2 },
+		{ postId: 2, content: 'Comment2', creator: 2 },
+		{ postId: 3, content: 'Comment3', creator: 3 },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		with: {
+			posts: {
+				with: {
+					comments: {
+						with: {
+							author: true,
+						},
+					},
+				},
+			},
+		},
+		where: (table, { notExists, eq }) =>
+			notExists(db.select({ one: sql`1` }).from(usersTable).where(eq(sql`1`, table.id))),
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+		posts: {
+			id: number;
+			content: string;
+			ownerId: number | null;
+			createdAt: Date;
+			comments: {
+				id: number;
+				content: string;
+				createdAt: Date;
+				creator: number | null;
+				postId: number | null;
+				author: {
+					id: number;
+					name: string;
+					verified: boolean;
+					invitedBy: number | null;
+				} | null;
+			}[];
+		}[];
+	}[]>();
+
+	expect(response.length).eq(2);
+	expect(response[0]?.posts.length).eq(1);
+
+	expect(response[0]?.posts[0]?.comments.length).eq(1);
+
+	expect(response[0]).toEqual({
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+		posts: [{
+			id: 2,
+			ownerId: 2,
+			content: 'Post2',
+			createdAt: response[0]?.posts[0]?.createdAt,
+			comments: [
+				{
+					id: 2,
+					content: 'Comment2',
+					creator: 2,
+					author: {
+						id: 2,
+						name: 'Andrew',
+						verified: false,
+						invitedBy: null,
+					},
+					postId: 2,
+					createdAt: response[0]?.posts[0]?.comments[0]?.createdAt,
+				},
+			],
+		}],
+	});
+});
+
 /*
 	One three-level relation + 1 first-level relatioon
 	1. users+posts+comments+comment_owner
@@ -6163,6 +6282,88 @@ test('Get groups with users + custom', async (t) => {
 				invitedBy: null,
 			},
 		}],
+	});
+});
+
+test('[Find Many] Get schema users - dbName & tsName match', async (t) => {
+	const { pgjsDb: db } = t;
+
+	await db.insert(usersV1).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	const schemaUsers = await db.query.usersV1.findMany();
+
+	expectTypeOf(schemaUsers).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+	}[]>();
+
+	schemaUsers.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(schemaUsers.length).eq(3);
+	expect(schemaUsers[0]).toEqual({
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+	});
+	expect(schemaUsers[1]).toEqual({
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+	});
+	expect(schemaUsers[2]).toEqual({
+		id: 3,
+		name: 'Alex',
+		verified: false,
+		invitedBy: null,
+	});
+});
+
+test('[Find Many] Get schema users - dbName & tsName mismatch', async (t) => {
+	const { pgjsDb: db } = t;
+
+	await db.insert(usersTableV1).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	const schemaUsers = await db.query.usersTableV1.findMany();
+
+	expectTypeOf(schemaUsers).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+	}[]>();
+
+	schemaUsers.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(schemaUsers.length).eq(3);
+	expect(schemaUsers[0]).toEqual({
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+	});
+	expect(schemaUsers[1]).toEqual({
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+	});
+	expect(schemaUsers[2]).toEqual({
+		id: 3,
+		name: 'Alex',
+		verified: false,
+		invitedBy: null,
 	});
 });
 

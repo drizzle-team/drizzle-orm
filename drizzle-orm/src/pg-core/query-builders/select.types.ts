@@ -23,8 +23,8 @@ import type {
 import type { ColumnsSelection, Placeholder, SQL, SQLWrapper, View } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { Table, UpdateTableConfig } from '~/table.ts';
-import type { Assume, ValidateShape, ValueOrArray } from '~/utils.ts';
-import type { PreparedQuery, PreparedQueryConfig } from '../session.ts';
+import type { Assume, DrizzleTypeError, Equal, ValidateShape, ValueOrArray } from '~/utils.ts';
+import type { PgPreparedQuery, PreparedQueryConfig } from '../session.ts';
 import type { PgSelectBase, PgSelectQueryBuilderBase } from './select.ts';
 
 export interface PgSelectJoinConfig {
@@ -79,7 +79,11 @@ export interface PgSelectConfig {
 	}[];
 }
 
-export type PgJoin<
+export type TableLikeHasEmptySelection<T extends PgTable | Subquery | PgViewBase | SQL> = T extends Subquery
+	? Equal<T['_']['selectedFields'], {}> extends true ? true : false
+	: false;
+
+export type PgSelectJoin<
 	T extends AnyPgSelectQueryBuilder,
 	TDynamic extends boolean,
 	TJoinType extends JoinType,
@@ -94,7 +98,7 @@ export type PgJoin<
 				T['_']['selection'],
 				TJoinedName,
 				TJoinedTable extends Table ? TJoinedTable['_']['columns']
-					: TJoinedTable extends Subquery ? Assume<TJoinedTable['_']['selectedFields'], SelectedFields>
+					: TJoinedTable extends Subquery | View ? Assume<TJoinedTable['_']['selectedFields'], SelectedFields>
 					: never,
 				T['_']['selectMode']
 			>,
@@ -108,7 +112,7 @@ export type PgJoin<
 	>
 	: never;
 
-export type PgJoinFn<
+export type PgSelectJoinFn<
 	T extends AnyPgSelectQueryBuilder,
 	TDynamic extends boolean,
 	TJoinType extends JoinType,
@@ -116,18 +120,21 @@ export type PgJoinFn<
 	TJoinedTable extends PgTable | Subquery | PgViewBase | SQL,
 	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
 >(
-	table: TJoinedTable,
+	table: TableLikeHasEmptySelection<TJoinedTable> extends true ? DrizzleTypeError<
+			"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
+		>
+		: TJoinedTable,
 	on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
-) => PgJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
+) => PgSelectJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
 
-export type PgCrossJoinFn<
+export type PgSelectCrossJoinFn<
 	T extends AnyPgSelectQueryBuilder,
 	TDynamic extends boolean,
 	TJoinType extends JoinType,
 > = <
 	TJoinedTable extends PgTable | Subquery | PgViewBase | SQL,
 	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
->(table: TJoinedTable) => PgJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
+>(table: TJoinedTable) => PgSelectJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
 
 export type SelectedFieldsFlat = SelectedFieldsFlatBase<PgColumn>;
 
@@ -250,7 +257,7 @@ export type PgSelectWithout<
 	TResetExcluded extends true ? K : T['_']['excludedMethods'] | K
 >;
 
-export type PgSelectPrepare<T extends AnyPgSelect> = PreparedQuery<
+export type PgSelectPrepare<T extends AnyPgSelect> = PgPreparedQuery<
 	PreparedQueryConfig & {
 		execute: T['_']['result'];
 	}

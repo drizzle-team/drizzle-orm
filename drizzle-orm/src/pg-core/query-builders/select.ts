@@ -17,13 +17,22 @@ import type {
 	SetOperator,
 } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
+import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { SQL, View } from '~/sql/sql.ts';
 import type { ColumnsSelection, Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
-import { Subquery, SubqueryConfig } from '~/subquery.ts';
+import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
-import { applyMixins, getTableColumns, getTableLikeName, haveSameKeys, type ValueOrArray } from '~/utils.ts';
+import {
+	applyMixins,
+	type DrizzleTypeError,
+	getTableColumns,
+	getTableLikeName,
+	haveSameKeys,
+	type NeonAuthToken,
+	type ValueOrArray,
+} from '~/utils.ts';
 import { orderSelectedFields } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type {
@@ -33,18 +42,19 @@ import type {
 	LockConfig,
 	LockStrength,
 	PgCreateSetOperatorFn,
-	PgCrossJoinFn,
-	PgJoinFn,
 	PgSelectConfig,
+	PgSelectCrossJoinFn,
 	PgSelectDynamic,
 	PgSelectHKT,
 	PgSelectHKTBase,
+	PgSelectJoinFn,
 	PgSelectPrepare,
 	PgSelectWithout,
 	PgSetOperatorExcludedMethods,
 	PgSetOperatorWithResult,
 	SelectedFields,
 	SetOperatorRightSelect,
+	TableLikeHasEmptySelection,
 } from './select.types.ts';
 
 export class PgSelectBuilder<
@@ -81,6 +91,13 @@ export class PgSelectBuilder<
 		this.distinct = config.distinct;
 	}
 
+	private authToken?: NeonAuthToken;
+	/** @internal */
+	setToken(token?: NeonAuthToken) {
+		this.authToken = token;
+		return this;
+	}
+
 	/**
 	 * Specify the table, subquery, or other target that you're
 	 * building a select query against.
@@ -88,7 +105,10 @@ export class PgSelectBuilder<
 	 * {@link https://www.postgresql.org/docs/current/sql-select.html#SQL-FROM | Postgres from documentation}
 	 */
 	from<TFrom extends PgTable | Subquery | PgViewBase | SQL>(
-		source: TFrom,
+		source: TableLikeHasEmptySelection<TFrom> extends true ? DrizzleTypeError<
+				"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
+			>
+			: TFrom,
 	): CreatePgSelectFromBuilderMode<
 		TBuilderMode,
 		GetSelectTableName<TFrom>,
@@ -96,34 +116,35 @@ export class PgSelectBuilder<
 		TSelection extends undefined ? 'single' : 'partial'
 	> {
 		const isPartialSelect = !!this.fields;
+		const src = source as TFrom;
 
 		let fields: SelectedFields;
 		if (this.fields) {
 			fields = this.fields;
-		} else if (is(source, Subquery)) {
+		} else if (is(src, Subquery)) {
 			// This is required to use the proxy handler to get the correct field values from the subquery
 			fields = Object.fromEntries(
-				Object.keys(source[SubqueryConfig].selection).map((
+				Object.keys(src._.selectedFields).map((
 					key,
-				) => [key, source[key as unknown as keyof typeof source] as unknown as SelectedFields[string]]),
+				) => [key, src[key as unknown as keyof typeof src] as unknown as SelectedFields[string]]),
 			);
-		} else if (is(source, PgViewBase)) {
-			fields = source[ViewBaseConfig].selectedFields as SelectedFields;
-		} else if (is(source, SQL)) {
+		} else if (is(src, PgViewBase)) {
+			fields = src[ViewBaseConfig].selectedFields as SelectedFields;
+		} else if (is(src, SQL)) {
 			fields = {};
 		} else {
-			fields = getTableColumns<PgTable>(source);
+			fields = getTableColumns<PgTable>(src);
 		}
 
-		return new PgSelectBase({
-			table: source,
+		return (new PgSelectBase({
+			table: src,
 			fields,
 			isPartialSelect,
 			session: this.session,
 			dialect: this.dialect,
 			withList: this.withList,
 			distinct: this.distinct,
-		}) as any;
+		}).setToken(this.authToken)) as any;
 	}
 }
 
@@ -139,9 +160,10 @@ export abstract class PgSelectQueryBuilderBase<
 	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends TypedQueryBuilder<TSelectedFields, TResult> {
-	static readonly [entityKind]: string = 'PgSelectQueryBuilder';
+	static override readonly [entityKind]: string = 'PgSelectQueryBuilder';
 
 	override readonly _: {
+		readonly dialect: 'pg';
 		readonly hkt: THKT;
 		readonly tableName: TTableName;
 		readonly selection: TSelection;
@@ -193,7 +215,9 @@ export abstract class PgSelectQueryBuilderBase<
 
 	private createJoin<TJoinType extends JoinType>(
 		joinType: TJoinType,
-	): TJoinType extends 'cross' ? PgCrossJoinFn<this, TDynamic, TJoinType> : PgJoinFn<this, TDynamic, TJoinType> {
+	): TJoinType extends 'cross' ? PgSelectCrossJoinFn<this, TDynamic, TJoinType>
+		: PgSelectJoinFn<this, TDynamic, TJoinType>
+	{
 		return ((
 			table: PgTable | Subquery | PgViewBase | SQL,
 			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
@@ -214,7 +238,7 @@ export abstract class PgSelectQueryBuilderBase<
 				}
 				if (typeof tableName === 'string' && !is(table, SQL)) {
 					const selection = is(table, Subquery)
-						? table[SubqueryConfig].selection
+						? table._.selectedFields
 						: is(table, View)
 						? table[ViewBaseConfig].selectedFields
 						: table[Table.Symbol.Columns];
@@ -271,22 +295,22 @@ export abstract class PgSelectQueryBuilderBase<
 
 	/**
 	 * Executes a `left join` operation by adding another table to the current query.
-	 * 
+	 *
 	 * Calling this method associates each row of the table with the corresponding row from the joined table, if a match is found. If no matching row exists, it sets all columns of the joined table to null.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/joins#left-join}
-	 * 
+	 *
 	 * @param table the table to join.
 	 * @param on the `on` clause.
-	 * 
+	 *
 	 * @example
-	 * 
+	 *
 	 * ```ts
 	 * // Select all users and their pets
 	 * const usersWithPets: { user: User; pets: Pet | null; }[] = await db.select()
 	 *   .from(users)
 	 *   .leftJoin(pets, eq(users.id, pets.ownerId))
-	 * 
+	 *
 	 * // Select userId and petId
 	 * const usersIdsAndPetIds: { userId: number; petId: number | null; }[] = await db.select({
 	 *   userId: users.id,
@@ -300,22 +324,22 @@ export abstract class PgSelectQueryBuilderBase<
 
 	/**
 	 * Executes a `right join` operation by adding another table to the current query.
-	 * 
+	 *
 	 * Calling this method associates each row of the joined table with the corresponding row from the main table, if a match is found. If no matching row exists, it sets all columns of the main table to null.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/joins#right-join}
-	 * 
+	 *
 	 * @param table the table to join.
 	 * @param on the `on` clause.
-	 * 
+	 *
 	 * @example
-	 * 
+	 *
 	 * ```ts
 	 * // Select all users and their pets
 	 * const usersWithPets: { user: User | null; pets: Pet; }[] = await db.select()
 	 *   .from(users)
 	 *   .rightJoin(pets, eq(users.id, pets.ownerId))
-	 * 
+	 *
 	 * // Select userId and petId
 	 * const usersIdsAndPetIds: { userId: number | null; petId: number; }[] = await db.select({
 	 *   userId: users.id,
@@ -329,22 +353,22 @@ export abstract class PgSelectQueryBuilderBase<
 
 	/**
 	 * Executes an `inner join` operation, creating a new table by combining rows from two tables that have matching values.
-	 * 
+	 *
 	 * Calling this method retrieves rows that have corresponding entries in both joined tables. Rows without matching entries in either table are excluded, resulting in a table that includes only matching pairs.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/joins#inner-join}
-	 * 
+	 *
 	 * @param table the table to join.
 	 * @param on the `on` clause.
-	 * 
+	 *
 	 * @example
-	 * 
+	 *
 	 * ```ts
 	 * // Select all users and their pets
 	 * const usersWithPets: { user: User; pets: Pet; }[] = await db.select()
 	 *   .from(users)
 	 *   .innerJoin(pets, eq(users.id, pets.ownerId))
-	 * 
+	 *
 	 * // Select userId and petId
 	 * const usersIdsAndPetIds: { userId: number; petId: number; }[] = await db.select({
 	 *   userId: users.id,
@@ -358,22 +382,22 @@ export abstract class PgSelectQueryBuilderBase<
 
 	/**
 	 * Executes a `full join` operation by combining rows from two tables into a new table.
-	 * 
+	 *
 	 * Calling this method retrieves all rows from both main and joined tables, merging rows with matching values and filling in `null` for non-matching columns.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/joins#full-join}
-	 * 
+	 *
 	 * @param table the table to join.
 	 * @param on the `on` clause.
-	 * 
+	 *
 	 * @example
-	 * 
+	 *
 	 * ```ts
 	 * // Select all users and their pets
 	 * const usersWithPets: { user: User | null; pets: Pet | null; }[] = await db.select()
 	 *   .from(users)
 	 *   .fullJoin(pets, eq(users.id, pets.ownerId))
-	 * 
+	 *
 	 * // Select userId and petId
 	 * const usersIdsAndPetIds: { userId: number | null; petId: number | null; }[] = await db.select({
 	 *   userId: users.id,
@@ -387,21 +411,21 @@ export abstract class PgSelectQueryBuilderBase<
 
 	/**
 	 * Executes a `cross join` operation by combining rows from two tables into a new table.
-	 * 
+	 *
 	 * Calling this method retrieves all rows from both main and joined tables, merging all rows from each table.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/joins#full-join}
-	 * 
+	 *
 	 * @param table the table to join.
-	 * 
+	 *
 	 * @example
-	 * 
+	 *
 	 * ```ts
 	 * // Select all users, each user with every pet
 	 * const usersWithPets: { user: User; pets: Pet; }[] = await db.select()
 	 *   .from(users)
 	 *   .crossJoin(pets)
-	 * 
+	 *
 	 * // Select userId and petId
 	 * const usersIdsAndPetIds: { userId: number; petId: number; }[] = await db.select({
 	 *   userId: users.id,
@@ -447,13 +471,13 @@ export abstract class PgSelectQueryBuilderBase<
 
 	/**
 	 * Adds `union` set operator to the query.
-	 * 
+	 *
 	 * Calling this method will combine the result sets of the `select` statements and remove any duplicate rows that appear across them.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/set-operations#union}
-	 * 
+	 *
 	 * @example
-	 * 
+	 *
 	 * ```ts
 	 * // Select all unique names from customers and users tables
 	 * await db.select({ name: users.name })
@@ -463,9 +487,9 @@ export abstract class PgSelectQueryBuilderBase<
 	 *   );
 	 * // or
 	 * import { union } from 'drizzle-orm/pg-core'
-	 * 
+	 *
 	 * await union(
-	 *   db.select({ name: users.name }).from(users), 
+	 *   db.select({ name: users.name }).from(users),
 	 *   db.select({ name: customers.name }).from(customers)
 	 * );
 	 * ```
@@ -474,13 +498,13 @@ export abstract class PgSelectQueryBuilderBase<
 
 	/**
 	 * Adds `union all` set operator to the query.
-	 * 
+	 *
 	 * Calling this method will combine the result-set of the `select` statements and keep all duplicate rows that appear across them.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/set-operations#union-all}
-	 * 
+	 *
 	 * @example
-	 * 
+	 *
 	 * ```ts
 	 * // Select all transaction ids from both online and in-store sales
 	 * await db.select({ transaction: onlineSales.transactionId })
@@ -490,7 +514,7 @@ export abstract class PgSelectQueryBuilderBase<
 	 *   );
 	 * // or
 	 * import { unionAll } from 'drizzle-orm/pg-core'
-	 * 
+	 *
 	 * await unionAll(
 	 *   db.select({ transaction: onlineSales.transactionId }).from(onlineSales),
 	 *   db.select({ transaction: inStoreSales.transactionId }).from(inStoreSales)
@@ -501,13 +525,13 @@ export abstract class PgSelectQueryBuilderBase<
 
 	/**
 	 * Adds `intersect` set operator to the query.
-	 * 
+	 *
 	 * Calling this method will retain only the rows that are present in both result sets and eliminate duplicates.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/set-operations#intersect}
-	 * 
+	 *
 	 * @example
-	 * 
+	 *
 	 * ```ts
 	 * // Select course names that are offered in both departments A and B
 	 * await db.select({ courseName: depA.courseName })
@@ -517,7 +541,7 @@ export abstract class PgSelectQueryBuilderBase<
 	 *   );
 	 * // or
 	 * import { intersect } from 'drizzle-orm/pg-core'
-	 * 
+	 *
 	 * await intersect(
 	 *   db.select({ courseName: depA.courseName }).from(depA),
 	 *   db.select({ courseName: depB.courseName }).from(depB)
@@ -525,33 +549,33 @@ export abstract class PgSelectQueryBuilderBase<
 	 * ```
 	 */
 	intersect = this.createSetOperator('intersect', false);
-	
+
 	/**
 	 * Adds `intersect all` set operator to the query.
-	 * 
+	 *
 	 * Calling this method will retain only the rows that are present in both result sets including all duplicates.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/set-operations#intersect-all}
-	 * 
+	 *
 	 * @example
-	 * 
+	 *
 	 * ```ts
 	 * // Select all products and quantities that are ordered by both regular and VIP customers
-	 * await db.select({ 
-	 *   productId: regularCustomerOrders.productId, 
+	 * await db.select({
+	 *   productId: regularCustomerOrders.productId,
 	 *   quantityOrdered: regularCustomerOrders.quantityOrdered
 	 * })
 	 * .from(regularCustomerOrders)
 	 * .intersectAll(
-	 *   db.select({ 
-	 *     productId: vipCustomerOrders.productId, 
-	 *     quantityOrdered: vipCustomerOrders.quantityOrdered 
+	 *   db.select({
+	 *     productId: vipCustomerOrders.productId,
+	 *     quantityOrdered: vipCustomerOrders.quantityOrdered
 	 *   })
 	 *   .from(vipCustomerOrders)
 	 * );
 	 * // or
 	 * import { intersectAll } from 'drizzle-orm/pg-core'
-	 * 
+	 *
 	 * await intersectAll(
 	 *   db.select({
 	 *     productId: regularCustomerOrders.productId,
@@ -570,13 +594,13 @@ export abstract class PgSelectQueryBuilderBase<
 
 	/**
 	 * Adds `except` set operator to the query.
-	 * 
+	 *
 	 * Calling this method will retrieve all unique rows from the left query, except for the rows that are present in the result set of the right query.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/set-operations#except}
-	 * 
+	 *
 	 * @example
-	 * 
+	 *
 	 * ```ts
 	 * // Select all courses offered in department A but not in department B
 	 * await db.select({ courseName: depA.courseName })
@@ -586,7 +610,7 @@ export abstract class PgSelectQueryBuilderBase<
 	 *   );
 	 * // or
 	 * import { except } from 'drizzle-orm/pg-core'
-	 * 
+	 *
 	 * await except(
 	 *   db.select({ courseName: depA.courseName }).from(depA),
 	 *   db.select({ courseName: depB.courseName }).from(depB)
@@ -597,13 +621,13 @@ export abstract class PgSelectQueryBuilderBase<
 
 	/**
 	 * Adds `except all` set operator to the query.
-	 * 
+	 *
 	 * Calling this method will retrieve all rows from the left query, except for the rows that are present in the result set of the right query.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/set-operations#except-all}
-	 * 
+	 *
 	 * @example
-	 * 
+	 *
 	 * ```ts
 	 * // Select all products that are ordered by regular customers but not by VIP customers
 	 * await db.select({
@@ -620,7 +644,7 @@ export abstract class PgSelectQueryBuilderBase<
 	 * );
 	 * // or
 	 * import { exceptAll } from 'drizzle-orm/pg-core'
-	 * 
+	 *
 	 * await exceptAll(
 	 *   db.select({
 	 *     productId: regularCustomerOrders.productId,
@@ -648,35 +672,35 @@ export abstract class PgSelectQueryBuilderBase<
 		return this as any;
 	}
 
-	/** 
+	/**
 	 * Adds a `where` clause to the query.
-	 * 
+	 *
 	 * Calling this method will select only those rows that fulfill a specified condition.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/select#filtering}
-	 * 
+	 *
 	 * @param where the `where` clause.
-	 * 
+	 *
 	 * @example
 	 * You can use conditional operators and `sql function` to filter the rows to be selected.
-	 * 
+	 *
 	 * ```ts
 	 * // Select all cars with green color
 	 * await db.select().from(cars).where(eq(cars.color, 'green'));
 	 * // or
 	 * await db.select().from(cars).where(sql`${cars.color} = 'green'`)
 	 * ```
-	 * 
+	 *
 	 * You can logically combine conditional operators with `and()` and `or()` operators:
-	 * 
+	 *
 	 * ```ts
 	 * // Select all BMW cars with a green color
 	 * await db.select().from(cars).where(and(eq(cars.color, 'green'), eq(cars.brand, 'BMW')));
-	 * 
+	 *
 	 * // Select all cars with the green or blue color
 	 * await db.select().from(cars).where(or(eq(cars.color, 'green'), eq(cars.color, 'blue')));
 	 * ```
-	*/
+	 */
 	where(
 		where: ((aliases: this['_']['selection']) => SQL | undefined) | SQL | undefined,
 	): PgSelectWithout<this, TDynamic, 'where'> {
@@ -694,15 +718,15 @@ export abstract class PgSelectQueryBuilderBase<
 
 	/**
 	 * Adds a `having` clause to the query.
-	 * 
+	 *
 	 * Calling this method will select only those rows that fulfill a specified condition. It is typically used with aggregate functions to filter the aggregated data based on a specified condition.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/select#aggregations}
-	 * 
+	 *
 	 * @param having the `having` clause.
-	 * 
+	 *
 	 * @example
-	 * 
+	 *
 	 * ```ts
 	 * // Select all brands with more than one car
 	 * await db.select({
@@ -731,13 +755,13 @@ export abstract class PgSelectQueryBuilderBase<
 
 	/**
 	 * Adds a `group by` clause to the query.
-	 * 
+	 *
 	 * Calling this method will group rows that have the same values into summary rows, often used for aggregation purposes.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/select#aggregations}
 	 *
 	 * @example
-	 * 
+	 *
 	 * ```ts
 	 * // Group and count people by their last names
 	 * await db.select({
@@ -773,9 +797,9 @@ export abstract class PgSelectQueryBuilderBase<
 
 	/**
 	 * Adds an `order by` clause to the query.
-	 * 
+	 *
 	 * Calling this method will sort the result-set in ascending or descending order. By default, the sort order is ascending.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/select#order-by}
 	 *
 	 * @example
@@ -784,13 +808,13 @@ export abstract class PgSelectQueryBuilderBase<
 	 * // Select cars ordered by year
 	 * await db.select().from(cars).orderBy(cars.year);
 	 * ```
-	 * 
+	 *
 	 * You can specify whether results are in ascending or descending order with the `asc()` and `desc()` operators.
-	 * 
+	 *
 	 * ```ts
 	 * // Select cars ordered by year in descending order
 	 * await db.select().from(cars).orderBy(desc(cars.year));
-	 * 
+	 *
 	 * // Select cars ordered by year and price
 	 * await db.select().from(cars).orderBy(asc(cars.year), desc(cars.price));
 	 * ```
@@ -833,13 +857,13 @@ export abstract class PgSelectQueryBuilderBase<
 
 	/**
 	 * Adds a `limit` clause to the query.
-	 * 
+	 *
 	 * Calling this method will set the maximum number of rows that will be returned by this query.
 	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/select#limit--offset}
-	 * 
+	 *
 	 * @param limit the `limit` clause.
-	 * 
+	 *
 	 * @example
 	 *
 	 * ```ts
@@ -858,13 +882,13 @@ export abstract class PgSelectQueryBuilderBase<
 
 	/**
 	 * Adds an `offset` clause to the query.
-	 * 
+	 *
 	 * Calling this method will skip a number of rows when returning results from this query.
-	 * 
+	 *
 	 * See docs: {@link https://orm.drizzle.team/docs/select#limit--offset}
-	 * 
+	 *
 	 * @param offset the `offset` clause.
-	 * 
+	 *
 	 * @example
 	 *
 	 * ```ts
@@ -883,11 +907,11 @@ export abstract class PgSelectQueryBuilderBase<
 
 	/**
 	 * Adds a `for` clause to the query.
-	 * 
+	 *
 	 * Calling this method will specify a lock strength for this query that controls how strictly it acquires exclusive access to the rows being queried.
-	 * 
+	 *
 	 * See docs: {@link https://www.postgresql.org/docs/current/sql-select.html#SQL-FOR-UPDATE-SHARE}
-	 * 
+	 *
 	 * @param strength the lock strength.
 	 * @param config the lock configuration.
 	 */
@@ -950,7 +974,8 @@ export interface PgSelectBase<
 		TResult,
 		TSelectedFields
 	>,
-	QueryPromise<TResult>
+	QueryPromise<TResult>,
+	SQLWrapper
 {}
 
 export class PgSelectBase<
@@ -973,11 +998,12 @@ export class PgSelectBase<
 	TExcludedMethods,
 	TResult,
 	TSelectedFields
-> {
-	static readonly [entityKind]: string = 'PgSelect';
+> implements RunnableQuery<TResult, 'pg'>, SQLWrapper {
+	static override readonly [entityKind]: string = 'PgSelect';
 
-	private _prepare(name?: string): PgSelectPrepare<this> {
-		const { session, config, dialect, joinsNotNullableMap } = this;
+	/** @internal */
+	_prepare(name?: string): PgSelectPrepare<this> {
+		const { session, config, dialect, joinsNotNullableMap, authToken } = this;
 		if (!session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
@@ -985,9 +1011,10 @@ export class PgSelectBase<
 			const fieldsList = orderSelectedFields<PgColumn>(config.fields);
 			const query = session.prepareQuery<
 				PreparedQueryConfig & { execute: TResult }
-			>(dialect.sqlToQuery(this.getSQL()), fieldsList, name);
+			>(dialect.sqlToQuery(this.getSQL()), fieldsList, name, true);
 			query.joinsNotNullableMap = joinsNotNullableMap;
-			return query;
+
+			return query.setToken(authToken);
 		});
 	}
 
@@ -1002,9 +1029,16 @@ export class PgSelectBase<
 		return this._prepare(name);
 	}
 
+	private authToken?: NeonAuthToken;
+	/** @internal */
+	setToken(token?: NeonAuthToken) {
+		this.authToken = token;
+		return this;
+	}
+
 	execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
 		return tracer.startActiveSpan('drizzle.operation', () => {
-			return this._prepare().execute(placeholderValues);
+			return this._prepare().execute(placeholderValues, this.authToken);
 		});
 	};
 }
@@ -1042,19 +1076,19 @@ const getPgSetOperators = () => ({
 
 /**
  * Adds `union` set operator to the query.
- * 
+ *
  * Calling this method will combine the result sets of the `select` statements and remove any duplicate rows that appear across them.
- * 
+ *
  * See docs: {@link https://orm.drizzle.team/docs/set-operations#union}
- * 
+ *
  * @example
- * 
+ *
  * ```ts
  * // Select all unique names from customers and users tables
  * import { union } from 'drizzle-orm/pg-core'
- * 
+ *
  * await union(
- *   db.select({ name: users.name }).from(users), 
+ *   db.select({ name: users.name }).from(users),
  *   db.select({ name: customers.name }).from(customers)
  * );
  * // or
@@ -1069,17 +1103,17 @@ export const union = createSetOperator('union', false);
 
 /**
  * Adds `union all` set operator to the query.
- * 
+ *
  * Calling this method will combine the result-set of the `select` statements and keep all duplicate rows that appear across them.
- * 
+ *
  * See docs: {@link https://orm.drizzle.team/docs/set-operations#union-all}
- * 
+ *
  * @example
- * 
+ *
  * ```ts
  * // Select all transaction ids from both online and in-store sales
  * import { unionAll } from 'drizzle-orm/pg-core'
- * 
+ *
  * await unionAll(
  *   db.select({ transaction: onlineSales.transactionId }).from(onlineSales),
  *   db.select({ transaction: inStoreSales.transactionId }).from(inStoreSales)
@@ -1096,17 +1130,17 @@ export const unionAll = createSetOperator('union', true);
 
 /**
  * Adds `intersect` set operator to the query.
- * 
+ *
  * Calling this method will retain only the rows that are present in both result sets and eliminate duplicates.
- * 
+ *
  * See docs: {@link https://orm.drizzle.team/docs/set-operations#intersect}
- * 
+ *
  * @example
- * 
+ *
  * ```ts
  * // Select course names that are offered in both departments A and B
  * import { intersect } from 'drizzle-orm/pg-core'
- * 
+ *
  * await intersect(
  *   db.select({ courseName: depA.courseName }).from(depA),
  *   db.select({ courseName: depB.courseName }).from(depB)
@@ -1123,17 +1157,17 @@ export const intersect = createSetOperator('intersect', false);
 
 /**
  * Adds `intersect all` set operator to the query.
- * 
+ *
  * Calling this method will retain only the rows that are present in both result sets including all duplicates.
- * 
+ *
  * See docs: {@link https://orm.drizzle.team/docs/set-operations#intersect-all}
- * 
+ *
  * @example
- * 
+ *
  * ```ts
  * // Select all products and quantities that are ordered by both regular and VIP customers
  * import { intersectAll } from 'drizzle-orm/pg-core'
- * 
+ *
  * await intersectAll(
  *   db.select({
  *     productId: regularCustomerOrders.productId,
@@ -1147,15 +1181,15 @@ export const intersect = createSetOperator('intersect', false);
  *   .from(vipCustomerOrders)
  * );
  * // or
- * await db.select({ 
- *   productId: regularCustomerOrders.productId, 
+ * await db.select({
+ *   productId: regularCustomerOrders.productId,
  *   quantityOrdered: regularCustomerOrders.quantityOrdered
  * })
  * .from(regularCustomerOrders)
  * .intersectAll(
- *   db.select({ 
- *     productId: vipCustomerOrders.productId, 
- *     quantityOrdered: vipCustomerOrders.quantityOrdered 
+ *   db.select({
+ *     productId: vipCustomerOrders.productId,
+ *     quantityOrdered: vipCustomerOrders.quantityOrdered
  *   })
  *   .from(vipCustomerOrders)
  * );
@@ -1165,17 +1199,17 @@ export const intersectAll = createSetOperator('intersect', true);
 
 /**
  * Adds `except` set operator to the query.
- * 
+ *
  * Calling this method will retrieve all unique rows from the left query, except for the rows that are present in the result set of the right query.
- * 
+ *
  * See docs: {@link https://orm.drizzle.team/docs/set-operations#except}
- * 
+ *
  * @example
- * 
+ *
  * ```ts
  * // Select all courses offered in department A but not in department B
  * import { except } from 'drizzle-orm/pg-core'
- * 
+ *
  * await except(
  *   db.select({ courseName: depA.courseName }).from(depA),
  *   db.select({ courseName: depB.courseName }).from(depB)
@@ -1192,17 +1226,17 @@ export const except = createSetOperator('except', false);
 
 /**
  * Adds `except all` set operator to the query.
- * 
+ *
  * Calling this method will retrieve all rows from the left query, except for the rows that are present in the result set of the right query.
- * 
+ *
  * See docs: {@link https://orm.drizzle.team/docs/set-operations#except-all}
- * 
+ *
  * @example
- * 
+ *
  * ```ts
  * // Select all products that are ordered by regular customers but not by VIP customers
  * import { exceptAll } from 'drizzle-orm/pg-core'
- * 
+ *
  * await exceptAll(
  *   db.select({
  *     productId: regularCustomerOrders.productId,
