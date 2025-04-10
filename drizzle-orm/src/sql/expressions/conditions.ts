@@ -272,15 +272,15 @@ export function inArray<T>(
 ): SQL;
 export function inArray<TColumn extends Column>(
 	column: TColumn,
-	values: (GetColumnData<TColumn, 'raw'> | Placeholder)[] | SQLWrapper,
+	values: ReadonlyArray<GetColumnData<TColumn, 'raw'> | Placeholder> | SQLWrapper,
 ): SQL;
 export function inArray<T extends SQLWrapper>(
 	column: Exclude<T, SQL.Aliased | Column>,
-	values: (unknown | Placeholder)[] | SQLWrapper,
+	values: ReadonlyArray<unknown | Placeholder> | SQLWrapper,
 ): SQL;
 export function inArray(
 	column: SQLWrapper,
-	values: (unknown | Placeholder)[] | SQLWrapper,
+	values: ReadonlyArray<unknown | Placeholder> | SQLWrapper,
 ): SQL {
 	if (Array.isArray(values)) {
 		if (values.length === 0) {
@@ -526,7 +526,7 @@ export function notBetween(
  *
  * @see ilike for a case-insensitive version of this condition
  */
-export function like(column: Column, value: string | SQLWrapper): SQL {
+export function like(column: Column | SQL.Aliased | SQL, value: string | SQLWrapper): SQL {
 	return sql`${column} like ${value}`;
 }
 
@@ -548,7 +548,7 @@ export function like(column: Column, value: string | SQLWrapper): SQL {
  * @see like for the inverse condition
  * @see notIlike for a case-insensitive version of this condition
  */
-export function notLike(column: Column, value: string | SQLWrapper): SQL {
+export function notLike(column: Column | SQL.Aliased | SQL, value: string | SQLWrapper): SQL {
 	return sql`${column} not like ${value}`;
 }
 
@@ -571,7 +571,7 @@ export function notLike(column: Column, value: string | SQLWrapper): SQL {
  *
  * @see like for a case-sensitive version of this condition
  */
-export function ilike(column: Column, value: string | SQLWrapper): SQL {
+export function ilike(column: Column | SQL.Aliased | SQL, value: string | SQLWrapper): SQL {
 	return sql`${column} ilike ${value}`;
 }
 
@@ -593,7 +593,7 @@ export function ilike(column: Column, value: string | SQLWrapper): SQL {
  * @see ilike for the inverse condition
  * @see notLike for a case-sensitive version of this condition
  */
-export function notIlike(column: Column, value: string | SQLWrapper): SQL {
+export function notIlike(column: Column | SQL.Aliased | SQL, value: string | SQLWrapper): SQL {
 	return sql`${column} not ilike ${value}`;
 }
 

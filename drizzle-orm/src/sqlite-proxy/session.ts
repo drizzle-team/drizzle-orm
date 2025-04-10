@@ -27,7 +27,7 @@ export class SQLiteRemoteSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends SQLiteSession<'async', SqliteRemoteResult, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'SQLiteRemoteSession';
+	static override readonly [entityKind]: string = 'SQLiteRemoteSession';
 
 	private logger: Logger;
 
@@ -108,7 +108,7 @@ export class SQLiteProxyTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 > extends SQLiteTransaction<'async', SqliteRemoteResult, TFullSchema, TSchema> {
-	static readonly [entityKind]: string = 'SQLiteProxyTransaction';
+	static override readonly [entityKind]: string = 'SQLiteProxyTransaction';
 
 	override async transaction<T>(
 		transaction: (tx: SQLiteProxyTransaction<TFullSchema, TSchema>) => Promise<T>,
@@ -130,7 +130,7 @@ export class SQLiteProxyTransaction<
 export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends SQLitePreparedQuery<
 	{ type: 'async'; run: SqliteRemoteResult; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
 > {
-	static readonly [entityKind]: string = 'SQLiteProxyPreparedQuery';
+	static override readonly [entityKind]: string = 'SQLiteProxyPreparedQuery';
 
 	private method: SQLiteExecuteMethod;
 

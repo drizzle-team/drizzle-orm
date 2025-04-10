@@ -47,15 +47,9 @@ function tableNameWithSchemaFrom(
 	renamedSchemas: Record<string, string>,
 	renamedTables: Record<string, string>,
 ) {
-	const newSchemaName = schema
-		? renamedSchemas[schema]
-			? renamedSchemas[schema]
-			: schema
-		: undefined;
+	const newSchemaName = schema ? (renamedSchemas[schema] ? renamedSchemas[schema] : schema) : undefined;
 
-	const newTableName = renamedTables[
-			concatSchemaAndTableName(newSchemaName, tableName)
-		]
+	const newTableName = renamedTables[concatSchemaAndTableName(newSchemaName, tableName)]
 		? renamedTables[concatSchemaAndTableName(newSchemaName, tableName)]
 		: tableName;
 
@@ -71,6 +65,7 @@ export const pgSuggestions = async (db: DB, statements: JsonStatement[]) => {
 	const columnsToRemove: string[] = [];
 	const schemasToRemove: string[] = [];
 	const tablesToTruncate: string[] = [];
+	const matViewsToRemove: string[] = [];
 
 	let renamedSchemas: Record<string, string> = {};
 	let renamedTables: Record<string, string> = {};
@@ -79,53 +74,44 @@ export const pgSuggestions = async (db: DB, statements: JsonStatement[]) => {
 		if (statement.type === 'rename_schema') {
 			renamedSchemas[statement.to] = statement.from;
 		} else if (statement.type === 'rename_table') {
-			renamedTables[
-				concatSchemaAndTableName(statement.toSchema, statement.tableNameTo)
-			] = statement.tableNameFrom;
+			renamedTables[concatSchemaAndTableName(statement.toSchema, statement.tableNameTo)] = statement.tableNameFrom;
 		} else if (statement.type === 'drop_table') {
 			const res = await db.query(
 				`select count(*) as count from ${
-					tableNameWithSchemaFrom(
-						statement.schema,
-						statement.tableName,
-						renamedSchemas,
-						renamedTables,
-					)
+					tableNameWithSchemaFrom(statement.schema, statement.tableName, renamedSchemas, renamedTables)
 				}`,
 			);
 			const count = Number(res[0].count);
 			if (count > 0) {
-				infoToPrint.push(
-					`· You're about to delete ${
-						chalk.underline(
-							statement.tableName,
-						)
-					} table with ${count} items`,
-				);
+				infoToPrint.push(`· You're about to delete ${chalk.underline(statement.tableName)} table with ${count} items`);
 				// statementsToExecute.push(
 				//   `truncate table ${tableNameWithSchemaFrom(statement)} cascade;`
 				// );
 				tablesToRemove.push(statement.tableName);
 				shouldAskForApprove = true;
 			}
+		} else if (statement.type === 'drop_view' && statement.materialized) {
+			const res = await db.query(`select count(*) as count from "${statement.schema ?? 'public'}"."${statement.name}"`);
+			const count = Number(res[0].count);
+			if (count > 0) {
+				infoToPrint.push(
+					`· You're about to delete "${chalk.underline(statement.name)}" materialized view with ${count} items`,
+				);
+
+				matViewsToRemove.push(statement.name);
+				shouldAskForApprove = true;
+			}
 		} else if (statement.type === 'alter_table_drop_column') {
 			const res = await db.query(
 				`select count(*) as count from ${
-					tableNameWithSchemaFrom(
-						statement.schema,
-						statement.tableName,
-						renamedSchemas,
-						renamedTables,
-					)
+					tableNameWithSchemaFrom(statement.schema, statement.tableName, renamedSchemas, renamedTables)
 				}`,
 			);
 			const count = Number(res[0].count);
 			if (count > 0) {
 				infoToPrint.push(
 					`· You're about to delete ${
-						chalk.underline(
-							statement.columnName,
-						)
+						chalk.underline(statement.columnName)
 					} column in ${statement.tableName} table with ${count} items`,
 				);
 				columnsToRemove.push(`${statement.tableName}_${statement.columnName}`);
@@ -137,48 +123,30 @@ export const pgSuggestions = async (db: DB, statements: JsonStatement[]) => {
 			);
 			const count = Number(res[0].count);
 			if (count > 0) {
-				infoToPrint.push(
-					`· You're about to delete ${
-						chalk.underline(
-							statement.name,
-						)
-					} schema with ${count} tables`,
-				);
+				infoToPrint.push(`· You're about to delete ${chalk.underline(statement.name)} schema with ${count} tables`);
 				schemasToRemove.push(statement.name);
 				shouldAskForApprove = true;
 			}
 		} else if (statement.type === 'alter_table_alter_column_set_type') {
 			const res = await db.query(
 				`select count(*) as count from ${
-					tableNameWithSchemaFrom(
-						statement.schema,
-						statement.tableName,
-						renamedSchemas,
-						renamedTables,
-					)
+					tableNameWithSchemaFrom(statement.schema, statement.tableName, renamedSchemas, renamedTables)
 				}`,
 			);
 			const count = Number(res[0].count);
 			if (count > 0) {
 				infoToPrint.push(
-					`· You're about to change ${
+					`· You're about to change ${chalk.underline(statement.columnName)} column type from ${
+						chalk.underline(statement.oldDataType)
+					} to ${
 						chalk.underline(
-							statement.columnName,
+							statement.newDataType,
 						)
-					} column type from ${
-						chalk.underline(
-							statement.oldDataType,
-						)
-					} to ${chalk.underline(statement.newDataType)} with ${count} items`,
+					} with ${count} items`,
 				);
 				statementsToExecute.push(
 					`truncate table ${
-						tableNameWithSchemaFrom(
-							statement.schema,
-							statement.tableName,
-							renamedSchemas,
-							renamedTables,
-						)
+						tableNameWithSchemaFrom(statement.schema, statement.tableName, renamedSchemas, renamedTables)
 					} cascade;`,
 				);
 				tablesToTruncate.push(statement.tableName);
@@ -187,21 +155,14 @@ export const pgSuggestions = async (db: DB, statements: JsonStatement[]) => {
 		} else if (statement.type === 'alter_table_alter_column_drop_pk') {
 			const res = await db.query(
 				`select count(*) as count from ${
-					tableNameWithSchemaFrom(
-						statement.schema,
-						statement.tableName,
-						renamedSchemas,
-						renamedTables,
-					)
+					tableNameWithSchemaFrom(statement.schema, statement.tableName, renamedSchemas, renamedTables)
 				}`,
 			);
 			const count = Number(res[0].count);
 			if (count > 0) {
 				infoToPrint.push(
 					`· You're about to change ${
-						chalk.underline(
-							statement.tableName,
-						)
+						chalk.underline(statement.tableName)
 					} primary key. This statements may fail and you table may left without primary key`,
 				);
 
@@ -219,9 +180,7 @@ export const pgSuggestions = async (db: DB, statements: JsonStatement[]) => {
 			const pkNameResponse = await db.query(
 				`SELECT constraint_name FROM information_schema.table_constraints
         WHERE table_schema = '${
-					typeof statement.schema === 'undefined' || statement.schema === ''
-						? 'public'
-						: statement.schema
+					typeof statement.schema === 'undefined' || statement.schema === '' ? 'public' : statement.schema
 				}'
             AND table_name = '${statement.tableName}'
             AND constraint_type = 'PRIMARY KEY';`,
@@ -233,39 +192,24 @@ export const pgSuggestions = async (db: DB, statements: JsonStatement[]) => {
 			// we will generate statement for drop pk here and not after all if-else statements
 			continue;
 		} else if (statement.type === 'alter_table_add_column') {
-			if (
-				statement.column.notNull
-				&& typeof statement.column.default === 'undefined'
-			) {
+			if (statement.column.notNull && typeof statement.column.default === 'undefined') {
 				const res = await db.query(
 					`select count(*) as count from ${
-						tableNameWithSchemaFrom(
-							statement.schema,
-							statement.tableName,
-							renamedSchemas,
-							renamedTables,
-						)
+						tableNameWithSchemaFrom(statement.schema, statement.tableName, renamedSchemas, renamedTables)
 					}`,
 				);
 				const count = Number(res[0].count);
 				if (count > 0) {
 					infoToPrint.push(
 						`· You're about to add not-null ${
-							chalk.underline(
-								statement.column.name,
-							)
+							chalk.underline(statement.column.name)
 						} column without default value, which contains ${count} items`,
 					);
 
 					tablesToTruncate.push(statement.tableName);
 					statementsToExecute.push(
 						`truncate table ${
-							tableNameWithSchemaFrom(
-								statement.schema,
-								statement.tableName,
-								renamedSchemas,
-								renamedTables,
-							)
+							tableNameWithSchemaFrom(statement.schema, statement.tableName, renamedSchemas, renamedTables)
 						} cascade;`,
 					);
 
@@ -275,12 +219,7 @@ export const pgSuggestions = async (db: DB, statements: JsonStatement[]) => {
 		} else if (statement.type === 'create_unique_constraint') {
 			const res = await db.query(
 				`select count(*) as count from ${
-					tableNameWithSchemaFrom(
-						statement.schema,
-						statement.tableName,
-						renamedSchemas,
-						renamedTables,
-					)
+					tableNameWithSchemaFrom(statement.schema, statement.tableName, renamedSchemas, renamedTables)
 				}`,
 			);
 			const count = Number(res[0].count);
@@ -298,48 +237,30 @@ export const pgSuggestions = async (db: DB, statements: JsonStatement[]) => {
 					} table?\n`,
 				);
 				const { status, data } = await render(
-					new Select([
-						'No, add the constraint without truncating the table',
-						`Yes, truncate the table`,
-					]),
+					new Select(['No, add the constraint without truncating the table', `Yes, truncate the table`]),
 				);
 				if (data?.index === 1) {
 					tablesToTruncate.push(statement.tableName);
 					statementsToExecute.push(
 						`truncate table ${
-							tableNameWithSchemaFrom(
-								statement.schema,
-								statement.tableName,
-								renamedSchemas,
-								renamedTables,
-							)
+							tableNameWithSchemaFrom(statement.schema, statement.tableName, renamedSchemas, renamedTables)
 						} cascade;`,
 					);
 					shouldAskForApprove = true;
 				}
 			}
 		}
-		const stmnt = fromJson([statement], 'postgresql');
+		const stmnt = fromJson([statement], 'postgresql', 'push');
 		if (typeof stmnt !== 'undefined') {
-			if (statement.type === 'drop_table') {
-				statementsToExecute.push(
-					`DROP TABLE ${
-						concatSchemaAndTableName(
-							statement.schema,
-							statement.tableName,
-						)
-					} CASCADE;`,
-				);
-			} else {
-				statementsToExecute.push(...stmnt);
-			}
+			statementsToExecute.push(...stmnt);
 		}
 	}
 
 	return {
-		statementsToExecute,
+		statementsToExecute: [...new Set(statementsToExecute)],
 		shouldAskForApprove,
 		infoToPrint,
+		matViewsToRemove: [...new Set(matViewsToRemove)],
 		columnsToRemove: [...new Set(columnsToRemove)],
 		schemasToRemove: [...new Set(schemasToRemove)],
 		tablesToTruncate: [...new Set(tablesToTruncate)],

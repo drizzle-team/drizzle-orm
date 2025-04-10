@@ -1,8 +1,8 @@
 import type { Column, GetColumnData } from './column.ts';
 import { entityKind } from './entity.ts';
 import type { OptionalKeyOnly, RequiredKeyOnly } from './operations.ts';
-import type { ExtraConfigColumn } from './pg-core/index.ts';
 import type { SQLWrapper } from './sql/sql.ts';
+import { TableName } from './table.utils.ts';
 import type { Simplify, Update } from './utils.ts';
 
 export interface TableConfig<TColumn extends Column = Column<any>> {
@@ -15,9 +15,6 @@ export interface TableConfig<TColumn extends Column = Column<any>> {
 export type UpdateTableConfig<T extends TableConfig, TUpdate extends Partial<TableConfig>> = Required<
 	Update<T, TUpdate>
 >;
-
-/** @internal */
-export const TableName = Symbol.for('drizzle:Name');
 
 /** @internal */
 export const Schema = Symbol.for('drizzle:Schema');
@@ -96,7 +93,7 @@ export class Table<T extends TableConfig = TableConfig> implements SQLWrapper {
 	[Columns]!: T['columns'];
 
 	/** @internal */
-	[ExtraConfigColumns]!: Record<string, ExtraConfigColumn>;
+	[ExtraConfigColumns]!: Record<string, unknown>;
 
 	/**
 	 *  @internal
@@ -111,7 +108,7 @@ export class Table<T extends TableConfig = TableConfig> implements SQLWrapper {
 	[IsDrizzleTable] = true;
 
 	/** @internal */
-	[ExtraConfigBuilder]: ((self: any) => Record<string, unknown>) | undefined = undefined;
+	[ExtraConfigBuilder]: ((self: any) => Record<string, unknown> | unknown[]) | undefined = undefined;
 
 	constructor(name: string, schema: string | undefined, baseName: string) {
 		this[TableName] = this[OriginalName] = name;
@@ -158,7 +155,7 @@ export type MapColumnName<TName extends string, TColumn extends Column, TDBColum
 export type InferModelFromColumns<
 	TColumns extends Record<string, Column>,
 	TInferMode extends 'select' | 'insert' = 'select',
-	TConfig extends { dbColumnNames: boolean } = { dbColumnNames: false },
+	TConfig extends { dbColumnNames: boolean; override?: boolean } = { dbColumnNames: false; override: false },
 > = Simplify<
 	TInferMode extends 'insert' ?
 			& {
@@ -173,9 +170,10 @@ export type InferModelFromColumns<
 				[
 					Key in keyof TColumns & string as OptionalKeyOnly<
 						MapColumnName<Key, TColumns[Key], TConfig['dbColumnNames']>,
-						TColumns[Key]
+						TColumns[Key],
+						TConfig['override']
 					>
-				]?: GetColumnData<TColumns[Key], 'query'>;
+				]?: GetColumnData<TColumns[Key], 'query'> | undefined;
 			}
 		: {
 			[
@@ -203,5 +201,8 @@ export type InferSelectModel<
 
 export type InferInsertModel<
 	TTable extends Table,
-	TConfig extends { dbColumnNames: boolean } = { dbColumnNames: false },
+	TConfig extends { dbColumnNames: boolean; override?: boolean } = { dbColumnNames: false; override: false },
 > = InferModelFromColumns<TTable['_']['columns'], 'insert', TConfig>;
+
+export type InferEnum<T> = T extends { enumValues: readonly (infer U)[] } ? U
+	: never;

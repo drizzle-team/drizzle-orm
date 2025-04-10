@@ -31,11 +31,10 @@ test('migrate #2', async (t) => {
 	const res = await brotest(migrate, '--config=turso.config.ts');
 	if (res.type !== 'handler') assert.fail(res.type, 'handler');
 	expect(res.options).toStrictEqual({
-		dialect: 'sqlite',
+		dialect: 'turso',
 		out: 'drizzle',
 		credentials: {
 			authToken: 'token',
-			driver: 'turso',
 			url: 'turso.dev',
 		},
 		schema: undefined, // drizzle migrations table schema

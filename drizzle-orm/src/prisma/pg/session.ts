@@ -14,7 +14,7 @@ import type { Query, SQL } from '~/sql/sql.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
 
 export class PrismaPgPreparedQuery<T> extends PgPreparedQuery<PreparedQueryConfig & { execute: T }> {
-	static readonly [entityKind]: string = 'PrismaPgPreparedQuery';
+	static override readonly [entityKind]: string = 'PrismaPgPreparedQuery';
 
 	constructor(
 		private readonly prisma: PrismaClient,
@@ -44,7 +44,7 @@ export interface PrismaPgSessionOptions {
 }
 
 export class PrismaPgSession extends PgSession {
-	static readonly [entityKind]: string = 'PrismaPgSession';
+	static override readonly [entityKind]: string = 'PrismaPgSession';
 
 	private readonly logger: Logger;
 
