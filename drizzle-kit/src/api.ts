@@ -71,7 +71,7 @@ export {
   squashMysqlScheme
 }
 
-export * as snapshotDiffer from './snapshotsDiffer'
+export * as snapshotsDiffer from './snapshotsDiffer'
 
 export const generateDrizzleJson = (
 	imports: Record<string, unknown>,
