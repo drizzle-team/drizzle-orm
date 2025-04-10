@@ -111,10 +111,11 @@ export class UpstashCache extends Cache {
 		const pipeline = this.redis.pipeline();
 		const compositeKey = this.getCompositeKey(tables);
 		const ttlSeconds = config && config.ex ? config.ex : this.globalTtl;
-		pipeline.hexpire(compositeKey, key, ttlSeconds); // Set expiration for the composite key
+		const hexOptions = config && config.hexOptions ? config.hexOptions : this.internalConfig?.hexOptions;
+		pipeline.hexpire(compositeKey, key, ttlSeconds, hexOptions); // Set expiration for the composite key
 
 		if (isTag) {
-			pipeline.hexpire(UpstashCache.tagsMapKey, key, ttlSeconds); // Set expiration for the tag
+			pipeline.hexpire(UpstashCache.tagsMapKey, key, ttlSeconds, hexOptions); // Set expiration for the tag
 		}
 
 		for (const table of tables) {
