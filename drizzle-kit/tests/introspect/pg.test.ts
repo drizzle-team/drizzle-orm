@@ -116,9 +116,13 @@ test('basic index test', async () => {
 			multiColumn: index('multi_column').on(table.firstName, table.lastName),
 			singleExpression: index('single_expression').on(sql`lower(${table.firstName})`),
 			multiExpression: index('multi_expression').on(sql`lower(${table.firstName})`, sql`lower(${table.lastName})`),
-			expressionWithComma: index('expression_with_comma').on(sql`(lower(${table.firstName}) || ', '::text || lower(${table.lastName}))`),
+			expressionWithComma: index('expression_with_comma').on(
+				sql`(lower(${table.firstName}) || ', '::text || lower(${table.lastName}))`,
+			),
 			expressionWithDoubleQuote: index('expression_with_double_quote').on(sql`('"'::text || ${table.firstName})`),
-			expressionWithJsonbOperator: index('expression_with_jsonb_operator').on(sql`(${table.data} #>> '{a,b,1}'::text[])`),
+			expressionWithJsonbOperator: index('expression_with_jsonb_operator').on(
+				sql`(${table.data} #>> '{a,b,1}'::text[])`,
+			),
 		})),
 	};
 

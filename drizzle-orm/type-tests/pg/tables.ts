@@ -59,16 +59,6 @@ import type { Simplify } from '~/utils.ts';
 import { db } from './db.ts';
 
 export const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
-export const noValuesEnum = pgEnum('my_enum_no_values', []);
-
-enum eCategoryType {
-	red = 'red',
-	green = 'green',
-}
-export const enumFromEnum = pgEnum(
-	'type',
-	Object.values(eCategoryType),
-);
 
 export const identityColumnsTable = pgTable('identity_columns_table', {
 	generatedCol: integer('generated_col').generatedAlwaysAs(1),
@@ -1412,4 +1402,41 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 		vector: vector({ dimensions: 1 }),
 		vectordef: vector({ dimensions: 1 }).default([1]),
 	});
+}
+
+// ts enums test
+{
+	enum Role {
+		admin = 'admin',
+		user = 'user',
+		guest = 'guest',
+	}
+
+	const role = pgEnum('role', Role);
+
+	enum RoleNonString {
+		admin,
+		user,
+		guest,
+	}
+
+	// @ts-expect-error
+	pgEnum('role', RoleNonString);
+
+	enum RolePartiallyString {
+		admin,
+		user = 'user',
+		guest = 'guest',
+	}
+
+	// @ts-expect-error
+	pgEnum('role', RolePartiallyString);
+
+	const table = pgTable('table', {
+		enum: role('enum'),
+	});
+
+	const res = await db.select().from(table);
+
+	Expect<Equal<{ enum: Role | null }[], typeof res>>;
 }

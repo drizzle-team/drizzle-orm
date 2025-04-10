@@ -204,6 +204,5 @@ export type InferInsertModel<
 	TConfig extends { dbColumnNames: boolean; override?: boolean } = { dbColumnNames: false; override: false },
 > = InferModelFromColumns<TTable['_']['columns'], 'insert', TConfig>;
 
-export type InferEnum<T> = T extends { enumValues: readonly (infer U)[] }
-  ? U
-  : never;
+export type InferEnum<T> = T extends { enumValues: readonly (infer U)[] } ? U
+	: never;
