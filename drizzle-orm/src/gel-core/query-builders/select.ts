@@ -211,7 +211,7 @@ export abstract class GelSelectQueryBuilderBase<
 	): GelSelectJoinFn<this, TDynamic, TJoinType> {
 		return (
 			table: GelTable | Subquery | GelViewBase | SQL,
-			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
+			on?: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
 		) => {
 			const baseTableName = this.tableName;
 			const tableName = getTableLikeName(table);
@@ -265,6 +265,7 @@ export abstract class GelSelectQueryBuilderBase<
 						this.joinsNotNullableMap[tableName] = true;
 						break;
 					}
+					case 'cross':
 					case 'inner': {
 						this.joinsNotNullableMap[tableName] = true;
 						break;
@@ -297,12 +298,12 @@ export abstract class GelSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Select all users and their pets
-	 * const usersWithPets: { user: User; pets: Pet | null }[] = await db.select()
+	 * const usersWithPets: { user: User; pets: Pet | null; }[] = await db.select()
 	 *   .from(users)
 	 *   .leftJoin(pets, eq(users.id, pets.ownerId))
 	 *
 	 * // Select userId and petId
-	 * const usersIdsAndPetIds: { userId: number; petId: number | null }[] = await db.select({
+	 * const usersIdsAndPetIds: { userId: number; petId: number | null; }[] = await db.select({
 	 *   userId: users.id,
 	 *   petId: pets.id,
 	 * })
@@ -326,12 +327,12 @@ export abstract class GelSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Select all users and their pets
-	 * const usersWithPets: { user: User | null; pets: Pet }[] = await db.select()
+	 * const usersWithPets: { user: User | null; pets: Pet; }[] = await db.select()
 	 *   .from(users)
 	 *   .rightJoin(pets, eq(users.id, pets.ownerId))
 	 *
 	 * // Select userId and petId
-	 * const usersIdsAndPetIds: { userId: number | null; petId: number }[] = await db.select({
+	 * const usersIdsAndPetIds: { userId: number | null; petId: number; }[] = await db.select({
 	 *   userId: users.id,
 	 *   petId: pets.id,
 	 * })
@@ -355,12 +356,12 @@ export abstract class GelSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Select all users and their pets
-	 * const usersWithPets: { user: User; pets: Pet }[] = await db.select()
+	 * const usersWithPets: { user: User; pets: Pet; }[] = await db.select()
 	 *   .from(users)
 	 *   .innerJoin(pets, eq(users.id, pets.ownerId))
 	 *
 	 * // Select userId and petId
-	 * const usersIdsAndPetIds: { userId: number; petId: number }[] = await db.select({
+	 * const usersIdsAndPetIds: { userId: number; petId: number; }[] = await db.select({
 	 *   userId: users.id,
 	 *   petId: pets.id,
 	 * })
@@ -384,12 +385,12 @@ export abstract class GelSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Select all users and their pets
-	 * const usersWithPets: { user: User | null; pets: Pet | null }[] = await db.select()
+	 * const usersWithPets: { user: User | null; pets: Pet | null; }[] = await db.select()
 	 *   .from(users)
 	 *   .fullJoin(pets, eq(users.id, pets.ownerId))
 	 *
 	 * // Select userId and petId
-	 * const usersIdsAndPetIds: { userId: number | null; petId: number | null }[] = await db.select({
+	 * const usersIdsAndPetIds: { userId: number | null; petId: number | null; }[] = await db.select({
 	 *   userId: users.id,
 	 *   petId: pets.id,
 	 * })
@@ -398,6 +399,34 @@ export abstract class GelSelectQueryBuilderBase<
 	 * ```
 	 */
 	fullJoin = this.createJoin('full');
+
+	/**
+	 * Executes a `cross join` operation by combining rows from two tables into a new table.
+	 *
+	 * Calling this method retrieves all rows from both main and joined tables, merging all rows from each table.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/joins#cross-join}
+	 *
+	 * @param table the table to join.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // Select all users, each user with every pet
+	 * const usersWithPets: { user: User; pets: Pet; }[] = await db.select()
+	 *   .from(users)
+	 *   .crossJoin(pets)
+	 *
+	 * // Select userId and petId
+	 * const usersIdsAndPetIds: { userId: number; petId: number; }[] = await db.select({
+	 *   userId: users.id,
+	 *   petId: pets.id,
+	 * })
+	 *   .from(users)
+	 *   .crossJoin(pets)
+	 * ```
+	 */
+	crossJoin = this.createJoin('cross');
 
 	private createSetOperator(
 		type: SetOperator,
