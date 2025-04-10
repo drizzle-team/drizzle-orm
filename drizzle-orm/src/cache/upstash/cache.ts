@@ -6,14 +6,71 @@ import { entityKind, is } from '~/entity.ts';
 import { OriginalName, Table } from '~/index.ts';
 import type { CacheConfig } from '../core/types.ts';
 
+const getByTagScript = `
+local tagsMapKey = KEYS[1] -- tags map key
+local tag        = ARGV[1] -- tag
+
+local compositeTableName = redis.call('HGET', key, tag)
+local value = redis.call('HGET', compositeTableName, tag)
+return value
+`;
+
+const onMutateScript = `
+local tagsMapKey = KEYS[1] -- tags map key
+local tables     = {}      -- initialize tables array
+local tags       = ARGV    -- tags array
+
+for i = 2, #KEYS do
+  tables[#tables + 1] = KEYS[i] -- add all keys except the first one to tables
+end
+
+if #tags > 0 then
+  for _, tag in ipairs(tags) do
+    if tag ~= nil and tag ~= '' then
+      local compositeTableName = redis.call('HGET', tagsMapKey, tag)
+      if compositeTableName then
+        redis.call('HDEL', compositeTableName, tag)
+      end
+    end
+  end
+  redis.call('HDEL', tagsMapKey, unpack(tags))
+end
+
+local keysToDelete = {}
+
+if #tables > 0 then
+  local compositeTableNames = redis.call('SUNION', unpack(tables))
+  for _, compositeTableName in ipairs(compositeTableNames) do
+    keysToDelete[#keysToDelete + 1] = compositeTableName
+  end
+  for _, table in ipairs(tables) do
+    keysToDelete[#keysToDelete + 1] = table
+  end
+  redis.call('DEL', unpack(keysToDelete))
+end
+`;
+
+type Script = ReturnType<Redis["createScript"]>;
+
 export class UpstashCache extends Cache {
 	static override readonly [entityKind]: string = 'UpstashCache';
+  private static compositeTableSetPrefix = '__ct__';
+  private static tagsMapKey = '__tagsMap__';
+
+  private luaScripts: {
+    getByTagScript: Script
+    onMutateScript: Script
+  }
 
 	private internalConfig?: SetCommandOptions;
 
 	constructor(public redis: Redis, config?: CacheConfig, protected useGlobally?: boolean) {
 		super();
 		this.internalConfig = this.toInternalConfig(config);
+    this.luaScripts = {
+      getByTagScript: this.redis.createScript(getByTagScript, { readonly: true }),
+      onMutateScript: this.redis.createScript(onMutateScript)
+    }
 	}
 
 	public strategy() {
@@ -33,19 +90,16 @@ export class UpstashCache extends Cache {
 	}
 
 	override async get(key: string, tables: string[], isTag: boolean = false): Promise<any[] | undefined> {
-		const compositeKey = tables.sort().join(','); // Generate the composite key for the query
-
-		if (isTag) {
-			// Handle cache lookup for tags
-			const tagCompositeKey = await this.redis.hget<string>('tagsMap', key); // Retrieve composite key associated with the tag
-			if (tagCompositeKey) {
-				return await this.redis.hget(tagCompositeKey, key) as any[]; // Retrieve the cached result for the tag
-			}
-			return undefined;
-		}
-
-		// Normal cache lookup for the composite key
-		return await this.redis.hget(compositeKey, key) ?? undefined; // Retrieve result for normal query
+    
+    if (isTag) {
+      const result = await this.luaScripts.getByTagScript.exec([UpstashCache.tagsMapKey], [key]);
+      return result === null ? undefined : result as any[];
+    }
+    
+    // Normal cache lookup for the composite key
+    const compositeKey = this.getCompositeKey(tables);
+    const result = await this.redis.hget(compositeKey, key) ?? undefined; // Retrieve result for normal query
+    return result === null ? undefined : result as any[];
 	}
 
 	override async put(
@@ -55,55 +109,34 @@ export class UpstashCache extends Cache {
 		isTag: boolean = false,
 		_config?: CacheConfig,
 	): Promise<void> {
-		if (isTag) {
-			// When it's a tag, store the response in the composite key
-			const compositeKey = tables.sort().join(',');
-			await this.redis.hset(compositeKey, { [key]: response }); // Store the result with the tag under the composite key
-			await this.redis.hset('tagsMap', { [key]: compositeKey }); // Store the tag and its composite key in the map
-			for (const table of tables) {
-				await this.redis.sadd(`prefix_${table}`, compositeKey);
-			}
-		} else {
-			// Normal cache store
-			const compositeKey = tables.sort().join(',');
-			await this.redis.hset(compositeKey, { [key]: response }); // Store the result with the composite key
-		}
+    const pipeline = this.redis.pipeline();
+    const compositeKey = this.getCompositeKey(tables);
+    pipeline.hset(compositeKey, { [key]: response }); // Store the result with the tag under the composite key
+    // pipeline.hexpire(compositeKey, key, this.ttlSeconds); // Set expiration for the composite key
+
+    if (isTag) {
+      pipeline.hset(UpstashCache.tagsMapKey, { [key]: compositeKey }); // Store the tag and its composite key in the map
+      // pipeline.hexpire(this.tagsMapKey, key, this.ttlSeconds); // Set expiration for the tag
+    }
+
+    for (const table of tables) {
+      pipeline.sadd(this.addTablePrefix(table), compositeKey);
+    }
+
+    await pipeline.exec();
 	}
 
 	override async onMutate(params: MutationOption) {
-		const tags = Array.isArray(params.tags) ? params.tags : params.tags ? [params.tags] : [];
-		const tables = Array.isArray(params.tables) ? params.tables : params.tables ? [params.tables] : [];
-		const mappedTables = tables.map((table) => is(table, Table) ? table[OriginalName] : table as string);
-		const prefixedMappedTables = tables.map((table) => `prefix_${table}`);
+    const tags = Array.isArray(params.tags) ? params.tags : params.tags ? [params.tags] : [];
+    const tables = Array.isArray(params.tables) ? params.tables : params.tables ? [params.tables] : [];
+    const tableNames: string[] = tables.map((table) => is(table, Table) ? table[OriginalName] : table as string);
 
-		const keysToDelete = new Set<string>();
-
-		// Invalidate by table
-		if (tables.length > 0) {
-			// @ts-expect-error
-			const compositeKeys: string[] = await this.redis.sunion(...prefixedMappedTables);
-			for (const composite of compositeKeys) {
-				const keys = await this.redis.hkeys(composite);
-				for (const key of keys) keysToDelete.add(key);
-				await this.redis.del(composite); // Remove composite entry
-			}
-			await this.redis.del(...prefixedMappedTables, ...mappedTables); // Remove table mappings
-		}
-
-		// Invalidate by tag (WITHOUT invalidating the entire table)
-		for (const tag of tags) {
-			const compositeKey = await this.redis.hget<string>('tagsMap', tag);
-			if (compositeKey) {
-				await this.redis.hdel(compositeKey, tag); // Only remove the tag-related entry
-				await this.redis.hdel('tagsMap', tag); // Remove tag reference
-			}
-		}
-
-		// Delete affected cache entries
-		if (keysToDelete.size > 0) {
-			await this.redis.del(...keysToDelete);
-		}
+    const compositeTableSets = tableNames.map((table) => this.addTablePrefix(table));
+    await this.luaScripts.onMutateScript.exec([UpstashCache.tagsMapKey, ...compositeTableSets], tags);
 	}
+
+  private addTablePrefix = (table: string) => `${UpstashCache.compositeTableSetPrefix}${table}`;
+  private getCompositeKey = (tables: string[]) => tables.sort().join(',');
 }
 
 export function upstashCache(
