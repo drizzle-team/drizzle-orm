@@ -13,6 +13,7 @@ jobs:
           - drizzle-zod
           - drizzle-typebox
           - drizzle-valibot
+          - drizzle-arktype
           - eslint-plugin-drizzle
     runs-on: ubuntu-20.04
     steps:

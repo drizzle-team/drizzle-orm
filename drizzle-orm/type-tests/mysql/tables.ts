@@ -1046,3 +1046,35 @@ Expect<
 		yeardef: year().default(0),
 	});
 }
+
+{
+	enum Role {
+		admin = 'admin',
+		user = 'user',
+		guest = 'guest',
+	}
+
+	enum RoleNonString {
+		admin,
+		user,
+		guest,
+	}
+
+	enum RolePartiallyString {
+		admin,
+		user = 'user',
+		guest = 'guest',
+	}
+
+	const table = mysqlTable('table', {
+		enum: mysqlEnum('enum', Role),
+		// @ts-expect-error
+		enum1: mysqlEnum('enum1', RoleNonString),
+		// @ts-expect-error
+		enum2: mysqlEnum('enum2', RolePartiallyString),
+	});
+
+	const res = await db.select({ enum: table.enum }).from(table);
+
+	Expect<Equal<{ enum: Role | null }[], typeof res>>;
+}

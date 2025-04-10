@@ -1403,3 +1403,40 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 		vectordef: vector({ dimensions: 1 }).default([1]),
 	});
 }
+
+// ts enums test
+{
+	enum Role {
+		admin = 'admin',
+		user = 'user',
+		guest = 'guest',
+	}
+
+	const role = pgEnum('role', Role);
+
+	enum RoleNonString {
+		admin,
+		user,
+		guest,
+	}
+
+	// @ts-expect-error
+	pgEnum('role', RoleNonString);
+
+	enum RolePartiallyString {
+		admin,
+		user = 'user',
+		guest = 'guest',
+	}
+
+	// @ts-expect-error
+	pgEnum('role', RolePartiallyString);
+
+	const table = pgTable('table', {
+		enum: role('enum'),
+	});
+
+	const res = await db.select().from(table);
+
+	Expect<Equal<{ enum: Role | null }[], typeof res>>;
+}
