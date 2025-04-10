@@ -116,16 +116,25 @@ export type PgSelectJoinFn<
 	T extends AnyPgSelectQueryBuilder,
 	TDynamic extends boolean,
 	TJoinType extends JoinType,
-> = <
-	TJoinedTable extends PgTable | Subquery | PgViewBase | SQL,
-	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
->(
-	table: TableLikeHasEmptySelection<TJoinedTable> extends true ? DrizzleTypeError<
-			"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
-		>
-		: TJoinedTable,
-	on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
-) => PgSelectJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
+> = 'cross' extends TJoinType ? <
+		TJoinedTable extends PgTable | Subquery | PgViewBase | SQL,
+		TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
+	>(
+		table: TableLikeHasEmptySelection<TJoinedTable> extends true ? DrizzleTypeError<
+				"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
+			>
+			: TJoinedTable,
+	) => PgSelectJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>
+	: <
+		TJoinedTable extends PgTable | Subquery | PgViewBase | SQL,
+		TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
+	>(
+		table: TableLikeHasEmptySelection<TJoinedTable> extends true ? DrizzleTypeError<
+				"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
+			>
+			: TJoinedTable,
+		on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
+	) => PgSelectJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
 
 export type SelectedFieldsFlat = SelectedFieldsFlatBase<PgColumn>;
 
