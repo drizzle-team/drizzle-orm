@@ -112,9 +112,12 @@ export class UpstashCache extends Cache {
 		const compositeKey = this.getCompositeKey(tables);
 		const ttlSeconds = config && config.ex ? config.ex : this.globalTtl;
 		const hexOptions = config && config.hexOptions ? config.hexOptions : this.internalConfig?.hexOptions;
+		
+		pipeline.hset(compositeKey, { [key]: response }); // Store the result with the tag under the composite key
 		pipeline.hexpire(compositeKey, key, ttlSeconds, hexOptions); // Set expiration for the composite key
 
 		if (isTag) {
+			pipeline.hset(UpstashCache.tagsMapKey, { [key]: compositeKey }); // Store the tag and its composite key in the map
 			pipeline.hexpire(UpstashCache.tagsMapKey, key, ttlSeconds, hexOptions); // Set expiration for the tag
 		}
 
