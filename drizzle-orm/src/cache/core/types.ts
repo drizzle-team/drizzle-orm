@@ -19,4 +19,9 @@ export type CacheConfig = {
 	 * Retain the time to live associated with the key.
 	 */
 	keepTtl?: boolean;
+	/**
+	 * Set an expiration (TTL or time to live) on one or more fields of a given hash key.
+	 * Used for HEXPIRE command
+	 */
+	hexOptions?: 'NX' | 'nx' | 'XX' | 'xx' | 'GT' | 'gt' | 'LT' | 'lt';
 };

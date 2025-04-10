@@ -1,4 +1,3 @@
-import type { SetCommandOptions } from '@upstash/redis';
 import { Redis } from '@upstash/redis';
 import type { MutationOption } from '~/cache/core/index.ts';
 import { Cache } from '~/cache/core/index.ts';
@@ -50,27 +49,31 @@ if #tables > 0 then
 end
 `;
 
-type Script = ReturnType<Redis["createScript"]>;
+type Script = ReturnType<Redis['createScript']>;
+
+type ExpireOptions = 'NX' | 'nx' | 'XX' | 'xx' | 'GT' | 'gt' | 'LT' | 'lt';
 
 export class UpstashCache extends Cache {
 	static override readonly [entityKind]: string = 'UpstashCache';
-  private static compositeTableSetPrefix = '__ct__';
-  private static tagsMapKey = '__tagsMap__';
+	private static compositeTableSetPrefix = '__ct__';
+	private static tagsMapKey = '__tagsMap__';
 
-  private luaScripts: {
-    getByTagScript: Script
-    onMutateScript: Script
-  }
+	private globalTtl: number = 1;
 
-	private internalConfig?: SetCommandOptions;
+	private luaScripts: {
+		getByTagScript: Script;
+		onMutateScript: Script;
+	};
+
+	private internalConfig?: { seconds: number; hexOptions: ExpireOptions };
 
 	constructor(public redis: Redis, config?: CacheConfig, protected useGlobally?: boolean) {
 		super();
 		this.internalConfig = this.toInternalConfig(config);
-    this.luaScripts = {
-      getByTagScript: this.redis.createScript(getByTagScript, { readonly: true }),
-      onMutateScript: this.redis.createScript(onMutateScript)
-    }
+		this.luaScripts = {
+			getByTagScript: this.redis.createScript(getByTagScript, { readonly: true }),
+			onMutateScript: this.redis.createScript(onMutateScript),
+		};
 	}
 
 	public strategy() {
@@ -80,26 +83,22 @@ export class UpstashCache extends Cache {
 	private toInternalConfig(config?: CacheConfig) {
 		return config
 			? {
-				ex: config.ex,
-				exat: config.exat,
-				px: config.px,
-				pxat: config.pxat,
-				keepTtl: config.keepTtl,
-			} as SetCommandOptions
+				seconds: config.ex,
+				hexOptions: config.hexOptions,
+			} as { seconds: number; hexOptions: ExpireOptions }
 			: undefined;
 	}
 
 	override async get(key: string, tables: string[], isTag: boolean = false): Promise<any[] | undefined> {
-    
-    if (isTag) {
-      const result = await this.luaScripts.getByTagScript.exec([UpstashCache.tagsMapKey], [key]);
-      return result === null ? undefined : result as any[];
-    }
-    
-    // Normal cache lookup for the composite key
-    const compositeKey = this.getCompositeKey(tables);
-    const result = await this.redis.hget(compositeKey, key) ?? undefined; // Retrieve result for normal query
-    return result === null ? undefined : result as any[];
+		if (isTag) {
+			const result = await this.luaScripts.getByTagScript.exec([UpstashCache.tagsMapKey], [key]);
+			return result === null ? undefined : result as any[];
+		}
+
+		// Normal cache lookup for the composite key
+		const compositeKey = this.getCompositeKey(tables);
+		const result = await this.redis.hget(compositeKey, key) ?? undefined; // Retrieve result for normal query
+		return result === null ? undefined : result as any[];
 	}
 
 	override async put(
@@ -107,36 +106,35 @@ export class UpstashCache extends Cache {
 		response: any,
 		tables: string[],
 		isTag: boolean = false,
-		_config?: CacheConfig,
+		config?: CacheConfig,
 	): Promise<void> {
-    const pipeline = this.redis.pipeline();
-    const compositeKey = this.getCompositeKey(tables);
-    pipeline.hset(compositeKey, { [key]: response }); // Store the result with the tag under the composite key
-    // pipeline.hexpire(compositeKey, key, this.ttlSeconds); // Set expiration for the composite key
+		const pipeline = this.redis.pipeline();
+		const compositeKey = this.getCompositeKey(tables);
+		const ttlSeconds = config && config.ex ? config.ex : this.globalTtl;
+		pipeline.hexpire(compositeKey, key, ttlSeconds); // Set expiration for the composite key
 
-    if (isTag) {
-      pipeline.hset(UpstashCache.tagsMapKey, { [key]: compositeKey }); // Store the tag and its composite key in the map
-      // pipeline.hexpire(this.tagsMapKey, key, this.ttlSeconds); // Set expiration for the tag
-    }
+		if (isTag) {
+			pipeline.hexpire(UpstashCache.tagsMapKey, key, ttlSeconds); // Set expiration for the tag
+		}
 
-    for (const table of tables) {
-      pipeline.sadd(this.addTablePrefix(table), compositeKey);
-    }
+		for (const table of tables) {
+			pipeline.sadd(this.addTablePrefix(table), compositeKey);
+		}
 
-    await pipeline.exec();
+		await pipeline.exec();
 	}
 
 	override async onMutate(params: MutationOption) {
-    const tags = Array.isArray(params.tags) ? params.tags : params.tags ? [params.tags] : [];
-    const tables = Array.isArray(params.tables) ? params.tables : params.tables ? [params.tables] : [];
-    const tableNames: string[] = tables.map((table) => is(table, Table) ? table[OriginalName] : table as string);
+		const tags = Array.isArray(params.tags) ? params.tags : params.tags ? [params.tags] : [];
+		const tables = Array.isArray(params.tables) ? params.tables : params.tables ? [params.tables] : [];
+		const tableNames: string[] = tables.map((table) => is(table, Table) ? table[OriginalName] : table as string);
 
-    const compositeTableSets = tableNames.map((table) => this.addTablePrefix(table));
-    await this.luaScripts.onMutateScript.exec([UpstashCache.tagsMapKey, ...compositeTableSets], tags);
+		const compositeTableSets = tableNames.map((table) => this.addTablePrefix(table));
+		await this.luaScripts.onMutateScript.exec([UpstashCache.tagsMapKey, ...compositeTableSets], tags);
 	}
 
-  private addTablePrefix = (table: string) => `${UpstashCache.compositeTableSetPrefix}${table}`;
-  private getCompositeKey = (tables: string[]) => tables.sort().join(',');
+	private addTablePrefix = (table: string) => `${UpstashCache.compositeTableSetPrefix}${table}`;
+	private getCompositeKey = (tables: string[]) => tables.sort().join(',');
 }
 
 export function upstashCache(
