@@ -27,6 +27,7 @@ jobs:
           - drizzle-seed
           - drizzle-typebox
           - drizzle-valibot
+          - drizzle-arktype
           - other
     runs-on: ubuntu-20.04
     services:
@@ -191,11 +192,11 @@ jobs:
 
             neon-serverless)
               docker compose -f docker-neon.yml up -d
-              pnpm vitest run tests/pg/neon-serverless.test.ts
+              pnpm vitest run --config=./vitest-ci.config.ts tests/pg/neon-serverless.test.ts
               docker compose -f docker-neon.yml down
             ;;
 
-            drizzle-orm|drizzle-kit|drizzle-zod|drizzle-seed|drizzle-typebox|drizzle-valibot)
+            drizzle-orm|drizzle-kit|drizzle-zod|drizzle-seed|drizzle-typebox|drizzle-valibot|drizzle-arktype)
               (cd .. && pnpm test --filter ${{ matrix.shard }})
             ;;
 
@@ -228,6 +229,7 @@ jobs:
           - drizzle-seed
           - drizzle-typebox
           - drizzle-valibot
+          - drizzle-arktype
           - eslint-plugin-drizzle
     runs-on: ubuntu-20.04
     steps:
@@ -321,6 +323,7 @@ jobs:
           - drizzle-seed
           - drizzle-typebox
           - drizzle-valibot
+          - drizzle-arktype
           - eslint-plugin-drizzle
     runs-on: ubuntu-20.04
     permissions:
