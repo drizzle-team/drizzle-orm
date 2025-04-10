@@ -45,6 +45,34 @@ export type DrizzleSQLiteSnapshotJSON = SQLiteSchemaKit;
 export type DrizzleMySQLSnapshotJSON = MySQLSchemaKit;
 export type DrizzleSingleStoreSnapshotJSON = SingleStoreSchemaKit;
 
+export {
+  sqliteSchema,
+  pgSchema,
+  singlestoreSchema,
+  mysqlSchema,
+}
+
+export {
+  generateSqliteSnapshot,
+  generatePgSnapshot,
+  generateSingleStoreSnapshot,
+  generateMySqlSnapshot,
+}
+
+export {
+  sqlitePushIntrospect,
+  pgPushIntrospect,
+}
+
+export {
+  squashSqliteScheme,
+  squashPgScheme,
+  squashSingleStoreScheme,
+  squashMysqlScheme
+}
+
+export * as snapshotDiffer from './snapshotsDiffer'
+
 export const generateDrizzleJson = (
 	imports: Record<string, unknown>,
 	prevId?: string,
