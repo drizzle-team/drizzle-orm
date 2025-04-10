@@ -513,6 +513,7 @@ export const sqlitePush = async (
 		} else {
 			const isD1 = 'driver' in credentials && credentials.driver === 'd1-http';
 			if (isD1) {
+				// D1-HTTP does not support transactions, execute statements individually
 				await db.run(statementsToExecute.join(''));
 				render(`[${chalk.green('✓')}] Changes applied`);
 				process.exit(0);
