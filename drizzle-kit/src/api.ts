@@ -108,7 +108,7 @@ export const generateMigration = async (
 
 export const pushSchema = async (
 	imports: Record<string, unknown>,
-	drizzleInstance: PgDatabase<any>,
+	drizzleInstance: PgDatabase<any, any, any, any, any>,
 	schemaFilters?: string[],
 	tablesFilter?: string[],
 	extensionsFilters?: Config['extensionsFilters'],
@@ -220,7 +220,7 @@ export const generateSQLiteMigration = async (
 
 export const pushSQLiteSchema = async (
 	imports: Record<string, unknown>,
-	drizzleInstance: LibSQLDatabase<any>,
+	drizzleInstance: LibSQLDatabase<any, any>,
 ) => {
 	const { applySqliteSnapshotsDiff } = await import('./snapshotsDiffer');
 	const { sql } = await import('drizzle-orm');
@@ -326,7 +326,7 @@ export const generateMySQLMigration = async (
 
 export const pushMySQLSchema = async (
 	imports: Record<string, unknown>,
-	drizzleInstance: MySql2Database<any>,
+	drizzleInstance: MySql2Database<any, any>,
 	databaseName: string,
 ) => {
 	const { applyMysqlSnapshotsDiff } = await import('./snapshotsDiffer');

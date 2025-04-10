@@ -1,5 +1,6 @@
 import BetterSqlite3 from 'better-sqlite3';
-import { relations, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
+import { relations } from 'drizzle-orm/_relations';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest';

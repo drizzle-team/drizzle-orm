@@ -1,6 +1,7 @@
 import { neon, type NeonQueryFunction } from '@neondatabase/serverless';
+import { defineRelations } from 'drizzle-orm';
 import { drizzle, type NeonHttpDatabase } from 'drizzle-orm/neon-http';
-import { beforeAll, beforeEach, expect, test } from 'vitest';
+import { beforeAll, beforeEach } from 'vitest';
 import {
 	commentLikesConfig,
 	commentsConfig,
@@ -9,6 +10,7 @@ import {
 	groupsTable,
 	postsConfig,
 	postsTable,
+	tests,
 	usersConfig,
 	usersTable,
 	usersToGroupsConfig,
@@ -31,7 +33,9 @@ export const schema = {
 	usersConfig,
 };
 
-let db: NeonHttpDatabase<typeof schema>;
+export const neonRelations = defineRelations(schema, () => ({}));
+
+let db: NeonHttpDatabase<typeof schema, typeof neonRelations>;
 let client: NeonQueryFunction<false, true>;
 
 beforeAll(async () => {
@@ -40,7 +44,7 @@ beforeAll(async () => {
 		throw new Error('NEON_HTTP_CONNECTION_STRING is not defined');
 	}
 	client = neon(connectionString);
-	db = drizzle(client, { schema, logger: ENABLE_LOGGING });
+	db = drizzle(client, { schema, logger: ENABLE_LOGGING, relations: neonRelations });
 });
 
 beforeEach((ctx) => {
@@ -49,6 +53,4 @@ beforeEach((ctx) => {
 	};
 });
 
-test('skip', async () => {
-	expect(1).toBe(1);
-});
+tests();

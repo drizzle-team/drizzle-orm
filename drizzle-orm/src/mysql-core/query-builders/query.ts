@@ -11,13 +11,7 @@ import {
 import type { Query, QueryWithTypings, SQL } from '~/sql/sql.ts';
 import type { KnownKeysOnly } from '~/utils.ts';
 import type { MySqlDialect } from '../dialect.ts';
-import type {
-	Mode,
-	MySqlPreparedQueryConfig,
-	MySqlSession,
-	PreparedQueryHKTBase,
-	PreparedQueryKind,
-} from '../session.ts';
+import type { MySqlPreparedQueryConfig, MySqlSession, PreparedQueryHKTBase, PreparedQueryKind } from '../session.ts';
 import type { MySqlTable } from '../table.ts';
 
 export class RelationalQueryBuilder<
@@ -25,50 +19,47 @@ export class RelationalQueryBuilder<
 	TSchema extends TablesRelationalConfig,
 	TFields extends TableRelationalConfig,
 > {
-	static readonly [entityKind]: string = 'MySqlRelationalQueryBuilder';
+	static readonly [entityKind]: string = 'MySqlRelationalQueryBuilderV2';
 
 	constructor(
-		private fullSchema: Record<string, unknown>,
+		private tables: Record<string, MySqlTable>,
 		private schema: TSchema,
 		private tableNamesMap: Record<string, string>,
 		private table: MySqlTable,
 		private tableConfig: TableRelationalConfig,
 		private dialect: MySqlDialect,
 		private session: MySqlSession,
-		private mode: Mode,
 	) {}
 
-	findMany<TConfig extends DBQueryConfig<'many', true, TSchema, TFields>>(
-		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', true, TSchema, TFields>>,
+	findMany<TConfig extends DBQueryConfig<'many', TSchema, TFields>>(
+		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>>,
 	): MySqlRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TConfig>[]> {
 		return new MySqlRelationalQuery(
-			this.fullSchema,
+			this.tables,
 			this.schema,
 			this.tableNamesMap,
 			this.table,
 			this.tableConfig,
 			this.dialect,
 			this.session,
-			config ? (config as DBQueryConfig<'many', true>) : {},
+			config as DBQueryConfig<'many'> | undefined ?? true,
 			'many',
-			this.mode,
 		);
 	}
 
-	findFirst<TSelection extends Omit<DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>(
-		config?: KnownKeysOnly<TSelection, Omit<DBQueryConfig<'many', true, TSchema, TFields>, 'limit'>>,
+	findFirst<TSelection extends DBQueryConfig<'one', TSchema, TFields>>(
+		config?: KnownKeysOnly<TSelection, DBQueryConfig<'one', TSchema, TFields>>,
 	): MySqlRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TSelection> | undefined> {
 		return new MySqlRelationalQuery(
-			this.fullSchema,
+			this.tables,
 			this.schema,
 			this.tableNamesMap,
 			this.table,
 			this.tableConfig,
 			this.dialect,
 			this.session,
-			config ? { ...(config as DBQueryConfig<'many', true> | undefined), limit: 1 } : { limit: 1 },
+			config as DBQueryConfig<'one'> | undefined ?? true,
 			'first',
-			this.mode,
 		);
 	}
 }
@@ -77,33 +68,32 @@ export class MySqlRelationalQuery<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TResult,
 > extends QueryPromise<TResult> {
-	static override readonly [entityKind]: string = 'MySqlRelationalQuery';
+	static override readonly [entityKind]: string = 'MySqlRelationalQueryV2';
 
 	declare protected $brand: 'MySqlRelationalQuery';
 
 	constructor(
-		private fullSchema: Record<string, unknown>,
+		private tables: Record<string, MySqlTable>,
 		private schema: TablesRelationalConfig,
 		private tableNamesMap: Record<string, string>,
 		private table: MySqlTable,
 		private tableConfig: TableRelationalConfig,
 		private dialect: MySqlDialect,
 		private session: MySqlSession,
-		private config: DBQueryConfig<'many', true> | true,
-		private queryMode: 'many' | 'first',
-		private mode?: Mode,
+		private config: DBQueryConfig<'many' | 'one'> | true,
+		private mode: 'many' | 'first',
 	) {
 		super();
 	}
 
 	prepare() {
 		const { query, builtQuery } = this._toSQL();
-		return this.session.prepareQuery(
+		return this.session.prepareRelationalQuery(
 			builtQuery,
 			undefined,
 			(rawRows) => {
-				const rows = rawRows.map((row) => mapRelationalRow(this.schema, this.tableConfig, row, query.selection));
-				if (this.queryMode === 'first') {
+				const rows = rawRows.map((row) => mapRelationalRow(row, query.selection));
+				if (this.mode === 'first') {
 					return rows[0] as TResult;
 				}
 				return rows as TResult;
@@ -112,39 +102,28 @@ export class MySqlRelationalQuery<
 	}
 
 	private _getQuery() {
-		const query = this.mode === 'planetscale'
-			? this.dialect.buildRelationalQueryWithoutLateralSubqueries({
-				fullSchema: this.fullSchema,
-				schema: this.schema,
-				tableNamesMap: this.tableNamesMap,
-				table: this.table,
-				tableConfig: this.tableConfig,
-				queryConfig: this.config,
-				tableAlias: this.tableConfig.tsName,
-			})
-			: this.dialect.buildRelationalQuery({
-				fullSchema: this.fullSchema,
-				schema: this.schema,
-				tableNamesMap: this.tableNamesMap,
-				table: this.table,
-				tableConfig: this.tableConfig,
-				queryConfig: this.config,
-				tableAlias: this.tableConfig.tsName,
-			});
-		return query;
+		return this.dialect.buildRelationalQuery({
+			schema: this.schema,
+			tableNamesMap: this.tableNamesMap,
+			table: this.table,
+			tableConfig: this.tableConfig,
+			queryConfig: this.config,
+			tables: this.tables,
+			mode: this.mode,
+		});
 	}
 
 	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {
 		const query = this._getQuery();
 
-		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
+		const builtQuery = this.dialect.sqlToQuery(query.sql);
 
 		return { builtQuery, query };
 	}
 
 	/** @internal */
 	getSQL(): SQL {
-		return this._getQuery().sql as SQL;
+		return this._getQuery().sql;
 	}
 
 	toSQL(): Query {

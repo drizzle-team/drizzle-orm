@@ -1,6 +1,7 @@
 export * from './bigint.ts';
 export * from './bigserial.ts';
 export * from './boolean.ts';
+export * from './bytea.ts';
 export * from './char.ts';
 export * from './cidr.ts';
 export * from './common.ts';
@@ -20,6 +21,7 @@ export * from './macaddr8.ts';
 export * from './numeric.ts';
 export * from './point.ts';
 export * from './postgis_extension/geometry.ts';
+export * from './postgis_extension/geometryMultiLineString.ts';
 export * from './real.ts';
 export * from './serial.ts';
 export * from './smallint.ts';

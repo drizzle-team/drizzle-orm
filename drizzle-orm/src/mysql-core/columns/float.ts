@@ -43,6 +43,15 @@ export class MySqlFloat<T extends ColumnBaseConfig<'number', 'MySqlFloat'>>
 	readonly scale: number | undefined = this.config.scale;
 	readonly unsigned: boolean | undefined = this.config.unsigned;
 
+	override mapFromDriverValue(value: unknown): number {
+		// For RQBv2 - conversion to JSON loses precision otherwise
+		if (typeof value === 'string') {
+			return Number(value);
+		}
+
+		return value as number;
+	}
+
 	getSQLType(): string {
 		let type = '';
 		if (this.precision !== undefined && this.scale !== undefined) {

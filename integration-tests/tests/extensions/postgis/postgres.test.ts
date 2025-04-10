@@ -1,18 +1,38 @@
 import Docker from 'dockerode';
-import { sql } from 'drizzle-orm';
+import { defineRelations, sql } from 'drizzle-orm';
 import { bigserial, geometry, line, pgTable, point } from 'drizzle-orm/pg-core';
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import getPort from 'get-port';
 import postgres, { type Sql } from 'postgres';
 import { v4 as uuid } from 'uuid';
-import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
 
 const ENABLE_LOGGING = false;
 
 let pgContainer: Docker.Container;
 let docker: Docker;
 let client: Sql;
-let db: PostgresJsDatabase;
+let db: PostgresJsDatabase<never, typeof relations>;
+
+const items = pgTable('items', {
+	id: bigserial('id', { mode: 'number' }).primaryKey(),
+	point: point('point'),
+	pointObj: point('point_xy', { mode: 'xy' }),
+	line: line('line'),
+	lineObj: line('line_abc', { mode: 'abc' }),
+	geo: geometry('geo', { type: 'point' }),
+	geoObj: geometry('geo_obj', { type: 'point', mode: 'xy' }),
+	geoSrid: geometry('geo_options', { type: 'point', mode: 'xy', srid: 4000 }),
+});
+
+const relations = defineRelations({ items }, (r) => ({
+	items: {
+		self: r.many.items({
+			from: r.items.id,
+			to: r.items.id,
+		}),
+	},
+}));
 
 async function createDockerDB(): Promise<string> {
 	const inDocker = (docker = new Docker());
@@ -71,7 +91,7 @@ beforeAll(async () => {
 		await pgContainer?.stop().catch(console.error);
 		throw lastError;
 	}
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
 
 	await db.execute(sql`CREATE EXTENSION IF NOT EXISTS postgis;`);
 });
@@ -79,17 +99,6 @@ beforeAll(async () => {
 afterAll(async () => {
 	await client?.end().catch(console.error);
 	await pgContainer?.stop().catch(console.error);
-});
-
-const items = pgTable('items', {
-	id: bigserial('id', { mode: 'number' }).primaryKey(),
-	point: point('point'),
-	pointObj: point('point_xy', { mode: 'xy' }),
-	line: line('line'),
-	lineObj: line('line_abc', { mode: 'abc' }),
-	geo: geometry('geo', { type: 'point' }),
-	geoObj: geometry('geo_obj', { type: 'point', mode: 'xy' }),
-	geoSrid: geometry('geo_options', { type: 'point', mode: 'xy', srid: 4000 }),
 });
 
 beforeEach(async () => {
@@ -142,4 +151,30 @@ test('insert + select', async () => {
 		geoObj: { x: 1, y: 2 },
 		geoSrid: { x: 1, y: 2 },
 	}]);
+});
+
+test('RQBv2', async () => {
+	await db.insert(items).values([{
+		point: [1, 2],
+		pointObj: { x: 1, y: 2 },
+		line: [1, 2, 3],
+		lineObj: { a: 1, b: 2, c: 3 },
+		geo: [1, 2],
+		geoObj: { x: 1, y: 2 },
+		geoSrid: { x: 1, y: 2 },
+	}]).returning();
+
+	const rawResponse = await db.select().from(items);
+	const rootRqbResponse = await db.query.items.findMany();
+	const { self: nestedRqbResponse } = (await db.query.items.findFirst({
+		with: {
+			self: true,
+		},
+	}))!;
+
+	expectTypeOf(rootRqbResponse).toEqualTypeOf(rawResponse);
+	expectTypeOf(nestedRqbResponse).toEqualTypeOf(rawResponse);
+
+	expect(rootRqbResponse).toStrictEqual(rawResponse);
+	expect(nestedRqbResponse).toStrictEqual(rawResponse);
 });

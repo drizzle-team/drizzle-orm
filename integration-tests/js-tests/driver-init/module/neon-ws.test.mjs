@@ -30,7 +30,7 @@ describe('neon-ws', async (it) => {
 
 		await db.$client.query('SELECT 1;');
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 		expect(db.$client).toBeInstanceOf(Pool);
 	});
 
@@ -42,7 +42,7 @@ describe('neon-ws', async (it) => {
 
 		await db.$client.query('SELECT 1;');
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 		expect(db.$client).toBeInstanceOf(Pool);
 	});
 
@@ -56,7 +56,7 @@ describe('neon-ws', async (it) => {
 
 		await db.$client.query('SELECT 1;');
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 		expect(db.$client).toBeInstanceOf(Pool);
 	});
 
@@ -81,7 +81,7 @@ describe('neon-ws', async (it) => {
 
 		await db.$client.query('SELECT 1;');
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 		expect(db.$client).toBeInstanceOf(Pool);
 	});
 
@@ -96,7 +96,7 @@ describe('neon-ws', async (it) => {
 
 		await db.$client.query('SELECT 1;');
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 		expect(db.$client).toBeInstanceOf(Pool);
 	});
 });
@@ -129,7 +129,7 @@ describe('neon-ws:Client', async (it) => {
 
 		await db.$client.query('SELECT 1;');
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 		expect(db.$client).toBeInstanceOf(Client);
 		expect(db.$client).not.toBeInstanceOf(Pool);
 	});
@@ -147,7 +147,7 @@ describe('neon-ws:Client', async (it) => {
 
 		await db.$client.query('SELECT 1;');
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 		expect(db.$client).toBeInstanceOf(Client);
 		expect(db.$client).not.toBeInstanceOf(Pool);
 	});
@@ -184,7 +184,7 @@ describe('neon-ws:PoolClient', async (it) => {
 
 		client.release();
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 		expect(db.$client).toBeInstanceOf(Client);
 		expect(db.$client).not.toBeInstanceOf(Pool);
 	});
@@ -204,7 +204,7 @@ describe('neon-ws:PoolClient', async (it) => {
 
 		client.release();
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 		expect(db.$client).toBeInstanceOf(Client);
 		expect(db.$client).not.toBeInstanceOf(Pool);
 	});

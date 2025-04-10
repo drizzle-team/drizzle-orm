@@ -1,20 +1,14 @@
 import 'dotenv/config';
 import { type Client, createClient } from '@libsql/client';
-import { desc, DrizzleError, eq, gt, gte, or, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
+import { DrizzleError, sql, TransactionRollbackError } from 'drizzle-orm';
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql';
 import { beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
-import * as schema from './sqlite.schema.ts';
-
-const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable } = schema;
+import relations from './sqlite.relations.ts';
+import { commentsTable, groupsTable, postsTable, usersTable, usersToGroupsTable } from './sqlite.schema.ts';
 
 const ENABLE_LOGGING = false;
 
-/*
-	Test cases:
-	- querying nested relation without PK with additional fields
-*/
-
-let db: LibSQLDatabase<typeof schema>;
+let db: LibSQLDatabase<never, typeof relations>;
 
 beforeAll(async () => {
 	const url = process.env['LIBSQL_URL'];
@@ -42,7 +36,7 @@ beforeAll(async () => {
 		console.error('Cannot connect to libsql');
 		throw lastError;
 	}
-	db = drizzle(client!, { logger: ENABLE_LOGGING, schema });
+	db = drizzle(client!, { logger: ENABLE_LOGGING, relations, casing: 'snake_case' });
 });
 
 beforeEach(async () => {
@@ -335,8 +329,8 @@ test('[Find Many] Get users with posts + custom fields', async () => {
 		with: {
 			posts: true,
 		},
-		extras: ({ name }) => ({
-			lowerName: sql<string>`lower(${name})`.as('name_lower'),
+		extras: ({
+			lowerName: ({ name }) => sql<string>`lower(${name})`.as('name_lower'),
 		}),
 	});
 
@@ -429,8 +423,8 @@ test('[Find Many] Get users with posts + custom fields + limits', async () => {
 				limit: 1,
 			},
 		},
-		extras: (usersTable, { sql }) => ({
-			lowerName: sql<string>`lower(${usersTable.name})`.as('name_lower'),
+		extras: ({
+			lowerName: (usersTable, { sql }) => sql<string>`lower(${usersTable.name})`.as('name_lower'),
 		}),
 	});
 
@@ -482,10 +476,14 @@ test.skip('[Find Many] Get users with posts + orderBy', async () => {
 	const usersWithPosts = await db.query.usersTable.findMany({
 		with: {
 			posts: {
-				orderBy: (postsTable, { desc }) => [desc(postsTable.content)],
+				orderBy: {
+					content: 'desc',
+				},
 			},
 		},
-		orderBy: (usersTable, { desc }) => [desc(usersTable.id)],
+		orderBy: {
+			id: 'desc',
+		},
 	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
@@ -559,10 +557,14 @@ test('[Find Many] Get users with posts + where', async () => {
 	]).run();
 
 	const usersWithPosts = await db.query.usersTable.findMany({
-		where: (({ id }, { eq }) => eq(id, 1)),
+		where: {
+			id: 1,
+		},
 		with: {
 			posts: {
-				where: (({ id }, { eq }) => eq(id, 1)),
+				where: {
+					id: 1,
+				},
 			},
 		},
 	});
@@ -617,10 +619,14 @@ test('[Find Many] Get users with posts + where + partial', async () => {
 					id: true,
 					content: true,
 				},
-				where: (({ id }, { eq }) => eq(id, 1)),
+				where: {
+					id: 1,
+				},
 			},
 		},
-		where: (({ id }, { eq }) => eq(id, 1)),
+		where: {
+			id: 1,
+		},
 	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
@@ -667,10 +673,14 @@ test('[Find Many] Get users with posts + where + partial. Did not select posts i
 					id: true,
 					content: true,
 				},
-				where: (({ id }, { eq }) => eq(id, 1)),
+				where: {
+					id: 1,
+				},
 			},
 		},
-		where: (({ id }, { eq }) => eq(id, 1)),
+		where: {
+			id: 1,
+		},
 	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
@@ -717,10 +727,14 @@ test('[Find Many] Get users with posts + where + partial(true + false)', async (
 					id: true,
 					content: false,
 				},
-				where: (({ id }, { eq }) => eq(id, 1)),
+				where: {
+					id: 1,
+				},
 			},
 		},
-		where: (({ id }, { eq }) => eq(id, 1)),
+		where: {
+			id: 1,
+		},
 	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
@@ -762,10 +776,14 @@ test('[Find Many] Get users with posts + where + partial(false)', async () => {
 				columns: {
 					content: false,
 				},
-				where: (({ id }, { eq }) => eq(id, 1)),
+				where: {
+					id: 1,
+				},
 			},
 		},
-		where: (({ id }, { eq }) => eq(id, 1)),
+		where: {
+			id: 1,
+		},
 	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
@@ -819,10 +837,14 @@ test('[Find Many] Get users with posts in transaction', async () => {
 		]).run();
 
 		usersWithPosts = await tx.query.usersTable.findMany({
-			where: (({ id }, { eq }) => eq(id, 1)),
+			where: {
+				id: 1,
+			},
 			with: {
 				posts: {
-					where: (({ id }, { eq }) => eq(id, 1)),
+					where: {
+						id: 1,
+					},
 				},
 			},
 		});
@@ -884,10 +906,14 @@ test('[Find Many] Get users with posts in rollbacked transaction', async () => {
 		await tx.rollback();
 
 		usersWithPosts = await tx.query.usersTable.findMany({
-			where: (({ id }, { eq }) => eq(id, 1)),
+			where: {
+				id: 1,
+			},
 			with: {
 				posts: {
-					where: (({ id }, { eq }) => eq(id, 1)),
+					where: {
+						id: 1,
+					},
 				},
 			},
 		});
@@ -932,13 +958,13 @@ test('[Find Many] Get only custom fields', async () => {
 		with: {
 			posts: {
 				columns: {},
-				extras: ({ content }) => ({
-					lowerName: sql<string>`lower(${content})`.as('content_lower'),
+				extras: ({
+					lowerName: ({ content }) => sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
-		extras: ({ name }) => ({
-			lowerName: sql<string>`lower(${name})`.as('name_lower'),
+		extras: ({
+			lowerName: ({ name }) => sql<string>`lower(${name})`.as('name_lower'),
 		}),
 	});
 
@@ -1009,15 +1035,21 @@ test('[Find Many] Get only custom fields + where', async () => {
 		with: {
 			posts: {
 				columns: {},
-				where: gte(postsTable.id, 2),
-				extras: ({ content }) => ({
-					lowerName: sql<string>`lower(${content})`.as('content_lower'),
+				where: {
+					id: {
+						gte: 2,
+					},
+				},
+				extras: ({
+					lowerName: ({ content }) => sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
-		where: eq(usersTable.id, 1),
-		extras: ({ name }) => ({
-			lowerName: sql<string>`lower(${name})`.as('name_lower'),
+		where: {
+			id: 1,
+		},
+		extras: ({
+			lowerName: ({ name }) => sql<string>`lower(${name})`.as('name_lower'),
 		}),
 	});
 
@@ -1059,16 +1091,22 @@ test('[Find Many] Get only custom fields + where + limit', async () => {
 		with: {
 			posts: {
 				columns: {},
-				where: gte(postsTable.id, 2),
+				where: {
+					id: {
+						gte: 2,
+					},
+				},
 				limit: 1,
-				extras: ({ content }) => ({
-					lowerName: sql<string>`lower(${content})`.as('content_lower'),
+				extras: ({
+					lowerName: ({ content }) => sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
-		where: eq(usersTable.id, 1),
-		extras: ({ name }) => ({
-			lowerName: sql<string>`lower(${name})`.as('name_lower'),
+		where: {
+			id: 1,
+		},
+		extras: ({
+			lowerName: ({ name }) => sql<string>`lower(${name})`.as('name_lower'),
 		}),
 	});
 
@@ -1110,16 +1148,24 @@ test('[Find Many] Get only custom fields + where + orderBy', async () => {
 		with: {
 			posts: {
 				columns: {},
-				where: gte(postsTable.id, 2),
-				orderBy: [desc(postsTable.id)],
-				extras: ({ content }) => ({
-					lowerName: sql<string>`lower(${content})`.as('content_lower'),
+				where: {
+					id: {
+						gte: 2,
+					},
+				},
+				orderBy: {
+					id: 'desc',
+				},
+				extras: ({
+					lowerName: ({ content }) => sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
-		where: eq(usersTable.id, 1),
-		extras: ({ name }) => ({
-			lowerName: sql<string>`lower(${name})`.as('name_lower'),
+		where: {
+			id: 1,
+		},
+		extras: ({
+			lowerName: ({ name }) => sql<string>`lower(${name})`.as('name_lower'),
 		}),
 	});
 
@@ -1162,13 +1208,13 @@ test('[Find One] Get only custom fields', async () => {
 		with: {
 			posts: {
 				columns: {},
-				extras: ({ content }) => ({
-					lowerName: sql<string>`lower(${content})`.as('content_lower'),
+				extras: ({
+					lowerName: ({ content }) => sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
-		extras: ({ name }) => ({
-			lowerName: sql<string>`lower(${name})`.as('name_lower'),
+		extras: ({
+			lowerName: ({ name }) => sql<string>`lower(${name})`.as('name_lower'),
 		}),
 	});
 
@@ -1220,15 +1266,21 @@ test('[Find One] Get only custom fields + where', async () => {
 		with: {
 			posts: {
 				columns: {},
-				where: gte(postsTable.id, 2),
-				extras: ({ content }) => ({
-					lowerName: sql<string>`lower(${content})`.as('content_lower'),
+				where: {
+					id: {
+						gte: 2,
+					},
+				},
+				extras: ({
+					lowerName: ({ content }) => sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
-		where: eq(usersTable.id, 1),
-		extras: ({ name }) => ({
-			lowerName: sql<string>`lower(${name})`.as('name_lower'),
+		where: {
+			id: 1,
+		},
+		extras: ({
+			lowerName: ({ name }) => sql<string>`lower(${name})`.as('name_lower'),
 		}),
 	});
 
@@ -1271,16 +1323,22 @@ test('[Find One] Get only custom fields + where + limit', async () => {
 		with: {
 			posts: {
 				columns: {},
-				where: gte(postsTable.id, 2),
+				where: {
+					id: {
+						gte: 2,
+					},
+				},
 				limit: 1,
-				extras: ({ content }) => ({
-					lowerName: sql<string>`lower(${content})`.as('content_lower'),
+				extras: ({
+					lowerName: ({ content }) => sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
-		where: eq(usersTable.id, 1),
-		extras: ({ name }) => ({
-			lowerName: sql<string>`lower(${name})`.as('name_lower'),
+		where: {
+			id: 1,
+		},
+		extras: ({
+			lowerName: ({ name }) => sql<string>`lower(${name})`.as('name_lower'),
 		}),
 	});
 
@@ -1323,16 +1381,24 @@ test('[Find One] Get only custom fields + where + orderBy', async () => {
 		with: {
 			posts: {
 				columns: {},
-				where: gte(postsTable.id, 2),
-				orderBy: [desc(postsTable.id)],
-				extras: ({ content }) => ({
-					lowerName: sql<string>`lower(${content})`.as('content_lower'),
+				where: {
+					id: {
+						gte: 2,
+					},
+				},
+				orderBy: {
+					id: 'desc',
+				},
+				extras: ({
+					lowerName: ({ content }) => sql<string>`lower(${content})`.as('content_lower'),
 				}),
 			},
 		},
-		where: eq(usersTable.id, 1),
-		extras: ({ name }) => ({
-			lowerName: sql<string>`lower(${name})`.as('name_lower'),
+		where: {
+			id: 1,
+		},
+		extras: ({
+			lowerName: ({ name }) => sql<string>`lower(${name})`.as('name_lower'),
 		}),
 	});
 
@@ -1458,7 +1524,7 @@ test('[Find Many] Get users with posts + prepared limit', async () => {
 	const prepared = db.query.usersTable.findMany({
 		with: {
 			posts: {
-				limit: placeholder('limit'),
+				limit: sql.placeholder('limit'),
 			},
 		},
 	}).prepare();
@@ -1524,11 +1590,11 @@ test('[Find Many] Get users with posts + prepared limit + offset', async () => {
 	]).run();
 
 	const prepared = db.query.usersTable.findMany({
-		limit: placeholder('uLimit'),
-		offset: placeholder('uOffset'),
+		limit: sql.placeholder('uLimit'),
+		offset: sql.placeholder('uOffset'),
 		with: {
 			posts: {
-				limit: placeholder('pLimit'),
+				limit: sql.placeholder('pLimit'),
 			},
 		},
 	}).prepare();
@@ -1583,10 +1649,16 @@ test('[Find Many] Get users with posts + prepared where', async () => {
 	]).run();
 
 	const prepared = db.query.usersTable.findMany({
-		where: (({ id }, { eq }) => eq(id, placeholder('id'))),
+		where: {
+			id: {
+				eq: sql.placeholder('id'),
+			},
+		},
 		with: {
 			posts: {
-				where: (({ id }, { eq }) => eq(id, 1)),
+				where: {
+					id: 1,
+				},
 			},
 		},
 	}).prepare();
@@ -1636,13 +1708,23 @@ test('[Find Many] Get users with posts + prepared + limit + offset + where', asy
 	]).run();
 
 	const prepared = db.query.usersTable.findMany({
-		limit: placeholder('uLimit'),
-		offset: placeholder('uOffset'),
-		where: (({ id }, { eq, or }) => or(eq(id, placeholder('id')), eq(id, 3))),
+		limit: sql.placeholder('uLimit'),
+		offset: sql.placeholder('uOffset'),
+		where: {
+			id: {
+				OR: [{
+					eq: sql.placeholder('id'),
+				}, 3],
+			},
+		},
 		with: {
 			posts: {
-				where: (({ id }, { eq }) => eq(id, placeholder('pid'))),
-				limit: placeholder('pLimit'),
+				where: {
+					id: {
+						eq: sql.placeholder('pid'),
+					},
+				},
+				limit: sql.placeholder('pLimit'),
 			},
 		},
 	}).prepare();
@@ -1873,8 +1955,8 @@ test('[Find One] Get users with posts + custom fields', async () => {
 		with: {
 			posts: true,
 		},
-		extras: ({ name }) => ({
-			lowerName: sql<string>`lower(${name})`.as('name_lower'),
+		extras: ({
+			lowerName: ({ name }) => sql<string>`lower(${name})`.as('name_lower'),
 		}),
 	});
 
@@ -1947,8 +2029,8 @@ test('[Find One] Get users with posts + custom fields + limits', async () => {
 				limit: 1,
 			},
 		},
-		extras: (usersTable, { sql }) => ({
-			lowerName: sql<string>`lower(${usersTable.name})`.as('name_lower'),
+		extras: ({
+			lowerName: (usersTable, { sql }) => sql<string>`lower(${usersTable.name})`.as('name_lower'),
 		}),
 	});
 
@@ -2001,10 +2083,14 @@ test.skip('[Find One] Get users with posts + orderBy', async () => {
 	const usersWithPosts = await db.query.usersTable.findFirst({
 		with: {
 			posts: {
-				orderBy: (postsTable, { desc }) => [desc(postsTable.id)],
+				orderBy: {
+					id: 'desc',
+				},
 			},
 		},
-		orderBy: (usersTable, { desc }) => [desc(usersTable.id)],
+		orderBy: {
+			id: 'desc',
+		},
 	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
@@ -2053,10 +2139,14 @@ test('[Find One] Get users with posts + where', async () => {
 	]).run();
 
 	const usersWithPosts = await db.query.usersTable.findFirst({
-		where: (({ id }, { eq }) => eq(id, 1)),
+		where: {
+			id: 1,
+		},
 		with: {
 			posts: {
-				where: (({ id }, { eq }) => eq(id, 1)),
+				where: {
+					id: 1,
+				},
 			},
 		},
 	});
@@ -2112,10 +2202,14 @@ test('[Find One] Get users with posts + where + partial', async () => {
 					id: true,
 					content: true,
 				},
-				where: (({ id }, { eq }) => eq(id, 1)),
+				where: {
+					id: 1,
+				},
 			},
 		},
-		where: (({ id }, { eq }) => eq(id, 1)),
+		where: {
+			id: 1,
+		},
 	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
@@ -2163,10 +2257,14 @@ test('[Find One] Get users with posts + where + partial. Did not select posts id
 					id: true,
 					content: true,
 				},
-				where: (({ id }, { eq }) => eq(id, 1)),
+				where: {
+					id: 1,
+				},
 			},
 		},
-		where: (({ id }, { eq }) => eq(id, 1)),
+		where: {
+			id: 1,
+		},
 	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
@@ -2214,10 +2312,14 @@ test('[Find One] Get users with posts + where + partial(true + false)', async ()
 					id: true,
 					content: false,
 				},
-				where: (({ id }, { eq }) => eq(id, 1)),
+				where: {
+					id: 1,
+				},
 			},
 		},
-		where: (({ id }, { eq }) => eq(id, 1)),
+		where: {
+			id: 1,
+		},
 	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
@@ -2260,10 +2362,14 @@ test('[Find One] Get users with posts + where + partial(false)', async () => {
 				columns: {
 					content: false,
 				},
-				where: (({ id }, { eq }) => eq(id, 1)),
+				where: {
+					id: 1,
+				},
 			},
 		},
-		where: (({ id }, { eq }) => eq(id, 1)),
+		where: {
+			id: 1,
+		},
 	});
 
 	expectTypeOf(usersWithPosts).toEqualTypeOf<
@@ -2421,10 +2527,10 @@ test('Get user with invitee and custom fields', async () => {
 	]).run();
 
 	const usersWithInvitee = await db.query.usersTable.findMany({
-		extras: (users, { sql }) => ({ lower: sql<string>`lower(${users.name})`.as('lower_name') }),
+		extras: ({ lower: (users, { sql }) => sql<string>`lower(${users.name})`.as('lower_name') }),
 		with: {
 			invitee: {
-				extras: (invitee, { sql }) => ({ lower: sql<string>`lower(${invitee.name})`.as('lower_name') }),
+				extras: ({ lower: (invitee, { sql }) => sql<string>`lower(${invitee.name})`.as('lower_name') }),
 			},
 		},
 	});
@@ -2497,11 +2603,11 @@ test('Get user with invitee and custom fields + limits', async () => {
 	]).run();
 
 	const usersWithInvitee = await db.query.usersTable.findMany({
-		extras: (users, { sql }) => ({ lower: sql<string>`lower(${users.name})`.as('lower_name') }),
+		extras: ({ lower: (users, { sql }) => sql<string>`lower(${users.name})`.as('lower_name') }),
 		limit: 3,
 		with: {
 			invitee: {
-				extras: (invitee, { sql }) => ({ lower: sql<string>`lower(${invitee.name})`.as('lower_name') }),
+				extras: ({ lower: (invitee, { sql }) => sql<string>`lower(${invitee.name})`.as('lower_name') }),
 			},
 		},
 	});
@@ -2565,7 +2671,9 @@ test('Get user with invitee + order by', async () => {
 	]).run();
 
 	const usersWithInvitee = await db.query.usersTable.findMany({
-		orderBy: (users, { desc }) => [desc(users.id)],
+		orderBy: {
+			id: 'desc',
+		},
 		with: {
 			invitee: true,
 		},
@@ -2631,7 +2739,11 @@ test('Get user with invitee + where', async () => {
 	]).run();
 
 	const usersWithInvitee = await db.query.usersTable.findMany({
-		where: (users, { eq, or }) => (or(eq(users.id, 3), eq(users.id, 4))),
+		where: {
+			id: {
+				OR: [3, 4],
+			},
+		},
 		with: {
 			invitee: true,
 		},
@@ -2681,7 +2793,11 @@ test('Get user with invitee + where + partial', async () => {
 	]).run();
 
 	const usersWithInvitee = await db.query.usersTable.findMany({
-		where: (users, { eq, or }) => (or(eq(users.id, 3), eq(users.id, 4))),
+		where: {
+			id: {
+				OR: [3, 4],
+			},
+		},
 		columns: {
 			id: true,
 			name: true,
@@ -2732,7 +2848,11 @@ test('Get user with invitee + where + partial.  Did not select users id, but use
 	]).run();
 
 	const usersWithInvitee = await db.query.usersTable.findMany({
-		where: (users, { eq, or }) => (or(eq(users.id, 3), eq(users.id, 4))),
+		where: {
+			id: {
+				OR: [3, 4],
+			},
+		},
 		columns: {
 			name: true,
 		},
@@ -2779,7 +2899,11 @@ test('Get user with invitee + where + partial(true+false)', async () => {
 	]).run();
 
 	const usersWithInvitee = await db.query.usersTable.findMany({
-		where: (users, { eq, or }) => (or(eq(users.id, 3), eq(users.id, 4))),
+		where: {
+			id: {
+				OR: [3, 4],
+			},
+		},
 		columns: {
 			id: true,
 			name: true,
@@ -2832,7 +2956,11 @@ test('Get user with invitee + where + partial(false)', async () => {
 	]).run();
 
 	const usersWithInvitee = await db.query.usersTable.findMany({
-		where: (users, { eq, or }) => (or(eq(users.id, 3), eq(users.id, 4))),
+		where: {
+			id: {
+				OR: [3, 4],
+			},
+		},
 		columns: {
 			verified: false,
 		},
@@ -3064,14 +3192,14 @@ test('Get user with invitee and posts + limits + custom fields in each', async (
 
 	const response = await db.query.usersTable.findMany({
 		limit: 3,
-		extras: (users, { sql }) => ({ lower: sql<string>`lower(${users.name})`.as('lower_name') }),
+		extras: ({ lower: (users, { sql }) => sql<string>`lower(${users.name})`.as('lower_name') }),
 		with: {
 			invitee: {
-				extras: (users, { sql }) => ({ lower: sql<string>`lower(${users.name})`.as('lower_invitee_name') }),
+				extras: ({ lower: (users, { sql }) => sql<string>`lower(${users.name})`.as('lower_invitee_name') }),
 			},
 			posts: {
 				limit: 1,
-				extras: (posts, { sql }) => ({ lower: sql<string>`lower(${posts.content})`.as('lower_content') }),
+				extras: ({ lower: (posts, { sql }) => sql<string>`lower(${posts.content})`.as('lower_content') }),
 			},
 		},
 	});
@@ -3153,13 +3281,13 @@ test('Get user with invitee and posts + custom fields in each', async () => {
 	]).run();
 
 	const response = await db.query.usersTable.findMany({
-		extras: (users, { sql }) => ({ lower: sql<string>`lower(${users.name})`.as('lower_name') }),
+		extras: ({ lower: (users, { sql }) => sql<string>`lower(${users.name})`.as('lower_name') }),
 		with: {
 			invitee: {
-				extras: (users, { sql }) => ({ lower: sql<string>`lower(${users.name})`.as('lower_name') }),
+				extras: ({ lower: (users, { sql }) => sql<string>`lower(${users.name})`.as('lower_name') }),
 			},
 			posts: {
-				extras: (posts, { sql }) => ({ lower: sql<string>`lower(${posts.content})`.as('lower_name') }),
+				extras: ({ lower: (posts, { sql }) => sql<string>`lower(${posts.content})`.as('lower_name') }),
 			},
 		},
 	});
@@ -3274,11 +3402,15 @@ test.skip('Get user with invitee and posts + orderBy', async () => {
 	]).run();
 
 	const response = await db.query.usersTable.findMany({
-		orderBy: (users, { desc }) => [desc(users.id)],
+		orderBy: {
+			id: 'desc',
+		},
 		with: {
 			invitee: true,
 			posts: {
-				orderBy: (posts, { desc }) => [desc(posts.id)],
+				orderBy: {
+					id: 'desc',
+				},
 			},
 		},
 	});
@@ -3375,11 +3507,17 @@ test('Get user with invitee and posts + where', async () => {
 	]).run();
 
 	const response = await db.query.usersTable.findMany({
-		where: (users, { eq, or }) => (or(eq(users.id, 2), eq(users.id, 3))),
+		where: {
+			id: {
+				OR: [2, 3],
+			},
+		},
 		with: {
 			invitee: true,
 			posts: {
-				where: (posts, { eq }) => (eq(posts.ownerId, 2)),
+				where: {
+					ownerId: 2,
+				},
 			},
 		},
 	});
@@ -3446,12 +3584,18 @@ test('Get user with invitee and posts + limit posts and users + where', async ()
 	]).run();
 
 	const response = await db.query.usersTable.findMany({
-		where: (users, { eq, or }) => (or(eq(users.id, 3), eq(users.id, 4))),
+		where: {
+			id: {
+				OR: [3, 4],
+			},
+		},
 		limit: 1,
 		with: {
 			invitee: true,
 			posts: {
-				where: (posts, { eq }) => (eq(posts.ownerId, 3)),
+				where: {
+					ownerId: 3,
+				},
 				limit: 1,
 			},
 		},
@@ -3505,19 +3649,29 @@ test('Get user with invitee and posts + orderBy + where + custom', async () => {
 	]).run();
 
 	const response = await db.query.usersTable.findMany({
-		orderBy: [desc(usersTable.id)],
-		where: or(eq(usersTable.id, 3), eq(usersTable.id, 4)),
-		extras: {
-			lower: sql<string>`lower(${usersTable.name})`.as('lower_name'),
+		orderBy: {
+			id: 'desc',
 		},
+		where: {
+			id: {
+				OR: [3, 4],
+			},
+		},
+		extras: ({
+			lower: (usersTable) => sql<string>`lower(${usersTable.name})`.as('lower_name'),
+		}),
 		with: {
 			invitee: true,
 			posts: {
-				where: eq(postsTable.ownerId, 3),
-				orderBy: [desc(postsTable.id)],
-				extras: {
-					lower: sql<string>`lower(${postsTable.content})`.as('lower_name'),
+				where: {
+					ownerId: 3,
 				},
+				orderBy: {
+					id: 'desc',
+				},
+				extras: ({
+					lower: (postsTable) => sql<string>`lower(${postsTable.content})`.as('lower_name'),
+				}),
 			},
 		},
 	});
@@ -3590,11 +3744,17 @@ test('Get user with invitee and posts + orderBy + where + partial + custom', asy
 	]).run();
 
 	const response = await db.query.usersTable.findMany({
-		orderBy: [desc(usersTable.id)],
-		where: or(eq(usersTable.id, 3), eq(usersTable.id, 4)),
-		extras: {
-			lower: sql<string>`lower(${usersTable.name})`.as('lower_name'),
+		orderBy: {
+			id: 'desc',
 		},
+		where: {
+			id: {
+				OR: [3, 4],
+			},
+		},
+		extras: ({
+			lower: (usersTable) => sql<string>`lower(${usersTable.name})`.as('lower_name'),
+		}),
 		columns: {
 			id: true,
 			name: true,
@@ -3605,20 +3765,24 @@ test('Get user with invitee and posts + orderBy + where + partial + custom', asy
 					id: true,
 					name: true,
 				},
-				extras: {
-					lower: sql<string>`lower(${usersTable.name})`.as('lower_name'),
-				},
+				extras: ({
+					lower: (usersTable) => sql<string>`lower(${usersTable.name})`.as('lower_name'),
+				}),
 			},
 			posts: {
 				columns: {
 					id: true,
 					content: true,
 				},
-				where: eq(postsTable.ownerId, 3),
-				orderBy: [desc(postsTable.id)],
-				extras: {
-					lower: sql<string>`lower(${postsTable.content})`.as('lower_name'),
+				where: {
+					ownerId: 3,
 				},
+				orderBy: {
+					id: 'desc',
+				},
+				extras: ({
+					lower: (postsTable) => sql<string>`lower(${postsTable.content})`.as('lower_name'),
+				}),
 			},
 		},
 	});
@@ -3878,7 +4042,7 @@ test('Get user with posts and posts with comments and comments with owner', asyn
 					name: string;
 					verified: number;
 					invitedBy: number | null;
-				} | null;
+				};
 			}[];
 		}[];
 	}[]>();
@@ -3990,7 +4154,9 @@ test('[Find Many] Get users with groups', async () => {
 		with: {
 			usersToGroups: {
 				columns: {},
-				orderBy: usersToGroupsTable.groupId,
+				orderBy: {
+					groupId: 'asc',
+				},
 				with: {
 					group: true,
 				},
@@ -4360,10 +4526,16 @@ test('[Find Many] Get users with groups + limit + where', async () => {
 
 	const response = await db.query.usersTable.findMany({
 		limit: 1,
-		where: (_, { eq, or }) => or(eq(usersTable.id, 1), eq(usersTable.id, 2)),
+		where: {
+			id: {
+				OR: [1, 2],
+			},
+		},
 		with: {
 			usersToGroups: {
-				where: eq(usersToGroupsTable.groupId, 1),
+				where: {
+					groupId: 1,
+				},
 				columns: {},
 				with: {
 					group: true,
@@ -4429,10 +4601,16 @@ test('[Find Many] Get groups with users + limit + where', async () => {
 
 	const response = await db.query.groupsTable.findMany({
 		limit: 1,
-		where: gt(groupsTable.id, 1),
+		where: {
+			id: {
+				gt: 1,
+			},
+		},
 		with: {
 			usersToGroups: {
-				where: eq(usersToGroupsTable.userId, 2),
+				where: {
+					userId: 2,
+				},
 				limit: 1,
 				columns: {},
 				with: {
@@ -4498,10 +4676,16 @@ test('[Find Many] Get users with groups + where', async () => {
 	]).run();
 
 	const response = await db.query.usersTable.findMany({
-		where: (_, { eq, or }) => or(eq(usersTable.id, 1), eq(usersTable.id, 2)),
+		where: {
+			id: {
+				OR: [1, 2],
+			},
+		},
 		with: {
 			usersToGroups: {
-				where: eq(usersToGroupsTable.groupId, 2),
+				where: {
+					groupId: 2,
+				},
 				columns: {},
 				with: {
 					group: true,
@@ -4575,10 +4759,16 @@ test('[Find Many] Get groups with users + where', async () => {
 	]).run();
 
 	const response = await db.query.groupsTable.findMany({
-		where: gt(groupsTable.id, 1),
+		where: {
+			id: {
+				gt: 1,
+			},
+		},
 		with: {
 			usersToGroups: {
-				where: eq(usersToGroupsTable.userId, 2),
+				where: {
+					userId: 2,
+				},
 				columns: {},
 				with: {
 					user: true,
@@ -4651,10 +4841,14 @@ test('[Find Many] Get users with groups + orderBy', async () => {
 	]).run();
 
 	const response = await db.query.usersTable.findMany({
-		orderBy: (users, { desc }) => [desc(users.id)],
+		orderBy: {
+			id: 'desc',
+		},
 		with: {
 			usersToGroups: {
-				orderBy: [desc(usersToGroupsTable.groupId)],
+				orderBy: {
+					groupId: 'desc',
+				},
 				columns: {},
 				with: {
 					group: true,
@@ -4753,10 +4947,14 @@ test('[Find Many] Get groups with users + orderBy', async () => {
 	]).run();
 
 	const response = await db.query.groupsTable.findMany({
-		orderBy: [desc(groupsTable.id)],
+		orderBy: {
+			id: 'desc',
+		},
 		with: {
 			usersToGroups: {
-				orderBy: (utg, { desc }) => [desc(utg.userId)],
+				orderBy: {
+					userId: 'desc',
+				},
 				columns: {},
 				with: {
 					user: true,
@@ -4856,12 +5054,16 @@ test('[Find Many] Get users with groups + orderBy + limit', async () => {
 	]).run();
 
 	const response = await db.query.usersTable.findMany({
-		orderBy: (users, { desc }) => [desc(users.id)],
+		orderBy: {
+			id: 'desc',
+		},
 		limit: 2,
 		with: {
 			usersToGroups: {
 				limit: 1,
-				orderBy: [desc(usersToGroupsTable.groupId)],
+				orderBy: {
+					groupId: 'desc',
+				},
 				columns: {},
 				with: {
 					group: true,
@@ -5203,10 +5405,16 @@ test('[Find One] Get users with groups + limit + where', async () => {
 	]).run();
 
 	const response = await db.query.usersTable.findFirst({
-		where: (_, { eq, or }) => or(eq(usersTable.id, 1), eq(usersTable.id, 2)),
+		where: {
+			id: {
+				OR: [1, 2],
+			},
+		},
 		with: {
 			usersToGroups: {
-				where: eq(usersToGroupsTable.groupId, 1),
+				where: {
+					groupId: 1,
+				},
 				columns: {},
 				with: {
 					group: true,
@@ -5269,10 +5477,16 @@ test('[Find One] Get groups with users + limit + where', async () => {
 	]).run();
 
 	const response = await db.query.groupsTable.findFirst({
-		where: gt(groupsTable.id, 1),
+		where: {
+			id: {
+				gt: 1,
+			},
+		},
 		with: {
 			usersToGroups: {
-				where: eq(usersToGroupsTable.userId, 2),
+				where: {
+					userId: 2,
+				},
 				limit: 1,
 				columns: {},
 				with: {
@@ -5336,10 +5550,16 @@ test('[Find One] Get users with groups + where', async () => {
 	]).run();
 
 	const response = await db.query.usersTable.findFirst({
-		where: (_, { eq, or }) => or(eq(usersTable.id, 1), eq(usersTable.id, 2)),
+		where: {
+			id: {
+				OR: [1, 2],
+			},
+		},
 		with: {
 			usersToGroups: {
-				where: eq(usersToGroupsTable.groupId, 2),
+				where: {
+					groupId: 2,
+				},
 				columns: {},
 				with: {
 					group: true,
@@ -5396,10 +5616,16 @@ test('[Find One] Get groups with users + where', async () => {
 	]).run();
 
 	const response = await db.query.groupsTable.findFirst({
-		where: gt(groupsTable.id, 1),
+		where: {
+			id: {
+				gt: 1,
+			},
+		},
 		with: {
 			usersToGroups: {
-				where: eq(usersToGroupsTable.userId, 2),
+				where: {
+					userId: 2,
+				},
 				columns: {},
 				with: {
 					user: true,
@@ -5462,10 +5688,14 @@ test('[Find One] Get users with groups + orderBy', async () => {
 	]).run();
 
 	const response = await db.query.usersTable.findFirst({
-		orderBy: (users, { desc }) => [desc(users.id)],
+		orderBy: {
+			id: 'desc',
+		},
 		with: {
 			usersToGroups: {
-				orderBy: [desc(usersToGroupsTable.groupId)],
+				orderBy: {
+					groupId: 'desc',
+				},
 				columns: {},
 				with: {
 					group: true,
@@ -5534,10 +5764,14 @@ test('[Find One] Get groups with users + orderBy', async () => {
 	]).run();
 
 	const response = await db.query.groupsTable.findFirst({
-		orderBy: [desc(groupsTable.id)],
+		orderBy: {
+			id: 'desc',
+		},
 		with: {
 			usersToGroups: {
-				orderBy: (utg, { desc }) => [desc(utg.userId)],
+				orderBy: {
+					userId: 'desc',
+				},
 				columns: {},
 				with: {
 					user: true,
@@ -5600,11 +5834,15 @@ test('[Find One] Get users with groups + orderBy + limit', async () => {
 	]).run();
 
 	const response = await db.query.usersTable.findFirst({
-		orderBy: (users, { desc }) => [desc(users.id)],
+		orderBy: {
+			id: 'desc',
+		},
 		with: {
 			usersToGroups: {
 				limit: 1,
-				orderBy: [desc(usersToGroupsTable.groupId)],
+				orderBy: {
+					groupId: 'desc',
+				},
 				columns: {},
 				with: {
 					group: true,
@@ -5667,12 +5905,16 @@ test('Get groups with users + orderBy + limit', async () => {
 	]).run();
 
 	const response = await db.query.groupsTable.findMany({
-		orderBy: [desc(groupsTable.id)],
+		orderBy: {
+			id: 'desc',
+		},
 		limit: 2,
 		with: {
 			usersToGroups: {
 				limit: 1,
-				orderBy: (utg, { desc }) => [desc(utg.userId)],
+				orderBy: {
+					userId: 'desc',
+				},
 				columns: {},
 				with: {
 					user: true,
@@ -5752,17 +5994,17 @@ test('Get users with groups + custom', async () => {
 	]).run();
 
 	const response = await db.query.usersTable.findMany({
-		extras: {
-			lower: sql<string>`lower(${usersTable.name})`.as('lower_name'),
-		},
+		extras: ({
+			lower: (usersTable) => sql<string>`lower(${usersTable.name})`.as('lower_name'),
+		}),
 		with: {
 			usersToGroups: {
 				columns: {},
 				with: {
 					group: {
-						extras: {
-							lower: sql<string>`lower(${groupsTable.name})`.as('lower_name'),
-						},
+						extras: ({
+							lower: (groupsTable) => sql<string>`lower(${groupsTable.name})`.as('lower_name'),
+						}),
 					},
 				},
 			},
@@ -5876,16 +6118,16 @@ test('Get groups with users + custom', async () => {
 	]).run();
 
 	const response = await db.query.groupsTable.findMany({
-		extras: (table, { sql }) => ({
-			lower: sql<string>`lower(${table.name})`.as('lower_name'),
+		extras: ({
+			lower: (table, { sql }) => sql<string>`lower(${table.name})`.as('lower_name'),
 		}),
 		with: {
 			usersToGroups: {
 				columns: {},
 				with: {
 					user: {
-						extras: (table, { sql }) => ({
-							lower: sql<string>`lower(${table.name})`.as('lower_name'),
+						extras: ({
+							lower: (table, { sql }) => sql<string>`lower(${table.name})`.as('lower_name'),
 						}),
 					},
 				},
@@ -5990,31 +6232,2493 @@ test('async api - prepare', async () => {
 	expect(users).toEqual([{ id: 1, name: 'Dan', verified: 0, invitedBy: null }]);
 });
 
+test('Force optional on where on non-optional relation query', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex', invitedBy: 1 },
+		{ id: 4, name: 'John', invitedBy: 2 },
+	]);
+
+	const usersWithInvitee = await db.query.usersTable.findMany({
+		with: {
+			inviteeRequired: {
+				where: {
+					id: 1,
+				},
+			},
+		},
+	});
+
+	expectTypeOf(usersWithInvitee).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+			inviteeRequired: {
+				id: number;
+				name: string;
+				verified: number;
+				invitedBy: number | null;
+			} | null;
+		}[]
+	>();
+
+	usersWithInvitee.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(usersWithInvitee.length).eq(4);
+	expect(usersWithInvitee[0]?.inviteeRequired).toBeNull();
+	expect(usersWithInvitee[1]?.inviteeRequired).toBeNull();
+	expect(usersWithInvitee[2]?.inviteeRequired).not.toBeNull();
+	expect(usersWithInvitee[3]?.inviteeRequired).toBeNull();
+
+	expect(usersWithInvitee[0]).toEqual({
+		id: 1,
+		name: 'Dan',
+		verified: 0,
+		invitedBy: null,
+		inviteeRequired: null,
+	});
+	expect(usersWithInvitee[1]).toEqual({
+		id: 2,
+		name: 'Andrew',
+		verified: 0,
+		invitedBy: null,
+		inviteeRequired: null,
+	});
+	expect(usersWithInvitee[2]).toEqual({
+		id: 3,
+		name: 'Alex',
+		verified: 0,
+		invitedBy: 1,
+		inviteeRequired: { id: 1, name: 'Dan', verified: 0, invitedBy: null },
+	});
+	expect(usersWithInvitee[3]).toEqual({
+		id: 4,
+		name: 'John',
+		verified: 0,
+		invitedBy: 2,
+		inviteeRequired: null,
+	});
+});
+
+test('[Find Many .through] Get users with groups', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		with: {
+			groups: true,
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: number;
+		invitedBy: number | null;
+		groups: {
+			id: number;
+			name: string;
+			description: string | null;
+		}[];
+	}[]>();
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	for (const e of response) {
+		e.groups.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	}
+
+	expect(response).toStrictEqual([{
+		id: 1,
+		name: 'Dan',
+		verified: 0,
+		invitedBy: null,
+		groups: [{
+			id: 1,
+			name: 'Group1',
+			description: null,
+		}],
+	}, {
+		id: 2,
+		name: 'Andrew',
+		verified: 0,
+		invitedBy: null,
+		groups: [{
+			id: 2,
+			name: 'Group2',
+			description: null,
+		}],
+	}, {
+		id: 3,
+		name: 'Alex',
+		verified: 0,
+		invitedBy: null,
+		groups: [
+			{
+				id: 2,
+				name: 'Group2',
+				description: null,
+			},
+			{
+				id: 3,
+				name: 'Group3',
+				description: null,
+			},
+		],
+	}]);
+});
+
+test('[Find Many .through] Get groups with users', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.groupsTable.findMany({
+		with: {
+			users: true,
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		description: string | null;
+		users: {
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+		}[];
+	}[]>();
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	for (const e of response) {
+		e.users.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	}
+
+	expect(response).toStrictEqual([{
+		id: 1,
+		name: 'Group1',
+		description: null,
+		users: [{
+			id: 1,
+			name: 'Dan',
+			verified: 0,
+			invitedBy: null,
+		}],
+	}, {
+		id: 2,
+		name: 'Group2',
+		description: null,
+		users: [{
+			id: 2,
+			name: 'Andrew',
+			verified: 0,
+			invitedBy: null,
+		}, {
+			id: 3,
+			name: 'Alex',
+			verified: 0,
+			invitedBy: null,
+		}],
+	}, {
+		id: 3,
+		name: 'Group3',
+		description: null,
+		users: [{
+			id: 3,
+			name: 'Alex',
+			verified: 0,
+			invitedBy: null,
+		}],
+	}]);
+});
+
+test('[Find Many .through] Get users with groups + limit', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 2, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		limit: 2,
+		with: {
+			groups: {
+				limit: 1,
+				orderBy: {
+					id: 'asc',
+				},
+			},
+		},
+		orderBy: {
+			id: 'asc',
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: number;
+		invitedBy: number | null;
+		groups: {
+			id: number;
+			name: string;
+			description: string | null;
+		}[];
+	}[]>();
+
+	expect(response).toStrictEqual([{
+		id: 1,
+		name: 'Dan',
+		verified: 0,
+		invitedBy: null,
+		groups: [{
+			id: 1,
+			name: 'Group1',
+			description: null,
+		}],
+	}, {
+		id: 2,
+		name: 'Andrew',
+		verified: 0,
+		invitedBy: null,
+		groups: [{
+			id: 2,
+			name: 'Group2',
+			description: null,
+		}],
+	}]);
+});
+
+test('[Find Many .through] Get groups with users + limit', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.groupsTable.findMany({
+		limit: 2,
+		with: {
+			users: {
+				limit: 1,
+				orderBy: {
+					id: 'asc',
+				},
+			},
+		},
+		orderBy: {
+			id: 'asc',
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		description: string | null;
+		users: {
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+		}[];
+	}[]>();
+
+	expect(response).toStrictEqual([{
+		id: 1,
+		name: 'Group1',
+		description: null,
+		users: [{
+			id: 1,
+			name: 'Dan',
+			verified: 0,
+			invitedBy: null,
+		}],
+	}, {
+		id: 2,
+		name: 'Group2',
+		description: null,
+		users: [{
+			id: 2,
+			name: 'Andrew',
+			verified: 0,
+			invitedBy: null,
+		}],
+	}]);
+});
+
+test('[Find Many .through] Get users with groups + limit + where', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 2, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		limit: 1,
+		where: {
+			id: {
+				OR: [1, 2],
+			},
+		},
+		with: {
+			groups: {
+				where: {
+					id: 1,
+				},
+			},
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: number;
+		invitedBy: number | null;
+		groups: {
+			id: number;
+			name: string;
+			description: string | null;
+		}[];
+	}[]>();
+
+	expect(response).toStrictEqual([{
+		id: 1,
+		name: 'Dan',
+		verified: 0,
+		invitedBy: null,
+		groups: [{
+			id: 1,
+			name: 'Group1',
+			description: null,
+		}],
+	}]);
+});
+
+test('[Find Many .through] Get groups with users + limit + where', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.groupsTable.findMany({
+		limit: 1,
+		where: {
+			id: { gt: 1 },
+		},
+		with: {
+			users: {
+				where: {
+					id: 2,
+				},
+				limit: 1,
+			},
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		description: string | null;
+		users: {
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+		}[];
+	}[]>();
+
+	expect(response).toStrictEqual([{
+		id: 2,
+		name: 'Group2',
+		description: null,
+		users: [{
+			id: 2,
+			name: 'Andrew',
+			verified: 0,
+			invitedBy: null,
+		}],
+	}]);
+});
+
+test('[Find Many .through] Get users with groups + where', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 2, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		where: {
+			id: {
+				OR: [1, 2],
+			},
+		},
+		with: {
+			groups: {
+				where: {
+					id: 2,
+				},
+			},
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: number;
+		invitedBy: number | null;
+		groups: {
+			id: number;
+			name: string;
+			description: string | null;
+		}[];
+	}[]>();
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(response).toStrictEqual([{
+		id: 1,
+		name: 'Dan',
+		verified: 0,
+		invitedBy: null,
+		groups: [],
+	}, {
+		id: 2,
+		name: 'Andrew',
+		verified: 0,
+		invitedBy: null,
+		groups: [{
+			id: 2,
+			name: 'Group2',
+			description: null,
+		}],
+	}]);
+});
+
+test('[Find Many .through] Get groups with users + where', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.groupsTable.findMany({
+		where: {
+			id: { gt: 1 },
+		},
+		with: {
+			users: {
+				where: {
+					id: 2,
+				},
+			},
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		description: string | null;
+		users: {
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+		}[];
+	}[]>();
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(response).toStrictEqual([{
+		id: 2,
+		name: 'Group2',
+		description: null,
+		users: [{
+			id: 2,
+			name: 'Andrew',
+			verified: 0,
+			invitedBy: null,
+		}],
+	}, {
+		id: 3,
+		name: 'Group3',
+		description: null,
+		users: [],
+	}]);
+});
+
+test('[Find Many .through] Get users with groups + orderBy', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		orderBy: {
+			id: 'desc',
+		},
+		with: {
+			groups: {
+				orderBy: {
+					id: 'desc',
+				},
+			},
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: number;
+		invitedBy: number | null;
+		groups: {
+			id: number;
+			name: string;
+			description: string | null;
+		}[];
+	}[]>();
+
+	expect(response).toStrictEqual([{
+		id: 3,
+		name: 'Alex',
+		verified: 0,
+		invitedBy: null,
+		groups: [{
+			id: 3,
+			name: 'Group3',
+			description: null,
+		}, {
+			id: 2,
+			name: 'Group2',
+			description: null,
+		}],
+	}, {
+		id: 2,
+		name: 'Andrew',
+		verified: 0,
+		invitedBy: null,
+		groups: [{
+			id: 2,
+			name: 'Group2',
+			description: null,
+		}],
+	}, {
+		id: 1,
+		name: 'Dan',
+		verified: 0,
+		invitedBy: null,
+		groups: [{
+			id: 1,
+			name: 'Group1',
+			description: null,
+		}],
+	}]);
+});
+
+test('[Find Many .through] Get groups with users + orderBy', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.groupsTable.findMany({
+		orderBy: {
+			id: 'desc',
+		},
+		with: {
+			users: {
+				orderBy: {
+					id: 'desc',
+				},
+			},
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		description: string | null;
+		users: {
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+		}[];
+	}[]>();
+
+	expect(response).toStrictEqual([{
+		id: 3,
+		name: 'Group3',
+		description: null,
+		users: [{
+			id: 3,
+			name: 'Alex',
+			verified: 0,
+			invitedBy: null,
+		}],
+	}, {
+		id: 2,
+		name: 'Group2',
+		description: null,
+		users: [{
+			id: 3,
+			name: 'Alex',
+			verified: 0,
+			invitedBy: null,
+		}, {
+			id: 2,
+			name: 'Andrew',
+			verified: 0,
+			invitedBy: null,
+		}],
+	}, {
+		id: 1,
+		name: 'Group1',
+		description: null,
+		users: [{
+			id: 1,
+			name: 'Dan',
+			verified: 0,
+			invitedBy: null,
+		}],
+	}]);
+});
+
+test('[Find Many .through] Get users with groups + orderBy + limit', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		orderBy: {
+			id: 'desc',
+		},
+		limit: 2,
+		with: {
+			groups: {
+				limit: 1,
+				orderBy: {
+					id: 'desc',
+				},
+			},
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: number;
+		invitedBy: number | null;
+		groups: {
+			id: number;
+			name: string;
+			description: string | null;
+		}[];
+	}[]>();
+
+	expect(response).toStrictEqual([{
+		id: 3,
+		name: 'Alex',
+		verified: 0,
+		invitedBy: null,
+		groups: [{
+			id: 3,
+			name: 'Group3',
+			description: null,
+		}],
+	}, {
+		id: 2,
+		name: 'Andrew',
+		verified: 0,
+		invitedBy: null,
+		groups: [{
+			id: 2,
+			name: 'Group2',
+			description: null,
+		}],
+	}]);
+});
+
+test('[Find One .through] Get users with groups', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.usersTable.findFirst({
+		with: {
+			groups: true,
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+			groups: {
+				id: number;
+				name: string;
+				description: string | null;
+			}[];
+		} | undefined
+	>();
+
+	expect(response).toStrictEqual({
+		id: 1,
+		name: 'Dan',
+		verified: 0,
+		invitedBy: null,
+		groups: [{
+			id: 1,
+			name: 'Group1',
+			description: null,
+		}],
+	});
+});
+
+test('[Find One .through] Get groups with users', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.groupsTable.findFirst({
+		with: {
+			users: true,
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			description: string | null;
+			users: {
+				id: number;
+				name: string;
+				verified: number;
+				invitedBy: number | null;
+			}[];
+		} | undefined
+	>();
+
+	expect(response).toStrictEqual({
+		id: 1,
+		name: 'Group1',
+		description: null,
+		users: [{
+			id: 1,
+			name: 'Dan',
+			verified: 0,
+			invitedBy: null,
+		}],
+	});
+});
+
+test('[Find One .through] Get users with groups + limit', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 2, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.usersTable.findFirst({
+		with: {
+			groups: {
+				limit: 1,
+			},
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+			groups: {
+				id: number;
+				name: string;
+				description: string | null;
+			}[];
+		} | undefined
+	>();
+
+	expect(response).toStrictEqual({
+		id: 1,
+		name: 'Dan',
+		verified: 0,
+		invitedBy: null,
+		groups: [{
+			id: 1,
+			name: 'Group1',
+			description: null,
+		}],
+	});
+});
+
+test('[Find One .through] Get groups with users + limit', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.groupsTable.findFirst({
+		with: {
+			users: {
+				limit: 1,
+			},
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			description: string | null;
+			users: {
+				id: number;
+				name: string;
+				verified: number;
+				invitedBy: number | null;
+			}[];
+		} | undefined
+	>();
+
+	expect(response).toEqual({
+		id: 1,
+		name: 'Group1',
+		description: null,
+		users: [{
+			id: 1,
+			name: 'Dan',
+			verified: 0,
+			invitedBy: null,
+		}],
+	});
+});
+
+test('[Find One .through] Get users with groups + limit + where', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 2, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.usersTable.findFirst({
+		where: {
+			id: {
+				OR: [1, 2],
+			},
+		},
+		with: {
+			groups: {
+				where: {
+					id: 1,
+				},
+			},
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+			groups: {
+				id: number;
+				name: string;
+				description: string | null;
+			}[];
+		} | undefined
+	>();
+
+	expect(response).toEqual({
+		id: 1,
+		name: 'Dan',
+		verified: 0,
+		invitedBy: null,
+		groups: [{
+			id: 1,
+			name: 'Group1',
+			description: null,
+		}],
+	});
+});
+
+test('[Find One .through] Get groups with users + limit + where', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.groupsTable.findFirst({
+		where: {
+			id: { gt: 1 },
+		},
+		with: {
+			users: {
+				where: {
+					id: 2,
+				},
+			},
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			description: string | null;
+			users: {
+				id: number;
+				name: string;
+				verified: number;
+				invitedBy: number | null;
+			}[];
+		} | undefined
+	>();
+
+	expect(response).toStrictEqual({
+		id: 2,
+		name: 'Group2',
+		description: null,
+		users: [{
+			id: 2,
+			name: 'Andrew',
+			verified: 0,
+			invitedBy: null,
+		}],
+	});
+});
+
+test('[Find One .through] Get users with groups + where', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 2, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.usersTable.findFirst({
+		where: {
+			id: {
+				OR: [1, 2],
+			},
+		},
+		with: {
+			groups: {
+				where: {
+					id: 2,
+				},
+			},
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+			groups: {
+				id: number;
+				name: string;
+				description: string | null;
+			}[];
+		} | undefined
+	>();
+
+	expect(response).toEqual({
+		id: 1,
+		name: 'Dan',
+		verified: 0,
+		invitedBy: null,
+		groups: [],
+	});
+});
+
+test('[Find One .through] Get groups with users + where', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.groupsTable.findFirst({
+		where: {
+			id: { gt: 1 },
+		},
+		with: {
+			users: {
+				where: {
+					id: 2,
+				},
+			},
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			description: string | null;
+			users: {
+				id: number;
+				name: string;
+				verified: number;
+				invitedBy: number | null;
+			}[];
+		} | undefined
+	>();
+
+	expect(response).toEqual({
+		id: 2,
+		name: 'Group2',
+		description: null,
+		users: [{
+			id: 2,
+			name: 'Andrew',
+			verified: 0,
+			invitedBy: null,
+		}],
+	});
+});
+
+test('[Find One .through] Get users with groups + orderBy', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.usersTable.findFirst({
+		orderBy: {
+			id: 'desc',
+		},
+		with: {
+			groups: {
+				orderBy: {
+					id: 'desc',
+				},
+			},
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+			groups: {
+				id: number;
+				name: string;
+				description: string | null;
+			}[];
+		} | undefined
+	>();
+
+	expect(response).toStrictEqual({
+		id: 3,
+		name: 'Alex',
+		verified: 0,
+		invitedBy: null,
+		groups: [{
+			id: 3,
+			name: 'Group3',
+			description: null,
+		}, {
+			id: 2,
+			name: 'Group2',
+			description: null,
+		}],
+	});
+});
+
+test('[Find One .through] Get groups with users + orderBy', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.groupsTable.findFirst({
+		orderBy: {
+			id: 'desc',
+		},
+		with: {
+			users: {
+				orderBy: {
+					id: 'desc',
+				},
+			},
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			description: string | null;
+			users: {
+				id: number;
+				name: string;
+				verified: number;
+				invitedBy: number | null;
+			}[];
+		} | undefined
+	>();
+
+	expect(response).toEqual({
+		id: 3,
+		name: 'Group3',
+		description: null,
+		users: [{
+			id: 3,
+			name: 'Alex',
+			verified: 0,
+			invitedBy: null,
+		}],
+	});
+});
+
+test('[Find One .through] Get users with groups + orderBy + limit', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.usersTable.findFirst({
+		orderBy: {
+			id: 'desc',
+		},
+		with: {
+			groups: {
+				limit: 1,
+				orderBy: {
+					id: 'desc',
+				},
+			},
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+			groups: {
+				id: number;
+				name: string;
+				description: string | null;
+			}[];
+		} | undefined
+	>();
+
+	expect(response).toEqual({
+		id: 3,
+		name: 'Alex',
+		verified: 0,
+		invitedBy: null,
+		groups: [{
+			id: 3,
+			name: 'Group3',
+			description: null,
+		}],
+	});
+});
+
+test('[Find Many .through] Get groups with users + orderBy + limit', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.groupsTable.findMany({
+		orderBy: {
+			id: 'desc',
+		},
+		limit: 2,
+		with: {
+			users: {
+				limit: 1,
+				orderBy: {
+					id: 'desc',
+				},
+			},
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			description: string | null;
+			users: {
+				id: number;
+				name: string;
+				verified: number;
+				invitedBy: number | null;
+			}[];
+		}[]
+	>();
+
+	expect(response).toStrictEqual([{
+		id: 3,
+		name: 'Group3',
+		description: null,
+		users: [{
+			id: 3,
+			name: 'Alex',
+			verified: 0,
+			invitedBy: null,
+		}],
+	}, {
+		id: 2,
+		name: 'Group2',
+		description: null,
+		users: [{
+			id: 3,
+			name: 'Alex',
+			verified: 0,
+			invitedBy: null,
+		}],
+	}]);
+});
+
+test('[Find Many .through] Get users with groups + custom', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		extras: ({
+			lower: ({ name }) => sql<string>`lower(${name})`.as('lower_name'),
+		}),
+		with: {
+			groups: {
+				orderBy: {
+					id: 'asc',
+				},
+				extras: ({
+					lower: ({ name }) => sql<string>`lower(${name})`.as('lower_name'),
+				}),
+			},
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+			lower: string;
+			groups: {
+				id: number;
+				name: string;
+				description: string | null;
+				lower: string;
+			}[];
+		}[]
+	>();
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	for (const e of response) {
+		e.groups.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	}
+
+	expect(response).toStrictEqual([{
+		id: 1,
+		name: 'Dan',
+		lower: 'dan',
+		verified: 0,
+		invitedBy: null,
+		groups: [{
+			id: 1,
+			name: 'Group1',
+			lower: 'group1',
+			description: null,
+		}],
+	}, {
+		id: 2,
+		name: 'Andrew',
+		lower: 'andrew',
+		verified: 0,
+		invitedBy: null,
+		groups: [{
+			id: 2,
+			name: 'Group2',
+			lower: 'group2',
+			description: null,
+		}],
+	}, {
+		id: 3,
+		name: 'Alex',
+		lower: 'alex',
+		verified: 0,
+		invitedBy: null,
+		groups: [
+			{
+				id: 2,
+				name: 'Group2',
+				lower: 'group2',
+				description: null,
+			},
+			{
+				id: 3,
+				name: 'Group3',
+				lower: 'group3',
+				description: null,
+			},
+		],
+	}]);
+});
+
+test('[Find Many .through] Get groups with users + custom', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.groupsTable.findMany({
+		extras: ({
+			lower: (table, { sql }) => sql<string>`lower(${table.name})`.as('lower_name'),
+		}),
+		with: {
+			users: {
+				extras: ({
+					lower: (table, { sql }) => sql<string>`lower(${table.name})`.as('lower_name'),
+				}),
+			},
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<
+		{
+			id: number;
+			name: string;
+			description: string | null;
+			lower: string;
+			users: {
+				id: number;
+				name: string;
+				verified: number;
+				invitedBy: number | null;
+				lower: string;
+			}[];
+		}[]
+	>();
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	for (const e of response) {
+		e.users.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	}
+
+	expect(response).toStrictEqual([{
+		id: 1,
+		name: 'Group1',
+		lower: 'group1',
+		description: null,
+		users: [{
+			id: 1,
+			name: 'Dan',
+			lower: 'dan',
+			verified: 0,
+			invitedBy: null,
+		}],
+	}, {
+		id: 2,
+		name: 'Group2',
+		lower: 'group2',
+		description: null,
+		users: [{
+			id: 2,
+			name: 'Andrew',
+			lower: 'andrew',
+			verified: 0,
+			invitedBy: null,
+		}, {
+			id: 3,
+			name: 'Alex',
+			lower: 'alex',
+			verified: 0,
+			invitedBy: null,
+		}],
+	}, {
+		id: 3,
+		name: 'Group3',
+		lower: 'group3',
+		description: null,
+		users: [{
+			id: 3,
+			name: 'Alex',
+			lower: 'alex',
+			verified: 0,
+			invitedBy: null,
+		}],
+	}]);
+});
+
+test('[Find Many .through] Get users with first group', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 3, name: 'Group3' },
+		{ id: 2, name: 'Group2' },
+		{ id: 1, name: 'Group1' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 3, groupId: 2 },
+		{ userId: 2, groupId: 3 },
+		{ userId: 2, groupId: 2 },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		with: {
+			group: true,
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: number;
+		invitedBy: number | null;
+		group: {
+			id: number;
+			name: string;
+			description: string | null;
+		} | null;
+	}[]>();
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(response).toStrictEqual([{
+		id: 1,
+		name: 'Dan',
+		verified: 0,
+		invitedBy: null,
+		group: null,
+	}, {
+		id: 2,
+		name: 'Andrew',
+		verified: 0,
+		invitedBy: null,
+		group: {
+			id: 3,
+			name: 'Group3',
+			description: null,
+		},
+	}, {
+		id: 3,
+		name: 'Alex',
+		verified: 0,
+		invitedBy: null,
+		group: {
+			id: 2,
+			name: 'Group2',
+			description: null,
+		},
+	}]);
+});
+
+test('[Find Many .through] Get groups with first user', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.groupsTable.findMany({
+		with: {
+			user: true,
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		description: string | null;
+		user: {
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+		} | null;
+	}[]>();
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	expect(response).toStrictEqual([{
+		id: 1,
+		name: 'Group1',
+		description: null,
+		user: null,
+	}, {
+		id: 2,
+		name: 'Group2',
+		description: null,
+		user: {
+			id: 2,
+			name: 'Andrew',
+			verified: 0,
+			invitedBy: null,
+		},
+	}, {
+		id: 3,
+		name: 'Group3',
+		description: null,
+		user: {
+			id: 3,
+			name: 'Alex',
+			verified: 0,
+			invitedBy: null,
+		},
+	}]);
+});
+
+test('[Find Many .through] Get users with filtered groups', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		with: {
+			groupsFiltered: true,
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: number;
+		invitedBy: number | null;
+		groupsFiltered: {
+			id: number;
+			name: string;
+			description: string | null;
+		}[];
+	}[]>();
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	for (const e of response) {
+		e.groupsFiltered.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	}
+
+	expect(response).toStrictEqual([{
+		id: 1,
+		name: 'Dan',
+		verified: 0,
+		invitedBy: null,
+		groupsFiltered: [],
+	}, {
+		id: 2,
+		name: 'Andrew',
+		verified: 0,
+		invitedBy: null,
+		groupsFiltered: [{
+			id: 2,
+			name: 'Group2',
+			description: null,
+		}],
+	}, {
+		id: 3,
+		name: 'Alex',
+		verified: 0,
+		invitedBy: null,
+		groupsFiltered: [
+			{
+				id: 2,
+				name: 'Group2',
+				description: null,
+			},
+			{
+				id: 3,
+				name: 'Group3',
+				description: null,
+			},
+		],
+	}]);
+});
+
+test('[Find Many .through] Get groups with filtered users', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.groupsTable.findMany({
+		with: {
+			usersFiltered: true,
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		description: string | null;
+		usersFiltered: {
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+		}[];
+	}[]>();
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	for (const e of response) {
+		e.usersFiltered.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	}
+
+	expect(response).toStrictEqual([{
+		id: 1,
+		name: 'Group1',
+		description: null,
+		usersFiltered: [],
+	}, {
+		id: 2,
+		name: 'Group2',
+		description: null,
+		usersFiltered: [{
+			id: 2,
+			name: 'Andrew',
+			verified: 0,
+			invitedBy: null,
+		}, {
+			id: 3,
+			name: 'Alex',
+			verified: 0,
+			invitedBy: null,
+		}],
+	}, {
+		id: 3,
+		name: 'Group3',
+		description: null,
+		usersFiltered: [{
+			id: 3,
+			name: 'Alex',
+			verified: 0,
+			invitedBy: null,
+		}],
+	}]);
+});
+
+test('[Find Many .through] Get users with filtered groups + where', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.usersTable.findMany({
+		with: {
+			groupsFiltered: {
+				where: {
+					id: {
+						lt: 3,
+					},
+				},
+			},
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: number;
+		invitedBy: number | null;
+		groupsFiltered: {
+			id: number;
+			name: string;
+			description: string | null;
+		}[];
+	}[]>();
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	for (const e of response) {
+		e.groupsFiltered.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	}
+
+	expect(response).toStrictEqual([{
+		id: 1,
+		name: 'Dan',
+		verified: 0,
+		invitedBy: null,
+		groupsFiltered: [],
+	}, {
+		id: 2,
+		name: 'Andrew',
+		verified: 0,
+		invitedBy: null,
+		groupsFiltered: [{
+			id: 2,
+			name: 'Group2',
+			description: null,
+		}],
+	}, {
+		id: 3,
+		name: 'Alex',
+		verified: 0,
+		invitedBy: null,
+		groupsFiltered: [
+			{
+				id: 2,
+				name: 'Group2',
+				description: null,
+			},
+		],
+	}]);
+});
+
+test('[Find Many .through] Get groups with filtered users + where', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(groupsTable).values([
+		{ id: 1, name: 'Group1' },
+		{ id: 2, name: 'Group2' },
+		{ id: 3, name: 'Group3' },
+	]);
+
+	await db.insert(usersToGroupsTable).values([
+		{ userId: 1, groupId: 1 },
+		{ userId: 2, groupId: 2 },
+		{ userId: 3, groupId: 3 },
+		{ userId: 3, groupId: 2 },
+	]);
+
+	const response = await db.query.groupsTable.findMany({
+		with: {
+			usersFiltered: {
+				where: { id: { lt: 3 } },
+			},
+		},
+	});
+
+	expectTypeOf(response).toEqualTypeOf<{
+		id: number;
+		name: string;
+		description: string | null;
+		usersFiltered: {
+			id: number;
+			name: string;
+			verified: number;
+			invitedBy: number | null;
+		}[];
+	}[]>();
+
+	response.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	for (const e of response) {
+		e.usersFiltered.sort((a, b) => (a.id > b.id) ? 1 : -1);
+	}
+
+	expect(response).toStrictEqual([{
+		id: 1,
+		name: 'Group1',
+		description: null,
+		usersFiltered: [],
+	}, {
+		id: 2,
+		name: 'Group2',
+		description: null,
+		usersFiltered: [{
+			id: 2,
+			name: 'Andrew',
+			verified: 0,
+			invitedBy: null,
+		}],
+	}, {
+		id: 3,
+		name: 'Group3',
+		description: null,
+		usersFiltered: [],
+	}]);
+});
+
+test('[Find Many] Get users with filtered posts', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(postsTable).values([
+		{ id: 1, ownerId: 1, content: 'Post1.1' },
+		{ id: 2, ownerId: 2, content: 'Post2.1' },
+		{ id: 3, ownerId: 3, content: 'Post3.1' },
+		{ id: 4, ownerId: 1, content: 'Post1.2' },
+		{ id: 5, ownerId: 2, content: 'Post2.2' },
+		{ id: 6, ownerId: 3, content: 'Post3.2' },
+		{ id: 7, ownerId: 1, content: 'Post1.3' },
+		{ id: 8, ownerId: 2, content: 'Post2.3' },
+		{ id: 9, ownerId: 3, content: 'Post3.3' },
+	]);
+
+	const usersWithPosts = await db.query.usersTable.findMany({
+		with: {
+			postsFiltered: {
+				columns: {
+					ownerId: true,
+					content: true,
+				},
+			},
+		},
+	});
+
+	expectTypeOf(usersWithPosts).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: number;
+		invitedBy: number | null;
+		postsFiltered: {
+			ownerId: number | null;
+			content: string;
+		}[];
+	}[]>();
+
+	usersWithPosts.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(usersWithPosts).toStrictEqual([{
+		id: 1,
+		name: 'Dan',
+		verified: 0,
+		invitedBy: null,
+		postsFiltered: [],
+	}, {
+		id: 2,
+		name: 'Andrew',
+		verified: 0,
+		invitedBy: null,
+		postsFiltered: [
+			{ ownerId: 2, content: 'Post2.1' },
+			{ ownerId: 2, content: 'Post2.2' },
+			{ ownerId: 2, content: 'Post2.3' },
+		],
+	}, {
+		id: 3,
+		name: 'Alex',
+		verified: 0,
+		invitedBy: null,
+		postsFiltered: [],
+	}]);
+});
+
+test('[Find Many] Get posts with filtered authors', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(postsTable).values([
+		{ id: 1, ownerId: 1, content: 'Post1.1' },
+		{ id: 2, ownerId: 2, content: 'Post2.1' },
+		{ id: 3, ownerId: 3, content: 'Post3.1' },
+		{ id: 4, ownerId: 1, content: 'Post1.2' },
+		{ id: 5, ownerId: 2, content: 'Post2.2' },
+		{ id: 6, ownerId: 3, content: 'Post3.2' },
+	]);
+
+	const posts = await db.query.postsTable.findMany({
+		columns: {
+			id: true,
+			content: true,
+		},
+		with: {
+			authorFiltered: {
+				columns: {
+					name: true,
+					id: true,
+				},
+			},
+		},
+	});
+
+	expectTypeOf(posts).toEqualTypeOf<{
+		id: number;
+		content: string;
+		authorFiltered: {
+			id: number;
+			name: string;
+		};
+	}[]>();
+
+	posts.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(posts).toStrictEqual([
+		{ id: 1, content: 'Post1.1', authorFiltered: null },
+		{
+			id: 2,
+			content: 'Post2.1',
+			authorFiltered: {
+				id: 2,
+				name: 'Andrew',
+			},
+		},
+		{ id: 3, content: 'Post3.1', authorFiltered: null },
+		{ id: 4, content: 'Post1.2', authorFiltered: null },
+		{
+			id: 5,
+			content: 'Post2.2',
+			authorFiltered: {
+				id: 2,
+				name: 'Andrew',
+			},
+		},
+		{ id: 6, content: 'Post3.2', authorFiltered: null },
+	]);
+});
+
+test('[Find Many] Get users with filtered posts + where', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(postsTable).values([
+		{ id: 1, ownerId: 1, content: 'Post1.1' },
+		{ id: 2, ownerId: 2, content: 'Post2.1' },
+		{ id: 3, ownerId: 3, content: 'Post3.1' },
+		{ id: 4, ownerId: 1, content: 'Post1.2' },
+		{ id: 5, ownerId: 2, content: 'Post2.2' },
+		{ id: 6, ownerId: 3, content: 'Post3.2' },
+		{ id: 7, ownerId: 1, content: 'Post1.3' },
+		{ id: 8, ownerId: 2, content: 'Post2.3' },
+		{ id: 9, ownerId: 3, content: 'Post3.3' },
+	]);
+
+	const usersWithPosts = await db.query.usersTable.findMany({
+		with: {
+			postsFiltered: {
+				columns: {
+					ownerId: true,
+					content: true,
+				},
+				where: {
+					content: {
+						like: '%.2',
+					},
+				},
+			},
+		},
+	});
+
+	expectTypeOf(usersWithPosts).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: number;
+		invitedBy: number | null;
+		postsFiltered: {
+			ownerId: number | null;
+			content: string;
+		}[];
+	}[]>();
+
+	usersWithPosts.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(usersWithPosts).toStrictEqual([{
+		id: 1,
+		name: 'Dan',
+		verified: 0,
+		invitedBy: null,
+		postsFiltered: [],
+	}, {
+		id: 2,
+		name: 'Andrew',
+		verified: 0,
+		invitedBy: null,
+		postsFiltered: [
+			{ ownerId: 2, content: 'Post2.2' },
+		],
+	}, {
+		id: 3,
+		name: 'Alex',
+		verified: 0,
+		invitedBy: null,
+		postsFiltered: [],
+	}]);
+});
+
+test('[Find Many] Get posts with filtered authors + where', async () => {
+	await db.insert(usersTable).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	await db.insert(postsTable).values([
+		{ id: 1, ownerId: 1, content: 'Post1.1' },
+		{ id: 2, ownerId: 2, content: 'Post2.1' },
+		{ id: 3, ownerId: 3, content: 'Post3.1' },
+		{ id: 4, ownerId: 1, content: 'Post1.2' },
+		{ id: 5, ownerId: 2, content: 'Post2.2' },
+		{ id: 6, ownerId: 3, content: 'Post3.2' },
+	]);
+
+	const posts = await db.query.postsTable.findMany({
+		columns: {
+			id: true,
+			content: true,
+		},
+		with: {
+			authorAltFiltered: {
+				columns: {
+					name: true,
+					id: true,
+				},
+				where: {
+					id: 2,
+				},
+			},
+		},
+	});
+
+	expectTypeOf(posts).toEqualTypeOf<{
+		id: number;
+		content: string;
+		authorAltFiltered: {
+			id: number;
+			name: string;
+		} | null;
+	}[]>();
+
+	posts.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(posts).toStrictEqual([
+		{ id: 1, content: 'Post1.1', authorAltFiltered: null },
+		{
+			id: 2,
+			content: 'Post2.1',
+			authorAltFiltered: {
+				id: 2,
+				name: 'Andrew',
+			},
+		},
+		{ id: 3, content: 'Post3.1', authorAltFiltered: null },
+		{ id: 4, content: 'Post1.2', authorAltFiltered: null },
+		{ id: 5, content: 'Post2.2', authorAltFiltered: null },
+		{ id: 6, content: 'Post3.2', authorAltFiltered: null },
+	]);
+});
+
 test('.toSQL()', () => {
 	const query = db.query.usersTable.findFirst().toSQL();
 
 	expect(query).toHaveProperty('sql', expect.any(String));
 	expect(query).toHaveProperty('params', expect.any(Array));
 });
-
-// + custom + where + orderby
-
-// + custom + where + orderby + limit
-
-// + partial
-
-// + partial(false)
-
-// + partial + orderBy + where (all not selected)
-
-/*
-	One four-level relation users+posts+comments+coment_likes
-	+ users+users_to_groups+groups
-*/
-
-/*
-	Really hard case
-	1. users+posts+comments+coment_likes
-	2. users+users_to_groups+groups
-	3. users+users
-*/
