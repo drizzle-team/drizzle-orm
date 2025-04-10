@@ -116,8 +116,9 @@ export type PgSelectJoinFn<
 	T extends AnyPgSelectQueryBuilder,
 	TDynamic extends boolean,
 	TJoinType extends JoinType,
+	TIsLateral extends boolean,
 > = 'cross' extends TJoinType ? <
-		TJoinedTable extends PgTable | Subquery | PgViewBase | SQL,
+		TJoinedTable extends (TIsLateral extends true ? Subquery | SQL : PgTable | Subquery | PgViewBase | SQL),
 		TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
 	>(
 		table: TableLikeHasEmptySelection<TJoinedTable> extends true ? DrizzleTypeError<
@@ -126,7 +127,7 @@ export type PgSelectJoinFn<
 			: TJoinedTable,
 	) => PgSelectJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>
 	: <
-		TJoinedTable extends PgTable | Subquery | PgViewBase | SQL,
+		TJoinedTable extends (TIsLateral extends true ? Subquery | SQL : PgTable | Subquery | PgViewBase | SQL),
 		TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
 	>(
 		table: TableLikeHasEmptySelection<TJoinedTable> extends true ? DrizzleTypeError<
