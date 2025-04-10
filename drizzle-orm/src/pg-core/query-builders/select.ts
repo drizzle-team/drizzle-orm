@@ -214,7 +214,7 @@ export abstract class PgSelectQueryBuilderBase<
 
 	private createJoin<
 		TJoinType extends JoinType,
-		TIsLateral extends (TJoinType extends 'left' | 'inner' ? boolean : false),
+		TIsLateral extends (TJoinType extends 'full' | 'right' ? false : boolean),
 	>(
 		joinType: TJoinType,
 		lateral: TIsLateral,
@@ -323,12 +323,16 @@ export abstract class PgSelectQueryBuilderBase<
 	leftJoin = this.createJoin('left', false);
 
 	/**
-	 * For each row of the table, include
-	 * values from a matching row of the joined
-	 * subquery, if there is a matching row. If not,
-	 * all of the columns of the joined subquery
-	 * will be set to null. The lateral keyword allows
-	 * access to columns after the FROM statement.
+	 * Executes a `left join lateral` operation by adding subquery to the current query.
+	 *
+	 * A `lateral` join allows the right-hand expression to refer to columns from the left-hand side.
+	 *
+	 * Calling this method associates each row of the table with the corresponding row from the joined table, if a match is found. If no matching row exists, it sets all columns of the joined table to null.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/joins#left-join-lateral}
+	 *
+	 * @param table the subquery to join.
+	 * @param on the `on` clause.
 	 */
 	leftJoinLateral = this.createJoin('left', true);
 
@@ -391,10 +395,16 @@ export abstract class PgSelectQueryBuilderBase<
 	innerJoin = this.createJoin('inner', false);
 
 	/**
-	 * For each row of the table, the joined subquery
-	 * needs to have a matching row, or it will
-	 * be excluded from results. The lateral keyword allows
-	 * access to columns after the FROM statement.
+	 * Executes an `inner join lateral` operation, creating a new table by combining rows from two queries that have matching values.
+	 *
+	 * A `lateral` join allows the right-hand expression to refer to columns from the left-hand side.
+	 *
+	 * Calling this method retrieves rows that have corresponding entries in both joined tables. Rows without matching entries in either table are excluded, resulting in a table that includes only matching pairs.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/joins#inner-join-lateral}
+	 *
+	 * @param table the subquery to join.
+	 * @param on the `on` clause.
 	 */
 	innerJoinLateral = this.createJoin('inner', true);
 
