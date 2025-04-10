@@ -10,7 +10,6 @@ import type {
 	GetSelectTableName,
 	GetSelectTableSelection,
 	JoinNullability,
-	JoinType,
 	SelectMode,
 	SelectResult,
 	SetOperator,
@@ -35,6 +34,7 @@ import type {
 	LockStrength,
 	MySqlCreateSetOperatorFn,
 	MySqlJoinFn,
+	MySqlJoinType,
 	MySqlSelectConfig,
 	MySqlSelectDynamic,
 	MySqlSelectHKT,
@@ -220,7 +220,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
 	}
 
-	private createJoin<TJoinType extends JoinType>(
+	private createJoin<TJoinType extends MySqlJoinType>(
 		joinType: TJoinType,
 	): MySqlJoinFn<this, TDynamic, TJoinType> {
 		return <
@@ -315,13 +315,6 @@ export abstract class MySqlSelectQueryBuilderBase<
 					case 'cross':
 					case 'inner': {
 						this.joinsNotNullableMap[tableName] = true;
-						break;
-					}
-					case 'full': {
-						this.joinsNotNullableMap = Object.fromEntries(
-							Object.entries(this.joinsNotNullableMap).map(([key]) => [key, false]),
-						);
-						this.joinsNotNullableMap[tableName] = false;
 						break;
 					}
 				}
@@ -450,46 +443,6 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 * ```
 	 */
 	innerJoin = this.createJoin('inner');
-
-	/**
-	 * Executes a `full join` operation by combining rows from two tables into a new table.
-	 *
-	 * Calling this method retrieves all rows from both main and joined tables, merging rows with matching values and filling in `null` for non-matching columns.
-	 *
-	 * See docs: {@link https://orm.drizzle.team/docs/joins#full-join}
-	 *
-	 * @param table the table to join.
-	 * @param on the `on` clause.
-	 * @param onIndex index hint.
-	 *
-	 * @example
-	 *
-	 * ```ts
-	 * // Select all users and their pets
-	 * const usersWithPets: { user: User | null; pets: Pet | null; }[] = await db.select()
-	 *   .from(users)
-	 *   .fullJoin(pets, eq(users.id, pets.ownerId))
-	 *
-	 * // Select userId and petId
-	 * const usersIdsAndPetIds: { userId: number | null; petId: number | null; }[] = await db.select({
-	 *   userId: users.id,
-	 *   petId: pets.id,
-	 * })
-	 *   .from(users)
-	 *   .fullJoin(pets, eq(users.id, pets.ownerId))
-	 *
-	 * // Select userId and petId with use index hint
-	 * const usersIdsAndPetIds: { userId: number; petId: number | null; }[] = await db.select({
-	 *   userId: users.id,
-	 *   petId: pets.id,
-	 * })
-	 *   .from(users)
-	 *   .leftJoin(pets, eq(users.id, pets.ownerId), {
-	 *     useIndex: ['pets_owner_id_index']
-	 * })
-	 * ```
-	 */
-	fullJoin = this.createJoin('full');
 
 	/**
 	 * Executes a `cross join` operation by combining rows from two tables into a new table.
