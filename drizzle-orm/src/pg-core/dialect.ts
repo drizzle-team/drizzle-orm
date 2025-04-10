@@ -271,6 +271,7 @@ export class PgDialect {
 			}
 			const table = joinMeta.table;
 			const lateralSql = joinMeta.lateral ? sql` lateral` : undefined;
+			const onSql = joinMeta.on ? sql` on ${joinMeta.on}` : undefined;
 
 			if (is(table, PgTable)) {
 				const tableName = table[PgTable.Symbol.Name];
@@ -280,7 +281,7 @@ export class PgDialect {
 				joinsArray.push(
 					sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
 						tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined
-					}${sql.identifier(origTableName)}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
+					}${sql.identifier(origTableName)}${alias && sql` ${sql.identifier(alias)}`}${onSql}`,
 				);
 			} else if (is(table, View)) {
 				const viewName = table[ViewBaseConfig].name;
@@ -290,11 +291,11 @@ export class PgDialect {
 				joinsArray.push(
 					sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
 						viewSchema ? sql`${sql.identifier(viewSchema)}.` : undefined
-					}${sql.identifier(origViewName)}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
+					}${sql.identifier(origViewName)}${alias && sql` ${sql.identifier(alias)}`}${onSql}`,
 				);
 			} else {
 				joinsArray.push(
-					sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${table} on ${joinMeta.on}`,
+					sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${table}${onSql}`,
 				);
 			}
 			if (index < joins.length - 1) {

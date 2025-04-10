@@ -99,6 +99,18 @@ Expect<
 	>
 >;
 
+const crossJoinFull = await db.select().from(users).crossJoin(city);
+
+Expect<
+	Equal<
+		{
+			users_table: typeof users.$inferSelect;
+			city: typeof city.$inferSelect;
+		}[],
+		typeof crossJoinFull
+	>
+>;
+
 const leftJoinFlat = await db
 	.select({
 		userId: users.id,
@@ -173,6 +185,25 @@ Expect<
 		cityId: number | null;
 		cityName: string | null;
 	}[], typeof fullJoinFlat>
+>;
+
+const crossJoinFlat = await db
+	.select({
+		userId: users.id,
+		userText: users.text,
+		cityId: city.id,
+		cityName: city.name,
+	})
+	.from(users)
+	.crossJoin(city);
+
+Expect<
+	Equal<{
+		userId: number;
+		userText: string | null;
+		cityId: number;
+		cityName: string;
+	}[], typeof crossJoinFlat>
 >;
 
 const leftJoinMixed = await db

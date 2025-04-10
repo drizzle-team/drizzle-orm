@@ -5715,6 +5715,40 @@ export function tests() {
 			expect(result2).toEqual([{ userId: 2, data: { name: 'Jane' } }]);
 		});
 
+		test('cross join', async (ctx) => {
+			const { db } = ctx.pg;
+
+			await db
+				.insert(usersTable)
+				.values([
+					{ name: 'John' },
+					{ name: 'Jane' },
+				]);
+
+			await db
+				.insert(citiesTable)
+				.values([
+					{ name: 'Seattle' },
+					{ name: 'New York City' },
+				]);
+
+			const result = await db
+				.select({
+					user: usersTable.name,
+					city: citiesTable.name,
+				})
+				.from(usersTable)
+				.crossJoin(citiesTable)
+				.orderBy(usersTable.name, citiesTable.name);
+
+			expect(result).toStrictEqual([
+				{ city: 'New York City', user: 'Jane' },
+				{ city: 'Seattle', user: 'Jane' },
+				{ city: 'New York City', user: 'John' },
+				{ city: 'Seattle', user: 'John' },
+			]);
+		});
+
 		test('all types', async (ctx) => {
 			const { db } = ctx.pg;
 
