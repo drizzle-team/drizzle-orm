@@ -112,13 +112,17 @@ export type GelSelectJoinFn<
 	T extends AnyGelSelectQueryBuilder,
 	TDynamic extends boolean,
 	TJoinType extends JoinType,
-> = <
-	TJoinedTable extends GelTable | Subquery | GelViewBase | SQL,
-	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
->(
-	table: TJoinedTable,
-	on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
-) => GelSelectJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
+> = 'cross' extends TJoinType ? <
+		TJoinedTable extends GelTable | Subquery | GelViewBase | SQL,
+		TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
+	>(table: TJoinedTable) => GelSelectJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>
+	: <
+		TJoinedTable extends GelTable | Subquery | GelViewBase | SQL,
+		TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
+	>(
+		table: TJoinedTable,
+		on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
+	) => GelSelectJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
 
 export type SelectedFieldsFlat = SelectedFieldsFlatBase<GelColumn>;
 
