@@ -359,7 +359,7 @@ importers:
         version: 1.4.9
       '@upstash/redis':
         specifier: ^1.34.3
-        version: 1.34.4
+        version: 1.34.7
       '@vercel/postgres':
         specifier: ^0.8.0
         version: 0.8.0
@@ -4539,6 +4539,9 @@ packages:
 
   '@upstash/redis@1.34.4':
     resolution: {integrity: sha512-AZx2iD5s1Pu/KCrRA7KVCffu3NSoaYnNY7N9YI7aLAYhcJfsriQKTe+8OxQWJqGqFbrvm17Lyr9HFnDLvqNpfA==}
+
+  '@upstash/redis@1.34.7':
+    resolution: {integrity: sha512-EJ/g+ttDL3MFS8WNDLj/Buybo3FpPw2IAFl4X8lxh8/l7YTq6kTqT6FKkq8eYRdN6lGlVw+W6qnmym734m39Tg==}
 
   '@urql/core@2.3.6':
     resolution: {integrity: sha512-PUxhtBh7/8167HJK6WqBv6Z0piuiaZHQGYbhwpNL9aIQmLROPEdaUYkY4wh45wPQXcTpnd11l0q3Pw+TI11pdw==}
@@ -15625,6 +15628,10 @@ snapshots:
   '@ungap/structured-clone@1.2.0': {}
 
   '@upstash/redis@1.34.4':
+    dependencies:
+      crypto-js: 4.2.0
+
+  '@upstash/redis@1.34.7':
     dependencies:
       crypto-js: 4.2.0
 

@@ -71,7 +71,8 @@
 		"postgres": ">=3",
 		"sql.js": ">=1",
 		"sqlite3": ">=5",
-		"gel": ">=2"
+		"gel": ">=2",
+		"@upstash/redis": ">=1.34.7"
 	},
 	"peerDependenciesMeta": {
 		"mysql2": {
@@ -156,6 +157,9 @@
 			"optional": true
 		},
 		"@prisma/client": {
+			"optional": true
+		},
+		"@upstash/redis": {
 			"optional": true
 		}
 	},
