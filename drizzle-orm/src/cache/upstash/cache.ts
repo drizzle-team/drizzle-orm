@@ -10,6 +10,10 @@ local tagsMapKey = KEYS[1] -- tags map key
 local tag        = ARGV[1] -- tag
 
 local compositeTableName = redis.call('HGET', tagsMapKey, tag)
+if not compositeTableName then
+  return nil
+end
+
 local value = redis.call('HGET', compositeTableName, tag)
 return value
 `;
