@@ -19,7 +19,7 @@ beforeAll(async () => {
 		connectionString = conStr;
 	}
 	client = await retry(async () => {
-		client = await mysql2.createConnection(connectionString);
+		client = await mysql2.createConnection({ uri: connectionString, supportBigNumbers: true });
 		await client.connect();
 		return client;
 	}, {
