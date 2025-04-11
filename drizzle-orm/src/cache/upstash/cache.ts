@@ -9,7 +9,7 @@ const getByTagScript = `
 local tagsMapKey = KEYS[1] -- tags map key
 local tag        = ARGV[1] -- tag
 
-local compositeTableName = redis.call('HGET', key, tag)
+local compositeTableName = redis.call('HGET', tagsMapKey, tag)
 local value = redis.call('HGET', compositeTableName, tag)
 return value
 `;
