@@ -5,6 +5,7 @@ import {
 	binary,
 	boolean,
 	char,
+	customType,
 	date,
 	datetime,
 	decimal,
@@ -314,4 +315,61 @@ export const studentGrades = mysqlTable('student_grades', {
 	courseId: int('course_id').notNull(),
 	semester: varchar({ length: 10 }).notNull(),
 	grade: char({ length: 2 }),
+});
+
+const customBigInt = customType<{
+	data: bigint;
+	driverData: bigint;
+	driverOutput: string;
+	jsonData: string;
+}>({
+	dataType: () => 'bigint',
+	fromDriver: BigInt,
+});
+
+const customBytes = customType<{
+	data: Buffer;
+	driverData: Buffer;
+	driverOutput: Buffer | Uint8Array;
+	jsonData: string;
+}>({
+	dataType: () => 'blob',
+	fromDriver: (value) => {
+		return Buffer.isBuffer(value) ? value : Buffer.from(value);
+	},
+	fromJson: (value) => {
+		return Buffer.from(value, 'hex');
+	},
+	forJsonSelect: (identifier, sql) => {
+		return sql`hex(${identifier})`;
+	},
+});
+
+const customTimestamp = customType<{
+	data: Date;
+	driverData: string;
+	jsonData: string;
+}>({
+	dataType: () => 'timestamp',
+	fromDriver: (value: string) => {
+		return new Date(value + '+0000');
+	},
+	toDriver: (value: Date) => {
+		return value.toISOString().slice(0, 19).replace('T', ' ');
+	},
+});
+
+const customInt = customType<{
+	data: number;
+	driverData: number;
+}>({
+	dataType: () => 'int',
+});
+
+export const customTypesTable = mysqlTable('custom_types', {
+	id: int('id'),
+	big: customBigInt(),
+	bytes: customBytes(),
+	time: customTimestamp(),
+	int: customInt(),
 });
