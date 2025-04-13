@@ -1,6 +1,9 @@
+import { Named } from 'src/cli/commands/migrate';
+import { mapEntries, mapKeys } from 'src/global';
 import { JsonStatement } from 'src/jsonStatements';
-import { SingleStoreSchemaSquashed } from 'src/serializer/singlestoreSchema';
+import { Column, SingleStoreSchemaSquashed } from 'src/serializer/singlestoreSchema';
 import { singleStoreCombineStatements } from 'src/statementCombiner';
+import { copy } from 'src/utils';
 import { expect, test } from 'vitest';
 
 test(`change column data type`, async (t) => {
@@ -76,7 +79,7 @@ test(`change column data type`, async (t) => {
 						notNull: true,
 						autoincrement: false,
 					},
-					lastName: {
+					lastName123: {
 						name: 'lastName123',
 						type: 'int',
 						primaryKey: false,
@@ -98,7 +101,63 @@ test(`change column data type`, async (t) => {
 		},
 	};
 
-	const newJsonStatements = [
+	const columnRenames = [] as {
+		table: string;
+		renames: { from: Column; to: Column }[];
+	}[];
+	columnRenames.push({
+		table: 'user',
+		renames: [{
+			from: json1.tables['user'].columns['lastName'],
+			to: json2.tables['user'].columns['lastName123'],
+		}],
+	});
+	const columnRenamesDict = columnRenames.reduce(
+		(acc, it) => {
+			acc[it.table] = it.renames;
+			return acc;
+		},
+		{} as Record<
+			string,
+			{
+				from: Named;
+				to: Named;
+			}[]
+		>,
+	);
+	const columnChangeFor = (
+		column: string,
+		renamedColumns: { from: Named; to: Named }[],
+	) => {
+		for (let ren of renamedColumns) {
+			if (column === ren.from.name) {
+				return ren.to.name;
+			}
+		}
+
+		return column;
+	};
+
+	const columnsPatchedSnap1 = copy(json1);
+	columnsPatchedSnap1.tables = mapEntries(
+		columnsPatchedSnap1.tables,
+		(tableKey, tableValue) => {
+			const patchedColumns = mapKeys(
+				tableValue.columns,
+				(columnKey, column) => {
+					const rens = columnRenamesDict[tableValue.name] || [];
+					const newName = columnChangeFor(columnKey, rens);
+					column.name = newName;
+					return newName;
+				},
+			);
+
+			tableValue.columns = patchedColumns;
+			return [tableKey, tableValue];
+		},
+	);
+
+	const newJsonStatements: JsonStatement[] = [
 		{
 			type: 'alter_table_rename_column',
 			tableName: 'user',
@@ -132,11 +191,12 @@ test(`change column data type`, async (t) => {
 					autoincrement: false,
 				},
 			],
+			columnsToTransfer: ['firstName', 'lastName123', 'test'],
 			compositePKs: [],
 			uniqueConstraints: [],
 		},
 	];
-	expect(singleStoreCombineStatements(statements, json2)).toStrictEqual(
+	expect(singleStoreCombineStatements(statements, json2, columnsPatchedSnap1)).toStrictEqual(
 		newJsonStatements,
 	);
 });
@@ -156,7 +216,41 @@ test(`set autoincrement`, async (t) => {
 			columnPk: false,
 		} as unknown as JsonStatement,
 	];
-
+	const json1: SingleStoreSchemaSquashed = {
+		version: '1',
+		dialect: 'singlestore',
+		tables: {
+			users: {
+				name: 'users',
+				columns: {
+					id: {
+						name: 'id',
+						type: 'int',
+						primaryKey: false,
+						notNull: true,
+						autoincrement: false,
+					},
+					name: {
+						name: 'name',
+						type: 'text',
+						primaryKey: false,
+						notNull: false,
+						autoincrement: false,
+					},
+					email: {
+						name: 'email',
+						type: 'text',
+						primaryKey: false,
+						notNull: true,
+						autoincrement: false,
+					},
+				},
+				indexes: {},
+				compositePrimaryKeys: {},
+				uniqueConstraints: {},
+			},
+		},
+	};
 	const json2: SingleStoreSchemaSquashed = {
 		version: '1',
 		dialect: 'singlestore',
@@ -164,7 +258,7 @@ test(`set autoincrement`, async (t) => {
 			users: {
 				name: 'users',
 				columns: {
-					new_id: {
+					id: {
 						name: 'id',
 						type: 'int',
 						primaryKey: false,
@@ -192,7 +286,7 @@ test(`set autoincrement`, async (t) => {
 			},
 		},
 	};
-	const newJsonStatements = [
+	const newJsonStatements: JsonStatement[] = [
 		{
 			type: 'singlestore_recreate_table',
 			tableName: 'users',
@@ -219,11 +313,12 @@ test(`set autoincrement`, async (t) => {
 					autoincrement: false,
 				},
 			],
+			columnsToTransfer: ['id', 'name', 'email'],
 			compositePKs: [],
 			uniqueConstraints: [],
 		},
 	];
-	expect(singleStoreCombineStatements(statements, json2)).toStrictEqual(
+	expect(singleStoreCombineStatements(statements, json2, json1)).toStrictEqual(
 		newJsonStatements,
 	);
 });
@@ -244,6 +339,41 @@ test(`drop autoincrement`, async (t) => {
 		} as unknown as JsonStatement,
 	];
 
+	const json1: SingleStoreSchemaSquashed = {
+		version: '1',
+		dialect: 'singlestore',
+		tables: {
+			users: {
+				name: 'users',
+				columns: {
+					id: {
+						name: 'id',
+						type: 'int',
+						primaryKey: false,
+						notNull: true,
+						autoincrement: true,
+					},
+					name: {
+						name: 'name',
+						type: 'text',
+						primaryKey: false,
+						notNull: false,
+						autoincrement: false,
+					},
+					email: {
+						name: 'email',
+						type: 'text',
+						primaryKey: false,
+						notNull: true,
+						autoincrement: false,
+					},
+				},
+				indexes: {},
+				compositePrimaryKeys: {},
+				uniqueConstraints: {},
+			},
+		},
+	};
 	const json2: SingleStoreSchemaSquashed = {
 		version: '1',
 		dialect: 'singlestore',
@@ -251,7 +381,7 @@ test(`drop autoincrement`, async (t) => {
 			users: {
 				name: 'users',
 				columns: {
-					new_id: {
+					id: {
 						name: 'id',
 						type: 'int',
 						primaryKey: false,
@@ -279,7 +409,7 @@ test(`drop autoincrement`, async (t) => {
 			},
 		},
 	};
-	const newJsonStatements = [
+	const newJsonStatements: JsonStatement[] = [
 		{
 			type: 'singlestore_recreate_table',
 			tableName: 'users',
@@ -306,98 +436,12 @@ test(`drop autoincrement`, async (t) => {
 					autoincrement: false,
 				},
 			],
+			columnsToTransfer: ['id', 'name', 'email'],
 			compositePKs: [],
 			uniqueConstraints: [],
 		},
 	];
-	expect(singleStoreCombineStatements(statements, json2)).toStrictEqual(
-		newJsonStatements,
-	);
-});
-
-test(`drop autoincrement`, async (t) => {
-	const statements: JsonStatement[] = [
-		{
-			type: 'alter_table_alter_column_drop_autoincrement',
-			tableName: 'users',
-			columnName: 'id',
-			schema: '',
-			newDataType: 'int',
-			columnDefault: undefined,
-			columnOnUpdate: undefined,
-			columnNotNull: true,
-			columnAutoIncrement: true,
-			columnPk: false,
-		} as unknown as JsonStatement,
-	];
-
-	const json2: SingleStoreSchemaSquashed = {
-		version: '1',
-		dialect: 'singlestore',
-		tables: {
-			users: {
-				name: 'users',
-				columns: {
-					new_id: {
-						name: 'id',
-						type: 'int',
-						primaryKey: false,
-						notNull: true,
-						autoincrement: false,
-					},
-					name: {
-						name: 'name',
-						type: 'text',
-						primaryKey: false,
-						notNull: false,
-						autoincrement: false,
-					},
-					email: {
-						name: 'email',
-						type: 'text',
-						primaryKey: false,
-						notNull: true,
-						autoincrement: false,
-					},
-				},
-				indexes: {},
-				compositePrimaryKeys: {},
-				uniqueConstraints: {},
-			},
-		},
-	};
-	const newJsonStatements = [
-		{
-			type: 'singlestore_recreate_table',
-			tableName: 'users',
-			columns: [
-				{
-					name: 'id',
-					type: 'int',
-					primaryKey: false,
-					notNull: true,
-					autoincrement: false,
-				},
-				{
-					name: 'name',
-					type: 'text',
-					primaryKey: false,
-					notNull: false,
-					autoincrement: false,
-				},
-				{
-					name: 'email',
-					type: 'text',
-					primaryKey: false,
-					notNull: true,
-					autoincrement: false,
-				},
-			],
-			compositePKs: [],
-			uniqueConstraints: [],
-		},
-	];
-	expect(singleStoreCombineStatements(statements, json2)).toStrictEqual(
+	expect(singleStoreCombineStatements(statements, json2, json1)).toStrictEqual(
 		newJsonStatements,
 	);
 });
@@ -418,6 +462,41 @@ test(`set not null`, async (t) => {
 		} as unknown as JsonStatement,
 	];
 
+	const json1: SingleStoreSchemaSquashed = {
+		version: '1',
+		dialect: 'singlestore',
+		tables: {
+			users: {
+				name: 'users',
+				columns: {
+					id: {
+						name: 'id',
+						type: 'int',
+						primaryKey: false,
+						notNull: true,
+						autoincrement: false,
+					},
+					name: {
+						name: 'name',
+						type: 'text',
+						primaryKey: false,
+						notNull: false,
+						autoincrement: false,
+					},
+					email: {
+						name: 'email',
+						type: 'text',
+						primaryKey: false,
+						notNull: true,
+						autoincrement: false,
+					},
+				},
+				indexes: {},
+				compositePrimaryKeys: {},
+				uniqueConstraints: {},
+			},
+		},
+	};
 	const json2: SingleStoreSchemaSquashed = {
 		version: '1',
 		dialect: 'singlestore',
@@ -425,7 +504,7 @@ test(`set not null`, async (t) => {
 			users: {
 				name: 'users',
 				columns: {
-					new_id: {
+					id: {
 						name: 'id',
 						type: 'int',
 						primaryKey: false,
@@ -453,7 +532,7 @@ test(`set not null`, async (t) => {
 			},
 		},
 	};
-	const newJsonStatements = [
+	const newJsonStatements: JsonStatement[] = [
 		{
 			type: 'singlestore_recreate_table',
 			tableName: 'users',
@@ -480,11 +559,12 @@ test(`set not null`, async (t) => {
 					autoincrement: false,
 				},
 			],
+			columnsToTransfer: ['id', 'name', 'email'],
 			compositePKs: [],
 			uniqueConstraints: [],
 		},
 	];
-	expect(singleStoreCombineStatements(statements, json2)).toStrictEqual(
+	expect(singleStoreCombineStatements(statements, json2, json1)).toStrictEqual(
 		newJsonStatements,
 	);
 });
@@ -505,14 +585,14 @@ test(`drop not null`, async (t) => {
 		} as unknown as JsonStatement,
 	];
 
-	const json2: SingleStoreSchemaSquashed = {
+	const json1: SingleStoreSchemaSquashed = {
 		version: '1',
 		dialect: 'singlestore',
 		tables: {
 			users: {
 				name: 'users',
 				columns: {
-					new_id: {
+					id: {
 						name: 'id',
 						type: 'int',
 						primaryKey: false,
@@ -540,7 +620,42 @@ test(`drop not null`, async (t) => {
 			},
 		},
 	};
-	const newJsonStatements = [
+	const json2: SingleStoreSchemaSquashed = {
+		version: '1',
+		dialect: 'singlestore',
+		tables: {
+			users: {
+				name: 'users',
+				columns: {
+					id: {
+						name: 'id',
+						type: 'int',
+						primaryKey: false,
+						notNull: true,
+						autoincrement: false,
+					},
+					name: {
+						name: 'name',
+						type: 'text',
+						primaryKey: false,
+						notNull: false,
+						autoincrement: false,
+					},
+					email: {
+						name: 'email',
+						type: 'text',
+						primaryKey: false,
+						notNull: true,
+						autoincrement: false,
+					},
+				},
+				indexes: {},
+				compositePrimaryKeys: {},
+				uniqueConstraints: {},
+			},
+		},
+	};
+	const newJsonStatements: JsonStatement[] = [
 		{
 			type: 'singlestore_recreate_table',
 			tableName: 'users',
@@ -556,7 +671,7 @@ test(`drop not null`, async (t) => {
 					name: 'name',
 					type: 'text',
 					primaryKey: false,
-					notNull: true,
+					notNull: false,
 					autoincrement: false,
 				},
 				{
@@ -567,11 +682,12 @@ test(`drop not null`, async (t) => {
 					autoincrement: false,
 				},
 			],
+			columnsToTransfer: ['id', 'name', 'email'],
 			compositePKs: [],
 			uniqueConstraints: [],
 		},
 	];
-	expect(singleStoreCombineStatements(statements, json2)).toStrictEqual(
+	expect(singleStoreCombineStatements(statements, json2, json1)).toStrictEqual(
 		newJsonStatements,
 	);
 });
@@ -641,7 +757,7 @@ test(`renamed column and droped column "test"`, async (t) => {
 						notNull: true,
 						autoincrement: false,
 					},
-					lastName: {
+					lastName123: {
 						name: 'lastName123',
 						type: 'int',
 						primaryKey: false,
@@ -678,7 +794,7 @@ test(`renamed column and droped column "test"`, async (t) => {
 			schema: '',
 		},
 	];
-	expect(singleStoreCombineStatements(statements, json2)).toStrictEqual(
+	expect(singleStoreCombineStatements(statements, json2, json1)).toStrictEqual(
 		newJsonStatements,
 	);
 });
@@ -713,8 +829,8 @@ test(`droped column that is part of composite pk`, async (t) => {
 						notNull: false,
 						autoincrement: false,
 					},
-					first_nam: {
-						name: 'first_nam',
+					first_name: {
+						name: 'first_name',
 						type: 'text',
 						primaryKey: false,
 						notNull: false,
@@ -750,7 +866,7 @@ test(`droped column that is part of composite pk`, async (t) => {
 						notNull: false,
 						autoincrement: false,
 					},
-					first_nam: {
+					first_name: {
 						name: 'first_name',
 						type: 'text',
 						primaryKey: false,
@@ -785,11 +901,12 @@ test(`droped column that is part of composite pk`, async (t) => {
 					autoincrement: false,
 				},
 			],
+			columnsToTransfer: ['id', 'first_name'],
 			compositePKs: [],
 			uniqueConstraints: [],
 		},
 	];
-	expect(singleStoreCombineStatements(statements, json2)).toStrictEqual(
+	expect(singleStoreCombineStatements(statements, json2, json1)).toStrictEqual(
 		newJsonStatements,
 	);
 });
@@ -809,6 +926,35 @@ test(`add column with pk`, async (t) => {
 			schema: '',
 		},
 	];
+	const json1: SingleStoreSchemaSquashed = {
+		version: '1',
+		dialect: 'singlestore',
+		tables: {
+			table: {
+				name: 'table',
+				columns: {
+					id1: {
+						name: 'id1',
+						type: 'text',
+						primaryKey: false,
+						notNull: true,
+						autoincrement: false,
+					},
+					new_age: {
+						name: 'new_age',
+						type: 'integer',
+						primaryKey: false,
+						notNull: false,
+						autoincrement: false,
+					},
+				},
+				indexes: {},
+				compositePrimaryKeys: {},
+				uniqueConstraints: {},
+			},
+		},
+	};
+
 	const json2: SingleStoreSchemaSquashed = {
 		version: '1',
 		dialect: 'singlestore',
@@ -833,7 +979,7 @@ test(`add column with pk`, async (t) => {
 					test: {
 						name: 'test',
 						type: 'integer',
-						primaryKey: false,
+						primaryKey: true,
 						notNull: false,
 						autoincrement: false,
 					},
@@ -845,7 +991,7 @@ test(`add column with pk`, async (t) => {
 		},
 	};
 
-	const newJsonStatements = [
+	const newJsonStatements: JsonStatement[] = [
 		{
 			columns: [
 				{
@@ -865,18 +1011,19 @@ test(`add column with pk`, async (t) => {
 				{
 					name: 'test',
 					type: 'integer',
-					primaryKey: false,
+					primaryKey: true,
 					notNull: false,
 					autoincrement: false,
 				},
 			],
+			columnsToTransfer: ['id1', 'new_age'],
 			compositePKs: [],
 			tableName: 'table',
 			type: 'singlestore_recreate_table',
 			uniqueConstraints: [],
 		},
 	];
-	expect(singleStoreCombineStatements(statements, json2)).toStrictEqual(
+	expect(singleStoreCombineStatements(statements, json2, json1)).toStrictEqual(
 		newJsonStatements,
 	);
 });

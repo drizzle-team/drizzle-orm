@@ -3,14 +3,7 @@ import chalk from 'chalk';
 import { JsonStatement } from 'src/jsonStatements';
 import { findAddedAndRemoved, SQLiteDB } from 'src/utils';
 import { SQLiteSchemaInternal, SQLiteSchemaSquashed, SQLiteSquasher } from '../../serializer/sqliteSchema';
-import {
-	CreateSqliteIndexConvertor,
-	fromJson,
-	LibSQLModifyColumn,
-	SQLiteCreateTableConvertor,
-	SQLiteDropTableConvertor,
-	SqliteRenameTableConvertor,
-} from '../../sqlgenerator';
+import { fromJson, LibSQLModifyColumn, LibSQLRecreateTableConvertor } from '../../sqlgenerator';
 
 export const getOldTableName = (
 	tableName: string,
@@ -23,91 +16,6 @@ export const getOldTableName = (
 		}
 	}
 	return tableName;
-};
-
-export const _moveDataStatements = (
-	tableName: string,
-	json: SQLiteSchemaSquashed,
-	dataLoss: boolean = false,
-) => {
-	const statements: string[] = [];
-
-	const newTableName = `__new_${tableName}`;
-
-	// create table statement from a new json2 with proper name
-	const tableColumns = Object.values(json.tables[tableName].columns);
-	const referenceData = Object.values(json.tables[tableName].foreignKeys);
-	const compositePKs = Object.values(
-		json.tables[tableName].compositePrimaryKeys,
-	).map((it) => SQLiteSquasher.unsquashPK(it));
-	const checkConstraints = Object.values(json.tables[tableName].checkConstraints);
-
-	const fks = referenceData.map((it) => SQLiteSquasher.unsquashPushFK(it));
-
-	const mappedCheckConstraints: string[] = checkConstraints.map((it) =>
-		it.replaceAll(`"${tableName}".`, `"${newTableName}".`)
-			.replaceAll(`\`${tableName}\`.`, `\`${newTableName}\`.`)
-			.replaceAll(`${tableName}.`, `${newTableName}.`)
-			.replaceAll(`'${tableName}'.`, `\`${newTableName}\`.`)
-	);
-
-	// create new table
-	statements.push(
-		new SQLiteCreateTableConvertor().convert({
-			type: 'sqlite_create_table',
-			tableName: newTableName,
-			columns: tableColumns,
-			referenceData: fks,
-			compositePKs,
-			checkConstraints: mappedCheckConstraints,
-		}),
-	);
-
-	// move data
-	if (!dataLoss) {
-		const columns = Object.keys(json.tables[tableName].columns).map(
-			(c) => `"${c}"`,
-		);
-
-		statements.push(
-			`INSERT INTO \`${newTableName}\`(${
-				columns.join(
-					', ',
-				)
-			}) SELECT ${columns.join(', ')} FROM \`${tableName}\`;`,
-		);
-	}
-
-	statements.push(
-		new SQLiteDropTableConvertor().convert({
-			type: 'drop_table',
-			tableName: tableName,
-			schema: '',
-		}),
-	);
-
-	// rename table
-	statements.push(
-		new SqliteRenameTableConvertor().convert({
-			fromSchema: '',
-			tableNameFrom: newTableName,
-			tableNameTo: tableName,
-			toSchema: '',
-			type: 'rename_table',
-		}),
-	);
-
-	for (const idx of Object.values(json.tables[tableName].indexes)) {
-		statements.push(
-			new CreateSqliteIndexConvertor().convert({
-				type: 'create_index',
-				tableName: tableName,
-				schema: '',
-				data: idx,
-			}),
-		);
-	}
-	return statements;
 };
 
 export const libSqlLogSuggestionsAndReturn = async (
@@ -302,14 +210,9 @@ export const libSqlLogSuggestionsAndReturn = async (
 				tablesReferencingCurrent.push(...tablesRefs);
 			}
 
-			if (!tablesReferencingCurrent.length) {
-				statementsToExecute.push(..._moveDataStatements(tableName, json2, dataLoss));
-				continue;
-			}
-
 			// recreate table
 			statementsToExecute.push(
-				..._moveDataStatements(tableName, json2, dataLoss),
+				...new LibSQLRecreateTableConvertor().convert(statement, undefined, 'push', dataLoss),
 			);
 		} else if (
 			statement.type === 'alter_table_alter_column_set_generated'

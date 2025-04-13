@@ -16,6 +16,7 @@ import {
 	text,
 	uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
+import { JsonStatement } from 'src/jsonStatements';
 import { diffTestSchemasPushSqlite, introspectSQLiteToFile } from 'tests/schemaDiffer';
 import { expect, test } from 'vitest';
 
@@ -218,8 +219,8 @@ test('added column not null and without default to table with data', async (t) =
 
 	const table = getTableConfig(schema1.companies);
 	const seedStatements = [
-		`INSERT INTO \`${table.name}\` ("${schema1.companies.name.name}") VALUES ('drizzle');`,
-		`INSERT INTO \`${table.name}\` ("${schema1.companies.name.name}") VALUES ('turso');`,
+		`INSERT INTO \`${table.name}\` (\`${schema1.companies.name.name}\`) VALUES ('drizzle');`,
+		`INSERT INTO \`${table.name}\` (\`${schema1.companies.name.name}\`) VALUES ('turso');`,
 	];
 
 	const {
@@ -345,8 +346,8 @@ test('drop autoincrement. drop column with data', async (t) => {
 
 	const table = getTableConfig(schema1.companies);
 	const seedStatements = [
-		`INSERT INTO \`${table.name}\` ("${schema1.companies.id.name}", "${schema1.companies.name.name}") VALUES (1, 'drizzle');`,
-		`INSERT INTO \`${table.name}\` ("${schema1.companies.id.name}", "${schema1.companies.name.name}") VALUES (2, 'turso');`,
+		`INSERT INTO \`${table.name}\` (\`${schema1.companies.id.name}\`, \`${schema1.companies.name.name}\`) VALUES (1, 'drizzle');`,
+		`INSERT INTO \`${table.name}\` (\`${schema1.companies.id.name}\`, \`${schema1.companies.name.name}\`) VALUES (2, 'turso');`,
 	];
 
 	const {
@@ -380,11 +381,12 @@ test('drop autoincrement. drop column with data', async (t) => {
 				generated: undefined,
 			},
 		],
+		columnsToTransfer: ['id'],
 		compositePKs: [],
 		referenceData: [],
 		uniqueConstraints: [],
 		checkConstraints: [],
-	});
+	} as JsonStatement);
 
 	expect(sqlStatements.length).toBe(4);
 	expect(sqlStatements[0]).toBe(
@@ -393,7 +395,7 @@ test('drop autoincrement. drop column with data', async (t) => {
 );\n`,
 	);
 	expect(sqlStatements[1]).toBe(
-		`INSERT INTO \`__new_companies\`("id") SELECT "id" FROM \`companies\`;`,
+		`INSERT INTO \`__new_companies\`(\`id\`) SELECT \`id\` FROM \`companies\`;`,
 	);
 	expect(sqlStatements[2]).toBe(`DROP TABLE \`companies\`;`);
 	expect(sqlStatements[3]).toBe(
@@ -440,8 +442,8 @@ test('drop autoincrement. drop column with data with pragma off', async (t) => {
 
 	const table = getTableConfig(schema1.companies);
 	const seedStatements = [
-		`INSERT INTO \`${table.name}\` ("${schema1.companies.id.name}", "${schema1.companies.name.name}") VALUES (1, 'drizzle');`,
-		`INSERT INTO \`${table.name}\` ("${schema1.companies.id.name}", "${schema1.companies.name.name}") VALUES (2, 'turso');`,
+		`INSERT INTO \`${table.name}\` (\`${schema1.companies.id.name}\`, \`${schema1.companies.name.name}\`) VALUES (1, 'drizzle');`,
+		`INSERT INTO \`${table.name}\` (\`${schema1.companies.id.name}\`, \`${schema1.companies.name.name}\`) VALUES (2, 'turso');`,
 	];
 
 	const {
@@ -499,9 +501,10 @@ test('drop autoincrement. drop column with data with pragma off', async (t) => {
 				tableTo: 'users',
 			},
 		],
+		columnsToTransfer: ['id', 'user_id'],
 		uniqueConstraints: [],
 		checkConstraints: [],
-	});
+	} as JsonStatement);
 
 	expect(sqlStatements.length).toBe(4);
 	expect(sqlStatements[0]).toBe(
@@ -512,7 +515,7 @@ test('drop autoincrement. drop column with data with pragma off', async (t) => {
 );\n`,
 	);
 	expect(sqlStatements[1]).toBe(
-		`INSERT INTO \`__new_companies\`("id", "user_id") SELECT "id", "user_id" FROM \`companies\`;`,
+		`INSERT INTO \`__new_companies\`(\`id\`, \`user_id\`) SELECT \`id\`, \`user_id\` FROM \`companies\`;`,
 	);
 	expect(sqlStatements[2]).toBe(`DROP TABLE \`companies\`;`);
 	expect(sqlStatements[3]).toBe(
@@ -565,10 +568,10 @@ test('change autoincrement. other table references current', async (t) => {
 	const { name: usersTableName } = getTableConfig(users1);
 	const { name: companiesTableName } = getTableConfig(companies1);
 	const seedStatements = [
-		`INSERT INTO \`${usersTableName}\` ("${schema1.users.name.name}") VALUES ('drizzle');`,
-		`INSERT INTO \`${usersTableName}\` ("${schema1.users.name.name}") VALUES ('turso');`,
-		`INSERT INTO \`${companiesTableName}\` ("${schema1.companies.id.name}") VALUES ('1');`,
-		`INSERT INTO \`${companiesTableName}\` ("${schema1.companies.id.name}") VALUES ('2');`,
+		`INSERT INTO \`${usersTableName}\` (\`${schema1.users.name.name}\`) VALUES ('drizzle');`,
+		`INSERT INTO \`${usersTableName}\` (\`${schema1.users.name.name}\`) VALUES ('turso');`,
+		`INSERT INTO \`${companiesTableName}\` (\`${schema1.companies.id.name}\`) VALUES ('1');`,
+		`INSERT INTO \`${companiesTableName}\` (\`${schema1.companies.id.name}\`) VALUES ('2');`,
 	];
 
 	const {
@@ -603,10 +606,11 @@ test('change autoincrement. other table references current', async (t) => {
 			},
 		],
 		compositePKs: [],
+		columnsToTransfer: ['id'],
 		referenceData: [],
 		uniqueConstraints: [],
 		checkConstraints: [],
-	});
+	} as JsonStatement);
 
 	expect(sqlStatements.length).toBe(6);
 	expect(sqlStatements[0]).toBe(`PRAGMA foreign_keys=OFF;`);
@@ -616,7 +620,7 @@ test('change autoincrement. other table references current', async (t) => {
 );\n`,
 	);
 	expect(sqlStatements[2]).toBe(
-		`INSERT INTO \`__new_companies\`("id") SELECT "id" FROM \`companies\`;`,
+		`INSERT INTO \`__new_companies\`(\`id\`) SELECT \`id\` FROM \`companies\`;`,
 	);
 	expect(sqlStatements[3]).toBe(`DROP TABLE \`companies\`;`);
 	expect(sqlStatements[4]).toBe(
@@ -745,11 +749,12 @@ test('drop not null, add not null', async (t) => {
 			},
 		],
 		compositePKs: [],
+		columnsToTransfer: ['id', 'name'],
 		referenceData: [],
 		tableName: 'users',
 		type: 'recreate_table',
 		uniqueConstraints: [],
-	});
+	} as JsonStatement);
 	expect(statements![1]).toStrictEqual({
 		checkConstraints: [],
 		columns: [
@@ -780,10 +785,11 @@ test('drop not null, add not null', async (t) => {
 		],
 		compositePKs: [],
 		referenceData: [],
+		columnsToTransfer: ['id', 'name', 'user_id'],
 		tableName: 'posts',
 		type: 'recreate_table',
 		uniqueConstraints: [],
-	});
+	} as JsonStatement);
 
 	expect(sqlStatements.length).toBe(8);
 	expect(sqlStatements[0]).toBe(`CREATE TABLE \`__new_users\` (
@@ -791,7 +797,7 @@ test('drop not null, add not null', async (t) => {
 \t\`name\` text
 );\n`);
 	expect(sqlStatements[1]).toBe(
-		`INSERT INTO \`__new_users\`("id", "name") SELECT "id", "name" FROM \`users\`;`,
+		`INSERT INTO \`__new_users\`(\`id\`, \`name\`) SELECT \`id\`, \`name\` FROM \`users\`;`,
 	);
 	expect(sqlStatements[2]).toBe(`DROP TABLE \`users\`;`);
 	expect(sqlStatements[3]).toBe(
@@ -804,7 +810,7 @@ test('drop not null, add not null', async (t) => {
 \t\`user_id\` integer
 );\n`);
 	expect(sqlStatements![5]).toBe(
-		`INSERT INTO \`__new_posts\`("id", "name", "user_id") SELECT "id", "name", "user_id" FROM \`posts\`;`,
+		`INSERT INTO \`__new_posts\`(\`id\`, \`name\`, \`user_id\`) SELECT \`id\`, \`name\`, \`user_id\` FROM \`posts\`;`,
 	);
 	expect(sqlStatements![6]).toBe(`DROP TABLE \`posts\`;`);
 	expect(sqlStatements![7]).toBe(
@@ -875,11 +881,12 @@ test('rename table and change data type', async (t) => {
 		],
 		compositePKs: [],
 		referenceData: [],
+		columnsToTransfer: ['id', 'age'],
 		tableName: 'new_users',
 		type: 'recreate_table',
 		uniqueConstraints: [],
 		checkConstraints: [],
-	});
+	} as JsonStatement);
 
 	expect(sqlStatements!.length).toBe(5);
 	expect(sqlStatements![0]).toBe(
@@ -890,7 +897,7 @@ test('rename table and change data type', async (t) => {
 \t\`age\` integer
 );\n`);
 	expect(sqlStatements![2]).toBe(
-		`INSERT INTO \`__new_new_users\`("id", "age") SELECT "id", "age" FROM \`new_users\`;`,
+		`INSERT INTO \`__new_new_users\`(\`id\`, \`age\`) SELECT \`id\`, \`age\` FROM \`new_users\`;`,
 	);
 	expect(sqlStatements![3]).toBe(`DROP TABLE \`new_users\`;`);
 	expect(sqlStatements![4]).toBe(
@@ -932,8 +939,15 @@ test('rename column and change data type', async (t) => {
 		'public.users.name->public.users.age',
 	]);
 
-	expect(statements!.length).toBe(1);
+	expect(statements!.length).toBe(2);
 	expect(statements![0]).toStrictEqual({
+		newColumnName: 'age',
+		oldColumnName: 'name',
+		schema: '',
+		tableName: 'users',
+		type: 'alter_table_rename_column',
+	});
+	expect(statements![1]).toStrictEqual({
 		columns: [
 			{
 				autoincrement: true,
@@ -953,23 +967,25 @@ test('rename column and change data type', async (t) => {
 			},
 		],
 		compositePKs: [],
+		columnsToTransfer: ['id', 'age'],
 		referenceData: [],
 		tableName: 'users',
 		type: 'recreate_table',
 		uniqueConstraints: [],
 		checkConstraints: [],
-	});
+	} as JsonStatement);
 
-	expect(sqlStatements!.length).toBe(4);
-	expect(sqlStatements![0]).toBe(`CREATE TABLE \`__new_users\` (
+	expect(sqlStatements!.length).toBe(5);
+	expect(sqlStatements![0]).toBe('ALTER TABLE `users` RENAME COLUMN \`name\` TO \`age\`;');
+	expect(sqlStatements![1]).toBe(`CREATE TABLE \`__new_users\` (
 \t\`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 \t\`age\` integer
 );\n`);
-	expect(sqlStatements![1]).toBe(
-		`INSERT INTO \`__new_users\`("id", "age") SELECT "id", "age" FROM \`users\`;`,
+	expect(sqlStatements![2]).toBe(
+		'INSERT INTO `__new_users`(`id`, `age`) SELECT `id`, `age` FROM `users`;',
 	);
-	expect(sqlStatements![2]).toBe(`DROP TABLE \`users\`;`);
-	expect(sqlStatements![3]).toBe(
+	expect(sqlStatements![3]).toBe(`DROP TABLE \`users\`;`);
+	expect(sqlStatements![4]).toBe(
 		`ALTER TABLE \`__new_users\` RENAME TO \`users\`;`,
 	);
 
@@ -1062,11 +1078,12 @@ test('recreate table with nested references', async (t) => {
 		],
 		compositePKs: [],
 		referenceData: [],
+		columnsToTransfer: ['id', 'name', 'age'],
 		tableName: 'users',
 		type: 'recreate_table',
 		uniqueConstraints: [],
 		checkConstraints: [],
-	});
+	} as JsonStatement);
 
 	expect(sqlStatements!.length).toBe(6);
 	expect(sqlStatements[0]).toBe('PRAGMA foreign_keys=OFF;');
@@ -1076,7 +1093,7 @@ test('recreate table with nested references', async (t) => {
 \t\`age\` integer
 );\n`);
 	expect(sqlStatements![2]).toBe(
-		`INSERT INTO \`__new_users\`("id", "name", "age") SELECT "id", "name", "age" FROM \`users\`;`,
+		'INSERT INTO `__new_users`(`id`, `name`, `age`) SELECT `id`, `name`, `age` FROM `users`;',
 	);
 	expect(sqlStatements![3]).toBe(`DROP TABLE \`users\`;`);
 	expect(sqlStatements![4]).toBe(
@@ -1112,8 +1129,8 @@ test('recreate table with added column not null and without default with data', 
 	};
 
 	const seedStatements = [
-		`INSERT INTO \`users\` ("name", "age") VALUES ('drizzle', 12)`,
-		`INSERT INTO \`users\` ("name", "age") VALUES ('turso', 12)`,
+		`INSERT INTO \`users\` (\`name\`, \`age\`) VALUES ('drizzle', 12)`,
+		`INSERT INTO \`users\` (\`name\`, \`age\`) VALUES ('turso', 12)`,
 	];
 
 	const {
@@ -1171,11 +1188,12 @@ test('recreate table with added column not null and without default with data', 
 		],
 		compositePKs: [],
 		referenceData: [],
+		columnsToTransfer: ['id', 'name', 'age'],
 		tableName: 'users',
 		type: 'recreate_table',
 		uniqueConstraints: [],
 		checkConstraints: [],
-	});
+	} as JsonStatement);
 
 	expect(sqlStatements!.length).toBe(4);
 	expect(sqlStatements[0]).toBe('DELETE FROM \`users\`;');
@@ -1269,11 +1287,12 @@ test('add check constraint to table', async (t) => {
 		],
 		compositePKs: [],
 		referenceData: [],
+		columnsToTransfer: ['id', 'name', 'age'],
 		tableName: 'users',
 		type: 'recreate_table',
 		uniqueConstraints: [],
 		checkConstraints: ['some_check;"users"."age" > 21'],
-	});
+	} as JsonStatement);
 
 	expect(sqlStatements!.length).toBe(4);
 	expect(sqlStatements![0]).toBe(`CREATE TABLE \`__new_users\` (
@@ -1283,7 +1302,7 @@ test('add check constraint to table', async (t) => {
 \tCONSTRAINT "some_check" CHECK("__new_users"."age" > 21)
 );\n`);
 	expect(sqlStatements[1]).toBe(
-		'INSERT INTO `__new_users`("id", "name", "age") SELECT "id", "name", "age" FROM `users`;',
+		'INSERT INTO `__new_users`(`id`, `name`, `age`) SELECT `id`, `name`, `age` FROM `users`;',
 	);
 	expect(sqlStatements![2]).toBe(`DROP TABLE \`users\`;`);
 	expect(sqlStatements![3]).toBe(
@@ -1363,11 +1382,12 @@ test('drop check constraint', async (t) => {
 		],
 		compositePKs: [],
 		referenceData: [],
+		columnsToTransfer: ['id', 'name', 'age'],
 		tableName: 'users',
 		type: 'recreate_table',
 		uniqueConstraints: [],
 		checkConstraints: [],
-	});
+	} as JsonStatement);
 
 	expect(sqlStatements!.length).toBe(4);
 	expect(sqlStatements![0]).toBe(`CREATE TABLE \`__new_users\` (
@@ -1376,7 +1396,7 @@ test('drop check constraint', async (t) => {
 \t\`age\` integer
 );\n`);
 	expect(sqlStatements[1]).toBe(
-		'INSERT INTO `__new_users`("id", "name", "age") SELECT "id", "name", "age" FROM `users`;',
+		'INSERT INTO `__new_users`(`id`, `name`, `age`) SELECT `id`, `name`, `age` FROM `users`;',
 	);
 	expect(sqlStatements![2]).toBe(`DROP TABLE \`users\`;`);
 	expect(sqlStatements![3]).toBe(
