@@ -1,4 +1,4 @@
-import type { Assume, Column, ColumnBaseConfig, ColumnDataType } from 'drizzle-orm';
+import type { Assume, Column } from 'drizzle-orm';
 import type { z } from 'zod';
 import type { IsEnumDefined, IsNever, Json } from './utils.ts';
 
