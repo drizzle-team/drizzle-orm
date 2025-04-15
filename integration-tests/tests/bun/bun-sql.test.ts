@@ -4761,13 +4761,13 @@ test('neon: policy', () => {
 	}
 });
 
-test('neon: neon_identity', () => {
+test('neon: neon_auth', () => {
 	const usersSyncTable = usersSync;
 
 	const { columns, schema, name } = getTableConfig(usersSyncTable);
 
 	expect(name).toBe('users_sync');
-	expect(schema).toBe('neon_identity');
+	expect(schema).toBe('neon_auth');
 	expect(columns).toHaveLength(6);
 });
 
