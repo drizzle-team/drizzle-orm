@@ -23,7 +23,7 @@ jobs:
           - drizzle-valibot
           - drizzle-arktype
           - other
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     services:
       postgres-postgis:
         image: postgis/postgis:16-3.4
@@ -213,7 +213,7 @@ jobs:
           - drizzle-valibot
           - drizzle-arktype
           - eslint-plugin-drizzle
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
 
@@ -302,7 +302,7 @@ jobs:
           - drizzle-valibot
           - drizzle-arktype
           - eslint-plugin-drizzle
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     services:
       postgres-postgis:
         image: postgis/postgis:16-3.4
