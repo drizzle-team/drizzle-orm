@@ -14,7 +14,7 @@ if (!fs.existsSync(IMPORTS_FOLDER)) {
 	fs.mkdirSync(IMPORTS_FOLDER);
 }
 
-it.skip('dynamic imports check for CommonJS', async () => {
+it('dynamic imports check for CommonJS', async () => {
 	const promises: ProcessPromise[] = [];
 	for (const [i, key] of Object.keys(pj['exports']).entries()) {
 		const o1 = path.join('drizzle-orm', key);
