@@ -1,3 +1,4 @@
+import * as crypto from 'node:crypto';
 import { type Equal, Expect } from 'type-tests/utils.ts';
 import type { BuildColumn } from '~/column-builder.ts';
 import {

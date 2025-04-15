@@ -55,7 +55,7 @@
 		"@vercel/postgres": "^0.8.0",
 		"@xata.io/client": "^0.29.3",
 		"async-retry": "^1.3.3",
-		"better-sqlite3": "^8.4.0",
+		"better-sqlite3": "^11.9.1",
 		"dockerode": "^3.3.4",
 		"dotenv": "^16.1.4",
 		"drizzle-prisma-generator": "^0.1.2",
