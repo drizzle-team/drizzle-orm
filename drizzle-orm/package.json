@@ -64,14 +64,14 @@
 		"better-sqlite3": ">=7",
 		"bun-types": "*",
 		"expo-sqlite": ">=14.0.0",
+		"gel": ">=2",
 		"knex": "*",
 		"kysely": "*",
 		"mysql2": ">=2",
 		"pg": ">=8",
 		"postgres": ">=3",
 		"sql.js": ">=1",
-		"sqlite3": ">=5",
-		"gel": ">=2"
+		"sqlite3": ">=5"
 	},
 	"peerDependenciesMeta": {
 		"mysql2": {
@@ -185,6 +185,7 @@
 		"cpy": "^10.1.0",
 		"expo-sqlite": "^14.0.0",
 		"gel": "^2.0.0",
+		"glob": "^11.0.1",
 		"knex": "^2.4.2",
 		"kysely": "^0.25.0",
 		"mysql2": "^3.3.3",
@@ -194,6 +195,7 @@
 		"react": "^18.2.0",
 		"sql.js": "^1.8.0",
 		"sqlite3": "^5.1.2",
+		"ts-morph": "^25.0.1",
 		"tslib": "^2.5.2",
 		"tsx": "^3.12.7",
 		"vite-tsconfig-paths": "^4.3.2",

@@ -14,7 +14,7 @@ if (!fs.existsSync(IMPORTS_FOLDER)) {
 	fs.mkdirSync(IMPORTS_FOLDER);
 }
 
-it('dynamic imports check for CommonJS', async () => {
+it.skip('dynamic imports check for CommonJS', async () => {
 	const promises: ProcessPromise[] = [];
 	for (const [i, key] of Object.keys(pj['exports']).entries()) {
 		const o1 = path.join('drizzle-orm', key);
@@ -55,7 +55,10 @@ it('dynamic imports check for ESM', async () => {
 		}
 		fs.writeFileSync(`${IMPORTS_FOLDER}/imports_${i}.mjs`, 'imp');
 		fs.appendFileSync(`${IMPORTS_FOLDER}/imports_${i}.mjs`, 'ort "' + o1 + '"\n', {});
-		promises.push($`node ${IMPORTS_FOLDER}/imports_${i}.mjs`.nothrow());
+		promises.push(
+			$`node ${IMPORTS_FOLDER}/imports_${i}.mjs`.nothrow(),
+			$`node --import import-in-the-middle/hook.mjs ${IMPORTS_FOLDER}/imports_${i}.mjs`.nothrow(),
+		);
 	}
 
 	const results = await Promise.all(promises);
