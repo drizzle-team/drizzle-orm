@@ -758,6 +758,28 @@ test('shuffle enum values', async () => {
 	});
 });
 
+test('enums as ts enum', async () => {
+	enum Test {
+		value = 'value',
+	}
+
+	const to = {
+		enum: pgEnum('enum', Test),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas({}, to, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value');`);
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		name: 'enum',
+		schema: 'public',
+		type: 'create_type_enum',
+		values: ['value'],
+	});
+});
+
 // +
 test('column is enum type with default value. shuffle enum', async () => {
 	const enum1 = pgEnum('enum', ['value1', 'value2', 'value3']);
