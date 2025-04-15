@@ -1,12 +1,11 @@
-import type Docker from 'dockerode';
 import { eq, getTableName, is, sql, Table } from 'drizzle-orm';
 import type { MutationOption } from 'drizzle-orm/cache/core';
 import { Cache } from 'drizzle-orm/cache/core';
 import type { CacheConfig } from 'drizzle-orm/cache/core/types';
-import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
-import { alias, boolean, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+import type { MySqlDatabase } from 'drizzle-orm/mysql-core';
+import { alias, boolean, int, json, mysqlTable, serial, text, timestamp } from 'drizzle-orm/mysql-core';
 import Keyv from 'keyv';
-import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 // eslint-disable-next-line drizzle-internal/require-entity-kind
 export class TestGlobalCache extends Cache {
@@ -78,41 +77,35 @@ export class TestCache extends TestGlobalCache {
 
 declare module 'vitest' {
 	interface TestContext {
-		cachedPg: {
-			db: PgDatabase<PgQueryResultHKT>;
-			dbGlobalCached: PgDatabase<PgQueryResultHKT>;
+		cachedMySQL: {
+			db: MySqlDatabase<any, any>;
+			dbGlobalCached: MySqlDatabase<any, any>;
 		};
 	}
 }
 
-const usersTable = pgTable('users', {
-	id: serial().primaryKey(),
-	name: text().notNull(),
-	verified: boolean().notNull().default(false),
-	jsonb: jsonb().$type<string[]>(),
-	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+const usersTable = mysqlTable('users', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	verified: boolean('verified').notNull().default(false),
+	jsonb: json('jsonb').$type<string[]>(),
+	createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
 });
 
-const postsTable = pgTable('posts', {
+const postsTable = mysqlTable('posts', {
 	id: serial().primaryKey(),
 	description: text().notNull(),
-	userId: integer('city_id').references(() => usersTable.id),
-});
-
-let pgContainer: Docker.Container;
-
-afterAll(async () => {
-	await pgContainer?.stop().catch(console.error);
+	userId: int('city_id').references(() => usersTable.id),
 });
 
 export function tests() {
-	describe('common', () => {
+	describe('common_cache', () => {
 		beforeEach(async (ctx) => {
-			const { db, dbGlobalCached } = ctx.cachedPg;
-			await db.execute(sql`drop schema if exists public cascade`);
-			await db.$cache?.invalidate({ tables: 'public.users' });
-			await dbGlobalCached.$cache?.invalidate({ tables: 'public.users' });
-			await db.execute(sql`create schema public`);
+			const { db, dbGlobalCached } = ctx.cachedMySQL;
+			await db.execute(sql`drop table if exists users`);
+			await db.execute(sql`drop table if exists posts`);
+			await db.$cache?.invalidate({ tables: 'users' });
+			await dbGlobalCached.$cache?.invalidate({ tables: 'users' });
 			// public users
 			await db.execute(
 				sql`
@@ -120,15 +113,24 @@ export function tests() {
 						id serial primary key,
 						name text not null,
 						verified boolean not null default false,
-						jsonb jsonb,
-						created_at timestamptz not null default now()
+						jsonb json,
+						created_at timestamp not null default now()
+					)
+				`,
+			);
+			await db.execute(
+				sql`
+					create table posts (
+						id serial primary key,
+						description text not null,
+						user_id int
 					)
 				`,
 			);
 		});
 
 		test('test force invalidate', async (ctx) => {
-			const { db } = ctx.cachedPg;
+			const { db } = ctx.cachedMySQL;
 
 			// @ts-expect-error
 			const spyInvalidate = vi.spyOn(db.$cache, 'invalidate');
@@ -137,7 +139,7 @@ export function tests() {
 		});
 
 		test('default global config - no cache should be hit', async (ctx) => {
-			const { db } = ctx.cachedPg;
+			const { db } = ctx.cachedMySQL;
 
 			// @ts-expect-error
 			const spyPut = vi.spyOn(db.$cache, 'put');
@@ -154,7 +156,7 @@ export function tests() {
 		});
 
 		test('default global config + enable cache on select: get, put', async (ctx) => {
-			const { db } = ctx.cachedPg;
+			const { db } = ctx.cachedMySQL;
 
 			// @ts-expect-error
 			const spyPut = vi.spyOn(db.$cache, 'put');
@@ -171,7 +173,7 @@ export function tests() {
 		});
 
 		test('default global config + enable cache on select + write: get, put, onMutate', async (ctx) => {
-			const { db } = ctx.cachedPg;
+			const { db } = ctx.cachedMySQL;
 
 			// @ts-expect-error
 			const spyPut = vi.spyOn(db.$cache, 'put');
@@ -198,7 +200,7 @@ export function tests() {
 		});
 
 		test('default global config + enable cache on select + disable invalidate: get, put', async (ctx) => {
-			const { db } = ctx.cachedPg;
+			const { db } = ctx.cachedMySQL;
 
 			// @ts-expect-error
 			const spyPut = vi.spyOn(db.$cache, 'put');
@@ -220,7 +222,7 @@ export function tests() {
 		});
 
 		test('global: true + disable cache', async (ctx) => {
-			const { dbGlobalCached: db } = ctx.cachedPg;
+			const { dbGlobalCached: db } = ctx.cachedMySQL;
 
 			// @ts-expect-error
 			const spyPut = vi.spyOn(db.$cache, 'put');
@@ -237,7 +239,7 @@ export function tests() {
 		});
 
 		test('global: true - cache should be hit', async (ctx) => {
-			const { dbGlobalCached: db } = ctx.cachedPg;
+			const { dbGlobalCached: db } = ctx.cachedMySQL;
 
 			// @ts-expect-error
 			const spyPut = vi.spyOn(db.$cache, 'put');
@@ -254,7 +256,7 @@ export function tests() {
 		});
 
 		test('global: true - cache: false on select - no cache hit', async (ctx) => {
-			const { dbGlobalCached: db } = ctx.cachedPg;
+			const { dbGlobalCached: db } = ctx.cachedMySQL;
 
 			// @ts-expect-error
 			const spyPut = vi.spyOn(db.$cache, 'put');
@@ -271,7 +273,7 @@ export function tests() {
 		});
 
 		test('global: true - disable invalidate - cache hit + no invalidate', async (ctx) => {
-			const { dbGlobalCached: db } = ctx.cachedPg;
+			const { dbGlobalCached: db } = ctx.cachedMySQL;
 
 			// @ts-expect-error
 			const spyPut = vi.spyOn(db.$cache, 'put');
@@ -298,7 +300,7 @@ export function tests() {
 		});
 
 		test('global: true - with custom tag', async (ctx) => {
-			const { dbGlobalCached: db } = ctx.cachedPg;
+			const { dbGlobalCached: db } = ctx.cachedMySQL;
 
 			// @ts-expect-error
 			const spyPut = vi.spyOn(db.$cache, 'put');
@@ -321,7 +323,7 @@ export function tests() {
 
 		// check select used tables
 		test('check simple select used tables', (ctx) => {
-			const { db } = ctx.cachedPg;
+			const { db } = ctx.cachedMySQL;
 
 			// @ts-expect-error
 			expect(db.select().from(usersTable).getUsedTables()).toStrictEqual(['public.users']);
@@ -330,7 +332,7 @@ export function tests() {
 		});
 		// check select+join used tables
 		test('select+join', (ctx) => {
-			const { db } = ctx.cachedPg;
+			const { db } = ctx.cachedMySQL;
 
 			// @ts-expect-error
 			expect(db.select().from(usersTable).leftJoin(postsTable, eq(usersTable.id, postsTable.userId)).getUsedTables())
@@ -342,7 +344,7 @@ export function tests() {
 		});
 		// check select+2join used tables
 		test('select+2joins', (ctx) => {
-			const { db } = ctx.cachedPg;
+			const { db } = ctx.cachedMySQL;
 
 			expect(
 				db.select().from(usersTable).leftJoin(
@@ -366,7 +368,7 @@ export function tests() {
 		});
 		// select subquery used tables
 		test('select+join', (ctx) => {
-			const { db } = ctx.cachedPg;
+			const { db } = ctx.cachedMySQL;
 
 			const sq = db.select().from(usersTable).where(eq(usersTable.id, 42)).as('sq');
 			db.select().from(sq);

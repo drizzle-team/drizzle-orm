@@ -1,6 +1,8 @@
 import type { CasingCache } from '~/casing.ts';
 import { entityKind, is } from '~/entity.ts';
+import { GelTable } from '~/gel-core/table.ts';
 import { isPgEnum } from '~/pg-core/columns/enum.ts';
+import { PgTable } from '~/pg-core/table.ts';
 import type { SelectResult } from '~/query-builders/select.types.ts';
 import { Subquery } from '~/subquery.ts';
 import { tracer } from '~/tracing.ts';
@@ -118,7 +120,17 @@ export class SQL<T = unknown> implements SQLWrapper {
 	constructor(readonly queryChunks: SQLChunk[]) {
 		for (const chunk of queryChunks) {
 			if (is(chunk, Table)) {
-				this.usedTables.push(chunk[Table.Symbol.Schema] ?? 'public' + '.' + chunk[Table.Symbol.Name]);
+				let schemaName = chunk[Table.Symbol.Schema];
+
+				if (!chunk[Table.Symbol.Schema]) {
+					schemaName = is(chunk, PgTable) || is(chunk, GelTable) ? 'public' : undefined;
+				}
+
+				this.usedTables.push(
+					schemaName === undefined
+						? chunk[Table.Symbol.Name]
+						: schemaName + '.' + chunk[Table.Symbol.Name],
+				);
 			}
 		}
 	}

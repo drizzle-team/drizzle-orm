@@ -25,3 +25,5 @@ export type CacheConfig = {
 	 */
 	hexOptions?: 'NX' | 'nx' | 'XX' | 'xx' | 'GT' | 'gt' | 'LT' | 'lt';
 };
+
+export type WithCacheConfig = { enable: boolean; config?: CacheConfig; tag?: string; autoInvalidate?: boolean };

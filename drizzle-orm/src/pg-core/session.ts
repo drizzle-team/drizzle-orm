@@ -1,4 +1,5 @@
 import { type Cache, NoopCache } from '~/cache/core/cache.ts';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import { TransactionRollbackError } from '~/errors.ts';
 import type { TablesRelationalConfig } from '~/relations.ts';
@@ -8,7 +9,7 @@ import { tracer } from '~/tracing.ts';
 import type { NeonAuthToken } from '~/utils.ts';
 import { PgDatabase } from './db.ts';
 import type { PgDialect } from './dialect.ts';
-import type { SelectedFieldsOrdered, WithCacheConfig } from './query-builders/select.types.ts';
+import type { SelectedFieldsOrdered } from './query-builders/select.types.ts';
 
 export interface PreparedQueryConfig {
 	execute: unknown;
