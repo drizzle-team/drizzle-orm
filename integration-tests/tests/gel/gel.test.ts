@@ -4175,6 +4175,40 @@ describe('some', async () => {
 		]);
 	});
 
+	test('cross join', async (ctx) => {
+		const { db } = ctx.gel;
+
+		await db
+			.insert(usersTable)
+			.values([
+				{ id1: 1, name: 'John' },
+				{ id1: 2, name: 'Jane' },
+			]);
+
+		await db
+			.insert(citiesTable)
+			.values([
+				{ id1: 1, name: 'Seattle' },
+				{ id1: 2, name: 'New York City' },
+			]);
+
+		const result = await db
+			.select({
+				user: usersTable.name,
+				city: citiesTable.name,
+			})
+			.from(usersTable)
+			.crossJoin(citiesTable)
+			.orderBy(usersTable.name, citiesTable.name);
+
+		expect(result).toStrictEqual([
+			{ city: 'New York City', user: 'Jane' },
+			{ city: 'Seattle', user: 'Jane' },
+			{ city: 'New York City', user: 'John' },
+			{ city: 'Seattle', user: 'John' },
+		]);
+	});
+
 	// TODO not supported yet
 	test.todo('update ... from', async (ctx) => {
 		const { db } = ctx.gel;
