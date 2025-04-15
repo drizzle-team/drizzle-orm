@@ -255,6 +255,9 @@ importers:
       eslint-plugin-prettier:
         specifier: ^5.1.3
         version: 5.2.6(eslint-config-prettier@9.1.0(eslint@8.57.1))(eslint@8.57.1)(prettier@2.8.8)
+      gel:
+        specifier: ^2.0.0
+        version: 2.0.2
       get-port:
         specifier: ^6.1.2
         version: 6.1.2
