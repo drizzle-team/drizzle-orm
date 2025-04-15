@@ -2,7 +2,6 @@ import crypto from 'node:crypto';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import { z } from 'zod';
-import { eq, gt } from '~/expressions.ts';
 import {
 	bigint,
 	bigserial,
@@ -53,6 +52,7 @@ import {
 	pgView,
 	type PgViewWithSelection,
 } from '~/pg-core/view.ts';
+import { eq, gt } from '~/sql/expressions/index.ts';
 import { sql } from '~/sql/sql.ts';
 import type { InferInsertModel, InferSelectModel } from '~/table.ts';
 import type { Simplify } from '~/utils.ts';

@@ -3,7 +3,6 @@ export * from './column-builder.ts';
 export * from './column.ts';
 export * from './entity.ts';
 export * from './errors.ts';
-export * from './expressions.ts';
 export * from './logger.ts';
 export * from './operations.ts';
 export * from './query-promise.ts';
