@@ -442,27 +442,44 @@ export function notExists(subquery: SQLWrapper): SQL {
  * @see notBetween for the inverse of this test
  */
 export function between<T>(
-	column: SQL.Aliased,
-	min: T | SQLWrapper,
-	max: T | SQLWrapper,
-): SQL;
-export function between<TColumn extends AnyColumn>(
-	column: TColumn,
-	min: GetColumnData<TColumn, 'raw'> | SQLWrapper,
-	max: GetColumnData<TColumn, 'raw'> | SQLWrapper,
-): SQL;
-export function between<T extends SQLWrapper>(
-	column: Exclude<T, SQL.Aliased | Column>,
+	expression: AnyColumn<{ data: T }>,
+	min: T | SQL<T> | SQL.Aliased<T> | AnyColumn<{ data: T }>,
+	max: T | SQL<T> | SQL.Aliased<T> | AnyColumn<{ data: T }>
+): SQL<T>
+export function between<T>(
+	expression: T | SQL<T> | SQL.Aliased<T> | AnyColumn<{ data: T }>,
+	min: AnyColumn<{ data: T }>,
+	max: T | SQL<T> | SQL.Aliased<T> | AnyColumn<{ data: T }>
+): SQL<T>
+export function between<T>(
+	expression: T | SQL<T> | SQL.Aliased<T> | AnyColumn<{ data: T }>,
+	min: T | SQL<T> | SQL.Aliased<T> | AnyColumn<{ data: T }>,
+	max: AnyColumn<{ data: T }>
+): SQL<T>
+export function between<T>(
+	expression: unknown,
 	min: unknown,
-	max: unknown,
-): SQL;
-export function between(column: SQLWrapper, min: unknown, max: unknown): SQL {
-	return sql`${column} between ${bindIfParam(min, column)} and ${
-		bindIfParam(
-			max,
-			column,
-		)
-	}`;
+	max: unknown
+): SQL<T> {
+	switch (true) {
+		case is(expression, Column): {
+			min = bindIfParam(min, expression)
+			max = bindIfParam(max, expression)
+			break
+		}
+		case is(min, Column): {
+			expression = bindIfParam(expression, min)
+			max = bindIfParam(max, min)
+			break
+		}
+		case is(max, Column): {
+			expression = bindIfParam(expression, max)
+			min = bindIfParam(min, max)
+			break
+		}
+	}
+
+	return sql`${expression} between ${min} and ${max}`
 }
 
 /**
@@ -483,31 +500,44 @@ export function between(column: SQLWrapper, min: unknown, max: unknown): SQL {
  * @see between for the inverse of this test
  */
 export function notBetween<T>(
-	column: SQL.Aliased,
-	min: T | SQLWrapper,
-	max: T | SQLWrapper,
-): SQL;
-export function notBetween<TColumn extends AnyColumn>(
-	column: TColumn,
-	min: GetColumnData<TColumn, 'raw'> | SQLWrapper,
-	max: GetColumnData<TColumn, 'raw'> | SQLWrapper,
-): SQL;
-export function notBetween<T extends SQLWrapper>(
-	column: Exclude<T, SQL.Aliased | Column>,
+	expression: AnyColumn<{ data: T }>,
+	min: T | SQL<T> | SQL.Aliased<T> | AnyColumn<{ data: T }>,
+	max: T | SQL<T> | SQL.Aliased<T> | AnyColumn<{ data: T }>
+): SQL<T>
+export function notBetween<T>(
+	expression: T | SQL<T> | SQL.Aliased<T> | AnyColumn<{ data: T }>,
+	min: AnyColumn<{ data: T }>,
+	max: T | SQL<T> | SQL.Aliased<T> | AnyColumn<{ data: T }>
+): SQL<T>
+export function notBetween<T>(
+	expression: T | SQL<T> | SQL.Aliased<T> | AnyColumn<{ data: T }>,
+	min: T | SQL<T> | SQL.Aliased<T> | AnyColumn<{ data: T }>,
+	max: AnyColumn<{ data: T }>
+): SQL<T>
+export function notBetween<T>(
+	expression: unknown,
 	min: unknown,
-	max: unknown,
-): SQL;
-export function notBetween(
-	column: SQLWrapper,
-	min: unknown,
-	max: unknown,
-): SQL {
-	return sql`${column} not between ${
-		bindIfParam(
-			min,
-			column,
-		)
-	} and ${bindIfParam(max, column)}`;
+	max: unknown
+): SQL<T> {
+	switch (true) {
+		case is(expression, Column): {
+			min = bindIfParam(min, expression)
+			max = bindIfParam(max, expression)
+			break
+		}
+		case is(min, Column): {
+			expression = bindIfParam(expression, min)
+			max = bindIfParam(max, min)
+			break
+		}
+		case is(max, Column): {
+			expression = bindIfParam(expression, max)
+			min = bindIfParam(min, max)
+			break
+		}
+	}
+
+	return sql`${expression} not between ${min} and ${max}`
 }
 
 /**
