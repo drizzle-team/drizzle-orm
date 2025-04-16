@@ -104,7 +104,8 @@ export abstract class MsSqlColumnBuilder<
 export abstract class MsSqlColumn<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = object,
-> extends Column<T, TRuntimeConfig, { dialect: 'mssql' }> {
+	TTypeConfig extends object = {},
+> extends Column<T, TRuntimeConfig, TTypeConfig & { dialect: 'mssql' }> {
 	static override readonly [entityKind]: string = 'MsSqlColumn';
 
 	constructor(

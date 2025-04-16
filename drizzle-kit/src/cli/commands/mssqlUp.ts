@@ -1,8 +1,8 @@
-import { Column, MySqlSchemaV4, MySqlSchemaV5, mysqlSchemaV5, Table } from '../../serializer/mysqlSchema';
+import { Column, MsSqlSchema, Table } from '../../serializer/mssqlSchema';
 
-export const upMysqlHandler = (out: string) => {};
+export const upMssqlHandler = (out: string) => {};
 
-export const upMySqlHandlerV4toV5 = (obj: MySqlSchemaV4): MySqlSchemaV5 => {
+export const upMsSqlHandlerV4toV5 = (obj: MsSqlSchema): MySqlSchemaV5 => {
 	const mappedTables: Record<string, Table> = {};
 
 	for (const [key, table] of Object.entries(obj.tables)) {

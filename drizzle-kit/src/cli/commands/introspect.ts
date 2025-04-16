@@ -4,12 +4,15 @@ import { render, renderWithTask } from 'hanji';
 import { Minimatch } from 'minimatch';
 import { join } from 'path';
 import { plural, singular } from 'pluralize';
+import { dryMsSql, MsSqlSchema, squashMssqlScheme } from 'src/serializer/mssqlSchema';
 import { drySingleStore, SingleStoreSchema, squashSingleStoreScheme } from 'src/serializer/singlestoreSchema';
 import { assertUnreachable, originUUID } from '../../global';
+import { schemaToTypeScript as mssqlSchemaToTypeScript } from '../../introspect-mssql';
 import { schemaToTypeScript as mysqlSchemaToTypeScript } from '../../introspect-mysql';
 import { paramNameFor, schemaToTypeScript as postgresSchemaToTypeScript } from '../../introspect-pg';
 import { schemaToTypeScript as singlestoreSchemaToTypeScript } from '../../introspect-singlestore';
 import { schemaToTypeScript as sqliteSchemaToTypeScript } from '../../introspect-sqlite';
+import { fromDatabase as fromMssqlDatabase } from '../../serializer/mssqlSerializer';
 import { dryMySql, MySqlSchema, squashMysqlScheme } from '../../serializer/mysqlSchema';
 import { fromDatabase as fromMysqlDatabase } from '../../serializer/mysqlSerializer';
 import { dryPg, type PgSchema, squashPgScheme } from '../../serializer/pgSchema';
@@ -19,6 +22,7 @@ import { drySQLite, type SQLiteSchema, squashSqliteScheme } from '../../serializ
 import { fromDatabase as fromSqliteDatabase } from '../../serializer/sqliteSerializer';
 import {
 	applyLibSQLSnapshotsDiff,
+	applyMssqlSnapshotsDiff,
 	applyMysqlSnapshotsDiff,
 	applyPgSnapshotsDiff,
 	applySingleStoreSnapshotsDiff,
@@ -28,6 +32,7 @@ import { prepareOutFolder } from '../../utils';
 import { Entities } from '../validations/cli';
 import type { Casing, Prefix } from '../validations/common';
 import { LibSQLCredentials } from '../validations/libsql';
+import { MssqlCredentials } from '../validations/mssql';
 import type { MysqlCredentials } from '../validations/mysql';
 import type { PostgresCredentials } from '../validations/postgres';
 import { SingleStoreCredentials } from '../validations/singlestore';
@@ -241,6 +246,117 @@ export const introspectMysql = async (
 			columnsResolver,
 			mySqlViewsResolver,
 			dryMySql,
+			schema,
+		);
+
+		writeResult({
+			cur: schema,
+			sqlStatements,
+			journal,
+			_meta,
+			outFolder: out,
+			breakpoints,
+			type: 'introspect',
+			prefixMode: prefix,
+		});
+	} else {
+		render(
+			`[${
+				chalk.blue(
+					'i',
+				)
+			}] No SQL generated, you already have migrations in project`,
+		);
+	}
+
+	render(
+		`[${
+			chalk.green(
+				'✓',
+			)
+		}] Your schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
+	);
+	render(
+		`[${
+			chalk.green(
+				'✓',
+			)
+		}] Your relations file is ready ➜ ${
+			chalk.bold.underline.blue(
+				relationsFile,
+			)
+		} 🚀`,
+	);
+	process.exit(0);
+};
+
+export const introspectMssql = async (
+	casing: Casing,
+	out: string,
+	breakpoints: boolean,
+	credentials: MssqlCredentials,
+	tablesFilter: string[],
+	prefix: Prefix,
+) => {
+	const { connectToMsSQL } = await import('../connections');
+	const { db, database } = await connectToMsSQL(credentials);
+
+	const matchers = tablesFilter.map((it) => {
+		return new Minimatch(it);
+	});
+
+	const filter = (tableName: string) => {
+		if (matchers.length === 0) return true;
+
+		let flags: boolean[] = [];
+
+		for (let matcher of matchers) {
+			if (matcher.negate) {
+				if (!matcher.match(tableName)) {
+					flags.push(false);
+				}
+			}
+
+			if (matcher.match(tableName)) {
+				flags.push(true);
+			}
+		}
+
+		if (flags.length > 0) {
+			return flags.every(Boolean);
+		}
+		return false;
+	};
+
+	const progress = new IntrospectProgress();
+	const res = await renderWithTask(
+		progress,
+		fromMssqlDatabase(db, database, filter, (stage, count, status) => {
+			progress.update(stage, count, status);
+		}),
+	);
+
+	const schema = { id: originUUID, prevId: '', ...res } as MsSqlSchema;
+	const ts = mssqlSchemaToTypeScript(schema, casing);
+	const relationsTs = relationsToTypeScript(schema, casing);
+	const { internal, ...schemaWithoutInternals } = schema;
+
+	const schemaFile = join(out, 'schema.ts');
+	writeFileSync(schemaFile, ts.file);
+	const relationsFile = join(out, 'relations.ts');
+	writeFileSync(relationsFile, relationsTs.file);
+	console.log();
+
+	const { snapshots, journal } = prepareOutFolder(out, 'mysql');
+
+	if (snapshots.length === 0) {
+		const { sqlStatements, _meta } = await applyMssqlSnapshotsDiff(
+			squashMssqlScheme(dryMsSql),
+			squashMssqlScheme(schema),
+			tablesResolver,
+			columnsResolver,
+			mySqlViewsResolver,
+			dryMsSql,
 			schema,
 		);
 

@@ -8,6 +8,7 @@ import { CasingType } from './cli/validations/common';
 import { info } from './cli/views';
 import { assertUnreachable, snapshotVersion } from './global';
 import type { Dialect } from './schemaValidator';
+import { backwardCompatibleMssqlSchema } from './serializer/mssqlSchema';
 import { backwardCompatibleMysqlSchema } from './serializer/mysqlSchema';
 import { backwardCompatiblePgSchema } from './serializer/pgSchema';
 import { backwardCompatibleSingleStoreSchema } from './serializer/singlestoreSchema';
@@ -126,6 +127,8 @@ const validatorForDialect = (dialect: Dialect) => {
 			return { validator: backwardCompatibleMysqlSchema, version: 5 };
 		case 'singlestore':
 			return { validator: backwardCompatibleSingleStoreSchema, version: 1 };
+		case 'mssql':
+			return { validator: backwardCompatibleMssqlSchema, version: 1 };
 	}
 };
 

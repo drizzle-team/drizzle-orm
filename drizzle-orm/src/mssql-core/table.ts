@@ -9,13 +9,16 @@ import type { AnyIndexBuilder } from './indexes.ts';
 import type { PrimaryKeyBuilder } from './primary-keys.ts';
 import type { UniqueConstraintBuilder } from './unique-constraint.ts';
 
-export type MsSqlTableExtraConfig = Record<
-	string,
+export type MsSqlTableExtraConfigValue =
 	| AnyIndexBuilder
 	| CheckBuilder
 	| ForeignKeyBuilder
 	| PrimaryKeyBuilder
-	| UniqueConstraintBuilder
+	| UniqueConstraintBuilder;
+
+export type MsSqlTableExtraConfig = Record<
+	string,
+	MsSqlTableExtraConfigValue
 >;
 
 export type TableConfig = TableConfigBase<MsSqlColumn>;
@@ -62,7 +65,11 @@ export function mssqlTableWithSchema<
 >(
 	name: TTableName,
 	columns: TColumnsMap | ((columnTypes: MsSqlColumnBuilders) => TColumnsMap),
-	extraConfig: ((self: BuildColumns<TTableName, TColumnsMap, 'mssql'>) => MsSqlTableExtraConfig) | undefined,
+	extraConfig:
+		| ((
+			self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'mssql'>,
+		) => MsSqlTableExtraConfig | MsSqlTableExtraConfigValue[])
+		| undefined,
 	schema: TSchemaName,
 	baseName = name,
 ): MsSqlTableWithColumns<{
@@ -108,17 +115,101 @@ export function mssqlTableWithSchema<
 	return table;
 }
 
-export interface MsSqlTableFn<TSchemaName extends string | undefined = undefined> {
+export interface MsSqlTableFn<TSchema extends string | undefined = undefined> {
 	<
 		TTableName extends string,
 		TColumnsMap extends Record<string, MsSqlColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: TColumnsMap,
-		extraConfig?: (self: BuildColumns<TTableName, TColumnsMap, 'mssql'>) => MsSqlTableExtraConfig,
+		extraConfig?: (self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'mssql'>) => MsSqlTableExtraConfigValue[],
 	): MsSqlTableWithColumns<{
 		name: TTableName;
-		schema: TSchemaName;
+		schema: TSchema;
+		columns: BuildColumns<TTableName, TColumnsMap, 'mssql'>;
+		dialect: 'mssql';
+	}>;
+
+	<
+		TTableName extends string,
+		TColumnsMap extends Record<string, MsSqlColumnBuilderBase>,
+	>(
+		name: TTableName,
+		columns: (columnTypes: MsSqlColumnBuilders) => TColumnsMap,
+		extraConfig?: (self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'mssql'>) => MsSqlTableExtraConfigValue[],
+	): MsSqlTableWithColumns<{
+		name: TTableName;
+		schema: TSchema;
+		columns: BuildColumns<TTableName, TColumnsMap, 'mssql'>;
+		dialect: 'mssql';
+	}>;
+	/**
+	 * @deprecated The third parameter of mssqlTable is changing and will only accept an array instead of an object
+	 *
+	 * @example
+	 * Deprecated version:
+	 * ```ts
+	 * export const users = mssqlTable("users", {
+	 * 	id: integer(),
+	 * }, (t) => ({
+	 * 	idx: index('custom_name').on(t.id)
+	 * }));
+	 * ```
+	 *
+	 * New API:
+	 * ```ts
+	 * export const users = mssqlTable("users", {
+	 * 	id: integer(),
+	 * }, (t) => [
+	 * 	index('custom_name').on(t.id)
+	 * ]);
+	 * ```
+	 */
+	<
+		TTableName extends string,
+		TColumnsMap extends Record<string, MsSqlColumnBuilderBase>,
+	>(
+		name: TTableName,
+		columns: TColumnsMap,
+		extraConfig?: (self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'mssql'>) => MsSqlTableExtraConfig,
+	): MsSqlTableWithColumns<{
+		name: TTableName;
+		schema: TSchema;
+		columns: BuildColumns<TTableName, TColumnsMap, 'mssql'>;
+		dialect: 'mssql';
+	}>;
+	/**
+	 * @deprecated The third parameter of mssqlTable is changing and will only accept an array instead of an object
+	 *
+	 * @example
+	 * Deprecated version:
+	 * ```ts
+	 * export const users = mssqlTable("users", {
+	 * 	id: integer(),
+	 * }, (t) => ({
+	 * 	idx: index('custom_name').on(t.id)
+	 * }));
+	 * ```
+	 *
+	 * New API:
+	 * ```ts
+	 * export const users = mssqlTable("users", {
+	 * 	id: integer(),
+	 * }, (t) => [
+	 * 	index('custom_name').on(t.id)
+	 * ]);
+	 * ```
+	 */
+	<
+		TTableName extends string,
+		TColumnsMap extends Record<string, MsSqlColumnBuilderBase>,
+	>(
+		name: TTableName,
+		columns: (columnTypes: MsSqlColumnBuilders) => TColumnsMap,
+		extraConfig?: (self: BuildExtraConfigColumns<TTableName, TColumnsMap, 'mssql'>) => MsSqlTableExtraConfig,
+	): MsSqlTableWithColumns<{
+		name: TTableName;
+		schema: TSchema;
 		columns: BuildColumns<TTableName, TColumnsMap, 'mssql'>;
 		dialect: 'mssql';
 	}>;

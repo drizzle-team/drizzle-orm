@@ -14,19 +14,9 @@ interface IndexConfig {
 	unique?: boolean;
 
 	/**
-	 * If set, the index will be created as `create index ... using { 'btree' | 'hash' }`.
+	 * Condition for partial index.
 	 */
-	using?: 'btree' | 'hash';
-
-	/**
-	 * If set, the index will be created as `create index ... algorythm { 'default' | 'inplace' | 'copy' }`.
-	 */
-	algorythm?: 'default' | 'inplace' | 'copy';
-
-	/**
-	 * If set, adds locks to the index creation.
-	 */
-	lock?: 'default' | 'none' | 'shared' | 'exclusive';
+	where?: SQL;
 }
 
 export type IndexColumn = MsSqlColumn | SQL;
@@ -62,18 +52,8 @@ export class IndexBuilder implements AnyIndexBuilder {
 		};
 	}
 
-	using(using: IndexConfig['using']): this {
-		this.config.using = using;
-		return this;
-	}
-
-	algorythm(algorythm: IndexConfig['algorythm']): this {
-		this.config.algorythm = algorythm;
-		return this;
-	}
-
-	lock(lock: IndexConfig['lock']): this {
-		this.config.lock = lock;
+	where(condition: SQL): this {
+		this.config.where = condition;
 		return this;
 	}
 
