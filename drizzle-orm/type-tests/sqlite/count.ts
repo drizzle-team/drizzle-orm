@@ -1,5 +1,5 @@
 import { Expect } from 'type-tests/utils.ts';
-import { and, gt, ne } from '~/expressions.ts';
+import { and, gt, ne } from '~/sql/expressions/index.ts';
 import { integer, sqliteTable, text } from '~/sqlite-core/index.ts';
 import type { Equal } from '~/utils.ts';
 import { db } from './db.ts';
