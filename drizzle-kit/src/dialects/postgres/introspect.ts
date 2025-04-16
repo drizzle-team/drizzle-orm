@@ -1,3 +1,4 @@
+import camelcase from 'camelcase';
 import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
 import type { DB } from '../../utils';
 import type {
@@ -26,7 +27,6 @@ import {
 	stringFromDatabaseIdentityProperty as parseIdentityProperty,
 	wrapRecord,
 } from './grammar';
-
 
 const trimChar = (str: string, char: string) => {
 	let start = 0;
@@ -74,6 +74,7 @@ function prepareRoles(entities?: {
 	return { useRoles, include, exclude };
 }
 
+// TODO: tables/schema/entities -> filter: (entity: {type: ..., metadata....})=>boolean;
 export const fromDatabase = async (
 	db: DB,
 	tablesFilter: (table: string) => boolean = () => true,
@@ -116,7 +117,7 @@ export const fromDatabase = async (
 		name: string;
 	};
 
-	const ops = await db.query<OP>(`
+	const opsQuery = db.query<OP>(`
 		SELECT 
 			pg_opclass.oid as "oid",
 			opcdefault as "default", 
@@ -125,17 +126,37 @@ export const fromDatabase = async (
 		LEFT JOIN pg_am on pg_opclass.opcmethod = pg_am.oid
 		`);
 
-	const tablespaces = await db.query<{
+	const tablespacesQuery = db.query<{
 		oid: number;
 		name: string;
 	}>('SELECT oid, spcname as "name" FROM pg_tablespace');
+
+	const namespacesQuery = db.query<Namespace>('select oid, nspname as name from pg_namespace');
+
+	const defaultsQuery = await db.query<{
+		tableId: number;
+		ordinality: number;
+		expression: string;
+	}>(`
+		SELECT
+			adrelid AS "tableId",
+			adnum AS "ordinality",
+			pg_get_expr(adbin, adrelid) AS "expression"
+		FROM
+			pg_attrdef;
+	`);
+
+	const [ops, tablespaces, namespaces, defaultsList] = await Promise.all([
+		opsQuery,
+		tablespacesQuery,
+		namespacesQuery,
+		defaultsQuery,
+	]);
 
 	const opsById = ops.reduce((acc, it) => {
 		acc[it.oid] = it;
 		return acc;
 	}, {} as Record<number, OP>);
-
-	const namespaces = await db.query<Namespace>('select oid, nspname as name from pg_namespace');
 
 	const { system, other } = namespaces.reduce<{ system: Namespace[]; other: Namespace[] }>(
 		(acc, it) => {
@@ -173,12 +194,12 @@ export const fromDatabase = async (
 					relnamespace AS "schemaId",
 					relname AS "name",
 					relkind AS "kind",
-					relam as "accessMethod"
+					relam as "accessMethod",
 					reloptions::text[] as "options",
 					reltablespace as "tablespaceid",
-					relrowsecurity AS "rlsEnabled"
+					relrowsecurity AS "rlsEnabled",
 					case 
-						when relkind = 'v'
+						when relkind = 'v' or relkind = 'm'
 							then pg_get_viewdef(oid, true)
 						else null 
 					end as "definition"
@@ -206,7 +227,7 @@ export const fromDatabase = async (
 		});
 	}
 
-	const enumsWithValues = await db
+	const enumsQuery = db
 		.query<{
 			oid: number;
 			name: string;
@@ -227,57 +248,26 @@ export const fromDatabase = async (
 					AND typnamespace IN (${filteredNamespacesIds.join(',')})
 				ORDER BY pg_type.oid, pg_enum.enumsortorder`);
 
-	const groupedEnums = enumsWithValues.reduce((acc, it) => {
-		if (!(it.oid in acc)) {
-			const schemaName = filteredNamespaces.find((sch) => sch.oid === it.schemaId)!.name;
-			acc[it.oid] = {
-				oid: it.oid,
-				schema: schemaName,
-				name: it.name,
-				values: [it.value],
-			};
-		} else {
-			acc[it.oid].values.push(it.value);
-		}
-		return acc;
-	}, {} as Record<number, { oid: number; schema: string; name: string; values: string[] }>);
-
-	for (const it of Object.values(groupedEnums)) {
-		enums.push({
-			entityType: 'enums',
-			schema: it.schema,
-			name: it.name,
-			values: it.values,
-		});
-	}
-
 	// fetch for serials, adrelid = tableid
-	const serials = await db
+	const serialsQuery = db
 		.query<{
 			oid: number;
 			tableId: number;
 			ordinality: number;
 			expression: string;
 		}>(`SELECT
-					oid,
-					adrelid as "tableId",
-					adnum as "ordinality",
-					pg_get_expr(adbin, adrelid) as "expression"
-				FROM
-					pg_attrdef
-				WHERE
-					adrelid in (${filteredTableIds.join(', ')})`);
+				oid,
+				adrelid as "tableId",
+				adnum as "ordinality",
+				pg_get_expr(adbin, adrelid) as "expression"
+			FROM
+				pg_attrdef
+			WHERE
+				adrelid in (${filteredTableIds.join(', ')})`);
 
-	let columnsCount = 0;
-	let indexesCount = 0;
-	let foreignKeysCount = 0;
-	let tableCount = 0;
-	let checksCount = 0;
-	let viewsCount = 0;
-
-	const sequencesList = await db.query<{
+	const sequencesQuery = db.query<{
+		schemaId: number;
 		oid: number;
-		schema: string;
 		name: string;
 		startWith: string;
 		minValue: string;
@@ -286,59 +276,22 @@ export const fromDatabase = async (
 		cycle: boolean;
 		cacheSize: string;
 	}>(`SELECT 
-				oid,
-				schemaname as "schema", 
-				sequencename as "name", 
-				start_value as "startWith", 
-				min_value as "minValue", 
-				max_value as "maxValue", 
-				increment_by as "incrementBy", 
-				cycle, 
-				cache_size as "cacheSize" 
-			FROM pg_sequences
-			WHERE schemaname in (${filteredNamespaces.map((it) => it.name).join(',')})
-		};`);
-
-	sequences.push(...sequencesList.map<Sequence>((it) => {
-		return {
-			entityType: 'sequences',
-			schema: it.schema,
-			name: it.name,
-			startWith: parseIdentityProperty(it.startWith),
-			minValue: parseIdentityProperty(it.minValue),
-			maxValue: parseIdentityProperty(it.maxValue),
-			incrementBy: parseIdentityProperty(it.incrementBy),
-			cycle: it.cycle,
-			cacheSize: parseIdentityProperty(it.cacheSize),
-		};
-	}));
-
-	progressCallback('enums', Object.keys(enums).length, 'done');
-
-	const rolesList = await db.query<
-		{ rolname: string; rolinherit: boolean; rolcreatedb: boolean; rolcreaterole: boolean }
-	>(
-		`SELECT rolname, rolinherit, rolcreatedb, rolcreaterole FROM pg_roles;`,
-	);
-
-  // TODO: drizzle link
-	const res = prepareRoles(entities);
-	for (const dbRole of rolesList) {
-		if (!(res.useRoles || !(res.exclude.includes(dbRole.rolname) || !res.include.includes(dbRole.rolname)))) continue;
-
-		roles.push({
-			entityType: 'roles',
-			name: dbRole.rolname,
-			createDb: dbRole.rolcreatedb,
-			createRole: dbRole.rolcreatedb,
-			inherit: dbRole.rolinherit,
-		});
-	}
+				relnamespace as "schemaId",
+				relname as "name",
+				seqrelid as "oid",
+				seqstart as "startWith", 
+				seqmin as "minValue", 
+				seqmax as "maxValue", 
+				seqincrement as "incrementBy", 
+				seqcycle as "cycle", 
+				seqcache as "cacheSize" 
+			FROM pg_sequence
+			LEFT JOIN pg_class ON pg_sequence.seqrelid=pg_class.oid ;`);
 
 	// I'm not yet aware of how we handle policies down the pipeline for push,
 	// and since postgres does not have any default policies, we can safely fetch all of them for now
 	// and filter them out in runtime, simplifying filterings
-	const allPolicies = await db.query<
+	const policiesQuery = db.query<
 		{
 			schema: string;
 			table: string;
@@ -350,33 +303,23 @@ export const fromDatabase = async (
 			withCheck: string | undefined | null;
 		}
 	>(`SELECT 
-			schemaname as "schema", 
-			tablename as "table", 
-			policyname as "name", 
-			permissive as "as", 
-			roles as "to", 
-			cmd as "for", 
-			qual as "using", 
-			with_check as "withCheck" 
-		FROM pg_policies;`);
+		schemaname as "schema", 
+		tablename as "table", 
+		policyname as "name", 
+		permissive as "as", 
+		roles as "to", 
+		cmd as "for", 
+		qual as "using", 
+		with_check as "withCheck" 
+	FROM pg_policies;`);
 
-	for (const it of allPolicies) {
-		policies.push({
-			entityType: 'policies',
-			schema: it.schema,
-			table: it.table,
-			name: it.name,
-			as: it.as,
-			for: it.for,
-			roles: typeof it.to === 'string' ? it.to.slice(1, -1).split(',') : it.to,
-			using: it.using ?? null,
-			withCheck: it.withCheck ?? null,
-		});
-	}
+	const rolesQuery = await db.query<
+		{ rolname: string; rolinherit: boolean; rolcreatedb: boolean; rolcreaterole: boolean }
+	>(
+		`SELECT rolname, rolinherit, rolcreatedb, rolcreaterole FROM pg_roles;`,
+	);
 
-	progressCallback('policies', allPolicies.length, 'done');
-
-	const constraints = await db.query<{
+	const constraintsQuery = db.query<{
 		oid: number;
 		schemaId: number;
 		tableId: number;
@@ -402,27 +345,14 @@ export const fromDatabase = async (
       confrelid AS "tableToId",
       confkey AS "columnsToOrdinals",
       confupdtype AS "onUpdate",
-      confdeltype AS "onDelete",
+      confdeltype AS "onDelete"
     FROM
       pg_constraint
     WHERE conrelid in (${filteredTableIds.join(',')})
   `);
 
-	const defaultsList = await db.query<{
-		tableId: number;
-		ordinality: number;
-		expression: string;
-	}>(`
-		SELECT
-			adrelid AS "tableId",
-			adnum AS "ordinality",
-			pg_get_expr(adbin, adrelid) AS "expression"
-		FROM
-			pg_attrdef;
-	`);
-
 	// for serials match with pg_attrdef via attrelid(tableid)+adnum(ordinal position), for enums with pg_enum above
-	const columnsList = await db.query<{
+	const columnsQuery = db.query<{
 		tableId: number;
 		name: string;
 		ordinality: number;
@@ -493,6 +423,93 @@ export const fromDatabase = async (
 					AND attnum > 0
 					AND attisdropped = FALSE;`);
 
+	const [enumsList, serialsList, sequencesList, policiesList, rolesList, constraintsList, columnsList] = await Promise.all([
+		enumsQuery,
+		serialsQuery,
+		sequencesQuery,
+		policiesQuery,
+		rolesQuery,
+		constraintsQuery,
+		columnsQuery
+	]);
+
+	const groupedEnums = enumsList.reduce((acc, it) => {
+		if (!(it.oid in acc)) {
+			const schemaName = filteredNamespaces.find((sch) => sch.oid === it.schemaId)!.name;
+			acc[it.oid] = {
+				oid: it.oid,
+				schema: schemaName,
+				name: it.name,
+				values: [it.value],
+			};
+		} else {
+			acc[it.oid].values.push(it.value);
+		}
+		return acc;
+	}, {} as Record<number, { oid: number; schema: string; name: string; values: string[] }>);
+
+	for (const it of Object.values(groupedEnums)) {
+		enums.push({
+			entityType: 'enums',
+			schema: it.schema,
+			name: it.name,
+			values: it.values,
+		});
+	}
+
+	let columnsCount = 0;
+	let indexesCount = 0;
+	let foreignKeysCount = 0;
+	let tableCount = 0;
+	let checksCount = 0;
+	let viewsCount = 0;
+
+	sequences.push(...sequencesList.map<Sequence>((it) => {
+		return {
+			entityType: 'sequences',
+			schema: namespaces.find((ns) => ns.oid === it.schemaId)?.name!,
+			name: it.name,
+			startWith: parseIdentityProperty(it.startWith),
+			minValue: parseIdentityProperty(it.minValue),
+			maxValue: parseIdentityProperty(it.maxValue),
+			incrementBy: parseIdentityProperty(it.incrementBy),
+			cycle: it.cycle,
+			cacheSize: parseIdentityProperty(it.cacheSize),
+		};
+	}));
+
+	progressCallback('enums', Object.keys(enums).length, 'done');
+
+	// TODO: drizzle link
+	const res = prepareRoles(entities);
+	for (const dbRole of rolesList) {
+		if (!(res.useRoles || !(res.exclude.includes(dbRole.rolname) || !res.include.includes(dbRole.rolname)))) continue;
+
+		roles.push({
+			entityType: 'roles',
+			name: dbRole.rolname,
+			createDb: dbRole.rolcreatedb,
+			createRole: dbRole.rolcreatedb,
+			inherit: dbRole.rolinherit,
+		});
+	}
+
+	for (const it of policiesList) {
+		policies.push({
+			entityType: 'policies',
+			schema: it.schema,
+			table: it.table,
+			name: it.name,
+			as: it.as,
+			for: it.for,
+			roles: typeof it.to === 'string' ? it.to.slice(1, -1).split(',') : it.to,
+			using: it.using ?? null,
+			withCheck: it.withCheck ?? null,
+		});
+	}
+
+	progressCallback('policies', policiesList.length, 'done');
+
 	type DBColumn = (typeof columnsList)[number];
 
 	// supply serials
@@ -503,7 +520,7 @@ export const fromDatabase = async (
 			continue;
 		}
 
-		const expr = serials.find(
+		const expr = serialsList.find(
 			(it) => it.tableId === column.tableId && it.ordinality === column.ordinality,
 		);
 
@@ -552,12 +569,12 @@ export const fromDatabase = async (
 
 		columnTypeMapped = trimChar(columnTypeMapped, '"');
 
-		const unique = constraints.find((it) => {
+		const unique = constraintsList.find((it) => {
 			return it.type === 'u' && it.tableId === column.tableId && it.columnsOrdinals.length === 1
 				&& it.columnsOrdinals.includes(column.ordinality);
-		});
+		}) ?? null;
 
-		const pk = constraints.find((it) => {
+		const pk = constraintsList.find((it) => {
 			return it.type === 'p' && it.tableId === column.tableId && it.columnsOrdinals.length === 1
 				&& it.columnsOrdinals.includes(column.ordinality);
 		});
@@ -589,9 +606,12 @@ export const fromDatabase = async (
 			type: column.type,
 			typeSchema,
 			default: defaultValue,
-			isUnique: unique !== null,
-			uniqueName: unique?.name ?? null,
-			nullsNotDistinct: unique?.definition.includes('NULLS NOT DISTINCT') ?? false,
+			unique: unique
+				? {
+					name: unique.name,
+					nullsNotDistinct: unique.definition.includes('NULLS NOT DISTINCT') ?? false,
+				}
+				: null,
 			notNull: column.notNull,
 			primaryKey: pk !== null,
 			generated: column.generatedType === 's' ? { type: 'stored', as: metadata!.expression! } : null,
@@ -610,7 +630,7 @@ export const fromDatabase = async (
 		});
 	}
 
-	for (const unique of constraints.filter((it) => it.type === 'u')) {
+	for (const unique of constraintsList.filter((it) => it.type === 'u')) {
 		const table = tablesList.find((it) => it.oid === unique.tableId)!;
 		const schema = namespaces.find((it) => it.oid === unique.schemaId)!;
 
@@ -629,7 +649,7 @@ export const fromDatabase = async (
 		});
 	}
 
-	for (const pk of constraints.filter((it) => it.type === 'p')) {
+	for (const pk of constraintsList.filter((it) => it.type === 'p')) {
 		const table = tablesList.find((it) => it.oid === pk.tableId)!;
 		const schema = namespaces.find((it) => it.oid === pk.schemaId)!;
 
@@ -648,7 +668,7 @@ export const fromDatabase = async (
 		});
 	}
 
-	for (const fk of constraints.filter((it) => it.type === 'f')) {
+	for (const fk of constraintsList.filter((it) => it.type === 'f')) {
 		const table = tablesList.find((it) => it.oid === fk.tableId)!;
 		const schema = namespaces.find((it) => it.oid === fk.schemaId)!;
 		const tableTo = tablesList.find((it) => it.oid === fk.tableToId)!;
@@ -678,7 +698,7 @@ export const fromDatabase = async (
 		});
 	}
 
-	for (const check of constraints.filter((it) => it.type === 'c')) {
+	for (const check of constraintsList.filter((it) => it.type === 'c')) {
 		const table = tablesList.find((it) => it.oid === check.tableId)!;
 		const schema = namespaces.find((it) => it.oid === check.schemaId)!;
 
@@ -694,16 +714,18 @@ export const fromDatabase = async (
 	const idxs = await db.query<{
 		oid: number;
 		schemaId: number;
-		tableId: number;
 		name: string;
 		accessMethod: string;
 		with: string;
-		expression: string | null;
-		where: string;
-		columnOrdinals: number[];
-		opclassIds: number[];
-		options: number[];
-		isUnique: boolean;
+		metadata: {
+			tableId: number;
+			expression: string | null;
+			where: string;
+			columnOrdinals: number[];
+			opclassIds: number[];
+			options: number[];
+			isUnique: boolean;
+		};
 	}>(`
       SELECT
         pg_class.oid,
@@ -711,7 +733,7 @@ export const fromDatabase = async (
         relname AS "name",
         am.amname AS "accessMethod",
         reloptions AS "with",
-        metadata.*
+        row_to_json(metadata.*) as "metadata"
       FROM
         pg_class
       JOIN pg_am am ON am.oid = pg_class.relam
@@ -719,7 +741,7 @@ export const fromDatabase = async (
         SELECT
           pg_get_expr(indexprs, indrelid) AS "expression",
           pg_get_expr(indpred, indrelid) AS "where",
-          indrelid AS "tableId",
+          indrelid::int AS "tableId",
           indkey::int[] as "columnOrdinals",
           indclass::int[] as "opclassIds",
           indoption::int[] as "options",
@@ -735,13 +757,14 @@ export const fromDatabase = async (
     `);
 
 	for (const idx of idxs) {
-		const opclasses = idx.opclassIds.map((it) => opsById[it]!);
-		const expr = splitExpressions(idx.expression);
+		const { metadata } = idx;
+		const opclasses = metadata.opclassIds.map((it) => opsById[it]!);
+		const expr = splitExpressions(metadata.expression);
 
 		const schema = namespaces.find((it) => it.oid === idx.schemaId)!;
-		const table = tablesList.find((it) => it.oid === idx.tableId)!;
+		const table = tablesList.find((it) => it.oid === idx.metadata.tableId)!;
 
-		const nonColumnsCount = idx.columnOrdinals.reduce((acc, it) => {
+		const nonColumnsCount = metadata.columnOrdinals.reduce((acc, it) => {
 			if (it === 0) acc += 1;
 			return acc;
 		}, 0);
@@ -749,14 +772,14 @@ export const fromDatabase = async (
 		if (expr.length !== nonColumnsCount) {
 			throw new Error(
 				`expression split doesn't match non-columns count: [${
-					idx.columnOrdinals.join(
+					metadata.columnOrdinals.join(
 						', ',
 					)
-				}] '${idx.expression}':${expr.length}:${nonColumnsCount}`,
+				}] '${metadata.expression}':${expr.length}:${nonColumnsCount}`,
 			);
 		}
 
-		const opts = idx.options.map((it) => {
+		const opts = metadata.options.map((it) => {
 			return {
 				descending: (it & 1) === 1,
 				nullsFirst: (it & 2) === 2,
@@ -772,8 +795,8 @@ export const fromDatabase = async (
 		)[];
 
 		let k = 0;
-		for (let i = 0; i < idx.columnOrdinals.length; i++) {
-			const ordinal = idx.columnOrdinals[i];
+		for (let i = 0; i < metadata.columnOrdinals.length; i++) {
+			const ordinal = metadata.columnOrdinals[i];
 			if (ordinal === 0) {
 				res.push({
 					type: 'expression',
@@ -783,9 +806,10 @@ export const fromDatabase = async (
 				});
 				k += 1;
 			} else {
-				const column = columnsList.find(
-					(column) => column.tableId == idx.tableId && column.ordinality === ordinal,
-				)!;
+				const column = columnsList.find((column) => {
+					return column.tableId == metadata.tableId && column.ordinality === ordinal;
+				});
+				if (!column) throw new Error(`missing column: ${metadata.tableId}:${ordinal}`);
 				res.push({
 					type: 'column',
 					value: column,
@@ -816,7 +840,7 @@ export const fromDatabase = async (
 			method: idx.accessMethod,
 			isUnique: false,
 			with: idx.with,
-			where: idx.where,
+			where: idx.metadata.where,
 			columns: columns,
 			concurrently: false,
 		});
@@ -832,7 +856,7 @@ export const fromDatabase = async (
 		if (!tablesFilter(viewName)) continue;
 		tableCount += 1;
 
-		const accessMethod = ops.find((it) => it.oid === view.accessMethod)!;
+		const accessMethod = view.accessMethod === 0 ? null : ops.find((it) => it.oid === view.accessMethod);
 		const tablespace = view.tablespaceid === 0 ? null : tablespaces.find((it) => it.oid === view.tablespaceid)!.name;
 		const definition = parseViewDefinition(view.definition);
 		const withOpts = wrapRecord(
@@ -842,7 +866,7 @@ export const fromDatabase = async (
 					throw new Error(`Unexpected view option: ${it}`);
 				}
 
-				const key = opt[0].trim().camelCase();
+				const key = camelcase(opt[0].trim());
 				const value = opt[1].trim();
 				acc[key] = value;
 				return acc;
@@ -879,10 +903,12 @@ export const fromDatabase = async (
 			},
 			materialized: view.kind === 'm',
 			tablespace,
-			using: {
-				name: accessMethod.name,
-				default: accessMethod.default,
-			},
+			using: accessMethod
+				? {
+					name: accessMethod.name,
+					default: accessMethod.default,
+				}
+				: null,
 			withNoData: null,
 			isExisting: false,
 		});

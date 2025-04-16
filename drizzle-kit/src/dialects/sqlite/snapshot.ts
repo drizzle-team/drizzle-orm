@@ -1,6 +1,6 @@
-import { array, validator } from 'src/dialects/simpleValidator';
 import { boolean, enum as enumType, literal, object, record, string, TypeOf } from 'zod';
 import { originUUID } from '../../global';
+import { array, validator } from '../simpleValidator';
 import { createDDL, SQLiteDDL, SqliteEntity } from './ddl';
 
 // ------- V3 --------

@@ -1,7 +1,6 @@
-import {
+import type {
 	CheckConstraint,
 	Column,
-	createDDL,
 	ForeignKey,
 	Index,
 	PrimaryKey,
@@ -10,8 +9,9 @@ import {
 	UniqueConstraint,
 	View,
 } from '../dialects/sqlite/ddl';
+import { createDDL } from '../dialects/sqlite/ddl';
 import { applySqliteSnapshotsDiff } from '../dialects/sqlite/differ';
-import { mockColumnsResolver, mockTablesResolver } from './mocks';
+import { mockResolver } from './mocks';
 
 export type Interim<T> = Omit<T, 'entityType'>;
 
@@ -106,8 +106,8 @@ export const diffSqlite = async (
 	const { sqlStatements, statements, groupedStatements } = await applySqliteSnapshotsDiff(
 		ddl1,
 		ddl2,
-		mockTablesResolver(renames),
-		mockColumnsResolver(renames),
+		mockResolver(renames),
+		mockResolver(renames),
 		'generate',
 	);
 

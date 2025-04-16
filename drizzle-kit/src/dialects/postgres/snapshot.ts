@@ -9,9 +9,8 @@ import {
 	record,
 	string,
 	TypeOf,
-	union,
 } from 'zod';
-import { originUUID, snapshotVersion } from '../../global';
+import { originUUID } from '../../global';
 import { array, validator } from '../simpleValidator';
 import { createDDL, PostgresDDL, PostgresEntity } from './ddl';
 
@@ -520,7 +519,6 @@ export const pgSchemaV3 = pgSchemaInternalV3.merge(schemaHash);
 export const pgSchemaV4 = pgSchemaInternalV4.merge(schemaHash);
 export const pgSchemaV5 = pgSchemaInternalV5.merge(schemaHash);
 export const pgSchemaV6 = pgSchemaInternalV6.merge(schemaHash);
-export const pgSchemaV7 = pgSchemaInternalV7.merge(schemaHash);
 export const pgSchema = pgSchemaInternal.merge(schemaHash);
 
 export type PgSchemaV1 = TypeOf<typeof pgSchemaV1>;
@@ -529,6 +527,11 @@ export type PgSchemaV3 = TypeOf<typeof pgSchemaV3>;
 export type PgSchemaV4 = TypeOf<typeof pgSchemaV4>;
 export type PgSchemaV5 = TypeOf<typeof pgSchemaV5>;
 export type PgSchemaV6 = TypeOf<typeof pgSchemaV6>;
+export type PgSchema = TypeOf<typeof pgSchema>;
+
+export type Index = TypeOf<typeof index>;
+export type TableV5 = TypeOf<typeof tableV5>;
+export type Column = TypeOf<typeof column>;
 
 export const toJsonSnapshot = (ddl: PostgresDDL, id: string, prevId: string, meta: {
 	columns: Record<string, string>;
@@ -550,15 +553,17 @@ export const snapshotValidator = validator({
 
 export type PostgresSnapshot = typeof snapshotValidator.shape;
 
-export const dryPg = snapshotValidator.strict({
-	version: '8',
-	dialect: 'postgres',
-	id: originUUID,
-	prevId: '',
-	ddl: [],
-	meta: {
-		schemas: {},
-		tables: {},
-		columns: {},
-	},
-});
+export const drySnapshot = snapshotValidator.strict(
+	{
+		version: '8',
+		dialect: 'postgres',
+		id: originUUID,
+		prevId: '',
+		ddl: [],
+		meta: {
+			schemas: {},
+			tables: {},
+			columns: {},
+		},
+	} satisfies PostgresSnapshot,
+);

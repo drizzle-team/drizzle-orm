@@ -35,8 +35,9 @@ export interface JsonDropTable {
 
 export interface JsonRenameTable {
 	type: 'rename_table';
-	from: PostgresEntities['tables'];
-	to: PostgresEntities['tables'];
+	schema: string;
+	from: string;
+	to: string;
 }
 
 export interface JsonCreateEnum {
@@ -51,9 +52,8 @@ export interface JsonDropEnum {
 
 export interface JsonMoveEnum {
 	type: 'move_enum';
-	name: string;
-	schemaFrom: string;
-	schemaTo: string;
+	from: { name: string; schema: string | null };
+	to: { name: string; schema: string | null };
 }
 
 export interface JsonRenameEnum {
@@ -118,9 +118,8 @@ export interface JsonDropSequence {
 
 export interface JsonMoveSequence {
 	type: 'move_sequence';
-	name: string;
-	schemaFrom: string;
-	schemaTo: string;
+	from: { name: string; schema: string | null };
+	to: { name: string; schema: string | null };
 }
 
 export interface JsonRenameSequence {
@@ -278,14 +277,15 @@ export interface JsonRenamePrimaryKey {
 
 export interface JsonAlterPrimaryKey {
 	type: 'alter_pk';
+	pk: PrimaryKey,
 	diff: DiffEntities['pks'];
 }
 
 export interface JsonMoveTable {
 	type: 'move_table';
 	name: string;
-	schemaFrom: string;
-	schemaTo: string;
+	from: string;
+	to: string;
 }
 
 export interface JsonAlterTableRemoveFromSchema {
@@ -314,7 +314,8 @@ export interface JsonRenameColumn {
 
 export interface JsonAlterColumn {
 	type: 'alter_column';
-	column: Column;
+	from: Column;
+	to: Column;
 	diff: DiffEntities['columns'];
 }
 
@@ -399,8 +400,7 @@ export interface JsonMoveView {
 export interface JsonAlterView {
 	type: 'alter_view';
 	diff: DiffEntities['views'];
-	from: View;
-	to: View;
+	view: View;
 }
 
 export interface JsonRecreateView {

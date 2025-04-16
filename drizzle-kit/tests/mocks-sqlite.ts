@@ -3,8 +3,8 @@ import { SQLiteTable, SQLiteView } from 'drizzle-orm/sqlite-core';
 import { CasingType } from 'src/cli/validations/common';
 import { interimToDDL } from 'src/dialects/sqlite/ddl';
 import { applySqliteSnapshotsDiff } from 'src/dialects/sqlite/differ';
-import { fromDrizzleSchema } from 'src/dialects/sqlite/serializer';
-import { mockColumnsResolver, mockTablesResolver } from 'src/utils/mocks';
+import { fromDrizzleSchema } from 'src/dialects/sqlite/drizzle';
+import { mockResolver } from 'src/utils/mocks';
 
 export type SqliteSchema = Record<string, SQLiteTable<any> | SQLiteView>;
 
@@ -26,9 +26,9 @@ export const diffTestSchemasSqlite = async (
 
 	if (err1.length > 0 || err2.length > 0) {
 		console.log('-----');
-		console.log(err1.map(it=>it.type).join('\n'));
+		console.log(err1.map((it) => it.type).join('\n'));
 		console.log('-----');
-		console.log(err2.map(it=>it.type).join('\n'));
+		console.log(err2.map((it) => it.type).join('\n'));
 		console.log('-----');
 	}
 
@@ -38,8 +38,8 @@ export const diffTestSchemasSqlite = async (
 		const { sqlStatements, statements } = await applySqliteSnapshotsDiff(
 			ddl1,
 			ddl2,
-			mockTablesResolver(renames),
-			mockColumnsResolver(renames),
+			mockResolver(renames),
+			mockResolver(renames),
 			'generate',
 		);
 		return { sqlStatements, statements, err1, err2 };
@@ -48,8 +48,8 @@ export const diffTestSchemasSqlite = async (
 	const { sqlStatements, statements, warnings } = await applySqliteSnapshotsDiff(
 		ddl1,
 		ddl2,
-		mockTablesResolver(renames),
-		mockColumnsResolver(renames),
+		mockResolver(renames),
+		mockResolver(renames),
 		'generate',
 	);
 	return { sqlStatements, statements, err1, err2 };

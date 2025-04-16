@@ -1,5 +1,7 @@
 import chalk from 'chalk';
 import { writeFileSync } from 'fs';
+import { getOrNull } from 'src/dialects/utils';
+import { createDDL } from '../../dialects/postgres/ddl';
 import {
 	Column,
 	Index,
@@ -9,9 +11,9 @@ import {
 	pgSchemaV5,
 	PgSchemaV6,
 	pgSchemaV6,
-	Table,
+	PostgresSnapshot,
 	TableV5,
-} from '../../dialects/postgres/ddl';
+} from '../../dialects/postgres/snapshot';
 import { prepareOutFolder, validateWithReport } from '../../utils-node';
 
 export const upPgHandler = (out: string) => {
@@ -31,9 +33,8 @@ export const upPgHandler = (out: string) => {
 				resultV6 = updateUpToV6(it.raw);
 			}
 
-			const result = updateUpToV7(resultV6);
-
-			console.log(`[${chalk.green('✓')}] ${path}`);
+			const resultV7 = updateUpToV7(resultV6);
+			const result = console.log(`[${chalk.green('✓')}] ${path}`);
 
 			writeFileSync(path, JSON.stringify(result, null, 2));
 		});
@@ -41,34 +42,80 @@ export const upPgHandler = (out: string) => {
 	console.log("Everything's fine 🐶🔥");
 };
 
-export const updateUpToV6 = (json: Record<string, any>): PgSchemaV6 => {
-	const schema = pgSchemaV5.parse(json);
-	const tables = Object.fromEntries(
-		Object.entries(schema.tables).map((it) => {
-			const table = it[1];
-			const schema = table.schema || 'public';
-			return [`${schema}.${table.name}`, table];
-		}),
-	);
-	const enums = Object.fromEntries(
-		Object.entries(schema.enums).map((it) => {
-			const en = it[1];
-			return [
-				`public.${en.name}`,
-				{
-					name: en.name,
-					schema: 'public',
-					values: Object.values(en.values),
-				},
-			];
-		}),
-	);
+export const updateToV8 = (json: PgSchema): PostgresSnapshot => {
+	const ddl = createDDL();
+
+	for (const schema of Object.values(json.schemas)) {
+		ddl.schemas.insert({ name: schema });
+	}
+
+	for (const en of Object.values(json.enums)) {
+		ddl.enums.insert({ schema: en.schema, name: en.name, values: en.values });
+	}
+
+	for (const role of Object.values(json.roles)) {
+		ddl.roles.insert({
+			name: role.name,
+			createRole: role.createRole,
+			createDb: role.createDb,
+			inherit: role.inherit,
+		});
+	}
+
+	for (const policy of Object.values(json.policies)) {
+		ddl.policies.insert({
+			schema: policy.schema ?? 'public',
+			table: policy.on,
+			name: policy.name,
+		});
+	}
+
+	for (const v of Object.values(json.views)) {
+		const opt = v.with;
+		ddl.views.insert({
+			schema: v.schema,
+			name: v.name,
+			definition: v.definition ?? null,
+			tablespace: v.tablespace ?? null,
+			withNoData: v.withNoData ?? null,
+			using: v.using ? { name: v.using, default: false } : null,
+			with: opt
+				? {
+					checkOption: getOrNull(opt, 'checkOption'),
+					securityBarrier: getOrNull(opt, 'securityBarrier'),
+					securityInvoker: getOrNull(opt, 'securityInvoker'),
+					autovacuumEnabled: getOrNull(opt, 'autovacuumEnabled'),
+					autovacuumFreezeMaxAge: getOrNull(opt, 'autovacuumFreezeMaxAge'),
+					autovacuumFreezeMinAge: getOrNull(opt, 'autovacuumFreezeMinAge'),
+					autovacuumFreezeTableAge: getOrNull(opt, 'autovacuumFreezeTableAge'),
+					autovacuumMultixactFreezeMaxAge: getOrNull(opt, 'autovacuumMultixactFreezeMaxAge'),
+					autovacuumMultixactFreezeMinAge: getOrNull(opt, 'autovacuumMultixactFreezeMinAge'),
+					autovacuumMultixactFreezeTableAge: getOrNull(opt, 'autovacuumMultixactFreezeTableAge'),
+					autovacuumVacuumCostDelay: getOrNull(opt, 'autovacuumVacuumCostDelay'),
+					autovacuumVacuumCostLimit: getOrNull(opt, 'autovacuumVacuumCostLimit'),
+					autovacuumVacuumScaleFactor: getOrNull(opt, 'autovacuumVacuumScaleFactor'),
+					autovacuumVacuumThreshold: getOrNull(opt, 'autovacuumVacuumThreshold'),
+					fillfactor: getOrNull(opt, 'fillfactor'),
+					logAutovacuumMinDuration: getOrNull(opt, 'logAutovacuumMinDuration'),
+					parallelWorkers: getOrNull(opt, 'parallelWorkers'),
+					toastTupleTarget: getOrNull(opt, 'toastTupleTarget'),
+					userCatalogTable: getOrNull(opt, 'userCatalogTable'),
+					vacuumIndexCleanup: getOrNull(opt, 'vacuumIndexCleanup'),
+					vacuumTruncate: getOrNull(opt, 'vacuumTruncate'),
+				}
+				: null,
+			materialized: v.materialized,
+			isExisting: v.isExisting,
+		});
+	}
+
 	return {
-		...schema,
-		version: '6',
-		dialect: 'postgresql',
-		tables: tables,
-		enums,
+		id: json.id,
+		prevId: json.prevId,
+		version: '8',
+		dialect: 'postgres',
+		ddl: ddl.entities.list(),
+		meta: json._meta,
 	};
 };
 
@@ -106,6 +153,37 @@ export const updateUpToV7 = (json: Record<string, any>): PgSchema => {
 		policies: {},
 		views: {},
 		roles: {},
+	};
+};
+
+export const updateUpToV6 = (json: Record<string, any>): PgSchemaV6 => {
+	const schema = pgSchemaV5.parse(json);
+	const tables = Object.fromEntries(
+		Object.entries(schema.tables).map((it) => {
+			const table = it[1];
+			const schema = table.schema || 'public';
+			return [`${schema}.${table.name}`, table];
+		}),
+	);
+	const enums = Object.fromEntries(
+		Object.entries(schema.enums).map((it) => {
+			const en = it[1];
+			return [
+				`public.${en.name}`,
+				{
+					name: en.name,
+					schema: 'public',
+					values: Object.values(en.values),
+				},
+			];
+		}),
+	);
+	return {
+		...schema,
+		version: '6',
+		dialect: 'postgresql',
+		tables: tables,
+		enums,
 	};
 };
 

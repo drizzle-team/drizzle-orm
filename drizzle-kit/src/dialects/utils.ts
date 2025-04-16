@@ -1,4 +1,4 @@
-import { Simplify } from '../utils';
+import type { Simplify } from '../utils';
 
 export type Named = {
 	name: string;

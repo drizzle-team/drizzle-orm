@@ -17,11 +17,11 @@ import {
 	tablesResolver,
 	uniqueResolver,
 	viewsResolver,
-} from './cli/commands/migrate';
-import { pgPushIntrospect } from './cli/commands/pgIntrospect';
+} from './cli/commands/generate-common';
+import { pgPushIntrospect } from './cli/commands/pull-postgres';
 import { pgSuggestions } from './cli/commands/pgPushUtils';
-import { updateUpToV6 as upPgV6, updateUpToV7 as upPgV7 } from './cli/commands/pgUp';
-import { sqlitePushIntrospect } from './cli/commands/sqliteIntrospect';
+import { updateUpToV6 as upPgV6, updateUpToV7 as upPgV7 } from './cli/commands/up-postgres';
+import { sqlitePushIntrospect } from './cli/commands/pull-sqlite';
 import { logSuggestionsAndReturn } from './cli/commands/sqlitePushUtils';
 import type { CasingType } from './cli/validations/common';
 import { schemaError, schemaWarning } from './cli/views';
@@ -31,7 +31,7 @@ import type { Config } from './index';
 import { fillPgSnapshot } from './migrationPreparator';
 import { MySqlSchema as MySQLSchemaKit, mysqlSchema, squashMysqlScheme } from './serializer/mysqlSchema';
 import { generateMySqlSnapshot } from './serializer/mysqlSerializer';
-import { prepareFromExports } from './serializer/pgImports';
+import { prepareFromExports } from './dialects/postgres/pgImports';
 import {
 	PgSchema as PgSchemaKit,
 	pgSchema,
@@ -101,7 +101,7 @@ export const generateMigration = async (
 	prev: DrizzleSnapshotJSON,
 	cur: DrizzleSnapshotJSON,
 ) => {
-	const { applyPgSnapshotsDiff } = await import('./dialects/postgres/diff');
+	const { ddlDif: applyPgSnapshotsDiff } = await import('./dialects/postgres/diff');
 
 	const validatedPrev = pgSchema.parse(prev);
 	const validatedCur = pgSchema.parse(cur);
@@ -140,7 +140,7 @@ export const pushSchema = async (
 	tablesFilter?: string[],
 	extensionsFilters?: Config['extensionsFilters'],
 ) => {
-	const { applyPgSnapshotsDiff } = await import('./dialects/postgres/diff');
+	const { ddlDif: applyPgSnapshotsDiff } = await import('./dialects/postgres/diff');
 	const { sql } = await import('drizzle-orm');
 	const filters = (tablesFilter ?? []).concat(
 		getTablesFilterByExtensions({ extensionsFilters, dialect: 'postgresql' }),
@@ -366,7 +366,7 @@ export const pushMySQLSchema = async (
 		'./cli/commands/mysqlPushUtils'
 	);
 	const { mysqlPushIntrospect } = await import(
-		'./cli/commands/mysqlIntrospect'
+		'./cli/commands/pull-mysql'
 	);
 	const { sql } = await import('drizzle-orm');
 
@@ -473,7 +473,7 @@ export const pushSingleStoreSchema = async (
 		'./cli/commands/singlestorePushUtils'
 	);
 	const { singlestorePushIntrospect } = await import(
-		'./cli/commands/singlestoreIntrospect'
+		'./cli/commands/pull-singlestore'
 	);
 	const { sql } = await import('drizzle-orm');
 

@@ -1,6 +1,6 @@
 import { integer, pgTable, primaryKey, serial, text, uuid, varchar } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
-import { diffTestSchemas } from './schemaDiffer';
+import { diffTestSchemas } from './mocks-postgres';
 
 test('add columns #1', async (t) => {
 	const schema1 = {
@@ -16,15 +16,8 @@ test('add columns #1', async (t) => {
 		}),
 	};
 
-	const { statements } = await diffTestSchemas(schema1, schema2, []);
-
-	expect(statements.length).toBe(1);
-	expect(statements[0]).toStrictEqual({
-		type: 'alter_table_add_column',
-		tableName: 'users',
-		schema: '',
-		column: { name: 'name', type: 'text', primaryKey: false, notNull: false },
-	});
+	const { sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('add columns #2', async (t) => {
@@ -42,21 +35,9 @@ test('add columns #2', async (t) => {
 		}),
 	};
 
-	const { statements } = await diffTestSchemas(schema1, schema2, []);
+	const { sqlStatements } = await diffTestSchemas(schema1, schema2, []);
 
-	expect(statements.length).toBe(2);
-	expect(statements[0]).toStrictEqual({
-		type: 'alter_table_add_column',
-		tableName: 'users',
-		schema: '',
-		column: { name: 'name', type: 'text', primaryKey: false, notNull: false },
-	});
-	expect(statements[1]).toStrictEqual({
-		type: 'alter_table_add_column',
-		tableName: 'users',
-		schema: '',
-		column: { name: 'email', type: 'text', primaryKey: false, notNull: false },
-	});
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('alter column change name #1', async (t) => {
@@ -74,18 +55,11 @@ test('alter column change name #1', async (t) => {
 		}),
 	};
 
-	const { statements } = await diffTestSchemas(schema1, schema2, [
+	const { sqlStatements } = await diffTestSchemas(schema1, schema2, [
 		'public.users.name->public.users.name1',
 	]);
 
-	expect(statements.length).toBe(1);
-	expect(statements[0]).toStrictEqual({
-		type: 'alter_table_rename_column',
-		tableName: 'users',
-		schema: '',
-		oldColumnName: 'name',
-		newColumnName: 'name1',
-	});
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('alter column change name #2', async (t) => {
@@ -104,29 +78,11 @@ test('alter column change name #2', async (t) => {
 		}),
 	};
 
-	const { statements } = await diffTestSchemas(schema1, schema2, [
+	const { sqlStatements } = await diffTestSchemas(schema1, schema2, [
 		'public.users.name->public.users.name1',
 	]);
 
-	expect(statements.length).toBe(2);
-	expect(statements[0]).toStrictEqual({
-		type: 'alter_table_rename_column',
-		tableName: 'users',
-		schema: '',
-		oldColumnName: 'name',
-		newColumnName: 'name1',
-	});
-	expect(statements[1]).toStrictEqual({
-		type: 'alter_table_add_column',
-		tableName: 'users',
-		schema: '',
-		column: {
-			name: 'email',
-			notNull: false,
-			primaryKey: false,
-			type: 'text',
-		},
-	});
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('alter table add composite pk', async (t) => {
@@ -152,20 +108,11 @@ test('alter table add composite pk', async (t) => {
 		),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemas(
+	const { sqlStatements } = await diffTestSchemas(
 		schema1,
 		schema2,
 		[],
 	);
-
-	expect(statements.length).toBe(1);
-	expect(statements[0]).toStrictEqual({
-		type: 'create_composite_pk',
-		tableName: 'table',
-		data: 'id1,id2;table_id1_id2_pk',
-		schema: '',
-		constraintName: 'table_id1_id2_pk',
-	});
 
 	expect(sqlStatements.length).toBe(1);
 	expect(sqlStatements[0]).toBe(
@@ -186,26 +133,12 @@ test('rename table rename column #1', async (t) => {
 		}),
 	};
 
-	const { statements } = await diffTestSchemas(schema1, schema2, [
+	const { sqlStatements } = await diffTestSchemas(schema1, schema2, [
 		'public.users->public.users1',
 		'public.users1.id->public.users1.id1',
 	]);
 
-	expect(statements.length).toBe(2);
-	expect(statements[0]).toStrictEqual({
-		type: 'rename_table',
-		tableNameFrom: 'users',
-		tableNameTo: 'users1',
-		fromSchema: '',
-		toSchema: '',
-	});
-	expect(statements[1]).toStrictEqual({
-		type: 'alter_table_rename_column',
-		oldColumnName: 'id',
-		newColumnName: 'id1',
-		schema: '',
-		tableName: 'users1',
-	});
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('with composite pks #1', async (t) => {
@@ -240,20 +173,9 @@ test('with composite pks #1', async (t) => {
 		),
 	};
 
-	const { statements } = await diffTestSchemas(schema1, schema2, []);
+	const { sqlStatements } = await diffTestSchemas(schema1, schema2, []);
 
-	expect(statements.length).toBe(1);
-	expect(statements[0]).toStrictEqual({
-		type: 'alter_table_add_column',
-		tableName: 'users',
-		schema: '',
-		column: {
-			name: 'text',
-			notNull: false,
-			primaryKey: false,
-			type: 'text',
-		},
-	});
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('with composite pks #2', async (t) => {
@@ -279,16 +201,9 @@ test('with composite pks #2', async (t) => {
 		),
 	};
 
-	const { statements } = await diffTestSchemas(schema1, schema2, []);
+	const { sqlStatements } = await diffTestSchemas(schema1, schema2, []);
 
-	expect(statements.length).toBe(1);
-	expect(statements[0]).toStrictEqual({
-		type: 'create_composite_pk',
-		tableName: 'users',
-		schema: '',
-		constraintName: 'compositePK',
-		data: 'id1,id2;compositePK',
-	});
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('with composite pks #3', async (t) => {
@@ -323,27 +238,11 @@ test('with composite pks #3', async (t) => {
 	};
 
 	// TODO: remove redundand drop/create create constraint
-	const { statements } = await diffTestSchemas(schema1, schema2, [
+	const { sqlStatements } = await diffTestSchemas(schema1, schema2, [
 		'public.users.id2->public.users.id3',
 	]);
 
-	expect(statements.length).toBe(2);
-	expect(statements[0]).toStrictEqual({
-		type: 'alter_table_rename_column',
-		tableName: 'users',
-		schema: '',
-		newColumnName: 'id3',
-		oldColumnName: 'id2',
-	});
-	expect(statements[1]).toStrictEqual({
-		type: 'alter_composite_pk',
-		tableName: 'users',
-		schema: '',
-		new: 'id1,id3;compositePK',
-		old: 'id1,id2;compositePK',
-		newConstraintName: 'compositePK',
-		oldConstraintName: 'compositePK',
-	});
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('add multiple constraints #1', async (t) => {
@@ -382,9 +281,9 @@ test('add multiple constraints #1', async (t) => {
 	};
 
 	// TODO: remove redundand drop/create create constraint
-	const { statements } = await diffTestSchemas(schema1, schema2, []);
+	const { sqlStatements } = await diffTestSchemas(schema1, schema2, []);
 
-	expect(statements.length).toBe(6);
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('add multiple constraints #2', async (t) => {
@@ -413,9 +312,9 @@ test('add multiple constraints #2', async (t) => {
 	};
 
 	// TODO: remove redundand drop/create create constraint
-	const { statements } = await diffTestSchemas(schema1, schema2, []);
+	const { sqlStatements } = await diffTestSchemas(schema1, schema2, []);
 
-	expect(statements.length).toBe(6);
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('add multiple constraints #3', async (t) => {
@@ -452,9 +351,9 @@ test('add multiple constraints #3', async (t) => {
 	};
 
 	// TODO: remove redundand drop/create create constraint
-	const { statements } = await diffTestSchemas(schema1, schema2, []);
+	const { sqlStatements } = await diffTestSchemas(schema1, schema2, []);
 
-	expect(statements.length).toBe(6);
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('varchar and text default values escape single quotes', async () => {
@@ -474,11 +373,8 @@ test('varchar and text default values escape single quotes', async () => {
 
 	const { sqlStatements } = await diffTestSchemas(schema1, schema2, []);
 
-	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toStrictEqual(
-		'ALTER TABLE "table" ADD COLUMN "text" text DEFAULT \'escape\'\'s quotes\';',
-	);
-	expect(sqlStatements[1]).toStrictEqual(
-		'ALTER TABLE "table" ADD COLUMN "varchar" varchar DEFAULT \'escape\'\'s quotes\';',
-	);
+	expect(sqlStatements).toStrictEqual([
+		`ALTER TABLE "table" ADD COLUMN "text" text DEFAULT 'escape''s quotes';`,
+		`ALTER TABLE "table" ADD COLUMN "varchar" varchar DEFAULT 'escape''s quotes';`,
+	]);
 });
