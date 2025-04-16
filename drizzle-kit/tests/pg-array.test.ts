@@ -12,7 +12,7 @@ import {
 	uuid,
 } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
-import { diffTestSchemas } from './schemaDiffer';
+import { diffTestSchemas } from './mocks-postgres';
 
 test('array #1: empty array default', async (t) => {
 	const from = {
@@ -27,15 +27,9 @@ test('array #1: empty array default', async (t) => {
 		}),
 	};
 
-	const { statements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(statements.length).toBe(1);
-	expect(statements[0]).toStrictEqual({
-		type: 'alter_table_add_column',
-		tableName: 'test',
-		schema: '',
-		column: { name: 'values', type: 'integer[]', primaryKey: false, notNull: false, default: "'{}'" },
-	});
+	expect(sqlStatements).toStrictEqual([`ALTER TABLE "test" ADD COLUMN "values" integer[] DEFAULT '{}';`]);
 });
 
 test('array #2: integer array default', async (t) => {
@@ -51,15 +45,9 @@ test('array #2: integer array default', async (t) => {
 		}),
 	};
 
-	const { statements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(statements.length).toBe(1);
-	expect(statements[0]).toStrictEqual({
-		type: 'alter_table_add_column',
-		tableName: 'test',
-		schema: '',
-		column: { name: 'values', type: 'integer[]', primaryKey: false, notNull: false, default: "'{1,2,3}'" },
-	});
+	expect(sqlStatements).toStrictEqual([`ALTER TABLE \"test\" ADD COLUMN \"values\" integer[] DEFAULT '{1,2,3}';`]);
 });
 
 test('array #3: bigint array default', async (t) => {
@@ -75,15 +63,9 @@ test('array #3: bigint array default', async (t) => {
 		}),
 	};
 
-	const { statements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(statements.length).toBe(1);
-	expect(statements[0]).toStrictEqual({
-		type: 'alter_table_add_column',
-		tableName: 'test',
-		schema: '',
-		column: { name: 'values', type: 'bigint[]', primaryKey: false, notNull: false, default: "'{1,2,3}'" },
-	});
+	expect(sqlStatements).toStrictEqual([`ALTER TABLE \"test\" ADD COLUMN \"values\" bigint[] DEFAULT '{1,2,3}';`]);
 });
 
 test('array #4: boolean array default', async (t) => {
@@ -99,21 +81,11 @@ test('array #4: boolean array default', async (t) => {
 		}),
 	};
 
-	const { statements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(statements.length).toBe(1);
-	expect(statements[0]).toStrictEqual({
-		type: 'alter_table_add_column',
-		tableName: 'test',
-		schema: '',
-		column: {
-			name: 'values',
-			type: 'boolean[]',
-			primaryKey: false,
-			notNull: false,
-			default: "'{true,false,true}'",
-		},
-	});
+	expect(sqlStatements).toStrictEqual([
+		`ALTER TABLE \"test\" ADD COLUMN \"values\" boolean[] DEFAULT '{true,false,true}';`,
+	]);
 });
 
 test('array #5: multi-dimensional array default', async (t) => {
@@ -129,21 +101,11 @@ test('array #5: multi-dimensional array default', async (t) => {
 		}),
 	};
 
-	const { statements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(statements.length).toBe(1);
-	expect(statements[0]).toStrictEqual({
-		type: 'alter_table_add_column',
-		tableName: 'test',
-		schema: '',
-		column: {
-			name: 'values',
-			type: 'integer[][]',
-			primaryKey: false,
-			notNull: false,
-			default: "'{{1,2},{3,4}}'",
-		},
-	});
+	expect(sqlStatements).toStrictEqual([
+		`ALTER TABLE "test" ADD COLUMN "values" integer[][] DEFAULT '{{1,2},{3,4}}';`,
+	]);
 });
 
 test('array #6: date array default', async (t) => {
@@ -159,21 +121,11 @@ test('array #6: date array default', async (t) => {
 		}),
 	};
 
-	const { statements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(statements.length).toBe(1);
-	expect(statements[0]).toStrictEqual({
-		type: 'alter_table_add_column',
-		tableName: 'test',
-		schema: '',
-		column: {
-			name: 'values',
-			type: 'date[]',
-			primaryKey: false,
-			notNull: false,
-			default: '\'{"2024-08-06","2024-08-07"}\'',
-		},
-	});
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "test" ADD COLUMN "values" date[] DEFAULT \'{"2024-08-06","2024-08-07"}\';',
+	]);
 });
 
 test('array #7: timestamp array default', async (t) => {
@@ -189,21 +141,11 @@ test('array #7: timestamp array default', async (t) => {
 		}),
 	};
 
-	const { statements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(statements.length).toBe(1);
-	expect(statements[0]).toStrictEqual({
-		type: 'alter_table_add_column',
-		tableName: 'test',
-		schema: '',
-		column: {
-			name: 'values',
-			type: 'timestamp[]',
-			primaryKey: false,
-			notNull: false,
-			default: '\'{"2024-08-06 00:00:00.000","2024-08-07 00:00:00.000"}\'',
-		},
-	});
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "test" ADD COLUMN "values" timestamp[] DEFAULT \'{"2024-08-06 00:00:00.000","2024-08-07 00:00:00.000"}\';',
+	]);
 });
 
 test('array #8: json array default', async (t) => {
@@ -219,21 +161,11 @@ test('array #8: json array default', async (t) => {
 		}),
 	};
 
-	const { statements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(statements.length).toBe(1);
-	expect(statements[0]).toStrictEqual({
-		type: 'alter_table_add_column',
-		tableName: 'test',
-		schema: '',
-		column: {
-			name: 'values',
-			type: 'json[]',
-			primaryKey: false,
-			notNull: false,
-			default: '\'{"{\\"a\\":1}","{\\"b\\":2}"}\'',
-		},
-	});
+	expect(sqlStatements).toStrictEqual([
+		`ALTER TABLE "test" ADD COLUMN "values" json[] DEFAULT '{"{\\"a\\":1}","{\\"b\\":2}"}';`,
+	]);
 });
 
 test('array #9: text array default', async (t) => {
@@ -249,21 +181,9 @@ test('array #9: text array default', async (t) => {
 		}),
 	};
 
-	const { statements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(statements.length).toBe(1);
-	expect(statements[0]).toStrictEqual({
-		type: 'alter_table_add_column',
-		tableName: 'test',
-		schema: '',
-		column: {
-			name: 'values',
-			type: 'text[]',
-			primaryKey: false,
-			notNull: false,
-			default: '\'{"abc","def"}\'',
-		},
-	});
+	expect(sqlStatements).toStrictEqual(['ALTER TABLE "test" ADD COLUMN "values" text[] DEFAULT \'{"abc","def"}\';']);
 });
 
 test('array #10: uuid array default', async (t) => {
@@ -282,21 +202,11 @@ test('array #10: uuid array default', async (t) => {
 		}),
 	};
 
-	const { statements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(statements.length).toBe(1);
-	expect(statements[0]).toStrictEqual({
-		type: 'alter_table_add_column',
-		tableName: 'test',
-		schema: '',
-		column: {
-			name: 'values',
-			type: 'uuid[]',
-			primaryKey: false,
-			notNull: false,
-			default: '\'{"a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11","b0eebc99-9c0b-4ef8-bb6d-cbb9bd380a11"}\'',
-		},
-	});
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "test" ADD COLUMN "values" uuid[] DEFAULT \'{"a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11","b0eebc99-9c0b-4ef8-bb6d-cbb9bd380a11"}\';',
+	]);
 });
 
 test('array #11: enum array default', async (t) => {
@@ -316,21 +226,11 @@ test('array #11: enum array default', async (t) => {
 		}),
 	};
 
-	const { statements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(statements.length).toBe(1);
-	expect(statements[0]).toStrictEqual({
-		type: 'alter_table_add_column',
-		tableName: 'test',
-		schema: '',
-		column: {
-			name: 'values',
-			type: 'test_enum[]',
-			primaryKey: false,
-			notNull: false,
-			default: '\'{"a","b","c"}\'',
-		},
-	});
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "test" ADD COLUMN "values" "test_enum"[] DEFAULT \'{"a","b","c"}\';',
+	]);
 });
 
 test('array #12: enum empty array default', async (t) => {
@@ -346,23 +246,11 @@ test('array #12: enum empty array default', async (t) => {
 		enum: testEnum,
 		test: pgTable('test', {
 			id: serial('id').primaryKey(),
-			values: testEnum('values').array().default([]),
+			values: testEnum('values').array().default(['a', 'b']),
 		}),
 	};
 
-	const { statements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(statements.length).toBe(1);
-	expect(statements[0]).toStrictEqual({
-		type: 'alter_table_add_column',
-		tableName: 'test',
-		schema: '',
-		column: {
-			name: 'values',
-			type: 'test_enum[]',
-			primaryKey: false,
-			notNull: false,
-			default: "'{}'",
-		},
-	});
+	expect(sqlStatements).toStrictEqual(['ALTER TABLE "test" ADD COLUMN "values" "test_enum"[] DEFAULT \'{"a","b"}\';']);
 });

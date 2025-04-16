@@ -1,5 +1,3 @@
-import { literal } from 'zod';
-
 export const parseType = (schemaPrefix: string, type: string) => {
 	const NativeTypes = [
 		'uuid',
@@ -157,57 +155,6 @@ export const splitExpressions = (input: string | null): string[] => {
 	return result;
 };
 
-// TODO: tests
-console.log(splitExpressions('lower(name)'));
-console.log(splitExpressions('lower(name), upper(name)'));
-console.log(splitExpressions('lower(name), lower(name)'));
-console.log(splitExpressions("((name || ','::text) || name1)"));
-console.log(
-	splitExpressions(
-		`((name || ','::text) || name1), COALESCE("name", '"default", value'::text)`,
-	),
-);
-console.log(
-	splitExpressions(
-		"((name || ','::text) || name1), SUBSTRING(name1 FROM 1 FOR 3)",
-	),
-);
-console.log(
-	splitExpressions(
-		"COALESCE(name, 'default,'' value'''::text), SUBSTRING(name1 FROM 1 FOR 3)",
-	),
-);
-console.log(
-	splitExpressions(
-		"COALESCE(name, 'default,value'''::text), SUBSTRING(name1 FROM 1 FOR 3)",
-	),
-);
-console.log(
-	splitExpressions(
-		"COALESCE(name, 'default,''value'::text), SUBSTRING(name1 FROM 1 FOR 3)",
-	),
-);
-console.log(
-	splitExpressions(
-		"COALESCE(name, 'default,value'::text), SUBSTRING(name1 FROM 1 FOR 3)",
-	),
-);
-console.log(
-	splitExpressions(
-		"COALESCE(name, 'default, value'::text), SUBSTRING(name1 FROM 1 FOR 3)",
-	),
-);
-console.log(
-	splitExpressions(
-		`COALESCE("name", '"default", value'::text), SUBSTRING("name1" FROM 1 FOR 3)`,
-	),
-);
-console.log(
-	splitExpressions(
-		`COALESCE("namewithcomma,", '"default", value'::text), SUBSTRING("name1" FROM 1 FOR 3)`,
-	),
-);
-
 export const wrapRecord = (it: Record<string, string>) => {
 	return {
 		bool: (key: string) => {
@@ -332,6 +279,10 @@ export const defaultForColumn = (
 		return { value: `${defaultValue.replace(/\\/g, '`\\')}`, expression: false };
 	}
 };
+
+export const isDefaultAction = (action:string)=>{
+	return action.toLowerCase()==="no action"
+}
 
 export const defaults = {
 	/*

@@ -11,10 +11,10 @@ import { assertV1OutFolder } from '../utils-node';
 import { certs } from '../utils/certs';
 import { checkHandler } from './commands/check';
 import { dropMigration } from './commands/drop';
-import { upMysqlHandler } from './commands/mysqlUp';
-import { upPgHandler } from './commands/pgUp';
-import { upSinglestoreHandler } from './commands/singlestoreUp';
-import { upSqliteHandler } from './commands/sqliteUp';
+import { upMysqlHandler } from './commands/up-mysql';
+import { upPgHandler } from './commands/up-postgres';
+import { upSinglestoreHandler } from './commands/up-singlestore';
+import { upSqliteHandler } from './commands/up-sqlite';
 import {
 	prepareCheckParams,
 	prepareDropParams,
@@ -79,25 +79,22 @@ export const generate = command({
 
 		// const parsed = cliConfigGenerate.parse(opts);
 
-		const {
-			prepareAndMigratePg,
-			prepareAndMigrateMysql,
-			prepareAndMigrateSqlite,
-			prepareAndMigrateLibSQL,
-			prepareAndMigrateSingleStore,
-		} = await import('./commands/migrate');
-
 		const dialect = opts.dialect;
 		if (dialect === 'postgresql') {
-			await prepareAndMigratePg(opts);
+			const { handle } = await import('./commands/generate-postgres');
+			await handle(opts);
 		} else if (dialect === 'mysql') {
-			await prepareAndMigrateMysql(opts);
+			const { handle } = await import('./commands/generate-mysql');
+			await handle(opts);
 		} else if (dialect === 'sqlite') {
-			await prepareAndMigrateSqlite(opts);
+			const { handle } = await import('./commands/generate-sqlite');
+			await handle(opts);
 		} else if (dialect === 'turso') {
-			await prepareAndMigrateLibSQL(opts);
+			const { handle } = await import('./commands/generate-libsql');
+			await handle(opts);
 		} else if (dialect === 'singlestore') {
-			await prepareAndMigrateSqlite(opts);
+			const { handle } = await import('./commands/generate-singlestore');
+			await handle(opts);
 		} else {
 			assertUnreachable(dialect);
 		}
@@ -291,7 +288,7 @@ export const push = command({
 
 		try {
 			if (dialect === 'mysql') {
-				const { mysqlPush } = await import('./commands/push');
+				const { mysqlPush } = await import('./commands/push-mysql');
 				await mysqlPush(
 					schemaPath,
 					credentials,
@@ -323,8 +320,8 @@ export const push = command({
 					}
 				}
 
-				const { pgPush } = await import('./commands/push');
-				await pgPush(
+				const { handle } = await import('./commands/push-postgres');
+				await handle(
 					schemaPath,
 					verbose,
 					strict,
@@ -336,7 +333,7 @@ export const push = command({
 					casing,
 				);
 			} else if (dialect === 'sqlite') {
-				const { sqlitePush } = await import('./commands/push');
+				const { sqlitePush } = await import('./commands/push-sqlite');
 				await sqlitePush(
 					schemaPath,
 					verbose,
@@ -347,7 +344,7 @@ export const push = command({
 					casing,
 				);
 			} else if (dialect === 'turso') {
-				const { libSQLPush } = await import('./commands/push');
+				const { libSQLPush } = await import('./commands/push-libsql');
 				await libSQLPush(
 					schemaPath,
 					verbose,
@@ -358,7 +355,7 @@ export const push = command({
 					casing,
 				);
 			} else if (dialect === 'singlestore') {
-				const { singlestorePush } = await import('./commands/push');
+				const { singlestorePush } = await import('./commands/push-singlestore');
 				await singlestorePush(
 					schemaPath,
 					credentials,
@@ -522,7 +519,7 @@ export const pull = command({
 					}
 				}
 
-				const { introspectPostgres } = await import('./commands/introspect');
+				const { introspectPostgres } = await import('./commands/pull-common');
 				await introspectPostgres(
 					casing,
 					out,
@@ -534,7 +531,7 @@ export const pull = command({
 					entities,
 				);
 			} else if (dialect === 'mysql') {
-				const { introspectMysql } = await import('./commands/introspect');
+				const { introspectMysql } = await import('./commands/pull-common');
 				await introspectMysql(
 					casing,
 					out,
@@ -544,7 +541,7 @@ export const pull = command({
 					prefix,
 				);
 			} else if (dialect === 'sqlite') {
-				const { introspectSqlite } = await import('./commands/introspect');
+				const { introspectSqlite } = await import('./commands/pull-sqlite');
 				await introspectSqlite(
 					casing,
 					out,
@@ -554,7 +551,7 @@ export const pull = command({
 					prefix,
 				);
 			} else if (dialect === 'turso') {
-				const { introspectLibSQL } = await import('./commands/introspect');
+				const { introspectLibSQL } = await import('./commands/pull-common');
 				await introspectLibSQL(
 					casing,
 					out,
@@ -564,7 +561,7 @@ export const pull = command({
 					prefix,
 				);
 			} else if (dialect === 'singlestore') {
-				const { introspectSingleStore } = await import('./commands/introspect');
+				const { introspectSingleStore } = await import('./commands/pull-common');
 				await introspectSingleStore(
 					casing,
 					out,

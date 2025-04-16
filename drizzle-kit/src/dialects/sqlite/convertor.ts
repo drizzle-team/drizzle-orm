@@ -101,7 +101,7 @@ const createTable = convertor('create_table', (st) => {
 		statement +=
 			`FOREIGN KEY (${fromColumnsString}) REFERENCES \`${tableTo}\`(${toColumnsString})${onUpdateStatement}${onDeleteStatement}`;
 	}
-
+	
 	if (
 		typeof uniqueConstraints !== 'undefined'
 		&& uniqueConstraints.length > 0

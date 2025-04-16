@@ -2,15 +2,119 @@ import chalk from 'chalk';
 import { render } from 'hanji';
 import { TypeOf } from 'zod';
 import { JsonAlterColumnTypeStatement, JsonStatement } from '../../jsonStatements';
-import { singlestoreSchema, SingleStoreSquasher } from '../../serializer/singlestoreSchema';
+import { MySqlSchema, mysqlSchema, MySqlSquasher, squashMysqlScheme } from '../../serializer/mysqlSchema';
+import { applyMysqlSnapshotsDiff } from '../../snapshot-differ/mysql';
+import { fromJson } from '../../sqlgenerator';
 import type { DB } from '../../utils';
 import { Select } from '../selector-ui';
+import type { CasingType } from '../validations/common';
+import type { MysqlCredentials } from '../validations/mysql';
 import { withStyle } from '../validations/outputs';
+
+const serializeMySql = async (
+	path: string | string[],
+	casing: CasingType | undefined,
+): Promise<MySqlSchemaInternal> => {
+	const filenames = prepareFilenames(path);
+
+	console.log(chalk.gray(`Reading schema files:\n${filenames.join('\n')}\n`));
+
+	const { prepareFromMySqlImports } = await import('../../mysqlImports');
+	const { generateMySqlSnapshot } = await import('./mysqlSerializer');
+
+	const { tables, views } = await prepareFromMySqlImports(filenames);
+
+	return generateMySqlSnapshot(tables, views, casing);
+};
+
+const prepareMySqlDbPushSnapshot = async (
+	prev: MySqlSchema,
+	schemaPath: string | string[],
+	casing: CasingType | undefined,
+): Promise<{ prev: MySqlSchema; cur: MySqlSchema }> => {
+	const serialized = await serializeMySql(schemaPath, casing);
+
+	const id = randomUUID();
+	const idPrev = prev.id;
+
+	const { version, dialect, ...rest } = serialized;
+	const result: MySqlSchema = { version, dialect, id, prevId: idPrev, ...rest };
+
+	return { prev, cur: result };
+};
+
+export const prepareMySqlMigrationSnapshot = async (
+	migrationFolders: string[],
+	schemaPath: string | string[],
+	casing: CasingType | undefined,
+): Promise<{ prev: MySqlSchema; cur: MySqlSchema; custom: MySqlSchema }> => {
+	const prevSnapshot = mysqlSchema.parse(
+		preparePrevSnapshot(migrationFolders, dryMySql),
+	);
+
+	const serialized = await serializeMySql(schemaPath, casing);
+
+	const id = randomUUID();
+	const idPrev = prevSnapshot.id;
+
+	const { version, dialect, ...rest } = serialized;
+	const result: MySqlSchema = { version, dialect, id, prevId: idPrev, ...rest };
+
+	const { id: _ignoredId, prevId: _ignoredPrevId, ...prevRest } = prevSnapshot;
+
+	// that's for custom migrations, when we need new IDs, but old snapshot
+	const custom: MySqlSchema = {
+		id,
+		prevId: idPrev,
+		...prevRest,
+	};
+
+	return { prev: prevSnapshot, cur: result, custom };
+};
+
+
+// Intersect with prepareAnMigrate
+export const prepareMySQLPush = async (
+	schemaPath: string | string[],
+	snapshot: MySqlSchema,
+	casing: CasingType | undefined,
+) => {
+	try {
+		const { prev, cur } = await prepareMySqlDbPushSnapshot(
+			snapshot,
+			schemaPath,
+			casing,
+		);
+
+		const validatedPrev = mysqlSchema.parse(prev);
+		const validatedCur = mysqlSchema.parse(cur);
+
+		const squashedPrev = squashMysqlScheme(validatedPrev);
+		const squashedCur = squashMysqlScheme(validatedCur);
+
+		const { sqlStatements, statements } = await applyMysqlSnapshotsDiff(
+			squashedPrev,
+			squashedCur,
+			tablesResolver,
+			columnsResolver,
+			mySqlViewsResolver,
+			uniqueResolver,
+			validatedPrev,
+			validatedCur,
+			'push',
+		);
+
+		return { sqlStatements, statements, validatedCur, validatedPrev };
+	} catch (e) {
+		console.error(e);
+		process.exit(1);
+	}
+};
 
 export const filterStatements = (
 	statements: JsonStatement[],
-	currentSchema: TypeOf<typeof singlestoreSchema>,
-	prevSchema: TypeOf<typeof singlestoreSchema>,
+	currentSchema: TypeOf<typeof mysqlSchema>,
+	prevSchema: TypeOf<typeof mysqlSchema>,
 ) => {
 	return statements.filter((statement) => {
 		if (statement.type === 'alter_table_alter_column_set_type') {
@@ -52,7 +156,7 @@ export const filterStatements = (
 				return false;
 			}
 		} else if (statement.type === 'delete_unique_constraint') {
-			const unsquashed = SingleStoreSquasher.unsquashUnique(statement.data);
+			const unsquashed = MySqlSquasher.unsquashUnique(statement.data);
 			// only if constraint was removed from a serial column, than treat it as removed
 			// const serialStatement = statements.find(
 			//   (it) => it.type === "alter_table_alter_column_set_type"
@@ -61,7 +165,7 @@ export const filterStatements = (
 			//   serialStatement?.oldDataType.startsWith("bigint unsigned") &&
 			//   serialStatement?.newDataType.startsWith("serial") &&
 			//   serialStatement.columnName ===
-			//     SingleStoreSquasher.unsquashUnique(statement.data).columns[0]
+			//     MySqlSquasher.unsquashUnique(statement.data).columns[0]
 			// ) {
 			//   return false;
 			// }
@@ -104,10 +208,147 @@ export const filterStatements = (
 	});
 };
 
+export const mysqlPush = async (
+	schemaPath: string | string[],
+	credentials: MysqlCredentials,
+	tablesFilter: string[],
+	strict: boolean,
+	verbose: boolean,
+	force: boolean,
+	casing: CasingType | undefined,
+) => {
+	const { connectToMySQL } = await import('../connections');
+	const { mysqlPushIntrospect } = await import('./pull-mysql');
+
+	const { db, database } = await connectToMySQL(credentials);
+
+	const { schema } = await mysqlPushIntrospect(db, database, tablesFilter);
+	const statements = await prepareMySQLPush(schemaPath, schema, casing);
+
+	const filteredStatements = mySqlFilterStatements(
+		statements.statements ?? [],
+		statements.validatedCur,
+		statements.validatedPrev,
+	);
+
+	try {
+		if (filteredStatements.length === 0) {
+			render(`[${chalk.blue('i')}] No changes detected`);
+		} else {
+			const {
+				shouldAskForApprove,
+				statementsToExecute,
+				columnsToRemove,
+				tablesToRemove,
+				tablesToTruncate,
+				infoToPrint,
+			} = await mySqlLogSuggestionsAndReturn(
+				db,
+				filteredStatements,
+				statements.validatedCur,
+			);
+
+			const { sqlStatements: filteredSqlStatements } = fromJson(filteredStatements, 'mysql');
+
+			const uniqueSqlStatementsToExecute: string[] = [];
+			statementsToExecute.forEach((ss) => {
+				if (!uniqueSqlStatementsToExecute.includes(ss)) {
+					uniqueSqlStatementsToExecute.push(ss);
+				}
+			});
+			const uniqueFilteredSqlStatements: string[] = [];
+			filteredSqlStatements.forEach((ss) => {
+				if (!uniqueFilteredSqlStatements.includes(ss)) {
+					uniqueFilteredSqlStatements.push(ss);
+				}
+			});
+
+			if (verbose) {
+				console.log();
+				console.log(
+					withStyle.warning('You are about to execute current statements:'),
+				);
+				console.log();
+				console.log(
+					[...uniqueSqlStatementsToExecute, ...uniqueFilteredSqlStatements]
+						.map((s) => chalk.blue(s))
+						.join('\n'),
+				);
+				console.log();
+			}
+
+			if (!force && strict) {
+				if (!shouldAskForApprove) {
+					const { status, data } = await render(
+						new Select(['No, abort', `Yes, I want to execute all statements`]),
+					);
+					if (data?.index === 0) {
+						render(`[${chalk.red('x')}] All changes were aborted`);
+						process.exit(0);
+					}
+				}
+			}
+
+			if (!force && shouldAskForApprove) {
+				console.log(withStyle.warning('Found data-loss statements:'));
+				console.log(infoToPrint.join('\n'));
+				console.log();
+				console.log(
+					chalk.red.bold(
+						'THIS ACTION WILL CAUSE DATA LOSS AND CANNOT BE REVERTED\n',
+					),
+				);
+
+				console.log(chalk.white('Do you still want to push changes?'));
+
+				const { status, data } = await render(
+					new Select([
+						'No, abort',
+						`Yes, I want to${
+							tablesToRemove.length > 0
+								? ` remove ${tablesToRemove.length} ${tablesToRemove.length > 1 ? 'tables' : 'table'},`
+								: ' '
+						}${
+							columnsToRemove.length > 0
+								? ` remove ${columnsToRemove.length} ${columnsToRemove.length > 1 ? 'columns' : 'column'},`
+								: ' '
+						}${
+							tablesToTruncate.length > 0
+								? ` truncate ${tablesToTruncate.length} ${tablesToTruncate.length > 1 ? 'tables' : 'table'}`
+								: ''
+						}`
+							.replace(/(^,)|(,$)/g, '')
+							.replace(/ +(?= )/g, ''),
+					]),
+				);
+				if (data?.index === 0) {
+					render(`[${chalk.red('x')}] All changes were aborted`);
+					process.exit(0);
+				}
+			}
+
+			for (const dStmnt of uniqueSqlStatementsToExecute) {
+				await db.query(dStmnt);
+			}
+
+			for (const statement of uniqueFilteredSqlStatements) {
+				await db.query(statement);
+			}
+			if (filteredStatements.length > 0) {
+				render(`[${chalk.green('✓')}] Changes applied`);
+			} else {
+				render(`[${chalk.blue('i')}] No changes detected`);
+			}
+		}
+	} catch (e) {
+		console.log(e);
+	}
+};
+
 export const logSuggestionsAndReturn = async (
 	db: DB,
 	statements: JsonStatement[],
-	json2: TypeOf<typeof singlestoreSchema>,
+	json2: TypeOf<typeof mysqlSchema>,
 ) => {
 	let shouldAskForApprove = false;
 	const statementsToExecute: string[] = [];
@@ -313,7 +554,7 @@ export const logSuggestionsAndReturn = async (
 			);
 			const count = Number(res[0].count);
 			if (count > 0) {
-				const unsquashedUnique = SingleStoreSquasher.unsquashUnique(statement.unique);
+				const unsquashedUnique = MySqlSquasher.unsquashUnique(statement.unique);
 				console.log(
 					`· You're about to add ${
 						chalk.underline(
@@ -350,3 +591,5 @@ export const logSuggestionsAndReturn = async (
 		tablesToRemove: [...new Set(tablesToRemove)],
 	};
 };
+
+

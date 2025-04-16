@@ -5,6 +5,10 @@ import {
 	getTableConfig,
 	getViewConfig,
 	IndexedColumn,
+	isPgEnum,
+	isPgMaterializedView,
+	isPgSequence,
+	isPgView,
 	PgDialect,
 	PgEnum,
 	PgEnumColumn,
@@ -14,31 +18,31 @@ import {
 	PgRole,
 	PgSchema,
 	PgSequence,
+	PgTable,
 	PgView,
 	uniqueKeyName,
 	ViewWithConfig,
 } from 'drizzle-orm/pg-core';
 import { CasingType } from 'src/cli/validations/common';
 import { getColumnCasing } from 'src/serializer/utils';
+import { safeRegister } from '../../cli/commands/utils';
 import { escapeSingleQuotes, isPgArrayType, type SchemaError, type SchemaWarning } from '../../utils';
 import { getOrNull } from '../utils';
-import {
-	type CheckConstraint,
-	type Column,
-	createDDL,
-	type Enum,
-	type ForeignKey,
-	type Index,
-	type InterimSchema,
-	type Policy,
-	type PostgresDDL,
-	type PostgresEntities,
-	type PrimaryKey,
-	type Role,
-	type Schema,
-	type Sequence,
-	type UniqueConstraint,
-	type View,
+import type {
+	CheckConstraint,
+	Column,
+	Enum,
+	ForeignKey,
+	Index,
+	InterimSchema,
+	Policy,
+	PostgresEntities,
+	PrimaryKey,
+	Role,
+	Schema,
+	Sequence,
+	UniqueConstraint,
+	View,
 } from './ddl';
 import {
 	buildArrayString,
@@ -231,6 +235,13 @@ export const fromDrizzleSchema = (
 			// Should do for all types
 			// columnToSet.default = `'${column.default}'::${sqlTypeLowered}`;
 
+			const unique = column.isUnique
+				? {
+					name: column.uniqueName === `${tableName}_${column.name}_unique` ? null : column.uniqueName ?? null,
+					nullsNotDistinct: column.uniqueType === 'not distinct',
+				}
+				: null;
+
 			return {
 				entityType: 'columns',
 				schema: schema,
@@ -242,11 +253,9 @@ export const fromDrizzleSchema = (
 				notNull,
 				default: defaultValue,
 				generated: generatedValue,
-				isUnique: column.isUnique,
-				uniqueName: column.uniqueName ?? null,
-				nullsNotDistinct: column.uniqueType === 'not distinct',
+				unique,
 				identity: identityValue,
-			};
+			} satisfies Column;
 		}));
 
 		pks.push(...drizzlePKs.map<PrimaryKey>((pk) => {
@@ -259,13 +268,14 @@ export const fromDrizzleSchema = (
 					name = name.replace(originalColumnNames[i], columnNames[i]);
 				}
 			}
+			const isNameExplicit = pk.name === pk.getName()
 			return {
 				entityType: 'pks',
 				schema: schema,
 				table: tableName,
 				name: name,
 				columns: columnNames,
-				isNameExplicit: !pk.name,
+				isNameExplicit,
 			};
 		}));
 
@@ -294,7 +304,7 @@ export const fromDrizzleSchema = (
 			// TODO: resolve issue with schema undefined/public for db push(or squasher)
 			// getTableConfig(reference.foreignTable).schema || "public";
 
-			const schemaTo = getTableConfig(reference.foreignTable).schema;
+			const schemaTo = getTableConfig(reference.foreignTable).schema || 'public';
 
 			const originalColumnsFrom = reference.columns.map((it) => it.name);
 			const columnsFrom = reference.columns.map((it) => getColumnCasing(it, casing));
@@ -321,9 +331,9 @@ export const fromDrizzleSchema = (
 				schemaTo,
 				columnsFrom,
 				columnsTo,
-				onDelete,
-				onUpdate,
-			} as ForeignKey;
+				onDelete: onDelete ?? null,
+				onUpdate: onUpdate ?? null,
+			} satisfies ForeignKey;
 		}));
 
 		for (const index of drizzleIndexes) {
@@ -434,7 +444,6 @@ export const fromDrizzleSchema = (
 		}));
 	}
 
-	const policyNames = new Set<string>();
 	for (const policy of drizzlePolicies) {
 		if (!('_linkedTable' in policy)) {
 			warnings.push({ type: 'policy_not_linked', policy: policy.name });
@@ -602,92 +611,81 @@ export const fromDrizzleSchema = (
 	};
 };
 
-// TODO: convert drizzle entities to internal entities on 1 step above so that:
-// drizzle studio can use this method without drizzle orm
-export const generatePgSnapshot = (schema: InterimSchema): { ddl: PostgresDDL; errors: SchemaError[] } => {
-	const ddl = createDDL();
-	const errors: SchemaError[] = [];
+const fromExport = (exports: Record<string, unknown>) => {
+	const tables: AnyPgTable[] = [];
+	const enums: PgEnum<any>[] = [];
+	const schemas: PgSchema[] = [];
+	const sequences: PgSequence[] = [];
+	const roles: PgRole[] = [];
+	const policies: PgPolicy[] = [];
+	const views: PgView[] = [];
+	const matViews: PgMaterializedView[] = [];
 
-	for (const it of schema.schemas) {
-		const res = ddl.schemas.insert(it);
-		if (res.status === 'CONFLICT') {
-			errors.push({ type: 'schema_name_duplicate', name: it.name });
+	const i0values = Object.values(exports);
+	i0values.forEach((t) => {
+		if (isPgEnum(t)) {
+			enums.push(t);
+			return;
 		}
-	}
+		if (is(t, PgTable)) {
+			tables.push(t);
+		}
 
-	for (const it of schema.enums) {
-		const res = ddl.enums.insert(it);
-		if (res.status === 'CONFLICT') {
-			errors.push({ type: 'enum_name_duplicate', schema: it.schema, name: it.name });
+		if (is(t, PgSchema)) {
+			schemas.push(t);
 		}
-	}
 
-	for (const it of schema.tables) {
-		const res = ddl.tables.insert(it);
-		if (res.status === 'CONFLICT') {
-			errors.push({ type: 'table_name_duplicate', schema: it.schema, name: it.name });
+		if (isPgView(t)) {
+			views.push(t);
 		}
-	}
 
-	for (const column of schema.columns) {
-		const res = ddl.columns.insert(column);
-		if (res.status === 'CONFLICT') {
-			errors.push({ type: 'column_name_duplicate', schema: column.schema, table: column.table, name: column.name });
+		if (isPgMaterializedView(t)) {
+			matViews.push(t);
 		}
-	}
 
-	for (const it of schema.indexes) {
-		const res = ddl.indexes.insert(it);
-		if (res.status === 'CONFLICT') {
-			errors.push({ type: 'index_duplicate', schema: it.schema, table: it.table, name: it.name });
+		if (isPgSequence(t)) {
+			sequences.push(t);
 		}
-	}
-	for (const it of schema.fks) {
-		const res = ddl.fks.insert(it);
-		if (res.status === 'CONFLICT') {
-			errors.push({ type: 'constraint_name_duplicate', schema: it.schema, table: it.table, name: it.name });
-		}
-	}
-	for (const it of schema.pks) {
-		const res = ddl.pks.insert(it);
-		if (res.status === 'CONFLICT') {
-			errors.push({ type: 'constraint_name_duplicate', schema: it.schema, table: it.table, name: it.name });
-		}
-	}
-	for (const it of schema.uniques) {
-		const res = ddl.uniques.insert(it);
-		if (res.status === 'CONFLICT') {
-			errors.push({ type: 'constraint_name_duplicate', schema: it.schema, table: it.table, name: it.name });
-		}
-	}
-	for (const it of schema.checks) {
-		const res = ddl.checks.insert(it);
-		if (res.status === 'CONFLICT') {
-			errors.push({ type: 'constraint_name_duplicate', schema: it.schema, table: it.table, name: it.name });
-		}
-	}
 
-	for (const it of schema.roles) {
-		const res = ddl.roles.insert(it);
-		if (res.status === 'CONFLICT') {
-			errors.push({ type: 'role_duplicate', name: it.name });
+		if (is(t, PgRole)) {
+			roles.push(t);
 		}
-	}
-	for (const it of schema.policies) {
-		const res = ddl.policies.insert(it);
-		if (res.status === 'CONFLICT') {
-			errors.push({ type: 'policy_duplicate', schema: it.schema, table: it.table, policy: it.name });
-		}
-	}
-	for (const it of schema.views) {
-		const res = ddl.views.insert(it);
-		if (res.status === 'CONFLICT') {
-			errors.push({ type: 'view_name_duplicate', schema: it.schema, name: it.name });
-		}
-	}
 
-	return { ddl, errors };
+		if (is(t, PgPolicy)) {
+			policies.push(t);
+		}
+	});
+
+	return { tables, enums, schemas, sequences, views, matViews, roles, policies };
 };
 
+export const prepareFromSchemaFiles = async (imports: string[]) => {
+	const tables: AnyPgTable[] = [];
+	const enums: PgEnum<any>[] = [];
+	const schemas: PgSchema[] = [];
+	const sequences: PgSequence[] = [];
+	const views: PgView[] = [];
+	const roles: PgRole[] = [];
+	const policies: PgPolicy[] = [];
+	const matViews: PgMaterializedView[] = [];
 
+	const { unregister } = await safeRegister();
+	for (let i = 0; i < imports.length; i++) {
+		const it = imports[i];
 
+		const i0: Record<string, unknown> = require(`${it}`);
+		const prepared = fromExport(i0);
+
+		tables.push(...prepared.tables);
+		enums.push(...prepared.enums);
+		schemas.push(...prepared.schemas);
+		sequences.push(...prepared.sequences);
+		views.push(...prepared.views);
+		matViews.push(...prepared.matViews);
+		roles.push(...prepared.roles);
+		policies.push(...prepared.policies);
+	}
+	unregister();
+
+	return { tables, enums, schemas, sequences, views, matViews, roles, policies };
+};

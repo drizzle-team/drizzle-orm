@@ -1,26 +1,8 @@
 import { randomUUID } from 'crypto';
 import fs from 'fs';
 import { CasingType } from './cli/validations/common';
-import { serializeMySql, serializePg, serializeSingleStore, serializeSqlite } from './serializer';
-import { dryMySql, MySqlSchema, mysqlSchema } from './serializer/mysqlSchema';
-import { dryPg, PgSchema, pgSchema, PgSchemaInternal } from './dialects/postgres/ddl';
+import { serializeSingleStore } from './serializer';
 import { drySingleStore, SingleStoreSchema, singlestoreSchema } from './serializer/singlestoreSchema';
-
-export const prepareMySqlDbPushSnapshot = async (
-	prev: MySqlSchema,
-	schemaPath: string | string[],
-	casing: CasingType | undefined,
-): Promise<{ prev: MySqlSchema; cur: MySqlSchema }> => {
-	const serialized = await serializeMySql(schemaPath, casing);
-
-	const id = randomUUID();
-	const idPrev = prev.id;
-
-	const { version, dialect, ...rest } = serialized;
-	const result: MySqlSchema = { version, dialect, id, prevId: idPrev, ...rest };
-
-	return { prev, cur: result };
-};
 
 export const prepareSingleStoreDbPushSnapshot = async (
 	prev: SingleStoreSchema,
@@ -77,35 +59,6 @@ export const preparePgDbPushSnapshot = async (
 	return { prev, cur: result };
 };
 
-export const prepareMySqlMigrationSnapshot = async (
-	migrationFolders: string[],
-	schemaPath: string | string[],
-	casing: CasingType | undefined,
-): Promise<{ prev: MySqlSchema; cur: MySqlSchema; custom: MySqlSchema }> => {
-	const prevSnapshot = mysqlSchema.parse(
-		preparePrevSnapshot(migrationFolders, dryMySql),
-	);
-
-	const serialized = await serializeMySql(schemaPath, casing);
-
-	const id = randomUUID();
-	const idPrev = prevSnapshot.id;
-
-	const { version, dialect, ...rest } = serialized;
-	const result: MySqlSchema = { version, dialect, id, prevId: idPrev, ...rest };
-
-	const { id: _ignoredId, prevId: _ignoredPrevId, ...prevRest } = prevSnapshot;
-
-	// that's for custom migrations, when we need new IDs, but old snapshot
-	const custom: MySqlSchema = {
-		id,
-		prevId: idPrev,
-		...prevRest,
-	};
-
-	return { prev: prevSnapshot, cur: result, custom };
-};
-
 export const prepareSingleStoreMigrationSnapshot = async (
 	migrationFolders: string[],
 	schemaPath: string | string[],
@@ -145,29 +98,6 @@ export const fillPgSnapshot = ({
 }): PgSchema => {
 	// const id = randomUUID();
 	return { id, prevId: idPrev, ...serialized };
-};
-
-export const preparePgMigrationSnapshot = async (
-	snapshots: string[],
-	schemaPath: string | string[],
-	casing: CasingType | undefined,
-): Promise<{ prev: PgSchema; cur: PgSchema; custom: PgSchema }> => {
-	const prevSnapshot = pgSchema.parse(preparePrevSnapshot(snapshots, dryPg));
-	const serialized = await serializePg(schemaPath, casing);
-
-	const id = randomUUID();
-	const idPrev = prevSnapshot.id;
-
-	// const { version, dialect, ...rest } = serialized;
-
-	const result: PgSchema = { id, prevId: idPrev, ...serialized };
-
-	const { id: _ignoredId, prevId: _ignoredPrevId, ...prevRest } = prevSnapshot;
-
-	// that's for custom migrations, when we need new IDs, but old snapshot
-	const custom: PgSchema = fillPgSnapshot({ serialized: prevRest, id, idPrev });
-
-	return { prev: prevSnapshot, cur: result, custom };
 };
 
 const preparePrevSnapshot = (snapshots: string[], defaultPrev: any) => {

@@ -1,3 +1,4 @@
+import { SchemaError } from '../../utils';
 import { create } from '../dialect';
 
 export const createDDL = () => {
@@ -21,11 +22,11 @@ export const createDDL = () => {
 			},
 			// TODO: remove isunuque, uniquename, nullsnotdistinct
 			// these should be in unique constraints ddl and squash
-			// in sql convertor when possible
-			isUnique: 'boolean?',
-			uniqueName: 'string?',
-			nullsNotDistinct: 'boolean?',
-
+			// in sql convertor when possible ??
+			unique: {
+				name: 'string?',
+				nullsNotDistinct: 'boolean?',
+			},
 			generated: {
 				type: ['stored', 'virtual'],
 				as: 'string',
@@ -65,7 +66,7 @@ export const createDDL = () => {
 			table: 'required',
 			tableFrom: 'string',
 			columnsFrom: 'string[]',
-			schemaTo: 'string?',
+			schemaTo: 'string',
 			tableTo: 'string',
 			columnsTo: 'string[]',
 			onUpdate: 'string?',
@@ -220,5 +221,94 @@ export const tableFromDDL = (table: PostgresEntities['tables'], ddl: PostgresDDL
 	};
 };
 
-export const interimToDDL = (interim: InterimSchema): PostgresDDL => {
+export const interimToDDL = (schema: InterimSchema): { ddl: PostgresDDL; errors: SchemaError[] } => {
+	const ddl = createDDL();
+	const errors: SchemaError[] = [];
+
+	for (const it of schema.schemas) {
+		const res = ddl.schemas.insert(it);
+		if (res.status === 'CONFLICT') {
+			errors.push({ type: 'schema_name_duplicate', name: it.name });
+		}
+	}
+
+	for (const it of schema.enums) {
+		const res = ddl.enums.insert(it);
+		if (res.status === 'CONFLICT') {
+			errors.push({ type: 'enum_name_duplicate', schema: it.schema, name: it.name });
+		}
+	}
+
+	for (const it of schema.tables) {
+		const res = ddl.tables.insert(it);
+		if (res.status === 'CONFLICT') {
+			errors.push({ type: 'table_name_duplicate', schema: it.schema, name: it.name });
+		}
+	}
+
+	for (const column of schema.columns) {
+		const res = ddl.columns.insert(column);
+		if (res.status === 'CONFLICT') {
+			errors.push({ type: 'column_name_duplicate', schema: column.schema, table: column.table, name: column.name });
+		}
+	}
+
+	for (const it of schema.indexes) {
+		const res = ddl.indexes.insert(it);
+		if (res.status === 'CONFLICT') {
+			errors.push({ type: 'index_duplicate', schema: it.schema, table: it.table, name: it.name });
+		}
+	}
+	for (const it of schema.fks) {
+		const res = ddl.fks.insert(it);
+		if (res.status === 'CONFLICT') {
+			errors.push({ type: 'constraint_name_duplicate', schema: it.schema, table: it.table, name: it.name });
+		}
+	}
+	for (const it of schema.pks) {
+		const res = ddl.pks.insert(it);
+		if (res.status === 'CONFLICT') {
+			errors.push({ type: 'constraint_name_duplicate', schema: it.schema, table: it.table, name: it.name });
+		}
+	}
+	for (const it of schema.uniques) {
+		const res = ddl.uniques.insert(it);
+		if (res.status === 'CONFLICT') {
+			errors.push({ type: 'constraint_name_duplicate', schema: it.schema, table: it.table, name: it.name });
+		}
+	}
+	for (const it of schema.checks) {
+		const res = ddl.checks.insert(it);
+		if (res.status === 'CONFLICT') {
+			errors.push({ type: 'constraint_name_duplicate', schema: it.schema, table: it.table, name: it.name });
+		}
+	}
+
+	for (const it of schema.sequences) {
+		const res = ddl.sequences.insert(it);
+		if (res.status === 'CONFLICT') {
+			errors.push({ type: 'sequence_name_duplicate', schema: it.schema, name: it.name });
+		}
+	}
+
+	for (const it of schema.roles) {
+		const res = ddl.roles.insert(it);
+		if (res.status === 'CONFLICT') {
+			errors.push({ type: 'role_duplicate', name: it.name });
+		}
+	}
+	for (const it of schema.policies) {
+		const res = ddl.policies.insert(it);
+		if (res.status === 'CONFLICT') {
+			errors.push({ type: 'policy_duplicate', schema: it.schema, table: it.table, policy: it.name });
+		}
+	}
+	for (const it of schema.views) {
+		const res = ddl.views.insert(it);
+		if (res.status === 'CONFLICT') {
+			errors.push({ type: 'view_name_duplicate', schema: it.schema, name: it.name });
+		}
+	}
+
+	return { ddl, errors };
 };

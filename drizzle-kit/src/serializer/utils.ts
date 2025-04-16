@@ -1,6 +1,5 @@
 import type { SQL } from 'drizzle-orm';
 import { CasingCache, toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
-import { Simplify } from 'src/utils';
 import type { CasingType } from '../cli/validations/common';
 
 export function getColumnCasing(

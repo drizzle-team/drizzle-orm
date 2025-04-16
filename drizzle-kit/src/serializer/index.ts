@@ -7,66 +7,8 @@ import { error, schemaError, schemaWarning } from '../cli/views';
 import type { MySqlSchemaInternal } from './mysqlSchema';
 import type { SingleStoreSchemaInternal } from './singlestoreSchema';
 
-export const serializeMySql = async (
-	path: string | string[],
-	casing: CasingType | undefined,
-): Promise<MySqlSchemaInternal> => {
-	const filenames = prepareFilenames(path);
 
-	console.log(chalk.gray(`Reading schema files:\n${filenames.join('\n')}\n`));
 
-	const { prepareFromMySqlImports } = await import('./mysqlImports');
-	const { generateMySqlSnapshot } = await import('./mysqlSerializer');
-
-	const { tables, views } = await prepareFromMySqlImports(filenames);
-
-	return generateMySqlSnapshot(tables, views, casing);
-};
-
-export const serializePg = async (
-	path: string | string[],
-	casing: CasingType | undefined,
-	schemaFilter?: string[],
-) => {
-	const filenames = prepareFilenames(path);
-
-	const { prepareFromPgImports } = await import('./pgImports');
-	const { generatePgSnapshot } = await import('../dialects/postgres/drizzle');
-	const { fromDrizzleSchema } = await import('../dialects/postgres/drizzle');
-
-	const { schemas, enums, tables, sequences, views, matViews, roles, policies } = await prepareFromPgImports(
-		filenames,
-	);
-	const { schema, errors, warnings } = fromDrizzleSchema(
-		schemas,
-		tables,
-		enums,
-		sequences,
-		roles,
-		policies,
-		views,
-		matViews,
-		casing,
-		schemaFilter,
-	);
-
-	if (warnings.length > 0) {
-		console.log(warnings.map((it) => schemaWarning(it)).join('\n\n'));
-	}
-
-	if (errors.length > 0) {
-		console.log(errors.map((it) => schemaError(it)).join('\n'));
-		process.exit(1);
-	}
-
-	const { ddl, errors: errors2 } = generatePgSnapshot(schema);
-
-	if (errors2.length > 0) {
-		console.log(errors.map((it) => schemaError(it)).join('\n'));
-		process.exit(1);
-	}
-	return ddl;
-};
 
 export const serializeSingleStore = async (
 	path: string | string[],

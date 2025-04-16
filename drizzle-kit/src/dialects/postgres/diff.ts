@@ -1,14 +1,4 @@
-import {
-	ColumnsResolverInput,
-	ColumnsResolverOutput,
-	ResolverInput,
-	ResolverOutput,
-	ResolverOutputWithMoved,
-	RolesResolverInput,
-	RolesResolverOutput,
-	TablePolicyResolverInput,
-	TablePolicyResolverOutput,
-} from '../../snapshot-differ/common';
+import { Resolver } from '../../snapshot-differ/common';
 import { prepareMigrationMeta } from '../../utils';
 import { diff } from '../dialect';
 import { groupDiffs } from '../utils';
@@ -16,6 +6,7 @@ import { fromJson } from './convertor';
 import {
 	CheckConstraint,
 	Column,
+	createDDL,
 	Enum,
 	ForeignKey,
 	Index,
@@ -32,48 +23,60 @@ import {
 } from './ddl';
 import { JsonStatement, prepareStatement } from './statements';
 
-export const applyPgSnapshotsDiff = async (
+export const originsFinder = (
+	schemaRenames: { from: { name: string }; to: { name: string } }[],
+	tableRenames: { from: { schema: string; name: string }; to: { schema: string; name: string } }[],
+	columnRenames: {
+		from: { schema: string; table: string; name: string };
+		to: { schema: string; table: string; name: string };
+	}[],
+) => {
+	return (it: { name: string; schema: string; table: string }) => {
+		const schemaRename = schemaRenames.find((r) => r.to.name === it.schema);
+		const originalSchema = schemaRename ? schemaRename.from.name : it.schema;
+		const tableRename = tableRenames.find((r) => r.to.schema === it.schema && r.to.name === it.table);
+		const originalTable = tableRename ? tableRename.from.name : it.table;
+		const originalName =
+			columnRenames.find((r) => r.to.schema === it.schema && r.to.table === it.table && r.to.name === it.name)?.from
+				.name ?? it.name;
+
+		return { schema: originalSchema, table: originalTable, name: originalName };
+	};
+};
+// TODO: test
+// const finder1 = originsFinder([{from:{name: "public"}, to:{name:"public2"}} ], [{from:{schema:"public2", name:"table"}, to:{schema:"public2", name:"table2"}}], []);
+// const finder2 = originsFinder([{from:{name: null}, to:{name:"public2"}} ], [{from:{schema:"public2", name:"table"}, to:{schema:"public2", name:"table2"}}], []);
+// const finder3 = originsFinder([], [{from:{schema:"public2", name:"table"}, to:{schema:"public2", name:"table2"}}], []);
+// const finder4 = originsFinder([], [], []);
+// const finder5 = originsFinder([{from:{name: null}, to:{name:"public2"}}], [], []);
+// const finder6 = originsFinder([], [{from:{schema:"public2", name:"table"}, to:{schema:"public2", name:"table2"}}], []);
+// const finder7 = originsFinder([], [], [{from: {schema:"public2",table:"table2", "name":"aidi"},to:{schema:"public2", table:"table2", name:"id"}}]);
+// console.table([
+// 	finder1({schema:"public2", table: "table2", name: "id"}),
+// 	finder2({schema:"public2", table: "table2", name: "id"}),
+// 	finder3({schema:"public2", table: "table2", name: "id"}),
+// 	finder4({schema:"public2", table: "table2", name: "id"}),
+// 	finder5({schema:"public2", table: "table2", name: "id"}),
+// 	finder6({schema:"public2", table: "table2", name: "id"}),
+// 	finder7({schema:"public2", table: "table2", name: "id"}),
+// ])
+
+export const ddlDif = async (
 	ddl1: PostgresDDL,
 	ddl2: PostgresDDL,
-	schemasResolver: (
-		input: ResolverInput<Schema>,
-	) => Promise<ResolverOutput<Schema>>,
-	enumsResolver: (
-		input: ResolverInput<Enum>,
-	) => Promise<ResolverOutputWithMoved<Enum>>,
-	sequencesResolver: (
-		input: ResolverInput<Sequence>,
-	) => Promise<ResolverOutputWithMoved<Sequence>>,
-	policyResolver: (
-		input: TablePolicyResolverInput<Policy>,
-	) => Promise<TablePolicyResolverOutput<Policy>>,
-	roleResolver: (
-		input: RolesResolverInput<Role>,
-	) => Promise<RolesResolverOutput<Role>>,
-	tablesResolver: (
-		input: ResolverInput<PostgresEntities['tables']>,
-	) => Promise<ResolverOutputWithMoved<PostgresEntities['tables']>>,
-	columnsResolver: (
-		input: ColumnsResolverInput<Column>,
-	) => Promise<ColumnsResolverOutput<Column>>,
-	viewsResolver: (
-		input: ResolverInput<View>,
-	) => Promise<ResolverOutputWithMoved<View>>,
-	uniquesResolver: (
-		input: ColumnsResolverInput<UniqueConstraint>,
-	) => Promise<ColumnsResolverOutput<UniqueConstraint>>,
-	indexesResolver: (
-		input: ResolverInput<Index>,
-	) => Promise<ResolverOutput<Index>>,
-	checksResolver: (
-		input: ColumnsResolverInput<CheckConstraint>,
-	) => Promise<ColumnsResolverOutput<CheckConstraint>>,
-	pksResolver: (
-		input: ColumnsResolverInput<PrimaryKey>,
-	) => Promise<ColumnsResolverOutput<PrimaryKey>>,
-	fksResolver: (
-		input: ColumnsResolverInput<ForeignKey>,
-	) => Promise<ColumnsResolverOutput<ForeignKey>>,
+	schemasResolver: Resolver<Schema>,
+	enumsResolver: Resolver<Enum>,
+	sequencesResolver: Resolver<Sequence>,
+	policyResolver: Resolver<Policy>,
+	roleResolver: Resolver<Role>,
+	tablesResolver: Resolver<PostgresEntities['tables']>,
+	columnsResolver: Resolver<Column>,
+	viewsResolver: Resolver<View>,
+	uniquesResolver: Resolver<UniqueConstraint>,
+	indexesResolver: Resolver<Index>,
+	checksResolver: Resolver<CheckConstraint>,
+	pksResolver: Resolver<PrimaryKey>,
+	fksResolver: Resolver<ForeignKey>,
 	type: 'default' | 'push',
 ): Promise<{
 	statements: JsonStatement[];
@@ -87,12 +90,16 @@ export const applyPgSnapshotsDiff = async (
 		}
 		| undefined;
 }> => {
-	const schemasDiff = diff(ddl1, ddl2, 'schemas');
+	const ddl1Copy = createDDL();
+	for (const entity of ddl1.entities.list()) {
+		ddl1Copy.entities.insert(entity);
+	}
 
+	const schemasDiff = diff(ddl1, ddl2, 'schemas');
 	const {
 		created: createdSchemas,
 		deleted: deletedSchemas,
-		renamed: renamedSchemas,
+		renamedOrMoved: renamedSchemas,
 	} = await schemasResolver({
 		created: schemasDiff.filter((it) => it.$diffType === 'create'),
 		deleted: schemasDiff.filter((it) => it.$diffType === 'drop'),
@@ -113,12 +120,14 @@ export const applyPgSnapshotsDiff = async (
 	const {
 		created: createdEnums,
 		deleted: deletedEnums,
-		renamed: renamedEnums,
-		moved: movedEnums,
+		renamedOrMoved: renamedOrMovedEnums,
 	} = await enumsResolver({
 		created: enumsDiff.filter((it) => it.$diffType === 'create'),
 		deleted: enumsDiff.filter((it) => it.$diffType === 'drop'),
 	});
+
+	const renamedEnums = renamedOrMovedEnums.filter((it) => it.from.schema === it.to.schema);
+	const movedEnums = renamedOrMovedEnums.filter((it) => it.from.schema !== it.to.schema);
 
 	for (const rename of renamedEnums) {
 		ddl1.enums.update({
@@ -145,20 +154,20 @@ export const applyPgSnapshotsDiff = async (
 	for (const move of movedEnums) {
 		ddl1.enums.update({
 			set: {
-				schema: move.schemaTo,
+				schema: move.to.schema,
 			},
 			where: {
-				name: move.name,
-				schema: move.schemaFrom,
+				name: move.from.name,
+				schema: move.from.schema,
 			},
 		});
 		ddl1.columns.update({
 			set: {
-				typeSchema: move.schemaTo,
+				typeSchema: move.to.schema,
 			},
 			where: {
-				type: move.name,
-				typeSchema: move.schemaFrom,
+				type: move.from.name,
+				typeSchema: move.from.schema,
 			},
 		});
 	}
@@ -167,12 +176,14 @@ export const applyPgSnapshotsDiff = async (
 	const {
 		created: createdSequences,
 		deleted: deletedSequences,
-		renamed: renamedSequences,
-		moved: movedSequences,
+		renamedOrMoved: renamedOrMovedSequences,
 	} = await sequencesResolver({
 		created: sequencesDiff.filter((it) => it.$diffType === 'create'),
 		deleted: sequencesDiff.filter((it) => it.$diffType === 'drop'),
 	});
+
+	const renamedSequences = renamedOrMovedSequences.filter((it) => it.from.schema === it.to.schema);
+	const movedSequences = renamedOrMovedSequences.filter((it) => it.from.schema !== it.to.schema);
 
 	for (const rename of renamedSequences) {
 		ddl1.sequences.update({
@@ -190,11 +201,11 @@ export const applyPgSnapshotsDiff = async (
 	for (const move of movedSequences) {
 		ddl1.sequences.update({
 			set: {
-				schema: move.schemaTo,
+				schema: move.to.schema,
 			},
 			where: {
-				name: move.name,
-				schema: move.schemaFrom,
+				name: move.from.name,
+				schema: move.from.schema,
 			},
 		});
 	}
@@ -204,7 +215,7 @@ export const applyPgSnapshotsDiff = async (
 	const {
 		created: createdRoles,
 		deleted: deletedRoles,
-		renamed: renamedRoles,
+		renamedOrMoved: renamedRoles,
 	} = await roleResolver({
 		created: rolesDiff.filter((it) => it.$diffType === 'create'),
 		deleted: rolesDiff.filter((it) => it.$diffType === 'drop'),
@@ -225,14 +236,16 @@ export const applyPgSnapshotsDiff = async (
 	const {
 		created: createdTables,
 		deleted: deletedTables,
-		moved: movedTables,
-		renamed: renamedTables, // renamed or moved
+		renamedOrMoved: renamedOrMovedTables, // renamed or moved
 	} = await tablesResolver({
 		created: tablesDiff.filter((it) => it.$diffType === 'create'),
 		deleted: tablesDiff.filter((it) => it.$diffType === 'drop'),
 	});
 
-	for (const rename of renamedTables) {
+	const renamedTables = renamedOrMovedTables.filter((it) => it.from.name !== it.to.name);
+	const movedTables = renamedOrMovedTables.filter((it) => it.from.schema !== it.to.schema);
+
+	for (const rename of renamedOrMovedTables) {
 		ddl1.tables.update({
 			set: {
 				name: rename.to.name,
@@ -264,16 +277,14 @@ export const applyPgSnapshotsDiff = async (
 	const groupedByTable = groupDiffs(columnsDiff);
 
 	for (let it of groupedByTable) {
-		const { renamed, created, deleted } = await columnsResolver({
-			schema: it.schema,
-			tableName: it.table,
+		const { created, deleted, renamedOrMoved } = await columnsResolver({
 			created: it.inserted,
 			deleted: it.deleted,
 		});
 
 		columnsToCreate.push(...created);
 		columnsToDelete.push(...deleted);
-		columnRenames.push(...renamed);
+		columnRenames.push(...renamedOrMoved);
 	}
 
 	for (const rename of columnRenames) {
@@ -361,16 +372,14 @@ export const applyPgSnapshotsDiff = async (
 	const uniqueDeletes = [] as UniqueConstraint[];
 
 	for (const entry of groupedUniquesDiff) {
-		const { renamed, created, deleted } = await uniquesResolver({
-			schema: entry.schema,
-			tableName: entry.table,
+		const { renamedOrMoved, created, deleted } = await uniquesResolver({
 			created: entry.inserted,
 			deleted: entry.deleted,
 		});
 
 		uniqueCreates.push(...created);
 		uniqueDeletes.push(...deleted);
-		uniqueRenames.push(...renamed);
+		uniqueRenames.push(...renamedOrMoved);
 	}
 
 	for (const rename of uniqueRenames) {
@@ -393,16 +402,14 @@ export const applyPgSnapshotsDiff = async (
 	const checkDeletes = [] as CheckConstraint[];
 
 	for (const entry of groupedChecksDiff) {
-		const { renamed, created, deleted } = await checksResolver({
-			schema: entry.schema,
-			tableName: entry.table,
+		const { renamedOrMoved, created, deleted } = await checksResolver({
 			created: entry.inserted,
 			deleted: entry.deleted,
 		});
 
 		checkCreates.push(...created);
 		checkDeletes.push(...deleted);
-		checkRenames.push(...renamed);
+		checkRenames.push(...renamedOrMoved);
 	}
 
 	for (const rename of checkRenames) {
@@ -418,6 +425,8 @@ export const applyPgSnapshotsDiff = async (
 		});
 	}
 
+	const origins = originsFinder(renamedSchemas, renamedTables, columnRenames);
+
 	const diffIndexes = diff(ddl1, ddl2, 'indexes');
 	const groupedIndexesDiff = groupDiffs(diffIndexes);
 	const indexesRenames = [] as { from: Index; to: Index }[];
@@ -425,14 +434,14 @@ export const applyPgSnapshotsDiff = async (
 	const indexesDeletes = [] as Index[];
 
 	for (const entry of groupedIndexesDiff) {
-		const { renamed, created, deleted } = await indexesResolver({
+		const { renamedOrMoved, created, deleted } = await indexesResolver({
 			created: entry.inserted,
 			deleted: entry.deleted,
 		});
 
 		indexesCreates.push(...created);
 		indexesDeletes.push(...deleted);
-		indexesRenames.push(...renamed);
+		indexesRenames.push(...renamedOrMoved);
 	}
 
 	for (const rename of indexesRenames) {
@@ -455,16 +464,14 @@ export const applyPgSnapshotsDiff = async (
 	const pksDeletes = [] as PrimaryKey[];
 
 	for (const entry of groupedPKsDiff) {
-		const { renamed, created, deleted } = await pksResolver({
-			schema: entry.schema,
-			tableName: entry.table,
+		const { renamedOrMoved, created, deleted } = await pksResolver({
 			created: entry.inserted,
 			deleted: entry.deleted,
 		});
 
 		pksCreates.push(...created);
 		pksDeletes.push(...deleted);
-		pksRenames.push(...renamed);
+		pksRenames.push(...renamedOrMoved);
 	}
 
 	for (const rename of pksRenames) {
@@ -487,16 +494,14 @@ export const applyPgSnapshotsDiff = async (
 	const fksDeletes = [] as ForeignKey[];
 
 	for (const entry of groupedFKsDiff) {
-		const { renamed, created, deleted } = await fksResolver({
-			schema: entry.schema,
-			tableName: entry.table,
+		const { renamedOrMoved, created, deleted } = await fksResolver({
 			created: entry.inserted,
 			deleted: entry.deleted,
 		});
 
 		fksCreates.push(...created);
 		fksDeletes.push(...deleted);
-		fksRenames.push(...renamed);
+		fksRenames.push(...renamedOrMoved);
 	}
 
 	for (const rename of fksRenames) {
@@ -520,16 +525,14 @@ export const applyPgSnapshotsDiff = async (
 	const policyDeletes = [] as Policy[];
 
 	for (const entry of policiesDiffGrouped) {
-		const { renamed, created, deleted } = await policyResolver({
-			schema: entry.schema,
-			tableName: entry.table,
+		const { renamedOrMoved, created, deleted } = await policyResolver({
 			created: entry.inserted,
 			deleted: entry.deleted,
 		});
 
 		policyCreates.push(...created);
 		policyDeletes.push(...deleted);
-		policyRenames.push(...renamed);
+		policyRenames.push(...renamedOrMoved);
 	}
 
 	for (const rename of policyRenames) {
@@ -550,12 +553,14 @@ export const applyPgSnapshotsDiff = async (
 	const {
 		created: createdViews,
 		deleted: deletedViews,
-		renamed: renamedViews,
-		moved: movedViews,
+		renamedOrMoved: renamedOrMovedViews,
 	} = await viewsResolver({
 		created: viewsDiff.filter((it) => it.$diffType === 'create'),
 		deleted: viewsDiff.filter((it) => it.$diffType === 'drop'),
 	});
+
+	const renamedViews = renamedOrMovedViews.filter((it) => it.from.schema === it.to.schema);
+	const movedViews = renamedOrMovedViews.filter((it) => it.from.schema !== it.to.schema);
 
 	for (const rename of renamedViews) {
 		ddl1.views.update({
@@ -572,11 +577,11 @@ export const applyPgSnapshotsDiff = async (
 	for (const move of movedViews) {
 		ddl1.views.update({
 			set: {
-				schema: move.schemaTo,
+				schema: move.to.schema,
 			},
 			where: {
-				name: move.name,
-				schema: move.schemaFrom,
+				name: move.from.name,
+				schema: move.from.schema,
 			},
 		});
 	}
@@ -585,15 +590,44 @@ export const applyPgSnapshotsDiff = async (
 
 	const jsonStatements: JsonStatement[] = [];
 
+	/*
+		with new DDL when table gets created with constraints, etc.
+		or existing table with constraints and indexes gets deleted,
+		those entites are treated by diff as newly created or deleted
+
+		we filter them out, because we either create them on table creation
+		or they get automatically deleted when table is deleted
+	*/
+	const tablesFilter = (type: 'deleted' | 'created') => {
+		return (it: { schema: string; table: string }) => {
+			if (type === 'created') {
+				return !createdTables.some((t) => t.schema === it.schema && t.name === it.table);
+			} else {
+				return !deletedTables.some((t) => t.schema === it.schema && t.name === it.table);
+			}
+		};
+	};
+
 	const jsonCreateIndexes = indexesCreates.map((index) => prepareStatement('create_index', { index }));
-	const jsonDropIndexes = indexesDeletes.map((index) => prepareStatement('drop_index', { index }));
+	const jsonDropIndexes = indexesDeletes.filter(tablesFilter('deleted')).map((index) =>
+		prepareStatement('drop_index', { index })
+	);
 	const jsonDropTables = deletedTables.map((it) => prepareStatement('drop_table', { table: tableFromDDL(it, ddl2) }));
-	const jsonRenameTables = renamedTables.map((it) => prepareStatement('rename_table', it));
+	const jsonRenameTables = renamedTables.map((it) =>
+		prepareStatement('rename_table', {
+			schema: it.from.schema,
+			from: it.from.name,
+			to: it.to.name,
+		})
+	);
 
 	const jsonRenameColumnsStatements = columnRenames.map((it) => prepareStatement('rename_column', it));
-	const jsonDropColumnsStatemets = columnsToDelete.map((it) => prepareStatement('drop_column', { column: it }));
-	const jsonAddColumnsStatemets = columnsToCreate.map((it) => prepareStatement('add_column', { column: it }));
-
+	const jsonDropColumnsStatemets = columnsToDelete.filter(tablesFilter('deleted')).map((it) =>
+		prepareStatement('drop_column', { column: it })
+	);
+	const jsonAddColumnsStatemets = columnsToCreate.filter(tablesFilter('created')).map((it) =>
+		prepareStatement('add_column', { column: it })
+	);
 	const columnAlters = alters.filter((it) => it.entityType === 'columns');
 	const columnsToRecreate = columnAlters.filter((it) => it.generated && it.generated.to !== null);
 	const jsonRecreateColumns = columnsToRecreate.map((it) =>
@@ -602,31 +636,59 @@ export const applyPgSnapshotsDiff = async (
 		})
 	);
 
-	const jsonAlterColumns = columnAlters.filter((it) => !(it.generated && it.generated.to !== null)).map((it) =>
-		prepareStatement('alter_column', {
+	const jsonAlterColumns = columnAlters.filter((it) => !(it.generated && it.generated.to !== null)).map((it) => {
+		const origin = origins(it);
+		const from = ddl1Copy.columns.one(origin);
+		if (!from) {
+			throw new Error(`Missing column in original ddl:\n${JSON.stringify(it)}\n${JSON.stringify(origin)}`);
+		}
+
+		return prepareStatement('alter_column', {
 			diff: it,
-			column: ddl2.columns.one({ schema: it.schema, table: it.table, name: it.name })!,
+			from: from,
+			to: ddl2.columns.one({ schema: it.schema, table: it.table, name: it.name })!,
+		});
+	});
+
+	const jsonAddPrimaryKeys = pksCreates.filter(tablesFilter('created')).map((it) =>
+		prepareStatement('add_pk', { pk: it })
+	);
+	const jsonDropPrimaryKeys = pksDeletes.filter(tablesFilter('deleted')).map((it) =>
+		prepareStatement('drop_pk', { pk: it })
+	);
+
+	const jsonAddedUniqueConstraints = uniqueCreates.filter(tablesFilter('created')).map((it) =>
+		prepareStatement('add_unique', { unique: it })
+	);
+	const jsonDeletedUniqueConstraints = uniqueDeletes.filter(tablesFilter('deleted')).map((it) =>
+		prepareStatement('drop_unique', { unique: it })
+	);
+	const jsonRenamedUniqueConstraints = uniqueRenames.map((it) => prepareStatement('rename_unique', it));
+
+	const jsonSetTableSchemas = movedTables.map((it) =>
+		prepareStatement('move_table', {
+			name: it.to.name, // raname of table comes first
+			from: it.from.schema,
+			to: it.to.schema,
 		})
 	);
 
-	const jsonAddPrimaryKeys = pksCreates.map((it) => prepareStatement('add_pk', { pk: it }));
-	const jsonDropPrimaryKeys = pksDeletes.map((it) => prepareStatement('drop_pk', { pk: it }));
-
-	const jsonAddedUniqueConstraints = uniqueCreates.map((it) => prepareStatement('add_unique', { unique: it }));
-	const jsonDeletedUniqueConstraints = uniqueDeletes.map((it) => prepareStatement('drop_unique', { unique: it }));
-	const jsonRenamedUniqueConstraints = uniqueRenames.map((it) => prepareStatement('rename_unique', it));
-
-	const jsonSetTableSchemas = movedTables.map((it) => prepareStatement('move_table', it));
-
-	const jsonDeletedCheckConstraints = checkDeletes.map((it) => prepareStatement('drop_check', { check: it }));
-	const jsonCreatedCheckConstraints = checkCreates.map((it) => prepareStatement('add_check', { check: it }));
+	const jsonCreatedCheckConstraints = checkCreates.filter(tablesFilter('created')).map((it) =>
+		prepareStatement('add_check', { check: it })
+	);
+	const jsonDeletedCheckConstraints = checkDeletes.filter(tablesFilter('deleted')).map((it) =>
+		prepareStatement('drop_check', { check: it })
+	);
 
 	// group by tables?
 	const alteredPKs = alters.filter((it) => it.entityType === 'pks');
 	const alteredFKs = alters.filter((it) => it.entityType === 'fks');
 	const alteredUniques = alters.filter((it) => it.entityType === 'uniques');
 	const alteredChecks = alters.filter((it) => it.entityType === 'checks');
-	const jsonAlteredCompositePKs = alteredPKs.map((it) => prepareStatement('alter_pk', { diff: it }));
+	const jsonAlteredPKs = alteredPKs.map((it) => {
+		const pk = ddl2.pks.one({ schema: it.schema, table: it.table, name: it.name })!;
+		return prepareStatement('alter_pk', { diff: it, pk });
+	});
 	const jsonAlteredUniqueConstraints = alteredUniques.map((it) => prepareStatement('alter_unique', { diff: it }));
 	const jsonAlterCheckConstraints = alteredChecks.map((it) => prepareStatement('alter_check', { diff: it }));
 
@@ -723,18 +785,38 @@ export const applyPgSnapshotsDiff = async (
 	const jsonRenameViews = renamedViews.filter((it) => !it.to.isExisting).map((it) =>
 		prepareStatement('rename_view', it)
 	);
+	const jsonMoveViews = movedViews.filter((it) => !it.to.isExisting).map((it) =>
+		prepareStatement('move_view', { fromSchema: it.from.schema, toSchema: it.to.schema, view: it.to })
+	);
 	const viewsAlters = alters.filter((it) => it.entityType === 'views').filter((it) =>
 		!(it.isExisting && it.isExisting.to) && !(it.definition && type === 'push')
-	);
-	const jsonAlterViews = viewsAlters.map((it) =>
-		prepareStatement('alter_view', {
-			diff: it,
-			from: ddl1.views.one({ schema: it.schema, name: it.name })!,
-			to: ddl2.views.one({ schema: it.schema, name: it.name })!,
-		})
-	);
-	const jsonRecreateViews = createdViews.filter((it) => it.definition && type !== 'push').map((it) => {
-		const from = ddl1.views.one({ schema: it.schema, name: it.name })!;
+	).map((it) => {
+		const view = ddl2.views.one({ schema: it.schema, name: it.name })!;
+		return { diff: it, view };
+	}).filter((it) => !it.view.isExisting);
+
+	const jsonAlterViews = viewsAlters.filter((it) => !it.diff.definition).map((it) => {
+		return prepareStatement('alter_view', {
+			diff: it.diff,
+			view: it.view,
+		});
+	});
+
+	const jsonRecreateViews = viewsAlters.filter((it) => it.diff.definition && type !== 'push').map((entry) => {
+		const it = entry.view;
+		const schemaRename = renamedSchemas.find((r) => r.to.name === it.schema);
+		const schema = schemaRename ? schemaRename.from.name : it.schema;
+		const viewRename = renamedViews.find((r) => r.to.schema === it.schema && r.to.name === it.name);
+		const name = viewRename ? viewRename.from.name : it.name;
+		const from = ddl1Copy.views.one({ schema, name });
+
+		if (!from) {
+			throw new Error(`
+				Missing view in original ddl:
+				${it.schema}:${it.name}
+				${schema}:${name}
+				`);
+		}
 		return prepareStatement('recreate_view', { from, to: it });
 	});
 
@@ -761,17 +843,18 @@ export const applyPgSnapshotsDiff = async (
 	// jsonStatements.push(...jsonDisableRLSStatements);
 	jsonStatements.push(...jsonDropViews);
 	jsonStatements.push(...jsonRenameViews);
+	jsonStatements.push(...jsonMoveViews);
 	jsonStatements.push(...jsonRecreateViews);
 	jsonStatements.push(...jsonAlterViews);
 
 	jsonStatements.push(...jsonDropTables);
-	jsonStatements.push(...jsonSetTableSchemas);
 	jsonStatements.push(...jsonRenameTables);
+	jsonStatements.push(...jsonSetTableSchemas);
 	jsonStatements.push(...jsonRenameColumnsStatements);
 
 	jsonStatements.push(...jsonDeletedUniqueConstraints);
 	jsonStatements.push(...jsonDeletedCheckConstraints);
-
+	jsonStatements.push(...jsonDropReferences);
 	// jsonStatements.push(...jsonDroppedReferencesForAlteredTables); // TODO: check
 
 	// Will need to drop indexes before changing any columns in table
@@ -785,12 +868,13 @@ export const applyPgSnapshotsDiff = async (
 	jsonStatements.push(...jsonAddColumnsStatemets);
 
 	// jsonStatements.push(...jsonCreateReferencesForCreatedTables); // TODO: check
+	jsonStatements.push(...jsonCreateReferences);
 	jsonStatements.push(...jsonCreateIndexes);
 
 	// jsonStatements.push(...jsonCreatedReferencesForAlteredTables); // TODO: check
 
 	jsonStatements.push(...jsonDropColumnsStatemets);
-	jsonStatements.push(...jsonAlteredCompositePKs);
+	jsonStatements.push(...jsonAlteredPKs);
 
 	jsonStatements.push(...jsonRenamedUniqueConstraints);
 	jsonStatements.push(...jsonAddedUniqueConstraints);

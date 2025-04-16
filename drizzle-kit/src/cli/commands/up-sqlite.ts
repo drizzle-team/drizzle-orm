@@ -2,8 +2,8 @@ import chalk from 'chalk';
 import { writeFileSync } from 'fs';
 import { mapEntries } from 'src/global';
 import { prepareOutFolder, validateWithReport } from 'src/utils-node';
-import { createDDL, SqliteSnapshot } from '../../dialects/sqlite/ddl';
-import { sqliteSchemaV5, type SQLiteSchemaV6, sqliteSchemaV6  } from '../../dialects/sqlite/snapshot';
+import { createDDL } from '../../dialects/sqlite/ddl';
+import { sqliteSchemaV5, type SQLiteSchemaV6, sqliteSchemaV6, SqliteSnapshot } from '../../dialects/sqlite/snapshot';
 
 export const upSqliteHandler = (out: string) => {
 	const { snapshots } = prepareOutFolder(out, 'sqlite');
@@ -47,7 +47,13 @@ const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
 				type: column.type,
 				notNull: column.notNull,
 				primaryKey: column.primaryKey,
-				default: column.default,
+				unique: null, // TODO: probably we need to infer from unique constraints list
+				default: column.default
+					? {
+						value: column.default,
+						isExpression: false, // TODO: need to find out if it's expression
+					}
+					: null,
 				autoincrement: column.autoincrement,
 				generated: column.generated ?? null,
 			});
@@ -65,9 +71,10 @@ const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
 			ddl.indexes.insert({
 				table: table.name,
 				name: index.name,
-				columns: index.columns.map((it) => ({ value: it, expression: false })),
+				columns: index.columns.map((it) => ({ value: it, isExpression: false })),
 				isUnique: index.isUnique,
 				where: index.where,
+				origin: 'manual',
 			});
 		}
 

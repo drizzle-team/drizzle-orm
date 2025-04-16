@@ -1,10 +1,10 @@
 import chalk from 'chalk';
 import { Prompt, render, SelectState, TaskView } from 'hanji';
 import { assertUnreachable } from 'src/global';
-import type { Named, NamedWithSchema } from '../ddl';
+import { SchemaError as SqliteSchemaError } from '../dialects/sqlite/ddl';
+import { Named, NamedWithSchema } from '../dialects/utils';
 import { vectorOps } from '../extensions/vector';
 import type { CommonSchema } from '../schemaValidator';
-import { SchemaError as SqliteSchemaError } from '../dialects/sqlite/ddl';
 import { objectValues, SchemaError, SchemaWarning } from '../utils';
 import { withStyle } from './validations/outputs';
 
@@ -38,7 +38,7 @@ export const schemaWarning = (warning: SchemaWarning): string => {
 
 export const sqliteSchemaError = (error: SqliteSchemaError): string => {
 	if (error.type === 'conflict_table') {
-		return `'${error.table}' table name is a duplicate`
+		return `'${error.table}' table name is a duplicate`;
 	}
 
 	if (error.type === 'conflict_check') {
@@ -53,7 +53,8 @@ export const sqliteSchemaError = (error: SqliteSchemaError): string => {
 		return `'${error.view}' view name is a duplicate`;
 	}
 
-	assertUnreachable(error.type)
+	// assertUnreachable(error.type)
+	return '';
 };
 
 export const schemaError = (error: SchemaError): string => {
@@ -68,9 +69,9 @@ export const schemaError = (error: SchemaError): string => {
 
 	if (error.type === 'index_duplicate') {
 		// check for index names duplicates
-		const { schema, table, indexName } = error;
+		const { schema, table, name } = error;
 		const sch = chalk.underline.blue(`"${schema}"`);
-		const idx = chalk.underline.blue(`'${indexName}'`);
+		const idx = chalk.underline.blue(`'${name}'`);
 		const tableName = chalk.underline.blue(`"${schema}"."${table}"`);
 		return withStyle.errorWarning(
 			`There's a duplicate index name ${idx} in ${sch} schema in ${tableName}`,
@@ -137,7 +138,8 @@ export const schemaError = (error: SchemaError): string => {
 		return withStyle.errorWarning(`There's a sequence name duplicate '${error.name}' in '${error.schema}' schema`);
 	}
 
-	assertUnreachable(error);
+	// assertUnreachable(error);
+	return '';
 };
 
 export const schema = (schema: CommonSchema): string => {
@@ -153,8 +155,8 @@ export const schema = (schema: CommonSchema): string => {
 			let foreignKeys: number = 0;
 			// Singlestore doesn't have foreign keys
 			if (schema.dialect !== 'singlestore') {
-				// @ts-expect-error
-				foreignKeys = Object.values(t.foreignKeys).length;
+				// TODO: return
+				// foreignKeys = Object.values(t.foreignKeys).length;
 			}
 
 			return `${chalk.bold.blue(t.name)} ${
@@ -198,7 +200,7 @@ export interface RenamePropmtItem<T> {
 	to: T;
 }
 
-export const isRenamePromptItem = <T extends Named>(
+export const isRenamePromptItem = <T extends EntityBase>(
 	item: RenamePropmtItem<T> | T,
 ): item is RenamePropmtItem<T> => {
 	return 'from' in item && 'to' in item;
@@ -353,7 +355,15 @@ export class ResolveSelectNamed<T extends Named> extends Prompt<
 	}
 }
 
-export class ResolveSelect<T extends NamedWithSchema> extends Prompt<
+type EntityBase = { schema?: string; table?: string; name: string };
+
+const keyFor = (it: EntityBase) => {
+	const schemaPrefix = it.schema && it.schema !== 'public' ? `${it.schema}.` : '';
+	const tablePrefix = it.table ? `${it.schema}.` : '';
+	return `${schemaPrefix}${tablePrefix}${it.name}`;
+};
+
+export class ResolveSelect<T extends EntityBase> extends Prompt<
 	RenamePropmtItem<T> | T
 > {
 	private readonly state: SelectState<RenamePropmtItem<T> | T>;
@@ -361,7 +371,7 @@ export class ResolveSelect<T extends NamedWithSchema> extends Prompt<
 	constructor(
 		private readonly base: T,
 		data: (RenamePropmtItem<T> | T)[],
-		private readonly entityType: 'table' | 'enum' | 'sequence' | 'view' | 'role',
+		private readonly entityType: 'schema' | 'table' | 'enum' | 'sequence' | 'view' | 'role',
 	) {
 		super();
 		this.on('attach', (terminal) => terminal.toggleCursor('hide'));
@@ -374,8 +384,8 @@ export class ResolveSelect<T extends NamedWithSchema> extends Prompt<
 		if (status === 'submitted' || status === 'aborted') {
 			return '';
 		}
-		const key = tableKey(this.base);
 
+		const key = keyFor(this.base);
 		let text = `\nIs ${chalk.bold.blue(key)} ${this.entityType} created or renamed from another ${this.entityType}?\n`;
 
 		const isSelectedRenamed = isRenamePromptItem(
@@ -390,7 +400,7 @@ export class ResolveSelect<T extends NamedWithSchema> extends Prompt<
 			.filter((it) => isRenamePromptItem(it))
 			.map((_) => {
 				const it = _ as RenamePropmtItem<T>;
-				const keyFrom = tableKey(it.from);
+				const keyFrom = keyFor(it.from);
 				return key.length + 3 + keyFrom.length;
 			})
 			.reduce((a, b) => {
@@ -406,8 +416,8 @@ export class ResolveSelect<T extends NamedWithSchema> extends Prompt<
 			const isRenamed = isRenamePromptItem(it);
 
 			const title = isRenamed
-				? `${tableKey(it.from)} › ${tableKey(it.to)}`.padEnd(labelLength, ' ')
-				: tableKey(it).padEnd(labelLength, ' ');
+				? `${keyFor(it.from)} › ${keyFor(it.to)}`.padEnd(labelLength, ' ')
+				: keyFor(it).padEnd(labelLength, ' ');
 
 			const label = isRenamed
 				? `${chalk.yellow('~')} ${title} ${chalk.gray(`rename ${entityType}`)}`

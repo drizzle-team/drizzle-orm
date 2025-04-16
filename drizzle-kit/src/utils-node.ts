@@ -6,10 +6,9 @@ import { info } from './cli/views';
 import { assertUnreachable } from './global';
 import type { Dialect } from './schemaValidator';
 import { mysqlSchemaV5 } from './serializer/mysqlSchema';
-import { pgSchemaV7 } from './dialects/postgres/ddl';
 import { singlestoreSchema } from './serializer/singlestoreSchema';
-import { snapshotValidator } from './dialects/sqlite/ddl';
 import { dryJournal } from './utils';
+import { snapshotValidator } from './dialects/postgres/snapshot';
 
 export const assertV1OutFolder = (out: string) => {
 	if (!existsSync(out)) return;
@@ -64,8 +63,8 @@ const postgresValidator = (snapshot: Object): ValidationResult => {
 	const versionError = assertVersion(snapshot, 7);
 	if (versionError) return { status: versionError };
 
-	const { success, error } = pgSchemaV7.safeParse(snapshot);
-	if (!success) return { status: 'malformed', errors: [] };
+	const res = snapshotValidator.parse(snapshot);
+	if (!res.success) return { status: 'malformed', errors: [] };
 
 	return { status: 'valid' };
 };

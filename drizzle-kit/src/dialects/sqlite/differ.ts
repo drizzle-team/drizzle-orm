@@ -1,15 +1,9 @@
-// import { warning } from 'src/cli/views';
-import { diff } from 'src/dialects/dialect';
-import type {
-	ColumnsResolverInput,
-	ColumnsResolverOutput,
-	ResolverInput,
-	ResolverOutputWithMoved,
-} from '../../snapshot-differ/common';
+import type { Resolver } from '../../snapshot-differ/common';
 import { prepareMigrationMeta } from '../../utils';
-import { groupDiffs, Named, RenamedItems } from '../utils';
+import { diff } from '../dialect';
+import { groupDiffs, RenamedItems } from '../utils';
 import { fromJson } from './convertor';
-import { Column, Index, IndexColumn, SQLiteDDL, tableFromDDL } from './ddl';
+import { Column, IndexColumn, SQLiteDDL, SqliteEntities, tableFromDDL } from './ddl';
 import {
 	JsonCreateViewStatement,
 	JsonDropViewStatement,
@@ -22,8 +16,8 @@ import {
 export const applySqliteSnapshotsDiff = async (
 	ddl1: SQLiteDDL,
 	ddl2: SQLiteDDL,
-	tablesResolver: (input: ResolverInput<Named>) => Promise<ResolverOutputWithMoved<Named>>,
-	columnsResolver: (input: ColumnsResolverInput<Column>) => Promise<ColumnsResolverOutput<Column>>,
+	tablesResolver: Resolver<SqliteEntities['tables']>,
+	columnsResolver: Resolver<Column>,
 	action: 'push' | 'generate',
 ): Promise<{
 	statements: JsonStatement[];
@@ -45,7 +39,7 @@ export const applySqliteSnapshotsDiff = async (
 	const {
 		created: createdTables,
 		deleted: deletedTables,
-		renamed: renamedTables,
+		renamedOrMoved: renamedTables,
 	} = await tablesResolver({
 		created: tablesDiff.filter((it) => it.$diffType === 'create'),
 		deleted: tablesDiff.filter((it) => it.$diffType === 'drop'),
@@ -82,9 +76,7 @@ export const applySqliteSnapshotsDiff = async (
 	const columnsToDelete = [] as Column[];
 
 	for (let it of groupedByTable) {
-		const { renamed, created, deleted } = await columnsResolver({
-			tableName: it.table,
-			schema: '',
+		const { renamedOrMoved, created, deleted } = await columnsResolver({
 			deleted: it.deleted,
 			created: it.inserted,
 		});
@@ -92,11 +84,11 @@ export const applySqliteSnapshotsDiff = async (
 		columnsToCreate.push(...created);
 		columnsToDelete.push(...deleted);
 
-		if (renamed.length > 0) {
+		if (renamedOrMoved.length > 0) {
 			columnRenames.push({
 				table: it.table,
 				schema: '',
-				renames: renamed,
+				renames: renamedOrMoved,
 			});
 		}
 	}
