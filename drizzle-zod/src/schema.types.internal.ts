@@ -45,7 +45,12 @@ type HandleRefinement<
 	TColumn extends Column,
 > = TRefinement extends (schema: any) => z.ZodTypeAny ? (TColumn['_']['notNull'] extends true ? ReturnType<TRefinement>
 		: z.ZodNullable<ReturnType<TRefinement>>) extends infer TSchema
-		? TType extends 'update' ? z.ZodOptional<Assume<TSchema, z.ZodTypeAny>> : TSchema
+		? TType extends 'update' ? z.ZodOptional<Assume<TSchema, z.ZodTypeAny>>
+		: TType extends 'insert'
+			? TColumn['_']['notNull'] extends true
+				? TColumn['_']['hasDefault'] extends true ? z.ZodOptional<Assume<TSchema, z.ZodTypeAny>> : TSchema
+			: z.ZodOptional<Assume<TSchema, z.ZodTypeAny>>
+		: TSchema
 	: z.ZodTypeAny
 	: TRefinement;
 
