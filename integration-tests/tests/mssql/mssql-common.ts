@@ -124,7 +124,7 @@ const usersMigratorTable = mssqlTable('users12', {
 	email: text('email').notNull(),
 }, (table) => {
 	return {
-		name: uniqueIndex('').on(table.name).using('btree'),
+		name: uniqueIndex('').on(table.name),
 	};
 });
 
@@ -168,9 +168,9 @@ const tableWithEnums = mySchema.table('enums_test_case', {
 
 let mssqlContainer: Docker.Container;
 export async function createDockerDB(): Promise<{ container: Docker.Container; connectionString: string }> {
-	const docker = new Docker();
-	const port = await getPort({ port: 1434 });
-	const image = 'mcr.microsoft.com/mssql/server:2019-latest';
+	const docker = new Docker({ socketPath: '/Users/oleksii_provorov/.docker/run/docker.sock' });
+	const port = await getPort({ port: 1433 });
+	const image = 'mcr.microsoft.com/azure-sql-edge';
 
 	const pullStream = await docker.pull(image);
 	await new Promise((resolve, reject) =>
@@ -179,9 +179,8 @@ export async function createDockerDB(): Promise<{ container: Docker.Container; c
 
 	mssqlContainer = await docker.createContainer({
 		Image: image,
-		Env: ['ACCEPT_EULA=Y', 'MSSQL_SA_PASSWORD=drizzle123PASSWORD'],
+		Env: ['ACCEPT_EULA=1', 'MSSQL_SA_PASSWORD=drizzle123PASSWORD!'],
 		name: `drizzle-integration-tests-${uuid()}`,
-		platform: 'linux/amd64',
 		HostConfig: {
 			AutoRemove: true,
 			PortBindings: {
@@ -193,7 +192,7 @@ export async function createDockerDB(): Promise<{ container: Docker.Container; c
 	await mssqlContainer.start();
 
 	return {
-		connectionString: `Server=localhost,${port};User Id=SA;Password=drizzle123PASSWORD;TrustServerCertificate=True;`,
+		connectionString: `Server=localhost,${port};User Id=SA;Password=drizzle123PASSWORD!;TrustServerCertificate=True;`,
 		container: mssqlContainer,
 	};
 }
@@ -2921,7 +2920,8 @@ export function tests() {
 				.toSQL();
 
 			expect(query).toEqual({
-				sql: `select [id], [name] from [mySchema].[userstest] group by [userstest].[id], [userstest].[name]`,
+				sql:
+					`select [id], [name] from [mySchema].[userstest] group by [mySchema].[userstest].[id], [mySchema].[userstest].[name]`,
 				params: [],
 			});
 		});

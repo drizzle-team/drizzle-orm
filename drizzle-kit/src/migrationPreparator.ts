@@ -1,7 +1,8 @@
 import { randomUUID } from 'crypto';
 import fs from 'fs';
 import { CasingType } from './cli/validations/common';
-import { serializeMySql, serializePg, serializeSingleStore, serializeSQLite } from './serializer';
+import { serializeMsSql, serializeMySql, serializePg, serializeSingleStore, serializeSQLite } from './serializer';
+import { dryMsSql, MsSqlSchema, mssqlSchema } from './serializer/mssqlSchema';
 import { dryMySql, MySqlSchema, mysqlSchema } from './serializer/mysqlSchema';
 import { dryPg, PgSchema, pgSchema, PgSchemaInternal } from './serializer/pgSchema';
 import { drySingleStore, SingleStoreSchema, singlestoreSchema } from './serializer/singlestoreSchema';
@@ -98,6 +99,51 @@ export const prepareMySqlMigrationSnapshot = async (
 
 	// that's for custom migrations, when we need new IDs, but old snapshot
 	const custom: MySqlSchema = {
+		id,
+		prevId: idPrev,
+		...prevRest,
+	};
+
+	return { prev: prevSnapshot, cur: result, custom };
+};
+
+//
+export const prepareMsSqlDbPushSnapshot = async (
+	prev: MsSqlSchema,
+	schemaPath: string | string[],
+	casing: CasingType | undefined,
+): Promise<{ prev: MsSqlSchema; cur: MsSqlSchema }> => {
+	const serialized = await serializeMsSql(schemaPath, casing);
+
+	const id = randomUUID();
+	const idPrev = prev.id;
+
+	const { version, dialect, ...rest } = serialized;
+	const result: MsSqlSchema = { version, dialect, id, prevId: idPrev, ...rest };
+
+	return { prev, cur: result };
+};
+
+export const prepareMsSqlMigrationSnapshot = async (
+	migrationFolders: string[],
+	schemaPath: string | string[],
+	casing: CasingType | undefined,
+): Promise<{ prev: MsSqlSchema; cur: MsSqlSchema; custom: MsSqlSchema }> => {
+	const prevSnapshot = mssqlSchema.parse(
+		preparePrevSnapshot(migrationFolders, dryMsSql),
+	);
+	const serialized = await serializeMsSql(schemaPath, casing);
+
+	const id = randomUUID();
+	const idPrev = prevSnapshot.id;
+
+	const { version, dialect, ...rest } = serialized;
+	const result: MsSqlSchema = { version, dialect, id, prevId: idPrev, ...rest };
+
+	const { id: _ignoredId, prevId: _ignoredPrevId, ...prevRest } = prevSnapshot;
+
+	// that's for custom migrations, when we need new IDs, but old snapshot
+	const custom: MsSqlSchema = {
 		id,
 		prevId: idPrev,
 		...prevRest,
