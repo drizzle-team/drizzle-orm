@@ -1,3 +1,4 @@
+import * as crypto from 'node:crypto';
 import type { Cache } from './cache/core/cache.ts';
 import type { AnyColumn } from './column.ts';
 import { Column } from './column.ts';
