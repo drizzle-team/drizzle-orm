@@ -1,10 +1,11 @@
 import { type Equal, sql } from 'drizzle-orm';
-import { customType, int, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
+import { blob, customType, int, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
+import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
 import { z } from 'zod';
 import { bufferSchema, jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
-import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
+import { createInsertSchema, createSchemaFactory, createSelectSchema, createUpdateSchema } from '../src';
 import { Expect, expectSchemaShape } from './utils.ts';
 
 const intSchema = z.number().min(Number.MIN_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER).int();
@@ -349,6 +350,70 @@ test('all data types', (t) => {
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
+
+test('type coercion - all', (t) => {
+	const table = sqliteTable('test', ({
+		blob,
+		integer,
+		text,
+	}) => ({
+		blob: blob({ mode: 'bigint' }).notNull(),
+		integer1: integer({ mode: 'boolean' }).notNull(),
+		integer2: integer({ mode: 'timestamp' }).notNull(),
+		integer3: integer().notNull(),
+		text: text().notNull(),
+	}));
+
+	const { createSelectSchema } = createSchemaFactory({
+		coerce: true,
+	});
+	const result = createSelectSchema(table);
+	const expected = z.object({
+		blob: z.coerce.bigint().min(CONSTANTS.INT64_MIN).max(CONSTANTS.INT64_MAX),
+		integer1: z.coerce.boolean(),
+		integer2: z.coerce.date(),
+		integer3: z.coerce.number().min(Number.MIN_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER).int(),
+		text: z.coerce.string(),
+	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('type coercion - mixed', (t) => {
+	const table = sqliteTable('test', ({
+		integer,
+	}) => ({
+		integer1: integer({ mode: 'timestamp' }).notNull(),
+		integer2: integer().notNull(),
+	}));
+
+	const { createSelectSchema } = createSchemaFactory({
+		coerce: {
+			date: true,
+		},
+	});
+	const result = createSelectSchema(table);
+	const expected = z.object({
+		integer1: z.coerce.date(),
+		integer2: z.number().min(Number.MIN_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER).int(),
+	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+/* Infinitely recursive type */ {
+	const TopLevelCondition: z.ZodType<TopLevelCondition> = z.custom<TopLevelCondition>().superRefine(() => {});
+	const table = sqliteTable('test', {
+		json1: text({ mode: 'json' }).$type<TopLevelCondition>().notNull(),
+		json2: blob({ mode: 'json' }).$type<TopLevelCondition>(),
+	});
+	const result = createSelectSchema(table);
+	const expected = z.object({
+		json1: TopLevelCondition,
+		json2: z.nullable(TopLevelCondition),
+	});
+	Expect<Equal<z.infer<typeof result>, z.infer<typeof expected>>>();
+}
 
 /* Disallow unknown keys in table refinement - select */ {
 	const table = sqliteTable('test', { id: int() });

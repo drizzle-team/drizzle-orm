@@ -6,6 +6,7 @@ import {
 	getTableConfig,
 	getViewConfig,
 	IndexedColumn,
+	PgArray,
 	PgColumn,
 	PgDialect,
 	PgEnum,
@@ -158,7 +159,14 @@ export const generatePgSnapshot = (
 			const primaryKey: boolean = column.primary;
 			const sqlTypeLowered = column.getSQLType().toLowerCase();
 
-			const typeSchema = is(column, PgEnumColumn) ? column.enum.schema || 'public' : undefined;
+			const getEnumSchema = (column: PgColumn) => {
+				while (is(column, PgArray)) {
+					column = column.baseColumn;
+				}
+				return is(column, PgEnumColumn) ? column.enum.schema || 'public' : undefined;
+			};
+			const typeSchema: string | undefined = getEnumSchema(column);
+
 			const generated = column.generated;
 			const identity = column.generatedIdentity;
 
@@ -1536,14 +1544,7 @@ WHERE
         i.indisunique as is_unique,
         am.amname as method,
         ic.reloptions as with,
-        coalesce(a.attname,
-                  (('{' || pg_get_expr(
-                              i.indexprs,
-                              i.indrelid
-                          )
-                        || '}')::text[]
-                  )[k.i]
-                ) AS column_name,
+        coalesce(a.attname, pg_get_indexdef(i.indexrelid, k.i, false)) AS column_name,
           CASE
         WHEN pg_get_expr(i.indexprs, i.indrelid) IS NOT NULL THEN 1
         ELSE 0

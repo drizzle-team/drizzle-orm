@@ -329,6 +329,7 @@ test('array #11: enum array default', async (t) => {
 			primaryKey: false,
 			notNull: false,
 			default: '\'{"a","b","c"}\'',
+			typeSchema: 'public',
 		},
 	});
 });
@@ -363,6 +364,7 @@ test('array #12: enum empty array default', async (t) => {
 			primaryKey: false,
 			notNull: false,
 			default: "'{}'",
+			typeSchema: 'public',
 		},
 	});
 });

@@ -1,12 +1,12 @@
 import Docker from 'dockerode';
-import { sql } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
 import { drizzle } from 'drizzle-orm/mysql2';
 import getPort from 'get-port';
 import type { Connection } from 'mysql2/promise';
 import { createConnection } from 'mysql2/promise';
 import { v4 as uuid } from 'uuid';
-import { afterAll, afterEach, beforeAll, expect, test } from 'vitest';
+import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest';
 import { reset, seed } from '../../src/index.ts';
 import * as schema from './mysqlSchema.ts';
 
@@ -182,6 +182,29 @@ beforeAll(async () => {
 
 	await db.execute(
 		sql`
+			    CREATE TABLE \`users\` (
+				\`id\` int,
+				\`name\` text,
+				\`invitedBy\` int,
+				CONSTRAINT \`users_id\` PRIMARY KEY(\`id\`)
+			);
+		`,
+	);
+
+	await db.execute(
+		sql`
+			    CREATE TABLE \`posts\` (
+				\`id\` int,
+				\`name\` text,
+				\`content\` text,
+				\`userId\` int,
+				CONSTRAINT \`posts_id\` PRIMARY KEY(\`id\`)
+			);
+		`,
+	);
+
+	await db.execute(
+		sql`
 			ALTER TABLE \`order_detail\` ADD CONSTRAINT \`order_detail_order_id_order_id_fk\` FOREIGN KEY (\`order_id\`) REFERENCES \`order\`(\`id\`) ON DELETE cascade ON UPDATE no action;
 		`,
 	);
@@ -213,6 +236,18 @@ beforeAll(async () => {
 	await db.execute(
 		sql`
 			ALTER TABLE \`product\` ADD CONSTRAINT \`product_supplier_id_supplier_id_fk\` FOREIGN KEY (\`supplier_id\`) REFERENCES \`supplier\`(\`id\`) ON DELETE cascade ON UPDATE no action;
+		`,
+	);
+
+	await db.execute(
+		sql`
+			ALTER TABLE \`users\` ADD CONSTRAINT \`users_invitedBy_users_id_fk\` FOREIGN KEY (\`invitedBy\`) REFERENCES \`users\`(\`id\`) ON DELETE cascade ON UPDATE no action;
+		`,
+	);
+
+	await db.execute(
+		sql`
+			ALTER TABLE \`posts\` ADD CONSTRAINT \`posts_userId_users_id_fk\` FOREIGN KEY (\`userId\`) REFERENCES \`users\`(\`id\`) ON DELETE cascade ON UPDATE no action;
 		`,
 	);
 });
@@ -378,4 +413,29 @@ test("sequential using of 'with'", async () => {
 	expect(orders.length).toBe(8);
 	expect(products.length).toBe(11);
 	expect(suppliers.length).toBe(11);
+});
+
+test('overlapping a foreign key constraint with a one-to-many relation', async () => {
+	const postsRelation = relations(schema.posts, ({ one }) => ({
+		user: one(schema.users, { fields: [schema.posts.userId], references: [schema.users.id] }),
+	}));
+
+	const consoleMock = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+	await reset(db, { users: schema.users, posts: schema.posts, postsRelation });
+	await seed(db, { users: schema.users, posts: schema.posts, postsRelation });
+	// expecting to get a warning
+	expect(consoleMock).toBeCalled();
+	expect(consoleMock).toBeCalledWith(expect.stringMatching(/^You are providing a one-to-many relation.+/));
+
+	const users = await db.select().from(schema.users);
+	const posts = await db.select().from(schema.posts);
+
+	expect(users.length).toBe(10);
+	let predicate = users.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
+
+	expect(posts.length).toBe(10);
+	predicate = posts.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
 });
