@@ -184,6 +184,8 @@ export type Writable<T> = {
 	-readonly [P in keyof T]: T[P];
 };
 
+export type NonArray<T> = T extends any[] ? never : T;
+
 export function getTableColumns<T extends Table>(table: T): T['_']['columns'] {
 	return table[Table.Symbol.Columns];
 }
