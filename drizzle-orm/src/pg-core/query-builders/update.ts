@@ -9,6 +9,7 @@ import type {
 	PreparedQueryConfig,
 } from '~/pg-core/session.ts';
 import { PgTable } from '~/pg-core/table.ts';
+import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	AppendToNullabilityMap,
 	AppendToResult,
@@ -24,19 +25,27 @@ import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type Query, SQL, type SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
-import { Table } from '~/table.ts';
+import { getTableName, Table } from '~/table.ts';
 import {
 	type Assume,
+	DrizzleTypeError,
+	Equal,
 	getTableLikeName,
 	mapUpdateSet,
 	type NeonAuthToken,
 	orderSelectedFields,
+	Simplify,
 	type UpdateSet,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgColumn } from '../columns/common.ts';
 import type { PgViewBase } from '../view-base.ts';
-import type { PgSelectJoinConfig, SelectedFields, SelectedFieldsOrdered } from './select.types.ts';
+import type {
+	PgSelectJoinConfig,
+	SelectedFields,
+	SelectedFieldsOrdered,
+	TableLikeHasEmptySelection,
+} from './select.types.ts';
 
 export interface PgUpdateConfig {
 	where?: SQL | undefined;
@@ -44,6 +53,7 @@ export interface PgUpdateConfig {
 	table: PgTable;
 	from?: PgTable | Subquery | PgViewBase | SQL;
 	joins: PgSelectJoinConfig[];
+	returningFields?: SelectedFields;
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
 }
@@ -100,6 +110,7 @@ export type PgUpdateWithout<
 		T['_']['table'],
 		T['_']['queryResult'],
 		T['_']['from'],
+		T['_']['selectedFields'],
 		T['_']['returning'],
 		T['_']['nullabilityMap'],
 		T['_']['joins'],
@@ -118,6 +129,7 @@ export type PgUpdateWithJoins<
 		T['_']['table'],
 		T['_']['queryResult'],
 		TFrom,
+		T['_']['selectedFields'],
 		T['_']['returning'],
 		AppendToNullabilityMap<T['_']['nullabilityMap'], GetSelectTableName<TFrom>, 'inner'>,
 		[...T['_']['joins'], {
@@ -138,7 +150,10 @@ export type PgUpdateJoinFn<
 > = <
 	TJoinedTable extends PgTable | Subquery | PgViewBase | SQL,
 >(
-	table: TJoinedTable,
+	table: TableLikeHasEmptySelection<TJoinedTable> extends true ? DrizzleTypeError<
+			"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
+		>
+		: TJoinedTable,
 	on:
 		| (
 			(
@@ -161,6 +176,7 @@ export type PgUpdateJoin<
 	T['_']['table'],
 	T['_']['queryResult'],
 	T['_']['from'],
+	T['_']['selectedFields'],
 	T['_']['returning'],
 	AppendToNullabilityMap<T['_']['nullabilityMap'], GetSelectTableName<TJoinedTable>, TJoinType>,
 	[...T['_']['joins'], {
@@ -204,6 +220,13 @@ export type PgUpdateReturningAll<T extends AnyPgUpdate, TDynamic extends boolean
 		T['_']['table'],
 		T['_']['queryResult'],
 		T['_']['from'],
+		Equal<T['_']['joins'], []> extends true ? T['_']['table']['_']['columns'] : Simplify<
+			& Record<T['_']['table']['_']['name'], T['_']['table']['_']['columns']>
+			& {
+				[K in keyof T['_']['joins'] as T['_']['joins'][K]['table']['_']['name']]:
+					T['_']['joins'][K]['table']['_']['columns'];
+			}
+		>,
 		SelectResult<
 			AccumulateToResult<
 				T,
@@ -232,6 +255,7 @@ export type PgUpdateReturning<
 		T['_']['table'],
 		T['_']['queryResult'],
 		T['_']['from'],
+		TSelectedFields,
 		SelectResult<
 			AccumulateToResult<
 				T,
@@ -270,23 +294,29 @@ export type PgUpdate<
 	TTable extends PgTable = PgTable,
 	TQueryResult extends PgQueryResultHKT = PgQueryResultHKT,
 	TFrom extends PgTable | Subquery | PgViewBase | SQL | undefined = undefined,
+	TSelectedFields extends ColumnsSelection | undefined = undefined,
 	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
 	TNullabilityMap extends Record<string, JoinNullability> = Record<TTable['_']['name'], 'not-null'>,
 	TJoins extends Join[] = [],
-> = PgUpdateBase<TTable, TQueryResult, TFrom, TReturning, TNullabilityMap, TJoins, true, never>;
+> = PgUpdateBase<TTable, TQueryResult, TFrom, TSelectedFields, TReturning, TNullabilityMap, TJoins, true, never>;
 
-export type AnyPgUpdate = PgUpdateBase<any, any, any, any, any, any, any, any>;
+export type AnyPgUpdate = PgUpdateBase<any, any, any, any, any, any, any, any, any>;
 
 export interface PgUpdateBase<
 	TTable extends PgTable,
 	TQueryResult extends PgQueryResultHKT,
 	TFrom extends PgTable | Subquery | PgViewBase | SQL | undefined = undefined,
+	TSelectedFields extends ColumnsSelection | undefined = undefined,
 	TReturning extends Record<string, unknown> | undefined = undefined,
 	TNullabilityMap extends Record<string, JoinNullability> = Record<TTable['_']['name'], 'not-null'>,
 	TJoins extends Join[] = [],
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
 > extends
+	TypedQueryBuilder<
+		TSelectedFields,
+		TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]
+	>,
 	QueryPromise<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]>,
 	RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
 	SQLWrapper
@@ -298,6 +328,7 @@ export interface PgUpdateBase<
 		readonly nullabilityMap: TNullabilityMap;
 		readonly queryResult: TQueryResult;
 		readonly from: TFrom;
+		readonly selectedFields: TSelectedFields;
 		readonly returning: TReturning;
 		readonly dynamic: TDynamic;
 		readonly excludedMethods: TExcludedMethods;
@@ -309,6 +340,7 @@ export class PgUpdateBase<
 	TTable extends PgTable,
 	TQueryResult extends PgQueryResultHKT,
 	TFrom extends PgTable | Subquery | PgViewBase | SQL | undefined = undefined,
+	TSelectedFields extends ColumnsSelection | undefined = undefined,
 	TReturning extends Record<string, unknown> | undefined = undefined,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TNullabilityMap extends Record<string, JoinNullability> = Record<TTable['_']['name'], 'not-null'>,
@@ -343,13 +375,17 @@ export class PgUpdateBase<
 	}
 
 	from<TFrom extends PgTable | Subquery | PgViewBase | SQL>(
-		source: TFrom,
+		source: TableLikeHasEmptySelection<TFrom> extends true ? DrizzleTypeError<
+				"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
+			>
+			: TFrom,
 	): PgUpdateWithJoins<this, TDynamic, TFrom> {
-		const tableName = getTableLikeName(source);
+		const src = source as TFrom;
+		const tableName = getTableLikeName(src);
 		if (typeof tableName === 'string') {
 			this.joinsNotNullableMap[tableName] = true;
 		}
-		this.config.from = source;
+		this.config.from = src;
 		return this as any;
 	}
 
@@ -521,6 +557,7 @@ export class PgUpdateBase<
 			}
 		}
 
+		this.config.returningFields = fields;
 		this.config.returning = orderSelectedFields<PgColumn>(fields);
 		return this as any;
 	}
@@ -558,6 +595,22 @@ export class PgUpdateBase<
 	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
 		return this._prepare().execute(placeholderValues, this.authToken);
 	};
+
+	/** @internal */
+	getSelectedFields(): this['_']['selectedFields'] {
+		return (
+			this.config.returningFields
+				? new Proxy(
+					this.config.returningFields,
+					new SelectionProxyHandler({
+						alias: getTableName(this.config.table),
+						sqlAliasedBehavior: 'alias',
+						sqlBehavior: 'error',
+					}),
+				)
+				: undefined
+		) as this['_']['selectedFields'];
+	}
 
 	$dynamic(): PgUpdateDynamic<this> {
 		return this as any;

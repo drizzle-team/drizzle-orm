@@ -49,4 +49,5 @@ export interface CreateUpdateSchema {
 
 export interface CreateSchemaFactoryOptions {
 	zodInstance?: any;
+	coerce?: Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true;
 }

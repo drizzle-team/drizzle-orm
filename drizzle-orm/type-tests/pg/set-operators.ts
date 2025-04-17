@@ -1,6 +1,6 @@
 import { type Equal, Expect } from 'type-tests/utils.ts';
-import { eq } from '~/expressions.ts';
 import { except, exceptAll, intersect, intersectAll, type PgSetOperator, union, unionAll } from '~/pg-core/index.ts';
+import { eq } from '~/sql/expressions/index.ts';
 import { desc, sql } from '~/sql/index.ts';
 import { db } from './db.ts';
 import { cities, classes, newYorkers, users } from './tables.ts';

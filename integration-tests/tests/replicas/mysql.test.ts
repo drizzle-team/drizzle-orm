@@ -803,3 +803,111 @@ describe('[findMany] read replicas mysql', () => {
 		expect(query2.toSQL().sql).toEqual('select `id`, `name`, `verified` from `users` `usersTable`');
 	});
 });
+
+describe('[$count] read replicas postgres', () => {
+	it('primary $count', () => {
+		const primaryDb = drizzle.mock();
+		const read1 = drizzle.mock();
+		const read2 = drizzle.mock();
+
+		const db = withReplicas(primaryDb, [read1, read2]);
+
+		const spyPrimary = vi.spyOn(primaryDb, '$count');
+		const spyRead1 = vi.spyOn(read1, '$count');
+		const spyRead2 = vi.spyOn(read2, '$count');
+
+		db.$primary.$count(users);
+
+		expect(spyPrimary).toHaveBeenCalledTimes(1);
+		expect(spyRead1).toHaveBeenCalledTimes(0);
+		expect(spyRead2).toHaveBeenCalledTimes(0);
+	});
+
+	it('random replica $count', () => {
+		const primaryDb = drizzle.mock();
+		const read1 = drizzle.mock();
+		const read2 = drizzle.mock();
+
+		const randomMockReplica = vi.fn().mockReturnValueOnce(read1).mockReturnValueOnce(read2);
+
+		const db = withReplicas(primaryDb, [read1, read2], () => {
+			return randomMockReplica();
+		});
+
+		const spyPrimary = vi.spyOn(primaryDb, '$count');
+		const spyRead1 = vi.spyOn(read1, '$count');
+		const spyRead2 = vi.spyOn(read2, '$count');
+
+		db.$count(users);
+
+		expect(spyPrimary).toHaveBeenCalledTimes(0);
+		expect(spyRead1).toHaveBeenCalledTimes(1);
+		expect(spyRead2).toHaveBeenCalledTimes(0);
+
+		db.$count(users);
+		expect(spyRead1).toHaveBeenCalledTimes(1);
+		expect(spyRead2).toHaveBeenCalledTimes(1);
+	});
+
+	it('single read replica $count', () => {
+		const primaryDb = drizzle.mock();
+		const read1 = drizzle.mock();
+
+		const db = withReplicas(primaryDb, [read1]);
+
+		const spyPrimary = vi.spyOn(primaryDb, '$count');
+		const spyRead1 = vi.spyOn(read1, '$count');
+
+		db.$count(users);
+
+		expect(spyPrimary).toHaveBeenCalledTimes(0);
+		expect(spyRead1).toHaveBeenCalledTimes(1);
+
+		db.$count(users);
+		expect(spyRead1).toHaveBeenCalledTimes(2);
+	});
+
+	it('single read replica $count + primary $count', () => {
+		const primaryDb = drizzle.mock();
+		const read1 = drizzle.mock();
+
+		const db = withReplicas(primaryDb, [read1]);
+
+		const spyPrimary = vi.spyOn(primaryDb, '$count');
+		const spyRead1 = vi.spyOn(read1, '$count');
+
+		db.$count(users);
+
+		expect(spyPrimary).toHaveBeenCalledTimes(0);
+		expect(spyRead1).toHaveBeenCalledTimes(1);
+
+		db.$primary.$count(users);
+		expect(spyPrimary).toHaveBeenCalledTimes(1);
+		expect(spyRead1).toHaveBeenCalledTimes(1);
+	});
+
+	it('always first read $count', () => {
+		const primaryDb = drizzle.mock();
+		const read1 = drizzle.mock();
+		const read2 = drizzle.mock();
+
+		const db = withReplicas(primaryDb, [read1, read2], (replicas) => {
+			return replicas[0]!;
+		});
+
+		const spyPrimary = vi.spyOn(primaryDb, '$count');
+		const spyRead1 = vi.spyOn(read1, '$count');
+		const spyRead2 = vi.spyOn(read2, '$count');
+
+		db.$count(users);
+
+		expect(spyPrimary).toHaveBeenCalledTimes(0);
+		expect(spyRead1).toHaveBeenCalledTimes(1);
+		expect(spyRead2).toHaveBeenCalledTimes(0);
+
+		db.$count(users);
+
+		expect(spyRead1).toHaveBeenCalledTimes(2);
+		expect(spyRead2).toHaveBeenCalledTimes(0);
+	});
+});

@@ -29,7 +29,7 @@ import {
 import { assertOrmCoreVersion, assertPackages, assertStudioNodeVersion, ormVersionGt } from './utils';
 import { assertCollisions, drivers, prefixes } from './validations/common';
 import { withStyle } from './validations/outputs';
-import { grey, MigrateProgress } from './views';
+import { error, grey, MigrateProgress } from './views';
 
 const optionDialect = string('dialect')
 	.enum(...dialects)
@@ -101,6 +101,13 @@ export const generate = command({
 			await prepareAndMigrateLibSQL(opts);
 		} else if (dialect === 'singlestore') {
 			await prepareAndMigrateSingleStore(opts);
+		} else if (dialect === 'gel') {
+			console.log(
+				error(
+					`You can't use 'generate' command with Gel dialect`,
+				),
+			);
+			process.exit(1);
 		} else if (dialect === 'mssql') {
 			await prepareAndMigrateMsSQL(opts);
 		} else {
@@ -198,6 +205,13 @@ export const migrate = command({
 						migrationsSchema: schema,
 					}),
 				);
+			} else if (dialect === 'gel') {
+				console.log(
+					error(
+						`You can't use 'migrate' command with Gel dialect`,
+					),
+				);
+				process.exit(1);
 			} else if (dialect === 'mssql') {
 				// TODO() check!
 				const { connectToMsSQL } = await import('./connections');
@@ -240,6 +254,8 @@ const optionsDatabaseCredentials = {
 	ssl: string().desc('ssl mode'),
 	// Turso
 	authToken: string('auth-token').desc('Database auth token [Turso]'),
+	// gel
+	tlsSecurity: string('tlsSecurity').desc('tls security mode'),
 	// specific cases
 	driver: optionDriver,
 } as const;
@@ -284,6 +300,7 @@ export const push = command({
 				'extensionsFilters',
 				'tablesFilter',
 				'casing',
+				'tlsSecurity',
 			],
 		);
 
@@ -385,6 +402,13 @@ export const push = command({
 					force,
 					casing,
 				);
+			} else if (dialect === 'gel') {
+				console.log(
+					error(
+						`You can't use 'push' command with Gel dialect`,
+					),
+				);
+				process.exit(1);
 			} else if (dialect === 'mssql') {
 				const { mssqlPush } = await import('./commands/push');
 				await mssqlPush(
@@ -462,6 +486,15 @@ export const up = command({
 		if (dialect === 'singlestore') {
 			upSinglestoreHandler(out);
 		}
+
+		if (dialect === 'gel') {
+			console.log(
+				error(
+					`You can't use 'up' command with Gel dialect`,
+				),
+			);
+			process.exit(1);
+		}
 	},
 });
 
@@ -499,6 +532,7 @@ export const pull = command({
 				'tablesFilter',
 				'schemaFilters',
 				'extensionsFilters',
+				'tlsSecurity',
 			],
 		);
 		return preparePullConfig(opts, from);
@@ -605,6 +639,18 @@ export const pull = command({
 					tablesFilter,
 					prefix,
 				);
+			} else if (dialect === 'gel') {
+				const { introspectGel } = await import('./commands/introspect');
+				await introspectGel(
+					casing,
+					out,
+					breakpoints,
+					credentials,
+					tablesFilter,
+					schemasFilter,
+					prefix,
+					entities,
+				);
 			} else if (dialect === 'mssql') {
 				const { introspectMssql } = await import('./commands/introspect');
 				await introspectMssql(
@@ -644,7 +690,6 @@ export const drop = command({
 	},
 });
 
-studio;
 export const studio = command({
 	name: 'studio',
 	options: {
@@ -736,6 +781,13 @@ export const studio = command({
 					relations,
 					files,
 				);
+			} else if (dialect === 'gel') {
+				console.log(
+					error(
+						`You can't use 'studio' command with Gel dialect`,
+					),
+				);
+				process.exit(1);
 			} else if (dialect === 'mssql') {
 				const { schema, relations, files } = schemaPath
 					? await prepareMsSqlSchema(schemaPath)
@@ -837,6 +889,13 @@ export const exportRaw = command({
 			await prepareAndExportLibSQL(opts);
 		} else if (dialect === 'singlestore') {
 			await prepareAndExportSinglestore(opts);
+		} else if (dialect === 'gel') {
+			console.log(
+				error(
+					`You can't use 'export' command with Gel dialect`,
+				),
+			);
+			process.exit(1);
 		} else if (dialect === 'mssql') {
 			await prepareAndExportMssql(opts);
 		} else {

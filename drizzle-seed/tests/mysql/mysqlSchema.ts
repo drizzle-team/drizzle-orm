@@ -100,3 +100,22 @@ export const details = mysqlTable('order_detail', {
 		.notNull()
 		.references(() => products.id, { onDelete: 'cascade' }),
 });
+
+export const users = mysqlTable(
+	'users',
+	{
+		id: int().primaryKey(),
+		name: text(),
+		invitedBy: int().references((): AnyMySqlColumn => users.id),
+	},
+);
+
+export const posts = mysqlTable(
+	'posts',
+	{
+		id: int().primaryKey(),
+		name: text(),
+		content: text(),
+		userId: int().references(() => users.id),
+	},
+);

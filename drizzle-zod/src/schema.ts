@@ -38,7 +38,7 @@ function handleColumns(
 		}
 
 		const column = is(selected, Column) ? selected : undefined;
-		const schema = column ? columnToSchema(column, factory?.zodInstance ?? z) : z.any();
+		const schema = column ? columnToSchema(column, factory) : z.any();
 		const refined = typeof refinement === 'function' ? refinement(schema) : schema;
 
 		if (conditions.never(column)) {

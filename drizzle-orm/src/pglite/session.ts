@@ -38,6 +38,16 @@ export class PglitePreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 				[types.TIMESTAMPTZ]: (value) => value,
 				[types.INTERVAL]: (value) => value,
 				[types.DATE]: (value) => value,
+				// numeric[]
+				[1231]: (value) => value,
+				// timestamp[]
+				[1115]: (value) => value,
+				// timestamp with timezone[]
+				[1185]: (value) => value,
+				// interval[]
+				[1187]: (value) => value,
+				// date[]
+				[1182]: (value) => value,
 			},
 		};
 		this.queryConfig = {
@@ -47,6 +57,16 @@ export class PglitePreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 				[types.TIMESTAMPTZ]: (value) => value,
 				[types.INTERVAL]: (value) => value,
 				[types.DATE]: (value) => value,
+				// numeric[]
+				[1231]: (value) => value,
+				// timestamp[]
+				[1115]: (value) => value,
+				// timestamp with timezone[]
+				[1185]: (value) => value,
+				// interval[]
+				[1187]: (value) => value,
+				// date[]
+				[1182]: (value) => value,
 			},
 		};
 	}

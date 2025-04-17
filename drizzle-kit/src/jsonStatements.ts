@@ -8,6 +8,7 @@ import {
 	Index,
 	MatViewWithOption,
 	PgSchema,
+	PgSchemaSquashed,
 	PgSquasher,
 	Policy,
 	Role,
@@ -72,6 +73,14 @@ export interface JsonRecreateTableStatement {
 	compositePKs: string[][];
 	uniqueConstraints?: string[];
 	checkConstraints: string[];
+}
+
+export interface JsonRecreateSingleStoreTableStatement {
+	type: 'singlestore_recreate_table';
+	tableName: string;
+	columns: Column[];
+	compositePKs: string[];
+	uniqueConstraints?: string[];
 }
 
 export interface JsonDropTableStatement {
@@ -161,10 +170,10 @@ export interface JsonAlterRoleStatement {
 export interface JsonDropValueFromEnumStatement {
 	type: 'alter_type_drop_value';
 	name: string;
-	schema: string;
+	enumSchema: string;
 	deletedValues: string[];
 	newValues: string[];
-	columnsWithEnum: { schema: string; table: string; column: string }[];
+	columnsWithEnum: { tableSchema: string; table: string; column: string; default?: string; columnType: string }[];
 }
 
 export interface JsonCreateSequenceStatement {
@@ -456,6 +465,22 @@ export interface JsonAlterColumnTypeStatement {
 	columnName: string;
 	newDataType: string;
 	oldDataType: string;
+	schema: string;
+	columnDefault: string;
+	columnOnUpdate: boolean;
+	columnNotNull: boolean;
+	columnAutoIncrement: boolean;
+	columnPk: boolean;
+	columnGenerated?: { as: string; type: 'stored' | 'virtual' };
+}
+
+export interface JsonAlterColumnPgTypeStatement {
+	type: 'pg_alter_table_alter_column_set_type';
+	tableName: string;
+	columnName: string;
+	typeSchema: string | undefined;
+	newDataType: { name: string; isEnum: boolean };
+	oldDataType: { name: string; isEnum: boolean };
 	schema: string;
 	columnDefault: string;
 	columnOnUpdate: boolean;
@@ -786,6 +811,7 @@ export type JsonAlterViewStatement =
 export type JsonAlterColumnStatement =
 	| JsonRenameColumnStatement
 	| JsonAlterColumnTypeStatement
+	| JsonAlterColumnPgTypeStatement
 	| JsonAlterColumnSetDefaultStatement
 	| JsonAlterColumnDropDefaultStatement
 	| JsonAlterColumnSetNotNullStatement
@@ -804,6 +830,7 @@ export type JsonAlterColumnStatement =
 	| JsonAlterColumnDropIdentityStatement;
 
 export type JsonStatement =
+	| JsonRecreateSingleStoreTableStatement
 	| JsonRecreateTableStatement
 	| JsonAlterColumnStatement
 	| JsonCreateTableStatement
@@ -1075,14 +1102,24 @@ export const prepareDropEnumValues = (
 ): JsonDropValueFromEnumStatement[] => {
 	if (!removedValues.length) return [];
 
-	const affectedColumns: { schema: string; table: string; column: string }[] = [];
+	const affectedColumns: JsonDropValueFromEnumStatement['columnsWithEnum'] = [];
 
 	for (const tableKey in json2.tables) {
 		const table = json2.tables[tableKey];
 		for (const columnKey in table.columns) {
 			const column = table.columns[columnKey];
-			if (column.type === name && column.typeSchema === schema) {
-				affectedColumns.push({ schema: table.schema || 'public', table: table.name, column: column.name });
+
+			const arrayDefinitionRegex = /\[\d*(?:\[\d*\])*\]/g;
+			const parsedColumnType = column.type.replace(arrayDefinitionRegex, '');
+
+			if (parsedColumnType === name && column.typeSchema === schema) {
+				affectedColumns.push({
+					tableSchema: table.schema,
+					table: table.name,
+					column: column.name,
+					columnType: column.type,
+					default: column.default,
+				});
 			}
 		}
 	}
@@ -1090,7 +1127,7 @@ export const prepareDropEnumValues = (
 	return [{
 		type: 'alter_type_drop_value',
 		name: name,
-		schema: schema,
+		enumSchema: schema,
 		deletedValues: removedValues,
 		newValues: json2.enums[`${schema}.${name}`].values,
 		columnsWithEnum: affectedColumns,
@@ -2434,7 +2471,8 @@ export const preparePgAlterColumns = (
 	schema: string,
 	columns: AlteredColumn[],
 	// TODO: remove?
-	json2: CommonSquashedSchema,
+	json2: PgSchemaSquashed,
+	json1: PgSchemaSquashed,
 	action?: 'push' | undefined,
 ): JsonAlterColumnStatement[] => {
 	const tableKey = `${schema || 'public'}.${_tableName}`;
@@ -2460,6 +2498,8 @@ export const preparePgAlterColumns = (
 		).autoincrement;
 		const columnPk = (json2.tables[tableKey].columns[columnName] as any)
 			.primaryKey;
+		const typeSchema = json2.tables[tableKey].columns[columnName].typeSchema;
+		const json1ColumnTypeSchema = json1.tables[tableKey].columns[columnName].typeSchema;
 
 		const compositePk = json2.tables[tableKey].compositePrimaryKeys[`${tableName}_${columnName}`];
 
@@ -2474,12 +2514,26 @@ export const preparePgAlterColumns = (
 		}
 
 		if (column.type?.type === 'changed') {
+			const arrayDefinitionRegex = /\[\d*(?:\[\d*\])*\]/g;
+			const parsedNewColumnType = column.type.new.replace(arrayDefinitionRegex, '');
+			const parsedOldColumnType = column.type.old.replace(arrayDefinitionRegex, '');
+
+			const isNewTypeIsEnum = json2.enums[`${typeSchema}.${parsedNewColumnType}`];
+			const isOldTypeIsEnum = json1.enums[`${json1ColumnTypeSchema}.${parsedOldColumnType}`];
+
 			statements.push({
-				type: 'alter_table_alter_column_set_type',
+				type: 'pg_alter_table_alter_column_set_type',
 				tableName,
 				columnName,
-				newDataType: column.type.new,
-				oldDataType: column.type.old,
+				typeSchema: typeSchema,
+				newDataType: {
+					name: column.type.new,
+					isEnum: isNewTypeIsEnum ? true : false,
+				},
+				oldDataType: {
+					name: column.type.old,
+					isEnum: isOldTypeIsEnum ? true : false,
+				},
 				schema,
 				columnDefault,
 				columnOnUpdate,

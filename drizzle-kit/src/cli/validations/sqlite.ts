@@ -82,7 +82,7 @@ export const printConfigConnectionIssues = (
 		} else if (command === 'studio') {
 			console.log(
 				error(
-					`You can't use 'migrate' command with SQLite Durable Objects`,
+					`You can't use 'studio' command with SQLite Durable Objects`,
 				),
 			);
 		} else if (command === 'pull') {

@@ -11,6 +11,7 @@ import {
 	JsonAlterColumnDropNotNullStatement,
 	JsonAlterColumnDropOnUpdateStatement,
 	JsonAlterColumnDropPrimaryKeyStatement,
+	JsonAlterColumnPgTypeStatement,
 	JsonAlterColumnSetAutoincrementStatement,
 	JsonAlterColumnSetDefaultStatement,
 	JsonAlterColumnSetGeneratedStatement,
@@ -69,6 +70,7 @@ import {
 	JsonMoveEnumStatement,
 	JsonMoveSequenceStatement,
 	JsonPgCreateIndexStatement,
+	JsonRecreateSingleStoreTableStatement,
 	JsonRecreateTableStatement,
 	JsonRenameColumnStatement,
 	JsonRenameEnumStatement,
@@ -574,7 +576,7 @@ class MySqlCreateTableConvertor extends Convertor {
 		return statement;
 	}
 }
-class SingleStoreCreateTableConvertor extends Convertor {
+export class SingleStoreCreateTableConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'create_table' && dialect === 'singlestore';
 	}
@@ -618,7 +620,7 @@ class SingleStoreCreateTableConvertor extends Convertor {
 		if (typeof compositePKs !== 'undefined' && compositePKs.length > 0) {
 			statement += ',\n';
 			const compositePK = SingleStoreSquasher.unsquashPK(compositePKs[0]);
-			statement += `\tCONSTRAINT \`${st.compositePkName}\` PRIMARY KEY(\`${compositePK.columns.join(`\`,\``)}\`)`;
+			statement += `\tCONSTRAINT \`${compositePK.name}\` PRIMARY KEY(\`${compositePK.columns.join(`\`,\``)}\`)`;
 		}
 
 		if (
@@ -1455,33 +1457,53 @@ class AlterRenameTypeConvertor extends Convertor {
 }
 
 class AlterTypeDropValueConvertor extends Convertor {
-	can(statement: JsonStatement): boolean {
+	can(statement: JsonDropValueFromEnumStatement): boolean {
 		return statement.type === 'alter_type_drop_value';
 	}
 
 	convert(st: JsonDropValueFromEnumStatement) {
-		const { columnsWithEnum, name, newValues, schema } = st;
+		const { columnsWithEnum, name, newValues, enumSchema } = st;
 
 		const statements: string[] = [];
 
 		for (const withEnum of columnsWithEnum) {
+			const tableNameWithSchema = withEnum.tableSchema
+				? `"${withEnum.tableSchema}"."${withEnum.table}"`
+				: `"${withEnum.table}"`;
+
 			statements.push(
-				`ALTER TABLE "${withEnum.schema}"."${withEnum.table}" ALTER COLUMN "${withEnum.column}" SET DATA TYPE text;`,
+				`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${withEnum.column}" SET DATA TYPE text;`,
 			);
+			if (withEnum.default) {
+				statements.push(
+					`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${withEnum.column}" SET DEFAULT ${withEnum.default}::text;`,
+				);
+			}
 		}
 
-		statements.push(new DropTypeEnumConvertor().convert({ name: name, schema, type: 'drop_type_enum' }));
+		statements.push(new DropTypeEnumConvertor().convert({ name: name, schema: enumSchema, type: 'drop_type_enum' }));
 
 		statements.push(new CreateTypeEnumConvertor().convert({
 			name: name,
-			schema: schema,
+			schema: enumSchema,
 			values: newValues,
 			type: 'create_type_enum',
 		}));
 
 		for (const withEnum of columnsWithEnum) {
+			const tableNameWithSchema = withEnum.tableSchema
+				? `"${withEnum.tableSchema}"."${withEnum.table}"`
+				: `"${withEnum.table}"`;
+
+			const parsedType = parseType(`"${enumSchema}".`, withEnum.columnType);
+			if (withEnum.default) {
+				statements.push(
+					`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${withEnum.column}" SET DEFAULT ${withEnum.default}::${parsedType};`,
+				);
+			}
+
 			statements.push(
-				`ALTER TABLE "${withEnum.schema}"."${withEnum.table}" ALTER COLUMN "${withEnum.column}" SET DATA TYPE "${schema}"."${name}" USING "${withEnum.column}"::"${schema}"."${name}";`,
+				`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${withEnum.column}" SET DATA TYPE ${parsedType} USING "${withEnum.column}"::${parsedType};`,
 			);
 		}
 
@@ -1531,7 +1553,7 @@ class MySQLDropTableConvertor extends Convertor {
 	}
 }
 
-class SingleStoreDropTableConvertor extends Convertor {
+export class SingleStoreDropTableConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'drop_table' && dialect === 'singlestore';
 	}
@@ -1590,14 +1612,14 @@ class MySqlRenameTableConvertor extends Convertor {
 	}
 }
 
-class SingleStoreRenameTableConvertor extends Convertor {
+export class SingleStoreRenameTableConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'rename_table' && dialect === 'singlestore';
 	}
 
 	convert(statement: JsonRenameTableStatement) {
 		const { tableNameFrom, tableNameTo } = statement;
-		return `RENAME TABLE \`${tableNameFrom}\` TO \`${tableNameTo}\`;`;
+		return `ALTER TABLE \`${tableNameFrom}\` RENAME TO \`${tableNameTo}\`;`;
 	}
 }
 
@@ -1641,7 +1663,7 @@ class SingleStoreAlterTableRenameColumnConvertor extends Convertor {
 
 	convert(statement: JsonRenameColumnStatement) {
 		const { tableName, oldColumnName, newColumnName } = statement;
-		return `ALTER TABLE \`${tableName}\` RENAME COLUMN \`${oldColumnName}\` TO \`${newColumnName}\`;`;
+		return `ALTER TABLE \`${tableName}\` CHANGE \`${oldColumnName}\` \`${newColumnName}\`;`;
 	}
 }
 
@@ -1870,19 +1892,71 @@ export class SQLiteAlterTableAddColumnConvertor extends Convertor {
 class PgAlterTableAlterColumnSetTypeConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
-			statement.type === 'alter_table_alter_column_set_type'
+			statement.type === 'pg_alter_table_alter_column_set_type'
 			&& dialect === 'postgresql'
 		);
 	}
 
-	convert(statement: JsonAlterColumnTypeStatement) {
-		const { tableName, columnName, newDataType, schema } = statement;
+	convert(statement: JsonAlterColumnPgTypeStatement) {
+		const { tableName, columnName, newDataType, schema, oldDataType, columnDefault, typeSchema } = statement;
 
 		const tableNameWithSchema = schema
 			? `"${schema}"."${tableName}"`
 			: `"${tableName}"`;
 
-		return `ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" SET DATA TYPE ${newDataType};`;
+		const statements: string[] = [];
+
+		const type = parseType(`"${typeSchema}".`, newDataType.name);
+
+		if (!oldDataType.isEnum && !newDataType.isEnum) {
+			statements.push(
+				`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" SET DATA TYPE ${type};`,
+			);
+			if (columnDefault) {
+				statements.push(
+					`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" SET DEFAULT ${columnDefault};`,
+				);
+			}
+		}
+
+		if (oldDataType.isEnum && !newDataType.isEnum) {
+			statements.push(
+				`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" SET DATA TYPE ${type};`,
+			);
+			if (columnDefault) {
+				statements.push(
+					`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" SET DEFAULT ${columnDefault};`,
+				);
+			}
+		}
+
+		if (!oldDataType.isEnum && newDataType.isEnum) {
+			if (columnDefault) {
+				statements.push(
+					`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" SET DEFAULT ${columnDefault}::${type};`,
+				);
+			}
+			statements.push(
+				`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" SET DATA TYPE ${type} USING "${columnName}"::${type};`,
+			);
+		}
+
+		if (oldDataType.isEnum && newDataType.isEnum) {
+			const alterType =
+				`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" SET DATA TYPE ${type} USING "${columnName}"::text::${type};`;
+
+			if (newDataType.name !== oldDataType.name && columnDefault) {
+				statements.push(
+					`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" DROP DEFAULT;`,
+					alterType,
+					`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" SET DEFAULT ${columnDefault};`,
+				);
+			} else {
+				statements.push(alterType);
+			}
+		}
+
+		return statements;
 	}
 }
 
@@ -3499,7 +3573,7 @@ class CreateMySqlIndexConvertor extends Convertor {
 	}
 }
 
-class CreateSingleStoreIndexConvertor extends Convertor {
+export class CreateSingleStoreIndexConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'create_index' && dialect === 'singlestore';
 	}
@@ -3816,10 +3890,68 @@ class LibSQLRecreateTableConvertor extends Convertor {
 	}
 }
 
+class SingleStoreRecreateTableConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return (
+			statement.type === 'singlestore_recreate_table'
+			&& dialect === 'singlestore'
+		);
+	}
+
+	convert(statement: JsonRecreateSingleStoreTableStatement): string[] {
+		const { tableName, columns, compositePKs, uniqueConstraints } = statement;
+
+		const columnNames = columns.map((it) => `\`${it.name}\``).join(', ');
+		const newTableName = `__new_${tableName}`;
+
+		const sqlStatements: string[] = [];
+
+		// create new table
+		sqlStatements.push(
+			new SingleStoreCreateTableConvertor().convert({
+				type: 'create_table',
+				tableName: newTableName,
+				columns,
+				compositePKs,
+				uniqueConstraints,
+				schema: '',
+			}),
+		);
+
+		// migrate data
+		sqlStatements.push(
+			`INSERT INTO \`${newTableName}\`(${columnNames}) SELECT ${columnNames} FROM \`${tableName}\`;`,
+		);
+
+		// drop table
+		sqlStatements.push(
+			new SingleStoreDropTableConvertor().convert({
+				type: 'drop_table',
+				tableName: tableName,
+				schema: '',
+			}),
+		);
+
+		// rename table
+		sqlStatements.push(
+			new SingleStoreRenameTableConvertor().convert({
+				fromSchema: '',
+				tableNameFrom: newTableName,
+				tableNameTo: tableName,
+				toSchema: '',
+				type: 'rename_table',
+			}),
+		);
+
+		return sqlStatements;
+	}
+}
+
 const convertors: Convertor[] = [];
 convertors.push(new PgCreateTableConvertor());
 convertors.push(new MySqlCreateTableConvertor());
 convertors.push(new SingleStoreCreateTableConvertor());
+convertors.push(new SingleStoreRecreateTableConvertor());
 convertors.push(new SQLiteCreateTableConvertor());
 convertors.push(new SQLiteRecreateTableConvertor());
 convertors.push(new LibSQLRecreateTableConvertor());

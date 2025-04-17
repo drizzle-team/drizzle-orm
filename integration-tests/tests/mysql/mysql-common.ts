@@ -28,12 +28,16 @@ import type { MySqlDatabase } from 'drizzle-orm/mysql-core';
 import {
 	alias,
 	bigint,
+	binary,
 	boolean,
+	char,
 	date,
 	datetime,
 	decimal,
+	double,
 	except,
 	exceptAll,
+	float,
 	foreignKey,
 	getTableConfig,
 	getViewConfig,
@@ -49,6 +53,7 @@ import {
 	mysqlTableCreator,
 	mysqlView,
 	primaryKey,
+	real,
 	serial,
 	smallint,
 	text,
@@ -60,6 +65,7 @@ import {
 	unique,
 	uniqueIndex,
 	uniqueKeyName,
+	varbinary,
 	varchar,
 	year,
 } from 'drizzle-orm/mysql-core';
@@ -85,6 +91,64 @@ declare module 'vitest' {
 }
 
 const ENABLE_LOGGING = false;
+
+const allTypesTable = mysqlTable('all_types', {
+	serial: serial('serial'),
+	bigint53: bigint('bigint53', {
+		mode: 'number',
+	}),
+	bigint64: bigint('bigint64', {
+		mode: 'bigint',
+	}),
+	binary: binary('binary'),
+	boolean: boolean('boolean'),
+	char: char('char'),
+	date: date('date', {
+		mode: 'date',
+	}),
+	dateStr: date('date_str', {
+		mode: 'string',
+	}),
+	datetime: datetime('datetime', {
+		mode: 'date',
+	}),
+	datetimeStr: datetime('datetime_str', {
+		mode: 'string',
+	}),
+	decimal: decimal('decimal'),
+	decimalNum: decimal('decimal_num', {
+		scale: 30,
+		mode: 'number',
+	}),
+	decimalBig: decimal('decimal_big', {
+		scale: 30,
+		mode: 'bigint',
+	}),
+	double: double('double'),
+	float: float('float'),
+	int: int('int'),
+	json: json('json'),
+	medInt: mediumint('med_int'),
+	smallInt: smallint('small_int'),
+	real: real('real'),
+	text: text('text'),
+	time: time('time'),
+	timestamp: timestamp('timestamp', {
+		mode: 'date',
+	}),
+	timestampStr: timestamp('timestamp_str', {
+		mode: 'string',
+	}),
+	tinyInt: tinyint('tiny_int'),
+	varbin: varbinary('varbin', {
+		length: 16,
+	}),
+	varchar: varchar('varchar', {
+		length: 255,
+	}),
+	year: year('year'),
+	enum: mysqlEnum('enum', ['enV1', 'enV2']),
+});
 
 const usersTable = mysqlTable('userstest', {
 	id: serial('id').primaryKey(),
@@ -230,6 +294,7 @@ export function tests(driver?: string) {
 			await db.execute(sql`drop table if exists userstest`);
 			await db.execute(sql`drop table if exists users2`);
 			await db.execute(sql`drop table if exists cities`);
+			await db.execute(sql`drop table if exists \`all_types\``);
 
 			if (driver !== 'planetscale') {
 				await db.execute(sql`drop schema if exists \`mySchema\``);
@@ -1387,6 +1452,50 @@ export function tests(driver?: string) {
 			enum1: mysqlEnum('enum1', ['a', 'b', 'c']).notNull(),
 			enum2: mysqlEnum('enum2', ['a', 'b', 'c']).default('a'),
 			enum3: mysqlEnum('enum3', ['a', 'b', 'c']).notNull().default('b'),
+		});
+
+		test('Mysql enum as ts enum', async (ctx) => {
+			enum Test {
+				a = 'a',
+				b = 'b',
+				c = 'c',
+			}
+
+			const tableWithTsEnums = mysqlTable('enums_test_case', {
+				id: serial('id').primaryKey(),
+				enum1: mysqlEnum('enum1', Test).notNull(),
+				enum2: mysqlEnum('enum2', Test).default(Test.a),
+				enum3: mysqlEnum('enum3', Test).notNull().default(Test.b),
+			});
+
+			const { db } = ctx.mysql;
+
+			await db.execute(sql`drop table if exists \`enums_test_case\``);
+
+			await db.execute(sql`
+				create table \`enums_test_case\` (
+				    \`id\` serial primary key,
+				    \`enum1\` ENUM('a', 'b', 'c') not null,
+				    \`enum2\` ENUM('a', 'b', 'c') default 'a',
+				    \`enum3\` ENUM('a', 'b', 'c') not null default 'b'
+				)
+			`);
+
+			await db.insert(tableWithTsEnums).values([
+				{ id: 1, enum1: Test.a, enum2: Test.b, enum3: Test.c },
+				{ id: 2, enum1: Test.a, enum3: Test.c },
+				{ id: 3, enum1: Test.a },
+			]);
+
+			const res = await db.select().from(tableWithTsEnums);
+
+			await db.execute(sql`drop table \`enums_test_case\``);
+
+			expect(res).toEqual([
+				{ id: 1, enum1: 'a', enum2: 'b', enum3: 'c' },
+				{ id: 2, enum1: 'a', enum2: 'a', enum3: 'c' },
+				{ id: 3, enum1: 'a', enum2: 'a', enum3: 'b' },
+			]);
 		});
 
 		test('Mysql enum test case #1', async (ctx) => {
@@ -4009,6 +4118,150 @@ export function tests(driver?: string) {
 
 			await db.execute(sql`drop table users`);
 		});
+
+		test('all types', async (ctx) => {
+			const { db } = ctx.mysql;
+
+			await db.execute(sql`
+				CREATE TABLE \`all_types\` (
+						\`serial\` serial AUTO_INCREMENT,
+						\`bigint53\` bigint,
+						\`bigint64\` bigint,
+						\`binary\` binary,
+						\`boolean\` boolean,
+						\`char\` char,
+						\`date\` date,
+						\`date_str\` date,
+						\`datetime\` datetime,
+						\`datetime_str\` datetime,
+						\`decimal\` decimal,
+						\`decimal_num\` decimal(30),
+						\`decimal_big\` decimal(30),
+						\`double\` double,
+						\`float\` float,
+						\`int\` int,
+						\`json\` json,
+						\`med_int\` mediumint,
+						\`small_int\` smallint,
+						\`real\` real,
+						\`text\` text,
+						\`time\` time,
+						\`timestamp\` timestamp,
+						\`timestamp_str\` timestamp,
+						\`tiny_int\` tinyint,
+						\`varbin\` varbinary(16),
+						\`varchar\` varchar(255),
+						\`year\` year,
+						\`enum\` enum('enV1','enV2')
+					);
+			`);
+
+			await db.insert(allTypesTable).values({
+				serial: 1,
+				bigint53: 9007199254740991,
+				bigint64: 5044565289845416380n,
+				binary: '1',
+				boolean: true,
+				char: 'c',
+				date: new Date(1741743161623),
+				dateStr: new Date(1741743161623).toISOString().slice(0, 19).replace('T', ' '),
+				datetime: new Date(1741743161623),
+				datetimeStr: new Date(1741743161623).toISOString().slice(0, 19).replace('T', ' '),
+				decimal: '47521',
+				decimalNum: 9007199254740991,
+				decimalBig: 5044565289845416380n,
+				double: 15.35325689124218,
+				enum: 'enV1',
+				float: 1.048596,
+				real: 1.048596,
+				text: 'C4-',
+				int: 621,
+				json: {
+					str: 'strval',
+					arr: ['str', 10],
+				},
+				medInt: 560,
+				smallInt: 14,
+				time: '04:13:22',
+				timestamp: new Date(1741743161623),
+				timestampStr: new Date(1741743161623).toISOString().slice(0, 19).replace('T', ' '),
+				tinyInt: 7,
+				varbin: '1010110101001101',
+				varchar: 'VCHAR',
+				year: 2025,
+			});
+
+			const rawRes = await db.select().from(allTypesTable);
+
+			type ExpectedType = {
+				serial: number;
+				bigint53: number | null;
+				bigint64: bigint | null;
+				binary: string | null;
+				boolean: boolean | null;
+				char: string | null;
+				date: Date | null;
+				dateStr: string | null;
+				datetime: Date | null;
+				datetimeStr: string | null;
+				decimal: string | null;
+				decimalNum: number | null;
+				decimalBig: bigint | null;
+				double: number | null;
+				float: number | null;
+				int: number | null;
+				json: unknown;
+				medInt: number | null;
+				smallInt: number | null;
+				real: number | null;
+				text: string | null;
+				time: string | null;
+				timestamp: Date | null;
+				timestampStr: string | null;
+				tinyInt: number | null;
+				varbin: string | null;
+				varchar: string | null;
+				year: number | null;
+				enum: 'enV1' | 'enV2' | null;
+			}[];
+
+			const expectedRes: ExpectedType = [
+				{
+					serial: 1,
+					bigint53: 9007199254740991,
+					bigint64: 5044565289845416380n,
+					binary: '1',
+					boolean: true,
+					char: 'c',
+					date: new Date('2025-03-12T00:00:00.000Z'),
+					dateStr: '2025-03-12',
+					datetime: new Date('2025-03-12T01:32:42.000Z'),
+					datetimeStr: '2025-03-12 01:32:41',
+					decimal: '47521',
+					decimalNum: 9007199254740991,
+					decimalBig: 5044565289845416380n,
+					double: 15.35325689124218,
+					float: 1.0486,
+					int: 621,
+					json: { arr: ['str', 10], str: 'strval' },
+					medInt: 560,
+					smallInt: 14,
+					real: 1.048596,
+					text: 'C4-',
+					time: '04:13:22',
+					timestamp: new Date('2025-03-12T01:32:42.000Z'),
+					timestampStr: '2025-03-12 01:32:41',
+					tinyInt: 7,
+					varbin: '1010110101001101',
+					varchar: 'VCHAR',
+					year: 2025,
+					enum: 'enV1',
+				},
+			];
+
+			expectTypeOf(rawRes).toEqualTypeOf<ExpectedType>();
+			expect(rawRes).toStrictEqual(expectedRes);
+		});
 	});
 
 	test('insert into ... select', async (ctx) => {
@@ -4779,5 +5032,40 @@ export function tests(driver?: string) {
 		}).toSQL();
 
 		expect(query.sql).not.include('USE INDEX');
+	});
+
+	test('sql operator as cte', async (ctx) => {
+		const { db } = ctx.mysql;
+
+		const users = mysqlTable('users', {
+			id: serial('id').primaryKey(),
+			name: text('name').notNull(),
+		});
+
+		await db.execute(sql`drop table if exists ${users}`);
+		await db.execute(sql`create table ${users} (id serial not null primary key, name text not null)`);
+		await db.insert(users).values([
+			{ name: 'John' },
+			{ name: 'Jane' },
+		]);
+
+		const sq1 = db.$with('sq', {
+			userId: users.id,
+			data: {
+				name: users.name,
+			},
+		}).as(sql`select * from ${users} where ${users.name} = 'John'`);
+		const result1 = await db.with(sq1).select().from(sq1);
+
+		const sq2 = db.$with('sq', {
+			userId: users.id,
+			data: {
+				name: users.name,
+			},
+		}).as(() => sql`select * from ${users} where ${users.name} = 'Jane'`);
+		const result2 = await db.with(sq2).select().from(sq1);
+
+		expect(result1).toEqual([{ userId: 1, data: { name: 'John' } }]);
+		expect(result2).toEqual([{ userId: 2, data: { name: 'Jane' } }]);
 	});
 }

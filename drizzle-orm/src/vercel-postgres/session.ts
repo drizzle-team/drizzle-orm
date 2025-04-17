@@ -15,7 +15,7 @@ import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.type
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
-import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
+import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
 export type VercelPgClient = VercelPool | VercelClient | VercelPoolClient;
@@ -55,6 +55,26 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 					if (typeId === types.builtins.INTERVAL) {
 						return (val: any) => val;
 					}
+					// numeric[]
+					if (typeId === 1231 as any) {
+						return (val: any) => val;
+					}
+					// timestamp[]
+					if (typeId === 1115 as any) {
+						return (val: any) => val;
+					}
+					// timestamp with timezone[]
+					if (typeId === 1185 as any) {
+						return (val: any) => val;
+					}
+					// interval[]
+					if (typeId === 1187 as any) {
+						return (val: any) => val;
+					}
+					// date[]
+					if (typeId === 1182 as any) {
+						return (val: any) => val;
+					}
 					// @ts-ignore
 					return types.getTypeParser(typeId, format);
 				},
@@ -77,6 +97,26 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 						return (val: any) => val;
 					}
 					if (typeId === types.builtins.INTERVAL) {
+						return (val: any) => val;
+					}
+					// numeric[]
+					if (typeId === 1231 as any) {
+						return (val: any) => val;
+					}
+					// timestamp[]
+					if (typeId === 1115 as any) {
+						return (val: any) => val;
+					}
+					// timestamp with timezone[]
+					if (typeId === 1185 as any) {
+						return (val: any) => val;
+					}
+					// interval[]
+					if (typeId === 1187 as any) {
+						return (val: any) => val;
+					}
+					// date[]
+					if (typeId === 1182 as any) {
 						return (val: any) => val;
 					}
 					// @ts-ignore
@@ -179,6 +219,12 @@ export class VercelPgSession<
 		params: unknown[],
 	): Promise<QueryResult<T>> {
 		return this.client.query<T>(query, params);
+	}
+
+	override async count(sql: SQL): Promise<number> {
+		const result = await this.execute(sql);
+
+		return Number((result as any)['rows'][0]['count']);
 	}
 
 	override async transaction<T>(

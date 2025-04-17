@@ -105,3 +105,28 @@ export const details = sqliteTable('order_detail', {
 		.notNull()
 		.references(() => products.id, { onDelete: 'cascade' }),
 });
+
+export const users = sqliteTable(
+	'users',
+	{
+		id: integer().primaryKey(),
+		name: text(),
+		invitedBy: integer(),
+	},
+	(table) => ({
+		reportsToFk: foreignKey(() => ({
+			columns: [table.invitedBy],
+			foreignColumns: [table.id],
+		})),
+	}),
+);
+
+export const posts = sqliteTable(
+	'posts',
+	{
+		id: integer().primaryKey(),
+		name: text(),
+		content: text(),
+		userId: integer().references(() => users.id),
+	},
+);

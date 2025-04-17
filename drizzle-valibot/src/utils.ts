@@ -14,7 +14,7 @@ export function isWithEnum(column: Column): column is typeof column & { enumValu
 export const isPgEnum: (entity: any) => entity is PgEnum<[string, ...string[]]> = isWithEnum as any;
 
 type Literal = v.InferOutput<typeof literalSchema>;
-export type Json = Literal | { [key: string]: Json } | Json[];
+export type Json = Literal | { [key: string]: any } | any[];
 
 export type IsNever<T> = [T] extends [never] ? true : false;
 

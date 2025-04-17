@@ -1,10 +1,11 @@
 import { type Equal, sql } from 'drizzle-orm';
-import { customType, int, mysqlSchema, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
+import { customType, int, json, mysqlSchema, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
+import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
 import { z } from 'zod';
 import { jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
-import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
+import { createInsertSchema, createSchemaFactory, createSelectSchema, createUpdateSchema } from '../src';
 import { Expect, expectSchemaShape } from './utils.ts';
 
 const intSchema = z.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int();
@@ -453,6 +454,71 @@ test('all data types', (t) => {
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
+
+test('type coercion - all', (t) => {
+	const table = mysqlTable('test', ({
+		bigint,
+		boolean,
+		timestamp,
+		int,
+		text,
+	}) => ({
+		bigint: bigint({ mode: 'bigint' }).notNull(),
+		boolean: boolean().notNull(),
+		timestamp: timestamp().notNull(),
+		int: int().notNull(),
+		text: text().notNull(),
+	}));
+
+	const { createSelectSchema } = createSchemaFactory({
+		coerce: true,
+	});
+	const result = createSelectSchema(table);
+	const expected = z.object({
+		bigint: z.coerce.bigint().min(CONSTANTS.INT64_MIN).max(CONSTANTS.INT64_MAX),
+		boolean: z.coerce.boolean(),
+		timestamp: z.coerce.date(),
+		int: z.coerce.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int(),
+		text: z.coerce.string().max(CONSTANTS.INT16_UNSIGNED_MAX),
+	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('type coercion - mixed', (t) => {
+	const table = mysqlTable('test', ({
+		timestamp,
+		int,
+	}) => ({
+		timestamp: timestamp().notNull(),
+		int: int().notNull(),
+	}));
+
+	const { createSelectSchema } = createSchemaFactory({
+		coerce: {
+			date: true,
+		},
+	});
+	const result = createSelectSchema(table);
+	const expected = z.object({
+		timestamp: z.coerce.date(),
+		int: z.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int(),
+	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+/* Infinitely recursive type */ {
+	const TopLevelCondition: z.ZodType<TopLevelCondition> = z.custom<TopLevelCondition>().superRefine(() => {});
+	const table = mysqlTable('test', {
+		json: json().$type<TopLevelCondition>(),
+	});
+	const result = createSelectSchema(table);
+	const expected = z.object({
+		json: z.nullable(TopLevelCondition),
+	});
+	Expect<Equal<z.infer<typeof result>, z.infer<typeof expected>>>();
+}
 
 /* Disallow unknown keys in table refinement - select */ {
 	const table = mysqlTable('test', { id: int() });

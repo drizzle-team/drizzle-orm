@@ -8,7 +8,7 @@ import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
 import * as schema from './mysql.schema.ts';
 
-const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable } = schema;
+const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable, usersV1, usersTableV1 } = schema;
 
 const ENABLE_LOGGING = false;
 
@@ -98,15 +98,39 @@ beforeEach(async (ctx) => {
 	ctx.mysqlContainer = mysqlContainer;
 
 	await ctx.mysqlDb.execute(sql`drop table if exists \`users\``);
+	await ctx.mysqlDb.execute(sql`drop table if exists \`schemaV1\`.\`usersV1\``);
+	await ctx.mysqlDb.execute(sql`drop table if exists \`schemaV1\`.\`users_table_V1\``);
 	await ctx.mysqlDb.execute(sql`drop table if exists \`groups\``);
 	await ctx.mysqlDb.execute(sql`drop table if exists \`users_to_groups\``);
 	await ctx.mysqlDb.execute(sql`drop table if exists \`posts\``);
 	await ctx.mysqlDb.execute(sql`drop table if exists \`comments\``);
 	await ctx.mysqlDb.execute(sql`drop table if exists \`comment_likes\``);
 
+	await ctx.mysqlDb.execute(sql`create schema if not exists \`schemaV1\``);
+
 	await ctx.mysqlDb.execute(
 		sql`
 			CREATE TABLE \`users\` (
+				\`id\` serial PRIMARY KEY NOT NULL,
+				\`name\` text NOT NULL,
+				\`verified\` boolean DEFAULT false NOT NULL,
+				\`invited_by\` bigint REFERENCES \`users\`(\`id\`)
+			);
+		`,
+	);
+	await ctx.mysqlDb.execute(
+		sql`
+			CREATE TABLE \`schemaV1\`.\`usersV1\` (
+				\`id\` serial PRIMARY KEY NOT NULL,
+				\`name\` text NOT NULL,
+				\`verified\` boolean DEFAULT false NOT NULL,
+				\`invited_by\` bigint REFERENCES \`users\`(\`id\`)
+			);
+		`,
+	);
+	await ctx.mysqlDb.execute(
+		sql`
+			CREATE TABLE \`schemaV1\`.\`users_table_V1\` (
 				\`id\` serial PRIMARY KEY NOT NULL,
 				\`name\` text NOT NULL,
 				\`verified\` boolean DEFAULT false NOT NULL,
@@ -6277,6 +6301,88 @@ test('Get groups with users + custom', async (t) => {
 				invitedBy: null,
 			},
 		}],
+	});
+});
+
+test('[Find Many] Get schema users - dbName & tsName match', async (t) => {
+	const { mysqlDb: db } = t;
+
+	await db.insert(usersV1).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	const schemaUsers = await db.query.usersV1.findMany();
+
+	expectTypeOf(schemaUsers).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+	}[]>();
+
+	schemaUsers.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(schemaUsers.length).eq(3);
+	expect(schemaUsers[0]).toEqual({
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+	});
+	expect(schemaUsers[1]).toEqual({
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+	});
+	expect(schemaUsers[2]).toEqual({
+		id: 3,
+		name: 'Alex',
+		verified: false,
+		invitedBy: null,
+	});
+});
+
+test('[Find Many] Get schema users - dbName & tsName mismatch', async (t) => {
+	const { mysqlDb: db } = t;
+
+	await db.insert(usersTableV1).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	const schemaUsers = await db.query.usersTableV1.findMany();
+
+	expectTypeOf(schemaUsers).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+	}[]>();
+
+	schemaUsers.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(schemaUsers.length).eq(3);
+	expect(schemaUsers[0]).toEqual({
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+	});
+	expect(schemaUsers[1]).toEqual({
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+	});
+	expect(schemaUsers[2]).toEqual({
+		id: 3,
+		name: 'Alex',
+		verified: false,
+		invitedBy: null,
 	});
 });
 
