@@ -5,6 +5,9 @@ import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
 import {
+	CustomTypeParams,
+	PgBigInt64,
+	PgBigSerial64,
 	PgColumn,
 	PgDate,
 	PgDateString,
@@ -1341,6 +1344,10 @@ export class PgDialect {
 							? sql`${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`
 							: is(field, SQL.Aliased)
 							? field.sql
+							: (is(field, PgBigSerial64) || is(field, PgBigInt64)
+									|| (field as (typeof field & { config?: { customTypeParams?: CustomTypeParams<any> } }))?.config
+											?.customTypeParams?.castInRelation === 'text')
+							? sql`CAST(${field} AS TEXT)`
 							: field
 					),
 					sql`, `,
