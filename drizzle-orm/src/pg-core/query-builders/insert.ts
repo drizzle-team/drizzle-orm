@@ -1,3 +1,4 @@
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { IndexColumn } from '~/pg-core/indexes.ts';
@@ -24,7 +25,7 @@ import { haveSameKeys, mapUpdateSet, type NeonAuthToken, orderSelectedFields } f
 import type { AnyPgColumn, PgColumn } from '../columns/common.ts';
 import { extractUsedTable } from '../utils.ts';
 import { QueryBuilder } from './query-builder.ts';
-import type { SelectedFieldsFlat, SelectedFieldsOrdered, WithCacheConfig } from './select.types.ts';
+import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 import type { PgUpdateSetSource } from './update.ts';
 
 export interface PgInsertConfig<TTable extends PgTable = PgTable> {

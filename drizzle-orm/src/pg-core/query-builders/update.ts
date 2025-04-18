@@ -1,3 +1,4 @@
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import type { GetColumnData } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -46,7 +47,6 @@ import type {
 	SelectedFields,
 	SelectedFieldsOrdered,
 	TableLikeHasEmptySelection,
-	WithCacheConfig,
 } from './select.types.ts';
 
 export interface PgUpdateConfig {

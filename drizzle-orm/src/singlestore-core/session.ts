@@ -1,8 +1,10 @@
-import { entityKind } from '~/entity.ts';
+import { type Cache, NoopCache } from '~/cache/core/cache.ts';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
+import { entityKind, is } from '~/entity.ts';
 import { TransactionRollbackError } from '~/errors.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { type Query, type SQL, sql } from '~/sql/sql.ts';
-import type { Assume, Equal } from '~/utils.ts';
+import { type Assume, type Equal, hashQuery } from '~/utils.ts';
 import { SingleStoreDatabase } from './db.ts';
 import type { SingleStoreDialect } from './dialect.ts';
 import type { SelectedFieldsOrdered } from './query-builders/select.types.ts';
@@ -43,6 +45,85 @@ export type PreparedQueryKind<
 export abstract class SingleStorePreparedQuery<T extends SingleStorePreparedQueryConfig> {
 	static readonly [entityKind]: string = 'SingleStorePreparedQuery';
 
+	constructor(
+		private cache?: Cache,
+		// per query related metadata
+		private queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		} | undefined,
+		// config that was passed through $withCache
+		private cacheConfig?: WithCacheConfig,
+	) {
+		// it means that no $withCache options were passed and it should be just enabled
+		if (cache && cache.strategy() === 'all' && cacheConfig === undefined) {
+			this.cacheConfig = { enable: true, autoInvalidate: true };
+		}
+		if (!this.cacheConfig?.enable) {
+			this.cacheConfig = undefined;
+		}
+	}
+
+	/** @internal */
+	protected async queryWithCache<T>(
+		queryString: string,
+		params: any[],
+		query: () => Promise<T>,
+	): Promise<T> {
+		if (this.cache === undefined || is(this.cache, NoopCache) || this.queryMetadata === undefined) {
+			return await query();
+		}
+
+		// don't do any mutations, if globally is false
+		if (this.cacheConfig && !this.cacheConfig.enable) {
+			return await query();
+		}
+
+		// For mutate queries, we should query the database, wait for a response, and then perform invalidation
+		if (
+			(
+				this.queryMetadata.type === 'insert' || this.queryMetadata.type === 'update'
+				|| this.queryMetadata.type === 'delete'
+			) && this.queryMetadata.tables.length > 0
+		) {
+			const [res] = await Promise.all([
+				query(),
+				this.cache.onMutate({ tables: this.queryMetadata.tables }),
+			]);
+			return res;
+		}
+
+		// don't do any reads if globally disabled
+		if (!this.cacheConfig) {
+			return await query();
+		}
+
+		if (this.queryMetadata.type === 'select') {
+			const fromCache = await this.cache.get(
+				this.cacheConfig.tag ?? await hashQuery(queryString, params),
+				this.queryMetadata.tables,
+				this.cacheConfig.tag !== undefined,
+			);
+			if (fromCache === undefined) {
+				const result = await query();
+				// put actual key
+				await this.cache.put(
+					this.cacheConfig.tag ?? await hashQuery(queryString, params),
+					result,
+					// make sure we send tables that were used in a query only if user wants to invalidate it on each write
+					this.cacheConfig.autoInvalidate ? this.queryMetadata.tables : [],
+					this.cacheConfig.tag !== undefined,
+					this.cacheConfig.config,
+				);
+				// put flag if we should invalidate or not
+				return result;
+			}
+
+			return fromCache as unknown as T;
+		}
+		return await query();
+	}
+
 	/** @internal */
 	joinsNotNullableMap?: Record<string, boolean>;
 
@@ -76,6 +157,11 @@ export abstract class SingleStoreSession<
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 		generatedIds?: Record<string, unknown>[],
 		returningIds?: SelectedFieldsOrdered,
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
 	): PreparedQueryKind<TPreparedQueryHKT, T>;
 
 	execute<T>(query: SQL): Promise<T> {

@@ -10,7 +10,7 @@ import * as schema from './pg.schema.ts';
 
 const ENABLE_LOGGING = false;
 
-const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable } = schema;
+const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable, usersV1, usersTableV1 } = schema;
 
 /*
 	Test cases:
@@ -107,7 +107,9 @@ beforeEach(async (ctx) => {
 	ctx.pgContainer = pgContainer;
 
 	await ctx.pgjsDb.execute(sql`drop schema public cascade`);
+	await ctx.pgjsDb.execute(sql`drop schema if exists "schemaV1" cascade`);
 	await ctx.pgjsDb.execute(sql`create schema public`);
+	await ctx.pgjsDb.execute(sql`create schema "schemaV1"`);
 	await ctx.pgjsDb.execute(
 		sql`
 			CREATE TABLE "users" (
@@ -115,6 +117,26 @@ beforeEach(async (ctx) => {
 				"name" text NOT NULL,
 				"verified" boolean DEFAULT false NOT NULL,
 				"invited_by" int REFERENCES "users"("id")
+			);
+		`,
+	);
+	await ctx.pgjsDb.execute(
+		sql`
+			CREATE TABLE "schemaV1"."usersV1" (
+				"id" serial PRIMARY KEY NOT NULL,
+				"name" text NOT NULL,
+				"verified" boolean DEFAULT false NOT NULL,
+				"invited_by" int
+			);
+		`,
+	);
+	await ctx.pgjsDb.execute(
+		sql`
+			CREATE TABLE "schemaV1"."users_table_V1" (
+				"id" serial PRIMARY KEY NOT NULL,
+				"name" text NOT NULL,
+				"verified" boolean DEFAULT false NOT NULL,
+				"invited_by" int
 			);
 		`,
 	);
@@ -6260,6 +6282,88 @@ test('Get groups with users + custom', async (t) => {
 				invitedBy: null,
 			},
 		}],
+	});
+});
+
+test('[Find Many] Get schema users - dbName & tsName match', async (t) => {
+	const { pgjsDb: db } = t;
+
+	await db.insert(usersV1).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	const schemaUsers = await db.query.usersV1.findMany();
+
+	expectTypeOf(schemaUsers).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+	}[]>();
+
+	schemaUsers.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(schemaUsers.length).eq(3);
+	expect(schemaUsers[0]).toEqual({
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+	});
+	expect(schemaUsers[1]).toEqual({
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+	});
+	expect(schemaUsers[2]).toEqual({
+		id: 3,
+		name: 'Alex',
+		verified: false,
+		invitedBy: null,
+	});
+});
+
+test('[Find Many] Get schema users - dbName & tsName mismatch', async (t) => {
+	const { pgjsDb: db } = t;
+
+	await db.insert(usersTableV1).values([
+		{ id: 1, name: 'Dan' },
+		{ id: 2, name: 'Andrew' },
+		{ id: 3, name: 'Alex' },
+	]);
+
+	const schemaUsers = await db.query.usersTableV1.findMany();
+
+	expectTypeOf(schemaUsers).toEqualTypeOf<{
+		id: number;
+		name: string;
+		verified: boolean;
+		invitedBy: number | null;
+	}[]>();
+
+	schemaUsers.sort((a, b) => (a.id > b.id) ? 1 : -1);
+
+	expect(schemaUsers.length).eq(3);
+	expect(schemaUsers[0]).toEqual({
+		id: 1,
+		name: 'Dan',
+		verified: false,
+		invitedBy: null,
+	});
+	expect(schemaUsers[1]).toEqual({
+		id: 2,
+		name: 'Andrew',
+		verified: false,
+		invitedBy: null,
+	});
+	expect(schemaUsers[2]).toEqual({
+		id: 3,
+		name: 'Alex',
+		verified: false,
+		invitedBy: null,
 	});
 });
 

@@ -1,11 +1,11 @@
 import { PGlite } from '@electric-sql/pglite';
 import { Name, sql } from 'drizzle-orm';
-import { upstashCache } from 'drizzle-orm/cache/upstash';
 import { drizzle, type PgliteDatabase } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
 import { tests, usersMigratorTable, usersTable } from './pg-common';
+import { TestCache, TestGlobalCache, tests as cacheTests } from './pg-common-cache';
 
 const ENABLE_LOGGING = false;
 
@@ -19,18 +19,11 @@ beforeAll(async () => {
 	db = drizzle(client, { logger: ENABLE_LOGGING });
 	cachedDb = drizzle(client, {
 		logger: ENABLE_LOGGING,
-		cache: upstashCache({
-			url: '',
-			token: '',
-		}),
+		cache: new TestCache(),
 	});
 	dbGlobalCached = drizzle(client, {
 		logger: ENABLE_LOGGING,
-		cache: upstashCache({
-			url: '',
-			token: '',
-			global: true,
-		}),
+		cache: new TestGlobalCache(),
 	});
 });
 
@@ -117,7 +110,7 @@ skipTests([
 ]);
 
 tests();
-// cacheTests();
+cacheTests();
 
 beforeEach(async () => {
 	await db.execute(sql`drop schema if exists public cascade`);

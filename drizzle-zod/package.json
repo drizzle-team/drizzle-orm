@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-zod",
-	"version": "0.7.0",
+	"version": "0.7.1",
 	"description": "Generate Zod schemas from Drizzle ORM schemas",
 	"type": "module",
 	"scripts": {
@@ -72,11 +72,12 @@
 		"@types/node": "^18.15.10",
 		"cpy": "^10.1.0",
 		"drizzle-orm": "link:../drizzle-orm/dist",
+		"json-rules-engine": "^7.3.0",
 		"rimraf": "^5.0.0",
 		"rollup": "^3.20.7",
 		"vite-tsconfig-paths": "^4.3.2",
 		"vitest": "^1.6.0",
-		"zod": "^3.20.2",
+		"zod": "^3.24.1",
 		"zx": "^7.2.2"
 	}
 }

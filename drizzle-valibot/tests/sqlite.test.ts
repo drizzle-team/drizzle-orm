@@ -1,5 +1,6 @@
 import { type Equal, sql } from 'drizzle-orm';
-import { customType, int, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
+import { blob, customType, int, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
+import type { TopLevelCondition } from 'json-rules-engine';
 import * as v from 'valibot';
 import { test } from 'vitest';
 import { bufferSchema, jsonSchema } from '~/column.ts';
@@ -354,6 +355,20 @@ test('all data types', (t) => {
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
+
+/* Infinitely recursive type */ {
+	const TopLevelCondition: v.GenericSchema<TopLevelCondition> = v.custom<TopLevelCondition>(() => true);
+	const table = sqliteTable('test', {
+		json1: text({ mode: 'json' }).$type<TopLevelCondition>().notNull(),
+		json2: blob({ mode: 'json' }).$type<TopLevelCondition>(),
+	});
+	const result = createSelectSchema(table);
+	const expected = v.object({
+		json1: TopLevelCondition,
+		json2: v.nullable(TopLevelCondition),
+	});
+	Expect<Equal<v.InferOutput<typeof result>, v.InferOutput<typeof expected>>>();
+}
 
 /* Disallow unknown keys in table refinement - select */ {
 	const table = sqliteTable('test', { id: int() });

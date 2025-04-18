@@ -1,4 +1,4 @@
-import type { CacheConfig } from '~/cache/core/types.ts';
+import type { CacheConfig, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { PgColumn } from '~/pg-core/columns/index.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -56,7 +56,6 @@ import type {
 	SelectedFields,
 	SetOperatorRightSelect,
 	TableLikeHasEmptySelection,
-	WithCacheConfig,
 } from './select.types.ts';
 
 export class PgSelectBuilder<

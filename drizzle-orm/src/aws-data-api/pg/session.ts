@@ -7,6 +7,7 @@ import {
 } from '@aws-sdk/client-rds-data';
 import type { Cache } from '~/cache/core/cache.ts';
 import { NoopCache } from '~/cache/core/cache.ts';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import {
@@ -18,7 +19,7 @@ import {
 	type PgTransactionConfig,
 	type PreparedQueryConfig,
 } from '~/pg-core/index.ts';
-import type { SelectedFieldsOrdered, WithCacheConfig } from '~/pg-core/query-builders/select.types.ts';
+import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders, type QueryTypingsValue, type QueryWithTypings, type SQL, sql } from '~/sql/sql.ts';
 import { mapResultRow } from '~/utils.ts';

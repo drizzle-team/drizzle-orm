@@ -1,13 +1,11 @@
-import Docker from 'dockerode';
+import type Docker from 'dockerode';
 import { eq, getTableName, is, sql, Table } from 'drizzle-orm';
 import type { MutationOption } from 'drizzle-orm/cache/core';
 import { Cache } from 'drizzle-orm/cache/core';
 import type { CacheConfig } from 'drizzle-orm/cache/core/types';
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
 import { alias, boolean, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
-import getPort from 'get-port';
 import Keyv from 'keyv';
-import { v4 as uuidV4 } from 'uuid';
 import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest';
 
 // eslint-disable-next-line drizzle-internal/require-entity-kind
@@ -102,33 +100,6 @@ const postsTable = pgTable('posts', {
 });
 
 let pgContainer: Docker.Container;
-
-export async function createDockerDB(): Promise<{ connectionString: string; container: Docker.Container }> {
-	const docker = new Docker();
-	const port = await getPort({ port: 5432 });
-	const image = 'postgres:14';
-
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
-	);
-
-	pgContainer = await docker.createContainer({
-		Image: image,
-		Env: ['POSTGRES_PASSWORD=postgres', 'POSTGRES_USER=postgres', 'POSTGRES_DB=postgres'],
-		name: `drizzle-integration-tests-${uuidV4()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'5432/tcp': [{ HostPort: `${port}` }],
-			},
-		},
-	});
-
-	await pgContainer.start();
-
-	return { connectionString: `postgres://postgres:postgres@localhost:${port}/postgres`, container: pgContainer };
-}
 
 afterAll(async () => {
 	await pgContainer?.stop().catch(console.error);

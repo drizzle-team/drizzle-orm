@@ -1,6 +1,6 @@
+import * as crypto from 'node:crypto';
 import { type Equal, Expect } from 'type-tests/utils.ts';
 import type { BuildColumn } from '~/column-builder.ts';
-import { eq } from '~/expressions.ts';
 import {
 	bigint,
 	binary,
@@ -38,6 +38,7 @@ import {
 	year,
 } from '~/singlestore-core/index.ts';
 import { singlestoreSchema } from '~/singlestore-core/schema.ts';
+import { eq } from '~/sql/expressions/index.ts';
 /* import { singlestoreView, type SingleStoreViewWithSelection } from '~/singlestore-core/view.ts'; */
 import type { InferSelectModel } from '~/table.ts';
 import type { Simplify } from '~/utils.ts';

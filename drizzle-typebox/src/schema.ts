@@ -13,11 +13,11 @@ import type {
 } from './schema.types.ts';
 import { isPgEnum } from './utils.ts';
 
-function getColumns(tableLike: Table | View) {
+export function getColumns(tableLike: Table | View) {
 	return isTable(tableLike) ? getTableColumns(tableLike) : getViewSelectedFields(tableLike);
 }
 
-function handleColumns(
+export function handleColumns(
 	columns: Record<string, any>,
 	refinements: Record<string, any>,
 	conditions: Conditions,
@@ -62,7 +62,7 @@ function handleColumns(
 	return t.Object(columnSchemas) as any;
 }
 
-function handleEnum(enum_: PgEnum<any>, factory?: CreateSchemaFactoryOptions) {
+export function handleEnum(enum_: PgEnum<any>, factory?: CreateSchemaFactoryOptions) {
 	const typebox: typeof t = factory?.typeboxInstance ?? t;
 	return typebox.Enum(mapEnumValues(enum_.enumValues));
 }

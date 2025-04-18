@@ -4,10 +4,13 @@ import { drizzle } from 'drizzle-orm/mysql2';
 import * as mysql from 'mysql2/promise';
 import { afterAll, beforeAll, beforeEach } from 'vitest';
 import { createDockerDB, tests } from './mysql-common';
+import { TestCache, TestGlobalCache, tests as cacheTests } from './mysql-common-cache';
 
 const ENABLE_LOGGING = false;
 
 let db: MySql2Database;
+let dbGlobalCached: MySql2Database;
+let cachedDb: MySql2Database;
 let client: mysql.Connection;
 
 beforeAll(async () => {
@@ -19,7 +22,10 @@ beforeAll(async () => {
 		connectionString = conStr;
 	}
 	client = await retry(async () => {
-		client = await mysql.createConnection(connectionString);
+		client = await mysql.createConnection({
+			uri: connectionString!,
+			supportBigNumbers: true,
+		});
 		await client.connect();
 		return client;
 	}, {
@@ -33,6 +39,8 @@ beforeAll(async () => {
 		},
 	});
 	db = drizzle(client, { logger: ENABLE_LOGGING });
+	cachedDb = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestCache() });
+	dbGlobalCached = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 });
 
 afterAll(async () => {
@@ -43,6 +51,11 @@ beforeEach((ctx) => {
 	ctx.mysql = {
 		db,
 	};
+	ctx.cachedMySQL = {
+		db: cachedDb,
+		dbGlobalCached,
+	};
 });
 
+cacheTests();
 tests();

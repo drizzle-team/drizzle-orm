@@ -1,3 +1,4 @@
+import type { CacheConfig, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { MySqlColumn } from '~/mysql-core/columns/index.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
@@ -25,7 +26,7 @@ import type { ValueOrArray } from '~/utils.ts';
 import { applyMixins, getTableColumns, getTableLikeName, haveSameKeys, orderSelectedFields } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { IndexBuilder } from '../indexes.ts';
-import { convertIndexToString, toArray } from '../utils.ts';
+import { convertIndexToString, extractUsedTable, toArray } from '../utils.ts';
 import { MySqlViewBase } from '../view-base.ts';
 import type {
 	AnyMySqlSelect,
@@ -175,6 +176,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 		readonly excludedMethods: TExcludedMethods;
 		readonly result: TResult;
 		readonly selectedFields: TSelectedFields;
+		readonly config: MySqlSelectConfig;
 	};
 
 	protected config: MySqlSelectConfig;
@@ -184,6 +186,8 @@ export abstract class MySqlSelectQueryBuilderBase<
 	/** @internal */
 	readonly session: MySqlSession | undefined;
 	protected dialect: MySqlDialect;
+	protected cacheConfig?: WithCacheConfig = undefined;
+	protected usedTables: Set<string> = new Set();
 
 	constructor(
 		{ table, fields, isPartialSelect, session, dialect, withList, distinct, useIndex, forceIndex, ignoreIndex }: {
@@ -215,9 +219,16 @@ export abstract class MySqlSelectQueryBuilderBase<
 		this.dialect = dialect;
 		this._ = {
 			selectedFields: fields as TSelectedFields,
+			config: this.config,
 		} as this['_'];
 		this.tableName = getTableLikeName(table);
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
+		for (const item of extractUsedTable(table)) this.usedTables.add(item);
+	}
+
+	/** @internal */
+	getUsedTables() {
+		return [...this.usedTables];
 	}
 
 	private createJoin<TJoinType extends JoinType>(
@@ -985,6 +996,15 @@ export abstract class MySqlSelectQueryBuilderBase<
 	$dynamic(): MySqlSelectDynamic<this> {
 		return this as any;
 	}
+
+	$withCache(config?: { config?: CacheConfig; tag?: string; autoInvalidate?: boolean } | false) {
+		this.cacheConfig = config === undefined
+			? { config: {}, enable: true, autoInvalidate: true }
+			: config === false
+			? { enable: false }
+			: { enable: true, autoInvalidate: true, ...config };
+		return this;
+	}
 }
 
 export interface MySqlSelectBase<
@@ -1047,7 +1067,10 @@ export class MySqlSelectBase<
 		const query = this.session.prepareQuery<
 			MySqlPreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] },
 			TPreparedQueryHKT
-		>(this.dialect.sqlToQuery(this.getSQL()), fieldsList);
+		>(this.dialect.sqlToQuery(this.getSQL()), fieldsList, undefined, undefined, undefined, {
+			type: 'select',
+			tables: [...this.usedTables],
+		}, this.cacheConfig);
 		query.joinsNotNullableMap = this.joinsNotNullableMap;
 		return query as MySqlSelectPrepare<this>;
 	}

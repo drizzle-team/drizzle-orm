@@ -1,4 +1,4 @@
-import { integer, pgEnum, pgSchema, pgTable, serial } from 'drizzle-orm/pg-core';
+import { integer, pgEnum, pgSchema, pgTable, serial, text, varchar } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
 import { diffTestSchemas } from './schemaDiffer';
 
@@ -606,7 +606,7 @@ test('drop enum value', async () => {
 			'value1',
 			'value3',
 		],
-		schema: 'public',
+		enumSchema: 'public',
 		type: 'alter_type_drop_value',
 	});
 });
@@ -642,12 +642,12 @@ test('drop enum value. enum is columns data type', async () => {
 	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
 
 	expect(sqlStatements.length).toBe(6);
-	expect(sqlStatements[0]).toBe(`ALTER TABLE "public"."table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
 	expect(sqlStatements[1]).toBe(`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE text;`);
 	expect(sqlStatements[2]).toBe(`DROP TYPE "public"."enum";`);
 	expect(sqlStatements[3]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value1', 'value3');`);
 	expect(sqlStatements[4]).toBe(
-		`ALTER TABLE "public"."table" ALTER COLUMN "column" SET DATA TYPE "public"."enum" USING "column"::"public"."enum";`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "public"."enum" USING "column"::"public"."enum";`,
 	);
 	expect(sqlStatements[5]).toBe(
 		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE "public"."enum" USING "column"::"public"."enum";`,
@@ -658,13 +658,17 @@ test('drop enum value. enum is columns data type', async () => {
 		columnsWithEnum: [
 			{
 				column: 'column',
-				schema: 'public',
+				tableSchema: '',
 				table: 'table',
+				default: undefined,
+				columnType: 'enum',
 			},
 			{
 				column: 'column',
-				schema: 'new_schema',
+				tableSchema: 'new_schema',
 				table: 'table',
+				default: undefined,
+				columnType: 'enum',
 			},
 		],
 		deletedValues: [
@@ -675,7 +679,7 @@ test('drop enum value. enum is columns data type', async () => {
 			'value1',
 			'value3',
 		],
-		schema: 'public',
+		enumSchema: 'public',
 		type: 'alter_type_drop_value',
 	});
 });
@@ -701,22 +705,22 @@ test('shuffle enum values', async () => {
 		schema,
 		enum2,
 		table: pgTable('table', {
-			column: enum1('column'),
+			column: enum2('column'),
 		}),
 		table2: schema.table('table', {
-			column: enum1('column'),
+			column: enum2('column'),
 		}),
 	};
 
 	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
 
 	expect(sqlStatements.length).toBe(6);
-	expect(sqlStatements[0]).toBe(`ALTER TABLE "public"."table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
 	expect(sqlStatements[1]).toBe(`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE text;`);
 	expect(sqlStatements[2]).toBe(`DROP TYPE "public"."enum";`);
 	expect(sqlStatements[3]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value1', 'value3', 'value2');`);
 	expect(sqlStatements[4]).toBe(
-		`ALTER TABLE "public"."table" ALTER COLUMN "column" SET DATA TYPE "public"."enum" USING "column"::"public"."enum";`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "public"."enum" USING "column"::"public"."enum";`,
 	);
 	expect(sqlStatements[5]).toBe(
 		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE "public"."enum" USING "column"::"public"."enum";`,
@@ -727,13 +731,17 @@ test('shuffle enum values', async () => {
 		columnsWithEnum: [
 			{
 				column: 'column',
-				schema: 'public',
+				tableSchema: '',
 				table: 'table',
+				default: undefined,
+				columnType: 'enum',
 			},
 			{
 				column: 'column',
-				schema: 'new_schema',
+				tableSchema: 'new_schema',
 				table: 'table',
+				columnType: 'enum',
+				default: undefined,
 			},
 		],
 		deletedValues: [
@@ -745,7 +753,1753 @@ test('shuffle enum values', async () => {
 			'value3',
 			'value2',
 		],
-		schema: 'public',
+		enumSchema: 'public',
 		type: 'alter_type_drop_value',
+	});
+});
+
+test('enums as ts enum', async () => {
+	enum Test {
+		value = 'value',
+	}
+
+	const to = {
+		enum: pgEnum('enum', Test),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas({}, to, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value');`);
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		name: 'enum',
+		schema: 'public',
+		type: 'create_type_enum',
+		values: ['value'],
+	});
+});
+
+// +
+test('column is enum type with default value. shuffle enum', async () => {
+	const enum1 = pgEnum('enum', ['value1', 'value2', 'value3']);
+
+	const from = {
+		enum1,
+		table: pgTable('table', {
+			column: enum1('column').default('value2'),
+		}),
+	};
+
+	const enum2 = pgEnum('enum', ['value1', 'value3', 'value2']);
+	const to = {
+		enum2,
+		table: pgTable('table', {
+			column: enum2('column').default('value2'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(6);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[1]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2'::text;`);
+	expect(sqlStatements[2]).toBe(`DROP TYPE "public"."enum";`);
+	expect(sqlStatements[3]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value1', 'value3', 'value2');`);
+	expect(sqlStatements[4]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2'::"public"."enum";`,
+	);
+	expect(sqlStatements[5]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "public"."enum" USING "column"::"public"."enum";`,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnsWithEnum: [
+			{
+				column: 'column',
+				tableSchema: '',
+				table: 'table',
+				default: "'value2'",
+				columnType: 'enum',
+			},
+		],
+		deletedValues: [
+			'value3',
+		],
+		name: 'enum',
+		newValues: [
+			'value1',
+			'value3',
+			'value2',
+		],
+		enumSchema: 'public',
+		type: 'alter_type_drop_value',
+	});
+});
+
+// +
+test('column is array enum type with default value. shuffle enum', async () => {
+	const enum1 = pgEnum('enum', ['value1', 'value2', 'value3']);
+
+	const from = {
+		enum1,
+		table: pgTable('table', {
+			column: enum1('column').array().default(['value2']),
+		}),
+	};
+
+	const enum2 = pgEnum('enum', ['value1', 'value3', 'value2']);
+	const to = {
+		enum2,
+		table: pgTable('table', {
+			column: enum2('column').array().default(['value3']),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(6);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[1]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{"value3"}'::text;`);
+	expect(sqlStatements[2]).toBe(`DROP TYPE "public"."enum";`);
+	expect(sqlStatements[3]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value1', 'value3', 'value2');`);
+	expect(sqlStatements[4]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{"value3"}'::"public"."enum"[];`,
+	);
+	expect(sqlStatements[5]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "public"."enum"[] USING "column"::"public"."enum"[];`,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnsWithEnum: [
+			{
+				column: 'column',
+				tableSchema: '',
+				table: 'table',
+				default: `'{"value3"}'`,
+				columnType: 'enum[]',
+			},
+		],
+		deletedValues: [
+			'value3',
+		],
+		name: 'enum',
+		newValues: [
+			'value1',
+			'value3',
+			'value2',
+		],
+		enumSchema: 'public',
+		type: 'alter_type_drop_value',
+	});
+});
+
+// +
+test('column is array enum with custom size type with default value. shuffle enum', async () => {
+	const enum1 = pgEnum('enum', ['value1', 'value2', 'value3']);
+
+	const from = {
+		enum1,
+		table: pgTable('table', {
+			column: enum1('column').array(3).default(['value2']),
+		}),
+	};
+
+	const enum2 = pgEnum('enum', ['value1', 'value3', 'value2']);
+	const to = {
+		enum2,
+		table: pgTable('table', {
+			column: enum2('column').array(3).default(['value2']),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(6);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[1]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{"value2"}'::text;`);
+	expect(sqlStatements[2]).toBe(`DROP TYPE "public"."enum";`);
+	expect(sqlStatements[3]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value1', 'value3', 'value2');`);
+	expect(sqlStatements[4]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{"value2"}'::"public"."enum"[3];`,
+	);
+	expect(sqlStatements[5]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "public"."enum"[3] USING "column"::"public"."enum"[3];`,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnsWithEnum: [
+			{
+				column: 'column',
+				tableSchema: '',
+				table: 'table',
+				default: `'{"value2"}'`,
+				columnType: 'enum[3]',
+			},
+		],
+		deletedValues: [
+			'value3',
+		],
+		name: 'enum',
+		newValues: [
+			'value1',
+			'value3',
+			'value2',
+		],
+		enumSchema: 'public',
+		type: 'alter_type_drop_value',
+	});
+});
+
+// +
+test('column is array enum with custom size type. shuffle enum', async () => {
+	const enum1 = pgEnum('enum', ['value1', 'value2', 'value3']);
+
+	const from = {
+		enum1,
+		table: pgTable('table', {
+			column: enum1('column').array(3),
+		}),
+	};
+
+	const enum2 = pgEnum('enum', ['value1', 'value3', 'value2']);
+	const to = {
+		enum2,
+		table: pgTable('table', {
+			column: enum2('column').array(3),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(4);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[1]).toBe(`DROP TYPE "public"."enum";`);
+	expect(sqlStatements[2]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value1', 'value3', 'value2');`);
+	expect(sqlStatements[3]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "public"."enum"[3] USING "column"::"public"."enum"[3];`,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnsWithEnum: [
+			{
+				column: 'column',
+				tableSchema: '',
+				table: 'table',
+				default: undefined,
+				columnType: 'enum[3]',
+			},
+		],
+		deletedValues: [
+			'value3',
+		],
+		name: 'enum',
+		newValues: [
+			'value1',
+			'value3',
+			'value2',
+		],
+		enumSchema: 'public',
+		type: 'alter_type_drop_value',
+	});
+});
+
+// +
+test('column is array of enum with multiple dimenions with custom sizes type. shuffle enum', async () => {
+	const enum1 = pgEnum('enum', ['value1', 'value2', 'value3']);
+
+	const from = {
+		enum1,
+		table: pgTable('table', {
+			column: enum1('column').array(3).array(2),
+		}),
+	};
+
+	const enum2 = pgEnum('enum', ['value1', 'value3', 'value2']);
+	const to = {
+		enum2,
+		table: pgTable('table', {
+			column: enum2('column').array(3).array(2),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(4);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[1]).toBe(`DROP TYPE "public"."enum";`);
+	expect(sqlStatements[2]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value1', 'value3', 'value2');`);
+	expect(sqlStatements[3]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "public"."enum"[3][2] USING "column"::"public"."enum"[3][2];`,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnsWithEnum: [
+			{
+				column: 'column',
+				tableSchema: '',
+				table: 'table',
+				default: undefined,
+				columnType: 'enum[3][2]',
+			},
+		],
+		deletedValues: [
+			'value3',
+		],
+		name: 'enum',
+		newValues: [
+			'value1',
+			'value3',
+			'value2',
+		],
+		enumSchema: 'public',
+		type: 'alter_type_drop_value',
+	});
+});
+
+// +
+test('column is array of enum with multiple dimenions type with custom size with default value. shuffle enum', async () => {
+	const enum1 = pgEnum('enum', ['value1', 'value2', 'value3']);
+
+	const from = {
+		enum1,
+		table: pgTable('table', {
+			column: enum1('column').array(3).array(2).default([['value2']]),
+		}),
+	};
+
+	const enum2 = pgEnum('enum', ['value1', 'value3', 'value2']);
+	const to = {
+		enum2,
+		table: pgTable('table', {
+			column: enum2('column').array(3).array(2).default([['value2']]),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(6);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[1]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{{"value2"}}'::text;`);
+	expect(sqlStatements[2]).toBe(`DROP TYPE "public"."enum";`);
+	expect(sqlStatements[3]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value1', 'value3', 'value2');`);
+	expect(sqlStatements[4]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{{"value2"}}'::"public"."enum"[3][2];`,
+	);
+	expect(sqlStatements[5]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "public"."enum"[3][2] USING "column"::"public"."enum"[3][2];`,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnsWithEnum: [
+			{
+				column: 'column',
+				tableSchema: '',
+				table: 'table',
+				default: `'{{\"value2\"}}'`,
+				columnType: 'enum[3][2]',
+			},
+		],
+		deletedValues: [
+			'value3',
+		],
+		name: 'enum',
+		newValues: [
+			'value1',
+			'value3',
+			'value2',
+		],
+		enumSchema: 'public',
+		type: 'alter_type_drop_value',
+	});
+});
+
+// +
+test('column is enum type with default value. custom schema. shuffle enum', async () => {
+	const schema = pgSchema('new_schema');
+
+	const enum1 = schema.enum('enum', ['value1', 'value2', 'value3']);
+	const from = {
+		schema,
+		enum1,
+		table: pgTable('table', {
+			column: enum1('column').default('value2'),
+		}),
+	};
+
+	const enum2 = schema.enum('enum', ['value1', 'value3', 'value2']);
+	const to = {
+		schema,
+		enum2,
+		table: pgTable('table', {
+			column: enum2('column').default('value2'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(6);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[1]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2'::text;`);
+	expect(sqlStatements[2]).toBe(`DROP TYPE "new_schema"."enum";`);
+	expect(sqlStatements[3]).toBe(`CREATE TYPE "new_schema"."enum" AS ENUM('value1', 'value3', 'value2');`);
+	expect(sqlStatements[4]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2'::"new_schema"."enum";`,
+	);
+	expect(sqlStatements[5]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "new_schema"."enum" USING "column"::"new_schema"."enum";`,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnsWithEnum: [
+			{
+				column: 'column',
+				tableSchema: '',
+				table: 'table',
+				default: "'value2'",
+				columnType: 'enum',
+			},
+		],
+		deletedValues: [
+			'value3',
+		],
+		name: 'enum',
+		newValues: [
+			'value1',
+			'value3',
+			'value2',
+		],
+		enumSchema: 'new_schema',
+		type: 'alter_type_drop_value',
+	});
+});
+
+// +
+test('column is array enum type with default value. custom schema. shuffle enum', async () => {
+	const schema = pgSchema('new_schema');
+
+	const enum1 = schema.enum('enum', ['value1', 'value2', 'value3']);
+
+	const from = {
+		enum1,
+		table: schema.table('table', {
+			column: enum1('column').array().default(['value2']),
+		}),
+	};
+
+	const enum2 = schema.enum('enum', ['value1', 'value3', 'value2']);
+	const to = {
+		enum2,
+		table: schema.table('table', {
+			column: enum2('column').array().default(['value2']),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(6);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[1]).toBe(
+		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DEFAULT '{"value2"}'::text;`,
+	);
+	expect(sqlStatements[2]).toBe(`DROP TYPE "new_schema"."enum";`);
+	expect(sqlStatements[3]).toBe(`CREATE TYPE "new_schema"."enum" AS ENUM('value1', 'value3', 'value2');`);
+	expect(sqlStatements[4]).toBe(
+		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DEFAULT '{"value2"}'::"new_schema"."enum"[];`,
+	);
+	expect(sqlStatements[5]).toBe(
+		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE "new_schema"."enum"[] USING "column"::"new_schema"."enum"[];`,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnsWithEnum: [
+			{
+				column: 'column',
+				tableSchema: 'new_schema',
+				table: 'table',
+				default: `'{"value2"}'`,
+				columnType: 'enum[]',
+			},
+		],
+		deletedValues: [
+			'value3',
+		],
+		name: 'enum',
+		newValues: [
+			'value1',
+			'value3',
+			'value2',
+		],
+		enumSchema: 'new_schema',
+		type: 'alter_type_drop_value',
+	});
+});
+
+// +
+test('column is array enum type with custom size with default value. custom schema. shuffle enum', async () => {
+	const schema = pgSchema('new_schema');
+
+	const enum1 = schema.enum('enum', ['value1', 'value2', 'value3']);
+
+	const from = {
+		enum1,
+		table: schema.table('table', {
+			column: enum1('column').array(3).default(['value2']),
+		}),
+	};
+
+	const enum2 = schema.enum('enum', ['value1', 'value3', 'value2']);
+	const to = {
+		enum2,
+		table: schema.table('table', {
+			column: enum2('column').array(3).default(['value2']),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(6);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[1]).toBe(
+		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DEFAULT '{"value2"}'::text;`,
+	);
+	expect(sqlStatements[2]).toBe(`DROP TYPE "new_schema"."enum";`);
+	expect(sqlStatements[3]).toBe(`CREATE TYPE "new_schema"."enum" AS ENUM('value1', 'value3', 'value2');`);
+	expect(sqlStatements[4]).toBe(
+		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DEFAULT '{"value2"}'::"new_schema"."enum"[3];`,
+	);
+	expect(sqlStatements[5]).toBe(
+		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE "new_schema"."enum"[3] USING "column"::"new_schema"."enum"[3];`,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnsWithEnum: [
+			{
+				column: 'column',
+				tableSchema: 'new_schema',
+				table: 'table',
+				default: `'{"value2"}'`,
+				columnType: 'enum[3]',
+			},
+		],
+		deletedValues: [
+			'value3',
+		],
+		name: 'enum',
+		newValues: [
+			'value1',
+			'value3',
+			'value2',
+		],
+		enumSchema: 'new_schema',
+		type: 'alter_type_drop_value',
+	});
+});
+
+// +
+test('column is array enum type with custom size. custom schema. shuffle enum', async () => {
+	const schema = pgSchema('new_schema');
+
+	const enum1 = schema.enum('enum', ['value1', 'value2', 'value3']);
+
+	const from = {
+		enum1,
+		table: schema.table('table', {
+			column: enum1('column').array(3),
+		}),
+	};
+
+	const enum2 = schema.enum('enum', ['value1', 'value3', 'value2']);
+	const to = {
+		enum2,
+		table: schema.table('table', {
+			column: enum2('column').array(3),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(4);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[1]).toBe(`DROP TYPE "new_schema"."enum";`);
+	expect(sqlStatements[2]).toBe(`CREATE TYPE "new_schema"."enum" AS ENUM('value1', 'value3', 'value2');`);
+	expect(sqlStatements[3]).toBe(
+		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE "new_schema"."enum"[3] USING "column"::"new_schema"."enum"[3];`,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnsWithEnum: [
+			{
+				column: 'column',
+				tableSchema: 'new_schema',
+				table: 'table',
+				default: undefined,
+				columnType: 'enum[3]',
+			},
+		],
+		deletedValues: [
+			'value3',
+		],
+		name: 'enum',
+		newValues: [
+			'value1',
+			'value3',
+			'value2',
+		],
+		enumSchema: 'new_schema',
+		type: 'alter_type_drop_value',
+	});
+});
+
+// +
+test('column is enum type without default value. add default to column', async () => {
+	const enum1 = pgEnum('enum', ['value1', 'value3']);
+
+	const from = {
+		enum1,
+		table: pgTable('table', {
+			column: enum1('column'),
+		}),
+	};
+
+	const enum2 = pgEnum('enum', ['value1', 'value3']);
+	const to = {
+		enum2,
+		table: pgTable('table', {
+			column: enum2('column').default('value3'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value3';`);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnAutoIncrement: undefined,
+		columnName: 'column',
+		columnNotNull: false,
+		columnOnUpdate: undefined,
+		columnPk: false,
+		newDataType: 'enum',
+		newDefaultValue: "'value3'",
+		schema: '',
+		tableName: 'table',
+		type: 'alter_table_alter_column_set_default',
+	});
+});
+
+// +
+test('change data type from standart type to enum', async () => {
+	const enum1 = pgEnum('enum', ['value1', 'value3']);
+
+	const from = {
+		enum1,
+		table: pgTable('table', {
+			column: varchar('column'),
+		}),
+	};
+
+	const to = {
+		enum1,
+		table: pgTable('table', {
+			column: enum1('column'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "public"."enum" USING "column"::"public"."enum";`,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnAutoIncrement: undefined,
+		columnDefault: undefined,
+		columnName: 'column',
+		columnNotNull: false,
+		columnOnUpdate: undefined,
+		columnPk: false,
+		newDataType: {
+			isEnum: true,
+			name: 'enum',
+		},
+		oldDataType: {
+			isEnum: false,
+			name: 'varchar',
+		},
+		schema: '',
+		tableName: 'table',
+		type: 'pg_alter_table_alter_column_set_type',
+		typeSchema: 'public',
+	});
+});
+
+// +
+test('change data type from standart type to enum. column has default', async () => {
+	const enum1 = pgEnum('enum', ['value1', 'value3']);
+
+	const from = {
+		enum1,
+		table: pgTable('table', {
+			column: varchar('column').default('value2'),
+		}),
+	};
+
+	const to = {
+		enum1,
+		table: pgTable('table', {
+			column: enum1('column').default('value3'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(2);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value3'::"public"."enum";`);
+	expect(sqlStatements[1]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "public"."enum" USING "column"::"public"."enum";`,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnAutoIncrement: undefined,
+		columnDefault: "'value3'",
+		columnName: 'column',
+		columnNotNull: false,
+		columnOnUpdate: undefined,
+		columnPk: false,
+		newDataType: {
+			isEnum: true,
+			name: 'enum',
+		},
+		oldDataType: {
+			isEnum: false,
+			name: 'varchar',
+		},
+		schema: '',
+		tableName: 'table',
+		type: 'pg_alter_table_alter_column_set_type',
+		typeSchema: 'public',
+	});
+});
+
+// +
+test('change data type from array standart type to array enum. column has default', async () => {
+	const enum1 = pgEnum('enum', ['value1', 'value3']);
+
+	const from = {
+		enum1,
+		table: pgTable('table', {
+			column: varchar('column').array().default(['value2']),
+		}),
+	};
+
+	const to = {
+		enum1,
+		table: pgTable('table', {
+			column: enum1('column').array().default(['value3']),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(2);
+	expect(sqlStatements[0]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{"value3"}'::"public"."enum"[];`,
+	);
+	expect(sqlStatements[1]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "public"."enum"[] USING "column"::"public"."enum"[];`,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnAutoIncrement: undefined,
+		columnDefault: `'{"value3"}'`,
+		columnName: 'column',
+		columnNotNull: false,
+		columnOnUpdate: undefined,
+		columnPk: false,
+		newDataType: {
+			isEnum: true,
+			name: 'enum[]',
+		},
+		oldDataType: {
+			isEnum: false,
+			name: 'varchar[]',
+		},
+		schema: '',
+		tableName: 'table',
+		type: 'pg_alter_table_alter_column_set_type',
+		typeSchema: 'public',
+	});
+});
+
+// +
+test('change data type from array standart type to array enum. column without default', async () => {
+	const enum1 = pgEnum('enum', ['value1', 'value3']);
+
+	const from = {
+		enum1,
+		table: pgTable('table', {
+			column: varchar('column').array(),
+		}),
+	};
+
+	const to = {
+		enum1,
+		table: pgTable('table', {
+			column: enum1('column').array(),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "public"."enum"[] USING "column"::"public"."enum"[];`,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnAutoIncrement: undefined,
+		columnDefault: undefined,
+		columnName: 'column',
+		columnNotNull: false,
+		columnOnUpdate: undefined,
+		columnPk: false,
+		newDataType: {
+			isEnum: true,
+			name: 'enum[]',
+		},
+		oldDataType: {
+			isEnum: false,
+			name: 'varchar[]',
+		},
+		schema: '',
+		tableName: 'table',
+		type: 'pg_alter_table_alter_column_set_type',
+		typeSchema: 'public',
+	});
+});
+
+// +
+test('change data type from array standart type with custom size to array enum with custom size. column has default', async () => {
+	const enum1 = pgEnum('enum', ['value1', 'value3']);
+
+	const from = {
+		enum1,
+		table: pgTable('table', {
+			column: varchar('column').array(3).default(['value2']),
+		}),
+	};
+
+	const to = {
+		enum1,
+		table: pgTable('table', {
+			column: enum1('column').array(3).default(['value3']),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(2);
+	expect(sqlStatements[0]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{"value3"}'::"public"."enum"[3];`,
+	);
+	expect(sqlStatements[1]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "public"."enum"[3] USING "column"::"public"."enum"[3];`,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnAutoIncrement: undefined,
+		columnDefault: `'{"value3"}'`,
+		columnName: 'column',
+		columnNotNull: false,
+		columnOnUpdate: undefined,
+		columnPk: false,
+		newDataType: {
+			isEnum: true,
+			name: 'enum[3]',
+		},
+		oldDataType: {
+			isEnum: false,
+			name: 'varchar[3]',
+		},
+		schema: '',
+		tableName: 'table',
+		type: 'pg_alter_table_alter_column_set_type',
+		typeSchema: 'public',
+	});
+});
+
+// +
+test('change data type from array standart type with custom size to array enum with custom size. column without default', async () => {
+	const enum1 = pgEnum('enum', ['value1', 'value3']);
+
+	const from = {
+		enum1,
+		table: pgTable('table', {
+			column: varchar('column').array(2),
+		}),
+	};
+
+	const to = {
+		enum1,
+		table: pgTable('table', {
+			column: enum1('column').array(2),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "public"."enum"[2] USING "column"::"public"."enum"[2];`,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnAutoIncrement: undefined,
+		columnDefault: undefined,
+		columnName: 'column',
+		columnNotNull: false,
+		columnOnUpdate: undefined,
+		columnPk: false,
+		newDataType: {
+			isEnum: true,
+			name: 'enum[2]',
+		},
+		oldDataType: {
+			isEnum: false,
+			name: 'varchar[2]',
+		},
+		schema: '',
+		tableName: 'table',
+		type: 'pg_alter_table_alter_column_set_type',
+		typeSchema: 'public',
+	});
+});
+
+// +
+test('change data type from enum type to standart type', async () => {
+	const enum1 = pgEnum('enum', ['value1', 'value3']);
+
+	const from = {
+		enum1,
+		table: pgTable('table', {
+			column: enum1('column'),
+		}),
+	};
+
+	const to = {
+		enum1,
+		table: pgTable('table', {
+			column: varchar('column'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE varchar;`,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnAutoIncrement: undefined,
+		columnDefault: undefined,
+		columnName: 'column',
+		columnNotNull: false,
+		columnOnUpdate: undefined,
+		columnPk: false,
+		newDataType: {
+			isEnum: false,
+			name: 'varchar',
+		},
+		oldDataType: {
+			isEnum: true,
+			name: 'enum',
+		},
+		schema: '',
+		tableName: 'table',
+		type: 'pg_alter_table_alter_column_set_type',
+		typeSchema: undefined,
+	});
+});
+
+// +
+test('change data type from enum type to standart type. column has default', async () => {
+	const enum1 = pgEnum('enum', ['value1', 'value3']);
+
+	const from = {
+		enum1,
+		table: pgTable('table', {
+			column: enum1('column').default('value3'),
+		}),
+	};
+
+	const to = {
+		enum1,
+		table: pgTable('table', {
+			column: varchar('column').default('value2'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(2);
+	expect(sqlStatements[0]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE varchar;`,
+	);
+	expect(sqlStatements[1]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2';`);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnAutoIncrement: undefined,
+		columnDefault: "'value2'",
+		columnName: 'column',
+		columnNotNull: false,
+		columnOnUpdate: undefined,
+		columnPk: false,
+		newDataType: {
+			isEnum: false,
+			name: 'varchar',
+		},
+		oldDataType: {
+			isEnum: true,
+			name: 'enum',
+		},
+		schema: '',
+		tableName: 'table',
+		type: 'pg_alter_table_alter_column_set_type',
+		typeSchema: undefined,
+	});
+});
+
+// +
+test('change data type from array enum type to array standart type', async () => {
+	const enum1 = pgEnum('enum', ['value1', 'value3']);
+
+	const from = {
+		enum1,
+		table: pgTable('table', {
+			column: enum1('column').array(),
+		}),
+	};
+
+	const to = {
+		enum1,
+		table: pgTable('table', {
+			column: varchar('column').array(),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE varchar[];`,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnAutoIncrement: undefined,
+		columnDefault: undefined,
+		columnName: 'column',
+		columnNotNull: false,
+		columnOnUpdate: undefined,
+		columnPk: false,
+		newDataType: {
+			isEnum: false,
+			name: 'varchar[]',
+		},
+		oldDataType: {
+			isEnum: true,
+			name: 'enum[]',
+		},
+		schema: '',
+		tableName: 'table',
+		type: 'pg_alter_table_alter_column_set_type',
+		typeSchema: undefined,
+	});
+});
+
+// +
+test('change data type from array enum with custom size type to array standart type with custom size', async () => {
+	const enum1 = pgEnum('enum', ['value1', 'value3']);
+
+	const from = {
+		enum1,
+		table: pgTable('table', {
+			column: enum1('column').array(2),
+		}),
+	};
+
+	const to = {
+		enum1,
+		table: pgTable('table', {
+			column: varchar('column').array(2),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE varchar[2];`,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnAutoIncrement: undefined,
+		columnDefault: undefined,
+		columnName: 'column',
+		columnNotNull: false,
+		columnOnUpdate: undefined,
+		columnPk: false,
+		newDataType: {
+			isEnum: false,
+			name: 'varchar[2]',
+		},
+		oldDataType: {
+			isEnum: true,
+			name: 'enum[2]',
+		},
+		schema: '',
+		tableName: 'table',
+		type: 'pg_alter_table_alter_column_set_type',
+		typeSchema: undefined,
+	});
+});
+
+//
+test('change data type from array enum type to array standart type. column has default', async () => {
+	const enum1 = pgEnum('enum', ['value1', 'value2']);
+
+	const from = {
+		enum1,
+		table: pgTable('table', {
+			column: enum1('column').array().default(['value2']),
+		}),
+	};
+
+	const to = {
+		enum1,
+		table: pgTable('table', {
+			column: varchar('column').array().default(['value2']),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(2);
+	expect(sqlStatements[0]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE varchar[];`,
+	);
+	expect(sqlStatements[1]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{"value2"}';`,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnAutoIncrement: undefined,
+		columnDefault: `'{"value2"}'`,
+		columnName: 'column',
+		columnNotNull: false,
+		columnOnUpdate: undefined,
+		columnPk: false,
+		newDataType: {
+			isEnum: false,
+			name: 'varchar[]',
+		},
+		oldDataType: {
+			isEnum: true,
+			name: 'enum[]',
+		},
+		schema: '',
+		tableName: 'table',
+		type: 'pg_alter_table_alter_column_set_type',
+		typeSchema: undefined,
+	});
+});
+
+// +
+test('change data type from array enum type with custom size to array standart type with custom size. column has default', async () => {
+	const enum1 = pgEnum('enum', ['value1', 'value2']);
+
+	const from = {
+		enum1,
+		table: pgTable('table', {
+			column: enum1('column').array(3).default(['value2']),
+		}),
+	};
+
+	const to = {
+		enum1,
+		table: pgTable('table', {
+			column: varchar('column').array(3).default(['value2']),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(2);
+	expect(sqlStatements[0]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE varchar[3];`,
+	);
+	expect(sqlStatements[1]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{"value2"}';`,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnAutoIncrement: undefined,
+		columnDefault: `'{"value2"}'`,
+		columnName: 'column',
+		columnNotNull: false,
+		columnOnUpdate: undefined,
+		columnPk: false,
+		newDataType: {
+			isEnum: false,
+			name: 'varchar[3]',
+		},
+		oldDataType: {
+			isEnum: true,
+			name: 'enum[3]',
+		},
+		schema: '',
+		tableName: 'table',
+		type: 'pg_alter_table_alter_column_set_type',
+		typeSchema: undefined,
+	});
+});
+
+// +
+test('change data type from standart type to standart type', async () => {
+	const from = {
+		table: pgTable('table', {
+			column: varchar('column'),
+		}),
+	};
+
+	const to = {
+		table: pgTable('table', {
+			column: text('column'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnAutoIncrement: undefined,
+		columnDefault: undefined,
+		columnName: 'column',
+		columnNotNull: false,
+		columnOnUpdate: undefined,
+		columnPk: false,
+		newDataType: {
+			isEnum: false,
+			name: 'text',
+		},
+		oldDataType: {
+			isEnum: false,
+			name: 'varchar',
+		},
+		schema: '',
+		tableName: 'table',
+		type: 'pg_alter_table_alter_column_set_type',
+		typeSchema: undefined,
+	});
+});
+
+// +
+test('change data type from standart type to standart type. column has default', async () => {
+	const from = {
+		table: pgTable('table', {
+			column: varchar('column').default('value3'),
+		}),
+	};
+
+	const to = {
+		table: pgTable('table', {
+			column: text('column').default('value2'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(2);
+	expect(sqlStatements[0]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`,
+	);
+	expect(sqlStatements[1]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2';`,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnAutoIncrement: undefined,
+		columnDefault: "'value2'",
+		columnName: 'column',
+		columnNotNull: false,
+		columnOnUpdate: undefined,
+		columnPk: false,
+		newDataType: {
+			isEnum: false,
+			name: 'text',
+		},
+		oldDataType: {
+			isEnum: false,
+			name: 'varchar',
+		},
+		schema: '',
+		tableName: 'table',
+		type: 'pg_alter_table_alter_column_set_type',
+		typeSchema: undefined,
+	});
+});
+
+// +
+test('change data type from standart type to standart type. columns are arrays', async () => {
+	const from = {
+		table: pgTable('table', {
+			column: varchar('column').array(),
+		}),
+	};
+
+	const to = {
+		table: pgTable('table', {
+			column: text('column').array(),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text[];`,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnAutoIncrement: undefined,
+		columnDefault: undefined,
+		columnName: 'column',
+		columnNotNull: false,
+		columnOnUpdate: undefined,
+		columnPk: false,
+		newDataType: {
+			isEnum: false,
+			name: 'text[]',
+		},
+		oldDataType: {
+			isEnum: false,
+			name: 'varchar[]',
+		},
+		schema: '',
+		tableName: 'table',
+		type: 'pg_alter_table_alter_column_set_type',
+		typeSchema: undefined,
+	});
+});
+
+// +
+test('change data type from standart type to standart type. columns are arrays with custom sizes', async () => {
+	const from = {
+		table: pgTable('table', {
+			column: varchar('column').array(2),
+		}),
+	};
+
+	const to = {
+		table: pgTable('table', {
+			column: text('column').array(2),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text[2];`,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnAutoIncrement: undefined,
+		columnDefault: undefined,
+		columnName: 'column',
+		columnNotNull: false,
+		columnOnUpdate: undefined,
+		columnPk: false,
+		newDataType: {
+			isEnum: false,
+			name: 'text[2]',
+		},
+		oldDataType: {
+			isEnum: false,
+			name: 'varchar[2]',
+		},
+		schema: '',
+		tableName: 'table',
+		type: 'pg_alter_table_alter_column_set_type',
+		typeSchema: undefined,
+	});
+});
+
+// +
+test('change data type from standart type to standart type. columns are arrays. column has default', async () => {
+	const from = {
+		table: pgTable('table', {
+			column: varchar('column').array().default(['hello']),
+		}),
+	};
+
+	const to = {
+		table: pgTable('table', {
+			column: text('column').array().default(['hello']),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(2);
+	expect(sqlStatements[0]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text[];`,
+	);
+	expect(sqlStatements[1]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{"hello"}';`,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnAutoIncrement: undefined,
+		columnDefault: `'{"hello"}'`,
+		columnName: 'column',
+		columnNotNull: false,
+		columnOnUpdate: undefined,
+		columnPk: false,
+		newDataType: {
+			isEnum: false,
+			name: 'text[]',
+		},
+		oldDataType: {
+			isEnum: false,
+			name: 'varchar[]',
+		},
+		schema: '',
+		tableName: 'table',
+		type: 'pg_alter_table_alter_column_set_type',
+		typeSchema: undefined,
+	});
+});
+
+// +
+test('change data type from standart type to standart type. columns are arrays with custom sizes.column has default', async () => {
+	const from = {
+		table: pgTable('table', {
+			column: varchar('column').array(2).default(['hello']),
+		}),
+	};
+
+	const to = {
+		table: pgTable('table', {
+			column: text('column').array(2).default(['hello']),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(2);
+	expect(sqlStatements[0]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text[2];`,
+	);
+	expect(sqlStatements[1]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{"hello"}';`,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnAutoIncrement: undefined,
+		columnDefault: `'{"hello"}'`,
+		columnName: 'column',
+		columnNotNull: false,
+		columnOnUpdate: undefined,
+		columnPk: false,
+		newDataType: {
+			isEnum: false,
+			name: 'text[2]',
+		},
+		oldDataType: {
+			isEnum: false,
+			name: 'varchar[2]',
+		},
+		schema: '',
+		tableName: 'table',
+		type: 'pg_alter_table_alter_column_set_type',
+		typeSchema: undefined,
+	});
+});
+
+// +
+test('change data type from one enum to other', async () => {
+	const enum1 = pgEnum('enum1', ['value1', 'value3']);
+	const enum2 = pgEnum('enum2', ['value1', 'value3']);
+
+	const from = {
+		enum1,
+		enum2,
+		table: pgTable('table', {
+			column: enum1('column'),
+		}),
+	};
+
+	const to = {
+		enum1,
+		enum2,
+		table: pgTable('table', {
+			column: enum2('column'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "public"."enum2" USING "column"::text::"public"."enum2";`,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnAutoIncrement: undefined,
+		columnDefault: undefined,
+		columnName: 'column',
+		columnNotNull: false,
+		columnOnUpdate: undefined,
+		columnPk: false,
+		newDataType: {
+			isEnum: true,
+			name: 'enum2',
+		},
+		oldDataType: {
+			isEnum: true,
+			name: 'enum1',
+		},
+		schema: '',
+		tableName: 'table',
+		type: 'pg_alter_table_alter_column_set_type',
+		typeSchema: 'public',
+	});
+});
+
+// +
+test('change data type from one enum to other. column has default', async () => {
+	const enum1 = pgEnum('enum1', ['value1', 'value3']);
+	const enum2 = pgEnum('enum2', ['value1', 'value3']);
+
+	const from = {
+		enum1,
+		enum2,
+		table: pgTable('table', {
+			column: enum1('column').default('value3'),
+		}),
+	};
+
+	const to = {
+		enum1,
+		enum2,
+		table: pgTable('table', {
+			column: enum2('column').default('value3'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(3);
+	expect(sqlStatements[0]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;`,
+	);
+	expect(sqlStatements[1]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "public"."enum2" USING "column"::text::"public"."enum2";`,
+	);
+	expect(sqlStatements[2]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value3';`,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnAutoIncrement: undefined,
+		columnDefault: "'value3'",
+		columnName: 'column',
+		columnNotNull: false,
+		columnOnUpdate: undefined,
+		columnPk: false,
+		newDataType: {
+			isEnum: true,
+			name: 'enum2',
+		},
+		oldDataType: {
+			isEnum: true,
+			name: 'enum1',
+		},
+		schema: '',
+		tableName: 'table',
+		type: 'pg_alter_table_alter_column_set_type',
+		typeSchema: 'public',
+	});
+});
+
+// +
+test('change data type from one enum to other. changed defaults', async () => {
+	const enum1 = pgEnum('enum1', ['value1', 'value3']);
+	const enum2 = pgEnum('enum2', ['value1', 'value3']);
+
+	const from = {
+		enum1,
+		enum2,
+		table: pgTable('table', {
+			column: enum1('column').default('value3'),
+		}),
+	};
+
+	const to = {
+		enum1,
+		enum2,
+		table: pgTable('table', {
+			column: enum2('column').default('value1'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(3);
+	expect(sqlStatements[0]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;`,
+	);
+	expect(sqlStatements[1]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "public"."enum2" USING "column"::text::"public"."enum2";`,
+	);
+	expect(sqlStatements[2]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value1';`,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnAutoIncrement: undefined,
+		columnDefault: "'value1'",
+		columnName: 'column',
+		columnNotNull: false,
+		columnOnUpdate: undefined,
+		columnPk: false,
+		newDataType: {
+			isEnum: true,
+			name: 'enum2',
+		},
+		oldDataType: {
+			isEnum: true,
+			name: 'enum1',
+		},
+		schema: '',
+		tableName: 'table',
+		type: 'pg_alter_table_alter_column_set_type',
+		typeSchema: 'public',
+	});
+});
+
+test('check filtering json statements. here we have recreate enum + set new type + alter default', async () => {
+	const enum1 = pgEnum('enum1', ['value1', 'value3']);
+	const from = {
+		enum1,
+		table: pgTable('table', {
+			column: varchar('column').default('value3'),
+		}),
+	};
+
+	const enum2 = pgEnum('enum1', ['value3', 'value1', 'value2']);
+	const to = {
+		enum2,
+		table: pgTable('table', {
+			column: enum2('column').default('value2'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(6);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[1]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2'::text;`);
+	expect(sqlStatements[2]).toBe(`DROP TYPE "public"."enum1";`);
+	expect(sqlStatements[3]).toBe(`CREATE TYPE "public"."enum1" AS ENUM('value3', 'value1', 'value2');`);
+	expect(sqlStatements[4]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2'::"public"."enum1";`,
+	);
+	expect(sqlStatements[5]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "public"."enum1" USING "column"::"public"."enum1";`,
+	);
+
+	expect(statements.length).toBe(2);
+	expect(statements[0]).toStrictEqual({
+		columnsWithEnum: [
+			{
+				column: 'column',
+				columnType: 'enum1',
+				default: "'value2'",
+				table: 'table',
+				tableSchema: '',
+			},
+		],
+		deletedValues: [
+			'value3',
+		],
+		enumSchema: 'public',
+		name: 'enum1',
+		newValues: [
+			'value3',
+			'value1',
+			'value2',
+		],
+		type: 'alter_type_drop_value',
+	});
+	expect(statements[1]).toStrictEqual({
+		columnAutoIncrement: undefined,
+		columnDefault: "'value2'",
+		columnName: 'column',
+		columnNotNull: false,
+		columnOnUpdate: undefined,
+		columnPk: false,
+		newDataType: {
+			isEnum: true,
+			name: 'enum1',
+		},
+		oldDataType: {
+			isEnum: false,
+			name: 'varchar',
+		},
+		schema: '',
+		tableName: 'table',
+		type: 'pg_alter_table_alter_column_set_type',
+		typeSchema: 'public',
 	});
 });

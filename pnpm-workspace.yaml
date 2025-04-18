@@ -4,6 +4,24 @@ packages:
   - drizzle-zod
   - drizzle-typebox
   - drizzle-valibot
+  - drizzle-arktype
   - drizzle-seed
   - integration-tests
   - eslint-plugin-drizzle
+onlyBuiltDependencies:
+  - '@contrast/fn-inspect'
+  - '@newrelic/native-metrics'
+  - '@prisma/client'
+  - '@prisma/engines'
+  - better-sqlite3
+  - bufferutil
+  - cpu-features
+  - dprint
+  - es5-ext
+  - esbuild
+  - prisma
+  - protobufjs
+  - sqlite3
+  - ssh2
+  - utf-8-validate
+  - workerd

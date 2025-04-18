@@ -1,3 +1,4 @@
+import { alias } from '~/mysql-core/alias.ts';
 import {
 	and,
 	between,
@@ -20,8 +21,7 @@ import {
 	notInArray,
 	notLike,
 	or,
-} from '~/expressions.ts';
-import { alias } from '~/mysql-core/alias.ts';
+} from '~/sql/expressions/index.ts';
 import { type InferSelectViewModel, param, sql } from '~/sql/sql.ts';
 
 import type { Equal } from 'type-tests/utils.ts';

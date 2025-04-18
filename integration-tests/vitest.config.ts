@@ -5,7 +5,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
 	test: {
 		include: [
-			'tests/pg/pglite.test.ts',
+			'tests/singlestore/singlestore.test.ts',
 			// 'tests/seeder/**/*.test.ts',
 			// 'tests/extensions/postgis/**/*',
 			// 'tests/relational/**/*.test.ts',

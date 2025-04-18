@@ -1,4 +1,5 @@
 import type { ResultSetHeader } from 'mysql2/promise';
+import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
@@ -150,6 +151,8 @@ export class MySqlDatabase<
 	) {
 		return new MySqlCountBuilder({ source, filters, session: this.session });
 	}
+
+	$cache: { invalidate: Cache['onMutate'] } | undefined;
 
 	/**
 	 * Incorporates a previously defined CTE (using `$with`) into the main query.

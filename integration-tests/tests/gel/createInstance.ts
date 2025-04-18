@@ -6,7 +6,7 @@ import 'zx/globals';
 export async function createDockerDB(): Promise<{ connectionString: string; container: Docker.Container }> {
 	const docker = new Docker();
 	const port = await getPort({ port: 5656 });
-	const image = 'geldata/gel:6.0';
+	const image = 'geldata/gel:latest';
 
 	const pullStream = await docker.pull(image);
 	await new Promise((resolve, reject) =>

@@ -1,6 +1,6 @@
 import { type Equal, Expect } from 'type-tests/utils.ts';
-import { eq } from '~/expressions.ts';
 import { intersect, type SingleStoreSetOperator, union, unionAll } from '~/singlestore-core/index.ts';
+import { eq } from '~/sql/expressions/index.ts';
 import { sql } from '~/sql/index.ts';
 import { db } from './db.ts';
 import { cities, classes, users } from './tables.ts';

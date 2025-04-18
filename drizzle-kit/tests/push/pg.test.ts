@@ -2796,7 +2796,7 @@ test('drop enum values', async () => {
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
 		name: 'enum_users_customer_and_ship_to_settings_roles',
-		schema: 'public',
+		enumSchema: 'public',
 		type: 'alter_type_drop_value',
 		newValues: [
 			'addedToTop',
@@ -2811,18 +2811,22 @@ test('drop enum values', async () => {
 		deletedValues: ['addedToMiddle', 'custMgf'],
 		columnsWithEnum: [{
 			column: 'id',
-			schema: 'public',
+			tableSchema: '',
 			table: 'enum_table',
+			columnType: 'enum_users_customer_and_ship_to_settings_roles',
+			default: undefined,
 		}, {
 			column: 'id',
-			schema: 'mySchema',
+			tableSchema: 'mySchema',
 			table: 'enum_table',
+			columnType: 'enum_users_customer_and_ship_to_settings_roles',
+			default: undefined,
 		}],
 	});
 
 	expect(sqlStatements.length).toBe(6);
 	expect(sqlStatements[0]).toBe(
-		`ALTER TABLE "public"."enum_table" ALTER COLUMN "id" SET DATA TYPE text;`,
+		`ALTER TABLE "enum_table" ALTER COLUMN "id" SET DATA TYPE text;`,
 	);
 	expect(sqlStatements[1]).toBe(
 		`ALTER TABLE "mySchema"."enum_table" ALTER COLUMN "id" SET DATA TYPE text;`,
@@ -2834,11 +2838,78 @@ test('drop enum values', async () => {
 		`CREATE TYPE "public"."enum_users_customer_and_ship_to_settings_roles" AS ENUM('addedToTop', 'custAll', 'custAdmin', 'custClerk', 'custInvoiceManager', 'custApprover', 'custOrderWriter', 'custBuyer');`,
 	);
 	expect(sqlStatements[4]).toBe(
-		`ALTER TABLE "public"."enum_table" ALTER COLUMN "id" SET DATA TYPE "public"."enum_users_customer_and_ship_to_settings_roles" USING "id"::"public"."enum_users_customer_and_ship_to_settings_roles";`,
+		`ALTER TABLE "enum_table" ALTER COLUMN "id" SET DATA TYPE "public"."enum_users_customer_and_ship_to_settings_roles" USING "id"::"public"."enum_users_customer_and_ship_to_settings_roles";`,
 	);
 	expect(sqlStatements[5]).toBe(
 		`ALTER TABLE "mySchema"."enum_table" ALTER COLUMN "id" SET DATA TYPE "public"."enum_users_customer_and_ship_to_settings_roles" USING "id"::"public"."enum_users_customer_and_ship_to_settings_roles";`,
 	);
+});
+
+test('column is enum type with default value. shuffle enum', async () => {
+	const client = new PGlite();
+
+	const enum1 = pgEnum('enum', ['value1', 'value2', 'value3']);
+
+	const from = {
+		enum1,
+		table: pgTable('table', {
+			column: enum1('column').default('value2'),
+		}),
+	};
+
+	const enum2 = pgEnum('enum', ['value1', 'value3', 'value2']);
+	const to = {
+		enum2,
+		table: pgTable('table', {
+			column: enum2('column').default('value2'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasPush(
+		client,
+		from,
+		to,
+		[],
+		false,
+		['public'],
+		undefined,
+	);
+
+	expect(sqlStatements.length).toBe(6);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[1]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2'::text;`);
+	expect(sqlStatements[2]).toBe(`DROP TYPE "public"."enum";`);
+	expect(sqlStatements[3]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value1', 'value3', 'value2');`);
+	expect(sqlStatements[4]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2'::"public"."enum";`,
+	);
+	expect(sqlStatements[5]).toBe(
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "public"."enum" USING "column"::"public"."enum";`,
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		columnsWithEnum: [
+			{
+				column: 'column',
+				tableSchema: '',
+				table: 'table',
+				default: "'value2'",
+				columnType: 'enum',
+			},
+		],
+		deletedValues: [
+			'value3',
+		],
+		name: 'enum',
+		newValues: [
+			'value1',
+			'value3',
+			'value2',
+		],
+		enumSchema: 'public',
+		type: 'alter_type_drop_value',
+	});
 });
 
 // Policies and Roles push test

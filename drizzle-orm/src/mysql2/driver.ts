@@ -1,5 +1,6 @@
 import { type Connection as CallbackConnection, createPool, type Pool as CallbackPool, type PoolOptions } from 'mysql2';
 import type { Connection, Pool } from 'mysql2/promise';
+import type { Cache } from '~/cache/core/index.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -19,6 +20,7 @@ import { MySql2Session } from './session.ts';
 
 export interface MySqlDriverOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class MySql2Driver {
@@ -35,7 +37,11 @@ export class MySql2Driver {
 		schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined,
 		mode: Mode,
 	): MySql2Session<Record<string, unknown>, TablesRelationalConfig> {
-		return new MySql2Session(this.client, this.dialect, schema, { logger: this.options.logger, mode });
+		return new MySql2Session(this.client, this.dialect, schema, {
+			logger: this.options.logger,
+			mode,
+			cache: this.options.cache,
+		});
 	}
 }
 
@@ -92,10 +98,14 @@ function construct<
 
 	const mode = config.mode ?? 'default';
 
-	const driver = new MySql2Driver(clientForInstance as MySql2Client, dialect, { logger });
+	const driver = new MySql2Driver(clientForInstance as MySql2Client, dialect, { logger, cache: config.cache });
 	const session = driver.createSession(schema, mode);
 	const db = new MySql2Database(dialect, session, schema as any, mode) as MySql2Database<TSchema>;
 	(<any> db).$client = client;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
 
 	return db as any;
 }
@@ -151,6 +161,7 @@ export function drizzle<
 		const instance = typeof connection === 'string'
 			? createPool({
 				uri: connection,
+				supportBigNumbers: true,
 			})
 			: createPool(connection!);
 		const db = construct(instance, drizzleConfig);
