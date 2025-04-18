@@ -1,5 +1,6 @@
 import { type Connection as CallbackConnection, createPool, type Pool as CallbackPool, type PoolOptions } from 'mysql2';
 import type { Connection, Pool } from 'mysql2/promise';
+import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -21,6 +22,7 @@ import { SingleStoreDriverSession } from './session.ts';
 
 export interface SingleStoreDriverOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class SingleStoreDriverDriver {
@@ -36,7 +38,10 @@ export class SingleStoreDriverDriver {
 	createSession(
 		schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined,
 	): SingleStoreDriverSession<Record<string, unknown>, TablesRelationalConfig> {
-		return new SingleStoreDriverSession(this.client, this.dialect, schema, { logger: this.options.logger });
+		return new SingleStoreDriverSession(this.client, this.dialect, schema, {
+			logger: this.options.logger,
+			cache: this.options.cache,
+		});
 	}
 }
 
@@ -84,10 +89,17 @@ function construct<
 		};
 	}
 
-	const driver = new SingleStoreDriverDriver(clientForInstance as SingleStoreDriverClient, dialect, { logger });
+	const driver = new SingleStoreDriverDriver(clientForInstance as SingleStoreDriverClient, dialect, {
+		logger,
+		cache: config.cache,
+	});
 	const session = driver.createSession(schema);
 	const db = new SingleStoreDriverDatabase(dialect, session, schema as any) as SingleStoreDriverDatabase<TSchema>;
 	(<any> db).$client = client;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
 
 	return db as any;
 }

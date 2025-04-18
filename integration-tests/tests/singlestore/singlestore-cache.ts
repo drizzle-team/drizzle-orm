@@ -2,8 +2,17 @@ import { eq, getTableName, is, sql, Table } from 'drizzle-orm';
 import type { MutationOption } from 'drizzle-orm/cache/core';
 import { Cache } from 'drizzle-orm/cache/core';
 import type { CacheConfig } from 'drizzle-orm/cache/core/types';
-import type { MySqlDatabase } from 'drizzle-orm/mysql-core';
-import { alias, boolean, int, json, mysqlTable, serial, text, timestamp } from 'drizzle-orm/mysql-core';
+import {
+	alias,
+	boolean,
+	int,
+	json,
+	serial,
+	type SingleStoreDatabase,
+	singlestoreTable,
+	text,
+	timestamp,
+} from 'drizzle-orm/singlestore-core';
 import Keyv from 'keyv';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
@@ -75,33 +84,35 @@ export class TestCache extends TestGlobalCache {
 	}
 }
 
+type TestSingleStoreDB = SingleStoreDatabase<any, any>;
+
 declare module 'vitest' {
 	interface TestContext {
-		cachedMySQL: {
-			db: MySqlDatabase<any, any>;
-			dbGlobalCached: MySqlDatabase<any, any>;
+		cachedSingleStore: {
+			db: TestSingleStoreDB;
+			dbGlobalCached: TestSingleStoreDB;
 		};
 	}
 }
 
-const usersTable = mysqlTable('users', {
+const usersTable = singlestoreTable('users', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	verified: boolean('verified').notNull().default(false),
 	jsonb: json('jsonb').$type<string[]>(),
-	createdAt: timestamp('created_at', { fsp: 2 }).notNull().defaultNow(),
+	createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
-const postsTable = mysqlTable('posts', {
+const postsTable = singlestoreTable('posts', {
 	id: serial().primaryKey(),
 	description: text().notNull(),
-	userId: int('city_id').references(() => usersTable.id),
+	userId: int('city_id'),
 });
 
 export function tests() {
 	describe('common_cache', () => {
 		beforeEach(async (ctx) => {
-			const { db, dbGlobalCached } = ctx.cachedMySQL;
+			const { db, dbGlobalCached } = ctx.cachedSingleStore;
 			await db.execute(sql`drop table if exists users`);
 			await db.execute(sql`drop table if exists posts`);
 			await db.$cache?.invalidate({ tables: 'users' });
@@ -130,7 +141,7 @@ export function tests() {
 		});
 
 		test('test force invalidate', async (ctx) => {
-			const { db } = ctx.cachedMySQL;
+			const { db } = ctx.cachedSingleStore;
 
 			// @ts-expect-error
 			const spyInvalidate = vi.spyOn(db.$cache, 'invalidate');
@@ -139,7 +150,7 @@ export function tests() {
 		});
 
 		test('default global config - no cache should be hit', async (ctx) => {
-			const { db } = ctx.cachedMySQL;
+			const { db } = ctx.cachedSingleStore;
 
 			// @ts-expect-error
 			const spyPut = vi.spyOn(db.$cache, 'put');
@@ -156,7 +167,7 @@ export function tests() {
 		});
 
 		test('default global config + enable cache on select: get, put', async (ctx) => {
-			const { db } = ctx.cachedMySQL;
+			const { db } = ctx.cachedSingleStore;
 
 			// @ts-expect-error
 			const spyPut = vi.spyOn(db.$cache, 'put');
@@ -173,7 +184,7 @@ export function tests() {
 		});
 
 		test('default global config + enable cache on select + write: get, put, onMutate', async (ctx) => {
-			const { db } = ctx.cachedMySQL;
+			const { db } = ctx.cachedSingleStore;
 
 			// @ts-expect-error
 			const spyPut = vi.spyOn(db.$cache, 'put');
@@ -200,7 +211,7 @@ export function tests() {
 		});
 
 		test('default global config + enable cache on select + disable invalidate: get, put', async (ctx) => {
-			const { db } = ctx.cachedMySQL;
+			const { db } = ctx.cachedSingleStore;
 
 			// @ts-expect-error
 			const spyPut = vi.spyOn(db.$cache, 'put');
@@ -222,7 +233,7 @@ export function tests() {
 		});
 
 		test('global: true + disable cache', async (ctx) => {
-			const { dbGlobalCached: db } = ctx.cachedMySQL;
+			const { dbGlobalCached: db } = ctx.cachedSingleStore;
 
 			// @ts-expect-error
 			const spyPut = vi.spyOn(db.$cache, 'put');
@@ -239,7 +250,7 @@ export function tests() {
 		});
 
 		test('global: true - cache should be hit', async (ctx) => {
-			const { dbGlobalCached: db } = ctx.cachedMySQL;
+			const { dbGlobalCached: db } = ctx.cachedSingleStore;
 
 			// @ts-expect-error
 			const spyPut = vi.spyOn(db.$cache, 'put');
@@ -256,7 +267,7 @@ export function tests() {
 		});
 
 		test('global: true - cache: false on select - no cache hit', async (ctx) => {
-			const { dbGlobalCached: db } = ctx.cachedMySQL;
+			const { dbGlobalCached: db } = ctx.cachedSingleStore;
 
 			// @ts-expect-error
 			const spyPut = vi.spyOn(db.$cache, 'put');
@@ -273,7 +284,7 @@ export function tests() {
 		});
 
 		test('global: true - disable invalidate - cache hit + no invalidate', async (ctx) => {
-			const { dbGlobalCached: db } = ctx.cachedMySQL;
+			const { dbGlobalCached: db } = ctx.cachedSingleStore;
 
 			// @ts-expect-error
 			const spyPut = vi.spyOn(db.$cache, 'put');
@@ -300,7 +311,7 @@ export function tests() {
 		});
 
 		test('global: true - with custom tag', async (ctx) => {
-			const { dbGlobalCached: db } = ctx.cachedMySQL;
+			const { dbGlobalCached: db } = ctx.cachedSingleStore;
 
 			// @ts-expect-error
 			const spyPut = vi.spyOn(db.$cache, 'put');
@@ -323,7 +334,7 @@ export function tests() {
 
 		// check select used tables
 		test('check simple select used tables', (ctx) => {
-			const { db } = ctx.cachedMySQL;
+			const { db } = ctx.cachedSingleStore;
 
 			// @ts-expect-error
 			expect(db.select().from(usersTable).getUsedTables()).toStrictEqual(['users']);
@@ -332,7 +343,7 @@ export function tests() {
 		});
 		// check select+join used tables
 		test('select+join', (ctx) => {
-			const { db } = ctx.cachedMySQL;
+			const { db } = ctx.cachedSingleStore;
 
 			// @ts-expect-error
 			expect(db.select().from(usersTable).leftJoin(postsTable, eq(usersTable.id, postsTable.userId)).getUsedTables())
@@ -344,7 +355,7 @@ export function tests() {
 		});
 		// check select+2join used tables
 		test('select+2joins', (ctx) => {
-			const { db } = ctx.cachedMySQL;
+			const { db } = ctx.cachedSingleStore;
 
 			expect(
 				db.select().from(usersTable).leftJoin(
@@ -368,7 +379,7 @@ export function tests() {
 		});
 		// select subquery used tables
 		test('select+join', (ctx) => {
-			const { db } = ctx.cachedMySQL;
+			const { db } = ctx.cachedSingleStore;
 
 			const sq = db.select().from(usersTable).where(eq(usersTable.id, 42)).as('sq');
 			db.select().from(sq);
