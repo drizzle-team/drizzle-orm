@@ -100,6 +100,7 @@ Expect<
 					baseColumn: never;
 					identity: undefined;
 					generated: undefined;
+					comment: undefined;
 				},
 				{},
 				{}
@@ -121,6 +122,7 @@ Expect<
 					baseColumn: never;
 					identity: undefined;
 					generated: undefined;
+					comment: undefined;
 				},
 				{},
 				{}
@@ -142,6 +144,7 @@ Expect<
 					baseColumn: never;
 					identity: undefined;
 					generated: undefined;
+					comment: undefined;
 				},
 				{},
 				{}
@@ -534,6 +537,7 @@ Expect<
 				generated: undefined;
 				brand: 'Column';
 				dialect: 'singlestore';
+				comment: undefined;
 			},
 			Simplify<BuildColumn<'table', typeof t, 'singlestore'>['_']>
 		>

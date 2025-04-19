@@ -176,6 +176,7 @@ Expect<
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
 				isPrimaryKey: true;
+				comment: undefined;
 			}>;
 			cityId: SQLiteColumn<{
 				name: 'id';
@@ -193,6 +194,7 @@ Expect<
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
 				isPrimaryKey: true;
+				comment: undefined;
 			}>;
 		}>,
 		typeof newYorkers
@@ -229,6 +231,7 @@ Expect<
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
 					isPrimaryKey: false;
+					comment: undefined;
 				}>;
 				cityId: SQLiteColumn<{
 					name: 'city_id';
@@ -246,6 +249,7 @@ Expect<
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
 					isPrimaryKey: false;
+					comment: undefined;
 				}>;
 			}>,
 			typeof newYorkers
@@ -278,6 +282,7 @@ Expect<
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
 					isPrimaryKey: false;
+					comment: undefined;
 				}>;
 				cityId: SQLiteColumn<{
 					name: 'city_id';
@@ -295,6 +300,7 @@ Expect<
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
 					isPrimaryKey: false;
+					comment: undefined;
 				}>;
 			}>,
 			typeof newYorkers

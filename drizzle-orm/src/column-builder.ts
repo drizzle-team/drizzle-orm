@@ -68,6 +68,7 @@ export type MakeColumnConfig<
 	isPrimaryKey: T extends { isPrimaryKey: true } ? true : false;
 	isAutoincrement: T extends { isAutoincrement: true } ? true : false;
 	hasRuntimeDefault: T extends { hasRuntimeDefault: true } ? true : false;
+	comment: T extends { comment: infer U extends string } ? U : undefined;
 	enumValues: T['enumValues'];
 	baseColumn: T extends { baseBuilder: infer U extends ColumnBuilderBase } ? BuildColumn<TTableName, U, 'common'>
 		: never;
@@ -113,6 +114,7 @@ export type ColumnBuilderRuntimeConfig<TData, TRuntimeConfig extends object = ob
 	uniqueType: string | undefined;
 	dataType: string;
 	columnType: string;
+	comment: string | undefined;
 	generated: GeneratedColumnConfig<TData> | undefined;
 	generatedIdentity: GeneratedIdentityConfig | undefined;
 } & TRuntimeConfig;
@@ -247,6 +249,16 @@ export abstract class ColumnBuilder<
 		this.config.default = value;
 		this.config.hasDefault = true;
 		return this as HasDefault<this>;
+	}
+
+	/**
+	 * Adds a `comment` to the column.
+	 *
+	 * This comment will be used in the `drizzle-kit` to describe the column.
+	 */
+	comment(comment: string): this {
+		this.config.comment = comment;
+		return this;
 	}
 
 	/**

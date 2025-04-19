@@ -20,6 +20,7 @@ export interface ColumnBaseConfig<
 	isPrimaryKey: boolean;
 	isAutoincrement: boolean;
 	hasRuntimeDefault: boolean;
+	comment: string | undefined;
 }
 
 export type ColumnTypeConfig<T extends ColumnBaseConfig<ColumnDataType, string>, TTypeConfig extends object> = T & {
