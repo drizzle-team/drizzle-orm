@@ -180,11 +180,7 @@ test('create checks with same names', async (t) => {
 			) => [check('some_check_name', sql`${table.age} > 21`), check('some_check_name', sql`${table.name} != 'Alex'`)],
 		),
 	};
-	const { err2 } = await diffTestSchemas({}, to, []);
-	expect(err2).toStrictEqual([{
-		type: 'constraint_name_duplicate',
-		schema: 'public',
-		table: 'users',
-		name: 'some_check_name',
-	}]);
+
+	// 'constraint_name_duplicate'
+	await expect(diffTestSchemas({}, to, [])).rejects.toThrow();
 });

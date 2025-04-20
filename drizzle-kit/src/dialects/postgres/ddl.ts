@@ -1,4 +1,4 @@
-import { SchemaError } from '../../utils';
+import type { SchemaError } from '../../utils';
 import { create } from '../dialect';
 
 export const createDDL = () => {
@@ -16,6 +16,7 @@ export const createDDL = () => {
 			typeSchema: 'string?',
 			primaryKey: 'boolean',
 			notNull: 'boolean',
+			dimensions: 'number',
 			default: {
 				value: 'string',
 				expression: 'boolean',
@@ -24,8 +25,9 @@ export const createDDL = () => {
 			// these should be in unique constraints ddl and squash
 			// in sql convertor when possible ??
 			unique: {
-				name: 'string?',
-				nullsNotDistinct: 'boolean?',
+				name: 'string',
+				nameExplicit: 'boolean',
+				nullsNotDistinct: 'boolean',
 			},
 			generated: {
 				type: ['stored', 'virtual'],
@@ -45,6 +47,7 @@ export const createDDL = () => {
 		indexes: {
 			schema: 'required',
 			table: 'required',
+			nameExplicit: 'boolean',
 			columns: [{
 				value: 'string',
 				isExpression: 'boolean',
@@ -64,7 +67,7 @@ export const createDDL = () => {
 		fks: {
 			schema: 'required',
 			table: 'required',
-			tableFrom: 'string',
+			nameExplicit: 'boolean',
 			columnsFrom: 'string[]',
 			schemaTo: 'string',
 			tableTo: 'string',
@@ -81,6 +84,7 @@ export const createDDL = () => {
 		uniques: {
 			schema: 'required',
 			table: 'required',
+			explicitName: 'boolean',
 			columns: 'string[]',
 			nullsNotDistinct: 'boolean',
 		},

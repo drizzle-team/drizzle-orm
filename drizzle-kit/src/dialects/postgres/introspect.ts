@@ -1,4 +1,5 @@
 import camelcase from 'camelcase';
+import { sql } from 'drizzle-orm';
 import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
 import type { DB } from '../../utils';
 import type {
@@ -173,6 +174,8 @@ export const fromDatabase = async (
 	const filteredNamespaces = other.filter((it) => schemaFilter(it.name));
 	const filteredNamespacesIds = filteredNamespaces.map((it) => it.oid);
 
+	// TODO: there could be no schemas at all, should be return;
+
 	schemas.push(...filteredNamespaces.map<Schema>((it) => ({ entityType: 'schemas', name: it.name })));
 
 	const tablesList = await db
@@ -185,7 +188,7 @@ export const fromDatabase = async (
 			kind: 'r' | 'v' | 'm';
 			accessMethod: number;
 			options: string[] | null;
-			rlsEnables: boolean;
+			rlsEnabled: boolean;
 			tablespaceid: number;
 			definition: string | null;
 		}>(`
@@ -223,9 +226,22 @@ export const fromDatabase = async (
 			entityType: 'tables',
 			schema: table.schema,
 			name: table.name,
-			isRlsEnabled: table.rlsEnables,
+			isRlsEnabled: table.rlsEnabled,
 		});
 	}
+
+	const dependQuery = db.query<{ oid: number; tableId: number; ordinality: number; deptype: 'a' | 'i' }>(
+		`SELECT
+			-- sequence id
+			objid as oid,
+			refobjid as "tableId",
+			refobjsubid as "ordinality",
+			-- a = auto
+			deptype
+		FROM
+			pg_depend
+		where refobjid in (${filteredTableIds.join(',')});`,
+	);
 
 	const enumsQuery = db
 		.query<{
@@ -286,7 +302,8 @@ export const fromDatabase = async (
 				seqcycle as "cycle", 
 				seqcache as "cacheSize" 
 			FROM pg_sequence
-			LEFT JOIN pg_class ON pg_sequence.seqrelid=pg_class.oid ;`);
+			LEFT JOIN pg_class ON pg_sequence.seqrelid=pg_class.oid
+			WHERE relnamespace IN (${filteredNamespacesIds.join(',')});`);
 
 	// I'm not yet aware of how we handle policies down the pipeline for push,
 	// and since postgres does not have any default policies, we can safely fetch all of them for now
@@ -423,15 +440,18 @@ export const fromDatabase = async (
 					AND attnum > 0
 					AND attisdropped = FALSE;`);
 
-	const [enumsList, serialsList, sequencesList, policiesList, rolesList, constraintsList, columnsList] = await Promise.all([
-		enumsQuery,
-		serialsQuery,
-		sequencesQuery,
-		policiesQuery,
-		rolesQuery,
-		constraintsQuery,
-		columnsQuery
-	]);
+	const [dependList, enumsList, serialsList, sequencesList, policiesList, rolesList, constraintsList, columnsList] =
+		await Promise
+			.all([
+				dependQuery,
+				enumsQuery,
+				serialsQuery,
+				sequencesQuery,
+				policiesQuery,
+				rolesQuery,
+				constraintsQuery,
+				columnsQuery,
+			]);
 
 	const groupedEnums = enumsList.reduce((acc, it) => {
 		if (!(it.oid in acc)) {
@@ -464,19 +484,27 @@ export const fromDatabase = async (
 	let checksCount = 0;
 	let viewsCount = 0;
 
-	sequences.push(...sequencesList.map<Sequence>((it) => {
-		return {
+	for (const seq of sequencesList) {
+		const depend = dependList.find((it) => it.oid === seq.oid);
+
+		if (depend && depend.deptype === 'a') {
+			// TODO: add type field to sequence in DDL
+			// console.log('skip for auto created', seq.name);
+			continue;
+		}
+
+		sequences.push({
 			entityType: 'sequences',
-			schema: namespaces.find((ns) => ns.oid === it.schemaId)?.name!,
-			name: it.name,
-			startWith: parseIdentityProperty(it.startWith),
-			minValue: parseIdentityProperty(it.minValue),
-			maxValue: parseIdentityProperty(it.maxValue),
-			incrementBy: parseIdentityProperty(it.incrementBy),
-			cycle: it.cycle,
-			cacheSize: parseIdentityProperty(it.cacheSize),
-		};
-	}));
+			schema: namespaces.find((ns) => ns.oid === seq.schemaId)?.name!,
+			name: seq.name,
+			startWith: parseIdentityProperty(seq.startWith),
+			minValue: parseIdentityProperty(seq.minValue),
+			maxValue: parseIdentityProperty(seq.maxValue),
+			incrementBy: parseIdentityProperty(seq.incrementBy),
+			cycle: seq.cycle,
+			cacheSize: parseIdentityProperty(seq.cacheSize),
+		});
+	}
 
 	progressCallback('enums', Object.keys(enums).length, 'done');
 
@@ -530,7 +558,6 @@ export const fromDatabase = async (
 
 			const expectedExpression = serialExpressionFor(schema.name, table.name, column.name);
 			const isSerial = expr.expression === expectedExpression;
-
 			column.type = isSerial ? type === 'bigint' ? 'bigserial' : type === 'integer' ? 'serial' : 'smallserial' : type;
 		}
 	}
@@ -548,11 +575,14 @@ export const fromDatabase = async (
 			(it) => it.tableId === column.tableId && it.ordinality === column.ordinality,
 		);
 
+
 		const defaultValue = defaultForColumn(
 			column.type,
 			columnDefault?.expression,
 			column.dimensions,
 		);
+
+		console.log(column.name, columnDefault?.expression, defaultValue)
 		if (columnTypeMapped.startsWith('numeric(')) {
 			columnTypeMapped = columnTypeMapped.replace(',', ', ');
 		}
@@ -577,7 +607,7 @@ export const fromDatabase = async (
 		const pk = constraintsList.find((it) => {
 			return it.type === 'p' && it.tableId === column.tableId && it.columnsOrdinals.length === 1
 				&& it.columnsOrdinals.includes(column.ordinality);
-		});
+		}) ?? null;
 
 		const metadata = column.metadata;
 		if (column.generatedType === 's' && (!metadata || !metadata.expression)) {
@@ -605,10 +635,12 @@ export const fromDatabase = async (
 			name: column.name,
 			type: column.type,
 			typeSchema,
+			dimensions: column.dimensions,
 			default: defaultValue,
 			unique: unique
 				? {
 					name: unique.name,
+					nameExplicit: true,
 					nullsNotDistinct: unique.definition.includes('NULLS NOT DISTINCT') ?? false,
 				}
 				: null,
@@ -644,6 +676,7 @@ export const fromDatabase = async (
 			schema: schema.name,
 			table: table.name,
 			name: unique.name,
+			explicitName: true,
 			columns,
 			nullsNotDistinct: unique.definition.includes('NULLS NOT DISTINCT'),
 		});
@@ -688,7 +721,7 @@ export const fromDatabase = async (
 			schema: schema.name,
 			table: table.name,
 			name: fk.name,
-			tableFrom: table.name,
+			nameExplicit: true,
 			columnsFrom: columns,
 			tableTo: tableTo.name,
 			schemaTo: schema.name,
@@ -837,6 +870,7 @@ export const fromDatabase = async (
 			schema: schema.name,
 			table: table.name,
 			name: idx.name,
+			nameExplicit: true,
 			method: idx.accessMethod,
 			isUnique: false,
 			with: idx.with,

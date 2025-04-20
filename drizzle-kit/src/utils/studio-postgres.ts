@@ -1,5 +1,5 @@
 import { InterimSchema, interimToDDL } from '../dialects/postgres/ddl';
-import { ddlDif } from '../dialects/postgres/diff';
+import { ddlDiff } from '../dialects/postgres/diff';
 import { mockResolver } from './mocks';
 
 export const diffPostgresql = async (
@@ -12,7 +12,7 @@ export const diffPostgresql = async (
 
 	const renames = new Set(renamesArr);
 
-	const { sqlStatements, groupedStatements, statements } = await ddlDif(
+	const { sqlStatements, groupedStatements, statements } = await ddlDiff(
 		ddl1,
 		ddl2,
 		mockResolver(renames),

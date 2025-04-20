@@ -104,6 +104,7 @@ export type ColumnBuilderRuntimeConfig<TData, TRuntimeConfig extends object = ob
 	isUnique: boolean;
 	uniqueName: string | undefined;
 	uniqueType: string | undefined;
+	uniqueNameExplicit: boolean | undefined;
 	dataType: string;
 	columnType: string;
 	generated: GeneratedColumnConfig<TData> | undefined;

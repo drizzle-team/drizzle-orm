@@ -1,5 +1,5 @@
-import { Simplify } from '../../utils';
-import { DiffColumn } from '../sqlite/ddl';
+import type { Simplify } from '../../utils';
+import type { DiffColumn } from '../sqlite/ddl';
 import type {
 	CheckConstraint,
 	Column,
@@ -8,7 +8,6 @@ import type {
 	ForeignKey,
 	Index,
 	Policy,
-	PostgresEntities,
 	PrimaryKey,
 	Role,
 	Schema,
@@ -58,8 +57,9 @@ export interface JsonMoveEnum {
 
 export interface JsonRenameEnum {
 	type: 'rename_enum';
-	from: Enum;
-	to: Enum;
+	schema: string;
+	from: string;
+	to: string;
 }
 
 export interface JsonRecreateEnum {
@@ -160,26 +160,10 @@ export interface JsonRenamePolicy {
 	to: Policy;
 }
 
-export interface JsonCreateIndPolicy {
-	type: 'create_ind_policy';
-	data: Policy;
-}
-
-export interface JsonDropIndPolicy {
-	type: 'drop_ind_policy';
-	data: Policy;
-}
-
-export interface JsonIndRenamePolicy {
-	type: 'rename_ind_policy';
-	tableKey: string;
-	oldName: string;
-	newName: string;
-}
-
 export interface JsonAlterRLS {
 	type: 'alter_rls';
-	table: PostgresEntities['tables'];
+	schema: string;
+	name: string;
 	isRlsEnabled: boolean;
 }
 
@@ -188,11 +172,9 @@ export interface JsonAlterPolicy {
 	diff: DiffEntities['policies'];
 	policy: Policy;
 }
-
-export interface JsonAlterIndPolicy {
-	type: 'alter_ind_policy';
-	oldData: Policy;
-	newData: Policy;
+export interface JsonRecreatePolicy {
+	type: 'recreate_policy';
+	policy: Policy;
 }
 
 export interface JsonCreateIndex {
@@ -217,12 +199,6 @@ export interface JsonAlterFK {
 	to: ForeignKey;
 }
 
-export interface JsonRenameFK {
-	type: 'rename_fk';
-	from: ForeignKey;
-	to: ForeignKey;
-}
-
 export interface JsonCreateUnique {
 	type: 'add_unique';
 	unique: UniqueConstraint;
@@ -231,12 +207,6 @@ export interface JsonCreateUnique {
 export interface JsonDeleteUnique {
 	type: 'drop_unique';
 	unique: UniqueConstraint;
-}
-
-export interface JsonRenameUnique {
-	type: 'rename_unique';
-	from: UniqueConstraint;
-	to: UniqueConstraint;
 }
 
 export interface JsonAlterUnique {
@@ -269,15 +239,17 @@ export interface JsonDropPrimaryKey {
 	pk: PrimaryKey;
 }
 
-export interface JsonRenamePrimaryKey {
-	type: 'rename_pk';
-	from: { schema: string | null; table: string; name: string };
-	to: { schema: string | null; table: string; name: string };
+export interface JsonRenameConstraint {
+	type: 'rename_constraint';
+	schema: string;
+	table: string;
+	from: string;
+	to: string;
 }
 
 export interface JsonAlterPrimaryKey {
 	type: 'alter_pk';
-	pk: PrimaryKey,
+	pk: PrimaryKey;
 	diff: DiffEntities['pks'];
 }
 
@@ -314,7 +286,6 @@ export interface JsonRenameColumn {
 
 export interface JsonAlterColumn {
 	type: 'alter_column';
-	from: Column;
 	to: Column;
 	diff: DiffEntities['columns'];
 }
@@ -432,15 +403,13 @@ export type JsonStatement =
 	| JsonDropIndex
 	| JsonAddPrimaryKey
 	| JsonDropPrimaryKey
-	| JsonRenamePrimaryKey
+	| JsonRenameConstraint
 	| JsonAlterPrimaryKey
 	| JsonCreateFK
 	| JsonDropFK
-	| JsonRenameFK
 	| JsonAlterFK
 	| JsonCreateUnique
 	| JsonDeleteUnique
-	| JsonRenameUnique
 	| JsonAlterUnique
 	| JsonDropCheck
 	| JsonAddCheck
@@ -458,6 +427,7 @@ export type JsonStatement =
 	| JsonDropPolicy
 	| JsonCreatePolicy
 	| JsonAlterPolicy
+	| JsonRecreatePolicy
 	| JsonRenamePolicy
 	| JsonAlterRLS
 	| JsonRenameRole
@@ -468,11 +438,7 @@ export type JsonStatement =
 	| JsonDropView
 	| JsonRenameView
 	| JsonAlterCheckConstraint
-	| JsonDropValueFromEnum
-	| JsonIndRenamePolicy
-	| JsonDropIndPolicy
-	| JsonCreateIndPolicy
-	| JsonAlterIndPolicy;
+	| JsonDropValueFromEnum;
 
 export const prepareStatement = <
 	TType extends JsonStatement['type'],

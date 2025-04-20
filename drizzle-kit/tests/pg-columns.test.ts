@@ -1,4 +1,4 @@
-import { integer, pgTable, primaryKey, serial, text, uuid, varchar } from 'drizzle-orm/pg-core';
+import { boolean, integer, pgTable, primaryKey, serial, text, uuid, varchar } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
 import { diffTestSchemas } from './mocks-postgres';
 
@@ -17,7 +17,7 @@ test('add columns #1', async (t) => {
 	};
 
 	const { sqlStatements } = await diffTestSchemas(schema1, schema2, []);
-	expect(sqlStatements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual(['ALTER TABLE "users" ADD COLUMN "name" text;']);
 });
 
 test('add columns #2', async (t) => {
@@ -37,7 +37,10 @@ test('add columns #2', async (t) => {
 
 	const { sqlStatements } = await diffTestSchemas(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "users" ADD COLUMN "name" text;',
+		'ALTER TABLE "users" ADD COLUMN "email" text;',
+	]);
 });
 
 test('alter column change name #1', async (t) => {
@@ -59,7 +62,7 @@ test('alter column change name #1', async (t) => {
 		'public.users.name->public.users.name1',
 	]);
 
-	expect(sqlStatements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual(['ALTER TABLE "users" RENAME COLUMN "name" TO "name1";']);
 });
 
 test('alter column change name #2', async (t) => {
@@ -82,7 +85,10 @@ test('alter column change name #2', async (t) => {
 		'public.users.name->public.users.name1',
 	]);
 
-	expect(sqlStatements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "users" RENAME COLUMN "name" TO "name1";',
+		'ALTER TABLE "users" ADD COLUMN "email" text;',
+	]);
 });
 
 test('alter table add composite pk', async (t) => {
@@ -94,18 +100,10 @@ test('alter table add composite pk', async (t) => {
 	};
 
 	const schema2 = {
-		table: pgTable(
-			'table',
-			{
-				id1: integer('id1'),
-				id2: integer('id2'),
-			},
-			(t) => {
-				return {
-					pk: primaryKey({ columns: [t.id1, t.id2] }),
-				};
-			},
-		),
+		table: pgTable('table', {
+			id1: integer('id1'),
+			id2: integer('id2'),
+		}, (t) => [primaryKey({ columns: [t.id1, t.id2] })]),
 	};
 
 	const { sqlStatements } = await diffTestSchemas(
@@ -114,10 +112,7 @@ test('alter table add composite pk', async (t) => {
 		[],
 	);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(
-		'ALTER TABLE "table" ADD CONSTRAINT "table_id1_id2_pk" PRIMARY KEY("id1","id2");',
-	);
+	expect(sqlStatements).toStrictEqual(['ALTER TABLE "table" ADD PRIMARY KEY ("id1","id2");']);
 });
 
 test('rename table rename column #1', async (t) => {
@@ -138,44 +133,31 @@ test('rename table rename column #1', async (t) => {
 		'public.users1.id->public.users1.id1',
 	]);
 
-	expect(sqlStatements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "users" RENAME TO "users1";',
+		'ALTER TABLE "users1" RENAME COLUMN "id" TO "id1";',
+	]);
 });
 
 test('with composite pks #1', async (t) => {
 	const schema1 = {
-		users: pgTable(
-			'users',
-			{
-				id1: integer('id1'),
-				id2: integer('id2'),
-			},
-			(t) => {
-				return {
-					pk: primaryKey({ columns: [t.id1, t.id2], name: 'compositePK' }),
-				};
-			},
-		),
+		users: pgTable('users', {
+			id1: integer('id1'),
+			id2: integer('id2'),
+		}, (t) => [primaryKey({ columns: [t.id1, t.id2], name: 'compositePK' })]),
 	};
 
 	const schema2 = {
-		users: pgTable(
-			'users',
-			{
-				id1: integer('id1'),
-				id2: integer('id2'),
-				text: text('text'),
-			},
-			(t) => {
-				return {
-					pk: primaryKey({ columns: [t.id1, t.id2], name: 'compositePK' }),
-				};
-			},
-		),
+		users: pgTable('users', {
+			id1: integer('id1'),
+			id2: integer('id2'),
+			text: text('text'),
+		}, (t) => [primaryKey({ columns: [t.id1, t.id2], name: 'compositePK' })]),
 	};
 
 	const { sqlStatements } = await diffTestSchemas(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual(['ALTER TABLE "users" ADD COLUMN "text" text;']);
 });
 
 test('with composite pks #2', async (t) => {
@@ -187,23 +169,15 @@ test('with composite pks #2', async (t) => {
 	};
 
 	const schema2 = {
-		users: pgTable(
-			'users',
-			{
-				id1: integer('id1'),
-				id2: integer('id2'),
-			},
-			(t) => {
-				return {
-					pk: primaryKey({ columns: [t.id1, t.id2], name: 'compositePK' }),
-				};
-			},
-		),
+		users: pgTable('users', {
+			id1: integer('id1'),
+			id2: integer('id2'),
+		}, (t) => [primaryKey({ columns: [t.id1, t.id2], name: 'compositePK' })]),
 	};
 
 	const { sqlStatements } = await diffTestSchemas(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual(['ALTER TABLE "users" ADD CONSTRAINT "compositePK" PRIMARY KEY("id1","id2");']);
 });
 
 test('with composite pks #3', async (t) => {
@@ -223,18 +197,10 @@ test('with composite pks #3', async (t) => {
 	};
 
 	const schema2 = {
-		users: pgTable(
-			'users',
-			{
-				id1: integer('id1'),
-				id3: integer('id3'),
-			},
-			(t) => {
-				return {
-					pk: primaryKey({ columns: [t.id1, t.id3], name: 'compositePK' }),
-				};
-			},
-		),
+		users: pgTable('users', {
+			id1: integer('id1'),
+			id3: integer('id3'),
+		}, (t) => [primaryKey({ columns: [t.id1, t.id3], name: 'compositePK' })]),
 	};
 
 	// TODO: remove redundand drop/create create constraint
@@ -242,7 +208,7 @@ test('with composite pks #3', async (t) => {
 		'public.users.id2->public.users.id3',
 	]);
 
-	expect(sqlStatements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual(['ALTER TABLE "users" RENAME COLUMN "id2" TO "id3";']);
 });
 
 test('add multiple constraints #1', async (t) => {
@@ -373,6 +339,34 @@ test('varchar and text default values escape single quotes', async () => {
 
 	const { sqlStatements } = await diffTestSchemas(schema1, schema2, []);
 
+	expect(sqlStatements).toStrictEqual([
+		`ALTER TABLE "table" ADD COLUMN "text" text DEFAULT 'escape''s quotes';`,
+		`ALTER TABLE "table" ADD COLUMN "varchar" varchar DEFAULT 'escape''s quotes';`,
+	]);
+});
+
+test('add columns with defaults', async () => {
+	const schema1 = {
+		table: pgTable('table', {
+			id: serial().primaryKey(),
+		}),
+	};
+
+	const schema2 = {
+		table: pgTable('table', {
+			id: serial().primaryKey(),
+			text: text().default("text"),
+			int1: integer().default(10),
+			int2: integer().default(0),
+			int3: integer().default(-10),
+			bool1: boolean().default(true),
+			bool2: boolean().default(false),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+
+	// TODO: check for created tables, etc
 	expect(sqlStatements).toStrictEqual([
 		`ALTER TABLE "table" ADD COLUMN "text" text DEFAULT 'escape''s quotes';`,
 		`ALTER TABLE "table" ADD COLUMN "varchar" varchar DEFAULT 'escape''s quotes';`,

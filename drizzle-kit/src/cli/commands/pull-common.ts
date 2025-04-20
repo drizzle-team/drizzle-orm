@@ -1,4 +1,7 @@
 import { plural, singular } from 'pluralize';
+import { PostgresEntities } from 'src/dialects/postgres/ddl';
+import { SqliteEntities } from 'src/dialects/sqlite/ddl';
+import { PostgresDDL } from 'src/utils/mover';
 import { paramNameFor } from '../../dialects/postgres/typescript';
 import { assertUnreachable } from '../../global';
 import type { Casing } from '../validations/common';
@@ -15,27 +18,7 @@ const withCasing = (value: string, casing: Casing) => {
 };
 
 export const relationsToTypeScript = (
-	schema: {
-		tables: Record<
-			string,
-			{
-				schema?: string;
-				foreignKeys: Record<
-					string,
-					{
-						name: string;
-						tableFrom: string;
-						columnsFrom: string[];
-						tableTo: string;
-						schemaTo?: string;
-						columnsTo: string[];
-						onUpdate?: string | undefined;
-						onDelete?: string | undefined;
-					}
-				>;
-			}
-		>;
-	},
+	fks: (PostgresEntities['fks'] | SqliteEntities['fks'])[],
 	casing: Casing,
 ) => {
 	const imports: string[] = [];
@@ -53,51 +36,48 @@ export const relationsToTypeScript = (
 			relationName?: string;
 		}[]
 	> = {};
+	for (const fk of fks) {
+		const tableNameFrom = paramNameFor(fk.table, 'schema' in fk ? fk.schema : null);
+		const tableNameTo = paramNameFor(fk.tableTo, 'schemaTo' in fk ? fk.schemaTo : null);
+		const tableFrom = withCasing(tableNameFrom, casing);
+		const tableTo = withCasing(tableNameTo, casing);
+		const columnFrom = withCasing(fk.columnsFrom[0], casing);
+		const columnTo = withCasing(fk.columnsTo[0], casing);
 
-	Object.values(schema.tables).forEach((table) => {
-		Object.values(table.foreignKeys).forEach((fk) => {
-			const tableNameFrom = paramNameFor(fk.tableFrom, table.schema);
-			const tableNameTo = paramNameFor(fk.tableTo, fk.schemaTo);
-			const tableFrom = withCasing(tableNameFrom, casing);
-			const tableTo = withCasing(tableNameTo, casing);
-			const columnFrom = withCasing(fk.columnsFrom[0], casing);
-			const columnTo = withCasing(fk.columnsTo[0], casing);
+		imports.push(tableTo, tableFrom);
 
-			imports.push(tableTo, tableFrom);
+		// const keyFrom = `${schemaFrom}.${tableFrom}`;
+		const keyFrom = tableFrom;
 
-			// const keyFrom = `${schemaFrom}.${tableFrom}`;
-			const keyFrom = tableFrom;
+		if (!tableRelations[keyFrom]) {
+			tableRelations[keyFrom] = [];
+		}
 
-			if (!tableRelations[keyFrom]) {
-				tableRelations[keyFrom] = [];
-			}
-
-			tableRelations[keyFrom].push({
-				name: singular(tableTo),
-				type: 'one',
-				tableFrom,
-				columnFrom,
-				tableTo,
-				columnTo,
-			});
-
-			// const keyTo = `${schemaTo}.${tableTo}`;
-			const keyTo = tableTo;
-
-			if (!tableRelations[keyTo]) {
-				tableRelations[keyTo] = [];
-			}
-
-			tableRelations[keyTo].push({
-				name: plural(tableFrom),
-				type: 'many',
-				tableFrom: tableTo,
-				columnFrom: columnTo,
-				tableTo: tableFrom,
-				columnTo: columnFrom,
-			});
+		tableRelations[keyFrom].push({
+			name: singular(tableTo),
+			type: 'one',
+			tableFrom,
+			columnFrom,
+			tableTo,
+			columnTo,
 		});
-	});
+
+		// const keyTo = `${schemaTo}.${tableTo}`;
+		const keyTo = tableTo;
+
+		if (!tableRelations[keyTo]) {
+			tableRelations[keyTo] = [];
+		}
+
+		tableRelations[keyTo].push({
+			name: plural(tableFrom),
+			type: 'many',
+			tableFrom: tableTo,
+			columnFrom: columnTo,
+			tableTo: tableFrom,
+			columnTo: columnFrom,
+		});
+	}
 
 	const uniqueImports = [...new Set(imports)];
 

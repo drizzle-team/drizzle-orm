@@ -2,7 +2,7 @@
  * A sequence matcher for string arrays that finds differences
  * and tracks positions of added elements.
  */
-function diffStringArrays(oldArr: string[], newArr: string[]): {
+export function diffStringArrays(oldArr: string[], newArr: string[]): {
 	type: 'same' | 'removed' | 'added';
 	value: string;
 	beforeValue?: string;

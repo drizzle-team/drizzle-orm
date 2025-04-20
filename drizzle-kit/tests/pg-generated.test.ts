@@ -3,7 +3,7 @@
 import { SQL, sql } from 'drizzle-orm';
 import { integer, pgTable, text } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
-import { diffTestSchemas } from './schemaDiffer';
+import { diffTestSchemas } from './mocks-postgres';
 
 test('generated as callback: add column with generated constraint', async () => {
 	const from = {
@@ -24,25 +24,7 @@ test('generated as callback: add column with generated constraint', async () => 
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
-
-	expect(statements).toStrictEqual([
-		{
-			column: {
-				generated: {
-					as: '"users"."name" || \'hello\'',
-					type: 'stored',
-				},
-				name: 'gen_name',
-				notNull: false,
-				primaryKey: false,
-				type: 'text',
-			},
-			schema: '',
-			tableName: 'users',
-			type: 'alter_table_add_column',
-		},
-	]);
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
 	expect(sqlStatements).toStrictEqual([
 		`ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS (\"users\".\"name\" || 'hello') STORED;`,
 	]);
@@ -68,25 +50,9 @@ test('generated as callback: add generated constraint to an exisiting column', a
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
-
-	expect(statements).toStrictEqual([
-		{
-			columnAutoIncrement: undefined,
-			columnDefault: undefined,
-			columnGenerated: { as: '"users"."name" || \'to add\'', type: 'stored' },
-			columnName: 'gen_name',
-			columnNotNull: true,
-			columnOnUpdate: undefined,
-			columnPk: false,
-			newDataType: 'text',
-			schema: '',
-			tableName: 'users',
-			type: 'alter_table_alter_column_set_generated',
-		},
-	]);
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
 	expect(sqlStatements).toStrictEqual([
-		'ALTER TABLE "users" drop column "gen_name";',
+		'ALTER TABLE "users" DROP COLUMN "gen_name";',
 		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name" || \'to add\') STORED NOT NULL;',
 	]);
 });
@@ -111,23 +77,8 @@ test('generated as callback: drop generated constraint', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(statements).toStrictEqual([
-		{
-			columnAutoIncrement: undefined,
-			columnDefault: undefined,
-			columnGenerated: undefined,
-			columnName: 'gen_name',
-			columnNotNull: false,
-			columnOnUpdate: undefined,
-			columnPk: false,
-			newDataType: 'text',
-			schema: '',
-			tableName: 'users',
-			type: 'alter_table_alter_column_drop_generated',
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
 		`ALTER TABLE \"users\" ALTER COLUMN \"gen_name\" DROP EXPRESSION;`,
 	]);
@@ -155,25 +106,10 @@ test('generated as callback: change generated constraint', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(statements).toStrictEqual([
-		{
-			columnAutoIncrement: undefined,
-			columnDefault: undefined,
-			columnGenerated: { as: '"users"."name" || \'hello\'', type: 'stored' },
-			columnName: 'gen_name',
-			columnNotNull: false,
-			columnOnUpdate: undefined,
-			columnPk: false,
-			newDataType: 'text',
-			schema: '',
-			tableName: 'users',
-			type: 'alter_table_alter_column_alter_generated',
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
-		'ALTER TABLE "users" drop column "gen_name";',
+		'ALTER TABLE "users" DROP COLUMN "gen_name";',
 		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name" || \'hello\') STORED;',
 	]);
 });
@@ -199,25 +135,7 @@ test('generated as sql: add column with generated constraint', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
-
-	expect(statements).toStrictEqual([
-		{
-			column: {
-				generated: {
-					as: '"users"."name" || \'hello\'',
-					type: 'stored',
-				},
-				name: 'gen_name',
-				notNull: false,
-				primaryKey: false,
-				type: 'text',
-			},
-			schema: '',
-			tableName: 'users',
-			type: 'alter_table_add_column',
-		},
-	]);
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
 	expect(sqlStatements).toStrictEqual([
 		`ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS (\"users\".\"name\" || 'hello') STORED;`,
 	]);
@@ -243,25 +161,9 @@ test('generated as sql: add generated constraint to an exisiting column', async 
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
-
-	expect(statements).toStrictEqual([
-		{
-			columnAutoIncrement: undefined,
-			columnDefault: undefined,
-			columnGenerated: { as: '"users"."name" || \'to add\'', type: 'stored' },
-			columnName: 'gen_name',
-			columnNotNull: true,
-			columnOnUpdate: undefined,
-			columnPk: false,
-			newDataType: 'text',
-			schema: '',
-			tableName: 'users',
-			type: 'alter_table_alter_column_set_generated',
-		},
-	]);
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
 	expect(sqlStatements).toStrictEqual([
-		'ALTER TABLE "users" drop column "gen_name";',
+		'ALTER TABLE "users" DROP COLUMN "gen_name";',
 		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name" || \'to add\') STORED NOT NULL;',
 	]);
 });
@@ -286,23 +188,7 @@ test('generated as sql: drop generated constraint', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
-
-	expect(statements).toStrictEqual([
-		{
-			columnAutoIncrement: undefined,
-			columnDefault: undefined,
-			columnGenerated: undefined,
-			columnName: 'gen_name',
-			columnNotNull: false,
-			columnOnUpdate: undefined,
-			columnPk: false,
-			newDataType: 'text',
-			schema: '',
-			tableName: 'users',
-			type: 'alter_table_alter_column_drop_generated',
-		},
-	]);
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
 	expect(sqlStatements).toStrictEqual([
 		`ALTER TABLE \"users\" ALTER COLUMN \"gen_name\" DROP EXPRESSION;`,
 	]);
@@ -330,25 +216,9 @@ test('generated as sql: change generated constraint', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
-
-	expect(statements).toStrictEqual([
-		{
-			columnAutoIncrement: undefined,
-			columnDefault: undefined,
-			columnGenerated: { as: '"users"."name" || \'hello\'', type: 'stored' },
-			columnName: 'gen_name',
-			columnNotNull: false,
-			columnOnUpdate: undefined,
-			columnPk: false,
-			newDataType: 'text',
-			schema: '',
-			tableName: 'users',
-			type: 'alter_table_alter_column_alter_generated',
-		},
-	]);
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
 	expect(sqlStatements).toStrictEqual([
-		'ALTER TABLE "users" drop column "gen_name";',
+		'ALTER TABLE "users" DROP COLUMN "gen_name";',
 		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name" || \'hello\') STORED;',
 	]);
 });
@@ -374,25 +244,7 @@ test('generated as string: add column with generated constraint', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
-
-	expect(statements).toStrictEqual([
-		{
-			column: {
-				generated: {
-					as: '"users"."name" || \'hello\'',
-					type: 'stored',
-				},
-				name: 'gen_name',
-				notNull: false,
-				primaryKey: false,
-				type: 'text',
-			},
-			schema: '',
-			tableName: 'users',
-			type: 'alter_table_add_column',
-		},
-	]);
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
 	expect(sqlStatements).toStrictEqual([
 		`ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS (\"users\".\"name\" || 'hello') STORED;`,
 	]);
@@ -418,25 +270,10 @@ test('generated as string: add generated constraint to an exisiting column', asy
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(statements).toStrictEqual([
-		{
-			columnAutoIncrement: undefined,
-			columnDefault: undefined,
-			columnGenerated: { as: '"users"."name" || \'to add\'', type: 'stored' },
-			columnName: 'gen_name',
-			columnNotNull: true,
-			columnOnUpdate: undefined,
-			columnPk: false,
-			newDataType: 'text',
-			schema: '',
-			tableName: 'users',
-			type: 'alter_table_alter_column_set_generated',
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
-		'ALTER TABLE "users" drop column "gen_name";',
+		'ALTER TABLE "users" DROP COLUMN "gen_name";',
 		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name" || \'to add\') STORED NOT NULL;',
 	]);
 });
@@ -461,23 +298,8 @@ test('generated as string: drop generated constraint', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(statements).toStrictEqual([
-		{
-			columnAutoIncrement: undefined,
-			columnDefault: undefined,
-			columnGenerated: undefined,
-			columnName: 'gen_name',
-			columnNotNull: false,
-			columnOnUpdate: undefined,
-			columnPk: false,
-			newDataType: 'text',
-			schema: '',
-			tableName: 'users',
-			type: 'alter_table_alter_column_drop_generated',
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
 		`ALTER TABLE \"users\" ALTER COLUMN \"gen_name\" DROP EXPRESSION;`,
 	]);
@@ -505,25 +327,9 @@ test('generated as string: change generated constraint', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
-
-	expect(statements).toStrictEqual([
-		{
-			columnAutoIncrement: undefined,
-			columnDefault: undefined,
-			columnGenerated: { as: '"users"."name" || \'hello\'', type: 'stored' },
-			columnName: 'gen_name',
-			columnNotNull: false,
-			columnOnUpdate: undefined,
-			columnPk: false,
-			newDataType: 'text',
-			schema: '',
-			tableName: 'users',
-			type: 'alter_table_alter_column_alter_generated',
-		},
-	]);
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
 	expect(sqlStatements).toStrictEqual([
-		'ALTER TABLE "users" drop column "gen_name";',
+		'ALTER TABLE "users" DROP COLUMN "gen_name";',
 		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name" || \'hello\') STORED;',
 	]);
 });

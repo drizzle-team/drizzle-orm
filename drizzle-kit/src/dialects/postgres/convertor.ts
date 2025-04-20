@@ -1,6 +1,5 @@
-import { it } from 'node:test';
-import { nullable } from 'zod';
 import { escapeSingleQuotes, type Simplify } from '../../utils';
+import { View } from './ddl';
 import { defaults, isDefaultAction, parseType } from './grammar';
 import type { JsonStatement } from './statements';
 
@@ -85,21 +84,20 @@ const alterViewConvertor = convertor('alter_view', (st) => {
 	const key = st.view.schema !== 'public' ? `"${st.view.schema}"."${st.view.name}"` : `"${st.view.name}"`;
 	const viewClause = st.view.materialized ? `MATERIALIZED VIEW ${key}` : `VIEW ${key}`;
 
-	const withFrom = diff.with?.from || {} as Record<string, string>;
-	const withTo = diff.with?.to || {} as Record<string, string>;
-	const resetOptions = Object.entries(withFrom).filter(([key, val]) => {
-		return val !== null && (key in withTo ? withTo[key] === null : true);
-	}).map((it) => it[0].snake_case());
-	const setOptions = Object.entries(withTo).filter((it) => {
-		const from = withFrom[it[0]];
-		return it[1] !== null && from != it[1];
-	}).map(
-		(it) => {
-			return `${it[0].snake_case()} = ${it[1]}`;
-		},
-	).join(', ');
+	const withFrom = diff.with?.from || {};
+	const withTo = diff.with?.to || {};
 
-	if (setOptions) statements.push(`ALTER ${viewClause} SET (${setOptions});`);
+	const resetOptions = Object.entries(withFrom).filter(([key, val]) => {
+		return val !== null && (key in withTo ? withTo[key as keyof typeof withTo] === null : true);
+	}).map((it) => it[0].snake_case());
+
+	const setOptions = Object.entries(withTo).filter(([key, val]) => {
+		const from = key in withFrom ? withFrom[key as keyof typeof withFrom] : null;
+		return val !== null && from != val;
+	}).map((it) => `${it[0].snake_case()} = ${it[1]}`).join(', ');
+
+
+	if (setOptions.length > 0) statements.push(`ALTER ${viewClause} SET (${setOptions});`);
 	if (resetOptions.length > 0) statements.push(`ALTER ${viewClause} RESET (${resetOptions.join(', ')});`);
 	// TODO: reset missing options, set changed options and new options?
 
@@ -136,10 +134,12 @@ const createTableConvertor = convertor('create_table', (st) => {
 
 		const primaryKeyStatement = column.primaryKey ? ' PRIMARY KEY' : '';
 		const notNullStatement = column.primaryKey ? '' : column.notNull && !column.identity ? ' NOT NULL' : '';
-		const defaultStatement = column.default !== null ? ` DEFAULT ${column.default}` : '';
+		const defaultStatement = column.default
+			? column.default.expression ? ` DEFAULT (${column.default.value})` : ` DEFAULT ${column.default.value}`
+			: '';
 
 		const unqiueConstraintPrefix = column.unique
-			? column.unique.name ? `UNIQUE("${column.unique.name}")` : 'UNIQUE'
+			? column.unique.nameExplicit ? `UNIQUE("${column.unique.name}")` : 'UNIQUE'
 			: '';
 		const uniqueConstraintStatement = column.unique
 			? ` ${unqiueConstraintPrefix}${column.unique.nullsNotDistinct ? ' NULLS NOT DISTINCT' : ''}`
@@ -154,7 +154,7 @@ const createTableConvertor = convertor('create_table', (st) => {
 
 		const generatedStatement = generated ? ` GENERATED ALWAYS AS (${generated?.as}) STORED` : '';
 
-		const identityWithSchema = schema
+		const identityWithSchema = schema !== 'public'
 			? `"${schema}"."${column.identity?.name}"`
 			: `"${column.identity?.name}"`;
 
@@ -212,12 +212,8 @@ const createTableConvertor = convertor('create_table', (st) => {
 	if (policies && policies.length > 0 || isRlsEnabled) {
 		statements.push(toggleRlsConvertor.convert({
 			isRlsEnabled: true,
-			table: {
-				entityType: 'tables',
-				name: st.table.name,
-				schema: st.table.schema,
-				isRlsEnabled: st.table.isRlsEnabled,
-			},
+			name: st.table.name,
+			schema: st.table.schema,
 		}) as string);
 	}
 
@@ -233,6 +229,7 @@ const dropTableConvertor = convertor('drop_table', (st) => {
 
 	const droppedPolicies = policies.map((policy) => dropPolicyConvertor.convert({ policy }) as string);
 
+	// TODO: remove CASCADE
 	return [
 		...droppedPolicies,
 		`DROP TABLE ${tableNameWithSchema} CASCADE;`,
@@ -264,7 +261,7 @@ const addColumnConvertor = convertor('add_column', (st) => {
 		: `"${table}"`;
 
 	const defaultStatement = column.default
-		? ` DEFAULT ${column.default.expression ? column.default.value : `'${column.default.value}'`}`
+		? ` DEFAULT ${column.default.expression ? `(${column.default.value})` : `${column.default.value}`}`
 		: '';
 
 	const schemaPrefix = column.typeSchema && column.typeSchema !== 'public'
@@ -313,7 +310,7 @@ const addColumnConvertor = convertor('add_column', (st) => {
 const dropColumnConvertor = convertor('drop_column', (st) => {
 	const { schema, table, name } = st.column;
 
-	const tableNameWithSchema = schema
+	const tableNameWithSchema = schema !== 'public'
 		? `"${schema}"."${table}"`
 		: `"${table}"`;
 
@@ -322,7 +319,7 @@ const dropColumnConvertor = convertor('drop_column', (st) => {
 
 const renameColumnConvertor = convertor('rename_column', (st) => {
 	const { table, schema } = st.from;
-	const tableNameWithSchema = schema
+	const tableNameWithSchema = schema !== 'public'
 		? `"${schema}"."${table}"`
 		: `"${table}"`;
 
@@ -367,7 +364,9 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP EXPRESSION;`);
 	}
 
-	if (diff.notNull) {
+	// TODO: remove implicit notnull in orm
+	// skip if not null was implicit from identity and identity is dropped
+	if (diff.notNull && !(diff.notNull.to === false && diff.identity && !diff.identity.to)) {
 		const clause = diff.notNull.to ? 'SET NOT NULL' : 'DROP NOT NULL';
 		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" ${clause};`);
 	}
@@ -518,16 +517,16 @@ const recreatePrimaryKeyConvertor = convertor('alter_pk', (it) => {
 	return [drop, create];
 });
 
-const renameConstraintConvertor = convertor('rename_pk', (st) => {
-	const key = st.to.schema !== 'public'
-		? `"${st.to.schema}"."${st.to.table}"`
-		: `"${st.to.table}"`;
+const renameConstraintConvertor = convertor('rename_constraint', (st) => {
+	const key = st.schema !== 'public'
+		? `"${st.schema}"."${st.table}"`
+		: `"${st.table}"`;
 
-	return `ALTER TABLE ${key} RENAME CONSTRAINT "${st.from.name}" TO "${st.to.name}";`;
+	return `ALTER TABLE ${key} RENAME CONSTRAINT "${st.from}" TO "${st.to}";`;
 });
 
 const createForeignKeyConvertor = convertor('create_fk', (st) => {
-	const { schema, table, name, tableFrom, tableTo, columnsFrom, columnsTo, onDelete, onUpdate, schemaTo } = st.fk;
+	const { schema, table, name, tableTo, columnsFrom, columnsTo, onDelete, onUpdate, schemaTo } = st.fk;
 
 	const onDeleteStatement = onDelete && !isDefaultAction(onDelete) ? ` ON DELETE ${onDelete}` : '';
 	const onUpdateStatement = onUpdate && !isDefaultAction(onUpdate) ? ` ON UPDATE ${onUpdate}` : '';
@@ -628,7 +627,7 @@ const dropUniqueConvertor = convertor('drop_unique', (st) => {
 
 const createEnumConvertor = convertor('create_enum', (st) => {
 	const { name, schema, values } = st.enum;
-	const enumNameWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
+	const enumNameWithSchema = schema !== 'public' ? `"${schema}"."${name}"` : `"${name}"`;
 
 	let valuesStatement = '(';
 	valuesStatement += values.map((it) => `'${escapeSingleQuotes(it)}'`).join(', ');
@@ -639,14 +638,13 @@ const createEnumConvertor = convertor('create_enum', (st) => {
 
 const dropEnumConvertor = convertor('drop_enum', (st) => {
 	const { name, schema } = st.enum;
-	const enumNameWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
+	const enumNameWithSchema = schema !== 'public' ? `"${schema}"."${name}"` : `"${name}"`;
 	return `DROP TYPE ${enumNameWithSchema};`;
 });
 
 const renameEnumConvertor = convertor('rename_enum', (st) => {
-	const from = st.from.schema !== 'public' ? `"${st.from.schema}"."${st.from.name}"` : `"${st.from.name}"`;
-	const to = st.to.schema !== 'public' ? `"${st.to.schema}"."${st.to.name}"` : `"${st.to.name}"`;
-	return `ALTER TYPE ${from} RENAME TO "${to}";`;
+	const from = st.schema !== 'public' ? `"${st.schema}"."${st.from}"` : `"${st.from}"`;
+	return `ALTER TYPE ${from} RENAME TO "${st.to}";`;
 });
 
 const moveEnumConvertor = convertor('move_enum', (st) => {
@@ -663,9 +661,9 @@ const alterEnumConvertor = convertor('alter_enum', (st) => {
 	const statements = [] as string[];
 	for (const d of diff.filter((it) => it.type === 'added')) {
 		if (d.beforeValue) {
-			statements.push(`ALTER TYPE ${key} ADD VALUE '${d.value}' BEFORE '${d.beforeValue}'`);
+			statements.push(`ALTER TYPE ${key} ADD VALUE '${d.value}' BEFORE '${d.beforeValue}';`);
 		} else {
-			statements.push(`ALTER TYPE ${key} ADD VALUE IF NOT EXISTS ${d.value};`);
+			statements.push(`ALTER TYPE ${key} ADD VALUE '${d.value}';`);
 		}
 	}
 	return statements;
@@ -676,9 +674,8 @@ const recreateEnumConvertor = convertor('recreate_enum', (st) => {
 	const statements: string[] = [];
 	for (const column of columns) {
 		const key = column.schema !== 'public' ? `"${column.schema}"."${column.table}"` : `"${column.table}"`;
-		statements.push(
-			`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE text;`,
-		);
+		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE text;`);
+		if (column.default) statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 	}
 	statements.push(dropEnumConvertor.convert({ enum: to }) as string);
 	statements.push(createEnumConvertor.convert({ enum: to }) as string);
@@ -689,6 +686,10 @@ const recreateEnumConvertor = convertor('recreate_enum', (st) => {
 		statements.push(
 			`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${enumType} USING "${column.name}"::${enumType};`,
 		);
+		if (column.default) {
+			const def = column.default.expression ? `(${column.default.value})` : column.default.value;
+			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${def};`);
+		}
 	}
 
 	return statements;
@@ -767,7 +768,7 @@ const createPolicyConvertor = convertor('create_policy', (st) => {
 	const { schema, table } = st.policy;
 	const policy = st.policy;
 
-	const tableNameWithSchema = schema
+	const tableNameWithSchema = schema !== 'public'
 		? `"${schema}"."${table}"`
 		: `"${table}"`;
 
@@ -821,19 +822,24 @@ const alterPolicyConvertor = convertor('alter_policy', (st) => {
 		['current_user', 'current_role', 'session_user', 'public'].includes(v) ? v : `"${v}"`
 	).join(', ');
 
-	const forClause = policy.for ? ` FOR ${policy.for.toUpperCase()}` : '';
+	return `ALTER POLICY "${policy.name}" ON ${tableNameWithSchema} TO ${toClause}${usingPart}${withCheckPart};`;
+});
 
-	return `ALTER POLICY "${policy.name}" ON ${tableNameWithSchema}${forClause} TO ${toClause}${usingPart}${withCheckPart};`;
+const recreatePolicy = convertor('recreate_policy', (st) => {
+	return [
+		dropPolicyConvertor.convert({ policy: st.policy }) as string,
+		createPolicyConvertor.convert({ policy: st.policy }) as string,
+	];
 });
 
 const toggleRlsConvertor = convertor('alter_rls', (st) => {
-	const { table } = st;
+	const { schema, name, isRlsEnabled } = st;
 
-	const tableNameWithSchema = table.schema !== 'public'
-		? `"${table.schema}"."${table}"`
-		: `"${table}"`;
+	const tableNameWithSchema = schema !== 'public'
+		? `"${schema}"."${name}"`
+		: `"${name}"`;
 
-	return `ALTER TABLE ${tableNameWithSchema} ${table.isRlsEnabled ? 'ENABLE' : 'DISABLE'} ROW LEVEL SECURITY;`;
+	return `ALTER TABLE ${tableNameWithSchema} ${isRlsEnabled ? 'ENABLE' : 'DISABLE'} ROW LEVEL SECURITY;`;
 });
 
 const convertors = [
@@ -887,6 +893,7 @@ const convertors = [
 	dropPolicyConvertor,
 	renamePolicyConvertor,
 	alterPolicyConvertor,
+	recreatePolicy,
 	toggleRlsConvertor,
 ];
 
