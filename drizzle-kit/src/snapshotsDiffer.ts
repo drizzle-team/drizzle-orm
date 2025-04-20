@@ -1372,6 +1372,7 @@ export const applyPgSnapshotsDiff = async (
 				it.schema,
 				it.altered,
 				json2,
+				json1,
 				action,
 			);
 		})
@@ -1979,6 +1980,8 @@ export const applyPgSnapshotsDiff = async (
 
 	jsonStatements.push(...jsonDroppedReferencesForAlteredTables);
 
+	jsonStatements.push(...jsonAlterEnumsWithDroppedValues);
+
 	// Will need to drop indexes before changing any columns in table
 	// Then should go column alternations and then index creation
 	jsonStatements.push(...jsonDropIndexesForAllAlteredTables);
@@ -2001,7 +2004,6 @@ export const applyPgSnapshotsDiff = async (
 	jsonStatements.push(...jsonCreatedCheckConstraints);
 
 	jsonStatements.push(...jsonAlteredUniqueConstraints);
-	jsonStatements.push(...jsonAlterEnumsWithDroppedValues);
 
 	jsonStatements.push(...createViews);
 
@@ -2053,11 +2055,11 @@ export const applyPgSnapshotsDiff = async (
 	const filteredEnumsJsonStatements = filteredJsonStatements.filter((st) => {
 		if (st.type === 'alter_type_add_value') {
 			if (
-				jsonStatements.find(
+				filteredJsonStatements.find(
 					(it) =>
 						it.type === 'alter_type_drop_value'
 						&& it.name === st.name
-						&& it.schema === st.schema,
+						&& it.enumSchema === st.schema,
 				)
 			) {
 				return false;
@@ -2066,7 +2068,42 @@ export const applyPgSnapshotsDiff = async (
 		return true;
 	});
 
-	const sqlStatements = fromJson(filteredEnumsJsonStatements, 'postgresql', action);
+	// This is needed because in sql generator on type pg_alter_table_alter_column_set_type and alter_type_drop_value
+	// drizzle kit checks whether column has defaults to cast them to new types properly
+	const filteredEnums2JsonStatements = filteredEnumsJsonStatements.filter((st) => {
+		if (st.type === 'alter_table_alter_column_set_default') {
+			if (
+				filteredEnumsJsonStatements.find(
+					(it) =>
+						it.type === 'pg_alter_table_alter_column_set_type'
+						&& it.columnDefault === st.newDefaultValue
+						&& it.columnName === st.columnName
+						&& it.tableName === st.tableName
+						&& it.schema === st.schema,
+				)
+			) {
+				return false;
+			}
+
+			if (
+				filteredEnumsJsonStatements.find(
+					(it) =>
+						it.type === 'alter_type_drop_value'
+						&& it.columnsWithEnum.find((column) =>
+							column.default === st.newDefaultValue
+							&& column.column === st.columnName
+							&& column.table === st.tableName
+							&& column.tableSchema === st.schema
+						),
+				)
+			) {
+				return false;
+			}
+		}
+		return true;
+	});
+
+	const sqlStatements = fromJson(filteredEnums2JsonStatements, 'postgresql', action);
 
 	const uniqueSqlStatements: string[] = [];
 	sqlStatements.forEach((ss) => {
@@ -2087,7 +2124,7 @@ export const applyPgSnapshotsDiff = async (
 	const _meta = prepareMigrationMeta(rSchemas, rTables, rColumns);
 
 	return {
-		statements: filteredEnumsJsonStatements,
+		statements: filteredEnums2JsonStatements,
 		sqlStatements: uniqueSqlStatements,
 		_meta,
 	};
