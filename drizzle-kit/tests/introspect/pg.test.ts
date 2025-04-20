@@ -35,7 +35,7 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 import fs from 'fs';
-import { introspectPgToFile } from 'tests/schemaDiffer';
+import { introspectPgToFile } from 'tests/mocks-postgres';
 import { expect, test } from 'vitest';
 
 if (!fs.existsSync('tests/introspect/postgres')) {

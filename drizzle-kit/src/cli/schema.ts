@@ -519,7 +519,7 @@ export const pull = command({
 					}
 				}
 
-				const { introspectPostgres } = await import('./commands/pull-common');
+				const { introspectPostgres } = await import('./commands/pull-postgres');
 				await introspectPostgres(
 					casing,
 					out,
@@ -531,7 +531,7 @@ export const pull = command({
 					entities,
 				);
 			} else if (dialect === 'mysql') {
-				const { introspectMysql } = await import('./commands/pull-common');
+				const { introspectMysql } = await import('./commands/pull-mysql');
 				await introspectMysql(
 					casing,
 					out,
@@ -551,7 +551,7 @@ export const pull = command({
 					prefix,
 				);
 			} else if (dialect === 'turso') {
-				const { introspectLibSQL } = await import('./commands/pull-common');
+				const { introspectLibSQL } = await import('./commands/pull-libsql');
 				await introspectLibSQL(
 					casing,
 					out,
@@ -561,7 +561,7 @@ export const pull = command({
 					prefix,
 				);
 			} else if (dialect === 'singlestore') {
-				const { introspectSingleStore } = await import('./commands/pull-common');
+				const { introspectSingleStore } = await import('./commands/pull-singlestore');
 				await introspectSingleStore(
 					casing,
 					out,

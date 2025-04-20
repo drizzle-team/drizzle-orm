@@ -12,18 +12,28 @@ const main = async () => {
 	// 	format: ['esm'],
 	// });
 
-	// await tsup.build({
-	// 	entryPoints: ['./src/utils/studio-sqlite.ts'],
-	// 	outDir: './dist',
-	// 	external: [],
-	// 	splitting: false,
-	// 	dts: true,
-	// 	platform: 'browser',
-	// 	format: ['esm'],
-	// });
+	await tsup.build({
+		entryPoints: ['./src/utils/studio-sqlite.ts'],
+		outDir: './dist',
+		external: [],
+		splitting: false,
+		dts: true,
+		platform: 'browser',
+		format: ['esm'],
+	});
 
 	await tsup.build({
-		entryPoints: ['./src/dialects/postgres/introspect.ts'],
+		entryPoints: ['./src/utils/studio-postgres.ts'],
+		outDir: './dist',
+		external: [],
+		splitting: false,
+		dts: true,
+		platform: 'browser',
+		format: ['esm'],
+	});
+
+	await tsup.build({
+		entryPoints: ['./src/utils/mover.ts'],
 		outDir: './dist',
 		external: [],
 		splitting: false,

@@ -1,21 +1,34 @@
+import chalk from 'chalk';
+import { writeFileSync } from 'fs';
 import { render, renderWithTask } from 'hanji';
 import { Minimatch } from 'minimatch';
-import { ddlDif } from '../../dialects/postgres/diff';
+import { join } from 'path';
+import { mockResolver } from 'src/utils/mocks';
+import {
+	Column,
+	createDDL,
+	Enum,
+	interimToDDL,
+	Policy,
+	PostgresEntities,
+	Role,
+	Schema,
+	Sequence,
+	View,
+} from '../../dialects/postgres/ddl';
+import { ddlDiff } from '../../dialects/postgres/diff';
 import { fromDatabase } from '../../dialects/postgres/introspect';
 import { ddlToTypeScript as postgresSchemaToTypeScript } from '../../dialects/postgres/typescript';
 import type { DB } from '../../utils';
 import { prepareOutFolder } from '../../utils-node';
-import { Entities } from '../validations/cli';
+import { resolver } from '../prompts';
+import type { Entities } from '../validations/cli';
 import type { Casing, Prefix } from '../validations/common';
 import type { PostgresCredentials } from '../validations/postgres';
-import { ProgressView } from '../views';
+import { err, ProgressView } from '../views';
 import { IntrospectProgress } from '../views';
-import { writeFileSync } from 'fs';
-import { join } from 'path';
-import { originUUID } from 'src/global';
+import { writeResult } from './generate-common';
 import { relationsToTypeScript } from './pull-common';
-import chalk from 'chalk';
-import { interimToDDL } from 'src/dialects/postgres/ddl';
 
 export const introspectPostgres = async (
 	casing: Casing,
@@ -76,11 +89,15 @@ export const introspectPostgres = async (
 		),
 	);
 
-	const ddl = interimToDDL(res)
+	const { ddl: ddl2, errors } = interimToDDL(res);
 
-	const ts = postgresSchemaToTypeScript(ddl, casing);
-	const relationsTs = relationsToTypeScript(ddl, casing);
-	const { internal, ...schemaWithoutInternals } = schema;
+	if (errors.length > 0) {
+		// TODO: print errors
+		process.exit(1);
+	}
+
+	const ts = postgresSchemaToTypeScript(ddl2, casing);
+	const relationsTs = relationsToTypeScript(ddl2.fks.list(), casing);
 
 	const schemaFile = join(out, 'schema.ts');
 	writeFileSync(schemaFile, ts.file);
@@ -90,23 +107,25 @@ export const introspectPostgres = async (
 
 	const { snapshots, journal } = prepareOutFolder(out, 'postgresql');
 	if (snapshots.length === 0) {
-		const { sqlStatements, _meta } = await ddlDif(
-			squashPgScheme(dryPg, squasher),
-			squashPgScheme(schema, squasher),
-			schemasResolver,
-			enumsResolver,
-			sequencesResolver,
-			policyResolver,
-			indPolicyResolver,
-			roleResolver,
-			tablesResolver,
-			columnsResolver,
-			viewsResolver,
-			uniqueResolver,
-			indexesResolver,
-			dryPg,
-			schema,
-			squasher,
+		const blanks = new Set<string>();
+		const { sqlStatements, _meta } = await ddlDiff(
+			createDDL(), // dry ddl
+			ddl2,
+			resolver<Schema>('schema'),
+			resolver<Enum>('enum'),
+			resolver<Sequence>('sequence'),
+			resolver<Policy>('policy'),
+			resolver<Role>('role'),
+			resolver<PostgresEntities['tables']>('table'),
+			resolver<Column>('column'),
+			resolver<View>('view'),
+			// TODO: handle all renames
+			mockResolver(blanks), // uniques
+			mockResolver(blanks), // indexes
+			mockResolver(blanks), // checks
+			mockResolver(blanks), // pks
+			mockResolver(blanks), // fks
+			'push',
 		);
 
 		writeResult({
@@ -189,10 +208,21 @@ export const pgPushIntrospect = async (
 	const schemaFilter = (it: string) => {
 		return schemaFilters.some((x) => x === it);
 	};
-	const res = await renderWithTask(
+	const schema = await renderWithTask(
 		progress,
-		fromDatabase(db, filter, schemaFilter, entities, undefined),
+		fromDatabaseForDrizzle(db, filter, schemaFilter, entities),
 	);
 
-	return { schema: res };
+	return { schema };
+};
+
+export const fromDatabaseForDrizzle = async (
+	db: DB,
+	tableFilter: (it: string) => boolean,
+	schemaFilters: (it: string) => boolean,
+	entities?: Entities,
+) => {
+	const res = await fromDatabase(db, tableFilter, schemaFilters, entities, undefined);
+	res.schemas = res.schemas.filter((it) => it.name !== 'public');
+	return res;
 };

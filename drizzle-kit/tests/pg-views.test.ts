@@ -105,10 +105,8 @@ test('create table and view #5', async () => {
 		view2: pgView('some_view', { id: integer('id') }).as(sql`SELECT * FROM ${users}`),
 	};
 
-	const { err2 } = await diffTestSchemas({}, to, []);
-	expect(err2).toStrictEqual([
-		{ type: 'view_name_duplicate', schema: 'public', name: 'some_view' },
-	]);
+	// view_name_duplicate
+	await expect(diffTestSchemas({}, to, [])).rejects.toThrow();
 });
 
 test('create table and view #6', async () => {
@@ -228,10 +226,8 @@ test('create table and materialized view #4', async () => {
 		view2: pgMaterializedView('some_view', { id: integer('id') }).as(sql`SELECT * FROM ${users}`),
 	};
 
-	const { err2 } = await diffTestSchemas({}, to, []);
-	expect(err2).toStrictEqual([
-		{ type: 'view_name_duplicate', schema: 'public', name: 'some_view' },
-	]);
+	// view_name_duplicate
+	await expect(diffTestSchemas({}, to, [])).rejects.toThrow();
 });
 
 test('create table and materialized view #5', async () => {
@@ -631,10 +627,9 @@ test('drop with option from materialized view #1', async () => {
 
 	const { sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(
+	expect(sqlStatements).toStrictEqual([
 		`ALTER MATERIALIZED VIEW "some_view" RESET (autovacuum_enabled, autovacuum_freeze_max_age);`,
-	);
+	]);
 });
 
 test('drop with option from materialized view with existing flag', async () => {
@@ -1013,10 +1008,9 @@ test('drop tablespace - materialize', async () => {
 
 	const { sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(
+	expect(sqlStatements).toStrictEqual([
 		`ALTER MATERIALIZED VIEW "some_view" SET TABLESPACE "pg_default";`,
-	);
+	]);
 });
 
 test('set existing - materialized', async () => {
@@ -1147,10 +1141,9 @@ test('set using - materialize', async () => {
 
 	const { sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(
+	expect(sqlStatements).toStrictEqual([
 		`ALTER MATERIALIZED VIEW "some_view" SET ACCESS METHOD "new_using";`,
-	);
+	]);
 });
 
 test('drop using - materialize', async () => {
@@ -1174,10 +1167,7 @@ test('drop using - materialize', async () => {
 
 	const { sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(
-		`ALTER MATERIALIZED VIEW "some_view" SET ACCESS METHOD "heap";`,
-	);
+	expect(sqlStatements).toStrictEqual([`ALTER MATERIALIZED VIEW "some_view" SET ACCESS METHOD "heap";`]);
 });
 
 test('rename view and alter view', async () => {

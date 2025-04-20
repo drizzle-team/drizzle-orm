@@ -101,7 +101,7 @@ export const generateMigration = async (
 	prev: DrizzleSnapshotJSON,
 	cur: DrizzleSnapshotJSON,
 ) => {
-	const { ddlDif: applyPgSnapshotsDiff } = await import('./dialects/postgres/diff');
+	const { ddlDiff: applyPgSnapshotsDiff } = await import('./dialects/postgres/diff');
 
 	const validatedPrev = pgSchema.parse(prev);
 	const validatedCur = pgSchema.parse(cur);
@@ -140,7 +140,7 @@ export const pushSchema = async (
 	tablesFilter?: string[],
 	extensionsFilters?: Config['extensionsFilters'],
 ) => {
-	const { ddlDif: applyPgSnapshotsDiff } = await import('./dialects/postgres/diff');
+	const { ddlDiff: applyPgSnapshotsDiff } = await import('./dialects/postgres/diff');
 	const { sql } = await import('drizzle-orm');
 	const filters = (tablesFilter ?? []).concat(
 		getTablesFilterByExtensions({ extensionsFilters, dialect: 'postgresql' }),

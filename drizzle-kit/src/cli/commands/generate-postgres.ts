@@ -1,5 +1,5 @@
 import { Column, Enum, Policy, PostgresEntities, Role, Schema, Sequence, View } from '../../dialects/postgres/ddl';
-import { ddlDif } from '../../dialects/postgres/diff';
+import { ddlDiff } from '../../dialects/postgres/diff';
 import { preparePostgresMigrationSnapshot } from '../../dialects/postgres/serializer';
 import { assertV1OutFolder, prepareMigrationFolder } from '../../utils-node';
 import { mockResolver } from '../../utils/mocks';
@@ -36,7 +36,7 @@ export const handle = async (config: GenerateConfig) => {
 		}
 		const blanks = new Set<string>();
 
-		const { sqlStatements, _meta } = await ddlDif(
+		const { sqlStatements, _meta } = await ddlDiff(
 			ddlCur,
 			ddlPrev,
 			resolver<Schema>('schema'),
@@ -47,6 +47,7 @@ export const handle = async (config: GenerateConfig) => {
 			resolver<PostgresEntities['tables']>('table'),
 			resolver<Column>('column'),
 			resolver<View>('view'),
+			// TODO: handle all renames
 			mockResolver(blanks), // uniques
 			mockResolver(blanks), // indexes
 			mockResolver(blanks), // checks

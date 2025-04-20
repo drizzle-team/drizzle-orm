@@ -35,10 +35,10 @@ import {
 } from 'drizzle-orm/pg-core';
 import { drizzle } from 'drizzle-orm/pglite';
 import { eq, SQL, sql } from 'drizzle-orm/sql';
-import { pgSuggestions } from 'src/cli/commands/pgPushUtils';
-import { diffTestSchemas, diffTestSchemasPush } from 'tests/schemaDiffer';
+import { diffTestSchemas, diffTestSchemasPush } from 'tests/mocks-postgres';
 import { expect, test } from 'vitest';
 import { DialectSuite, run } from './common';
+import { suggestions } from 'src/cli/commands/push-postgres';
 
 const pgSuite: DialectSuite = {
 	async allTypes() {
@@ -221,7 +221,7 @@ const pgSuite: DialectSuite = {
 			'public',
 			'schemass',
 		]);
-		expect(statements.length).toBe(0);
+		expect(sqlStatements.length).toBe(0);
 	},
 
 	async addBasicIndexes() {
@@ -253,69 +253,7 @@ const pgSuite: DialectSuite = {
 			),
 		};
 
-		const { statements, sqlStatements } = await diffTestSchemasPush(client, schema1, schema2, [], false, ['public']);
-		expect(statements.length).toBe(2);
-		expect(statements[0]).toStrictEqual({
-			schema: '',
-			tableName: 'users',
-			type: 'create_index_pg',
-			data: {
-				columns: [
-					{
-						asc: false,
-						expression: 'name',
-						isExpression: false,
-						nulls: 'last',
-						opclass: undefined,
-					},
-					{
-						asc: true,
-						expression: 'id',
-						isExpression: false,
-						nulls: 'last',
-						opclass: undefined,
-					},
-				],
-				concurrently: false,
-				isUnique: false,
-				method: 'btree',
-				name: 'users_name_id_index',
-				where: 'select 1',
-				with: {
-					fillfactor: 70,
-				},
-			},
-		});
-		expect(statements[1]).toStrictEqual({
-			schema: '',
-			tableName: 'users',
-			type: 'create_index_pg',
-			data: {
-				columns: [
-					{
-						asc: false,
-						expression: 'name',
-						isExpression: false,
-						nulls: 'last',
-						opclass: undefined,
-					},
-					{
-						asc: true,
-						expression: '"name"',
-						isExpression: true,
-						nulls: 'last',
-					},
-				],
-				concurrently: false,
-				isUnique: false,
-				method: 'hash',
-				name: 'indx1',
-				where: undefined,
-				with: {
-					fillfactor: 70,
-				},
-			},
-		});
+		const { sqlStatements } = await diffTestSchemasPush(client, schema1, schema2, [], false, ['public']);
 		expect(sqlStatements.length).toBe(2);
 		expect(sqlStatements[0]).toBe(
 			`CREATE INDEX IF NOT EXISTS "users_name_id_index" ON "users" USING btree ("name" DESC NULLS LAST,"id") WITH (fillfactor=70) WHERE select 1;`,
@@ -344,25 +282,8 @@ const pgSuite: DialectSuite = {
 			}),
 		};
 
-		const { statements, sqlStatements } = await diffTestSchemasPush(client, schema1, schema2, [], false, ['public']);
+		const { sqlStatements } = await diffTestSchemasPush(client, schema1, schema2, [], false, ['public']);
 
-		expect(statements).toStrictEqual([
-			{
-				column: {
-					generated: {
-						as: '"users"."name"',
-						type: 'stored',
-					},
-					name: 'gen_name',
-					notNull: false,
-					primaryKey: false,
-					type: 'text',
-				},
-				schema: '',
-				tableName: 'users',
-				type: 'alter_table_add_column',
-			},
-		]);
 		expect(sqlStatements).toStrictEqual([
 			'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name") STORED;',
 		]);
@@ -392,26 +313,8 @@ const pgSuite: DialectSuite = {
 			}),
 		};
 
-		const { statements, sqlStatements } = await diffTestSchemasPush(client, schema1, schema2, [], false, ['public']);
+		const { sqlStatements } = await diffTestSchemasPush(client, schema1, schema2, [], false, ['public']);
 
-		expect(statements).toStrictEqual([
-			{
-				columnAutoIncrement: undefined,
-				columnDefault: undefined,
-				columnGenerated: {
-					as: '"users"."name"',
-					type: 'stored',
-				},
-				columnName: 'gen_name',
-				columnNotNull: false,
-				columnOnUpdate: undefined,
-				columnPk: false,
-				newDataType: 'text',
-				schema: '',
-				tableName: 'users',
-				type: 'alter_table_alter_column_set_generated',
-			},
-		]);
 		expect(sqlStatements).toStrictEqual([
 			'ALTER TABLE "users" drop column "gen_name";',
 			'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name") STORED;',
@@ -442,23 +345,8 @@ const pgSuite: DialectSuite = {
 			}),
 		};
 
-		const { statements, sqlStatements } = await diffTestSchemasPush(client, schema1, schema2, [], false, ['public']);
+		const { sqlStatements } = await diffTestSchemasPush(client, schema1, schema2, [], false, ['public']);
 
-		expect(statements).toStrictEqual([
-			{
-				columnAutoIncrement: undefined,
-				columnDefault: undefined,
-				columnGenerated: undefined,
-				columnName: 'gen_name',
-				columnNotNull: false,
-				columnOnUpdate: undefined,
-				columnPk: false,
-				newDataType: 'text',
-				schema: '',
-				tableName: 'users',
-				type: 'alter_table_alter_column_drop_generated',
-			},
-		]);
 		expect(sqlStatements).toStrictEqual(['ALTER TABLE "users" ALTER COLUMN "gen_name" DROP EXPRESSION;']);
 	},
 
@@ -482,9 +370,8 @@ const pgSuite: DialectSuite = {
 			}),
 		};
 
-		const { statements, sqlStatements } = await diffTestSchemasPush(client, schema1, schema2, [], false, ['public']);
+		const { sqlStatements } = await diffTestSchemasPush(client, schema1, schema2, [], false, ['public']);
 
-		expect(statements).toStrictEqual([]);
 		expect(sqlStatements).toStrictEqual([]);
 	},
 
@@ -501,51 +388,8 @@ const pgSuite: DialectSuite = {
 			}),
 		};
 
-		const { statements, sqlStatements } = await diffTestSchemasPush(client, schema1, schema2, [], false, ['public']);
+		const { sqlStatements } = await diffTestSchemasPush(client, schema1, schema2, [], false, ['public']);
 
-		expect(statements).toStrictEqual([
-			{
-				columns: [
-					{
-						name: 'id',
-						notNull: false,
-						primaryKey: false,
-						type: 'integer',
-					},
-					{
-						name: 'id2',
-						notNull: false,
-						primaryKey: false,
-						type: 'integer',
-					},
-					{
-						name: 'name',
-						notNull: false,
-						primaryKey: false,
-						type: 'text',
-					},
-					{
-						generated: {
-							as: '"users"."name" || \'hello\'',
-							type: 'stored',
-						},
-						name: 'gen_name',
-						notNull: false,
-						primaryKey: false,
-						type: 'text',
-					},
-				],
-				compositePKs: [],
-				compositePkName: '',
-				isRLSEnabled: false,
-				schema: '',
-				tableName: 'users',
-				policies: [],
-				type: 'create_table',
-				uniqueConstraints: [],
-				checkConstraints: [],
-			},
-		]);
 		expect(sqlStatements).toStrictEqual([
 			'CREATE TABLE IF NOT EXISTS "users" (\n\t"id" integer,\n\t"id2" integer,\n\t"name" text,\n\t"gen_name" text GENERATED ALWAYS AS ("users"."name" || \'hello\') STORED\n);\n',
 		]);
@@ -562,8 +406,8 @@ const pgSuite: DialectSuite = {
 			seq: pgSequence('my_seq', { startWith: 100 }),
 		};
 
-		const { statements, sqlStatements } = await diffTestSchemasPush(client, schema1, schema2, [], false, ['public']);
-		expect(statements.length).toBe(0);
+		const { sqlStatements } = await diffTestSchemasPush(client, schema1, schema2, [], false, ['public']);
+		expect(sqlStatements.length).toBe(0);
 	},
 
 	async changeIndexFields() {
@@ -656,15 +500,7 @@ const pgSuite: DialectSuite = {
 			}),
 		};
 
-		const { statements, sqlStatements } = await diffTestSchemasPush(client, schema1, schema2, [], false, ['public']);
-
-		expect(statements.length).toBe(1);
-		expect(statements[0]).toStrictEqual({
-			schema: '',
-			tableName: 'users',
-			type: 'drop_index',
-			data: 'users_name_id_index;name--false--last,,id--true--last;false;btree;{"fillfactor":"70"}',
-		});
+		const { sqlStatements } = await diffTestSchemasPush(client, schema1, schema2, [], false, ['public']);
 
 		expect(sqlStatements.length).toBe(1);
 		expect(sqlStatements[0]).toBe(`DROP INDEX IF EXISTS "users_name_id_index";`);
@@ -717,9 +553,9 @@ const pgSuite: DialectSuite = {
 			),
 		};
 
-		const { statements, sqlStatements } = await diffTestSchemasPush(client, schema1, schema2, [], false, ['public']);
+		const { sqlStatements } = await diffTestSchemasPush(client, schema1, schema2, [], false, ['public']);
 
-		expect(statements.length).toBe(0);
+		expect(sqlStatements.length).toBe(0);
 	},
 
 	async indexesTestCase1() {
@@ -761,9 +597,9 @@ const pgSuite: DialectSuite = {
 			),
 		};
 
-		const { statements, sqlStatements } = await diffTestSchemasPush(client, schema1, schema2, [], false, ['public']);
+		const { sqlStatements } = await diffTestSchemasPush(client, schema1, schema2, [], false, ['public']);
 
-		expect(statements.length).toBe(0);
+		expect(sqlStatements.length).toBe(0);
 	},
 
 	async addNotNull() {
@@ -833,7 +669,7 @@ const pgSuite: DialectSuite = {
 			return result.rows as any[];
 		};
 
-		const { statementsToExecute } = await pgSuggestions({ query }, statements);
+		const { statementsToExecute } = await suggestions({ query }, statements);
 
 		expect(statementsToExecute).toStrictEqual(['ALTER TABLE "User" ALTER COLUMN "email" SET NOT NULL;']);
 	},

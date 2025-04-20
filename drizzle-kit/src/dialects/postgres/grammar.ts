@@ -68,7 +68,8 @@ export function minRangeForIdentityBasedOn(columnType: string) {
 }
 
 export const serialExpressionFor = (schema: string, table: string, column: string) => {
-	return `nextval('${schema}.${table}_${column}_seq'::regclass)`;
+	const schemaPrefix = schema === 'public' ? '' : `${schema}.`;
+	return `nextval('${schemaPrefix}${table}_${column}_seq'::regclass)`;
 };
 
 export function stringFromDatabaseIdentityProperty(field: any): string | null {
@@ -189,7 +190,7 @@ export const wrapRecord = (it: Record<string, string>) => {
 		literal: <T extends string>(key: string, allowed: T[]): T | null => {
 			if (!(key in it)) return null;
 			const value = it[key];
-			
+
 			if (allowed.includes(value as T)) {
 				return value as T;
 			}
@@ -280,9 +281,9 @@ export const defaultForColumn = (
 	}
 };
 
-export const isDefaultAction = (action:string)=>{
-	return action.toLowerCase()==="no action"
-}
+export const isDefaultAction = (action: string) => {
+	return action.toLowerCase() === 'no action';
+};
 
 export const defaults = {
 	/*

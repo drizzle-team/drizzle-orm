@@ -9,6 +9,7 @@ import {
 	isPgMaterializedView,
 	isPgSequence,
 	isPgView,
+	PgArray,
 	PgDialect,
 	PgEnum,
 	PgEnumColumn,
@@ -84,6 +85,13 @@ export const policyFrom = (policy: PgPolicy, dialect: PgDialect) => {
 		using: policyUsing,
 		withCheck,
 	};
+};
+
+const unwrapArray = (column: PgArray<any, any>, dimensions: number = 1) => {
+	const baseColumn = column.baseColumn;
+	if (is(baseColumn, PgArray)) return unwrapArray(baseColumn, dimensions + 1);
+
+	return { baseColumn, dimensions };
 };
 
 /*
@@ -169,7 +177,11 @@ export const fromDrizzleSchema = (
 			const primaryKey = column.primary;
 			const sqlTypeLowered = column.getSQLType().toLowerCase();
 
-			const typeSchema = is(column, PgEnumColumn) ? column.enum.schema || 'public' : null;
+			const { baseColumn, dimensions } = is(column, PgArray)
+				? unwrapArray(column)
+				: { baseColumn: column, dimensions: 0 };
+
+			const typeSchema = is(baseColumn, PgEnumColumn) ? baseColumn.enum.schema || 'public' : null;
 			const generated = column.generated;
 			const identity = column.generatedIdentity;
 
@@ -215,7 +227,7 @@ export const fromDrizzleSchema = (
 				: sqlTypeLowered === 'jsonb' || sqlTypeLowered === 'json'
 				? `'${JSON.stringify(column.default)}'::${sqlTypeLowered}`
 				: isPgArrayType(sqlTypeLowered) && Array.isArray(column.default)
-				? buildArrayString(column.default, sqlTypeLowered)
+				? `'${buildArrayString(column.default, sqlTypeLowered)}'`
 				: column.default instanceof Date
 				? (sqlTypeLowered === 'date'
 					? `'${column.default.toISOString().split('T')[0]}'`
@@ -234,12 +246,12 @@ export const fromDrizzleSchema = (
 			// TODO:??
 			// Should do for all types
 			// columnToSet.default = `'${column.default}'::${sqlTypeLowered}`;
-
 			const unique = column.isUnique
 				? {
-					name: column.uniqueName === `${tableName}_${column.name}_unique` ? null : column.uniqueName ?? null,
+					name: column.uniqueName!,
+					nameExplicit: column.uniqueNameExplicit!,
 					nullsNotDistinct: column.uniqueType === 'not distinct',
-				}
+				} satisfies Column['unique']
 				: null;
 
 			return {
@@ -249,6 +261,7 @@ export const fromDrizzleSchema = (
 				name,
 				type: column.getSQLType(),
 				typeSchema: typeSchema ?? null,
+				dimensions: dimensions,
 				primaryKey,
 				notNull,
 				default: defaultValue,
@@ -268,7 +281,7 @@ export const fromDrizzleSchema = (
 					name = name.replace(originalColumnNames[i], columnNames[i]);
 				}
 			}
-			const isNameExplicit = pk.name === pk.getName()
+			const isNameExplicit = pk.name === pk.getName();
 			return {
 				entityType: 'pks',
 				schema: schema,
@@ -288,13 +301,13 @@ export const fromDrizzleSchema = (
 				schema: schema,
 				table: tableName,
 				name,
+				explicitName: !!unq.name,
 				nullsNotDistinct: unq.nullsNotDistinct,
 				columns: columnNames,
-			};
+			} satisfies UniqueConstraint;
 		}));
 
 		fks.push(...drizzleFKs.map<ForeignKey>((fk) => {
-			const tableFrom = tableName;
 			const onDelete = fk.onDelete;
 			const onUpdate = fk.onUpdate;
 			const reference = fk.reference();
@@ -311,8 +324,11 @@ export const fromDrizzleSchema = (
 			const originalColumnsTo = reference.foreignColumns.map((it) => it.name);
 			const columnsTo = reference.foreignColumns.map((it) => getColumnCasing(it, casing));
 
-			let name = fk.getName();
-			if (casing !== undefined) {
+			// TODO: compose name with casing here, instead of fk.getname? we have fk.reference.columns, etc.
+			let name = fk.reference.name || fk.getName();
+			const nameExplicit = !!fk.reference.name;
+
+			if (casing !== undefined && !nameExplicit) {
 				for (let i = 0; i < originalColumnsFrom.length; i++) {
 					name = name.replace(originalColumnsFrom[i], columnsFrom[i]);
 				}
@@ -324,9 +340,9 @@ export const fromDrizzleSchema = (
 			return {
 				entityType: 'fks',
 				schema: schema,
-				table: tableFrom,
+				table: tableName,
 				name,
-				tableFrom,
+				nameExplicit,
 				tableTo,
 				schemaTo,
 				columnsFrom,
@@ -373,6 +389,8 @@ export const fromDrizzleSchema = (
 			});
 
 			const name = value.config.name ? value.config.name : indexName(tableName, indexColumnNames);
+			const nameExplicit = !!value.config.name;
+
 			let indexColumns = columns.map((it) => {
 				if (is(it, SQL)) {
 					return {
@@ -408,6 +426,7 @@ export const fromDrizzleSchema = (
 				schema,
 				table: tableName,
 				name,
+				nameExplicit,
 				columns: indexColumns,
 				isUnique: value.config.unique,
 				where: value.config.where ? dialect.sqlToQuery(value.config.where).sql : null,
@@ -445,7 +464,7 @@ export const fromDrizzleSchema = (
 	}
 
 	for (const policy of drizzlePolicies) {
-		if (!('_linkedTable' in policy)) {
+		if (!('_linkedTable' in policy) || typeof policy._linkedTable === 'undefined') {
 			warnings.push({ type: 'policy_not_linked', policy: policy.name });
 			continue;
 		}

@@ -1,4 +1,3 @@
-import '../@types/utils'
 export const mockResolver =
 	<T extends { name: string; table?: string; schema?: string }>(renames: Set<string>) =>
 	async (it: {

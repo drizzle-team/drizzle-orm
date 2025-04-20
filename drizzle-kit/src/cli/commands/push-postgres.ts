@@ -11,7 +11,7 @@ import {
 	Sequence,
 	View,
 } from '../../dialects/postgres/ddl';
-import { ddlDif } from '../../dialects/postgres/diff';
+import { ddlDiff } from '../../dialects/postgres/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/postgres/drizzle';
 import type { JsonStatement } from '../../dialects/postgres/statements';
 import { prepareFilenames } from '../../serializer';
@@ -77,7 +77,7 @@ export const handle = async (
 	}
 
 	const blanks = new Set<string>();
-	const { sqlStatements, statements: jsonStatements, _meta } = await ddlDif(
+	const { sqlStatements, statements: jsonStatements, _meta } = await ddlDiff(
 		ddl1,
 		ddl2,
 		resolver<Schema>('schema'),
@@ -155,7 +155,7 @@ const identifier = (it: { schema?: string; name: string }) => {
 	return `${schemakey}"${name}"`;
 };
 
-const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
+export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 	const statements: string[] = [];
 	const hints = [] as string[];
 

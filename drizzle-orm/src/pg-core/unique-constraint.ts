@@ -72,7 +72,7 @@ export class UniqueConstraint {
 		return this.name;
 	}
 
-	isNameExplicit(){
+	isNameExplicit() {
 		return this.explicitName;
 	}
 }
