@@ -98,7 +98,7 @@ Expect<
 
 export const cities = sqliteTable('cities_table', ({ integer, text }) => ({
 	id: integer('id').primaryKey(),
-	name: text('name').notNull(),
+	name: text('name').notNull().comment('The name of the city'),
 	population: integer('population').default(0),
 }));
 

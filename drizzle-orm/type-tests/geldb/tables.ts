@@ -104,7 +104,7 @@ Expect<Equal<InferInsertModel<typeof users>, typeof users['_']['inferInsert']>>;
 
 export const cities = gelTable('cities_table', {
 	id: integer('id').primaryKey(),
-	name: text('name').notNull(),
+	name: text('name').notNull().comment('The name of the city'),
 	population: integer('population').default(0),
 }, (cities) => ({
 	citiesNameIdx: index().on(cities.id),

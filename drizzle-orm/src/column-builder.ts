@@ -94,6 +94,7 @@ export type ColumnBuilderTypeConfig<
 		notNull: T extends { notNull: infer U } ? U : boolean;
 		hasDefault: T extends { hasDefault: infer U } ? U : boolean;
 		enumValues: T['enumValues'];
+		comment: T extends { comment: infer U extends string } ? U : string | undefined;
 		identity: T extends { identity: infer U } ? U : unknown;
 		generated: T extends { generated: infer G } ? G extends undefined ? unknown : G : unknown;
 	}
@@ -132,6 +133,12 @@ export type NotNull<T extends ColumnBuilderBase> = T & {
 export type HasDefault<T extends ColumnBuilderBase> = T & {
 	_: {
 		hasDefault: true;
+	};
+};
+
+export type HasComment<T extends ColumnBuilderBase, TComment extends string> = T & {
+	_: {
+		comment: TComment;
 	};
 };
 
@@ -203,6 +210,7 @@ export abstract class ColumnBuilder<
 			notNull: false,
 			default: undefined,
 			hasDefault: false,
+			comment: undefined,
 			primaryKey: false,
 			isUnique: false,
 			uniqueName: undefined,
@@ -256,9 +264,9 @@ export abstract class ColumnBuilder<
 	 *
 	 * This comment will be used in the `drizzle-kit` to describe the column.
 	 */
-	comment(comment: string): this {
+	comment<TComment extends string>(comment: TComment): HasComment<this, TComment> {
 		this.config.comment = comment;
-		return this;
+		return this as HasComment<this, TComment>;
 	}
 
 	/**
