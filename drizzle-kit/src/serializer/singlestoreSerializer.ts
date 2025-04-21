@@ -61,6 +61,7 @@ export const generateSingleStoreSnapshot = (
 				: (column as any).autoIncrement;
 
 			const generated = column.generated;
+			const comment = column.comment;
 
 			const columnToSet: Column = {
 				name: column.name,
@@ -81,6 +82,7 @@ export const generateSingleStoreSnapshot = (
 						type: generated.mode ?? 'stored',
 					}
 					: undefined,
+				comment,
 			};
 
 			if (column.primary) {
@@ -487,6 +489,7 @@ export const fromDatabase = async (
 		let columnDefault: string | null = column['COLUMN_DEFAULT'];
 		const collation: string = column['CHARACTER_SET_NAME'];
 		const geenratedExpression: string = column['GENERATION_EXPRESSION'];
+		const comment = column['COLUMN_COMMENT'] || undefined;
 
 		let columnExtra = column['EXTRA'];
 		let isAutoincrement = false; // 'auto_increment', ''
@@ -582,6 +585,7 @@ export const fromDatabase = async (
 					type: columnExtra === 'VIRTUAL GENERATED' ? 'virtual' : 'stored',
 				}
 				: undefined,
+			comment,
 		};
 
 		// Set default to internal object

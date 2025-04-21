@@ -196,6 +196,7 @@ test('generated as callback: drop generated constraint as stored', async () => {
 			tableName: 'users',
 			oldColumn: {
 				autoincrement: false,
+				comment: undefined,
 				generated: {
 					as: "`users`.`name` || 'to delete'",
 					type: 'stored',
@@ -254,6 +255,7 @@ test('generated as callback: drop generated constraint as virtual', async () => 
 			schema: '',
 			oldColumn: {
 				autoincrement: false,
+				comment: undefined,
 				generated: {
 					as: "`users`.`name` || 'to delete'",
 					type: 'virtual',
@@ -627,6 +629,7 @@ test('generated as sql: drop generated constraint as stored', async () => {
 			tableName: 'users',
 			oldColumn: {
 				autoincrement: false,
+				comment: undefined,
 				generated: {
 					as: "`users`.`name` || 'to delete'",
 					type: 'stored',
@@ -685,6 +688,7 @@ test('generated as sql: drop generated constraint as virtual', async () => {
 			schema: '',
 			oldColumn: {
 				autoincrement: false,
+				comment: undefined,
 				generated: {
 					as: "`users`.`name` || 'to delete'",
 					type: 'virtual',
@@ -1058,6 +1062,7 @@ test('generated as string: drop generated constraint as stored', async () => {
 			tableName: 'users',
 			oldColumn: {
 				autoincrement: false,
+				comment: undefined,
 				generated: {
 					as: "`users`.`name` || 'to delete'",
 					type: 'stored',
@@ -1116,6 +1121,7 @@ test('generated as string: drop generated constraint as virtual', async () => {
 			schema: '',
 			oldColumn: {
 				autoincrement: false,
+				comment: undefined,
 				generated: {
 					as: "`users`.`name` || 'to delete'",
 					type: 'virtual',

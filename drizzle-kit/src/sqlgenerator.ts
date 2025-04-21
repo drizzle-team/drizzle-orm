@@ -5,6 +5,7 @@ import {
 	JsonAlterColumnAlterGeneratedStatement,
 	JsonAlterColumnAlterIdentityStatement,
 	JsonAlterColumnDropAutoincrementStatement,
+	JsonAlterColumnDropCommentStatement,
 	JsonAlterColumnDropDefaultStatement,
 	JsonAlterColumnDropGeneratedStatement,
 	JsonAlterColumnDropIdentityStatement,
@@ -13,6 +14,7 @@ import {
 	JsonAlterColumnDropPrimaryKeyStatement,
 	JsonAlterColumnPgTypeStatement,
 	JsonAlterColumnSetAutoincrementStatement,
+	JsonAlterColumnSetCommentStatement,
 	JsonAlterColumnSetDefaultStatement,
 	JsonAlterColumnSetGeneratedStatement,
 	JsonAlterColumnSetIdentityStatement,
@@ -487,7 +489,28 @@ class PgCreateTableConvertor extends Convertor {
 			schema,
 		});
 
-		return [statement, ...(policies && policies.length > 0 || isRLSEnabled ? [enableRls] : [])];
+		const commentConvertor = new PgAlterTableAlterColumnSetCommentConvertor();
+		const comments: string[] = [];
+
+		for (const column of columns) {
+			if (column.comment) {
+				comments.push(commentConvertor.convert({
+					type: 'alter_table_alter_column_set_comment',
+					tableName,
+					schema,
+					columnName: column.name,
+					columnComment: column.comment,
+					newDataType: column.type,
+					columnDefault: column.default,
+					columnOnUpdate: column.onUpdate ?? false,
+					columnNotNull: column.notNull ?? false,
+					columnAutoIncrement: column.autoincrement ?? false,
+					columnPk: column.primaryKey ?? false,
+				}));
+			}
+		}
+
+		return [statement, ...(policies && policies.length > 0 || isRLSEnabled ? [enableRls] : []), ...comments];
 	}
 }
 
@@ -528,8 +551,10 @@ class MySqlCreateTableConvertor extends Convertor {
 				? ` GENERATED ALWAYS AS (${column.generated?.as}) ${column.generated?.type.toUpperCase()}`
 				: '';
 
+			const commentStatement = column.comment ? ` COMMENT '${column.comment}'` : '';
+
 			statement += '\t'
-				+ `\`${column.name}\` ${column.type}${autoincrementStatement}${primaryKeyStatement}${generatedStatement}${notNullStatement}${defaultStatement}${onUpdateStatement}`;
+				+ `\`${column.name}\` ${column.type}${autoincrementStatement}${primaryKeyStatement}${generatedStatement}${notNullStatement}${defaultStatement}${onUpdateStatement}${commentStatement}`;
 			statement += i === columns.length - 1 ? '' : ',\n';
 		}
 
@@ -612,8 +637,10 @@ export class SingleStoreCreateTableConvertor extends Convertor {
 				? ` GENERATED ALWAYS AS (${column.generated?.as}) ${column.generated?.type.toUpperCase()}`
 				: '';
 
+			const commentStatement = column.comment ? ` COMMENT '${column.comment}'` : '';
+
 			statement += '\t'
-				+ `\`${column.name}\` ${column.type}${autoincrementStatement}${primaryKeyStatement}${notNullStatement}${defaultStatement}${onUpdateStatement}${generatedStatement}`;
+				+ `\`${column.name}\` ${column.type}${autoincrementStatement}${primaryKeyStatement}${notNullStatement}${defaultStatement}${onUpdateStatement}${generatedStatement}${commentStatement}`;
 			statement += i === columns.length - 1 ? '' : ',\n';
 		}
 
@@ -1998,6 +2025,38 @@ class PgAlterTableAlterColumnDropDefaultConvertor extends Convertor {
 	}
 }
 
+class PgAlterTableAlterColumnSetCommentConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_table_alter_column_set_comment' && dialect === 'postgresql';
+	}
+
+	convert(statement: JsonAlterColumnSetCommentStatement) {
+		const { tableName, columnName, schema } = statement;
+
+		const tableNameWithSchema = schema
+			? `"${schema}"."${tableName}"`
+			: `"${tableName}"`;
+
+		return `COMMENT ON COLUMN ${tableNameWithSchema}."${columnName}" IS '${statement.columnComment}';`;
+	}
+}
+
+class PgAlterTableAlterColumnDropCommentConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_table_alter_column_drop_comment' && dialect === 'postgresql';
+	}
+
+	convert(statement: JsonAlterColumnDropCommentStatement) {
+		const { tableName, columnName, schema } = statement;
+
+		const tableNameWithSchema = schema
+			? `"${schema}"."${tableName}"`
+			: `"${tableName}"`;
+
+		return `COMMENT ON COLUMN ${tableNameWithSchema}."${columnName}" IS NULL;`;
+	}
+}
+
 class PgAlterTableAlterColumnDropGeneratedConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
@@ -2478,6 +2537,7 @@ export class LibSQLModifyColumn extends Convertor {
 	}
 }
 
+// TODO: add comment
 type MySqlModifyColumnStatement =
 	| JsonAlterColumnDropNotNullStatement
 	| JsonAlterColumnSetNotNullStatement
@@ -2489,7 +2549,9 @@ type MySqlModifyColumnStatement =
 	| JsonAlterColumnSetDefaultStatement
 	| JsonAlterColumnDropDefaultStatement
 	| JsonAlterColumnSetGeneratedStatement
-	| JsonAlterColumnDropGeneratedStatement;
+	| JsonAlterColumnDropGeneratedStatement
+	| JsonAlterColumnSetCommentStatement
+	| JsonAlterColumnDropCommentStatement;
 
 class MySqlModifyColumn extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
@@ -2518,7 +2580,7 @@ class MySqlModifyColumn extends Convertor {
 		let columnAutoincrement = '';
 		let primaryKey = statement.columnPk ? ' PRIMARY KEY' : '';
 		let columnGenerated = '';
-
+		let columnComment = '';
 		if (statement.type === 'alter_table_alter_column_drop_notnull') {
 			columnType = ` ${statement.newDataType}`;
 			columnDefault = statement.columnDefault
@@ -2687,6 +2749,10 @@ class MySqlModifyColumn extends Convertor {
 					}),
 				];
 			}
+		} else if (statement.type === 'alter_table_alter_column_set_comment') {
+			columnComment = ` COMMENT '${statement.columnComment}'`;
+		} else if (statement.type === 'alter_table_alter_column_drop_comment') {
+			columnComment = ` COMMENT ''`;
 		} else {
 			columnType = ` ${statement.newDataType}`;
 			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
@@ -2709,7 +2775,7 @@ class MySqlModifyColumn extends Convertor {
 			? columnDefault.toISOString()
 			: columnDefault;
 
-		return `ALTER TABLE \`${tableName}\` MODIFY COLUMN \`${columnName}\`${columnType}${columnAutoincrement}${columnGenerated}${columnNotNull}${columnDefault}${columnOnUpdate};`;
+		return `ALTER TABLE \`${tableName}\` MODIFY COLUMN \`${columnName}\`${columnType}${columnAutoincrement}${columnGenerated}${columnNotNull}${columnDefault}${columnOnUpdate}${columnComment};`;
 	}
 }
 
@@ -2824,7 +2890,9 @@ type SingleStoreModifyColumnStatement =
 	| JsonAlterColumnSetDefaultStatement
 	| JsonAlterColumnDropDefaultStatement
 	| JsonAlterColumnSetGeneratedStatement
-	| JsonAlterColumnDropGeneratedStatement;
+	| JsonAlterColumnDropGeneratedStatement
+	| JsonAlterColumnSetCommentStatement
+	| JsonAlterColumnDropCommentStatement;
 
 class SingleStoreModifyColumn extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
@@ -2853,6 +2921,7 @@ class SingleStoreModifyColumn extends Convertor {
 		let columnAutoincrement = '';
 		let primaryKey = statement.columnPk ? ' PRIMARY KEY' : '';
 		let columnGenerated = '';
+		let columnComment = '';
 
 		if (statement.type === 'alter_table_alter_column_drop_notnull') {
 			columnType = ` ${statement.newDataType}`;
@@ -3022,6 +3091,10 @@ class SingleStoreModifyColumn extends Convertor {
 					}),
 				];
 			}
+		} else if (statement.type === 'alter_table_alter_column_set_comment') {
+			columnComment = ` COMMENT '${statement.columnComment}'`;
+		} else if (statement.type === 'alter_table_alter_column_drop_comment') {
+			columnComment = ` COMMENT ''`;
 		} else {
 			columnType = ` ${statement.newDataType}`;
 			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
@@ -3044,7 +3117,7 @@ class SingleStoreModifyColumn extends Convertor {
 			? columnDefault.toISOString()
 			: columnDefault;
 
-		return `ALTER TABLE \`${tableName}\` MODIFY COLUMN \`${columnName}\`${columnType}${columnAutoincrement}${columnNotNull}${columnDefault}${columnOnUpdate}${columnGenerated};`;
+		return `ALTER TABLE \`${tableName}\` MODIFY COLUMN \`${columnName}\`${columnType}${columnAutoincrement}${columnNotNull}${columnDefault}${columnOnUpdate}${columnGenerated}${columnComment};`;
 	}
 }
 class SqliteAlterTableAlterColumnDropDefaultConvertor extends Convertor {
@@ -4043,6 +4116,8 @@ convertors.push(new PgAlterTableAlterColumnSetNotNullConvertor());
 convertors.push(new PgAlterTableAlterColumnDropNotNullConvertor());
 convertors.push(new PgAlterTableAlterColumnSetDefaultConvertor());
 convertors.push(new PgAlterTableAlterColumnDropDefaultConvertor());
+convertors.push(new PgAlterTableAlterColumnSetCommentConvertor());
+convertors.push(new PgAlterTableAlterColumnDropCommentConvertor());
 
 convertors.push(new PgAlterPolicyConvertor());
 convertors.push(new PgCreatePolicyConvertor());

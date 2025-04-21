@@ -221,6 +221,7 @@ const columnSchema = object({
 		type: enumType(['stored', 'virtual']).default('stored'),
 	}).optional(),
 	identity: string().optional(),
+	comment: string().optional(),
 }).strict();
 
 const alteredColumnSchema = object({
@@ -240,6 +241,7 @@ const alteredColumnSchema = object({
 	).optional(),
 
 	identity: makePatched(string()).optional(),
+	comment: makePatched(string()).optional(),
 }).strict();
 
 const enumSchema = object({

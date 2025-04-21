@@ -33,6 +33,7 @@ const column = object({
 		type: enumType(['stored', 'virtual']),
 		as: string(),
 	}).optional(),
+	comment: string().optional(),
 }).strict();
 
 const tableV3 = object({

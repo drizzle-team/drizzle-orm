@@ -543,6 +543,7 @@ const mysqlSuite: DialectSuite = {
 				newDataType: 'text',
 				oldColumn: {
 					autoincrement: false,
+					comment: undefined,
 					default: undefined,
 					generated: {
 						as: '`name`',
@@ -569,6 +570,7 @@ const mysqlSuite: DialectSuite = {
 				newDataType: 'text',
 				oldColumn: {
 					autoincrement: false,
+					comment: undefined,
 					default: undefined,
 					generated: {
 						as: '`name`',

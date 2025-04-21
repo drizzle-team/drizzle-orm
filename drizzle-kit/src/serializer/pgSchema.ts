@@ -189,6 +189,7 @@ const column = object({
 	identity: sequenceSchema
 		.merge(object({ type: enumType(['always', 'byDefault']) }))
 		.optional(),
+	comment: string().optional(),
 }).strict();
 
 const checkConstraint = object({
@@ -211,6 +212,7 @@ const columnSquashed = object({
 		as: string(),
 	}).optional(),
 	identity: string().optional(),
+	comment: string().optional(),
 }).strict();
 
 const tableV3 = object({

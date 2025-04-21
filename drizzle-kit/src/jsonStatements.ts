@@ -674,6 +674,33 @@ export interface JsonAlterColumnDropAutoincrementStatement {
 	columnPk: boolean;
 }
 
+export interface JsonAlterColumnSetCommentStatement {
+	type: 'alter_table_alter_column_set_comment';
+	tableName: string;
+	columnName: string;
+	schema: string;
+	newDataType: string;
+	columnDefault: string;
+	columnOnUpdate: boolean;
+	columnNotNull: boolean;
+	columnAutoIncrement: boolean;
+	columnPk: boolean;
+	columnComment: string;
+}
+
+export interface JsonAlterColumnDropCommentStatement {
+	type: 'alter_table_alter_column_drop_comment';
+	tableName: string;
+	columnName: string;
+	schema: string;
+	newDataType: string;
+	columnDefault: string;
+	columnOnUpdate: boolean;
+	columnNotNull: boolean;
+	columnAutoIncrement: boolean;
+	columnPk: boolean;
+}
+
 export interface JsonCreateSchema {
 	type: 'create_schema';
 	name: string;
@@ -817,7 +844,9 @@ export type JsonAlterColumnStatement =
 	| JsonAlterColumnAlterGeneratedStatement
 	| JsonAlterColumnSetIdentityStatement
 	| JsonAlterColumnAlterIdentityStatement
-	| JsonAlterColumnDropIdentityStatement;
+	| JsonAlterColumnDropIdentityStatement
+	| JsonAlterColumnSetCommentStatement
+	| JsonAlterColumnDropCommentStatement;
 
 export type JsonStatement =
 	| JsonRecreateSingleStoreTableStatement
@@ -1455,6 +1484,8 @@ export const prepareAlterColumnsMysql = (
 		).autoincrement;
 		const columnPk = (json2.tables[tableName].columns[columnName] as any)
 			.primaryKey;
+		const columnComment = (json2.tables[tableName].columns[columnName] as any)
+			.comment;
 
 		const compositePk = json2.tables[tableName].compositePrimaryKeys[
 			`${tableName}_${columnName}`
@@ -1584,6 +1615,37 @@ export const prepareAlterColumnsMysql = (
 		if (column.notNull?.type === 'deleted') {
 			statements.push({
 				type: 'alter_table_alter_column_drop_notnull',
+				tableName,
+				columnName,
+				schema,
+				newDataType: columnType,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				columnPk,
+			});
+		}
+
+		if (column.comment?.type === 'added' || column.comment?.type === 'changed') {
+			statements.push({
+				type: 'alter_table_alter_column_set_comment',
+				tableName,
+				columnName,
+				schema,
+				newDataType: columnType,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				columnPk,
+				columnComment,
+			});
+		}
+
+		if (column.comment?.type === 'deleted') {
+			statements.push({
+				type: 'alter_table_alter_column_drop_comment',
 				tableName,
 				columnName,
 				schema,
@@ -1814,6 +1876,8 @@ export const prepareAlterColumnsSingleStore = (
 		const compositePk = json2.tables[tableName].compositePrimaryKeys[
 			`${tableName}_${columnName}`
 		];
+		const columnComment = (json2.tables[tableName].columns[columnName] as any)
+			.comment;
 
 		if (typeof column.name !== 'string') {
 			statements.push({
@@ -1939,6 +2003,37 @@ export const prepareAlterColumnsSingleStore = (
 		if (column.notNull?.type === 'deleted') {
 			statements.push({
 				type: 'alter_table_alter_column_drop_notnull',
+				tableName,
+				columnName,
+				schema,
+				newDataType: columnType,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				columnPk,
+			});
+		}
+
+		if (column.comment?.type === 'added' || column.comment?.type === 'changed') {
+			statements.push({
+				type: 'alter_table_alter_column_set_comment',
+				tableName,
+				columnName,
+				schema,
+				newDataType: columnType,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				columnPk,
+				columnComment,
+			});
+		}
+
+		if (column.comment?.type === 'deleted') {
+			statements.push({
+				type: 'alter_table_alter_column_drop_comment',
 				tableName,
 				columnName,
 				schema,
@@ -2106,6 +2201,7 @@ export const preparePgAlterColumns = (
 		const typeSchema = json2.tables[tableKey].columns[columnName].typeSchema;
 		const json1ColumnTypeSchema = json1.tables[tableKey].columns[columnName].typeSchema;
 
+		const columnComment = json2.tables[tableKey].columns[columnName].comment;
 		const compositePk = json2.tables[tableKey].compositePrimaryKeys[`${tableName}_${columnName}`];
 
 		if (typeof column.name !== 'string') {
@@ -2245,6 +2341,37 @@ export const preparePgAlterColumns = (
 		if (column.notNull?.type === 'deleted') {
 			statements.push({
 				type: 'alter_table_alter_column_drop_notnull',
+				tableName,
+				columnName,
+				schema,
+				newDataType: columnType,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				columnPk,
+			});
+		}
+
+		if (column.comment?.type === 'added' || column.comment?.type === 'changed') {
+			statements.push({
+				type: 'alter_table_alter_column_set_comment',
+				tableName,
+				columnName,
+				schema,
+				newDataType: columnType,
+				columnDefault,
+				columnOnUpdate,
+				columnNotNull,
+				columnAutoIncrement,
+				columnPk,
+				columnComment: columnComment!,
+			});
+		}
+
+		if (column.comment?.type === 'deleted') {
+			statements.push({
+				type: 'alter_table_alter_column_drop_comment',
 				tableName,
 				columnName,
 				schema,
