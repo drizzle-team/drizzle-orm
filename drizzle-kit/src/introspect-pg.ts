@@ -1158,6 +1158,7 @@ const createTableColumns = (
 		statement += it.identity ? generateIdentityParams(it.identity) : '';
 
 		statement += it.generated ? `.generatedAlwaysAs(sql\`${it.generated.as}\`)` : '';
+		statement += it.comment ? `.comment("${it.comment}")` : '';
 
 		// const fks = fkByColumnName[it.name];
 		// Andrii: I switched it off until we will get a custom naem setting in references

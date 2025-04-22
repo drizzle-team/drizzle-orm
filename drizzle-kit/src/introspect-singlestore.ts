@@ -829,6 +829,8 @@ const createTableColumns = (
 			}\`, { mode: "${it.generated.type}" })`
 			: '';
 
+		statement += it.comment ? `.comment("${it.comment}")` : '';
+
 		statement += ',\n';
 	});
 

@@ -854,6 +854,7 @@ const createTableColumns = (
 		);
 		statement += it.primaryKey ? '.primaryKey()' : '';
 		statement += it.notNull ? '.notNull()' : '';
+		statement += it.comment ? `.comment("${it.comment}")` : '';
 
 		statement += it.generated
 			? `.generatedAlwaysAs(sql\`${

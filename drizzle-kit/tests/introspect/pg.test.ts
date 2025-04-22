@@ -926,3 +926,25 @@ test('multiple policies with roles from schema', async () => {
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
 });
+
+test('introspect column comments', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		users: pgTable('users', {
+			id: serial('id').primaryKey().comment('Primary key'),
+			name: varchar('name', { length: 255 }).comment('User full name'),
+			email: varchar('email', { length: 255 }).comment('User email address'),
+			age: integer('age').comment('User age in years'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'introspect-column-comments',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
