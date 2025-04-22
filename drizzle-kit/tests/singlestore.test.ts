@@ -8,6 +8,7 @@ import {
 	singlestoreSchema,
 	singlestoreTable,
 	text,
+	timestamp,
 	uniqueIndex,
 } from 'drizzle-orm/singlestore-core';
 import { expect, test } from 'vitest';
@@ -974,5 +975,60 @@ test('set not null + rename table on table with indexes', async () => {
 	);
 	expect(sqlStatements[4]).toBe(
 		'ALTER TABLE `__new_table1` RENAME TO `table1`;',
+	);
+});
+
+test('add table with comments', async () => {
+	const to = {
+		users: singlestoreTable('users', {
+			id: serial('id').primaryKey().comment('Primary key'),
+			name: text('name').comment('User name'),
+			email: text('email').notNull().comment('User email address'),
+			createdAt: timestamp('created_at').defaultNow().comment('Creation timestamp'),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemasSingleStore({}, to, []);
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(
+		"CREATE TABLE `users` (\n\t`id` serial AUTO_INCREMENT NOT NULL COMMENT 'Primary key',\n\t`name` text COMMENT 'User name',\n\t`email` text NOT NULL COMMENT 'User email address',\n\t`created_at` timestamp DEFAULT CURRENT_TIMESTAMP COMMENT 'Creation timestamp',\n\tCONSTRAINT `users_id` PRIMARY KEY(`id`)\n);\n",
+	);
+});
+
+test('modify column comments', async () => {
+	const from = {
+		users: singlestoreTable('users', {
+			id: serial('id').primaryKey().comment('Primary key'),
+			name: text('name').comment('User name'),
+			email: text('email').notNull().comment('User email address'),
+		}),
+	};
+
+	const to = {
+		users: singlestoreTable('users', {
+			id: serial('id').primaryKey().comment('Updated primary key comment'),
+			name: text('name').comment('Updated user name comment'),
+			email: text('email').notNull(),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemasSingleStore(from, to, []);
+	expect(sqlStatements.length).toBe(4);
+	expect(sqlStatements[0]).toBe(
+		'CREATE TABLE `__new_users` (\n'
+			+ "\t`id` serial AUTO_INCREMENT NOT NULL COMMENT 'Updated primary key comment',\n"
+			+ "\t`name` text COMMENT 'Updated user name comment',\n"
+			+ '\t`email` text NOT NULL,\n'
+			+ '\tCONSTRAINT `users_id` PRIMARY KEY(`id`)\n'
+			+ ');\n',
+	);
+	expect(sqlStatements[1]).toBe(
+		'INSERT INTO `__new_users`(`id`, `name`, `email`) SELECT `id`, `name`, `email` FROM `users`;',
+	);
+	expect(sqlStatements[2]).toBe(
+		'DROP TABLE `users`;',
+	);
+	expect(sqlStatements[3]).toBe(
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
 	);
 });

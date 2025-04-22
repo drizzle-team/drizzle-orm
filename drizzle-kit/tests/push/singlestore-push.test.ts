@@ -868,6 +868,7 @@ test('add column. add default to column without not null', async (t) => {
 	expect(statements!.length).toBe(2);
 	expect(statements![0]).toStrictEqual({
 		columnAutoIncrement: false,
+		columnComment: undefined,
 		columnName: 'name',
 		columnNotNull: false,
 		columnOnUpdate: undefined,

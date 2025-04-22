@@ -2537,7 +2537,6 @@ export class LibSQLModifyColumn extends Convertor {
 	}
 }
 
-// TODO: add comment
 type MySqlModifyColumnStatement =
 	| JsonAlterColumnDropNotNullStatement
 	| JsonAlterColumnSetNotNullStatement
@@ -2566,7 +2565,9 @@ class MySqlModifyColumn extends Convertor {
 				|| statement.type === 'alter_table_alter_column_set_default'
 				|| statement.type === 'alter_table_alter_column_drop_default'
 				|| statement.type === 'alter_table_alter_column_set_generated'
-				|| statement.type === 'alter_table_alter_column_drop_generated')
+				|| statement.type === 'alter_table_alter_column_drop_generated'
+				|| statement.type === 'alter_table_alter_column_set_comment'
+				|| statement.type === 'alter_table_alter_column_drop_comment')
 			&& dialect === 'mysql'
 		);
 	}
@@ -2593,6 +2594,9 @@ class MySqlModifyColumn extends Convertor {
 			columnAutoincrement = statement.columnAutoIncrement
 				? ' AUTO_INCREMENT'
 				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
+				: '';
 		} else if (statement.type === 'alter_table_alter_column_set_notnull') {
 			columnNotNull = ` NOT NULL`;
 			columnType = ` ${statement.newDataType}`;
@@ -2605,6 +2609,9 @@ class MySqlModifyColumn extends Convertor {
 			columnAutoincrement = statement.columnAutoIncrement
 				? ' AUTO_INCREMENT'
 				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
+				: '';
 		} else if (statement.type === 'alter_table_alter_column_drop_on_update') {
 			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
 			columnType = ` ${statement.newDataType}`;
@@ -2615,6 +2622,9 @@ class MySqlModifyColumn extends Convertor {
 			columnAutoincrement = statement.columnAutoIncrement
 				? ' AUTO_INCREMENT'
 				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
+				: '';
 		} else if (statement.type === 'alter_table_alter_column_set_on_update') {
 			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
 			columnOnUpdate = ` ON UPDATE CURRENT_TIMESTAMP`;
@@ -2624,6 +2634,9 @@ class MySqlModifyColumn extends Convertor {
 				: '';
 			columnAutoincrement = statement.columnAutoIncrement
 				? ' AUTO_INCREMENT'
+				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
 				: '';
 		} else if (
 			statement.type === 'alter_table_alter_column_set_autoincrement'
@@ -2637,6 +2650,9 @@ class MySqlModifyColumn extends Convertor {
 				? ` DEFAULT ${statement.columnDefault}`
 				: '';
 			columnAutoincrement = ' AUTO_INCREMENT';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
+				: '';
 		} else if (
 			statement.type === 'alter_table_alter_column_drop_autoincrement'
 		) {
@@ -2659,6 +2675,9 @@ class MySqlModifyColumn extends Convertor {
 			columnAutoincrement = statement.columnAutoIncrement
 				? ' AUTO_INCREMENT'
 				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
+				: '';
 		} else if (statement.type === 'alter_table_alter_column_drop_default') {
 			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
 			columnOnUpdate = columnOnUpdate = statement.columnOnUpdate
@@ -2668,6 +2687,9 @@ class MySqlModifyColumn extends Convertor {
 			columnDefault = '';
 			columnAutoincrement = statement.columnAutoIncrement
 				? ' AUTO_INCREMENT'
+				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
 				: '';
 		} else if (statement.type === 'alter_table_alter_column_set_generated') {
 			columnType = ` ${statement.newDataType}`;
@@ -2680,6 +2702,9 @@ class MySqlModifyColumn extends Convertor {
 				: '';
 			columnAutoincrement = statement.columnAutoIncrement
 				? ' AUTO_INCREMENT'
+				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
 				: '';
 
 			if (statement.columnGenerated?.type === 'virtual') {
@@ -2723,7 +2748,9 @@ class MySqlModifyColumn extends Convertor {
 			columnAutoincrement = statement.columnAutoIncrement
 				? ' AUTO_INCREMENT'
 				: '';
-
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
+				: '';
 			if (statement.oldColumn?.generated?.type === 'virtual') {
 				return [
 					new MySqlAlterTableDropColumnConvertor().convert({
@@ -2750,9 +2777,33 @@ class MySqlModifyColumn extends Convertor {
 				];
 			}
 		} else if (statement.type === 'alter_table_alter_column_set_comment') {
-			columnComment = ` COMMENT '${statement.columnComment}'`;
+			columnType = ` ${statement.newDataType}`;
+			columnDefault = statement.columnDefault
+				? ` DEFAULT ${statement.columnDefault}`
+				: '';
+			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
+			columnOnUpdate = statement.columnOnUpdate
+				? ` ON UPDATE CURRENT_TIMESTAMP`
+				: '';
+			columnAutoincrement = statement.columnAutoIncrement
+				? ' AUTO_INCREMENT'
+				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
+				: '';
 		} else if (statement.type === 'alter_table_alter_column_drop_comment') {
-			columnComment = ` COMMENT ''`;
+			columnType = ` ${statement.newDataType}`;
+			columnDefault = statement.columnDefault
+				? ` DEFAULT ${statement.columnDefault}`
+				: '';
+			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
+			columnOnUpdate = statement.columnOnUpdate
+				? ` ON UPDATE CURRENT_TIMESTAMP`
+				: '';
+			columnAutoincrement = statement.columnAutoIncrement
+				? ' AUTO_INCREMENT'
+				: '';
+			columnComment = '';
 		} else {
 			columnType = ` ${statement.newDataType}`;
 			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
@@ -2935,6 +2986,9 @@ class SingleStoreModifyColumn extends Convertor {
 			columnAutoincrement = statement.columnAutoIncrement
 				? ' AUTO_INCREMENT'
 				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
+				: '';
 		} else if (statement.type === 'alter_table_alter_column_set_notnull') {
 			columnNotNull = ` NOT NULL`;
 			columnType = ` ${statement.newDataType}`;
@@ -2947,6 +3001,9 @@ class SingleStoreModifyColumn extends Convertor {
 			columnAutoincrement = statement.columnAutoIncrement
 				? ' AUTO_INCREMENT'
 				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
+				: '';
 		} else if (statement.type === 'alter_table_alter_column_drop_on_update') {
 			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
 			columnType = ` ${statement.newDataType}`;
@@ -2957,6 +3014,9 @@ class SingleStoreModifyColumn extends Convertor {
 			columnAutoincrement = statement.columnAutoIncrement
 				? ' AUTO_INCREMENT'
 				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
+				: '';
 		} else if (statement.type === 'alter_table_alter_column_set_on_update') {
 			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
 			columnOnUpdate = ` ON UPDATE CURRENT_TIMESTAMP`;
@@ -2966,6 +3026,9 @@ class SingleStoreModifyColumn extends Convertor {
 				: '';
 			columnAutoincrement = statement.columnAutoIncrement
 				? ' AUTO_INCREMENT'
+				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
 				: '';
 		} else if (
 			statement.type === 'alter_table_alter_column_set_autoincrement'
@@ -2979,6 +3042,9 @@ class SingleStoreModifyColumn extends Convertor {
 				? ` DEFAULT ${statement.columnDefault}`
 				: '';
 			columnAutoincrement = ' AUTO_INCREMENT';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
+				: '';
 		} else if (
 			statement.type === 'alter_table_alter_column_drop_autoincrement'
 		) {
@@ -2991,6 +3057,9 @@ class SingleStoreModifyColumn extends Convertor {
 				? ` DEFAULT ${statement.columnDefault}`
 				: '';
 			columnAutoincrement = '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
+				: '';
 		} else if (statement.type === 'alter_table_alter_column_set_default') {
 			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
 			columnOnUpdate = columnOnUpdate = statement.columnOnUpdate
@@ -3001,6 +3070,9 @@ class SingleStoreModifyColumn extends Convertor {
 			columnAutoincrement = statement.columnAutoIncrement
 				? ' AUTO_INCREMENT'
 				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
+				: '';
 		} else if (statement.type === 'alter_table_alter_column_drop_default') {
 			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
 			columnOnUpdate = columnOnUpdate = statement.columnOnUpdate
@@ -3010,6 +3082,9 @@ class SingleStoreModifyColumn extends Convertor {
 			columnDefault = '';
 			columnAutoincrement = statement.columnAutoIncrement
 				? ' AUTO_INCREMENT'
+				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
 				: '';
 		} else if (statement.type === 'alter_table_alter_column_set_generated') {
 			columnType = ` ${statement.newDataType}`;
@@ -3022,6 +3097,9 @@ class SingleStoreModifyColumn extends Convertor {
 				: '';
 			columnAutoincrement = statement.columnAutoIncrement
 				? ' AUTO_INCREMENT'
+				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
 				: '';
 
 			if (statement.columnGenerated?.type === 'virtual') {
@@ -3065,6 +3143,9 @@ class SingleStoreModifyColumn extends Convertor {
 			columnAutoincrement = statement.columnAutoIncrement
 				? ' AUTO_INCREMENT'
 				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
+				: '';
 
 			if (statement.oldColumn?.generated?.type === 'virtual') {
 				return [
@@ -3092,9 +3173,33 @@ class SingleStoreModifyColumn extends Convertor {
 				];
 			}
 		} else if (statement.type === 'alter_table_alter_column_set_comment') {
-			columnComment = ` COMMENT '${statement.columnComment}'`;
+			columnType = ` ${statement.newDataType}`;
+			columnDefault = statement.columnDefault
+				? ` DEFAULT ${statement.columnDefault}`
+				: '';
+			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
+			columnOnUpdate = statement.columnOnUpdate
+				? ` ON UPDATE CURRENT_TIMESTAMP`
+				: '';
+			columnAutoincrement = statement.columnAutoIncrement
+				? ' AUTO_INCREMENT'
+				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
+				: '';
 		} else if (statement.type === 'alter_table_alter_column_drop_comment') {
-			columnComment = ` COMMENT ''`;
+			columnType = ` ${statement.newDataType}`;
+			columnDefault = statement.columnDefault
+				? ` DEFAULT ${statement.columnDefault}`
+				: '';
+			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
+			columnOnUpdate = statement.columnOnUpdate
+				? ` ON UPDATE CURRENT_TIMESTAMP`
+				: '';
+			columnAutoincrement = statement.columnAutoIncrement
+				? ' AUTO_INCREMENT'
+				: '';
+			columnComment = '';
 		} else {
 			columnType = ` ${statement.newDataType}`;
 			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
@@ -3109,6 +3214,9 @@ class SingleStoreModifyColumn extends Convertor {
 				: '';
 			columnGenerated = statement.columnGenerated
 				? ` GENERATED ALWAYS AS (${statement.columnGenerated?.as}) ${statement.columnGenerated?.type.toUpperCase()}`
+				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
 				: '';
 		}
 

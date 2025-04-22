@@ -10,6 +10,7 @@ import {
 	primaryKey,
 	serial,
 	text,
+	timestamp,
 	unique,
 	uniqueIndex,
 	varchar,
@@ -895,4 +896,47 @@ test('add table with ts enum', async () => {
 		compositePkName: '',
 		checkConstraints: [],
 	});
+});
+
+test('add table with comments', async () => {
+	const to = {
+		users: mysqlTable('users', {
+			id: serial('id').primaryKey().comment('Primary key'),
+			name: text('name').comment('User name'),
+			email: text('email').notNull().comment('User email address'),
+			createdAt: timestamp('created_at').defaultNow().comment('Creation timestamp'),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemasMysql({}, to, []);
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(
+		"CREATE TABLE `users` (\n\t`id` serial AUTO_INCREMENT NOT NULL COMMENT 'Primary key',\n\t`name` text COMMENT 'User name',\n\t`email` text NOT NULL COMMENT 'User email address',\n\t`created_at` timestamp DEFAULT (now()) COMMENT 'Creation timestamp',\n\tCONSTRAINT `users_id` PRIMARY KEY(`id`)\n);\n",
+	);
+});
+
+test('modify column comments', async () => {
+	const from = {
+		users: mysqlTable('users', {
+			id: serial('id').primaryKey().comment('Primary key'),
+			name: text('name').comment('User name'),
+			email: text('email').notNull().comment('User email address'),
+		}),
+	};
+
+	const to = {
+		users: mysqlTable('users', {
+			id: serial('id').primaryKey().comment('Updated primary key comment'),
+			name: text('name').comment('Updated user name comment'),
+			email: text('email').notNull(),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemasMysql(from, to, []);
+	expect(sqlStatements.length).toBe(3);
+	expect(sqlStatements).toEqual([
+		"ALTER TABLE `users` MODIFY COLUMN `id` serial AUTO_INCREMENT NOT NULL COMMENT 'Updated primary key comment';",
+		"ALTER TABLE `users` MODIFY COLUMN `name` text COMMENT 'Updated user name comment';",
+		'ALTER TABLE `users` MODIFY COLUMN `email` text NOT NULL;',
+	]);
 });

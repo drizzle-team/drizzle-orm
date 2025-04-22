@@ -864,6 +864,29 @@ const alternationsInColumn = (column) => {
 			}
 			return it;
 		})
+		.map((it) => {
+			if ('comment' in it) {
+				return {
+					...it,
+					comment: { type: 'changed', old: it.comment.__old, new: it.comment.__new },
+				};
+			}
+			if ('comment__added' in it) {
+				const { comment__added, ...others } = it;
+				return {
+					...others,
+					comment: { type: 'added', value: it.comment__added },
+				};
+			}
+			if ('comment__deleted' in it) {
+				const { comment__deleted, ...others } = it;
+				return {
+					...others,
+					comment: { type: 'deleted', value: it.comment__deleted },
+				};
+			}
+			return it;
+		})
 		.filter(Boolean);
 
 	return result[0];

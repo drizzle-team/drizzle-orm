@@ -397,6 +397,7 @@ const pgSuite: DialectSuite = {
 		expect(statements).toStrictEqual([
 			{
 				columnAutoIncrement: undefined,
+				columnComment: undefined,
 				columnDefault: undefined,
 				columnGenerated: {
 					as: '"users"."name"',
@@ -447,6 +448,7 @@ const pgSuite: DialectSuite = {
 		expect(statements).toStrictEqual([
 			{
 				columnAutoIncrement: undefined,
+				columnComment: undefined,
 				columnDefault: undefined,
 				columnGenerated: undefined,
 				columnName: 'gen_name',

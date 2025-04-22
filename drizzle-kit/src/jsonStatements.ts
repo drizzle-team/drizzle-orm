@@ -471,6 +471,7 @@ export interface JsonAlterColumnTypeStatement {
 	columnAutoIncrement: boolean;
 	columnPk: boolean;
 	columnGenerated?: { as: string; type: 'stored' | 'virtual' };
+	columnComment: string | undefined;
 }
 
 export interface JsonAlterColumnPgTypeStatement {
@@ -515,6 +516,7 @@ export interface JsonAlterColumnSetDefaultStatement {
 	columnNotNull: boolean;
 	columnAutoIncrement: boolean;
 	columnPk: boolean;
+	columnComment: string | undefined;
 }
 
 export interface JsonAlterColumnDropDefaultStatement {
@@ -528,6 +530,7 @@ export interface JsonAlterColumnDropDefaultStatement {
 	columnNotNull: boolean;
 	columnAutoIncrement: boolean;
 	columnPk: boolean;
+	columnComment: string | undefined;
 }
 
 export interface JsonAlterColumnSetNotNullStatement {
@@ -541,6 +544,7 @@ export interface JsonAlterColumnSetNotNullStatement {
 	columnNotNull: boolean;
 	columnAutoIncrement: boolean;
 	columnPk: boolean;
+	columnComment: string | undefined;
 }
 
 export interface JsonAlterColumnDropNotNullStatement {
@@ -554,6 +558,7 @@ export interface JsonAlterColumnDropNotNullStatement {
 	columnNotNull: boolean;
 	columnAutoIncrement: boolean;
 	columnPk: boolean;
+	columnComment: string | undefined;
 }
 
 export interface JsonAlterColumnSetGeneratedStatement {
@@ -568,6 +573,7 @@ export interface JsonAlterColumnSetGeneratedStatement {
 	columnAutoIncrement: boolean;
 	columnPk: boolean;
 	columnGenerated?: { as: string; type: 'stored' | 'virtual' };
+	columnComment: string | undefined;
 }
 export interface JsonAlterColumnSetIdentityStatement {
 	type: 'alter_table_alter_column_set_identity';
@@ -605,6 +611,7 @@ export interface JsonAlterColumnDropGeneratedStatement {
 	columnAutoIncrement: boolean;
 	columnPk: boolean;
 	columnGenerated?: { as: string; type: 'stored' | 'virtual' };
+	columnComment: string | undefined;
 	oldColumn?: Column;
 }
 
@@ -620,6 +627,7 @@ export interface JsonAlterColumnAlterGeneratedStatement {
 	columnAutoIncrement: boolean;
 	columnPk: boolean;
 	columnGenerated?: { as: string; type: 'stored' | 'virtual' };
+	columnComment: string | undefined;
 }
 
 export interface JsonAlterColumnSetOnUpdateStatement {
@@ -633,6 +641,7 @@ export interface JsonAlterColumnSetOnUpdateStatement {
 	columnNotNull: boolean;
 	columnAutoIncrement: boolean;
 	columnPk: boolean;
+	columnComment: string | undefined;
 }
 
 export interface JsonAlterColumnDropOnUpdateStatement {
@@ -646,6 +655,7 @@ export interface JsonAlterColumnDropOnUpdateStatement {
 	columnNotNull: boolean;
 	columnAutoIncrement: boolean;
 	columnPk: boolean;
+	columnComment: string | undefined;
 }
 
 export interface JsonAlterColumnSetAutoincrementStatement {
@@ -659,6 +669,7 @@ export interface JsonAlterColumnSetAutoincrementStatement {
 	columnNotNull: boolean;
 	columnAutoIncrement: boolean;
 	columnPk: boolean;
+	columnComment: string | undefined;
 }
 
 export interface JsonAlterColumnDropAutoincrementStatement {
@@ -672,6 +683,7 @@ export interface JsonAlterColumnDropAutoincrementStatement {
 	columnNotNull: boolean;
 	columnAutoIncrement: boolean;
 	columnPk: boolean;
+	columnComment: string | undefined;
 }
 
 export interface JsonAlterColumnSetCommentStatement {
@@ -699,6 +711,7 @@ export interface JsonAlterColumnDropCommentStatement {
 	columnNotNull: boolean;
 	columnAutoIncrement: boolean;
 	columnPk: boolean;
+	columnComment: string | undefined;
 }
 
 export interface JsonCreateSchema {
@@ -1411,6 +1424,7 @@ export const prepareAlterColumnsMysql = (
 		const columnDefault = snapshotColumn.default;
 		const columnOnUpdate = 'onUpdate' in snapshotColumn ? snapshotColumn.onUpdate : undefined;
 		const columnNotNull = table.columns[columnName].notNull;
+		const columnComment = 'comment' in snapshotColumn ? snapshotColumn.comment : undefined;
 
 		const columnAutoIncrement = 'autoincrement' in snapshotColumn
 			? snapshotColumn.autoincrement ?? false
@@ -1430,6 +1444,7 @@ export const prepareAlterColumnsMysql = (
 				columnNotNull,
 				columnAutoIncrement,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -1449,6 +1464,7 @@ export const prepareAlterColumnsMysql = (
 				columnNotNull,
 				columnAutoIncrement,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -1464,6 +1480,7 @@ export const prepareAlterColumnsMysql = (
 				columnNotNull,
 				columnAutoIncrement,
 				columnPk,
+				columnComment,
 			});
 		}
 	}
@@ -1515,6 +1532,7 @@ export const prepareAlterColumnsMysql = (
 				columnAutoIncrement,
 				columnPk,
 				columnGenerated,
+				columnComment,
 			});
 		}
 
@@ -1545,6 +1563,7 @@ export const prepareAlterColumnsMysql = (
 				columnAutoIncrement,
 				newDataType: columnType,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -1561,6 +1580,7 @@ export const prepareAlterColumnsMysql = (
 				columnAutoIncrement,
 				newDataType: columnType,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -1576,6 +1596,7 @@ export const prepareAlterColumnsMysql = (
 				columnAutoIncrement,
 				newDataType: columnType,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -1591,6 +1612,7 @@ export const prepareAlterColumnsMysql = (
 				columnNotNull,
 				columnAutoIncrement,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -1609,6 +1631,7 @@ export const prepareAlterColumnsMysql = (
 				columnNotNull,
 				columnAutoIncrement,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -1624,6 +1647,7 @@ export const prepareAlterColumnsMysql = (
 				columnNotNull,
 				columnAutoIncrement,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -1655,6 +1679,7 @@ export const prepareAlterColumnsMysql = (
 				columnNotNull,
 				columnAutoIncrement,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -1680,6 +1705,7 @@ export const prepareAlterColumnsMysql = (
 				columnAutoIncrement,
 				columnPk,
 				columnGenerated,
+				columnComment,
 			});
 		}
 
@@ -1696,6 +1722,7 @@ export const prepareAlterColumnsMysql = (
 				columnAutoIncrement,
 				columnPk,
 				columnGenerated,
+				columnComment,
 			});
 		}
 
@@ -1722,6 +1749,7 @@ export const prepareAlterColumnsMysql = (
 				columnPk,
 				columnGenerated,
 				oldColumn: json1.tables[tableName].columns[columnName],
+				columnComment,
 			});
 		}
 
@@ -1754,6 +1782,7 @@ export const prepareAlterColumnsMysql = (
 				columnNotNull,
 				columnAutoIncrement,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -1769,6 +1798,7 @@ export const prepareAlterColumnsMysql = (
 				columnNotNull,
 				columnAutoIncrement,
 				columnPk,
+				columnComment,
 			});
 		}
 	}
@@ -1799,6 +1829,7 @@ export const prepareAlterColumnsSingleStore = (
 		const columnDefault = snapshotColumn.default;
 		const columnOnUpdate = 'onUpdate' in snapshotColumn ? snapshotColumn.onUpdate : undefined;
 		const columnNotNull = table.columns[columnName].notNull;
+		const columnComment = 'comment' in snapshotColumn ? snapshotColumn.comment : undefined;
 
 		const columnAutoIncrement = 'autoincrement' in snapshotColumn
 			? snapshotColumn.autoincrement ?? false
@@ -1818,6 +1849,7 @@ export const prepareAlterColumnsSingleStore = (
 				columnNotNull,
 				columnAutoIncrement,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -1837,6 +1869,7 @@ export const prepareAlterColumnsSingleStore = (
 				columnNotNull,
 				columnAutoIncrement,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -1852,6 +1885,7 @@ export const prepareAlterColumnsSingleStore = (
 				columnNotNull,
 				columnAutoIncrement,
 				columnPk,
+				columnComment,
 			});
 		}
 	}
@@ -1903,6 +1937,7 @@ export const prepareAlterColumnsSingleStore = (
 				columnAutoIncrement,
 				columnPk,
 				columnGenerated,
+				columnComment,
 			});
 		}
 
@@ -1933,6 +1968,7 @@ export const prepareAlterColumnsSingleStore = (
 				columnAutoIncrement,
 				newDataType: columnType,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -1949,6 +1985,7 @@ export const prepareAlterColumnsSingleStore = (
 				columnAutoIncrement,
 				newDataType: columnType,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -1964,6 +2001,7 @@ export const prepareAlterColumnsSingleStore = (
 				columnAutoIncrement,
 				newDataType: columnType,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -1979,6 +2017,7 @@ export const prepareAlterColumnsSingleStore = (
 				columnNotNull,
 				columnAutoIncrement,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -1997,6 +2036,7 @@ export const prepareAlterColumnsSingleStore = (
 				columnNotNull,
 				columnAutoIncrement,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -2012,6 +2052,7 @@ export const prepareAlterColumnsSingleStore = (
 				columnNotNull,
 				columnAutoIncrement,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -2043,6 +2084,7 @@ export const prepareAlterColumnsSingleStore = (
 				columnNotNull,
 				columnAutoIncrement,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -2069,6 +2111,7 @@ export const prepareAlterColumnsSingleStore = (
 				columnAutoIncrement,
 				columnPk,
 				columnGenerated,
+				columnComment,
 			});
 		}
 
@@ -2085,6 +2128,7 @@ export const prepareAlterColumnsSingleStore = (
 				columnAutoIncrement,
 				columnPk,
 				columnGenerated,
+				columnComment,
 			});
 		}
 
@@ -2112,6 +2156,7 @@ export const prepareAlterColumnsSingleStore = (
 				columnPk,
 				columnGenerated,
 				oldColumn: json1.tables[tableName].columns[columnName],
+				columnComment,
 			});
 		}
 
@@ -2144,6 +2189,7 @@ export const prepareAlterColumnsSingleStore = (
 				columnNotNull,
 				columnAutoIncrement,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -2159,6 +2205,7 @@ export const prepareAlterColumnsSingleStore = (
 				columnNotNull,
 				columnAutoIncrement,
 				columnPk,
+				columnComment,
 			});
 		}
 	}
@@ -2271,6 +2318,7 @@ export const preparePgAlterColumns = (
 				columnAutoIncrement,
 				newDataType: columnType,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -2287,6 +2335,7 @@ export const preparePgAlterColumns = (
 				columnAutoIncrement,
 				newDataType: columnType,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -2302,6 +2351,7 @@ export const preparePgAlterColumns = (
 				columnAutoIncrement,
 				newDataType: columnType,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -2317,6 +2367,7 @@ export const preparePgAlterColumns = (
 				columnNotNull,
 				columnAutoIncrement,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -2335,6 +2386,7 @@ export const preparePgAlterColumns = (
 				columnNotNull,
 				columnAutoIncrement,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -2350,6 +2402,7 @@ export const preparePgAlterColumns = (
 				columnNotNull,
 				columnAutoIncrement,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -2381,6 +2434,7 @@ export const preparePgAlterColumns = (
 				columnNotNull,
 				columnAutoIncrement,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -2427,6 +2481,7 @@ export const preparePgAlterColumns = (
 				columnAutoIncrement,
 				columnPk,
 				columnGenerated,
+				columnComment,
 			});
 		}
 
@@ -2443,6 +2498,7 @@ export const preparePgAlterColumns = (
 				columnAutoIncrement,
 				columnPk,
 				columnGenerated,
+				columnComment,
 			});
 		}
 
@@ -2459,6 +2515,7 @@ export const preparePgAlterColumns = (
 				columnAutoIncrement,
 				columnPk,
 				columnGenerated,
+				columnComment,
 			});
 		}
 
@@ -2537,6 +2594,7 @@ export const preparePgAlterColumns = (
 				columnNotNull,
 				columnAutoIncrement,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -2552,6 +2610,7 @@ export const preparePgAlterColumns = (
 				columnNotNull,
 				columnAutoIncrement,
 				columnPk,
+				columnComment,
 			});
 		}
 	}
@@ -2587,6 +2646,7 @@ export const prepareSqliteAlterColumns = (
 			.primaryKey;
 
 		const columnGenerated = json2.tables[tableName].columns[columnName].generated;
+		const columnComment = (json2.tables[tableName].columns[columnName] as any).comment;
 
 		const compositePk = json2.tables[tableName].compositePrimaryKeys[
 			`${tableName}_${columnName}`
@@ -2604,6 +2664,7 @@ export const prepareSqliteAlterColumns = (
 				columnNotNull,
 				columnAutoIncrement,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -2623,6 +2684,7 @@ export const prepareSqliteAlterColumns = (
 				columnNotNull,
 				columnAutoIncrement,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -2638,6 +2700,7 @@ export const prepareSqliteAlterColumns = (
 				columnNotNull,
 				columnAutoIncrement,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -2664,6 +2727,7 @@ export const prepareSqliteAlterColumns = (
 				columnNotNull,
 				columnAutoIncrement,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -2694,6 +2758,7 @@ export const prepareSqliteAlterColumns = (
 				columnAutoIncrement,
 				newDataType: columnType,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -2710,6 +2775,7 @@ export const prepareSqliteAlterColumns = (
 				columnAutoIncrement,
 				newDataType: columnType,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -2725,6 +2791,7 @@ export const prepareSqliteAlterColumns = (
 				columnAutoIncrement,
 				newDataType: columnType,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -2740,6 +2807,7 @@ export const prepareSqliteAlterColumns = (
 				columnNotNull,
 				columnAutoIncrement,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -2758,6 +2826,7 @@ export const prepareSqliteAlterColumns = (
 				columnNotNull,
 				columnAutoIncrement,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -2773,6 +2842,7 @@ export const prepareSqliteAlterColumns = (
 				columnNotNull,
 				columnAutoIncrement,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -2790,6 +2860,7 @@ export const prepareSqliteAlterColumns = (
 					columnAutoIncrement,
 					columnPk,
 					columnGenerated,
+					columnComment,
 				});
 			} else {
 				warning(
@@ -2812,6 +2883,7 @@ export const prepareSqliteAlterColumns = (
 					columnAutoIncrement,
 					columnPk,
 					columnGenerated,
+					columnComment,
 				});
 			} else {
 				warning(
@@ -2833,6 +2905,7 @@ export const prepareSqliteAlterColumns = (
 				columnAutoIncrement,
 				columnPk,
 				columnGenerated,
+				columnComment,
 			});
 		}
 
@@ -2865,6 +2938,7 @@ export const prepareSqliteAlterColumns = (
 				columnNotNull,
 				columnAutoIncrement,
 				columnPk,
+				columnComment,
 			});
 		}
 
@@ -2880,6 +2954,7 @@ export const prepareSqliteAlterColumns = (
 				columnNotNull,
 				columnAutoIncrement,
 				columnPk,
+				columnComment,
 			});
 		}
 	}

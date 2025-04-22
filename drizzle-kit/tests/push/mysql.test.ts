@@ -444,6 +444,7 @@ const mysqlSuite: DialectSuite = {
 		expect(statements).toStrictEqual([
 			{
 				columnAutoIncrement: false,
+				columnComment: undefined,
 				columnDefault: undefined,
 				columnGenerated: {
 					as: "`users`.`name` || 'hello'",
@@ -460,6 +461,7 @@ const mysqlSuite: DialectSuite = {
 			},
 			{
 				columnAutoIncrement: false,
+				columnComment: undefined,
 				columnDefault: undefined,
 				columnGenerated: {
 					as: "`users`.`name` || 'hello'",
@@ -534,6 +536,7 @@ const mysqlSuite: DialectSuite = {
 		expect(statements).toStrictEqual([
 			{
 				columnAutoIncrement: false,
+				columnComment: undefined,
 				columnDefault: undefined,
 				columnGenerated: undefined,
 				columnName: 'gen_name',
@@ -561,6 +564,7 @@ const mysqlSuite: DialectSuite = {
 			},
 			{
 				columnAutoIncrement: false,
+				columnComment: undefined,
 				columnDefault: undefined,
 				columnGenerated: undefined,
 				columnName: 'gen_name1',
