@@ -872,13 +872,16 @@ test('multiple policies with roles from schema', async () => {
 
 	const schema = {
 		usersRole,
-
-		users: pgTable('users', {
-			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { using: sql`true`, withCheck: sql`true` }),
-			rlsPolicy: pgPolicy('newRls', { to: ['postgres', usersRole] }),
-		})),
+		users: pgTable(
+			'users',
+			{
+				id: integer('id').primaryKey(),
+			},
+			() => [
+				pgPolicy('test', { using: sql`true`, withCheck: sql`true` }),
+				pgPolicy('newRls', { to: ['postgres', usersRole] }),
+			],
+		),
 	};
 
 	const { statements, sqlStatements } = await introspectPgToFile(

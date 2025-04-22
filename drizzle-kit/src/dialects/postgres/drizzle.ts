@@ -136,6 +136,7 @@ export const fromDrizzleSchema = (
 
 	const tables = tableConfigPairs.map((it) => {
 		const config = it.config;
+
 		return {
 			entityType: 'tables',
 			schema: config.schema ?? 'public',
@@ -174,7 +175,7 @@ export const fromDrizzleSchema = (
 		columns.push(...drizzleColumns.map<Column>((column) => {
 			const name = getColumnCasing(column, casing);
 			const notNull = column.notNull;
-			const primaryKey = column.primary;
+			const isPrimary = column.primary;
 			const sqlTypeLowered = column.getSQLType().toLowerCase();
 
 			const { baseColumn, dimensions } = is(column, PgArray)
@@ -219,8 +220,9 @@ export const fromDrizzleSchema = (
 				}
 				: null;
 
-			const isExpression: boolean = !column.default ? false : is(column.default, SQL);
-			const value = !column.default ? null : is(column.default, SQL)
+			const hasDefault = typeof column.default !== 'undefined';
+			const isExpression: boolean = !hasDefault ? false : is(column.default, SQL);
+			const value = !hasDefault ? null : is(column.default, SQL)
 				? dialect.sqlToQuery(column.default).sql
 				: typeof column.default === 'string'
 				? `'${escapeSingleQuotes(column.default)}'`
@@ -236,7 +238,7 @@ export const fromDrizzleSchema = (
 					: `'${column.default.toISOString()}'`)
 				: String(column.default);
 
-			const defaultValue = !column.default
+			const defaultValue = !hasDefault
 				? null
 				: {
 					value: value!,
@@ -262,7 +264,12 @@ export const fromDrizzleSchema = (
 				type: column.getSQLType(),
 				typeSchema: typeSchema ?? null,
 				dimensions: dimensions,
-				primaryKey,
+				primaryKey: isPrimary
+					? {
+						name: `${column.table}_pkey`, // TODO: expose primaryKey({name: string}) for explicit name
+						nameExplicit: false,
+					}
+					: null,
 				notNull,
 				default: defaultValue,
 				generated: generatedValue,
@@ -433,6 +440,7 @@ export const fromDrizzleSchema = (
 				concurrently: value.config.concurrently ?? false,
 				method: value.config.method ?? 'btree',
 				with: Object.entries(value.config.with || {}).map((it) => `${it[0]}=${it[1]}`).join(', '),
+				isPrimary: false,
 			} satisfies Index;
 		}));
 

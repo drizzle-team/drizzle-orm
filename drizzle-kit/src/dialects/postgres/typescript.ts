@@ -155,6 +155,7 @@ const importsPatch = {
 	'timestamp with time zone': 'timestamp',
 	'time without time zone': 'time',
 	'time with time zone': 'time',
+	'character varying': 'varchar',
 } as Record<string, string>;
 
 const relations = new Set<string>();
@@ -323,10 +324,8 @@ export const ddlToTypeScript = (ddl: PostgresDDL, casing: Casing) => {
 
 	const imports = new Set<string>();
 	for (const x of ddl.entities.list()) {
-		if (x.entityType === 'schemas' && x.name === 'public') continue;
-
-		if (x.entityType === 'schemas') imports.add('pgSchema');
-		if (x.entityType === 'enums') imports.add('pgEnum');
+		if (x.entityType === 'schemas' && x.name !== 'public') imports.add('pgSchema');
+		if (x.entityType === 'enums' && x.schema === 'public') imports.add('pgEnum');
 		if (x.entityType === 'tables') imports.add('pgTable');
 
 		if (x.entityType === 'indexes') {
@@ -348,7 +347,9 @@ export const ddlToTypeScript = (ddl: PostgresDDL, casing: Casing) => {
 		}
 
 		if (x.entityType === 'columns') {
-			let patched: string = (importsPatch[x.type] || x.type).replace('[]', '');
+			let patched = x.type.replace('[]', '');
+			patched = importsPatch[patched] || patched;
+
 			patched = patched === 'double precision' ? 'doublePrecision' : patched;
 			patched = patched.startsWith('varchar(') ? 'varchar' : patched;
 			patched = patched.startsWith('character varying(') ? 'varchar' : patched;
@@ -438,7 +439,6 @@ export const ddlToTypeScript = (ddl: PostgresDDL, casing: Casing) => {
 		const func = tableSchema ? `${tableSchema}.table` : 'pgTable';
 		let statement = `export const ${withCasing(paramName, casing)} = ${func}("${table.name}", {\n`;
 		statement += createTableColumns(
-			table.name,
 			columns,
 			fks,
 			enumTypes,
@@ -462,8 +462,7 @@ export const ddlToTypeScript = (ddl: PostgresDDL, casing: Casing) => {
 
 		if (hasCallback) {
 			statement += ', ';
-			statement += '(table) => {\n';
-			statement += '\treturn {\n';
+			statement += '(table) => [\n';
 			// TODO: or pk has non-default name
 			statement += table.pk && table.pk.columns.length > 1 ? createTablePK(table.pk, casing) : '';
 			statement += createTableFKs(filteredFKs, schemas, casing);
@@ -471,10 +470,9 @@ export const ddlToTypeScript = (ddl: PostgresDDL, casing: Casing) => {
 			statement += createTableUniques(table.uniques, casing);
 			statement += createTablePolicies(table.policies, casing, rolesNameToTsKey);
 			statement += createTableChecks(table.checks, casing);
-			statement += '\t}\n';
-			statement += '}';
+			statement += ']';
 		}
-		statement += ');';
+		statement += table.isRlsEnabled ? ').enableRLS();' : ');';
 		return statement;
 	});
 
@@ -494,7 +492,6 @@ export const ddlToTypeScript = (ddl: PostgresDDL, casing: Casing) => {
 			const tablespace = it.tablespace ?? '';
 
 			const columns = createTableColumns(
-				'',
 				it.columns,
 				[],
 				enumTypes,
@@ -629,7 +626,7 @@ const mapDefault = (
 			? '.defaultNow()'
 			: /^'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d+)?([+-]\d{2}(:\d{2})?)?'$/.test(def.value) // Matches 'YYYY-MM-DD HH:MI:SS', 'YYYY-MM-DD HH:MI:SS.FFFFFF', 'YYYY-MM-DD HH:MI:SS+TZ', 'YYYY-MM-DD HH:MI:SS.FFFFFF+TZ' and 'YYYY-MM-DD HH:MI:SS+HH:MI'
 			? `.default(${mapColumnDefault(def)})`
-			: `.default(sql\`${def}\`)`;
+			: `.default(sql\`${def.value}\`)`;
 	}
 
 	if (lowered.startsWith('time')) {
@@ -984,7 +981,6 @@ const dimensionsInArray = (size?: number): string => {
 };
 
 const createTableColumns = (
-	tableName: string,
 	columns: Column[],
 	fks: ForeignKey[],
 	enumTypes: Set<string>,
@@ -1019,11 +1015,9 @@ const createTableColumns = (
 		statement += columnStatement;
 		// Provide just this in column function
 		statement += repeat('.array()', it.dimensions);
-		const def =  mapDefault(it.type, enumTypes, it.typeSchema ?? 'public', it.dimensions, it.default)
-		console.log(it.name,it.default, def)
 		statement += mapDefault(it.type, enumTypes, it.typeSchema ?? 'public', it.dimensions, it.default);
 		statement += it.primaryKey ? '.primaryKey()' : '';
-		statement += it.notNull && !it.identity ? '.notNull()' : '';
+		statement += it.notNull && !it.identity && !it.primaryKey ? '.notNull()' : '';
 
 		statement += it.identity ? generateIdentityParams(it.identity) : '';
 
@@ -1072,21 +1066,20 @@ const createTableIndexes = (tableName: string, idxs: Index[], casing: Casing): s
 	let statement = '';
 
 	idxs.forEach((it) => {
-		// we have issue when index is called as table called
-		let idxKey = it.name.startsWith(tableName) && it.name !== tableName ? it.name.slice(tableName.length + 1) : it.name;
-		idxKey = idxKey.endsWith('_index') ? idxKey.slice(0, -'_index'.length) + '_idx' : idxKey;
+		// TODO: cc: @AndriiSherman we have issue when index is called as table called
+		// let idxKey = it.name.startsWith(tableName) && it.name !== tableName ? it.name.slice(tableName.length + 1) : it.name;
+		// idxKey = idxKey.endsWith('_index') ? idxKey.slice(0, -'_index'.length) + '_idx' : idxKey;
+		// idxKey = withCasing(idxKey, casing);
+		// const indexGeneratedName = indexName(
+		// 	tableName,
+		// 	it.columns.map((it) => it.value),
+		// );
 
-		idxKey = withCasing(idxKey, casing);
+		const name = it.nameExplicit ? it.name : '';
+		// const escapedIndexName = indexGeneratedName === it.name ? '' : `"${it.name}"`;
 
-		const indexGeneratedName = indexName(
-			tableName,
-			it.columns.map((it) => it.value),
-		);
-		const escapedIndexName = indexGeneratedName === it.name ? '' : `"${it.name}"`;
-
-		statement += `\t\t${idxKey}: `;
-		statement += it.isUnique ? 'uniqueIndex(' : 'index(';
-		statement += `${escapedIndexName})`;
+		statement += it.isUnique ? '\tuniqueIndex(' : '\tindex(';
+		statement += name ? `"${name}")` : ')';
 		statement += `${it.concurrently ? `.concurrently()` : ''}`;
 
 		statement += `.using("${it.method}", ${
@@ -1098,8 +1091,8 @@ const createTableIndexes = (tableName: string, idxs: Index[], casing: Casing): s
 						return `table.${withCasing(it.value, casing)}${it.asc ? '.asc()' : '.desc()'}${
 							it.nullsFirst ? '.nullsFirst()' : '.nullsLast()'
 						}${
-							it.opclass
-								? `.op("${it.opclass}")`
+							it.opclass && !it.opclass.default
+								? `.op("${it.opclass.name}")`
 								: ''
 						}`;
 					}
@@ -1127,12 +1120,7 @@ const createTableIndexes = (tableName: string, idxs: Index[], casing: Casing): s
 };
 
 const createTablePK = (it: PrimaryKey, casing: Casing): string => {
-	// TODO: we now have isNameExplicit, potentially can improve
-	let key = withCasing(it.name, casing);
-
-	let statement = '';
-	statement += `\t\t${key}: `;
-	statement += 'primaryKey({ columns: [';
+	let statement = '\tprimaryKey({ columns: [';
 	statement += `${
 		it.columns
 			.map((c) => {
@@ -1155,19 +1143,17 @@ const createTablePolicies = (
 	let statement = '';
 
 	policies.forEach((it) => {
-		const idxKey = withCasing(it.name, casing);
-
-		const mappedItTo = it.roles?.map((v) => {
+		const mappedItTo = it.roles.map((v) => {
 			return rolesNameToTsKey[v] ? withCasing(rolesNameToTsKey[v], casing) : `"${v}"`;
 		});
 
-		statement += `\t\t${idxKey}: `;
-		statement += 'pgPolicy(';
-		statement += `"${it.name}", { `;
-		statement += `as: "${it.as?.toLowerCase()}", for: "${it.for?.toLowerCase()}", to: [${mappedItTo?.join(', ')}]${
-			it.using ? `, using: sql\`${it.using}\`` : ''
-		}${it.withCheck ? `, withCheck: sql\`${it.withCheck}\` ` : ''}`;
-		statement += ` }),\n`;
+		statement += `\tpgPolicy("${it.name}", { `;
+		statement += it.as === 'PERMISSIVE' ? '' : `as: "${it.as.toLowerCase()}", `;
+		statement += it.for === 'ALL' ? '' : `for: "${it.for.toLowerCase()}", `;
+		statement += mappedItTo.length === 1 && mappedItTo[0] === '"public"' ? '' : `to: [${mappedItTo?.join(', ')}], `;
+		statement += it.using !== null ? `using: sql\`${it.using}\`` : '';
+		statement += it.withCheck !== null ? `, withCheck: sql\`${it.withCheck}\` ` : '';
+		statement += `}),\n`;
 	});
 
 	return statement;
@@ -1180,11 +1166,8 @@ const createTableUniques = (
 	let statement = '';
 
 	unqs.forEach((it) => {
-		const idxKey = withCasing(it.name, casing);
-
-		statement += `\t\t${idxKey}: `;
-		statement += 'unique(';
-		statement += `"${it.name}")`;
+		statement += '\tunique(';
+		statement += it.explicitName ? `"${it.name}")` : ')';
 		statement += `.on(${it.columns.map((it) => `table.${withCasing(it, casing)}`).join(', ')})`;
 		statement += it.nullsNotDistinct ? `.nullsNotDistinct()` : '';
 		statement += `,\n`;
@@ -1215,18 +1198,18 @@ const createTableFKs = (fks: ForeignKey[], schemas: Record<string, string>, casi
 	let statement = '';
 
 	fks.forEach((it) => {
-		const tableSchema = schemas[it.schemaTo || ''];
+		const tableSchema = it.schemaTo === 'public' ? '' : schemas[it.schemaTo];
 		const paramName = paramNameFor(it.tableTo, tableSchema);
 
 		const isSelf = it.tableTo === it.table;
 		const tableTo = isSelf ? 'table' : `${withCasing(paramName, casing)}`;
-		statement += `\t\t${withCasing(it.name, casing)}: foreignKey({\n`;
-		statement += `\t\t\tcolumns: [${it.columnsFrom.map((i) => `table.${withCasing(i, casing)}`).join(', ')}],\n`;
-		statement += `\t\t\tforeignColumns: [${
+		statement += `\tforeignKey({\n`;
+		statement += `\t\tcolumns: [${it.columnsFrom.map((i) => `table.${withCasing(i, casing)}`).join(', ')}],\n`;
+		statement += `\t\tforeignColumns: [${
 			it.columnsTo.map((i) => `${tableTo}.${withCasing(i, casing)}`).join(', ')
 		}],\n`;
-		statement += `\t\t\tname: "${it.name}"\n`;
-		statement += `\t\t})`;
+		statement += it.nameExplicit ? `\t\tname: "${it.name}"\n` : '';
+		statement += `\t})`;
 
 		statement += it.onUpdate && it.onUpdate !== 'no action' ? `.onUpdate("${it.onUpdate}")` : '';
 
