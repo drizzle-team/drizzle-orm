@@ -41,6 +41,8 @@ export class MsSqlInt<T extends ColumnBaseConfig<'number', 'MsSqlInt'>> extends 
 	}
 }
 
-export function int<TName extends string>(name: TName): MsSqlIntBuilderInitial<TName> {
-	return new MsSqlIntBuilder(name);
+export function int(): MsSqlIntBuilderInitial<''>;
+export function int<TName extends string>(name: TName): MsSqlIntBuilderInitial<TName>;
+export function int(name?: string) {
+	return new MsSqlIntBuilder(name ?? '');
 }

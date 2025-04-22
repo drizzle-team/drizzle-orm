@@ -43,6 +43,8 @@ export class MsSqlBit<T extends ColumnBaseConfig<'boolean', 'MsSqlBit'>> extends
 	override mapFromDriverValue = Boolean;
 }
 
-export function bit<TName extends string>(name: TName): MsSqlBitBuilderInitial<TName> {
-	return new MsSqlBitBuilder(name);
+export function bit(): MsSqlBitBuilderInitial<''>;
+export function bit<TName extends string>(name: TName): MsSqlBitBuilderInitial<TName>;
+export function bit(name?: string) {
+	return new MsSqlBitBuilder(name ?? '');
 }

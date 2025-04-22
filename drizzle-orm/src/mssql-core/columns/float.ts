@@ -2,6 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 import { MsSqlColumnBuilderWithIdentity, MsSqlColumnWithIdentity } from './common.ts';
 
 export type MsSqlFloatBuilderInitial<TName extends string> = MsSqlFloatBuilder<
@@ -51,6 +52,15 @@ export interface MsSqlFloatConfig {
 	precision?: number;
 }
 
-export function float<TName extends string>(name: TName, config?: MsSqlFloatConfig): MsSqlFloatBuilderInitial<TName> {
+export function float(): MsSqlFloatBuilderInitial<''>;
+export function float(
+	config?: MsSqlFloatConfig,
+): MsSqlFloatBuilderInitial<''>;
+export function float<TName extends string>(
+	name: TName,
+	config?: MsSqlFloatConfig,
+): MsSqlFloatBuilderInitial<TName>;
+export function float(a?: string | MsSqlFloatConfig, b: MsSqlFloatConfig = {}) {
+	const { name, config } = getColumnNameAndConfig<MsSqlFloatConfig>(a, b);
 	return new MsSqlFloatBuilder(name, config);
 }

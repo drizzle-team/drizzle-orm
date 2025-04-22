@@ -2,6 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 import { MsSqlColumnBuilderWithIdentity, MsSqlColumnWithIdentity } from './common.ts';
 
 export type MsSqlDecimalBuilderInitial<TName extends string> = MsSqlDecimalBuilder<
@@ -62,9 +63,15 @@ export interface MsSqlDecimalConfig {
 	scale?: number;
 }
 
+export function decimal(): MsSqlDecimalBuilderInitial<''>;
+export function decimal(
+	config?: MsSqlDecimalConfig,
+): MsSqlDecimalBuilderInitial<''>;
 export function decimal<TName extends string>(
 	name: TName,
-	config: MsSqlDecimalConfig = {},
-): MsSqlDecimalBuilderInitial<TName> {
+	config?: MsSqlDecimalConfig,
+): MsSqlDecimalBuilderInitial<TName>;
+export function decimal(a?: string | MsSqlDecimalConfig, b: MsSqlDecimalConfig = {}) {
+	const { name, config } = getColumnNameAndConfig<MsSqlDecimalConfig>(a, b);
 	return new MsSqlDecimalBuilder(name, config.precision, config.scale);
 }

@@ -51,8 +51,8 @@ export class MsSqlSmallInt<T extends ColumnBaseConfig<'number', 'MsSqlSmallInt'>
 	}
 }
 
-export function smallint<TName extends string>(
-	name: TName,
-): MsSqlSmallIntBuilderInitial<TName> {
-	return new MsSqlSmallIntBuilder(name);
+export function smallint(): MsSqlSmallIntBuilderInitial<''>;
+export function smallint<TName extends string>(name: TName): MsSqlSmallIntBuilderInitial<TName>;
+export function smallint(name?: string) {
+	return new MsSqlSmallIntBuilder(name ?? '');
 }

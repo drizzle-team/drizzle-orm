@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
-import type { Writable } from '~/utils.ts';
+import { getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { MsSqlColumn, MsSqlColumnBuilder } from './common.ts';
 
 export type MsSqlCharBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> = MsSqlCharBuilder<
@@ -68,30 +68,44 @@ export type MsSqlCharConfig<TEnum extends string[] | readonly string[] | undefin
 	};
 
 export type MsSqlCharConfigInitial<
-	TEnum extends string[] | readonly string[] | undefined,
+	TEnum extends string[] | readonly string[] | undefined = string[] | readonly string[] | undefined,
 > = {
 	length?: number;
 	enum?: TEnum;
 };
 
+export function char(): MsSqlCharBuilderInitial<'', [string, ...string[]]>;
+export function char<U extends string, T extends Readonly<[U, ...U[]]>>(
+	config?: MsSqlCharConfigInitial<T | Writable<T>>,
+): MsSqlCharBuilderInitial<'', Writable<T>>;
 export function char<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
 	name: TName,
 	config?: MsSqlCharConfigInitial<T | Writable<T>>,
-): MsSqlCharBuilderInitial<TName, Writable<T>> {
-	return new MsSqlCharBuilder(name, { ...config, nonUnicode: false });
+): MsSqlCharBuilderInitial<TName, Writable<T>>;
+export function char(
+	a?: string | MsSqlCharConfigInitial,
+	b?: MsSqlCharConfigInitial,
+): any {
+	const { name, config } = getColumnNameAndConfig<MsSqlCharConfigInitial>(a, b);
+
+	return new MsSqlCharBuilder(name, { ...config, nonUnicode: false } as any);
 }
 
-export function nchar<
-	TName extends string,
-	U extends string,
-	T extends Readonly<[U, ...U[]]>,
->(
+export function nchar(): MsSqlCharBuilderInitial<'', [string, ...string[]]>;
+export function nchar<U extends string, T extends Readonly<[U, ...U[]]>>(
+	config?: MsSqlCharConfigInitial<T | Writable<T>>,
+): MsSqlCharBuilderInitial<'', Writable<T>>;
+export function nchar<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
 	name: TName,
 	config?: MsSqlCharConfigInitial<T | Writable<T>>,
-): MsSqlCharBuilderInitial<TName, Writable<T>> {
+): MsSqlCharBuilderInitial<TName, Writable<T>>;
+export function nchar(
+	a?: string | MsSqlCharConfigInitial,
+	b?: MsSqlCharConfigInitial,
+): any {
+	const { name, config } = getColumnNameAndConfig<MsSqlCharConfigInitial>(a, b);
 	return new MsSqlCharBuilder(name, {
-		length: config?.length,
-		enum: config?.enum,
+		...config,
 		nonUnicode: true,
-	});
+	} as any);
 }

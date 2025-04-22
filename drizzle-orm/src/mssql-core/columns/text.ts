@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
-import type { Writable } from '~/utils.ts';
+import { getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { MsSqlColumn, MsSqlColumnBuilder } from './common.ts';
 
 export type MsSqlTextBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> = MsSqlTextBuilder<{
@@ -17,14 +17,13 @@ export type MsSqlTextBuilderInitial<TName extends string, TEnum extends [string,
 
 export class MsSqlTextBuilder<T extends ColumnBuilderBaseConfig<'string', 'MsSqlText'>> extends MsSqlColumnBuilder<
 	T,
-	{ length: number | undefined; enumValues: T['enumValues']; nonUnicode: boolean }
+	{ enumValues: T['enumValues']; nonUnicode: boolean }
 > {
 	static override readonly [entityKind]: string = 'MsSqlTextBuilder';
 
 	constructor(name: T['name'], config: MsSqlTextConfig<T['enumValues']> & { nonUnicode: boolean }) {
 		super(name, 'string', 'MsSqlText');
 		this.config.enumValues = config.enum;
-		this.config.length = config.length;
 		this.config.nonUnicode = config.nonUnicode;
 	}
 
@@ -37,13 +36,11 @@ export class MsSqlTextBuilder<T extends ColumnBuilderBaseConfig<'string', 'MsSql
 }
 
 export class MsSqlText<T extends ColumnBaseConfig<'string', 'MsSqlText'>>
-	extends MsSqlColumn<T, { length: number | undefined; enumValues: T['enumValues']; nonUnicode: boolean }>
+	extends MsSqlColumn<T, { enumValues: T['enumValues']; nonUnicode: boolean }>
 {
 	static override readonly [entityKind]: string = 'MsSqlText';
 
 	override readonly enumValues = this.config.enumValues;
-
-	readonly length: number | undefined = this.config.length;
 
 	readonly nonUnicode: boolean = this.config.nonUnicode;
 
@@ -55,35 +52,46 @@ export class MsSqlText<T extends ColumnBaseConfig<'string', 'MsSqlText'>>
 	}
 
 	getSQLType(): string {
-		return `${this.nonUnicode ? 'n' : ''}text${this.config.length ? `(${this.config.length})` : ''}`;
+		return `${this.nonUnicode ? 'n' : ''}text`;
 	}
 }
 
 export type MsSqlTextConfig<
-	TEnum extends readonly string[] | string[] | undefined,
+	TEnum extends readonly string[] | string[] | undefined = readonly string[] | string[] | undefined,
 > = {
-	length?: number;
 	enum?: TEnum;
 };
 
-export function text<
-	TName extends string,
-	U extends string,
-	T extends Readonly<[U, ...U[]]>,
->(
+export function text(): MsSqlTextBuilderInitial<'', [string, ...string[]]>;
+export function text<U extends string, T extends Readonly<[U, ...U[]]>>(
+	config?: MsSqlTextConfig<T | Writable<T>>,
+): MsSqlTextBuilderInitial<'', Writable<T>>;
+export function text<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
 	name: TName,
-	config: MsSqlTextConfig<T | Writable<T>> = {},
-): MsSqlTextBuilderInitial<TName, Writable<T>> {
-	return new MsSqlTextBuilder(name, { ...config, nonUnicode: false });
+	config?: MsSqlTextConfig<T | Writable<T>>,
+): MsSqlTextBuilderInitial<TName, Writable<T>>;
+export function text(
+	a?: string | MsSqlTextConfig,
+	b?: MsSqlTextConfig,
+): any {
+	const { name, config } = getColumnNameAndConfig<MsSqlTextConfig>(a, b);
+
+	return new MsSqlTextBuilder(name, { ...config, nonUnicode: false } as any);
 }
 
-export function nText<
-	TName extends string,
-	U extends string,
-	T extends Readonly<[U, ...U[]]>,
->(
+export function nText(): MsSqlTextBuilderInitial<'', [string, ...string[]]>;
+export function nText<U extends string, T extends Readonly<[U, ...U[]]>>(
+	config?: MsSqlTextConfig<T | Writable<T>>,
+): MsSqlTextBuilderInitial<'', [string, ...string[]]>;
+export function nText<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
 	name: TName,
-	config: MsSqlTextConfig<T | Writable<T>> = {},
-): MsSqlTextBuilderInitial<TName, Writable<T>> {
-	return new MsSqlTextBuilder(name, { ...config, nonUnicode: true });
+	config?: MsSqlTextConfig<T | Writable<T>>,
+): MsSqlTextBuilderInitial<TName, Writable<T>>;
+export function nText(
+	a?: string | MsSqlTextConfig,
+	b?: MsSqlTextConfig,
+): any {
+	const { name, config } = getColumnNameAndConfig<MsSqlTextConfig>(a, b);
+
+	return new MsSqlTextBuilder(name, { ...config, nonUnicode: true } as any);
 }

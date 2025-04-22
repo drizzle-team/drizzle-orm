@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
-import type { Equal, Writable } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { MsSqlColumn, MsSqlColumnBuilder } from './common.ts';
 
 export type MsSqlVarCharBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> = MsSqlVarCharBuilder<
@@ -125,8 +125,8 @@ export type MsSqlVarCharConfig<TMode extends 'text' | 'json', TEnum extends stri
 	};
 
 export type MsSqlVarCharConfigInitial<
-	TMode extends 'text' | 'json',
-	TEnum extends string[] | readonly string[] | undefined,
+	TMode extends 'text' | 'json' = 'text' | 'json',
+	TEnum extends string[] | readonly string[] | undefined = string[] | readonly string[] | undefined,
 > = TMode extends 'text' ? {
 		mode?: TMode;
 		length?: number | 'max';
@@ -137,13 +137,36 @@ export type MsSqlVarCharConfigInitial<
 		length?: number | 'max';
 	};
 
+export function varchar(): MsSqlVarCharBuilderInitial<'', [string, ...string[]]>;
+export function varchar<U extends string, T extends Readonly<[U, ...U[]]>>(
+	config?: MsSqlVarCharConfigInitial<'text', T | Writable<T>>,
+): MsSqlVarCharBuilderInitial<'', Writable<T>>;
 export function varchar<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
 	name: TName,
 	config?: MsSqlVarCharConfigInitial<'text', T | Writable<T>>,
-): MsSqlVarCharBuilderInitial<TName, Writable<T>> {
-	return new MsSqlVarCharBuilder(name, { ...config, nonUnicode: false });
+): MsSqlVarCharBuilderInitial<TName, Writable<T>>;
+export function varchar(
+	a?: string | MsSqlVarCharConfigInitial<'text'>,
+	b?: MsSqlVarCharConfigInitial<'text'>,
+): any {
+	const { name, config } = getColumnNameAndConfig<MsSqlVarCharConfigInitial<'text'>>(a, b);
+
+	return new MsSqlVarCharBuilder(name, {
+		...config,
+		mode: 'text',
+		nonUnicode: false,
+	} as any);
 }
 
+export function nvarchar(): MsSqlVarCharBuilderInitial<'', [string, ...string[]]>;
+export function nvarchar<
+	U extends string,
+	T extends Readonly<[U, ...U[]]>,
+	TMode extends 'text' | 'json' = 'text' | 'json',
+>(
+	config?: MsSqlVarCharConfigInitial<TMode, T | Writable<T>>,
+): Equal<TMode, 'json'> extends true ? MsSqlVarCharJsonBuilderInitial<''>
+	: MsSqlVarCharBuilderInitial<'', Writable<T>>;
 export function nvarchar<
 	TName extends string,
 	U extends string,
@@ -152,14 +175,23 @@ export function nvarchar<
 >(
 	name: TName,
 	config?: MsSqlVarCharConfigInitial<TMode, T | Writable<T>>,
-): Equal<TMode, 'json'> extends true ? MsSqlVarCharJsonBuilderInitial<TName>
-	: MsSqlVarCharBuilderInitial<TName, Writable<T>>
-{
-	return config?.mode === 'json'
-		? new MsSqlVarCharJsonBuilder(name, { length: config.length })
-		: new MsSqlVarCharBuilder(name, {
-			length: config?.length,
-			enum: (config as any)?.enum,
-			nonUnicode: true,
-		}) as any;
+): Equal<TMode, 'json'> extends true ? MsSqlVarCharJsonBuilderInitial<''>
+	: MsSqlVarCharBuilderInitial<'', Writable<T>>;
+export function nvarchar(
+	a?: string | MsSqlVarCharConfigInitial,
+	b?: MsSqlVarCharConfigInitial,
+): any {
+	const { name, config } = getColumnNameAndConfig<MsSqlVarCharConfigInitial>(a, b);
+
+	if (config?.mode === 'json') {
+		return new MsSqlVarCharJsonBuilder(name, {
+			length: config.length,
+		});
+	}
+
+	return new MsSqlVarCharBuilder(name, {
+		length: config?.length,
+		enum: (config as any)?.enum,
+		nonUnicode: true,
+	});
 }

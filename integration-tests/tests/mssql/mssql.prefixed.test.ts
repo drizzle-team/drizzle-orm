@@ -536,11 +536,9 @@ test('migrator', async () => {
 		id: int('id').identity().primaryKey(),
 		name: text('name').notNull(),
 		email: text('email').notNull(),
-	}, (table) => {
-		return {
-			name: uniqueIndex('').on(table.name).using('btree'),
-		};
-	});
+	}, (table) => [
+		uniqueIndex('').on(table.name),
+	]);
 
 	await db.execute(sql.raw(`drop table if exists cities_migration`));
 	await db.execute(sql.raw(`drop table if exists users_migration`));
@@ -602,7 +600,7 @@ test('insert + select all possible dates', async () => {
 	await db.insert(datesTable).values({
 		date: d,
 		dateAsString: '2022-11-11',
-		time: '12:12:12',
+		time: new Date('1970-01-01T12:12:12.000Z'),
 		datetime: d,
 		datetimeAsString: '2022-11-11T12:12:12.000Z',
 	});

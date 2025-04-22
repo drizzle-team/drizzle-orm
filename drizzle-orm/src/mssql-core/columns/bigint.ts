@@ -2,9 +2,10 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 import { MsSqlColumnBuilderWithIdentity, MsSqlColumnWithIdentity } from './common.ts';
 
-export type MsSqlBigIntBuilderInitial<TMode extends 'number' | 'bigint' | 'string', TName extends string> =
+export type MsSqlBigIntBuilderInitial<TName extends string, TMode extends 'number' | 'bigint' | 'string'> =
 	MsSqlBigIntBuilder<
 		{
 			name: TName;
@@ -61,13 +62,16 @@ export class MsSqlBigInt<T extends ColumnBaseConfig<'bigint', 'MsSqlBigInt'>>
 
 interface MsSqlBigIntConfig<T extends 'number' | 'bigint' | 'string' = 'number' | 'bigint' | 'string'> {
 	mode: T;
-	unsigned?: boolean;
 }
 
+export function bigint<TMode extends MsSqlBigIntConfig['mode']>(
+	config: MsSqlBigIntConfig<TMode>,
+): MsSqlBigIntBuilderInitial<'', TMode>;
 export function bigint<TName extends string, TMode extends MsSqlBigIntConfig['mode']>(
 	name: TName,
-	config: MsSqlBigIntConfig<TMode>,
-): MsSqlBigIntBuilderInitial<TMode, TName>;
-export function bigint(name: string, config: MsSqlBigIntConfig) {
+	config?: MsSqlBigIntConfig<TMode>,
+): MsSqlBigIntBuilderInitial<TName, TMode>;
+export function bigint(a: string | MsSqlBigIntConfig, b?: MsSqlBigIntConfig) {
+	const { name, config } = getColumnNameAndConfig<MsSqlBigIntConfig>(a, b);
 	return new MsSqlBigIntBuilder(name, config);
 }

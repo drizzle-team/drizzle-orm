@@ -41,6 +41,8 @@ export class MsSqlReal<T extends ColumnBaseConfig<'number', 'MsSqlReal'>> extend
 	}
 }
 
-export function real<TName extends string>(name: TName): MsSqlRealBuilderInitial<TName> {
-	return new MsSqlRealBuilder(name);
+export function real(): MsSqlRealBuilderInitial<''>;
+export function real<TName extends string>(name: TName): MsSqlRealBuilderInitial<TName>;
+export function real(name?: string) {
+	return new MsSqlRealBuilder(name ?? '');
 }

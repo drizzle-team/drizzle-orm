@@ -2,6 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
+import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { MsSqlColumn, MsSqlColumnBuilder } from './common.ts';
 
 export type MsSqlTimeStringBuilderInitial<TName extends string> = MsSqlTimeStringBuilder<
@@ -106,16 +107,24 @@ export class MsSqlTime<
 		return `time${precision}`;
 	}
 }
-export type TimeConfig<TMode extends 'date' | 'string' = 'date'> = {
+export type TimeConfig<TMode extends 'date' | 'string' = 'date' | 'string'> = {
 	precision?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 	mode?: TMode;
 };
 
-export function time<TName extends string, TMode extends 'date' | 'string'>(
+export function time(): MsSqlTimeBuilderInitial<''>;
+export function time<TMode extends TimeConfig['mode'] & {}>(
+	config?: TimeConfig<TMode>,
+): Equal<TMode, 'string'> extends true ? MsSqlTimeStringBuilderInitial<''> : MsSqlTimeBuilderInitial<''>;
+export function time<TName extends string, TMode extends TimeConfig['mode'] & {}>(
 	name: TName,
 	config?: TimeConfig<TMode>,
-): TMode extends 'string' ? MsSqlTimeStringBuilderInitial<TName> : MsSqlTimeBuilderInitial<TName> {
-	return config?.mode === 'string'
-		? new MsSqlTimeStringBuilder(name, config as any)
-		: new MsSqlTimeBuilder(name, config as any) as any;
+): Equal<TMode, 'string'> extends true ? MsSqlTimeStringBuilderInitial<TName>
+	: MsSqlTimeBuilderInitial<TName>;
+export function time(a?: string | TimeConfig, b?: TimeConfig) {
+	const { name, config } = getColumnNameAndConfig<TimeConfig | undefined>(a, b);
+	if (config?.mode === 'string') {
+		return new MsSqlTimeStringBuilder(name, config);
+	}
+	return new MsSqlTimeBuilder(name, config);
 }
