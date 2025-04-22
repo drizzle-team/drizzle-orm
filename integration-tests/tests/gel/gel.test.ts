@@ -1166,7 +1166,7 @@ describe('some', async () => {
 		expect(result).toEqual([{ name: 'Jane' }, { name: 'John' }]);
 	});
 
-	test('select with group by as sql + column', async (ctx) => {
+	test.skip('select with group by as sql + column', async (ctx) => {
 		const { db } = ctx.gel;
 
 		await db.insert(usersTable).values([

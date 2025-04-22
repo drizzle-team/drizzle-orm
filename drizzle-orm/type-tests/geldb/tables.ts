@@ -2,7 +2,6 @@ import { DateDuration, Duration, LocalDate, LocalDateTime, RelativeDuration } fr
 import crypto from 'node:crypto';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
-import { eq } from '~/expressions.ts';
 import { relDuration } from '~/gel-core/columns/relative-duration.ts';
 import {
 	bigint,
@@ -31,6 +30,7 @@ import {
 	uuid,
 } from '~/gel-core/index.ts';
 import { gelSchema } from '~/gel-core/schema.ts';
+import { eq } from '~/sql/expressions/index.ts';
 import { sql } from '~/sql/sql.ts';
 import type { InferInsertModel, InferSelectModel } from '~/table.ts';
 import type { Simplify } from '~/utils.ts';

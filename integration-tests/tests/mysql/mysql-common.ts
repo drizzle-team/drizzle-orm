@@ -1456,6 +1456,50 @@ export function tests(driver?: string) {
 			enum3: mysqlEnum('enum3', ['a', 'b', 'c']).notNull().default('b'),
 		});
 
+		test('Mysql enum as ts enum', async (ctx) => {
+			enum Test {
+				a = 'a',
+				b = 'b',
+				c = 'c',
+			}
+
+			const tableWithTsEnums = mysqlTable('enums_test_case', {
+				id: serial('id').primaryKey(),
+				enum1: mysqlEnum('enum1', Test).notNull(),
+				enum2: mysqlEnum('enum2', Test).default(Test.a),
+				enum3: mysqlEnum('enum3', Test).notNull().default(Test.b),
+			});
+
+			const { db } = ctx.mysql;
+
+			await db.execute(sql`drop table if exists \`enums_test_case\``);
+
+			await db.execute(sql`
+				create table \`enums_test_case\` (
+				    \`id\` serial primary key,
+				    \`enum1\` ENUM('a', 'b', 'c') not null,
+				    \`enum2\` ENUM('a', 'b', 'c') default 'a',
+				    \`enum3\` ENUM('a', 'b', 'c') not null default 'b'
+				)
+			`);
+
+			await db.insert(tableWithTsEnums).values([
+				{ id: 1, enum1: Test.a, enum2: Test.b, enum3: Test.c },
+				{ id: 2, enum1: Test.a, enum3: Test.c },
+				{ id: 3, enum1: Test.a },
+			]);
+
+			const res = await db.select().from(tableWithTsEnums);
+
+			await db.execute(sql`drop table \`enums_test_case\``);
+
+			expect(res).toEqual([
+				{ id: 1, enum1: 'a', enum2: 'b', enum3: 'c' },
+				{ id: 2, enum1: 'a', enum2: 'a', enum3: 'c' },
+				{ id: 3, enum1: 'a', enum2: 'a', enum3: 'b' },
+			]);
+		});
+
 		test('Mysql enum test case #1', async (ctx) => {
 			const { db } = ctx.mysql;
 

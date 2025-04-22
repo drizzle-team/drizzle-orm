@@ -1,6 +1,7 @@
+import * as crypto from 'node:crypto';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
-import { eq, gt } from '~/expressions.ts';
+import { eq, gt } from '~/sql/expressions/index.ts';
 import { sql } from '~/sql/sql.ts';
 import {
 	alias,

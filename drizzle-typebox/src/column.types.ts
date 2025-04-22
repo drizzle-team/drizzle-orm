@@ -13,6 +13,10 @@ export type GetBaseColumn<TColumn extends Column> = TColumn['_'] extends { baseC
 
 export type EnumValuesToEnum<TEnumValues extends [string, ...string[]]> = { [K in TEnumValues[number]]: K };
 
+export interface GenericSchema<T> extends t.TSchema {
+	static: T;
+}
+
 export type GetTypeboxType<
 	TData,
 	TDataType extends string,
@@ -61,7 +65,9 @@ export type GetTypeboxType<
 	: TDataType extends 'array'
 		? t.TArray<GetTypeboxType<Assume<TData, any[]>[number], string, string, undefined, undefined>>
 	: TData extends infer TDict extends Record<string, any>
-		? t.TObject<{ [K in keyof TDict]: GetTypeboxType<TDict[K], string, string, undefined, undefined> }>
+		? TColumnType extends 'PgJson' | 'PgJsonb' | 'MySqlJson' | 'SingleStoreJson' | 'SQLiteTextJson' | 'SQLiteBlobJson'
+			? GenericSchema<TDict>
+		: t.TObject<{ [K in keyof TDict]: GetTypeboxType<TDict[K], string, string, undefined, undefined> }>
 	: TDataType extends 'json' ? JsonSchema
 	: TData extends number ? t.TNumber
 	: TData extends bigint ? t.TBigInt

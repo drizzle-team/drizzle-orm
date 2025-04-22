@@ -861,3 +861,38 @@ test('optional db aliases (camel case)', async () => {
 
 	expect(sqlStatements).toStrictEqual([st1, st2, st3, st4, st5, st6]);
 });
+
+test('add table with ts enum', async () => {
+	enum Test {
+		value = 'value',
+	}
+	const to = {
+		users: mysqlTable('users', {
+			enum: mysqlEnum(Test),
+		}),
+	};
+
+	const { statements } = await diffTestSchemasMysql({}, to, []);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		type: 'create_table',
+		tableName: 'users',
+		schema: undefined,
+		columns: [{
+			autoincrement: false,
+			name: 'enum',
+			notNull: false,
+			primaryKey: false,
+			type: "enum('value')",
+		}],
+		compositePKs: [],
+		internals: {
+			tables: {},
+			indexes: {},
+		},
+		uniqueConstraints: [],
+		compositePkName: '',
+		checkConstraints: [],
+	});
+});

@@ -1,6 +1,18 @@
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 
+import { alias } from '~/gel-core/alias.ts';
+import {
+	boolean,
+	// gelMaterializedView,
+	type GelSelect,
+	type GelSelectQueryBuilder,
+	gelTable,
+	// gelView,
+	integer,
+	QueryBuilder,
+	text,
+} from '~/gel-core/index.ts';
 import {
 	and,
 	arrayContained,
@@ -26,19 +38,7 @@ import {
 	notInArray,
 	notLike,
 	or,
-} from '~/expressions.ts';
-import { alias } from '~/gel-core/alias.ts';
-import {
-	boolean,
-	// gelMaterializedView,
-	type GelSelect,
-	type GelSelectQueryBuilder,
-	gelTable,
-	// gelView,
-	integer,
-	QueryBuilder,
-	text,
-} from '~/gel-core/index.ts';
+} from '~/sql/expressions/index.ts';
 import { type SQL, sql } from '~/sql/sql.ts';
 
 import { db } from './db.ts';

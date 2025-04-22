@@ -216,9 +216,9 @@ export class PlanetscaleSession<
 		const querySql = this.dialect.sqlToQuery(query);
 		this.logger.logQuery(querySql.sql, querySql.params);
 
-		return this.client.execute(querySql.sql, querySql.params, { as: 'object' }).then((
+		return this.client.execute<T>(querySql.sql, querySql.params, { as: 'object' }).then((
 			eQuery,
-		) => eQuery.rows as T[]);
+		) => eQuery.rows);
 	}
 
 	override async count(sql: SQL): Promise<number> {

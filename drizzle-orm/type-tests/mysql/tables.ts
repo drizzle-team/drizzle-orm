@@ -1,6 +1,6 @@
+import * as crypto from 'node:crypto';
 import { type Equal, Expect } from 'type-tests/utils.ts';
 import type { BuildColumn } from '~/column-builder.ts';
-import { eq, gt } from '~/expressions.ts';
 import {
 	bigint,
 	binary,
@@ -40,6 +40,7 @@ import {
 } from '~/mysql-core/index.ts';
 import { mysqlSchema } from '~/mysql-core/schema.ts';
 import { mysqlView, type MySqlViewWithSelection } from '~/mysql-core/view.ts';
+import { eq, gt } from '~/sql/expressions/index.ts';
 import { sql } from '~/sql/sql.ts';
 import type { InferSelectModel } from '~/table.ts';
 import type { Simplify } from '~/utils.ts';
@@ -1045,4 +1046,36 @@ Expect<
 		year: year(),
 		yeardef: year().default(0),
 	});
+}
+
+{
+	enum Role {
+		admin = 'admin',
+		user = 'user',
+		guest = 'guest',
+	}
+
+	enum RoleNonString {
+		admin,
+		user,
+		guest,
+	}
+
+	enum RolePartiallyString {
+		admin,
+		user = 'user',
+		guest = 'guest',
+	}
+
+	const table = mysqlTable('table', {
+		enum: mysqlEnum('enum', Role),
+		// @ts-expect-error
+		enum1: mysqlEnum('enum1', RoleNonString),
+		// @ts-expect-error
+		enum2: mysqlEnum('enum2', RolePartiallyString),
+	});
+
+	const res = await db.select({ enum: table.enum }).from(table);
+
+	Expect<Equal<{ enum: Role | null }[], typeof res>>;
 }

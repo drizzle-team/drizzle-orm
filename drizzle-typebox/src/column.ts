@@ -39,18 +39,18 @@ import type {
 	PgVarchar,
 	PgVector,
 } from 'drizzle-orm/pg-core';
-import {
-	type SingleStoreBigInt53,
+import type {
+	SingleStoreBigInt53,
 	SingleStoreChar,
-	type SingleStoreDouble,
-	type SingleStoreFloat,
-	type SingleStoreInt,
-	type SingleStoreMediumInt,
-	type SingleStoreReal,
-	type SingleStoreSerial,
-	type SingleStoreSmallInt,
+	SingleStoreDouble,
+	SingleStoreFloat,
+	SingleStoreInt,
+	SingleStoreMediumInt,
+	SingleStoreReal,
+	SingleStoreSerial,
+	SingleStoreSmallInt,
 	SingleStoreText,
-	type SingleStoreTinyInt,
+	SingleStoreTinyInt,
 	SingleStoreVarChar,
 	SingleStoreYear,
 } from 'drizzle-orm/singlestore-core';
