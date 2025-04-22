@@ -35,6 +35,7 @@ import type {
 	Enum,
 	ForeignKey,
 	Index,
+	InterimColumn,
 	InterimSchema,
 	Policy,
 	PostgresEntities,
@@ -69,13 +70,17 @@ export const policyFrom = (policy: PgPolicy, dialect: PgDialect) => {
 			}
 			return '' as never; // unreachable unless error in types
 		})
-		: '' as never; // unreachable unless error in types
+		: ('' as never); // unreachable unless error in types
 
-	const policyAs = policy.as?.toUpperCase() as Policy['as'] ?? 'PERMISSIVE';
-	const policyFor = policy.for?.toUpperCase() as Policy['for'] ?? 'ALL';
+	const policyAs = (policy.as?.toUpperCase() as Policy['as']) ?? 'PERMISSIVE';
+	const policyFor = (policy.for?.toUpperCase() as Policy['for']) ?? 'ALL';
 	const policyTo = mappedTo.sort(); // TODO: ??
-	const policyUsing = is(policy.using, SQL) ? dialect.sqlToQuery(policy.using).sql : null;
-	const withCheck = is(policy.withCheck, SQL) ? dialect.sqlToQuery(policy.withCheck).sql : null;
+	const policyUsing = is(policy.using, SQL)
+		? dialect.sqlToQuery(policy.using).sql
+		: null;
+	const withCheck = is(policy.withCheck, SQL)
+		? dialect.sqlToQuery(policy.withCheck).sql
+		: null;
 
 	return {
 		name: policy.name,
@@ -114,21 +119,27 @@ export const fromDrizzleSchema = (
 	drizzleMatViews: PgMaterializedView[],
 	casing: CasingType | undefined,
 	schemaFilter?: string[],
-): { schema: InterimSchema; errors: SchemaError[]; warnings: SchemaWarning[] } => {
+): {
+	schema: InterimSchema;
+	errors: SchemaError[];
+	warnings: SchemaWarning[];
+} => {
 	const dialect = new PgDialect({ casing });
 	const errors: SchemaError[] = [];
 	const warnings: SchemaWarning[] = [];
 
-	const schemas = drizzleSchemas.map<Schema>((it) => ({
-		entityType: 'schemas',
-		name: it.schemaName,
-	})).filter((it) => {
-		if (schemaFilter) {
-			return schemaFilter.includes(it.name) && it.name !== 'public';
-		} else {
-			return it.name !== 'public';
-		}
-	});
+	const schemas = drizzleSchemas
+		.map<Schema>((it) => ({
+			entityType: 'schemas',
+			name: it.schemaName,
+		}))
+		.filter((it) => {
+			if (schemaFilter) {
+				return schemaFilter.includes(it.name) && it.name !== 'public';
+			} else {
+				return it.name !== 'public';
+			}
+		});
 
 	const tableConfigPairs = drizzleTables.map((it) => {
 		return { config: getTableConfig(it), table: it };
@@ -150,7 +161,7 @@ export const fromDrizzleSchema = (
 	const fks: ForeignKey[] = [];
 	const uniques: UniqueConstraint[] = [];
 	const checks: CheckConstraint[] = [];
-	const columns: Column[] = [];
+	const columns: InterimColumn[] = [];
 	const policies: Policy[] = [];
 
 	for (const { table, config } of tableConfigPairs) {
@@ -172,192 +183,207 @@ export const fromDrizzleSchema = (
 			continue;
 		}
 
-		columns.push(...drizzleColumns.map<Column>((column) => {
-			const name = getColumnCasing(column, casing);
-			const notNull = column.notNull;
-			const isPrimary = column.primary;
-			const sqlTypeLowered = column.getSQLType().toLowerCase();
+		columns.push(
+			...drizzleColumns.map<InterimColumn>((column) => {
+				const name = getColumnCasing(column, casing);
+				const notNull = column.notNull;
+				const isPrimary = column.primary;
+				const sqlTypeLowered = column.getSQLType().toLowerCase();
 
-			const { baseColumn, dimensions } = is(column, PgArray)
-				? unwrapArray(column)
-				: { baseColumn: column, dimensions: 0 };
+				const { baseColumn, dimensions } = is(column, PgArray)
+					? unwrapArray(column)
+					: { baseColumn: column, dimensions: 0 };
 
-			const typeSchema = is(baseColumn, PgEnumColumn) ? baseColumn.enum.schema || 'public' : null;
-			const generated = column.generated;
-			const identity = column.generatedIdentity;
+				const typeSchema = is(baseColumn, PgEnumColumn)
+					? baseColumn.enum.schema || 'public'
+					: null;
+				const generated = column.generated;
+				const identity = column.generatedIdentity;
 
-			const increment = stringFromIdentityProperty(identity?.sequenceOptions?.increment) ?? '1';
-			const minValue = stringFromIdentityProperty(identity?.sequenceOptions?.minValue)
-				?? (parseFloat(increment) < 0 ? minRangeForIdentityBasedOn(column.columnType) : '1');
-			const maxValue = stringFromIdentityProperty(identity?.sequenceOptions?.maxValue)
-				?? (parseFloat(increment) < 0 ? '-1' : maxRangeForIdentityBasedOn(column.getSQLType()));
-			const startWith = stringFromIdentityProperty(identity?.sequenceOptions?.startWith)
-				?? (parseFloat(increment) < 0 ? maxValue : minValue);
-			const cache = stringFromIdentityProperty(identity?.sequenceOptions?.cache) ?? '1';
+				const increment = stringFromIdentityProperty(identity?.sequenceOptions?.increment)
+					?? '1';
+				const minValue = stringFromIdentityProperty(identity?.sequenceOptions?.minValue)
+					?? (parseFloat(increment) < 0
+						? minRangeForIdentityBasedOn(column.columnType)
+						: '1');
+				const maxValue = stringFromIdentityProperty(identity?.sequenceOptions?.maxValue)
+					?? (parseFloat(increment) < 0
+						? '-1'
+						: maxRangeForIdentityBasedOn(column.getSQLType()));
+				const startWith = stringFromIdentityProperty(identity?.sequenceOptions?.startWith)
+					?? (parseFloat(increment) < 0 ? maxValue : minValue);
+				const cache = stringFromIdentityProperty(identity?.sequenceOptions?.cache) ?? '1';
 
-			const generatedValue: Column['generated'] = generated
-				? {
-					as: is(generated.as, SQL)
-						? dialect.sqlToQuery(generated.as as SQL).sql
-						: typeof generated.as === 'function'
-						? dialect.sqlToQuery(generated.as() as SQL).sql
-						: String(generated.as),
-
-					type: 'stored', // TODO: why only stored? https://orm.drizzle.team/docs/generated-columns
-				}
-				: null;
-
-			const identityValue: Column['identity'] = identity
-				? {
-					type: identity.type,
-					name: identity.sequenceName ?? `${tableName}_${name}_seq`,
-					increment,
-					startWith,
-					minValue,
-					maxValue,
-					cache,
-					cycle: identity?.sequenceOptions?.cycle ?? false,
-				}
-				: null;
-
-			const hasDefault = typeof column.default !== 'undefined';
-			const isExpression: boolean = !hasDefault ? false : is(column.default, SQL);
-			const value = !hasDefault ? null : is(column.default, SQL)
-				? dialect.sqlToQuery(column.default).sql
-				: typeof column.default === 'string'
-				? `'${escapeSingleQuotes(column.default)}'`
-				: sqlTypeLowered === 'jsonb' || sqlTypeLowered === 'json'
-				? `'${JSON.stringify(column.default)}'::${sqlTypeLowered}`
-				: isPgArrayType(sqlTypeLowered) && Array.isArray(column.default)
-				? `'${buildArrayString(column.default, sqlTypeLowered)}'`
-				: column.default instanceof Date
-				? (sqlTypeLowered === 'date'
-					? `'${column.default.toISOString().split('T')[0]}'`
-					: sqlTypeLowered === 'timestamp'
-					? `'${column.default.toISOString().replace('T', ' ').slice(0, 23)}'`
-					: `'${column.default.toISOString()}'`)
-				: String(column.default);
-
-			const defaultValue = !hasDefault
-				? null
-				: {
-					value: value!,
-					expression: isExpression,
-				};
-
-			// TODO:??
-			// Should do for all types
-			// columnToSet.default = `'${column.default}'::${sqlTypeLowered}`;
-			const unique = column.isUnique
-				? {
-					name: column.uniqueName!,
-					nameExplicit: column.uniqueNameExplicit!,
-					nullsNotDistinct: column.uniqueType === 'not distinct',
-				} satisfies Column['unique']
-				: null;
-
-			return {
-				entityType: 'columns',
-				schema: schema,
-				table: tableName,
-				name,
-				type: column.getSQLType(),
-				typeSchema: typeSchema ?? null,
-				dimensions: dimensions,
-				primaryKey: isPrimary
+				const generatedValue: Column['generated'] = generated
 					? {
-						name: `${column.table}_pkey`, // TODO: expose primaryKey({name: string}) for explicit name
-						nameExplicit: false,
+						as: is(generated.as, SQL)
+							? dialect.sqlToQuery(generated.as as SQL).sql
+							: typeof generated.as === 'function'
+							? dialect.sqlToQuery(generated.as() as SQL).sql
+							: String(generated.as),
+
+						type: 'stored', // TODO: why only stored? https://orm.drizzle.team/docs/generated-columns
 					}
-					: null,
-				notNull,
-				default: defaultValue,
-				generated: generatedValue,
-				unique,
-				identity: identityValue,
-			} satisfies Column;
-		}));
+					: null;
 
-		pks.push(...drizzlePKs.map<PrimaryKey>((pk) => {
-			const originalColumnNames = pk.columns.map((c) => c.name);
-			const columnNames = pk.columns.map((c) => getColumnCasing(c, casing));
+				const identityValue: Column['identity'] = identity
+					? {
+						type: identity.type,
+						name: identity.sequenceName ?? `${tableName}_${name}_seq`,
+						increment,
+						startWith,
+						minValue,
+						maxValue,
+						cache,
+						cycle: identity?.sequenceOptions?.cycle ?? false,
+					}
+					: null;
 
-			let name = pk.name || pk.getName();
-			if (casing !== undefined) {
-				for (let i = 0; i < originalColumnNames.length; i++) {
-					name = name.replace(originalColumnNames[i], columnNames[i]);
+				const hasDefault = typeof column.default !== 'undefined';
+				const isExpression: boolean = !hasDefault
+					? false
+					: is(column.default, SQL);
+				const value = !hasDefault
+					? null
+					: is(column.default, SQL)
+					? dialect.sqlToQuery(column.default).sql
+					: typeof column.default === 'string'
+					? `'${escapeSingleQuotes(column.default)}'`
+					: sqlTypeLowered === 'jsonb' || sqlTypeLowered === 'json'
+					? `'${JSON.stringify(column.default)}'::${sqlTypeLowered}`
+					: isPgArrayType(sqlTypeLowered) && Array.isArray(column.default)
+					? `'${buildArrayString(column.default, sqlTypeLowered)}'`
+					: column.default instanceof Date
+					? sqlTypeLowered === 'date'
+						? `'${column.default.toISOString().split('T')[0]}'`
+						: sqlTypeLowered === 'timestamp'
+						? `'${column.default.toISOString().replace('T', ' ').slice(0, 23)}'`
+						: `'${column.default.toISOString()}'`
+					: String(column.default);
+
+				const defaultValue = !hasDefault
+					? null
+					: {
+						value: value!,
+						expression: isExpression,
+					};
+
+				// TODO:??
+				// Should do for all types
+				// columnToSet.default = `'${column.default}'::${sqlTypeLowered}`;
+				const unique = column.isUnique
+					? ({
+						name: column.uniqueName!,
+						nameExplicit: column.uniqueNameExplicit!,
+						nullsNotDistinct: column.uniqueType === 'not distinct',
+					} satisfies Column['unique'])
+					: null;
+
+				return {
+					entityType: 'columns',
+					schema: schema,
+					table: tableName,
+					name,
+					type: column.getSQLType(),
+					typeSchema: typeSchema ?? null,
+					dimensions: dimensions,
+					pk: column.primary,
+					pkName: null,
+					notNull: isPrimary ? false : notNull,
+					default: defaultValue,
+					generated: generatedValue,
+					unique,
+					identity: identityValue,
+				} satisfies InterimColumn;
+			}),
+		);
+
+		pks.push(
+			...drizzlePKs.map<PrimaryKey>((pk) => {
+				const originalColumnNames = pk.columns.map((c) => c.name);
+				const columnNames = pk.columns.map((c) => getColumnCasing(c, casing));
+
+				let name = pk.name || pk.getName();
+				if (casing !== undefined) {
+					for (let i = 0; i < originalColumnNames.length; i++) {
+						name = name.replace(originalColumnNames[i], columnNames[i]);
+					}
 				}
-			}
-			const isNameExplicit = pk.name === pk.getName();
-			return {
-				entityType: 'pks',
-				schema: schema,
-				table: tableName,
-				name: name,
-				columns: columnNames,
-				isNameExplicit,
-			};
-		}));
+				const isNameExplicit = pk.name === pk.getName();
+				return {
+					entityType: 'pks',
+					schema: schema,
+					table: tableName,
+					name: name,
+					columns: columnNames,
+					isNameExplicit,
+				};
+			}),
+		);
 
-		uniques.push(...drizzleUniques.map<UniqueConstraint>((unq) => {
-			const columnNames = unq.columns.map((c) => getColumnCasing(c, casing));
-			const name = unq.name || uniqueKeyName(table, columnNames);
+		uniques.push(
+			...drizzleUniques.map<UniqueConstraint>((unq) => {
+				const columnNames = unq.columns.map((c) => getColumnCasing(c, casing));
+				const name = unq.name || uniqueKeyName(table, columnNames);
 
-			return {
-				entityType: 'uniques',
-				schema: schema,
-				table: tableName,
-				name,
-				explicitName: !!unq.name,
-				nullsNotDistinct: unq.nullsNotDistinct,
-				columns: columnNames,
-			} satisfies UniqueConstraint;
-		}));
+				return {
+					entityType: 'uniques',
+					schema: schema,
+					table: tableName,
+					name,
+					explicitName: !!unq.name,
+					nullsNotDistinct: unq.nullsNotDistinct,
+					columns: columnNames,
+				} satisfies UniqueConstraint;
+			}),
+		);
 
-		fks.push(...drizzleFKs.map<ForeignKey>((fk) => {
-			const onDelete = fk.onDelete;
-			const onUpdate = fk.onUpdate;
-			const reference = fk.reference();
+		fks.push(
+			...drizzleFKs.map<ForeignKey>((fk) => {
+				const onDelete = fk.onDelete;
+				const onUpdate = fk.onUpdate;
+				const reference = fk.reference();
 
-			const tableTo = getTableName(reference.foreignTable);
+				const tableTo = getTableName(reference.foreignTable);
 
-			// TODO: resolve issue with schema undefined/public for db push(or squasher)
-			// getTableConfig(reference.foreignTable).schema || "public";
+				// TODO: resolve issue with schema undefined/public for db push(or squasher)
+				// getTableConfig(reference.foreignTable).schema || "public";
 
-			const schemaTo = getTableConfig(reference.foreignTable).schema || 'public';
+				const schemaTo = getTableConfig(reference.foreignTable).schema || 'public';
 
-			const originalColumnsFrom = reference.columns.map((it) => it.name);
-			const columnsFrom = reference.columns.map((it) => getColumnCasing(it, casing));
-			const originalColumnsTo = reference.foreignColumns.map((it) => it.name);
-			const columnsTo = reference.foreignColumns.map((it) => getColumnCasing(it, casing));
+				const originalColumnsFrom = reference.columns.map((it) => it.name);
+				const columnsFrom = reference.columns.map((it) => getColumnCasing(it, casing));
+				const originalColumnsTo = reference.foreignColumns.map((it) => it.name);
+				const columnsTo = reference.foreignColumns.map((it) => getColumnCasing(it, casing));
 
-			// TODO: compose name with casing here, instead of fk.getname? we have fk.reference.columns, etc.
-			let name = fk.reference.name || fk.getName();
-			const nameExplicit = !!fk.reference.name;
+				// TODO: compose name with casing here, instead of fk.getname? we have fk.reference.columns, etc.
+				let name = fk.reference.name || fk.getName();
+				const nameExplicit = !!fk.reference.name;
 
-			if (casing !== undefined && !nameExplicit) {
-				for (let i = 0; i < originalColumnsFrom.length; i++) {
-					name = name.replace(originalColumnsFrom[i], columnsFrom[i]);
+				if (casing !== undefined && !nameExplicit) {
+					for (let i = 0; i < originalColumnsFrom.length; i++) {
+						name = name.replace(originalColumnsFrom[i], columnsFrom[i]);
+					}
+					for (let i = 0; i < originalColumnsTo.length; i++) {
+						name = name.replace(originalColumnsTo[i], columnsTo[i]);
+					}
 				}
-				for (let i = 0; i < originalColumnsTo.length; i++) {
-					name = name.replace(originalColumnsTo[i], columnsTo[i]);
-				}
-			}
 
-			return {
-				entityType: 'fks',
-				schema: schema,
-				table: tableName,
-				name,
-				nameExplicit,
-				tableTo,
-				schemaTo,
-				columnsFrom,
-				columnsTo,
-				onDelete: onDelete ?? null,
-				onUpdate: onUpdate ?? null,
-			} satisfies ForeignKey;
-		}));
+				return {
+					entityType: 'fks',
+					schema: schema,
+					table: tableName,
+					name,
+					nameExplicit,
+					tableTo,
+					schemaTo,
+					columnsFrom,
+					columnsTo,
+					onDelete: onDelete ?? null,
+					onUpdate: onUpdate ?? null,
+				} satisfies ForeignKey;
+			}),
+		);
 
 		for (const index of drizzleIndexes) {
 			const columns = index.config.columns;
@@ -374,7 +400,11 @@ export const fromDrizzleSchema = (
 					continue;
 				}
 
-				if (is(column, IndexedColumn) && column.type === 'PgVector' && !column.indexConfig.opClass) {
+				if (
+					is(column, IndexedColumn)
+					&& column.type === 'PgVector'
+					&& !column.indexConfig.opClass
+				) {
 					const columnName = getColumnCasing(column, casing);
 					errors.push({
 						type: 'pgvector_index_noop',
@@ -387,98 +417,115 @@ export const fromDrizzleSchema = (
 			}
 		}
 
-		indexes.push(...drizzleIndexes.map<Index>((value) => {
-			const columns = value.config.columns;
+		indexes.push(
+			...drizzleIndexes.map<Index>((value) => {
+				const columns = value.config.columns;
 
-			let indexColumnNames = columns.map((it) => {
-				const name = getColumnCasing(it as IndexedColumn, casing);
-				return name;
-			});
+				let indexColumnNames = columns.map((it) => {
+					const name = getColumnCasing(it as IndexedColumn, casing);
+					return name;
+				});
 
-			const name = value.config.name ? value.config.name : indexName(tableName, indexColumnNames);
-			const nameExplicit = !!value.config.name;
+				const name = value.config.name
+					? value.config.name
+					: indexName(tableName, indexColumnNames);
+				const nameExplicit = !!value.config.name;
 
-			let indexColumns = columns.map((it) => {
-				if (is(it, SQL)) {
-					return {
-						value: dialect.sqlToQuery(it, 'indexes').sql,
-						isExpression: true,
-						asc: true,
-						nullsFirst: false,
-						opclass: null,
-					} satisfies Index['columns'][number];
-				} else {
-					it = it as IndexedColumn;
-					return {
-						value: getColumnCasing(it as IndexedColumn, casing),
-						isExpression: false,
-						asc: it.indexConfig?.order === 'asc',
-						nullsFirst: it.indexConfig?.nulls
-							? it.indexConfig?.nulls === 'first'
-								? true
-								: false
-							: false,
-						opclass: it.indexConfig?.opClass
-							? {
-								name: it.indexConfig.opClass,
-								default: false,
-							}
-							: null,
-					} satisfies Index['columns'][number];
-				}
-			});
+				let indexColumns = columns.map((it) => {
+					if (is(it, SQL)) {
+						return {
+							value: dialect.sqlToQuery(it, 'indexes').sql,
+							isExpression: true,
+							asc: true,
+							nullsFirst: false,
+							opclass: null,
+						} satisfies Index['columns'][number];
+					} else {
+						it = it as IndexedColumn;
+						return {
+							value: getColumnCasing(it as IndexedColumn, casing),
+							isExpression: false,
+							asc: it.indexConfig?.order === 'asc',
+							nullsFirst: it.indexConfig?.nulls
+								? it.indexConfig?.nulls === 'first'
+									? true
+									: false
+								: false,
+							opclass: it.indexConfig?.opClass
+								? {
+									name: it.indexConfig.opClass,
+									default: false,
+								}
+								: null,
+						} satisfies Index['columns'][number];
+					}
+				});
 
-			return {
-				entityType: 'indexes',
-				schema,
-				table: tableName,
-				name,
-				nameExplicit,
-				columns: indexColumns,
-				isUnique: value.config.unique,
-				where: value.config.where ? dialect.sqlToQuery(value.config.where).sql : null,
-				concurrently: value.config.concurrently ?? false,
-				method: value.config.method ?? 'btree',
-				with: Object.entries(value.config.with || {}).map((it) => `${it[0]}=${it[1]}`).join(', '),
-				isPrimary: false,
-			} satisfies Index;
-		}));
+				return {
+					entityType: 'indexes',
+					schema,
+					table: tableName,
+					name,
+					nameExplicit,
+					columns: indexColumns,
+					isUnique: value.config.unique,
+					where: value.config.where
+						? dialect.sqlToQuery(value.config.where).sql
+						: null,
+					concurrently: value.config.concurrently ?? false,
+					method: value.config.method ?? 'btree',
+					with: Object.entries(value.config.with || {})
+						.map((it) => `${it[0]}=${it[1]}`)
+						.join(', '),
+					isPrimary: false,
+				} satisfies Index;
+			}),
+		);
 
-		policies.push(...drizzlePolicies.map<Policy>((policy) => {
-			const p = policyFrom(policy, dialect);
-			return {
-				entityType: 'policies',
-				schema: schema,
-				table: tableName,
-				name: p.name,
-				as: p.as,
-				for: p.for,
-				roles: p.roles,
-				using: p.using,
-				withCheck: p.withCheck,
-			};
-		}));
+		policies.push(
+			...drizzlePolicies.map<Policy>((policy) => {
+				const p = policyFrom(policy, dialect);
+				return {
+					entityType: 'policies',
+					schema: schema,
+					table: tableName,
+					name: p.name,
+					as: p.as,
+					for: p.for,
+					roles: p.roles,
+					using: p.using,
+					withCheck: p.withCheck,
+				};
+			}),
+		);
 
-		checks.push(...drizzleChecks.map<CheckConstraint>((check) => {
-			const checkName = check.name;
-			return {
-				entityType: 'checks',
-				schema,
-				table: tableName,
-				name: checkName,
-				value: dialect.sqlToQuery(check.value).sql,
-			};
-		}));
+		checks.push(
+			...drizzleChecks.map<CheckConstraint>((check) => {
+				const checkName = check.name;
+				return {
+					entityType: 'checks',
+					schema,
+					table: tableName,
+					name: checkName,
+					value: dialect.sqlToQuery(check.value).sql,
+				};
+			}),
+		);
 	}
 
 	for (const policy of drizzlePolicies) {
-		if (!('_linkedTable' in policy) || typeof policy._linkedTable === 'undefined') {
+		if (
+			!('_linkedTable' in policy)
+			|| typeof policy._linkedTable === 'undefined'
+		) {
 			warnings.push({ type: 'policy_not_linked', policy: policy.name });
 			continue;
 		}
 
 		// @ts-ignore
-		const { schema: configSchema, name: tableName } = getTableConfig(policy._linkedTable);
+		const { schema: configSchema, name: tableName } = getTableConfig(
+			policy._linkedTable,
+		);
 
 		const p = policyFrom(policy, dialect);
 		policies.push({
@@ -562,8 +609,18 @@ export const fromDrizzleSchema = (
 
 		const viewSchema = schema ?? 'public';
 
-		type MergerWithConfig = keyof (ViewWithConfig & PgMaterializedViewWithConfig);
-		const opt = view.with as { [K in MergerWithConfig]: (ViewWithConfig & PgMaterializedViewWithConfig)[K] } | null;
+		type MergerWithConfig = keyof (
+			& ViewWithConfig
+			& PgMaterializedViewWithConfig
+		);
+		const opt = view.with as
+			| {
+				[K in MergerWithConfig]: (
+					& ViewWithConfig
+					& PgMaterializedViewWithConfig
+				)[K];
+			}
+			| null;
 
 		views.push({
 			entityType: 'views',
@@ -579,16 +636,43 @@ export const fromDrizzleSchema = (
 					autovacuumEnabled: getOrNull(opt, 'autovacuumEnabled'),
 					autovacuumFreezeMaxAge: getOrNull(opt, 'autovacuumFreezeMaxAge'),
 					autovacuumFreezeMinAge: getOrNull(opt, 'autovacuumFreezeMinAge'),
-					autovacuumFreezeTableAge: getOrNull(opt, 'autovacuumFreezeTableAge'),
-					autovacuumMultixactFreezeMaxAge: getOrNull(opt, 'autovacuumMultixactFreezeMaxAge'),
-					autovacuumMultixactFreezeMinAge: getOrNull(opt, 'autovacuumMultixactFreezeMinAge'),
-					autovacuumMultixactFreezeTableAge: getOrNull(opt, 'autovacuumMultixactFreezeTableAge'),
-					autovacuumVacuumCostDelay: getOrNull(opt, 'autovacuumVacuumCostDelay'),
-					autovacuumVacuumCostLimit: getOrNull(opt, 'autovacuumVacuumCostLimit'),
-					autovacuumVacuumScaleFactor: getOrNull(opt, 'autovacuumVacuumScaleFactor'),
-					autovacuumVacuumThreshold: getOrNull(opt, 'autovacuumVacuumThreshold'),
+					autovacuumFreezeTableAge: getOrNull(
+						opt,
+						'autovacuumFreezeTableAge',
+					),
+					autovacuumMultixactFreezeMaxAge: getOrNull(
+						opt,
+						'autovacuumMultixactFreezeMaxAge',
+					),
+					autovacuumMultixactFreezeMinAge: getOrNull(
+						opt,
+						'autovacuumMultixactFreezeMinAge',
+					),
+					autovacuumMultixactFreezeTableAge: getOrNull(
+						opt,
+						'autovacuumMultixactFreezeTableAge',
+					),
+					autovacuumVacuumCostDelay: getOrNull(
+						opt,
+						'autovacuumVacuumCostDelay',
+					),
+					autovacuumVacuumCostLimit: getOrNull(
+						opt,
+						'autovacuumVacuumCostLimit',
+					),
+					autovacuumVacuumScaleFactor: getOrNull(
+						opt,
+						'autovacuumVacuumScaleFactor',
+					),
+					autovacuumVacuumThreshold: getOrNull(
+						opt,
+						'autovacuumVacuumThreshold',
+					),
 					fillfactor: getOrNull(opt, 'fillfactor'),
-					logAutovacuumMinDuration: getOrNull(opt, 'logAutovacuumMinDuration'),
+					logAutovacuumMinDuration: getOrNull(
+						opt,
+						'logAutovacuumMinDuration',
+					),
 					parallelWorkers: getOrNull(opt, 'parallelWorkers'),
 					toastTupleTarget: getOrNull(opt, 'toastTupleTarget'),
 					userCatalogTable: getOrNull(opt, 'userCatalogTable'),
@@ -683,7 +767,16 @@ const fromExport = (exports: Record<string, unknown>) => {
 		}
 	});
 
-	return { tables, enums, schemas, sequences, views, matViews, roles, policies };
+	return {
+		tables,
+		enums,
+		schemas,
+		sequences,
+		views,
+		matViews,
+		roles,
+		policies,
+	};
 };
 
 export const prepareFromSchemaFiles = async (imports: string[]) => {
@@ -714,5 +807,14 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 	}
 	unregister();
 
-	return { tables, enums, schemas, sequences, views, matViews, roles, policies };
+	return {
+		tables,
+		enums,
+		schemas,
+		sequences,
+		views,
+		matViews,
+		roles,
+		policies,
+	};
 };

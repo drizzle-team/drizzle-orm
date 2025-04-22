@@ -1,5 +1,4 @@
 import camelcase from 'camelcase';
-import { sql } from 'drizzle-orm';
 import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
 import type { DB } from '../../utils';
 import type {
@@ -8,6 +7,7 @@ import type {
 	Enum,
 	ForeignKey,
 	Index,
+	InterimColumn,
 	InterimSchema,
 	Policy,
 	PostgresEntities,
@@ -96,7 +96,7 @@ export const fromDatabase = async (
 	const schemas: Schema[] = [];
 	const enums: Enum[] = [];
 	const tables: PostgresEntities['tables'][] = [];
-	const columns: Column[] = [];
+	const columns: InterimColumn[] = [];
 	const indexes: Index[] = [];
 	const pks: PrimaryKey[] = [];
 	const fks: ForeignKey[] = [];
@@ -174,8 +174,6 @@ export const fromDatabase = async (
 	const filteredNamespaces = other.filter((it) => schemaFilter(it.name));
 	const filteredNamespacesIds = filteredNamespaces.map((it) => it.oid);
 
-	// TODO: there could be no schemas at all, should be return;
-
 	schemas.push(...filteredNamespaces.map<Schema>((it) => ({ entityType: 'schemas', name: it.name })));
 
 	const tablesList = await db
@@ -223,8 +221,10 @@ export const fromDatabase = async (
 	});
 	const filteredTableIds = filteredTables.map((it) => it.oid);
 	const viewsIds = viewsList.map((it) => it.oid);
-
 	const filteredViewsAndTableIds = [...filteredTableIds, ...viewsIds];
+
+	const filterByTableIds = filteredTableIds.length > 0 ? `(${filteredTableIds.join(',')})` : '';
+	const filterByTableAndViewIds = filteredViewsAndTableIds.length > 0 ? `(${filteredViewsAndTableIds.join(',')})` : '';
 
 	for (const table of filteredTables) {
 		tables.push({
@@ -245,7 +245,7 @@ export const fromDatabase = async (
 			deptype
 		FROM
 			pg_depend
-		where refobjid in (${filteredTableIds.join(',')});`,
+		where ${filterByTableIds ? ` refobjid in ${filterByTableIds}` : 'false'};`,
 	);
 
 	const enumsQuery = db
@@ -285,8 +285,7 @@ export const fromDatabase = async (
 				pg_get_expr(adbin, adrelid) as "expression"
 			FROM
 				pg_attrdef
-			WHERE
-				adrelid in (${filteredTableIds.join(', ')})`);
+			WHERE ${filterByTableIds ? ` adrelid in ${filterByTableIds}` : 'false'}`);
 
 	const sequencesQuery = db.query<{
 		schemaId: number;
@@ -372,7 +371,7 @@ export const fromDatabase = async (
       confdeltype AS "onDelete"
     FROM
       pg_constraint
-    WHERE conrelid in (${filteredTableIds.join(',')})
+    WHERE ${filterByTableIds ? ` conrelid in ${filterByTableIds}` : 'false'}
   `);
 
 	// for serials match with pg_attrdef via attrelid(tableid)+adnum(ordinal position), for enums with pg_enum above
@@ -443,7 +442,7 @@ export const fromDatabase = async (
 				pg_attribute attr
 				LEFT JOIN pg_class cls ON cls.oid = attr.attrelid
 			WHERE
-				attrelid IN (${filteredViewsAndTableIds.join(',')})
+			${filterByTableAndViewIds ? ` attrelid in ${filterByTableAndViewIds}` : 'false'}
 				AND attnum > 0
 				AND attisdropped = FALSE;`);
 
@@ -654,13 +653,9 @@ export const fromDatabase = async (
 					nullsNotDistinct: unique.definition.includes('NULLS NOT DISTINCT') ?? false,
 				}
 				: null,
-			notNull: column.notNull,
-			primaryKey: pk !== null
-				? {
-					name: pk.name,
-					nameExplicit: true,
-				}
-				: null,
+			notNull: pk === null ? column.notNull : false,
+			pk: pk !== null,
+			pkName: pk !== null ? pk.name : null,
 			generated: column.generatedType === 's' ? { type: 'stored', as: metadata!.expression! } : null,
 			identity: column.identityType !== ''
 				? {
@@ -802,8 +797,7 @@ export const fromDatabase = async (
           pg_index.indexrelid = pg_class.oid
       ) metadata ON TRUE
       WHERE
-        relkind = 'i' and
-        metadata."tableId" IN (${filteredTableIds.join(',')})
+        relkind = 'i' and ${filterByTableIds ? `metadata."tableId" in ${filterByTableIds}` : 'false'}
     `);
 
 	for (const idx of idxs) {
@@ -987,4 +981,18 @@ export const fromDatabase = async (
 		policies,
 		views,
 	} satisfies InterimSchema;
+};
+import type { Entities } from '../../cli/validations/cli';
+
+export const fromDatabaseForDrizzle = async (
+	db: DB,
+	tableFilter: (it: string) => boolean = () => true,
+	schemaFilters: (it: string) => boolean = () => true,
+	entities?: Entities,
+) => {
+	const res = await fromDatabase(db, tableFilter, schemaFilters, entities, undefined);
+	res.schemas = res.schemas.filter((it) => it.name !== 'public');
+	res.indexes = res.indexes.filter((it) => !it.isPrimary);
+
+	return res;
 };

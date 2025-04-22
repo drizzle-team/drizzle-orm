@@ -242,7 +242,7 @@ test('add table #14', async () => {
 	]);
 });
 
-test.only('rename table #1', async () => {
+test('rename table #1', async () => {
 	const from = {
 		users: sqliteTable('table', {
 			id: integer()
@@ -256,7 +256,8 @@ test.only('rename table #1', async () => {
 	const { sqlStatements } = await diffTestSchemasSqlite(from, to, ["table->table1"]);
 	expect(sqlStatements).toStrictEqual(["ALTER TABLE `table` RENAME TO `table1`;",])
 })
-test.only('rename table #2', async () => {
+
+test('rename table #2', async () => {
 	const from = {
 		users: sqliteTable('table', {
 			id: integer().primaryKey({ autoIncrement: true }),

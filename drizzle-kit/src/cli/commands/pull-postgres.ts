@@ -17,7 +17,7 @@ import {
 	View,
 } from '../../dialects/postgres/ddl';
 import { ddlDiff } from '../../dialects/postgres/diff';
-import { fromDatabase } from '../../dialects/postgres/introspect';
+import { fromDatabase, fromDatabaseForDrizzle } from '../../dialects/postgres/introspect';
 import { ddlToTypeScript as postgresSchemaToTypeScript } from '../../dialects/postgres/typescript';
 import type { DB } from '../../utils';
 import { prepareOutFolder } from '../../utils-node';
@@ -214,29 +214,4 @@ export const pgPushIntrospect = async (
 	);
 
 	return { schema };
-};
-
-export const fromDatabaseForDrizzle = async (
-	db: DB,
-	tableFilter: (it: string) => boolean,
-	schemaFilters: (it: string) => boolean,
-	entities?: Entities,
-) => {
-	const res = await fromDatabase(db, tableFilter, schemaFilters, entities, undefined);
-	res.schemas = res.schemas.filter((it) => it.name !== 'public');
-	res.indexes = res.indexes.filter((it) => !it.isPrimary);
-
-	// filter out primary keys which are derived from 1 column
-	const pkColumns = res.columns.filter((it) => it.primaryKey !== null);
-	res.pks = res.pks.filter((it) => {
-		if (it.columns.length > 1) return true;
-		const { schema, table, name, columns } = it;
-		const column = columns[0];
-
-		return !pkColumns.some((c) =>
-			c.schema === schema && c.table === table && c.name === column && c.primaryKey?.name === name
-		);
-	});
-
-	return res;
 };

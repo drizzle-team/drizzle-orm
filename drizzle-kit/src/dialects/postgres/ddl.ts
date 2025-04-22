@@ -14,10 +14,6 @@ export const createDDL = () => {
 			table: 'required',
 			type: 'string',
 			typeSchema: 'string?',
-			primaryKey: {
-				name: 'string',
-				nameExplicit: 'boolean',
-			},
 			notNull: 'boolean',
 			dimensions: 'number',
 			default: {
@@ -51,16 +47,18 @@ export const createDDL = () => {
 			schema: 'required',
 			table: 'required',
 			nameExplicit: 'boolean',
-			columns: [{
-				value: 'string',
-				isExpression: 'boolean',
-				asc: 'boolean',
-				nullsFirst: 'boolean',
-				opclass: {
-					name: 'string',
-					default: 'boolean',
+			columns: [
+				{
+					value: 'string',
+					isExpression: 'boolean',
+					asc: 'boolean',
+					nullsFirst: 'boolean',
+					opclass: {
+						name: 'string',
+						default: 'boolean',
+					},
 				},
-			}],
+			],
 			isUnique: 'boolean',
 			where: 'string?',
 			with: 'string',
@@ -76,8 +74,8 @@ export const createDDL = () => {
 			schemaTo: 'string',
 			tableTo: 'string',
 			columnsTo: 'string[]',
-			onUpdate: 'string?',
-			onDelete: 'string?',
+			onUpdate: ['NO ACTION', 'RESTRICT', 'SET NULL', 'CASCADE', 'SET DEFAULT', null],
+			onDelete: ['NO ACTION', 'RESTRICT', 'SET NULL', 'CASCADE', 'SET DEFAULT', null],
 		},
 		pks: {
 			schema: 'required',
@@ -200,11 +198,16 @@ export type Table = {
 	isRlsEnabled: boolean;
 };
 
+export type InterimColumn = Omit<Column, 'primaryKey'> & {
+	pk: boolean;
+	pkName: string | null;
+};
+
 export interface InterimSchema {
 	schemas: Schema[];
 	enums: Enum[];
 	tables: PostgresEntities['tables'][];
-	columns: Column[];
+	columns: InterimColumn[];
 	indexes: Index[];
 	pks: PrimaryKey[];
 	fks: ForeignKey[];
@@ -216,7 +219,10 @@ export interface InterimSchema {
 	views: View[];
 }
 
-export const tableFromDDL = (table: PostgresEntities['tables'], ddl: PostgresDDL): Table => {
+export const tableFromDDL = (
+	table: PostgresEntities['tables'],
+	ddl: PostgresDDL,
+): Table => {
 	const filter = { schema: table.schema, table: table.name } as const;
 	const columns = ddl.columns.list(filter);
 	const pk = ddl.pks.one(filter);
@@ -237,7 +243,9 @@ export const tableFromDDL = (table: PostgresEntities['tables'], ddl: PostgresDDL
 	};
 };
 
-export const interimToDDL = (schema: InterimSchema): { ddl: PostgresDDL; errors: SchemaError[] } => {
+export const interimToDDL = (
+	schema: InterimSchema,
+): { ddl: PostgresDDL; errors: SchemaError[] } => {
 	const ddl = createDDL();
 	const errors: SchemaError[] = [];
 
@@ -251,59 +259,119 @@ export const interimToDDL = (schema: InterimSchema): { ddl: PostgresDDL; errors:
 	for (const it of schema.enums) {
 		const res = ddl.enums.insert(it);
 		if (res.status === 'CONFLICT') {
-			errors.push({ type: 'enum_name_duplicate', schema: it.schema, name: it.name });
+			errors.push({
+				type: 'enum_name_duplicate',
+				schema: it.schema,
+				name: it.name,
+			});
 		}
 	}
 
 	for (const it of schema.tables) {
 		const res = ddl.tables.insert(it);
 		if (res.status === 'CONFLICT') {
-			errors.push({ type: 'table_name_duplicate', schema: it.schema, name: it.name });
+			errors.push({
+				type: 'table_name_duplicate',
+				schema: it.schema,
+				name: it.name,
+			});
 		}
 	}
 
 	for (const column of schema.columns) {
-		const res = ddl.columns.insert(column);
+		const { pk, pkName, ...rest } = column;
+
+		const res = ddl.columns.insert({ ...rest });
 		if (res.status === 'CONFLICT') {
-			errors.push({ type: 'column_name_duplicate', schema: column.schema, table: column.table, name: column.name });
+			errors.push({
+				type: 'column_name_duplicate',
+				schema: column.schema,
+				table: column.table,
+				name: column.name,
+			});
 		}
 	}
 
 	for (const it of schema.indexes) {
 		const res = ddl.indexes.insert(it);
 		if (res.status === 'CONFLICT') {
-			errors.push({ type: 'index_duplicate', schema: it.schema, table: it.table, name: it.name });
+			errors.push({
+				type: 'index_duplicate',
+				schema: it.schema,
+				table: it.table,
+				name: it.name,
+			});
 		}
 	}
+
 	for (const it of schema.fks) {
 		const res = ddl.fks.insert(it);
 		if (res.status === 'CONFLICT') {
-			errors.push({ type: 'constraint_name_duplicate', schema: it.schema, table: it.table, name: it.name });
+			errors.push({
+				type: 'constraint_name_duplicate',
+				schema: it.schema,
+				table: it.table,
+				name: it.name,
+			});
 		}
 	}
+
 	for (const it of schema.pks) {
 		const res = ddl.pks.insert(it);
 		if (res.status === 'CONFLICT') {
-			errors.push({ type: 'constraint_name_duplicate', schema: it.schema, table: it.table, name: it.name });
+			errors.push({
+				type: 'constraint_name_duplicate',
+				schema: it.schema,
+				table: it.table,
+				name: it.name,
+			});
 		}
 	}
+	for (const column of schema.columns.filter((it) => it.pk)) {
+		const name = column.pkName !== null ? column.pkName : `${column.table}_pkey`;
+		const exists = ddl.pks.one({ schema: column.schema, table: column.table, name: name }) !== null;
+		if (exists) continue;
+
+		ddl.pks.insert({
+			schema: column.schema,
+			table: column.table,
+			name,
+			isNameExplicit: column.name !== null,
+			columns: [column.name],
+		});
+	}
+
 	for (const it of schema.uniques) {
 		const res = ddl.uniques.insert(it);
 		if (res.status === 'CONFLICT') {
-			errors.push({ type: 'constraint_name_duplicate', schema: it.schema, table: it.table, name: it.name });
+			errors.push({
+				type: 'constraint_name_duplicate',
+				schema: it.schema,
+				table: it.table,
+				name: it.name,
+			});
 		}
 	}
 	for (const it of schema.checks) {
 		const res = ddl.checks.insert(it);
 		if (res.status === 'CONFLICT') {
-			errors.push({ type: 'constraint_name_duplicate', schema: it.schema, table: it.table, name: it.name });
+			errors.push({
+				type: 'constraint_name_duplicate',
+				schema: it.schema,
+				table: it.table,
+				name: it.name,
+			});
 		}
 	}
 
 	for (const it of schema.sequences) {
 		const res = ddl.sequences.insert(it);
 		if (res.status === 'CONFLICT') {
-			errors.push({ type: 'sequence_name_duplicate', schema: it.schema, name: it.name });
+			errors.push({
+				type: 'sequence_name_duplicate',
+				schema: it.schema,
+				name: it.name,
+			});
 		}
 	}
 
@@ -316,13 +384,22 @@ export const interimToDDL = (schema: InterimSchema): { ddl: PostgresDDL; errors:
 	for (const it of schema.policies) {
 		const res = ddl.policies.insert(it);
 		if (res.status === 'CONFLICT') {
-			errors.push({ type: 'policy_duplicate', schema: it.schema, table: it.table, policy: it.name });
+			errors.push({
+				type: 'policy_duplicate',
+				schema: it.schema,
+				table: it.table,
+				policy: it.name,
+			});
 		}
 	}
 	for (const it of schema.views) {
 		const res = ddl.views.insert(it);
 		if (res.status === 'CONFLICT') {
-			errors.push({ type: 'view_name_duplicate', schema: it.schema, name: it.name });
+			errors.push({
+				type: 'view_name_duplicate',
+				schema: it.schema,
+				name: it.name,
+			});
 		}
 	}
 

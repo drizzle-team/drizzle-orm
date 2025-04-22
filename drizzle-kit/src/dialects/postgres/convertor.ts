@@ -1,6 +1,6 @@
 import { escapeSingleQuotes, type Simplify } from '../../utils';
 import { View } from './ddl';
-import { defaults, isDefaultAction, parseType } from './grammar';
+import { defaultNameForPK, defaults, isDefaultAction, parseType } from './grammar';
 import type { JsonStatement } from './statements';
 
 export const convertor = <
@@ -96,7 +96,6 @@ const alterViewConvertor = convertor('alter_view', (st) => {
 		return val !== null && from != val;
 	}).map((it) => `${it[0].snake_case()} = ${it[1]}`).join(', ');
 
-
 	if (setOptions.length > 0) statements.push(`ALTER ${viewClause} SET (${setOptions});`);
 	if (resetOptions.length > 0) statements.push(`ALTER ${viewClause} RESET (${resetOptions.join(', ')});`);
 	// TODO: reset missing options, set changed options and new options?
@@ -132,8 +131,11 @@ const createTableConvertor = convertor('create_table', (st) => {
 	for (let i = 0; i < columns.length; i++) {
 		const column = columns[i];
 
-		const primaryKeyStatement = column.primaryKey ? ' PRIMARY KEY' : '';
-		const notNullStatement = column.primaryKey ? '' : column.notNull && !column.identity ? ' NOT NULL' : '';
+		const isPK = pk && pk.columns.length === 1 && pk.columns[0] === column.name
+			&& pk.name === defaultNameForPK(column.table);
+
+		const primaryKeyStatement = isPK ? ' PRIMARY KEY' : '';
+		const notNullStatement = isPK ? '' : column.notNull && !column.identity ? ' NOT NULL' : '';
 		const defaultStatement = column.default
 			? column.default.expression ? ` DEFAULT (${column.default.value})` : ` DEFAULT ${column.default.value}`
 			: '';
@@ -185,7 +187,7 @@ const createTableConvertor = convertor('create_table', (st) => {
 		statement += i === columns.length - 1 ? '' : ',\n';
 	}
 
-	if (pk && pk.columns.length > 0) {
+	if (pk && (pk.columns.length > 1 || pk.name !== defaultNameForPK(st.table.name))) {
 		statement += ',\n';
 		statement += `\tCONSTRAINT "${pk.name}" PRIMARY KEY(\"${pk.columns.join(`","`)}\")`;
 	}
