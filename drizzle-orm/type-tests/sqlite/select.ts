@@ -20,7 +20,7 @@ import {
 	notInArray,
 	notLike,
 	or,
-} from '~/expressions.ts';
+} from '~/sql/expressions/index.ts';
 import { type InferSelectViewModel, param, sql } from '~/sql/sql.ts';
 import { alias } from '~/sqlite-core/alias.ts';
 

@@ -1,6 +1,18 @@
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 
+import { alias } from '~/pg-core/alias.ts';
+import {
+	boolean,
+	integer,
+	pgMaterializedView,
+	type PgSelect,
+	type PgSelectQueryBuilder,
+	pgTable,
+	pgView,
+	QueryBuilder,
+	text,
+} from '~/pg-core/index.ts';
 import {
 	and,
 	arrayContained,
@@ -26,19 +38,7 @@ import {
 	notInArray,
 	notLike,
 	or,
-} from '~/expressions.ts';
-import { alias } from '~/pg-core/alias.ts';
-import {
-	boolean,
-	integer,
-	pgMaterializedView,
-	type PgSelect,
-	type PgSelectQueryBuilder,
-	pgTable,
-	pgView,
-	QueryBuilder,
-	text,
-} from '~/pg-core/index.ts';
+} from '~/sql/expressions/index.ts';
 import { type InferSelectViewModel, type SQL, sql } from '~/sql/sql.ts';
 
 import { db } from './db.ts';
