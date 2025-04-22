@@ -55,7 +55,10 @@ it('dynamic imports check for ESM', async () => {
 		}
 		fs.writeFileSync(`${IMPORTS_FOLDER}/imports_${i}.mjs`, 'imp');
 		fs.appendFileSync(`${IMPORTS_FOLDER}/imports_${i}.mjs`, 'ort "' + o1 + '"\n', {});
-		promises.push($`node ${IMPORTS_FOLDER}/imports_${i}.mjs`.nothrow());
+		promises.push(
+			$`node ${IMPORTS_FOLDER}/imports_${i}.mjs`.nothrow(),
+			$`node --import import-in-the-middle/hook.mjs ${IMPORTS_FOLDER}/imports_${i}.mjs`.nothrow(),
+		);
 	}
 
 	const results = await Promise.all(promises);

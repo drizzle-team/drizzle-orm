@@ -2,7 +2,6 @@ import crypto from 'node:crypto';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import { z } from 'zod';
-import { eq, gt } from '~/expressions.ts';
 import {
 	bigint,
 	bigserial,
@@ -53,6 +52,7 @@ import {
 	pgView,
 	type PgViewWithSelection,
 } from '~/pg-core/view.ts';
+import { eq, gt } from '~/sql/expressions/index.ts';
 import { sql } from '~/sql/sql.ts';
 import type { InferInsertModel, InferSelectModel } from '~/table.ts';
 import type { Simplify } from '~/utils.ts';
@@ -1402,4 +1402,41 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 		vector: vector({ dimensions: 1 }),
 		vectordef: vector({ dimensions: 1 }).default([1]),
 	});
+}
+
+// ts enums test
+{
+	enum Role {
+		admin = 'admin',
+		user = 'user',
+		guest = 'guest',
+	}
+
+	const role = pgEnum('role', Role);
+
+	enum RoleNonString {
+		admin,
+		user,
+		guest,
+	}
+
+	// @ts-expect-error
+	pgEnum('role', RoleNonString);
+
+	enum RolePartiallyString {
+		admin,
+		user = 'user',
+		guest = 'guest',
+	}
+
+	// @ts-expect-error
+	pgEnum('role', RolePartiallyString);
+
+	const table = pgTable('table', {
+		enum: role('enum'),
+	});
+
+	const res = await db.select().from(table);
+
+	Expect<Equal<{ enum: Role | null }[], typeof res>>;
 }

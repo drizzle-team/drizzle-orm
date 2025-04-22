@@ -21,8 +21,9 @@ jobs:
           - drizzle-seed
           - drizzle-typebox
           - drizzle-valibot
+          - drizzle-arktype
           - other
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     services:
       postgres-postgis:
         image: postgis/postgis:16-3.4
@@ -179,7 +180,7 @@ jobs:
               docker compose -f docker-neon.yml down
             ;;
 
-            drizzle-orm|drizzle-kit|drizzle-zod|drizzle-seed|drizzle-typebox|drizzle-valibot)
+            drizzle-orm|drizzle-kit|drizzle-zod|drizzle-seed|drizzle-typebox|drizzle-valibot|drizzle-arktype)
               (cd .. && pnpm test --filter ${{ matrix.shard }})
             ;;
 
@@ -210,8 +211,9 @@ jobs:
           - drizzle-seed
           - drizzle-typebox
           - drizzle-valibot
+          - drizzle-arktype
           - eslint-plugin-drizzle
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
 
@@ -285,6 +287,9 @@ jobs:
 
   release:
     permissions: write-all
+    needs:
+      - test
+      - attw
     strategy:
       fail-fast: false
       matrix:
@@ -295,8 +300,9 @@ jobs:
           - drizzle-seed
           - drizzle-typebox
           - drizzle-valibot
+          - drizzle-arktype
           - eslint-plugin-drizzle
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     services:
       postgres-postgis:
         image: postgis/postgis:16-3.4
