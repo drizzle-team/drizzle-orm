@@ -108,9 +108,10 @@ export const generate = command({
 				),
 			);
 			process.exit(1);
-		} else if (dialect === 'mssql') {
-			await prepareAndMigrateMsSQL(opts);
-		} else {
+		} //  else if (dialect === 'mssql') {
+		// 	await prepareAndMigrateMsSQL(opts);
+		// }
+		else {
 			assertUnreachable(dialect);
 		}
 	},
@@ -212,19 +213,20 @@ export const migrate = command({
 					),
 				);
 				process.exit(1);
-			} else if (dialect === 'mssql') {
-				// TODO() check!
-				const { connectToMsSQL } = await import('./connections');
-				const { migrate } = await connectToMsSQL(credentials);
-				await renderWithTask(
-					new MigrateProgress(),
-					migrate({
-						migrationsFolder: out,
-						migrationsTable: table,
-						migrationsSchema: schema,
-					}),
-				);
-			} else {
+			} // else if (dialect === 'mssql') {
+			// 	// TODO() check!
+			// 	const { connectToMsSQL } = await import('./connections');
+			// 	const { migrate } = await connectToMsSQL(credentials);
+			// 	await renderWithTask(
+			// 		new MigrateProgress(),
+			// 		migrate({
+			// 			migrationsFolder: out,
+			// 			migrationsTable: table,
+			// 			migrationsSchema: schema,
+			// 		}),
+			// 	);
+			// }
+			else {
 				assertUnreachable(dialect);
 			}
 		} catch (e) {
@@ -409,18 +411,19 @@ export const push = command({
 					),
 				);
 				process.exit(1);
-			} else if (dialect === 'mssql') {
-				const { mssqlPush } = await import('./commands/push');
-				await mssqlPush(
-					schemaPath,
-					credentials,
-					tablesFilter,
-					strict,
-					verbose,
-					force,
-					casing,
-				);
-			} else {
+			} // else if (dialect === 'mssql') {
+			// 	const { mssqlPush } = await import('./commands/push');
+			// 	await mssqlPush(
+			// 		schemaPath,
+			// 		credentials,
+			// 		tablesFilter,
+			// 		strict,
+			// 		verbose,
+			// 		force,
+			// 		casing,
+			// 	);
+			// }
+			else {
 				assertUnreachable(dialect);
 			}
 		} catch (e) {
@@ -651,17 +654,18 @@ export const pull = command({
 					prefix,
 					entities,
 				);
-			} else if (dialect === 'mssql') {
-				const { introspectMssql } = await import('./commands/introspect');
-				await introspectMssql(
-					casing,
-					out,
-					breakpoints,
-					credentials,
-					tablesFilter,
-					prefix,
-				);
-			} else {
+			} // else if (dialect === 'mssql') {
+			// 	const { introspectMssql } = await import('./commands/introspect');
+			// 	await introspectMssql(
+			// 		casing,
+			// 		out,
+			// 		breakpoints,
+			// 		credentials,
+			// 		tablesFilter,
+			// 		prefix,
+			// 	);
+			// }
+			else {
 				assertUnreachable(dialect);
 			}
 		} catch (e) {
@@ -725,7 +729,7 @@ export const studio = command({
 			drizzleForSingleStore,
 			drizzleForLibSQL,
 			prepareMsSqlSchema,
-			drizzleForMsSQL,
+			// drizzleForMsSQL,
 		} = await import('../serializer/studio');
 
 		let setup: Setup;
@@ -788,12 +792,13 @@ export const studio = command({
 					),
 				);
 				process.exit(1);
-			} else if (dialect === 'mssql') {
-				const { schema, relations, files } = schemaPath
-					? await prepareMsSqlSchema(schemaPath)
-					: { schema: {}, relations: {}, files: [] };
-				setup = await drizzleForMsSQL(credentials, schema, relations, files);
-			} else {
+			} //  else if (dialect === 'mssql') {
+			// 	const { schema, relations, files } = schemaPath
+			// 		? await prepareMsSqlSchema(schemaPath)
+			// 		: { schema: {}, relations: {}, files: [] };
+			// 	setup = await drizzleForMsSQL(credentials, schema, relations, files);
+			// }
+			else {
 				assertUnreachable(dialect);
 			}
 
@@ -873,7 +878,7 @@ export const exportRaw = command({
 			prepareAndExportSqlite,
 			prepareAndExportLibSQL,
 			prepareAndExportSinglestore,
-			prepareAndExportMssql,
+			// prepareAndExportMssql,
 		} = await import(
 			'./commands/migrate'
 		);
@@ -896,9 +901,10 @@ export const exportRaw = command({
 				),
 			);
 			process.exit(1);
-		} else if (dialect === 'mssql') {
-			await prepareAndExportMssql(opts);
-		} else {
+		} // else if (dialect === 'mssql') {
+		// 	await prepareAndExportMssql(opts);
+		// }
+		else {
 			assertUnreachable(dialect);
 		}
 	},

@@ -1,9 +1,9 @@
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
-import { eq } from '~/expressions.ts';
 import type { MsSqlDelete } from '~/mssql-core/index.ts';
 import { drizzle } from '~/node-mssql';
 import type { MsSqlQueryResult } from '~/node-mssql';
+import { eq } from '~/sql/expressions';
 import { sql } from '~/sql/sql.ts';
 import { users } from './tables.ts';
 

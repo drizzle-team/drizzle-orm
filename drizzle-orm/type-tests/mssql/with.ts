@@ -1,7 +1,7 @@
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
-import { gt, inArray } from '~/expressions.ts';
 import { int, mssqlTable, text } from '~/mssql-core/index.ts';
+import { gt, inArray } from '~/sql/expressions';
 import { sql } from '~/sql/sql.ts';
 import { db } from './db.ts';
 

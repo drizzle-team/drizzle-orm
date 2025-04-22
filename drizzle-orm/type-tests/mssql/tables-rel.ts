@@ -67,11 +67,11 @@ export const node = mssqlTable('node', {
 	parentId: int('parent_id'),
 	leftId: int('left_id'),
 	rightId: int('right_id'),
-}, (node) => ({
-	fk1: foreignKey({ columns: [node.parentId], foreignColumns: [node.id] }),
-	fk2: foreignKey({ columns: [node.leftId], foreignColumns: [node.id] }),
-	fk3: foreignKey({ columns: [node.rightId], foreignColumns: [node.id] }),
-}));
+}, (node) => [
+	foreignKey({ columns: [node.parentId], foreignColumns: [node.id] }),
+	foreignKey({ columns: [node.leftId], foreignColumns: [node.id] }),
+	foreignKey({ columns: [node.rightId], foreignColumns: [node.id] }),
+]);
 export const nodeRelations = relations(node, ({ one }) => ({
 	parent: one(node, { fields: [node.parentId], references: [node.id] }),
 	left: one(node, { fields: [node.leftId], references: [node.id] }),
