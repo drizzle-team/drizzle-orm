@@ -224,5 +224,19 @@ export const fromDatabaseForDrizzle = async (
 ) => {
 	const res = await fromDatabase(db, tableFilter, schemaFilters, entities, undefined);
 	res.schemas = res.schemas.filter((it) => it.name !== 'public');
+	res.indexes = res.indexes.filter((it) => !it.isPrimary);
+
+	// filter out primary keys which are derived from 1 column
+	const pkColumns = res.columns.filter((it) => it.primaryKey !== null);
+	res.pks = res.pks.filter((it) => {
+		if (it.columns.length > 1) return true;
+		const { schema, table, name, columns } = it;
+		const column = columns[0];
+
+		return !pkColumns.some((c) =>
+			c.schema === schema && c.table === table && c.name === column && c.primaryKey?.name === name
+		);
+	});
+
 	return res;
 };

@@ -212,6 +212,8 @@ export const fromDatabase = async (
 					relkind IN ('r', 'v', 'm')
 					AND relnamespace IN (${filteredNamespacesIds.join(', ')});`);
 
+	const viewsList = tablesList.filter((it) => it.kind === 'v' || it.kind === 'm');
+
 	const filteredTables = tablesList.filter((it) => it.kind === 'r' && tablesFilter(it.name)).map((it) => {
 		const schema = filteredNamespaces.find((ns) => ns.oid === it.schemaId)!;
 		return {
@@ -220,6 +222,9 @@ export const fromDatabase = async (
 		};
 	});
 	const filteredTableIds = filteredTables.map((it) => it.oid);
+	const viewsIds = viewsList.map((it) => it.oid);
+
+	const filteredViewsAndTableIds = [...filteredTableIds, ...viewsIds];
 
 	for (const table of filteredTables) {
 		tables.push({
@@ -248,12 +253,14 @@ export const fromDatabase = async (
 			oid: number;
 			name: string;
 			schemaId: number;
+			arrayTypeId: number;
 			ordinality: number;
 			value: string;
 		}>(`SELECT
 					pg_type.oid as "oid",
 					typname as "name",
 					typnamespace as "schemaId",
+					pg_type.typarray as "arrayTypeId",
 					pg_enum.enumsortorder AS "ordinality",
 					pg_enum.enumlabel AS "value"
 				FROM
@@ -320,15 +327,15 @@ export const fromDatabase = async (
 			withCheck: string | undefined | null;
 		}
 	>(`SELECT 
-		schemaname as "schema", 
-		tablename as "table", 
-		policyname as "name", 
-		permissive as "as", 
-		roles as "to", 
-		cmd as "for", 
-		qual as "using", 
-		with_check as "withCheck" 
-	FROM pg_policies;`);
+			schemaname as "schema", 
+			tablename as "table", 
+			policyname as "name", 
+			permissive as "as", 
+			roles as "to", 
+			cmd as "for", 
+			qual as "using", 
+			with_check as "withCheck" 
+		FROM pg_policies;`);
 
 	const rolesQuery = await db.query<
 		{ rolname: string; rolinherit: boolean; rolcreatedb: boolean; rolcreaterole: boolean }
@@ -396,49 +403,49 @@ export const fromDatabase = async (
 			expression: string | null;
 		} | null;
 	}>(`SELECT
-					attrelid AS "tableId",
-					attname AS "name",
-					attnum AS "ordinality",
-					attnotnull AS "notNull",
-					attndims as "dimensions",
-					atttypid as "typeId",
-					attgenerated as "generatedType", 
-					attidentity as "identityType",
-					format_type(atttypid, atttypmod) as "type",
-					CASE
-						WHEN attidentity in ('a', 'd') or attgenerated = 's' THEN (
-							SELECT
-								row_to_json(c.*)
-							FROM
-								(
-									SELECT
-										pg_get_serial_sequence("table_schema" || '.' || "table_name", "attname")::regclass::oid as "seqId",
-										"identity_generation" AS generation,
-										"identity_start" AS "start",
-										"identity_increment" AS "increment",
-										"identity_maximum" AS "max",
-										"identity_minimum" AS "min",
-										"identity_cycle" AS "cycle",
-										"generation_expression" AS "expression"
-									FROM
-										information_schema.columns c
-									WHERE
-										c.column_name = attname
-										-- relnamespace is schemaId, regnamescape::text converts to schemaname
-										AND c.table_schema = cls.relnamespace::regnamespace::text
-										-- attrelid is tableId, regclass::text converts to table name
-										AND c.table_name = attrelid::regclass::text
-								) c
-							)
-						ELSE NULL
-					END AS "metadata"
-				FROM
-					pg_attribute attr
-					LEFT JOIN pg_class cls ON cls.oid = attr.attrelid
-				WHERE
-					attrelid IN (${filteredTableIds.join(',')})
-					AND attnum > 0
-					AND attisdropped = FALSE;`);
+				attrelid AS "tableId",
+				attname AS "name",
+				attnum AS "ordinality",
+				attnotnull AS "notNull",
+				attndims as "dimensions",
+				atttypid as "typeId",
+				attgenerated as "generatedType", 
+				attidentity as "identityType",
+				format_type(atttypid, atttypmod) as "type",
+				CASE
+					WHEN attidentity in ('a', 'd') or attgenerated = 's' THEN (
+						SELECT
+							row_to_json(c.*)
+						FROM
+							(
+								SELECT
+									pg_get_serial_sequence("table_schema" || '.' || "table_name", "attname")::regclass::oid as "seqId",
+									"identity_generation" AS generation,
+									"identity_start" AS "start",
+									"identity_increment" AS "increment",
+									"identity_maximum" AS "max",
+									"identity_minimum" AS "min",
+									"identity_cycle" AS "cycle",
+									"generation_expression" AS "expression"
+								FROM
+									information_schema.columns c
+								WHERE
+									c.column_name = attname
+									-- relnamespace is schemaId, regnamescape::text converts to schemaname
+									AND c.table_schema = cls.relnamespace::regnamespace::text
+									-- attrelid is tableId, regclass::text converts to table name
+									AND c.table_name = attrelid::regclass::text
+							) c
+						)
+					ELSE NULL
+				END AS "metadata"
+			FROM
+				pg_attribute attr
+				LEFT JOIN pg_class cls ON cls.oid = attr.attrelid
+			WHERE
+				attrelid IN (${filteredViewsAndTableIds.join(',')})
+				AND attnum > 0
+				AND attisdropped = FALSE;`);
 
 	const [dependList, enumsList, serialsList, sequencesList, policiesList, rolesList, constraintsList, columnsList] =
 		await Promise
@@ -457,6 +464,12 @@ export const fromDatabase = async (
 		if (!(it.oid in acc)) {
 			const schemaName = filteredNamespaces.find((sch) => sch.oid === it.schemaId)!.name;
 			acc[it.oid] = {
+				oid: it.oid,
+				schema: schemaName,
+				name: it.name,
+				values: [it.value],
+			};
+			acc[it.arrayTypeId] = {
 				oid: it.oid,
 				schema: schemaName,
 				name: it.name,
@@ -567,25 +580,24 @@ export const fromDatabase = async (
 		const schema = namespaces.find((it) => it.oid === table.schemaId)!;
 
 		// supply enums
-		const typeSchema = column.typeId in groupedEnums ? groupedEnums[column.typeId].schema : null;
-
-		let columnTypeMapped = column.type;
+		const enumType = column.typeId in groupedEnums ? groupedEnums[column.typeId] : null;
+		let columnTypeMapped = enumType ? enumType.name : column.type.replace('[]', '');
 
 		const columnDefault = defaultsList.find(
 			(it) => it.tableId === column.tableId && it.ordinality === column.ordinality,
 		);
 
-
 		const defaultValue = defaultForColumn(
-			column.type,
+			columnTypeMapped,
 			columnDefault?.expression,
 			column.dimensions,
 		);
 
-		console.log(column.name, columnDefault?.expression, defaultValue)
 		if (columnTypeMapped.startsWith('numeric(')) {
 			columnTypeMapped = columnTypeMapped.replace(',', ', ');
 		}
+
+		columnTypeMapped = trimChar(columnTypeMapped, '"');
 
 		for (let i = 0; i < column.dimensions; i++) {
 			columnTypeMapped += '[]';
@@ -596,8 +608,6 @@ export const fromDatabase = async (
 			.replace(' without time zone', '')
 			// .replace("timestamp without time zone", "timestamp")
 			.replace('character', 'char');
-
-		columnTypeMapped = trimChar(columnTypeMapped, '"');
 
 		const unique = constraintsList.find((it) => {
 			return it.type === 'u' && it.tableId === column.tableId && it.columnsOrdinals.length === 1
@@ -633,10 +643,10 @@ export const fromDatabase = async (
 			schema: schema.name,
 			table: table.name,
 			name: column.name,
-			type: column.type,
-			typeSchema,
+			type: columnTypeMapped,
+			typeSchema: enumType?.schema ?? null,
 			dimensions: column.dimensions,
-			default: defaultValue,
+			default: column.generatedType === 's' ? null : defaultValue,
 			unique: unique
 				? {
 					name: unique.name,
@@ -645,7 +655,12 @@ export const fromDatabase = async (
 				}
 				: null,
 			notNull: column.notNull,
-			primaryKey: pk !== null,
+			primaryKey: pk !== null
+				? {
+					name: pk.name,
+					nameExplicit: true,
+				}
+				: null,
 			generated: column.generatedType === 's' ? { type: 'stored', as: metadata!.expression! } : null,
 			identity: column.identityType !== ''
 				? {
@@ -758,6 +773,7 @@ export const fromDatabase = async (
 			opclassIds: number[];
 			options: number[];
 			isUnique: boolean;
+			isPrimary: boolean;
 		};
 	}>(`
       SELECT
@@ -778,7 +794,8 @@ export const fromDatabase = async (
           indkey::int[] as "columnOrdinals",
           indclass::int[] as "opclassIds",
           indoption::int[] as "options",
-					indisunique as "isUnique"
+					indisunique as "isUnique",
+					indisprimary as "isPrimary"
         FROM
           pg_index
         WHERE
@@ -877,6 +894,7 @@ export const fromDatabase = async (
 			where: idx.metadata.where,
 			columns: columns,
 			concurrently: false,
+			isPrimary: idx.metadata.isPrimary,
 		});
 	}
 
@@ -885,7 +903,7 @@ export const fromDatabase = async (
 	progressCallback('indexes', indexesCount, 'fetching');
 	progressCallback('tables', tableCount, 'done');
 
-	for (const view of tablesList.filter((it) => it.kind === 'v' || it.kind === 'm')) {
+	for (const view of viewsList) {
 		const viewName = view.name;
 		if (!tablesFilter(viewName)) continue;
 		tableCount += 1;

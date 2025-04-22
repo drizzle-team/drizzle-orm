@@ -14,7 +14,10 @@ export const createDDL = () => {
 			table: 'required',
 			type: 'string',
 			typeSchema: 'string?',
-			primaryKey: 'boolean',
+			primaryKey: {
+				name: 'string',
+				nameExplicit: 'boolean',
+			},
 			notNull: 'boolean',
 			dimensions: 'number',
 			default: {
@@ -63,6 +66,7 @@ export const createDDL = () => {
 			with: 'string',
 			method: 'string',
 			concurrently: 'boolean',
+			isPrimary: 'boolean', // is index for primaryKey, introspect only
 		},
 		fks: {
 			schema: 'required',
@@ -115,6 +119,14 @@ export const createDDL = () => {
 			roles: 'string[]', // TO { role_name | PUBLIC | CURRENT_ROLE | SESSION_USER }
 			using: 'string?',
 			withCheck: 'string?',
+		},
+		viewColumns: {
+			schema: 'required',
+			view: 'string',
+			type: 'string',
+			typeSchema: 'string?',
+			notNull: 'boolean',
+			dimensions: 'number',
 		},
 		views: {
 			schema: 'required',

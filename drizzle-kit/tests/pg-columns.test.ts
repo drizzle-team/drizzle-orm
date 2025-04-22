@@ -355,7 +355,8 @@ test('add columns with defaults', async () => {
 	const schema2 = {
 		table: pgTable('table', {
 			id: serial().primaryKey(),
-			text: text().default("text"),
+			text1: text().default(''),
+			text2: text().default('text'),
 			int1: integer().default(10),
 			int2: integer().default(0),
 			int3: integer().default(-10),
@@ -368,7 +369,12 @@ test('add columns with defaults', async () => {
 
 	// TODO: check for created tables, etc
 	expect(sqlStatements).toStrictEqual([
-		`ALTER TABLE "table" ADD COLUMN "text" text DEFAULT 'escape''s quotes';`,
-		`ALTER TABLE "table" ADD COLUMN "varchar" varchar DEFAULT 'escape''s quotes';`,
+		'ALTER TABLE "table" ADD COLUMN "text1" text DEFAULT \'\';',
+		'ALTER TABLE "table" ADD COLUMN "text2" text DEFAULT \'text\';',
+		'ALTER TABLE "table" ADD COLUMN "int1" integer DEFAULT 10;',
+		'ALTER TABLE "table" ADD COLUMN "int2" integer DEFAULT 0;',
+		'ALTER TABLE "table" ADD COLUMN "int3" integer DEFAULT -10;',
+		'ALTER TABLE "table" ADD COLUMN "bool1" boolean DEFAULT true;',
+		'ALTER TABLE "table" ADD COLUMN "bool2" boolean DEFAULT false;',
 	]);
 });

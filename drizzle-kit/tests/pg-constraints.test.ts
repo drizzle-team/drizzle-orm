@@ -250,7 +250,32 @@ test('unique #12', async () => {
 });
 
 /* renamed both table and column, but declared name of the key */
-test('unqique #13', async () => {
+test.only('pk #1', async () => {
+	const from = {
+		users: pgTable('users', {
+			name: text(),
+		}),
+	};
+	const to = {
+		users: pgTable('users', {
+			name: text().primaryKey(),
+		}),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, [
+		'public.users->public.users2',
+		'public.users2.email->public.users2.email2',
+	]);
+
+	expect(sqlStatements).toStrictEqual([
+		`ALTER TABLE "users" RENAME TO "users2";`,
+		`ALTER TABLE "users2" RENAME COLUMN "email" TO "email2";`,
+		'ALTER TABLE "users2" RENAME CONSTRAINT "users_email_unique" TO "users_email_key";',
+	]);
+});
+
+
+test('unique #13', async () => {
 	const from = {
 		users: pgTable('users', {
 			name: text(),
@@ -275,3 +300,4 @@ test('unqique #13', async () => {
 		'ALTER TABLE "users2" RENAME CONSTRAINT "users_email_unique" TO "users_email_key";',
 	]);
 });
+

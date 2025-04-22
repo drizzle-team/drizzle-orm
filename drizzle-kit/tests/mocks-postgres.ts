@@ -231,9 +231,6 @@ export const diffTestSchemasPush = async (
 		},
 	};
 
-	// do introspect into PgSchemaInternal
-	const introspectedSchema = await fromDatabase(db, undefined, (it) => schemas.indexOf(it) >= 0, entities);
-
 	const leftTables = Object.values(right).filter((it) => is(it, PgTable)) as PgTable[];
 	const leftSchemas = Object.values(right).filter((it) => is(it, PgSchema)) as PgSchema[];
 	const leftEnums = Object.values(right).filter((it) => isPgEnum(it)) as PgEnum<any>[];
@@ -255,6 +252,9 @@ export const diffTestSchemasPush = async (
 		casing,
 	);
 	const { ddl: ddl1, errors: err2 } = interimToDDL(schema);
+
+	// do introspect into PgSchemaInternal
+	const introspectedSchema = await fromDatabase(db, undefined, (it) => schemas.indexOf(it) >= 0, entities);
 	const { ddl: ddl2, errors: err3 } = interimToDDL(introspectedSchema);
 
 	// TODO: handle errors
@@ -388,11 +388,9 @@ export const introspectPgToFile = async (
 		(it) => schemas.indexOf(it) >= 0,
 		entities,
 	);
-
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
 	const file = ddlToTypeScript(ddl1, 'camel');
-
 	writeFileSync(`tests/introspect/postgres/${testName}.ts`, file.file);
 
 	// generate snapshot from ts file
@@ -413,6 +411,9 @@ export const introspectPgToFile = async (
 	);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(schema2);
 
+	console.log(ddl1.pks.list())
+	console.log(ddl2.pks.list())
+
 	// TODO: handle errors
 	const renames = new Set<string>();
 
@@ -420,7 +421,7 @@ export const introspectPgToFile = async (
 		sqlStatements: afterFileSqlStatements,
 		statements: afterFileStatements,
 	} = await ddlDiff(
-		createDDL(),
+		ddl1,
 		ddl2,
 		mockResolver(renames),
 		mockResolver(renames),
@@ -438,7 +439,7 @@ export const introspectPgToFile = async (
 		'push',
 	);
 
-	rmSync(`tests/introspect/postgres/${testName}.ts`);
+	// rmSync(`tests/introspect/postgres/${testName}.ts`);
 
 	return {
 		sqlStatements: afterFileSqlStatements,
