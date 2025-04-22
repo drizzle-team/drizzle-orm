@@ -112,9 +112,8 @@ export type SingleStoreJoinFn<
 	TJoinType extends JoinType,
 	TIsLateral extends boolean,
 > = 'cross' extends TJoinType ? <
-		TJoinedTable
-			extends (TIsLateral extends true ? Subquery | SQL
-				: SingleStoreTable | Subquery | SQL /* | SingleStoreViewBase */),
+		TJoinedTable extends (TIsLateral extends true ? Subquery | SQL
+			: SingleStoreTable | Subquery | SQL /* | SingleStoreViewBase */),
 		TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
 	>(table: TJoinedTable) => SingleStoreJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>
 	: <
