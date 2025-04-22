@@ -595,7 +595,7 @@ test('insert + select all possible dates', async () => {
 	await db.insert(datesTable).values({
 		date: date,
 		dateAsString: '2022-11-11',
-		time: '1970-01-01T12:12:12.000Z',
+		time: new Date('1970-01-01T12:12:12.000Z'),
 		datetime: date,
 		datetimeAsString: '2022-11-11T12:12:12.000Z',
 	});
@@ -623,7 +623,7 @@ const tableWithEnums = mssqlTable('enums_test_case', {
 	enum3: varchar('enum3', { enum: ['a', 'b', 'c'], length: 50 }).notNull().default('b'),
 });
 
-test('Mysql enum test case #1', async () => {
+test('Mssql enum test case #1', async () => {
 	await db.execute(sql`drop table if exists [enums_test_case]`);
 
 	await db.execute(sql`

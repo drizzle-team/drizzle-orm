@@ -48,7 +48,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	client: NodeMsSqlClient,
 	config: NodeMsSqlDrizzleConfig<TSchema> = {},
 ): NodeMsSqlDatabase<TSchema> {
-	const dialect = new MsSqlDialect();
+	const dialect = new MsSqlDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

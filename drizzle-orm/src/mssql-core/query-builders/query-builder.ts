@@ -1,5 +1,5 @@
-import { entityKind } from '~/entity.ts';
-import { MsSqlDialect } from '~/mssql-core/dialect.ts';
+import { entityKind, is } from '~/entity.ts';
+import { MsSqlDialect, type MsSqlDialectConfig } from '~/mssql-core/dialect.ts';
 import type { WithSubqueryWithSelection } from '~/mssql-core/subquery.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
@@ -12,6 +12,12 @@ export class QueryBuilder {
 	static readonly [entityKind]: string = 'MsSqlQueryBuilder';
 
 	private dialect: MsSqlDialect | undefined;
+	private dialectConfig: MsSqlDialectConfig | undefined;
+
+	constructor(dialect?: MsSqlDialect | MsSqlDialectConfig) {
+		this.dialect = is(dialect, MsSqlDialect) ? dialect : undefined;
+		this.dialectConfig = is(dialect, MsSqlDialect) ? undefined : dialect;
+	}
 
 	$with<TAlias extends string>(alias: TAlias) {
 		const queryBuilder = this;
@@ -95,7 +101,7 @@ export class QueryBuilder {
 	// Lazy load dialect to avoid circular dependency
 	private getDialect() {
 		if (!this.dialect) {
-			this.dialect = new MsSqlDialect();
+			this.dialect = new MsSqlDialect(this.dialectConfig);
 		}
 
 		return this.dialect;

@@ -770,8 +770,8 @@ importers:
         specifier: ^7.0.0
         version: 7.1.0
       mssql:
-        specifier: ^10.0.1
-        version: 10.0.4
+        specifier: ^11.0.1
+        version: 11.0.1
       mysql2:
         specifier: ^3.3.3
         version: 3.3.3
@@ -8308,6 +8308,11 @@ packages:
   mssql@10.0.4:
     resolution: {integrity: sha512-MhX5IcJ75/q+dUiOe+1ajpqjEe96ZKqMchYYPUIDU+Btqhwt4gbFeZhcGUZaRCEMV9uF+G8kLvaNSFaEzL9OXQ==}
     engines: {node: '>=14'}
+    hasBin: true
+
+  mssql@11.0.1:
+    resolution: {integrity: sha512-KlGNsugoT90enKlR8/G36H0kTxPthDhmtNUCwEHvgRza5Cjpjoj+P2X6eMpFUDN7pFrJZsKadL4x990G8RBE1w==}
+    engines: {node: '>=18'}
     hasBin: true
 
   mustache@4.2.0:
@@ -20521,6 +20526,17 @@ snapshots:
       rfdc: 1.4.1
       tarn: 3.0.2
       tedious: 16.7.1
+    transitivePeerDependencies:
+      - supports-color
+
+  mssql@11.0.1:
+    dependencies:
+      '@tediousjs/connection-string': 0.5.0
+      commander: 11.0.0
+      debug: 4.3.7
+      rfdc: 1.4.1
+      tarn: 3.0.2
+      tedious: 18.6.1
     transitivePeerDependencies:
       - supports-color
 

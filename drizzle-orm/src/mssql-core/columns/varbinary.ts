@@ -2,6 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
+import { getColumnNameAndConfig } from '~/utils.ts';
 import { MsSqlColumn, MsSqlColumnBuilder } from './common.ts';
 
 export type MsSqlVarBinaryBuilderInitial<TName extends string> = MsSqlVarBinaryBuilder<
@@ -54,9 +55,15 @@ export interface MsSqlVarbinaryOptions {
 	length: number | 'max';
 }
 
+export function varbinary(): MsSqlVarBinaryBuilderInitial<''>;
+export function varbinary(
+	config: MsSqlVarbinaryOptions,
+): MsSqlVarBinaryBuilderInitial<''>;
 export function varbinary<TName extends string>(
 	name: TName,
-	options: MsSqlVarbinaryOptions,
-): MsSqlVarBinaryBuilderInitial<TName> {
-	return new MsSqlVarBinaryBuilder(name, options);
+	config?: MsSqlVarbinaryOptions,
+): MsSqlVarBinaryBuilderInitial<TName>;
+export function varbinary(a?: string | MsSqlVarbinaryOptions, b?: MsSqlVarbinaryOptions) {
+	const { name, config } = getColumnNameAndConfig<MsSqlVarbinaryOptions>(a, b);
+	return new MsSqlVarBinaryBuilder(name, config);
 }

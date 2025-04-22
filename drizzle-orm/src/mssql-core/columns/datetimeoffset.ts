@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
-import type { Equal } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { MsSqlColumn } from './common.ts';
 import type { MsSqlDatetimeConfig } from './date.common.ts';
 import { MsSqlDateColumnBaseBuilder } from './date.common.ts';
@@ -117,13 +117,19 @@ export class MsSqlDateTimeOffsetString<T extends ColumnBaseConfig<'string', 'MsS
 	}
 }
 
-export function datetimeoffset<TName extends string, TMode extends MsSqlDatetimeConfig['mode'] & {}>(
+export function datetimeOffset(): MsSqlDateTimeOffsetBuilderInitial<''>;
+export function datetimeOffset<TMode extends MsSqlDatetimeConfig['mode'] & {}>(
+	config?: MsSqlDatetimeConfig<TMode>,
+): Equal<TMode, 'string'> extends true ? MsSqlDateTimeOffsetStringBuilderInitial<''>
+	: MsSqlDateTimeOffsetBuilderInitial<''>;
+export function datetimeOffset<TName extends string, TMode extends MsSqlDatetimeConfig['mode'] & {}>(
 	name: TName,
 	config?: MsSqlDatetimeConfig<TMode>,
 ): Equal<TMode, 'string'> extends true ? MsSqlDateTimeOffsetStringBuilderInitial<TName>
 	: MsSqlDateTimeOffsetBuilderInitial<TName>;
-export function datetimeoffset(name: string, config: MsSqlDatetimeConfig = {}) {
-	if (config.mode === 'string') {
+export function datetimeOffset(a?: string | MsSqlDatetimeConfig, b?: MsSqlDatetimeConfig) {
+	const { name, config } = getColumnNameAndConfig<MsSqlDatetimeConfig | undefined>(a, b);
+	if (config?.mode === 'string') {
 		return new MsSqlDateTimeOffsetStringBuilder(name, config);
 	}
 	return new MsSqlDateTimeOffsetBuilder(name, config);

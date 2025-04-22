@@ -7,6 +7,7 @@ export function unique(name?: string): UniqueOnConstraintBuilder {
 	return new UniqueOnConstraintBuilder(name);
 }
 
+// TODO mssql generates random names
 export function uniqueKeyName(table: MsSqlTable, columns: string[]) {
 	return `${table[TableName]}_${columns.join('_')}_unique`;
 }

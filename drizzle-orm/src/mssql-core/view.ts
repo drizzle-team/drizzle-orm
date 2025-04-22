@@ -13,10 +13,10 @@ import { MsSqlViewBase } from './view-base.ts';
 import { MsSqlViewConfig } from './view-common.ts';
 
 export interface ViewBuilderConfig {
-	algorithm?: 'undefined' | 'merge' | 'temptable';
-	definer?: string;
-	sqlSecurity?: 'definer' | 'invoker';
-	withCheckOption?: 'cascaded' | 'local';
+	encryption?: boolean;
+	schemaBinding?: boolean;
+	viewMetadata?: boolean;
+	checkOption?: boolean;
 }
 
 export class ViewBuilderCore<TConfig extends { name: string; columns?: unknown }> {
@@ -32,33 +32,19 @@ export class ViewBuilderCore<TConfig extends { name: string; columns?: unknown }
 		protected schema: string | undefined,
 	) {}
 
-	protected config: ViewBuilderConfig = {};
+	protected config: ViewBuilderConfig = {
+		encryption: false,
+		schemaBinding: false,
+		viewMetadata: false,
+	};
 
-	algorithm(
-		algorithm: Exclude<ViewBuilderConfig['algorithm'], undefined>,
+	with(
+		config?: ViewBuilderConfig,
 	): this {
-		this.config.algorithm = algorithm;
-		return this;
-	}
-
-	definer(
-		definer: Exclude<ViewBuilderConfig['definer'], undefined>,
-	): this {
-		this.config.definer = definer;
-		return this;
-	}
-
-	sqlSecurity(
-		sqlSecurity: Exclude<ViewBuilderConfig['sqlSecurity'], undefined>,
-	): this {
-		this.config.sqlSecurity = sqlSecurity;
-		return this;
-	}
-
-	withCheckOption(
-		withCheckOption?: Exclude<ViewBuilderConfig['withCheckOption'], undefined>,
-	): this {
-		this.config.withCheckOption = withCheckOption ?? 'cascaded';
+		this.config.encryption = config?.encryption;
+		this.config.schemaBinding = config?.schemaBinding;
+		this.config.viewMetadata = config?.viewMetadata;
+		this.config.checkOption = config?.checkOption;
 		return this;
 	}
 }

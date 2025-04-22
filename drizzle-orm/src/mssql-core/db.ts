@@ -105,12 +105,14 @@ export class MsSqlDatabase<
 	 * ```
 	 */
 	$with<TAlias extends string>(alias: TAlias) {
+		const self = this;
+
 		return {
 			as<TSelection extends ColumnsSelection>(
 				qb: TypedQueryBuilder<TSelection> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelection>),
 			): WithSubqueryWithSelection<TSelection, TAlias> {
 				if (typeof qb === 'function') {
-					qb = qb(new QueryBuilder());
+					qb = qb(new QueryBuilder(self.dialect));
 				}
 
 				return new Proxy(

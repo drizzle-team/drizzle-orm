@@ -1,9 +1,9 @@
-import { bindIfParam } from '~/expressions.ts';
+import { bindIfParam } from '~/sql/expressions/index.ts';
 import type { Placeholder, SQL, SQLChunk, SQLWrapper } from '~/sql/sql.ts';
 import { sql } from '~/sql/sql.ts';
 import type { MsSqlColumn } from './columns/index.ts';
 
-export * from '~/expressions.ts';
+export * from '~/sql/expressions/index.ts';
 
 // type ConcatValue = string | number | Placeholder | SQLWrapper;
 //

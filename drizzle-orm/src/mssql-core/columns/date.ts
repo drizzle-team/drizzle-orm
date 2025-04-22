@@ -2,7 +2,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
-import type { Equal } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { MsSqlColumn } from './common.ts';
 import { MsSqlDateColumnBaseBuilder } from './date.common.ts';
 
@@ -109,12 +109,18 @@ export interface MsSqlDateConfig<TMode extends 'date' | 'string' = 'date' | 'str
 	mode?: TMode;
 }
 
+export function date(): MsSqlDateBuilderInitial<''>;
+export function date<TMode extends MsSqlDateConfig['mode'] & {}>(
+	config?: MsSqlDateConfig<TMode>,
+): Equal<TMode, 'string'> extends true ? MsSqlDateStringBuilderInitial<''> : MsSqlDateBuilderInitial<''>;
 export function date<TName extends string, TMode extends MsSqlDateConfig['mode'] & {}>(
 	name: TName,
 	config?: MsSqlDateConfig<TMode>,
 ): Equal<TMode, 'string'> extends true ? MsSqlDateStringBuilderInitial<TName> : MsSqlDateBuilderInitial<TName>;
-export function date(name: string, config: MsSqlDateConfig = {}) {
-	if (config.mode === 'string') {
+export function date(a?: string | MsSqlDateConfig, b?: MsSqlDateConfig) {
+	const { name, config } = getColumnNameAndConfig<MsSqlDateConfig | undefined>(a, b);
+
+	if (config?.mode === 'string') {
 		return new MsSqlDateStringBuilder(name);
 	}
 	return new MsSqlDateBuilder(name);

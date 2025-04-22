@@ -20,11 +20,17 @@ import {
 } from 'drizzle-orm';
 import {
 	alias,
+	bigint,
+	binary,
 	bit,
+	char,
 	date,
 	datetime,
 	datetime2,
+	datetimeOffset,
+	decimal,
 	except,
+	float,
 	foreignKey,
 	getTableConfig,
 	getViewConfig,
@@ -34,15 +40,22 @@ import {
 	mssqlTable,
 	mssqlTableCreator,
 	mssqlView,
+	nchar,
+	nText,
+	numeric,
 	nvarchar,
 	primaryKey,
+	real,
+	smallint,
 	text,
 	time,
+	tinyint,
 	union,
 	unionAll,
 	unique,
 	uniqueIndex,
 	uniqueKeyName,
+	varbinary,
 	varchar,
 } from 'drizzle-orm/mssql-core';
 import type { NodeMsSqlDatabase } from 'drizzle-orm/node-mssql';
@@ -64,7 +77,7 @@ declare module 'vitest' {
 
 const usersTable = mssqlTable('userstest', {
 	id: int('id').identity().primaryKey(),
-	name: varchar('name', { length: 30 }).notNull(),
+	name: varchar('name', { mode: 'text' }).notNull(),
 	verified: bit('verified').notNull().default(false),
 	jsonb: nvarchar('jsonb', { length: 300, mode: 'json' }).$type<string[]>(),
 	createdAt: datetime('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
@@ -77,8 +90,8 @@ const users2Table = mssqlTable('users2', {
 });
 
 const citiesTable = mssqlTable('cities', {
-	id: int('id').primaryKey(),
-	name: varchar('name', { length: 30 }).notNull(),
+	id: int().primaryKey(),
+	name: varchar({ length: 30 }).notNull(),
 });
 
 const usersOnUpdate = mssqlTable('users_on_update', {
@@ -100,8 +113,8 @@ const datesTable = mssqlTable('datestable', {
 });
 
 const coursesTable = mssqlTable('courses', {
-	id: int('id').identity().primaryKey(),
-	name: text('name').notNull(),
+	id: int().identity().primaryKey(),
+	name: text().notNull(),
 	categoryId: int('category_id').references(() => courseCategoriesTable.id),
 });
 
@@ -122,11 +135,9 @@ const usersMigratorTable = mssqlTable('users12', {
 	id: int('id').identity().primaryKey(),
 	name: text('name').notNull(),
 	email: text('email').notNull(),
-}, (table) => {
-	return {
-		name: uniqueIndex('').on(table.name),
-	};
-});
+}, (table) => [
+	uniqueIndex('').on(table.name),
+]);
 
 // To test aggregate functions
 const aggregateTable = mssqlTable('aggregate_table', {
@@ -166,9 +177,134 @@ const tableWithEnums = mySchema.table('enums_test_case', {
 	enum3: varchar('enum3', { enum: ['a', 'b', 'c'] }).notNull().default('b'),
 });
 
+const employees = mssqlTable('employees', {
+	employeeId: int().identity(1, 1).primaryKey(),
+	name: nvarchar({ length: 100 }),
+	departmentId: int(),
+});
+
+const departments = mssqlTable('departments', {
+	departmentId: int().primaryKey().identity(1, 1),
+	departmentName: nvarchar({ length: 100 }),
+});
+
+const allPossibleColumns = mssqlTable('all_possible_columns', {
+	bigintBigint: bigint({ mode: 'bigint' }),
+	bigintString: bigint({ mode: 'string' }),
+	bigintNumber: bigint({ mode: 'number' }),
+	bigintBigintDefault: bigint({ mode: 'bigint' }).default(BigInt(123)),
+	bigintStringDefault: bigint({ mode: 'string' }).default('123'),
+	bigintNumberDefault: bigint({ mode: 'number' }).default(123),
+	binary: binary(),
+	binaryLength: binary({ length: 13 }),
+	binaryDefault: binary().default(Buffer.from([0x01])),
+
+	bit: bit(),
+	bitDefault: bit().default(false),
+
+	char: char(),
+	charWithConfig: char({ enum: ['123', '342'], length: 3 }),
+	charDefault: char().default('4'),
+
+	nchar: nchar(),
+	ncharWithEnum: nchar({ enum: ['hello, world'], length: 12 }),
+	ncharLength: nchar({ length: 231 }),
+	ncharDefault: nchar().default('h'),
+
+	date: date(),
+	dateModeDate: date({ mode: 'date' }),
+	dateModeString: date({ mode: 'string' }),
+	dateDefault: date().default(new Date('2025-04-17')),
+	dateModeStringDefault: date({ mode: 'string' }).default('2025-04-17'),
+
+	dateTime: datetime(),
+	dateTimeModeDate: datetime({ mode: 'date' }),
+	dateTimeModeString: datetime({ mode: 'string' }),
+	dateTimeDefault: datetime().default(new Date('2025-04-17 13:54:28.227')),
+	dateTimeModeStringDefault: datetime({ mode: 'string' }).default(new Date('2025-04-17 13:54:28.227').toISOString()),
+
+	dateTime2: datetime2(),
+	dateTime2ModeDate: datetime2({ mode: 'date' }),
+	dateTime2ModeString: datetime2({ mode: 'string' }),
+	dateTime2WithPrecision: datetime2({ precision: 5 }),
+	dateTime2Default: datetime2().default(new Date('2025-04-17 13:55:07.530')),
+	dateTime2ModeStringDefault: datetime2({ mode: 'string' }).default(
+		'2025-04-17 13:55:07.5300000',
+	),
+	dateTime2ModeStringWithPrecisionDefault: datetime2({ mode: 'string', precision: 1 }).default(
+		'2025-04-17 13:55:07.5300000',
+	),
+
+	datetimeOffset: datetimeOffset(),
+	datetimeOffsetModeDate: datetimeOffset({ mode: 'date' }),
+	datetimeOffsetModeString: datetimeOffset({ mode: 'string' }),
+	datetimeOffsetDefault: datetimeOffset().default(new Date('2025-04-18 11:47:41.000+3:00')),
+	datetimeOffsetModeStringDefault: datetimeOffset({ mode: 'string' }).default('2025-04-18 11:47:41.000+3:00'),
+	datetimeOffsetModeStringWithPrecisionDefault: datetimeOffset({ mode: 'string', precision: 1 }).default(
+		'2025-04-18 11:47:41.000+3:00',
+	),
+
+	decimal: decimal(),
+	decimalWithPrecision: decimal({ precision: 3 }),
+	decimalWithConfig: decimal({ precision: 10, scale: 8 }),
+	decimalDefault: decimal().default(1.312),
+
+	float: float(),
+	floatWithPrecision: float({ precision: 3 }),
+	floatDefault: float().default(32.412),
+
+	int: int(),
+	intDefault: int().default(43),
+
+	numeric: numeric(),
+	numericWithPrecision: numeric({ precision: 3 }),
+	numericWithConfig: numeric({ precision: 10, scale: 8 }),
+	numericDefault: numeric().default(1.312),
+	real: real(),
+	realDefault: real().default(5231.4123),
+
+	text: text(),
+	textEnum: text({ enum: ['only', 'this', 'values'] }),
+	textDefault: text().default('hello, world'),
+
+	nText: nText(),
+	nTextEnum: nText({ enum: ['only', 'this', 'values'] }),
+	nTextDefault: nText().default('hello, world'),
+
+	time: time(),
+	timeModeDate: time({ mode: 'date' }),
+	timeModeString: time({ mode: 'string' }),
+	timeWithPrecision: time({ precision: 3 }),
+	timeDefault: time().default(new Date('2025-10-10 14:17:56.470')),
+	timeModeDateDefault: time({ mode: 'date' }).default(new Date('2025-10-10 14:17:56.470')),
+	timeModeStringDefault: time({ mode: 'string' }).default('14:17:56.470'),
+
+	smallint: smallint(),
+	smallintDefault: smallint().default(331),
+
+	tinyint: tinyint(),
+	tinyintDefault: tinyint().default(23),
+
+	varbinary: varbinary(),
+	varbinaryWithLength: varbinary({ length: 3 }),
+	varbinaryDefault: varbinary().default(Buffer.from([0x01])),
+
+	varchar: varchar(),
+	varcharWithEnum: varchar({ enum: ['123', '312'], length: 3 }),
+	varcharWithLength: varchar({ length: 3 }),
+	varcharDefault: varchar().default('hello, world'),
+	varcharWithEnumDefault: varchar({ enum: ['1', '2'] }).default('1'),
+
+	nvarchar: nvarchar(),
+	nvarcharWithEnum: nvarchar({ enum: ['hello, world'], length: 12 }),
+	nvarcharLength: nvarchar({ length: 231 }),
+	nvarcharDefault: nvarchar().default('h'),
+	nvarcharJson: nvarchar({ mode: 'json', length: 'max' }),
+});
+
 let mssqlContainer: Docker.Container;
 export async function createDockerDB(): Promise<{ container: Docker.Container; connectionString: string }> {
-	const docker = new Docker({ socketPath: '/Users/oleksii_provorov/.docker/run/docker.sock' });
+	const docker = new Docker();
 	const port = await getPort({ port: 1433 });
 	const image = 'mcr.microsoft.com/azure-sql-edge';
 
@@ -348,9 +484,9 @@ export function tests() {
 				id: int('id').primaryKey(),
 				name: text('name').notNull(),
 				state: text('state'),
-			}, (t) => ({
-				f: foreignKey({ foreignColumns: [t.id], columns: [t.id], name: 'custom_fk' }),
-			}));
+			}, (t) => [
+				foreignKey({ foreignColumns: [t.id], columns: [t.id], name: 'custom_fk' }),
+			]);
 
 			const tableConfig = getTableConfig(table);
 
@@ -363,9 +499,9 @@ export function tests() {
 				id: int('id').primaryKey(),
 				name: text('name').notNull(),
 				state: text('state'),
-			}, (t) => ({
-				f: primaryKey({ columns: [t.id, t.name], name: 'custom_pk' }),
-			}));
+			}, (t) => [
+				primaryKey({ columns: [t.id, t.name], name: 'custom_pk' }),
+			]);
 
 			const tableConfig = getTableConfig(table);
 
@@ -378,10 +514,10 @@ export function tests() {
 				id: int('id').primaryKey(),
 				name: text('name').notNull(),
 				state: text('state'),
-			}, (t) => ({
-				f: unique('custom_name').on(t.name, t.state),
-				f1: unique('custom_name1').on(t.name, t.state),
-			}));
+			}, (t) => [
+				unique('custom_name').on(t.name, t.state),
+				unique('custom_name1').on(t.name, t.state),
+			]);
 
 			const tableConfig = getTableConfig(cities1Table);
 
@@ -1087,7 +1223,7 @@ export function tests() {
 			await db.insert(datesTable).values({
 				date: date,
 				dateAsString: '2022-11-11',
-				time: '12:12:12',
+				time: date,
 				timeAsString: '12:12:12',
 				datetime: date,
 				datetimeAsString: '2022-11-11 12:12:12',
@@ -1103,7 +1239,7 @@ export function tests() {
 			expect(res).toEqual([{
 				date: new Date('2022-11-11'),
 				dateAsString: '2022-11-11',
-				time: new Date('1970-01-01T12:12:12Z'),
+				time: new Date('1970-01-01T00:00:00Z'),
 				datetime: new Date('2022-11-11'),
 				datetimeAsString: '2022-11-11T12:12:12.000Z',
 				timeAsString: '12:12:12.000',
@@ -3252,6 +3388,465 @@ export function tests() {
 			}
 
 			await db.execute(sql`drop view ${newYorkers1}`);
+		});
+
+		test('all possible columns', async (ctx) => {
+			const { db } = ctx.mssql;
+
+			await db.execute(sql`DROP TABLE IF EXISTS [all_possible_columns]`);
+			// eslint-disable-next-line unicorn/template-indent
+			await db.execute(sql`
+				CREATE TABLE [all_possible_columns] (
+		bigintBigint bigint,
+		bigintString bigint,
+		bigintNumber bigint,
+		bigintBigintDefault bigint DEFAULT 123,
+		bigintStringDefault bigint DEFAULT 123,
+		bigintNumberDefault bigint DEFAULT 123,
+
+		binary binary,
+		binaryLength binary(13),
+		binaryDefault binary DEFAULT 0x01,
+
+		bit bit,
+		bitDefault bit DEFAULT 0,
+
+		char char,
+		charWithConfig char(3),
+		charDefault char DEFAULT '4',
+
+		date date,
+		dateModeDate date,
+		dateModeString date,
+		dateDefault date DEFAULT '2025-04-18T00:00:00.000Z',
+		dateModeStringDefault date DEFAULT '2025-04-18T00:00:00.000Z',
+
+		dateTime datetime,
+		dateTimeModeDate datetime,
+		dateTimeModeString datetime,
+		dateTimeDefault datetime DEFAULT '2025-04-18T00:00:00.000Z',
+		dateTimeModeStringDefault datetime DEFAULT '2025-04-18T00:00:00.000Z',
+
+		dateTime2 datetime2,
+		dateTime2ModeDate datetime2,
+		dateTime2ModeString datetime2,
+		dateTime2WithPrecision datetime2(5),
+		dateTime2Default datetime2 DEFAULT '2025-04-18T00:00:00.000Z',
+		dateTime2ModeStringDefault datetime2 DEFAULT '2025-04-18T00:00:00.000Z',
+		dateTime2ModeStringWithPrecisionDefault datetime2(1) DEFAULT '2025-04-18T00:00:00.000Z', 
+
+		datetimeOffset datetimeoffset,
+		datetimeOffsetModeDate datetimeoffset,
+		datetimeOffsetModeString datetimeoffset,
+		datetimeOffsetDefault datetimeoffset DEFAULT '2025-04-18 03:00:00.000+3:00',
+		datetimeOffsetModeStringDefault datetimeoffset DEFAULT '2025-04-18 03:00:00.000+3:00',
+		datetimeOffsetModeStringWithPrecisionDefault datetimeoffset DEFAULT '2025-04-18 03:00:00.000+3:00', 
+
+		decimal decimal,
+		decimalWithPrecision decimal(3),
+		decimalWithConfig decimal(10,8),
+		decimalDefault decimal DEFAULT 1.312,
+
+		float float,
+		floatWithPrecision float(3),
+		floatDefault float DEFAULT 32.412,
+
+		int int,
+		intDefault int DEFAULT 43,
+		
+		numeric decimal,
+		numericWithPrecision numeric(3),
+		numericWithConfig numeric(10,8),
+		numericDefault numeric DEFAULT 1.312,
+
+		real real,
+		realDefault real DEFAULT 5231.4123,
+
+		text text,
+		textEnum text,
+		textDefault text DEFAULT 'hello, world',
+		nText ntext,
+		nTextEnum ntext,
+		nTextDefault ntext DEFAULT 'hello, world',
+
+		time time,
+		timeModeDate time,
+		timeModeString time,
+		timeWithPrecision time(3),
+		timeDefault time DEFAULT '2025-04-18T00:00:00.000Z',
+		timeModeDateDefault time DEFAULT '2025-04-18T00:00:00.000Z',
+		timeModeStringDefault time DEFAULT '00:00:00.000',
+
+		smallint smallint,
+		smallintDefault smallint DEFAULT 331,
+
+		tinyint tinyint,
+		tinyintDefault tinyint DEFAULT 23,
+
+		varbinary varbinary,
+		varbinaryWithLength varbinary(3),
+		varbinaryDefault varbinary DEFAULT 0x01,
+
+		varchar varchar,
+		varcharWithEnum varchar(3),
+		varcharWithLength varchar(3),
+		varcharDefault varchar,
+		varcharWithEnumDefault varchar DEFAULT '1',
+
+		nchar nchar,
+		ncharWithEnum nchar(12),
+		ncharLength nchar(231),
+		ncharDefault nchar DEFAULT 'h',
+
+		nvarchar nvarchar,
+		nvarcharWithEnum nvarchar(12),
+		nvarcharLength nvarchar(231),
+		nvarcharDefault nvarchar DEFAULT 'h',
+		nvarcharJson nvarchar(max)
+);`);
+
+			const currentDate = new Date('2025-04-18T00:00:00.000Z');
+			// insert
+			await db.insert(allPossibleColumns).values({
+				bigintBigint: BigInt(100),
+				bigintString: '100',
+				bigintNumber: 100,
+				bigintBigintDefault: undefined,
+				bigintStringDefault: undefined,
+				bigintNumberDefault: undefined,
+
+				binary: Buffer.from([0x01]),
+				binaryLength: Buffer.from([0x01]),
+				binaryDefault: undefined,
+
+				bit: true,
+				bitDefault: undefined,
+
+				char: 'a',
+				charWithConfig: '342',
+				charDefault: undefined,
+
+				date: currentDate,
+				dateModeDate: currentDate,
+				dateModeString: currentDate.toISOString(),
+				dateDefault: undefined,
+				dateModeStringDefault: undefined,
+				dateTime: currentDate,
+				dateTimeModeDate: currentDate,
+				dateTimeModeString: currentDate.toISOString(),
+				dateTimeDefault: undefined,
+				dateTimeModeStringDefault: undefined,
+				dateTime2: currentDate,
+				dateTime2ModeDate: currentDate,
+				dateTime2ModeString: currentDate.toISOString(),
+				dateTime2WithPrecision: currentDate,
+				dateTime2Default: undefined,
+				dateTime2ModeStringDefault: undefined,
+				dateTime2ModeStringWithPrecisionDefault: undefined,
+				datetimeOffset: currentDate,
+				datetimeOffsetModeDate: currentDate,
+				datetimeOffsetModeString: currentDate.toISOString(),
+				datetimeOffsetDefault: undefined,
+				datetimeOffsetModeStringDefault: undefined,
+				datetimeOffsetModeStringWithPrecisionDefault: undefined,
+
+				decimal: 1.33,
+				decimalWithPrecision: 4.11,
+				decimalWithConfig: 41.34234526,
+				decimalDefault: undefined,
+
+				float: 5234.132,
+				floatWithPrecision: 1.23,
+				floatDefault: undefined,
+
+				int: 140,
+				intDefault: undefined,
+
+				numeric: 33.2,
+				numericWithPrecision: 33.4,
+				numericWithConfig: 41.34512,
+				numericDefault: undefined,
+				real: 421.4,
+				realDefault: undefined,
+
+				text: 'hello',
+				textEnum: 'this',
+				textDefault: undefined,
+				nText: 'hello',
+				nTextEnum: 'this',
+				nTextDefault: undefined,
+
+				time: currentDate,
+				timeModeDate: currentDate,
+				timeModeString: '00:00:00.000',
+				timeWithPrecision: currentDate,
+				timeDefault: undefined,
+				timeModeDateDefault: undefined,
+				timeModeStringDefault: undefined,
+
+				smallint: 1312,
+				smallintDefault: undefined,
+
+				tinyint: 31,
+				tinyintDefault: undefined,
+
+				varbinary: Buffer.from([0x01]),
+				varbinaryWithLength: Buffer.from([0x01, 0x01, 0x01]),
+				varbinaryDefault: undefined,
+
+				varchar: 'v',
+				varcharWithEnum: '123',
+				varcharWithLength: '301',
+				varcharDefault: undefined,
+				varcharWithEnumDefault: undefined,
+				nvarcharJson: { hello: 'world' },
+				nchar: 'n',
+				ncharWithEnum: 'hello, world',
+				ncharLength: 'some value',
+				ncharDefault: undefined,
+
+				nvarchar: 'n',
+				nvarcharWithEnum: 'hello, world',
+				nvarcharLength: 'some value',
+				nvarcharDefault: undefined,
+			});
+
+			const res = await db.select().from(allPossibleColumns);
+
+			expect(res.length).toBe(1);
+			expect(Buffer.isBuffer(res[0]?.binary)).toBe(true);
+			expect(Buffer.isBuffer(res[0]?.binaryLength)).toBe(true);
+			expect(Buffer.isBuffer(res[0]?.binaryDefault)).toBe(true);
+			expect(Buffer.isBuffer(res[0]?.varbinary)).toBe(true);
+			expect(Buffer.isBuffer(res[0]?.varbinaryWithLength)).toBe(true);
+			expect(Buffer.isBuffer(res[0]?.varbinaryDefault)).toBe(true);
+
+			expect({
+				...res[0],
+				binary: undefined,
+				binaryLength: undefined,
+				binaryDefault: undefined,
+				varbinary: undefined,
+				varbinaryWithLength: undefined,
+				varbinaryDefault: undefined,
+			}).toStrictEqual(
+				{
+					bigintBigint: 100n,
+					bigintString: '100',
+					bigintNumber: 100,
+					bigintBigintDefault: 123n,
+					bigintStringDefault: '123',
+					bigintNumberDefault: 123,
+					binary: undefined,
+					binaryLength: undefined,
+					binaryDefault: undefined,
+					bit: true,
+					bitDefault: false,
+					char: 'a',
+					charWithConfig: '342',
+					charDefault: '4',
+					date: currentDate,
+					dateModeDate: currentDate,
+					dateModeString: `${currentDate.getFullYear()}-${
+						(currentDate.getMonth() + 1).toString().padStart(2, '0')
+					}-${currentDate.getDate()}`,
+					dateDefault: currentDate,
+					dateModeStringDefault: `${currentDate.getFullYear()}-${
+						(currentDate.getMonth() + 1).toString().padStart(2, '0')
+					}-${currentDate.getDate()}`,
+					dateTime: currentDate,
+					dateTimeModeDate: currentDate,
+					dateTimeModeString: currentDate.toISOString(),
+					dateTimeDefault: currentDate,
+					dateTimeModeStringDefault: currentDate.toISOString(),
+					dateTime2: currentDate,
+					dateTime2ModeDate: currentDate,
+					dateTime2ModeString: currentDate.toISOString(),
+					dateTime2WithPrecision: currentDate,
+					dateTime2Default: currentDate,
+					dateTime2ModeStringDefault: currentDate.toISOString(),
+					dateTime2ModeStringWithPrecisionDefault: currentDate.toISOString(),
+					datetimeOffset: currentDate,
+					datetimeOffsetModeDate: currentDate,
+					datetimeOffsetModeString: currentDate.toISOString(),
+					datetimeOffsetDefault: currentDate,
+					datetimeOffsetModeStringDefault: currentDate.toISOString(),
+					datetimeOffsetModeStringWithPrecisionDefault: currentDate.toISOString(),
+					decimal: 1,
+					decimalWithPrecision: 4,
+					decimalWithConfig: 41.34234526,
+					decimalDefault: 1,
+					float: 5234.132,
+					floatWithPrecision: 1.2300000190734863,
+					floatDefault: 32.412,
+					int: 140,
+					intDefault: 43,
+					numeric: 33,
+					numericWithPrecision: 33,
+					numericWithConfig: 41.34512,
+					numericDefault: 1,
+					real: 421.3999938964844,
+					realDefault: 5231.412109375,
+					text: 'hello',
+					textEnum: 'this',
+					textDefault: 'hello, world',
+					nText: 'hello',
+					nTextEnum: 'this',
+					nTextDefault: 'hello, world',
+					time: new Date(`1970-01-01T00:00:00.000Z`), // mssql returns date, and sets only hours:mm:ss for 1970 year
+					timeModeDate: new Date(`1970-01-01T00:00:00.000Z`),
+					timeModeString: `00:00:00.000`,
+					timeWithPrecision: new Date(`1970-01-01T00:00:00.000Z`),
+					timeDefault: new Date(`1970-01-01T00:00:00.000Z`),
+					timeModeDateDefault: new Date(`1970-01-01T00:00:00.000Z`),
+					timeModeStringDefault: '00:00:00.000',
+					smallint: 1312,
+					smallintDefault: 331,
+					tinyint: 31,
+					tinyintDefault: 23,
+					varbinary: undefined,
+					varbinaryWithLength: undefined,
+					varbinaryDefault: undefined,
+					varchar: 'v',
+					varcharWithEnum: '123',
+					varcharWithLength: '301',
+					varcharDefault: null,
+					varcharWithEnumDefault: '1',
+					nchar: 'n',
+					ncharWithEnum: 'hello, world',
+					ncharLength:
+						'some value                                                                                                                                                                                                                             ',
+					ncharDefault: 'h',
+					nvarchar: 'n',
+					nvarcharWithEnum: 'hello, world',
+					nvarcharLength: 'some value',
+					nvarcharDefault: 'h',
+					nvarcharJson: { hello: 'world' },
+				},
+			);
+		});
+
+		test('inner join', async (ctx) => {
+			const { db } = ctx.mssql;
+
+			await db.execute(sql`DROP TABLE IF EXISTS ${employees};`);
+			await db.execute(sql`DROP TABLE IF EXISTS ${departments};`);
+
+			await db.execute(sql`
+				CREATE TABLE employees (
+								employeeID INT PRIMARY KEY IDENTITY(1,1),
+								name NVARCHAR(100),
+								departmentID INT
+							);
+			`);
+			await db.execute(sql`
+								CREATE TABLE departments (
+				    departmentId INT PRIMARY KEY IDENTITY(1,1),
+				    departmentName NVARCHAR(100)
+				);
+			`);
+
+			await db.insert(departments).values({ departmentName: 'Drizzle1' });
+			await db.insert(departments).values({ departmentName: 'Drizzle2' });
+			await db.insert(departments).values({ departmentName: 'Drizzle3' });
+			await db.insert(departments).values({ departmentName: 'Drizzle4' });
+			await db.insert(employees).values({ departmentId: 1, name: 'Andrew1' });
+			await db.insert(employees).values({ departmentId: 2, name: 'Andrew2' });
+			await db.insert(employees).values({ departmentId: 5, name: 'Andrew3' });
+
+			const res = await db.select({ employeeName: employees.name, department: departments.departmentName }).from(
+				employees,
+			).innerJoin(departments, eq(departments.departmentId, employees.departmentId));
+
+			expect(res).toStrictEqual([{ employeeName: 'Andrew1', department: 'Drizzle1' }, {
+				employeeName: 'Andrew2',
+				department: 'Drizzle2',
+			}]);
+		});
+
+		test('right join', async (ctx) => {
+			const { db } = ctx.mssql;
+
+			await db.execute(sql`DROP TABLE IF EXISTS ${employees};`);
+			await db.execute(sql`DROP TABLE IF EXISTS ${departments};`);
+
+			await db.execute(sql`
+				CREATE TABLE employees (
+								employeeID INT PRIMARY KEY IDENTITY(1,1),
+								name NVARCHAR(100),
+								departmentID INT
+							);
+			`);
+			await db.execute(sql`
+								CREATE TABLE departments (
+				    departmentId INT PRIMARY KEY IDENTITY(1,1),
+				    departmentName NVARCHAR(100)
+				);
+			`);
+
+			await db.insert(departments).values({ departmentName: 'Drizzle1' });
+			await db.insert(departments).values({ departmentName: 'Drizzle2' });
+			await db.insert(departments).values({ departmentName: 'Drizzle3' });
+			await db.insert(departments).values({ departmentName: 'Drizzle4' });
+			await db.insert(employees).values({ departmentId: 1, name: 'Andrew1' });
+			await db.insert(employees).values({ departmentId: 2, name: 'Andrew2' });
+			await db.insert(employees).values({ departmentId: 5, name: 'Andrew3' });
+
+			const res = await db.select({ employeeName: employees.name, department: departments.departmentName }).from(
+				employees,
+			).rightJoin(departments, eq(departments.departmentId, employees.departmentId));
+
+			expect(res).toStrictEqual([{ employeeName: 'Andrew1', department: 'Drizzle1' }, {
+				employeeName: 'Andrew2',
+				department: 'Drizzle2',
+			}, {
+				employeeName: null,
+				department: 'Drizzle3',
+			}, {
+				employeeName: null,
+				department: 'Drizzle4',
+			}]);
+		});
+
+		test('full join', async (ctx) => {
+			const { db } = ctx.mssql;
+
+			await db.execute(sql`DROP TABLE IF EXISTS ${employees};`);
+			await db.execute(sql`DROP TABLE IF EXISTS ${departments};`);
+
+			await db.execute(sql`
+				CREATE TABLE employees (
+								employeeID INT PRIMARY KEY IDENTITY(1,1),
+								name NVARCHAR(100),
+								departmentID INT
+							);
+			`);
+			await db.execute(sql`
+								CREATE TABLE departments (
+				    departmentId INT PRIMARY KEY IDENTITY(1,1),
+				    departmentName NVARCHAR(100)
+				);
+			`);
+
+			await db.insert(departments).values({ departmentName: 'Drizzle1' });
+			await db.insert(departments).values({ departmentName: 'Drizzle2' });
+			await db.insert(departments).values({ departmentName: 'Drizzle3' });
+			await db.insert(departments).values({ departmentName: 'Drizzle4' });
+			await db.insert(employees).values({ departmentId: 1, name: 'Andrew1' });
+			await db.insert(employees).values({ departmentId: 2, name: 'Andrew2' });
+			await db.insert(employees).values({ departmentId: 5, name: 'Andrew3' });
+
+			const res = await db.select({ employeeName: employees.name, department: departments.departmentName }).from(
+				employees,
+			).fullJoin(departments, eq(departments.departmentId, employees.departmentId));
+
+			expect(res).toStrictEqual([
+				{ employeeName: 'Andrew1', department: 'Drizzle1' },
+				{ employeeName: 'Andrew2', department: 'Drizzle2' },
+				{ employeeName: 'Andrew3', department: null },
+				{ employeeName: null, department: 'Drizzle3' },
+				{ employeeName: null, department: 'Drizzle4' },
+			]);
 		});
 	});
 }
