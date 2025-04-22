@@ -1,3 +1,4 @@
+import { mockResolver } from 'src/utils/mocks';
 import type { Resolver } from '../../snapshot-differ/common';
 import { prepareMigrationMeta } from '../../utils';
 import { diffStringArrays } from '../../utils/sequence-matcher';
@@ -89,6 +90,25 @@ type DiffError = {
 	table: string;
 	columns: string[];
 };
+
+export const ddlDiffDry = async (ddlFrom: PostgresDDL, ddlTo: PostgresDDL) => {
+	const mocks = new Set<string>();
+	return ddlDiff(ddlFrom, ddlTo, 
+	mockResolver(mocks),
+	mockResolver(mocks),
+	mockResolver(mocks),
+	mockResolver(mocks),
+	mockResolver(mocks),
+	mockResolver(mocks),
+	mockResolver(mocks),
+	mockResolver(mocks),
+	mockResolver(mocks),
+	mockResolver(mocks),
+	mockResolver(mocks),
+	mockResolver(mocks),
+	mockResolver(mocks),
+	"default")
+}
 
 export const ddlDiff = async (
 	ddl1: PostgresDDL,

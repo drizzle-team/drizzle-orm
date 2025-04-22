@@ -24,7 +24,6 @@ const fk = object({
 const column = object({
 	name: string(),
 	type: string(),
-	typeSchema: string().optional(),
 	primaryKey: boolean(),
 	notNull: boolean(),
 	autoincrement: boolean().optional(),

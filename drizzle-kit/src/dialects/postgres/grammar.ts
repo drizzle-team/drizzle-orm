@@ -1,3 +1,5 @@
+import { PostgresEntities } from "./ddl";
+
 export const parseType = (schemaPrefix: string, type: string) => {
 	const NativeTypes = [
 		'uuid',
@@ -111,7 +113,7 @@ export function buildArrayString(array: any[], sqlType: string): string {
 	return `{${values}}`;
 }
 
-export type OnAction = 'NO ACTION' | 'RESTRICT' | 'SET NULL' | 'CASCADE' | 'SET DEFAULT';
+export type OnAction = PostgresEntities["fks"]["onUpdate"]
 export const parseOnType = (type: string): OnAction => {
 	switch (type) {
 		case 'a':
@@ -212,6 +214,11 @@ export const parseViewDefinition = (value: string | null | undefined): string | 
 	return value.replace(/\s+/g, ' ').replace(';', '').trim();
 };
 
+
+export const defaultNameForPK = (table:string)=>{
+	return `${table}_pkey`
+}
+
 export const defaultForColumn = (
 	type: string,
 	def: string | null | undefined,
@@ -275,6 +282,7 @@ export const defaultForColumn = (
 	} else if (defaultValue === 'NULL') {
 		return { value: `NULL`, expression: false };
 	} else if (defaultValue.startsWith("'") && defaultValue.endsWith("'")) {
+		console.log(defaultValue)
 		return { value: defaultValue, expression: false };
 	} else {
 		return { value: `${defaultValue.replace(/\\/g, '`\\')}`, expression: false };
