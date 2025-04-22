@@ -303,7 +303,7 @@ test('drop column', async (t) => {
 	);
 });
 
-test('drop + rename column', async (t) => {
+test('rename column', async (t) => {
 	const schema1 = {
 		users: sqliteTable('users', {
 			id: integer().primaryKey({ autoIncrement: true }),
@@ -320,7 +320,7 @@ test('drop + rename column', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(schema1, schema2, ['public.users.email->public.users.email2']);
+	const { sqlStatements } = await diffTestSchemasSqlite(schema1, schema2, ['users.email->users.email2']);
 
 	expect(sqlStatements).toStrictEqual(
 		['ALTER TABLE `users` RENAME COLUMN `email` TO `email2`;'],
@@ -453,7 +453,7 @@ test('alter column rename #1', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(schema1, schema2, ['public.users.name->public.users.name1']);
+	const { sqlStatements } = await diffTestSchemasSqlite(schema1, schema2, ['users.name->users.name1']);
 
 	expect(sqlStatements).toStrictEqual(
 		['ALTER TABLE `users` RENAME COLUMN `name` TO `name1`;'],
@@ -477,7 +477,7 @@ test('alter column rename #2', async (t) => {
 	};
 
 	const { sqlStatements } = await diffTestSchemasSqlite(schema1, schema2, [
-		'public.users.name->public.users.name1',
+		'users.name->users.name1',
 	]);
 
 	expect(sqlStatements).toStrictEqual(
@@ -505,7 +505,7 @@ test('alter column rename #3', async (t) => {
 	};
 
 	const { sqlStatements } = await diffTestSchemasSqlite(schema1, schema2, [
-		'public.users.name->public.users.name1',
+		'users.name->users.name1',
 	]);
 
 	expect(sqlStatements).toStrictEqual(
@@ -534,7 +534,7 @@ test('rename column in composite pk', async (t) => {
 	};
 
 	const { sqlStatements } = await diffTestSchemasSqlite(schema1, schema2, [
-		'public.users.id2->public.users.id3',
+		'users.id2->users.id3',
 	]);
 
 	expect(sqlStatements).toStrictEqual(
@@ -558,7 +558,7 @@ test('alter column rename + alter type', async (t) => {
 	};
 
 	const { sqlStatements } = await diffTestSchemasSqlite(schema1, schema2, [
-		'public.users.name->public.users.name1',
+		'users.name->users.name1',
 	]);
 
 	expect(sqlStatements).toStrictEqual(
