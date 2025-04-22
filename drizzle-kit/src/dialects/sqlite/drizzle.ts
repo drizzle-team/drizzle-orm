@@ -113,7 +113,6 @@ export const fromDrizzleSchema = (
 				entityType: 'fks',
 				table: it.config.name,
 				name,
-				tableFrom,
 				tableTo,
 				columnsFrom,
 				columnsTo,
