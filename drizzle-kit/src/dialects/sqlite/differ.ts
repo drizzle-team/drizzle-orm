@@ -128,7 +128,7 @@ export const applySqliteSnapshotsDiff = async (
 					columnsFrom: (it: string) => it === rename.from.name ? rename.to.name : it,
 				},
 				where: {
-					tableFrom: entry.table,
+					table: entry.table,
 				},
 			} as const;
 			ddl1.fks.update(update2);

@@ -36,7 +36,6 @@ export const createDDL = () => {
 		},
 		fks: {
 			table: 'required',
-			tableFrom: 'string',
 			columnsFrom: 'string[]',
 			tableTo: 'string',
 			columnsTo: 'string[]',
