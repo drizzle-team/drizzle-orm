@@ -1,5 +1,4 @@
 import { type Equal, Expect } from 'type-tests/utils.ts';
-import { eq, gt } from '~/expressions.ts';
 import type { BuildColumn, GeneratedColumnConfig, InferSelectModel, Simplify } from '~/index.ts';
 import {
 	bigint,
@@ -23,6 +22,7 @@ import {
 } from '~/mssql-core/index.ts';
 import { mssqlSchema } from '~/mssql-core/schema.ts';
 import { mssqlView, type MsSqlViewWithSelection } from '~/mssql-core/view.ts';
+import { eq, gt } from '~/sql/expressions';
 import { sql } from '~/sql/sql.ts';
 import { db } from './db.ts';
 
@@ -43,31 +43,28 @@ export const users = mssqlTable(
 		createdAt: datetime('created_at', { mode: 'date' }).default(sql`current_timestamp`).notNull(),
 		enumCol: text('enum_col', { enum: ['a', 'b', 'c'] }).notNull(),
 	},
-	(users) => ({
-		usersAge1Idx: uniqueIndex('usersAge1Idx').on(users.class),
-		usersAge2Idx: index('usersAge2Idx').on(users.class),
-		uniqueClass: uniqueIndex('uniqueClass')
-			.on(users.class, users.subClass)
-			.lock('default')
-			.algorythm('copy')
-			.using(`btree`),
-		legalAge: check('legalAge', sql`${users.age1} > 18`),
-		usersClassFK: foreignKey({ columns: [users.subClass], foreignColumns: [classes.subClass] }),
-		usersClassComplexFK: foreignKey({
+	(users) => [
+		uniqueIndex('usersAge1Idx').on(users.class),
+		index('usersAge2Idx').on(users.class),
+		uniqueIndex('uniqueClass')
+			.on(users.class, users.subClass),
+		check('legalAge', sql`${users.age1} > 18`),
+		foreignKey({ columns: [users.subClass], foreignColumns: [classes.subClass] }),
+		foreignKey({
 			columns: [users.class, users.subClass],
 			foreignColumns: [classes.class, classes.subClass],
 		}),
-		pk: primaryKey({ columns: [users.age1, users.class] }),
-	}),
+		primaryKey({ columns: [users.age1, users.class] }),
+	],
 );
 
 export const cities = mssqlTable('cities_table', {
 	id: int('id').identity().primaryKey(),
 	name: text('name_db').notNull(),
 	population: int('population').default(0),
-}, (cities) => ({
-	citiesNameIdx: index('citiesNameIdx').on(cities.id),
-}));
+}, (cities) => [
+	index('citiesNameIdx').on(cities.id),
+]);
 
 Expect<
 	Equal<{
@@ -83,9 +80,9 @@ export const citiesCustom = customSchema.table('cities_table', {
 	id: int('id').identity().primaryKey(),
 	name: text('name_db').notNull(),
 	population: int('population').default(0),
-}, (cities) => ({
-	citiesNameIdx: index('citiesNameIdx').on(cities.id),
-}));
+}, (cities) => [
+	index('citiesNameIdx').on(cities.id),
+]);
 
 Expect<Equal<typeof cities._.columns, typeof citiesCustom._.columns>>;
 
@@ -102,9 +99,7 @@ export const classes = mssqlTable('classes_table', {
 }); */
 
 export const newYorkers = mssqlView('new_yorkers')
-	.algorithm('merge')
-	.definer('root@localhost')
-	.sqlSecurity('definer')
+	.with({ checkOption: true, encryption: false, schemaBinding: true, viewMetadata: false })
 	.as((qb) => {
 		const sq = qb
 			.$with('sq')
@@ -161,9 +156,6 @@ Expect<
 
 {
 	const newYorkers = customSchema.view('new_yorkers')
-		.algorithm('merge')
-		.definer('root@localhost')
-		.sqlSecurity('definer')
 		.as((qb) => {
 			const sq = qb
 				.$with('sq')
@@ -224,9 +216,6 @@ Expect<
 		userId: int('user_id').notNull(),
 		cityId: int('city_id'),
 	})
-		.algorithm('merge')
-		.definer('root@localhost')
-		.sqlSecurity('definer')
 		.as(
 			sql`select ${users.id} as user_id, ${cities.id} as city_id from ${users} left join ${cities} on ${
 				eq(cities.id, users.homeCity)
@@ -265,112 +254,6 @@ Expect<
 					isPrimaryKey: false;
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
-					enumValues: undefined;
-					baseColumn: never;
-					identity: undefined;
-					generated: undefined;
-				}, {}>;
-			}>,
-			typeof newYorkers
-		>
-	>;
-}
-
-{
-	const newYorkers = customSchema.view('new_yorkers', {
-		userId: int('user_id').notNull(),
-		cityId: int('city_id'),
-	})
-		.algorithm('merge')
-		.definer('root@localhost')
-		.sqlSecurity('definer')
-		.as(
-			sql`select ${users.id} as user_id, ${cities.id} as city_id from ${users} left join ${cities} on ${
-				eq(cities.id, users.homeCity)
-			} where ${gt(users.age1, 18)}`,
-		);
-
-	Expect<
-		Equal<
-			MsSqlViewWithSelection<'new_yorkers', false, {
-				userId: MsSqlColumn<{
-					name: 'user_id';
-					dataType: 'number';
-					columnType: 'MsSqlInt';
-					data: number;
-					driverParam: number;
-					hasDefault: false;
-					notNull: true;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-					tableName: 'new_yorkers';
-					enumValues: undefined;
-					identity: undefined;
-					baseColumn: never;
-					generated: undefined;
-				}, {}>;
-				cityId: MsSqlColumn<{
-					name: 'city_id';
-					notNull: false;
-					hasDefault: false;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					identity: undefined;
-					hasRuntimeDefault: false;
-					dataType: 'number';
-					columnType: 'MsSqlInt';
-					data: number;
-					driverParam: number;
-					tableName: 'new_yorkers';
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-				}, {}>;
-			}>,
-			typeof newYorkers
-		>
-	>;
-}
-
-{
-	const newYorkers = mssqlView('new_yorkers', {
-		userId: int('user_id').notNull(),
-		cityId: int('city_id'),
-	}).existing();
-
-	Expect<
-		Equal<
-			MsSqlViewWithSelection<'new_yorkers', true, {
-				userId: MsSqlColumn<{
-					name: 'user_id';
-					dataType: 'number';
-					columnType: 'MsSqlInt';
-					data: number;
-					driverParam: number;
-					hasDefault: false;
-					notNull: true;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-					tableName: 'new_yorkers';
-					enumValues: undefined;
-					baseColumn: never;
-					identity: undefined;
-					generated: undefined;
-				}, {}>;
-				cityId: MsSqlColumn<{
-					name: 'city_id';
-					notNull: false;
-					hasDefault: false;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-					dataType: 'number';
-					columnType: 'MsSqlInt';
-					data: number;
-					driverParam: number;
-					tableName: 'new_yorkers';
 					enumValues: undefined;
 					baseColumn: never;
 					identity: undefined;

@@ -1,6 +1,6 @@
 import { Expect } from 'type-tests/utils.ts';
-import { and, eq } from '~/expressions.ts';
 import { alias, int, mssqlTable, text } from '~/mssql-core/index.ts';
+import { and, eq } from '~/sql/expressions';
 import { sql } from '~/sql/sql.ts';
 import type { DrizzleTypeError, Equal } from '~/utils.ts';
 import { db } from './db.ts';
