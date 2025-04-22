@@ -118,8 +118,9 @@ export type MySqlJoinFn<
 	T extends AnyMySqlSelectQueryBuilder,
 	TDynamic extends boolean,
 	TJoinType extends MySqlJoinType,
+	TIsLateral extends boolean,
 > = 'cross' extends TJoinType ? <
-		TJoinedTable extends MySqlTable | Subquery | MySqlViewBase | SQL,
+		TJoinedTable extends (TIsLateral extends true ? Subquery | SQL : MySqlTable | Subquery | MySqlViewBase | SQL),
 		TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
 	>(
 		table: TJoinedTable,
@@ -129,7 +130,7 @@ export type MySqlJoinFn<
 			| undefined,
 	) => MySqlJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>
 	: <
-		TJoinedTable extends MySqlTable | Subquery | MySqlViewBase | SQL,
+		TJoinedTable extends (TIsLateral extends true ? Subquery | SQL : MySqlTable | Subquery | MySqlViewBase | SQL),
 		TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
 	>(
 		table: TJoinedTable,

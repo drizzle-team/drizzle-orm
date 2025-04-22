@@ -112,12 +112,13 @@ export type GelSelectJoinFn<
 	T extends AnyGelSelectQueryBuilder,
 	TDynamic extends boolean,
 	TJoinType extends JoinType,
+	TIsLateral extends boolean,
 > = 'cross' extends TJoinType ? <
-		TJoinedTable extends GelTable | Subquery | GelViewBase | SQL,
+		TJoinedTable extends (TIsLateral extends true ? Subquery | SQL : GelTable | Subquery | GelViewBase | SQL),
 		TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
 	>(table: TJoinedTable) => GelSelectJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>
 	: <
-		TJoinedTable extends GelTable | Subquery | GelViewBase | SQL,
+		TJoinedTable extends (TIsLateral extends true ? Subquery | SQL : GelTable | Subquery | GelViewBase | SQL),
 		TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
 	>(
 		table: TJoinedTable,

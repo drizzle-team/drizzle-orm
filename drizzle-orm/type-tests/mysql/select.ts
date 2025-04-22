@@ -78,18 +78,6 @@ Expect<
 	>
 >;
 
-const fullJoinFull = await db.select().from(users).fullJoin(city, eq(users.id, city.id));
-
-Expect<
-	Equal<
-		{
-			users_table: typeof users.$inferSelect | null;
-			city: typeof city.$inferSelect | null;
-		}[],
-		typeof fullJoinFull
-	>
->;
-
 const crossJoinFull = await db.select().from(users).crossJoin(city);
 
 Expect<
@@ -157,25 +145,6 @@ Expect<
 		cityId: number;
 		cityName: string;
 	}[], typeof innerJoinFlat>
->;
-
-const fullJoinFlat = await db
-	.select({
-		userId: users.id,
-		userText: users.text,
-		cityId: city.id,
-		cityName: city.name,
-	})
-	.from(users)
-	.fullJoin(city, eq(users.id, city.id));
-
-Expect<
-	Equal<{
-		userId: number | null;
-		userText: string | null;
-		cityId: number | null;
-		cityName: string | null;
-	}[], typeof fullJoinFlat>
 >;
 
 const crossJoinFlat = await db
@@ -1020,4 +989,200 @@ await db
 	await db.select().from(table1)
 		// @ts-expect-error
 		.crossJoin(table2, eq(table1.id, table2.table1Id));
+}
+
+{
+	const table1 = mysqlTable('table1', {
+		id: int().primaryKey(),
+		name: text().notNull(),
+	});
+
+	const table2 = mysqlTable('table2', {
+		id: int().primaryKey(),
+		age: int().notNull(),
+		table1Id: int().references(() => table1.id).notNull(),
+	});
+
+	const view = mysqlView('view').as((qb) => qb.select().from(table2));
+
+	const leftLateralRawRes = await db.select({
+		table1,
+		sqId: sql<number | null>`${sql.identifier('t2')}.${sql.identifier('id')}`.as('sqId'),
+	}).from(table1).leftJoinLateral(sql`(SELECT * FROM ${table2}) as ${sql.identifier('t2')}`, sql`true`);
+
+	Expect<
+		Equal<typeof leftLateralRawRes, {
+			table1: {
+				id: number;
+				name: string;
+			};
+			sqId: number | null;
+		}[]>
+	>;
+
+	const leftLateralSubRes = await db.select().from(table1).leftJoinLateral(
+		db.select().from(table2).as('sub'),
+		sql`true`,
+	);
+
+	Expect<
+		Equal<typeof leftLateralSubRes, {
+			table1: {
+				id: number;
+				name: string;
+			};
+			sub: {
+				id: number;
+				age: number;
+				table1Id: number;
+			} | null;
+		}[]>
+	>;
+
+	const sqLeftLateral = db.select().from(table2).as('sub');
+
+	const leftLateralSubSelectionRes = await db.select(
+		{
+			id: table1.id,
+			sId: sqLeftLateral.id,
+		},
+	).from(table1).leftJoinLateral(
+		sqLeftLateral,
+		sql`true`,
+	);
+
+	Expect<
+		Equal<typeof leftLateralSubSelectionRes, {
+			id: number;
+			sId: number | null;
+		}[]>
+	>;
+
+	await db.select().from(table1)
+		// @ts-expect-error
+		.leftJoinLateral(table2, sql`true`);
+
+	await db.select().from(table1)
+		// @ts-expect-error
+		.leftJoinLateral(view, sql`true`);
+
+	const innerLateralRawRes = await db.select({
+		table1,
+		sqId: sql<number>`${sql.identifier('t2')}.${sql.identifier('id')}`.as('sqId'),
+	}).from(table1).innerJoinLateral(sql`(SELECT * FROM ${table2}) as ${sql.identifier('t2')}`, sql`true`);
+
+	Expect<
+		Equal<typeof innerLateralRawRes, {
+			table1: {
+				id: number;
+				name: string;
+			};
+			sqId: number;
+		}[]>
+	>;
+
+	const innerLateralSubRes = await db.select().from(table1).innerJoinLateral(
+		db.select().from(table2).as('sub'),
+		sql`true`,
+	);
+
+	Expect<
+		Equal<typeof innerLateralSubRes, {
+			table1: {
+				id: number;
+				name: string;
+			};
+			sub: {
+				id: number;
+				age: number;
+				table1Id: number;
+			};
+		}[]>
+	>;
+
+	const sqInnerLateral = db.select().from(table2).as('sub');
+
+	const innerLateralSubSelectionRes = await db.select(
+		{
+			id: table1.id,
+			sId: sqLeftLateral.id,
+		},
+	).from(table1).innerJoinLateral(
+		sqInnerLateral,
+		sql`true`,
+	);
+
+	Expect<
+		Equal<typeof innerLateralSubSelectionRes, {
+			id: number;
+			sId: number;
+		}[]>
+	>;
+
+	await db.select().from(table1)
+		// @ts-expect-error
+		.innerJoinLateral(table2, sql`true`);
+
+	await db.select().from(table1)
+		// @ts-expect-error
+		.innerJoinLateral(view, sql`true`);
+
+	const crossLateralRawRes = await db.select({
+		table1,
+		sqId: sql<number>`${sql.identifier('t2')}.${sql.identifier('id')}`.as('sqId'),
+	}).from(table1).crossJoinLateral(sql`(SELECT * FROM ${table2}) as ${sql.identifier('t2')}`);
+
+	Expect<
+		Equal<typeof crossLateralRawRes, {
+			table1: {
+				id: number;
+				name: string;
+			};
+			sqId: number;
+		}[]>
+	>;
+
+	const crossLateralSubRes = await db.select().from(table1).crossJoinLateral(
+		db.select().from(table2).as('sub'),
+	);
+
+	Expect<
+		Equal<typeof crossLateralSubRes, {
+			table1: {
+				id: number;
+				name: string;
+			};
+			sub: {
+				id: number;
+				age: number;
+				table1Id: number;
+			};
+		}[]>
+	>;
+
+	const sqCrossLateral = db.select().from(table2).as('sub');
+
+	const crossLateralSubSelectionRes = await db.select(
+		{
+			id: table1.id,
+			sId: sqCrossLateral.id,
+		},
+	).from(table1).crossJoinLateral(
+		sqInnerLateral,
+	);
+
+	Expect<
+		Equal<typeof crossLateralSubSelectionRes, {
+			id: number;
+			sId: number;
+		}[]>
+	>;
+
+	await db.select().from(table1)
+		// @ts-expect-error
+		.crossJoinLateral(table2);
+
+	await db.select().from(table1)
+		// @ts-expect-error
+		.crossJoinLateral(view);
 }

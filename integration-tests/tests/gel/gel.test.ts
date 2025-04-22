@@ -19,9 +19,11 @@ import {
 	ilike,
 	inArray,
 	is,
+	like,
 	lt,
 	max,
 	min,
+	not,
 	notInArray,
 	or,
 	SQL,
@@ -1238,7 +1240,7 @@ describe('some', async () => {
 		).toSQL();
 
 		expect(query).toEqual({
-			sql: 'select "id1", "name" from "users" group by "users"."id1", "users"."name"',
+			sql: 'select "users"."id1", "users"."name" from "users" group by "users"."id1", "users"."name"',
 			params: [],
 		});
 	});
@@ -3892,7 +3894,8 @@ describe('some', async () => {
 			.groupBy(usersMySchemaTable.id1, usersMySchemaTable.name).toSQL();
 
 		expect(query).toEqual({
-			sql: 'select "id1", "name" from "mySchema"."users" group by "mySchema"."users"."id1", "mySchema"."users"."name"',
+			sql:
+				'select "mySchema"."users"."id1", "mySchema"."users"."name" from "mySchema"."users" group by "mySchema"."users"."id1", "mySchema"."users"."name"',
 			params: [],
 		});
 	});
@@ -4206,6 +4209,151 @@ describe('some', async () => {
 			{ city: 'Seattle', user: 'Jane' },
 			{ city: 'New York City', user: 'John' },
 			{ city: 'Seattle', user: 'John' },
+		]);
+	});
+
+	test('left join (lateral)', async (ctx) => {
+		const { db } = ctx.gel;
+
+		await db
+			.insert(citiesTable)
+			.values([{ id1: 1, name: 'Paris' }, { id1: 2, name: 'London' }])
+			.returning({ id: citiesTable.id1 });
+
+		await db.insert(users2Table).values([{ id1: 1, name: 'John', cityId: 1 }, { id1: 2, name: 'Jane' }]);
+
+		const sq = db
+			.select({
+				userId: users2Table.id1,
+				userName: users2Table.name,
+				cityId: users2Table.cityId,
+			})
+			.from(users2Table)
+			.where(eq(users2Table.cityId, citiesTable.id1))
+			.as('sq');
+
+		const res = await db
+			.select({
+				cityId: citiesTable.id1,
+				cityName: citiesTable.name,
+				userId: sq.userId,
+				userName: sq.userName,
+			})
+			.from(citiesTable)
+			.leftJoinLateral(sq, sql`true`);
+
+		expect(res).toStrictEqual([
+			{ cityId: 1, cityName: 'Paris', userId: 1, userName: 'John' },
+			{ cityId: 2, cityName: 'London', userId: null, userName: null },
+		]);
+	});
+
+	test('inner join (lateral)', async (ctx) => {
+		const { db } = ctx.gel;
+
+		await db
+			.insert(citiesTable)
+			.values([{ id1: 1, name: 'Paris' }, { id1: 2, name: 'London' }])
+			.returning({ id: citiesTable.id1 });
+
+		await db.insert(users2Table).values([{ id1: 1, name: 'John', cityId: 1 }, { id1: 2, name: 'Jane' }]);
+
+		const sq = db
+			.select({
+				userId: users2Table.id1,
+				userName: users2Table.name,
+				cityId: users2Table.cityId,
+			})
+			.from(users2Table)
+			.where(eq(users2Table.cityId, citiesTable.id1))
+			.as('sq');
+
+		const res = await db
+			.select({
+				cityId: citiesTable.id1,
+				cityName: citiesTable.name,
+				userId: sq.userId,
+				userName: sq.userName,
+			})
+			.from(citiesTable)
+			.innerJoinLateral(sq, sql`true`);
+
+		expect(res).toStrictEqual([
+			{ cityId: 1, cityName: 'Paris', userId: 1, userName: 'John' },
+		]);
+	});
+
+	test('cross join (lateral)', async (ctx) => {
+		const { db } = ctx.gel;
+
+		await db
+			.insert(citiesTable)
+			.values([{ id1: 1, name: 'Paris' }, { id1: 2, name: 'London' }, { id1: 3, name: 'Berlin' }]);
+
+		await db.insert(users2Table).values([{ id1: 1, name: 'John', cityId: 1 }, { id1: 2, name: 'Jane' }, {
+			id1: 3,
+			name: 'Patrick',
+			cityId: 2,
+		}]);
+
+		const sq = db
+			.select({
+				userId: users2Table.id1,
+				userName: users2Table.name,
+				cityId: users2Table.cityId,
+			})
+			.from(users2Table)
+			.where(not(like(citiesTable.name, 'L%')))
+			.as('sq');
+
+		const res = await db
+			.select({
+				cityId: citiesTable.id1,
+				cityName: citiesTable.name,
+				userId: sq.userId,
+				userName: sq.userName,
+			})
+			.from(citiesTable)
+			.crossJoinLateral(sq)
+			.orderBy(citiesTable.id1, sq.userId);
+
+		expect(res).toStrictEqual([
+			{
+				cityId: 1,
+				cityName: 'Paris',
+				userId: 1,
+				userName: 'John',
+			},
+			{
+				cityId: 1,
+				cityName: 'Paris',
+				userId: 2,
+				userName: 'Jane',
+			},
+			{
+				cityId: 1,
+				cityName: 'Paris',
+				userId: 3,
+				userName: 'Patrick',
+			},
+			{
+				cityId: 3,
+				cityName: 'Berlin',
+				userId: 1,
+				userName: 'John',
+			},
+			{
+				cityId: 3,
+				cityName: 'Berlin',
+				userId: 2,
+				userName: 'Jane',
+			},
+			{
+				cityId: 3,
+				cityName: 'Berlin',
+				userId: 3,
+				userName: 'Patrick',
+			},
 		]);
 	});
 

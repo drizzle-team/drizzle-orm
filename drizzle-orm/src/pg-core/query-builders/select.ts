@@ -466,6 +466,19 @@ export abstract class PgSelectQueryBuilderBase<
 	 */
 	crossJoin = this.createJoin('cross', false);
 
+	/**
+	 * Executes a `cross join lateral` operation by combining rows from two queries into a new table.
+	 *
+	 * A `lateral` join allows the right-hand expression to refer to columns from the left-hand side.
+	 *
+	 * Calling this method retrieves all rows from both main and joined queries, merging all rows from each query.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/joins#cross-join-lateral}
+	 *
+	 * @param table the query to join.
+	 */
+	crossJoinLateral = this.createJoin('cross', true);
+
 	private createSetOperator(
 		type: SetOperator,
 		isAll: boolean,

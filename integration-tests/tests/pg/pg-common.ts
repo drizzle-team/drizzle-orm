@@ -19,9 +19,11 @@ import {
 	ilike,
 	inArray,
 	is,
+	like,
 	lt,
 	max,
 	min,
+	not,
 	notInArray,
 	or,
 	SQL,
@@ -5752,13 +5754,11 @@ export function tests() {
 		test('left join (lateral)', async (ctx) => {
 			const { db } = ctx.pg;
 
-			const { id: cityId } = await db
+			await db
 				.insert(citiesTable)
-				.values([{ name: 'Paris' }, { name: 'London' }])
-				.returning({ id: citiesTable.id })
-				.then((rows) => rows[0]!);
+				.values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }]);
 
-			await db.insert(users2Table).values([{ name: 'John', cityId }, { name: 'Jane' }]);
+			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
 
 			const sq = db
 				.select({
@@ -5789,13 +5789,11 @@ export function tests() {
 		test('inner join (lateral)', async (ctx) => {
 			const { db } = ctx.pg;
 
-			const { id: cityId } = await db
+			await db
 				.insert(citiesTable)
-				.values([{ name: 'Paris' }, { name: 'London' }])
-				.returning({ id: citiesTable.id })
-				.then((rows) => rows[0]!);
+				.values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }]);
 
-			await db.insert(users2Table).values([{ name: 'John', cityId }, { name: 'Jane' }]);
+			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
 
 			const sq = db
 				.select({
@@ -5819,6 +5817,79 @@ export function tests() {
 
 			expect(res).toStrictEqual([
 				{ cityId: 1, cityName: 'Paris', userId: 1, userName: 'John' },
+			]);
+		});
+
+		test('cross join (lateral)', async (ctx) => {
+			const { db } = ctx.pg;
+
+			await db
+				.insert(citiesTable)
+				.values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }, { id: 3, name: 'Berlin' }]);
+
+			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }, {
+				name: 'Patrick',
+				cityId: 2,
+			}]);
+
+			const sq = db
+				.select({
+					userId: users2Table.id,
+					userName: users2Table.name,
+					cityId: users2Table.cityId,
+				})
+				.from(users2Table)
+				.where(not(like(citiesTable.name, 'L%')))
+				.as('sq');
+
+			const res = await db
+				.select({
+					cityId: citiesTable.id,
+					cityName: citiesTable.name,
+					userId: sq.userId,
+					userName: sq.userName,
+				})
+				.from(citiesTable)
+				.crossJoinLateral(sq)
+				.orderBy(citiesTable.id, sq.userId);
+
+			expect(res).toStrictEqual([
+				{
+					cityId: 1,
+					cityName: 'Paris',
+					userId: 1,
+					userName: 'John',
+				},
+				{
+					cityId: 1,
+					cityName: 'Paris',
+					userId: 2,
+					userName: 'Jane',
+				},
+				{
+					cityId: 1,
+					cityName: 'Paris',
+					userId: 3,
+					userName: 'Patrick',
+				},
+				{
+					cityId: 3,
+					cityName: 'Berlin',
+					userId: 1,
+					userName: 'John',
+				},
+				{
+					cityId: 3,
+					cityName: 'Berlin',
+					userId: 2,
+					userName: 'Jane',
+				},
+				{
+					cityId: 3,
+					cityName: 'Berlin',
+					userId: 3,
+					userName: 'Patrick',
+				},
 			]);
 		});
 

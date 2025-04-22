@@ -195,9 +195,11 @@ export class GelDialect {
 	 * `insert ... returning <selection>`
 	 *
 	 * If `isSingleTable` is true, then columns won't be prefixed with table name
+	 * ^ Temporarily disabled behaviour, see comments within method for a reasoning
 	 */
 	private buildSelection(
 		fields: SelectedFieldsOrdered,
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		{ isSingleTable = false }: { isSingleTable?: boolean } = {},
 	): SQL {
 		const columnsLen = fields.length;
@@ -211,30 +213,34 @@ export class GelDialect {
 				} else if (is(field, SQL.Aliased) || is(field, SQL)) {
 					const query = is(field, SQL.Aliased) ? field.sql : field;
 
-					if (isSingleTable) {
-						chunk.push(
-							new SQL(
-								query.queryChunks.map((c) => {
-									if (is(c, GelColumn)) {
-										return sql.identifier(this.casing.getColumnCasing(c));
-									}
-									return c;
-								}),
-							),
-						);
-					} else {
-						chunk.push(query);
-					}
+					// Gel throws an error when more than one similarly named columns exist within context instead of preferring the closest one
+					// thus forcing us to be explicit about column's source
+					// if (isSingleTable) {
+					// 	chunk.push(
+					// 		new SQL(
+					// 			query.queryChunks.map((c) => {
+					// 				if (is(c, GelColumn)) {
+					// 					return sql.identifier(this.casing.getColumnCasing(c));
+					// 				}
+					// 				return c;
+					// 			}),
+					// 		),
+					// 	);
+					// } else {
+					chunk.push(query);
+					// }
 
 					if (is(field, SQL.Aliased)) {
 						chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
 					}
 				} else if (is(field, Column)) {
-					if (isSingleTable) {
-						chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
-					} else {
-						chunk.push(field);
-					}
+					// Gel throws an error when more than one similarly named columns exist within context instead of preferring the closest one
+					// thus forcing us to be explicit about column's source
+					// if (isSingleTable) {
+					// 	chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
+					// } else {
+					chunk.push(field);
+					// }
 				}
 
 				if (i < columnsLen - 1) {
