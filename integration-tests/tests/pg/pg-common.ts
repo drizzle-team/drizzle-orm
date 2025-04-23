@@ -2184,7 +2184,7 @@ export function tests() {
 					.for('share', { of: users2Table, noWait: true })
 					.toSQL();
 
-				expect(query.sql).toMatch(/for share of "users2" no wait$/);
+				expect(query.sql).toMatch(/for share of "users2" nowait$/);
 			}
 		});
 

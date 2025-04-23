@@ -413,7 +413,7 @@ export class PgDialect {
 				);
 			}
 			if (lockingClause.config.noWait) {
-				clauseSql.append(sql` no wait`);
+				clauseSql.append(sql` nowait`);
 			} else if (lockingClause.config.skipLocked) {
 				clauseSql.append(sql` skip locked`);
 			}
