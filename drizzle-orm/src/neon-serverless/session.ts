@@ -9,12 +9,13 @@ import {
 	types,
 } from '@neondatabase/serverless';
 import { type Cache, NoopCache } from '~/cache/core/cache.ts';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgTransaction } from '~/pg-core/index.ts';
-import type { SelectedFieldsOrdered, WithCacheConfig } from '~/pg-core/query-builders/select.types.ts';
+import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
@@ -64,6 +65,26 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig> extends PgPrepared
 					if (typeId === types.builtins.INTERVAL) {
 						return (val: any) => val;
 					}
+					// numeric[]
+					if (typeId === 1231) {
+						return (val: any) => val;
+					}
+					// timestamp[]
+					if (typeId === 1115) {
+						return (val) => val;
+					}
+					// timestamp with timezone[]
+					if (typeId === 1185) {
+						return (val) => val;
+					}
+					// interval[]
+					if (typeId === 1187) {
+						return (val) => val;
+					}
+					// date[]
+					if (typeId === 1182) {
+						return (val) => val;
+					}
 					// @ts-ignore
 					return types.getTypeParser(typeId, format);
 				},
@@ -87,6 +108,26 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig> extends PgPrepared
 					}
 					if (typeId === types.builtins.INTERVAL) {
 						return (val: any) => val;
+					}
+					// numeric[]
+					if (typeId === 1231) {
+						return (val: any) => val;
+					}
+					// timestamp[]
+					if (typeId === 1115) {
+						return (val) => val;
+					}
+					// timestamp with timezone[]
+					if (typeId === 1185) {
+						return (val) => val;
+					}
+					// interval[]
+					if (typeId === 1187) {
+						return (val) => val;
+					}
+					// date[]
+					if (typeId === 1182) {
+						return (val) => val;
 					}
 					// @ts-ignore
 					return types.getTypeParser(typeId, format);

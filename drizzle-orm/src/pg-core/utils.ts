@@ -66,7 +66,7 @@ export function getTableConfig<TTable extends PgTable>(table: TTable) {
 
 export function extractUsedTable(table: PgTable | Subquery | PgViewBase | SQL): string[] {
 	if (is(table, PgTable)) {
-		return [`${table[Schema] ?? 'public'}.${table[Table.Symbol.BaseName]}`];
+		return [table[Schema] ? `${table[Schema]}.${table[Table.Symbol.BaseName]}` : table[Table.Symbol.BaseName]];
 	}
 	if (is(table, Subquery)) {
 		return table._.usedTables ?? [];

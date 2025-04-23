@@ -1,14 +1,15 @@
 import { type Cache, NoopCache } from '~/cache/core/cache.ts';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import { TransactionRollbackError } from '~/errors.ts';
 import type { TablesRelationalConfig } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import { type Query, type SQL, sql } from '~/sql/index.ts';
 import { tracer } from '~/tracing.ts';
-import type { NeonAuthToken } from '~/utils.ts';
+import { hashQuery, type NeonAuthToken } from '~/utils.ts';
 import { PgDatabase } from './db.ts';
 import type { PgDialect } from './dialect.ts';
-import type { SelectedFieldsOrdered, WithCacheConfig } from './query-builders/select.types.ts';
+import type { SelectedFieldsOrdered } from './query-builders/select.types.ts';
 
 export interface PreparedQueryConfig {
 	execute: unknown;
@@ -59,17 +60,6 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 	/** @internal */
 	joinsNotNullableMap?: Record<string, boolean>;
 
-	async hashQuery(sql: string, params?: any[]) {
-		const dataToHash = `${sql}-${JSON.stringify(params)}`;
-		const encoder = new TextEncoder();
-		const data = encoder.encode(dataToHash);
-		const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-		const hashArray = [...new Uint8Array(hashBuffer)];
-		const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-
-		return hashHex;
-	}
-
 	/** @internal */
 	protected async queryWithCache<T>(
 		queryString: string,
@@ -106,7 +96,7 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 
 		if (this.queryMetadata.type === 'select') {
 			const fromCache = await this.cache.get(
-				this.cacheConfig.tag ?? await this.hashQuery(queryString, params),
+				this.cacheConfig.tag ?? await hashQuery(queryString, params),
 				this.queryMetadata.tables,
 				this.cacheConfig.tag !== undefined,
 			);
@@ -114,7 +104,7 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 				const result = await query();
 				// put actual key
 				await this.cache.put(
-					this.cacheConfig.tag ?? await this.hashQuery(queryString, params),
+					this.cacheConfig.tag ?? await hashQuery(queryString, params),
 					result,
 					// make sure we send tables that were used in a query only if user wants to invalidate it on each write
 					this.cacheConfig.autoInvalidate ? this.queryMetadata.tables : [],

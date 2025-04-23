@@ -1,3 +1,4 @@
+import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { GelDialect } from '~/gel-core/dialect.ts';
 import {
@@ -496,6 +497,8 @@ export class GelDatabase<
 			distinct: { on },
 		});
 	}
+
+	$cache: { invalidate: Cache['onMutate'] } | undefined;
 
 	/**
 	 * Creates an update query.

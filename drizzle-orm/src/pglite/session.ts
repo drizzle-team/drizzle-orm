@@ -3,7 +3,7 @@ import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgTransaction } from '~/pg-core/index.ts';
-import type { SelectedFieldsOrdered, WithCacheConfig } from '~/pg-core/query-builders/select.types.ts';
+import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
@@ -12,6 +12,7 @@ import { type Assume, mapResultRow } from '~/utils.ts';
 
 import { types } from '@electric-sql/pglite';
 import { type Cache, NoopCache } from '~/cache/core/cache.ts';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 
 export type PgliteClient = PGlite;
 
@@ -45,6 +46,16 @@ export class PglitePreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 				[types.TIMESTAMPTZ]: (value) => value,
 				[types.INTERVAL]: (value) => value,
 				[types.DATE]: (value) => value,
+				// numeric[]
+				[1231]: (value) => value,
+				// timestamp[]
+				[1115]: (value) => value,
+				// timestamp with timezone[]
+				[1185]: (value) => value,
+				// interval[]
+				[1187]: (value) => value,
+				// date[]
+				[1182]: (value) => value,
 			},
 		};
 		this.queryConfig = {
@@ -54,6 +65,16 @@ export class PglitePreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 				[types.TIMESTAMPTZ]: (value) => value,
 				[types.INTERVAL]: (value) => value,
 				[types.DATE]: (value) => value,
+				// numeric[]
+				[1231]: (value) => value,
+				// timestamp[]
+				[1115]: (value) => value,
+				// timestamp with timezone[]
+				[1185]: (value) => value,
+				// interval[]
+				[1187]: (value) => value,
+				// date[]
+				[1182]: (value) => value,
 			},
 		};
 	}

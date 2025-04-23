@@ -1,13 +1,11 @@
-import Docker from 'dockerode';
+import type Docker from 'dockerode';
 import { eq, getTableName, is, sql, Table } from 'drizzle-orm';
 import type { MutationOption } from 'drizzle-orm/cache/core';
 import { Cache } from 'drizzle-orm/cache/core';
 import type { CacheConfig } from 'drizzle-orm/cache/core/types';
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
 import { alias, boolean, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
-import getPort from 'get-port';
 import Keyv from 'keyv';
-import { v4 as uuidV4 } from 'uuid';
 import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest';
 
 // eslint-disable-next-line drizzle-internal/require-entity-kind
@@ -103,33 +101,6 @@ const postsTable = pgTable('posts', {
 
 let pgContainer: Docker.Container;
 
-export async function createDockerDB(): Promise<{ connectionString: string; container: Docker.Container }> {
-	const docker = new Docker();
-	const port = await getPort({ port: 5432 });
-	const image = 'postgres:14';
-
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
-	);
-
-	pgContainer = await docker.createContainer({
-		Image: image,
-		Env: ['POSTGRES_PASSWORD=postgres', 'POSTGRES_USER=postgres', 'POSTGRES_DB=postgres'],
-		name: `drizzle-integration-tests-${uuidV4()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'5432/tcp': [{ HostPort: `${port}` }],
-			},
-		},
-	});
-
-	await pgContainer.start();
-
-	return { connectionString: `postgres://postgres:postgres@localhost:${port}/postgres`, container: pgContainer };
-}
-
 afterAll(async () => {
 	await pgContainer?.stop().catch(console.error);
 });
@@ -139,8 +110,8 @@ export function tests() {
 		beforeEach(async (ctx) => {
 			const { db, dbGlobalCached } = ctx.cachedPg;
 			await db.execute(sql`drop schema if exists public cascade`);
-			await db.$cache?.invalidate({ tables: 'public.users' });
-			await dbGlobalCached.$cache?.invalidate({ tables: 'public.users' });
+			await db.$cache?.invalidate({ tables: 'users' });
+			await dbGlobalCached.$cache?.invalidate({ tables: 'users' });
 			await db.execute(sql`create schema public`);
 			// public users
 			await db.execute(
@@ -353,9 +324,9 @@ export function tests() {
 			const { db } = ctx.cachedPg;
 
 			// @ts-expect-error
-			expect(db.select().from(usersTable).getUsedTables()).toStrictEqual(['public.users']);
+			expect(db.select().from(usersTable).getUsedTables()).toStrictEqual(['users']);
 			// @ts-expect-error
-			expect(db.select().from(sql`${usersTable}`).getUsedTables()).toStrictEqual(['public.users']);
+			expect(db.select().from(sql`${usersTable}`).getUsedTables()).toStrictEqual(['users']);
 		});
 		// check select+join used tables
 		test('select+join', (ctx) => {
@@ -363,11 +334,11 @@ export function tests() {
 
 			// @ts-expect-error
 			expect(db.select().from(usersTable).leftJoin(postsTable, eq(usersTable.id, postsTable.userId)).getUsedTables())
-				.toStrictEqual(['public.users', 'public.posts']);
+				.toStrictEqual(['users', 'posts']);
 			expect(
 				// @ts-expect-error
 				db.select().from(sql`${usersTable}`).leftJoin(postsTable, eq(usersTable.id, postsTable.userId)).getUsedTables(),
-			).toStrictEqual(['public.users', 'public.posts']);
+			).toStrictEqual(['users', 'posts']);
 		});
 		// check select+2join used tables
 		test('select+2joins', (ctx) => {
@@ -384,14 +355,14 @@ export function tests() {
 					// @ts-expect-error
 					.getUsedTables(),
 			)
-				.toStrictEqual(['public.users', 'public.posts']);
+				.toStrictEqual(['users', 'posts']);
 			expect(
 				db.select().from(sql`${usersTable}`).leftJoin(postsTable, eq(usersTable.id, postsTable.userId)).leftJoin(
 					alias(postsTable, 'post2'),
 					eq(usersTable.id, postsTable.userId),
 					// @ts-expect-error
 				).getUsedTables(),
-			).toStrictEqual(['public.users', 'public.posts']);
+			).toStrictEqual(['users', 'posts']);
 		});
 		// select subquery used tables
 		test('select+join', (ctx) => {
@@ -401,7 +372,7 @@ export function tests() {
 			db.select().from(sq);
 
 			// @ts-expect-error
-			expect(db.select().from(sq).getUsedTables()).toStrictEqual(['public.users']);
+			expect(db.select().from(sq).getUsedTables()).toStrictEqual(['users']);
 		});
 	});
 }

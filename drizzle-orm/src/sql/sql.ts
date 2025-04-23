@@ -118,7 +118,13 @@ export class SQL<T = unknown> implements SQLWrapper {
 	constructor(readonly queryChunks: SQLChunk[]) {
 		for (const chunk of queryChunks) {
 			if (is(chunk, Table)) {
-				this.usedTables.push(chunk[Table.Symbol.Schema] ?? 'public' + '.' + chunk[Table.Symbol.Name]);
+				const schemaName = chunk[Table.Symbol.Schema];
+
+				this.usedTables.push(
+					schemaName === undefined
+						? chunk[Table.Symbol.Name]
+						: schemaName + '.' + chunk[Table.Symbol.Name],
+				);
 			}
 		}
 	}

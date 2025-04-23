@@ -1,3 +1,4 @@
+import * as crypto from 'node:crypto';
 import type { Cache } from './cache/core/cache.ts';
 import type { AnyColumn } from './column.ts';
 import { Column } from './column.ts';
@@ -185,12 +186,25 @@ export type Writable<T> = {
 	-readonly [P in keyof T]: T[P];
 };
 
+export type NonArray<T> = T extends any[] ? never : T;
+
 export function getTableColumns<T extends Table>(table: T): T['_']['columns'] {
 	return table[Table.Symbol.Columns];
 }
 
 export function getViewSelectedFields<T extends View>(view: T): T['_']['selectedFields'] {
 	return view[ViewBaseConfig].selectedFields;
+}
+
+export async function hashQuery(sql: string, params?: any[]) {
+	const dataToHash = `${sql}-${JSON.stringify(params)}`;
+	const encoder = new TextEncoder();
+	const data = encoder.encode(dataToHash);
+	const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+	const hashArray = [...new Uint8Array(hashBuffer)];
+	const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+
+	return hashHex;
 }
 
 /** @internal */
@@ -280,14 +294,14 @@ export function isConfig(data: any): boolean {
 	}
 
 	if ('schema' in data) {
-		const type = typeof data['logger'];
+		const type = typeof data['schema'];
 		if (type !== 'object' && type !== 'undefined') return false;
 
 		return true;
 	}
 
 	if ('casing' in data) {
-		const type = typeof data['logger'];
+		const type = typeof data['casing'];
 		if (type !== 'string' && type !== 'undefined') return false;
 
 		return true;
