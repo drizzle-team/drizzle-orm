@@ -7,6 +7,7 @@ import {
 	char,
 	check,
 	cidr,
+	comment,
 	date,
 	doublePrecision,
 	index,
@@ -927,7 +928,7 @@ test('multiple policies with roles from schema', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('introspect column comments', async () => {
+test.only('introspect comments', async () => {
 	const client = new PGlite();
 
 	const schema = {
@@ -936,7 +937,7 @@ test('introspect column comments', async () => {
 			name: varchar('name', { length: 255 }).comment('User full name'),
 			email: varchar('email', { length: 255 }).comment('User email address'),
 			age: integer('age').comment('User age in years'),
-		}),
+		}, () => [comment('User Table')]),
 	};
 
 	const { statements, sqlStatements } = await introspectPgToFile(

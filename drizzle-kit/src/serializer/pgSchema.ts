@@ -340,6 +340,7 @@ const table = object({
 	policies: record(string(), policy).default({}),
 	checkConstraints: record(string(), checkConstraint).default({}),
 	isRLSEnabled: boolean().default(false),
+	comment: string().optional(),
 }).strict();
 
 const schemaHash = object({
@@ -815,6 +816,7 @@ export const squashPgScheme = (
 				it[0],
 				{
 					name: it[1].name,
+					comment: it[1].comment,
 					schema: it[1].schema,
 					columns: mappedColumns,
 					indexes: squashedIndexes,

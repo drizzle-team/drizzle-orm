@@ -1950,6 +1950,16 @@ export const applyPgSnapshotsDiff = async (
 		}
 	}
 
+	const alteredTablesWithComment = alteredTables.filter((it) => it.alteredComment);
+	const jsonAlterTableSetComment: JsonAlterTableSetCommentStatement[] = alteredTablesWithComment.map((it) => {
+		return {
+			tableName: it.name,
+			comment: it.alteredComment,
+			schema: it.schema,
+			type: 'alter_table_set_comment',
+		};
+	});
+
 	jsonStatements.push(...createSchemas);
 	jsonStatements.push(...renameSchemas);
 	jsonStatements.push(...createEnums);
@@ -2025,6 +2035,8 @@ export const applyPgSnapshotsDiff = async (
 	jsonStatements.push(...dropEnums);
 	jsonStatements.push(...dropSequences);
 	jsonStatements.push(...dropSchemas);
+
+	jsonStatements.push(...jsonAlterTableSetComment);
 
 	// generate filters
 	const filteredJsonStatements = jsonStatements.filter((st) => {

@@ -4,6 +4,7 @@ import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } fr
 import type { CheckBuilder } from './checks.ts';
 import { getPgColumnBuilders, type PgColumnsBuilders } from './columns/all.ts';
 import type { ExtraConfigColumn, PgColumn, PgColumnBuilder, PgColumnBuilderBase } from './columns/common.ts';
+import type { CommentBuilder } from './comments.ts';
 import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
 import type { AnyIndexBuilder } from './indexes.ts';
 import type { PgPolicy } from './policies.ts';
@@ -13,6 +14,7 @@ import type { UniqueConstraintBuilder } from './unique-constraint.ts';
 export type PgTableExtraConfigValue =
 	| AnyIndexBuilder
 	| CheckBuilder
+	| CommentBuilder
 	| ForeignKeyBuilder
 	| PrimaryKeyBuilder
 	| UniqueConstraintBuilder

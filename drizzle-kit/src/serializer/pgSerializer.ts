@@ -130,6 +130,7 @@ export const generatePgSnapshot = (
 
 		const {
 			name: tableName,
+			comment,
 			columns,
 			indexes,
 			foreignKeys,
@@ -578,6 +579,7 @@ export const generatePgSnapshot = (
 		result[tableKey] = {
 			name: tableName,
 			schema: schema ?? '',
+			comment,
 			columns: columnsObject,
 			indexes: indexesObject,
 			foreignKeys: foreignKeysObject,
@@ -992,7 +994,9 @@ export const fromDatabase = async (
 
 	const where = schemaFilters.map((t) => `n.nspname = '${t}'`).join(' or ');
 
-	const allTables = await db.query<{ table_schema: string; table_name: string; type: string; rls_enabled: boolean }>(
+	const allTables = await db.query<
+		{ table_schema: string; table_name: string; type: string; rls_enabled: boolean; table_comment: string }
+	>(
 		`SELECT 
     n.nspname AS table_schema, 
     c.relname AS table_name, 
@@ -1001,11 +1005,14 @@ export const fromDatabase = async (
         WHEN c.relkind = 'v' THEN 'view'
         WHEN c.relkind = 'm' THEN 'materialized_view'
     END AS type,
-	c.relrowsecurity AS rls_enabled
+	c.relrowsecurity AS rls_enabled,
+	d.description AS table_comment
 FROM 
     pg_catalog.pg_class c
 JOIN 
     pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+LEFT JOIN 
+    pg_catalog.pg_description d ON d.objoid = c.oid AND d.objsubid = 0
 WHERE 
 	c.relkind IN ('r', 'v', 'm') 
     ${where === '' ? '' : ` AND ${where}`};`,
@@ -1218,6 +1225,7 @@ WHERE
 				if (!tablesFilter(tableName)) return res('');
 				tableCount += 1;
 				const tableSchema = row.table_schema;
+				const tableComment = row.table_comment;
 
 				try {
 					const columnToReturn: Record<string, Column> = {};
@@ -1655,6 +1663,7 @@ WHERE
 					}
 					result[`${tableSchema}.${tableName}`] = {
 						name: tableName,
+						comment: tableComment,
 						schema: tableSchema !== 'public' ? tableSchema : '',
 						columns: columnToReturn,
 						indexes: indexToReturn,

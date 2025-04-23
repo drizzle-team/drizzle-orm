@@ -4,6 +4,7 @@ import { Table } from '~/table.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { type Check, CheckBuilder } from './checks.ts';
 import type { AnyPgColumn } from './columns/index.ts';
+import { CommentBuilder } from './comments.ts';
 import { type ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
 import type { Index } from './indexes.ts';
 import { IndexBuilder } from './indexes.ts';
@@ -24,6 +25,7 @@ export function getTableConfig<TTable extends PgTable>(table: TTable) {
 	const schema = table[Table.Symbol.Schema];
 	const policies: PgPolicy[] = [];
 	const enableRLS: boolean = table[PgTable.Symbol.EnableRLS];
+	let comment: string | undefined;
 
 	const extraConfigBuilder = table[PgTable.Symbol.ExtraConfigBuilder];
 
@@ -43,6 +45,8 @@ export function getTableConfig<TTable extends PgTable>(table: TTable) {
 				foreignKeys.push(builder.build(table));
 			} else if (is(builder, PgPolicy)) {
 				policies.push(builder);
+			} else if (is(builder, CommentBuilder)) {
+				comment = builder.build(table).comment;
 			}
 		}
 	}
@@ -58,6 +62,7 @@ export function getTableConfig<TTable extends PgTable>(table: TTable) {
 		schema,
 		policies,
 		enableRLS,
+		comment,
 	};
 }
 

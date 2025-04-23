@@ -328,6 +328,9 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 
 	const imports = Object.values(schema.tables).reduce(
 		(res, it) => {
+			if (it.comment) {
+				res.pg.push('comment');
+			}
 			const idxImports = Object.values(it.indexes).map((idx) => (idx.isUnique ? 'uniqueIndex' : 'index'));
 			const fkImpots = Object.values(it.foreignKeys).map((it) => 'foreignKey');
 			if (Object.values(it.foreignKeys).some((it) => isCyclic(it) && !isSelf(it))) {
@@ -529,7 +532,8 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 		// });
 
 		if (
-			Object.keys(table.indexes).length > 0
+			table.comment
+			|| Object.keys(table.indexes).length > 0
 			|| Object.values(table.foreignKeys).length > 0
 			|| Object.values(table.policies).length > 0
 			|| Object.keys(table.compositePrimaryKeys).length > 0
@@ -538,6 +542,7 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 		) {
 			statement += ', ';
 			statement += '(table) => [';
+			statement += createTableComment(table.comment);
 			statement += createTableIndexes(table.name, Object.values(table.indexes), casing);
 			statement += createTableFKs(Object.values(table.foreignKeys), schemas, casing);
 			statement += createTablePKs(
@@ -1197,6 +1202,10 @@ const createTableColumns = (
 	});
 
 	return statement;
+};
+
+const createTableComment = (comment?: string) => {
+	return comment ? `comment("${comment}"),` : '';
 };
 
 const createTableIndexes = (tableName: string, idxs: Index[], casing: Casing): string => {

@@ -388,8 +388,17 @@ class PgCreateTableConvertor extends Convertor {
 	}
 
 	convert(st: JsonCreateTableStatement) {
-		const { tableName, schema, columns, compositePKs, uniqueConstraints, checkConstraints, policies, isRLSEnabled } =
-			st;
+		const {
+			tableName,
+			schema,
+			columns,
+			compositePKs,
+			uniqueConstraints,
+			checkConstraints,
+			policies,
+			isRLSEnabled,
+			comment,
+		} = st;
 
 		let statement = '';
 		const name = schema ? `"${schema}"."${tableName}"` : `"${tableName}"`;
@@ -492,6 +501,15 @@ class PgCreateTableConvertor extends Convertor {
 
 		const commentConvertor = new PgAlterTableAlterColumnSetCommentConvertor();
 		const comments: string[] = [];
+
+		if (comment) {
+			comments.push(new PgAlterTableSetCommentConvertor().convert({
+				type: 'alter_table_set_comment',
+				tableName,
+				schema,
+				comment,
+			}));
+		}
 
 		for (const column of columns) {
 			if (column.comment) {
@@ -2057,6 +2075,22 @@ class PgAlterTableAlterColumnDropCommentConvertor extends Convertor {
 			: `"${tableName}"`;
 
 		return `COMMENT ON COLUMN ${tableNameWithSchema}."${columnName}" IS NULL;`;
+	}
+}
+
+class PgAlterTableSetCommentConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_table_set_comment' && dialect === 'postgresql';
+	}
+
+	convert(statement: JsonAlterTableSetCommentStatement) {
+		const { tableName, schema, comment } = statement;
+
+		const tableNameWithSchema = schema
+			? `"${schema}"."${tableName}"`
+			: `"${tableName}"`;
+
+		return `COMMENT ON TABLE ${tableNameWithSchema} IS ${comment ? `'${comment}'` : 'NULL'};`;
 	}
 }
 
@@ -4245,6 +4279,8 @@ convertors.push(new PgDropIndexConvertor());
 convertors.push(new SqliteDropIndexConvertor());
 convertors.push(new MySqlDropIndexConvertor());
 convertors.push(new SingleStoreDropIndexConvertor());
+
+convertors.push(new PgAlterTableSetCommentConvertor());
 
 convertors.push(new PgAlterTableAlterColumnSetPrimaryKeyConvertor());
 convertors.push(new PgAlterTableAlterColumnDropPrimaryKeyConvertor());
