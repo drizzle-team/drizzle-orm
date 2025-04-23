@@ -702,6 +702,7 @@ const mysqlSuite: DialectSuite = {
 					indexes: {},
 					tables: {},
 				},
+				comment: undefined,
 				compositePKs: ['table_col1_col2_pk;col1,col2'],
 				compositePkName: 'table_col1_col2_pk',
 				uniqueConstraints: [],

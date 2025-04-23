@@ -32,6 +32,7 @@ test('add table #1', async () => {
 		tableName: 'users',
 		schema: undefined,
 		columns: [],
+		comment: undefined,
 		compositePKs: [],
 		internals: {
 			tables: {},
@@ -57,6 +58,7 @@ test('add table #2', async () => {
 		type: 'create_table',
 		tableName: 'users',
 		schema: undefined,
+		comment: undefined,
 		columns: [
 			{
 				name: 'id',
@@ -102,6 +104,7 @@ test('add table #3', async () => {
 		type: 'create_table',
 		tableName: 'users',
 		schema: undefined,
+		comment: undefined,
 		columns: [
 			{
 				name: 'id',
@@ -136,6 +139,7 @@ test('add table #4', async () => {
 		tableName: 'users',
 		schema: undefined,
 		columns: [],
+		comment: undefined,
 		internals: {
 			tables: {},
 			indexes: {},
@@ -150,6 +154,7 @@ test('add table #4', async () => {
 		tableName: 'posts',
 		schema: undefined,
 		columns: [],
+		comment: undefined,
 		compositePKs: [],
 		internals: {
 			tables: {},
@@ -194,6 +199,7 @@ test('add table #6', async () => {
 		tableName: 'users2',
 		schema: undefined,
 		columns: [],
+		comment: undefined,
 		internals: {
 			tables: {},
 			indexes: {},
@@ -231,6 +237,7 @@ test('add table #7', async () => {
 		tableName: 'users',
 		schema: undefined,
 		columns: [],
+		comment: undefined,
 		compositePKs: [],
 		uniqueConstraints: [],
 		internals: {
@@ -326,6 +333,7 @@ test('change table schema #2', async () => {
 		tableName: 'users',
 		schema: undefined,
 		columns: [],
+		comment: undefined,
 		uniqueConstraints: [],
 		compositePkName: '',
 		compositePKs: [],
@@ -888,6 +896,7 @@ test('add table with ts enum', async () => {
 			primaryKey: false,
 			type: "enum('value')",
 		}],
+		comment: undefined,
 		compositePKs: [],
 		internals: {
 			tables: {},

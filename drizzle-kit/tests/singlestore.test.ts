@@ -27,6 +27,7 @@ test('add table #1', async () => {
 		type: 'create_table',
 		tableName: 'users',
 		schema: undefined,
+		comment: undefined,
 		columns: [],
 		compositePKs: [],
 		internals: {
@@ -61,6 +62,7 @@ test('add table #2', async () => {
 				autoincrement: true,
 			},
 		],
+		comment: undefined,
 		compositePKs: ['users_id;id'],
 		compositePkName: 'users_id',
 		uniqueConstraints: [],
@@ -105,6 +107,7 @@ test('add table #3', async () => {
 				autoincrement: true,
 			},
 		],
+		comment: undefined,
 		compositePKs: ['users_pk;id'],
 		uniqueConstraints: [],
 		compositePkName: 'users_pk',
@@ -129,6 +132,7 @@ test('add table #4', async () => {
 		tableName: 'users',
 		schema: undefined,
 		columns: [],
+		comment: undefined,
 		internals: {
 			tables: {},
 			indexes: {},
@@ -142,6 +146,7 @@ test('add table #4', async () => {
 		tableName: 'posts',
 		schema: undefined,
 		columns: [],
+		comment: undefined,
 		compositePKs: [],
 		internals: {
 			tables: {},
@@ -185,6 +190,7 @@ test('add table #6', async () => {
 		tableName: 'users2',
 		schema: undefined,
 		columns: [],
+		comment: undefined,
 		internals: {
 			tables: {},
 			indexes: {},
@@ -228,6 +234,7 @@ test('add table #7', async () => {
 		tableName: 'users',
 		schema: undefined,
 		columns: [],
+		comment: undefined,
 		compositePKs: [],
 		uniqueConstraints: [],
 		internals: {
@@ -315,6 +322,7 @@ test('change table schema #2', async () => {
 		tableName: 'users',
 		schema: undefined,
 		columns: [],
+		comment: undefined,
 		uniqueConstraints: [],
 		compositePkName: '',
 		compositePKs: [],

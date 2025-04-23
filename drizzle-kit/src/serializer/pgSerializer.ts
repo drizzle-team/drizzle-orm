@@ -1225,7 +1225,7 @@ WHERE
 				if (!tablesFilter(tableName)) return res('');
 				tableCount += 1;
 				const tableSchema = row.table_schema;
-				const tableComment = row.table_comment;
+				const tableComment = row.table_comment ?? undefined;
 
 				try {
 					const columnToReturn: Record<string, Column> = {};

@@ -928,7 +928,7 @@ test('multiple policies with roles from schema', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test.only('introspect comments', async () => {
+test('introspect comments', async () => {
 	const client = new PGlite();
 
 	const schema = {
