@@ -278,7 +278,7 @@ export class MsSqlDialect {
 		const distinctSql = distinct ? sql` distinct` : undefined;
 
 		const topSql = top
-			? sql` top(${top?.value})${top.percent ? sql` percent` : undefined}${top.withTies ? sql` with ties` : undefined}`
+			? sql` top(${top})`
 			: undefined;
 
 		const selection = this.buildSelection(fieldsList, { isSingleTable });
@@ -722,7 +722,7 @@ export class MsSqlDialect {
 
 			result = aliasedTable(table, tableAlias);
 
-			const top = offset ? undefined : limit ? { value: limit } : undefined;
+			const top = offset ? undefined : limit ?? undefined;
 			const fetch = offset && limit ? limit : undefined;
 
 			// Mssql required order by to be present in the query if using offset and fetch(limit)
@@ -746,7 +746,7 @@ export class MsSqlDialect {
 				setOperators: [],
 			});
 		} else {
-			const top = offset ? undefined : limit ? { value: limit } : undefined;
+			const top = offset ? undefined : limit ?? undefined;
 			const fetch = offset && limit ? limit : undefined;
 
 			if (orderBy.length === 0 && offset !== undefined && fetch !== undefined) {

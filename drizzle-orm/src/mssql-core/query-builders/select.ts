@@ -44,28 +44,30 @@ import type {
 	SetOperatorRightSelect,
 } from './select.types.ts';
 
-export class MsSqlSelectBuilder<
+// Shared base class for `from()`
+class MsSqlSelectFromBuilderBase<
 	TSelection extends SelectedFields | undefined,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
-	TBuilderMode extends 'db' | 'qb' = 'db',
+	TBuilderMode extends 'db' | 'qb',
+	TBranch extends 'from' | 'top',
 > {
-	static readonly [entityKind]: string = 'MsSqlSelectBuilder';
+	static readonly [entityKind] = 'MsSqlSelectFromBuilderBase';
 
-	private fields: TSelection;
-	private session: MsSqlSession | undefined;
-	private dialect: MsSqlDialect;
-	private withList: Subquery[] = [];
-	private distinct: boolean | undefined;
+	protected fields: TSelection;
+	protected session: MsSqlSession | undefined;
+	protected dialect: MsSqlDialect;
+	protected withList: Subquery[] = [];
+	protected distinct: boolean | undefined;
+	protected topNumber?: number;
 
-	constructor(
-		config: {
-			fields: TSelection;
-			session: MsSqlSession | undefined;
-			dialect: MsSqlDialect;
-			withList?: Subquery[];
-			distinct?: boolean;
-		},
-	) {
+	constructor(config: {
+		fields: TSelection;
+		session: MsSqlSession | undefined;
+		dialect: MsSqlDialect;
+		withList?: Subquery[];
+		distinct?: boolean;
+		topNumber?: number;
+	}) {
 		this.fields = config.fields;
 		this.session = config.session;
 		this.dialect = config.dialect;
@@ -73,19 +75,23 @@ export class MsSqlSelectBuilder<
 			this.withList = config.withList;
 		}
 		this.distinct = config.distinct;
+		this.topNumber = config.topNumber;
 	}
 
 	from<TFrom extends MsSqlTable | Subquery | MsSqlViewBase | SQL>(
 		source: TFrom,
-	): CreateMsSqlSelectFromBuilderMode<
-		TBuilderMode,
-		GetSelectTableName<TFrom>,
-		TSelection extends undefined ? GetSelectTableSelection<TFrom> : TSelection,
-		TSelection extends undefined ? 'single' : 'partial',
-		TPreparedQueryHKT
+	): Omit<
+		CreateMsSqlSelectFromBuilderMode<
+			TBuilderMode,
+			GetSelectTableName<TFrom>,
+			TSelection extends undefined ? GetSelectTableSelection<TFrom> : TSelection,
+			TSelection extends undefined ? 'single' : 'partial',
+			TPreparedQueryHKT,
+			TBranch
+		>,
+		'fetch' | 'offset'
 	> {
 		const isPartialSelect = !!this.fields;
-
 		let fields: SelectedFields;
 		if (this.fields) {
 			fields = this.fields;
@@ -104,17 +110,35 @@ export class MsSqlSelectBuilder<
 			fields = getTableColumns<MsSqlTable>(source);
 		}
 
-		return new MsSqlSelectBase(
-			{
-				table: source,
-				fields,
-				isPartialSelect,
-				session: this.session,
-				dialect: this.dialect,
-				withList: this.withList,
-				distinct: this.distinct,
-			},
-		) as any;
+		return new MsSqlSelectBase({
+			table: source,
+			fields,
+			isPartialSelect,
+			session: this.session,
+			dialect: this.dialect,
+			withList: this.withList,
+			distinct: this.distinct,
+			topNumber: this.topNumber,
+		}) as any;
+	}
+}
+
+export class MsSqlSelectBuilder<
+	TSelection extends SelectedFields | undefined,
+	TPreparedQueryHKT extends PreparedQueryHKTBase,
+	TBuilderMode extends 'db' | 'qb' = 'db',
+> extends MsSqlSelectFromBuilderBase<TSelection, TPreparedQueryHKT, TBuilderMode, 'from'> {
+	static override readonly [entityKind] = 'MsSqlSelectFromBuilderBase';
+
+	top(n: number): MsSqlSelectFromBuilderBase<TSelection, TPreparedQueryHKT, TBuilderMode, 'top'> {
+		return new MsSqlSelectFromBuilderBase({
+			fields: this.fields,
+			session: this.session,
+			dialect: this.dialect,
+			withList: this.withList,
+			distinct: this.distinct,
+			topNumber: n,
+		});
 	}
 }
 
@@ -124,6 +148,7 @@ export abstract class MsSqlSelectQueryBuilderBase<
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
+	TBranch extends 'from' | 'top',
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
 	TDynamic extends boolean = false,
@@ -155,7 +180,7 @@ export abstract class MsSqlSelectQueryBuilderBase<
 	protected dialect: MsSqlDialect;
 
 	constructor(
-		{ table, fields, isPartialSelect, session, dialect, withList, distinct }: {
+		{ table, fields, isPartialSelect, session, dialect, withList, distinct, topNumber }: {
 			table: MsSqlSelectConfig['table'];
 			fields: MsSqlSelectConfig['fields'];
 			isPartialSelect: boolean;
@@ -163,6 +188,7 @@ export abstract class MsSqlSelectQueryBuilderBase<
 			dialect: MsSqlDialect;
 			withList: Subquery[];
 			distinct: boolean | undefined;
+			topNumber: number | undefined;
 		},
 	) {
 		super();
@@ -172,6 +198,7 @@ export abstract class MsSqlSelectQueryBuilderBase<
 			fields: { ...fields },
 			distinct,
 			setOperators: [],
+			top: topNumber,
 		};
 		this.isPartialSelect = isPartialSelect;
 		this.session = session;
@@ -585,8 +612,8 @@ export abstract class MsSqlSelectQueryBuilderBase<
 	 * ```ts
 	 * // Select all brands with more than one car
 	 * await db.select({
-	 * 	brand: cars.brand,
-	 * 	count: sql<number>`cast(count(${cars.id}) as int)`,
+	 *  brand: cars.brand,
+	 *  count: sql<number>`cast(count(${cars.id}) as int)`,
 	 * })
 	 *   .from(cars)
 	 *   .groupBy(cars.brand)
@@ -676,15 +703,19 @@ export abstract class MsSqlSelectQueryBuilderBase<
 	 */
 	orderBy(
 		builder: (aliases: this['_']['selection']) => ValueOrArray<MsSqlColumn | SQL | SQL.Aliased>,
-	): MsSqlSelectReplace<this, TDynamic, 'orderBy', 'offset'>;
+	): 'from' extends TBranch ? MsSqlSelectReplace<this, TDynamic, 'orderBy', 'offset'>
+		: MsSqlSelectWithout<this, TDynamic, 'orderBy'>;
 	orderBy(
 		...columns: (MsSqlColumn | SQL | SQL.Aliased)[]
-	): MsSqlSelectReplace<this, TDynamic, 'orderBy', 'offset'>;
+	): 'from' extends TBranch ? MsSqlSelectReplace<this, TDynamic, 'orderBy', 'offset'>
+		: MsSqlSelectWithout<this, TDynamic, 'orderBy'>;
 	orderBy(
 		...columns:
 			| [(aliases: this['_']['selection']) => ValueOrArray<MsSqlColumn | SQL | SQL.Aliased>]
 			| (MsSqlColumn | SQL | SQL.Aliased)[]
-	): MsSqlSelectReplace<this, TDynamic, 'orderBy', 'offset'> {
+	): 'from' extends TBranch ? MsSqlSelectReplace<this, TDynamic, 'orderBy', 'offset'>
+		: MsSqlSelectWithout<this, TDynamic, 'orderBy'>
+	{
 		if (typeof columns[0] === 'function') {
 			const orderBy = columns[0](
 				new Proxy(
@@ -712,22 +743,7 @@ export abstract class MsSqlSelectQueryBuilderBase<
 		return this as any;
 	}
 
-	/**
-	 * Adds an `offset` clause to the query.
-	 *
-	 * Calling this method will skip a number of rows when returning results from this query.
-	 *
-	 * See docs: {@link https://orm.drizzle.team/docs/select#limit--offset}
-	 *
-	 * @param offset the `offset` clause.
-	 *
-	 * @example
-	 *
-	 * ```ts
-	 * // Get the 10th-20th people from this query.
-	 * await db.select().from(people).offset(10).limit(10);
-	 * ```
-	 */
+	// TODO write description
 	offset(offset: number): MsSqlSelectReplace<this, TDynamic, 'offset', 'fetch'> {
 		if (this.config.setOperators.length > 0) {
 			this.config.setOperators.at(-1)!.offset = offset;
@@ -783,6 +799,7 @@ export interface MsSqlSelectBase<
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
+	TBranch extends 'from' | 'top',
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
 	TDynamic extends boolean = false,
@@ -796,6 +813,7 @@ export interface MsSqlSelectBase<
 		TSelection,
 		TSelectMode,
 		TPreparedQueryHKT,
+		TBranch,
 		TNullabilityMap,
 		TDynamic,
 		TExcludedMethods,
@@ -810,6 +828,7 @@ export class MsSqlSelectBase<
 	TSelection,
 	TSelectMode extends SelectMode,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
+	TBranch extends 'from' | 'top',
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
 	TDynamic extends boolean = false,
@@ -822,6 +841,7 @@ export class MsSqlSelectBase<
 	TSelection,
 	TSelectMode,
 	TPreparedQueryHKT,
+	TBranch,
 	TNullabilityMap,
 	TDynamic,
 	TExcludedMethods,
