@@ -17,7 +17,7 @@ export const posts = sqliteTable('posts', {
 	body: text('body').notNull(),
 	authorId: integer('author_id').notNull().references(() => users.id),
 	createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
-	updateAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
+	updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
 });
 export const insertPostSchema = createInsertSchema(posts);
 export const selectPostSchema = createSelectSchema(posts);
