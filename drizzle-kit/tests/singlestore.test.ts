@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+	comment,
 	index,
 	int,
 	json,
@@ -1030,5 +1031,27 @@ test('modify column comments', async () => {
 	);
 	expect(sqlStatements[3]).toBe(
 		'ALTER TABLE `__new_users` RENAME TO `users`;',
+	);
+});
+
+test('modify table comments', async () => {
+	const from = {
+		users: singlestoreTable('users', {
+			id: serial('id').primaryKey(),
+			name: text('name'),
+		}),
+	};
+
+	const to = {
+		users: singlestoreTable('users', {
+			id: serial('id').primaryKey(),
+			name: text('name'),
+		}, () => [comment('User Table')]),
+	};
+
+	const { sqlStatements, statements } = await diffTestSchemasSingleStore(from, to, []);
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toBe(
+		"ALTER TABLE `users` COMMENT = 'User Table';",
 	);
 });

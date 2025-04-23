@@ -38,6 +38,7 @@ const uniqueConstraint = object({
 
 const table = object({
 	name: string(),
+	comment: string().optional(),
 	columns: record(string(), column),
 	indexes: record(string(), index),
 	compositePrimaryKeys: record(string(), compositePK),
@@ -205,6 +206,7 @@ export const squashSingleStoreScheme = (json: SingleStoreSchema): SingleStoreSch
 				it[0],
 				{
 					name: it[1].name,
+					comment: it[1].comment,
 					columns: it[1].columns,
 					indexes: squashedIndexes,
 					compositePrimaryKeys: squashedPKs,

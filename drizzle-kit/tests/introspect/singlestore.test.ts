@@ -4,6 +4,7 @@ import { SQL, sql } from 'drizzle-orm';
 import {
 	bigint,
 	char,
+	comment,
 	decimal,
 	double,
 	float,
@@ -274,14 +275,14 @@ test('handle unsigned numerical types', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('introspect column comments', async () => {
+test('introspect comments', async () => {
 	const schema = {
 		users: singlestoreTable('users', {
 			id: int('id').primaryKey().comment('Primary key'),
 			name: varchar('name', { length: 255 }).comment('User full name'),
 			email: varchar('email', { length: 255 }).comment('User email address'),
 			age: int('age').comment('User age in years'),
-		}),
+		}, () => [comment('User Table')]),
 	};
 
 	const { statements, sqlStatements } = await introspectSingleStoreToFile(

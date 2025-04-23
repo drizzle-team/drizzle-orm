@@ -616,6 +616,7 @@ export class SingleStoreCreateTableConvertor extends Convertor {
 			compositePKs,
 			uniqueConstraints,
 			internals,
+			comment,
 		} = st;
 
 		let statement = '';
@@ -675,7 +676,7 @@ export class SingleStoreCreateTableConvertor extends Convertor {
 			}
 		}
 
-		statement += `\n);`;
+		statement += `\n)${comment ? ` COMMENT = '${comment}'` : ''};`;
 		statement += `\n`;
 		return statement;
 	}
@@ -2932,6 +2933,20 @@ class SingleStoreAlterTableDropPk extends Convertor {
 	}
 }
 
+class SingleStoreAlterTableSetCommentConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return (
+			statement.type === 'alter_table_set_comment'
+			&& dialect === 'singlestore'
+		);
+	}
+
+	convert(statement: JsonAlterTableSetCommentStatement) {
+		const { tableName, comment } = statement;
+		return `ALTER TABLE \`${tableName}\` COMMENT = '${comment || ''}';`;
+	}
+}
+
 type SingleStoreModifyColumnStatement =
 	| JsonAlterColumnDropNotNullStatement
 	| JsonAlterColumnSetNotNullStatement
@@ -4312,7 +4327,7 @@ convertors.push(new MySqlAlterTableSetCommentConvertor());
 
 convertors.push(new SingleStoreAlterTableDropPk());
 convertors.push(new SingleStoreAlterTableAddPk());
-
+convertors.push(new SingleStoreAlterTableSetCommentConvertor());
 export function fromJson(
 	statements: JsonStatement[],
 	dialect: Dialect,

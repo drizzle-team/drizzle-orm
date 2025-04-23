@@ -905,7 +905,7 @@ const createTableColumns = (
 };
 
 const createTableComment = (comment?: string) => {
-	return comment ? `comment("${comment}")` : '';
+	return comment ? `comment("${comment}"),` : '';
 };
 
 const createTableIndexes = (

@@ -45,7 +45,7 @@ export function getTableConfig(table: MySqlTable) {
 			} else if (is(builder, ForeignKeyBuilder)) {
 				foreignKeys.push(builder.build(table));
 			} else if (is(builder, CommentBuilder)) {
-				comment = builder.comment;
+				comment = builder.build(table).comment;
 			}
 		}
 	}

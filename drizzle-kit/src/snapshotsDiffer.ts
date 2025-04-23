@@ -3194,6 +3194,17 @@ export const applySingleStoreSnapshotsDiff = async (
 		}
 	} */
 
+	const alteredTablesWithComment = alteredTables.filter((it) => it.alteredComment);
+
+	const jsonAlterTableSetComment: JsonAlterTableSetCommentStatement[] = alteredTablesWithComment.map((it) => {
+		return {
+			tableName: it.name,
+			comment: it.alteredComment,
+			schema: it.schema,
+			type: 'alter_table_set_comment',
+		};
+	});
+
 	jsonStatements.push(...jsonSingleStoreCreateTables);
 
 	jsonStatements.push(...jsonDropTables);
@@ -3228,6 +3239,8 @@ export const applySingleStoreSnapshotsDiff = async (
 	jsonStatements.push(...jsonAddedCompositePKs);
 
 	jsonStatements.push(...jsonAlteredUniqueConstraints);
+
+	jsonStatements.push(...jsonAlterTableSetComment);
 
 	const combinedJsonStatements = singleStoreCombineStatements(jsonStatements, json2);
 	const sqlStatements = fromJson(combinedJsonStatements, 'singlestore');
