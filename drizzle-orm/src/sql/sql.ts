@@ -1,7 +1,6 @@
 import type { CasingCache } from '~/casing.ts';
 import { entityKind, is } from '~/entity.ts';
 import { isPgEnum } from '~/pg-core/columns/enum.ts';
-import { PgTable } from '~/pg-core/table.ts';
 import type { SelectResult } from '~/query-builders/select.types.ts';
 import { Subquery } from '~/subquery.ts';
 import { tracer } from '~/tracing.ts';
@@ -119,11 +118,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 	constructor(readonly queryChunks: SQLChunk[]) {
 		for (const chunk of queryChunks) {
 			if (is(chunk, Table)) {
-				let schemaName = chunk[Table.Symbol.Schema];
-
-				if (!schemaName) {
-					schemaName = is(chunk, PgTable) ? 'public' : undefined;
-				}
+				const schemaName = chunk[Table.Symbol.Schema];
 
 				this.usedTables.push(
 					schemaName === undefined

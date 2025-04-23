@@ -245,6 +245,9 @@ export abstract class MySqlSelectQueryBuilderBase<
 			const baseTableName = this.tableName;
 			const tableName = getTableLikeName(table);
 
+			// store all tables used in a query
+			for (const item of extractUsedTable(table)) this.usedTables.add(item);
+
 			if (typeof tableName === 'string' && this.config.joins?.some((join) => join.alias === tableName)) {
 				throw new Error(`Alias "${tableName}" is already used in this query`);
 			}
@@ -979,8 +982,12 @@ export abstract class MySqlSelectQueryBuilderBase<
 	as<TAlias extends string>(
 		alias: TAlias,
 	): SubqueryWithSelection<this['_']['selectedFields'], TAlias> {
+		const usedTables: string[] = [];
+		usedTables.push(...extractUsedTable(this.config.table));
+		if (this.config.joins) { for (const it of this.config.joins) usedTables.push(...extractUsedTable(it.table)); }
+
 		return new Proxy(
-			new Subquery(this.getSQL(), this.config.fields, alias),
+			new Subquery(this.getSQL(), this.config.fields, alias, false, [...new Set(usedTables)]),
 			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as SubqueryWithSelection<this['_']['selectedFields'], TAlias>;
 	}

@@ -110,8 +110,8 @@ export function tests() {
 		beforeEach(async (ctx) => {
 			const { db, dbGlobalCached } = ctx.cachedPg;
 			await db.execute(sql`drop schema if exists public cascade`);
-			await db.$cache?.invalidate({ tables: 'public.users' });
-			await dbGlobalCached.$cache?.invalidate({ tables: 'public.users' });
+			await db.$cache?.invalidate({ tables: 'users' });
+			await dbGlobalCached.$cache?.invalidate({ tables: 'users' });
 			await db.execute(sql`create schema public`);
 			// public users
 			await db.execute(
@@ -324,9 +324,9 @@ export function tests() {
 			const { db } = ctx.cachedPg;
 
 			// @ts-expect-error
-			expect(db.select().from(usersTable).getUsedTables()).toStrictEqual(['public.users']);
+			expect(db.select().from(usersTable).getUsedTables()).toStrictEqual(['users']);
 			// @ts-expect-error
-			expect(db.select().from(sql`${usersTable}`).getUsedTables()).toStrictEqual(['public.users']);
+			expect(db.select().from(sql`${usersTable}`).getUsedTables()).toStrictEqual(['users']);
 		});
 		// check select+join used tables
 		test('select+join', (ctx) => {
@@ -334,11 +334,11 @@ export function tests() {
 
 			// @ts-expect-error
 			expect(db.select().from(usersTable).leftJoin(postsTable, eq(usersTable.id, postsTable.userId)).getUsedTables())
-				.toStrictEqual(['public.users', 'public.posts']);
+				.toStrictEqual(['users', 'posts']);
 			expect(
 				// @ts-expect-error
 				db.select().from(sql`${usersTable}`).leftJoin(postsTable, eq(usersTable.id, postsTable.userId)).getUsedTables(),
-			).toStrictEqual(['public.users', 'public.posts']);
+			).toStrictEqual(['users', 'posts']);
 		});
 		// check select+2join used tables
 		test('select+2joins', (ctx) => {
@@ -355,14 +355,14 @@ export function tests() {
 					// @ts-expect-error
 					.getUsedTables(),
 			)
-				.toStrictEqual(['public.users', 'public.posts']);
+				.toStrictEqual(['users', 'posts']);
 			expect(
 				db.select().from(sql`${usersTable}`).leftJoin(postsTable, eq(usersTable.id, postsTable.userId)).leftJoin(
 					alias(postsTable, 'post2'),
 					eq(usersTable.id, postsTable.userId),
 					// @ts-expect-error
 				).getUsedTables(),
-			).toStrictEqual(['public.users', 'public.posts']);
+			).toStrictEqual(['users', 'posts']);
 		});
 		// select subquery used tables
 		test('select+join', (ctx) => {
@@ -372,7 +372,7 @@ export function tests() {
 			db.select().from(sq);
 
 			// @ts-expect-error
-			expect(db.select().from(sq).getUsedTables()).toStrictEqual(['public.users']);
+			expect(db.select().from(sq).getUsedTables()).toStrictEqual(['users']);
 		});
 	});
 }
