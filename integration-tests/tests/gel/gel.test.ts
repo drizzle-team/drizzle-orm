@@ -2219,7 +2219,7 @@ describe('some', async () => {
 		{
 			const query = db.select().from(users3Table).for('share', { of: users3Table, noWait: true }).toSQL();
 
-			expect(query.sql).toMatch(/for share of "users3" no wait$/);
+			expect(query.sql).toMatch(/for share of "users3" nowait$/);
 		}
 	});
 

@@ -366,7 +366,7 @@ export class SingleStoreDialect {
 			const { config, strength } = lockingClause;
 			lockingClausesSql = sql` for ${sql.raw(strength)}`;
 			if (config.noWait) {
-				lockingClausesSql.append(sql` no wait`);
+				lockingClausesSql.append(sql` nowait`);
 			} else if (config.skipLocked) {
 				lockingClausesSql.append(sql` skip locked`);
 			}
