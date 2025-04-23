@@ -108,6 +108,7 @@ export type MsSqlJoin<
 			>,
 			T['_']['selectMode'] extends 'partial' ? T['_']['selectMode'] : 'multiple',
 			T['_']['preparedQueryHKT'],
+			T['_']['branch'],
 			AppendToNullabilityMap<T['_']['nullabilityMap'], TJoinedName, TJoinType>,
 			TDynamic,
 			T['_']['excludedMethods']
@@ -155,6 +156,7 @@ export type MsSqlSelectKind<
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
+	TBranch extends 'from' | 'top',
 	TNullabilityMap extends Record<string, JoinNullability>,
 	TDynamic extends boolean,
 	TExcludedMethods extends string,
@@ -165,6 +167,7 @@ export type MsSqlSelectKind<
 	selection: TSelection;
 	selectMode: TSelectMode;
 	preparedQueryHKT: TPreparedQueryHKT;
+	branch: TBranch;
 	nullabilityMap: TNullabilityMap;
 	dynamic: TDynamic;
 	excludedMethods: TExcludedMethods;
@@ -227,6 +230,7 @@ export type MsSqlSelectWithout<
 		T['_']['selection'],
 		T['_']['selectMode'],
 		T['_']['preparedQueryHKT'],
+		T['_']['branch'],
 		T['_']['nullabilityMap'],
 		TDynamic,
 		TResetExcluded extends true ? K : T['_']['excludedMethods'] | K,
@@ -249,6 +253,7 @@ export type MsSqlSelectReplace<
 			T['_']['selection'],
 			T['_']['selectMode'],
 			T['_']['preparedQueryHKT'],
+			T['_']['branch'],
 			T['_']['nullabilityMap'],
 			TDynamic,
 			Exclude<T['_']['excludedMethods'], OldExcluded> | NewExcluded,
@@ -273,6 +278,7 @@ export type MsSqlSelectDynamic<T extends AnyMsSqlSelectQueryBuilder> = MsSqlSele
 	T['_']['selection'],
 	T['_']['selectMode'],
 	T['_']['preparedQueryHKT'],
+	T['_']['branch'],
 	T['_']['nullabilityMap'],
 	true,
 	never,
@@ -352,6 +358,32 @@ export type SetOperatorRightSelect<
 	>
 	: TValue;
 
+export type MsSqlSelect<
+	TTableName extends string | undefined = string | undefined,
+	TSelection extends ColumnsSelection = Record<string, any>,
+	TSelectMode extends SelectMode = SelectMode,
+	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
+	TBranch extends 'from' | 'top' = 'from' | 'top',
+> = MsSqlSelectBase<TTableName, TSelection, TSelectMode, PreparedQueryHKTBase, TBranch, TNullabilityMap, true, never>;
+
+export type MsSqlSetOperator<
+	TTableName extends string | undefined = string | undefined,
+	TSelection extends ColumnsSelection = Record<string, any>,
+	TSelectMode extends SelectMode = SelectMode,
+	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
+	TBranch extends 'from' | 'top' = 'from' | 'top',
+	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
+> = MsSqlSelectBase<
+	TTableName,
+	TSelection,
+	TSelectMode,
+	TPreparedQueryHKT,
+	TBranch,
+	TNullabilityMap,
+	true,
+	MsSqlSetOperatorExcludedMethods
+>;
+
 export type SetOperatorRestSelect<
 	TValue extends readonly MsSqlSetOperatorWithResult<TResult>[],
 	TResult extends any[],
@@ -417,3 +449,27 @@ export type GetMsSqlSetOperators = {
 	except: MsSqlCreateSetOperatorFn;
 	unionAll: MsSqlCreateSetOperatorFn;
 };
+
+export type MsSqlSelectQueryBuilder<
+	THKT extends MsSqlSelectHKTBase = MsSqlSelectQueryBuilderHKT,
+	TTableName extends string | undefined = string | undefined,
+	TSelection extends ColumnsSelection = ColumnsSelection,
+	TSelectMode extends SelectMode = SelectMode,
+	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
+	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
+	TResult extends any[] = unknown[],
+	TSelectedFields extends ColumnsSelection = ColumnsSelection,
+	TBranch extends 'from' | 'top' = 'from' | 'top',
+> = MsSqlSelectQueryBuilderBase<
+	THKT,
+	TTableName,
+	TSelection,
+	TSelectMode,
+	TPreparedQueryHKT,
+	TBranch,
+	TNullabilityMap,
+	true,
+	never,
+	TResult,
+	TSelectedFields
+>;
