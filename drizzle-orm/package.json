@@ -64,7 +64,6 @@
 		"better-sqlite3": ">=7",
 		"bun-types": "*",
 		"expo-sqlite": ">=14.0.0",
-		"gel": ">=2",
 		"knex": "*",
 		"kysely": "*",
 		"mysql2": ">=2",
