@@ -583,8 +583,22 @@ await db.select().from(users);
 	db
 		.select()
 		.from(users)
-		.offset(10)
-		// @ts-expect-error method was already called
+		// @ts-expect-error method can not be called before order by
+		.offset();
+
+	db
+		.select()
+		.from(users)
+		.orderBy()
+		.offset(5)
+		.fetch(2);
+
+	db
+		.select()
+		.top(2)
+		.from(users)
+		.orderBy()
+		// @ts-expect-error method can not be called if top method used
 		.offset(10);
 }
 

@@ -156,7 +156,7 @@ export abstract class MsSqlSelectQueryBuilderBase<
 	TResult extends any[] = SelectResult<TSelection, TSelectMode, TNullabilityMap>[],
 	TSelectedFields extends ColumnsSelection = BuildSubquerySelection<TSelection, TNullabilityMap>,
 > extends TypedQueryBuilder<TSelectedFields, TResult> {
-	static override readonly [entityKind]: string = 'MsSqlSelectQueryBuilder';
+	static override readonly [entityKind]: string = 'MsSqlSelectQueryBuilderBase';
 
 	override readonly _: {
 		readonly hkt: THKT;
@@ -169,6 +169,7 @@ export abstract class MsSqlSelectQueryBuilderBase<
 		readonly excludedMethods: TExcludedMethods;
 		readonly result: TResult;
 		readonly selectedFields: TSelectedFields;
+		readonly branch: TBranch;
 	};
 
 	protected config: MsSqlSelectConfig;
@@ -703,17 +704,17 @@ export abstract class MsSqlSelectQueryBuilderBase<
 	 */
 	orderBy(
 		builder: (aliases: this['_']['selection']) => ValueOrArray<MsSqlColumn | SQL | SQL.Aliased>,
-	): 'from' extends TBranch ? MsSqlSelectReplace<this, TDynamic, 'orderBy', 'offset'>
+	): TBranch extends 'from' ? MsSqlSelectReplace<this, TDynamic, 'orderBy', 'offset'>
 		: MsSqlSelectWithout<this, TDynamic, 'orderBy'>;
 	orderBy(
 		...columns: (MsSqlColumn | SQL | SQL.Aliased)[]
-	): 'from' extends TBranch ? MsSqlSelectReplace<this, TDynamic, 'orderBy', 'offset'>
+	): TBranch extends 'from' ? MsSqlSelectReplace<this, TDynamic, 'orderBy', 'offset'>
 		: MsSqlSelectWithout<this, TDynamic, 'orderBy'>;
 	orderBy(
 		...columns:
 			| [(aliases: this['_']['selection']) => ValueOrArray<MsSqlColumn | SQL | SQL.Aliased>]
 			| (MsSqlColumn | SQL | SQL.Aliased)[]
-	): 'from' extends TBranch ? MsSqlSelectReplace<this, TDynamic, 'orderBy', 'offset'>
+	): TBranch extends 'from' ? MsSqlSelectReplace<this, TDynamic, 'orderBy', 'offset'>
 		: MsSqlSelectWithout<this, TDynamic, 'orderBy'>
 	{
 		if (typeof columns[0] === 'function') {
@@ -743,7 +744,7 @@ export abstract class MsSqlSelectQueryBuilderBase<
 		return this as any;
 	}
 
-	// TODO write description
+	// TODO add description
 	offset(offset: number): MsSqlSelectReplace<this, TDynamic, 'offset', 'fetch'> {
 		if (this.config.setOperators.length > 0) {
 			this.config.setOperators.at(-1)!.offset = offset;
@@ -753,6 +754,7 @@ export abstract class MsSqlSelectQueryBuilderBase<
 		return this as any;
 	}
 
+	// TODO add description
 	fetch(fetch: number): MsSqlSelectWithout<this, TDynamic, 'fetch'> {
 		if (this.config.setOperators.length > 0) {
 			this.config.setOperators.at(-1)!.fetch = fetch;
