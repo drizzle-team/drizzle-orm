@@ -5,6 +5,7 @@ import {
 	bigint,
 	char,
 	check,
+	comment,
 	decimal,
 	double,
 	float,
@@ -325,7 +326,7 @@ test('introspect column comments', async () => {
 			name: varchar('name', { length: 255 }).comment('User full name'),
 			email: varchar('email', { length: 255 }).comment('User email address'),
 			age: int('age').comment('User age in years'),
-		}),
+		}, () => [comment('User Table')]),
 	};
 
 	const { statements, sqlStatements } = await introspectMySQLToFile(

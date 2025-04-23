@@ -24,6 +24,7 @@ import {
 	JsonAlterIndPolicyStatement,
 	JsonAlterMySqlViewStatement,
 	JsonAlterPolicyStatement,
+	JsonAlterTableSetCommentStatement,
 	JsonAlterTableSetSchema,
 	JsonAlterUniqueConstraint,
 	JsonAlterViewStatement,
@@ -264,6 +265,7 @@ const tableScheme = object({
 	name: string(),
 	schema: string().default(''),
 	columns: record(string(), columnSchema),
+	comment: string().optional(),
 	indexes: record(string(), string()),
 	foreignKeys: record(string(), string()),
 	compositePrimaryKeys: record(string(), string()).default({}),
@@ -277,6 +279,7 @@ export const alteredTableScheme = object({
 	name: string(),
 	schema: string(),
 	altered: alteredColumnSchema.array(),
+	alteredComment: string().optional(),
 	addedIndexes: record(string(), string()),
 	deletedIndexes: record(string(), string()),
 	alteredIndexes: record(
@@ -2659,6 +2662,16 @@ export const applyMysqlSnapshotsDiff = async (
 		}
 	}
 
+	const alteredTablesWithComment = alteredTables.filter((it) => it.alteredComment);
+	const jsonAlterTableSetComment: JsonAlterTableSetCommentStatement[] = alteredTablesWithComment.map((it) => {
+		return {
+			tableName: it.name,
+			comment: it.alteredComment,
+			schema: it.schema,
+			type: 'alter_table_set_comment',
+		};
+	});
+
 	jsonStatements.push(...jsonMySqlCreateTables);
 
 	jsonStatements.push(...jsonDropTables);
@@ -2702,6 +2715,7 @@ export const applyMysqlSnapshotsDiff = async (
 	jsonStatements.push(...createViews);
 
 	jsonStatements.push(...jsonAlteredUniqueConstraints);
+	jsonStatements.push(...jsonAlterTableSetComment);
 
 	const sqlStatements = fromJson(jsonStatements, 'mysql');
 

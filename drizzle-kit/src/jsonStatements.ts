@@ -54,6 +54,7 @@ export interface JsonCreateTableStatement {
 	checkConstraints?: string[];
 	internals?: MySqlKitInternals | SingleStoreKitInternals;
 	isRLSEnabled?: boolean;
+	comment?: string;
 }
 
 export interface JsonRecreateTableStatement {
@@ -428,6 +429,13 @@ export interface JsonAlterTableSetNewSchema {
 	tableName: string;
 	from: string;
 	to: string;
+}
+
+export interface JsonAlterTableSetCommentStatement {
+	type: 'alter_table_set_comment';
+	tableName: string;
+	schema: string;
+	comment: string | undefined;
 }
 
 export interface JsonCreateReferenceStatement extends JsonReferenceStatement {
@@ -868,6 +876,7 @@ export type JsonStatement =
 	| JsonCreateTableStatement
 	| JsonDropTableStatement
 	| JsonRenameTableStatement
+	| JsonAlterTableSetCommentStatement
 	| JsonCreateEnumStatement
 	| JsonDropEnumStatement
 	| JsonMoveEnumStatement
@@ -933,8 +942,17 @@ export const preparePgCreateTableJson = (
 	// TODO: remove?
 	json2: PgSchema,
 ): JsonCreateTableStatement => {
-	const { name, schema, columns, compositePrimaryKeys, uniqueConstraints, checkConstraints, policies, isRLSEnabled } =
-		table;
+	const {
+		name,
+		schema,
+		columns,
+		compositePrimaryKeys,
+		uniqueConstraints,
+		checkConstraints,
+		policies,
+		isRLSEnabled,
+		comment,
+	} = table;
 	const tableKey = `${schema || 'public'}.${name}`;
 
 	// TODO: @AndriiSherman. We need this, will add test cases
@@ -955,6 +973,7 @@ export const preparePgCreateTableJson = (
 		policies: Object.values(policies),
 		checkConstraints: Object.values(checkConstraints),
 		isRLSEnabled: isRLSEnabled ?? false,
+		comment,
 	};
 };
 
@@ -967,7 +986,7 @@ export const prepareMySqlCreateTableJson = (
 	// if previously it was an expression or column
 	internals: MySqlKitInternals,
 ): JsonCreateTableStatement => {
-	const { name, schema, columns, compositePrimaryKeys, uniqueConstraints, checkConstraints } = table;
+	const { name, schema, columns, compositePrimaryKeys, uniqueConstraints, checkConstraints, comment } = table;
 
 	return {
 		type: 'create_table',
@@ -984,6 +1003,7 @@ export const prepareMySqlCreateTableJson = (
 		uniqueConstraints: Object.values(uniqueConstraints),
 		internals,
 		checkConstraints: Object.values(checkConstraints),
+		comment,
 	};
 };
 
@@ -996,7 +1016,7 @@ export const prepareSingleStoreCreateTableJson = (
 	// if previously it was an expression or column
 	internals: SingleStoreKitInternals,
 ): JsonCreateTableStatement => {
-	const { name, schema, columns, compositePrimaryKeys, uniqueConstraints } = table;
+	const { name, schema, columns, compositePrimaryKeys, uniqueConstraints, comment } = table;
 
 	return {
 		type: 'create_table',
@@ -1012,6 +1032,7 @@ export const prepareSingleStoreCreateTableJson = (
 			: '',
 		uniqueConstraints: Object.values(uniqueConstraints),
 		internals,
+		comment,
 	};
 };
 

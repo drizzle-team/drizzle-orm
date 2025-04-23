@@ -3,6 +3,7 @@ import { Table } from '~/table.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { Check } from './checks.ts';
 import { CheckBuilder } from './checks.ts';
+import { CommentBuilder } from './comments.ts';
 import type { ForeignKey } from './foreign-keys.ts';
 import { ForeignKeyBuilder } from './foreign-keys.ts';
 import type { Index } from './indexes.ts';
@@ -25,6 +26,7 @@ export function getTableConfig(table: MySqlTable) {
 	const name = table[Table.Symbol.Name];
 	const schema = table[Table.Symbol.Schema];
 	const baseName = table[Table.Symbol.BaseName];
+	let comment: string | undefined;
 
 	const extraConfigBuilder = table[MySqlTable.Symbol.ExtraConfigBuilder];
 
@@ -42,6 +44,8 @@ export function getTableConfig(table: MySqlTable) {
 				primaryKeys.push(builder.build(table));
 			} else if (is(builder, ForeignKeyBuilder)) {
 				foreignKeys.push(builder.build(table));
+			} else if (is(builder, CommentBuilder)) {
+				comment = builder.comment;
 			}
 		}
 	}
@@ -56,6 +60,7 @@ export function getTableConfig(table: MySqlTable) {
 		name,
 		schema,
 		baseName,
+		comment,
 	};
 }
 

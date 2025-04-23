@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+	comment,
 	foreignKey,
 	index,
 	int,
@@ -929,14 +930,15 @@ test('modify column comments', async () => {
 			id: serial('id').primaryKey().comment('Updated primary key comment'),
 			name: text('name').comment('Updated user name comment'),
 			email: text('email').notNull(),
-		}),
+		}, () => [comment('User Table')]),
 	};
 
 	const { sqlStatements } = await diffTestSchemasMysql(from, to, []);
-	expect(sqlStatements.length).toBe(3);
+	expect(sqlStatements.length).toBe(4);
 	expect(sqlStatements).toEqual([
 		"ALTER TABLE `users` MODIFY COLUMN `id` serial AUTO_INCREMENT NOT NULL COMMENT 'Updated primary key comment';",
 		"ALTER TABLE `users` MODIFY COLUMN `name` text COMMENT 'Updated user name comment';",
 		'ALTER TABLE `users` MODIFY COLUMN `email` text NOT NULL;',
+		"ALTER TABLE `users` COMMENT = 'User Table';",
 	]);
 });

@@ -30,6 +30,7 @@ import {
 	JsonAlterRoleStatement,
 	JsonAlterSequenceStatement,
 	JsonAlterTableRemoveFromSchema,
+	JsonAlterTableSetCommentStatement,
 	JsonAlterTableSetNewSchema,
 	JsonAlterTableSetSchema,
 	JsonAlterViewAddWithOptionStatement,
@@ -528,6 +529,7 @@ class MySqlCreateTableConvertor extends Convertor {
 			compositePKs,
 			uniqueConstraints,
 			internals,
+			comment,
 		} = st;
 
 		let statement = '';
@@ -596,7 +598,7 @@ class MySqlCreateTableConvertor extends Convertor {
 			}
 		}
 
-		statement += `\n);`;
+		statement += `\n)${comment ? ` COMMENT = '${comment}'` : ''};`;
 		statement += `\n`;
 		return statement;
 	}
@@ -3338,6 +3340,17 @@ class MySqlAlterTableAlterCompositePrimaryKeyConvertor extends Convertor {
 	}
 }
 
+class MySqlAlterTableSetCommentConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_table_set_comment' && dialect === 'mysql';
+	}
+
+	convert(statement: JsonAlterTableSetCommentStatement) {
+		const { tableName, comment } = statement;
+		return `ALTER TABLE \`${tableName}\` COMMENT = '${comment || ''}';`;
+	}
+}
+
 class SqliteAlterTableCreateCompositePrimaryKeyConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'create_composite_pk' && dialect === 'sqlite';
@@ -4295,6 +4308,7 @@ convertors.push(new MySqlAlterTableDropPk());
 convertors.push(new MySqlAlterTableCreateCompositePrimaryKeyConvertor());
 convertors.push(new MySqlAlterTableAddPk());
 convertors.push(new MySqlAlterTableAlterCompositePrimaryKeyConvertor());
+convertors.push(new MySqlAlterTableSetCommentConvertor());
 
 convertors.push(new SingleStoreAlterTableDropPk());
 convertors.push(new SingleStoreAlterTableAddPk());

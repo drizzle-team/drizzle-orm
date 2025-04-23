@@ -546,10 +546,20 @@ const findAlternationsInTable = (table) => {
 
 	const mappedAltered = altered.map((it) => alternationsInColumn(it)).filter(Boolean);
 
+	let alteredComment = undefined;
+	if ('comment__added' in table) {
+		alteredComment = table.comment__added;
+	} else if ('comment__deleted' in table) {
+		alteredComment = undefined;
+	} else if ('comment' in table && typeof table.comment === 'object' && '__new' in table.comment) {
+		alteredComment = table.comment.__new;
+	}
+
 	return {
 		name: table.name,
 		schema: table.schema || '',
 		altered: mappedAltered,
+		alteredComment,
 		addedIndexes,
 		deletedIndexes,
 		alteredIndexes,

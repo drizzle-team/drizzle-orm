@@ -145,6 +145,9 @@ export const schemaToTypeScript = (
 
 	const imports = Object.values(schema.tables).reduce(
 		(res, it) => {
+			if (it.comment) {
+				res.mysql.push('comment');
+			}
 			const idxImports = Object.values(it.indexes).map((idx) => idx.isUnique ? 'uniqueIndex' : 'index');
 			const fkImpots = Object.values(it.foreignKeys).map((it) => 'foreignKey');
 			const pkImports = Object.values(it.compositePrimaryKeys).map(
@@ -252,7 +255,8 @@ export const schemaToTypeScript = (
 		});
 
 		if (
-			Object.keys(table.indexes).length > 0
+			table.comment
+			|| Object.keys(table.indexes).length > 0
 			|| filteredFKs.length > 0
 			|| Object.keys(table.compositePrimaryKeys).length > 0
 			|| Object.keys(table.uniqueConstraints).length > 0
@@ -260,6 +264,7 @@ export const schemaToTypeScript = (
 		) {
 			statement += ',\n';
 			statement += '(table) => [';
+			statement += createTableComment(table.comment);
 			statement += createTableIndexes(
 				table.name,
 				Object.values(table.indexes),
@@ -897,6 +902,10 @@ const createTableColumns = (
 	});
 
 	return statement;
+};
+
+const createTableComment = (comment?: string) => {
+	return comment ? `comment("${comment}")` : '';
 };
 
 const createTableIndexes = (
