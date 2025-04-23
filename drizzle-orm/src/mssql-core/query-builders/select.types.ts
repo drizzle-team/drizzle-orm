@@ -56,7 +56,6 @@ export interface MsSqlSelectConfig {
 	where?: SQL;
 	having?: SQL;
 	table: MsSqlTable | Subquery | MsSqlViewBase | SQL;
-	offset?: number | Placeholder;
 	fetch?: number | Placeholder;
 	joins?: MsSqlSelectJoinConfig[];
 	orderBy?: (MsSqlColumn | SQL | SQL.Aliased)[];
@@ -74,7 +73,8 @@ export interface MsSqlSelectConfig {
 			withoutArrayWrapper?: true;
 		};
 	};
-	top?: { value: number | Placeholder; percent?: boolean; withTies?: boolean };
+	top?: number | Placeholder;
+	offset?: number | Placeholder;
 	distinct?: boolean;
 	setOperators: {
 		rightSelect: TypedQueryBuilder<any, any>;
@@ -83,6 +83,7 @@ export interface MsSqlSelectConfig {
 		orderBy?: (MsSqlColumn | SQL | SQL.Aliased)[];
 		fetch?: number | Placeholder;
 		offset?: number | Placeholder;
+		limit?: number | Placeholder;
 	}[];
 }
 
@@ -139,6 +140,7 @@ export interface MsSqlSelectHKTBase {
 	selection: unknown;
 	selectMode: SelectMode;
 	preparedQueryHKT: unknown;
+	branch: 'from' | 'top';
 	nullabilityMap: unknown;
 	dynamic: boolean;
 	excludedMethods: string;
@@ -177,6 +179,7 @@ export interface MsSqlSelectQueryBuilderHKT extends MsSqlSelectHKTBase {
 		Assume<this['selection'], ColumnsSelection>,
 		this['selectMode'],
 		Assume<this['preparedQueryHKT'], PreparedQueryHKTBase>,
+		this['branch'],
 		Assume<this['nullabilityMap'], Record<string, JoinNullability>>,
 		this['dynamic'],
 		this['excludedMethods'],
@@ -191,6 +194,7 @@ export interface MsSqlSelectHKT extends MsSqlSelectHKTBase {
 		Assume<this['selection'], ColumnsSelection>,
 		this['selectMode'],
 		Assume<this['preparedQueryHKT'], PreparedQueryHKTBase>,
+		this['branch'],
 		Assume<this['nullabilityMap'], Record<string, JoinNullability>>,
 		this['dynamic'],
 		this['excludedMethods'],
@@ -235,26 +239,24 @@ export type MsSqlSelectWithout<
 export type MsSqlSelectReplace<
 	T extends AnyMsSqlSelectQueryBuilder,
 	TDynamic extends boolean,
-	K extends keyof T & string,
-	Include extends keyof T & string,
+	NewExcluded extends string,
+	OldExcluded extends string,
 > = TDynamic extends true ? T
-	:
-		& Omit<
-			MsSqlSelectKind<
-				T['_']['hkt'],
-				T['_']['tableName'],
-				T['_']['selection'],
-				T['_']['selectMode'],
-				T['_']['preparedQueryHKT'],
-				T['_']['nullabilityMap'],
-				TDynamic,
-				T['_']['excludedMethods'] | K,
-				T['_']['result'],
-				T['_']['selectedFields']
-			>,
-			T['_']['excludedMethods'] | K
-		>
-		& Record<Include, T[Include]>;
+	: Omit<
+		MsSqlSelectKind<
+			T['_']['hkt'],
+			T['_']['tableName'],
+			T['_']['selection'],
+			T['_']['selectMode'],
+			T['_']['preparedQueryHKT'],
+			T['_']['nullabilityMap'],
+			TDynamic,
+			Exclude<T['_']['excludedMethods'], OldExcluded> | NewExcluded,
+			T['_']['result'],
+			T['_']['selectedFields']
+		>,
+		NewExcluded | Exclude<T['_']['excludedMethods'], OldExcluded>
+	>;
 
 export type MsSqlSelectPrepare<T extends AnyMsSqlSelect> = PreparedQueryKind<
 	T['_']['preparedQueryHKT'],
@@ -284,34 +286,20 @@ export type CreateMsSqlSelectFromBuilderMode<
 	TSelection extends ColumnsSelection,
 	TSelectMode extends SelectMode,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
-> = TBuilderMode extends 'db' ? MsSqlSelectBase<TTableName, TSelection, TSelectMode, TPreparedQueryHKT>
-	: MsSqlSelectQueryBuilderBase<MsSqlSelectQueryBuilderHKT, TTableName, TSelection, TSelectMode, TPreparedQueryHKT>;
-
-export type MsSqlSelectQueryBuilder<
-	THKT extends MsSqlSelectHKTBase = MsSqlSelectQueryBuilderHKT,
-	TTableName extends string | undefined = string | undefined,
-	TSelection extends ColumnsSelection = ColumnsSelection,
-	TSelectMode extends SelectMode = SelectMode,
-	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
-	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
-	TResult extends any[] = unknown[],
-	TSelectedFields extends ColumnsSelection = ColumnsSelection,
-> = MsSqlSelectQueryBuilderBase<
-	THKT,
-	TTableName,
-	TSelection,
-	TSelectMode,
-	TPreparedQueryHKT,
-	TNullabilityMap,
-	true,
-	never,
-	TResult,
-	TSelectedFields
->;
+	TBranch extends 'from' | 'top',
+> = TBuilderMode extends 'db' ? MsSqlSelectBase<TTableName, TSelection, TSelectMode, TPreparedQueryHKT, TBranch>
+	: MsSqlSelectQueryBuilderBase<
+		MsSqlSelectQueryBuilderHKT,
+		TTableName,
+		TSelection,
+		TSelectMode,
+		TPreparedQueryHKT,
+		TBranch
+	>;
 
 export type AnyMsSqlSelectQueryBuilder = MsSqlSelectQueryBuilderBase<any, any, any, any, any, any, any, any, any>;
 
-export type AnyMsSqlSetOperatorInterface = MsSqlSetOperatorInterface<any, any, any, any, any, any, any, any, any>;
+export type AnyMsSqlSetOperatorInterface = MsSqlSetOperatorInterface<any, any, any, any, any, any, any, any>;
 
 export interface MsSqlSetOperatorInterface<
 	TTableName extends string | undefined,
@@ -351,30 +339,7 @@ export type MsSqlSetOperatorWithResult<TResult extends any[]> = MsSqlSetOperator
 	any
 >;
 
-export type MsSqlSelect<
-	TTableName extends string | undefined = string | undefined,
-	TSelection extends ColumnsSelection = Record<string, any>,
-	TSelectMode extends SelectMode = SelectMode,
-	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
-> = MsSqlSelectBase<TTableName, TSelection, TSelectMode, PreparedQueryHKTBase, TNullabilityMap, true, never>;
-
-export type AnyMsSqlSelect = MsSqlSelectBase<any, any, any, any, any, any, any, any>;
-
-export type MsSqlSetOperator<
-	TTableName extends string | undefined = string | undefined,
-	TSelection extends ColumnsSelection = Record<string, any>,
-	TSelectMode extends SelectMode = SelectMode,
-	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
-	TNullabilityMap extends Record<string, JoinNullability> = Record<string, JoinNullability>,
-> = MsSqlSelectBase<
-	TTableName,
-	TSelection,
-	TSelectMode,
-	TPreparedQueryHKT,
-	TNullabilityMap,
-	true,
-	MsSqlSetOperatorExcludedMethods
->;
+export type AnyMsSqlSelect = MsSqlSelectBase<any, any, any, any, any, any, any, any, any>;
 
 export type SetOperatorRightSelect<
 	TValue extends MsSqlSetOperatorWithResult<TResult>,
@@ -406,6 +371,7 @@ export type MsSqlCreateSetOperatorFn = <
 	TSelectMode extends SelectMode,
 	TValue extends MsSqlSetOperatorWithResult<TResult>,
 	TRest extends MsSqlSetOperatorWithResult<TResult>[],
+	TBranch extends 'from' | 'top',
 	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
@@ -433,6 +399,7 @@ export type MsSqlCreateSetOperatorFn = <
 		TSelection,
 		TSelectMode,
 		TPreparedQueryHKT,
+		TBranch,
 		TNullabilityMap,
 		TDynamic,
 		TExcludedMethods,
