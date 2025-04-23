@@ -1,8 +1,8 @@
 import type { QueryResult } from 'pg';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
-import { eq } from '~/expressions.ts';
 import type { PgUpdate } from '~/pg-core/index.ts';
+import { eq } from '~/sql/expressions/index.ts';
 import { sql } from '~/sql/sql.ts';
 import type { Simplify } from '~/utils.ts';
 import { db } from './db.ts';

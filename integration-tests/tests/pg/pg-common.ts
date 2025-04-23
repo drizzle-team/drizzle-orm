@@ -111,7 +111,7 @@ declare module 'vitest' {
 
 const en = pgEnum('en', ['enVal1', 'enVal2']);
 
-const allTypesTable = pgTable('all_types', {
+export const allTypesTable = pgTable('all_types', {
 	serial: serial('serial'),
 	bigserial53: bigserial('bigserial53', {
 		mode: 'number',
@@ -2508,6 +2508,175 @@ export function tests() {
 			expect(result).toEqual([{ id: 1, name: 'John' }]);
 
 			await db.execute(sql`drop table ${users}`);
+		});
+
+		test('select from enum as ts enum', async (ctx) => {
+			const { db } = ctx.pg;
+
+			enum Muscle {
+				abdominals = 'abdominals',
+				hamstrings = 'hamstrings',
+				adductors = 'adductors',
+				quadriceps = 'quadriceps',
+				biceps = 'biceps',
+				shoulders = 'shoulders',
+				chest = 'chest',
+				middle_back = 'middle_back',
+				calves = 'calves',
+				glutes = 'glutes',
+				lower_back = 'lower_back',
+				lats = 'lats',
+				triceps = 'triceps',
+				traps = 'traps',
+				forearms = 'forearms',
+				neck = 'neck',
+				abductors = 'abductors',
+			}
+
+			enum Force {
+				isometric = 'isometric',
+				isotonic = 'isotonic',
+				isokinetic = 'isokinetic',
+			}
+
+			enum Level {
+				beginner = 'beginner',
+				intermediate = 'intermediate',
+				advanced = 'advanced',
+			}
+
+			enum Mechanic {
+				compound = 'compound',
+				isolation = 'isolation',
+			}
+
+			enum Equipment {
+				barbell = 'barbell',
+				dumbbell = 'dumbbell',
+				bodyweight = 'bodyweight',
+				machine = 'machine',
+				cable = 'cable',
+				kettlebell = 'kettlebell',
+			}
+
+			enum Category {
+				upper_body = 'upper_body',
+				lower_body = 'lower_body',
+				full_body = 'full_body',
+			}
+
+			const muscleEnum = pgEnum('muscle', Muscle);
+
+			const forceEnum = pgEnum('force', Force);
+
+			const levelEnum = pgEnum('level', Level);
+
+			const mechanicEnum = pgEnum('mechanic', Mechanic);
+
+			const equipmentEnum = pgEnum('equipment', Equipment);
+
+			const categoryEnum = pgEnum('category', Category);
+
+			const exercises = pgTable('exercises', {
+				id: serial('id').primaryKey(),
+				name: varchar('name').notNull(),
+				force: forceEnum('force'),
+				level: levelEnum('level'),
+				mechanic: mechanicEnum('mechanic'),
+				equipment: equipmentEnum('equipment'),
+				instructions: text('instructions'),
+				category: categoryEnum('category'),
+				primaryMuscles: muscleEnum('primary_muscles').array(),
+				secondaryMuscles: muscleEnum('secondary_muscles').array(),
+				createdAt: timestamp('created_at').notNull().default(sql`now()`),
+				updatedAt: timestamp('updated_at').notNull().default(sql`now()`),
+			});
+
+			await db.execute(sql`drop table if exists ${exercises}`);
+			await db.execute(sql`drop type if exists ${sql.identifier(muscleEnum.enumName)}`);
+			await db.execute(sql`drop type if exists ${sql.identifier(forceEnum.enumName)}`);
+			await db.execute(sql`drop type if exists ${sql.identifier(levelEnum.enumName)}`);
+			await db.execute(sql`drop type if exists ${sql.identifier(mechanicEnum.enumName)}`);
+			await db.execute(sql`drop type if exists ${sql.identifier(equipmentEnum.enumName)}`);
+			await db.execute(sql`drop type if exists ${sql.identifier(categoryEnum.enumName)}`);
+
+			await db.execute(
+				sql`create type ${
+					sql.identifier(muscleEnum.enumName)
+				} as enum ('abdominals', 'hamstrings', 'adductors', 'quadriceps', 'biceps', 'shoulders', 'chest', 'middle_back', 'calves', 'glutes', 'lower_back', 'lats', 'triceps', 'traps', 'forearms', 'neck', 'abductors')`,
+			);
+			await db.execute(
+				sql`create type ${sql.identifier(forceEnum.enumName)} as enum ('isometric', 'isotonic', 'isokinetic')`,
+			);
+			await db.execute(
+				sql`create type ${sql.identifier(levelEnum.enumName)} as enum ('beginner', 'intermediate', 'advanced')`,
+			);
+			await db.execute(sql`create type ${sql.identifier(mechanicEnum.enumName)} as enum ('compound', 'isolation')`);
+			await db.execute(
+				sql`create type ${
+					sql.identifier(equipmentEnum.enumName)
+				} as enum ('barbell', 'dumbbell', 'bodyweight', 'machine', 'cable', 'kettlebell')`,
+			);
+			await db.execute(
+				sql`create type ${sql.identifier(categoryEnum.enumName)} as enum ('upper_body', 'lower_body', 'full_body')`,
+			);
+			await db.execute(sql`
+				create table ${exercises} (
+					id serial primary key,
+					name varchar not null,
+					force force,
+					level level,
+					mechanic mechanic,
+					equipment equipment,
+					instructions text,
+					category category,
+					primary_muscles muscle[],
+					secondary_muscles muscle[],
+					created_at timestamp not null default now(),
+					updated_at timestamp not null default now()
+				)
+			`);
+
+			await db.insert(exercises).values({
+				name: 'Bench Press',
+				force: Force.isotonic,
+				level: Level.beginner,
+				mechanic: Mechanic.compound,
+				equipment: Equipment.barbell,
+				instructions:
+					'Lie on your back on a flat bench. Grasp the barbell with an overhand grip, slightly wider than shoulder width. Unrack the barbell and hold it over you with your arms locked. Lower the barbell to your chest. Press the barbell back to the starting position.',
+				category: Category.upper_body,
+				primaryMuscles: [Muscle.chest, Muscle.triceps],
+				secondaryMuscles: [Muscle.shoulders, Muscle.traps],
+			});
+
+			const result = await db.select().from(exercises);
+
+			expect(result).toEqual([
+				{
+					id: 1,
+					name: 'Bench Press',
+					force: 'isotonic',
+					level: 'beginner',
+					mechanic: 'compound',
+					equipment: 'barbell',
+					instructions:
+						'Lie on your back on a flat bench. Grasp the barbell with an overhand grip, slightly wider than shoulder width. Unrack the barbell and hold it over you with your arms locked. Lower the barbell to your chest. Press the barbell back to the starting position.',
+					category: 'upper_body',
+					primaryMuscles: ['chest', 'triceps'],
+					secondaryMuscles: ['shoulders', 'traps'],
+					createdAt: result[0]!.createdAt,
+					updatedAt: result[0]!.updatedAt,
+				},
+			]);
+
+			await db.execute(sql`drop table ${exercises}`);
+			await db.execute(sql`drop type ${sql.identifier(muscleEnum.enumName)}`);
+			await db.execute(sql`drop type ${sql.identifier(forceEnum.enumName)}`);
+			await db.execute(sql`drop type ${sql.identifier(levelEnum.enumName)}`);
+			await db.execute(sql`drop type ${sql.identifier(mechanicEnum.enumName)}`);
+			await db.execute(sql`drop type ${sql.identifier(equipmentEnum.enumName)}`);
+			await db.execute(sql`drop type ${sql.identifier(categoryEnum.enumName)}`);
 		});
 
 		test('select from enum', async (ctx) => {

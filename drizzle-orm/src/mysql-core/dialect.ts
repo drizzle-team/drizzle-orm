@@ -4,7 +4,6 @@ import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
-import { and, eq } from '~/expressions.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
 import type {
 	BuildRelationalQueryResult,
@@ -24,6 +23,7 @@ import {
 	relationsOrderToSQL,
 	relationToSQL,
 } from '~/relations.ts';
+import { and, eq } from '~/sql/expressions/index.ts';
 import { isSQLWrapper, Param, SQL, sql, View } from '~/sql/sql.ts';
 import type { Name, Placeholder, QueryWithTypings, SQLChunk, SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
@@ -31,6 +31,7 @@ import { Columns, getTableName, getTableUniqueName, Table } from '~/table.ts';
 import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { MySqlColumn } from './columns/common.ts';
+import type { MySqlCustomColumn } from './columns/custom.ts';
 import type { MySqlDeleteConfig } from './query-builders/delete.ts';
 import type { MySqlInsertConfig } from './query-builders/insert.ts';
 import type {
@@ -1180,6 +1181,10 @@ export class MySqlDialect {
 				case 'MySqlDecimalBigInt':
 				case 'MySqlBigInt64': {
 					return sql`cast(${name} as char) as ${sql.identifier(key)}`;
+				}
+
+				case 'MySqlCustomColumn': {
+					return sql`${(<MySqlCustomColumn<any>> column).jsonSelectIdentifier(name, sql)} as ${sql.identifier(key)}`;
 				}
 
 				default: {

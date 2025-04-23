@@ -26,6 +26,7 @@ const {
 	studentGrades,
 	students,
 	courseOfferings,
+	customTypesTable,
 } = schema;
 
 declare module 'vitest' {
@@ -12991,6 +12992,93 @@ test('alltypes', async () => {
 			arrtimestampTzStr: ['2025-03-12 01:32:41.623+00'],
 			arruuid: ['b77c9eef-8e28-4654-88a1-7221b46d2a1c'],
 			arrvarchar: ['C4-'],
+		},
+	];
+
+	expect(rawRes).toStrictEqual(expectedRes);
+});
+
+test('custom types', async () => {
+	await db.execute(sql`
+		CREATE TABLE "custom_types" (
+			"id" serial,
+			"big" bigint,
+			"big_arr" bigint[],
+			"big_mtx" bigint[][],
+			"bytes" bytea,
+			"bytes_arr" bytea[],
+			"bytes_mtx" bytea[][],
+			"time" timestamp(3),
+			"time_arr" timestamp(3)[],
+			"time_mtx" timestamp(3)[][],
+			"int" integer,
+			"int_arr" integer[],
+			"int_mtx" integer[][]
+		);
+	`);
+
+	await db.insert(customTypesTable).values({
+		id: 1,
+		big: 5044565289845416380n,
+		bigArr: [5044565289845416380n],
+		bigMtx: [[5044565289845416380n]],
+		bytes: Buffer.from('BYTES'),
+		bytesArr: [Buffer.from('BYTES')],
+		bytesMtx: [[Buffer.from('BYTES')]],
+		time: new Date(1741743161623),
+		timeArr: [new Date(1741743161623)],
+		timeMtx: [[new Date(1741743161623)]],
+		int: 250,
+		intArr: [250],
+		intMtx: [[250]],
+	});
+
+	const rawRes = await db.select().from(customTypesTable);
+	const relationRootRes = await db.query.customTypesTable.findMany();
+	const { self: nestedRelationRes } = (await db.query.customTypesTable.findFirst({
+		with: {
+			self: true,
+		},
+	}))!;
+
+	type ExpectedType = {
+		id: number;
+		big: bigint | null;
+		bigArr: bigint[] | null;
+		bigMtx: bigint[][] | null;
+		bytes: Buffer | null;
+		bytesArr: Buffer[] | null;
+		bytesMtx: Buffer[][] | null;
+		time: Date | null;
+		timeArr: Date[] | null;
+		timeMtx: Date[][] | null;
+		int: number | null;
+		intArr: number[] | null;
+		intMtx: number[][] | null;
+	}[];
+
+	expectTypeOf<ExpectedType>().toEqualTypeOf(rawRes);
+	expectTypeOf(relationRootRes).toEqualTypeOf(rawRes);
+	expectTypeOf(nestedRelationRes).toEqualTypeOf(rawRes);
+
+	expect(nestedRelationRes).toStrictEqual(rawRes);
+	expect(relationRootRes).toStrictEqual(rawRes);
+
+	const expectedRes: ExpectedType = [
+		{
+			id: 1,
+			big: 5044565289845416380n,
+			bigArr: [5044565289845416380n],
+			bigMtx: [[5044565289845416380n]],
+			bytes: Buffer.from('BYTES'),
+			bytesArr: [Buffer.from('BYTES')],
+			bytesMtx: [[Buffer.from('BYTES')]],
+			time: new Date(1741743161623),
+			timeArr: [new Date(1741743161623)],
+			timeMtx: [[new Date(1741743161623)]],
+			int: 250,
+			intArr: [250],
+			intMtx: [[250]],
 		},
 	];
 
