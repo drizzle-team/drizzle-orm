@@ -1,6 +1,6 @@
 import type { Connection, ExecuteOptions, FullResult, Tx } from '@tidbcloud/serverless';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
-import type { WithCacheConfig } from '~/cache/core/types';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { Column } from '~/column.ts';
 
 import { entityKind, is } from '~/entity.ts';

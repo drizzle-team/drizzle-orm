@@ -12,7 +12,7 @@ import { type Assume, mapResultRow } from '~/utils.ts';
 
 import { types } from '@electric-sql/pglite';
 import { type Cache, NoopCache } from '~/cache/core/cache.ts';
-import type { WithCacheConfig } from '~/cache/core/types';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 
 export type PgliteClient = PGlite;
 
