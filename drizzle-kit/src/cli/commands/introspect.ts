@@ -9,7 +9,6 @@ import { dryMsSql, MsSqlSchema, squashMssqlScheme } from 'src/serializer/mssqlSc
 import { drySingleStore, SingleStoreSchema, squashSingleStoreScheme } from 'src/serializer/singlestoreSchema';
 import { assertUnreachable, originUUID } from '../../global';
 import { schemaToTypeScript as gelSchemaToTypeScript } from '../../introspect-gel';
-import { schemaToTypeScript as mssqlSchemaToTypeScript } from '../../introspect-mssql';
 import { schemaToTypeScript as mysqlSchemaToTypeScript } from '../../introspect-mysql';
 import { paramNameFor, schemaToTypeScript as postgresSchemaToTypeScript } from '../../introspect-pg';
 import { schemaToTypeScript as singlestoreSchemaToTypeScript } from '../../introspect-singlestore';
@@ -420,116 +419,116 @@ export const introspectMysql = async (
 	process.exit(0);
 };
 
-export const introspectMssql = async (
-	casing: Casing,
-	out: string,
-	breakpoints: boolean,
-	credentials: MssqlCredentials,
-	tablesFilter: string[],
-	prefix: Prefix,
-) => {
-	const { connectToMsSQL } = await import('../connections');
-	const { db, database } = await connectToMsSQL(credentials);
+// export const introspectMssql = async (
+// 	casing: Casing,
+// 	out: string,
+// 	breakpoints: boolean,
+// 	credentials: MssqlCredentials,
+// 	tablesFilter: string[],
+// 	prefix: Prefix,
+// ) => {
+// 	const { connectToMsSQL } = await import('../connections');
+// 	const { db, database } = await connectToMsSQL(credentials);
 
-	const matchers = tablesFilter.map((it) => {
-		return new Minimatch(it);
-	});
+// 	const matchers = tablesFilter.map((it) => {
+// 		return new Minimatch(it);
+// 	});
 
-	const filter = (tableName: string) => {
-		if (matchers.length === 0) return true;
+// 	const filter = (tableName: string) => {
+// 		if (matchers.length === 0) return true;
 
-		let flags: boolean[] = [];
+// 		let flags: boolean[] = [];
 
-		for (let matcher of matchers) {
-			if (matcher.negate) {
-				if (!matcher.match(tableName)) {
-					flags.push(false);
-				}
-			}
+// 		for (let matcher of matchers) {
+// 			if (matcher.negate) {
+// 				if (!matcher.match(tableName)) {
+// 					flags.push(false);
+// 				}
+// 			}
 
-			if (matcher.match(tableName)) {
-				flags.push(true);
-			}
-		}
+// 			if (matcher.match(tableName)) {
+// 				flags.push(true);
+// 			}
+// 		}
 
-		if (flags.length > 0) {
-			return flags.every(Boolean);
-		}
-		return false;
-	};
+// 		if (flags.length > 0) {
+// 			return flags.every(Boolean);
+// 		}
+// 		return false;
+// 	};
 
-	const progress = new IntrospectProgress();
-	const res = await renderWithTask(
-		progress,
-		fromMssqlDatabase(db, database, filter, (stage, count, status) => {
-			progress.update(stage, count, status);
-		}),
-	);
+// 	const progress = new IntrospectProgress();
+// 	const res = await renderWithTask(
+// 		progress,
+// 		fromMssqlDatabase(db, database, filter, (stage, count, status) => {
+// 			progress.update(stage, count, status);
+// 		}),
+// 	);
 
-	const schema = { id: originUUID, prevId: '', ...res } as MsSqlSchema;
-	const ts = mssqlSchemaToTypeScript(schema, casing);
-	const relationsTs = relationsToTypeScript(schema, casing);
-	const { internal, ...schemaWithoutInternals } = schema;
+// 	const schema = { id: originUUID, prevId: '', ...res } as MsSqlSchema;
+// 	const ts = mssqlSchemaToTypeScript(schema, casing);
+// 	const relationsTs = relationsToTypeScript(schema, casing);
+// 	const { internal, ...schemaWithoutInternals } = schema;
 
-	const schemaFile = join(out, 'schema.ts');
-	writeFileSync(schemaFile, ts.file);
-	const relationsFile = join(out, 'relations.ts');
-	writeFileSync(relationsFile, relationsTs.file);
-	console.log();
+// 	const schemaFile = join(out, 'schema.ts');
+// 	writeFileSync(schemaFile, ts.file);
+// 	const relationsFile = join(out, 'relations.ts');
+// 	writeFileSync(relationsFile, relationsTs.file);
+// 	console.log();
 
-	const { snapshots, journal } = prepareOutFolder(out, 'mysql');
+// 	const { snapshots, journal } = prepareOutFolder(out, 'mysql');
 
-	if (snapshots.length === 0) {
-		const { sqlStatements, _meta } = await applyMssqlSnapshotsDiff(
-			squashMssqlScheme(dryMsSql),
-			squashMssqlScheme(schema),
-			tablesResolver,
-			columnsResolver,
-			mySqlViewsResolver,
-			dryMsSql,
-			schema,
-		);
+// 	if (snapshots.length === 0) {
+// 		const { sqlStatements, _meta } = await applyMssqlSnapshotsDiff(
+// 			squashMssqlScheme(dryMsSql),
+// 			squashMssqlScheme(schema),
+// 			tablesResolver,
+// 			columnsResolver,
+// 			mySqlViewsResolver,
+// 			dryMsSql,
+// 			schema,
+// 		);
 
-		writeResult({
-			cur: schema,
-			sqlStatements,
-			journal,
-			_meta,
-			outFolder: out,
-			breakpoints,
-			type: 'introspect',
-			prefixMode: prefix,
-		});
-	} else {
-		render(
-			`[${
-				chalk.blue(
-					'i',
-				)
-			}] No SQL generated, you already have migrations in project`,
-		);
-	}
+// 		writeResult({
+// 			cur: schema,
+// 			sqlStatements,
+// 			journal,
+// 			_meta,
+// 			outFolder: out,
+// 			breakpoints,
+// 			type: 'introspect',
+// 			prefixMode: prefix,
+// 		});
+// 	} else {
+// 		render(
+// 			`[${
+// 				chalk.blue(
+// 					'i',
+// 				)
+// 			}] No SQL generated, you already have migrations in project`,
+// 		);
+// 	}
 
-	render(
-		`[${
-			chalk.green(
-				'✓',
-			)
-		}] Your schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
-	);
-	render(
-		`[${
-			chalk.green(
-				'✓',
-			)
-		}] Your relations file is ready ➜ ${
-			chalk.bold.underline.blue(
-				relationsFile,
-			)
-		} 🚀`,
-	);
-	process.exit(0);
-};
+// 	render(
+// 		`[${
+// 			chalk.green(
+// 				'✓',
+// 			)
+// 		}] Your schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
+// 	);
+// 	render(
+// 		`[${
+// 			chalk.green(
+// 				'✓',
+// 			)
+// 		}] Your relations file is ready ➜ ${
+// 			chalk.bold.underline.blue(
+// 				relationsFile,
+// 			)
+// 		} 🚀`,
+// 	);
+// 	process.exit(0);
+// };
 
 export const introspectSingleStore = async (
 	casing: Casing,

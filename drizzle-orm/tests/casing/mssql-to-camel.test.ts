@@ -17,7 +17,7 @@ const usersRelations = relations(users, ({ one }) => ({
 	developers: one(developers),
 }));
 const developers = testSchema.table('developers', {
-	user_id: int().primaryKey().primaryKey().references(() => users.id),
+	user_id: int().primaryKey().primaryKey().references('name1', () => users.id),
 	uses_drizzle_orm: bit().notNull(),
 });
 const developersRelations = relations(developers, ({ one }) => ({
@@ -78,8 +78,8 @@ describe('mssql to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				"select [users].[firstName] || ' ' || [users].[lastName] as [name], [users].[AGE] from [users] left join [test].[developers] on [users].[id] = [test].[developers].[userId] order by [users].[firstName] asc",
-			params: [100, 15],
+				"select [users].[firstName] || ' ' || [users].[lastName] as [name], [users].[AGE] from [users] left join [test].[developers] on [users].[id] = [test].[developers].[userId] where [users].[id] = @par0 order by [users].[firstName] asc",
+			params: [15],
 		});
 		expect(db.dialect.casing.cache).toEqual(cache);
 	});

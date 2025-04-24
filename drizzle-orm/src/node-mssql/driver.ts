@@ -84,3 +84,14 @@ interface CallbackClient {
 function isCallbackClient(client: any): client is CallbackClient {
 	return typeof client.promise === 'function';
 }
+
+export namespace drizzle {
+	export function mock<TSchema extends Record<string, unknown> = Record<string, unknown>>(
+		config?: NodeMsSqlDrizzleConfig<TSchema>,
+	):
+		& NodeMsSqlDatabase<TSchema>
+		& { $client: '$client is not available on drizzle.mock()' }
+	{
+		return drizzle({} as NodeMsSqlClient, config) as any;
+	}
+}

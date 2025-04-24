@@ -8,7 +8,6 @@ import {
 	MsSqlDialect,
 	MsSqlView,
 	type PrimaryKey as PrimaryKeyORM,
-	uniqueKeyName,
 } from 'drizzle-orm/mssql-core';
 import { CasingType } from 'src/cli/validations/common';
 import { withStyle } from '../cli/validations/outputs';
@@ -203,7 +202,7 @@ export const generateMsSqlSnapshot = (
 		uniqueConstraints?.map((unq) => {
 			const columnNames = unq.columns.map((c) => getColumnCasing(c, casing));
 
-			const name = unq.name ?? uniqueKeyName(table, columnNames);
+			const name = unq.name;
 
 			const existingUnique = uniqueConstraintObject[name];
 			if (typeof existingUnique !== 'undefined') {
@@ -421,9 +420,6 @@ export const generateMsSqlSnapshot = (
 			query,
 			schema,
 			selectedFields,
-			algorithm,
-			sqlSecurity,
-			withCheckOption,
 		} = getViewConfig(view);
 
 		const columnsObject: Record<string, Column> = {};
@@ -518,8 +514,8 @@ export const generateMsSqlSnapshot = (
 			name,
 			isExisting,
 			definition: isExisting ? undefined : dialect.sqlToQuery(query!).sql,
-			withCheckOption,
-			algorithm: algorithm ?? 'undefined', // set default values
+			// withCheckOption,
+			// algorithm: algorithm ?? 'undefined', // set default values
 			// sqlSecurity: sqlSecurity ?? 'definer', // set default values
 		};
 	}
@@ -997,10 +993,10 @@ export const fromDatabase = async (
 			columns: columns,
 			isExisting: false,
 			name: viewName,
-			algorithm: 'undefined',
+			// algorithm: 'undefined',
 			definition,
 			// sqlSecurity,
-			withCheckOption,
+			// withCheckOption,
 		};
 	}
 

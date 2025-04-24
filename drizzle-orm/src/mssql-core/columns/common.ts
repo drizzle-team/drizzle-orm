@@ -17,9 +17,9 @@ import { ForeignKeyBuilder } from '~/mssql-core/foreign-keys.ts';
 import type { AnyMsSqlTable, MsSqlTable } from '~/mssql-core/table.ts';
 import type { SQL } from '~/sql/index.ts';
 import type { Update } from '~/utils.ts';
-import { uniqueKeyName } from '../unique-constraint.ts';
 
 export interface ReferenceConfig {
+	name: string;
 	ref: () => MsSqlColumn;
 	actions: {
 		onUpdate?: UpdateDeleteAction;
@@ -50,12 +50,12 @@ export abstract class MsSqlColumnBuilder<
 
 	private foreignKeyConfigs: ReferenceConfig[] = [];
 
-	references(ref: ReferenceConfig['ref'], actions: ReferenceConfig['actions'] = {}): this {
-		this.foreignKeyConfigs.push({ ref, actions });
+	references(name: string, ref: ReferenceConfig['ref'], actions: ReferenceConfig['actions'] = {}): this {
+		this.foreignKeyConfigs.push({ name, ref, actions });
 		return this;
 	}
 
-	unique(name?: string): this {
+	unique(name: string): this {
 		this.config.isUnique = true;
 		this.config.uniqueName = name;
 		return this;
@@ -77,11 +77,11 @@ export abstract class MsSqlColumnBuilder<
 
 	/** @internal */
 	buildForeignKeys(column: MsSqlColumn, table: MsSqlTable): ForeignKey[] {
-		return this.foreignKeyConfigs.map(({ ref, actions }) => {
+		return this.foreignKeyConfigs.map(({ name, ref, actions }) => {
 			return ((ref, actions) => {
 				const builder = new ForeignKeyBuilder(() => {
 					const foreignColumn = ref();
-					return { columns: [column], foreignColumns: [foreignColumn] };
+					return { name: name, columns: [column], foreignColumns: [foreignColumn] };
 				});
 				if (actions.onUpdate) {
 					builder.onUpdate(actions.onUpdate);
@@ -112,9 +112,6 @@ export abstract class MsSqlColumn<
 		override readonly table: MsSqlTable,
 		config: ColumnBuilderRuntimeConfig<T['data'], TRuntimeConfig>,
 	) {
-		if (!config.uniqueName) {
-			config.uniqueName = uniqueKeyName(table, [config.name]);
-		}
 		super(table, config);
 	}
 

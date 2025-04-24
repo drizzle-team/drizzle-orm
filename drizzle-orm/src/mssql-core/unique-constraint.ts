@@ -1,15 +1,9 @@
 import { entityKind } from '~/entity.ts';
-import { TableName } from '~/table.utils.ts';
 import type { MsSqlColumn } from './columns/index.ts';
 import type { MsSqlTable } from './table.ts';
 
-export function unique(name?: string): UniqueOnConstraintBuilder {
+export function unique(name: string): UniqueOnConstraintBuilder {
 	return new UniqueOnConstraintBuilder(name);
-}
-
-// TODO mssql generates random names
-export function uniqueKeyName(table: MsSqlTable, columns: string[]) {
-	return `${table[TableName]}_${columns.join('_')}_unique`;
 }
 
 export class UniqueConstraintBuilder {
@@ -20,7 +14,7 @@ export class UniqueConstraintBuilder {
 
 	constructor(
 		columns: MsSqlColumn[],
-		private name?: string,
+		private name: string,
 	) {
 		this.columns = columns;
 	}
@@ -35,10 +29,10 @@ export class UniqueOnConstraintBuilder {
 	static readonly [entityKind]: string = 'MsSqlUniqueOnConstraintBuilder';
 
 	/** @internal */
-	name?: string;
+	name: string;
 
 	constructor(
-		name?: string,
+		name: string,
 	) {
 		this.name = name;
 	}
@@ -52,12 +46,12 @@ export class UniqueConstraint {
 	static readonly [entityKind]: string = 'MsSqlUniqueConstraint';
 
 	readonly columns: MsSqlColumn[];
-	readonly name?: string;
+	readonly name: string;
 	readonly nullsNotDistinct: boolean = false;
 
-	constructor(readonly table: MsSqlTable, columns: MsSqlColumn[], name?: string) {
+	constructor(readonly table: MsSqlTable, columns: MsSqlColumn[], name: string) {
 		this.columns = columns;
-		this.name = name ?? uniqueKeyName(this.table, this.columns.map((column) => column.name));
+		this.name = name;
 	}
 
 	getName() {

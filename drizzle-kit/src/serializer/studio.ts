@@ -366,39 +366,39 @@ export const drizzleForMySQL = async (
 	};
 };
 
-export const drizzleForMsSQL = async (
-	credentials: MssqlCredentials,
-	mssqlSchema: Record<string, Record<string, AnyMsSqlTable>>,
-	relations: Record<string, Relations>,
-	schemaFiles?: SchemaFile[],
-): Promise<Setup> => {
-	const { connectToMsSQL } = await import('../cli/connections');
-	const { proxy } = await connectToMsSQL(credentials);
+// export const drizzleForMsSQL = async (
+// 	credentials: MssqlCredentials,
+// 	mssqlSchema: Record<string, Record<string, AnyMsSqlTable>>,
+// 	relations: Record<string, Relations>,
+// 	schemaFiles?: SchemaFile[],
+// ): Promise<Setup> => {
+// 	const { connectToMsSQL } = await import('../cli/connections');
+// 	const { proxy } = await connectToMsSQL(credentials);
 
-	const customDefaults = getCustomDefaults(mssqlSchema);
+// 	const customDefaults = getCustomDefaults(mssqlSchema);
 
-	let dbUrl: string;
+// 	let dbUrl: string;
 
-	if ('url' in credentials) {
-		dbUrl = credentials.url;
-	} else {
-		// TODO() change it!
-		dbUrl =
-			`mysql://${credentials.user}:${credentials.password}@${credentials.host}:${credentials.port}/${credentials.database}`;
-	}
+// 	if ('url' in credentials) {
+// 		dbUrl = credentials.url;
+// 	} else {
+// 		// TODO() change it!
+// 		dbUrl =
+// 			`mysql://${credentials.user}:${credentials.password}@${credentials.host}:${credentials.port}/${credentials.database}`;
+// 	}
 
-	const dbHash = createHash('sha256').update(dbUrl).digest('hex');
+// 	const dbHash = createHash('sha256').update(dbUrl).digest('hex');
 
-	return {
-		dbHash,
-		dialect: 'mysql',
-		proxy,
-		customDefaults,
-		schema: mssqlSchema,
-		relations,
-		schemaFiles,
-	};
-};
+// 	return {
+// 		dbHash,
+// 		dialect: 'mysql',
+// 		proxy,
+// 		customDefaults,
+// 		schema: mssqlSchema,
+// 		relations,
+// 		schemaFiles,
+// 	};
+// };
 
 export const drizzleForSQLite = async (
 	credentials: SqliteCredentials,
