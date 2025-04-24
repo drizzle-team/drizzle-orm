@@ -314,6 +314,7 @@ export class SingleStoreDialect {
 				}
 				const table = joinMeta.table;
 				const lateralSql = joinMeta.lateral ? sql` lateral` : undefined;
+				const onSql = joinMeta.on ? sql` on ${joinMeta.on}` : undefined;
 
 				if (is(table, SingleStoreTable)) {
 					const tableName = table[SingleStoreTable.Symbol.Name];
@@ -323,7 +324,7 @@ export class SingleStoreDialect {
 					joinsArray.push(
 						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
 							tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined
-						}${sql.identifier(origTableName)}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
+						}${sql.identifier(origTableName)}${alias && sql` ${sql.identifier(alias)}`}${onSql}`,
 					);
 				} else if (is(table, View)) {
 					const viewName = table[ViewBaseConfig].name;
@@ -333,11 +334,11 @@ export class SingleStoreDialect {
 					joinsArray.push(
 						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
 							viewSchema ? sql`${sql.identifier(viewSchema)}.` : undefined
-						}${sql.identifier(origViewName)}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
+						}${sql.identifier(origViewName)}${alias && sql` ${sql.identifier(alias)}`}${onSql}`,
 					);
 				} else {
 					joinsArray.push(
-						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${table} on ${joinMeta.on}`,
+						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${table}${onSql}`,
 					);
 				}
 				if (index < joins.length - 1) {
@@ -365,7 +366,7 @@ export class SingleStoreDialect {
 			const { config, strength } = lockingClause;
 			lockingClausesSql = sql` for ${sql.raw(strength)}`;
 			if (config.noWait) {
-				lockingClausesSql.append(sql` no wait`);
+				lockingClausesSql.append(sql` nowait`);
 			} else if (config.skipLocked) {
 				lockingClausesSql.append(sql` skip locked`);
 			}
