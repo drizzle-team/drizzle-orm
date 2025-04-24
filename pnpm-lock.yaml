@@ -433,8 +433,8 @@ importers:
         specifier: ^0.25.0
         version: 0.25.0
       mssql:
-        specifier: ^10.0.1
-        version: 10.0.4
+        specifier: ^11.0.1
+        version: 11.0.1
       mysql2:
         specifier: ^3.3.3
         version: 3.3.3
