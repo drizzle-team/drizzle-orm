@@ -3988,16 +3988,16 @@ export function tests() {
 			expect(query.toSQL()).toStrictEqual({
 				sql:
 					`select [id], [name] from [cities] order by [cities].[id] desc offset @par0 rows fetch next @par1 rows only`,
-				params: [5, 1],
+				params: [5, 2],
 			});
 
 			const res = await query;
 
-			expect(res.length).toBe(1);
+			expect(res.length).toBe(2);
 			expect(res).toStrictEqual(
 				[
-					{ id: 6, name: 'city6' },
-					{ id: 7, name: 'city7' },
+					{ id: 5, name: 'city5' },
+					{ id: 4, name: 'city4' },
 				],
 			);
 		});
@@ -4022,11 +4022,11 @@ export function tests() {
 
 			const res = await query.execute({ offset: 5, fetch: 2 });
 
-			expect(res.length).toBe(1);
+			expect(res.length).toBe(2);
 			expect(res).toStrictEqual(
 				[
-					{ id: 6, name: 'city6' },
-					{ id: 7, name: 'city7' },
+					{ id: 5, name: 'city5' },
+					{ id: 4, name: 'city4' },
 				],
 			);
 		});

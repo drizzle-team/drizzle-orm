@@ -33,7 +33,7 @@ export type GeneratedStorageMode = 'virtual' | 'stored';
 export type GeneratedType = 'always' | 'byDefault';
 
 export type GeneratedColumnConfig<TDataType> = {
-	as: TDataType | SQL;
+	as: TDataType | SQL | (() => SQL);
 	type?: GeneratedType;
 	mode?: GeneratedStorageMode;
 };
