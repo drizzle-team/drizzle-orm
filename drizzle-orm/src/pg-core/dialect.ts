@@ -128,7 +128,11 @@ export class PgDialect {
 
 		const withSqlChunks = [sql`with `];
 		for (const [i, w] of queries.entries()) {
-			withSqlChunks.push(sql`${sql.identifier(w._.alias)} as (${w._.sql})`);
+			let asKeyword = sql`as`;
+			if (w._.isMaterialized !== undefined) {
+				asKeyword = w._.isMaterialized ? sql`as materialized` : sql`as not materialized`;
+			}
+			withSqlChunks.push(sql`${sql.identifier(w._.alias)} ${asKeyword} (${w._.sql})`);
 			if (i < queries.length - 1) {
 				withSqlChunks.push(sql`, `);
 			}
