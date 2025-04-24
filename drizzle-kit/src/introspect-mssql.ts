@@ -113,229 +113,229 @@ const dbColumnName = ({ name, casing, withMode = false }: { name: string; casing
 	assertUnreachable(casing);
 };
 
-export const schemaToTypeScript = (
-	schema: MsSqlSchemaInternal,
-	casing: Casing,
-) => {
-	const withCasing = prepareCasing(casing);
-	// collectFKs
-	Object.values(schema.tables).forEach((table) => {
-		Object.values(table.foreignKeys).forEach((fk) => {
-			const relation = `${fk.tableFrom}-${fk.tableTo}`;
-			relations.add(relation);
-		});
-	});
+// export const schemaToTypeScript = (
+// 	schema: MsSqlSchemaInternal,
+// 	casing: Casing,
+// ) => {
+// 	const withCasing = prepareCasing(casing);
+// 	// collectFKs
+// 	Object.values(schema.tables).forEach((table) => {
+// 		Object.values(table.foreignKeys).forEach((fk) => {
+// 			const relation = `${fk.tableFrom}-${fk.tableTo}`;
+// 			relations.add(relation);
+// 		});
+// 	});
 
-	const imports = Object.values(schema.tables).reduce(
-		(res, it) => {
-			const idxImports = Object.values(it.indexes).map((idx) => idx.isUnique ? 'uniqueIndex' : 'index');
-			const fkImpots = Object.values(it.foreignKeys).map((it) => 'foreignKey');
-			const pkImports = Object.values(it.compositePrimaryKeys).map(
-				(it) => 'primaryKey',
-			);
-			const uniqueImports = Object.values(it.uniqueConstraints).map(
-				(it) => 'unique',
-			);
-			const checkImports = Object.values(it.checkConstraint).map(
-				(it) => 'check',
-			);
+// 	const imports = Object.values(schema.tables).reduce(
+// 		(res, it) => {
+// 			const idxImports = Object.values(it.indexes).map((idx) => idx.isUnique ? 'uniqueIndex' : 'index');
+// 			const fkImpots = Object.values(it.foreignKeys).map((it) => 'foreignKey');
+// 			const pkImports = Object.values(it.compositePrimaryKeys).map(
+// 				(it) => 'primaryKey',
+// 			);
+// 			const uniqueImports = Object.values(it.uniqueConstraints).map(
+// 				(it) => 'unique',
+// 			);
+// 			const checkImports = Object.values(it.checkConstraint).map(
+// 				(it) => 'check',
+// 			);
 
-			res.mssql.push(...idxImports);
-			res.mssql.push(...fkImpots);
-			res.mssql.push(...pkImports);
-			res.mssql.push(...uniqueImports);
-			res.mssql.push(...checkImports);
+// 			res.mssql.push(...idxImports);
+// 			res.mssql.push(...fkImpots);
+// 			res.mssql.push(...pkImports);
+// 			res.mssql.push(...uniqueImports);
+// 			res.mssql.push(...checkImports);
 
-			const columnImports = Object.values(it.columns)
-				.map((col) => {
-					// TODO()
-					let patched = importsPatch[col.type] ?? col.type;
-					patched = patched.startsWith('varchar(') ? 'varchar' : patched;
-					patched = patched.startsWith('char(') ? 'char' : patched;
-					patched = patched.startsWith('binary(') ? 'binary' : patched;
-					patched = patched.startsWith('decimal(') ? 'decimal' : patched;
-					patched = patched.startsWith('smallint(') ? 'smallint' : patched;
-					patched = patched.startsWith('enum(') ? 'mysqlEnum' : patched;
-					patched = patched.startsWith('datetime(') ? 'datetime' : patched;
-					patched = patched.startsWith('varbinary(') ? 'varbinary' : patched;
-					patched = patched.startsWith('int(') ? 'int' : patched;
-					patched = patched.startsWith('double(') ? 'double' : patched;
-					patched = patched.startsWith('float(') ? 'float' : patched;
-					patched = patched.startsWith('int unsigned') ? 'int' : patched;
-					patched = patched.startsWith('tinyint unsigned') ? 'tinyint' : patched;
-					patched = patched.startsWith('smallint unsigned') ? 'smallint' : patched;
-					patched = patched.startsWith('mediumint unsigned') ? 'mediumint' : patched;
-					patched = patched.startsWith('bigint unsigned') ? 'bigint' : patched;
-					return patched;
-				})
-				.filter((type) => {
-					return mssqlImportsList.has(type);
-				});
+// 			const columnImports = Object.values(it.columns)
+// 				.map((col) => {
+// 					// TODO()
+// 					let patched = importsPatch[col.type] ?? col.type;
+// 					patched = patched.startsWith('varchar(') ? 'varchar' : patched;
+// 					patched = patched.startsWith('char(') ? 'char' : patched;
+// 					patched = patched.startsWith('binary(') ? 'binary' : patched;
+// 					patched = patched.startsWith('decimal(') ? 'decimal' : patched;
+// 					patched = patched.startsWith('smallint(') ? 'smallint' : patched;
+// 					patched = patched.startsWith('enum(') ? 'mysqlEnum' : patched;
+// 					patched = patched.startsWith('datetime(') ? 'datetime' : patched;
+// 					patched = patched.startsWith('varbinary(') ? 'varbinary' : patched;
+// 					patched = patched.startsWith('int(') ? 'int' : patched;
+// 					patched = patched.startsWith('double(') ? 'double' : patched;
+// 					patched = patched.startsWith('float(') ? 'float' : patched;
+// 					patched = patched.startsWith('int unsigned') ? 'int' : patched;
+// 					patched = patched.startsWith('tinyint unsigned') ? 'tinyint' : patched;
+// 					patched = patched.startsWith('smallint unsigned') ? 'smallint' : patched;
+// 					patched = patched.startsWith('mediumint unsigned') ? 'mediumint' : patched;
+// 					patched = patched.startsWith('bigint unsigned') ? 'bigint' : patched;
+// 					return patched;
+// 				})
+// 				.filter((type) => {
+// 					return mssqlImportsList.has(type);
+// 				});
 
-			res.mssql.push(...columnImports);
-			return res;
-		},
-		{ mssql: [] as string[] },
-	);
+// 			res.mssql.push(...columnImports);
+// 			return res;
+// 		},
+// 		{ mssql: [] as string[] },
+// 	);
 
-	Object.values(schema.views).forEach((it) => {
-		imports.mssql.push('mssqlView');
+// 	Object.values(schema.views).forEach((it) => {
+// 		imports.mssql.push('mssqlView');
 
-		const columnImports = Object.values(it.columns)
-			.map((col) => {
-				// TODO()
-				let patched = importsPatch[col.type] ?? col.type;
-				patched = patched.startsWith('varchar(') ? 'varchar' : patched;
-				patched = patched.startsWith('char(') ? 'char' : patched;
-				patched = patched.startsWith('binary(') ? 'binary' : patched;
-				patched = patched.startsWith('decimal(') ? 'decimal' : patched;
-				patched = patched.startsWith('smallint(') ? 'smallint' : patched;
-				patched = patched.startsWith('enum(') ? 'mysqlEnum' : patched;
-				patched = patched.startsWith('datetime(') ? 'datetime' : patched;
-				patched = patched.startsWith('varbinary(') ? 'varbinary' : patched;
-				patched = patched.startsWith('int(') ? 'int' : patched;
-				patched = patched.startsWith('double(') ? 'double' : patched;
-				patched = patched.startsWith('float(') ? 'float' : patched;
-				patched = patched.startsWith('int unsigned') ? 'int' : patched;
-				patched = patched.startsWith('tinyint unsigned') ? 'tinyint' : patched;
-				patched = patched.startsWith('smallint unsigned') ? 'smallint' : patched;
-				patched = patched.startsWith('mediumint unsigned') ? 'mediumint' : patched;
-				patched = patched.startsWith('bigint unsigned') ? 'bigint' : patched;
-				return patched;
-			})
-			.filter((type) => {
-				return mssqlImportsList.has(type);
-			});
+// 		const columnImports = Object.values(it.columns)
+// 			.map((col) => {
+// 				// TODO()
+// 				let patched = importsPatch[col.type] ?? col.type;
+// 				patched = patched.startsWith('varchar(') ? 'varchar' : patched;
+// 				patched = patched.startsWith('char(') ? 'char' : patched;
+// 				patched = patched.startsWith('binary(') ? 'binary' : patched;
+// 				patched = patched.startsWith('decimal(') ? 'decimal' : patched;
+// 				patched = patched.startsWith('smallint(') ? 'smallint' : patched;
+// 				patched = patched.startsWith('enum(') ? 'mysqlEnum' : patched;
+// 				patched = patched.startsWith('datetime(') ? 'datetime' : patched;
+// 				patched = patched.startsWith('varbinary(') ? 'varbinary' : patched;
+// 				patched = patched.startsWith('int(') ? 'int' : patched;
+// 				patched = patched.startsWith('double(') ? 'double' : patched;
+// 				patched = patched.startsWith('float(') ? 'float' : patched;
+// 				patched = patched.startsWith('int unsigned') ? 'int' : patched;
+// 				patched = patched.startsWith('tinyint unsigned') ? 'tinyint' : patched;
+// 				patched = patched.startsWith('smallint unsigned') ? 'smallint' : patched;
+// 				patched = patched.startsWith('mediumint unsigned') ? 'mediumint' : patched;
+// 				patched = patched.startsWith('bigint unsigned') ? 'bigint' : patched;
+// 				return patched;
+// 			})
+// 			.filter((type) => {
+// 				return mssqlImportsList.has(type);
+// 			});
 
-		imports.mssql.push(...columnImports);
-	});
+// 		imports.mssql.push(...columnImports);
+// 	});
 
-	const tableStatements = Object.values(schema.tables).map((table) => {
-		const func = 'mssqlTable';
-		let statement = '';
-		if (imports.mssql.includes(withCasing(table.name))) {
-			statement = `// Table name is in conflict with ${
-				withCasing(
-					table.name,
-				)
-			} import.\n// Please change to any other name, that is not in imports list\n`;
-		}
-		statement += `export const ${withCasing(table.name)} = ${func}("${table.name}", {\n`;
-		statement += createTableColumns(
-			Object.values(table.columns),
-			Object.values(table.foreignKeys),
-			withCasing,
-			casing,
-			table.name,
-			schema,
-		);
-		statement += '}';
+// 	const tableStatements = Object.values(schema.tables).map((table) => {
+// 		const func = 'mssqlTable';
+// 		let statement = '';
+// 		if (imports.mssql.includes(withCasing(table.name))) {
+// 			statement = `// Table name is in conflict with ${
+// 				withCasing(
+// 					table.name,
+// 				)
+// 			} import.\n// Please change to any other name, that is not in imports list\n`;
+// 		}
+// 		statement += `export const ${withCasing(table.name)} = ${func}("${table.name}", {\n`;
+// 		statement += createTableColumns(
+// 			Object.values(table.columns),
+// 			Object.values(table.foreignKeys),
+// 			withCasing,
+// 			casing,
+// 			table.name,
+// 			schema,
+// 		);
+// 		statement += '}';
 
-		// more than 2 fields or self reference or cyclic
-		const filteredFKs = Object.values(table.foreignKeys).filter((it) => {
-			return it.columnsFrom.length > 1 || isSelf(it);
-		});
+// 		// more than 2 fields or self reference or cyclic
+// 		const filteredFKs = Object.values(table.foreignKeys).filter((it) => {
+// 			return it.columnsFrom.length > 1 || isSelf(it);
+// 		});
 
-		if (
-			Object.keys(table.indexes).length > 0
-			|| filteredFKs.length > 0
-			|| Object.keys(table.compositePrimaryKeys).length > 0
-			|| Object.keys(table.uniqueConstraints).length > 0
-			|| Object.keys(table.checkConstraint).length > 0
-		) {
-			statement += ',\n';
-			statement += '(table) => [';
-			statement += createTableIndexes(
-				table.name,
-				Object.values(table.indexes),
-				withCasing,
-			);
-			statement += createTableFKs(Object.values(filteredFKs), withCasing);
-			statement += createTablePKs(
-				Object.values(table.compositePrimaryKeys),
-				withCasing,
-			);
-			statement += createTableUniques(
-				Object.values(table.uniqueConstraints),
-				withCasing,
-			);
-			statement += createTableChecks(
-				Object.values(table.checkConstraint),
-				withCasing,
-			);
-			statement += '\n]';
-		}
+// 		if (
+// 			Object.keys(table.indexes).length > 0
+// 			|| filteredFKs.length > 0
+// 			|| Object.keys(table.compositePrimaryKeys).length > 0
+// 			|| Object.keys(table.uniqueConstraints).length > 0
+// 			|| Object.keys(table.checkConstraint).length > 0
+// 		) {
+// 			statement += ',\n';
+// 			statement += '(table) => [';
+// 			statement += createTableIndexes(
+// 				table.name,
+// 				Object.values(table.indexes),
+// 				withCasing,
+// 			);
+// 			statement += createTableFKs(Object.values(filteredFKs), withCasing);
+// 			statement += createTablePKs(
+// 				Object.values(table.compositePrimaryKeys),
+// 				withCasing,
+// 			);
+// 			statement += createTableUniques(
+// 				Object.values(table.uniqueConstraints),
+// 				withCasing,
+// 			);
+// 			statement += createTableChecks(
+// 				Object.values(table.checkConstraint),
+// 				withCasing,
+// 			);
+// 			statement += '\n]';
+// 		}
 
-		statement += ');';
-		return statement;
-	});
+// 		statement += ');';
+// 		return statement;
+// 	});
 
-	const viewsStatements = Object.values(schema.views).map((view) => {
-		const { columns, name, algorithm, definition, withCheckOption } = view;
-		const func = 'mssqlView';
-		let statement = '';
+// 	const viewsStatements = Object.values(schema.views).map((view) => {
+// 		// const { columns, name, algorithm, definition, withCheckOption } = view;
+// 		const func = 'mssqlView';
+// 		let statement = '';
 
-		if (imports.mssql.includes(withCasing(name))) {
-			statement = `// Table name is in conflict with ${
-				withCasing(
-					view.name,
-				)
-			} import.\n// Please change to any other name, that is not in imports list\n`;
-		}
-		statement += `export const ${withCasing(name)} = ${func}("${name}", {\n`;
-		statement += createTableColumns(
-			Object.values(columns),
-			[],
-			withCasing,
-			casing,
-			name,
-			schema,
-		);
-		statement += '})';
+// 		// if (imports.mssql.includes(withCasing(name))) {
+// 		// 	statement = `// Table name is in conflict with ${
+// 		// 		withCasing(
+// 		// 			view.name,
+// 		// 		)
+// 		// } import.\n// Please change to any other name, that is not in imports list\n`;
+// 		// }
+// 		// statement += `export const ${withCasing(name)} = ${func}("${name}", {\n`;
+// 		// statement += createTableColumns(
+// 		// 	Object.values(columns),
+// 		// 	[],
+// 		// 	withCasing,
+// 		// 	casing,
+// 		// 	// name,
+// 		// 	schema,
+// 		// );
+// 		// statement += '})';
 
-		statement += algorithm ? `.algorithm("${algorithm}")` : '';
-		statement += withCheckOption ? `.withCheckOption("${withCheckOption}")` : '';
-		statement += `.as(sql\`${definition?.replaceAll('`', '\\`')}\`);`;
+// 		// statement += algorithm ? `.algorithm("${algorithm}")` : '';
+// 		// statement += withCheckOption ? `.withCheckOption("${withCheckOption}")` : '';
+// 		// statement += `.as(sql\`${definition?.replaceAll('`', '\\`')}\`);`;
 
-		return statement;
-	});
+// 		return statement;
+// 	});
 
-	const uniqueMySqlImports = [
-		'mssqlTable',
-		'mssqlSchema',
-		'AnyMsSqlColumn',
-		...new Set(imports.mssql),
-	];
-	const importsTs = `import { ${
-		uniqueMySqlImports.join(
-			', ',
-		)
-	} } from "drizzle-orm/mssql-core"\nimport { sql } from "drizzle-orm"\n\n`;
+// 	const uniqueMySqlImports = [
+// 		'mssqlTable',
+// 		'mssqlSchema',
+// 		'AnyMsSqlColumn',
+// 		...new Set(imports.mssql),
+// 	];
+// 	const importsTs = `import { ${
+// 		uniqueMySqlImports.join(
+// 			', ',
+// 		)
+// 	} } from "drizzle-orm/mssql-core"\nimport { sql } from "drizzle-orm"\n\n`;
 
-	let decalrations = '';
-	decalrations += tableStatements.join('\n\n');
-	decalrations += '\n';
-	decalrations += viewsStatements.join('\n\n');
+// 	let decalrations = '';
+// 	decalrations += tableStatements.join('\n\n');
+// 	decalrations += '\n';
+// 	decalrations += viewsStatements.join('\n\n');
 
-	const file = importsTs + decalrations;
+// 	const file = importsTs + decalrations;
 
-	const schemaEntry = `
-    {
-      ${
-		Object.values(schema.tables)
-			.map((it) => withCasing(it.name))
-			.join(',')
-	}
-    }
-  `;
+// 	const schemaEntry = `
+//     {
+//       ${
+// 		Object.values(schema.tables)
+// 			.map((it) => withCasing(it.name))
+// 			.join(',')
+// 	}
+//     }
+//   `;
 
-	return {
-		file, // backward compatible, print to file
-		imports: importsTs,
-		decalrations,
-		schemaEntry,
-	};
-};
+// 	return {
+// 		file, // backward compatible, print to file
+// 		imports: importsTs,
+// 		decalrations,
+// 		schemaEntry,
+// 	};
+// };
 
 const isCyclic = (fk: ForeignKey) => {
 	const key = `${fk.tableFrom}-${fk.tableTo}`;

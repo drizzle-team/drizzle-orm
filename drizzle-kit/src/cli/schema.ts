@@ -11,7 +11,6 @@ import { assertV1OutFolder } from '../utils';
 import { certs } from '../utils/certs';
 import { checkHandler } from './commands/check';
 import { dropMigration } from './commands/drop';
-import { upMssqlHandler } from './commands/mssqlUp';
 import { upMysqlHandler } from './commands/mysqlUp';
 import { upPgHandler } from './commands/pgUp';
 import { upSinglestoreHandler } from './commands/singlestoreUp';
@@ -87,7 +86,7 @@ export const generate = command({
 			prepareAndMigrateSqlite,
 			prepareAndMigrateLibSQL,
 			prepareAndMigrateSingleStore,
-			prepareAndMigrateMsSQL,
+			// prepareAndMigrateMsSQL,
 		} = await import('./commands/migrate');
 
 		const dialect = opts.dialect;
@@ -476,10 +475,6 @@ export const up = command({
 
 		if (dialect === 'mysql') {
 			upMysqlHandler(out);
-		}
-
-		if (dialect === 'mysql') {
-			upMssqlHandler(out);
 		}
 
 		if (dialect === 'sqlite' || dialect === 'turso') {

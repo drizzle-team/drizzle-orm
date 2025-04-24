@@ -17,7 +17,7 @@ import type {
 } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { ColumnsSelection, Query } from '~/sql/sql.ts';
+import type { ColumnsSelection, Placeholder, Query } from '~/sql/sql.ts';
 import { SQL, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
@@ -58,7 +58,7 @@ class MsSqlSelectFromBuilderBase<
 	protected dialect: MsSqlDialect;
 	protected withList: Subquery[] = [];
 	protected distinct: boolean | undefined;
-	protected topNumber?: number;
+	protected topValue?: number | Placeholder;
 
 	constructor(config: {
 		fields: TSelection;
@@ -66,7 +66,7 @@ class MsSqlSelectFromBuilderBase<
 		dialect: MsSqlDialect;
 		withList?: Subquery[];
 		distinct?: boolean;
-		topNumber?: number;
+		topValue?: number | Placeholder;
 	}) {
 		this.fields = config.fields;
 		this.session = config.session;
@@ -75,7 +75,7 @@ class MsSqlSelectFromBuilderBase<
 			this.withList = config.withList;
 		}
 		this.distinct = config.distinct;
-		this.topNumber = config.topNumber;
+		this.topValue = config.topValue;
 	}
 
 	from<TFrom extends MsSqlTable | Subquery | MsSqlViewBase | SQL>(
@@ -118,7 +118,7 @@ class MsSqlSelectFromBuilderBase<
 			dialect: this.dialect,
 			withList: this.withList,
 			distinct: this.distinct,
-			topNumber: this.topNumber,
+			topValue: this.topValue,
 		}) as any;
 	}
 }
@@ -130,14 +130,14 @@ export class MsSqlSelectBuilder<
 > extends MsSqlSelectFromBuilderBase<TSelection, TPreparedQueryHKT, TBuilderMode, 'from'> {
 	static override readonly [entityKind] = 'MsSqlSelectFromBuilderBase';
 
-	top(n: number): MsSqlSelectFromBuilderBase<TSelection, TPreparedQueryHKT, TBuilderMode, 'top'> {
+	top(top: number | Placeholder): MsSqlSelectFromBuilderBase<TSelection, TPreparedQueryHKT, TBuilderMode, 'top'> {
 		return new MsSqlSelectFromBuilderBase({
 			fields: this.fields,
 			session: this.session,
 			dialect: this.dialect,
 			withList: this.withList,
 			distinct: this.distinct,
-			topNumber: n,
+			topValue: top,
 		});
 	}
 }
@@ -181,7 +181,7 @@ export abstract class MsSqlSelectQueryBuilderBase<
 	protected dialect: MsSqlDialect;
 
 	constructor(
-		{ table, fields, isPartialSelect, session, dialect, withList, distinct, topNumber }: {
+		{ table, fields, isPartialSelect, session, dialect, withList, distinct, topValue }: {
 			table: MsSqlSelectConfig['table'];
 			fields: MsSqlSelectConfig['fields'];
 			isPartialSelect: boolean;
@@ -189,7 +189,7 @@ export abstract class MsSqlSelectQueryBuilderBase<
 			dialect: MsSqlDialect;
 			withList: Subquery[];
 			distinct: boolean | undefined;
-			topNumber: number | undefined;
+			topValue: number | undefined | Placeholder;
 		},
 	) {
 		super();
@@ -199,7 +199,7 @@ export abstract class MsSqlSelectQueryBuilderBase<
 			fields: { ...fields },
 			distinct,
 			setOperators: [],
-			top: topNumber,
+			top: topValue,
 		};
 		this.isPartialSelect = isPartialSelect;
 		this.session = session;
@@ -745,7 +745,7 @@ export abstract class MsSqlSelectQueryBuilderBase<
 	}
 
 	// TODO add description
-	offset(offset: number): MsSqlSelectReplace<this, TDynamic, 'offset', 'fetch'> {
+	offset(offset: number | Placeholder): MsSqlSelectReplace<this, TDynamic, 'offset', 'fetch'> {
 		if (this.config.setOperators.length > 0) {
 			this.config.setOperators.at(-1)!.offset = offset;
 		} else {
@@ -755,7 +755,7 @@ export abstract class MsSqlSelectQueryBuilderBase<
 	}
 
 	// TODO add description
-	fetch(fetch: number): MsSqlSelectWithout<this, TDynamic, 'fetch'> {
+	fetch(fetch: number | Placeholder): MsSqlSelectWithout<this, TDynamic, 'fetch'> {
 		if (this.config.setOperators.length > 0) {
 			this.config.setOperators.at(-1)!.fetch = fetch;
 		} else {

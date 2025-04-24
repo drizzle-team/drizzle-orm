@@ -58,9 +58,9 @@ const table = object({
 }).strict();
 
 const viewMeta = object({
-	algorithm: enumType(['undefined', 'merge', 'temptable']),
+	// algorithm: enumType(['undefined', 'merge', 'temptable']),
 	// sqlSecurity: enumType(['definer', 'invoker']),
-	withCheckOption: enumType(['local', 'cascaded']).optional(),
+	// withCheckOption: enumType(['local', 'cascaded']).optional(),
 }).strict();
 
 export const view = object({
@@ -125,9 +125,9 @@ const tableSquashed = object({
 }).strict();
 
 const viewSquashed = view.omit({
-	algorithm: true,
+	// algorithm: true,
 	// sqlSecurity: true,
-	withCheckOption: true,
+	// withCheckOption: true,
 }).extend({ meta: string() });
 
 export const schemaSquashed = object({
@@ -218,7 +218,8 @@ export const MsSqlSquasher = {
 	},
 	squashView: (view: View): string => {
 		// return `${view.algorithm};${view.sqlSecurity};${view.withCheckOption}`;
-		return `${view.algorithm};${view.withCheckOption}`;
+		// return `${view.algorithm};${view.withCheckOption}`;
+		return '';
 	},
 	unsquashView: (meta: string): SquasherViewMeta => {
 		const [algorithm, sqlSecurity, withCheckOption] = meta.split(';');

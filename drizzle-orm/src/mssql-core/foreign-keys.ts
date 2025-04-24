@@ -1,12 +1,11 @@
 import { entityKind } from '~/entity.ts';
-import { TableName } from '~/table.utils.ts';
 import type { AnyMsSqlColumn, MsSqlColumn } from './columns/index.ts';
 import type { MsSqlTable } from './table.ts';
 
 export type UpdateDeleteAction = 'cascade' | 'restrict' | 'no action' | 'set null' | 'set default';
 
 export type Reference = () => {
-	readonly name?: string;
+	readonly name: string;
 	readonly columns: MsSqlColumn[];
 	readonly foreignTable: MsSqlTable;
 	readonly foreignColumns: MsSqlColumn[];
@@ -26,7 +25,7 @@ export class ForeignKeyBuilder {
 
 	constructor(
 		config: () => {
-			name?: string;
+			name: string;
 			columns: MsSqlColumn[];
 			foreignColumns: MsSqlColumn[];
 		},
@@ -77,16 +76,9 @@ export class ForeignKey {
 	}
 
 	getName(): string {
-		const { name, columns, foreignColumns } = this.reference();
-		const columnNames = columns.map((column) => column.name);
-		const foreignColumnNames = foreignColumns.map((column) => column.name);
-		const chunks = [
-			this.table[TableName],
-			...columnNames,
-			foreignColumns[0]!.table[TableName],
-			...foreignColumnNames,
-		];
-		return name ?? `${chunks.join('_')}_fk`;
+		const { name } = this.reference();
+
+		return name;
 	}
 }
 
@@ -108,7 +100,7 @@ export function foreignKey<
 	TColumns extends [AnyMsSqlColumn<{ tableName: TTableName }>, ...AnyMsSqlColumn<{ tableName: TTableName }>[]],
 >(
 	config: {
-		name?: string;
+		name: string;
 		columns: TColumns;
 		foreignColumns: ColumnsWithTable<TForeignTableName, TColumns>;
 	},

@@ -5,6 +5,7 @@ import {
 	avgDistinct,
 	count,
 	countDistinct,
+	desc,
 	eq,
 	getTableColumns,
 	gt,
@@ -54,7 +55,6 @@ import {
 	unionAll,
 	unique,
 	uniqueIndex,
-	uniqueKeyName,
 	varbinary,
 	varchar,
 } from 'drizzle-orm/mssql-core';
@@ -86,7 +86,7 @@ const usersTable = mssqlTable('userstest', {
 const users2Table = mssqlTable('users2', {
 	id: int('id').primaryKey(),
 	name: varchar('name', { length: 30 }).notNull(),
-	cityId: int('city_id').default(sql`null`).references(() => citiesTable.id),
+	cityId: int('city_id').default(sql`null`).references('fk1', () => citiesTable.id),
 });
 
 const citiesTable = mssqlTable('cities', {
@@ -115,7 +115,7 @@ const datesTable = mssqlTable('datestable', {
 const coursesTable = mssqlTable('courses', {
 	id: int().identity().primaryKey(),
 	name: text().notNull(),
-	categoryId: int('category_id').references(() => courseCategoriesTable.id),
+	categoryId: int('category_id').references('fk2', () => courseCategoriesTable.id),
 });
 
 const courseCategoriesTable = mssqlTable('course_categories', {
@@ -162,7 +162,7 @@ const usersSchemaTable = mySchema.table('userstest', {
 const users2SchemaTable = mySchema.table('users2', {
 	id: int('id').identity().primaryKey(),
 	name: varchar('name', { length: 100 }).notNull(),
-	cityId: int('city_id').references(() => citiesTable.id),
+	cityId: int('city_id').references('fk3', () => citiesTable.id),
 });
 
 const citiesSchemaTable = mySchema.table('cities', {
@@ -533,7 +533,7 @@ export function tests() {
 		test('table configs: unique in column', async () => {
 			const cities1Table = mssqlTable('cities1', {
 				id: int('id').primaryKey(),
-				name: text('name').notNull().unique(),
+				name: text('name').notNull().unique('unique_name'),
 				state: text('state').unique('custom'),
 				field: text('field').unique('custom_field'),
 			});
@@ -541,7 +541,7 @@ export function tests() {
 			const tableConfig = getTableConfig(cities1Table);
 
 			const columnName = tableConfig.columns.find((it) => it.name === 'name');
-			expect(columnName?.uniqueName).toBe(uniqueKeyName(cities1Table, [columnName!.name]));
+			expect(columnName?.uniqueName).toBe('unique_name');
 			expect(columnName?.isUnique).toBeTruthy();
 
 			const columnState = tableConfig.columns.find((it) => it.name === 'state');
@@ -1107,7 +1107,7 @@ export function tests() {
 			const statement = db.select({
 				id: usersTable.id,
 				name: usersTable.name,
-			}).from(usersTable)
+			}).from(usersTable).orderBy()
 				.prepare();
 			const result = await statement.execute();
 
@@ -2361,10 +2361,10 @@ export function tests() {
 			await expect((async () => {
 				db
 					.select({ id: citiesTable.id, name: citiesTable.name })
-					.from(citiesTable).fetch(2).unionAll(
+					.from(citiesTable).unionAll(
 						db
 							.select({ name: citiesTable.name, id: citiesTable.id })
-							.from(citiesTable).fetch(2),
+							.from(citiesTable),
 					).orderBy(asc(sql`id`));
 			})()).rejects.toThrowError();
 		});
@@ -3847,6 +3847,188 @@ export function tests() {
 				{ employeeName: null, department: 'Drizzle3' },
 				{ employeeName: null, department: 'Drizzle4' },
 			]);
+		});
+
+		test('select top', async (ctx) => {
+			const { db } = ctx.mssql;
+
+			await db.insert(citiesTable).values({ id: 1, name: 'city1' });
+			await db.insert(citiesTable).values({ id: 2, name: 'city2' });
+			await db.insert(citiesTable).values({ id: 3, name: 'city3' });
+			await db.insert(citiesTable).values({ id: 4, name: 'city4' });
+			await db.insert(citiesTable).values({ id: 5, name: 'city5' });
+			await db.insert(citiesTable).values({ id: 6, name: 'city6' });
+			await db.insert(citiesTable).values({ id: 7, name: 'city7' });
+			await db.insert(citiesTable).values({ id: 8, name: 'city8' });
+			await db.insert(citiesTable).values({ id: 9, name: 'city9' });
+			await db.insert(citiesTable).values({ id: 10, name: 'city10' });
+
+			const query = db.select().top(4).from(citiesTable);
+
+			expect(query.toSQL()).toStrictEqual({
+				sql: `select top(@par0) [id], [name] from [cities]`,
+				params: [4],
+			});
+
+			const res = await query;
+
+			expect(res.length).toBe(4);
+			expect(res).toStrictEqual(
+				[
+					{ id: 1, name: 'city1' },
+					{ id: 2, name: 'city2' },
+					{ id: 3, name: 'city3' },
+					{ id: 4, name: 'city4' },
+				],
+			);
+		});
+
+		test('select top prepared query', async (ctx) => {
+			const { db } = ctx.mssql;
+
+			await db.insert(citiesTable).values({ id: 1, name: 'city1' });
+			await db.insert(citiesTable).values({ id: 2, name: 'city2' });
+			await db.insert(citiesTable).values({ id: 3, name: 'city3' });
+			await db.insert(citiesTable).values({ id: 4, name: 'city4' });
+			await db.insert(citiesTable).values({ id: 5, name: 'city5' });
+			await db.insert(citiesTable).values({ id: 6, name: 'city6' });
+			await db.insert(citiesTable).values({ id: 7, name: 'city7' });
+			await db.insert(citiesTable).values({ id: 8, name: 'city8' });
+			await db.insert(citiesTable).values({ id: 9, name: 'city9' });
+			await db.insert(citiesTable).values({ id: 10, name: 'city10' });
+
+			const query = db.select().top(sql.placeholder('top')).from(citiesTable);
+
+			const res = await query.execute({ top: 4 });
+
+			expect(res.length).toBe(4);
+			expect(res).toStrictEqual(
+				[
+					{ id: 1, name: 'city1' },
+					{ id: 2, name: 'city2' },
+					{ id: 3, name: 'city3' },
+					{ id: 4, name: 'city4' },
+				],
+			);
+		});
+
+		test('select offset', async (ctx) => {
+			const { db } = ctx.mssql;
+
+			await db.insert(citiesTable).values({ id: 1, name: 'city1' });
+			await db.insert(citiesTable).values({ id: 2, name: 'city2' });
+			await db.insert(citiesTable).values({ id: 3, name: 'city3' });
+			await db.insert(citiesTable).values({ id: 4, name: 'city4' });
+			await db.insert(citiesTable).values({ id: 5, name: 'city5' });
+			await db.insert(citiesTable).values({ id: 6, name: 'city6' });
+			await db.insert(citiesTable).values({ id: 7, name: 'city7' });
+			await db.insert(citiesTable).values({ id: 8, name: 'city8' });
+			await db.insert(citiesTable).values({ id: 9, name: 'city9' });
+			await db.insert(citiesTable).values({ id: 10, name: 'city10' });
+
+			const query = db.select().from(citiesTable).orderBy(desc(citiesTable.id)).offset(9);
+
+			expect(query.toSQL()).toStrictEqual({
+				sql: `select [id], [name] from [cities] order by [cities].[id] desc offset @par0 rows`,
+				params: [9],
+			});
+
+			const res = await query;
+
+			expect(res.length).toBe(1);
+			expect(res).toStrictEqual(
+				[
+					{ id: 1, name: 'city1' },
+				],
+			);
+		});
+
+		test('select offset prepared query', async (ctx) => {
+			const { db } = ctx.mssql;
+
+			await db.insert(citiesTable).values({ id: 1, name: 'city1' });
+			await db.insert(citiesTable).values({ id: 2, name: 'city2' });
+			await db.insert(citiesTable).values({ id: 3, name: 'city3' });
+			await db.insert(citiesTable).values({ id: 4, name: 'city4' });
+			await db.insert(citiesTable).values({ id: 5, name: 'city5' });
+			await db.insert(citiesTable).values({ id: 6, name: 'city6' });
+			await db.insert(citiesTable).values({ id: 7, name: 'city7' });
+			await db.insert(citiesTable).values({ id: 8, name: 'city8' });
+			await db.insert(citiesTable).values({ id: 9, name: 'city9' });
+			await db.insert(citiesTable).values({ id: 10, name: 'city10' });
+
+			const query = db.select().from(citiesTable).orderBy(desc(citiesTable.id)).offset(sql.placeholder('offset'));
+
+			const res = await query.execute({ offset: 9 });
+
+			expect(res.length).toBe(1);
+			expect(res).toStrictEqual(
+				[
+					{ id: 1, name: 'city1' },
+				],
+			);
+		});
+
+		test('select offset and fetch', async (ctx) => {
+			const { db } = ctx.mssql;
+
+			await db.insert(citiesTable).values({ id: 1, name: 'city1' });
+			await db.insert(citiesTable).values({ id: 2, name: 'city2' });
+			await db.insert(citiesTable).values({ id: 3, name: 'city3' });
+			await db.insert(citiesTable).values({ id: 4, name: 'city4' });
+			await db.insert(citiesTable).values({ id: 5, name: 'city5' });
+			await db.insert(citiesTable).values({ id: 6, name: 'city6' });
+			await db.insert(citiesTable).values({ id: 7, name: 'city7' });
+			await db.insert(citiesTable).values({ id: 8, name: 'city8' });
+			await db.insert(citiesTable).values({ id: 9, name: 'city9' });
+			await db.insert(citiesTable).values({ id: 10, name: 'city10' });
+
+			const query = db.select().from(citiesTable).orderBy(desc(citiesTable.id)).offset(5).fetch(2);
+
+			expect(query.toSQL()).toStrictEqual({
+				sql:
+					`select [id], [name] from [cities] order by [cities].[id] desc offset @par0 rows fetch next @par1 rows only`,
+				params: [5, 1],
+			});
+
+			const res = await query;
+
+			expect(res.length).toBe(1);
+			expect(res).toStrictEqual(
+				[
+					{ id: 6, name: 'city6' },
+					{ id: 7, name: 'city7' },
+				],
+			);
+		});
+
+		test('select offset and fetch prepared query', async (ctx) => {
+			const { db } = ctx.mssql;
+
+			await db.insert(citiesTable).values({ id: 1, name: 'city1' });
+			await db.insert(citiesTable).values({ id: 2, name: 'city2' });
+			await db.insert(citiesTable).values({ id: 3, name: 'city3' });
+			await db.insert(citiesTable).values({ id: 4, name: 'city4' });
+			await db.insert(citiesTable).values({ id: 5, name: 'city5' });
+			await db.insert(citiesTable).values({ id: 6, name: 'city6' });
+			await db.insert(citiesTable).values({ id: 7, name: 'city7' });
+			await db.insert(citiesTable).values({ id: 8, name: 'city8' });
+			await db.insert(citiesTable).values({ id: 9, name: 'city9' });
+			await db.insert(citiesTable).values({ id: 10, name: 'city10' });
+
+			const query = db.select().from(citiesTable).orderBy(desc(citiesTable.id)).offset(sql.placeholder('offset')).fetch(
+				sql.placeholder('fetch'),
+			);
+
+			const res = await query.execute({ offset: 5, fetch: 2 });
+
+			expect(res.length).toBe(1);
+			expect(res).toStrictEqual(
+				[
+					{ id: 6, name: 'city6' },
+					{ id: 7, name: 'city7' },
+				],
+			);
 		});
 	});
 }

@@ -167,144 +167,144 @@ export const mysqlPush = async (
 	}
 };
 
-export const mssqlPush = async (
-	schemaPath: string | string[],
-	credentials: MysqlCredentials,
-	tablesFilter: string[],
-	strict: boolean,
-	verbose: boolean,
-	force: boolean,
-	casing: CasingType | undefined,
-) => {
-	const { connectToMsSQL } = await import('../connections');
-	const { mssqlPushIntrospect } = await import('./mssqlIntrospect');
+// export const mssqlPush = async (
+// 	schemaPath: string | string[],
+// 	credentials: MysqlCredentials,
+// 	tablesFilter: string[],
+// 	strict: boolean,
+// 	verbose: boolean,
+// 	force: boolean,
+// 	casing: CasingType | undefined,
+// ) => {
+// 	const { connectToMsSQL } = await import('../connections');
+// 	const { mssqlPushIntrospect } = await import('./mssqlIntrospect');
 
-	const { db, database } = await connectToMsSQL(credentials);
+// 	const { db, database } = await connectToMsSQL(credentials);
 
-	const { schema } = await mssqlPushIntrospect(db, database, tablesFilter);
-	const { prepareMsSQLPush } = await import('./migrate');
+// 	const { schema } = await mssqlPushIntrospect(db, database, tablesFilter);
+// 	const { prepareMsSQLPush } = await import('./migrate');
 
-	const statements = await prepareMsSQLPush(schemaPath, schema, casing);
+// 	const statements = await prepareMsSQLPush(schemaPath, schema, casing);
 
-	const filteredStatements = msSqlFilterStatements(
-		statements.statements ?? [],
-		statements.validatedCur,
-		statements.validatedPrev,
-	);
+// 	const filteredStatements = msSqlFilterStatements(
+// 		statements.statements ?? [],
+// 		statements.validatedCur,
+// 		statements.validatedPrev,
+// 	);
 
-	try {
-		if (filteredStatements.length === 0) {
-			render(`[${chalk.blue('i')}] No changes detected`);
-		} else {
-			const {
-				shouldAskForApprove,
-				statementsToExecute,
-				columnsToRemove,
-				tablesToRemove,
-				tablesToTruncate,
-				infoToPrint,
-			} = await msSqlLogSuggestionsAndReturn(
-				db,
-				filteredStatements,
-				statements.validatedCur,
-			);
+// 	try {
+// 		if (filteredStatements.length === 0) {
+// 			render(`[${chalk.blue('i')}] No changes detected`);
+// 		} else {
+// 			const {
+// 				shouldAskForApprove,
+// 				statementsToExecute,
+// 				columnsToRemove,
+// 				tablesToRemove,
+// 				tablesToTruncate,
+// 				infoToPrint,
+// 			} = await msSqlLogSuggestionsAndReturn(
+// 				db,
+// 				filteredStatements,
+// 				statements.validatedCur,
+// 			);
 
-			const filteredSqlStatements = fromJson(filteredStatements, 'mssql');
+// 			// const filteredSqlStatements = fromJson(filteredStatements, 'mssql');
 
-			const uniqueSqlStatementsToExecute: string[] = [];
-			statementsToExecute.forEach((ss) => {
-				if (!uniqueSqlStatementsToExecute.includes(ss)) {
-					uniqueSqlStatementsToExecute.push(ss);
-				}
-			});
-			const uniqueFilteredSqlStatements: string[] = [];
-			filteredSqlStatements.forEach((ss) => {
-				if (!uniqueFilteredSqlStatements.includes(ss)) {
-					uniqueFilteredSqlStatements.push(ss);
-				}
-			});
+// 			const uniqueSqlStatementsToExecute: string[] = [];
+// 			statementsToExecute.forEach((ss) => {
+// 				if (!uniqueSqlStatementsToExecute.includes(ss)) {
+// 					uniqueSqlStatementsToExecute.push(ss);
+// 				}
+// 			});
+// 			const uniqueFilteredSqlStatements: string[] = [];
+// 			// filteredSqlStatements.forEach((ss) => {
+// 			// 	if (!uniqueFilteredSqlStatements.includes(ss)) {
+// 			// 		uniqueFilteredSqlStatements.push(ss);
+// 			// 	}
+// 			// });
 
-			if (verbose) {
-				console.log();
-				console.log(
-					withStyle.warning('You are about to execute current statements:'),
-				);
-				console.log();
-				console.log(
-					[...uniqueSqlStatementsToExecute, ...uniqueFilteredSqlStatements]
-						.map((s) => chalk.blue(s))
-						.join('\n'),
-				);
-				console.log();
-			}
+// 			if (verbose) {
+// 				console.log();
+// 				console.log(
+// 					withStyle.warning('You are about to execute current statements:'),
+// 				);
+// 				console.log();
+// 				console.log(
+// 					[...uniqueSqlStatementsToExecute, ...uniqueFilteredSqlStatements]
+// 						.map((s) => chalk.blue(s))
+// 						.join('\n'),
+// 				);
+// 				console.log();
+// 			}
 
-			if (!force && strict) {
-				if (!shouldAskForApprove) {
-					const { status, data } = await render(
-						new Select(['No, abort', `Yes, I want to execute all statements`]),
-					);
-					if (data?.index === 0) {
-						render(`[${chalk.red('x')}] All changes were aborted`);
-						process.exit(0);
-					}
-				}
-			}
+// 			if (!force && strict) {
+// 				if (!shouldAskForApprove) {
+// 					const { status, data } = await render(
+// 						new Select(['No, abort', `Yes, I want to execute all statements`]),
+// 					);
+// 					if (data?.index === 0) {
+// 						render(`[${chalk.red('x')}] All changes were aborted`);
+// 						process.exit(0);
+// 					}
+// 				}
+// 			}
 
-			if (!force && shouldAskForApprove) {
-				console.log(withStyle.warning('Found data-loss statements:'));
-				console.log(infoToPrint.join('\n'));
-				console.log();
-				console.log(
-					chalk.red.bold(
-						'THIS ACTION WILL CAUSE DATA LOSS AND CANNOT BE REVERTED\n',
-					),
-				);
+// 			if (!force && shouldAskForApprove) {
+// 				console.log(withStyle.warning('Found data-loss statements:'));
+// 				console.log(infoToPrint.join('\n'));
+// 				console.log();
+// 				console.log(
+// 					chalk.red.bold(
+// 						'THIS ACTION WILL CAUSE DATA LOSS AND CANNOT BE REVERTED\n',
+// 					),
+// 				);
 
-				console.log(chalk.white('Do you still want to push changes?'));
+// 				console.log(chalk.white('Do you still want to push changes?'));
 
-				const { status, data } = await render(
-					new Select([
-						'No, abort',
-						`Yes, I want to${
-							tablesToRemove.length > 0
-								? ` remove ${tablesToRemove.length} ${tablesToRemove.length > 1 ? 'tables' : 'table'},`
-								: ' '
-						}${
-							columnsToRemove.length > 0
-								? ` remove ${columnsToRemove.length} ${columnsToRemove.length > 1 ? 'columns' : 'column'},`
-								: ' '
-						}${
-							tablesToTruncate.length > 0
-								? ` truncate ${tablesToTruncate.length} ${tablesToTruncate.length > 1 ? 'tables' : 'table'}`
-								: ''
-						}`
-							.replace(/(^,)|(,$)/g, '')
-							.replace(/ +(?= )/g, ''),
-					]),
-				);
-				if (data?.index === 0) {
-					render(`[${chalk.red('x')}] All changes were aborted`);
-					process.exit(0);
-				}
-			}
+// 				const { status, data } = await render(
+// 					new Select([
+// 						'No, abort',
+// 						`Yes, I want to${
+// 							tablesToRemove.length > 0
+// 								? ` remove ${tablesToRemove.length} ${tablesToRemove.length > 1 ? 'tables' : 'table'},`
+// 								: ' '
+// 						}${
+// 							columnsToRemove.length > 0
+// 								? ` remove ${columnsToRemove.length} ${columnsToRemove.length > 1 ? 'columns' : 'column'},`
+// 								: ' '
+// 						}${
+// 							tablesToTruncate.length > 0
+// 								? ` truncate ${tablesToTruncate.length} ${tablesToTruncate.length > 1 ? 'tables' : 'table'}`
+// 								: ''
+// 						}`
+// 							.replace(/(^,)|(,$)/g, '')
+// 							.replace(/ +(?= )/g, ''),
+// 					]),
+// 				);
+// 				if (data?.index === 0) {
+// 					render(`[${chalk.red('x')}] All changes were aborted`);
+// 					process.exit(0);
+// 				}
+// 			}
 
-			for (const dStmnt of uniqueSqlStatementsToExecute) {
-				await db.query(dStmnt);
-			}
+// 			for (const dStmnt of uniqueSqlStatementsToExecute) {
+// 				await db.query(dStmnt);
+// 			}
 
-			for (const statement of uniqueFilteredSqlStatements) {
-				await db.query(statement);
-			}
-			if (filteredStatements.length > 0) {
-				render(`[${chalk.green('✓')}] Changes applied`);
-			} else {
-				render(`[${chalk.blue('i')}] No changes detected`);
-			}
-		}
-	} catch (e) {
-		console.log(e);
-	}
-};
+// 			for (const statement of uniqueFilteredSqlStatements) {
+// 				await db.query(statement);
+// 			}
+// 			if (filteredStatements.length > 0) {
+// 				render(`[${chalk.green('✓')}] Changes applied`);
+// 			} else {
+// 				render(`[${chalk.blue('i')}] No changes detected`);
+// 			}
+// 		}
+// 	} catch (e) {
+// 		console.log(e);
+// 	}
+// };
 
 export const singlestorePush = async (
 	schemaPath: string | string[],

@@ -32,8 +32,8 @@ export const users = mssqlTable(
 		id: int('id').identity().primaryKey(),
 		homeCity: int('home_city')
 			.notNull()
-			.references(() => cities.id),
-		currentCity: int('current_city').references(() => cities.id),
+			.references('home_city_cities_id_fk', () => cities.id),
+		currentCity: int('current_city').references('current_city_cities_id_fk', () => cities.id),
 		serialNullable: int('serial1').identity(),
 		serialNotNull: int('serial2').identity(),
 		class: text('class', { enum: ['A', 'C'] }).notNull(),
@@ -49,12 +49,13 @@ export const users = mssqlTable(
 		uniqueIndex('uniqueClass')
 			.on(users.class, users.subClass),
 		check('legalAge', sql`${users.age1} > 18`),
-		foreignKey({ columns: [users.subClass], foreignColumns: [classes.subClass] }),
+		foreignKey({ name: 'fk_1', columns: [users.subClass], foreignColumns: [classes.subClass] }),
 		foreignKey({
+			name: 'fk_2',
 			columns: [users.class, users.subClass],
 			foreignColumns: [classes.class, classes.subClass],
 		}),
-		primaryKey({ columns: [users.age1, users.class] }),
+		primaryKey({ columns: [users.age1, users.class], name: 'custom_name' }),
 	],
 );
 

@@ -4,8 +4,8 @@ import { relations } from '~/relations.ts';
 export const users = mssqlTable('users', {
 	id: int('id').identity().primaryKey(),
 	name: text('name').notNull(),
-	cityId: int('city_id').references(() => cities.id).notNull(),
-	homeCityId: int('home_city_id').references(() => cities.id),
+	cityId: int('city_id').references('name1', () => cities.id).notNull(),
+	homeCityId: int('home_city_id').references('name2', () => cities.id),
 	createdAt: datetime('created_at').notNull(),
 });
 export const usersConfig = relations(users, ({ one, many }) => ({
@@ -26,7 +26,7 @@ export const citiesConfig = relations(cities, ({ many }) => ({
 export const posts = mssqlTable('posts', {
 	id: int('id').identity().primaryKey(),
 	title: text('title').notNull(),
-	authorId: int('author_id').references(() => users.id),
+	authorId: int('author_id').references('name3', () => users.id),
 });
 export const postsConfig = relations(posts, ({ one, many }) => ({
 	author: one(users, { fields: [posts.authorId], references: [users.id] }),
@@ -35,8 +35,8 @@ export const postsConfig = relations(posts, ({ one, many }) => ({
 
 export const comments = mssqlTable('comments', {
 	id: int('id').identity().primaryKey(),
-	postId: int('post_id').references(() => posts.id).notNull(),
-	authorId: int('author_id').references(() => users.id),
+	postId: int('post_id').references('name4', () => posts.id).notNull(),
+	authorId: int('author_id').references('name5', () => users.id),
 	text: text('text').notNull(),
 });
 export const commentsConfig = relations(comments, ({ one }) => ({
@@ -53,8 +53,8 @@ export const booksConfig = relations(books, ({ many }) => ({
 }));
 
 export const bookAuthors = mssqlTable('book_authors', {
-	bookId: int('book_id').references(() => books.id).notNull(),
-	authorId: int('author_id').references(() => users.id).notNull(),
+	bookId: int('book_id').references('name6', () => books.id).notNull(),
+	authorId: int('author_id').references('name7', () => users.id).notNull(),
 	role: text('role').notNull(),
 });
 export const bookAuthorsConfig = relations(bookAuthors, ({ one }) => ({
@@ -68,9 +68,9 @@ export const node = mssqlTable('node', {
 	leftId: int('left_id'),
 	rightId: int('right_id'),
 }, (node) => [
-	foreignKey({ columns: [node.parentId], foreignColumns: [node.id] }),
-	foreignKey({ columns: [node.leftId], foreignColumns: [node.id] }),
-	foreignKey({ columns: [node.rightId], foreignColumns: [node.id] }),
+	foreignKey({ name: 'name8', columns: [node.parentId], foreignColumns: [node.id] }),
+	foreignKey({ name: 'name9', columns: [node.leftId], foreignColumns: [node.id] }),
+	foreignKey({ name: 'name10', columns: [node.rightId], foreignColumns: [node.id] }),
 ]);
 export const nodeRelations = relations(node, ({ one }) => ({
 	parent: one(node, { fields: [node.parentId], references: [node.id] }),

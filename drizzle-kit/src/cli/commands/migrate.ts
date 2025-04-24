@@ -1139,53 +1139,53 @@ export const prepareAndMigrateMsSQL = async (config: GenerateConfig) => {
 		// TODO: remove
 		// assertV1OutFolder(outFolder);
 
-		const { snapshots, journal } = prepareMigrationFolder(outFolder, 'mssql');
-		const { prev, cur, custom } = await prepareMsSqlMigrationSnapshot(
-			snapshots,
-			schemaPath,
-			casing,
-		);
+		// const { snapshots, journal } = prepareMigrationFolder(outFolder, 'mssql');
+		// const { prev, cur, custom } = await prepareMsSqlMigrationSnapshot(
+		// 	snapshots,
+		// 	schemaPath,
+		// 	casing,
+		// );
 
-		const validatedPrev = mssqlSchema.parse(prev);
-		const validatedCur = mssqlSchema.parse(cur);
+		// const validatedPrev = mssqlSchema.parse(prev);
+		// const validatedCur = mssqlSchema.parse(cur);
 
-		if (config.custom) {
-			writeResult({
-				cur: custom,
-				sqlStatements: [],
-				journal,
-				outFolder,
-				name: config.name,
-				breakpoints: config.breakpoints,
-				type: 'custom',
-				prefixMode: config.prefix,
-			});
-			return;
-		}
+		// if (config.custom) {
+		// 	writeResult({
+		// 		cur: custom,
+		// 		sqlStatements: [],
+		// 		journal,
+		// 		outFolder,
+		// 		name: config.name,
+		// 		breakpoints: config.breakpoints,
+		// 		type: 'custom',
+		// 		prefixMode: config.prefix,
+		// 	});
+		// 	return;
+		// }
 
-		const squashedPrev = squashMssqlScheme(validatedPrev);
-		const squashedCur = squashMssqlScheme(validatedCur);
+		// const squashedPrev = squashMssqlScheme(validatedPrev);
+		// const squashedCur = squashMssqlScheme(validatedCur);
 
-		const { sqlStatements, statements, _meta } = await applyMssqlSnapshotsDiff(
-			squashedPrev,
-			squashedCur,
-			tablesResolver,
-			columnsResolver,
-			mySqlViewsResolver,
-			validatedPrev,
-			validatedCur,
-		);
+		// const { sqlStatements, statements, _meta } = await applyMssqlSnapshotsDiff(
+		// 	squashedPrev,
+		// 	squashedCur,
+		// 	tablesResolver,
+		// 	columnsResolver,
+		// 	mySqlViewsResolver,
+		// 	validatedPrev,
+		// 	validatedCur,
+		// );
 
-		writeResult({
-			cur,
-			sqlStatements,
-			journal,
-			_meta,
-			outFolder,
-			name: config.name,
-			breakpoints: config.breakpoints,
-			prefixMode: config.prefix,
-		});
+		// writeResult({
+		// 	cur,
+		// 	sqlStatements,
+		// 	journal,
+		// 	_meta,
+		// 	outFolder,
+		// 	name: config.name,
+		// 	breakpoints: config.breakpoints,
+		// 	prefixMode: config.prefix,
+		// });
 	} catch (e) {
 		console.error(e);
 	}

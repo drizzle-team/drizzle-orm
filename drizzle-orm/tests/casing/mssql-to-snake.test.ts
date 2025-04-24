@@ -17,7 +17,7 @@ const usersRelations = relations(users, ({ one }) => ({
 	developers: one(developers),
 }));
 const developers = testSchema.table('developers', {
-	userId: int().primaryKey().references(() => users.id),
+	userId: int().primaryKey().references('name1', () => users.id),
 	usesDrizzleORM: bit().notNull(),
 });
 const developersRelations = relations(developers, ({ one }) => ({

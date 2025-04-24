@@ -3,10 +3,10 @@ import { mssqlTable } from '~/mssql-core/table.ts';
 
 const test1 = mssqlTable('test1_table', {
 	id: int('id').identity().primaryKey(),
-	test2Id: int('test2_id').references(() => test2.id),
+	test2Id: int('test2_id').references('name1', () => test2.id),
 });
 
-const test1Id = int('test1_id').references(() => test1.id);
+const test1Id = int('test1_id').references('name2', () => test1.id);
 
 const test2 = mssqlTable('test2_table', {
 	id: int('id').identity().primaryKey(),

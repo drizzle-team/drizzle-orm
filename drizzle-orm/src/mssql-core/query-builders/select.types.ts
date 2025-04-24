@@ -83,7 +83,6 @@ export interface MsSqlSelectConfig {
 		orderBy?: (MsSqlColumn | SQL | SQL.Aliased)[];
 		fetch?: number | Placeholder;
 		offset?: number | Placeholder;
-		limit?: number | Placeholder;
 	}[];
 }
 
@@ -403,7 +402,6 @@ export type MsSqlCreateSetOperatorFn = <
 	TSelectMode extends SelectMode,
 	TValue extends MsSqlSetOperatorWithResult<TResult>,
 	TRest extends MsSqlSetOperatorWithResult<TResult>[],
-	TBranch extends 'from' | 'top',
 	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
 	TNullabilityMap extends Record<string, JoinNullability> = TTableName extends string ? Record<TTableName, 'not-null'>
 		: {},
@@ -431,7 +429,7 @@ export type MsSqlCreateSetOperatorFn = <
 		TSelection,
 		TSelectMode,
 		TPreparedQueryHKT,
-		TBranch,
+		'from',
 		TNullabilityMap,
 		TDynamic,
 		TExcludedMethods,
