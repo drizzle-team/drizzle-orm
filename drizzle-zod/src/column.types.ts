@@ -49,7 +49,7 @@ type HandleSelectColumn<
 	TSchema extends z.ZodTypeAny,
 	TColumn extends Column,
 > = TColumn['_']['notNull'] extends true ? TSchema
-	: z.ZodNullable<TSchema>;
+	: z.ZodOptional<TSchema>;
 
 type HandleInsertColumn<
 	TSchema extends z.ZodTypeAny,
@@ -57,14 +57,14 @@ type HandleInsertColumn<
 > = ColumnIsGeneratedAlwaysAs<TColumn> extends true ? never
 	: TColumn['_']['notNull'] extends true ? TColumn['_']['hasDefault'] extends true ? z.ZodOptional<TSchema>
 		: TSchema
-	: z.ZodOptional<z.ZodNullable<TSchema>>;
+	: z.ZodOptional<TSchema>;
 
 type HandleUpdateColumn<
 	TSchema extends z.ZodTypeAny,
 	TColumn extends Column,
 > = ColumnIsGeneratedAlwaysAs<TColumn> extends true ? never
 	: TColumn['_']['notNull'] extends true ? z.ZodOptional<TSchema>
-	: z.ZodOptional<z.ZodNullable<TSchema>>;
+	: z.ZodOptional<TSchema>;
 
 export type HandleColumn<
 	TType extends 'select' | 'insert' | 'update',
