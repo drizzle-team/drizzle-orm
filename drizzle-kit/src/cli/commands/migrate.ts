@@ -1,7 +1,7 @@
 import fs from 'fs';
 import {
-	prepareMsSqlDbPushSnapshot,
-	prepareMsSqlMigrationSnapshot,
+	// prepareMsSqlDbPushSnapshot,
+	// prepareMsSqlMigrationSnapshot,
 	prepareMySqlDbPushSnapshot,
 	prepareMySqlMigrationSnapshot,
 	preparePgDbPushSnapshot,
@@ -1061,74 +1061,74 @@ export const prepareLibSQLPush = async (
 };
 
 // TODO() mssql
-export const prepareAndExportMssql = async (config: ExportConfig) => {
-	const schemaPath = config.schema;
+// export const prepareAndExportMssql = async (config: ExportConfig) => {
+// 	const schemaPath = config.schema;
 
-	try {
-		const { prev, cur, custom } = await prepareMsSqlMigrationSnapshot(
-			[],
-			schemaPath,
-			undefined,
-		);
+// 	try {
+// 		const { prev, cur, custom } = await prepareMsSqlMigrationSnapshot(
+// 			[],
+// 			schemaPath,
+// 			undefined,
+// 		);
 
-		const validatedPrev = mssqlSchema.parse(prev);
-		const validatedCur = mssqlSchema.parse(cur);
+// 		const validatedPrev = mssqlSchema.parse(prev);
+// 		const validatedCur = mssqlSchema.parse(cur);
 
-		const squashedPrev = squashMssqlScheme(validatedPrev);
-		const squashedCur = squashMssqlScheme(validatedCur);
+// 		const squashedPrev = squashMssqlScheme(validatedPrev);
+// 		const squashedCur = squashMssqlScheme(validatedCur);
 
-		const { sqlStatements, statements, _meta } = await applyMssqlSnapshotsDiff(
-			squashedPrev,
-			squashedCur,
-			tablesResolver,
-			columnsResolver,
-			mySqlViewsResolver,
-			validatedPrev,
-			validatedCur,
-		);
+// 		const { sqlStatements, statements, _meta } = await applyMssqlSnapshotsDiff(
+// 			squashedPrev,
+// 			squashedCur,
+// 			tablesResolver,
+// 			columnsResolver,
+// 			mySqlViewsResolver,
+// 			validatedPrev,
+// 			validatedCur,
+// 		);
 
-		console.log(sqlStatements.join('\n'));
-	} catch (e) {
-		console.error(e);
-	}
-};
+// 		console.log(sqlStatements.join('\n'));
+// 	} catch (e) {
+// 		console.error(e);
+// 	}
+// };
 
 // Intersect with prepareAnMigrate
-export const prepareMsSQLPush = async (
-	schemaPath: string | string[],
-	snapshot: MsSqlSchema,
-	casing: CasingType | undefined,
-) => {
-	try {
-		const { prev, cur } = await prepareMsSqlDbPushSnapshot(
-			snapshot,
-			schemaPath,
-			casing,
-		);
+// export const prepareMsSQLPush = async (
+// 	schemaPath: string | string[],
+// 	snapshot: MsSqlSchema,
+// 	casing: CasingType | undefined,
+// ) => {
+// 	try {
+// 		const { prev, cur } = await prepareMsSqlDbPushSnapshot(
+// 			snapshot,
+// 			schemaPath,
+// 			casing,
+// 		);
 
-		const validatedPrev = mssqlSchema.parse(prev);
-		const validatedCur = mssqlSchema.parse(cur);
+// 		const validatedPrev = mssqlSchema.parse(prev);
+// 		const validatedCur = mssqlSchema.parse(cur);
 
-		const squashedPrev = squashMssqlScheme(validatedPrev);
-		const squashedCur = squashMssqlScheme(validatedCur);
+// 		const squashedPrev = squashMssqlScheme(validatedPrev);
+// 		const squashedCur = squashMssqlScheme(validatedCur);
 
-		const { sqlStatements, statements } = await applyMssqlSnapshotsDiff(
-			squashedPrev,
-			squashedCur,
-			tablesResolver,
-			columnsResolver,
-			mySqlViewsResolver,
-			validatedPrev,
-			validatedCur,
-			'push',
-		);
+// 		const { sqlStatements, statements } = await applyMssqlSnapshotsDiff(
+// 			squashedPrev,
+// 			squashedCur,
+// 			tablesResolver,
+// 			columnsResolver,
+// 			mySqlViewsResolver,
+// 			validatedPrev,
+// 			validatedCur,
+// 			'push',
+// 		);
 
-		return { sqlStatements, statements, validatedCur, validatedPrev };
-	} catch (e) {
-		console.error(e);
-		process.exit(1);
-	}
-};
+// 		return { sqlStatements, statements, validatedCur, validatedPrev };
+// 	} catch (e) {
+// 		console.error(e);
+// 		process.exit(1);
+// 	}
+// };
 
 export const prepareAndMigrateMsSQL = async (config: GenerateConfig) => {
 	const outFolder = config.out;
