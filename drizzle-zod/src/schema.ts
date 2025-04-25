@@ -49,7 +49,7 @@ function handleColumns(
 
 		if (column) {
 			if (conditions.nullable(column)) {
-				columnSchemas[key] = columnSchemas[key]!.nullable();
+				columnSchemas[key] = columnSchemas[key]!.optional();
 			}
 
 			if (conditions.optional(column)) {
