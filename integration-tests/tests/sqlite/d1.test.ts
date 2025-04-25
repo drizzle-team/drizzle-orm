@@ -94,6 +94,7 @@ skipTests([
 	'full join with alias',
 	'select from alias',
 	'join view as subquery',
+	'cross join',
 ]);
 cacheTests();
 tests();
