@@ -1,5 +1,6 @@
 import { is } from '~/entity.ts';
 import { Table } from '~/table.ts';
+import { CommentBuilder } from './comments.ts';
 import type { Index } from './indexes.ts';
 import { IndexBuilder } from './indexes.ts';
 import type { PrimaryKey } from './primary-keys.ts';
@@ -17,6 +18,7 @@ export function getTableConfig(table: SingleStoreTable) {
 	const name = table[Table.Symbol.Name];
 	const schema = table[Table.Symbol.Schema];
 	const baseName = table[Table.Symbol.BaseName];
+	let comment: string | undefined;
 
 	const extraConfigBuilder = table[SingleStoreTable.Symbol.ExtraConfigBuilder];
 
@@ -30,6 +32,8 @@ export function getTableConfig(table: SingleStoreTable) {
 				uniqueConstraints.push(builder.build(table));
 			} else if (is(builder, PrimaryKeyBuilder)) {
 				primaryKeys.push(builder.build(table));
+			} else if (is(builder, CommentBuilder)) {
+				comment = builder.build(table).comment;
 			}
 		}
 	}
@@ -42,6 +46,7 @@ export function getTableConfig(table: SingleStoreTable) {
 		name,
 		schema,
 		baseName,
+		comment,
 	};
 }
 
