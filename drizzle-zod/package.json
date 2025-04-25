@@ -1,6 +1,6 @@
 {
-	"name": "drizzle-zod",
-	"version": "0.7.1",
+	"name": "@fisch0920/drizzle-zod",
+	"version": "0.7.2",
 	"description": "Generate Zod schemas from Drizzle ORM schemas",
 	"type": "module",
 	"scripts": {
@@ -29,7 +29,7 @@
 	"module": "./index.mjs",
 	"types": "./index.d.ts",
 	"publishConfig": {
-		"provenance": true
+    "access": "public"
 	},
 	"repository": {
 		"type": "git",
