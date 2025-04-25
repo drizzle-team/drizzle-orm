@@ -26,21 +26,21 @@ export const serializeMySql = async (
 	return generateMySqlSnapshot(tables, views, casing);
 };
 
-export const serializeMsSql = async (
-	path: string | string[],
-	casing: CasingType | undefined,
-): Promise<MsSqlSchemaInternal> => {
-	const filenames = prepareFilenames(path);
+// export const serializeMsSql = async (
+// 	path: string | string[],
+// 	casing: CasingType | undefined,
+// ): Promise<MsSqlSchemaInternal> => {
+// 	const filenames = prepareFilenames(path);
 
-	console.log(chalk.gray(`Reading schema files:\n${filenames.join('\n')}\n`));
+// 	console.log(chalk.gray(`Reading schema files:\n${filenames.join('\n')}\n`));
 
-	const { prepareFromMsSqlImports } = await import('./mssqlImports');
-	const { generateMsSqlSnapshot } = await import('./mssqlSerializer');
+// 	const { prepareFromMsSqlImports } = await import('./mssqlImports');
+// 	// const { generateMsSqlSnapshot } = await import('./mssqlSerializer');
 
-	const { tables, views } = await prepareFromMsSqlImports(filenames);
+// 	const { tables, views } = await prepareFromMsSqlImports(filenames);
 
-	return generateMsSqlSnapshot(tables, views, casing);
-};
+// 	// return generateMsSqlSnapshot(tables, views, casing);
+// };
 
 export const serializePg = async (
 	path: string | string[],
