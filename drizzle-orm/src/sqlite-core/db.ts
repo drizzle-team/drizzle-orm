@@ -86,6 +86,7 @@ export class BaseSQLiteDatabase<
 				) as typeof query[keyof TSchema];
 			}
 		}
+		this.$cache = { invalidate: async (_params: any) => {} };
 	}
 
 	/**
@@ -471,7 +472,7 @@ export class BaseSQLiteDatabase<
 		return new SQLiteUpdateBuilder(table, this.session, this.dialect);
 	}
 
-	$cache: { invalidate: Cache['onMutate'] } | undefined;
+	$cache: { invalidate: Cache['onMutate'] };
 
 	/**
 	 * Creates an insert query.

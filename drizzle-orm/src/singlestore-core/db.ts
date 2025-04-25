@@ -80,6 +80,7 @@ export class SingleStoreDatabase<
 		// 			);
 		// 	}
 		// }
+		this.$cache = { invalidate: async (_params: any) => {} };
 	}
 
 	/**
@@ -476,7 +477,7 @@ export class SingleStoreDatabase<
 		return this.session.execute(typeof query === 'string' ? sql.raw(query) : query.getSQL());
 	}
 
-	$cache: { invalidate: Cache['onMutate'] } | undefined;
+	$cache: { invalidate: Cache['onMutate'] };
 
 	transaction<T>(
 		transaction: (

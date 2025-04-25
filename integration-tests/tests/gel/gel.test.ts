@@ -5009,7 +5009,6 @@ describe('some', async () => {
 	test('test force invalidate', async (ctx) => {
 		const { db } = ctx.cachedGel;
 
-		// @ts-expect-error
 		const spyInvalidate = vi.spyOn(db.$cache, 'invalidate');
 		await db.$cache?.invalidate({ tables: 'users' });
 		expect(spyInvalidate).toHaveBeenCalledTimes(1);

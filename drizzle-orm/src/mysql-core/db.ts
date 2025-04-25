@@ -86,6 +86,7 @@ export class MySqlDatabase<
 					);
 			}
 		}
+		this.$cache = { invalidate: async (_params: any) => {} };
 	}
 
 	/**
@@ -152,7 +153,7 @@ export class MySqlDatabase<
 		return new MySqlCountBuilder({ source, filters, session: this.session });
 	}
 
-	$cache: { invalidate: Cache['onMutate'] } | undefined;
+	$cache: { invalidate: Cache['onMutate'] };
 
 	/**
 	 * Incorporates a previously defined CTE (using `$with`) into the main query.

@@ -78,6 +78,8 @@ export class GelDatabase<
 				);
 			}
 		}
+
+		this.$cache = { invalidate: async (_params: any) => {} };
 	}
 
 	/**
@@ -498,7 +500,7 @@ export class GelDatabase<
 		});
 	}
 
-	$cache: { invalidate: Cache['onMutate'] } | undefined;
+	$cache: { invalidate: Cache['onMutate'] };
 
 	/**
 	 * Creates an update query.

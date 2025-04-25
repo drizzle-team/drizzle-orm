@@ -134,7 +134,6 @@ export function tests() {
 		test('test force invalidate', async (ctx) => {
 			const { db } = ctx.cachedSqlite;
 
-			// @ts-expect-error
 			const spyInvalidate = vi.spyOn(db.$cache, 'invalidate');
 			await db.$cache?.invalidate({ tables: 'users' });
 			expect(spyInvalidate).toHaveBeenCalledTimes(1);
