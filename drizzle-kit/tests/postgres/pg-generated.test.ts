@@ -3,7 +3,7 @@
 import { SQL, sql } from 'drizzle-orm';
 import { integer, pgTable, text } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
-import { diffTestSchemas } from './mocks-postgres';
+import { diffTestSchemas } from './mocks';
 
 test('generated as callback: add column with generated constraint', async () => {
 	const from = {
@@ -53,7 +53,7 @@ test('generated as callback: add generated constraint to an exisiting column', a
 	const { sqlStatements } = await diffTestSchemas(from, to, []);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE "users" DROP COLUMN "gen_name";',
-		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name" || \'to add\') STORED NOT NULL;',
+		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name" || \'to add\') STORED;',
 	]);
 });
 
@@ -164,7 +164,7 @@ test('generated as sql: add generated constraint to an exisiting column', async 
 	const { sqlStatements } = await diffTestSchemas(from, to, []);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE "users" DROP COLUMN "gen_name";',
-		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name" || \'to add\') STORED NOT NULL;',
+		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name" || \'to add\') STORED;',
 	]);
 });
 
@@ -274,7 +274,7 @@ test('generated as string: add generated constraint to an exisiting column', asy
 
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE "users" DROP COLUMN "gen_name";',
-		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name" || \'to add\') STORED NOT NULL;',
+		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name" || \'to add\') STORED;',
 	]);
 });
 

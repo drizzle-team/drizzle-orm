@@ -1,6 +1,6 @@
 import { integer, pgEnum, pgSchema, pgTable, serial } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
-import { diffTestSchemas } from './mocks-postgres';
+import { diffTestSchemas } from './mocks';
 
 test('enums #1', async () => {
 	const to = {
@@ -427,7 +427,7 @@ test('enums #22', async () => {
 
 	const { sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(sqlStatements).toStrictEqual(['CREATE TABLE IF NOT EXISTS "table" (\n\t"en" "schema"."e"\n);\n']);
+	expect(sqlStatements).toStrictEqual(['CREATE TABLE "table" (\n\t"en" "schema"."e"\n);\n']);
 });
 
 test('enums #23', async () => {
@@ -450,7 +450,7 @@ test('enums #23', async () => {
 
 	const { sqlStatements } = await diffTestSchemas(from, to, []);
 
-	expect(sqlStatements).toStrictEqual(['CREATE TABLE IF NOT EXISTS "table" (\n\t"en1" "schema"."e"[],\n\t"en2" "schema"."e"[][]\n);\n']);
+	expect(sqlStatements).toStrictEqual(['CREATE TABLE "table" (\n\t"en1" "schema"."e"[],\n\t"en2" "schema"."e"[][]\n);\n']);
 });
 
 test('drop enum value', async () => {

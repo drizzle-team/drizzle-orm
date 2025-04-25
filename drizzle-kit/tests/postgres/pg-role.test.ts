@@ -1,6 +1,6 @@
 import { pgRole } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
-import { diffTestSchemas } from '../mocks-postgres';
+import { diffTestSchemas } from '../postgres/mocks';
 
 test('create role', async (t) => {
 	const schema1 = {};

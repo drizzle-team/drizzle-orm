@@ -3327,30 +3327,6 @@ class LibSQLCreateForeignKeyConvertor implements Convertor {
 	}
 }
 
-class MySqlCreateForeignKeyConvertor implements Convertor {
-	can(statement: JsonStatement, dialect: Dialect): boolean {
-		return statement.type === 'create_reference' && dialect === 'mysql';
-	}
-
-	convert(statement: JsonCreateReferenceStatement): string {
-		const {
-			name,
-			tableFrom,
-			tableTo,
-			columnsFrom,
-			columnsTo,
-			onDelete,
-			onUpdate,
-		} = MySqlSquasher.unsquashFK(statement.data);
-		const onDeleteStatement = onDelete ? ` ON DELETE ${onDelete}` : '';
-		const onUpdateStatement = onUpdate ? ` ON UPDATE ${onUpdate}` : '';
-		const fromColumnsString = columnsFrom.map((it) => `\`${it}\``).join(',');
-		const toColumnsString = columnsTo.map((it) => `\`${it}\``).join(',');
-
-		return `ALTER TABLE \`${tableFrom}\` ADD CONSTRAINT \`${name}\` FOREIGN KEY (${fromColumnsString}) REFERENCES \`${tableTo}\`(${toColumnsString})${onDeleteStatement}${onUpdateStatement};`;
-	}
-}
-
 class PgAlterForeignKeyConvertor implements Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return statement.type === 'alter_reference' && dialect === 'postgresql';
@@ -3479,32 +3455,6 @@ class CreatePgIndexConvertor implements Convertor {
 				? ` WITH (${reverseLogic(withMap!)})`
 				: ''
 		}${where ? ` WHERE ${where}` : ''};`;
-	}
-}
-
-class CreateMySqlIndexConvertor implements Convertor {
-	can(statement: JsonStatement, dialect: Dialect): boolean {
-		return statement.type === 'create_index' && dialect === 'mysql';
-	}
-
-	convert(statement: JsonCreateIndexStatement): string {
-		// should be changed
-		const { name, columns, isUnique } = MySqlSquasher.unsquashIdx(
-			statement.data,
-		);
-		const indexPart = isUnique ? 'UNIQUE INDEX' : 'INDEX';
-
-		const uniqueString = columns
-			.map((it) => {
-				return statement.internal?.indexes
-					? statement.internal?.indexes[name]?.columns[it]?.isExpression
-						? it
-						: `\`${it}\``
-					: `\`${it}\``;
-			})
-			.join(',');
-
-		return `CREATE ${indexPart} \`${name}\` ON \`${statement.tableName}\` (${uniqueString});`;
 	}
 }
 
@@ -3905,7 +3855,6 @@ convertors.push(new SingleStoreAlterTableAddUniqueConstraintConvertor());
 convertors.push(new SingleStoreAlterTableDropUniqueConstraintConvertor());
 
 convertors.push(new CreatePgIndexConvertor());
-convertors.push(new CreateMySqlIndexConvertor());
 convertors.push(new CreateSingleStoreIndexConvertor());
 convertors.push(new CreateSqliteIndexConvertor());
 
@@ -3960,7 +3909,6 @@ convertors.push(new LibSQLModifyColumn());
 convertors.push(new SingleStoreModifyColumn());
 
 convertors.push(new PgCreateForeignKeyConvertor());
-convertors.push(new MySqlCreateForeignKeyConvertor());
 
 convertors.push(new PgAlterForeignKeyConvertor());
 

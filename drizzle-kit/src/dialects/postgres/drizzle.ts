@@ -1,5 +1,6 @@
 import { getTableName, is, SQL } from 'drizzle-orm';
 import {
+	AnyPgColumn,
 	AnyPgTable,
 	getMaterializedViewConfig,
 	getTableConfig,
@@ -22,9 +23,11 @@ import {
 	PgTable,
 	PgView,
 	uniqueKeyName,
+	UpdateDeleteAction,
 	ViewWithConfig,
 } from 'drizzle-orm/pg-core';
 import { CasingType } from 'src/cli/validations/common';
+import { assertUnreachable } from 'src/global';
 import { getColumnCasing } from 'src/serializer/utils';
 import { safeRegister } from '../../cli/commands/utils';
 import { escapeSingleQuotes, isPgArrayType, type SchemaError, type SchemaWarning } from '../../utils';
@@ -48,10 +51,12 @@ import type {
 } from './ddl';
 import {
 	buildArrayString,
+	defaultNameForPK,
 	indexName,
 	maxRangeForIdentityBasedOn,
 	minRangeForIdentityBasedOn,
 	stringFromIdentityProperty,
+	trimChar,
 } from './grammar';
 
 export const policyFrom = (policy: PgPolicy, dialect: PgDialect) => {
@@ -97,6 +102,93 @@ const unwrapArray = (column: PgArray<any, any>, dimensions: number = 1) => {
 	if (is(baseColumn, PgArray)) return unwrapArray(baseColumn, dimensions + 1);
 
 	return { baseColumn, dimensions };
+};
+
+const transformOnUpdateDelete = (on: UpdateDeleteAction): ForeignKey['onUpdate'] => {
+	if (on === 'no action') return 'NO ACTION';
+	if (on === 'cascade') return 'CASCADE';
+	if (on === 'restrict') return 'RESTRICT';
+	if (on === 'set default') return 'SET DEFAULT';
+	if (on === 'set null') return 'SET NULL';
+
+	assertUnreachable(on);
+};
+
+const defaultFromColumn = (column: AnyPgColumn, dialect: PgDialect): Column['default'] => {
+	const def = column.default;
+	if (typeof def === 'undefined') return null;
+
+	if (is(def, SQL)) {
+		let sql = dialect.sqlToQuery(def).sql;
+
+		const isText = /^'(?:[^']|'')*'$/.test(sql);
+		sql = isText ? trimChar(sql, "'") : sql;
+
+		return {
+			value: sql,
+			type: isText ? 'string' : 'unknown',
+		};
+	}
+
+	if (typeof def === 'string') {
+		return {
+			value: def,
+			type: 'string',
+		};
+	}
+	if (typeof def === 'boolean') {
+		return {
+			value: def ? 'true' : 'false',
+			type: 'boolean',
+		};
+	}
+
+	if (typeof def === 'number') {
+		return {
+			value: String(def),
+			type: 'number',
+		};
+	}
+
+	const sqlTypeLowered = column.getSQLType().toLowerCase();
+
+	if (sqlTypeLowered === 'jsonb' || sqlTypeLowered === 'json') {
+		return {
+			value: JSON.stringify(column.default),
+			type: sqlTypeLowered,
+		};
+	}
+
+	if (isPgArrayType(sqlTypeLowered) && Array.isArray(column.default)) {
+		return {
+			value: buildArrayString(column.default, sqlTypeLowered),
+			type: 'array',
+		};
+	}
+
+	if (column.default instanceof Date) {
+		if (sqlTypeLowered === 'date') {
+			return {
+				value: column.default.toISOString().split('T')[0],
+				type: 'string',
+			};
+		}
+		if (sqlTypeLowered === 'timestamp') {
+			return {
+				value: column.default.toISOString().replace('T', ' ').slice(0, 23),
+				type: 'string',
+			};
+		}
+
+		return {
+			value: column.default.toISOString(),
+			type: 'string',
+		};
+	}
+	return {
+		value: String(column.default),
+		type: 'string',
+	};
 };
 
 /*
@@ -152,7 +244,7 @@ export const fromDrizzleSchema = (
 			entityType: 'tables',
 			schema: config.schema ?? 'public',
 			name: config.name,
-			isRlsEnabled: config.enableRLS,
+			isRlsEnabled: config.enableRLS || config.policies.length > 0,
 		} satisfies PostgresEntities['tables'];
 	});
 
@@ -188,7 +280,6 @@ export const fromDrizzleSchema = (
 				const name = getColumnCasing(column, casing);
 				const notNull = column.notNull;
 				const isPrimary = column.primary;
-				const sqlTypeLowered = column.getSQLType().toLowerCase();
 
 				const { baseColumn, dimensions } = is(column, PgArray)
 					? unwrapArray(column)
@@ -212,7 +303,7 @@ export const fromDrizzleSchema = (
 						: maxRangeForIdentityBasedOn(column.getSQLType()));
 				const startWith = stringFromIdentityProperty(identity?.sequenceOptions?.startWith)
 					?? (parseFloat(increment) < 0 ? maxValue : minValue);
-				const cache = stringFromIdentityProperty(identity?.sequenceOptions?.cache) ?? '1';
+				const cache = Number(stringFromIdentityProperty(identity?.sequenceOptions?.cache) ?? 1);
 
 				const generatedValue: Column['generated'] = generated
 					? {
@@ -226,7 +317,7 @@ export const fromDrizzleSchema = (
 					}
 					: null;
 
-				const identityValue: Column['identity'] = identity
+				const identityValue = identity
 					? {
 						type: identity.type,
 						name: identity.sequenceName ?? `${tableName}_${name}_seq`,
@@ -239,60 +330,30 @@ export const fromDrizzleSchema = (
 					}
 					: null;
 
-				const hasDefault = typeof column.default !== 'undefined';
-				const isExpression: boolean = !hasDefault
-					? false
-					: is(column.default, SQL);
-				const value = !hasDefault
-					? null
-					: is(column.default, SQL)
-					? dialect.sqlToQuery(column.default).sql
-					: typeof column.default === 'string'
-					? `'${escapeSingleQuotes(column.default)}'`
-					: sqlTypeLowered === 'jsonb' || sqlTypeLowered === 'json'
-					? `'${JSON.stringify(column.default)}'::${sqlTypeLowered}`
-					: isPgArrayType(sqlTypeLowered) && Array.isArray(column.default)
-					? `'${buildArrayString(column.default, sqlTypeLowered)}'`
-					: column.default instanceof Date
-					? sqlTypeLowered === 'date'
-						? `'${column.default.toISOString().split('T')[0]}'`
-						: sqlTypeLowered === 'timestamp'
-						? `'${column.default.toISOString().replace('T', ' ').slice(0, 23)}'`
-						: `'${column.default.toISOString()}'`
-					: String(column.default);
-
-				const defaultValue = !hasDefault
-					? null
-					: {
-						value: value!,
-						expression: isExpression,
-					};
-
 				// TODO:??
 				// Should do for all types
 				// columnToSet.default = `'${column.default}'::${sqlTypeLowered}`;
-				const unique = column.isUnique
-					? ({
-						name: column.uniqueName!,
-						nameExplicit: column.uniqueNameExplicit!,
-						nullsNotDistinct: column.uniqueType === 'not distinct',
-					} satisfies Column['unique'])
-					: null;
+
+				let sqlType = column.getSQLType();
+				/* legacy, for not to patch orm and don't up snapshot */
+				sqlType = sqlType.startsWith('timestamp (') ? sqlType.replace('timestamp (', 'timestamp(') : sqlType;
 
 				return {
 					entityType: 'columns',
 					schema: schema,
 					table: tableName,
 					name,
-					type: column.getSQLType(),
+					type: sqlType,
 					typeSchema: typeSchema ?? null,
 					dimensions: dimensions,
 					pk: column.primary,
 					pkName: null,
-					notNull: isPrimary ? false : notNull,
-					default: defaultValue,
+					notNull: notNull && !isPrimary && !generatedValue && !identityValue,
+					default: defaultFromColumn(column, dialect),
 					generated: generatedValue,
-					unique,
+					unique: column.isUnique,
+					uniqueName: column.uniqueNameExplicit ? column.uniqueName ?? null : null,
+					uniqueNullsNotDistinct: column.uniqueType === 'not distinct',
 					identity: identityValue,
 				} satisfies InterimColumn;
 			}),
@@ -300,23 +361,17 @@ export const fromDrizzleSchema = (
 
 		pks.push(
 			...drizzlePKs.map<PrimaryKey>((pk) => {
-				const originalColumnNames = pk.columns.map((c) => c.name);
 				const columnNames = pk.columns.map((c) => getColumnCasing(c, casing));
 
-				let name = pk.name || pk.getName();
-				if (casing !== undefined) {
-					for (let i = 0; i < originalColumnNames.length; i++) {
-						name = name.replace(originalColumnNames[i], columnNames[i]);
-					}
-				}
-				const isNameExplicit = pk.name === pk.getName();
+				const name = pk.name || defaultNameForPK(tableName);
+				const isNameExplicit = !!pk.name;
 				return {
 					entityType: 'pks',
 					schema: schema,
 					table: tableName,
 					name: name,
 					columns: columnNames,
-					isNameExplicit,
+					nameExplicit: isNameExplicit,
 				};
 			}),
 		);
@@ -331,7 +386,7 @@ export const fromDrizzleSchema = (
 					schema: schema,
 					table: tableName,
 					name,
-					explicitName: !!unq.name,
+					nameExplicit: !!unq.name,
 					nullsNotDistinct: unq.nullsNotDistinct,
 					columns: columnNames,
 				} satisfies UniqueConstraint;
@@ -379,8 +434,8 @@ export const fromDrizzleSchema = (
 					schemaTo,
 					columnsFrom,
 					columnsTo,
-					onDelete: onDelete ?? null,
-					onUpdate: onUpdate ?? null,
+					onDelete: onDelete ? transformOnUpdateDelete(onDelete) : null,
+					onUpdate: onUpdate ? transformOnUpdateDelete(onUpdate) : null,
 				} satisfies ForeignKey;
 			}),
 		);
@@ -461,6 +516,13 @@ export const fromDrizzleSchema = (
 					}
 				});
 
+				const withOpt = Object.entries(value.config.with || {})
+					.map((it) => `${it[0]}=${it[1]}`)
+					.join(', ');
+
+				let where = value.config.where ? dialect.sqlToQuery(value.config.where).sql : '';
+				where = where === 'true' ? '' : where;
+
 				return {
 					entityType: 'indexes',
 					schema,
@@ -469,14 +531,10 @@ export const fromDrizzleSchema = (
 					nameExplicit,
 					columns: indexColumns,
 					isUnique: value.config.unique,
-					where: value.config.where
-						? dialect.sqlToQuery(value.config.where).sql
-						: null,
+					where: where ? where : null,
 					concurrently: value.config.concurrently ?? false,
 					method: value.config.method ?? 'btree',
-					with: Object.entries(value.config.with || {})
-						.map((it) => `${it[0]}=${it[1]}`)
-						.join(', '),
+					with: withOpt,
 					isPrimary: false,
 				} satisfies Index;
 			}),
@@ -523,9 +581,7 @@ export const fromDrizzleSchema = (
 		}
 
 		// @ts-ignore
-		const { schema: configSchema, name: tableName } = getTableConfig(
-			policy._linkedTable,
-		);
+		const { schema: configSchema, name: tableName } = getTableConfig(policy._linkedTable);
 
 		const p = policyFrom(policy, dialect);
 		policies.push({
@@ -552,7 +608,7 @@ export const fromDrizzleSchema = (
 			?? (parseFloat(increment) < 0 ? '-1' : '9223372036854775807');
 		const startWith = stringFromIdentityProperty(sequence.seqOptions?.startWith)
 			?? (parseFloat(increment) < 0 ? maxValue : minValue);
-		const cache = stringFromIdentityProperty(sequence.seqOptions?.cache) ?? '1';
+		const cache = Number(stringFromIdentityProperty(sequence.seqOptions?.cache) ?? 1);
 		sequences.push({
 			entityType: 'sequences',
 			name,
@@ -622,64 +678,68 @@ export const fromDrizzleSchema = (
 			}
 			| null;
 
+		const withOpt = opt
+			? {
+				checkOption: getOrNull(opt, 'checkOption'),
+				securityBarrier: getOrNull(opt, 'securityBarrier'),
+				securityInvoker: getOrNull(opt, 'securityInvoker'),
+				autovacuumEnabled: getOrNull(opt, 'autovacuumEnabled'),
+				autovacuumFreezeMaxAge: getOrNull(opt, 'autovacuumFreezeMaxAge'),
+				autovacuumFreezeMinAge: getOrNull(opt, 'autovacuumFreezeMinAge'),
+				autovacuumFreezeTableAge: getOrNull(
+					opt,
+					'autovacuumFreezeTableAge',
+				),
+				autovacuumMultixactFreezeMaxAge: getOrNull(
+					opt,
+					'autovacuumMultixactFreezeMaxAge',
+				),
+				autovacuumMultixactFreezeMinAge: getOrNull(
+					opt,
+					'autovacuumMultixactFreezeMinAge',
+				),
+				autovacuumMultixactFreezeTableAge: getOrNull(
+					opt,
+					'autovacuumMultixactFreezeTableAge',
+				),
+				autovacuumVacuumCostDelay: getOrNull(
+					opt,
+					'autovacuumVacuumCostDelay',
+				),
+				autovacuumVacuumCostLimit: getOrNull(
+					opt,
+					'autovacuumVacuumCostLimit',
+				),
+				autovacuumVacuumScaleFactor: getOrNull(
+					opt,
+					'autovacuumVacuumScaleFactor',
+				),
+				autovacuumVacuumThreshold: getOrNull(
+					opt,
+					'autovacuumVacuumThreshold',
+				),
+				fillfactor: getOrNull(opt, 'fillfactor'),
+				logAutovacuumMinDuration: getOrNull(
+					opt,
+					'logAutovacuumMinDuration',
+				),
+				parallelWorkers: getOrNull(opt, 'parallelWorkers'),
+				toastTupleTarget: getOrNull(opt, 'toastTupleTarget'),
+				userCatalogTable: getOrNull(opt, 'userCatalogTable'),
+				vacuumIndexCleanup: getOrNull(opt, 'vacuumIndexCleanup'),
+				vacuumTruncate: getOrNull(opt, 'vacuumTruncate'),
+			}
+			: null;
+
+		const hasNonNullOpts = Object.values(withOpt ?? {}).filter((x) => x !== null).length > 0;
+
 		views.push({
 			entityType: 'views',
 			definition: isExisting ? null : dialect.sqlToQuery(query!).sql,
 			name: viewName,
 			schema: viewSchema,
 			isExisting,
-			with: opt
-				? {
-					checkOption: getOrNull(opt, 'checkOption'),
-					securityBarrier: getOrNull(opt, 'securityBarrier'),
-					securityInvoker: getOrNull(opt, 'securityInvoker'),
-					autovacuumEnabled: getOrNull(opt, 'autovacuumEnabled'),
-					autovacuumFreezeMaxAge: getOrNull(opt, 'autovacuumFreezeMaxAge'),
-					autovacuumFreezeMinAge: getOrNull(opt, 'autovacuumFreezeMinAge'),
-					autovacuumFreezeTableAge: getOrNull(
-						opt,
-						'autovacuumFreezeTableAge',
-					),
-					autovacuumMultixactFreezeMaxAge: getOrNull(
-						opt,
-						'autovacuumMultixactFreezeMaxAge',
-					),
-					autovacuumMultixactFreezeMinAge: getOrNull(
-						opt,
-						'autovacuumMultixactFreezeMinAge',
-					),
-					autovacuumMultixactFreezeTableAge: getOrNull(
-						opt,
-						'autovacuumMultixactFreezeTableAge',
-					),
-					autovacuumVacuumCostDelay: getOrNull(
-						opt,
-						'autovacuumVacuumCostDelay',
-					),
-					autovacuumVacuumCostLimit: getOrNull(
-						opt,
-						'autovacuumVacuumCostLimit',
-					),
-					autovacuumVacuumScaleFactor: getOrNull(
-						opt,
-						'autovacuumVacuumScaleFactor',
-					),
-					autovacuumVacuumThreshold: getOrNull(
-						opt,
-						'autovacuumVacuumThreshold',
-					),
-					fillfactor: getOrNull(opt, 'fillfactor'),
-					logAutovacuumMinDuration: getOrNull(
-						opt,
-						'logAutovacuumMinDuration',
-					),
-					parallelWorkers: getOrNull(opt, 'parallelWorkers'),
-					toastTupleTarget: getOrNull(opt, 'toastTupleTarget'),
-					userCatalogTable: getOrNull(opt, 'userCatalogTable'),
-					vacuumIndexCleanup: getOrNull(opt, 'vacuumIndexCleanup'),
-					vacuumTruncate: getOrNull(opt, 'vacuumTruncate'),
-				}
-				: null,
+			with: hasNonNullOpts ? withOpt : null,
 			withNoData: withNoData ?? null,
 			materialized,
 			tablespace: tablespace ?? null,
@@ -716,6 +776,7 @@ export const fromDrizzleSchema = (
 			roles,
 			policies,
 			views,
+			viewColumns: [],
 		},
 		errors,
 		warnings,
