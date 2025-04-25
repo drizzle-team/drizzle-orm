@@ -4,6 +4,7 @@ import * as glob from 'glob';
 import Path from 'path';
 import { CasingType } from 'src/cli/validations/common';
 import { error } from '../cli/views';
+import { MsSqlSchemaInternal } from './mssqlSchema';
 import type { MySqlSchemaInternal } from './mysqlSchema';
 import type { PgSchemaInternal } from './pgSchema';
 import { SingleStoreSchemaInternal } from './singlestoreSchema';
@@ -24,6 +25,22 @@ export const serializeMySql = async (
 
 	return generateMySqlSnapshot(tables, views, casing);
 };
+
+// export const serializeMsSql = async (
+// 	path: string | string[],
+// 	casing: CasingType | undefined,
+// ): Promise<MsSqlSchemaInternal> => {
+// 	const filenames = prepareFilenames(path);
+
+// 	console.log(chalk.gray(`Reading schema files:\n${filenames.join('\n')}\n`));
+
+// 	const { prepareFromMsSqlImports } = await import('./mssqlImports');
+// 	// const { generateMsSqlSnapshot } = await import('./mssqlSerializer');
+
+// 	const { tables, views } = await prepareFromMsSqlImports(filenames);
+
+// 	// return generateMsSqlSnapshot(tables, views, casing);
+// };
 
 export const serializePg = async (
 	path: string | string[],

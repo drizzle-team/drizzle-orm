@@ -1,5 +1,7 @@
 import fs from 'fs';
 import {
+	// prepareMsSqlDbPushSnapshot,
+	// prepareMsSqlMigrationSnapshot,
 	prepareMySqlDbPushSnapshot,
 	prepareMySqlMigrationSnapshot,
 	preparePgDbPushSnapshot,
@@ -13,6 +15,7 @@ import {
 import chalk from 'chalk';
 import { render } from 'hanji';
 import path, { join } from 'path';
+import { MsSqlSchema, mssqlSchema, squashMssqlScheme } from 'src/serializer/mssqlSchema';
 import { SingleStoreSchema, singlestoreSchema, squashSingleStoreScheme } from 'src/serializer/singlestoreSchema';
 import { TypeOf } from 'zod';
 import type { CommonSchema } from '../../schemaValidator';
@@ -21,6 +24,7 @@ import { PgSchema, pgSchema, Policy, Role, squashPgScheme, View } from '../../se
 import { SQLiteSchema, sqliteSchema, squashSqliteScheme, View as SQLiteView } from '../../serializer/sqliteSchema';
 import {
 	applyLibSQLSnapshotsDiff,
+	applyMssqlSnapshotsDiff,
 	applyMysqlSnapshotsDiff,
 	applyPgSnapshotsDiff,
 	applySingleStoreSnapshotsDiff,
@@ -674,6 +678,7 @@ export const prepareSingleStorePush = async (
 	}
 };
 
+// singlestore
 export const prepareAndMigrateSingleStore = async (config: GenerateConfig) => {
 	const outFolder = config.out;
 	const schemaPath = config.schema;
@@ -799,6 +804,7 @@ export const prepareAndExportMysql = async (config: ExportConfig) => {
 	}
 };
 
+// sqlite
 export const prepareAndMigrateSqlite = async (config: GenerateConfig) => {
 	const outFolder = config.out;
 	const schemaPath = config.schema;
@@ -1052,6 +1058,137 @@ export const prepareLibSQLPush = async (
 		squashedCur,
 		meta: _meta,
 	};
+};
+
+// TODO() mssql
+// export const prepareAndExportMssql = async (config: ExportConfig) => {
+// 	const schemaPath = config.schema;
+
+// 	try {
+// 		const { prev, cur, custom } = await prepareMsSqlMigrationSnapshot(
+// 			[],
+// 			schemaPath,
+// 			undefined,
+// 		);
+
+// 		const validatedPrev = mssqlSchema.parse(prev);
+// 		const validatedCur = mssqlSchema.parse(cur);
+
+// 		const squashedPrev = squashMssqlScheme(validatedPrev);
+// 		const squashedCur = squashMssqlScheme(validatedCur);
+
+// 		const { sqlStatements, statements, _meta } = await applyMssqlSnapshotsDiff(
+// 			squashedPrev,
+// 			squashedCur,
+// 			tablesResolver,
+// 			columnsResolver,
+// 			mySqlViewsResolver,
+// 			validatedPrev,
+// 			validatedCur,
+// 		);
+
+// 		console.log(sqlStatements.join('\n'));
+// 	} catch (e) {
+// 		console.error(e);
+// 	}
+// };
+
+// Intersect with prepareAnMigrate
+// export const prepareMsSQLPush = async (
+// 	schemaPath: string | string[],
+// 	snapshot: MsSqlSchema,
+// 	casing: CasingType | undefined,
+// ) => {
+// 	try {
+// 		const { prev, cur } = await prepareMsSqlDbPushSnapshot(
+// 			snapshot,
+// 			schemaPath,
+// 			casing,
+// 		);
+
+// 		const validatedPrev = mssqlSchema.parse(prev);
+// 		const validatedCur = mssqlSchema.parse(cur);
+
+// 		const squashedPrev = squashMssqlScheme(validatedPrev);
+// 		const squashedCur = squashMssqlScheme(validatedCur);
+
+// 		const { sqlStatements, statements } = await applyMssqlSnapshotsDiff(
+// 			squashedPrev,
+// 			squashedCur,
+// 			tablesResolver,
+// 			columnsResolver,
+// 			mySqlViewsResolver,
+// 			validatedPrev,
+// 			validatedCur,
+// 			'push',
+// 		);
+
+// 		return { sqlStatements, statements, validatedCur, validatedPrev };
+// 	} catch (e) {
+// 		console.error(e);
+// 		process.exit(1);
+// 	}
+// };
+
+export const prepareAndMigrateMsSQL = async (config: GenerateConfig) => {
+	const outFolder = config.out;
+	const schemaPath = config.schema;
+	const casing = config.casing;
+
+	try {
+		// TODO: remove
+		// assertV1OutFolder(outFolder);
+
+		// const { snapshots, journal } = prepareMigrationFolder(outFolder, 'mssql');
+		// const { prev, cur, custom } = await prepareMsSqlMigrationSnapshot(
+		// 	snapshots,
+		// 	schemaPath,
+		// 	casing,
+		// );
+
+		// const validatedPrev = mssqlSchema.parse(prev);
+		// const validatedCur = mssqlSchema.parse(cur);
+
+		// if (config.custom) {
+		// 	writeResult({
+		// 		cur: custom,
+		// 		sqlStatements: [],
+		// 		journal,
+		// 		outFolder,
+		// 		name: config.name,
+		// 		breakpoints: config.breakpoints,
+		// 		type: 'custom',
+		// 		prefixMode: config.prefix,
+		// 	});
+		// 	return;
+		// }
+
+		// const squashedPrev = squashMssqlScheme(validatedPrev);
+		// const squashedCur = squashMssqlScheme(validatedCur);
+
+		// const { sqlStatements, statements, _meta } = await applyMssqlSnapshotsDiff(
+		// 	squashedPrev,
+		// 	squashedCur,
+		// 	tablesResolver,
+		// 	columnsResolver,
+		// 	mySqlViewsResolver,
+		// 	validatedPrev,
+		// 	validatedCur,
+		// );
+
+		// writeResult({
+		// 	cur,
+		// 	sqlStatements,
+		// 	journal,
+		// 	_meta,
+		// 	outFolder,
+		// 	name: config.name,
+		// 	breakpoints: config.breakpoints,
+		// 	prefixMode: config.prefix,
+		// });
+	} catch (e) {
+		console.error(e);
+	}
 };
 
 const freeeeeeze = (obj: any) => {
