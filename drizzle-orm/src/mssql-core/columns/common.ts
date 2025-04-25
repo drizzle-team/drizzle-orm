@@ -19,7 +19,6 @@ import type { SQL } from '~/sql/index.ts';
 import type { Update } from '~/utils.ts';
 
 export interface ReferenceConfig {
-	name: string;
 	ref: () => MsSqlColumn;
 	actions: {
 		onUpdate?: UpdateDeleteAction;
@@ -50,12 +49,12 @@ export abstract class MsSqlColumnBuilder<
 
 	private foreignKeyConfigs: ReferenceConfig[] = [];
 
-	references(name: string, ref: ReferenceConfig['ref'], actions: ReferenceConfig['actions'] = {}): this {
-		this.foreignKeyConfigs.push({ name, ref, actions });
+	references(ref: ReferenceConfig['ref'], actions: ReferenceConfig['actions'] = {}): this {
+		this.foreignKeyConfigs.push({ ref, actions });
 		return this;
 	}
 
-	unique(name: string): this {
+	unique(name?: string): this {
 		this.config.isUnique = true;
 		this.config.uniqueName = name;
 		return this;
@@ -77,11 +76,11 @@ export abstract class MsSqlColumnBuilder<
 
 	/** @internal */
 	buildForeignKeys(column: MsSqlColumn, table: MsSqlTable): ForeignKey[] {
-		return this.foreignKeyConfigs.map(({ name, ref, actions }) => {
+		return this.foreignKeyConfigs.map(({ ref, actions }) => {
 			return ((ref, actions) => {
 				const builder = new ForeignKeyBuilder(() => {
 					const foreignColumn = ref();
-					return { name: name, columns: [column], foreignColumns: [foreignColumn] };
+					return { columns: [column], foreignColumns: [foreignColumn] };
 				});
 				if (actions.onUpdate) {
 					builder.onUpdate(actions.onUpdate);

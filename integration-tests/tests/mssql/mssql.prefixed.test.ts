@@ -48,7 +48,7 @@ const usersTable = mssqlTable('userstest', {
 const users2Table = mssqlTable('users2', {
 	id: int('id').primaryKey(),
 	name: varchar('name', { length: 30 }).notNull(),
-	cityId: int('city_id').default(sql`null`).references('fk1', () => citiesTable.id),
+	cityId: int('city_id').default(sql`null`).references(() => citiesTable.id),
 });
 
 const citiesTable = mssqlTable('cities', {
@@ -749,7 +749,7 @@ test('join subquery', async () => {
 	const coursesTable = mssqlTable('courses', {
 		id: int('id').identity().primaryKey(),
 		name: varchar('name', { length: 50 }).notNull(),
-		categoryId: int('category_id').references('fk2', () => courseCategoriesTable.id),
+		categoryId: int('category_id').references(() => courseCategoriesTable.id),
 	});
 
 	const courseCategoriesTable = mssqlTable('course_categories', {

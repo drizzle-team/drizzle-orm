@@ -32,8 +32,8 @@ export const users = mssqlTable(
 		id: int('id').identity().primaryKey(),
 		homeCity: int('home_city')
 			.notNull()
-			.references('home_city_cities_id_fk', () => cities.id),
-		currentCity: int('current_city').references('current_city_cities_id_fk', () => cities.id),
+			.references(() => cities.id),
+		currentCity: int('current_city').references(() => cities.id),
 		serialNullable: int('serial1').identity(),
 		serialNotNull: int('serial2').identity(),
 		class: text('class', { enum: ['A', 'C'] }).notNull(),

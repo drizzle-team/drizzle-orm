@@ -7,7 +7,7 @@ import { eq } from '~/sql/expressions';
 import { sql } from '~/sql/sql.ts';
 import { users } from './tables.ts';
 
-const db = drizzle({} as any);
+const db = drizzle.mock();
 
 const deleteAll = await db.delete(users);
 Expect<Equal<MsSqlQueryResult, typeof deleteAll>>;
