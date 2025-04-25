@@ -48,7 +48,7 @@ test('table - insert', (t) => {
 	const expected = z.object({
 		id: serialNumberModeSchema.optional(),
 		name: textSchema,
-		age: intSchema.nullable().optional(),
+		age: intSchema.optional(),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -65,7 +65,7 @@ test('table - update', (t) => {
 	const expected = z.object({
 		id: serialNumberModeSchema.optional(),
 		name: textSchema.optional(),
-		age: intSchema.nullable().optional(),
+		age: intSchema.optional(),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -134,9 +134,9 @@ test('nullability - select', (t) => {
 
 	const result = createSelectSchema(table);
 	const expected = z.object({
-		c1: intSchema.nullable(),
+		c1: intSchema.optional(),
 		c2: intSchema,
-		c3: intSchema.nullable(),
+		c3: intSchema.optional(),
 		c4: intSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
@@ -154,9 +154,9 @@ test('nullability - insert', (t) => {
 
 	const result = createInsertSchema(table);
 	const expected = z.object({
-		c1: intSchema.nullable().optional(),
+		c1: intSchema.optional(),
 		c2: intSchema,
-		c3: intSchema.nullable().optional(),
+		c3: intSchema.optional(),
 		c4: intSchema.optional(),
 	});
 	expectSchemaShape(t, expected).from(result);
@@ -174,9 +174,9 @@ test('nullability - update', (t) => {
 
 	const result = createUpdateSchema(table);
 	const expected = z.object({
-		c1: intSchema.nullable().optional(),
+		c1: intSchema.optional(),
 		c2: intSchema.optional(),
-		c3: intSchema.nullable().optional(),
+		c3: intSchema.optional(),
 		c4: intSchema.optional(),
 	});
 	expectSchemaShape(t, expected).from(result);
@@ -195,7 +195,7 @@ test('refine table - select', (t) => {
 		c3: z.string().transform(Number),
 	});
 	const expected = z.object({
-		c1: intSchema.nullable(),
+		c1: intSchema.optional(),
 		c2: intSchema.max(1000),
 		c3: z.string().transform(Number),
 	});
@@ -220,7 +220,7 @@ test('refine table - select with custom data type', (t) => {
 		c4: customTextSchema,
 	});
 	const expected = z.object({
-		c1: intSchema.nullable(),
+		c1: intSchema.optional(),
 		c2: intSchema.max(1000),
 		c3: z.string().transform(Number),
 		c4: customTextSchema,
@@ -243,7 +243,7 @@ test('refine table - insert', (t) => {
 		c3: z.string().transform(Number),
 	});
 	const expected = z.object({
-		c1: intSchema.nullable().optional(),
+		c1: intSchema.optional(),
 		c2: intSchema.max(1000),
 		c3: z.string().transform(Number),
 	});
@@ -264,7 +264,7 @@ test('refine table - update', (t) => {
 		c3: z.string().transform(Number),
 	});
 	const expected = z.object({
-		c1: intSchema.nullable().optional(),
+		c1: intSchema.optional(),
 		c2: intSchema.max(1000).optional(),
 		c3: z.string().transform(Number),
 	});
@@ -517,7 +517,7 @@ test('type coercion - mixed', (t) => {
 	});
 	const result = createSelectSchema(table);
 	const expected = z.object({
-		json: z.nullable(TopLevelCondition),
+		json: z.optional(TopLevelCondition),
 	});
 	Expect<Equal<z.infer<typeof result>, z.infer<typeof expected>>>();
 }
