@@ -744,7 +744,31 @@ export abstract class MsSqlSelectQueryBuilderBase<
 		return this as any;
 	}
 
-	// TODO add description
+	/**
+	 * Adds an `OFFSET` clause to the query.
+	 *
+	 * Calling this method will skip the first N rows of the result set. This is commonly used for pagination, often in combination with `FETCH NEXT` (e.g., `.fetch()`).
+	 *
+	 *  * ⚠️ **Note:** This method can only be used after calling `.orderBy()`, as SQL Server requires `ORDER BY` to be present with `OFFSET`.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // Skip the first 10 results
+	 * await db.select().from(cars).orderBy(cars.year).offset(10);
+	 * ```
+	 *
+	 * `OFFSET` is zero-based — `offset(0)` will include all rows, while `offset(10)` will skip the first 10.
+	 *
+	 * Typically used with `.fetch()` to implement pagination:
+	 *
+	 * ```ts
+	 * // Get 10 cars, skipping the first 20
+	 * await db.select().from(cars).orderBy(cars.year).offset(20).fetch(10);
+	 * ```
+	 *
+	 * @param offset The number of rows to skip
+	 */
 	offset(offset: number | Placeholder): MsSqlSelectReplace<this, TDynamic, 'offset', 'fetch'> {
 		if (this.config.setOperators.length > 0) {
 			this.config.setOperators.at(-1)!.offset = offset;
@@ -754,7 +778,25 @@ export abstract class MsSqlSelectQueryBuilderBase<
 		return this as any;
 	}
 
-	// TODO add description
+	/**
+	 * Adds a `FETCH NEXT` clause to the query (commonly known as `LIMIT`).
+	 *
+	 * Limits the number of rows returned — used after `.offset()`.
+	 *
+	 * @example
+	 * ```ts
+	 * // Get only 10 rows, skipping 5 rows
+	 * await db.select().from(cars).orderBy(cars.year).offset(5).fetch(10);
+	 * ```
+	 *
+	 * @example
+	 * ```ts
+	 * // Pagination: skip 20 cars, then fetch 10
+	 * await db.select().from(cars).orderBy(cars.year).offset(20).fetch(10);
+	 * ```
+	 *
+	 * @param fetch The number of rows to fetch
+	 */
 	fetch(fetch: number | Placeholder): MsSqlSelectWithout<this, TDynamic, 'fetch'> {
 		if (this.config.setOperators.length > 0) {
 			this.config.setOperators.at(-1)!.fetch = fetch;

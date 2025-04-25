@@ -6,7 +6,7 @@ export const usersTable = mssqlTable('users', {
 	id: int('id').primaryKey().notNull(),
 	name: varchar('name', { length: 100 }).notNull(),
 	verified: bit('verified').notNull().default(false),
-	invitedBy: int('invited_by').references('fk_1', (): AnyMsSqlColumn => usersTable.id),
+	invitedBy: int('invited_by').references((): AnyMsSqlColumn => usersTable.id),
 });
 export const usersConfig = relations(usersTable, ({ one, many }) => ({
 	invitee: one(usersTable, {
@@ -30,8 +30,8 @@ export const usersToGroupsTable = mssqlTable(
 	'users_to_groups',
 	{
 		id: int('id').primaryKey().identity().notNull(),
-		userId: int('user_id').notNull().references('fk_2', () => usersTable.id),
-		groupId: int('group_id').notNull().references('fk_3', () => groupsTable.id),
+		userId: int('user_id').notNull().references(() => usersTable.id),
+		groupId: int('group_id').notNull().references(() => groupsTable.id),
 	},
 	(t) => [
 		primaryKey({ name: 'pk_1', columns: [t.userId, t.groupId] }),
@@ -51,7 +51,7 @@ export const usersToGroupsConfig = relations(usersToGroupsTable, ({ one }) => ({
 export const postsTable = mssqlTable('posts', {
 	id: int('id').primaryKey().identity().notNull(),
 	content: varchar('content', { length: 100 }).notNull(),
-	ownerId: int('owner_id').references('fk_1', () => usersTable.id),
+	ownerId: int('owner_id').references(() => usersTable.id),
 	createdAt: datetime('created_at')
 		.notNull().default(sql`current_timestamp`),
 });
@@ -66,8 +66,8 @@ export const postsConfig = relations(postsTable, ({ one, many }) => ({
 export const commentsTable = mssqlTable('comments', {
 	id: int('id').primaryKey().identity().notNull(),
 	content: varchar('content', { length: 100 }).notNull(),
-	creator: int('creator').references('fk_1', () => usersTable.id),
-	postId: int('post_id').references('fk_2', () => postsTable.id),
+	creator: int('creator').references(() => usersTable.id),
+	postId: int('post_id').references(() => postsTable.id),
 	createdAt: datetime('created_at')
 		.notNull().default(sql`current_timestamp`),
 });
@@ -85,8 +85,8 @@ export const commentsConfig = relations(commentsTable, ({ one, many }) => ({
 
 export const commentLikesTable = mssqlTable('comment_likes', {
 	id: int('id').primaryKey().identity().notNull(),
-	creator: int('creator').references('fk_1', () => usersTable.id),
-	commentId: int('comment_id').references('fk_2', () => commentsTable.id),
+	creator: int('creator').references(() => usersTable.id),
+	commentId: int('comment_id').references(() => commentsTable.id),
 	createdAt: datetime('created_at')
 		.notNull().default(sql`current_timestamp`),
 });

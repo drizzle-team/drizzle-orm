@@ -86,7 +86,7 @@ const usersTable = mssqlTable('userstest', {
 const users2Table = mssqlTable('users2', {
 	id: int('id').primaryKey(),
 	name: varchar('name', { length: 30 }).notNull(),
-	cityId: int('city_id').default(sql`null`).references('fk1', () => citiesTable.id),
+	cityId: int('city_id').default(sql`null`).references(() => citiesTable.id),
 });
 
 const citiesTable = mssqlTable('cities', {
@@ -115,7 +115,7 @@ const datesTable = mssqlTable('datestable', {
 const coursesTable = mssqlTable('courses', {
 	id: int().identity().primaryKey(),
 	name: text().notNull(),
-	categoryId: int('category_id').references('fk2', () => courseCategoriesTable.id),
+	categoryId: int('category_id').references(() => courseCategoriesTable.id),
 });
 
 const courseCategoriesTable = mssqlTable('course_categories', {
@@ -162,7 +162,7 @@ const usersSchemaTable = mySchema.table('userstest', {
 const users2SchemaTable = mySchema.table('users2', {
 	id: int('id').identity().primaryKey(),
 	name: varchar('name', { length: 100 }).notNull(),
-	cityId: int('city_id').references('fk3', () => citiesTable.id),
+	cityId: int('city_id').references(() => citiesTable.id),
 });
 
 const citiesSchemaTable = mySchema.table('cities', {
@@ -500,13 +500,13 @@ export function tests() {
 				name: text('name').notNull(),
 				state: text('state'),
 			}, (t) => [
-				primaryKey({ columns: [t.id, t.name], name: 'custom_pk' }),
+				primaryKey({ columns: [t.id, t.name] }),
 			]);
 
 			const tableConfig = getTableConfig(table);
 
 			expect(tableConfig.primaryKeys).toHaveLength(1);
-			expect(tableConfig.primaryKeys[0]!.getName()).toBe('custom_pk');
+			expect(tableConfig.primaryKeys[0]!.getName()).toBe(undefined);
 		});
 
 		test('table configs: unique third param', async () => {
@@ -515,7 +515,7 @@ export function tests() {
 				name: text('name').notNull(),
 				state: text('state'),
 			}, (t) => [
-				unique('custom_name').on(t.name, t.state),
+				unique().on(t.name, t.state),
 				unique('custom_name1').on(t.name, t.state),
 			]);
 
@@ -523,7 +523,7 @@ export function tests() {
 
 			expect(tableConfig.uniqueConstraints).toHaveLength(2);
 
-			expect(tableConfig.uniqueConstraints[0]?.name).toBe('custom_name');
+			expect(tableConfig.uniqueConstraints[0]?.name).toBe(undefined);
 			expect(tableConfig.uniqueConstraints[0]?.columns.map((t) => t.name)).toEqual(['name', 'state']);
 
 			expect(tableConfig.uniqueConstraints[1]?.name).toBe('custom_name1');

@@ -5,7 +5,7 @@ import type { MsSqlTable } from './table.ts';
 export type UpdateDeleteAction = 'cascade' | 'restrict' | 'no action' | 'set null' | 'set default';
 
 export type Reference = () => {
-	readonly name: string;
+	readonly name?: string;
 	readonly columns: MsSqlColumn[];
 	readonly foreignTable: MsSqlTable;
 	readonly foreignColumns: MsSqlColumn[];
@@ -25,7 +25,7 @@ export class ForeignKeyBuilder {
 
 	constructor(
 		config: () => {
-			name: string;
+			name?: string;
 			columns: MsSqlColumn[];
 			foreignColumns: MsSqlColumn[];
 		},
@@ -75,9 +75,8 @@ export class ForeignKey {
 		this.onDelete = builder._onDelete;
 	}
 
-	getName(): string {
+	getName() {
 		const { name } = this.reference();
-
 		return name;
 	}
 }
@@ -100,7 +99,7 @@ export function foreignKey<
 	TColumns extends [AnyMsSqlColumn<{ tableName: TTableName }>, ...AnyMsSqlColumn<{ tableName: TTableName }>[]],
 >(
 	config: {
-		name: string;
+		name?: string;
 		columns: TColumns;
 		foreignColumns: ColumnsWithTable<TForeignTableName, TColumns>;
 	},

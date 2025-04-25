@@ -6,7 +6,7 @@ export function primaryKey<
 	TTableName extends string,
 	TColumn extends AnyMsSqlColumn<{ tableName: TTableName }>,
 	TColumns extends AnyMsSqlColumn<{ tableName: TTableName }>[],
->(config: { name: string; columns: [TColumn, ...TColumns] }): PrimaryKeyBuilder {
+>(config: { name?: string; columns: [TColumn, ...TColumns] }): PrimaryKeyBuilder {
 	return new PrimaryKeyBuilder(config.columns, config.name);
 }
 
@@ -17,11 +17,11 @@ export class PrimaryKeyBuilder {
 	columns: MsSqlColumn[];
 
 	/** @internal */
-	name: string;
+	name?: string;
 
 	constructor(
 		columns: MsSqlColumn[],
-		name: string,
+		name?: string,
 	) {
 		this.columns = columns;
 		this.name = name;
@@ -37,14 +37,14 @@ export class PrimaryKey {
 	static readonly [entityKind]: string = 'MsSqlPrimaryKey';
 
 	readonly columns: MsSqlColumn[];
-	readonly name: string;
+	readonly name?: string;
 
-	constructor(readonly table: MsSqlTable, columns: MsSqlColumn[], name: string) {
+	constructor(readonly table: MsSqlTable, columns: MsSqlColumn[], name?: string) {
 		this.columns = columns;
 		this.name = name;
 	}
 
-	getName(): string {
+	getName() {
 		return this.name;
 	}
 }
