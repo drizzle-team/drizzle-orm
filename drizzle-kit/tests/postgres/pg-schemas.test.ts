@@ -1,6 +1,6 @@
 import { pgSchema } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
-import { diffTestSchemas } from './mocks-postgres';
+import { diffTestSchemas } from './mocks';
 
 test('add schema #1', async () => {
 	const to = {

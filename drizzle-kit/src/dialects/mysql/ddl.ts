@@ -46,12 +46,12 @@ export const createDDL = () => {
 		uniques: {
 			table: 'required',
 			nameExplicit: 'boolean',
-			columns: 'string[]',
+			columns: [{ value: 'string', expression: 'boolean' }],
 		},
 		checks: {
 			table: 'required',
 			nameExplicit: 'boolean',
-			columns: 'string[]',
+			value: 'string',
 		},
 		views: {
 			definition: 'string',
@@ -88,6 +88,7 @@ export type MysqlEntities = MysqlDDL['_']['types'];
 export type MysqlEntity = MysqlEntities[keyof MysqlEntities];
 export type DiffEntities = MysqlDDL['_']['diffs']['alter'];
 
+export type Table = MysqlEntities['tables'];
 export type Column = MysqlEntities['columns'];
 export type Index = MysqlEntities['indexes'];
 export type ForeignKey = MysqlEntities['fks'];
@@ -96,4 +97,31 @@ export type UniqueConstraint = MysqlEntities['uniques'];
 export type CheckConstraint = MysqlEntities['checks'];
 export type View = MysqlEntities['views'];
 
-// create table users (id integer primary key auto_increment)
+export type TableFull = {
+	name: string;
+	columns: Column[];
+	pk: PrimaryKey | null;
+	fks: ForeignKey[];
+	uniques: UniqueConstraint[];
+	checks: CheckConstraint[];
+	indexes: Index[];
+};
+
+export const fullTableFromDDL = (table: Table, ddl: MysqlDDL): TableFull => {
+	const filter = { table: table.name };
+	const columns = ddl.columns.list(filter);
+	const pk = ddl.pks.one(filter);
+	const fks = ddl.fks.list(filter);
+	const uniques = ddl.uniques.list(filter);
+	const checks = ddl.checks.list(filter);
+	const indexes = ddl.indexes.list(filter);
+	return {
+		name: table.name,
+		columns,
+		pk,
+		fks,
+		uniques,
+		checks,
+		indexes,
+	};
+};

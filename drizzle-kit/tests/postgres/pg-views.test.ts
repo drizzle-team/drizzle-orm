@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { integer, pgMaterializedView, pgSchema, pgTable, pgView } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
-import { diffTestSchemas } from './mocks-postgres';
+import { diffTestSchemas } from './mocks';
 
 test('create table and view #1', async () => {
 	const users = pgTable('users', {
@@ -14,7 +14,7 @@ test('create table and view #1', async () => {
 
 	const { sqlStatements } = await diffTestSchemas({}, to, []);
 	expect(sqlStatements).toStrictEqual([
-		`CREATE TABLE IF NOT EXISTS "users" (\n\t"id" integer PRIMARY KEY\n);\n`,
+		`CREATE TABLE "users" (\n\t"id" integer PRIMARY KEY\n);\n`,
 		`CREATE VIEW "some_view" AS (select "id" from "users");`,
 	]);
 });
@@ -30,7 +30,7 @@ test('create table and view #2', async () => {
 
 	const { sqlStatements } = await diffTestSchemas({}, to, []);
 	expect(sqlStatements).toStrictEqual([
-		`CREATE TABLE IF NOT EXISTS "users" (\n\t"id" integer PRIMARY KEY\n);\n`,
+		`CREATE TABLE "users" (\n\t"id" integer PRIMARY KEY\n);\n`,
 		`CREATE VIEW "some_view" AS (SELECT * FROM "users");`,
 	]);
 });
@@ -55,7 +55,7 @@ test('create table and view #3', async () => {
 
 	const { sqlStatements } = await diffTestSchemas({}, to, []);
 	expect(sqlStatements).toStrictEqual([
-		`CREATE TABLE IF NOT EXISTS "users" (\n\t"id" integer PRIMARY KEY\n);\n`,
+		`CREATE TABLE "users" (\n\t"id" integer PRIMARY KEY\n);\n`,
 		`CREATE VIEW "some_view1" WITH (check_option = local, security_barrier = false, security_invoker = true) AS (SELECT * FROM "users");`,
 		`CREATE VIEW "some_view2" WITH (check_option = cascaded, security_barrier = true, security_invoker = false) AS (select "id" from "users");`,
 	]);
@@ -86,7 +86,7 @@ test('create table and view #4', async () => {
 
 	expect(sqlStatements.length).toBe(4);
 	expect(sqlStatements[0]).toBe(`CREATE SCHEMA "new_schema";\n`);
-	expect(sqlStatements[1]).toBe(`CREATE TABLE IF NOT EXISTS "new_schema"."users" (\n\t"id" integer PRIMARY KEY\n);\n`);
+	expect(sqlStatements[1]).toBe(`CREATE TABLE "new_schema"."users" (\n\t"id" integer PRIMARY KEY\n);\n`);
 	expect(sqlStatements[2]).toBe(
 		`CREATE VIEW "new_schema"."some_view1" WITH (check_option = local, security_barrier = false, security_invoker = true) AS (SELECT * FROM "new_schema"."users");`,
 	);
@@ -121,7 +121,7 @@ test('create table and view #6', async () => {
 	const { sqlStatements } = await diffTestSchemas({}, to, []);
 
 	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toBe(`CREATE TABLE IF NOT EXISTS "users" (\n\t"id" integer PRIMARY KEY\n);\n`);
+	expect(sqlStatements[0]).toBe(`CREATE TABLE "users" (\n\t"id" integer PRIMARY KEY\n);\n`);
 	expect(sqlStatements[1]).toBe(`CREATE VIEW "some_view" WITH (check_option = cascaded) AS (SELECT * FROM "users");`);
 });
 
@@ -156,7 +156,7 @@ test('create table and materialized view #1', async () => {
 	const { sqlStatements } = await diffTestSchemas({}, to, []);
 
 	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toBe(`CREATE TABLE IF NOT EXISTS "users" (\n\t"id" integer PRIMARY KEY\n);\n`);
+	expect(sqlStatements[0]).toBe(`CREATE TABLE "users" (\n\t"id" integer PRIMARY KEY\n);\n`);
 	expect(sqlStatements[1]).toBe(`CREATE MATERIALIZED VIEW "some_view" AS (select "id" from "users");`);
 });
 
@@ -172,7 +172,7 @@ test('create table and materialized view #2', async () => {
 	const { sqlStatements } = await diffTestSchemas({}, to, []);
 
 	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toBe(`CREATE TABLE IF NOT EXISTS "users" (\n\t"id" integer PRIMARY KEY\n);\n`);
+	expect(sqlStatements[0]).toBe(`CREATE TABLE "users" (\n\t"id" integer PRIMARY KEY\n);\n`);
 	expect(sqlStatements[1]).toBe(`CREATE MATERIALIZED VIEW "some_view" AS (SELECT * FROM "users");`);
 });
 
@@ -208,7 +208,7 @@ test('create table and materialized view #3', async () => {
 	const { sqlStatements } = await diffTestSchemas({}, to, []);
 
 	expect(sqlStatements.length).toBe(3);
-	expect(sqlStatements[0]).toBe(`CREATE TABLE IF NOT EXISTS "users" (\n\t"id" integer PRIMARY KEY\n);\n`);
+	expect(sqlStatements[0]).toBe(`CREATE TABLE "users" (\n\t"id" integer PRIMARY KEY\n);\n`);
 	expect(sqlStatements[1]).toBe(`CREATE MATERIALIZED VIEW "some_view1" AS (SELECT * FROM "users");`);
 	expect(sqlStatements[2]).toBe(
 		`CREATE MATERIALIZED VIEW "some_view2" USING "heap" WITH (autovacuum_enabled = true, autovacuum_freeze_max_age = 1, autovacuum_freeze_min_age = 1, autovacuum_freeze_table_age = 1, autovacuum_multixact_freeze_max_age = 1, autovacuum_multixact_freeze_min_age = 1, autovacuum_multixact_freeze_table_age = 1, autovacuum_vacuum_cost_delay = 1, autovacuum_vacuum_cost_limit = 1, autovacuum_vacuum_scale_factor = 1, autovacuum_vacuum_threshold = 1, fillfactor = 1, log_autovacuum_min_duration = 1, parallel_workers = 1, toast_tuple_target = 1, user_catalog_table = true, vacuum_index_cleanup = off, vacuum_truncate = false) TABLESPACE some_tablespace AS (select "id" from "users") WITH NO DATA;`,
@@ -244,7 +244,7 @@ test('create table and materialized view #5', async () => {
 	const { sqlStatements } = await diffTestSchemas({}, to, []);
 
 	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toBe(`CREATE TABLE IF NOT EXISTS "users" (\n\t"id" integer PRIMARY KEY\n);\n`);
+	expect(sqlStatements[0]).toBe(`CREATE TABLE "users" (\n\t"id" integer PRIMARY KEY\n);\n`);
 	expect(sqlStatements[1]).toBe(
 		`CREATE MATERIALIZED VIEW "some_view" WITH (autovacuum_freeze_min_age = 14) AS (SELECT * FROM "users");`,
 	);

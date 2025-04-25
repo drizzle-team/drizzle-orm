@@ -1,8 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { check, integer, pgTable, serial, varchar } from 'drizzle-orm/pg-core';
-import { JsonCreateTableStatement } from 'src/jsonStatements';
 import { expect, test } from 'vitest';
-import { diffTestSchemas } from './mocks-postgres';
+import { diffTestSchemas } from './mocks';
 
 test('create table with check', async (t) => {
 	const to = {
@@ -15,7 +14,7 @@ test('create table with check', async (t) => {
 	const { sqlStatements } = await diffTestSchemas({}, to, []);
 
 	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(`CREATE TABLE IF NOT EXISTS "users" (
+	expect(sqlStatements[0]).toBe(`CREATE TABLE "users" (
 \t"id" serial PRIMARY KEY,
 \t"age" integer,
 \tCONSTRAINT "some_check_name" CHECK ("users"."age" > 21)

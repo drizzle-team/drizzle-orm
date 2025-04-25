@@ -12,7 +12,7 @@ import {
 	uuid,
 } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
-import { diffTestSchemas } from './mocks-postgres';
+import { diffTestSchemas } from './mocks';
 
 test('array #1: empty array default', async (t) => {
 	const from = {

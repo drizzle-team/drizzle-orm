@@ -245,19 +245,19 @@ test('add table #14', async () => {
 test('rename table #1', async () => {
 	const from = {
 		users: sqliteTable('table', {
-			id: integer()
+			id: integer(),
 		}),
 	};
 	const to = {
 		users: sqliteTable('table1', {
-			id: integer()
+			id: integer(),
 		}),
 	};
-	const { sqlStatements } = await diffTestSchemasSqlite(from, to, ["table->table1"]);
-	expect(sqlStatements).toStrictEqual(["ALTER TABLE `table` RENAME TO `table1`;",])
-})
+	const { sqlStatements } = await diffTestSchemasSqlite(from, to, ['table->table1']);
+	expect(sqlStatements).toStrictEqual(['ALTER TABLE `table` RENAME TO `table1`;']);
+});
 
-test.only('rename table #2', async () => {
+test('rename table #2', async () => {
 	const profiles = sqliteTable('profiles', {
 		id: integer().primaryKey({ autoIncrement: true }),
 	});
@@ -279,6 +279,7 @@ test.only('rename table #2', async () => {
 			}),
 		),
 	};
+
 	const to = {
 		profiles,
 		users: sqliteTable(
@@ -296,6 +297,38 @@ test.only('rename table #2', async () => {
 			}),
 		),
 	};
+	const { sqlStatements } = await diffTestSchemasSqlite(from, to, ['table->table1']);
+	expect(sqlStatements).toStrictEqual(['ALTER TABLE `table` RENAME TO `table1`;']);
+});
+
+test('rename table #2', async () => {
+	const profiles = sqliteTable('profiles', {
+		id: integer().primaryKey({ autoIncrement: true }),
+	});
+
+	const from = {
+		profiles,
+		users: sqliteTable(
+			'table',
+			{
+				id: integer().primaryKey({ autoIncrement: true }),
+				profileId: integer().references(() => profiles.id),
+			},
+		),
+	};
+
+	const to = {
+		profiles,
+		users: sqliteTable(
+			'table1',
+			{
+				id: integer().primaryKey({ autoIncrement: true }),
+				profileId: integer().references(() => profiles.id),
+			},
+		),
+	};
+	
+	// breaks due to fk name changed
 	const { sqlStatements } = await diffTestSchemasSqlite(from, to, ['table->table1']);
 	expect(sqlStatements).toStrictEqual(['ALTER TABLE `table` RENAME TO `table1`;']);
 });

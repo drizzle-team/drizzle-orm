@@ -98,55 +98,52 @@ export const handle = async (
 
 	if (sqlStatements.length === 0) {
 		render(`[${chalk.blue('i')}] No changes detected`);
-	} else {
-		const { statements, hints } = await suggestions(db, jsonStatements);
+		return;
+	}
 
-		if (verbose) {
-			console.log();
-			console.log(withStyle.warning('You are about to execute these statements:'));
-			console.log();
-			console.log(statements.map((s) => chalk.blue(s)).join('\n'));
-			console.log();
-		}
+	const { losses, hints } = await suggestions(db, jsonStatements);
 
-		if (!force && strict && hints.length === 0) {
-			const { status, data } = await render(new Select(['No, abort', `Yes, I want to execute all statements`]));
+	if (verbose) {
+		console.log();
+		console.log(withStyle.warning('You are about to execute these statements:'));
+		console.log();
+		console.log(losses.map((s) => chalk.blue(s)).join('\n'));
+		console.log();
+	}
 
-			if (data?.index === 0) {
-				render(`[${chalk.red('x')}] All changes were aborted`);
-				process.exit(0);
-			}
-		}
+	if (!force && strict && hints.length === 0) {
+		const { status, data } = await render(new Select(['No, abort', `Yes, I want to execute all statements`]));
 
-		if (!force && hints.length > 0) {
-			console.log(withStyle.warning('Found data-loss statements:'));
-			console.log(hints.join('\n'));
-			console.log();
-			console.log(
-				chalk.red.bold(
-					'THIS ACTION WILL CAUSE DATA LOSS AND CANNOT BE REVERTED\n',
-				),
-			);
-
-			console.log(chalk.white('Do you still want to push changes?'));
-
-			const { status, data } = await render(new Select(['No, abort', `Yes, proceed`]));
-			if (data?.index === 0) {
-				render(`[${chalk.red('x')}] All changes were aborted`);
-				process.exit(0);
-			}
-		}
-
-		for (const statement of statements) {
-			await db.query(statement);
-		}
-
-		if (statements.length > 0) {
-			render(`[${chalk.green('✓')}] Changes applied`);
-		} else {
-			render(`[${chalk.blue('i')}] No changes detected`);
+		if (data?.index === 0) {
+			render(`[${chalk.red('x')}] All changes were aborted`);
+			process.exit(0);
 		}
 	}
+
+	if (!force && hints.length > 0) {
+		console.log(withStyle.warning('Found data-loss statements:'));
+		console.log(hints.join('\n'));
+		console.log();
+		console.log(
+			chalk.red.bold(
+				'THIS ACTION WILL CAUSE DATA LOSS AND CANNOT BE REVERTED\n',
+			),
+		);
+
+		console.log(chalk.white('Do you still want to push changes?'));
+
+		const { status, data } = await render(new Select(['No, abort', `Yes, proceed`]));
+		if (data?.index === 0) {
+			render(`[${chalk.red('x')}] All changes were aborted`);
+			process.exit(0);
+		}
+	}
+
+	for (const statement of [...losses, ...sqlStatements]) {
+		await db.query(statement);
+	}
+
+	render(`[${chalk.green('✓')}] Changes applied`);
 };
 
 const identifier = (it: { schema?: string; name: string }) => {
@@ -190,7 +187,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 			const id = identifier(statement.table);
 			const res = await db.query(`select 1 from ${id} limit 1`);
 
-			if (res.length > 0) hints.push(`· You're about to delete non-empty ${chalk.underline(id)} table`);
+			if (res.length > 0) hints.push(`· You're about to delete non-empty ${id} table`);
 			continue;
 		}
 
@@ -199,7 +196,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 			const res = await db.query(`select 1 from ${id} limit 1`);
 			if (res.length === 0) continue;
 
-			hints.push(`· You're about to delete non-empty "${chalk.underline(id)}" materialized view`);
+			hints.push(`· You're about to delete non-empty ${id} materialized view`);
 			continue;
 		}
 
@@ -209,7 +206,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 			const res = await db.query(`select 1 from ${id} limit 1`);
 			if (res.length === 0) continue;
 
-			hints.push(`· You're about to delete non-empty ${chalk.underline(column.name)} column in ${id} table`);
+			hints.push(`· You're about to delete non-empty ${column.name} column in ${id} table`);
 			continue;
 		}
 
@@ -226,10 +223,9 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 		}
 
 		// drop pk
-		if (statement.type === 'alter_column' && statement.diff.primaryKey?.to === false) {
-			const from = statement.from;
-			const schema = from.schema ?? 'public';
-			const table = from.table;
+		if (statement.type === 'drop_pk') {
+			const schema = statement.pk.schema ?? 'public';
+			const table = statement.pk.table;
 			const id = `"${schema}"."${table}"`;
 			const res = await db.query(
 				`select 1 from ${id} limit 1`,
@@ -298,7 +294,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 	}
 
 	return {
-		statements,
+		losses: statements,
 		hints,
 	};
 };

@@ -55,7 +55,7 @@ export const applySqliteSnapshotsDiff = async (
 			},
 		});
 
-		ddl1.entities.update({
+		const entities = ddl1.entities.update({
 			set: {
 				table: renamed.to.name,
 			},
@@ -63,6 +63,9 @@ export const applySqliteSnapshotsDiff = async (
 				table: renamed.from.name,
 			},
 		});
+
+		for (const it of entities) {
+		}
 	}
 
 	const columnsDiff = diff(ddl1, ddl2, 'columns').filter((it) =>

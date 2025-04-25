@@ -1,4 +1,17 @@
-import { PostgresEntities } from "./ddl";
+import { assertUnreachable } from 'src/global';
+import { escapeSingleQuotes } from 'src/utils';
+import { Column, PostgresEntities } from './ddl';
+
+export const trimChar = (str: string, char: string) => {
+	let start = 0;
+	let end = str.length;
+
+	while (start < end && str[start] === char) ++start;
+	while (end > start && str[end - 1] === char) --end;
+
+	// this.toString() due to ava deep equal issue with String { "value" }
+	return start > 0 || end < str.length ? str.substring(start, end) : str.toString();
+};
 
 export const parseType = (schemaPrefix: string, type: string) => {
 	const NativeTypes = [
@@ -113,7 +126,7 @@ export function buildArrayString(array: any[], sqlType: string): string {
 	return `{${values}}`;
 }
 
-export type OnAction = PostgresEntities["fks"]["onUpdate"]
+export type OnAction = PostgresEntities['fks']['onUpdate'];
 export const parseOnType = (type: string): OnAction => {
 	switch (type) {
 		case 'a':
@@ -133,7 +146,12 @@ export const parseOnType = (type: string): OnAction => {
 
 export const systemNamespaceNames = ['pg_toast', 'pg_catalog', 'information_schema'];
 export const isSystemNamespace = (name: string) => {
-	return name.startsWith('pg_toast') || name.startsWith('pg_temp_') || systemNamespaceNames.indexOf(name) >= 0;
+	return name.startsWith('pg_toast') || name === 'pg_default' || name === 'pg_global' || name.startsWith('pg_temp_')
+		|| systemNamespaceNames.indexOf(name) >= 0;
+};
+
+export const isSystemRole = (name: string) => {
+	return name === 'postgres' || name.startsWith('pg_');
 };
 
 export const splitExpressions = (input: string | null): string[] => {
@@ -214,16 +232,38 @@ export const parseViewDefinition = (value: string | null | undefined): string | 
 	return value.replace(/\s+/g, ' ').replace(';', '').trim();
 };
 
+export const defaultNameForIdentitySequence = (table: string, column: string) => {
+	return `${table}_${column}_seq`;
+};
 
-export const defaultNameForPK = (table:string)=>{
-	return `${table}_pkey`
-}
+export const defaultNameForPK = (table: string) => {
+	return `${table}_pkey`;
+};
+
+// TODO: handle 63 bit key length limit
+export const defaultNameForFK = (table: string, columns: string[], tableTo: string, columnsTo: string[]) => {
+	return `${table}_${columns.join('_')}_${tableTo}_${columnsTo.join('_')}_fk`;
+};
+
+export const defaultNameForUnique = (table: string, column: string) => {
+	return `${table}_${column}_key`;
+};
+
+export const defaultNameForIndex = (table: string, columns: string[]) => {
+	return `${table}_${columns.join('_')}_idx`;
+};
+
+export const trimDefaultValueSuffix = (value: string) => {
+	let res = value.endsWith('[]') ? value.slice(0, -2) : value;
+	res = res.replace(/::(.*?)(?<![^\w"])(?=$)/, '');
+	return res;
+};
 
 export const defaultForColumn = (
 	type: string,
 	def: string | null | undefined,
 	dimensions: number,
-): { value: string; expression: boolean } | null => {
+): Column['default'] => {
 	if (
 		def === null
 		|| def === undefined
@@ -234,59 +274,79 @@ export const defaultForColumn = (
 		return null;
 	}
 
-	let defaultValue = def.endsWith('[]') ? def.slice(0, -2) : def;
-	defaultValue = defaultValue.replace(/::(.*?)(?<![^\w"])(?=$)/, '');
+	// trim ::type and []
+	let value = trimDefaultValueSuffix(def);
+
+	// numeric stores 99 as '99'::numeric
+	value = type === 'numeric' || type.startsWith('numeric(') ? trimChar(value, "'") : value;
 
 	if (dimensions > 0) {
-		return {
-			value: `'{${
-				defaultValue
-					.slice(2, -2)
-					.split(/\s*,\s*/g)
-					.map((value) => {
-						if (['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(type.slice(0, -2))) {
-							return value;
-						} else if (type.startsWith('timestamp')) {
-							return `${value}`;
-						} else if (type.slice(0, -2) === 'interval') {
-							return value.replaceAll('"', `\"`);
-						} else if (type.slice(0, -2) === 'boolean') {
-							return value === 't' ? 'true' : 'false';
-						} else if (['json', 'jsonb'].includes(type.slice(0, -2))) {
-							return JSON.stringify(JSON.stringify(JSON.parse(JSON.parse(value)), null, 0));
-						} else {
-							return `\"${value}\"`;
-						}
-					})
-					.join(',')
-			}}'`,
-			expression: false,
-		};
+		const values = value
+			.slice(2, -2)
+			.split(/\s*,\s*/g)
+			.map((value) => {
+				if (['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(type)) {
+					return value;
+				} else if (type.startsWith('timestamp')) {
+					return value;
+				} else if (type === 'interval') {
+					return value.replaceAll('"', `\"`);
+				} else if (type === 'boolean') {
+					return value === 't' ? 'true' : 'false';
+				} else if (['json', 'jsonb'].includes(type)) {
+					return JSON.stringify(JSON.stringify(JSON.parse(JSON.parse(value)), null, 0));
+				} else {
+					return `\"${value}\"`;
+				}
+			});
+		const res = `{${values.join(',')}}`;
+		return { value: res, type: 'array' };
 	}
 
-	if (['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(type)) {
-		if (/^-?[\d.]+(?:e-?\d+)?$/.test(defaultValue)) {
-			return { value: defaultValue, expression: false };
-		} else {
-			// expression
-			return { value: defaultValue, expression: true };
+	// 'text', potentially with escaped double quotes ''
+	if (/^'(?:[^']|'')*'$/.test(value)) {
+		const res = value.substring(1, value.length - 1).replaceAll("''", "'");
+
+		if (type === 'json' || type === 'jsonb') {
+			return { value: JSON.stringify(JSON.parse(res)), type };
 		}
-	} else if (type.includes('numeric')) {
-		// if numeric(1,1) and used '99' -> psql stores like '99'::numeric
-		return { value: defaultValue.includes("'") ? defaultValue : `'${defaultValue}'`, expression: false };
-	} else if (type === 'json' || type === 'jsonb') {
-		const jsonWithoutSpaces = JSON.stringify(JSON.parse(defaultValue.slice(1, -1)));
-		return { value: `'${jsonWithoutSpaces}'::${type}`, expression: false };
-	} else if (type === 'boolean') {
-		return { value: defaultValue, expression: false };
-	} else if (defaultValue === 'NULL') {
-		return { value: `NULL`, expression: false };
-	} else if (defaultValue.startsWith("'") && defaultValue.endsWith("'")) {
-		console.log(defaultValue)
-		return { value: defaultValue, expression: false };
-	} else {
-		return { value: `${defaultValue.replace(/\\/g, '`\\')}`, expression: false };
+		return { value: res, type: 'string' };
 	}
+
+	if (/^true$|^false$/.test(value)) {
+		return { value: value, type: 'boolean' };
+	}
+
+	// null or NULL
+	if (/^NULL$/i.test(value)) {
+		return { value: value.toUpperCase(), type: 'null' };
+	}
+
+	// previous /^-?[\d.]+(?:e-?\d+)?$/
+	if (/^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(value)) {
+		const num = Number(value);
+		const big = num > Number.MAX_SAFE_INTEGER || num < Number.MIN_SAFE_INTEGER;
+		return { value: value, type: big ? 'bigint' : 'number' };
+	}
+
+	return { value: value, type: 'unknown' };
+};
+
+export const defaultToSQL = (it: Column['default']) => {
+	if (!it) return '';
+
+	const { value, type } = it;
+	if (type === 'string') {
+		return `'${escapeSingleQuotes(value)}'`;
+	}
+	if (type === 'array' || type === 'bigint' || type === 'json' || type === 'jsonb') {
+		return `'${value}'`;
+	}
+	if (type === 'boolean' || type === 'null' || type === 'number' || type === 'func' || type === 'unknown') {
+		return value;
+	}
+
+	assertUnreachable(type);
 };
 
 export const isDefaultAction = (action: string) => {
@@ -332,4 +392,18 @@ export const defaults = {
 		https://www.postgresql.org/about/featurematrix/detail/392/
 	*/
 	nullsNotDistinct: false,
+
+	identity: {
+		startWith: '1',
+		increment: '1',
+		min: '1',
+		maxFor: (type: string) => {
+			if (type === 'smallint') return '32767';
+			if (type === 'integer') return '2147483647';
+			if (type === 'bigint') return '9223372036854775807';
+			throw new Error(`Unknow identity column type: ${type}`);
+		},
+		cache: 1,
+		cycle: false,
+	},
 } as const;

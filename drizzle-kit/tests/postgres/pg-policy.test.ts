@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { integer, pgPolicy, pgRole, pgSchema, pgTable } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
-import { diffTestSchemas } from '../mocks-postgres';
+import { diffTestSchemas } from '../postgres/mocks';
 
 test('add policy + enable rls', async (t) => {
 	const schema1 = {
@@ -303,17 +303,15 @@ test('rename policy in renamed table', async (t) => {
 	const schema1 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-		})),
+		}, () => [
+			pgPolicy('test', { as: 'permissive' }),
+		]),
 	};
 
 	const schema2 = {
 		users: pgTable('users2', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('newName', { as: 'permissive' }),
-		})),
+		}, (t) => [pgPolicy('newName', { as: 'permissive' })]),
 	};
 
 	const { sqlStatements } = await diffTestSchemas(schema1, schema2, [
@@ -341,7 +339,7 @@ test('create table with a policy', async (t) => {
 	const { sqlStatements } = await diffTestSchemas(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual([
-		'CREATE TABLE IF NOT EXISTS "users2" (\n\t"id" integer PRIMARY KEY\n);\n',
+		'CREATE TABLE "users2" (\n\t"id" integer PRIMARY KEY\n);\n',
 		'ALTER TABLE "users2" ENABLE ROW LEVEL SECURITY;',
 		'CREATE POLICY "test" ON "users2" AS PERMISSIVE FOR ALL TO public;',
 	]);
@@ -404,7 +402,7 @@ test('create table with rls enabled', async (t) => {
 	const { sqlStatements } = await diffTestSchemas(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual([
-		`CREATE TABLE IF NOT EXISTS "users" (\n\t"id" integer PRIMARY KEY\n);\n`,
+		`CREATE TABLE "users" (\n\t"id" integer PRIMARY KEY\n);\n`,
 		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
 	]);
 });

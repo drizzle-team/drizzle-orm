@@ -17,6 +17,7 @@ import type {
 	Sequence,
 	UniqueConstraint,
 	View,
+	ViewColumn,
 } from './ddl';
 import {
 	defaultForColumn,
@@ -26,19 +27,9 @@ import {
 	serialExpressionFor,
 	splitExpressions,
 	stringFromDatabaseIdentityProperty as parseIdentityProperty,
+	trimChar,
 	wrapRecord,
 } from './grammar';
-
-const trimChar = (str: string, char: string) => {
-	let start = 0;
-	let end = str.length;
-
-	while (start < end && str[start] === char) ++start;
-	while (end > start && str[end - 1] === char) --end;
-
-	// this.toString() due to ava deep equal issue with String { "value" }
-	return start > 0 || end < str.length ? str.substring(start, end) : str.toString();
-};
 
 function prepareRoles(entities?: {
 	roles: boolean | {
@@ -106,6 +97,7 @@ export const fromDatabase = async (
 	const roles: Role[] = [];
 	const policies: Policy[] = [];
 	const views: View[] = [];
+	const viewColumns: ViewColumn[] = [];
 
 	type OP = {
 		oid: number;
@@ -235,12 +227,29 @@ export const fromDatabase = async (
 		});
 	}
 
-	const dependQuery = db.query<{ oid: number; tableId: number; ordinality: number; deptype: 'a' | 'i' }>(
+	const dependQuery = db.query<{
+		oid: number;
+		tableId: number;
+		ordinality: number;
+
+		/*
+			a - An “auto” dependency means the dependent object can be dropped separately,
+					and will be automatically removed if the referenced object is dropped—regardless of CASCADE or RESTRICT.
+					Example: A named constraint on a table is auto-dependent on the table, so it vanishes when the table is dropped
+
+					i - An “internal” dependency marks objects that were created as part of building another object.
+					Directly dropping the dependent is disallowed—you must drop the referenced object instead.
+					Dropping the referenced object always cascades to the dependent
+					Example: A trigger enforcing a foreign-key constraint is internally dependent on its pg_constraint entry
+		 */
+		deptype: 'a' | 'i';
+	}>(
 		`SELECT
 			-- sequence id
 			objid as oid,
 			refobjid as "tableId",
 			refobjsubid as "ordinality",
+			
 			-- a = auto
 			deptype
 		FROM
@@ -296,7 +305,7 @@ export const fromDatabase = async (
 		maxValue: string;
 		incrementBy: string;
 		cycle: boolean;
-		cacheSize: string;
+		cacheSize: number;
 	}>(`SELECT 
 				relnamespace as "schemaId",
 				relname as "name",
@@ -377,6 +386,7 @@ export const fromDatabase = async (
 	// for serials match with pg_attrdef via attrelid(tableid)+adnum(ordinal position), for enums with pg_enum above
 	const columnsQuery = db.query<{
 		tableId: number;
+		kind: 'r' | 'v' | 'm';
 		name: string;
 		ordinality: number;
 		notNull: boolean;
@@ -391,7 +401,7 @@ export const fromDatabase = async (
 		*/
 		identityType: 'a' | 'd' | '';
 		metadata: {
-			seqId: number | null;
+			seqId: string | null;
 			generation: string | null;
 			start: string | null;
 			increment: string | null;
@@ -403,6 +413,7 @@ export const fromDatabase = async (
 		} | null;
 	}>(`SELECT
 				attrelid AS "tableId",
+				relkind AS "kind",
 				attname AS "name",
 				attnum AS "ordinality",
 				attnotnull AS "notNull",
@@ -476,6 +487,7 @@ export const fromDatabase = async (
 			};
 		} else {
 			acc[it.oid].values.push(it.value);
+			acc[it.arrayTypeId].values.push(it.value);
 		}
 		return acc;
 	}, {} as Record<number, { oid: number; schema: string; name: string; values: string[] }>);
@@ -499,8 +511,9 @@ export const fromDatabase = async (
 	for (const seq of sequencesList) {
 		const depend = dependList.find((it) => it.oid === seq.oid);
 
-		if (depend && depend.deptype === 'a') {
+		if (depend && (depend.deptype === 'a' || depend.deptype === 'i')) {
 			// TODO: add type field to sequence in DDL
+			// skip fo sequences or identity columns
 			// console.log('skip for auto created', seq.name);
 			continue;
 		}
@@ -514,7 +527,7 @@ export const fromDatabase = async (
 			maxValue: parseIdentityProperty(seq.maxValue),
 			incrementBy: parseIdentityProperty(seq.incrementBy),
 			cycle: seq.cycle,
-			cacheSize: parseIdentityProperty(seq.cacheSize),
+			cacheSize: Number(parseIdentityProperty(seq.cacheSize) ?? 1),
 		});
 	}
 
@@ -553,7 +566,7 @@ export const fromDatabase = async (
 	type DBColumn = (typeof columnsList)[number];
 
 	// supply serials
-	for (const column of columnsList) {
+	for (const column of columnsList.filter((x) => x.kind === 'r')) {
 		const type = column.type;
 
 		if (!(type === 'smallint' || type === 'bigint' || type === 'integer')) {
@@ -574,13 +587,17 @@ export const fromDatabase = async (
 		}
 	}
 
-	for (const column of columnsList) {
+	for (const column of columnsList.filter((x) => x.kind === 'r')) {
 		const table = tablesList.find((it) => it.oid === column.tableId)!;
 		const schema = namespaces.find((it) => it.oid === table.schemaId)!;
 
 		// supply enums
 		const enumType = column.typeId in groupedEnums ? groupedEnums[column.typeId] : null;
 		let columnTypeMapped = enumType ? enumType.name : column.type.replace('[]', '');
+		columnTypeMapped = trimChar(columnTypeMapped, '"');
+		if (columnTypeMapped.startsWith('numeric(')) {
+			columnTypeMapped = columnTypeMapped.replace(',', ', ');
+		}
 
 		const columnDefault = defaultsList.find(
 			(it) => it.tableId === column.tableId && it.ordinality === column.ordinality,
@@ -591,12 +608,6 @@ export const fromDatabase = async (
 			columnDefault?.expression,
 			column.dimensions,
 		);
-
-		if (columnTypeMapped.startsWith('numeric(')) {
-			columnTypeMapped = columnTypeMapped.replace(',', ', ');
-		}
-
-		columnTypeMapped = trimChar(columnTypeMapped, '"');
 
 		for (let i = 0; i < column.dimensions; i++) {
 			columnTypeMapped += '[]';
@@ -635,7 +646,7 @@ export const fromDatabase = async (
 			);
 		}
 
-		const sequence = metadata?.seqId ? sequencesList.find((it) => it.oid === metadata.seqId) : null;
+		const sequence = metadata?.seqId ? sequencesList.find((it) => it.oid === Number(metadata.seqId)) ?? null : null;
 
 		columns.push({
 			entityType: 'columns',
@@ -646,14 +657,10 @@ export const fromDatabase = async (
 			typeSchema: enumType?.schema ?? null,
 			dimensions: column.dimensions,
 			default: column.generatedType === 's' ? null : defaultValue,
-			unique: unique
-				? {
-					name: unique.name,
-					nameExplicit: true,
-					nullsNotDistinct: unique.definition.includes('NULLS NOT DISTINCT') ?? false,
-				}
-				: null,
-			notNull: pk === null ? column.notNull : false,
+			unique: !!unique,
+			uniqueName: unique ? unique.name : null,
+			uniqueNullsNotDistinct: unique?.definition.includes('NULLS NOT DISTINCT') ?? false,
+			notNull: column.notNull && !pk && column.generatedType !== 's' && column.identityType === '',
 			pk: pk !== null,
 			pkName: pk !== null ? pk.name : null,
 			generated: column.generatedType === 's' ? { type: 'stored', as: metadata!.expression! } : null,
@@ -666,7 +673,7 @@ export const fromDatabase = async (
 					maxValue: parseIdentityProperty(metadata?.max),
 					startWith: parseIdentityProperty(metadata?.start),
 					cycle: metadata?.cycle === 'YES',
-					cache: sequence?.cacheSize ?? null,
+					cache: sequence?.cacheSize ?? 1,
 				}
 				: null,
 		});
@@ -686,7 +693,7 @@ export const fromDatabase = async (
 			schema: schema.name,
 			table: table.name,
 			name: unique.name,
-			explicitName: true,
+			nameExplicit: true,
 			columns,
 			nullsNotDistinct: unique.definition.includes('NULLS NOT DISTINCT'),
 		});
@@ -707,7 +714,7 @@ export const fromDatabase = async (
 			table: table.name,
 			name: pk.name,
 			columns,
-			isNameExplicit: true,
+			nameExplicit: true,
 		});
 	}
 
@@ -759,7 +766,7 @@ export const fromDatabase = async (
 		schemaId: number;
 		name: string;
 		accessMethod: string;
-		with: string;
+		with?: string[];
 		metadata: {
 			tableId: number;
 			expression: string | null;
@@ -835,7 +842,7 @@ export const fromDatabase = async (
 				| { type: 'expression'; value: string }
 				| { type: 'column'; value: DBColumn }
 			)
-			& { options: (typeof opts)[number]; opclass: OP }
+			& { options: (typeof opts)[number]; opclass: { name: string; default: boolean } }
 		)[];
 
 		let k = 0;
@@ -867,7 +874,7 @@ export const fromDatabase = async (
 			return {
 				asc: !it.options.descending,
 				nullsFirst: it.options.nullsFirst,
-				opclass: {
+				opclass: it.opclass.default ? null : {
 					name: it.opclass.name,
 					default: it.opclass.default,
 				},
@@ -883,8 +890,8 @@ export const fromDatabase = async (
 			name: idx.name,
 			nameExplicit: true,
 			method: idx.accessMethod,
-			isUnique: false,
-			with: idx.with,
+			isUnique: metadata.isUnique,
+			with: idx.with?.join(', ') ?? '',
 			where: idx.metadata.where,
 			columns: columns,
 			concurrently: false,
@@ -896,6 +903,38 @@ export const fromDatabase = async (
 	progressCallback('checks', checksCount, 'fetching');
 	progressCallback('indexes', indexesCount, 'fetching');
 	progressCallback('tables', tableCount, 'done');
+
+	for (const it of columnsList.filter((x) => x.kind === 'm' || x.kind === 'v')) {
+		const view = viewsList.find((x) => x.oid === it.tableId)!;
+		const schema = namespaces.find((x) => x.oid === view.schemaId)!;
+
+		const enumType = it.typeId in groupedEnums ? groupedEnums[it.typeId] : null;
+		let columnTypeMapped = enumType ? enumType.name : it.type.replace('[]', '');
+		columnTypeMapped = trimChar(columnTypeMapped, '"');
+		if (columnTypeMapped.startsWith('numeric(')) {
+			columnTypeMapped = columnTypeMapped.replace(',', ', ');
+		}
+		for (let i = 0; i < it.dimensions; i++) {
+			columnTypeMapped += '[]';
+		}
+
+		columnTypeMapped = columnTypeMapped
+			.replace('character varying', 'varchar')
+			.replace(' without time zone', '')
+			// .replace("timestamp without time zone", "timestamp")
+			.replace('character', 'char');
+
+		viewColumns.push({
+			entityType: 'viewColumns',
+			schema: schema.name,
+			view: view.name,
+			name: it.name,
+			type: it.type,
+			notNull: it.notNull,
+			dimensions: it.dimensions,
+			typeSchema: enumType ? enumType.schema : null,
+		});
+	}
 
 	for (const view of viewsList) {
 		const viewName = view.name;
@@ -919,34 +958,38 @@ export const fromDatabase = async (
 			}, {} as Record<string, string>) ?? {},
 		);
 
+		const opts = {
+			checkOption: withOpts.literal('withCheckOption', ['local', 'cascaded']),
+			securityBarrier: withOpts.bool('securityBarrier'),
+			securityInvoker: withOpts.bool('securityInvoker'),
+			fillfactor: withOpts.num('fillfactor'),
+			toastTupleTarget: withOpts.num('toastTupleTarget'),
+			parallelWorkers: withOpts.num('parallelWorkers'),
+			autovacuumEnabled: withOpts.bool('autovacuumEnabled'),
+			vacuumIndexCleanup: withOpts.literal('vacuumIndexCleanup', ['auto', 'on', 'off']),
+			vacuumTruncate: withOpts.bool('vacuumTruncate'),
+			autovacuumVacuumThreshold: withOpts.num('autovacuumVacuumThreshold'),
+			autovacuumVacuumScaleFactor: withOpts.num('autovacuumVacuumScaleFactor'),
+			autovacuumVacuumCostDelay: withOpts.num('autovacuumVacuumCostDelay'),
+			autovacuumVacuumCostLimit: withOpts.num('autovacuumVacuumCostLimit'),
+			autovacuumFreezeMinAge: withOpts.num('autovacuumFreezeMinAge'),
+			autovacuumFreezeMaxAge: withOpts.num('autovacuumFreezeMaxAge'),
+			autovacuumFreezeTableAge: withOpts.num('autovacuumFreezeTableAge'),
+			autovacuumMultixactFreezeMinAge: withOpts.num('autovacuumMultixactFreezeMinAge'),
+			autovacuumMultixactFreezeMaxAge: withOpts.num('autovacuumMultixactFreezeMaxAge'),
+			autovacuumMultixactFreezeTableAge: withOpts.num('autovacuumMultixactFreezeTableAge'),
+			logAutovacuumMinDuration: withOpts.num('logAutovacuumMinDuration'),
+			userCatalogTable: withOpts.bool('userCatalogTable'),
+		};
+
+		const hasNonNullOpt = Object.values(opts).some((x) => x !== null);
+
 		views.push({
 			entityType: 'views',
 			schema: namespaces.find((it) => it.oid === view.schemaId)!.name,
 			name: view.name,
 			definition,
-			with: {
-				checkOption: withOpts.literal('withCheckOption', ['local', 'cascaded']),
-				securityBarrier: withOpts.bool('securityBarrier'),
-				securityInvoker: withOpts.bool('securityInvoker'),
-				fillfactor: withOpts.num('fillfactor'),
-				toastTupleTarget: withOpts.num('toastTupleTarget'),
-				parallelWorkers: withOpts.num('parallelWorkers'),
-				autovacuumEnabled: withOpts.bool('autovacuumEnabled'),
-				vacuumIndexCleanup: withOpts.literal('vacuumIndexCleanup', ['auto', 'on', 'off']),
-				vacuumTruncate: withOpts.bool('vacuumTruncate'),
-				autovacuumVacuumThreshold: withOpts.num('autovacuumVacuumThreshold'),
-				autovacuumVacuumScaleFactor: withOpts.num('autovacuumVacuumScaleFactor'),
-				autovacuumVacuumCostDelay: withOpts.num('autovacuumVacuumCostDelay'),
-				autovacuumVacuumCostLimit: withOpts.num('autovacuumVacuumCostLimit'),
-				autovacuumFreezeMinAge: withOpts.num('autovacuumFreezeMinAge'),
-				autovacuumFreezeMaxAge: withOpts.num('autovacuumFreezeMaxAge'),
-				autovacuumFreezeTableAge: withOpts.num('autovacuumFreezeTableAge'),
-				autovacuumMultixactFreezeMinAge: withOpts.num('autovacuumMultixactFreezeMinAge'),
-				autovacuumMultixactFreezeMaxAge: withOpts.num('autovacuumMultixactFreezeMaxAge'),
-				autovacuumMultixactFreezeTableAge: withOpts.num('autovacuumMultixactFreezeTableAge'),
-				logAutovacuumMinDuration: withOpts.num('logAutovacuumMinDuration'),
-				userCatalogTable: withOpts.bool('userCatalogTable'),
-			},
+			with: hasNonNullOpt ? opts : null,
 			materialized: view.kind === 'm',
 			tablespace,
 			using: accessMethod
@@ -980,8 +1023,10 @@ export const fromDatabase = async (
 		roles,
 		policies,
 		views,
+		viewColumns,
 	} satisfies InterimSchema;
 };
+import { object } from 'zod';
 import type { Entities } from '../../cli/validations/cli';
 
 export const fromDatabaseForDrizzle = async (

@@ -42,6 +42,7 @@ export const upPgHandler = (out: string) => {
 	console.log("Everything's fine 🐶🔥");
 };
 
+// TODO: handle unique name _unique vs _key
 export const updateToV8 = (json: PgSchema): PostgresSnapshot => {
 	const ddl = createDDL();
 

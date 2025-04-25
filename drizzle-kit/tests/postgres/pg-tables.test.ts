@@ -15,7 +15,7 @@ import {
 	vector,
 } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
-import { diffTestSchemas } from './mocks-postgres';
+import { diffTestSchemas } from './mocks';
 
 test('add table #1', async () => {
 	const to = {
@@ -23,7 +23,7 @@ test('add table #1', async () => {
 	};
 
 	const { sqlStatements } = await diffTestSchemas({}, to, []);
-	expect(sqlStatements).toStrictEqual(['CREATE TABLE IF NOT EXISTS "users" (\n\n);\n']);
+	expect(sqlStatements).toStrictEqual(['CREATE TABLE "users" (\n\n);\n']);
 });
 
 test('add table #2', async () => {
@@ -35,7 +35,7 @@ test('add table #2', async () => {
 
 	const { sqlStatements } = await diffTestSchemas({}, to, []);
 	expect(sqlStatements).toStrictEqual([
-		'CREATE TABLE IF NOT EXISTS "users" (\n\t"id" serial PRIMARY KEY\n);\n',
+		'CREATE TABLE "users" (\n\t"id" serial PRIMARY KEY\n);\n',
 	]);
 });
 
@@ -48,7 +48,7 @@ test('add table #3', async () => {
 
 	const { sqlStatements } = await diffTestSchemas({}, to, []);
 	expect(sqlStatements).toStrictEqual([
-		'CREATE TABLE IF NOT EXISTS "users" (\n'
+		'CREATE TABLE "users" (\n'
 		+ '\t"id" serial NOT NULL,\n'
 		+ '\tCONSTRAINT "users_pk" PRIMARY KEY("id")\n'
 		+ ');\n',
@@ -63,8 +63,8 @@ test('add table #4', async () => {
 
 	const { sqlStatements } = await diffTestSchemas({}, to, []);
 	expect(sqlStatements).toStrictEqual([
-		'CREATE TABLE IF NOT EXISTS "users" (\n\t"id" integer\n);\n',
-		'CREATE TABLE IF NOT EXISTS "posts" (\n\t"id" integer\n);\n',
+		'CREATE TABLE "users" (\n\t"id" integer\n);\n',
+		'CREATE TABLE "posts" (\n\t"id" integer\n);\n',
 	]);
 });
 
@@ -83,7 +83,7 @@ test('add table #5', async () => {
 
 	const { sqlStatements } = await diffTestSchemas(from, to, []);
 	expect(sqlStatements).toStrictEqual([
-		'CREATE TABLE IF NOT EXISTS "folder"."users" (\n\t"id" integer\n);\n',
+		'CREATE TABLE "folder"."users" (\n\t"id" integer\n);\n',
 	]);
 });
 
@@ -98,7 +98,7 @@ test('add table #6', async () => {
 
 	const { sqlStatements } = await diffTestSchemas(from, to, []);
 	expect(sqlStatements).toStrictEqual([
-		'CREATE TABLE IF NOT EXISTS "users2" (\n\t"id" integer\n);\n',
+		'CREATE TABLE "users2" (\n\t"id" integer\n);\n',
 		'DROP TABLE "users1" CASCADE;',
 	]);
 });
@@ -118,7 +118,7 @@ test('add table #7', async () => {
 	]);
 
 	expect(sqlStatements).toStrictEqual([
-		'CREATE TABLE IF NOT EXISTS "users" (\n\t"id" integer\n);\n',
+		'CREATE TABLE "users" (\n\t"id" integer\n);\n',
 		'ALTER TABLE "users1" RENAME TO "users2";',
 	]);
 });
@@ -134,7 +134,7 @@ test('add table #8: geometry types', async () => {
 	const { sqlStatements } = await diffTestSchemas({}, to, []);
 
 	expect(sqlStatements).toStrictEqual([
-		`CREATE TABLE IF NOT EXISTS "users" (\n\t"geom" geometry(point) NOT NULL,\n\t"geom1" geometry(point) NOT NULL\n);\n`,
+		`CREATE TABLE "users" (\n\t"geom" geometry(point) NOT NULL,\n\t"geom1" geometry(point) NOT NULL\n);\n`,
 	]);
 });
 
@@ -148,7 +148,7 @@ test('add table #9', async () => {
 
 	const { sqlStatements } = await diffTestSchemas({}, to, []);
 	expect(sqlStatements).toStrictEqual([
-		'CREATE TABLE IF NOT EXISTS "users" (\n'
+		'CREATE TABLE "users" (\n'
 		+ '\t"name" text UNIQUE\n'
 		+ ');\n',
 	]);
@@ -165,7 +165,7 @@ test('add table #10', async () => {
 
 	const { sqlStatements } = await diffTestSchemas(from, to, []);
 	expect(sqlStatements).toStrictEqual([
-		`CREATE TABLE IF NOT EXISTS "users" (\n\t"name" text UNIQUE("name_unique")\n);\n`,
+		`CREATE TABLE "users" (\n\t"name" text UNIQUE("name_unique")\n);\n`,
 	]);
 });
 
@@ -180,7 +180,7 @@ test('add table #11', async () => {
 
 	const { sqlStatements } = await diffTestSchemas(from, to, []);
 	expect(sqlStatements).toStrictEqual([
-		`CREATE TABLE IF NOT EXISTS "users" (\n\t"name" text UNIQUE("name_unique") NULLS NOT DISTINCT\n);\n`,
+		`CREATE TABLE "users" (\n\t"name" text UNIQUE("name_unique") NULLS NOT DISTINCT\n);\n`,
 	]);
 });
 
@@ -195,7 +195,7 @@ test('add table #12', async () => {
 
 	const { sqlStatements } = await diffTestSchemas(from, to, []);
 	expect(sqlStatements).toStrictEqual([
-		`CREATE TABLE IF NOT EXISTS "users" (\n\t"name" text UNIQUE("users_name_key") NULLS NOT DISTINCT\n);\n`,
+		`CREATE TABLE "users" (\n\t"name" text UNIQUE("users_name_key") NULLS NOT DISTINCT\n);\n`,
 	]);
 });
 
@@ -209,7 +209,7 @@ test('add table #13', async () => {
 
 	const { sqlStatements } = await diffTestSchemas({}, to, []);
 	expect(sqlStatements).toStrictEqual([
-		`CREATE TABLE IF NOT EXISTS "users" (\n\t"name" text,\n\tCONSTRAINT "users_name_key" UNIQUE("name")\n);\n`,
+		`CREATE TABLE "users" (\n\t"name" text UNIQUE("users_name_key")\n);\n`,
 	]);
 });
 
@@ -224,7 +224,7 @@ test('add table #14', async () => {
 
 	const { sqlStatements } = await diffTestSchemas(from, to, []);
 	expect(sqlStatements).toStrictEqual([
-		`CREATE TABLE IF NOT EXISTS "users" (\n\t"name" text,\n\tCONSTRAINT "users_name_key" UNIQUE NULLS NOT DISTINCT("name")\n);\n`,
+		`CREATE TABLE "users" (\n\t"name" text UNIQUE("users_name_key") NULLS NOT DISTINCT\n);\n`,
 	]);
 });
 
@@ -239,7 +239,7 @@ test('add table #15', async () => {
 
 	const { sqlStatements } = await diffTestSchemas(from, to, []);
 	expect(sqlStatements).toStrictEqual([
-		`CREATE TABLE IF NOT EXISTS "users" (\n\t"name" text,\n\tCONSTRAINT "name_unique" UNIQUE NULLS NOT DISTINCT("name")\n);\n`,
+		`CREATE TABLE "users" (\n\t"name" text UNIQUE("name_unique") NULLS NOT DISTINCT\n);\n`,
 	]);
 });
 
@@ -254,7 +254,7 @@ test('multiproject schema add table #1', async () => {
 
 	const { sqlStatements } = await diffTestSchemas({}, to, []);
 	expect(sqlStatements).toStrictEqual([
-		'CREATE TABLE IF NOT EXISTS "prefix_users" (\n\t"id" serial PRIMARY KEY\n);\n',
+		'CREATE TABLE "prefix_users" (\n\t"id" serial PRIMARY KEY\n);\n',
 	]);
 });
 
@@ -301,7 +301,7 @@ test('add table #8: column with pgvector', async () => {
 
 	const { sqlStatements } = await diffTestSchemas({}, to, []);
 	expect(sqlStatements).toStrictEqual([
-		`CREATE TABLE IF NOT EXISTS "users2" (\n\t"id" serial PRIMARY KEY,\n\t"name" vector(3)\n);\n`,
+		`CREATE TABLE "users2" (\n\t"id" serial PRIMARY KEY,\n\t"name" vector(3)\n);\n`,
 	]);
 });
 
@@ -318,7 +318,7 @@ test('add schema + table #1', async () => {
 	const { sqlStatements } = await diffTestSchemas({}, to, []);
 	expect(sqlStatements).toStrictEqual([
 		'CREATE SCHEMA "folder";\n',
-		'CREATE TABLE IF NOT EXISTS "folder"."users" (\n\t"id" integer\n);\n',
+		'CREATE TABLE "folder"."users" (\n\t"id" integer\n);\n',
 	]);
 });
 
@@ -514,8 +514,8 @@ test('create table with tsvector', async () => {
 
 	const { sqlStatements } = await diffTestSchemas(from, to, []);
 	expect(sqlStatements).toStrictEqual([
-		'CREATE TABLE IF NOT EXISTS "posts" (\n\t"id" serial PRIMARY KEY,\n\t"title" text NOT NULL,\n\t"description" text NOT NULL\n);\n',
-		`CREATE INDEX IF NOT EXISTS "title_search_index" ON "posts" USING gin (to_tsvector('english', "title"));`,
+		'CREATE TABLE "posts" (\n\t"id" serial PRIMARY KEY,\n\t"title" text NOT NULL,\n\t"description" text NOT NULL\n);\n',
+		`CREATE INDEX "title_search_index" ON "posts" USING gin (to_tsvector('english', "title"));`,
 	]);
 });
 
@@ -534,7 +534,7 @@ test('composite primary key', async () => {
 	const { sqlStatements } = await diffTestSchemas(from, to, []);
 
 	expect(sqlStatements).toStrictEqual([
-		'CREATE TABLE IF NOT EXISTS "works_to_creators" (\n\t"work_id" integer NOT NULL,\n\t"creator_id" integer NOT NULL,\n\t"classification" text NOT NULL,\n\tCONSTRAINT "works_to_creators_work_id_creator_id_classification_pk" PRIMARY KEY("work_id","creator_id","classification")\n);\n',
+		'CREATE TABLE "works_to_creators" (\n\t"work_id" integer NOT NULL,\n\t"creator_id" integer NOT NULL,\n\t"classification" text NOT NULL,\n\tCONSTRAINT "works_to_creators_pkey" PRIMARY KEY("work_id","creator_id","classification")\n);\n',
 	]);
 });
 
@@ -609,7 +609,7 @@ test('add index with op', async () => {
 	const { sqlStatements } = await diffTestSchemas(from, to, []);
 
 	expect(sqlStatements).toStrictEqual([
-		'CREATE INDEX IF NOT EXISTS "users_name_index" ON "users" USING gin ("name" gin_trgm_ops);',
+		'CREATE INDEX "users_name_index" ON "users" USING gin ("name" gin_trgm_ops);',
 	]);
 });
 
@@ -662,27 +662,26 @@ test('optional db aliases (snake case)', async () => {
 
 	const { sqlStatements } = await diffTestSchemas(from, to, [], false, 'snake_case');
 
-	const st1 = `CREATE TABLE IF NOT EXISTS "t1" (
+	const st1 = `CREATE TABLE "t1" (
 	"t1_id1" integer PRIMARY KEY,
 	"t1_col2" integer NOT NULL,
 	"t1_col3" integer NOT NULL,
 	"t2_ref" integer NOT NULL,
-	"t1_uni" integer NOT NULL,
+	"t1_uni" integer NOT NULL UNIQUE("t1_uni"),
 	"t1_uni_idx" integer NOT NULL,
-	"t1_idx" integer NOT NULL,
-	CONSTRAINT "t1_uni" UNIQUE("t1_uni")
+	"t1_idx" integer NOT NULL
 );
 `;
 
-	const st2 = `CREATE TABLE IF NOT EXISTS "t2" (
+	const st2 = `CREATE TABLE "t2" (
 	"t2_id" serial PRIMARY KEY
 );
 `;
 
-	const st3 = `CREATE TABLE IF NOT EXISTS "t3" (
+	const st3 = `CREATE TABLE "t3" (
 	"t3_id1" integer,
 	"t3_id2" integer,
-	CONSTRAINT "t3_t3_id1_t3_id2_pk" PRIMARY KEY("t3_id1","t3_id2")
+	CONSTRAINT "t3_pkey" PRIMARY KEY("t3_id1","t3_id2")
 );
 `;
 
@@ -691,9 +690,9 @@ test('optional db aliases (snake case)', async () => {
 	const st5 =
 		`ALTER TABLE "t1" ADD CONSTRAINT "t1_t1_col2_t1_col3_t3_t3_id1_t3_id2_fk" FOREIGN KEY ("t1_col2","t1_col3") REFERENCES "t3"("t3_id1","t3_id2");`;
 
-	const st6 = `CREATE UNIQUE INDEX IF NOT EXISTS "t1_uni_idx" ON "t1" USING btree ("t1_uni_idx");`;
+	const st6 = `CREATE UNIQUE INDEX "t1_uni_idx" ON "t1" USING btree ("t1_uni_idx");`;
 
-	const st7 = `CREATE INDEX IF NOT EXISTS "t1_idx" ON "t1" USING btree ("t1_idx") WHERE "t1"."t1_idx" > 0;`;
+	const st7 = `CREATE INDEX "t1_idx" ON "t1" USING btree ("t1_idx") WHERE "t1"."t1_idx" > 0;`;
 
 	expect(sqlStatements).toStrictEqual([st1, st2, st3, st4, st5, st6, st7]);
 });
@@ -736,35 +735,34 @@ test('optional db aliases (camel case)', async () => {
 
 	const { sqlStatements } = await diffTestSchemas(from, to, [], false, 'camelCase');
 
-	const st1 = `CREATE TABLE IF NOT EXISTS "t1" (
+	const st1 = `CREATE TABLE "t1" (
 	"t1Id1" integer PRIMARY KEY,
 	"t1Col2" integer NOT NULL,
 	"t1Col3" integer NOT NULL,
 	"t2Ref" integer NOT NULL,
-	"t1Uni" integer NOT NULL,
+	"t1Uni" integer NOT NULL UNIQUE("t1Uni"),
 	"t1UniIdx" integer NOT NULL,
-	"t1Idx" integer NOT NULL,
-	CONSTRAINT "t1Uni" UNIQUE("t1Uni")
+	"t1Idx" integer NOT NULL
 );
 `;
 
-	const st2 = `CREATE TABLE IF NOT EXISTS "t2" (
+	const st2 = `CREATE TABLE "t2" (
 	"t2Id" serial PRIMARY KEY
 );
 `;
 
-	const st3 = `CREATE TABLE IF NOT EXISTS "t3" (
+	const st3 = `CREATE TABLE "t3" (
 	"t3Id1" integer,
 	"t3Id2" integer,
-	CONSTRAINT "t3_t3Id1_t3Id2_pk" PRIMARY KEY("t3Id1","t3Id2")
+	CONSTRAINT "t3_pkey" PRIMARY KEY("t3Id1","t3Id2")
 );
 `;
 
 	const st4 = `ALTER TABLE "t1" ADD CONSTRAINT "t1_t2Ref_t2_t2Id_fk" FOREIGN KEY ("t2Ref") REFERENCES "t2"("t2Id");`;
 	const st5 =
 		`ALTER TABLE "t1" ADD CONSTRAINT "t1_t1Col2_t1Col3_t3_t3Id1_t3Id2_fk" FOREIGN KEY ("t1Col2","t1Col3") REFERENCES "t3"("t3Id1","t3Id2");`;
-	const st6 = `CREATE UNIQUE INDEX IF NOT EXISTS "t1UniIdx" ON "t1" USING btree ("t1UniIdx");`;
-	const st7 = `CREATE INDEX IF NOT EXISTS "t1Idx" ON "t1" USING btree ("t1Idx") WHERE "t1"."t1Idx" > 0;`;
+	const st6 = `CREATE UNIQUE INDEX "t1UniIdx" ON "t1" USING btree ("t1UniIdx");`;
+	const st7 = `CREATE INDEX "t1Idx" ON "t1" USING btree ("t1Idx") WHERE "t1"."t1Idx" > 0;`;
 
 	expect(sqlStatements).toStrictEqual([st1, st2, st3, st4, st5, st6, st7]);
 });

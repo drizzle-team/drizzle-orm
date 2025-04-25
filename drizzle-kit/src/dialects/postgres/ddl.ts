@@ -1,5 +1,6 @@
 import type { SchemaError } from '../../utils';
 import { create } from '../dialect';
+import { defaultNameForFK, defaultNameForPK, defaultNameForUnique } from './grammar';
 
 export const createDDL = () => {
 	return create({
@@ -18,15 +19,7 @@ export const createDDL = () => {
 			dimensions: 'number',
 			default: {
 				value: 'string',
-				expression: 'boolean',
-			},
-			// TODO: remove isunuque, uniquename, nullsnotdistinct
-			// these should be in unique constraints ddl and squash
-			// in sql convertor when possible ??
-			unique: {
-				name: 'string',
-				nameExplicit: 'boolean',
-				nullsNotDistinct: 'boolean',
+				type: ['null', 'boolean', 'number', 'string', 'bigint', 'json', 'jsonb', 'array', 'func', 'unknown'],
 			},
 			generated: {
 				type: ['stored', 'virtual'],
@@ -39,7 +32,7 @@ export const createDDL = () => {
 				minValue: 'string?',
 				maxValue: 'string?',
 				startWith: 'string?',
-				cache: 'string?',
+				cache: 'number?',
 				cycle: 'boolean?',
 			},
 		},
@@ -81,12 +74,12 @@ export const createDDL = () => {
 			schema: 'required',
 			table: 'required',
 			columns: 'string[]',
-			isNameExplicit: 'boolean',
+			nameExplicit: 'boolean',
 		},
 		uniques: {
 			schema: 'required',
 			table: 'required',
-			explicitName: 'boolean',
+			nameExplicit: 'boolean',
 			columns: 'string[]',
 			nullsNotDistinct: 'boolean',
 		},
@@ -101,7 +94,7 @@ export const createDDL = () => {
 			minValue: 'string?',
 			maxValue: 'string?',
 			startWith: 'string?',
-			cacheSize: 'string?',
+			cacheSize: 'number?',
 			cycle: 'boolean?',
 		},
 		roles: {
@@ -184,6 +177,7 @@ export type UniqueConstraint = PostgresEntities['uniques'];
 export type CheckConstraint = PostgresEntities['checks'];
 export type Policy = PostgresEntities['policies'];
 export type View = PostgresEntities['views'];
+export type ViewColumn = PostgresEntities['viewColumns'];
 
 export type Table = {
 	schema: string;
@@ -201,6 +195,10 @@ export type Table = {
 export type InterimColumn = Omit<Column, 'primaryKey'> & {
 	pk: boolean;
 	pkName: string | null;
+} & {
+	unique: boolean;
+	uniqueName: string | null;
+	uniqueNullsNotDistinct: boolean;
 };
 
 export interface InterimSchema {
@@ -217,6 +215,7 @@ export interface InterimSchema {
 	roles: Role[];
 	policies: Policy[];
 	views: View[];
+	viewColumns: ViewColumn[];
 }
 
 export const tableFromDDL = (
@@ -327,8 +326,9 @@ export const interimToDDL = (
 			});
 		}
 	}
+
 	for (const column of schema.columns.filter((it) => it.pk)) {
-		const name = column.pkName !== null ? column.pkName : `${column.table}_pkey`;
+		const name = column.pkName !== null ? column.pkName : defaultNameForPK(column.table);
 		const exists = ddl.pks.one({ schema: column.schema, table: column.table, name: name }) !== null;
 		if (exists) continue;
 
@@ -336,7 +336,7 @@ export const interimToDDL = (
 			schema: column.schema,
 			table: column.table,
 			name,
-			isNameExplicit: column.name !== null,
+			nameExplicit: column.pkName !== null,
 			columns: [column.name],
 		});
 	}
@@ -352,6 +352,22 @@ export const interimToDDL = (
 			});
 		}
 	}
+
+	for (const column of schema.columns.filter((it) => it.unique)) {
+		const name = column.uniqueName !== null ? column.uniqueName : defaultNameForUnique(column.table, column.name);
+		const exists = ddl.uniques.one({ schema: column.schema, table: column.table, name: name }) !== null;
+		if (exists) continue;
+
+		ddl.uniques.insert({
+			schema: column.schema,
+			table: column.table,
+			name,
+			nameExplicit: column.uniqueName !== null,
+			nullsNotDistinct: column.uniqueNullsNotDistinct,
+			columns: [column.name],
+		});
+	}
+
 	for (const it of schema.checks) {
 		const res = ddl.checks.insert(it);
 		if (res.status === 'CONFLICT') {
@@ -401,6 +417,10 @@ export const interimToDDL = (
 				name: it.name,
 			});
 		}
+	}
+
+	for(const it of schema.viewColumns){
+		ddl.viewColumns.insert(it)
 	}
 
 	return { ddl, errors };

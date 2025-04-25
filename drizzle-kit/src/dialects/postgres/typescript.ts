@@ -10,6 +10,7 @@ import {
 } from 'drizzle-orm/relations';
 import '../../@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
+import { grammar } from 'ohm-js';
 import { Casing } from '../../cli/validations/common';
 import { assertUnreachable } from '../../global';
 import { unescapeSingleQuotes } from '../../utils';
@@ -23,8 +24,9 @@ import {
 	PrimaryKey,
 	tableFromDDL,
 	UniqueConstraint,
+	ViewColumn,
 } from './ddl';
-import { indexName } from './grammar';
+import { defaultNameForIdentitySequence, defaults, indexName } from './grammar';
 
 // TODO: omit defaults opclass...
 const pgImportsList = new Set([
@@ -142,8 +144,14 @@ const intervalConfig = (str: string) => {
 };
 
 const mapColumnDefault = (def: Exclude<Column['default'], null>) => {
-	if (def.expression) {
+	if (def.type === 'unknown' || def.type === 'func') {
 		return `sql\`${def.value}\``;
+	}
+	if (def.type === 'bigint') {
+		return `${def.value}b`;
+	}
+	if (def.type === 'string') {
+		return `"${def.value.replaceAll('"', '\\"')}"`;
 	}
 
 	return def.value;
@@ -276,31 +284,34 @@ export const relationsToTypeScriptForStudio = (
 	return result;
 };
 
-function generateIdentityParams(identity: Column['identity']) {
-	let paramsObj = `{ name: "${identity!.name}"`;
-	if (identity?.startWith) {
-		paramsObj += `, startWith: ${identity.startWith}`;
+function generateIdentityParams(column: Column) {
+	if (column.identity === null) return '';
+	const identity = column.identity;
+
+	const tuples = [];
+	if (identity.name !== defaultNameForIdentitySequence(column.table, column.name)) {
+		tuples.push(['name', `"${identity.name}"`]);
 	}
-	if (identity?.increment) {
-		paramsObj += `, increment: ${identity.increment}`;
+
+	if (identity.startWith && defaults.identity.startWith !== identity.startWith) {
+		tuples.push(['startWith', identity.startWith]);
 	}
-	if (identity?.minValue) {
-		paramsObj += `, minValue: ${identity.minValue}`;
+	if (identity.increment && defaults.identity.increment !== identity.increment) {
+		tuples.push(['increment', identity.increment]);
 	}
-	if (identity?.maxValue) {
-		paramsObj += `, maxValue: ${identity.maxValue}`;
+	if (identity.minValue && defaults.identity.min !== identity.minValue) tuples.push(['minValue', identity.minValue]);
+	if (identity.maxValue && defaults.identity.maxFor(column.type) !== identity.maxValue) {
+		tuples.push(['maxValue', identity.maxValue]);
 	}
-	if (identity?.cache) {
-		paramsObj += `, cache: ${identity.cache}`;
-	}
-	if (identity?.cycle) {
-		paramsObj += `, cycle: true`;
-	}
-	paramsObj += ' }';
+	if (identity.cache && defaults.identity.cache !== identity.cache) tuples.push(['cache', identity.cache]);
+	if (identity.cycle) tuples.push(['cycle', identity.cycle]);
+
+	const params = tuples.length > 0 ? `{ ${tuples.map((x) => `${x[0]}: ${x[1]}`).join(' ,')} }` : '';
+
 	if (identity?.type === 'always') {
-		return `.generatedAlwaysAsIdentity(${paramsObj})`;
+		return `.generatedAlwaysAsIdentity(${params})`;
 	}
-	return `.generatedByDefaultAsIdentity(${paramsObj})`;
+	return `.generatedByDefaultAsIdentity(${params})`;
 }
 
 export const paramNameFor = (name: string, schema: string | null) => {
@@ -346,7 +357,7 @@ export const ddlToTypeScript = (ddl: PostgresDDL, casing: Casing) => {
 			else imports.add('pgView');
 		}
 
-		if (x.entityType === 'columns') {
+		if (x.entityType === 'columns' || x.entityType === 'viewColumns') {
 			let patched = x.type.replace('[]', '');
 			patched = importsPatch[patched] || patched;
 
@@ -440,6 +451,7 @@ export const ddlToTypeScript = (ddl: PostgresDDL, casing: Casing) => {
 		let statement = `export const ${withCasing(paramName, casing)} = ${func}("${table.name}", {\n`;
 		statement += createTableColumns(
 			columns,
+			table.pk,
 			fks,
 			enumTypes,
 			schemas,
@@ -478,30 +490,31 @@ export const ddlToTypeScript = (ddl: PostgresDDL, casing: Casing) => {
 
 	const viewsStatements = Object.values(ddl.views.list())
 		.map((it) => {
-			const paramName = paramNameFor(it.name, it.schema);
+			const viewSchema = schemas[it.schema];
+			const paramName = paramNameFor(it.name, viewSchema);
 
 			// TODO: casing?
-			const func = it.schema
-				? (it.materialized ? `${it.schema}.materializedView` : `${it.schema}.view`)
+			const func = it.schema !== 'public'
+				? (it.materialized ? `${viewSchema}.materializedView` : `${viewSchema}.view`)
 				: it.materialized
 				? 'pgMaterializedView'
 				: 'pgView';
 
-			const withOption = it.with ?? '';
+			const withOption = Object.fromEntries(Object.entries(it.with ?? {}).filter((x) => x[1] !== null));
 			const as = `sql\`${it.definition}\``;
 			const tablespace = it.tablespace ?? '';
 
-			const columns = createTableColumns(
-				it.columns,
-				[],
+			const viewColumns = ddl.viewColumns.list({ schema: it.schema, view: it.name });
+
+			const columns = createViewColumns(
+				viewColumns,
 				enumTypes,
-				schemas,
 				casing,
 			);
 
 			let statement = `export const ${withCasing(paramName, casing)} = ${func}("${it.name}", {${columns}})`;
 			statement += tablespace ? `.tablespace("${tablespace}")` : '';
-			statement += withOption ? `.with(${JSON.stringify(withOption)})` : '';
+			statement += Object.keys(withOption).length > 0 ? `.with(${JSON.stringify(withOption)})` : '';
 			statement += `.as(${as});`;
 
 			return statement;
@@ -556,7 +569,7 @@ const buildArrayDefault = (defaultValue: string, typeName: string): string => {
 	if (typeof defaultValue === 'string' && !(defaultValue.startsWith('{') || defaultValue.startsWith("'{"))) {
 		return `sql\`${defaultValue}\``;
 	}
-	defaultValue = defaultValue.substring(2, defaultValue.length - 2);
+	defaultValue = defaultValue.substring(1, defaultValue.length - 1);
 	return `[${
 		defaultValue
 			.split(/\s*,\s*/g)
@@ -593,91 +606,43 @@ const mapDefault = (
 	}
 
 	if (enumTypes.has(`${typeSchema}.${type.replace('[]', '')}`)) {
-		const unescaped = unescapeSingleQuotes(def.value, true);
-		return `.default(${mapColumnDefault({ value: unescaped, expression: def.expression })})`;
-	}
-
-	if (
-		lowered.startsWith('integer')
-		|| lowered.startsWith('smallint')
-		|| lowered.startsWith('bigint')
-		|| lowered.startsWith('boolean')
-		|| lowered.startsWith('double precision')
-		|| lowered.startsWith('real')
-	) {
 		return `.default(${mapColumnDefault(def)})`;
 	}
 
 	if (lowered.startsWith('uuid')) {
 		return def.value === 'gen_random_uuid()'
 			? '.defaultRandom()'
-			: `.default(sql\`${def.value}\`)`;
-	}
-
-	if (lowered.startsWith('numeric')) {
-		const val = def.value.startsWith("'") && def.value.endsWith(`'`)
-			? def.value.substring(1, def.value.length - 1)
-			: def.value;
-		return `.default('${mapColumnDefault({ value: val, expression: def.expression })}')`;
+			: def.type === 'unknown'
+			? `.default(sql\`${def.value}\`)`
+			: `.default('${def.value}')`;
 	}
 
 	if (lowered.startsWith('timestamp')) {
 		return def.value === 'now()'
 			? '.defaultNow()'
-			: /^'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d+)?([+-]\d{2}(:\d{2})?)?'$/.test(def.value) // Matches 'YYYY-MM-DD HH:MI:SS', 'YYYY-MM-DD HH:MI:SS.FFFFFF', 'YYYY-MM-DD HH:MI:SS+TZ', 'YYYY-MM-DD HH:MI:SS.FFFFFF+TZ' and 'YYYY-MM-DD HH:MI:SS+HH:MI'
-			? `.default(${mapColumnDefault(def)})`
+			: /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d+)?([+-]\d{2}(:\d{2})?)?$/.test(def.value) // Matches YYYY-MM-DD HH:MI:SS, YYYY-MM-DD HH:MI:SS.FFFFFF, YYYY-MM-DD HH:MI:SS+TZ, YYYY-MM-DD HH:MI:SS.FFFFFF+TZ and YYYY-MM-DD HH:MI:SS+HH:MI
+			? `.default('${def.value}')`
 			: `.default(sql\`${def.value}\`)`;
 	}
 
 	if (lowered.startsWith('time')) {
 		return def.value === 'now()'
 			? '.defaultNow()'
-			: /^'\d{2}:\d{2}(:\d{2})?(\.\d+)?'$/.test(def.value) // Matches 'HH:MI', 'HH:MI:SS' and 'HH:MI:SS.FFFFFF'
-			? `.default(${mapColumnDefault(def)})`
-			: `.default(sql\`${def}\`)`;
-	}
-
-	if (lowered.startsWith('interval')) {
-		return `.default(${mapColumnDefault(def)})`;
+			: /^\d{2}:\d{2}(:\d{2})?(\.\d+)?$/.test(def.value) // Matches HH:MI, HH:MI:SS and HH:MI:SS.FFFFFF
+			? `.default('${def.value}')`
+			: `.default(sql\`${def.value}\`)`;
 	}
 
 	if (lowered === 'date') {
 		return def.value === 'now()'
 			? '.defaultNow()'
-			: /^'\d{4}-\d{2}-\d{2}'$/.test(def.value) // Matches 'YYYY-MM-DD'
-			? `.default(${def.value})`
+			: /^\d{4}-\d{2}-\d{2}$/.test(def.value) // Matches YYYY-MM-DD
+			? `.default('${def.value}')`
 			: `.default(sql\`${def.value}\`)`;
 	}
 
-	if (lowered.startsWith('text')) {
-		return `.default(${
-			mapColumnDefault({ value: unescapeSingleQuotes(def.value, true), expression: def.expression })
-		})`;
-	}
-
-	if (lowered.startsWith('jsonb')) {
-		const val = def.value.replace(/::(.*?)(?<![^\w"])(?=$)/, '').slice(1, -1);
-		return val ? `.default(${val})` : '';
-	}
-
-	if (lowered.startsWith('json')) {
-		const val = def.value.replace(/::(.*?)(?<![^\w"])(?=$)/, '').slice(1, -1);
-		return val ? `.default(${val})` : '';
-	}
-
-	if (
-		lowered.startsWith('inet')
-		|| lowered.startsWith('cidr')
-		|| lowered.startsWith('macaddr8')
-		|| lowered.startsWith('macaddr')
-	) {
-		return `.default(${mapColumnDefault(def)})`;
-	}
-
-	if (lowered.startsWith('varchar')) {
-		return `.default(${
-			mapColumnDefault({ value: unescapeSingleQuotes(def.value, true), expression: def.expression })
-		})`;
+	if (lowered.startsWith('json') || lowered.startsWith('jsonb')) {
+		return def.value ? `.default(${def.value})` : '';
 	}
 
 	if (
@@ -685,14 +650,23 @@ const mapDefault = (
 		|| lowered.startsWith('line')
 		|| lowered.startsWith('geometry')
 		|| lowered.startsWith('vector')
+		|| lowered.startsWith('char')
+		|| lowered.startsWith('varchar')
+		|| lowered.startsWith('inet')
+		|| lowered.startsWith('cidr')
+		|| lowered.startsWith('macaddr8')
+		|| lowered.startsWith('macaddr')
+		|| lowered.startsWith('text')
+		|| lowered.startsWith('interval')
+		|| lowered.startsWith('numeric')
+		|| lowered.startsWith('integer')
+		|| lowered.startsWith('smallint')
+		|| lowered.startsWith('bigint')
+		|| lowered.startsWith('boolean')
+		|| lowered.startsWith('double precision')
+		|| lowered.startsWith('real')
 	) {
 		return `.default(${mapColumnDefault(def)})`;
-	}
-
-	if (lowered.startsWith('char')) {
-		return `.default(${
-			mapColumnDefault({ value: unescapeSingleQuotes(def.value, true), expression: def.expression })
-		})`;
 	}
 
 	return '';
@@ -971,17 +945,34 @@ const repeat = (it: string, times: number) => {
 	return Array(times + 1).join(it);
 };
 
-const dimensionsInArray = (size?: number): string => {
-	let res = '';
-	if (typeof size === 'undefined') return res;
-	for (let i = 0; i < size; i++) {
-		res += '.array()';
-	}
-	return res;
+const createViewColumns = (
+	columns: ViewColumn[],
+	enumTypes: Set<string>,
+	casing: Casing,
+) => {
+	let statement = '';
+
+	columns.forEach((it) => {
+		const columnStatement = column(
+			it.type,
+			it.name,
+			enumTypes,
+			it.typeSchema ?? 'public',
+			casing,
+		);
+		statement += '\t';
+		statement += columnStatement;
+		// Provide just this in column function
+		statement += repeat('.array()', it.dimensions);
+		statement += it.notNull ? '.notNull()' : '';
+		statement += ',\n';
+	});
+	return statement;
 };
 
 const createTableColumns = (
 	columns: Column[],
+	primaryKey: PrimaryKey | null,
 	fks: ForeignKey[],
 	enumTypes: Set<string>,
 	schemas: Record<string, string>,
@@ -1011,15 +1002,19 @@ const createTableColumns = (
 			it.typeSchema ?? 'public',
 			casing,
 		);
+		const pk = primaryKey && primaryKey.columns.length === 1 && primaryKey.columns[0] === it.name
+			? primaryKey
+			: null;
+
 		statement += '\t';
 		statement += columnStatement;
 		// Provide just this in column function
 		statement += repeat('.array()', it.dimensions);
 		statement += mapDefault(it.type, enumTypes, it.typeSchema ?? 'public', it.dimensions, it.default);
-		statement += it.primaryKey ? '.primaryKey()' : '';
-		statement += it.notNull && !it.identity && !it.primaryKey ? '.notNull()' : '';
+		statement += pk ? '.primaryKey()' : '';
+		statement += it.notNull && !it.identity && !pk ? '.notNull()' : '';
 
-		statement += it.identity ? generateIdentityParams(it.identity) : '';
+		statement += it.identity ? generateIdentityParams(it) : '';
 
 		statement += it.generated ? `.generatedAlwaysAs(sql\`${it.generated.as}\`)` : '';
 
@@ -1028,8 +1023,8 @@ const createTableColumns = (
 		if (fks) {
 			const fksStatement = fks
 				.map((it) => {
-					const onDelete = it.onDelete && it.onDelete !== 'no action' ? it.onDelete : null;
-					const onUpdate = it.onUpdate && it.onUpdate !== 'no action' ? it.onUpdate : null;
+					const onDelete = it.onDelete && it.onDelete !== 'NO ACTION' ? it.onDelete : null;
+					const onUpdate = it.onUpdate && it.onUpdate !== 'NO ACTION' ? it.onUpdate : null;
 					const params = { onDelete, onUpdate };
 
 					const typeSuffix = isCyclic(it) ? ': AnyPgColumn' : '';
@@ -1101,17 +1096,6 @@ const createTableIndexes = (tableName: string, idxs: Index[], casing: Casing): s
 		})`;
 		statement += it.where ? `.where(sql\`${it.where}\`)` : '';
 
-		function reverseLogic(mappedWith: Record<string, string>): string {
-			let reversedString = '{';
-			for (const key in mappedWith) {
-				if (mappedWith.hasOwnProperty(key)) {
-					reversedString += `${key}: "${mappedWith[key]}",`;
-				}
-			}
-			reversedString = reversedString.length > 1 ? reversedString.slice(0, reversedString.length - 1) : reversedString;
-			return `${reversedString}}`;
-		}
-
 		statement += it.with && Object.keys(it.with).length > 0 ? `.with(${it.with})` : '';
 		statement += `,\n`;
 	});
@@ -1128,7 +1112,7 @@ const createTablePK = (it: PrimaryKey, casing: Casing): string => {
 			})
 			.join(', ')
 	}`;
-	statement += `]${it.isNameExplicit ? `, name: "${it.name}"` : ''}}),\n`;
+	statement += `]${it.nameExplicit ? `, name: "${it.name}"` : ''}}),\n`;
 	return statement;
 };
 
@@ -1147,13 +1131,19 @@ const createTablePolicies = (
 			return rolesNameToTsKey[v] ? withCasing(rolesNameToTsKey[v], casing) : `"${v}"`;
 		});
 
-		statement += `\tpgPolicy("${it.name}", { `;
-		statement += it.as === 'PERMISSIVE' ? '' : `as: "${it.as.toLowerCase()}", `;
-		statement += it.for === 'ALL' ? '' : `for: "${it.for.toLowerCase()}", `;
-		statement += mappedItTo.length === 1 && mappedItTo[0] === '"public"' ? '' : `to: [${mappedItTo?.join(', ')}], `;
-		statement += it.using !== null ? `using: sql\`${it.using}\`` : '';
-		statement += it.withCheck !== null ? `, withCheck: sql\`${it.withCheck}\` ` : '';
-		statement += `}),\n`;
+		const tuples = [];
+		if (it.as === 'RESTRICTIVE') tuples.push(['as', `"${it.as.toLowerCase}"`]);
+		if (it.for !== 'ALL') tuples.push(['for', `"${it.for.toLowerCase()}"`]);
+		if (!(mappedItTo.length === 1 && mappedItTo[0] === '"public"')) {
+			tuples.push([
+				'to',
+				`[${mappedItTo.map((x) => `${x}`).join(', ')}]`,
+			]);
+		}
+		if (it.using !== null) tuples.push(['using', `sql\`${it.using}\``]);
+		if (it.withCheck !== null) tuples.push(['withCheck', `sql\`${it.withCheck}\``]);
+		const opts = tuples.length > 0 ? `, { ${tuples.map((x) => `${x[0]}: ${x[1]}`).join(', ')} }` : '';
+		statement += `\tpgPolicy("${it.name}"${opts}),\n`;
 	});
 
 	return statement;
@@ -1167,7 +1157,7 @@ const createTableUniques = (
 
 	unqs.forEach((it) => {
 		statement += '\tunique(';
-		statement += it.explicitName ? `"${it.name}")` : ')';
+		statement += it.nameExplicit ? `"${it.name}")` : ')';
 		statement += `.on(${it.columns.map((it) => `table.${withCasing(it, casing)}`).join(', ')})`;
 		statement += it.nullsNotDistinct ? `.nullsNotDistinct()` : '';
 		statement += `,\n`;
@@ -1183,8 +1173,6 @@ const createTableChecks = (
 	let statement = '';
 
 	checkConstraints.forEach((it) => {
-		const checkKey = withCasing(it.name, casing);
-		statement += `\t\t${checkKey}: `;
 		statement += 'check(';
 		statement += `"${it.name}", `;
 		statement += `sql\`${it.value}\`)`;
@@ -1211,9 +1199,9 @@ const createTableFKs = (fks: ForeignKey[], schemas: Record<string, string>, casi
 		statement += it.nameExplicit ? `\t\tname: "${it.name}"\n` : '';
 		statement += `\t})`;
 
-		statement += it.onUpdate && it.onUpdate !== 'no action' ? `.onUpdate("${it.onUpdate}")` : '';
+		statement += it.onUpdate && it.onUpdate !== 'NO ACTION' ? `.onUpdate("${it.onUpdate}")` : '';
 
-		statement += it.onDelete && it.onDelete !== 'no action' ? `.onDelete("${it.onDelete}")` : '';
+		statement += it.onDelete && it.onDelete !== 'NO ACTION' ? `.onDelete("${it.onDelete}")` : '';
 
 		statement += `,\n`;
 	});

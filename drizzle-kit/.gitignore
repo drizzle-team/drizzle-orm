@@ -3,7 +3,9 @@
 
 !src
 !imports-checker
+
 !tests
+tests/**/tmp/
 !vitest.config.ts
 !README.md
 !CONTRIBUTING.md

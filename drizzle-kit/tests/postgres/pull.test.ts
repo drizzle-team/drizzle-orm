@@ -35,16 +35,19 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 import fs from 'fs';
-import { introspectPgToFile } from 'tests/mocks-postgres';
-import { expect, test } from 'vitest';
+import { introspectPgToFile, reset } from 'tests/postgres/mocks';
+import { beforeEach, expect, test } from 'vitest';
+
+// @vitest-environment-options {"max-concurrency":1}
 
 if (!fs.existsSync('tests/introspect/postgres')) {
 	fs.mkdirSync('tests/introspect/postgres');
 }
 
-test('basic introspect test', async () => {
-	const client = new PGlite();
+const client = new PGlite();
+beforeEach(() => reset(client));
 
+test('basic introspect test', async () => {
 	const schema = {
 		users: pgTable('users', {
 			id: integer('id').notNull(),
@@ -63,8 +66,6 @@ test('basic introspect test', async () => {
 });
 
 test('basic identity always test', async () => {
-	const client = new PGlite();
-
 	const schema = {
 		users: pgTable('users', {
 			id: integer('id').generatedAlwaysAsIdentity(),
@@ -83,8 +84,6 @@ test('basic identity always test', async () => {
 });
 
 test('basic identity by default test', async () => {
-	const client = new PGlite();
-
 	const schema = {
 		users: pgTable('users', {
 			id: integer('id').generatedByDefaultAsIdentity(),
@@ -103,8 +102,6 @@ test('basic identity by default test', async () => {
 });
 
 test('identity always test: few params', async () => {
-	const client = new PGlite();
-
 	const schema = {
 		users: pgTable('users', {
 			id: integer('id').generatedAlwaysAsIdentity({
@@ -126,8 +123,6 @@ test('identity always test: few params', async () => {
 });
 
 test('identity by default test: few params', async () => {
-	const client = new PGlite();
-
 	const schema = {
 		users: pgTable('users', {
 			id: integer('id').generatedByDefaultAsIdentity({
@@ -149,8 +144,6 @@ test('identity by default test: few params', async () => {
 });
 
 test('identity always test: all params', async () => {
-	const client = new PGlite();
-
 	const schema = {
 		users: pgTable('users', {
 			id: integer('id').generatedAlwaysAsIdentity({
@@ -176,8 +169,6 @@ test('identity always test: all params', async () => {
 });
 
 test('identity by default test: all params', async () => {
-	const client = new PGlite();
-
 	const schema = {
 		users: pgTable('users', {
 			id: integer('id').generatedByDefaultAsIdentity({
@@ -203,8 +194,6 @@ test('identity by default test: all params', async () => {
 });
 
 test('generated column: link to another column', async () => {
-	const client = new PGlite();
-
 	const schema = {
 		users: pgTable('users', {
 			id: integer('id').generatedAlwaysAsIdentity(),
@@ -225,9 +214,7 @@ test('generated column: link to another column', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('instrospect all column types', async () => {
-	const client = new PGlite();
-
+test('introspect all column types', async () => {
 	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
 	const schema = {
 		enum_: myEnum,
@@ -281,9 +268,7 @@ test('instrospect all column types', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('instrospect all column array types', async () => {
-	const client = new PGlite();
-
+test('introspect all column array types', async () => {
 	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
 	const schema = {
 		enum_: myEnum,
@@ -330,7 +315,6 @@ test('instrospect all column array types', async () => {
 });
 
 test('introspect columns with name with non-alphanumeric characters', async () => {
-	const client = new PGlite();
 	const schema = {
 		users: pgTable('users', {
 			'not:allowed': integer('not:allowed'),
@@ -351,8 +335,6 @@ test('introspect columns with name with non-alphanumeric characters', async () =
 });
 
 test('introspect enum from different schema', async () => {
-	const client = new PGlite();
-
 	const schema2 = pgSchema('schema2');
 	const myEnumInSchema2 = schema2.enum('my_enum', ['a', 'b', 'c']);
 	const schema = {
@@ -375,8 +357,6 @@ test('introspect enum from different schema', async () => {
 });
 
 test('introspect enum with same names across different schema', async () => {
-	const client = new PGlite();
-
 	const schema2 = pgSchema('schema2');
 	const myEnumInSchema2 = schema2.enum('my_enum', ['a', 'b', 'c']);
 	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
@@ -402,8 +382,6 @@ test('introspect enum with same names across different schema', async () => {
 });
 
 test('introspect enum with similar name to native type', async () => {
-	const client = new PGlite();
-
 	const timeLeft = pgEnum('time_left', ['short', 'medium', 'long']);
 	const schema = {
 		timeLeft,
@@ -422,9 +400,7 @@ test('introspect enum with similar name to native type', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-test('instrospect strings with single quotes', async () => {
-	const client = new PGlite();
-
+test('introspect strings with single quotes', async () => {
 	const myEnum = pgEnum('my_enum', ['escape\'s quotes " ']);
 	const schema = {
 		enum_: myEnum,
@@ -446,8 +422,6 @@ test('instrospect strings with single quotes', async () => {
 });
 
 test('introspect checks', async () => {
-	const client = new PGlite();
-
 	const schema = {
 		users: pgTable('users', {
 			id: serial('id'),
@@ -469,8 +443,6 @@ test('introspect checks', async () => {
 });
 
 test('introspect checks from different schemas with same names', async () => {
-	const client = new PGlite();
-
 	const mySchema = pgSchema('schema2');
 	const schema = {
 		mySchema,
@@ -500,8 +472,6 @@ test('introspect checks from different schemas with same names', async () => {
 });
 
 test('introspect view #1', async () => {
-	const client = new PGlite();
-
 	const users = pgTable('users', {
 		id: serial('id').primaryKey().notNull(),
 		name: varchar('users'),
@@ -524,8 +494,6 @@ test('introspect view #1', async () => {
 });
 
 test('introspect view #2', async () => {
-	const client = new PGlite();
-
 	const users = pgTable('users', {
 		id: serial('id').primaryKey().notNull(),
 		name: varchar('users'),
@@ -550,8 +518,6 @@ test('introspect view #2', async () => {
 });
 
 test('introspect view in other schema', async () => {
-	const client = new PGlite();
-
 	const newSchema = pgSchema('new_schema');
 	const users = pgTable('users', {
 		id: serial('id').primaryKey().notNull(),
@@ -579,8 +545,6 @@ test('introspect view in other schema', async () => {
 });
 
 test('introspect materialized view in other schema', async () => {
-	const client = new PGlite();
-
 	const newSchema = pgSchema('new_schema');
 	const users = pgTable('users', {
 		id: serial('id').primaryKey().notNull(),
@@ -608,8 +572,6 @@ test('introspect materialized view in other schema', async () => {
 });
 
 test('introspect materialized view #1', async () => {
-	const client = new PGlite();
-
 	const users = pgTable('users', {
 		id: serial('id').primaryKey().notNull(),
 		name: varchar('users'),
@@ -632,8 +594,6 @@ test('introspect materialized view #1', async () => {
 });
 
 test('introspect materialized view #2', async () => {
-	const client = new PGlite();
-
 	const users = pgTable('users', {
 		id: serial('id').primaryKey().notNull(),
 		name: varchar('users'),
@@ -658,8 +618,6 @@ test('introspect materialized view #2', async () => {
 });
 
 test('basic policy', async () => {
-	const client = new PGlite();
-
 	const schema = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
@@ -679,8 +637,6 @@ test('basic policy', async () => {
 });
 
 test('basic policy with "as"', async () => {
-	const client = new PGlite();
-
 	const schema = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
@@ -700,8 +656,6 @@ test('basic policy with "as"', async () => {
 });
 
 test.todo('basic policy with CURRENT_USER role', async () => {
-	const client = new PGlite();
-
 	const schema = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
@@ -721,8 +675,6 @@ test.todo('basic policy with CURRENT_USER role', async () => {
 });
 
 test('basic policy with all fields except "using" and "with"', async () => {
-	const client = new PGlite();
-
 	const schema = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
@@ -742,8 +694,6 @@ test('basic policy with all fields except "using" and "with"', async () => {
 });
 
 test('basic policy with "using" and "with"', async () => {
-	const client = new PGlite();
-
 	const schema = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
@@ -763,8 +713,6 @@ test('basic policy with "using" and "with"', async () => {
 });
 
 test('multiple policies', async () => {
-	const client = new PGlite();
-
 	const schema = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
@@ -785,8 +733,6 @@ test('multiple policies', async () => {
 });
 
 test('multiple policies with roles', async () => {
-	const client = new PGlite();
-
 	client.query(`CREATE ROLE manager;`);
 
 	const schema = {
@@ -809,8 +755,6 @@ test('multiple policies with roles', async () => {
 });
 
 test('basic roles', async () => {
-	const client = new PGlite();
-
 	const schema = {
 		usersRole: pgRole('user'),
 	};
@@ -828,8 +772,6 @@ test('basic roles', async () => {
 });
 
 test('role with properties', async () => {
-	const client = new PGlite();
-
 	const schema = {
 		usersRole: pgRole('user', { inherit: false, createDb: true, createRole: true }),
 	};
@@ -847,8 +789,6 @@ test('role with properties', async () => {
 });
 
 test('role with a few properties', async () => {
-	const client = new PGlite();
-
 	const schema = {
 		usersRole: pgRole('user', { inherit: false, createRole: true }),
 	};
@@ -866,8 +806,6 @@ test('role with a few properties', async () => {
 });
 
 test('multiple policies with roles from schema', async () => {
-	const client = new PGlite();
-
 	const usersRole = pgRole('user_role', { inherit: false, createRole: true });
 
 	const schema = {

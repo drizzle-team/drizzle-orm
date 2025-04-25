@@ -1,6 +1,6 @@
 import { escapeSingleQuotes, type Simplify } from '../../utils';
 import { View } from './ddl';
-import { defaultNameForPK, defaults, isDefaultAction, parseType } from './grammar';
+import { defaultNameForPK, defaults, defaultToSQL, isDefaultAction, parseType } from './grammar';
 import type { JsonStatement } from './statements';
 
 export const convertor = <
@@ -127,7 +127,7 @@ const createTableConvertor = convertor('create_table', (st) => {
 	const key = schema !== 'public' ? `"${schema}"."${name}"` : `"${name}"`;
 
 	// TODO: strict?
-	statement += `CREATE TABLE IF NOT EXISTS ${key} (\n`;
+	statement += `CREATE TABLE ${key} (\n`;
 	for (let i = 0; i < columns.length; i++) {
 		const column = columns[i];
 
@@ -136,15 +136,16 @@ const createTableConvertor = convertor('create_table', (st) => {
 
 		const primaryKeyStatement = isPK ? ' PRIMARY KEY' : '';
 		const notNullStatement = isPK ? '' : column.notNull && !column.identity ? ' NOT NULL' : '';
-		const defaultStatement = column.default
-			? column.default.expression ? ` DEFAULT (${column.default.value})` : ` DEFAULT ${column.default.value}`
+		const defaultStatement = column.default ? ` DEFAULT ${defaultToSQL(column.default)}` : '';
+
+		const unique = uniques.find((u) => u.columns.length === 1 && u.columns[0] === column.name);
+
+		const unqiueConstraintPrefix = unique
+			? unique.nameExplicit ? `UNIQUE("${unique.name}")` : 'UNIQUE'
 			: '';
 
-		const unqiueConstraintPrefix = column.unique
-			? column.unique.nameExplicit ? `UNIQUE("${column.unique.name}")` : 'UNIQUE'
-			: '';
-		const uniqueConstraintStatement = column.unique
-			? ` ${unqiueConstraintPrefix}${column.unique.nullsNotDistinct ? ' NULLS NOT DISTINCT' : ''}`
+		const uniqueConstraintStatement = unique
+			? ` ${unqiueConstraintPrefix}${unique.nullsNotDistinct ? ' NULLS NOT DISTINCT' : ''}`
 			: '';
 
 		const schemaPrefix = column.typeSchema && column.typeSchema !== 'public'
@@ -192,7 +193,7 @@ const createTableConvertor = convertor('create_table', (st) => {
 		statement += `\tCONSTRAINT "${pk.name}" PRIMARY KEY(\"${pk.columns.join(`","`)}\")`;
 	}
 
-	for (const it of uniques) {
+	for (const it of uniques.filter((u) => u.columns.length > 1)) {
 		// TODO: skip for inlined uniques || DECIDE
 		// if (it.columns.length === 1 && it.name === `${name}_${it.columns[0]}_key`) continue;
 
@@ -256,15 +257,13 @@ const addColumnConvertor = convertor('add_column', (st) => {
 	const { schema, table, name } = st.column;
 	const column = st.column;
 
-	const primaryKeyStatement = column.primaryKey ? ' PRIMARY KEY' : '';
+	const primaryKeyStatement = st.isPK ? ' PRIMARY KEY' : '';
 
 	const tableNameWithSchema = schema !== 'public'
 		? `"${schema}"."${table}"`
 		: `"${table}"`;
 
-	const defaultStatement = column.default
-		? ` DEFAULT ${column.default.expression ? `(${column.default.value})` : `${column.default.value}`}`
-		: '';
+	const defaultStatement = column.default ? ` DEFAULT ${defaultToSQL(column.default)}` : '';
 
 	const schemaPrefix = column.typeSchema && column.typeSchema !== 'public'
 		? `"${column.typeSchema}".`
@@ -276,7 +275,7 @@ const addColumnConvertor = convertor('add_column', (st) => {
 
 	const unsquashedIdentity = column.identity;
 
-	const identityWithSchema = schema
+	const identityWithSchema = schema !== 'public'
 		? `"${schema}"."${unsquashedIdentity?.name}"`
 		: `"${unsquashedIdentity?.name}"`;
 
@@ -333,14 +332,13 @@ const recreateColumnConvertor = convertor('recreate_column', (st) => {
 	// AlterTableAlterColumnAlterGeneratedConvertor
 
 	const drop = dropColumnConvertor.convert({ column: st.column }) as string;
-	const add = addColumnConvertor.convert({ column: st.column }) as string;
+	const add = addColumnConvertor.convert({ column: st.column, isPK: st.isPK }) as string;
 
 	return [drop, add];
 });
 
 const alterColumnConvertor = convertor('alter_column', (st) => {
 	const { diff, to: column } = st;
-
 	const statements = [] as string[];
 
 	const key = column.schema !== 'public'
@@ -354,9 +352,7 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 
 	if (diff.default) {
 		if (diff.default.to) {
-			const { expression, value } = diff.default.to;
-			const def = expression ? `(${value})` : value;
-			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${def};`);
+			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(diff.default.to)};`);
 		} else {
 			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 		}
@@ -466,11 +462,11 @@ const createIndexConvertor = convertor('create_index', (st) => {
 	const concur = concurrently ? ' CONCURRENTLY' : '';
 	const withClause = w ? ` WITH (${w})` : '';
 	const whereClause = where ? ` WHERE ${where}` : '';
-	return `CREATE ${indexPart}${concur} IF NOT EXISTS "${name}" ON ${key} USING ${method} (${value})${withClause}${whereClause};`;
+	return `CREATE ${indexPart}${concur} "${name}" ON ${key} USING ${method} (${value})${withClause}${whereClause};`;
 });
 
 const dropIndexConvertor = convertor('drop_index', (st) => {
-	return `DROP INDEX "${st.index}";`;
+	return `DROP INDEX "${st.index.name}";`;
 });
 
 const addPrimaryKeyConvertor = convertor('add_pk', (st) => {
@@ -479,7 +475,7 @@ const addPrimaryKeyConvertor = convertor('add_pk', (st) => {
 		? `"${pk.schema}"."${pk.table}"`
 		: `"${pk.table}"`;
 
-	if (!pk.isNameExplicit) {
+	if (!pk.nameExplicit) {
 		return `ALTER TABLE ${key} ADD PRIMARY KEY ("${pk.columns.join('","')}");`;
 	}
 	return `ALTER TABLE ${key} ADD CONSTRAINT "${pk.name}" PRIMARY KEY("${pk.columns.join('","')}");`;
@@ -491,7 +487,7 @@ const dropPrimaryKeyConvertor = convertor('drop_pk', (st) => {
 		? `"${pk.schema}"."${pk.table}"`
 		: `"${pk.table}"`;
 
-	if (st.pk.isNameExplicit) {
+	if (st.pk.nameExplicit) {
 		return `ALTER TABLE ${key} DROP CONSTRAINT "${pk.name}";`;
 	}
 
@@ -689,8 +685,7 @@ const recreateEnumConvertor = convertor('recreate_enum', (st) => {
 			`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${enumType} USING "${column.name}"::${enumType};`,
 		);
 		if (column.default) {
-			const def = column.default.expression ? `(${column.default.value})` : column.default.value;
-			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${def};`);
+			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(column.default)};`);
 		}
 	}
 
@@ -733,7 +728,7 @@ const moveSequenceConvertor = convertor('move_sequence', (st) => {
 const alterSequenceConvertor = convertor('alter_sequence', (st) => {
 	const { schema, name, incrementBy, minValue, maxValue, startWith, cacheSize, cycle } = st.sequence;
 
-	const sequenceWithSchema = schema ? `"${schema}"."${name}"` : `"${name}"`;
+	const sequenceWithSchema = schema !== 'public' ? `"${schema}"."${name}"` : `"${name}"`;
 
 	return `ALTER SEQUENCE ${sequenceWithSchema}${incrementBy ? ` INCREMENT BY ${incrementBy}` : ''}${
 		minValue ? ` MINVALUE ${minValue}` : ''

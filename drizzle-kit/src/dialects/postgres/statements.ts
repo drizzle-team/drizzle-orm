@@ -142,6 +142,7 @@ export interface JsonDropColumn {
 export interface JsonAddColumn {
 	type: 'add_column';
 	column: Column;
+	isPK: boolean;
 }
 
 export interface JsonCreatePolicy {
@@ -293,6 +294,7 @@ export interface JsonAlterColumn {
 export interface JsonRecreateColumn {
 	type: 'recreate_column';
 	column: Column;
+	isPK: boolean;
 }
 
 export interface JsonAlterColumnSetPrimaryKey {
