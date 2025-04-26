@@ -1,5 +1,4 @@
 import { neonConfig, Pool } from '@neondatabase/serverless';
-import retry from 'async-retry';
 import { eq, sql } from 'drizzle-orm';
 import { drizzle, type NeonDatabase } from 'drizzle-orm/neon-serverless';
 import { migrate } from 'drizzle-orm/neon-serverless/migrator';
@@ -9,38 +8,27 @@ import ws from 'ws';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
 import { mySchema, tests, usersMigratorTable, usersMySchemaTable, usersTable } from './pg-common';
+import relations from './relations';
 
 const ENABLE_LOGGING = false;
 
-let db: NeonDatabase;
+let db: NeonDatabase<never, typeof relations>;
 let client: Pool;
 
+neonConfig.wsProxy = (host) => `${host}:5446/v1`;
+neonConfig.useSecureWebSocket = false;
+neonConfig.pipelineTLS = false;
+neonConfig.pipelineConnect = false;
+neonConfig.webSocketConstructor = ws;
+
 beforeAll(async () => {
-	const connectionString = process.env['NEON_CONNECTION_STRING'];
+	const connectionString = process.env['NEON_SERVERLESS_CONNECTION_STRING'];
 	if (!connectionString) {
-		throw new Error('NEON_CONNECTION_STRING is not defined');
+		throw new Error('NEON_SERVERLESS_CONNECTION_STRING is not defined');
 	}
 
-	neonConfig.webSocketConstructor = ws;
-
-	client = await retry(async () => {
-		client = new Pool({ connectionString });
-
-		const cnt = await client.connect();
-		cnt.release();
-
-		return client;
-	}, {
-		retries: 20,
-		factor: 1,
-		minTimeout: 250,
-		maxTimeout: 250,
-		randomize: false,
-		onRetry() {
-			client?.end();
-		},
-	});
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	client = new Pool({ connectionString });
+	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
 });
 
 afterAll(async () => {

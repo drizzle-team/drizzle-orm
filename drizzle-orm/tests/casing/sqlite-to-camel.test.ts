@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import { beforeEach, describe, it } from 'vitest';
+import { relations } from '~/_relations';
 import { drizzle } from '~/better-sqlite3';
-import { relations } from '~/relations';
 import { asc, eq, sql } from '~/sql';
 import { alias, integer, sqliteTable, text, union } from '~/sqlite-core';
 
@@ -129,7 +129,7 @@ describe('sqlite to camel case', () => {
 	});
 
 	it('query (find first)', ({ expect }) => {
-		const query = db.query.users.findFirst({
+		const query = db._query.users.findFirst({
 			columns: {
 				id: true,
 				age: true,
@@ -149,7 +149,7 @@ describe('sqlite to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'select "id", "AGE", "firstName" || \' \' || "lastName" as "name", (select json_array("usesDrizzleOrm") as "data" from (select * from "developers" "users_developers" where "users_developers"."userId" = "users"."id" limit ?) "users_developers") as "developers" from "users" where "users"."id" = ? limit ?',
+				'select "id", "AGE", "firstName" || \' \' || "lastName" as "name", (select json_array("usesDrizzleOrm") as "data" from (select * from "developers" "users_developers" where "users_developers"."userId" = "users"."id" limit ?) "users_developers") as "developers" from "users" "users" where "users"."id" = ? limit ?',
 			params: [1, 1, 1],
 			typings: ['none', 'none', 'none'],
 		});
@@ -157,7 +157,7 @@ describe('sqlite to camel case', () => {
 	});
 
 	it('query (find many)', ({ expect }) => {
-		const query = db.query.users.findMany({
+		const query = db._query.users.findMany({
 			columns: {
 				id: true,
 				age: true,
@@ -177,7 +177,7 @@ describe('sqlite to camel case', () => {
 
 		expect(query.toSQL()).toEqual({
 			sql:
-				'select "id", "AGE", "firstName" || \' \' || "lastName" as "name", (select json_array("usesDrizzleOrm") as "data" from (select * from "developers" "users_developers" where "users_developers"."userId" = "users"."id" limit ?) "users_developers") as "developers" from "users" where "users"."id" = ?',
+				'select "id", "AGE", "firstName" || \' \' || "lastName" as "name", (select json_array("usesDrizzleOrm") as "data" from (select * from "developers" "users_developers" where "users_developers"."userId" = "users"."id" limit ?) "users_developers") as "developers" from "users" "users" where "users"."id" = ?',
 			params: [1, 1],
 			typings: ['none', 'none'],
 		});

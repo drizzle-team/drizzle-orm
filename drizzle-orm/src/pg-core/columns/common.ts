@@ -339,6 +339,20 @@ export class PgArray<
 		return value.map((v) => this.baseColumn.mapFromDriverValue(v));
 	}
 
+	// Needed for arrays of custom types
+	mapFromJsonValue(value: unknown[] | string): T['data'] {
+		if (typeof value === 'string') {
+			// Thank you node-postgres for not parsing enum arrays
+			value = parsePgArray(value);
+		}
+
+		const base = this.baseColumn;
+
+		return 'mapFromJsonValue' in base
+			? value.map((v) => (<(value: unknown) => unknown> base.mapFromJsonValue)(v))
+			: value.map((v) => base.mapFromDriverValue(v));
+	}
+
 	override mapToDriverValue(value: unknown[], isNestedArray = false): unknown[] | string {
 		const a = value.map((v) =>
 			v === null

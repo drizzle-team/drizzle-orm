@@ -9,10 +9,11 @@ import { skipTests } from '~/common';
 import { randomString } from '~/utils';
 import { getXataClient } from '../xata/xata.ts';
 import { tests, usersMigratorTable, usersTable } from './pg-common';
+import relations from './relations.ts';
 
 const ENABLE_LOGGING = false;
 
-let db: XataHttpDatabase;
+let db: XataHttpDatabase<never, typeof relations>;
 let client: XataHttpClient;
 
 beforeAll(async () => {
@@ -31,7 +32,7 @@ beforeAll(async () => {
 		maxTimeout: 250,
 		randomize: false,
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
 });
 
 beforeEach((ctx) => {

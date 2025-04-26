@@ -1,5 +1,4 @@
 import { getTableName, is } from 'drizzle-orm';
-import { AnyPgTable } from 'drizzle-orm/pg-core';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
@@ -7,7 +6,8 @@ import {
 	One,
 	Relation,
 	Relations,
-} from 'drizzle-orm/relations';
+} from 'drizzle-orm/_relations';
+import { AnyPgTable } from 'drizzle-orm/pg-core';
 import './@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
 import { Casing } from './cli/validations/common';
@@ -50,6 +50,7 @@ const pgImportsList = new Set([
 	'interval',
 	'cidr',
 	'inet',
+	'bytea',
 	'macaddr',
 	'macaddr8',
 	'bigint',
@@ -170,7 +171,7 @@ const withCasing = (value: string, casing: Casing) => {
 		return escapeColumnKey(value);
 	}
 	if (casing === 'camel') {
-		return escapeColumnKey(value.camelCase());
+		return escapeColumnKey(toCamelCase(value));
 	}
 
 	assertUnreachable(casing);
@@ -693,6 +694,10 @@ const mapDefault = (
 			: '';
 	}
 
+	if (lowered.startsWith('bytea')) {
+		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+	}
+
 	if (lowered.startsWith('integer')) {
 		return typeof defaultValue !== 'undefined' ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
 	}
@@ -867,6 +872,11 @@ const column = (
 		return `${withCasing(name, casing)}: bigserial(${
 			dbColumnName({ name, casing, withMode: true })
 		}{ mode: "bigint" })`;
+	}
+
+	if (lowered.startsWith('bytea')) {
+		let out = `${withCasing(name, casing)}: bytea(${dbColumnName({ name, casing })})`;
+		return out;
 	}
 
 	if (lowered.startsWith('integer')) {

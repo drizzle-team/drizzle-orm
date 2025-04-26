@@ -1,7 +1,7 @@
 import type { Column, GetColumnData } from './column.ts';
 import { entityKind } from './entity.ts';
 import type { OptionalKeyOnly, RequiredKeyOnly } from './operations.ts';
-import type { SQLWrapper } from './sql/sql.ts';
+import type { SQLWrapper, View } from './sql/sql.ts';
 import { TableName } from './table.utils.ts';
 import type { Simplify, Update } from './utils.ts';
 
@@ -144,8 +144,16 @@ export function getTableName<T extends Table>(table: T): T['_']['name'] {
 	return table[TableName];
 }
 
-export function getTableUniqueName<T extends Table>(table: T): `${T['_']['schema']}.${T['_']['name']}` {
-	return `${table[Schema] ?? 'public'}.${table[TableName]}`;
+export function getTableUniqueName<
+	T extends Table | View,
+	TResult extends string = T extends Table ? T['_']['schema'] extends undefined ? `public.${T['_']['name']}`
+		: `${T['_']['schema']}.${T['_']['name']}`
+		// Views don't have type-level schema names, to be added
+		: `${string}.${T['_']['name']}`,
+>(
+	table: T,
+): TResult {
+	return `${table[Schema] ?? 'public'}.${table[TableName]}` as TResult;
 }
 
 export type MapColumnName<TName extends string, TColumn extends Column, TDBColumNames extends boolean> =
@@ -203,3 +211,6 @@ export type InferInsertModel<
 	TTable extends Table,
 	TConfig extends { dbColumnNames: boolean; override?: boolean } = { dbColumnNames: false; override: false },
 > = InferModelFromColumns<TTable['_']['columns'], 'insert', TConfig>;
+
+export type InferEnum<T> = T extends { enumValues: readonly (infer U)[] } ? U
+	: never;

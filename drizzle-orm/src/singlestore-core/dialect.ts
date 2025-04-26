@@ -1,22 +1,11 @@
+import * as V1 from '~/_relations.ts';
 import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapColumnsInSQLToAlias } from '~/alias.ts';
 import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
-import { and, eq } from '~/expressions.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
-import {
-	type BuildRelationalQueryResult,
-	type DBQueryConfig,
-	getOperators,
-	getOrderByOperators,
-	Many,
-	normalizeRelation,
-	One,
-	type Relation,
-	type TableRelationalConfig,
-	type TablesRelationalConfig,
-} from '~/relations.ts';
+import { and, eq } from '~/sql/expressions/index.ts';
 import type { Name, Placeholder, QueryWithTypings, SQLChunk } from '~/sql/sql.ts';
 import { Param, SQL, sql, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
@@ -296,8 +285,10 @@ export class SingleStoreDialect {
 		const selection = this.buildSelection(fieldsList, { isSingleTable });
 
 		const tableSql = (() => {
-			if (is(table, Table) && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
-				return sql`${sql.identifier(table[Table.Symbol.OriginalName])} ${sql.identifier(table[Table.Symbol.Name])}`;
+			if (is(table, Table) && table[Table.Symbol.IsAlias]) {
+				return sql`${sql`${sql.identifier(table[Table.Symbol.Schema] ?? '')}.`.if(table[Table.Symbol.Schema])}${
+					sql.identifier(table[Table.Symbol.OriginalName])
+				} ${sql.identifier(table[Table.Symbol.Name])}`;
 			}
 
 			return table;
@@ -312,6 +303,7 @@ export class SingleStoreDialect {
 				}
 				const table = joinMeta.table;
 				const lateralSql = joinMeta.lateral ? sql` lateral` : undefined;
+				const onSql = joinMeta.on ? sql` on ${joinMeta.on}` : undefined;
 
 				if (is(table, SingleStoreTable)) {
 					const tableName = table[SingleStoreTable.Symbol.Name];
@@ -321,7 +313,7 @@ export class SingleStoreDialect {
 					joinsArray.push(
 						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
 							tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined
-						}${sql.identifier(origTableName)}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
+						}${sql.identifier(origTableName)}${alias && sql` ${sql.identifier(alias)}`}${onSql}`,
 					);
 				} else if (is(table, View)) {
 					const viewName = table[ViewBaseConfig].name;
@@ -331,11 +323,11 @@ export class SingleStoreDialect {
 					joinsArray.push(
 						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
 							viewSchema ? sql`${sql.identifier(viewSchema)}.` : undefined
-						}${sql.identifier(origViewName)}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
+						}${sql.identifier(origViewName)}${alias && sql` ${sql.identifier(alias)}`}${onSql}`,
 					);
 				} else {
 					joinsArray.push(
-						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${table} on ${joinMeta.on}`,
+						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${table}${onSql}`,
 					);
 				}
 				if (index < joins.length - 1) {
@@ -363,7 +355,7 @@ export class SingleStoreDialect {
 			const { config, strength } = lockingClause;
 			lockingClausesSql = sql` for ${sql.raw(strength)}`;
 			if (config.noWait) {
-				lockingClausesSql.append(sql` no wait`);
+				lockingClausesSql.append(sql` nowait`);
 			} else if (config.skipLocked) {
 				lockingClausesSql.append(sql` skip locked`);
 			}
@@ -525,16 +517,16 @@ export class SingleStoreDialect {
 		joinOn,
 	}: {
 		fullSchema: Record<string, unknown>;
-		schema: TablesRelationalConfig;
+		schema: V1.TablesRelationalConfig;
 		tableNamesMap: Record<string, string>;
 		table: SingleStoreTable;
-		tableConfig: TableRelationalConfig;
-		queryConfig: true | DBQueryConfig<'many', true>;
+		tableConfig: V1.TableRelationalConfig;
+		queryConfig: true | V1.DBQueryConfig<'many', true>;
 		tableAlias: string;
-		nestedQueryRelation?: Relation;
+		nestedQueryRelation?: V1.Relation;
 		joinOn?: SQL;
-	}): BuildRelationalQueryResult<SingleStoreTable, SingleStoreColumn> {
-		let selection: BuildRelationalQueryResult<SingleStoreTable, SingleStoreColumn>['selection'] = [];
+	}): V1.BuildRelationalQueryResult<SingleStoreTable, SingleStoreColumn> {
+		let selection: V1.BuildRelationalQueryResult<SingleStoreTable, SingleStoreColumn>['selection'] = [];
 		let limit, offset, orderBy: SingleStoreSelectConfig['orderBy'], where;
 		const joins: SingleStoreSelectJoinConfig[] = [];
 
@@ -557,7 +549,7 @@ export class SingleStoreDialect {
 
 			if (config.where) {
 				const whereSql = typeof config.where === 'function'
-					? config.where(aliasedColumns, getOperators())
+					? config.where(aliasedColumns, V1.getOperators())
 					: config.where;
 				where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
 			}
@@ -599,11 +591,11 @@ export class SingleStoreDialect {
 
 			let selectedRelations: {
 				tsKey: string;
-				queryConfig: true | DBQueryConfig<'many', false>;
-				relation: Relation;
+				queryConfig: true | V1.DBQueryConfig<'many', false>;
+				relation: V1.Relation;
 			}[] = [];
 
-			// Figure out which relations to select
+			// Figure out which V1.relations to select
 			if (config.with) {
 				selectedRelations = Object.entries(config.with)
 					.filter((entry): entry is [typeof entry[0], NonNullable<typeof entry[1]>] => !!entry[1])
@@ -639,7 +631,7 @@ export class SingleStoreDialect {
 			}
 
 			let orderByOrig = typeof config.orderBy === 'function'
-				? config.orderBy(aliasedColumns, getOrderByOperators())
+				? config.orderBy(aliasedColumns, V1.getOrderByOperators())
 				: config.orderBy ?? [];
 			if (!Array.isArray(orderByOrig)) {
 				orderByOrig = [orderByOrig];
@@ -654,7 +646,7 @@ export class SingleStoreDialect {
 			limit = config.limit;
 			offset = config.offset;
 
-			// Process all relations
+			// Process all V1.relations
 			for (
 				const {
 					tsKey: selectedRelationTsKey,
@@ -662,7 +654,7 @@ export class SingleStoreDialect {
 					relation,
 				} of selectedRelations
 			) {
-				const normalizedRelation = normalizeRelation(schema, tableNamesMap, relation);
+				const normalizedRelation = V1.normalizeRelation(schema, tableNamesMap, relation);
 				const relationTableName = getTableUniqueName(relation.referencedTable);
 				const relationTableTsName = tableNamesMap[relationTableName]!;
 				const relationTableAlias = `${tableAlias}_${selectedRelationTsKey}`;
@@ -680,7 +672,7 @@ export class SingleStoreDialect {
 					tableNamesMap,
 					table: fullSchema[relationTableTsName] as SingleStoreTable,
 					tableConfig: schema[relationTableTsName]!,
-					queryConfig: is(relation, One)
+					queryConfig: is(relation, V1.One)
 						? (selectedRelationConfigValue === true
 							? { limit: 1 }
 							: { ...selectedRelationConfigValue, limit: 1 })
@@ -729,7 +721,7 @@ export class SingleStoreDialect {
 					sql`, `,
 				)
 			})`;
-			if (is(nestedQueryRelation, Many)) {
+			if (is(nestedQueryRelation, V1.Many)) {
 				field = sql`json_agg(${field})`;
 			}
 			const nestedSelection = [{

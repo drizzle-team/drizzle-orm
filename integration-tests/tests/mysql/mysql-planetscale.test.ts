@@ -4,13 +4,17 @@ import { drizzle } from 'drizzle-orm/planetscale-serverless';
 import { beforeAll, beforeEach } from 'vitest';
 import { skipTests } from '~/common';
 import { tests } from './mysql-common';
+import relations from './relations';
 
 const ENABLE_LOGGING = false;
 
-let db: PlanetScaleDatabase;
+let db: PlanetScaleDatabase<never, typeof relations>;
 
 beforeAll(async () => {
-	db = drizzle(new Client({ url: process.env['PLANETSCALE_CONNECTION_STRING']! }), { logger: ENABLE_LOGGING });
+	db = drizzle(new Client({ url: process.env['PLANETSCALE_CONNECTION_STRING']! }), {
+		logger: ENABLE_LOGGING,
+		relations,
+	});
 });
 
 beforeEach((ctx) => {

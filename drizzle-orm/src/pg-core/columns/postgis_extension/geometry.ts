@@ -42,9 +42,10 @@ export class PgGeometry<T extends ColumnBaseConfig<'array', 'PgGeometry'>> exten
 		return 'geometry(point)';
 	}
 
-	override mapFromDriverValue(value: string | GeometryPointObject): [number, number] {
-		const parsed = typeof value === 'string' ? parseEWKB(value) : parsePointObject(value);
-		return parsed;
+	override mapFromDriverValue(value: string | [number, number] | GeometryPointObject): [number, number] {
+		if (typeof value === 'string') return parseEWKB(value)
+    if (Array.isArray(value)) return value as [number, number]
+    return parsePointObject(value)
 	}
 
 	override mapToDriverValue(value: [number, number]): string {

@@ -7,12 +7,13 @@ import * as gel from 'gel';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest';
 import { createDockerDB } from './createInstance';
 import 'zx/globals';
+import relations from './relations';
 
 $.quiet = true;
 
 const ENABLE_LOGGING = false;
 
-let db: GelJsDatabase;
+let db: GelJsDatabase<never, typeof relations>;
 let client: gel.Client;
 let container: Docker.Container | undefined;
 
@@ -46,7 +47,7 @@ beforeAll(async () => {
 			client?.close();
 		},
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
 
 	dsn = connectionString;
 	await $`gel query "CREATE TYPE default::users_custom {
@@ -361,7 +362,8 @@ test('build query', async (ctx) => {
 		.toSQL();
 
 	expect(query).toEqual({
-		sql: 'select "id1", "name" from "users_custom" group by "users_custom"."id1", "users_custom"."name"',
+		sql:
+			'select "users_custom"."id1", "users_custom"."name" from "users_custom" group by "users_custom"."id1", "users_custom"."name"',
 		params: [],
 	});
 });
