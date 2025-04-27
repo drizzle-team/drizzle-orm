@@ -1987,7 +1987,7 @@ class PgAlterTableAlterColumnSetExpressionConvertor implements Convertor {
 				primaryKey: columnPk,
 				generated: columnGenerated,
 			},
-			type: 'alter_table_add_column',
+			type: 'add_column',
 		});
 
 		return [
@@ -2035,7 +2035,7 @@ class PgAlterTableAlterColumnAlterrGeneratedConvertor implements Convertor {
 				primaryKey: columnPk,
 				generated: columnGenerated,
 			},
-			type: 'alter_table_add_column',
+			type: 'add_column',
 		});
 
 		return [
@@ -2088,7 +2088,7 @@ class SqliteAlterTableAlterColumnDropGeneratedConvertor implements Convertor {
 			tableName,
 			columnName,
 			schema,
-			type: 'alter_table_drop_column',
+			type: 'drop_column',
 		});
 
 		return [dropColumnStatement, addColumnStatement];
@@ -2137,7 +2137,7 @@ class SqliteAlterTableAlterColumnSetExpressionConvertor implements Convertor {
 			tableName,
 			columnName,
 			schema,
-			type: 'alter_table_drop_column',
+			type: 'drop_column',
 		});
 
 		return [dropColumnStatement, addColumnStatement];
@@ -2186,7 +2186,7 @@ class SqliteAlterTableAlterColumnAlterGeneratedConvertor implements Convertor {
 			tableName,
 			columnName,
 			schema,
-			type: 'alter_table_drop_column',
+			type: 'drop_column',
 		});
 
 		return [dropColumnStatement, addColumnStatement];
@@ -2233,7 +2233,7 @@ class MySqlAlterTableAlterColumnAlterrGeneratedConvertor implements Convertor {
 				primaryKey: columnPk,
 				generated: columnGenerated,
 			},
-			type: 'alter_table_add_column',
+			type: 'add_column',
 		});
 
 		return [
@@ -2555,7 +2555,7 @@ class MySqlModifyColumn implements Convertor {
 			if (statement.columnGenerated?.type === 'virtual') {
 				return [
 					new MySqlAlterTableDropColumnConvertor().convert({
-						type: 'alter_table_drop_column',
+						type: 'drop_column',
 						tableName: statement.tableName,
 						columnName: statement.columnName,
 						schema: statement.schema,
@@ -2573,7 +2573,7 @@ class MySqlModifyColumn implements Convertor {
 							generated: statement.columnGenerated,
 						},
 						schema: statement.schema,
-						type: 'alter_table_add_column',
+						type: 'add_column',
 					}),
 				];
 			} else {
@@ -2597,7 +2597,7 @@ class MySqlModifyColumn implements Convertor {
 			if (statement.oldColumn?.generated?.type === 'virtual') {
 				return [
 					new MySqlAlterTableDropColumnConvertor().convert({
-						type: 'alter_table_drop_column',
+						type: 'drop_column',
 						tableName: statement.tableName,
 						columnName: statement.columnName,
 						schema: statement.schema,
@@ -2615,7 +2615,7 @@ class MySqlModifyColumn implements Convertor {
 							generated: statement.columnGenerated,
 						},
 						schema: statement.schema,
-						type: 'alter_table_add_column',
+						type: 'add_column',
 					}),
 				];
 			}
@@ -2683,7 +2683,7 @@ class SingleStoreAlterTableAlterColumnAlterrGeneratedConvertor implements Conver
 				primaryKey: columnPk,
 				generated: columnGenerated,
 			},
-			type: 'alter_table_add_column',
+			type: 'add_column',
 		});
 
 		return [
@@ -2890,7 +2890,7 @@ class SingleStoreModifyColumn implements Convertor {
 			if (statement.columnGenerated?.type === 'virtual') {
 				return [
 					new SingleStoreAlterTableDropColumnConvertor().convert({
-						type: 'alter_table_drop_column',
+						type: 'drop_column',
 						tableName: statement.tableName,
 						columnName: statement.columnName,
 						schema: statement.schema,
@@ -2908,7 +2908,7 @@ class SingleStoreModifyColumn implements Convertor {
 							generated: statement.columnGenerated,
 						},
 						schema: statement.schema,
-						type: 'alter_table_add_column',
+						type: 'add_column',
 					}),
 				];
 			} else {
@@ -2932,7 +2932,7 @@ class SingleStoreModifyColumn implements Convertor {
 			if (statement.oldColumn?.generated?.type === 'virtual') {
 				return [
 					new SingleStoreAlterTableDropColumnConvertor().convert({
-						type: 'alter_table_drop_column',
+						type: 'drop_column',
 						tableName: statement.tableName,
 						columnName: statement.columnName,
 						schema: statement.schema,
@@ -2950,7 +2950,7 @@ class SingleStoreModifyColumn implements Convertor {
 							generated: statement.columnGenerated,
 						},
 						schema: statement.schema,
-						type: 'alter_table_add_column',
+						type: 'add_column',
 					}),
 				];
 			}

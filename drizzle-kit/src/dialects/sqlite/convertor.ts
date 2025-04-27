@@ -145,7 +145,7 @@ const dropView = convertor('drop_view', (st) => {
 	return `DROP VIEW \`${st.view.name}\`;`;
 });
 
-const alterTableAddColumn = convertor('alter_table_add_column', (st) => {
+const alterTableAddColumn = convertor('add_column', (st) => {
 	const { fk, column } = st;
 	const { table: tableName, name, type, notNull, primaryKey, generated } = st.column;
 
@@ -171,15 +171,15 @@ const alterTableAddColumn = convertor('alter_table_add_column', (st) => {
 	return `ALTER TABLE \`${tableName}\` ADD \`${name}\` ${type}${primaryKeyStatement}${defaultStatement}${generatedStatement}${notNullStatement}${referenceStatement};`;
 });
 
-const alterTableRenameColumn = convertor('alter_table_rename_column', (st) => {
-	return `ALTER TABLE \`${st.tableName}\` RENAME COLUMN \`${st.from}\` TO \`${st.to}\`;`;
+const alterTableRenameColumn = convertor('rename_column', (st) => {
+	return `ALTER TABLE \`${st.table}\` RENAME COLUMN \`${st.from}\` TO \`${st.to}\`;`;
 });
 
-const alterTableDropColumn = convertor('alter_table_drop_column', (st) => {
+const alterTableDropColumn = convertor('drop_column', (st) => {
 	return `ALTER TABLE \`${st.column.table}\` DROP COLUMN \`${st.column.name}\`;`;
 });
 
-const alterTableRecreateColumn = convertor('alter_table_recreate_column', (st) => {
+const alterTableRecreateColumn = convertor('recreate_column', (st) => {
 	const drop = alterTableDropColumn.convert(st) as string;
 	const add = alterTableAddColumn.convert(st) as string;
 

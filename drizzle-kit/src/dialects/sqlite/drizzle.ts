@@ -74,7 +74,6 @@ export const fromDrizzleSchema = (
 	const pks = tableConfigs.map((it) => {
 		return it.config.primaryKeys.map((pk) => {
 			const columnNames = pk.columns.map((c) => getColumnCasing(c, casing));
-
 			return {
 				entityType: 'pks',
 				name: pk.name ?? '',
@@ -209,7 +208,7 @@ export const fromExports = (exports: Record<string, unknown>) => {
 	return { tables, views };
 };
 
-export const prepareFromSqliteSchemaFiles = async (imports: string[]) => {
+export const prepareFromSchemaFiles = async (imports: string[]) => {
 	const tables: AnySQLiteTable[] = [];
 	const views: SQLiteView[] = [];
 

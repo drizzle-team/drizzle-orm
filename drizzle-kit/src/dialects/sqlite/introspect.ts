@@ -9,9 +9,9 @@ import {
 	type SqliteEntities,
 	type UniqueConstraint,
 	type View,
+	type ViewColumn,
 } from './ddl';
 import { extractGeneratedColumns, Generated, parseTableSQL, parseViewSQL, sqlTypeFrom } from './grammar';
-
 
 export const fromDatabase = async (
 	db: SQLiteDB,
@@ -40,7 +40,8 @@ export const fromDatabase = async (
 			p.type as "columnType",
 			p."notnull" as "notNull", 
 			p.dflt_value as "defaultValue",
-		  p.pk as pk, p.hidden as hidden,
+		  p.pk as pk,
+			p.hidden as hidden,
 			m.sql,
 			m.type as type
     FROM sqlite_master AS m 
@@ -76,26 +77,26 @@ export const fromDatabase = async (
 		name: string;
 		column: string;
 		isUnique: number;
-		origin: string; // u=auto c=manual
+		origin: string; // u=auto c=manual pk
 		seq: string;
 		cid: number;
-	}>(
-		`SELECT 
-    m.tbl_name as table,
-		m.sql,
-    il.name as name,
-    ii.name as column,
-    il.[unique] as isUnique,
-		il.origin,
-    il.seq,
-		ii.cid
-FROM sqlite_master AS m,
-    pragma_index_list(m.name) AS il,
-    pragma_index_info(il.name) AS ii
-WHERE 
-    m.type = 'table' 
-    and m.tbl_name != '_cf_KV';`,
-	).then((indexes) => indexes.filter((it) => tablesFilter(it.table)));
+	}>(`
+		SELECT 
+				m.tbl_name as "table",
+				m.sql,
+				il.name as "name",
+				ii.name as "column",
+				il.[unique] as "isUnique",
+				il.origin,
+				il.seq,
+				ii.cid
+		FROM sqlite_master AS m,
+				pragma_index_list(m.name) AS il,
+				pragma_index_info(il.name) AS ii
+		WHERE 
+				m.type = 'table' 
+				and m.tbl_name != '_cf_KV';
+		`).then((indexes) => indexes.filter((it) => tablesFilter(it.table)));
 
 	let columnsCount = 0;
 	let tablesCount = new Set();
@@ -110,10 +111,10 @@ WHERE
 	const tableToPk = dbColumns.reduce((acc, it) => {
 		const isPrimary = it.pk !== 0;
 		if (isPrimary) {
-			if (it.table in tableToPk) {
-				tableToPk[it.table].push(it.name);
+			if (it.table in acc) {
+				acc[it.table].push(it.name);
 			} else {
-				tableToPk[it.table] = [it.name];
+				acc[it.table] = [it.name];
 			}
 		}
 		return acc;
@@ -152,7 +153,6 @@ WHERE
 
 	const tablesToSQL = dbColumns.reduce((acc, it) => {
 		if (it.table in acc) return;
-
 		acc[it.table] = it.sql;
 		return acc;
 	}, {} as Record<string, string>) || {};
@@ -171,11 +171,8 @@ WHERE
 	}
 
 	const columns: Column[] = [];
-	for (const column of dbColumns) {
-		// TODO
-		if (column.type !== 'view') {
-			columnsCount += 1;
-		}
+	for (const column of dbColumns.filter((it) => it.type === 'table')) {
+		columnsCount += 1;
 
 		progressCallback('columns', columnsCount, 'fetching');
 
@@ -206,7 +203,7 @@ WHERE
 		const autoincrement = isPrimary && dbTablesWithSequences.some((it) => it.name === column.table);
 		const pk = tableToPk[column.table];
 		const primaryKey = isPrimary && pk && pk.length === 1;
-		const generated = tableToGenerated[column.table][column.name] || null;
+		const generated = tableToGenerated[column.table]?.[column.name] || null;
 
 		const tableIndexes = Object.values(tableToIndexColumns[column.table] || {});
 
@@ -294,7 +291,6 @@ WHERE
 			entityType: 'fks',
 			table: fk.tableFrom,
 			name,
-			tableFrom: fk.tableFrom,
 			tableTo: fk.tableTo,
 			columnsFrom,
 			columnsTo,
@@ -314,7 +310,7 @@ WHERE
 			indexesCount += 1;
 			progressCallback('indexes', indexesCount, 'fetching');
 
-			const origin = index.origin === 'u' ? 'auto' : index.origin === 'c' ? 'manual' : null;
+			const origin = index.origin === 'u' || index.origin === 'pk' ? 'auto' : index.origin === 'c' ? 'manual' : null;
 			if (!origin) throw new Error(`Index with unexpected origin: ${index.origin}`);
 
 			indexes.push({
@@ -332,13 +328,19 @@ WHERE
 	progressCallback('enums', 0, 'done');
 
 	const viewsToColumns = dbColumns.filter((it) => it.type === 'view').reduce((acc, it) => {
+		const column: ViewColumn = {
+			view: it.table,
+			name: it.name,
+			type: it.columnType,
+			notNull: it.notNull === 1,
+		};
 		if (it.table in acc) {
-			acc[it.table].columns.push(it);
+			acc[it.table].columns.push(column);
 		} else {
-			acc[it.table] = { view: { name: it.table, sql: it.sql }, columns: [it] };
+			acc[it.table] = { view: { name: it.table, sql: it.sql }, columns: [column] };
 		}
 		return acc;
-	}, {} as Record<string, { view: { name: string; sql: string }; columns: DBColumn[] }>);
+	}, {} as Record<string, { view: { name: string; sql: string }; columns: ViewColumn[] }>);
 
 	viewsCount = Object.keys(viewsToColumns).length;
 	progressCallback('views', viewsCount, 'fetching');

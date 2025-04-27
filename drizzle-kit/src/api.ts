@@ -18,20 +18,13 @@ import {
 	uniqueResolver,
 	viewsResolver,
 } from './cli/commands/generate-common';
-import { pgPushIntrospect } from './cli/commands/pull-postgres';
 import { pgSuggestions } from './cli/commands/pgPushUtils';
-import { updateUpToV6 as upPgV6, updateUpToV7 as upPgV7 } from './cli/commands/up-postgres';
-import { sqlitePushIntrospect } from './cli/commands/pull-sqlite';
+import { pgPushIntrospect } from './cli/commands/pull-postgres';
+import { sqliteIntrospect, sqlitePushIntrospect } from './cli/commands/pull-sqlite';
 import { logSuggestionsAndReturn } from './cli/commands/sqlitePushUtils';
+import { updateUpToV6 as upPgV6, updateUpToV7 as upPgV7 } from './cli/commands/up-postgres';
 import type { CasingType } from './cli/validations/common';
-import { schemaError, schemaWarning } from './cli/views';
-import { getTablesFilterByExtensions } from './extensions/getTablesFilterByExtensions';
-import { originUUID } from './global';
-import type { Config } from './index';
-import { fillPgSnapshot } from './migrationPreparator';
-import { MySqlSchema as MySQLSchemaKit, mysqlSchema, squashMysqlScheme } from './serializer/mysqlSchema';
-import { generateMySqlSnapshot } from './serializer/mysqlSerializer';
-import { prepareFromExports } from './dialects/postgres/pgImports';
+import { ProgressView, schemaError, schemaWarning } from './cli/views';
 import {
 	PgSchema as PgSchemaKit,
 	pgSchema,
@@ -40,16 +33,23 @@ import {
 	squashPgScheme,
 } from './dialects/postgres/ddl';
 import { generatePgSnapshot } from './dialects/postgres/drizzle';
+import { drizzleToInternal } from './dialects/postgres/pgDrizzleSerializer';
+import { prepareFromExports } from './dialects/postgres/pgImports';
+import { SQLiteSchema as SQLiteSchemaKit, sqliteSchema, squashSqliteScheme } from './dialects/sqlite/ddl';
+import { fromDrizzleSchema } from './dialects/sqlite/serializer';
+import { getTablesFilterByExtensions } from './extensions/getTablesFilterByExtensions';
+import { originUUID } from './global';
+import type { Config } from './index';
+import { fillPgSnapshot } from './migrationPreparator';
+import { MySqlSchema as MySQLSchemaKit, mysqlSchema, squashMysqlScheme } from './serializer/mysqlSchema';
+import { generateMySqlSnapshot } from './serializer/mysqlSerializer';
 import {
 	SingleStoreSchema as SingleStoreSchemaKit,
 	singlestoreSchema,
 	squashSingleStoreScheme,
 } from './serializer/singlestoreSchema';
 import { generateSingleStoreSnapshot } from './serializer/singlestoreSerializer';
-import { SQLiteSchema as SQLiteSchemaKit, sqliteSchema, squashSqliteScheme } from './dialects/sqlite/ddl';
-import { fromDrizzleSchema } from './dialects/sqlite/serializer';
 import type { DB, SQLiteDB } from './utils';
-import { drizzleToInternal } from './dialects/postgres/pgDrizzleSerializer';
 export type DrizzleSnapshotJSON = PgSchemaKit;
 export type DrizzleSQLiteSnapshotJSON = SQLiteSchemaKit;
 export type DrizzleMySQLSnapshotJSON = MySQLSchemaKit;
@@ -228,7 +228,7 @@ export const generateSQLiteMigration = async (
 	prev: DrizzleSQLiteSnapshotJSON,
 	cur: DrizzleSQLiteSnapshotJSON,
 ) => {
-	const { applySqliteSnapshotsDiff } = await import('./dialects/sqlite/differ');
+	const { applySqliteSnapshotsDiff } = await import('./dialects/sqlite/diff');
 
 	const validatedPrev = sqliteSchema.parse(prev);
 	const validatedCur = sqliteSchema.parse(cur);
@@ -253,7 +253,7 @@ export const pushSQLiteSchema = async (
 	imports: Record<string, unknown>,
 	drizzleInstance: LibSQLDatabase<any>,
 ) => {
-	const { applySqliteSnapshotsDiff } = await import('./dialects/sqlite/differ');
+	const { applySqliteSnapshotsDiff } = await import('./dialects/sqlite/diff');
 	const { sql } = await import('drizzle-orm');
 
 	const db: SQLiteDB = {
@@ -269,7 +269,12 @@ export const pushSQLiteSchema = async (
 	};
 
 	const cur = await generateSQLiteDrizzleJson(imports);
-	const { schema: prev } = await sqlitePushIntrospect(db, []);
+	const progress = new ProgressView(
+		'Pulling schema from database...',
+		'Pulling schema from database...',
+	);
+
+	const { schema: prev } = await sqliteIntrospect(db, [], progress);
 
 	const validatedPrev = sqliteSchema.parse(prev);
 	const validatedCur = sqliteSchema.parse(cur);

@@ -10,7 +10,7 @@ import type {
 	View,
 } from '../dialects/sqlite/ddl';
 import { createDDL } from '../dialects/sqlite/ddl';
-import { applySqliteSnapshotsDiff } from '../dialects/sqlite/differ';
+import { applySqliteSnapshotsDiff } from '../dialects/sqlite/diff';
 import { mockResolver } from './mocks';
 
 export type Interim<T> = Omit<T, 'entityType'>;

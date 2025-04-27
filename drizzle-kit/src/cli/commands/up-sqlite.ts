@@ -98,7 +98,6 @@ const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
 			ddl.fks.insert({
 				table: table.name,
 				name: fk.name,
-				tableFrom: fk.tableFrom,
 				columnsFrom: fk.columnsFrom,
 				tableTo: fk.tableTo,
 				columnsTo: fk.columnsTo,
@@ -116,13 +115,19 @@ const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
 		});
 	}
 
+	const renames = [...Object.entries(snapshot._meta.tables), ...Object.entries(snapshot._meta.columns)].map(
+		([key, value]) => {
+			return `${key}->${value}`;
+		},
+	);
+
 	return {
 		dialect: 'sqlite',
 		id: snapshot.id,
 		prevId: snapshot.prevId,
 		version: '7',
 		ddl: ddl.entities.list(),
-		meta: snapshot._meta,
+		renames: renames,
 	};
 };
 

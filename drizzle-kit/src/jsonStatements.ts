@@ -239,14 +239,14 @@ export interface JsonAlterSequenceStatement {
 }
 
 export interface JsonDropColumnStatement {
-	type: 'alter_table_drop_column';
+	type: 'drop_column';
 	tableName: string;
 	columnName: string;
 	schema: string;
 }
 
 export interface JsonAddColumnStatement {
-	type: 'alter_table_add_column';
+	type: 'add_column';
 	tableName: string;
 	column: Omit<Column, 'identity'> & { identity?: Identity };
 	schema: string;
@@ -471,7 +471,7 @@ export interface JsonDropIndexStatement {
 }
 
 export interface JsonRenameColumnStatement {
-	type: 'alter_table_rename_column';
+	type: 'rename_column';
 	tableName: string;
 	oldColumnName: string;
 	newColumnName: string;
@@ -1288,7 +1288,7 @@ export const prepareRenameColumns = (
 ): JsonRenameColumnStatement[] => {
 	return pairs.map((it) => {
 		return {
-			type: 'alter_table_rename_column',
+			type: 'rename_column',
 			tableName: tableName,
 			oldColumnName: it.from.name,
 			newColumnName: it.to.name,
@@ -1304,7 +1304,7 @@ export const _prepareDropColumns = (
 ): JsonDropColumnStatement[] => {
 	return columns.map((it) => {
 		return {
-			type: 'alter_table_drop_column',
+			type: 'drop_column',
 			tableName: taleName,
 			columnName: it.name,
 			schema,
@@ -1328,7 +1328,7 @@ export const _prepareAddColumns = (
 	});
 	return columnsWithIdentities.map((it) => {
 		return {
-			type: 'alter_table_add_column',
+			type: 'add_column',
 			tableName: tableName,
 			column: it,
 			schema,
@@ -1469,7 +1469,7 @@ export const prepareAlterColumnsMysql = (
 
 		if (typeof column.name !== 'string') {
 			statements.push({
-				type: 'alter_table_rename_column',
+				type: 'rename_column',
 				tableName,
 				oldColumnName: column.name.old,
 				newColumnName: column.name.new,
@@ -1824,7 +1824,7 @@ export const prepareAlterColumnsSingleStore = (
 
 		if (typeof column.name !== 'string') {
 			statements.push({
-				type: 'alter_table_rename_column',
+				type: 'rename_column',
 				tableName,
 				oldColumnName: column.name.old,
 				newColumnName: column.name.new,
@@ -2114,7 +2114,7 @@ export const preparePostgresAlterColumns = (
 
 		if (typeof column.name !== 'string') {
 			statements.push({
-				type: 'alter_table_rename_column',
+				type: 'rename_column',
 				tableName,
 				oldColumnName: column.name.old,
 				newColumnName: column.name.new,
@@ -2506,7 +2506,7 @@ export const prepareSqliteAlterColumns = (
 
 		if (typeof column.name !== 'string') {
 			statements.push({
-				type: 'alter_table_rename_column',
+				type: 'rename_column',
 				tableName,
 				oldColumnName: column.name.old,
 				newColumnName: column.name.new,

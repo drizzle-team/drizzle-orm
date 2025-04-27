@@ -1,0 +1,112 @@
+import { Database } from 'better-sqlite3';
+import { is } from 'drizzle-orm';
+import { SQLiteTable, SQLiteView } from 'drizzle-orm/sqlite-core';
+import { suggestions } from 'src/cli/commands/push-sqlite';
+import { CasingType } from 'src/cli/validations/common';
+import { interimToDDL } from 'src/dialects/sqlite/ddl';
+import { diffDDL, diffDryDDL } from 'src/dialects/sqlite/diff';
+import { fromDrizzleSchema } from 'src/dialects/sqlite/drizzle';
+import { fromDatabase } from 'src/dialects/sqlite/introspect';
+import { mockResolver } from 'src/utils/mocks';
+
+export type SqliteSchema = Record<string, SQLiteTable<any> | SQLiteView>;
+
+const schemaToDDL = (schema: SqliteSchema, casing?: CasingType) => {
+	const tables = Object.values(schema).filter((it) => is(it, SQLiteTable)) as SQLiteTable[];
+	const views = Object.values(schema).filter((it) => is(it, SQLiteView)) as SQLiteView[];
+
+	return interimToDDL(fromDrizzleSchema(tables, views, casing));
+};
+export const diff = async (
+	left: SqliteSchema,
+	right: SqliteSchema,
+	renamesArr: string[],
+	cli: boolean = false,
+	casing?: CasingType | undefined,
+) => {
+	const { ddl: ddl1, errors: err1 } = schemaToDDL(left, casing);
+	const { ddl: ddl2, errors: err2 } = schemaToDDL(right, casing);
+
+	if (err1.length > 0 || err2.length > 0) {
+		console.log('-----');
+		console.log(err1.map((it) => it.type).join('\n'));
+		console.log('-----');
+		console.log(err2.map((it) => it.type).join('\n'));
+		console.log('-----');
+	}
+
+	const renames = new Set(renamesArr);
+
+	if (!cli) {
+		const { sqlStatements, statements } = await diffDDL(
+			ddl1,
+			ddl2,
+			mockResolver(renames),
+			mockResolver(renames),
+			'generate',
+		);
+		return { sqlStatements, statements, err1, err2 };
+	}
+
+	const { sqlStatements, statements, warnings } = await diffDDL(
+		ddl1,
+		ddl2,
+		mockResolver(renames),
+		mockResolver(renames),
+		'generate',
+	);
+	return { sqlStatements, statements, err1, err2 };
+};
+
+export const diff2 = async (config: {
+	client: Database;
+	left: SqliteSchema;
+	right: SqliteSchema;
+	renames?: string[];
+	seed?: string[];
+	casing?: CasingType;
+}) => {
+	const { client, left, right, casing } = config;
+
+	const { ddl: initDDL, errors: err1 } = schemaToDDL(left, casing);
+	const { sqlStatements: initStatements } = await diffDryDDL(initDDL, 'push');
+
+	if (config.seed) initStatements.push(...config.seed);
+	for (const st of initStatements) {
+		client.exec(st);
+	}
+
+	const db = {
+		query: async <T>(sql: string, params: any[] = []) => {
+			console.log(sql, params);
+			return client.prepare(sql).bind(params).all() as T[];
+		},
+		run: async (query: string) => {
+			console.log(query);
+			client.prepare(query).run();
+		},
+	};
+
+	const schema = await fromDatabase(db);
+
+	const { ddl: ddl1, errors: err2 } = interimToDDL(schema);
+	const { ddl: ddl2, errors: err3 } = schemaToDDL(right, casing);
+
+	const rens = new Set<string>(config.renames || []);
+
+	const { sqlStatements, statements, renames } = await diffDDL(
+		ddl1,
+		ddl2,
+		mockResolver(rens),
+		mockResolver(rens),
+		'push',
+	);
+
+	const { statements: truncates, hints } = await suggestions(db, statements);
+	return {
+		sqlStatements,
+		statements,
+		truncates,
+		hints,
+	};
+};

@@ -1,21 +1,23 @@
 import chalk from 'chalk';
 import { writeFileSync } from 'fs';
-import { render, renderWithTask } from 'hanji';
+import { render, renderWithTask, TaskView } from 'hanji';
 import { Minimatch } from 'minimatch';
 import { join } from 'path';
-import { applySqliteSnapshotsDiff } from '../../dialects/sqlite/differ';
+import { interimToDDL } from 'src/dialects/sqlite/ddl';
+import { toJsonSnapshot } from 'src/dialects/sqlite/snapshot';
+import { diffDryDDL } from '../../dialects/sqlite/diff';
 import { fromDatabase } from '../../dialects/sqlite/introspect';
-import { schemaToTypeScript } from '../../dialects/sqlite/typescript';
-import { schemaToTypeScript as sqliteSchemaToTypeScript } from '../../dialects/sqlite/typescript';
+import { ddlToTypescript as sqliteSchemaToTypeScript } from '../../dialects/sqlite/typescript';
 import { originUUID } from '../../global';
 import type { SQLiteDB } from '../../utils';
 import { prepareOutFolder } from '../../utils-node';
 import { Casing, Prefix } from '../validations/common';
 import type { SqliteCredentials } from '../validations/sqlite';
-import { IntrospectProgress, ProgressView } from '../views';
+import { IntrospectProgress, type IntrospectStage, type IntrospectStatus, type ProgressView } from '../views';
+import { writeResult } from './generate-common';
 import { relationsToTypeScript } from './pull-common';
 
-export const introspectSqlite = async (
+export const handle = async (
 	casing: Casing,
 	out: string,
 	breakpoints: boolean,
@@ -26,47 +28,16 @@ export const introspectSqlite = async (
 	const { connectToSQLite } = await import('../connections');
 	const db = await connectToSQLite(credentials);
 
-	const matchers = tablesFilter.map((it) => {
-		return new Minimatch(it);
+	const progress = new IntrospectProgress();
+
+	const { ddl, viewColumns } = await sqliteIntrospect(db, tablesFilter, progress, (stage, count, status) => {
+		progress.update(stage, count, status);
 	});
 
-	const filter = (tableName: string) => {
-		if (matchers.length === 0) return true;
-
-		let flags: boolean[] = [];
-
-		for (let matcher of matchers) {
-			if (matcher.negate) {
-				if (!matcher.match(tableName)) {
-					flags.push(false);
-				}
-			}
-			
-			if (matcher.match(tableName)) {
-				flags.push(true);
-			}
-		}
-
-		if (flags.length > 0) {
-			return flags.every(Boolean);
-		}
-		return false;
-	};
-
-	const progress = new IntrospectProgress();
-	const res = await renderWithTask(
-		progress,
-		fromDatabase(db, filter, (stage, count, status) => {
-			progress.update(stage, count, status);
-		}),
-	);
-
-	const schema = { id: originUUID, prevId: '', ...res } as SQLiteSchema;
-	const ts = sqliteSchemaToTypeScript(schema, casing);
-	const relationsTs = relationsToTypeScript(schema, casing);
+	const ts = sqliteSchemaToTypeScript(ddl, casing, viewColumns);
+	const relationsTs = relationsToTypeScript(ddl.fks.list(), casing);
 
 	// check orm and orm-pg api version
-
 	const schemaFile = join(out, 'schema.ts');
 	writeFileSync(schemaFile, ts.file);
 
@@ -77,21 +48,13 @@ export const introspectSqlite = async (
 	const { snapshots, journal } = prepareOutFolder(out, 'sqlite');
 
 	if (snapshots.length === 0) {
-		const { sqlStatements, _meta } = await applySqliteSnapshotsDiff(
-			squashSqliteScheme(drySQLite),
-			squashSqliteScheme(schema),
-			tablesResolver,
-			columnsResolver,
-			sqliteViewsResolver,
-			drySQLite,
-			schema,
-		);
+		const { sqlStatements, renames } = await diffDryDDL(ddl, 'generate');
 
 		writeResult({
-			cur: schema,
+			snapshot: toJsonSnapshot(ddl, originUUID, '', renames),
 			sqlStatements,
 			journal,
-			_meta,
+			renames,
 			outFolder: out,
 			breakpoints,
 			type: 'introspect',
@@ -129,13 +92,15 @@ export const introspectSqlite = async (
 };
 
 export const sqliteIntrospect = async (
-	credentials: SqliteCredentials,
+	db: SQLiteDB,
 	filters: string[],
-	casing: Casing,
+	taskView: TaskView,
+	progressCallback: (
+		stage: IntrospectStage,
+		count: number,
+		status: IntrospectStatus,
+	) => void = () => {},
 ) => {
-	const { connectToSQLite } = await import('../connections');
-	const db = await connectToSQLite(credentials);
-
 	const matchers = filters.map((it) => {
 		return new Minimatch(it);
 	});
@@ -163,53 +128,7 @@ export const sqliteIntrospect = async (
 		return false;
 	};
 
-	const progress = new IntrospectProgress();
-	const res = await renderWithTask(
-		progress,
-		fromDatabase(db, filter, (stage, count, status) => {
-			progress.update(stage, count, status);
-		}),
-	);
-
-	const schema = { id: originUUID, prevId: '', ...res } as SQLiteSchema;
-	const ts = schemaToTypeScript(schema, casing);
-	return { schema, ts };
-};
-
-export const sqlitePushIntrospect = async (db: SQLiteDB, filters: string[]) => {
-	const matchers = filters.map((it) => {
-		return new Minimatch(it);
-	});
-
-	const filter = (tableName: string) => {
-		if (matchers.length === 0) return true;
-
-		let flags: boolean[] = [];
-
-		for (let matcher of matchers) {
-			if (matcher.negate) {
-				if (!matcher.match(tableName)) {
-					flags.push(false);
-				}
-			}
-
-			if (matcher.match(tableName)) {
-				flags.push(true);
-			}
-		}
-
-		if (flags.length > 0) {
-			return flags.every(Boolean);
-		}
-		return false;
-	};
-
-	const progress = new ProgressView(
-		'Pulling schema from database...',
-		'Pulling schema from database...',
-	);
-	const res = await renderWithTask(progress, fromDatabase(db, filter));
-
-	const schema = { id: originUUID, prevId: '', ...res } as SQLiteSchema;
-	return { schema };
+	const schema = await renderWithTask(taskView, fromDatabase(db, filter, progressCallback));
+	const res = interimToDDL(schema);
+	return { ...res, viewColumns: schema.viewsToColumns };
 };

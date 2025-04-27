@@ -1,13 +1,13 @@
-import { Column, DiffColumn, ForeignKey, Index, Table, View } from './ddl';
+import { Column, DiffColumn, ForeignKey, Index, Table, TableFull, View } from './ddl';
 
 export interface JsonCreateTableStatement {
 	type: 'create_table';
-	table: Table;
+	table: TableFull;
 }
 
 export interface JsonRecreateTableStatement {
 	type: 'recreate_table';
-	table: Table;
+	table: TableFull;
 }
 
 export interface JsonDropTableStatement {
@@ -22,12 +22,12 @@ export interface JsonRenameTableStatement {
 }
 
 export interface JsonDropColumnStatement {
-	type: 'alter_table_drop_column';
+	type: 'drop_column';
 	column: Column;
 }
 
 export interface JsonAddColumnStatement {
-	type: 'alter_table_add_column';
+	type: 'add_column';
 	column: Column;
 	fk: ForeignKey | null;
 }
@@ -43,14 +43,14 @@ export interface JsonDropIndexStatement {
 }
 
 export interface JsonRenameColumnStatement {
-	type: 'alter_table_rename_column';
-	tableName: string;
+	type: 'rename_column';
+	table: string;
 	from: string;
 	to: string;
 }
 
 export interface JsonRecreateColumnStatement {
-	type: 'alter_table_recreate_column';
+	type: 'recreate_column';
 	column: Column;
 	fk: ForeignKey | null;
 }
@@ -107,7 +107,7 @@ export const prepareAddColumns = (
 	return columns.map((it) => {
 		const fk = fks.find((t) => t.columnsFrom.includes(it.name)) || null;
 		return {
-			type: 'alter_table_add_column',
+			type: 'add_column',
 			column: it,
 			fk,
 		} satisfies JsonAddColumnStatement;
@@ -123,7 +123,7 @@ export const prepareRecreateColumn = (
 	// which doesn't trigger recreate
 	if (diffColumn.generated) {
 		return {
-			type: 'alter_table_recreate_column',
+			type: 'recreate_column',
 			column: column,
 			fk: fk,
 		};

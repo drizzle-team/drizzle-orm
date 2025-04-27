@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { check, int, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { expect, test } from 'vitest';
-import { diffTestSchemasSqlite } from './mocks-sqlite';
+import { diff } from './mocks-sqlite';
 
 test('create table with check', async (t) => {
 	const to = {
@@ -13,7 +13,7 @@ test('create table with check', async (t) => {
 		})),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite({}, to, []);
+	const { sqlStatements } = await diff({}, to, []);
 
 	expect(sqlStatements).toStrictEqual([
 		'CREATE TABLE `users` (\n'
@@ -41,7 +41,7 @@ test('add check contraint to existing table', async (t) => {
 		})),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements).toStrictEqual([
 		'PRAGMA foreign_keys=OFF;',
@@ -74,7 +74,7 @@ test('drop check contraint to existing table', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements).toStrictEqual([
 		'PRAGMA foreign_keys=OFF;',
@@ -105,7 +105,7 @@ test('rename check constraint', async (t) => {
 		})),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements).toStrictEqual(
 		[
@@ -142,7 +142,7 @@ test('change check constraint value', async (t) => {
 		})),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements).toStrictEqual([
 		'PRAGMA foreign_keys=OFF;',
@@ -170,6 +170,6 @@ test('create checks with same names', async (t) => {
 		})),
 	};
 
-	const { err2 } = await diffTestSchemasSqlite({}, to, []);
+	const { err2 } = await diff({}, to, []);
 	expect(err2).toStrictEqual([{ name: 'some_check_name', type: 'conflict_check' }]);
 });

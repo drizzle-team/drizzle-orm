@@ -69,7 +69,7 @@ export const preparePostgresMigrationSnapshot = async (
 		id,
 		prevId,
 		ddl: ddlCur.entities.list(),
-		meta: null,
+		renames: [],
 	} satisfies PostgresSnapshot;
 
 	const { id: _ignoredId, prevId: _ignoredPrevId, ...prevRest } = prevSnapshot;

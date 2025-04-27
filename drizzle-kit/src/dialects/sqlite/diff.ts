@@ -1,9 +1,10 @@
+import { mockResolver } from 'src/utils/mocks';
 import type { Resolver } from '../../snapshot-differ/common';
-import { prepareMigrationMeta } from '../../utils';
+import { prepareMigrationRenames } from '../../utils';
 import { diff } from '../dialect';
-import { groupDiffs, RenamedItems } from '../utils';
+import { groupDiffs } from '../utils';
 import { fromJson } from './convertor';
-import { Column, IndexColumn, SQLiteDDL, SqliteEntities, tableFromDDL } from './ddl';
+import { Column, createDDL, IndexColumn, SQLiteDDL, SqliteEntities, tableFromDDL } from './ddl';
 import {
 	JsonCreateViewStatement,
 	JsonDropViewStatement,
@@ -13,7 +14,12 @@ import {
 	prepareStatement,
 } from './statements';
 
-export const applySqliteSnapshotsDiff = async (
+export const diffDryDDL = async (ddl: SQLiteDDL, action: 'push' | 'generate') => {
+	const empty = new Set<string>();
+	return diffDDL(createDDL(), ddl, mockResolver(empty), mockResolver(empty), action);
+};
+
+export const diffDDL = async (
 	ddl1: SQLiteDDL,
 	ddl2: SQLiteDDL,
 	tablesResolver: Resolver<SqliteEntities['tables']>,
@@ -26,12 +32,7 @@ export const applySqliteSnapshotsDiff = async (
 		jsonStatement: JsonStatement;
 		sqlStatements: string[];
 	}[];
-	_meta:
-		| {
-			tables: {};
-			columns: {};
-		}
-		| undefined;
+	renames: string[];
 	warnings: string[];
 }> => {
 	const tablesDiff = diff(ddl1, ddl2, 'tables');
@@ -63,9 +64,6 @@ export const applySqliteSnapshotsDiff = async (
 				table: renamed.from.name,
 			},
 		});
-
-		for (const it of entities) {
-		}
 	}
 
 	const columnsDiff = diff(ddl1, ddl2, 'columns').filter((it) =>
@@ -74,102 +72,93 @@ export const applySqliteSnapshotsDiff = async (
 
 	const groupedByTable = groupDiffs(columnsDiff);
 
-	const columnRenames = [] as RenamedItems<Column>[];
+	const columnRenames = [] as { from: Column; to: Column }[];
 	const columnsToCreate = [] as Column[];
 	const columnsToDelete = [] as Column[];
 
 	for (let it of groupedByTable) {
-		const { renamedOrMoved, created, deleted } = await columnsResolver({
+		const { renamedOrMoved: renamed, created, deleted } = await columnsResolver({
 			deleted: it.deleted,
 			created: it.inserted,
 		});
 
 		columnsToCreate.push(...created);
 		columnsToDelete.push(...deleted);
-
-		if (renamedOrMoved.length > 0) {
-			columnRenames.push({
-				table: it.table,
-				schema: '',
-				renames: renamedOrMoved,
-			});
-		}
+		columnRenames.push(...renamed);
 	}
 
-	for (const entry of columnRenames) {
-		for (const rename of entry.renames) {
-			ddl1.columns.update({
-				set: {
-					name: rename.to.name,
-				},
-				where: {
-					table: entry.table,
-					name: rename.from.name,
-				},
-			});
+	for (const rename of columnRenames) {
+		ddl1.columns.update({
+			set: {
+				name: rename.to.name,
+			},
+			where: {
+				table: rename.from.table,
+				name: rename.from.name,
+			},
+		});
 
-			// DDL2 updates are needed for Drizzle Studio
-			const update1 = {
-				set: {
-					columns: (it: IndexColumn) => {
-						if (!it.isExpression && it.value === rename.from.name) {
-							it.value = rename.to.name;
-						}
-						return it;
-					},
+		// DDL2 updates are needed for Drizzle Studio
+		const update1 = {
+			set: {
+				columns: (it: IndexColumn) => {
+					if (!it.isExpression && it.value === rename.from.name) {
+						it.value = rename.to.name;
+					}
+					return it;
 				},
-				where: {
-					table: entry.table,
-				},
-			} as const;
+			},
+			where: {
+				table: rename.from.table,
+			},
+		} as const;
 
-			ddl1.indexes.update(update1);
-			ddl2.indexes.update(update1);
+		ddl1.indexes.update(update1);
+		ddl2.indexes.update(update1);
 
-			const update2 = {
-				set: {
-					columnsFrom: (it: string) => it === rename.from.name ? rename.to.name : it,
-				},
-				where: {
-					table: entry.table,
-				},
-			} as const;
-			ddl1.fks.update(update2);
-			ddl2.fks.update(update2);
+		const update2 = {
+			set: {
+				columnsFrom: (it: string) => it === rename.from.name ? rename.to.name : it,
+			},
+			where: {
+				table: rename.from.table,
+			},
+		} as const;
+		ddl1.fks.update(update2);
+		ddl2.fks.update(update2);
 
-			const update3 = {
-				set: {
-					columnsTo: (it: string) => it === rename.from.name ? rename.to.name : it,
-				},
-				where: {
-					tableTo: entry.table,
-				},
-			} as const;
-			ddl1.fks.update(update3);
-			ddl2.fks.update(update3);
+		const update3 = {
+			set: {
+				columnsTo: (it: string) => it === rename.from.name ? rename.to.name : it,
+			},
+			where: {
+				tableTo: rename.from.table,
+			},
+		} as const;
+		ddl1.fks.update(update3);
+		ddl2.fks.update(update3);
 
-			const update4 = {
-				set: {
-					columns: (it: string) => it === rename.from.name ? rename.to.name : it,
-				},
-				where: {
-					table: entry.table,
-				},
-			};
-			ddl1.pks.update(update4);
-			ddl2.pks.update(update4);
+		const update4 = {
+			set: {
+				columns: (it: string) => it === rename.from.name ? rename.to.name : it,
+			},
+			where: {
+				table: rename.from.table,
+			},
+		};
+		ddl1.pks.update(update4);
+		ddl2.pks.update(update4);
 
-			const update5 = {
-				set: {
-					columns: (it: string) => it === rename.from.name ? rename.to.name : it,
-				},
-				where: {
-					table: entry.table,
-				},
-			};
-			ddl1.uniques.update(update5);
-			ddl2.uniques.update(update5);
-		}
+		const update5 = {
+			set: {
+				columns: (it: string) => it === rename.from.name ? rename.to.name : it,
+			},
+			where: {
+				table: rename.from.table,
+			},
+		};
+		ddl1.uniques.update(update5);
+		ddl2.uniques.update(update5);
 	}
 
 	const pksDiff = diff(ddl1, ddl2, 'pks');
@@ -203,7 +192,10 @@ export const applySqliteSnapshotsDiff = async (
 			...[...columnsToCreate, ...columnsToDelete].filter((it) => it.primaryKey || it.unique),
 			...alteredColumnsBecameGenerated, // "It is not possible to ALTER TABLE ADD COLUMN a STORED column. https://www.sqlite.org/gencol.html"
 			...newStoredColumns, // "It is not possible to ALTER TABLE ADD COLUMN a STORED column. https://www.sqlite.org/gencol.html"
-		].map((it) => it.table),
+		].map((it) =>{
+			console.log(it)
+			return it.table
+		}),
 	);
 
 	for (const it of createdTables) {
@@ -224,6 +216,8 @@ export const applySqliteSnapshotsDiff = async (
 	}
 
 	const tablesToRecreate = Array.from(setOfTablesToRecereate);
+	
+	// TODO: handle
 	const viewsToRecreateBecauseOfTables = tablesToRecreate.map((it) => {
 		return ddl2.views.one({});
 	});
@@ -262,19 +256,15 @@ export const applySqliteSnapshotsDiff = async (
 		prepareStatement('rename_table', { from: it.from.name, to: it.to.name })
 	);
 
-	const jsonRenameColumnsStatements = columnRenames
-		.map((it) =>
-			it.renames.map((r) =>
-				prepareStatement('alter_table_rename_column', { tableName: it.table, from: r.from.name, to: r.to.name })
-			)
-		)
-		.flat();
+	const jsonRenameColumnsStatements = columnRenames.map((it) =>
+		prepareStatement('rename_column', { table: it.from.table, from: it.from.name, to: it.to.name })
+	);
 
 	// we need to add column for table, which is going to be recreated to match columns during recreation
 	const columnDeletes = columnsToDelete.filter((it) => !setOfTablesToRecereate.has(it.table));
 
 	const jsonDropColumnsStatemets = columnDeletes.map((it) =>
-		prepareStatement('alter_table_drop_column', { column: it })
+		prepareStatement('drop_column', { column: it })
 	);
 	const createdFilteredColumns = columnsToCreate.filter((it) => !it.generated || it.generated.type === 'virtual');
 
@@ -340,34 +330,16 @@ export const applySqliteSnapshotsDiff = async (
 
 	const { sqlStatements, groupedStatements } = fromJson(jsonStatements);
 
-	const rTables = renamedTables.map((it) => {
-		return {
-			from: {
-				schema: '',
-				name: it.from.name,
-			},
-			to: {
-				schema: '',
-				name: it.to.name,
-			},
-		};
-	});
-
-	const rColumns = jsonRenameColumnsStatements.map((it) => {
-		const tableName = it.tableName;
-		return {
-			from: { schema: '', table: tableName, column: it.from },
-			to: { schema: '', table: tableName, column: it.to },
-		};
-	});
-
-	const _meta = prepareMigrationMeta([], rTables, rColumns);
+	const renames = prepareMigrationRenames([
+		...renamedTables,
+		...columnRenames,
+	]);
 
 	return {
 		statements: jsonStatements,
 		sqlStatements,
 		groupedStatements,
-		_meta,
+		renames,
 		warnings,
 	};
 };

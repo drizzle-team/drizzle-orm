@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { int, sqliteTable, sqliteView } from 'drizzle-orm/sqlite-core';
 import { expect, test } from 'vitest';
-import { diffTestSchemasSqlite } from './mocks-sqlite';
+import { diff } from './mocks-sqlite';
 
 test('create view', async () => {
 	const users = sqliteTable('users', { id: int('id').default(1) });
@@ -11,7 +11,7 @@ test('create view', async () => {
 		testView: view,
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite({}, to, []);
+	const { sqlStatements } = await diff({}, to, []);
 
 	expect(sqlStatements).toStrictEqual([
 		`CREATE TABLE \`users\` (\n\t\`id\` integer DEFAULT 1\n);\n`,
@@ -32,7 +32,7 @@ test('drop view', async () => {
 		users,
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements).toStrictEqual([`DROP VIEW \`view\`;`]);
 });
@@ -50,7 +50,7 @@ test('alter view', async () => {
 		users,
 		testView: sqliteView('view', { id: int('id') }).as(sql`SELECT * FROM users WHERE users.id = 1`),
 	};
-	const { sqlStatements } = await diffTestSchemasSqlite(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements).toStrictEqual(
 		[
@@ -66,7 +66,7 @@ test('create view with existing flag', async () => {
 		testView: view,
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite({}, to, []);
+	const { statements, sqlStatements } = await diff({}, to, []);
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
@@ -85,7 +85,7 @@ test('drop view with existing flag', async () => {
 		users,
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(from, to, []);
+	const { statements, sqlStatements } = await diff(from, to, []);
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
@@ -104,7 +104,7 @@ test('rename view with existing flag', async () => {
 		users,
 		testView: sqliteView('new_view', { id: int('id') }).existing(),
 	};
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(from, to, ['view->new_view']);
+	const { statements, sqlStatements } = await diff(from, to, ['view->new_view']);
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
@@ -123,7 +123,7 @@ test('rename view and drop existing flag', async () => {
 		users,
 		testView: sqliteView('new_view', { id: int('id') }).as(sql`SELECT * FROM users`),
 	};
-	const { sqlStatements } = await diffTestSchemasSqlite(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements).toStrictEqual(['CREATE VIEW `new_view` AS SELECT * FROM users;']);
 });
@@ -141,7 +141,7 @@ test('rename view and alter ".as"', async () => {
 		users,
 		testView: sqliteView('new_view', { id: int('id') }).as(sql`SELECT * FROM users WHERE 1=1`),
 	};
-	const { sqlStatements } = await diffTestSchemasSqlite(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements).toStrictEqual([
 		'DROP VIEW `view`;',

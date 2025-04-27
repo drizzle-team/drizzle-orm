@@ -1,5 +1,5 @@
 import { int, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import { diffTestSchemasSqlite } from 'tests/schemaDiffer';
+import { diff } from 'tests/sqlite/mocks-sqlite';
 import { expect } from 'vitest';
 import { DialectSuite, run } from '../common';
 
@@ -18,7 +18,7 @@ const sqliteSuite: DialectSuite = {
 			}),
 		};
 
-		const { statements } = await diffTestSchemasSqlite(schema1, schema2, []);
+		const { statements } = await diff(schema1, schema2, []);
 
 		expect(statements.length).toBe(1);
 		expect(statements[0]).toStrictEqual({

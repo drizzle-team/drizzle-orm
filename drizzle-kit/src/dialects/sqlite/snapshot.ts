@@ -134,11 +134,8 @@ export const schemaSquashed = object({
 export const sqliteSchemaV5 = schemaV5;
 export const sqliteSchemaV6 = schemaV6;
 
-export const toJsonSnapshot = (ddl: SQLiteDDL, id: string, prevId: string, meta: {
-	columns: Record<string, string>;
-	tables: Record<string, string>;
-}): SqliteSnapshot => {
-	return { dialect: 'sqlite', id, prevId, version: '7', ddl: ddl.entities.list(), meta };
+export const toJsonSnapshot = (ddl: SQLiteDDL, id: string, prevId: string, renames: string[]): SqliteSnapshot => {
+	return { dialect: 'sqlite', id, prevId, version: '7', ddl: ddl.entities.list(), renames };
 };
 
 const ddl = createDDL();
@@ -148,7 +145,7 @@ export const snapshotValidator = validator({
 	id: 'string',
 	prevId: 'string',
 	ddl: array<SqliteEntity>((it) => ddl.entities.validate(it)),
-	meta: { tables: 'record', columns: 'record' },
+	renames: array<string>((_) => true),
 });
 
 export type SqliteSnapshot = typeof snapshotValidator.shape;
@@ -158,5 +155,5 @@ export const drySqliteSnapshot = snapshotValidator.strict({
 	id: originUUID,
 	prevId: '',
 	ddl: [],
-	meta: { tables: {}, columns: {} },
+	renames: [],
 });

@@ -520,56 +520,19 @@ export const pull = command({
 				}
 
 				const { introspectPostgres } = await import('./commands/pull-postgres');
-				await introspectPostgres(
-					casing,
-					out,
-					breakpoints,
-					credentials,
-					tablesFilter,
-					schemasFilter,
-					prefix,
-					entities,
-				);
+				await introspectPostgres(casing, out, breakpoints, credentials, tablesFilter, schemasFilter, prefix, entities);
 			} else if (dialect === 'mysql') {
 				const { introspectMysql } = await import('./commands/pull-mysql');
-				await introspectMysql(
-					casing,
-					out,
-					breakpoints,
-					credentials,
-					tablesFilter,
-					prefix,
-				);
+				await introspectMysql(casing, out, breakpoints, credentials, tablesFilter, prefix);
 			} else if (dialect === 'sqlite') {
-				const { introspectSqlite } = await import('./commands/pull-sqlite');
-				await introspectSqlite(
-					casing,
-					out,
-					breakpoints,
-					credentials,
-					tablesFilter,
-					prefix,
-				);
+				const { handle } = await import('./commands/pull-sqlite');
+				await handle(casing, out, breakpoints, credentials, tablesFilter, prefix);
 			} else if (dialect === 'turso') {
 				const { introspectLibSQL } = await import('./commands/pull-libsql');
-				await introspectLibSQL(
-					casing,
-					out,
-					breakpoints,
-					credentials,
-					tablesFilter,
-					prefix,
-				);
+				await introspectLibSQL(casing, out, breakpoints, credentials, tablesFilter, prefix);
 			} else if (dialect === 'singlestore') {
 				const { introspectSingleStore } = await import('./commands/pull-singlestore');
-				await introspectSingleStore(
-					casing,
-					out,
-					breakpoints,
-					credentials,
-					tablesFilter,
-					prefix,
-				);
+				await introspectSingleStore(casing, out, breakpoints, credentials, tablesFilter, prefix);
 			} else {
 				assertUnreachable(dialect);
 			}

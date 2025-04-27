@@ -5,9 +5,7 @@ import * as fs from 'fs';
 import { introspectSQLiteToFile } from 'tests/schemaDiffer';
 import { expect, test } from 'vitest';
 
-if (!fs.existsSync('tests/introspect/sqlite')) {
-	fs.mkdirSync('tests/introspect/sqlite');
-}
+fs.mkdirSync('tests/sqlite/tmp', { recursive: true });
 
 test('generated always column: link to another column', async () => {
 	const sqlite = new Database(':memory:');

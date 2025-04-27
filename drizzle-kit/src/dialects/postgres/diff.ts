@@ -1,6 +1,6 @@
 import { mockResolver } from 'src/utils/mocks';
 import type { Resolver } from '../../snapshot-differ/common';
-import { prepareMigrationMeta } from '../../utils';
+import { prepareMigrationMeta, prepareMigrationRenames } from '../../utils';
 import { diffStringArrays } from '../../utils/sequence-matcher';
 import { diff } from '../dialect';
 import { groupDiffs } from '../utils';
@@ -69,13 +69,7 @@ export const ddlDiff = async (
 	statements: JsonStatement[];
 	sqlStatements: string[];
 	groupedStatements: { jsonStatement: JsonStatement; sqlStatements: string[] }[];
-	_meta:
-		| {
-			schemas: {};
-			tables: {};
-			columns: {};
-		}
-		| undefined;
+	renames: string[];
 }> => {
 	const ddl1Copy = createDDL();
 	for (const entity of ddl1.entities.list()) {
@@ -810,7 +804,7 @@ export const ddlDiff = async (
 		}
 		return it;
 	}).filter((it) => Object.keys(it).length > 5); // $difftype, entitytype, schema, table, name
-	
+
 	const jsonAlteredUniqueConstraints = alteredUniques.map((it) => prepareStatement('alter_unique', { diff: it }));
 
 	const jsonAddedUniqueConstraints = uniqueCreates.filter(tablesFilter('created')).map((it) =>
@@ -1217,28 +1211,26 @@ export const ddlDiff = async (
 
 	const { groupedStatements, sqlStatements } = fromJson(jsonStatements);
 
-	const rSchemas = renamedSchemas.map((it) => ({
-		from: it.from.name,
-		to: it.to.name,
-	}));
-
-	const rTables = renamedTables.map((it) => {
-		return { from: it.from, to: it.to };
-	});
-
-	const rColumns = jsonRenameColumnsStatements.map((it) => {
-		return {
-			from: { schema: it.from.schema, table: it.from.table, column: it.from.name },
-			to: { schema: it.to.schema, table: it.to.table, column: it.to.name },
-		};
-	});
-
-	const _meta = prepareMigrationMeta(rSchemas, rTables, rColumns);
+	const renames = prepareMigrationRenames([
+		...renameSchemas,
+		...renamedEnums,
+		...renamedOrMovedTables,
+		...columnRenames,
+		...uniqueRenames,
+		...checkRenames,
+		...indexesRenames,
+		...pksRenames,
+		...fksRenames,
+		...policyRenames,
+		...renamedOrMovedViews,
+		...renamedRoles,
+		...renamedOrMovedSequences,
+	]);
 
 	return {
 		statements: jsonStatements,
 		sqlStatements,
 		groupedStatements: groupedStatements,
-		_meta,
+		renames: renames,
 	};
 };

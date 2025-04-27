@@ -22,7 +22,7 @@ export const handle = async (config: GenerateConfig) => {
 
 		if (config.custom) {
 			writeResult({
-				cur: custom,
+				snapshot: custom,
 				sqlStatements: [],
 				journal,
 				outFolder,
@@ -30,13 +30,13 @@ export const handle = async (config: GenerateConfig) => {
 				breakpoints: config.breakpoints,
 				type: 'custom',
 				prefixMode: config.prefix,
-				_meta: null,
+				renames: [],
 			});
 			return;
 		}
 		const blanks = new Set<string>();
 
-		const { sqlStatements, _meta } = await ddlDiff(
+		const { sqlStatements, renames } = await ddlDiff(
 			ddlCur,
 			ddlPrev,
 			resolver<Schema>('schema'),
@@ -57,14 +57,14 @@ export const handle = async (config: GenerateConfig) => {
 		);
 
 		writeResult({
-			cur: snapshot,
+			snapshot: snapshot,
 			sqlStatements,
 			journal,
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,
 			prefixMode: config.prefix,
-			_meta: _meta ?? null,
+			renames,
 		});
 	} catch (e) {
 		console.error(e);

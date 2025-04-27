@@ -72,6 +72,7 @@ export type SqliteDiffEntities = SQLiteDDL['_']['diffs'];
 
 export type DiffColumn = SqliteDiffEntities['alter']['columns'];
 
+export type Table = SqliteEntities['tables'];
 export type Column = SqliteEntities['columns'];
 export type CheckConstraint = SqliteEntities['checks'];
 export type Index = SqliteEntities['indexes'];
@@ -80,8 +81,9 @@ export type ForeignKey = SqliteEntities['fks'];
 export type PrimaryKey = SqliteEntities['pks'];
 export type UniqueConstraint = SqliteEntities['uniques'];
 export type View = SqliteEntities['views'];
+export type ViewColumn = { view: string; name: string; type: string; notNull: boolean };
 
-export type Table = {
+export type TableFull = {
 	name: string;
 	columns: Column[];
 	indexes: Index[];
@@ -91,7 +93,7 @@ export type Table = {
 	fks: ForeignKey[];
 };
 
-export const tableFromDDL = (name: string, ddl: SQLiteDDL): Table => {
+export const tableFromDDL = (name: string, ddl: SQLiteDDL): TableFull => {
 	const filter = { table: name } as const;
 	const columns = ddl.columns.list(filter);
 	const pk = ddl.pks.one(filter);

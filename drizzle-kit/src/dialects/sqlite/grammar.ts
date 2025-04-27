@@ -2,6 +2,9 @@ const namedCheckPattern = /CONSTRAINT\s*["']?(\w+)["']?\s*CHECK\s*\((.*?)\)/gi;
 const unnamedCheckPattern = /CHECK\s*\((.*?)\)/gi;
 const viewAsStatementRegex = new RegExp(`\\bAS\\b\\s+(SELECT.+)$`, 'i');
 
+export const defaultPkName = (table: string) => {
+};
+
 const intAffinities = [
 	'INT',
 	'INTEGER',
