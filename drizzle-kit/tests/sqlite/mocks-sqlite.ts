@@ -1,12 +1,14 @@
 import { Database } from 'better-sqlite3';
 import { is } from 'drizzle-orm';
 import { SQLiteTable, SQLiteView } from 'drizzle-orm/sqlite-core';
+import { rmSync, writeFileSync } from 'fs';
 import { suggestions } from 'src/cli/commands/push-sqlite';
 import { CasingType } from 'src/cli/validations/common';
 import { interimToDDL } from 'src/dialects/sqlite/ddl';
 import { diffDDL, diffDryDDL } from 'src/dialects/sqlite/diff';
-import { fromDrizzleSchema } from 'src/dialects/sqlite/drizzle';
-import { fromDatabase } from 'src/dialects/sqlite/introspect';
+import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/sqlite/drizzle';
+import { fromDatabaseForDrizzle } from 'src/dialects/sqlite/introspect';
+import { ddlToTypescript } from 'src/dialects/sqlite/typescript';
 import { mockResolver } from 'src/utils/mocks';
 
 export type SqliteSchema = Record<string, SQLiteTable<any> | SQLiteView>;
@@ -21,7 +23,6 @@ export const diff = async (
 	left: SqliteSchema,
 	right: SqliteSchema,
 	renamesArr: string[],
-	cli: boolean = false,
 	casing?: CasingType | undefined,
 ) => {
 	const { ddl: ddl1, errors: err1 } = schemaToDDL(left, casing);
@@ -37,18 +38,7 @@ export const diff = async (
 
 	const renames = new Set(renamesArr);
 
-	if (!cli) {
-		const { sqlStatements, statements } = await diffDDL(
-			ddl1,
-			ddl2,
-			mockResolver(renames),
-			mockResolver(renames),
-			'generate',
-		);
-		return { sqlStatements, statements, err1, err2 };
-	}
-
-	const { sqlStatements, statements, warnings } = await diffDDL(
+	const { sqlStatements, statements } = await diffDDL(
 		ddl1,
 		ddl2,
 		mockResolver(renames),
@@ -56,6 +46,17 @@ export const diff = async (
 		'generate',
 	);
 	return { sqlStatements, statements, err1, err2 };
+};
+
+const dbFrom = (client: Database) => {
+	return {
+		query: async <T>(sql: string, params: any[] = []) => {
+			return client.prepare(sql).bind(params).all() as T[];
+		},
+		run: async (query: string) => {
+			client.prepare(query).run();
+		},
+	};
 };
 
 export const diff2 = async (config: {
@@ -76,21 +77,17 @@ export const diff2 = async (config: {
 		client.exec(st);
 	}
 
-	const db = {
-		query: async <T>(sql: string, params: any[] = []) => {
-			console.log(sql, params);
-			return client.prepare(sql).bind(params).all() as T[];
-		},
-		run: async (query: string) => {
-			console.log(query);
-			client.prepare(query).run();
-		},
-	};
+	const db = dbFrom(client);
 
-	const schema = await fromDatabase(db);
+	const schema = await fromDatabaseForDrizzle(db);
 
 	const { ddl: ddl1, errors: err2 } = interimToDDL(schema);
 	const { ddl: ddl2, errors: err3 } = schemaToDDL(right, casing);
+
+	// console.log(ddl1.entities.list())
+	// console.log("-----")
+	// console.log(ddl2.entities.list())
+	// console.log("-----")
 
 	const rens = new Set<string>(config.renames || []);
 
@@ -109,4 +106,42 @@ export const diff2 = async (config: {
 		truncates,
 		hints,
 	};
+};
+
+export const diffAfterPull = async (
+	client: Database,
+	initSchema: SqliteSchema,
+	testName: string,
+	casing?: CasingType | undefined,
+) => {
+	const db = dbFrom(client);
+
+	const { ddl: initDDL, errors: e1 } = schemaToDDL(initSchema, casing);
+	const { sqlStatements: inits } = await diffDryDDL(initDDL, 'push');
+	for (const st of inits) {
+		client.exec(st);
+	}
+
+	const path = `tests/sqlite/tmp/${testName}.ts`;
+
+	const schema = await fromDatabaseForDrizzle(db);
+	const { ddl: ddl2, errors: err1 } = interimToDDL(schema);
+	const file = ddlToTypescript(ddl2, 'camel', schema.viewsToColumns);
+
+	writeFileSync(path, file.file);
+
+	const res = await prepareFromSchemaFiles([path]);
+	const { ddl: ddl1, errors: err2 } = interimToDDL(fromDrizzleSchema(res.tables, res.views, casing));
+
+	const { sqlStatements, statements } = await diffDDL(
+		ddl1,
+		ddl2,
+		mockResolver(new Set()),
+		mockResolver(new Set()),
+		'push',
+	);
+
+	// rmSync(path);
+
+	return { sqlStatements, statements };
 };

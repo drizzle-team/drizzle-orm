@@ -6,7 +6,7 @@ import { join } from 'path';
 import { interimToDDL } from 'src/dialects/sqlite/ddl';
 import { toJsonSnapshot } from 'src/dialects/sqlite/snapshot';
 import { diffDryDDL } from '../../dialects/sqlite/diff';
-import { fromDatabase } from '../../dialects/sqlite/introspect';
+import { fromDatabase, fromDatabaseForDrizzle } from '../../dialects/sqlite/introspect';
 import { ddlToTypescript as sqliteSchemaToTypeScript } from '../../dialects/sqlite/typescript';
 import { originUUID } from '../../global';
 import type { SQLiteDB } from '../../utils';
@@ -128,7 +128,7 @@ export const sqliteIntrospect = async (
 		return false;
 	};
 
-	const schema = await renderWithTask(taskView, fromDatabase(db, filter, progressCallback));
+	const schema = await renderWithTask(taskView, fromDatabaseForDrizzle(db, filter, progressCallback));
 	const res = interimToDDL(schema);
 	return { ...res, viewColumns: schema.viewsToColumns };
 };

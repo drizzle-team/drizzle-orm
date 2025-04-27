@@ -9,8 +9,8 @@ export const trimChar = (str: string, char: string) => {
 	while (start < end && str[start] === char) ++start;
 	while (end > start && str[end - 1] === char) --end;
 
-	// this.toString() due to ava deep equal issue with String { "value" }
-	return start > 0 || end < str.length ? str.substring(start, end) : str.toString();
+	const res = start > 0 || end < str.length ? str.substring(start, end) : str;
+	return res;
 };
 
 export const parseType = (schemaPrefix: string, type: string) => {

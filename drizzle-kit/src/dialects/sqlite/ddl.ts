@@ -1,4 +1,5 @@
 import { create } from '../dialect';
+import { nameForUnique } from './grammar';
 
 export const createDDL = () => {
 	return create({
@@ -12,9 +13,6 @@ export const createDDL = () => {
 			default: {
 				value: 'string',
 				isExpression: 'boolean',
-			},
-			unique: {
-				name: 'string?',
 			},
 			generated: {
 				type: ['stored', 'virtual'],
@@ -39,8 +37,8 @@ export const createDDL = () => {
 			columnsFrom: 'string[]',
 			tableTo: 'string',
 			columnsTo: 'string[]',
-			onUpdate: 'string?',
-			onDelete: 'string?',
+			onUpdate: 'string',
+			onDelete: 'string',
 		},
 		pks: {
 			table: 'required',
@@ -49,6 +47,10 @@ export const createDDL = () => {
 		uniques: {
 			table: 'required',
 			columns: 'string[]',
+			origin: [
+				'manual', // ='c' CREATE INDEX
+				'auto', // ='u' UNIQUE auto created
+			], // https://www.sqlite.org/pragma.html#pragma_index_list
 		},
 		checks: {
 			table: 'required',
@@ -174,18 +176,19 @@ const count = <T>(arr: T[], predicate: (it: T) => boolean) => {
 	return count;
 };
 
-export const interimToDDL = (
-	schema: {
-		tables: SqliteEntities['tables'][];
-		columns: Column[];
-		indexes: Index[];
-		checks: CheckConstraint[];
-		uniques: UniqueConstraint[];
-		pks: PrimaryKey[];
-		fks: ForeignKey[];
-		views: View[];
-	},
-): { ddl: SQLiteDDL; errors: SchemaError[] } => {
+export type InterimColumn = Column & { isUnique: boolean; uniqueName: string | null };
+export type InterimSchema = {
+	tables: Table[];
+	columns: InterimColumn[];
+	indexes: Index[];
+	checks: CheckConstraint[];
+	uniques: UniqueConstraint[];
+	pks: PrimaryKey[];
+	fks: ForeignKey[];
+	views: View[];
+};
+
+export const interimToDDL = (schema: InterimSchema): { ddl: SQLiteDDL; errors: SchemaError[] } => {
 	const ddl = createDDL();
 	const errors: SchemaError[] = [];
 
@@ -201,7 +204,8 @@ export const interimToDDL = (
 	}
 
 	for (const column of schema.columns) {
-		const res = ddl.columns.insert(column);
+		const { isUnique, uniqueName, ...rest } = column;
+		const res = ddl.columns.insert(rest);
 		if (res.status === 'CONFLICT') {
 			errors.push({ type: 'conflict_column', table: column.table, column: column.name });
 		}
@@ -231,6 +235,21 @@ export const interimToDDL = (
 		const res = ddl.uniques.insert(unique);
 		if (res.status === 'CONFLICT') {
 			errors.push({ type: 'conflict_unique', name: unique.name });
+		}
+	}
+
+	for (const it of schema.columns.filter((it) => it.isUnique)) {
+		const u = {
+			entityType: 'uniques',
+			name: it.uniqueName ?? nameForUnique(it.table, [it.name]),
+			columns: [it.name],
+			table: it.table,
+			origin: 'manual',
+		} satisfies UniqueConstraint;
+		
+		const res = ddl.uniques.insert(u);
+		if (res.status === 'CONFLICT') {
+			errors.push({ type: 'conflict_unique', name: u.name });
 		}
 	}
 

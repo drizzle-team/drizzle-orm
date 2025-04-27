@@ -418,7 +418,7 @@ test('add column before creating unique constraint', async () => {
 		+ '\t`name` text NOT NULL,\n'
 		+ '\tCONSTRAINT uq UNIQUE(`name`)\n'
 		+ ');\n',
-		'INSERT INTO `__new_table`(`id`, `name`) SELECT `id`, `name` FROM `table`;',
+		'INSERT INTO `__new_table`(`id`) SELECT `id` FROM `table`;',
 		'DROP TABLE `table`;',
 		'ALTER TABLE `__new_table` RENAME TO `table`;',
 		'PRAGMA foreign_keys=ON;',
@@ -476,7 +476,7 @@ test('optional db aliases (snake case)', async () => {
 		t3,
 	};
 
-	const { sqlStatements } = await diff(from, to, [], false, 'snake_case');
+	const { sqlStatements } = await diff(from, to, [], 'snake_case');
 
 	expect(sqlStatements).toStrictEqual([
 		'CREATE TABLE `t1` (\n'
@@ -553,7 +553,7 @@ test('optional db aliases (camel case)', async () => {
 		t3,
 	};
 
-	const { sqlStatements } = await diff(from, to, [], false, 'camelCase');
+	const { sqlStatements } = await diff(from, to, [], 'camelCase');
 
 	expect(sqlStatements).toStrictEqual([
 		'CREATE TABLE `t1` (\n'

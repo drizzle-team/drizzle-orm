@@ -925,7 +925,6 @@ export const fromDatabase = async (
 			.replace('character', 'char');
 
 		viewColumns.push({
-			entityType: 'viewColumns',
 			schema: schema.name,
 			view: view.name,
 			name: it.name,

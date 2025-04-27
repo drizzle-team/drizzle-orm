@@ -37,10 +37,10 @@ import { PGlite } from '@electric-sql/pglite';
 import { rmSync, writeFileSync } from 'fs';
 import { suggestions } from 'src/cli/commands/push-postgres';
 import { Entities } from 'src/cli/validations/cli';
+import { isSystemNamespace, isSystemRole } from 'src/dialects/postgres/grammar';
 import { fromDatabase, fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
 import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
 import { S } from 'vitest/dist/reporters-yx5ZTtEV';
-import { isSystemNamespace, isSystemRole } from 'src/dialects/postgres/grammar';
 
 export type PostgresSchema = Record<
 	string,
@@ -395,7 +395,7 @@ export const introspectPgToFile = async (
 	);
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
-	const file = ddlToTypeScript(ddl1, 'camel');
+	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
 	writeFileSync(`tests/postgres/tmp/${testName}.ts`, file.file);
 
 	// generate snapshot from ts file

@@ -1,17 +1,43 @@
 import { type IntrospectStage, type IntrospectStatus } from '../../cli/views';
 import { type SQLiteDB } from '../../utils';
+import { trimChar } from '../postgres/grammar';
 import {
 	type CheckConstraint,
 	type Column,
 	type ForeignKey,
 	type Index,
+	InterimColumn,
 	type PrimaryKey,
 	type SqliteEntities,
 	type UniqueConstraint,
 	type View,
 	type ViewColumn,
 } from './ddl';
-import { extractGeneratedColumns, Generated, parseTableSQL, parseViewSQL, sqlTypeFrom } from './grammar';
+import {
+	extractGeneratedColumns,
+	Generated,
+	nameForForeignKey,
+	nameForUnique,
+	parseTableSQL,
+	parseViewSQL,
+	sqlTypeFrom,
+} from './grammar';
+
+export const fromDatabaseForDrizzle = async (
+	db: SQLiteDB,
+	tablesFilter: (table: string) => boolean = () => true,
+	progressCallback: (
+		stage: IntrospectStage,
+		count: number,
+		status: IntrospectStatus,
+	) => void = () => {},
+) => {
+	const res = await fromDatabase(db, tablesFilter, progressCallback);
+	res.indexes = res.indexes.filter((it) => it.origin !== 'auto');
+	res.uniques = res.uniques.filter((it) => it.origin !== 'auto');
+
+	return res;
+};
 
 export const fromDatabase = async (
 	db: SQLiteDB,
@@ -152,7 +178,8 @@ export const fromDatabase = async (
 	);
 
 	const tablesToSQL = dbColumns.reduce((acc, it) => {
-		if (it.table in acc) return;
+		if (it.table in acc) return acc;
+
 		acc[it.table] = it.sql;
 		return acc;
 	}, {} as Record<string, string>) || {};
@@ -167,10 +194,11 @@ export const fromDatabase = async (
 	const pks: PrimaryKey[] = [];
 	for (const [key, value] of Object.entries(tableToPk)) {
 		if (value.length === 1) continue;
-		pks.push({ entityType: 'pks', table: key, name: `${key}_${value.join('_')}_pk`, columns: value });
+		// TODO: if we want to explicitely handle name - we need to parse SQL definition
+		pks.push({ entityType: 'pks', table: key, name: '', columns: value });
 	}
 
-	const columns: Column[] = [];
+	const columns: InterimColumn[] = [];
 	for (const column of dbColumns.filter((it) => it.type === 'table')) {
 		columnsCount += 1;
 
@@ -196,7 +224,7 @@ export const fromDatabase = async (
 				: columnDefaultValue === 'false' || columnDefaultValue === 'true'
 				? { value: columnDefaultValue, isExpression: true }
 				: columnDefaultValue.startsWith("'") && columnDefaultValue.endsWith("'")
-				? { value: columnDefaultValue, isExpression: false }
+				? { value: trimChar(columnDefaultValue, "'").replaceAll("''", "'"), isExpression: false }
 				: { value: `(${columnDefaultValue})`, isExpression: true }
 			: null;
 
@@ -207,22 +235,20 @@ export const fromDatabase = async (
 
 		const tableIndexes = Object.values(tableToIndexColumns[column.table] || {});
 
-		// we can only safely define if column is unique
 		const unique = primaryKey
 			? null // if pk, no UNIQUE
 			: tableIndexes.filter((it) => {
 				const idx = it.index;
-				// we can only safely define UNIQUE column when there is automatically(origin=u) created unique index on the column(only1)
+				// we can only safely define UNIQUE column when there is automatically(origin=u) created unique index on the column(only 1)
 				return idx.origin === 'u' && idx.isUnique && it.columns.length === 1 && idx.table === column.table
 					&& idx.column === column.name;
 			}).map((it) => {
-				return { name: it.index.name.startsWith(`sqlite_autoindex_`) ? null : it.index.name };
+				return { name: nameForUnique(column.table, it.columns.filter((x) => !x.isExpression).map((x) => x.value)) };
 			})[0] || null;
 
 		columns.push({
 			entityType: 'columns',
 			table: column.table,
-			unique,
 			default: columnDefault,
 			autoincrement,
 			name,
@@ -230,6 +256,8 @@ export const fromDatabase = async (
 			primaryKey,
 			notNull,
 			generated,
+			isUnique: !!unique,
+			uniqueName: unique?.name ?? null,
 		});
 	}
 
@@ -261,7 +289,7 @@ export const fromDatabase = async (
 	type DBFK = typeof dbFKs[number];
 
 	const fksToColumns = dbFKs.reduce((acc, it) => {
-		const key = String(it.id);
+		const key = `${it.tableFrom}:${it.id}`;
 		if (key in acc) {
 			acc[key].columnsFrom.push(it.from);
 			acc[key].columnsTo.push(it.to);
@@ -280,12 +308,8 @@ export const fromDatabase = async (
 		foreignKeysCount += 1;
 		progressCallback('fks', foreignKeysCount, 'fetching');
 
-		const { columnsFrom, columnsTo } = fksToColumns[String(fk.id)]!;
-		const name = `${fk.tableFrom}_${
-			columnsFrom.join(
-				'_',
-			)
-		}_${fk.tableTo}_${columnsTo.join('_')}_fk`;
+		const { columnsFrom, columnsTo } = fksToColumns[`${fk.tableFrom}:${fk.id}`]!;
+		const name = nameForForeignKey({ table: fk.tableFrom, columnsFrom, tableTo: fk.tableTo, columnsTo });
 
 		fks.push({
 			entityType: 'fks',
@@ -294,8 +318,8 @@ export const fromDatabase = async (
 			tableTo: fk.tableTo,
 			columnsFrom,
 			columnsTo,
-			onDelete: fk.onDelete,
-			onUpdate: fk.onUpdate,
+			onDelete: fk.onDelete ?? 'NO ACTION',
+			onUpdate: fk.onUpdate ?? 'NO ACTION',
 		});
 	}
 
@@ -305,8 +329,6 @@ export const fromDatabase = async (
 	for (const [table, index] of Object.entries(tableToIndexColumns)) {
 		const values = Object.values(index);
 		for (const { index, columns, where } of values) {
-			if (index.origin === 'u') continue;
-
 			indexesCount += 1;
 			progressCallback('indexes', indexesCount, 'fetching');
 
@@ -331,7 +353,7 @@ export const fromDatabase = async (
 		const column: ViewColumn = {
 			view: it.table,
 			name: it.name,
-			type: it.columnType,
+			type: sqlTypeFrom(it.columnType),
 			notNull: it.notNull === 1,
 		};
 		if (it.table in acc) {
@@ -390,10 +412,19 @@ export const fromDatabase = async (
 			if (columns.some((it) => it.isExpression)) {
 				throw new Error(`unexpected unique index '${index.name}' with expression value: ${index.sql}`);
 			}
+
+			const origin = index.origin === 'u' || index.origin === 'pk' ? 'auto' : index.origin === 'c' ? 'manual' : null;
+			if (!origin) throw new Error(`Index with unexpected origin: ${index.origin}`);
+
+			const name = nameForUnique(table, columns.filter((it) => !it.isExpression).map((it) => it.value));
+
+			console.log('intro', name);
+
 			uniques.push({
 				entityType: 'uniques',
 				table,
-				name: index.name,
+				name: name,
+				origin: origin,
 				columns: columns.map((it) => it.value),
 			});
 		}

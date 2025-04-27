@@ -111,14 +111,6 @@ export const createDDL = () => {
 			using: 'string?',
 			withCheck: 'string?',
 		},
-		viewColumns: {
-			schema: 'required',
-			view: 'string',
-			type: 'string',
-			typeSchema: 'string?',
-			notNull: 'boolean',
-			dimensions: 'number',
-		},
 		views: {
 			schema: 'required',
 			definition: 'string?',
@@ -177,7 +169,15 @@ export type UniqueConstraint = PostgresEntities['uniques'];
 export type CheckConstraint = PostgresEntities['checks'];
 export type Policy = PostgresEntities['policies'];
 export type View = PostgresEntities['views'];
-export type ViewColumn = PostgresEntities['viewColumns'];
+export type ViewColumn = {
+	schema: string;
+	view: string;
+	type: string;
+	typeSchema: string | null;
+	notNull: boolean;
+	dimensions: number;
+	name: string;
+};
 
 export type Table = {
 	schema: string;
@@ -417,10 +417,6 @@ export const interimToDDL = (
 				name: it.name,
 			});
 		}
-	}
-
-	for(const it of schema.viewColumns){
-		ddl.viewColumns.insert(it)
 	}
 
 	return { ddl, errors };

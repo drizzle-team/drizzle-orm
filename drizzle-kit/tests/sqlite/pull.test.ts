@@ -2,8 +2,8 @@ import Database from 'better-sqlite3';
 import { SQL, sql } from 'drizzle-orm';
 import { check, int, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
 import * as fs from 'fs';
-import { introspectSQLiteToFile } from 'tests/schemaDiffer';
 import { expect, test } from 'vitest';
+import { diffAfterPull } from './mocks-sqlite';
 
 fs.mkdirSync('tests/sqlite/tmp', { recursive: true });
 
@@ -20,14 +20,13 @@ test('generated always column: link to another column', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await introspectSQLiteToFile(
+	const { statements, sqlStatements } = await diffAfterPull(
 		sqlite,
 		schema,
 		'generated-link-column',
 	);
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('generated always column virtual: link to another column', async () => {
@@ -44,7 +43,7 @@ test('generated always column virtual: link to another column', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await introspectSQLiteToFile(
+	const { statements, sqlStatements } = await diffAfterPull(
 		sqlite,
 		schema,
 		'generated-link-column-virtual',
@@ -63,14 +62,13 @@ test('instrospect strings with single quotes', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await introspectSQLiteToFile(
+	const { statements, sqlStatements } = await diffAfterPull(
 		sqlite,
 		schema,
 		'introspect-strings-with-single-quotes',
 	);
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('introspect checks', async () => {
@@ -86,14 +84,13 @@ test('introspect checks', async () => {
 		})),
 	};
 
-	const { statements, sqlStatements } = await introspectSQLiteToFile(
+	const { statements, sqlStatements } = await diffAfterPull(
 		sqlite,
 		schema,
 		'introspect-checks',
 	);
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('view #1', async () => {
@@ -109,7 +106,7 @@ test('view #1', async () => {
 		testView,
 	};
 
-	const { statements, sqlStatements } = await introspectSQLiteToFile(
+	const { statements, sqlStatements } = await diffAfterPull(
 		sqlite,
 		schema,
 		'view-1',
