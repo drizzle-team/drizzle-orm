@@ -41,7 +41,6 @@ export const handle = async (
 
 	const db = await preparePostgresDB(credentials);
 	const filenames = prepareFilenames(schemaPath);
-
 	const res = await prepareFromSchemaFiles(filenames);
 
 	const { schema: schemaTo, errors, warnings } = fromDrizzleSchema(
@@ -68,8 +67,8 @@ export const handle = async (
 	const { schema: schemaFrom } = await pgPushIntrospect(db, tablesFilter, schemasFilter, entities);
 
 	const { ddl: ddl1, errors: errors1 } = interimToDDL(schemaFrom);
-	// todo: handle errors?
 	const { ddl: ddl2, errors: errors2 } = interimToDDL(schemaTo);
+	// todo: handle errors?
 
 	if (errors1.length > 0) {
 		console.log(errors.map((it) => schemaError(it)).join('\n'));
@@ -77,7 +76,7 @@ export const handle = async (
 	}
 
 	const blanks = new Set<string>();
-	const { sqlStatements, statements: jsonStatements, _meta } = await ddlDiff(
+	const { sqlStatements, statements: jsonStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
 		resolver<Schema>('schema'),
@@ -112,7 +111,7 @@ export const handle = async (
 	}
 
 	if (!force && strict && hints.length === 0) {
-		const { status, data } = await render(new Select(['No, abort', `Yes, I want to execute all statements`]));
+		const { status, data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 
 		if (data?.index === 0) {
 			render(`[${chalk.red('x')}] All changes were aborted`);
@@ -298,22 +297,3 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 		hints,
 	};
 };
-
-function concatSchemaAndTableName(schema: string | undefined, table: string) {
-	return schema ? `"${schema}"."${table}"` : `"${table}"`;
-}
-
-function tableNameWithSchemaFrom(
-	schema: string | undefined,
-	tableName: string,
-	renamedSchemas: Record<string, string>,
-	renamedTables: Record<string, string>,
-) {
-	const newSchemaName = schema ? (renamedSchemas[schema] ? renamedSchemas[schema] : schema) : undefined;
-
-	const newTableName = renamedTables[concatSchemaAndTableName(newSchemaName, tableName)]
-		? renamedTables[concatSchemaAndTableName(newSchemaName, tableName)]
-		: tableName;
-
-	return concatSchemaAndTableName(newSchemaName, newTableName);
-}

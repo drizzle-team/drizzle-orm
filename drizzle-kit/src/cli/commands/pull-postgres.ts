@@ -29,6 +29,8 @@ import { err, ProgressView } from '../views';
 import { IntrospectProgress } from '../views';
 import { writeResult } from './generate-common';
 import { relationsToTypeScript } from './pull-common';
+import { toJsonSnapshot } from 'src/dialects/postgres/snapshot';
+import { originUUID } from 'src/global';
 
 export const introspectPostgres = async (
 	casing: Casing,
@@ -108,7 +110,7 @@ export const introspectPostgres = async (
 	const { snapshots, journal } = prepareOutFolder(out, 'postgresql');
 	if (snapshots.length === 0) {
 		const blanks = new Set<string>();
-		const { sqlStatements, _meta } = await ddlDiff(
+		const { sqlStatements, renames } = await ddlDiff(
 			createDDL(), // dry ddl
 			ddl2,
 			resolver<Schema>('schema'),
@@ -128,11 +130,13 @@ export const introspectPostgres = async (
 			'push',
 		);
 
+
+
 		writeResult({
-			cur: schema,
+			snapshot: toJsonSnapshot(ddl2, originUUID, renames),
 			sqlStatements,
 			journal,
-			_meta,
+			renames,
 			outFolder: out,
 			breakpoints,
 			type: 'introspect',

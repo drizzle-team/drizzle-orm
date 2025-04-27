@@ -10,7 +10,7 @@ import {
 	text,
 } from 'drizzle-orm/sqlite-core';
 import { expect, test } from 'vitest';
-import { diffTestSchemasSqlite } from './mocks-sqlite';
+import { diff } from './mocks-sqlite';
 
 test('create table with id', async (t) => {
 	const schema = {
@@ -19,7 +19,7 @@ test('create table with id', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite({}, schema, []);
+	const { sqlStatements } = await diff({}, schema, []);
 
 	expect(sqlStatements).toStrictEqual([
 		`CREATE TABLE \`users\` (\n\t\`id\` integer PRIMARY KEY AUTOINCREMENT\n);\n`,
@@ -40,7 +40,7 @@ test('add columns #1', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(schema1, schema2, []);
+	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual([`ALTER TABLE \`users\` ADD \`name\` text NOT NULL;`]);
 });
@@ -60,7 +60,7 @@ test('add columns #2', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(schema1, schema2, []);
+	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual(
 		[
@@ -86,7 +86,7 @@ test('add columns #3', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(schema1, schema2, []);
+	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual(
 		[
@@ -111,7 +111,7 @@ test('add columns #4', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(schema1, schema2, []);
+	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual(
 		['ALTER TABLE `users` ADD `name` text;'],
@@ -134,7 +134,7 @@ test('add columns #5', async (t) => {
 		users,
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(schema1, schema2, []);
+	const { sqlStatements } = await diff(schema1, schema2, []);
 	expect(sqlStatements).toStrictEqual(
 		[
 			'ALTER TABLE `users` ADD `report_to` integer REFERENCES users(id);',
@@ -170,7 +170,7 @@ test('add columns #6', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(schema1, schema2, []);
+	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual(
 		['ALTER TABLE `users` ADD `password` text NOT NULL;'],
@@ -189,7 +189,7 @@ test('add generated stored column', async (t) => {
 			generatedName: text('gen_name').generatedAlwaysAs(sql`123`, { mode: 'stored' }),
 		}),
 	};
-	const { sqlStatements } = await diffTestSchemasSqlite(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements).toStrictEqual(
 		[
@@ -218,7 +218,7 @@ test('add generated virtual column', async (t) => {
 			generatedName: text('gen_name').generatedAlwaysAs(sql`123`, { mode: 'virtual' }),
 		}),
 	};
-	const { sqlStatements } = await diffTestSchemasSqlite(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements).toStrictEqual(
 		[
@@ -240,7 +240,7 @@ test('alter column make generated', async (t) => {
 			generatedName: text('gen_name').generatedAlwaysAs(sql`123`, { mode: 'stored' }),
 		}),
 	};
-	const { sqlStatements } = await diffTestSchemasSqlite(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements).toStrictEqual(
 		[
@@ -275,7 +275,7 @@ test('add columns #6', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(schema1, schema2, []);
+	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual(
 		['ALTER TABLE `users` ADD `password` text NOT NULL;'],
@@ -296,7 +296,7 @@ test('drop column', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(schema1, schema2, []);
+	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual(
 		['ALTER TABLE `users` DROP COLUMN `name`;'],
@@ -320,7 +320,7 @@ test('rename column', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(schema1, schema2, ['users.email->users.email2']);
+	const { sqlStatements } = await diff(schema1, schema2, ['users.email->users.email2']);
 
 	expect(sqlStatements).toStrictEqual(
 		['ALTER TABLE `users` RENAME COLUMN `email` TO `email2`;'],
@@ -352,7 +352,7 @@ test('add index #1', async (t) => {
 		users,
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(schema1, schema2, []);
+	const { sqlStatements } = await diff(schema1, schema2, []);
 	expect(sqlStatements).toStrictEqual(
 		['CREATE INDEX `reportee_idx` ON `users` (`report_to`);'],
 	);
@@ -375,7 +375,7 @@ test('add foreign key #1', async (t) => {
 		users,
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(schema1, schema2, []);
+	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual(
 		[
@@ -420,7 +420,7 @@ test('add foreign key #2', async (t) => {
 		),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(schema1, schema2, []);
+	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual(
 		[
@@ -453,7 +453,7 @@ test('alter column rename #1', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(schema1, schema2, ['users.name->users.name1']);
+	const { sqlStatements } = await diff(schema1, schema2, ['users.name->users.name1']);
 
 	expect(sqlStatements).toStrictEqual(
 		['ALTER TABLE `users` RENAME COLUMN `name` TO `name1`;'],
@@ -476,7 +476,7 @@ test('alter column rename #2', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(schema1, schema2, [
+	const { sqlStatements } = await diff(schema1, schema2, [
 		'users.name->users.name1',
 	]);
 
@@ -504,7 +504,7 @@ test('alter column rename #3', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(schema1, schema2, [
+	const { sqlStatements } = await diff(schema1, schema2, [
 		'users.name->users.name1',
 	]);
 
@@ -533,7 +533,7 @@ test('rename column in composite pk', async (t) => {
 		}, (t) => ({ pk: primaryKey({ columns: [t.id, t.id3] }) })),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(schema1, schema2, [
+	const { sqlStatements } = await diff(schema1, schema2, [
 		'users.id2->users.id3',
 	]);
 
@@ -557,7 +557,7 @@ test('alter column rename + alter type', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(schema1, schema2, [
+	const { sqlStatements } = await diff(schema1, schema2, [
 		'users.name->users.name1',
 	]);
 
@@ -600,7 +600,7 @@ test('alter table add composite pk', async (t) => {
 		),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(schema1, schema2, []);
+	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual(
 		[
@@ -631,7 +631,7 @@ test('alter column drop not null', async (t) => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { statements, sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -662,7 +662,7 @@ test('alter column add not null', async (t) => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { statements, sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -693,7 +693,7 @@ test('alter column add default', async (t) => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { statements, sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -724,7 +724,7 @@ test('alter column drop default', async (t) => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { statements, sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -755,7 +755,7 @@ test('alter column add default not null', async (t) => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { statements, sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -790,7 +790,7 @@ test('alter column add default not null with indexes', async (t) => {
 		})),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { statements, sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -824,7 +824,7 @@ test('alter column add default not null with indexes #2', async (t) => {
 		})),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { statements, sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -856,7 +856,7 @@ test('alter column drop default not null', async (t) => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { statements, sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -889,7 +889,7 @@ test('alter column drop generated', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -944,7 +944,7 @@ test('recreate table with nested references', async (t) => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasSqlite(
+	const { statements, sqlStatements } = await diff(
 		schema1,
 		schema2,
 		[],
@@ -980,7 +980,7 @@ test('text default values escape single quotes', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(schema1, schem2, []);
+	const { sqlStatements } = await diff(schema1, schem2, []);
 
 	expect(sqlStatements).toStrictEqual(
 		["ALTER TABLE `table` ADD `text` text DEFAULT 'escape''s quotes';"],

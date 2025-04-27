@@ -92,7 +92,7 @@ export const introspectMysql = async (
 		);
 
 		writeResult({
-			cur: schema,
+			snapshot: schema,
 			sqlStatements,
 			journal,
 			_meta,

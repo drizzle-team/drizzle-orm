@@ -10,7 +10,7 @@ import { Entities } from 'src/cli/validations/cli';
 import { CasingType } from 'src/cli/validations/common';
 import { ddlDiff } from 'src/dialects/postgres/diff';
 import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
-import { schemaToTypeScript as schemaToTypeScriptSQLite } from 'src/dialects/sqlite/typescript';
+import { ddlToTypescript as schemaToTypeScriptSQLite } from 'src/dialects/sqlite/typescript';
 import { schemaToTypeScript as schemaToTypeScriptMySQL } from 'src/introspect-mysql';
 import { schemaToTypeScript as schemaToTypeScriptSingleStore } from 'src/introspect-singlestore';
 import { prepareFromMySqlImports } from 'src/serializer/mysqlImports';
@@ -458,128 +458,6 @@ export const applySingleStoreDiffs = async (
 		validatedCur,
 	);
 	return { sqlStatements, statements };
-};
-
-export const diffTestSchemasPushSqlite = async (
-	client: Database,
-	left: SqliteSchema,
-	right: SqliteSchema,
-	renamesArr: string[],
-	cli: boolean = false,
-	seedStatements: string[] = [],
-	casing?: CasingType | undefined,
-) => {
-	const { sqlStatements } = await applySqliteDiffs(left, 'push');
-
-	for (const st of sqlStatements) {
-		client.exec(st);
-	}
-
-	for (const st of seedStatements) {
-		client.exec(st);
-	}
-
-	// do introspect into PgSchemaInternal
-	const introspectedSchema = await fromSqliteDatabase(
-		{
-			query: async <T>(sql: string, params: any[] = []) => {
-				return client.prepare(sql).bind(params).all() as T[];
-			},
-			run: async (query: string) => {
-				client.prepare(query).run();
-			},
-		},
-		undefined,
-	);
-
-	const rightTables = Object.values(right).filter((it) => is(it, SQLiteTable)) as SQLiteTable[];
-
-	const rightViews = Object.values(right).filter((it) => is(it, SQLiteView)) as SQLiteView[];
-
-	const serialized2 = drizzleToInternal(rightTables, rightViews, casing);
-
-	const { version: v1, dialect: d1, ...rest1 } = introspectedSchema;
-	const { version: v2, dialect: d2, ...rest2 } = serialized2;
-
-	const sch1 = {
-		version: '6',
-		dialect: 'sqlite',
-		id: '0',
-		prevId: '0',
-		...rest1,
-	} as const;
-
-	const sch2 = {
-		version: '6',
-		dialect: 'sqlite',
-		id: '0',
-		prevId: '0',
-		...rest2,
-	} as const;
-
-	const sn1 = squashSqliteScheme(sch1, 'push');
-	const sn2 = squashSqliteScheme(sch2, 'push');
-
-	const renames = new Set(renamesArr);
-
-	if (!cli) {
-		const { sqlStatements, statements, _meta } = await applySqliteSnapshotsDiff(
-			sn1,
-			sn2,
-			mockTablesResolver(renames),
-			mockColumnsResolver(renames),
-			testViewsResolverSqlite(renames),
-			sch1,
-			sch2,
-			'push',
-		);
-
-		const {
-			statementsToExecute,
-			columnsToRemove,
-			infoToPrint,
-			schemasToRemove,
-			shouldAskForApprove,
-			tablesToRemove,
-			tablesToTruncate,
-		} = await logSuggestionsAndReturn(
-			{
-				query: async <T>(sql: string, params: any[] = []) => {
-					return client.prepare(sql).bind(params).all() as T[];
-				},
-				run: async (query: string) => {
-					client.prepare(query).run();
-				},
-			},
-			statements,
-			sn1,
-			sn2,
-			_meta!,
-		);
-
-		return {
-			sqlStatements: statementsToExecute,
-			statements,
-			columnsToRemove,
-			infoToPrint,
-			schemasToRemove,
-			shouldAskForApprove,
-			tablesToRemove,
-			tablesToTruncate,
-		};
-	} else {
-		const { sqlStatements, statements } = await applySqliteSnapshotsDiff(
-			sn1,
-			sn2,
-			tablesResolver,
-			columnsResolver,
-			sqliteViewsResolver,
-			sch1,
-			sch2,
-			'push',
-		);
-		return { sqlStatements, statements };
-	}
 };
 
 export async function diffTestSchemasPushLibSQL(

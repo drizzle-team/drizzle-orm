@@ -3,12 +3,8 @@ import fs from 'fs';
 import * as glob from 'glob';
 import Path from 'path';
 import type { CasingType } from 'src/cli/validations/common';
-import { error, schemaError, schemaWarning } from '../cli/views';
-import type { MySqlSchemaInternal } from './mysqlSchema';
+import { error } from '../cli/views';
 import type { SingleStoreSchemaInternal } from './singlestoreSchema';
-
-
-
 
 export const serializeSingleStore = async (
 	path: string | string[],

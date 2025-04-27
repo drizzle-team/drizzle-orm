@@ -84,7 +84,7 @@ export const introspectSingleStore = async (
 		);
 
 		writeResult({
-			cur: schema,
+			snapshot: schema,
 			sqlStatements,
 			journal,
 			_meta,

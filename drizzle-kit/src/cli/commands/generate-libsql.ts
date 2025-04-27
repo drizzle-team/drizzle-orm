@@ -1,4 +1,4 @@
-import { prepareSqliteMigrationSnapshot } from '../../dialects/sqlite/serializer';
+import { prepareSqliteSnapshot } from '../../dialects/sqlite/serializer';
 import { applyLibSQLSnapshotsDiff } from '../../snapshot-differ/libsql';
 import { assertV1OutFolder, prepareMigrationFolder } from '../../utils-node';
 import type { GenerateConfig } from './utils';
@@ -12,7 +12,7 @@ export const handle = async (config: GenerateConfig) => {
 		assertV1OutFolder(outFolder);
 
 		const { snapshots, journal } = prepareMigrationFolder(outFolder, 'sqlite');
-		const { prev, cur, custom } = await prepareSqliteMigrationSnapshot(
+		const { prev, cur, custom } = await prepareSqliteSnapshot(
 			snapshots,
 			schemaPath,
 			casing,

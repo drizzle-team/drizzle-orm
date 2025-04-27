@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import { writeFileSync } from 'fs';
+import { defaults } from 'src/dialects/postgres/grammar';
 import { getOrNull } from 'src/dialects/utils';
 import { createDDL } from '../../dialects/postgres/ddl';
 import {
@@ -43,6 +44,8 @@ export const upPgHandler = (out: string) => {
 };
 
 // TODO: handle unique name _unique vs _key
+// TODO: handle pk name table_columns_pk vs table_pkey
+// TODO: handle all entities!
 export const updateToV8 = (json: PgSchema): PostgresSnapshot => {
 	const ddl = createDDL();
 
@@ -66,8 +69,13 @@ export const updateToV8 = (json: PgSchema): PostgresSnapshot => {
 	for (const policy of Object.values(json.policies)) {
 		ddl.policies.insert({
 			schema: policy.schema ?? 'public',
-			table: policy.on,
+			table: policy.on!,
 			name: policy.name,
+			as: policy.as ?? 'PERMISSIVE',
+			roles: policy.to ?? [],
+			for: policy.for ?? 'ALL',
+			using: policy.using ?? null,
+			withCheck: policy.withCheck ?? null,
 		});
 	}
 
@@ -110,13 +118,19 @@ export const updateToV8 = (json: PgSchema): PostgresSnapshot => {
 		});
 	}
 
+	const renames = [
+		...Object.entries(json._meta.tables).map(([k, v]) => `${v}->${k}`),
+		...Object.entries(json._meta.schemas).map(([k, v]) => `${v}->${k}`),
+		...Object.entries(json._meta.columns).map(([k, v]) => `${v}->${k}`),
+	];
+
 	return {
 		id: json.id,
 		prevId: json.prevId,
 		version: '8',
 		dialect: 'postgres',
 		ddl: ddl.entities.list(),
-		meta: json._meta,
+		renames,
 	};
 };
 

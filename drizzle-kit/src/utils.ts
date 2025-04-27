@@ -159,6 +159,23 @@ export const dryJournal = (dialect: Dialect): Journal => {
 	};
 };
 
+export const prepareMigrationRenames = (
+	renames: {
+		from: { schema?: string; table?: string; name: string };
+		to: { schema?: string; table?: string; name: string };
+	}[],
+) => {
+	return renames.map((it) => {
+		const schema1 = it.from.schema ? `${it.from.schema}.` : '';
+		const schema2 = it.to.schema ? `${it.to.schema}.` : '';
+
+		const table1 = it.from.table ? `${it.from.table}.` : '';
+		const table2 = it.to.table ? `${it.to.table}.` : '';
+
+		return `${schema1}${table1}${it.from.name}->${schema2}${table2}${it.to.name}`;
+	});
+};
+
 export const prepareMigrationMeta = (
 	schemas: { from: string; to: string }[],
 	tables: { from: NamedWithSchema; to: NamedWithSchema }[],

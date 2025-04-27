@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import {
 	any,
 	array as zodArray,
@@ -533,12 +534,8 @@ export type Index = TypeOf<typeof index>;
 export type TableV5 = TypeOf<typeof tableV5>;
 export type Column = TypeOf<typeof column>;
 
-export const toJsonSnapshot = (ddl: PostgresDDL, id: string, prevId: string, meta: {
-	columns: Record<string, string>;
-	tables: Record<string, string>;
-	schemas: Record<string, string>;
-}): PostgresSnapshot => {
-	return { dialect: 'postgres', id, prevId, version: '8', ddl: ddl.entities.list(), meta };
+export const toJsonSnapshot = (ddl: PostgresDDL, prevId: string, renames: string[]): PostgresSnapshot => {
+	return { dialect: 'postgres', id: randomUUID(), prevId, version: '8', ddl: ddl.entities.list(), renames };
 };
 
 const ddl = createDDL();
@@ -548,7 +545,7 @@ export const snapshotValidator = validator({
 	id: 'string',
 	prevId: 'string',
 	ddl: array<PostgresEntity>((it) => ddl.entities.validate(it)),
-	meta: { schemas: 'record', tables: 'record', columns: 'record' },
+	renames: array<string>((_) => true),
 });
 
 export type PostgresSnapshot = typeof snapshotValidator.shape;
@@ -560,10 +557,6 @@ export const drySnapshot = snapshotValidator.strict(
 		id: originUUID,
 		prevId: '',
 		ddl: [],
-		meta: {
-			schemas: {},
-			tables: {},
-			columns: {},
-		},
+		renames: [],
 	} satisfies PostgresSnapshot,
 );

@@ -1,6 +1,6 @@
+import { diffDDL } from 'src/dialects/sqlite/diff';
 import { Column, SqliteEntities } from '../../dialects/sqlite/ddl';
-import { applySqliteSnapshotsDiff } from '../../dialects/sqlite/differ';
-import { prepareSqliteMigrationSnapshot } from '../../dialects/sqlite/serializer';
+import { prepareSqliteSnapshot } from '../../dialects/sqlite/serializer';
 import { assertV1OutFolder, prepareMigrationFolder } from '../../utils-node';
 import { resolver } from '../prompts';
 import { warning } from '../views';
@@ -16,7 +16,7 @@ export const handle = async (config: GenerateConfig) => {
 		assertV1OutFolder(outFolder);
 
 		const { snapshots, journal } = prepareMigrationFolder(outFolder, 'sqlite');
-		const { ddlCur, ddlPrev, snapshot, custom } = await prepareSqliteMigrationSnapshot(
+		const { ddlCur, ddlPrev, snapshot, custom } = await prepareSqliteSnapshot(
 			snapshots,
 			schemaPath,
 			casing,
@@ -24,7 +24,7 @@ export const handle = async (config: GenerateConfig) => {
 
 		if (config.custom) {
 			writeResult({
-				cur: custom,
+				snapshot: custom,
 				sqlStatements: [],
 				journal,
 				outFolder,
@@ -33,12 +33,12 @@ export const handle = async (config: GenerateConfig) => {
 				bundle: config.bundle,
 				type: 'custom',
 				prefixMode: config.prefix,
-				_meta: null,
+				renames: [],
 			});
 			return;
 		}
 
-		const { sqlStatements, _meta, warnings } = await applySqliteSnapshotsDiff(
+		const { sqlStatements, warnings, renames } = await diffDDL(
 			ddlCur,
 			ddlPrev,
 			resolver<SqliteEntities['tables']>('table'),
@@ -51,10 +51,10 @@ export const handle = async (config: GenerateConfig) => {
 		}
 
 		writeResult({
-			cur: snapshot,
+			snapshot: snapshot,
 			sqlStatements,
 			journal,
-			_meta: _meta ?? null,
+			renames,
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,

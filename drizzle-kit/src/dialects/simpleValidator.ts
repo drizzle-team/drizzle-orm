@@ -11,6 +11,7 @@ type StringLiteral<T> = T extends string[] ? (string extends T[number] ? never :
 
 type SchemaType =
 	| 'string'
+	| 'string[]'
 	| 'number'
 	| 'boolean'
 	| 'array'

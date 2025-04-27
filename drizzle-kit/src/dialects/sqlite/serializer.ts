@@ -2,10 +2,10 @@ import type { CasingType } from 'src/cli/validations/common';
 import { sqliteSchemaError } from '../../cli/views';
 import { prepareFilenames } from '../../serializer';
 import { createDDL, interimToDDL, SQLiteDDL } from './ddl';
-import { fromDrizzleSchema, prepareFromSqliteSchemaFiles } from './drizzle';
+import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
 import { drySqliteSnapshot, snapshotValidator, SqliteSnapshot } from './snapshot';
 
-export const prepareSqliteMigrationSnapshot = async (
+export const prepareSqliteSnapshot = async (
 	snapshots: string[],
 	schemaPath: string | string[],
 	casing: CasingType | undefined,
@@ -30,7 +30,7 @@ export const prepareSqliteMigrationSnapshot = async (
 	}
 	const filenames = prepareFilenames(schemaPath);
 
-	const { tables, views } = await prepareFromSqliteSchemaFiles(filenames);
+	const { tables, views } = await prepareFromSchemaFiles(filenames);
 	const interim = fromDrizzleSchema(tables, views, casing);
 
 	const { ddl: ddlCur, errors } = interimToDDL(interim);
@@ -49,7 +49,7 @@ export const prepareSqliteMigrationSnapshot = async (
 		id,
 		prevId,
 		ddl: ddlCur.entities.list(),
-		meta: null,
+		renames: [],
 	} satisfies SqliteSnapshot;
 
 	const { id: _ignoredId, prevId: _ignoredPrevId, ...prevRest } = prevSnapshot;

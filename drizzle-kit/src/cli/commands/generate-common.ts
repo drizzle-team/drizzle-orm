@@ -9,34 +9,10 @@ import { Journal } from '../../utils';
 import { prepareMigrationMetadata } from '../../utils/words';
 import { Driver, Prefix } from '../validations/common';
 
-export const writeResult = ({
-	cur,
-	sqlStatements,
-	journal,
-	_meta = {
-		columns: {},
-		schemas: {},
-		tables: {},
-	},
-	outFolder,
-	breakpoints,
-	name,
-	bundle = false,
-	type = 'none',
-	prefixMode,
-	driver,
-}: {
-	cur: SqliteSnapshot | PostgresSnapshot;
+export const writeResult = (config: {
+	snapshot: SqliteSnapshot | PostgresSnapshot;
 	sqlStatements: string[];
 	journal: Journal;
-	_meta: {
-		columns: {};
-		schemas: {};
-		tables: {};
-	} | {
-		columns: {};
-		tables: {};
-	} | null;
 	outFolder: string;
 	breakpoints: boolean;
 	prefixMode: Prefix;
@@ -44,7 +20,22 @@ export const writeResult = ({
 	bundle?: boolean;
 	type?: 'introspect' | 'custom' | 'none';
 	driver?: Driver;
+	renames: string[];
 }) => {
+	const {
+		snapshot: cur,
+		sqlStatements,
+		journal,
+		outFolder,
+		breakpoints,
+		name,
+		renames,
+		bundle = false,
+		type = 'none',
+		prefixMode,
+		driver,
+	} = config;
+
 	if (type === 'none') {
 		// TODO: handle
 		// console.log(schema(cur));
@@ -65,7 +56,7 @@ export const writeResult = ({
 
 	const { prefix, tag } = prepareMigrationMetadata(idx, prefixMode, name);
 
-	const snToSave = { ...cur, meta: _meta };
+	const snToSave = cur;
 	const toSave = JSON.parse(JSON.stringify(snToSave));
 
 	// todo: save results to a new migration folder

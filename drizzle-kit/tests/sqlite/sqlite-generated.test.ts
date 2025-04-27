@@ -1,7 +1,7 @@
 import { SQL, sql } from 'drizzle-orm';
 import { int, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { expect, test } from 'vitest';
-import { diffTestSchemasSqlite } from './mocks-sqlite';
+import { diff } from './mocks-sqlite';
 
 // 1. add stored column to existing table - not supported +
 // 2. add virtual column to existing table - supported +
@@ -32,7 +32,7 @@ test('generated as callback: add column with stored generated constraint', async
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -73,7 +73,7 @@ test('generated as callback: add column with virtual generated constraint', asyn
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -105,7 +105,7 @@ test('generated as callback: add generated constraint to an exisiting column as 
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -147,7 +147,7 @@ test('generated as callback: add generated constraint to an exisiting column as 
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -180,7 +180,7 @@ test('generated as callback: drop generated constraint as stored', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -213,7 +213,7 @@ test('generated as callback: drop generated constraint as virtual', async () => 
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -248,7 +248,7 @@ test('generated as callback: change generated constraint type from virtual to st
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -292,7 +292,7 @@ test('generated as callback: change generated constraint type from stored to vir
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -329,7 +329,7 @@ test('generated as callback: change stored generated constraint', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -372,7 +372,7 @@ test('generated as callback: change virtual generated constraint', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -398,7 +398,7 @@ test('generated as callback: add table with column with stored generated constra
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -423,7 +423,7 @@ test('generated as callback: add table with column with virtual generated constr
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -456,7 +456,7 @@ test('generated as sql: add column with stored generated constraint', async () =
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -497,7 +497,7 @@ test('generated as sql: add column with virtual generated constraint', async () 
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -530,7 +530,7 @@ test('generated as sql: add generated constraint to an exisiting column as store
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -573,7 +573,7 @@ test('generated as sql: add generated constraint to an exisiting column as virtu
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -606,7 +606,7 @@ test('generated as sql: drop generated constraint as stored', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -639,7 +639,7 @@ test('generated as sql: drop generated constraint as virtual', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -673,7 +673,7 @@ test('generated as sql: change generated constraint type from virtual to stored'
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -716,7 +716,7 @@ test('generated as sql: change generated constraint type from stored to virtual'
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -752,7 +752,7 @@ test('generated as sql: change stored generated constraint', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -793,7 +793,7 @@ test('generated as sql: change virtual generated constraint', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -819,7 +819,7 @@ test('generated as sql: add table with column with stored generated constraint',
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -844,7 +844,7 @@ test('generated as sql: add table with column with virtual generated constraint'
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -875,7 +875,7 @@ test('generated as string: add column with stored generated constraint', async (
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -915,7 +915,7 @@ test('generated as string: add column with virtual generated constraint', async 
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -948,7 +948,7 @@ test('generated as string: add generated constraint to an exisiting column as st
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -991,7 +991,7 @@ test('generated as string: add generated constraint to an exisiting column as vi
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -1024,7 +1024,7 @@ test('generated as string: drop generated constraint as stored', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -1057,7 +1057,7 @@ test('generated as string: drop generated constraint as virtual', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -1093,7 +1093,7 @@ test('generated as string: change generated constraint type from virtual to stor
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -1137,7 +1137,7 @@ test('generated as string: change generated constraint type from stored to virtu
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -1171,7 +1171,7 @@ test('generated as string: change stored generated constraint', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -1211,7 +1211,7 @@ test('generated as string: change virtual generated constraint', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -1237,7 +1237,7 @@ test('generated as string: add table with column with stored generated constrain
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],
@@ -1262,7 +1262,7 @@ test('generated as string: add table with column with virtual generated constrai
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSqlite(
+	const { sqlStatements } = await diff(
 		from,
 		to,
 		[],

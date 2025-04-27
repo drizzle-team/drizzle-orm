@@ -4,7 +4,7 @@ import { render, renderWithTask } from 'hanji';
 import { Minimatch } from 'minimatch';
 import { join } from 'path';
 import { fromDatabase } from '../../dialects/sqlite/introspect';
-import { schemaToTypeScript as sqliteSchemaToTypeScript } from '../../dialects/sqlite/typescript';
+import { ddlToTypescript as sqliteSchemaToTypeScript } from '../../dialects/sqlite/typescript';
 import { originUUID } from '../../global';
 import { applyLibSQLSnapshotsDiff } from '../../snapshot-differ/libsql';
 import { prepareOutFolder } from '../../utils-node';
@@ -86,7 +86,7 @@ export const introspectLibSQL = async (
 		);
 
 		writeResult({
-			cur: schema,
+			snapshot: schema,
 			sqlStatements,
 			journal,
 			_meta,
