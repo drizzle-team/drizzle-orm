@@ -321,22 +321,24 @@ export type BuildRelationResult<
 	TSchema extends TablesRelationalConfig,
 	TInclude,
 	TRelations extends Record<string, Relation>,
-> = {
-	[
-		K in
-			& NonUndefinedKeysOnly<TInclude>
-			& keyof TRelations
-	]: TRelations[K] extends infer TRel extends Relation ? BuildQueryResult<
-			TSchema,
-			FindTableByDBName<TSchema, TRel['referencedTableName']>,
-			Assume<TInclude[K], true | Record<string, unknown>>
-		> extends infer TResult ? TRel extends One ?
-					| TResult
-					| (Equal<TRel['isNullable'], false> extends true ? null : never)
-			: TResult[]
-		: never
-		: never;
-};
+> = NullToUndefinedDeep<
+	{
+		[
+			K in
+				& NonUndefinedKeysOnly<TInclude>
+				& keyof TRelations
+		]: TRelations[K] extends infer TRel extends Relation ? BuildQueryResult<
+				TSchema,
+				FindTableByDBName<TSchema, TRel['referencedTableName']>,
+				Assume<TInclude[K], true | Record<string, unknown>>
+			> extends infer TResult ? TRel extends One ?
+						| TResult
+						| (Equal<TRel['isNullable'], false> extends true ? null : never)
+				: TResult[]
+			: never
+			: never;
+	}
+>;
 
 export type NonUndefinedKeysOnly<T> =
 	& ExtractObjectValues<
@@ -346,62 +348,70 @@ export type NonUndefinedKeysOnly<T> =
 	>
 	& keyof T;
 
+export type NullToUndefinedDeep<T> = T extends null ? undefined
+	: T extends Date ? T
+	: T extends readonly (infer U)[] ? NullToUndefinedDeep<U>[]
+	: T extends object ? { [K in keyof T]: NullToUndefinedDeep<T[K]> }
+	: T;
+
 export type BuildQueryResult<
 	TSchema extends TablesRelationalConfig,
 	TTableConfig extends TableRelationalConfig,
 	TFullSelection extends true | Record<string, unknown>,
-> = Equal<TFullSelection, true> extends true ? InferModelFromColumns<TTableConfig['columns']>
-	: TFullSelection extends Record<string, unknown> ? Simplify<
-			& (TFullSelection['columns'] extends Record<string, unknown> ? InferModelFromColumns<
-					{
-						[
-							K in Equal<
-								Exclude<
-									TFullSelection['columns'][
-										& keyof TFullSelection['columns']
+> = NullToUndefinedDeep<
+	Equal<TFullSelection, true> extends true ? InferModelFromColumns<TTableConfig['columns']>
+		: TFullSelection extends Record<string, unknown> ? Simplify<
+				& (TFullSelection['columns'] extends Record<string, unknown> ? InferModelFromColumns<
+						{
+							[
+								K in Equal<
+									Exclude<
+										TFullSelection['columns'][
+											& keyof TFullSelection['columns']
+											& keyof TTableConfig['columns']
+										],
+										undefined
+									>,
+									false
+								> extends true ? Exclude<
+										keyof TTableConfig['columns'],
+										NonUndefinedKeysOnly<TFullSelection['columns']>
+									>
+									:
+										& {
+											[K in keyof TFullSelection['columns']]: Equal<
+												TFullSelection['columns'][K],
+												true
+											> extends true ? K
+												: never;
+										}[keyof TFullSelection['columns']]
 										& keyof TTableConfig['columns']
-									],
-									undefined
-								>,
-								false
-							> extends true ? Exclude<
-									keyof TTableConfig['columns'],
-									NonUndefinedKeysOnly<TFullSelection['columns']>
-								>
-								:
-									& {
-										[K in keyof TFullSelection['columns']]: Equal<
-											TFullSelection['columns'][K],
-											true
-										> extends true ? K
-											: never;
-									}[keyof TFullSelection['columns']]
-									& keyof TTableConfig['columns']
-						]: TTableConfig['columns'][K];
+							]: TTableConfig['columns'][K];
+						}
+					>
+					: InferModelFromColumns<TTableConfig['columns']>)
+				& (TFullSelection['extras'] extends
+					| Record<string, unknown>
+					| ((...args: any[]) => Record<string, unknown>) ? {
+						[
+							K in NonUndefinedKeysOnly<
+								ReturnTypeOrValue<TFullSelection['extras']>
+							>
+						]: Assume<
+							ReturnTypeOrValue<TFullSelection['extras']>[K],
+							SQL.Aliased
+						>['_']['type'];
 					}
-				>
-				: InferModelFromColumns<TTableConfig['columns']>)
-			& (TFullSelection['extras'] extends
-				| Record<string, unknown>
-				| ((...args: any[]) => Record<string, unknown>) ? {
-					[
-						K in NonUndefinedKeysOnly<
-							ReturnTypeOrValue<TFullSelection['extras']>
-						>
-					]: Assume<
-						ReturnTypeOrValue<TFullSelection['extras']>[K],
-						SQL.Aliased
-					>['_']['type'];
-				}
-				: {})
-			& (TFullSelection['with'] extends Record<string, unknown> ? BuildRelationResult<
-					TSchema,
-					TFullSelection['with'],
-					TTableConfig['relations']
-				>
-				: {})
-		>
-	: never;
+					: {})
+				& (TFullSelection['with'] extends Record<string, unknown> ? BuildRelationResult<
+						TSchema,
+						TFullSelection['with'],
+						TTableConfig['relations']
+					>
+					: {})
+			>
+		: never
+>;
 
 export interface RelationConfig<
 	TTableName extends string,

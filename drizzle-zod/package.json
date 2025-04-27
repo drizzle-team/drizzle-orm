@@ -29,7 +29,7 @@
 	"module": "./index.mjs",
 	"types": "./index.d.ts",
 	"publishConfig": {
-    "access": "public"
+		"access": "public"
 	},
 	"repository": {
 		"type": "git",
