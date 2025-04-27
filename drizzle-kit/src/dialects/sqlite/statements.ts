@@ -7,7 +7,8 @@ export interface JsonCreateTableStatement {
 
 export interface JsonRecreateTableStatement {
 	type: 'recreate_table';
-	table: TableFull;
+	to: TableFull;
+	from: TableFull;
 }
 
 export interface JsonDropTableStatement {

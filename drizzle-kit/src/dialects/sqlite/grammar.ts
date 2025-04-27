@@ -1,9 +1,15 @@
+import { ForeignKey } from './ddl';
+
 const namedCheckPattern = /CONSTRAINT\s*["']?(\w+)["']?\s*CHECK\s*\((.*?)\)/gi;
 const unnamedCheckPattern = /CHECK\s*\((.*?)\)/gi;
 const viewAsStatementRegex = new RegExp(`\\bAS\\b\\s+(SELECT.+)$`, 'i');
 
-export const defaultPkName = (table: string) => {
+export const nameForForeignKey = (fk: Pick<ForeignKey, 'table' | 'columnsFrom' | 'tableTo' | 'columnsTo'>) => {
+	return `fk_${fk.table}_${fk.columnsFrom.join('_')}_${fk.tableTo}_${fk.columnsTo.join('_')}_fk`;
 };
+export const nameForUnique = (table:string, columns:string[])=>{
+	return `${table}_${columns.join("_")}_unique`
+}
 
 const intAffinities = [
 	'INT',
@@ -78,9 +84,8 @@ export const parseTableSQL = (sql: string) => {
 	});
 	const unnamedChecks = [...sql.matchAll(unnamedCheckPattern)].map((it) => {
 		const [_, value] = it;
-
 		return { name: null, value: value.trim() };
-	});
+	}).filter((it) => !namedChecks.some((x) => x.value === it.value));
 
 	return {
 		checks: [...namedChecks, ...unnamedChecks],

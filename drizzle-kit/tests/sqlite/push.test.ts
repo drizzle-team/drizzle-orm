@@ -86,29 +86,20 @@ test('dropped, added unique index', async (t) => {
 		real: real('real'),
 		text: text('text', { length: 255 }),
 		role: text('role', { enum: ['admin', 'user'] }).default('user'),
-		isConfirmed: integer('is_confirmed', {
-			mode: 'boolean',
-		}),
+		isConfirmed: integer('is_confirmed', { mode: 'boolean' }),
 	});
 
 	const schema1 = {
 		users,
-
-		customers: sqliteTable(
-			'customers',
-			{
-				id: integer('id').primaryKey(),
-				address: text('address').notNull().unique(),
-				isConfirmed: integer('is_confirmed', { mode: 'boolean' }),
-				registrationDate: integer('registration_date', { mode: 'timestamp_ms' })
-					.notNull()
-					.$defaultFn(() => new Date()),
-				userId: integer('user_id').notNull(),
-			},
-			(table) => ({
-				uniqueIndex: uniqueIndex('customers_address_unique').on(table.address),
-			}),
-		),
+		customers: sqliteTable('customers', {
+			id: integer('id').primaryKey(),
+			address: text('address').notNull().unique(),
+			isConfirmed: integer('is_confirmed', { mode: 'boolean' }),
+			registrationDate: integer('registration_date', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
+			userId: integer('user_id').notNull(),
+		}, (table) => ({
+			uniqueIndex: uniqueIndex('customers_address_unique').on(table.address),
+		})),
 
 		posts: sqliteTable('posts', {
 			id: integer('id').primaryKey(),
@@ -119,24 +110,19 @@ test('dropped, added unique index', async (t) => {
 
 	const schema2 = {
 		users,
-
-		customers: sqliteTable(
-			'customers',
-			{
-				id: integer('id').primaryKey(),
-				address: text('address').notNull(),
-				isConfirmed: integer('is_confirmed', { mode: 'boolean' }),
-				registrationDate: integer('registration_date', { mode: 'timestamp_ms' })
-					.notNull()
-					.$defaultFn(() => new Date()),
-				userId: integer('user_id').notNull(),
-			},
-			(table) => ({
-				uniqueIndex: uniqueIndex('customers_is_confirmed_unique').on(
-					table.isConfirmed,
-				),
-			}),
-		),
+		customers: sqliteTable('customers', {
+			id: integer('id').primaryKey(),
+			address: text('address').notNull(),
+			isConfirmed: integer('is_confirmed', { mode: 'boolean' }),
+			registrationDate: integer('registration_date', { mode: 'timestamp_ms' })
+				.notNull()
+				.$defaultFn(() => new Date()),
+			userId: integer('user_id').notNull(),
+		}, (table) => ({
+			uniqueIndex: uniqueIndex('customers_is_confirmed_unique').on(
+				table.isConfirmed,
+			),
+		})),
 
 		posts: sqliteTable('posts', {
 			id: integer('id').primaryKey(),
@@ -147,15 +133,12 @@ test('dropped, added unique index', async (t) => {
 
 	const { sqlStatements, hints } = await diff2({ client, left: schema1, right: schema2 });
 
-	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toBe(
+	expect(sqlStatements).toStrictEqual([
 		`DROP INDEX IF EXISTS \`customers_address_unique\`;`,
-	);
-	expect(sqlStatements[1]).toBe(
 		`CREATE UNIQUE INDEX \`customers_is_confirmed_unique\` ON \`customers\` (\`is_confirmed\`);`,
-	);
+	]);
 
-	expect(hints!.length).toBe(0);
+	expect(hints.length).toBe(0);
 });
 
 test('added column not null and without default to table with data', async (t) => {
@@ -185,7 +168,6 @@ test('added column not null and without default to table with data', async (t) =
 	const { sqlStatements, hints } = await diff2({ client, left: schema1, right: schema2, seed: seedStatements });
 
 	expect(sqlStatements).toStrictEqual([
-		`delete from companies;`,
 		`ALTER TABLE \`companies\` ADD \`age\` integer NOT NULL;`,
 	]);
 
@@ -252,10 +234,12 @@ test('drop autoincrement. drop column with data', async (t) => {
 	const { sqlStatements, hints } = await diff2({ client: turso, left: schema1, right: schema2, seed: seedStatements });
 
 	expect(sqlStatements).toStrictEqual([
-		`CREATE TABLE \`__new_companies\` (\n\t\`id\` integer PRIMARY KEY NOT NULL\n);\n`,
-		`INSERT INTO \`__new_companies\`("id") SELECT "id" FROM \`companies\`;`,
-		`DROP TABLE \`companies\`;`,
-		`ALTER TABLE \`__new_companies\` RENAME TO \`companies\`;`,
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_companies` (\n\t`id` integer PRIMARY KEY\n);\n',
+		'INSERT INTO `__new_companies`(`id`) SELECT `id` FROM `companies`;',
+		'DROP TABLE `companies`;',
+		'ALTER TABLE `__new_companies` RENAME TO `companies`;',
+		'PRAGMA foreign_keys=ON;',
 	]);
 
 	expect(hints).toStrictEqual([
@@ -298,21 +282,18 @@ test('drop autoincrement. drop column with data with pragma off', async (t) => {
 
 	const { sqlStatements, hints } = await diff2({ client, left: schema1, right: schema2, seed: seedStatements });
 
-	expect(sqlStatements.length).toBe(4);
-	expect(sqlStatements[0]).toBe(
-		`CREATE TABLE \`__new_companies\` (
-\t\`id\` integer PRIMARY KEY NOT NULL,
-\t\`user_id\` integer,
-\tFOREIGN KEY (\`user_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE no action
-);\n`,
-	);
-	expect(sqlStatements[1]).toBe(
-		`INSERT INTO \`__new_companies\`("id", "user_id") SELECT "id", "user_id" FROM \`companies\`;`,
-	);
-	expect(sqlStatements[2]).toBe(`DROP TABLE \`companies\`;`);
-	expect(sqlStatements[3]).toBe(
-		`ALTER TABLE \`__new_companies\` RENAME TO \`companies\`;`,
-	);
+	expect(sqlStatements).toStrictEqual([
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_companies` (\n'
+		+ '\t`id` integer PRIMARY KEY,\n'
+		+ '\t`user_id` integer,\n'
+		+ '\tFOREIGN KEY (`user_id`) REFERENCES `users`(`id`)\n'
+		+ ');\n',
+		'INSERT INTO `__new_companies`(`id`, `user_id`) SELECT `id`, `user_id` FROM `companies`;',
+		'DROP TABLE `companies`;',
+		'ALTER TABLE `__new_companies` RENAME TO `companies`;',
+		'PRAGMA foreign_keys=ON;',
+	]);
 
 	expect(hints).toStrictEqual([
 		`· You're about to delete ${
@@ -329,24 +310,27 @@ test('change autoincrement. other table references current', async (t) => {
 	const companies1 = sqliteTable('companies', {
 		id: integer('id').primaryKey({ autoIncrement: true }),
 	});
+	const companies2 = sqliteTable('companies', {
+		id: integer('id').primaryKey({ autoIncrement: false }),
+	});
+
 	const users1 = sqliteTable('users', {
 		id: integer('id').primaryKey({ autoIncrement: true }),
 		name: text('name').unique(),
 		companyId: text('company_id').references(() => companies1.id),
 	});
+
+	const users2 = sqliteTable('users', {
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		name: text('name').unique(),
+		companyId: text('company_id').references(() => companies2.id),
+	});
+
 	const schema1 = {
 		companies: companies1,
 		users: users1,
 	};
 
-	const companies2 = sqliteTable('companies', {
-		id: integer('id').primaryKey({ autoIncrement: false }),
-	});
-	const users2 = sqliteTable('users', {
-		id: integer('id').primaryKey({ autoIncrement: true }),
-		name: text('name').unique(),
-		companyId: text('company_id').references(() => companies1.id),
-	});
 	const schema2 = {
 		companies: companies2,
 		users: users2,
@@ -367,11 +351,11 @@ test('change autoincrement. other table references current', async (t) => {
 	expect(sqlStatements[0]).toBe(`PRAGMA foreign_keys=OFF;`);
 	expect(sqlStatements[1]).toBe(
 		`CREATE TABLE \`__new_companies\` (
-\t\`id\` integer PRIMARY KEY NOT NULL
+\t\`id\` integer PRIMARY KEY
 );\n`,
 	);
 	expect(sqlStatements[2]).toBe(
-		`INSERT INTO \`__new_companies\`("id") SELECT "id" FROM \`companies\`;`,
+		`INSERT INTO \`__new_companies\`(\`id\`) SELECT \`id\` FROM \`companies\`;`,
 	);
 	expect(sqlStatements[3]).toBe(`DROP TABLE \`companies\`;`);
 	expect(sqlStatements[4]).toBe(
@@ -463,31 +447,27 @@ test('drop not null, add not null', async (t) => {
 
 	const { sqlStatements, hints } = await diff2({ client, left: schema1, right: schema2 });
 
-	expect(sqlStatements.length).toBe(8);
-	expect(sqlStatements[0]).toBe(`CREATE TABLE \`__new_users\` (
-\t\`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-\t\`name\` text
-);\n`);
-	expect(sqlStatements[1]).toBe(
-		`INSERT INTO \`__new_users\`("id", "name") SELECT "id", "name" FROM \`users\`;`,
-	);
-	expect(sqlStatements[2]).toBe(`DROP TABLE \`users\`;`);
-	expect(sqlStatements[3]).toBe(
-		`ALTER TABLE \`__new_users\` RENAME TO \`users\`;`,
-	);
-
-	expect(sqlStatements[4]).toBe(`CREATE TABLE \`__new_posts\` (
-\t\`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-\t\`name\` text NOT NULL,
-\t\`user_id\` integer
-);\n`);
-	expect(sqlStatements[5]).toBe(
-		`INSERT INTO \`__new_posts\`("id", "name", "user_id") SELECT "id", "name", "user_id" FROM \`posts\`;`,
-	);
-	expect(sqlStatements[6]).toBe(`DROP TABLE \`posts\`;`);
-	expect(sqlStatements[7]).toBe(
-		`ALTER TABLE \`__new_posts\` RENAME TO \`posts\`;`,
-	);
+	expect(sqlStatements).toStrictEqual([
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_users` (\n'
+		+ '\t`id` integer PRIMARY KEY AUTOINCREMENT,\n'
+		+ '\t`name` text\n'
+		+ ');\n',
+		'INSERT INTO `__new_users`(`id`, `name`) SELECT `id`, `name` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_posts` (\n'
+		+ '\t`id` integer PRIMARY KEY AUTOINCREMENT,\n'
+		+ '\t`name` text NOT NULL,\n'
+		+ '\t`user_id` integer\n'
+		+ ');\n',
+		'INSERT INTO `__new_posts`(`id`, `name`, `user_id`) SELECT `id`, `name`, `user_id` FROM `posts`;',
+		'DROP TABLE `posts`;',
+		'ALTER TABLE `__new_posts` RENAME TO `posts`;',
+		'PRAGMA foreign_keys=ON;',
+	]);
 
 	expect(hints.length).toBe(0);
 });
@@ -513,24 +493,21 @@ test('rename table and change data type', async (t) => {
 		client,
 		left: schema1,
 		right: schema2,
-		renames: ['sqlStatementsold_users->sqlStatementsnew_users'],
+		renames: ['old_users->new_users'],
 	});
 
-	expect(sqlStatements.length).toBe(5);
-	expect(sqlStatements[0]).toBe(
-		`ALTER TABLE \`old_users\` RENAME TO \`new_users\`;`,
-	);
-	expect(sqlStatements[1]).toBe(`CREATE TABLE \`__new_new_users\` (
-\t\`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-\t\`age\` integer
-);\n`);
-	expect(sqlStatements[2]).toBe(
-		`INSERT INTO \`__new_new_users\`("id", "age") SELECT "id", "age" FROM \`new_users\`;`,
-	);
-	expect(sqlStatements[3]).toBe(`DROP TABLE \`new_users\`;`);
-	expect(sqlStatements[4]).toBe(
-		`ALTER TABLE \`__new_new_users\` RENAME TO \`new_users\`;`,
-	);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE `old_users` RENAME TO `new_users`;',
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_new_users` (\n'
+		+ '\t`id` integer PRIMARY KEY AUTOINCREMENT,\n'
+		+ '\t`age` integer\n'
+		+ ');\n',
+		'INSERT INTO `__new_new_users`(`id`, `age`) SELECT `id`, `age` FROM `new_users`;',
+		'DROP TABLE `new_users`;',
+		'ALTER TABLE `__new_new_users` RENAME TO `new_users`;',
+		'PRAGMA foreign_keys=ON;',
+	]);
 
 	expect(hints.length).toBe(0);
 });
@@ -556,21 +533,21 @@ test('rename column and change data type', async (t) => {
 		client,
 		left: schema1,
 		right: schema2,
-		renames: ['sqlStatementsusers.name->sqlStatementsusers.age'],
+		renames: ['users.name->users.age'],
 	});
 
-	expect(sqlStatements.length).toBe(4);
-	expect(sqlStatements[0]).toBe(`CREATE TABLE \`__new_users\` (
-\t\`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-\t\`age\` integer
-);\n`);
-	expect(sqlStatements[1]).toBe(
-		`INSERT INTO \`__new_users\`("id", "age") SELECT "id", "age" FROM \`users\`;`,
-	);
-	expect(sqlStatements[2]).toBe(`DROP TABLE \`users\`;`);
-	expect(sqlStatements[3]).toBe(
-		`ALTER TABLE \`__new_users\` RENAME TO \`users\`;`,
-	);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE `users` RENAME COLUMN `name` TO `age`;',
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_users` (\n'
+		+ '\t`id` integer PRIMARY KEY AUTOINCREMENT,\n'
+		+ '\t`age` integer\n'
+		+ ');\n',
+		'INSERT INTO `__new_users`(`id`, `age`) SELECT `id`, `age` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+	]);
 
 	expect(hints.length).toBe(0);
 });
@@ -619,18 +596,18 @@ test('recreate table with nested references', async (t) => {
 		client,
 		left: schema1,
 		right: schema2,
-		renames: ['sqlStatementsusers.name->sqlStatementsusers.age'],
+		renames: ['users.name->users.age'],
 	});
 
 	expect(sqlStatements.length).toBe(6);
 	expect(sqlStatements[0]).toBe('PRAGMA foreign_keys=OFF;');
 	expect(sqlStatements[1]).toBe(`CREATE TABLE \`__new_users\` (
-\t\`id\` integer PRIMARY KEY NOT NULL,
+\t\`id\` integer PRIMARY KEY,
 \t\`name\` text,
 \t\`age\` integer
 );\n`);
 	expect(sqlStatements[2]).toBe(
-		`INSERT INTO \`__new_users\`("id", "name", "age") SELECT "id", "name", "age" FROM \`users\`;`,
+		`INSERT INTO \`__new_users\`(\`id\`, \`name\`, \`age\`) SELECT \`id\`, \`name\`, \`age\` FROM \`users\`;`,
 	);
 	expect(sqlStatements[3]).toBe(`DROP TABLE \`users\`;`);
 	expect(sqlStatements[4]).toBe(
@@ -673,23 +650,23 @@ test('recreate table with added column not null and without default with data', 
 		seed: seedStatements,
 	});
 
-	expect(sqlStatements.length).toBe(4);
-	expect(sqlStatements[0]).toBe('DELETE FROM \`users\`;');
-	expect(sqlStatements[1]).toBe(`CREATE TABLE \`__new_users\` (
-\t\`id\` integer PRIMARY KEY NOT NULL,
-\t\`name\` text,
-\t\`age\` integer,
-\t\`new_column\` text NOT NULL
-);\n`);
-	expect(sqlStatements[2]).toBe(`DROP TABLE \`users\`;`);
-	expect(sqlStatements[3]).toBe(
-		`ALTER TABLE \`__new_users\` RENAME TO \`users\`;`,
-	);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE `users` ADD `new_column` text NOT NULL;',
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_users` (\n'
+		+ '\t`id` integer PRIMARY KEY,\n'
+		+ '\t`name` text,\n'
+		+ '\t`age` integer,\n'
+		+ '\t`new_column` text NOT NULL\n'
+		+ ');\n',
+		'INSERT INTO `__new_users`(`id`, `name`, `age`) SELECT `id`, `name`, `age` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+	]);
 
 	expect(hints).toStrictEqual([
-		`· You're about to add not-null ${
-			chalk.underline('new_column')
-		} column without default value to table, which contains 2 items`,
+		`· You're about to add not-null 'new_column' column without default value to non-empty 'users' table`,
 	]);
 });
 
@@ -720,20 +697,19 @@ test('add check constraint to table', async (t) => {
 		right: schema2,
 	});
 
-	expect(sqlStatements.length).toBe(4);
-	expect(sqlStatements[0]).toBe(`CREATE TABLE \`__new_users\` (
-\t\`id\` integer PRIMARY KEY NOT NULL,
-\t\`name\` text,
-\t\`age\` integer,
-\tCONSTRAINT "some_check" CHECK("__new_users"."age" > 21)
-);\n`);
-	expect(sqlStatements[1]).toBe(
-		'INSERT INTO `__new_users`("id", "name", "age") SELECT "id", "name", "age" FROM `users`;',
-	);
-	expect(sqlStatements[2]).toBe(`DROP TABLE \`users\`;`);
-	expect(sqlStatements[3]).toBe(
-		`ALTER TABLE \`__new_users\` RENAME TO \`users\`;`,
-	);
+	expect(sqlStatements).toStrictEqual([
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_users` (\n'
+		+ '\t`id` integer PRIMARY KEY,\n'
+		+ '\t`name` text,\n'
+		+ '\t`age` integer,\n'
+		+ '\tCONSTRAINT "some_check" CHECK("age" > 21)\n'
+		+ ');\n',
+		'INSERT INTO `__new_users`(`id`, `name`, `age`) SELECT `id`, `name`, `age` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+	]);
 
 	expect(hints.length).toBe(0);
 });
@@ -765,19 +741,18 @@ test('drop check constraint', async (t) => {
 		right: schema2,
 	});
 
-	expect(sqlStatements.length).toBe(4);
-	expect(sqlStatements[0]).toBe(`CREATE TABLE \`__new_users\` (
-\t\`id\` integer PRIMARY KEY NOT NULL,
-\t\`name\` text,
-\t\`age\` integer
-);\n`);
-	expect(sqlStatements[1]).toBe(
-		'INSERT INTO `__new_users`("id", "name", "age") SELECT "id", "name", "age" FROM `users`;',
-	);
-	expect(sqlStatements[2]).toBe(`DROP TABLE \`users\`;`);
-	expect(sqlStatements[3]).toBe(
-		`ALTER TABLE \`__new_users\` RENAME TO \`users\`;`,
-	);
+	expect(sqlStatements).toStrictEqual([
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_users` (\n'
+		+ '\t`id` integer PRIMARY KEY,\n'
+		+ '\t`name` text,\n'
+		+ '\t`age` integer\n'
+		+ ');\n',
+		'INSERT INTO `__new_users`(`id`, `name`, `age`) SELECT `id`, `name`, `age` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+	]);
 
 	expect(hints.length).toBe(0);
 });
@@ -800,8 +775,8 @@ test('db has checks. Push with same names', async () => {
 			id: int('id').primaryKey({ autoIncrement: false }),
 			name: text('name'),
 			age: integer('age'),
-		}, () => ({
-			someCheck: check('some_check', sql`some new value`),
+		}, (table) => ({
+			someCheck: check('some_check', sql`${table.age} > 22`),
 		})),
 	};
 
@@ -811,7 +786,19 @@ test('db has checks. Push with same names', async () => {
 		right: schema2,
 	});
 
-	expect(sqlStatements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_users` (\n'
+		+ '\t`id` integer PRIMARY KEY,\n'
+		+ '\t`name` text,\n'
+		+ '\t`age` integer,\n'
+		+ '\tCONSTRAINT "some_check" CHECK("age" > 22)\n'
+		+ ');\n',
+		'INSERT INTO `__new_users`(`id`, `name`, `age`) SELECT `id`, `name`, `age` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+	]);
 	expect(hints.length).toBe(0);
 });
 
@@ -947,7 +934,7 @@ test('rename table with composite primary key', async () => {
 		client,
 		left: schema1,
 		right: schema2,
-		renames: ['sqlStatementsproducts_categories->sqlStatementsproducts_to_categories'],
+		renames: ['products_categories->products_to_categories'],
 	});
 
 	expect(sqlStatements).toStrictEqual([

@@ -19,7 +19,7 @@ test('create table with check', async (t) => {
 		'CREATE TABLE `users` (\n'
 		+ '\t`id` integer PRIMARY KEY,\n'
 		+ '\t`age` integer,\n'
-		+ '\tCONSTRAINT "some_check_name" CHECK("users"."age" > 21)\n'
+		+ '\tCONSTRAINT "some_check_name" CHECK("age" > 21)\n'
 		+ ');\n',
 	]);
 });
@@ -48,7 +48,7 @@ test('add check contraint to existing table', async (t) => {
 		'CREATE TABLE `__new_users` (\n'
 		+ '\t`id` integer PRIMARY KEY,\n'
 		+ '\t`age` integer,\n'
-		+ '\tCONSTRAINT "some_check_name" CHECK("users"."age" > 21)\n'
+		+ '\tCONSTRAINT "some_check_name" CHECK("age" > 21)\n'
 		+ ');\n',
 		'INSERT INTO `__new_users`(`id`, `age`) SELECT `id`, `age` FROM `users`;',
 		'DROP TABLE `users`;',
@@ -113,7 +113,7 @@ test('rename check constraint', async (t) => {
 			'CREATE TABLE `__new_users` (\n'
 			+ '\t`id` integer PRIMARY KEY,\n'
 			+ '\t`age` integer,\n'
-			+ '\tCONSTRAINT "new_some_check_name" CHECK("users"."age" > 21)\n'
+			+ '\tCONSTRAINT "new_some_check_name" CHECK("age" > 21)\n'
 			+ ');\n',
 			'INSERT INTO `__new_users`(`id`, `age`) SELECT `id`, `age` FROM `users`;',
 			'DROP TABLE `users`;',
@@ -149,7 +149,7 @@ test('change check constraint value', async (t) => {
 		'CREATE TABLE `__new_users` (\n'
 		+ '\t`id` integer PRIMARY KEY,\n'
 		+ '\t`age` integer,\n'
-		+ '\tCONSTRAINT "some_check_name" CHECK("users"."age" > 10)\n'
+		+ '\tCONSTRAINT "some_check_name" CHECK("age" > 10)\n'
 		+ ');\n',
 		'INSERT INTO `__new_users`(`id`, `age`) SELECT `id`, `age` FROM `users`;',
 		'DROP TABLE `users`;',

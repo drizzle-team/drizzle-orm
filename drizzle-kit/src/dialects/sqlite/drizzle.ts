@@ -7,30 +7,41 @@ import {
 	SQLiteSyncDialect,
 	SQLiteTable,
 	SQLiteView,
-	uniqueKeyName,
 } from 'drizzle-orm/sqlite-core';
 import { safeRegister } from '../../cli/commands/utils';
 import { CasingType } from '../../cli/validations/common';
 import { getColumnCasing, sqlToStr } from '../../serializer/utils';
-import { CheckConstraint, Column, ForeignKey, Index, PrimaryKey, SqliteEntities, UniqueConstraint, View } from './ddl';
+import type {
+	CheckConstraint,
+	Column,
+	ForeignKey,
+	Index,
+	InterimColumn,
+	InterimSchema,
+	PrimaryKey,
+	Table,
+	UniqueConstraint,
+	View,
+} from './ddl';
+import { nameForForeignKey, nameForUnique } from './grammar';
 
 export const fromDrizzleSchema = (
 	dTables: AnySQLiteTable[],
 	dViews: SQLiteView[],
 	casing: CasingType | undefined,
-) => {
+): InterimSchema => {
 	const dialect = new SQLiteSyncDialect({ casing });
 	const tableConfigs = dTables.map((it) => ({ table: it, config: getTableConfig(it) }));
-	const tables: SqliteEntities['tables'][] = tableConfigs.map((it) => {
+	const tables: Table[] = tableConfigs.map((it) => {
 		return {
 			entityType: 'tables',
 			name: it.config.name,
-		} satisfies SqliteEntities['tables'];
+		} satisfies Table;
 	});
+
 	const columns = tableConfigs.map((it) => {
 		return it.config.columns.map((column) => {
 			const name = getColumnCasing(column, casing);
-			const notNull: boolean = column.notNull;
 			const primaryKey: boolean = column.primary;
 			const generated = column.generated;
 			const generatedObj = generated
@@ -54,20 +65,27 @@ export const fromDrizzleSchema = (
 					: { value: String(column.default), isExpression: true } // integer boolean etc
 				: null;
 
+			const hasUniqueIndex = it.config.indexes.find((item) => {
+				const i = item.config;
+				const column = i.columns.length === 1 ? i.columns[0] : null;
+				return column && !is(column, SQL) && getColumnCasing(column, casing) === name;
+			}) !== null;
+
 			return {
 				entityType: 'columns',
 				table: it.config.name,
 				name,
 				type: column.getSQLType(),
 				default: defalutValue,
-				notNull,
+				notNull: column.notNull && !primaryKey,
 				primaryKey,
 				autoincrement: is(column, SQLiteBaseInteger)
 					? column.autoIncrement
 					: false,
 				generated: generatedObj,
-				unique: column.isUnique ? { name: column.uniqueName ?? null } : null,
-			} satisfies Column;
+				isUnique: !hasUniqueIndex && column.isUnique,
+				uniqueName: column.uniqueName ?? null,
+			} satisfies InterimColumn;
 		});
 	}).flat();
 
@@ -86,28 +104,18 @@ export const fromDrizzleSchema = (
 	const fks = tableConfigs.map((it) => {
 		return it.config.foreignKeys.map((fk) => {
 			const tableFrom = it.config.name;
-			const onDelete = fk.onDelete ?? null;
-			const onUpdate = fk.onUpdate ?? null;
+			const onDelete = fk.onDelete ?? 'NO ACTION';
+			const onUpdate = fk.onUpdate ?? 'NO ACTION';
 			const reference = fk.reference();
 
 			const referenceFT = reference.foreignTable;
 			// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
 			const tableTo = getTableName(referenceFT); // TODO: casing?
 
-			const originalColumnsFrom = reference.columns.map((it) => it.name);
 			const columnsFrom = reference.columns.map((it) => getColumnCasing(it, casing));
-			const originalColumnsTo = reference.foreignColumns.map((it) => it.name);
 			const columnsTo = reference.foreignColumns.map((it) => getColumnCasing(it, casing));
 
-			let name = fk.getName();
-			if (casing !== undefined) {
-				for (let i = 0; i < originalColumnsFrom.length; i++) {
-					name = name.replace(originalColumnsFrom[i], columnsFrom[i]);
-				}
-				for (let i = 0; i < originalColumnsTo.length; i++) {
-					name = name.replace(originalColumnsTo[i], columnsTo[i]);
-				}
-			}
+			const name = nameForForeignKey({ table: tableFrom, columnsFrom, tableTo, columnsTo });
 			return {
 				entityType: 'fks',
 				table: it.config.name,
@@ -155,23 +163,26 @@ export const fromDrizzleSchema = (
 	const uniques = tableConfigs.map((it) => {
 		return it.config.uniqueConstraints.map((unique) => {
 			const columnNames = unique.columns.map((c) => getColumnCasing(c, casing));
-			const name = unique.name ?? uniqueKeyName(it.table, columnNames);
+			const name = unique.name ?? nameForUnique(it.config.name, columnNames);
 			return {
 				entityType: 'uniques',
 				table: it.config.name,
 				name: name,
 				columns: columnNames,
+				origin: 'manual',
 			} satisfies UniqueConstraint;
 		});
 	}).flat();
 
 	const checks = tableConfigs.map((it) => {
 		return it.config.checks.map((check) => {
+			// TODO: dialect.sqlToQuery(check.value).sql returns "users"."age" > 21, as opposed to "age" > 21 for checks, which is wrong
+			const value = dialect.sqlToQuery(check.value).sql.replace(`"${it.config.name}".`, '');
 			return {
 				entityType: 'checks',
 				table: it.config.name,
 				name: check.name,
-				value: dialect.sqlToQuery(check.value).sql,
+				value: value,
 			} satisfies CheckConstraint;
 		});
 	}).flat();

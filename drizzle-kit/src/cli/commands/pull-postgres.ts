@@ -3,6 +3,8 @@ import { writeFileSync } from 'fs';
 import { render, renderWithTask } from 'hanji';
 import { Minimatch } from 'minimatch';
 import { join } from 'path';
+import { toJsonSnapshot } from 'src/dialects/postgres/snapshot';
+import { originUUID } from 'src/global';
 import { mockResolver } from 'src/utils/mocks';
 import {
 	Column,
@@ -29,8 +31,6 @@ import { err, ProgressView } from '../views';
 import { IntrospectProgress } from '../views';
 import { writeResult } from './generate-common';
 import { relationsToTypeScript } from './pull-common';
-import { toJsonSnapshot } from 'src/dialects/postgres/snapshot';
-import { originUUID } from 'src/global';
 
 export const introspectPostgres = async (
 	casing: Casing,
@@ -98,7 +98,7 @@ export const introspectPostgres = async (
 		process.exit(1);
 	}
 
-	const ts = postgresSchemaToTypeScript(ddl2, casing);
+	const ts = postgresSchemaToTypeScript(ddl2, res.viewColumns, casing);
 	const relationsTs = relationsToTypeScript(ddl2.fks.list(), casing);
 
 	const schemaFile = join(out, 'schema.ts');
@@ -129,8 +129,6 @@ export const introspectPostgres = async (
 			mockResolver(blanks), // fks
 			'push',
 		);
-
-
 
 		writeResult({
 			snapshot: toJsonSnapshot(ddl2, originUUID, renames),

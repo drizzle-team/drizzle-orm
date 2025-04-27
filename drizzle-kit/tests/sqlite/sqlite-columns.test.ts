@@ -144,7 +144,7 @@ test('add columns #5', async (t) => {
 			+ '\t`report_to` integer,\n'
 			+ '\tFOREIGN KEY (`report_to`) REFERENCES `users`(`id`)\n'
 			+ ');\n',
-			'INSERT INTO `__new_users`(`id`, `report_to`) SELECT `id`, `report_to` FROM `users`;',
+			'INSERT INTO `__new_users`(`id`) SELECT `id` FROM `users`;',
 			'DROP TABLE `users`;',
 			'ALTER TABLE `__new_users` RENAME TO `users`;',
 			'PRAGMA foreign_keys=ON;',

@@ -1,7 +1,10 @@
 import type { Simplify } from '../../utils';
 import type { JsonStatement } from './statements';
 
-export const convertor = <TType extends JsonStatement['type'], TStatement extends Extract<JsonStatement, { type: TType }>>(
+export const convertor = <
+	TType extends JsonStatement['type'],
+	TStatement extends Extract<JsonStatement, { type: TType }>,
+>(
 	type: TType,
 	convertor: (statement: Simplify<Omit<TStatement, 'type'>>) => string | string[],
 ) => {
@@ -44,10 +47,9 @@ const createTable = convertor('create_table', (st) => {
 		const omitNotNull = column.primaryKey && column.type.toLowerCase().startsWith('int');
 
 		// pk check is needed
-		const primaryKeyStatement =
-			column.primaryKey || (pk && pk.columns.length === 1 && pk.columns[0] === column.name)
-				? ' PRIMARY KEY'
-				: '';
+		const primaryKeyStatement = column.primaryKey || (pk && pk.columns.length === 1 && pk.columns[0] === column.name)
+			? ' PRIMARY KEY'
+			: '';
 		const notNullStatement = column.notNull && !omitNotNull ? ' NOT NULL' : '';
 
 		// in SQLite we escape single quote by doubling it, `'`->`''`, but we don't do it here
@@ -66,11 +68,9 @@ const createTable = convertor('create_table', (st) => {
 			? ` GENERATED ALWAYS AS ${column.generated.as} ${column.generated.type.toUpperCase()}`
 			: '';
 
-		const uniqueStatement = column.unique ? column.unique.name ? ` UNIQUE(\`${column.unique.name}\`)` : ' UNIQUE' : '';
-
 		statement += '\t';
 		statement +=
-			`\`${column.name}\` ${column.type}${primaryKeyStatement}${autoincrementStatement}${defaultStatement}${generatedStatement}${notNullStatement}${uniqueStatement}`;
+			`\`${column.name}\` ${column.type}${primaryKeyStatement}${autoincrementStatement}${defaultStatement}${generatedStatement}${notNullStatement}`;
 
 		statement += i === columns.length - 1 ? '' : ',\n';
 	}
@@ -83,7 +83,7 @@ const createTable = convertor('create_table', (st) => {
 	for (let i = 0; i < referenceData.length; i++) {
 		const {
 			name,
-			tableFrom,
+			table,
 			tableTo,
 			columnsFrom,
 			columnsTo,
@@ -91,8 +91,8 @@ const createTable = convertor('create_table', (st) => {
 			onUpdate,
 		} = referenceData[i];
 
-		const onDeleteStatement = onDelete ? ` ON DELETE ${onDelete}` : '';
-		const onUpdateStatement = onUpdate ? ` ON UPDATE ${onUpdate}` : '';
+		const onDeleteStatement = onDelete !== 'NO ACTION' ? ` ON DELETE ${onDelete}` : '';
+		const onUpdateStatement = onUpdate !== 'NO ACTION' ? ` ON UPDATE ${onUpdate}` : '';
 		const fromColumnsString = columnsFrom.map((it) => `\`${it}\``).join(',');
 		const toColumnsString = columnsTo.map((it) => `\`${it}\``).join(',');
 
@@ -101,15 +101,10 @@ const createTable = convertor('create_table', (st) => {
 		statement +=
 			`FOREIGN KEY (${fromColumnsString}) REFERENCES \`${tableTo}\`(${toColumnsString})${onUpdateStatement}${onDeleteStatement}`;
 	}
-	
-	if (
-		typeof uniqueConstraints !== 'undefined'
-		&& uniqueConstraints.length > 0
-	) {
-		for (const uniqueConstraint of uniqueConstraints) {
-			statement += ',\n';
-			statement += `\tCONSTRAINT ${uniqueConstraint.name} UNIQUE(\`${uniqueConstraint.columns.join(`\`,\``)}\`)`;
-		}
+
+	for (const uniqueConstraint of uniqueConstraints) {
+		statement += ',\n';
+		statement += `\tCONSTRAINT ${uniqueConstraint.name} UNIQUE(\`${uniqueConstraint.columns.join(`\`,\``)}\`)`;
 	}
 
 	if (
@@ -197,15 +192,19 @@ const createIndex = convertor('create_index', (st) => {
 });
 
 const dropIndex = convertor('drop_index', (st) => {
-	return `DROP INDEX IF EXISTS \`${st.index}\`;`;
+	return `DROP INDEX IF EXISTS \`${st.index.name}\`;`;
 });
 
 const recreateTable = convertor('recreate_table', (st) => {
-	const { name, columns } = st.table;
+	const { name } = st.to;
+	const { columns: columnsFrom } = st.from;
 
 	// TODO: filter out generated columns
 	// TODO: test above
-	const columnNames = columns.filter((it) => !it.generated).map((it) => `\`${it.name}\``).join(', ');
+	const columnNames = columnsFrom.filter((it) => {
+		const newColumn = st.to.columns.find((col) => col.name === it.name);
+		return !it.generated && newColumn && !newColumn.generated;
+	}).map((it) => `\`${it.name}\``).join(', ');
 	const newTableName = `__new_${name}`;
 
 	const sqlStatements: string[] = [];
@@ -213,16 +212,16 @@ const recreateTable = convertor('recreate_table', (st) => {
 	sqlStatements.push(`PRAGMA foreign_keys=OFF;`);
 
 	const tmpTable = {
-		...st.table,
+		...st.to,
 		name: newTableName,
-		checks: st.table.checks.map((it) => ({ ...it, table: newTableName })),
+		checks: st.to.checks.map((it) => ({ ...it, table: newTableName })),
 	};
 	sqlStatements.push(createTable.convert({ table: tmpTable }) as string);
 
 	// migrate data
 	// TODO: columns mismatch?
 	sqlStatements.push(
-		`INSERT INTO \`${newTableName}\`(${columnNames}) SELECT ${columnNames} FROM \`${st.table.name}\`;`,
+		`INSERT INTO \`${newTableName}\`(${columnNames}) SELECT ${columnNames} FROM \`${st.to.name}\`;`,
 	);
 	sqlStatements.push(dropTable.convert({ tableName: name }) as string);
 	sqlStatements.push(renameTable.convert({ from: newTableName, to: name }) as string);

@@ -138,6 +138,8 @@ export const ddlToTypescript = (
 			statement += ']';
 		}
 		statement += ');';
+
+		tableStatements.push(statement);
 	}
 
 	const viewsStatements = schema.views.list().map((view) => {
@@ -184,26 +186,26 @@ const isSelf = (fk: ForeignKey) => {
 	return fk.table === fk.tableTo;
 };
 
-const mapColumnDefault = (defaultValue: any) => {
+const mapColumnDefault = (def: NonNullable<Column['default']>) => {
+	const it = def.value;
+
 	if (
-		typeof defaultValue === 'string'
-		&& defaultValue.startsWith('(')
-		&& defaultValue.endsWith(')')
+		typeof it === 'string'
+		&& it.startsWith('(')
+		&& it.endsWith(')')
 	) {
-		return `sql\`${defaultValue}\``;
+		return `sql\`${it}\``;
 	}
 	// If default value is NULL as string it will come back from db as "'NULL'" and not just "NULL"
-	if (defaultValue === 'NULL') {
+	if (it === 'NULL') {
 		return `sql\`NULL\``;
 	}
 
-	if (
-		typeof defaultValue === 'string'
-	) {
-		return defaultValue.substring(1, defaultValue.length - 1).replaceAll('"', '\\"').replaceAll("''", "'");
+	if (typeof it === 'string') {
+		return it.replaceAll('"', '\\"').replaceAll("''", "'");
 	}
 
-	return defaultValue;
+	return it;
 };
 
 const column = (
@@ -218,9 +220,7 @@ const column = (
 	if (lowered === 'integer') {
 		let out = `${withCasing(name, casing)}: integer(${dbColumnName({ name, casing })})`;
 		// out += autoincrement ? `.autoincrement()` : "";
-		out += typeof defaultValue !== 'undefined'
-			? `.default(${mapColumnDefault(defaultValue)})`
-			: '';
+		out += defaultValue ? `.default(${mapColumnDefault(defaultValue)})` : '';
 		return out;
 	}
 
@@ -390,9 +390,6 @@ const createTableChecks = (
 	let statement = '';
 
 	checks.forEach((it) => {
-		const checkKey = withCasing(it.name, casing);
-
-		statement += `\t\t${checkKey}: `;
 		statement += 'check(';
 		statement += `"${it.name}", `;
 		statement += `sql\`${it.value}\`)`;

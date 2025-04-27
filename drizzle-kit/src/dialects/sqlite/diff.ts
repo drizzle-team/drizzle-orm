@@ -5,6 +5,7 @@ import { diff } from '../dialect';
 import { groupDiffs } from '../utils';
 import { fromJson } from './convertor';
 import { Column, createDDL, IndexColumn, SQLiteDDL, SqliteEntities, tableFromDDL } from './ddl';
+import { nameForForeignKey } from './grammar';
 import {
 	JsonCreateViewStatement,
 	JsonDropViewStatement,
@@ -55,6 +56,49 @@ export const diffDDL = async (
 				name: renamed.from.name,
 			},
 		});
+
+		const selfRefs = ddl1.fks.update({
+			set: {
+				table: renamed.to.name,
+				tableTo: renamed.to.name,
+			},
+			where: {
+				table: renamed.from.name,
+				tableTo: renamed.from.name,
+			},
+		});
+
+		const froms = ddl1.fks.update({
+			set: {
+				table: renamed.to.name,
+			},
+			where: {
+				table: renamed.from.name,
+			},
+		});
+
+		const tos = ddl1.fks.update({
+			set: {
+				tableTo: renamed.to.name,
+			},
+			where: {
+				tableTo: renamed.from.name,
+			},
+		});
+
+		// preserve name for foreign keys
+		const renamedFKs = [...selfRefs, ...froms, ...tos];
+		for (const fk of renamedFKs) {
+			const name = nameForForeignKey(fk);
+			ddl2.fks.update({
+				set: {
+					name: fk.name,
+				},
+				where: {
+					name: name,
+				},
+			});
+		}
 
 		const entities = ddl1.entities.update({
 			set: {
@@ -189,12 +233,11 @@ export const diffDDL = async (
 			...pksDiff,
 			...fksDiff,
 			...indexesDiff.filter((it) => it.isUnique && it.origin === 'auto'), // we can't drop/create auto generated unique indexes
-			...[...columnsToCreate, ...columnsToDelete].filter((it) => it.primaryKey || it.unique),
+			...[...columnsToCreate, ...columnsToDelete].filter((it) => it.primaryKey),
 			...alteredColumnsBecameGenerated, // "It is not possible to ALTER TABLE ADD COLUMN a STORED column. https://www.sqlite.org/gencol.html"
 			...newStoredColumns, // "It is not possible to ALTER TABLE ADD COLUMN a STORED column. https://www.sqlite.org/gencol.html"
-		].map((it) =>{
-			console.log(it)
-			return it.table
+		].map((it) => {
+			return it.table;
 		}),
 	);
 
@@ -205,7 +248,7 @@ export const diffDDL = async (
 	for (const it of updates) {
 		if (
 			it.entityType === 'columns'
-			&& (it.type || it.default || it.notNull || it.autoincrement || it.primaryKey || it.unique)
+			&& (it.type || it.default || it.notNull || it.autoincrement || it.primaryKey)
 		) {
 			setOfTablesToRecereate.add(it.table);
 		}
@@ -216,14 +259,14 @@ export const diffDDL = async (
 	}
 
 	const tablesToRecreate = Array.from(setOfTablesToRecereate);
-	
+
 	// TODO: handle
 	const viewsToRecreateBecauseOfTables = tablesToRecreate.map((it) => {
 		return ddl2.views.one({});
 	});
 
 	const jsonRecreateTables = tablesToRecreate.map((it) => {
-		return prepareStatement('recreate_table', { table: tableFromDDL(it, ddl2) });
+		return prepareStatement('recreate_table', { to: tableFromDDL(it, ddl2), from: tableFromDDL(it, ddl1) });
 	});
 
 	const jsonTableAlternations = updates.filter((it) => it.entityType === 'columns')
@@ -243,7 +286,7 @@ export const diffDDL = async (
 
 	// create indexes for created and recreated tables too
 	const jsonCreateIndexes = [...jsonRecreateTables]
-		.map((it) => it.table.indexes)
+		.map((it) => it.to.indexes)
 		.concat(indexesByTable.filter((it) => !setOfTablesToRecereate.has(it.table)).map((it) => it.inserted))
 		.map((it) => it.map((index) => prepareStatement('create_index', { index })))
 		.flat();
@@ -263,9 +306,7 @@ export const diffDDL = async (
 	// we need to add column for table, which is going to be recreated to match columns during recreation
 	const columnDeletes = columnsToDelete.filter((it) => !setOfTablesToRecereate.has(it.table));
 
-	const jsonDropColumnsStatemets = columnDeletes.map((it) =>
-		prepareStatement('drop_column', { column: it })
-	);
+	const jsonDropColumnsStatemets = columnDeletes.map((it) => prepareStatement('drop_column', { column: it }));
 	const createdFilteredColumns = columnsToCreate.filter((it) => !it.generated || it.generated.type === 'virtual');
 
 	const warnings: string[] = [];
@@ -318,10 +359,10 @@ export const diffDDL = async (
 	jsonStatements.push(...jsonTableAlternations);
 
 	jsonStatements.push(...jsonRecreateTables);
+	jsonStatements.push(...jsonDropIndexes);
 	jsonStatements.push(...jsonCreateIndexes);
 
 	jsonStatements.push(...jsonDropTables);
-	jsonStatements.push(...jsonDropIndexes);
 
 	jsonStatements.push(...jsonDropColumnsStatemets);
 

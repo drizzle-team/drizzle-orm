@@ -320,7 +320,7 @@ export const paramNameFor = (name: string, schema: string | null) => {
 };
 
 // prev: schemaToTypeScript
-export const ddlToTypeScript = (ddl: PostgresDDL, casing: Casing) => {
+export const ddlToTypeScript = (ddl: PostgresDDL, columnsForViews: ViewColumn[], casing: Casing) => {
 	for (const fk of ddl.fks.list()) {
 		relations.add(`${fk.table}-${fk.tableTo}`);
 	}
@@ -334,7 +334,9 @@ export const ddlToTypeScript = (ddl: PostgresDDL, casing: Casing) => {
 	const enumTypes = new Set(ddl.enums.list().map((x) => `${x.schema}.${x.name}`));
 
 	const imports = new Set<string>();
-	for (const x of ddl.entities.list()) {
+	const vcs = columnsForViews.map((it) => ({ entityType: 'viewColumns' as const, ...it }));
+	const entities = [...ddl.entities.list(), ...vcs];
+	for (const x of entities) {
 		if (x.entityType === 'schemas' && x.name !== 'public') imports.add('pgSchema');
 		if (x.entityType === 'enums' && x.schema === 'public') imports.add('pgEnum');
 		if (x.entityType === 'tables') imports.add('pgTable');
@@ -504,7 +506,7 @@ export const ddlToTypeScript = (ddl: PostgresDDL, casing: Casing) => {
 			const as = `sql\`${it.definition}\``;
 			const tablespace = it.tablespace ?? '';
 
-			const viewColumns = ddl.viewColumns.list({ schema: it.schema, view: it.name });
+			const viewColumns = columnsForViews.filter((x) => x.schema === it.schema && x.view === it.name);
 
 			const columns = createViewColumns(
 				viewColumns,
