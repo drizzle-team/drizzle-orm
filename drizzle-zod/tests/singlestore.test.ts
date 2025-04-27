@@ -1,5 +1,5 @@
-import type { Equal } from 'drizzle-orm';
-import { customType, int, json, serial, singlestoreSchema, singlestoreTable, text } from 'drizzle-orm/singlestore-core';
+import type { Equal } from '@fisch0920/drizzle-orm';
+import { customType, int, json, serial, singlestoreSchema, singlestoreTable, text } from '@fisch0920/drizzle-orm/singlestore-core';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
 import { z } from 'zod';

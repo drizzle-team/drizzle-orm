@@ -32,7 +32,7 @@ export class ViewBuilderCore<TConfig extends { name: string; columns?: unknown }
 		protected schema: string | undefined,
 	) {}
 
-	protected config: ViewBuilderConfig = {};
+	public config: ViewBuilderConfig = {};
 
 	algorithm(
 		algorithm: Exclude<ViewBuilderConfig['algorithm'], undefined>,

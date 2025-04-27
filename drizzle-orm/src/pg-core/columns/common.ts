@@ -341,7 +341,7 @@ export class PgArray<
 
 	override mapToDriverValue(value: unknown[], isNestedArray = false): unknown[] | string {
 		const a = value.map((v) =>
-			v === null
+			v === null || v === undefined
 				? null
 				: is(this.baseColumn, PgArray)
 				? this.baseColumn.mapToDriverValue(v as unknown[], true)

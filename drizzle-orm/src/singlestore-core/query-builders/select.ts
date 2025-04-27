@@ -155,7 +155,7 @@ export abstract class SingleStoreSelectQueryBuilderBase<
 		readonly selectedFields: TSelectedFields;
 	};
 
-	protected config: SingleStoreSelectConfig;
+	public config: SingleStoreSelectConfig;
 	protected joinsNotNullableMap: Record<string, boolean>;
 	private tableName: string | undefined;
 	private isPartialSelect: boolean;

@@ -174,7 +174,7 @@ export abstract class PgSelectQueryBuilderBase<
 		readonly selectedFields: TSelectedFields;
 	};
 
-	protected config: PgSelectConfig;
+	public config: PgSelectConfig;
 	protected joinsNotNullableMap: Record<string, boolean>;
 	private tableName: string | undefined;
 	private isPartialSelect: boolean;

@@ -86,7 +86,8 @@ export abstract class Column<
 	readonly generated: GeneratedColumnConfig<T['data']> | undefined = undefined;
 	readonly generatedIdentity: GeneratedIdentityConfig | undefined = undefined;
 
-	protected config: ColumnRuntimeConfig<T['data'], TRuntimeConfig>;
+	// TODO: having this field be protected was causing a weird type bug
+	public config: ColumnRuntimeConfig<T['data'], TRuntimeConfig>;
 
 	constructor(
 		readonly table: Table,
@@ -113,11 +114,11 @@ export abstract class Column<
 	abstract getSQLType(): string;
 
 	mapFromDriverValue(value: unknown): unknown {
-		return value;
+		return value ?? undefined;
 	}
 
 	mapToDriverValue(value: unknown): unknown {
-		return value;
+		return value ?? null;
 	}
 
 	// ** @internal */

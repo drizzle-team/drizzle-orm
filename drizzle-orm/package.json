@@ -1,6 +1,6 @@
 {
 	"name": "@fisch0920/drizzle-orm",
-	"version": "0.43.1",
+	"version": "0.43.5",
 	"description": "Drizzle ORM package for SQL databases",
 	"type": "module",
 	"scripts": {

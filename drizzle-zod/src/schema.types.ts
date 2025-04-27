@@ -1,5 +1,5 @@
-import type { Table, View } from 'drizzle-orm';
-import type { PgEnum } from 'drizzle-orm/pg-core';
+import type { Table, View } from '@fisch0920/drizzle-orm';
+import type { PgEnum } from '@fisch0920/drizzle-orm/pg-core';
 import type { z } from 'zod';
 import type { BuildRefine, BuildSchema, NoUnknownKeys } from './schema.types.internal.ts';
 

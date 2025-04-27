@@ -1,5 +1,5 @@
-import { type Equal, sql } from 'drizzle-orm';
-import { blob, customType, int, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
+import { type Equal, sql } from '@fisch0920/drizzle-orm';
+import { blob, customType, int, sqliteTable, sqliteView, text } from '@fisch0920/drizzle-orm/sqlite-core';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
 import { z } from 'zod';

@@ -168,7 +168,7 @@ export abstract class GelSelectQueryBuilderBase<
 		readonly selectedFields: TSelectedFields;
 	};
 
-	protected config: GelSelectConfig;
+	public config: GelSelectConfig;
 	protected joinsNotNullableMap: Record<string, boolean>;
 	private tableName: string | undefined;
 	private isPartialSelect: boolean;

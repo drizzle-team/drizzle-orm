@@ -1,4 +1,4 @@
-import type { Assume, Column } from 'drizzle-orm';
+import type { Assume, Column } from '@fisch0920/drizzle-orm';
 import type { z } from 'zod';
 import type { ArrayHasAtLeastOneValue, ColumnIsGeneratedAlwaysAs, IsNever, Json } from './utils.ts';
 

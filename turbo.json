@@ -4,7 +4,7 @@
 		"//#lint": {
 			"dependsOn": [
 				"^test:types",
-				"drizzle-orm#build"
+				"@fisch0920/drizzle-orm#build"
 			],
 			"inputs": [
 				"**/*.ts",
@@ -17,7 +17,7 @@
 		"test:types": {
 			"dependsOn": [
 				"^test:types",
-				"drizzle-orm#build",
+				"@fisch0920/drizzle-orm#build",
 				"drizzle-seed#build"
 			],
 			"inputs": [
@@ -29,7 +29,7 @@
 			],
 			"outputLogs": "new-only"
 		},
-		"drizzle-orm#build": {
+		"@fisch0920/drizzle-orm#build": {
 			"inputs": [
 				"src/**/*.ts",
 				"package.json",
@@ -50,7 +50,7 @@
 		},
 		"drizzle-kit#build": {
 			"dependsOn": [
-				"drizzle-orm#build"
+				"@fisch0920/drizzle-orm#build"
 			],
 			"inputs": [
 				"src/**/*.ts",
@@ -70,9 +70,9 @@
 			],
 			"outputLogs": "new-only"
 		},
-		"drizzle-zod#build": {
+		"@fisch0920/drizzle-zod#build": {
 			"dependsOn": [
-				"drizzle-orm#build"
+				"@fisch0920/drizzle-orm#build"
 			],
 			"inputs": [
 				"src/**/*.ts",
@@ -94,7 +94,7 @@
 		},
 		"drizzle-typebox#build": {
 			"dependsOn": [
-				"drizzle-orm#build"
+				"@fisch0920/drizzle-orm#build"
 			],
 			"inputs": [
 				"src/**/*.ts",
@@ -116,7 +116,7 @@
 		},
 		"drizzle-valibot#build": {
 			"dependsOn": [
-				"drizzle-orm#build"
+				"@fisch0920/drizzle-orm#build"
 			],
 			"inputs": [
 				"src/**/*.ts",
@@ -138,7 +138,7 @@
 		},
 		"drizzle-arktype#build": {
 			"dependsOn": [
-				"drizzle-orm#build"
+				"@fisch0920/drizzle-orm#build"
 			],
 			"inputs": [
 				"src/**/*.ts",
@@ -160,7 +160,7 @@
 		},
 		"eslint-plugin-drizzle#build": {
 			"dependsOn": [
-				"drizzle-orm#build"
+				"@fisch0920/drizzle-orm#build"
 			],
 			"inputs": [
 				"src/**/*.ts",
@@ -182,7 +182,7 @@
 		},
 		"drizzle-seed#build": {
 			"dependsOn": [
-				"drizzle-orm#build"
+				"@fisch0920/drizzle-orm#build"
 			],
 			"inputs": [
 				"src/**/*.ts",
@@ -204,7 +204,7 @@
 		},
 		"integration-tests#build": {
 			"dependsOn": [
-				"drizzle-orm#build",
+				"@fisch0920/drizzle-orm#build",
 				"drizzle-seed#build"
 			],
 			"inputs": [

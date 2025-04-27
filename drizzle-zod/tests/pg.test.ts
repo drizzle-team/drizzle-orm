@@ -1,4 +1,4 @@
-import { type Equal, sql } from 'drizzle-orm';
+import { type Equal, sql } from '@fisch0920/drizzle-orm';
 import {
 	customType,
 	integer,
@@ -11,7 +11,7 @@ import {
 	pgView,
 	serial,
 	text,
-} from 'drizzle-orm/pg-core';
+} from '@fisch0920/drizzle-orm/pg-core';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
 import { z } from 'zod';

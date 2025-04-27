@@ -31,7 +31,7 @@ export class ViewBuilderCore<
 		protected name: TConfig['name'],
 	) {}
 
-	protected config: ViewBuilderConfig = {};
+	public config: ViewBuilderConfig = {};
 }
 
 export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<{ name: TName }> {

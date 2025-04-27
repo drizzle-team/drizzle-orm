@@ -1,5 +1,5 @@
-import { type Equal, sql } from 'drizzle-orm';
-import { customType, int, json, mysqlSchema, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
+import { type Equal, sql } from '@fisch0920/drizzle-orm';
+import { customType, int, json, mysqlSchema, mysqlTable, mysqlView, serial, text } from '@fisch0920/drizzle-orm/mysql-core';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
 import { z } from 'zod';

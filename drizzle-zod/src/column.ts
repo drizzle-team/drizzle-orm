@@ -1,4 +1,4 @@
-import type { Column, ColumnBaseConfig } from 'drizzle-orm';
+import type { Column, ColumnBaseConfig } from '@fisch0920/drizzle-orm';
 import type {
 	MySqlBigInt53,
 	MySqlChar,
@@ -13,7 +13,7 @@ import type {
 	MySqlTinyInt,
 	MySqlVarChar,
 	MySqlYear,
-} from 'drizzle-orm/mysql-core';
+} from '@fisch0920/drizzle-orm/mysql-core';
 import type {
 	PgArray,
 	PgBigInt53,
@@ -36,7 +36,7 @@ import type {
 	PgUUID,
 	PgVarchar,
 	PgVector,
-} from 'drizzle-orm/pg-core';
+} from '@fisch0920/drizzle-orm/pg-core';
 import type {
 	SingleStoreBigInt53,
 	SingleStoreChar,
@@ -51,10 +51,9 @@ import type {
 	SingleStoreTinyInt,
 	SingleStoreVarChar,
 	SingleStoreYear,
-} from 'drizzle-orm/singlestore-core';
-import type { SQLiteInteger, SQLiteReal, SQLiteText } from 'drizzle-orm/sqlite-core';
-import { z } from 'zod';
-import { z as zod } from 'zod';
+} from '@fisch0920/drizzle-orm/singlestore-core';
+import type { SQLiteInteger, SQLiteReal, SQLiteText } from '@fisch0920/drizzle-orm/sqlite-core';
+import { z , z as zod } from 'zod';
 import { CONSTANTS } from './constants.ts';
 import type { CreateSchemaFactoryOptions } from './schema.types.ts';
 import { isColumnType, isWithEnum } from './utils.ts';

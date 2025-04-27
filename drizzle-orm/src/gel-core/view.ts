@@ -31,7 +31,7 @@ export class DefaultViewBuilderCore<TConfig extends { name: string; columns?: un
 		protected schema: string | undefined,
 	) {}
 
-	protected config: {
+	public config: {
 		with?: ViewWithConfig;
 	} = {};
 
@@ -164,7 +164,7 @@ export class MaterializedViewBuilderCore<TConfig extends { name: string; columns
 		protected schema: string | undefined,
 	) {}
 
-	protected config: {
+	public config: {
 		with?: GelMaterializedViewWithConfig;
 		using?: string;
 		tablespace?: string;

@@ -1,4 +1,4 @@
-import type { Assume, Column, DrizzleTypeError, SelectedFieldsFlat, Simplify, Table, View } from 'drizzle-orm';
+import type { Assume, Column, DrizzleTypeError, SelectedFieldsFlat, Simplify, Table, View } from '@fisch0920/drizzle-orm';
 import type { z } from 'zod';
 import type { GetBaseColumn, GetEnumValuesFromColumn, GetZodType, HandleColumn } from './column.types.ts';
 import type { GetSelection, RemoveNever } from './utils.ts';
@@ -44,7 +44,7 @@ type HandleRefinement<
 	TRefinement extends z.ZodTypeAny | ((schema: z.ZodTypeAny) => z.ZodTypeAny),
 	TColumn extends Column,
 > = TRefinement extends (schema: any) => z.ZodTypeAny ? (TColumn['_']['notNull'] extends true ? ReturnType<TRefinement>
-		: z.ZodNullable<ReturnType<TRefinement>>) extends infer TSchema
+		: z.ZodOptional<ReturnType<TRefinement>>) extends infer TSchema
 		? TType extends 'update' ? z.ZodOptional<Assume<TSchema, z.ZodTypeAny>> : TSchema
 	: z.ZodTypeAny
 	: TRefinement;
