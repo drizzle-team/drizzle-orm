@@ -141,7 +141,7 @@ export type GetColumnData<TColumn extends Column, TInferMode extends 'query' | '
 		? TColumn['_']['data'] // Just return the underlying type
 		: TColumn['_']['notNull'] extends true // Query mode
 		? TColumn['_']['data'] // Query mode, not null
-		: TColumn['_']['data'] | null; // Query mode, nullable
+		: TColumn['_']['data'] | undefined; // Query mode, nullable
 
 export type InferColumnsDataTypes<TColumns extends Record<string, Column>> = {
 	[Key in keyof TColumns]: GetColumnData<TColumns[Key], 'query'>;
