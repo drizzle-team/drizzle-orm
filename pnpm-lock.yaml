@@ -219,9 +219,6 @@ importers:
       better-sqlite3:
         specifier: ^11.9.1
         version: 11.9.1
-      bun-types:
-        specifier: ^1.2.10
-        version: 1.2.10
       camelcase:
         specifier: ^7.0.1
         version: 7.0.1
