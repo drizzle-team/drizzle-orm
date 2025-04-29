@@ -143,6 +143,44 @@ export const preparePostgresDB = async (
 			return { query, proxy, migrate: migrateFn };
 		}
 
+		if (driver === 'bun') {
+			const { SQL } = await import('bun');
+			const { drizzle } = await import('drizzle-orm/bun-sql');
+			const { migrate } = await import('drizzle-orm/bun-sql/migrator');
+
+			let client;
+			if ('url' in credentials) {
+				client = new SQL(credentials.url);
+			} else {
+				const { host, port, user, password, database, ssl } = credentials;
+
+				let url = `postgres://${user ?? ''}${user ? ':' : ''}${password ?? ''}${user ? '@' : ''}${host ?? 'localhost'}${port ? `:${port}` : ''}/${database}`;
+				if (ssl) {
+					const sslmode = typeof ssl === 'string' ? ssl : 'require';
+					url += `?sslmode=${sslmode}`;
+				}
+				client = new SQL(url);
+			}
+
+			const db = drizzle(client);
+			const migrateFn = async (config: MigrationConfig) => {
+				return migrate(db, config);
+			};
+
+			const query = async (sql: string, params: any[] = []) => {
+				return await client.unsafe(sql, params as any[]);
+			};
+
+			const proxy = async (params: ProxyParams) => {
+				return await client.unsafe(params.sql, params.params ?? []);
+			};
+
+			return {
+				query,
+				proxy,
+				migrate: migrateFn,
+			};
+		}
 		assertUnreachable(driver);
 	}
 

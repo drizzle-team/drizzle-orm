@@ -167,6 +167,31 @@ export type Config =
 		}
 		| {
 			dialect: Verify<Dialect, 'postgresql'>;
+			driver: Verify<Driver, 'bun'>;
+			dbCredentials: {
+				url: string;
+			};
+		}
+		| {
+			dialect: Verify<Dialect, 'postgresql'>;
+			driver: Verify<Driver, 'bun'>;
+			dbCredentials: {
+				host: string;
+				port?: number;
+				user?: string;
+				password?: string;
+				database: string;
+				ssl?:
+					| boolean
+					| 'require'
+					| 'allow'
+					| 'prefer'
+					| 'verify-full'
+					| ConnectionOptions;
+			};
+		}
+		| {
+			dialect: Verify<Dialect, 'postgresql'>;
 			driver: Verify<Driver, 'aws-data-api'>;
 			dbCredentials: {
 				database: string;
