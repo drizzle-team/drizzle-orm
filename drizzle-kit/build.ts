@@ -1,4 +1,3 @@
-/// <reference types="bun-types" />
 import * as esbuild from 'esbuild';
 import { readFileSync, writeFileSync } from 'node:fs';
 import * as tsup from 'tsup';
