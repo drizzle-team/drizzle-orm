@@ -206,12 +206,16 @@ export abstract class GelSelectQueryBuilderBase<
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
 	}
 
-	private createJoin<TJoinType extends JoinType>(
+	private createJoin<
+		TJoinType extends JoinType,
+		TIsLateral extends (TJoinType extends 'full' | 'right' ? false : boolean),
+	>(
 		joinType: TJoinType,
-	): GelSelectJoinFn<this, TDynamic, TJoinType> {
+		lateral: TIsLateral,
+	): GelSelectJoinFn<this, TDynamic, TJoinType, TIsLateral> {
 		return (
 			table: GelTable | Subquery | GelViewBase | SQL,
-			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
+			on?: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
 		) => {
 			const baseTableName = this.tableName;
 			const tableName = getTableLikeName(table);
@@ -250,7 +254,7 @@ export abstract class GelSelectQueryBuilderBase<
 				this.config.joins = [];
 			}
 
-			this.config.joins.push({ on, table, joinType, alias: tableName });
+			this.config.joins.push({ on, table, joinType, alias: tableName, lateral });
 
 			if (typeof tableName === 'string') {
 				switch (joinType) {
@@ -265,6 +269,7 @@ export abstract class GelSelectQueryBuilderBase<
 						this.joinsNotNullableMap[tableName] = true;
 						break;
 					}
+					case 'cross':
 					case 'inner': {
 						this.joinsNotNullableMap[tableName] = true;
 						break;
@@ -297,12 +302,12 @@ export abstract class GelSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Select all users and their pets
-	 * const usersWithPets: { user: User; pets: Pet | null }[] = await db.select()
+	 * const usersWithPets: { user: User; pets: Pet | null; }[] = await db.select()
 	 *   .from(users)
 	 *   .leftJoin(pets, eq(users.id, pets.ownerId))
 	 *
 	 * // Select userId and petId
-	 * const usersIdsAndPetIds: { userId: number; petId: number | null }[] = await db.select({
+	 * const usersIdsAndPetIds: { userId: number; petId: number | null; }[] = await db.select({
 	 *   userId: users.id,
 	 *   petId: pets.id,
 	 * })
@@ -310,7 +315,21 @@ export abstract class GelSelectQueryBuilderBase<
 	 *   .leftJoin(pets, eq(users.id, pets.ownerId))
 	 * ```
 	 */
-	leftJoin = this.createJoin('left');
+	leftJoin = this.createJoin('left', false);
+
+	/**
+	 * Executes a `left join lateral` operation by adding subquery to the current query.
+	 *
+	 * A `lateral` join allows the right-hand expression to refer to columns from the left-hand side.
+	 *
+	 * Calling this method associates each row of the table with the corresponding row from the joined table, if a match is found. If no matching row exists, it sets all columns of the joined table to null.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/joins#left-join-lateral}
+	 *
+	 * @param table the subquery to join.
+	 * @param on the `on` clause.
+	 */
+	leftJoinLateral = this.createJoin('left', true);
 
 	/**
 	 * Executes a `right join` operation by adding another table to the current query.
@@ -326,12 +345,12 @@ export abstract class GelSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Select all users and their pets
-	 * const usersWithPets: { user: User | null; pets: Pet }[] = await db.select()
+	 * const usersWithPets: { user: User | null; pets: Pet; }[] = await db.select()
 	 *   .from(users)
 	 *   .rightJoin(pets, eq(users.id, pets.ownerId))
 	 *
 	 * // Select userId and petId
-	 * const usersIdsAndPetIds: { userId: number | null; petId: number }[] = await db.select({
+	 * const usersIdsAndPetIds: { userId: number | null; petId: number; }[] = await db.select({
 	 *   userId: users.id,
 	 *   petId: pets.id,
 	 * })
@@ -339,7 +358,7 @@ export abstract class GelSelectQueryBuilderBase<
 	 *   .rightJoin(pets, eq(users.id, pets.ownerId))
 	 * ```
 	 */
-	rightJoin = this.createJoin('right');
+	rightJoin = this.createJoin('right', false);
 
 	/**
 	 * Executes an `inner join` operation, creating a new table by combining rows from two tables that have matching values.
@@ -355,12 +374,12 @@ export abstract class GelSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Select all users and their pets
-	 * const usersWithPets: { user: User; pets: Pet }[] = await db.select()
+	 * const usersWithPets: { user: User; pets: Pet; }[] = await db.select()
 	 *   .from(users)
 	 *   .innerJoin(pets, eq(users.id, pets.ownerId))
 	 *
 	 * // Select userId and petId
-	 * const usersIdsAndPetIds: { userId: number; petId: number }[] = await db.select({
+	 * const usersIdsAndPetIds: { userId: number; petId: number; }[] = await db.select({
 	 *   userId: users.id,
 	 *   petId: pets.id,
 	 * })
@@ -368,7 +387,21 @@ export abstract class GelSelectQueryBuilderBase<
 	 *   .innerJoin(pets, eq(users.id, pets.ownerId))
 	 * ```
 	 */
-	innerJoin = this.createJoin('inner');
+	innerJoin = this.createJoin('inner', false);
+
+	/**
+	 * Executes an `inner join lateral` operation, creating a new table by combining rows from two queries that have matching values.
+	 *
+	 * A `lateral` join allows the right-hand expression to refer to columns from the left-hand side.
+	 *
+	 * Calling this method retrieves rows that have corresponding entries in both joined tables. Rows without matching entries in either table are excluded, resulting in a table that includes only matching pairs.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/joins#inner-join-lateral}
+	 *
+	 * @param table the subquery to join.
+	 * @param on the `on` clause.
+	 */
+	innerJoinLateral = this.createJoin('inner', true);
 
 	/**
 	 * Executes a `full join` operation by combining rows from two tables into a new table.
@@ -384,12 +417,12 @@ export abstract class GelSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Select all users and their pets
-	 * const usersWithPets: { user: User | null; pets: Pet | null }[] = await db.select()
+	 * const usersWithPets: { user: User | null; pets: Pet | null; }[] = await db.select()
 	 *   .from(users)
 	 *   .fullJoin(pets, eq(users.id, pets.ownerId))
 	 *
 	 * // Select userId and petId
-	 * const usersIdsAndPetIds: { userId: number | null; petId: number | null }[] = await db.select({
+	 * const usersIdsAndPetIds: { userId: number | null; petId: number | null; }[] = await db.select({
 	 *   userId: users.id,
 	 *   petId: pets.id,
 	 * })
@@ -397,7 +430,48 @@ export abstract class GelSelectQueryBuilderBase<
 	 *   .fullJoin(pets, eq(users.id, pets.ownerId))
 	 * ```
 	 */
-	fullJoin = this.createJoin('full');
+	fullJoin = this.createJoin('full', false);
+
+	/**
+	 * Executes a `cross join` operation by combining rows from two tables into a new table.
+	 *
+	 * Calling this method retrieves all rows from both main and joined tables, merging all rows from each table.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/joins#cross-join}
+	 *
+	 * @param table the table to join.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // Select all users, each user with every pet
+	 * const usersWithPets: { user: User; pets: Pet; }[] = await db.select()
+	 *   .from(users)
+	 *   .crossJoin(pets)
+	 *
+	 * // Select userId and petId
+	 * const usersIdsAndPetIds: { userId: number; petId: number; }[] = await db.select({
+	 *   userId: users.id,
+	 *   petId: pets.id,
+	 * })
+	 *   .from(users)
+	 *   .crossJoin(pets)
+	 * ```
+	 */
+	crossJoin = this.createJoin('cross', false);
+
+	/**
+	 * Executes a `cross join lateral` operation by combining rows from two queries into a new table.
+	 *
+	 * A `lateral` join allows the right-hand expression to refer to columns from the left-hand side.
+	 *
+	 * Calling this method retrieves all rows from both main and joined queries, merging all rows from each query.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/joins#cross-join-lateral}
+	 *
+	 * @param table the query to join.
+	 */
+	crossJoinLateral = this.createJoin('cross', true);
 
 	private createSetOperator(
 		type: SetOperator,

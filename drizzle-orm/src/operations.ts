@@ -8,19 +8,18 @@ export type RequiredKeyOnly<TKey extends string, T extends Column> = T extends A
 }> ? TKey
 	: never;
 
-export type OptionalKeyOnly<
-	TKey extends string,
-	T extends Column,
-	OverrideT extends boolean | undefined = false,
-> = TKey extends RequiredKeyOnly<TKey, T> ? never
-	: T extends {
+export type OptionalKeyOnly<TKey extends string, T extends Column, OverrideT extends boolean | undefined = false> =
+	TKey extends RequiredKeyOnly<TKey, T> ? never : T extends {
 		_: {
 			generated: undefined;
 		};
-	} ? (
-			T['_']['identity'] extends 'always' ? OverrideT extends true ? TKey : never
-				: TKey
-		)
+	} ? (T extends {
+			_: {
+				identity: undefined;
+			};
+		} ? TKey
+			: T['_']['identity'] extends 'always' ? OverrideT extends true ? TKey : never
+			: TKey)
 	: never;
 
 // TODO: SQL -> SQLWrapper
