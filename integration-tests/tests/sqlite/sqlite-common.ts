@@ -35,6 +35,7 @@ import {
 	intersect,
 	numeric,
 	primaryKey,
+	real,
 	sqliteTable,
 	sqliteTableCreator,
 	sqliteView,
@@ -44,7 +45,7 @@ import {
 	unique,
 	uniqueKeyName,
 } from 'drizzle-orm/sqlite-core';
-import { beforeEach, describe, expect, test } from 'vitest';
+import { beforeEach, describe, expect, expectTypeOf, test } from 'vitest';
 import type { Equal } from '~/utils';
 import { Expect } from '~/utils';
 
@@ -55,6 +56,44 @@ declare module 'vitest' {
 		};
 	}
 }
+
+const allTypesTable = sqliteTable('all_types', {
+	int: integer('int', {
+		mode: 'number',
+	}),
+	bool: integer('bool', {
+		mode: 'boolean',
+	}),
+	time: integer('time', {
+		mode: 'timestamp',
+	}),
+	timeMs: integer('time_ms', {
+		mode: 'timestamp_ms',
+	}),
+	bigint: blob('bigint', {
+		mode: 'bigint',
+	}),
+	buffer: blob('buffer', {
+		mode: 'buffer',
+	}),
+	json: blob('json', {
+		mode: 'json',
+	}),
+	numeric: numeric('numeric'),
+	numericNum: numeric('numeric_num', {
+		mode: 'number',
+	}),
+	numericBig: numeric('numeric_big', {
+		mode: 'bigint',
+	}),
+	real: real('real'),
+	text: text('text', {
+		mode: 'text',
+	}),
+	jsonText: text('json_text', {
+		mode: 'json',
+	}),
+});
 
 export const usersTable = sqliteTable('users', {
 	id: integer('id').primaryKey(),
@@ -163,6 +202,7 @@ export function tests() {
 			await db.run(sql`drop table if exists ${bigIntExample}`);
 			await db.run(sql`drop table if exists ${pkExampleTable}`);
 			await db.run(sql`drop table if exists ${conflictChainExampleTable}`);
+			await db.run(sql`drop table if exists ${allTypesTable}`);
 			await db.run(sql`drop table if exists user_notifications_insert_into`);
 			await db.run(sql`drop table if exists users_insert_into`);
 			await db.run(sql`drop table if exists notifications_insert_into`);
@@ -3198,6 +3238,167 @@ export function tests() {
 				{ name: 'Barry', verified: false },
 				{ name: 'Carl', verified: false },
 			]);
+		});
+
+		test('cross join', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			await db
+				.insert(usersTable)
+				.values([
+					{ name: 'John' },
+					{ name: 'Jane' },
+				]);
+
+			await db
+				.insert(citiesTable)
+				.values([
+					{ name: 'Seattle' },
+					{ name: 'New York City' },
+				]);
+
+			const result = await db
+				.select({
+					user: usersTable.name,
+					city: citiesTable.name,
+				})
+				.from(usersTable)
+				.crossJoin(citiesTable)
+				.orderBy(usersTable.name, citiesTable.name);
+
+			expect(result).toStrictEqual([
+				{ city: 'New York City', user: 'Jane' },
+				{ city: 'Seattle', user: 'Jane' },
+				{ city: 'New York City', user: 'John' },
+				{ city: 'Seattle', user: 'John' },
+			]);
+		});
+
+		test('all types', async (ctx) => {
+			const { db } = ctx.sqlite;
+
+			await db.run(sql`
+				CREATE TABLE \`all_types\`(
+					\`int\` integer,
+					\`bool\` integer,
+					\`time\` integer,
+					\`time_ms\` integer,
+					\`bigint\` blob,
+					\`buffer\` blob,
+					\`json\` blob,
+					\`numeric\` numeric,
+					\`numeric_num\` numeric,
+					\`numeric_big\` numeric,
+					\`real\` real,
+					\`text\` text,
+					\`json_text\` text
+					);
+			`);
+
+			await db.insert(allTypesTable).values({
+				int: 1,
+				bool: true,
+				bigint: 5044565289845416380n,
+				buffer: Buffer.from([
+					0x44,
+					0x65,
+					0x73,
+					0x70,
+					0x61,
+					0x69,
+					0x72,
+					0x20,
+					0x6F,
+					0x20,
+					0x64,
+					0x65,
+					0x73,
+					0x70,
+					0x61,
+					0x69,
+					0x72,
+					0x2E,
+					0x2E,
+					0x2E,
+				]),
+				json: {
+					str: 'strval',
+					arr: ['str', 10],
+				},
+				jsonText: {
+					str: 'strvalb',
+					arr: ['strb', 11],
+				},
+				numeric: '475452353476',
+				numericNum: 9007199254740991,
+				numericBig: 5044565289845416380n,
+				real: 1.048596,
+				text: 'TEXT STRING',
+				time: new Date(1741743161623),
+				timeMs: new Date(1741743161623),
+			});
+
+			const rawRes = await db.select().from(allTypesTable);
+
+			expect(typeof rawRes[0]?.numericBig).toStrictEqual('bigint');
+
+			type ExpectedType = {
+				int: number | null;
+				bool: boolean | null;
+				time: Date | null;
+				timeMs: Date | null;
+				bigint: bigint | null;
+				buffer: Buffer | null;
+				json: unknown;
+				numeric: string | null;
+				numericNum: number | null;
+				numericBig: bigint | null;
+				real: number | null;
+				text: string | null;
+				jsonText: unknown;
+			}[];
+
+			const expectedRes: ExpectedType = [
+				{
+					int: 1,
+					bool: true,
+					time: new Date('2025-03-12T01:32:41.000Z'),
+					timeMs: new Date('2025-03-12T01:32:41.623Z'),
+					bigint: 5044565289845416380n,
+					buffer: Buffer.from([
+						0x44,
+						0x65,
+						0x73,
+						0x70,
+						0x61,
+						0x69,
+						0x72,
+						0x20,
+						0x6F,
+						0x20,
+						0x64,
+						0x65,
+						0x73,
+						0x70,
+						0x61,
+						0x69,
+						0x72,
+						0x2E,
+						0x2E,
+						0x2E,
+					]),
+					json: { str: 'strval', arr: ['str', 10] },
+					numeric: '475452353476',
+					numericNum: 9007199254740991,
+					numericBig: 5044565289845416380n,
+					real: 1.048596,
+					text: 'TEXT STRING',
+					jsonText: { str: 'strvalb', arr: ['strb', 11] },
+				},
+			];
+
+			expectTypeOf(rawRes).toEqualTypeOf<ExpectedType>();
+			expect(rawRes).toStrictEqual(expectedRes);
 		});
 	});
 
