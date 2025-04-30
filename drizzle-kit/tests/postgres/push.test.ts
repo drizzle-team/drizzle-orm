@@ -35,7 +35,7 @@ import {
 import { drizzle } from 'drizzle-orm/pglite';
 import { eq, SQL, sql } from 'drizzle-orm/sql';
 import { suggestions } from 'src/cli/commands/push-postgres';
-import { diffTestSchemas, diffTestSchemasPush, reset } from 'tests/postgres/mocks';
+import { diff, diffTestSchemasPush, reset } from 'tests/postgres/mocks';
 import { beforeEach, expect, test } from 'vitest';
 import { DialectSuite, run } from '../push/common';
 
@@ -1988,7 +1988,7 @@ test('enums ordering', async () => {
 		]),
 	};
 
-	const { sqlStatements: createEnum } = await diffTestSchemas({}, schema2, []);
+	const { sqlStatements: createEnum } = await diff({}, schema2, []);
 
 	const schema3 = {
 		enum2: pgEnum('settings', [
@@ -2004,7 +2004,7 @@ test('enums ordering', async () => {
 		]),
 	};
 
-	const { sqlStatements: addedValueSql } = await diffTestSchemas(schema2, schema3, []);
+	const { sqlStatements: addedValueSql } = await diff(schema2, schema3, []);
 
 	const schema4 = {
 		enum3: pgEnum('settings', [
@@ -2647,7 +2647,7 @@ test('rename policy that is linked', async (t) => {
 		id: integer('id').primaryKey(),
 	});
 
-	const { sqlStatements: createUsers } = await diffTestSchemas({}, { users }, []);
+	const { sqlStatements: createUsers } = await diff({}, { users }, []);
 
 	const schema1 = {
 		rls: pgPolicy('test', { as: 'permissive' }).link(users),
@@ -2676,7 +2676,7 @@ test('alter policy that is linked', async (t) => {
 		id: integer('id').primaryKey(),
 	});
 
-	const { sqlStatements: createUsers } = await diffTestSchemas({}, { users }, []);
+	const { sqlStatements: createUsers } = await diff({}, { users }, []);
 
 	const schema1 = {
 		rls: pgPolicy('test', { as: 'permissive' }).link(users),
@@ -2704,7 +2704,7 @@ test('alter policy that is linked: withCheck', async (t) => {
 		id: integer('id').primaryKey(),
 	});
 
-	const { sqlStatements: createUsers } = await diffTestSchemas({}, { users }, []);
+	const { sqlStatements: createUsers } = await diff({}, { users }, []);
 
 	const schema1 = {
 		rls: pgPolicy('test', { as: 'permissive', withCheck: sql`true` }).link(users),
@@ -2730,7 +2730,7 @@ test('alter policy that is linked: using', async (t) => {
 		id: integer('id').primaryKey(),
 	});
 
-	const { sqlStatements: createUsers } = await diffTestSchemas({}, { users }, []);
+	const { sqlStatements: createUsers } = await diff({}, { users }, []);
 
 	const schema1 = {
 		rls: pgPolicy('test', { as: 'permissive', using: sql`true` }).link(users),
@@ -2756,7 +2756,7 @@ test('alter policy that is linked: using', async (t) => {
 		id: integer('id').primaryKey(),
 	});
 
-	const { sqlStatements: createUsers } = await diffTestSchemas({}, { users }, []);
+	const { sqlStatements: createUsers } = await diff({}, { users }, []);
 
 	const schema1 = {
 		rls: pgPolicy('test', { for: 'insert' }).link(users),

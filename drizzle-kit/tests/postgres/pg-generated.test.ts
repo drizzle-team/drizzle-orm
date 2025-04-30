@@ -3,7 +3,7 @@
 import { SQL, sql } from 'drizzle-orm';
 import { integer, pgTable, text } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
-import { diffTestSchemas } from './mocks';
+import { diff } from './mocks';
 
 test('generated as callback: add column with generated constraint', async () => {
 	const from = {
@@ -24,7 +24,7 @@ test('generated as callback: add column with generated constraint', async () => 
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 	expect(sqlStatements).toStrictEqual([
 		`ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS (\"users\".\"name\" || 'hello') STORED;`,
 	]);
@@ -50,7 +50,7 @@ test('generated as callback: add generated constraint to an exisiting column', a
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE "users" DROP COLUMN "gen_name";',
 		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name" || \'to add\') STORED;',
@@ -77,7 +77,7 @@ test('generated as callback: drop generated constraint', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements).toStrictEqual([
 		`ALTER TABLE \"users\" ALTER COLUMN \"gen_name\" DROP EXPRESSION;`,
@@ -106,7 +106,7 @@ test('generated as callback: change generated constraint', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE "users" DROP COLUMN "gen_name";',
@@ -135,7 +135,7 @@ test('generated as sql: add column with generated constraint', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 	expect(sqlStatements).toStrictEqual([
 		`ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS (\"users\".\"name\" || 'hello') STORED;`,
 	]);
@@ -161,7 +161,7 @@ test('generated as sql: add generated constraint to an exisiting column', async 
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE "users" DROP COLUMN "gen_name";',
 		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name" || \'to add\') STORED;',
@@ -188,7 +188,7 @@ test('generated as sql: drop generated constraint', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 	expect(sqlStatements).toStrictEqual([
 		`ALTER TABLE \"users\" ALTER COLUMN \"gen_name\" DROP EXPRESSION;`,
 	]);
@@ -216,7 +216,7 @@ test('generated as sql: change generated constraint', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE "users" DROP COLUMN "gen_name";',
 		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name" || \'hello\') STORED;',
@@ -244,7 +244,7 @@ test('generated as string: add column with generated constraint', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 	expect(sqlStatements).toStrictEqual([
 		`ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS (\"users\".\"name\" || 'hello') STORED;`,
 	]);
@@ -270,7 +270,7 @@ test('generated as string: add generated constraint to an exisiting column', asy
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE "users" DROP COLUMN "gen_name";',
@@ -298,7 +298,7 @@ test('generated as string: drop generated constraint', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements).toStrictEqual([
 		`ALTER TABLE \"users\" ALTER COLUMN \"gen_name\" DROP EXPRESSION;`,
@@ -327,7 +327,7 @@ test('generated as string: change generated constraint', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE "users" DROP COLUMN "gen_name";',
 		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name" || \'hello\') STORED;',

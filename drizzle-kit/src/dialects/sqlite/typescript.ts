@@ -71,6 +71,7 @@ export const ddlToTypescript = (
 	schema: SQLiteDDL,
 	casing: Casing,
 	viewColumns: Record<string, { view: { name: string; sql: string }; columns: ViewColumn[] }>,
+	type: 'sqlite' | 'libsql',
 ) => {
 	for (const fk of schema.fks.list()) {
 		const relation = `${fk.table}-${fk.tableTo}`;

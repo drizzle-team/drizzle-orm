@@ -18,7 +18,7 @@ import {
 } from 'drizzle-orm/sqlite-core';
 import { mkdirSync } from 'fs';
 import { expect, test } from 'vitest';
-import { diff2 } from './mocks-sqlite';
+import { diff2 } from './mocks';
 
 mkdirSync('tests/sqlite/tmp', { recursive: true });
 
@@ -171,15 +171,10 @@ test('added column not null and without default to table with data', async (t) =
 		`ALTER TABLE \`companies\` ADD \`age\` integer NOT NULL;`,
 	]);
 
-	expect(hints).toStrictEqual([
-		`· You're about to add not-null ${
-			chalk.underline(
-				'age',
-			)
-		} column without default value, which contains 2 items`,
-	]);
 	// TODO: check truncations
-	// expect(tablesToTruncate![0]).toBe('companies');
+	expect(hints).toStrictEqual([
+		"· You're about to add not-null 'age' column without default value to non-empty 'companies' table",
+	]);
 });
 
 test('added column not null and without default to table without data', async (t) => {
@@ -242,13 +237,7 @@ test('drop autoincrement. drop column with data', async (t) => {
 		'PRAGMA foreign_keys=ON;',
 	]);
 
-	expect(hints).toStrictEqual([
-		`· You're about to delete ${
-			chalk.underline(
-				'name',
-			)
-		} column in companies table with 2 items`,
-	]);
+	expect(hints).toStrictEqual(["· You're about to drop 'name' column(s) in a non-empty 'companies' table"]);
 });
 
 test('drop autoincrement. drop column with data with pragma off', async (t) => {
@@ -295,13 +284,7 @@ test('drop autoincrement. drop column with data with pragma off', async (t) => {
 		'PRAGMA foreign_keys=ON;',
 	]);
 
-	expect(hints).toStrictEqual([
-		`· You're about to delete ${
-			chalk.underline(
-				'name',
-			)
-		} column in companies table with 2 items`,
-	]);
+	expect(hints).toStrictEqual(["· You're about to drop 'name' column(s) in a non-empty 'companies' table"]);
 });
 
 test('change autoincrement. other table references current', async (t) => {

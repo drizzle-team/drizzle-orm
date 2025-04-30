@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { index, pgRole, pgTable, serial, text } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
-import { diffTestSchemas } from './mocks';
+import { diff } from './mocks';
 
 test('indexes #0', async (t) => {
 	const schema1 = {
@@ -46,7 +46,7 @@ test('indexes #0', async (t) => {
 		),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual([
 		'DROP INDEX "changeName";',

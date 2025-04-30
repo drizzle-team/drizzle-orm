@@ -13,7 +13,7 @@ import { withStyle } from '../validations/outputs';
 import type { SqliteCredentials } from '../validations/sqlite';
 import { ProgressView } from '../views';
 
-export const sqlitePush = async (
+export const handle = async (
 	schemaPath: string | string[],
 	verbose: boolean,
 	strict: boolean,
@@ -147,6 +147,22 @@ export const suggestions = async (
 			}
 
 			continue;
+		}
+
+		if (statement.type === 'recreate_table') {
+			const droppedColumns = statement.from.columns.filter((col) =>
+				!statement.to.columns.some((c) => c.name === col.name)
+			);
+			if (droppedColumns.length === 0) continue;
+
+			const res = await connection.query(`select 1 from "${statement.from.name}" limit 1`);
+			if (res.length > 0) {
+				hints.push(
+					`· You're about to drop ${
+						droppedColumns.map((col) => `'${col.name}'`).join(', ')
+					} column(s) in a non-empty '${statement.from.name}' table`,
+				);
+			}
 		}
 	}
 

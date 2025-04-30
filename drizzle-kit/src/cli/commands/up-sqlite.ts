@@ -47,7 +47,6 @@ const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
 				type: column.type,
 				notNull: column.notNull,
 				primaryKey: column.primaryKey,
-				unique: null, // TODO: probably we need to infer from unique constraints list
 				default: column.default
 					? {
 						value: column.default,
@@ -83,6 +82,7 @@ const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
 				table: table.name,
 				name: unique.name,
 				columns: unique.columns,
+				origin: 'manual',
 			});
 		}
 
@@ -101,8 +101,8 @@ const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
 				columnsFrom: fk.columnsFrom,
 				tableTo: fk.tableTo,
 				columnsTo: fk.columnsTo,
-				onDelete: fk.onDelete,
-				onUpdate: fk.onUpdate,
+				onDelete: fk.onDelete ?? 'NO ACTION',
+				onUpdate: fk.onUpdate ?? 'NO ACTION',
 			});
 		}
 	}

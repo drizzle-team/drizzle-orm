@@ -1,26 +1,25 @@
 import chalk from 'chalk';
 import { writeFileSync } from 'fs';
-import { renderWithTask } from 'hanji';
+import { renderWithTask, TaskView } from 'hanji';
 import { render } from 'hanji';
 import { Minimatch } from 'minimatch';
 import { join } from 'path';
-import { originUUID } from '../../global';
-import { schemaToTypeScript as mysqlSchemaToTypeScript } from '../../introspect-mysql';
-import type { MySqlSchema } from '../../serializer/mysqlSchema';
-import { dryMySql, squashMysqlScheme } from '../../serializer/mysqlSchema';
-import { fromDatabase } from '../../serializer/mysqlSerializer';
-import { fromDatabase as fromMysqlDatabase } from '../../serializer/mysqlSerializer';
-import { applyMysqlSnapshotsDiff } from '../../snapshot-differ/mysql';
+import { toJsonSnapshot } from 'src/dialects/mysql/snapshot';
+import { mockResolver } from 'src/utils/mocks';
+import { Column, createDDL, interimToDDL, Table, View } from '../../dialects/mysql/ddl';
+import { diffDDL } from '../../dialects/mysql/diff';
+import { fromDatabase } from '../../dialects/mysql/introspect';
+import { ddlToTypeScript } from '../../dialects/mysql/typescript';
 import type { DB } from '../../utils';
 import { prepareOutFolder } from '../../utils-node';
+import { resolver } from '../prompts';
 import type { Casing, Prefix } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
-import { ProgressView } from '../views';
 import { IntrospectProgress } from '../views';
 import { writeResult } from './generate-common';
 import { relationsToTypeScript } from './pull-common';
 
-export const introspectMysql = async (
+export const handle = async (
 	casing: Casing,
 	out: string,
 	breakpoints: boolean,
@@ -61,41 +60,39 @@ export const introspectMysql = async (
 	const progress = new IntrospectProgress();
 	const res = await renderWithTask(
 		progress,
-		fromMysqlDatabase(db, database, filter, (stage, count, status) => {
+		fromDatabase(db, database, filter, (stage, count, status) => {
 			progress.update(stage, count, status);
 		}),
 	);
+	const { ddl } = interimToDDL(res);
 
-	const schema = { id: originUUID, prevId: '', ...res } as MySqlSchema;
-	const ts = mysqlSchemaToTypeScript(schema, casing);
-	const relationsTs = relationsToTypeScript(schema, casing);
-	const { internal, ...schemaWithoutInternals } = schema;
+	const ts = ddlToTypeScript(ddl, res.viewColumns, casing);
+	const relations = relationsToTypeScript(ddl.fks.list(), casing);
 
 	const schemaFile = join(out, 'schema.ts');
 	writeFileSync(schemaFile, ts.file);
+
 	const relationsFile = join(out, 'relations.ts');
-	writeFileSync(relationsFile, relationsTs.file);
+	writeFileSync(relationsFile, relations.file);
 	console.log();
 
 	const { snapshots, journal } = prepareOutFolder(out, 'mysql');
 
 	if (snapshots.length === 0) {
-		const { sqlStatements, _meta } = await applyMysqlSnapshotsDiff(
-			squashMysqlScheme(dryMySql),
-			squashMysqlScheme(schema),
-			tablesResolver,
-			columnsResolver,
-			mySqlViewsResolver,
-			uniqueResolver,
-			dryMySql,
-			schema,
+		const { sqlStatements } = await diffDDL(
+			createDDL(),
+			ddl,
+			mockResolver(new Set()),
+			mockResolver(new Set()),
+			mockResolver(new Set()),
+			'push',
 		);
 
 		writeResult({
-			snapshot: schema,
+			snapshot: toJsonSnapshot(ddl, '', []),
 			sqlStatements,
 			journal,
-			_meta,
+			renames: [],
 			outFolder: out,
 			breakpoints,
 			type: 'introspect',
@@ -130,50 +127,4 @@ export const introspectMysql = async (
 		} 🚀`,
 	);
 	process.exit(0);
-};
-
-export const mysqlPushIntrospect = async (
-	db: DB,
-	databaseName: string,
-	filters: string[],
-) => {
-	const matchers = filters.map((it) => {
-		return new Minimatch(it);
-	});
-
-	const filter = (tableName: string) => {
-		if (matchers.length === 0) return true;
-
-		let flags: boolean[] = [];
-
-		for (let matcher of matchers) {
-			if (matcher.negate) {
-				if (!matcher.match(tableName)) {
-					flags.push(false);
-				}
-			}
-
-			if (matcher.match(tableName)) {
-				flags.push(true);
-			}
-		}
-
-		if (flags.length > 0) {
-			return flags.every(Boolean);
-		}
-		return false;
-	};
-
-	const progress = new ProgressView(
-		'Pulling schema from database...',
-		'Pulling schema from database...',
-	);
-	const res = await renderWithTask(
-		progress,
-		fromDatabase(db, databaseName, filter),
-	);
-
-	const schema = { id: originUUID, prevId: '', ...res } as MySqlSchema;
-	const { internal, ...schemaWithoutInternals } = schema;
-	return { schema: schemaWithoutInternals };
 };

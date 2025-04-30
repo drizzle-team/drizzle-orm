@@ -1,7 +1,7 @@
 import { plural, singular } from 'pluralize';
+import { MysqlEntities } from 'src/dialects/mysql/ddl';
 import { PostgresEntities } from 'src/dialects/postgres/ddl';
 import { SqliteEntities } from 'src/dialects/sqlite/ddl';
-import { PostgresDDL } from 'src/utils/mover-postgres';
 import { paramNameFor } from '../../dialects/postgres/typescript';
 import { assertUnreachable } from '../../global';
 import type { Casing } from '../validations/common';
@@ -18,7 +18,7 @@ const withCasing = (value: string, casing: Casing) => {
 };
 
 export const relationsToTypeScript = (
-	fks: (PostgresEntities['fks'] | SqliteEntities['fks'])[],
+	fks: (PostgresEntities['fks'] | SqliteEntities['fks'] | MysqlEntities['fks'])[],
 	casing: Casing,
 ) => {
 	const imports: string[] = [];

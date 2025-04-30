@@ -35,7 +35,7 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 import fs from 'fs';
-import { introspectPgToFile, reset } from 'tests/postgres/mocks';
+import { pushPullDiff, reset } from 'tests/postgres/mocks';
 import { beforeEach, expect, test } from 'vitest';
 
 // @vitest-environment-options {"max-concurrency":1}
@@ -55,7 +55,7 @@ test('basic introspect test', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'basic-introspect',
@@ -73,7 +73,7 @@ test('basic identity always test', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'basic-identity-always-introspect',
@@ -91,7 +91,7 @@ test('basic identity by default test', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'basic-identity-default-introspect',
@@ -112,7 +112,7 @@ test('identity always test: few params', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'identity-always-few-params-introspect',
@@ -133,7 +133,7 @@ test('identity by default test: few params', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'identity-default-few-params-introspect',
@@ -158,7 +158,7 @@ test('identity always test: all params', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'identity-always-all-params-introspect',
@@ -183,7 +183,7 @@ test('identity by default test: all params', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'identity-default-all-params-introspect',
@@ -204,7 +204,7 @@ test('generated column: link to another column', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'generated-link-column',
@@ -258,7 +258,7 @@ test('introspect all column types', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'introspect-all-columns-types',
@@ -304,7 +304,7 @@ test('introspect all column array types', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'introspect-all-columns-array-types',
@@ -324,7 +324,7 @@ test('introspect columns with name with non-alphanumeric characters', async () =
 		}),
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'introspect-column-with-name-with-non-alphanumeric-characters',
@@ -345,7 +345,7 @@ test('introspect enum from different schema', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'introspect-enum-from-different-schema',
@@ -370,7 +370,7 @@ test('introspect enum with same names across different schema', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'introspect-enum-with-same-names-across-different-schema',
@@ -390,7 +390,7 @@ test('introspect enum with similar name to native type', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'introspect-enum-with-similar-name-to-native-type',
@@ -411,7 +411,7 @@ test('introspect strings with single quotes', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'introspect-strings-with-single-quotes',
@@ -432,7 +432,7 @@ test('introspect checks', async () => {
 		})),
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'introspect-checks',
@@ -460,7 +460,7 @@ test('introspect checks from different schemas with same names', async () => {
 		})),
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'introspect-checks-diff-schema-same-names',
@@ -483,7 +483,7 @@ test('introspect view #1', async () => {
 		users,
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'introspect-view',
@@ -507,7 +507,7 @@ test('introspect view #2', async () => {
 		users,
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'introspect-view-2',
@@ -533,7 +533,7 @@ test('introspect view in other schema', async () => {
 		newSchema,
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'introspect-view-in-other-schema',
@@ -560,7 +560,7 @@ test('introspect materialized view in other schema', async () => {
 		newSchema,
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'introspect-mat-view-in-other-schema',
@@ -583,7 +583,7 @@ test('introspect materialized view #1', async () => {
 		users,
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'introspect-materialized-view',
@@ -607,7 +607,7 @@ test('introspect materialized view #2', async () => {
 		users,
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'introspect-materialized-view-2',
@@ -626,7 +626,7 @@ test('basic policy', async () => {
 		})),
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'basic-policy',
@@ -645,7 +645,7 @@ test('basic policy with "as"', async () => {
 		})),
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'basic-policy-as',
@@ -664,7 +664,7 @@ test.todo('basic policy with CURRENT_USER role', async () => {
 		})),
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'basic-policy',
@@ -683,7 +683,7 @@ test('basic policy with all fields except "using" and "with"', async () => {
 		})),
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'basic-policy-all-fields',
@@ -702,7 +702,7 @@ test('basic policy with "using" and "with"', async () => {
 		})),
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'basic-policy-using-withcheck',
@@ -722,7 +722,7 @@ test('multiple policies', async () => {
 		})),
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'multiple-policies',
@@ -744,7 +744,7 @@ test('multiple policies with roles', async () => {
 		})),
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'multiple-policies-with-roles',
@@ -759,7 +759,7 @@ test('basic roles', async () => {
 		usersRole: pgRole('user'),
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'basic-roles',
@@ -776,7 +776,7 @@ test('role with properties', async () => {
 		usersRole: pgRole('user', { inherit: false, createDb: true, createRole: true }),
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'roles-with-properties',
@@ -793,7 +793,7 @@ test('role with a few properties', async () => {
 		usersRole: pgRole('user', { inherit: false, createRole: true }),
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'roles-with-few-properties',
@@ -822,7 +822,7 @@ test('multiple policies with roles from schema', async () => {
 		),
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'multiple-policies-with-roles-from-schema',

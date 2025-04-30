@@ -10,7 +10,7 @@ import {
 	text,
 } from 'drizzle-orm/sqlite-core';
 import { expect, test } from 'vitest';
-import { diff } from './mocks-sqlite';
+import { diff } from './mocks';
 
 test('create table with id', async (t) => {
 	const schema = {

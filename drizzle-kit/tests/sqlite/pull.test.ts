@@ -3,7 +3,7 @@ import { SQL, sql } from 'drizzle-orm';
 import { check, int, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
 import * as fs from 'fs';
 import { expect, test } from 'vitest';
-import { diffAfterPull } from './mocks-sqlite';
+import { diffAfterPull } from './mocks';
 
 fs.mkdirSync('tests/sqlite/tmp', { recursive: true });
 

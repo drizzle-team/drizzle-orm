@@ -1,5 +1,5 @@
 import { int, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import { diff } from 'tests/sqlite/mocks-sqlite';
+import { diff } from 'tests/sqlite/mocks';
 import { expect } from 'vitest';
 import { DialectSuite, run } from '../common';
 

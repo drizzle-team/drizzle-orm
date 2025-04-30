@@ -36,7 +36,7 @@ import {
 	ResolverInput,
 	ResolverOutputWithMoved,
 	Table,
-} from './common';
+} from '../dialects/common';
 
 export const applySingleStoreSnapshotsDiff = async (
 	json1: SingleStoreSchemaSquashed,

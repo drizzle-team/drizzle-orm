@@ -2,15 +2,16 @@ import chalk from 'chalk';
 import fs from 'fs';
 import { render } from 'hanji';
 import path, { join } from 'path';
-import { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
+import type { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
+import type { MysqlSnapshot } from '../../dialects/mysql/snapshot';
 import type { SqliteSnapshot } from '../../dialects/sqlite/snapshot';
 import { BREAKPOINT } from '../../global';
-import { Journal } from '../../utils';
+import type { Journal } from '../../utils';
 import { prepareMigrationMetadata } from '../../utils/words';
-import { Driver, Prefix } from '../validations/common';
+import type { Driver, Prefix } from '../validations/common';
 
 export const writeResult = (config: {
-	snapshot: SqliteSnapshot | PostgresSnapshot;
+	snapshot: SqliteSnapshot | PostgresSnapshot | MysqlSnapshot;
 	sqlStatements: string[];
 	journal: Journal;
 	outFolder: string;
@@ -23,7 +24,7 @@ export const writeResult = (config: {
 	renames: string[];
 }) => {
 	const {
-		snapshot: cur,
+		snapshot,
 		sqlStatements,
 		journal,
 		outFolder,
@@ -56,8 +57,7 @@ export const writeResult = (config: {
 
 	const { prefix, tag } = prepareMigrationMetadata(idx, prefixMode, name);
 
-	const snToSave = cur;
-	const toSave = JSON.parse(JSON.stringify(snToSave));
+	snapshot.renames = renames;
 
 	// todo: save results to a new migration folder
 	const metaFolderPath = join(outFolder, 'meta');
@@ -65,7 +65,7 @@ export const writeResult = (config: {
 
 	fs.writeFileSync(
 		join(metaFolderPath, `${prefix}_snapshot.json`),
-		JSON.stringify(toSave, null, 2),
+		JSON.stringify(JSON.parse(JSON.stringify(snapshot)), null, 2),
 	);
 
 	const sqlDelimiter = breakpoints ? BREAKPOINT : '\n';
@@ -83,7 +83,7 @@ export const writeResult = (config: {
 
 	journal.entries.push({
 		idx,
-		version: cur.version,
+		version: snapshot.version,
 		when: +new Date(),
 		tag,
 		breakpoints: breakpoints,

@@ -2,13 +2,12 @@ import chalk from 'chalk';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { parse } from 'url';
-import { info } from './cli/views';
+import { error, info } from './cli/views';
+import { snapshotValidator } from './dialects/postgres/snapshot';
 import { assertUnreachable } from './global';
 import type { Dialect } from './schemaValidator';
-import { mysqlSchemaV5 } from './serializer/mysqlSchema';
 import { singlestoreSchema } from './serializer/singlestoreSchema';
-import { dryJournal } from './utils';
-import { snapshotValidator } from './dialects/postgres/snapshot';
+import { Journal } from './utils';
 
 export const assertV1OutFolder = (out: string) => {
 	if (!existsSync(out)) return;
@@ -27,6 +26,14 @@ export const assertV1OutFolder = (out: string) => {
 		);
 		process.exit(1);
 	}
+};
+
+export const dryJournal = (dialect: Dialect): Journal => {
+	return {
+		version: '7',
+		dialect,
+		entries: [],
+	};
 };
 
 export const prepareOutFolder = (out: string, dialect: Dialect) => {
@@ -264,4 +271,46 @@ export const normaliseSQLiteUrl = (
 	}
 
 	assertUnreachable(type);
+};
+
+
+// NextJs default config is target: es5, which esbuild-register can't consume
+const assertES5 = async (unregister: () => void) => {
+	try {
+		require('./_es5.ts');
+	} catch (e: any) {
+		if ('errors' in e && Array.isArray(e.errors) && e.errors.length > 0) {
+			const es5Error = (e.errors as any[]).filter((it) => it.text?.includes(`("es5") is not supported yet`)).length > 0;
+			if (es5Error) {
+				console.log(
+					error(
+						`Please change compilerOptions.target from 'es5' to 'es6' or above in your tsconfig.json`,
+					),
+				);
+				process.exit(1);
+			}
+		}
+		console.error(e);
+		process.exit(1);
+	}
+};
+
+export const safeRegister = async () => {
+	const { register } = await import('esbuild-register/dist/node');
+	let res: { unregister: () => void };
+	try {
+		res = register({
+			format: 'cjs',
+			loader: 'ts',
+		});
+	} catch {
+		// tsx fallback
+		res = {
+			unregister: () => {},
+		};
+	}
+
+	// has to be outside try catch to be able to run with tsx
+	await assertES5(res.unregister);
+	return res;
 };

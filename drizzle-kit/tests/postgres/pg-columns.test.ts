@@ -1,6 +1,6 @@
 import { boolean, integer, pgTable, primaryKey, serial, text, uuid, varchar } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
-import { diffTestSchemas } from './mocks';
+import { diff } from './mocks';
 
 test('add columns #1', async (t) => {
 	const schema1 = {
@@ -16,7 +16,7 @@ test('add columns #1', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+	const { sqlStatements } = await diff(schema1, schema2, []);
 	expect(sqlStatements).toStrictEqual(['ALTER TABLE "users" ADD COLUMN "name" text;']);
 });
 
@@ -35,7 +35,7 @@ test('add columns #2', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE "users" ADD COLUMN "name" text;',
@@ -58,7 +58,7 @@ test('alter column change name #1', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(schema1, schema2, [
+	const { sqlStatements } = await diff(schema1, schema2, [
 		'public.users.name->public.users.name1',
 	]);
 
@@ -81,7 +81,7 @@ test('alter column change name #2', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(schema1, schema2, [
+	const { sqlStatements } = await diff(schema1, schema2, [
 		'public.users.name->public.users.name1',
 	]);
 
@@ -106,7 +106,7 @@ test('alter table add composite pk', async (t) => {
 		}, (t) => [primaryKey({ columns: [t.id1, t.id2] })]),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(
+	const { sqlStatements } = await diff(
 		schema1,
 		schema2,
 		[],
@@ -128,7 +128,7 @@ test('rename table rename column #1', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(schema1, schema2, [
+	const { sqlStatements } = await diff(schema1, schema2, [
 		'public.users->public.users1',
 		'public.users1.id->public.users1.id1',
 	]);
@@ -155,7 +155,7 @@ test('with composite pks #1', async (t) => {
 		}, (t) => [primaryKey({ columns: [t.id1, t.id2], name: 'compositePK' })]),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual(['ALTER TABLE "users" ADD COLUMN "text" text;']);
 });
@@ -175,7 +175,7 @@ test('with composite pks #2', async (t) => {
 		}, (t) => [primaryKey({ columns: [t.id1, t.id2], name: 'compositePK' })]),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual(['ALTER TABLE "users" ADD CONSTRAINT "compositePK" PRIMARY KEY("id1","id2");']);
 });
@@ -204,7 +204,7 @@ test('with composite pks #3', async (t) => {
 	};
 
 	// TODO: remove redundand drop/create create constraint
-	const { sqlStatements } = await diffTestSchemas(schema1, schema2, [
+	const { sqlStatements } = await diff(schema1, schema2, [
 		'public.users.id2->public.users.id3',
 	]);
 
@@ -247,7 +247,7 @@ test('add multiple constraints #1', async (t) => {
 	};
 
 	// TODO: remove redundand drop/create create constraint
-	const { sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual([]);
 });
@@ -278,7 +278,7 @@ test('add multiple constraints #2', async (t) => {
 	};
 
 	// TODO: remove redundand drop/create create constraint
-	const { sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual([]);
 });
@@ -317,7 +317,7 @@ test('add multiple constraints #3', async (t) => {
 	};
 
 	// TODO: remove redundand drop/create create constraint
-	const { sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual([]);
 });
@@ -337,7 +337,7 @@ test('varchar and text default values escape single quotes', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual([
 		`ALTER TABLE "table" ADD COLUMN "text" text DEFAULT 'escape''s quotes';`,
@@ -365,7 +365,7 @@ test('add columns with defaults', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(schema1, schema2, []);
+	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	// TODO: check for created tables, etc
 	expect(sqlStatements).toStrictEqual([

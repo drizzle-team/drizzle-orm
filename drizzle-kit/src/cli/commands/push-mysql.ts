@@ -1,214 +1,19 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
+import { Column, interimToDDL, Table, View } from 'src/dialects/mysql/ddl';
+import { prepareFilenames } from 'src/serializer';
 import { TypeOf } from 'zod';
-import { JsonAlterColumnTypeStatement, JsonStatement } from '../../jsonStatements';
-import { MySqlSchema, mysqlSchema, MySqlSquasher, squashMysqlScheme } from '../../serializer/mysqlSchema';
-import { applyMysqlSnapshotsDiff } from '../../snapshot-differ/mysql';
-import { fromJson } from '../../sqlgenerator';
+import { diffDDL } from '../../dialects/mysql/diff';
+import { JsonStatement } from '../../jsonStatements';
 import type { DB } from '../../utils';
 import { Select } from '../selector-ui';
 import type { CasingType } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
 import { withStyle } from '../validations/outputs';
+import { ProgressView } from '../views';
+import { resolver } from '../prompts';
 
-const serializeMySql = async (
-	path: string | string[],
-	casing: CasingType | undefined,
-): Promise<MySqlSchemaInternal> => {
-	const filenames = prepareFilenames(path);
-
-	console.log(chalk.gray(`Reading schema files:\n${filenames.join('\n')}\n`));
-
-	const { prepareFromMySqlImports } = await import('../../mysqlImports');
-	const { generateMySqlSnapshot } = await import('./mysqlSerializer');
-
-	const { tables, views } = await prepareFromMySqlImports(filenames);
-
-	return generateMySqlSnapshot(tables, views, casing);
-};
-
-const prepareMySqlDbPushSnapshot = async (
-	prev: MySqlSchema,
-	schemaPath: string | string[],
-	casing: CasingType | undefined,
-): Promise<{ prev: MySqlSchema; cur: MySqlSchema }> => {
-	const serialized = await serializeMySql(schemaPath, casing);
-
-	const id = randomUUID();
-	const idPrev = prev.id;
-
-	const { version, dialect, ...rest } = serialized;
-	const result: MySqlSchema = { version, dialect, id, prevId: idPrev, ...rest };
-
-	return { prev, cur: result };
-};
-
-export const prepareMySqlMigrationSnapshot = async (
-	migrationFolders: string[],
-	schemaPath: string | string[],
-	casing: CasingType | undefined,
-): Promise<{ prev: MySqlSchema; cur: MySqlSchema; custom: MySqlSchema }> => {
-	const prevSnapshot = mysqlSchema.parse(
-		preparePrevSnapshot(migrationFolders, dryMySql),
-	);
-
-	const serialized = await serializeMySql(schemaPath, casing);
-
-	const id = randomUUID();
-	const idPrev = prevSnapshot.id;
-
-	const { version, dialect, ...rest } = serialized;
-	const result: MySqlSchema = { version, dialect, id, prevId: idPrev, ...rest };
-
-	const { id: _ignoredId, prevId: _ignoredPrevId, ...prevRest } = prevSnapshot;
-
-	// that's for custom migrations, when we need new IDs, but old snapshot
-	const custom: MySqlSchema = {
-		id,
-		prevId: idPrev,
-		...prevRest,
-	};
-
-	return { prev: prevSnapshot, cur: result, custom };
-};
-
-
-// Intersect with prepareAnMigrate
-export const prepareMySQLPush = async (
-	schemaPath: string | string[],
-	snapshot: MySqlSchema,
-	casing: CasingType | undefined,
-) => {
-	try {
-		const { prev, cur } = await prepareMySqlDbPushSnapshot(
-			snapshot,
-			schemaPath,
-			casing,
-		);
-
-		const validatedPrev = mysqlSchema.parse(prev);
-		const validatedCur = mysqlSchema.parse(cur);
-
-		const squashedPrev = squashMysqlScheme(validatedPrev);
-		const squashedCur = squashMysqlScheme(validatedCur);
-
-		const { sqlStatements, statements } = await applyMysqlSnapshotsDiff(
-			squashedPrev,
-			squashedCur,
-			tablesResolver,
-			columnsResolver,
-			mySqlViewsResolver,
-			uniqueResolver,
-			validatedPrev,
-			validatedCur,
-			'push',
-		);
-
-		return { sqlStatements, statements, validatedCur, validatedPrev };
-	} catch (e) {
-		console.error(e);
-		process.exit(1);
-	}
-};
-
-export const filterStatements = (
-	statements: JsonStatement[],
-	currentSchema: TypeOf<typeof mysqlSchema>,
-	prevSchema: TypeOf<typeof mysqlSchema>,
-) => {
-	return statements.filter((statement) => {
-		if (statement.type === 'alter_table_alter_column_set_type') {
-			// Don't need to handle it on migrations step and introspection
-			// but for both it should be skipped
-			if (
-				statement.oldDataType.startsWith('tinyint')
-				&& statement.newDataType.startsWith('boolean')
-			) {
-				return false;
-			}
-
-			if (
-				statement.oldDataType.startsWith('bigint unsigned')
-				&& statement.newDataType.startsWith('serial')
-			) {
-				return false;
-			}
-
-			if (
-				statement.oldDataType.startsWith('serial')
-				&& statement.newDataType.startsWith('bigint unsigned')
-			) {
-				return false;
-			}
-		} else if (statement.type === 'alter_table_alter_column_set_default') {
-			if (
-				statement.newDefaultValue === false
-				&& statement.oldDefaultValue === 0
-				&& statement.newDataType === 'boolean'
-			) {
-				return false;
-			}
-			if (
-				statement.newDefaultValue === true
-				&& statement.oldDefaultValue === 1
-				&& statement.newDataType === 'boolean'
-			) {
-				return false;
-			}
-		} else if (statement.type === 'delete_unique_constraint') {
-			const unsquashed = MySqlSquasher.unsquashUnique(statement.data);
-			// only if constraint was removed from a serial column, than treat it as removed
-			// const serialStatement = statements.find(
-			//   (it) => it.type === "alter_table_alter_column_set_type"
-			// ) as JsonAlterColumnTypeStatement;
-			// if (
-			//   serialStatement?.oldDataType.startsWith("bigint unsigned") &&
-			//   serialStatement?.newDataType.startsWith("serial") &&
-			//   serialStatement.columnName ===
-			//     MySqlSquasher.unsquashUnique(statement.data).columns[0]
-			// ) {
-			//   return false;
-			// }
-			// Check if uniqueindex was only on this column, that is serial
-
-			// if now serial and was not serial and was unique index
-			if (
-				unsquashed.columns.length === 1
-				&& currentSchema.tables[statement.tableName].columns[unsquashed.columns[0]]
-						.type === 'serial'
-				&& prevSchema.tables[statement.tableName].columns[unsquashed.columns[0]]
-						.type === 'serial'
-				&& currentSchema.tables[statement.tableName].columns[unsquashed.columns[0]]
-						.name === unsquashed.columns[0]
-			) {
-				return false;
-			}
-		} else if (statement.type === 'alter_table_alter_column_drop_notnull') {
-			// only if constraint was removed from a serial column, than treat it as removed
-			const serialStatement = statements.find(
-				(it) => it.type === 'alter_table_alter_column_set_type',
-			) as JsonAlterColumnTypeStatement;
-			if (
-				serialStatement?.oldDataType.startsWith('bigint unsigned')
-				&& serialStatement?.newDataType.startsWith('serial')
-				&& serialStatement.columnName === statement.columnName
-				&& serialStatement.tableName === statement.tableName
-			) {
-				return false;
-			}
-			if (statement.newDataType === 'serial' && !statement.columnNotNull) {
-				return false;
-			}
-			if (statement.columnAutoIncrement) {
-				return false;
-			}
-		}
-
-		return true;
-	});
-};
-
-export const mysqlPush = async (
+export const handle = async (
 	schemaPath: string | string[],
 	credentials: MysqlCredentials,
 	tablesFilter: string[],
@@ -218,15 +23,39 @@ export const mysqlPush = async (
 	casing: CasingType | undefined,
 ) => {
 	const { connectToMySQL } = await import('../connections');
-	const { mysqlPushIntrospect } = await import('./pull-mysql');
+	const { introspect } = await import('../../dialects/mysql/introspect');
 
 	const { db, database } = await connectToMySQL(credentials);
+	const progress = new ProgressView(
+		'Pulling schema from database...',
+		'Pulling schema from database...',
+	);
+	const interimFromDB = await introspect(db, database, tablesFilter, progress);
 
-	const { schema } = await mysqlPushIntrospect(db, database, tablesFilter);
-	const statements = await prepareMySQLPush(schemaPath, schema, casing);
+	const filenames = prepareFilenames(schemaPath);
 
-	const filteredStatements = mySqlFilterStatements(
-		statements.statements ?? [],
+	console.log(chalk.gray(`Reading schema files:\n${filenames.join('\n')}\n`));
+
+	const { prepareFromSchemaFiles, fromDrizzleSchema } = await import('../../dialects/mysql/drizzle');
+
+	const res = await prepareFromSchemaFiles(filenames);
+	const interimFromFiles = fromDrizzleSchema(res.tables, res.views, casing);
+
+	const { ddl: ddl1 } = interimToDDL(interimFromDB);
+	const { ddl: ddl2 } = interimToDDL(interimFromFiles);
+	// TODO: handle errors
+
+	const { sqlStatements, statements } = await diffDDL(
+		ddl1,
+		ddl2,
+		resolver<Table>('table'),
+		resolver<Column>('column'),
+		resolver<View>('view'),
+		'push',
+	);
+
+	const filteredStatements = filterStatements(
+		statements ?? [],
 		statements.validatedCur,
 		statements.validatedPrev,
 	);
@@ -242,7 +71,7 @@ export const mysqlPush = async (
 				tablesToRemove,
 				tablesToTruncate,
 				infoToPrint,
-			} = await mySqlLogSuggestionsAndReturn(
+			} = await logSuggestionsAndReturn(
 				db,
 				filteredStatements,
 				statements.validatedCur,
@@ -343,6 +172,103 @@ export const mysqlPush = async (
 	} catch (e) {
 		console.log(e);
 	}
+};
+
+export const filterStatements = (
+	statements: JsonStatement[],
+	currentSchema: TypeOf<typeof mysqlSchema>,
+	prevSchema: TypeOf<typeof mysqlSchema>,
+) => {
+	return statements.filter((statement) => {
+		if (statement.type === 'alter_table_alter_column_set_type') {
+			// Don't need to handle it on migrations step and introspection
+			// but for both it should be skipped
+			if (
+				statement.oldDataType.startsWith('tinyint')
+				&& statement.newDataType.startsWith('boolean')
+			) {
+				return false;
+			}
+
+			if (
+				statement.oldDataType.startsWith('bigint unsigned')
+				&& statement.newDataType.startsWith('serial')
+			) {
+				return false;
+			}
+
+			if (
+				statement.oldDataType.startsWith('serial')
+				&& statement.newDataType.startsWith('bigint unsigned')
+			) {
+				return false;
+			}
+		} else if (statement.type === 'alter_table_alter_column_set_default') {
+			if (
+				statement.newDefaultValue === false
+				&& statement.oldDefaultValue === 0
+				&& statement.newDataType === 'boolean'
+			) {
+				return false;
+			}
+			if (
+				statement.newDefaultValue === true
+				&& statement.oldDefaultValue === 1
+				&& statement.newDataType === 'boolean'
+			) {
+				return false;
+			}
+		} else if (statement.type === 'delete_unique_constraint') {
+			const unsquashed = MySqlSquasher.unsquashUnique(statement.data);
+			// only if constraint was removed from a serial column, than treat it as removed
+			// const serialStatement = statements.find(
+			//   (it) => it.type === "alter_table_alter_column_set_type"
+			// ) as JsonAlterColumnTypeStatement;
+			// if (
+			//   serialStatement?.oldDataType.startsWith("bigint unsigned") &&
+			//   serialStatement?.newDataType.startsWith("serial") &&
+			//   serialStatement.columnName ===
+			//     MySqlSquasher.unsquashUnique(statement.data).columns[0]
+			// ) {
+			//   return false;
+			// }
+			// Check if uniqueindex was only on this column, that is serial
+
+			// if now serial and was not serial and was unique index
+			if (
+				unsquashed.columns.length === 1
+				&& currentSchema.tables[statement.tableName].columns[unsquashed.columns[0]]
+						.type === 'serial'
+				&& prevSchema.tables[statement.tableName].columns[unsquashed.columns[0]]
+						.type === 'serial'
+				&& currentSchema.tables[statement.tableName].columns[unsquashed.columns[0]]
+						.name === unsquashed.columns[0]
+			) {
+				return false;
+			}
+		} else if (statement.type === 'alter_table_alter_column_drop_notnull') {
+			// only if constraint was removed from a serial column, than treat it as removed
+			const serialStatement = statements.find(
+				(it) => it.type === 'alter_table_alter_column_set_type',
+			) as JsonAlterColumnTypeStatement;
+			if (
+				serialStatement?.oldDataType.startsWith('bigint unsigned')
+				&& serialStatement?.newDataType.startsWith('serial')
+				&& serialStatement.columnName === statement.columnName
+				&& serialStatement.tableName === statement.tableName
+			) {
+				return false;
+			}
+			if (statement.newDataType === 'serial' && !statement.columnNotNull) {
+				return false;
+			}
+			if (statement.columnAutoIncrement) {
+				return false;
+			}
+		}
+
+		return true;
+	});
 };
 
 export const logSuggestionsAndReturn = async (
@@ -591,5 +517,3 @@ export const logSuggestionsAndReturn = async (
 		tablesToRemove: [...new Set(tablesToRemove)],
 	};
 };
-
-
