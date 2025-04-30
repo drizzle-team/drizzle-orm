@@ -13,14 +13,19 @@ import type {
 import type { MsSqlTable } from '~/mssql-core/table.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
-import { mapUpdateSet, type UpdateSet } from '~/utils.ts';
-import type { SelectedFieldsOrdered } from './select.types.ts';
+import { Table } from '~/table.ts';
+import { mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import type { MsSqlColumn } from '../columns/common.ts';
+import type { SelectedFieldsFlatUpdate, SelectedFieldsOrdered } from './select.types.ts';
 
 export interface MsSqlUpdateConfig {
 	where?: SQL | undefined;
 	set: UpdateSet;
 	table: MsSqlTable;
-	returning?: SelectedFieldsOrdered;
+	output?: {
+		inserted?: SelectedFieldsOrdered;
+		deleted?: SelectedFieldsOrdered;
+	};
 }
 
 export type MsSqlUpdateSetSource<TTable extends MsSqlTable> =
@@ -30,6 +35,35 @@ export type MsSqlUpdateSetSource<TTable extends MsSqlTable> =
 			| SQL;
 	}
 	& {};
+
+export type MsSqlUpdateReturning<
+	T extends AnyMsSqlUpdateBase,
+	TDynamic extends boolean,
+> = MsSqlUpdateWithout<
+	MsSqlUpdateBase<
+		T['_']['table'],
+		T['_']['queryResult'],
+		T['_']['preparedQueryHKT'],
+		T['_']['output'],
+		TDynamic,
+		T['_']['excludedMethods']
+	>,
+	TDynamic,
+	'output'
+>;
+
+export type MsSqlUpdateReturningAll<T extends AnyMsSqlUpdateBase, TDynamic extends boolean> = MsSqlUpdateWithout<
+	MsSqlUpdateBase<
+		T['_']['table'],
+		T['_']['queryResult'],
+		T['_']['preparedQueryHKT'],
+		T['_']['table']['$inferSelect'],
+		TDynamic,
+		T['_']['excludedMethods']
+	>,
+	TDynamic,
+	'output'
+>;
 
 export class MsSqlUpdateBuilder<
 	TTable extends MsSqlTable,
@@ -62,6 +96,7 @@ export type MsSqlUpdateWithout<
 		T['_']['table'],
 		T['_']['queryResult'],
 		T['_']['preparedQueryHKT'],
+		T['_']['output'],
 		TDynamic,
 		T['_']['excludedMethods'] | K
 	>,
@@ -86,14 +121,16 @@ export type MsSqlUpdate<
 	TTable extends MsSqlTable = MsSqlTable,
 	TQueryResult extends QueryResultHKT = AnyQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
-> = MsSqlUpdateBase<TTable, TQueryResult, TPreparedQueryHKT, true, never>;
+	TOutput extends Record<string, unknown> | undefined = undefined,
+> = MsSqlUpdateBase<TTable, TQueryResult, TPreparedQueryHKT, TOutput, true, never>;
 
-export type AnyMsSqlUpdateBase = MsSqlUpdateBase<any, any, any, any, any>;
+export type AnyMsSqlUpdateBase = MsSqlUpdateBase<any, any, any, any, any, any>;
 
 export interface MsSqlUpdateBase<
 	TTable extends MsSqlTable,
 	TQueryResult extends QueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
+	TOutput extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
 > extends QueryPromise<QueryResultKind<TQueryResult, any>>, SQLWrapper {
@@ -101,6 +138,7 @@ export interface MsSqlUpdateBase<
 		readonly table: TTable;
 		readonly queryResult: TQueryResult;
 		readonly preparedQueryHKT: TPreparedQueryHKT;
+		readonly output: TOutput;
 		readonly dynamic: TDynamic;
 		readonly excludedMethods: TExcludedMethods;
 	};
@@ -111,6 +149,8 @@ export class MsSqlUpdateBase<
 	TQueryResult extends QueryResultHKT,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	TOutput extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -168,6 +208,33 @@ export class MsSqlUpdateBase<
 		return this as any;
 	}
 
+	output(): MsSqlUpdateReturningAll<this, TDynamic>;
+	output<TSelectedFields extends SelectedFieldsFlatUpdate>(
+		fields: TSelectedFields,
+	): MsSqlUpdateReturning<this, TDynamic>;
+	output(
+		fields?: SelectedFieldsFlatUpdate,
+	): MsSqlUpdateWithout<AnyMsSqlUpdateBase, TDynamic, 'output'> {
+		if (!fields) {
+			this.config.output = {
+				inserted: orderSelectedFields<MsSqlColumn>(this.config.table[Table.Symbol.Columns]),
+			};
+		} else if (fields.inserted) {
+			this.config.output = {
+				inserted: typeof fields.inserted === 'boolean'
+					? orderSelectedFields<MsSqlColumn>(this.config.table[Table.Symbol.Columns])
+					: orderSelectedFields<MsSqlColumn>(fields.inserted),
+			};
+		} else if (fields.deleted) {
+			this.config.output = {
+				deleted: typeof fields.deleted === 'boolean'
+					? orderSelectedFields<MsSqlColumn>(this.config.table[Table.Symbol.Columns])
+					: orderSelectedFields<MsSqlColumn>(fields.deleted),
+			};
+		}
+		return this as any;
+	}
+
 	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildUpdateQuery(this.config);
@@ -179,9 +246,9 @@ export class MsSqlUpdateBase<
 	}
 
 	prepare(): MsSqlUpdatePrepare<this> {
-		return this.session.prepareQuery(
+		return this.session.prepareQuery<AnyP>(
 			this.dialect.sqlToQuery(this.getSQL()),
-			this.config.returning,
+			[...this.config.output?.deleted[0]., ...this.config.output?.inserted], // TODO
 		) as MsSqlUpdatePrepare<this>;
 	}
 

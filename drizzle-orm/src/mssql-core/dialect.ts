@@ -96,9 +96,9 @@ export class MsSqlDialect {
 		return `'${str.replace(/'/g, "''")}'`;
 	}
 
-	buildDeleteQuery({ table, where, returning }: MsSqlDeleteConfig): SQL {
-		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
+	buildDeleteQuery({ table, where, output }: MsSqlDeleteConfig): SQL {
+		const returningSql = output
+			? sql` returning ${this.buildSelectionOutput(output, { type: 'DELETED' })}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -141,16 +141,27 @@ export class MsSqlDialect {
 		// );
 	}
 
-	buildUpdateQuery({ table, set, where, returning }: MsSqlUpdateConfig): SQL {
+	buildUpdateQuery({ table, set, where, output }: MsSqlUpdateConfig): SQL {
 		const setSql = this.buildUpdateSet(table, set);
 
-		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
-			: undefined;
+		const outputSql = sql``;
+
+		if (output) {
+			outputSql.append(sql` output `);
+
+			if (output.inserted) {
+				outputSql.append(this.buildSelectionOutput(output.inserted, { type: 'INSERTED' }));
+			}
+
+			if (output.deleted) {
+				if (output.inserted) outputSql.append(sql` `); // add space if both are present
+				outputSql.append(this.buildSelectionOutput(output.deleted, { type: 'DELETED' }));
+			}
+		}
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		return sql`update ${table} set ${setSql}${whereSql}${returningSql}`;
+		return sql`update ${table} set ${setSql}${outputSql}${whereSql}`;
 	}
 
 	/**
@@ -203,6 +214,49 @@ export class MsSqlDialect {
 					} else {
 						chunk.push(field);
 					}
+				}
+
+				if (i < columnsLen - 1) {
+					chunk.push(sql`, `);
+				}
+
+				return chunk;
+			});
+
+		return sql.join(chunks);
+	}
+
+	private buildSelectionOutput(
+		fields: SelectedFieldsOrdered,
+		{ type }: { type: 'INSERTED' | 'DELETED' },
+	): SQL {
+		const columnsLen = fields.length;
+
+		const chunks = fields
+			.flatMap(({ field }, i) => {
+				const chunk: SQLChunk[] = [];
+
+				if (is(field, SQL.Aliased) && field.isSelectionField) {
+					chunk.push(sql.join([sql.raw(`${type}.`), sql.identifier(field.fieldAlias)]));
+				} else if (is(field, SQL.Aliased) || is(field, SQL)) {
+					const query = is(field, SQL.Aliased) ? field.sql : field;
+
+					chunk.push(
+						new SQL(
+							query.queryChunks.map((c) => {
+								if (is(c, MsSqlColumn)) {
+									return sql.join([sql.raw(`${type}.`), sql.identifier(this.casing.getColumnCasing(c))]);
+								}
+								return c;
+							}),
+						),
+					);
+
+					if (is(field, SQL.Aliased)) {
+						chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
+					}
+				} else if (is(field, Column)) {
+					chunk.push(sql.join([sql.raw(`${type}.`), sql.identifier(this.casing.getColumnCasing(field))]));
 				}
 
 				if (i < columnsLen - 1) {
@@ -438,7 +492,7 @@ export class MsSqlDialect {
 		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${offsetSql}${fetchSql}`;
 	}
 
-	buildInsertQuery({ table, values }: MsSqlInsertConfig): SQL {
+	buildInsertQuery({ table, values, output }: MsSqlInsertConfig): SQL {
 		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, MsSqlColumn> = table[Table.Symbol.Columns];
@@ -476,7 +530,13 @@ export class MsSqlDialect {
 
 		const valuesSql = insertOrder.length === 0 ? undefined : sql.join(valuesSqlList);
 
-		return sql`insert into ${table} ${insertOrder.length === 0 ? sql`default` : insertOrder} values ${valuesSql}`;
+		const outputSql = output
+			? sql` output ${this.buildSelectionOutput(output, { type: 'INSERTED' })}`
+			: undefined;
+
+		return sql`insert into ${table} ${outputSql} ${
+			insertOrder.length === 0 ? sql`default` : insertOrder
+		} values ${valuesSql}`;
 	}
 
 	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): QueryWithTypings {

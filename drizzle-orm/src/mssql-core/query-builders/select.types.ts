@@ -131,6 +131,11 @@ export type MsSqlJoinFn<
 
 export type SelectedFieldsFlat = SelectedFieldsFlatBase<MsSqlColumn>;
 
+export type SelectedFieldsFlatUpdate = {
+	inserted?: SelectedFieldsFlatBase<MsSqlColumn> | boolean;
+	deleted?: SelectedFieldsFlatBase<MsSqlColumn> | boolean;
+};
+
 export type SelectedFields = SelectedFieldsBase<MsSqlColumn, MsSqlTable>;
 
 export type SelectedFieldsOrdered = SelectedFieldsOrderedBase<MsSqlColumn>;
