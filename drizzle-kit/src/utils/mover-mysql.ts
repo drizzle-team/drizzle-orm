@@ -6,7 +6,6 @@ export {
 	type Index,
 	type PrimaryKey,
 	type Table,
-	type UniqueConstraint,
 	type View,
 } from '../dialects/mysql/ddl';
 

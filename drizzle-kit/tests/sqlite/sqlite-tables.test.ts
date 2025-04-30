@@ -12,7 +12,7 @@ import {
 	uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
 import { expect, test } from 'vitest';
-import { diff } from './mocks-sqlite';
+import { diff } from './mocks';
 
 test('add table #1', async () => {
 	const to = {

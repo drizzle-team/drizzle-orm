@@ -1,6 +1,6 @@
 import { pgTable, text, unique } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
-import { diffTestSchemas } from './mocks';
+import { diff } from './mocks';
 
 test('unique #1', async () => {
 	const from = {
@@ -14,7 +14,7 @@ test('unique #1', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 	expect(sqlStatements).toStrictEqual([
 		`ALTER TABLE "users" ADD CONSTRAINT "users_name_key" UNIQUE("name");`,
 	]);
@@ -32,7 +32,7 @@ test('unique #2', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 	expect(sqlStatements).toStrictEqual([
 		`ALTER TABLE "users" ADD CONSTRAINT "unique_name" UNIQUE("name");`,
 	]);
@@ -50,7 +50,7 @@ test('unique #3', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 	expect(sqlStatements).toStrictEqual([
 		`ALTER TABLE "users" ADD CONSTRAINT "unique_name" UNIQUE("name");`,
 	]);
@@ -68,7 +68,7 @@ test('unique #4', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 	expect(sqlStatements).toStrictEqual([
 		`ALTER TABLE "users" ADD CONSTRAINT "unique_name" UNIQUE NULLS NOT DISTINCT("name");`,
 	]);
@@ -86,7 +86,7 @@ test('unique #5', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 	expect(sqlStatements).toStrictEqual([
 		`ALTER TABLE "users" ADD CONSTRAINT "unique_name" UNIQUE NULLS NOT DISTINCT("name");`,
 	]);
@@ -104,7 +104,7 @@ test('unique #6', async () => {
 		}, (t) => [unique('unique_name').on(t.name)]),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 	expect(sqlStatements).toStrictEqual([
 		`ALTER TABLE "users" ADD CONSTRAINT "unique_name" UNIQUE("name");`,
 	]);
@@ -122,7 +122,7 @@ test('unique #7', async () => {
 		}, (t) => [unique('unique_name').on(t.name).nullsNotDistinct()]),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 	expect(sqlStatements).toStrictEqual([
 		`ALTER TABLE "users" ADD CONSTRAINT "unique_name" UNIQUE NULLS NOT DISTINCT("name");`,
 	]);
@@ -140,7 +140,7 @@ test('unique #8', async () => {
 		}, (t) => [unique('unique_name2').on(t.name)]),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 	expect(sqlStatements).toStrictEqual([
 		`ALTER TABLE "users" DROP CONSTRAINT "unique_name";`,
 		`ALTER TABLE "users" ADD CONSTRAINT "unique_name2" UNIQUE("name");`,
@@ -159,7 +159,7 @@ test('unique #9', async () => {
 		}, (t) => [unique('unique_name2').on(t.name)]),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, [
+	const { sqlStatements } = await diff(from, to, [
 		'public.users.unique_name->public.users.unique_name2',
 	]);
 	expect(sqlStatements).toStrictEqual([
@@ -181,7 +181,7 @@ test('unique #10', async () => {
 		}, (t) => [unique('unique_name2').on(t.name)]),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, [
+	const { sqlStatements } = await diff(from, to, [
 		'public.users.email->public.users.email2',
 		'public.users.unique_name->public.users.unique_name2',
 	]);
@@ -211,7 +211,7 @@ test('unique #11', async () => {
 		]),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, [
+	const { sqlStatements } = await diff(from, to, [
 		'public.users.unique_name->public.users.unique_name2',
 	]);
 	expect(sqlStatements).toStrictEqual([
@@ -236,7 +236,7 @@ test('unique #12', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, [
+	const { sqlStatements } = await diff(from, to, [
 		'public.users->public.users2',
 	]);
 
@@ -264,7 +264,7 @@ test('unique #13', async () => {
 		}),
 	};
 
-	const { sqlStatements: st1 } = await diffTestSchemas(sch1, sch2, [
+	const { sqlStatements: st1 } = await diff(sch1, sch2, [
 		'public.users->public.users2',
 		'public.users2.email->public.users2.email2',
 	]);
@@ -273,7 +273,7 @@ test('unique #13', async () => {
 		`ALTER TABLE "users2" RENAME COLUMN "email" TO "email2";`,
 	]);
 
-	const { sqlStatements: st2 } = await diffTestSchemas(sch2, sch3, []);
+	const { sqlStatements: st2 } = await diff(sch2, sch3, []);
 	expect(st2).toStrictEqual(['ALTER TABLE "users2" DROP CONSTRAINT "users_email_key";']);
 });
 
@@ -289,7 +289,7 @@ test('pk #1', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE "users" ADD PRIMARY KEY ("name");',

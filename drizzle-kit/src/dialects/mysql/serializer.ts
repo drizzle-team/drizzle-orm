@@ -1,9 +1,9 @@
 import type { CasingType } from '../../cli/validations/common';
 import { schemaError, schemaWarning } from '../../cli/views';
 import { prepareFilenames } from '../../serializer';
-import { createDDL, interimToDDL, PostgresDDL } from './ddl';
+import { createDDL, interimToDDL, MysqlDDL } from './ddl';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
-import { drySnapshot, PostgresSnapshot, snapshotValidator } from './snapshot';
+import { drySnapshot, MysqlSnapshot, snapshotValidator } from './snapshot';
 
 export const prepareSnapshot = async (
 	snapshots: string[],
@@ -11,11 +11,11 @@ export const prepareSnapshot = async (
 	casing: CasingType | undefined,
 ): Promise<
 	{
-		ddlPrev: PostgresDDL;
-		ddlCur: PostgresDDL;
-		snapshot: PostgresSnapshot;
-		snapshotPrev: PostgresSnapshot;
-		custom: PostgresSnapshot;
+		ddlPrev: MysqlDDL;
+		ddlCur: MysqlDDL;
+		snapshot: MysqlSnapshot;
+		snapshotPrev: MysqlSnapshot;
+		custom: MysqlSnapshot;
 	}
 > => {
 	const { readFileSync } = await import('fs') as typeof import('fs');
@@ -29,53 +29,48 @@ export const prepareSnapshot = async (
 		ddlPrev.entities.insert(entry);
 	}
 	const filenames = prepareFilenames(schemaPath);
-
 	const res = await prepareFromSchemaFiles(filenames);
 
-	const { schema, errors, warnings } = fromDrizzleSchema(
-		res.schemas,
+	const interim = fromDrizzleSchema(
 		res.tables,
-		res.enums,
-		res.sequences,
-		res.roles,
-		res.policies,
 		res.views,
-		res.matViews,
 		casing,
 	);
 
-	if (warnings.length > 0) {
-		console.log(warnings.map((it) => schemaWarning(it)).join('\n\n'));
-	}
+	// TODO: errors
+	// if (warnings.length > 0) {
+	// 	console.log(warnings.map((it) => schemaWarning(it)).join('\n\n'));
+	// }
 
-	if (errors.length > 0) {
-		console.log(errors.map((it) => schemaError(it)).join('\n'));
-		process.exit(1);
-	}
+	// if (errors.length > 0) {
+	// 	console.log(errors.map((it) => schemaError(it)).join('\n'));
+	// 	process.exit(1);
+	// }
 
-	const { ddl: ddlCur, errors: errors2 } = interimToDDL(schema);
+	const { ddl: ddlCur, errors: errors2 } = interimToDDL(interim);
 
-	if (errors2.length > 0) {
-		console.log(errors.map((it) => schemaError(it)).join('\n'));
-		process.exit(1);
-	}
+	// TODO: handle errors
+	// if (errors2.length > 0) {
+	// 	console.log(errors2.map((it) => schemaError(it)).join('\n'));
+	// 	process.exit(1);
+	// }
 
 	const id = randomUUID();
 	const prevId = prevSnapshot.id;
 
 	const snapshot = {
-		version: '8',
-		dialect: 'postgres',
+		version: '5',
+		dialect: 'mysql',
 		id,
 		prevId,
 		ddl: ddlCur.entities.list(),
 		renames: [],
-	} satisfies PostgresSnapshot;
+	} satisfies MysqlSnapshot;
 
 	const { id: _ignoredId, prevId: _ignoredPrevId, ...prevRest } = prevSnapshot;
 
 	// that's for custom migrations, when we need new IDs, but old snapshot
-	const custom: PostgresSnapshot = {
+	const custom: MysqlSnapshot = {
 		id,
 		prevId,
 		...prevRest,

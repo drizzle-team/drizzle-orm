@@ -24,6 +24,7 @@ export const handle = async (
 	credentials: SqliteCredentials,
 	tablesFilter: string[],
 	prefix: Prefix,
+	type: 'sqlite' | 'libsql' = 'sqlite',
 ) => {
 	const { connectToSQLite } = await import('../connections');
 	const db = await connectToSQLite(credentials);
@@ -34,7 +35,7 @@ export const handle = async (
 		progress.update(stage, count, status);
 	});
 
-	const ts = sqliteSchemaToTypeScript(ddl, casing, viewColumns);
+	const ts = sqliteSchemaToTypeScript(ddl, casing, viewColumns, type);
 	const relationsTs = relationsToTypeScript(ddl.fks.list(), casing);
 
 	// check orm and orm-pg api version

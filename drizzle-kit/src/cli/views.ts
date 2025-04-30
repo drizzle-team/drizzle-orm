@@ -4,8 +4,7 @@ import { assertUnreachable } from 'src/global';
 import { SchemaError as SqliteSchemaError } from '../dialects/sqlite/ddl';
 import { Named, NamedWithSchema } from '../dialects/utils';
 import { vectorOps } from '../extensions/vector';
-import type { CommonSchema } from '../schemaValidator';
-import { objectValues, SchemaError, SchemaWarning } from '../utils';
+import { SchemaError, SchemaWarning } from '../utils';
 import { withStyle } from './validations/outputs';
 
 export const warning = (msg: string) => {
@@ -140,59 +139,6 @@ export const schemaError = (error: SchemaError): string => {
 
 	// assertUnreachable(error);
 	return '';
-};
-
-export const schema = (schema: CommonSchema): string => {
-	type TableEntry = (typeof schema)['tables'][keyof (typeof schema)['tables']];
-	const tables = Object.values(schema.tables) as unknown as TableEntry[];
-
-	let msg = chalk.bold(`${tables.length} tables\n`);
-
-	msg += tables
-		.map((t) => {
-			const columnsCount = Object.values(t.columns).length;
-			const indexesCount = Object.values(t.indexes).length;
-			let foreignKeys: number = 0;
-			// Singlestore doesn't have foreign keys
-			if (schema.dialect !== 'singlestore') {
-				// TODO: return
-				// foreignKeys = Object.values(t.foreignKeys).length;
-			}
-
-			return `${chalk.bold.blue(t.name)} ${
-				chalk.gray(
-					`${columnsCount} columns ${indexesCount} indexes ${foreignKeys} fks`,
-				)
-			}`;
-		})
-		.join('\n');
-
-	msg += '\n';
-
-	const enums = objectValues(
-		'enums' in schema
-			? 'values' in schema['enums']
-				? schema['enums']
-				: {}
-			: {},
-	);
-
-	if (enums.length > 0) {
-		msg += '\n';
-		msg += chalk.bold(`${enums.length} enums\n`);
-
-		msg += enums
-			.map((it) => {
-				return `${chalk.bold.blue(it.name)} ${
-					chalk.gray(
-						`[${Object.values(it.values).join(', ')}]`,
-					)
-				}`;
-			})
-			.join('\n');
-		msg += '\n';
-	}
-	return msg;
 };
 
 export interface RenamePropmtItem<T> {

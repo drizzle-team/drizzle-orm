@@ -339,7 +339,7 @@ export const generateMySQLMigration = async (
 	prev: DrizzleMySQLSnapshotJSON,
 	cur: DrizzleMySQLSnapshotJSON,
 ) => {
-	const { applyMysqlSnapshotsDiff } = await import('./snapshot-differ/mysql');
+	const { diffDDL: applyMysqlSnapshotsDiff } = await import('./dialects/mysql/mysql');
 
 	const validatedPrev = mysqlSchema.parse(prev);
 	const validatedCur = mysqlSchema.parse(cur);
@@ -366,7 +366,7 @@ export const pushMySQLSchema = async (
 	drizzleInstance: MySql2Database<any>,
 	databaseName: string,
 ) => {
-	const { applyMysqlSnapshotsDiff } = await import('./snapshot-differ/mysql');
+	const { diffDDL: applyMysqlSnapshotsDiff } = await import('./dialects/mysql/mysql');
 	const { logSuggestionsAndReturn } = await import(
 		'./cli/commands/mysqlPushUtils'
 	);

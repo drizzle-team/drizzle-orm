@@ -1,13 +1,13 @@
 import { integer, pgEnum, pgSchema, pgTable, serial } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
-import { diffTestSchemas } from './mocks';
+import { diff } from './mocks';
 
 test('enums #1', async () => {
 	const to = {
 		enum: pgEnum('enum', ['value']),
 	};
 
-	const { sqlStatements } = await diffTestSchemas({}, to, []);
+	const { sqlStatements } = await diff({}, to, []);
 
 	expect(sqlStatements.length).toBe(1);
 	expect(sqlStatements[0]).toBe(`CREATE TYPE "enum" AS ENUM('value');`);
@@ -19,7 +19,7 @@ test('enums #2', async () => {
 		enum: folder.enum('enum', ['value']),
 	};
 
-	const { sqlStatements } = await diffTestSchemas({}, to, []);
+	const { sqlStatements } = await diff({}, to, []);
 
 	expect(sqlStatements.length).toBe(1);
 	expect(sqlStatements[0]).toBe(`CREATE TYPE "folder"."enum" AS ENUM('value');`);
@@ -30,7 +30,7 @@ test('enums #3', async () => {
 		enum: pgEnum('enum', ['value']),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, {}, []);
+	const { sqlStatements } = await diff(from, {}, []);
 
 	expect(sqlStatements.length).toBe(1);
 	expect(sqlStatements[0]).toBe(`DROP TYPE "enum";`);
@@ -43,7 +43,7 @@ test('enums #4', async () => {
 		enum: folder.enum('enum', ['value']),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, {}, []);
+	const { sqlStatements } = await diff(from, {}, []);
 
 	expect(sqlStatements.length).toBe(1);
 	expect(sqlStatements[0]).toBe(`DROP TYPE "folder"."enum";`);
@@ -63,7 +63,7 @@ test('enums #5', async () => {
 		enum: folder2.enum('enum', ['value']),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, ['folder1->folder2']);
+	const { sqlStatements } = await diff(from, to, ['folder1->folder2']);
 
 	expect(sqlStatements.length).toBe(1);
 	expect(sqlStatements[0]).toBe(`ALTER SCHEMA "folder1" RENAME TO "folder2";\n`);
@@ -85,7 +85,7 @@ test('enums #6', async () => {
 		enum: folder2.enum('enum', ['value']),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, [
+	const { sqlStatements } = await diff(from, to, [
 		'folder1.enum->folder2.enum',
 	]);
 
@@ -102,7 +102,7 @@ test('enums #7', async () => {
 		enum: pgEnum('enum', ['value1', 'value2']),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements.length).toBe(1);
 	expect(sqlStatements[0]).toBe(`ALTER TYPE "enum" ADD VALUE 'value2';`);
@@ -117,7 +117,7 @@ test('enums #8', async () => {
 		enum: pgEnum('enum', ['value1', 'value2', 'value3']),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements.length).toBe(2);
 	expect(sqlStatements[0]).toBe(`ALTER TYPE "enum" ADD VALUE 'value2';`);
@@ -133,7 +133,7 @@ test('enums #9', async () => {
 		enum: pgEnum('enum', ['value1', 'value2', 'value3']),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements.length).toBe(1);
 	expect(sqlStatements[0]).toBe(`ALTER TYPE "enum" ADD VALUE 'value2' BEFORE 'value3';`);
@@ -149,7 +149,7 @@ test('enums #10', async () => {
 		enum: schema.enum('enum', ['value1', 'value2']),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements.length).toBe(1);
 	expect(sqlStatements[0]).toBe(`ALTER TYPE "folder"."enum" ADD VALUE 'value2';`);
@@ -165,7 +165,7 @@ test('enums #11', async () => {
 		enum: pgEnum('enum', ['value1']),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, [
+	const { sqlStatements } = await diff(from, to, [
 		'folder1.enum->public.enum',
 	]);
 
@@ -183,7 +183,7 @@ test('enums #12', async () => {
 		enum: schema1.enum('enum', ['value1']),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, [
+	const { sqlStatements } = await diff(from, to, [
 		'public.enum->folder1.enum',
 	]);
 
@@ -200,7 +200,7 @@ test('enums #13', async () => {
 		enum: pgEnum('enum2', ['value1']),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, [
+	const { sqlStatements } = await diff(from, to, [
 		'public.enum1->public.enum2',
 	]);
 
@@ -219,7 +219,7 @@ test('enums #14', async () => {
 		enum: folder2.enum('enum2', ['value1']),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, [
+	const { sqlStatements } = await diff(from, to, [
 		'folder1.enum1->folder2.enum2',
 	]);
 
@@ -239,7 +239,7 @@ test('enums #15', async () => {
 		enum: folder2.enum('enum2', ['value1', 'value2', 'value3', 'value4']),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, [
+	const { sqlStatements } = await diff(from, to, [
 		'folder1.enum1->folder2.enum2',
 	]);
 
@@ -269,7 +269,7 @@ test('enums #16', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, [
+	const { sqlStatements } = await diff(from, to, [
 		'public.enum1->public.enum2',
 	]);
 
@@ -296,7 +296,7 @@ test('enums #17', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, [
+	const { sqlStatements } = await diff(from, to, [
 		'public.enum1->schema.enum1',
 	]);
 
@@ -327,7 +327,7 @@ test('enums #18', async () => {
 	};
 
 	// change name and schema of the enum, no table changes
-	const { sqlStatements } = await diffTestSchemas(from, to, [
+	const { sqlStatements } = await diff(from, to, [
 		'schema1.enum1->schema2.enum2',
 	]);
 
@@ -344,7 +344,7 @@ test('enums #19', async () => {
 
 	const to = { myEnum };
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements.length).toBe(1);
 	expect(sqlStatements[0]).toStrictEqual(
@@ -371,7 +371,7 @@ test('enums #20', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements.length).toBe(2);
 	expect(sqlStatements).toStrictEqual([
@@ -399,7 +399,7 @@ test('enums #21', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements.length).toBe(2);
 	expect(sqlStatements).toStrictEqual([
@@ -425,7 +425,7 @@ test('enums #22', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements).toStrictEqual(['CREATE TABLE "table" (\n\t"en" "schema"."e"\n);\n']);
 });
@@ -448,7 +448,7 @@ test('enums #23', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements).toStrictEqual(['CREATE TABLE "table" (\n\t"en1" "schema"."e"[],\n\t"en2" "schema"."e"[][]\n);\n']);
 });
@@ -465,7 +465,7 @@ test('drop enum value', async () => {
 		enum2,
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements.length).toBe(2);
 	expect(sqlStatements[0]).toBe(`DROP TYPE "enum";`);
@@ -500,7 +500,7 @@ test('drop enum value. enum is columns data type', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements).toStrictEqual([
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`,
@@ -540,7 +540,7 @@ test('shuffle enum values', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements).toStrictEqual([
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`,

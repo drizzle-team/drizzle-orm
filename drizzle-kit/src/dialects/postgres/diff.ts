@@ -1,7 +1,7 @@
 import { mockResolver } from 'src/utils/mocks';
-import type { Resolver } from '../../snapshot-differ/common';
 import { prepareMigrationMeta, prepareMigrationRenames } from '../../utils';
 import { diffStringArrays } from '../../utils/sequence-matcher';
+import type { Resolver } from '../common';
 import { diff } from '../dialect';
 import { groupDiffs } from '../utils';
 import { fromJson } from './convertor';
@@ -26,7 +26,7 @@ import {
 import { defaultNameForFK, defaultNameForIndex, defaultNameForPK, defaultNameForUnique } from './grammar';
 import { JsonStatement, prepareStatement } from './statements';
 
-export const ddlDiffDry = async (ddlFrom: PostgresDDL, ddlTo: PostgresDDL) => {
+export const ddlDiffDry = async (ddlFrom: PostgresDDL, ddlTo: PostgresDDL, mode: 'default' | 'push') => {
 	const mocks = new Set<string>();
 	return ddlDiff(
 		ddlFrom,
@@ -44,7 +44,7 @@ export const ddlDiffDry = async (ddlFrom: PostgresDDL, ddlTo: PostgresDDL) => {
 		mockResolver(mocks),
 		mockResolver(mocks),
 		mockResolver(mocks),
-		'default',
+		mode,
 	);
 };
 

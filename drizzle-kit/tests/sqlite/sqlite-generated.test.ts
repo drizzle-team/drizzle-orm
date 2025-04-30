@@ -1,7 +1,7 @@
 import { SQL, sql } from 'drizzle-orm';
 import { int, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { expect, test } from 'vitest';
-import { diff } from './mocks-sqlite';
+import { diff } from './mocks';
 
 // 1. add stored column to existing table - not supported +
 // 2. add virtual column to existing table - supported +

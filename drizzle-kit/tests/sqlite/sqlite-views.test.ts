@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { int, sqliteTable, sqliteView } from 'drizzle-orm/sqlite-core';
 import { expect, test } from 'vitest';
-import { diff } from './mocks-sqlite';
+import { diff } from './mocks';
 
 test('create view', async () => {
 	const users = sqliteTable('users', { id: int('id').default(1) });

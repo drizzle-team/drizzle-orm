@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { check, integer, pgTable, serial, varchar } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
-import { diffTestSchemas } from './mocks';
+import { diff } from './mocks';
 
 test('create table with check', async (t) => {
 	const to = {
@@ -11,7 +11,7 @@ test('create table with check', async (t) => {
 		}, (table) => [check('some_check_name', sql`${table.age} > 21`)]),
 	};
 
-	const { sqlStatements } = await diffTestSchemas({}, to, []);
+	const { sqlStatements } = await diff({}, to, []);
 
 	expect(sqlStatements.length).toBe(1);
 	expect(sqlStatements[0]).toBe(`CREATE TABLE "users" (
@@ -38,7 +38,7 @@ test('add check contraint to existing table', async (t) => {
 		})),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements.length).toBe(1);
 	expect(sqlStatements[0]).toBe(
@@ -61,7 +61,7 @@ test('drop check contraint in existing table', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements.length).toBe(1);
 	expect(sqlStatements[0]).toBe(
@@ -84,7 +84,7 @@ test('rename check constraint', async (t) => {
 		}, (table) => [check('new_check_name', sql`${table.age} > 21`)]),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements.length).toBe(2);
 	expect(sqlStatements[0]).toBe(
@@ -110,7 +110,7 @@ test('alter check constraint', async (t) => {
 		}, (table) => [check('new_check_name', sql`${table.age} > 10`)]),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements.length).toBe(2);
 	expect(sqlStatements[0]).toBe(
@@ -156,7 +156,7 @@ test('alter multiple check constraints', async (t) => {
 		),
 	};
 
-	const { sqlStatements } = await diffTestSchemas(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 	expect(sqlStatements).toStrictEqual([
 		`ALTER TABLE "users" DROP CONSTRAINT "some_check_name_1";`,
 		`ALTER TABLE "users" DROP CONSTRAINT "some_check_name_2";`,
@@ -181,5 +181,5 @@ test('create checks with same names', async (t) => {
 	};
 
 	// 'constraint_name_duplicate'
-	await expect(diffTestSchemas({}, to, [])).rejects.toThrow();
+	await expect(diff({}, to, [])).rejects.toThrow();
 });

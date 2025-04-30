@@ -1,5 +1,5 @@
 import { mockResolver } from 'src/utils/mocks';
-import type { Resolver } from '../../snapshot-differ/common';
+import type { Resolver } from '../common';
 import { prepareMigrationRenames } from '../../utils';
 import { diff } from '../dialect';
 import { groupDiffs } from '../utils';
@@ -100,7 +100,7 @@ export const diffDDL = async (
 			});
 		}
 
-		const entities = ddl1.entities.update({
+		ddl1.entities.update({
 			set: {
 				table: renamed.to.name,
 			},

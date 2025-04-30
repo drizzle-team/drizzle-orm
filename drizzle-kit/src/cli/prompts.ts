@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
 import { PostgresEntities, Schema } from 'src/dialects/postgres/ddl';
-import { Resolver } from 'src/snapshot-differ/common';
+import { Resolver } from 'src/dialects/common';
 import { isRenamePromptItem, RenamePropmtItem, ResolveSchemasSelect, ResolveSelect } from './views';
 
 export const resolver = <T extends { name: string; schema?: string; table?: string }>(

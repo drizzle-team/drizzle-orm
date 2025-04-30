@@ -1,20 +1,10 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { toCamelCase } from 'drizzle-orm/casing';
 import './@types/utils';
-import type { Casing } from './cli/validations/common';
-import { assertUnreachable } from './global';
-import {
-	CheckConstraint,
-	Column,
-	ForeignKey,
-	Index,
-	MySqlSchema,
-	MySqlSchemaInternal,
-	PrimaryKey,
-	UniqueConstraint,
-} from './serializer/mysqlSchema';
-import { indexName } from './serializer/mysqlSerializer';
-import { unescapeSingleQuotes } from './utils';
+import { Casing } from 'src/cli/validations/common';
+import { assertUnreachable } from 'src/global';
+import { unescapeSingleQuotes } from 'src/utils';
+import { CheckConstraint, Column, ForeignKey, Index, MysqlDDL, PrimaryKey, ViewColumn } from './ddl';
 
 // time precision to fsp
 // {mode: "string"} for timestamp by default
@@ -49,18 +39,6 @@ const mysqlImportsList = new Set([
 	'year',
 	'enum',
 ]);
-
-const objToStatement = (json: any) => {
-	json = Object.fromEntries(Object.entries(json).filter((it) => it[1]));
-
-	const keys = Object.keys(json);
-	if (keys.length === 0) return;
-
-	let statement = '{ ';
-	statement += keys.map((it) => `"${it}": "${json[it]}"`).join(', ');
-	statement += ' }';
-	return statement;
-};
 
 const objToStatement2 = (json: any) => {
 	json = Object.fromEntries(Object.entries(json).filter((it) => it[1]));
@@ -134,184 +112,111 @@ const dbColumnName = ({ name, casing, withMode = false }: { name: string; casing
 	assertUnreachable(casing);
 };
 
-export const schemaToTypeScript = (
-	schema: MySqlSchemaInternal,
+export const ddlToTypeScript = (
+	ddl: MysqlDDL,
+	viewColumns: ViewColumn[],
 	casing: Casing,
 ) => {
 	const withCasing = prepareCasing(casing);
-	// collectFKs
-	Object.values(schema.tables).forEach((table) => {
-		Object.values(table.foreignKeys).forEach((fk) => {
-			const relation = `${fk.tableFrom}-${fk.tableTo}`;
-			relations.add(relation);
-		});
+
+	for (const fk of ddl.fks.list()) {
+		const relation = `${fk.table}-${fk.tableTo}`;
+		relations.add(relation);
+	}
+
+	const imports = new Set<string>([
+		'mysqlTable',
+		'mysqlSchema',
+		'AnyMySqlColumn',
+	]);
+
+	const viewEntities = viewColumns.map((it) => {
+		return {
+			entityType: 'viewColumn',
+			...it,
+		} as const;
 	});
+	for (const it of [...ddl.entities.list(), ...viewEntities]) {
+		if (it.entityType === 'indexes') imports.add(it.unique ? 'uniqueIndex' : 'index');
+		if (it.entityType === 'fks') imports.add('foreignKey');
+		if (it.entityType === 'pks' && (it.columns.length > 1 || it.nameExplicit)) imports.add('primaryKey');
+		if (it.entityType === 'checks') imports.add('check');
 
-	const imports = Object.values(schema.tables).reduce(
-		(res, it) => {
-			const idxImports = Object.values(it.indexes).map((idx) => idx.isUnique ? 'uniqueIndex' : 'index');
-			const fkImpots = Object.values(it.foreignKeys).map((it) => 'foreignKey');
-			const pkImports = Object.values(it.compositePrimaryKeys).map(
-				(it) => 'primaryKey',
-			);
-			const uniqueImports = Object.values(it.uniqueConstraints).map(
-				(it) => 'unique',
-			);
-			const checkImports = Object.values(it.checkConstraint).map(
-				(it) => 'check',
-			);
+		if (it.entityType === 'columns' || it.entityType === 'viewColumn') {
+			let patched = it.type;
+			patched = patched.startsWith('varchar(') ? 'varchar' : patched;
+			patched = patched.startsWith('char(') ? 'char' : patched;
+			patched = patched.startsWith('binary(') ? 'binary' : patched;
+			patched = patched.startsWith('decimal(') ? 'decimal' : patched;
+			patched = patched.startsWith('smallint(') ? 'smallint' : patched;
+			patched = patched.startsWith('enum(') ? 'mysqlEnum' : patched;
+			patched = patched.startsWith('datetime(') ? 'datetime' : patched;
+			patched = patched.startsWith('varbinary(') ? 'varbinary' : patched;
+			patched = patched.startsWith('int(') ? 'int' : patched;
+			patched = patched.startsWith('double(') ? 'double' : patched;
+			patched = patched.startsWith('float(') ? 'float' : patched;
+			patched = patched.startsWith('int unsigned') ? 'int' : patched;
+			patched = patched.startsWith('tinyint unsigned') ? 'tinyint' : patched;
+			patched = patched.startsWith('smallint unsigned') ? 'smallint' : patched;
+			patched = patched.startsWith('mediumint unsigned') ? 'mediumint' : patched;
+			patched = patched.startsWith('bigint unsigned') ? 'bigint' : patched;
 
-			res.mysql.push(...idxImports);
-			res.mysql.push(...fkImpots);
-			res.mysql.push(...pkImports);
-			res.mysql.push(...uniqueImports);
-			res.mysql.push(...checkImports);
-
-			const columnImports = Object.values(it.columns)
-				.map((col) => {
-					let patched = importsPatch[col.type] ?? col.type;
-					patched = patched.startsWith('varchar(') ? 'varchar' : patched;
-					patched = patched.startsWith('char(') ? 'char' : patched;
-					patched = patched.startsWith('binary(') ? 'binary' : patched;
-					patched = patched.startsWith('decimal(') ? 'decimal' : patched;
-					patched = patched.startsWith('smallint(') ? 'smallint' : patched;
-					patched = patched.startsWith('enum(') ? 'mysqlEnum' : patched;
-					patched = patched.startsWith('datetime(') ? 'datetime' : patched;
-					patched = patched.startsWith('varbinary(') ? 'varbinary' : patched;
-					patched = patched.startsWith('int(') ? 'int' : patched;
-					patched = patched.startsWith('double(') ? 'double' : patched;
-					patched = patched.startsWith('float(') ? 'float' : patched;
-					patched = patched.startsWith('int unsigned') ? 'int' : patched;
-					patched = patched.startsWith('tinyint unsigned') ? 'tinyint' : patched;
-					patched = patched.startsWith('smallint unsigned') ? 'smallint' : patched;
-					patched = patched.startsWith('mediumint unsigned') ? 'mediumint' : patched;
-					patched = patched.startsWith('bigint unsigned') ? 'bigint' : patched;
-					return patched;
-				})
-				.filter((type) => {
-					return mysqlImportsList.has(type);
-				});
-
-			res.mysql.push(...columnImports);
-			return res;
-		},
-		{ mysql: [] as string[] },
-	);
-
-	Object.values(schema.views).forEach((it) => {
-		imports.mysql.push('mysqlView');
-
-		const columnImports = Object.values(it.columns)
-			.map((col) => {
-				let patched = importsPatch[col.type] ?? col.type;
-				patched = patched.startsWith('varchar(') ? 'varchar' : patched;
-				patched = patched.startsWith('char(') ? 'char' : patched;
-				patched = patched.startsWith('binary(') ? 'binary' : patched;
-				patched = patched.startsWith('decimal(') ? 'decimal' : patched;
-				patched = patched.startsWith('smallint(') ? 'smallint' : patched;
-				patched = patched.startsWith('enum(') ? 'mysqlEnum' : patched;
-				patched = patched.startsWith('datetime(') ? 'datetime' : patched;
-				patched = patched.startsWith('varbinary(') ? 'varbinary' : patched;
-				patched = patched.startsWith('int(') ? 'int' : patched;
-				patched = patched.startsWith('double(') ? 'double' : patched;
-				patched = patched.startsWith('float(') ? 'float' : patched;
-				patched = patched.startsWith('int unsigned') ? 'int' : patched;
-				patched = patched.startsWith('tinyint unsigned') ? 'tinyint' : patched;
-				patched = patched.startsWith('smallint unsigned') ? 'smallint' : patched;
-				patched = patched.startsWith('mediumint unsigned') ? 'mediumint' : patched;
-				patched = patched.startsWith('bigint unsigned') ? 'bigint' : patched;
-				return patched;
-			})
-			.filter((type) => {
-				return mysqlImportsList.has(type);
-			});
-
-		imports.mysql.push(...columnImports);
-	});
-
-	const tableStatements = Object.values(schema.tables).map((table) => {
-		const func = 'mysqlTable';
-		let statement = '';
-		if (imports.mysql.includes(withCasing(table.name))) {
-			statement = `// Table name is in conflict with ${
-				withCasing(
-					table.name,
-				)
-			} import.\n// Please change to any other name, that is not in imports list\n`;
+			if (mysqlImportsList.has(patched)) imports.add(patched);
 		}
-		statement += `export const ${withCasing(table.name)} = ${func}("${table.name}", {\n`;
+	}
+
+	const tableStatements = [] as string[];
+	for (const table of ddl.tables.list()) {
+		let statement = `export const ${withCasing(table.name)} = mysqlTable("${table.name}", {\n`;
 		statement += createTableColumns(
-			Object.values(table.columns),
-			Object.values(table.foreignKeys),
+			ddl.columns.list({ table: table.name }),
+			ddl.pks.one({ table: table.name }),
+			ddl.fks.list({ table: table.name }),
 			withCasing,
 			casing,
-			table.name,
-			schema,
 		);
 		statement += '}';
 
+		const fks = ddl.fks.list({ table: table.name });
+		const indexes = ddl.indexes.list({ table: table.name });
+		const checks = ddl.checks.list({ table: table.name });
+		const pk = ddl.pks.one({ table: table.name });
+
 		// more than 2 fields or self reference or cyclic
-		const filteredFKs = Object.values(table.foreignKeys).filter((it) => {
-			return it.columnsFrom.length > 1 || isSelf(it);
+		const filteredFKs = fks.filter((it) => {
+			return it.columns.length > 1 || isSelf(it) || isCyclic(it);
 		});
 
 		if (
-			Object.keys(table.indexes).length > 0
+			indexes.length > 0
 			|| filteredFKs.length > 0
-			|| Object.keys(table.compositePrimaryKeys).length > 0
-			|| Object.keys(table.uniqueConstraints).length > 0
-			|| Object.keys(table.checkConstraint).length > 0
+			|| pk && pk.columns.length > 1
+			|| checks.length > 0
 		) {
 			statement += ',\n';
 			statement += '(table) => {\n';
 			statement += '\treturn {\n';
-			statement += createTableIndexes(
-				table.name,
-				Object.values(table.indexes),
-				withCasing,
-			);
-			statement += createTableFKs(Object.values(filteredFKs), withCasing);
-			statement += createTablePKs(
-				Object.values(table.compositePrimaryKeys),
-				withCasing,
-			);
-			statement += createTableUniques(
-				Object.values(table.uniqueConstraints),
-				withCasing,
-			);
-			statement += createTableChecks(
-				Object.values(table.checkConstraint),
-				withCasing,
-			);
+			statement += pk ? createTablePK(pk, withCasing) : '';
+			statement += createTableIndexes(indexes, withCasing);
+			statement += createTableFKs(filteredFKs, withCasing);
+			statement += createTableChecks(checks);
 			statement += '\t}\n';
 			statement += '}';
 		}
 
 		statement += ');';
-		return statement;
-	});
 
-	const viewsStatements = Object.values(schema.views).map((view) => {
-		const { columns, name, algorithm, definition, sqlSecurity, withCheckOption } = view;
-		const func = 'mysqlView';
+		tableStatements.push(statement);
+	}
+
+	const viewsStatements = [] as string[];
+	for (const view of ddl.views.list()) {
+		const { name, algorithm, definition, sqlSecurity, withCheckOption } = view;
+		const columns = viewColumns.filter((x) => x.view === view.name);
+
 		let statement = '';
-
-		if (imports.mysql.includes(withCasing(name))) {
-			statement = `// Table name is in conflict with ${
-				withCasing(
-					view.name,
-				)
-			} import.\n// Please change to any other name, that is not in imports list\n`;
-		}
-		statement += `export const ${withCasing(name)} = ${func}("${name}", {\n`;
-		statement += createTableColumns(
-			Object.values(columns),
-			[],
-			withCasing,
-			casing,
-			name,
-			schema,
-		);
+		statement += `export const ${withCasing(name)} = mysqlView("${name}", {\n`;
+		statement += createViewColumns(columns, withCasing, casing);
 		statement += '})';
 
 		statement += algorithm ? `.algorithm("${algorithm}")` : '';
@@ -319,17 +224,11 @@ export const schemaToTypeScript = (
 		statement += withCheckOption ? `.withCheckOption("${withCheckOption}")` : '';
 		statement += `.as(sql\`${definition?.replaceAll('`', '\\`')}\`);`;
 
-		return statement;
-	});
+		viewsStatements.push(statement);
+	}
 
-	const uniqueMySqlImports = [
-		'mysqlTable',
-		'mysqlSchema',
-		'AnyMySqlColumn',
-		...new Set(imports.mysql),
-	];
 	const importsTs = `import { ${
-		uniqueMySqlImports.join(
+		[...imports].join(
 			', ',
 		)
 	} } from "drizzle-orm/mysql-core"\nimport { sql } from "drizzle-orm"\n\n`;
@@ -344,7 +243,7 @@ export const schemaToTypeScript = (
 	const schemaEntry = `
     {
       ${
-		Object.values(schema.tables)
+		Object.values(ddl.tables)
 			.map((it) => withCasing(it.name))
 			.join(',')
 	}
@@ -360,21 +259,21 @@ export const schemaToTypeScript = (
 };
 
 const isCyclic = (fk: ForeignKey) => {
-	const key = `${fk.tableFrom}-${fk.tableTo}`;
-	const reverse = `${fk.tableTo}-${fk.tableFrom}`;
+	const key = `${fk.table}-${fk.tableTo}`;
+	const reverse = `${fk.tableTo}-${fk.table}`;
 	return relations.has(key) && relations.has(reverse);
 };
 
 const isSelf = (fk: ForeignKey) => {
-	return fk.tableFrom === fk.tableTo;
+	return fk.table === fk.tableTo;
 };
 
-const mapColumnDefault = (defaultValue: any, isExpression?: boolean) => {
-	if (isExpression) {
-		return `sql\`${defaultValue}\``;
+const mapColumnDefault = (it: NonNullable<Column['default']>) => {
+	if (it.expression) {
+		return `sql\`${it.value}\``;
 	}
 
-	return defaultValue;
+	return it.value;
 };
 
 const mapColumnDefaultForJson = (defaultValue: any) => {
@@ -394,10 +293,9 @@ const column = (
 	name: string,
 	casing: (value: string) => string,
 	rawCasing: Casing,
-	defaultValue?: any,
-	autoincrement?: boolean,
-	onUpdate?: boolean,
-	isExpression?: boolean,
+	defaultValue: Column['default'],
+	autoincrement: boolean,
+	onUpdate: boolean,
 ) => {
 	let lowered = type;
 	if (!type.startsWith('enum(')) {
@@ -415,8 +313,8 @@ const column = (
 			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
 		})`;
 		out += autoincrement ? `.autoincrement()` : '';
-		out += typeof defaultValue !== 'undefined'
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+		out += defaultValue
+			? `.default(${mapColumnDefault(defaultValue)})`
 			: '';
 		return out;
 	}
@@ -429,9 +327,7 @@ const column = (
 			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
 		})`;
 		out += autoincrement ? `.autoincrement()` : '';
-		out += typeof defaultValue !== 'undefined'
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
-			: '';
+		out += defaultValue ? `.default(${mapColumnDefault(defaultValue)})` : '';
 		return out;
 	}
 
@@ -442,9 +338,7 @@ const column = (
 			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
 		})`;
 		out += autoincrement ? `.autoincrement()` : '';
-		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
-			: '';
+		out += defaultValue ? `.default(${mapColumnDefault(defaultValue)})` : '';
 		return out;
 	}
 
@@ -455,9 +349,7 @@ const column = (
 			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
 		})`;
 		out += autoincrement ? `.autoincrement()` : '';
-		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
-			: '';
+		out += defaultValue ? `.default(${mapColumnDefault(defaultValue)})` : '';
 		return out;
 	}
 
@@ -467,17 +359,13 @@ const column = (
 			isUnsigned ? ', unsigned: true' : ''
 		} })`;
 		out += autoincrement ? `.autoincrement()` : '';
-		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
-			: '';
+		out += defaultValue ? `.default(${mapColumnDefault(defaultValue)})` : '';
 		return out;
 	}
 
 	if (lowered === 'boolean') {
 		let out = `${casing(name)}: boolean(${dbColumnName({ name, casing: rawCasing })})`;
-		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
-			: '';
+		out += defaultValue ? `.default(${mapColumnDefault(defaultValue)})` : '';
 		return out;
 	}
 
@@ -507,7 +395,7 @@ const column = (
 
 		// let out = `${name.camelCase()}: double("${name}")`;
 		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+			? `.default(${mapColumnDefault(defaultValue)})`
 			: '';
 		return out;
 	}
@@ -530,7 +418,7 @@ const column = (
 
 		let out = `${casing(name)}: float(${dbColumnName({ name, casing: rawCasing })}${params ? timeConfig(params) : ''})`;
 		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+			? `.default(${mapColumnDefault(defaultValue)})`
 			: '';
 		return out;
 	}
@@ -538,7 +426,7 @@ const column = (
 	if (lowered === 'real') {
 		let out = `${casing(name)}: real(${dbColumnName({ name, casing: rawCasing })})`;
 		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+			? `.default(${mapColumnDefault(defaultValue)})`
 			: '';
 		return out;
 	}
@@ -559,13 +447,11 @@ const column = (
 			: `${casing(name)}: timestamp(${dbColumnName({ name, casing: rawCasing })})`;
 
 		// mysql has only CURRENT_TIMESTAMP, as I found from docs. But will leave now() for just a case
-		defaultValue = defaultValue === 'now()' || defaultValue === '(CURRENT_TIMESTAMP)'
+		out += defaultValue?.value === 'now()' || defaultValue?.value === '(CURRENT_TIMESTAMP)'
 			? '.defaultNow()'
 			: defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+			? `.default(${mapColumnDefault(defaultValue)})`
 			: '';
-
-		out += defaultValue;
 
 		let onUpdateNow = onUpdate ? '.onUpdateNow()' : '';
 		out += onUpdateNow;
@@ -586,13 +472,12 @@ const column = (
 			? `${casing(name)}: time(${dbColumnName({ name, casing: rawCasing, withMode: params !== undefined })}${params})`
 			: `${casing(name)}: time(${dbColumnName({ name, casing: rawCasing })})`;
 
-		defaultValue = defaultValue === 'now()'
+		out += defaultValue?.value === 'now()'
 			? '.defaultNow()'
 			: defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+			? `.default(${mapColumnDefault(defaultValue)})`
 			: '';
 
-		out += defaultValue;
 		return out;
 	}
 
@@ -603,13 +488,12 @@ const column = (
 			)
 		}: date(${dbColumnName({ name, casing: rawCasing, withMode: true })}{ mode: 'string' })`;
 
-		defaultValue = defaultValue === 'now()'
+		out += defaultValue?.value === 'now()'
 			? '.defaultNow()'
 			: defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+			? `.default(${mapColumnDefault(defaultValue)})`
 			: '';
 
-		out += defaultValue;
 		return out;
 	}
 
@@ -617,7 +501,7 @@ const column = (
 	if (lowered === 'text') {
 		let out = `${casing(name)}: text(${dbColumnName({ name, casing: rawCasing })})`;
 		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+			? `.default(${mapColumnDefault(defaultValue)})`
 			: '';
 		return out;
 	}
@@ -626,7 +510,7 @@ const column = (
 	if (lowered === 'tinytext') {
 		let out = `${casing(name)}: tinytext(${dbColumnName({ name, casing: rawCasing })})`;
 		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+			? `.default(${mapColumnDefault(defaultValue)})`
 			: '';
 		return out;
 	}
@@ -635,7 +519,7 @@ const column = (
 	if (lowered === 'mediumtext') {
 		let out = `${casing(name)}: mediumtext(${dbColumnName({ name, casing: rawCasing })})`;
 		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+			? `.default(${mapColumnDefault(defaultValue)})`
 			: '';
 		return out;
 	}
@@ -644,7 +528,7 @@ const column = (
 	if (lowered === 'longtext') {
 		let out = `${casing(name)}: longtext(${dbColumnName({ name, casing: rawCasing })})`;
 		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+			? `.default(${mapColumnDefault(defaultValue)})`
 			: '';
 		return out;
 	}
@@ -652,7 +536,7 @@ const column = (
 	if (lowered === 'year') {
 		let out = `${casing(name)}: year(${dbColumnName({ name, casing: rawCasing })})`;
 		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+			? `.default(${mapColumnDefault(defaultValue)})`
 			: '';
 		return out;
 	}
@@ -680,9 +564,8 @@ const column = (
 			)
 		} })`;
 
-		const mappedDefaultValue = mapColumnDefault(defaultValue, isExpression);
 		out += defaultValue
-			? `.default(${isExpression ? mappedDefaultValue : unescapeSingleQuotes(mappedDefaultValue, true)})`
+			? `.default(${defaultValue.expression ? defaultValue.value : unescapeSingleQuotes(defaultValue.value, true)})`
 			: '';
 		return out;
 	}
@@ -700,7 +583,7 @@ const column = (
 		} })`;
 
 		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+			? `.default(${mapColumnDefault(defaultValue)})`
 			: '';
 		return out;
 	}
@@ -725,13 +608,13 @@ const column = (
 			} })`
 			: `${casing(name)}: datetime(${dbColumnName({ name, casing: rawCasing, withMode: true })}{ mode: 'string'})`;
 
-		defaultValue = defaultValue === 'now()'
+		out += defaultValue?.value === 'now()'
 			? '.defaultNow()'
 			: defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+			? `.default(${mapColumnDefault(defaultValue)})`
 			: '';
 
-		out += defaultValue;
+		defaultValue;
 		return out;
 	}
 
@@ -759,11 +642,10 @@ const column = (
 			}${timeConfigParams})`
 			: `${casing(name)}: decimal(${dbColumnName({ name, casing: rawCasing })})`;
 
-		defaultValue = typeof defaultValue !== 'undefined'
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+		out += defaultValue
+			? `.default(${mapColumnDefault(defaultValue)})`
 			: '';
 
-		out += defaultValue;
 		return out;
 	}
 
@@ -780,11 +662,10 @@ const column = (
 			? `${casing(name)}: binary(${dbColumnName({ name, casing: rawCasing, withMode: params !== undefined })}${params})`
 			: `${casing(name)}: binary(${dbColumnName({ name, casing: rawCasing })})`;
 
-		defaultValue = defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+		out += defaultValue
+			? `.default(${mapColumnDefault(defaultValue)})`
 			: '';
 
-		out += defaultValue;
 		return out;
 	}
 
@@ -795,9 +676,8 @@ const column = (
 			.map((v) => unescapeSingleQuotes(v, true))
 			.join(',');
 		let out = `${casing(name)}: mysqlEnum(${dbColumnName({ name, casing: rawCasing, withMode: true })}[${values}])`;
-		const mappedDefaultValue = mapColumnDefault(defaultValue, isExpression);
 		out += defaultValue
-			? `.default(${isExpression ? mappedDefaultValue : unescapeSingleQuotes(mappedDefaultValue, true)})`
+			? `.default(${defaultValue.expression ? defaultValue.value : unescapeSingleQuotes(defaultValue.value, true)})`
 			: '';
 		return out;
 	}
@@ -817,11 +697,10 @@ const column = (
 			}${params})`
 			: `${casing(name)}: varbinary(${dbColumnName({ name, casing: rawCasing })})`;
 
-		defaultValue = defaultValue
-			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
+		out += defaultValue
+			? `.default(${mapColumnDefault(defaultValue)})`
 			: '';
 
-		out += defaultValue;
 		return out;
 	}
 
@@ -831,43 +710,21 @@ const column = (
 
 const createTableColumns = (
 	columns: Column[],
+	pk: PrimaryKey | null,
 	fks: ForeignKey[],
 	casing: (val: string) => string,
 	rawCasing: Casing,
-	tableName: string,
-	schema: MySqlSchemaInternal,
 ): string => {
 	let statement = '';
 
-	// no self refs and no cyclic
-	const oneColumnsFKs = Object.values(fks)
-		.filter((it) => {
-			return !isSelf(it);
-		})
-		.filter((it) => it.columnsFrom.length === 1);
+	for (const it of columns) {
+		const isPK = pk && pk.columns.length === 1 && pk.columns[0] === it.name;
 
-	const fkByColumnName = oneColumnsFKs.reduce((res, it) => {
-		const arr = res[it.columnsFrom[0]] || [];
-		arr.push(it);
-		res[it.columnsFrom[0]] = arr;
-		return res;
-	}, {} as Record<string, ForeignKey[]>);
-
-	columns.forEach((it) => {
 		statement += '\t';
-		statement += column(
-			it.type,
-			it.name,
-			casing,
-			rawCasing,
-			it.default,
-			it.autoincrement,
-			it.onUpdate,
-			schema.internal?.tables![tableName]?.columns[it.name]
-				?.isDefaultAnExpression ?? false,
-		);
-		statement += it.primaryKey ? '.primaryKey()' : '';
-		statement += it.notNull ? '.notNull()' : '';
+		statement += column(it.type, it.name, casing, rawCasing, it.default, it.autoIncrement, it.onUpdateNow);
+
+		statement += isPK ? '.primaryKey()' : '';
+		statement += it.notNull && !isPK ? '.notNull()' : '';
 
 		statement += it.generated
 			? `.generatedAlwaysAs(sql\`${
@@ -878,138 +735,77 @@ const createTableColumns = (
 			}\`, { mode: "${it.generated.type}" })`
 			: '';
 
-		const fks = fkByColumnName[it.name];
-		if (fks) {
-			const fksStatement = fks
-				.map((it) => {
-					const onDelete = it.onDelete && it.onDelete !== 'no action' ? it.onDelete : null;
-					const onUpdate = it.onUpdate && it.onUpdate !== 'no action' ? it.onUpdate : null;
-					const params = { onDelete, onUpdate };
+		const columnFKs = fks.filter((x) => x.columns.length > 1 && x.columns[0] === it.name);
+		for (const fk of columnFKs) {
+			const onDelete = fk.onDelete !== 'NO ACTION' ? fk.onDelete : null;
+			const onUpdate = fk.onUpdate !== 'NO ACTION' ? fk.onUpdate : null;
+			const params = { onDelete, onUpdate };
 
-					const typeSuffix = isCyclic(it) ? ': AnyMySqlColumn' : '';
+			const typeSuffix = isCyclic(fk) ? ': AnyMySqlColumn' : '';
 
-					const paramsStr = objToStatement2(params);
-					if (paramsStr) {
-						return `.references(()${typeSuffix} => ${
-							casing(
-								it.tableTo,
-							)
-						}.${casing(it.columnsTo[0])}, ${paramsStr} )`;
-					}
-					return `.references(()${typeSuffix} => ${casing(it.tableTo)}.${
-						casing(
-							it.columnsTo[0],
-						)
-					})`;
-				})
-				.join('');
-			statement += fksStatement;
+			const paramsStr = objToStatement2(params);
+			if (paramsStr) {
+				statement += `.references(()${typeSuffix} => ${
+					casing(
+						fk.tableTo,
+					)
+				}.${casing(fk.columnsTo[0])}, ${paramsStr} )`;
+			} else {
+				statement += `.references(()${typeSuffix} => ${casing(fk.tableTo)}.${
+					casing(
+						fk.columnsTo[0],
+					)
+				})`;
+			}
 		}
-
 		statement += ',\n';
-	});
+	}
 
+	return statement;
+};
+
+const createViewColumns = (columns: ViewColumn[], casing: (value: string) => string, rawCasing: Casing) => {
+	let statement = '';
+
+	for (const it of columns) {
+		statement += '\n';
+		statement += column(it.type, it.name, casing, rawCasing, null, false, false);
+		statement += it.notNull ? '.notNull()' : '';
+		statement += ',\n';
+	}
 	return statement;
 };
 
 const createTableIndexes = (
-	tableName: string,
 	idxs: Index[],
 	casing: (value: string) => string,
 ): string => {
 	let statement = '';
-
-	idxs.forEach((it) => {
-		let idxKey = it.name.startsWith(tableName) && it.name !== tableName
-			? it.name.slice(tableName.length + 1)
-			: it.name;
-		idxKey = idxKey.endsWith('_index')
-			? idxKey.slice(0, -'_index'.length) + '_idx'
-			: idxKey;
-
-		idxKey = casing(idxKey);
-
-		const indexGeneratedName = indexName(tableName, it.columns);
-		const escapedIndexName = indexGeneratedName === it.name ? '' : `"${it.name}"`;
-
-		statement += `\t\t${idxKey}: `;
-		statement += it.isUnique ? 'uniqueIndex(' : 'index(';
-		statement += `${escapedIndexName})`;
-		statement += `.on(${
-			it.columns
-				.map((it) => `table.${casing(it)}`)
-				.join(', ')
-		}),`;
-		statement += `\n`;
-	});
-
-	return statement;
-};
-
-const createTableUniques = (
-	unqs: UniqueConstraint[],
-	casing: (value: string) => string,
-): string => {
-	let statement = '';
-
-	unqs.forEach((it) => {
-		const idxKey = casing(it.name);
-
-		statement += `\t\t${idxKey}: `;
-		statement += 'unique(';
+	for (const it of idxs) {
+		const columns = it.columns.map((x) => x.isExpression ? `sql\`${x.value}\`` : `table.${casing(x.value)}`).join(', ');
+		statement += it.unique ? 'uniqueIndex(' : 'index(';
 		statement += `"${it.name}")`;
-		statement += `.on(${
-			it.columns
-				.map((it) => `table.${casing(it)}`)
-				.join(', ')
-		}),`;
-		statement += `\n`;
-	});
-
+		statement += `.on(${columns}),\n`;
+	}
 	return statement;
 };
 
 const createTableChecks = (
 	checks: CheckConstraint[],
-	casing: (value: string) => string,
 ): string => {
 	let statement = '';
 
-	checks.forEach((it) => {
-		const checkKey = casing(it.name);
-
-		statement += `\t\t${checkKey}: `;
-		statement += 'check(';
-		statement += `"${it.name}", `;
-		statement += `sql\`${it.value.replace(/`/g, '\\`')}\`)`;
-		statement += `,\n`;
-	});
+	for (const it of checks) {
+		statement += `\t\tcheck("${it.name}", sql\`${it.value.replace(/`/g, '\\`')}\`),\n`;
+	}
 
 	return statement;
 };
 
-const createTablePKs = (
-	pks: PrimaryKey[],
-	casing: (value: string) => string,
-): string => {
-	let statement = '';
-
-	pks.forEach((it) => {
-		let idxKey = casing(it.name);
-
-		statement += `\t\t${idxKey}: `;
-		statement += 'primaryKey({ columns: [';
-		statement += `${
-			it.columns
-				.map((c) => {
-					return `table.${casing(c)}`;
-				})
-				.join(', ')
-		}]${it.name ? `, name: "${it.name}"` : ''}}`;
-		statement += '),';
-		statement += `\n`;
-	});
-
+const createTablePK = (pk: PrimaryKey, casing: (value: string) => string): string => {
+	const columns = pk.columns.map((x) => `table.${casing(x)}`).join(', ');
+	let statement = `primaryKey({ columns: [${columns}]`;
+	statement += `${pk.nameExplicit ? `, name: "${pk.name}"` : ''}}),\n`;
 	return statement;
 };
 
@@ -1019,33 +815,19 @@ const createTableFKs = (
 ): string => {
 	let statement = '';
 
-	fks.forEach((it) => {
-		const isSelf = it.tableTo === it.tableFrom;
-		const tableTo = isSelf ? 'table' : `${casing(it.tableTo)}`;
-		statement += `\t\t${casing(it.name)}: foreignKey({\n`;
-		statement += `\t\t\tcolumns: [${
-			it.columnsFrom
-				.map((i) => `table.${casing(i)}`)
-				.join(', ')
-		}],\n`;
-		statement += `\t\t\tforeignColumns: [${
-			it.columnsTo
-				.map((i) => `${tableTo}.${casing(i)}`)
-				.join(', ')
-		}],\n`;
+	for (const it of fks) {
+		const tableTo = isSelf(it) ? 'table' : `${casing(it.tableTo)}`;
+		const columnsFrom = it.columns.map((x) => `table.${casing(x)}`).join(', ');
+		const columnsTo = it.columns.map((x) => `${tableTo}.${casing(x)}`).join(', ');
+		statement += `\t\tforeignKey({\n`;
+		statement += `\t\t\tcolumns: [${columnsFrom}],\n`;
+		statement += `\t\t\tforeignColumns: [${columnsTo}],\n`;
 		statement += `\t\t\tname: "${it.name}"\n`;
 		statement += `\t\t})`;
-
-		statement += it.onUpdate && it.onUpdate !== 'no action'
-			? `.onUpdate("${it.onUpdate}")`
-			: '';
-
-		statement += it.onDelete && it.onDelete !== 'no action'
-			? `.onDelete("${it.onDelete}")`
-			: '';
-
+		statement += it.onUpdate !== 'NO ACTION' ? `.onUpdate("${it.onUpdate}")` : '';
+		statement += it.onDelete !== 'NO ACTION' ? `.onDelete("${it.onDelete}")` : '';
 		statement += `,\n`;
-	});
+	}
 
 	return statement;
 };

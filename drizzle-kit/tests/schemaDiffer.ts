@@ -1,15 +1,10 @@
-import { PGlite } from '@electric-sql/pglite';
 import { Client } from '@libsql/client/.';
-import { Database } from 'better-sqlite3';
 import { is } from 'drizzle-orm';
-import { MySqlSchema, MySqlTable, MySqlView } from 'drizzle-orm/mysql-core';
+import { MySqlTable, MySqlView } from 'drizzle-orm/mysql-core';
 import { SingleStoreSchema, SingleStoreTable } from 'drizzle-orm/singlestore-core';
 import { SQLiteTable, SQLiteView } from 'drizzle-orm/sqlite-core';
 import { Connection } from 'mysql2/promise';
-import { Entities } from 'src/cli/validations/cli';
 import { CasingType } from 'src/cli/validations/common';
-import { ddlDiff } from 'src/dialects/postgres/diff';
-import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
 import { ddlToTypescript as schemaToTypeScriptSQLite } from 'src/dialects/sqlite/typescript';
 import { schemaToTypeScript as schemaToTypeScriptMySQL } from 'src/introspect-mysql';
 import { schemaToTypeScript as schemaToTypeScriptSingleStore } from 'src/introspect-singlestore';
@@ -24,10 +19,6 @@ import {
 } from 'src/serializer/singlestoreSerializer';
 
 
-export type MysqlSchema = Record<
-	string,
-	MySqlTable<any> | MySqlSchema | MySqlView
->;
 export type SinglestoreSchema = Record<
 	string,
 	SingleStoreTable<any> | SingleStoreSchema /* | SingleStoreView */
@@ -165,76 +156,6 @@ export const applyMySqlDiffs = async (
 		mockTablesResolver(new Set()),
 		mockColumnsResolver(new Set()),
 		testViewsResolverMySql(new Set()),
-		validatedPrev,
-		validatedCur,
-	);
-	return { sqlStatements, statements };
-};
-
-export const diffTestSchemasMysql = async (
-	left: MysqlSchema,
-	right: MysqlSchema,
-	renamesArr: string[],
-	cli: boolean = false,
-	casing?: CasingType | undefined,
-) => {
-	const leftTables = Object.values(left).filter((it) => is(it, MySqlTable)) as MySqlTable[];
-
-	const leftViews = Object.values(left).filter((it) => is(it, MySqlView)) as MySqlView[];
-
-	const rightTables = Object.values(right).filter((it) => is(it, MySqlTable)) as MySqlTable[];
-
-	const rightViews = Object.values(right).filter((it) => is(it, MySqlView)) as MySqlView[];
-
-	const serialized1 = generateMySqlSnapshot(leftTables, leftViews, casing);
-	const serialized2 = generateMySqlSnapshot(rightTables, rightViews, casing);
-
-	const { version: v1, dialect: d1, ...rest1 } = serialized1;
-	const { version: v2, dialect: d2, ...rest2 } = serialized2;
-
-	const sch1 = {
-		version: '5',
-		dialect: 'mysql',
-		id: '0',
-		prevId: '0',
-		...rest1,
-	} as const;
-
-	const sch2 = {
-		version: '5',
-		dialect: 'mysql',
-		id: '0',
-		prevId: '0',
-		...rest2,
-	} as const;
-
-	const sn1 = squashMysqlScheme(sch1);
-	const sn2 = squashMysqlScheme(sch2);
-
-	const validatedPrev = mysqlSchema.parse(sch1);
-	const validatedCur = mysqlSchema.parse(sch2);
-
-	const renames = new Set(renamesArr);
-
-	if (!cli) {
-		const { sqlStatements, statements } = await applyMysqlSnapshotsDiff(
-			sn1,
-			sn2,
-			mockTablesResolver(renames),
-			mockColumnsResolver(renames),
-			testViewsResolverMySql(renames),
-			validatedPrev,
-			validatedCur,
-		);
-		return { sqlStatements, statements };
-	}
-
-	const { sqlStatements, statements } = await applyMysqlSnapshotsDiff(
-		sn1,
-		sn2,
-		tablesResolver,
-		columnsResolver,
-		mySqlViewsResolver,
 		validatedPrev,
 		validatedCur,
 	);
@@ -752,91 +673,6 @@ export const diffTestSchemasLibSQL = async (
 		sch2,
 	);
 	return { sqlStatements, statements };
-};
-
-export const introspectMySQLToFile = async (
-	client: Connection,
-	initSchema: MysqlSchema,
-	testName: string,
-	schema: string,
-	casing?: CasingType | undefined,
-) => {
-	// put in db
-	const { sqlStatements } = await applyMySqlDiffs(initSchema, casing);
-	for (const st of sqlStatements) {
-		await client.query(st);
-	}
-
-	// introspect to schema
-	const introspectedSchema = await fromMySqlDatabase(
-		{
-			query: async (sql: string, params?: any[] | undefined) => {
-				const res = await client.execute(sql, params);
-				return res[0] as any;
-			},
-		},
-		schema,
-	);
-
-	const { version: initV, dialect: initD, ...initRest } = introspectedSchema;
-
-	const initSch = {
-		version: '5',
-		dialect: 'mysql',
-		id: '0',
-		prevId: '0',
-		...initRest,
-	} as const;
-
-	const initSn = squashMysqlScheme(initSch);
-	const validatedCur = mysqlSchema.parse(initSch);
-
-	const file = schemaToTypeScriptMySQL(introspectedSchema, 'camel');
-
-	fs.writeFileSync(`tests/introspect/mysql/${testName}.ts`, file.file);
-
-	const response = await prepareFromMySqlImports([
-		`tests/introspect/mysql/${testName}.ts`,
-	]);
-
-	const afterFileImports = generateMySqlSnapshot(
-		response.tables,
-		response.views,
-		casing,
-	);
-
-	const { version: v2, dialect: d2, ...rest2 } = afterFileImports;
-
-	const sch2 = {
-		version: '5',
-		dialect: 'mysql',
-		id: '0',
-		prevId: '0',
-		...rest2,
-	} as const;
-
-	const sn2AfterIm = squashMysqlScheme(sch2);
-	const validatedCurAfterImport = mysqlSchema.parse(sch2);
-
-	const {
-		sqlStatements: afterFileSqlStatements,
-		statements: afterFileStatements,
-	} = await applyMysqlSnapshotsDiff(
-		sn2AfterIm,
-		initSn,
-		mockTablesResolver(new Set()),
-		mockColumnsResolver(new Set()),
-		testViewsResolverMySql(new Set()),
-		validatedCurAfterImport,
-		validatedCur,
-	);
-
-	fs.rmSync(`tests/introspect/mysql/${testName}.ts`);
-
-	return {
-		sqlStatements: afterFileSqlStatements,
-		statements: afterFileStatements,
-	};
 };
 
 export const introspectSingleStoreToFile = async (

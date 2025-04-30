@@ -22,9 +22,9 @@ import {
 import * as fs from 'fs';
 import getPort from 'get-port';
 import { Connection, createConnection } from 'mysql2/promise';
-import { introspectMySQLToFile } from 'tests/schemaDiffer';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { pushPullDiff } from './mocks';
 
 let client: Connection;
 let mysqlContainer: Docker.Container;
@@ -110,11 +110,10 @@ test('generated always column: link to another column', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await introspectMySQLToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'generated-link-column',
-		'drizzle',
 	);
 
 	expect(statements.length).toBe(0);
@@ -133,11 +132,10 @@ test('generated always column virtual: link to another column', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await introspectMySQLToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'generated-link-column-virtual',
-		'drizzle',
 	);
 
 	expect(statements.length).toBe(0);
@@ -152,11 +150,10 @@ test('Default value of character type column: char', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await introspectMySQLToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'default-value-char-column',
-		'drizzle',
 	);
 
 	expect(statements.length).toBe(0);
@@ -171,11 +168,10 @@ test('Default value of character type column: varchar', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await introspectMySQLToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'default-value-varchar-column',
-		'drizzle',
 	);
 
 	expect(statements.length).toBe(0);
@@ -193,11 +189,10 @@ test('introspect checks', async () => {
 		})),
 	};
 
-	const { statements, sqlStatements } = await introspectMySQLToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'introspect-checks',
-		'drizzle',
 	);
 
 	expect(statements.length).toBe(0);
@@ -215,11 +210,10 @@ test('view #1', async () => {
 		testView,
 	};
 
-	const { statements, sqlStatements } = await introspectMySQLToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'view-1',
-		'drizzle',
 	);
 
 	expect(statements.length).toBe(0);
@@ -237,11 +231,10 @@ test('view #2', async () => {
 		testView,
 	};
 
-	const { statements, sqlStatements } = await introspectMySQLToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'view-2',
-		'drizzle',
 	);
 
 	expect(statements.length).toBe(0);
@@ -257,11 +250,10 @@ test('handle float type', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await introspectMySQLToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'handle-float-type',
-		'drizzle',
 	);
 
 	expect(statements.length).toBe(0);
@@ -285,11 +277,10 @@ test('handle unsigned numerical types', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await introspectMySQLToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'handle-unsigned-numerical-types',
-		'drizzle',
 	);
 
 	expect(statements.length).toBe(0);
@@ -305,11 +296,10 @@ test('instrospect strings with single quotes', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await introspectMySQLToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'introspect-strings-with-single-quotes',
-		'drizzle',
 	);
 
 	expect(statements.length).toBe(0);

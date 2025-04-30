@@ -1,6 +1,5 @@
 import type { RunResult } from 'better-sqlite3';
 import type { NamedWithSchema } from './dialects/utils';
-import { snapshotVersion } from './global';
 import type { Dialect } from './schemaValidator';
 import type { ProxyParams } from './serializer/studio';
 
@@ -149,14 +148,6 @@ export type Journal = {
 		tag: string;
 		breakpoints: boolean;
 	}[];
-};
-
-export const dryJournal = (dialect: Dialect): Journal => {
-	return {
-		version: snapshotVersion,
-		dialect,
-		entries: [],
-	};
 };
 
 export const prepareMigrationRenames = (

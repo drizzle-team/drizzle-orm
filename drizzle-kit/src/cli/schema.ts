@@ -8,7 +8,6 @@ import '../@types/utils';
 import { assertUnreachable } from '../global';
 import { type Setup } from '../serializer/studio';
 import { assertV1OutFolder } from '../utils-node';
-import { certs } from '../utils/certs';
 import { checkHandler } from './commands/check';
 import { dropMigration } from './commands/drop';
 import { upMysqlHandler } from './commands/up-mysql';
@@ -288,8 +287,8 @@ export const push = command({
 
 		try {
 			if (dialect === 'mysql') {
-				const { mysqlPush } = await import('./commands/push-mysql');
-				await mysqlPush(
+				const { handle } = await import('./commands/push-mysql');
+				await handle(
 					schemaPath,
 					credentials,
 					tablesFilter,
@@ -301,22 +300,17 @@ export const push = command({
 			} else if (dialect === 'postgresql') {
 				if ('driver' in credentials) {
 					const { driver } = credentials;
-					if (driver === 'aws-data-api') {
-						if (!(await ormVersionGt('0.30.10'))) {
-							console.log(
-								"To use 'aws-data-api' driver - please update drizzle-orm to the latest version",
-							);
-							process.exit(1);
-						}
-					} else if (driver === 'pglite') {
-						if (!(await ormVersionGt('0.30.6'))) {
-							console.log(
-								"To use 'pglite' driver - please update drizzle-orm to the latest version",
-							);
-							process.exit(1);
-						}
-					} else {
-						assertUnreachable(driver);
+					if (driver === 'aws-data-api' && !(await ormVersionGt('0.30.10'))) {
+						console.log(
+							"To use 'aws-data-api' driver - please update drizzle-orm to the latest version",
+						);
+						process.exit(1);
+					}
+					if (driver === 'pglite' && !(await ormVersionGt('0.30.6'))) {
+						console.log(
+							"To use 'pglite' driver - please update drizzle-orm to the latest version",
+						);
+						process.exit(1);
 					}
 				}
 
@@ -333,7 +327,7 @@ export const push = command({
 					casing,
 				);
 			} else if (dialect === 'sqlite') {
-				const { sqlitePush } = await import('./commands/push-sqlite');
+				const { handle: sqlitePush } = await import('./commands/push-sqlite');
 				await sqlitePush(
 					schemaPath,
 					verbose,
@@ -344,7 +338,7 @@ export const push = command({
 					casing,
 				);
 			} else if (dialect === 'turso') {
-				const { libSQLPush } = await import('./commands/push-libsql');
+				const { handle: libSQLPush } = await import('./commands/push-libsql');
 				await libSQLPush(
 					schemaPath,
 					verbose,
@@ -522,14 +516,14 @@ export const pull = command({
 				const { introspectPostgres } = await import('./commands/pull-postgres');
 				await introspectPostgres(casing, out, breakpoints, credentials, tablesFilter, schemasFilter, prefix, entities);
 			} else if (dialect === 'mysql') {
-				const { introspectMysql } = await import('./commands/pull-mysql');
+				const { handle: introspectMysql } = await import('./commands/pull-mysql');
 				await introspectMysql(casing, out, breakpoints, credentials, tablesFilter, prefix);
 			} else if (dialect === 'sqlite') {
 				const { handle } = await import('./commands/pull-sqlite');
 				await handle(casing, out, breakpoints, credentials, tablesFilter, prefix);
 			} else if (dialect === 'turso') {
-				const { introspectLibSQL } = await import('./commands/pull-libsql');
-				await introspectLibSQL(casing, out, breakpoints, credentials, tablesFilter, prefix);
+				const { handle } = await import('./commands/pull-libsql');
+				await handle(casing, out, breakpoints, credentials, tablesFilter, prefix, 'libsql');
 			} else if (dialect === 'singlestore') {
 				const { introspectSingleStore } = await import('./commands/pull-singlestore');
 				await introspectSingleStore(casing, out, breakpoints, credentials, tablesFilter, prefix);
@@ -666,6 +660,7 @@ export const studio = command({
 				),
 			);
 
+			const { certs } = await import('../utils/certs');
 			const { key, cert } = (await certs()) || {};
 			server.start({
 				host,

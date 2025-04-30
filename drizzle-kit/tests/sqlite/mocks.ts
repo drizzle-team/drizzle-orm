@@ -100,12 +100,7 @@ export const diff2 = async (config: {
 	);
 
 	const { statements: truncates, hints } = await suggestions(db, statements);
-	return {
-		sqlStatements,
-		statements,
-		truncates,
-		hints,
-	};
+	return { sqlStatements, statements, truncates, hints };
 };
 
 export const diffAfterPull = async (
@@ -126,7 +121,7 @@ export const diffAfterPull = async (
 
 	const schema = await fromDatabaseForDrizzle(db);
 	const { ddl: ddl2, errors: err1 } = interimToDDL(schema);
-	const file = ddlToTypescript(ddl2, 'camel', schema.viewsToColumns);
+	const file = ddlToTypescript(ddl2, 'camel', schema.viewsToColumns, 'sqlite');
 
 	writeFileSync(path, file.file);
 
@@ -141,7 +136,7 @@ export const diffAfterPull = async (
 		'push',
 	);
 
-	// rmSync(path);
+	rmSync(path);
 
 	return { sqlStatements, statements };
 };
