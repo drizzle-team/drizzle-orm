@@ -11,7 +11,9 @@ import type {
 	QueryResultKind,
 } from '~/mssql-core/session.ts';
 import type { MsSqlTable } from '~/mssql-core/table.ts';
+import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
+import { ExtractObjectValues } from '~/relations.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { Table } from '~/table.ts';
 import { mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils.ts';
@@ -36,15 +38,33 @@ export type MsSqlUpdateSetSource<TTable extends MsSqlTable> =
 	}
 	& {};
 
+export type NonUndefinedKeysOnly<T> =
+	& ExtractObjectValues<
+		{
+			[K in keyof T as T[K] extends undefined ? never : K]: K;
+		}
+	>
+	& keyof T;
+
 export type MsSqlUpdateReturning<
 	T extends AnyMsSqlUpdateBase,
 	TDynamic extends boolean,
+	SelectedFields extends SelectedFieldsFlatUpdate,
 > = MsSqlUpdateWithout<
 	MsSqlUpdateBase<
 		T['_']['table'],
 		T['_']['queryResult'],
 		T['_']['preparedQueryHKT'],
-		T['_']['output'],
+		// {
+		// 	inserted: SelectResultFields<
+		// 		SelectedFields['inserted'] extends true ? T['_']['table']['$inferSelect']
+		// 			: SelectedFields['inserted']
+		// 	>;
+		// 	deleted: SelectedFields['deleted'] extends undefined ? never : SelectResultFields<
+		// 		SelectedFields['deleted'] extends true ? T['_']['table']['$inferSelect']
+		// 			: SelectedFields['deleted']
+		// 	>;
+		// },
 		TDynamic,
 		T['_']['excludedMethods']
 	>,
@@ -155,7 +175,9 @@ export class MsSqlUpdateBase<
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-> extends QueryPromise<QueryResultKind<TQueryResult, any>> implements SQLWrapper {
+> extends QueryPromise<TOutput extends undefined ? QueryResultKind<TQueryResult, any> : TOutput[]>
+	implements SQLWrapper
+{
 	static override readonly [entityKind]: string = 'MsSqlUpdate';
 
 	private config: MsSqlUpdateConfig;
@@ -207,11 +229,10 @@ export class MsSqlUpdateBase<
 		this.config.where = where;
 		return this as any;
 	}
-
 	output(): MsSqlUpdateReturningAll<this, TDynamic>;
 	output<TSelectedFields extends SelectedFieldsFlatUpdate>(
 		fields: TSelectedFields,
-	): MsSqlUpdateReturning<this, TDynamic>;
+	): MsSqlUpdateReturning<this, TDynamic, TSelectedFields>;
 	output(
 		fields?: SelectedFieldsFlatUpdate,
 	): MsSqlUpdateWithout<AnyMsSqlUpdateBase, TDynamic, 'output'> {
@@ -246,9 +267,10 @@ export class MsSqlUpdateBase<
 	}
 
 	prepare(): MsSqlUpdatePrepare<this> {
-		return this.session.prepareQuery<AnyP>(
+		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(this.getSQL()),
-			[...this.config.output?.deleted[0]., ...this.config.output?.inserted], // TODO
+			undefined,
+			// [...this.config.output?.deleted[0]., ...this.config.output?.inserted], // TODO
 		) as MsSqlUpdatePrepare<this>;
 	}
 
