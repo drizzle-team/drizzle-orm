@@ -516,6 +516,36 @@ test('alter column rename #3', async (t) => {
 	);
 });
 
+test('alter column rename #4', async (t) => {
+	const schema1 = {
+		users: sqliteTable('users', {
+			id: int('id').primaryKey({ autoIncrement: true }),
+			name: text('name'),
+			email: text('email'),
+		}),
+	};
+
+	const schema2 = {
+		users: sqliteTable('users', {
+			id: int('id').primaryKey({ autoIncrement: true }),
+			name: text('name2'),
+			email: text('email2'),
+		}),
+	};
+
+	const { sqlStatements } = await diff(schema1, schema2, [
+		'users.name->users.name2',
+		'users.email->users.email2'
+	]);
+
+	expect(sqlStatements).toStrictEqual(
+		[
+			'ALTER TABLE `users` RENAME COLUMN `name` TO `name2`;',
+			'ALTER TABLE `users` RENAME COLUMN `email` TO `email2`;',
+		],
+	);
+});
+
 test('rename column in composite pk', async (t) => {
 	const schema1 = {
 		users: sqliteTable('users', {
