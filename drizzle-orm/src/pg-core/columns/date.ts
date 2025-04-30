@@ -83,22 +83,73 @@ export class PgDateString<T extends ColumnBaseConfig<'string', 'PgDateString'>> 
 	}
 }
 
-export interface PgDateConfig<T extends 'date' | 'string' = 'date' | 'string'> {
+export type PgTemporalDateBuilderInitial<TName extends string> = PgTemporalDateBuilder<{
+	name: TName;
+	dataType: 'date';
+	columnType: 'PgTemporalDate';
+	data: Temporal.PlainDate;
+	driverParam: string;
+	enumValues: undefined;
+}>;
+
+export class PgTemporalDateBuilder<T extends ColumnBuilderBaseConfig<'date', 'PgTemporalDate'>>
+	extends PgDateColumnBaseBuilder<T>
+{
+	static override readonly [entityKind]: string = 'PgTemporalDateBuilder';
+
+	constructor(name: T['name']) {
+		super(name, 'date', 'PgTemporalDate');
+	}
+
+	/** @internal */
+	override build<TTableName extends string>(
+		table: AnyPgTable<{ name: TTableName }>,
+	): PgTemporalDate<MakeColumnConfig<T, TTableName>> {
+		return new PgTemporalDate<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
+	}
+}
+
+export class PgTemporalDate<T extends ColumnBaseConfig<'date', 'PgTemporalDate'>> extends PgColumn<T> {
+	static override readonly [entityKind]: string = 'PgTemporalDate';
+
+	getSQLType(): string {
+		return 'date';
+	}
+
+	override mapFromDriverValue(value: string): Temporal.PlainDate {
+		return Temporal.PlainDate.from(value);
+	}
+
+	override mapToDriverValue(value: Temporal.PlainDate): string {
+		return value.toString();
+	}
+}
+
+export interface PgDateConfig<T extends 'date' | 'string' | 'temporal' = 'date' | 'string' | 'temporal'> {
 	mode: T;
 }
 
 export function date(): PgDateStringBuilderInitial<''>;
 export function date<TMode extends PgDateConfig['mode'] & {}>(
 	config?: PgDateConfig<TMode>,
-): Equal<TMode, 'date'> extends true ? PgDateBuilderInitial<''> : PgDateStringBuilderInitial<''>;
+): Equal<TMode, 'date'> extends true ? PgDateBuilderInitial<''>
+	: Equal<TMode, 'temporal'> extends true ? PgTemporalDateBuilderInitial<''>
+	: PgDateStringBuilderInitial<''>;
 export function date<TName extends string, TMode extends PgDateConfig['mode'] & {}>(
 	name: TName,
 	config?: PgDateConfig<TMode>,
-): Equal<TMode, 'date'> extends true ? PgDateBuilderInitial<TName> : PgDateStringBuilderInitial<TName>;
+): Equal<TMode, 'date'> extends true ? PgDateBuilderInitial<TName>
+	: Equal<TMode, 'temporal'> extends true ? PgTemporalDateBuilderInitial<TName>
+	: PgDateStringBuilderInitial<TName>;
 export function date(a?: string | PgDateConfig, b?: PgDateConfig) {
 	const { name, config } = getColumnNameAndConfig<PgDateConfig>(a, b);
 	if (config?.mode === 'date') {
 		return new PgDateBuilder(name);
+	} else if (config?.mode === 'temporal') {
+		return new PgTemporalDateBuilder(name);
 	}
 	return new PgDateStringBuilder(name);
 }
