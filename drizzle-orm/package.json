@@ -69,6 +69,7 @@
 		"mysql2": ">=2",
 		"pg": ">=8",
 		"postgres": ">=3",
+		"postgres-interval": ">=4",
 		"sql.js": ">=1",
 		"sqlite3": ">=5",
 		"gel": ">=2",
@@ -109,6 +110,9 @@
 			"optional": true
 		},
 		"postgres": {
+			"optional": true
+		},
+		"postgres-interval": {
 			"optional": true
 		},
 		"@neondatabase/serverless": {
@@ -196,6 +200,7 @@
 		"mysql2": "^3.14.1",
 		"pg": "^8.11.0",
 		"postgres": "^3.3.5",
+		"postgres-interval": "^4.0.2",
 		"prisma": "5.14.0",
 		"react": "^18.2.0",
 		"sql.js": "^1.8.0",

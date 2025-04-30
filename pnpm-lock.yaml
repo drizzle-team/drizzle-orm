@@ -435,6 +435,10 @@ importers:
       postgres:
         specifier: ^3.3.5
         version: 3.4.7
+        version: 3.4.5
+      postgres-interval:
+        specifier: ^4.0.2
+        version: 4.0.2
       prisma:
         specifier: 5.14.0
         version: 5.14.0
@@ -7069,6 +7073,10 @@ packages:
 
   postgres-interval@3.0.0:
     resolution: {integrity: sha512-BSNDnbyZCXSxgA+1f5UU2GmwhoI0aU5yMxRGO8CdFEcY2BQF9xm/7MqKnYoM1nJDk8nONNWDk9WeSmePFhQdlw==}
+    engines: {node: '>=12'}
+
+  postgres-interval@4.0.2:
+    resolution: {integrity: sha512-EMsphSQ1YkQqKZL2cuG0zHkmjCCzQqQ71l2GXITqRwjhRleCdv00bDk/ktaSi0LnlaPzAc3535KTrjXsTdtx7A==}
     engines: {node: '>=12'}
 
   postgres-range@1.1.4:
@@ -15824,6 +15832,8 @@ snapshots:
       xtend: 4.0.2
 
   postgres-interval@3.0.0: {}
+
+  postgres-interval@4.0.2: {}
 
   postgres-range@1.1.4: {}
 
