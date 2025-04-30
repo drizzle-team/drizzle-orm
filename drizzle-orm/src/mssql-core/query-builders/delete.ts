@@ -10,9 +10,13 @@ import type {
 	QueryResultKind,
 } from '~/mssql-core/session.ts';
 import type { MsSqlTable } from '~/mssql-core/table.ts';
+import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
-import type { SelectedFieldsOrdered } from './select.types.ts';
+import { Table } from '~/table.ts';
+import { orderSelectedFields } from '~/utils.ts';
+import type { MsSqlColumn } from '../columns/common.ts';
+import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 
 export type MsSqlDeleteWithout<
 	T extends AnyMsSqlDeleteBase,
@@ -24,22 +28,57 @@ export type MsSqlDeleteWithout<
 			T['_']['table'],
 			T['_']['queryResult'],
 			T['_']['preparedQueryHKT'],
+			T['_']['output'],
 			TDynamic,
 			T['_']['excludedMethods'] | K
 		>,
 		T['_']['excludedMethods'] | K
 	>;
 
+export type MsSqlDeleteReturningAll<
+	T extends AnyMsSqlDeleteBase,
+	TDynamic extends boolean,
+> = MsSqlDeleteWithout<
+	MsSqlDeleteBase<
+		T['_']['table'],
+		T['_']['queryResult'],
+		T['_']['table']['_']['columns'],
+		T['_']['table']['$inferSelect'],
+		TDynamic,
+		T['_']['excludedMethods']
+	>,
+	TDynamic,
+	'output'
+>;
+
+export type MsSqlDeleteReturning<
+	T extends AnyMsSqlDeleteBase,
+	TDynamic extends boolean,
+	TSelectedFields extends SelectedFieldsFlat,
+> = MsSqlDeleteWithout<
+	MsSqlDeleteBase<
+		T['_']['table'],
+		T['_']['queryResult'],
+		T['_']['preparedQueryHKT'],
+		SelectResultFields<TSelectedFields>,
+		TDynamic,
+		T['_']['excludedMethods']
+	>,
+	TDynamic,
+	'output'
+>;
+
 export type MsSqlDelete<
 	TTable extends MsSqlTable = MsSqlTable,
 	TQueryResult extends QueryResultHKT = AnyQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
-> = MsSqlDeleteBase<TTable, TQueryResult, TPreparedQueryHKT, true, never>;
+	TOutput extends Record<string, unknown> | undefined = undefined,
+> = MsSqlDeleteBase<TTable, TQueryResult, TPreparedQueryHKT, TOutput, true, never>;
 
 export interface MsSqlDeleteConfig {
 	where?: SQL | undefined;
 	table: MsSqlTable;
-	returning?: SelectedFieldsOrdered;
+	output?: SelectedFieldsOrdered;
 }
 
 export type MsSqlDeletePrepare<T extends AnyMsSqlDeleteBase> = PreparedQueryKind<
@@ -56,20 +95,22 @@ type MsSqlDeleteDynamic<T extends AnyMsSqlDeleteBase> = MsSqlDelete<
 	T['_']['preparedQueryHKT']
 >;
 
-type AnyMsSqlDeleteBase = MsSqlDeleteBase<any, any, any, any, any>;
+type AnyMsSqlDeleteBase = MsSqlDeleteBase<any, any, any, any, any, any>;
 
 export interface MsSqlDeleteBase<
 	TTable extends MsSqlTable,
 	TQueryResult extends QueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
+	TOutput extends Record<string, unknown> | undefined = undefined,
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
-> extends QueryPromise<QueryResultKind<TQueryResult, any>> {
+> extends QueryPromise<TOutput extends undefined ? QueryResultKind<TQueryResult, any> : TOutput[]> {
 	readonly _: {
 		readonly table: TTable;
 		readonly queryResult: TQueryResult;
 		readonly preparedQueryHKT: TPreparedQueryHKT;
 		readonly dynamic: TDynamic;
+		readonly output: TOutput;
 		readonly excludedMethods: TExcludedMethods;
 	};
 }
@@ -79,10 +120,14 @@ export class MsSqlDeleteBase<
 	TQueryResult extends QueryResultHKT,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	TOutput extends Record<string, unknown> | undefined,
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-> extends QueryPromise<QueryResultKind<TQueryResult, any>> implements SQLWrapper {
+> extends QueryPromise<TOutput extends undefined ? QueryResultKind<TQueryResult, any> : TOutput[]>
+	implements SQLWrapper
+{
 	static override readonly [entityKind]: string = 'MsSqlDelete';
 
 	private config: MsSqlDeleteConfig;
@@ -130,6 +175,17 @@ export class MsSqlDeleteBase<
 		return this as any;
 	}
 
+	output(): MsSqlDeleteReturningAll<this, TDynamic>;
+	output<TSelectedFields extends SelectedFieldsFlat>(
+		fields: TSelectedFields,
+	): MsSqlDeleteReturning<this, TDynamic, TSelectedFields>;
+	output(
+		fields: SelectedFieldsFlat = this.config.table[Table.Symbol.Columns],
+	): MsSqlDeleteWithout<AnyMsSqlDeleteBase, TDynamic, 'output'> {
+		this.config.output = orderSelectedFields<MsSqlColumn>(fields);
+		return this as any;
+	}
+
 	/** @internal */
 	getSQL(): SQL {
 		return this.dialect.buildDeleteQuery(this.config);
@@ -143,7 +199,7 @@ export class MsSqlDeleteBase<
 	prepare(): MsSqlDeletePrepare<this> {
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(this.getSQL()),
-			this.config.returning,
+			this.config.output,
 		) as MsSqlDeletePrepare<this>;
 	}
 

@@ -10,17 +10,20 @@ import type {
 	QueryResultKind,
 } from '~/mssql-core/session.ts';
 import type { MsSqlTable } from '~/mssql-core/table.ts';
+import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Param, SQL } from '~/sql/sql.ts';
 import { Table } from '~/table.ts';
+import { orderSelectedFields } from '~/utils.ts';
+import type { MsSqlColumn } from '../columns/common.ts';
+import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 
 export interface MsSqlInsertConfig<TTable extends MsSqlTable = MsSqlTable> {
 	table: TTable;
 	values: Record<string, Param | SQL>[];
+	output?: SelectedFieldsOrdered;
 }
-
-export type AnyMsSqlInsertConfig = MsSqlInsertConfig<MsSqlTable>;
 
 export type MsSqlInsertValue<TTable extends MsSqlTable> =
 	& {
@@ -28,24 +31,43 @@ export type MsSqlInsertValue<TTable extends MsSqlTable> =
 	}
 	& {};
 
-export class MsSqlInsertBuilder<
+class MsSqlInsertBuilderBase<
 	TTable extends MsSqlTable,
 	TQueryResult extends QueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
+	TOutput extends Record<string, unknown> | undefined,
 > {
 	static readonly [entityKind]: string = 'MsSqlInsertBuilder';
 
-	constructor(
-		private table: TTable,
-		private session: MsSqlSession,
-		private dialect: MsSqlDialect,
-	) {}
+	private config: {
+		output?: SelectedFieldsOrdered;
+		table: TTable;
+	};
 
-	values(value: MsSqlInsertValue<TTable>): MsSqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
-	values(values: MsSqlInsertValue<TTable>[]): MsSqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
+	protected table: TTable;
+	protected session: MsSqlSession;
+	protected dialect: MsSqlDialect;
+
+	constructor(
+		table: TTable,
+		session: MsSqlSession,
+		dialect: MsSqlDialect,
+		output?: SelectedFieldsOrdered,
+	) {
+		this.table = table;
+		this.session = session;
+		this.dialect = dialect;
+
+		this.config = { table, output };
+	}
+
+	values(
+		value: MsSqlInsertValue<TTable>,
+	): MsSqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT, TOutput>;
+	values(values: MsSqlInsertValue<TTable>[]): MsSqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT, TOutput>;
 	values(
 		values: MsSqlInsertValue<TTable> | MsSqlInsertValue<TTable>[],
-	): MsSqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT> {
+	): MsSqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT, TOutput> {
 		values = Array.isArray(values) ? values : [values];
 		if (values.length === 0) {
 			throw new Error('values() must be called with at least one value');
@@ -60,7 +82,58 @@ export class MsSqlInsertBuilder<
 			return result;
 		});
 
-		return new MsSqlInsertBase(this.table, mappedValues, this.session, this.dialect);
+		return new MsSqlInsertBase(this.table, mappedValues, this.session, this.dialect, this.config.output);
+	}
+}
+
+interface MsSqlInsertBuilderBase<
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	TTable extends MsSqlTable,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	TQueryResult extends QueryResultHKT,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	TPreparedQueryHKT extends PreparedQueryHKTBase,
+	TOutput extends Record<string, unknown> | undefined,
+> {
+	readonly _: {
+		readonly table: TTable;
+		readonly queryResult: TQueryResult;
+		readonly preparedQuery: TPreparedQueryHKT;
+		readonly output: TOutput;
+	};
+}
+
+type AnyMsSqlInsertBuilderBase = MsSqlInsertBuilderBase<any, any, any, any>;
+export type MsSqlInsertReturningAll<T extends AnyMsSqlInsertBuilderBase> = MsSqlInsertBuilderBase<
+	T['_']['table'],
+	T['_']['queryResult'],
+	T['_']['preparedQuery'],
+	T['_']['table']['$inferSelect']
+>;
+export type MsSqlInsertReturning<
+	T extends AnyMsSqlInsertBuilderBase,
+	TSelectedFields extends SelectedFieldsFlat,
+> = MsSqlInsertBuilderBase<
+	T['_']['table'],
+	T['_']['queryResult'],
+	T['_']['preparedQuery'],
+	SelectResultFields<TSelectedFields>
+>;
+
+export class MsSqlInsertBuilder<
+	TTable extends MsSqlTable,
+	TQueryResult extends QueryResultHKT,
+	TPreparedQueryHKT extends PreparedQueryHKTBase,
+> extends MsSqlInsertBuilderBase<TTable, TQueryResult, TPreparedQueryHKT, undefined> {
+	static override readonly [entityKind] = 'MsSqlSelectFromBuilderBase';
+
+	output(): MsSqlInsertReturningAll<this>;
+	output<SelectedFields extends SelectedFieldsFlat>(fields: SelectedFields): MsSqlInsertReturning<this, SelectedFields>;
+	output(
+		fields: SelectedFieldsFlat = this.table[Table.Symbol.Columns],
+	) {
+		const output = orderSelectedFields<MsSqlColumn>(fields);
+		return new MsSqlInsertBuilderBase(this.table, this.session, this.dialect, output);
 	}
 }
 
@@ -71,6 +144,7 @@ export type MsSqlInsertWithout<T extends AnyMsSqlInsert, TDynamic extends boolea
 				T['_']['table'],
 				T['_']['queryResult'],
 				T['_']['preparedQueryHKT'],
+				T['_']['output'],
 				TDynamic,
 				T['_']['excludedMethods'] | K
 			>,
@@ -86,7 +160,7 @@ export type MsSqlInsertDynamic<T extends AnyMsSqlInsert> = MsSqlInsert<
 export type MsSqlInsertPrepare<T extends AnyMsSqlInsert> = PreparedQueryKind<
 	T['_']['preparedQueryHKT'],
 	PreparedQueryConfig & {
-		execute: QueryResultKind<T['_']['queryResult'], any>;
+		execute: T['_']['output'] extends undefined ? QueryResultKind<T['_']['queryResult'], any> : T['_']['output'][];
 		iterator: never;
 	}
 >;
@@ -95,21 +169,24 @@ export type MsSqlInsert<
 	TTable extends MsSqlTable = MsSqlTable,
 	TQueryResult extends QueryResultHKT = AnyQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
-> = MsSqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT, true, never>;
+	TOutput extends Record<string, unknown> | undefined = undefined,
+> = MsSqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT, TOutput, true, never>;
 
-export type AnyMsSqlInsert = MsSqlInsertBase<any, any, any, any, any>;
+export type AnyMsSqlInsert = MsSqlInsertBase<any, any, any, any, any, any>;
 
 export interface MsSqlInsertBase<
 	TTable extends MsSqlTable,
 	TQueryResult extends QueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
+	TOutput extends Record<string, unknown> | undefined,
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
-> extends QueryPromise<QueryResultKind<TQueryResult, any>>, SQLWrapper {
+> extends QueryPromise<TOutput extends undefined ? QueryResultKind<TQueryResult, unknown> : TOutput[]>, SQLWrapper {
 	readonly _: {
 		readonly table: TTable;
 		readonly queryResult: TQueryResult;
 		readonly preparedQueryHKT: TPreparedQueryHKT;
+		readonly output: TOutput;
 		readonly dynamic: TDynamic;
 		readonly excludedMethods: TExcludedMethods;
 	};
@@ -121,10 +198,14 @@ export class MsSqlInsertBase<
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	TOutput extends Record<string, unknown> | undefined,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-> extends QueryPromise<QueryResultKind<TQueryResult, any>> implements SQLWrapper {
+> extends QueryPromise<TOutput extends undefined ? QueryResultKind<TQueryResult, unknown> : TOutput[]>
+	implements SQLWrapper
+{
 	static override readonly [entityKind]: string = 'MsSqlInsert';
 
 	declare protected $table: TTable;
@@ -136,9 +217,10 @@ export class MsSqlInsertBase<
 		values: MsSqlInsertConfig['values'],
 		private session: MsSqlSession,
 		private dialect: MsSqlDialect,
+		output?: SelectedFieldsOrdered,
 	) {
 		super();
-		this.config = { table, values };
+		this.config = { table, values, output };
 	}
 
 	/** @internal */
