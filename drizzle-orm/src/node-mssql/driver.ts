@@ -44,10 +44,15 @@ export type NodeMsSqlDrizzleConfig<TSchema extends Record<string, unknown> = Rec
 	& Omit<DrizzleConfig<TSchema>, 'schema'>
 	& ({ schema: TSchema } | { schema?: undefined });
 
-export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+export function drizzle<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TClient extends NodeMsSqlClient = NodeMsSqlClient,
+>(
 	client: NodeMsSqlClient,
 	config: NodeMsSqlDrizzleConfig<TSchema> = {},
-): NodeMsSqlDatabase<TSchema> {
+): NodeMsSqlDatabase<TSchema> & {
+	$client: TClient;
+} {
 	const dialect = new MsSqlDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
@@ -74,7 +79,10 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 
 	const driver = new NodeMsSqlDriver(client as NodeMsSqlClient, dialect, { logger });
 	const session = driver.createSession(schema);
-	return new MsSqlDatabase(dialect, session, schema) as NodeMsSqlDatabase<TSchema>;
+	const db = new MsSqlDatabase(dialect, session, schema) as NodeMsSqlDatabase<TSchema>;
+	(<any> db).$client = client;
+
+	return db as any;
 }
 
 interface CallbackClient {
