@@ -31,11 +31,11 @@ export type MsSqlInsertValue<TTable extends MsSqlTable> =
 	}
 	& {};
 
-class MsSqlInsertBuilderBase<
+export class MsSqlInsertBuilder<
 	TTable extends MsSqlTable,
 	TQueryResult extends QueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
-	TOutput extends Record<string, unknown> | undefined,
+	TOutput extends Record<string, unknown> | undefined = undefined,
 > {
 	static readonly [entityKind]: string = 'MsSqlInsertBuilder';
 
@@ -84,56 +84,16 @@ class MsSqlInsertBuilderBase<
 
 		return new MsSqlInsertBase(this.table, mappedValues, this.session, this.dialect, this.config.output);
 	}
-}
 
-interface MsSqlInsertBuilderBase<
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	TTable extends MsSqlTable,
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	TQueryResult extends QueryResultHKT,
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	TPreparedQueryHKT extends PreparedQueryHKTBase,
-	TOutput extends Record<string, unknown> | undefined,
-> {
-	readonly _: {
-		readonly table: TTable;
-		readonly queryResult: TQueryResult;
-		readonly preparedQuery: TPreparedQueryHKT;
-		readonly output: TOutput;
-	};
-}
-
-type AnyMsSqlInsertBuilderBase = MsSqlInsertBuilderBase<any, any, any, any>;
-export type MsSqlInsertReturningAll<T extends AnyMsSqlInsertBuilderBase> = MsSqlInsertBuilderBase<
-	T['_']['table'],
-	T['_']['queryResult'],
-	T['_']['preparedQuery'],
-	T['_']['table']['$inferSelect']
->;
-export type MsSqlInsertReturning<
-	T extends AnyMsSqlInsertBuilderBase,
-	TSelectedFields extends SelectedFieldsFlat,
-> = MsSqlInsertBuilderBase<
-	T['_']['table'],
-	T['_']['queryResult'],
-	T['_']['preparedQuery'],
-	SelectResultFields<TSelectedFields>
->;
-
-export class MsSqlInsertBuilder<
-	TTable extends MsSqlTable,
-	TQueryResult extends QueryResultHKT,
-	TPreparedQueryHKT extends PreparedQueryHKTBase,
-> extends MsSqlInsertBuilderBase<TTable, TQueryResult, TPreparedQueryHKT, undefined> {
-	static override readonly [entityKind] = 'MsSqlSelectFromBuilderBase';
-
-	output(): MsSqlInsertReturningAll<this>;
-	output<SelectedFields extends SelectedFieldsFlat>(fields: SelectedFields): MsSqlInsertReturning<this, SelectedFields>;
+	output(): Omit<MsSqlInsertBuilder<TTable, TQueryResult, TPreparedQueryHKT, TTable['$inferSelect']>, 'output'>;
+	output<SelectedFields extends SelectedFieldsFlat>(
+		fields: SelectedFields,
+	): Omit<MsSqlInsertBuilder<TTable, TQueryResult, TPreparedQueryHKT, SelectResultFields<SelectedFields>>, 'output'>;
 	output(
 		fields: SelectedFieldsFlat = this.table[Table.Symbol.Columns],
 	) {
-		const output = orderSelectedFields<MsSqlColumn>(fields);
-		return new MsSqlInsertBuilderBase(this.table, this.session, this.dialect, output);
+		this.config.output = orderSelectedFields<MsSqlColumn>(fields);
+		return this as any;
 	}
 }
 
@@ -236,13 +196,15 @@ export class MsSqlInsertBase<
 	prepare(): MsSqlInsertPrepare<this> {
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(this.getSQL()),
-			undefined,
+			this.config.output,
 		) as MsSqlInsertPrepare<this>;
 	}
 
-	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return this.prepare().execute(placeholderValues);
-	};
+	override execute(
+		placeholderValues?: Record<string, unknown>,
+	): Promise<TOutput extends undefined ? QueryResultKind<TQueryResult, unknown> : TOutput[]> {
+		return this.prepare().execute(placeholderValues) as any;
+	}
 
 	private createIterator = (): ReturnType<this['prepare']>['iterator'] => {
 		const self = this;

@@ -534,9 +534,9 @@ export class MsSqlDialect {
 			? sql` output ${this.buildSelectionOutput(output, { type: 'INSERTED' })}`
 			: undefined;
 
-		return sql`insert into ${table} ${outputSql} ${
+		return sql`insert into ${table} ${
 			insertOrder.length === 0 ? sql`default` : insertOrder
-		} values ${valuesSql}`;
+		}${outputSql} values ${valuesSql}`;
 	}
 
 	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): QueryWithTypings {

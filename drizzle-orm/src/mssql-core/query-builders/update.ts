@@ -13,7 +13,7 @@ import type {
 import type { MsSqlTable } from '~/mssql-core/table.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import { ExtractObjectValues } from '~/relations.ts';
+import type { ExtractObjectValues } from '~/relations.ts';
 import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { Table } from '~/table.ts';
 import { mapUpdateSet, orderSelectedFields, type UpdateSet } from '~/utils.ts';
@@ -46,6 +46,10 @@ export type NonUndefinedKeysOnly<T> =
 	>
 	& keyof T;
 
+export type FormSelection<T, TTable extends MsSqlTable> = {
+	[K in keyof T as T[K] extends undefined ? never : K]: T[K] extends true ? TTable['_']['columns'] : T[K];
+};
+
 export type MsSqlUpdateReturning<
 	T extends AnyMsSqlUpdateBase,
 	TDynamic extends boolean,
@@ -55,16 +59,7 @@ export type MsSqlUpdateReturning<
 		T['_']['table'],
 		T['_']['queryResult'],
 		T['_']['preparedQueryHKT'],
-		// {
-		// 	inserted: SelectResultFields<
-		// 		SelectedFields['inserted'] extends true ? T['_']['table']['$inferSelect']
-		// 			: SelectedFields['inserted']
-		// 	>;
-		// 	deleted: SelectedFields['deleted'] extends undefined ? never : SelectResultFields<
-		// 		SelectedFields['deleted'] extends true ? T['_']['table']['$inferSelect']
-		// 			: SelectedFields['deleted']
-		// 	>;
-		// },
+		SelectResultFields<FormSelection<SelectedFields, T['_']['table']>>,
 		TDynamic,
 		T['_']['excludedMethods']
 	>,
@@ -126,7 +121,7 @@ export type MsSqlUpdateWithout<
 export type MsSqlUpdatePrepare<T extends AnyMsSqlUpdateBase> = PreparedQueryKind<
 	T['_']['preparedQueryHKT'],
 	PreparedQueryConfig & {
-		execute: QueryResultKind<T['_']['queryResult'], any>;
+		execute: T['_']['output'] extends undefined ? QueryResultKind<T['_']['queryResult'], any> : T['_']['output'][];
 		iterator: never;
 	}
 >;
@@ -153,7 +148,7 @@ export interface MsSqlUpdateBase<
 	TOutput extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
-> extends QueryPromise<QueryResultKind<TQueryResult, any>>, SQLWrapper {
+> extends QueryPromise<TOutput extends undefined ? QueryResultKind<TQueryResult, any> : TOutput[]>, SQLWrapper {
 	readonly _: {
 		readonly table: TTable;
 		readonly queryResult: TQueryResult;
@@ -243,14 +238,14 @@ export class MsSqlUpdateBase<
 		} else if (fields.inserted) {
 			this.config.output = {
 				inserted: typeof fields.inserted === 'boolean'
-					? orderSelectedFields<MsSqlColumn>(this.config.table[Table.Symbol.Columns])
-					: orderSelectedFields<MsSqlColumn>(fields.inserted),
+					? orderSelectedFields<MsSqlColumn>(this.config.table[Table.Symbol.Columns], ['inserted'])
+					: orderSelectedFields<MsSqlColumn>(fields.inserted, ['inserted']),
 			};
 		} else if (fields.deleted) {
 			this.config.output = {
 				deleted: typeof fields.deleted === 'boolean'
-					? orderSelectedFields<MsSqlColumn>(this.config.table[Table.Symbol.Columns])
-					: orderSelectedFields<MsSqlColumn>(fields.deleted),
+					? orderSelectedFields<MsSqlColumn>(this.config.table[Table.Symbol.Columns], ['deleted'])
+					: orderSelectedFields<MsSqlColumn>(fields.deleted, ['deleted']),
 			};
 		}
 		return this as any;
@@ -267,16 +262,19 @@ export class MsSqlUpdateBase<
 	}
 
 	prepare(): MsSqlUpdatePrepare<this> {
+		const output = [...(this.config.output?.inserted ?? []), ...(this.config.output?.deleted ?? [])];
+
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(this.getSQL()),
-			undefined,
-			// [...this.config.output?.deleted[0]., ...this.config.output?.inserted], // TODO
+			output.length ? output : undefined,
 		) as MsSqlUpdatePrepare<this>;
 	}
 
-	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return this.prepare().execute(placeholderValues);
-	};
+	override execute(
+		placeholderValues?: Record<string, unknown>,
+	): Promise<TOutput extends undefined ? QueryResultKind<TQueryResult, unknown> : TOutput[]> {
+		return this.prepare().execute(placeholderValues) as any;
+	}
 
 	private createIterator = (): ReturnType<this['prepare']>['iterator'] => {
 		const self = this;

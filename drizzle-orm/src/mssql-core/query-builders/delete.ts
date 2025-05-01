@@ -203,9 +203,11 @@ export class MsSqlDeleteBase<
 		) as MsSqlDeletePrepare<this>;
 	}
 
-	override execute: ReturnType<this['prepare']>['execute'] = (placeholderValues) => {
-		return this.prepare().execute(placeholderValues);
-	};
+	override execute(
+		placeholderValues?: Record<string, unknown>,
+	): Promise<TOutput extends undefined ? QueryResultKind<TQueryResult, unknown> : TOutput[]> {
+		return this.prepare().execute(placeholderValues) as any;
+	}
 
 	private createIterator = (): ReturnType<this['prepare']>['iterator'] => {
 		const self = this;
