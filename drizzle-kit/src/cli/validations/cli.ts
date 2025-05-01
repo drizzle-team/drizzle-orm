@@ -1,4 +1,4 @@
-import { enum as zEnum, boolean, intersection, object, string, TypeOf, union } from 'zod';
+import { boolean, enum as zEnum, intersection, object, string, TypeOf, union } from 'zod';
 import { dialect } from '../../schemaValidator';
 import { casing, casingType, prefix } from './common';
 
