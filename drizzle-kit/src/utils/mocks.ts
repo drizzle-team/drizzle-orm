@@ -25,7 +25,7 @@ export const mockResolver =
 			});
 
 			if (idxFrom >= 0) {
-				const idxTo = created.findIndex((it) => {
+				const idxTo = createdItems.findIndex((it) => {
 					const schema = it.schema ? `${it.schema}.` : '';
 					const table = it.table ? `${it.table}.` : '';
 					const key = `${schema}${table}${it.name}`;
