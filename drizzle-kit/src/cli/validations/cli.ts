@@ -1,4 +1,4 @@
-import { array, boolean, intersection, literal, object, string, TypeOf, union } from 'zod';
+import { enum as zEnum, boolean, intersection, object, string, TypeOf, union } from 'zod';
 import { dialect } from '../../schemaValidator';
 import { casing, casingType, prefix } from './common';
 
@@ -23,7 +23,7 @@ export const pushParams = object({
 	schemaFilter: union([string(), string().array()])
 		.optional()
 		.default(['public']),
-	extensionsFilters: literal('postgis').array().optional(),
+	extensionsFilters: zEnum(['postgis', 'pg_stat_statements']).array().optional(),
 	verbose: boolean().optional(),
 	strict: boolean().optional(),
 	entities: object({
@@ -45,7 +45,7 @@ export const pullParams = object({
 	schemaFilter: union([string(), string().array()])
 		.optional()
 		.default(['public']),
-	extensionsFilters: literal('postgis').array().optional(),
+	extensionsFilters: zEnum(['postgis', 'pg_stat_statements']).array().optional(),
 	casing,
 	breakpoints: boolean().optional().default(true),
 	migrations: object({

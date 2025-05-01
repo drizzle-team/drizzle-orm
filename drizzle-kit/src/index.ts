@@ -112,7 +112,7 @@ export type Config =
 		out?: string;
 		breakpoints?: boolean;
 		tablesFilter?: string | string[];
-		extensionsFilters?: 'postgis'[];
+		extensionsFilters?: ('postgis' | 'pg_stat_statements')[];
 		schemaFilter?: string | string[];
 		schema?: string | string[];
 		verbose?: boolean;

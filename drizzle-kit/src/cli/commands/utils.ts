@@ -517,7 +517,16 @@ export const preparePullConfig = async (
 			&& dialect === 'postgresql'
 		) {
 			tablesFilter.push(
-				...['!geography_columns', '!geometry_columns', '!spatial_ref_sys'],
+				'!geography_columns', '!geometry_columns', '!spatial_ref_sys',
+			);
+		}
+
+		if (
+			config.extensionsFilters.includes('pg_stat_statements')
+			&& dialect === 'postgresql'
+		) {
+			tablesFilter.push(
+				'!pg_stat_statements', '!pg_stat_statements_info',
 			);
 		}
 	}
