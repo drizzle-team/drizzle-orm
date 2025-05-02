@@ -176,6 +176,24 @@ export class MsSqlDeleteBase<
 		return this as any;
 	}
 
+	/**
+	 * Adds an `output` clause to the query.
+	 *
+	 * Calling this method will return the specified fields of the deleted rows. If no fields are specified, all fields will be returned.
+	 *
+	 * @example
+	 * ```ts
+	 * // Delete all cars with the green color and return all fields
+	 * const deletedCars: Car[] = await db.delete(cars)
+	 *   .output();
+	 *   .where(eq(cars.color, 'green'))
+	 *
+	 * // Delete all cars with the green color and return only their id and brand fields
+	 * const deletedCarsIdsAndBrands: { id: number, brand: string }[] = await db.delete(cars)
+	 *   .output({ id: cars.id, brand: cars.brand });
+	 *   .where(eq(cars.color, 'green'))
+	 * ```
+	 */
 	output(): MsSqlDeleteReturningAll<this, TDynamic>;
 	output<TSelectedFields extends SelectedFieldsFlat>(
 		fields: TSelectedFields,

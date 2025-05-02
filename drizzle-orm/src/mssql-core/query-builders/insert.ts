@@ -85,6 +85,24 @@ export class MsSqlInsertBuilder<
 		return new MsSqlInsertBase(this.table, mappedValues, this.session, this.dialect, this.config.output);
 	}
 
+	/**
+	 * Adds an `output` clause to the query.
+	 *
+	 * Calling this method will return the specified fields of the inserted rows. If no fields are specified, all fields will be returned.
+	 *
+	 * @example
+	 * ```ts
+	 * // Insert one row and return all fields
+	 * const insertedCar: Car[] = await db.insert(cars)
+	 *   .output();
+	 *   .values({ brand: 'BMW' })
+	 *
+	 * // Insert one row and return only the id
+	 * const insertedCarId: { id: number }[] = await db.insert(cars)
+	 *   .output({ id: cars.id });
+	 *   .values({ brand: 'BMW' })
+	 * ```
+	 */
 	output(): Omit<MsSqlInsertBuilder<TTable, TQueryResult, TPreparedQueryHKT, TTable['$inferSelect']>, 'output'>;
 	output<SelectedFields extends SelectedFieldsFlat>(
 		fields: SelectedFields,
