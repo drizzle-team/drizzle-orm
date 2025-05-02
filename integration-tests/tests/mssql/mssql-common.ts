@@ -4030,5 +4030,154 @@ export function tests() {
 				],
 			);
 		});
+
+		test('insert with output', async (ctx) => {
+			const { db } = ctx.mssql;
+
+			const fullOutput = await db.insert(citiesTable).output().values({ id: 1, name: 'city1' });
+			const partialOutput = await db.insert(citiesTable).output({
+				name: sql<string>`${citiesTable.name} + 'hey'`,
+				id: citiesTable.id,
+			})
+				.values({
+					id: 2,
+					name: 'city1',
+				});
+
+			expect(fullOutput).toStrictEqual(
+				[
+					{ id: 1, name: 'city1' },
+				],
+			);
+
+			expect(partialOutput).toStrictEqual(
+				[
+					{ id: 2, name: 'city1hey' },
+				],
+			);
+		});
+
+		test('delete with output', async (ctx) => {
+			const { db } = ctx.mssql;
+
+			await db.insert(citiesTable).output().values([{ id: 1, name: 'city1' }, { id: 2, name: 'city2' }, {
+				id: 3,
+				name: 'city3',
+			}]);
+			const partialDeleteOutput = await db.delete(citiesTable).output({
+				name: sql<string>`${citiesTable.name} + 'hey'`,
+				id: citiesTable.id,
+			}).where(eq(citiesTable.id, 3));
+
+			expect(partialDeleteOutput).toStrictEqual(
+				[
+					{ id: 3, name: 'city3hey' },
+				],
+			);
+
+			const fullDeleteOutput = await db.delete(citiesTable).output();
+
+			expect(fullDeleteOutput).toStrictEqual(
+				[
+					{ id: 1, name: 'city1' },
+					{ id: 2, name: 'city2' },
+				],
+			);
+		});
+
+		test('update with output', async (ctx) => {
+			const { db } = ctx.mssql;
+
+			await db.insert(citiesTable).values([{ id: 1, name: 'city1' }, { id: 2, name: 'city2' }, {
+				id: 3,
+				name: 'city3',
+			}]);
+
+			const updateOutput = await db.update(citiesTable).set({
+				name: sql<string>`${citiesTable.name} + 'hey'`,
+			}).output().where(eq(citiesTable.id, 3));
+
+			expect(updateOutput).toStrictEqual(
+				[
+					{ id: 3, name: 'city3hey' },
+				],
+			);
+		});
+
+		test('update with output inserted true', async (ctx) => {
+			const { db } = ctx.mssql;
+
+			await db.insert(citiesTable).values([{ id: 1, name: 'city1' }, { id: 2, name: 'city2' }, {
+				id: 3,
+				name: 'city3',
+			}]);
+
+			const updateOutput = await db.update(citiesTable).set({
+				name: sql<string>`${citiesTable.name} + 'hey'`,
+			}).output({ inserted: true }).where(eq(citiesTable.id, 3));
+
+			expect(updateOutput).toStrictEqual(
+				[
+					{ inserted: { id: 3, name: 'city3hey' } },
+				],
+			);
+		});
+
+		test('update with output deleted true', async (ctx) => {
+			const { db } = ctx.mssql;
+
+			await db.insert(citiesTable).values([{ id: 1, name: 'city1' }, { id: 2, name: 'city2' }, {
+				id: 3,
+				name: 'city3',
+			}]);
+
+			const updateOutput = await db.update(citiesTable).set({
+				name: sql<string>`${citiesTable.name} + 'hey'`,
+			}).output({ deleted: true }).where(eq(citiesTable.id, 3));
+
+			expect(updateOutput).toStrictEqual(
+				[
+					{ deleted: { id: 3, name: 'city3' } },
+				],
+			);
+		});
+
+		test('update with output with both true', async (ctx) => {
+			const { db } = ctx.mssql;
+
+			await db.insert(citiesTable).values([{ id: 1, name: 'city1' }, { id: 2, name: 'city2' }, {
+				id: 3,
+				name: 'city3',
+			}]);
+
+			const updateOutput = await db.update(citiesTable).set({
+				name: sql<string>`${citiesTable.name} + 'hey'`,
+			}).output({ deleted: true, inserted: true }).where(eq(citiesTable.id, 3));
+
+			expect(updateOutput).toStrictEqual(
+				[
+					{ deleted: { id: 3, name: 'city3' }, inserted: { id: 3, name: 'city3hey' } },
+				],
+			);
+		});
+
+		test('update with output with partial select', async (ctx) => {
+			const { db } = ctx.mssql;
+
+			await db.insert(citiesTable).values([{ id: 1, name: 'city1' }, { id: 2, name: 'city2' }, {
+				id: 3,
+				name: 'city3',
+			}]);
+
+			const updateOutput = await db.update(citiesTable).set({
+				name: sql<string>`${citiesTable.name} + 'hey'`,
+			}).output({ deleted: { id: citiesTable.id }, inserted: { name: citiesTable.name } }).where(eq(citiesTable.id, 3));
+
+			expect(updateOutput).toStrictEqual(
+				[
+					{ deleted: { id: 3 }, inserted: { name: 'city3hey' } },
+				],
+			);
+		});
 	});
 }

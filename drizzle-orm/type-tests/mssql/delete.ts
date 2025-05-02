@@ -23,19 +23,19 @@ const deleteWhereStmt = db.delete(users).where(eq(users.id, 1)).prepare();
 const deleteWherePrepared = await deleteWhereStmt.execute();
 Expect<Equal<MsSqlQueryResult, typeof deleteWherePrepared>>;
 
-const deleteReturningAll = await db.delete(users);
-Expect<Equal<MsSqlQueryResult, typeof deleteReturningAll>>;
+const deleteOutputAll = await db.delete(users).output();
+Expect<Equal<typeof users.$inferSelect[], typeof deleteOutputAll>>;
 
-const deleteReturningAllStmt = db.delete(users).prepare();
-const deleteReturningAllPrepared = await deleteReturningAllStmt.execute();
-Expect<Equal<MsSqlQueryResult, typeof deleteReturningAllPrepared>>;
+const deleteOutputAllStmt = db.delete(users).output().prepare();
+const deleteOutputAllPrepared = await deleteOutputAllStmt.execute();
+Expect<Equal<typeof users.$inferSelect[], typeof deleteOutputAllPrepared>>;
 
-const deleteReturningPartial = await db.delete(users);
-Expect<Equal<MsSqlQueryResult, typeof deleteReturningPartial>>;
+const deleteOutputPartial = await db.delete(users).output({ cityHome: users.homeCity });
+Expect<Equal<{ cityHome: number }[], typeof deleteOutputPartial>>;
 
-const deleteReturningPartialStmt = db.delete(users).prepare();
-const deleteReturningPartialPrepared = await deleteReturningPartialStmt.execute();
-Expect<Equal<MsSqlQueryResult, typeof deleteReturningPartialPrepared>>;
+const deleteOutputPartialStmt = db.delete(users).output({ cityHome: users.homeCity }).prepare();
+const deleteOutputPartialPrepared = await deleteOutputPartialStmt.execute();
+Expect<Equal<{ cityHome: number }[], typeof deleteOutputPartialPrepared>>;
 
 {
 	function dynamic<T extends MsSqlDelete>(qb: T) {

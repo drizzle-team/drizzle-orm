@@ -74,22 +74,39 @@ const insertReturningPartialStmt = db.insert(users).values({
 const insertReturningPartialPrepared = await insertReturningPartialStmt.execute();
 Expect<Equal<MsSqlQueryResult, typeof insertReturningPartialPrepared>>;
 
-const insertReturningSql = await db.insert(users).values({
+const insertOutputSql = await db.insert(users).output().values({
 	homeCity: 1,
 	class: 'A',
 	age1: sql`2 + 2`,
 	enumCol: 'a',
 });
-Expect<Equal<MsSqlQueryResult, typeof insertReturningSql>>;
+Expect<Equal<typeof users.$inferSelect[], typeof insertOutputSql>>;
 
-const insertReturningSqlStmt = db.insert(users).values({
+const insertOutputSqlStmt = db.insert(users).output().values({
 	homeCity: 1,
 	class: 'A',
 	age1: sql`2 + 2`,
 	enumCol: 'a',
 }).prepare();
-const insertReturningSqlPrepared = await insertReturningSqlStmt.execute();
-Expect<Equal<MsSqlQueryResult, typeof insertReturningSqlPrepared>>;
+const insertReturningSqlPrepared = await insertOutputSqlStmt.execute();
+Expect<Equal<typeof users.$inferSelect[], typeof insertReturningSqlPrepared>>;
+
+const insertOutputPartialSql = await db.insert(users).output({ cityHome: users.homeCity }).values({
+	homeCity: 1,
+	class: 'A',
+	age1: sql`2 + 2`,
+	enumCol: 'a',
+});
+Expect<Equal<{ cityHome: number }[], typeof insertOutputPartialSql>>;
+
+const insertOutputPartialSqlStmt = db.insert(users).output({ cityHome: users.homeCity }).values({
+	homeCity: 1,
+	class: 'A',
+	age1: sql`2 + 2`,
+	enumCol: 'a',
+}).prepare();
+const insertOutputPartialSqlPrepared = await insertOutputPartialSqlStmt.execute();
+Expect<Equal<{ cityHome: number }[], typeof insertOutputPartialSqlPrepared>>;
 
 {
 	const users = mssqlTable('users', {
