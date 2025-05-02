@@ -464,7 +464,7 @@ export const ddlToTypeScript = (ddl: PostgresDDL, columnsForViews: ViewColumn[],
 		// more than 2 fields or self reference or cyclic
 		// Andrii: I switched this one off until we will get custom names in .references()
 		const filteredFKs = table.fks.filter((it) => {
-			return it.columnsFrom.length > 1 || isSelf(it);
+			return it.columns.length > 1 || isSelf(it);
 		});
 
 		const hasCallback = table.indexes.length > 0
@@ -987,12 +987,12 @@ const createTableColumns = (
 		.filter((it) => {
 			return !isSelf(it);
 		})
-		.filter((it) => it.columnsFrom.length === 1);
+		.filter((it) => it.columns.length === 1);
 
 	const fkByColumnName = oneColumnsFKs.reduce((res, it) => {
-		const arr = res[it.columnsFrom[0]] || [];
+		const arr = res[it.columns[0]] || [];
 		arr.push(it);
-		res[it.columnsFrom[0]] = arr;
+		res[it.columns[0]] = arr;
 		return res;
 	}, {} as Record<string, ForeignKey[]>);
 
@@ -1194,7 +1194,7 @@ const createTableFKs = (fks: ForeignKey[], schemas: Record<string, string>, casi
 		const isSelf = it.tableTo === it.table;
 		const tableTo = isSelf ? 'table' : `${withCasing(paramName, casing)}`;
 		statement += `\tforeignKey({\n`;
-		statement += `\t\tcolumns: [${it.columnsFrom.map((i) => `table.${withCasing(i, casing)}`).join(', ')}],\n`;
+		statement += `\t\tcolumns: [${it.columns.map((i) => `table.${withCasing(i, casing)}`).join(', ')}],\n`;
 		statement += `\t\tforeignColumns: [${
 			it.columnsTo.map((i) => `${tableTo}.${withCasing(i, casing)}`).join(', ')
 		}],\n`;
@@ -1202,11 +1202,8 @@ const createTableFKs = (fks: ForeignKey[], schemas: Record<string, string>, casi
 		statement += `\t})`;
 
 		statement += it.onUpdate && it.onUpdate !== 'NO ACTION' ? `.onUpdate("${it.onUpdate}")` : '';
-
 		statement += it.onDelete && it.onDelete !== 'NO ACTION' ? `.onDelete("${it.onDelete}")` : '';
-
 		statement += `,\n`;
 	});
-
 	return statement;
 };

@@ -131,6 +131,7 @@ export const diffDDL = async (
 		columnRenames.push(...renamed);
 	}
 
+
 	for (const rename of columnRenames) {
 		ddl1.columns.update({
 			set: {
@@ -162,7 +163,7 @@ export const diffDDL = async (
 
 		const update2 = {
 			set: {
-				columnsFrom: (it: string) => it === rename.from.name ? rename.to.name : it,
+				columns: (it: string) => it === rename.from.name ? rename.to.name : it,
 			},
 			where: {
 				table: rename.from.table,

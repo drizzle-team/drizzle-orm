@@ -29,8 +29,7 @@ import {
 import { CasingType } from 'src/cli/validations/common';
 import { assertUnreachable } from 'src/global';
 import { getColumnCasing } from 'src/serializer/utils';
-import { safeRegister } from '../../cli/commands/utils';
-import { escapeSingleQuotes, isPgArrayType, type SchemaError, type SchemaWarning } from '../../utils';
+import { isPgArrayType, type SchemaError, type SchemaWarning } from '../../utils';
 import { getOrNull } from '../utils';
 import type {
 	CheckConstraint,
@@ -58,6 +57,7 @@ import {
 	stringFromIdentityProperty,
 	trimChar,
 } from './grammar';
+import { safeRegister } from 'src/utils-node';
 
 export const policyFrom = (policy: PgPolicy, dialect: PgDialect) => {
 	const mappedTo = !policy.to
@@ -432,7 +432,7 @@ export const fromDrizzleSchema = (
 					nameExplicit,
 					tableTo,
 					schemaTo,
-					columnsFrom,
+					columns: columnsFrom,
 					columnsTo,
 					onDelete: onDelete ? transformOnUpdateDelete(onDelete) : null,
 					onUpdate: onUpdate ? transformOnUpdateDelete(onUpdate) : null,

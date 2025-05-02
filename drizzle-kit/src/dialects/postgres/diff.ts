@@ -269,7 +269,7 @@ export const ddlDiff = async (
 		});
 
 		for (const fk of [...fks1, ...fks2].filter((it) => !it.nameExplicit)) {
-			const name = defaultNameForFK(fk.table, fk.columnsFrom, fk.tableTo, fk.columnsTo);
+			const name = defaultNameForFK(fk.table, fk.columns, fk.tableTo, fk.columnsTo);
 			ddl2.fks.update({
 				set: { name: fk.name },
 				where: {
@@ -414,7 +414,7 @@ export const ddlDiff = async (
 
 		const fks1 = ddl1.fks.update({
 			set: {
-				columnsFrom: (it) => {
+				columns: (it) => {
 					return it === rename.from.name ? rename.to.name : it;
 				},
 			},
@@ -436,7 +436,7 @@ export const ddlDiff = async (
 		});
 
 		for (const fk of [...fks1, ...fks2].filter((it) => !it.nameExplicit)) {
-			const name = defaultNameForFK(fk.table, fk.columnsFrom, fk.tableTo, fk.columnsTo);
+			const name = defaultNameForFK(fk.table, fk.columns, fk.tableTo, fk.columnsTo);
 			ddl2.fks.update({
 				set: { name: fk.name },
 				where: {

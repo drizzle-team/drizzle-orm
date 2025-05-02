@@ -4,6 +4,7 @@ import {
 	AnyMySqlTable,
 	getTableConfig,
 	getViewConfig,
+	MySqlBinary,
 	MySqlColumn,
 	MySqlDialect,
 	MySqlTable,
@@ -13,8 +14,8 @@ import {
 import { CasingType } from 'src/cli/validations/common';
 import { getColumnCasing, sqlToStr } from 'src/serializer/utils';
 import { escapeSingleQuotes } from 'src/utils';
-import { InterimSchema } from './ddl';
 import { safeRegister } from '../../utils-node';
+import { Column, InterimSchema } from './ddl';
 
 const handleEnumType = (type: string) => {
 	let str = type.split('(')[1];
@@ -23,49 +24,40 @@ const handleEnumType = (type: string) => {
 	return `enum(${values.join(',')})`;
 };
 
-const defaultFromColumn = (column: AnyMySqlColumn, casing?: Casing) => {
+export const defaultFromColumn = (column: AnyMySqlColumn, casing?: Casing): Column['default'] => {
 	if (typeof column.default === 'undefined') return null;
 
 	const sqlTypeLowered = column.getSQLType().toLowerCase();
 	if (is(column.default, SQL)) {
-		return sqlToStr(column.default, casing);
+		return { value: sqlToStr(column.default, casing), type: 'unknown' };
 	}
-
-	if (typeof column.default === 'string') {
-		if (sqlTypeLowered.startsWith('enum') || sqlTypeLowered.startsWith('varchar')) {
-			return `'${escapeSingleQuotes(column.default)}'`;
-		}
-
-		return `('${escapeSingleQuotes(column.default)}')`;
+	const sqlType = column.getSQLType();
+	if (sqlType.startsWith('binary') || sqlType === 'text') {
+		return { value: String(column.default), type: 'text' };
 	}
 
 	if (sqlTypeLowered === 'json') {
-		return `('${JSON.stringify(column.default)}')`;
+		return { value: JSON.stringify(column.default), type: 'json' };
 	}
 
 	if (column.default instanceof Date) {
 		if (sqlTypeLowered === 'date') {
-			return `'${column.default.toISOString().split('T')[0]}'`;
+			return { value: column.default.toISOString().split('T')[0], type: 'date_text' };
 		}
 
-		if (
-			sqlTypeLowered.startsWith('datetime')
-			|| sqlTypeLowered.startsWith('timestamp')
-		) {
-			return `'${
-				column.default
-					.toISOString()
-					.replace('T', ' ')
-					.slice(0, 23)
-			}'`;
+		if (sqlTypeLowered.startsWith('datetime') || sqlTypeLowered.startsWith('timestamp')) {
+			return { value: column.default.toISOString().replace('T', ' ').slice(0, 23), type: 'date_text' };
 		}
+
+		throw new Error(`unexpected default: ${column.default}`);
 	}
 
-	if (['blob', 'text', 'json'].includes(column.getSQLType())) {
-		return `(${column.default})`;
+	const type = typeof column.default;
+	if (type === 'string' || type === 'number' || type === 'bigint' || type === 'boolean') {
+		return { value: String(column.default), type: type };
 	}
 
-	return String(column.default);
+	throw new Error(`unexpected default: ${column.default}`);
 };
 
 export const upper = <T extends string>(value: T | undefined): Uppercase<T> | null => {
@@ -128,8 +120,6 @@ export const fromDrizzleSchema = (
 				}
 				: null;
 
-			const def = defaultFromColumn(column, casing);
-
 			result.columns.push({
 				entityType: 'columns',
 				table: tableName,
@@ -137,11 +127,11 @@ export const fromDrizzleSchema = (
 				type: sqlType.startsWith('enum') ? handleEnumType(sqlType) : sqlType,
 				notNull,
 				autoIncrement,
-				onUpdateNow: (column as any).hasOnUpdateNow, // TODO: ??
+				onUpdateNow: (column as any).hasOnUpdateNow ?? false, // TODO: ??
 				generated,
 				isPK: column.primary,
 				isUnique: column.isUnique,
-				default: def ? { value: def, expression: false } : null,
+				default: defaultFromColumn(column, casing),
 			});
 		}
 

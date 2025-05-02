@@ -309,14 +309,14 @@ export const fromDatabase = async (
 		progressCallback('fks', foreignKeysCount, 'fetching');
 
 		const { columnsFrom, columnsTo } = fksToColumns[`${fk.tableFrom}:${fk.id}`]!;
-		const name = nameForForeignKey({ table: fk.tableFrom, columnsFrom, tableTo: fk.tableTo, columnsTo });
+		const name = nameForForeignKey({ table: fk.tableFrom, columns: columnsFrom, tableTo: fk.tableTo, columnsTo });
 
 		fks.push({
 			entityType: 'fks',
 			table: fk.tableFrom,
 			name,
 			tableTo: fk.tableTo,
-			columnsFrom,
+			columns: columnsFrom,
 			columnsTo,
 			onDelete: fk.onDelete ?? 'NO ACTION',
 			onUpdate: fk.onUpdate ?? 'NO ACTION',

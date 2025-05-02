@@ -4,8 +4,8 @@ const namedCheckPattern = /CONSTRAINT\s*["']?(\w+)["']?\s*CHECK\s*\((.*?)\)/gi;
 const unnamedCheckPattern = /CHECK\s*\((.*?)\)/gi;
 const viewAsStatementRegex = new RegExp(`\\bAS\\b\\s+(SELECT.+)$`, 'i');
 
-export const nameForForeignKey = (fk: Pick<ForeignKey, 'table' | 'columnsFrom' | 'tableTo' | 'columnsTo'>) => {
-	return `fk_${fk.table}_${fk.columnsFrom.join('_')}_${fk.tableTo}_${fk.columnsTo.join('_')}_fk`;
+export const nameForForeignKey = (fk: Pick<ForeignKey, 'table' | 'columns' | 'tableTo' | 'columnsTo'>) => {
+	return `fk_${fk.table}_${fk.columns.join('_')}_${fk.tableTo}_${fk.columnsTo.join('_')}_fk`;
 };
 export const nameForUnique = (table:string, columns:string[])=>{
 	return `${table}_${columns.join("_")}_unique`

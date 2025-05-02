@@ -90,7 +90,7 @@ export const ddlToTypescript = (
 		if (it.entityType === 'tables') imports.add('sqliteTable');
 		if (it.entityType === 'fks') {
 			imports.add('foreignKey');
-			if (it.columnsFrom.length > 1 || isCyclic(it) || isSelf(it)) imports.add('AnySQLiteColumn');
+			if (it.columns.length > 1 || isCyclic(it) || isSelf(it)) imports.add('AnySQLiteColumn');
 		}
 	}
 
@@ -120,7 +120,7 @@ export const ddlToTypescript = (
 
 		// more than 2 fields or self reference or cyclic
 		const filteredFKs = fks.filter((it) => {
-			return it.columnsFrom.length > 1 || isSelf(it) || isCyclic(it);
+			return it.columns.length > 1 || isSelf(it) || isCyclic(it);
 		});
 
 		if (
@@ -283,7 +283,7 @@ const createTableColumns = (
 			}\`, { mode: "${it.generated.type}" })`
 			: '';
 
-		const references = fks.filter((fk) => fk.columnsFrom.length === 1 && fk.columnsFrom[0] === it.name);
+		const references = fks.filter((fk) => fk.columns.length === 1 && fk.columns[0] === it.name);
 
 		for (const fk of references) {
 			statement += `.references(() => ${withCasing(fk.tableTo, casing)}.${withCasing(fk.columnsTo[0], casing)})`;
@@ -422,7 +422,7 @@ const createTableFKs = (fks: ForeignKey[], casing: Casing): string => {
 		const tableTo = isSelf ? 'table' : `${withCasing(it.tableTo, casing)}`;
 		statement += `\t\t${withCasing(it.name, casing)}: foreignKey(() => ({\n`;
 		statement += `\t\t\tcolumns: [${
-			it.columnsFrom
+			it.columns
 				.map((i) => `table.${withCasing(i, casing)}`)
 				.join(', ')
 		}],\n`;

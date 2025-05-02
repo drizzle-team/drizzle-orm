@@ -164,6 +164,11 @@ export const schemaV4 = schemaInternalV4.merge(schemaHash);
 export const schemaV5 = schemaInternalV5.merge(schemaHash);
 export const schema = schemaInternal.merge(schemaHash);
 
+export type Table = TypeOf<typeof table>;
+export type Column = TypeOf<typeof column>;
+export type SchemaV4 = TypeOf<typeof schemaV4>;
+export type SchemaV5 = TypeOf<typeof schemaV5>;
+
 const tableSquashedV4 = object({
 	name: string(),
 	schema: string().optional(),

@@ -106,7 +106,7 @@ export const prepareAddColumns = (
 	fks: ForeignKey[],
 ): JsonAddColumnStatement[] => {
 	return columns.map((it) => {
-		const fk = fks.find((t) => t.columnsFrom.includes(it.name)) || null;
+		const fk = fks.find((t) => t.columns.includes(it.name)) || null;
 		return {
 			type: 'add_column',
 			column: it,

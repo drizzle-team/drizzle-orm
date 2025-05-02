@@ -1,29 +1,16 @@
+import { mockResolver } from 'src/utils/mocks';
 import { Resolver } from '../common';
 import { diff } from '../dialect';
 import { groupDiffs } from '../utils';
 import { fromJson } from './convertor';
-import { Column, DiffEntities, fullTableFromDDL, Index, MysqlDDL, Table, View } from './ddl';
-import { nameForForeignKey } from './grammar';
+import { Column, createDDL, DiffEntities, fullTableFromDDL, Index, MysqlDDL, Table, View } from './ddl';
+import { nameForForeignKey, typesCommutative } from './grammar';
 import { prepareStatement } from './statements';
 import { JsonStatement } from './statements';
 
-export const ddlDiffDry = async (ddl: MysqlDDL) => {
-	const createTableStatements = ddl.tables.list().map((it) => {
-		const full = fullTableFromDDL(it, ddl);
-		return prepareStatement('create_table', { table: full });
-	});
-
-	const createIndexesStatements = ddl.indexes.list().map((it) => prepareStatement('create_index', { index: it }));
-	const createFKsStatements = ddl.fks.list().map((it) => prepareStatement('create_fk', { fk: it }));
-
-	const statements = [
-		...createTableStatements,
-		...createFKsStatements,
-		...createIndexesStatements,
-	];
-
-	const res = fromJson(statements);
-	return res;
+export const ddlDiffDry = async (to: MysqlDDL, from: MysqlDDL = createDDL()) => {
+	const s = new Set<string>();
+	return diffDDL(from, to, mockResolver(s), mockResolver(s), mockResolver(s), 'default');
 };
 
 export const diffDDL = async (
@@ -330,16 +317,28 @@ export const diffDDL = async (
 		return true;
 	};
 
-	const columnAlterStatements = alters.filter((it) => it.entityType === 'columns').filter((it) =>
-		alterColumnPredicate(it)
-	).map(
-		(it) => {
+	const columnAlterStatements = alters.filter((it) => it.entityType === 'columns')
+		.map((it) => {
+			if (it.type && typesCommutative(it.type.from, it.type.to)) {
+				delete it.type;
+			}
+
+			if (
+				it.default && it.default.from?.value === it.default.to?.value
+				&& (it.default.from?.type === 'unknown' || it.default.to?.type === 'unknown')
+			) {
+				delete it.default;
+			}
+			return it;
+		})
+		.filter((it) => Object.keys(it).length > 4)
+		.filter((it) => alterColumnPredicate(it))
+		.map((it) => {
 			const column = ddl2.columns.one({ name: it.name, table: it.table })!;
 			const pk = ddl2.pks.one({ table: it.table });
 			const isPK = pk && pk.columns.length === 1 && pk.columns[0] === column.name;
 			return prepareStatement('alter_column', { diff: it, column, isPK: isPK ?? false });
-		},
-	);
+		});
 
 	const columnRecreateStatatements = alters.filter((it) => it.entityType === 'columns').filter((it) =>
 		!alterColumnPredicate(it)
