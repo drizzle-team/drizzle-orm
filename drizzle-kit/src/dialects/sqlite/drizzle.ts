@@ -8,7 +8,7 @@ import {
 	SQLiteTable,
 	SQLiteView,
 } from 'drizzle-orm/sqlite-core';
-import { safeRegister } from '../../cli/commands/utils';
+import { safeRegister } from 'src/utils-node';
 import { CasingType } from '../../cli/validations/common';
 import { getColumnCasing, sqlToStr } from '../../serializer/utils';
 import type {
@@ -115,13 +115,13 @@ export const fromDrizzleSchema = (
 			const columnsFrom = reference.columns.map((it) => getColumnCasing(it, casing));
 			const columnsTo = reference.foreignColumns.map((it) => getColumnCasing(it, casing));
 
-			const name = nameForForeignKey({ table: tableFrom, columnsFrom, tableTo, columnsTo });
+			const name = nameForForeignKey({ table: tableFrom, columns: columnsFrom, tableTo, columnsTo });
 			return {
 				entityType: 'fks',
 				table: it.config.name,
 				name,
 				tableTo,
-				columnsFrom,
+				columns: columnsFrom,
 				columnsTo,
 				onDelete,
 				onUpdate,

@@ -562,7 +562,9 @@ test('optional db aliases (snake case)', async () => {
 	\`t1_uni_idx\` int NOT NULL,
 	\`t1_idx\` int NOT NULL,
 	CONSTRAINT \`t1_uni\` UNIQUE(\`t1_uni\`),
-	CONSTRAINT \`t1_uni_idx\` UNIQUE(\`t1_uni_idx\`)
+	CONSTRAINT \`t1_uni_idx\` UNIQUE(\`t1_uni_idx\`),
+	CONSTRAINT \`t1_t2_ref_t2_t2_id_fk\` FOREIGN KEY (\`t2_ref\`) REFERENCES \`t2\`(\`t2_id\`),
+	CONSTRAINT \`t1_t1_col2_t1_col3_t3_t3_id1_t3_id2_fk\` FOREIGN KEY (\`t1_col2\`,\`t1_col3\`) REFERENCES \`t3\`(\`t3_id1\`,\`t3_id2\`)
 );\n`;
 
 	const st2 = `CREATE TABLE \`t2\` (\n\t\`t2_id\` serial PRIMARY KEY\n);\n`;
@@ -574,20 +576,12 @@ test('optional db aliases (snake case)', async () => {
 );
 `;
 
-	const st4 =
-		`ALTER TABLE \`t1\` ADD CONSTRAINT \`t1_t2_ref_t2_t2_id_fk\` FOREIGN KEY (\`t2_ref\`) REFERENCES \`t2\`(\`t2_id\`);`;
-
-	const st5 =
-		`ALTER TABLE \`t1\` ADD CONSTRAINT \`t1_t1_col2_t1_col3_t3_t3_id1_t3_id2_fk\` FOREIGN KEY (\`t1_col2\`,\`t1_col3\`) REFERENCES \`t3\`(\`t3_id1\`,\`t3_id2\`);`;
-
 	const st6 = `CREATE INDEX \`t1_idx\` ON \`t1\` (\`t1_idx\`);`;
 
 	expect(sqlStatements).toStrictEqual([
 		st1,
 		st2,
 		st3,
-		st4,
-		st5,
 		st6,
 	]);
 });

@@ -85,7 +85,7 @@ const createTable = convertor('create_table', (st) => {
 			name,
 			table,
 			tableTo,
-			columnsFrom,
+			columns,
 			columnsTo,
 			onDelete,
 			onUpdate,
@@ -93,7 +93,7 @@ const createTable = convertor('create_table', (st) => {
 
 		const onDeleteStatement = onDelete !== 'NO ACTION' ? ` ON DELETE ${onDelete}` : '';
 		const onUpdateStatement = onUpdate !== 'NO ACTION' ? ` ON UPDATE ${onUpdate}` : '';
-		const fromColumnsString = columnsFrom.map((it) => `\`${it}\``).join(',');
+		const fromColumnsString = columns.map((it) => `\`${it}\``).join(',');
 		const toColumnsString = columnsTo.map((it) => `\`${it}\``).join(',');
 
 		statement += ',';

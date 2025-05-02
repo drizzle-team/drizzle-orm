@@ -1,8 +1,8 @@
-import { Column, MySqlSchemaV4, MySqlSchemaV5, Table } from '../../serializer/mysqlSchema';
+import { Column, SchemaV4, SchemaV5, Table } from '../../dialects/mysql/snapshot';
 
 export const upMysqlHandler = (out: string) => {};
 
-export const upMySqlHandlerV4toV5 = (obj: MySqlSchemaV4): MySqlSchemaV5 => {
+export const upMySqlHandlerV4toV5 = (obj: SchemaV4): SchemaV5 => {
 	const mappedTables: Record<string, Table> = {};
 
 	for (const [key, table] of Object.entries(obj.tables)) {

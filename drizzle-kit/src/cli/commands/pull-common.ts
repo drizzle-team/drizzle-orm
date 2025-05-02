@@ -41,7 +41,8 @@ export const relationsToTypeScript = (
 		const tableNameTo = paramNameFor(fk.tableTo, 'schemaTo' in fk ? fk.schemaTo : null);
 		const tableFrom = withCasing(tableNameFrom, casing);
 		const tableTo = withCasing(tableNameTo, casing);
-		const columnFrom = withCasing(fk.columnsFrom[0], casing);
+		// TODO: [0]?! =/
+		const columnFrom = withCasing(fk.columns[0], casing);
 		const columnTo = withCasing(fk.columnsTo[0], casing);
 
 		imports.push(tableTo, tableFrom);

@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import Docker from 'dockerode';
+import type { Container } from 'dockerode';
 import { SQL, sql } from 'drizzle-orm';
 import {
 	bigint,
@@ -20,79 +20,24 @@ import {
 	varchar,
 } from 'drizzle-orm/mysql-core';
 import * as fs from 'fs';
-import getPort from 'get-port';
-import { Connection, createConnection } from 'mysql2/promise';
-import { v4 as uuid } from 'uuid';
+import { DB } from 'src/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { pushPullDiff } from './mocks';
+import { prepareTestDatabase, pushPullDiff, TestDatabase } from './mocks';
 
-let client: Connection;
-let mysqlContainer: Docker.Container;
-
-async function createDockerDB(): Promise<string> {
-	const docker = new Docker();
-	const port = await getPort({ port: 3306 });
-	const image = 'mysql:8';
-
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-		docker.modem.followProgress(pullStream, (err) => err ? reject(err) : resolve(err))
-	);
-
-	mysqlContainer = await docker.createContainer({
-		Image: image,
-		Env: ['MYSQL_ROOT_PASSWORD=mysql', 'MYSQL_DATABASE=drizzle'],
-		name: `drizzle-integration-tests-${uuid()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'3306/tcp': [{ HostPort: `${port}` }],
-			},
-		},
-	});
-
-	await mysqlContainer.start();
-
-	return `mysql://root:mysql@127.0.0.1:${port}/drizzle`;
-}
+let _: TestDatabase;
+let db: DB;
 
 beforeAll(async () => {
-	const connectionString = process.env.MYSQL_CONNECTION_STRING ?? await createDockerDB();
-
-	const sleep = 1000;
-	let timeLeft = 20000;
-	let connected = false;
-	let lastError: unknown | undefined;
-	do {
-		try {
-			client = await createConnection(connectionString);
-			await client.connect();
-			connected = true;
-			break;
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-	if (!connected) {
-		console.error('Cannot connect to MySQL');
-		await client?.end().catch(console.error);
-		await mysqlContainer?.stop().catch(console.error);
-		throw lastError;
-	}
+	_ = await prepareTestDatabase();
+	db = _.db;
 });
 
 afterAll(async () => {
-	await client?.end().catch(console.error);
-	await mysqlContainer?.stop().catch(console.error);
+	await _.close();
 });
 
 beforeEach(async () => {
-	await client.query(`drop database if exists \`drizzle\`;`);
-	await client.query(`create database \`drizzle\`;`);
-	await client.query(`use \`drizzle\`;`);
+	await _.clear();
 });
 
 if (!fs.existsSync('tests/introspect/mysql')) {
@@ -110,11 +55,7 @@ test('generated always column: link to another column', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await pushPullDiff(
-		client,
-		schema,
-		'generated-link-column',
-	);
+	const { statements, sqlStatements } = await pushPullDiff(db, schema, 'generated-link');
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
@@ -132,11 +73,7 @@ test('generated always column virtual: link to another column', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await pushPullDiff(
-		client,
-		schema,
-		'generated-link-column-virtual',
-	);
+	const { statements, sqlStatements } = await pushPullDiff(db, schema, 'generated-link-virtual');
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
@@ -150,11 +87,7 @@ test('Default value of character type column: char', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await pushPullDiff(
-		client,
-		schema,
-		'default-value-char-column',
-	);
+	const { statements, sqlStatements } = await pushPullDiff(db, schema, 'default-value-char');
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
@@ -168,11 +101,7 @@ test('Default value of character type column: varchar', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await pushPullDiff(
-		client,
-		schema,
-		'default-value-varchar-column',
-	);
+	const { statements, sqlStatements } = await pushPullDiff(db, schema, 'default-value-varchar');
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
@@ -189,11 +118,7 @@ test('introspect checks', async () => {
 		})),
 	};
 
-	const { statements, sqlStatements } = await pushPullDiff(
-		client,
-		schema,
-		'introspect-checks',
-	);
+	const { statements, sqlStatements } = await pushPullDiff(db, schema, 'checks');
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
@@ -210,11 +135,7 @@ test('view #1', async () => {
 		testView,
 	};
 
-	const { statements, sqlStatements } = await pushPullDiff(
-		client,
-		schema,
-		'view-1',
-	);
+	const { statements, sqlStatements } = await pushPullDiff(db, schema, 'view-1');
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
@@ -231,11 +152,7 @@ test('view #2', async () => {
 		testView,
 	};
 
-	const { statements, sqlStatements } = await pushPullDiff(
-		client,
-		schema,
-		'view-2',
-	);
+	const { statements, sqlStatements } = await pushPullDiff(db, schema, 'view-2');
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
@@ -250,11 +167,7 @@ test('handle float type', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await pushPullDiff(
-		client,
-		schema,
-		'handle-float-type',
-	);
+	const { statements, sqlStatements } = await pushPullDiff(db, schema, 'float-type');
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
@@ -277,11 +190,7 @@ test('handle unsigned numerical types', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await pushPullDiff(
-		client,
-		schema,
-		'handle-unsigned-numerical-types',
-	);
+	const { statements, sqlStatements } = await pushPullDiff(db, schema, 'unsigned-numerical-types');
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
@@ -296,14 +205,8 @@ test('instrospect strings with single quotes', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await pushPullDiff(
-		client,
-		schema,
-		'introspect-strings-with-single-quotes',
-	);
+	const { statements, sqlStatements } = await pushPullDiff(db, schema, 'strings-with-single-quotes');
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
-
-	await client.query(`drop table columns;`);
 });

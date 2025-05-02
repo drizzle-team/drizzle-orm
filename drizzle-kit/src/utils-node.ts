@@ -8,6 +8,7 @@ import { assertUnreachable } from './global';
 import type { Dialect } from './schemaValidator';
 import { singlestoreSchema } from './serializer/singlestoreSchema';
 import { Journal } from './utils';
+import { mysqlSchemaV5 } from './dialects/mysql/snapshot';
 
 export const assertV1OutFolder = (out: string) => {
 	if (!existsSync(out)) return;

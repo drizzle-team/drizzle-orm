@@ -524,11 +524,11 @@ const renameConstraintConvertor = convertor('rename_constraint', (st) => {
 });
 
 const createForeignKeyConvertor = convertor('create_fk', (st) => {
-	const { schema, table, name, tableTo, columnsFrom, columnsTo, onDelete, onUpdate, schemaTo } = st.fk;
+	const { schema, table, name, tableTo, columns, columnsTo, onDelete, onUpdate, schemaTo } = st.fk;
 
 	const onDeleteStatement = onDelete && !isDefaultAction(onDelete) ? ` ON DELETE ${onDelete}` : '';
 	const onUpdateStatement = onUpdate && !isDefaultAction(onUpdate) ? ` ON UPDATE ${onUpdate}` : '';
-	const fromColumnsString = columnsFrom.map((it) => `"${it}"`).join(',');
+	const fromColumnsString = columns.map((it) => `"${it}"`).join(',');
 	const toColumnsString = columnsTo.map((it) => `"${it}"`).join(',');
 
 	const tableNameWithSchema = schema !== 'public'
@@ -558,7 +558,7 @@ const alterForeignKeyConvertor = convertor('alter_fk', (st) => {
 		? ` ON UPDATE ${to.onUpdate}`
 		: '';
 
-	const fromColumnsString = to.columnsFrom
+	const fromColumnsString = to.columns
 		.map((it) => `"${it}"`)
 		.join(',');
 	const toColumnsString = to.columnsTo.map((it) => `"${it}"`).join(',');

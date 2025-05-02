@@ -739,7 +739,7 @@ export const fromDatabase = async (
 			table: table.name,
 			name: fk.name,
 			nameExplicit: true,
-			columnsFrom: columns,
+			columns,
 			tableTo: tableTo.name,
 			schemaTo: schema.name,
 			columnsTo,

@@ -1,33 +1,9 @@
-import type { IntrospectStage, IntrospectStatus } from 'src/cli/views';
-import { DB, escapeSingleQuotes } from '../../utils';
-import { ForeignKey, Index, InterimSchema, PrimaryKey } from './ddl';
 import { renderWithTask, TaskView } from 'hanji';
 import { Minimatch } from 'minimatch';
-
-export const indexName = (tableName: string, columns: string[]) => {
-	return `${tableName}_${columns.join('_')}_index`;
-};
-
-function clearDefaults(defaultValue: any, collate: string) {
-	if (typeof collate === 'undefined' || collate === null) {
-		collate = `utf8mb4`;
-	}
-
-	let resultDefault = defaultValue;
-	collate = `_${collate}`;
-	if (defaultValue.startsWith(collate)) {
-		resultDefault = resultDefault
-			.substring(collate.length, defaultValue.length)
-			.replace(/\\/g, '');
-		if (resultDefault.startsWith("'") && resultDefault.endsWith("'")) {
-			return `('${escapeSingleQuotes(resultDefault.substring(1, resultDefault.length - 1))}')`;
-		} else {
-			return `'${escapeSingleQuotes(resultDefault.substring(1, resultDefault.length - 1))}'`;
-		}
-	} else {
-		return `(${resultDefault})`;
-	}
-}
+import type { IntrospectStage, IntrospectStatus } from 'src/cli/views';
+import { DB } from '../../utils';
+import { ForeignKey, Index, InterimSchema, PrimaryKey } from './ddl';
+import { parseDefaultValue } from './grammar';
 
 export const fromDatabase = async (
 	db: DB,
@@ -50,9 +26,11 @@ export const fromDatabase = async (
 		viewColumns: [],
 	};
 
-	const tablesAndViews = await db.query<{ name: string; type: 'BASE TABLE' | 'VIEW' }>(
-		`SELECT TABLE_NAME as name, TABLE_TYPE as type INFORMATION_SCHEMA.TABLES`,
-	).then((rows) => rows.filter((it) => tablesFilter(it.name)));
+	const tablesAndViews = await db.query<{ name: string; type: 'BASE TABLE' | 'VIEW' }>(`
+		SELECT 
+			TABLE_NAME as name, 
+			TABLE_TYPE as type 
+		FROM INFORMATION_SCHEMA.TABLES`).then((rows) => rows.filter((it) => tablesFilter(it.name)));
 
 	const columns = await db.query(`
     SELECT 
@@ -75,7 +53,8 @@ export const fromDatabase = async (
       and INFORMATION_SCHEMA.STATISTICS.INDEX_NAME != 'PRIMARY';
   `).then((rows) => rows.filter((it) => tablesFilter(it['TABLE_NAME'])));
 
-	const tables = tablesAndViews.filter((it) => it.type === 'BASE TABLE').map((it) => it.name);
+	const filteredTablesAndViews = tablesAndViews.filter((it) => columns.some((x) => x['TABLE_NAME'] === it.name));
+	const tables = filteredTablesAndViews.filter((it) => it.type === 'BASE TABLE').map((it) => it.name);
 	for (const table of tables) {
 		res.tables.push({
 			entityType: 'tables',
@@ -89,7 +68,7 @@ export const fromDatabase = async (
 	let checksCount = 0;
 	let viewsCount = 0;
 
-	for (const column of columns.filter((it) => tables.some(it['TABLE_NAME']))) {
+	for (const column of columns.filter((it) => tables.some((x) => x === it['TABLE_NAME']))) {
 		columnsCount += 1;
 		progressCallback('columns', columnsCount, 'fetching');
 
@@ -122,14 +101,7 @@ export const fromDatabase = async (
 			}
 		}
 
-		const defaultValue = columnDefault === null
-			? null
-			: /^-?[\d.]+(?:e-?\d+)?$/.test(columnDefault)
-					&& !['decimal', 'char', 'varchar'].some((type) => columnType.startsWith(type))
-			? Number(columnDefault)
-			: isDefaultAnExpression
-			? clearDefaults(columnDefault, collation)
-			: `'${escapeSingleQuotes(columnDefault)}'`;
+		const def = parseDefaultValue(changedType, columnDefault, collation);
 
 		res.columns.push({
 			entityType: 'columns',
@@ -140,12 +112,7 @@ export const fromDatabase = async (
 			notNull: !isNullable,
 			autoIncrement: isAutoincrement,
 			onUpdateNow,
-			default: defaultValue !== null
-				? {
-					value: String(defaultValue),
-					expression: false,
-				}
-				: null,
+			default: def,
 			generated: geenratedExpression
 				? {
 					as: geenratedExpression,
@@ -169,7 +136,7 @@ export const fromDatabase = async (
       AND t.table_schema = '${schema}'
       ORDER BY ordinal_position`);
 
-	pks.filter((it) => tables.some(it['TABLE_NAME'])).reduce((acc, it) => {
+	pks.filter((it) => tables.some((x) => x === it['TABLE_NAME'])).reduce((acc, it) => {
 		const table: string = it['TABLE_NAME'];
 		const column: string = it['COLUMN_NAME'];
 		const position: string = it['ordinal_position'];
@@ -208,7 +175,7 @@ export const fromDatabase = async (
       AND kcu.CONSTRAINT_NAME != 'PRIMARY' 
       AND kcu.REFERENCED_TABLE_NAME IS NOT NULL;`);
 
-	const groupedFKs = fks.filter((it) => tables.some(it['TABLE_NAME'])).reduce<Record<string, ForeignKey>>(
+	const groupedFKs = fks.filter((it) => tables.some((x) => x === it['TABLE_NAME'])).reduce<Record<string, ForeignKey>>(
 		(acc, it) => {
 			const name = it['CONSTRAINT_NAME'];
 			const table: string = it['TABLE_NAME'];
@@ -295,7 +262,11 @@ export const fromDatabase = async (
 		const name = view['TABLE_NAME'];
 		const definition = view['VIEW_DEFINITION'];
 
-		const withCheckOption = view['CHECK_OPTION'] === 'NONE' ? undefined : view['CHECK_OPTION'].toLowerCase();
+		const checkOption = view['CHECK_OPTION'] as string | undefined;
+
+		const withCheckOption = !checkOption || checkOption === 'NONE'
+			? null
+			: checkOption.toLowerCase();
 		const sqlSecurity = view['SECURITY_TYPE'].toLowerCase();
 
 		const [createSqlStatement] = await db.query(`SHOW CREATE VIEW \`${name}\`;`);
@@ -319,7 +290,7 @@ export const fromDatabase = async (
 			definition,
 			algorithm: algorithm,
 			sqlSecurity,
-			withCheckOption,
+			withCheckOption: withCheckOption as 'local' | 'cascaded' | null,
 		});
 	}
 
@@ -345,7 +316,7 @@ export const fromDatabase = async (
 	checksCount += checks.length;
 	progressCallback('checks', checksCount, 'fetching');
 
-	for (const check of checks.filter((it) => tables.some(it['TABLE_NAME']))) {
+	for (const check of checks.filter((it) => tables.some((x) => x === it['TABLE_NAME']))) {
 		const table = check['TABLE_NAME'];
 		const name = check['CONSTRAINT_NAME'];
 		const value = check['CHECK_CLAUSE'];

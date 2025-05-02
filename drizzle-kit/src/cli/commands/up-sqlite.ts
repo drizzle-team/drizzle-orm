@@ -98,7 +98,7 @@ const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
 			ddl.fks.insert({
 				table: table.name,
 				name: fk.name,
-				columnsFrom: fk.columnsFrom,
+				columns: fk.columnsFrom,
 				tableTo: fk.tableTo,
 				columnsTo: fk.columnsTo,
 				onDelete: fk.onDelete ?? 'NO ACTION',

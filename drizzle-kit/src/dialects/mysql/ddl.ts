@@ -10,7 +10,7 @@ export const createDDL = () => {
 			autoIncrement: 'boolean',
 			default: {
 				value: 'string',
-				expression: 'boolean',
+				type: ['string', 'number', 'boolean', 'bigint', 'json', 'date_text', 'text', 'unknown'],
 			},
 			onUpdateNow: 'boolean',
 			generated: {
@@ -55,25 +55,6 @@ export const createDDL = () => {
 		},
 	});
 };
-
-const ddl = createDDL();
-ddl.tables.insert({ name: 'users' });
-ddl.columns.insert({
-	table: 'users',
-	name: 'id',
-	type: 'integer',
-	notNull: false,
-	autoIncrement: true,
-	default: null,
-	generated: null,
-	onUpdateNow: false,
-});
-ddl.pks.insert({
-	table: 'users',
-	name: 'users_pkey',
-	nameExplicit: false,
-	columns: ['id'],
-});
 
 export type MysqlDDL = ReturnType<typeof createDDL>;
 

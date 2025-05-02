@@ -1,5 +1,5 @@
-import { drop } from 'src/cli/schema';
 import { Simplify } from '../../utils';
+import { defaultToSQL } from './grammar';
 import { JsonStatement } from './statements';
 
 export const convertor = <
@@ -32,7 +32,9 @@ const createTable = convertor('create_table', (st) => {
 		const isPK = pk && !pk.nameExplicit && pk.columns.length === 1 && pk.columns[0] === column.name;
 		const primaryKeyStatement = isPK ? ' PRIMARY KEY' : '';
 		const notNullStatement = column.notNull && !isPK ? ' NOT NULL' : '';
-		const defaultStatement = column.default ? ` DEFAULT ${column.default.value}` : '';
+		
+		const def = defaultToSQL(column.default);
+		const defaultStatement = def ? ` DEFAULT ${def}` : '';
 
 		const onUpdateStatement = column.onUpdateNow
 			? ` ON UPDATE CURRENT_TIMESTAMP`
@@ -64,7 +66,7 @@ const createTable = convertor('create_table', (st) => {
 
 		statement += `\tCONSTRAINT \`${unique.name}\` UNIQUE(${uniqueString})`;
 	}
-	
+
 	for (const fk of fks) {
 		statement += ',\n';
 		statement += `\tCONSTRAINT \`${fk.name}\` FOREIGN KEY (\`${
@@ -102,7 +104,9 @@ const addColumn = convertor('add_column', (st) => {
 		generated,
 	} = column;
 
-	const defaultStatement = `${column.default ? ` DEFAULT ${column.default.value}` : ''}`;
+	const def = defaultToSQL(column.default);
+	const defaultStatement = def ? ` DEFAULT ${def}` : '';
+
 	const notNullStatement = `${notNull ? ' NOT NULL' : ''}`;
 	const primaryKeyStatement = `${isPK ? ' PRIMARY KEY' : ''}`;
 	const autoincrementStatement = `${autoIncrement ? ' AUTO_INCREMENT' : ''}`;
@@ -126,7 +130,9 @@ const renameColumn = convertor('rename_column', (st) => {
 const alterColumn = convertor('alter_column', (st) => {
 	const { diff, column, isPK } = st;
 
-	const defaultStatement = `${column.default ? ` DEFAULT ${column.default.value}` : ''}`;
+	const def = defaultToSQL(column.default);
+	const defaultStatement = def ? ` DEFAULT ${def}` : '';
+
 	const notNullStatement = `${column.notNull ? ' NOT NULL' : ''}`;
 	const primaryKeyStatement = `${isPK ? ' PRIMARY KEY' : ''}`;
 	const autoincrementStatement = `${column.autoIncrement ? ' AUTO_INCREMENT' : ''}`;

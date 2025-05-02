@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { toCamelCase } from 'drizzle-orm/casing';
-import './@types/utils';
 import { Casing } from 'src/cli/validations/common';
 import { assertUnreachable } from 'src/global';
 import { unescapeSingleQuotes } from 'src/utils';
@@ -95,7 +94,7 @@ const prepareCasing = (casing?: Casing) => (value: string) => {
 		return escapeColumnKey(value);
 	}
 	if (casing === 'camel') {
-		return escapeColumnKey(value.camelCase());
+		return escapeColumnKey(toCamelCase(value));
 	}
 
 	assertUnreachable(casing);
@@ -141,6 +140,7 @@ export const ddlToTypeScript = (
 		if (it.entityType === 'fks') imports.add('foreignKey');
 		if (it.entityType === 'pks' && (it.columns.length > 1 || it.nameExplicit)) imports.add('primaryKey');
 		if (it.entityType === 'checks') imports.add('check');
+		if (it.entityType === 'views') imports.add('mysqlView');
 
 		if (it.entityType === 'columns' || it.entityType === 'viewColumn') {
 			let patched = it.type;
@@ -269,11 +269,11 @@ const isSelf = (fk: ForeignKey) => {
 };
 
 const mapColumnDefault = (it: NonNullable<Column['default']>) => {
-	if (it.expression) {
+	if (it.type === 'unknown') {
 		return `sql\`${it.value}\``;
 	}
 
-	return it.value;
+	return it.value.replace("'", "\\'");
 };
 
 const mapColumnDefaultForJson = (defaultValue: any) => {
@@ -501,7 +501,7 @@ const column = (
 	if (lowered === 'text') {
 		let out = `${casing(name)}: text(${dbColumnName({ name, casing: rawCasing })})`;
 		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue)})`
+			? `.default('${mapColumnDefault(defaultValue)}')`
 			: '';
 		return out;
 	}
@@ -565,7 +565,7 @@ const column = (
 		} })`;
 
 		out += defaultValue
-			? `.default(${defaultValue.expression ? defaultValue.value : unescapeSingleQuotes(defaultValue.value, true)})`
+			? `.default('${defaultValue.expression ? defaultValue.value : unescapeSingleQuotes(defaultValue.value, true)}')`
 			: '';
 		return out;
 	}
@@ -583,7 +583,7 @@ const column = (
 		} })`;
 
 		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue)})`
+			? `.default("${mapColumnDefault(defaultValue)}")`
 			: '';
 		return out;
 	}
@@ -677,7 +677,7 @@ const column = (
 			.join(',');
 		let out = `${casing(name)}: mysqlEnum(${dbColumnName({ name, casing: rawCasing, withMode: true })}[${values}])`;
 		out += defaultValue
-			? `.default(${defaultValue.expression ? defaultValue.value : unescapeSingleQuotes(defaultValue.value, true)})`
+			? `.default('${defaultValue.expression ? defaultValue.value : unescapeSingleQuotes(defaultValue.value, true)}')`
 			: '';
 		return out;
 	}
