@@ -226,6 +226,38 @@ export class MsSqlUpdateBase<
 		return this as any;
 	}
 
+	/**
+	 * Adds an `output` clause to the query.
+	 *
+	 * This method allows you to return values from the rows affected by the query.
+	 * MSSQL supports returning `inserted` (new row values) and `deleted` (old row values) values.
+	 *
+	 * If no fields are specified, all `inserted` values will be returned by default.
+	 *
+	 * @example
+	 * ```ts
+	 * // Update cars and return all new values
+	 * const updatedCars: Car[] = await db.update(cars)
+	 *   .set({ color: 'red' })
+	 *   .output()
+	 *   .where(eq(cars.color, 'green'));
+	 *
+	 * // Update cars and return all old values
+	 * const updatedCarsIds: { deleted: Car }[] = await db.update(cars)
+	 *   .set({ color: 'red' })
+	 *   .output({ deleted: true })
+	 *   .where(eq(cars.color, 'green'));
+	 *
+	 * // Update cars and return partial old and new values
+	 * const beforeAndAfter: { deleted: { oldColor: string }, inserted: { newColor: string } }[] = await db.update(cars)
+	 *   .set({ color: 'red' })
+	 *   .output({
+	 *     deleted: { oldColor: cars.color },
+	 *     inserted: { newColor: cars.color }
+	 *   })
+	 *   .where(eq(cars.color, 'green'));
+	 * ```
+	 */
 	output(): MsSqlUpdateReturningAll<this, TDynamic>;
 	output<TSelectedFields extends SelectedFieldsFlatUpdate>(
 		fields: TSelectedFields,
@@ -236,7 +268,7 @@ export class MsSqlUpdateBase<
 		const columns = this.config.table[Table.Symbol.Columns];
 
 		if (fields) {
-			const output: Partial<typeof this.config.output> = {};
+			const output: typeof this.config.output = {};
 
 			if (fields.inserted) {
 				output.inserted = typeof fields.inserted === 'boolean'
