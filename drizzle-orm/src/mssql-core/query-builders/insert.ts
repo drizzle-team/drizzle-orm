@@ -114,7 +114,8 @@ export type MsSqlInsertWithout<T extends AnyMsSqlInsert, TDynamic extends boolea
 export type MsSqlInsertDynamic<T extends AnyMsSqlInsert> = MsSqlInsert<
 	T['_']['table'],
 	T['_']['queryResult'],
-	T['_']['preparedQueryHKT']
+	T['_']['preparedQueryHKT'],
+	T['_']['output']
 >;
 
 export type MsSqlInsertPrepare<T extends AnyMsSqlInsert> = PreparedQueryKind<
@@ -129,7 +130,7 @@ export type MsSqlInsert<
 	TTable extends MsSqlTable = MsSqlTable,
 	TQueryResult extends QueryResultHKT = AnyQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
-	TOutput extends Record<string, unknown> | undefined = undefined,
+	TOutput extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
 > = MsSqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT, TOutput, true, never>;
 
 export type AnyMsSqlInsert = MsSqlInsertBase<any, any, any, any, any, any>;
@@ -138,10 +139,10 @@ export interface MsSqlInsertBase<
 	TTable extends MsSqlTable,
 	TQueryResult extends QueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
-	TOutput extends Record<string, unknown> | undefined,
+	TOutput extends Record<string, unknown> | undefined = undefined,
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
-> extends QueryPromise<TOutput extends undefined ? QueryResultKind<TQueryResult, unknown> : TOutput[]>, SQLWrapper {
+> extends QueryPromise<TOutput extends undefined ? QueryResultKind<TQueryResult, any> : TOutput[]>, SQLWrapper {
 	readonly _: {
 		readonly table: TTable;
 		readonly queryResult: TQueryResult;
@@ -158,12 +159,12 @@ export class MsSqlInsertBase<
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	TOutput extends Record<string, unknown> | undefined,
+	TOutput extends Record<string, unknown> | undefined = undefined,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
-> extends QueryPromise<TOutput extends undefined ? QueryResultKind<TQueryResult, unknown> : TOutput[]>
+> extends QueryPromise<TOutput extends undefined ? QueryResultKind<TQueryResult, any> : TOutput[]>
 	implements SQLWrapper
 {
 	static override readonly [entityKind]: string = 'MsSqlInsert';
@@ -202,7 +203,7 @@ export class MsSqlInsertBase<
 
 	override execute(
 		placeholderValues?: Record<string, unknown>,
-	): Promise<TOutput extends undefined ? QueryResultKind<TQueryResult, unknown> : TOutput[]> {
+	): Promise<TOutput extends undefined ? QueryResultKind<TQueryResult, any> : TOutput[]> {
 		return this.prepare().execute(placeholderValues) as any;
 	}
 

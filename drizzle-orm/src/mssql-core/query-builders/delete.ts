@@ -42,7 +42,7 @@ export type MsSqlDeleteReturningAll<
 	MsSqlDeleteBase<
 		T['_']['table'],
 		T['_']['queryResult'],
-		T['_']['table']['_']['columns'],
+		T['_']['preparedQueryHKT'],
 		T['_']['table']['$inferSelect'],
 		TDynamic,
 		T['_']['excludedMethods']
@@ -72,7 +72,7 @@ export type MsSqlDelete<
 	TTable extends MsSqlTable = MsSqlTable,
 	TQueryResult extends QueryResultHKT = AnyQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
-	TOutput extends Record<string, unknown> | undefined = undefined,
+	TOutput extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
 > = MsSqlDeleteBase<TTable, TQueryResult, TPreparedQueryHKT, TOutput, true, never>;
 
 export interface MsSqlDeleteConfig {
@@ -84,7 +84,7 @@ export interface MsSqlDeleteConfig {
 export type MsSqlDeletePrepare<T extends AnyMsSqlDeleteBase> = PreparedQueryKind<
 	T['_']['preparedQueryHKT'],
 	PreparedQueryConfig & {
-		execute: QueryResultKind<T['_']['queryResult'], any>;
+		execute: T['_']['output'] extends undefined ? QueryResultKind<T['_']['queryResult'], any> : T['_']['output'][];
 		iterator: never;
 	}
 >;
@@ -92,7 +92,8 @@ export type MsSqlDeletePrepare<T extends AnyMsSqlDeleteBase> = PreparedQueryKind
 type MsSqlDeleteDynamic<T extends AnyMsSqlDeleteBase> = MsSqlDelete<
 	T['_']['table'],
 	T['_']['queryResult'],
-	T['_']['preparedQueryHKT']
+	T['_']['preparedQueryHKT'],
+	T['_']['output']
 >;
 
 type AnyMsSqlDeleteBase = MsSqlDeleteBase<any, any, any, any, any, any>;
@@ -205,7 +206,7 @@ export class MsSqlDeleteBase<
 
 	override execute(
 		placeholderValues?: Record<string, unknown>,
-	): Promise<TOutput extends undefined ? QueryResultKind<TQueryResult, unknown> : TOutput[]> {
+	): Promise<TOutput extends undefined ? QueryResultKind<TQueryResult, any> : TOutput[]> {
 		return this.prepare().execute(placeholderValues) as any;
 	}
 

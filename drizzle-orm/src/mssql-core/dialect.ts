@@ -97,13 +97,13 @@ export class MsSqlDialect {
 	}
 
 	buildDeleteQuery({ table, where, output }: MsSqlDeleteConfig): SQL {
-		const returningSql = output
-			? sql` returning ${this.buildSelectionOutput(output, { type: 'DELETED' })}`
+		const outputSql = output
+			? sql` output ${this.buildSelectionOutput(output, { type: 'DELETED' })}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
 
-		return sql`delete from ${table}${whereSql}${returningSql}`;
+		return sql`delete from ${table}${outputSql}${whereSql}`;
 	}
 
 	buildUpdateSet(table: MsSqlTable, set: UpdateSet): SQL {
@@ -154,7 +154,7 @@ export class MsSqlDialect {
 			}
 
 			if (output.deleted) {
-				if (output.inserted) outputSql.append(sql` `); // add space if both are present
+				if (output.inserted) outputSql.append(sql`, `); // add space if both are present
 				outputSql.append(this.buildSelectionOutput(output.deleted, { type: 'DELETED' }));
 			}
 		}

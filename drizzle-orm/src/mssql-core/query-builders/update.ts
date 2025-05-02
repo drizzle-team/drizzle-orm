@@ -129,14 +129,15 @@ export type MsSqlUpdatePrepare<T extends AnyMsSqlUpdateBase> = PreparedQueryKind
 export type MsSqlUpdateDynamic<T extends AnyMsSqlUpdateBase> = MsSqlUpdate<
 	T['_']['table'],
 	T['_']['queryResult'],
-	T['_']['preparedQueryHKT']
+	T['_']['preparedQueryHKT'],
+	T['_']['output']
 >;
 
 export type MsSqlUpdate<
 	TTable extends MsSqlTable = MsSqlTable,
 	TQueryResult extends QueryResultHKT = AnyQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
-	TOutput extends Record<string, unknown> | undefined = undefined,
+	TOutput extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
 > = MsSqlUpdateBase<TTable, TQueryResult, TPreparedQueryHKT, TOutput, true, never>;
 
 export type AnyMsSqlUpdateBase = MsSqlUpdateBase<any, any, any, any, any, any>;
@@ -145,7 +146,7 @@ export interface MsSqlUpdateBase<
 	TTable extends MsSqlTable,
 	TQueryResult extends QueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
-	TOutput extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
+	TOutput extends Record<string, unknown> | undefined = undefined,
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
 > extends QueryPromise<TOutput extends undefined ? QueryResultKind<TQueryResult, any> : TOutput[]>, SQLWrapper {
@@ -165,7 +166,7 @@ export class MsSqlUpdateBase<
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	TOutput extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
+	TOutput extends Record<string, unknown> | undefined = undefined,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -224,6 +225,7 @@ export class MsSqlUpdateBase<
 		this.config.where = where;
 		return this as any;
 	}
+
 	output(): MsSqlUpdateReturningAll<this, TDynamic>;
 	output<TSelectedFields extends SelectedFieldsFlatUpdate>(
 		fields: TSelectedFields,
@@ -231,23 +233,30 @@ export class MsSqlUpdateBase<
 	output(
 		fields?: SelectedFieldsFlatUpdate,
 	): MsSqlUpdateWithout<AnyMsSqlUpdateBase, TDynamic, 'output'> {
-		if (!fields) {
+		const columns = this.config.table[Table.Symbol.Columns];
+
+		if (fields) {
+			const output: Partial<typeof this.config.output> = {};
+
+			if (fields.inserted) {
+				output.inserted = typeof fields.inserted === 'boolean'
+					? orderSelectedFields<MsSqlColumn>(columns, ['inserted'])
+					: orderSelectedFields<MsSqlColumn>(fields.inserted, ['inserted']);
+			}
+
+			if (fields.deleted) {
+				output.deleted = typeof fields.deleted === 'boolean'
+					? orderSelectedFields<MsSqlColumn>(columns, ['deleted'])
+					: orderSelectedFields<MsSqlColumn>(fields.deleted, ['deleted']);
+			}
+
+			this.config.output = output;
+		} else {
 			this.config.output = {
-				inserted: orderSelectedFields<MsSqlColumn>(this.config.table[Table.Symbol.Columns]),
-			};
-		} else if (fields.inserted) {
-			this.config.output = {
-				inserted: typeof fields.inserted === 'boolean'
-					? orderSelectedFields<MsSqlColumn>(this.config.table[Table.Symbol.Columns], ['inserted'])
-					: orderSelectedFields<MsSqlColumn>(fields.inserted, ['inserted']),
-			};
-		} else if (fields.deleted) {
-			this.config.output = {
-				deleted: typeof fields.deleted === 'boolean'
-					? orderSelectedFields<MsSqlColumn>(this.config.table[Table.Symbol.Columns], ['deleted'])
-					: orderSelectedFields<MsSqlColumn>(fields.deleted, ['deleted']),
+				inserted: orderSelectedFields<MsSqlColumn>(columns),
 			};
 		}
+
 		return this as any;
 	}
 
@@ -272,7 +281,7 @@ export class MsSqlUpdateBase<
 
 	override execute(
 		placeholderValues?: Record<string, unknown>,
-	): Promise<TOutput extends undefined ? QueryResultKind<TQueryResult, unknown> : TOutput[]> {
+	): Promise<TOutput extends undefined ? QueryResultKind<TQueryResult, any> : TOutput[]> {
 		return this.prepare().execute(placeholderValues) as any;
 	}
 
