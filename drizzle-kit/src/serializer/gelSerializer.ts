@@ -1507,7 +1507,6 @@ WHERE
 	for await (const _ of all) {
 	}
 
-
 	if (progressCallback) {
 		progressCallback('columns', columnsCount, 'done');
 		progressCallback('indexes', indexesCount, 'done');

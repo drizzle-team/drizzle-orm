@@ -130,7 +130,7 @@ describe('extensions tests group', async () => {
 		const relationsResponse = await db.query.user.findMany({
 			columns: {
 				id: false,
-				identityId: false
+				identityId: false,
 			},
 			with: {
 				identity: {

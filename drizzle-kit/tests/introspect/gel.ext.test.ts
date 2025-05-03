@@ -102,7 +102,7 @@ test('basic introspect test', async () => {
 	const path = await introspectGelToFile(
 		client,
 		'basic-ext-introspect',
-        ['ext::auth', 'public']
+		['ext::auth', 'public'],
 	);
 
 	const result = await $`pnpm exec tsc --noEmit --skipLibCheck ${path}`.nothrow(true);
