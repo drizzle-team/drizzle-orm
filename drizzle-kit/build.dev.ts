@@ -7,6 +7,7 @@ const driversPackages = [
 	'postgres',
 	'@vercel/postgres',
 	'@neondatabase/serverless',
+	'bun',
 	//  mysql drivers
 	'mysql2',
 	'@planetscale/database',

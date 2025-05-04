@@ -39,6 +39,26 @@ export const postgresCredentials = union([
 		driver: literal('pglite'),
 		url: string().min(1),
 	}),
+	object({
+		driver: literal('bun'),
+		host: string().min(1),
+		port: coerce.number().min(1).optional(),
+		user: string().min(1).optional(),
+		password: string().min(1).optional(),
+		database: string().min(1),
+		ssl: union([
+			literal('require'),
+			literal('allow'),
+			literal('prefer'),
+			literal('verify-full'),
+			boolean(),
+			object({}).passthrough(),
+		]).optional(),
+	}),
+	object({
+		driver: literal('bun'),
+		url: string().min(1),
+	}),
 ]);
 
 export type PostgresCredentials = TypeOf<typeof postgresCredentials>;

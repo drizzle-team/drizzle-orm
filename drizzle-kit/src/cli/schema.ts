@@ -143,6 +143,7 @@ export const migrate = command({
 							);
 							process.exit(1);
 						}
+					} else if (driver === 'bun') {
 					} else {
 						assertUnreachable(driver);
 					}
@@ -336,6 +337,7 @@ export const push = command({
 							);
 							process.exit(1);
 						}
+					} else if (driver === 'bun') {
 					} else {
 						assertUnreachable(driver);
 					}
@@ -552,6 +554,7 @@ export const pull = command({
 							);
 							process.exit(1);
 						}
+					} else if (driver === 'bun') {
 					} else {
 						assertUnreachable(driver);
 					}
@@ -704,6 +707,7 @@ export const studio = command({
 							);
 							process.exit(1);
 						}
+					} else if (driver === 'bun') {
 					} else {
 						assertUnreachable(driver);
 					}

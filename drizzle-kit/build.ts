@@ -1,4 +1,3 @@
-/// <reference types="bun-types" />
 import * as esbuild from 'esbuild';
 import { readFileSync, writeFileSync } from 'node:fs';
 import * as tsup from 'tsup';
@@ -11,6 +10,7 @@ const driversPackages = [
 	'@vercel/postgres',
 	'@neondatabase/serverless',
 	'@electric-sql/pglite',
+	'bun',
 	//  mysql drivers
 	'mysql2',
 	'@planetscale/database',
@@ -84,7 +84,7 @@ const main = async () => {
 	await tsup.build({
 		entryPoints: ['./src/index.ts', './src/api.ts'],
 		outDir: './dist',
-		external: ['bun:sqlite'],
+		external: ['bun:sqlite', 'bun'],
 		splitting: false,
 		dts: true,
 		format: ['cjs', 'esm'],
