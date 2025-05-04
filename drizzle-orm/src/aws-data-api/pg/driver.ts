@@ -41,7 +41,7 @@ export class AwsDataApiPgDatabase<
 
 	override execute<
 		TRow extends Record<string, unknown> = Record<string, unknown>,
-	>(query: SQLWrapper | string): PgRaw<AwsDataApiPgQueryResult<TRow>> {
+	>(query: SQLWrapper): PgRaw<AwsDataApiPgQueryResult<TRow>> {
 		return super.execute(query);
 	}
 }
