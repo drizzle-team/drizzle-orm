@@ -1,10 +1,10 @@
-import type { Config } from 'drizzle-kit';
+import { defineConfig } from 'drizzle-kit';
 
-export default {
+export default defineConfig({
 	schema: './src/schema.ts',
 	out: './drizzle',
 	driver: 'better-sqlite',
 	dbCredentials: {
 		url: './sqlite.db',
 	},
-} satisfies Config;
+});

@@ -1,7 +1,7 @@
-import { type Config } from 'drizzle-kit';
+import { defineConfig } from 'drizzle-kit';
 
-export default {
+export default defineConfig({
 	out: './migrations',
 	schema: './src/schema.ts',
 	breakpoints: true,
-} satisfies Config;
+});
