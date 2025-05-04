@@ -6,7 +6,7 @@ export function aggregateOneToMany<
 	rows: TRow[],
 	one: TOne,
 	many: TMany,
-): { [K in TOne]: TRow[TOne] & { [K in TMany]: NonNullable<TRow[TMany]>[] } }[] {
+): { [K in TOne]: TRow[TOne] & { [K in TMany]: NonNullable<TRow[TMany]>[] } }[TOne][] {
 	const map: Record<string, { one: TRow[TOne]; many: TRow[TMany][] }> = {};
 	for (const row of rows) {
 		const id = row[one];
