@@ -18,21 +18,8 @@ const sqliteSuite: DialectSuite = {
 			}),
 		};
 
-		const { statements } = await diff(schema1, schema2, []);
-
-		expect(statements.length).toBe(1);
-		expect(statements[0]).toStrictEqual({
-			type: 'sqlite_alter_table_add_column',
-			tableName: 'users',
-			referenceData: undefined,
-			column: {
-				name: 'name',
-				type: 'text',
-				primaryKey: false,
-				notNull: false,
-				autoincrement: false,
-			},
-		});
+		const { sqlStatements } = await diff(schema1, schema2, []);
+		expect(sqlStatements).toStrictEqual(['ALTER TABLE `users` ADD `name` text;']);
 	},
 };
 

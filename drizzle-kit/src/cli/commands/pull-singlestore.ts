@@ -1,22 +1,22 @@
-import { renderWithTask } from 'hanji';
-import { Minimatch } from 'minimatch';
-import { originUUID } from '../../global';
-import type { SingleStoreSchema } from '../../serializer/singlestoreSchema';
-import { fromDatabase } from '../../serializer/singlestoreSerializer';
-import type { DB } from '../../utils';
-import { ProgressView } from '../views';
-import { drySingleStore, squashSingleStoreScheme } from 'src/serializer/singlestoreSchema';
-import { schemaToTypeScript as singlestoreSchemaToTypeScript } from '../../introspect-singlestore';
-import { fromDatabase as fromSingleStoreDatabase } from '../../serializer/singlestoreSerializer';
-import { applySingleStoreSnapshotsDiff } from '../../snapshot-differ/singlestore';
+import chalk from 'chalk';
+import { writeFileSync } from 'fs';
+import { render, renderWithTask } from 'hanji';
+import { join } from 'path';
+import { createDDL, interimToDDL } from 'src/dialects/mysql/ddl';
+import { fromDatabase } from 'src/dialects/mysql/introspect';
+import { toJsonSnapshot } from 'src/dialects/mysql/snapshot';
+import { ddlToTypeScript } from 'src/dialects/mysql/typescript';
+import { diffDDL } from 'src/dialects/singlestore/diff';
+import { mockResolver } from 'src/utils/mocks';
 import { prepareOutFolder } from '../../utils-node';
 import type { Casing, Prefix } from '../validations/common';
 import { SingleStoreCredentials } from '../validations/singlestore';
 import { IntrospectProgress } from '../views';
 import { writeResult } from './generate-common';
-import { writeFileSync } from 'fs';
+import { relationsToTypeScript } from './pull-common';
+import { prepareTablesFilter } from './utils';
 
-export const introspectSingleStore = async (
+export const handle = async (
 	casing: Casing,
 	out: string,
 	breakpoints: boolean,
@@ -27,67 +27,45 @@ export const introspectSingleStore = async (
 	const { connectToSingleStore } = await import('../connections');
 	const { db, database } = await connectToSingleStore(credentials);
 
-	const matchers = tablesFilter.map((it) => {
-		return new Minimatch(it);
-	});
-
-	const filter = (tableName: string) => {
-		if (matchers.length === 0) return true;
-
-		let flags: boolean[] = [];
-
-		for (let matcher of matchers) {
-			if (matcher.negate) {
-				if (!matcher.match(tableName)) {
-					flags.push(false);
-				}
-			}
-
-			if (matcher.match(tableName)) {
-				flags.push(true);
-			}
-		}
-
-		if (flags.length > 0) {
-			return flags.every(Boolean);
-		}
-		return false;
-	};
+	const filter = prepareTablesFilter(tablesFilter);
 
 	const progress = new IntrospectProgress();
 	const res = await renderWithTask(
 		progress,
-		fromSingleStoreDatabase(db, database, filter, (stage, count, status) => {
+		fromDatabase(db, database, filter, (stage, count, status) => {
 			progress.update(stage, count, status);
 		}),
 	);
 
-	const schema = { id: originUUID, prevId: '', ...res } as SingleStoreSchema;
-	const ts = singlestoreSchemaToTypeScript(schema, casing);
-	const { internal, ...schemaWithoutInternals } = schema;
+	const { ddl } = interimToDDL(res);
+
+	const ts = ddlToTypeScript(ddl, res.viewColumns, casing);
+	const relations = relationsToTypeScript(ddl.fks.list(), casing);
 
 	const schemaFile = join(out, 'schema.ts');
 	writeFileSync(schemaFile, ts.file);
+
+	const relationsFile = join(out, 'relations.ts');
+	writeFileSync(relationsFile, relations.file);
 	console.log();
 
-	const { snapshots, journal } = prepareOutFolder(out, 'postgresql');
+	const { snapshots, journal } = prepareOutFolder(out, 'mysql');
 
 	if (snapshots.length === 0) {
-		const { sqlStatements, _meta } = await applySingleStoreSnapshotsDiff(
-			squashSingleStoreScheme(drySingleStore),
-			squashSingleStoreScheme(schema),
-			tablesResolver,
-			columnsResolver,
-			/* singleStoreViewsResolver, */
-			drySingleStore,
-			schema,
+		const { sqlStatements } = await diffDDL(
+			createDDL(),
+			ddl,
+			mockResolver(new Set()),
+			mockResolver(new Set()),
+			mockResolver(new Set()),
+			'push',
 		);
 
 		writeResult({
-			snapshot: schema,
+			snapshot: toJsonSnapshot(ddl, '', []),
 			sqlStatements,
 			journal,
-			_meta,
+			renames: [],
 			outFolder: out,
 			breakpoints,
 			type: 'introspect',
@@ -108,54 +86,18 @@ export const introspectSingleStore = async (
 			chalk.green(
 				'✓',
 			)
-		}] You schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
+		}] Your schema file is ready ➜ ${chalk.bold.underline.blue(schemaFile)} 🚀`,
+	);
+	render(
+		`[${
+			chalk.green(
+				'✓',
+			)
+		}] Your relations file is ready ➜ ${
+			chalk.bold.underline.blue(
+				relationsFile,
+			)
+		} 🚀`,
 	);
 	process.exit(0);
-};
-
-
-export const singlestorePushIntrospect = async (
-	db: DB,
-	databaseName: string,
-	filters: string[],
-) => {
-	const matchers = filters.map((it) => {
-		return new Minimatch(it);
-	});
-
-	const filter = (tableName: string) => {
-		if (matchers.length === 0) return true;
-
-		let flags: boolean[] = [];
-
-		for (let matcher of matchers) {
-			if (matcher.negate) {
-				if (!matcher.match(tableName)) {
-					flags.push(false);
-				}
-			}
-
-			if (matcher.match(tableName)) {
-				flags.push(true);
-			}
-		}
-
-		if (flags.length > 0) {
-			return flags.every(Boolean);
-		}
-		return false;
-	};
-
-	const progress = new ProgressView(
-		'Pulling schema from database...',
-		'Pulling schema from database...',
-	);
-	const res = await renderWithTask(
-		progress,
-		fromDatabase(db, databaseName, filter),
-	);
-
-	const schema = { id: originUUID, prevId: '', ...res } as SingleStoreSchema;
-	const { internal, ...schemaWithoutInternals } = schema;
-	return { schema: schemaWithoutInternals };
 };

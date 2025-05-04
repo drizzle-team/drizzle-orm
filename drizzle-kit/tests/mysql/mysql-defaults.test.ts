@@ -3,6 +3,7 @@ import {
 	AnyMySqlColumn,
 	binary,
 	boolean,
+	char,
 	check,
 	int,
 	json,
@@ -10,6 +11,7 @@ import {
 	mysqlTable,
 	serial,
 	text,
+	timestamp,
 	varchar,
 } from 'drizzle-orm/mysql-core';
 import { interimToDDL } from 'src/dialects/mysql/ddl';
@@ -22,6 +24,7 @@ import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { drizzleToDDL, prepareTestDatabase, TestDatabase } from './mocks';
 
 // @vitest-environment-options {"max-concurrency":1}
+
 let _: TestDatabase;
 let db: DB;
 
@@ -74,6 +77,9 @@ const cases = [
 	[json().default([1, 2, 3]), '[1,2,3]', 'json', `('[1,2,3]')`],
 	[json().default({ key: 'value' }), '{"key":"value"}', 'json', `('{"key":"value"}')`],
 	[json().default({ key: "val'ue" }), '{"key":"val\'ue"}', 'json', `('{"key":"val''ue"}')`],
+
+	[char({ length: 10 }).default('10'), '10', 'string', "'10'"],
+	[timestamp().defaultNow(), '(now())', 'unknown', "(now())"],
 ] as const;
 
 const { c1, c2, c3 } = cases.reduce((acc, it) => {
@@ -93,6 +99,7 @@ for (const it of cases) {
 	const paddedType = (type || '').padStart(c2, ' ');
 	const paddedValue = (value || '').padStart(c1, ' ');
 	const paddedSql = (sql || '').padEnd(c3, ' ');
+
 	test(`default | ${paddedType} | ${paddedValue} | ${paddedSql}`, async () => {
 		const t = mysqlTable('table', { column });
 		const res = defaultFromColumn(t.column);

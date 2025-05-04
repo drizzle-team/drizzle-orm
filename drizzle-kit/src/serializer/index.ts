@@ -1,26 +1,7 @@
-import chalk from 'chalk';
 import fs from 'fs';
 import * as glob from 'glob';
 import Path from 'path';
-import type { CasingType } from 'src/cli/validations/common';
 import { error } from '../cli/views';
-import type { SingleStoreSchemaInternal } from './singlestoreSchema';
-
-export const serializeSingleStore = async (
-	path: string | string[],
-	casing: CasingType | undefined,
-): Promise<SingleStoreSchemaInternal> => {
-	const filenames = prepareFilenames(path);
-
-	console.log(chalk.gray(`Reading schema files:\n${filenames.join('\n')}\n`));
-
-	const { prepareFromSingleStoreImports } = await import('./singlestoreImports');
-	const { generateSingleStoreSnapshot } = await import('./singlestoreSerializer');
-
-	const { tables /* views */ } = await prepareFromSingleStoreImports(filenames);
-
-	return generateSingleStoreSnapshot(tables, /* views, */ casing);
-};
 
 export const prepareFilenames = (path: string | string[]) => {
 	if (typeof path === 'string') {

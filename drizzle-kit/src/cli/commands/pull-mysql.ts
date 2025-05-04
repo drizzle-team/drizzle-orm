@@ -18,6 +18,7 @@ import type { MysqlCredentials } from '../validations/mysql';
 import { IntrospectProgress } from '../views';
 import { writeResult } from './generate-common';
 import { relationsToTypeScript } from './pull-common';
+import { prepareTablesFilter } from './utils';
 
 export const handle = async (
 	casing: Casing,
@@ -30,33 +31,8 @@ export const handle = async (
 	const { connectToMySQL } = await import('../connections');
 	const { db, database } = await connectToMySQL(credentials);
 
-	const matchers = tablesFilter.map((it) => {
-		return new Minimatch(it);
-	});
-
-	const filter = (tableName: string) => {
-		if (matchers.length === 0) return true;
-
-		let flags: boolean[] = [];
-
-		for (let matcher of matchers) {
-			if (matcher.negate) {
-				if (!matcher.match(tableName)) {
-					flags.push(false);
-				}
-			}
-
-			if (matcher.match(tableName)) {
-				flags.push(true);
-			}
-		}
-
-		if (flags.length > 0) {
-			return flags.every(Boolean);
-		}
-		return false;
-	};
-
+	const filter = prepareTablesFilter(tablesFilter);
+	
 	const progress = new IntrospectProgress();
 	const res = await renderWithTask(
 		progress,

@@ -1,0 +1,51 @@
+import { mockResolver } from '../../utils/mocks';
+import { Resolver } from '../common';
+import { Column, createDDL, MysqlDDL, Table, View } from '../mysql/ddl';
+import { diffDDL as mysqlDiffDDL } from '../mysql/diff';
+import { JsonStatement } from '../mysql/statements';
+
+export const ddlDiffDry = async (to: MysqlDDL, from: MysqlDDL = createDDL()) => {
+	const s = new Set<string>();
+	return diffDDL(from, to, mockResolver(s), mockResolver(s), mockResolver(s), 'default');
+};
+
+export const diffDDL = async (
+	ddl1: MysqlDDL,
+	ddl2: MysqlDDL,
+	tablesResolver: Resolver<Table>,
+	columnsResolver: Resolver<Column>,
+	viewsResolver: Resolver<View>,
+	mode: 'default' | 'push',
+): Promise<{
+	statements: JsonStatement[];
+	sqlStatements: string[];
+	grouped: { jsonStatement: JsonStatement; sqlStatements: string[] }[];
+	renames: string[];
+}> => {
+	const res = await mysqlDiffDDL(ddl1, ddl2, tablesResolver, columnsResolver, viewsResolver, mode);
+
+	const statements: JsonStatement[] = [];
+	const sqlStatements: string[] = [];
+
+	for (const it of res.grouped) {
+		const st = it.jsonStatement;
+		if (st.type === 'create_index' && st.index.unique) continue;
+		if (st.type === 'alter_column') {
+			if (st.diff.type) continue;
+			if (st.diff.autoIncrement) continue;
+			if (st.diff.default && st.column.notNull) continue;
+			if (st.diff.notNull) continue;
+		}
+		if (st.type === 'create_pk' || st.type === 'drop_pk') continue;
+
+		statements.push(it.jsonStatement);
+		sqlStatements.push(...it.sqlStatements);
+	}
+
+	return {
+		statements,
+		sqlStatements,
+		grouped: res.grouped,
+		renames: res.renames,
+	};
+};

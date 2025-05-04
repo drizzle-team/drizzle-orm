@@ -660,7 +660,7 @@ test('optional db aliases (snake case)', async () => {
 		t3,
 	};
 
-	const { sqlStatements } = await diff(from, to, [], false, 'snake_case');
+	const { sqlStatements } = await diff(from, to, [], 'snake_case');
 
 	const st1 = `CREATE TABLE "t1" (
 	"t1_id1" integer PRIMARY KEY,
@@ -733,7 +733,7 @@ test('optional db aliases (camel case)', async () => {
 		t3,
 	};
 
-	const { sqlStatements } = await diff(from, to, [], false, 'camelCase');
+	const { sqlStatements } = await diff(from, to, [], 'camelCase');
 
 	const st1 = `CREATE TABLE "t1" (
 	"t1Id1" integer PRIMARY KEY,

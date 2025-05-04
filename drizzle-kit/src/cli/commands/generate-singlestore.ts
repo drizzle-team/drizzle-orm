@@ -1,9 +1,9 @@
-import {
-	prepareSingleStoreMigrationSnapshot,
-} from '../../migrationPreparator';
-import { singlestoreSchema, squashSingleStoreScheme } from '../../serializer/singlestoreSchema';
-import { applySingleStoreSnapshotsDiff } from '../../snapshot-differ/singlestore';
-import { assertV1OutFolder, prepareMigrationFolder } from '../../utils-node';
+import { Column, Table, View } from 'src/dialects/mysql/ddl';
+import { diffDDL } from 'src/dialects/singlestore/diff';
+import { prepareSnapshot } from 'src/dialects/singlestore/serializer';
+import { assertV1OutFolder, prepareMigrationFolder } from 'src/utils-node';
+import { resolver } from '../prompts';
+import { writeResult } from './generate-common';
 import type { GenerateConfig } from './utils';
 
 export const handle = async (config: GenerateConfig) => {
@@ -11,58 +11,44 @@ export const handle = async (config: GenerateConfig) => {
 	const schemaPath = config.schema;
 	const casing = config.casing;
 
-	try {
-		// TODO: remove
-		assertV1OutFolder(outFolder);
+	// TODO: remove
+	assertV1OutFolder(outFolder);
 
-		const { snapshots, journal } = prepareMigrationFolder(outFolder, 'singlestore');
-		const { prev, cur, custom } = await prepareSingleStoreMigrationSnapshot(
-			snapshots,
-			schemaPath,
-			casing,
-		);
+	const { snapshots, journal } = prepareMigrationFolder(outFolder, 'mysql');
+	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, schemaPath, casing);
 
-		const validatedPrev = singlestoreSchema.parse(prev);
-		const validatedCur = singlestoreSchema.parse(cur);
-
-		if (config.custom) {
-			writeResult({
-				cur: custom,
-				sqlStatements: [],
-				journal,
-				outFolder,
-				name: config.name,
-				breakpoints: config.breakpoints,
-				type: 'custom',
-				prefixMode: config.prefix,
-			});
-			return;
-		}
-
-		const squashedPrev = squashSingleStoreScheme(validatedPrev);
-		const squashedCur = squashSingleStoreScheme(validatedCur);
-
-		const { sqlStatements, _meta } = await applySingleStoreSnapshotsDiff(
-			squashedPrev,
-			squashedCur,
-			tablesResolver,
-			columnsResolver,
-			/* singleStoreViewsResolver, */
-			validatedPrev,
-			validatedCur,
-		);
-
+	if (config.custom) {
 		writeResult({
-			cur,
-			sqlStatements,
+			snapshot: custom,
+			sqlStatements: [],
 			journal,
-			_meta,
 			outFolder,
 			name: config.name,
 			breakpoints: config.breakpoints,
+			type: 'custom',
 			prefixMode: config.prefix,
+			renames: [],
 		});
-	} catch (e) {
-		console.error(e);
+		return;
 	}
+
+	const { sqlStatements, renames } = await diffDDL(
+		ddlPrev,
+		ddlCur,
+		resolver<Table>('table'),
+		resolver<Column>('column'),
+		resolver<View>('view'),
+		'default',
+	);
+
+	writeResult({
+		snapshot,
+		sqlStatements,
+		journal,
+		outFolder,
+		name: config.name,
+		breakpoints: config.breakpoints,
+		prefixMode: config.prefix,
+		renames,
+	});
 };

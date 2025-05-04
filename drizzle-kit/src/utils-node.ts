@@ -6,7 +6,6 @@ import { error, info } from './cli/views';
 import { snapshotValidator } from './dialects/postgres/snapshot';
 import { assertUnreachable } from './global';
 import type { Dialect } from './schemaValidator';
-import { singlestoreSchema } from './serializer/singlestoreSchema';
 import { Journal } from './utils';
 import { mysqlSchemaV5 } from './dialects/mysql/snapshot';
 
