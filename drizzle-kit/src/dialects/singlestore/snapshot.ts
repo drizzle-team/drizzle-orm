@@ -1,5 +1,8 @@
+import { randomUUID } from 'crypto';
 import { any, boolean, enum as enumType, literal, object, record, string, TypeOf, union } from 'zod';
-import { mapValues, originUUID, snapshotVersion } from '../global';
+import { mapValues, originUUID } from '../../global';
+import { createDDL, MysqlDDL, MysqlEntity } from '../mysql/ddl';
+import { array, validator } from '../simpleValidator';
 
 // ------- V3 --------
 const index = object({
@@ -237,19 +240,29 @@ export const squashSingleStoreScheme = (json: SingleStoreSchema): SingleStoreSch
 	};
 };
 
-export const singlestoreSchema = schema;
-
-export const drySingleStore = singlestoreSchema.parse({
-	version: '1',
-	dialect: 'singlestore',
-	id: originUUID,
-	prevId: '',
-	tables: {},
-	schemas: {},
-	/* views: {}, */
-	_meta: {
-		schemas: {},
-		tables: {},
-		columns: {},
-	},
+const ddl = createDDL();
+export const snapshotValidator = validator({
+	version: ['2'],
+	dialect: ['singlestore'],
+	id: 'string',
+	prevId: 'string',
+	ddl: array<MysqlEntity>((it) => ddl.entities.validate(it)),
+	renames: array<string>((_) => true),
 });
+
+export type MysqlSnapshot = typeof snapshotValidator.shape;
+
+export const toJsonSnapshot = (ddl: MysqlDDL, prevId: string, renames: string[]): MysqlSnapshot => {
+	return { dialect: 'singlestore', id: randomUUID(), prevId, version: '2', ddl: ddl.entities.list(), renames };
+};
+
+export const drySnapshot = snapshotValidator.strict(
+	{
+		version: '2',
+		dialect: 'singlestore',
+		id: originUUID,
+		prevId: '',
+		ddl: [],
+		renames: [],
+	} satisfies MysqlSnapshot,
+);

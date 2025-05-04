@@ -7,7 +7,7 @@ import { Connection } from 'mysql2/promise';
 import { CasingType } from 'src/cli/validations/common';
 import { ddlToTypescript as schemaToTypeScriptSQLite } from 'src/dialects/sqlite/typescript';
 import { schemaToTypeScript as schemaToTypeScriptMySQL } from 'src/introspect-mysql';
-import { schemaToTypeScript as schemaToTypeScriptSingleStore } from 'src/introspect-singlestore';
+import { schemaToTypeScript as schemaToTypeScriptSingleStore } from 'src/dialects/singlestore/typescript';
 import { prepareFromMySqlImports } from 'src/serializer/mysqlImports';
 import { mysqlSchema, squashMysqlScheme } from 'src/serializer/mysqlSchema';
 import { fromDatabase as fromMySqlDatabase, generateMySqlSnapshot } from 'src/serializer/mysqlSerializer';

@@ -1,5 +1,4 @@
 import 'dotenv/config';
-import type { Container } from 'dockerode';
 import { SQL, sql } from 'drizzle-orm';
 import {
 	bigint,
@@ -23,6 +22,8 @@ import * as fs from 'fs';
 import { DB } from 'src/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { prepareTestDatabase, pushPullDiff, TestDatabase } from './mocks';
+
+// @vitest-environment-options {"max-concurrency":1}
 
 let _: TestDatabase;
 let db: DB;

@@ -16,6 +16,7 @@ import type { SqliteCredentials } from '../validations/sqlite';
 import { IntrospectProgress, type IntrospectStage, type IntrospectStatus, type ProgressView } from '../views';
 import { writeResult } from './generate-common';
 import { relationsToTypeScript } from './pull-common';
+import { prepareTablesFilter } from './utils';
 
 export const handle = async (
 	casing: Casing,
@@ -102,32 +103,7 @@ export const sqliteIntrospect = async (
 		status: IntrospectStatus,
 	) => void = () => {},
 ) => {
-	const matchers = filters.map((it) => {
-		return new Minimatch(it);
-	});
-
-	const filter = (tableName: string) => {
-		if (matchers.length === 0) return true;
-
-		let flags: boolean[] = [];
-
-		for (let matcher of matchers) {
-			if (matcher.negate) {
-				if (!matcher.match(tableName)) {
-					flags.push(false);
-				}
-			}
-
-			if (matcher.match(tableName)) {
-				flags.push(true);
-			}
-		}
-
-		if (flags.length > 0) {
-			return flags.every(Boolean);
-		}
-		return false;
-	};
+	const filter = prepareTablesFilter(filters);
 
 	const schema = await renderWithTask(taskView, fromDatabaseForDrizzle(db, filter, progressCallback));
 	const res = interimToDDL(schema);

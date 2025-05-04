@@ -31,6 +31,7 @@ import { err, ProgressView } from '../views';
 import { IntrospectProgress } from '../views';
 import { writeResult } from './generate-common';
 import { relationsToTypeScript } from './pull-common';
+import { prepareTablesFilter } from './utils';
 
 export const introspectPostgres = async (
 	casing: Casing,
@@ -45,36 +46,8 @@ export const introspectPostgres = async (
 	const { preparePostgresDB } = await import('../connections');
 	const db = await preparePostgresDB(credentials);
 
-	const matchers = tablesFilter.map((it) => {
-		return new Minimatch(it);
-	});
-
-	const filter = (tableName: string) => {
-		if (matchers.length === 0) return true;
-
-		let flags: boolean[] = [];
-
-		for (let matcher of matchers) {
-			if (matcher.negate) {
-				if (!matcher.match(tableName)) {
-					flags.push(false);
-				}
-			}
-
-			if (matcher.match(tableName)) {
-				flags.push(true);
-			}
-		}
-
-		if (flags.length > 0) {
-			return flags.every(Boolean);
-		}
-		return false;
-	};
-
-	const schemaFilter = (it: string) => {
-		return schemasFilters.some((x) => x === it);
-	};
+	const filter = prepareTablesFilter(tablesFilter);
+	const schemaFilter = (it: string) => schemasFilters.some((x) => x === it);
 
 	const progress = new IntrospectProgress(true);
 
