@@ -897,7 +897,6 @@ const column = (
 	name: string,
 	domainTypes: Set<string>,
 	enumTypes: Set<string>,
-	domainTypeSchema: string,
 	typeSchema: string,
 	casing: Casing,
 	defaultValue?: any,
@@ -906,18 +905,14 @@ const column = (
 	const isExpression = internals?.tables[tableName]?.columns[name]?.isDefaultAnExpression ?? false;
 	const lowered = type.toLowerCase().replace('[]', '');
 
-	if (enumTypes.has(`${typeSchema}.${type.replace('[]', '')}`)) {
-		let out = `${withCasing(name, casing)}: ${withCasing(paramNameFor(type.replace('[]', ''), typeSchema), casing)}(${
+	const isDomainType = domainTypes.has(`${typeSchema}.${type}`);
+	const isEnumType = enumTypes.has(`${typeSchema}.${type.replace('[]', '')}`);
+	if (isDomainType || isEnumType) {
+		return `${withCasing(name, casing)}: ${withCasing(paramNameFor(type.replace('[]', ''), typeSchema), casing)}(${
 			dbColumnName({ name, casing })
 		})`;
-		return out;
 	}
 
-	if (domainTypes.has(`${domainTypeSchema}.${type}`)) {
-		return `${withCasing(name, casing)}: ${withCasing(type, casing)}(${dbColumnName({ name, casing })})`;
-	}
-
-	// TODO move all of the below into a function so that it can be used for domain serialization
 	if (lowered.startsWith('serial')) {
 		return `${withCasing(name, casing)}: serial(${dbColumnName({ name, casing })})`;
 	}
@@ -1205,7 +1200,6 @@ const createTableColumns = (
 			it.name,
 			domainTypes,
 			enumTypes,
-			it.domainTypeSchema ?? 'public',
 			it.typeSchema ?? 'public',
 			casing,
 			it.default,

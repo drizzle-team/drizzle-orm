@@ -165,9 +165,10 @@ export const generatePgSnapshot = (
 			const primaryKey: boolean = column.primary;
 			const sqlTypeLowered = column.getSQLType().toLowerCase();
 
-			// todo understand this
-			const typeSchema = is(column, PgEnumColumn) ? column.enum.schema || 'public' : undefined;
-			const domainTypeSchema = is(column, PgDomainColumn) ? column.schema : undefined;
+			const domainTypeSchema = is(column, PgDomainColumn) ? column.schema || 'public' : undefined;
+			const enumTypeSchema = is(column, PgEnumColumn) ? column.enum.schema || 'public' : undefined;
+			const typeSchema = domainTypeSchema ?? enumTypeSchema;
+
 			const generated = column.generated;
 			const identity = column.generatedIdentity;
 			const increment = stringFromIdentityProperty(identity?.sequenceOptions?.increment) ?? '1';
@@ -183,7 +184,6 @@ export const generatePgSnapshot = (
 				name,
 				type: column.getSQLType(),
 				typeSchema,
-				domainTypeSchema,
 				primaryKey,
 				notNull,
 				generated: generated
@@ -762,8 +762,10 @@ export const generatePgSnapshot = (
 				const primaryKey: boolean = column.primary;
 				const sqlTypeLowered = column.getSQLType().toLowerCase();
 
-				const typeSchema = is(column, PgEnumColumn) ? column.enum.schema || 'public' : undefined;
-				// const domainTypeSchema = is(column, PgDomainColumn) ? column.domain : undefined;
+				const domainTypeSchema = is(column, PgDomainColumn) ? column.schema || 'public' : undefined;
+				const enumTypeSchema = is(column, PgEnumColumn) ? column.enum.schema || 'public' : undefined;
+				const typeSchema = domainTypeSchema ?? enumTypeSchema;
+
 				const generated = column.generated;
 				const identity = column.generatedIdentity;
 
@@ -1494,9 +1496,11 @@ WHERE
 						const columnAdditionalDT = columnResponse.additional_dt;
 						const columnDimensions = columnResponse.array_dimensions;
 						const enumType: string = columnResponse.enum_name;
-						let columnType: string = columnResponse.data_type;
-						const typeSchema = columnResponse.type_schema;
+						const enumSchema: string = columnResponse.enum_schema;
+						const domainType: string = columnResponse.domain_name;
+						const domainSchema: string = columnResponse.domain_schema;
 						const defaultValueRes: string = columnResponse.column_default;
+						let columnType: string = columnResponse.data_type;
 
 						const isGenerated = columnResponse.is_generated === 'ALWAYS';
 						const generationExpression = columnResponse.generation_expression;
@@ -1591,7 +1595,6 @@ WHERE
 							}
 						}
 
-						// TODO make this available for domain code above as well
 						columnTypeMapped = columnTypeMapped
 							.replace('character varying', 'varchar')
 							.replace(' without time zone', '')
@@ -1600,24 +1603,22 @@ WHERE
 
 						columnTypeMapped = trimChar(columnTypeMapped, '"');
 
+						// handle user defined types (enums, domains)
+						let userDefinedType = columnTypeMapped, userDefinedTypeSchema;
+						if(domainType && domainSchema) {
+							userDefinedType = domainType;
+							userDefinedTypeSchema = domainSchema;
+						}
+						// filter vectors, but in future we should filter any extension that was installed by user
+						else if (columnAdditionalDT === 'USER-DEFINED' && !['vector', 'geometry'].includes(enumType)) {
+							userDefinedType = enumType;
+							userDefinedTypeSchema = enumSchema;
+						}
+
 						columnToReturn[columnName] = {
 							name: columnName,
-							type:
-								// First, check if it's a domain
-								(columnAdditionalDT === 'DOMAIN'
-										&& domainsToReturn[`${typeSchema}.${enumType}`]?.name)
-									// filter vectors, but in future we should filter any extension that was installed by user
-									|| columnAdditionalDT === 'USER-DEFINED'
-										&& !['vector', 'geometry'].includes(enumType)
-									? enumType
-									: columnTypeMapped,
-							typeSchema:
-								// Check if it's a domain first
-								domainsToReturn[`${typeSchema}.${enumType}`]?.schema
-									// If not, check for enums
-									|| enumsToReturn[`${typeSchema}.${enumType}`] !== undefined
-									? enumsToReturn[`${typeSchema}.${enumType}`].schema
-									: undefined,
+							type: userDefinedType,
+							typeSchema: userDefinedTypeSchema,
 							primaryKey: primaryKey.length === 1 && cprimaryKey.length < 2,
 							// default: isSerial ? undefined : defaultValue,
 							notNull: columnResponse.is_nullable === 'NO',
@@ -2187,6 +2188,9 @@ const getColumnsInfoQuery = ({ schema, table, db }: { schema: string; table: str
     c.column_default,  -- Column default value
     c.data_type AS additional_dt,  -- Data type from information_schema
     c.udt_name AS enum_name,  -- Enum type (if applicable)
+    c.udt_schema AS enum_schema, -- Enum schema (if applicable)
+    c.domain_name, -- Domain type (if applicable)
+    c.domain_schema, -- Domain schema (if applicable)
     c.is_generated,  -- Is it a generated column?
     c.generation_expression,  -- Generation expression (if generated)
     c.is_identity,  -- Is it an identity column?
@@ -2195,8 +2199,7 @@ const getColumnsInfoQuery = ({ schema, table, db }: { schema: string; table: str
     c.identity_increment,  -- Increment for identity column
     c.identity_maximum,  -- Maximum value for identity column
     c.identity_minimum,  -- Minimum value for identity column
-    c.identity_cycle,  -- Does the identity column cycle?
-    enum_ns.nspname AS type_schema  -- Schema of the enum type
+    c.identity_cycle  -- Does the identity column cycle?
 FROM 
     pg_attribute a
 JOIN 
@@ -2207,10 +2210,6 @@ LEFT JOIN
     information_schema.columns c ON c.column_name = a.attname 
         AND c.table_schema = ns.nspname 
         AND c.table_name = cls.relname  -- Match schema and table/view name
-LEFT JOIN 
-    pg_type enum_t ON enum_t.oid = a.atttypid  -- Join to get the type info
-LEFT JOIN 
-    pg_namespace enum_ns ON enum_ns.oid = enum_t.typnamespace  -- Join to get the enum schema
 WHERE 
     a.attnum > 0  -- Valid column numbers only
     AND NOT a.attisdropped  -- Skip dropped columns
