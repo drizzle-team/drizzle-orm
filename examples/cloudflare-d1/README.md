@@ -10,8 +10,8 @@ To setup project for your Cloudflare D1 - please refer to [official docs](https:
 
 name = "YOUR PROJECT NAME"
 main = "src/index.ts"
-compatibility_date = "2022-11-07"
-node_compat = true
+compatibility_date = "2024-09-23"
+compatibility_flags = [ "nodejs_compat" ]
 
 [[ d1_databases ]]
 binding = "DB"
