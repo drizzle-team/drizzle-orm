@@ -874,7 +874,7 @@ const column = (
 	}
 
 	if (lowered.startsWith('line')) {
-		let out: string = `${withCasing(name, casing)}: point(${dbColumnName({ name, casing })})`;
+		let out: string = `${withCasing(name, casing)}: line(${dbColumnName({ name, casing })})`;
 		return out;
 	}
 
