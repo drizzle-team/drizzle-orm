@@ -52,7 +52,7 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 	}
 
 	const session = new TiDBServerlessSession(client, dialect, undefined, schema, { logger });
-	const db = new TiDBServerlessDatabase(dialect, session, schema as any, 'default') as TiDBServerlessDatabase<TSchema>;
+	const db = new TiDBServerlessDatabase(dialect, session, schema as any, 'planetscale') as TiDBServerlessDatabase<TSchema>;
 	(<any> db).$client = client;
 
 	return db as any;

@@ -180,7 +180,7 @@ export class TiDBServerlessTransaction<
 		schema: RelationalSchemaConfig<TSchema> | undefined,
 		nestedIndex = 0,
 	) {
-		super(dialect, session, schema, nestedIndex, 'default');
+		super(dialect, session, schema, nestedIndex, 'planetscale');
 	}
 
 	override async transaction<T>(
