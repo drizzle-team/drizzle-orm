@@ -10,7 +10,8 @@ export type Commands =
 	| 'check'
 	| 'up'
 	| 'drop'
-	| 'push';
+	| 'push'
+	| 'export';
 
 type Expand<T> = T extends infer O ? { [K in keyof O]: O[K] } : never;
 type IsUnion<T> = [T] extends [UnionToIntersection<T>] ? false : true;
@@ -111,6 +112,7 @@ export const configCommonSchema = object({
 	migrations: configMigrations,
 	dbCredentials: any().optional(),
 	casing: casingType.optional(),
+	sql: boolean().default(true),
 }).passthrough();
 
 export const casing = union([literal('camel'), literal('preserve')]).default(

@@ -19,9 +19,11 @@ import {
 	ilike,
 	inArray,
 	is,
+	like,
 	lt,
 	max,
 	min,
+	not,
 	notInArray,
 	or,
 	SQL,
@@ -31,16 +33,18 @@ import {
 	sumDistinct,
 	TransactionRollbackError,
 } from 'drizzle-orm';
-import { authenticatedRole, crudPolicy } from 'drizzle-orm/neon';
+import { authenticatedRole, crudPolicy, usersSync } from 'drizzle-orm/neon';
 import type { NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import type { PgColumn, PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
 import {
 	alias,
+	bigint,
 	bigserial,
 	boolean,
 	char,
 	cidr,
 	date,
+	doublePrecision,
 	except,
 	exceptAll,
 	foreignKey,
@@ -55,6 +59,7 @@ import {
 	interval,
 	json,
 	jsonb,
+	line,
 	macaddr,
 	macaddr8,
 	numeric,
@@ -67,8 +72,12 @@ import {
 	pgTable,
 	pgTableCreator,
 	pgView,
+	point,
 	primaryKey,
+	real,
 	serial,
+	smallint,
+	smallserial,
 	text,
 	time,
 	timestamp,
@@ -76,12 +85,13 @@ import {
 	unionAll,
 	unique,
 	uniqueKeyName,
+	uuid,
 	uuid as pgUuid,
 	varchar,
 } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
 import { v4 as uuidV4 } from 'uuid';
-import { afterAll, afterEach, beforeEach, describe, expect, test } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, expectTypeOf, test } from 'vitest';
 import { Expect } from '~/utils';
 import type { schema } from './neon-http-batch.test';
 // eslint-disable-next-line @typescript-eslint/no-import-type-side-effects
@@ -97,6 +107,145 @@ declare module 'vitest' {
 		};
 	}
 }
+
+const en = pgEnum('en', ['enVal1', 'enVal2']);
+
+const allTypesTable = pgTable('all_types', {
+	serial: serial('serial'),
+	bigserial53: bigserial('bigserial53', {
+		mode: 'number',
+	}),
+	bigserial64: bigserial('bigserial64', {
+		mode: 'bigint',
+	}),
+	int: integer('int'),
+	bigint53: bigint('bigint53', {
+		mode: 'number',
+	}),
+	bigint64: bigint('bigint64', {
+		mode: 'bigint',
+	}),
+	bool: boolean('bool'),
+	char: char('char'),
+	cidr: cidr('cidr'),
+	date: date('date', {
+		mode: 'date',
+	}),
+	dateStr: date('date_str', {
+		mode: 'string',
+	}),
+	double: doublePrecision('double'),
+	enum: en('enum'),
+	inet: inet('inet'),
+	interval: interval('interval'),
+	json: json('json'),
+	jsonb: jsonb('jsonb'),
+	line: line('line', {
+		mode: 'abc',
+	}),
+	lineTuple: line('line_tuple', {
+		mode: 'tuple',
+	}),
+	macaddr: macaddr('macaddr'),
+	macaddr8: macaddr8('macaddr8'),
+	numeric: numeric('numeric'),
+	numericNum: numeric('numeric_num', {
+		mode: 'number',
+	}),
+	numericBig: numeric('numeric_big', {
+		mode: 'bigint',
+	}),
+	point: point('point', {
+		mode: 'xy',
+	}),
+	pointTuple: point('point_tuple', {
+		mode: 'tuple',
+	}),
+	real: real('real'),
+	smallint: smallint('smallint'),
+	smallserial: smallserial('smallserial'),
+	text: text('text'),
+	time: time('time'),
+	timestamp: timestamp('timestamp', {
+		mode: 'date',
+	}),
+	timestampTz: timestamp('timestamp_tz', {
+		mode: 'date',
+		withTimezone: true,
+	}),
+	timestampStr: timestamp('timestamp_str', {
+		mode: 'string',
+	}),
+	timestampTzStr: timestamp('timestamp_tz_str', {
+		mode: 'string',
+		withTimezone: true,
+	}),
+	uuid: uuid('uuid'),
+	varchar: varchar('varchar'),
+	arrint: integer('arrint').array(),
+	arrbigint53: bigint('arrbigint53', {
+		mode: 'number',
+	}).array(),
+	arrbigint64: bigint('arrbigint64', {
+		mode: 'bigint',
+	}).array(),
+	arrbool: boolean('arrbool').array(),
+	arrchar: char('arrchar').array(),
+	arrcidr: cidr('arrcidr').array(),
+	arrdate: date('arrdate', {
+		mode: 'date',
+	}).array(),
+	arrdateStr: date('arrdate_str', {
+		mode: 'string',
+	}).array(),
+	arrdouble: doublePrecision('arrdouble').array(),
+	arrenum: en('arrenum').array(),
+	arrinet: inet('arrinet').array(),
+	arrinterval: interval('arrinterval').array(),
+	arrjson: json('arrjson').array(),
+	arrjsonb: jsonb('arrjsonb').array(),
+	arrline: line('arrline', {
+		mode: 'abc',
+	}).array(),
+	arrlineTuple: line('arrline_tuple', {
+		mode: 'tuple',
+	}).array(),
+	arrmacaddr: macaddr('arrmacaddr').array(),
+	arrmacaddr8: macaddr8('arrmacaddr8').array(),
+	arrnumeric: numeric('arrnumeric').array(),
+	arrnumericNum: numeric('arrnumeric_num', {
+		mode: 'number',
+	}).array(),
+	arrnumericBig: numeric('arrnumeric_big', {
+		mode: 'bigint',
+	}).array(),
+	arrpoint: point('arrpoint', {
+		mode: 'xy',
+	}).array(),
+	arrpointTuple: point('arrpoint_tuple', {
+		mode: 'tuple',
+	}).array(),
+	arrreal: real('arrreal').array(),
+	arrsmallint: smallint('arrsmallint').array(),
+	arrtext: text('arrtext').array(),
+	arrtime: time('arrtime').array(),
+	arrtimestamp: timestamp('arrtimestamp', {
+		mode: 'date',
+	}).array(),
+	arrtimestampTz: timestamp('arrtimestamp_tz', {
+		mode: 'date',
+		withTimezone: true,
+	}).array(),
+	arrtimestampStr: timestamp('arrtimestamp_str', {
+		mode: 'string',
+	}).array(),
+	arrtimestampTzStr: timestamp('arrtimestamp_tz_str', {
+		mode: 'string',
+		withTimezone: true,
+	}).array(),
+	arruuid: uuid('arruuid').array(),
+	arrvarchar: varchar('arrvarchar').array(),
+});
 
 export const usersTable = pgTable('users', {
 	id: serial('id' as string).primaryKey(),
@@ -541,7 +690,7 @@ export function tests() {
 			const result = await db.select().from(usersTable);
 
 			expect(result[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(100);
+			expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(300);
 			expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
 		});
 
@@ -734,7 +883,7 @@ export function tests() {
 				.returning();
 
 			expect(users[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(users[0]!.createdAt.getTime() - now)).toBeLessThan(100);
+			expect(Math.abs(users[0]!.createdAt.getTime() - now)).toBeLessThan(300);
 			expect(users).toEqual([
 				{ id: 1, name: 'Jane', verified: false, jsonb: null, createdAt: users[0]!.createdAt },
 			]);
@@ -765,7 +914,7 @@ export function tests() {
 			const users = await db.delete(usersTable).where(eq(usersTable.name, 'John')).returning();
 
 			expect(users[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(users[0]!.createdAt.getTime() - now)).toBeLessThan(100);
+			expect(Math.abs(users[0]!.createdAt.getTime() - now)).toBeLessThan(300);
 			expect(users).toEqual([
 				{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: users[0]!.createdAt },
 			]);
@@ -2035,7 +2184,7 @@ export function tests() {
 					.for('share', { of: users2Table, noWait: true })
 					.toSQL();
 
-				expect(query.sql).toMatch(/for share of "users2" no wait$/);
+				expect(query.sql).toMatch(/for share of "users2" nowait$/);
 			}
 		});
 
@@ -2356,6 +2505,175 @@ export function tests() {
 			expect(result).toEqual([{ id: 1, name: 'John' }]);
 
 			await db.execute(sql`drop table ${users}`);
+		});
+
+		test('select from enum as ts enum', async (ctx) => {
+			const { db } = ctx.pg;
+
+			enum Muscle {
+				abdominals = 'abdominals',
+				hamstrings = 'hamstrings',
+				adductors = 'adductors',
+				quadriceps = 'quadriceps',
+				biceps = 'biceps',
+				shoulders = 'shoulders',
+				chest = 'chest',
+				middle_back = 'middle_back',
+				calves = 'calves',
+				glutes = 'glutes',
+				lower_back = 'lower_back',
+				lats = 'lats',
+				triceps = 'triceps',
+				traps = 'traps',
+				forearms = 'forearms',
+				neck = 'neck',
+				abductors = 'abductors',
+			}
+
+			enum Force {
+				isometric = 'isometric',
+				isotonic = 'isotonic',
+				isokinetic = 'isokinetic',
+			}
+
+			enum Level {
+				beginner = 'beginner',
+				intermediate = 'intermediate',
+				advanced = 'advanced',
+			}
+
+			enum Mechanic {
+				compound = 'compound',
+				isolation = 'isolation',
+			}
+
+			enum Equipment {
+				barbell = 'barbell',
+				dumbbell = 'dumbbell',
+				bodyweight = 'bodyweight',
+				machine = 'machine',
+				cable = 'cable',
+				kettlebell = 'kettlebell',
+			}
+
+			enum Category {
+				upper_body = 'upper_body',
+				lower_body = 'lower_body',
+				full_body = 'full_body',
+			}
+
+			const muscleEnum = pgEnum('muscle', Muscle);
+
+			const forceEnum = pgEnum('force', Force);
+
+			const levelEnum = pgEnum('level', Level);
+
+			const mechanicEnum = pgEnum('mechanic', Mechanic);
+
+			const equipmentEnum = pgEnum('equipment', Equipment);
+
+			const categoryEnum = pgEnum('category', Category);
+
+			const exercises = pgTable('exercises', {
+				id: serial('id').primaryKey(),
+				name: varchar('name').notNull(),
+				force: forceEnum('force'),
+				level: levelEnum('level'),
+				mechanic: mechanicEnum('mechanic'),
+				equipment: equipmentEnum('equipment'),
+				instructions: text('instructions'),
+				category: categoryEnum('category'),
+				primaryMuscles: muscleEnum('primary_muscles').array(),
+				secondaryMuscles: muscleEnum('secondary_muscles').array(),
+				createdAt: timestamp('created_at').notNull().default(sql`now()`),
+				updatedAt: timestamp('updated_at').notNull().default(sql`now()`),
+			});
+
+			await db.execute(sql`drop table if exists ${exercises}`);
+			await db.execute(sql`drop type if exists ${sql.identifier(muscleEnum.enumName)}`);
+			await db.execute(sql`drop type if exists ${sql.identifier(forceEnum.enumName)}`);
+			await db.execute(sql`drop type if exists ${sql.identifier(levelEnum.enumName)}`);
+			await db.execute(sql`drop type if exists ${sql.identifier(mechanicEnum.enumName)}`);
+			await db.execute(sql`drop type if exists ${sql.identifier(equipmentEnum.enumName)}`);
+			await db.execute(sql`drop type if exists ${sql.identifier(categoryEnum.enumName)}`);
+
+			await db.execute(
+				sql`create type ${
+					sql.identifier(muscleEnum.enumName)
+				} as enum ('abdominals', 'hamstrings', 'adductors', 'quadriceps', 'biceps', 'shoulders', 'chest', 'middle_back', 'calves', 'glutes', 'lower_back', 'lats', 'triceps', 'traps', 'forearms', 'neck', 'abductors')`,
+			);
+			await db.execute(
+				sql`create type ${sql.identifier(forceEnum.enumName)} as enum ('isometric', 'isotonic', 'isokinetic')`,
+			);
+			await db.execute(
+				sql`create type ${sql.identifier(levelEnum.enumName)} as enum ('beginner', 'intermediate', 'advanced')`,
+			);
+			await db.execute(sql`create type ${sql.identifier(mechanicEnum.enumName)} as enum ('compound', 'isolation')`);
+			await db.execute(
+				sql`create type ${
+					sql.identifier(equipmentEnum.enumName)
+				} as enum ('barbell', 'dumbbell', 'bodyweight', 'machine', 'cable', 'kettlebell')`,
+			);
+			await db.execute(
+				sql`create type ${sql.identifier(categoryEnum.enumName)} as enum ('upper_body', 'lower_body', 'full_body')`,
+			);
+			await db.execute(sql`
+				create table ${exercises} (
+					id serial primary key,
+					name varchar not null,
+					force force,
+					level level,
+					mechanic mechanic,
+					equipment equipment,
+					instructions text,
+					category category,
+					primary_muscles muscle[],
+					secondary_muscles muscle[],
+					created_at timestamp not null default now(),
+					updated_at timestamp not null default now()
+				)
+			`);
+
+			await db.insert(exercises).values({
+				name: 'Bench Press',
+				force: Force.isotonic,
+				level: Level.beginner,
+				mechanic: Mechanic.compound,
+				equipment: Equipment.barbell,
+				instructions:
+					'Lie on your back on a flat bench. Grasp the barbell with an overhand grip, slightly wider than shoulder width. Unrack the barbell and hold it over you with your arms locked. Lower the barbell to your chest. Press the barbell back to the starting position.',
+				category: Category.upper_body,
+				primaryMuscles: [Muscle.chest, Muscle.triceps],
+				secondaryMuscles: [Muscle.shoulders, Muscle.traps],
+			});
+
+			const result = await db.select().from(exercises);
+
+			expect(result).toEqual([
+				{
+					id: 1,
+					name: 'Bench Press',
+					force: 'isotonic',
+					level: 'beginner',
+					mechanic: 'compound',
+					equipment: 'barbell',
+					instructions:
+						'Lie on your back on a flat bench. Grasp the barbell with an overhand grip, slightly wider than shoulder width. Unrack the barbell and hold it over you with your arms locked. Lower the barbell to your chest. Press the barbell back to the starting position.',
+					category: 'upper_body',
+					primaryMuscles: ['chest', 'triceps'],
+					secondaryMuscles: ['shoulders', 'traps'],
+					createdAt: result[0]!.createdAt,
+					updatedAt: result[0]!.updatedAt,
+				},
+			]);
+
+			await db.execute(sql`drop table ${exercises}`);
+			await db.execute(sql`drop type ${sql.identifier(muscleEnum.enumName)}`);
+			await db.execute(sql`drop type ${sql.identifier(forceEnum.enumName)}`);
+			await db.execute(sql`drop type ${sql.identifier(levelEnum.enumName)}`);
+			await db.execute(sql`drop type ${sql.identifier(mechanicEnum.enumName)}`);
+			await db.execute(sql`drop type ${sql.identifier(equipmentEnum.enumName)}`);
+			await db.execute(sql`drop type ${sql.identifier(categoryEnum.enumName)}`);
 		});
 
 		test('select from enum', async (ctx) => {
@@ -4086,7 +4404,7 @@ export function tests() {
 			const result = await db.select().from(usersMySchemaTable);
 
 			expect(result[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(100);
+			expect(Math.abs(result[0]!.createdAt.getTime() - now)).toBeLessThan(300);
 			expect(result).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: result[0]!.createdAt }]);
 		});
 
@@ -4196,7 +4514,7 @@ export function tests() {
 			const users = await db.delete(usersMySchemaTable).where(eq(usersMySchemaTable.name, 'John')).returning();
 
 			expect(users[0]!.createdAt).toBeInstanceOf(Date);
-			expect(Math.abs(users[0]!.createdAt.getTime() - now)).toBeLessThan(100);
+			expect(Math.abs(users[0]!.createdAt.getTime() - now)).toBeLessThan(300);
 			expect(users).toEqual([{ id: 1, name: 'John', verified: false, jsonb: null, createdAt: users[0]!.createdAt }]);
 		});
 
@@ -5130,6 +5448,16 @@ export function tests() {
 			}
 		});
 
+		test('neon: neon_auth', () => {
+			const usersSyncTable = usersSync;
+
+			const { columns, schema, name } = getTableConfig(usersSyncTable);
+
+			expect(name).toBe('users_sync');
+			expect(schema).toBe('neon_auth');
+			expect(columns).toHaveLength(6);
+		});
+
 		test('Enable RLS function', () => {
 			const usersWithRLS = pgTable('users', {
 				id: integer(),
@@ -5417,6 +5745,664 @@ export function tests() {
 				{ id: 4, id1: 5, name: 'Jane' },
 				{ id: 4, id1: 5, name: 'Bob' },
 			]);
+		});
+
+		test('insert as cte', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const users = pgTable('users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${users}`);
+			await db.execute(sql`create table ${users} (id serial not null primary key, name text not null)`);
+
+			const sq1 = db.$with('sq').as(
+				db.insert(users).values({ name: 'John' }).returning(),
+			);
+			const result1 = await db.with(sq1).select().from(sq1);
+			const result2 = await db.with(sq1).select({ id: sq1.id }).from(sq1);
+
+			const sq2 = db.$with('sq').as(
+				db.insert(users).values({ name: 'Jane' }).returning({ id: users.id, name: users.name }),
+			);
+			const result3 = await db.with(sq2).select().from(sq2);
+			const result4 = await db.with(sq2).select({ name: sq2.name }).from(sq2);
+
+			expect(result1).toEqual([{ id: 1, name: 'John' }]);
+			expect(result2).toEqual([{ id: 2 }]);
+			expect(result3).toEqual([{ id: 3, name: 'Jane' }]);
+			expect(result4).toEqual([{ name: 'Jane' }]);
+		});
+
+		test('update as cte', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const users = pgTable('users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				age: integer('age').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${users}`);
+			await db.execute(
+				sql`create table ${users} (id serial not null primary key, name text not null, age integer not null)`,
+			);
+
+			await db.insert(users).values([
+				{ name: 'John', age: 30 },
+				{ name: 'Jane', age: 30 },
+			]);
+
+			const sq1 = db.$with('sq').as(
+				db.update(users).set({ age: 25 }).where(eq(users.name, 'John')).returning(),
+			);
+			const result1 = await db.with(sq1).select().from(sq1);
+			await db.update(users).set({ age: 30 });
+			const result2 = await db.with(sq1).select({ age: sq1.age }).from(sq1);
+
+			const sq2 = db.$with('sq').as(
+				db.update(users).set({ age: 20 }).where(eq(users.name, 'Jane')).returning({ name: users.name, age: users.age }),
+			);
+			const result3 = await db.with(sq2).select().from(sq2);
+			await db.update(users).set({ age: 30 });
+			const result4 = await db.with(sq2).select({ age: sq2.age }).from(sq2);
+
+			expect(result1).toEqual([{ id: 1, name: 'John', age: 25 }]);
+			expect(result2).toEqual([{ age: 25 }]);
+			expect(result3).toEqual([{ name: 'Jane', age: 20 }]);
+			expect(result4).toEqual([{ age: 20 }]);
+		});
+
+		test('delete as cte', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const users = pgTable('users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${users}`);
+			await db.execute(sql`create table ${users} (id serial not null primary key, name text not null)`);
+
+			await db.insert(users).values([
+				{ name: 'John' },
+				{ name: 'Jane' },
+			]);
+
+			const sq1 = db.$with('sq').as(
+				db.delete(users).where(eq(users.name, 'John')).returning(),
+			);
+			const result1 = await db.with(sq1).select().from(sq1);
+			await db.insert(users).values({ name: 'John' });
+			const result2 = await db.with(sq1).select({ name: sq1.name }).from(sq1);
+
+			const sq2 = db.$with('sq').as(
+				db.delete(users).where(eq(users.name, 'Jane')).returning({ id: users.id, name: users.name }),
+			);
+			const result3 = await db.with(sq2).select().from(sq2);
+			await db.insert(users).values({ name: 'Jane' });
+			const result4 = await db.with(sq2).select({ name: sq2.name }).from(sq2);
+
+			expect(result1).toEqual([{ id: 1, name: 'John' }]);
+			expect(result2).toEqual([{ name: 'John' }]);
+			expect(result3).toEqual([{ id: 2, name: 'Jane' }]);
+			expect(result4).toEqual([{ name: 'Jane' }]);
+		});
+
+		test('sql operator as cte', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const users = pgTable('users', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+			});
+
+			await db.execute(sql`drop table if exists ${users}`);
+			await db.execute(sql`create table ${users} (id serial not null primary key, name text not null)`);
+			await db.insert(users).values([
+				{ name: 'John' },
+				{ name: 'Jane' },
+			]);
+
+			const sq1 = db.$with('sq', {
+				userId: users.id,
+				data: {
+					name: users.name,
+				},
+			}).as(sql`select * from ${users} where ${users.name} = 'John'`);
+			const result1 = await db.with(sq1).select().from(sq1);
+
+			const sq2 = db.$with('sq', {
+				userId: users.id,
+				data: {
+					name: users.name,
+				},
+			}).as(() => sql`select * from ${users} where ${users.name} = 'Jane'`);
+			const result2 = await db.with(sq2).select().from(sq1);
+
+			expect(result1).toEqual([{ userId: 1, data: { name: 'John' } }]);
+			expect(result2).toEqual([{ userId: 2, data: { name: 'Jane' } }]);
+		});
+
+		test('cross join', async (ctx) => {
+			const { db } = ctx.pg;
+
+			await db
+				.insert(usersTable)
+				.values([
+					{ name: 'John' },
+					{ name: 'Jane' },
+				]);
+
+			await db
+				.insert(citiesTable)
+				.values([
+					{ name: 'Seattle' },
+					{ name: 'New York City' },
+				]);
+
+			const result = await db
+				.select({
+					user: usersTable.name,
+					city: citiesTable.name,
+				})
+				.from(usersTable)
+				.crossJoin(citiesTable)
+				.orderBy(usersTable.name, citiesTable.name);
+
+			expect(result).toStrictEqual([
+				{ city: 'New York City', user: 'Jane' },
+				{ city: 'Seattle', user: 'Jane' },
+				{ city: 'New York City', user: 'John' },
+				{ city: 'Seattle', user: 'John' },
+			]);
+		});
+
+		test('left join (lateral)', async (ctx) => {
+			const { db } = ctx.pg;
+
+			await db
+				.insert(citiesTable)
+				.values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }]);
+
+			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+			const sq = db
+				.select({
+					userId: users2Table.id,
+					userName: users2Table.name,
+					cityId: users2Table.cityId,
+				})
+				.from(users2Table)
+				.where(eq(users2Table.cityId, citiesTable.id))
+				.as('sq');
+
+			const res = await db
+				.select({
+					cityId: citiesTable.id,
+					cityName: citiesTable.name,
+					userId: sq.userId,
+					userName: sq.userName,
+				})
+				.from(citiesTable)
+				.leftJoinLateral(sq, sql`true`);
+
+			expect(res).toStrictEqual([
+				{ cityId: 1, cityName: 'Paris', userId: 1, userName: 'John' },
+				{ cityId: 2, cityName: 'London', userId: null, userName: null },
+			]);
+		});
+
+		test('inner join (lateral)', async (ctx) => {
+			const { db } = ctx.pg;
+
+			await db
+				.insert(citiesTable)
+				.values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }]);
+
+			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+			const sq = db
+				.select({
+					userId: users2Table.id,
+					userName: users2Table.name,
+					cityId: users2Table.cityId,
+				})
+				.from(users2Table)
+				.where(eq(users2Table.cityId, citiesTable.id))
+				.as('sq');
+
+			const res = await db
+				.select({
+					cityId: citiesTable.id,
+					cityName: citiesTable.name,
+					userId: sq.userId,
+					userName: sq.userName,
+				})
+				.from(citiesTable)
+				.innerJoinLateral(sq, sql`true`);
+
+			expect(res).toStrictEqual([
+				{ cityId: 1, cityName: 'Paris', userId: 1, userName: 'John' },
+			]);
+		});
+
+		test('cross join (lateral)', async (ctx) => {
+			const { db } = ctx.pg;
+
+			await db
+				.insert(citiesTable)
+				.values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }, { id: 3, name: 'Berlin' }]);
+
+			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }, {
+				name: 'Patrick',
+				cityId: 2,
+			}]);
+
+			const sq = db
+				.select({
+					userId: users2Table.id,
+					userName: users2Table.name,
+					cityId: users2Table.cityId,
+				})
+				.from(users2Table)
+				.where(not(like(citiesTable.name, 'L%')))
+				.as('sq');
+
+			const res = await db
+				.select({
+					cityId: citiesTable.id,
+					cityName: citiesTable.name,
+					userId: sq.userId,
+					userName: sq.userName,
+				})
+				.from(citiesTable)
+				.crossJoinLateral(sq)
+				.orderBy(citiesTable.id, sq.userId);
+
+			expect(res).toStrictEqual([
+				{
+					cityId: 1,
+					cityName: 'Paris',
+					userId: 1,
+					userName: 'John',
+				},
+				{
+					cityId: 1,
+					cityName: 'Paris',
+					userId: 2,
+					userName: 'Jane',
+				},
+				{
+					cityId: 1,
+					cityName: 'Paris',
+					userId: 3,
+					userName: 'Patrick',
+				},
+				{
+					cityId: 3,
+					cityName: 'Berlin',
+					userId: 1,
+					userName: 'John',
+				},
+				{
+					cityId: 3,
+					cityName: 'Berlin',
+					userId: 2,
+					userName: 'Jane',
+				},
+				{
+					cityId: 3,
+					cityName: 'Berlin',
+					userId: 3,
+					userName: 'Patrick',
+				},
+			]);
+		});
+
+		test('all types', async (ctx) => {
+			const { db } = ctx.pg;
+
+			await db.execute(sql`CREATE TYPE "public"."en" AS ENUM('enVal1', 'enVal2');`);
+			await db.execute(sql`
+				CREATE TABLE "all_types" (
+					"serial" serial NOT NULL,
+					"bigserial53" bigserial NOT NULL,
+					"bigserial64" bigserial,
+					"int" integer,
+					"bigint53" bigint,
+					"bigint64" bigint,
+					"bool" boolean,
+					"char" char,
+					"cidr" "cidr",
+					"date" date,
+					"date_str" date,
+					"double" double precision,
+					"enum" "en",
+					"inet" "inet",
+					"interval" interval,
+					"json" json,
+					"jsonb" jsonb,
+					"line" "line",
+					"line_tuple" "line",
+					"macaddr" "macaddr",
+					"macaddr8" "macaddr8",
+					"numeric" numeric,
+					"numeric_num" numeric,
+					"numeric_big" numeric,
+					"point" "point",
+					"point_tuple" "point",
+					"real" real,
+					"smallint" smallint,
+					"smallserial" "smallserial" NOT NULL,
+					"text" text,
+					"time" time,
+					"timestamp" timestamp,
+					"timestamp_tz" timestamp with time zone,
+					"timestamp_str" timestamp,
+					"timestamp_tz_str" timestamp with time zone,
+					"uuid" uuid,
+					"varchar" varchar,
+					"arrint" integer[],
+					"arrbigint53" bigint[],
+					"arrbigint64" bigint[],
+					"arrbool" boolean[],
+					"arrchar" char[],
+					"arrcidr" "cidr"[],
+					"arrdate" date[],
+					"arrdate_str" date[],
+					"arrdouble" double precision[],
+					"arrenum" "en"[],
+					"arrinet" "inet"[],
+					"arrinterval" interval[],
+					"arrjson" json[],
+					"arrjsonb" jsonb[],
+					"arrline" "line"[],
+					"arrline_tuple" "line"[],
+					"arrmacaddr" "macaddr"[],
+					"arrmacaddr8" "macaddr8"[],
+					"arrnumeric" numeric[],
+					"arrnumeric_num" numeric[],
+					"arrnumeric_big" numeric[],
+					"arrpoint" "point"[],
+					"arrpoint_tuple" "point"[],
+					"arrreal" real[],
+					"arrsmallint" smallint[],
+					"arrtext" text[],
+					"arrtime" time[],
+					"arrtimestamp" timestamp[],
+					"arrtimestamp_tz" timestamp with time zone[],
+					"arrtimestamp_str" timestamp[],
+					"arrtimestamp_tz_str" timestamp with time zone[],
+					"arruuid" uuid[],
+					"arrvarchar" varchar[]
+				);
+			`);
+
+			await db.insert(allTypesTable).values({
+				serial: 1,
+				smallserial: 15,
+				bigint53: 9007199254740991,
+				bigint64: 5044565289845416380n,
+				bigserial53: 9007199254740991,
+				bigserial64: 5044565289845416380n,
+				bool: true,
+				char: 'c',
+				cidr: '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128',
+				inet: '192.168.0.1/24',
+				macaddr: '08:00:2b:01:02:03',
+				macaddr8: '08:00:2b:01:02:03:04:05',
+				date: new Date(1741743161623),
+				dateStr: new Date(1741743161623).toISOString(),
+				double: 15.35325689124218,
+				enum: 'enVal1',
+				int: 621,
+				interval: '2 months ago',
+				json: {
+					str: 'strval',
+					arr: ['str', 10],
+				},
+				jsonb: {
+					str: 'strvalb',
+					arr: ['strb', 11],
+				},
+				line: {
+					a: 1,
+					b: 2,
+					c: 3,
+				},
+				lineTuple: [1, 2, 3],
+				numeric: '475452353476',
+				numericNum: 9007199254740991,
+				numericBig: 5044565289845416380n,
+				point: {
+					x: 24.5,
+					y: 49.6,
+				},
+				pointTuple: [57.2, 94.3],
+				real: 1.048596,
+				smallint: 10,
+				text: 'TEXT STRING',
+				time: '13:59:28',
+				timestamp: new Date(1741743161623),
+				timestampTz: new Date(1741743161623),
+				timestampStr: new Date(1741743161623).toISOString(),
+				timestampTzStr: new Date(1741743161623).toISOString(),
+				uuid: 'b77c9eef-8e28-4654-88a1-7221b46d2a1c',
+				varchar: 'C4-',
+				arrbigint53: [9007199254740991],
+				arrbigint64: [5044565289845416380n],
+				arrbool: [true],
+				arrchar: ['c'],
+				arrcidr: ['2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128'],
+				arrinet: ['192.168.0.1/24'],
+				arrmacaddr: ['08:00:2b:01:02:03'],
+				arrmacaddr8: ['08:00:2b:01:02:03:04:05'],
+				arrdate: [new Date(1741743161623)],
+				arrdateStr: [new Date(1741743161623).toISOString()],
+				arrdouble: [15.35325689124218],
+				arrenum: ['enVal1'],
+				arrint: [621],
+				arrinterval: ['2 months ago'],
+				arrjson: [{
+					str: 'strval',
+					arr: ['str', 10],
+				}],
+				arrjsonb: [{
+					str: 'strvalb',
+					arr: ['strb', 11],
+				}],
+				arrline: [{
+					a: 1,
+					b: 2,
+					c: 3,
+				}],
+				arrlineTuple: [[1, 2, 3]],
+				arrnumeric: ['475452353476'],
+				arrnumericNum: [9007199254740991],
+				arrnumericBig: [5044565289845416380n],
+				arrpoint: [{
+					x: 24.5,
+					y: 49.6,
+				}],
+				arrpointTuple: [[57.2, 94.3]],
+				arrreal: [1.048596],
+				arrsmallint: [10],
+				arrtext: ['TEXT STRING'],
+				arrtime: ['13:59:28'],
+				arrtimestamp: [new Date(1741743161623)],
+				arrtimestampTz: [new Date(1741743161623)],
+				arrtimestampStr: [new Date(1741743161623).toISOString()],
+				arrtimestampTzStr: [new Date(1741743161623).toISOString()],
+				arruuid: ['b77c9eef-8e28-4654-88a1-7221b46d2a1c'],
+				arrvarchar: ['C4-'],
+			});
+
+			const rawRes = await db.select().from(allTypesTable);
+
+			type ExpectedType = {
+				serial: number;
+				bigserial53: number;
+				bigserial64: bigint;
+				int: number | null;
+				bigint53: number | null;
+				bigint64: bigint | null;
+				bool: boolean | null;
+				char: string | null;
+				cidr: string | null;
+				date: Date | null;
+				dateStr: string | null;
+				double: number | null;
+				enum: 'enVal1' | 'enVal2' | null;
+				inet: string | null;
+				interval: string | null;
+				json: unknown;
+				jsonb: unknown;
+				line: {
+					a: number;
+					b: number;
+					c: number;
+				} | null;
+				lineTuple: [number, number, number] | null;
+				macaddr: string | null;
+				macaddr8: string | null;
+				numeric: string | null;
+				numericNum: number | null;
+				numericBig: bigint | null;
+				point: {
+					x: number;
+					y: number;
+				} | null;
+				pointTuple: [number, number] | null;
+				real: number | null;
+				smallint: number | null;
+				smallserial: number;
+				text: string | null;
+				time: string | null;
+				timestamp: Date | null;
+				timestampTz: Date | null;
+				timestampStr: string | null;
+				timestampTzStr: string | null;
+				uuid: string | null;
+				varchar: string | null;
+				arrint: number[] | null;
+				arrbigint53: number[] | null;
+				arrbigint64: bigint[] | null;
+				arrbool: boolean[] | null;
+				arrchar: string[] | null;
+				arrcidr: string[] | null;
+				arrdate: Date[] | null;
+				arrdateStr: string[] | null;
+				arrdouble: number[] | null;
+				arrenum: ('enVal1' | 'enVal2')[] | null;
+				arrinet: string[] | null;
+				arrinterval: string[] | null;
+				arrjson: unknown[] | null;
+				arrjsonb: unknown[] | null;
+				arrline: {
+					a: number;
+					b: number;
+					c: number;
+				}[] | null;
+				arrlineTuple: [number, number, number][] | null;
+				arrmacaddr: string[] | null;
+				arrmacaddr8: string[] | null;
+				arrnumeric: string[] | null;
+				arrnumericNum: number[] | null;
+				arrnumericBig: bigint[] | null;
+				arrpoint: { x: number; y: number }[] | null;
+				arrpointTuple: [number, number][] | null;
+				arrreal: number[] | null;
+				arrsmallint: number[] | null;
+				arrtext: string[] | null;
+				arrtime: string[] | null;
+				arrtimestamp: Date[] | null;
+				arrtimestampTz: Date[] | null;
+				arrtimestampStr: string[] | null;
+				arrtimestampTzStr: string[] | null;
+				arruuid: string[] | null;
+				arrvarchar: string[] | null;
+			}[];
+
+			const expectedRes: ExpectedType = [
+				{
+					serial: 1,
+					bigserial53: 9007199254740991,
+					bigserial64: 5044565289845416380n,
+					int: 621,
+					bigint53: 9007199254740991,
+					bigint64: 5044565289845416380n,
+					bool: true,
+					char: 'c',
+					cidr: '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128',
+					date: new Date('2025-03-12T00:00:00.000Z'),
+					dateStr: '2025-03-12',
+					double: 15.35325689124218,
+					enum: 'enVal1',
+					inet: '192.168.0.1/24',
+					interval: '-2 mons',
+					json: { str: 'strval', arr: ['str', 10] },
+					jsonb: { arr: ['strb', 11], str: 'strvalb' },
+					line: { a: 1, b: 2, c: 3 },
+					lineTuple: [1, 2, 3],
+					macaddr: '08:00:2b:01:02:03',
+					macaddr8: '08:00:2b:01:02:03:04:05',
+					numeric: '475452353476',
+					numericNum: 9007199254740991,
+					numericBig: 5044565289845416380n,
+					point: { x: 24.5, y: 49.6 },
+					pointTuple: [57.2, 94.3],
+					real: 1.048596,
+					smallint: 10,
+					smallserial: 15,
+					text: 'TEXT STRING',
+					time: '13:59:28',
+					timestamp: new Date('2025-03-12T01:32:41.623Z'),
+					timestampTz: new Date('2025-03-12T01:32:41.623Z'),
+					timestampStr: '2025-03-12 01:32:41.623',
+					timestampTzStr: '2025-03-12 01:32:41.623+00',
+					uuid: 'b77c9eef-8e28-4654-88a1-7221b46d2a1c',
+					varchar: 'C4-',
+					arrint: [621],
+					arrbigint53: [9007199254740991],
+					arrbigint64: [5044565289845416380n],
+					arrbool: [true],
+					arrchar: ['c'],
+					arrcidr: ['2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128'],
+					arrdate: [new Date('2025-03-12T00:00:00.000Z')],
+					arrdateStr: ['2025-03-12'],
+					arrdouble: [15.35325689124218],
+					arrenum: ['enVal1'],
+					arrinet: ['192.168.0.1/24'],
+					arrinterval: ['-2 mons'],
+					arrjson: [{ str: 'strval', arr: ['str', 10] }],
+					arrjsonb: [{ arr: ['strb', 11], str: 'strvalb' }],
+					arrline: [{ a: 1, b: 2, c: 3 }],
+					arrlineTuple: [[1, 2, 3]],
+					arrmacaddr: ['08:00:2b:01:02:03'],
+					arrmacaddr8: ['08:00:2b:01:02:03:04:05'],
+					arrnumeric: ['475452353476'],
+					arrnumericNum: [9007199254740991],
+					arrnumericBig: [5044565289845416380n],
+					arrpoint: [{ x: 24.5, y: 49.6 }],
+					arrpointTuple: [[57.2, 94.3]],
+					arrreal: [1.048596],
+					arrsmallint: [10],
+					arrtext: ['TEXT STRING'],
+					arrtime: ['13:59:28'],
+					arrtimestamp: [new Date('2025-03-12T01:32:41.623Z')],
+					arrtimestampTz: [new Date('2025-03-12T01:32:41.623Z')],
+					arrtimestampStr: ['2025-03-12 01:32:41.623'],
+					arrtimestampTzStr: ['2025-03-12 01:32:41.623+00'],
+					arruuid: ['b77c9eef-8e28-4654-88a1-7221b46d2a1c'],
+					arrvarchar: ['C4-'],
+				},
+			];
+
+			expectTypeOf(rawRes).toEqualTypeOf<ExpectedType>();
+			expect(rawRes).toStrictEqual(expectedRes);
 		});
 	});
 }

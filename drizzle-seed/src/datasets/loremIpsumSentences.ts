@@ -1637,3 +1637,5 @@ export default [
 	'Sed gravida enim quis nunc interdum imperdiet.',
 	'Proin cursus odio ac dolor blandit, quis sollicitudin ante rutrum.',
 ];
+
+export const maxStringLength = 190;
