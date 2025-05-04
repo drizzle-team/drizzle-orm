@@ -3,14 +3,13 @@ import type { MySqlColumn } from '~/mysql-core/columns/index.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { MySqlPreparedQueryConfig, MySqlSession, PreparedQueryHKTBase } from '~/mysql-core/session.ts';
 import type { SubqueryWithSelection } from '~/mysql-core/subquery.ts';
-import type { MySqlTable } from '~/mysql-core/table.ts';
+import { MySqlTable } from '~/mysql-core/table.ts';
 import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	BuildSubquerySelection,
 	GetSelectTableName,
 	GetSelectTableSelection,
 	JoinNullability,
-	JoinType,
 	SelectMode,
 	SelectResult,
 	SetOperator,
@@ -21,9 +20,11 @@ import type { ColumnsSelection, Placeholder, Query } from '~/sql/sql.ts';
 import { SQL, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
-import { applyMixins, getTableColumns, getTableLikeName, haveSameKeys, type ValueOrArray } from '~/utils.ts';
-import { orderSelectedFields } from '~/utils.ts';
+import type { ValueOrArray } from '~/utils.ts';
+import { applyMixins, getTableColumns, getTableLikeName, haveSameKeys, orderSelectedFields } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import type { IndexBuilder } from '../indexes.ts';
+import { convertIndexToString, toArray } from '../utils.ts';
 import { MySqlViewBase } from '../view-base.ts';
 import type {
 	AnyMySqlSelect,
@@ -33,6 +34,7 @@ import type {
 	LockStrength,
 	MySqlCreateSetOperatorFn,
 	MySqlJoinFn,
+	MySqlJoinType,
 	MySqlSelectConfig,
 	MySqlSelectDynamic,
 	MySqlSelectHKT,
@@ -44,6 +46,14 @@ import type {
 	SelectedFields,
 	SetOperatorRightSelect,
 } from './select.types.ts';
+
+export type IndexForHint = IndexBuilder | string;
+
+export type IndexConfig = {
+	useIndex?: IndexForHint | IndexForHint[];
+	forceIndex?: IndexForHint | IndexForHint[];
+	ignoreIndex?: IndexForHint | IndexForHint[];
+};
 
 export class MySqlSelectBuilder<
 	TSelection extends SelectedFields | undefined,
@@ -78,6 +88,8 @@ export class MySqlSelectBuilder<
 
 	from<TFrom extends MySqlTable | Subquery | MySqlViewBase | SQL>(
 		source: TFrom,
+		onIndex?: TFrom extends MySqlTable ? IndexConfig
+			: 'Index hint configuration is allowed only for MySqlTable and not for subqueries or views',
 	): CreateMySqlSelectFromBuilderMode<
 		TBuilderMode,
 		GetSelectTableName<TFrom>,
@@ -105,6 +117,21 @@ export class MySqlSelectBuilder<
 			fields = getTableColumns<MySqlTable>(source);
 		}
 
+		let useIndex: string[] = [];
+		let forceIndex: string[] = [];
+		let ignoreIndex: string[] = [];
+		if (is(source, MySqlTable) && onIndex && typeof onIndex !== 'string') {
+			if (onIndex.useIndex) {
+				useIndex = convertIndexToString(toArray(onIndex.useIndex));
+			}
+			if (onIndex.forceIndex) {
+				forceIndex = convertIndexToString(toArray(onIndex.forceIndex));
+			}
+			if (onIndex.ignoreIndex) {
+				ignoreIndex = convertIndexToString(toArray(onIndex.ignoreIndex));
+			}
+		}
+
 		return new MySqlSelectBase(
 			{
 				table: source,
@@ -114,6 +141,9 @@ export class MySqlSelectBuilder<
 				dialect: this.dialect,
 				withList: this.withList,
 				distinct: this.distinct,
+				useIndex,
+				forceIndex,
+				ignoreIndex,
 			},
 		) as any;
 	}
@@ -156,7 +186,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 	protected dialect: MySqlDialect;
 
 	constructor(
-		{ table, fields, isPartialSelect, session, dialect, withList, distinct }: {
+		{ table, fields, isPartialSelect, session, dialect, withList, distinct, useIndex, forceIndex, ignoreIndex }: {
 			table: MySqlSelectConfig['table'];
 			fields: MySqlSelectConfig['fields'];
 			isPartialSelect: boolean;
@@ -164,6 +194,9 @@ export abstract class MySqlSelectQueryBuilderBase<
 			dialect: MySqlDialect;
 			withList: Subquery[];
 			distinct: boolean | undefined;
+			useIndex?: string[];
+			forceIndex?: string[];
+			ignoreIndex?: string[];
 		},
 	) {
 		super();
@@ -173,6 +206,9 @@ export abstract class MySqlSelectQueryBuilderBase<
 			fields: { ...fields },
 			distinct,
 			setOperators: [],
+			useIndex,
+			forceIndex,
+			ignoreIndex,
 		};
 		this.isPartialSelect = isPartialSelect;
 		this.session = session;
@@ -184,13 +220,35 @@ export abstract class MySqlSelectQueryBuilderBase<
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
 	}
 
-	private createJoin<TJoinType extends JoinType>(
+	private createJoin<
+		TJoinType extends MySqlJoinType,
+		TIsLateral extends (TJoinType extends 'full' | 'right' ? false : boolean),
+	>(
 		joinType: TJoinType,
-	): MySqlJoinFn<this, TDynamic, TJoinType> {
-		return (
+		lateral: TIsLateral,
+	): MySqlJoinFn<this, TDynamic, TJoinType, TIsLateral> {
+		return <
+			TJoinedTable extends MySqlTable | Subquery | MySqlViewBase | SQL,
+		>(
 			table: MySqlTable | Subquery | MySqlViewBase | SQL,
-			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
+			a?:
+				| ((aliases: TSelection) => SQL | undefined)
+				| SQL
+				| undefined
+				| (TJoinedTable extends MySqlTable ? IndexConfig
+					: 'Index hint configuration is allowed only for MySqlTable and not for subqueries or views'),
+			b?: TJoinedTable extends MySqlTable ? IndexConfig
+				: 'Index hint configuration is allowed only for MySqlTable and not for subqueries or views',
 		) => {
+			const isCrossJoin = joinType === 'cross';
+			let on = (isCrossJoin ? undefined : a) as (
+				| ((aliases: TSelection) => SQL | undefined)
+				| SQL
+				| undefined
+			);
+			const onIndex = (isCrossJoin ? a : b) as TJoinedTable extends MySqlTable ? IndexConfig
+				: 'Index hint configuration is allowed only for MySqlTable and not for subqueries or views';
+
 			const baseTableName = this.tableName;
 			const tableName = getTableLikeName(table);
 
@@ -228,7 +286,22 @@ export abstract class MySqlSelectQueryBuilderBase<
 				this.config.joins = [];
 			}
 
-			this.config.joins.push({ on, table, joinType, alias: tableName });
+			let useIndex: string[] = [];
+			let forceIndex: string[] = [];
+			let ignoreIndex: string[] = [];
+			if (is(table, MySqlTable) && onIndex && typeof onIndex !== 'string') {
+				if (onIndex.useIndex) {
+					useIndex = convertIndexToString(toArray(onIndex.useIndex));
+				}
+				if (onIndex.forceIndex) {
+					forceIndex = convertIndexToString(toArray(onIndex.forceIndex));
+				}
+				if (onIndex.ignoreIndex) {
+					ignoreIndex = convertIndexToString(toArray(onIndex.ignoreIndex));
+				}
+			}
+
+			this.config.joins.push({ on, table, joinType, alias: tableName, useIndex, forceIndex, ignoreIndex, lateral });
 
 			if (typeof tableName === 'string') {
 				switch (joinType) {
@@ -243,15 +316,9 @@ export abstract class MySqlSelectQueryBuilderBase<
 						this.joinsNotNullableMap[tableName] = true;
 						break;
 					}
+					case 'cross':
 					case 'inner': {
 						this.joinsNotNullableMap[tableName] = true;
-						break;
-					}
-					case 'full': {
-						this.joinsNotNullableMap = Object.fromEntries(
-							Object.entries(this.joinsNotNullableMap).map(([key]) => [key, false]),
-						);
-						this.joinsNotNullableMap[tableName] = false;
 						break;
 					}
 				}
@@ -270,25 +337,50 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 *
 	 * @param table the table to join.
 	 * @param on the `on` clause.
+	 * @param onIndex index hint.
 	 *
 	 * @example
 	 *
 	 * ```ts
 	 * // Select all users and their pets
-	 * const usersWithPets: { user: User; pets: Pet | null }[] = await db.select()
+	 * const usersWithPets: { user: User; pets: Pet | null; }[] = await db.select()
 	 *   .from(users)
 	 *   .leftJoin(pets, eq(users.id, pets.ownerId))
 	 *
 	 * // Select userId and petId
-	 * const usersIdsAndPetIds: { userId: number; petId: number | null }[] = await db.select({
+	 * const usersIdsAndPetIds: { userId: number; petId: number | null; }[] = await db.select({
 	 *   userId: users.id,
 	 *   petId: pets.id,
 	 * })
 	 *   .from(users)
 	 *   .leftJoin(pets, eq(users.id, pets.ownerId))
+	 *
+	 * // Select userId and petId with use index hint
+	 * const usersIdsAndPetIds: { userId: number; petId: number | null; }[] = await db.select({
+	 *   userId: users.id,
+	 *   petId: pets.id,
+	 * })
+	 *   .from(users)
+	 *   .leftJoin(pets, eq(users.id, pets.ownerId), {
+	 *     useIndex: ['pets_owner_id_index']
+	 * })
 	 * ```
 	 */
-	leftJoin = this.createJoin('left');
+	leftJoin = this.createJoin('left', false);
+
+	/**
+	 * Executes a `left join lateral` operation by adding subquery to the current query.
+	 *
+	 * A `lateral` join allows the right-hand expression to refer to columns from the left-hand side.
+	 *
+	 * Calling this method associates each row of the table with the corresponding row from the joined table, if a match is found. If no matching row exists, it sets all columns of the joined table to null.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/joins#left-join-lateral}
+	 *
+	 * @param table the subquery to join.
+	 * @param on the `on` clause.
+	 */
+	leftJoinLateral = this.createJoin('left', true);
 
 	/**
 	 * Executes a `right join` operation by adding another table to the current query.
@@ -299,25 +391,36 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 *
 	 * @param table the table to join.
 	 * @param on the `on` clause.
+	 * @param onIndex index hint.
 	 *
 	 * @example
 	 *
 	 * ```ts
 	 * // Select all users and their pets
-	 * const usersWithPets: { user: User | null; pets: Pet }[] = await db.select()
+	 * const usersWithPets: { user: User | null; pets: Pet; }[] = await db.select()
 	 *   .from(users)
 	 *   .rightJoin(pets, eq(users.id, pets.ownerId))
 	 *
 	 * // Select userId and petId
-	 * const usersIdsAndPetIds: { userId: number | null; petId: number }[] = await db.select({
+	 * const usersIdsAndPetIds: { userId: number | null; petId: number; }[] = await db.select({
 	 *   userId: users.id,
 	 *   petId: pets.id,
 	 * })
 	 *   .from(users)
 	 *   .rightJoin(pets, eq(users.id, pets.ownerId))
+	 *
+	 * // Select userId and petId with use index hint
+	 * const usersIdsAndPetIds: { userId: number; petId: number | null; }[] = await db.select({
+	 *   userId: users.id,
+	 *   petId: pets.id,
+	 * })
+	 *   .from(users)
+	 *   .leftJoin(pets, eq(users.id, pets.ownerId), {
+	 *     useIndex: ['pets_owner_id_index']
+	 * })
 	 * ```
 	 */
-	rightJoin = this.createJoin('right');
+	rightJoin = this.createJoin('right', false);
 
 	/**
 	 * Executes an `inner join` operation, creating a new table by combining rows from two tables that have matching values.
@@ -328,54 +431,102 @@ export abstract class MySqlSelectQueryBuilderBase<
 	 *
 	 * @param table the table to join.
 	 * @param on the `on` clause.
+	 * @param onIndex index hint.
 	 *
 	 * @example
 	 *
 	 * ```ts
 	 * // Select all users and their pets
-	 * const usersWithPets: { user: User; pets: Pet }[] = await db.select()
+	 * const usersWithPets: { user: User; pets: Pet; }[] = await db.select()
 	 *   .from(users)
 	 *   .innerJoin(pets, eq(users.id, pets.ownerId))
 	 *
 	 * // Select userId and petId
-	 * const usersIdsAndPetIds: { userId: number; petId: number }[] = await db.select({
+	 * const usersIdsAndPetIds: { userId: number; petId: number; }[] = await db.select({
 	 *   userId: users.id,
 	 *   petId: pets.id,
 	 * })
 	 *   .from(users)
 	 *   .innerJoin(pets, eq(users.id, pets.ownerId))
+	 *
+	 * // Select userId and petId with use index hint
+	 * const usersIdsAndPetIds: { userId: number; petId: number | null; }[] = await db.select({
+	 *   userId: users.id,
+	 *   petId: pets.id,
+	 * })
+	 *   .from(users)
+	 *   .leftJoin(pets, eq(users.id, pets.ownerId), {
+	 *     useIndex: ['pets_owner_id_index']
+	 * })
 	 * ```
 	 */
-	innerJoin = this.createJoin('inner');
+	innerJoin = this.createJoin('inner', false);
 
 	/**
-	 * Executes a `full join` operation by combining rows from two tables into a new table.
+	 * Executes an `inner join lateral` operation, creating a new table by combining rows from two queries that have matching values.
 	 *
-	 * Calling this method retrieves all rows from both main and joined tables, merging rows with matching values and filling in `null` for non-matching columns.
+	 * A `lateral` join allows the right-hand expression to refer to columns from the left-hand side.
 	 *
-	 * See docs: {@link https://orm.drizzle.team/docs/joins#full-join}
+	 * Calling this method retrieves rows that have corresponding entries in both joined tables. Rows without matching entries in either table are excluded, resulting in a table that includes only matching pairs.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/joins#inner-join-lateral}
+	 *
+	 * @param table the subquery to join.
+	 * @param on the `on` clause.
+	 */
+	innerJoinLateral = this.createJoin('inner', true);
+
+	/**
+	 * Executes a `cross join` operation by combining rows from two tables into a new table.
+	 *
+	 * Calling this method retrieves all rows from both main and joined tables, merging all rows from each table.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/joins#cross-join}
 	 *
 	 * @param table the table to join.
-	 * @param on the `on` clause.
+	 * @param onIndex index hint.
 	 *
 	 * @example
 	 *
 	 * ```ts
-	 * // Select all users and their pets
-	 * const usersWithPets: { user: User | null; pets: Pet | null }[] = await db.select()
+	 * // Select all users, each user with every pet
+	 * const usersWithPets: { user: User; pets: Pet; }[] = await db.select()
 	 *   .from(users)
-	 *   .fullJoin(pets, eq(users.id, pets.ownerId))
+	 *   .crossJoin(pets)
 	 *
 	 * // Select userId and petId
-	 * const usersIdsAndPetIds: { userId: number | null; petId: number | null }[] = await db.select({
+	 * const usersIdsAndPetIds: { userId: number; petId: number; }[] = await db.select({
 	 *   userId: users.id,
 	 *   petId: pets.id,
 	 * })
 	 *   .from(users)
-	 *   .fullJoin(pets, eq(users.id, pets.ownerId))
+	 *   .crossJoin(pets)
+	 *
+	 * // Select userId and petId with use index hint
+	 * const usersIdsAndPetIds: { userId: number; petId: number; }[] = await db.select({
+	 *   userId: users.id,
+	 *   petId: pets.id,
+	 * })
+	 *   .from(users)
+	 *   .crossJoin(pets, {
+	 *     useIndex: ['pets_owner_id_index']
+	 * })
 	 * ```
 	 */
-	fullJoin = this.createJoin('full');
+	crossJoin = this.createJoin('cross', false);
+
+	/**
+	 * Executes a `cross join lateral` operation by combining rows from two queries into a new table.
+	 *
+	 * A `lateral` join allows the right-hand expression to refer to columns from the left-hand side.
+	 *
+	 * Calling this method retrieves all rows from both main and joined queries, merging all rows from each query.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/joins#cross-join-lateral}
+	 *
+	 * @param table the query to join.
+	 */
+	crossJoinLateral = this.createJoin('cross', true);
 
 	private createSetOperator(
 		type: SetOperator,

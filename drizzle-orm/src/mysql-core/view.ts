@@ -7,7 +7,6 @@ import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import { getTableColumns } from '~/utils.ts';
 import type { MySqlColumn, MySqlColumnBuilderBase } from './columns/index.ts';
 import { QueryBuilder } from './query-builders/query-builder.ts';
-import type { SelectedFields } from './query-builders/select.types.ts';
 import { mysqlTable } from './table.ts';
 import { MySqlViewBase } from './view-base.ts';
 import { MySqlViewConfig } from './view-common.ts';
@@ -58,7 +57,7 @@ export class ViewBuilderCore<TConfig extends { name: string; columns?: unknown }
 export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<{ name: TName }> {
 	static override readonly [entityKind]: string = 'MySqlViewBuilder';
 
-	as<TSelectedFields extends SelectedFields>(
+	as<TSelectedFields extends ColumnsSelection>(
 		qb: TypedQueryBuilder<TSelectedFields> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelectedFields>),
 	): MySqlViewWithSelection<TName, false, AddAliasToSelection<TSelectedFields, TName, 'mysql'>> {
 		if (typeof qb === 'function') {
@@ -160,7 +159,7 @@ export class MySqlView<
 		config: {
 			name: TName;
 			schema: string | undefined;
-			selectedFields: SelectedFields;
+			selectedFields: ColumnsSelection;
 			query: SQL | undefined;
 		};
 	}) {

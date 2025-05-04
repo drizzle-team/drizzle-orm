@@ -1162,7 +1162,7 @@ const createTableUniques = (
 		statement += it.nameExplicit ? `"${it.name}")` : ')';
 		statement += `.on(${it.columns.map((it) => `table.${withCasing(it, casing)}`).join(', ')})`;
 		statement += it.nullsNotDistinct ? `.nullsNotDistinct()` : '';
-		statement += `,\n`;
+		statement += `,`;
 	});
 
 	return statement;
@@ -1178,7 +1178,7 @@ const createTableChecks = (
 		statement += 'check(';
 		statement += `"${it.name}", `;
 		statement += `sql\`${it.value}\`)`;
-		statement += `,\n`;
+		statement += `,`;
 	});
 
 	return statement;

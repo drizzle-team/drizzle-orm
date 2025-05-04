@@ -44,7 +44,7 @@ beforeAll(async () => {
 		container = contrainerObj;
 	}
 	client = await retry(async () => {
-		client = await mysql2.createConnection(connectionString);
+		client = await mysql2.createConnection({ uri: connectionString, supportBigNumbers: true });
 		await client.connect();
 		return client;
 	}, {
@@ -1041,7 +1041,7 @@ test('select for ...', () => {
 	}
 	{
 		const query = db.select().from(users2Table).for('update', { noWait: true }).toSQL();
-		expect(query.sql).toMatch(/ for update no wait$/);
+		expect(query.sql).toMatch(/ for update nowait$/);
 	}
 });
 

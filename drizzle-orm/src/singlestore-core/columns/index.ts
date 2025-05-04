@@ -22,4 +22,5 @@ export * from './timestamp.ts';
 export * from './tinyint.ts';
 export * from './varbinary.ts';
 export * from './varchar.ts';
+export * from './vector.ts';
 export * from './year.ts';

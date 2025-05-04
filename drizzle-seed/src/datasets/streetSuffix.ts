@@ -198,3 +198,5 @@ export default [
 	'Well',
 	'Wells',
 ];
+
+export const maxStringLength = 10;

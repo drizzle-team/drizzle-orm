@@ -442,7 +442,7 @@ test("sequential using of 'with'", async () => {
 
 // All data types test -------------------------------
 test('basic seed test for all mysql data types', async () => {
-	await seed(db, schema, { count: 10000 });
+	await seed(db, schema, { count: 1000 });
 
 	const allDataTypes = await db.select().from(schema.allDataTypes);
 

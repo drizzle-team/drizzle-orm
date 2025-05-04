@@ -3,10 +3,10 @@ import type { PgDialectConfig } from '~/pg-core/dialect.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
-import type { ColumnsSelection, SQLWrapper } from '~/sql/sql.ts';
+import type { ColumnsSelection, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { PgColumn } from '../columns/index.ts';
-import type { WithSubqueryWithSelection } from '../subquery.ts';
+import type { WithBuilder } from '../subquery.ts';
 import { PgSelectBuilder } from './select.ts';
 import type { SelectedFields } from './select.types.ts';
 
@@ -21,24 +21,30 @@ export class QueryBuilder {
 		this.dialectConfig = is(dialect, PgDialect) ? undefined : dialect;
 	}
 
-	$with<TAlias extends string>(alias: TAlias) {
+	$with: WithBuilder = (alias: string, selection?: ColumnsSelection) => {
 		const queryBuilder = this;
+		const as = (
+			qb:
+				| TypedQueryBuilder<ColumnsSelection | undefined>
+				| SQL
+				| ((qb: QueryBuilder) => TypedQueryBuilder<ColumnsSelection | undefined> | SQL),
+		) => {
+			if (typeof qb === 'function') {
+				qb = qb(queryBuilder);
+			}
 
-		return {
-			as<TSelection extends ColumnsSelection>(
-				qb: TypedQueryBuilder<TSelection> | ((qb: QueryBuilder) => TypedQueryBuilder<TSelection>),
-			): WithSubqueryWithSelection<TSelection, TAlias> {
-				if (typeof qb === 'function') {
-					qb = qb(queryBuilder);
-				}
-
-				return new Proxy(
-					new WithSubquery(qb.getSQL(), qb.getSelectedFields() as SelectedFields, alias, true),
-					new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
-				) as WithSubqueryWithSelection<TSelection, TAlias>;
-			},
+			return new Proxy(
+				new WithSubquery(
+					qb.getSQL(),
+					selection ?? ('getSelectedFields' in qb ? qb.getSelectedFields() ?? {} : {}) as SelectedFields,
+					alias,
+					true,
+				),
+				new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
+			) as any;
 		};
-	}
+		return { as };
+	};
 
 	with(...queries: WithSubquery[]) {
 		const self = this;
@@ -58,7 +64,9 @@ export class QueryBuilder {
 
 		function selectDistinct(): PgSelectBuilder<undefined, 'qb'>;
 		function selectDistinct<TSelection extends SelectedFields>(fields: TSelection): PgSelectBuilder<TSelection, 'qb'>;
-		function selectDistinct(fields?: SelectedFields): PgSelectBuilder<SelectedFields | undefined, 'qb'> {
+		function selectDistinct<TSelection extends SelectedFields>(
+			fields?: TSelection,
+		): PgSelectBuilder<TSelection | undefined, 'qb'> {
 			return new PgSelectBuilder({
 				fields: fields ?? undefined,
 				session: undefined,
@@ -72,10 +80,10 @@ export class QueryBuilder {
 			on: (PgColumn | SQLWrapper)[],
 			fields: TSelection,
 		): PgSelectBuilder<TSelection, 'qb'>;
-		function selectDistinctOn(
+		function selectDistinctOn<TSelection extends SelectedFields>(
 			on: (PgColumn | SQLWrapper)[],
-			fields?: SelectedFields,
-		): PgSelectBuilder<SelectedFields | undefined, 'qb'> {
+			fields?: TSelection,
+		): PgSelectBuilder<TSelection | undefined, 'qb'> {
 			return new PgSelectBuilder({
 				fields: fields ?? undefined,
 				session: undefined,
@@ -99,7 +107,7 @@ export class QueryBuilder {
 
 	selectDistinct(): PgSelectBuilder<undefined>;
 	selectDistinct<TSelection extends SelectedFields>(fields: TSelection): PgSelectBuilder<TSelection>;
-	selectDistinct(fields?: SelectedFields): PgSelectBuilder<SelectedFields | undefined> {
+	selectDistinct<TSelection extends SelectedFields>(fields?: TSelection): PgSelectBuilder<TSelection | undefined> {
 		return new PgSelectBuilder({
 			fields: fields ?? undefined,
 			session: undefined,
@@ -113,10 +121,10 @@ export class QueryBuilder {
 		on: (PgColumn | SQLWrapper)[],
 		fields: TSelection,
 	): PgSelectBuilder<TSelection>;
-	selectDistinctOn(
+	selectDistinctOn<TSelection extends SelectedFields>(
 		on: (PgColumn | SQLWrapper)[],
-		fields?: SelectedFields,
-	): PgSelectBuilder<SelectedFields | undefined> {
+		fields?: TSelection,
+	): PgSelectBuilder<TSelection | undefined> {
 		return new PgSelectBuilder({
 			fields: fields ?? undefined,
 			session: undefined,

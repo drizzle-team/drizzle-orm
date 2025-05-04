@@ -1,6 +1,6 @@
+import * as crypto from 'node:crypto';
 import { type Equal, Expect } from 'type-tests/utils.ts';
 import type { BuildColumn } from '~/column-builder.ts';
-import { eq } from '~/expressions.ts';
 import {
 	bigint,
 	binary,
@@ -34,9 +34,11 @@ import {
 	uniqueIndex,
 	varbinary,
 	varchar,
+	vector,
 	year,
 } from '~/singlestore-core/index.ts';
 import { singlestoreSchema } from '~/singlestore-core/schema.ts';
+import { eq } from '~/sql/expressions/index.ts';
 /* import { singlestoreView, type SingleStoreViewWithSelection } from '~/singlestore-core/view.ts'; */
 import type { InferSelectModel } from '~/table.ts';
 import type { Simplify } from '~/utils.ts';
@@ -81,57 +83,69 @@ export const cities = singlestoreTable('cities_table', {
 Expect<
 	Equal<
 		{
-			id: SingleStoreColumn<{
-				name: 'id';
-				tableName: 'cities_table';
-				dataType: 'number';
-				columnType: 'SingleStoreSerial';
-				data: number;
-				driverParam: number;
-				notNull: true;
-				hasDefault: true;
-				isPrimaryKey: true;
-				isAutoincrement: true;
-				hasRuntimeDefault: false;
-				enumValues: undefined;
-				baseColumn: never;
-				identity: undefined;
-				generated: undefined;
-			}, object>;
-			name: SingleStoreColumn<{
-				name: 'name_db';
-				tableName: 'cities_table';
-				dataType: 'string';
-				columnType: 'SingleStoreText';
-				data: string;
-				driverParam: string;
-				notNull: true;
-				hasDefault: false;
-				isPrimaryKey: false;
-				isAutoincrement: false;
-				hasRuntimeDefault: false;
-				enumValues: [string, ...string[]];
-				baseColumn: never;
-				identity: undefined;
-				generated: undefined;
-			}, object>;
-			population: SingleStoreColumn<{
-				name: 'population';
-				tableName: 'cities_table';
-				dataType: 'number';
-				columnType: 'SingleStoreInt';
-				data: number;
-				driverParam: string | number;
-				notNull: false;
-				hasDefault: true;
-				isPrimaryKey: false;
-				isAutoincrement: false;
-				hasRuntimeDefault: false;
-				enumValues: undefined;
-				baseColumn: never;
-				identity: undefined;
-				generated: undefined;
-			}, object>;
+			id: SingleStoreColumn<
+				{
+					name: 'id';
+					tableName: 'cities_table';
+					dataType: 'number';
+					columnType: 'SingleStoreSerial';
+					data: number;
+					driverParam: number;
+					notNull: true;
+					hasDefault: true;
+					isPrimaryKey: true;
+					isAutoincrement: true;
+					hasRuntimeDefault: false;
+					enumValues: undefined;
+					baseColumn: never;
+					identity: undefined;
+					generated: undefined;
+				},
+				{},
+				{}
+			>;
+			name: SingleStoreColumn<
+				{
+					name: 'name_db';
+					tableName: 'cities_table';
+					dataType: 'string';
+					columnType: 'SingleStoreText';
+					data: string;
+					driverParam: string;
+					notNull: true;
+					hasDefault: false;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+					enumValues: [string, ...string[]];
+					baseColumn: never;
+					identity: undefined;
+					generated: undefined;
+				},
+				{},
+				{}
+			>;
+			population: SingleStoreColumn<
+				{
+					name: 'population';
+					tableName: 'cities_table';
+					dataType: 'number';
+					columnType: 'SingleStoreInt';
+					data: number;
+					driverParam: string | number;
+					notNull: false;
+					hasDefault: true;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+					enumValues: undefined;
+					baseColumn: never;
+					identity: undefined;
+					generated: undefined;
+				},
+				{},
+				{}
+			>;
 		},
 		typeof cities._.columns
 	>
@@ -905,6 +919,8 @@ Expect<
 		varchar: varchar('varchar', { length: 1 }),
 		varchar2: varchar('varchar2', { length: 1, enum: ['a', 'b', 'c'] }),
 		varchardef: varchar('varchardef', { length: 1 }).default(''),
+		vector: vector('vector', { dimensions: 1 }),
+		vector2: vector('vector2', { dimensions: 1, elementType: 'I8' }),
 		year: year('year'),
 		yeardef: year('yeardef').default(0),
 	});
@@ -1003,6 +1019,8 @@ Expect<
 		varchar: varchar({ length: 1 }),
 		varchar2: varchar({ length: 1, enum: ['a', 'b', 'c'] }),
 		varchardef: varchar({ length: 1 }).default(''),
+		vector: vector({ dimensions: 1 }),
+		vector2: vector({ dimensions: 1, elementType: 'I8' }),
 		year: year(),
 		yeardef: year().default(0),
 	});

@@ -12,5 +12,4 @@ dist-dts
 rollup.config-*.mjs
 *.log
 .DS_Store
-drizzle-seed/src/test.ts
-drizzle-seed/src/schemaTest.ts
+drizzle-seed/src/dev

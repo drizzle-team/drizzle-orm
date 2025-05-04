@@ -184,8 +184,14 @@ export type Writable<T> = {
 	-readonly [P in keyof T]: T[P];
 };
 
+export type NonArray<T> = T extends any[] ? never : T;
+
 export function getTableColumns<T extends Table>(table: T): T['_']['columns'] {
 	return table[Table.Symbol.Columns];
+}
+
+export function getViewSelectedFields<T extends View>(view: T): T['_']['selectedFields'] {
+	return view[ViewBaseConfig].selectedFields;
 }
 
 /** @internal */
@@ -274,14 +280,14 @@ export function isConfig(data: any): boolean {
 	}
 
 	if ('schema' in data) {
-		const type = typeof data['logger'];
+		const type = typeof data['schema'];
 		if (type !== 'object' && type !== 'undefined') return false;
 
 		return true;
 	}
 
 	if ('casing' in data) {
-		const type = typeof data['logger'];
+		const type = typeof data['casing'];
 		if (type !== 'string' && type !== 'undefined') return false;
 
 		return true;

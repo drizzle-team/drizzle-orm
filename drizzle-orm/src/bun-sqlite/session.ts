@@ -117,7 +117,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		super('sync', executeMethod, query);
 	}
 
-	run(placeholderValues?: Record<string, unknown>): void {
+	run(placeholderValues?: Record<string, unknown>) {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 		return this.stmt.run(...params);

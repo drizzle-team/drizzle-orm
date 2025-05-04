@@ -5,9 +5,6 @@ import { assertUnreachable } from 'src/global';
 import { unescapeSingleQuotes } from 'src/utils';
 import { CheckConstraint, Column, ForeignKey, Index, MysqlDDL, PrimaryKey, ViewColumn } from './ddl';
 
-// time precision to fsp
-// {mode: "string"} for timestamp by default
-
 const mysqlImportsList = new Set([
 	'mysqlTable',
 	'mysqlEnum',
@@ -309,9 +306,7 @@ const column = (
 	if (lowered.startsWith('int')) {
 		const isUnsigned = lowered.startsWith('int unsigned');
 		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
-		let out = `${casing(name)}: int(${columnName}${
-			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
-		})`;
+		let out = `${casing(name)}: int(${columnName}${isUnsigned ? '{ unsigned: true }' : ''})`;
 		out += autoincrement ? `.autoincrement()` : '';
 		out += defaultValue
 			? `.default(${mapColumnDefault(defaultValue)})`
@@ -323,9 +318,7 @@ const column = (
 		const isUnsigned = lowered.startsWith('tinyint unsigned');
 		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
 		// let out = `${name.camelCase()}: tinyint("${name}")`;
-		let out: string = `${casing(name)}: tinyint(${columnName}${
-			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
-		})`;
+		let out: string = `${casing(name)}: tinyint(${columnName}${isUnsigned ? '{ unsigned: true }' : ''})`;
 		out += autoincrement ? `.autoincrement()` : '';
 		out += defaultValue ? `.default(${mapColumnDefault(defaultValue)})` : '';
 		return out;
@@ -334,9 +327,7 @@ const column = (
 	if (lowered.startsWith('smallint')) {
 		const isUnsigned = lowered.startsWith('smallint unsigned');
 		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
-		let out = `${casing(name)}: smallint(${columnName}${
-			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
-		})`;
+		let out = `${casing(name)}: smallint(${columnName}${isUnsigned ? '{ unsigned: true }' : ''})`;
 		out += autoincrement ? `.autoincrement()` : '';
 		out += defaultValue ? `.default(${mapColumnDefault(defaultValue)})` : '';
 		return out;
@@ -345,9 +336,7 @@ const column = (
 	if (lowered.startsWith('mediumint')) {
 		const isUnsigned = lowered.startsWith('mediumint unsigned');
 		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
-		let out = `${casing(name)}: mediumint(${columnName}${
-			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
-		})`;
+		let out = `${casing(name)}: mediumint(${columnName}${isUnsigned ? '{ unsigned: true }' : ''})`;
 		out += autoincrement ? `.autoincrement()` : '';
 		out += defaultValue ? `.default(${mapColumnDefault(defaultValue)})` : '';
 		return out;

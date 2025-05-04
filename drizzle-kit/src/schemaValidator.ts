@@ -1,6 +1,6 @@
 import { enum as enumType, TypeOf } from 'zod';
 
-export const dialects = ['postgresql', 'mysql', 'sqlite', 'turso', 'singlestore'] as const;
+export const dialects = ['postgresql', 'mysql', 'sqlite', 'turso', 'singlestore', 'gel'] as const;
 export const dialect = enumType(dialects);
 
 export type Dialect = (typeof dialects)[number];

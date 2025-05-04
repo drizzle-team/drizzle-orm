@@ -3,7 +3,6 @@ import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
-import { and, eq } from '~/expressions.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
 import {
 	type BuildRelationalQueryResult,
@@ -17,6 +16,7 @@ import {
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
 } from '~/relations.ts';
+import { and, eq } from '~/sql/expressions/index.ts';
 import { Param, SQL, sql, View } from '~/sql/sql.ts';
 import type { Name, Placeholder, QueryWithTypings, SQLChunk } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
@@ -244,6 +244,18 @@ export class MySqlDialect {
 		return orderBy && orderBy.length > 0 ? sql` order by ${sql.join(orderBy, sql`, `)}` : undefined;
 	}
 
+	private buildIndex({
+		indexes,
+		indexFor,
+	}: {
+		indexes: string[] | undefined;
+		indexFor: 'USE' | 'FORCE' | 'IGNORE';
+	}): SQL | undefined {
+		return indexes && indexes.length > 0
+			? sql` ${sql.raw(indexFor)} INDEX (${sql.raw(indexes.join(`, `))})`
+			: undefined;
+	}
+
 	buildSelectQuery(
 		{
 			withList,
@@ -260,6 +272,9 @@ export class MySqlDialect {
 			lockingClause,
 			distinct,
 			setOperators,
+			useIndex,
+			forceIndex,
+			ignoreIndex,
 		}: MySqlSelectConfig,
 	): SQL {
 		const fieldsList = fieldsFlat ?? orderSelectedFields<MySqlColumn>(fields);
@@ -297,8 +312,10 @@ export class MySqlDialect {
 		const selection = this.buildSelection(fieldsList, { isSingleTable });
 
 		const tableSql = (() => {
-			if (is(table, Table) && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
-				return sql`${sql.identifier(table[Table.Symbol.OriginalName])} ${sql.identifier(table[Table.Symbol.Name])}`;
+			if (is(table, Table) && table[Table.Symbol.IsAlias]) {
+				return sql`${sql`${sql.identifier(table[Table.Symbol.Schema] ?? '')}.`.if(table[Table.Symbol.Schema])}${
+					sql.identifier(table[Table.Symbol.OriginalName])
+				} ${sql.identifier(table[Table.Symbol.Name])}`;
 			}
 
 			return table;
@@ -313,16 +330,22 @@ export class MySqlDialect {
 				}
 				const table = joinMeta.table;
 				const lateralSql = joinMeta.lateral ? sql` lateral` : undefined;
+				const onSql = joinMeta.on ? sql` on ${joinMeta.on}` : undefined;
 
 				if (is(table, MySqlTable)) {
 					const tableName = table[MySqlTable.Symbol.Name];
 					const tableSchema = table[MySqlTable.Symbol.Schema];
 					const origTableName = table[MySqlTable.Symbol.OriginalName];
 					const alias = tableName === origTableName ? undefined : joinMeta.alias;
+					const useIndexSql = this.buildIndex({ indexes: joinMeta.useIndex, indexFor: 'USE' });
+					const forceIndexSql = this.buildIndex({ indexes: joinMeta.forceIndex, indexFor: 'FORCE' });
+					const ignoreIndexSql = this.buildIndex({ indexes: joinMeta.ignoreIndex, indexFor: 'IGNORE' });
 					joinsArray.push(
 						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
 							tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined
-						}${sql.identifier(origTableName)}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
+						}${sql.identifier(origTableName)}${useIndexSql}${forceIndexSql}${ignoreIndexSql}${
+							alias && sql` ${sql.identifier(alias)}`
+						}${onSql}`,
 					);
 				} else if (is(table, View)) {
 					const viewName = table[ViewBaseConfig].name;
@@ -332,11 +355,11 @@ export class MySqlDialect {
 					joinsArray.push(
 						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${
 							viewSchema ? sql`${sql.identifier(viewSchema)}.` : undefined
-						}${sql.identifier(origViewName)}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
+						}${sql.identifier(origViewName)}${alias && sql` ${sql.identifier(alias)}`}${onSql}`,
 					);
 				} else {
 					joinsArray.push(
-						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${table} on ${joinMeta.on}`,
+						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${table}${onSql}`,
 					);
 				}
 				if (index < joins.length - 1) {
@@ -359,19 +382,25 @@ export class MySqlDialect {
 
 		const offsetSql = offset ? sql` offset ${offset}` : undefined;
 
+		const useIndexSql = this.buildIndex({ indexes: useIndex, indexFor: 'USE' });
+
+		const forceIndexSql = this.buildIndex({ indexes: forceIndex, indexFor: 'FORCE' });
+
+		const ignoreIndexSql = this.buildIndex({ indexes: ignoreIndex, indexFor: 'IGNORE' });
+
 		let lockingClausesSql;
 		if (lockingClause) {
 			const { config, strength } = lockingClause;
 			lockingClausesSql = sql` for ${sql.raw(strength)}`;
 			if (config.noWait) {
-				lockingClausesSql.append(sql` no wait`);
+				lockingClausesSql.append(sql` nowait`);
 			} else if (config.skipLocked) {
 				lockingClausesSql.append(sql` skip locked`);
 			}
 		}
 
 		const finalQuery =
-			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
+			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${useIndexSql}${forceIndexSql}${ignoreIndexSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}${lockingClausesSql}`;
 
 		if (setOperators.length > 0) {
 			return this.buildSetOperations(finalQuery, setOperators);

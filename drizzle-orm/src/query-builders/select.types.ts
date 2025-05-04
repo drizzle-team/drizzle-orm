@@ -6,7 +6,7 @@ import type { Subquery } from '~/subquery.ts';
 import type { Table } from '~/table.ts';
 import type { Assume, DrizzleTypeError, Equal, IsAny, Simplify } from '~/utils.ts';
 
-export type JoinType = 'inner' | 'left' | 'right' | 'full';
+export type JoinType = 'inner' | 'left' | 'right' | 'full' | 'cross';
 
 export type JoinNullability = 'nullable' | 'not-null';
 
@@ -93,6 +93,7 @@ export type AddAliasToSelection<
 		: {
 			[Key in keyof TSelection]: TSelection[Key] extends Column
 				? ChangeColumnTableName<TSelection[Key], TAlias, TDialect>
+				: TSelection[Key] extends Table ? AddAliasToSelection<TSelection[Key]['_']['columns'], TAlias, TDialect>
 				: TSelection[Key] extends SQL | SQL.Aliased ? TSelection[Key]
 				: TSelection[Key] extends ColumnsSelection ? MapColumnsToTableAlias<TSelection[Key], TAlias, TDialect>
 				: never;
@@ -120,6 +121,7 @@ export type BuildSubquerySelection<
 			[Key in keyof TSelection]: TSelection[Key] extends SQL
 				? DrizzleTypeError<'You cannot reference this field without assigning it an alias first - use `.as(<alias>)`'>
 				: TSelection[Key] extends SQL.Aliased ? TSelection[Key]
+				: TSelection[Key] extends Table ? BuildSubquerySelection<TSelection[Key]['_']['columns'], TNullability>
 				: TSelection[Key] extends Column
 					? ApplyNullabilityToColumn<TSelection[Key], TNullability[TSelection[Key]['_']['tableName']]>
 				: TSelection[Key] extends ColumnsSelection ? BuildSubquerySelection<TSelection[Key], TNullability>
@@ -138,6 +140,7 @@ export type AppendToNullabilityMap<
 > = TJoinedName extends string ? 'left' extends TJoinType ? TJoinsNotNull & { [name in TJoinedName]: 'nullable' }
 	: 'right' extends TJoinType ? SetJoinsNullability<TJoinsNotNull, 'nullable'> & { [name in TJoinedName]: 'not-null' }
 	: 'inner' extends TJoinType ? TJoinsNotNull & { [name in TJoinedName]: 'not-null' }
+	: 'cross' extends TJoinType ? TJoinsNotNull & { [name in TJoinedName]: 'not-null' }
 	: 'full' extends TJoinType ? SetJoinsNullability<TJoinsNotNull, 'nullable'> & { [name in TJoinedName]: 'nullable' }
 	: never
 	: TJoinsNotNull;
@@ -164,7 +167,7 @@ export type SelectResultField<T, TDeep extends boolean = true> = T extends Drizz
 
 export type SelectResultFields<TSelectedFields, TDeep extends boolean = true> = Simplify<
 	{
-		[Key in keyof TSelectedFields & string]: SelectResultField<TSelectedFields[Key], TDeep>;
+		[Key in keyof TSelectedFields]: SelectResultField<TSelectedFields[Key], TDeep>;
 	}
 >;
 

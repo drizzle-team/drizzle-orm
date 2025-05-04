@@ -1,7 +1,7 @@
 import type { RunResult } from 'better-sqlite3';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
-import { and, eq } from '~/expressions.ts';
+import { and, eq } from '~/sql/expressions/index.ts';
 import { sql } from '~/sql/sql.ts';
 import { integer, QueryBuilder, sqliteTable, text } from '~/sqlite-core/index.ts';
 import type { SQLiteInsert } from '~/sqlite-core/query-builders/insert.ts';
