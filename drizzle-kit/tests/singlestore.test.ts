@@ -10,6 +10,7 @@ import {
 	text,
 	uniqueIndex,
 } from 'drizzle-orm/singlestore-core';
+import { JsonStatement } from 'src/jsonStatements';
 import { expect, test } from 'vitest';
 import { diffTestSchemasSingleStore } from './schemaDiffer';
 
@@ -974,5 +975,591 @@ test('set not null + rename table on table with indexes', async () => {
 	);
 	expect(sqlStatements[4]).toBe(
 		'ALTER TABLE `__new_table1` RENAME TO `table1`;',
+	);
+});
+
+test('rename table. change autoncrement', async (t) => {
+	const schema1 = {
+		users: singlestoreTable('users', {
+			id: int('id').primaryKey().autoincrement(),
+			name: text('name').notNull(),
+			age: int('age').notNull(),
+		}),
+	};
+
+	const schema2 = {
+		users: singlestoreTable('users1', {
+			id: int('id').primaryKey(),
+			name: text('name'),
+			age: int('age').notNull(),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasSingleStore(
+		schema1,
+		schema2,
+		['public.users->public.users1'],
+	);
+
+	expect(statements.length).toBe(2);
+	expect(statements[0]).toStrictEqual({
+		type: 'rename_table',
+		tableNameFrom: 'users',
+		tableNameTo: 'users1',
+		fromSchema: undefined,
+		toSchema: undefined,
+	});
+	expect(statements[1]).toStrictEqual({
+		type: 'singlestore_recreate_table',
+		columns: [{
+			autoincrement: false,
+			generated: undefined,
+			name: 'id',
+			notNull: true,
+			primaryKey: false,
+			onUpdate: undefined,
+			type: 'int',
+		}, {
+			autoincrement: false,
+			generated: undefined,
+			name: 'name',
+			notNull: false,
+			primaryKey: false,
+			onUpdate: undefined,
+			type: 'text',
+		}, {
+			autoincrement: false,
+			generated: undefined,
+			name: 'age',
+			notNull: true,
+			primaryKey: false,
+			onUpdate: undefined,
+			type: 'int',
+		}],
+		columnsToTransfer: ['id', 'name', 'age'],
+		compositePKs: ['users1_id;id'],
+		tableName: 'users1',
+		uniqueConstraints: [],
+	} as JsonStatement);
+
+	expect(sqlStatements.length).toBe(5);
+	expect(sqlStatements[0]).toBe(
+		'ALTER TABLE `users` RENAME TO `users1`;',
+	);
+	expect(sqlStatements[1]).toBe(
+		`CREATE TABLE \`__new_users1\` (
+\t\`id\` int NOT NULL,
+\t\`name\` text,
+\t\`age\` int NOT NULL,
+\tCONSTRAINT \`users1_id\` PRIMARY KEY(\`id\`)
+);\n`,
+	);
+	expect(sqlStatements[2]).toBe(
+		'INSERT INTO `__new_users1`(`id`, `name`, `age`) SELECT `id`, `name`, `age` FROM `users1`;',
+	);
+	expect(sqlStatements[3]).toBe(
+		'DROP TABLE `users1`;',
+	);
+	expect(sqlStatements[4]).toBe(
+		'ALTER TABLE `__new_users1` RENAME TO `users1`;',
+	);
+});
+
+test('rename column. change autoncrement', async (t) => {
+	const schema1 = {
+		users: singlestoreTable('users', {
+			id: int('id').primaryKey().autoincrement(),
+			name: text('name').notNull(),
+			age: int('age').notNull(),
+		}),
+	};
+
+	const schema2 = {
+		users: singlestoreTable('users', {
+			id: int('id').primaryKey(),
+			name: text('name1'),
+			age: int('age').notNull(),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasSingleStore(
+		schema1,
+		schema2,
+		['public.users.name->public.users.name1'],
+	);
+
+	expect(statements.length).toBe(2);
+	expect(statements[0]).toStrictEqual({
+		type: 'alter_table_rename_column',
+		newColumnName: 'name1',
+		oldColumnName: 'name',
+		tableName: 'users',
+		schema: '',
+	});
+	expect(statements[1]).toStrictEqual({
+		type: 'singlestore_recreate_table',
+		columns: [{
+			autoincrement: false,
+			generated: undefined,
+			name: 'id',
+			notNull: true,
+			primaryKey: false,
+			onUpdate: undefined,
+			type: 'int',
+		}, {
+			autoincrement: false,
+			generated: undefined,
+			name: 'name1',
+			notNull: false,
+			onUpdate: undefined,
+			primaryKey: false,
+			type: 'text',
+		}, {
+			autoincrement: false,
+			generated: undefined,
+			name: 'age',
+			notNull: true,
+			onUpdate: undefined,
+			primaryKey: false,
+			type: 'int',
+		}],
+		columnsToTransfer: ['id', 'name1', 'age'],
+		compositePKs: ['users_id;id'],
+		tableName: 'users',
+		uniqueConstraints: [],
+	} as JsonStatement);
+
+	expect(sqlStatements.length).toBe(5);
+	expect(sqlStatements[0]).toBe(
+		'ALTER TABLE `users` CHANGE `name` `name1`;',
+	);
+	expect(sqlStatements[1]).toBe(
+		`CREATE TABLE \`__new_users\` (
+\t\`id\` int NOT NULL,
+\t\`name1\` text,
+\t\`age\` int NOT NULL,
+\tCONSTRAINT \`users_id\` PRIMARY KEY(\`id\`)
+);\n`,
+	);
+	expect(sqlStatements[2]).toBe(
+		'INSERT INTO `__new_users`(`id`, `name1`, `age`) SELECT `id`, `name1`, `age` FROM `users`;',
+	);
+	expect(sqlStatements[3]).toBe(
+		'DROP TABLE `users`;',
+	);
+	expect(sqlStatements[4]).toBe(
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+	);
+});
+
+test('rename table. change autoncrement. dropped column', async (t) => {
+	const schema1 = {
+		users: singlestoreTable('users', {
+			id: int('id').primaryKey().autoincrement(),
+			name: text('name').notNull(),
+			age: int('age').notNull(),
+		}),
+	};
+
+	const schema2 = {
+		users: singlestoreTable('users1', {
+			id: int('id').primaryKey(),
+			name: text('name'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasSingleStore(
+		schema1,
+		schema2,
+		['public.users->public.users1'],
+	);
+
+	expect(statements.length).toBe(2);
+	expect(statements[0]).toStrictEqual({
+		type: 'rename_table',
+		tableNameFrom: 'users',
+		tableNameTo: 'users1',
+		fromSchema: undefined,
+		toSchema: undefined,
+	});
+	expect(statements[1]).toStrictEqual({
+		type: 'singlestore_recreate_table',
+		columns: [{
+			autoincrement: false,
+			generated: undefined,
+			name: 'id',
+			onUpdate: undefined,
+			notNull: true,
+			primaryKey: false,
+			type: 'int',
+		}, {
+			autoincrement: false,
+			generated: undefined,
+			name: 'name',
+			notNull: false,
+			onUpdate: undefined,
+			primaryKey: false,
+			type: 'text',
+		}],
+		columnsToTransfer: ['id', 'name'],
+		compositePKs: ['users1_id;id'],
+		tableName: 'users1',
+		uniqueConstraints: [],
+	} as JsonStatement);
+
+	expect(sqlStatements.length).toBe(5);
+	expect(sqlStatements[0]).toBe(
+		'ALTER TABLE `users` RENAME TO `users1`;',
+	);
+	expect(sqlStatements[1]).toBe(
+		`CREATE TABLE \`__new_users1\` (
+\t\`id\` int NOT NULL,
+\t\`name\` text,
+\tCONSTRAINT \`users1_id\` PRIMARY KEY(\`id\`)
+);\n`,
+	);
+	expect(sqlStatements[2]).toBe(
+		'INSERT INTO `__new_users1`(`id`, `name`) SELECT `id`, `name` FROM `users1`;',
+	);
+	expect(sqlStatements[3]).toBe(
+		'DROP TABLE `users1`;',
+	);
+	expect(sqlStatements[4]).toBe(
+		'ALTER TABLE `__new_users1` RENAME TO `users1`;',
+	);
+});
+
+test('rename table. change autoncrement. added column', async (t) => {
+	const schema1 = {
+		users: singlestoreTable('users', {
+			id: int('id').primaryKey().autoincrement(),
+			name: text('name').notNull(),
+		}),
+	};
+
+	const schema2 = {
+		users: singlestoreTable('users1', {
+			id: int('id').primaryKey(),
+			name: text('name'),
+			age: int('age'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasSingleStore(
+		schema1,
+		schema2,
+		['public.users->public.users1'],
+	);
+
+	expect(statements.length).toBe(2);
+	expect(statements[0]).toStrictEqual({
+		type: 'rename_table',
+		tableNameFrom: 'users',
+		tableNameTo: 'users1',
+		fromSchema: undefined,
+		toSchema: undefined,
+	});
+	expect(statements[1]).toStrictEqual({
+		type: 'singlestore_recreate_table',
+		columns: [{
+			autoincrement: false,
+			generated: undefined,
+			name: 'id',
+			notNull: true,
+			onUpdate: undefined,
+			primaryKey: false,
+			type: 'int',
+		}, {
+			autoincrement: false,
+			generated: undefined,
+			name: 'name',
+			notNull: false,
+			primaryKey: false,
+			onUpdate: undefined,
+			type: 'text',
+		}, {
+			autoincrement: false,
+			generated: undefined,
+			name: 'age',
+			notNull: false,
+			primaryKey: false,
+			onUpdate: undefined,
+			type: 'int',
+		}],
+		columnsToTransfer: ['id', 'name'],
+		compositePKs: ['users1_id;id'],
+		tableName: 'users1',
+		uniqueConstraints: [],
+	} as JsonStatement);
+
+	expect(sqlStatements.length).toBe(5);
+	expect(sqlStatements[0]).toBe(
+		'ALTER TABLE `users` RENAME TO `users1`;',
+	);
+	expect(sqlStatements[1]).toBe(
+		`CREATE TABLE \`__new_users1\` (
+\t\`id\` int NOT NULL,
+\t\`name\` text,
+\t\`age\` int,
+\tCONSTRAINT \`users1_id\` PRIMARY KEY(\`id\`)
+);\n`,
+	);
+	expect(sqlStatements[2]).toBe(
+		'INSERT INTO `__new_users1`(`id`, `name`) SELECT `id`, `name` FROM `users1`;',
+	);
+	expect(sqlStatements[3]).toBe(
+		'DROP TABLE `users1`;',
+	);
+	expect(sqlStatements[4]).toBe(
+		'ALTER TABLE `__new_users1` RENAME TO `users1`;',
+	);
+});
+
+test('rename column. change autoncrement. added column', async (t) => {
+	const schema1 = {
+		users: singlestoreTable('users', {
+			id: int('id').primaryKey().autoincrement(),
+			name: text('name').notNull(),
+		}),
+	};
+
+	const schema2 = {
+		users: singlestoreTable('users', {
+			id: int('id').primaryKey(),
+			name: text('name1'),
+			age: int('age').notNull(),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasSingleStore(
+		schema1,
+		schema2,
+		['public.users.name->public.users.name1'],
+	);
+
+	expect(statements.length).toBe(2);
+	expect(statements[0]).toStrictEqual({
+		type: 'alter_table_rename_column',
+		newColumnName: 'name1',
+		oldColumnName: 'name',
+		tableName: 'users',
+		schema: '',
+	});
+	expect(statements[1]).toStrictEqual({
+		type: 'singlestore_recreate_table',
+		columns: [{
+			autoincrement: false,
+			generated: undefined,
+			name: 'id',
+			notNull: true,
+			primaryKey: false,
+			onUpdate: undefined,
+			type: 'int',
+		}, {
+			autoincrement: false,
+			generated: undefined,
+			name: 'name1',
+			notNull: false,
+			primaryKey: false,
+			onUpdate: undefined,
+			type: 'text',
+		}, {
+			autoincrement: false,
+			generated: undefined,
+			name: 'age',
+			notNull: true,
+			onUpdate: undefined,
+			primaryKey: false,
+			type: 'int',
+		}],
+		columnsToTransfer: ['id', 'name1'],
+		compositePKs: ['users_id;id'],
+		tableName: 'users',
+		uniqueConstraints: [],
+	} as JsonStatement);
+
+	expect(sqlStatements.length).toBe(5);
+	expect(sqlStatements[0]).toBe(
+		'ALTER TABLE `users` CHANGE `name` `name1`;',
+	);
+	expect(sqlStatements[1]).toBe(
+		`CREATE TABLE \`__new_users\` (
+\t\`id\` int NOT NULL,
+\t\`name1\` text,
+\t\`age\` int NOT NULL,
+\tCONSTRAINT \`users_id\` PRIMARY KEY(\`id\`)
+);\n`,
+	);
+	expect(sqlStatements[2]).toBe(
+		'INSERT INTO `__new_users`(`id`, `name1`) SELECT `id`, `name1` FROM `users`;',
+	);
+	expect(sqlStatements[3]).toBe(
+		'DROP TABLE `users`;',
+	);
+	expect(sqlStatements[4]).toBe(
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+	);
+});
+
+test('rename table. rename column. change autoncrement', async (t) => {
+	const schema1 = {
+		users: singlestoreTable('users', {
+			id: int('id').primaryKey().autoincrement(),
+			name: text('name').notNull(),
+			age: int('age').notNull(),
+		}),
+	};
+
+	const schema2 = {
+		users: singlestoreTable('users1', {
+			id: int('id').primaryKey(),
+			name: text('name1'),
+			age: int('age').notNull(),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasSingleStore(
+		schema1,
+		schema2,
+		['public.users->public.users1', 'public.users1.name->public.users1.name1'],
+	);
+
+	expect(statements.length).toBe(3);
+	expect(statements[0]).toStrictEqual({
+		type: 'rename_table',
+		tableNameFrom: 'users',
+		tableNameTo: 'users1',
+		fromSchema: undefined,
+		toSchema: undefined,
+	});
+	expect(statements[1]).toStrictEqual({
+		type: 'alter_table_rename_column',
+		newColumnName: 'name1',
+		oldColumnName: 'name',
+		tableName: 'users1',
+		schema: '',
+	});
+	expect(statements[2]).toStrictEqual({
+		type: 'singlestore_recreate_table',
+		columns: [{
+			autoincrement: false,
+			generated: undefined,
+			name: 'id',
+			notNull: true,
+			onUpdate: undefined,
+			primaryKey: false,
+			type: 'int',
+		}, {
+			autoincrement: false,
+			generated: undefined,
+			name: 'name1',
+			onUpdate: undefined,
+			notNull: false,
+			primaryKey: false,
+			type: 'text',
+		}, {
+			autoincrement: false,
+			generated: undefined,
+			name: 'age',
+			notNull: true,
+			onUpdate: undefined,
+			primaryKey: false,
+			type: 'int',
+		}],
+		columnsToTransfer: ['id', 'name1', 'age'],
+		compositePKs: ['users1_id;id'],
+		tableName: 'users1',
+		uniqueConstraints: [],
+	} as JsonStatement);
+
+	expect(sqlStatements.length).toBe(6);
+	expect(sqlStatements[0]).toBe(
+		'ALTER TABLE `users` RENAME TO `users1`;',
+	);
+	expect(sqlStatements[1]).toBe(
+		'ALTER TABLE `users1` CHANGE `name` `name1`;',
+	);
+	expect(sqlStatements[2]).toBe(
+		`CREATE TABLE \`__new_users1\` (
+\t\`id\` int NOT NULL,
+\t\`name1\` text,
+\t\`age\` int NOT NULL,
+\tCONSTRAINT \`users1_id\` PRIMARY KEY(\`id\`)
+);\n`,
+	);
+	expect(sqlStatements[3]).toBe(
+		'INSERT INTO `__new_users1`(`id`, `name1`, `age`) SELECT `id`, `name1`, `age` FROM `users1`;',
+	);
+	expect(sqlStatements[4]).toBe(
+		'DROP TABLE `users1`;',
+	);
+	expect(sqlStatements[5]).toBe(
+		'ALTER TABLE `__new_users1` RENAME TO `users1`;',
+	);
+});
+
+test('change autoncrement. add column. drop column', async (t) => {
+	const schema1 = {
+		users: singlestoreTable('users', {
+			id: int('id').primaryKey().autoincrement(),
+			name: text('name').notNull(),
+		}),
+	};
+
+	const schema2 = {
+		users: singlestoreTable('users', {
+			id: int('id').primaryKey(),
+			age: int('age'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemasSingleStore(
+		schema1,
+		schema2,
+		[],
+	);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		type: 'singlestore_recreate_table',
+		columns: [{
+			autoincrement: false,
+			generated: undefined,
+			name: 'id',
+			notNull: true,
+			onUpdate: undefined,
+			primaryKey: false,
+			type: 'int',
+		}, {
+			autoincrement: false,
+			generated: undefined,
+			name: 'age',
+			notNull: false,
+			onUpdate: undefined,
+			primaryKey: false,
+			type: 'int',
+		}],
+		columnsToTransfer: ['id'],
+		compositePKs: ['users_id;id'],
+		tableName: 'users',
+		uniqueConstraints: [],
+	} as JsonStatement);
+
+	expect(sqlStatements.length).toBe(4);
+	expect(sqlStatements[0]).toBe(
+		`CREATE TABLE \`__new_users\` (
+\t\`id\` int NOT NULL,
+\t\`age\` int,
+\tCONSTRAINT \`users_id\` PRIMARY KEY(\`id\`)
+);\n`,
+	);
+	expect(sqlStatements[1]).toBe(
+		'INSERT INTO `__new_users`(`id`) SELECT `id` FROM `users`;',
+	);
+	expect(sqlStatements[2]).toBe(
+		'DROP TABLE `users`;',
+	);
+	expect(sqlStatements[3]).toBe(
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
 	);
 });

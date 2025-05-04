@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { check, int, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { JsonStatement } from 'src/jsonStatements';
 import { expect, test } from 'vitest';
 import { diffTestSchemasSqlite } from './schemaDiffer';
 
@@ -90,11 +91,12 @@ test('add check contraint to existing table', async (t) => {
 		],
 		compositePKs: [],
 		referenceData: [],
+		columnsToTransfer: ['id', 'age'],
 		tableName: 'users',
 		type: 'recreate_table',
 		uniqueConstraints: [],
 		checkConstraints: ['some_check_name;"users"."age" > 21'],
-	});
+	} as JsonStatement);
 
 	expect(sqlStatements.length).toBe(6);
 	expect(sqlStatements[0]).toBe('PRAGMA foreign_keys=OFF;');
@@ -103,7 +105,7 @@ test('add check contraint to existing table', async (t) => {
 \t\`age\` integer,
 \tCONSTRAINT "some_check_name" CHECK("__new_users"."age" > 21)
 );\n`);
-	expect(sqlStatements[2]).toBe(`INSERT INTO \`__new_users\`("id", "age") SELECT "id", "age" FROM \`users\`;`);
+	expect(sqlStatements[2]).toBe('INSERT INTO `__new_users`(`id`, `age`) SELECT `id`, `age` FROM `users`;');
 	expect(sqlStatements[3]).toBe(`DROP TABLE \`users\`;`);
 	expect(sqlStatements[4]).toBe(`ALTER TABLE \`__new_users\` RENAME TO \`users\`;`);
 	expect(sqlStatements[5]).toBe(`PRAGMA foreign_keys=ON;`);
@@ -149,12 +151,13 @@ test('drop check contraint to existing table', async (t) => {
 			},
 		],
 		compositePKs: [],
+		columnsToTransfer: ['id', 'age'],
 		referenceData: [],
 		tableName: 'users',
 		type: 'recreate_table',
 		uniqueConstraints: [],
 		checkConstraints: [],
-	});
+	} as JsonStatement);
 
 	expect(sqlStatements.length).toBe(6);
 	expect(sqlStatements[0]).toBe('PRAGMA foreign_keys=OFF;');
@@ -162,7 +165,7 @@ test('drop check contraint to existing table', async (t) => {
 \t\`id\` integer PRIMARY KEY NOT NULL,
 \t\`age\` integer
 );\n`);
-	expect(sqlStatements[2]).toBe(`INSERT INTO \`__new_users\`("id", "age") SELECT "id", "age" FROM \`users\`;`);
+	expect(sqlStatements[2]).toBe('INSERT INTO `__new_users`(`id`, `age`) SELECT `id`, `age` FROM `users`;');
 	expect(sqlStatements[3]).toBe(`DROP TABLE \`users\`;`);
 	expect(sqlStatements[4]).toBe(`ALTER TABLE \`__new_users\` RENAME TO \`users\`;`);
 	expect(sqlStatements[5]).toBe(`PRAGMA foreign_keys=ON;`);
@@ -212,10 +215,11 @@ test('rename check constraint', async (t) => {
 		compositePKs: [],
 		referenceData: [],
 		tableName: 'users',
+		columnsToTransfer: ['id', 'age'],
 		type: 'recreate_table',
 		uniqueConstraints: [],
 		checkConstraints: [`new_some_check_name;"users"."age" > 21`],
-	});
+	} as JsonStatement);
 
 	expect(sqlStatements.length).toBe(6);
 	expect(sqlStatements[0]).toBe('PRAGMA foreign_keys=OFF;');
@@ -224,7 +228,7 @@ test('rename check constraint', async (t) => {
 \t\`age\` integer,
 \tCONSTRAINT "new_some_check_name" CHECK("__new_users"."age" > 21)
 );\n`);
-	expect(sqlStatements[2]).toBe(`INSERT INTO \`__new_users\`("id", "age") SELECT "id", "age" FROM \`users\`;`);
+	expect(sqlStatements[2]).toBe('INSERT INTO `__new_users`(`id`, `age`) SELECT `id`, `age` FROM `users`;');
 	expect(sqlStatements[3]).toBe(`DROP TABLE \`users\`;`);
 	expect(sqlStatements[4]).toBe(`ALTER TABLE \`__new_users\` RENAME TO \`users\`;`);
 	expect(sqlStatements[5]).toBe(`PRAGMA foreign_keys=ON;`);
@@ -274,10 +278,11 @@ test('rename check constraint', async (t) => {
 		compositePKs: [],
 		referenceData: [],
 		tableName: 'users',
+		columnsToTransfer: ['id', 'age'],
 		type: 'recreate_table',
 		uniqueConstraints: [],
 		checkConstraints: [`some_check_name;"users"."age" > 10`],
-	});
+	} as JsonStatement);
 
 	expect(sqlStatements.length).toBe(6);
 	expect(sqlStatements[0]).toBe('PRAGMA foreign_keys=OFF;');
@@ -286,7 +291,7 @@ test('rename check constraint', async (t) => {
 \t\`age\` integer,
 \tCONSTRAINT "some_check_name" CHECK("__new_users"."age" > 10)
 );\n`);
-	expect(sqlStatements[2]).toBe(`INSERT INTO \`__new_users\`("id", "age") SELECT "id", "age" FROM \`users\`;`);
+	expect(sqlStatements[2]).toBe('INSERT INTO `__new_users`(`id`, `age`) SELECT `id`, `age` FROM `users`;');
 	expect(sqlStatements[3]).toBe(`DROP TABLE \`users\`;`);
 	expect(sqlStatements[4]).toBe(`ALTER TABLE \`__new_users\` RENAME TO \`users\`;`);
 	expect(sqlStatements[5]).toBe(`PRAGMA foreign_keys=ON;`);

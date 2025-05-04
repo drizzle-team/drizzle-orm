@@ -1734,8 +1734,8 @@ export const diffTestSchemasPushSingleStore = async (
 				},
 			},
 			statements,
-			sn1,
-			sn2,
+			validatedPrev,
+			validatedCur,
 		);
 
 		return {
