@@ -16,6 +16,7 @@ export abstract class Cache {
 		key: string,
 		tables: string[],
 		isTag: boolean,
+		isAutoInvalidate?: boolean,
 	): Promise<any[] | undefined>;
 
 	/**

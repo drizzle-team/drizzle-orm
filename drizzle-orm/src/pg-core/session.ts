@@ -99,6 +99,7 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 				this.cacheConfig.tag ?? await hashQuery(queryString, params),
 				this.queryMetadata.tables,
 				this.cacheConfig.tag !== undefined,
+				this.cacheConfig.autoInvalidate,
 			);
 			if (fromCache === undefined) {
 				const result = await query();
