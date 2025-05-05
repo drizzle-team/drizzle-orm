@@ -682,3 +682,17 @@ test('fk #1', async () => {
 		'CREATE TABLE `places` (\n\t`id` int,\n\t`ref` int,\n\tCONSTRAINT `places_ref_users_id_fk` FOREIGN KEY (`ref`) REFERENCES `users`(`id`)\n);\n',
 	]);
 });
+
+test('add table with ts enum', async () => {
+	enum Test {
+		value = 'value',
+	}
+	const to = {
+		users: mysqlTable('users', {
+			enum: mysqlEnum(Test),
+		}),
+	};
+
+	const { sqlStatements } = await diff({}, to, []);
+	expect(sqlStatements).toStrictEqual(["CREATE TABLE `users` (\n\t`enum` enum('value')\n);\n"]);
+});
