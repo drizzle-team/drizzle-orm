@@ -188,11 +188,7 @@ test('with composite pks #3', async (t) => {
 				id1: integer('id1'),
 				id2: integer('id2'),
 			},
-			(t) => {
-				return {
-					pk: primaryKey({ columns: [t.id1, t.id2], name: 'compositePK' }),
-				};
-			},
+			(t) => [primaryKey({ columns: [t.id1, t.id2], name: 'compositePK' })],
 		),
 	};
 

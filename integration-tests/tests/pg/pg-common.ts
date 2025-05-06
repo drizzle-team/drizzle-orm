@@ -604,14 +604,17 @@ export function tests() {
 		}
 
 		test('table configs: unique third param', async () => {
-			const cities1Table = pgTable('cities1', {
-				id: serial('id').primaryKey(),
-				name: text('name').notNull(),
-				state: char('state', { length: 2 }),
-			}, (t) => ({
-				f: unique('custom_name').on(t.name, t.state).nullsNotDistinct(),
-				f1: unique('custom_name1').on(t.name, t.state),
-			}));
+			const cities1Table = pgTable(
+				'cities1',
+				{
+					id: serial('id').primaryKey(),
+					name: text('name').notNull(),
+					state: char('state', { length: 2 }),
+				},
+				(
+					t,
+				) => [unique('custom_name').on(t.name, t.state).nullsNotDistinct(), unique('custom_name1').on(t.name, t.state)],
+			);
 
 			const tableConfig = getTableConfig(cities1Table);
 
@@ -656,9 +659,7 @@ export function tests() {
 				id: serial('id').primaryKey(),
 				name: text('name').notNull(),
 				state: text('state'),
-			}, (t) => ({
-				f: foreignKey({ foreignColumns: [t.id], columns: [t.id], name: 'custom_fk' }),
-			}));
+			}, (t) => [foreignKey({ foreignColumns: [t.id], columns: [t.id], name: 'custom_fk' })]);
 
 			const tableConfig = getTableConfig(table);
 
@@ -671,9 +672,7 @@ export function tests() {
 				id: serial('id').primaryKey(),
 				name: text('name').notNull(),
 				state: text('state'),
-			}, (t) => ({
-				f: primaryKey({ columns: [t.id, t.name], name: 'custom_pk' }),
-			}));
+			}, (t) => [primaryKey({ columns: [t.id, t.name], name: 'custom_pk' })]);
 
 			const tableConfig = getTableConfig(table);
 
@@ -5244,9 +5243,7 @@ export function tests() {
 				notificationId: integer('notification_id').notNull().references(() => notifications.id, {
 					onDelete: 'cascade',
 				}),
-			}, (t) => ({
-				pk: primaryKey({ columns: [t.userId, t.notificationId] }),
-			}));
+			}, (t) => [primaryKey({ columns: [t.userId, t.notificationId] })]);
 
 			await db.execute(sql`drop table if exists notifications`);
 			await db.execute(sql`drop table if exists users`);
@@ -5397,10 +5394,10 @@ export function tests() {
 				const table = pgTable('table_with_policy', {
 					id: serial('id').primaryKey(),
 					name: text('name').notNull(),
-				}, () => ({
+				}, () => [
 					p1,
 					p2,
-				}));
+				]);
 				const config = getTableConfig(table);
 				expect(config.policies).toHaveLength(2);
 				expect(config.policies[0]).toBe(p1);

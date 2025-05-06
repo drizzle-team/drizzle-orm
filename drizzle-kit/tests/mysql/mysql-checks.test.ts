@@ -8,9 +8,9 @@ test('create table with check', async (t) => {
 		users: mysqlTable('users', {
 			id: serial('id').primaryKey(),
 			age: int('age'),
-		}, (table) => ({
-			checkConstraint: check('some_check_name', sql`${table.age} > 21`),
-		})),
+		}, (table) => [
+			check('some_check_name', sql`${table.age} > 21`),
+		]),
 	};
 
 	const { sqlStatements } = await diff({}, to, []);
@@ -36,9 +36,9 @@ test('add check contraint to existing table', async (t) => {
 		users: mysqlTable('users', {
 			id: serial('id').primaryKey(),
 			age: int('age'),
-		}, (table) => ({
-			checkConstraint: check('some_check_name', sql`${table.age} > 21`),
-		})),
+		}, (table) => [
+			check('some_check_name', sql`${table.age} > 21`),
+		]),
 	};
 
 	const { sqlStatements } = await diff(from, to, []);
@@ -60,9 +60,7 @@ test('drop check contraint in existing table', async (t) => {
 		users: mysqlTable('users', {
 			id: serial('id').primaryKey(),
 			age: int('age'),
-		}, (table) => ({
-			checkConstraint: check('some_check_name', sql`${table.age} > 21`),
-		})),
+		}, (table) => [check('some_check_name', sql`${table.age} > 21`)]),
 	};
 
 	const { sqlStatements } = await diff(from, to, []);
@@ -77,18 +75,14 @@ test('rename check constraint', async (t) => {
 		users: mysqlTable('users', {
 			id: serial('id').primaryKey(),
 			age: int('age'),
-		}, (table) => ({
-			checkConstraint: check('some_check_name', sql`${table.age} > 21`),
-		})),
+		}, (table) => [check('some_check_name', sql`${table.age} > 21`)]),
 	};
 
 	const to = {
 		users: mysqlTable('users', {
 			id: serial('id').primaryKey(),
 			age: int('age'),
-		}, (table) => ({
-			checkConstraint: check('new_check_name', sql`${table.age} > 21`),
-		})),
+		}, (table) => [check('new_check_name', sql`${table.age} > 21`)]),
 	};
 
 	const { sqlStatements } = await diff(from, to, []);
@@ -104,18 +98,14 @@ test('alter check constraint', async (t) => {
 		users: mysqlTable('users', {
 			id: serial('id').primaryKey(),
 			age: int('age'),
-		}, (table) => ({
-			checkConstraint: check('some_check_name', sql`${table.age} > 21`),
-		})),
+		}, (table) => [check('some_check_name', sql`${table.age} > 21`)]),
 	};
 
 	const to = {
 		users: mysqlTable('users', {
 			id: serial('id').primaryKey(),
 			age: int('age'),
-		}, (table) => ({
-			checkConstraint: check('new_check_name', sql`${table.age} > 10`),
-		})),
+		}, (table) => [check('new_check_name', sql`${table.age} > 10`)]),
 	};
 
 	const { sqlStatements, statements } = await diff(from, to, []);
@@ -128,25 +118,37 @@ test('alter check constraint', async (t) => {
 
 test('alter multiple check constraints', async (t) => {
 	const from = {
-		users: mysqlTable('users', {
-			id: serial('id').primaryKey(),
-			age: int('age'),
-			name: varchar('name', { length: 255 }),
-		}, (table) => ({
-			checkConstraint1: check('some_check_name_1', sql`${table.age} > 21`),
-			checkConstraint2: check('some_check_name_2', sql`${table.name} != 'Alex'`),
-		})),
+		users: mysqlTable(
+			'users',
+			{
+				id: serial('id').primaryKey(),
+				age: int('age'),
+				name: varchar('name', { length: 255 }),
+			},
+			(
+				table,
+			) => [
+				check('some_check_name_1', sql`${table.age} > 21`),
+				check('some_check_name_2', sql`${table.name} != 'Alex'`),
+			],
+		),
 	};
 
 	const to = {
-		users: mysqlTable('users', {
-			id: serial('id').primaryKey(),
-			age: int('age'),
-			name: varchar('name', { length: 255 }),
-		}, (table) => ({
-			checkConstraint1: check('some_check_name_3', sql`${table.age} > 21`),
-			checkConstraint2: check('some_check_name_4', sql`${table.name} != 'Alex'`),
-		})),
+		users: mysqlTable(
+			'users',
+			{
+				id: serial('id').primaryKey(),
+				age: int('age'),
+				name: varchar('name', { length: 255 }),
+			},
+			(
+				table,
+			) => [
+				check('some_check_name_3', sql`${table.age} > 21`),
+				check('some_check_name_4', sql`${table.name} != 'Alex'`),
+			],
+		),
 	};
 
 	const { sqlStatements } = await diff(from, to, []);
@@ -164,10 +166,10 @@ test('create checks with same names', async (t) => {
 			id: serial('id').primaryKey(),
 			age: int('age'),
 			name: varchar('name', { length: 255 }),
-		}, (table) => ({
-			checkConstraint1: check('some_check_name', sql`${table.age} > 21`),
-			checkConstraint2: check('some_check_name', sql`${table.name} != 'Alex'`),
-		})),
+		}, (table) => [
+			check('some_check_name', sql`${table.age} > 21`),
+			check('some_check_name', sql`${table.name} != 'Alex'`),
+		]),
 	};
 
 	await expect(diff({}, to, [])).rejects.toThrowError();

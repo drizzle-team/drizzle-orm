@@ -34,12 +34,10 @@ export const employees = sqliteTable(
 		reportsTo: integer('reports_to'),
 		photoPath: text('photo_path'),
 	},
-	(table) => ({
-		reportsToFk: foreignKey(() => ({
-			columns: [table.reportsTo],
-			foreignColumns: [table.id],
-		})),
-	}),
+	(table) => [foreignKey({
+		columns: [table.reportsTo],
+		foreignColumns: [table.id],
+	})],
 );
 
 export const orders = sqliteTable('order', {

@@ -206,11 +206,9 @@ const usersMigratorTable = singlestoreTable('users12', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	email: text('email').notNull(),
-}, (table) => {
-	return {
-		name: uniqueIndex('').on(table.name).using('btree'),
-	};
-});
+}, (table) => [
+	uniqueIndex('').on(table.name).using('btree'),
+]);
 
 // To test aggregate functions
 const aggregateTable = singlestoreTable('aggregate_table', {
@@ -517,9 +515,7 @@ export function tests(driver?: string) {
 				id: serial('id').primaryKey(),
 				name: text('name').notNull(),
 				state: text('state'),
-			}, (t) => ({
-				f: primaryKey({ columns: [t.id, t.name], name: 'custom_pk' }),
-			}));
+			}, (t) => [primaryKey({ columns: [t.id, t.name], name: 'custom_pk' })]);
 
 			const tableConfig = getTableConfig(table);
 
@@ -532,10 +528,7 @@ export function tests(driver?: string) {
 				id: serial('id').primaryKey(),
 				name: text('name').notNull(),
 				state: text('state'),
-			}, (t) => ({
-				f: unique('custom_name').on(t.name, t.state),
-				f1: unique('custom_name1').on(t.name, t.state),
-			}));
+			}, (t) => [unique('custom_name').on(t.name, t.state), unique('custom_name1').on(t.name, t.state)]);
 
 			const tableConfig = getTableConfig(cities1Table);
 

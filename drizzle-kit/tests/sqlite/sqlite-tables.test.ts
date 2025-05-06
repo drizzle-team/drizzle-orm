@@ -45,14 +45,10 @@ test('add table #3', async () => {
 			{
 				id: int('id'),
 			},
-			(t) => {
-				return {
-					pk: primaryKey({
-						name: 'users_pk',
-						columns: [t.id],
-					}),
-				};
-			},
+			(t) => [primaryKey({
+				name: 'users_pk',
+				columns: [t.id],
+			})],
 		),
 	};
 
@@ -79,11 +75,9 @@ test('add table #5', async () => {
 		users: sqliteTable('users', {
 			id1: integer(),
 			id2: integer(),
-		}, (t) => {
-			return {
-				pk: primaryKey({ columns: [t.id1, t.id2] }),
-			};
-		}),
+		}, (t) => [
+			primaryKey({ columns: [t.id1, t.id2] }),
+		]),
 	};
 
 	const { sqlStatements } = await diff({}, to, []);
@@ -155,11 +149,7 @@ test('add table #9', async () => {
 				id: int('id').primaryKey({ autoIncrement: true }),
 				reporteeId: int('reportee_id'),
 			},
-			(t) => {
-				return {
-					reporteeIdx: index('reportee_idx').on(t.reporteeId),
-				};
-			},
+			(t) => [index('reportee_idx').on(t.reporteeId)],
 		),
 	};
 
@@ -270,13 +260,11 @@ test('rename table #2', async () => {
 				id: integer().primaryKey({ autoIncrement: true }),
 				profileId: integer(),
 			},
-			(t) => ({
-				fk: foreignKey({
-					name: 'table_profileId',
-					columns: [t.id],
-					foreignColumns: [profiles.id],
-				}),
-			}),
+			(t) => [foreignKey({
+				name: 'table_profileId',
+				columns: [t.id],
+				foreignColumns: [profiles.id],
+			})],
 		),
 	};
 
@@ -288,13 +276,11 @@ test('rename table #2', async () => {
 				id: integer().primaryKey({ autoIncrement: true }),
 				profileId: integer(),
 			},
-			(t) => ({
-				fk: foreignKey({
-					name: 'table_profileId',
-					columns: [t.id],
-					foreignColumns: [profiles.id],
-				}),
-			}),
+			(t) => [foreignKey({
+				name: 'table_profileId',
+				columns: [t.id],
+				foreignColumns: [profiles.id],
+			})],
 		),
 	};
 	const { sqlStatements } = await diff(from, to, ['table->table1']);
@@ -338,23 +324,23 @@ test('add table with indexes', async () => {
 				name: text('name'),
 				email: text('email'),
 			},
-			(t) => ({
-				uniqueExpr: uniqueIndex('uniqueExpr').on(sql`(lower(${t.email}))`),
-				indexExpr: index('indexExpr').on(sql`(lower(${t.email}))`),
-				indexExprMultiple: index('indexExprMultiple').on(
+			(t) => [
+				uniqueIndex('uniqueExpr').on(sql`(lower(${t.email}))`),
+				index('indexExpr').on(sql`(lower(${t.email}))`),
+				index('indexExprMultiple').on(
 					sql`(lower(${t.email}))`,
 					sql`(lower(${t.email}))`,
 				),
 
-				uniqueCol: uniqueIndex('uniqueCol').on(t.email),
-				indexCol: index('indexCol').on(t.email),
-				indexColMultiple: index('indexColMultiple').on(t.email, t.email),
+				uniqueIndex('uniqueCol').on(t.email),
+				index('indexCol').on(t.email),
+				index('indexColMultiple').on(t.email, t.email),
 
-				indexColExpr: index('indexColExpr').on(
+				index('indexColExpr').on(
 					sql`(lower(${t.email}))`,
 					t.email,
 				),
-			}),
+			],
 		),
 	};
 
@@ -379,11 +365,9 @@ test('composite primary key', async () => {
 			workId: int('work_id').notNull(),
 			creatorId: int('creator_id').notNull(),
 			classification: text('classification').notNull(),
-		}, (t) => ({
-			pk: primaryKey({
-				columns: [t.workId, t.creatorId, t.classification],
-			}),
-		})),
+		}, (t) => [primaryKey({
+			columns: [t.workId, t.creatorId, t.classification],
+		})]),
 	};
 
 	const { sqlStatements } = await diff(from, to, []);
@@ -403,9 +387,7 @@ test('add column before creating unique constraint', async () => {
 		table: sqliteTable('table', {
 			id: int('id').primaryKey(),
 			name: text('name').notNull(),
-		}, (t) => ({
-			uq: unique('uq').on(t.name),
-		})),
+		}, (t) => [unique('uq').on(t.name)]),
 	};
 
 	const { sqlStatements } = await diff(from, to, []);
@@ -439,15 +421,15 @@ test('optional db aliases (snake case)', async () => {
 			t1UniIdx: int().notNull(),
 			t1Idx: int().notNull(),
 		},
-		(table) => ({
-			uni: unique('t1_uni').on(table.t1Uni),
-			uniIdx: uniqueIndex('t1_uni_idx').on(table.t1UniIdx),
-			idx: index('t1_idx').on(table.t1Idx),
-			fk: foreignKey({
+		(table) => [
+			unique('t1_uni').on(table.t1Uni),
+			uniqueIndex('t1_uni_idx').on(table.t1UniIdx),
+			index('t1_idx').on(table.t1Idx),
+			foreignKey({
 				columns: [table.t1Col2, table.t1Col3],
 				foreignColumns: [t3.t3Id1, t3.t3Id2],
 			}),
-		}),
+		],
 	);
 
 	const t2 = sqliteTable(
@@ -463,11 +445,9 @@ test('optional db aliases (snake case)', async () => {
 			t3Id1: int(),
 			t3Id2: int(),
 		},
-		(table) => ({
-			pk: primaryKey({
-				columns: [table.t3Id1, table.t3Id2],
-			}),
-		}),
+		(table) => [primaryKey({
+			columns: [table.t3Id1, table.t3Id2],
+		})],
 	);
 
 	const to = {
@@ -516,15 +496,15 @@ test('optional db aliases (camel case)', async () => {
 			t1_uni_idx: int().notNull(),
 			t1_idx: int().notNull(),
 		},
-		(table) => ({
-			uni: unique('t1Uni').on(table.t1_uni),
-			uni_idx: uniqueIndex('t1UniIdx').on(table.t1_uni_idx),
-			idx: index('t1Idx').on(table.t1_idx),
-			fk: foreignKey({
+		(table) => [
+			unique('t1Uni').on(table.t1_uni),
+			uniqueIndex('t1UniIdx').on(table.t1_uni_idx),
+			index('t1Idx').on(table.t1_idx),
+			foreignKey({
 				columns: [table.t1_col2, table.t1_col3],
 				foreignColumns: [t3.t3_id1, t3.t3_id2],
 			}),
-		}),
+		],
 	);
 
 	const t2 = sqliteTable(
@@ -540,11 +520,9 @@ test('optional db aliases (camel case)', async () => {
 			t3_id1: int(),
 			t3_id2: int(),
 		},
-		(table) => ({
-			pk: primaryKey({
-				columns: [table.t3_id1, table.t3_id2],
-			}),
-		}),
+		(table) => [primaryKey({
+			columns: [table.t3_id1, table.t3_id2],
+		})],
 	);
 
 	const to = {
