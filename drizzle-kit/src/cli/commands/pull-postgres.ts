@@ -30,8 +30,7 @@ import type { PostgresCredentials } from '../validations/postgres';
 import { err, ProgressView } from '../views';
 import { IntrospectProgress } from '../views';
 import { writeResult } from './generate-common';
-import { relationsToTypeScript } from './pull-common';
-import { prepareTablesFilter } from './utils';
+import { prepareTablesFilter, relationsToTypeScript } from './pull-common';
 
 export const introspectPostgres = async (
 	casing: Casing,

@@ -157,24 +157,82 @@ export const isSystemRole = (name: string) => {
 export const splitExpressions = (input: string | null): string[] => {
 	if (!input) return [];
 
-	// This regex uses three alternatives:
-	// 1. Quoted strings that allow escaped quotes: '([^']*(?:''[^']*)*)'
-	// 2. Parenthesized expressions that support one level of nesting:
-	//      \((?:[^()]+|\([^()]*\))*\)
-	// 3. Any character that is not a comma, quote, or parenthesis: [^,'()]
-	//
-	// It also trims optional whitespace before and after each token,
-	// requiring that tokens are followed by a comma or the end of the string.
-	const regex = /\s*((?:'[^']*(?:''[^']*)*'|\((?:[^()]+|\([^()]*\))*\)|[^,'()])+)\s*(?:,|$)/g;
-	const result: string[] = [];
-	let match: RegExpExecArray | null;
+	const expressions: string[] = [];
+	let parenDepth = 0;
+	let inSingleQuotes = false;
+	let inDoubleQuotes = false;
+	let currentExpressionStart = 0;
 
-	while ((match = regex.exec(input)) !== null) {
-		result.push(match[1].trim());
+	for (let i = 0; i < input.length; i++) {
+		const char = input[i];
+
+		if (char === "'" && input[i + 1] === "'") {
+			i++;
+			continue;
+		}
+
+		if (char === '"' && input[i + 1] === '"') {
+			i++;
+			continue;
+		}
+
+		if (char === "'") {
+			if (!inDoubleQuotes) {
+				inSingleQuotes = !inSingleQuotes;
+			}
+			continue;
+		}
+		if (char === '"') {
+			if (!inSingleQuotes) {
+				inDoubleQuotes = !inDoubleQuotes;
+			}
+			continue;
+		}
+
+		if (!inSingleQuotes && !inDoubleQuotes) {
+			if (char === '(') {
+				parenDepth++;
+			} else if (char === ')') {
+				parenDepth = Math.max(0, parenDepth - 1);
+			} else if (char === ',' && parenDepth === 0) {
+				expressions.push(input.substring(currentExpressionStart, i).trim());
+				currentExpressionStart = i + 1;
+			}
+		}
 	}
 
-	return result;
+	if (currentExpressionStart < input.length) {
+		expressions.push(input.substring(currentExpressionStart).trim());
+	}
+
+	return expressions.filter((s) => s.length > 0);
 };
+
+// export const splitExpressions = (input: string | null): string[] => {
+// 	if (!input) return [];
+
+// 	const wrapped = input.startsWith('(') && input.endsWith(')');
+// 	input = wrapped ? input.slice(1, input.length - 1) : input;
+
+// 	// This regex uses three alternatives:
+// 	// 1. Quoted strings that allow escaped quotes: '([^']*(?:''[^']*)*)'
+// 	// 2. Parenthesized expressions that support one level of nesting:
+// 	//      \((?:[^()]+|\([^()]*\))*\)
+// 	// 3. Any character that is not a comma, quote, or parenthesis: [^,'()]
+// 	//
+// 	// It also trims optional whitespace before and after each token,
+// 	// requiring that tokens are followed by a comma or the end of the string.
+// 	// const regex = /\s*((?:'[^']*(?:''[^']*)*'|\((?:[^()]+|\([^()]*\))*\)|[^,'()])+)\s*(?:,|$)/g;
+// 	const regex = /\s*((?:'(?:[^']|'')*'|\((?:[^()]+|\([^()]*\))*\)|[^,'()])+)\s*(?:,|$)/g;
+// 	const result: string[] = [];
+// 	let match: RegExpExecArray | null;
+
+// 	while ((match = regex.exec(input)) !== null) {
+// 		result.push(match[1].trim());
+// 	}
+
+// 	return result;
+// };
 
 export const wrapRecord = (it: Record<string, string>) => {
 	return {

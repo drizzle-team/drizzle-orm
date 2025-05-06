@@ -4,8 +4,8 @@ import { assertUnreachable } from 'src/global';
 import { SchemaError as SqliteSchemaError } from '../dialects/sqlite/ddl';
 import { Named, NamedWithSchema } from '../dialects/utils';
 import { vectorOps } from '../extensions/vector';
-import { SchemaError, SchemaWarning } from '../utils';
 import { withStyle } from './validations/outputs';
+import { SchemaError, SchemaWarning } from 'src/dialects/postgres/ddl';
 
 export const warning = (msg: string) => {
 	render(`[${chalk.yellow('Warning')}] ${msg}`);

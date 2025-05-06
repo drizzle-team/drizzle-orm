@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { render } from 'hanji';
+import { render, renderWithTask } from 'hanji';
 import { Column, interimToDDL, Table, View } from 'src/dialects/mysql/ddl';
 import { JsonStatement } from 'src/dialects/mysql/statements';
 import { prepareFilenames } from 'src/serializer';
@@ -11,6 +11,7 @@ import type { CasingType } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
 import { withStyle } from '../validations/outputs';
 import { ProgressView } from '../views';
+import { prepareTablesFilter } from './pull-common';
 
 export const handle = async (
 	schemaPath: string | string[],
@@ -22,14 +23,19 @@ export const handle = async (
 	casing: CasingType | undefined,
 ) => {
 	const { connectToSingleStore } = await import('../connections');
-	const { introspect } = await import('../../dialects/mysql/introspect');
+	const { fromDatabase } = await import('../../dialects/mysql/introspect');
+
+	const filter = prepareTablesFilter(tablesFilter);
 
 	const { db, database } = await connectToSingleStore(credentials);
 	const progress = new ProgressView(
 		'Pulling schema from database...',
 		'Pulling schema from database...',
 	);
-	const interimFromDB = await introspect(db, database, tablesFilter, progress);
+	const interimFromDB = await renderWithTask(
+		progress,
+		fromDatabase(db, database, filter),
+	);
 
 	const filenames = prepareFilenames(schemaPath);
 

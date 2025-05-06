@@ -1,9 +1,9 @@
-import { mockResolver } from 'src/utils/mocks';
+import { mockResolver } from '../../utils/mocks';
 import { Resolver } from '../common';
 import { diff } from '../dialect';
 import { groupDiffs } from '../utils';
 import { fromJson } from './convertor';
-import { Column, createDDL, DiffEntities, fullTableFromDDL, Index, MysqlDDL, Table, View } from './ddl';
+import { Column, DiffEntities, fullTableFromDDL, Index, MysqlDDL, Table, View } from './ddl';
 import { nameForForeignKey, typesCommutative } from './grammar';
 import { prepareStatement } from './statements';
 import { JsonStatement } from './statements';

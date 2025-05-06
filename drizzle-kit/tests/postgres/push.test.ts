@@ -2101,51 +2101,18 @@ test('column is enum type with default value. shuffle enum', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush(
-		client,
-		from,
-		to,
-		[],
-		false,
-		['public'],
-		undefined,
-	);
+	const { sqlStatements } = await diffTestSchemasPush({ client, init: from, destination: to });
 
-	expect(sqlStatements.length).toBe(6);
-	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
-	expect(sqlStatements[1]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2'::text;`);
-	expect(sqlStatements[2]).toBe(`DROP TYPE "public"."enum";`);
-	expect(sqlStatements[3]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value1', 'value3', 'value2');`);
-	expect(sqlStatements[4]).toBe(
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2'::"public"."enum";`,
+	expect(sqlStatements).toStrictEqual(
+		[
+			`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`,
+			`ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;`,
+			`DROP TYPE "enum";`,
+			`CREATE TYPE "enum" AS ENUM('value1', 'value3', 'value2');`,
+			'ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum" USING "column"::"enum";',
+			'ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT \'value2\';',
+		],
 	);
-	expect(sqlStatements[5]).toBe(
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "public"."enum" USING "column"::"public"."enum";`,
-	);
-
-	expect(statements.length).toBe(1);
-	expect(statements[0]).toStrictEqual({
-		columnsWithEnum: [
-			{
-				column: 'column',
-				tableSchema: '',
-				table: 'table',
-				default: "'value2'",
-				columnType: 'enum',
-			},
-		],
-		deletedValues: [
-			'value3',
-		],
-		name: 'enum',
-		newValues: [
-			'value1',
-			'value3',
-			'value2',
-		],
-		enumSchema: 'public',
-		type: 'alter_type_drop_value',
-	});
 });
 
 // Policies and Roles push test

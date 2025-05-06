@@ -125,14 +125,13 @@ test('basic index test', async () => {
 		]),
 	};
 
-	const { statements, sqlStatements } = await pushPullDiff(
+	const { sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'basic-index-introspect',
 	);
 
-	expect(statements.length).toBe(10);
-	expect(sqlStatements.length).toBe(10);
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('identity always test: few params', async () => {
