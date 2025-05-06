@@ -48,6 +48,7 @@ export const fromDatabase = async (
 		status: IntrospectStatus,
 	) => void = () => {},
 ) => {
+	// TODO: fetch tables and views list with system filter from grammar
 	const dbColumns = await db.query<{
 		table: string;
 		name: string;
@@ -74,13 +75,12 @@ export const fromDatabase = async (
 		JOIN pragma_table_xinfo(m.name) AS p
     WHERE 
 			(m.type = 'table' OR m.type = 'view')
-			and m.tbl_name != 'sqlite_sequence' 
-			and m.tbl_name != 'sqlite_stat1' 
-			and m.tbl_name != '_litestream_seq' 
-			and m.tbl_name != '_litestream_lock' 
-			and m.tbl_name != 'libsql_wasm_func_table' 
 			and m.tbl_name != '__drizzle_migrations' 
-			and m.tbl_name != '_cf_KV';
+			and m.tbl_name NOT LIKE '\\_cf\\_%' ESCAPE '\\'
+			and m.tbl_name NOT LIKE '\\_litestream\\_%' ESCAPE '\\'
+			and m.tbl_name NOT LIKE 'libsql\\_%' ESCAPE '\\'
+			and m.tbl_name  NOT LIKE 'sqlite\\_%' ESCAPE '\\'
+			;
     `,
 	).then((columns) => columns.filter((it) => tablesFilter(it.table)));
 

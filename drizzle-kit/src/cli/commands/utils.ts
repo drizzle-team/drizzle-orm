@@ -1,7 +1,6 @@
 import chalk from 'chalk';
 import { existsSync } from 'fs';
 import { render } from 'hanji';
-import { Minimatch } from 'minimatch';
 import { join, resolve } from 'path';
 import { object, string } from 'zod';
 import { getTablesFilterByExtensions } from '../../extensions/getTablesFilterByExtensions';
@@ -50,37 +49,6 @@ import {
 } from '../validations/sqlite';
 import { studioCliParams, studioConfig } from '../validations/studio';
 import { error } from '../views';
-
-export const prepareTablesFilter = (set: string[]) => {
-	const matchers = set.map((it) => {
-		return new Minimatch(it);
-	});
-
-	const filter = (tableName: string) => {
-		if (matchers.length === 0) return true;
-
-		let flags: boolean[] = [];
-
-		for (let matcher of matchers) {
-			if (matcher.negate) {
-				if (!matcher.match(tableName)) {
-					flags.push(false);
-				}
-			}
-
-			if (matcher.match(tableName)) {
-				flags.push(true);
-			}
-		}
-
-		if (flags.length > 0) {
-			return flags.every(Boolean);
-		}
-		return false;
-	};
-
-	return filter;
-};
 
 export const prepareCheckParams = async (
 	options: {

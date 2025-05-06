@@ -41,6 +41,7 @@ const singlestoreImportsList = new Set([
 	'tinyint',
 	'varbinary',
 	'varchar',
+	'vector',
 	'year',
 	'enum',
 ]);
@@ -647,6 +648,16 @@ const column = (
 		out += defaultValue
 			? `.default(${mapColumnDefault(defaultValue)})`
 			: '';
+		return out;
+	}
+
+	if (lowered.startsWith('vector')) {
+		const [dimensions, elementType] = lowered.substring('vector'.length + 1, lowered.length - 1).split(',');
+		let out = `${casing(name)}: vector(${
+			dbColumnName({ name, casing: rawCasing, withMode: true })
+		}{ dimensions: ${dimensions}, elementType: ${elementType} })`;
+
+		out += defaultValue ? `.default(${mapColumnDefault(defaultValue)})` : '';
 		return out;
 	}
 

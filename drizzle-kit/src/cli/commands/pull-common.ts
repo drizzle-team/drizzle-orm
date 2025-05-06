@@ -5,6 +5,7 @@ import { SqliteEntities } from 'src/dialects/sqlite/ddl';
 import { paramNameFor } from '../../dialects/postgres/typescript';
 import { assertUnreachable } from '../../global';
 import type { Casing } from '../validations/common';
+import { Minimatch } from 'minimatch';
 
 const withCasing = (value: string, casing: Casing) => {
 	if (casing === 'preserve') {
@@ -15,6 +16,37 @@ const withCasing = (value: string, casing: Casing) => {
 	}
 
 	assertUnreachable(casing);
+};
+
+export const prepareTablesFilter = (set: string[]) => {
+	const matchers = set.map((it) => {
+		return new Minimatch(it);
+	});
+
+	const filter = (tableName: string) => {
+		if (matchers.length === 0) return true;
+
+		let flags: boolean[] = [];
+
+		for (let matcher of matchers) {
+			if (matcher.negate) {
+				if (!matcher.match(tableName)) {
+					flags.push(false);
+				}
+			}
+
+			if (matcher.match(tableName)) {
+				flags.push(true);
+			}
+		}
+
+		if (flags.length > 0) {
+			return flags.every(Boolean);
+		}
+		return false;
+	};
+
+	return filter;
 };
 
 export const relationsToTypeScript = (

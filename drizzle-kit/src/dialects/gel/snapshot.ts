@@ -1,5 +1,4 @@
-import { mapValues, originUUID, snapshotVersion } from '../global';
-
+import { mapValues, originUUID } from '../../global';
 import { any, array, boolean, enum as enumType, literal, number, object, record, string, TypeOf, union } from 'zod';
 
 const enumSchema = object({
