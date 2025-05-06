@@ -1,10 +1,12 @@
-import { Column, Table, View } from 'src/dialects/mysql/ddl';
-import { diffDDL } from 'src/dialects/singlestore/diff';
+import { Column, createDDL, interimToDDL, Table, View } from 'src/dialects/mysql/ddl';
+import { ddlDiffDry, diffDDL } from 'src/dialects/singlestore/diff';
+import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/singlestore/drizzle';
 import { prepareSnapshot } from 'src/dialects/singlestore/serializer';
+import { prepareFilenames } from 'src/serializer';
 import { assertV1OutFolder, prepareMigrationFolder } from 'src/utils-node';
 import { resolver } from '../prompts';
 import { writeResult } from './generate-common';
-import type { GenerateConfig } from './utils';
+import type { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (config: GenerateConfig) => {
 	const outFolder = config.out;
@@ -51,4 +53,13 @@ export const handle = async (config: GenerateConfig) => {
 		prefixMode: config.prefix,
 		renames,
 	});
+};
+
+export const handleExport = async (config: ExportConfig) => {
+	const filenames = prepareFilenames(config.schema);
+	const res = await prepareFromSchemaFiles(filenames);
+	const schema = fromDrizzleSchema(res.tables, undefined);
+	const { ddl } = interimToDDL(schema);
+	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl);
+	console.log(sqlStatements.join('\n'));
 };

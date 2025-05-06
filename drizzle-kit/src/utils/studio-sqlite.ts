@@ -10,7 +10,7 @@ import type {
 	View,
 } from '../dialects/sqlite/ddl';
 import { createDDL } from '../dialects/sqlite/ddl';
-import { diffDDL } from '../dialects/sqlite/diff';
+import { ddlDiff } from '../dialects/sqlite/diff';
 import { mockResolver } from './mocks';
 
 export type Interim<T> = Omit<T, 'entityType'>;
@@ -103,7 +103,7 @@ export const diffSqlite = async (
 		ddl2.entities.insert(entity);
 	}
 
-	const { sqlStatements, statements, groupedStatements } = await diffDDL(
+	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
 		ddl1,
 		ddl2,
 		mockResolver(renames),

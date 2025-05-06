@@ -15,12 +15,12 @@ import {
 	prepareStatement,
 } from './statements';
 
-export const diffDryDDL = async (ddl: SQLiteDDL, action: 'push' | 'generate') => {
+export const ddlDiffDry = async (ddl: SQLiteDDL, action: 'push' | 'generate') => {
 	const empty = new Set<string>();
-	return diffDDL(createDDL(), ddl, mockResolver(empty), mockResolver(empty), action);
+	return ddlDiff(createDDL(), ddl, mockResolver(empty), mockResolver(empty), action);
 };
 
-export const diffDDL = async (
+export const ddlDiff = async (
 	ddl1: SQLiteDDL,
 	ddl2: SQLiteDDL,
 	tablesResolver: Resolver<SqliteEntities['tables']>,

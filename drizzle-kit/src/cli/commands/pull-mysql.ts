@@ -2,23 +2,19 @@ import chalk from 'chalk';
 import { writeFileSync } from 'fs';
 import { renderWithTask, TaskView } from 'hanji';
 import { render } from 'hanji';
-import { Minimatch } from 'minimatch';
 import { join } from 'path';
 import { toJsonSnapshot } from 'src/dialects/mysql/snapshot';
 import { mockResolver } from 'src/utils/mocks';
-import { Column, createDDL, interimToDDL, Table, View } from '../../dialects/mysql/ddl';
+import { createDDL, interimToDDL } from '../../dialects/mysql/ddl';
 import { diffDDL } from '../../dialects/mysql/diff';
 import { fromDatabase } from '../../dialects/mysql/introspect';
 import { ddlToTypeScript } from '../../dialects/mysql/typescript';
-import type { DB } from '../../utils';
 import { prepareOutFolder } from '../../utils-node';
-import { resolver } from '../prompts';
 import type { Casing, Prefix } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
 import { IntrospectProgress } from '../views';
 import { writeResult } from './generate-common';
-import { relationsToTypeScript } from './pull-common';
-import { prepareTablesFilter } from './utils';
+import { prepareTablesFilter, relationsToTypeScript } from './pull-common';
 
 export const handle = async (
 	casing: Casing,

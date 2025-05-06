@@ -5,7 +5,7 @@ import { Minimatch } from 'minimatch';
 import { join } from 'path';
 import { interimToDDL } from 'src/dialects/sqlite/ddl';
 import { toJsonSnapshot } from 'src/dialects/sqlite/snapshot';
-import { diffDryDDL } from '../../dialects/sqlite/diff';
+import { ddlDiffDry } from '../../dialects/sqlite/diff';
 import { fromDatabase, fromDatabaseForDrizzle } from '../../dialects/sqlite/introspect';
 import { ddlToTypescript as sqliteSchemaToTypeScript } from '../../dialects/sqlite/typescript';
 import { originUUID } from '../../global';
@@ -15,8 +15,7 @@ import { Casing, Prefix } from '../validations/common';
 import type { SqliteCredentials } from '../validations/sqlite';
 import { IntrospectProgress, type IntrospectStage, type IntrospectStatus, type ProgressView } from '../views';
 import { writeResult } from './generate-common';
-import { relationsToTypeScript } from './pull-common';
-import { prepareTablesFilter } from './utils';
+import { prepareTablesFilter, relationsToTypeScript } from './pull-common';
 
 export const handle = async (
 	casing: Casing,
@@ -50,7 +49,7 @@ export const handle = async (
 	const { snapshots, journal } = prepareOutFolder(out, 'sqlite');
 
 	if (snapshots.length === 0) {
-		const { sqlStatements, renames } = await diffDryDDL(ddl, 'generate');
+		const { sqlStatements, renames } = await ddlDiffDry(ddl, 'generate');
 
 		writeResult({
 			snapshot: toJsonSnapshot(ddl, originUUID, '', renames),

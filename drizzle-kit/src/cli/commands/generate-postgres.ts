@@ -1,11 +1,25 @@
-import { Column, Enum, Policy, PostgresEntities, Role, Schema, Sequence, View } from '../../dialects/postgres/ddl';
-import { ddlDiff } from '../../dialects/postgres/diff';
+import { fchown } from 'fs';
+import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/postgres/drizzle';
+import { prepareFilenames } from 'src/serializer';
+import {
+	Column,
+	createDDL,
+	Enum,
+	interimToDDL,
+	Policy,
+	PostgresEntities,
+	Role,
+	Schema,
+	Sequence,
+	View,
+} from '../../dialects/postgres/ddl';
+import { ddlDiff, ddlDiffDry } from '../../dialects/postgres/diff';
 import { prepareSnapshot } from '../../dialects/postgres/serializer';
 import { assertV1OutFolder, prepareMigrationFolder } from '../../utils-node';
 import { mockResolver } from '../../utils/mocks';
 import { resolver } from '../prompts';
 import { writeResult } from './generate-common';
-import { GenerateConfig } from './utils';
+import { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (config: GenerateConfig) => {
 	const { out: outFolder, schema: schemaPath, casing } = config;
@@ -13,11 +27,7 @@ export const handle = async (config: GenerateConfig) => {
 	assertV1OutFolder(outFolder);
 
 	const { snapshots, journal } = prepareMigrationFolder(outFolder, 'postgresql');
-	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(
-		snapshots,
-		schemaPath,
-		casing,
-	);
+	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, schemaPath, casing);
 
 	if (config.custom) {
 		writeResult({
@@ -65,4 +75,13 @@ export const handle = async (config: GenerateConfig) => {
 		prefixMode: config.prefix,
 		renames,
 	});
+};
+
+export const handleExport = async (config: ExportConfig) => {
+	const filenames = prepareFilenames(config.schema);
+	const res = await prepareFromSchemaFiles(filenames);
+	const { schema } = fromDrizzleSchema(res, undefined);
+	const { ddl } = interimToDDL(schema);
+	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
+	console.log(sqlStatements.join('\n'));
 };

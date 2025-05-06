@@ -33,14 +33,7 @@ export const prepareSnapshot = async (
 	const res = await prepareFromSchemaFiles(filenames);
 
 	const { schema, errors, warnings } = fromDrizzleSchema(
-		res.schemas,
-		res.tables,
-		res.enums,
-		res.sequences,
-		res.roles,
-		res.policies,
-		res.views,
-		res.matViews,
+		res,
 		casing,
 	);
 

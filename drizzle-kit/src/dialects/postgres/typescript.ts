@@ -10,7 +10,6 @@ import {
 } from 'drizzle-orm/relations';
 import '../../@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
-import { grammar } from 'ohm-js';
 import { Casing } from '../../cli/validations/common';
 import { assertUnreachable } from '../../global';
 import { unescapeSingleQuotes } from '../../utils';
@@ -31,7 +30,9 @@ import { defaultNameForIdentitySequence, defaults, indexName } from './grammar';
 // TODO: omit defaults opclass...
 const pgImportsList = new Set([
 	'pgTable',
+	'gelTable',
 	'pgEnum',
+	'gelEnum',
 	'smallint',
 	'integer',
 	'bigint',
@@ -320,7 +321,8 @@ export const paramNameFor = (name: string, schema: string | null) => {
 };
 
 // prev: schemaToTypeScript
-export const ddlToTypeScript = (ddl: PostgresDDL, columnsForViews: ViewColumn[], casing: Casing) => {
+export const ddlToTypeScript = (ddl: PostgresDDL, columnsForViews: ViewColumn[], casing: Casing, mode: "pg" | "gel") => {
+	const tableFn = `${mode}Table`;
 	for (const fk of ddl.fks.list()) {
 		relations.add(`${fk.table}-${fk.tableTo}`);
 	}
@@ -339,7 +341,7 @@ export const ddlToTypeScript = (ddl: PostgresDDL, columnsForViews: ViewColumn[],
 	for (const x of entities) {
 		if (x.entityType === 'schemas' && x.name !== 'public') imports.add('pgSchema');
 		if (x.entityType === 'enums' && x.schema === 'public') imports.add('pgEnum');
-		if (x.entityType === 'tables') imports.add('pgTable');
+		if (x.entityType === 'tables') imports.add(tableFn);
 
 		if (x.entityType === 'indexes') {
 			if (x.isUnique) imports.add('uniqueIndex');
@@ -449,7 +451,7 @@ export const ddlToTypeScript = (ddl: PostgresDDL, columnsForViews: ViewColumn[],
 		const columns = ddl.columns.list({ schema: table.schema, table: table.name });
 		const fks = ddl.fks.list({ schema: table.schema, table: table.name });
 
-		const func = tableSchema ? `${tableSchema}.table` : 'pgTable';
+		const func = tableSchema ? `${tableSchema}.table` : tableFn;
 		let statement = `export const ${withCasing(paramName, casing)} = ${func}("${table.name}", {\n`;
 		statement += createTableColumns(
 			columns,
