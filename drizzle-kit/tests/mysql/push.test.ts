@@ -257,10 +257,7 @@ test('add check constraint to table', async () => {
 		test: mysqlTable('test', {
 			id: int('id').primaryKey(),
 			values: int('values'),
-		}, (table) => ({
-			checkConstraint1: check('some_check1', sql`${table.values} < 100`),
-			checkConstraint2: check('some_check2', sql`'test' < 100`),
-		})),
+		}, (table) => [check('some_check1', sql`${table.values} < 100`), check('some_check2', sql`'test' < 100`)]),
 	};
 
 	const { statements, sqlStatements } = await diffTestSchemasPushMysql(
@@ -299,10 +296,10 @@ test('drop check constraint to table', async () => {
 		test: mysqlTable('test', {
 			id: int('id').primaryKey(),
 			values: int('values'),
-		}, (table) => ({
-			checkConstraint1: check('some_check1', sql`${table.values} < 100`),
-			checkConstraint2: check('some_check2', sql`'test' < 100`),
-		})),
+		}, (table) => [
+			check('some_check1', sql`${table.values} < 100`),
+			check('some_check2', sql`'test' < 100`),
+		]),
 	};
 	const schema2 = {
 		test: mysqlTable('test', {
@@ -347,17 +344,17 @@ test('db has checks. Push with same names', async () => {
 		test: mysqlTable('test', {
 			id: int('id').primaryKey(),
 			values: int('values').default(1),
-		}, (table) => ({
-			checkConstraint: check('some_check', sql`${table.values} < 100`),
-		})),
+		}, (table) => [
+			check('some_check', sql`${table.values} < 100`),
+		]),
 	};
 	const schema2 = {
 		test: mysqlTable('test', {
 			id: int('id').primaryKey(),
 			values: int('values').default(1),
-		}, (table) => ({
-			checkConstraint: check('some_check', sql`some new value`),
-		})),
+		}, (table) => [
+			check('some_check', sql`some new value`),
+		]),
 	};
 
 	const { statements, sqlStatements } = await diffTestSchemasPushMysql(
@@ -868,11 +865,11 @@ test('composite pk', async () => {
 		table: mysqlTable('table', {
 			col1: int('col1').notNull(),
 			col2: int('col2').notNull(),
-		}, (t) => ({
-			pk: primaryKey({
+		}, (t) => [
+			primaryKey({
 				columns: [t.col1, t.col2],
 			}),
-		})),
+		]),
 	};
 
 	const { statements, sqlStatements } = await diffTestSchemasPushMysql(
@@ -913,11 +910,11 @@ test('rename with composite pk', async () => {
 		return mysqlTable(tableName, {
 			productId: varchar('product_id', { length: 10 }).notNull(),
 			categoryId: varchar('category_id', { length: 10 }).notNull(),
-		}, (t) => ({
-			pk: primaryKey({
+		}, (t) => [
+			primaryKey({
 				columns: [t.productId, t.categoryId],
 			}),
-		}));
+		]);
 	};
 
 	const schema1 = {

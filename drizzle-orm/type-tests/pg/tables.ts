@@ -131,9 +131,7 @@ export const cities = pgTable('cities_table', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	population: integer('population').default(0),
-}, (cities) => ({
-	citiesNameIdx: index().on(cities.id),
-}));
+}, (cities) => [index().on(cities.id)]);
 
 export const smallSerialTest = pgTable('cities_table', {
 	id: smallserial('id').primaryKey(),
