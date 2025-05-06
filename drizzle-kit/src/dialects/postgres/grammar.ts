@@ -348,7 +348,7 @@ export const defaultForColumn = (
 				} else if (type.startsWith('timestamp')) {
 					return value;
 				} else if (type === 'interval') {
-					return value.replaceAll('"', `\"`);
+					return value.replaceAll('"', '\\"');
 				} else if (type === 'boolean') {
 					return value === 't' ? 'true' : 'false';
 				} else if (['json', 'jsonb'].includes(type)) {
