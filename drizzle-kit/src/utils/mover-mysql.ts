@@ -11,5 +11,8 @@ export {
 	type View,
 } from '../dialects/mysql/ddl';
 
-export { ddlDiffDry } from '../dialects/mysql/diff';
-export * from '../dialects/mysql/introspect';
+import { ddlDiffDry as ddd } from '../dialects/mysql/diff';
+import { fromDatabase as fd } from '../dialects/mysql/introspect';
+
+export const ddlDiffDry = ddd;
+export const fromDatabase = fd;

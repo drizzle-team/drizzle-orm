@@ -118,3 +118,41 @@ test('check imports postgres-studio', () => {
 
 	assert.equal(issues.length, 0);
 });
+
+test('check imports postgres-mover', () => {
+	const issues = analyzeImports({
+		basePath: '.',
+		localPaths: ['src'],
+		whiteList: ["camelcase"],
+		entry: 'src/utils/mover-postgres.ts',
+		logger: true,
+		ignoreTypes: true,
+	}).issues;
+
+	console.log();
+	for (const issue of issues) {
+		console.log(chalk.red(issue.imports.map((it) => it.name).join('\n')));
+		console.log(issue.accessChains.map((it) => chainToString(it)).join('\n'));
+	}
+
+	assert.equal(issues.length, 0);
+});
+
+test('check imports mysql-mover', () => {
+	const issues = analyzeImports({
+		basePath: '.',
+		localPaths: ['src'],
+		whiteList: [],
+		entry: 'src/utils/mover-mysql.ts',
+		logger: true,
+		ignoreTypes: true,
+	}).issues;
+
+	console.log();
+	for (const issue of issues) {
+		console.log(chalk.red(issue.imports.map((it) => it.name).join('\n')));
+		console.log(issue.accessChains.map((it) => chainToString(it)).join('\n'));
+	}
+
+	assert.equal(issues.length, 0);
+});

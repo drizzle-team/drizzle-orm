@@ -1,4 +1,5 @@
 import camelcase from 'camelcase';
+import type { Entities } from '../../cli/validations/cli';
 import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
 import type { DB } from '../../utils';
 import type {
@@ -1025,8 +1026,6 @@ export const fromDatabase = async (
 		viewColumns,
 	} satisfies InterimSchema;
 };
-import { object } from 'zod';
-import type { Entities } from '../../cli/validations/cli';
 
 export const fromDatabaseForDrizzle = async (
 	db: DB,

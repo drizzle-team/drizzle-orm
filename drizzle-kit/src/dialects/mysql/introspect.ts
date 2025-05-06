@@ -1,5 +1,3 @@
-import { renderWithTask, TaskView } from 'hanji';
-import { Minimatch } from 'minimatch';
 import type { IntrospectStage, IntrospectStatus } from 'src/cli/views';
 import { DB } from '../../utils';
 import { ForeignKey, Index, InterimSchema, PrimaryKey } from './ddl';
@@ -333,37 +331,4 @@ export const fromDatabase = async (
 	progressCallback('checks', checksCount, 'done');
 
 	return res;
-};
-
-export const introspect = async (db: DB, databaseName: string, filters: string[], taskView: TaskView) => {
-	const matchers = filters.map((it) => {
-		return new Minimatch(it);
-	});
-
-	const filter = (tableName: string) => {
-		if (matchers.length === 0) return true;
-
-		let flags: boolean[] = [];
-
-		for (let matcher of matchers) {
-			if (matcher.negate) {
-				if (!matcher.match(tableName)) {
-					flags.push(false);
-				}
-			}
-
-			if (matcher.match(tableName)) {
-				flags.push(true);
-			}
-		}
-
-		if (flags.length > 0) {
-			return flags.every(Boolean);
-		}
-		return false;
-	};
-	return await renderWithTask(
-		taskView,
-		fromDatabase(db, databaseName, filter),
-	);
 };
