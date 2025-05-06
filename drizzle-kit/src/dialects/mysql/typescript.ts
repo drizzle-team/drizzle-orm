@@ -270,7 +270,7 @@ const mapColumnDefault = (it: NonNullable<Column['default']>) => {
 		return `sql\`${it.value}\``;
 	}
 
-	return it.value.replace("'", "\\'");
+	return it.value.replace(/'/g, "\\'");
 };
 
 const mapColumnDefaultForJson = (defaultValue: any) => {
