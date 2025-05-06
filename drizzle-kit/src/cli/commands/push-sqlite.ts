@@ -96,15 +96,19 @@ export const handle = async (
 		render(`\n[${chalk.blue('i')}] No changes detected`);
 	} else {
 		if (!('driver' in credentials)) {
-			await db.run('begin');
+			// D1-HTTP does not support transactions
+			// there might a be a better way to fix this
+			// in the db connection itself
+			const isNotD1 = !('driver' in credentials && credentials.driver === 'd1-http');
+			isNotD1 ?? await db.run('begin');
 			try {
 				for (const dStmnt of sqlStatements) {
 					await db.run(dStmnt);
 				}
-				await db.run('commit');
+				isNotD1 ?? await db.run('commit');
 			} catch (e) {
 				console.error(e);
-				await db.run('rollback');
+				isNotD1 ?? await db.run('rollback');
 				process.exit(1);
 			}
 		}

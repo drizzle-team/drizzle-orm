@@ -8,9 +8,9 @@ import { nameForForeignKey, typesCommutative } from './grammar';
 import { prepareStatement } from './statements';
 import { JsonStatement } from './statements';
 
-export const ddlDiffDry = async (to: MysqlDDL, from: MysqlDDL = createDDL()) => {
+export const ddlDiffDry = async (from: MysqlDDL, to: MysqlDDL, mode: 'default' | 'push' = 'default') => {
 	const s = new Set<string>();
-	return diffDDL(from, to, mockResolver(s), mockResolver(s), mockResolver(s), 'default');
+	return diffDDL(from, to, mockResolver(s), mockResolver(s), mockResolver(s), mode);
 };
 
 export const diffDDL = async (

@@ -125,7 +125,7 @@ test('basic index test', async () => {
 		})),
 	};
 
-	const { statements, sqlStatements } = await introspectPgToFile(
+	const { statements, sqlStatements } = await pushPullDiff(
 		client,
 		schema,
 		'basic-index-introspect',

@@ -566,8 +566,8 @@ export const pull = command({
 					prefix,
 				);
 			} else if (dialect === 'gel') {
-				const { introspectGel } = await import('./commands/introspect');
-				await introspectGel(
+				const { handle } = await import('./commands/pull-gel');
+				await handle(
 					casing,
 					out,
 					breakpoints,

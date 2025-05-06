@@ -1,4 +1,3 @@
-import type { SchemaError } from '../../utils';
 import { create } from '../dialect';
 import { defaultNameForFK, defaultNameForPK, defaultNameForUnique } from './grammar';
 
@@ -241,6 +240,102 @@ export const tableFromDDL = (
 		policies,
 	};
 };
+
+interface SchemaDuplicate {
+	type: 'schema_name_duplicate';
+	name: string;
+}
+
+interface EnumDuplicate {
+	type: 'enum_name_duplicate';
+	name: string;
+	schema: string;
+}
+
+interface TableDuplicate {
+	type: 'table_name_duplicate';
+	name: string;
+	schema: string;
+}
+interface ColumnDuplicate {
+	type: 'column_name_duplicate';
+	schema: string;
+	table: string;
+	name: string;
+}
+
+interface ConstraintDuplicate {
+	type: 'constraint_name_duplicate';
+	schema: string;
+	table: string;
+	name: string;
+}
+interface SequenceDuplicate {
+	type: 'sequence_name_duplicate';
+	schema: string;
+	name: string;
+}
+
+interface ViewDuplicate {
+	type: 'view_name_duplicate';
+	schema: string;
+	name: string;
+}
+
+interface IndexWithoutName {
+	type: 'index_no_name';
+	schema: string;
+	table: string;
+	sql: string;
+}
+
+interface IndexDuplicate {
+	type: 'index_duplicate';
+	schema: string;
+	table: string;
+	name: string;
+}
+
+interface PgVectorIndexNoOp {
+	type: 'pgvector_index_noop';
+	table: string;
+	column: string;
+	indexName: string;
+	method: string;
+}
+
+interface PolicyDuplicate {
+	type: 'policy_duplicate';
+	schema: string;
+	table: string;
+	policy: string;
+}
+
+interface RoleDuplicate {
+	type: 'role_duplicate';
+	name: string;
+}
+
+export type SchemaError =
+	| SchemaDuplicate
+	| EnumDuplicate
+	| TableDuplicate
+	| ColumnDuplicate
+	| ViewDuplicate
+	| ConstraintDuplicate
+	| SequenceDuplicate
+	| IndexWithoutName
+	| IndexDuplicate
+	| PgVectorIndexNoOp
+	| RoleDuplicate
+	| PolicyDuplicate;
+
+interface PolicyNotLinked {
+	type: 'policy_not_linked';
+	policy: string;
+}
+export type SchemaWarning = PolicyNotLinked;
+
 
 export const interimToDDL = (
 	schema: InterimSchema,

@@ -7,9 +7,9 @@ const viewAsStatementRegex = new RegExp(`\\bAS\\b\\s+(SELECT.+)$`, 'i');
 export const nameForForeignKey = (fk: Pick<ForeignKey, 'table' | 'columns' | 'tableTo' | 'columnsTo'>) => {
 	return `fk_${fk.table}_${fk.columns.join('_')}_${fk.tableTo}_${fk.columnsTo.join('_')}_fk`;
 };
-export const nameForUnique = (table:string, columns:string[])=>{
-	return `${table}_${columns.join("_")}_unique`
-}
+export const nameForUnique = (table: string, columns: string[]) => {
+	return `${table}_${columns.join('_')}_unique`;
+};
 
 const intAffinities = [
 	'INT',
@@ -131,3 +131,8 @@ export function extractGeneratedColumns(input: string): Record<string, Generated
 	}
 	return columns;
 }
+
+export const omitSystemTables = () => {
+	['__drizzle_migrations', `'\\_cf\\_%'`, `'\\_litestream\\_%'`, `'libsql\\_%'`, `'sqlite\\_%'`];
+	return true;
+};

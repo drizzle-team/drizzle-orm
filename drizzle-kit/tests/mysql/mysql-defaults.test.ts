@@ -1,21 +1,7 @@
 import { sql } from 'drizzle-orm';
-import {
-	AnyMySqlColumn,
-	binary,
-	boolean,
-	char,
-	check,
-	int,
-	json,
-	MySqlColumnBuilder,
-	mysqlTable,
-	serial,
-	text,
-	timestamp,
-	varchar,
-} from 'drizzle-orm/mysql-core';
-import { interimToDDL } from 'src/dialects/mysql/ddl';
-import { ddlDiffDry, diffDDL } from 'src/dialects/mysql/diff';
+import { binary, boolean, char, int, json, mysqlTable, text, timestamp, varchar } from 'drizzle-orm/mysql-core';
+import { createDDL, interimToDDL } from 'src/dialects/mysql/ddl';
+import { ddlDiffDry } from 'src/dialects/mysql/diff';
 import { defaultFromColumn } from 'src/dialects/mysql/drizzle';
 import { defaultToSQL } from 'src/dialects/mysql/grammar';
 import { fromDatabase } from 'src/dialects/mysql/introspect';
@@ -79,7 +65,7 @@ const cases = [
 	[json().default({ key: "val'ue" }), '{"key":"val\'ue"}', 'json', `('{"key":"val''ue"}')`],
 
 	[char({ length: 10 }).default('10'), '10', 'string', "'10'"],
-	[timestamp().defaultNow(), '(now())', 'unknown', "(now())"],
+	[timestamp().defaultNow(), '(now())', 'unknown', '(now())'],
 ] as const;
 
 const { c1, c2, c3 } = cases.reduce((acc, it) => {
@@ -108,14 +94,14 @@ for (const it of cases) {
 		expect.soft(defaultToSQL(res)).toStrictEqual(sql);
 
 		const { ddl } = drizzleToDDL({ t });
-		const { sqlStatements: init } = await ddlDiffDry(ddl);
+		const { sqlStatements: init } = await ddlDiffDry(createDDL(), ddl);
 
 		for (const statement of init) {
 			await db.query(statement);
 		}
 
 		const { ddl: ddl2 } = interimToDDL(await fromDatabase(db, 'drizzle'));
-		const { sqlStatements } = await ddlDiffDry(ddl, ddl2);
+		const { sqlStatements } = await ddlDiffDry(ddl2, ddl);
 
 		expect.soft(sqlStatements).toStrictEqual([]);
 	});
