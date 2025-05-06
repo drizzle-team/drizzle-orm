@@ -33,9 +33,9 @@ test('add check contraint to existing table', async (t) => {
 		users: pgTable('users', {
 			id: serial('id').primaryKey(),
 			age: integer('age'),
-		}, (table) => ({
-			checkConstraint: check('some_check_name', sql`${table.age} > 21`),
-		})),
+		}, (table) => [
+			check('some_check_name', sql`${table.age} > 21`),
+		]),
 	};
 
 	const { sqlStatements } = await diff(from, to, []);
