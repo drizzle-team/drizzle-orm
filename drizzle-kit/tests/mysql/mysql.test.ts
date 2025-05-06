@@ -45,14 +45,12 @@ test('add table #3', async () => {
 	const to = {
 		users: mysqlTable('users', {
 			id: serial('id'),
-		}, (t) => {
-			return {
-				pk: primaryKey({
-					name: 'users_pk',
-					columns: [t.id],
-				}),
-			};
-		}),
+		}, (t) => [
+			primaryKey({
+				name: 'users_pk',
+				columns: [t.id],
+			}),
+		]),
 	};
 
 	const { sqlStatements } = await diff({}, to, []);
@@ -357,11 +355,9 @@ test('drop index', async () => {
 			{
 				name: text('name'),
 			},
-			(t) => {
-				return {
-					idx: index('name_idx').on(t.name),
-				};
-			},
+			(t) => [
+				index('name_idx').on(t.name),
+			],
 		),
 	};
 
@@ -380,11 +376,7 @@ test('drop unique constraint', async () => {
 	const from = {
 		users: mysqlTable('table', {
 			name: text('name'),
-		}, (t) => {
-			return {
-				uq: unique('name_uq').on(t.name),
-			};
-		}),
+		}, (t) => [unique('name_uq').on(t.name)]),
 	};
 
 	const to = {
@@ -410,23 +402,23 @@ test('add table with indexes', async () => {
 				name: text('name'),
 				email: text('email'),
 			},
-			(t) => ({
-				uniqueExpr: uniqueIndex('uniqueExpr').on(sql`(lower(${t.email}))`),
-				indexExpr: index('indexExpr').on(sql`(lower(${t.email}))`),
-				indexExprMultiple: index('indexExprMultiple').on(
+			(t) => [
+				uniqueIndex('uniqueExpr').on(sql`(lower(${t.email}))`),
+				index('indexExpr').on(sql`(lower(${t.email}))`),
+				index('indexExprMultiple').on(
 					sql`(lower(${t.email}))`,
 					sql`(lower(${t.email}))`,
 				),
 
-				uniqueCol: uniqueIndex('uniqueCol').on(t.email),
-				indexCol: index('indexCol').on(t.email),
-				indexColMultiple: index('indexColMultiple').on(t.email, t.email),
+				uniqueIndex('uniqueCol').on(t.email),
+				index('indexCol').on(t.email),
+				index('indexColMultiple').on(t.email, t.email),
 
-				indexColExpr: index('indexColExpr').on(
+				index('indexColExpr').on(
 					sql`(lower(${t.email}))`,
 					t.email,
 				),
-			}),
+			],
 		),
 	};
 
@@ -478,11 +470,11 @@ test('composite primary key', async () => {
 			workId: int('work_id').notNull(),
 			creatorId: int('creator_id').notNull(),
 			classification: text('classification').notNull(),
-		}, (t) => ({
-			pk: primaryKey({
+		}, (t) => [
+			primaryKey({
 				columns: [t.workId, t.creatorId, t.classification],
 			}),
-		})),
+		]),
 	};
 
 	const { sqlStatements } = await diff(from, to, []);
@@ -502,9 +494,9 @@ test('add column before creating unique constraint', async () => {
 		table: mysqlTable('table', {
 			id: serial('id').primaryKey(),
 			name: text('name').notNull(),
-		}, (t) => ({
-			uq: unique('uq').on(t.name),
-		})),
+		}, (t) => [
+			unique('uq').on(t.name),
+		]),
 	};
 
 	const { sqlStatements } = await diff(from, to, []);
@@ -526,15 +518,15 @@ test('optional db aliases (snake case)', async () => {
 		t1Uni: int().notNull(),
 		t1UniIdx: int().notNull(),
 		t1Idx: int().notNull(),
-	}, (table) => ({
-		uni: unique('t1_uni').on(table.t1Uni),
-		uniIdx: uniqueIndex('t1_uni_idx').on(table.t1UniIdx),
-		idx: index('t1_idx').on(table.t1Idx),
-		fk: foreignKey({
+	}, (table) => [
+		unique('t1_uni').on(table.t1Uni),
+		uniqueIndex('t1_uni_idx').on(table.t1UniIdx),
+		index('t1_idx').on(table.t1Idx),
+		foreignKey({
 			columns: [table.t1Col2, table.t1Col3],
 			foreignColumns: [t3.t3Id1, t3.t3Id2],
 		}),
-	}));
+	]);
 
 	const t2 = mysqlTable('t2', {
 		t2Id: serial().primaryKey(),
@@ -543,11 +535,9 @@ test('optional db aliases (snake case)', async () => {
 	const t3 = mysqlTable('t3', {
 		t3Id1: int(),
 		t3Id2: int(),
-	}, (table) => ({
-		pk: primaryKey({
-			columns: [table.t3Id1, table.t3Id2],
-		}),
-	}));
+	}, (table) => [primaryKey({
+		columns: [table.t3Id1, table.t3Id2],
+	})]);
 
 	const to = { t1, t2, t3 };
 
@@ -597,15 +587,15 @@ test('optional db aliases (camel case)', async () => {
 		t1_uni: int().notNull(),
 		t1_uni_idx: int().notNull(),
 		t1_idx: int().notNull(),
-	}, (table) => ({
-		uni: unique('t1Uni').on(table.t1_uni),
-		uni_idx: uniqueIndex('t1UniIdx').on(table.t1_uni_idx),
-		idx: index('t1Idx').on(table.t1_idx),
-		fk: foreignKey({
+	}, (table) => [
+		unique('t1Uni').on(table.t1_uni),
+		uniqueIndex('t1UniIdx').on(table.t1_uni_idx),
+		index('t1Idx').on(table.t1_idx),
+		foreignKey({
 			columns: [table.t1_col2, table.t1_col3],
 			foreignColumns: [t3.t3_id1, t3.t3_id2],
 		}),
-	}));
+	]);
 
 	const t2 = mysqlTable('t2', {
 		t2_id: serial().primaryKey(),
@@ -614,11 +604,9 @@ test('optional db aliases (camel case)', async () => {
 	const t3 = mysqlTable('t3', {
 		t3_id1: int(),
 		t3_id2: int(),
-	}, (table) => ({
-		pk: primaryKey({
-			columns: [table.t3_id1, table.t3_id2],
-		}),
-	}));
+	}, (table) => [primaryKey({
+		columns: [table.t3_id1, table.t3_id2],
+	})]);
 
 	const to = {
 		t1,

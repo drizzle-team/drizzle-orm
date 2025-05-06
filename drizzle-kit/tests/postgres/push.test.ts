@@ -73,9 +73,7 @@ const pgSuite: DialectSuite = {
 					column2: smallint('column2').array().array(),
 					column3: smallint('column3').array(),
 				},
-				(t) => ({
-					cd: uniqueIndex('testdfds').on(t.column),
-				}),
+				(t) => [uniqueIndex('testdfds').on(t.column)],
 			),
 
 			allEnums: customSchema.table(
@@ -84,9 +82,7 @@ const pgSuite: DialectSuite = {
 					columnAll: enumname('column_all').default('three').notNull(),
 					column: enumname('columns'),
 				},
-				(t) => ({
-					d: index('ds').on(t.column),
-				}),
+				(t) => [index('ds').on(t.column)],
 			),
 
 			allTimestamps: customSchema.table('all_timestamps', {
@@ -156,9 +152,7 @@ const pgSuite: DialectSuite = {
 					columnAll: text('column_all').default('text').notNull(),
 					column: text('columns').primaryKey(),
 				},
-				(t) => ({
-					cd: index('test').on(t.column),
-				}),
+				(t) => [index('test').on(t.column)],
 			),
 
 			allBools: customSchema.table('all_bools', {
@@ -243,15 +237,15 @@ const pgSuite: DialectSuite = {
 					id: serial('id').primaryKey(),
 					name: text('name'),
 				},
-				(t) => ({
-					indx: index()
+				(t) => [
+					index()
 						.on(t.name.desc(), t.id.asc().nullsLast())
 						.with({ fillfactor: 70 })
 						.where(sql`select 1`),
-					indx1: index('indx1')
+					index('indx1')
 						.using('hash', t.name.desc(), sql`${t.name}`)
 						.with({ fillfactor: 70 }),
-				}),
+				],
 			),
 		};
 
@@ -488,9 +482,7 @@ const pgSuite: DialectSuite = {
 					id: serial('id').primaryKey(),
 					name: text('name'),
 				},
-				(t) => ({
-					indx: index().on(t.name.desc(), t.id.asc().nullsLast()).with({ fillfactor: 70 }),
-				}),
+				(t) => [index().on(t.name.desc(), t.id.asc().nullsLast()).with({ fillfactor: 70 })],
 			),
 		};
 
@@ -560,11 +552,11 @@ const pgSuite: DialectSuite = {
 					imageUrl: text('image_url'),
 					inStock: boolean('in_stock').default(true),
 				},
-				(t) => ({
-					indx: index().on(t.id.desc().nullsFirst()),
-					indx1: index('indx1').on(t.id, t.imageUrl),
-					indx2: index('indx4').on(t.id),
-				}),
+				(t) => [
+					index().on(t.id.desc().nullsFirst()),
+					index('indx1').on(t.id, t.imageUrl),
+					index('indx4').on(t.id),
+				],
 			),
 		};
 
@@ -578,11 +570,11 @@ const pgSuite: DialectSuite = {
 					imageUrl: text('image_url'),
 					inStock: boolean('in_stock').default(true),
 				},
-				(t) => ({
-					indx: index().on(t.id.desc().nullsFirst()),
-					indx1: index('indx1').on(t.id, t.imageUrl),
-					indx2: index('indx4').on(t.id),
-				}),
+				(t) => [
+					index().on(t.id.desc().nullsFirst()),
+					index('indx1').on(t.id, t.imageUrl),
+					index('indx4').on(t.id),
+				],
 			),
 		};
 
@@ -741,11 +733,9 @@ const pgSuite: DialectSuite = {
 			table: pgTable('table', {
 				col1: integer('col1').notNull(),
 				col2: integer('col2').notNull(),
-			}, (t) => ({
-				pk: primaryKey({
-					columns: [t.col1, t.col2],
-				}),
-			})),
+			}, (t) => [primaryKey({
+				columns: [t.col1, t.col2],
+			})]),
 		};
 
 		const { sqlStatements } = await diffTestSchemasPush({
@@ -792,20 +782,20 @@ const pgSuite: DialectSuite = {
 	//     }),
 	//   };
 
-	//   const schema2 = {
-	//     users: pgTable(
-	//       "users",
-	//       {
-	//         id: serial("id").primaryKey(),
-	//         embedding: vector("name", { dimensions: 3 }),
-	//       },
-	//       (t) => ({
-	//         indx2: index("vector_embedding_idx")
-	//           .using("hnsw", t.embedding.op("vector_ip_ops"))
-	//           .with({ m: 16, ef_construction: 64 }),
-	//       })
-	//     ),
-	//   };
+	// const schema2 = {
+	// 	users: pgTable(
+	// 		'users',
+	// 		{
+	// 			id: serial('id').primaryKey(),
+	// 			embedding: vector('name', { dimensions: 3 }),
+	// 		},
+	// 		(t) => [
+	// 			index('vector_embedding_idx')
+	// 				.using('hnsw', t.embedding.op('vector_ip_ops'))
+	// 				.with({ m: 16, ef_construction: 64 }),
+	// 		],
+	// 	),
+	// };
 
 	//   const { statements, sqlStatements } = await diffTestSchemasPush(
 	//     client,
@@ -834,8 +824,6 @@ const pgSuite: DialectSuite = {
 };
 
 run(pgSuite);
-
-
 
 test('full sequence: no changes', async () => {
 	const schema1 = {
@@ -1585,10 +1573,10 @@ test('add check constraint to table', async () => {
 		test: pgTable('test', {
 			id: serial('id').primaryKey(),
 			values: integer('values').array().default([1, 2, 3]),
-		}, (table) => ({
-			checkConstraint1: check('some_check1', sql`${table.values} < 100`),
-			checkConstraint2: check('some_check2', sql`'test' < 100`),
-		})),
+		}, (table) => [
+			check('some_check1', sql`${table.values} < 100`),
+			check('some_check2', sql`'test' < 100`),
+		]),
 	};
 
 	const { statements, sqlStatements } = await diffTestSchemasPush({
@@ -1634,9 +1622,9 @@ test('drop check constraint', async () => {
 		test: pgTable('test', {
 			id: serial('id').primaryKey(),
 			values: integer('values').default(1),
-		}, (table) => ({
-			checkConstraint: check('some_check', sql`${table.values} < 100`),
-		})),
+		}, (table) => [
+			check('some_check', sql`${table.values} < 100`),
+		]),
 	};
 	const schema2 = {
 		test: pgTable('test', {
@@ -1695,17 +1683,13 @@ test('db has checks. Push with same names', async () => {
 		test: pgTable('test', {
 			id: serial('id').primaryKey(),
 			values: integer('values').default(1),
-		}, (table) => ({
-			checkConstraint: check('some_check', sql`${table.values} < 100`),
-		})),
+		}, (table) => [check('some_check', sql`${table.values} < 100`)]),
 	};
 	const schema2 = {
 		test: pgTable('test', {
 			id: serial('id').primaryKey(),
 			values: integer('values').default(1),
-		}, (table) => ({
-			checkConstraint: check('some_check', sql`some new value`),
-		})),
+		}, (table) => [check('some_check', sql`some new value`)]),
 	};
 
 	const { statements, sqlStatements } = await diffTestSchemasPush({
@@ -2169,17 +2153,13 @@ test('full policy: no changes', async () => {
 	const schema1 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
 	const schema2 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
 	const { statements, sqlStatements } = await diffTestSchemasPush({
@@ -2206,9 +2186,7 @@ test('add policy', async () => {
 	const schema2 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
 	const { statements, sqlStatements } = await diffTestSchemasPush({
@@ -2231,9 +2209,7 @@ test('drop policy', async () => {
 	const schema1 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
 	const schema2 = {
@@ -2262,18 +2238,13 @@ test('add policy without enable rls', async () => {
 	const schema1 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
 	const schema2 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-			newrls: pgPolicy('newRls'),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive' }), pgPolicy('newRls')]),
 	};
 
 	const { statements, sqlStatements } = await diffTestSchemasPush({
@@ -2295,18 +2266,13 @@ test('drop policy without disable rls', async () => {
 	const schema1 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-			oldRls: pgPolicy('oldRls'),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive' }), pgPolicy('oldRls')]),
 	};
 
 	const schema2 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
 	const { statements, sqlStatements } = await diffTestSchemasPush({
@@ -2330,17 +2296,13 @@ test('alter policy without recreation: changing roles', async (t) => {
 	const schema1 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
 	const schema2 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive', to: 'current_role' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive', to: 'current_role' })]),
 	};
 
 	const { statements, sqlStatements } = await diffTestSchemasPush({
@@ -2362,17 +2324,13 @@ test('alter policy without recreation: changing using', async (t) => {
 	const schema1 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
 	const schema2 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive', using: sql`true` }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive', using: sql`true` })]),
 	};
 
 	const { statements, sqlStatements } = await diffTestSchemasPush({
@@ -2392,17 +2350,13 @@ test('alter policy without recreation: changing with check', async (t) => {
 	const schema1 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
 	const schema2 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive', withCheck: sql`true` }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive', withCheck: sql`true` })]),
 	};
 
 	const { statements, sqlStatements } = await diffTestSchemasPush({
@@ -2422,17 +2376,13 @@ test('alter policy with recreation: changing as', async (t) => {
 	const schema1 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
 	const schema2 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'restrictive' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'restrictive' })]),
 	};
 
 	const { statements, sqlStatements } = await diffTestSchemasPush({
@@ -2455,17 +2405,13 @@ test('alter policy with recreation: changing for', async (t) => {
 	const schema1 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
 	const schema2 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive', for: 'delete' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive', for: 'delete' })]),
 	};
 
 	const { statements, sqlStatements } = await diffTestSchemasPush({
@@ -2488,17 +2434,13 @@ test('alter policy with recreation: changing both "as" and "for"', async (t) => 
 	const schema1 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
 	const schema2 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'restrictive', for: 'insert' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'restrictive', for: 'insert' })]),
 	};
 
 	const { statements, sqlStatements } = await diffTestSchemasPush({
@@ -2521,17 +2463,13 @@ test('alter policy with recreation: changing all fields', async (t) => {
 	const schema1 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive', for: 'select', using: sql`true` }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive', for: 'select', using: sql`true` })]),
 	};
 
 	const schema2 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'restrictive', to: 'current_role', withCheck: sql`true` }),
-		})),
+		}, () => [pgPolicy('test', { as: 'restrictive', to: 'current_role', withCheck: sql`true` })]),
 	};
 
 	const { statements, sqlStatements } = await diffTestSchemasPush({
@@ -2554,17 +2492,13 @@ test('rename policy', async (t) => {
 	const schema1 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
 	const schema2 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('newName', { as: 'permissive' }),
-		})),
+		}, () => [pgPolicy('newName', { as: 'permissive' })]),
 	};
 
 	const { statements, sqlStatements } = await diffTestSchemasPush({
@@ -2587,17 +2521,13 @@ test('rename policy in renamed table', async (t) => {
 	const schema1 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
 	const schema2 = {
 		users: pgTable('users2', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('newName', { as: 'permissive' }),
-		})),
+		}, () => [pgPolicy('newName', { as: 'permissive' })]),
 	};
 
 	const { statements, sqlStatements } = await diffTestSchemasPush({
@@ -2624,9 +2554,7 @@ test('create table with a policy', async (t) => {
 	const schema2 = {
 		users: pgTable('users2', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
 	const { statements, sqlStatements } = await diffTestSchemasPush({
@@ -2650,9 +2578,7 @@ test('drop table with a policy', async (t) => {
 	const schema1 = {
 		users: pgTable('users2', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
 	const schema2 = {};
@@ -2688,9 +2614,7 @@ test('add policy with multiple "to" roles', async (t) => {
 		role,
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { to: ['current_role', role] }),
-		})),
+		}, () => [pgPolicy('test', { to: ['current_role', role] })]),
 	};
 
 	const { statements, sqlStatements } = await diffTestSchemasPush({

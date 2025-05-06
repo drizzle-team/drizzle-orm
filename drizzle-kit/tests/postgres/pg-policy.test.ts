@@ -13,9 +13,7 @@ test('add policy + enable rls', async (t) => {
 	const schema2 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
 	const { sqlStatements } = await diff(schema1, schema2, []);
@@ -30,9 +28,7 @@ test('drop policy + disable rls', async (t) => {
 	const schema1 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
 	const schema2 = {
@@ -53,18 +49,13 @@ test('add policy without enable rls', async (t) => {
 	const schema1 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
 	const schema2 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-			newrls: pgPolicy('newRls'),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive' }), pgPolicy('newRls')]),
 	};
 
 	const { sqlStatements } = await diff(schema1, schema2, []);
@@ -78,18 +69,13 @@ test('drop policy without disable rls', async (t) => {
 	const schema1 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-			oldRls: pgPolicy('oldRls'),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive' }), pgPolicy('oldRls')]),
 	};
 
 	const schema2 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
 	const { sqlStatements } = await diff(schema1, schema2, []);
@@ -103,17 +89,13 @@ test('alter policy without recreation: changing roles', async (t) => {
 	const schema1 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
 	const schema2 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive', to: 'current_role' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive', to: 'current_role' })]),
 	};
 
 	const { sqlStatements } = await diff(schema1, schema2, []);
@@ -127,17 +109,13 @@ test('alter policy without recreation: changing using', async (t) => {
 	const schema1 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
 	const schema2 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive', using: sql`true` }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive', using: sql`true` })]),
 	};
 
 	const { sqlStatements } = await diff(schema1, schema2, []);
@@ -151,17 +129,13 @@ test('alter policy without recreation: changing with check', async (t) => {
 	const schema1 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
 	const schema2 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive', withCheck: sql`true` }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive', withCheck: sql`true` })]),
 	};
 
 	const { sqlStatements } = await diff(schema1, schema2, []);
@@ -177,17 +151,13 @@ test('alter policy with recreation: changing as', async (t) => {
 	const schema1 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
 	const schema2 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'restrictive' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'restrictive' })]),
 	};
 
 	const { sqlStatements } = await diff(schema1, schema2, []);
@@ -202,17 +172,13 @@ test('alter policy with recreation: changing for', async (t) => {
 	const schema1 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
 	const schema2 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive', for: 'delete' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive', for: 'delete' })]),
 	};
 
 	const { sqlStatements } = await diff(schema1, schema2, []);
@@ -227,17 +193,13 @@ test('alter policy with recreation: changing both "as" and "for"', async (t) => 
 	const schema1 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
 	const schema2 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'restrictive', for: 'insert' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'restrictive', for: 'insert' })]),
 	};
 
 	const { sqlStatements } = await diff(schema1, schema2, []);
@@ -252,17 +214,13 @@ test('alter policy with recreation: changing all fields', async (t) => {
 	const schema1 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive', for: 'select', using: sql`true` }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive', for: 'select', using: sql`true` })]),
 	};
 
 	const schema2 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'restrictive', to: 'current_role', withCheck: sql`true` }),
-		})),
+		}, () => [pgPolicy('test', { as: 'restrictive', to: 'current_role', withCheck: sql`true` })]),
 	};
 
 	const { sqlStatements } = await diff(schema1, schema2, []);
@@ -277,17 +235,13 @@ test('rename policy', async (t) => {
 	const schema1 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
 	const schema2 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('newName', { as: 'permissive' }),
-		})),
+		}, () => [pgPolicy('newName', { as: 'permissive' })]),
 	};
 
 	const { sqlStatements } = await diff(schema1, schema2, [
@@ -331,9 +285,7 @@ test('create table with a policy', async (t) => {
 	const schema2 = {
 		users: pgTable('users2', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
 	const { sqlStatements } = await diff(schema1, schema2, []);
@@ -349,9 +301,7 @@ test('drop table with a policy', async (t) => {
 	const schema1 = {
 		users: pgTable('users2', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
 	const schema2 = {};
@@ -377,9 +327,7 @@ test('add policy with multiple "to" roles', async (t) => {
 		role,
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { to: ['current_role', role] }),
-		})),
+		}, () => [pgPolicy('test', { to: ['current_role', role] })]),
 	};
 
 	const { sqlStatements } = await diff(schema1, schema2, []);
@@ -447,9 +395,7 @@ test('drop policy with enabled rls', async (t) => {
 	const schema1 = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { to: ['current_role', role] }),
-		})).enableRLS(),
+		}, () => [pgPolicy('test', { to: ['current_role', role] })]).enableRLS(),
 	};
 
 	const role = pgRole('manager').existing();
@@ -481,9 +427,7 @@ test('add policy with enabled rls', async (t) => {
 		role,
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { to: ['current_role', role] }),
-		})).enableRLS(),
+		}, () => [pgPolicy('test', { to: ['current_role', role] })]).enableRLS(),
 	};
 
 	const { sqlStatements } = await diff(schema1, schema2, []);

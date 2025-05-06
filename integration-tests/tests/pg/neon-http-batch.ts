@@ -39,9 +39,7 @@ export const usersToGroupsTable = pgTable(
 		userId: integer('user_id').notNull().references(() => usersTable.id),
 		groupId: integer('group_id').notNull().references(() => groupsTable.id),
 	},
-	(t) => ({
-		pk: primaryKey({ columns: [t.userId, t.groupId] }),
-	}),
+	(t) => [primaryKey({ columns: [t.userId, t.groupId] })],
 );
 export const usersToGroupsConfig = relations(usersToGroupsTable, ({ one }) => ({
 	group: one(groupsTable, {
