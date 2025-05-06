@@ -13,8 +13,7 @@ import type { Casing, Prefix } from '../validations/common';
 import { SingleStoreCredentials } from '../validations/singlestore';
 import { IntrospectProgress } from '../views';
 import { writeResult } from './generate-common';
-import { relationsToTypeScript } from './pull-common';
-import { prepareTablesFilter } from './utils';
+import { prepareTablesFilter, relationsToTypeScript } from './pull-common';
 
 export const handle = async (
 	casing: Casing,

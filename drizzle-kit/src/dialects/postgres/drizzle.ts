@@ -207,14 +207,16 @@ export const defaultFromColumn = (
 	while trimming serializer.ts of Hanji & Chalk dependencies
 */
 export const fromDrizzleSchema = (
-	drizzleSchemas: PgSchema[],
-	drizzleTables: AnyPgTable[],
-	drizzleEnums: PgEnum<any>[],
-	drizzleSequences: PgSequence[],
-	drizzleRoles: PgRole[],
-	drizzlePolicies: PgPolicy[],
-	drizzleViews: PgView[],
-	drizzleMatViews: PgMaterializedView[],
+	schema: {
+		schemas: PgSchema[];
+		tables: AnyPgTable[];
+		enums: PgEnum<any>[];
+		sequences: PgSequence[];
+		roles: PgRole[];
+		policies: PgPolicy[];
+		views: PgView[];
+		matViews: PgMaterializedView[];
+	},
 	casing: CasingType | undefined,
 	schemaFilter?: string[],
 ): {
@@ -226,7 +228,7 @@ export const fromDrizzleSchema = (
 	const errors: SchemaError[] = [];
 	const warnings: SchemaWarning[] = [];
 
-	const schemas = drizzleSchemas
+	const schemas = schema.schemas
 		.map<Schema>((it) => ({
 			entityType: 'schemas',
 			name: it.schemaName,
@@ -239,7 +241,7 @@ export const fromDrizzleSchema = (
 			}
 		});
 
-	const tableConfigPairs = drizzleTables.map((it) => {
+	const tableConfigPairs = schema.tables.map((it) => {
 		return { config: getTableConfig(it), table: it };
 	});
 
@@ -577,7 +579,7 @@ export const fromDrizzleSchema = (
 		);
 	}
 
-	for (const policy of drizzlePolicies) {
+	for (const policy of schema.policies) {
 		if (
 			!('_linkedTable' in policy)
 			|| typeof policy._linkedTable === 'undefined'
@@ -605,7 +607,7 @@ export const fromDrizzleSchema = (
 
 	const sequences: Sequence[] = [];
 
-	for (const sequence of drizzleSequences) {
+	for (const sequence of schema.sequences) {
 		const name = sequence.seqName!;
 		const increment = stringFromIdentityProperty(sequence.seqOptions?.increment) ?? '1';
 		const minValue = stringFromIdentityProperty(sequence.seqOptions?.minValue)
@@ -629,7 +631,7 @@ export const fromDrizzleSchema = (
 	}
 
 	const roles: Role[] = [];
-	for (const _role of drizzleRoles) {
+	for (const _role of schema.roles) {
 		const role = _role as any;
 		if (role._existing) continue;
 
@@ -643,7 +645,7 @@ export const fromDrizzleSchema = (
 	}
 
 	const views: View[] = [];
-	const combinedViews = [...drizzleViews, ...drizzleMatViews].map((it) => {
+	const combinedViews = [...schema.views, ...schema.matViews].map((it) => {
 		if (is(it, PgView)) {
 			return {
 				...getViewConfig(it),
@@ -758,7 +760,7 @@ export const fromDrizzleSchema = (
 		});
 	}
 
-	const enums = drizzleEnums.map<Enum>((e) => {
+	const enums = schema.enums.map<Enum>((e) => {
 		return {
 			entityType: 'enums',
 			name: e.enumName,

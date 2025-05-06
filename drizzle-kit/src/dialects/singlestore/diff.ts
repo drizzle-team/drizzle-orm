@@ -4,7 +4,7 @@ import { Column, createDDL, MysqlDDL, Table, View } from '../mysql/ddl';
 import { diffDDL as mysqlDiffDDL } from '../mysql/diff';
 import { JsonStatement } from '../mysql/statements';
 
-export const ddlDiffDry = async (to: MysqlDDL, from: MysqlDDL = createDDL()) => {
+export const ddlDiffDry = async (from: MysqlDDL, to: MysqlDDL) => {
 	const s = new Set<string>();
 	return diffDDL(from, to, mockResolver(s), mockResolver(s), mockResolver(s), 'default');
 };

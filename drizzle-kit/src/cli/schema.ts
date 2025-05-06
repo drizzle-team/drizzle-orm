@@ -777,27 +777,22 @@ export const exportRaw = command({
 		await assertOrmCoreVersion();
 		await assertPackages('drizzle-orm');
 
-		const {
-			prepareAndExportPg,
-			prepareAndExportMysql,
-			prepareAndExportSqlite,
-			prepareAndExportLibSQL,
-			prepareAndExportSinglestore,
-		} = await import(
-			'./commands/migrate'
-		);
-
 		const dialect = opts.dialect;
 		if (dialect === 'postgresql') {
-			await prepareAndExportPg(opts);
+			const { handleExport } = await import('./commands/generate-postgres');
+			await handleExport(opts);
 		} else if (dialect === 'mysql') {
-			await prepareAndExportMysql(opts);
+			const { handleExport } = await import('./commands/generate-mysql');
+			await handleExport(opts);
 		} else if (dialect === 'sqlite') {
-			await prepareAndExportSqlite(opts);
+			const { handleExport } = await import('./commands/generate-sqlite');
+			await handleExport(opts);
 		} else if (dialect === 'turso') {
-			await prepareAndExportLibSQL(opts);
+			const { handleExport } = await import('./commands/generate-libsql');
+			await handleExport(opts);
 		} else if (dialect === 'singlestore') {
-			await prepareAndExportSinglestore(opts);
+			const { handleExport } = await import('./commands/generate-singlestore');
+			await handleExport(opts);
 		} else if (dialect === 'gel') {
 			console.log(
 				error(

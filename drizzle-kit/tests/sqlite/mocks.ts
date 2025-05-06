@@ -5,7 +5,7 @@ import { rmSync, writeFileSync } from 'fs';
 import { suggestions } from 'src/cli/commands/push-sqlite';
 import { CasingType } from 'src/cli/validations/common';
 import { interimToDDL } from 'src/dialects/sqlite/ddl';
-import { diffDDL, diffDryDDL } from 'src/dialects/sqlite/diff';
+import { ddlDiff, ddlDiffDry } from 'src/dialects/sqlite/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/sqlite/drizzle';
 import { fromDatabaseForDrizzle } from 'src/dialects/sqlite/introspect';
 import { ddlToTypescript } from 'src/dialects/sqlite/typescript';
@@ -38,7 +38,7 @@ export const diff = async (
 
 	const renames = new Set(renamesArr);
 
-	const { sqlStatements, statements } = await diffDDL(
+	const { sqlStatements, statements } = await ddlDiff(
 		ddl1,
 		ddl2,
 		mockResolver(renames),
@@ -70,7 +70,7 @@ export const diff2 = async (config: {
 	const { client, left, right, casing } = config;
 
 	const { ddl: initDDL, errors: err1 } = schemaToDDL(left, casing);
-	const { sqlStatements: initStatements } = await diffDryDDL(initDDL, 'push');
+	const { sqlStatements: initStatements } = await ddlDiffDry(initDDL, 'push');
 
 	if (config.seed) initStatements.push(...config.seed);
 	for (const st of initStatements) {
@@ -91,7 +91,7 @@ export const diff2 = async (config: {
 
 	const rens = new Set<string>(config.renames || []);
 
-	const { sqlStatements, statements, renames } = await diffDDL(
+	const { sqlStatements, statements, renames } = await ddlDiff(
 		ddl1,
 		ddl2,
 		mockResolver(rens),
@@ -112,7 +112,7 @@ export const diffAfterPull = async (
 	const db = dbFrom(client);
 
 	const { ddl: initDDL, errors: e1 } = schemaToDDL(initSchema, casing);
-	const { sqlStatements: inits } = await diffDryDDL(initDDL, 'push');
+	const { sqlStatements: inits } = await ddlDiffDry(initDDL, 'push');
 	for (const st of inits) {
 		client.exec(st);
 	}
@@ -128,7 +128,7 @@ export const diffAfterPull = async (
 	const res = await prepareFromSchemaFiles([path]);
 	const { ddl: ddl1, errors: err2 } = interimToDDL(fromDrizzleSchema(res.tables, res.views, casing));
 
-	const { sqlStatements, statements } = await diffDDL(
+	const { sqlStatements, statements } = await ddlDiff(
 		ddl1,
 		ddl2,
 		mockResolver(new Set()),

@@ -43,17 +43,7 @@ export const handle = async (
 	const filenames = prepareFilenames(schemaPath);
 	const res = await prepareFromSchemaFiles(filenames);
 
-	const { schema: schemaTo, errors, warnings } = fromDrizzleSchema(
-		res.schemas,
-		res.tables,
-		res.enums,
-		res.sequences,
-		res.roles,
-		res.policies,
-		res.views,
-		res.matViews,
-		casing,
-	);
+	const { schema: schemaTo, errors, warnings } = fromDrizzleSchema(res, casing);
 
 	if (warnings.length > 0) {
 		console.log(warnings.map((it) => schemaWarning(it)).join('\n\n'));

@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
 import { Column, interimToDDL, Table } from 'src/dialects/sqlite/ddl';
-import { diffDDL } from 'src/dialects/sqlite/diff';
+import { ddlDiff } from 'src/dialects/sqlite/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/sqlite/drizzle';
 import { JsonStatement } from 'src/dialects/sqlite/statements';
 import { prepareFilenames } from '../../serializer';
@@ -37,7 +37,7 @@ export const handle = async (
 
 	const { ddl: ddl1, errors: e2 } = await sqliteIntrospect(db, tablesFilter, progress);
 
-	const { sqlStatements, statements, renames, warnings } = await diffDDL(
+	const { sqlStatements, statements, renames, warnings } = await ddlDiff(
 		ddl1,
 		ddl2,
 		resolver<Table>('table'),

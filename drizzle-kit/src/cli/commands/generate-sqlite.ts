@@ -1,11 +1,13 @@
-import { diffDDL } from 'src/dialects/sqlite/diff';
-import { Column, SqliteEntities } from '../../dialects/sqlite/ddl';
+import { ddlDiff, ddlDiffDry } from 'src/dialects/sqlite/diff';
+import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/sqlite/drizzle';
+import { prepareFilenames } from 'src/serializer';
+import { Column, interimToDDL, SqliteEntities } from '../../dialects/sqlite/ddl';
 import { prepareSqliteSnapshot } from '../../dialects/sqlite/serializer';
 import { assertV1OutFolder, prepareMigrationFolder } from '../../utils-node';
 import { resolver } from '../prompts';
 import { warning } from '../views';
 import { writeResult } from './generate-common';
-import { GenerateConfig } from './utils';
+import { ExportConfig, GenerateConfig } from './utils';
 
 export const handle = async (config: GenerateConfig) => {
 	const outFolder = config.out;
@@ -38,7 +40,7 @@ export const handle = async (config: GenerateConfig) => {
 			return;
 		}
 
-		const { sqlStatements, warnings, renames } = await diffDDL(
+		const { sqlStatements, warnings, renames } = await ddlDiff(
 			ddlCur,
 			ddlPrev,
 			resolver<SqliteEntities['tables']>('table'),
@@ -65,4 +67,13 @@ export const handle = async (config: GenerateConfig) => {
 	} catch (e) {
 		console.error(e);
 	}
+};
+
+export const handleExport = async (config: ExportConfig) => {
+	const filenames = prepareFilenames(config.schema);
+	const res = await prepareFromSchemaFiles(filenames);
+	const schema = fromDrizzleSchema(res.tables, res.views, undefined);
+	const { ddl } = interimToDDL(schema);
+	const { sqlStatements } = await ddlDiffDry(ddl, 'generate');
+	console.log(sqlStatements.join('\n'));
 };

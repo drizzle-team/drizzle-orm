@@ -1,1 +1,1 @@
-export { handle } from './generate-sqlite';
+export { handle, handleExport } from './generate-sqlite';

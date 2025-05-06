@@ -1,10 +1,15 @@
-import { renderWithTask } from 'hanji';
+import chalk from 'chalk';
+import { writeFileSync } from 'fs';
+import { render, renderWithTask } from 'hanji';
+import { join } from 'path';
+import { interimToDDL } from 'src/dialects/postgres/ddl';
+import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
 import { fromDatabase } from '../../dialects/postgres/introspect';
 import { Entities } from '../validations/cli';
 import { Casing, Prefix } from '../validations/common';
 import { GelCredentials } from '../validations/gel';
 import { IntrospectProgress } from '../views';
-import { prepareTablesFilter } from './utils';
+import { prepareTablesFilter, relationsToTypeScript } from './pull-common';
 
 export const handle = async (
 	casing: Casing,
@@ -35,55 +40,21 @@ export const handle = async (
 		),
 	);
 
-	const schema = { id: originUUID, prevId: '', ...res } as GelSchema;
-	const ts = gelSchemaToTypeScript(schema, casing);
-	const relationsTs = relationsToTypeScript(schema, casing);
-	const { internal, ...schemaWithoutInternals } = schema;
+	const { ddl: ddl2, errors } = interimToDDL(res);
+
+	if (errors.length > 0) {
+		// TODO: print errors
+		process.exit(1);
+	}
+
+	const ts = ddlToTypeScript(ddl2, res.viewColumns, casing, 'gel');
+	const relationsTs = relationsToTypeScript(ddl2.fks.list(), casing);
 
 	const schemaFile = join(out, 'schema.ts');
 	writeFileSync(schemaFile, ts.file);
 	const relationsFile = join(out, 'relations.ts');
 	writeFileSync(relationsFile, relationsTs.file);
 	console.log();
-
-	// const { snapshots, journal } = prepareOutFolder(out, 'gel');
-
-	// if (snapshots.length === 0) {
-	// 	const { sqlStatements, _meta } = await applyGelSnapshotsDiff(
-	// 		squashGelScheme(dryGel),
-	// 		squashGelScheme(schema),
-	// 		schemasResolver,
-	// 		enumsResolver,
-	// 		sequencesResolver,
-	// 		policyResolver,
-	// 		indPolicyResolver,
-	// 		roleResolver,
-	// 		tablesResolver,
-	// 		columnsResolver,
-	// 		viewsResolver,
-	// 		dryPg,
-	// 		schema,
-	// 	);
-
-	// 	writeResult({
-	// 		cur: schema,
-	// 		sqlStatements,
-	// 		journal,
-	// 		_meta,
-	// 		outFolder: out,
-	// 		breakpoints,
-	// 		type: 'introspect',
-	// 		prefixMode: prefix,
-	// 	});
-	// } else {
-	// 	render(
-	// 		`[${
-	// 			chalk.blue(
-	// 				'i',
-	// 			)
-	// 		}] No SQL generated, you already have migrations in project`,
-	// 	);
-	// }
 
 	render(
 		`[${
