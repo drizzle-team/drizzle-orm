@@ -20,13 +20,13 @@ export const menuItemModifierGroups = pgTable(
 			.references(() => modifierGroups.id),
 		order: integer('order').default(0),
 	},
-	(table) => ({
-		menuItemIdModifierGroupIdOrderPk: primaryKey(
+	(table) => [primaryKey({
+		columns: [
 			table.menuItemId,
 			table.modifierGroupId,
 			table.order,
-		),
-	}),
+		],
+	})],
 );
 
 export const ingredients = pgTable('ingredients', {
@@ -54,13 +54,13 @@ export const menuItemIngredients = pgTable(
 			.references(() => ingredients.id),
 		order: integer('order').default(0),
 	},
-	(table) => ({
-		menuItemIdIngredientIdOrderPk: primaryKey(
-			table.menuItemId,
-			table.ingredientId,
-			table.order,
+	(table) => [
+		primaryKey(
+			{
+				columns: [table.menuItemId, table.ingredientId, table.order],
+			},
 		),
-	}),
+	],
 );
 
 export const modifierGroupModifiers = pgTable(
@@ -74,13 +74,15 @@ export const modifierGroupModifiers = pgTable(
 			.references(() => modifiers.id),
 		order: integer('order').default(0),
 	},
-	(table) => ({
-		modifierGroupIdModifierIdOrderPk: primaryKey(
-			table.modifierGroupId,
-			table.modifierId,
-			table.order,
-		),
-	}),
+	(table) => [
+		primaryKey({
+			columns: [
+				table.modifierGroupId,
+				table.modifierId,
+				table.order,
+			],
+		}),
+	],
 );
 
 export const menuItemRelations = relations(menuItems, ({ many }) => ({

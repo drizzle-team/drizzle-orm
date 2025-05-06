@@ -114,9 +114,7 @@ test('introspect checks', async () => {
 			id: serial('id'),
 			name: varchar('name', { length: 255 }),
 			age: int('age'),
-		}, (table) => ({
-			someCheck: check('some_check', sql`${table.age} > 21`),
-		})),
+		}, (table) => [check('some_check', sql`${table.age} > 21`)]),
 	};
 
 	const { statements, sqlStatements } = await pushPullDiff(db, schema, 'checks');

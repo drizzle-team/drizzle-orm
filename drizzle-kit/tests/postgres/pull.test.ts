@@ -110,19 +110,19 @@ test('basic index test', async () => {
 			firstName: text('first_name'),
 			lastName: text('last_name'),
 			data: jsonb('data'),
-		}, (table) => ({
-			singleColumn: index('single_column').on(table.firstName),
-			multiColumn: index('multi_column').on(table.firstName, table.lastName),
-			singleExpression: index('single_expression').on(sql`lower(${table.firstName})`),
-			multiExpression: index('multi_expression').on(sql`lower(${table.firstName})`, sql`lower(${table.lastName})`),
-			expressionWithComma: index('expression_with_comma').on(
+		}, (table) => [
+			index('single_column').on(table.firstName),
+			index('multi_column').on(table.firstName, table.lastName),
+			index('single_expression').on(sql`lower(${table.firstName})`),
+			index('multi_expression').on(sql`lower(${table.firstName})`, sql`lower(${table.lastName})`),
+			index('expression_with_comma').on(
 				sql`(lower(${table.firstName}) || ', '::text || lower(${table.lastName}))`,
 			),
-			expressionWithDoubleQuote: index('expression_with_double_quote').on(sql`('"'::text || ${table.firstName})`),
-			expressionWithJsonbOperator: index('expression_with_jsonb_operator').on(
+			index('expression_with_double_quote').on(sql`('"'::text || ${table.firstName})`),
+			index('expression_with_jsonb_operator').on(
 				sql`(${table.data} #>> '{a,b,1}'::text[])`,
 			),
-		})),
+		]),
 	};
 
 	const { statements, sqlStatements } = await pushPullDiff(
@@ -461,9 +461,7 @@ test('introspect checks', async () => {
 			id: serial('id'),
 			name: varchar('name'),
 			age: integer('age'),
-		}, (table) => ({
-			someCheck: check('some_check', sql`${table.age} > 21`),
-		})),
+		}, (table) => [check('some_check', sql`${table.age} > 21`)]),
 	};
 
 	const { statements, sqlStatements } = await pushPullDiff(
@@ -483,15 +481,11 @@ test('introspect checks from different schemas with same names', async () => {
 		users: pgTable('users', {
 			id: serial('id'),
 			age: integer('age'),
-		}, (table) => ({
-			someCheck: check('some_check', sql`${table.age} > 21`),
-		})),
+		}, (table) => [check('some_check', sql`${table.age} > 21`)]),
 		usersInMySchema: mySchema.table('users', {
 			id: serial('id'),
 			age: integer('age'),
-		}, (table) => ({
-			someCheck: check('some_check', sql`${table.age} < 1`),
-		})),
+		}, (table) => [check('some_check', sql`${table.age} < 1`)]),
 	};
 
 	const { statements, sqlStatements } = await pushPullDiff(
@@ -655,9 +649,7 @@ test('basic policy', async () => {
 	const schema = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test'),
-		})),
+		}, () => [pgPolicy('test')]),
 	};
 
 	const { statements, sqlStatements } = await pushPullDiff(
@@ -674,9 +666,7 @@ test('basic policy with "as"', async () => {
 	const schema = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive' }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
 	const { statements, sqlStatements } = await pushPullDiff(
@@ -693,9 +683,7 @@ test.todo('basic policy with CURRENT_USER role', async () => {
 	const schema = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { to: 'current_user' }),
-		})),
+		}, () => [pgPolicy('test', { to: 'current_user' })]),
 	};
 
 	const { statements, sqlStatements } = await pushPullDiff(
@@ -712,9 +700,7 @@ test('basic policy with all fields except "using" and "with"', async () => {
 	const schema = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { as: 'permissive', for: 'all', to: ['postgres'] }),
-		})),
+		}, () => [pgPolicy('test', { as: 'permissive', for: 'all', to: ['postgres'] })]),
 	};
 
 	const { statements, sqlStatements } = await pushPullDiff(
@@ -731,9 +717,7 @@ test('basic policy with "using" and "with"', async () => {
 	const schema = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { using: sql`true`, withCheck: sql`true` }),
-		})),
+		}, () => [pgPolicy('test', { using: sql`true`, withCheck: sql`true` })]),
 	};
 
 	const { statements, sqlStatements } = await pushPullDiff(
@@ -750,10 +734,7 @@ test('multiple policies', async () => {
 	const schema = {
 		users: pgTable('users', {
 			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { using: sql`true`, withCheck: sql`true` }),
-			rlsPolicy: pgPolicy('newRls'),
-		})),
+		}, () => [pgPolicy('test', { using: sql`true`, withCheck: sql`true` }), pgPolicy('newRls')]),
 	};
 
 	const { statements, sqlStatements } = await pushPullDiff(
@@ -770,12 +751,16 @@ test('multiple policies with roles', async () => {
 	client.query(`CREATE ROLE manager;`);
 
 	const schema = {
-		users: pgTable('users', {
-			id: integer('id').primaryKey(),
-		}, () => ({
-			rls: pgPolicy('test', { using: sql`true`, withCheck: sql`true` }),
-			rlsPolicy: pgPolicy('newRls', { to: ['postgres', 'manager'] }),
-		})),
+		users: pgTable(
+			'users',
+			{
+				id: integer('id').primaryKey(),
+			},
+			() => [
+				pgPolicy('test', { using: sql`true`, withCheck: sql`true` }),
+				pgPolicy('newRls', { to: ['postgres', 'manager'] }),
+			],
+		),
 	};
 
 	const { statements, sqlStatements } = await pushPullDiff(

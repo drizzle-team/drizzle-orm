@@ -79,9 +79,7 @@ test('introspect checks', async () => {
 			id: int('id'),
 			name: text('name'),
 			age: int('age'),
-		}, (table) => ({
-			someCheck: check('some_check', sql`${table.age} > 21`),
-		})),
+		}, (table) => [check('some_check', sql`${table.age} > 21`)]),
 	};
 
 	const { statements, sqlStatements } = await diffAfterPull(

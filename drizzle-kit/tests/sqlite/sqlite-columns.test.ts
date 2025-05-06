@@ -341,11 +341,9 @@ test('add index #1', async (t) => {
 			id: int('id').primaryKey({ autoIncrement: true }),
 			reporteeId: int('report_to').references((): AnySQLiteColumn => users.id),
 		},
-		(t) => {
-			return {
-				reporteeIdx: index('reportee_idx').on(t.reporteeId),
-			};
-		},
+		(t) => [
+			index('reportee_idx').on(t.reporteeId),
+		],
 	);
 
 	const schema2 = {
@@ -408,15 +406,11 @@ test('add foreign key #2', async (t) => {
 				id: int('id').primaryKey({ autoIncrement: true }),
 				reporteeId: int('report_to'),
 			},
-			(t) => {
-				return {
-					reporteeFk: foreignKey({
-						columns: [t.reporteeId],
-						foreignColumns: [t.id],
-						name: 'reportee_fk',
-					}),
-				};
-			},
+			(t) => [foreignKey({
+				columns: [t.reporteeId],
+				foreignColumns: [t.id],
+				name: 'reportee_fk',
+			})],
 		),
 	};
 
@@ -535,7 +529,7 @@ test('alter column rename #4', async (t) => {
 
 	const { sqlStatements } = await diff(schema1, schema2, [
 		'users.name->users.name2',
-		'users.email->users.email2'
+		'users.email->users.email2',
 	]);
 
 	expect(sqlStatements).toStrictEqual(
@@ -552,7 +546,7 @@ test('rename column in composite pk', async (t) => {
 			id: int(),
 			id2: int(),
 			name: text('name'),
-		}, (t) => ({ pk: primaryKey({ columns: [t.id, t.id2] }) })),
+		}, (t) => [primaryKey({ columns: [t.id, t.id2] })]),
 	};
 
 	const schema2 = {
@@ -560,7 +554,7 @@ test('rename column in composite pk', async (t) => {
 			id: int(),
 			id3: int(),
 			name: text('name'),
-		}, (t) => ({ pk: primaryKey({ columns: [t.id, t.id3] }) })),
+		}, (t) => [primaryKey({ columns: [t.id, t.id3] })]),
 	};
 
 	const { sqlStatements } = await diff(schema1, schema2, [
@@ -622,11 +616,7 @@ test('alter table add composite pk', async (t) => {
 				id1: integer('id1'),
 				id2: integer('id2'),
 			},
-			(t) => {
-				return {
-					pk: primaryKey({ columns: [t.id1, t.id2] }),
-				};
-			},
+			(t) => [primaryKey({ columns: [t.id1, t.id2] })],
 		),
 	};
 
@@ -807,17 +797,13 @@ test('alter column add default not null with indexes', async (t) => {
 	const from = {
 		users: sqliteTable('table', {
 			name: text('name'),
-		}, (table) => ({
-			someIndex: index('index_name').on(table.name),
-		})),
+		}, (table) => [index('index_name').on(table.name)]),
 	};
 
 	const to = {
 		users: sqliteTable('table', {
 			name: text('name').notNull().default('dan'),
-		}, (table) => ({
-			someIndex: index('index_name').on(table.name),
-		})),
+		}, (table) => [index('index_name').on(table.name)]),
 	};
 
 	const { statements, sqlStatements } = await diff(
@@ -849,9 +835,7 @@ test('alter column add default not null with indexes #2', async (t) => {
 	const to = {
 		users: sqliteTable('table', {
 			name: text('name').notNull().default('dan'),
-		}, (table) => ({
-			someIndex: index('index_name').on(table.name),
-		})),
+		}, (table) => [index('index_name').on(table.name)]),
 	};
 
 	const { statements, sqlStatements } = await diff(

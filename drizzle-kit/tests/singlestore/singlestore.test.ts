@@ -76,14 +76,10 @@ test('add table #3', async () => {
 			{
 				id: serial('id'),
 			},
-			(t) => {
-				return {
-					pk: primaryKey({
-						name: 'users_pk',
-						columns: [t.id],
-					}),
-				};
-			},
+			(t) => [primaryKey({
+				name: 'users_pk',
+				columns: [t.id],
+			})],
 		),
 	};
 
@@ -516,11 +512,7 @@ test('drop index', async () => {
 			{
 				name: text('name'),
 			},
-			(t) => {
-				return {
-					idx: index('name_idx').on(t.name),
-				};
-			},
+			(t) => [index('name_idx').on(t.name)],
 		),
 	};
 
@@ -546,23 +538,23 @@ test('add table with indexes', async () => {
 				name: text('name'),
 				email: text('email'),
 			},
-			(t) => ({
-				uniqueExpr: uniqueIndex('uniqueExpr').on(sql`(lower(${t.email}))`),
-				indexExpr: index('indexExpr').on(sql`(lower(${t.email}))`),
-				indexExprMultiple: index('indexExprMultiple').on(
+			(t) => [
+				uniqueIndex('uniqueExpr').on(sql`(lower(${t.email}))`),
+				index('indexExpr').on(sql`(lower(${t.email}))`),
+				index('indexExprMultiple').on(
 					sql`(lower(${t.email}))`,
 					sql`(lower(${t.email}))`,
 				),
 
-				uniqueCol: uniqueIndex('uniqueCol').on(t.email),
-				indexCol: index('indexCol').on(t.email),
-				indexColMultiple: index('indexColMultiple').on(t.email, t.email),
+				uniqueIndex('uniqueCol').on(t.email),
+				index('indexCol').on(t.email),
+				index('indexColMultiple').on(t.email, t.email),
 
-				indexColExpr: index('indexColExpr').on(
+				index('indexColExpr').on(
 					sql`(lower(${t.email}))`,
 					t.email,
 				),
-			}),
+			],
 		),
 	};
 
