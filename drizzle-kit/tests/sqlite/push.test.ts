@@ -97,9 +97,7 @@ test('dropped, added unique index', async (t) => {
 			isConfirmed: integer('is_confirmed', { mode: 'boolean' }),
 			registrationDate: integer('registration_date', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
 			userId: integer('user_id').notNull(),
-		}, (table) => ({
-			uniqueIndex: uniqueIndex('customers_address_unique').on(table.address),
-		})),
+		}, (table) => [uniqueIndex('customers_address_unique').on(table.address)]),
 
 		posts: sqliteTable('posts', {
 			id: integer('id').primaryKey(),
@@ -118,11 +116,11 @@ test('dropped, added unique index', async (t) => {
 				.notNull()
 				.$defaultFn(() => new Date()),
 			userId: integer('user_id').notNull(),
-		}, (table) => ({
-			uniqueIndex: uniqueIndex('customers_is_confirmed_unique').on(
+		}, (table) => [
+			uniqueIndex('customers_is_confirmed_unique').on(
 				table.isConfirmed,
 			),
-		})),
+		]),
 
 		posts: sqliteTable('posts', {
 			id: integer('id').primaryKey(),
@@ -366,13 +364,11 @@ test('create table with custom name references', async (t) => {
 				name: text('name'),
 				userId: int('user_id'),
 			},
-			(t) => ({
-				fk: foreignKey({
-					columns: [t.id],
-					foreignColumns: [users.id],
-					name: 'custom_name_fk',
-				}),
-			}),
+			(t) => [foreignKey({
+				columns: [t.id],
+				foreignColumns: [users.id],
+				name: 'custom_name_fk',
+			})],
 		),
 	};
 
@@ -385,13 +381,11 @@ test('create table with custom name references', async (t) => {
 				name: text('name'),
 				userId: int('user_id'),
 			},
-			(t) => ({
-				fk: foreignKey({
-					columns: [t.id],
-					foreignColumns: [users.id],
-					name: 'custom_name_fk',
-				}),
-			}),
+			(t) => [foreignKey({
+				columns: [t.id],
+				foreignColumns: [users.id],
+				name: 'custom_name_fk',
+			})],
 		),
 	};
 
@@ -669,9 +663,7 @@ test('add check constraint to table', async (t) => {
 			id: int('id').primaryKey({ autoIncrement: false }),
 			name: text('name'),
 			age: integer('age'),
-		}, (table) => ({
-			someCheck: check('some_check', sql`${table.age} > 21`),
-		})),
+		}, (table) => [check('some_check', sql`${table.age} > 21`)]),
 	};
 
 	const { sqlStatements, hints } = await diff2({
@@ -705,9 +697,7 @@ test('drop check constraint', async (t) => {
 			id: int('id').primaryKey({ autoIncrement: false }),
 			name: text('name'),
 			age: integer('age'),
-		}, (table) => ({
-			someCheck: check('some_check', sql`${table.age} > 21`),
-		})),
+		}, (table) => [check('some_check', sql`${table.age} > 21`)]),
 	};
 
 	const schema2 = {
@@ -748,9 +738,7 @@ test('db has checks. Push with same names', async () => {
 			id: int('id').primaryKey({ autoIncrement: false }),
 			name: text('name'),
 			age: integer('age'),
-		}, (table) => ({
-			someCheck: check('some_check', sql`${table.age} > 21`),
-		})),
+		}, (table) => [check('some_check', sql`${table.age} > 21`)]),
 	};
 
 	const schema2 = {
@@ -758,9 +746,7 @@ test('db has checks. Push with same names', async () => {
 			id: int('id').primaryKey({ autoIncrement: false }),
 			name: text('name'),
 			age: integer('age'),
-		}, (table) => ({
-			someCheck: check('some_check', sql`${table.age} > 22`),
-		})),
+		}, (table) => [check('some_check', sql`${table.age} > 22`)]),
 	};
 
 	const { sqlStatements, hints } = await diff2({
@@ -874,11 +860,9 @@ test('create composite primary key', async (t) => {
 		table: sqliteTable('table', {
 			col1: integer('col1').notNull(),
 			col2: integer('col2').notNull(),
-		}, (t) => ({
-			pk: primaryKey({
-				columns: [t.col1, t.col2],
-			}),
-		})),
+		}, (t) => [primaryKey({
+			columns: [t.col1, t.col2],
+		})]),
 	};
 
 	const { sqlStatements, hints } = await diff2({
@@ -899,11 +883,9 @@ test('rename table with composite primary key', async () => {
 		return sqliteTable(tableName, {
 			productId: text('product_id').notNull(),
 			categoryId: text('category_id').notNull(),
-		}, (t) => ({
-			pk: primaryKey({
-				columns: [t.productId, t.categoryId],
-			}),
-		}));
+		}, (t) => [primaryKey({
+			columns: [t.productId, t.categoryId],
+		})]);
 	};
 
 	const schema1 = {

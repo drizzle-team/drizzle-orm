@@ -23,9 +23,7 @@ export const artists = mysqlTable(
 		website: varchar('website', { length: 255 }).notNull(),
 		spotifyId: varchar('spotify_id', { length: 32 }),
 	},
-	(table) => ({
-		nameEnIndex: index('artists__name_en__idx').on(table.nameEn),
-	}),
+	(table) => [index('artists__name_en__idx').on(table.nameEn)],
 );
 
 export const members = mysqlTable('members', {
@@ -51,12 +49,12 @@ export const artistsToMembers = mysqlTable(
 		memberId: int('member_id').notNull(),
 		artistId: int('artist_id').notNull(),
 	},
-	(table) => ({
-		memberArtistIndex: index('artist_to_member__artist_id__member_id__idx').on(
+	(table) => [
+		index('artist_to_member__artist_id__member_id__idx').on(
 			table.memberId,
 			table.artistId,
 		),
-	}),
+	],
 );
 
 export const albums = mysqlTable(
@@ -76,10 +74,7 @@ export const albums = mysqlTable(
 		image: varchar('image', { length: 255 }).notNull(),
 		spotifyId: varchar('spotify_id', { length: 32 }),
 	},
-	(table) => ({
-		artistIndex: index('albums__artist_id__idx').on(table.artistId),
-		nameIndex: index('albums__name__idx').on(table.name),
-	}),
+	(table) => [index('albums__artist_id__idx').on(table.artistId), index('albums__name__idx').on(table.name)],
 );
 
 // relations

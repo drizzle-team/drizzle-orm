@@ -8,9 +8,7 @@ test('create table with check', async (t) => {
 		users: sqliteTable('users', {
 			id: int('id').primaryKey(),
 			age: int('age'),
-		}, (table) => ({
-			checkConstraint: check('some_check_name', sql`${table.age} > 21`),
-		})),
+		}, (table) => [check('some_check_name', sql`${table.age} > 21`)]),
 	};
 
 	const { sqlStatements } = await diff({}, to, []);
@@ -36,9 +34,7 @@ test('add check contraint to existing table', async (t) => {
 		users: sqliteTable('users', {
 			id: int('id').primaryKey(),
 			age: int('age'),
-		}, (table) => ({
-			checkConstraint: check('some_check_name', sql`${table.age} > 21`),
-		})),
+		}, (table) => [check('some_check_name', sql`${table.age} > 21`)]),
 	};
 
 	const { sqlStatements } = await diff(from, to, []);
@@ -62,9 +58,7 @@ test('drop check contraint to existing table', async (t) => {
 		users: sqliteTable('users', {
 			id: int('id').primaryKey(),
 			age: int('age'),
-		}, (table) => ({
-			checkConstraint: check('some_check_name', sql`${table.age} > 21`),
-		})),
+		}, (table) => [check('some_check_name', sql`${table.age} > 21`)]),
 	};
 
 	const to = {
@@ -91,18 +85,14 @@ test('rename check constraint', async (t) => {
 		users: sqliteTable('users', {
 			id: int('id').primaryKey(),
 			age: int('age'),
-		}, (table) => ({
-			checkConstraint: check('some_check_name', sql`${table.age} > 21`),
-		})),
+		}, (table) => [check('some_check_name', sql`${table.age} > 21`)]),
 	};
 
 	const to = {
 		users: sqliteTable('users', {
 			id: int('id').primaryKey(),
 			age: int('age'),
-		}, (table) => ({
-			checkConstraint: check('new_some_check_name', sql`${table.age} > 21`),
-		})),
+		}, (table) => [check('new_some_check_name', sql`${table.age} > 21`)]),
 	};
 
 	const { sqlStatements } = await diff(from, to, []);
@@ -128,18 +118,14 @@ test('change check constraint value', async (t) => {
 		users: sqliteTable('users', {
 			id: int('id').primaryKey(),
 			age: int('age'),
-		}, (table) => ({
-			checkConstraint: check('some_check_name', sql`${table.age} > 21`),
-		})),
+		}, (table) => [check('some_check_name', sql`${table.age} > 21`)]),
 	};
 
 	const to = {
 		users: sqliteTable('users', {
 			id: int('id').primaryKey(),
 			age: int('age'),
-		}, (table) => ({
-			checkConstraint: check('some_check_name', sql`${table.age} > 10`),
-		})),
+		}, (table) => [check('some_check_name', sql`${table.age} > 10`)]),
 	};
 
 	const { sqlStatements } = await diff(from, to, []);
@@ -160,14 +146,17 @@ test('change check constraint value', async (t) => {
 
 test('create checks with same names', async (t) => {
 	const to = {
-		users: sqliteTable('users', {
-			id: int('id').primaryKey(),
-			age: int('age'),
-			name: text('name'),
-		}, (table) => ({
-			checkConstraint1: check('some_check_name', sql`${table.age} > 21`),
-			checkConstraint2: check('some_check_name', sql`${table.name} != 'Alex'`),
-		})),
+		users: sqliteTable(
+			'users',
+			{
+				id: int('id').primaryKey(),
+				age: int('age'),
+				name: text('name'),
+			},
+			(
+				table,
+			) => [check('some_check_name', sql`${table.age} > 21`), check('some_check_name', sql`${table.name} != 'Alex'`)],
+		),
 	};
 
 	const { err2 } = await diff({}, to, []);
