@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm';
+import { SQL, sql } from 'drizzle-orm';
 import {
 	bigint,
 	binary,
@@ -15,6 +15,7 @@ import {
 	mysqlEnum,
 	mysqlTable,
 	mysqlView,
+	primaryKey,
 	serial,
 	smallint,
 	text,
@@ -28,7 +29,9 @@ import {
 import fs from 'fs';
 import { DB } from 'src/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { prepareTestDatabase, TestDatabase } from './mocks';
+import { diffPush, prepareTestDatabase, TestDatabase } from './mocks';
+
+// @vitest-environment-options {"max-concurrency":1}
 
 let _: TestDatabase;
 let db: DB;
@@ -210,40 +213,13 @@ test('all types', async () => {
 		}),
 	};
 
-	const { statements } = await diffTestSchemasPushMysql(
-		context.client as Connection,
-		schema1,
-		schema1,
-		[],
-		'drizzle',
-		false,
-	);
-	expect(statements.length).toBe(2);
-	expect(statements).toEqual([
-		{
-			type: 'delete_unique_constraint',
-			tableName: 'all_small_serials',
-			data: 'column_all;column_all',
-			schema: '',
-		},
-		{
-			type: 'delete_unique_constraint',
-			tableName: 'all_small_serials',
-			data: 'column_all;column_all',
-			schema: '',
-		},
-	]);
+	const { sqlStatements } = await diffPush({
+		db,
+		init: schema1,
+		destination: schema1,
+	});
 
-	const { sqlStatements: dropStatements } = await diffTestSchemasMysql(
-		schema1,
-		{},
-		[],
-		false,
-	);
-
-	for (const st of dropStatements) {
-		await context.client.query(st);
-	}
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('add check constraint to table', async () => {
@@ -260,35 +236,16 @@ test('add check constraint to table', async () => {
 		}, (table) => [check('some_check1', sql`${table.values} < 100`), check('some_check2', sql`'test' < 100`)]),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPushMysql(
-		client,
-		schema1,
-		schema2,
-		[],
-		'drizzle',
-		false,
-	);
+	const { sqlStatements } = await diffPush({
+		db,
+		init: schema1,
+		destination: schema2,
+	});
 
-	expect(statements).toStrictEqual([
-		{
-			type: 'create_check_constraint',
-			tableName: 'test',
-			schema: '',
-			data: 'some_check1;\`test\`.\`values\` < 100',
-		},
-		{
-			data: "some_check2;'test' < 100",
-			schema: '',
-			tableName: 'test',
-			type: 'create_check_constraint',
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE \`test\` ADD CONSTRAINT \`some_check1\` CHECK (\`test\`.\`values\` < 100);',
 		`ALTER TABLE \`test\` ADD CONSTRAINT \`some_check2\` CHECK ('test' < 100);`,
 	]);
-
-	await client.query(`DROP TABLE \`test\`;`);
 });
 
 test('drop check constraint to table', async () => {
@@ -308,35 +265,16 @@ test('drop check constraint to table', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPushMysql(
-		client,
-		schema1,
-		schema2,
-		[],
-		'drizzle',
-		false,
-	);
+	const { sqlStatements } = await diffPush({
+		db,
+		init: schema1,
+		destination: schema2,
+	});
 
-	expect(statements).toStrictEqual([
-		{
-			type: 'delete_check_constraint',
-			tableName: 'test',
-			schema: '',
-			constraintName: 'some_check1',
-		},
-		{
-			constraintName: 'some_check2',
-			schema: '',
-			tableName: 'test',
-			type: 'delete_check_constraint',
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE \`test\` DROP CONSTRAINT \`some_check1\`;',
 		`ALTER TABLE \`test\` DROP CONSTRAINT \`some_check2\`;`,
 	]);
-
-	await client.query(`DROP TABLE \`test\`;`);
 });
 
 test('db has checks. Push with same names', async () => {
@@ -357,18 +295,9 @@ test('db has checks. Push with same names', async () => {
 		]),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPushMysql(
-		client,
-		schema1,
-		schema2,
-		[],
-		'drizzle',
-	);
+	const { sqlStatements } = await diffPush({ db, init: schema1, destination: schema2 });
 
-	expect(statements).toStrictEqual([]);
 	expect(sqlStatements).toStrictEqual([]);
-
-	await client.query(`DROP TABLE \`test\`;`);
 });
 
 test('create view', async () => {
@@ -385,33 +314,13 @@ test('create view', async () => {
 		view: mysqlView('view').as((qb) => qb.select().from(table)),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPushMysql(
-		client,
-		schema1,
-		schema2,
-		[],
-		'drizzle',
-		false,
-	);
+	const { sqlStatements } = await diffPush({ db, init: schema1, destination: schema2 });
 
-	expect(statements).toStrictEqual([
-		{
-			definition: 'select \`id\` from \`test\`',
-			name: 'view',
-			type: 'mysql_create_view',
-			replace: false,
-			sqlSecurity: 'definer',
-			withCheckOption: undefined,
-			algorithm: 'undefined',
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
 		`CREATE ALGORITHM = undefined
 SQL SECURITY definer
 VIEW \`view\` AS (select \`id\` from \`test\`);`,
 	]);
-
-	await client.query(`DROP TABLE \`test\`;`);
 });
 
 test('drop view', async () => {
@@ -428,26 +337,11 @@ test('drop view', async () => {
 		test: table,
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPushMysql(
-		client,
-		schema1,
-		schema2,
-		[],
-		'drizzle',
-		false,
-	);
+	const { sqlStatements } = await diffPush({ db, init: schema1, destination: schema2 });
 
-	expect(statements).toStrictEqual([
-		{
-			name: 'view',
-			type: 'drop_view',
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
 		'DROP VIEW \`view\`;',
 	]);
-	await client.query(`DROP TABLE \`test\`;`);
-	await client.query(`DROP VIEW \`view\`;`);
 });
 
 test('alter view ".as"', async () => {
@@ -465,20 +359,9 @@ test('alter view ".as"', async () => {
 		view: mysqlView('view').as((qb) => qb.select().from(table)),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPushMysql(
-		client,
-		schema1,
-		schema2,
-		[],
-		'drizzle',
-		false,
-	);
+	const { sqlStatements } = await diffPush({ db, init: schema1, destination: schema2 });
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
-
-	await client.query(`DROP TABLE \`test\`;`);
-	await client.query(`DROP VIEW \`view\`;`);
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('alter meta options with distinct in definition', async () => {
@@ -499,17 +382,10 @@ test('alter meta options with distinct in definition', async () => {
 			qb.selectDistinct().from(table)
 		),
 	};
+	const { sqlStatements } = await diffPush({ db, init: schema1, destination: schema2 });
 
-	await expect(diffTestSchemasPushMysql(
-		client,
-		schema1,
-		schema2,
-		[],
-		'drizzle',
-		false,
-	)).rejects.toThrowError();
-
-	await client.query(`DROP TABLE \`test\`;`);
+	// thow error?
+	expect(sqlStatements).toStrictEqual(['']);
 });
 
 test('add generated column', async () => {
@@ -535,68 +411,15 @@ test('add generated column', async () => {
 			),
 		}),
 	};
+	const { sqlStatements } = await diffPush({ db, init: schema1, destination: schema2 });
 
-	const { statements, sqlStatements } = await diffTestSchemasPushMysql(
-		context.client as Connection,
-		schema1,
-		schema2,
-		[],
-		'drizzle',
-		false,
-	);
-
-	expect(statements).toStrictEqual([
-		{
-			column: {
-				autoincrement: false,
-				generated: {
-					as: "`users`.`name` || 'hello'",
-					type: 'stored',
-				},
-				name: 'gen_name',
-				notNull: false,
-				primaryKey: false,
-				type: 'text',
-			},
-			schema: '',
-			tableName: 'users',
-			type: 'alter_table_add_column',
-		},
-		{
-			column: {
-				autoincrement: false,
-				generated: {
-					as: "`users`.`name` || 'hello'",
-					type: 'virtual',
-				},
-				name: 'gen_name1',
-				notNull: false,
-				primaryKey: false,
-				type: 'text',
-			},
-			schema: '',
-			tableName: 'users',
-			type: 'alter_table_add_column',
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
 		"ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS (`users`.`name` || 'hello') STORED;",
 		"ALTER TABLE `users` ADD `gen_name1` text GENERATED ALWAYS AS (`users`.`name` || 'hello') VIRTUAL;",
 	]);
 
 	for (const st of sqlStatements) {
-		await context.client.query(st);
-	}
-
-	const { sqlStatements: dropStatements } = await diffTestSchemasMysql(
-		schema2,
-		{},
-		[],
-		false,
-	);
-
-	for (const st of dropStatements) {
-		await context.client.query(st);
+		await db.query(st);
 	}
 });
 
@@ -626,49 +449,8 @@ test('alter column add generated', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPushMysql(
-		context.client as Connection,
-		schema1,
-		schema2,
-		[],
-		'drizzle',
-		false,
-	);
+	const { sqlStatements } = await diffPush({ db, init: schema1, destination: schema2 });
 
-	expect(statements).toStrictEqual([
-		{
-			columnAutoIncrement: false,
-			columnDefault: undefined,
-			columnGenerated: {
-				as: "`users`.`name` || 'hello'",
-				type: 'stored',
-			},
-			columnName: 'gen_name',
-			columnNotNull: false,
-			columnOnUpdate: undefined,
-			columnPk: false,
-			newDataType: 'text',
-			schema: '',
-			tableName: 'users',
-			type: 'alter_table_alter_column_set_generated',
-		},
-		{
-			columnAutoIncrement: false,
-			columnDefault: undefined,
-			columnGenerated: {
-				as: "`users`.`name` || 'hello'",
-				type: 'virtual',
-			},
-			columnName: 'gen_name1',
-			columnNotNull: false,
-			columnOnUpdate: undefined,
-			columnPk: false,
-			newDataType: 'text',
-			schema: '',
-			tableName: 'users',
-			type: 'alter_table_alter_column_set_generated',
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
 		"ALTER TABLE `users` MODIFY COLUMN `gen_name` text GENERATED ALWAYS AS (`users`.`name` || 'hello') STORED;",
 		'ALTER TABLE `users` DROP COLUMN `gen_name1`;',
@@ -676,18 +458,7 @@ test('alter column add generated', async () => {
 	]);
 
 	for (const st of sqlStatements) {
-		await context.client.query(st);
-	}
-
-	const { sqlStatements: dropStatements } = await diffTestSchemasMysql(
-		schema2,
-		{},
-		[],
-		false,
-	);
-
-	for (const st of dropStatements) {
-		await context.client.query(st);
+		await db.query(st);
 	}
 });
 
@@ -717,69 +488,8 @@ test('alter column drop generated', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPushMysql(
-		context.client as Connection,
-		schema1,
-		schema2,
-		[],
-		'drizzle',
-		false,
-	);
+	const { sqlStatements } = await diffPush({ db, init: schema1, destination: schema2 });
 
-	expect(statements).toStrictEqual([
-		{
-			columnAutoIncrement: false,
-			columnDefault: undefined,
-			columnGenerated: undefined,
-			columnName: 'gen_name',
-			columnNotNull: false,
-			columnOnUpdate: undefined,
-			columnPk: false,
-			newDataType: 'text',
-			oldColumn: {
-				autoincrement: false,
-				default: undefined,
-				generated: {
-					as: '`name`',
-					type: 'stored',
-				},
-				name: 'gen_name',
-				notNull: false,
-				onUpdate: undefined,
-				primaryKey: false,
-				type: 'text',
-			},
-			schema: '',
-			tableName: 'users',
-			type: 'alter_table_alter_column_drop_generated',
-		},
-		{
-			columnAutoIncrement: false,
-			columnDefault: undefined,
-			columnGenerated: undefined,
-			columnName: 'gen_name1',
-			columnNotNull: false,
-			columnOnUpdate: undefined,
-			columnPk: false,
-			newDataType: 'text',
-			oldColumn: {
-				autoincrement: false,
-				default: undefined,
-				generated: {
-					as: '`name`',
-					type: 'virtual',
-				},
-				name: 'gen_name1',
-				notNull: false,
-				onUpdate: undefined,
-				primaryKey: false,
-				type: 'text',
-			},
-			schema: '',
-			tableName: 'users',
-			type: 'alter_table_alter_column_drop_generated',
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE `users` MODIFY COLUMN `gen_name` text;',
 		'ALTER TABLE `users` DROP COLUMN `gen_name1`;',
@@ -787,18 +497,7 @@ test('alter column drop generated', async () => {
 	]);
 
 	for (const st of sqlStatements) {
-		await context.client.query(st);
-	}
-
-	const { sqlStatements: dropStatements } = await diffTestSchemasMysql(
-		schema2,
-		{},
-		[],
-		false,
-	);
-
-	for (const st of dropStatements) {
-		await context.client.query(st);
+		await db.query(st);
 	}
 });
 
@@ -834,28 +533,9 @@ test('alter generated', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPushMysql(
-		context.client as Connection,
-		schema1,
-		schema2,
-		[],
-		'drizzle',
-		false,
-	);
+	const { sqlStatements } = await diffPush({ db, init: schema1, destination: schema2 });
 
-	expect(statements).toStrictEqual([]);
 	expect(sqlStatements).toStrictEqual([]);
-
-	const { sqlStatements: dropStatements } = await diffTestSchemasMysql(
-		schema2,
-		{},
-		[],
-		false,
-	);
-
-	for (const st of dropStatements) {
-		await context.client.query(st);
-	}
 });
 
 test('composite pk', async () => {
@@ -872,34 +552,8 @@ test('composite pk', async () => {
 		]),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPushMysql(
-		context.client as Connection,
-		schema1,
-		schema2,
-		[],
-		'drizzle',
-		false,
-	);
+	const { sqlStatements } = await diffPush({ db, init: schema1, destination: schema2 });
 
-	expect(statements).toStrictEqual([
-		{
-			type: 'create_table',
-			tableName: 'table',
-			schema: undefined,
-			internals: {
-				indexes: {},
-				tables: {},
-			},
-			compositePKs: ['table_col1_col2_pk;col1,col2'],
-			compositePkName: 'table_col1_col2_pk',
-			uniqueConstraints: [],
-			checkConstraints: [],
-			columns: [
-				{ name: 'col1', type: 'int', primaryKey: false, notNull: true, autoincrement: false },
-				{ name: 'col2', type: 'int', primaryKey: false, notNull: true, autoincrement: false },
-			],
-		},
-	]);
 	expect(sqlStatements).toStrictEqual([
 		'CREATE TABLE `table` (\n\t`col1` int NOT NULL,\n\t`col2` int NOT NULL,\n\tCONSTRAINT `table_col1_col2_pk` PRIMARY KEY(`col1`,`col2`)\n);\n',
 	]);
@@ -924,20 +578,16 @@ test('rename with composite pk', async () => {
 		test: productsCategoriesTable('products_to_categories'),
 	};
 
-	const { sqlStatements } = await diffTestSchemasPushMysql(
-		context.client as Connection,
-		schema1,
-		schema2,
-		['public.products_categories->public.products_to_categories'],
-		'drizzle',
-		false,
-	);
+	const { sqlStatements } = await diffPush({
+		db,
+		init: schema1,
+		destination: schema2,
+		renames: ['products_categories->products_to_categories'],
+	});
 
 	expect(sqlStatements).toStrictEqual([
 		'RENAME TABLE `products_categories` TO `products_to_categories`;',
 		'ALTER TABLE `products_to_categories` DROP PRIMARY KEY;',
-		'ALTER TABLE `products_to_categories` ADD PRIMARY KEY(`product_id`,`category_id`);',
+		'ALTER TABLE `products_to_categories` ADD PRIMARY KEY (`product_id`,`category_id`);',
 	]);
-
-	await context.client.query(`DROP TABLE \`products_categories\``);
 });

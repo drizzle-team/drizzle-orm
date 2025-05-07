@@ -14,10 +14,9 @@ import {
 	PgView,
 } from 'drizzle-orm/pg-core';
 import { CasingType } from 'src/cli/validations/common';
-import { createDDL, interimToDDL } from 'src/dialects/postgres/ddl';
+import { createDDL, interimToDDL, SchemaError } from 'src/dialects/postgres/ddl';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/postgres/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/postgres/drizzle';
-import { SchemaError } from 'src/utils';
 import { mockResolver } from 'src/utils/mocks';
 import '../../src/@types/utils';
 import { PGlite } from '@electric-sql/pglite';
@@ -64,14 +63,7 @@ export const drizzleToDDL = (
 		errors,
 		warnings,
 	} = fromDrizzleSchema(
-		schemas,
-		tables,
-		enums,
-		sequences,
-		roles,
-		policies,
-		views,
-		materializedViews,
+		{ schemas, tables, enums, sequences, roles, policies, views, matViews: materializedViews },
 		casing,
 	);
 
@@ -82,6 +74,7 @@ export const drizzleToDDL = (
 	return interimToDDL(res);
 };
 
+// 2 schemas -> 2 ddls -> diff
 export const diff = async (
 	left: PostgresSchema,
 	right: PostgresSchema,
@@ -118,7 +111,8 @@ export const diff = async (
 	return { sqlStatements, statements, groupedStatements };
 };
 
-export const diffTestSchemasPush = async (config: {
+// init schema flush to db -> introspect db to ddl -> compare ddl with destination schema
+export const diffPush = async (config: {
 	client: PGlite;
 	init: PostgresSchema;
 	destination: PostgresSchema;
@@ -211,7 +205,8 @@ export const reset = async (client: PGlite) => {
 	}
 };
 
-export const pushPullDiff = async (
+// init schema to db -> pull from db to file -> ddl from files -> compare ddl from db with ddl from file
+export const diffIntrospect = async (
 	db: PGlite,
 	initSchema: PostgresSchema,
 	testName: string,
@@ -237,7 +232,7 @@ export const pushPullDiff = async (
 	);
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
-	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
+	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel', 'pg');
 	writeFileSync(`tests/postgres/tmp/${testName}.ts`, file.file);
 
 	// generate snapshot from ts file
@@ -249,17 +244,7 @@ export const pushPullDiff = async (
 		schema: schema2,
 		errors: e2,
 		warnings,
-	} = fromDrizzleSchema(
-		response.schemas,
-		response.tables,
-		response.enums,
-		response.sequences,
-		response.roles,
-		response.policies,
-		response.views,
-		response.matViews,
-		casing,
-	);
+	} = fromDrizzleSchema(response, casing);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(schema2);
 	// TODO: handle errors
 

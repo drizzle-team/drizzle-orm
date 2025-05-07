@@ -329,6 +329,13 @@ export const diffDDL = async (
 			) {
 				delete it.default;
 			}
+
+			if (
+				mode === 'push' && it.generated && it.generated.from && it.generated.to
+				&& it.generated.from.as !== it.generated.to.as
+			) {
+				delete it.generated;
+			}
 			return it;
 		})
 		.filter((it) => Object.keys(it).length > 4)

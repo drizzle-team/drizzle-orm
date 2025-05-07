@@ -192,7 +192,7 @@ const createPK = convertor('create_pk', (st) => {
 });
 
 const dropPK = convertor('drop_pk', (st) => {
-	return `ALTER TABLE \`${st.pk.table}\` DROP PRIMARY KEY`;
+	return `ALTER TABLE \`${st.pk.table}\` DROP PRIMARY KEY;`;
 });
 
 const recreatePK = convertor('recreate_pk', (st) => {

@@ -345,10 +345,8 @@ export const defaultForColumn = (
 			.map((value) => {
 				if (['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(type)) {
 					return value;
-				} else if (type.startsWith('timestamp')) {
+				} else if (type.startsWith('timestamp') || type.startsWith('interval')) {
 					return value;
-				} else if (type === 'interval') {
-					return value.replaceAll('"', '\\"');
 				} else if (type === 'boolean') {
 					return value === 't' ? 'true' : 'false';
 				} else if (['json', 'jsonb'].includes(type)) {

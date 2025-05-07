@@ -4,8 +4,9 @@ import { MySqlSchema, MySqlTable, MySqlView } from 'drizzle-orm/mysql-core';
 import { mkdirSync, writeFileSync } from 'fs';
 import getPort from 'get-port';
 import { Connection, createConnection } from 'mysql2/promise';
+import { suggestions } from 'src/cli/commands/push-mysql';
 import { CasingType } from 'src/cli/validations/common';
-import { interimToDDL } from 'src/dialects/mysql/ddl';
+import { createDDL, interimToDDL } from 'src/dialects/mysql/ddl';
 import { ddlDiffDry, diffDDL } from 'src/dialects/mysql/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/mysql/drizzle';
 import { fromDatabase } from 'src/dialects/mysql/introspect';
@@ -47,7 +48,7 @@ export const diff = async (
 	return { sqlStatements, statements };
 };
 
-export const pushPullDiff = async (
+export const introspectDiff = async (
 	db: DB,
 	initSchema: MysqlSchema,
 	testName: string,
@@ -55,7 +56,7 @@ export const pushPullDiff = async (
 ) => {
 	mkdirSync('tests/mysql/tmp', { recursive: true });
 	const { ddl: initDDL } = drizzleToDDL(initSchema, casing);
-	const { sqlStatements: init } = await ddlDiffDry(initDDL);
+	const { sqlStatements: init } = await ddlDiffDry(createDDL(), initDDL);
 	for (const st of init) await db.query(st);
 
 	// introspect to schema
@@ -98,6 +99,52 @@ export const pushPullDiff = async (
 		sqlStatements: afterFileSqlStatements,
 		statements: afterFileStatements,
 	};
+};
+
+export const diffPush = async (config: {
+	db: DB;
+	init: MysqlSchema;
+	destination: MysqlSchema;
+	renames?: string[];
+	casing?: CasingType;
+	before?: string[];
+	after?: string[];
+	apply?: boolean;
+}) => {
+	const { db, init: initSchema, destination, casing, before, after, renames: rens } = config;
+	const apply = config.apply ?? true;
+	const { ddl: initDDL } = drizzleToDDL(initSchema, casing);
+	const { sqlStatements: inits } = await ddlDiffDry(createDDL(), initDDL, 'default');
+
+	const init = [] as string[];
+	if (before) init.push(...before);
+	if (apply) init.push(...inits);
+	if (after) init.push(...after);
+
+	for (const st of init) {
+		await db.query(st);
+	}
+
+	// do introspect into PgSchemaInternal
+	const introspectedSchema = await fromDatabase(db, 'drizzle');
+
+	const { ddl: ddl1, errors: err3 } = interimToDDL(introspectedSchema);
+	const { ddl: ddl2, errors: err2 } = drizzleToDDL(destination, casing);
+
+	// TODO: handle errors
+
+	const renames = new Set(rens);
+	const { sqlStatements, statements } = await diffDDL(
+		ddl1,
+		ddl2,
+		mockResolver(renames),
+		mockResolver(renames),
+		mockResolver(renames),
+		'push',
+	);
+
+	const { hints, truncates } = await suggestions(db, statements);
+	return { sqlStatements, statements, hints, truncates };
 };
 
 async function createDockerDB(): Promise<{ url: string; container: Container }> {

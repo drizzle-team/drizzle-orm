@@ -106,7 +106,7 @@ export const fromDatabase = async (
 			table: table,
 			name: name,
 			type: changedType,
-			isPK: isPrimary,
+			isPK: false, // isPK is an interim flag we use in Drizzle Schema and ignore in database introspect
 			notNull: !isNullable,
 			autoIncrement: isAutoincrement,
 			onUpdateNow,
@@ -123,7 +123,7 @@ export const fromDatabase = async (
 
 	const pks = await db.query(`
     SELECT 
-      table_name, column_name, ordinal_position
+      CONSTRAINT_NAME, table_name, column_name, ordinal_position
     FROM 
       information_schema.table_constraints t
     LEFT JOIN 
@@ -134,20 +134,29 @@ export const fromDatabase = async (
       AND t.table_schema = '${schema}'
       ORDER BY ordinal_position`);
 
-	pks.filter((it) => tables.some((x) => x === it['TABLE_NAME'])).reduce((acc, it) => {
-		const table: string = it['TABLE_NAME'];
-		const column: string = it['COLUMN_NAME'];
-		const position: string = it['ordinal_position'];
+	const tableToPKs = pks.filter((it) => tables.some((x) => x === it['TABLE_NAME'])).reduce<Record<string, PrimaryKey>>(
+		(acc, it) => {
+			const table: string = it['TABLE_NAME'];
+			const column: string = it['COLUMN_NAME'];
+			const position: string = it['ordinal_position'];
 
-		if (table in acc) {
-			acc[table].push(column);
-		} else {
-			acc[table] = [column];
-		}
-		return acc;
-	}, {} as Record<string, PrimaryKey>);
+			if (table in acc) {
+				acc[table].columns.push(column);
+			} else {
+				acc[table] = {
+					entityType: 'pks',
+					table,
+					name: it["CONSTRAINT_NAME"],
+					nameExplicit: true,
+					columns: [column],
+				};
+			}
+			return acc;
+		},
+		{} as Record<string, PrimaryKey>,
+	);
 
-	for (const pk of Object.values(pks)) {
+	for (const pk of Object.values(tableToPKs)) {
 		res.pks.push(pk);
 	}
 
