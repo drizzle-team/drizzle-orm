@@ -123,26 +123,169 @@ export class PgTimestampString<T extends ColumnBaseConfig<'string', 'PgTimestamp
 	}
 }
 
+export type PgInstantTimestampBuilderInitial<TName extends string> = PgInstantTimestampBuilder<{
+	name: TName;
+	dataType: 'date';
+	columnType: 'PgInstantTimestamp';
+	data: Temporal.Instant;
+	driverParam: string;
+	enumValues: undefined;
+}>;
+
+export class PgInstantTimestampBuilder<T extends ColumnBuilderBaseConfig<'date', 'PgInstantTimestamp'>>
+	extends PgDateColumnBaseBuilder<
+		T,
+		{ precision: number | undefined }
+	>
+{
+	static override readonly [entityKind]: string = 'PgInstantTimestampBuilder';
+
+	constructor(
+		name: T['name'],
+		precision: number | undefined,
+	) {
+		super(name, 'date', 'PgInstantTimestamp');
+		this.config.precision = precision;
+	}
+
+	/** @internal */
+	override build<TTableName extends string>(
+		table: AnyPgTable<{ name: TTableName }>,
+	): PgInstantTimestamp<MakeColumnConfig<T, TTableName>> {
+		return new PgInstantTimestamp<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
+	}
+}
+
+export class PgInstantTimestamp<T extends ColumnBaseConfig<'date', 'PgInstantTimestamp'>> extends PgColumn<T> {
+	static override readonly [entityKind]: string = 'PgInstantTimestamp';
+
+	readonly precision: number | undefined;
+
+	constructor(table: AnyPgTable<{ name: T['tableName'] }>, config: PgInstantTimestampBuilder<T>['config']) {
+		super(table, config);
+		this.precision = config.precision;
+	}
+
+	getSQLType(): string {
+		const precision = this.precision === undefined ? '' : ` (${this.precision})`;
+		return `timestamp${precision} with time zone`;
+	}
+
+	override mapFromDriverValue = (value: string): Temporal.Instant => {
+		return Temporal.Instant.from(value);
+	};
+
+	override mapToDriverValue = (value: Temporal.Instant): string => {
+		return value.toString();
+	};
+}
+
+export type PgPlainTimestampBuilderInitial<TName extends string> = PgPlainTimestampBuilder<{
+	name: TName;
+	dataType: 'date';
+	columnType: 'PgPlainTimestamp';
+	data: Temporal.PlainDateTime;
+	driverParam: string;
+	enumValues: undefined;
+}>;
+
+export class PgPlainTimestampBuilder<T extends ColumnBuilderBaseConfig<'date', 'PgPlainTimestamp'>>
+	extends PgDateColumnBaseBuilder<
+		T,
+		{ precision: number | undefined }
+	>
+{
+	static override readonly [entityKind]: string = 'PgPlainTimestampBuilder';
+
+	constructor(
+		name: T['name'],
+		precision: number | undefined,
+	) {
+		super(name, 'date', 'PgPlainTimestamp');
+		this.config.precision = precision;
+	}
+
+	/** @internal */
+	override build<TTableName extends string>(
+		table: AnyPgTable<{ name: TTableName }>,
+	): PgPlainTimestamp<MakeColumnConfig<T, TTableName>> {
+		return new PgPlainTimestamp<MakeColumnConfig<T, TTableName>>(
+			table,
+			this.config as ColumnBuilderRuntimeConfig<any, any>,
+		);
+	}
+}
+
+export class PgPlainTimestamp<T extends ColumnBaseConfig<'date', 'PgPlainTimestamp'>> extends PgColumn<T> {
+	static override readonly [entityKind]: string = 'PgPlainTimestamp';
+
+	readonly precision: number | undefined;
+
+	constructor(table: AnyPgTable<{ name: T['tableName'] }>, config: PgPlainTimestampBuilder<T>['config']) {
+		super(table, config);
+		this.precision = config.precision;
+	}
+
+	getSQLType(): string {
+		const precision = this.precision === undefined ? '' : ` (${this.precision})`;
+		return `timestamp${precision}`;
+	}
+
+	override mapFromDriverValue = (value: string): Temporal.PlainDateTime => {
+		return Temporal.PlainDateTime.from(value);
+	};
+
+	override mapToDriverValue = (value: Temporal.PlainDateTime): string => {
+		return value.toString();
+	};
+}
+
 export type Precision = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
-export interface PgTimestampConfig<TMode extends 'date' | 'string' = 'date' | 'string'> {
+export interface PgTimestampConfig<
+	TMode extends 'date' | 'string' | 'temporal' = 'date' | 'string' | 'temporal',
+	TWithTimezone extends boolean = boolean,
+> {
 	mode?: TMode;
 	precision?: Precision;
-	withTimezone?: boolean;
+	withTimezone?: TWithTimezone;
 }
 
 export function timestamp(): PgTimestampBuilderInitial<''>;
-export function timestamp<TMode extends PgTimestampConfig['mode'] & {}>(
-	config?: PgTimestampConfig<TMode>,
-): Equal<TMode, 'string'> extends true ? PgTimestampStringBuilderInitial<''> : PgTimestampBuilderInitial<''>;
-export function timestamp<TName extends string, TMode extends PgTimestampConfig['mode'] & {}>(
+export function timestamp<
+	TMode extends PgTimestampConfig['mode'] & {},
+	TWithTimezone extends PgTimestampConfig['withTimezone'] & {},
+>(
+	config?: PgTimestampConfig<TMode, TWithTimezone>,
+): Equal<TMode, 'string'> extends true ? PgTimestampStringBuilderInitial<''>
+	: Equal<TMode, 'temporal'> extends true
+		? Equal<TWithTimezone, true> extends true ? PgInstantTimestampBuilderInitial<''>
+		: PgPlainTimestampBuilderInitial<''>
+	: PgTimestampBuilderInitial<''>;
+export function timestamp<
+	TName extends string,
+	TMode extends PgTimestampConfig['mode'] & {},
+	TWithTimezone extends PgTimestampConfig['withTimezone'] & {},
+>(
 	name: TName,
-	config?: PgTimestampConfig<TMode>,
-): Equal<TMode, 'string'> extends true ? PgTimestampStringBuilderInitial<TName> : PgTimestampBuilderInitial<TName>;
+	config?: PgTimestampConfig<TMode, TWithTimezone>,
+): Equal<TMode, 'string'> extends true ? PgTimestampStringBuilderInitial<TName>
+	: Equal<TMode, 'temporal'> extends true
+		? Equal<TWithTimezone, true> extends true ? PgInstantTimestampBuilderInitial<TName>
+		: PgPlainTimestampBuilderInitial<TName>
+	: PgTimestampBuilderInitial<TName>;
 export function timestamp(a?: string | PgTimestampConfig, b: PgTimestampConfig = {}) {
 	const { name, config } = getColumnNameAndConfig<PgTimestampConfig | undefined>(a, b);
 	if (config?.mode === 'string') {
 		return new PgTimestampStringBuilder(name, config.withTimezone ?? false, config.precision);
+	} else if (config?.mode === 'temporal') {
+		if (config.withTimezone === true) {
+			return new PgInstantTimestampBuilder(name, config.precision);
+		}
+		return new PgPlainTimestampBuilder(name, config.precision);
 	}
 	return new PgTimestampBuilder(name, config?.withTimezone ?? false, config?.precision);
 }
