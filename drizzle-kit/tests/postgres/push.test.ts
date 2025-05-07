@@ -35,7 +35,7 @@ import {
 import { drizzle } from 'drizzle-orm/pglite';
 import { eq, SQL, sql } from 'drizzle-orm/sql';
 import { suggestions } from 'src/cli/commands/push-postgres';
-import { diff, diffTestSchemasPush, reset } from 'tests/postgres/mocks';
+import { diff, diffPush, reset } from 'tests/postgres/mocks';
 import { beforeEach, expect, test } from 'vitest';
 import { DialectSuite, run } from '../push/common';
 
@@ -212,7 +212,7 @@ const pgSuite: DialectSuite = {
 			}),
 		};
 
-		const { sqlStatements } = await diffTestSchemasPush({
+		const { sqlStatements } = await diffPush({
 			client,
 			init: schema1,
 			destination: schema1,
@@ -249,7 +249,7 @@ const pgSuite: DialectSuite = {
 			),
 		};
 
-		const { sqlStatements } = await diffTestSchemasPush({
+		const { sqlStatements } = await diffPush({
 			client,
 			init: schema1,
 			destination: schema2,
@@ -277,7 +277,7 @@ const pgSuite: DialectSuite = {
 			}),
 		};
 
-		const { sqlStatements } = await diffTestSchemasPush({
+		const { sqlStatements } = await diffPush({
 			client,
 			init: schema1,
 			destination: schema2,
@@ -310,7 +310,7 @@ const pgSuite: DialectSuite = {
 			}),
 		};
 
-		const { sqlStatements } = await diffTestSchemasPush({
+		const { sqlStatements } = await diffPush({
 			client,
 			init: schema1,
 			destination: schema2,
@@ -344,7 +344,7 @@ const pgSuite: DialectSuite = {
 			}),
 		};
 
-		const { sqlStatements } = await diffTestSchemasPush({
+		const { sqlStatements } = await diffPush({
 			client,
 			init: schema1,
 			destination: schema2,
@@ -371,7 +371,7 @@ const pgSuite: DialectSuite = {
 			}),
 		};
 
-		const { sqlStatements } = await diffTestSchemasPush({
+		const { sqlStatements } = await diffPush({
 			client,
 			init: schema1,
 			destination: schema2,
@@ -391,7 +391,7 @@ const pgSuite: DialectSuite = {
 			}),
 		};
 
-		const { sqlStatements } = await diffTestSchemasPush({
+		const { sqlStatements } = await diffPush({
 			client,
 			init: schema1,
 			destination: schema2,
@@ -411,7 +411,7 @@ const pgSuite: DialectSuite = {
 			seq: pgSequence('my_seq', { startWith: 100 }),
 		};
 
-		const { sqlStatements } = await diffTestSchemasPush({
+		const { sqlStatements } = await diffPush({
 			client,
 			init: schema1,
 			destination: schema2,
@@ -452,7 +452,7 @@ const pgSuite: DialectSuite = {
 			]),
 		};
 
-		const { sqlStatements } = await diffTestSchemasPush({
+		const { sqlStatements } = await diffPush({
 			client,
 			init: schema1,
 			destination: schema2,
@@ -493,7 +493,7 @@ const pgSuite: DialectSuite = {
 			}),
 		};
 
-		const { sqlStatements } = await diffTestSchemasPush({
+		const { sqlStatements } = await diffPush({
 			client,
 			init: schema1,
 			destination: schema2,
@@ -529,7 +529,7 @@ const pgSuite: DialectSuite = {
 			]),
 		};
 
-		const { sqlStatements } = await diffTestSchemasPush({
+		const { sqlStatements } = await diffPush({
 			client,
 			init: schema1,
 			destination: schema2,
@@ -578,7 +578,7 @@ const pgSuite: DialectSuite = {
 			),
 		};
 
-		const { sqlStatements } = await diffTestSchemasPush({
+		const { sqlStatements } = await diffPush({
 			client,
 			init: schema1,
 			destination: schema2,
@@ -638,7 +638,7 @@ const pgSuite: DialectSuite = {
 			),
 		};
 
-		const { statements, sqlStatements } = await diffTestSchemasPush({
+		const { statements, sqlStatements } = await diffPush({
 			client,
 			init: schema1,
 			destination: schema2,
@@ -708,7 +708,7 @@ const pgSuite: DialectSuite = {
 			),
 		};
 
-		const { statements, sqlStatements } = await diffTestSchemasPush({
+		const { statements, sqlStatements } = await diffPush({
 			client,
 			init: schema1,
 			destination: schema2,
@@ -738,7 +738,7 @@ const pgSuite: DialectSuite = {
 			})]),
 		};
 
-		const { sqlStatements } = await diffTestSchemasPush({
+		const { sqlStatements } = await diffPush({
 			client,
 			init: schema1,
 			destination: schema2,
@@ -763,7 +763,7 @@ const pgSuite: DialectSuite = {
 			}, (t) => [primaryKey({ columns: [t.productId, t.categoryId] })]),
 		};
 
-		const { sqlStatements } = await diffTestSchemasPush({
+		const { sqlStatements } = await diffPush({
 			client,
 			init: schema1,
 			destination: schema2,
@@ -848,7 +848,7 @@ test('full sequence: no changes', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -885,7 +885,7 @@ test('basic sequence: change fields', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasPush({
+	const { sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -923,7 +923,7 @@ test('basic sequence: change name', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasPush({
+	const { sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -961,7 +961,7 @@ test('basic sequence: change name and fields', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasPush({
+	const { sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -991,7 +991,7 @@ test('create table: identity always/by default - no params', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasPush({
+	const { sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -1020,7 +1020,7 @@ test('create table: identity always/by default - few params', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasPush({
+	const { sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -1055,7 +1055,7 @@ test('create table: identity always/by default - all params', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasPush({
+	const { sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -1085,7 +1085,7 @@ test('no diff: identity always/by default - no params', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -1119,7 +1119,7 @@ test('no diff: identity always/by default - few params', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -1173,7 +1173,7 @@ test('no diff: identity always/by default - all params', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -1194,7 +1194,7 @@ test('drop identity from a column - no params', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -1230,7 +1230,7 @@ test('drop identity from a column - few params', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -1280,7 +1280,7 @@ test('drop identity from a column - all params', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -1310,7 +1310,7 @@ test('alter identity from a column - no params', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -1340,7 +1340,7 @@ test('alter identity from a column - few params', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -1373,7 +1373,7 @@ test('alter identity from a column - by default to always', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -1409,7 +1409,7 @@ test('alter identity from a column - always to by default', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -1446,7 +1446,7 @@ test('add column with identity - few params', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -1480,7 +1480,7 @@ test('add identity to column - few params', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -1509,7 +1509,7 @@ test('add array column - empty array default', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -1531,7 +1531,7 @@ test('add array column - default', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -1553,7 +1553,7 @@ test('create view', async () => {
 		view: pgView('view').as((qb) => qb.selectDistinct().from(table)),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -1579,7 +1579,7 @@ test('add check constraint to table', async () => {
 		]),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -1607,7 +1607,7 @@ test('create materialized view', async () => {
 			.as((qb) => qb.selectDistinct().from(table)),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -1633,7 +1633,7 @@ test('drop check constraint', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -1666,7 +1666,7 @@ test('Column with same name as enum', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -1692,7 +1692,7 @@ test('db has checks. Push with same names', async () => {
 		}, (table) => [check('some_check', sql`some new value`)]),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -1714,7 +1714,7 @@ test('drop view', async () => {
 		test: table,
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -1735,7 +1735,7 @@ test('drop materialized view', async () => {
 		test: table,
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -1758,7 +1758,7 @@ test('push view with same name', async () => {
 		view: pgView('view').as((qb) => qb.selectDistinct().from(table).where(eq(table.id, 1))),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -1781,7 +1781,7 @@ test('push materialized view with same name', async () => {
 		view: pgMaterializedView('view').as((qb) => qb.selectDistinct().from(table).where(eq(table.id, 1))),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -1806,7 +1806,7 @@ test('add with options for materialized view', async () => {
 			.as((qb) => qb.selectDistinct().from(table)),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -1833,7 +1833,7 @@ test('add with options to materialized', async () => {
 			.as((qb) => qb.selectDistinct().from(table)),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -1858,7 +1858,7 @@ test('add with options to materialized with existing flag', async () => {
 		view: pgMaterializedView('view', {}).with({ autovacuumVacuumCostDelay: 100, vacuumTruncate: false }).existing(),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -1888,7 +1888,7 @@ test('drop mat view with data', async () => {
 		sqlStatements,
 		losses,
 		hints,
-	} = await diffTestSchemasPush({
+	} = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -1917,7 +1917,7 @@ test('drop mat view without data', async () => {
 		statements,
 		sqlStatements,
 		hints,
-	} = await diffTestSchemasPush({
+	} = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -1946,7 +1946,7 @@ test('drop view with data', async () => {
 		statements,
 		sqlStatements,
 		hints,
-	} = await diffTestSchemasPush({
+	} = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -2005,7 +2005,7 @@ test('enums ordering', async () => {
 		]),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema3,
 		destination: schema4,
@@ -2064,7 +2064,7 @@ test('drop enum values', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -2101,7 +2101,7 @@ test('column is enum type with default value. shuffle enum', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasPush({ client, init: from, destination: to });
+	const { sqlStatements } = await diffPush({ client, init: from, destination: to });
 
 	expect(sqlStatements).toStrictEqual(
 		[
@@ -2129,7 +2129,7 @@ test('full policy: no changes', async () => {
 		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -2156,7 +2156,7 @@ test('add policy', async () => {
 		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -2185,7 +2185,7 @@ test('drop policy', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -2214,7 +2214,7 @@ test('add policy without enable rls', async () => {
 		}, () => [pgPolicy('test', { as: 'permissive' }), pgPolicy('newRls')]),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -2242,7 +2242,7 @@ test('drop policy without disable rls', async () => {
 		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -2272,7 +2272,7 @@ test('alter policy without recreation: changing roles', async (t) => {
 		}, () => [pgPolicy('test', { as: 'permissive', to: 'current_role' })]),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -2300,7 +2300,7 @@ test('alter policy without recreation: changing using', async (t) => {
 		}, () => [pgPolicy('test', { as: 'permissive', using: sql`true` })]),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -2326,7 +2326,7 @@ test('alter policy without recreation: changing with check', async (t) => {
 		}, () => [pgPolicy('test', { as: 'permissive', withCheck: sql`true` })]),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -2352,7 +2352,7 @@ test('alter policy with recreation: changing as', async (t) => {
 		}, () => [pgPolicy('test', { as: 'restrictive' })]),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -2381,7 +2381,7 @@ test('alter policy with recreation: changing for', async (t) => {
 		}, () => [pgPolicy('test', { as: 'permissive', for: 'delete' })]),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -2410,7 +2410,7 @@ test('alter policy with recreation: changing both "as" and "for"', async (t) => 
 		}, () => [pgPolicy('test', { as: 'restrictive', for: 'insert' })]),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -2439,7 +2439,7 @@ test('alter policy with recreation: changing all fields', async (t) => {
 		}, () => [pgPolicy('test', { as: 'restrictive', to: 'current_role', withCheck: sql`true` })]),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -2468,7 +2468,7 @@ test('rename policy', async (t) => {
 		}, () => [pgPolicy('newName', { as: 'permissive' })]),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -2497,7 +2497,7 @@ test('rename policy in renamed table', async (t) => {
 		}, () => [pgPolicy('newName', { as: 'permissive' })]),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -2524,7 +2524,7 @@ test('create table with a policy', async (t) => {
 		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -2550,7 +2550,7 @@ test('drop table with a policy', async (t) => {
 
 	const schema2 = {};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -2584,7 +2584,7 @@ test('add policy with multiple "to" roles', async (t) => {
 		}, () => [pgPolicy('test', { to: ['current_role', role] })]),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -2616,7 +2616,7 @@ test('rename policy that is linked', async (t) => {
 		rls: pgPolicy('newName', { as: 'permissive' }).link(users),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -2644,7 +2644,7 @@ test('alter policy that is linked', async (t) => {
 		users,
 		rls: pgPolicy('test', { as: 'permissive', to: 'current_role' }).link(users),
 	};
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -2673,7 +2673,7 @@ test('alter policy that is linked: withCheck', async (t) => {
 		rls: pgPolicy('test', { as: 'permissive', withCheck: sql`false` }).link(users),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -2699,7 +2699,7 @@ test('alter policy that is linked: using', async (t) => {
 		rls: pgPolicy('test', { as: 'permissive', using: sql`false` }).link(users),
 	};
 
-	const { sqlStatements } = await diffTestSchemasPush({
+	const { sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -2725,7 +2725,7 @@ test('alter policy that is linked: using', async (t) => {
 		rls: pgPolicy('test', { for: 'delete' }).link(users),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -2748,7 +2748,7 @@ test('create role', async (t) => {
 		manager: pgRole('manager'),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -2769,7 +2769,7 @@ test('create role with properties', async (t) => {
 		manager: pgRole('manager', { createDb: true, inherit: false, createRole: true }),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -2790,7 +2790,7 @@ test('create role with some properties', async (t) => {
 		manager: pgRole('manager', { createDb: true, inherit: false }),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -2809,7 +2809,7 @@ test('drop role', async (t) => {
 
 	const schema2 = {};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -2832,7 +2832,7 @@ test('create and drop role', async (t) => {
 		admin: pgRole('admin'),
 	};
 
-	const { statements, sqlStatements } = await diffTestSchemasPush({
+	const { statements, sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -2855,7 +2855,7 @@ test('rename role', async (t) => {
 		admin: pgRole('admin'),
 	};
 
-	const { sqlStatements } = await diffTestSchemasPush({
+	const { sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -2879,7 +2879,7 @@ test('alter all role field', async (t) => {
 		manager: pgRole('manager', { createDb: true, createRole: true, inherit: false }),
 	};
 
-	const { sqlStatements } = await diffTestSchemasPush({
+	const { sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -2902,7 +2902,7 @@ test('alter createdb in role', async (t) => {
 		manager: pgRole('manager', { createDb: true }),
 	};
 
-	const { sqlStatements } = await diffTestSchemasPush({
+	const { sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -2925,7 +2925,7 @@ test('alter createrole in role', async (t) => {
 		manager: pgRole('manager', { createRole: true }),
 	};
 
-	const { sqlStatements } = await diffTestSchemasPush({
+	const { sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,
@@ -2948,7 +2948,7 @@ test('alter inherit in role', async (t) => {
 		manager: pgRole('manager', { inherit: false }),
 	};
 
-	const { sqlStatements } = await diffTestSchemasPush({
+	const { sqlStatements } = await diffPush({
 		client,
 		init: schema1,
 		destination: schema2,

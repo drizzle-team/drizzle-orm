@@ -29,7 +29,9 @@ export const defaultFromColumn = (column: AnyMySqlColumn, casing?: Casing): Colu
 
 	const sqlTypeLowered = column.getSQLType().toLowerCase();
 	if (is(column.default, SQL)) {
-		return { value: sqlToStr(column.default, casing), type: 'unknown' };
+		let str = sqlToStr(column.default, casing);
+
+		return { value: str, type: 'unknown' };
 	}
 	const sqlType = column.getSQLType();
 	if (sqlType.startsWith('binary') || sqlType === 'text') {

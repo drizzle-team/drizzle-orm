@@ -191,14 +191,12 @@ export const ddlToTypeScript = (
 			|| checks.length > 0
 		) {
 			statement += ',\n';
-			statement += '(table) => {\n';
-			statement += '\treturn {\n';
+			statement += '(table) => [\n';
 			statement += pk ? createTablePK(pk, withCasing) : '';
 			statement += createTableIndexes(indexes, withCasing);
 			statement += createTableFKs(filteredFKs, withCasing);
 			statement += createTableChecks(checks);
-			statement += '\t}\n';
-			statement += '}';
+			statement += ']';
 		}
 
 		statement += ');';
@@ -772,7 +770,7 @@ const createTableIndexes = (
 	let statement = '';
 	for (const it of idxs) {
 		const columns = it.columns.map((x) => x.isExpression ? `sql\`${x.value}\`` : `table.${casing(x.value)}`).join(', ');
-		statement += it.unique ? 'uniqueIndex(' : 'index(';
+		statement += it.unique ? '\tuniqueIndex(' : '\tindex(';
 		statement += `"${it.name}")`;
 		statement += `.on(${columns}),\n`;
 	}
@@ -785,7 +783,7 @@ const createTableChecks = (
 	let statement = '';
 
 	for (const it of checks) {
-		statement += `\t\tcheck("${it.name}", sql\`${it.value.replace(/`/g, '\\`')}\`),\n`;
+		statement += `\tcheck("${it.name}", sql\`${it.value.replace(/`/g, '\\`')}\`),\n`;
 	}
 
 	return statement;
@@ -793,7 +791,7 @@ const createTableChecks = (
 
 const createTablePK = (pk: PrimaryKey, casing: (value: string) => string): string => {
 	const columns = pk.columns.map((x) => `table.${casing(x)}`).join(', ');
-	let statement = `primaryKey({ columns: [${columns}]`;
+	let statement = `\tprimaryKey({ columns: [${columns}]`;
 	statement += `${pk.nameExplicit ? `, name: "${pk.name}"` : ''}}),\n`;
 	return statement;
 };
@@ -808,11 +806,11 @@ const createTableFKs = (
 		const tableTo = isSelf(it) ? 'table' : `${casing(it.tableTo)}`;
 		const columnsFrom = it.columns.map((x) => `table.${casing(x)}`).join(', ');
 		const columnsTo = it.columns.map((x) => `${tableTo}.${casing(x)}`).join(', ');
-		statement += `\t\tforeignKey({\n`;
-		statement += `\t\t\tcolumns: [${columnsFrom}],\n`;
-		statement += `\t\t\tforeignColumns: [${columnsTo}],\n`;
-		statement += `\t\t\tname: "${it.name}"\n`;
-		statement += `\t\t})`;
+		statement += `\tforeignKey({\n`;
+		statement += `\t\tcolumns: [${columnsFrom}],\n`;
+		statement += `\t\tforeignColumns: [${columnsTo}],\n`;
+		statement += `\t\tname: "${it.name}"\n`;
+		statement += `\t})`;
 		statement += it.onUpdate !== 'NO ACTION' ? `.onUpdate("${it.onUpdate}")` : '';
 		statement += it.onDelete !== 'NO ACTION' ? `.onDelete("${it.onDelete}")` : '';
 		statement += `,\n`;

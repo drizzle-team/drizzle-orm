@@ -21,7 +21,7 @@ import {
 import * as fs from 'fs';
 import { DB } from 'src/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { prepareTestDatabase, pushPullDiff, TestDatabase } from './mocks';
+import { prepareTestDatabase, introspectDiff, TestDatabase } from './mocks';
 
 // @vitest-environment-options {"max-concurrency":1}
 
@@ -56,7 +56,7 @@ test('generated always column: link to another column', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await pushPullDiff(db, schema, 'generated-link');
+	const { statements, sqlStatements } = await introspectDiff(db, schema, 'generated-link');
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
@@ -74,7 +74,7 @@ test('generated always column virtual: link to another column', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await pushPullDiff(db, schema, 'generated-link-virtual');
+	const { statements, sqlStatements } = await introspectDiff(db, schema, 'generated-link-virtual');
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
@@ -88,7 +88,7 @@ test('Default value of character type column: char', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await pushPullDiff(db, schema, 'default-value-char');
+	const { statements, sqlStatements } = await introspectDiff(db, schema, 'default-value-char');
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
@@ -102,7 +102,7 @@ test('Default value of character type column: varchar', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await pushPullDiff(db, schema, 'default-value-varchar');
+	const { statements, sqlStatements } = await introspectDiff(db, schema, 'default-value-varchar');
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
@@ -117,7 +117,7 @@ test('introspect checks', async () => {
 		}, (table) => [check('some_check', sql`${table.age} > 21`)]),
 	};
 
-	const { statements, sqlStatements } = await pushPullDiff(db, schema, 'checks');
+	const { statements, sqlStatements } = await introspectDiff(db, schema, 'checks');
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
@@ -134,7 +134,7 @@ test('view #1', async () => {
 		testView,
 	};
 
-	const { statements, sqlStatements } = await pushPullDiff(db, schema, 'view-1');
+	const { statements, sqlStatements } = await introspectDiff(db, schema, 'view-1');
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
@@ -151,7 +151,7 @@ test('view #2', async () => {
 		testView,
 	};
 
-	const { statements, sqlStatements } = await pushPullDiff(db, schema, 'view-2');
+	const { statements, sqlStatements } = await introspectDiff(db, schema, 'view-2');
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
@@ -166,7 +166,7 @@ test('handle float type', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await pushPullDiff(db, schema, 'float-type');
+	const { statements, sqlStatements } = await introspectDiff(db, schema, 'float-type');
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
@@ -189,7 +189,7 @@ test('handle unsigned numerical types', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await pushPullDiff(db, schema, 'unsigned-numerical-types');
+	const { statements, sqlStatements } = await introspectDiff(db, schema, 'unsigned-numerical-types');
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
@@ -204,7 +204,7 @@ test('instrospect strings with single quotes', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await pushPullDiff(db, schema, 'strings-with-single-quotes');
+	const { statements, sqlStatements } = await introspectDiff(db, schema, 'strings-with-single-quotes');
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);

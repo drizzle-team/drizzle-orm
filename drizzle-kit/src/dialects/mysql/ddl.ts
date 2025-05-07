@@ -133,6 +133,7 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: S
 			errors.push({ type: 'table_name_conflict', name: table.name });
 		}
 	}
+
 	for (const column of interim.columns) {
 		const { isPK, isUnique, ...rest } = column;
 		const res = ddl.columns.insert(rest);
@@ -149,9 +150,10 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: S
 	}
 
 	for (const column of interim.columns.filter((it) => it.isPK)) {
+		
 		const res = ddl.pks.insert({
 			table: column.table,
-			name: `${column.table}_pkey`,
+			name: "PRIMARY", // database default
 			nameExplicit: false,
 			columns: [column.name],
 		});

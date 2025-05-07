@@ -54,6 +54,7 @@ export const parseDefaultValue = (
 	}
 
 	if (columnType === 'date' || columnType.startsWith('datetime') || columnType.startsWith('timestamp')) {
+		
 		return { value: value, type: 'date_text' };
 	}
 
