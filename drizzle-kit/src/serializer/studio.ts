@@ -13,6 +13,7 @@ import {
 	Relations,
 	TablesRelationalConfig,
 } from 'drizzle-orm';
+import { AnyMsSqlTable, getTableConfig as mssqlTableConfig, MsSqlTable } from 'drizzle-orm/mssql-core';
 import { AnyMySqlTable, getTableConfig as mysqlTableConfig, MySqlTable } from 'drizzle-orm/mysql-core';
 import { AnyPgTable, getTableConfig as pgTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import {
@@ -27,6 +28,7 @@ import { compress } from 'hono/compress';
 import { cors } from 'hono/cors';
 import { createServer } from 'node:https';
 import { LibSQLCredentials } from 'src/cli/validations/libsql';
+import { MssqlCredentials } from 'src/cli/validations/mssql';
 import { assertUnreachable } from 'src/global';
 import superjson from 'superjson';
 import { z } from 'zod';
@@ -139,6 +141,43 @@ export const prepareMySqlSchema = async (path: string | string[]) => {
 	unregister();
 
 	return { schema: mysqlSchema, relations, files };
+};
+
+export const prepareMsSqlSchema = async (path: string | string[]) => {
+	const imports = prepareFilenames(path);
+	const mssqlSchema: Record<string, Record<string, AnyMsSqlTable>> = {
+		public: {},
+	};
+	const relations: Record<string, Relations> = {};
+
+	// files content as string
+	const files = imports.map((it, index) => ({
+		// get the file name from the path
+		name: it.split('/').pop() || `schema${index}.ts`,
+		content: fs.readFileSync(it, 'utf-8'),
+	}));
+
+	const { unregister } = await safeRegister();
+	for (let i = 0; i < imports.length; i++) {
+		const it = imports[i];
+
+		const i0: Record<string, unknown> = require(`${it}`);
+		const i0values = Object.entries(i0);
+
+		i0values.forEach(([k, t]) => {
+			if (is(t, MsSqlTable)) {
+				const schema = mssqlTableConfig(t).schema || 'public';
+				mssqlSchema[schema][k] = t;
+			}
+
+			if (is(t, Relations)) {
+				relations[k] = t;
+			}
+		});
+	}
+	unregister();
+
+	return { schema: mssqlSchema, relations, files };
 };
 
 export const prepareSQLiteSchema = async (path: string | string[]) => {
@@ -326,6 +365,40 @@ export const drizzleForMySQL = async (
 		schemaFiles,
 	};
 };
+
+// export const drizzleForMsSQL = async (
+// 	credentials: MssqlCredentials,
+// 	mssqlSchema: Record<string, Record<string, AnyMsSqlTable>>,
+// 	relations: Record<string, Relations>,
+// 	schemaFiles?: SchemaFile[],
+// ): Promise<Setup> => {
+// 	const { connectToMsSQL } = await import('../cli/connections');
+// 	const { proxy } = await connectToMsSQL(credentials);
+
+// 	const customDefaults = getCustomDefaults(mssqlSchema);
+
+// 	let dbUrl: string;
+
+// 	if ('url' in credentials) {
+// 		dbUrl = credentials.url;
+// 	} else {
+// 		// TODO() change it!
+// 		dbUrl =
+// 			`mysql://${credentials.user}:${credentials.password}@${credentials.host}:${credentials.port}/${credentials.database}`;
+// 	}
+
+// 	const dbHash = createHash('sha256').update(dbUrl).digest('hex');
+
+// 	return {
+// 		dbHash,
+// 		dialect: 'mysql',
+// 		proxy,
+// 		customDefaults,
+// 		schema: mssqlSchema,
+// 		relations,
+// 		schemaFiles,
+// 	};
+// };
 
 export const drizzleForSQLite = async (
 	credentials: SqliteCredentials,

@@ -1,0 +1,48 @@
+import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBaseConfig } from '~/column.ts';
+import { entityKind } from '~/entity.ts';
+import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
+import { MsSqlColumnBuilderWithIdentity, MsSqlColumnWithIdentity } from './common.ts';
+
+export type MsSqlRealBuilderInitial<TName extends string> = MsSqlRealBuilder<
+	{
+		name: TName;
+		dataType: 'number';
+		columnType: 'MsSqlReal';
+		data: number;
+		driverParam: number;
+		enumValues: undefined;
+		generated: undefined;
+	}
+>;
+
+export class MsSqlRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'MsSqlReal'>>
+	extends MsSqlColumnBuilderWithIdentity<T>
+{
+	static override readonly [entityKind]: string = 'MsSqlRealBuilder';
+
+	constructor(name: T['name']) {
+		super(name, 'number', 'MsSqlReal');
+	}
+
+	/** @internal */
+	override build<TTableName extends string>(
+		table: AnyMsSqlTable<{ name: TTableName }>,
+	): MsSqlReal<MakeColumnConfig<T, TTableName>> {
+		return new MsSqlReal<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+	}
+}
+
+export class MsSqlReal<T extends ColumnBaseConfig<'number', 'MsSqlReal'>> extends MsSqlColumnWithIdentity<T> {
+	static override readonly [entityKind]: string = 'MsSqlReal';
+
+	_getSQLType(): string {
+		return 'real';
+	}
+}
+
+export function real(): MsSqlRealBuilderInitial<''>;
+export function real<TName extends string>(name: TName): MsSqlRealBuilderInitial<TName>;
+export function real(name?: string) {
+	return new MsSqlRealBuilder(name ?? '');
+}

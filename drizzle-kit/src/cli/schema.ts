@@ -32,7 +32,7 @@ import { error, grey, MigrateProgress } from './views';
 const optionDialect = string('dialect')
 	.enum(...dialects)
 	.desc(
-		`Database dialect: 'gel', 'postgresql', 'mysql', 'sqlite', 'turso' or 'singlestore'`,
+		`Database dialect: 'gel', 'postgresql', 'mysql', 'sqlite', 'turso', 'singlestore' or 'mssql'`,
 	);
 const optionOut = string().desc("Output folder, 'drizzle' by default");
 const optionConfig = string().desc('Path to drizzle config file');
@@ -102,7 +102,10 @@ export const generate = command({
 				),
 			);
 			process.exit(1);
-		} else {
+		} //  else if (dialect === 'mssql') {
+		// 	await prepareAndMigrateMsSQL(opts);
+		// }
+		else {
 			assertUnreachable(dialect);
 		}
 	},
@@ -204,7 +207,20 @@ export const migrate = command({
 					),
 				);
 				process.exit(1);
-			} else {
+			} // else if (dialect === 'mssql') {
+			// 	// TODO() check!
+			// 	const { connectToMsSQL } = await import('./connections');
+			// 	const { migrate } = await connectToMsSQL(credentials);
+			// 	await renderWithTask(
+			// 		new MigrateProgress(),
+			// 		migrate({
+			// 			migrationsFolder: out,
+			// 			migrationsTable: table,
+			// 			migrationsSchema: schema,
+			// 		}),
+			// 	);
+			// }
+			else {
 				assertUnreachable(dialect);
 			}
 		} catch (e) {
@@ -577,7 +593,18 @@ export const pull = command({
 					prefix,
 					entities,
 				);
-			} else {
+			} // else if (dialect === 'mssql') {
+			// 	const { introspectMssql } = await import('./commands/introspect');
+			// 	await introspectMssql(
+			// 		casing,
+			// 		out,
+			// 		breakpoints,
+			// 		credentials,
+			// 		tablesFilter,
+			// 		prefix,
+			// 	);
+			// }
+			else {
 				assertUnreachable(dialect);
 			}
 		} catch (e) {
@@ -640,6 +667,8 @@ export const studio = command({
 			prepareSingleStoreSchema,
 			drizzleForSingleStore,
 			drizzleForLibSQL,
+			prepareMsSqlSchema,
+			// drizzleForMsSQL,
 		} = await import('../serializer/studio');
 
 		let setup: Setup;
@@ -702,7 +731,13 @@ export const studio = command({
 					),
 				);
 				process.exit(1);
-			} else {
+			} //  else if (dialect === 'mssql') {
+			// 	const { schema, relations, files } = schemaPath
+			// 		? await prepareMsSqlSchema(schemaPath)
+			// 		: { schema: {}, relations: {}, files: [] };
+			// 	setup = await drizzleForMsSQL(credentials, schema, relations, files);
+			// }
+			else {
 				assertUnreachable(dialect);
 			}
 
@@ -800,7 +835,10 @@ export const exportRaw = command({
 				),
 			);
 			process.exit(1);
-		} else {
+		} // else if (dialect === 'mssql') {
+		// 	await prepareAndExportMssql(opts);
+		// }
+		else {
 			assertUnreachable(dialect);
 		}
 	},

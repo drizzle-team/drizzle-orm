@@ -57,6 +57,15 @@ export const outputs = {
 				),
 		},
 	},
+	mssql: {
+		connection: {
+			driver: () => withStyle.error(`Only "mssql" is available options for "--driver"`),
+			required: () =>
+				withStyle.error(
+					`Either "url" or "host", "database" are required for database connection`,
+				),
+		},
+	},
 	sqlite: {
 		connection: {
 			driver: () => {
