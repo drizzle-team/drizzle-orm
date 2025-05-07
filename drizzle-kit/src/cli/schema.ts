@@ -33,7 +33,7 @@ import { error, grey, MigrateProgress } from './views';
 const optionDialect = string('dialect')
 	.enum(...dialects)
 	.desc(
-		`Database dialect: 'postgresql', 'mysql', 'sqlite', 'turso', 'singlestore' or 'mssql'`,
+		`Database dialect: 'gel', 'postgresql', 'mysql', 'sqlite', 'turso', 'singlestore' or 'mssql'`,
 	);
 const optionOut = string().desc("Output folder, 'drizzle' by default");
 const optionConfig = string().desc('Path to drizzle config file');
