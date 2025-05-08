@@ -59,17 +59,16 @@ type ExpireOptions = 'NX' | 'nx' | 'XX' | 'xx' | 'GT' | 'gt' | 'LT' | 'lt';
 
 export class UpstashCache extends Cache {
 	static override readonly [entityKind]: string = 'UpstashCache';
-	private static compositeTableSetPrefix = '__ct__';
+	private static compositeTableSetPrefix = '__CTS__';
+	private static compositeTablePrefix = '__CT__';
 	private static tagsMapKey = '__tagsMap__';
-
-	private globalTtl: number = 1;
 
 	private luaScripts: {
 		getByTagScript: Script;
 		onMutateScript: Script;
 	};
 
-	private internalConfig?: { seconds: number; hexOptions: ExpireOptions };
+	private internalConfig: { seconds: number; hexOptions?: ExpireOptions };
 
 	constructor(public redis: Redis, config?: CacheConfig, protected useGlobally?: boolean) {
 		super();
@@ -84,13 +83,15 @@ export class UpstashCache extends Cache {
 		return this.useGlobally ? 'all' : 'explicit';
 	}
 
-	private toInternalConfig(config?: CacheConfig) {
+	private toInternalConfig(config?: CacheConfig): { seconds: number; hexOptions?: ExpireOptions } {
 		return config
 			? {
-				seconds: config.ex,
+				seconds: config.ex!,
 				hexOptions: config.hexOptions,
-			} as { seconds: number; hexOptions: ExpireOptions }
-			: undefined;
+			}
+			: {
+				seconds: 1
+			};
 	}
 
 	override async get(key: string, tables: string[], isTag: boolean = false): Promise<any[] | undefined> {
@@ -114,7 +115,7 @@ export class UpstashCache extends Cache {
 	): Promise<void> {
 		const pipeline = this.redis.pipeline();
 		const compositeKey = this.getCompositeKey(tables);
-		const ttlSeconds = config && config.ex ? config.ex : this.globalTtl;
+		const ttlSeconds = config && config.ex ? config.ex : this.internalConfig.seconds;
 		const hexOptions = config && config.hexOptions ? config.hexOptions : this.internalConfig?.hexOptions;
 
 		pipeline.hset(compositeKey, { [key]: response }); // Store the result with the tag under the composite key
@@ -142,7 +143,7 @@ export class UpstashCache extends Cache {
 	}
 
 	private addTablePrefix = (table: string) => `${UpstashCache.compositeTableSetPrefix}${table}`;
-	private getCompositeKey = (tables: string[]) => tables.sort().join(',');
+	private getCompositeKey = (tables: string[]) => `${UpstashCache.compositeTablePrefix}${tables.sort().join(',')}`;
 }
 
 export function upstashCache(
