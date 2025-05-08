@@ -7,6 +7,7 @@ import { drizzle as proxyDrizzle } from 'drizzle-orm/sqlite-proxy';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
 import { tests, usersTable } from './sqlite-common';
+import { TestCache, TestGlobalCache, tests as cacheTests } from './sqlite-common-cache';
 
 class ServerSimulator {
 	constructor(private db: BetterSqlite3.Database) {}
@@ -54,6 +55,8 @@ class ServerSimulator {
 }
 
 let db: SqliteRemoteDatabase;
+let dbGlobalCached: SqliteRemoteDatabase;
+let cachedDb: SqliteRemoteDatabase;
 let client: Database.Database;
 let serverSimulator: ServerSimulator;
 
@@ -62,7 +65,7 @@ beforeAll(async () => {
 	client = new Database(dbPath);
 	serverSimulator = new ServerSimulator(client);
 
-	db = proxyDrizzle(async (sql, params, method) => {
+	const callback = async (sql: string, params: any[], method: string) => {
 		try {
 			const rows = await serverSimulator.query(sql, params, method);
 
@@ -75,12 +78,19 @@ beforeAll(async () => {
 			console.error('Error from sqlite proxy server:', e.response?.data ?? e.message);
 			throw e;
 		}
-	});
+	};
+	db = proxyDrizzle(callback);
+	cachedDb = proxyDrizzle(callback, { cache: new TestCache() });
+	dbGlobalCached = proxyDrizzle(callback, { cache: new TestGlobalCache() });
 });
 
 beforeEach((ctx) => {
 	ctx.sqlite = {
 		db,
+	};
+	ctx.cachedSqlite = {
+		db: cachedDb,
+		dbGlobalCached,
 	};
 });
 
@@ -95,6 +105,7 @@ skipTests([
 	'insert via db.get',
 	'insert via db.run + select via db.all',
 ]);
+cacheTests();
 tests();
 
 beforeEach(async () => {

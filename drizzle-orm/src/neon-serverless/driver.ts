@@ -1,4 +1,5 @@
 import { neonConfig, Pool, type PoolConfig } from '@neondatabase/serverless';
+import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -16,6 +17,7 @@ import { NeonSession } from './session.ts';
 
 export interface NeonDriverOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class NeonDriver {
@@ -31,7 +33,10 @@ export class NeonDriver {
 	createSession(
 		schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined,
 	): NeonSession<Record<string, unknown>, TablesRelationalConfig> {
-		return new NeonSession(this.client, this.dialect, schema, { logger: this.options.logger });
+		return new NeonSession(this.client, this.dialect, schema, {
+			logger: this.options.logger,
+			cache: this.options.cache,
+		});
 	}
 }
 
@@ -71,10 +76,14 @@ function construct<
 		};
 	}
 
-	const driver = new NeonDriver(client, dialect, { logger });
+	const driver = new NeonDriver(client, dialect, { logger, cache: config.cache });
 	const session = driver.createSession(schema);
 	const db = new NeonDatabase(dialect, session, schema as any) as NeonDatabase<TSchema>;
 	(<any> db).$client = client;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
 
 	return db as any;
 }

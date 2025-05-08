@@ -21,7 +21,7 @@ export class PrismaPgPreparedQuery<T> extends PgPreparedQuery<PreparedQueryConfi
 		query: Query,
 		private readonly logger: Logger,
 	) {
-		super(query);
+		super(query, {} as any, undefined, undefined);
 	}
 
 	override execute(placeholderValues?: Record<string, unknown>): Promise<T> {
