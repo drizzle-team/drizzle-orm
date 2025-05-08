@@ -382,10 +382,8 @@ test('alter meta options with distinct in definition', async () => {
 			qb.selectDistinct().from(table)
 		),
 	};
-	const { sqlStatements } = await diffPush({ db, init: schema1, destination: schema2 });
 
-	// thow error?
-	expect(sqlStatements).toStrictEqual(['']);
+	await expect(diffPush({ db, init: schema1, destination: schema2 })).rejects.toThrowError();
 });
 
 test('add generated column', async () => {

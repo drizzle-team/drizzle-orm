@@ -122,6 +122,7 @@ export const diffPush = async (config: {
 	if (after) init.push(...after);
 
 	for (const st of init) {
+		console.log(st)
 		await db.query(st);
 	}
 

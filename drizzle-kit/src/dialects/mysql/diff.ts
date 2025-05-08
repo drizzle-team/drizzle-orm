@@ -324,6 +324,12 @@ export const diffDDL = async (
 			}
 
 			if (
+				it.default && it.default.from && it.default.to && typesCommutative(it.default.from.value, it.default.to.value)
+			) {
+				delete it.default;
+			}
+
+			if (
 				it.default && it.default.from?.value === it.default.to?.value
 				&& (it.default.from?.type === 'unknown' || it.default.to?.type === 'unknown')
 			) {

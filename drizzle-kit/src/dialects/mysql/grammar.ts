@@ -54,7 +54,6 @@ export const parseDefaultValue = (
 	}
 
 	if (columnType === 'date' || columnType.startsWith('datetime') || columnType.startsWith('timestamp')) {
-		
 		return { value: value, type: 'date_text' };
 	}
 
@@ -75,7 +74,9 @@ export const parseDefaultValue = (
 const commutativeTypes = [
 	['tinyint(1)', 'boolean'],
 	['binary(1)', 'binary'],
+	['now()', '(now())', 'CURRENT_TIMESTAMP','(CURRENT_TIMESTAMP)', 'CURRENT_TIMESTAMP()']
 ];
+
 export const typesCommutative = (left: string, right: string) => {
 	for (const it of commutativeTypes) {
 		const leftIn = it.some((x) => x === left);
