@@ -59,17 +59,46 @@ type ExpireOptions = 'NX' | 'nx' | 'XX' | 'xx' | 'GT' | 'gt' | 'LT' | 'lt';
 
 export class UpstashCache extends Cache {
 	static override readonly [entityKind]: string = 'UpstashCache';
-	private static compositeTableSetPrefix = '__ct__';
+	/**
+	 * Prefix for sets which denote the composite table names for each unique table
+	 *
+	 * Example: In the composite table set of "table1", you may find
+	 * `${compositeTablePrefix}table1,table2` and `${compositeTablePrefix}table1,table3`
+	 */
+	private static compositeTableSetPrefix = '__CTS__';
+	/**
+	 * Prefix for hashes which map hash or tags to cache values
+	 */
+	private static compositeTablePrefix = '__CT__';
+	/**
+	 * Key which holds the mapping of tags to composite table names
+	 *
+	 * Using this tagsMapKey, you can find the composite table name for a given tag
+	 * and get the cache value for that tag:
+	 *
+	 * ```ts
+	 * const compositeTable = redis.hget(tagsMapKey, 'tag1')
+	 * console.log(compositeTable) // `${compositeTablePrefix}table1,table2`
+	 *
+	 * const cachevalue = redis.hget(compositeTable, 'tag1')
+	 */
 	private static tagsMapKey = '__tagsMap__';
-
-	private globalTtl: number = 1;
+	/**
+	 * Queries whose auto invalidation is false aren't stored in their respective
+	 * composite table hashes because those hashes are deleted when a mutation
+	 * occurs on related tables.
+	 *
+	 * Instead, they are stored in a separate hash with the prefix
+	 * `__nonAutoInvalidate__` to prevent them from being deleted when a mutation
+	 */
+	private static nonAutoInvalidateTablePrefix = '__nonAutoInvalidate__';
 
 	private luaScripts: {
 		getByTagScript: Script;
 		onMutateScript: Script;
 	};
 
-	private internalConfig?: { seconds: number; hexOptions: ExpireOptions };
+	private internalConfig: { seconds: number; hexOptions?: ExpireOptions };
 
 	constructor(public redis: Redis, config?: CacheConfig, protected useGlobally?: boolean) {
 		super();
@@ -84,16 +113,28 @@ export class UpstashCache extends Cache {
 		return this.useGlobally ? 'all' : 'explicit';
 	}
 
-	private toInternalConfig(config?: CacheConfig) {
+	private toInternalConfig(config?: CacheConfig): { seconds: number; hexOptions?: ExpireOptions } {
 		return config
 			? {
-				seconds: config.ex,
+				seconds: config.ex!,
 				hexOptions: config.hexOptions,
-			} as { seconds: number; hexOptions: ExpireOptions }
-			: undefined;
+			}
+			: {
+				seconds: 1,
+			};
 	}
 
-	override async get(key: string, tables: string[], isTag: boolean = false): Promise<any[] | undefined> {
+	override async get(
+		key: string,
+		tables: string[],
+		isTag: boolean = false,
+		isAutoInvalidate?: boolean,
+	): Promise<any[] | undefined> {
+		if (!isAutoInvalidate) {
+			const result = await this.redis.hget(UpstashCache.nonAutoInvalidateTablePrefix, key);
+			return result === null ? undefined : result as any[];
+		}
+
 		if (isTag) {
 			const result = await this.luaScripts.getByTagScript.exec([UpstashCache.tagsMapKey], [key]);
 			return result === null ? undefined : result as any[];
@@ -112,10 +153,20 @@ export class UpstashCache extends Cache {
 		isTag: boolean = false,
 		config?: CacheConfig,
 	): Promise<void> {
+		const isAutoInvalidate = tables.length !== 0;
+
 		const pipeline = this.redis.pipeline();
-		const compositeKey = this.getCompositeKey(tables);
-		const ttlSeconds = config && config.ex ? config.ex : this.globalTtl;
+		const ttlSeconds = config && config.ex ? config.ex : this.internalConfig.seconds;
 		const hexOptions = config && config.hexOptions ? config.hexOptions : this.internalConfig?.hexOptions;
+
+		if (!isAutoInvalidate) {
+			pipeline.hset(UpstashCache.nonAutoInvalidateTablePrefix, { [key]: response });
+			pipeline.hexpire(UpstashCache.nonAutoInvalidateTablePrefix, key, ttlSeconds, hexOptions);
+			await pipeline.exec();
+			return;
+		}
+
+		const compositeKey = this.getCompositeKey(tables);
 
 		pipeline.hset(compositeKey, { [key]: response }); // Store the result with the tag under the composite key
 		pipeline.hexpire(compositeKey, key, ttlSeconds, hexOptions); // Set expiration for the composite key
@@ -142,7 +193,7 @@ export class UpstashCache extends Cache {
 	}
 
 	private addTablePrefix = (table: string) => `${UpstashCache.compositeTableSetPrefix}${table}`;
-	private getCompositeKey = (tables: string[]) => tables.sort().join(',');
+	private getCompositeKey = (tables: string[]) => `${UpstashCache.compositeTablePrefix}${tables.sort().join(',')}`;
 }
 
 export function upstashCache(
