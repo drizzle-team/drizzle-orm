@@ -61,7 +61,7 @@ export class UpstashCache extends Cache {
 	static override readonly [entityKind]: string = 'UpstashCache';
 	/**
 	 * Prefix for sets which denote the composite table names for each unique table
-	 * 
+	 *
 	 * Example: In the composite table set of "table1", you may find
 	 * `${compositeTablePrefix}table1,table2` and `${compositeTablePrefix}table1,table3`
 	 */
@@ -72,14 +72,14 @@ export class UpstashCache extends Cache {
 	private static compositeTablePrefix = '__CT__';
 	/**
 	 * Key which holds the mapping of tags to composite table names
-	 * 
+	 *
 	 * Using this tagsMapKey, you can find the composite table name for a given tag
 	 * and get the cache value for that tag:
-	 * 
+	 *
 	 * ```ts
 	 * const compositeTable = redis.hget(tagsMapKey, 'tag1')
 	 * console.log(compositeTable) // `${compositeTablePrefix}table1,table2`
-	 * 
+	 *
 	 * const cachevalue = redis.hget(compositeTable, 'tag1')
 	 */
 	private static tagsMapKey = '__tagsMap__';
@@ -87,7 +87,7 @@ export class UpstashCache extends Cache {
 	 * Queries whose auto invalidation is false aren't stored in their respective
 	 * composite table hashes because those hashes are deleted when a mutation
 	 * occurs on related tables.
-	 * 
+	 *
 	 * Instead, they are stored in a separate hash with the prefix
 	 * `__nonAutoInvalidate__` to prevent them from being deleted when a mutation
 	 */
@@ -120,13 +120,18 @@ export class UpstashCache extends Cache {
 				hexOptions: config.hexOptions,
 			}
 			: {
-				seconds: 1
+				seconds: 1,
 			};
 	}
 
-	override async get(key: string, tables: string[], isTag: boolean = false, isAutoInvalidate?: boolean): Promise<any[] | undefined> {
+	override async get(
+		key: string,
+		tables: string[],
+		isTag: boolean = false,
+		isAutoInvalidate?: boolean,
+	): Promise<any[] | undefined> {
 		if (!isAutoInvalidate) {
-			const result = await this.redis.hget(UpstashCache.nonAutoInvalidateTablePrefix, key)
+			const result = await this.redis.hget(UpstashCache.nonAutoInvalidateTablePrefix, key);
 			return result === null ? undefined : result as any[];
 		}
 
@@ -149,13 +154,13 @@ export class UpstashCache extends Cache {
 		config?: CacheConfig,
 	): Promise<void> {
 		const isAutoInvalidate = tables.length !== 0;
-		
+
 		const pipeline = this.redis.pipeline();
 		const ttlSeconds = config && config.ex ? config.ex : this.internalConfig.seconds;
 		const hexOptions = config && config.hexOptions ? config.hexOptions : this.internalConfig?.hexOptions;
 
 		if (!isAutoInvalidate) {
-			pipeline.hset(UpstashCache.nonAutoInvalidateTablePrefix, {[key]: response});
+			pipeline.hset(UpstashCache.nonAutoInvalidateTablePrefix, { [key]: response });
 			pipeline.hexpire(UpstashCache.nonAutoInvalidateTablePrefix, key, ttlSeconds, hexOptions);
 			await pipeline.exec();
 			return;
