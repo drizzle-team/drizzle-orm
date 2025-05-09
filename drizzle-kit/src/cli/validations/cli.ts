@@ -2,19 +2,6 @@ import { array, boolean, intersection, literal, object, string, TypeOf, union } 
 import { dialect } from '../../schemaValidator';
 import { casing, casingType, prefix } from './common';
 
-export const cliConfigGenerate = object({
-	dialect: dialect.optional(),
-	schema: union([string(), string().array()]).optional(),
-	out: string().optional().default('./drizzle'),
-	config: string().optional(),
-	name: string().optional(),
-	prefix: prefix.optional(),
-	breakpoints: boolean().optional().default(true),
-	custom: boolean().optional().default(false),
-}).strict();
-
-export type CliConfigGenerate = TypeOf<typeof cliConfigGenerate>;
-
 export const pushParams = object({
 	dialect: dialect,
 	casing: casingType.optional(),
@@ -61,8 +48,6 @@ export const pullParams = object({
 }).passthrough();
 
 export type Entities = TypeOf<typeof pullParams>['entities'];
-
-export type PullParams = TypeOf<typeof pullParams>;
 
 export const configCheck = object({
 	dialect: dialect.optional(),

@@ -1,7 +1,5 @@
 import { sql } from 'drizzle-orm';
 import { index, pgTable, serial, text, vector } from 'drizzle-orm/pg-core';
-import { JsonCreateIndexStatement } from 'src/jsonStatements';
-import { PgSquasher } from 'src/serializer/pgSchema';
 import { diffTestSchemas } from 'tests/schemaDiffer';
 import { expect } from 'vitest';
 import { DialectSuite, run } from './common';
@@ -22,11 +20,11 @@ const pgSuite: DialectSuite = {
 					id: serial('id').primaryKey(),
 					embedding: vector('name', { dimensions: 3 }),
 				},
-				(t) => ({
-					indx2: index('vector_embedding_idx')
+				(t) => [
+					index('vector_embedding_idx')
 						.using('hnsw', t.embedding.op('vector_ip_ops'))
 						.with({ m: 16, ef_construction: 64 }),
-				}),
+				],
 			),
 		};
 
@@ -76,18 +74,18 @@ const pgSuite: DialectSuite = {
 					id: serial('id').primaryKey(),
 					name: text('name'),
 				},
-				(t) => ({
-					indx: index('indx').on(t.name.desc()).concurrently(),
-					indx1: index('indx1')
+				(t) => [
+					index('indx').on(t.name.desc()).concurrently(),
+					index('indx1')
 						.on(t.name.desc())
 						.where(sql`true`),
-					indx2: index('indx2')
+					index('indx2')
 						.on(t.name.op('text_ops'))
 						.where(sql`true`),
-					indx3: index('indx3')
+					index('indx3')
 						.on(sql`lower(name)`)
 						.where(sql`true`),
-				}),
+				],
 			),
 		};
 
@@ -98,21 +96,21 @@ const pgSuite: DialectSuite = {
 					id: serial('id').primaryKey(),
 					name: text('name'),
 				},
-				(t) => ({
-					indx: index('indx').on(t.name.desc()),
-					indx1: index('indx1')
+				(t) => [
+					index('indx').on(t.name.desc()),
+					index('indx1')
 						.on(t.name.desc())
 						.where(sql`false`),
-					indx2: index('indx2')
+					index('indx2')
 						.on(t.name.op('test'))
 						.where(sql`true`),
-					indx3: index('indx3')
+					index('indx3')
 						.on(sql`lower(${t.id})`)
 						.where(sql`true`),
-					indx4: index('indx4')
+					index('indx4')
 						.on(sql`lower(id)`)
 						.where(sql`true`),
-				}),
+				],
 			),
 		};
 
@@ -150,15 +148,15 @@ const pgSuite: DialectSuite = {
 					id: serial('id').primaryKey(),
 					name: text('name'),
 				},
-				(t) => ({
-					indx: index()
+				(t) => [
+					index()
 						.on(t.name.desc(), t.id.asc().nullsLast())
 						.with({ fillfactor: 70 })
 						.where(sql`select 1`),
-					indx1: index('indx1')
+					index('indx1')
 						.using('hash', t.name.desc(), sql`${t.name}`)
 						.with({ fillfactor: 70 }),
-				}),
+				],
 			),
 		};
 

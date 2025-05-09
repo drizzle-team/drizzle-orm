@@ -1,17 +1,6 @@
 import type { RunResult } from 'better-sqlite3';
-import chalk from 'chalk';
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
-import { join } from 'path';
-import { parse } from 'url';
-import type { NamedWithSchema } from './cli/commands/migrate';
-import { info } from './cli/views';
-import { assertUnreachable, snapshotVersion } from './global';
+import type { NamedWithSchema } from './dialects/utils';
 import type { Dialect } from './schemaValidator';
-import { backwardCompatibleGelSchema } from './serializer/gelSchema';
-import { backwardCompatibleMysqlSchema } from './serializer/mysqlSchema';
-import { backwardCompatiblePgSchema } from './serializer/pgSchema';
-import { backwardCompatibleSingleStoreSchema } from './serializer/singlestoreSchema';
-import { backwardCompatibleSqliteSchema } from './serializer/sqliteSchema';
 import type { ProxyParams } from './serializer/studio';
 
 export type Proxy = (params: ProxyParams) => Promise<any[]>;
@@ -35,31 +24,23 @@ export type LibSQLDB = {
 	batchWithPragma?(queries: string[]): Promise<void>;
 };
 
+export type RecordValues<T> = T extends Record<string, infer U> ? U[] : never;
+export type RecordValuesOptional<T> = T extends Record<string, infer U> ? (U[] | undefined) : never;
+export type RecordValuesAnd<T, AND> = T extends Record<string, infer U> ? (U & AND)[] : never;
+export type RecordValuesOptionalAnd<T, AND> = T extends Record<string, infer U> ? ((U & AND)[] | undefined) : never;
+
+export type Simplify<T> =
+	& {
+		[K in keyof T]: T[K];
+	}
+	& {};
+
 export const copy = <T>(it: T): T => {
 	return JSON.parse(JSON.stringify(it));
 };
 
 export const objectValues = <T extends object>(obj: T): Array<T[keyof T]> => {
 	return Object.values(obj);
-};
-
-export const assertV1OutFolder = (out: string) => {
-	if (!existsSync(out)) return;
-
-	const oldMigrationFolders = readdirSync(out).filter(
-		(it) => it.length === 14 && /^\d+$/.test(it),
-	);
-
-	if (oldMigrationFolders.length > 0) {
-		console.log(
-			`Your migrations folder format is outdated, please run ${
-				chalk.green.bold(
-					`drizzle-kit up`,
-				)
-			}`,
-		);
-		process.exit(1);
-	}
 };
 
 export type Journal = {
@@ -74,177 +55,21 @@ export type Journal = {
 	}[];
 };
 
-export const dryJournal = (dialect: Dialect): Journal => {
-	return {
-		version: snapshotVersion,
-		dialect,
-		entries: [],
-	};
-};
-
-// export const preparePushFolder = (dialect: Dialect) => {
-//   const out = ".drizzle";
-//   let snapshot: string = "";
-//   if (!existsSync(join(out))) {
-//     mkdirSync(out);
-//     snapshot = JSON.stringify(dryJournal(dialect));
-//   } else {
-//     snapshot = readdirSync(out)[0];
-//   }
-
-//   return { snapshot };
-// };
-
-export const prepareOutFolder = (out: string, dialect: Dialect) => {
-	const meta = join(out, 'meta');
-	const journalPath = join(meta, '_journal.json');
-
-	if (!existsSync(join(out, 'meta'))) {
-		mkdirSync(meta, { recursive: true });
-		writeFileSync(journalPath, JSON.stringify(dryJournal(dialect)));
-	}
-
-	const journal = JSON.parse(readFileSync(journalPath).toString());
-
-	const snapshots = readdirSync(meta)
-		.filter((it) => !it.startsWith('_'))
-		.map((it) => join(meta, it));
-
-	snapshots.sort();
-	return { meta, snapshots, journal };
-};
-
-const validatorForDialect = (dialect: Dialect) => {
-	switch (dialect) {
-		case 'postgresql':
-			return { validator: backwardCompatiblePgSchema, version: 7 };
-		case 'sqlite':
-			return { validator: backwardCompatibleSqliteSchema, version: 6 };
-		case 'turso':
-			return { validator: backwardCompatibleSqliteSchema, version: 6 };
-		case 'mysql':
-			return { validator: backwardCompatibleMysqlSchema, version: 5 };
-		case 'singlestore':
-			return { validator: backwardCompatibleSingleStoreSchema, version: 1 };
-		case 'gel':
-			return { validator: backwardCompatibleGelSchema, version: 1 };
-	}
-};
-
-export const validateWithReport = (snapshots: string[], dialect: Dialect) => {
-	// ✅ check if drizzle-kit can handle snapshot version
-	// ✅ check if snapshot is of the last version
-	// ✅ check if id of the snapshot is valid
-	// ✅ collect {} of prev id -> snapshotName[], if there's more than one - tell about collision
-	const { validator, version } = validatorForDialect(dialect);
-
-	const result = snapshots.reduce(
-		(accum, it) => {
-			const raw = JSON.parse(readFileSync(`./${it}`).toString());
-
-			accum.rawMap[it] = raw;
-
-			if (raw['version'] && Number(raw['version']) > version) {
-				console.log(
-					info(
-						`${it} snapshot is of unsupported version, please update drizzle-kit`,
-					),
-				);
-				process.exit(0);
-			}
-
-			const result = validator.safeParse(raw);
-			if (!result.success) {
-				accum.malformed.push(it);
-				return accum;
-			}
-
-			const snapshot = result.data;
-			if (snapshot.version !== String(version)) {
-				accum.nonLatest.push(it);
-				return accum;
-			}
-
-			// only if latest version here
-			const idEntry = accum.idsMap[snapshot['prevId']] ?? {
-				parent: it,
-				snapshots: [],
-			};
-			idEntry.snapshots.push(it);
-			accum.idsMap[snapshot['prevId']] = idEntry;
-
-			return accum;
-		},
-		{
-			malformed: [],
-			nonLatest: [],
-			idToNameMap: {},
-			idsMap: {},
-			rawMap: {},
-		} as {
-			malformed: string[];
-			nonLatest: string[];
-			idsMap: Record<string, { parent: string; snapshots: string[] }>;
-			rawMap: Record<string, any>;
-		},
-	);
-
-	return result;
-};
-
-export const prepareMigrationFolder = (
-	outFolder: string = 'drizzle',
-	dialect: Dialect,
+export const prepareMigrationRenames = (
+	renames: {
+		from: { schema?: string; table?: string; name: string };
+		to: { schema?: string; table?: string; name: string };
+	}[],
 ) => {
-	const { snapshots, journal } = prepareOutFolder(outFolder, dialect);
-	const report = validateWithReport(snapshots, dialect);
-	if (report.nonLatest.length > 0) {
-		console.log(
-			report.nonLatest
-				.map((it) => {
-					return `${it}/snapshot.json is not of the latest version`;
-				})
-				.concat(`Run ${chalk.green.bold(`drizzle-kit up`)}`)
-				.join('\n'),
-		);
-		process.exit(0);
-	}
+	return renames.map((it) => {
+		const schema1 = it.from.schema ? `${it.from.schema}.` : '';
+		const schema2 = it.to.schema ? `${it.to.schema}.` : '';
 
-	if (report.malformed.length) {
-		const message = report.malformed
-			.map((it) => {
-				return `${it} data is malformed`;
-			})
-			.join('\n');
-		console.log(message);
-	}
+		const table1 = it.from.table ? `${it.from.table}.` : '';
+		const table2 = it.to.table ? `${it.to.table}.` : '';
 
-	const collisionEntries = Object.entries(report.idsMap).filter(
-		(it) => it[1].snapshots.length > 1,
-	);
-
-	const message = collisionEntries
-		.map((it) => {
-			const data = it[1];
-			return `[${
-				data.snapshots.join(
-					', ',
-				)
-			}] are pointing to a parent snapshot: ${data.parent}/snapshot.json which is a collision.`;
-		})
-		.join('\n')
-		.trim();
-	if (message) {
-		console.log(chalk.red.bold('Error:'), message);
-	}
-
-	const abort = report.malformed.length!! || collisionEntries.length > 0;
-
-	if (abort) {
-		process.exit(0);
-	}
-
-	return { snapshots, journal };
+		return `${schema1}${table1}${it.from.name}->${schema2}${table2}${it.to.name}`;
+	});
 };
 
 export const prepareMigrationMeta = (
@@ -307,36 +132,6 @@ export const kloudMeta = () => {
 		mysql: [] as number[],
 		sqlite: [] as number[],
 	};
-};
-
-export const normaliseSQLiteUrl = (
-	it: string,
-	type: 'libsql' | 'better-sqlite',
-) => {
-	if (type === 'libsql') {
-		if (it.startsWith('file:')) {
-			return it;
-		}
-		try {
-			const url = parse(it);
-			if (url.protocol === null) {
-				return `file:${it}`;
-			}
-			return it;
-		} catch (e) {
-			return `file:${it}`;
-		}
-	}
-
-	if (type === 'better-sqlite') {
-		if (it.startsWith('file:')) {
-			return it.substring(5);
-		}
-
-		return it;
-	}
-
-	assertUnreachable(type);
 };
 
 export const normalisePGliteUrl = (

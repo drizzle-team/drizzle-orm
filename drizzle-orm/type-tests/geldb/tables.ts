@@ -106,9 +106,7 @@ export const cities = gelTable('cities_table', {
 	id: integer('id').primaryKey(),
 	name: text('name').notNull(),
 	population: integer('population').default(0),
-}, (cities) => ({
-	citiesNameIdx: index().on(cities.id),
-}));
+}, (cities) => [index().on(cities.id)]);
 
 export const classes = gelTable('classes_table', {
 	id: integer('id').primaryKey(),

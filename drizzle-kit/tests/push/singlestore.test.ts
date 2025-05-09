@@ -329,11 +329,9 @@ const singlestoreSuite: DialectSuite = {
 			table: singlestoreTable('table', {
 				col1: int('col1').notNull(),
 				col2: int('col2').notNull(),
-			}, (t) => ({
-				pk: primaryKey({
-					columns: [t.col1, t.col2],
-				}),
-			})),
+			}, (t) => [primaryKey({
+				columns: [t.col1, t.col2],
+			})]),
 		};
 
 		const { statements, sqlStatements } = await diffTestSchemasPushSingleStore(
@@ -372,11 +370,9 @@ const singlestoreSuite: DialectSuite = {
 			return singlestoreTable(tableName, {
 				productId: varchar('product_id', { length: 10 }).notNull(),
 				categoryId: varchar('category_id', { length: 10 }).notNull(),
-			}, (t) => ({
-				pk: primaryKey({
-					columns: [t.productId, t.categoryId],
-				}),
-			}));
+			}, (t) => [primaryKey({
+				columns: [t.productId, t.categoryId],
+			})]);
 		};
 
 		const schema1 = {

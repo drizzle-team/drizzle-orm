@@ -442,10 +442,7 @@ test('table configs: unique third param', async () => {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),
 		state: char('state', { length: 2 }),
-	}, (t) => ({
-		f: unique('custom_name').on(t.name, t.state).nullsNotDistinct(),
-		f1: unique('custom_name1').on(t.name, t.state),
-	}));
+	}, (t) => [unique('custom_name').on(t.name, t.state).nullsNotDistinct(), unique('custom_name1').on(t.name, t.state)]);
 
 	const tableConfig = getTableConfig(cities1Table);
 
@@ -490,9 +487,7 @@ test('table config: foreign keys name', async () => {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),
 		state: text('state'),
-	}, (t) => ({
-		f: foreignKey({ foreignColumns: [t.id], columns: [t.id], name: 'custom_fk' }),
-	}));
+	}, (t) => [foreignKey({ foreignColumns: [t.id], columns: [t.id], name: 'custom_fk' })]);
 
 	const tableConfig = getTableConfig(table);
 
@@ -505,9 +500,9 @@ test('table config: primary keys name', async () => {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull(),
 		state: text('state'),
-	}, (t) => ({
-		f: primaryKey({ columns: [t.id, t.name], name: 'custom_pk' }),
-	}));
+	}, (t) => [
+		primaryKey({ columns: [t.id, t.name], name: 'custom_pk' }),
+	]);
 
 	const tableConfig = getTableConfig(table);
 
@@ -4710,10 +4705,10 @@ test('policy', () => {
 		const table = pgTable('table_with_policy', {
 			id: serial('id').primaryKey(),
 			name: text('name').notNull(),
-		}, () => ({
+		}, () => [
 			p1,
 			p2,
-		}));
+		]);
 		const config = getTableConfig(table);
 		expect(config.policies).toHaveLength(2);
 		expect(config.policies[0]).toBe(p1);

@@ -3,7 +3,9 @@
 
 !src
 !imports-checker
+
 !tests
+tests/**/tmp/
 !vitest.config.ts
 !README.md
 !CONTRIBUTING.md
@@ -19,6 +21,7 @@
 !.github
 !build.ts
 !build.dev.ts
+!build.ext.ts
 
 tests/test.ts
 
