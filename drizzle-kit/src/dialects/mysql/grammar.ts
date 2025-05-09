@@ -74,7 +74,9 @@ export const parseDefaultValue = (
 const commutativeTypes = [
 	['tinyint(1)', 'boolean'],
 	['binary(1)', 'binary'],
+	['now()', '(now())', 'CURRENT_TIMESTAMP','(CURRENT_TIMESTAMP)', 'CURRENT_TIMESTAMP()']
 ];
+
 export const typesCommutative = (left: string, right: string) => {
 	for (const it of commutativeTypes) {
 		const leftIn = it.some((x) => x === left);
