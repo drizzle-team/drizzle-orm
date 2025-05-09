@@ -187,7 +187,7 @@ function formatResult(
 			}
 			continue;
 		}
-    
+
 		if (tag === 'delete') {
 			// Elements removed from oldArray
 			for (let oldIndex = oldStart; oldIndex < oldEnd; oldIndex++) {

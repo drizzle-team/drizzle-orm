@@ -450,7 +450,9 @@ test('enums #23', async () => {
 
 	const { sqlStatements } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual(['CREATE TABLE "table" (\n\t"en1" "schema"."e"[],\n\t"en2" "schema"."e"[][]\n);\n']);
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE "table" (\n\t"en1" "schema"."e"[],\n\t"en2" "schema"."e"[][]\n);\n',
+	]);
 });
 
 test('drop enum value', async () => {

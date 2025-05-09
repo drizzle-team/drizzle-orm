@@ -70,7 +70,7 @@ export const introspectPostgres = async (
 		process.exit(1);
 	}
 
-	const ts = postgresSchemaToTypeScript(ddl2, res.viewColumns, casing, "pg");
+	const ts = postgresSchemaToTypeScript(ddl2, res.viewColumns, casing, 'pg');
 	const relationsTs = relationsToTypeScript(ddl2.fks.list(), casing);
 
 	const schemaFile = join(out, 'schema.ts');

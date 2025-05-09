@@ -1,5 +1,5 @@
-import { mockResolver } from '../../utils/mocks';
 import { prepareMigrationRenames } from '../../utils';
+import { mockResolver } from '../../utils/mocks';
 import { diffStringArrays } from '../../utils/sequence-matcher';
 import type { Resolver } from '../common';
 import { diff } from '../dialect';

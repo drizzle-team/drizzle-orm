@@ -36,7 +36,7 @@ export class MsSqlRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'MsSql
 export class MsSqlReal<T extends ColumnBaseConfig<'number', 'MsSqlReal'>> extends MsSqlColumnWithIdentity<T> {
 	static override readonly [entityKind]: string = 'MsSqlReal';
 
-	_getSQLType(): string {
+	getSQLType(): string {
 		return 'real';
 	}
 }

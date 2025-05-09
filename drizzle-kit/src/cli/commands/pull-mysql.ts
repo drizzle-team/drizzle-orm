@@ -28,7 +28,6 @@ export const handle = async (
 	const { db, database } = await connectToMySQL(credentials);
 
 	const filter = prepareTablesFilter(tablesFilter);
-	
 	const progress = new IntrospectProgress();
 	const res = await renderWithTask(
 		progress,

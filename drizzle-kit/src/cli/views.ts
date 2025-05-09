@@ -1,11 +1,11 @@
 import chalk from 'chalk';
 import { Prompt, render, SelectState, TaskView } from 'hanji';
+import { SchemaError, SchemaWarning } from 'src/dialects/postgres/ddl';
 import { assertUnreachable } from 'src/global';
 import { SchemaError as SqliteSchemaError } from '../dialects/sqlite/ddl';
 import { Named, NamedWithSchema } from '../dialects/utils';
 import { vectorOps } from '../extensions/vector';
 import { withStyle } from './validations/outputs';
-import { SchemaError, SchemaWarning } from 'src/dialects/postgres/ddl';
 
 export const warning = (msg: string) => {
 	render(`[${chalk.yellow('Warning')}] ${msg}`);

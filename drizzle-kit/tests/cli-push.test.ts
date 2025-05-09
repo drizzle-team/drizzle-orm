@@ -101,7 +101,7 @@ test('push #5', async (t) => {
 	if (res.type !== 'handler') {
 		assert.fail(res.type, 'handler');
 	}
-	
+
 	expect(res.options).toStrictEqual({
 		dialect: 'postgresql',
 		credentials: {

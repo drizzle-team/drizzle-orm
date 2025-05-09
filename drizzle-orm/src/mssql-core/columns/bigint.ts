@@ -46,7 +46,7 @@ export class MsSqlBigInt<T extends ColumnBaseConfig<'bigint', 'MsSqlBigInt'>>
 
 	readonly mode: 'number' | 'bigint' | 'string' = this.config.mode;
 
-	_getSQLType(): string {
+	getSQLType(): string {
 		return `bigint`;
 	}
 
