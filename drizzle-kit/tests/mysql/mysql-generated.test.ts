@@ -114,8 +114,7 @@ test('generated as callback: drop generated constraint as stored', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from,to,[],
-	);
+	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE `users` MODIFY COLUMN `gen_name` text;',
@@ -149,7 +148,6 @@ test('generated as callback: drop generated constraint as virtual', async () => 
 		[],
 	);
 
-	
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
 		'ALTER TABLE `users` ADD `gen_name` text;',

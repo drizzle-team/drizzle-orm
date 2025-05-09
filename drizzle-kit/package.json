@@ -35,6 +35,7 @@
 		"api": "tsx ./dev/api.ts",
 		"migrate:old": "drizzle-kit generate:mysql",
 		"cli": "tsx ./src/cli/index.ts",
+		"test:1": "TEST_CONFIG_PATH_PREFIX=./tests/cli/ vitest",
 		"test": "pnpm tsc && TEST_CONFIG_PATH_PREFIX=./tests/cli/ vitest",
 		"build": "rm -rf ./dist && tsx build.ts && cp package.json dist/ && attw --pack dist",
 		"build:dev": "rm -rf ./dist && tsx build.dev.ts && tsc -p tsconfig.cli-types.json && chmod +x ./dist/index.cjs",

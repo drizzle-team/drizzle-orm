@@ -146,7 +146,7 @@ export const fromDatabase = async (
 				acc[table] = {
 					entityType: 'pks',
 					table,
-					name: it["CONSTRAINT_NAME"],
+					name: it['CONSTRAINT_NAME'],
 					nameExplicit: true,
 					columns: [column],
 				};

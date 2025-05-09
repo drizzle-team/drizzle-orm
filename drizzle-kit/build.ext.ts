@@ -33,7 +33,7 @@ const main = async () => {
 	});
 
 	await tsup.build({
-		entryPoints: ['./src/utils/mover-postgres.ts','./src/utils/mover-mysql.ts'],
+		entryPoints: ['./src/utils/mover-postgres.ts', './src/utils/mover-mysql.ts'],
 		outDir: './dist',
 		external: [],
 		splitting: false,

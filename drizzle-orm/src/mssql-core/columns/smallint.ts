@@ -39,7 +39,7 @@ export class MsSqlSmallIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'M
 export class MsSqlSmallInt<T extends ColumnBaseConfig<'number', 'MsSqlSmallInt'>> extends MsSqlColumnWithIdentity<T> {
 	static override readonly [entityKind]: string = 'MsSqlSmallInt';
 
-	_getSQLType(): string {
+	getSQLType(): string {
 		return `smallint`;
 	}
 

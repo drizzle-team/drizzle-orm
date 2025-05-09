@@ -1,4 +1,4 @@
-import { Simplify } from "../utils";
+import { Simplify } from '../utils';
 
 export const array = <T>(validate: (it: unknown) => boolean) => {
 	return {

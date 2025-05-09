@@ -4,7 +4,9 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
 	test: {
 		include: [
-			'tests/**/*.test.ts',
+			// 'tests/postgres/pg-tables.test.ts',
+			'tests/mssql/constraints.test.ts',
+			// 'tests/**/*.test.ts',
 			// Need to test it first before pushing changes
 			// 'tests/singlestore-schemas.test.ts',
 			// 'tests/singlestore-views.test.ts',

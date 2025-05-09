@@ -32,7 +32,7 @@ export interface MsSqlColumnBuilderBase<
 > extends ColumnBuilderBase<T, TTypeConfig & { dialect: 'mssql' }> {}
 
 export interface MsSqlGeneratedColumnConfig {
-	mode?: 'virtual' | 'stored';
+	mode?: 'virtual' | 'persisted';
 }
 
 export abstract class MsSqlColumnBuilder<
@@ -125,7 +125,7 @@ export type AnyMsSqlColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataT
 >;
 
 export interface MsSqlColumnWithIdentityConfig {
-	identity?: { seed: number; increment: number } | true | undefined;
+	identity: { seed?: number; increment?: number } | undefined;
 }
 
 export abstract class MsSqlColumnBuilderWithIdentity<
@@ -143,9 +143,12 @@ export abstract class MsSqlColumnBuilderWithIdentity<
 	}
 
 	identity(): NotNull<HasGenerated<this>>;
-	identity(seed: number, increment: number): NotNull<HasGenerated<this>>;
-	identity(seed?: number, increment?: number): NotNull<HasGenerated<this>> {
-		this.config.identity = seed !== undefined && increment !== undefined ? { seed, increment } : true;
+	identity(config: { seed: number; increment: number }): NotNull<HasGenerated<this>>;
+	identity(config?: { seed: number; increment: number }): NotNull<HasGenerated<this>> {
+		this.config.identity = {
+			seed: config ? config.seed : 1,
+			increment: config ? config.increment : 1,
+		};
 		this.config.hasDefault = true;
 		this.config.notNull = true;
 		return this as NotNull<HasGenerated<this>>;
@@ -162,21 +165,6 @@ export abstract class MsSqlColumnWithIdentity<
 	static override readonly [entityKind]: string = 'MsSqlColumnWithAutoIncrement';
 
 	readonly identity = this.config.identity;
-	private getIdentity() {
-		if (this.identity) {
-			return typeof this.identity === 'object'
-				? `identity(${this.identity.seed}, ${this.identity.increment})`
-				: 'identity';
-		}
-		return;
-	}
-
-	abstract _getSQLType(): string;
-
-	override getSQLType(): string {
-		const identity = this.getIdentity();
-		return identity ? `${this._getSQLType()} ${identity}` : this._getSQLType();
-	}
 
 	override shouldDisableInsert(): boolean {
 		return !!this.identity;

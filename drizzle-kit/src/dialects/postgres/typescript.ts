@@ -321,7 +321,12 @@ export const paramNameFor = (name: string, schema: string | null) => {
 };
 
 // prev: schemaToTypeScript
-export const ddlToTypeScript = (ddl: PostgresDDL, columnsForViews: ViewColumn[], casing: Casing, mode: "pg" | "gel") => {
+export const ddlToTypeScript = (
+	ddl: PostgresDDL,
+	columnsForViews: ViewColumn[],
+	casing: Casing,
+	mode: 'pg' | 'gel',
+) => {
 	const tableFn = `${mode}Table`;
 	for (const fk of ddl.fks.list()) {
 		relations.add(`${fk.table}-${fk.tableTo}`);

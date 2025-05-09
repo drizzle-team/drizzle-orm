@@ -48,7 +48,7 @@ export class MsSqlNumeric<T extends ColumnBaseConfig<'number', 'MsSqlNumeric'>>
 	readonly precision: number | undefined = this.config.precision;
 	readonly scale: number | undefined = this.config.scale;
 
-	_getSQLType(): string {
+	getSQLType(): string {
 		if (this.precision !== undefined && this.scale !== undefined) {
 			return `numeric(${this.precision},${this.scale})`;
 		} else if (this.precision === undefined) {

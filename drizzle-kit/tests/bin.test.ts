@@ -123,7 +123,7 @@ test('check imports postgres-mover', () => {
 	const issues = analyzeImports({
 		basePath: '.',
 		localPaths: ['src'],
-		whiteList: ["camelcase"],
+		whiteList: ['camelcase'],
 		entry: 'src/utils/mover-postgres.ts',
 		logger: true,
 		ignoreTypes: true,

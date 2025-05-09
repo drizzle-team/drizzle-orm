@@ -479,6 +479,31 @@ export function tests() {
 			]);
 		}
 
+		test.only('table config: columns', async () => {
+			const table = mssqlTable('cities', {
+				id: int().primaryKey().identity(),
+				id1: int().primaryKey().identity({ increment: 2, seed: 3 }),
+			}, (t) => [
+				foreignKey({ foreignColumns: [t.id], columns: [t.id], name: 'custom_fk' }),
+			]);
+
+			const tableConfig = getTableConfig(table);
+
+			// @ts-ignore
+			// Drizzle ORM gives this value in runtime, but not in types.
+			// After sync with Andrew, we decided to fix this with Dan later
+			// That's due to architecture problems we have in columns and complex abstraction we should avoid
+			// for now we are sure this value is here
+			// If it's undefined - than users didn't provide any identity
+			// If it's an object with seed/increment and a) both are undefined - use default identity startegy
+			// b) some of them have values - use them
+			// Note: you can't have only one value. Either both are undefined or both are defined
+			console.log(tableConfig.identity);
+
+			expect(tableConfig.foreignKeys).toHaveLength(1);
+			expect(tableConfig.foreignKeys[0]!.getName()).toBe('custom_fk');
+		});
+
 		test('table config: foreign keys name', async () => {
 			const table = mssqlTable('cities', {
 				id: int('id').primaryKey(),

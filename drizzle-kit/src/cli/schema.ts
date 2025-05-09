@@ -102,10 +102,10 @@ export const generate = command({
 				),
 			);
 			process.exit(1);
-		} //  else if (dialect === 'mssql') {
-		// 	await prepareAndMigrateMsSQL(opts);
-		// }
-		else {
+		} else if (dialect === 'mssql') {
+			const { handle } = await import('./commands/generate-mssql');
+			await handle(opts);
+		} else {
 			assertUnreachable(dialect);
 		}
 	},

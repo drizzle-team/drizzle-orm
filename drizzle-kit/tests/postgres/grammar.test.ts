@@ -42,7 +42,9 @@ test.each([
 		`COALESCE("namewithcomma,", '"default", value'::text)`,
 		`SUBSTRING("name1" FROM 1 FOR 3)`,
 	]],
-	["((lower(first_name) || ', '::text) || lower(last_name))", ["((lower(first_name) || ', '::text) || lower(last_name))"]],
+	["((lower(first_name) || ', '::text) || lower(last_name))", [
+		"((lower(first_name) || ', '::text) || lower(last_name))",
+	]],
 ])('split expression %#: %s', (it, expected) => {
 	expect(splitExpressions(it)).toStrictEqual(expected);
 });

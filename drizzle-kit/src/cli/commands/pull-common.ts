@@ -1,3 +1,4 @@
+import { Minimatch } from 'minimatch';
 import { plural, singular } from 'pluralize';
 import { MysqlEntities } from 'src/dialects/mysql/ddl';
 import { PostgresEntities } from 'src/dialects/postgres/ddl';
@@ -5,7 +6,6 @@ import { SqliteEntities } from 'src/dialects/sqlite/ddl';
 import { paramNameFor } from '../../dialects/postgres/typescript';
 import { assertUnreachable } from '../../global';
 import type { Casing } from '../validations/common';
-import { Minimatch } from 'minimatch';
 
 const withCasing = (value: string, casing: Casing) => {
 	if (casing === 'preserve') {
