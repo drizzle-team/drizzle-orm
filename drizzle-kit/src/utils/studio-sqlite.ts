@@ -3,13 +3,14 @@ import type {
 	Column,
 	ForeignKey,
 	Index,
+	InterimColumn,
+	InterimSchema,
 	PrimaryKey,
 	SqliteEntities,
-	SqliteEntity,
 	UniqueConstraint,
 	View,
 } from '../dialects/sqlite/ddl';
-import { createDDL } from '../dialects/sqlite/ddl';
+import { interimToDDL } from '../dialects/sqlite/ddl';
 import { ddlDiff } from '../dialects/sqlite/diff';
 import { mockResolver } from './mocks';
 
@@ -17,7 +18,7 @@ export type Interim<T> = Omit<T, 'entityType'>;
 
 export type InterimTable = {
 	name: string;
-	columns: Interim<Column>[];
+	columns: Interim<InterimColumn>[];
 	indexes: Interim<Index>[];
 	checks: Interim<CheckConstraint>[];
 	uniques: Interim<UniqueConstraint>[];
@@ -31,22 +32,22 @@ export type InterimView = {
 	definition: string | null;
 };
 
-export type InterimSchema = {
+export type InterimStudioSchema = {
 	tables: InterimTable[];
 	views: InterimView[];
 };
 
-const fromInterims = (tables: InterimTable[], views: InterimView[]): SqliteEntity[] => {
+const fromInterims = (tables: InterimTable[], views: InterimView[]): InterimSchema => {
 	const tbls: SqliteEntities['tables'][] = tables.map((it) => ({
 		entityType: 'tables',
 		name: it.name,
 	}));
-	const columns: Column[] = tables.map((table) => {
+	const columns: InterimColumn[] = tables.map((table) => {
 		return table.columns.map((it) => {
 			return {
 				entityType: 'columns',
 				...it,
-			} satisfies Column;
+			} satisfies InterimColumn;
 		});
 	}).flat(1);
 
@@ -81,27 +82,26 @@ const fromInterims = (tables: InterimTable[], views: InterimView[]): SqliteEntit
 		return { entityType: 'views', isExisting: false, ...it };
 	});
 
-	return [...tbls, ...columns, ...indexes, ...checks, ...uniques, ...fks, ...pks, ...vws];
+	return {
+		tables: tbls,
+		columns: columns,
+		pks,
+		fks,
+		checks,
+		uniques,
+		indexes,
+		views: vws,
+	};
 };
 
 export const diffSqlite = async (
-	from: InterimSchema,
-	to: InterimSchema,
+	from: InterimStudioSchema,
+	to: InterimStudioSchema,
 	renamesArr: string[],
 ) => {
 	const renames = new Set(renamesArr);
-	const ddl1 = createDDL();
-	const ddl2 = createDDL();
-
-	const entitiesFrom = fromInterims(from.tables, from.views);
-	const entitiesTo = fromInterims(to.tables, to.views);
-
-	for (const entity of entitiesFrom) {
-		ddl1.entities.insert(entity);
-	}
-	for (const entity of entitiesTo) {
-		ddl2.entities.insert(entity);
-	}
+	const { ddl: ddl1 } = interimToDDL(fromInterims(from.tables, from.views));
+	const { ddl: ddl2 } = interimToDDL(fromInterims(to.tables, to.views));
 
 	const { sqlStatements, statements, groupedStatements } = await ddlDiff(
 		ddl1,

@@ -29,7 +29,11 @@ export const defaultFromColumn = (column: AnyMySqlColumn, casing?: Casing): Colu
 
 	const sqlTypeLowered = column.getSQLType().toLowerCase();
 	if (is(column.default, SQL)) {
-		let str = sqlToStr(column.default, casing);
+		"CURRENT_TIMESTAMP"
+		"now()"		// 
+		"(now())" // value: (now()) type unknown
+		"now()"  	// value: now() type: unknown
+ 		let str = sqlToStr(column.default, casing);
 
 		return { value: str, type: 'unknown' };
 	}
