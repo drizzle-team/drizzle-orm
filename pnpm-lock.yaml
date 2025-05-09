@@ -656,8 +656,8 @@ importers:
         specifier: ^1.6.0
         version: 1.6.0(@types/node@18.15.10)(@vitest/ui@1.6.0)(lightningcss@1.25.1)(terser@5.31.0)
       zod:
-        specifier: ^3.24.1
-        version: 3.24.1
+        specifier: 4.0.0-beta.20250430T185432
+        version: 4.0.0-beta.20250430T185432
       zx:
         specifier: ^7.2.2
         version: 7.2.2
@@ -4763,6 +4763,9 @@ packages:
   '@xmldom/xmldom@0.8.10':
     resolution: {integrity: sha512-2WALfTl4xo2SkGCYRt6rDTFfk9R1czmBvUQy12gK2KuRKIpWEhcbbzy8EZXtz/jkRqHX8bFEc6FC1HjX4TUWYw==}
     engines: {node: '>=10.0.0'}
+
+  '@zod/core@0.10.0':
+    resolution: {integrity: sha512-iMITRygme3v9jPsITJjvRMw60+MQq7MWnNpJleRkfjeSCjBm3c1/tiw3NUS4re/M2CBXVP5kAjI7sQrf22twXA==}
 
   abbrev@1.1.1:
     resolution: {integrity: sha512-nne9/IiQ/hzIhY6pdDnbBtz7DjPTKrY00P/zvPSm5pOFkl6xuGrGnXn/VtTNNfNtAfZ9/1RtehkszU9qcTii0Q==}
@@ -10667,8 +10670,11 @@ packages:
   zod@3.23.7:
     resolution: {integrity: sha512-NBeIoqbtOiUMomACV/y+V3Qfs9+Okr18vR5c/5pHClPpufWOrsx8TENboDPe265lFdfewX2yBtNTLPvnmCxwog==}
 
-  zod@3.24.1:
-    resolution: {integrity: sha512-muH7gBL9sI1nciMZV67X5fTKKBLtwpZ5VBp1vsOQzj1MhrBZ4wlVCm3gedKZWLp0Oyel8sIGfeiz54Su+OVT+A==}
+  zod@3.24.3:
+    resolution: {integrity: sha512-HhY1oqzWCQWuUqvBFnsyrtZRhyPeR7SUGv+C4+MsisMuVfSPx8HpwWqH8tRahSlt6M3PiFAcoeFhZAqIXTxoSg==}
+
+  zod@4.0.0-beta.20250430T185432:
+    resolution: {integrity: sha512-vslrh3wNLK14cpJwzcuU/uphPR0K/nf4G+/rDpp7TTl4d9h5Rgk1PNcr+2zftZJ4o+sKRUvlFV+FmAVfhu7ZqA==}
 
   zx@7.2.2:
     resolution: {integrity: sha512-50Gjicd6ijTt7Zcz5fNX+rHrmE0uVqC+X6lYKhf2Cu8wIxDpNIzXwTmzchNdW+JY3LFsRcU43B1lHE4HBMmKgQ==}
@@ -15981,6 +15987,8 @@ snapshots:
 
   '@xmldom/xmldom@0.8.10': {}
 
+  '@zod/core@0.10.0': {}
+
   abbrev@1.1.1:
     optional: true
 
@@ -17216,7 +17224,7 @@ snapshots:
       hanji: 0.0.5
       json-diff: 0.9.0
       minimatch: 7.4.6
-      zod: 3.23.7
+      zod: 3.24.3
     transitivePeerDependencies:
       - supports-color
 
@@ -19913,7 +19921,7 @@ snapshots:
       workerd: 1.20240712.0
       ws: 8.18.0(bufferutil@4.0.8)(utf-8-validate@6.0.3)
       youch: 3.3.3
-      zod: 3.23.7
+      zod: 3.24.3
     transitivePeerDependencies:
       - bufferutil
       - supports-color
@@ -22912,7 +22920,11 @@ snapshots:
 
   zod@3.23.7: {}
 
-  zod@3.24.1: {}
+  zod@3.24.3: {}
+
+  zod@4.0.0-beta.20250430T185432:
+    dependencies:
+      '@zod/core': 0.10.0
 
   zx@7.2.2:
     dependencies:

@@ -61,13 +61,20 @@ import { isColumnType, isWithEnum } from './utils.ts';
 import type { Json } from './utils.ts';
 
 export const literalSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
-export const jsonSchema: z.ZodType<Json> = z.union([literalSchema, z.record(z.any()), z.array(z.any())]);
+export const jsonSchema: z.ZodType<Json> = z.union([literalSchema, z.record(z.string(), z.any()), z.array(z.any())]);
 export const bufferSchema: z.ZodType<Buffer> = z.custom<Buffer>((v) => v instanceof Buffer); // eslint-disable-line no-instanceof/no-instanceof
 
-export function columnToSchema(column: Column, factory: CreateSchemaFactoryOptions | undefined): z.ZodTypeAny {
-	const z = factory?.zodInstance ?? zod;
+export function columnToSchema(
+	column: Column,
+	factory:
+		| CreateSchemaFactoryOptions<
+			Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined
+		>
+		| undefined,
+): z.ZodType {
+	const z: typeof zod = factory?.zodInstance ?? zod;
 	const coerce = factory?.coerce ?? {};
-	let schema!: z.ZodTypeAny;
+	let schema!: z.ZodType;
 
 	if (isWithEnum(column)) {
 		schema = column.enumValues.length ? z.enum(column.enumValues) : z.string();
@@ -94,7 +101,7 @@ export function columnToSchema(column: Column, factory: CreateSchemaFactoryOptio
 			});
 		} // Handle other types
 		else if (isColumnType<PgArray<any, any>>(column, ['PgArray'])) {
-			schema = z.array(columnToSchema(column.baseColumn, z));
+			schema = z.array(columnToSchema(column.baseColumn, factory));
 			schema = column.size ? (schema as z.ZodArray<any>).length(column.size) : schema;
 		} else if (column.dataType === 'array') {
 			schema = z.array(z.any());
@@ -127,8 +134,10 @@ export function columnToSchema(column: Column, factory: CreateSchemaFactoryOptio
 function numberColumnToSchema(
 	column: Column,
 	z: typeof zod,
-	coerce: CreateSchemaFactoryOptions['coerce'],
-): z.ZodTypeAny {
+	coerce: CreateSchemaFactoryOptions<
+		Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined
+	>['coerce'],
+): z.ZodType {
 	let unsigned = column.getSQLType().includes('unsigned');
 	let min!: number;
 	let max!: number;
@@ -228,31 +237,39 @@ function numberColumnToSchema(
 		max = Number.MAX_SAFE_INTEGER;
 	}
 
-	let schema = coerce === true || coerce?.number ? z.coerce.number() : z.number();
-	schema = schema.min(min).max(max);
-	return integer ? schema.int() : schema;
+	let schema = coerce === true || coerce?.number
+		? integer ? z.coerce.number() : z.coerce.number().int()
+		: integer
+		? z.int()
+		: z.number();
+	schema = schema.gte(min).lte(max);
+	return schema;
 }
 
 function bigintColumnToSchema(
 	column: Column,
 	z: typeof zod,
-	coerce: CreateSchemaFactoryOptions['coerce'],
-): z.ZodTypeAny {
+	coerce: CreateSchemaFactoryOptions<
+		Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined
+	>['coerce'],
+): z.ZodType {
 	const unsigned = column.getSQLType().includes('unsigned');
 	const min = unsigned ? 0n : CONSTANTS.INT64_MIN;
 	const max = unsigned ? CONSTANTS.INT64_UNSIGNED_MAX : CONSTANTS.INT64_MAX;
 
 	const schema = coerce === true || coerce?.bigint ? z.coerce.bigint() : z.bigint();
-	return schema.min(min).max(max);
+	return schema.gte(min).lte(max);
 }
 
 function stringColumnToSchema(
 	column: Column,
 	z: typeof zod,
-	coerce: CreateSchemaFactoryOptions['coerce'],
-): z.ZodTypeAny {
+	coerce: CreateSchemaFactoryOptions<
+		Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined
+	>['coerce'],
+): z.ZodType {
 	if (isColumnType<PgUUID<ColumnBaseConfig<'string', 'PgUUID'>>>(column, ['PgUUID'])) {
-		return z.string().uuid();
+		return z.uuid();
 	}
 
 	let max: number | undefined;
