@@ -1659,7 +1659,7 @@ export const diffTestSchemasPushSingleStore = async (
 		await client.query(st);
 	}
 
-	// do introspect into PgSchemaInternal
+	// do introspect into SingleStoreSchemaInternal
 	const introspectedSchema = await fromSingleStoreDatabase(
 		{
 			query: async (sql: string, params?: any[]) => {
