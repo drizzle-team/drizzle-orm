@@ -5,6 +5,7 @@ import {
 	isPgSequence,
 	isPgView,
 	PgEnum,
+	PgEnumObject,
 	PgMaterializedView,
 	PgPolicy,
 	PgRole,
@@ -26,11 +27,13 @@ import { Entities } from 'src/cli/validations/cli';
 import { isSystemNamespace, isSystemRole } from 'src/dialects/postgres/grammar';
 import { fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
 import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
+import { DB } from 'src/utils';
 
 export type PostgresSchema = Record<
 	string,
 	| PgTable<any>
 	| PgEnum<any>
+	| PgEnumObject<any>
 	| PgSchema
 	| PgSequence
 	| PgView
@@ -113,7 +116,7 @@ export const diff = async (
 
 // init schema flush to db -> introspect db to ddl -> compare ddl with destination schema
 export const diffPush = async (config: {
-	client: PGlite;
+	db: DB;
 	init: PostgresSchema;
 	destination: PostgresSchema;
 	renames?: string[];
@@ -124,9 +127,9 @@ export const diffPush = async (config: {
 	after?: string[];
 	apply?: boolean;
 }) => {
-	const { client, init: initSchema, destination, casing, before, after, renames: rens, entities } = config;
+	const { db, init: initSchema, destination, casing, before, after, renames: rens, entities } = config;
 	const schemas = config.schemas ?? ['public'];
-	const apply = config.apply ?? true;
+	const apply = typeof config.apply === 'undefined' ? true : config.apply;
 	const { ddl: initDDL } = drizzleToDDL(initSchema, casing);
 	const { sqlStatements: inits } = await ddlDiffDry(createDDL(), initDDL, 'default');
 
@@ -140,15 +143,9 @@ export const diffPush = async (config: {
 	init.push(...mViewsRefreshes);
 
 	for (const st of init) {
-		await client.query(st);
+		console.log(st)
+		await db.query(st);
 	}
-
-	const db = {
-		query: async (query: string, values?: any[] | undefined) => {
-			const res = await client.query(query, values);
-			return res.rows as any[];
-		},
-	};
 
 	// do introspect into PgSchemaInternal
 	const introspectedSchema = await fromDatabaseForDrizzle(db, undefined, (it) => schemas.indexOf(it) >= 0, entities);
@@ -185,29 +182,9 @@ export const diffPush = async (config: {
 	return { sqlStatements, statements, hints, losses };
 };
 
-export const reset = async (client: PGlite) => {
-	const namespaces = await client.query<{ name: string }>('select oid, nspname as name from pg_namespace').then((
-		res,
-	) => res.rows.filter((r) => !isSystemNamespace(r.name)));
-
-	const roles = await client.query<{ rolname: string }>(
-		`SELECT rolname, rolinherit, rolcreatedb, rolcreaterole FROM pg_roles;`,
-	).then((it) => it.rows.filter((it) => !isSystemRole(it.rolname)));
-
-	for (const namespace of namespaces) {
-		await client.query(`DROP SCHEMA "${namespace.name}" cascade`);
-	}
-
-	await client.query('CREATE SCHEMA public;');
-
-	for (const role of roles) {
-		await client.query(`DROP ROLE "${role.rolname}"`);
-	}
-};
-
 // init schema to db -> pull from db to file -> ddl from files -> compare ddl from db with ddl from file
 export const diffIntrospect = async (
-	db: PGlite,
+	db: DB,
 	initSchema: PostgresSchema,
 	testName: string,
 	schemas: string[] = ['public'],
@@ -219,17 +196,7 @@ export const diffIntrospect = async (
 	for (const st of init) await db.query(st);
 
 	// introspect to schema
-	const schema = await fromDatabaseForDrizzle(
-		{
-			query: async (query: string, values?: any[] | undefined) => {
-				const res = await db.query(query, values);
-				return res.rows as any[];
-			},
-		},
-		(_) => true,
-		(it) => schemas.indexOf(it) >= 0,
-		entities,
-	);
+	const schema = await fromDatabaseForDrizzle(db, (_) => true, (it) => schemas.indexOf(it) >= 0, entities);
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel', 'pg');
@@ -259,4 +226,41 @@ export const diffIntrospect = async (
 		sqlStatements: afterFileSqlStatements,
 		statements: afterFileStatements,
 	};
+};
+
+export type TestDatabase = {
+	db: DB;
+	close: () => Promise<void>;
+	clear: () => Promise<void>;
+};
+
+export const prepareTestDatabase = async (): Promise<TestDatabase> => {
+	const client = new PGlite();
+
+	const clear = async () => {
+		const namespaces = await client.query<{ name: string }>('select oid, nspname as name from pg_namespace').then((
+			res,
+		) => res.rows.filter((r) => !isSystemNamespace(r.name)));
+
+		const roles = await client.query<{ rolname: string }>(
+			`SELECT rolname, rolinherit, rolcreatedb, rolcreaterole FROM pg_roles;`,
+		).then((it) => it.rows.filter((it) => !isSystemRole(it.rolname)));
+
+		for (const namespace of namespaces) {
+			await client.query(`DROP SCHEMA "${namespace.name}" cascade`);
+		}
+
+		await client.query('CREATE SCHEMA public;');
+
+		for (const role of roles) {
+			await client.query(`DROP ROLE "${role.rolname}"`);
+		}
+	};
+
+	const db: DB = {
+		query: async (sql, params) => {
+			return client.query(sql, params).then((it) => it.rows as any[]);
+		},
+	};
+	return { db, close: async () => {}, clear };
 };

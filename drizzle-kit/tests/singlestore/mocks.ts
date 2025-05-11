@@ -1,6 +1,6 @@
 import Docker, { Container } from 'dockerode';
 import { is } from 'drizzle-orm';
-import { MySqlSchema, MySqlTable, MySqlView } from 'drizzle-orm/mysql-core';
+import { SingleStoreSchema, SingleStoreTable } from 'drizzle-orm/singlestore-core';
 import { mkdirSync, writeFileSync } from 'fs';
 import getPort from 'get-port';
 import { Connection, createConnection } from 'mysql2/promise';
@@ -8,27 +8,23 @@ import { suggestions } from 'src/cli/commands/push-mysql';
 import { CasingType } from 'src/cli/validations/common';
 import { createDDL, interimToDDL } from 'src/dialects/mysql/ddl';
 import { ddlDiffDry, diffDDL } from 'src/dialects/mysql/diff';
-import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/mysql/drizzle';
 import { fromDatabaseForDrizzle } from 'src/dialects/mysql/introspect';
 import { ddlToTypeScript } from 'src/dialects/mysql/typescript';
+import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/singlestore/drizzle';
 import { DB } from 'src/utils';
 import { mockResolver } from 'src/utils/mocks';
 import { v4 as uuid } from 'uuid';
 
-export type MysqlSchema = Record<
-	string,
-	MySqlTable<any> | MySqlSchema | MySqlView
->;
+export type SinglestoreSchema = Record<string, SingleStoreTable<any> | SingleStoreSchema>;
 
-export const drizzleToDDL = (sch: MysqlSchema, casing?: CasingType | undefined) => {
-	const tables = Object.values(sch).filter((it) => is(it, MySqlTable)) as MySqlTable[];
-	const views = Object.values(sch).filter((it) => is(it, MySqlView)) as MySqlView[];
-	return interimToDDL(fromDrizzleSchema(tables, views, casing));
+export const drizzleToDDL = (sch: SinglestoreSchema, casing?: CasingType | undefined) => {
+	const tables = Object.values(sch).filter((it) => is(it, SingleStoreTable)) as SingleStoreTable[];
+	return interimToDDL(fromDrizzleSchema(tables, casing));
 };
 
 export const diff = async (
-	left: MysqlSchema,
-	right: MysqlSchema,
+	left: SinglestoreSchema,
+	right: SinglestoreSchema,
 	renamesArr: string[],
 	casing?: CasingType | undefined,
 ) => {
@@ -48,9 +44,9 @@ export const diff = async (
 	return { sqlStatements, statements };
 };
 
-export const introspectDiff = async (
+export const pullDiff = async (
 	db: DB,
-	initSchema: MysqlSchema,
+	initSchema: SinglestoreSchema,
 	testName: string,
 	casing?: CasingType | undefined,
 ) => {
@@ -67,15 +63,9 @@ export const introspectDiff = async (
 	writeFileSync(`tests/mysql/tmp/${testName}.ts`, file.file);
 
 	// generate snapshot from ts file
-	const response = await prepareFromSchemaFiles([
-		`tests/mysql/tmp/${testName}.ts`,
-	]);
+	const response = await prepareFromSchemaFiles([`tests/mysql/tmp/${testName}.ts`]);
 
-	const interim = fromDrizzleSchema(
-		response.tables,
-		response.views,
-		casing,
-	);
+	const interim = fromDrizzleSchema(response.tables, casing);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(interim);
 
 	// TODO: handle errors
@@ -103,8 +93,8 @@ export const introspectDiff = async (
 
 export const diffPush = async (config: {
 	db: DB;
-	init: MysqlSchema;
-	destination: MysqlSchema;
+	init: SinglestoreSchema;
+	destination: SinglestoreSchema;
 	renames?: string[];
 	casing?: CasingType;
 	before?: string[];
@@ -122,7 +112,6 @@ export const diffPush = async (config: {
 	if (after) init.push(...after);
 
 	for (const st of init) {
-		console.log(st)
 		await db.query(st);
 	}
 
@@ -151,7 +140,7 @@ export const diffPush = async (config: {
 async function createDockerDB(): Promise<{ url: string; container: Container }> {
 	const docker = new Docker();
 	const port = await getPort({ port: 3306 });
-	const image = 'mysql:8';
+	const image = 'ghcr.io/singlestore-labs/singlestoredb-dev:latest';
 
 	const pullStream = await docker.pull(image);
 	await new Promise((resolve, reject) =>
@@ -162,7 +151,7 @@ async function createDockerDB(): Promise<{ url: string; container: Container }> 
 	const mysqlContainer = await docker.createContainer({
 		Image: image,
 		Env: ['MYSQL_ROOT_PASSWORD=mysql', 'MYSQL_DATABASE=drizzle'],
-		name: `drizzle-integration-tests-${uuid()}`,
+		name: `drizzle-${uuid()}`,
 		HostConfig: {
 			AutoRemove: true,
 			PortBindings: {
@@ -172,8 +161,7 @@ async function createDockerDB(): Promise<{ url: string; container: Container }> 
 	});
 
 	await mysqlContainer.start();
-
-	return { url: `mysql://root:mysql@127.0.0.1:${port}/drizzle`, container: mysqlContainer };
+	return { url: `singlestore://root:singlestore@localhost:${port}/`, container: mysqlContainer };
 }
 
 export type TestDatabase = {
@@ -188,6 +176,8 @@ export const prepareTestDatabase = async (): Promise<TestDatabase> => {
 
 	const sleep = 1000;
 	let timeLeft = 20000;
+	let connected = false;
+	let lastError: unknown | undefined;
 	do {
 		try {
 			const client: Connection = await createConnection(url);
@@ -198,6 +188,7 @@ export const prepareTestDatabase = async (): Promise<TestDatabase> => {
 					return res as any[];
 				},
 			};
+			connected = true;
 			const close = async () => {
 				await client?.end().catch(console.error);
 				await container?.stop().catch(console.error);
@@ -209,6 +200,7 @@ export const prepareTestDatabase = async (): Promise<TestDatabase> => {
 			};
 			return { db, close, clear };
 		} catch (e) {
+			lastError = e;
 			await new Promise((resolve) => setTimeout(resolve, sleep));
 			timeLeft -= sleep;
 		}

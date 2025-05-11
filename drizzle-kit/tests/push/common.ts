@@ -38,12 +38,9 @@ export const run = (
 	test('Indexes properties that should not trigger push changes', () => suite.indexesToBeNotTriggered(context));
 	test('Indexes test case #1', () => suite.indexesTestCase1(context));
 	test('Drop column', () => suite.case1());
-
 	test('Add not null to a column', () => suite.addNotNull());
 	test('Add not null to a column with null data. Should rollback', () => suite.addNotNullWithDataNoRollback());
-
 	test('Add basic sequences', () => suite.addBasicSequences());
-
 	test('Add generated column', () => suite.addGeneratedColumn(context));
 	test('Add generated constraint to an existing column', () => suite.addGeneratedToColumn(context));
 	test('Drop generated constraint from a column', () => suite.dropGeneratedConstraint(context));

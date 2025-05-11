@@ -336,7 +336,6 @@ interface PolicyNotLinked {
 }
 export type SchemaWarning = PolicyNotLinked;
 
-
 export const interimToDDL = (
 	schema: InterimSchema,
 ): { ddl: PostgresDDL; errors: SchemaError[] } => {

@@ -104,7 +104,7 @@ test('array #5: multi-dimensional array default', async (t) => {
 	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements).toStrictEqual([
-		`ALTER TABLE "test" ADD COLUMN "values" integer[][] DEFAULT '{{1,2},{3,4}}';`,
+		`ALTER TABLE "test" ADD COLUMN "values" integer[] DEFAULT '{{1,2},{3,4}}';`,
 	]);
 });
 
