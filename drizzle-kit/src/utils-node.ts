@@ -3,11 +3,11 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { join } from 'path';
 import { parse } from 'url';
 import { error, info } from './cli/views';
+import { mysqlSchemaV5 } from './dialects/mysql/snapshot';
 import { snapshotValidator } from './dialects/postgres/snapshot';
 import { assertUnreachable } from './global';
 import type { Dialect } from './schemaValidator';
 import { Journal } from './utils';
-import { mysqlSchemaV5 } from './dialects/mysql/snapshot';
 
 export const assertV1OutFolder = (out: string) => {
 	if (!existsSync(out)) return;
@@ -272,7 +272,6 @@ export const normaliseSQLiteUrl = (
 
 	assertUnreachable(type);
 };
-
 
 // NextJs default config is target: es5, which esbuild-register can't consume
 const assertES5 = async (unregister: () => void) => {

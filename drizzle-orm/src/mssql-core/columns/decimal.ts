@@ -47,7 +47,7 @@ export class MsSqlDecimal<T extends ColumnBaseConfig<'number', 'MsSqlDecimal'>>
 	readonly precision: number | undefined = this.config.precision;
 	readonly scale: number | undefined = this.config.scale;
 
-	_getSQLType(): string {
+	getSQLType(): string {
 		if (this.precision !== undefined && this.scale !== undefined) {
 			return `decimal(${this.precision},${this.scale})`;
 		} else if (this.precision === undefined) {

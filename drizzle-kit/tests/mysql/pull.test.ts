@@ -21,7 +21,7 @@ import {
 import * as fs from 'fs';
 import { DB } from 'src/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { prepareTestDatabase, introspectDiff, TestDatabase } from './mocks';
+import { introspectDiff, prepareTestDatabase, TestDatabase } from './mocks';
 
 // @vitest-environment-options {"max-concurrency":1}
 

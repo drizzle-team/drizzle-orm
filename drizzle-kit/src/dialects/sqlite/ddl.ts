@@ -246,7 +246,7 @@ export const interimToDDL = (schema: InterimSchema): { ddl: SQLiteDDL; errors: S
 			table: it.table,
 			origin: 'manual',
 		} satisfies UniqueConstraint;
-		
+
 		const res = ddl.uniques.insert(u);
 		if (res.status === 'CONFLICT') {
 			errors.push({ type: 'conflict_unique', name: u.name });

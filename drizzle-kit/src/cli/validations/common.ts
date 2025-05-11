@@ -1,8 +1,8 @@
+import chalk from 'chalk';
 import type { UnionToIntersection } from 'hono/utils/types';
 import { any, boolean, enum as enum_, literal, object, string, TypeOf, union } from 'zod';
 import { dialect } from '../../schemaValidator';
 import { outputs } from './outputs';
-import chalk from 'chalk';
 
 export type Commands =
 	| 'introspect'

@@ -2,7 +2,7 @@ import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlColumn, MsSqlColumn } from './columns/index.ts';
 import type { MsSqlTable } from './table.ts';
 
-export type UpdateDeleteAction = 'cascade' | 'restrict' | 'no action' | 'set null' | 'set default';
+export type UpdateDeleteAction = 'cascade' | 'no action' | 'set null' | 'set default';
 
 export type Reference = () => {
 	readonly name?: string;

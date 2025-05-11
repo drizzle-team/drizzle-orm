@@ -28,7 +28,13 @@ export type ColumnDataType =
 
 export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'singlestore' | 'mssql' | 'common' | 'gel';
 
-export type GeneratedStorageMode = 'virtual' | 'stored';
+// TODO update description
+// 'virtual' | 'stored'  for postgres
+// 'stored' for mysql
+// 'virtual' | 'persisted' for mssql
+// We should remove this option from common Column and store it per dialect common
+// Was discussed with Andrew
+export type GeneratedStorageMode = 'virtual' | 'stored' | 'persisted';
 
 export type GeneratedType = 'always' | 'byDefault';
 

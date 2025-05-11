@@ -26,7 +26,7 @@ test('create sequence: all fields', async () => {
 		}),
 	};
 
-	const {  sqlStatements } = await diff(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements).toStrictEqual([
 		'CREATE SEQUENCE "public"."name" INCREMENT BY 2 MINVALUE 100 MAXVALUE 10000 START WITH 100 CACHE 10 CYCLE;',
