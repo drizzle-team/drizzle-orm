@@ -1,6 +1,6 @@
 import { mockResolver } from 'src/utils/mocks';
-import type { Resolver } from '../common';
 import { prepareMigrationRenames } from '../../utils';
+import type { Resolver } from '../common';
 import { diff } from '../dialect';
 import { groupDiffs } from '../utils';
 import { fromJson } from './convertor';
@@ -130,7 +130,6 @@ export const ddlDiff = async (
 		columnsToDelete.push(...deleted);
 		columnRenames.push(...renamed);
 	}
-
 
 	for (const rename of columnRenames) {
 		ddl1.columns.update({

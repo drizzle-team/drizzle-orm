@@ -1,9 +1,9 @@
 import type { CasingType } from '../../cli/validations/common';
 import { schemaError, schemaWarning } from '../../cli/views';
 import { prepareFilenames } from '../../serializer';
-import { createDDL, interimToDDL, MysqlDDL } from '../mysql/ddl';
-import { drySnapshot, MysqlSnapshot, snapshotValidator } from '../mysql/snapshot';
+import { createDDL, interimToDDL, MssqlDDL } from './ddl';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
+import { drySnapshot, MssqlSnapshot, snapshotValidator } from './snapshot';
 
 export const prepareSnapshot = async (
 	snapshots: string[],
@@ -11,11 +11,11 @@ export const prepareSnapshot = async (
 	casing: CasingType | undefined,
 ): Promise<
 	{
-		ddlPrev: MysqlDDL;
-		ddlCur: MysqlDDL;
-		snapshot: MysqlSnapshot;
-		snapshotPrev: MysqlSnapshot;
-		custom: MysqlSnapshot;
+		ddlPrev: MssqlDDL;
+		ddlCur: MssqlDDL;
+		snapshot: MssqlSnapshot;
+		snapshotPrev: MssqlSnapshot;
+		custom: MssqlSnapshot;
 	}
 > => {
 	const { readFileSync } = await import('fs') as typeof import('fs');
@@ -29,14 +29,12 @@ export const prepareSnapshot = async (
 		ddlPrev.entities.insert(entry);
 	}
 	const filenames = prepareFilenames(schemaPath);
+
 	const res = await prepareFromSchemaFiles(filenames);
 
-	const interim = fromDrizzleSchema(
-		res.tables,
-		casing,
-	);
+	const schema = fromDrizzleSchema(res, casing);
 
-	// TODO: errors
+	// TODO
 	// if (warnings.length > 0) {
 	// 	console.log(warnings.map((it) => schemaWarning(it)).join('\n\n'));
 	// }
@@ -46,9 +44,9 @@ export const prepareSnapshot = async (
 	// 	process.exit(1);
 	// }
 
-	const { ddl: ddlCur, errors: errors2 } = interimToDDL(interim);
+	const { ddl: ddlCur, errors: errors2 } = interimToDDL(schema);
 
-	// TODO: handle errors
+	// TODO
 	// if (errors2.length > 0) {
 	// 	console.log(errors2.map((it) => schemaError(it)).join('\n'));
 	// 	process.exit(1);
@@ -58,18 +56,18 @@ export const prepareSnapshot = async (
 	const prevId = prevSnapshot.id;
 
 	const snapshot = {
-		version: '5',
-		dialect: 'mysql',
+		version: '1',
+		dialect: 'mssql',
 		id,
 		prevId,
 		ddl: ddlCur.entities.list(),
 		renames: [],
-	} satisfies MysqlSnapshot;
+	} satisfies MssqlSnapshot;
 
 	const { id: _ignoredId, prevId: _ignoredPrevId, ...prevRest } = prevSnapshot;
 
 	// that's for custom migrations, when we need new IDs, but old snapshot
-	const custom: MysqlSnapshot = {
+	const custom: MssqlSnapshot = {
 		id,
 		prevId,
 		...prevRest,

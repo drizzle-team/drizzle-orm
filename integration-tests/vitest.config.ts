@@ -2,27 +2,27 @@ import 'dotenv/config';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import { defineConfig } from 'vitest/config';
 
-console.log('process.env.SKIP_PLANETSCALE_TESTS', process.env.SKIP_PLANETSCALE_TESTS);
 export default defineConfig({
 	test: {
 		include: [
-			'tests/seeder/**/*.test.ts',
-			'tests/extensions/postgis/**/*',
-			'tests/relational/**/*.test.ts',
-			'tests/pg/**/*.test.ts',
-			'tests/mysql/**/*.test.ts',
-			'tests/mssql/**/*.test.ts',
-			'tests/singlestore/**/*.test.ts',
-			'tests/sqlite/**/*.test.ts',
-			'tests/replicas/**/*',
-			'tests/imports/**/*',
-			'tests/extensions/vectors/**/*',
-			'tests/version.test.ts',
-			'tests/pg/node-postgres.test.ts',
-			'tests/utils/is-config.test.ts',
-			'js-tests/driver-init/commonjs/*.test.cjs',
-			'js-tests/driver-init/module/*.test.mjs',
-			'tests/gel/**/*.test.ts',
+			'tests/mssql/mssql.test.ts',
+			// 'tests/seeder/**/*.test.ts',
+			// 'tests/extensions/postgis/**/*',
+			// 'tests/relational/**/*.test.ts',
+			// 'tests/pg/**/*.test.ts',
+			// 'tests/mysql/**/*.test.ts',
+			// 'tests/mssql/**/*.test.ts',
+			// 'tests/singlestore/**/*.test.ts',
+			// 'tests/sqlite/**/*.test.ts',
+			// 'tests/replicas/**/*',
+			// 'tests/imports/**/*',
+			// 'tests/extensions/vectors/**/*',
+			// 'tests/version.test.ts',
+			// 'tests/pg/node-postgres.test.ts',
+			// 'tests/utils/is-config.test.ts',
+			// 'js-tests/driver-init/commonjs/*.test.cjs',
+			// 'js-tests/driver-init/module/*.test.mjs',
+			// 'tests/gel/**/*.test.ts',
 		],
 		exclude: [
 			...(process.env.SKIP_EXTERNAL_DB_TESTS

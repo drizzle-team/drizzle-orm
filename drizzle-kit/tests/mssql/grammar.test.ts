@@ -1,6 +1,7 @@
 import { splitExpressions, trimDefaultValueSuffix } from 'src/dialects/postgres/grammar';
 import { expect, test } from 'vitest';
 
+// TODO check this tests
 test.each([
 	['lower(name)', ['lower(name)']],
 	['lower(name), upper(name)', ['lower(name)', 'upper(name)']],
@@ -49,6 +50,7 @@ test.each([
 	expect(splitExpressions(it)).toStrictEqual(expected);
 });
 
+// TODO check this tests
 test.each([
 	["'a'::my_enum", "'a'"],
 	["'abc'::text", "'abc'"],

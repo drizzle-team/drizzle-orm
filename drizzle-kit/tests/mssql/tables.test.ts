@@ -1,0 +1,667 @@
+import { sql } from 'drizzle-orm';
+import {
+	foreignKey,
+	index,
+	int,
+	mssqlSchema,
+	mssqlTable,
+	mssqlTableCreator,
+	primaryKey,
+	text,
+	unique,
+	uniqueIndex,
+} from 'drizzle-orm/mssql-core';
+import { expect, test } from 'vitest';
+import { diff } from './mocks';
+
+test('add table #1', async () => {
+	const to = {
+		users: mssqlTable('users', {}),
+	};
+
+	const { sqlStatements } = await diff({}, to, []);
+	expect(sqlStatements).toStrictEqual(['CREATE TABLE [users] (\n\n);\n']);
+});
+
+test('add table #2', async () => {
+	const to = {
+		users: mssqlTable('users', {
+			id: int('id').primaryKey(),
+		}),
+	};
+
+	const { sqlStatements } = await diff({}, to, []);
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE [users] (\n\t[id] int PRIMARY KEY\n);\n',
+	]);
+});
+
+test('add table #3', async () => {
+	const to = {
+		users: mssqlTable('users', {
+			id: int('id'),
+		}, (t) => [primaryKey({ name: 'users_pk', columns: [t.id] })]),
+	};
+
+	const { sqlStatements } = await diff({}, to, []);
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE [users] (\n'
+		+ '\t[id] int,\n'
+		+ '\tCONSTRAINT [users_pk] PRIMARY KEY([id])\n'
+		+ ');\n',
+	]);
+});
+
+test('add table #4', async () => {
+	const to = {
+		users: mssqlTable('users', { id: int() }),
+		posts: mssqlTable('posts', { id: int() }),
+	};
+
+	const { sqlStatements } = await diff({}, to, []);
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE [users] (\n\t[id] int\n);\n',
+		'CREATE TABLE [posts] (\n\t[id] int\n);\n',
+	]);
+});
+
+test('add table #5', async () => {
+	const schema = mssqlSchema('folder');
+	const from = {
+		schema,
+	};
+
+	const to = {
+		schema,
+		users: schema.table('users', {
+			id: int(),
+		}),
+	};
+
+	const { sqlStatements } = await diff(from, to, []);
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE [folder].[users] (\n\t[id] int\n);\n',
+	]);
+});
+
+test('add table #6', async () => {
+	const from = {
+		users1: mssqlTable('users1', { id: int() }),
+	};
+
+	const to = {
+		users2: mssqlTable('users2', { id: int() }),
+	};
+
+	const { sqlStatements } = await diff(from, to, []);
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE [users2] (\n\t[id] int\n);\n',
+		'DROP TABLE [users1];',
+	]);
+});
+
+test('add table #7', async () => {
+	const from = {
+		users1: mssqlTable('users1', { id: int() }),
+	};
+
+	const to = {
+		users: mssqlTable('users', { id: int() }),
+		users2: mssqlTable('users2', { id: int() }),
+	};
+
+	const { sqlStatements } = await diff(from, to, [
+		'dbo.users1->dbo.users2',
+	]);
+
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE [users] (\n\t[id] int\n);\n',
+		`EXEC sp_rename '[users1]', '[users2]';`,
+	]);
+});
+
+/* unique inline */
+test('add table #9', async () => {
+	const to = {
+		users: mssqlTable('users', {
+			name: text().unique(),
+		}),
+	};
+
+	const { sqlStatements } = await diff({}, to, []);
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE [users] (\n'
+		+ '\t[name] text UNIQUE\n'
+		+ ');\n',
+	]);
+});
+
+/* unique inline named */
+
+// in mssql there is no way to create unique with name inline
+test.todo('add table #10', async () => {
+	const from = {};
+	const to = {
+		users: mssqlTable('users', {
+			name: text().unique('name_unique'),
+		}),
+	};
+
+	const { sqlStatements } = await diff(from, to, []);
+	expect(sqlStatements).toStrictEqual([
+		`CREATE TABLE [users] (\n\t[name] text UNIQUE("name_unique")\n);\n`,
+	]);
+});
+
+/* unique default-named */
+test.todo('add table #13', async () => {
+	const to = {
+		users: mssqlTable('users', {
+			name: text(),
+		}, (t) => [unique('users_name_key').on(t.name)]),
+	};
+
+	const { sqlStatements } = await diff({}, to, []);
+	expect(sqlStatements).toStrictEqual([
+		`CREATE TABLE [users] (\n\t"name" text UNIQUE("users_name_key")\n);\n`,
+	]);
+});
+
+test('multiproject schema add table #1', async () => {
+	const table = mssqlTableCreator((name) => `prefix_${name}`);
+
+	const to = {
+		users: table('users', {
+			id: int('id').primaryKey(),
+		}),
+	};
+
+	const { sqlStatements } = await diff({}, to, []);
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE [prefix_users] (\n\t[id] int PRIMARY KEY\n);\n',
+	]);
+});
+
+test('multiproject schema drop table #1', async () => {
+	const table = mssqlTableCreator((name) => `prefix_${name}`);
+
+	const from = {
+		users: table('users', {
+			id: int('id').primaryKey(),
+		}),
+	};
+
+	const { sqlStatements } = await diff(from, {}, []);
+	expect(sqlStatements).toStrictEqual(['DROP TABLE [prefix_users];']);
+});
+
+test.todo('multiproject schema alter table name #1', async () => {
+	const table = mssqlTableCreator((name) => `prefix_${name}`);
+
+	const from = {
+		users: table('users', {
+			id: int('id').primaryKey(),
+		}),
+	};
+	const to = {
+		users1: table('users1', {
+			id: int('id').primaryKey(),
+		}),
+	};
+
+	const { sqlStatements } = await diff(from, to, [
+		'dbo.prefix_users->dbo.prefix_users1',
+	]);
+	expect(sqlStatements).toStrictEqual(["EXEC sp_rename '[prefix_users]', '[prefix_users1]';"]);
+});
+
+test('add schema + table #1', async () => {
+	const schema = mssqlSchema('folder');
+
+	const to = {
+		schema,
+		users: schema.table('users', {
+			id: int(),
+		}),
+	};
+
+	const { sqlStatements } = await diff({}, to, []);
+	expect(sqlStatements).toStrictEqual([
+		'CREATE SCHEMA [folder];\n',
+		'CREATE TABLE [folder].[users] (\n\t[id] int\n);\n',
+	]);
+});
+
+// TODO can not rename schemas
+test.todo('change schema with tables #1', async () => {
+	const schema = mssqlSchema('folder');
+	const schema2 = mssqlSchema('folder2');
+	const from = {
+		schema,
+		users: schema.table('users', {}),
+	};
+	const to = {
+		schema2,
+		users: schema2.table('users', {}),
+	};
+
+	const { sqlStatements } = await diff(from, to, ['folder->folder2']);
+	expect(sqlStatements).toStrictEqual(['ALTER SCHEMA "folder" RENAME TO "folder2";\n']);
+});
+
+test('change table schema #1', async () => {
+	const schema = mssqlSchema('folder');
+	const from = {
+		schema,
+		users: mssqlTable('users', {}),
+	};
+	const to = {
+		schema,
+		users: schema.table('users', {}),
+	};
+
+	const { sqlStatements } = await diff(from, to, [
+		'dbo.users->folder.users',
+	]);
+	expect(sqlStatements).toStrictEqual([`ALTER SCHEMA [folder] TRANSFER [dbo].[users];\n`]);
+});
+
+test('change table schema #2', async () => {
+	const schema = mssqlSchema('folder');
+	const from = {
+		schema,
+		users: schema.table('users', {}),
+	};
+	const to = {
+		schema,
+		users: mssqlTable('users', {}),
+	};
+
+	const { sqlStatements } = await diff(from, to, [
+		'folder.users->dbo.users',
+	]);
+	expect(sqlStatements).toStrictEqual(['ALTER SCHEMA [dbo] TRANSFER [folder].[users];\n']);
+});
+
+test('change table schema #3', async () => {
+	const schema1 = mssqlSchema('folder1');
+	const schema2 = mssqlSchema('folder2');
+	const from = {
+		schema1,
+		schema2,
+		users: schema1.table('users', {}),
+	};
+	const to = {
+		schema1,
+		schema2,
+		users: schema2.table('users', {}),
+	};
+
+	const { sqlStatements } = await diff(from, to, [
+		'folder1.users->folder2.users',
+	]);
+	expect(sqlStatements).toStrictEqual(['ALTER SCHEMA [folder2] TRANSFER [folder1].[users];\n']);
+});
+
+test('change table schema #4', async () => {
+	const schema1 = mssqlSchema('folder1');
+	const schema2 = mssqlSchema('folder2');
+	const from = {
+		schema1,
+		users: schema1.table('users', {}),
+	};
+	const to = {
+		schema1,
+		schema2, // add schema
+		users: schema2.table('users', {}), // move table
+	};
+
+	const { sqlStatements } = await diff(from, to, [
+		'folder1.users->folder2.users',
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'CREATE SCHEMA [folder2];\n',
+		'ALTER SCHEMA [folder2] TRANSFER [folder1].[users];\n',
+	]);
+});
+
+test('change table schema #5', async () => {
+	const schema1 = mssqlSchema('folder1');
+	const schema2 = mssqlSchema('folder2');
+	const from = {
+		schema1, // remove schema
+		users: schema1.table('users', {}),
+	};
+	const to = {
+		schema2, // add schema
+		users: schema2.table('users', {}), // move table
+	};
+
+	const { sqlStatements } = await diff(from, to, [
+		'folder1.users->folder2.users',
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'CREATE SCHEMA [folder2];\n',
+		'ALTER SCHEMA [folder2] TRANSFER [folder1].[users];\n',
+		'DROP SCHEMA [folder1];\n',
+	]);
+});
+
+test('change table schema #5', async () => {
+	const schema1 = mssqlSchema('folder1');
+	const schema2 = mssqlSchema('folder2');
+	const from = {
+		schema1,
+		schema2,
+		users: schema1.table('users', {}),
+	};
+	const to = {
+		schema1,
+		schema2,
+		users: schema2.table('users2', {}), // rename and move table
+	};
+
+	const { sqlStatements } = await diff(from, to, [
+		'folder1.users->folder2.users2',
+	]);
+	expect(sqlStatements).toStrictEqual([
+		`EXEC sp_rename '[users]', '[users2]';`,
+		`ALTER SCHEMA [folder2] TRANSFER [folder1].[users2];\n`,
+	]);
+});
+
+// TODO schema renaming
+test.todo('change table schema #6', async () => {
+	const schema1 = mssqlSchema('folder1');
+	const schema2 = mssqlSchema('folder2');
+	const from = {
+		schema1,
+		users: schema1.table('users', {}),
+	};
+	const to = {
+		schema2, // rename schema
+		users: schema2.table('users2', {}), // rename table
+	};
+
+	const { sqlStatements } = await diff(from, to, [
+		'folder1->folder2',
+		'folder2.users->folder2.users2',
+	]);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER SCHEMA "folder1" RENAME TO "folder2";\n',
+		'ALTER TABLE "folder2".[users] RENAME TO "folder2"."users2";',
+	]);
+});
+
+// TODO rename schema
+test.todo('drop table + rename schema #1', async () => {
+	const schema1 = mssqlSchema('folder1');
+	const schema2 = mssqlSchema('folder2');
+	const from = {
+		schema1,
+		users: schema1.table('users', {}),
+	};
+	const to = {
+		schema2, // rename schema
+		// drop table
+	};
+
+	const { sqlStatements } = await diff(from, to, ['folder1->folder2']);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER SCHEMA "folder1" RENAME TO "folder2";\n',
+		'DROP TABLE "folder2".[users] CASCADE;',
+	]);
+});
+
+test('composite primary key', async () => {
+	const from = {};
+	const to = {
+		table: mssqlTable('works_to_creators', {
+			workId: int('work_id').notNull(),
+			creatorId: int('creator_id').notNull(),
+			classification: text('classification').notNull(),
+		}, (t) => [
+			primaryKey({ columns: [t.workId, t.creatorId, t.classification] }),
+		]),
+	};
+
+	const { sqlStatements } = await diff(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE [works_to_creators] (\n\t[work_id] int NOT NULL,\n\t[creator_id] int NOT NULL,\n\t[classification] text NOT NULL,\n\tCONSTRAINT [works_to_creators_pkey] PRIMARY KEY([work_id],[creator_id],[classification])\n);\n',
+	]);
+});
+
+// TODO uniques in names
+test.todo('add column before creating unique constraint', async () => {
+	const from = {
+		table: mssqlTable('table', {
+			id: int('id').primaryKey(),
+		}),
+	};
+	const to = {
+		table: mssqlTable('table', {
+			id: int('id').primaryKey(),
+			name: text('name').notNull(),
+		}, (t) => [unique('uq').on(t.name)]),
+	};
+
+	const { sqlStatements } = await diff(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE [table] ADD COLUMN [name] text NOT NULL;',
+		'ALTER TABLE [table] ADD CONSTRAINT [uq] UNIQUE("name");',
+	]);
+});
+
+test('alter composite primary key', async () => {
+	const from = {
+		table: mssqlTable('table', {
+			col1: int('col1').notNull(),
+			col2: int('col2').notNull(),
+			col3: text('col3').notNull(),
+		}, (t) => [
+			primaryKey({
+				name: 'table_pk',
+				columns: [t.col1, t.col2],
+			}),
+		]),
+	};
+	const to = {
+		table: mssqlTable('table', {
+			col1: int('col1').notNull(),
+			col2: int('col2').notNull(),
+			col3: text('col3').notNull(),
+		}, (t) => [
+			primaryKey({
+				name: 'table_pk',
+				columns: [t.col2, t.col3],
+			}),
+		]),
+	};
+
+	const { sqlStatements } = await diff(from, to, []);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE [table] DROP CONSTRAINT [table_pk];',
+		'ALTER TABLE [table] ADD CONSTRAINT [table_pk] PRIMARY KEY([col2],[col3]);',
+	]);
+});
+
+test('add index', async () => {
+	const from = {
+		users: mssqlTable('users', {
+			id: int('id').primaryKey(),
+			name: text('name').notNull(),
+		}),
+	};
+	const to = {
+		users: mssqlTable('users', {
+			id: int('id').primaryKey(),
+			name: text('name').notNull(),
+		}, (t) => [index('some_index_name').on(t.name)]),
+	};
+
+	const { sqlStatements } = await diff(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'CREATE INDEX [some_index_name] ON [users] ([name]);',
+	]);
+});
+
+// TODO unique with name
+test.todo('optional db aliases (snake case)', async () => {
+	const from = {};
+
+	const t1 = mssqlTable(
+		't1',
+		{
+			t1Id1: int().notNull().primaryKey(),
+			t1Col2: int().notNull(),
+			t1Col3: int().notNull(),
+			t2Ref: int().notNull().references(() => t2.t2Id),
+			t1Uni: int().notNull(),
+			t1UniIdx: int().notNull(),
+			t1Idx: int().notNull(),
+		},
+		(table) => [
+			// unique(
+			// 	// 't1_uni'
+			// ).on(table.t1Uni),
+			uniqueIndex('t1_uni_idx').on(table.t1UniIdx),
+			index('t1_idx').on(table.t1Idx).where(sql`${table.t1Idx} > 0`),
+			foreignKey({
+				columns: [table.t1Col2, table.t1Col3],
+				foreignColumns: [t3.t3Id1, t3.t3Id2],
+			}),
+		],
+	);
+
+	const t2 = mssqlTable(
+		't2',
+		{
+			t2Id: int().primaryKey(),
+		},
+	);
+
+	const t3 = mssqlTable(
+		't3',
+		{
+			t3Id1: int(),
+			t3Id2: int(),
+		},
+		(table) => [primaryKey({ columns: [table.t3Id1, table.t3Id2] })],
+	);
+
+	const to = {
+		t1,
+		t2,
+		t3,
+	};
+
+	const { sqlStatements } = await diff(from, to, [], 'snake_case');
+
+	const st1 = `CREATE TABLE [t1] (
+	[t1_id1] int PRIMARY KEY,
+	[t1_col2] int NOT NULL,
+	[t1_col3] int NOT NULL,
+	[t2_ref] int NOT NULL,
+	[t1_uni] int NOT NULL,
+	[t1_uni_idx] int NOT NULL,
+	[t1_idx] int NOT NULL,
+);
+`;
+
+	const st2 = `CREATE TABLE [t2] (
+	[t2_id] int PRIMARY KEY
+);
+`;
+
+	const st3 = `CREATE TABLE [t3] (
+	[t3_id1] int,
+	[t3_id2] int,
+	CONSTRAINT [t3_pkey] PRIMARY KEY([t3_id1],[t3_id2])
+);
+`;
+
+	const st4 =
+		`ALTER TABLE [t1] ADD CONSTRAINT [t1_t2_ref_t2_t2_id_fk] FOREIGN KEY ([t2_ref]) REFERENCES [t2]([t2_id]);`;
+	const st5 =
+		`ALTER TABLE [t1] ADD CONSTRAINT [t1_t1_col2_t1_col3_t3_t3_id1_t3_id2_fk] FOREIGN KEY ([t1_col2],[t1_col3]) REFERENCES [t3]([t3_id1],[t3_id2]);`;
+
+	const st6 = `CREATE UNIQUE INDEX [t1_uni_idx] ON [t1] ([t1_uni_idx]);`;
+
+	const st7 = `CREATE INDEX [t1_idx] ON [t1] ([t1_idx]) WHERE [t1].[t1_idx] > 0;`;
+
+	expect(sqlStatements).toStrictEqual([st1, st2, st3, st4, st5, st6, st7]);
+});
+
+// TODO unique with name
+test.todo('optional db aliases (camel case)', async () => {
+	const from = {};
+
+	const t1 = mssqlTable('t1', {
+		t1_id1: int().notNull().primaryKey(),
+		t1_col2: int().notNull(),
+		t1_col3: int().notNull(),
+		t2_ref: int().notNull().references(() => t2.t2_id),
+		t1_uni: int().notNull(),
+		t1_uni_idx: int().notNull(),
+		t1_idx: int().notNull(),
+	}, (table) => [
+		unique('t1Uni').on(table.t1_uni),
+		uniqueIndex('t1UniIdx').on(table.t1_uni_idx),
+		index('t1Idx').on(table.t1_idx).where(sql`${table.t1_idx} > 0`),
+		foreignKey({
+			columns: [table.t1_col2, table.t1_col3],
+			foreignColumns: [t3.t3_id1, t3.t3_id2],
+		}),
+	]);
+
+	const t2 = mssqlTable('t2', {
+		t2_id: int().primaryKey(),
+	});
+
+	const t3 = mssqlTable('t3', {
+		t3_id1: int(),
+		t3_id2: int(),
+	}, (table) => [primaryKey({ columns: [table.t3_id1, table.t3_id2] })]);
+
+	const to = {
+		t1,
+		t2,
+		t3,
+	};
+
+	const { sqlStatements } = await diff(from, to, [], 'camelCase');
+
+	const st1 = `CREATE TABLE "t1" (
+	"t1Id1" int PRIMARY KEY,
+	"t1Col2" int NOT NULL,
+	"t1Col3" int NOT NULL,
+	"t2Ref" int NOT NULL,
+	"t1Uni" int NOT NULL UNIQUE("t1Uni"),
+	"t1UniIdx" int NOT NULL,
+	"t1Idx" int NOT NULL
+);
+`;
+
+	const st2 = `CREATE TABLE "t2" (
+	"t2Id" int PRIMARY KEY
+);
+`;
+
+	const st3 = `CREATE TABLE "t3" (
+	"t3Id1" int,
+	"t3Id2" int,
+	CONSTRAINT "t3_pkey" PRIMARY KEY("t3Id1","t3Id2")
+);
+`;
+
+	const st4 = `ALTER TABLE "t1" ADD CONSTRAINT "t1_t2Ref_t2_t2Id_fk" FOREIGN KEY ("t2Ref") REFERENCES "t2"("t2Id");`;
+	const st5 =
+		`ALTER TABLE "t1" ADD CONSTRAINT "t1_t1Col2_t1Col3_t3_t3Id1_t3Id2_fk" FOREIGN KEY ("t1Col2","t1Col3") REFERENCES "t3"("t3Id1","t3Id2");`;
+	const st6 = `CREATE UNIQUE INDEX "t1UniIdx" ON "t1" USING btree ("t1UniIdx");`;
+	const st7 = `CREATE INDEX "t1Idx" ON "t1" USING btree ("t1Idx") WHERE "t1"."t1Idx" > 0;`;
+
+	expect(sqlStatements).toStrictEqual([st1, st2, st3, st4, st5, st6, st7]);
+});

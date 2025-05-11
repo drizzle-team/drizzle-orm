@@ -36,7 +36,7 @@ export class MsSqlBitBuilder<T extends ColumnBuilderBaseConfig<'boolean', 'MsSql
 export class MsSqlBit<T extends ColumnBaseConfig<'boolean', 'MsSqlBit'>> extends MsSqlColumnWithIdentity<T> {
 	static override readonly [entityKind]: string = 'MsSqlBit';
 
-	_getSQLType(): string {
+	getSQLType(): string {
 		return `bit`;
 	}
 

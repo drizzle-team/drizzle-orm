@@ -79,7 +79,7 @@ export const diffPostgresql = async (
 // 		},
 // 		['public.users.id->public.users.id2'],
 // 	);
-	
+
 // 	console.dir(res, { depth: 10 });
 // };
 

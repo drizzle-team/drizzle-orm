@@ -150,10 +150,9 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: S
 	}
 
 	for (const column of interim.columns.filter((it) => it.isPK)) {
-		
 		const res = ddl.pks.insert({
 			table: column.table,
-			name: "PRIMARY", // database default
+			name: 'PRIMARY', // database default
 			nameExplicit: false,
 			columns: [column.name],
 		});

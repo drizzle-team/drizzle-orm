@@ -36,7 +36,7 @@ export class MsSqlIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MsSqlI
 export class MsSqlInt<T extends ColumnBaseConfig<'number', 'MsSqlInt'>> extends MsSqlColumnWithIdentity<T> {
 	static override readonly [entityKind]: string = 'MsSqlInt';
 
-	_getSQLType(): string {
+	getSQLType(): string {
 		return `int`;
 	}
 }

@@ -42,7 +42,7 @@ export class MsSqlFloat<T extends ColumnBaseConfig<'number', 'MsSqlFloat'>>
 
 	readonly precision: number | undefined = this.config.precision;
 
-	_getSQLType(): string {
+	getSQLType(): string {
 		const precision = this.precision === undefined ? '' : `(${this.precision})`;
 		return `float${precision}`;
 	}

@@ -32,7 +32,6 @@ const createTable = convertor('create_table', (st) => {
 		const isPK = pk && !pk.nameExplicit && pk.columns.length === 1 && pk.columns[0] === column.name;
 		const primaryKeyStatement = isPK ? ' PRIMARY KEY' : '';
 		const notNullStatement = column.notNull && !isPK ? ' NOT NULL' : '';
-		
 		const def = defaultToSQL(column.default);
 		const defaultStatement = def ? ` DEFAULT ${def}` : '';
 

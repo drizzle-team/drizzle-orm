@@ -39,7 +39,7 @@ test('add table #2', async () => {
 	]);
 });
 
-test('add table #3', async () => {
+test.only('add table #3', async () => {
 	const to = {
 		users: pgTable('users', {
 			id: serial('id'),

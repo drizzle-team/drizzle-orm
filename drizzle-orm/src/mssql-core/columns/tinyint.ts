@@ -39,7 +39,7 @@ export class MsSqlTinyIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'Ms
 export class MsSqlTinyInt<T extends ColumnBaseConfig<'number', 'MsSqlTinyInt'>> extends MsSqlColumnWithIdentity<T> {
 	static override readonly [entityKind]: string = 'MsSqlTinyInt';
 
-	_getSQLType(): string {
+	getSQLType(): string {
 		return `tinyint`;
 	}
 
