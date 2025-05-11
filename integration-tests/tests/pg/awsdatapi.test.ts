@@ -2,7 +2,7 @@ import 'dotenv/config';
 
 import { RDSDataClient } from '@aws-sdk/client-rds-data';
 import * as dotenv from 'dotenv';
-import { asc, eq, inArray, notInArray, relations, sql, TransactionRollbackError } from 'drizzle-orm';
+import { arrayContains, asc, eq, inArray, notInArray, relations, sql, TransactionRollbackError } from 'drizzle-orm';
 import type { AwsDataApiPgDatabase } from 'drizzle-orm/aws-data-api/pg';
 import { drizzle } from 'drizzle-orm/aws-data-api/pg';
 import { migrate } from 'drizzle-orm/aws-data-api/pg/migrator';
@@ -1284,6 +1284,46 @@ test('update with array values works', async () => {
 		.returning();
 
 	expect(insertResult?.bestTexts).toEqual(bestTexts);
+});
+
+test('select with arrayContains works', async () => {
+	const [newUser] = await db
+		.insert(usersTable)
+		.values({ name: 'John' })
+		.returning();
+
+	const bestTexts = ['text4', 'text5', 'text6'];
+	await db
+		.update(usersTable)
+		.set({
+			bestTexts,
+		})
+		.where(eq(usersTable.id, newUser!.id));
+
+	const [result] = await db.select().from(usersTable)
+		.where(arrayContains(usersTable.bestTexts, ['text4']));
+
+	expect(result?.bestTexts).toEqual(bestTexts);
+});
+
+test('select with array eq works', async () => {
+	const [newUser] = await db
+		.insert(usersTable)
+		.values({ name: 'John' })
+		.returning();
+
+	const bestTexts = ['text4', 'text5', 'text6'];
+	await db
+		.update(usersTable)
+		.set({
+			bestTexts,
+		})
+		.where(eq(usersTable.id, newUser!.id));
+
+	const [result] = await db.select().from(usersTable)
+		.where(eq(usersTable.bestTexts, bestTexts));
+
+	expect(result?.bestTexts).toEqual(bestTexts);
 });
 
 test('all date and time columns', async () => {
