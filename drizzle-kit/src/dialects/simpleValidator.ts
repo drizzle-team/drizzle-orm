@@ -127,8 +127,8 @@ export function validator<S extends Record<string, SchemaType>>(
 	schema: S,
 ): {
 	shape: ResultShape<S>;
-	parse: (obj: unknown) => ValidationResult<ResultShape<S>>;
-	strict: (obj: unknown) => ResultShape<S>;
+	parse: (obj: unknown) => Simplify<ValidationResult<ResultShape<S>>>;
+	strict: (obj: unknown) => Simplify<ResultShape<S>>;
 } {
 	const validate = validatorFor(schema, '');
 
@@ -136,7 +136,9 @@ export function validator<S extends Record<string, SchemaType>>(
 		shape: {} as any,
 		strict: (input: unknown) => {
 			const errors = validate(input as any);
-			if (errors.length > 0) throw new Error('Validation failed');
+			if (errors.length > 0) {
+				throw new Error('Validation failed')
+			}
 			return input as any;
 		},
 		parse: (input: unknown) => {

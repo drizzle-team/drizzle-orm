@@ -1,5 +1,5 @@
 import { create } from '../dialect';
-import { defaultNameForFK, defaultNameForPK, defaultNameForUnique } from './grammar';
+import { defaultNameForPK, defaultNameForUnique } from './grammar';
 
 export const createDDL = () => {
 	return create({
@@ -372,9 +372,8 @@ export const interimToDDL = (
 	}
 
 	for (const column of schema.columns) {
-		const { pk, pkName, ...rest } = column;
-
-		const res = ddl.columns.insert({ ...rest });
+		const { pk, pkName, unique, uniqueName, uniqueNullsNotDistinct, ...rest } = column;
+		const res = ddl.columns.insert(rest);
 		if (res.status === 'CONFLICT') {
 			errors.push({
 				type: 'column_name_duplicate',
@@ -511,6 +510,16 @@ export const interimToDDL = (
 				name: it.name,
 			});
 		}
+	}
+
+	for (const it of ddl.entities.list()) {
+		let err = false;
+
+		if (!ddl.entities.validate(it)) {
+			console.log(it);
+			err = true;
+		}
+		if (err) throw new Error();
 	}
 
 	return { ddl, errors };

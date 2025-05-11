@@ -22,7 +22,7 @@ export const prepareSnapshot = async (
 	const { randomUUID } = await import('crypto') as typeof import('crypto');
 	const prevSnapshot = snapshots.length === 0
 		? drySnapshot
-		: snapshotValidator.strict(readFileSync(snapshots[snapshots.length - 1]).toJSON());
+		: snapshotValidator.strict(JSON.parse(readFileSync(snapshots[snapshots.length - 1]).toString()));
 
 	const ddlPrev = createDDL();
 	for (const entry of prevSnapshot.ddl) {
