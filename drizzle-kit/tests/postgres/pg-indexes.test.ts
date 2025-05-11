@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { index, pgRole, pgTable, serial, text } from 'drizzle-orm/pg-core';
+import { index, pgRole, pgTable, serial, text, vector } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
 import { diff } from './mocks';
 
@@ -63,5 +63,97 @@ test('indexes #0', async (t) => {
 		'CREATE INDEX "changeExpression" ON "users" USING btree ("id" DESC NULLS LAST,name desc);',
 		'CREATE INDEX "changeWith" ON "users" USING btree ("name") WITH (fillfactor=90);',
 		'CREATE INDEX "changeUsing" ON "users" USING hash ("name");',
+	]);
+});
+
+test('vector index', async (t) => {
+	const schema1 = {
+		users: pgTable('users', {
+			id: serial('id').primaryKey(),
+			name: vector('name', { dimensions: 3 }),
+		}),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: serial('id').primaryKey(),
+			embedding: vector('name', { dimensions: 3 }),
+		}, (t) => [
+			index('vector_embedding_idx')
+				.using('hnsw', t.embedding.op('vector_ip_ops'))
+				.with({ m: 16, ef_construction: 64 }),
+		]),
+	};
+
+	const { sqlStatements } = await diff(schema1, schema2, []);
+
+	expect(sqlStatements).toStrictEqual([
+		`CREATE INDEX "vector_embedding_idx" ON "users" USING hnsw ("name" vector_ip_ops) WITH (m=16, ef_construction=64);`,
+	]);
+});
+
+test('index #2', async (t) => {
+	const schema1 = {
+		users: pgTable('users', {
+			id: serial('id').primaryKey(),
+			name: text('name'),
+		}, (t) => [
+			index('indx').on(t.name.desc()).concurrently(),
+			index('indx1').on(t.name.desc()).where(sql`true`),
+			index('indx2').on(t.name.op('text_ops')).where(sql`true`),
+			index('indx3').on(sql`lower(name)`).where(sql`true`),
+		]),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: serial('id').primaryKey(),
+			name: text('name'),
+		}, (t) => [
+			index('indx').on(t.name.desc()),
+			index('indx1').on(t.name.desc()).where(sql`false`),
+			index('indx2').on(t.name.op('test')).where(sql`true`),
+			index('indx3').on(sql`lower(${t.id})`).where(sql`true`),
+			index('indx4').on(sql`lower(id)`).where(sql`true`),
+		]),
+	};
+
+	const { sqlStatements } = await diff(schema1, schema2, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'DROP INDEX "indx";',
+		'DROP INDEX "indx1";',
+		'DROP INDEX "indx2";',
+		'DROP INDEX "indx3";',
+		'CREATE INDEX "indx4" ON "users" USING btree (lower(id));',
+		'CREATE INDEX "indx" ON "users" USING btree ("name" DESC NULLS LAST);',
+		'CREATE INDEX "indx1" ON "users" USING btree ("name" DESC NULLS LAST) WHERE false;',
+		'CREATE INDEX "indx2" ON "users" USING btree ("name" test);',
+		'CREATE INDEX "indx3" ON "users" USING btree (lower("id"));',
+	]);
+});
+test('index #3', async (t) => {
+	const schema1 = {
+		users: pgTable('users', {
+			id: serial('id').primaryKey(),
+			name: text('name'),
+		}),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: serial('id').primaryKey(),
+			name: text('name'),
+		}, (t) => [
+			index().on(t.name.desc(), t.id.asc().nullsLast()).with({ fillfactor: 70 }).where(sql`select 1`),
+			index('indx1').using('hash', t.name.desc(), sql`${t.name}`).with({ fillfactor: 70 }),
+		]),
+	};
+
+	const { sqlStatements } = await diff(schema1, schema2, []);
+
+	expect(sqlStatements).toStrictEqual([
+		`CREATE INDEX "users_name_id_index" ON "users" USING btree ("name" DESC NULLS LAST,"id") WITH (fillfactor=70) WHERE select 1;`,
+		`CREATE INDEX "indx1" ON "users" USING hash ("name" DESC NULLS LAST,"name") WITH (fillfactor=70);`,
 	]);
 });

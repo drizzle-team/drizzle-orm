@@ -13,51 +13,52 @@ export const trimChar = (str: string, char: string) => {
 	return res;
 };
 
+const NativeTypes = [
+	'uuid',
+	'smallint',
+	'integer',
+	'bigint',
+	'boolean',
+	'text',
+	'varchar',
+	'serial',
+	'bigserial',
+	'decimal',
+	'numeric',
+	'real',
+	'json',
+	'jsonb',
+	'time',
+	'time with time zone',
+	'time without time zone',
+	'time',
+	'timestamp',
+	'timestamp with time zone',
+	'timestamp without time zone',
+	'date',
+	'interval',
+	'bigint',
+	'bigserial',
+	'double precision',
+	'interval year',
+	'interval month',
+	'interval day',
+	'interval hour',
+	'interval minute',
+	'interval second',
+	'interval year to month',
+	'interval day to hour',
+	'interval day to minute',
+	'interval day to second',
+	'interval hour to minute',
+	'interval hour to second',
+	'interval minute to second',
+	'char',
+	'vector',
+	'geometry',
+];
+
 export const parseType = (schemaPrefix: string, type: string) => {
-	const NativeTypes = [
-		'uuid',
-		'smallint',
-		'integer',
-		'bigint',
-		'boolean',
-		'text',
-		'varchar',
-		'serial',
-		'bigserial',
-		'decimal',
-		'numeric',
-		'real',
-		'json',
-		'jsonb',
-		'time',
-		'time with time zone',
-		'time without time zone',
-		'time',
-		'timestamp',
-		'timestamp with time zone',
-		'timestamp without time zone',
-		'date',
-		'interval',
-		'bigint',
-		'bigserial',
-		'double precision',
-		'interval year',
-		'interval month',
-		'interval day',
-		'interval hour',
-		'interval minute',
-		'interval second',
-		'interval year to month',
-		'interval day to hour',
-		'interval day to minute',
-		'interval day to second',
-		'interval hour to minute',
-		'interval hour to second',
-		'interval minute to second',
-		'char',
-		'vector',
-		'geometry',
-	];
 	const arrayDefinitionRegex = /\[\d*(?:\[\d*\])*\]/g;
 	const arrayDefinition = (type.match(arrayDefinitionRegex) ?? []).join('');
 	const withoutArrayDefinition = type.replace(arrayDefinitionRegex, '');
@@ -98,7 +99,6 @@ export function stringFromDatabaseIdentityProperty(field: any): string | null {
 }
 
 export function buildArrayString(array: any[], sqlType: string): string {
-	sqlType = sqlType.split('[')[0];
 	const values = array
 		.map((value) => {
 			if (typeof value === 'number' || typeof value === 'bigint') {

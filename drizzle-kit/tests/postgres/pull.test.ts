@@ -36,8 +36,9 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 import fs from 'fs';
-import { diffIntrospect, reset } from 'tests/postgres/mocks';
-import { beforeEach, expect, test } from 'vitest';
+import { DB } from 'src/utils';
+import { diffIntrospect, prepareTestDatabase, TestDatabase } from 'tests/postgres/mocks';
+import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 
 // @vitest-environment-options {"max-concurrency":1}
 
@@ -45,8 +46,21 @@ if (!fs.existsSync('tests/introspect/postgres')) {
 	fs.mkdirSync('tests/introspect/postgres');
 }
 
-const client = new PGlite();
-beforeEach(() => reset(client));
+let _: TestDatabase;
+let db: DB;
+
+beforeAll(async () => {
+	_ = await prepareTestDatabase();
+	db = _.db;
+});
+
+afterAll(async () => {
+	await _.close();
+});
+
+beforeEach(async () => {
+	await _.clear();
+});
 
 test('basic introspect test', async () => {
 	const schema = {
@@ -56,11 +70,7 @@ test('basic introspect test', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		client,
-		schema,
-		'basic-introspect',
-	);
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'basic-introspect');
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
@@ -74,11 +84,7 @@ test('basic identity always test', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements } = await diffIntrospect(
-		client,
-		schema,
-		'basic-identity-always-introspect',
-	);
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'basic-identity-always-introspect');
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
@@ -93,7 +99,7 @@ test('basic identity by default test', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
-		client,
+		db,
 		schema,
 		'basic-identity-default-introspect',
 	);
@@ -126,7 +132,7 @@ test('basic index test', async () => {
 	};
 
 	const { sqlStatements } = await diffIntrospect(
-		client,
+		db,
 		schema,
 		'basic-index-introspect',
 	);
@@ -146,7 +152,7 @@ test('identity always test: few params', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
-		client,
+		db,
 		schema,
 		'identity-always-few-params-introspect',
 	);
@@ -167,7 +173,7 @@ test('identity by default test: few params', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
-		client,
+		db,
 		schema,
 		'identity-default-few-params-introspect',
 	);
@@ -192,7 +198,7 @@ test('identity always test: all params', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
-		client,
+		db,
 		schema,
 		'identity-always-all-params-introspect',
 	);
@@ -217,7 +223,7 @@ test('identity by default test: all params', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
-		client,
+		db,
 		schema,
 		'identity-default-all-params-introspect',
 	);
@@ -238,7 +244,7 @@ test('generated column: link to another column', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
-		client,
+		db,
 		schema,
 		'generated-link-column',
 	);
@@ -292,7 +298,7 @@ test('introspect all column types', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
-		client,
+		db,
 		schema,
 		'introspect-all-columns-types',
 	);
@@ -338,7 +344,7 @@ test('introspect all column array types', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
-		client,
+		db,
 		schema,
 		'introspect-all-columns-array-types',
 	);
@@ -358,7 +364,7 @@ test('introspect columns with name with non-alphanumeric characters', async () =
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
-		client,
+		db,
 		schema,
 		'introspect-column-with-name-with-non-alphanumeric-characters',
 	);
@@ -379,7 +385,7 @@ test('introspect enum from different schema', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
-		client,
+		db,
 		schema,
 		'introspect-enum-from-different-schema',
 		['public', 'schema2'],
@@ -404,7 +410,7 @@ test('introspect enum with same names across different schema', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
-		client,
+		db,
 		schema,
 		'introspect-enum-with-same-names-across-different-schema',
 		['public', 'schema2'],
@@ -424,7 +430,7 @@ test('introspect enum with similar name to native type', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
-		client,
+		db,
 		schema,
 		'introspect-enum-with-similar-name-to-native-type',
 	);
@@ -445,7 +451,7 @@ test('introspect strings with single quotes', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
-		client,
+		db,
 		schema,
 		'introspect-strings-with-single-quotes',
 	);
@@ -464,7 +470,7 @@ test('introspect checks', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
-		client,
+		db,
 		schema,
 		'introspect-checks',
 	);
@@ -488,7 +494,7 @@ test('introspect checks from different schemas with same names', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
-		client,
+		db,
 		schema,
 		'introspect-checks-diff-schema-same-names',
 		['public', 'schema2'],
@@ -511,7 +517,7 @@ test('introspect view #1', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
-		client,
+		db,
 		schema,
 		'introspect-view',
 	);
@@ -535,7 +541,7 @@ test('introspect view #2', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
-		client,
+		db,
 		schema,
 		'introspect-view-2',
 	);
@@ -561,7 +567,7 @@ test('introspect view in other schema', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
-		client,
+		db,
 		schema,
 		'introspect-view-in-other-schema',
 		['new_schema'],
@@ -588,7 +594,7 @@ test('introspect materialized view in other schema', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
-		client,
+		db,
 		schema,
 		'introspect-mat-view-in-other-schema',
 		['new_schema'],
@@ -611,7 +617,7 @@ test('introspect materialized view #1', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
-		client,
+		db,
 		schema,
 		'introspect-materialized-view',
 	);
@@ -635,7 +641,7 @@ test('introspect materialized view #2', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
-		client,
+		db,
 		schema,
 		'introspect-materialized-view-2',
 	);
@@ -652,7 +658,7 @@ test('basic policy', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
-		client,
+		db,
 		schema,
 		'basic-policy',
 	);
@@ -669,7 +675,7 @@ test('basic policy with "as"', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
-		client,
+		db,
 		schema,
 		'basic-policy-as',
 	);
@@ -686,7 +692,7 @@ test.todo('basic policy with CURRENT_USER role', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
-		client,
+		db,
 		schema,
 		'basic-policy',
 	);
@@ -703,7 +709,7 @@ test('basic policy with all fields except "using" and "with"', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
-		client,
+		db,
 		schema,
 		'basic-policy-all-fields',
 	);
@@ -720,7 +726,7 @@ test('basic policy with "using" and "with"', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
-		client,
+		db,
 		schema,
 		'basic-policy-using-withcheck',
 	);
@@ -737,7 +743,7 @@ test('multiple policies', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
-		client,
+		db,
 		schema,
 		'multiple-policies',
 	);
@@ -747,7 +753,7 @@ test('multiple policies', async () => {
 });
 
 test('multiple policies with roles', async () => {
-	client.query(`CREATE ROLE manager;`);
+	db.query(`CREATE ROLE manager;`);
 
 	const schema = {
 		users: pgTable(
@@ -763,7 +769,7 @@ test('multiple policies with roles', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
-		client,
+		db,
 		schema,
 		'multiple-policies-with-roles',
 	);
@@ -778,7 +784,7 @@ test('basic roles', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
-		client,
+		db,
 		schema,
 		'basic-roles',
 		['public'],
@@ -795,7 +801,7 @@ test('role with properties', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
-		client,
+		db,
 		schema,
 		'roles-with-properties',
 		['public'],
@@ -812,7 +818,7 @@ test('role with a few properties', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
-		client,
+		db,
 		schema,
 		'roles-with-few-properties',
 		['public'],
@@ -841,7 +847,7 @@ test('multiple policies with roles from schema', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
-		client,
+		db,
 		schema,
 		'multiple-policies-with-roles-from-schema',
 		['public'],

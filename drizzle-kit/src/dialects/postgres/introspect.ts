@@ -596,6 +596,7 @@ export const fromDatabase = async (
 		const enumType = column.typeId in groupedEnums ? groupedEnums[column.typeId] : null;
 		let columnTypeMapped = enumType ? enumType.name : column.type.replace('[]', '');
 		columnTypeMapped = trimChar(columnTypeMapped, '"');
+		
 		if (columnTypeMapped.startsWith('numeric(')) {
 			columnTypeMapped = columnTypeMapped.replace(',', ', ');
 		}
@@ -609,10 +610,6 @@ export const fromDatabase = async (
 			columnDefault?.expression,
 			column.dimensions,
 		);
-
-		for (let i = 0; i < column.dimensions; i++) {
-			columnTypeMapped += '[]';
-		}
 
 		columnTypeMapped = columnTypeMapped
 			.replace('character varying', 'varchar')

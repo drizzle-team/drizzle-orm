@@ -214,7 +214,7 @@ export const fromDrizzleSchema = (
 					pk: column.primary,
 					pkName: null,
 					notNull: notNull && !isPrimary && !generatedValue && !identityValue,
-					default: defaultFromColumn(column, dialect),
+					default: defaultFromColumn(baseColumn, column.default, dimensions, dialect),
 					generated: generatedValue,
 					unique: column.isUnique,
 					uniqueName: column.uniqueNameExplicit ? column.uniqueName ?? null : null,

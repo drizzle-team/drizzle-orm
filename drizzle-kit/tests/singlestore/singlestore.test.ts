@@ -11,29 +11,16 @@ import {
 	uniqueIndex,
 } from 'drizzle-orm/singlestore-core';
 import { expect, test } from 'vitest';
-import { diffTestSchemasSingleStore } from './schemaDiffer';
+import { diff } from './mocks';
 
 test('add table #1', async () => {
 	const to = {
 		users: singlestoreTable('users', {}),
 	};
 
-	const { statements } = await diffTestSchemasSingleStore({}, to, []);
+	const { sqlStatements } = await diff({}, to, []);
 
-	expect(statements.length).toBe(1);
-	expect(statements[0]).toStrictEqual({
-		type: 'create_table',
-		tableName: 'users',
-		schema: undefined,
-		columns: [],
-		compositePKs: [],
-		internals: {
-			tables: {},
-			indexes: {},
-		},
-		uniqueConstraints: [],
-		compositePkName: '',
-	});
+	expect(sqlStatements).toStrictEqual(['']);
 });
 
 test('add table #2', async () => {
@@ -43,70 +30,23 @@ test('add table #2', async () => {
 		}),
 	};
 
-	const { statements } = await diffTestSchemasSingleStore({}, to, []);
+	const { sqlStatements } = await diff({}, to, []);
 
-	expect(statements.length).toBe(1);
-	expect(statements[0]).toStrictEqual({
-		type: 'create_table',
-		tableName: 'users',
-		schema: undefined,
-		columns: [
-			{
-				name: 'id',
-				notNull: true,
-				primaryKey: false,
-				type: 'serial',
-				autoincrement: true,
-			},
-		],
-		compositePKs: ['users_id;id'],
-		compositePkName: 'users_id',
-		uniqueConstraints: [],
-		internals: {
-			tables: {},
-			indexes: {},
-		},
-	});
+	expect(sqlStatements).toStrictEqual(['']);
 });
 
 test('add table #3', async () => {
 	const to = {
-		users: singlestoreTable(
-			'users',
-			{
-				id: serial('id'),
-			},
-			(t) => [primaryKey({
-				name: 'users_pk',
-				columns: [t.id],
-			})],
-		),
+		users: singlestoreTable('users', {
+			id: serial('id'),
+		}, (t) => [primaryKey({
+			name: 'users_pk',
+			columns: [t.id],
+		})]),
 	};
 
-	const { statements } = await diffTestSchemasSingleStore({}, to, []);
-
-	expect(statements.length).toBe(1);
-	expect(statements[0]).toStrictEqual({
-		type: 'create_table',
-		tableName: 'users',
-		schema: undefined,
-		columns: [
-			{
-				name: 'id',
-				notNull: true,
-				primaryKey: false,
-				type: 'serial',
-				autoincrement: true,
-			},
-		],
-		compositePKs: ['users_pk;id'],
-		uniqueConstraints: [],
-		compositePkName: 'users_pk',
-		internals: {
-			tables: {},
-			indexes: {},
-		},
-	});
+	const { sqlStatements } = await diff({}, to, []);
+	expect(sqlStatements).toStrictEqual(['']);
 });
 
 test('add table #4', async () => {
@@ -115,35 +55,8 @@ test('add table #4', async () => {
 		posts: singlestoreTable('posts', {}),
 	};
 
-	const { statements } = await diffTestSchemasSingleStore({}, to, []);
-
-	expect(statements.length).toBe(2);
-	expect(statements[0]).toStrictEqual({
-		type: 'create_table',
-		tableName: 'users',
-		schema: undefined,
-		columns: [],
-		internals: {
-			tables: {},
-			indexes: {},
-		},
-		compositePKs: [],
-		uniqueConstraints: [],
-		compositePkName: '',
-	});
-	expect(statements[1]).toStrictEqual({
-		type: 'create_table',
-		tableName: 'posts',
-		schema: undefined,
-		columns: [],
-		compositePKs: [],
-		internals: {
-			tables: {},
-			indexes: {},
-		},
-		uniqueConstraints: [],
-		compositePkName: '',
-	});
+	const { sqlStatements } = await diff({}, to, []);
+	expect(sqlStatements).toStrictEqual(['']);
 });
 
 test('add table #5', async () => {
@@ -157,9 +70,8 @@ test('add table #5', async () => {
 		users: schema.table('users', {}),
 	};
 
-	const { statements } = await diffTestSchemasSingleStore(from, to, []);
-
-	expect(statements.length).toBe(0);
+	const { sqlStatements } = await diff(from, to, []);
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('add table #6', async () => {
@@ -171,28 +83,8 @@ test('add table #6', async () => {
 		users2: singlestoreTable('users2', {}),
 	};
 
-	const { statements } = await diffTestSchemasSingleStore(from, to, []);
-
-	expect(statements.length).toBe(2);
-	expect(statements[0]).toStrictEqual({
-		type: 'create_table',
-		tableName: 'users2',
-		schema: undefined,
-		columns: [],
-		internals: {
-			tables: {},
-			indexes: {},
-		},
-		compositePKs: [],
-		uniqueConstraints: [],
-		compositePkName: '',
-	});
-	expect(statements[1]).toStrictEqual({
-		policies: [],
-		type: 'drop_table',
-		tableName: 'users1',
-		schema: undefined,
-	});
+	const { sqlStatements } = await diff(from, to, []);
+	expect(sqlStatements).toStrictEqual(['']);
 });
 
 test('add table #7', async () => {
@@ -205,31 +97,11 @@ test('add table #7', async () => {
 		users2: singlestoreTable('users2', {}),
 	};
 
-	const { statements } = await diffTestSchemasSingleStore(from, to, [
-		'public.users1->public.users2',
+	const { sqlStatements } = await diff(from, to, [
+		'users1->users2',
 	]);
 
-	expect(statements.length).toBe(2);
-	expect(statements[0]).toStrictEqual({
-		type: 'rename_table',
-		tableNameFrom: 'users1',
-		tableNameTo: 'users2',
-		fromSchema: undefined,
-		toSchema: undefined,
-	});
-	expect(statements[1]).toStrictEqual({
-		type: 'create_table',
-		tableName: 'users',
-		schema: undefined,
-		columns: [],
-		compositePKs: [],
-		uniqueConstraints: [],
-		internals: {
-			tables: {},
-			indexes: {},
-		},
-		compositePkName: '',
-	});
+	expect(sqlStatements).toStrictEqual(['']);
 });
 
 test('add schema + table #1', async () => {
@@ -240,9 +112,8 @@ test('add schema + table #1', async () => {
 		users: schema.table('users', {}),
 	};
 
-	const { statements } = await diffTestSchemasSingleStore({}, to, []);
-
-	expect(statements.length).toBe(0);
+	const { sqlStatements } = await diff({}, to, []);
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('change schema with tables #1', async () => {
@@ -257,11 +128,10 @@ test('change schema with tables #1', async () => {
 		users: schema2.table('users', {}),
 	};
 
-	const { statements } = await diffTestSchemasSingleStore(from, to, [
+	const { sqlStatements } = await diff(from, to, [
 		'folder->folder2',
 	]);
-
-	expect(statements.length).toBe(0);
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('change table schema #1', async () => {
@@ -275,17 +145,10 @@ test('change table schema #1', async () => {
 		users: schema.table('users', {}),
 	};
 
-	const { statements } = await diffTestSchemasSingleStore(from, to, [
-		'public.users->folder.users',
+	const { sqlStatements } = await diff(from, to, [
+		'users->folder.users',
 	]);
-
-	expect(statements.length).toBe(1);
-	expect(statements[0]).toStrictEqual({
-		policies: [],
-		type: 'drop_table',
-		tableName: 'users',
-		schema: undefined,
-	});
+	expect(sqlStatements).toStrictEqual(['']);
 });
 
 test('change table schema #2', async () => {
@@ -299,24 +162,10 @@ test('change table schema #2', async () => {
 		users: singlestoreTable('users', {}),
 	};
 
-	const { statements } = await diffTestSchemasSingleStore(from, to, [
-		'folder.users->public.users',
+	const { sqlStatements } = await diff(from, to, [
+		'folder.users->users',
 	]);
-
-	expect(statements.length).toBe(1);
-	expect(statements[0]).toStrictEqual({
-		type: 'create_table',
-		tableName: 'users',
-		schema: undefined,
-		columns: [],
-		uniqueConstraints: [],
-		compositePkName: '',
-		compositePKs: [],
-		internals: {
-			tables: {},
-			indexes: {},
-		},
-	});
+	expect(sqlStatements).toStrictEqual(['']);
 });
 
 test('change table schema #3', async () => {
@@ -333,11 +182,11 @@ test('change table schema #3', async () => {
 		users: schema2.table('users', {}),
 	};
 
-	const { statements } = await diffTestSchemasSingleStore(from, to, [
+	const { sqlStatements } = await diff(from, to, [
 		'folder1.users->folder2.users',
 	]);
 
-	expect(statements.length).toBe(0);
+	expect(sqlStatements).toStrictEqual(['']);
 });
 
 test('change table schema #4', async () => {
@@ -353,11 +202,11 @@ test('change table schema #4', async () => {
 		users: schema2.table('users', {}), // move table
 	};
 
-	const { statements } = await diffTestSchemasSingleStore(from, to, [
+	const { sqlStatements } = await diff(from, to, [
 		'folder1.users->folder2.users',
 	]);
 
-	expect(statements.length).toBe(0);
+	expect(sqlStatements).toStrictEqual(['']);
 });
 
 test('change table schema #5', async () => {
@@ -372,11 +221,11 @@ test('change table schema #5', async () => {
 		users: schema2.table('users', {}), // move table
 	};
 
-	const { statements } = await diffTestSchemasSingleStore(from, to, [
+	const { sqlStatements } = await diff(from, to, [
 		'folder1.users->folder2.users',
 	]);
 
-	expect(statements.length).toBe(0);
+	expect(sqlStatements).toStrictEqual(['']);
 });
 
 test('change table schema #5', async () => {
@@ -393,11 +242,11 @@ test('change table schema #5', async () => {
 		users: schema2.table('users2', {}), // rename and move table
 	};
 
-	const { statements } = await diffTestSchemasSingleStore(from, to, [
+	const { sqlStatements } = await diff(from, to, [
 		'folder1.users->folder2.users2',
 	]);
 
-	expect(statements.length).toBe(0);
+	expect(sqlStatements).toStrictEqual(['']);
 });
 
 test('change table schema #6', async () => {
@@ -412,12 +261,12 @@ test('change table schema #6', async () => {
 		users: schema2.table('users2', {}), // rename table
 	};
 
-	const { statements } = await diffTestSchemasSingleStore(from, to, [
+	const { sqlStatements } = await diff(from, to, [
 		'folder1->folder2',
 		'folder2.users->folder2.users2',
 	]);
 
-	expect(statements.length).toBe(0);
+	expect(sqlStatements).toStrictEqual(['']);
 });
 
 test('add table #10', async () => {
@@ -427,7 +276,7 @@ test('add table #10', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSingleStore({}, to, []);
+	const { sqlStatements } = await diff({}, to, []);
 	expect(sqlStatements.length).toBe(1);
 	expect(sqlStatements[0]).toBe(
 		"CREATE TABLE `table` (\n\t`json` json DEFAULT '{}'\n);\n",
@@ -441,7 +290,7 @@ test('add table #11', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSingleStore({}, to, []);
+	const { sqlStatements } = await diff({}, to, []);
 	expect(sqlStatements.length).toBe(1);
 	expect(sqlStatements[0]).toBe(
 		"CREATE TABLE `table` (\n\t`json` json DEFAULT '[]'\n);\n",
@@ -455,7 +304,7 @@ test('add table #12', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSingleStore({}, to, []);
+	const { sqlStatements } = await diff({}, to, []);
 	expect(sqlStatements.length).toBe(1);
 	expect(sqlStatements[0]).toBe(
 		"CREATE TABLE `table` (\n\t`json` json DEFAULT '[1,2,3]'\n);\n",
@@ -469,11 +318,10 @@ test('add table #13', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSingleStore({}, to, []);
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(
+	const { sqlStatements } = await diff({}, to, []);
+	expect(sqlStatements).toStrictEqual([
 		'CREATE TABLE `table` (\n\t`json` json DEFAULT \'{"key":"value"}\'\n);\n',
-	);
+	]);
 });
 
 test('add table #14', async () => {
@@ -486,11 +334,10 @@ test('add table #14', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSingleStore({}, to, []);
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(
+	const { sqlStatements } = await diff({}, to, []);
+	expect(sqlStatements).toStrictEqual([
 		'CREATE TABLE `table` (\n\t`json` json DEFAULT \'{"key":"value","arr":[1,2,3]}\'\n);\n',
-	);
+	]);
 });
 
 // TODO: add bson type tests
@@ -522,9 +369,10 @@ test('drop index', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSingleStore(from, to, []);
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe('DROP INDEX `name_idx` ON `table`;');
+	const { sqlStatements } = await diff(from, to, []);
+	expect(sqlStatements).toStrictEqual([
+		'DROP INDEX `name_idx` ON `table`;',
+	]);
 });
 
 test('add table with indexes', async () => {
@@ -558,8 +406,7 @@ test('add table with indexes', async () => {
 		),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSingleStore(from, to, []);
-	expect(sqlStatements.length).toBe(6);
+	const { sqlStatements } = await diff(from, to, []);
 	expect(sqlStatements).toStrictEqual([
 		`CREATE TABLE \`users\` (\n\t\`id\` serial AUTO_INCREMENT NOT NULL,\n\t\`name\` text,\n\t\`email\` text,\n\tCONSTRAINT \`users_id\` PRIMARY KEY(\`id\`),\n\tCONSTRAINT \`uniqueExpr\` UNIQUE((lower(\`email\`))),\n\tCONSTRAINT \`uniqueCol\` UNIQUE(\`email\`)
 );
@@ -585,11 +432,10 @@ test('rename table', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSingleStore(from, to, [`public.table->public.table1`]);
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(
+	const { sqlStatements } = await diff(from, to, [`table->table1`]);
+	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE `table` RENAME TO `table1`;',
-	);
+	]);
 });
 
 test('rename column', async () => {
@@ -605,11 +451,10 @@ test('rename column', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSingleStore(from, to, [`public.table.json->public.table.json1`]);
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(
+	const { sqlStatements } = await diff(from, to, [`table.json->table.json1`]);
+	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE `table` CHANGE `json` `json1`;',
-	);
+	]);
 });
 
 test('change data type', async () => {
@@ -627,23 +472,16 @@ test('change data type', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSingleStore(from, to, []);
-	expect(sqlStatements.length).toBe(4);
-	expect(sqlStatements[0]).toBe(
+	const { sqlStatements } = await diff(from, to, []);
+	expect(sqlStatements).toStrictEqual([
 		`CREATE TABLE \`__new_table\` (
 \t\`id\` int,
 \t\`age\` int
 );\n`,
-	);
-	expect(sqlStatements[1]).toBe(
 		'INSERT INTO `__new_table`(`id`, `age`) SELECT `id`, `age` FROM `table`;',
-	);
-	expect(sqlStatements[2]).toBe(
 		'DROP TABLE `table`;',
-	);
-	expect(sqlStatements[3]).toBe(
 		'ALTER TABLE `__new_table` RENAME TO `table`;',
-	);
+	]);
 });
 
 test('drop not null', async () => {
@@ -661,23 +499,16 @@ test('drop not null', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSingleStore(from, to, []);
-	expect(sqlStatements.length).toBe(4);
-	expect(sqlStatements[0]).toBe(
+	const { sqlStatements } = await diff(from, to, []);
+	expect(sqlStatements).toStrictEqual([
 		`CREATE TABLE \`__new_table\` (
 \t\`id\` int,
 \t\`age\` int
 );\n`,
-	);
-	expect(sqlStatements[1]).toBe(
 		'INSERT INTO `__new_table`(`id`, `age`) SELECT `id`, `age` FROM `table`;',
-	);
-	expect(sqlStatements[2]).toBe(
 		'DROP TABLE `table`;',
-	);
-	expect(sqlStatements[3]).toBe(
 		'ALTER TABLE `__new_table` RENAME TO `table`;',
-	);
+	]);
 });
 
 test('set not null', async () => {
@@ -695,23 +526,16 @@ test('set not null', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSingleStore(from, to, []);
-	expect(sqlStatements.length).toBe(4);
-	expect(sqlStatements[0]).toBe(
+	const { sqlStatements } = await diff(from, to, []);
+	expect(sqlStatements).toStrictEqual([
 		`CREATE TABLE \`__new_table\` (
 \t\`id\` int NOT NULL,
 \t\`age\` int
 );\n`,
-	);
-	expect(sqlStatements[1]).toBe(
 		'INSERT INTO `__new_table`(`id`, `age`) SELECT `id`, `age` FROM `table`;',
-	);
-	expect(sqlStatements[2]).toBe(
 		'DROP TABLE `table`;',
-	);
-	expect(sqlStatements[3]).toBe(
 		'ALTER TABLE `__new_table` RENAME TO `table`;',
-	);
+	]);
 });
 
 test('set default with not null column', async () => {
@@ -729,23 +553,16 @@ test('set default with not null column', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSingleStore(from, to, []);
-	expect(sqlStatements.length).toBe(4);
-	expect(sqlStatements[0]).toBe(
+	const { sqlStatements } = await diff(from, to, []);
+	expect(sqlStatements).toStrictEqual([
 		`CREATE TABLE \`__new_table\` (
 \t\`id\` int NOT NULL DEFAULT 1,
 \t\`age\` int
 );\n`,
-	);
-	expect(sqlStatements[1]).toBe(
 		'INSERT INTO `__new_table`(`id`, `age`) SELECT `id`, `age` FROM `table`;',
-	);
-	expect(sqlStatements[2]).toBe(
 		'DROP TABLE `table`;',
-	);
-	expect(sqlStatements[3]).toBe(
 		'ALTER TABLE `__new_table` RENAME TO `table`;',
-	);
+	]);
 });
 
 test('drop default with not null column', async () => {
@@ -763,23 +580,16 @@ test('drop default with not null column', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSingleStore(from, to, []);
-	expect(sqlStatements.length).toBe(4);
-	expect(sqlStatements[0]).toBe(
+	const { sqlStatements } = await diff(from, to, []);
+	expect(sqlStatements).toStrictEqual([
 		`CREATE TABLE \`__new_table\` (
 \t\`id\` int NOT NULL,
 \t\`age\` int
 );\n`,
-	);
-	expect(sqlStatements[1]).toBe(
 		'INSERT INTO `__new_table`(`id`, `age`) SELECT `id`, `age` FROM `table`;',
-	);
-	expect(sqlStatements[2]).toBe(
 		'DROP TABLE `table`;',
-	);
-	expect(sqlStatements[3]).toBe(
 		'ALTER TABLE `__new_table` RENAME TO `table`;',
-	);
+	]);
 });
 
 test('set default', async () => {
@@ -797,11 +607,10 @@ test('set default', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSingleStore(from, to, []);
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(
+	const { sqlStatements } = await diff(from, to, []);
+	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE `table` MODIFY COLUMN `id` int DEFAULT 1;',
-	);
+	]);
 });
 
 test('drop default', async () => {
@@ -819,11 +628,10 @@ test('drop default', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSingleStore(from, to, []);
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(
+	const { sqlStatements } = await diff(from, to, []);
+	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE `table` MODIFY COLUMN `id` int;',
-	);
+	]);
 });
 
 test('set pk', async () => {
@@ -841,24 +649,17 @@ test('set pk', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSingleStore(from, to, []);
-	expect(sqlStatements.length).toBe(4);
-	expect(sqlStatements[0]).toBe(
+	const { sqlStatements } = await diff(from, to, []);
+	expect(sqlStatements).toStrictEqual([
 		`CREATE TABLE \`__new_table\` (
 \t\`id\` int NOT NULL,
 \t\`age\` int,
 \tCONSTRAINT \`table_id\` PRIMARY KEY(\`id\`)
 );\n`,
-	);
-	expect(sqlStatements[1]).toBe(
 		'INSERT INTO `__new_table`(`id`, `age`) SELECT `id`, `age` FROM `table`;',
-	);
-	expect(sqlStatements[2]).toBe(
 		'DROP TABLE `table`;',
-	);
-	expect(sqlStatements[3]).toBe(
 		'ALTER TABLE `__new_table` RENAME TO `table`;',
-	);
+	]);
 });
 
 test('drop pk', async () => {
@@ -876,23 +677,16 @@ test('drop pk', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSingleStore(from, to, []);
-	expect(sqlStatements.length).toBe(4);
-	expect(sqlStatements[0]).toBe(
+	const { sqlStatements } = await diff(from, to, []);
+	expect(sqlStatements).toStrictEqual([
 		`CREATE TABLE \`__new_table\` (
 \t\`id\` int,
 \t\`age\` int
 );\n`,
-	);
-	expect(sqlStatements[1]).toBe(
 		'INSERT INTO `__new_table`(`id`, `age`) SELECT `id`, `age` FROM `table`;',
-	);
-	expect(sqlStatements[2]).toBe(
 		'DROP TABLE `table`;',
-	);
-	expect(sqlStatements[3]).toBe(
 		'ALTER TABLE `__new_table` RENAME TO `table`;',
-	);
+	]);
 });
 
 test('set not null + rename column on table with indexes', async () => {
@@ -910,26 +704,17 @@ test('set not null + rename column on table with indexes', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSingleStore(from, to, [`public.table.id->public.table.id3`]);
-	expect(sqlStatements.length).toBe(5);
-	expect(sqlStatements[0]).toBe(
+	const { sqlStatements } = await diff(from, to, [`table.id->table.id3`]);
+	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE \`table\` CHANGE `id` `id3`;',
-	);
-	expect(sqlStatements[1]).toBe(
 		`CREATE TABLE \`__new_table\` (
-\t\`id3\` int NOT NULL DEFAULT 1,
-\t\`age\` int
-);\n`,
-	);
-	expect(sqlStatements[2]).toBe(
+			\t\`id3\` int NOT NULL DEFAULT 1,
+			\t\`age\` int
+			);\n`,
 		'INSERT INTO `__new_table`(`id3`, `age`) SELECT `id3`, `age` FROM `table`;',
-	);
-	expect(sqlStatements[3]).toBe(
 		'DROP TABLE `table`;',
-	);
-	expect(sqlStatements[4]).toBe(
 		'ALTER TABLE `__new_table` RENAME TO `table`;',
-	);
+	]);
 });
 
 test('set not null + rename table on table with indexes', async () => {
@@ -947,24 +732,15 @@ test('set not null + rename table on table with indexes', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffTestSchemasSingleStore(from, to, [`public.table->public.table1`]);
-	expect(sqlStatements.length).toBe(5);
-	expect(sqlStatements[0]).toBe(
+	const { sqlStatements } = await diff(from, to, [`table->table1`]);
+	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE `table` RENAME TO `table1`;',
-	);
-	expect(sqlStatements[1]).toBe(
 		`CREATE TABLE \`__new_table1\` (
 \t\`id\` int NOT NULL DEFAULT 1,
 \t\`age\` int
 );\n`,
-	);
-	expect(sqlStatements[2]).toBe(
 		'INSERT INTO `__new_table1`(\`id\`, \`age\`) SELECT \`id\`, \`age\` FROM `table1`;',
-	);
-	expect(sqlStatements[3]).toBe(
 		'DROP TABLE `table1`;',
-	);
-	expect(sqlStatements[4]).toBe(
 		'ALTER TABLE `__new_table1` RENAME TO `table1`;',
-	);
+	]);
 });

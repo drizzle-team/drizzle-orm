@@ -3,7 +3,7 @@ import { writeFileSync } from 'fs';
 import { render, renderWithTask } from 'hanji';
 import { join } from 'path';
 import { createDDL, interimToDDL } from 'src/dialects/mysql/ddl';
-import { fromDatabase } from 'src/dialects/mysql/introspect';
+import { fromDatabaseForDrizzle } from 'src/dialects/mysql/introspect';
 import { toJsonSnapshot } from 'src/dialects/mysql/snapshot';
 import { ddlToTypeScript } from 'src/dialects/mysql/typescript';
 import { diffDDL } from 'src/dialects/singlestore/diff';
@@ -31,7 +31,7 @@ export const handle = async (
 	const progress = new IntrospectProgress();
 	const res = await renderWithTask(
 		progress,
-		fromDatabase(db, database, filter, (stage, count, status) => {
+		fromDatabaseForDrizzle(db, database, filter, (stage, count, status) => {
 			progress.update(stage, count, status);
 		}),
 	);

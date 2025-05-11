@@ -29,11 +29,11 @@ export const defaultFromColumn = (column: AnyMySqlColumn, casing?: Casing): Colu
 
 	const sqlTypeLowered = column.getSQLType().toLowerCase();
 	if (is(column.default, SQL)) {
-		"CURRENT_TIMESTAMP"
-		"now()"		// 
-		"(now())" // value: (now()) type unknown
-		"now()"  	// value: now() type: unknown
- 		let str = sqlToStr(column.default, casing);
+		'CURRENT_TIMESTAMP';
+		'now()'; //
+		'(now())'; // value: (now()) type unknown
+		'now()'; // value: now() type: unknown
+		let str = sqlToStr(column.default, casing);
 
 		return { value: str, type: 'unknown' };
 	}
@@ -48,11 +48,11 @@ export const defaultFromColumn = (column: AnyMySqlColumn, casing?: Casing): Colu
 
 	if (column.default instanceof Date) {
 		if (sqlTypeLowered === 'date') {
-			return { value: column.default.toISOString().split('T')[0], type: 'date_text' };
+			return { value: column.default.toISOString().split('T')[0], type: 'string' };
 		}
 
 		if (sqlTypeLowered.startsWith('datetime') || sqlTypeLowered.startsWith('timestamp')) {
-			return { value: column.default.toISOString().replace('T', ' ').slice(0, 23), type: 'date_text' };
+			return { value: column.default.toISOString().replace('T', ' ').slice(0, 23), type: 'string' };
 		}
 
 		throw new Error(`unexpected default: ${column.default}`);
