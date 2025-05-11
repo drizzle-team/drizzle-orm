@@ -379,7 +379,7 @@ function validate(data: any, schema: Config, deep = false): boolean {
 			if (data[k] !== null && typeof data[k] !== removeQuestionMark(schema[k])) return false;
 		} else if (Array.isArray(schema[k])) {
 			if (typeof schema[k][0] === 'string') {
-				if (!schema[k].find((e) => e === data[k])) return false;
+				if (!schema[k].some((e) => e === data[k])) return false;
 			} else {
 				if (!Array.isArray(data[k])) return false;
 				if (

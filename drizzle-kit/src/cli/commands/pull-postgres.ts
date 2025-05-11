@@ -19,7 +19,7 @@ import {
 	View,
 } from '../../dialects/postgres/ddl';
 import { ddlDiff } from '../../dialects/postgres/diff';
-import { fromDatabase, fromDatabaseForDrizzle } from '../../dialects/postgres/introspect';
+import { fromDatabaseForDrizzle } from '../../dialects/postgres/introspect';
 import { ddlToTypeScript as postgresSchemaToTypeScript } from '../../dialects/postgres/typescript';
 import type { DB } from '../../utils';
 import { prepareOutFolder } from '../../utils-node';
@@ -27,12 +27,12 @@ import { resolver } from '../prompts';
 import type { Entities } from '../validations/cli';
 import type { Casing, Prefix } from '../validations/common';
 import type { PostgresCredentials } from '../validations/postgres';
-import { err, ProgressView } from '../views';
+import { ProgressView } from '../views';
 import { IntrospectProgress } from '../views';
 import { writeResult } from './generate-common';
 import { prepareTablesFilter, relationsToTypeScript } from './pull-common';
 
-export const introspectPostgres = async (
+export const handle = async (
 	casing: Casing,
 	out: string,
 	breakpoints: boolean,
@@ -49,10 +49,9 @@ export const introspectPostgres = async (
 	const schemaFilter = (it: string) => schemasFilters.some((x) => x === it);
 
 	const progress = new IntrospectProgress(true);
-
 	const res = await renderWithTask(
 		progress,
-		fromDatabase(
+		fromDatabaseForDrizzle(
 			db,
 			filter,
 			schemaFilter,
@@ -67,6 +66,7 @@ export const introspectPostgres = async (
 
 	if (errors.length > 0) {
 		// TODO: print errors
+		console.error(errors);
 		process.exit(1);
 	}
 

@@ -4,7 +4,6 @@ import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
 import type { DB } from '../../utils';
 import type {
 	CheckConstraint,
-	Column,
 	Enum,
 	ForeignKey,
 	Index,
@@ -72,13 +71,7 @@ export const fromDatabase = async (
 	db: DB,
 	tablesFilter: (table: string) => boolean = () => true,
 	schemaFilter: (schema: string) => boolean = () => true,
-	entities?: {
-		roles: boolean | {
-			provider?: string | undefined;
-			include?: string[] | undefined;
-			exclude?: string[] | undefined;
-		};
-	},
+	entities?: Entities,
 	progressCallback: (
 		stage: IntrospectStage,
 		count: number,
@@ -532,7 +525,7 @@ export const fromDatabase = async (
 		});
 	}
 
-	progressCallback('enums', Object.keys(enums).length, 'done');
+	progressCallback('enums', Object.keys(groupedEnums).length, 'done');
 
 	// TODO: drizzle link
 	const res = prepareRoles(entities);
@@ -596,7 +589,7 @@ export const fromDatabase = async (
 		const enumType = column.typeId in groupedEnums ? groupedEnums[column.typeId] : null;
 		let columnTypeMapped = enumType ? enumType.name : column.type.replace('[]', '');
 		columnTypeMapped = trimChar(columnTypeMapped, '"');
-		
+
 		if (columnTypeMapped.startsWith('numeric(')) {
 			columnTypeMapped = columnTypeMapped.replace(',', ', ');
 		}
@@ -1029,8 +1022,13 @@ export const fromDatabaseForDrizzle = async (
 	tableFilter: (it: string) => boolean = () => true,
 	schemaFilters: (it: string) => boolean = () => true,
 	entities?: Entities,
+	progressCallback: (
+		stage: IntrospectStage,
+		count: number,
+		status: IntrospectStatus,
+	) => void = () => {},
 ) => {
-	const res = await fromDatabase(db, tableFilter, schemaFilters, entities, undefined);
+	const res = await fromDatabase(db, tableFilter, schemaFilters, entities, progressCallback);
 	res.schemas = res.schemas.filter((it) => it.name !== 'public');
 	res.indexes = res.indexes.filter((it) => !it.isPrimary);
 
