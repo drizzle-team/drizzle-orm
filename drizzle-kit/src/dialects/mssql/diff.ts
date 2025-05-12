@@ -458,6 +458,7 @@ export const ddlDiff = async (
 	}
 
 	const diffPKs = diff(ddl1, ddl2, 'pks');
+
 	const groupedPKsDiff = groupDiffs(diffPKs);
 	const pksRenames = [] as { from: PrimaryKey; to: PrimaryKey }[];
 	const pksCreates = [] as PrimaryKey[];
@@ -728,22 +729,13 @@ export const ddlDiff = async (
 	// TODO:
 	const jsonAlteredCheckConstraints = alteredChecks.map((it) => prepareStatement('alter_check', { diff: it }));
 
-	// const recreateEnums = [] as Extract<JsonStatement, { type: 'recreate_enum' }>[];
-	// const jsonAlterEnums = [] as Extract<JsonStatement, { type: 'alter_enum' }>[];
+	const createViews = createdViews.map((it) => prepareStatement('create_view', { view: it }));
 
-	const createViews = createdViews.filter((it) => !it.isExisting).map((it) =>
-		prepareStatement('create_view', { view: it })
-	);
+	const jsonDropViews = deletedViews.map((it) => prepareStatement('drop_view', { view: it }));
 
-	const jsonDropViews = deletedViews.filter((it) => !it.isExisting).map((it) =>
-		prepareStatement('drop_view', { view: it })
-	);
+	const jsonRenameViews = renamedViews.map((it) => prepareStatement('rename_view', it));
 
-	const jsonRenameViews = renamedViews.filter((it) => !it.to.isExisting).map((it) =>
-		prepareStatement('rename_view', it)
-	);
-
-	const jsonMoveViews = movedViews.filter((it) => !it.to.isExisting).map((it) =>
+	const jsonMoveViews = movedViews.map((it) =>
 		prepareStatement('move_view', { fromSchema: it.from.schema, toSchema: it.to.schema, view: it.to })
 	);
 
@@ -752,12 +744,12 @@ export const ddlDiff = async (
 			delete it.definition;
 		}
 		return it;
-	}).filter((it) => !(it.isExisting && it.isExisting.to));
+	});
 
 	const viewsAlters = filteredViewAlters.map((it) => {
 		const view = ddl2.views.one({ schema: it.schema, name: it.name })!;
 		return { diff: it, view };
-	}).filter((it) => !it.view.isExisting);
+	});
 
 	const jsonAlterViews = viewsAlters.filter((it) => !it.diff.definition).map((it) => {
 		return prepareStatement('alter_view', {
@@ -766,7 +758,7 @@ export const ddlDiff = async (
 		});
 	});
 
-	const jsonRecreateViews = viewsAlters.filter((it) => it.diff.definition || it.diff.isExisting).map((entry) => {
+	const jsonRecreateViews = viewsAlters.filter((it) => it.diff.definition).map((entry) => {
 		const it = entry.view;
 		const schemaRename = renamedSchemas.find((r) => r.to.name === it.schema);
 		const schema = schemaRename ? schemaRename.from.name : it.schema;
@@ -812,8 +804,8 @@ export const ddlDiff = async (
 
 	// jsonStatements.push(...jsonTableAlternations); // TODO: check
 
-	jsonStatements.push(...jsonAddPrimaryKeys);
 	jsonStatements.push(...jsonAddColumnsStatemets);
+	jsonStatements.push(...jsonAddPrimaryKeys);
 	jsonStatements.push(...jsonRecreateColumns);
 	jsonStatements.push(...jsonAlterColumns);
 
@@ -884,21 +876,6 @@ export const ddlDiff = async (
 	// 	}
 	// 	return true;
 	// });
-
-	// Sequences
-	// - create sequence ✅
-	// - create sequence inside schema ✅
-	// - rename sequence ✅
-	// - change sequence schema ✅
-	// - change sequence schema + name ✅
-	// - drop sequence - check if sequence is in use. If yes - ???
-	// - change sequence values ✅
-
-	// Generated columns
-	// - add generated
-	// - drop generated
-	// - create table with generated
-	// - alter - should be not triggered, but should get warning
 
 	const { groupedStatements, sqlStatements } = fromJson(jsonStatements);
 

@@ -239,13 +239,8 @@ import { Column } from './ddl';
 // };
 
 export const defaultNameForPK = (table: string) => {
-	return `${table}_pkey`; // TODO
+	return `${table}_pkey`;
 };
-
-// // TODO: handle 63 bit key length limit
-// export const defaultNameForFK = (table: string, columns: string[], tableTo: string, columnsTo: string[]) => {
-// 	return `${table}_${columns.join('_')}_${tableTo}_${columnsTo.join('_')}_fk`;
-// };
 
 export const defaultNameForUnique = (table: string, column: string) => {
 	return `${table}_${column}_key`;

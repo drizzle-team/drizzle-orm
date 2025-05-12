@@ -26,7 +26,7 @@ test('generated as callback: add column with generated constraint', async () => 
 	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements).toStrictEqual([
-		"ALTER TABLE [users] ADD [gen_name] text AS ([users].[name] || 'hello') PERSISTED;",
+		"ALTER TABLE [users] ADD [gen_name] AS ([users].[name] || 'hello') PERSISTED;",
 	]);
 });
 
@@ -60,7 +60,7 @@ test('generated as callback: add generated constraint to an exisiting column as 
 
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE [users] DROP COLUMN [gen_name];',
-		"ALTER TABLE [users] ADD [gen_name] text AS ([users].[name] || 'to add') PERSISTED NOT NULL;",
+		"ALTER TABLE [users] ADD [gen_name] AS ([users].[name] || 'to add') PERSISTED;",
 	]);
 });
 
@@ -90,12 +90,11 @@ test('generated as callback: add generated constraint to an exisiting column as 
 
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE [users] DROP COLUMN [gen_name];',
-		"ALTER TABLE [users] ADD [gen_name] text AS ([users].[name] || 'to add') VIRTUAL NOT NULL;",
+		"ALTER TABLE [users] ADD [gen_name] AS ([users].[name] || 'to add') VIRTUAL;",
 	]);
 });
 
-// TODO decide what is the strategy here
-test.todo('generated as callback: drop generated constraint as PERSISTED', async () => {
+test('generated as callback: drop generated constraint as PERSISTED', async () => {
 	const from = {
 		users: mssqlTable('users', {
 			id: int('id'),
@@ -189,7 +188,7 @@ test('generated as callback: change generated constraint type from virtual to PE
 
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE [users] DROP COLUMN [gen_name];',
-		"ALTER TABLE [users] ADD [gen_name] text AS ([users].[name] || 'hello') PERSISTED;",
+		"ALTER TABLE [users] ADD [gen_name] AS ([users].[name] || 'hello') PERSISTED;",
 	]);
 });
 
@@ -223,7 +222,7 @@ test('generated as callback: change generated constraint type from PERSISTED to 
 
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE [users] DROP COLUMN [gen_name];',
-		"ALTER TABLE [users] ADD [gen_name] text AS ([users].[name] || 'hello') VIRTUAL;",
+		"ALTER TABLE [users] ADD [gen_name] AS ([users].[name] || 'hello') VIRTUAL;",
 	]);
 });
 
@@ -257,7 +256,7 @@ test('generated as callback: change generated constraint', async () => {
 
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE [users] DROP COLUMN [gen_name];',
-		"ALTER TABLE [users] ADD [gen_name] text AS ([users].[name] || 'hello') VIRTUAL;",
+		"ALTER TABLE [users] ADD [gen_name] AS ([users].[name] || 'hello') VIRTUAL;",
 	]);
 });
 
@@ -290,7 +289,7 @@ test('generated as sql: add column with generated constraint', async () => {
 	);
 
 	expect(sqlStatements).toStrictEqual([
-		"ALTER TABLE [users] ADD [gen_name] text AS ([users].[name] || 'hello') PERSISTED;",
+		"ALTER TABLE [users] ADD [gen_name] AS ([users].[name] || 'hello') PERSISTED;",
 	]);
 });
 
@@ -324,7 +323,7 @@ test('generated as sql: add generated constraint to an exisiting column as PERSI
 
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE [users] DROP COLUMN [gen_name];',
-		"ALTER TABLE [users] ADD [gen_name] text AS ([users].[name] || 'to add') PERSISTED NOT NULL;",
+		"ALTER TABLE [users] ADD [gen_name] AS ([users].[name] || 'to add') PERSISTED;",
 	]);
 });
 
@@ -358,12 +357,11 @@ test('generated as sql: add generated constraint to an exisiting column as virtu
 
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE [users] DROP COLUMN [gen_name];',
-		"ALTER TABLE [users] ADD [gen_name] text AS ([users].[name] || 'to add') VIRTUAL NOT NULL;",
+		"ALTER TABLE [users] ADD [gen_name] AS ([users].[name] || 'to add') VIRTUAL;",
 	]);
 });
 
-// TODO decide what strategy should be used. Recreate or store in some other column users data
-test.todo('generated as sql: drop generated constraint as PERSISTED', async () => {
+test('generated as sql: drop generated constraint as PERSISTED', async () => {
 	const from = {
 		users: mssqlTable('users', {
 			id: int('id'),
@@ -461,7 +459,7 @@ test('generated as sql: change generated constraint type from virtual to PERSIST
 
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE [users] DROP COLUMN [gen_name];',
-		"ALTER TABLE [users] ADD [gen_name] text AS ([users].[name] || 'hello') PERSISTED;",
+		"ALTER TABLE [users] ADD [gen_name] AS ([users].[name] || 'hello') PERSISTED;",
 	]);
 });
 
@@ -495,7 +493,7 @@ test('generated as sql: change generated constraint type from PERSISTED to virtu
 
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE [users] DROP COLUMN [gen_name];',
-		"ALTER TABLE [users] ADD [gen_name] text AS ([users].[name] || 'hello') VIRTUAL;",
+		"ALTER TABLE [users] ADD [gen_name] AS ([users].[name] || 'hello') VIRTUAL;",
 	]);
 });
 
@@ -529,7 +527,7 @@ test('generated as sql: change generated constraint', async () => {
 
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE [users] DROP COLUMN [gen_name];',
-		"ALTER TABLE [users] ADD [gen_name] text AS ([users].[name] || 'hello') VIRTUAL;",
+		"ALTER TABLE [users] ADD [gen_name] AS ([users].[name] || 'hello') VIRTUAL;",
 	]);
 });
 
@@ -562,7 +560,7 @@ test('generated as string: add column with generated constraint', async () => {
 	);
 
 	expect(sqlStatements).toStrictEqual([
-		"ALTER TABLE [users] ADD [gen_name] text AS ([users].[name] || 'hello') PERSISTED;",
+		"ALTER TABLE [users] ADD [gen_name] AS ([users].[name] || 'hello') PERSISTED;",
 	]);
 });
 
@@ -596,7 +594,7 @@ test('generated as string: add generated constraint to an exisiting column as PE
 
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE [users] DROP COLUMN [gen_name];',
-		"ALTER TABLE [users] ADD [gen_name] text AS ([users].[name] || 'to add') PERSISTED NOT NULL;",
+		"ALTER TABLE [users] ADD [gen_name] AS ([users].[name] || 'to add') PERSISTED;",
 	]);
 });
 
@@ -630,7 +628,7 @@ test('generated as string: add generated constraint to an exisiting column as vi
 
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE [users] DROP COLUMN [gen_name];',
-		"ALTER TABLE [users] ADD [gen_name] text AS ([users].[name] || 'to add') VIRTUAL NOT NULL;",
+		"ALTER TABLE [users] ADD [gen_name] AS ([users].[name] || 'to add') VIRTUAL;",
 	]);
 });
 
@@ -731,7 +729,7 @@ test('generated as string: change generated constraint type from virtual to PERS
 
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE [users] DROP COLUMN [gen_name];',
-		"ALTER TABLE [users] ADD [gen_name] text AS ([users].[name] || 'hello') PERSISTED;",
+		"ALTER TABLE [users] ADD [gen_name] AS ([users].[name] || 'hello') PERSISTED;",
 	]);
 });
 
@@ -763,7 +761,7 @@ test('generated as string: change generated constraint type from PERSISTED to vi
 
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE [users] DROP COLUMN [gen_name];',
-		"ALTER TABLE [users] ADD [gen_name] text AS ([users].[name] || 'hello') VIRTUAL;",
+		"ALTER TABLE [users] ADD [gen_name] AS ([users].[name] || 'hello') VIRTUAL;",
 	]);
 });
 
@@ -795,6 +793,6 @@ test('generated as string: change generated constraint', async () => {
 
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE [users] DROP COLUMN [gen_name];',
-		"ALTER TABLE [users] ADD [gen_name] text AS ([users].[name] || 'hello') VIRTUAL;",
+		"ALTER TABLE [users] ADD [gen_name] AS ([users].[name] || 'hello') VIRTUAL;",
 	]);
 });

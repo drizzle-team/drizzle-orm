@@ -35,15 +35,8 @@ const createTable = convertor('create_table', (st) => {
 			&& pk.name === defaultNameForPK(column.table);
 
 		const identity = column.identity;
-		const primaryKeyStatement = isPK ? ' PRIMARY KEY' : '';
 		const identityStatement = identity ? ` IDENTITY(${identity.seed}, ${identity.increment})` : '';
 		const notNullStatement = isPK ? '' : column.notNull && !column.identity ? ' NOT NULL' : '';
-
-		const unique = uniques.find((u) => u.columns.length === 1 && u.columns[0] === column.name);
-
-		const unqiueConstraintPrefix = unique
-			? unique.nameExplicit ? ` UNIQUE("${unique.name}")` : ' UNIQUE'
-			: '';
 
 		const def = defaultToSQL(column.default);
 		const defaultStatement = def ? ` DEFAULT ${def}` : '';
@@ -53,22 +46,20 @@ const createTable = convertor('create_table', (st) => {
 			: '';
 
 		statement += '\t'
-			+ `[${column.name}] ${column.type}${primaryKeyStatement}${identityStatement}${generatedStatement}${notNullStatement}${unqiueConstraintPrefix}${defaultStatement}`;
+			+ `[${column.name}] ${column.type}${identityStatement}${generatedStatement}${notNullStatement}${defaultStatement}`;
 		statement += i === columns.length - 1 ? '' : ',\n';
 	}
 
-	if (pk && (pk.columns.length > 1 || pk.name !== defaultNameForPK(st.table.name))) {
+	if (pk) {
 		statement += ',\n';
 		statement += `\tCONSTRAINT [${pk.name}] PRIMARY KEY([${pk.columns.join(`],[`)}])`;
 	}
 
-	for (const unique of uniqueIndexes) {
+	for (const unique of uniques) {
 		statement += ',\n';
-		const uniqueString = unique.columns
-			.map((it) => it.isExpression ? `${it.value}` : `[${it.value}]`)
-			.join(',');
+		const uniqueString = unique.columns.join(',');
 
-		statement += `\tCONSTRAINT [${unique.name}] UNIQUE(${uniqueString})`;
+		statement += `\tCONSTRAINT [${unique.name}] UNIQUE([${uniqueString}])`;
 	}
 
 	for (const fk of fks) {
@@ -93,7 +84,7 @@ const dropTable = convertor('drop_table', (st) => {
 });
 
 const renameTable = convertor('rename_table', (st) => {
-	return `EXEC sp_rename '[${st.from}]', '[${st.to}]';`;
+	return `EXEC sp_rename '[${st.from}]', [${st.to}];`;
 });
 
 const addColumn = convertor('add_column', (st) => {
@@ -111,14 +102,18 @@ const addColumn = convertor('add_column', (st) => {
 	const defaultStatement = def ? ` DEFAULT ${def}` : '';
 
 	const notNullStatement = `${notNull ? ' NOT NULL' : ''}`;
-	const primaryKeyStatement = `${isPK ? ' PRIMARY KEY' : ''}`;
+	// const primaryKeyStatement = `${isPK ? ' PRIMARY KEY' : ''}`; // TODO should it be here? not sure, because of the names for constraints
 	const identityStatement = identity ? ` IDENTITY(${identity.seed}, ${identity.increment})` : '';
 
 	const generatedStatement = generated
 		? ` AS (${generated?.as}) ${generated?.type.toUpperCase()}`
 		: '';
 
-	return `ALTER TABLE [${table}] ADD [${name}] ${type}${primaryKeyStatement}${identityStatement}${defaultStatement}${generatedStatement}${notNullStatement};`;
+	let statement = `ALTER TABLE [${table}] ADD [${name}]`;
+	if (!generated) statement += ` ${type}`;
+	statement += `${identityStatement}${defaultStatement}${generatedStatement}${notNullStatement};`;
+
+	return statement;
 });
 
 const dropColumn = convertor('drop_column', (st) => {
@@ -197,10 +192,6 @@ const createFK = convertor('create_fk', (st) => {
 const createPK = convertor('create_pk', (st) => {
 	const { name } = st.pk;
 	return `ALTER TABLE [${st.pk.table}] ADD CONSTRAINT [${name}] PRIMARY KEY ([${st.pk.columns.join('],[')}]);`;
-});
-
-const recreatePK = convertor('recreate_pk', (st) => {
-	return `ALTER TABLE [${st.pk.table}] DROP PRIMARY KEY, ADD PRIMARY KEY([${st.pk.columns.join('],[')}]);`;
 });
 
 const createCheck = convertor('create_check', (st) => {
@@ -283,8 +274,14 @@ const dropSchema = convertor('drop_schema', (st) => {
 	return `DROP SCHEMA [${st.name}];\n`;
 });
 
-// TODO need transfer for this
 const renameSchema = convertor('rename_schema', (st) => {
+	return `/**
+ * ⚠️ Renaming schemas is not supported in SQL Server (MSSQL),
+ * and therefore is not supported in Drizzle ORM at this time
+ * 
+ * SQL Server does not provide a built-in command to rename a schema directly.
+ * Workarounds involve creating a new schema and migrating objects manually
+ */`;
 });
 
 const moveTable = convertor('move_table', (st) => {
@@ -298,38 +295,27 @@ const moveView = convertor('move_view', (st) => {
 	return `ALTER SCHEMA [${toSchema}] TRANSFER ${from};`;
 });
 
-// TODO should be so? Can't get name?
+const addUniqueConvertor = convertor('add_unique', (st) => {
+	const { unique } = st;
+	const tableNameWithSchema = unique.schema !== 'dbo'
+		? `[${unique.schema}].[${unique.table}]`
+		: `[${unique.table}]`;
+
+	return `ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT [${unique.name}] UNIQUE([${unique.columns.join('],[')}]);`;
+});
+
 const dropPK = convertor('drop_pk', (st) => {
 	const pk = st.pk;
 	const key = pk.schema !== 'dbo'
 		? `[${pk.schema}].[${pk.table}]`
 		: `[${pk.table}]`;
 
-	if (st.pk.nameExplicit) {
-		return `ALTER TABLE ${key} DROP CONSTRAINT [${pk.name}];`;
-	}
-
-	return `/* 
-	Unfortunately in current drizzle-kit version we can't automatically get name for primary key.
-	We are working on making it available!
-
-	Meanwhile you can:
-		1. Check pk name in your database, by running
-			SELECT constraint_name FROM information_schema.table_constraints
-			WHERE table_schema = '${pk.schema}'
-				AND table_name = '${pk.table}'
-				AND constraint_type = 'PRIMARY KEY';
-		2. Uncomment code below and paste pk name manually
-		
-	Hope to release this update as soon as possible
-*/
-
--- ALTER TABLE "${key}" DROP CONSTRAINT "<constraint_name>";`;
+	return `ALTER TABLE ${key} DROP CONSTRAINT [${pk.name}];`;
 });
 
-const recreatePrimaryKey = convertor('alter_pk', (it) => {
-	const drop = dropPrimaryKey.convert({ pk: it.pk }) as string;
-	const create = addPrimaryKey.convert({ pk: it.pk }) as string;
+const recreatePK = convertor('alter_pk', (it) => {
+	const drop = dropPK.convert({ pk: it.pk }) as string;
+	const create = createPK.convert({ pk: it.pk }) as string;
 	return [drop, create];
 });
 
@@ -407,12 +393,13 @@ const convertors = [
 	createSchema,
 	dropSchema,
 	moveTable,
-	recreatePrimaryKey,
 	moveView,
 	recreateView,
 	addCheck,
 	dropCheck,
 	alterCheck,
+	renameSchema,
+	addUniqueConvertor,
 ];
 
 export function fromJson(

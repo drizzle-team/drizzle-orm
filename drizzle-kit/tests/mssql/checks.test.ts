@@ -15,8 +15,9 @@ test('create table with check', async (t) => {
 
 	expect(sqlStatements.length).toBe(1);
 	expect(sqlStatements[0]).toBe(`CREATE TABLE [users] (
-\t[id] int PRIMARY KEY,
+\t[id] int,
 \t[age] int,
+\tCONSTRAINT [users_pkey] PRIMARY KEY([id]),
 \tCONSTRAINT [some_check_name] CHECK ([users].[age] > 21)
 );\n`);
 });
