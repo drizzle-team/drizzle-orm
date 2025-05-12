@@ -67,11 +67,13 @@ const assertVersion = (obj: Object, current: number): 'unsupported' | 'nonLatest
 };
 
 const postgresValidator = (snapshot: Object): ValidationResult => {
-	const versionError = assertVersion(snapshot, 7);
+	const versionError = assertVersion(snapshot, 8);
 	if (versionError) return { status: versionError };
 
 	const res = snapshotValidator.parse(snapshot);
-	if (!res.success) return { status: 'malformed', errors: [] };
+	if (!res.success) {
+		return { status: 'malformed', errors: res.errors ?? [] };
+	}
 
 	return { status: 'valid' };
 };
@@ -114,7 +116,7 @@ const singlestoreSnapshotValidator = (
 	return { status: 'valid' };
 };
 
-const validatorForDialect = (dialect: Dialect): (snapshot: Object) => ValidationResult => {
+export const validatorForDialect = (dialect: Dialect): (snapshot: Object) => ValidationResult => {
 	switch (dialect) {
 		case 'postgresql':
 			return postgresValidator;
@@ -126,6 +128,8 @@ const validatorForDialect = (dialect: Dialect): (snapshot: Object) => Validation
 			return mysqlSnapshotValidator;
 		case 'singlestore':
 			return singlestoreSnapshotValidator;
+		default:
+			assertUnreachable(dialect);
 	}
 };
 
@@ -152,12 +156,12 @@ export const validateWithReport = (snapshots: string[], dialect: Dialect) => {
 				process.exit(0);
 			}
 			if (res.status === 'malformed') {
-				accum.malformed.push(raw);
+				accum.malformed.push(it);
 				return accum;
 			}
 
 			if (res.status === 'nonLatest') {
-				accum.nonLatest.push(raw);
+				accum.nonLatest.push(it);
 				return accum;
 			}
 

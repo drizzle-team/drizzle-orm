@@ -544,7 +544,13 @@ export const snapshotValidator = validator({
 	dialect: ['postgres'],
 	id: 'string',
 	prevId: 'string',
-	ddl: array<PostgresEntity>((it) => ddl.entities.validate(it)),
+	ddl: array<PostgresEntity>((it) =>{ 
+		const res = ddl.entities.validate(it)
+		if(!res){
+			console.log(it)
+		}
+		return res
+	}),
 	renames: array<string>((_) => true),
 });
 

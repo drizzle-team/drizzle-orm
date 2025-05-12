@@ -1,5 +1,5 @@
 import { getTableName, is, SQL } from 'drizzle-orm';
-import { GelColumn, GelDialect, GelPolicy } from 'drizzle-orm/gel-core';
+import { AnyGelColumn, GelColumn, GelDialect, GelPolicy } from 'drizzle-orm/gel-core';
 import {
 	AnyPgColumn,
 	AnyPgTable,
@@ -118,10 +118,11 @@ export const transformOnUpdateDelete = (on: UpdateDeleteAction): ForeignKey['onU
 };
 
 export const defaultFromColumn = (
-	column: AnyPgColumn | GelColumn,
+	base: AnyPgColumn | AnyGelColumn,
+	def: unknown,
+	dimensions: number,
 	dialect: PgDialect | GelDialect,
 ): Column['default'] => {
-	const def = column.default;
 	if (typeof def === 'undefined') return null;
 
 	if (is(def, SQL)) {
@@ -142,6 +143,7 @@ export const defaultFromColumn = (
 			type: 'string',
 		};
 	}
+
 	if (typeof def === 'boolean') {
 		return {
 			value: def ? 'true' : 'false',
@@ -156,43 +158,42 @@ export const defaultFromColumn = (
 		};
 	}
 
-	const sqlTypeLowered = column.getSQLType().toLowerCase();
-
-	if (sqlTypeLowered === 'jsonb' || sqlTypeLowered === 'json') {
+	const sqlTypeLowered = base.getSQLType().toLowerCase();
+	if (dimensions > 0 && Array.isArray(def)) {
 		return {
-			value: JSON.stringify(column.default),
-			type: sqlTypeLowered,
-		};
-	}
-
-	if (isPgArrayType(sqlTypeLowered) && Array.isArray(column.default)) {
-		return {
-			value: buildArrayString(column.default, sqlTypeLowered),
+			value: buildArrayString(def, sqlTypeLowered),
 			type: 'array',
 		};
 	}
 
-	if (column.default instanceof Date) {
+	if (sqlTypeLowered === 'jsonb' || sqlTypeLowered === 'json') {
+		return {
+			value: JSON.stringify(def),
+			type: sqlTypeLowered,
+		};
+	}
+
+	if (def instanceof Date) {
 		if (sqlTypeLowered === 'date') {
 			return {
-				value: column.default.toISOString().split('T')[0],
+				value: def.toISOString().split('T')[0],
 				type: 'string',
 			};
 		}
 		if (sqlTypeLowered === 'timestamp') {
 			return {
-				value: column.default.toISOString().replace('T', ' ').slice(0, 23),
+				value: def.toISOString().replace('T', ' ').slice(0, 23),
 				type: 'string',
 			};
 		}
 
 		return {
-			value: column.default.toISOString(),
+			value: def.toISOString(),
 			type: 'string',
 		};
 	}
 	return {
-		value: String(column.default),
+		value: String(def),
 		type: 'string',
 	};
 };
@@ -293,7 +294,8 @@ export const fromDrizzleSchema = (
 					? unwrapArray(column)
 					: { baseColumn: column, dimensions: 0 };
 
-				const typeSchema = is(baseColumn, PgEnumColumn)
+				const isEnum = is(baseColumn, PgEnumColumn);
+				const typeSchema = isEnum
 					? baseColumn.enum.schema || 'public'
 					: null;
 				const generated = column.generated;
@@ -342,9 +344,10 @@ export const fromDrizzleSchema = (
 				// Should do for all types
 				// columnToSet.default = `'${column.default}'::${sqlTypeLowered}`;
 
-				let sqlType = column.getSQLType();
+				let sqlType = baseColumn.getSQLType();
 				/* legacy, for not to patch orm and don't up snapshot */
 				sqlType = sqlType.startsWith('timestamp (') ? sqlType.replace('timestamp (', 'timestamp(') : sqlType;
+				const columnDefault = defaultFromColumn(baseColumn, column.default, dimensions, dialect);
 
 				return {
 					entityType: 'columns',
@@ -357,7 +360,7 @@ export const fromDrizzleSchema = (
 					pk: column.primary,
 					pkName: null,
 					notNull: notNull && !isPrimary && !generatedValue && !identityValue,
-					default: defaultFromColumn(column, dialect),
+					default: columnDefault,
 					generated: generatedValue,
 					unique: column.isUnique,
 					uniqueName: column.uniqueNameExplicit ? column.uniqueName ?? null : null,

@@ -7,7 +7,7 @@ import { toJsonSnapshot } from 'src/dialects/mysql/snapshot';
 import { mockResolver } from 'src/utils/mocks';
 import { createDDL, interimToDDL } from '../../dialects/mysql/ddl';
 import { diffDDL } from '../../dialects/mysql/diff';
-import { fromDatabase } from '../../dialects/mysql/introspect';
+import { fromDatabaseForDrizzle } from '../../dialects/mysql/introspect';
 import { ddlToTypeScript } from '../../dialects/mysql/typescript';
 import { prepareOutFolder } from '../../utils-node';
 import type { Casing, Prefix } from '../validations/common';
@@ -31,7 +31,7 @@ export const handle = async (
 	const progress = new IntrospectProgress();
 	const res = await renderWithTask(
 		progress,
-		fromDatabase(db, database, filter, (stage, count, status) => {
+		fromDatabaseForDrizzle(db, database, filter, (stage, count, status) => {
 			progress.update(stage, count, status);
 		}),
 	);

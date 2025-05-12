@@ -560,7 +560,7 @@ export const pull = command({
 					}
 				}
 
-				const { introspectPostgres } = await import('./commands/pull-postgres');
+				const { handle: introspectPostgres } = await import('./commands/pull-postgres');
 				await introspectPostgres(casing, out, breakpoints, credentials, tablesFilter, schemasFilter, prefix, entities);
 			} else if (dialect === 'mysql') {
 				const { handle: introspectMysql } = await import('./commands/pull-mysql');

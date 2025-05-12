@@ -152,7 +152,9 @@ const createTableConvertor = convertor('create_table', (st) => {
 			? `"${column.typeSchema}".`
 			: '';
 
-		const type = parseType(schemaPrefix, column.type);
+		const arr = column.dimensions > 0 ? '[]' : '';
+		const type = `${parseType(schemaPrefix, column.type)}${arr}`;
+
 		const generated = column.generated;
 
 		const generatedStatement = generated ? ` GENERATED ALWAYS AS (${generated?.as}) STORED` : '';
@@ -269,7 +271,8 @@ const addColumnConvertor = convertor('add_column', (st) => {
 		? `"${column.typeSchema}".`
 		: '';
 
-	const fixedType = parseType(schemaPrefix, column.type);
+	let fixedType = parseType(schemaPrefix, column.type);
+	fixedType += column.dimensions > 0 ? '[]' : '';
 
 	const notNullStatement = column.notNull ? ' NOT NULL' : '';
 
@@ -338,21 +341,49 @@ const recreateColumnConvertor = convertor('recreate_column', (st) => {
 });
 
 const alterColumnConvertor = convertor('alter_column', (st) => {
-	const { diff, to: column } = st;
+	const { diff, to: column, isEnum, wasEnum } = st;
 	const statements = [] as string[];
 
 	const key = column.schema !== 'public'
 		? `"${column.schema}"."${column.table}"`
 		: `"${column.table}"`;
 
-	if (diff.type) {
-		const type = diff.typeSchema?.to ? `"${diff.typeSchema.to}"."${diff.type.to}"` : diff.type.to; // TODO: enum?
-		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${type};`);
+	const recreateDefault = diff.type && (isEnum || wasEnum) && (column.default || (diff.default && diff.default.from));
+	if (recreateDefault) {
+		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 	}
 
-	if (diff.default) {
+	if (diff.type) {
+		const typeSchema = column.typeSchema && column.typeSchema !== 'public' ? `"${column.typeSchema}".` : '';
+		const textProxy = wasEnum && isEnum ? 'text::' : ''; // using enum1::text::enum2
+		const arrSuffix = column.dimensions > 0 ? '[]' : '';
+		const suffix = isEnum ? ` USING "${column.name}"::${textProxy}${typeSchema}"${column.type}"${arrSuffix}` : '';
+		let type = diff.typeSchema?.to && diff.typeSchema.to !== 'public'
+			? `"${diff.typeSchema.to}"."${diff.type.to}"`
+			: isEnum
+			? `"${diff.type.to}"`
+			: diff.type.to; // TODO: enum?
+
+		type += arrSuffix;
+		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${type}${suffix};`);
+
+		if (recreateDefault) {
+			const typeSuffix = isEnum ? `::${type}` : '';
+			statements.push(
+				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(column.default)}${typeSuffix};`,
+			);
+		}
+	}
+
+	if (diff.default && !recreateDefault) {
 		if (diff.default.to) {
-			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(diff.default.to)};`);
+			const typeSchema = column.typeSchema && column.typeSchema !== 'public' ? `"${column.typeSchema}".` : '';
+			const arrSuffix = column.dimensions > 0 ? '[]' : '';
+			const typeSuffix = isEnum ? `::${typeSchema}"${column.type}"${arrSuffix}` : '';
+
+			statements.push(
+				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(diff.default.to)}${typeSuffix};`,
+			);
 		} else {
 			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 		}
@@ -680,7 +711,8 @@ const recreateEnumConvertor = convertor('recreate_enum', (st) => {
 
 	for (const column of columns) {
 		const key = column.schema !== 'public' ? `"${column.schema}"."${column.table}"` : `"${column.table}"`;
-		const enumType = to.schema !== 'public' ? `"${to.schema}"."${to.name}"` : `"${to.name}"`;
+		const arr = column.dimensions > 0 ? '[]' : '';
+		const enumType = to.schema !== 'public' ? `"${to.schema}"."${to.name}"${arr}` : `"${to.name}"${arr}`;
 		statements.push(
 			`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${enumType} USING "${column.name}"::${enumType};`,
 		);

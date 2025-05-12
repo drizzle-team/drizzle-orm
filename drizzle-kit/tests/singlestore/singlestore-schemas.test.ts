@@ -1,6 +1,6 @@
 import { singlestoreSchema, singlestoreTable } from 'drizzle-orm/singlestore-core';
 import { expect, test } from 'vitest';
-import { diffTestSchemasSingleStore } from './schemaDiffer';
+import { diff } from './mocks';
 
 // We don't manage databases(schemas) in MySQL with Drizzle Kit
 test('add schema #1', async () => {
@@ -8,7 +8,7 @@ test('add schema #1', async () => {
 		devSchema: singlestoreSchema('dev'),
 	};
 
-	const { statements } = await diffTestSchemasSingleStore({}, to, []);
+	const { statements } = await diff({}, to, []);
 
 	expect(statements.length).toBe(0);
 });
@@ -22,7 +22,7 @@ test('add schema #2', async () => {
 		devSchema2: singlestoreSchema('dev2'),
 	};
 
-	const { statements } = await diffTestSchemasSingleStore(from, to, []);
+	const { statements } = await diff(from, to, []);
 
 	expect(statements.length).toBe(0);
 });
@@ -32,7 +32,7 @@ test('delete schema #1', async () => {
 		devSchema: singlestoreSchema('dev'),
 	};
 
-	const { statements } = await diffTestSchemasSingleStore(from, {}, []);
+	const { statements } = await diff(from, {}, []);
 
 	expect(statements.length).toBe(0);
 });
@@ -46,7 +46,7 @@ test('delete schema #2', async () => {
 		devSchema: singlestoreSchema('dev'),
 	};
 
-	const { statements } = await diffTestSchemasSingleStore(from, to, []);
+	const { statements } = await diff(from, to, []);
 
 	expect(statements.length).toBe(0);
 });
@@ -59,7 +59,7 @@ test('rename schema #1', async () => {
 		devSchema2: singlestoreSchema('dev2'),
 	};
 
-	const { statements } = await diffTestSchemasSingleStore(from, to, ['dev->dev2']);
+	const { statements } = await diff(from, to, ['dev->dev2']);
 
 	expect(statements.length).toBe(0);
 });
@@ -74,7 +74,7 @@ test('rename schema #2', async () => {
 		devSchema2: singlestoreSchema('dev2'),
 	};
 
-	const { statements } = await diffTestSchemasSingleStore(from, to, ['dev1->dev2']);
+	const { statements } = await diff(from, to, ['dev1->dev2']);
 
 	expect(statements.length).toBe(0);
 });
@@ -87,7 +87,7 @@ test('add table to schema #1', async () => {
 		users: dev.table('users', {}),
 	};
 
-	const { statements } = await diffTestSchemasSingleStore(from, to, ['dev1->dev2']);
+	const { statements } = await diff(from, to, ['dev1->dev2']);
 
 	expect(statements.length).toBe(0);
 });
@@ -100,7 +100,7 @@ test('add table to schema #2', async () => {
 		users: dev.table('users', {}),
 	};
 
-	const { statements } = await diffTestSchemasSingleStore(from, to, ['dev1->dev2']);
+	const { statements } = await diff(from, to, ['dev1->dev2']);
 
 	expect(statements.length).toBe(0);
 });
@@ -114,7 +114,7 @@ test('add table to schema #3', async () => {
 		users: singlestoreTable('users', {}),
 	};
 
-	const { statements } = await diffTestSchemasSingleStore(from, to, ['dev1->dev2']);
+	const { statements } = await diff(from, to, ['dev1->dev2']);
 
 	expect(statements.length).toBe(1);
 	expect(statements[0]).toStrictEqual({
@@ -139,7 +139,7 @@ test('remove table from schema #1', async () => {
 		dev,
 	};
 
-	const { statements } = await diffTestSchemasSingleStore(from, to, ['dev1->dev2']);
+	const { statements } = await diff(from, to, ['dev1->dev2']);
 
 	expect(statements.length).toBe(0);
 });
@@ -149,7 +149,7 @@ test('remove table from schema #2', async () => {
 	const from = { dev, users: dev.table('users', {}) };
 	const to = {};
 
-	const { statements } = await diffTestSchemasSingleStore(from, to, ['dev1->dev2']);
+	const { statements } = await diff(from, to, ['dev1->dev2']);
 
 	expect(statements.length).toBe(0);
 });

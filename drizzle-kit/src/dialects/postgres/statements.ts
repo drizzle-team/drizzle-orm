@@ -288,6 +288,8 @@ export interface JsonRenameColumn {
 export interface JsonAlterColumn {
 	type: 'alter_column';
 	to: Column;
+	wasEnum: boolean;
+	isEnum: boolean;
 	diff: DiffEntities['columns'];
 }
 

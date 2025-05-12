@@ -1,85 +1,32 @@
-import Docker from 'dockerode';
-import { drizzle, GelJsDatabase } from 'drizzle-orm/gel';
 import fs from 'fs';
-import createClient, { type Client } from 'gel';
-import getPort from 'get-port';
-import { introspectGelToFile } from 'tests/schemaDiffer';
-import { v4 as uuidV4 } from 'uuid';
-import { afterAll, beforeAll, expect, test } from 'vitest';
+import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import 'zx/globals';
+import { DB } from 'src/utils';
+import { prepareTestDatabase, pull, TestDatabase } from './mocks';
 
-if (!fs.existsSync('tests/introspect/gel')) {
-	fs.mkdirSync('tests/introspect/gel');
-}
-
-$.quiet = true;
+// @vitest-environment-options {"max-concurrency":1}
 
 const ENABLE_LOGGING = false;
+const tlsSecurity = 'insecure';
 
-let client: Client;
-let db: GelJsDatabase;
-const tlsSecurity: string = 'insecure';
-let dsn: string;
-let container: Docker.Container | undefined;
-
-async function createDockerDB(): Promise<{ connectionString: string; container: Docker.Container }> {
-	const docker = new Docker();
-	const port = await getPort({ port: 5656 });
-	const image = 'geldata/gel:6.0';
-
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
-	);
-
-	const gelContainer = await docker.createContainer({
-		Image: image,
-		Env: [
-			'GEL_CLIENT_SECURITY=insecure_dev_mode',
-			'GEL_SERVER_SECURITY=insecure_dev_mode',
-			'GEL_CLIENT_TLS_SECURITY=no_host_verification',
-			'GEL_SERVER_PASSWORD=password',
-		],
-		name: `drizzle-integration-tests-${uuidV4()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'5656/tcp': [{ HostPort: `${port}` }],
-			},
-		},
-	});
-
-	await gelContainer.start();
-
-	return { connectionString: `gel://admin:password@localhost:${port}/main`, container: gelContainer };
-}
-
-function sleep(ms: number) {
-	return new Promise((resolve) => setTimeout(resolve, ms));
-}
+let _: TestDatabase;
+let db: DB;
 
 beforeAll(async () => {
-	let connectionString;
-	if (process.env['GEL_CONNECTION_STRING']) {
-		connectionString = process.env['GEL_CONNECTION_STRING'];
-	} else {
-		const { connectionString: conStr, container: contrainerObj } = await createDockerDB();
-		connectionString = conStr;
-		container = contrainerObj;
-	}
-
-	await sleep(15 * 1000);
-	client = createClient({ dsn: connectionString, tlsSecurity: 'insecure' });
-
-	db = drizzle(client, { logger: ENABLE_LOGGING });
-
-	dsn = connectionString;
+	_ = await prepareTestDatabase(ENABLE_LOGGING, tlsSecurity);
+	db = _.db;
 });
 
 afterAll(async () => {
-	await client?.close().catch(console.error);
-	await container?.stop().catch(console.error);
+	await _.close();
 });
+
+beforeEach(async () => {
+	await _.clear();
+});
+
+fs.mkdirSync('tests/gel/tmp', { recursive: true });
+$.quiet = true;
 
 test('basic introspect test', async () => {
 	await $`pnpm gel query 'CREATE TYPE default::all_columns {
@@ -216,12 +163,9 @@ test('basic introspect test', async () => {
 		create property defaultbytesColumn: bytes {
 			SET DEFAULT := b"Hello, world";
 		};
-	}' --tls-security=${tlsSecurity} --dsn=${dsn}`;
+	}' --tls-security=${tlsSecurity} --dsn=${_.url}`;
 
-	const path = await introspectGelToFile(
-		client,
-		'basic-introspect',
-	);
+	const path = await pull(db, 'basic-introspect');
 
 	const result = await $`pnpm exec tsc --noEmit --skipLibCheck ${path}`.nothrow(true);
 	expect(result.exitCode).toBe(0);

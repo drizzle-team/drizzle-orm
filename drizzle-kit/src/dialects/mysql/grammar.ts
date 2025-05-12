@@ -37,7 +37,7 @@ export const parseDefaultValue = (
 
 	value = stripCollation(value, collation);
 
-	if (columnType.startsWith('binary') || columnType === 'text') {
+	if (columnType.startsWith('binary') || columnType.startsWith('varbinary') || columnType === 'text') {
 		if (/^'(?:[^']|'')*'$/.test(value)) {
 			return { value: trimChar(value, "'").replaceAll("''", "'"), type: 'text' };
 		}
@@ -45,7 +45,8 @@ export const parseDefaultValue = (
 		const wrapped = value.startsWith('(') && value.endsWith(')') ? value : `(${value})`;
 		return { value: wrapped, type: 'unknown' };
 	}
-	if (columnType.startsWith('varchar') || columnType.startsWith('char')) {
+
+	if (columnType.startsWith('enum') || columnType.startsWith('varchar') || columnType.startsWith('char')) {
 		return { value, type: 'string' };
 	}
 
@@ -53,8 +54,11 @@ export const parseDefaultValue = (
 		return { value: trimChar(value, "'").replaceAll("''", "'"), type: 'json' };
 	}
 
-	if (columnType === 'date' || columnType.startsWith('datetime') || columnType.startsWith('timestamp')) {
-		return { value: value, type: 'date_text' };
+	if (
+		columnType === 'date' || columnType.startsWith('datetime') || columnType.startsWith('timestamp')
+		|| columnType.startsWith('time')
+	) {
+		return { value: value, type: 'string' };
 	}
 
 	if (columnType === 'tinyint(1)') {
@@ -67,14 +71,14 @@ export const parseDefaultValue = (
 		return { value: value, type: big ? 'bigint' : 'number' };
 	}
 
-	console.error(`${columnType} ${value}`);
+	console.error(`unknown default: ${columnType} ${value}`);
 	return null;
 };
 
 const commutativeTypes = [
 	['tinyint(1)', 'boolean'],
 	['binary(1)', 'binary'],
-	['now()', '(now())', 'CURRENT_TIMESTAMP','(CURRENT_TIMESTAMP)', 'CURRENT_TIMESTAMP()']
+	['now()', '(now())', 'CURRENT_TIMESTAMP', '(CURRENT_TIMESTAMP)', 'CURRENT_TIMESTAMP()'],
 ];
 
 export const typesCommutative = (left: string, right: string) => {
@@ -90,7 +94,7 @@ export const typesCommutative = (left: string, right: string) => {
 export const defaultToSQL = (it: Column['default']) => {
 	if (!it) return null;
 
-	if (it.type === 'date_text' || it.type === 'bigint') {
+	if (it.type === 'bigint') {
 		return `'${it.value}'`;
 	}
 	if (it.type === 'boolean' || it.type === 'number' || it.type === 'unknown') {

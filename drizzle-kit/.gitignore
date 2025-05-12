@@ -9,7 +9,6 @@ tests/**/tmp/
 !vitest.config.ts
 !README.md
 !CONTRIBUTING.md
-!schema.ts
 
 !.eslint
 !.gitignore
@@ -22,6 +21,7 @@ tests/**/tmp/
 !build.ts
 !build.dev.ts
 !build.ext.ts
+!build.cli.ts
 
 tests/test.ts
 
