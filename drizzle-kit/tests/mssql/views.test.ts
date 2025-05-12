@@ -437,8 +437,7 @@ test('alter view ".as" value with existing flag', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-// TODO should this only be create?
-test.todo('drop existing flag', async () => {
+test('drop existing flag', async () => {
 	const users = mssqlTable('users', {
 		id: int('id').primaryKey().notNull(),
 	});
@@ -453,36 +452,32 @@ test.todo('drop existing flag', async () => {
 		view: mssqlView('some_view', { id: int('id') }).as(sql`SELECT 'asd'`),
 	};
 
-	const { sqlStatements, statements } = await diff(from, to, []);
+	const { sqlStatements } = await diff(from, to, []);
 
-	console.log('statements: ', statements);
 	expect(sqlStatements).toStrictEqual([
-		'DROP VIEW [some_view];',
 		`CREATE VIEW [some_view] AS (SELECT 'asd');`,
 	]);
 });
 
-// TODO this is dropped? Why?
-test.todo('set existing', async () => {
+test('set existing', async () => {
 	const users = mssqlTable('users', {
 		id: int('id').primaryKey().notNull(),
 	});
 
 	const from = {
 		users,
-		view: mssqlView('some_view', { id: int('id') }).with().as(sql`SELECT 'asd'`),
+		view: mssqlView('some_view', { id: int('id') }).as(sql`SELECT 'asd'`),
 	};
 
 	const to = {
 		users,
-		view: mssqlView('new_some_view', { id: int('id') }).with().existing(),
+		view: mssqlView('some_view', { id: int('id') }).existing(),
 	};
 
-	const { sqlStatements } = await diff(from, to, ['dbo.some_view->dbo.new_some_view']);
+	const { sqlStatements } = await diff(from, to, []);
 
-	console.log('sqlStatements: ', sqlStatements);
-
-	expect(sqlStatements.length).toBe(0);
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements).toStrictEqual([`DROP VIEW [some_view];`]);
 });
 
 test('rename view and alter view', async () => {

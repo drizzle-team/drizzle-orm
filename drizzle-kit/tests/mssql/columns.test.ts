@@ -91,8 +91,7 @@ test('alter column change name #2', async (t) => {
 	]);
 });
 
-// TODO here i need to be sure that name is correct, syntax is correct here
-test.todo('alter table add composite pk', async (t) => {
+test('alter table add composite pk', async (t) => {
 	const schema1 = {
 		table: mssqlTable('table', {
 			id1: int('id1'),
@@ -135,7 +134,7 @@ test('rename table rename column #1', async (t) => {
 	]);
 
 	expect(sqlStatements).toStrictEqual([
-		`EXEC sp_rename '[users]', '[users1]';`,
+		`EXEC sp_rename '[users]', [users1];`,
 		`EXEC sp_rename '[users1].[id]', [id1], 'COLUMN';`,
 	]);
 });
@@ -200,7 +199,6 @@ test('rename column that is part of the pk', async (t) => {
 		}, (t) => [primaryKey({ columns: [t.id1, t.id3], name: 'compositePK' })]),
 	};
 
-	// TODO: remove redundand drop/create create constraint
 	const { sqlStatements } = await diff(schema1, schema2, [
 		'dbo.users.id2->dbo.users.id3',
 	]);
@@ -208,116 +206,30 @@ test('rename column that is part of the pk', async (t) => {
 	expect(sqlStatements).toStrictEqual([`EXEC sp_rename '[users].[id2]', [id3], 'COLUMN';`]);
 });
 
-// test('add multiple constraints #1', async (t) => {
-// 	const t1 = mssqlTable('t1', {
-// 		id: uuid('id').primaryKey().defaultRandom(),
-// 	});
+// TODO can i rename in mssql this?
+test.only('rename pk', async (t) => {
+	const schema1 = {
+		users: mssqlTable(
+			'users',
+			{
+				id1: int('id1'),
+				id2: int('id2'),
+			},
+			(t) => [primaryKey({ columns: [t.id1, t.id2], name: 'compositePK' })],
+		),
+	};
 
-// 	const t2 = mssqlTable('t2', {
-// 		id: ('id').primaryKey(),
-// 	});
+	const schema2 = {
+		users: mssqlTable('users', {
+			id1: int('id1'),
+			id3: int('id3'),
+		}, (t) => [primaryKey({ columns: [t.id1, t.id3] })]),
+	};
 
-// 	const t3 = mssqlTable('t3', {
-// 		id: uuid('id').primaryKey().defaultRandom(),
-// 	});
+	const { sqlStatements } = await diff(schema1, schema2, []);
 
-// 	const schema1 = {
-// 		t1,
-// 		t2,
-// 		t3,
-// 		ref1: mssqlTable('ref1', {
-// 			id1: uuid('id1').references(() => t1.id),
-// 			id2: uuid('id2').references(() => t2.id),
-// 			id3: uuid('id3').references(() => t3.id),
-// 		}),
-// 	};
-
-// 	const schema2 = {
-// 		t1,
-// 		t2,
-// 		t3,
-// 		ref1: mssqlTable('ref1', {
-// 			id1: uuid('id1').references(() => t1.id, { onDelete: 'cascade' }),
-// 			id2: uuid('id2').references(() => t2.id, { onDelete: 'set null' }),
-// 			id3: uuid('id3').references(() => t3.id, { onDelete: 'cascade' }),
-// 		}),
-// 	};
-
-// 	// TODO: remove redundand drop/create create constraint
-// 	const { sqlStatements } = await diff(schema1, schema2, []);
-
-// 	expect(sqlStatements).toStrictEqual([]);
-// });
-
-// test('add multiple constraints #2', async (t) => {
-// 	const t1 = mssqlTable('t1', {
-// 		id1: uuid('id1').primaryKey().defaultRandom(),
-// 		id2: uuid('id2').primaryKey().defaultRandom(),
-// 		id3: uuid('id3').primaryKey().defaultRandom(),
-// 	});
-
-// 	const schema1 = {
-// 		t1,
-// 		ref1: mssqlTable('ref1', {
-// 			id1: uuid('id1').references(() => t1.id1),
-// 			id2: uuid('id2').references(() => t1.id2),
-// 			id3: uuid('id3').references(() => t1.id3),
-// 		}),
-// 	};
-
-// 	const schema2 = {
-// 		t1,
-// 		ref1: mssqlTable('ref1', {
-// 			id1: uuid('id1').references(() => t1.id1, { onDelete: 'cascade' }),
-// 			id2: uuid('id2').references(() => t1.id2, { onDelete: 'set null' }),
-// 			id3: uuid('id3').references(() => t1.id3, { onDelete: 'cascade' }),
-// 		}),
-// 	};
-
-// 	// TODO: remove redundand drop/create create constraint
-// 	const { sqlStatements } = await diff(schema1, schema2, []);
-
-// 	expect(sqlStatements).toStrictEqual([]);
-// });
-
-// test('add multiple constraints #3', async (t) => {
-// 	const t1 = mssqlTable('t1', {
-// 		id1: uuid('id1').primaryKey().defaultRandom(),
-// 		id2: uuid('id2').primaryKey().defaultRandom(),
-// 		id3: uuid('id3').primaryKey().defaultRandom(),
-// 	});
-
-// 	const schema1 = {
-// 		t1,
-// 		ref1: mssqlTable('ref1', {
-// 			id: uuid('id').references(() => t1.id1),
-// 		}),
-// 		ref2: mssqlTable('ref2', {
-// 			id: uuid('id').references(() => t1.id2),
-// 		}),
-// 		ref3: mssqlTable('ref3', {
-// 			id: uuid('id').references(() => t1.id3),
-// 		}),
-// 	};
-
-// 	const schema2 = {
-// 		t1,
-// 		ref1: mssqlTable('ref1', {
-// 			id: uuid('id').references(() => t1.id1, { onDelete: 'cascade' }),
-// 		}),
-// 		ref2: mssqlTable('ref2', {
-// 			id: uuid('id').references(() => t1.id2, { onDelete: 'set null' }),
-// 		}),
-// 		ref3: mssqlTable('ref3', {
-// 			id: uuid('id').references(() => t1.id3, { onDelete: 'cascade' }),
-// 		}),
-// 	};
-
-// 	// TODO: remove redundand drop/create create constraint
-// 	const { sqlStatements } = await diff(schema1, schema2, []);
-
-// 	expect(sqlStatements).toStrictEqual([]);
-// });
+	expect(sqlStatements).toStrictEqual([`EXEC sp_rename '[users].[id2]', [id3], 'COLUMN';`]);
+});
 
 test('varchar and text default values escape single quotes', async () => {
 	const schema1 = {
@@ -373,5 +285,25 @@ test('add columns with defaults', async () => {
 		'ALTER TABLE [table] ADD [int3] int DEFAULT -10;',
 		'ALTER TABLE [table] ADD [bool1] bit DEFAULT true;',
 		'ALTER TABLE [table] ADD [bool2] bit DEFAULT false;',
+	]);
+});
+
+test('drop primary key', async () => {
+	const schema1 = {
+		table: mssqlTable('table', {
+			id: int().primaryKey(),
+		}),
+	};
+
+	const schema2 = {
+		table: mssqlTable('table', {
+			id: int(),
+		}),
+	};
+
+	const { sqlStatements } = await diff(schema1, schema2, []);
+
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE [table] DROP CONSTRAINT [table_pkey];',
 	]);
 });

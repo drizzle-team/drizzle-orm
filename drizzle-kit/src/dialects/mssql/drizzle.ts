@@ -150,7 +150,10 @@ export const fromDrizzleSchema = (
 				table: tableName,
 				name,
 				type: sqlType,
-				notNull: notNull,
+				notNull: notNull
+					&& !column.primary
+					&& !column.generated
+					&& !identity,
 				// @ts-expect-error
 				// TODO update description
 				// 'virtual' | 'stored' for postgres, mysql
@@ -315,7 +318,6 @@ export const fromDrizzleSchema = (
 		result.views.push({
 			entityType: 'views',
 			name,
-			isExisting,
 			definition: query ? dialect.sqlToQuery(query).sql : '',
 			checkOption: checkOption ?? null,
 			encryption: encryption ?? null,
