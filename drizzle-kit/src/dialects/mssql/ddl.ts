@@ -181,14 +181,14 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MssqlDDL; errors: S
 	const ddl = createDDL();
 
 	for (const it of interim.schemas) {
-		const res = ddl.schemas.insert(it);
+		const res = ddl.schemas.push(it);
 		if (res.status === 'CONFLICT') {
 			errors.push({ type: 'schema_name_conflict', name: it.name });
 		}
 	}
 
 	for (const table of interim.tables) {
-		const res = ddl.tables.insert(table);
+		const res = ddl.tables.push(table);
 		if (res.status === 'CONFLICT') {
 			errors.push({ type: 'table_name_conflict', name: table.name });
 		}
@@ -196,14 +196,14 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MssqlDDL; errors: S
 
 	for (const column of interim.columns) {
 		const { isPK, isUnique, ...rest } = column;
-		const res = ddl.columns.insert(rest);
+		const res = ddl.columns.push(rest);
 		if (res.status === 'CONFLICT') {
 			errors.push({ type: 'column_name_conflict', table: column.table, name: column.name });
 		}
 	}
 
 	for (const index of interim.indexes) {
-		const res = ddl.indexes.insert(index);
+		const res = ddl.indexes.push(index);
 		if (res.status === 'CONFLICT') {
 			errors.push({
 				type: 'index_name_conflict',
@@ -215,14 +215,14 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MssqlDDL; errors: S
 	}
 
 	for (const fk of interim.fks) {
-		const res = ddl.fks.insert(fk);
+		const res = ddl.fks.push(fk);
 		if (res.status === 'CONFLICT') {
 			errors.push({ type: 'constraint_name_conflict', name: fk.name, table: fk.table, schema: fk.schema });
 		}
 	}
 
 	for (const pk of interim.pks) {
-		const res = ddl.pks.insert(pk);
+		const res = ddl.pks.push(pk);
 		if (res.status === 'CONFLICT') {
 			errors.push({ type: 'constraint_name_conflict', name: pk.name, table: pk.table, schema: pk.schema });
 		}
@@ -233,7 +233,7 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MssqlDDL; errors: S
 		const exists = ddl.pks.one({ schema: column.schema, table: column.table, name: name }) !== null;
 		if (exists) continue;
 
-		ddl.pks.insert({
+		ddl.pks.push({
 			table: column.table,
 			name,
 			nameExplicit: false,
@@ -247,7 +247,7 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MssqlDDL; errors: S
 		const exists = ddl.uniques.one({ schema: column.schema, table: column.table, name: name }) !== null;
 		if (exists) continue;
 
-		ddl.uniques.insert({
+		ddl.uniques.push({
 			schema: column.schema,
 			table: column.table,
 			name,
@@ -257,7 +257,7 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MssqlDDL; errors: S
 	}
 
 	for (const check of interim.checks) {
-		const res = ddl.checks.insert(check);
+		const res = ddl.checks.push(check);
 		if (res.status === 'CONFLICT') {
 			errors.push({
 				type: 'constraint_name_conflict',
@@ -269,7 +269,7 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MssqlDDL; errors: S
 	}
 
 	for (const view of interim.views) {
-		const res = ddl.views.insert(view);
+		const res = ddl.views.push(view);
 		if (res.status === 'CONFLICT') {
 			errors.push({
 				type: 'view_name_conflict',

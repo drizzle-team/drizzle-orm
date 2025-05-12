@@ -128,7 +128,7 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: S
 	const errors = [] as SchemaError[];
 	const ddl = createDDL();
 	for (const table of interim.tables) {
-		const res = ddl.tables.insert(table);
+		const res = ddl.tables.push(table);
 		if (res.status === 'CONFLICT') {
 			errors.push({ type: 'table_name_conflict', name: table.name });
 		}
@@ -136,21 +136,21 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: S
 
 	for (const column of interim.columns) {
 		const { isPK, isUnique, ...rest } = column;
-		const res = ddl.columns.insert(rest);
+		const res = ddl.columns.push(rest);
 		if (res.status === 'CONFLICT') {
 			errors.push({ type: 'column_name_conflict', table: column.table, name: column.name });
 		}
 	}
 
 	for (const pk of interim.pks) {
-		const res = ddl.pks.insert(pk);
+		const res = ddl.pks.push(pk);
 		if (res.status === 'CONFLICT') {
 			throw new Error(`PK conflict: ${JSON.stringify(pk)}`);
 		}
 	}
 
 	for (const column of interim.columns.filter((it) => it.isPK)) {
-		const res = ddl.pks.insert({
+		const res = ddl.pks.push({
 			table: column.table,
 			name: 'PRIMARY', // database default
 			nameExplicit: false,
@@ -164,7 +164,7 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: S
 
 	for (const column of interim.columns.filter((it) => it.isUnique)) {
 		const name = `${column.name}_unique`;
-		ddl.indexes.insert({
+		ddl.indexes.push({
 			table: column.table,
 			name,
 			columns: [{ value: column.name, isExpression: false }],
@@ -176,28 +176,28 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: S
 	}
 
 	for (const index of interim.indexes) {
-		const res = ddl.indexes.insert(index);
+		const res = ddl.indexes.push(index);
 		if (res.status === 'CONFLICT') {
 			throw new Error(`Index conflict: ${JSON.stringify(index)}`);
 		}
 	}
 
 	for (const fk of interim.fks) {
-		const res = ddl.fks.insert(fk);
+		const res = ddl.fks.push(fk);
 		if (res.status === 'CONFLICT') {
 			throw new Error(`FK conflict: ${JSON.stringify(fk)}`);
 		}
 	}
 
 	for (const check of interim.checks) {
-		const res = ddl.checks.insert(check);
+		const res = ddl.checks.push(check);
 		if (res.status === 'CONFLICT') {
 			throw new Error(`Check constraint conflict: ${JSON.stringify(check)}`);
 		}
 	}
 
 	for (const view of interim.views) {
-		const res = ddl.views.insert(view);
+		const res = ddl.views.push(view);
 		if (res.status === 'CONFLICT') {
 			throw new Error(`View conflict: ${JSON.stringify(view)}`);
 		}
