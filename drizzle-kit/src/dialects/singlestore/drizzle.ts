@@ -38,11 +38,11 @@ export const defaultFromColumn = (column: AnySingleStoreColumn, casing?: Casing)
 
 	if (column.default instanceof Date) {
 		if (sqlTypeLowered === 'date') {
-			return { value: column.default.toISOString().split('T')[0], type: 'date_text' };
+			return { value: column.default.toISOString().split('T')[0], type: 'string' };
 		}
 
 		if (sqlTypeLowered.startsWith('datetime') || sqlTypeLowered.startsWith('timestamp')) {
-			return { value: column.default.toISOString().replace('T', ' ').slice(0, 23), type: 'date_text' };
+			return { value: column.default.toISOString().replace('T', ' ').slice(0, 23), type: 'string' };
 		}
 
 		throw new Error(`unexpected default: ${column.default}`);

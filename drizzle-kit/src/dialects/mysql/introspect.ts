@@ -3,6 +3,25 @@ import { DB } from '../../utils';
 import { ForeignKey, Index, InterimSchema, PrimaryKey } from './ddl';
 import { parseDefaultValue } from './grammar';
 
+export const fromDatabaseForDrizzle = async (
+	db: DB,
+	schema: string,
+	tablesFilter: (table: string) => boolean = (table) => true,
+	progressCallback: (
+		stage: IntrospectStage,
+		count: number,
+		status: IntrospectStatus,
+	) => void = () => {},
+): Promise<InterimSchema> => {
+	const res = await fromDatabase(db, schema, tablesFilter, progressCallback);
+	res.indexes = res.indexes.filter((x) => {
+		let skip = x.unique === true && x.columns.length === 1 && x.columns[0].isExpression === false;
+		skip &&= res.columns.some((c) => c.type === 'serial' && c.table === x.table && c.name === x.columns[0].value);
+		return !skip;
+	});
+	return res;
+};
+
 export const fromDatabase = async (
 	db: DB,
 	schema: string,

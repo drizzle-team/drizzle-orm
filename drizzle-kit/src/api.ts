@@ -3,57 +3,15 @@ import { LibSQLDatabase } from 'drizzle-orm/libsql';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
 import { PgDatabase } from 'drizzle-orm/pg-core';
 import { SingleStoreDriverDatabase } from 'drizzle-orm/singlestore';
-import {
-	columnsResolver,
-	enumsResolver,
-	indexesResolver,
-	indPolicyResolver,
-	mySqlViewsResolver,
-	policyResolver,
-	roleResolver,
-	schemasResolver,
-	sequencesResolver,
-	sqliteViewsResolver,
-	tablesResolver,
-	uniqueResolver,
-	viewsResolver,
-} from './cli/commands/generate-common';
-import { pgSuggestions } from './cli/commands/pgPushUtils';
 import { pgPushIntrospect } from './cli/commands/pull-postgres';
-import { sqliteIntrospect, sqlitePushIntrospect } from './cli/commands/pull-sqlite';
-import { logSuggestionsAndReturn } from './cli/commands/sqlitePushUtils';
+import { sqliteIntrospect } from './cli/commands/pull-sqlite';
 import { updateUpToV6 as upPgV6, updateUpToV7 as upPgV7 } from './cli/commands/up-postgres';
 import type { CasingType } from './cli/validations/common';
 import { ProgressView, schemaError, schemaWarning } from './cli/views';
-import {
-	PgSchema as PgSchemaKit,
-	pgSchema,
-	PostgresGenerateSquasher,
-	PostgresPushSquasher,
-	squashPgScheme,
-} from './dialects/postgres/ddl';
-import { generatePgSnapshot } from './dialects/postgres/drizzle';
-import { drizzleToInternal } from './dialects/postgres/pgDrizzleSerializer';
-import { prepareFromExports } from './dialects/postgres/pgImports';
-import { SQLiteSchema as SQLiteSchemaKit, sqliteSchema, squashSqliteScheme } from './dialects/sqlite/ddl';
-import { fromDrizzleSchema } from './dialects/sqlite/serializer';
 import { getTablesFilterByExtensions } from './extensions/getTablesFilterByExtensions';
 import { originUUID } from './global';
 import type { Config } from './index';
-import { fillPgSnapshot } from './migrationPreparator';
-import { MySqlSchema as MySQLSchemaKit, mysqlSchema, squashMysqlScheme } from './serializer/mysqlSchema';
-import { generateMySqlSnapshot } from './serializer/mysqlSerializer';
-import {
-	SingleStoreSchema as SingleStoreSchemaKit,
-	singlestoreSchema,
-	squashSingleStoreScheme,
-} from './serializer/singlestoreSchema';
-import { generateSingleStoreSnapshot } from './serializer/singlestoreSerializer';
 import type { DB, SQLiteDB } from './utils';
-export type DrizzleSnapshotJSON = PgSchemaKit;
-export type DrizzleSQLiteSnapshotJSON = SQLiteSchemaKit;
-export type DrizzleMySQLSnapshotJSON = MySQLSchemaKit;
-export type DrizzleSingleStoreSnapshotJSON = SingleStoreSchemaKit;
 
 export const generateDrizzleJson = (
 	imports: Record<string, unknown>,

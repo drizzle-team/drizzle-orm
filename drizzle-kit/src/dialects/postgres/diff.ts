@@ -783,13 +783,6 @@ export const ddlDiff = async (
 		})
 	);
 
-	const jsonAlterColumns = columnAlters.filter((it) => !(it.generated && it.generated.to !== null)).map((it) => {
-		return prepareStatement('alter_column', {
-			diff: it,
-			to: ddl2.columns.one({ schema: it.schema, table: it.table, name: it.name })!,
-		});
-	});
-
 	const jsonAddPrimaryKeys = pksCreates.filter(tablesFilter('created')).map((it) =>
 		prepareStatement('add_pk', { pk: it })
 	);
@@ -984,12 +977,42 @@ export const ddlDiff = async (
 
 		if (res.some((it) => it.type === 'removed')) {
 			// recreate enum
-			const columns = ddl2.columns.list({ typeSchema: alter.schema, type: alter.name });
+			const columns = ddl1.columns.list({ typeSchema: alter.schema, type: alter.name })
+				.map((it) => {
+					const c2 = ddl2.columns.one({ schema: it.schema, table: it.table, name: it.name })!;
+					it.default = c2.default;
+					return it;
+				});
 			recreateEnums.push(prepareStatement('recreate_enum', { to: e, columns }));
 		} else {
 			jsonAlterEnums.push(prepareStatement('alter_enum', { diff: res, enum: e }));
 		}
 	}
+
+	const jsonAlterColumns = columnAlters.filter((it) => !(it.generated && it.generated.to !== null))
+		.map((it) => {
+			// if column is of type enum we're about to recreate - we will reset default anyway
+			if (
+				it.default
+				&& recreateEnums.some((x) =>
+					x.columns.some((c) => it.schema === c.schema && it.table === c.table && it.name === c.name)
+				)
+			) {
+				delete it.default;
+			}
+			return it;
+		})
+		.filter((it) => Object.keys(it).length > 5)
+		.map((it) => {
+			const column = ddl2.columns.one({ schema: it.schema, table: it.table, name: it.name })!;
+			return prepareStatement('alter_column', {
+				diff: it,
+				isEnum: ddl2.enums.one({ schema: column.typeSchema ?? 'public', name: column.type }) !== null,
+				wasEnum: (it.type && ddl1.enums.one({ schema: column.typeSchema ?? 'public', name: it.type.from }) !== null)
+					?? false,
+				to: column,
+			});
+		});
 
 	const createSequences = createdSequences.map((it) => prepareStatement('create_sequence', { sequence: it }));
 	const dropSequences = deletedSequences.map((it) => prepareStatement('drop_sequence', { sequence: it }));
@@ -1117,6 +1140,7 @@ export const ddlDiff = async (
 
 	jsonStatements.push(...jsonAddPrimaryKeys);
 	jsonStatements.push(...jsonAddColumnsStatemets);
+	jsonStatements.push(...recreateEnums);
 	jsonStatements.push(...jsonRecreateColumns);
 	jsonStatements.push(...jsonAlterColumns);
 
@@ -1142,7 +1166,6 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonCreatePoliciesStatements);
 	jsonStatements.push(...jsonAlterOrRecreatePoliciesStatements);
 
-	jsonStatements.push(...recreateEnums);
 	jsonStatements.push(...jsonDropEnums); // TODO: check
 	jsonStatements.push(...dropSequences);
 	jsonStatements.push(...dropSchemas);

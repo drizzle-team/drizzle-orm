@@ -46,8 +46,8 @@ export const handle = async (config: GenerateConfig) => {
 	const blanks = new Set<string>();
 
 	const { sqlStatements, renames } = await ddlDiff(
-		ddlCur,
 		ddlPrev,
+		ddlCur,
 		resolver<Schema>('schema'),
 		resolver<Enum>('enum'),
 		resolver<Sequence>('sequence'),
