@@ -1,4 +1,4 @@
-import { pgTable, text, unique } from 'drizzle-orm/pg-core';
+import { integer, pgTable, serial, text, unique } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
 import { diff } from './mocks';
 
@@ -275,6 +275,26 @@ test('unique #13', async () => {
 
 	const { sqlStatements: st2 } = await diff(sch2, sch3, []);
 	expect(st2).toStrictEqual(['ALTER TABLE "users2" DROP CONSTRAINT "users_email_key";']);
+});
+
+test('fk #1', async () => {
+	const users = pgTable('users', {
+		id: serial().primaryKey(),
+	});
+	const posts = pgTable('posts', {
+		id: serial().primaryKey(),
+		authorId: integer().references(() => users.id),
+	});
+
+	const to = {
+		posts,
+		users,
+	};
+
+	const { sqlStatements } = await diff({}, to, []);
+	expect(sqlStatements).toStrictEqual([
+		'',
+	]);
 });
 
 test('pk #1', async () => {
