@@ -197,7 +197,7 @@ export const interimToDDL = (schema: InterimSchema): { ddl: SQLiteDDL; errors: S
 			errors.push({ type: 'table_no_columns', table: table.name });
 			continue;
 		}
-		const res = ddl.tables.insert(table);
+		const res = ddl.tables.push(table);
 		if (res.status === 'CONFLICT') {
 			errors.push({ type: 'conflict_table', table: res.data.name });
 		}
@@ -205,34 +205,34 @@ export const interimToDDL = (schema: InterimSchema): { ddl: SQLiteDDL; errors: S
 
 	for (const column of schema.columns) {
 		const { isUnique, uniqueName, ...rest } = column;
-		const res = ddl.columns.insert(rest);
+		const res = ddl.columns.push(rest);
 		if (res.status === 'CONFLICT') {
 			errors.push({ type: 'conflict_column', table: column.table, column: column.name });
 		}
 	}
 
 	for (const fk of schema.fks) {
-		const res = ddl.fks.insert(fk);
+		const res = ddl.fks.push(fk);
 		if (res.status === 'CONFLICT') {
 			errors.push({ type: 'conflict_fk', name: fk.name });
 		}
 	}
 	for (const pk of schema.pks) {
-		const res = ddl.pks.insert(pk);
+		const res = ddl.pks.push(pk);
 		if (res.status === 'CONFLICT') {
 			errors.push({ type: 'conflict_pk', name: pk.name });
 		}
 	}
 
 	for (const index of schema.indexes) {
-		const { status } = ddl.indexes.insert(index, ['name']); // indexes have to have unique names across all schema
+		const { status } = ddl.indexes.push(index, ['name']); // indexes have to have unique names across all schema
 		if (status === 'CONFLICT') {
 			errors.push({ type: 'conflict_index', name: index.name });
 		}
 	}
 
 	for (const unique of schema.uniques) {
-		const res = ddl.uniques.insert(unique);
+		const res = ddl.uniques.push(unique);
 		if (res.status === 'CONFLICT') {
 			errors.push({ type: 'conflict_unique', name: unique.name });
 		}
@@ -247,21 +247,21 @@ export const interimToDDL = (schema: InterimSchema): { ddl: SQLiteDDL; errors: S
 			origin: 'manual',
 		} satisfies UniqueConstraint;
 
-		const res = ddl.uniques.insert(u);
+		const res = ddl.uniques.push(u);
 		if (res.status === 'CONFLICT') {
 			errors.push({ type: 'conflict_unique', name: u.name });
 		}
 	}
 
 	for (const check of schema.checks) {
-		const res = ddl.checks.insert(check);
+		const res = ddl.checks.push(check);
 		if (res.status === 'CONFLICT') {
 			errors.push({ type: 'conflict_check', name: res.data.name });
 		}
 	}
 
 	for (const view of schema.views) {
-		const res = ddl.views.insert(view);
+		const res = ddl.views.push(view);
 		if (res.status === 'CONFLICT') {
 			errors.push({ type: 'conflict_view', view: view.name });
 		}

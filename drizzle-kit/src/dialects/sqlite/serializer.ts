@@ -26,7 +26,7 @@ export const prepareSqliteSnapshot = async (
 
 	const ddlPrev = createDDL();
 	for (const entry of prevSnapshot.ddl) {
-		ddlPrev.entities.insert(entry);
+		ddlPrev.entities.push(entry);
 	}
 	const filenames = prepareFilenames(schemaPath);
 

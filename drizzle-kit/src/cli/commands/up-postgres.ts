@@ -1,20 +1,27 @@
 import chalk from 'chalk';
+import { name } from 'drizzle-orm';
+import { index } from 'drizzle-orm/gel-core';
 import { writeFileSync } from 'fs';
-import { defaults } from 'src/dialects/postgres/grammar';
-import { getOrNull } from 'src/dialects/utils';
-import { createDDL } from '../../dialects/postgres/ddl';
+import { createDDL, Index } from '../../dialects/postgres/ddl';
+import {
+	defaultForColumn,
+	defaultNameForFK,
+	defaultNameForIndex,
+	defaultNameForPK,
+	defaultNameForUnique,
+	defaults,
+} from '../../dialects/postgres/grammar';
 import {
 	Column,
-	Index,
+	Index as LegacyIndex,
 	PgSchema,
 	PgSchemaV4,
 	PgSchemaV5,
-	pgSchemaV5,
 	PgSchemaV6,
-	pgSchemaV6,
 	PostgresSnapshot,
 	TableV5,
 } from '../../dialects/postgres/snapshot';
+import { getOrNull } from '../../dialects/utils';
 import { prepareOutFolder, validateWithReport } from '../../utils-node';
 
 export const upPgHandler = (out: string) => {
@@ -29,15 +36,12 @@ export const upPgHandler = (out: string) => {
 		.forEach((it) => {
 			const path = it.path;
 
-			let resultV6 = it.raw;
-			if (it.raw.version === '5') {
-				resultV6 = updateUpToV6(it.raw);
-			}
+			const { snapshot, hints } = updateToV8(it.raw);
 
-			const resultV7 = updateUpToV7(resultV6);
-			const result = console.log(`[${chalk.green('✓')}] ${path}`);
+			console.log(hints);
+			console.log(`[${chalk.green('✓')}] ${path}`);
 
-			writeFileSync(path, JSON.stringify(result, null, 2));
+			writeFileSync(path, JSON.stringify(snapshot, null, 2));
 		});
 
 	console.log("Everything's fine 🐶🔥");
@@ -46,19 +50,181 @@ export const upPgHandler = (out: string) => {
 // TODO: handle unique name _unique vs _key
 // TODO: handle pk name table_columns_pk vs table_pkey
 // TODO: handle all entities!
-export const updateToV8 = (json: PgSchema): PostgresSnapshot => {
+export const updateToV8 = (it: Record<string, any>): { snapshot: PostgresSnapshot; hints: string[] } => {
+	if (Number(it.version) < 7) return updateToV8(updateUpToV7(it));
+	const json = it as PgSchema;
+
+	const hints = [] as string[];
+
 	const ddl = createDDL();
 
 	for (const schema of Object.values(json.schemas)) {
-		ddl.schemas.insert({ name: schema });
+		ddl.schemas.push({ name: schema });
+	}
+
+	for (const table of Object.values(json.tables)) {
+		const schema = table.schema || 'public';
+		ddl.tables.push({
+			schema,
+			name: table.name,
+			isRlsEnabled: table.isRLSEnabled ?? false,
+		});
+
+		for (const column of Object.values(table.columns)) {
+			if (column.primaryKey) {
+				ddl.pks.push({
+					schema,
+					table: table.name,
+					columns: [column.name],
+					name: defaultNameForPK(table.name),
+					nameExplicit: false,
+				});
+			}
+
+			const [type, dimensions] = extractBaseTypeAndDimensions(column.type);
+
+			ddl.columns.push({
+				schema,
+				table: table.name,
+				name: column.name,
+				type,
+				notNull: column.notNull,
+				typeSchema: column.typeSchema ?? null, // TODO: if public - empty or missing?
+				dimensions,
+				generated: column.generated ?? null,
+				identity: column.identity
+					? {
+						name: column.identity.name,
+						type: column.identity.type,
+						startWith: column.identity.startWith ?? null,
+						minValue: column.identity.minValue ?? null,
+						maxValue: column.identity.maxValue ?? null,
+						increment: column.identity.increment ?? null,
+						cache: column.identity.cache ? Number(column.identity.cache) : null,
+						cycle: column.identity.cycle ?? null,
+					}
+					: null,
+				default: defaultForColumn(type, column.default, dimensions),
+			});
+		}
+
+		for (const pk of Object.values(table.compositePrimaryKeys)) {
+			const nameExplicit = `${table.name}_${pk.columns.join('_')}_pk` !== pk.name;
+			if (!nameExplicit) {
+				hints.push(`update pk name: ${pk.name} -> ${defaultNameForPK(table.name)}`);
+			}
+			ddl.pks.push({
+				schema: schema,
+				table: table.name,
+				name: pk.name,
+				columns: pk.columns,
+				nameExplicit, // TODO: ??
+			});
+		}
+
+		for (const unique of Object.values(table.uniqueConstraints)) {
+			const nameExplicit = `${table.name}_${unique.columns.join('_')}_unique` !== unique.name;
+			if (!nameExplicit) {
+				hints.push(`update unique name: ${unique.name} -> ${defaultNameForUnique(table.name, ...unique.columns)}`);
+			}
+
+			ddl.uniques.push({
+				schema,
+				table: table.name,
+				columns: unique.columns,
+				name: nameExplicit ? unique.name : defaultNameForUnique(table.name, ...unique.columns),
+				nameExplicit: nameExplicit,
+				nullsNotDistinct: unique.nullsNotDistinct ?? defaults.nullsNotDistinct,
+			});
+		}
+
+		for (const check of Object.values(table.checkConstraints)) {
+			ddl.checks.push({
+				schema,
+				table: table.name,
+				name: check.name,
+				value: check.value,
+			});
+		}
+
+		for (const idx of Object.values(table.indexes)) {
+			const columns: Index['columns'][number][] = idx.columns.map<Index['columns'][number]>((it) => {
+				return {
+					value: it.expression,
+					isExpression: it.isExpression,
+					asc: it.asc,
+					nullsFirst: it.nulls ? it.nulls !== 'last' : false,
+					opclass: it.opclass
+						? {
+							name: it.opclass,
+							default: false,
+						}
+						: null,
+				};
+			});
+
+			const nameExplicit = columns.some((it) => it.isExpression === true)
+				|| `${table.name}_${columns.map((it) => it.value).join('_')}_index` !== idx.name;
+
+			if (!nameExplicit) {
+				hints.push(
+					`rename index name: ${idx.name} -> ${defaultNameForIndex(table.name, idx.columns.map((x) => x.expression))}`,
+				);
+			}
+
+			ddl.indexes.push({
+				schema,
+				table: table.name,
+				name: idx.name,
+				columns,
+				isPrimary: false,
+				isUnique: idx.isUnique,
+				method: idx.method,
+				concurrently: idx.concurrently,
+				where: idx.where ?? null,
+				with: idx.with && Object.keys(idx.with).length > 0
+					? Object.entries(idx.with).map((it) => `${it[0]}=${it[1]}`).join(',')
+					: '',
+				nameExplicit,
+			});
+		}
+
+		for (const fk of Object.values(table.foreignKeys)) {
+			const nameExplicit = defaultNameForFK(fk.tableFrom, fk.columnsFrom, fk.tableTo, fk.columnsTo) !== fk.name;
+			ddl.fks.push({
+				schema,
+				name: fk.name,
+				nameExplicit,
+				table: fk.tableFrom,
+				columns: fk.columnsFrom,
+				schemaTo: fk.schemaTo || 'public',
+				tableTo: fk.tableTo,
+				columnsTo: fk.columnsTo,
+				onDelete: fk.onDelete?.toUpperCase() as any ?? 'NO ACTION',
+				onUpdate: fk.onUpdate?.toUpperCase() as any ?? 'NO ACTION',
+			});
+		}
+
+		for (const policy of Object.values(table.policies)) {
+			ddl.policies.push({
+				schema,
+				table: table.name,
+				name: policy.name,
+				as: policy.as ?? 'PERMISSIVE',
+				for: policy.for ?? 'ALL',
+				roles: policy.to ?? [],
+				using: policy.using ?? null,
+				withCheck: policy.withCheck ?? null,
+			});
+		}
 	}
 
 	for (const en of Object.values(json.enums)) {
-		ddl.enums.insert({ schema: en.schema, name: en.name, values: en.values });
+		ddl.enums.push({ schema: en.schema, name: en.name, values: en.values });
 	}
 
 	for (const role of Object.values(json.roles)) {
-		ddl.roles.insert({
+		ddl.roles.push({
 			name: role.name,
 			createRole: role.createRole,
 			createDb: role.createDb,
@@ -67,7 +233,7 @@ export const updateToV8 = (json: PgSchema): PostgresSnapshot => {
 	}
 
 	for (const policy of Object.values(json.policies)) {
-		ddl.policies.insert({
+		ddl.policies.push({
 			schema: policy.schema ?? 'public',
 			table: policy.on!,
 			name: policy.name,
@@ -81,7 +247,7 @@ export const updateToV8 = (json: PgSchema): PostgresSnapshot => {
 
 	for (const v of Object.values(json.views)) {
 		const opt = v.with;
-		ddl.views.insert({
+		ddl.views.push({
 			schema: v.schema,
 			name: v.name,
 			definition: v.definition ?? null,
@@ -125,25 +291,37 @@ export const updateToV8 = (json: PgSchema): PostgresSnapshot => {
 	];
 
 	return {
-		id: json.id,
-		prevId: json.prevId,
-		version: '8',
-		dialect: 'postgres',
-		ddl: ddl.entities.list(),
-		renames,
+		snapshot: {
+			id: json.id,
+			prevId: json.prevId,
+			version: '8',
+			dialect: 'postgres',
+			ddl: ddl.entities.list(),
+			renames,
+		},
+		hints,
 	};
 };
 
+export const extractBaseTypeAndDimensions = (it: string): [string, number] => {
+	const dimensionRegex = /\[[^\]]*\]/g; // matches any [something], including []
+	const count = (it.match(dimensionRegex) || []).length;
+	const baseType = it.replace(dimensionRegex, '');
+	return [baseType, count];
+};
+
 // Changed index format stored in snapshot for PostgreSQL in 0.22.0
-export const updateUpToV7 = (json: Record<string, any>): PgSchema => {
-	const schema = pgSchemaV6.parse(json);
+export const updateUpToV7 = (it: Record<string, any>): PgSchema => {
+	if (Number(it.version) < 6) return updateUpToV7(updateUpToV6(it));
+	const schema = it as PgSchemaV6;
+
 	const tables = Object.fromEntries(
 		Object.entries(schema.tables).map((it) => {
 			const table = it[1];
 			const mappedIndexes = Object.fromEntries(
 				Object.entries(table.indexes).map((idx) => {
 					const { columns, ...rest } = idx[1];
-					const mappedColumns = columns.map<Index['columns'][number]>((it) => {
+					const mappedColumns = columns.map<LegacyIndex['columns'][number]>((it) => {
 						return {
 							expression: it,
 							isExpression: false,
@@ -171,8 +349,10 @@ export const updateUpToV7 = (json: Record<string, any>): PgSchema => {
 	};
 };
 
-export const updateUpToV6 = (json: Record<string, any>): PgSchemaV6 => {
-	const schema = pgSchemaV5.parse(json);
+export const updateUpToV6 = (it: Record<string, any>): PgSchemaV6 => {
+	if (Number(it.version) < 5) return updateUpToV6(updateToV5(it));
+	const schema = it as PgSchemaV6;
+
 	const tables = Object.fromEntries(
 		Object.entries(schema.tables).map((it) => {
 			const table = it[1];
@@ -203,9 +383,11 @@ export const updateUpToV6 = (json: Record<string, any>): PgSchemaV6 => {
 };
 
 // major migration with of folder structure, etc...
-export const upPgHandlerV4toV5 = (obj: PgSchemaV4): PgSchemaV5 => {
-	const mappedTables: Record<string, TableV5> = {};
+export const updateToV5 = (it: Record<string, any>): PgSchemaV5 => {
+	if (Number(it.version) < 4) throw new Error('Snapshot version <4');
+	const obj = it as PgSchemaV4;
 
+	const mappedTables: Record<string, TableV5> = {};
 	for (const [key, table] of Object.entries(obj.tables)) {
 		const mappedColumns: Record<string, Column> = {};
 		for (const [ckey, column] of Object.entries(table.columns)) {

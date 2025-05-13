@@ -196,9 +196,6 @@ const column = object({
 	primaryKey: boolean(),
 	notNull: boolean(),
 	default: any().optional(),
-	isUnique: any().optional(),
-	uniqueName: string().optional(),
-	nullsNotDistinct: boolean().optional(),
 	generated: object({
 		type: literal('stored'),
 		as: string(),

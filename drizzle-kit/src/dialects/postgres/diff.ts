@@ -1,3 +1,4 @@
+import { E } from '@electric-sql/pglite/dist/pglite-BvWM7BTQ';
 import { prepareMigrationRenames } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
 import { diffStringArrays } from '../../utils/sequence-matcher';
@@ -64,7 +65,7 @@ export const ddlDiff = async (
 	checksResolver: Resolver<CheckConstraint>,
 	pksResolver: Resolver<PrimaryKey>,
 	fksResolver: Resolver<ForeignKey>,
-	type: 'default' | 'push',
+	mode: 'default' | 'push',
 ): Promise<{
 	statements: JsonStatement[];
 	sqlStatements: string[];
@@ -73,7 +74,7 @@ export const ddlDiff = async (
 }> => {
 	const ddl1Copy = createDDL();
 	for (const entity of ddl1.entities.list()) {
-		ddl1Copy.entities.insert(entity);
+		ddl1Copy.entities.push(entity);
 	}
 
 	const schemasDiff = diff(ddl1, ddl2, 'schemas');
@@ -487,8 +488,20 @@ export const ddlDiff = async (
 		});
 	}
 
+	ddl1.uniques.list().filter((x) => mode === 'push' || !x.nameExplicit);
+	ddl2.uniques.list({ nameExplicit: false });
+
 	const uniquesDiff = diff(ddl1, ddl2, 'uniques');
 	const groupedUniquesDiff = groupDiffs(uniquesDiff);
+
+	// for (const entry of groupedUniquesDiff) {
+	// 	for (const del of entry.deleted) {
+	// 		if (!(!del.nameExplicit || mode === 'push')) continue;
+	// 		if (entry.inserted.some((x) => !x.nameExplicit && x.columns === del.columns)) {
+	// 			ddl2.uniques.update({ set: { name: del.name }, where });
+	// 		}
+	// 	}
+	// }
 
 	const uniqueRenames = [] as { from: UniqueConstraint; to: UniqueConstraint }[];
 	const uniqueCreates = [] as UniqueConstraint[];
@@ -735,8 +748,8 @@ export const ddlDiff = async (
 	);
 
 	for (const idx of alters.filter((it) => it.entityType === 'indexes')) {
-		const forWhere = !!idx.where && (idx.where.from !== null && idx.where.to !== null ? type !== 'push' : true);
-		const forColumns = !!idx.columns && (idx.columns.from.length === idx.columns.to.length ? type !== 'push' : true);
+		const forWhere = !!idx.where && (idx.where.from !== null && idx.where.to !== null ? mode !== 'push' : true);
+		const forColumns = !!idx.columns && (idx.columns.from.length === idx.columns.to.length ? mode !== 'push' : true);
 
 		if (idx.isUnique || idx.concurrently || idx.method || idx.with || forColumns || forWhere) {
 			const index = ddl2.indexes.one({ schema: idx.schema, table: idx.table, name: idx.name })!;
@@ -773,7 +786,7 @@ export const ddlDiff = async (
 
 	const columnsToRecreate = columnAlters.filter((it) => it.generated && it.generated.to !== null).filter((it) => {
 		// if push and definition changed
-		return !(it.generated?.to && it.generated.from && type === 'push');
+		return !(it.generated?.to && it.generated.from && mode === 'push');
 	});
 
 	const jsonRecreateColumns = columnsToRecreate.map((it) =>
@@ -866,7 +879,7 @@ export const ddlDiff = async (
 	// using/withcheck in policy is a SQL expression which can be formatted by database in a different way,
 	// thus triggering recreations/alternations on push
 	const jsonAlterOrRecreatePoliciesStatements = alteredPolicies.filter((it) => {
-		return it.as || it.for || it.roles || !((it.using || it.withCheck) && type === 'push');
+		return it.as || it.for || it.roles || !((it.using || it.withCheck) && mode === 'push');
 	}).map(
 		(it) => {
 			const to = ddl2.policies.one({
@@ -1057,7 +1070,7 @@ export const ddlDiff = async (
 	);
 
 	const filteredViewAlters = alters.filter((it) => it.entityType === 'views').map((it) => {
-		if (it.definition && type === 'push') {
+		if (it.definition && mode === 'push') {
 			delete it.definition;
 		}
 		return it;
