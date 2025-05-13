@@ -42,8 +42,8 @@ import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 
 // @vitest-environment-options {"max-concurrency":1}
 
-if (!fs.existsSync('tests/introspect/postgres')) {
-	fs.mkdirSync('tests/introspect/postgres');
+if (!fs.existsSync('tests/postgres/tmp')) {
+	fs.mkdirSync(`tests/postgres/tmp`, { recursive: true });
 }
 
 let _: TestDatabase;

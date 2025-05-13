@@ -44,14 +44,24 @@ export const fromDrizzleSchema = (
 			const name = getColumnCasing(column, casing);
 			const primaryKey: boolean = column.primary;
 			const generated = column.generated;
-			const generatedObj = generated
+
+			const generatedObj: {
+				as: string;
+				type: 'virtual' | 'stored';
+			} | null = generated
 				? {
 					as: is(generated.as, SQL)
 						? `(${dialect.sqlToQuery(generated.as as SQL, 'indexes').sql})`
 						: typeof generated.as === 'function'
 						? `(${dialect.sqlToQuery(generated.as() as SQL, 'indexes').sql})`
 						: `(${generated.as as any})`,
-					type: generated.mode ?? 'virtual',
+
+					// 'virtual' | 'stored' for for all dialects
+					// 'virtual' | 'persisted' for mssql
+					// We should remove this option from common Column and store it per dialect common
+					// Was discussed with Andrew
+					// Type error because of common in drizzle orm for all dialects (includes virtual' | 'stored' | 'persisted')
+					type: generated.mode === 'stored' ? 'stored' : 'virtual',
 				}
 				: null;
 

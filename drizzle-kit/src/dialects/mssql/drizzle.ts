@@ -138,7 +138,7 @@ export const fromDrizzleSchema = (
 						? dialect.sqlToQuery(column.generated.as as SQL).sql
 						: typeof column.generated.as === 'function'
 						? dialect.sqlToQuery(column.generated.as() as SQL).sql
-						: (column.generated.as as any),
+						: `${column.generated.as}`,
 					type: column.generated.mode ?? 'virtual',
 				}
 				: null;
@@ -150,11 +150,12 @@ export const fromDrizzleSchema = (
 				name,
 				type: sqlType,
 				notNull: notNull
+					&& !column.primary
 					&& !column.generated
 					&& !identity,
 				// @ts-expect-error
 				// TODO update description
-				// 'virtual' | 'stored' for postgres, mysql
+				// 'virtual' | 'stored' for all dialects
 				// 'virtual' | 'persisted' for mssql
 				// We should remove this option from common Column and store it per dialect common
 				// Was discussed with Andrew

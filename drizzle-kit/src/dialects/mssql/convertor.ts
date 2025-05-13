@@ -111,7 +111,7 @@ const addColumn = convertor('add_column', (st) => {
 		? ''
 		: column.generated?.type.toUpperCase();
 	const generatedStatement = generated
-		? ` AS (${generated?.as}) ${' ' + generatedType}`
+		? ` AS (${generated?.as})${generatedType ? ' ' + generatedType : ''}`
 		: '';
 
 	const key = schema !== 'dbo' ? `[${schema}].[${table}]` : `[${table}]`;
