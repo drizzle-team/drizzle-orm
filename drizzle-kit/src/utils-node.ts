@@ -97,8 +97,8 @@ const mssqlSnapshotValidator = (
 	const versionError = assertVersion(snapshot, 1);
 	if (versionError) return { status: versionError };
 
-	const { success } = mssqlValidatorSnapshot.parse(snapshot);
-	if (!success) return { status: 'malformed', errors: [] };
+	const res = mssqlValidatorSnapshot.parse(snapshot);
+	if (!res.success) return { status: 'malformed', errors: res.errors ?? [] };
 
 	return { status: 'valid' };
 };
