@@ -691,9 +691,14 @@ const pgSuite: DialectSuite = {
 			}, (table) => [uniqueIndex('User_email_key').on(table.email)]),
 		};
 
-		const { statements, sqlStatements } = await diffPush({ db, init: schema1, destination: schema2, after:[
-			`INSERT INTO "User" (id, email, "updatedAt") values ('str', 'email@gmail', '2025-04-29 09:20:39');`
-		] });
+		const { statements, sqlStatements } = await diffPush({
+			db,
+			init: schema1,
+			destination: schema2,
+			after: [
+				`INSERT INTO "User" (id, email, "updatedAt") values ('str', 'email@gmail', '2025-04-29 09:20:39');`,
+			],
+		});
 
 		const { hints } = await suggestions(db, statements);
 

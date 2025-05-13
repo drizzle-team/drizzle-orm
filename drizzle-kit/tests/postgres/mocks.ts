@@ -143,7 +143,6 @@ export const diffPush = async (config: {
 	init.push(...mViewsRefreshes);
 
 	for (const st of init) {
-		console.log(st)
 		await db.query(st);
 	}
 

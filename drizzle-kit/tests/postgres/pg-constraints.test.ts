@@ -277,6 +277,40 @@ test('unique #13', async () => {
 	expect(st2).toStrictEqual(['ALTER TABLE "users2" DROP CONSTRAINT "users_email_key";']);
 });
 
+test.only('unique #14', async () => {
+	const sch1 = {
+		users: pgTable('users', {
+			name: text(),
+			email: text().unique(),
+		}),
+	};
+	const sch2 = {
+		users: pgTable('users2', {
+			name: text(),
+			email2: text().unique(),
+		}),
+	};
+
+	const sch3 = {
+		users: pgTable('users2', {
+			name: text(),
+			email2: text(),
+		}),
+	};
+
+	const { sqlStatements: st1 } = await diff(sch1, sch2, [
+		'public.users->public.users2',
+		'public.users2.email->public.users2.email2',
+	]);
+	expect(st1).toStrictEqual([
+		`ALTER TABLE "users" RENAME TO "users2";`,
+		`ALTER TABLE "users2" RENAME COLUMN "email" TO "email2";`,
+	]);
+
+	const { sqlStatements: st2 } = await diff(sch2, sch3, []);
+	expect(st2).toStrictEqual(['ALTER TABLE "users2" DROP CONSTRAINT "users_email_key";']);
+});
+
 test('pk #1', async () => {
 	const from = {
 		users: pgTable('users', {

@@ -19,9 +19,7 @@ export const convertor = <
 };
 
 const createTable = convertor('create_table', (st) => {
-	const { name, schema, columns, pk, checks, indexes, fks, uniques } = st.table;
-
-	const uniqueIndexes = indexes.filter((it) => it.isUnique);
+	const { name, schema, columns, pk, checks, uniques } = st.table;
 
 	let statement = '';
 
@@ -41,8 +39,11 @@ const createTable = convertor('create_table', (st) => {
 		const def = defaultToSQL(column.default);
 		const defaultStatement = def ? ` DEFAULT ${def}` : '';
 
+		const generatedType = column.generated?.type.toUpperCase() === 'VIRTUAL'
+			? ''
+			: column.generated?.type.toUpperCase();
 		const generatedStatement = column.generated
-			? ` AS (${column.generated?.as}) ${column.generated?.type.toUpperCase()}`
+			? ` AS (${column.generated?.as})${' ' + generatedType}`
 			: '';
 
 		statement += '\t'
@@ -57,16 +58,9 @@ const createTable = convertor('create_table', (st) => {
 
 	for (const unique of uniques) {
 		statement += ',\n';
-		const uniqueString = unique.columns.join(',');
+		const uniqueString = unique.columns.join('],[');
 
 		statement += `\tCONSTRAINT [${unique.name}] UNIQUE([${uniqueString}])`;
-	}
-
-	for (const fk of fks) {
-		statement += ',\n';
-		statement += `\tCONSTRAINT [${fk.name}] FOREIGN KEY ([${fk.columns.join('],[')}]) REFERENCES [${fk.tableTo}]([${
-			fk.columnsTo.join('],[')
-		}])`;
 	}
 
 	for (const check of checks) {
@@ -80,15 +74,23 @@ const createTable = convertor('create_table', (st) => {
 });
 
 const dropTable = convertor('drop_table', (st) => {
-	return `DROP TABLE [${st.table.name}];`;
+	const { table } = st;
+
+	const key = table.schema !== 'dbo' ? `[${table.schema}].[${table.name}]` : `[${table.name}]`;
+
+	return `DROP TABLE ${key};`;
 });
 
 const renameTable = convertor('rename_table', (st) => {
-	return `EXEC sp_rename '[${st.from}]', [${st.to}];`;
+	const { from, schema, to } = st;
+
+	const key = schema !== 'dbo' ? `${schema}.${from}` : `${from}`;
+
+	return `EXEC sp_rename '${key}', [${to}];`;
 });
 
 const addColumn = convertor('add_column', (st) => {
-	const { column, isPK } = st;
+	const { column } = st;
 	const {
 		name,
 		type,
@@ -96,20 +98,25 @@ const addColumn = convertor('add_column', (st) => {
 		table,
 		generated,
 		identity,
+		schema,
 	} = column;
 
 	const def = defaultToSQL(column.default);
 	const defaultStatement = def ? ` DEFAULT ${def}` : '';
 
 	const notNullStatement = `${notNull ? ' NOT NULL' : ''}`;
-	// const primaryKeyStatement = `${isPK ? ' PRIMARY KEY' : ''}`; // TODO should it be here? not sure, because of the names for constraints
 	const identityStatement = identity ? ` IDENTITY(${identity.seed}, ${identity.increment})` : '';
 
+	const generatedType = column.generated?.type.toUpperCase() === 'VIRTUAL'
+		? ''
+		: column.generated?.type.toUpperCase();
 	const generatedStatement = generated
-		? ` AS (${generated?.as}) ${generated?.type.toUpperCase()}`
+		? ` AS (${generated?.as}) ${' ' + generatedType}`
 		: '';
 
-	let statement = `ALTER TABLE [${table}] ADD [${name}]`;
+	const key = schema !== 'dbo' ? `[${schema}].[${table}]` : `[${table}]`;
+
+	let statement = `ALTER TABLE ${key} ADD [${name}]`;
 	if (!generated) statement += ` ${type}`;
 	statement += `${identityStatement}${defaultStatement}${generatedStatement}${notNullStatement};`;
 
@@ -117,13 +124,19 @@ const addColumn = convertor('add_column', (st) => {
 });
 
 const dropColumn = convertor('drop_column', (st) => {
-	return `ALTER TABLE [${st.column.table}] DROP COLUMN [${st.column.name}];`;
+	const { column } = st;
+
+	const key = column.schema !== 'dbo' ? `[${column.schema}].[${column.table}]` : `[${column.table}]`;
+	return `ALTER TABLE ${key} DROP COLUMN [${st.column.name}];`;
 });
 
 const renameColumn = convertor('rename_column', (st) => {
-	const { table: tableFrom, name: columnFrom } = st.from;
+	const { table: tableFrom, name: columnFrom, schema } = st.from;
+
+	const key = schema !== 'dbo' ? `${schema}.${tableFrom}.${columnFrom}` : `${tableFrom}.${columnFrom}`;
+
 	const { name: columnTo } = st.to;
-	return `EXEC sp_rename '[${tableFrom}].[${columnFrom}]', [${columnTo}], 'COLUMN';`;
+	return `EXEC sp_rename '${key}', [${columnTo}], 'COLUMN';`;
 });
 
 const alterColumn = convertor('alter_column', (st) => {
@@ -135,14 +148,14 @@ const alterColumn = convertor('alter_column', (st) => {
 	const identity = column.identity;
 
 	const notNullStatement = `${column.notNull ? ' NOT NULL' : ''}`;
-	const primaryKeyStatement = `${isPK ? ' PRIMARY KEY' : ''}`;
 	const identityStatement = identity ? ` IDENTITY(${identity.seed}, ${identity.increment})` : '';
 
 	const generatedStatement = column.generated
 		? ` AS (${column.generated.as}) ${column.generated.type.toUpperCase()}`
 		: '';
 
-	return `ALTER TABLE [${column.table}] ALTER COLUMN [${column.name}] ${column.type}${primaryKeyStatement}${identityStatement}${defaultStatement}${generatedStatement}${notNullStatement};`;
+	const key = column.schema !== 'dbo' ? `[${column.schema}].[${column.table}]` : `[${column.table}]`;
+	return `ALTER TABLE ${key} ALTER COLUMN [${column.name}] ${column.type}${identityStatement}${defaultStatement}${generatedStatement}${notNullStatement};`;
 });
 
 const recreateColumn = convertor('recreate_column', (st) => {
@@ -150,8 +163,7 @@ const recreateColumn = convertor('recreate_column', (st) => {
 });
 
 const createIndex = convertor('create_index', (st) => {
-	// TODO: handle everything?
-	const { name, table, columns, isUnique, where } = st.index;
+	const { name, table, columns, isUnique, where, schema } = st.index;
 	const indexPart = isUnique ? 'UNIQUE INDEX' : 'INDEX';
 
 	const uniqueString = columns
@@ -160,11 +172,15 @@ const createIndex = convertor('create_index', (st) => {
 
 	const whereClause = where ? ` WHERE ${where}` : '';
 
-	return `CREATE ${indexPart} [${name}] ON [${table}] (${uniqueString})${whereClause};`;
+	const key = schema !== 'dbo' ? `[${schema}].[${table}]` : `[${table}]`;
+	return `CREATE ${indexPart} [${name}] ON ${key} (${uniqueString})${whereClause};`;
 });
 
 const dropIndex = convertor('drop_index', (st) => {
-	return `DROP INDEX [${st.index.name}] ON [${st.index.table}];`;
+	const { schema, name, table } = st.index;
+
+	const key = schema !== 'dbo' ? `[${schema}].[${table}]` : `[${table}]`;
+	return `DROP INDEX [${name}] ON ${key};`;
 });
 
 const createFK = convertor('create_fk', (st) => {
@@ -176,30 +192,76 @@ const createFK = convertor('create_fk', (st) => {
 		columnsTo,
 		onDelete,
 		onUpdate,
+		schema,
 	} = st.fk;
 	const onDeleteStatement = onDelete !== 'NO ACTION' ? ` ON DELETE ${onDelete}` : '';
 	const onUpdateStatement = onUpdate !== 'NO ACTION' ? ` ON UPDATE ${onUpdate}` : '';
 	const fromColumnsString = columns.map((it) => `[${it}]`).join(',');
 	const toColumnsString = columnsTo.map((it) => `[${it}]`).join(',');
 
-	return `ALTER TABLE [${table}] ADD CONSTRAINT [${name}] FOREIGN KEY (${fromColumnsString}) REFERENCES [${tableTo}](${toColumnsString})${onDeleteStatement}${onUpdateStatement};`;
+	const key = schema !== 'dbo' ? `[${schema}].[${table}]` : `[${table}]`;
+	return `ALTER TABLE ${key} ADD CONSTRAINT [${name}] FOREIGN KEY (${fromColumnsString}) REFERENCES [${tableTo}](${toColumnsString})${onDeleteStatement}${onUpdateStatement};`;
 });
 
-{
-	// alter generated for column -> recreate
-}
-
 const createPK = convertor('create_pk', (st) => {
-	const { name } = st.pk;
-	return `ALTER TABLE [${st.pk.table}] ADD CONSTRAINT [${name}] PRIMARY KEY ([${st.pk.columns.join('],[')}]);`;
+	const { name, schema, table, columns } = st.pk;
+
+	const key = schema !== 'dbo' ? `[${schema}].[${table}]` : `[${table}]`;
+	return `ALTER TABLE ${key} ADD CONSTRAINT [${name}] PRIMARY KEY ([${columns.join('],[')}]);`;
+});
+
+const renamePk = convertor('rename_pk', (st) => {
+	const { name: nameFrom, schema: schemaFrom } = st.from;
+	const { name: nameTo } = st.to;
+
+	const key = schemaFrom !== 'dbo' ? `${schemaFrom}.${nameFrom}` : `${nameFrom}`;
+	return `EXEC sp_rename '${key}', [${nameTo}], 'OBJECT';`;
+});
+
+const renameCheck = convertor('rename_check', (st) => {
+	const { name: nameFrom, schema: schemaFrom } = st.from;
+	const { name: nameTo } = st.to;
+
+	const key = schemaFrom !== 'dbo' ? `${schemaFrom}.${nameFrom}` : `${nameFrom}`;
+	return `EXEC sp_rename '${key}', [${nameTo}], 'OBJECT';`;
+});
+
+const renameFk = convertor('rename_fk', (st) => {
+	const { name: nameFrom, schema: schemaFrom } = st.from;
+	const { name: nameTo } = st.to;
+
+	const key = schemaFrom !== 'dbo' ? `${schemaFrom}.${nameFrom}` : `${nameFrom}`;
+	return `EXEC sp_rename '${key}', [${nameTo}], 'OBJECT';`;
+});
+
+const renameIndex = convertor('rename_index', (st) => {
+	const { name: nameFrom, schema: schemaFrom, table: tableFrom } = st.from;
+	const { name: nameTo } = st.to;
+
+	const key = schemaFrom !== 'dbo' ? `${schemaFrom}.${tableFrom}.${nameFrom}` : `${tableFrom}.${nameFrom}`;
+	return `EXEC sp_rename '${key}', [${nameTo}], 'INDEX';`;
+});
+
+const renameUnique = convertor('rename_unique', (st) => {
+	const { name: nameFrom, schema: schemaFrom } = st.from;
+	const { name: nameTo } = st.to;
+
+	const key = schemaFrom !== 'dbo' ? `${schemaFrom}.${nameFrom}` : `${nameFrom}`;
+	return `EXEC sp_rename '${key}', [${nameTo}], 'OBJECT';`;
 });
 
 const createCheck = convertor('create_check', (st) => {
-	return `ALTER TABLE [${st.check.table}] ADD CONSTRAINT [${st.check.name}] CHECK (${st.check.value});`;
+	const { name, schema, table, value } = st.check;
+
+	const key = schema !== 'dbo' ? `[${schema}].[${table}]` : `[${table}]`;
+	return `ALTER TABLE ${key} ADD CONSTRAINT [${name}] CHECK (${value});`;
 });
 
 const dropConstraint = convertor('drop_constraint', (st) => {
-	return `ALTER TABLE [${st.table}] DROP CONSTRAINT [${st.constraint}];`;
+	const { constraint, table, schema } = st;
+
+	const key = schema !== 'dbo' ? `[${schema}].[${table}]` : `[${table}]`;
+	return `ALTER TABLE ${key} DROP CONSTRAINT [${constraint}];`;
 });
 
 const createView = convertor('create_view', (st) => {
@@ -237,16 +299,17 @@ const dropView = convertor('drop_view', (st) => {
 
 const renameView = convertor('rename_view', (st) => {
 	const { schema, name } = st.from;
-	const key = schema === 'dbo' ? `[${name}]` : `[${schema}].[${name}]`;
+	const key = schema === 'dbo' ? `${name}` : `${schema}.${name}`;
 
 	return `EXEC sp_rename '${key}', [${st.to.name}];`;
 });
 
 const alterView = convertor('alter_view', (st) => {
-	const { definition, name, checkOption, encryption, schemaBinding, viewMetadata } = st.view;
+	const { definition, name, checkOption, encryption, schemaBinding, viewMetadata, schema } = st.view;
 
+	const key = schema === 'dbo' ? `[${name}]` : `[${schema}].[${name}]`;
 	let statement = `ALTER `;
-	statement += `VIEW [${name}]`;
+	statement += `VIEW ${key}`;
 
 	if (encryption || schemaBinding || viewMetadata) {
 		const options: string[] = [];
@@ -285,7 +348,8 @@ const renameSchema = convertor('rename_schema', (st) => {
 });
 
 const moveTable = convertor('move_table', (st) => {
-	return `ALTER SCHEMA [${st.to}] TRANSFER [${st.from}].[${st.name}];\n`;
+	const { from, name, to } = st;
+	return `ALTER SCHEMA [${to}] TRANSFER [${from}].[${name}];\n`;
 });
 
 const moveView = convertor('move_view', (st) => {
@@ -350,14 +414,14 @@ const alterCheck = convertor('alter_check', (st) => {
 		entityType: check.entityType,
 		name: check.name,
 		schema: check.schema,
-		nameExplicit: true, // we always get name from orm
+		nameExplicit: false,
 		table: check.table,
 		value: check.value!.from,
 	};
 	const createObj = {
 		entityType: check.entityType,
 		name: check.name,
-		nameExplicit: true, // we always get name from orm
+		nameExplicit: false,
 		schema: check.schema,
 		table: check.table,
 		value: check.value!.to,
@@ -367,6 +431,26 @@ const alterCheck = convertor('alter_check', (st) => {
 	const create = addCheck.convert({ check: createObj }) as string;
 
 	return [drop, create];
+});
+
+const dropUnique = convertor('drop_unique', (st) => {
+	const { unique } = st;
+
+	const tableNameWithSchema = unique.schema !== 'dbo'
+		? `[${unique.schema}].[${unique.table}]`
+		: `[${unique.table}]`;
+
+	return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT [${unique.name}];`;
+});
+
+const dropForeignKey = convertor('drop_fk', (st) => {
+	const { schema, table, name } = st.fk;
+
+	const tableNameWithSchema = schema !== 'dbo'
+		? `[${schema}].[${table}]`
+		: `[${table}]`;
+
+	return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT [${name}];\n`;
 });
 
 const convertors = [
@@ -400,6 +484,13 @@ const convertors = [
 	alterCheck,
 	renameSchema,
 	addUniqueConvertor,
+	renamePk,
+	renameCheck,
+	renameFk,
+	renameIndex,
+	dropUnique,
+	dropForeignKey,
+	renameUnique,
 ];
 
 export function fromJson(

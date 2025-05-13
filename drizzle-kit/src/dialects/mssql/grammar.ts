@@ -242,7 +242,7 @@ export const defaultNameForPK = (table: string) => {
 	return `${table}_pkey`;
 };
 
-export const defaultNameForUnique = (table: string, column: string) => {
+export const defaultNameForUnique = (table: string, column: string[]) => {
 	return `${table}_${column}_key`;
 };
 
@@ -250,14 +250,7 @@ export const defaultNameForFK = (table: string, columns: string[], tableTo: stri
 	return `${table}_${columns.join('_')}_${tableTo}_${columnsTo.join('_')}_fk`;
 };
 
-export function uniqueKeyName(table: string, columns: string[]) {
-	return `${table}_${columns.join('_')}_unique`;
-}
-
-export const defaultNameForIndex = (table: string, columns: string[]) => {
-	return `${table}_${columns.join('_')}_idx`;
-};
-
+// TODO will we support index without naming?
 // export const defaultNameForIndex = (table: string, columns: string[]) => {
 // 	return `${table}_${columns.join('_')}_idx`;
 // };
@@ -341,8 +334,6 @@ export const defaultNameForIndex = (table: string, columns: string[]) => {
 
 export const defaultToSQL = (it: Column['default']) => {
 	if (!it) return '';
-
-	console.log('it: ', it);
 
 	const { value, type } = it;
 	if (type === 'string' || type === 'text') {
