@@ -1,4 +1,3 @@
-import { E } from '@electric-sql/pglite/dist/pglite-BvWM7BTQ';
 import { prepareMigrationRenames } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
 import { diffStringArrays } from '../../utils/sequence-matcher';
