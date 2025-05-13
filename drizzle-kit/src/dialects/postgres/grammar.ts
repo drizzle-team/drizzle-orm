@@ -304,7 +304,7 @@ export const defaultNameForFK = (table: string, columns: string[], tableTo: stri
 };
 
 export const defaultNameForUnique = (table: string, ...columns: string[]) => {
-	return `${table}_${columns.join("_")}_key`;
+	return `${table}_${columns.join('_')}_key`;
 };
 
 export const defaultNameForIndex = (table: string, columns: string[]) => {
