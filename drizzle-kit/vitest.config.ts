@@ -18,7 +18,7 @@ export default defineConfig({
 			'tests/**/singlestore-generated.test.ts',
 			'tests/singlestore/**/*.test.ts',
 			'tests/gel/**/*.test.ts',
-			'tests/mssql/pull.test.ts', // getting timeout error
+			'tests/mysql/pull.test.ts', // getting timeout error
 		],
 
 		typecheck: {
