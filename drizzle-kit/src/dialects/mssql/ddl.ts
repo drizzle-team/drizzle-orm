@@ -214,7 +214,7 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MssqlDDL; errors: S
 	}
 
 	for (const unique of interim.uniques) {
-		const res = ddl.uniques.insert(unique);
+		const res = ddl.uniques.push(unique);
 		if (res.status === 'CONFLICT') {
 			errors.push({
 				type: 'constraint_name_conflict',
