@@ -66,6 +66,7 @@ const createTable = convertor('create_table', (st) => {
 		statement += `\tCONSTRAINT \`${unique.name}\` UNIQUE(${uniqueString})`;
 	}
 
+	// TODO remove from create_table
 	for (const fk of fks) {
 		statement += ',\n';
 		statement += `\tCONSTRAINT \`${fk.name}\` FOREIGN KEY (\`${

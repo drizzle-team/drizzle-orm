@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { join } from 'path';
 import { parse } from 'url';
 import { error, info } from './cli/views';
+import { snapshotValidator as mssqlValidatorSnapshot } from './dialects/mssql/snapshot';
 import { mysqlSchemaV5 } from './dialects/mysql/snapshot';
 import { snapshotValidator } from './dialects/postgres/snapshot';
 import { assertUnreachable } from './global';
@@ -90,6 +91,18 @@ const mysqlSnapshotValidator = (
 	return { status: 'valid' };
 };
 
+const mssqlSnapshotValidator = (
+	snapshot: Object,
+): ValidationResult => {
+	const versionError = assertVersion(snapshot, 1);
+	if (versionError) return { status: versionError };
+
+	const { success } = mssqlValidatorSnapshot.parse(snapshot);
+	if (!success) return { status: 'malformed', errors: [] };
+
+	return { status: 'valid' };
+};
+
 const sqliteSnapshotValidator = (
 	snapshot: Object,
 ): ValidationResult => {
@@ -128,6 +141,10 @@ export const validatorForDialect = (dialect: Dialect): (snapshot: Object) => Val
 			return mysqlSnapshotValidator;
 		case 'singlestore':
 			return singlestoreSnapshotValidator;
+		case 'mssql':
+			return mssqlSnapshotValidator;
+		case 'gel':
+			throw Error('gel validator is not implemented yet'); // TODO
 		default:
 			assertUnreachable(dialect);
 	}

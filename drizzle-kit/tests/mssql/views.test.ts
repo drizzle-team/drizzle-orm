@@ -14,7 +14,7 @@ test('create table and view #1', async () => {
 
 	const { sqlStatements } = await diff({}, to, []);
 	expect(sqlStatements).toStrictEqual([
-		`CREATE TABLE [users] (\n\t[id] int PRIMARY KEY\n);\n`,
+		`CREATE TABLE [users] (\n\t[id] int,\n\tCONSTRAINT [users_pkey] PRIMARY KEY([id])\n);\n`,
 		`CREATE VIEW [some_view] AS (select [id] from [users]);`,
 	]);
 });
@@ -30,7 +30,7 @@ test('create table and view #2', async () => {
 
 	const { sqlStatements } = await diff({}, to, []);
 	expect(sqlStatements).toStrictEqual([
-		`CREATE TABLE [users] (\n\t[id] int PRIMARY KEY\n);\n`,
+		`CREATE TABLE [users] (\n\t[id] int,\n\tCONSTRAINT [users_pkey] PRIMARY KEY([id])\n);\n`,
 		`CREATE VIEW [some_view] AS (SELECT * FROM [users]);`,
 	]);
 });
@@ -51,7 +51,7 @@ test('create table and view #3', async () => {
 
 	const { sqlStatements } = await diff({}, to, []);
 	expect(sqlStatements).toStrictEqual([
-		`CREATE TABLE [users] (\n\t[id] int PRIMARY KEY\n);\n`,
+		`CREATE TABLE [users] (\n\t[id] int,\n\tCONSTRAINT [users_pkey] PRIMARY KEY([id])\n);\n`,
 		`CREATE VIEW [some_view1]\nWITH ENCRYPTION, SCHEMABINDING, VIEW_METADATA AS (SELECT * FROM [users])\nWITH CHECK OPTION;`,
 	]);
 });
@@ -77,7 +77,9 @@ test('create table and view #4', async () => {
 
 	expect(sqlStatements.length).toBe(3);
 	expect(sqlStatements[0]).toBe(`CREATE SCHEMA [new_schema];\n`);
-	expect(sqlStatements[1]).toBe(`CREATE TABLE [new_schema].[users] (\n\t[id] int PRIMARY KEY\n);\n`);
+	expect(sqlStatements[1]).toBe(
+		`CREATE TABLE [new_schema].[users] (\n\t[id] int,\n\tCONSTRAINT [users_pkey] PRIMARY KEY([id])\n);\n`,
+	);
 	expect(sqlStatements[2]).toBe(
 		`CREATE VIEW [new_schema].[some_view1]\nWITH ENCRYPTION, SCHEMABINDING, VIEW_METADATA AS (SELECT * FROM [new_schema].[users])\nWITH CHECK OPTION;`,
 	);
@@ -109,7 +111,9 @@ test('create table and view #6', async () => {
 	const { sqlStatements } = await diff({}, to, []);
 
 	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toBe(`CREATE TABLE [users] (\n\t[id] int PRIMARY KEY\n);\n`);
+	expect(sqlStatements[0]).toBe(
+		`CREATE TABLE [users] (\n\t[id] int,\n\tCONSTRAINT [users_pkey] PRIMARY KEY([id])\n);\n`,
+	);
 	expect(sqlStatements[1]).toBe(`CREATE VIEW [some_view] AS (SELECT * FROM [users])\nWITH CHECK OPTION;`);
 });
 
@@ -182,7 +186,7 @@ test('rename view #1', async () => {
 	const { sqlStatements } = await diff(from, to, ['dbo.some_view->dbo.new_some_view']);
 
 	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(`EXEC sp_rename '[some_view]', [new_some_view];`);
+	expect(sqlStatements[0]).toBe(`EXEC sp_rename 'some_view', [new_some_view];`);
 });
 
 test('rename view with existing flag', async () => {
@@ -409,8 +413,6 @@ test('alter view ".as" value', async () => {
 
 	const { sqlStatements, statements } = await diff(from, to, []);
 
-	console.log('statements: ', statements);
-
 	expect(sqlStatements).toStrictEqual([
 		'DROP VIEW [some_view];',
 		`CREATE VIEW [some_view] AS (SELECT '1234');`,
@@ -494,7 +496,7 @@ test('rename view and alter view', async () => {
 	const { sqlStatements } = await diff(from, to, ['dbo.some_view->dbo.new_some_view']);
 
 	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toBe(`EXEC sp_rename '[some_view]', [new_some_view];`);
+	expect(sqlStatements[0]).toBe(`EXEC sp_rename 'some_view', [new_some_view];`);
 	expect(sqlStatements[1]).toBe(`ALTER VIEW [new_some_view] AS (SELECT * FROM [users])\nWITH CHECK OPTION;`);
 });
 
@@ -516,6 +518,6 @@ test('moved schema and alter view', async () => {
 
 	expect(sqlStatements).toStrictEqual([
 		`ALTER SCHEMA [my_schema] TRANSFER [some_view];`,
-		`ALTER VIEW [some_view] AS (SELECT * FROM [users])\nWITH CHECK OPTION;`,
+		`ALTER VIEW [my_schema].[some_view] AS (SELECT * FROM [users])\nWITH CHECK OPTION;`,
 	]);
 });

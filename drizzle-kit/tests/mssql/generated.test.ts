@@ -1,5 +1,5 @@
 import { SQL, sql } from 'drizzle-orm';
-import { int, mssqlTable, text } from 'drizzle-orm/mssql-core';
+import { int, mssqlSchema, mssqlTable, text } from 'drizzle-orm/mssql-core';
 import { expect, test } from 'vitest';
 import { diff } from './mocks';
 
@@ -734,8 +734,10 @@ test('generated as string: change generated constraint type from virtual to PERS
 });
 
 test('generated as string: change generated constraint type from PERSISTED to virtual', async () => {
+	const newSchema = mssqlSchema('new_schema');
 	const from = {
-		users: mssqlTable('users', {
+		newSchema,
+		users: newSchema.table('users', {
 			id: int('id'),
 			id2: int('id2'),
 			name: text('name'),
@@ -743,7 +745,8 @@ test('generated as string: change generated constraint type from PERSISTED to vi
 		}),
 	};
 	const to = {
-		users: mssqlTable('users', {
+		newSchema,
+		users: newSchema.table('users', {
 			id: int('id'),
 			id2: int('id2'),
 			name: text('name'),
@@ -760,8 +763,8 @@ test('generated as string: change generated constraint type from PERSISTED to vi
 	);
 
 	expect(sqlStatements).toStrictEqual([
-		'ALTER TABLE [users] DROP COLUMN [gen_name];',
-		"ALTER TABLE [users] ADD [gen_name] AS ([users].[name] || 'hello') VIRTUAL;",
+		'ALTER TABLE [new_schema].[users] DROP COLUMN [gen_name];',
+		"ALTER TABLE [new_schema].[users] ADD [gen_name] AS ([users].[name] || 'hello') VIRTUAL;",
 	]);
 });
 

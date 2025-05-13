@@ -178,13 +178,13 @@ const tableWithEnums = mySchema.table('enums_test_case', {
 });
 
 const employees = mssqlTable('employees', {
-	employeeId: int().identity(1, 1).primaryKey(),
+	employeeId: int().identity({ increment: 1, seed: 1 }).primaryKey(),
 	name: nvarchar({ length: 100 }),
 	departmentId: int(),
 });
 
 const departments = mssqlTable('departments', {
-	departmentId: int().primaryKey().identity(1, 1),
+	departmentId: int().primaryKey().identity({ increment: 1, seed: 1 }),
 	departmentName: nvarchar({ length: 100 }),
 });
 
@@ -498,7 +498,7 @@ export function tests() {
 			// If it's an object with seed/increment and a) both are undefined - use default identity startegy
 			// b) some of them have values - use them
 			// Note: you can't have only one value. Either both are undefined or both are defined
-			console.log(tableConfig.identity);
+			// console.log(tableConfig.identity);
 
 			expect(tableConfig.foreignKeys).toHaveLength(1);
 			expect(tableConfig.foreignKeys[0]!.getName()).toBe('custom_fk');
@@ -2166,7 +2166,7 @@ export function tests() {
 			const { db } = ctx.mssql;
 
 			const users = mssqlTable('users_iterator', {
-				id: int('id').identity(1, 1).primaryKey(),
+				id: int('id').identity({ increment: 1, seed: 1 }).primaryKey(),
 			});
 
 			await db.execute(sql`drop table if exists ${users}`);
@@ -3665,8 +3665,8 @@ export function tests() {
 					binary: undefined,
 					binaryLength: undefined,
 					binaryDefault: undefined,
-					bit: true,
-					bitDefault: false,
+					bit: 1,
+					bitDefault: 0,
 					char: 'a',
 					charWithConfig: '342',
 					charDefault: '4',

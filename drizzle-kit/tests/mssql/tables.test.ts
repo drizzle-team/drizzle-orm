@@ -116,7 +116,7 @@ test('add table #7', async () => {
 
 	expect(sqlStatements).toStrictEqual([
 		'CREATE TABLE [users] (\n\t[id] int\n);\n',
-		`EXEC sp_rename '[users1]', [users2];`,
+		`EXEC sp_rename 'users1', [users2];`,
 	]);
 });
 
@@ -166,6 +166,35 @@ test('add table #13', async () => {
 	]);
 });
 
+// reference
+test('add table #13', async () => {
+	const company = mssqlTable('company', {
+		id: int(),
+		name: text(),
+	});
+
+	const to = {
+		company,
+		users: mssqlTable('users', {
+			company_id: int().references(() => company.id),
+			name: text(),
+		}),
+	};
+
+	const { sqlStatements } = await diff({}, to, []);
+	expect(sqlStatements).toStrictEqual([
+		`CREATE TABLE [company] (
+\t[id] int,
+\t[name] text
+);\n`,
+		`CREATE TABLE [users] (
+\t[company_id] int,
+\t[name] text
+);\n`,
+		`ALTER TABLE [users] ADD CONSTRAINT [users_company_id_company_id_fk] FOREIGN KEY ([company_id]) REFERENCES [company]([id]);`,
+	]);
+});
+
 test('multiproject schema add table #1', async () => {
 	const table = mssqlTableCreator((name) => `prefix_${name}`);
 
@@ -211,7 +240,10 @@ test('multiproject schema alter table name #1', async () => {
 	const { sqlStatements } = await diff(from, to, [
 		'dbo.prefix_users->dbo.prefix_users1',
 	]);
-	expect(sqlStatements).toStrictEqual(["EXEC sp_rename '[prefix_users]', [prefix_users1];"]);
+	expect(sqlStatements).toStrictEqual([
+		"EXEC sp_rename 'prefix_users', [prefix_users1];",
+		"EXEC sp_rename 'prefix_users_pkey', [prefix_users1_pkey], 'OBJECT';",
+	]);
 });
 
 test('add schema + table #1', async () => {
@@ -370,7 +402,7 @@ test('change table schema #6', async () => {
 		'folder1.users->folder2.users2',
 	]);
 	expect(sqlStatements).toStrictEqual([
-		`EXEC sp_rename '[users]', [users2];`,
+		`EXEC sp_rename 'folder1.users', [users2];`,
 		`ALTER SCHEMA [folder2] TRANSFER [folder1].[users2];\n`,
 	]);
 });
@@ -399,7 +431,7 @@ test('change table schema #7', async () => {
  * SQL Server does not provide a built-in command to rename a schema directly.
  * Workarounds involve creating a new schema and migrating objects manually
  */`,
-		`EXEC sp_rename '[users]', [users2];`,
+		`EXEC sp_rename 'folder2.users', [users2];`,
 	]);
 });
 
@@ -424,7 +456,7 @@ test('drop table + rename schema #1', async () => {
  * SQL Server does not provide a built-in command to rename a schema directly.
  * Workarounds involve creating a new schema and migrating objects manually
  */`,
-		`DROP TABLE [users];`,
+		`DROP TABLE [folder2].[users];`,
 	]);
 });
 
@@ -601,9 +633,7 @@ test('optional db aliases (snake case)', async () => {
 	[t1_uni_idx] int NOT NULL,
 	[t1_idx] int NOT NULL,
 	CONSTRAINT [t1_pkey] PRIMARY KEY([t1_id1]),
-	CONSTRAINT [t1_uni] UNIQUE([t1_uni]),
-	CONSTRAINT [t1_t2_ref_t2_t2_id_fk] FOREIGN KEY ([t2_ref]) REFERENCES [t2]([t2_id]),
-	CONSTRAINT [t1_t1_col2_t1_col3_t3_t3_id1_t3_id2_fk] FOREIGN KEY ([t1_col2],[t1_col3]) REFERENCES [t3]([t3_id1],[t3_id2])
+	CONSTRAINT [t1_uni] UNIQUE([t1_uni])
 );
 `;
 
@@ -679,9 +709,7 @@ test('optional db aliases (camel case)', async () => {
 	[t1UniIdx] int NOT NULL,
 	[t1Idx] int NOT NULL,
 	CONSTRAINT [t1_pkey] PRIMARY KEY([t1Id1]),
-	CONSTRAINT [t1Uni] UNIQUE([t1Uni]),
-	CONSTRAINT [t1_t2Ref_t2_t2Id_fk] FOREIGN KEY ([t2Ref]) REFERENCES [t2]([t2Id]),
-	CONSTRAINT [t1_t1Col2_t1Col3_t3_t3Id1_t3Id2_fk] FOREIGN KEY ([t1Col2],[t1Col3]) REFERENCES [t3]([t3Id1],[t3Id2])
+	CONSTRAINT [t1Uni] UNIQUE([t1Uni])
 );
 `;
 
