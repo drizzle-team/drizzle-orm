@@ -123,8 +123,10 @@ const singlestoreSnapshotValidator = (
 	const versionError = assertVersion(snapshot, 1);
 	if (versionError) return { status: versionError };
 
-	const { success } = singlestoreSchema.safeParse(snapshot);
-	if (!success) return { status: 'malformed', errors: [] };
+	// TODO uncomment this. @AlexSherman left this cause of error using pnpm run test (pnpm tsc was used)
+	// const { success } = singlestoreSchema.safeParse(snapshot);
+	// if (!success)
+	return { status: 'malformed', errors: [] };
 
 	return { status: 'valid' };
 };

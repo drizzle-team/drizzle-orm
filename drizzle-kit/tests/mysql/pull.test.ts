@@ -41,8 +41,8 @@ beforeEach(async () => {
 	await _.clear();
 });
 
-if (!fs.existsSync('tests/introspect/mysql')) {
-	fs.mkdirSync('tests/introspect/mysql');
+if (!fs.existsSync('tests/mysql/tmp')) {
+	fs.mkdirSync('tests/mysql/tmp', { recursive: true });
 }
 
 test('generated always column: link to another column', async () => {
