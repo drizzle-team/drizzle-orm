@@ -303,8 +303,8 @@ export const defaultNameForFK = (table: string, columns: string[], tableTo: stri
 	return `${table}_${columns.join('_')}_${tableTo}_${columnsTo.join('_')}_fk`;
 };
 
-export const defaultNameForUnique = (table: string, column: string) => {
-	return `${table}_${column}_key`;
+export const defaultNameForUnique = (table: string, ...columns: string[]) => {
+	return `${table}_${columns.join("_")}_key`;
 };
 
 export const defaultNameForIndex = (table: string, columns: string[]) => {

@@ -193,7 +193,7 @@ export type InferInsert<TShape extends Record<string, any>, TCommon extends bool
 	>
 	: never;
 
-type InsertFn<
+type PushFn<
 	TInput extends Record<string, any>,
 	TCommon extends boolean = false,
 > = (
@@ -215,7 +215,7 @@ type DeleteFn<TInput extends Record<string, any>> = (
 ) => TInput[];
 type ValidateFn<TInput extends Record<string, any>> = (data: unknown) => data is TInput;
 
-const generateInsert: (configs: Record<string, Config>, store: CollectionStore, type?: string) => InsertFn<any> = (
+const generateInsert: (configs: Record<string, Config>, store: CollectionStore, type?: string) => PushFn<any> = (
 	configs,
 	store,
 	type,
@@ -420,7 +420,7 @@ type GenerateProcessors<
 	TTypes extends Record<string, any> = T['types'],
 > = {
 	[K in keyof TTypes]: {
-		insert: InsertFn<TTypes[K], TCommon>;
+		push: PushFn<TTypes[K], TCommon>;
 		list: ListFn<TTypes[K]>;
 		one: OneFn<TTypes[K]>;
 		update: UpdateFn<TTypes[K]>;
@@ -439,7 +439,7 @@ function initSchemaProcessors<T extends Omit<DbConfig<any>, 'diffs'>, TCommon ex
 
 	return Object.fromEntries(entries.map(([k, v]) => {
 		return [k, {
-			insert: generateInsert(common ? extraConfigs! : entities, store, common ? undefined : k),
+			push: generateInsert(common ? extraConfigs! : entities, store, common ? undefined : k),
 			list: generateList(store, common ? undefined : k),
 			one: generateOne(store, common ? undefined : k),
 			update: generateUpdate(store, common ? undefined : k),

@@ -62,7 +62,7 @@ export const ddlDiff = async (
 }> => {
 	const ddl1Copy = createDDL();
 	for (const entity of ddl1.entities.list()) {
-		ddl1Copy.entities.insert(entity);
+		ddl1Copy.entities.push(entity);
 	}
 
 	const schemasDiff = diff(ddl1, ddl2, 'schemas');

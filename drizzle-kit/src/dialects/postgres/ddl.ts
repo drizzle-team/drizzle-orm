@@ -343,14 +343,14 @@ export const interimToDDL = (
 	const errors: SchemaError[] = [];
 
 	for (const it of schema.schemas) {
-		const res = ddl.schemas.insert(it);
+		const res = ddl.schemas.push(it);
 		if (res.status === 'CONFLICT') {
 			errors.push({ type: 'schema_name_duplicate', name: it.name });
 		}
 	}
 
 	for (const it of schema.enums) {
-		const res = ddl.enums.insert(it);
+		const res = ddl.enums.push(it);
 		if (res.status === 'CONFLICT') {
 			errors.push({
 				type: 'enum_name_duplicate',
@@ -361,7 +361,7 @@ export const interimToDDL = (
 	}
 
 	for (const it of schema.tables) {
-		const res = ddl.tables.insert(it);
+		const res = ddl.tables.push(it);
 		if (res.status === 'CONFLICT') {
 			errors.push({
 				type: 'table_name_duplicate',
@@ -373,7 +373,7 @@ export const interimToDDL = (
 
 	for (const column of schema.columns) {
 		const { pk, pkName, unique, uniqueName, uniqueNullsNotDistinct, ...rest } = column;
-		const res = ddl.columns.insert(rest);
+		const res = ddl.columns.push(rest);
 		if (res.status === 'CONFLICT') {
 			errors.push({
 				type: 'column_name_duplicate',
@@ -385,7 +385,7 @@ export const interimToDDL = (
 	}
 
 	for (const it of schema.indexes) {
-		const res = ddl.indexes.insert(it);
+		const res = ddl.indexes.push(it);
 		if (res.status === 'CONFLICT') {
 			errors.push({
 				type: 'index_duplicate',
@@ -397,7 +397,7 @@ export const interimToDDL = (
 	}
 
 	for (const it of schema.fks) {
-		const res = ddl.fks.insert(it);
+		const res = ddl.fks.push(it);
 		if (res.status === 'CONFLICT') {
 			errors.push({
 				type: 'constraint_name_duplicate',
@@ -409,7 +409,7 @@ export const interimToDDL = (
 	}
 
 	for (const it of schema.pks) {
-		const res = ddl.pks.insert(it);
+		const res = ddl.pks.push(it);
 		if (res.status === 'CONFLICT') {
 			errors.push({
 				type: 'constraint_name_duplicate',
@@ -425,7 +425,7 @@ export const interimToDDL = (
 		const exists = ddl.pks.one({ schema: column.schema, table: column.table, name: name }) !== null;
 		if (exists) continue;
 
-		ddl.pks.insert({
+		ddl.pks.push({
 			schema: column.schema,
 			table: column.table,
 			name,
@@ -435,7 +435,7 @@ export const interimToDDL = (
 	}
 
 	for (const it of schema.uniques) {
-		const res = ddl.uniques.insert(it);
+		const res = ddl.uniques.push(it);
 		if (res.status === 'CONFLICT') {
 			errors.push({
 				type: 'constraint_name_duplicate',
@@ -451,7 +451,7 @@ export const interimToDDL = (
 		const exists = ddl.uniques.one({ schema: column.schema, table: column.table, name: name }) !== null;
 		if (exists) continue;
 
-		ddl.uniques.insert({
+		ddl.uniques.push({
 			schema: column.schema,
 			table: column.table,
 			name,
@@ -462,7 +462,7 @@ export const interimToDDL = (
 	}
 
 	for (const it of schema.checks) {
-		const res = ddl.checks.insert(it);
+		const res = ddl.checks.push(it);
 		if (res.status === 'CONFLICT') {
 			errors.push({
 				type: 'constraint_name_duplicate',
@@ -474,7 +474,7 @@ export const interimToDDL = (
 	}
 
 	for (const it of schema.sequences) {
-		const res = ddl.sequences.insert(it);
+		const res = ddl.sequences.push(it);
 		if (res.status === 'CONFLICT') {
 			errors.push({
 				type: 'sequence_name_duplicate',
@@ -485,13 +485,13 @@ export const interimToDDL = (
 	}
 
 	for (const it of schema.roles) {
-		const res = ddl.roles.insert(it);
+		const res = ddl.roles.push(it);
 		if (res.status === 'CONFLICT') {
 			errors.push({ type: 'role_duplicate', name: it.name });
 		}
 	}
 	for (const it of schema.policies) {
-		const res = ddl.policies.insert(it);
+		const res = ddl.policies.push(it);
 		if (res.status === 'CONFLICT') {
 			errors.push({
 				type: 'policy_duplicate',
@@ -502,7 +502,7 @@ export const interimToDDL = (
 		}
 	}
 	for (const it of schema.views) {
-		const res = ddl.views.insert(it);
+		const res = ddl.views.push(it);
 		if (res.status === 'CONFLICT') {
 			errors.push({
 				type: 'view_name_duplicate',

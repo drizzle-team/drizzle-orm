@@ -36,12 +36,12 @@ export const upSqliteHandler = (out: string) => {
 const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
 	const ddl = createDDL();
 	for (const table of Object.values(snapshot.tables)) {
-		ddl.tables.insert({
+		ddl.tables.push({
 			name: table.name,
 		});
 
 		for (const column of Object.values(table.columns)) {
-			ddl.columns.insert({
+			ddl.columns.push({
 				table: table.name,
 				name: column.name,
 				type: column.type,
@@ -59,7 +59,7 @@ const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
 		}
 
 		for (const pk of Object.values(table.compositePrimaryKeys)) {
-			ddl.pks.insert({
+			ddl.pks.push({
 				table: table.name,
 				name: pk.name,
 				columns: pk.columns,
@@ -67,7 +67,7 @@ const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
 		}
 
 		for (const index of Object.values(table.indexes)) {
-			ddl.indexes.insert({
+			ddl.indexes.push({
 				table: table.name,
 				name: index.name,
 				columns: index.columns.map((it) => ({ value: it, isExpression: false })),
@@ -78,7 +78,7 @@ const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
 		}
 
 		for (const unique of Object.values(table.uniqueConstraints)) {
-			ddl.uniques.insert({
+			ddl.uniques.push({
 				table: table.name,
 				name: unique.name,
 				columns: unique.columns,
@@ -87,7 +87,7 @@ const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
 		}
 
 		for (const check of Object.values(table.checkConstraints)) {
-			ddl.checks.insert({
+			ddl.checks.push({
 				table: table.name,
 				name: check.name,
 				value: check.value,
@@ -95,7 +95,7 @@ const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
 		}
 
 		for (const fk of Object.values(table.foreignKeys)) {
-			ddl.fks.insert({
+			ddl.fks.push({
 				table: table.name,
 				name: fk.name,
 				columns: fk.columnsFrom,
@@ -108,7 +108,7 @@ const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
 	}
 
 	for (const view of Object.values(snapshot.views)) {
-		ddl.views.insert({
+		ddl.views.push({
 			name: view.name,
 			definition: view.definition,
 			isExisting: view.isExisting,
