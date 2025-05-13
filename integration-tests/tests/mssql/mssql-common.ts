@@ -479,7 +479,7 @@ export function tests() {
 			]);
 		}
 
-		test.only('table config: columns', async () => {
+		test('table config: columns', async () => {
 			const table = mssqlTable('cities', {
 				id: int().primaryKey().identity(),
 				id1: int().primaryKey().identity({ increment: 2, seed: 3 }),
