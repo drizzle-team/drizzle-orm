@@ -61,7 +61,13 @@ test('rename schema #1', async () => {
 
 	const { sqlStatements } = await diff(from, to, ['dev->dev2']);
 
-	expect(sqlStatements).toStrictEqual(['ALTER SCHEMA [dev] RENAME TO [dev2];\n']);
+	expect(sqlStatements).toStrictEqual([`/**
+ * ⚠️ Renaming schemas is not supported in SQL Server (MSSQL),
+ * and therefore is not supported in Drizzle ORM at this time
+ * 
+ * SQL Server does not provide a built-in command to rename a schema directly.
+ * Workarounds involve creating a new schema and migrating objects manually
+ */`]);
 });
 
 test('rename schema #2', async () => {
@@ -76,5 +82,11 @@ test('rename schema #2', async () => {
 
 	const { sqlStatements } = await diff(from, to, ['dev1->dev2']);
 
-	expect(sqlStatements).toStrictEqual(['ALTER SCHEMA "dev1" RENAME TO [dev2];\n']);
+	expect(sqlStatements).toStrictEqual([`/**
+ * ⚠️ Renaming schemas is not supported in SQL Server (MSSQL),
+ * and therefore is not supported in Drizzle ORM at this time
+ * 
+ * SQL Server does not provide a built-in command to rename a schema directly.
+ * Workarounds involve creating a new schema and migrating objects manually
+ */`]);
 });

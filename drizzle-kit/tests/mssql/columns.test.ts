@@ -1,4 +1,5 @@
-import { bit, int, mssqlTable, primaryKey, text, varchar } from 'drizzle-orm/mssql-core';
+import { bit, int, mssqlSchema, mssqlTable, primaryKey, text, varchar } from 'drizzle-orm/mssql-core';
+import { defaultNameForPK } from 'src/dialects/mssql/grammar';
 import { expect, test } from 'vitest';
 import { diff } from './mocks';
 
@@ -12,12 +13,12 @@ test('add columns #1', async (t) => {
 	const schema2 = {
 		users: mssqlTable('users', {
 			id: int('id').primaryKey(),
-			name: text('name'),
+			name: text('name').notNull().default('hey'),
 		}),
 	};
 
 	const { sqlStatements } = await diff(schema1, schema2, []);
-	expect(sqlStatements).toStrictEqual(['ALTER TABLE [users] ADD [name] text;']);
+	expect(sqlStatements).toStrictEqual(["ALTER TABLE [users] ADD [name] text DEFAULT 'hey' NOT NULL;"]);
 });
 
 test('add columns #2', async (t) => {
@@ -62,7 +63,7 @@ test('alter column change name #1', async (t) => {
 		'dbo.users.name->dbo.users.name1',
 	]);
 
-	expect(sqlStatements).toStrictEqual([`EXEC sp_rename '[users].[name]', [name1], 'COLUMN';`]);
+	expect(sqlStatements).toStrictEqual([`EXEC sp_rename 'users.name', [name1], 'COLUMN';`]);
 });
 
 test('alter column change name #2', async (t) => {
@@ -86,13 +87,12 @@ test('alter column change name #2', async (t) => {
 	]);
 
 	expect(sqlStatements).toStrictEqual([
-		`EXEC sp_rename '[users].[name]', [name1], 'COLUMN';`,
+		`EXEC sp_rename 'users.name', [name1], 'COLUMN';`,
 		'ALTER TABLE [users] ADD [email] text;',
 	]);
 });
 
-// TODO here i need to be sure that name is correct, syntax is correct here
-test.todo('alter table add composite pk', async (t) => {
+test('alter table add composite pk', async (t) => {
 	const schema1 = {
 		table: mssqlTable('table', {
 			id1: int('id1'),
@@ -117,26 +117,29 @@ test.todo('alter table add composite pk', async (t) => {
 });
 
 test('rename table rename column #1', async (t) => {
+	const newSchema = mssqlSchema('new_schema');
 	const schema1 = {
-		users: mssqlTable('users', {
+		newSchema,
+		users: newSchema.table('users', {
 			id: int('id'),
 		}),
 	};
 
 	const schema2 = {
-		users: mssqlTable('users1', {
+		newSchema,
+		users: newSchema.table('users1', {
 			id: int('id1'),
 		}),
 	};
 
 	const { sqlStatements } = await diff(schema1, schema2, [
-		'dbo.users->dbo.users1',
-		'dbo.users1.id->dbo.users1.id1',
+		'new_schema.users->new_schema.users1',
+		'new_schema.users1.id->new_schema.users1.id1',
 	]);
 
 	expect(sqlStatements).toStrictEqual([
-		`EXEC sp_rename '[users]', '[users1]';`,
-		`EXEC sp_rename '[users1].[id]', [id1], 'COLUMN';`,
+		`EXEC sp_rename 'new_schema.users', [users1];`,
+		`EXEC sp_rename 'new_schema.users1.id', [id1], 'COLUMN';`,
 	]);
 });
 
@@ -181,7 +184,7 @@ test('add composite pks on existing table', async (t) => {
 	expect(sqlStatements).toStrictEqual(['ALTER TABLE [users] ADD CONSTRAINT [compositePK] PRIMARY KEY ([id1],[id2]);']);
 });
 
-test('rename column that is part of the pk', async (t) => {
+test('rename column that is part of the pk. Name explicit', async (t) => {
 	const schema1 = {
 		users: mssqlTable(
 			'users',
@@ -200,124 +203,264 @@ test('rename column that is part of the pk', async (t) => {
 		}, (t) => [primaryKey({ columns: [t.id1, t.id3], name: 'compositePK' })]),
 	};
 
-	// TODO: remove redundand drop/create create constraint
 	const { sqlStatements } = await diff(schema1, schema2, [
 		'dbo.users.id2->dbo.users.id3',
 	]);
 
-	expect(sqlStatements).toStrictEqual([`EXEC sp_rename '[users].[id2]', [id3], 'COLUMN';`]);
+	expect(sqlStatements).toStrictEqual([`EXEC sp_rename 'users.id2', [id3], 'COLUMN';`]);
 });
 
-// test('add multiple constraints #1', async (t) => {
-// 	const t1 = mssqlTable('t1', {
-// 		id: uuid('id').primaryKey().defaultRandom(),
-// 	});
+test('rename column and pk #2', async (t) => {
+	const schema1 = {
+		users: mssqlTable(
+			'users',
+			{
+				id1: int('id1'),
+				id2: int('id2'),
+			},
+			(t) => [primaryKey({ columns: [t.id1, t.id2], name: 'compositePK' })],
+		),
+	};
 
-// 	const t2 = mssqlTable('t2', {
-// 		id: ('id').primaryKey(),
-// 	});
+	const schema2 = {
+		users: mssqlTable('users', {
+			id1: int('id1'),
+			id3: int('id3'),
+		}, (t) => [primaryKey({ columns: [t.id1, t.id3] })]),
+	};
 
-// 	const t3 = mssqlTable('t3', {
-// 		id: uuid('id').primaryKey().defaultRandom(),
-// 	});
+	const { sqlStatements } = await diff(schema1, schema2, [
+		`dbo.users.id2->dbo.users.id3`,
+		`dbo.users.compositePK->dbo.users.${defaultNameForPK('users')}`,
+	]);
 
-// 	const schema1 = {
-// 		t1,
-// 		t2,
-// 		t3,
-// 		ref1: mssqlTable('ref1', {
-// 			id1: uuid('id1').references(() => t1.id),
-// 			id2: uuid('id2').references(() => t2.id),
-// 			id3: uuid('id3').references(() => t3.id),
-// 		}),
-// 	};
+	expect(sqlStatements).toStrictEqual([
+		`EXEC sp_rename 'users.id2', [id3], 'COLUMN';`,
+		`EXEC sp_rename 'compositePK', [users_pkey], 'OBJECT';`,
+	]);
+});
 
-// 	const schema2 = {
-// 		t1,
-// 		t2,
-// 		t3,
-// 		ref1: mssqlTable('ref1', {
-// 			id1: uuid('id1').references(() => t1.id, { onDelete: 'cascade' }),
-// 			id2: uuid('id2').references(() => t2.id, { onDelete: 'set null' }),
-// 			id3: uuid('id3').references(() => t3.id, { onDelete: 'cascade' }),
-// 		}),
-// 	};
+test('rename table should cause rename pk. Name is not explicit', async (t) => {
+	const schema1 = {
+		users: mssqlTable(
+			'users',
+			{
+				id1: int('id1'),
+				id2: int('id2'),
+			},
+			(t) => [primaryKey({ columns: [t.id1, t.id2] })],
+		),
+	};
 
-// 	// TODO: remove redundand drop/create create constraint
-// 	const { sqlStatements } = await diff(schema1, schema2, []);
+	const schema2 = {
+		users: mssqlTable('users2', {
+			id1: int('id1'),
+			id2: int('id2'),
+		}, (t) => [primaryKey({ columns: [t.id1, t.id2] })]),
+	};
 
-// 	expect(sqlStatements).toStrictEqual([]);
-// });
+	const { sqlStatements } = await diff(schema1, schema2, [
+		`dbo.users->dbo.users2`,
+	]);
 
-// test('add multiple constraints #2', async (t) => {
-// 	const t1 = mssqlTable('t1', {
-// 		id1: uuid('id1').primaryKey().defaultRandom(),
-// 		id2: uuid('id2').primaryKey().defaultRandom(),
-// 		id3: uuid('id3').primaryKey().defaultRandom(),
-// 	});
+	expect(sqlStatements).toStrictEqual([
+		`EXEC sp_rename 'users', [users2];`,
+		`EXEC sp_rename 'users_pkey', [users2_pkey], 'OBJECT';`,
+	]);
+});
 
-// 	const schema1 = {
-// 		t1,
-// 		ref1: mssqlTable('ref1', {
-// 			id1: uuid('id1').references(() => t1.id1),
-// 			id2: uuid('id2').references(() => t1.id2),
-// 			id3: uuid('id3').references(() => t1.id3),
-// 		}),
-// 	};
+test('rename table should not cause rename pk. Name explicit', async (t) => {
+	const schema1 = {
+		users: mssqlTable(
+			'users',
+			{
+				id1: int('id1'),
+				id2: int('id2'),
+			},
+			(t) => [primaryKey({ columns: [t.id1, t.id2], name: 'compositePk' })],
+		),
+	};
 
-// 	const schema2 = {
-// 		t1,
-// 		ref1: mssqlTable('ref1', {
-// 			id1: uuid('id1').references(() => t1.id1, { onDelete: 'cascade' }),
-// 			id2: uuid('id2').references(() => t1.id2, { onDelete: 'set null' }),
-// 			id3: uuid('id3').references(() => t1.id3, { onDelete: 'cascade' }),
-// 		}),
-// 	};
+	const schema2 = {
+		users: mssqlTable('users2', {
+			id1: int('id1'),
+			id2: int('id2'),
+		}, (t) => [primaryKey({ columns: [t.id1, t.id2], name: 'compositePk' })]),
+	};
 
-// 	// TODO: remove redundand drop/create create constraint
-// 	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements } = await diff(schema1, schema2, [
+		`dbo.users->dbo.users2`,
+	]);
 
-// 	expect(sqlStatements).toStrictEqual([]);
-// });
+	expect(sqlStatements).toStrictEqual([
+		`EXEC sp_rename 'users', [users2];`,
+	]);
+});
 
-// test('add multiple constraints #3', async (t) => {
-// 	const t1 = mssqlTable('t1', {
-// 		id1: uuid('id1').primaryKey().defaultRandom(),
-// 		id2: uuid('id2').primaryKey().defaultRandom(),
-// 		id3: uuid('id3').primaryKey().defaultRandom(),
-// 	});
+test('move table to other schema + rename table. Should cause rename pk. Name is not explicit', async (t) => {
+	const mySchema = mssqlSchema('my_schema');
+	const schema1 = {
+		mySchema,
+		users: mssqlTable(
+			'users',
+			{
+				id1: int('id1'),
+				id2: int('id2'),
+			},
+			(t) => [primaryKey({ columns: [t.id1, t.id2] })],
+		),
+	};
 
-// 	const schema1 = {
-// 		t1,
-// 		ref1: mssqlTable('ref1', {
-// 			id: uuid('id').references(() => t1.id1),
-// 		}),
-// 		ref2: mssqlTable('ref2', {
-// 			id: uuid('id').references(() => t1.id2),
-// 		}),
-// 		ref3: mssqlTable('ref3', {
-// 			id: uuid('id').references(() => t1.id3),
-// 		}),
-// 	};
+	const schema2 = {
+		mySchema,
+		users: mySchema.table('users2', {
+			id1: int('id1'),
+			id2: int('id2'),
+		}, (t) => [primaryKey({ columns: [t.id1, t.id2] })]),
+	};
 
-// 	const schema2 = {
-// 		t1,
-// 		ref1: mssqlTable('ref1', {
-// 			id: uuid('id').references(() => t1.id1, { onDelete: 'cascade' }),
-// 		}),
-// 		ref2: mssqlTable('ref2', {
-// 			id: uuid('id').references(() => t1.id2, { onDelete: 'set null' }),
-// 		}),
-// 		ref3: mssqlTable('ref3', {
-// 			id: uuid('id').references(() => t1.id3, { onDelete: 'cascade' }),
-// 		}),
-// 	};
+	const { sqlStatements } = await diff(schema1, schema2, [
+		`dbo.users->my_schema.users2`,
+	]);
 
-// 	// TODO: remove redundand drop/create create constraint
-// 	const { sqlStatements } = await diff(schema1, schema2, []);
+	expect(sqlStatements).toStrictEqual([
+		`EXEC sp_rename 'users', [users2];`,
+		`ALTER SCHEMA [my_schema] TRANSFER [dbo].[users2];\n`,
+		`EXEC sp_rename 'my_schema.users_pkey', [users2_pkey], 'OBJECT';`,
+	]);
+});
 
-// 	expect(sqlStatements).toStrictEqual([]);
-// });
+test('rename table should cause rename fk. Name is not explicit. #1', async (t) => {
+	const company = mssqlTable(
+		'company',
+		{
+			id: int('id'),
+		},
+	);
+	const schema1 = {
+		company,
+		users: mssqlTable(
+			'users',
+			{
+				id: int('id'),
+				companyId: int('company_id').references(() => company.id),
+			},
+		),
+	};
+
+	const renamedCompany = mssqlTable(
+		'company2',
+		{
+			id: int('id'),
+		},
+	);
+	const schema2 = {
+		company: renamedCompany,
+		users: mssqlTable(
+			'users',
+			{
+				id: int('id'),
+				companyId: int('company_id').references(() => renamedCompany.id),
+			},
+		),
+	};
+
+	const { sqlStatements: sqlStatements1 } = await diff(schema1, schema2, [
+		`dbo.company->dbo.company2`,
+	]);
+
+	expect(sqlStatements1).toStrictEqual([
+		`EXEC sp_rename 'company', [company2];`,
+		`EXEC sp_rename 'users_company_id_company_id_fk', [users_company_id_company2_id_fk], 'OBJECT';`,
+	]);
+
+	const { sqlStatements: sqlStatements2 } = await diff(schema2, schema2, []);
+
+	expect(sqlStatements2).toStrictEqual([]);
+});
+
+test('rename table should cause rename fk. Name is not explicit. #2', async (t) => {
+	const company = mssqlTable(
+		'company',
+		{
+			id: int('id').references(() => users.id),
+		},
+	);
+	const users = mssqlTable(
+		'users',
+		{
+			id: int('id'),
+		},
+	);
+	const schema1 = {
+		company,
+		users,
+	};
+
+	const renamedCompany = mssqlTable(
+		'company2',
+		{
+			id: int('id').references(() => users.id),
+		},
+	);
+	const schema2 = {
+		company: renamedCompany,
+		users,
+	};
+
+	const { sqlStatements } = await diff(schema1, schema2, [
+		`dbo.company->dbo.company2`,
+	]);
+
+	expect(sqlStatements).toStrictEqual([
+		`EXEC sp_rename 'company', [company2];`,
+		`EXEC sp_rename 'company_id_users_id_fk', [company2_id_users_id_fk], 'OBJECT';`,
+	]);
+});
+
+test('move table to other schema + rename fk', async (t) => {
+	const mySchema = mssqlSchema('my_schema');
+
+	const company = mssqlTable(
+		'company',
+		{
+			id: int('id').references(() => users.id),
+		},
+	);
+	const users = mssqlTable(
+		'users',
+		{
+			id: int('id'),
+		},
+	);
+	const schema1 = {
+		mySchema,
+		company,
+		users,
+	};
+
+	const renamedCompany = mySchema.table(
+		'company2',
+		{
+			id: int('id').references(() => users.id),
+		},
+	);
+	const schema2 = {
+		mySchema,
+		company: renamedCompany,
+		users,
+	};
+
+	const { sqlStatements } = await diff(schema1, schema2, [
+		`dbo.company->my_schema.company2`,
+	]);
+
+	expect(sqlStatements).toStrictEqual([
+		`EXEC sp_rename 'company', [company2];`,
+		`ALTER SCHEMA [my_schema] TRANSFER [dbo].[company2];\n`,
+		`EXEC sp_rename 'my_schema.company_id_users_id_fk', [company2_id_users_id_fk], 'OBJECT';`,
+	]);
+});
 
 test('varchar and text default values escape single quotes', async () => {
 	const schema1 = {
@@ -364,14 +507,13 @@ test('add columns with defaults', async () => {
 
 	const { sqlStatements } = await diff(schema1, schema2, []);
 
-	// TODO: check for created tables, etc
 	expect(sqlStatements).toStrictEqual([
 		"ALTER TABLE [table] ADD [text1] text DEFAULT '';",
 		"ALTER TABLE [table] ADD [text2] text DEFAULT 'text';",
 		'ALTER TABLE [table] ADD [int1] int DEFAULT 10;',
 		'ALTER TABLE [table] ADD [int2] int DEFAULT 0;',
 		'ALTER TABLE [table] ADD [int3] int DEFAULT -10;',
-		'ALTER TABLE [table] ADD [bool1] bit DEFAULT true;',
-		'ALTER TABLE [table] ADD [bool2] bit DEFAULT false;',
+		'ALTER TABLE [table] ADD [bool1] bit DEFAULT 1;',
+		'ALTER TABLE [table] ADD [bool2] bit DEFAULT 0;',
 	]);
 });

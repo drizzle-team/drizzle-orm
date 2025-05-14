@@ -70,7 +70,6 @@ export const createDDL = () => {
 			schemaBinding: 'boolean?',
 			viewMetadata: 'boolean?',
 			checkOption: 'boolean?',
-			isExisting: 'boolean',
 		},
 	});
 };
@@ -195,7 +194,7 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MssqlDDL; errors: S
 	}
 
 	for (const column of interim.columns) {
-		const { isPK, isUnique, ...rest } = column;
+		const { isPK, isUnique, uniqueName, ...rest } = column;
 		const res = ddl.columns.push(rest);
 		if (res.status === 'CONFLICT') {
 			errors.push({ type: 'column_name_conflict', table: column.table, name: column.name });
@@ -210,6 +209,18 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MssqlDDL; errors: S
 				schema: index.schema,
 				table: index.table,
 				name: index.name,
+			});
+		}
+	}
+
+	for (const unique of interim.uniques) {
+		const res = ddl.uniques.push(unique);
+		if (res.status === 'CONFLICT') {
+			errors.push({
+				type: 'constraint_name_conflict',
+				schema: unique.schema,
+				table: unique.table,
+				name: unique.name,
 			});
 		}
 	}
@@ -243,7 +254,7 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MssqlDDL; errors: S
 	}
 
 	for (const column of interim.columns.filter((it) => it.isUnique)) {
-		const name = column.uniqueName !== null ? column.uniqueName : defaultNameForUnique(column.table, column.name);
+		const name = column.uniqueName !== null ? column.uniqueName : defaultNameForUnique(column.table, [column.name]);
 		const exists = ddl.uniques.one({ schema: column.schema, table: column.table, name: name }) !== null;
 		if (exists) continue;
 

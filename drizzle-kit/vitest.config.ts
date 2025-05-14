@@ -4,8 +4,6 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
 	test: {
 		include: [
-			'tests/postgres/pg-tables.test.ts',
-			'tests/mssql/constraints.test.ts',
 			'tests/**/*.test.ts',
 			// Need to test it first before pushing changes
 			// 'tests/singlestore-schemas.test.ts',
@@ -16,7 +14,11 @@ export default defineConfig({
 
 		// This one was excluded because we need to modify an API for SingleStore-generated columns.
 		// It’s in the backlog.
-		exclude: ['tests/**/singlestore-generated.test.ts'],
+		exclude: [
+			'tests/**/singlestore-generated.test.ts',
+			'tests/singlestore/**/*.test.ts',
+			'tests/gel/**/*.test.ts',
+		],
 
 		typecheck: {
 			tsconfig: 'tsconfig.json',

@@ -406,6 +406,15 @@ export const preparePushConfig = async (
 		process.exit(1);
 	}
 
+	if (config.dialect === 'mssql') {
+		console.log(
+			error(
+				`You can't use 'push' command with MsSql dialect yet`,
+			),
+		);
+		process.exit(1);
+	}
+
 	assertUnreachable(config.dialect);
 };
 
@@ -605,6 +614,15 @@ export const preparePullConfig = async (
 		};
 	}
 
+	if (dialect === 'mssql') {
+		console.log(
+			error(
+				`You can't use 'pull' command with MsSql dialect yet`,
+			),
+		);
+		process.exit(1);
+	}
+
 	assertUnreachable(dialect);
 };
 
@@ -716,6 +734,15 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 		process.exit(1);
 	}
 
+	if (dialect === 'mssql') {
+		console.log(
+			error(
+				`You can't use 'studio' command with MsSql dialect yet`,
+			),
+		);
+		process.exit(1);
+	}
+
 	assertUnreachable(dialect);
 };
 
@@ -821,6 +848,15 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 		console.log(
 			error(
 				`You can't use 'migrate' command with Gel dialect`,
+			),
+		);
+		process.exit(1);
+	}
+
+	if (dialect === 'mssql') {
+		console.log(
+			error(
+				`You can't use 'migrate' command with MsSql dialect yet`,
 			),
 		);
 		process.exit(1);

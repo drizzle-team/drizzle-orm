@@ -303,8 +303,8 @@ export class ResolveSelectNamed<T extends Named> extends Prompt<
 
 type EntityBase = { schema?: string; table?: string; name: string };
 
-const keyFor = (it: EntityBase) => {
-	const schemaPrefix = it.schema && it.schema !== 'public' ? `${it.schema}.` : '';
+const keyFor = (it: EntityBase, defaultSchema: 'dbo' | 'public' = 'public') => {
+	const schemaPrefix = it.schema && it.schema !== defaultSchema ? `${it.schema}.` : '';
 	const tablePrefix = it.table ? `${it.schema}.` : '';
 	return `${schemaPrefix}${tablePrefix}${it.name}`;
 };
@@ -317,7 +317,21 @@ export class ResolveSelect<T extends EntityBase> extends Prompt<
 	constructor(
 		private readonly base: T,
 		data: (RenamePropmtItem<T> | T)[],
-		private readonly entityType: 'schema' | 'table' | 'enum' | 'sequence' | 'view' | 'role',
+		private readonly entityType:
+			| 'schema'
+			| 'enum'
+			| 'table'
+			| 'column'
+			| 'sequence'
+			| 'view'
+			| 'policy'
+			| 'role'
+			| 'check'
+			| 'index'
+			| 'unique'
+			| 'primary key'
+			| 'foreign key',
+		private defaultSchema: 'dbo' | 'public' = 'public',
 	) {
 		super();
 		this.on('attach', (terminal) => terminal.toggleCursor('hide'));
@@ -331,7 +345,7 @@ export class ResolveSelect<T extends EntityBase> extends Prompt<
 			return '';
 		}
 
-		const key = keyFor(this.base);
+		const key = keyFor(this.base, this.defaultSchema);
 		let text = `\nIs ${chalk.bold.blue(key)} ${this.entityType} created or renamed from another ${this.entityType}?\n`;
 
 		const isSelectedRenamed = isRenamePromptItem(
@@ -362,8 +376,8 @@ export class ResolveSelect<T extends EntityBase> extends Prompt<
 			const isRenamed = isRenamePromptItem(it);
 
 			const title = isRenamed
-				? `${keyFor(it.from)} › ${keyFor(it.to)}`.padEnd(labelLength, ' ')
-				: keyFor(it).padEnd(labelLength, ' ');
+				? `${keyFor(it.from, this.defaultSchema)} › ${keyFor(it.to, this.defaultSchema)}`.padEnd(labelLength, ' ')
+				: keyFor(it, this.defaultSchema).padEnd(labelLength, ' ');
 
 			const label = isRenamed
 				? `${chalk.yellow('~')} ${title} ${chalk.gray(`rename ${entityType}`)}`

@@ -1,11 +1,24 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
 import { Resolver } from 'src/dialects/common';
-import { PostgresEntities, Schema } from 'src/dialects/postgres/ddl';
-import { isRenamePromptItem, RenamePropmtItem, ResolveSchemasSelect, ResolveSelect } from './views';
+import { isRenamePromptItem, RenamePropmtItem, ResolveSelect } from './views';
 
 export const resolver = <T extends { name: string; schema?: string; table?: string }>(
-	entity: 'schema' | 'enum' | 'table' | 'column' | 'sequence' | 'view' | 'policy' | 'role',
+	entity:
+		| 'schema'
+		| 'enum'
+		| 'table'
+		| 'column'
+		| 'sequence'
+		| 'view'
+		| 'policy'
+		| 'role'
+		| 'check'
+		| 'index'
+		| 'unique'
+		| 'primary key'
+		| 'foreign key',
+	defaultSchema: 'public' | 'dbo' = 'public',
 ): Resolver<T> => {
 	return async (it: { created: T[]; deleted: T[] }) => {
 		const { created, deleted } = it;
@@ -28,7 +41,7 @@ export const resolver = <T extends { name: string; schema?: string; table?: stri
 			});
 
 			const promptData: (RenamePropmtItem<T> | T)[] = [newItem, ...renames];
-			const { status, data } = await render(new ResolveSelect(newItem, promptData, 'schema'));
+			const { status, data } = await render(new ResolveSelect(newItem, promptData, entity, defaultSchema));
 
 			if (status === 'aborted') {
 				console.error('ERROR');
@@ -38,11 +51,13 @@ export const resolver = <T extends { name: string; schema?: string; table?: stri
 			if (isRenamePromptItem(data)) {
 				const to = data.to;
 
-				const schemaFromPrefix = newItem.schema ? newItem.schema !== 'public' ? `${newItem.schema}.` : '' : '';
+				const schemaFromPrefix = newItem.schema ? newItem.schema !== defaultSchema ? `${newItem.schema}.` : '' : '';
+
 				const tableFromPrefix = newItem.table ? `${newItem.table}.` : '';
+
 				const fromEntity = `${schemaFromPrefix}${tableFromPrefix}${newItem.name}`;
 
-				const schemaToPrefix = to.schema ? to.schema !== 'public' ? `${to.schema}.` : '' : '';
+				const schemaToPrefix = to.schema ? to.schema !== defaultSchema ? `${to.schema}.` : '' : '';
 				const tableToPrefix = to.table ? `${to.table}.` : '';
 				const toEntity = `${schemaToPrefix}${tableToPrefix}${to.name}`;
 

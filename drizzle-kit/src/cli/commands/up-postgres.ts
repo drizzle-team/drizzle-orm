@@ -1,6 +1,4 @@
 import chalk from 'chalk';
-import { name } from 'drizzle-orm';
-import { index } from 'drizzle-orm/gel-core';
 import { writeFileSync } from 'fs';
 import { createDDL, Index } from '../../dialects/postgres/ddl';
 import {

@@ -137,7 +137,7 @@ export function validator<S extends Record<string, SchemaType>>(
 		strict: (input: unknown) => {
 			const errors = validate(input as any);
 			if (errors.length > 0) {
-				throw new Error('Validation failed')
+				throw new Error('Validation failed');
 			}
 			return input as any;
 		},

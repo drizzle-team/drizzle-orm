@@ -111,6 +111,7 @@ export interface RecreatePK {
 export interface DropConstraint {
 	type: 'drop_constraint';
 	table: string;
+	schema: string;
 	constraint: string;
 }
 
@@ -197,6 +198,36 @@ export interface MoveView {
 	view: View;
 }
 
+export interface RenamePrimaryKey {
+	type: 'rename_pk';
+	from: PrimaryKey;
+	to: PrimaryKey;
+}
+
+export interface RenameCheck {
+	type: 'rename_check';
+	from: CheckConstraint;
+	to: CheckConstraint;
+}
+
+export interface RenameIndex {
+	type: 'rename_index';
+	from: Index;
+	to: Index;
+}
+
+export interface RenameForeignKey {
+	type: 'rename_fk';
+	from: ForeignKey;
+	to: ForeignKey;
+}
+
+export interface RenameUnique {
+	type: 'rename_unique';
+	from: UniqueConstraint;
+	to: UniqueConstraint;
+}
+
 export type JsonStatement =
 	| CreateSchema
 	| DropSchema
@@ -231,7 +262,12 @@ export type JsonStatement =
 	| RenameView
 	| AlterView
 	| DropConstraint
-	| CreateCheck;
+	| CreateCheck
+	| RenamePrimaryKey
+	| RenameCheck
+	| RenameIndex
+	| RenameForeignKey
+	| RenameUnique;
 
 export const prepareStatement = <
 	TType extends JsonStatement['type'],
