@@ -48,7 +48,7 @@ test('table - insert', (t) => {
 	const expected = z.object({
 		id: serialNumberModeSchema.optional(),
 		name: textSchema,
-		age: intSchema.optional(),
+		age: intSchema.nullable().optional(),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -65,7 +65,7 @@ test('table - update', (t) => {
 	const expected = z.object({
 		id: serialNumberModeSchema.optional(),
 		name: textSchema.optional(),
-		age: intSchema.optional(),
+		age: intSchema.nullable().optional(),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -132,9 +132,9 @@ test('nullability - select', (t) => {
 
 	const result = createSelectSchema(table);
 	const expected = z.object({
-		c1: intSchema.optional(),
+		c1: intSchema.nullable(),
 		c2: intSchema,
-		c3: intSchema.optional(),
+		c3: intSchema.nullable(),
 		c4: intSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
@@ -152,9 +152,9 @@ test('nullability - insert', (t) => {
 
 	const result = createInsertSchema(table);
 	const expected = z.object({
-		c1: intSchema.optional(),
+		c1: intSchema.nullable().optional(),
 		c2: intSchema,
-		c3: intSchema.optional(),
+		c3: intSchema.nullable().optional(),
 		c4: intSchema.optional(),
 	});
 	expectSchemaShape(t, expected).from(result);
@@ -172,9 +172,9 @@ test('nullability - update', (t) => {
 
 	const result = createUpdateSchema(table);
 	const expected = z.object({
-		c1: intSchema.optional(),
+		c1: intSchema.nullable().optional(),
 		c2: intSchema.optional(),
-		c3: intSchema.optional(),
+		c3: intSchema.nullable().optional(),
 		c4: intSchema.optional(),
 	});
 	expectSchemaShape(t, expected).from(result);
@@ -193,7 +193,7 @@ test('refine table - select', (t) => {
 		c3: z.string().transform(Number),
 	});
 	const expected = z.object({
-		c1: intSchema.optional(),
+		c1: intSchema.nullable(),
 		c2: intSchema.max(1000),
 		c3: z.string().transform(Number),
 	});
@@ -218,7 +218,7 @@ test('refine table - select with custom data type', (t) => {
 		c4: customTextSchema,
 	});
 	const expected = z.object({
-		c1: intSchema.optional(),
+		c1: intSchema.nullable(),
 		c2: intSchema.max(1000),
 		c3: z.string().transform(Number),
 		c4: customTextSchema,
@@ -241,7 +241,7 @@ test('refine table - insert', (t) => {
 		c3: z.string().transform(Number),
 	});
 	const expected = z.object({
-		c1: intSchema.optional(),
+		c1: intSchema.nullable().optional(),
 		c2: intSchema.max(1000),
 		c3: z.string().transform(Number),
 	});
@@ -262,7 +262,7 @@ test('refine table - update', (t) => {
 		c3: z.string().transform(Number),
 	});
 	const expected = z.object({
-		c1: intSchema.optional(),
+		c1: intSchema.nullable().optional(),
 		c2: intSchema.max(1000).optional(),
 		c3: z.string().transform(Number),
 	});
@@ -270,63 +270,62 @@ test('refine table - update', (t) => {
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-// TODO
-// test('refine view - select', (t) => {
-// 	const table = mysqlTable('test', {
-// 		c1: int(),
-// 		c2: int(),
-// 		c3: int(),
-// 		c4: int(),
-// 		c5: int(),
-// 		c6: int(),
-// 	});
-// 	const view = mysqlView('test').as((qb) =>
-// 		qb.select({
-// 			c1: table.c1,
-// 			c2: table.c2,
-// 			c3: table.c3,
-// 			nested: {
-// 				c4: table.c4,
-// 				c5: table.c5,
-// 				c6: table.c6,
-// 			},
-// 			table,
-// 		}).from(table)
-// 	);
+test('refine view - select', (t) => {
+	const table = mysqlTable('test', {
+		c1: int(),
+		c2: int(),
+		c3: int(),
+		c4: int(),
+		c5: int(),
+		c6: int(),
+	});
+	const view = mysqlView('test').as((qb) =>
+		qb.select({
+			c1: table.c1,
+			c2: table.c2,
+			c3: table.c3,
+			nested: {
+				c4: table.c4,
+				c5: table.c5,
+				c6: table.c6,
+			},
+			table,
+		}).from(table)
+	);
 
-// 	const result = createSelectSchema(view, {
-// 		c2: (schema) => schema.max(1000),
-// 		c3: z.string().transform(Number),
-// 		nested: {
-// 			c5: (schema) => schema.max(1000),
-// 			c6: z.string().transform(Number),
-// 		},
-// 		table: {
-// 			c2: (schema) => schema.max(1000),
-// 			c3: z.string().transform(Number),
-// 		},
-// 	});
-// 	const expected = z.object({
-// 		c1: intSchema.optional(),
-// 		c2: intSchema.max(1000).optional(),
-// 		c3: z.string().transform(Number),
-// 		nested: z.object({
-// 			c4: intSchema.optional(),
-// 			c5: intSchema.max(1000).optional(),
-// 			c6: z.string().transform(Number),
-// 		}),
-// 		table: z.object({
-// 			c1: intSchema.optional(),
-// 			c2: intSchema.max(1000).optional(),
-// 			c3: z.string().transform(Number),
-// 			c4: intSchema.optional(),
-// 			c5: intSchema.max(1000).optional(),
-// 			c6: intSchema.optional(),
-// 		}),
-// 	});
-// 	expectSchemaShape(t, expected).from(result);
-// 	Expect<Equal<typeof result, typeof expected>>();
-// });
+	const result = createSelectSchema(view, {
+		c2: (schema) => schema.max(1000),
+		c3: z.string().transform(Number),
+		nested: {
+			c5: (schema) => schema.max(1000),
+			c6: z.string().transform(Number),
+		},
+		table: {
+			c2: (schema) => schema.max(1000),
+			c3: z.string().transform(Number),
+		},
+	});
+	const expected = z.object({
+		c1: intSchema.nullable(),
+		c2: intSchema.max(1000).nullable(),
+		c3: z.string().transform(Number),
+		nested: z.object({
+			c4: intSchema.nullable(),
+			c5: intSchema.max(1000).nullable(),
+			c6: z.string().transform(Number),
+		}),
+		table: z.object({
+			c1: intSchema.nullable(),
+			c2: intSchema.max(1000).nullable(),
+			c3: z.string().transform(Number),
+			c4: intSchema.nullable(),
+			c5: intSchema.nullable(),
+			c6: intSchema.nullable(),
+		}),
+	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
 
 test('all data types', (t) => {
 	const table = mysqlTable('test', ({
@@ -516,7 +515,7 @@ test('type coercion - mixed', (t) => {
 	});
 	const result = createSelectSchema(table);
 	const expected = z.object({
-		json: z.optional(TopLevelCondition),
+		json: z.nullable(TopLevelCondition),
 	});
 	Expect<Equal<z.infer<typeof result>, z.infer<typeof expected>>>();
 }
