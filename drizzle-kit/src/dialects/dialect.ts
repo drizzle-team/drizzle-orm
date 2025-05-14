@@ -156,6 +156,13 @@ function findCompositeKey(dataSource: (CommonEntity)[], target: CommonEntity) {
 	return match;
 }
 
+function findCompositeKeys(dataSource: (CommonEntity)[], target: CommonEntity) {
+	const targetKey = getCompositeKey(target);
+	const match = dataSource.filter((e) => getCompositeKey(e) === targetKey);
+
+	return match;
+}
+
 function replaceValue(arr: Array<any>, target: any, update: any) {
 	for (var i = 0; i < arr.length; i++) {
 		if (arr[i] === target) {
@@ -209,7 +216,10 @@ type UpdateFn<TInput extends Record<string, any>> = (
 	config: TInput extends infer Input extends Record<string, any>
 		? { set: Simplify<UpdateOperators<Omit<Input, 'entityType'>>>; where?: Filter<Input> }
 		: never,
-) => TInput[];
+) => {
+	status: 'OK' | 'CONFLICT';
+	data: TInput[];
+};
 type DeleteFn<TInput extends Record<string, any>> = (
 	where?: TInput extends infer Input extends Record<string, any> ? Filter<Input> : never,
 ) => TInput[];
@@ -311,21 +321,56 @@ const generateUpdate: (store: CollectionStore, type?: string) => UpdateFn<any> =
 
 		const targets = filter ? filterCollection(store.collection, filter) : store.collection;
 		const entries = Object.entries(set);
+		const newItems: {
+			index: number;
+			item: Record<string, any>;
+		}[] = [];
+		let i = 0;
+		const dupes: Record<string, any>[] = [];
 
 		for (const item of targets) {
+			const newItem: Record<string, any> = { ...item };
+
 			for (const [k, v] of entries) {
 				if (!(k in item)) continue;
 				const target = item[k];
 
-				item[k] = typeof v === 'function'
+				newItem[k] = typeof v === 'function'
 					? (Array.isArray(target))
 						? target.map(v)
 						: v(target)
 					: v;
 			}
+
+			const dupe = findCompositeKeys(store.collection as CommonEntity[], newItem as CommonEntity).filter((e) =>
+				e !== item
+			);
+
+			dupes.push(...dupe.filter((e) => !dupes.find((d) => d === e)));
+
+			if (!dupe.length) {
+				newItems.push({
+					item: newItem,
+					index: i++,
+				});
+			}
 		}
 
-		return targets;
+		// Swap this
+		if (dupes.length) {
+			return {
+				status: 'CONFLICT',
+				data: dupes,
+			};
+		}
+
+		// ^ with this
+		// If you want non-conflicting changes to apply regardless of conflicts' existence
+		for (const { index, item } of newItems) {
+			Object.assign(targets[index]!, item);
+		}
+
+		return { status: 'OK', data: targets };
 	};
 };
 
