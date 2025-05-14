@@ -101,9 +101,9 @@ export class NeonHttpPreparedQuery<
 
 		this.logger.logQuery(this.query.sql, params);
 
-		const { client, query, customResultMapper } = this;
+		const { clientQuery, query, customResultMapper } = this;
 
-		const result = await client(
+		const result = await clientQuery(
 			query.sql,
 			params,
 			token === undefined
