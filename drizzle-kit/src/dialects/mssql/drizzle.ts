@@ -13,8 +13,8 @@ import {
 import { CasingType } from 'src/cli/validations/common';
 import { getColumnCasing, sqlToStr } from 'src/serializer/utils';
 import { safeRegister } from 'src/utils-node';
-import { Column, InterimSchema, MssqlEntities, Schema, SchemaError } from './ddl';
-import { defaultNameForFK, defaultNameForPK, defaultNameForUnique, uniqueKeyName } from './grammar';
+import { Column, InterimSchema, MssqlEntities, Schema } from './ddl';
+import { defaultNameForFK, defaultNameForPK, defaultNameForUnique } from './grammar';
 
 export const upper = <T extends string>(value: T | undefined): Uppercase<T> | null => {
 	if (!value) return null;
@@ -34,11 +34,10 @@ export const defaultFromColumn = (column: AnyMsSqlColumn, casing?: Casing): Colu
 		return { value: str, type: 'unknown' };
 	}
 
-	// TODO check this
-	// const sqlType = column.getSQLType();
-	// if (sqlType.startsWith('binary')) {
-	// 	return { value: String(column.default), type: 'text' };
-	// }
+	const sqlType = column.getSQLType();
+	if (sqlType === 'bit') {
+		return { value: String(column.default ? 1 : 0), type: 'number' };
+	}
 
 	const type = typeof column.default;
 	if (type === 'string' || type === 'number' || type === 'bigint' || type === 'boolean') {
@@ -139,7 +138,7 @@ export const fromDrizzleSchema = (
 						? dialect.sqlToQuery(column.generated.as as SQL).sql
 						: typeof column.generated.as === 'function'
 						? dialect.sqlToQuery(column.generated.as() as SQL).sql
-						: (column.generated.as as any),
+						: `${column.generated.as}`,
 					type: column.generated.mode ?? 'virtual',
 				}
 				: null;
@@ -150,10 +149,13 @@ export const fromDrizzleSchema = (
 				table: tableName,
 				name,
 				type: sqlType,
-				notNull: notNull,
+				notNull: notNull
+					&& !column.primary
+					&& !column.generated
+					&& !identity,
 				// @ts-expect-error
 				// TODO update description
-				// 'virtual' | 'stored' for postgres, mysql
+				// 'virtual' | 'stored' for all dialects
 				// 'virtual' | 'persisted' for mssql
 				// We should remove this option from common Column and store it per dialect common
 				// Was discussed with Andrew
@@ -188,7 +190,7 @@ export const fromDrizzleSchema = (
 				return getColumnCasing(c, casing);
 			});
 
-			const name = unique.name ?? uniqueKeyName(tableName, unique.columns.map((c) => c.name));
+			const name = unique.name ?? defaultNameForUnique(tableName, unique.columns.map((c) => c.name));
 
 			result.uniques.push({
 				entityType: 'uniques',
@@ -274,7 +276,7 @@ export const fromDrizzleSchema = (
 				schema,
 				name,
 				value: dialect.sqlToQuery(value).sql,
-				nameExplicit: false,
+				nameExplicit: true,
 			});
 		}
 	}
@@ -315,7 +317,6 @@ export const fromDrizzleSchema = (
 		result.views.push({
 			entityType: 'views',
 			name,
-			isExisting,
 			definition: query ? dialect.sqlToQuery(query).sql : '',
 			checkOption: checkOption ?? null,
 			encryption: encryption ?? null,

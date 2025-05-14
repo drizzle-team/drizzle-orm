@@ -54,7 +54,6 @@ test('generated as callback: add generated constraint to an exisiting column as 
 
 	const { sqlStatements } = await diff(from, to, []);
 
-
 	expect(sqlStatements).toStrictEqual([
 		"ALTER TABLE `users` MODIFY COLUMN `gen_name` text NOT NULL GENERATED ALWAYS AS (`users`.`name` || 'to add') STORED;",
 	]);

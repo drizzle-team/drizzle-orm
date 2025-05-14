@@ -293,7 +293,14 @@ test('fk #1', async () => {
 
 	const { sqlStatements } = await diff({}, to, []);
 	expect(sqlStatements).toStrictEqual([
-		'',
+		`CREATE TABLE \"posts\" (
+\t"id" serial PRIMARY KEY,
+\t"authorId" integer
+);\n`,
+		`CREATE TABLE "users" (
+\t"id" serial PRIMARY KEY
+);\n`,
+		`ALTER TABLE "posts" ADD CONSTRAINT "posts_authorId_users_id_fk" FOREIGN KEY ("authorId") REFERENCES "users"("id");`,
 	]);
 });
 

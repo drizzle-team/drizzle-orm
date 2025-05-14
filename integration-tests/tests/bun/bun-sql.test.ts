@@ -932,7 +932,7 @@ test('build query', async () => {
 	});
 });
 
-test.only('insert sql', async () => {
+test('insert sql', async () => {
 	await db.insert(usersTable).values({ name: sql`${'John'}` });
 	const result = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable);
 	expect(result).toEqual([{ id: 1, name: 'John' }]);

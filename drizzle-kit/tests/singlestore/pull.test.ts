@@ -33,8 +33,8 @@ beforeEach(async () => {
 	await _.clear();
 });
 
-if (!fs.existsSync('tests/introspect/singlestore')) {
-	fs.mkdirSync('tests/introspect/singlestore');
+if (!fs.existsSync('tests/mysql/tmp')) {
+	fs.mkdirSync('tests/mysql/tmp', { recursive: true });
 }
 
 // TODO: Unskip this test when generated column is implemented
