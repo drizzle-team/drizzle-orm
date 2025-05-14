@@ -8,6 +8,7 @@ import type {
 	ForeignKey,
 	Index,
 	InterimColumn,
+	InterimIndex,
 	InterimSchema,
 	Policy,
 	PostgresEntities,
@@ -82,7 +83,7 @@ export const fromDatabase = async (
 	const enums: Enum[] = [];
 	const tables: PostgresEntities['tables'][] = [];
 	const columns: InterimColumn[] = [];
-	const indexes: Index[] = [];
+	const indexes: InterimIndex[] = [];
 	const pks: PrimaryKey[] = [];
 	const fks: ForeignKey[] = [];
 	const uniques: UniqueConstraint[] = [];
@@ -800,6 +801,11 @@ export const fromDatabase = async (
 
 	for (const idx of idxs) {
 		const { metadata } = idx;
+
+		// filter for drizzle only?
+		const forUnique = metadata.isUnique && constraintsList.some((x) => x.type === 'u' && x.indexId === idx.oid);
+		const forPK = metadata.isPrimary && constraintsList.some((x) => x.type === 'p' && x.indexId === idx.oid);
+
 		const opclasses = metadata.opclassIds.map((it) => opsById[it]!);
 		const expr = splitExpressions(metadata.expression);
 
@@ -886,7 +892,8 @@ export const fromDatabase = async (
 			where: idx.metadata.where,
 			columns: columns,
 			concurrently: false,
-			isPrimary: idx.metadata.isPrimary,
+			forUnique,
+			forPK,
 		});
 	}
 
@@ -1030,7 +1037,7 @@ export const fromDatabaseForDrizzle = async (
 ) => {
 	const res = await fromDatabase(db, tableFilter, schemaFilters, entities, progressCallback);
 	res.schemas = res.schemas.filter((it) => it.name !== 'public');
-	res.indexes = res.indexes.filter((it) => !it.isPrimary);
+	res.indexes = res.indexes.filter((it) => !it.forPK && !it.forUnique);
 
 	return res;
 };

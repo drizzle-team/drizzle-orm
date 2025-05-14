@@ -297,6 +297,38 @@ test('fk #1', async () => {
 	]);
 });
 
+test.only('unique multistep #1', async () => {
+	const sch1 = {
+		users: pgTable('users', {
+			name: text().unique(),
+		}),
+	};
+
+	const { sqlStatements: st1 } = await diff({}, sch1, []);
+	expect(st1).toStrictEqual([
+		'CREATE TABLE "users" (\n\t"name" text UNIQUE\n);\n',
+	]);
+
+	const sch2 = {
+		users: pgTable('users2', {
+			name: text('name2').unique(),
+		}),
+	};
+
+	const { sqlStatements: st2 } = await diff(sch1, sch2, [
+		'public.users->public.users2',
+		'public.users2.name->public.users2.name2',
+	]);
+
+	expect(st2).toStrictEqual([
+		'ALTER TABLE "users" RENAME TO "users2";',
+		'ALTER TABLE "users2" RENAME COLUMN "name" TO "name2";',
+	]);
+
+	const { sqlStatements: st3 } = await diff(sch2, sch2, []);
+	expect(st3).toStrictEqual([]);
+});
+
 test('pk #1', async () => {
 	const from = {
 		users: pgTable('users', {

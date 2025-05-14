@@ -56,7 +56,6 @@ export const createDDL = () => {
 			with: 'string',
 			method: 'string',
 			concurrently: 'boolean',
-			isPrimary: 'boolean', // is index for primaryKey, introspect only
 		},
 		fks: {
 			schema: 'required',
@@ -200,12 +199,17 @@ export type InterimColumn = Omit<Column, 'primaryKey'> & {
 	uniqueNullsNotDistinct: boolean;
 };
 
+export type InterimIndex = Index & {
+	forPK: boolean;
+	forUnique: boolean;
+};
+
 export interface InterimSchema {
 	schemas: Schema[];
 	enums: Enum[];
 	tables: PostgresEntities['tables'][];
 	columns: InterimColumn[];
-	indexes: Index[];
+	indexes: InterimIndex[];
 	pks: PrimaryKey[];
 	fks: ForeignKey[];
 	uniques: UniqueConstraint[];
@@ -385,7 +389,8 @@ export const interimToDDL = (
 	}
 
 	for (const it of schema.indexes) {
-		const res = ddl.indexes.push(it);
+		const { forPK, forUnique, ...rest } = it;
+		const res = ddl.indexes.push(rest);
 		if (res.status === 'CONFLICT') {
 			errors.push({
 				type: 'index_duplicate',
