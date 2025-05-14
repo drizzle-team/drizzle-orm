@@ -130,10 +130,8 @@ export const push = async (config: {
 	const { ddl: ddl1, errors: err3 } = interimToDDL(introspectedSchema);
 	const { ddl: ddl2, errors: err2 } = drizzleToDDL(to, casing);
 
-	console.log("-----")
-	console.log(ddl1.indexes.list())
-	console.log(ddl2.indexes.list())
-	console.log("-----")
+	// writeFileSync("./ddl1.json", JSON.stringify(ddl1.entities.list()))
+	// writeFileSync("./ddl2.json", JSON.stringify(ddl2.entities.list()))
 
 	// TODO: handle errors
 

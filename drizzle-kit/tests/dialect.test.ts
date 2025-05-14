@@ -1,4 +1,5 @@
 import { create, diff } from 'src/dialects/dialect';
+import { createDDL as pg } from 'src/dialects/postgres/ddl';
 import { beforeEach } from 'vitest';
 import { expect, expectTypeOf, test } from 'vitest';
 
@@ -58,14 +59,14 @@ beforeEach(() => {
 });
 
 test('Insert with custom conflict detection list', () => {
-	db.entities.insert({
+	db.entities.push({
 		entityType: 'checks',
 		name: 'a',
 		table: 't',
 		value: '2',
 	}, ['name']);
 	expect(
-		db.entities.insert({
+		db.entities.push({
 			entityType: 'checks',
 			name: 'b',
 			table: 't',
@@ -73,7 +74,7 @@ test('Insert with custom conflict detection list', () => {
 		}, ['name']).status,
 	).toStrictEqual('OK');
 	expect(
-		db.entities.insert({
+		db.entities.push({
 			entityType: 'checks',
 			name: 'a',
 			table: 'tt',
@@ -83,7 +84,7 @@ test('Insert with custom conflict detection list', () => {
 });
 
 test('Insert & list multiple entities', () => {
-	const inFirst = db.columns.insert({
+	const inFirst = db.columns.push({
 		name: 'id',
 		autoincrement: null,
 		default: null,
@@ -97,7 +98,7 @@ test('Insert & list multiple entities', () => {
 		type: 'string',
 	});
 
-	const inSecond = db.indexes.insert({
+	const inSecond = db.indexes.push({
 		columns: [{
 			value: 'user_id',
 			expression: false,
@@ -226,7 +227,7 @@ test('Insert & list multiple entities', () => {
 });
 
 test('Insert & list multiple entities via common function', () => {
-	const inFirst = db.entities.insert({
+	const inFirst = db.entities.push({
 		entityType: 'columns',
 		name: 'id',
 		autoincrement: null,
@@ -241,7 +242,7 @@ test('Insert & list multiple entities via common function', () => {
 		type: 'string',
 	});
 
-	const inSecond = db.entities.insert({
+	const inSecond = db.entities.push({
 		entityType: 'indexes',
 		columns: [{
 			value: 'user_id',
@@ -371,7 +372,7 @@ test('Insert & list multiple entities via common function', () => {
 });
 
 test('Insert with common hash conflict', () => {
-	const inFirst = db.columns.insert({
+	const inFirst = db.columns.push({
 		name: 'id',
 		autoincrement: null,
 		default: null,
@@ -385,7 +386,7 @@ test('Insert with common hash conflict', () => {
 		type: 'string',
 	});
 
-	const inSecond = db.columns.insert({
+	const inSecond = db.columns.push({
 		name: 'id',
 		autoincrement: null,
 		default: null,
@@ -464,7 +465,7 @@ test('Insert with common hash conflict', () => {
 });
 
 test('Delete specific entities', () => {
-	db.columns.insert({
+	db.columns.push({
 		name: 'id',
 		autoincrement: null,
 		default: null,
@@ -478,7 +479,7 @@ test('Delete specific entities', () => {
 		type: 'string',
 	});
 
-	db.columns.insert({
+	db.columns.push({
 		name: 'name',
 		autoincrement: null,
 		default: null,
@@ -489,7 +490,7 @@ test('Delete specific entities', () => {
 		type: 'string',
 	});
 
-	db.indexes.insert({
+	db.indexes.push({
 		columns: [{
 			value: 'user_id',
 			expression: false,
@@ -503,7 +504,7 @@ test('Delete specific entities', () => {
 		where: null,
 	});
 
-	db.indexes.insert({
+	db.indexes.push({
 		columns: [{
 			value: 'group_id',
 			expression: false,
@@ -593,7 +594,7 @@ test('Delete specific entities', () => {
 });
 
 test('Delete specific entities via common function', () => {
-	db.columns.insert({
+	db.columns.push({
 		name: 'id',
 		autoincrement: null,
 		default: null,
@@ -607,7 +608,7 @@ test('Delete specific entities via common function', () => {
 		type: 'string',
 	});
 
-	db.columns.insert({
+	db.columns.push({
 		name: 'name',
 		autoincrement: null,
 		default: null,
@@ -618,7 +619,7 @@ test('Delete specific entities via common function', () => {
 		type: 'string',
 	});
 
-	db.indexes.insert({
+	db.indexes.push({
 		columns: [{
 			value: 'user_id',
 			expression: false,
@@ -632,7 +633,7 @@ test('Delete specific entities via common function', () => {
 		where: null,
 	});
 
-	db.indexes.insert({
+	db.indexes.push({
 		columns: [{
 			value: 'group_id',
 			expression: false,
@@ -726,7 +727,7 @@ test('Delete specific entities via common function', () => {
 });
 
 test('Update entities', () => {
-	db.columns.insert({
+	db.columns.push({
 		name: 'id',
 		autoincrement: null,
 		default: null,
@@ -740,7 +741,7 @@ test('Update entities', () => {
 		type: 'string',
 	});
 
-	db.columns.insert({
+	db.columns.push({
 		name: 'name',
 		autoincrement: null,
 		default: null,
@@ -751,7 +752,7 @@ test('Update entities', () => {
 		type: 'string',
 	});
 
-	db.indexes.insert({
+	db.indexes.push({
 		columns: [{
 			value: 'user_id',
 			expression: false,
@@ -765,7 +766,7 @@ test('Update entities', () => {
 		where: null,
 	});
 
-	db.indexes.insert({
+	db.indexes.push({
 		columns: [{
 			value: 'group_id',
 			expression: false,
@@ -967,7 +968,7 @@ test('Update entities', () => {
 });
 
 test('Update entities via common function', () => {
-	db.columns.insert({
+	db.columns.push({
 		name: 'id',
 		autoincrement: null,
 		default: null,
@@ -981,7 +982,7 @@ test('Update entities via common function', () => {
 		type: 'string',
 	});
 
-	db.columns.insert({
+	db.columns.push({
 		name: 'name',
 		autoincrement: null,
 		default: null,
@@ -992,7 +993,7 @@ test('Update entities via common function', () => {
 		type: 'string',
 	});
 
-	db.indexes.insert({
+	db.indexes.push({
 		columns: [{
 			value: 'user_id',
 			expression: false,
@@ -1006,7 +1007,7 @@ test('Update entities via common function', () => {
 		where: null,
 	});
 
-	db.indexes.insert({
+	db.indexes.push({
 		columns: [{
 			value: 'group_id',
 			expression: false,
@@ -1220,7 +1221,7 @@ test('Update entities via common function', () => {
 });
 
 test('List with filters', () => {
-	db.columns.insert({
+	db.columns.push({
 		name: 'id',
 		autoincrement: null,
 		default: null,
@@ -1234,7 +1235,7 @@ test('List with filters', () => {
 		type: 'string',
 	});
 
-	db.columns.insert({
+	db.columns.push({
 		name: 'name',
 		autoincrement: null,
 		default: null,
@@ -1245,7 +1246,7 @@ test('List with filters', () => {
 		type: 'string',
 	});
 
-	db.indexes.insert({
+	db.indexes.push({
 		columns: [{
 			value: 'user_id',
 			expression: false,
@@ -1259,7 +1260,7 @@ test('List with filters', () => {
 		where: null,
 	});
 
-	db.indexes.insert({
+	db.indexes.push({
 		columns: [{
 			value: 'group_id',
 			expression: false,
@@ -1323,7 +1324,7 @@ test('List with filters', () => {
 });
 
 test('List via common function with filters', () => {
-	db.columns.insert({
+	db.columns.push({
 		name: 'id',
 		autoincrement: null,
 		default: null,
@@ -1337,7 +1338,7 @@ test('List via common function with filters', () => {
 		type: 'string',
 	});
 
-	db.columns.insert({
+	db.columns.push({
 		name: 'name',
 		autoincrement: null,
 		default: null,
@@ -1348,7 +1349,7 @@ test('List via common function with filters', () => {
 		type: 'string',
 	});
 
-	db.indexes.insert({
+	db.indexes.push({
 		columns: [{
 			value: 'user_id',
 			expression: false,
@@ -1362,7 +1363,7 @@ test('List via common function with filters', () => {
 		where: null,
 	});
 
-	db.indexes.insert({
+	db.indexes.push({
 		columns: [{
 			value: 'group_id',
 			expression: false,
@@ -1677,26 +1678,26 @@ test('diff: update', () => {
 	const original = create(cfg);
 	const changed = create(cfg);
 
-	original.column.insert({
+	original.column.push({
 		name: 'id',
 		type: 'serial',
 		pk: true,
 		table: 'user',
 	});
-	original.column.insert({
+	original.column.push({
 		name: 'name',
 		type: 'varchar',
 		pk: false,
 		table: 'user',
 	});
 
-	changed.column.insert({
+	changed.column.push({
 		name: 'id',
 		type: 'serial',
 		pk: true,
 		table: 'user',
 	});
-	changed.column.insert({
+	changed.column.push({
 		name: 'name',
 		type: 'text',
 		pk: false,
@@ -1778,7 +1779,7 @@ test('diff: update object', () => {
 	const original = create(cfg);
 	const changed = create(cfg);
 
-	original.column.insert({
+	original.column.push({
 		name: 'id',
 		type: 'serial',
 		pk: true,
@@ -1788,7 +1789,7 @@ test('diff: update object', () => {
 			subfield: 'sf_value_upd',
 		},
 	});
-	original.column.insert({
+	original.column.push({
 		name: 'name',
 		type: 'varchar',
 		pk: false,
@@ -1799,14 +1800,14 @@ test('diff: update object', () => {
 		},
 	});
 
-	changed.column.insert({
+	changed.column.push({
 		name: 'id',
 		type: 'serial',
 		pk: true,
 		table: 'user',
 		obj: null,
 	});
-	changed.column.insert({
+	changed.column.push({
 		name: 'name',
 		type: 'text',
 		pk: false,
@@ -1877,7 +1878,7 @@ test('diff: update object array', () => {
 		},
 	});
 
-	original.column.insert({
+	original.column.push({
 		name: 'id',
 		type: 'serial',
 		pk: true,
@@ -1887,7 +1888,7 @@ test('diff: update object array', () => {
 			subfield: 'sf_value',
 		}],
 	});
-	original.column.insert({
+	original.column.push({
 		name: 'name',
 		type: 'varchar',
 		pk: false,
@@ -1898,7 +1899,7 @@ test('diff: update object array', () => {
 		}],
 	});
 
-	changed.column.insert({
+	changed.column.push({
 		name: 'id',
 		type: 'serial',
 		pk: true,
@@ -1911,7 +1912,7 @@ test('diff: update object array', () => {
 			subfield: 'sf_value',
 		}],
 	});
-	changed.column.insert({
+	changed.column.push({
 		name: 'name',
 		type: 'text',
 		pk: false,
@@ -1976,20 +1977,20 @@ test('diff: insert', () => {
 	const original = create(cfg);
 	const changed = create(cfg);
 
-	original.column.insert({
+	original.column.push({
 		name: 'id',
 		type: 'serial',
 		pk: true,
 		table: 'user',
 	});
 
-	changed.column.insert({
+	changed.column.push({
 		name: 'id',
 		type: 'serial',
 		pk: true,
 		table: 'user',
 	});
-	changed.column.insert({
+	changed.column.push({
 		name: 'name',
 		type: 'varchar',
 		pk: false,
@@ -2057,20 +2058,20 @@ test('diff: delete', () => {
 	const original = create(cfg);
 	const changed = create(cfg);
 
-	original.column.insert({
+	original.column.push({
 		name: 'id',
 		type: 'serial',
 		pk: true,
 		table: 'user',
 	});
-	original.column.insert({
+	original.column.push({
 		name: 'name',
 		type: 'varchar',
 		pk: false,
 		table: 'user',
 	});
 
-	changed.column.insert({
+	changed.column.push({
 		name: 'id',
 		type: 'serial',
 		pk: true,
@@ -2123,4 +2124,64 @@ test('diff: delete', () => {
 		type: 'varchar',
 		pk: false,
 	}]);
+});
+
+test.only('indexes #1', () => {
+	const ddl1 = pg();
+	const ddl2 = pg();
+	
+	ddl1.indexes.push({
+		schema: 'public',
+		table: 'users',
+		name: 'users_id_index',
+		columns: [{value:"id",isExpression:false, opclass:null, nullsFirst: false, asc: false}],
+		isUnique: false,
+		where: null,
+		with: '',
+		concurrently: false,
+		method: 'btree',
+		nameExplicit: true,
+	});
+
+	ddl1.indexes.push({
+		schema: 'public',
+		table: 'users',
+		name: 'indx4',
+		columns: [{value:"id",isExpression:false, opclass:null, nullsFirst: false, asc: false}],
+		isUnique: false,
+		where: null,
+		with: '',
+		concurrently: false,
+		method: 'btree',
+		nameExplicit: true,
+	});
+
+	ddl2.indexes.push({
+		schema: 'public',
+		table: 'users',
+		name: 'users_id_index',
+		columns: [{value:"id",isExpression:false, opclass:null, nullsFirst: false, asc: false}],
+		isUnique: false,
+		where: null,
+		with: '',
+		concurrently: false,
+		method: 'btree',
+		nameExplicit: false,
+	});
+
+	ddl2.indexes.push({
+		schema: 'public',
+		table: 'users',
+		name: 'indx4',
+		columns: [{value:"id",isExpression:false, opclass:null, nullsFirst: false, asc: false}],
+		isUnique: false,
+		where: null,
+		with: '',
+		concurrently: false,
+		method: 'btree',
+		nameExplicit: true,
+	});
+
+	const d = diff(ddl1, ddl2, 'indexes');
+	expect(d).toStrictEqual([]);
 });
