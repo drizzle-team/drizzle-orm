@@ -38,7 +38,7 @@ export function mapResultRow<TResult>(
 					node = node[pathChunk];
 				} else {
 					const rawValue = row[columnIndex]!;
-					const value = node[pathChunk] = rawValue === null ? null : decoder.mapFromDriverValue(rawValue);
+					const value = node[pathChunk] = rawValue === null ? undefined : decoder.mapFromDriverValue(rawValue);
 
 					if (joinsNotNullableMap && is(field, Column) && path.length === 2) {
 						const objectName = path[0]!;
