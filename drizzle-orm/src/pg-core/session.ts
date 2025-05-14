@@ -2,6 +2,7 @@ import { type Cache, NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import { TransactionRollbackError } from '~/errors.ts';
+import { DrizzleQueryError } from '~/errors/index.ts';
 import type { TablesRelationalConfig } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import { type Query, type SQL, sql } from '~/sql/index.ts';
@@ -67,12 +68,20 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 		query: () => Promise<T>,
 	): Promise<T> {
 		if (this.cache === undefined || is(this.cache, NoopCache) || this.queryMetadata === undefined) {
-			return await query();
+			try {
+				return await query();
+			} catch (e) {
+				throw new DrizzleQueryError(queryString, params, e as Error);
+			}
 		}
 
 		// don't do any mutations, if globally is false
 		if (this.cacheConfig && !this.cacheConfig.enable) {
-			return await query();
+			try {
+				return await query();
+			} catch (e) {
+				throw new DrizzleQueryError(queryString, params, e as Error);
+			}
 		}
 
 		// For mutate queries, we should query the database, wait for a response, and then perform invalidation
@@ -82,16 +91,24 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 				|| this.queryMetadata.type === 'delete'
 			) && this.queryMetadata.tables.length > 0
 		) {
-			const [res] = await Promise.all([
-				query(),
-				this.cache.onMutate({ tables: this.queryMetadata.tables }),
-			]);
-			return res;
+			try {
+				const [res] = await Promise.all([
+					query(),
+					this.cache.onMutate({ tables: this.queryMetadata.tables }),
+				]);
+				return res;
+			} catch (e) {
+				throw new DrizzleQueryError(queryString, params, e as Error);
+			}
 		}
 
 		// don't do any reads if globally disabled
 		if (!this.cacheConfig) {
-			return await query();
+			try {
+				return await query();
+			} catch (e) {
+				throw new DrizzleQueryError(queryString, params, e as Error);
+			}
 		}
 
 		if (this.queryMetadata.type === 'select') {
@@ -102,7 +119,12 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 				this.cacheConfig.autoInvalidate,
 			);
 			if (fromCache === undefined) {
-				const result = await query();
+				let result;
+				try {
+					result = await query();
+				} catch (e) {
+					throw new DrizzleQueryError(queryString, params, e as Error);
+				}
 				// put actual key
 				await this.cache.put(
 					this.cacheConfig.tag ?? await hashQuery(queryString, params),
@@ -118,7 +140,11 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 
 			return fromCache as unknown as T;
 		}
-		return await query();
+		try {
+			return await query();
+		} catch (e) {
+			throw new DrizzleQueryError(queryString, params, e as Error);
+		}
 	}
 
 	abstract execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
