@@ -115,10 +115,65 @@ export const diff = async (
 };
 
 // init schema flush to db -> introspect db to ddl -> compare ddl with destination schema
+export const push = async (config: {
+	db: DB;
+	to: PostgresSchema;
+	renames?: string[];
+	schemas?: string[];
+	casing?: CasingType;
+}) => {
+	const { db, to } = config;
+	const casing = config.casing ?? 'camelCase';
+	const schemas = config.schemas ?? ['public'];
+	const introspectedSchema = await fromDatabaseForDrizzle(db, undefined, (it) => schemas.indexOf(it) >= 0, undefined);
+
+	const { ddl: ddl1, errors: err3 } = interimToDDL(introspectedSchema);
+	const { ddl: ddl2, errors: err2 } = drizzleToDDL(to, casing);
+
+	console.log("-----")
+	console.log(ddl1.indexes.list())
+	console.log(ddl2.indexes.list())
+	console.log("-----")
+
+	// TODO: handle errors
+
+	const renames = new Set(config.renames ?? []);
+	const { sqlStatements, statements } = await ddlDiff(
+		ddl1,
+		ddl2,
+		mockResolver(renames),
+		mockResolver(renames),
+		mockResolver(renames),
+		mockResolver(renames),
+		mockResolver(renames),
+		mockResolver(renames),
+		mockResolver(renames),
+		mockResolver(renames), // views
+		mockResolver(renames), // uniques
+		mockResolver(renames), // indexes
+		mockResolver(renames), // checks
+		mockResolver(renames), // pks
+		mockResolver(renames), // fks
+		'push',
+	);
+
+	const { hints, losses } = await suggestions(
+		db,
+		statements,
+	);
+
+	for (const sql of sqlStatements) {
+		console.log(sql);
+		await db.query(sql);
+	}
+
+	return { sqlStatements, statements, hints, losses };
+};
+
 export const diffPush = async (config: {
 	db: DB;
-	init: PostgresSchema;
-	destination: PostgresSchema;
+	from: PostgresSchema;
+	to: PostgresSchema;
 	renames?: string[];
 	schemas?: string[];
 	casing?: CasingType;
@@ -127,7 +182,8 @@ export const diffPush = async (config: {
 	after?: string[];
 	apply?: boolean;
 }) => {
-	const { db, init: initSchema, destination, casing, before, after, renames: rens, entities } = config;
+	const { db, from: initSchema, to: destination, casing, before, after, renames: rens, entities } = config;
+
 	const schemas = config.schemas ?? ['public'];
 	const apply = typeof config.apply === 'undefined' ? true : config.apply;
 	const { ddl: initDDL } = drizzleToDDL(initSchema, casing);
@@ -143,7 +199,6 @@ export const diffPush = async (config: {
 	init.push(...mViewsRefreshes);
 
 	for (const st of init) {
-		console.log(st)
 		await db.query(st);
 	}
 
