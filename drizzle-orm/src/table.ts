@@ -164,7 +164,7 @@ export type InferModelFromColumns<
 						MapColumnName<Key, TColumns[Key], TConfig['dbColumnNames']>,
 						TColumns[Key]
 					>
-				]: GetColumnData<TColumns[Key], 'query'>;
+				]: GetColumnData<TColumns[Key], 'write'>;
 			}
 			& {
 				[
@@ -173,7 +173,7 @@ export type InferModelFromColumns<
 						TColumns[Key],
 						TConfig['override']
 					>
-				]?: GetColumnData<TColumns[Key], 'query'> | undefined;
+				]?: GetColumnData<TColumns[Key], 'write'> | undefined;
 			}
 		: {
 			[

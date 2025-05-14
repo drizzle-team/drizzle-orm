@@ -43,7 +43,7 @@ export function mapResultRow<TResult>(
 					if (joinsNotNullableMap && is(field, Column) && path.length === 2) {
 						const objectName = path[0]!;
 						if (!(objectName in nullifyMap)) {
-							nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
+							nullifyMap[objectName] = value === null || value === undefined ? getTableName(field.table) : false;
 						} else if (
 							typeof nullifyMap[objectName] === 'string' && nullifyMap[objectName] !== getTableName(field.table)
 						) {
@@ -61,7 +61,7 @@ export function mapResultRow<TResult>(
 	if (joinsNotNullableMap && Object.keys(nullifyMap).length > 0) {
 		for (const [objectName, tableName] of Object.entries(nullifyMap)) {
 			if (typeof tableName === 'string' && !joinsNotNullableMap[tableName]) {
-				result[objectName] = null;
+				result[objectName] = undefined;
 			}
 		}
 	}
@@ -111,6 +111,8 @@ export function haveSameKeys(left: Record<string, unknown>, right: Record<string
 /** @internal */
 export function mapUpdateSet(table: Table, values: Record<string, unknown>): UpdateSet {
 	const entries: [string, UpdateSet[string]][] = Object.entries(values)
+		// TODO: Removing this allows us to unset fields by setting their values to `undefined`
+		// This is a bit less explicit than setting them to `null`.
 		.filter(([, value]) => value !== undefined)
 		.map(([key, value]) => {
 			// eslint-disable-next-line unicorn/prefer-ternary

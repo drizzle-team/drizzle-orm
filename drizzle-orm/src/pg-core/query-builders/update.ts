@@ -9,7 +9,7 @@ import type {
 	PreparedQueryConfig,
 } from '~/pg-core/session.ts';
 import { PgTable } from '~/pg-core/table.ts';
-import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	AppendToNullabilityMap,
 	AppendToResult,
@@ -27,15 +27,16 @@ import { type ColumnsSelection, type Query, SQL, type SQLWrapper } from '~/sql/s
 import { Subquery } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
 import {
-	type Assume,
-	DrizzleTypeError,
-	Equal,
 	getTableLikeName,
 	mapUpdateSet,
-	type NeonAuthToken,
-	orderSelectedFields,
+	orderSelectedFields} from '~/utils.ts';
+import type {
+	DrizzleTypeError,
+	Equal,
 	Simplify,
-	type UpdateSet,
+	Assume,
+	NeonAuthToken,
+	UpdateSet,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgColumn } from '../columns/common.ts';
@@ -61,7 +62,7 @@ export interface PgUpdateConfig {
 export type PgUpdateSetSource<TTable extends PgTable> =
 	& {
 		[Key in keyof TTable['$inferInsert']]?:
-			| GetColumnData<TTable['_']['columns'][Key]>
+			| GetColumnData<TTable['_']['columns'][Key], 'write'>
 			| SQL
 			| PgColumn
 			| undefined;
