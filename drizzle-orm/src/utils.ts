@@ -1,3 +1,5 @@
+import * as crypto from 'node:crypto';
+import type { Cache } from './cache/core/cache.ts';
 import type { AnyColumn } from './column.ts';
 import { Column } from './column.ts';
 import { is } from './entity.ts';
@@ -194,6 +196,17 @@ export function getViewSelectedFields<T extends View>(view: T): T['_']['selected
 	return view[ViewBaseConfig].selectedFields;
 }
 
+export async function hashQuery(sql: string, params?: any[]) {
+	const dataToHash = `${sql}-${JSON.stringify(params)}`;
+	const encoder = new TextEncoder();
+	const data = encoder.encode(dataToHash);
+	const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+	const hashArray = [...new Uint8Array(hashBuffer)];
+	const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+
+	return hashHex;
+}
+
 /** @internal */
 export function getTableLikeName(table: TableLike): string | undefined {
 	return is(table, Subquery)
@@ -219,6 +232,7 @@ export interface DrizzleConfig<TSchema extends Record<string, unknown> = Record<
 	logger?: boolean | Logger;
 	schema?: TSchema;
 	casing?: Casing;
+	cache?: Cache;
 }
 export type ValidateShape<T, ValidShape, TResult = T> = T extends ValidShape
 	? Exclude<keyof T, keyof ValidShape> extends never ? TResult

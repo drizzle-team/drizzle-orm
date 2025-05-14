@@ -56,9 +56,12 @@ export function construct<
 		};
 	}
 
-	const session = new LibSQLSession(client, dialect, schema, { logger }, undefined);
+	const session = new LibSQLSession(client, dialect, schema, { logger, cache: config.cache }, undefined);
 	const db = new LibSQLDatabase('async', dialect, session, schema) as LibSQLDatabase<TSchema>;
 	(<any> db).$client = client;
-
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
 	return db as any;
 }

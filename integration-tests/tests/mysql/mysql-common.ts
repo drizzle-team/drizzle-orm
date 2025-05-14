@@ -281,15 +281,15 @@ export async function createDockerDB(): Promise<{ connectionString: string; cont
 	return { connectionString: `mysql://root:mysql@127.0.0.1:${port}/drizzle`, container: mysqlContainer };
 }
 
-// afterAll(async () => {
-// 	await mysqlContainer?.stop().catch(console.error);
-// });
+afterAll(async () => {
+	await mysqlContainer?.stop().catch(console.error);
+});
 
 export function tests(driver?: string) {
 	describe('common', () => {
-		afterAll(async () => {
-			await mysqlContainer?.stop().catch(console.error);
-		});
+		// afterAll(async () => {
+		// 	await mysqlContainer?.stop().catch(console.error);
+		// });
 
 		beforeEach(async (ctx) => {
 			const { db } = ctx.mysql;

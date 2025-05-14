@@ -1,3 +1,4 @@
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type {
@@ -8,7 +9,7 @@ import type {
 	PreparedQueryConfig,
 } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
-import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
@@ -19,6 +20,7 @@ import { getTableName, Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
 import { type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
 import type { PgColumn } from '../columns/common.ts';
+import { extractUsedTable } from '../utils.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 
 export type PgDeleteWithout<
@@ -150,6 +152,7 @@ export class PgDeleteBase<
 	static override readonly [entityKind]: string = 'PgDelete';
 
 	private config: PgDeleteConfig;
+	protected cacheConfig?: WithCacheConfig;
 
 	constructor(
 		table: TTable,
@@ -244,7 +247,10 @@ export class PgDeleteBase<
 				PreparedQueryConfig & {
 					execute: TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[];
 				}
-			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true);
+			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true, undefined, {
+				type: 'delete',
+				tables: extractUsedTable(this.config.table),
+			}, this.cacheConfig);
 		});
 	}
 
