@@ -27,7 +27,10 @@ export class DrizzleD1Database<
 	static override readonly [entityKind]: string = 'D1Database';
 
 	/** @internal */
-	declare readonly session: SQLiteD1Session<TSchema, ExtractTablesWithRelations<TSchema>>;
+	declare readonly session: SQLiteD1Session<
+		TSchema,
+		ExtractTablesWithRelations<TSchema>
+	>;
 
 	async batch<U extends BatchItem<'sqlite'>, T extends Readonly<[U, ...U[]]>>(
 		batch: T,
@@ -36,7 +39,7 @@ export class DrizzleD1Database<
 	}
 }
 
-export function drizzle<
+function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TClient extends AnyD1Database = AnyD1Database,
 >(
@@ -66,9 +69,40 @@ export function drizzle<
 		};
 	}
 
-	const session = new SQLiteD1Session(client as D1Database, dialect, schema, { logger });
-	const db = new DrizzleD1Database('async', dialect, session, schema) as DrizzleD1Database<TSchema>;
+	const session = new SQLiteD1Session(client as D1Database, dialect, schema, {
+		logger,
+	});
+	const db = new DrizzleD1Database(
+		'async',
+		dialect,
+		session,
+		schema,
+	) as DrizzleD1Database<TSchema>;
 	(<any> db).$client = client;
 
 	return db as any;
+}
+
+export function drizzle<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TClient extends AnyD1Database = AnyD1Database,
+>(
+	client: TClient,
+	config: DrizzleConfig<TSchema> = {},
+): DrizzleD1Database<TSchema> & {
+	$client: TClient;
+} {
+	return construct(client, config);
+}
+
+export namespace drizzle {
+	export function mock<
+		TSchema extends Record<string, unknown> = Record<string, never>,
+	>(
+		config: DrizzleConfig<TSchema> = {},
+	): DrizzleD1Database<TSchema> & {
+		$client: '$client is not available on drizzle.mock()';
+	} {
+		return construct({} as any, config) as any;
+	}
 }
