@@ -99,7 +99,7 @@ test('add table #6', async () => {
 	const { sqlStatements } = await diff(from, to, []);
 	expect(sqlStatements).toStrictEqual([
 		'CREATE TABLE "users2" (\n\t"id" integer\n);\n',
-		'DROP TABLE "users1" CASCADE;',
+		'DROP TABLE "users1";',
 	]);
 });
 
@@ -268,7 +268,7 @@ test('multiproject schema drop table #1', async () => {
 	};
 
 	const { sqlStatements } = await diff(from, {}, []);
-	expect(sqlStatements).toStrictEqual(['DROP TABLE "prefix_users" CASCADE;']);
+	expect(sqlStatements).toStrictEqual(['DROP TABLE "prefix_users";']);
 });
 
 test('multiproject schema alter table name #1', async () => {
@@ -496,7 +496,7 @@ test('drop table + rename schema #1', async () => {
 	const { sqlStatements } = await diff(from, to, ['folder1->folder2']);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER SCHEMA "folder1" RENAME TO "folder2";\n',
-		'DROP TABLE "folder2"."users" CASCADE;',
+		'DROP TABLE "folder2"."users";',
 	]);
 });
 
@@ -686,9 +686,9 @@ test('optional db aliases (snake case)', async () => {
 `;
 
 	const st4 =
-		`ALTER TABLE "t1" ADD CONSTRAINT "t1_t2_ref_t2_t2_id_fk" FOREIGN KEY ("t2_ref") REFERENCES "t2"("t2_id");`;
+		`ALTER TABLE "t1" ADD CONSTRAINT "t1_t2_ref_t2_t2_id_fkey" FOREIGN KEY ("t2_ref") REFERENCES "t2"("t2_id");`;
 	const st5 =
-		`ALTER TABLE "t1" ADD CONSTRAINT "t1_t1_col2_t1_col3_t3_t3_id1_t3_id2_fk" FOREIGN KEY ("t1_col2","t1_col3") REFERENCES "t3"("t3_id1","t3_id2");`;
+		`ALTER TABLE "t1" ADD CONSTRAINT "t1_t1_col2_t1_col3_t3_t3_id1_t3_id2_fkey" FOREIGN KEY ("t1_col2","t1_col3") REFERENCES "t3"("t3_id1","t3_id2");`;
 
 	const st6 = `CREATE UNIQUE INDEX "t1_uni_idx" ON "t1" ("t1_uni_idx");`;
 
@@ -758,9 +758,9 @@ test('optional db aliases (camel case)', async () => {
 );
 `;
 
-	const st4 = `ALTER TABLE "t1" ADD CONSTRAINT "t1_t2Ref_t2_t2Id_fk" FOREIGN KEY ("t2Ref") REFERENCES "t2"("t2Id");`;
+	const st4 = `ALTER TABLE "t1" ADD CONSTRAINT "t1_t2Ref_t2_t2Id_fkey" FOREIGN KEY ("t2Ref") REFERENCES "t2"("t2Id");`;
 	const st5 =
-		`ALTER TABLE "t1" ADD CONSTRAINT "t1_t1Col2_t1Col3_t3_t3Id1_t3Id2_fk" FOREIGN KEY ("t1Col2","t1Col3") REFERENCES "t3"("t3Id1","t3Id2");`;
+		`ALTER TABLE "t1" ADD CONSTRAINT "t1_t1Col2_t1Col3_t3_t3Id1_t3Id2_fkey" FOREIGN KEY ("t1Col2","t1Col3") REFERENCES "t3"("t3Id1","t3Id2");`;
 	const st6 = `CREATE UNIQUE INDEX "t1UniIdx" ON "t1" ("t1UniIdx");`;
 	const st7 = `CREATE INDEX "t1Idx" ON "t1" ("t1Idx") WHERE "t1"."t1Idx" > 0;`;
 

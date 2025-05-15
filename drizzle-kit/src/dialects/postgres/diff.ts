@@ -638,6 +638,10 @@ export const ddlDiff = async (
 		prepareStatement('drop_index', { index })
 	);
 
+	const jsonRenameIndexes = indexesRenames.map((r) => {
+		return prepareStatement('rename_index', { schema: r.to.schema, from: r.from.name, to: r.to.name });
+	});
+
 	for (const idx of alters.filter((it) => it.entityType === 'indexes')) {
 		const forWhere = !!idx.where && (idx.where.from !== null && idx.where.to !== null ? mode !== 'push' : true);
 		const forColumns = !!idx.columns && (idx.columns.from.length === idx.columns.to.length ? mode !== 'push' : true);
@@ -695,6 +699,15 @@ export const ddlDiff = async (
 		prepareStatement('drop_pk', { pk: it })
 	);
 
+	const jsonRenamePrimaryKey = pksRenames.map((it) => {
+		return prepareStatement('rename_constraint', {
+			schema: it.to.schema,
+			table: it.to.table,
+			from: it.from.name,
+			to: it.to.name,
+		});
+	});
+
 	const alteredUniques = alters.filter((it) => it.entityType === 'uniques').map((it) => {
 		if (it.nameExplicit) {
 			delete it.nameExplicit;
@@ -708,7 +721,7 @@ export const ddlDiff = async (
 		prepareStatement('add_unique', { unique: it })
 	);
 
-	const jsonDeletedUniqueConstraints = uniqueDeletes.filter(tablesFilter('deleted')).map((it) =>
+	const jsonDropUniqueConstraints = uniqueDeletes.filter(tablesFilter('deleted')).map((it) =>
 		prepareStatement('drop_unique', { unique: it })
 	);
 	const jsonRenamedUniqueConstraints = uniqueRenames.map((it) =>
@@ -731,7 +744,7 @@ export const ddlDiff = async (
 	const jsonCreatedCheckConstraints = checkCreates.filter(tablesFilter('created')).map((it) =>
 		prepareStatement('add_check', { check: it })
 	);
-	const jsonDeletedCheckConstraints = checkDeletes.filter(tablesFilter('deleted')).map((it) =>
+	const jsonDropCheckConstraints = checkDeletes.filter(tablesFilter('deleted')).map((it) =>
 		prepareStatement('drop_check', { check: it })
 	);
 
@@ -1030,19 +1043,21 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonSetTableSchemas);
 	jsonStatements.push(...jsonRenameColumnsStatements);
 
-	jsonStatements.push(...jsonDeletedUniqueConstraints);
-	jsonStatements.push(...jsonDeletedCheckConstraints);
+	jsonStatements.push(...jsonDropUniqueConstraints);
+	jsonStatements.push(...jsonDropCheckConstraints);
 	jsonStatements.push(...jsonDropReferences);
 	// jsonStatements.push(...jsonDroppedReferencesForAlteredTables); // TODO: check
 
 	// Will need to drop indexes before changing any columns in table
 	// Then should go column alternations and then index creation
+	jsonStatements.push(...jsonRenameIndexes);
 	jsonStatements.push(...jsonDropIndexes);
 	jsonStatements.push(...jsonDropPrimaryKeys);
 
 	// jsonStatements.push(...jsonTableAlternations); // TODO: check
 
 	jsonStatements.push(...jsonAddPrimaryKeys);
+	jsonStatements.push(...jsonRenamePrimaryKey);
 	jsonStatements.push(...jsonAddColumnsStatemets);
 	jsonStatements.push(...recreateEnums);
 	jsonStatements.push(...jsonRecreateColumns);
@@ -1074,68 +1089,6 @@ export const ddlDiff = async (
 	jsonStatements.push(...dropSequences);
 	jsonStatements.push(...dropSchemas);
 
-	// generate filters
-	// const filteredJsonStatements = jsonStatements.filter((st) => {
-	// 	if (st.type === 'alter_table_alter_column_drop_notnull') {
-	// 		if (
-	// 			jsonStatements.find(
-	// 				(it) =>
-	// 					it.type === 'alter_table_alter_column_drop_identity'
-	// 					&& it.tableName === st.tableName
-	// 					&& it.schema === st.schema,
-	// 			)
-	// 		) {
-	// 			return false;
-	// 		}
-	// 	}
-	// 	if (st.type === 'alter_table_alter_column_set_notnull') {
-	// 		if (
-	// 			jsonStatements.find(
-	// 				(it) =>
-	// 					it.type === 'alter_table_alter_column_set_identity'
-	// 					&& it.tableName === st.tableName
-	// 					&& it.schema === st.schema,
-	// 			)
-	// 		) {
-	// 			return false;
-	// 		}
-	// 	}
-	// 	return true;
-	// });
-
-	// // enum filters
-	// // Need to find add and drop enum values in same enum and remove add values
-	// const filteredEnumsJsonStatements = filteredJsonStatements.filter((st) => {
-	// 	if (st.type === 'alter_type_add_value') {
-	// 		if (
-	// 			jsonStatements.find(
-	// 				(it) =>
-	// 					it.type === 'alter_type_drop_value'
-	// 					&& it.name === st.name
-	// 					&& it.schema === st.schema,
-	// 			)
-	// 		) {
-	// 			return false;
-	// 		}
-	// 	}
-	// 	return true;
-	// });
-
-	// Sequences
-	// - create sequence ✅
-	// - create sequence inside schema ✅
-	// - rename sequence ✅
-	// - change sequence schema ✅
-	// - change sequence schema + name ✅
-	// - drop sequence - check if sequence is in use. If yes - ???
-	// - change sequence values ✅
-
-	// Generated columns
-	// - add generated
-	// - drop generated
-	// - create table with generated
-	// - alter - should be not triggered, but should get warning
-
 	const { groupedStatements, sqlStatements } = fromJson(jsonStatements);
 
 	const renames = prepareMigrationRenames([
@@ -1165,7 +1118,7 @@ export const ddlDiff = async (
 const preserveEntityNames = <C extends PostgresDDL['uniques' | 'fks' | 'pks' | 'indexes']>(
 	collection1: C,
 	collection2: C,
-	mode: "push" | "default"
+	mode: 'push' | 'default',
 ) => {
 	const items = collection1.list().filter((x) => mode === 'push' || !x.nameExplicit);
 	for (const left of items) {

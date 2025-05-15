@@ -121,7 +121,7 @@ export const diff = async (
 // init schema flush to db -> introspect db to ddl -> compare ddl with destination schema
 export const push = async (config: {
 	db: DB;
-	to: PostgresSchema;
+	to: PostgresSchema | PostgresDDL;
 	renames?: string[];
 	schemas?: string[];
 	casing?: CasingType;
@@ -134,7 +134,9 @@ export const push = async (config: {
 
 	const { schema } = await introspect(db, [], schemas, undefined, new EmptyProgressView());
 	const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
-	const { ddl: ddl2, errors: err2 } = drizzleToDDL(to, casing);
+	const { ddl: ddl2, errors: err2 } = 'entities' in to && '_' in to
+		? { ddl: to as PostgresDDL, errors: [] }
+		: drizzleToDDL(to, casing);
 
 	// writeFileSync("./ddl1.json", JSON.stringify(ddl1.entities.list()))
 	// writeFileSync("./ddl2.json", JSON.stringify(ddl2.entities.list()))
@@ -288,7 +290,7 @@ export const diffIntrospect = async (
 };
 
 export type TestDatabase = {
-	db: DB;
+	db: DB & { batch: (sql: string[]) => Promise<void> };
 	close: () => Promise<void>;
 	clear: () => Promise<void>;
 };
@@ -316,9 +318,14 @@ export const prepareTestDatabase = async (): Promise<TestDatabase> => {
 		}
 	};
 
-	const db: DB = {
+	const db: TestDatabase['db'] = {
 		query: async (sql, params) => {
 			return client.query(sql, params).then((it) => it.rows as any[]);
+		},
+		batch: async (sqls) => {
+			for (const sql of sqls) {
+				await client.query(sql);
+			}
 		},
 	};
 	return { db, close: async () => {}, clear };

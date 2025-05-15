@@ -1000,6 +1000,7 @@ export const fromDatabase = async (
 		});
 	}
 
+	// TODO: update counts!
 	progressCallback('columns', columnsCount, 'done');
 	progressCallback('indexes', indexesCount, 'done');
 	progressCallback('fks', foreignKeysCount, 'done');

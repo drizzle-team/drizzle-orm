@@ -41,7 +41,7 @@ test('drop policy + disable rls', async (t) => {
 
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE "users" DISABLE ROW LEVEL SECURITY;',
-		'DROP POLICY "test" ON "users" CASCADE;',
+		'DROP POLICY "test" ON "users";',
 	]);
 });
 
@@ -81,7 +81,7 @@ test('drop policy without disable rls', async (t) => {
 	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual([
-		'DROP POLICY "oldRls" ON "users" CASCADE;',
+		'DROP POLICY "oldRls" ON "users";',
 	]);
 });
 
@@ -163,7 +163,7 @@ test('alter policy with recreation: changing as', async (t) => {
 	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual([
-		'DROP POLICY "test" ON "users" CASCADE;',
+		'DROP POLICY "test" ON "users";',
 		'CREATE POLICY "test" ON "users" AS RESTRICTIVE FOR ALL TO public;',
 	]);
 });
@@ -184,7 +184,7 @@ test('alter policy with recreation: changing for', async (t) => {
 	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual([
-		'DROP POLICY "test" ON "users" CASCADE;',
+		'DROP POLICY "test" ON "users";',
 		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR DELETE TO public;',
 	]);
 });
@@ -205,7 +205,7 @@ test('alter policy with recreation: changing both "as" and "for"', async (t) => 
 	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual([
-		'DROP POLICY "test" ON "users" CASCADE;',
+		'DROP POLICY "test" ON "users";',
 		'CREATE POLICY "test" ON "users" AS RESTRICTIVE FOR INSERT TO public;',
 	]);
 });
@@ -226,7 +226,7 @@ test('alter policy with recreation: changing all fields', async (t) => {
 	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual([
-		'DROP POLICY "test" ON "users" CASCADE;',
+		'DROP POLICY "test" ON "users";',
 		'CREATE POLICY "test" ON "users" AS RESTRICTIVE FOR ALL TO current_role WITH CHECK (true);',
 	]);
 });
@@ -309,8 +309,8 @@ test('drop table with a policy', async (t) => {
 	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual([
-		'DROP POLICY "test" ON "users2" CASCADE;',
-		'DROP TABLE "users2" CASCADE;',
+		'DROP POLICY "test" ON "users2";',
+		'DROP TABLE "users2";',
 	]);
 });
 
@@ -410,7 +410,7 @@ test('drop policy with enabled rls', async (t) => {
 	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual([
-		'DROP POLICY "test" ON "users" CASCADE;',
+		'DROP POLICY "test" ON "users";',
 	]);
 });
 
@@ -505,7 +505,7 @@ test('unlink table', async (t) => {
 
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE "users" DISABLE ROW LEVEL SECURITY;',
-		'DROP POLICY "test" ON "users" CASCADE;',
+		'DROP POLICY "test" ON "users";',
 	]);
 });
 
@@ -527,7 +527,7 @@ test('drop policy with link', async (t) => {
 
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE "users" DISABLE ROW LEVEL SECURITY;',
-		'DROP POLICY "test" ON "users" CASCADE;',
+		'DROP POLICY "test" ON "users";',
 	]);
 });
 
@@ -591,7 +591,7 @@ test('unlink non-schema table', async (t) => {
 	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual([
-		'DROP POLICY "test" ON "users" CASCADE;',
+		'DROP POLICY "test" ON "users";',
 	]);
 });
 
@@ -753,7 +753,7 @@ test('alter policy that is linked: using', async (t) => {
 	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual([
-		'DROP POLICY "test" ON "users" CASCADE;',
+		'DROP POLICY "test" ON "users";',
 		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR DELETE TO public;',
 	]);
 });
@@ -864,7 +864,7 @@ test('alter policy in the table: using', async (t) => {
 	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual([
-		'DROP POLICY "test" ON "users" CASCADE;',
+		'DROP POLICY "test" ON "users";',
 		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR DELETE TO public;',
 	]);
 });
