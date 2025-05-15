@@ -59,4 +59,8 @@ export class PrimaryKey {
 	getName(): string {
 		return this.name ?? `${this.table[PgTable.Symbol.Name]}_${this.columns.map((column) => column.name).join('_')}_pk`;
 	}
+
+	isNameExplicit(): boolean {
+		return this.name ? true : false;
+	}
 }
