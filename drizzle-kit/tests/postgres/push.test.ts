@@ -34,7 +34,7 @@ import {
 import { eq, SQL, sql } from 'drizzle-orm/sql';
 import { suggestions } from 'src/cli/commands/push-postgres';
 import { DB } from 'src/utils';
-import { diff, diffPush, prepareTestDatabase, TestDatabase } from 'tests/postgres/mocks';
+import { diff, diffPush, prepareTestDatabase, push, TestDatabase } from 'tests/postgres/mocks';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { DialectSuite, run } from '../push/common';
 
@@ -226,8 +226,8 @@ const pgSuite: DialectSuite = {
 
 		const { sqlStatements } = await diffPush({
 			db,
-			init: schema1,
-			destination: schema1,
+			from: schema1,
+			to: schema1,
 			schemas: ['public', 'schemass'],
 		});
 
@@ -263,11 +263,11 @@ const pgSuite: DialectSuite = {
 
 		const { sqlStatements } = await diffPush({
 			db,
-			init: schema1,
-			destination: schema2,
+			from: schema1,
+			to: schema2,
 		});
 		expect(sqlStatements).toStrictEqual([
-			`CREATE INDEX "users_name_id_index" ON "users" USING btree ("name" DESC NULLS LAST,"id") WITH (fillfactor=70) WHERE select 1;`,
+			`CREATE INDEX "users_name_id_index" ON "users" ("name" DESC NULLS LAST,"id") WITH (fillfactor=70) WHERE select 1;`,
 			`CREATE INDEX "indx1" ON "users" USING hash ("name" DESC NULLS LAST,"name") WITH (fillfactor=70);`,
 		]);
 	},
@@ -291,8 +291,8 @@ const pgSuite: DialectSuite = {
 
 		const { sqlStatements } = await diffPush({
 			db,
-			init: schema1,
-			destination: schema2,
+			from: schema1,
+			to: schema2,
 		});
 
 		expect(sqlStatements).toStrictEqual([
@@ -324,8 +324,8 @@ const pgSuite: DialectSuite = {
 
 		const { sqlStatements } = await diffPush({
 			db,
-			init: schema1,
-			destination: schema2,
+			from: schema1,
+			to: schema2,
 		});
 
 		expect(sqlStatements).toStrictEqual([
@@ -358,8 +358,8 @@ const pgSuite: DialectSuite = {
 
 		const { sqlStatements } = await diffPush({
 			db,
-			init: schema1,
-			destination: schema2,
+			from: schema1,
+			to: schema2,
 		});
 
 		expect(sqlStatements).toStrictEqual(['ALTER TABLE "users" ALTER COLUMN "gen_name" DROP EXPRESSION;']);
@@ -385,8 +385,8 @@ const pgSuite: DialectSuite = {
 
 		const { sqlStatements } = await diffPush({
 			db,
-			init: schema1,
-			destination: schema2,
+			from: schema1,
+			to: schema2,
 		});
 
 		expect(sqlStatements).toStrictEqual([]);
@@ -405,8 +405,8 @@ const pgSuite: DialectSuite = {
 
 		const { sqlStatements } = await diffPush({
 			db,
-			init: schema1,
-			destination: schema2,
+			from: schema1,
+			to: schema2,
 		});
 
 		expect(sqlStatements).toStrictEqual([
@@ -425,8 +425,8 @@ const pgSuite: DialectSuite = {
 
 		const { sqlStatements } = await diffPush({
 			db,
-			init: schema1,
-			destination: schema2,
+			from: schema1,
+			to: schema2,
 		});
 		expect(sqlStatements.length).toBe(0);
 	},
@@ -466,8 +466,8 @@ const pgSuite: DialectSuite = {
 
 		const { sqlStatements } = await diffPush({
 			db,
-			init: schema1,
-			destination: schema2,
+			from: schema1,
+			to: schema2,
 		});
 
 		expect(sqlStatements).toStrictEqual([
@@ -477,11 +477,11 @@ const pgSuite: DialectSuite = {
 			'DROP INDEX "removeExpression";',
 			'DROP INDEX "changeWith";',
 			'DROP INDEX "changeUsing";',
-			'CREATE INDEX "newName" ON "users" USING btree ("name" DESC NULLS LAST,name) WITH (fillfactor=70);',
-			'CREATE INDEX "removeColumn" ON "users" USING btree ("name");',
-			'CREATE INDEX "addColumn" ON "users" USING btree ("name" DESC NULLS LAST,"id") WITH (fillfactor=70);',
-			'CREATE INDEX CONCURRENTLY "removeExpression" ON "users" USING btree ("name" DESC NULLS LAST);',
-			'CREATE INDEX "changeWith" ON "users" USING btree ("name") WITH (fillfactor=90);',
+			'CREATE INDEX "newName" ON "users" ("name" DESC NULLS LAST,name) WITH (fillfactor=70);',
+			'CREATE INDEX "removeColumn" ON "users" ("name");',
+			'CREATE INDEX "addColumn" ON "users" ("name" DESC NULLS LAST,"id") WITH (fillfactor=70);',
+			'CREATE INDEX CONCURRENTLY "removeExpression" ON "users" ("name" DESC NULLS LAST);',
+			'CREATE INDEX "changeWith" ON "users" ("name") WITH (fillfactor=90);',
 			'CREATE INDEX "changeUsing" ON "users" USING hash ("name");',
 		]);
 	},
@@ -507,8 +507,8 @@ const pgSuite: DialectSuite = {
 
 		const { sqlStatements } = await diffPush({
 			db,
-			init: schema1,
-			destination: schema2,
+			from: schema1,
+			to: schema2,
 		});
 
 		expect(sqlStatements).toStrictEqual([`DROP INDEX "users_name_id_index";`]);
@@ -543,13 +543,13 @@ const pgSuite: DialectSuite = {
 
 		const { sqlStatements } = await diffPush({
 			db,
-			init: schema1,
-			destination: schema2,
+			from: schema1,
+			to: schema2,
 		});
 
 		expect(sqlStatements).toStrictEqual([
 			'DROP INDEX "indx1";',
-			'CREATE INDEX "indx1" ON "users" USING btree ("name" DESC NULLS LAST) WHERE false;',
+			'CREATE INDEX "indx1" ON "users" ("name" DESC NULLS LAST) WHERE false;',
 		]);
 	},
 
@@ -592,8 +592,8 @@ const pgSuite: DialectSuite = {
 
 		const { sqlStatements } = await diffPush({
 			db,
-			init: schema1,
-			destination: schema2,
+			from: schema1,
+			to: schema2,
 		});
 
 		expect(sqlStatements).toStrictEqual([]);
@@ -652,8 +652,8 @@ const pgSuite: DialectSuite = {
 
 		const { statements, sqlStatements } = await diffPush({
 			db,
-			init: schema1,
-			destination: schema2,
+			from: schema1,
+			to: schema2,
 		});
 
 		const { losses, hints } = await suggestions(db, statements);
@@ -691,16 +691,10 @@ const pgSuite: DialectSuite = {
 			}, (table) => [uniqueIndex('User_email_key').on(table.email)]),
 		};
 
-		const { statements, sqlStatements } = await diffPush({
-			db,
-			init: schema1,
-			destination: schema2,
-			after: [
-				`INSERT INTO "User" (id, email, "updatedAt") values ('str', 'email@gmail', '2025-04-29 09:20:39');`,
-			],
-		});
+		await push({ db, to: schema1 });
+		db.query(`INSERT INTO "User" (id, email, "updatedAt") values ('str', 'email@gmail', '2025-04-29 09:20:39');`);
 
-		const { hints } = await suggestions(db, statements);
+		const { sqlStatements, hints } = await push({ db, to: schema2 });
 
 		expect(hints).toStrictEqual([]);
 		expect(sqlStatements).toStrictEqual(['ALTER TABLE "User" ALTER COLUMN "email" SET NOT NULL;']);
@@ -720,8 +714,8 @@ const pgSuite: DialectSuite = {
 
 		const { sqlStatements } = await diffPush({
 			db,
-			init: schema1,
-			destination: schema2,
+			from: schema1,
+			to: schema2,
 		});
 
 		expect(sqlStatements).toStrictEqual([
@@ -745,8 +739,8 @@ const pgSuite: DialectSuite = {
 
 		const { sqlStatements } = await diffPush({
 			db,
-			init: schema1,
-			destination: schema2,
+			from: schema1,
+			to: schema2,
 			renames: ['public.table1->public.table2'],
 		});
 		expect(sqlStatements).toStrictEqual(['ALTER TABLE "table1" RENAME TO "table2";']);
@@ -785,8 +779,8 @@ test('full sequence: no changes', async () => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(statements.length).toBe(0);
@@ -822,8 +816,8 @@ test('basic sequence: change fields', async () => {
 
 	const { sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([
@@ -860,8 +854,8 @@ test('basic sequence: change name', async () => {
 
 	const { sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 
 		renames: ['public.my_seq->public.my_seq2'],
 	});
@@ -898,8 +892,8 @@ test('basic sequence: change name and fields', async () => {
 
 	const { sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 
 		renames: ['public.my_seq->public.my_seq2'],
 	});
@@ -928,8 +922,8 @@ test('create table: identity always/by default - no params', async () => {
 
 	const { sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([
@@ -957,8 +951,8 @@ test('create table: identity always/by default - few params', async () => {
 
 	const { sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([
@@ -992,8 +986,8 @@ test('create table: identity always/by default - all params', async () => {
 
 	const { sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([
@@ -1022,8 +1016,8 @@ test('no diff: identity always/by default - no params', async () => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([]);
@@ -1056,8 +1050,8 @@ test('no diff: identity always/by default - few params', async () => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([]);
@@ -1110,8 +1104,8 @@ test('no diff: identity always/by default - all params', async () => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 	expect(sqlStatements).toStrictEqual([]);
 });
@@ -1131,8 +1125,8 @@ test('drop identity from a column - no params', async () => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([`ALTER TABLE \"users\" ALTER COLUMN \"id\" DROP IDENTITY;`]);
@@ -1167,8 +1161,8 @@ test('drop identity from a column - few params', async () => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([
@@ -1217,8 +1211,8 @@ test('drop identity from a column - all params', async () => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([
@@ -1247,8 +1241,8 @@ test('alter identity from a column - no params', async () => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual(['ALTER TABLE "users" ALTER COLUMN "id" SET START WITH 100;']);
@@ -1277,8 +1271,8 @@ test('alter identity from a column - few params', async () => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([
@@ -1310,8 +1304,8 @@ test('alter identity from a column - by default to always', async () => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([
@@ -1346,8 +1340,8 @@ test('alter identity from a column - always to by default', async () => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([
@@ -1383,8 +1377,8 @@ test('add column with identity - few params', async () => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([
@@ -1417,8 +1411,8 @@ test('add identity to column - few params', async () => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([
@@ -1446,8 +1440,8 @@ test('add array column - empty array default', async () => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual(['ALTER TABLE "test" ADD COLUMN "values" integer[] DEFAULT \'{}\';']);
@@ -1468,8 +1462,8 @@ test('add array column - default', async () => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual(['ALTER TABLE "test" ADD COLUMN "values" integer[] DEFAULT \'{1,2,3}\';']);
@@ -1490,8 +1484,8 @@ test('create view', async () => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual(['CREATE VIEW "view" AS (select distinct "id" from "test");']);
@@ -1516,8 +1510,8 @@ test('add check constraint to table', async () => {
 
 	const { sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([
@@ -1544,8 +1538,8 @@ test('create materialized view', async () => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 	expect(sqlStatements).toStrictEqual([
 		'CREATE MATERIALIZED VIEW "view" USING "heap" AS (select distinct "id" from "test") WITH NO DATA;',
@@ -1570,8 +1564,8 @@ test('drop check constraint', async () => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([
@@ -1603,8 +1597,8 @@ test('Column with same name as enum', async () => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([
@@ -1629,8 +1623,8 @@ test('db has checks. Push with same names', async () => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([]);
@@ -1651,8 +1645,8 @@ test('drop view', async () => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 	expect(sqlStatements).toStrictEqual(['DROP VIEW "view";']);
 });
@@ -1672,8 +1666,8 @@ test('drop materialized view', async () => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual(['DROP MATERIALIZED VIEW "view";']);
@@ -1695,8 +1689,8 @@ test('push view with same name', async () => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([]);
@@ -1718,8 +1712,8 @@ test('push materialized view with same name', async () => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([]);
@@ -1743,8 +1737,8 @@ test('add with options for materialized view', async () => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([
@@ -1770,8 +1764,8 @@ test('add with options to materialized', async () => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([
@@ -1795,8 +1789,8 @@ test('add with options to materialized with existing flag', async () => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(statements.length).toBe(0);
@@ -1825,8 +1819,8 @@ test('drop mat view with data', async () => {
 		hints,
 	} = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 		after: seedStatements,
 	});
 
@@ -1854,8 +1848,8 @@ test('drop mat view without data', async () => {
 		hints,
 	} = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([`DROP MATERIALIZED VIEW "view";`]);
@@ -1883,8 +1877,8 @@ test('drop view with data', async () => {
 		hints,
 	} = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 
 		after: seedStatements,
 	});
@@ -1942,8 +1936,8 @@ test('enums ordering', async () => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema3,
-		destination: schema4,
+		from: schema3,
+		to: schema4,
 		before: [...createEnum, ...addedValueSql],
 		apply: false,
 	});
@@ -2001,8 +1995,8 @@ test('drop enum values', async () => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 		schemas: ['public', 'mySchema'],
 	});
 
@@ -2034,7 +2028,7 @@ test('column is enum type with default value. shuffle enum', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diffPush({ db, init: from, destination: to });
+	const { sqlStatements } = await diffPush({ db, from: from, to: to });
 
 	expect(sqlStatements).toStrictEqual(
 		[
@@ -2064,8 +2058,8 @@ test('full policy: no changes', async () => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(statements.length).toBe(0);
@@ -2091,8 +2085,8 @@ test('add policy', async () => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([
@@ -2120,8 +2114,8 @@ test('drop policy', async () => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([
@@ -2149,8 +2143,8 @@ test('add policy without enable rls', async () => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([
@@ -2177,8 +2171,8 @@ test('drop policy without disable rls', async () => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([
@@ -2207,8 +2201,8 @@ test('alter policy without recreation: changing roles', async (t) => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([
@@ -2235,8 +2229,8 @@ test('alter policy without recreation: changing using', async (t) => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([]);
@@ -2261,8 +2255,8 @@ test('alter policy without recreation: changing with check', async (t) => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([]);
@@ -2287,8 +2281,8 @@ test('alter policy with recreation: changing as', async (t) => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([
@@ -2316,8 +2310,8 @@ test('alter policy with recreation: changing for', async (t) => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([
@@ -2345,8 +2339,8 @@ test('alter policy with recreation: changing both "as" and "for"', async (t) => 
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([
@@ -2374,8 +2368,8 @@ test('alter policy with recreation: changing all fields', async (t) => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([
@@ -2403,8 +2397,8 @@ test('rename policy', async (t) => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 		renames: ['public.users.test->public.users.newName'],
 	});
 
@@ -2432,8 +2426,8 @@ test('rename policy in renamed table', async (t) => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 
 		renames: ['public.users->public.users2', 'public.users2.test->public.users2.newName'],
 	});
@@ -2459,8 +2453,8 @@ test('create table with a policy', async (t) => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([
@@ -2485,8 +2479,8 @@ test('drop table with a policy', async (t) => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([
@@ -2519,8 +2513,8 @@ test('add policy with multiple "to" roles', async (t) => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 	});
 
 	expect(sqlStatements).toStrictEqual([
@@ -2551,8 +2545,8 @@ test('rename policy that is linked', async (t) => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 		renames: ['public.users.test->public.users.newName'],
 		before: createUsers,
 	});
@@ -2579,8 +2573,8 @@ test('alter policy that is linked', async (t) => {
 	};
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 
 		before: createUsers,
 	});
@@ -2608,8 +2602,8 @@ test('alter policy that is linked: withCheck', async (t) => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 		before: createUsers,
 	});
 
@@ -2634,8 +2628,8 @@ test('alter policy that is linked: using', async (t) => {
 
 	const { sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 		before: createUsers,
 	});
 
@@ -2660,8 +2654,8 @@ test('alter policy that is linked: using', async (t) => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 
 		before: createUsers,
 	});
@@ -2683,8 +2677,8 @@ test('create role', async (t) => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 		entities: { roles: { include: ['manager'] } },
 	});
 
@@ -2704,8 +2698,8 @@ test('create role with properties', async (t) => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 		entities: { roles: { include: ['manager'] } },
 	});
 
@@ -2725,8 +2719,8 @@ test('create role with some properties', async (t) => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 		entities: { roles: { include: ['manager'] } },
 	});
 
@@ -2744,8 +2738,8 @@ test('drop role', async (t) => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 		entities: { roles: { include: ['manager'] } },
 	});
 
@@ -2767,8 +2761,8 @@ test('create and drop role', async (t) => {
 
 	const { statements, sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 		entities: { roles: { include: ['manager', 'admin'] } },
 	});
 
@@ -2790,8 +2784,8 @@ test('rename role', async (t) => {
 
 	const { sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 		renames: ['manager->admin'],
 		entities: { roles: { include: ['manager', 'admin'] } },
 	});
@@ -2814,8 +2808,8 @@ test('alter all role field', async (t) => {
 
 	const { sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 		entities: { roles: { include: ['manager'] } },
 	});
 
@@ -2837,8 +2831,8 @@ test('alter createdb in role', async (t) => {
 
 	const { sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 		entities: { roles: { include: ['manager'] } },
 	});
 
@@ -2860,8 +2854,8 @@ test('alter createrole in role', async (t) => {
 
 	const { sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 		entities: { roles: { include: ['manager'] } },
 	});
 
@@ -2883,8 +2877,8 @@ test('alter inherit in role', async (t) => {
 
 	const { sqlStatements } = await diffPush({
 		db,
-		init: schema1,
-		destination: schema2,
+		from: schema1,
+		to: schema2,
 		entities: { roles: { include: ['manager'] } },
 	});
 
@@ -2893,4 +2887,46 @@ test('alter inherit in role', async (t) => {
 	for (const st of sqlStatements) {
 		await db.query(st);
 	}
+});
+
+test('unique multistep #1', async (t) => {
+	const sch1 = {
+		users: pgTable('users', {
+			name: text().unique(),
+		}),
+	};
+
+	const { sqlStatements: st1 } = await push({ db, to: sch1 });
+	expect(st1).toStrictEqual([
+		'CREATE TABLE "users" (\n\t"name" text UNIQUE\n);\n',
+	]);
+
+	const sch2 = {
+		users: pgTable('users2', {
+			name: text('name2').unique(),
+		}),
+	};
+
+	const { sqlStatements: st2 } = await push({
+		db,
+		to: sch2,
+		renames: ['public.users->public.users2', 'public.users2.name->public.users2.name2'],
+	});
+
+	expect(st2).toStrictEqual([
+		'ALTER TABLE "users" RENAME TO "users2";',
+		'ALTER TABLE "users2" RENAME COLUMN "name" TO "name2";',
+	]);
+
+	const { sqlStatements: st3 } = await push({ db, to: sch2 });
+	expect(st3).toStrictEqual([]);
+
+	const sch3 = {
+		users: pgTable('users2', {
+			name: text('name2'),
+		}),
+	};
+
+	const { sqlStatements: st4 } = await push({ db, to: sch3 });
+	expect(st4).toStrictEqual(['ALTER TABLE "users2" DROP CONSTRAINT "users_name_key";']);
 });

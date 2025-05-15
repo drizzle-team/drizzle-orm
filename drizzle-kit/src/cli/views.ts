@@ -638,6 +638,12 @@ export class MigrateProgress extends TaskView {
 	}
 }
 
+export class EmptyProgressView extends TaskView {
+	override render(): string {
+		return '';
+	}
+}
+
 export class ProgressView extends TaskView {
 	private readonly spinner: Spinner = new Spinner('⣷⣯⣟⡿⢿⣻⣽⣾'.split(''));
 	private timeout: NodeJS.Timeout | undefined;

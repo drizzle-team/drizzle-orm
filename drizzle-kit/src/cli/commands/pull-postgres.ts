@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import { writeFileSync } from 'fs';
-import { render, renderWithTask } from 'hanji';
+import { render, renderWithTask, TaskView } from 'hanji';
 import { Minimatch } from 'minimatch';
 import { join } from 'path';
 import { toJsonSnapshot } from 'src/dialects/postgres/snapshot';
@@ -143,11 +143,12 @@ export const handle = async (
 	process.exit(0);
 };
 
-export const pgPushIntrospect = async (
+export const introspect = async (
 	db: DB,
 	filters: string[],
 	schemaFilters: string[],
 	entities: Entities,
+	progress: TaskView,
 ) => {
 	const matchers = filters.map((it) => {
 		return new Minimatch(it);
@@ -175,17 +176,8 @@ export const pgPushIntrospect = async (
 		}
 		return false;
 	};
-	const progress = new ProgressView(
-		'Pulling schema from database...',
-		'Pulling schema from database...',
-	);
-	const schemaFilter = (it: string) => {
-		return schemaFilters.some((x) => x === it);
-	};
-	const schema = await renderWithTask(
-		progress,
-		fromDatabaseForDrizzle(db, filter, schemaFilter, entities),
-	);
-
+	
+	const schemaFilter = (it: string) => schemaFilters.some((x) => x === it);
+	const schema = await renderWithTask(progress, fromDatabaseForDrizzle(db, filter, schemaFilter, entities));
 	return { schema };
 };

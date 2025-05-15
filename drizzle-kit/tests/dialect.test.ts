@@ -1,4 +1,5 @@
 import { create, diff } from 'src/dialects/dialect';
+import { createDDL as pg } from 'src/dialects/postgres/ddl';
 import { beforeEach } from 'vitest';
 import { expect, expectTypeOf, test } from 'vitest';
 
@@ -802,45 +803,51 @@ test('Update entities', () => {
 		},
 	});
 
-	expect(updFirst).toStrictEqual([{
-		name: 'id',
-		autoincrement: null,
-		default: null,
-		generated: {
-			type: 'always',
-			as: 'identity',
-		},
-		notNull: true,
-		primaryKey: true,
-		table: 'users',
-		type: 'bigint',
-		entityType: 'columns',
-	}, {
-		name: 'name',
-		autoincrement: null,
-		default: null,
-		generated: null,
-		notNull: true,
-		primaryKey: true,
-		table: 'users',
-		type: 'bigint',
-		entityType: 'columns',
-	}]);
-
-	expect(updSecond).toStrictEqual([{
-		columns: [{
-			value: 'user_id',
-			expression: true,
+	expect(updFirst).toStrictEqual({
+		status: 'OK',
+		data: [{
+			name: 'id',
+			autoincrement: null,
+			default: null,
+			generated: {
+				type: 'always',
+				as: 'identity',
+			},
+			notNull: true,
+			primaryKey: true,
+			table: 'users',
+			type: 'bigint',
+			entityType: 'columns',
 		}, {
-			value: 'group_id',
-			expression: true,
+			name: 'name',
+			autoincrement: null,
+			default: null,
+			generated: null,
+			notNull: true,
+			primaryKey: true,
+			table: 'users',
+			type: 'bigint',
+			entityType: 'columns',
 		}],
-		table: 'users_to_groups',
-		isUnique: true,
-		name: 'utg_idx',
-		where: 'whereExp',
-		entityType: 'indexes',
-	}]);
+	});
+
+	expect(updSecond).toStrictEqual({
+		status: 'OK',
+		data: [{
+			columns: [{
+				value: 'user_id',
+				expression: true,
+			}, {
+				value: 'group_id',
+				expression: true,
+			}],
+			table: 'users_to_groups',
+			isUnique: true,
+			name: 'utg_idx',
+			where: 'whereExp',
+			entityType: 'indexes',
+		}],
+	});
 
 	expect(db.entities.list()).toStrictEqual([
 		{
@@ -966,6 +973,297 @@ test('Update entities', () => {
 	);
 });
 
+test('Update entities conflict - with filter', () => {
+	db.columns.push({
+		name: 'id',
+		autoincrement: null,
+		default: null,
+		generated: {
+			type: 'always',
+			as: 'identity',
+		},
+		notNull: true,
+		primaryKey: true,
+		table: 'users',
+		type: 'string',
+	});
+
+	db.columns.push({
+		name: 'name',
+		autoincrement: null,
+		default: null,
+		generated: null,
+		notNull: true,
+		primaryKey: true,
+		table: 'users',
+		type: 'string',
+	});
+
+	db.columns.push({
+		name: 'avatar',
+		autoincrement: null,
+		default: null,
+		generated: null,
+		notNull: true,
+		primaryKey: false,
+		table: 'users',
+		type: 'string',
+	});
+
+	const upd = db.columns.update({
+		set: {
+			name: 'id',
+		},
+		where: {
+			name: 'name',
+		},
+	});
+
+	expect(upd).toStrictEqual({
+		status: 'CONFLICT',
+		data: [{
+			name: 'id',
+			autoincrement: null,
+			default: null,
+			generated: {
+				type: 'always',
+				as: 'identity',
+			},
+			notNull: true,
+			primaryKey: true,
+			table: 'users',
+			type: 'string',
+			entityType: 'columns',
+		}],
+	});
+
+	expect(db.entities.list()).toStrictEqual([
+		{
+			autoincrement: null,
+			default: null,
+			entityType: 'columns',
+			generated: {
+				as: 'identity',
+				type: 'always',
+			},
+			name: 'id',
+			notNull: true,
+			primaryKey: true,
+			table: 'users',
+			type: 'string',
+		},
+		{
+			autoincrement: null,
+			default: null,
+			entityType: 'columns',
+			generated: null,
+			name: 'name',
+			notNull: true,
+			primaryKey: true,
+			table: 'users',
+			type: 'string',
+		},
+		{
+			autoincrement: null,
+			default: null,
+			entityType: 'columns',
+			generated: null,
+			name: 'avatar',
+			notNull: true,
+			primaryKey: false,
+			table: 'users',
+			type: 'string',
+		},
+	]);
+
+	expect(db.columns.list()).toStrictEqual(
+		[
+			{
+				autoincrement: null,
+				default: null,
+				entityType: 'columns',
+				generated: {
+					as: 'identity',
+					type: 'always',
+				},
+				name: 'id',
+				notNull: true,
+				primaryKey: true,
+				table: 'users',
+				type: 'string',
+			},
+			{
+				autoincrement: null,
+				default: null,
+				entityType: 'columns',
+				generated: null,
+				name: 'name',
+				notNull: true,
+				primaryKey: true,
+				table: 'users',
+				type: 'string',
+			},
+			{
+				autoincrement: null,
+				default: null,
+				entityType: 'columns',
+				generated: null,
+				name: 'avatar',
+				notNull: true,
+				primaryKey: false,
+				table: 'users',
+				type: 'string',
+			},
+		],
+	);
+
+	expect(db.indexes.list()).toStrictEqual([]);
+});
+
+test('Update entities conflict - no filter', () => {
+	db.columns.push({
+		name: 'id',
+		autoincrement: null,
+		default: null,
+		generated: {
+			type: 'always',
+			as: 'identity',
+		},
+		notNull: true,
+		primaryKey: true,
+		table: 'users',
+		type: 'string',
+	});
+
+	db.columns.push({
+		name: 'name',
+		autoincrement: null,
+		default: null,
+		generated: null,
+		notNull: true,
+		primaryKey: true,
+		table: 'users',
+		type: 'string',
+	});
+
+	db.columns.push({
+		name: 'avatar',
+		autoincrement: null,
+		default: null,
+		generated: null,
+		notNull: true,
+		primaryKey: false,
+		table: 'users',
+		type: 'string',
+	});
+
+	const upd = db.columns.update({
+		set: {
+			name: 'id',
+		},
+	});
+
+	expect(upd).toStrictEqual({
+		status: 'CONFLICT',
+		data: [{
+			name: 'id',
+			autoincrement: null,
+			default: null,
+			generated: {
+				type: 'always',
+				as: 'identity',
+			},
+			notNull: true,
+			primaryKey: true,
+			table: 'users',
+			type: 'string',
+			entityType: 'columns',
+		}],
+	});
+
+	expect(db.entities.list()).toStrictEqual([
+		{
+			autoincrement: null,
+			default: null,
+			entityType: 'columns',
+			generated: {
+				as: 'identity',
+				type: 'always',
+			},
+			name: 'id',
+			notNull: true,
+			primaryKey: true,
+			table: 'users',
+			type: 'string',
+		},
+		{
+			autoincrement: null,
+			default: null,
+			entityType: 'columns',
+			generated: null,
+			name: 'name',
+			notNull: true,
+			primaryKey: true,
+			table: 'users',
+			type: 'string',
+		},
+		{
+			autoincrement: null,
+			default: null,
+			entityType: 'columns',
+			generated: null,
+			name: 'avatar',
+			notNull: true,
+			primaryKey: false,
+			table: 'users',
+			type: 'string',
+		},
+	]);
+
+	expect(db.columns.list()).toStrictEqual(
+		[
+			{
+				autoincrement: null,
+				default: null,
+				entityType: 'columns',
+				generated: {
+					as: 'identity',
+					type: 'always',
+				},
+				name: 'id',
+				notNull: true,
+				primaryKey: true,
+				table: 'users',
+				type: 'string',
+			},
+			{
+				autoincrement: null,
+				default: null,
+				entityType: 'columns',
+				generated: null,
+				name: 'name',
+				notNull: true,
+				primaryKey: true,
+				table: 'users',
+				type: 'string',
+			},
+			{
+				autoincrement: null,
+				default: null,
+				entityType: 'columns',
+				generated: null,
+				name: 'avatar',
+				notNull: true,
+				primaryKey: false,
+				table: 'users',
+				type: 'string',
+			},
+		],
+	);
+
+	expect(db.indexes.list()).toStrictEqual([]);
+});
+
 test('Update entities via common function', () => {
 	db.columns.push({
 		name: 'id',
@@ -1041,70 +1339,76 @@ test('Update entities via common function', () => {
 		},
 	});
 
-	expect(updFirst).toStrictEqual([{
-		name: 'id',
-		autoincrement: null,
-		default: null,
-		generated: {
-			type: 'always',
-			as: 'identity',
-		},
-		notNull: true,
-		primaryKey: true,
-		table: 'upd_tbl',
-		type: 'string',
-		entityType: 'columns',
-	}, {
-		name: 'name',
-		autoincrement: null,
-		default: null,
-		generated: null,
-		notNull: true,
-		primaryKey: true,
-		table: 'upd_tbl',
-		type: 'string',
-		entityType: 'columns',
-	}, {
-		columns: [{
-			value: 'user_id',
-			expression: false,
-		}, {
-			value: 'group_id',
-			expression: false,
-		}],
-		table: 'upd_tbl',
-		isUnique: true,
-		name: 'utg_idx_upd',
-		where: null,
-		entityType: 'indexes',
-	}, {
-		columns: [
-			{
-				expression: false,
-				value: 'group_id',
+	expect(updFirst).toStrictEqual({
+		status: 'OK',
+		data: [{
+			name: 'id',
+			autoincrement: null,
+			default: null,
+			generated: {
+				type: 'always',
+				as: 'identity',
 			},
-		],
-		entityType: 'indexes',
-		isUnique: false,
-		name: 'utg_g_idx',
-		table: 'upd_tbl',
-		where: null,
-	}]);
-
-	expect(updSecond).toStrictEqual([{
-		columns: [{
-			value: 'user_id',
-			expression: false,
+			notNull: true,
+			primaryKey: true,
+			table: 'upd_tbl',
+			type: 'string',
+			entityType: 'columns',
 		}, {
-			value: 'group_id',
-			expression: false,
+			name: 'name',
+			autoincrement: null,
+			default: null,
+			generated: null,
+			notNull: true,
+			primaryKey: true,
+			table: 'upd_tbl',
+			type: 'string',
+			entityType: 'columns',
+		}, {
+			columns: [{
+				value: 'user_id',
+				expression: false,
+			}, {
+				value: 'group_id',
+				expression: false,
+			}],
+			table: 'upd_tbl',
+			isUnique: true,
+			name: 'utg_idx_upd',
+			where: null,
+			entityType: 'indexes',
+		}, {
+			columns: [
+				{
+					expression: false,
+					value: 'group_id',
+				},
+			],
+			entityType: 'indexes',
+			isUnique: false,
+			name: 'utg_g_idx',
+			table: 'upd_tbl',
+			where: null,
 		}],
-		table: 'upd_tbl',
-		isUnique: true,
-		name: 'utg_idx_upd',
-		where: null,
-		entityType: 'indexes',
-	}]);
+	});
+
+	expect(updSecond).toStrictEqual({
+		status: 'OK',
+		data: [{
+			columns: [{
+				value: 'user_id',
+				expression: false,
+			}, {
+				value: 'group_id',
+				expression: false,
+			}],
+			table: 'upd_tbl',
+			isUnique: true,
+			name: 'utg_idx_upd',
+			where: null,
+			entityType: 'indexes',
+		}],
+	});
 
 	expect(db.entities.list()).toStrictEqual([{
 		name: 'id',
@@ -2123,4 +2427,64 @@ test('diff: delete', () => {
 		type: 'varchar',
 		pk: false,
 	}]);
+});
+
+test('indexes #1', () => {
+	const ddl1 = pg();
+	const ddl2 = pg();
+
+	ddl1.indexes.push({
+		schema: 'public',
+		table: 'users',
+		name: 'users_id_index',
+		columns: [{ value: 'id', isExpression: false, opclass: null, nullsFirst: false, asc: false }],
+		isUnique: false,
+		where: null,
+		with: '',
+		concurrently: false,
+		method: 'btree',
+		nameExplicit: true,
+	});
+
+	ddl1.indexes.push({
+		schema: 'public',
+		table: 'users',
+		name: 'indx4',
+		columns: [{ value: 'id', isExpression: false, opclass: null, nullsFirst: false, asc: false }],
+		isUnique: false,
+		where: null,
+		with: '',
+		concurrently: false,
+		method: 'btree',
+		nameExplicit: true,
+	});
+
+	ddl2.indexes.push({
+		schema: 'public',
+		table: 'users',
+		name: 'users_id_index',
+		columns: [{ value: 'id', isExpression: false, opclass: null, nullsFirst: false, asc: false }],
+		isUnique: false,
+		where: null,
+		with: '',
+		concurrently: false,
+		method: 'btree',
+		nameExplicit: false,
+	});
+
+	ddl2.indexes.push({
+		schema: 'public',
+		table: 'users',
+		name: 'indx4',
+		columns: [{ value: 'id', isExpression: false, opclass: null, nullsFirst: false, asc: false }],
+		isUnique: false,
+		where: null,
+		with: '',
+		concurrently: false,
+		method: 'btree',
+		nameExplicit: true,
+	});
+
+	const d = diff(ddl1, ddl2, 'indexes');
+	expect(d).toStrictEqual([]);
 });

@@ -1,4 +1,4 @@
-import { integer, pgTable, serial, text, unique } from 'drizzle-orm/pg-core';
+import { index, integer, pgTable, serial, text, unique } from 'drizzle-orm/pg-core';
 import { expect, test } from 'vitest';
 import { diff } from './mocks';
 
@@ -302,6 +302,80 @@ test('fk #1', async () => {
 );\n`,
 		`ALTER TABLE "posts" ADD CONSTRAINT "posts_authorId_users_id_fk" FOREIGN KEY ("authorId") REFERENCES "users"("id");`,
 	]);
+});
+
+test('unique multistep #1', async () => {
+	const sch1 = {
+		users: pgTable('users', {
+			name: text().unique(),
+		}),
+	};
+
+	const { sqlStatements: st1 } = await diff({}, sch1, []);
+	expect(st1).toStrictEqual([
+		'CREATE TABLE "users" (\n\t"name" text UNIQUE\n);\n',
+	]);
+
+	const sch2 = {
+		users: pgTable('users2', {
+			name: text('name2').unique(),
+		}),
+	};
+
+	const { sqlStatements: st2 } = await diff(sch1, sch2, [
+		'public.users->public.users2',
+		'public.users2.name->public.users2.name2',
+	]);
+
+	expect(st2).toStrictEqual([
+		'ALTER TABLE "users" RENAME TO "users2";',
+		'ALTER TABLE "users2" RENAME COLUMN "name" TO "name2";',
+	]);
+
+	const { sqlStatements: st3 } = await diff(sch2, sch2, []);
+	expect(st3).toStrictEqual([]);
+});
+
+test('index multistep #1', async () => {
+	const sch1 = {
+		users: pgTable('users', {
+			name: text(),
+		}, (t) => [index().on(t.name)]),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, sch1, []);
+	expect(st1).toStrictEqual([
+		'CREATE TABLE "users" (\n\t"name" text\n);\n',
+		'CREATE INDEX "users_name_index" ON "users" ("name");',
+	]);
+
+	const sch2 = {
+		users: pgTable('users2', {
+			name: text('name2'),
+		}, (t) => [index().on(t.name)]),
+	};
+
+	const { sqlStatements: st2, next: n2 } = await diff(n1, sch2, [
+		'public.users->public.users2',
+		'public.users2.name->public.users2.name2',
+	]);
+
+	expect(st2).toStrictEqual([
+		'ALTER TABLE "users" RENAME TO "users2";',
+		'ALTER TABLE "users2" RENAME COLUMN "name" TO "name2";',
+	]);
+
+	const { sqlStatements: st3, next: n3 } = await diff(n2, sch2, []);
+	expect(st3).toStrictEqual([]);
+
+	const sch3 = {
+		users: pgTable('users2', {
+			name: text('name2'),
+		}),
+	};
+
+	const { sqlStatements: st4 } = await diff(n3, sch3, []);
+	expect(st4).toStrictEqual(['DROP INDEX "users_name_index";']);
 });
 
 test('pk #1', async () => {

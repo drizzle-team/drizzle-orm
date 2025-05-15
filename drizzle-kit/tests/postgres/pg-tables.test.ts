@@ -690,9 +690,9 @@ test('optional db aliases (snake case)', async () => {
 	const st5 =
 		`ALTER TABLE "t1" ADD CONSTRAINT "t1_t1_col2_t1_col3_t3_t3_id1_t3_id2_fk" FOREIGN KEY ("t1_col2","t1_col3") REFERENCES "t3"("t3_id1","t3_id2");`;
 
-	const st6 = `CREATE UNIQUE INDEX "t1_uni_idx" ON "t1" USING btree ("t1_uni_idx");`;
+	const st6 = `CREATE UNIQUE INDEX "t1_uni_idx" ON "t1" ("t1_uni_idx");`;
 
-	const st7 = `CREATE INDEX "t1_idx" ON "t1" USING btree ("t1_idx") WHERE "t1"."t1_idx" > 0;`;
+	const st7 = `CREATE INDEX "t1_idx" ON "t1" ("t1_idx") WHERE "t1"."t1_idx" > 0;`;
 
 	expect(sqlStatements).toStrictEqual([st1, st2, st3, st4, st5, st6, st7]);
 });
@@ -761,8 +761,8 @@ test('optional db aliases (camel case)', async () => {
 	const st4 = `ALTER TABLE "t1" ADD CONSTRAINT "t1_t2Ref_t2_t2Id_fk" FOREIGN KEY ("t2Ref") REFERENCES "t2"("t2Id");`;
 	const st5 =
 		`ALTER TABLE "t1" ADD CONSTRAINT "t1_t1Col2_t1Col3_t3_t3Id1_t3Id2_fk" FOREIGN KEY ("t1Col2","t1Col3") REFERENCES "t3"("t3Id1","t3Id2");`;
-	const st6 = `CREATE UNIQUE INDEX "t1UniIdx" ON "t1" USING btree ("t1UniIdx");`;
-	const st7 = `CREATE INDEX "t1Idx" ON "t1" USING btree ("t1Idx") WHERE "t1"."t1Idx" > 0;`;
+	const st6 = `CREATE UNIQUE INDEX "t1UniIdx" ON "t1" ("t1UniIdx");`;
+	const st7 = `CREATE INDEX "t1Idx" ON "t1" ("t1Idx") WHERE "t1"."t1Idx" > 0;`;
 
 	expect(sqlStatements).toStrictEqual([st1, st2, st3, st4, st5, st6, st7]);
 });
