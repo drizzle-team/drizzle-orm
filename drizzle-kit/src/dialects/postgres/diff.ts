@@ -247,7 +247,7 @@ export const ddlDiff = async (
 			},
 		});
 
-		const fks1 = ddl1.fks.update({
+		ddl1.fks.update({
 			set: {
 				schemaTo: rename.to.schema,
 				tableTo: rename.to.name,
@@ -257,7 +257,8 @@ export const ddlDiff = async (
 				tableTo: rename.from.name,
 			},
 		});
-		const fks2 = ddl1.fks.update({
+
+		ddl1.fks.update({
 			set: {
 				schema: rename.to.schema,
 				table: rename.to.name,
@@ -268,20 +269,7 @@ export const ddlDiff = async (
 			},
 		});
 
-		for (const fk of [...fks1, ...fks2].filter((it) => !it.nameExplicit)) {
-			const name = defaultNameForFK(fk.table, fk.columns, fk.tableTo, fk.columnsTo);
-			ddl2.fks.update({
-				set: { name: fk.name },
-				where: {
-					schema: fk.schema,
-					table: fk.table,
-					name,
-					nameExplicit: false,
-				},
-			});
-		}
-
-		const res = ddl1.entities.update({
+		ddl1.entities.update({
 			set: {
 				table: rename.to.name,
 				schema: rename.to.schema,
@@ -291,52 +279,6 @@ export const ddlDiff = async (
 				schema: rename.from.schema,
 			},
 		});
-
-		for (const it of res) {
-			if (it.entityType === 'pks') {
-				const name = defaultNameForPK(it.table);
-				ddl2.pks.update({
-					set: {
-						name: it.name,
-					},
-					where: {
-						schema: it.schema,
-						table: it.table,
-						name,
-						nameExplicit: false,
-					},
-				});
-			}
-			if (it.entityType === 'uniques' && !it.nameExplicit && it.columns.length === 1) {
-				const name = defaultNameForUnique(it.table, it.columns[0]);
-				ddl2.uniques.update({
-					set: {
-						name: it.name,
-					},
-					where: {
-						schema: it.schema,
-						table: it.table,
-						name,
-						nameExplicit: false,
-					},
-				});
-			}
-
-			if (it.entityType === 'indexes' && !it.nameExplicit) {
-				const name = defaultNameForIndex(it.table, it.columns.map((c) => c.value));
-				ddl2.indexes.update({
-					set: {
-						name: it.name,
-					},
-					where: {
-						schema: it.schema,
-						table: it.table,
-						name,
-						nameExplicit: false,
-					},
-				});
-			}
-		}
 	}
 
 	const columnsDiff = diff(ddl1, ddl2, 'columns');
@@ -369,7 +311,7 @@ export const ddlDiff = async (
 			},
 		});
 
-		const indexes = ddl1.indexes.update({
+		ddl1.indexes.update({
 			set: {
 				columns: (it) => {
 					if (!it.isExpression && it.value === rename.from.name) {
@@ -381,24 +323,8 @@ export const ddlDiff = async (
 			where: {
 				schema: rename.from.schema,
 				table: rename.from.table,
-				name: rename.from.name,
 			},
 		});
-
-		for (const it of indexes.filter((it) => !it.nameExplicit)) {
-			const name = defaultNameForIndex(it.table, it.columns.map((c) => c.value));
-			ddl2.indexes.update({
-				set: {
-					name: it.name,
-				},
-				where: {
-					schema: it.schema,
-					table: it.table,
-					name,
-					nameExplicit: false,
-				},
-			});
-		}
 
 		ddl1.pks.update({
 			set: {
@@ -412,7 +338,7 @@ export const ddlDiff = async (
 			},
 		});
 
-		const fks1 = ddl1.fks.update({
+		ddl1.fks.update({
 			set: {
 				columns: (it) => {
 					return it === rename.from.name ? rename.to.name : it;
@@ -423,7 +349,8 @@ export const ddlDiff = async (
 				table: rename.from.table,
 			},
 		});
-		const fks2 = ddl1.fks.update({
+
+		ddl1.fks.update({
 			set: {
 				columnsTo: (it) => {
 					return it === rename.from.name ? rename.to.name : it;
@@ -435,20 +362,7 @@ export const ddlDiff = async (
 			},
 		});
 
-		for (const fk of [...fks1, ...fks2].filter((it) => !it.nameExplicit)) {
-			const name = defaultNameForFK(fk.table, fk.columns, fk.tableTo, fk.columnsTo);
-			ddl2.fks.update({
-				set: { name: fk.name },
-				where: {
-					schema: fk.schema,
-					table: fk.table,
-					name,
-					nameExplicit: false,
-				},
-			});
-		}
-
-		const uniques = ddl1.uniques.update({
+		ddl1.uniques.update({
 			set: {
 				columns: (it) => {
 					return it === rename.from.name ? rename.to.name : it;
@@ -459,21 +373,6 @@ export const ddlDiff = async (
 				table: rename.from.table,
 			},
 		});
-
-		for (const it of uniques.filter((it) => !it.nameExplicit)) {
-			const name = defaultNameForUnique(it.table, it.columns[0]);
-			ddl2.uniques.update({
-				set: {
-					name: it.name,
-				},
-				where: {
-					schema: it.schema,
-					table: it.table,
-					name,
-					nameExplicit: false,
-				},
-			});
-		}
 
 		ddl1.checks.update({
 			set: {
@@ -487,20 +386,13 @@ export const ddlDiff = async (
 		});
 	}
 
-	ddl1.uniques.list().filter((x) => mode === 'push' || !x.nameExplicit);
-	ddl2.uniques.list({ nameExplicit: false });
+	preserveEntityNames(ddl1.uniques, ddl2.uniques, mode);
+	preserveEntityNames(ddl1.fks, ddl2.fks, mode);
+	preserveEntityNames(ddl1.pks, ddl2.pks, mode);
+	preserveEntityNames(ddl1.indexes, ddl2.indexes, mode);
 
 	const uniquesDiff = diff(ddl1, ddl2, 'uniques');
 	const groupedUniquesDiff = groupDiffs(uniquesDiff);
-
-	// for (const entry of groupedUniquesDiff) {
-	// 	for (const del of entry.deleted) {
-	// 		if (!(!del.nameExplicit || mode === 'push')) continue;
-	// 		if (entry.inserted.some((x) => !x.nameExplicit && x.columns === del.columns)) {
-	// 			ddl2.uniques.update({ set: { name: del.name }, where });
-	// 		}
-	// 	}
-	// }
 
 	const uniqueRenames = [] as { from: UniqueConstraint; to: UniqueConstraint }[];
 	const uniqueCreates = [] as UniqueConstraint[];
@@ -1268,4 +1160,26 @@ export const ddlDiff = async (
 		groupedStatements: groupedStatements,
 		renames: renames,
 	};
+};
+
+const preserveEntityNames = <C extends PostgresDDL['uniques' | 'fks' | 'pks' | 'indexes']>(
+	collection1: C,
+	collection2: C,
+	mode: "push" | "default"
+) => {
+	const items = collection1.list().filter((x) => mode === 'push' || !x.nameExplicit);
+	for (const left of items) {
+		const { entityType: _, name, nameExplicit, ...filter } = left;
+
+		const match = collection2.list({ ...filter, nameExplicit: false } as any);
+
+		if (match.length !== 1) continue;
+		collection2.update({
+			set: { name: left.name },
+			where: {
+				...filter,
+				nameExplicit: false,
+			} as any,
+		});
+	}
 };

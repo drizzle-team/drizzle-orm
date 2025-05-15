@@ -462,4 +462,8 @@ export const defaults = {
 		cache: 1,
 		cycle: false,
 	},
+
+	index: {
+		method: 'btree',
+	},
 } as const;

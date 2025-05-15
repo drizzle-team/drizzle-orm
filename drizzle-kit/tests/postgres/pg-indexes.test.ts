@@ -56,12 +56,12 @@ test('indexes #0', async (t) => {
 		'DROP INDEX "changeExpression";',
 		'DROP INDEX "changeWith";',
 		'DROP INDEX "changeUsing";',
-		'CREATE INDEX "newName" ON "users" USING btree ("name" DESC NULLS LAST,name) WITH (fillfactor=70);',
-		'CREATE INDEX "removeColumn" ON "users" USING btree ("name");',
-		'CREATE INDEX "addColumn" ON "users" USING btree ("name" DESC NULLS LAST,"id") WITH (fillfactor=70);',
-		'CREATE INDEX CONCURRENTLY "removeExpression" ON "users" USING btree ("name" DESC NULLS LAST);',
-		'CREATE INDEX "changeExpression" ON "users" USING btree ("id" DESC NULLS LAST,name desc);',
-		'CREATE INDEX "changeWith" ON "users" USING btree ("name") WITH (fillfactor=90);',
+		'CREATE INDEX "newName" ON "users" ("name" DESC NULLS LAST,name) WITH (fillfactor=70);',
+		'CREATE INDEX "removeColumn" ON "users" ("name");',
+		'CREATE INDEX "addColumn" ON "users" ("name" DESC NULLS LAST,"id") WITH (fillfactor=70);',
+		'CREATE INDEX CONCURRENTLY "removeExpression" ON "users" ("name" DESC NULLS LAST);',
+		'CREATE INDEX "changeExpression" ON "users" ("id" DESC NULLS LAST,name desc);',
+		'CREATE INDEX "changeWith" ON "users" ("name") WITH (fillfactor=90);',
 		'CREATE INDEX "changeUsing" ON "users" USING hash ("name");',
 	]);
 });
@@ -125,11 +125,11 @@ test('index #2', async (t) => {
 		'DROP INDEX "indx1";',
 		'DROP INDEX "indx2";',
 		'DROP INDEX "indx3";',
-		'CREATE INDEX "indx4" ON "users" USING btree (lower(id));',
-		'CREATE INDEX "indx" ON "users" USING btree ("name" DESC NULLS LAST);',
-		'CREATE INDEX "indx1" ON "users" USING btree ("name" DESC NULLS LAST) WHERE false;',
-		'CREATE INDEX "indx2" ON "users" USING btree ("name" test);',
-		'CREATE INDEX "indx3" ON "users" USING btree (lower("id"));',
+		'CREATE INDEX "indx4" ON "users" (lower(id));',
+		'CREATE INDEX "indx" ON "users" ("name" DESC NULLS LAST);',
+		'CREATE INDEX "indx1" ON "users" ("name" DESC NULLS LAST) WHERE false;',
+		'CREATE INDEX "indx2" ON "users" ("name" test);',
+		'CREATE INDEX "indx3" ON "users" (lower("id"));',
 	]);
 });
 test('index #3', async (t) => {
@@ -153,7 +153,7 @@ test('index #3', async (t) => {
 	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual([
-		`CREATE INDEX "users_name_id_index" ON "users" USING btree ("name" DESC NULLS LAST,"id") WITH (fillfactor=70) WHERE select 1;`,
+		`CREATE INDEX "users_name_id_index" ON "users" ("name" DESC NULLS LAST,"id") WITH (fillfactor=70) WHERE select 1;`,
 		`CREATE INDEX "indx1" ON "users" USING hash ("name" DESC NULLS LAST,"name") WITH (fillfactor=70);`,
 	]);
 });
