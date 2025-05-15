@@ -13,15 +13,18 @@ import {
 import { CasingType } from 'src/cli/validations/common';
 import { getColumnCasing, sqlToStr } from 'src/serializer/utils';
 import { safeRegister } from 'src/utils-node';
-import { Column, InterimSchema, MssqlEntities, Schema } from './ddl';
-import { defaultNameForFK, defaultNameForPK, defaultNameForUnique } from './grammar';
+import { DefaultConstraint, InterimSchema, MssqlEntities, Schema } from './ddl';
+import { defaultNameForDefault, defaultNameForFK, defaultNameForPK, defaultNameForUnique } from './grammar';
 
 export const upper = <T extends string>(value: T | undefined): Uppercase<T> | null => {
 	if (!value) return null;
 	return value.toUpperCase() as Uppercase<T>;
 };
 
-export const defaultFromColumn = (column: AnyMsSqlColumn, casing?: Casing): Column['default'] => {
+export const defaultFromColumn = (
+	column: AnyMsSqlColumn,
+	casing?: Casing,
+): DefaultConstraint['default'] | null => {
 	if (typeof column.default === 'undefined') return null;
 
 	// return { value: String(column.default), type: 'unknown' };
@@ -97,6 +100,7 @@ export const fromDrizzleSchema = (
 		views: [],
 		viewColumns: [],
 		uniques: [],
+		defaults: [],
 	};
 
 	for (const { table, config } of tableConfigPairs) {
@@ -117,7 +121,7 @@ export const fromDrizzleSchema = (
 		}
 
 		for (const column of columns) {
-			const name = getColumnCasing(column, casing);
+			const columnName = getColumnCasing(column, casing);
 			const notNull: boolean = column.notNull;
 			const sqlType = column.getSQLType();
 
@@ -147,7 +151,7 @@ export const fromDrizzleSchema = (
 				schema,
 				entityType: 'columns',
 				table: tableName,
-				name,
+				name: columnName,
 				type: sqlType,
 				notNull: notNull
 					&& !column.primary
@@ -165,8 +169,19 @@ export const fromDrizzleSchema = (
 				isPK: column.primary,
 				isUnique: column.isUnique,
 				uniqueName: column.uniqueName ?? null,
-				default: defaultFromColumn(column, casing),
 			});
+
+			if (typeof column.default !== 'undefined') {
+				result.defaults.push({
+					entityType: 'defaults',
+					name: defaultNameForDefault(tableName, columnName),
+					nameExplicit: false,
+					schema,
+					column: columnName,
+					table: tableName,
+					default: defaultFromColumn(column, casing),
+				});
+			}
 		}
 
 		for (const pk of primaryKeys) {

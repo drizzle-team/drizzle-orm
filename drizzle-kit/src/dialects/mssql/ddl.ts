@@ -10,10 +10,6 @@ export const createDDL = () => {
 			table: 'required',
 			type: 'string',
 			notNull: 'boolean',
-			default: {
-				value: 'string',
-				type: ['string', 'number', 'boolean', 'bigint', 'text', 'unknown'],
-			},
 			generated: {
 				type: ['persisted', 'virtual'],
 				as: 'string',
@@ -63,6 +59,16 @@ export const createDDL = () => {
 			nameExplicit: 'boolean', // TODO why?
 			value: 'string',
 		},
+		defaults: {
+			schema: 'required',
+			table: 'required',
+			column: 'string',
+			nameExplicit: 'boolean',
+			default: {
+				value: 'string',
+				type: ['string', 'number', 'boolean', 'bigint', 'text', 'unknown'],
+			},
+		},
 		views: {
 			schema: 'required',
 			definition: 'string',
@@ -84,13 +90,18 @@ export type Schema = MssqlEntities['schemas'];
 export type Table = MssqlEntities['tables'];
 export type Column = MssqlEntities['columns'];
 export type Index = MssqlEntities['indexes'];
+export type DefaultConstraint = MssqlEntities['defaults'];
 export type UniqueConstraint = MssqlEntities['uniques'];
 export type ForeignKey = MssqlEntities['fks'];
 export type PrimaryKey = MssqlEntities['pks'];
 export type CheckConstraint = MssqlEntities['checks'];
 export type View = MssqlEntities['views'];
 
-export type InterimColumn = Column & { isPK: boolean; isUnique: boolean; uniqueName: string | null };
+export type InterimColumn = Column & {
+	isPK: boolean;
+	isUnique: boolean;
+	uniqueName: string | null;
+};
 
 export type ViewColumn = {
 	schema: string;
@@ -111,6 +122,7 @@ export type InterimSchema = {
 	views: View[];
 	viewColumns: ViewColumn[];
 	uniques: UniqueConstraint[];
+	defaults: DefaultConstraint[];
 };
 
 export type TableFull = {
@@ -122,6 +134,7 @@ export type TableFull = {
 	fks: ForeignKey[];
 	checks: CheckConstraint[];
 	indexes: Index[];
+	defaults: DefaultConstraint[];
 };
 
 export const fullTableFromDDL = (table: Table, ddl: MssqlDDL): TableFull => {
@@ -132,6 +145,7 @@ export const fullTableFromDDL = (table: Table, ddl: MssqlDDL): TableFull => {
 	const uniques = ddl.uniques.list(filter);
 	const checks = ddl.checks.list(filter);
 	const indexes = ddl.indexes.list(filter);
+	const defaults = ddl.defaults.list(filter);
 
 	return {
 		...table,
@@ -141,6 +155,7 @@ export const fullTableFromDDL = (table: Table, ddl: MssqlDDL): TableFull => {
 		uniques,
 		checks,
 		indexes,
+		defaults,
 	};
 };
 
@@ -195,6 +210,7 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MssqlDDL; errors: S
 
 	for (const column of interim.columns) {
 		const { isPK, isUnique, uniqueName, ...rest } = column;
+
 		const res = ddl.columns.push(rest);
 		if (res.status === 'CONFLICT') {
 			errors.push({ type: 'column_name_conflict', table: column.table, name: column.name });
@@ -265,6 +281,18 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MssqlDDL; errors: S
 			nameExplicit: column.uniqueName !== null,
 			columns: [column.name],
 		});
+	}
+
+	for (const columnDefault of interim.defaults) {
+		const res = ddl.defaults.push(columnDefault);
+		if (res.status === 'CONFLICT') {
+			errors.push({
+				type: 'constraint_name_conflict',
+				schema: columnDefault.schema,
+				table: columnDefault.table,
+				name: columnDefault.name,
+			});
+		}
 	}
 
 	for (const check of interim.checks) {

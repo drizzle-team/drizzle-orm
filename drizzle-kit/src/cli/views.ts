@@ -330,7 +330,8 @@ export class ResolveSelect<T extends EntityBase> extends Prompt<
 			| 'index'
 			| 'unique'
 			| 'primary key'
-			| 'foreign key',
+			| 'foreign key'
+			| 'default',
 		private defaultSchema: 'dbo' | 'public' = 'public',
 	) {
 		super();

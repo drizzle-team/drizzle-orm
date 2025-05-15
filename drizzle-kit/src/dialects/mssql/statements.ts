@@ -2,6 +2,7 @@ import { Simplify } from '../../utils';
 import {
 	CheckConstraint,
 	Column,
+	DefaultConstraint,
 	DiffEntities,
 	ForeignKey,
 	Index,
@@ -228,6 +229,22 @@ export interface RenameUnique {
 	to: UniqueConstraint;
 }
 
+export interface CreateDefault {
+	type: 'create_default';
+	default: DefaultConstraint;
+}
+
+export interface DropDefault {
+	type: 'drop_default';
+	default: DefaultConstraint;
+}
+
+export interface RenameDefault {
+	type: 'rename_default';
+	from: DefaultConstraint;
+	to: DefaultConstraint;
+}
+
 export type JsonStatement =
 	| CreateSchema
 	| DropSchema
@@ -267,7 +284,10 @@ export type JsonStatement =
 	| RenameCheck
 	| RenameIndex
 	| RenameForeignKey
-	| RenameUnique;
+	| RenameUnique
+	| CreateDefault
+	| DropDefault
+	| RenameDefault;
 
 export const prepareStatement = <
 	TType extends JsonStatement['type'],
