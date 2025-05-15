@@ -16,7 +16,7 @@ import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Param, SQL, sql } from '~/sql/sql.ts';
 import type { InferModelFromColumns } from '~/table.ts';
 import { Table } from '~/table.ts';
-import { mapUpdateSet, orderSelectedFields } from '~/utils.ts';
+import { isIterable, mapUpdateSet, orderSelectedFields } from '~/utils.ts';
 import type { AnySingleStoreColumn, SingleStoreColumn } from '../columns/common.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
 import type { SingleStoreUpdateSetSource } from './update.ts';
@@ -60,9 +60,9 @@ export class SingleStoreInsertBuilder<
 	values(value: SingleStoreInsertValue<TTable>): SingleStoreInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
 	values(values: SingleStoreInsertValue<TTable>[]): SingleStoreInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
 	values(
-		values: SingleStoreInsertValue<TTable> | SingleStoreInsertValue<TTable>[],
+		rawValues: SingleStoreInsertValue<TTable> | Iterable<SingleStoreInsertValue<TTable>>,
 	): SingleStoreInsertBase<TTable, TQueryResult, TPreparedQueryHKT> {
-		values = Array.isArray(values) ? values : [values];
+		const values = isIterable(rawValues) ? [...rawValues] : [rawValues];
 		if (values.length === 0) {
 			throw new Error('values() must be called with at least one value');
 		}
