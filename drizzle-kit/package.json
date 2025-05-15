@@ -45,7 +45,7 @@
 	"dependencies": {
 		"@drizzle-team/brocli": "^0.10.2",
 		"@esbuild-kit/esm-loader": "^2.5.5",
-		"esbuild": "^0.25.2",
+		"esbuild": "^0.25.3",
 		"esbuild-register": "^3.5.0"
 	},
 	"devDependencies": {
@@ -93,7 +93,7 @@
 		"get-port": "^6.1.2",
 		"glob": "^8.1.0",
 		"hanji": "^0.0.5",
-		"hono": "^4.1.5",
+		"hono": "^4.6.5",
 		"json-diff": "1.0.6",
 		"micromatch": "^4.0.8",
 		"minimatch": "^7.4.3",
@@ -106,12 +106,12 @@
 		"prettier": "^3.5.3",
 		"semver": "^7.7.2",
 		"superjson": "^2.2.1",
-		"tsup": "^8.0.2",
+		"tsup": "^8.3.5",
 		"tsx": "^3.12.1",
 		"typescript": "^5.6.3",
 		"uuid": "^9.0.1",
 		"vite-tsconfig-paths": "^4.3.2",
-		"vitest": "^3.1.3",
+		"vitest": "^1.6.1",
 		"ws": "^8.18.2",
 		"zod": "^3.20.2",
 		"zx": "^8.3.2"
