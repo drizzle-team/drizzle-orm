@@ -4,7 +4,7 @@
 
 import { assertUnreachable } from 'src/global';
 import { escapeSingleQuotes } from 'src/utils';
-import { Column } from './ddl';
+import { DefaultConstraint } from './ddl';
 
 // 	while (start < end && str[start] === char) ++start;
 // 	while (end > start && str[end - 1] === char) --end;
@@ -250,6 +250,10 @@ export const defaultNameForFK = (table: string, columns: string[], tableTo: stri
 	return `${table}_${columns.join('_')}_${tableTo}_${columnsTo.join('_')}_fk`;
 };
 
+export const defaultNameForDefault = (table: string, column: string) => {
+	return `${table}_${column}_default`;
+};
+
 // TODO will we support index without naming?
 // export const defaultNameForIndex = (table: string, columns: string[]) => {
 // 	return `${table}_${columns.join('_')}_idx`;
@@ -332,7 +336,7 @@ export const defaultNameForFK = (table: string, columns: string[], tableTo: stri
 // 	return { value: value, type: 'unknown' };
 // };
 
-export const defaultToSQL = (it: Column['default']) => {
+export const defaultToSQL = (it: DefaultConstraint['default']) => {
 	if (!it) return '';
 
 	const { value, type } = it;

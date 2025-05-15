@@ -68,6 +68,7 @@ export const diff = async (
 		mockResolver(renames), // checks
 		mockResolver(renames), // pks
 		mockResolver(renames), // fks
+		mockResolver(renames), // defaults
 		'default',
 	);
 	return { sqlStatements, statements, groupedStatements };

@@ -9,6 +9,7 @@ import {
 	CheckConstraint,
 	Column,
 	createDDL,
+	DefaultConstraint,
 	ForeignKey,
 	fullTableFromDDL,
 	Index,
@@ -20,7 +21,7 @@ import {
 	UniqueConstraint,
 	View,
 } from './ddl';
-import { defaultNameForFK, defaultNameForPK, defaultNameForUnique } from './grammar';
+import { defaultNameForDefault, defaultNameForFK, defaultNameForPK, defaultNameForUnique } from './grammar';
 import { JsonStatement, prepareStatement } from './statements';
 
 export const ddlDiffDry = async (ddlFrom: MssqlDDL, ddlTo: MssqlDDL, mode: 'default' | 'push') => {
@@ -28,6 +29,7 @@ export const ddlDiffDry = async (ddlFrom: MssqlDDL, ddlTo: MssqlDDL, mode: 'defa
 	return ddlDiff(
 		ddlFrom,
 		ddlTo,
+		mockResolver(mocks),
 		mockResolver(mocks),
 		mockResolver(mocks),
 		mockResolver(mocks),
@@ -53,6 +55,7 @@ export const ddlDiff = async (
 	checksResolver: Resolver<CheckConstraint>,
 	pksResolver: Resolver<PrimaryKey>,
 	fksResolver: Resolver<ForeignKey>,
+	defaultsResolver: Resolver<DefaultConstraint>,
 	type: 'default' | 'push',
 ): Promise<{
 	statements: JsonStatement[];
@@ -98,7 +101,6 @@ export const ddlDiff = async (
 	const createSchemas = createdSchemas.map((it) => prepareStatement('create_schema', it));
 	const dropSchemas = deletedSchemas.map((it) => prepareStatement('drop_schema', it));
 	const renameSchemas = renamedSchemas.map((it) => prepareStatement('rename_schema', it));
-	const checkRenames = [] as { from: CheckConstraint; to: CheckConstraint }[];
 
 	const tablesDiff = diff(ddl1, ddl2, 'tables');
 
@@ -117,6 +119,8 @@ export const ddlDiff = async (
 	const pksRenames = [] as { from: PrimaryKey; to: PrimaryKey }[];
 	const uniqueRenames = [] as { from: UniqueConstraint; to: UniqueConstraint }[];
 	const fksRenames = [] as { from: ForeignKey; to: ForeignKey }[];
+	const checkRenames = [] as { from: CheckConstraint; to: CheckConstraint }[];
+	const defaultsRenames = [] as { from: DefaultConstraint; to: DefaultConstraint }[];
 
 	for (const rename of renamedOrMovedTables) {
 		ddl1.tables.update({
@@ -231,6 +235,32 @@ export const ddlDiff = async (
 
 				uniqueRenames.push({ from: originalUnique, to: updated[0] });
 			}
+			if (it.entityType === 'defaults' && !it.nameExplicit) {
+				const name = defaultNameForDefault(it.table, it.column);
+
+				const originalDefaults = copy(ddl1.defaults.one({
+					schema: it.schema,
+					table: it.table,
+					name: it.name,
+					nameExplicit: false,
+				}));
+
+				if (!originalDefaults) throw Error('Unhandled error occurred: Can not find original Default');
+
+				const updated = ddl1.defaults.update({
+					set: {
+						name: name,
+					},
+					where: {
+						schema: it.schema,
+						table: it.table,
+						name: it.name,
+						nameExplicit: false,
+					},
+				});
+
+				defaultsRenames.push({ from: originalDefaults, to: updated[0] });
+			}
 		}
 	}
 
@@ -299,17 +329,22 @@ export const ddlDiff = async (
 			},
 		});
 
-		for (const fk of [...fks1, ...fks2].filter((it) => !it.nameExplicit)) {
+		// This copy is needed because in forof loop the original fks are modified
+		const copies = [...copy(fks1), ...copy(fks2)];
+		for (const fk of copies.filter((it) => !it.nameExplicit)) {
 			const name = defaultNameForFK(fk.table, fk.columns, fk.tableTo, fk.columnsTo);
-			ddl2.fks.update({
-				set: { name: fk.name },
+
+			const updated = ddl1.fks.update({
+				set: { name: name },
 				where: {
 					schema: fk.schema,
 					table: fk.table,
-					name,
+					name: fk.name,
 					nameExplicit: false,
 				},
 			});
+
+			fksRenames.push({ to: updated[0], from: fk });
 		}
 
 		const uniques = ddl1.uniques.update({
@@ -325,18 +360,63 @@ export const ddlDiff = async (
 		});
 
 		for (const it of uniques.filter((it) => !it.nameExplicit)) {
+			const originalUnique = copy(ddl1.uniques.one({
+				schema: it.schema,
+				table: it.table,
+				name: it.name,
+				nameExplicit: false,
+			}));
+
+			if (!originalUnique) throw Error('Unhandled error occurred: Can not find original Unique');
+
 			const name = defaultNameForUnique(it.table, [it.columns[0]]);
-			ddl2.uniques.update({
+			const updated = ddl1.uniques.update({
 				set: {
-					name: it.name,
+					name: name,
 				},
 				where: {
 					schema: it.schema,
 					table: it.table,
-					name,
+					name: it.name,
 					nameExplicit: false,
 				},
 			});
+
+			uniqueRenames.push({ from: originalUnique, to: updated[0] });
+		}
+
+		const columnsDefaults = ddl1.defaults.update({
+			set: { column: rename.to.name },
+			where: {
+				schema: rename.from.schema,
+				table: rename.from.table,
+			},
+		});
+
+		for (const it of columnsDefaults.filter((it) => !it.nameExplicit)) {
+			const originalDefault = copy(ddl1.defaults.one({
+				schema: it.schema,
+				table: it.table,
+				name: it.name,
+				nameExplicit: false,
+			}));
+
+			if (!originalDefault) throw Error('Unhandled error occurred: Can not find original Default');
+
+			const name = defaultNameForDefault(it.table, it.column);
+			const updated = ddl1.defaults.update({
+				set: {
+					name,
+				},
+				where: {
+					schema: it.schema,
+					table: it.table,
+					name: it.name,
+					nameExplicit: false,
+				},
+			});
+
+			defaultsRenames.push({ from: originalDefault, to: updated[0] });
 		}
 
 		ddl1.checks.update({
@@ -538,6 +618,35 @@ export const ddlDiff = async (
 		});
 	}
 
+	const diffDefaults = diff(ddl1, ddl2, 'defaults');
+	const groupedDefaultsDiff = groupDiffs(diffDefaults);
+	const defaultsCreates = [] as DefaultConstraint[];
+	const defaultsDeletes = [] as DefaultConstraint[];
+
+	for (const entry of groupedDefaultsDiff) {
+		const { renamedOrMoved, created, deleted } = await defaultsResolver({
+			created: entry.inserted,
+			deleted: entry.deleted,
+		});
+
+		defaultsCreates.push(...created);
+		defaultsDeletes.push(...deleted);
+		defaultsRenames.push(...renamedOrMoved);
+	}
+
+	for (const rename of defaultsRenames) {
+		ddl1.defaults.update({
+			set: {
+				name: rename.to.name,
+				schema: rename.to.schema,
+			},
+			where: {
+				name: rename.from.name,
+				schema: rename.from.schema,
+			},
+		});
+	}
+
 	const alters = diff.alters(ddl1, ddl2);
 
 	const jsonStatements: JsonStatement[] = [];
@@ -565,6 +674,16 @@ export const ddlDiff = async (
 		prepareStatement('drop_index', { index })
 	);
 	const jsonRenameIndex = indexesRenames.map((it) => prepareStatement('rename_index', { from: it.from, to: it.to }));
+
+	const jsonCreateDefaults = defaultsCreates.map((defaultValue) =>
+		prepareStatement('create_default', { default: defaultValue })
+	);
+	const jsonDropDefaults = defaultsDeletes.filter(tablesFilter('deleted')).map((defaultValue) =>
+		prepareStatement('drop_default', { default: defaultValue })
+	);
+	const jsonRenameDefaults = defaultsRenames.map((it) =>
+		prepareStatement('rename_default', { from: it.from, to: it.to })
+	);
 
 	for (const idx of alters.filter((it) => it.entityType === 'indexes')) {
 		const forWhere = !!idx.where && (idx.where.from !== null && idx.where.to !== null ? type !== 'push' : true);
@@ -603,12 +722,7 @@ export const ddlDiff = async (
 			isPK: ddl2.pks.one({ schema: it.schema, table: it.table, columns: [it.name] }) !== null,
 		})
 	);
-	const columnAlters = alters.filter((it) => it.entityType === 'columns').map((it) => {
-		if (it.default && it.default.from?.value === it.default.to?.value) {
-			delete it.default;
-		}
-		return it;
-	}).filter((it) => Object.keys(it).length > 5); // $difftype, entitytype, schema, table, name
+	const columnAlters = alters.filter((it) => it.entityType === 'columns').filter((it) => Object.keys(it).length > 5); // $difftype, entitytype, schema, table, name
 
 	const columnsToRecreate = columnAlters.filter((it) => it.generated).filter((it) => {
 		// if push and definition changed
@@ -644,17 +758,6 @@ export const ddlDiff = async (
 
 	const jsonRenamePrimaryKeys = pksRenames.map((it) => prepareStatement('rename_pk', { from: it.from, to: it.to }));
 
-	// TODO
-	// const alteredUniques = alters.filter((it) => it.entityType === 'uniques').map((it) => {
-	// 	if (it.nameExplicit) {
-	// 		delete it.nameExplicit;
-	// 	}
-	// 	return it;
-	// }).filter((it) => Object.keys(it).length > 5); // $difftype, entitytype, schema, table, name
-
-	// TODO
-	// const jsonAlteredUniqueConstraints = alteredUniques.map((it) => prepareStatement('alter_unique', { diff: it }));
-
 	const jsonAddedUniqueConstraints = uniqueCreates.filter(tablesFilter('created')).map((it) =>
 		prepareStatement('add_unique', { unique: it })
 	);
@@ -666,16 +769,6 @@ export const ddlDiff = async (
 	const jsonRenameUniqueConstraints = uniqueRenames.map((it) =>
 		prepareStatement('rename_unique', { from: it.from, to: it.to })
 	);
-
-	// TODO
-	// const jsonRenamedUniqueConstraints = uniqueRenames.map((it) =>
-	// 	prepareStatement('rename_constraint', {
-	// 		schema: it.to.schema,
-	// 		table: it.to.table,
-	// 		from: it.from.name,
-	// 		to: it.to.name,
-	// 	})
-	// );
 
 	const jsonSetTableSchemas = movedTables.map((it) =>
 		prepareStatement('move_table', {
@@ -699,8 +792,7 @@ export const ddlDiff = async (
 	const alteredPKs = alters.filter((it) => it.entityType === 'pks').filter((it) => {
 		return !!it.columns; // ignore explicit name change
 	});
-	// TODO:
-	// const alteredFKs = alters.filter((it) => it.entityType === 'fks');
+
 	const alteredChecks = alters.filter((it) => it.entityType === 'checks');
 
 	const jsonAlteredPKs = alteredPKs.map((it) => {
@@ -710,16 +802,7 @@ export const ddlDiff = async (
 
 	const jsonCreateReferences = fksCreates.map((it) => prepareStatement('create_fk', { fk: it }));
 	const jsonDropReferences = fksDeletes.map((it) => prepareStatement('drop_fk', { fk: it }));
-	// TODO:
-	// const jsonRenameReferences = fksRenames.map((it) =>
-	// 	prepareStatement('rename_constraint', {
-	// 		schema: it.to.schema,
-	// 		table: it.to.table,
-	// 		from: it.from.name,
-	// 		to: it.to.name,
-	// 	})
-	// );
-	// TODO:
+
 	const jsonAlteredCheckConstraints = alteredChecks.map((it) => prepareStatement('alter_check', { diff: it }));
 
 	const createViews = createdViews.map((it) => prepareStatement('create_view', { view: it }));
@@ -788,14 +871,12 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonDeletedUniqueConstraints);
 	jsonStatements.push(...jsonDeletedCheckConstraints);
 	jsonStatements.push(...jsonDropReferences);
-	// jsonStatements.push(...jsonDroppedReferencesForAlteredTables); // TODO: check
+	jsonStatements.push(...jsonDropDefaults);
 
 	// Will need to drop indexes before changing any columns in table
 	// Then should go column alternations and then index creation
 	jsonStatements.push(...jsonDropIndexes);
 	jsonStatements.push(...jsonDropPrimaryKeys);
-
-	// jsonStatements.push(...jsonTableAlternations); // TODO: check
 
 	jsonStatements.push(...jsonAddColumnsStatemets);
 	jsonStatements.push(...jsonRecreateColumns);
@@ -803,77 +884,25 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonAddPrimaryKeys);
 	jsonStatements.push(...jsonRenamePrimaryKeys);
 
-	// jsonStatements.push(...jsonCreateReferencesForCreatedTables); // TODO: check
 	jsonStatements.push(...jsonCreateReferences);
+	jsonStatements.push(...jsonCreateDefaults);
 	jsonStatements.push(...jsonRenameFks);
 	jsonStatements.push(...jsonCreateIndexes);
 	jsonStatements.push(...jsonRenameIndex);
 
-	// jsonStatements.push(...jsonCreatedReferencesForAlteredTables); // TODO: check
-
 	jsonStatements.push(...jsonDropColumnsStatemets);
 	jsonStatements.push(...jsonAlteredPKs);
 
-	// jsonStatements.push(...jsonRenamedUniqueConstraints);
 	jsonStatements.push(...jsonAlteredCheckConstraints);
 	jsonStatements.push(...jsonAddedUniqueConstraints);
 	jsonStatements.push(...jsonCreatedCheckConstraints);
 	jsonStatements.push(...jsonRenamedCheckConstraints);
 	jsonStatements.push(...jsonRenameUniqueConstraints);
-
-	// jsonStatements.push(...jsonAlteredUniqueConstraints);
-	// jsonStatements.push(...jsonAlterEnumsWithDroppedValues); // TODO: check
+	jsonStatements.push(...jsonRenameDefaults);
 
 	jsonStatements.push(...createViews);
 
 	jsonStatements.push(...dropSchemas);
-
-	// generate filters
-	// const filteredJsonStatements = jsonStatements.filter((st) => {
-	// 	if (st.type === 'alter_table_alter_column_drop_notnull') {
-	// 		if (
-	// 			jsonStatements.find(
-	// 				(it) =>
-	// 					it.type === 'alter_table_alter_column_drop_identity'
-	// 					&& it.tableName === st.tableName
-	// 					&& it.schema === st.schema,
-	// 			)
-	// 		) {
-	// 			return false;
-	// 		}
-	// 	}
-	// 	if (st.type === 'alter_table_alter_column_set_notnull') {
-	// 		if (
-	// 			jsonStatements.find(
-	// 				(it) =>
-	// 					it.type === 'alter_table_alter_column_set_identity'
-	// 					&& it.tableName === st.tableName
-	// 					&& it.schema === st.schema,
-	// 			)
-	// 		) {
-	// 			return false;
-	// 		}
-	// 	}
-	// 	return true;
-	// });
-
-	// // enum filters
-	// // Need to find add and drop enum values in same enum and remove add values
-	// const filteredEnumsJsonStatements = filteredJsonStatements.filter((st) => {
-	// 	if (st.type === 'alter_type_add_value') {
-	// 		if (
-	// 			jsonStatements.find(
-	// 				(it) =>
-	// 					it.type === 'alter_type_drop_value'
-	// 					&& it.name === st.name
-	// 					&& it.schema === st.schema,
-	// 			)
-	// 		) {
-	// 			return false;
-	// 		}
-	// 	}
-	// 	return true;
-	// });
 
 	const { groupedStatements, sqlStatements } = fromJson(jsonStatements);
 

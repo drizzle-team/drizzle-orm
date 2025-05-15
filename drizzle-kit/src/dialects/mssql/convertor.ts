@@ -36,9 +36,6 @@ const createTable = convertor('create_table', (st) => {
 		const identityStatement = identity ? ` IDENTITY(${identity.seed}, ${identity.increment})` : '';
 		const notNullStatement = isPK ? '' : column.notNull && !column.identity ? ' NOT NULL' : '';
 
-		const def = defaultToSQL(column.default);
-		const defaultStatement = def ? ` DEFAULT ${def}` : '';
-
 		const generatedType = column.generated?.type.toUpperCase() === 'VIRTUAL'
 			? ''
 			: column.generated?.type.toUpperCase();
@@ -47,7 +44,7 @@ const createTable = convertor('create_table', (st) => {
 			: '';
 
 		statement += '\t'
-			+ `[${column.name}] ${column.type}${identityStatement}${generatedStatement}${notNullStatement}${defaultStatement}`;
+			+ `[${column.name}] ${column.type}${identityStatement}${generatedStatement}${notNullStatement}`;
 		statement += i === columns.length - 1 ? '' : ',\n';
 	}
 
@@ -101,9 +98,6 @@ const addColumn = convertor('add_column', (st) => {
 		schema,
 	} = column;
 
-	const def = defaultToSQL(column.default);
-	const defaultStatement = def ? ` DEFAULT ${def}` : '';
-
 	const notNullStatement = `${notNull ? ' NOT NULL' : ''}`;
 	const identityStatement = identity ? ` IDENTITY(${identity.seed}, ${identity.increment})` : '';
 
@@ -118,7 +112,7 @@ const addColumn = convertor('add_column', (st) => {
 
 	let statement = `ALTER TABLE ${key} ADD [${name}]`;
 	if (!generated) statement += ` ${type}`;
-	statement += `${identityStatement}${defaultStatement}${generatedStatement}${notNullStatement};`;
+	statement += `${identityStatement}${generatedStatement}${notNullStatement};`;
 
 	return statement;
 });
@@ -142,9 +136,6 @@ const renameColumn = convertor('rename_column', (st) => {
 const alterColumn = convertor('alter_column', (st) => {
 	const { diff, column, isPK } = st;
 
-	const def = defaultToSQL(column.default);
-	const defaultStatement = def ? ` DEFAULT ${def}` : '';
-
 	const identity = column.identity;
 
 	const notNullStatement = `${column.notNull ? ' NOT NULL' : ''}`;
@@ -155,7 +146,7 @@ const alterColumn = convertor('alter_column', (st) => {
 		: '';
 
 	const key = column.schema !== 'dbo' ? `[${column.schema}].[${column.table}]` : `[${column.table}]`;
-	return `ALTER TABLE ${key} ALTER COLUMN [${column.name}] ${column.type}${identityStatement}${defaultStatement}${generatedStatement}${notNullStatement};`;
+	return `ALTER TABLE ${key} ALTER COLUMN [${column.name}] ${column.type}${identityStatement}${generatedStatement}${notNullStatement};`;
 });
 
 const recreateColumn = convertor('recreate_column', (st) => {
@@ -453,6 +444,34 @@ const dropForeignKey = convertor('drop_fk', (st) => {
 	return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT [${name}];\n`;
 });
 
+const addDefault = convertor('create_default', (st) => {
+	const { schema, table, name, default: tableDefault } = st.default;
+
+	const tableNameWithSchema = schema !== 'dbo'
+		? `[${schema}].[${table}]`
+		: `[${table}]`;
+
+	return `ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT [${name}] DEFAULT ${defaultToSQL(tableDefault)};`;
+});
+
+const dropDefault = convertor('drop_default', (st) => {
+	const { schema, table, name } = st.default;
+
+	const tableNameWithSchema = schema !== 'dbo'
+		? `[${schema}].[${table}]`
+		: `[${table}]`;
+
+	return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT [${name}];`;
+});
+
+const renameDefault = convertor('rename_default', (st) => {
+	const { name: nameFrom, schema: schemaFrom } = st.from;
+	const { name: nameTo } = st.to;
+
+	const key = schemaFrom !== 'dbo' ? `${schemaFrom}.${nameFrom}` : `${nameFrom}`;
+	return `EXEC sp_rename '${key}', [${nameTo}], 'OBJECT';`;
+});
+
 const convertors = [
 	createTable,
 	dropTable,
@@ -491,6 +510,9 @@ const convertors = [
 	dropUnique,
 	dropForeignKey,
 	renameUnique,
+	addDefault,
+	dropDefault,
+	renameDefault,
 ];
 
 export function fromJson(

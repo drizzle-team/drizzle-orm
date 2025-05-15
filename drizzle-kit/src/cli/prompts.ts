@@ -17,7 +17,8 @@ export const resolver = <T extends { name: string; schema?: string; table?: stri
 		| 'index'
 		| 'unique'
 		| 'primary key'
-		| 'foreign key',
+		| 'foreign key'
+		| 'default',
 	defaultSchema: 'public' | 'dbo' = 'public',
 ): Resolver<T> => {
 	return async (it: { created: T[]; deleted: T[] }) => {

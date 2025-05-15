@@ -1,4 +1,4 @@
-import { bit, int, mssqlSchema, mssqlTable, primaryKey, text, varchar } from 'drizzle-orm/mssql-core';
+import { bit, int, mssqlSchema, mssqlTable, primaryKey, text, unique, varchar } from 'drizzle-orm/mssql-core';
 import { defaultNameForPK } from 'src/dialects/mssql/grammar';
 import { expect, test } from 'vitest';
 import { diff } from './mocks';
@@ -18,7 +18,10 @@ test('add columns #1', async (t) => {
 	};
 
 	const { sqlStatements } = await diff(schema1, schema2, []);
-	expect(sqlStatements).toStrictEqual(["ALTER TABLE [users] ADD [name] text DEFAULT 'hey' NOT NULL;"]);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE [users] ADD [name] text NOT NULL;',
+		`ALTER TABLE [users] ADD CONSTRAINT [users_name_default] DEFAULT 'hey';`,
+	]);
 });
 
 test('add columns #2', async (t) => {
@@ -480,8 +483,10 @@ test('varchar and text default values escape single quotes', async () => {
 	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual([
-		`ALTER TABLE [table] ADD [text] text DEFAULT 'escape''s quotes';`,
-		`ALTER TABLE [table] ADD [varchar] varchar DEFAULT 'escape''s quotes';`,
+		`ALTER TABLE [table] ADD [text] text;`,
+		`ALTER TABLE [table] ADD [varchar] varchar;`,
+		`ALTER TABLE [table] ADD CONSTRAINT [table_text_default] DEFAULT 'escape''s quotes';`,
+		`ALTER TABLE [table] ADD CONSTRAINT [table_varchar_default] DEFAULT 'escape''s quotes';`,
 	]);
 });
 
@@ -508,12 +513,139 @@ test('add columns with defaults', async () => {
 	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual([
-		"ALTER TABLE [table] ADD [text1] text DEFAULT '';",
-		"ALTER TABLE [table] ADD [text2] text DEFAULT 'text';",
-		'ALTER TABLE [table] ADD [int1] int DEFAULT 10;',
-		'ALTER TABLE [table] ADD [int2] int DEFAULT 0;',
-		'ALTER TABLE [table] ADD [int3] int DEFAULT -10;',
-		'ALTER TABLE [table] ADD [bool1] bit DEFAULT 1;',
-		'ALTER TABLE [table] ADD [bool2] bit DEFAULT 0;',
+		'ALTER TABLE [table] ADD [text1] text;',
+		'ALTER TABLE [table] ADD [text2] text;',
+		'ALTER TABLE [table] ADD [int1] int;',
+		'ALTER TABLE [table] ADD [int2] int;',
+		'ALTER TABLE [table] ADD [int3] int;',
+		'ALTER TABLE [table] ADD [bool1] bit;',
+		'ALTER TABLE [table] ADD [bool2] bit;',
+		`ALTER TABLE [table] ADD CONSTRAINT [table_text1_default] DEFAULT '';`,
+		`ALTER TABLE [table] ADD CONSTRAINT [table_text2_default] DEFAULT 'text';`,
+		`ALTER TABLE [table] ADD CONSTRAINT [table_int1_default] DEFAULT 10;`,
+		`ALTER TABLE [table] ADD CONSTRAINT [table_int2_default] DEFAULT 0;`,
+		`ALTER TABLE [table] ADD CONSTRAINT [table_int3_default] DEFAULT -10;`,
+		`ALTER TABLE [table] ADD CONSTRAINT [table_bool1_default] DEFAULT 1;`,
+		`ALTER TABLE [table] ADD CONSTRAINT [table_bool2_default] DEFAULT 0;`,
 	]);
+});
+
+test('rename column should cause rename unique. Name is not explicit', async (t) => {
+	const schema1 = {
+		users: mssqlTable(
+			'users',
+			{
+				id1: int('id1'),
+				id2: int('id2'),
+			},
+			(t) => [unique().on(t.id1)],
+		),
+	};
+
+	const schema2 = {
+		users: mssqlTable('users', {
+			id3: int('id3'), // renamed
+			id2: int('id2'),
+		}, (t) => [unique().on(t.id3)]),
+	};
+
+	const { sqlStatements } = await diff(schema1, schema2, [
+		`dbo.users.id1->dbo.users.id3`,
+	]);
+
+	expect(sqlStatements).toStrictEqual([
+		`EXEC sp_rename 'users.id1', [id3], 'COLUMN';`,
+		`EXEC sp_rename 'users_id1_key', [users_id3_key], 'OBJECT';`,
+	]);
+});
+
+test('rename column should cause rename default. Name is not explicit', async (t) => {
+	const schema1 = {
+		users: mssqlTable(
+			'users',
+			{
+				id1: int('id1').default(1),
+				id2: int('id2'),
+			},
+		),
+	};
+
+	const schema2 = {
+		users: mssqlTable('users', {
+			id3: int('id3').default(1), // renamed
+			id2: int('id2'),
+		}),
+	};
+
+	const { sqlStatements } = await diff(schema1, schema2, [
+		`dbo.users.id1->dbo.users.id3`,
+	]);
+
+	expect(sqlStatements).toStrictEqual([
+		`EXEC sp_rename 'users.id1', [id3], 'COLUMN';`,
+		`EXEC sp_rename 'users_id1_default', [users_id3_default], 'OBJECT';`,
+	]);
+});
+
+test('rename column should cause rename fk. Name is not explicit #1', async (t) => {
+	const table = mssqlTable('table', {
+		id: int(),
+	});
+	const schema1 = {
+		table,
+		users: mssqlTable(
+			'users',
+			{
+				id1: int('id1').references(() => table.id),
+				id2: int('id2'),
+			},
+		),
+	};
+
+	const schema2 = {
+		table,
+		users: mssqlTable('users', {
+			id3: int('id3').references(() => table.id), // renamed
+			id2: int('id2'),
+		}),
+	};
+
+	const { sqlStatements } = await diff(schema1, schema2, [
+		`dbo.users.id1->dbo.users.id3`,
+	]);
+
+	expect(sqlStatements).toStrictEqual([
+		`EXEC sp_rename 'users.id1', [id3], 'COLUMN';`,
+		`EXEC sp_rename 'users_id1_table_id_fk', [users_id3_table_id_fk], 'OBJECT';`,
+	]);
+});
+
+test('rename column should cause rename unique. Name is explicit #1', async (t) => {
+	const table = mssqlTable('table', {
+		id: int(),
+	});
+	const schema1 = {
+		table,
+		users: mssqlTable(
+			'users',
+			{
+				id1: int('id1').unique('unique_name'),
+				id2: int('id2'),
+			},
+		),
+	};
+
+	const schema2 = {
+		table,
+		users: mssqlTable('users', {
+			id3: int('id3').unique('unique_name'), // renamed
+			id2: int('id2'),
+		}),
+	};
+
+	const { sqlStatements } = await diff(schema1, schema2, [
+		`dbo.users.id1->dbo.users.id3`,
+	]);
+
+	expect(sqlStatements).toStrictEqual([`EXEC sp_rename 'users.id1', [id3], 'COLUMN';`]);
 });

@@ -2,7 +2,7 @@ import { ddlDiff, ddlDiffDry } from 'src/dialects/mssql/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/mssql/drizzle';
 import { prepareSnapshot } from 'src/dialects/mssql/serializer';
 import { prepareFilenames } from 'src/serializer';
-import { createDDL } from '../../dialects/mssql/ddl';
+import { createDDL, DefaultConstraint } from '../../dialects/mssql/ddl';
 import {
 	CheckConstraint,
 	Column,
@@ -54,6 +54,7 @@ export const handle = async (config: GenerateConfig) => {
 		resolver<CheckConstraint>('check', 'dbo'), // checks
 		resolver<PrimaryKey>('primary key', 'dbo'), // pks
 		resolver<ForeignKey>('foreign key', 'dbo'), // fks
+		resolver<DefaultConstraint>('default', 'dbo'), // fks
 		'default',
 	);
 
