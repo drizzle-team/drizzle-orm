@@ -124,7 +124,7 @@ function matchesFilters(item: Record<string, any>, filter: Filter): boolean {
 		if (v === undefined) continue;
 		const target = item[k];
 
-		if ((typeof v === 'object' && v.CONTAINS !== undefined)) {
+		if ((v && typeof v === 'object' && v.CONTAINS !== undefined)) {
 			if (!Array.isArray(target)) return false;
 			if (!target.find((e) => isEqual(e, v.CONTAINS))) return false;
 		} else {

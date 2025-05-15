@@ -399,6 +399,8 @@ export const interimToDDL = (
 				name: it.name,
 			});
 		}
+		
+		// TODO: check within schema
 	}
 
 	for (const it of schema.fks) {

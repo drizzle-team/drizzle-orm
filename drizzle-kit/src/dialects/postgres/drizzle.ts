@@ -31,7 +31,6 @@ import { CasingType } from 'src/cli/validations/common';
 import { assertUnreachable } from 'src/global';
 import { getColumnCasing } from 'src/serializer/utils';
 import { safeRegister } from 'src/utils-node';
-import { isPgArrayType } from '../../utils';
 import { getOrNull } from '../utils';
 import type {
 	CheckConstraint,
@@ -56,6 +55,7 @@ import type {
 import {
 	buildArrayString,
 	defaultNameForPK,
+	defaults,
 	indexName,
 	maxRangeForIdentityBasedOn,
 	minRangeForIdentityBasedOn,
@@ -545,7 +545,7 @@ export const fromDrizzleSchema = (
 					isUnique: value.config.unique,
 					where: where ? where : null,
 					concurrently: value.config.concurrently ?? false,
-					method: value.config.method ?? 'btree',
+					method: value.config.method ?? "btree",
 					with: withOpt,
 					forPK: false,
 					forUnique: false,

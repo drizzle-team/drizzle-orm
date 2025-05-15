@@ -493,7 +493,8 @@ const createIndexConvertor = convertor('create_index', (st) => {
 	const concur = concurrently ? ' CONCURRENTLY' : '';
 	const withClause = w ? ` WITH (${w})` : '';
 	const whereClause = where ? ` WHERE ${where}` : '';
-	return `CREATE ${indexPart}${concur} "${name}" ON ${key} USING ${method} (${value})${withClause}${whereClause};`;
+	const using = method !== defaults.index.method ? ` USING ${method}` : '';
+	return `CREATE ${indexPart}${concur} "${name}" ON ${key}${using} (${value})${withClause}${whereClause};`;
 });
 
 const dropIndexConvertor = convertor('drop_index', (st) => {
