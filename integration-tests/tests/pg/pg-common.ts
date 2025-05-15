@@ -2482,6 +2482,49 @@ export function tests() {
 			]);
 		});
 
+		test('join on materialized aliased sql from with clause', async (ctx) => {
+			const { db } = ctx.pg;
+
+			const users = db.$with('users').materialized(true).as(
+				db.select({
+					id: sql<number>`id`.as('userId'),
+					name: sql<string>`name`.as('userName'),
+					city: sql<string>`city`.as('city'),
+				}).from(
+					sql`(select 1 as id, 'John' as name, 'New York' as city) as users`,
+				),
+			);
+
+			const cities = db.$with('cities').materialized(false).as(
+				db.select({
+					id: sql<number>`id`.as('cityId'),
+					name: sql<string>`name`.as('cityName'),
+				}).from(
+					sql`(select 1 as id, 'Paris' as name) as cities`,
+				),
+			);
+
+			const result = await db
+				.with(users, cities)
+				.select({
+					userId: users.id,
+					name: users.name,
+					userCity: users.city,
+					cityId: cities.id,
+					cityName: cities.name,
+				})
+				.from(users)
+				.leftJoin(cities, (cols) => eq(cols.cityId, cols.userId));
+
+			Expect<
+				Equal<{ userId: number; name: string; userCity: string; cityId: number; cityName: string }[], typeof result>
+			>;
+
+			expect(result).toEqual([
+				{ userId: 1, name: 'John', userCity: 'New York', cityId: 1, cityName: 'Paris' },
+			]);
+		});
+
 		test('prefixed table', async (ctx) => {
 			const { db } = ctx.pg;
 
