@@ -1,5 +1,6 @@
 import { assertUnreachable } from 'src/global';
 import { escapeSingleQuotes } from 'src/utils';
+import { hash } from '../common';
 import { Column, PostgresEntities } from './ddl';
 
 export const trimChar = (str: string, char: string) => {
@@ -298,9 +299,14 @@ export const defaultNameForPK = (table: string) => {
 	return `${table}_pkey`;
 };
 
-// TODO: handle 63 bit key length limit
 export const defaultNameForFK = (table: string, columns: string[], tableTo: string, columnsTo: string[]) => {
-	return `${table}_${columns.join('_')}_${tableTo}_${columnsTo.join('_')}_fk`;
+	const desired = `${table}_${columns.join('_')}_${tableTo}_${columnsTo.join('_')}_fkey`;
+	const res = desired.length > 63
+		? table.length < 63 - 18 // _{hash(12)}_fkey
+			? `${table}_${hash(desired)}_fkey`
+			: `${hash(desired)}_fkey` // 1/~3e21 collision chance within single schema, it's fine
+		: desired;
+	return res;
 };
 
 export const defaultNameForUnique = (table: string, ...columns: string[]) => {

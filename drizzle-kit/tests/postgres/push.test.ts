@@ -2120,7 +2120,7 @@ test('drop policy', async () => {
 
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE "users" DISABLE ROW LEVEL SECURITY;',
-		'DROP POLICY "test" ON "users" CASCADE;',
+		'DROP POLICY "test" ON "users";',
 	]);
 
 	for (const st of sqlStatements) {
@@ -2176,7 +2176,7 @@ test('drop policy without disable rls', async () => {
 	});
 
 	expect(sqlStatements).toStrictEqual([
-		'DROP POLICY "oldRls" ON "users" CASCADE;',
+		'DROP POLICY "oldRls" ON "users";',
 	]);
 
 	for (const st of sqlStatements) {
@@ -2286,7 +2286,7 @@ test('alter policy with recreation: changing as', async (t) => {
 	});
 
 	expect(sqlStatements).toStrictEqual([
-		'DROP POLICY "test" ON "users" CASCADE;',
+		'DROP POLICY "test" ON "users";',
 		'CREATE POLICY "test" ON "users" AS RESTRICTIVE FOR ALL TO public;',
 	]);
 
@@ -2315,7 +2315,7 @@ test('alter policy with recreation: changing for', async (t) => {
 	});
 
 	expect(sqlStatements).toStrictEqual([
-		'DROP POLICY "test" ON "users" CASCADE;',
+		'DROP POLICY "test" ON "users";',
 		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR DELETE TO public;',
 	]);
 
@@ -2344,7 +2344,7 @@ test('alter policy with recreation: changing both "as" and "for"', async (t) => 
 	});
 
 	expect(sqlStatements).toStrictEqual([
-		'DROP POLICY "test" ON "users" CASCADE;',
+		'DROP POLICY "test" ON "users";',
 		'CREATE POLICY "test" ON "users" AS RESTRICTIVE FOR INSERT TO public;',
 	]);
 
@@ -2373,7 +2373,7 @@ test('alter policy with recreation: changing all fields', async (t) => {
 	});
 
 	expect(sqlStatements).toStrictEqual([
-		'DROP POLICY "test" ON "users" CASCADE;',
+		'DROP POLICY "test" ON "users";',
 		'CREATE POLICY "test" ON "users" AS RESTRICTIVE FOR ALL TO current_role WITH CHECK (true);',
 	]);
 
@@ -2484,8 +2484,8 @@ test('drop table with a policy', async (t) => {
 	});
 
 	expect(sqlStatements).toStrictEqual([
-		'DROP POLICY "test" ON "users2" CASCADE;',
-		'DROP TABLE "users2" CASCADE;',
+		'DROP POLICY "test" ON "users2";',
+		'DROP TABLE "users2";',
 	]);
 
 	for (const st of sqlStatements) {
@@ -2661,7 +2661,7 @@ test('alter policy that is linked: using', async (t) => {
 	});
 
 	expect(sqlStatements).toStrictEqual([
-		'DROP POLICY "test" ON "users" CASCADE;',
+		'DROP POLICY "test" ON "users";',
 		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR DELETE TO public;',
 	]);
 });

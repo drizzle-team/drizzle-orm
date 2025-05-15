@@ -54,6 +54,7 @@ import type {
 } from './ddl';
 import {
 	buildArrayString,
+	defaultNameForFK,
 	defaultNameForPK,
 	defaults,
 	indexName,
@@ -392,13 +393,12 @@ export const fromDrizzleSchema = (
 			...drizzleUniques.map<UniqueConstraint>((unq) => {
 				const columnNames = unq.columns.map((c) => getColumnCasing(c, casing));
 				const name = unq.name || uniqueKeyName(table, columnNames);
-
 				return {
 					entityType: 'uniques',
 					schema: schema,
 					table: tableName,
 					name,
-					nameExplicit: !!unq.name,
+					nameExplicit: !!unq.isNameExplicit(),
 					nullsNotDistinct: unq.nullsNotDistinct,
 					columns: columnNames,
 				} satisfies UniqueConstraint;
@@ -424,9 +424,8 @@ export const fromDrizzleSchema = (
 				const columnsTo = reference.foreignColumns.map((it) => getColumnCasing(it, casing));
 
 				// TODO: compose name with casing here, instead of fk.getname? we have fk.reference.columns, etc.
-				let name = fk.reference.name || fk.getName();
+				let name = fk.reference.name || defaultNameForFK(tableName, columnsFrom, tableTo, columnsTo);
 				const nameExplicit = !!fk.reference.name;
-
 				if (casing !== undefined && !nameExplicit) {
 					for (let i = 0; i < originalColumnsFrom.length; i++) {
 						name = name.replace(originalColumnsFrom[i], columnsFrom[i]);
@@ -545,7 +544,7 @@ export const fromDrizzleSchema = (
 					isUnique: value.config.unique,
 					where: where ? where : null,
 					concurrently: value.config.concurrently ?? false,
-					method: value.config.method ?? "btree",
+					method: value.config.method ?? 'btree',
 					with: withOpt,
 					forPK: false,
 					forUnique: false,

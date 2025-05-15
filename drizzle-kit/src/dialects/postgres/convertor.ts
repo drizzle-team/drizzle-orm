@@ -234,10 +234,9 @@ const dropTableConvertor = convertor('drop_table', (st) => {
 
 	const droppedPolicies = policies.map((policy) => dropPolicyConvertor.convert({ policy }) as string);
 
-	// TODO: remove CASCADE
 	return [
 		...droppedPolicies,
-		`DROP TABLE ${tableNameWithSchema} CASCADE;`,
+		`DROP TABLE ${tableNameWithSchema};`,
 	];
 });
 
@@ -501,6 +500,12 @@ const dropIndexConvertor = convertor('drop_index', (st) => {
 	return `DROP INDEX "${st.index.name}";`;
 });
 
+const renameIndexConvertor = convertor('rename_index', (st) => {
+	const key = st.schema !== 'public' ? `"${st.schema}"."${st.from}"` : `"${st.from}"`;
+
+	return `ALTER INDEX ${key} RENAME TO "${st.to}";`;
+});
+
 const addPrimaryKeyConvertor = convertor('add_pk', (st) => {
 	const { pk } = st;
 	const key = pk.schema !== 'public'
@@ -519,26 +524,7 @@ const dropPrimaryKeyConvertor = convertor('drop_pk', (st) => {
 		? `"${pk.schema}"."${pk.table}"`
 		: `"${pk.table}"`;
 
-	if (st.pk.nameExplicit) {
-		return `ALTER TABLE ${key} DROP CONSTRAINT "${pk.name}";`;
-	}
-
-	return `/* 
-    Unfortunately in current drizzle-kit version we can't automatically get name for primary key.
-    We are working on making it available!
-
-    Meanwhile you can:
-        1. Check pk name in your database, by running
-            SELECT constraint_name FROM information_schema.table_constraints
-            WHERE table_schema = '${pk.schema}'
-                AND table_name = '${pk.table}'
-                AND constraint_type = 'PRIMARY KEY';
-        2. Uncomment code below and paste pk name manually
-        
-    Hope to release this update as soon as possible
-*/
-
--- ALTER TABLE "${key}" DROP CONSTRAINT "<constraint_name>";`;
+	return `ALTER TABLE ${key} DROP CONSTRAINT "${pk.name}";`;
 });
 
 const recreatePrimaryKeyConvertor = convertor('alter_pk', (it) => {
@@ -820,7 +806,7 @@ const dropPolicyConvertor = convertor('drop_policy', (st) => {
 		? `"${policy.schema}"."${policy.table}"`
 		: `"${policy.table}"`;
 
-	return `DROP POLICY "${policy.name}" ON ${tableNameWithSchema} CASCADE;`;
+	return `DROP POLICY "${policy.name}" ON ${tableNameWithSchema};`;
 });
 
 const renamePolicyConvertor = convertor('rename_policy', (st) => {
@@ -893,6 +879,7 @@ const convertors = [
 	alterColumnConvertor,
 	createIndexConvertor,
 	dropIndexConvertor,
+	renameIndexConvertor,
 	addPrimaryKeyConvertor,
 	dropPrimaryKeyConvertor,
 	recreatePrimaryKeyConvertor,

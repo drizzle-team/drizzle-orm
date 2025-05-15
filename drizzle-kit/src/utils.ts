@@ -11,6 +11,7 @@ export type SqliteProxy = {
 
 export type DB = {
 	query: <T extends any = any>(sql: string, params?: any[]) => Promise<T[]>;
+	
 };
 
 export type SQLiteDB = {

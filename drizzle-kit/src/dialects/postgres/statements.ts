@@ -279,6 +279,13 @@ export interface JsonDropIndex {
 	index: Index;
 }
 
+export interface JsonRenameIndex {
+	type: 'rename_index';
+	schema: string;
+	from: string;
+	to: string;
+}
+
 export interface JsonRenameColumn {
 	type: 'rename_column';
 	from: Column;
@@ -405,6 +412,7 @@ export type JsonStatement =
 	| JsonAddColumn
 	| JsonCreateIndex
 	| JsonDropIndex
+	| JsonRenameIndex
 	| JsonAddPrimaryKey
 	| JsonDropPrimaryKey
 	| JsonRenameConstraint
