@@ -23,7 +23,7 @@ import { Entities } from '../validations/cli';
 import { CasingType } from '../validations/common';
 import { withStyle } from '../validations/outputs';
 import type { PostgresCredentials } from '../validations/postgres';
-import { schemaError, schemaWarning } from '../views';
+import { ProgressView, schemaError, schemaWarning } from '../views';
 
 export const handle = async (
 	schemaPath: string | string[],
@@ -37,7 +37,7 @@ export const handle = async (
 	casing: CasingType | undefined,
 ) => {
 	const { preparePostgresDB } = await import('../connections');
-	const { pgPushIntrospect } = await import('./pull-postgres');
+	const { introspect: pgPushIntrospect } = await import('./pull-postgres');
 
 	const db = await preparePostgresDB(credentials);
 	const filenames = prepareFilenames(schemaPath);
@@ -53,8 +53,9 @@ export const handle = async (
 		console.log(errors.map((it) => schemaError(it)).join('\n'));
 		process.exit(1);
 	}
-
-	const { schema: schemaFrom } = await pgPushIntrospect(db, tablesFilter, schemasFilter, entities);
+	
+	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
+	const { schema: schemaFrom } = await pgPushIntrospect(db, tablesFilter, schemasFilter, entities, progress);
 
 	const { ddl: ddl1, errors: errors1 } = interimToDDL(schemaFrom);
 	const { ddl: ddl2, errors: errors2 } = interimToDDL(schemaTo);

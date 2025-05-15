@@ -267,7 +267,7 @@ const pgSuite: DialectSuite = {
 			to: schema2,
 		});
 		expect(sqlStatements).toStrictEqual([
-			`CREATE INDEX "users_name_id_index" ON "users" USING btree ("name" DESC NULLS LAST,"id") WITH (fillfactor=70) WHERE select 1;`,
+			`CREATE INDEX "users_name_id_index" ON "users" ("name" DESC NULLS LAST,"id") WITH (fillfactor=70) WHERE select 1;`,
 			`CREATE INDEX "indx1" ON "users" USING hash ("name" DESC NULLS LAST,"name") WITH (fillfactor=70);`,
 		]);
 	},
@@ -477,11 +477,11 @@ const pgSuite: DialectSuite = {
 			'DROP INDEX "removeExpression";',
 			'DROP INDEX "changeWith";',
 			'DROP INDEX "changeUsing";',
-			'CREATE INDEX "newName" ON "users" USING btree ("name" DESC NULLS LAST,name) WITH (fillfactor=70);',
-			'CREATE INDEX "removeColumn" ON "users" USING btree ("name");',
-			'CREATE INDEX "addColumn" ON "users" USING btree ("name" DESC NULLS LAST,"id") WITH (fillfactor=70);',
-			'CREATE INDEX CONCURRENTLY "removeExpression" ON "users" USING btree ("name" DESC NULLS LAST);',
-			'CREATE INDEX "changeWith" ON "users" USING btree ("name") WITH (fillfactor=90);',
+			'CREATE INDEX "newName" ON "users" ("name" DESC NULLS LAST,name) WITH (fillfactor=70);',
+			'CREATE INDEX "removeColumn" ON "users" ("name");',
+			'CREATE INDEX "addColumn" ON "users" ("name" DESC NULLS LAST,"id") WITH (fillfactor=70);',
+			'CREATE INDEX CONCURRENTLY "removeExpression" ON "users" ("name" DESC NULLS LAST);',
+			'CREATE INDEX "changeWith" ON "users" ("name") WITH (fillfactor=90);',
 			'CREATE INDEX "changeUsing" ON "users" USING hash ("name");',
 		]);
 	},
@@ -549,7 +549,7 @@ const pgSuite: DialectSuite = {
 
 		expect(sqlStatements).toStrictEqual([
 			'DROP INDEX "indx1";',
-			'CREATE INDEX "indx1" ON "users" USING btree ("name" DESC NULLS LAST) WHERE false;',
+			'CREATE INDEX "indx1" ON "users" ("name" DESC NULLS LAST) WHERE false;',
 		]);
 	},
 
@@ -691,16 +691,10 @@ const pgSuite: DialectSuite = {
 			}, (table) => [uniqueIndex('User_email_key').on(table.email)]),
 		};
 
-		const { statements, sqlStatements } = await diffPush({
-			db,
-			from: schema1,
-			to: schema2,
-			after: [
-				`INSERT INTO "User" (id, email, "updatedAt") values ('str', 'email@gmail', '2025-04-29 09:20:39');`,
-			],
-		});
+		await push({ db, to: schema1 });
+		db.query(`INSERT INTO "User" (id, email, "updatedAt") values ('str', 'email@gmail', '2025-04-29 09:20:39');`);
 
-		const { hints } = await suggestions(db, statements);
+		const { sqlStatements, hints } = await push({ db, to: schema2 });
 
 		expect(hints).toStrictEqual([]);
 		expect(sqlStatements).toStrictEqual(['ALTER TABLE "User" ALTER COLUMN "email" SET NOT NULL;']);

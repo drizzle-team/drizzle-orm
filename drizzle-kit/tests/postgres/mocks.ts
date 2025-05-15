@@ -15,15 +15,17 @@ import {
 	PgView,
 } from 'drizzle-orm/pg-core';
 import { CasingType } from 'src/cli/validations/common';
-import { createDDL, interimToDDL, SchemaError } from 'src/dialects/postgres/ddl';
+import { createDDL, interimToDDL, PostgresDDL, SchemaError } from 'src/dialects/postgres/ddl';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/postgres/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/postgres/drizzle';
 import { mockResolver } from 'src/utils/mocks';
 import '../../src/@types/utils';
 import { PGlite } from '@electric-sql/pglite';
 import { rmSync, writeFileSync } from 'fs';
+import { introspect } from 'src/cli/commands/pull-postgres';
 import { suggestions } from 'src/cli/commands/push-postgres';
 import { Entities } from 'src/cli/validations/cli';
+import { EmptyProgressView } from 'src/cli/views';
 import { isSystemNamespace, isSystemRole } from 'src/dialects/postgres/grammar';
 import { fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
 import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
@@ -79,12 +81,14 @@ export const drizzleToDDL = (
 
 // 2 schemas -> 2 ddls -> diff
 export const diff = async (
-	left: PostgresSchema,
+	left: PostgresSchema | PostgresDDL,
 	right: PostgresSchema,
 	renamesArr: string[],
 	casing?: CasingType | undefined,
 ) => {
-	const { ddl: ddl1, errors: err1 } = drizzleToDDL(left, casing);
+	const { ddl: ddl1, errors: err1 } = 'entities' in left && '_' in left
+		? { ddl: left as PostgresDDL, errors: [] }
+		: drizzleToDDL(left, casing);
 	const { ddl: ddl2, errors: err2 } = drizzleToDDL(right, casing);
 
 	if (err1.length > 0 || err2.length > 0) {
@@ -111,7 +115,7 @@ export const diff = async (
 		mockResolver(renames), // fks
 		'default',
 	);
-	return { sqlStatements, statements, groupedStatements };
+	return { sqlStatements, statements, groupedStatements, next: ddl2 };
 };
 
 // init schema flush to db -> introspect db to ddl -> compare ddl with destination schema
@@ -121,13 +125,15 @@ export const push = async (config: {
 	renames?: string[];
 	schemas?: string[];
 	casing?: CasingType;
+	log?: 'statements' | 'none';
 }) => {
 	const { db, to } = config;
+	const log = config.log ?? 'none';
 	const casing = config.casing ?? 'camelCase';
 	const schemas = config.schemas ?? ['public'];
-	const introspectedSchema = await fromDatabaseForDrizzle(db, undefined, (it) => schemas.indexOf(it) >= 0, undefined);
 
-	const { ddl: ddl1, errors: err3 } = interimToDDL(introspectedSchema);
+	const { schema } = await introspect(db, [], schemas, undefined, new EmptyProgressView());
+	const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
 	const { ddl: ddl2, errors: err2 } = drizzleToDDL(to, casing);
 
 	// writeFileSync("./ddl1.json", JSON.stringify(ddl1.entities.list()))
@@ -161,7 +167,7 @@ export const push = async (config: {
 	);
 
 	for (const sql of sqlStatements) {
-		console.log(sql);
+		if (log === 'statements') console.log(sql);
 		await db.query(sql);
 	}
 

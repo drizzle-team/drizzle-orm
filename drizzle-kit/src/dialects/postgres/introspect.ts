@@ -806,8 +806,6 @@ export const fromDatabase = async (
 		const forUnique = metadata.isUnique && constraintsList.some((x) => x.type === 'u' && x.indexId === idx.oid);
 		const forPK = metadata.isPrimary && constraintsList.some((x) => x.type === 'p' && x.indexId === idx.oid);
 
-		console.log(idx.name, metadata.isPrimary, constraintsList.some((x) => x.type === 'p' && x.indexId === idx.oid))
-
 		const opclasses = metadata.opclassIds.map((it) => opsById[it]!);
 		const expr = splitExpressions(metadata.expression);
 
