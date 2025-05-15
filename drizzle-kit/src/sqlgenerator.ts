@@ -5,6 +5,7 @@ import {
 	JsonAlterColumnAlterGeneratedStatement,
 	JsonAlterColumnAlterIdentityStatement,
 	JsonAlterColumnDropAutoincrementStatement,
+	JsonAlterColumnDropCommentStatement,
 	JsonAlterColumnDropDefaultStatement,
 	JsonAlterColumnDropGeneratedStatement,
 	JsonAlterColumnDropIdentityStatement,
@@ -13,6 +14,7 @@ import {
 	JsonAlterColumnDropPrimaryKeyStatement,
 	JsonAlterColumnPgTypeStatement,
 	JsonAlterColumnSetAutoincrementStatement,
+	JsonAlterColumnSetCommentStatement,
 	JsonAlterColumnSetDefaultStatement,
 	JsonAlterColumnSetGeneratedStatement,
 	JsonAlterColumnSetIdentityStatement,
@@ -28,6 +30,7 @@ import {
 	JsonAlterRoleStatement,
 	JsonAlterSequenceStatement,
 	JsonAlterTableRemoveFromSchema,
+	JsonAlterTableSetCommentStatement,
 	JsonAlterTableSetNewSchema,
 	JsonAlterTableSetSchema,
 	JsonAlterViewAddWithOptionStatement,
@@ -385,8 +388,17 @@ class PgCreateTableConvertor extends Convertor {
 	}
 
 	convert(st: JsonCreateTableStatement) {
-		const { tableName, schema, columns, compositePKs, uniqueConstraints, checkConstraints, policies, isRLSEnabled } =
-			st;
+		const {
+			tableName,
+			schema,
+			columns,
+			compositePKs,
+			uniqueConstraints,
+			checkConstraints,
+			policies,
+			isRLSEnabled,
+			comment,
+		} = st;
 
 		let statement = '';
 		const name = schema ? `"${schema}"."${tableName}"` : `"${tableName}"`;
@@ -487,7 +499,37 @@ class PgCreateTableConvertor extends Convertor {
 			schema,
 		});
 
-		return [statement, ...(policies && policies.length > 0 || isRLSEnabled ? [enableRls] : [])];
+		const commentConvertor = new PgAlterTableAlterColumnSetCommentConvertor();
+		const comments: string[] = [];
+
+		if (comment) {
+			comments.push(new PgAlterTableSetCommentConvertor().convert({
+				type: 'alter_table_set_comment',
+				tableName,
+				schema,
+				comment,
+			}));
+		}
+
+		for (const column of columns) {
+			if (column.comment) {
+				comments.push(commentConvertor.convert({
+					type: 'alter_table_alter_column_set_comment',
+					tableName,
+					schema,
+					columnName: column.name,
+					columnComment: column.comment,
+					newDataType: column.type,
+					columnDefault: column.default,
+					columnOnUpdate: column.onUpdate ?? false,
+					columnNotNull: column.notNull ?? false,
+					columnAutoIncrement: column.autoincrement ?? false,
+					columnPk: column.primaryKey ?? false,
+				}));
+			}
+		}
+
+		return [statement, ...(policies && policies.length > 0 || isRLSEnabled ? [enableRls] : []), ...comments];
 	}
 }
 
@@ -505,6 +547,7 @@ class MySqlCreateTableConvertor extends Convertor {
 			compositePKs,
 			uniqueConstraints,
 			internals,
+			comment,
 		} = st;
 
 		let statement = '';
@@ -528,8 +571,10 @@ class MySqlCreateTableConvertor extends Convertor {
 				? ` GENERATED ALWAYS AS (${column.generated?.as}) ${column.generated?.type.toUpperCase()}`
 				: '';
 
+			const commentStatement = column.comment ? ` COMMENT '${column.comment}'` : '';
+
 			statement += '\t'
-				+ `\`${column.name}\` ${column.type}${autoincrementStatement}${primaryKeyStatement}${generatedStatement}${notNullStatement}${defaultStatement}${onUpdateStatement}`;
+				+ `\`${column.name}\` ${column.type}${autoincrementStatement}${primaryKeyStatement}${generatedStatement}${notNullStatement}${defaultStatement}${onUpdateStatement}${commentStatement}`;
 			statement += i === columns.length - 1 ? '' : ',\n';
 		}
 
@@ -571,7 +616,7 @@ class MySqlCreateTableConvertor extends Convertor {
 			}
 		}
 
-		statement += `\n);`;
+		statement += `\n)${comment ? ` COMMENT = '${comment}'` : ''};`;
 		statement += `\n`;
 		return statement;
 	}
@@ -589,6 +634,7 @@ export class SingleStoreCreateTableConvertor extends Convertor {
 			compositePKs,
 			uniqueConstraints,
 			internals,
+			comment,
 		} = st;
 
 		let statement = '';
@@ -612,8 +658,10 @@ export class SingleStoreCreateTableConvertor extends Convertor {
 				? ` GENERATED ALWAYS AS (${column.generated?.as}) ${column.generated?.type.toUpperCase()}`
 				: '';
 
+			const commentStatement = column.comment ? ` COMMENT '${column.comment}'` : '';
+
 			statement += '\t'
-				+ `\`${column.name}\` ${column.type}${autoincrementStatement}${primaryKeyStatement}${notNullStatement}${defaultStatement}${onUpdateStatement}${generatedStatement}`;
+				+ `\`${column.name}\` ${column.type}${autoincrementStatement}${primaryKeyStatement}${notNullStatement}${defaultStatement}${onUpdateStatement}${generatedStatement}${commentStatement}`;
 			statement += i === columns.length - 1 ? '' : ',\n';
 		}
 
@@ -646,7 +694,7 @@ export class SingleStoreCreateTableConvertor extends Convertor {
 			}
 		}
 
-		statement += `\n);`;
+		statement += `\n)${comment ? ` COMMENT = '${comment}'` : ''};`;
 		statement += `\n`;
 		return statement;
 	}
@@ -1998,6 +2046,54 @@ class PgAlterTableAlterColumnDropDefaultConvertor extends Convertor {
 	}
 }
 
+class PgAlterTableAlterColumnSetCommentConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_table_alter_column_set_comment' && dialect === 'postgresql';
+	}
+
+	convert(statement: JsonAlterColumnSetCommentStatement) {
+		const { tableName, columnName, schema } = statement;
+
+		const tableNameWithSchema = schema
+			? `"${schema}"."${tableName}"`
+			: `"${tableName}"`;
+
+		return `COMMENT ON COLUMN ${tableNameWithSchema}."${columnName}" IS '${statement.columnComment}';`;
+	}
+}
+
+class PgAlterTableAlterColumnDropCommentConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_table_alter_column_drop_comment' && dialect === 'postgresql';
+	}
+
+	convert(statement: JsonAlterColumnDropCommentStatement) {
+		const { tableName, columnName, schema } = statement;
+
+		const tableNameWithSchema = schema
+			? `"${schema}"."${tableName}"`
+			: `"${tableName}"`;
+
+		return `COMMENT ON COLUMN ${tableNameWithSchema}."${columnName}" IS NULL;`;
+	}
+}
+
+class PgAlterTableSetCommentConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_table_set_comment' && dialect === 'postgresql';
+	}
+
+	convert(statement: JsonAlterTableSetCommentStatement) {
+		const { tableName, schema, comment } = statement;
+
+		const tableNameWithSchema = schema
+			? `"${schema}"."${tableName}"`
+			: `"${tableName}"`;
+
+		return `COMMENT ON TABLE ${tableNameWithSchema} IS ${comment ? `'${comment}'` : 'NULL'};`;
+	}
+}
+
 class PgAlterTableAlterColumnDropGeneratedConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
@@ -2489,7 +2585,9 @@ type MySqlModifyColumnStatement =
 	| JsonAlterColumnSetDefaultStatement
 	| JsonAlterColumnDropDefaultStatement
 	| JsonAlterColumnSetGeneratedStatement
-	| JsonAlterColumnDropGeneratedStatement;
+	| JsonAlterColumnDropGeneratedStatement
+	| JsonAlterColumnSetCommentStatement
+	| JsonAlterColumnDropCommentStatement;
 
 class MySqlModifyColumn extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
@@ -2504,7 +2602,9 @@ class MySqlModifyColumn extends Convertor {
 				|| statement.type === 'alter_table_alter_column_set_default'
 				|| statement.type === 'alter_table_alter_column_drop_default'
 				|| statement.type === 'alter_table_alter_column_set_generated'
-				|| statement.type === 'alter_table_alter_column_drop_generated')
+				|| statement.type === 'alter_table_alter_column_drop_generated'
+				|| statement.type === 'alter_table_alter_column_set_comment'
+				|| statement.type === 'alter_table_alter_column_drop_comment')
 			&& dialect === 'mysql'
 		);
 	}
@@ -2518,7 +2618,7 @@ class MySqlModifyColumn extends Convertor {
 		let columnAutoincrement = '';
 		let primaryKey = statement.columnPk ? ' PRIMARY KEY' : '';
 		let columnGenerated = '';
-
+		let columnComment = '';
 		if (statement.type === 'alter_table_alter_column_drop_notnull') {
 			columnType = ` ${statement.newDataType}`;
 			columnDefault = statement.columnDefault
@@ -2530,6 +2630,9 @@ class MySqlModifyColumn extends Convertor {
 				: '';
 			columnAutoincrement = statement.columnAutoIncrement
 				? ' AUTO_INCREMENT'
+				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
 				: '';
 		} else if (statement.type === 'alter_table_alter_column_set_notnull') {
 			columnNotNull = ` NOT NULL`;
@@ -2543,6 +2646,9 @@ class MySqlModifyColumn extends Convertor {
 			columnAutoincrement = statement.columnAutoIncrement
 				? ' AUTO_INCREMENT'
 				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
+				: '';
 		} else if (statement.type === 'alter_table_alter_column_drop_on_update') {
 			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
 			columnType = ` ${statement.newDataType}`;
@@ -2553,6 +2659,9 @@ class MySqlModifyColumn extends Convertor {
 			columnAutoincrement = statement.columnAutoIncrement
 				? ' AUTO_INCREMENT'
 				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
+				: '';
 		} else if (statement.type === 'alter_table_alter_column_set_on_update') {
 			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
 			columnOnUpdate = ` ON UPDATE CURRENT_TIMESTAMP`;
@@ -2562,6 +2671,9 @@ class MySqlModifyColumn extends Convertor {
 				: '';
 			columnAutoincrement = statement.columnAutoIncrement
 				? ' AUTO_INCREMENT'
+				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
 				: '';
 		} else if (
 			statement.type === 'alter_table_alter_column_set_autoincrement'
@@ -2575,6 +2687,9 @@ class MySqlModifyColumn extends Convertor {
 				? ` DEFAULT ${statement.columnDefault}`
 				: '';
 			columnAutoincrement = ' AUTO_INCREMENT';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
+				: '';
 		} else if (
 			statement.type === 'alter_table_alter_column_drop_autoincrement'
 		) {
@@ -2597,6 +2712,9 @@ class MySqlModifyColumn extends Convertor {
 			columnAutoincrement = statement.columnAutoIncrement
 				? ' AUTO_INCREMENT'
 				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
+				: '';
 		} else if (statement.type === 'alter_table_alter_column_drop_default') {
 			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
 			columnOnUpdate = columnOnUpdate = statement.columnOnUpdate
@@ -2606,6 +2724,9 @@ class MySqlModifyColumn extends Convertor {
 			columnDefault = '';
 			columnAutoincrement = statement.columnAutoIncrement
 				? ' AUTO_INCREMENT'
+				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
 				: '';
 		} else if (statement.type === 'alter_table_alter_column_set_generated') {
 			columnType = ` ${statement.newDataType}`;
@@ -2618,6 +2739,9 @@ class MySqlModifyColumn extends Convertor {
 				: '';
 			columnAutoincrement = statement.columnAutoIncrement
 				? ' AUTO_INCREMENT'
+				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
 				: '';
 
 			if (statement.columnGenerated?.type === 'virtual') {
@@ -2661,7 +2785,9 @@ class MySqlModifyColumn extends Convertor {
 			columnAutoincrement = statement.columnAutoIncrement
 				? ' AUTO_INCREMENT'
 				: '';
-
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
+				: '';
 			if (statement.oldColumn?.generated?.type === 'virtual') {
 				return [
 					new MySqlAlterTableDropColumnConvertor().convert({
@@ -2687,6 +2813,34 @@ class MySqlModifyColumn extends Convertor {
 					}),
 				];
 			}
+		} else if (statement.type === 'alter_table_alter_column_set_comment') {
+			columnType = ` ${statement.newDataType}`;
+			columnDefault = statement.columnDefault
+				? ` DEFAULT ${statement.columnDefault}`
+				: '';
+			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
+			columnOnUpdate = statement.columnOnUpdate
+				? ` ON UPDATE CURRENT_TIMESTAMP`
+				: '';
+			columnAutoincrement = statement.columnAutoIncrement
+				? ' AUTO_INCREMENT'
+				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
+				: '';
+		} else if (statement.type === 'alter_table_alter_column_drop_comment') {
+			columnType = ` ${statement.newDataType}`;
+			columnDefault = statement.columnDefault
+				? ` DEFAULT ${statement.columnDefault}`
+				: '';
+			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
+			columnOnUpdate = statement.columnOnUpdate
+				? ` ON UPDATE CURRENT_TIMESTAMP`
+				: '';
+			columnAutoincrement = statement.columnAutoIncrement
+				? ' AUTO_INCREMENT'
+				: '';
+			columnComment = '';
 		} else {
 			columnType = ` ${statement.newDataType}`;
 			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
@@ -2709,7 +2863,7 @@ class MySqlModifyColumn extends Convertor {
 			? columnDefault.toISOString()
 			: columnDefault;
 
-		return `ALTER TABLE \`${tableName}\` MODIFY COLUMN \`${columnName}\`${columnType}${columnAutoincrement}${columnGenerated}${columnNotNull}${columnDefault}${columnOnUpdate};`;
+		return `ALTER TABLE \`${tableName}\` MODIFY COLUMN \`${columnName}\`${columnType}${columnAutoincrement}${columnGenerated}${columnNotNull}${columnDefault}${columnOnUpdate}${columnComment};`;
 	}
 }
 
@@ -2813,6 +2967,20 @@ class SingleStoreAlterTableDropPk extends Convertor {
 	}
 }
 
+class SingleStoreAlterTableSetCommentConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return (
+			statement.type === 'alter_table_set_comment'
+			&& dialect === 'singlestore'
+		);
+	}
+
+	convert(statement: JsonAlterTableSetCommentStatement) {
+		const { tableName, comment } = statement;
+		return `ALTER TABLE \`${tableName}\` COMMENT = '${comment || ''}';`;
+	}
+}
+
 type SingleStoreModifyColumnStatement =
 	| JsonAlterColumnDropNotNullStatement
 	| JsonAlterColumnSetNotNullStatement
@@ -2824,7 +2992,9 @@ type SingleStoreModifyColumnStatement =
 	| JsonAlterColumnSetDefaultStatement
 	| JsonAlterColumnDropDefaultStatement
 	| JsonAlterColumnSetGeneratedStatement
-	| JsonAlterColumnDropGeneratedStatement;
+	| JsonAlterColumnDropGeneratedStatement
+	| JsonAlterColumnSetCommentStatement
+	| JsonAlterColumnDropCommentStatement;
 
 class SingleStoreModifyColumn extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
@@ -2853,6 +3023,7 @@ class SingleStoreModifyColumn extends Convertor {
 		let columnAutoincrement = '';
 		let primaryKey = statement.columnPk ? ' PRIMARY KEY' : '';
 		let columnGenerated = '';
+		let columnComment = '';
 
 		if (statement.type === 'alter_table_alter_column_drop_notnull') {
 			columnType = ` ${statement.newDataType}`;
@@ -2866,6 +3037,9 @@ class SingleStoreModifyColumn extends Convertor {
 			columnAutoincrement = statement.columnAutoIncrement
 				? ' AUTO_INCREMENT'
 				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
+				: '';
 		} else if (statement.type === 'alter_table_alter_column_set_notnull') {
 			columnNotNull = ` NOT NULL`;
 			columnType = ` ${statement.newDataType}`;
@@ -2878,6 +3052,9 @@ class SingleStoreModifyColumn extends Convertor {
 			columnAutoincrement = statement.columnAutoIncrement
 				? ' AUTO_INCREMENT'
 				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
+				: '';
 		} else if (statement.type === 'alter_table_alter_column_drop_on_update') {
 			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
 			columnType = ` ${statement.newDataType}`;
@@ -2888,6 +3065,9 @@ class SingleStoreModifyColumn extends Convertor {
 			columnAutoincrement = statement.columnAutoIncrement
 				? ' AUTO_INCREMENT'
 				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
+				: '';
 		} else if (statement.type === 'alter_table_alter_column_set_on_update') {
 			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
 			columnOnUpdate = ` ON UPDATE CURRENT_TIMESTAMP`;
@@ -2897,6 +3077,9 @@ class SingleStoreModifyColumn extends Convertor {
 				: '';
 			columnAutoincrement = statement.columnAutoIncrement
 				? ' AUTO_INCREMENT'
+				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
 				: '';
 		} else if (
 			statement.type === 'alter_table_alter_column_set_autoincrement'
@@ -2910,6 +3093,9 @@ class SingleStoreModifyColumn extends Convertor {
 				? ` DEFAULT ${statement.columnDefault}`
 				: '';
 			columnAutoincrement = ' AUTO_INCREMENT';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
+				: '';
 		} else if (
 			statement.type === 'alter_table_alter_column_drop_autoincrement'
 		) {
@@ -2922,6 +3108,9 @@ class SingleStoreModifyColumn extends Convertor {
 				? ` DEFAULT ${statement.columnDefault}`
 				: '';
 			columnAutoincrement = '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
+				: '';
 		} else if (statement.type === 'alter_table_alter_column_set_default') {
 			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
 			columnOnUpdate = columnOnUpdate = statement.columnOnUpdate
@@ -2932,6 +3121,9 @@ class SingleStoreModifyColumn extends Convertor {
 			columnAutoincrement = statement.columnAutoIncrement
 				? ' AUTO_INCREMENT'
 				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
+				: '';
 		} else if (statement.type === 'alter_table_alter_column_drop_default') {
 			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
 			columnOnUpdate = columnOnUpdate = statement.columnOnUpdate
@@ -2941,6 +3133,9 @@ class SingleStoreModifyColumn extends Convertor {
 			columnDefault = '';
 			columnAutoincrement = statement.columnAutoIncrement
 				? ' AUTO_INCREMENT'
+				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
 				: '';
 		} else if (statement.type === 'alter_table_alter_column_set_generated') {
 			columnType = ` ${statement.newDataType}`;
@@ -2953,6 +3148,9 @@ class SingleStoreModifyColumn extends Convertor {
 				: '';
 			columnAutoincrement = statement.columnAutoIncrement
 				? ' AUTO_INCREMENT'
+				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
 				: '';
 
 			if (statement.columnGenerated?.type === 'virtual') {
@@ -2996,6 +3194,9 @@ class SingleStoreModifyColumn extends Convertor {
 			columnAutoincrement = statement.columnAutoIncrement
 				? ' AUTO_INCREMENT'
 				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
+				: '';
 
 			if (statement.oldColumn?.generated?.type === 'virtual') {
 				return [
@@ -3022,6 +3223,34 @@ class SingleStoreModifyColumn extends Convertor {
 					}),
 				];
 			}
+		} else if (statement.type === 'alter_table_alter_column_set_comment') {
+			columnType = ` ${statement.newDataType}`;
+			columnDefault = statement.columnDefault
+				? ` DEFAULT ${statement.columnDefault}`
+				: '';
+			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
+			columnOnUpdate = statement.columnOnUpdate
+				? ` ON UPDATE CURRENT_TIMESTAMP`
+				: '';
+			columnAutoincrement = statement.columnAutoIncrement
+				? ' AUTO_INCREMENT'
+				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
+				: '';
+		} else if (statement.type === 'alter_table_alter_column_drop_comment') {
+			columnType = ` ${statement.newDataType}`;
+			columnDefault = statement.columnDefault
+				? ` DEFAULT ${statement.columnDefault}`
+				: '';
+			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
+			columnOnUpdate = statement.columnOnUpdate
+				? ` ON UPDATE CURRENT_TIMESTAMP`
+				: '';
+			columnAutoincrement = statement.columnAutoIncrement
+				? ' AUTO_INCREMENT'
+				: '';
+			columnComment = '';
 		} else {
 			columnType = ` ${statement.newDataType}`;
 			columnNotNull = statement.columnNotNull ? ` NOT NULL` : '';
@@ -3037,6 +3266,9 @@ class SingleStoreModifyColumn extends Convertor {
 			columnGenerated = statement.columnGenerated
 				? ` GENERATED ALWAYS AS (${statement.columnGenerated?.as}) ${statement.columnGenerated?.type.toUpperCase()}`
 				: '';
+			columnComment = statement.columnComment
+				? ` COMMENT '${statement.columnComment}'`
+				: '';
 		}
 
 		// Seems like getting value from simple json2 shanpshot makes dates be dates
@@ -3044,7 +3276,7 @@ class SingleStoreModifyColumn extends Convertor {
 			? columnDefault.toISOString()
 			: columnDefault;
 
-		return `ALTER TABLE \`${tableName}\` MODIFY COLUMN \`${columnName}\`${columnType}${columnAutoincrement}${columnNotNull}${columnDefault}${columnOnUpdate}${columnGenerated};`;
+		return `ALTER TABLE \`${tableName}\` MODIFY COLUMN \`${columnName}\`${columnType}${columnAutoincrement}${columnNotNull}${columnDefault}${columnOnUpdate}${columnGenerated}${columnComment};`;
 	}
 }
 class SqliteAlterTableAlterColumnDropDefaultConvertor extends Convertor {
@@ -3154,6 +3386,17 @@ class MySqlAlterTableAlterCompositePrimaryKeyConvertor extends Convertor {
 			statement.new,
 		);
 		return `ALTER TABLE \`${statement.tableName}\` DROP PRIMARY KEY, ADD PRIMARY KEY(\`${newColumns.join('`,`')}\`);`;
+	}
+}
+
+class MySqlAlterTableSetCommentConvertor extends Convertor {
+	can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'alter_table_set_comment' && dialect === 'mysql';
+	}
+
+	convert(statement: JsonAlterTableSetCommentStatement) {
+		const { tableName, comment } = statement;
+		return `ALTER TABLE \`${tableName}\` COMMENT = '${comment || ''}';`;
 	}
 }
 
@@ -4037,12 +4280,16 @@ convertors.push(new SqliteDropIndexConvertor());
 convertors.push(new MySqlDropIndexConvertor());
 convertors.push(new SingleStoreDropIndexConvertor());
 
+convertors.push(new PgAlterTableSetCommentConvertor());
+
 convertors.push(new PgAlterTableAlterColumnSetPrimaryKeyConvertor());
 convertors.push(new PgAlterTableAlterColumnDropPrimaryKeyConvertor());
 convertors.push(new PgAlterTableAlterColumnSetNotNullConvertor());
 convertors.push(new PgAlterTableAlterColumnDropNotNullConvertor());
 convertors.push(new PgAlterTableAlterColumnSetDefaultConvertor());
 convertors.push(new PgAlterTableAlterColumnDropDefaultConvertor());
+convertors.push(new PgAlterTableAlterColumnSetCommentConvertor());
+convertors.push(new PgAlterTableAlterColumnDropCommentConvertor());
 
 convertors.push(new PgAlterPolicyConvertor());
 convertors.push(new PgCreatePolicyConvertor());
@@ -4112,10 +4359,11 @@ convertors.push(new MySqlAlterTableDropPk());
 convertors.push(new MySqlAlterTableCreateCompositePrimaryKeyConvertor());
 convertors.push(new MySqlAlterTableAddPk());
 convertors.push(new MySqlAlterTableAlterCompositePrimaryKeyConvertor());
+convertors.push(new MySqlAlterTableSetCommentConvertor());
 
 convertors.push(new SingleStoreAlterTableDropPk());
 convertors.push(new SingleStoreAlterTableAddPk());
-
+convertors.push(new SingleStoreAlterTableSetCommentConvertor());
 export function fromJson(
 	statements: JsonStatement[],
 	dialect: Dialect,
