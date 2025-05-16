@@ -1,7 +1,24 @@
 import { sql } from 'drizzle-orm';
 import { index, pgRole, pgTable, serial, text, vector } from 'drizzle-orm/pg-core';
-import { expect, test } from 'vitest';
-import { diff } from './mocks';
+import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
+
+// @vitest-environment-options {"max-concurrency":1}
+let _: TestDatabase;
+let db: TestDatabase['db'];
+
+beforeAll(async () => {
+	_ = await prepareTestDatabase();
+	db = _.db;
+});
+
+afterAll(async () => {
+	await _.close();
+});
+
+beforeEach(async () => {
+	await _.clear();
+});
 
 test('indexes #0', async (t) => {
 	const schema1 = {
@@ -46,9 +63,15 @@ test('indexes #0', async (t) => {
 		),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'DROP INDEX "changeName";',
 		'DROP INDEX "removeColumn";',
 		'DROP INDEX "addColumn";',
@@ -63,7 +86,9 @@ test('indexes #0', async (t) => {
 		'CREATE INDEX "changeExpression" ON "users" ("id" DESC NULLS LAST,name desc);',
 		'CREATE INDEX "changeWith" ON "users" ("name") WITH (fillfactor=90);',
 		'CREATE INDEX "changeUsing" ON "users" USING hash ("name");',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('vector index', async (t) => {
@@ -85,11 +110,19 @@ test('vector index', async (t) => {
 		]),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		`CREATE INDEX "vector_embedding_idx" ON "users" USING hnsw ("name" vector_ip_ops) WITH (m=16, ef_construction=64);`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('index #2', async (t) => {
@@ -118,9 +151,15 @@ test('index #2', async (t) => {
 		]),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'DROP INDEX "indx";',
 		'DROP INDEX "indx1";',
 		'DROP INDEX "indx2";',
@@ -130,8 +169,11 @@ test('index #2', async (t) => {
 		'CREATE INDEX "indx1" ON "users" ("name" DESC NULLS LAST) WHERE false;',
 		'CREATE INDEX "indx2" ON "users" ("name" test);',
 		'CREATE INDEX "indx3" ON "users" (lower("id"));',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
+
 test('index #3', async (t) => {
 	const schema1 = {
 		users: pgTable('users', {
@@ -150,10 +192,18 @@ test('index #3', async (t) => {
 		]),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		`CREATE INDEX "users_name_id_index" ON "users" ("name" DESC NULLS LAST,"id") WITH (fillfactor=70) WHERE select 1;`,
 		`CREATE INDEX "indx1" ON "users" USING hash ("name" DESC NULLS LAST,"name") WITH (fillfactor=70);`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
