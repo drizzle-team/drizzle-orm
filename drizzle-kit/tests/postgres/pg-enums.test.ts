@@ -346,10 +346,9 @@ test('enums #19', async () => {
 
 	const { sqlStatements } = await diff(from, to, []);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toStrictEqual(
+	expect(sqlStatements).toStrictEqual([
 		"CREATE TYPE \"my_enum\" AS ENUM('escape''s quotes');",
-	);
+	]);
 });
 
 test('enums #20', async () => {
@@ -373,7 +372,6 @@ test('enums #20', async () => {
 
 	const { sqlStatements } = await diff(from, to, []);
 
-	expect(sqlStatements.length).toBe(2);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE "table" ADD COLUMN "col1" "my_enum";',
 		'ALTER TABLE "table" ADD COLUMN "col2" integer;',
@@ -401,7 +399,6 @@ test('enums #21', async () => {
 
 	const { sqlStatements } = await diff(from, to, []);
 
-	expect(sqlStatements.length).toBe(2);
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE "table" ADD COLUMN "col1" "my_enum"[];',
 		'ALTER TABLE "table" ADD COLUMN "col2" integer[];',
@@ -472,6 +469,27 @@ test('drop enum value', async () => {
 	expect(sqlStatements.length).toBe(2);
 	expect(sqlStatements[0]).toBe(`DROP TYPE "enum";`);
 	expect(sqlStatements[1]).toBe(`CREATE TYPE "enum" AS ENUM('value1', 'value3');`);
+});
+
+test('drop enum', async () => {
+	const enum1 = pgEnum('enum', ['value1', 'value2', 'value3']);
+
+	const from = {
+		enum1,
+		users: pgTable('users', {
+			col: enum1().default('value1'),
+		}),
+	};
+
+	const to = {
+		users: pgTable('users', {
+			col: text().default('value1'),
+		}),
+	};
+
+	const { sqlStatements } = await diff(from, to, []);
+
+	expect(sqlStatements).toStrictEqual([`DROP TYPE "enum";`]);
 });
 
 test('drop enum value. enum is columns data type', async () => {
