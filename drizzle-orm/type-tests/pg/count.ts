@@ -1,6 +1,6 @@
 import { Expect } from 'type-tests/utils.ts';
-import { and, gt, ne } from '~/expressions.ts';
 import { integer, pgTable, serial, text } from '~/pg-core/index.ts';
+import { and, gt, ne } from '~/sql/expressions/index.ts';
 import type { Equal } from '~/utils.ts';
 import { db } from './db.ts';
 

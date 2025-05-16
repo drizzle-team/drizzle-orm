@@ -791,8 +791,8 @@ export const relationsToTypeScript = (
 		Object.values(table.foreignKeys).forEach((fk) => {
 			const tableNameFrom = paramNameFor(fk.tableFrom, table.schema);
 			const tableNameTo = paramNameFor(fk.tableTo, fk.schemaTo);
-			const tableFrom = withCasing(tableNameFrom, casing);
-			const tableTo = withCasing(tableNameTo, casing);
+			const tableFrom = withCasing(tableNameFrom.replace(/:+/g, ''), casing);
+			const tableTo = withCasing(tableNameTo.replace(/:+/g, ''), casing);
 			const columnFrom = withCasing(fk.columnsFrom[0], casing);
 			const columnTo = withCasing(fk.columnsTo[0], casing);
 
