@@ -1,0 +1,11 @@
+{
+	"extends": "../tsconfig.json",
+	"compilerOptions": {
+		"module": "esnext",
+		"target": "esnext",
+		"noEmit": true,
+		"rootDir": "..",
+		"outDir": "./.cache"
+	},
+	"include": [".", "../src"]
+}
