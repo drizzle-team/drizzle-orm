@@ -1,14 +1,19 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
 import {
+	CheckConstraint,
 	Column,
 	Enum,
+	ForeignKey,
+	Index,
 	interimToDDL,
 	Policy,
 	PostgresEntities,
+	PrimaryKey,
 	Role,
 	Schema,
 	Sequence,
+	UniqueConstraint,
 	View,
 } from '../../dialects/postgres/ddl';
 import { ddlDiff } from '../../dialects/postgres/diff';
@@ -78,11 +83,11 @@ export const handle = async (
 		resolver<PostgresEntities['tables']>('table'),
 		resolver<Column>('column'),
 		resolver<View>('view'),
-		mockResolver(blanks), // uniques
-		mockResolver(blanks), // indexes
-		mockResolver(blanks), // checks
-		mockResolver(blanks), // pks
-		mockResolver(blanks), // fks
+		resolver<UniqueConstraint>('unique'),
+		resolver<Index>('index'),
+		resolver<CheckConstraint>('check'),
+		resolver<PrimaryKey>('primary key'),
+		resolver<ForeignKey>('foreign key'),
 		'push',
 	);
 

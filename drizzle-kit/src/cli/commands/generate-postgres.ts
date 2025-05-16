@@ -2,15 +2,20 @@ import { fchown } from 'fs';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/postgres/drizzle';
 import { prepareFilenames } from 'src/serializer';
 import {
+	CheckConstraint,
 	Column,
 	createDDL,
 	Enum,
+	ForeignKey,
+	Index,
 	interimToDDL,
 	Policy,
 	PostgresEntities,
+	PrimaryKey,
 	Role,
 	Schema,
 	Sequence,
+	UniqueConstraint,
 	View,
 } from '../../dialects/postgres/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/postgres/diff';
@@ -43,7 +48,6 @@ export const handle = async (config: GenerateConfig) => {
 		});
 		return;
 	}
-	const blanks = new Set<string>();
 
 	const { sqlStatements, renames } = await ddlDiff(
 		ddlPrev,
@@ -56,12 +60,11 @@ export const handle = async (config: GenerateConfig) => {
 		resolver<PostgresEntities['tables']>('table'),
 		resolver<Column>('column'),
 		resolver<View>('view'),
-		// TODO: handle all renames
-		mockResolver(blanks), // uniques
-		mockResolver(blanks), // indexes
-		mockResolver(blanks), // checks
-		mockResolver(blanks), // pks
-		mockResolver(blanks), // fks
+		resolver<UniqueConstraint>('unique'),
+		resolver<Index>('index'),
+		resolver<CheckConstraint>('check'),
+		resolver<PrimaryKey>('primary key'),
+		resolver<ForeignKey>('foreign key'),
 		'default',
 	);
 
