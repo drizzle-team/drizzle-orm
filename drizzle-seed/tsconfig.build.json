@@ -3,5 +3,5 @@
 	"compilerOptions": {
 		"rootDir": "src"
 	},
-	"include": ["src"]
+	"include": ["src", "!src/dev"]
 }

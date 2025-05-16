@@ -1,5 +1,5 @@
 /* eslint-disable drizzle-internal/require-entity-kind */
-import { entityKind, eq, is } from 'drizzle-orm';
+import { entityKind, eq, getTableColumns, is, sql } from 'drizzle-orm';
 import type { MySqlTable, MySqlTableWithColumns } from 'drizzle-orm/mysql-core';
 import { MySqlDatabase } from 'drizzle-orm/mysql-core';
 import type { PgTable, PgTableWithColumns } from 'drizzle-orm/pg-core';
@@ -17,7 +17,7 @@ import { generatorsMap } from './GeneratorFuncs.ts';
 import type { AbstractGenerator, GenerateArray, GenerateInterval, GenerateWeightedCount } from './Generators.ts';
 
 import { latestVersion } from './apiVersion.ts';
-import { equalSets, generateHashFromString } from './utils.ts';
+import { equalSets, generateHashFromString, intMax } from './utils.ts';
 
 export class SeedService {
 	static readonly entityKind: string = 'SeedService';
@@ -1454,6 +1454,18 @@ export class SeedService {
 			// 	columnsGenerators[columnName] = uniqueGen;
 			// }
 		}
+
+		const columnsToUpdateSeq: Map<string, { tableName: string; columnName: string; valueToUpdate?: number | bigint }> =
+			new Map();
+		if (count > 0 && schema !== undefined && tableName !== undefined && schema[tableName] !== undefined) {
+			const tableColumns = getTableColumns(schema[tableName]);
+			for (const column of Object.values(tableColumns)) {
+				if (column.primary && (column.dataType === 'number' || column.dataType === 'bigint')) {
+					columnsToUpdateSeq.set(column.name, { tableName, columnName: column.name, valueToUpdate: undefined });
+				}
+			}
+		}
+
 		let maxParametersNumber: number;
 		if (is(db, PgDatabase<any>)) {
 			// @ts-ignore
@@ -1494,6 +1506,13 @@ export class SeedService {
 					| number
 					| boolean;
 				row[columnName as keyof typeof row] = generatedValue;
+				if (columnsToUpdateSeq.size !== 0) {
+					// colToUpdateSeq should not be undefined if columnsToUpdateSeq.size !== 0
+					const colToUpdateSeq = columnsToUpdateSeq.get(columnName)!;
+					colToUpdateSeq.valueToUpdate = colToUpdateSeq?.valueToUpdate === undefined
+						? generatedValue as number | bigint
+						: intMax([colToUpdateSeq?.valueToUpdate, generatedValue as number | bigint]);
+				}
 			}
 
 			if (
@@ -1568,9 +1587,42 @@ export class SeedService {
 					}
 				}
 			}
+
+			if (i === count - 1 && columnsToUpdateSeq.size !== 0 && db !== undefined) {
+				for (const columnConfig of columnsToUpdateSeq.values()) {
+					if (columnConfig) {
+						await this.updateColumnSequence({ db, columnConfig });
+					}
+				}
+			}
 		}
 
 		return preserveData === true ? generatedValues : [];
+	};
+
+	updateColumnSequence = async ({ db, columnConfig: { schemaName, tableName, columnName, valueToUpdate } }: {
+		db:
+			| PgDatabase<any, any>
+			| MySqlDatabase<any, any>
+			| BaseSQLiteDatabase<any, any>;
+		columnConfig: { schemaName?: string; tableName: string; columnName: string; valueToUpdate?: number | bigint };
+	}) => {
+		if (is(db, PgDatabase)) {
+			const fullTableName = schemaName ? `"${schemaName}"."${tableName}"` : `"${tableName}"`;
+			await db.execute(
+				sql.raw(
+					`SELECT setval(pg_get_serial_sequence('${fullTableName}', '"${columnName}"'), ${
+						(valueToUpdate ?? 'null').toString()
+					}, true)`,
+				),
+			);
+		} else if (is(db, MySqlDatabase)) {
+			// mysql updates auto_increment or serial column by itself
+			return;
+		} else {
+			// sqlite updates autoincrement  column by itself
+			return;
+		}
 	};
 
 	insertInDb = async ({

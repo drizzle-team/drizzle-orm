@@ -107,3 +107,5 @@ export const equalSets = (set1: Set<any>, set2: Set<any>) => {
 export const isValidDate = (date: Date) => {
 	return !Number.isNaN(date.getTime());
 };
+
+export const intMax = (args: (number | bigint)[]) => args.reduce((m, e) => e > m ? e : m);

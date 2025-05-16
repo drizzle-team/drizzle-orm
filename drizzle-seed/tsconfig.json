@@ -43,6 +43,6 @@
 			"~/*": ["src/*"]
 		}
 	},
-	"exclude": ["**/dist", "src/dev"],
+	"exclude": ["dist", "src/dev"],
 	"include": ["src", "*.ts", "tests"]
 }
