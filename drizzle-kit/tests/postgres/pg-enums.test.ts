@@ -41,15 +41,13 @@ test('enums #1', async () => {
 test('enums #2', async () => {
 	const folder = pgSchema('folder');
 	const to = {
+		folder,
 		enum: folder.enum('enum', ['value']),
 	};
 
-	const { sqlStatements: st } = await diff({}, to, []);
-
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-	});
+	const { sqlStatements: st } = await diff({ folder }, to, []);
+	await push({ db, to: { folder } });
+	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0 = [
 		`CREATE TYPE "folder"."enum" AS ENUM('value');`,
@@ -82,16 +80,14 @@ test('enums #4', async () => {
 	const folder = pgSchema('folder');
 
 	const from = {
+		folder,
 		enum: folder.enum('enum', ['value']),
 	};
 
-	const { sqlStatements: st } = await diff(from, {}, []);
+	const { sqlStatements: st } = await diff(from, { folder }, []);
 
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({
-		db,
-		to: {},
-	});
+	const { sqlStatements: pst } = await push({ db, to: { folder } });
 
 	const st0 = [
 		`DROP TYPE "folder"."enum";`,
@@ -238,10 +234,12 @@ test('enums #9', async () => {
 test('enums #10', async () => {
 	const schema = pgSchema('folder');
 	const from = {
+		schema,
 		enum: schema.enum('enum', ['value1']),
 	};
 
 	const to = {
+		schema,
 		enum: schema.enum('enum', ['value1', 'value2']),
 	};
 
@@ -261,10 +259,12 @@ test('enums #10', async () => {
 test('enums #11', async () => {
 	const schema1 = pgSchema('folder1');
 	const from = {
+		schema1,
 		enum: schema1.enum('enum', ['value1']),
 	};
 
 	const to = {
+		schema1,
 		enum: pgEnum('enum', ['value1']),
 	};
 
@@ -288,10 +288,12 @@ test('enums #11', async () => {
 test('enums #12', async () => {
 	const schema1 = pgSchema('folder1');
 	const from = {
+		schema1,
 		enum: pgEnum('enum', ['value1']),
 	};
 
 	const to = {
+		schema1,
 		enum: schema1.enum('enum', ['value1']),
 	};
 
@@ -342,10 +344,14 @@ test('enums #14', async () => {
 	const folder1 = pgSchema('folder1');
 	const folder2 = pgSchema('folder2');
 	const from = {
+		folder1,
+		folder2,
 		enum: folder1.enum('enum1', ['value1']),
 	};
 
 	const to = {
+		folder1,
+		folder2,
 		enum: folder2.enum('enum2', ['value1']),
 	};
 
@@ -355,11 +361,7 @@ test('enums #14', async () => {
 	const { sqlStatements: st } = await diff(from, to, renames);
 
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-		renames,
-	});
+	const { sqlStatements: pst } = await push({ db, to, renames });
 
 	const st0 = [
 		`ALTER TYPE "folder1"."enum1" SET SCHEMA "folder2";`,
@@ -373,24 +375,22 @@ test('enums #15', async () => {
 	const folder1 = pgSchema('folder1');
 	const folder2 = pgSchema('folder2');
 	const from = {
+		folder1,
+		folder2,
 		enum: folder1.enum('enum1', ['value1', 'value4']),
 	};
 
 	const to = {
+		folder1,
+		folder2,
 		enum: folder2.enum('enum2', ['value1', 'value2', 'value3', 'value4']),
 	};
 
-	const renames = [
-		'folder1.enum1->folder2.enum2',
-	];
+	const renames = ['folder1.enum1->folder2.enum2'];
 	const { sqlStatements: st } = await diff(from, to, renames);
 
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-		renames,
-	});
+	const { sqlStatements: pst } = await push({ db, to, renames });
 
 	const st0 = [
 		`ALTER TYPE "folder1"."enum1" SET SCHEMA "folder2";`,
@@ -443,6 +443,7 @@ test('enums #17', async () => {
 	const enum2 = schema.enum('enum1', ['value1']);
 
 	const from = {
+		schema,
 		enum1,
 		table: pgTable('table', {
 			column: enum1('column'),
@@ -450,6 +451,7 @@ test('enums #17', async () => {
 	};
 
 	const to = {
+		schema,
 		enum2,
 		table: pgTable('table', {
 			column: enum2('column'),
@@ -481,6 +483,8 @@ test('enums #18', async () => {
 	const enum2 = schema2.enum('enum2', ['value1']);
 
 	const from = {
+		schema1,
+		schema2,
 		enum1,
 		table: pgTable('table', {
 			column: enum1('column'),
@@ -488,6 +492,8 @@ test('enums #18', async () => {
 	};
 
 	const to = {
+		schema1,
+		schema2,
 		enum2,
 		table: pgTable('table', {
 			column: enum2('column'),
@@ -501,11 +507,7 @@ test('enums #18', async () => {
 	const { sqlStatements: st } = await diff(from, to, renames);
 
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-		renames,
-	});
+	const { sqlStatements: pst } = await push({ db, to, renames });
 
 	const st0 = [
 		`ALTER TYPE "schema1"."enum1" SET SCHEMA "schema2";`,
@@ -624,10 +626,7 @@ test('enums #22', async () => {
 	const { sqlStatements: st } = await diff(from, to, []);
 
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-	});
+	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0 = ['CREATE TABLE "table" (\n\t"en" "schema"."e"\n);\n'];
 	expect(st).toStrictEqual(st0);
@@ -655,10 +654,7 @@ test('enums #23', async () => {
 	const { sqlStatements: st } = await diff(from, to, []);
 
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-	});
+	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0 = [
 		'CREATE TABLE "table" (\n\t"en1" "schema"."e"[],\n\t"en2" "schema"."e"[]\n);\n',

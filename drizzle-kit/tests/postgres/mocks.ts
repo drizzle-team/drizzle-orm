@@ -130,7 +130,7 @@ export const push = async (config: {
 	const { db, to } = config;
 	const log = config.log ?? 'none';
 	const casing = config.casing ?? 'camelCase';
-	const schemas = config.schemas ?? ['public'];
+	const schemas = config.schemas ?? ((_: string) => true);
 
 	const { schema } = await introspect(db, [], schemas, undefined, new EmptyProgressView());
 	const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
@@ -139,8 +139,8 @@ export const push = async (config: {
 		: drizzleToDDL(to, casing);
 
 	if (log === 'statements') {
-		console.log(ddl1.columns.list())
-		console.log(ddl2.columns.list())
+		console.log(ddl1.columns.list());
+		console.log(ddl2.columns.list());
 	}
 
 	// writeFileSync("./ddl1.json", JSON.stringify(ddl1.entities.list()))

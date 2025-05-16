@@ -148,7 +148,7 @@ export const handle = async (
 export const introspect = async (
 	db: DB,
 	filters: string[],
-	schemaFilters: string[],
+	schemaFilters: string[] | ((x: string) => boolean),
 	entities: Entities,
 	progress: TaskView,
 ) => {
@@ -179,7 +179,9 @@ export const introspect = async (
 		return false;
 	};
 
-	const schemaFilter = (it: string) => schemaFilters.some((x) => x === it);
+	const schemaFilter = typeof schemaFilters === 'function'
+		? schemaFilters
+		: (it: string) => schemaFilters.some((x) => x === it);
 	const schema = await renderWithTask(progress, fromDatabaseForDrizzle(db, filter, schemaFilter, entities));
 	return { schema };
 };
