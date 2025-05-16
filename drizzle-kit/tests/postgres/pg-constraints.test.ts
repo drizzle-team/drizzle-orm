@@ -1,4 +1,14 @@
-import { AnyPgColumn, index, integer, pgTable, primaryKey, serial, text, unique } from 'drizzle-orm/pg-core';
+import {
+	AnyPgColumn,
+	foreignKey,
+	index,
+	integer,
+	pgTable,
+	primaryKey,
+	serial,
+	text,
+	unique,
+} from 'drizzle-orm/pg-core';
 import { DB } from 'src/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
@@ -787,6 +797,7 @@ test('pk #1', async () => {
 			name: text(),
 		}),
 	};
+	
 	const to = {
 		users: pgTable('users', {
 			name: text().primaryKey(),
@@ -1026,7 +1037,7 @@ test('pk multistep #3', async () => {
 		'public.users2.name->public.users2.name2',
 	];
 	const { sqlStatements: st2, next: n2 } = await diff(n1, sch2, renames);
-	const { sqlStatements: pst2 } = await push({ db, to: sch2, renames});
+	const { sqlStatements: pst2 } = await push({ db, to: sch2, renames });
 
 	const e2 = [
 		'ALTER TABLE "users" RENAME TO "users2";',
@@ -1127,11 +1138,11 @@ test('fk #3', async () => {
 
 	const { sqlStatements } = await diff({}, to, []);
 	const { sqlStatements: pst } = await push({ db, to });
-	
+
 	const e = [
 		`CREATE TABLE "1234567890_1234567890_users" (\n\t"id" serial PRIMARY KEY,\n\t"id2" integer\n);\n`,
 		'ALTER TABLE "1234567890_1234567890_users" ADD CONSTRAINT "1234567890_1234567890_users_Bvhqr6Z0Skyq_fkey" FOREIGN KEY ("id2") REFERENCES "1234567890_1234567890_users"("id");',
-	]
+	];
 	expect(sqlStatements).toStrictEqual(e);
 	expect(pst).toStrictEqual(e);
 });
@@ -1151,7 +1162,229 @@ test('fk #4', async () => {
 	const e = [
 		`CREATE TABLE "1234567890_1234567890_1234567890_123456_users" (\n\t"id" serial PRIMARY KEY,\n\t"id2" integer\n);\n`,
 		'ALTER TABLE "1234567890_1234567890_1234567890_123456_users" ADD CONSTRAINT "Xi9rVl1SOACO_fkey" FOREIGN KEY ("id2") REFERENCES "1234567890_1234567890_1234567890_123456_users"("id");',
-	]
+	];
 	expect(sqlStatements).toStrictEqual(e);
 	expect(pst).toStrictEqual(e);
+});
+
+test('fk #5', async () => {
+	const users = pgTable('users', {
+		id: serial().primaryKey(),
+		id2: integer().references((): AnyPgColumn => users.id),
+	});
+
+	const to = { users };
+
+	const { sqlStatements } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const e = [
+		`CREATE TABLE "users" (\n\t"id" serial PRIMARY KEY,\n\t"id2" integer\n);\n`,
+		'ALTER TABLE "users" ADD CONSTRAINT "users_id2_users_id_fkey" FOREIGN KEY ("id2") REFERENCES "users"("id");',
+	];
+	expect(sqlStatements).toStrictEqual(e);
+	expect(pst).toStrictEqual(e);
+});
+
+test('fk #6', async () => {
+	const users = pgTable('users', {
+		id: serial().primaryKey(),
+		id2: integer().references((): AnyPgColumn => users.id),
+	});
+
+	const users2 = pgTable('users2', {
+		id: serial('id3').primaryKey(),
+		id2: integer().references((): AnyPgColumn => users2.id),
+	});
+
+	const from = { users };
+	const to = { users: users2 };
+
+	const renames = ['public.users->public.users2', 'public.users2.id->public.users2.id3'];
+	const { sqlStatements } = await diff(from, to, renames);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const e = [
+		'ALTER TABLE "users" RENAME TO "users2";',
+		'ALTER TABLE "users2" RENAME COLUMN "id" TO "id3";',
+	];
+	expect(sqlStatements).toStrictEqual(e);
+	expect(pst).toStrictEqual(e);
+});
+
+test('fk #7', async () => {
+	const users = pgTable('users', {
+		id1: serial().primaryKey(),
+		id2: integer().references((): AnyPgColumn => users.id1),
+	});
+
+	const users2 = pgTable('users', {
+		id1: serial().primaryKey(),
+		id2: integer(),
+	}, (t) => [foreignKey({ name: 'id2_id1_fk', columns: [t.id2], foreignColumns: [t.id1] })]);
+
+	const from = { users };
+	const to = { users: users2 };
+
+	const renames = ['public.users.users_id2_users_id1_fkey->public.users.id2_id1_fk'];
+	const { sqlStatements } = await diff(from, to, renames);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const e = [
+		'ALTER TABLE "users" RENAME CONSTRAINT "users_id2_users_id1_fkey" TO "id2_id1_fk";',
+	];
+	expect(sqlStatements).toStrictEqual(e);
+	expect(pst).toStrictEqual(e);
+});
+
+test('fk #8', async () => {
+	const users = pgTable('users', {
+		id1: serial().unique(),
+		id2: integer().unique(),
+		id3: integer().references((): AnyPgColumn => users.id1),
+	});
+
+	const users2 = pgTable('users', {
+		id1: serial().unique(),
+		id2: integer().unique(),
+		id3: integer().references((): AnyPgColumn => users.id2),
+	});
+
+	const from = { users };
+	const to = { users: users2 };
+
+	const { sqlStatements } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const e = [
+		'ALTER TABLE "users" DROP CONSTRAINT "users_id3_users_id1_fkey";',
+		'ALTER TABLE "users" ADD CONSTRAINT "users_id3_users_id2_fkey" FOREIGN KEY ("id3") REFERENCES "users"("id2");',
+	];
+	expect(sqlStatements).toStrictEqual(e);
+	expect(pst).toStrictEqual(e);
+});
+
+test('fk #9', async () => {
+	const users = pgTable('users', {
+		id1: serial().unique(),
+		id2: integer().unique(),
+		id3: integer(),
+	}, (t) => [foreignKey({ name: 'fk1', columns: [t.id3], foreignColumns: [t.id1] })]);
+
+	const users2 = pgTable('users', {
+		id1: serial().unique(),
+		id2: integer().unique(),
+		id3: integer(),
+	}, (t) => [foreignKey({ name: 'fk1', columns: [t.id3], foreignColumns: [t.id2] })]);
+
+	const from = { users };
+	const to = { users: users2 };
+
+	const { sqlStatements } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const e = [
+		'ALTER TABLE "users" DROP CONSTRAINT "fk1", ADD CONSTRAINT "fk1" FOREIGN KEY ("id3") REFERENCES "users"("id2");',
+	];
+	expect(sqlStatements).toStrictEqual(e);
+	expect(pst).toStrictEqual(e);
+});
+
+test('fk multistep #1', async () => {
+	const users = pgTable('users', {
+		id: serial().primaryKey(),
+		id2: integer().references((): AnyPgColumn => users.id),
+	});
+
+	const users2 = pgTable('users2', {
+		id: serial('id3').primaryKey(),
+		id2: integer().references((): AnyPgColumn => users2.id),
+	});
+
+	const sch1 = { users };
+	const sch2 = { users: users2 };
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, sch1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: sch1 });
+
+	const e1 = [
+		'CREATE TABLE "users" (\n\t"id" serial PRIMARY KEY,\n\t"id2" integer\n);\n',
+		'ALTER TABLE "users" ADD CONSTRAINT "users_id2_users_id_fkey" FOREIGN KEY ("id2") REFERENCES "users"("id");',
+	];
+	expect(st1).toStrictEqual(e1);
+	expect(pst1).toStrictEqual(e1);
+
+	const renames = ['public.users->public.users2', 'public.users2.id->public.users2.id3'];
+	const { sqlStatements: st2, next: n2 } = await diff(n1, sch2, renames);
+	const { sqlStatements: pst2 } = await push({ db, to: sch2, renames });
+
+	const e2 = [
+		'ALTER TABLE "users" RENAME TO "users2";',
+		'ALTER TABLE "users2" RENAME COLUMN "id" TO "id3";',
+	];
+	expect(st2).toStrictEqual(e2);
+	expect(pst2).toStrictEqual(e2);
+
+	const { sqlStatements: st3, next: n3 } = await diff(n2, sch2, []);
+	const { sqlStatements: pst3 } = await push({ db, to: sch2 });
+
+	expect(st3).toStrictEqual([]);
+	expect(pst3).toStrictEqual([]);
+
+	const users3 = pgTable('users2', {
+		id: serial('id3').primaryKey(),
+		id2: integer(),
+	});
+	const sch3 = { users: users3 };
+
+	const { sqlStatements: st4 } = await diff(n3, sch3, []);
+	const { sqlStatements: pst4 } = await push({ db, to: sch3 });
+	expect(st4).toStrictEqual(['ALTER TABLE "users2" DROP CONSTRAINT "users_id2_users_id_fkey";']);
+	expect(pst4).toStrictEqual(['ALTER TABLE "users2" DROP CONSTRAINT "users_id2_users_id_fkey";']);
+});
+
+test('fk multistep #2', async () => {
+	const users = pgTable('users', {
+		id: serial().primaryKey(),
+		id2: integer().references((): AnyPgColumn => users.id),
+	});
+
+	const users2 = pgTable('users2', {
+		id: serial('id3').primaryKey(),
+		id2: integer().references((): AnyPgColumn => users2.id),
+	});
+
+	const sch1 = { users };
+	const sch2 = { users: users2 };
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, sch1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: sch1 });
+
+	const e1 = [
+		'CREATE TABLE "users" (\n\t"id" serial PRIMARY KEY,\n\t"id2" integer\n);\n',
+		'ALTER TABLE "users" ADD CONSTRAINT "users_id2_users_id_fkey" FOREIGN KEY ("id2") REFERENCES "users"("id");',
+	];
+	expect(st1).toStrictEqual(e1);
+	expect(pst1).toStrictEqual(e1);
+
+	const { sqlStatements: st2, next: n2 } = await diff(n1, sch2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: sch2 });
+
+	const e2 = [
+		'CREATE TABLE "users2" (\n\t"id3" serial PRIMARY KEY,\n\t"id2" integer\n);\n',
+		'DROP TABLE "users";',
+		'ALTER TABLE "users2" ADD CONSTRAINT "users2_id2_users2_id3_fkey" FOREIGN KEY ("id2") REFERENCES "users2"("id3");',
+	];
+	expect(st2).toStrictEqual(e2);
+	expect(pst2).toStrictEqual(e2);
+
+	const { sqlStatements: st3 } = await diff(n2, sch2, []);
+	const { sqlStatements: pst3 } = await push({ db, to: sch2 });
+
+	expect(st3).toStrictEqual([]);
+	expect(pst3).toStrictEqual([]);
 });

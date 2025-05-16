@@ -193,11 +193,9 @@ export interface JsonDropFK {
 	fk: ForeignKey;
 }
 
-export interface JsonAlterFK {
-	type: 'alter_fk';
-	diff: DiffEntities['fks'];
-	from: ForeignKey;
-	to: ForeignKey;
+export interface JsonRecreateFK {
+	type: 'recreate_fk';
+	fk: ForeignKey;
 }
 
 export interface JsonCreateUnique {
@@ -225,9 +223,9 @@ export interface JsonDropCheck {
 	check: CheckConstraint;
 }
 
-export interface JsonAlterCheckConstraint {
+export interface JsonAlterCheck {
 	type: 'alter_check';
-	diff: DiffEntities['checks'];
+	check: CheckConstraint;
 }
 
 export interface JsonAddPrimaryKey {
@@ -419,7 +417,7 @@ export type JsonStatement =
 	| JsonAlterPrimaryKey
 	| JsonCreateFK
 	| JsonDropFK
-	| JsonAlterFK
+	| JsonRecreateFK
 	| JsonCreateUnique
 	| JsonDeleteUnique
 	| JsonAlterUnique
@@ -449,7 +447,7 @@ export type JsonStatement =
 	| JsonCreateView
 	| JsonDropView
 	| JsonRenameView
-	| JsonAlterCheckConstraint
+	| JsonAlterCheck
 	| JsonDropValueFromEnum;
 
 export const prepareStatement = <

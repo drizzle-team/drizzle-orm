@@ -69,14 +69,12 @@ export class ForeignKey {
 	readonly reference: Reference;
 	readonly onUpdate: UpdateDeleteAction | undefined;
 	readonly onDelete: UpdateDeleteAction | undefined;
-	readonly explicitName: boolean;
 	readonly name?: string;
 
 	constructor(readonly table: PgTable, builder: ForeignKeyBuilder) {
 		this.reference = builder.reference;
 		this.onUpdate = builder._onUpdate;
 		this.onDelete = builder._onDelete;
-		this.explicitName = this.reference().name ? true : false;
 	}
 
 	getName(): string {
@@ -93,7 +91,7 @@ export class ForeignKey {
 	}
 
 	isNameExplicit(): boolean {
-		return this.explicitName;
+		return this.reference().name ? true : false;
 	}
 }
 

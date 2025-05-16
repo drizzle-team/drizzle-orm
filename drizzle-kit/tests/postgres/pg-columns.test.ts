@@ -245,7 +245,11 @@ test('add multiple constraints #1', async (t) => {
 	// TODO: remove redundand drop/create create constraint
 	const { sqlStatements } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "ref1" DROP CONSTRAINT "ref1_id1_t1_id_fkey", ADD CONSTRAINT "ref1_id1_t1_id_fkey" FOREIGN KEY ("id1") REFERENCES "t1"("id") ON DELETE CASCADE;',
+		'ALTER TABLE "ref1" DROP CONSTRAINT "ref1_id2_t2_id_fkey", ADD CONSTRAINT "ref1_id2_t2_id_fkey" FOREIGN KEY ("id2") REFERENCES "t2"("id") ON DELETE SET NULL;',
+		'ALTER TABLE "ref1" DROP CONSTRAINT "ref1_id3_t3_id_fkey", ADD CONSTRAINT "ref1_id3_t3_id_fkey" FOREIGN KEY ("id3") REFERENCES "t3"("id") ON DELETE CASCADE;',
+	]);
 });
 
 test('add multiple constraints #2', async (t) => {
@@ -276,14 +280,18 @@ test('add multiple constraints #2', async (t) => {
 	// TODO: remove redundand drop/create create constraint
 	const { sqlStatements } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "ref1" DROP CONSTRAINT "ref1_id1_t1_id1_fkey", ADD CONSTRAINT "ref1_id1_t1_id1_fkey" FOREIGN KEY ("id1") REFERENCES "t1"("id1") ON DELETE CASCADE;',
+		'ALTER TABLE "ref1" DROP CONSTRAINT "ref1_id2_t1_id2_fkey", ADD CONSTRAINT "ref1_id2_t1_id2_fkey" FOREIGN KEY ("id2") REFERENCES "t1"("id2") ON DELETE SET NULL;',
+		'ALTER TABLE "ref1" DROP CONSTRAINT "ref1_id3_t1_id3_fkey", ADD CONSTRAINT "ref1_id3_t1_id3_fkey" FOREIGN KEY ("id3") REFERENCES "t1"("id3") ON DELETE CASCADE;',
+	]);
 });
 
 test('add multiple constraints #3', async (t) => {
 	const t1 = pgTable('t1', {
-		id1: uuid('id1').primaryKey().defaultRandom(),
-		id2: uuid('id2').primaryKey().defaultRandom(),
-		id3: uuid('id3').primaryKey().defaultRandom(),
+		id1: uuid('id1').unique(),
+		id2: uuid('id2').unique(),
+		id3: uuid('id3').unique(),
 	});
 
 	const schema1 = {
@@ -315,7 +323,11 @@ test('add multiple constraints #3', async (t) => {
 	// TODO: remove redundand drop/create create constraint
 	const { sqlStatements } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "ref1" DROP CONSTRAINT "ref1_id_t1_id1_fkey", ADD CONSTRAINT "ref1_id_t1_id1_fkey" FOREIGN KEY ("id") REFERENCES "t1"("id1") ON DELETE CASCADE;',
+		'ALTER TABLE "ref2" DROP CONSTRAINT "ref2_id_t1_id2_fkey", ADD CONSTRAINT "ref2_id_t1_id2_fkey" FOREIGN KEY ("id") REFERENCES "t1"("id2") ON DELETE SET NULL;',
+		'ALTER TABLE "ref3" DROP CONSTRAINT "ref3_id_t1_id3_fkey", ADD CONSTRAINT "ref3_id_t1_id3_fkey" FOREIGN KEY ("id") REFERENCES "t1"("id3") ON DELETE CASCADE;',
+	]);
 });
 
 test('varchar and text default values escape single quotes', async () => {

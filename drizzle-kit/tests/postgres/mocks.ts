@@ -138,6 +138,11 @@ export const push = async (config: {
 		? { ddl: to as PostgresDDL, errors: [] }
 		: drizzleToDDL(to, casing);
 
+	if (log === 'statements') {
+		console.log(ddl1.columns.list())
+		console.log(ddl2.columns.list())
+	}
+
 	// writeFileSync("./ddl1.json", JSON.stringify(ddl1.entities.list()))
 	// writeFileSync("./ddl2.json", JSON.stringify(ddl2.entities.list()))
 
@@ -320,7 +325,10 @@ export const prepareTestDatabase = async (): Promise<TestDatabase> => {
 
 	const db: TestDatabase['db'] = {
 		query: async (sql, params) => {
-			return client.query(sql, params).then((it) => it.rows as any[]);
+			return client.query(sql, params).then((it) => it.rows as any[]).catch((e: Error) => {
+				const error = new Error(`query error: ${sql}\n\n${e.message}`);
+				throw error;
+			});
 		},
 		batch: async (sqls) => {
 			for (const sql of sqls) {

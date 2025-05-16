@@ -672,12 +672,12 @@ export const ddlDiff = async (
 			isPK: ddl2.pks.one({ schema: it.schema, table: it.table, columns: [it.name] }) !== null,
 		})
 	);
-	const columnAlters = alters.filter((it) => it.entityType === 'columns').map((it) => {
+	const columnAlters = alters.filter((it) => it.entityType === 'columns').filter((it) => {
 		if (it.default && it.default.from?.value === it.default.to?.value) {
 			delete it.default;
 		}
-		return it;
-	}).filter((it) => Object.keys(it).length > 5); // $difftype, entitytype, schema, table, name
+		return ddl2.columns.hasDiff(it);
+	});
 
 	const columnsToRecreate = columnAlters.filter((it) => it.generated && it.generated.to !== null).filter((it) => {
 		// if push and definition changed
@@ -686,7 +686,7 @@ export const ddlDiff = async (
 
 	const jsonRecreateColumns = columnsToRecreate.map((it) =>
 		prepareStatement('recreate_column', {
-			column: ddl2.columns.one({ schema: it.schema, table: it.table, name: it.name })!,
+			column: it.$right,
 			isPK: ddl2.pks.one({ schema: it.schema, table: it.table, columns: [it.name] }) !== null,
 		})
 	);
@@ -708,12 +708,13 @@ export const ddlDiff = async (
 		});
 	});
 
-	const alteredUniques = alters.filter((it) => it.entityType === 'uniques').map((it) => {
+	const alteredUniques = alters.filter((it) => it.entityType === 'uniques').filter((it) => {
 		if (it.nameExplicit) {
 			delete it.nameExplicit;
 		}
-		return it;
-	}).filter((it) => Object.keys(it).length > 5); // $difftype, entitytype, schema, table, name
+
+		return ddl2.uniques.hasDiff(it);
+	});
 
 	const jsonAlteredUniqueConstraints = alteredUniques.map((it) => prepareStatement('alter_unique', { diff: it }));
 
@@ -752,17 +753,28 @@ export const ddlDiff = async (
 	const alteredPKs = alters.filter((it) => it.entityType === 'pks').filter((it) => {
 		return !!it.columns; // ignore explicit name change
 	});
-	// TODO:
-	const alteredFKs = alters.filter((it) => it.entityType === 'fks');
-	const alteredChecks = alters.filter((it) => it.entityType === 'checks');
-	const jsonAlteredPKs = alteredPKs.map((it) => {
-		const pk = ddl2.pks.one({ schema: it.schema, table: it.table, name: it.name })!;
-		return prepareStatement('alter_pk', { diff: it, pk });
-	});
 
-	const jsonCreateReferences = fksCreates.map((it) => prepareStatement('create_fk', { fk: it }));
-	const jsonDropReferences = fksDeletes.map((it) => prepareStatement('drop_fk', { fk: it }));
-	// TODO:
+	const alteredChecks = alters.filter((it) => it.entityType === 'checks');
+	const jsonAlteredPKs = alteredPKs.map((it) => prepareStatement('alter_pk', { diff: it, pk: it.$right }));
+
+	const jsonRecreateFKs = alters.filter((it) => it.entityType === 'fks').filter((x) => {
+		if (
+			x.nameExplicit
+			&& ((mode === 'push' && x.nameExplicit.from && !x.nameExplicit.to)
+				|| x.nameExplicit.to && !x.nameExplicit.from)
+		) {
+			delete x.nameExplicit;
+		}
+
+		return ddl2.fks.hasDiff(x);
+	}).map((it) => prepareStatement('recreate_fk', { fk: it.$right }));
+
+	const jsonCreateFKs = fksCreates.map((it) => prepareStatement('create_fk', { fk: it }));
+
+	const jsonDropReferences = fksDeletes.filter((fk) => {
+		return !deletedTables.some((x) => x.schema === fk.schema && x.name === fk.table);
+	}).map((it) => prepareStatement('drop_fk', { fk: it }));
+
 	const jsonRenameReferences = fksRenames.map((it) =>
 		prepareStatement('rename_constraint', {
 			schema: it.to.schema,
@@ -771,9 +783,8 @@ export const ddlDiff = async (
 			to: it.to.name,
 		})
 	);
-	// TODO:
-	const jsonAlterCheckConstraints = alteredChecks.map((it) => prepareStatement('alter_check', { diff: it }));
 
+	const jsonAlterCheckConstraints = alteredChecks.map((it) => prepareStatement('alter_check', { check: it.$right }));
 	const jsonCreatePoliciesStatements = policyCreates.map((it) => prepareStatement('create_policy', { policy: it }));
 	const jsonDropPoliciesStatements = policyDeletes.map((it) => prepareStatement('drop_policy', { policy: it }));
 	const jsonRenamePoliciesStatements = policyRenames.map((it) => prepareStatement('rename_policy', it));
@@ -866,10 +877,7 @@ export const ddlDiff = async (
 	const policiesAlters = alters.filter((it) => it.entityType === 'policies');
 	// TODO:
 	const jsonPloiciesAlterStatements = policiesAlters.map((it) =>
-		prepareStatement('alter_policy', {
-			diff: it,
-			policy: ddl2.policies.one({ schema: it.schema, table: it.name, name: it.name })!,
-		})
+		prepareStatement('alter_policy', { diff: it, policy: it.$right })
 	);
 
 	const jsonCreateEnums = createdEnums.map((it) => prepareStatement('create_enum', { enum: it }));
@@ -907,7 +915,7 @@ export const ddlDiff = async (
 	}
 
 	const jsonAlterColumns = columnAlters.filter((it) => !(it.generated && it.generated.to !== null))
-		.map((it) => {
+		.filter((it) => {
 			// if column is of type enum we're about to recreate - we will reset default anyway
 			if (
 				it.default
@@ -917,11 +925,10 @@ export const ddlDiff = async (
 			) {
 				delete it.default;
 			}
-			return it;
+			return ddl2.columns.hasDiff(it);
 		})
-		.filter((it) => Object.keys(it).length > 5)
 		.map((it) => {
-			const column = ddl2.columns.one({ schema: it.schema, table: it.table, name: it.name })!;
+			const column = it.$right;
 			return prepareStatement('alter_column', {
 				diff: it,
 				isEnum: ddl2.enums.one({ schema: column.typeSchema ?? 'public', name: column.type }) !== null,
@@ -937,19 +944,14 @@ export const ddlDiff = async (
 	const renameSequences = renamedSequences.map((it) => prepareStatement('rename_sequence', it));
 	const sequencesAlter = alters.filter((it) => it.entityType === 'sequences');
 	const jsonAlterSequences = sequencesAlter.map((it) =>
-		prepareStatement('alter_sequence', {
-			diff: it,
-			sequence: ddl2.sequences.one({ schema: it.schema, name: it.name })!,
-		})
+		prepareStatement('alter_sequence', { diff: it, sequence: it.$right })
 	);
 
 	const createRoles = createdRoles.map((it) => prepareStatement('create_role', { role: it }));
 	const dropRoles = deletedRoles.map((it) => prepareStatement('drop_role', { role: it }));
 	const renameRoles = renamedRoles.map((it) => prepareStatement('rename_role', it));
 	const rolesAlter = alters.filter((it) => it.entityType === 'roles');
-	const jsonAlterRoles = rolesAlter.map((it) =>
-		prepareStatement('alter_role', { diff: it, role: ddl2.roles.one({ name: it.name })! })
-	);
+	const jsonAlterRoles = rolesAlter.map((it) => prepareStatement('alter_role', { diff: it, role: it.$right }));
 
 	const createSchemas = createdSchemas.map((it) => prepareStatement('create_schema', it));
 	const dropSchemas = deletedSchemas.map((it) => prepareStatement('drop_schema', it));
@@ -980,10 +982,9 @@ export const ddlDiff = async (
 		return it;
 	}).filter((it) => !(it.isExisting && it.isExisting.to));
 
-	const viewsAlters = filteredViewAlters.map((it) => {
-		const view = ddl2.views.one({ schema: it.schema, name: it.name })!;
-		return { diff: it, view };
-	}).filter((it) => !it.view.isExisting);
+	const viewsAlters = filteredViewAlters.map((it) => ({ diff: it, view: it.$right })).filter((it) =>
+		!it.view.isExisting
+	);
 
 	const jsonAlterViews = viewsAlters.filter((it) => !it.diff.definition).map((it) => {
 		return prepareStatement('alter_view', {
@@ -1030,7 +1031,6 @@ export const ddlDiff = async (
 	jsonStatements.push(...createTables);
 
 	jsonStatements.push(...jsonAlterRlsStatements);
-	// jsonStatements.push(...jsonDisableRLSStatements);
 	jsonStatements.push(...jsonDropViews);
 	jsonStatements.push(...jsonRenameViews);
 	jsonStatements.push(...jsonMoveViews);
@@ -1058,13 +1058,15 @@ export const ddlDiff = async (
 
 	jsonStatements.push(...jsonAddPrimaryKeys);
 	jsonStatements.push(...jsonRenamePrimaryKey);
+	jsonStatements.push(...jsonRenameReferences);
 	jsonStatements.push(...jsonAddColumnsStatemets);
 	jsonStatements.push(...recreateEnums);
 	jsonStatements.push(...jsonRecreateColumns);
 	jsonStatements.push(...jsonAlterColumns);
 
 	// jsonStatements.push(...jsonCreateReferencesForCreatedTables); // TODO: check
-	jsonStatements.push(...jsonCreateReferences);
+	jsonStatements.push(...jsonCreateFKs);
+	jsonStatements.push(...jsonRecreateFKs);
 	jsonStatements.push(...jsonCreateIndexes);
 
 	// jsonStatements.push(...jsonCreatedReferencesForAlteredTables); // TODO: check
@@ -1077,6 +1079,7 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonCreatedCheckConstraints);
 
 	jsonStatements.push(...jsonAlteredUniqueConstraints);
+	jsonStatements.push(...jsonAlterCheckConstraints);
 	// jsonStatements.push(...jsonAlterEnumsWithDroppedValues); // TODO: check
 
 	jsonStatements.push(...createViews);
@@ -1126,7 +1129,8 @@ const preserveEntityNames = <C extends PostgresDDL['uniques' | 'fks' | 'pks' | '
 
 		const match = collection2.list({ ...filter, nameExplicit: false } as any);
 
-		if (match.length !== 1) continue;
+		if (match.length !== 1 || match[0].name === left.name) continue;
+
 		collection2.update({
 			set: { name: left.name },
 			where: {

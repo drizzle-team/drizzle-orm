@@ -6,32 +6,26 @@ import { diff } from './mocks';
 test('create table with check', async (t) => {
 	const to = {
 		users: pgTable('users', {
-			id: serial('id').primaryKey(),
 			age: integer('age'),
 		}, (table) => [check('some_check_name', sql`${table.age} > 21`)]),
 	};
 
 	const { sqlStatements } = await diff({}, to, []);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(`CREATE TABLE "users" (
-\t"id" serial PRIMARY KEY,
-\t"age" integer,
-\tCONSTRAINT "some_check_name" CHECK ("users"."age" > 21)
-);\n`);
+	expect(sqlStatements).toStrictEqual([
+		`CREATE TABLE "users" (\n\t"age" integer,\n\tCONSTRAINT "some_check_name" CHECK ("users"."age" > 21)\n);\n`,
+	]);
 });
 
 test('add check contraint to existing table', async (t) => {
 	const from = {
 		users: pgTable('users', {
-			id: serial('id').primaryKey(),
 			age: integer('age'),
 		}),
 	};
 
 	const to = {
 		users: pgTable('users', {
-			id: serial('id').primaryKey(),
 			age: integer('age'),
 		}, (table) => [
 			check('some_check_name', sql`${table.age} > 21`),
@@ -40,23 +34,20 @@ test('add check contraint to existing table', async (t) => {
 
 	const { sqlStatements } = await diff(from, to, []);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(
-		`ALTER TABLE "users" ADD CONSTRAINT "some_check_name" CHECK ("users"."age" > 21);`,
+	expect(sqlStatements).toStrictEqual(
+		[`ALTER TABLE "users" ADD CONSTRAINT "some_check_name" CHECK ("users"."age" > 21);`],
 	);
 });
 
 test('drop check contraint in existing table', async (t) => {
 	const from = {
 		users: pgTable('users', {
-			id: serial('id').primaryKey(),
 			age: integer('age'),
 		}, (table) => [check('some_check_name', sql`${table.age} > 21`)]),
 	};
 
 	const to = {
 		users: pgTable('users', {
-			id: serial('id').primaryKey(),
 			age: integer('age'),
 		}),
 	};
@@ -72,14 +63,12 @@ test('drop check contraint in existing table', async (t) => {
 test('rename check constraint', async (t) => {
 	const from = {
 		users: pgTable('users', {
-			id: serial('id').primaryKey(),
 			age: integer('age'),
 		}, (table) => [check('some_check_name', sql`${table.age} > 21`)]),
 	};
 
 	const to = {
 		users: pgTable('users', {
-			id: serial('id').primaryKey(),
 			age: integer('age'),
 		}, (table) => [check('new_check_name', sql`${table.age} > 21`)]),
 	};
@@ -98,27 +87,21 @@ test('rename check constraint', async (t) => {
 test('alter check constraint', async (t) => {
 	const from = {
 		users: pgTable('users', {
-			id: serial('id').primaryKey(),
 			age: integer('age'),
 		}, (table) => [check('some_check_name', sql`${table.age} > 21`)]),
 	};
 
 	const to = {
 		users: pgTable('users', {
-			id: serial('id').primaryKey(),
 			age: integer('age'),
-		}, (table) => [check('new_check_name', sql`${table.age} > 10`)]),
+		}, (table) => [check('some_check_name', sql`${table.age} > 10`)]),
 	};
 
 	const { sqlStatements } = await diff(from, to, []);
 
-	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toBe(
-		`ALTER TABLE "users" DROP CONSTRAINT "some_check_name";`,
-	);
-	expect(sqlStatements[1]).toBe(
-		`ALTER TABLE "users" ADD CONSTRAINT "new_check_name" CHECK ("users"."age" > 10);`,
-	);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "users" DROP CONSTRAINT "some_check_name", ADD CONSTRAINT ADD CONSTRAINT "some_check_name" CHECK ("users"."age" > 10);',
+	]);
 });
 
 test('alter multiple check constraints', async (t) => {

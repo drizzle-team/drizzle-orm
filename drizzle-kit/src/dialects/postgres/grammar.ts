@@ -84,9 +84,14 @@ export function minRangeForIdentityBasedOn(columnType: string) {
 	return columnType === 'integer' ? '-2147483648' : columnType === 'bigint' ? '-9223372036854775808' : '-32768';
 }
 
-export const serialExpressionFor = (schema: string, table: string, column: string) => {
+/* 
+	we can't check for `nextval('${schemaPrefix}${table}_${column}_seq'::regclass)` perfect match
+	since table or column might be renamed, while sequence preserve name and it will trigger
+	subsequent ddl diffs
+ */
+export const isSerialExpression = (expr: string, schema: string) => {
 	const schemaPrefix = schema === 'public' ? '' : `${schema}.`;
-	return `nextval('${schemaPrefix}${table}_${column}_seq'::regclass)`;
+	return expr.startsWith(`nextval('${schemaPrefix}`) && expr.endsWith(`_seq'::regclass)`);
 };
 
 export function stringFromDatabaseIdentityProperty(field: any): string | null {

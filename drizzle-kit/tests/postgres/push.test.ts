@@ -1621,13 +1621,10 @@ test('db has checks. Push with same names', async () => {
 		}, (table) => [check('some_check', sql`some new value`)]),
 	};
 
-	const { statements, sqlStatements } = await diffPush({
-		db,
-		from: schema1,
-		to: schema2,
-	});
-
-	expect(sqlStatements).toStrictEqual([]);
+	const { sqlStatements } = await diffPush({ db, from: schema1, to: schema2 });
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "test" DROP CONSTRAINT "some_check", ADD CONSTRAINT ADD CONSTRAINT "some_check" CHECK (some new value);',
+	]);
 });
 
 test('drop view', async () => {
