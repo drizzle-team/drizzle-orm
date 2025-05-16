@@ -1,53 +1,61 @@
 import type { Table, View } from 'drizzle-orm';
 import type { PgEnum } from 'drizzle-orm/pg-core';
-import type { z } from 'zod';
+import type { z } from 'zod/v4';
 import type { BuildRefine, BuildSchema, NoUnknownKeys } from './schema.types.internal.ts';
 
-export interface CreateSelectSchema {
-	<TTable extends Table>(table: TTable): BuildSchema<'select', TTable['_']['columns'], undefined>;
+export interface CreateSelectSchema<
+	TCoerce extends Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined,
+> {
+	<TTable extends Table>(table: TTable): BuildSchema<'select', TTable['_']['columns'], undefined, TCoerce>;
 	<
 		TTable extends Table,
-		TRefine extends BuildRefine<TTable['_']['columns']>,
+		TRefine extends BuildRefine<TTable['_']['columns'], TCoerce>,
 	>(
 		table: TTable,
 		refine?: NoUnknownKeys<TRefine, TTable['$inferSelect']>,
-	): BuildSchema<'select', TTable['_']['columns'], TRefine>;
+	): BuildSchema<'select', TTable['_']['columns'], TRefine, TCoerce>;
 
-	<TView extends View>(view: TView): BuildSchema<'select', TView['_']['selectedFields'], undefined>;
+	<TView extends View>(view: TView): BuildSchema<'select', TView['_']['selectedFields'], undefined, TCoerce>;
 	<
 		TView extends View,
-		TRefine extends BuildRefine<TView['_']['selectedFields']>,
+		TRefine extends BuildRefine<TView['_']['selectedFields'], TCoerce>,
 	>(
 		view: TView,
 		refine: NoUnknownKeys<TRefine, TView['$inferSelect']>,
-	): BuildSchema<'select', TView['_']['selectedFields'], TRefine>;
+	): BuildSchema<'select', TView['_']['selectedFields'], TRefine, TCoerce>;
 
-	<TEnum extends PgEnum<any>>(enum_: TEnum): z.ZodEnum<TEnum['enumValues']>;
+	<TEnum extends PgEnum<any>>(enum_: TEnum): z.ZodEnum<{ [K in TEnum['enumValues'][number]]: K }>;
 }
 
-export interface CreateInsertSchema {
-	<TTable extends Table>(table: TTable): BuildSchema<'insert', TTable['_']['columns'], undefined>;
+export interface CreateInsertSchema<
+	TCoerce extends Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined,
+> {
+	<TTable extends Table>(table: TTable): BuildSchema<'insert', TTable['_']['columns'], undefined, TCoerce>;
 	<
 		TTable extends Table,
-		TRefine extends BuildRefine<Pick<TTable['_']['columns'], keyof TTable['$inferInsert']>>,
+		TRefine extends BuildRefine<Pick<TTable['_']['columns'], keyof TTable['$inferInsert']>, TCoerce>,
 	>(
 		table: TTable,
 		refine?: NoUnknownKeys<TRefine, TTable['$inferInsert']>,
-	): BuildSchema<'insert', TTable['_']['columns'], TRefine>;
+	): BuildSchema<'insert', TTable['_']['columns'], TRefine, TCoerce>;
 }
 
-export interface CreateUpdateSchema {
-	<TTable extends Table>(table: TTable): BuildSchema<'update', TTable['_']['columns'], undefined>;
+export interface CreateUpdateSchema<
+	TCoerce extends Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined,
+> {
+	<TTable extends Table>(table: TTable): BuildSchema<'update', TTable['_']['columns'], undefined, TCoerce>;
 	<
 		TTable extends Table,
-		TRefine extends BuildRefine<Pick<TTable['_']['columns'], keyof TTable['$inferInsert']>>,
+		TRefine extends BuildRefine<Pick<TTable['_']['columns'], keyof TTable['$inferInsert']>, TCoerce>,
 	>(
 		table: TTable,
 		refine?: TRefine,
-	): BuildSchema<'update', TTable['_']['columns'], TRefine>;
+	): BuildSchema<'update', TTable['_']['columns'], TRefine, TCoerce>;
 }
 
-export interface CreateSchemaFactoryOptions {
+export interface CreateSchemaFactoryOptions<
+	TCoerce extends Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined,
+> {
 	zodInstance?: any;
-	coerce?: Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true;
+	coerce?: TCoerce;
 }
