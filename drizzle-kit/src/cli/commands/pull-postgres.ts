@@ -5,17 +5,21 @@ import { Minimatch } from 'minimatch';
 import { join } from 'path';
 import { toJsonSnapshot } from 'src/dialects/postgres/snapshot';
 import { originUUID } from 'src/global';
-import { mockResolver } from 'src/utils/mocks';
 import {
+	CheckConstraint,
 	Column,
 	createDDL,
 	Enum,
+	ForeignKey,
+	Index,
 	interimToDDL,
 	Policy,
 	PostgresEntities,
+	PrimaryKey,
 	Role,
 	Schema,
 	Sequence,
+	UniqueConstraint,
 	View,
 } from '../../dialects/postgres/ddl';
 import { ddlDiff } from '../../dialects/postgres/diff';
@@ -27,7 +31,6 @@ import { resolver } from '../prompts';
 import type { Entities } from '../validations/cli';
 import type { Casing, Prefix } from '../validations/common';
 import type { PostgresCredentials } from '../validations/postgres';
-import { ProgressView } from '../views';
 import { IntrospectProgress } from '../views';
 import { writeResult } from './generate-common';
 import { prepareTablesFilter, relationsToTypeScript } from './pull-common';
@@ -93,12 +96,11 @@ export const handle = async (
 			resolver<PostgresEntities['tables']>('table'),
 			resolver<Column>('column'),
 			resolver<View>('view'),
-			// TODO: handle all renames
-			mockResolver(blanks), // uniques
-			mockResolver(blanks), // indexes
-			mockResolver(blanks), // checks
-			mockResolver(blanks), // pks
-			mockResolver(blanks), // fks
+			resolver<UniqueConstraint>('unique'),
+			resolver<Index>('index'),
+			resolver<CheckConstraint>('check'),
+			resolver<PrimaryKey>('primary key'),
+			resolver<ForeignKey>('foreign key'),
 			'push',
 		);
 
@@ -176,7 +178,7 @@ export const introspect = async (
 		}
 		return false;
 	};
-	
+
 	const schemaFilter = (it: string) => schemaFilters.some((x) => x === it);
 	const schema = await renderWithTask(progress, fromDatabaseForDrizzle(db, filter, schemaFilter, entities));
 	return { schema };

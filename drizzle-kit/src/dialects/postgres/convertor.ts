@@ -126,7 +126,6 @@ const createTableConvertor = convertor('create_table', (st) => {
 	let statement = '';
 	const key = schema !== 'public' ? `"${schema}"."${name}"` : `"${name}"`;
 
-	// TODO: strict?
 	statement += `CREATE TABLE ${key} (\n`;
 	for (let i = 0; i < columns.length; i++) {
 		const column = columns[i];

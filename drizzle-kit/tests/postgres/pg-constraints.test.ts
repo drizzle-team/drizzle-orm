@@ -797,7 +797,7 @@ test('pk #1', async () => {
 			name: text(),
 		}),
 	};
-	
+
 	const to = {
 		users: pgTable('users', {
 			name: text().primaryKey(),
@@ -1241,13 +1241,13 @@ test('fk #7', async () => {
 
 test('fk #8', async () => {
 	const users = pgTable('users', {
-		id1: serial().unique(),
+		id1: serial().primaryKey(),
 		id2: integer().unique(),
 		id3: integer().references((): AnyPgColumn => users.id1),
 	});
 
 	const users2 = pgTable('users', {
-		id1: serial().unique(),
+		id1: serial().primaryKey(),
 		id2: integer().unique(),
 		id3: integer().references((): AnyPgColumn => users.id2),
 	});
@@ -1269,13 +1269,13 @@ test('fk #8', async () => {
 
 test('fk #9', async () => {
 	const users = pgTable('users', {
-		id1: serial().unique(),
+		id1: serial().primaryKey(),
 		id2: integer().unique(),
 		id3: integer(),
 	}, (t) => [foreignKey({ name: 'fk1', columns: [t.id3], foreignColumns: [t.id1] })]);
 
 	const users2 = pgTable('users', {
-		id1: serial().unique(),
+		id1: serial().primaryKey(),
 		id2: integer().unique(),
 		id3: integer(),
 	}, (t) => [foreignKey({ name: 'fk1', columns: [t.id3], foreignColumns: [t.id2] })]);
@@ -1289,6 +1289,60 @@ test('fk #9', async () => {
 
 	const e = [
 		'ALTER TABLE "users" DROP CONSTRAINT "fk1", ADD CONSTRAINT "fk1" FOREIGN KEY ("id3") REFERENCES "users"("id2");',
+	];
+	expect(sqlStatements).toStrictEqual(e);
+	expect(pst).toStrictEqual(e);
+});
+
+test('fk #10', async () => {
+	const users = pgTable('users', {
+		id1: serial().primaryKey(),
+	});
+
+	const users2 = pgTable('users2', {
+		id1: serial().primaryKey(),
+		id2: integer().references((): AnyPgColumn => users2.id1),
+	});
+
+	const from = { users };
+	const to = { users: users2 };
+
+	const renames = ['public.users->public.users2'];
+	const { sqlStatements } = await diff(from, to, renames);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const e = [
+		'ALTER TABLE "users" RENAME TO "users2";',
+		'ALTER TABLE "users2" ADD COLUMN "id2" integer;',
+		'ALTER TABLE "users2" ADD CONSTRAINT "users2_id2_users2_id1_fkey" FOREIGN KEY ("id2") REFERENCES "users2"("id1");',
+	];
+	expect(sqlStatements).toStrictEqual(e);
+	expect(pst).toStrictEqual(e);
+});
+
+test('fk #11', async () => {
+	const users = pgTable('users', {
+		id1: serial().primaryKey(),
+		id2: integer().references((): AnyPgColumn => users.id1),
+	});
+
+	const users2 = pgTable('users2', {
+		id1: serial().primaryKey(),
+		id2: integer(),
+	});
+
+	const from = { users };
+	const to = { users: users2 };
+
+	const renames = ['public.users->public.users2'];
+	const { sqlStatements } = await diff(from, to, renames);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const e = [
+		'ALTER TABLE "users" RENAME TO "users2";',
+		'ALTER TABLE "users2" DROP CONSTRAINT "users_id2_users_id1_fkey";',
 	];
 	expect(sqlStatements).toStrictEqual(e);
 	expect(pst).toStrictEqual(e);

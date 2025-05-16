@@ -115,7 +115,7 @@ export const fromDrizzleSchema = (
 				? false
 				: (column as any).autoIncrement;
 
-			const generated = column.generated
+			const generated: Column["generated"] = column.generated
 				? {
 					as: is(column.generated.as, SQL)
 						? dialect.sqlToQuery(column.generated.as as SQL).sql
@@ -134,13 +134,6 @@ export const fromDrizzleSchema = (
 				notNull,
 				autoIncrement,
 				onUpdateNow: (column as any).hasOnUpdateNow ?? false, // TODO: ??
-				// @ts-expect-error
-				// TODO update description
-				// 'virtual' | 'stored' for for all dialects
-				// 'virtual' | 'persisted' for mssql
-				// We should remove this option from common Column and store it per dialect common
-				// Was discussed with Andrew
-				// Type erorr because of common in drizzle orm for all dialects (includes virtual' | 'stored' | 'persisted')
 				generated,
 				isPK: column.primary,
 				isUnique: column.isUnique,

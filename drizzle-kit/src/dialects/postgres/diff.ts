@@ -1046,15 +1046,12 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonDropUniqueConstraints);
 	jsonStatements.push(...jsonDropCheckConstraints);
 	jsonStatements.push(...jsonDropReferences);
-	// jsonStatements.push(...jsonDroppedReferencesForAlteredTables); // TODO: check
 
-	// Will need to drop indexes before changing any columns in table
+	// TODO: ? will need to drop indexes before changing any columns in table
 	// Then should go column alternations and then index creation
 	jsonStatements.push(...jsonRenameIndexes);
 	jsonStatements.push(...jsonDropIndexes);
 	jsonStatements.push(...jsonDropPrimaryKeys);
-
-	// jsonStatements.push(...jsonTableAlternations); // TODO: check
 
 	jsonStatements.push(...jsonAddPrimaryKeys);
 	jsonStatements.push(...jsonRenamePrimaryKey);
@@ -1067,8 +1064,6 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonCreateFKs);
 	jsonStatements.push(...jsonRecreateFKs);
 	jsonStatements.push(...jsonCreateIndexes);
-
-	// jsonStatements.push(...jsonCreatedReferencesForAlteredTables); // TODO: check
 
 	jsonStatements.push(...jsonDropColumnsStatemets);
 	jsonStatements.push(...jsonAlteredPKs);
@@ -1086,7 +1081,7 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonCreatePoliciesStatements);
 	jsonStatements.push(...jsonAlterOrRecreatePoliciesStatements);
 
-	jsonStatements.push(...jsonDropEnums); // TODO: check
+	jsonStatements.push(...jsonDropEnums);
 	jsonStatements.push(...dropSequences);
 	jsonStatements.push(...dropSchemas);
 
