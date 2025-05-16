@@ -1,45 +1,34 @@
 import type { Assume, Column } from 'drizzle-orm';
 import type { z } from 'zod';
-import type { ArrayHasAtLeastOneValue, ColumnIsGeneratedAlwaysAs, IsNever, Json } from './utils.ts';
+import type { IsEnumDefined, IsNever, Json } from './utils.ts';
 
-export type GetEnumValuesFromColumn<TColumn extends Column> = TColumn['_'] extends { enumValues: [string, ...string[]] }
-	? TColumn['_']['enumValues']
-	: undefined;
-
-export type GetBaseColumn<TColumn extends Column> = TColumn['_'] extends { baseColumn: Column | never | undefined }
-	? IsNever<TColumn['_']['baseColumn']> extends false ? TColumn['_']['baseColumn']
-	: undefined
-	: undefined;
+type HasBaseColumn<TColumn> = TColumn extends { _: { baseColumn: Column | undefined } }
+	? IsNever<TColumn['_']['baseColumn']> extends false ? true
+	: false
+	: false;
 
 export type GetZodType<
-	TData,
-	TDataType extends string,
-	TColumnType extends string,
-	TEnumValues extends [string, ...string[]] | undefined,
-	TBaseColumn extends Column | undefined,
-> = TBaseColumn extends Column ? z.ZodArray<
-		GetZodType<
-			TBaseColumn['_']['data'],
-			TBaseColumn['_']['dataType'],
-			TBaseColumn['_']['columnType'],
-			GetEnumValuesFromColumn<TBaseColumn>,
-			GetBaseColumn<TBaseColumn>
-		>
+	TColumn extends Column,
+> = HasBaseColumn<TColumn> extends true ? z.ZodArray<
+		GetZodType<Assume<TColumn['_']['baseColumn'], Column>>
 	>
-	: ArrayHasAtLeastOneValue<TEnumValues> extends true ? z.ZodEnum<Assume<TEnumValues, [string, ...string[]]>>
-	: TData extends infer TTuple extends [any, ...any[]] ? z.ZodTuple<
-			Assume<{ [K in keyof TTuple]: GetZodType<TTuple[K], string, string, undefined, undefined> }, [any, ...any[]]>
-		>
-	: TData extends Date ? z.ZodDate
-	: TData extends Buffer ? z.ZodType<Buffer>
-	: TDataType extends 'array'
-		? z.ZodArray<GetZodType<Assume<TData, any[]>[number], string, string, undefined, undefined>>
-	: TData extends infer TDict extends Record<string, any>
-		? TColumnType extends 'PgJson' | 'PgJsonb' | 'MySqlJson' | 'SingleStoreJson' | 'SQLiteTextJson' | 'SQLiteBlobJson'
-			? z.ZodType<TDict, z.ZodTypeDef, TDict>
-		: z.ZodObject<{ [K in keyof TDict]: GetZodType<TDict[K], string, string, undefined, undefined> }, 'strip'>
-	: TDataType extends 'json' ? z.ZodType<Json>
-	: TData extends number ? z.ZodNumber
+	: IsEnumDefined<TColumn['_']['enumValues']> extends true
+		? z.ZodEnum<Assume<TColumn['_']['enumValues'], [string, ...string[]]>>
+	: TColumn['_']['columnType'] extends 'PgGeometry' | 'PgPointTuple' ? z.ZodTuple<[z.ZodNumber, z.ZodNumber]>
+	: TColumn['_']['columnType'] extends 'PgLine' ? z.ZodTuple<[z.ZodNumber, z.ZodNumber, z.ZodNumber]>
+	: TColumn['_']['data'] extends Date ? z.ZodDate
+	: TColumn['_']['data'] extends Buffer ? z.ZodType<Buffer>
+	: TColumn['_']['dataType'] extends 'array'
+		? z.ZodArray<GetZodPrimitiveType<Assume<TColumn['_']['data'], any[]>[number]>>
+	: TColumn['_']['data'] extends Record<string, any>
+		? TColumn['_']['columnType'] extends
+			'PgJson' | 'PgJsonb' | 'MySqlJson' | 'SingleStoreJson' | 'SQLiteTextJson' | 'SQLiteBlobJson'
+			? z.ZodType<TColumn['_']['data'], z.ZodTypeDef, TColumn['_']['data']>
+		: z.ZodObject<{ [K in keyof TColumn['_']['data']]: GetZodPrimitiveType<TColumn['_']['data'][K]> }, 'strip'>
+	: TColumn['_']['dataType'] extends 'json' ? z.ZodType<Json>
+	: GetZodPrimitiveType<TColumn['_']['data']>;
+
+type GetZodPrimitiveType<TData> = TData extends number ? z.ZodNumber
 	: TData extends bigint ? z.ZodBigInt
 	: TData extends boolean ? z.ZodBoolean
 	: TData extends string ? z.ZodString
@@ -54,30 +43,20 @@ type HandleSelectColumn<
 type HandleInsertColumn<
 	TSchema extends z.ZodTypeAny,
 	TColumn extends Column,
-> = ColumnIsGeneratedAlwaysAs<TColumn> extends true ? never
-	: TColumn['_']['notNull'] extends true ? TColumn['_']['hasDefault'] extends true ? z.ZodOptional<TSchema>
-		: TSchema
+> = TColumn['_']['notNull'] extends true ? TColumn['_']['hasDefault'] extends true ? z.ZodOptional<TSchema>
+	: TSchema
 	: z.ZodOptional<z.ZodNullable<TSchema>>;
 
 type HandleUpdateColumn<
 	TSchema extends z.ZodTypeAny,
 	TColumn extends Column,
-> = ColumnIsGeneratedAlwaysAs<TColumn> extends true ? never
-	: TColumn['_']['notNull'] extends true ? z.ZodOptional<TSchema>
+> = TColumn['_']['notNull'] extends true ? z.ZodOptional<TSchema>
 	: z.ZodOptional<z.ZodNullable<TSchema>>;
 
 export type HandleColumn<
 	TType extends 'select' | 'insert' | 'update',
 	TColumn extends Column,
-> = GetZodType<
-	TColumn['_']['data'],
-	TColumn['_']['dataType'],
-	TColumn['_']['columnType'],
-	GetEnumValuesFromColumn<TColumn>,
-	GetBaseColumn<TColumn>
-> extends infer TSchema extends z.ZodTypeAny ? TSchema extends z.ZodAny ? z.ZodAny
-	: TType extends 'select' ? HandleSelectColumn<TSchema, TColumn>
-	: TType extends 'insert' ? HandleInsertColumn<TSchema, TColumn>
-	: TType extends 'update' ? HandleUpdateColumn<TSchema, TColumn>
-	: TSchema
-	: z.ZodAny;
+> = TType extends 'select' ? HandleSelectColumn<GetZodType<TColumn>, TColumn>
+	: TType extends 'insert' ? HandleInsertColumn<GetZodType<TColumn>, TColumn>
+	: TType extends 'update' ? HandleUpdateColumn<GetZodType<TColumn>, TColumn>
+	: GetZodType<TColumn>;
