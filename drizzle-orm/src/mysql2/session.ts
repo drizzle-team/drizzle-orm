@@ -9,7 +9,6 @@ import type {
 	ResultSetHeader,
 	RowDataPacket,
 } from 'mysql2/promise';
-import { once } from 'node:events';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
@@ -137,43 +136,26 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig> extends MyS
 		}).connection;
 
 		const { fields, query, rawQuery, joinsNotNullableMap, client, customResultMapper } = this;
-		const hasRowsMapper = Boolean(fields || customResultMapper);
-		const driverQuery = hasRowsMapper ? conn.query(query, params) : conn.query(rawQuery, params);
-
-		const stream = driverQuery.stream();
-
-		function dataListener() {
-			stream.pause();
-		}
-
-		stream.on('data', dataListener);
 
 		try {
-			const onEnd = once(stream, 'end');
-			const onError = once(stream, 'error');
+			const hasRowsMapper = Boolean(fields || customResultMapper);
+			const driverQuery = hasRowsMapper ? conn.query(query, params) : conn.query(rawQuery, params);
 
-			while (true) {
-				stream.resume();
-				const row = await Promise.race([onEnd, onError, new Promise((resolve) => stream.once('data', resolve))]);
-				if (row === undefined || (Array.isArray(row) && row.length === 0)) {
-					break;
-				} else if (row instanceof Error) { // eslint-disable-line no-instanceof/no-instanceof
-					throw row;
-				} else {
-					if (hasRowsMapper) {
-						if (customResultMapper) {
-							const mappedRow = customResultMapper([row as unknown[]]);
-							yield (Array.isArray(mappedRow) ? mappedRow[0] : mappedRow);
-						} else {
-							yield mapResultRow(fields!, row as unknown[], joinsNotNullableMap);
-						}
+			const stream = driverQuery.stream();
+
+			for await (const row of stream) {
+				if (hasRowsMapper) {
+					if (customResultMapper) {
+						const mappedRow = customResultMapper([row as unknown[]]);
+						yield (Array.isArray(mappedRow) ? mappedRow[0] : mappedRow);
 					} else {
-						yield row as T['execute'];
+						yield mapResultRow(fields!, row as unknown[], joinsNotNullableMap);
 					}
+				} else {
+					yield row as T['execute'];
 				}
 			}
 		} finally {
-			stream.off('data', dataListener);
 			if (isPool(client)) {
 				conn.end();
 			}
