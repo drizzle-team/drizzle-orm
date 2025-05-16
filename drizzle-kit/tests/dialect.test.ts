@@ -2018,6 +2018,20 @@ test('diff: update', () => {
 			from: 'varchar',
 			to: 'text',
 		},
+		$left: {
+			entityType: 'column',
+			name: 'name',
+			pk: false,
+			table: 'user',
+			type: 'varchar',
+		},
+		$right: {
+			entityType: 'column',
+			name: 'name',
+			pk: false,
+			table: 'user',
+			type: 'text',
+		},
 	}]);
 	expect(diff.all(original, changed)).toStrictEqual([{
 		$diffType: 'alter',
@@ -2027,6 +2041,20 @@ test('diff: update', () => {
 		type: {
 			from: 'varchar',
 			to: 'text',
+		},
+		$left: {
+			entityType: 'column',
+			name: 'name',
+			pk: false,
+			table: 'user',
+			type: 'varchar',
+		},
+		$right: {
+			entityType: 'column',
+			name: 'name',
+			pk: false,
+			table: 'user',
+			type: 'text',
 		},
 	}]);
 	expect(diff.drops(original, changed, 'column')).toStrictEqual([]);
@@ -2040,6 +2068,20 @@ test('diff: update', () => {
 			from: 'varchar',
 			to: 'text',
 		},
+		$left: {
+			entityType: 'column',
+			name: 'name',
+			pk: false,
+			table: 'user',
+			type: 'varchar',
+		},
+		$right: {
+			entityType: 'column',
+			name: 'name',
+			pk: false,
+			table: 'user',
+			type: 'text',
+		},
 	}]);
 	expect(diff.alters(original, changed)).toStrictEqual([{
 		$diffType: 'alter',
@@ -2049,6 +2091,20 @@ test('diff: update', () => {
 		type: {
 			from: 'varchar',
 			to: 'text',
+		},
+		$left: {
+			entityType: 'column',
+			name: 'name',
+			pk: false,
+			table: 'user',
+			type: 'varchar',
+		},
+		$right: {
+			entityType: 'column',
+			name: 'name',
+			pk: false,
+			table: 'user',
+			type: 'text',
 		},
 	}]);
 	expect(diff.creates(original, changed, 'column')).toStrictEqual([]);
@@ -2062,6 +2118,20 @@ test('diff: update', () => {
 		type: {
 			from: 'varchar',
 			to: 'text',
+		},
+		$left: {
+			entityType: 'column',
+			name: 'name',
+			pk: false,
+			table: 'user',
+			type: 'varchar',
+		},
+		$right: {
+			entityType: 'column',
+			name: 'name',
+			pk: false,
+			table: 'user',
+			type: 'text',
 		},
 	}]);
 });
@@ -2135,6 +2205,28 @@ test('diff: update object', () => {
 			},
 			to: null,
 		},
+		$left: {
+			entityType: 'column',
+			name: 'id',
+			obj: {
+				subArr: [
+					's3',
+					's4',
+				],
+				subfield: 'sf_value_upd',
+			},
+			pk: true,
+			table: 'user',
+			type: 'serial',
+		},
+		$right: {
+			entityType: 'column',
+			name: 'id',
+			obj: null,
+			pk: true,
+			table: 'user',
+			type: 'serial',
+		},
 	}, {
 		$diffType: 'alter',
 		entityType: 'column',
@@ -2153,6 +2245,34 @@ test('diff: update object', () => {
 				subArr: ['s3', 's4'],
 				subfield: 'sf_value',
 			},
+		},
+		$left: {
+			entityType: 'column',
+			name: 'name',
+			obj: {
+				subArr: [
+					's1',
+					's2',
+				],
+				subfield: 'sf_value',
+			},
+			pk: false,
+			table: 'user',
+			type: 'varchar',
+		},
+		$right: {
+			entityType: 'column',
+			name: 'name',
+			obj: {
+				subArr: [
+					's3',
+					's4',
+				],
+				subfield: 'sf_value',
+			},
+			pk: false,
+			table: 'user',
+			type: 'text',
 		},
 	}]);
 });
@@ -2246,6 +2366,45 @@ test('diff: update object array', () => {
 				subfield: 'sf_value',
 			}],
 		},
+		$left: {
+			entityType: 'column',
+			name: 'id',
+			obj: [
+				{
+					subArr: [
+						's3',
+						's4',
+					],
+					subfield: 'sf_value',
+				},
+			],
+			pk: true,
+			table: 'user',
+			type: 'serial',
+		},
+		$right: {
+			entityType: 'column',
+			name: 'id',
+			obj: [
+				{
+					subArr: [
+						's3',
+						's4',
+					],
+					subfield: 'sf_value',
+				},
+				{
+					subArr: [
+						's1',
+						's2',
+					],
+					subfield: 'sf_value',
+				},
+			],
+			pk: true,
+			table: 'user',
+			type: 'serial',
+		},
 	}, {
 		$diffType: 'alter',
 		entityType: 'column',
@@ -2264,6 +2423,38 @@ test('diff: update object array', () => {
 				subArr: ['s1', 's2'],
 				subfield: 'sf_value_upd',
 			}],
+		},
+		$left: {
+			entityType: 'column',
+			name: 'name',
+			obj: [
+				{
+					subArr: [
+						's1',
+						's2',
+					],
+					subfield: 'sf_value',
+				},
+			],
+			pk: false,
+			table: 'user',
+			type: 'varchar',
+		},
+		$right: {
+			entityType: 'column',
+			name: 'name',
+			obj: [
+				{
+					subArr: [
+						's1',
+						's2',
+					],
+					subfield: 'sf_value_upd',
+				},
+			],
+			pk: false,
+			table: 'user',
+			type: 'text',
 		},
 	}]);
 });
@@ -2487,4 +2678,53 @@ test('indexes #1', () => {
 
 	const d = diff(ddl1, ddl2, 'indexes');
 	expect(d).toStrictEqual([]);
+});
+
+test('hasDiff', () => {
+	const cfg = {
+		column: {
+			type: 'string',
+			pk: 'boolean?',
+			table: 'required',
+		},
+	} as const;
+
+	const original = create(cfg);
+	const changed = create(cfg);
+
+	original.column.push({
+		name: 'id',
+		type: 'serial',
+		pk: true,
+		table: 'user',
+	});
+	original.column.push({
+		name: 'name',
+		type: 'varchar',
+		pk: false,
+		table: 'user',
+	});
+
+	changed.column.push({
+		name: 'id',
+		type: 'serial',
+		pk: true,
+		table: 'user',
+	});
+	changed.column.push({
+		name: 'name',
+		type: 'text',
+		pk: false,
+		table: 'user',
+	});
+
+	const res = diff.alters(original, changed, 'column');
+
+	const exampleDiff = res[0];
+	expect(original.column.hasDiff(exampleDiff)).toStrictEqual(true);
+	expect(original.entities.hasDiff(exampleDiff)).toStrictEqual(true);
+
+	delete exampleDiff['type'];
+	expect(original.column.hasDiff(exampleDiff)).toStrictEqual(false);
+	expect(original.entities.hasDiff(exampleDiff)).toStrictEqual(false);
 });

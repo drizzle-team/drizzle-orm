@@ -43,7 +43,7 @@ type Definition = Record<string, Schema>;
 
 type InferSchema<TSchema extends Schema> = Simplify<
 	{
-		[K in keyof TSchema]: K extends keyof Common ? Exclude<Common[K], null>
+		-readonly [K in keyof TSchema]: K extends keyof Common ? Exclude<Common[K], null>
 			: InferField<Assume<TSchema[K], ExtendedType>>;
 	}
 >;
@@ -224,6 +224,12 @@ type DeleteFn<TInput extends Record<string, any>> = (
 	where?: TInput extends infer Input extends Record<string, any> ? Filter<Input> : never,
 ) => TInput[];
 type ValidateFn<TInput extends Record<string, any>> = (data: unknown) => data is TInput;
+type HasDiffFn<
+	TSchema extends Record<string, any>,
+	TType extends string,
+> = (
+	input: DiffAlter<TSchema, TType>,
+) => boolean;
 
 const generateInsert: (configs: Record<string, Config>, store: CollectionStore, type?: string) => PushFn<any> = (
 	configs,
@@ -406,6 +412,19 @@ const generateDelete: (store: CollectionStore, type?: string) => DeleteFn<any> =
 	};
 };
 
+const generateHasDiff: (
+	lengths: Record<string, number>,
+) => HasDiffFn<any, any> = (
+	lengths,
+) => {
+	return (input) => {
+		const type = input.entityType;
+		const length = lengths[type];
+
+		return Object.keys(input).length > length;
+	};
+};
+
 function validate(data: any, schema: Config, deep = false): boolean {
 	if (typeof data !== 'object' || data === null) return false;
 
@@ -471,6 +490,7 @@ type GenerateProcessors<
 		update: UpdateFn<TTypes[K]>;
 		delete: DeleteFn<TTypes[K]>;
 		validate: ValidateFn<TTypes[K]>;
+		hasDiff: HasDiffFn<T['definition'], K & string>;
 	};
 };
 
@@ -482,6 +502,18 @@ function initSchemaProcessors<T extends Omit<DbConfig<any>, 'diffs'>, TCommon ex
 ): GenerateProcessors<T, TCommon> {
 	const entries = Object.entries(entities);
 
+	// left, right, entityType, diffType
+	const extraKeys = 4;
+
+	const lengths: Record<string, number> = Object.fromEntries(
+		Object.entries(common ? extraConfigs! : entities).map(([k, v]) => {
+			// name, table?, schema?
+			const commonCount = Object.keys(v).filter((e) => e in commonConfig).length;
+
+			return [k, commonCount + extraKeys];
+		}),
+	);
+
 	return Object.fromEntries(entries.map(([k, v]) => {
 		return [k, {
 			push: generateInsert(common ? extraConfigs! : entities, store, common ? undefined : k),
@@ -490,6 +522,7 @@ function initSchemaProcessors<T extends Omit<DbConfig<any>, 'diffs'>, TCommon ex
 			update: generateUpdate(store, common ? undefined : k),
 			delete: generateDelete(store, common ? undefined : k),
 			validate: generateValidate(common ? extraConfigs! : entities, common ? undefined : k),
+			hasDiff: generateHasDiff(lengths),
 		}];
 	})) as GenerateProcessors<T, TCommon>;
 }
@@ -530,6 +563,7 @@ type AnyDbConfig = {
 	/** Type-level fields only, do not attempt to access at runtime */
 	types: Record<string, Record<string, any>>;
 	entities: Record<string, Config>;
+	definition: Record<string, any>;
 };
 
 type ValueOf<T> = T[keyof T];
@@ -594,6 +628,15 @@ export type DiffAlter<
 			entityType: TType;
 		}
 	>,
+	TFullShape extends Record<string, any> = TType extends 'entities' ? {} : Simplify<
+		& InferSchema<TSchema[TType]>
+		& {
+			[C in keyof Common as C extends keyof TSchema[TType] ? never : null extends Common[C] ? never : C]: Common[C];
+		}
+		& {
+			entityType: TType;
+		}
+	>,
 > = TType extends 'entities' ? ValueOf<
 		{
 			[K in keyof TSchema]: DiffAlter<TSchema, K>;
@@ -614,6 +657,10 @@ export type DiffAlter<
 				from: TShape[K];
 				to: TShape[K];
 			};
+		}
+		& {
+			$left: TFullShape;
+			$right: TFullShape;
 		}
 	>;
 
@@ -747,6 +794,8 @@ function _diff<
 					entityType: newRow.entityType,
 					...getRowCommons(newRow),
 					...changes,
+					$left: oldRow,
+					$right: newRow,
 				});
 			}
 		}
@@ -829,6 +878,7 @@ class SimpleDb<TDefinition extends Definition = Record<string, any>> {
 				: never;
 		};
 		entities: any;
+		definition: TDefinition;
 	}, true>['entities'];
 
 	constructor(definition: TDefinition) {
