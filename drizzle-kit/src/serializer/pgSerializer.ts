@@ -990,24 +990,29 @@ export const fromDatabase = async (
 
 	const where = schemaFilters.map((t) => `n.nspname = '${t}'`).join(' or ');
 
-	const allTables = await db.query<{ table_schema: string; table_name: string; type: string; rls_enabled: boolean }>(
-		`SELECT 
-    n.nspname AS table_schema, 
-    c.relname AS table_name, 
-    CASE 
-        WHEN c.relkind = 'r' THEN 'table'
-        WHEN c.relkind = 'v' THEN 'view'
-        WHEN c.relkind = 'm' THEN 'materialized_view'
-    END AS type,
-	c.relrowsecurity AS rls_enabled
-FROM 
-    pg_catalog.pg_class c
-JOIN 
-    pg_catalog.pg_namespace n ON n.oid = c.relnamespace
-WHERE 
-	c.relkind IN ('r', 'v', 'm') 
-    ${where === '' ? '' : ` AND ${where}`};`,
+	// *** MODIFIED QUERY: Add is_partition flag ***
+	const allTables = await db.query<{ table_schema: string; table_name: string; type: string; rls_enabled: boolean; is_partition: boolean }>(
+		`SELECT
+        n.nspname AS table_schema,
+        c.relname AS table_name,
+        CASE
+            WHEN c.relkind = 'r' THEN 'table'
+            WHEN c.relkind = 'v' THEN 'view'
+            WHEN c.relkind = 'm' THEN 'materialized_view'
+            WHEN c.relkind = 'p' THEN 'partitioned_table' -- Handle partitioned tables
+        END AS type,
+        c.relrowsecurity AS rls_enabled,
+        -- Add this flag to identify child partitions
+        EXISTS (SELECT 1 FROM pg_catalog.pg_inherits inh WHERE inh.inhrelid = c.oid) AS is_partition
+    FROM
+        pg_catalog.pg_class c
+    JOIN
+        pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+    WHERE
+        c.relkind IN ('r', 'v', 'm', 'p') -- Include relevant kinds
+        ${where === '' ? '' : ` AND (${where})`};`, // Keep existing schema filters
 	);
+	// *** END MODIFIED QUERY ***
 
 	const schemas = new Set(allTables.map((it) => it.table_schema));
 	schemas.delete('public');
@@ -1209,13 +1214,22 @@ WHERE
 	const sequencesInColumns: string[] = [];
 
 	const all = allTables
-		.filter((it) => it.type === 'table')
+		// Filter out VIEWs/MATERIALIZED VIEWs here, process them later
+		.filter((it) => it.type === 'table' || it.type === 'partitioned_table')
 		.map((row) => {
 			return new Promise(async (res, rej) => {
+				// *** ADDITION: Skip processing if it's identified as a child partition ***
+				if (row.is_partition) {
+					// console.log(`INFO: Skipping child partition '${row.table_schema}.${row.table_name}'`);
+					return res(''); // Successfully do nothing, prevents emission0 etc. from being processed
+				}
+				// *** END ADDITION ***
+
 				const tableName = row.table_name as string;
 				if (!tablesFilter(tableName)) return res('');
 				tableCount += 1;
 				const tableSchema = row.table_schema;
+				const isPartitionedTable = row.type === 'partitioned_table'; // Keep this check
 
 				try {
 					const columnToReturn: Record<string, Column> = {};
@@ -1225,8 +1239,37 @@ WHERE
 					const uniqueConstrains: Record<string, UniqueConstraint> = {};
 					const checkConstraints: Record<string, CheckConstraint> = {};
 
-					const tableResponse = await getColumnsInfoQuery({ schema: tableSchema, table: tableName, db });
+					let schemaForColumns = tableSchema;
+					let tableForColumns = tableName;
 
+					if (isPartitionedTable) {
+						// Find one child partition to get column definitions from (this logic stays)
+						const partitions = await db.query<{ partition_schema: string; partition_name: string }>(`
+							SELECT
+									child_ns.nspname AS partition_schema,
+									child_class.relname AS partition_name
+							FROM pg_inherits
+									JOIN pg_class parent_class ON pg_inherits.inhparent = parent_class.oid
+									JOIN pg_namespace parent_ns ON parent_class.relnamespace = parent_ns.oid
+									JOIN pg_class child_class ON pg_inherits.inhrelid = child_class.oid
+									JOIN pg_namespace child_ns ON child_class.relnamespace = child_ns.oid
+							WHERE parent_ns.nspname = '${tableSchema}' AND parent_class.relname = '${tableName}'
+							LIMIT 1;
+						`);
+						if (partitions.length > 0) {
+							schemaForColumns = partitions[0].partition_schema;
+							tableForColumns = partitions[0].partition_name;
+							// console.log(`INFO: Found partition '${schemaForColumns}.${tableForColumns}' for partitioned table '${tableSchema}.${tableName}'. Using it to fetch column definitions.`);
+						} else {
+							console.warn(`WARN: Could not find any partitions for partitioned table '${tableSchema}.${tableName}'. Column definitions may be incomplete.`);
+							// Fallback to trying the parent table, though it likely won't return columns
+						}
+					}
+
+					// Use the potentially adjusted schema/table name for fetching columns
+					const tableResponse = await getColumnsInfoQuery({ schema: schemaForColumns, table: tableForColumns, db });
+
+					// Use the original table schema and name for constraints/indexes etc.
 					const tableConstraints = await db.query(
 						`SELECT c.column_name, c.data_type, constraint_type, constraint_name, constraint_schema
       FROM information_schema.table_constraints tc
@@ -1236,25 +1279,25 @@ WHERE
       WHERE tc.table_name = '${tableName}' and constraint_schema = '${tableSchema}';`,
 					);
 
-					const tableChecks = await db.query(`SELECT 
+					const tableChecks = await db.query(`SELECT
 						tc.constraint_name,
 						tc.constraint_type,
 						pg_get_constraintdef(con.oid) AS constraint_definition
-					FROM 
+					FROM
 						information_schema.table_constraints AS tc
-						JOIN pg_constraint AS con 
+						JOIN pg_constraint AS con
 							ON tc.constraint_name = con.conname
 							AND con.conrelid = (
-								SELECT oid 
-								FROM pg_class 
-								WHERE relname = tc.table_name 
+								SELECT oid
+								FROM pg_class
+								WHERE relname = tc.table_name
 								AND relnamespace = (
-									SELECT oid 
-									FROM pg_namespace 
+									SELECT oid
+									FROM pg_namespace
 									WHERE nspname = tc.constraint_schema
 								)
 							)
-					WHERE 
+					WHERE
 						tc.table_name = '${tableName}'
 						AND tc.constraint_schema = '${tableSchema}'
 						AND tc.constraint_type = 'CHECK';`);
@@ -1301,7 +1344,8 @@ WHERE
           WHERE
             nsp.nspname = '${tableSchema}'
             AND rel.relname = '${tableName}'
-            AND con.contype IN ('f');`,
+            AND con.contype IN ('f')
+            AND con.conislocal = true;`, // <-- Add this line to filter out inherited constraints
 					);
 
 					foreignKeysCount += tableForeignKeys.length;
@@ -1309,7 +1353,6 @@ WHERE
 						progressCallback('fks', foreignKeysCount, 'fetching');
 					}
 					for (const fk of tableForeignKeys) {
-						// const tableFrom = fk.table_name;
 						const columnFrom: string = fk.column_name;
 						const tableTo = fk.foreign_table_name;
 						const columnTo: string = fk.foreign_column_name;
@@ -1324,7 +1367,7 @@ WHERE
 						} else {
 							foreignKeysToReturn[foreignKeyName] = {
 								name: foreignKeyName,
-								tableFrom: tableName,
+								tableFrom: tableName, // Use original parent table name here
 								tableTo,
 								schemaTo,
 								columnsFrom: [columnFrom],
@@ -1333,48 +1376,28 @@ WHERE
 								onUpdate,
 							};
 						}
-
-						foreignKeysToReturn[foreignKeyName].columnsFrom = [
-							...new Set(foreignKeysToReturn[foreignKeyName].columnsFrom),
-						];
-
+						foreignKeysToReturn[foreignKeyName].columnsFrom = [...new Set(foreignKeysToReturn[foreignKeyName].columnsFrom)];
 						foreignKeysToReturn[foreignKeyName].columnsTo = [...new Set(foreignKeysToReturn[foreignKeyName].columnsTo)];
 					}
 
 					const uniqueConstrainsRows = tableConstraints.filter((mapRow) => mapRow.constraint_type === 'UNIQUE');
-
 					for (const unqs of uniqueConstrainsRows) {
-						// const tableFrom = fk.table_name;
 						const columnName: string = unqs.column_name;
 						const constraintName: string = unqs.constraint_name;
-
 						if (typeof uniqueConstrains[constraintName] !== 'undefined') {
 							uniqueConstrains[constraintName].columns.push(columnName);
 						} else {
-							uniqueConstrains[constraintName] = {
-								columns: [columnName],
-								nullsNotDistinct: false,
-								name: constraintName,
-							};
+							uniqueConstrains[constraintName] = { columns: [columnName], nullsNotDistinct: false, name: constraintName };
 						}
 					}
 
 					checksCount += tableChecks.length;
-					if (progressCallback) {
-						progressCallback('checks', checksCount, 'fetching');
-					}
+					if (progressCallback) progressCallback('checks', checksCount, 'fetching');
 					for (const checks of tableChecks) {
-						// CHECK (((email)::text <> 'test@gmail.com'::text))
-						// Where (email) is column in table
 						let checkValue: string = checks.constraint_definition;
 						const constraintName: string = checks.constraint_name;
-
 						checkValue = checkValue.replace(/^CHECK\s*\(\(/, '').replace(/\)\)\s*$/, '');
-
-						checkConstraints[constraintName] = {
-							name: constraintName,
-							value: checkValue,
-						};
+						checkConstraints[constraintName] = { name: constraintName, value: checkValue };
 					}
 
 					for (const columnResponse of tableResponse) {
@@ -1397,147 +1420,91 @@ WHERE
 						const identityCycle = columnResponse.identity_cycle === 'YES';
 						const identityName = columnResponse.seq_name;
 
+						// Check constraints against the original table name/schema
 						const primaryKey = tableConstraints.filter((mapRow) =>
 							columnName === mapRow.column_name && mapRow.constraint_type === 'PRIMARY KEY'
 						);
-
 						const cprimaryKey = tableConstraints.filter((mapRow) => mapRow.constraint_type === 'PRIMARY KEY');
 
 						if (cprimaryKey.length > 1) {
+							// Fetch PK name using original table/schema
 							const tableCompositePkName = await db.query(
 								`SELECT conname AS primary_key
             FROM   pg_constraint join pg_class on (pg_class.oid = conrelid)
             WHERE  contype = 'p' 
             AND    connamespace = $1::regnamespace  
             AND    pg_class.relname = $2;`,
-								[tableSchema, tableName],
+								[tableSchema, tableName], // Use original table/schema
 							);
-							primaryKeys[tableCompositePkName[0].primary_key] = {
-								name: tableCompositePkName[0].primary_key,
-								columns: cprimaryKey.map((c: any) => c.column_name),
-							};
+							if (tableCompositePkName.length > 0) {
+								primaryKeys[tableCompositePkName[0].primary_key] = {
+									name: tableCompositePkName[0].primary_key,
+									columns: cprimaryKey.map((c: any) => c.column_name),
+								};
+							}
 						}
 
 						let columnTypeMapped = columnType;
+						const internalsTableNameKey = tableName; // Use original table name for internals lookup key
 
 						// Set default to internal object
 						if (columnAdditionalDT === 'ARRAY') {
-							if (typeof internals.tables[tableName] === 'undefined') {
-								internals.tables[tableName] = {
-									columns: {
-										[columnName]: {
-											isArray: true,
-											dimensions: columnDimensions,
-											rawType: columnTypeMapped.substring(0, columnTypeMapped.length - 2),
-										},
-									},
-								};
+							if (typeof internals.tables[internalsTableNameKey] === 'undefined') {
+								internals.tables[internalsTableNameKey] = { columns: { [columnName]: { isArray: true, dimensions: columnDimensions, rawType: columnTypeMapped.substring(0, columnTypeMapped.length - 2) } } };
 							} else {
-								if (typeof internals.tables[tableName]!.columns[columnName] === 'undefined') {
-									internals.tables[tableName]!.columns[columnName] = {
-										isArray: true,
-										dimensions: columnDimensions,
-										rawType: columnTypeMapped.substring(0, columnTypeMapped.length - 2),
-									};
+								if (typeof internals.tables[internalsTableNameKey]!.columns[columnName] === 'undefined') {
+									internals.tables[internalsTableNameKey]!.columns[columnName] = { isArray: true, dimensions: columnDimensions, rawType: columnTypeMapped.substring(0, columnTypeMapped.length - 2) };
 								}
 							}
 						}
-
-						const defaultValue = defaultForColumn(columnResponse, internals, tableName);
-						if (
-							defaultValue === 'NULL'
-							|| (defaultValueRes && defaultValueRes.startsWith('(') && defaultValueRes.endsWith(')'))
-						) {
-							if (typeof internals!.tables![tableName] === 'undefined') {
-								internals!.tables![tableName] = {
-									columns: {
-										[columnName]: {
-											isDefaultAnExpression: true,
-										},
-									},
-								};
+						const defaultValue = defaultForColumn(columnResponse, internals, internalsTableNameKey);
+						if (defaultValue === 'NULL' || (defaultValueRes && defaultValueRes.startsWith('(') && defaultValueRes.endsWith(')'))) {
+							if (typeof internals!.tables![internalsTableNameKey] === 'undefined') {
+								internals!.tables![internalsTableNameKey] = { columns: { [columnName]: { isDefaultAnExpression: true } } };
 							} else {
-								if (typeof internals!.tables![tableName]!.columns[columnName] === 'undefined') {
-									internals!.tables![tableName]!.columns[columnName] = {
-										isDefaultAnExpression: true,
-									};
+								if (typeof internals!.tables![internalsTableNameKey]!.columns[columnName] === 'undefined') {
+									internals!.tables![internalsTableNameKey]!.columns[columnName] = { isDefaultAnExpression: true };
 								} else {
-									internals!.tables![tableName]!.columns[columnName]!.isDefaultAnExpression = true;
+									internals!.tables![internalsTableNameKey]!.columns[columnName]!.isDefaultAnExpression = true;
 								}
 							}
 						}
-
 						const isSerial = columnType === 'serial';
-
-						if (columnTypeMapped.startsWith('numeric(')) {
-							columnTypeMapped = columnTypeMapped.replace(',', ', ');
-						}
-
+						if (columnTypeMapped.startsWith('numeric(')) columnTypeMapped = columnTypeMapped.replace(',', ', ');
 						if (columnAdditionalDT === 'ARRAY') {
-							for (let i = 1; i < Number(columnDimensions); i++) {
-								columnTypeMapped += '[]';
-							}
+							for (let i = 1; i < Number(columnDimensions); i++) columnTypeMapped += '[]';
 						}
-
-						columnTypeMapped = columnTypeMapped
-							.replace('character varying', 'varchar')
-							.replace(' without time zone', '')
-							// .replace("timestamp without time zone", "timestamp")
-							.replace('character', 'char');
-
+						columnTypeMapped = columnTypeMapped.replace('character varying', 'varchar').replace(' without time zone', '').replace('character', 'char');
 						columnTypeMapped = trimChar(columnTypeMapped, '"');
 
 						columnToReturn[columnName] = {
 							name: columnName,
-							type:
-								// filter vectors, but in future we should filter any extension that was installed by user
-								columnAdditionalDT === 'USER-DEFINED'
-									&& !['vector', 'geometry'].includes(enumType)
-									? enumType
-									: columnTypeMapped,
-							typeSchema: enumsToReturn[`${typeSchema}.${enumType}`] !== undefined
-								? enumsToReturn[`${typeSchema}.${enumType}`].schema
-								: undefined,
+							type: columnAdditionalDT === 'USER-DEFINED' && !['vector', 'geometry'].includes(enumType) ? enumType : columnTypeMapped,
+							typeSchema: enumsToReturn[`${typeSchema}.${enumType}`] !== undefined ? enumsToReturn[`${typeSchema}.${enumType}`].schema : undefined,
 							primaryKey: primaryKey.length === 1 && cprimaryKey.length < 2,
-							// default: isSerial ? undefined : defaultValue,
 							notNull: columnResponse.is_nullable === 'NO',
-							generated: isGenerated
-								? { as: generationExpression, type: 'stored' }
-								: undefined,
-							identity: isIdentity
-								? {
-									type: identityGeneration,
-									name: identityName,
-									increment: stringFromDatabaseIdentityProperty(identityIncrement),
-									minValue: stringFromDatabaseIdentityProperty(identityMinimum),
-									maxValue: stringFromDatabaseIdentityProperty(identityMaximum),
-									startWith: stringFromDatabaseIdentityProperty(identityStart),
-									cache: sequencesToReturn[identityName]?.cache
-										? sequencesToReturn[identityName]?.cache
-										: sequencesToReturn[`${tableSchema}.${identityName}`]?.cache
-										? sequencesToReturn[`${tableSchema}.${identityName}`]?.cache
-										: undefined,
-									cycle: identityCycle,
-									schema: tableSchema,
-								}
-								: undefined,
+							generated: isGenerated ? { as: generationExpression, type: 'stored' } : undefined,
+							identity: isIdentity ? {
+								type: identityGeneration, name: identityName,
+								increment: stringFromDatabaseIdentityProperty(identityIncrement),
+								minValue: stringFromDatabaseIdentityProperty(identityMinimum),
+								maxValue: stringFromDatabaseIdentityProperty(identityMaximum),
+								startWith: stringFromDatabaseIdentityProperty(identityStart),
+								cache: sequencesToReturn[identityName]?.cache ? sequencesToReturn[identityName]?.cache : sequencesToReturn[`${tableSchema}.${identityName}`]?.cache ? sequencesToReturn[`${tableSchema}.${identityName}`]?.cache : undefined, // Use original schema
+								cycle: identityCycle, schema: tableSchema // Use original schema
+							} : undefined,
 						};
 
 						if (identityName && typeof identityName === 'string') {
-							// remove "" from sequence name
-							delete sequencesToReturn[
-								`${tableSchema}.${
-									identityName.startsWith('"') && identityName.endsWith('"') ? identityName.slice(1, -1) : identityName
-								}`
-							];
+							delete sequencesToReturn[`${tableSchema}.${identityName.startsWith('"') && identityName.endsWith('"') ? identityName.slice(1, -1) : identityName}`]; // Use original schema
 							delete sequencesToReturn[identityName];
 						}
-
 						if (!isSerial && typeof defaultValue !== 'undefined') {
 							columnToReturn[columnName].default = defaultValue;
 						}
 					}
 
+					// Fetch indexes using the original table name/schema
 					const dbIndexes = await db.query(
 						`SELECT  DISTINCT ON (t.relname, ic.relname, k.i) t.relname as table_name, ic.relname AS indexname,
         k.i AS index_order,
@@ -1567,7 +1534,7 @@ WHERE
         JOIN pg_opclass opc ON opc.oid = ANY(i.indclass)
       WHERE
       c.nspname = '${tableSchema}' AND
-      t.relname = '${tableName}';`,
+      t.relname = '${tableName}';`, // Use original table name/schema
 					);
 
 					const dbIndexFromConstraint = await db.query(
@@ -1580,7 +1547,7 @@ WHERE
           pg_stat_user_indexes idx
         LEFT JOIN
           pg_constraint con ON con.conindid = idx.indexrelid
-        WHERE idx.relname = '${tableName}' and schemaname = '${tableSchema}'
+        WHERE idx.relname = '${tableName}' and schemaname = '${tableSchema}' -- Use original table name/schema
         group by index_name, table_name,schemaname, generated_by_constraint;`,
 					);
 
@@ -1597,50 +1564,19 @@ WHERE
 						const indexWhere: string = dbIndex.where;
 						const opclass: string = dbIndex.opcname;
 						const isExpression = dbIndex.is_expression === 1;
-
 						const desc: boolean = dbIndex.descending;
 						const nullsFirst: boolean = dbIndex.nulls_first;
-
 						const mappedWith: Record<string, string> = {};
-
 						if (indexWith !== null) {
-							indexWith
-								// .slice(1, indexWith.length - 1)
-								// .split(",")
-								.forEach((it) => {
-									const splitted = it.split('=');
-									mappedWith[splitted[0]] = splitted[1];
-								});
+							indexWith.forEach((it) => { const splitted = it.split('='); mappedWith[splitted[0]] = splitted[1]; });
 						}
-
 						if (idxsInConsteraint.includes(indexName)) continue;
-
 						if (typeof indexToReturn[indexName] !== 'undefined') {
-							indexToReturn[indexName].columns.push({
-								expression: indexColumnName,
-								asc: !desc,
-								nulls: nullsFirst ? 'first' : 'last',
-								opclass,
-								isExpression,
-							});
+							indexToReturn[indexName].columns.push({ expression: indexColumnName, asc: !desc, nulls: nullsFirst ? 'first' : 'last', opclass, isExpression });
 						} else {
 							indexToReturn[indexName] = {
-								name: indexName,
-								columns: [
-									{
-										expression: indexColumnName,
-										asc: !desc,
-										nulls: nullsFirst ? 'first' : 'last',
-										opclass,
-										isExpression,
-									},
-								],
-								isUnique: indexIsUnique,
-								// should not be a part of diff detects
-								concurrently: false,
-								method: indexMethod,
-								where: indexWhere === null ? undefined : indexWhere,
-								with: mappedWith,
+								name: indexName, columns: [{ expression: indexColumnName, asc: !desc, nulls: nullsFirst ? 'first' : 'last', opclass, isExpression }],
+								isUnique: indexIsUnique, concurrently: false, method: indexMethod, where: indexWhere === null ? undefined : indexWhere, with: mappedWith
 							};
 						}
 					}
@@ -1649,10 +1585,13 @@ WHERE
 					if (progressCallback) {
 						progressCallback('indexes', indexesCount, 'fetching');
 					}
+
+					// Assign results using the original table schema and name key
+					// This ensures emission (parent) is stored, not emission0 (child)
 					result[`${tableSchema}.${tableName}`] = {
 						name: tableName,
 						schema: tableSchema !== 'public' ? tableSchema : '',
-						columns: columnToReturn,
+						columns: columnToReturn, // Columns derived from child partition
 						indexes: indexToReturn,
 						foreignKeys: foreignKeysToReturn,
 						compositePrimaryKeys: primaryKeys,
@@ -2026,25 +1965,25 @@ const defaultForColumn = (column: any, internals: PgKitInternals, tableName: str
 
 const getColumnsInfoQuery = ({ schema, table, db }: { schema: string; table: string; db: DB }) => {
 	return db.query(
-		`SELECT 
+		`SELECT
     a.attrelid::regclass::text AS table_name,  -- Table, view, or materialized view name
     a.attname AS column_name,   -- Column name
-    CASE 
-        WHEN NOT a.attisdropped THEN 
-            CASE 
+    CASE
+        WHEN NOT a.attisdropped THEN
+            CASE
                 WHEN a.attnotnull THEN 'NO'
                 ELSE 'YES'
-            END 
-        ELSE NULL 
+            END
+        ELSE NULL
     END AS is_nullable,  -- NULL or NOT NULL constraint
     a.attndims AS array_dimensions,  -- Array dimensions
-    CASE 
-        WHEN a.atttypid = ANY ('{int,int8,int2}'::regtype[]) 
+    CASE
+        WHEN a.atttypid = ANY ('{int,int8,int2}'::regtype[])
         AND EXISTS (
             SELECT FROM pg_attrdef ad
-            WHERE ad.adrelid = a.attrelid 
-            AND ad.adnum = a.attnum 
-            AND pg_get_expr(ad.adbin, ad.adrelid) = 'nextval(''' 
+            WHERE ad.adrelid = a.attrelid
+            AND ad.adnum = a.attnum
+            AND pg_get_expr(ad.adbin, ad.adrelid) = 'nextval('''
                 || pg_get_serial_sequence(a.attrelid::regclass::text, a.attname)::regclass || '''::regclass)'
         )
         THEN CASE a.atttypid
@@ -2068,28 +2007,37 @@ const getColumnsInfoQuery = ({ schema, table, db }: { schema: string; table: str
     c.identity_maximum,  -- Maximum value for identity column
     c.identity_minimum,  -- Minimum value for identity column
     c.identity_cycle,  -- Does the identity column cycle?
-    enum_ns.nspname AS type_schema  -- Schema of the enum type
-FROM 
+    enum_ns.nspname AS type_schema,  -- Schema of the enum type
+    tc.constraint_type -- Include constraint type to identify primary keys later if needed
+FROM
     pg_attribute a
-JOIN 
+JOIN
     pg_class cls ON cls.oid = a.attrelid  -- Join pg_class to get table/view/materialized view info
-JOIN 
+JOIN
     pg_namespace ns ON ns.oid = cls.relnamespace  -- Join namespace to get schema info
-LEFT JOIN 
-    information_schema.columns c ON c.column_name = a.attname 
-        AND c.table_schema = ns.nspname 
+LEFT JOIN
+    information_schema.columns c ON c.column_name = a.attname
+        AND c.table_schema = ns.nspname
         AND c.table_name = cls.relname  -- Match schema and table/view name
-LEFT JOIN 
+LEFT JOIN
     pg_type enum_t ON enum_t.oid = a.atttypid  -- Join to get the type info
-LEFT JOIN 
+LEFT JOIN
     pg_namespace enum_ns ON enum_ns.oid = enum_t.typnamespace  -- Join to get the enum schema
-WHERE 
+LEFT JOIN -- Join to check for primary key constraint on the column
+    information_schema.key_column_usage kcu ON kcu.table_schema = ns.nspname
+        AND kcu.table_name = cls.relname
+        AND kcu.column_name = a.attname
+LEFT JOIN
+    information_schema.table_constraints tc ON tc.constraint_schema = kcu.constraint_schema
+        AND tc.constraint_name = kcu.constraint_name
+        AND tc.constraint_type = 'PRIMARY KEY'
+WHERE
     a.attnum > 0  -- Valid column numbers only
     AND NOT a.attisdropped  -- Skip dropped columns
-    AND cls.relkind IN ('r', 'v', 'm')  -- Include regular tables ('r'), views ('v'), and materialized views ('m')
+    AND cls.relkind IN ('r', 'v', 'm', 'p')  -- Include regular tables ('r'), views ('v'), materialized views ('m'), and partitioned tables ('p')
     AND ns.nspname = '${schema}'  -- Filter by schema
     AND cls.relname = '${table}'  -- Filter by table name
-ORDER BY 
+ORDER BY
     a.attnum;  -- Order by column number`,
 	);
 };
