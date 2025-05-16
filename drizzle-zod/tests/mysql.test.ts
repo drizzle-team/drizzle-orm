@@ -2,7 +2,7 @@ import { type Equal, sql } from 'drizzle-orm';
 import { customType, int, json, mysqlSchema, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSchemaFactory, createSelectSchema, createUpdateSchema } from '../src';

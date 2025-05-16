@@ -1,6 +1,6 @@
 import type { Table, View } from 'drizzle-orm';
 import type { PgEnum } from 'drizzle-orm/pg-core';
-import type { z } from 'zod';
+import type { z } from 'zod/v4';
 import type { BuildRefine, BuildSchema, NoUnknownKeys } from './schema.types.internal.ts';
 
 export interface CreateSelectSchema<

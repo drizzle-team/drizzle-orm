@@ -2,7 +2,7 @@ import { type Equal, sql } from 'drizzle-orm';
 import { blob, customType, int, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { bufferSchema, jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSchemaFactory, createSelectSchema, createUpdateSchema } from '../src';

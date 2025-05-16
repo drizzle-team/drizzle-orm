@@ -1,5 +1,5 @@
 import { expect, type TaskContext } from 'vitest';
-import type { z } from 'zod';
+import type { z } from 'zod/v4';
 
 export function expectSchemaShape<T extends z.ZodObject<z.ZodRawShape>>(t: TaskContext, expected: T) {
 	return {

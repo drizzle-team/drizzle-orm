@@ -1,7 +1,7 @@
 import { Column, getTableColumns, getViewSelectedFields, is, isTable, isView, SQL } from 'drizzle-orm';
 import type { Table, View } from 'drizzle-orm';
 import type { PgEnum } from 'drizzle-orm/pg-core';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { columnToSchema } from './column.ts';
 import type { Conditions } from './schema.types.internal.ts';
 import type {

@@ -1,5 +1,5 @@
 import type { Assume, Column } from 'drizzle-orm';
-import type { z } from 'zod';
+import type { z } from 'zod/v4';
 import type { IsEnumDefined, IsNever, Json } from './utils.ts';
 
 type HasBaseColumn<TColumn> = TColumn extends { _: { baseColumn: Column | undefined } }
@@ -26,7 +26,11 @@ export type GetZodType<
 		? TColumn['_']['columnType'] extends
 			'PgJson' | 'PgJsonb' | 'MySqlJson' | 'SingleStoreJson' | 'SQLiteTextJson' | 'SQLiteBlobJson'
 			? z.ZodType<TColumn['_']['data'], TColumn['_']['data']>
-		: z.ZodObject<{ [K in keyof TColumn['_']['data']]: GetZodPrimitiveType<TColumn['_']['data'][K], '', TCoerce> }, {}>
+		: z.ZodObject<
+			{ [K in keyof TColumn['_']['data']]: GetZodPrimitiveType<TColumn['_']['data'][K], '', TCoerce> },
+			{},
+			{}
+		>
 	: TColumn['_']['dataType'] extends 'json' ? z.ZodType<Json>
 	: GetZodPrimitiveType<TColumn['_']['data'], TColumn['_']['columnType'], TCoerce>;
 
