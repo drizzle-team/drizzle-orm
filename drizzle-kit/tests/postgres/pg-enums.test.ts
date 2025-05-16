@@ -713,7 +713,12 @@ test('drop enum', async () => {
 
 	const { sqlStatements } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([`DROP TYPE "enum";`]);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "users" ALTER COLUMN "col" DROP DEFAULT;',
+		'ALTER TABLE "users" ALTER COLUMN "col" SET DATA TYPE text;',
+		'ALTER TABLE "users" ALTER COLUMN "col" SET DEFAULT \'value1\';',
+		`DROP TYPE "enum";`,
+	]);
 });
 
 test('drop enum value. enum is columns data type', async () => {
