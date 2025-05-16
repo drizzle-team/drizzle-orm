@@ -707,14 +707,22 @@ test('drop enum', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
 		'ALTER TABLE "users" ALTER COLUMN "col" DROP DEFAULT;',
 		'ALTER TABLE "users" ALTER COLUMN "col" SET DATA TYPE text;',
 		'ALTER TABLE "users" ALTER COLUMN "col" SET DEFAULT \'value1\';',
 		`DROP TYPE "enum";`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop enum value. enum is columns data type', async () => {
@@ -745,16 +753,24 @@ test('drop enum value. enum is columns data type', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`,
 		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE text;`,
 		`DROP TYPE "enum";`,
 		`CREATE TYPE "enum" AS ENUM('value1', 'value3');`,
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum" USING "column"::"enum";`,
 		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE "enum" USING "column"::"enum";`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('shuffle enum values', async () => {
@@ -785,16 +801,24 @@ test('shuffle enum values', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`,
 		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE text;`,
 		`DROP TYPE "enum";`,
 		`CREATE TYPE "enum" AS ENUM('value1', 'value3', 'value2');`,
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum" USING "column"::"enum";`,
 		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE "enum" USING "column"::"enum";`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('enums as ts enum', async () => {
@@ -806,8 +830,18 @@ test('enums as ts enum', async () => {
 		enum: pgEnum('enum', Test),
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
-	expect(sqlStatements).toStrictEqual([`CREATE TYPE "enum" AS ENUM('value');`]);
+	const { sqlStatements: st } = await diff({}, to, []);
+
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
+		`CREATE TYPE "enum" AS ENUM('value');`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 // +
@@ -829,16 +863,24 @@ test('column is enum type with default value. shuffle enum', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`,
 		`ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;`,
 		`DROP TYPE "enum";`,
 		`CREATE TYPE "enum" AS ENUM('value1', 'value3', 'value2');`,
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum" USING "column"::"enum";`,
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2';`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 // +
@@ -860,16 +902,24 @@ test('column is array enum type with default value. shuffle enum', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`,
 		`ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;`,
 		`DROP TYPE "enum";`,
 		`CREATE TYPE "enum" AS ENUM('value1', 'value3', 'value2');`,
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum"[] USING "column"::"enum"[];`,
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{"value3"}';`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 // +
@@ -891,16 +941,24 @@ test('column is array enum with custom size type with default value. shuffle enu
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`,
 		`ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;`,
 		`DROP TYPE "enum";`,
 		`CREATE TYPE "enum" AS ENUM('value1', 'value3', 'value2');`,
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum"[] USING "column"::"enum"[];`,
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{"value2"}';`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 // +
@@ -922,14 +980,22 @@ test('column is array enum with custom size type. shuffle enum', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`,
 		`DROP TYPE "enum";`,
 		`CREATE TYPE "enum" AS ENUM('value1', 'value3', 'value2');`,
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum"[] USING "column"::"enum"[];`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 // +
@@ -951,14 +1017,22 @@ test('column is array of enum with multiple dimenions with custom sizes type. sh
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`,
 		`DROP TYPE "enum";`,
 		`CREATE TYPE "enum" AS ENUM('value1', 'value3', 'value2');`,
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum"[] USING "column"::"enum"[];`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 // +
@@ -980,16 +1054,24 @@ test('column is array of enum with multiple dimenions type with custom size with
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`,
 		`ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;`,
 		`DROP TYPE "enum";`,
 		`CREATE TYPE "enum" AS ENUM('value1', 'value3', 'value2');`,
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum"[] USING "column"::"enum"[];`,
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{{"value2"}}';`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 // +
@@ -1014,16 +1096,24 @@ test('column is enum type with default value. custom schema. shuffle enum', asyn
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`,
 		`ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;`,
 		`DROP TYPE "new_schema"."enum";`,
 		`CREATE TYPE "new_schema"."enum" AS ENUM('value1', 'value3', 'value2');`,
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "new_schema"."enum" USING "column"::"new_schema"."enum";`,
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2';`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 // +
@@ -1047,16 +1137,24 @@ test('column is array enum type with default value. custom schema. shuffle enum'
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
 		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE text;`,
 		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" DROP DEFAULT;`,
 		`DROP TYPE "new_schema"."enum";`,
 		`CREATE TYPE "new_schema"."enum" AS ENUM('value1', 'value3', 'value2');`,
 		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE "new_schema"."enum"[] USING "column"::"new_schema"."enum"[];`,
 		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DEFAULT '{"value2"}';`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 // +
@@ -1080,16 +1178,24 @@ test('column is array enum type with custom size with default value. custom sche
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
 		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE text;`,
 		'ALTER TABLE "new_schema"."table" ALTER COLUMN "column" DROP DEFAULT;',
 		`DROP TYPE "new_schema"."enum";`,
 		`CREATE TYPE "new_schema"."enum" AS ENUM('value1', 'value3', 'value2');`,
 		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE "new_schema"."enum"[] USING "column"::"new_schema"."enum"[];`,
 		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DEFAULT '{"value2"}';`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 // +
@@ -1113,14 +1219,22 @@ test('column is array enum type with custom size. custom schema. shuffle enum', 
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
 		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE text;`,
 		`DROP TYPE "new_schema"."enum";`,
 		`CREATE TYPE "new_schema"."enum" AS ENUM('value1', 'value3', 'value2');`,
 		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE "new_schema"."enum"[] USING "column"::"new_schema"."enum"[];`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 // +
@@ -1142,10 +1256,19 @@ test('column is enum type without default value. add default to column', async (
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value3'::"enum";`);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value3'::"enum";`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 // +
@@ -1166,12 +1289,19 @@ test('change data type from standart type to enum', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum" USING "column"::"enum";`,
-	);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 // +
