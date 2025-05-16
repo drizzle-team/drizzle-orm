@@ -42,10 +42,19 @@ test('unique #1', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
-	expect(sqlStatements).toStrictEqual([
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
 		`ALTER TABLE "users" ADD CONSTRAINT "users_name_key" UNIQUE("name");`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('unique #2', async () => {
@@ -60,10 +69,19 @@ test('unique #2', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
-	expect(sqlStatements).toStrictEqual([
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
 		`ALTER TABLE "users" ADD CONSTRAINT "unique_name" UNIQUE("name");`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('unique #3', async () => {
@@ -78,10 +96,19 @@ test('unique #3', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
-	expect(sqlStatements).toStrictEqual([
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
 		`ALTER TABLE "users" ADD CONSTRAINT "unique_name" UNIQUE("name");`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('unique #4', async () => {
@@ -96,10 +123,19 @@ test('unique #4', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
-	expect(sqlStatements).toStrictEqual([
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
 		`ALTER TABLE "users" ADD CONSTRAINT "unique_name" UNIQUE NULLS NOT DISTINCT("name");`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('unique #5', async () => {
@@ -114,10 +150,19 @@ test('unique #5', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
-	expect(sqlStatements).toStrictEqual([
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
 		`ALTER TABLE "users" ADD CONSTRAINT "unique_name" UNIQUE NULLS NOT DISTINCT("name");`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('unique #6', async () => {
@@ -132,10 +177,19 @@ test('unique #6', async () => {
 		}, (t) => [unique('unique_name').on(t.name)]),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
-	expect(sqlStatements).toStrictEqual([
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
 		`ALTER TABLE "users" ADD CONSTRAINT "unique_name" UNIQUE("name");`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('unique #7', async () => {
@@ -150,10 +204,19 @@ test('unique #7', async () => {
 		}, (t) => [unique('unique_name').on(t.name).nullsNotDistinct()]),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
-	expect(sqlStatements).toStrictEqual([
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
 		`ALTER TABLE "users" ADD CONSTRAINT "unique_name" UNIQUE NULLS NOT DISTINCT("name");`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('unique #8', async () => {
@@ -168,11 +231,20 @@ test('unique #8', async () => {
 		}, (t) => [unique('unique_name2').on(t.name)]),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
-	expect(sqlStatements).toStrictEqual([
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
 		`ALTER TABLE "users" DROP CONSTRAINT "unique_name";`,
 		`ALTER TABLE "users" ADD CONSTRAINT "unique_name2" UNIQUE("name");`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('unique #9', async () => {
@@ -187,12 +259,24 @@ test('unique #9', async () => {
 		}, (t) => [unique('unique_name2').on(t.name)]),
 	};
 
-	const { sqlStatements } = await diff(from, to, [
+	const { sqlStatements: st } = await diff(from, to, [
 		'public.users.unique_name->public.users.unique_name2',
 	]);
-	expect(sqlStatements).toStrictEqual([
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		renames: [
+			'public.users.unique_name->public.users.unique_name2',
+		],
+	});
+
+	const st0 = [
 		`ALTER TABLE "users" RENAME CONSTRAINT "unique_name" TO "unique_name2";`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('unique #10', async () => {
@@ -209,14 +293,27 @@ test('unique #10', async () => {
 		}, (t) => [unique('unique_name2').on(t.name)]),
 	};
 
-	const { sqlStatements } = await diff(from, to, [
+	const { sqlStatements: st } = await diff(from, to, [
 		'public.users.email->public.users.email2',
 		'public.users.unique_name->public.users.unique_name2',
 	]);
-	expect(sqlStatements).toStrictEqual([
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		renames: [
+			'public.users.email->public.users.email2',
+			'public.users.unique_name->public.users.unique_name2',
+		],
+	});
+
+	const st0 = [
 		`ALTER TABLE "users" RENAME COLUMN "email" TO "email2";`,
 		`ALTER TABLE "users" RENAME CONSTRAINT "unique_name" TO "unique_name2";`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('unique #11', async () => {
@@ -239,14 +336,26 @@ test('unique #11', async () => {
 		]),
 	};
 
-	const { sqlStatements } = await diff(from, to, [
+	const { sqlStatements: st } = await diff(from, to, [
 		'public.users.unique_name->public.users.unique_name2',
 	]);
-	expect(sqlStatements).toStrictEqual([
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		renames: [
+			'public.users.unique_name->public.users.unique_name2',
+		],
+	});
+
+	const st0 = [
 		`ALTER TABLE "users" DROP CONSTRAINT "unique_email";`,
 		`ALTER TABLE "users" RENAME CONSTRAINT "unique_name" TO "unique_name2";`,
 		`ALTER TABLE "users" ADD CONSTRAINT "unique_email2" UNIQUE("email");`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 /* rename table, unfortunately has to trigger constraint recreate */
@@ -264,11 +373,24 @@ test('unique #12', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, [
+	const { sqlStatements: st } = await diff(from, to, [
 		'public.users->public.users2',
 	]);
 
-	expect(sqlStatements).toStrictEqual(['ALTER TABLE "users" RENAME TO "users2";']);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		renames: [
+			'public.users->public.users2',
+		],
+	});
+
+	const st0 = [
+		'ALTER TABLE "users" RENAME TO "users2";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('unique #13', async () => {
@@ -292,17 +414,42 @@ test('unique #13', async () => {
 		}),
 	};
 
+	// sch1 -> sch2
 	const { sqlStatements: st1 } = await diff(sch1, sch2, [
 		'public.users->public.users2',
 		'public.users2.email->public.users2.email2',
 	]);
-	expect(st1).toStrictEqual([
+
+	await push({ db, to: sch1 });
+	const { sqlStatements: pst1 } = await push({
+		db,
+		to: sch2,
+		renames: [
+			'public.users->public.users2',
+			'public.users2.email->public.users2.email2',
+		],
+	});
+
+	const st10 = [
 		`ALTER TABLE "users" RENAME TO "users2";`,
 		`ALTER TABLE "users2" RENAME COLUMN "email" TO "email2";`,
-	]);
+	];
+	expect(st1).toStrictEqual(st10);
+	expect(pst1).toStrictEqual(st10);
 
+	// sch2 -> sch3
 	const { sqlStatements: st2 } = await diff(sch2, sch3, []);
-	expect(st2).toStrictEqual(['ALTER TABLE "users2" DROP CONSTRAINT "users_email_key";']);
+
+	const { sqlStatements: pst2 } = await push({
+		db,
+		to: sch3,
+	});
+
+	const st20 = [
+		'ALTER TABLE "users2" DROP CONSTRAINT "users_email_key";',
+	];
+	expect(st2).toStrictEqual(st20);
+	expect(pst2).toStrictEqual(st20);
 });
 
 test('unique multistep #1', async () => {
