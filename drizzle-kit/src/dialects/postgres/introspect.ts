@@ -25,11 +25,11 @@ import {
 	isSystemNamespace,
 	parseOnType,
 	parseViewDefinition,
-	serialExpressionFor,
 	splitExpressions,
 	stringFromDatabaseIdentityProperty as parseIdentityProperty,
 	trimChar,
 	wrapRecord,
+	isSerialExpression,
 } from './grammar';
 
 function prepareRoles(entities?: {
@@ -576,8 +576,7 @@ export const fromDatabase = async (
 			const table = tablesList.find((it) => it.oid === column.tableId)!;
 			const schema = namespaces.find((it) => it.oid === table.schemaId)!;
 
-			const expectedExpression = serialExpressionFor(schema.name, table.name, column.name);
-			const isSerial = expr.expression === expectedExpression;
+			const isSerial = isSerialExpression(expr.expression, schema.name);
 			column.type = isSerial ? type === 'bigint' ? 'bigserial' : type === 'integer' ? 'serial' : 'smallserial' : type;
 		}
 	}

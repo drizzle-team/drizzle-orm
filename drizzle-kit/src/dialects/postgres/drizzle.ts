@@ -417,30 +417,17 @@ export const fromDrizzleSchema = (
 				// getTableConfig(reference.foreignTable).schema || "public";
 
 				const schemaTo = getTableConfig(reference.foreignTable).schema || 'public';
-
-				const originalColumnsFrom = reference.columns.map((it) => it.name);
 				const columnsFrom = reference.columns.map((it) => getColumnCasing(it, casing));
-				const originalColumnsTo = reference.foreignColumns.map((it) => it.name);
 				const columnsTo = reference.foreignColumns.map((it) => getColumnCasing(it, casing));
 
-				// TODO: compose name with casing here, instead of fk.getname? we have fk.reference.columns, etc.
-				let name = fk.reference.name || defaultNameForFK(tableName, columnsFrom, tableTo, columnsTo);
-				const nameExplicit = !!fk.reference.name;
-				if (casing !== undefined && !nameExplicit) {
-					for (let i = 0; i < originalColumnsFrom.length; i++) {
-						name = name.replace(originalColumnsFrom[i], columnsFrom[i]);
-					}
-					for (let i = 0; i < originalColumnsTo.length; i++) {
-						name = name.replace(originalColumnsTo[i], columnsTo[i]);
-					}
-				}
+				const name = fk.isNameExplicit() ? fk.getName() : defaultNameForFK(tableName, columnsFrom, tableTo, columnsTo);
 
 				return {
 					entityType: 'fks',
 					schema: schema,
 					table: tableName,
 					name,
-					nameExplicit,
+					nameExplicit: fk.isNameExplicit(),
 					tableTo,
 					schemaTo,
 					columns: columnsFrom,

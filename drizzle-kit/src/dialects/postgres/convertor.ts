@@ -560,51 +560,44 @@ const createForeignKeyConvertor = convertor('create_fk', (st) => {
 	return `ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${name}" FOREIGN KEY (${fromColumnsString}) REFERENCES ${tableToNameWithSchema}(${toColumnsString})${onDeleteStatement}${onUpdateStatement};`;
 });
 
-const alterForeignKeyConvertor = convertor('alter_fk', (st) => {
-	const { from, to } = st;
+const recreateFKConvertor = convertor('recreate_fk', (st) => {
+	const { fk } = st;
 
-	const key = to.schema !== 'public'
-		? `"${to.schema}"."${to.table}"`
-		: `"${to.table}"`;
+	const key = fk.schema !== 'public'
+		? `"${fk.schema}"."${fk.table}"`
+		: `"${fk.table}"`;
 
-	let sql = `ALTER TABLE ${key} DROP CONSTRAINT "${from.name}";\n`;
-
-	const onDeleteStatement = to.onDelete
-		? ` ON DELETE ${to.onDelete}`
+	const onDeleteStatement = fk.onDelete !== 'NO ACTION'
+		? ` ON DELETE ${fk.onDelete}`
 		: '';
-	const onUpdateStatement = to.onUpdate
-		? ` ON UPDATE ${to.onUpdate}`
+	const onUpdateStatement = fk.onUpdate !== 'NO ACTION'
+		? ` ON UPDATE ${fk.onUpdate}`
 		: '';
 
-	const fromColumnsString = to.columns
+	const fromColumnsString = fk.columns
 		.map((it) => `"${it}"`)
 		.join(',');
-	const toColumnsString = to.columnsTo.map((it) => `"${it}"`).join(',');
+	const toColumnsString = fk.columnsTo.map((it) => `"${it}"`).join(',');
 
-	const tableToNameWithSchema = to.schemaTo !== 'public'
-		? `"${to.schemaTo}"."${to.tableTo}"`
-		: `"${to.tableTo}"`;
+	const tableToNameWithSchema = fk.schemaTo !== 'public'
+		? `"${fk.schemaTo}"."${fk.tableTo}"`
+		: `"${fk.tableTo}"`;
 
-	const alterStatement =
-		`ALTER TABLE ${key} ADD CONSTRAINT "${to.name}" FOREIGN KEY (${fromColumnsString}) REFERENCES ${tableToNameWithSchema}(${toColumnsString})${onDeleteStatement}${onUpdateStatement}`;
+	let sql = `ALTER TABLE ${key} DROP CONSTRAINT "${fk.name}", `;
+	sql += `ADD CONSTRAINT "${fk.name}" FOREIGN KEY (${fromColumnsString}) `;
+	sql += `REFERENCES ${tableToNameWithSchema}(${toColumnsString})${onDeleteStatement}${onUpdateStatement};`;
 
-	// TODO: remove DO BEGIN?
-	sql += 'DO $$ BEGIN\n';
-	sql += ' ' + alterStatement + ';\n';
-	sql += 'EXCEPTION\n';
-	sql += ' WHEN duplicate_object THEN null;\n';
-	sql += 'END $$;\n';
 	return sql;
 });
 
 const dropForeignKeyConvertor = convertor('drop_fk', (st) => {
 	const { schema, table, name } = st.fk;
 
-	const tableNameWithSchema = schema
+	const tableNameWithSchema = schema !== 'public'
 		? `"${schema}"."${table}"`
 		: `"${table}"`;
 
-	return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${name}";\n`;
+	return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${name}";`;
 });
 
 const addCheckConvertor = convertor('add_check', (st) => {
@@ -621,6 +614,19 @@ const dropCheckConvertor = convertor('drop_check', (st) => {
 		? `"${check.schema}"."${check.table}"`
 		: `"${check.table}"`;
 	return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${check.name}";`;
+});
+
+const recreateCheckConvertor = convertor('alter_check', (st) => {
+	const { check } = st;
+
+	const key = check.schema !== 'public'
+		? `"${check.schema}"."${check.table}"`
+		: `"${check.table}"`;
+
+	let sql = `ALTER TABLE ${key} DROP CONSTRAINT "${check.name}", `;
+	sql += `ADD CONSTRAINT ADD CONSTRAINT "${check.name}" CHECK (${check.value});`;
+
+	return sql;
 });
 
 const addUniqueConvertor = convertor('add_unique', (st) => {
@@ -884,10 +890,11 @@ const convertors = [
 	dropPrimaryKeyConvertor,
 	recreatePrimaryKeyConvertor,
 	createForeignKeyConvertor,
-	alterForeignKeyConvertor,
+	recreateFKConvertor,
 	dropForeignKeyConvertor,
 	addCheckConvertor,
 	dropCheckConvertor,
+	recreateCheckConvertor,
 	addUniqueConvertor,
 	dropUniqueConvertor,
 	renameConstraintConvertor,
