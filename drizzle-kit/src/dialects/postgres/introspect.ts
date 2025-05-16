@@ -68,6 +68,7 @@ function prepareRoles(entities?: {
 }
 
 // TODO: tables/schema/entities -> filter: (entity: {type: ..., metadata....})=>boolean;
+// TODO: since we by default only introspect public
 export const fromDatabase = async (
 	db: DB,
 	tablesFilter: (table: string) => boolean = () => true,
