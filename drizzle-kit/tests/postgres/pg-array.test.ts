@@ -11,8 +11,25 @@ import {
 	timestamp,
 	uuid,
 } from 'drizzle-orm/pg-core';
-import { expect, test } from 'vitest';
-import { diff } from './mocks';
+import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
+
+// @vitest-environment-options {"max-concurrency":1}
+let _: TestDatabase;
+let db: TestDatabase['db'];
+
+beforeAll(async () => {
+	_ = await prepareTestDatabase();
+	db = _.db;
+});
+
+afterAll(async () => {
+	await _.close();
+});
+
+beforeEach(async () => {
+	await _.clear();
+});
 
 test('array #1: empty array default', async (t) => {
 	const from = {
@@ -27,9 +44,14 @@ test('array #1: empty array default', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([`ALTER TABLE "test" ADD COLUMN "values" integer[] DEFAULT '{}';`]);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = [`ALTER TABLE "test" ADD COLUMN "values" integer[] DEFAULT '{}';`];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('array #2: integer array default', async (t) => {
@@ -45,9 +67,14 @@ test('array #2: integer array default', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([`ALTER TABLE \"test\" ADD COLUMN \"values\" integer[] DEFAULT '{1,2,3}';`]);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = [`ALTER TABLE \"test\" ADD COLUMN \"values\" integer[] DEFAULT '{1,2,3}';`];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('array #3: bigint array default', async (t) => {
@@ -63,9 +90,14 @@ test('array #3: bigint array default', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([`ALTER TABLE \"test\" ADD COLUMN \"values\" bigint[] DEFAULT '{1,2,3}';`]);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = [`ALTER TABLE \"test\" ADD COLUMN \"values\" bigint[] DEFAULT '{1,2,3}';`];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('array #4: boolean array default', async (t) => {
@@ -81,11 +113,16 @@ test('array #4: boolean array default', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = [
 		`ALTER TABLE \"test\" ADD COLUMN \"values\" boolean[] DEFAULT '{true,false,true}';`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('array #5: multi-dimensional array default', async (t) => {
@@ -101,11 +138,16 @@ test('array #5: multi-dimensional array default', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = [
 		`ALTER TABLE "test" ADD COLUMN "values" integer[] DEFAULT '{{1,2},{3,4}}';`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('array #6: date array default', async (t) => {
@@ -121,11 +163,16 @@ test('array #6: date array default', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = [
 		'ALTER TABLE "test" ADD COLUMN "values" date[] DEFAULT \'{"2024-08-06","2024-08-07"}\';',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('array #7: timestamp array default', async (t) => {
@@ -141,11 +188,16 @@ test('array #7: timestamp array default', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = [
 		'ALTER TABLE "test" ADD COLUMN "values" timestamp[] DEFAULT \'{"2024-08-06 00:00:00.000","2024-08-07 00:00:00.000"}\';',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('array #8: json array default', async (t) => {
@@ -161,11 +213,16 @@ test('array #8: json array default', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = [
 		`ALTER TABLE "test" ADD COLUMN "values" json[] DEFAULT '{"{\\"a\\":1}","{\\"b\\":2}"}';`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('array #9: text array default', async (t) => {
@@ -181,9 +238,14 @@ test('array #9: text array default', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual(['ALTER TABLE "test" ADD COLUMN "values" text[] DEFAULT \'{"abc","def"}\';']);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = ['ALTER TABLE "test" ADD COLUMN "values" text[] DEFAULT \'{"abc","def"}\';'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('array #10: uuid array default', async (t) => {
@@ -202,11 +264,16 @@ test('array #10: uuid array default', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = [
 		'ALTER TABLE "test" ADD COLUMN "values" uuid[] DEFAULT \'{"a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11","b0eebc99-9c0b-4ef8-bb6d-cbb9bd380a11"}\';',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('array #11: enum array default', async (t) => {
@@ -226,11 +293,16 @@ test('array #11: enum array default', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = [
 		'ALTER TABLE "test" ADD COLUMN "values" "test_enum"[] DEFAULT \'{"a","b","c"}\';',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('array #12: enum empty array default', async (t) => {
@@ -250,7 +322,12 @@ test('array #12: enum empty array default', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual(['ALTER TABLE "test" ADD COLUMN "values" "test_enum"[] DEFAULT \'{"a","b"}\';']);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0 = ['ALTER TABLE "test" ADD COLUMN "values" "test_enum"[] DEFAULT \'{"a","b"}\';'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
