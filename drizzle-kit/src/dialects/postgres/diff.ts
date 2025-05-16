@@ -1064,7 +1064,6 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonRecreateColumns);
 	jsonStatements.push(...jsonAlterColumns);
 
-	// jsonStatements.push(...jsonCreateReferencesForCreatedTables); // TODO: check
 	jsonStatements.push(...jsonCreateFKs);
 	jsonStatements.push(...jsonRecreateFKs);
 	jsonStatements.push(...jsonCreateIndexes);
@@ -1080,7 +1079,6 @@ export const ddlDiff = async (
 
 	jsonStatements.push(...jsonAlteredUniqueConstraints);
 	jsonStatements.push(...jsonAlterCheckConstraints);
-	// jsonStatements.push(...jsonAlterEnumsWithDroppedValues); // TODO: check
 
 	jsonStatements.push(...createViews);
 
