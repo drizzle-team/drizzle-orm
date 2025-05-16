@@ -1,16 +1,41 @@
 import { integer, pgEnum, pgSchema, pgTable, serial, text, varchar } from 'drizzle-orm/pg-core';
-import { expect, test } from 'vitest';
-import { diff } from './mocks';
+import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
+
+// @vitest-environment-options {"max-concurrency":1}
+let _: TestDatabase;
+let db: TestDatabase['db'];
+
+beforeAll(async () => {
+	_ = await prepareTestDatabase();
+	db = _.db;
+});
+
+afterAll(async () => {
+	await _.close();
+});
+
+beforeEach(async () => {
+	await _.clear();
+});
 
 test('enums #1', async () => {
 	const to = {
 		enum: pgEnum('enum', ['value']),
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
+	const { sqlStatements: st } = await diff({}, to, []);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(`CREATE TYPE "enum" AS ENUM('value');`);
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
+		`CREATE TYPE "enum" AS ENUM('value');`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('enums #2', async () => {
@@ -19,10 +44,18 @@ test('enums #2', async () => {
 		enum: folder.enum('enum', ['value']),
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
+	const { sqlStatements: st } = await diff({}, to, []);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(`CREATE TYPE "folder"."enum" AS ENUM('value');`);
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
+		`CREATE TYPE "folder"."enum" AS ENUM('value');`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('enums #3', async () => {
@@ -30,10 +63,19 @@ test('enums #3', async () => {
 		enum: pgEnum('enum', ['value']),
 	};
 
-	const { sqlStatements } = await diff(from, {}, []);
+	const { sqlStatements: st } = await diff(from, {}, []);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(`DROP TYPE "enum";`);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: {},
+	});
+
+	const st0 = [
+		`DROP TYPE "enum";`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('enums #4', async () => {
@@ -43,10 +85,19 @@ test('enums #4', async () => {
 		enum: folder.enum('enum', ['value']),
 	};
 
-	const { sqlStatements } = await diff(from, {}, []);
+	const { sqlStatements: st } = await diff(from, {}, []);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(`DROP TYPE "folder"."enum";`);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: {},
+	});
+
+	const st0 = [
+		`DROP TYPE "folder"."enum";`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('enums #5', async () => {
@@ -63,10 +114,20 @@ test('enums #5', async () => {
 		enum: folder2.enum('enum', ['value']),
 	};
 
-	const { sqlStatements } = await diff(from, to, ['folder1->folder2']);
+	const { sqlStatements: st } = await diff(from, to, ['folder1->folder2']);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(`ALTER SCHEMA "folder1" RENAME TO "folder2";\n`);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		renames: ['folder1->folder2'],
+	});
+
+	const st0 = [
+		`ALTER SCHEMA "folder1" RENAME TO "folder2";\n`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('enums #6', async () => {
@@ -85,12 +146,22 @@ test('enums #6', async () => {
 		enum: folder2.enum('enum', ['value']),
 	};
 
-	const { sqlStatements } = await diff(from, to, [
+	const { sqlStatements: st } = await diff(from, to, [
 		'folder1.enum->folder2.enum',
 	]);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(`ALTER TYPE "folder1"."enum" SET SCHEMA "folder2";`);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		renames: ['folder1.enum->folder2.enum'],
+	});
+
+	const st0 = [
+		`ALTER TYPE "folder1"."enum" SET SCHEMA "folder2";`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('enums #7', async () => {
@@ -102,10 +173,19 @@ test('enums #7', async () => {
 		enum: pgEnum('enum', ['value1', 'value2']),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(`ALTER TYPE "enum" ADD VALUE 'value2';`);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
+		`ALTER TYPE "enum" ADD VALUE 'value2';`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('enums #8', async () => {
@@ -117,11 +197,20 @@ test('enums #8', async () => {
 		enum: pgEnum('enum', ['value1', 'value2', 'value3']),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toBe(`ALTER TYPE "enum" ADD VALUE 'value2';`);
-	expect(sqlStatements[1]).toBe(`ALTER TYPE "enum" ADD VALUE 'value3';`);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
+		`ALTER TYPE "enum" ADD VALUE 'value2';`,
+		`ALTER TYPE "enum" ADD VALUE 'value3';`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('enums #9', async () => {
@@ -133,10 +222,17 @@ test('enums #9', async () => {
 		enum: pgEnum('enum', ['value1', 'value2', 'value3']),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(`ALTER TYPE "enum" ADD VALUE 'value2' BEFORE 'value3';`);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [`ALTER TYPE "enum" ADD VALUE 'value2' BEFORE 'value3';`];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('enums #10', async () => {
@@ -149,10 +245,17 @@ test('enums #10', async () => {
 		enum: schema.enum('enum', ['value1', 'value2']),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(`ALTER TYPE "folder"."enum" ADD VALUE 'value2';`);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [`ALTER TYPE "folder"."enum" ADD VALUE 'value2';`];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('enums #11', async () => {
@@ -165,12 +268,21 @@ test('enums #11', async () => {
 		enum: pgEnum('enum', ['value1']),
 	};
 
-	const { sqlStatements } = await diff(from, to, [
+	const renames = [
 		'folder1.enum->public.enum',
-	]);
+	];
+	const { sqlStatements: st } = await diff(from, to, renames);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(`ALTER TYPE "folder1"."enum" SET SCHEMA "public";`);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		renames,
+	});
+
+	const st0 = [`ALTER TYPE "folder1"."enum" SET SCHEMA "public";`];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('enums #12', async () => {
@@ -183,12 +295,21 @@ test('enums #12', async () => {
 		enum: schema1.enum('enum', ['value1']),
 	};
 
-	const { sqlStatements } = await diff(from, to, [
+	const renames = [
 		'public.enum->folder1.enum',
-	]);
+	];
+	const { sqlStatements: st } = await diff(from, to, renames);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(`ALTER TYPE "enum" SET SCHEMA "folder1";`);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		renames,
+	});
+
+	const st0 = [`ALTER TYPE "enum" SET SCHEMA "folder1";`];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('enums #13', async () => {
@@ -200,12 +321,21 @@ test('enums #13', async () => {
 		enum: pgEnum('enum2', ['value1']),
 	};
 
-	const { sqlStatements } = await diff(from, to, [
+	const renames = [
 		'public.enum1->public.enum2',
-	]);
+	];
+	const { sqlStatements: st } = await diff(from, to, renames);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(`ALTER TYPE "enum1" RENAME TO "enum2";`);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		renames,
+	});
+
+	const st0 = [`ALTER TYPE "enum1" RENAME TO "enum2";`];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('enums #14', async () => {
@@ -219,13 +349,24 @@ test('enums #14', async () => {
 		enum: folder2.enum('enum2', ['value1']),
 	};
 
-	const { sqlStatements } = await diff(from, to, [
+	const renames = [
 		'folder1.enum1->folder2.enum2',
-	]);
+	];
+	const { sqlStatements: st } = await diff(from, to, renames);
 
-	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toBe(`ALTER TYPE "folder1"."enum1" SET SCHEMA "folder2";`);
-	expect(sqlStatements[1]).toBe(`ALTER TYPE "folder2"."enum1" RENAME TO "enum2";`);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		renames,
+	});
+
+	const st0 = [
+		`ALTER TYPE "folder1"."enum1" SET SCHEMA "folder2";`,
+		`ALTER TYPE "folder2"."enum1" RENAME TO "enum2";`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('enums #15', async () => {
@@ -239,16 +380,26 @@ test('enums #15', async () => {
 		enum: folder2.enum('enum2', ['value1', 'value2', 'value3', 'value4']),
 	};
 
-	const { sqlStatements } = await diff(from, to, [
+	const renames = [
 		'folder1.enum1->folder2.enum2',
-	]);
+	];
+	const { sqlStatements: st } = await diff(from, to, renames);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		renames,
+	});
+
+	const st0 = [
 		`ALTER TYPE "folder1"."enum1" SET SCHEMA "folder2";`,
 		`ALTER TYPE "folder2"."enum1" RENAME TO "enum2";`,
 		`ALTER TYPE "folder2"."enum2" ADD VALUE 'value2' BEFORE 'value4';`,
 		`ALTER TYPE "folder2"."enum2" ADD VALUE 'value3' BEFORE 'value4';`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('enums #16', async () => {
@@ -269,12 +420,21 @@ test('enums #16', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, [
+	const renames = [
 		'public.enum1->public.enum2',
-	]);
+	];
+	const { sqlStatements: st } = await diff(from, to, renames);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(`ALTER TYPE "enum1" RENAME TO "enum2";`);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		renames,
+	});
+
+	const st0 = [`ALTER TYPE "enum1" RENAME TO "enum2";`];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('enums #17', async () => {
@@ -296,13 +456,21 @@ test('enums #17', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, [
+	const renames = [
 		'public.enum1->schema.enum1',
-	]);
+	];
+	const { sqlStatements: st } = await diff(from, to, renames);
 
-	expect(sqlStatements).toStrictEqual([
-		`ALTER TYPE "enum1" SET SCHEMA "schema";`,
-	]);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		renames,
+	});
+
+	const st0 = [`ALTER TYPE "enum1" SET SCHEMA "schema";`];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('enums #18', async () => {
@@ -326,15 +494,25 @@ test('enums #18', async () => {
 		}),
 	};
 
-	// change name and schema of the enum, no table changes
-	const { sqlStatements } = await diff(from, to, [
+	const renames = [
 		'schema1.enum1->schema2.enum2',
-	]);
+	];
+	// change name and schema of the enum, no table changes
+	const { sqlStatements: st } = await diff(from, to, renames);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		renames,
+	});
+
+	const st0 = [
 		`ALTER TYPE "schema1"."enum1" SET SCHEMA "schema2";`,
 		`ALTER TYPE "schema2"."enum1" RENAME TO "enum2";`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('enums #19', async () => {
@@ -344,11 +522,16 @@ test('enums #19', async () => {
 
 	const to = { myEnum };
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
-		"CREATE TYPE \"my_enum\" AS ENUM('escape''s quotes');",
-	]);
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = ["CREATE TYPE \"my_enum\" AS ENUM('escape''s quotes');"];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('enums #20', async () => {
@@ -370,12 +553,20 @@ test('enums #20', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
 		'ALTER TABLE "table" ADD COLUMN "col1" "my_enum";',
 		'ALTER TABLE "table" ADD COLUMN "col2" integer;',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('enums #21', async () => {
@@ -397,12 +588,20 @@ test('enums #21', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
 		'ALTER TABLE "table" ADD COLUMN "col1" "my_enum"[];',
 		'ALTER TABLE "table" ADD COLUMN "col2" integer[];',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('enums #22', async () => {
@@ -422,9 +621,17 @@ test('enums #22', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual(['CREATE TABLE "table" (\n\t"en" "schema"."e"\n);\n']);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = ['CREATE TABLE "table" (\n\t"en" "schema"."e"\n);\n'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('enums #23', async () => {
@@ -445,11 +652,19 @@ test('enums #23', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
 		'CREATE TABLE "table" (\n\t"en1" "schema"."e"[],\n\t"en2" "schema"."e"[]\n);\n',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop enum value', async () => {
@@ -464,11 +679,20 @@ test('drop enum value', async () => {
 		enum2,
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toBe(`DROP TYPE "enum";`);
-	expect(sqlStatements[1]).toBe(`CREATE TYPE "enum" AS ENUM('value1', 'value3');`);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
+		`DROP TYPE "enum";`,
+		`CREATE TYPE "enum" AS ENUM('value1', 'value3');`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop enum', async () => {
