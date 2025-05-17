@@ -32,7 +32,7 @@ import { fillPlaceholders, sql } from '~/sql/sql.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
-export type MySql2Client = Pool | Connection;
+export type MySql2Client = Pool | Connection | PoolConnection;
 
 export type MySqlRawQueryResult = [ResultSetHeader, FieldPacket[]];
 export type MySqlQueryResultType = RowDataPacket[][] | RowDataPacket[] | OkPacket | OkPacket[] | ResultSetHeader;
@@ -175,7 +175,12 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig> extends MyS
 		} finally {
 			stream.off('data', dataListener);
 			if (isPool(client)) {
-				conn.end();
+				// see https://github.com/sidorares/node-mysql2/blob/2a9c7fc6d261582db5b941936d345f6a80074f15/lib/base/pool_connection.js#L32-L42
+				if (isPoolConnection(client)) {
+					client.release();
+				} else {
+					client.end();
+				}
 			}
 		}
 	}
@@ -326,6 +331,10 @@ export class MySql2Transaction<
 
 function isPool(client: MySql2Client): client is Pool {
 	return 'getConnection' in client;
+}
+
+function isPoolConnection(pool: MySql2Client): pool is PoolConnection {
+	return 'release' in pool;
 }
 
 export interface MySql2QueryResultHKT extends MySqlQueryResultHKT {
