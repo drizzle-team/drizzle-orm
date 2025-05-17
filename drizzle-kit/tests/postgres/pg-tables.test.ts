@@ -165,7 +165,7 @@ test('add table #10', async () => {
 
 	const { sqlStatements } = await diff(from, to, []);
 	expect(sqlStatements).toStrictEqual([
-		`CREATE TABLE "users" (\n\t"name" text UNIQUE("name_unique")\n);\n`,
+		`CREATE TABLE "users" (\n\t"name" text CONSTRAINT "name_unique" UNIQUE\n);\n`,
 	]);
 });
 
@@ -180,7 +180,7 @@ test('add table #11', async () => {
 
 	const { sqlStatements } = await diff(from, to, []);
 	expect(sqlStatements).toStrictEqual([
-		`CREATE TABLE "users" (\n\t"name" text UNIQUE("name_unique") NULLS NOT DISTINCT\n);\n`,
+		`CREATE TABLE "users" (\n\t"name" text CONSTRAINT "name_unique" UNIQUE NULLS NOT DISTINCT\n);\n`,
 	]);
 });
 
@@ -195,7 +195,7 @@ test('add table #12', async () => {
 
 	const { sqlStatements } = await diff(from, to, []);
 	expect(sqlStatements).toStrictEqual([
-		`CREATE TABLE "users" (\n\t"name" text UNIQUE("users_name_key") NULLS NOT DISTINCT\n);\n`,
+		`CREATE TABLE "users" (\n\t"name" text CONSTRAINT "users_name_key" UNIQUE NULLS NOT DISTINCT\n);\n`,
 	]);
 });
 
@@ -209,7 +209,7 @@ test('add table #13', async () => {
 
 	const { sqlStatements } = await diff({}, to, []);
 	expect(sqlStatements).toStrictEqual([
-		`CREATE TABLE "users" (\n\t"name" text UNIQUE("users_name_key")\n);\n`,
+		`CREATE TABLE "users" (\n\t"name" text CONSTRAINT "users_name_key" UNIQUE\n);\n`,
 	]);
 });
 
@@ -224,7 +224,7 @@ test('add table #14', async () => {
 
 	const { sqlStatements } = await diff(from, to, []);
 	expect(sqlStatements).toStrictEqual([
-		`CREATE TABLE "users" (\n\t"name" text UNIQUE("users_name_key") NULLS NOT DISTINCT\n);\n`,
+		`CREATE TABLE "users" (\n\t"name" text CONSTRAINT "users_name_key" UNIQUE NULLS NOT DISTINCT\n);\n`,
 	]);
 });
 
@@ -239,7 +239,7 @@ test('add table #15', async () => {
 
 	const { sqlStatements } = await diff(from, to, []);
 	expect(sqlStatements).toStrictEqual([
-		`CREATE TABLE "users" (\n\t"name" text UNIQUE("name_unique") NULLS NOT DISTINCT\n);\n`,
+		`CREATE TABLE "users" (\n\t"name" text CONSTRAINT "name_unique" UNIQUE NULLS NOT DISTINCT\n);\n`,
 	]);
 });
 
@@ -667,7 +667,7 @@ test('optional db aliases (snake case)', async () => {
 	"t1_col2" integer NOT NULL,
 	"t1_col3" integer NOT NULL,
 	"t2_ref" integer NOT NULL,
-	"t1_uni" integer NOT NULL UNIQUE("t1_uni"),
+	"t1_uni" integer NOT NULL CONSTRAINT "t1_uni" UNIQUE,
 	"t1_uni_idx" integer NOT NULL,
 	"t1_idx" integer NOT NULL
 );
@@ -740,7 +740,7 @@ test('optional db aliases (camel case)', async () => {
 	"t1Col2" integer NOT NULL,
 	"t1Col3" integer NOT NULL,
 	"t2Ref" integer NOT NULL,
-	"t1Uni" integer NOT NULL UNIQUE("t1Uni"),
+	"t1Uni" integer NOT NULL CONSTRAINT "t1Uni" UNIQUE,
 	"t1UniIdx" integer NOT NULL,
 	"t1Idx" integer NOT NULL
 );

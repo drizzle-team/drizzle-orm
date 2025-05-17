@@ -228,10 +228,7 @@ test('with composite pks #1', async (t) => {
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
 	await push({ db, to: schema1 });
-	const { sqlStatements: pst } = await push({
-		db,
-		to: schema2,
-	});
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
 	const st0 = ['ALTER TABLE "users" ADD COLUMN "text" text;'];
 	expect(st).toStrictEqual(st0);
@@ -285,19 +282,11 @@ test('with composite pks #3', async (t) => {
 		}, (t) => [primaryKey({ columns: [t.id1, t.id3], name: 'compositePK' })]),
 	};
 
-	// TODO: remove redundand drop/create create constraint
-	const { sqlStatements: st } = await diff(schema1, schema2, [
-		'public.users.id2->public.users.id3',
-	]);
+	const renames = ['public.users.id2->public.users.id3'];
+	const { sqlStatements: st } = await diff(schema1, schema2, renames);
 
 	await push({ db, to: schema1 });
-	const { sqlStatements: pst } = await push({
-		db,
-		to: schema2,
-		renames: [
-			'public.users.id2->public.users.id3',
-		],
-	});
+	const { sqlStatements: pst } = await push({ db, to: schema2, renames });
 
 	const st0 = ['ALTER TABLE "users" RENAME COLUMN "id2" TO "id3";'];
 	expect(st).toStrictEqual(st0);
@@ -359,9 +348,9 @@ test('add multiple constraints #1', async (t) => {
 
 test('add multiple constraints #2', async (t) => {
 	const t1 = pgTable('t1', {
-		id1: uuid('id1').primaryKey().defaultRandom(),
-		id2: uuid('id2').primaryKey().defaultRandom(),
-		id3: uuid('id3').primaryKey().defaultRandom(),
+		id1: uuid('id1').unique(),
+		id2: uuid('id2').unique(),
+		id3: uuid('id3').unique(),
 	});
 
 	const schema1 = {
@@ -386,10 +375,7 @@ test('add multiple constraints #2', async (t) => {
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
 	await push({ db, to: schema1 });
-	const { sqlStatements: pst } = await push({
-		db,
-		to: schema2,
-	});
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
 	const st0 = [
 		'ALTER TABLE "ref1" DROP CONSTRAINT "ref1_id1_t1_id1_fkey", ADD CONSTRAINT "ref1_id1_t1_id1_fkey" FOREIGN KEY ("id1") REFERENCES "t1"("id1") ON DELETE CASCADE;',

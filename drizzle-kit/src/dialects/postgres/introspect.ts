@@ -22,6 +22,7 @@ import type {
 } from './ddl';
 import {
 	defaultForColumn,
+	isSerialExpression,
 	isSystemNamespace,
 	parseOnType,
 	parseViewDefinition,
@@ -29,7 +30,6 @@ import {
 	stringFromDatabaseIdentityProperty as parseIdentityProperty,
 	trimChar,
 	wrapRecord,
-	isSerialExpression,
 } from './grammar';
 
 function prepareRoles(entities?: {
@@ -652,7 +652,7 @@ export const fromDatabase = async (
 			unique: !!unique,
 			uniqueName: unique ? unique.name : null,
 			uniqueNullsNotDistinct: unique?.definition.includes('NULLS NOT DISTINCT') ?? false,
-			notNull: column.notNull && !pk && column.generatedType !== 's' && column.identityType === '',
+			notNull: column.notNull,
 			pk: pk !== null,
 			pkName: pk !== null ? pk.name : null,
 			generated: column.generatedType === 's' ? { type: 'stored', as: metadata!.expression! } : null,

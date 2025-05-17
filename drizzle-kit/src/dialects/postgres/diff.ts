@@ -925,6 +925,21 @@ export const ddlDiff = async (
 			) {
 				delete it.default;
 			}
+
+			if (it.notNull && it.notNull.to && (it.$right.generated || it.$right.identity)) {
+				delete it.notNull;
+			}
+
+			const pkIn2 = ddl2.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } });
+			if (it.notNull && pkIn2) {
+				delete it.notNull;
+			}
+
+			const pkIn1 = ddl1.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } });
+			if (it.notNull && it.notNull.from && pkIn1 && !pkIn2) {
+				delete it.notNull;
+			}
+
 			return ddl2.columns.hasDiff(it);
 		})
 		.map((it) => {

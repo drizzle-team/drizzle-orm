@@ -140,7 +140,7 @@ const createTableConvertor = convertor('create_table', (st) => {
 		const unique = uniques.find((u) => u.columns.length === 1 && u.columns[0] === column.name);
 
 		const unqiueConstraintPrefix = unique
-			? unique.nameExplicit ? `UNIQUE("${unique.name}")` : 'UNIQUE'
+			? unique.nameExplicit ? `CONSTRAINT "${unique.name}" UNIQUE` : 'UNIQUE'
 			: '';
 
 		const uniqueConstraintStatement = unique
@@ -254,7 +254,7 @@ const moveTableConvertor = convertor('move_table', (st) => {
 });
 
 const addColumnConvertor = convertor('add_column', (st) => {
-	const { schema, table, name } = st.column;
+	const { schema, table, name, identity, generated } = st.column;
 	const column = st.column;
 
 	const primaryKeyStatement = st.isPK ? ' PRIMARY KEY' : '';
@@ -272,36 +272,32 @@ const addColumnConvertor = convertor('add_column', (st) => {
 	let fixedType = parseType(schemaPrefix, column.type);
 	fixedType += column.dimensions > 0 ? '[]' : '';
 
-	const notNullStatement = column.notNull ? ' NOT NULL' : '';
-
-	const unsquashedIdentity = column.identity;
+	const notNullStatement = column.notNull && !identity && !generated ? ' NOT NULL' : '';
 
 	const identityWithSchema = schema !== 'public'
-		? `"${schema}"."${unsquashedIdentity?.name}"`
-		: `"${unsquashedIdentity?.name}"`;
+		? `"${schema}"."${identity?.name}"`
+		: `"${identity?.name}"`;
 
-	const identityStatement = unsquashedIdentity
+	const identityStatement = identity
 		? ` GENERATED ${
-			unsquashedIdentity.type === 'always' ? 'ALWAYS' : 'BY DEFAULT'
+			identity.type === 'always' ? 'ALWAYS' : 'BY DEFAULT'
 		} AS IDENTITY (sequence name ${identityWithSchema}${
-			unsquashedIdentity.increment
-				? ` INCREMENT BY ${unsquashedIdentity.increment}`
+			identity.increment
+				? ` INCREMENT BY ${identity.increment}`
 				: ''
 		}${
-			unsquashedIdentity.minValue
-				? ` MINVALUE ${unsquashedIdentity.minValue}`
+			identity.minValue
+				? ` MINVALUE ${identity.minValue}`
 				: ''
 		}${
-			unsquashedIdentity.maxValue
-				? ` MAXVALUE ${unsquashedIdentity.maxValue}`
+			identity.maxValue
+				? ` MAXVALUE ${identity.maxValue}`
 				: ''
 		}${
-			unsquashedIdentity.startWith
-				? ` START WITH ${unsquashedIdentity.startWith}`
+			identity.startWith
+				? ` START WITH ${identity.startWith}`
 				: ''
-		}${unsquashedIdentity.cache ? ` CACHE ${unsquashedIdentity.cache}` : ''}${
-			unsquashedIdentity.cycle ? ` CYCLE` : ''
-		})`
+		}${identity.cache ? ` CACHE ${identity.cache}` : ''}${identity.cycle ? ` CYCLE` : ''})`
 		: '';
 
 	const generatedStatement = column.generated ? ` GENERATED ALWAYS AS (${column.generated.as}) STORED` : '';
