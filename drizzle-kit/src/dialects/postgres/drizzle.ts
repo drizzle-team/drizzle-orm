@@ -361,7 +361,7 @@ export const fromDrizzleSchema = (
 					dimensions: dimensions,
 					pk: column.primary,
 					pkName: null,
-					notNull: notNull && !isPrimary && !generatedValue && !identityValue,
+					notNull: notNull,
 					default: columnDefault,
 					generated: generatedValue,
 					unique: column.isUnique,

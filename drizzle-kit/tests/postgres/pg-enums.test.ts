@@ -1123,6 +1123,7 @@ test('column is array enum type with default value. custom schema. shuffle enum'
 	const enum1 = schema.enum('enum', ['value1', 'value2', 'value3']);
 
 	const from = {
+		schema,
 		enum1,
 		table: schema.table('table', {
 			column: enum1('column').array().default(['value2']),
@@ -1131,6 +1132,7 @@ test('column is array enum type with default value. custom schema. shuffle enum'
 
 	const enum2 = schema.enum('enum', ['value1', 'value3', 'value2']);
 	const to = {
+		schema,
 		enum2,
 		table: schema.table('table', {
 			column: enum2('column').array().default(['value2']),
@@ -1140,10 +1142,7 @@ test('column is array enum type with default value. custom schema. shuffle enum'
 	const { sqlStatements: st } = await diff(from, to, []);
 
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-	});
+	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0 = [
 		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE text;`,
@@ -1164,6 +1163,7 @@ test('column is array enum type with custom size with default value. custom sche
 	const enum1 = schema.enum('enum', ['value1', 'value2', 'value3']);
 
 	const from = {
+		schema,
 		enum1,
 		table: schema.table('table', {
 			column: enum1('column').array(3).default(['value2']),
@@ -1172,6 +1172,7 @@ test('column is array enum type with custom size with default value. custom sche
 
 	const enum2 = schema.enum('enum', ['value1', 'value3', 'value2']);
 	const to = {
+		schema,
 		enum2,
 		table: schema.table('table', {
 			column: enum2('column').array(3).default(['value2']),
@@ -1181,10 +1182,7 @@ test('column is array enum type with custom size with default value. custom sche
 	const { sqlStatements: st } = await diff(from, to, []);
 
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-	});
+	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0 = [
 		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE text;`,
@@ -1205,6 +1203,7 @@ test('column is array enum type with custom size. custom schema. shuffle enum', 
 	const enum1 = schema.enum('enum', ['value1', 'value2', 'value3']);
 
 	const from = {
+		schema,
 		enum1,
 		table: schema.table('table', {
 			column: enum1('column').array(3),
@@ -1213,6 +1212,7 @@ test('column is array enum type with custom size. custom schema. shuffle enum', 
 
 	const enum2 = schema.enum('enum', ['value1', 'value3', 'value2']);
 	const to = {
+		schema,
 		enum2,
 		table: schema.table('table', {
 			column: enum2('column').array(3),
@@ -1222,10 +1222,7 @@ test('column is array enum type with custom size. custom schema. shuffle enum', 
 	const { sqlStatements: st } = await diff(from, to, []);
 
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-	});
+	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0 = [
 		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE text;`,
