@@ -1,15 +1,41 @@
 import { pgSchema } from 'drizzle-orm/pg-core';
-import { expect, test } from 'vitest';
-import { diff } from './mocks';
+import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
+
+// @vitest-environment-options {"max-concurrency":1}
+let _: TestDatabase;
+let db: TestDatabase['db'];
+
+beforeAll(async () => {
+	_ = await prepareTestDatabase();
+	db = _.db;
+});
+
+afterAll(async () => {
+	await _.close();
+});
+
+beforeEach(async () => {
+	await _.clear();
+});
 
 test('add schema #1', async () => {
 	const to = {
 		devSchema: pgSchema('dev'),
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
+	const { sqlStatements: st } = await diff({}, to, []);
 
-	expect(sqlStatements).toStrictEqual(['CREATE SCHEMA "dev";\n']);
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
+		'CREATE SCHEMA "dev";\n',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add schema #2', async () => {
@@ -21,9 +47,19 @@ test('add schema #2', async () => {
 		devSchema2: pgSchema('dev2'),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual(['CREATE SCHEMA "dev2";\n']);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
+		'CREATE SCHEMA "dev2";\n',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('delete schema #1', async () => {
@@ -31,9 +67,19 @@ test('delete schema #1', async () => {
 		devSchema: pgSchema('dev'),
 	};
 
-	const { sqlStatements } = await diff(from, {}, []);
+	const { sqlStatements: st } = await diff(from, {}, []);
 
-	expect(sqlStatements).toStrictEqual(['DROP SCHEMA "dev";\n']);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: {},
+	});
+
+	const st0 = [
+		'DROP SCHEMA "dev";\n',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('delete schema #2', async () => {
@@ -45,9 +91,19 @@ test('delete schema #2', async () => {
 		devSchema: pgSchema('dev'),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual(['DROP SCHEMA "dev2";\n']);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
+		'DROP SCHEMA "dev2";\n',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('rename schema #1', async () => {
@@ -59,9 +115,21 @@ test('rename schema #1', async () => {
 		devSchema2: pgSchema('dev2'),
 	};
 
-	const { sqlStatements } = await diff(from, to, ['dev->dev2']);
+	const renames = ['dev->dev2'];
+	const { sqlStatements: st } = await diff(from, to, renames);
 
-	expect(sqlStatements).toStrictEqual(['ALTER SCHEMA "dev" RENAME TO "dev2";\n']);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		renames,
+	});
+
+	const st0 = [
+		'ALTER SCHEMA "dev" RENAME TO "dev2";\n',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('rename schema #2', async () => {
@@ -74,7 +142,19 @@ test('rename schema #2', async () => {
 		devSchema2: pgSchema('dev2'),
 	};
 
-	const { sqlStatements } = await diff(from, to, ['dev1->dev2']);
+	const renames = ['dev1->dev2'];
+	const { sqlStatements: st } = await diff(from, to, renames);
 
-	expect(sqlStatements).toStrictEqual(['ALTER SCHEMA "dev1" RENAME TO "dev2";\n']);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		renames,
+	});
+
+	const st0 = [
+		'ALTER SCHEMA "dev1" RENAME TO "dev2";\n',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });

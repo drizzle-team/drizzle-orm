@@ -1,7 +1,24 @@
 import { sql } from 'drizzle-orm';
 import { integer, pgPolicy, pgRole, pgSchema, pgTable } from 'drizzle-orm/pg-core';
-import { expect, test } from 'vitest';
-import { diff } from '../postgres/mocks';
+import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { diff, prepareTestDatabase, push, TestDatabase } from '../postgres/mocks';
+
+// @vitest-environment-options {"max-concurrency":1}
+let _: TestDatabase;
+let db: TestDatabase['db'];
+
+beforeAll(async () => {
+	_ = await prepareTestDatabase();
+	db = _.db;
+});
+
+afterAll(async () => {
+	await _.close();
+});
+
+beforeEach(async () => {
+	await _.clear();
+});
 
 test('add policy + enable rls', async (t) => {
 	const schema1 = {
@@ -16,12 +33,20 @@ test('add policy + enable rls', async (t) => {
 		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
 		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR ALL TO public;',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop policy + disable rls', async (t) => {
@@ -37,12 +62,20 @@ test('drop policy + disable rls', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'ALTER TABLE "users" DISABLE ROW LEVEL SECURITY;',
 		'DROP POLICY "test" ON "users";',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add policy without enable rls', async (t) => {
@@ -58,11 +91,19 @@ test('add policy without enable rls', async (t) => {
 		}, () => [pgPolicy('test', { as: 'permissive' }), pgPolicy('newRls')]),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'CREATE POLICY "newRls" ON "users" AS PERMISSIVE FOR ALL TO public;',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop policy without disable rls', async (t) => {
@@ -78,11 +119,19 @@ test('drop policy without disable rls', async (t) => {
 		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'DROP POLICY "oldRls" ON "users";',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter policy without recreation: changing roles', async (t) => {
@@ -98,11 +147,19 @@ test('alter policy without recreation: changing roles', async (t) => {
 		}, () => [pgPolicy('test', { as: 'permissive', to: 'current_role' })]),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'ALTER POLICY "test" ON "users" TO current_role;',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter policy without recreation: changing using', async (t) => {
@@ -118,11 +175,19 @@ test('alter policy without recreation: changing using', async (t) => {
 		}, () => [pgPolicy('test', { as: 'permissive', using: sql`true` })]),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'ALTER POLICY "test" ON "users" TO public USING (true);',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter policy without recreation: changing with check', async (t) => {
@@ -138,11 +203,19 @@ test('alter policy without recreation: changing with check', async (t) => {
 		}, () => [pgPolicy('test', { as: 'permissive', withCheck: sql`true` })]),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'ALTER POLICY "test" ON "users" TO public WITH CHECK (true);',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 ///
@@ -160,12 +233,20 @@ test('alter policy with recreation: changing as', async (t) => {
 		}, () => [pgPolicy('test', { as: 'restrictive' })]),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'DROP POLICY "test" ON "users";',
 		'CREATE POLICY "test" ON "users" AS RESTRICTIVE FOR ALL TO public;',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter policy with recreation: changing for', async (t) => {
@@ -181,12 +262,20 @@ test('alter policy with recreation: changing for', async (t) => {
 		}, () => [pgPolicy('test', { as: 'permissive', for: 'delete' })]),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'DROP POLICY "test" ON "users";',
 		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR DELETE TO public;',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter policy with recreation: changing both "as" and "for"', async (t) => {
@@ -202,12 +291,20 @@ test('alter policy with recreation: changing both "as" and "for"', async (t) => 
 		}, () => [pgPolicy('test', { as: 'restrictive', for: 'insert' })]),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'DROP POLICY "test" ON "users";',
 		'CREATE POLICY "test" ON "users" AS RESTRICTIVE FOR INSERT TO public;',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter policy with recreation: changing all fields', async (t) => {
@@ -223,12 +320,20 @@ test('alter policy with recreation: changing all fields', async (t) => {
 		}, () => [pgPolicy('test', { as: 'restrictive', to: 'current_role', withCheck: sql`true` })]),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'DROP POLICY "test" ON "users";',
 		'CREATE POLICY "test" ON "users" AS RESTRICTIVE FOR ALL TO current_role WITH CHECK (true);',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('rename policy', async (t) => {
@@ -244,13 +349,24 @@ test('rename policy', async (t) => {
 		}, () => [pgPolicy('newName', { as: 'permissive' })]),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [
+	const renames = [
 		'public.users.test->public.users.newName',
-	]);
+	];
 
-	expect(sqlStatements).toStrictEqual([
+	const { sqlStatements: st } = await diff(schema1, schema2, renames);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames,
+	});
+
+	const st0 = [
 		'ALTER POLICY "test" ON "users" RENAME TO "newName";',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('rename policy in renamed table', async (t) => {
@@ -268,15 +384,25 @@ test('rename policy in renamed table', async (t) => {
 		}, (t) => [pgPolicy('newName', { as: 'permissive' })]),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [
+	const renames = [
 		'public.users->public.users2',
 		'public.users2.test->public.users2.newName',
-	]);
+	];
+	const { sqlStatements: st } = await diff(schema1, schema2, renames);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames,
+	});
+
+	const st0 = [
 		'ALTER TABLE "users" RENAME TO "users2";',
 		'ALTER POLICY "test" ON "users2" RENAME TO "newName";',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('create table with a policy', async (t) => {
@@ -288,13 +414,21 @@ test('create table with a policy', async (t) => {
 		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'CREATE TABLE "users2" (\n\t"id" integer PRIMARY KEY\n);\n',
 		'ALTER TABLE "users2" ENABLE ROW LEVEL SECURITY;',
 		'CREATE POLICY "test" ON "users2" AS PERMISSIVE FOR ALL TO public;',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop table with a policy', async (t) => {
@@ -306,12 +440,20 @@ test('drop table with a policy', async (t) => {
 
 	const schema2 = {};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'DROP POLICY "test" ON "users2";',
 		'DROP TABLE "users2";',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add policy with multiple "to" roles', async (t) => {
@@ -330,12 +472,20 @@ test('add policy with multiple "to" roles', async (t) => {
 		}, () => [pgPolicy('test', { to: ['current_role', role] })]),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
 		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR ALL TO current_role, "manager";',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('create table with rls enabled', async (t) => {
@@ -347,12 +497,20 @@ test('create table with rls enabled', async (t) => {
 		}).enableRLS(),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		`CREATE TABLE "users" (\n\t"id" integer PRIMARY KEY\n);\n`,
 		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('enable rls force', async (t) => {
@@ -368,9 +526,19 @@ test('enable rls force', async (t) => {
 		}).enableRLS(),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual(['ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;']);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
+		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('disable rls force', async (t) => {
@@ -386,9 +554,19 @@ test('disable rls force', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual(['ALTER TABLE "users" DISABLE ROW LEVEL SECURITY;']);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
+		'ALTER TABLE "users" DISABLE ROW LEVEL SECURITY;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop policy with enabled rls', async (t) => {
@@ -407,11 +585,19 @@ test('drop policy with enabled rls', async (t) => {
 		}).enableRLS(),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'DROP POLICY "test" ON "users";',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add policy with enabled rls', async (t) => {
@@ -430,11 +616,19 @@ test('add policy with enabled rls', async (t) => {
 		}, () => [pgPolicy('test', { to: ['current_role', role] })]).enableRLS(),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR ALL TO current_role, "manager";',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add policy + link table', async (t) => {
@@ -453,12 +647,20 @@ test('add policy + link table', async (t) => {
 		rls: pgPolicy('test', { as: 'permissive' }).link(users),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
 		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR ALL TO public;',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('link table', async (t) => {
@@ -478,12 +680,20 @@ test('link table', async (t) => {
 		rls: pgPolicy('test', { as: 'permissive' }).link(users),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
 		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR ALL TO public;',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('unlink table', async (t) => {
@@ -501,12 +711,20 @@ test('unlink table', async (t) => {
 		rls: pgPolicy('test', { as: 'permissive' }),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'ALTER TABLE "users" DISABLE ROW LEVEL SECURITY;',
 		'DROP POLICY "test" ON "users";',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop policy with link', async (t) => {
@@ -523,12 +741,20 @@ test('drop policy with link', async (t) => {
 		users,
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'ALTER TABLE "users" DISABLE ROW LEVEL SECURITY;',
 		'DROP POLICY "test" ON "users";',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add policy in table and with link table', async (t) => {
@@ -548,13 +774,21 @@ test('add policy in table and with link table', async (t) => {
 		rls: pgPolicy('test', { as: 'permissive' }).link(users),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
 		'CREATE POLICY "test1" ON "users" AS PERMISSIVE FOR ALL TO current_user;',
 		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR ALL TO public;',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('link non-schema table', async (t) => {
@@ -568,11 +802,19 @@ test('link non-schema table', async (t) => {
 		rls: pgPolicy('test', { as: 'permissive' }).link(users),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR ALL TO public;',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('unlink non-schema table', async (t) => {
@@ -588,11 +830,19 @@ test('unlink non-schema table', async (t) => {
 		rls: pgPolicy('test', { as: 'permissive' }),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'DROP POLICY "test" ON "users";',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add policy + link non-schema table', async (t) => {
@@ -615,13 +865,21 @@ test('add policy + link non-schema table', async (t) => {
 		rls: pgPolicy('test', { as: 'permissive' }).link(cities),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
 		'CREATE POLICY "test2" ON "users" AS PERMISSIVE FOR ALL TO public;',
 		'CREATE POLICY "test" ON "cities" AS PERMISSIVE FOR ALL TO public;',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add policy + link non-schema table from auth schema', async (t) => {
@@ -646,13 +904,21 @@ test('add policy + link non-schema table from auth schema', async (t) => {
 		rls: pgPolicy('test', { as: 'permissive' }).link(cities),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
 		'CREATE POLICY "test2" ON "users" AS PERMISSIVE FOR ALL TO public;',
 		'CREATE POLICY "test" ON "auth"."cities" AS PERMISSIVE FOR ALL TO public;',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('rename policy that is linked', async (t) => {
@@ -668,13 +934,24 @@ test('rename policy that is linked', async (t) => {
 		rls: pgPolicy('newName', { as: 'permissive' }).link(users),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [
+	const renames = [
 		'public.users.test->public.users.newName',
-	]);
+	];
 
-	expect(sqlStatements).toStrictEqual([
+	const { sqlStatements: st } = await diff(schema1, schema2, renames);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames,
+	});
+
+	const st0 = [
 		'ALTER POLICY "test" ON "users" RENAME TO "newName";',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter policy that is linked', async (t) => {
@@ -690,11 +967,19 @@ test('alter policy that is linked', async (t) => {
 		rls: pgPolicy('test', { as: 'permissive', to: 'current_role' }).link(users),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'ALTER POLICY "test" ON "users" TO current_role;',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter policy that is linked: withCheck', async (t) => {
@@ -710,11 +995,19 @@ test('alter policy that is linked: withCheck', async (t) => {
 		rls: pgPolicy('test', { as: 'permissive', withCheck: sql`false` }).link(users),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'ALTER POLICY "test" ON "users" TO public WITH CHECK (false);',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter policy that is linked: using', async (t) => {
@@ -730,11 +1023,19 @@ test('alter policy that is linked: using', async (t) => {
 		rls: pgPolicy('test', { as: 'permissive', using: sql`false` }).link(users),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'ALTER POLICY "test" ON "users" TO public USING (false);',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter policy that is linked: using', async (t) => {
@@ -750,12 +1051,20 @@ test('alter policy that is linked: using', async (t) => {
 		rls: pgPolicy('test', { for: 'delete' }).link(users),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'DROP POLICY "test" ON "users";',
 		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR DELETE TO public;',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 ////
@@ -777,11 +1086,19 @@ test('alter policy in the table', async (t) => {
 		]),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'ALTER POLICY "test" ON "users" TO current_role;',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter policy in the table: withCheck', async (t) => {
@@ -805,11 +1122,19 @@ test('alter policy in the table: withCheck', async (t) => {
 		]),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'ALTER POLICY "test" ON "users" TO public WITH CHECK (false);',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter policy in the table: using', async (t) => {
@@ -833,11 +1158,19 @@ test('alter policy in the table: using', async (t) => {
 		]),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'ALTER POLICY "test" ON "users" TO public USING (false);',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter policy in the table: using', async (t) => {
@@ -861,10 +1194,18 @@ test('alter policy in the table: using', async (t) => {
 		]),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'DROP POLICY "test" ON "users";',
 		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR DELETE TO public;',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
