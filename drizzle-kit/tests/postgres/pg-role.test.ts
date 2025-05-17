@@ -1,6 +1,23 @@
 import { pgRole } from 'drizzle-orm/pg-core';
-import { expect, test } from 'vitest';
-import { diff } from '../postgres/mocks';
+import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { diff, prepareTestDatabase, push, TestDatabase } from '../postgres/mocks';
+
+// @vitest-environment-options {"max-concurrency":1}
+let _: TestDatabase;
+let db: TestDatabase['db'];
+
+beforeAll(async () => {
+	_ = await prepareTestDatabase();
+	db = _.db;
+});
+
+afterAll(async () => {
+	await _.close();
+});
+
+beforeEach(async () => {
+	await _.clear();
+});
 
 test('create role', async (t) => {
 	const schema1 = {};
@@ -9,9 +26,18 @@ test('create role', async (t) => {
 		manager: pgRole('manager'),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual(['CREATE ROLE "manager";']);
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
+		'CREATE ROLE "manager";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('create role with properties', async (t) => {
@@ -21,9 +47,18 @@ test('create role with properties', async (t) => {
 		manager: pgRole('manager', { createDb: true, inherit: false, createRole: true }),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual(['CREATE ROLE "manager" WITH CREATEDB CREATEROLE NOINHERIT;']);
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
+		'CREATE ROLE "manager" WITH CREATEDB CREATEROLE NOINHERIT;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('create role with some properties', async (t) => {
@@ -33,9 +68,18 @@ test('create role with some properties', async (t) => {
 		manager: pgRole('manager', { createDb: true, inherit: false }),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual(['CREATE ROLE "manager" WITH CREATEDB NOINHERIT;']);
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
+		'CREATE ROLE "manager" WITH CREATEDB NOINHERIT;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop role', async (t) => {
@@ -43,9 +87,19 @@ test('drop role', async (t) => {
 
 	const schema2 = {};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual(['DROP ROLE "manager";']);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
+		'DROP ROLE "manager";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('create and drop role', async (t) => {
@@ -57,9 +111,20 @@ test('create and drop role', async (t) => {
 		admin: pgRole('admin'),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual(['DROP ROLE "manager";', 'CREATE ROLE "admin";']);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
+		'DROP ROLE "manager";',
+		'CREATE ROLE "admin";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('rename role', async (t) => {
@@ -71,9 +136,21 @@ test('rename role', async (t) => {
 		admin: pgRole('admin'),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, ['manager->admin']);
+	const renames = ['manager->admin'];
+	const { sqlStatements: st } = await diff(schema1, schema2, renames);
 
-	expect(sqlStatements).toStrictEqual(['ALTER ROLE "manager" RENAME TO "admin";']);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames,
+	});
+
+	const st0 = [
+		'ALTER ROLE "manager" RENAME TO "admin";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter all role field', async (t) => {
@@ -85,9 +162,19 @@ test('alter all role field', async (t) => {
 		manager: pgRole('manager', { createDb: true, createRole: true, inherit: false }),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual(['ALTER ROLE "manager" WITH CREATEDB CREATEROLE NOINHERIT;']);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
+		'ALTER ROLE "manager" WITH CREATEDB CREATEROLE NOINHERIT;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter createdb in role', async (t) => {
@@ -99,9 +186,19 @@ test('alter createdb in role', async (t) => {
 		manager: pgRole('manager', { createDb: true }),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual(['ALTER ROLE "manager" WITH CREATEDB NOCREATEROLE INHERIT;']);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
+		'ALTER ROLE "manager" WITH CREATEDB NOCREATEROLE INHERIT;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter createrole in role', async (t) => {
@@ -113,9 +210,19 @@ test('alter createrole in role', async (t) => {
 		manager: pgRole('manager', { createRole: true }),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual(['ALTER ROLE "manager" WITH NOCREATEDB CREATEROLE INHERIT;']);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
+		'ALTER ROLE "manager" WITH NOCREATEDB CREATEROLE INHERIT;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter inherit in role', async (t) => {
@@ -127,7 +234,17 @@ test('alter inherit in role', async (t) => {
 		manager: pgRole('manager', { inherit: false }),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual(['ALTER ROLE "manager" WITH NOCREATEDB NOCREATEROLE NOINHERIT;']);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
+		'ALTER ROLE "manager" WITH NOCREATEDB NOCREATEROLE NOINHERIT;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
