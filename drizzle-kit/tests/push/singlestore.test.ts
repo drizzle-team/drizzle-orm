@@ -23,6 +23,7 @@ import {
 	vector,
 	year,
 } from 'drizzle-orm/singlestore-core';
+import { vectorIndex } from 'drizzle-orm/singlestore-core/indexes/vector';
 import getPort from 'get-port';
 import { Connection, createConnection } from 'mysql2/promise';
 import { diffTestSchemasPushSingleStore, diffTestSchemasSingleStore } from 'tests/schemaDiffer';
@@ -264,7 +265,6 @@ const singlestoreSuite: DialectSuite = {
 			'drizzle',
 			false,
 		);
-		console.log(statements);
 		expect(statements.length).toBe(0);
 		expect(statements).toEqual([]);
 
@@ -279,14 +279,145 @@ const singlestoreSuite: DialectSuite = {
 			await context.client.query(st);
 		}
 	},
-	addBasicIndexes: function(context?: any): Promise<void> {
+	// TODO non-vector indexes
+	addBasicIndexes: async function(context?: any): Promise<void> {
+		const schema1 = {
+			vectorIndex: singlestoreTable('vector_table', {
+				v: vector('v', { dimensions: 10 }),
+			}),
+		};
+
+		const schema2 = {
+			vectorIndex: singlestoreTable('vector_table', {
+				v: vector('v', { dimensions: 10 }),
+			}, (table) => [
+				vectorIndex('vector_index').on(table.v),
+			]),
+		};
+
+		const { statements, sqlStatements } = await diffTestSchemasPushSingleStore(
+			context.client as Connection,
+			schema1,
+			schema2,
+			[],
+			'drizzle',
+			false,
+		);
+		expect(statements.length).toBe(1);
+		expect(statements[0]).toStrictEqual({
+			schema: '',
+			tableName: 'vector_table',
+			type: 'create_vector_index',
+			data: 'vector_index;v;AUTO;;;;;;;;',
+			internal: {
+				tables: {},
+				indexes: {},
+			},
+		});
+		expect(sqlStatements.length).toBe(1);
+		expect(sqlStatements[0]).toBe(
+			`ALTER TABLE \`vector_table\` ADD VECTOR INDEX \`vector_index\` (\`v\`) INDEX_OPTIONS '{"index_type":"AUTO"}';`,
+		);
+
+		const { sqlStatements: dropStatements } = await diffTestSchemasSingleStore(
+			schema2,
+			{},
+			[],
+			false,
+		);
+
+		for (const st of dropStatements) {
+			await context.client.query(st);
+		}
+	},
+	changeIndexFields: async function(context?: any): Promise<void> {
+		const schema1 = {
+			vectorIndex: singlestoreTable('vector_table', {
+				v: vector('v', { dimensions: 10 }),
+			}, (table) => [
+				vectorIndex('vector_index').on(table.v),
+			]),
+		};
+
+		const schema2 = {
+			vectorIndex: singlestoreTable('vector_table', {
+				v: vector('v', { dimensions: 10 }),
+			}, (table) => [
+				vectorIndex('vector_index', 'IVF_PQ').on(table.v).metricType('EUCLIDEAN_DISTANCE').nbits(16),
+			]),
+		};
+
+		const { statements, sqlStatements } = await diffTestSchemasPushSingleStore(
+			context.client as Connection,
+			schema1,
+			schema2,
+			[],
+			'drizzle',
+			false,
+		);
+		expect(statements.length).toBe(2);
+		expect(sqlStatements).toStrictEqual([
+			`DROP INDEX \`vector_index\` ON \`vector_table\`;`,
+			`ALTER TABLE \`vector_table\` ADD VECTOR INDEX \`vector_index\` (\`v\`) INDEX_OPTIONS '{"index_type":"IVF_PQ","metric_type":"EUCLIDEAN_DISTANCE","nbits":16}';`,
+		]);
+
+		const { sqlStatements: dropStatements } = await diffTestSchemasSingleStore(
+			schema2,
+			{},
+			[],
+			false,
+		);
+
+		for (const st of dropStatements) {
+			await context.client.query(st);
+		}
+
 		return {} as any;
 	},
-	changeIndexFields: function(context?: any): Promise<void> {
-		return {} as any;
-	},
-	dropIndex: function(context?: any): Promise<void> {
-		return {} as any;
+	dropIndex: async function(context?: any): Promise<void> {
+		const schema1 = {
+			vectorIndex: singlestoreTable('vector_table', {
+				v: vector('v', { dimensions: 10 }),
+			}, (table) => [
+				vectorIndex('vector_index').on(table.v),
+			]),
+		};
+
+		const schema2 = {
+			vectorIndex: singlestoreTable('vector_table', {
+				v: vector('v', { dimensions: 10 }),
+			}),
+		};
+
+		const { statements, sqlStatements } = await diffTestSchemasPushSingleStore(
+			context.client as Connection,
+			schema1,
+			schema2,
+			[],
+			'drizzle',
+			false,
+		);
+		expect(statements.length).toBe(1);
+		expect(statements[0]).toStrictEqual({
+			type: 'drop_index',
+			tableName: 'vector_table',
+			data: 'vector_index;v;AUTO;;;;;;;;',
+			schema: '',
+		});
+		expect(sqlStatements[0]).toBe(
+			`DROP INDEX \`vector_index\` ON \`vector_table\`;`,
+		);
+
+		const { sqlStatements: dropStatements } = await diffTestSchemasSingleStore(
+			schema2,
+			{},
+			[],
+			false,
+		);
+
+		for (const st of dropStatements) {
+			await context.client.query(st);
+		}
 	},
 	indexesToBeNotTriggered: function(context?: any): Promise<void> {
 		return {} as any;
