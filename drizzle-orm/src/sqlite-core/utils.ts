@@ -26,7 +26,8 @@ export function getTableConfig<TTable extends SQLiteTable>(table: TTable) {
 
 	if (extraConfigBuilder !== undefined) {
 		const extraConfig = extraConfigBuilder(table[SQLiteTable.Symbol.Columns]);
-		for (const builder of Object.values(extraConfig)) {
+		const extraValues = Array.isArray(extraConfig) ? extraConfig.flat(1) as any[] : Object.values(extraConfig);
+		for (const builder of Object.values(extraValues)) {
 			if (is(builder, IndexBuilder)) {
 				indexes.push(builder.build(table));
 			} else if (is(builder, CheckBuilder)) {

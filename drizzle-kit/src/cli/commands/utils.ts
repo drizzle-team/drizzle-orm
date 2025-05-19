@@ -18,8 +18,13 @@ import {
 	Prefix,
 	wrapParam,
 } from '../validations/common';
-import { LibSQLCredentials, libSQLCredentials } from '../validations/libsql';
-import { printConfigConnectionIssues as printIssuesLibSql } from '../validations/libsql';
+import { GelCredentials, gelCredentials } from '../validations/gel';
+import { printConfigConnectionIssues as printIssuesGel } from '../validations/gel';
+import {
+	LibSQLCredentials,
+	libSQLCredentials,
+	printConfigConnectionIssues as printIssuesLibSQL,
+} from '../validations/libsql';
 import {
 	MysqlCredentials,
 	mysqlCredentials,
@@ -112,12 +117,22 @@ export const prepareDropParams = async (
 		config?: string;
 		out?: string;
 		driver?: Driver;
+		dialect?: Dialect;
 	},
 	from: 'cli' | 'config',
 ): Promise<{ out: string; bundle: boolean }> => {
 	const config = from === 'config'
 		? await drizzleConfigFromFile(options.config as string | undefined)
 		: options;
+
+	if (config.dialect === 'gel') {
+		console.log(
+			error(
+				`You can't use 'drop' command with Gel dialect`,
+			),
+		);
+		process.exit(1);
+	}
 
 	return { out: config.out || 'drizzle', bundle: config.driver === 'expo' };
 };
@@ -133,6 +148,12 @@ export type GenerateConfig = {
 	bundle: boolean;
 	casing?: CasingType;
 	driver?: Driver;
+};
+
+export type ExportConfig = {
+	dialect: Dialect;
+	schema: string | string[];
+	sql: boolean;
 };
 
 export const prepareGenerateConfig = async (
@@ -182,6 +203,38 @@ export const prepareGenerateConfig = async (
 		bundle: driver === 'expo' || driver === 'durable-sqlite',
 		casing,
 		driver,
+	};
+};
+
+export const prepareExportConfig = async (
+	options: {
+		config?: string;
+		schema?: string;
+		dialect?: Dialect;
+		sql: boolean;
+	},
+	from: 'config' | 'cli',
+): Promise<ExportConfig> => {
+	const config = from === 'config' ? await drizzleConfigFromFile(options.config, true) : options;
+
+	const { schema, dialect, sql } = config;
+
+	if (!schema || !dialect) {
+		console.log(error('Please provide required params:'));
+		console.log(wrapParam('schema', schema));
+		console.log(wrapParam('dialect', dialect));
+		process.exit(1);
+	}
+
+	const fileNames = prepareFilenames(schema);
+	if (fileNames.length === 0) {
+		render(`[${chalk.blue('i')}] No schema file in ${schema} was found`);
+		process.exit(0);
+	}
+	return {
+		dialect: dialect,
+		schema: schema,
+		sql: sql,
 	};
 };
 
@@ -349,7 +402,7 @@ export const preparePushConfig = async (
 	if (config.dialect === 'sqlite') {
 		const parsed = sqliteCredentials.safeParse(config);
 		if (!parsed.success) {
-			printIssuesSqlite(config, 'pull');
+			printIssuesSqlite(config, 'push');
 			process.exit(1);
 		}
 		return {
@@ -368,7 +421,7 @@ export const preparePushConfig = async (
 	if (config.dialect === 'turso') {
 		const parsed = libSQLCredentials.safeParse(config);
 		if (!parsed.success) {
-			printIssuesSqlite(config, 'pull');
+			printIssuesSqlite(config, 'push');
 			process.exit(1);
 		}
 		return {
@@ -382,6 +435,15 @@ export const preparePushConfig = async (
 			tablesFilter,
 			schemasFilter,
 		};
+	}
+
+	if (config.dialect === 'gel') {
+		console.log(
+			error(
+				`You can't use 'push' command with Gel dialect`,
+			),
+		);
+		process.exit(1);
 	}
 
 	assertUnreachable(config.dialect);
@@ -411,6 +473,10 @@ export const preparePullConfig = async (
 		| {
 			dialect: 'singlestore';
 			credentials: SingleStoreCredentials;
+		}
+		| {
+			dialect: 'gel';
+			credentials?: GelCredentials;
 		}
 	) & {
 		out: string;
@@ -544,7 +610,26 @@ export const preparePullConfig = async (
 	if (dialect === 'turso') {
 		const parsed = libSQLCredentials.safeParse(config);
 		if (!parsed.success) {
-			printIssuesLibSql(config, 'pull');
+			printIssuesLibSQL(config, 'pull');
+			process.exit(1);
+		}
+		return {
+			dialect,
+			out: config.out,
+			breakpoints: config.breakpoints,
+			casing: config.casing,
+			credentials: parsed.data,
+			tablesFilter,
+			schemasFilter,
+			prefix: config.migrations?.prefix || 'index',
+			entities: config.entities,
+		};
+	}
+
+	if (dialect === 'gel') {
+		const parsed = gelCredentials.safeParse(config);
+		if (!parsed.success) {
+			printIssuesGel(config);
 			process.exit(1);
 		}
 		return {
@@ -649,7 +734,7 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 	if (dialect === 'turso') {
 		const parsed = libSQLCredentials.safeParse(flattened);
 		if (!parsed.success) {
-			printIssuesLibSql(flattened as Record<string, unknown>, 'studio');
+			printIssuesLibSQL(flattened as Record<string, unknown>, 'studio');
 			process.exit(1);
 		}
 		const credentials = parsed.data;
@@ -660,6 +745,15 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 			port,
 			credentials,
 		};
+	}
+
+	if (dialect === 'gel') {
+		console.log(
+			error(
+				`You can't use 'studio' command with Gel dialect`,
+			),
+		);
+		process.exit(1);
 	}
 
 	assertUnreachable(dialect);
@@ -750,7 +844,7 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 	if (dialect === 'turso') {
 		const parsed = libSQLCredentials.safeParse(flattened);
 		if (!parsed.success) {
-			printIssuesLibSql(flattened as Record<string, unknown>, 'migrate');
+			printIssuesLibSQL(flattened as Record<string, unknown>, 'migrate');
 			process.exit(1);
 		}
 		const credentials = parsed.data;
@@ -763,11 +857,21 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 		};
 	}
 
+	if (dialect === 'gel') {
+		console.log(
+			error(
+				`You can't use 'migrate' command with Gel dialect`,
+			),
+		);
+		process.exit(1);
+	}
+
 	assertUnreachable(dialect);
 };
 
 export const drizzleConfigFromFile = async (
 	configPath?: string,
+	isExport?: boolean,
 ): Promise<CliConfig> => {
 	const prefix = process.env.TEST_CONFIG_PATH_PREFIX || '';
 
@@ -783,7 +887,7 @@ export const drizzleConfigFromFile = async (
 		? 'drizzle.config.js'
 		: 'drizzle.config.json';
 
-	if (!configPath) {
+	if (!configPath && !isExport) {
 		console.log(
 			chalk.gray(
 				`No config path provided, using default '${defaultConfigPath}'`,
@@ -798,7 +902,8 @@ export const drizzleConfigFromFile = async (
 		process.exit(1);
 	}
 
-	console.log(chalk.grey(`Reading config file '${path}'`));
+	if (!isExport) console.log(chalk.grey(`Reading config file '${path}'`));
+
 	const { unregister } = await safeRegister();
 	const required = require(`${path}`);
 	const content = required.default ?? required;

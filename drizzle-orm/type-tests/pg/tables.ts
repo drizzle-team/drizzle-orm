@@ -2,7 +2,6 @@ import crypto from 'node:crypto';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
 import { z } from 'zod';
-import { eq, gt } from '~/expressions.ts';
 import {
 	bigint,
 	bigserial,
@@ -53,6 +52,7 @@ import {
 	pgView,
 	type PgViewWithSelection,
 } from '~/pg-core/view.ts';
+import { eq, gt } from '~/sql/expressions/index.ts';
 import { sql } from '~/sql/sql.ts';
 import type { InferInsertModel, InferSelectModel } from '~/table.ts';
 import type { Simplify } from '~/utils.ts';
@@ -1160,8 +1160,12 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 }
 
 {
+	const testSchema = pgSchema('test');
+
 	const e1 = pgEnum('test', ['a', 'b', 'c']);
 	const e2 = pgEnum('test', ['a', 'b', 'c'] as const);
+	const e3 = testSchema.enum('test', ['a', 'b', 'c']);
+	const e4 = testSchema.enum('test', ['a', 'b', 'c'] as const);
 
 	const test = pgTable('test', {
 		col1: char('col1', { enum: ['a', 'b', 'c'] as const }),
@@ -1175,6 +1179,8 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 		col9: varchar('col9', { enum: ['a', 'b', 'c'] as const }),
 		col10: varchar('col10', { enum: ['a', 'b', 'c'] }),
 		col11: varchar('col11'),
+		col12: e3('col4'),
+		col13: e4('col5'),
 	});
 
 	Expect<Equal<['a', 'b', 'c'], typeof test.col1.enumValues>>;
@@ -1188,11 +1194,17 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 	Expect<Equal<['a', 'b', 'c'], typeof test.col9.enumValues>>;
 	Expect<Equal<['a', 'b', 'c'], typeof test.col10.enumValues>>;
 	Expect<Equal<[string, ...string[]], typeof test.col11.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.col12.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.col13.enumValues>>;
 }
 
 {
+	const testSchema = pgSchema('test');
+
 	const e1 = pgEnum('test', ['a', 'b', 'c']);
 	const e2 = pgEnum('test', ['a', 'b', 'c'] as const);
+	const e3 = testSchema.enum('test', ['a', 'b', 'c']);
+	const e4 = testSchema.enum('test', ['a', 'b', 'c'] as const);
 
 	const test = pgTable('test', {
 		col1: char('col1', { enum: ['a', 'b', 'c'] as const }).generatedAlwaysAs(sql``),
@@ -1206,6 +1218,8 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 		col9: varchar('col9', { enum: ['a', 'b', 'c'] as const }).generatedAlwaysAs(sql``),
 		col10: varchar('col10', { enum: ['a', 'b', 'c'] }).generatedAlwaysAs(sql``),
 		col11: varchar('col11').generatedAlwaysAs(sql``),
+		col12: e3('col4').generatedAlwaysAs(sql``),
+		col13: e4('col5').generatedAlwaysAs(sql``),
 	});
 
 	Expect<Equal<['a', 'b', 'c'], typeof test.col1.enumValues>>;
@@ -1219,6 +1233,8 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 	Expect<Equal<['a', 'b', 'c'], typeof test.col9.enumValues>>;
 	Expect<Equal<['a', 'b', 'c'], typeof test.col10.enumValues>>;
 	Expect<Equal<[string, ...string[]], typeof test.col11.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.col12.enumValues>>;
+	Expect<Equal<['a', 'b', 'c'], typeof test.col13.enumValues>>;
 }
 
 {
@@ -1402,4 +1418,59 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 		vector: vector({ dimensions: 1 }),
 		vectordef: vector({ dimensions: 1 }).default([1]),
 	});
+}
+
+// ts enums test
+{
+	enum Role {
+		admin = 'admin',
+		user = 'user',
+		guest = 'guest',
+	}
+
+	const role = pgEnum('role', Role);
+
+	enum RoleNonString {
+		admin,
+		user,
+		guest,
+	}
+
+	// @ts-expect-error
+	pgEnum('role', RoleNonString);
+
+	enum RolePartiallyString {
+		admin,
+		user = 'user',
+		guest = 'guest',
+	}
+
+	// @ts-expect-error
+	pgEnum('role', RolePartiallyString);
+
+	const table = pgTable('table', {
+		enum: role('enum'),
+	});
+
+	const res = await db.select().from(table);
+
+	Expect<Equal<{ enum: Role | null }[], typeof res>>;
+
+	const mySchema = pgSchema('my_schema');
+
+	const schemaRole = mySchema.enum('role', Role);
+
+	// @ts-expect-error
+	mySchema.enum('role', RoleNonString);
+
+	// @ts-expect-error
+	mySchema.enum('role', RolePartiallyString);
+
+	const schemaTable = mySchema.table('table', {
+		enum: schemaRole('enum'),
+	});
+
+	const schemaRes = await db.select().from(schemaTable);
+
+	Expect<Equal<{ enum: Role | null }[], typeof schemaRes>>;
 }

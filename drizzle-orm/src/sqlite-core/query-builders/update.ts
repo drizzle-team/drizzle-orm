@@ -40,7 +40,8 @@ export type SQLiteUpdateSetSource<TTable extends SQLiteTable> =
 		[Key in keyof TTable['$inferInsert']]?:
 			| GetColumnData<TTable['_']['columns'][Key], 'query'>
 			| SQL
-			| SQLiteColumn;
+			| SQLiteColumn
+			| undefined;
 	}
 	& {};
 

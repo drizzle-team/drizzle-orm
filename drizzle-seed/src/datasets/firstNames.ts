@@ -30277,3 +30277,5 @@ export default [
 	'Lavasia',
 	'Laniqua',
 ];
+
+export const maxStringLength = 15;

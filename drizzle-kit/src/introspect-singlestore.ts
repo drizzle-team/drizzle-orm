@@ -49,6 +49,7 @@ const singlestoreImportsList = new Set([
 	'tinyint',
 	'varbinary',
 	'varchar',
+	'vector',
 	'year',
 	'enum',
 ]);
@@ -249,8 +250,7 @@ export const schemaToTypeScript = (
 			|| Object.keys(table.uniqueConstraints).length > 0
 		) {
 			statement += ',\n';
-			statement += '(table) => {\n';
-			statement += '\treturn {\n';
+			statement += '(table) => [';
 			statement += createTableIndexes(
 				table.name,
 				Object.values(table.indexes),
@@ -264,8 +264,7 @@ export const schemaToTypeScript = (
 				Object.values(table.uniqueConstraints),
 				withCasing,
 			);
-			statement += '\t}\n';
-			statement += '}';
+			statement += '\n]';
 		}
 
 		statement += ');';
@@ -381,9 +380,7 @@ const column = (
 	if (lowered.startsWith('int')) {
 		const isUnsigned = lowered.includes('unsigned');
 		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
-		let out = `${casing(name)}: int(${columnName}${
-			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
-		})`;
+		let out = `${casing(name)}: int(${columnName}${isUnsigned ? '{ unsigned: true }' : ''})`;
 		out += autoincrement ? `.autoincrement()` : '';
 		out += typeof defaultValue !== 'undefined'
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
@@ -394,10 +391,7 @@ const column = (
 	if (lowered.startsWith('tinyint')) {
 		const isUnsigned = lowered.includes('unsigned');
 		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
-		// let out = `${name.camelCase()}: tinyint("${name}")`;
-		let out: string = `${casing(name)}: tinyint(${columnName}${
-			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
-		})`;
+		let out: string = `${casing(name)}: tinyint(${columnName}${isUnsigned ? '{ unsigned: true }' : ''})`;
 		out += autoincrement ? `.autoincrement()` : '';
 		out += typeof defaultValue !== 'undefined'
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
@@ -408,9 +402,7 @@ const column = (
 	if (lowered.startsWith('smallint')) {
 		const isUnsigned = lowered.includes('unsigned');
 		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
-		let out = `${casing(name)}: smallint(${columnName}${
-			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
-		})`;
+		let out = `${casing(name)}: smallint(${columnName}${isUnsigned ? '{ unsigned: true }' : ''})`;
 		out += autoincrement ? `.autoincrement()` : '';
 		out += defaultValue
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
@@ -421,9 +413,7 @@ const column = (
 	if (lowered.startsWith('mediumint')) {
 		const isUnsigned = lowered.includes('unsigned');
 		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
-		let out = `${casing(name)}: mediumint(${columnName}${
-			isUnsigned ? `${columnName.length > 0 ? ', ' : ''}{ unsigned: true }` : ''
-		})`;
+		let out = `${casing(name)}: mediumint(${columnName}${isUnsigned ? '{ unsigned: true }' : ''})`;
 		out += autoincrement ? `.autoincrement()` : '';
 		out += defaultValue
 			? `.default(${mapColumnDefault(defaultValue, isExpression)})`
@@ -791,6 +781,16 @@ const column = (
 		return out;
 	}
 
+	if (lowered.startsWith('vector')) {
+		const [dimensions, elementType] = lowered.substring('vector'.length + 1, lowered.length - 1).split(',');
+		let out = `${casing(name)}: vector(${
+			dbColumnName({ name, casing: rawCasing, withMode: true })
+		}{ dimensions: ${dimensions}, elementType: ${elementType} })`;
+
+		out += defaultValue ? `.default(${mapColumnDefault(defaultValue, isExpression)})` : '';
+		return out;
+	}
+
 	console.log('uknown', type);
 	return `// Warning: Can't parse ${type} from database\n\t// ${type}Type: ${type}("${name}")`;
 };
@@ -855,7 +855,7 @@ const createTableIndexes = (
 		const indexGeneratedName = indexName(tableName, it.columns);
 		const escapedIndexName = indexGeneratedName === it.name ? '' : `"${it.name}"`;
 
-		statement += `\t\t${idxKey}: `;
+		statement += `\n\t`;
 		statement += it.isUnique ? 'uniqueIndex(' : 'index(';
 		statement += `${escapedIndexName})`;
 		statement += `.on(${
@@ -863,7 +863,6 @@ const createTableIndexes = (
 				.map((it) => `table.${casing(it)}`)
 				.join(', ')
 		}),`;
-		statement += `\n`;
 	});
 
 	return statement;
@@ -876,9 +875,7 @@ const createTableUniques = (
 	let statement = '';
 
 	unqs.forEach((it) => {
-		const idxKey = casing(it.name);
-
-		statement += `\t\t${idxKey}: `;
+		statement += `\n\t`;
 		statement += 'unique(';
 		statement += `"${it.name}")`;
 		statement += `.on(${
@@ -886,7 +883,6 @@ const createTableUniques = (
 				.map((it) => `table.${casing(it)}`)
 				.join(', ')
 		}),`;
-		statement += `\n`;
 	});
 
 	return statement;
@@ -901,7 +897,7 @@ const createTablePKs = (
 	pks.forEach((it) => {
 		let idxKey = casing(it.name);
 
-		statement += `\t\t${idxKey}: `;
+		statement += `\n\t`;
 		statement += 'primaryKey({ columns: [';
 		statement += `${
 			it.columns
@@ -911,7 +907,6 @@ const createTablePKs = (
 				.join(', ')
 		}]${it.name ? `, name: "${it.name}"` : ''}}`;
 		statement += '),';
-		statement += `\n`;
 	});
 
 	return statement;

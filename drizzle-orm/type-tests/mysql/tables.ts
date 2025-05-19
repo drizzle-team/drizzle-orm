@@ -1,6 +1,6 @@
+import * as crypto from 'node:crypto';
 import { type Equal, Expect } from 'type-tests/utils.ts';
 import type { BuildColumn } from '~/column-builder.ts';
-import { eq, gt } from '~/expressions.ts';
 import {
 	bigint,
 	binary,
@@ -40,6 +40,7 @@ import {
 } from '~/mysql-core/index.ts';
 import { mysqlSchema } from '~/mysql-core/schema.ts';
 import { mysqlView, type MySqlViewWithSelection } from '~/mysql-core/view.ts';
+import { eq, gt } from '~/sql/expressions/index.ts';
 import { sql } from '~/sql/sql.ts';
 import type { InferSelectModel } from '~/table.ts';
 import type { Simplify } from '~/utils.ts';
@@ -91,57 +92,69 @@ export const cities = mysqlTable('cities_table', {
 Expect<
 	Equal<
 		{
-			id: MySqlColumn<{
-				name: 'id';
-				tableName: 'cities_table';
-				dataType: 'number';
-				columnType: 'MySqlSerial';
-				data: number;
-				driverParam: number;
-				notNull: true;
-				hasDefault: true;
-				isPrimaryKey: true;
-				enumValues: undefined;
-				baseColumn: never;
-				generated: undefined;
-				identity: undefined;
-				isAutoincrement: true;
-				hasRuntimeDefault: false;
-			}, object>;
-			name: MySqlColumn<{
-				name: 'name_db';
-				tableName: 'cities_table';
-				dataType: 'string';
-				columnType: 'MySqlText';
-				data: string;
-				driverParam: string;
-				notNull: true;
-				hasDefault: false;
-				isPrimaryKey: false;
-				enumValues: [string, ...string[]];
-				baseColumn: never;
-				generated: undefined;
-				identity: undefined;
-				isAutoincrement: false;
-				hasRuntimeDefault: false;
-			}, object>;
-			population: MySqlColumn<{
-				name: 'population';
-				tableName: 'cities_table';
-				dataType: 'number';
-				columnType: 'MySqlInt';
-				data: number;
-				driverParam: string | number;
-				notNull: false;
-				hasDefault: true;
-				isPrimaryKey: false;
-				enumValues: undefined;
-				baseColumn: never;
-				generated: undefined;
-				identity: undefined;
-				isAutoincrement: false;
-				hasRuntimeDefault: false;
-			}, object>;
+			id: MySqlColumn<
+				{
+					name: 'id';
+					tableName: 'cities_table';
+					dataType: 'number';
+					columnType: 'MySqlSerial';
+					data: number;
+					driverParam: number;
+					notNull: true;
+					hasDefault: true;
+					isPrimaryKey: true;
+					enumValues: undefined;
+					baseColumn: never;
+					generated: undefined;
+					identity: undefined;
+					isAutoincrement: true;
+					hasRuntimeDefault: false;
+				},
+				{},
+				{}
+			>;
+			name: MySqlColumn<
+				{
+					name: 'name_db';
+					tableName: 'cities_table';
+					dataType: 'string';
+					columnType: 'MySqlText';
+					data: string;
+					driverParam: string;
+					notNull: true;
+					hasDefault: false;
+					isPrimaryKey: false;
+					enumValues: [string, ...string[]];
+					baseColumn: never;
+					generated: undefined;
+					identity: undefined;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+				},
+				{},
+				{}
+			>;
+			population: MySqlColumn<
+				{
+					name: 'population';
+					tableName: 'cities_table';
+					dataType: 'number';
+					columnType: 'MySqlInt';
+					data: number;
+					driverParam: string | number;
+					notNull: false;
+					hasDefault: true;
+					isPrimaryKey: false;
+					enumValues: undefined;
+					baseColumn: never;
+					generated: undefined;
+					identity: undefined;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+				},
+				{},
+				{}
+			>;
 		},
 		typeof cities._.columns
 	>
@@ -1033,4 +1046,36 @@ Expect<
 		year: year(),
 		yeardef: year().default(0),
 	});
+}
+
+{
+	enum Role {
+		admin = 'admin',
+		user = 'user',
+		guest = 'guest',
+	}
+
+	enum RoleNonString {
+		admin,
+		user,
+		guest,
+	}
+
+	enum RolePartiallyString {
+		admin,
+		user = 'user',
+		guest = 'guest',
+	}
+
+	const table = mysqlTable('table', {
+		enum: mysqlEnum('enum', Role),
+		// @ts-expect-error
+		enum1: mysqlEnum('enum1', RoleNonString),
+		// @ts-expect-error
+		enum2: mysqlEnum('enum2', RolePartiallyString),
+	});
+
+	const res = await db.select({ enum: table.enum }).from(table);
+
+	Expect<Equal<{ enum: Role | null }[], typeof res>>;
 }
