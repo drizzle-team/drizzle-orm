@@ -775,7 +775,7 @@ export const fromDrizzleSchema = (
 	};
 };
 
-const fromExport = (exports: Record<string, unknown>) => {
+export const fromExports = (exports: Record<string, unknown>) => {
 	const tables: AnyPgTable[] = [];
 	const enums: PgEnum<any>[] = [];
 	const schemas: PgSchema[] = [];
@@ -847,7 +847,7 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 		const it = imports[i];
 
 		const i0: Record<string, unknown> = require(`${it}`);
-		const prepared = fromExport(i0);
+		const prepared = fromExports(i0);
 
 		tables.push(...prepared.tables);
 		enums.push(...prepared.enums);

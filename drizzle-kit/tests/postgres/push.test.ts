@@ -780,10 +780,7 @@ test('full sequence: no changes', async () => {
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
 	await push({ db, to: schema1 });
-	const { sqlStatements: pst } = await push({
-		db,
-		to: schema2,
-	});
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
 	const st0: string[] = [];
 	expect(st).toStrictEqual(st0);
@@ -816,10 +813,7 @@ test('basic sequence: change fields', async () => {
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
 	await push({ db, to: schema1 });
-	const { sqlStatements: pst } = await push({
-		db,
-		to: schema2,
-	});
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
 	const st0: string[] = [
 		'ALTER SEQUENCE "my_seq" INCREMENT BY 4 MINVALUE 100 MAXVALUE 100000 START WITH 100 CACHE 10 CYCLE;',
@@ -855,11 +849,7 @@ test('basic sequence: change name', async () => {
 	const { sqlStatements: st } = await diff(schema1, schema2, renames);
 
 	await push({ db, to: schema1 });
-	const { sqlStatements: pst } = await push({
-		db,
-		to: schema2,
-		renames,
-	});
+	const { sqlStatements: pst } = await push({ db, to: schema2, renames });
 
 	const st0: string[] = [
 		'ALTER SEQUENCE "my_seq" RENAME TO "my_seq2";',
@@ -895,11 +885,7 @@ test('basic sequence: change name and fields', async () => {
 	const { sqlStatements: st } = await diff(schema1, schema2, renames);
 
 	await push({ db, to: schema1 });
-	const { sqlStatements: pst } = await push({
-		db,
-		to: schema2,
-		renames,
-	});
+	const { sqlStatements: pst } = await push({ db, to: schema2, renames });
 
 	const st0: string[] = [
 		'ALTER SEQUENCE "my_seq" RENAME TO "my_seq2";',
@@ -1890,10 +1876,10 @@ test('add with options to materialized with existing flag', async () => {
 });
 
 test('drop mat view with data', async () => {
-	// TODO: revise
 	const table = pgTable('table', {
 		id: serial('id').primaryKey(),
 	});
+
 	const schema1 = {
 		test: table,
 		view: pgMaterializedView('view', {}).as(sql`SELECT * FROM ${table}`),
@@ -1903,36 +1889,12 @@ test('drop mat view with data', async () => {
 		test: table,
 	};
 
-	const seedStatements = [`INSERT INTO "table" ("id") VALUES (1), (2), (3)`];
-
-	// const {
-	// 	statements,
-	// 	sqlStatements,
-	// 	losses,
-	// 	hints,
-	// } = await diffPush({
-	// 	db,
-	// 	from: schema1,
-	// 	to: schema2,
-	// 	after: seedStatements,
-	// });
-
-	// expect(sqlStatements).toStrictEqual([`DROP MATERIALIZED VIEW "view";`]);
-	// expect(hints).toStrictEqual(['· You\'re about to delete non-empty "view" materialized view']);
-	// expect(losses).toStrictEqual([]);
-
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
 	await push({ db, to: schema1 });
-	const { sqlStatements: pst, hints: phints, losses: plosses } = await push({
-		db,
-		to: schema2,
-	});
+	await db.query(`INSERT INTO "table" ("id") VALUES (1), (2), (3)`);
 
-	// seeding
-	for (const seedSt of seedStatements) {
-		await db.query(seedSt);
-	}
+	const { sqlStatements: pst, hints: phints, losses: plosses } = await push({ db, to: schema2 });
 
 	const st0: string[] = [
 		`DROP MATERIALIZED VIEW "view";`,
@@ -2017,64 +1979,41 @@ test('drop view with data', async () => {
 });
 
 test('enums ordering', async () => {
-	// TODO: revise
-	const schema2 = {
-		enum1: pgEnum('settings', [
-			'custAll',
-			'custAdmin',
-			'custClerk',
-			'custInvoiceManager',
-			'custMgf',
-			'custApprover',
-			'custOrderWriter',
-			'custBuyer',
-		]),
+	const schema1 = {
+		enum: pgEnum('settings', ['all', 'admin']),
 	};
 
-	await diff({}, schema2, []);
-	await push({ db, to: schema2 });
+	const { next: n1 } = await diff({}, schema1, []);
+	await push({ db, to: schema1 });
 
 	const schema3 = {
-		enum2: pgEnum('settings', [
-			'addedToTop',
-			'custAll',
-			'custAdmin',
-			'custClerk',
-			'custInvoiceManager',
-			'custMgf',
-			'custApprover',
-			'custOrderWriter',
-			'custBuyer',
-		]),
+		enum: pgEnum('settings', ['new', 'all', 'admin']),
 	};
 
-	await diff(schema2, schema3, []);
-	await push({ db, to: schema3 });
+	const { sqlStatements: st2, next: n2 } = await diff(n1, schema3, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema3 });
+
+	expect(st2).toStrictEqual(["ALTER TYPE \"settings\" ADD VALUE 'new' BEFORE 'all';"]);
+	expect(pst2).toStrictEqual(["ALTER TYPE \"settings\" ADD VALUE 'new' BEFORE 'all';"]);
 
 	const schema4 = {
-		enum3: pgEnum('settings', [
-			'addedToTop',
-			'custAll',
-			'custAdmin',
-			'custClerk',
-			'custInvoiceManager',
-			'addedToMiddle',
-			'custMgf',
-			'custApprover',
-			'custOrderWriter',
-			'custBuyer',
-		]),
+		enum3: pgEnum('settings', ['new', 'all', 'new2', 'admin']),
 	};
 
-	const { sqlStatements: st } = await diff(schema3, schema4, []);
-	const { sqlStatements: pst } = await push({ db, to: schema4 });
+	const { sqlStatements: st3, next: n3 } = await diff(n2, schema4, []);
+	const { sqlStatements: pst3 } = await push({ db, to: schema4 });
 
 	const st0 = [
-		`ALTER TYPE "settings" ADD VALUE 'addedToMiddle' BEFORE 'custMgf';`,
+		`ALTER TYPE "settings" ADD VALUE 'new2' BEFORE 'admin';`,
 	];
 
-	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+	expect(st3).toStrictEqual(st0);
+	expect(pst3).toStrictEqual(st0);
+
+	const { sqlStatements: st4 } = await diff(n3, schema4, []);
+	const { sqlStatements: pst4 } = await push({ db, to: schema4 });
+	expect(st4).toStrictEqual([]);
+	expect(pst4).toStrictEqual([]);
 });
 
 test('drop enum values', async () => {
@@ -2342,7 +2281,6 @@ test('alter policy without recreation: changing roles', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-// TODO: revise policies/roles tests below
 test('alter policy without recreation: changing using', async (t) => {
 	const schema1 = {
 		users: pgTable('users', {
@@ -2361,10 +2299,8 @@ test('alter policy without recreation: changing using', async (t) => {
 	await push({ db, to: schema1 });
 	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
-	const st0: string[] = [];
-
-	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+	expect(st).toStrictEqual(["ALTER POLICY \"test\" ON \"users\" TO public USING (true);",]);
+	expect(pst).toStrictEqual([]); // we ignode [as for roles using withCheck] when push
 });
 
 test('alter policy without recreation: changing with check', async (t) => {

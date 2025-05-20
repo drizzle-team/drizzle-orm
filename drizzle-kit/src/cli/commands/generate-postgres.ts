@@ -1,4 +1,3 @@
-import { fchown } from 'fs';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/postgres/drizzle';
 import { prepareFilenames } from 'src/serializer';
 import {
@@ -21,7 +20,6 @@ import {
 import { ddlDiff, ddlDiffDry } from '../../dialects/postgres/diff';
 import { prepareSnapshot } from '../../dialects/postgres/serializer';
 import { assertV1OutFolder, prepareMigrationFolder } from '../../utils-node';
-import { mockResolver } from '../../utils/mocks';
 import { resolver } from '../prompts';
 import { writeResult } from './generate-common';
 import { ExportConfig, GenerateConfig } from './utils';
