@@ -122,7 +122,7 @@ export const fromDrizzleSchema = (
 						: typeof column.generated.as === 'function'
 						? dialect.sqlToQuery(column.generated.as() as SQL).sql
 						: (column.generated.as as any),
-					type: column.generated.mode ?? 'stored',
+					type: column.generated.mode === 'virtual' ? 'virtual' : 'stored',
 				}
 				: null;
 
