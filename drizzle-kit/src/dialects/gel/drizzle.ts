@@ -27,6 +27,7 @@ import {
 	ForeignKey,
 	Index,
 	InterimColumn,
+	InterimIndex,
 	InterimSchema,
 	Policy,
 	PostgresEntities,
@@ -113,7 +114,7 @@ export const fromDrizzleSchema = (
 		} satisfies PostgresEntities['tables'];
 	});
 
-	const indexes: Index[] = [];
+	const indexes: InterimIndex[] = [];
 	const pks: PrimaryKey[] = [];
 	const fks: ForeignKey[] = [];
 	const uniques: UniqueConstraint[] = [];
@@ -338,7 +339,7 @@ export const fromDrizzleSchema = (
 		}
 
 		indexes.push(
-			...drizzleIndexes.map<Index>((value) => {
+			...drizzleIndexes.map<InterimIndex>((value) => {
 				const columns = value.config.columns;
 
 				let indexColumnNames = columns.map((it) => {
@@ -400,7 +401,9 @@ export const fromDrizzleSchema = (
 					concurrently: value.config.concurrently ?? false,
 					method: value.config.method ?? 'btree',
 					with: withOpt,
-				} satisfies Index;
+					forPK: false,
+					forUnique: false,
+				} satisfies InterimIndex;
 			}),
 		);
 

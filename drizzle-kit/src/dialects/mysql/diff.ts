@@ -80,7 +80,7 @@ export const diffDDL = async (
 		});
 
 		// preserve name for foreign keys
-		const renamedFKs = [...selfRefs, ...froms, ...tos];
+		const renamedFKs = [...selfRefs.data, ...froms.data, ...tos.data];
 		for (const fk of renamedFKs) {
 			const name = nameForForeignKey(fk);
 			ddl2.fks.update({
