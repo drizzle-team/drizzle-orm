@@ -2299,7 +2299,7 @@ test('alter policy without recreation: changing using', async (t) => {
 	await push({ db, to: schema1 });
 	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
-	expect(st).toStrictEqual(["ALTER POLICY \"test\" ON \"users\" TO public USING (true);",]);
+	expect(st).toStrictEqual(['ALTER POLICY "test" ON "users" TO public USING (true);']);
 	expect(pst).toStrictEqual([]); // we ignode [as for roles using withCheck] when push
 });
 

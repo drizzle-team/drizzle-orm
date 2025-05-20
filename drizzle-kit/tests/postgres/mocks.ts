@@ -140,7 +140,7 @@ export const push = async (config: {
 		? { ddl: to as PostgresDDL, errors: [] }
 		: drizzleToDDL(to, casing);
 
-	if (err2.length > 0 ) {
+	if (err2.length > 0) {
 		for (const e of err2) {
 			console.error(`err2: ${JSON.stringify(e)}`);
 		}
@@ -155,7 +155,6 @@ export const push = async (config: {
 	}
 
 	if (log === 'statements') {
-		
 		// console.dir(ddl1.roles.list());
 		// console.dir(ddl2.roles.list());
 	}

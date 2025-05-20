@@ -58,7 +58,7 @@ export const handle = async (
 		console.log(errors.map((it) => schemaError(it)).join('\n'));
 		process.exit(1);
 	}
-	
+
 	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
 	const { schema: schemaFrom } = await pgPushIntrospect(db, tablesFilter, schemasFilter, entities, progress);
 

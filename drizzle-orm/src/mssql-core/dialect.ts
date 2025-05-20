@@ -45,20 +45,36 @@ export class MsSqlDialect {
 	async migrate(
 		migrations: MigrationMeta[],
 		session: MsSqlSession,
-		config: Omit<MigrationConfig, 'migrationsSchema'>,
+		config: MigrationConfig,
 	): Promise<void> {
-		const migrationsTable = config.migrationsTable ?? '__drizzle_migrations';
+		const migrationsTable = typeof config === 'string'
+			? '__drizzle_migrations'
+			: config.migrationsTable ?? '__drizzle_migrations';
+		const migrationsSchema = typeof config === 'string' ? 'drizzle' : config.migrationsSchema ?? 'drizzle';
 		const migrationTableCreate = sql`
-			create table ${sql.identifier(migrationsTable)} (
-				id bigint identity primary key,
-				hash text not null,
+			IF NOT EXISTS (
+				SELECT 1 FROM INFORMATION_SCHEMA.TABLES 
+				WHERE TABLE_NAME = ${migrationsTable} AND TABLE_SCHEMA = ${migrationsSchema}
+			)
+			CREATE TABLE ${sql.identifier(migrationsSchema)}.${sql.identifier(migrationsTable)} (
+				id bigint identity PRIMARY KEY,
+				hash text NOT NULL,
 				created_at bigint
 			)
 		`;
+
+		const migrationSchemaCreate = sql`
+			IF NOT EXISTS (
+				SELECT 1 FROM sys.schemas WHERE name = ${migrationsSchema}
+			)
+			EXEC(\'CREATE SCHEMA ${sql.identifier(migrationsSchema)}\')
+		`;
+
+		await session.execute(migrationSchemaCreate);
 		await session.execute(migrationTableCreate);
 
 		const dbMigrations = await session.all<{ id: number; hash: string; created_at: string }>(
-			sql`select id, hash, created_at from ${
+			sql`select id, hash, created_at from ${sql.identifier(migrationsSchema)}.${
 				sql.identifier(migrationsTable)
 			} order by created_at desc offset 0 rows fetch next 1 rows only`,
 		);
@@ -75,7 +91,7 @@ export class MsSqlDialect {
 						await tx.execute(sql.raw(stmt));
 					}
 					await tx.execute(
-						sql`insert into ${
+						sql`insert into ${sql.identifier(migrationsSchema)}.${
 							sql.identifier(migrationsTable)
 						} ([hash], [created_at]) values(${migration.hash}, ${migration.folderMillis})`,
 					);

@@ -87,7 +87,7 @@ test('indexes #0', async (t) => {
 		'CREATE INDEX "changeWith" ON "users" ("name") WITH (fillfactor=90);',
 		'CREATE INDEX "changeUsing" ON "users" USING hash ("name");',
 	]);
-	
+
 	// for push we ignore change of index expressions
 	expect(pst).toStrictEqual([
 		'DROP INDEX "changeName";',
@@ -180,8 +180,8 @@ test('index #2', async (t) => {
 	]);
 	expect(pst).toStrictEqual([
 		'DROP INDEX "indx1";',
-		// TODO: we ignore columns changes during 'push', we should probably tell user about it in CLI? 
-		// 'DROP INDEX "indx2";', 
+		// TODO: we ignore columns changes during 'push', we should probably tell user about it in CLI?
+		// 'DROP INDEX "indx2";',
 		// 'DROP INDEX "indx3";',
 		'CREATE INDEX "indx4" ON "users" (lower(name));',
 		'CREATE INDEX "indx1" ON "users" ("name" DESC NULLS LAST) WHERE false;',

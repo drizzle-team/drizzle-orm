@@ -84,7 +84,7 @@ export function minRangeForIdentityBasedOn(columnType: string) {
 	return columnType === 'integer' ? '-2147483648' : columnType === 'bigint' ? '-9223372036854775808' : '-32768';
 }
 
-/* 
+/*
 	we can't check for `nextval('${schemaPrefix}${table}_${column}_seq'::regclass)` perfect match
 	since table or column might be renamed, while sequence preserve name and it will trigger
 	subsequent ddl diffs

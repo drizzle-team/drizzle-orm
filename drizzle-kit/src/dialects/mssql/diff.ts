@@ -156,7 +156,7 @@ export const ddlDiff = async (
 		});
 
 		// This copy is needed because in forof loop the original fks are modified
-		const copies = [...copy(fks1), ...copy(fks2)];
+		const copies = [...copy(fks1.data), ...copy(fks2.data)];
 
 		for (const fk of copies.filter((it) => !it.nameExplicit)) {
 			const name = defaultNameForFK(fk.table, fk.columns, fk.tableTo, fk.columnsTo);
@@ -171,7 +171,7 @@ export const ddlDiff = async (
 				},
 			});
 
-			fksRenames.push({ to: updated[0], from: fk });
+			fksRenames.push({ to: updated.data[0], from: fk });
 		}
 
 		const res = ddl1.entities.update({
@@ -185,7 +185,7 @@ export const ddlDiff = async (
 			},
 		});
 
-		for (const it of res) {
+		for (const it of res.data) {
 			if (it.entityType === 'pks' && !it.nameExplicit) {
 				const name = defaultNameForPK(it.table);
 
@@ -207,7 +207,7 @@ export const ddlDiff = async (
 					},
 				});
 
-				pksRenames.push({ from: originalPk, to: updated[0] });
+				pksRenames.push({ from: originalPk, to: updated.data[0] });
 			}
 			if (it.entityType === 'uniques' && !it.nameExplicit) {
 				const name = defaultNameForUnique(it.table, it.columns);
@@ -233,7 +233,7 @@ export const ddlDiff = async (
 					},
 				});
 
-				uniqueRenames.push({ from: originalUnique, to: updated[0] });
+				uniqueRenames.push({ from: originalUnique, to: updated.data[0] });
 			}
 			if (it.entityType === 'defaults' && !it.nameExplicit) {
 				const name = defaultNameForDefault(it.table, it.column);
@@ -259,7 +259,7 @@ export const ddlDiff = async (
 					},
 				});
 
-				defaultsRenames.push({ from: originalDefaults, to: updated[0] });
+				defaultsRenames.push({ from: originalDefaults, to: updated.data[0] });
 			}
 		}
 	}
@@ -330,7 +330,7 @@ export const ddlDiff = async (
 		});
 
 		// This copy is needed because in forof loop the original fks are modified
-		const copies = [...copy(fks1), ...copy(fks2)];
+		const copies = [...copy(fks1.data), ...copy(fks2.data)];
 		for (const fk of copies.filter((it) => !it.nameExplicit)) {
 			const name = defaultNameForFK(fk.table, fk.columns, fk.tableTo, fk.columnsTo);
 
@@ -344,7 +344,7 @@ export const ddlDiff = async (
 				},
 			});
 
-			fksRenames.push({ to: updated[0], from: fk });
+			fksRenames.push({ to: updated.data[0], from: fk });
 		}
 
 		const uniques = ddl1.uniques.update({
@@ -359,7 +359,7 @@ export const ddlDiff = async (
 			},
 		});
 
-		for (const it of uniques.filter((it) => !it.nameExplicit)) {
+		for (const it of uniques.data.filter((it) => !it.nameExplicit)) {
 			const originalUnique = copy(ddl1.uniques.one({
 				schema: it.schema,
 				table: it.table,
@@ -382,7 +382,7 @@ export const ddlDiff = async (
 				},
 			});
 
-			uniqueRenames.push({ from: originalUnique, to: updated[0] });
+			uniqueRenames.push({ from: originalUnique, to: updated.data[0] });
 		}
 
 		const columnsDefaults = ddl1.defaults.update({
@@ -393,7 +393,7 @@ export const ddlDiff = async (
 			},
 		});
 
-		for (const it of columnsDefaults.filter((it) => !it.nameExplicit)) {
+		for (const it of columnsDefaults.data.filter((it) => !it.nameExplicit)) {
 			const originalDefault = copy(ddl1.defaults.one({
 				schema: it.schema,
 				table: it.table,
@@ -416,7 +416,7 @@ export const ddlDiff = async (
 				},
 			});
 
-			defaultsRenames.push({ from: originalDefault, to: updated[0] });
+			defaultsRenames.push({ from: originalDefault, to: updated.data[0] });
 		}
 
 		ddl1.checks.update({

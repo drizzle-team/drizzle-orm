@@ -115,7 +115,7 @@ export const fromDrizzleSchema = (
 				? false
 				: (column as any).autoIncrement;
 
-			const generated: Column["generated"] = column.generated
+			const generated: Column['generated'] = column.generated
 				? {
 					as: is(column.generated.as, SQL)
 						? dialect.sqlToQuery(column.generated.as as SQL).sql
