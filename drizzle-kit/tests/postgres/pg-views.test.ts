@@ -1,7 +1,24 @@
 import { sql } from 'drizzle-orm';
 import { integer, pgMaterializedView, pgSchema, pgTable, pgView } from 'drizzle-orm/pg-core';
-import { expect, test } from 'vitest';
-import { diff } from './mocks';
+import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
+
+// @vitest-environment-options {"max-concurrency":1}
+let _: TestDatabase;
+let db: TestDatabase['db'];
+
+beforeAll(async () => {
+	_ = await prepareTestDatabase();
+	db = _.db;
+});
+
+afterAll(async () => {
+	await _.close();
+});
+
+beforeEach(async () => {
+	await _.clear();
+});
 
 test('create table and view #1', async () => {
 	const users = pgTable('users', {
@@ -12,11 +29,19 @@ test('create table and view #1', async () => {
 		view: pgView('some_view').as((qb) => qb.select().from(users)),
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
-	expect(sqlStatements).toStrictEqual([
+	const { sqlStatements: st } = await diff({}, to, []);
+
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
 		`CREATE TABLE "users" (\n\t"id" integer PRIMARY KEY\n);\n`,
 		`CREATE VIEW "some_view" AS (select "id" from "users");`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('create table and view #2', async () => {
@@ -28,11 +53,19 @@ test('create table and view #2', async () => {
 		view: pgView('some_view', { id: integer('id') }).as(sql`SELECT * FROM ${users}`),
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
-	expect(sqlStatements).toStrictEqual([
+	const { sqlStatements: st } = await diff({}, to, []);
+
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
 		`CREATE TABLE "users" (\n\t"id" integer PRIMARY KEY\n);\n`,
 		`CREATE VIEW "some_view" AS (SELECT * FROM "users");`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('create table and view #3', async () => {
@@ -53,12 +86,20 @@ test('create table and view #3', async () => {
 		}).as((qb) => qb.select().from(users)),
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
-	expect(sqlStatements).toStrictEqual([
+	const { sqlStatements: st } = await diff({}, to, []);
+
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
 		`CREATE TABLE "users" (\n\t"id" integer PRIMARY KEY\n);\n`,
 		`CREATE VIEW "some_view1" WITH (check_option = local, security_barrier = false, security_invoker = true) AS (SELECT * FROM "users");`,
 		`CREATE VIEW "some_view2" WITH (check_option = cascaded, security_barrier = true, security_invoker = false) AS (select "id" from "users");`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('create table and view #4', async () => {
@@ -82,17 +123,21 @@ test('create table and view #4', async () => {
 		}).as((qb) => qb.select().from(users)),
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
+	const { sqlStatements: st } = await diff({}, to, []);
 
-	expect(sqlStatements.length).toBe(4);
-	expect(sqlStatements[0]).toBe(`CREATE SCHEMA "new_schema";\n`);
-	expect(sqlStatements[1]).toBe(`CREATE TABLE "new_schema"."users" (\n\t"id" integer PRIMARY KEY\n);\n`);
-	expect(sqlStatements[2]).toBe(
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
+		`CREATE SCHEMA "new_schema";\n`,
+		`CREATE TABLE "new_schema"."users" (\n\t"id" integer PRIMARY KEY\n);\n`,
 		`CREATE VIEW "new_schema"."some_view1" WITH (check_option = local, security_barrier = false, security_invoker = true) AS (SELECT * FROM "new_schema"."users");`,
-	);
-	expect(sqlStatements[3]).toBe(
 		`CREATE VIEW "new_schema"."some_view2" WITH (check_option = cascaded, security_barrier = true, security_invoker = false) AS (select "id" from "new_schema"."users");`,
-	);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('create table and view #5', async () => {
@@ -107,6 +152,7 @@ test('create table and view #5', async () => {
 
 	// view_name_duplicate
 	await expect(diff({}, to, [])).rejects.toThrow();
+	await expect(push({ db, to })).rejects.toThrow();
 });
 
 test('create table and view #6', async () => {
@@ -118,11 +164,19 @@ test('create table and view #6', async () => {
 		view1: pgView('some_view', { id: integer('id') }).with({ checkOption: 'cascaded' }).as(sql`SELECT * FROM ${users}`),
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
+	const { sqlStatements: st } = await diff({}, to, []);
 
-	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toBe(`CREATE TABLE "users" (\n\t"id" integer PRIMARY KEY\n);\n`);
-	expect(sqlStatements[1]).toBe(`CREATE VIEW "some_view" WITH (check_option = cascaded) AS (SELECT * FROM "users");`);
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
+		`CREATE TABLE "users" (\n\t"id" integer PRIMARY KEY\n);\n`,
+		`CREATE VIEW "some_view" WITH (check_option = cascaded) AS (SELECT * FROM "users");`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('create view with existing flag', async () => {
@@ -139,9 +193,17 @@ test('create view with existing flag', async () => {
 		view1: pgView('some_view', { id: integer('id') }).with({ checkOption: 'cascaded' }).existing(),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements.length).toBe(0);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('create table and materialized view #1', async () => {
@@ -153,11 +215,19 @@ test('create table and materialized view #1', async () => {
 		view: pgMaterializedView('some_view').as((qb) => qb.select().from(users)),
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
+	const { sqlStatements: st } = await diff({}, to, []);
 
-	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toBe(`CREATE TABLE "users" (\n\t"id" integer PRIMARY KEY\n);\n`);
-	expect(sqlStatements[1]).toBe(`CREATE MATERIALIZED VIEW "some_view" AS (select "id" from "users");`);
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
+		`CREATE TABLE "users" (\n\t"id" integer PRIMARY KEY\n);\n`,
+		`CREATE MATERIALIZED VIEW "some_view" AS (select "id" from "users");`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('create table and materialized view #2', async () => {
@@ -169,11 +239,19 @@ test('create table and materialized view #2', async () => {
 		view: pgMaterializedView('some_view', { id: integer('id') }).as(sql`SELECT * FROM ${users}`),
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
+	const { sqlStatements: st } = await diff({}, to, []);
 
-	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toBe(`CREATE TABLE "users" (\n\t"id" integer PRIMARY KEY\n);\n`);
-	expect(sqlStatements[1]).toBe(`CREATE MATERIALIZED VIEW "some_view" AS (SELECT * FROM "users");`);
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
+		`CREATE TABLE "users" (\n\t"id" integer PRIMARY KEY\n);\n`,
+		`CREATE MATERIALIZED VIEW "some_view" AS (SELECT * FROM "users");`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('create table and materialized view #3', async () => {
@@ -205,14 +283,20 @@ test('create table and materialized view #3', async () => {
 		}).as((qb) => qb.select().from(users)),
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
+	const { sqlStatements: st } = await diff({}, to, []);
 
-	expect(sqlStatements.length).toBe(3);
-	expect(sqlStatements[0]).toBe(`CREATE TABLE "users" (\n\t"id" integer PRIMARY KEY\n);\n`);
-	expect(sqlStatements[1]).toBe(`CREATE MATERIALIZED VIEW "some_view1" AS (SELECT * FROM "users");`);
-	expect(sqlStatements[2]).toBe(
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
+		`CREATE TABLE "users" (\n\t"id" integer PRIMARY KEY\n);\n`,
+		`CREATE MATERIALIZED VIEW "some_view1" AS (SELECT * FROM "users");`,
 		`CREATE MATERIALIZED VIEW "some_view2" USING "heap" WITH (autovacuum_enabled = true, autovacuum_freeze_max_age = 1, autovacuum_freeze_min_age = 1, autovacuum_freeze_table_age = 1, autovacuum_multixact_freeze_max_age = 1, autovacuum_multixact_freeze_min_age = 1, autovacuum_multixact_freeze_table_age = 1, autovacuum_vacuum_cost_delay = 1, autovacuum_vacuum_cost_limit = 1, autovacuum_vacuum_scale_factor = 1, autovacuum_vacuum_threshold = 1, fillfactor = 1, log_autovacuum_min_duration = 1, parallel_workers = 1, toast_tuple_target = 1, user_catalog_table = true, vacuum_index_cleanup = off, vacuum_truncate = false) TABLESPACE some_tablespace AS (select "id" from "users") WITH NO DATA;`,
-	);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('create table and materialized view #4', async () => {
@@ -228,6 +312,7 @@ test('create table and materialized view #4', async () => {
 
 	// view_name_duplicate
 	await expect(diff({}, to, [])).rejects.toThrow();
+	await expect(push({ db, to })).rejects.toThrow();
 });
 
 test('create table and materialized view #5', async () => {
@@ -241,13 +326,19 @@ test('create table and materialized view #5', async () => {
 		),
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
+	const { sqlStatements: st } = await diff({}, to, []);
 
-	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toBe(`CREATE TABLE "users" (\n\t"id" integer PRIMARY KEY\n);\n`);
-	expect(sqlStatements[1]).toBe(
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
+		`CREATE TABLE "users" (\n\t"id" integer PRIMARY KEY\n);\n`,
 		`CREATE MATERIALIZED VIEW "some_view" WITH (autovacuum_freeze_min_age = 14) AS (SELECT * FROM "users");`,
-	);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('create materialized view with existing flag', async () => {
@@ -264,8 +355,17 @@ test('create materialized view with existing flag', async () => {
 		view1: pgMaterializedView('some_view', { id: integer('id') }).with({ autovacuumEnabled: true }).existing(),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
-	expect(sqlStatements.length).toBe(0);
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop view #1', async () => {
@@ -282,10 +382,19 @@ test('drop view #1', async () => {
 		users: users,
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(`DROP VIEW "some_view";`);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
+		`DROP VIEW "some_view";`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop view with existing flag', async () => {
@@ -302,8 +411,17 @@ test('drop view with existing flag', async () => {
 		users: users,
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
-	expect(sqlStatements.length).toBe(0);
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop materialized view #1', async () => {
@@ -320,9 +438,19 @@ test('drop materialized view #1', async () => {
 		users: users,
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(`DROP MATERIALIZED VIEW "some_view";`);
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
+		`DROP MATERIALIZED VIEW "some_view";`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop materialized view with existing flag', async () => {
@@ -339,8 +467,17 @@ test('drop materialized view with existing flag', async () => {
 		users: users,
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
-	expect(sqlStatements.length).toBe(0);
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('rename view #1', async () => {
@@ -352,10 +489,21 @@ test('rename view #1', async () => {
 		view: pgView('new_some_view', { id: integer('id') }).as(sql`SELECT * FROM "users"`),
 	};
 
-	const { sqlStatements } = await diff(from, to, ['public.some_view->public.new_some_view']);
+	const renames = ['public.some_view->public.new_some_view'];
+	const { sqlStatements: st } = await diff(from, to, renames);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(`ALTER VIEW "some_view" RENAME TO "new_some_view";`);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		renames,
+	});
+
+	const st0 = [
+		`ALTER VIEW "some_view" RENAME TO "new_some_view";`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('rename view with existing flag', async () => {
@@ -367,9 +515,19 @@ test('rename view with existing flag', async () => {
 		view: pgView('new_some_view', { id: integer('id') }).existing(),
 	};
 
-	const { sqlStatements } = await diff(from, to, ['public.some_view->public.new_some_view']);
+	const renames = ['public.some_view->public.new_some_view'];
+	const { sqlStatements: st } = await diff(from, to, renames);
 
-	expect(sqlStatements.length).toBe(0);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		renames,
+	});
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('rename materialized view #1', async () => {
@@ -381,10 +539,21 @@ test('rename materialized view #1', async () => {
 		view: pgMaterializedView('new_some_view', { id: integer('id') }).as(sql`SELECT * FROM "users"`),
 	};
 
-	const { sqlStatements } = await diff(from, to, ['public.some_view->public.new_some_view']);
+	const renames = ['public.some_view->public.new_some_view'];
+	const { sqlStatements: st } = await diff(from, to, renames);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(`ALTER MATERIALIZED VIEW "some_view" RENAME TO "new_some_view";`);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		renames,
+	});
+
+	const st0 = [
+		`ALTER MATERIALIZED VIEW "some_view" RENAME TO "new_some_view";`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('rename materialized view with existing flag', async () => {
@@ -396,8 +565,19 @@ test('rename materialized view with existing flag', async () => {
 		view: pgMaterializedView('new_some_view', { id: integer('id') }).existing(),
 	};
 
-	const { sqlStatements } = await diff(from, to, ['public.some_view->public.new_some_view']);
-	expect(sqlStatements.length).toBe(0);
+	const renames = ['public.some_view->public.new_some_view'];
+	const { sqlStatements: st } = await diff(from, to, renames);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		renames,
+	});
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('view alter schema', async () => {
@@ -412,11 +592,22 @@ test('view alter schema', async () => {
 		view: schema.view('some_view', { id: integer('id') }).as(sql`SELECT * FROM "users"`),
 	};
 
-	const { sqlStatements } = await diff(from, to, ['public.some_view->new_schema.some_view']);
+	const renames = ['public.some_view->new_schema.some_view'];
+	const { sqlStatements: st } = await diff(from, to, renames);
 
-	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toBe(`CREATE SCHEMA "new_schema";\n`);
-	expect(sqlStatements[1]).toBe(`ALTER VIEW "some_view" SET SCHEMA "new_schema";`);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		renames,
+	});
+
+	const st0 = [
+		`CREATE SCHEMA "new_schema";\n`,
+		`ALTER VIEW "some_view" SET SCHEMA "new_schema";`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('view alter schema with existing flag', async () => {
@@ -431,10 +622,21 @@ test('view alter schema with existing flag', async () => {
 		view: schema.view('some_view', { id: integer('id') }).existing(),
 	};
 
-	const { sqlStatements } = await diff(from, to, ['public.some_view->new_schema.some_view']);
+	const renames = ['public.some_view->new_schema.some_view'];
+	const { sqlStatements: st } = await diff(from, to, renames);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(`CREATE SCHEMA "new_schema";\n`);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		renames,
+	});
+
+	const st0 = [
+		`CREATE SCHEMA "new_schema";\n`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('view alter schema for materialized', async () => {
@@ -449,11 +651,22 @@ test('view alter schema for materialized', async () => {
 		view: schema.materializedView('some_view', { id: integer('id') }).as(sql`SELECT * FROM "users"`),
 	};
 
-	const { sqlStatements } = await diff(from, to, ['public.some_view->new_schema.some_view']);
+	const renames = ['public.some_view->new_schema.some_view'];
+	const { sqlStatements: st } = await diff(from, to, renames);
 
-	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toBe(`CREATE SCHEMA "new_schema";\n`);
-	expect(sqlStatements[1]).toBe(`ALTER MATERIALIZED VIEW "some_view" SET SCHEMA "new_schema";`);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		renames,
+	});
+
+	const st0 = [
+		`CREATE SCHEMA "new_schema";\n`,
+		`ALTER MATERIALIZED VIEW "some_view" SET SCHEMA "new_schema";`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('view alter schema for materialized with existing flag', async () => {
@@ -468,10 +681,21 @@ test('view alter schema for materialized with existing flag', async () => {
 		view: schema.materializedView('some_view', { id: integer('id') }).existing(),
 	};
 
-	const { sqlStatements } = await diff(from, to, ['public.some_view->new_schema.some_view']);
+	const renames = ['public.some_view->new_schema.some_view'];
+	const { sqlStatements: st } = await diff(from, to, renames);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(`CREATE SCHEMA "new_schema";\n`);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		renames,
+	});
+
+	const st0 = [
+		`CREATE SCHEMA "new_schema";\n`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add with option to view #1', async () => {
@@ -491,12 +715,19 @@ test('add with option to view #1', async () => {
 		),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
 		`ALTER VIEW "some_view" SET (check_option = cascaded, security_barrier = true);`,
-	);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add with option to view with existing flag', async () => {
@@ -514,8 +745,17 @@ test('add with option to view with existing flag', async () => {
 		view: pgView('some_view', {}).with({ checkOption: 'cascaded', securityBarrier: true }).existing(),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
-	expect(sqlStatements.length).toBe(0);
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add with option to materialized view #1', async () => {
@@ -535,12 +775,19 @@ test('add with option to materialized view #1', async () => {
 		),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
 		`ALTER MATERIALIZED VIEW "some_view" SET (autovacuum_multixact_freeze_max_age = 3);`,
-	);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add with option to materialized view with existing flag', async () => {
@@ -558,8 +805,17 @@ test('add with option to materialized view with existing flag', async () => {
 		view: pgMaterializedView('some_view', {}).with({ autovacuumMultixactFreezeMaxAge: 3 }).existing(),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
-	expect(sqlStatements.length).toBe(0);
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop with option from view #1', async () => {
@@ -579,12 +835,19 @@ test('drop with option from view #1', async () => {
 		view: pgView('some_view').as((qb) => qb.select().from(users)),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
 		`ALTER VIEW "some_view" RESET (check_option, security_barrier, security_invoker);`,
-	);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop with option from view with existing flag', async () => {
@@ -603,9 +866,17 @@ test('drop with option from view with existing flag', async () => {
 		view: pgView('some_view', {}).existing(),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements.length).toBe(0);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop with option from materialized view #1', async () => {
@@ -625,11 +896,19 @@ test('drop with option from materialized view #1', async () => {
 		view: pgMaterializedView('some_view').as((qb) => qb.select().from(users)),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0 = [
 		`ALTER MATERIALIZED VIEW "some_view" RESET (autovacuum_enabled, autovacuum_freeze_max_age);`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop with option from materialized view with existing flag', async () => {
@@ -647,9 +926,17 @@ test('drop with option from materialized view with existing flag', async () => {
 		view: pgMaterializedView('some_view', {}).existing(),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements.length).toBe(0);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter with option in view #1', async () => {
@@ -669,12 +956,19 @@ test('alter with option in view #1', async () => {
 		view: pgView('some_view').with({ securityBarrier: true }).as((qb) => qb.select().from(users)),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0: string[] = [
 		`ALTER VIEW "some_view" RESET (security_invoker);`,
-	);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter with option in view with existing flag', async () => {
@@ -692,9 +986,17 @@ test('alter with option in view with existing flag', async () => {
 		view: pgView('some_view', {}).with({ securityBarrier: true }).existing(),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements.length).toBe(0);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter with option in materialized view #1', async () => {
@@ -714,12 +1016,19 @@ test('alter with option in materialized view #1', async () => {
 		view: pgMaterializedView('some_view').with({ autovacuumEnabled: true }).as((qb) => qb.select().from(users)),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0: string[] = [
 		`ALTER MATERIALIZED VIEW "some_view" RESET (autovacuum_vacuum_scale_factor);`,
-	);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter with option in materialized view with existing flag', async () => {
@@ -738,9 +1047,17 @@ test('alter with option in materialized view with existing flag', async () => {
 		view: pgMaterializedView('some_view', {}).with({ autovacuumEnabled: true }).existing(),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements.length).toBe(0);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter with option in view #2', async () => {
@@ -762,12 +1079,19 @@ test('alter with option in view #2', async () => {
 		),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0: string[] = [
 		`ALTER VIEW "some_view" SET (check_option = cascaded);`,
-	);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter with option in materialized view #2', async () => {
@@ -789,12 +1113,19 @@ test('alter with option in materialized view #2', async () => {
 		),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0: string[] = [
 		`ALTER MATERIALIZED VIEW "some_view" SET (autovacuum_enabled = false);`,
-	);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter view ".as" value', async () => {
@@ -820,12 +1151,20 @@ test('alter view ".as" value', async () => {
 		}).as(sql`SELECT '1234'`),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0: string[] = [
 		'DROP VIEW "some_view";',
 		`CREATE VIEW "some_view" WITH (check_option = local, security_barrier = true, security_invoker = true) AS (SELECT '1234');`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter view ".as" value with existing flag', async () => {
@@ -851,9 +1190,17 @@ test('alter view ".as" value with existing flag', async () => {
 		}).existing(),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements.length).toBe(0);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter materialized view ".as" value', async () => {
@@ -875,12 +1222,20 @@ test('alter materialized view ".as" value', async () => {
 		}).as(sql`SELECT '1234'`),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0: string[] = [
 		'DROP MATERIALIZED VIEW "some_view";',
 		`CREATE MATERIALIZED VIEW "some_view" WITH (autovacuum_vacuum_cost_limit = 1) AS (SELECT '1234');`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter materialized view ".as" value with existing flag', async () => {
@@ -902,9 +1257,17 @@ test('alter materialized view ".as" value with existing flag', async () => {
 		}).existing(),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements.length).toBe(0);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop existing flag', async () => {
@@ -926,11 +1289,20 @@ test('drop existing flag', async () => {
 		}).as(sql`SELECT 'asd'`),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
-	expect(sqlStatements).toStrictEqual([
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0: string[] = [
 		'DROP MATERIALIZED VIEW "some_view";',
 		`CREATE MATERIALIZED VIEW "some_view" WITH (autovacuum_vacuum_cost_limit = 1) AS (SELECT 'asd');`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter tablespace - materialize', async () => {
@@ -952,12 +1324,19 @@ test('alter tablespace - materialize', async () => {
 		}).as(sql`SELECT 'asd'`),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0: string[] = [
 		`ALTER MATERIALIZED VIEW "some_view" SET TABLESPACE "new_tablespace";`,
-	);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('set tablespace - materialize', async () => {
@@ -979,12 +1358,19 @@ test('set tablespace - materialize', async () => {
 		}).as(sql`SELECT 'asd'`),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0: string[] = [
 		`ALTER MATERIALIZED VIEW "some_view" SET TABLESPACE "new_tablespace";`,
-	);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop tablespace - materialize', async () => {
@@ -1006,11 +1392,19 @@ test('drop tablespace - materialize', async () => {
 		}).as(sql`SELECT 'asd'`),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0: string[] = [
 		`ALTER MATERIALIZED VIEW "some_view" SET TABLESPACE "pg_default";`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('set existing - materialized', async () => {
@@ -1033,9 +1427,19 @@ test('set existing - materialized', async () => {
 		}).withNoData().existing(),
 	};
 
-	const { sqlStatements } = await diff(from, to, ['public.some_view->public.new_some_view']);
+	const renames = ['public.some_view->public.new_some_view'];
+	const { sqlStatements: st } = await diff(from, to, renames);
 
-	expect(sqlStatements.length).toBe(0);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		renames,
+	});
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop existing - materialized', async () => {
@@ -1058,12 +1462,20 @@ test('drop existing - materialized', async () => {
 		}).withNoData().as(sql`SELECT 'asd'`),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0: string[] = [
 		'DROP MATERIALIZED VIEW "some_view";',
 		`CREATE MATERIALIZED VIEW "some_view" WITH (autovacuum_freeze_min_age = 1, autovacuum_vacuum_cost_limit = 1) AS (SELECT 'asd') WITH NO DATA;`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('set existing', async () => {
@@ -1086,9 +1498,19 @@ test('set existing', async () => {
 		}).existing(),
 	};
 
-	const { sqlStatements } = await diff(from, to, ['public.some_view->public.new_some_view']);
+	const renames = ['public.some_view->public.new_some_view'];
+	const { sqlStatements: st } = await diff(from, to, renames);
 
-	expect(sqlStatements.length).toBe(0);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		renames,
+	});
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter using - materialize', async () => {
@@ -1112,12 +1534,19 @@ test('alter using - materialize', async () => {
 		}).as(sql`SELECT 'asd'`),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements.length).toBe(1);
-	expect(sqlStatements[0]).toBe(
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0: string[] = [
 		`ALTER MATERIALIZED VIEW "some_view" SET ACCESS METHOD "new_using";`,
-	);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('set using - materialize', async () => {
@@ -1139,11 +1568,19 @@ test('set using - materialize', async () => {
 		}).as(sql`SELECT 'asd'`),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0: string[] = [
 		`ALTER MATERIALIZED VIEW "some_view" SET ACCESS METHOD "new_using";`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop using - materialize', async () => {
@@ -1165,9 +1602,19 @@ test('drop using - materialize', async () => {
 		}).as(sql`SELECT 'asd'`),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([`ALTER MATERIALIZED VIEW "some_view" SET ACCESS METHOD "heap";`]);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0: string[] = [
+		`ALTER MATERIALIZED VIEW "some_view" SET ACCESS METHOD "heap";`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('rename view and alter view', async () => {
@@ -1181,11 +1628,21 @@ test('rename view and alter view', async () => {
 		),
 	};
 
-	const { sqlStatements } = await diff(from, to, ['public.some_view->public.new_some_view']);
+	const renames = ['public.some_view->public.new_some_view'];
+	const { sqlStatements: st } = await diff(from, to, renames);
 
-	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toBe(`ALTER VIEW "some_view" RENAME TO "new_some_view";`);
-	expect(sqlStatements[1]).toBe(`ALTER VIEW "new_some_view" SET (check_option = cascaded);`);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0: string[] = [
+		`ALTER VIEW "some_view" RENAME TO "new_some_view";`,
+		`ALTER VIEW "new_some_view" SET (check_option = cascaded);`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('moved schema and alter view', async () => {
@@ -1202,10 +1659,20 @@ test('moved schema and alter view', async () => {
 		),
 	};
 
-	const { sqlStatements } = await diff(from, to, ['public.some_view->my_schema.some_view']);
+	const renames = ['public.some_view->my_schema.some_view'];
+	const { sqlStatements: st } = await diff(from, to, renames);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		renames,
+	});
+
+	const st0: string[] = [
 		`ALTER VIEW "some_view" SET SCHEMA "my_schema";`,
 		`ALTER VIEW "my_schema"."some_view" SET (check_option = cascaded);`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
