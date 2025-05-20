@@ -175,7 +175,6 @@ export const updateToV8 = (it: Record<string, any>): { snapshot: PostgresSnapsho
 				table: table.name,
 				name: idx.name,
 				columns,
-				isPrimary: false,
 				isUnique: idx.isUnique,
 				method: idx.method,
 				concurrently: idx.concurrently,

@@ -67,17 +67,16 @@ test('create sequence: all fields', async () => {
 
 test('create sequence: custom schema', async () => {
 	const customSchema = pgSchema('custom');
-	const from = {};
+	const from = { customSchema };
 	const to = {
+		customSchema,
 		seq: customSchema.sequence('name', { startWith: 100 }),
 	};
 
 	const { sqlStatements: st } = await diff(from, to, []);
 
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-	});
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0 = [
 		'CREATE SEQUENCE "custom"."name" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 100 CACHE 1;',
@@ -88,8 +87,9 @@ test('create sequence: custom schema', async () => {
 
 test('create sequence: custom schema + all fields', async () => {
 	const customSchema = pgSchema('custom');
-	const from = {};
+	const from = { customSchema };
 	const to = {
+		customSchema,
 		seq: customSchema.sequence('name', {
 			startWith: 100,
 			maxValue: 10000,
@@ -102,10 +102,8 @@ test('create sequence: custom schema + all fields', async () => {
 
 	const { sqlStatements: st } = await diff(from, to, []);
 
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-	});
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0 = [
 		'CREATE SEQUENCE "custom"."name" INCREMENT BY 2 MINVALUE 100 MAXVALUE 10000 START WITH 100 CACHE 10 CYCLE;',
@@ -135,8 +133,8 @@ test('drop sequence', async () => {
 
 test('drop sequence: custom schema', async () => {
 	const customSchema = pgSchema('custom');
-	const from = { seq: customSchema.sequence('name', { startWith: 100 }) };
-	const to = {};
+	const from = { customSchema, seq: customSchema.sequence('name', { startWith: 100 }) };
+	const to = { customSchema };
 
 	const { sqlStatements: st } = await diff(from, to, []);
 
@@ -181,8 +179,8 @@ test('rename sequence', async () => {
 test('rename sequence in custom schema', async () => {
 	const customSchema = pgSchema('custom');
 
-	const from = { seq: customSchema.sequence('name', { startWith: 100 }) };
-	const to = { seq: customSchema.sequence('name_new', { startWith: 100 }) };
+	const from = { customSchema, seq: customSchema.sequence('name', { startWith: 100 }) };
+	const to = { customSchema, seq: customSchema.sequence('name_new', { startWith: 100 }) };
 
 	const renames = [
 		'custom.name->custom.name_new',
@@ -205,8 +203,8 @@ test('rename sequence in custom schema', async () => {
 
 test('move sequence between schemas #1', async () => {
 	const customSchema = pgSchema('custom');
-	const from = { seq: pgSequence('name', { startWith: 100 }) };
-	const to = { seq: customSchema.sequence('name', { startWith: 100 }) };
+	const from = { customSchema, seq: pgSequence('name', { startWith: 100 }) };
+	const to = { customSchema, seq: customSchema.sequence('name', { startWith: 100 }) };
 
 	const renames = [
 		'public.name->custom.name',
@@ -229,8 +227,8 @@ test('move sequence between schemas #1', async () => {
 
 test('move sequence between schemas #2', async () => {
 	const customSchema = pgSchema('custom');
-	const from = { seq: customSchema.sequence('name', { startWith: 100 }) };
-	const to = { seq: pgSequence('name', { startWith: 100 }) };
+	const from = { customSchema, seq: customSchema.sequence('name', { startWith: 100 }) };
+	const to = { customSchema, seq: pgSequence('name', { startWith: 100 }) };
 
 	const renames = [
 		'custom.name->public.name',

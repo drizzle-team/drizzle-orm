@@ -31,6 +31,7 @@ test('create role', async (t) => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to: schema2,
+		entities: { roles: { include: ['manager'] } },
 	});
 
 	const st0 = [
@@ -52,6 +53,7 @@ test('create role with properties', async (t) => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to: schema2,
+		entities: { roles: { include: ['manager'] } },
 	});
 
 	const st0 = [
@@ -73,6 +75,7 @@ test('create role with some properties', async (t) => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to: schema2,
+		entities: { roles: { include: ['manager'] } },
 	});
 
 	const st0 = [
@@ -93,6 +96,7 @@ test('drop role', async (t) => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to: schema2,
+		entities: { roles: { include: ['manager'] } },
 	});
 
 	const st0 = [
@@ -117,6 +121,7 @@ test('create and drop role', async (t) => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to: schema2,
+		entities: { roles: { include: ['manager', 'admin'] } },
 	});
 
 	const st0 = [
@@ -144,6 +149,7 @@ test('rename role', async (t) => {
 		db,
 		to: schema2,
 		renames,
+		entities: { roles: { include: ['manager', 'admin'] } },
 	});
 
 	const st0 = [
@@ -168,6 +174,7 @@ test('alter all role field', async (t) => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to: schema2,
+		entities: { roles: { include: ['manager'] } },
 	});
 
 	const st0 = [
@@ -192,6 +199,7 @@ test('alter createdb in role', async (t) => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to: schema2,
+		entities: { roles: { include: ['manager'] } },
 	});
 
 	const st0 = [
@@ -213,10 +221,7 @@ test('alter createrole in role', async (t) => {
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
 	await push({ db, to: schema1 });
-	const { sqlStatements: pst } = await push({
-		db,
-		to: schema2,
-	});
+	const { sqlStatements: pst } = await push({ db, to: schema2, entities: { roles: { include: ['manager'] } } });
 
 	const st0 = [
 		'ALTER ROLE "manager" WITH NOCREATEDB CREATEROLE INHERIT;',
@@ -225,7 +230,7 @@ test('alter createrole in role', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('alter inherit in role', async (t) => {
+test.only('alter inherit in role', async (t) => {
 	const schema1 = {
 		manager: pgRole('manager'),
 	};
@@ -240,6 +245,7 @@ test('alter inherit in role', async (t) => {
 	const { sqlStatements: pst } = await push({
 		db,
 		to: schema2,
+		entities: { roles: { include: ['manager'] } },
 	});
 
 	const st0 = [

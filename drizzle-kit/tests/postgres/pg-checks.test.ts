@@ -28,7 +28,6 @@ test('create table with check', async (t) => {
 	};
 
 	const { sqlStatements: st } = await diff({}, to, []);
-
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0 = [
@@ -131,7 +130,7 @@ test('alter check constraint', async (t) => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0 = [
-		'ALTER TABLE "users" DROP CONSTRAINT "some_check_name", ADD CONSTRAINT ADD CONSTRAINT "some_check_name" CHECK ("users"."age" > 10);',
+		'ALTER TABLE "users" DROP CONSTRAINT "some_check_name", ADD CONSTRAINT "some_check_name" CHECK ("users"."age" > 10);',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);

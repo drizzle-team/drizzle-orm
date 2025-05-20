@@ -152,17 +152,14 @@ test('generated as callback: change generated constraint', async () => {
 	const { sqlStatements: st } = await diff(from, to, []);
 
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-	});
+	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0 = [
 		'ALTER TABLE "users" DROP COLUMN "gen_name";',
 		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name" || \'hello\') STORED;',
 	];
 	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+	expect(pst).toStrictEqual([]); // we don't trigger generated column recreate if definition change within push
 });
 
 // ---
@@ -307,7 +304,7 @@ test('generated as sql: change generated constraint', async () => {
 		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name" || \'hello\') STORED;',
 	];
 	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+	expect(pst).toStrictEqual([]); // we don't trigger generated column recreate if definition change within push
 });
 
 // ---
@@ -452,5 +449,5 @@ test('generated as string: change generated constraint', async () => {
 		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name" || \'hello\') STORED;',
 	];
 	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+	expect(pst).toStrictEqual([]);// we don't trigger generated column recreate if definition change within push
 });

@@ -475,6 +475,15 @@ export const fromDatabase = async (
 				name: it.name,
 				values: [it.value],
 			};
+		} else {
+			acc[it.oid].values.push(it.value);
+		}
+		return acc;
+	}, {} as Record<number, { oid: number; schema: string; name: string; values: string[] }>);
+
+	const groupedArrEnums = enumsList.reduce((acc, it) => {
+		if (!(it.arrayTypeId in acc)) {
+			const schemaName = filteredNamespaces.find((sch) => sch.oid === it.schemaId)!.name;
 			acc[it.arrayTypeId] = {
 				oid: it.oid,
 				schema: schemaName,
@@ -482,7 +491,6 @@ export const fromDatabase = async (
 				values: [it.value],
 			};
 		} else {
-			acc[it.oid].values.push(it.value);
 			acc[it.arrayTypeId].values.push(it.value);
 		}
 		return acc;
@@ -587,7 +595,11 @@ export const fromDatabase = async (
 		const schema = namespaces.find((it) => it.oid === table.schemaId)!;
 
 		// supply enums
-		const enumType = column.typeId in groupedEnums ? groupedEnums[column.typeId] : null;
+		const enumType = column.typeId in groupedEnums
+			? groupedEnums[column.typeId]
+			: column.typeId in groupedArrEnums
+			? groupedArrEnums[column.typeId]
+			: null;
 		let columnTypeMapped = enumType ? enumType.name : column.type.replace('[]', '');
 		columnTypeMapped = trimChar(columnTypeMapped, '"');
 
@@ -906,7 +918,12 @@ export const fromDatabase = async (
 		const view = viewsList.find((x) => x.oid === it.tableId)!;
 		const schema = namespaces.find((x) => x.oid === view.schemaId)!;
 
-		const enumType = it.typeId in groupedEnums ? groupedEnums[it.typeId] : null;
+		const enumType = it.typeId in groupedEnums
+			? groupedEnums[it.typeId]
+			: it.typeId in groupedArrEnums
+			? groupedArrEnums[it.typeId]
+			: null;
+			
 		let columnTypeMapped = enumType ? enumType.name : it.type.replace('[]', '');
 		columnTypeMapped = trimChar(columnTypeMapped, '"');
 		if (columnTypeMapped.startsWith('numeric(')) {
@@ -1036,6 +1053,7 @@ export const fromDatabaseForDrizzle = async (
 		status: IntrospectStatus,
 	) => void = () => {},
 ) => {
+
 	const res = await fromDatabase(db, tableFilter, schemaFilters, entities, progressCallback);
 	res.schemas = res.schemas.filter((it) => it.name !== 'public');
 	res.indexes = res.indexes.filter((it) => !it.forPK && !it.forUnique);

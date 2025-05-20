@@ -400,7 +400,6 @@ export const fromDrizzleSchema = (
 					concurrently: value.config.concurrently ?? false,
 					method: value.config.method ?? 'btree',
 					with: withOpt,
-					isPrimary: false,
 				} satisfies Index;
 			}),
 		);
