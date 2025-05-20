@@ -559,7 +559,7 @@ test('migrator', async () => {
 	await db.execute(sql`drop table if exists cities_migration`);
 	await db.execute(sql`drop table if exists users_migration`);
 	await db.execute(sql`drop table if exists users12`);
-	await db.execute(sql`drop table if exists __drizzle_migrations`);
+	await db.execute(sql`drop table if exists [drizzle].[__drizzle_migrations]`);
 
 	await migrate(db, { migrationsFolder: './drizzle2/mssql' });
 
@@ -572,7 +572,7 @@ test('migrator', async () => {
 	await db.execute(sql`drop table cities_migration`);
 	await db.execute(sql`drop table users_migration`);
 	await db.execute(sql`drop table users12`);
-	await db.execute(sql`drop table __drizzle_migrations`);
+	await db.execute(sql`drop table [drizzle].[__drizzle_migrations]`);
 });
 
 test('insert via db.execute + select via db.execute', async () => {
