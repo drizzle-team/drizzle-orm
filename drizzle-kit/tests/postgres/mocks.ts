@@ -21,6 +21,7 @@ import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/postgres
 import { mockResolver } from 'src/utils/mocks';
 import '../../src/@types/utils';
 import { PGlite } from '@electric-sql/pglite';
+import { vector } from '@electric-sql/pglite/vector';
 import { rmSync, writeFileSync } from 'fs';
 import { introspect } from 'src/cli/commands/pull-postgres';
 import { suggestions } from 'src/cli/commands/push-postgres';
@@ -126,21 +127,37 @@ export const push = async (config: {
 	schemas?: string[];
 	casing?: CasingType;
 	log?: 'statements' | 'none';
+	entities?: Entities;
 }) => {
 	const { db, to } = config;
 	const log = config.log ?? 'none';
 	const casing = config.casing ?? 'camelCase';
 	const schemas = config.schemas ?? ((_: string) => true);
 
-	const { schema } = await introspect(db, [], schemas, undefined, new EmptyProgressView());
+	const { schema } = await introspect(db, [], schemas, config.entities, new EmptyProgressView());
 	const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
 	const { ddl: ddl2, errors: err2 } = 'entities' in to && '_' in to
 		? { ddl: to as PostgresDDL, errors: [] }
 		: drizzleToDDL(to, casing);
 
+	if (err2.length > 0 ) {
+		for (const e of err2) {
+			console.error(`err2: ${JSON.stringify(e)}`);
+		}
+		throw new Error();
+	}
+
+	if (err3.length > 0) {
+		for (const e of err3) {
+			console.error(`err3: ${JSON.stringify(e)}`);
+		}
+		throw new Error();
+	}
+
 	if (log === 'statements') {
-		console.log(ddl1.columns.list());
-		console.log(ddl2.columns.list());
+		
+		// console.dir(ddl1.roles.list());
+		// console.dir(ddl2.roles.list());
 	}
 
 	// writeFileSync("./ddl1.json", JSON.stringify(ddl1.entities.list()))
@@ -168,10 +185,7 @@ export const push = async (config: {
 		'push',
 	);
 
-	const { hints, losses } = await suggestions(
-		db,
-		statements,
-	);
+	const { hints, losses } = await suggestions(db, statements);
 
 	for (const sql of sqlStatements) {
 		if (log === 'statements') console.log(sql);
@@ -301,7 +315,7 @@ export type TestDatabase = {
 };
 
 export const prepareTestDatabase = async (): Promise<TestDatabase> => {
-	const client = new PGlite();
+	const client = new PGlite({ extensions: { vector } });
 
 	const clear = async () => {
 		const namespaces = await client.query<{ name: string }>('select oid, nspname as name from pg_namespace').then((
@@ -321,6 +335,8 @@ export const prepareTestDatabase = async (): Promise<TestDatabase> => {
 		for (const role of roles) {
 			await client.query(`DROP ROLE "${role.rolname}"`);
 		}
+
+		await client.query(`CREATE EXTENSION vector;`);
 	};
 
 	const db: TestDatabase['db'] = {

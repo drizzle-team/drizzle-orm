@@ -2,13 +2,14 @@ import { prepareMigrationRenames } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
 import { diffStringArrays } from '../../utils/sequence-matcher';
 import type { Resolver } from '../common';
-import { diff } from '../dialect';
+import { diff, DiffAlter } from '../dialect';
 import { groupDiffs } from '../utils';
 import { fromJson } from './convertor';
 import {
 	CheckConstraint,
 	Column,
 	createDDL,
+	DiffEntities,
 	Enum,
 	ForeignKey,
 	Index,
@@ -642,7 +643,15 @@ export const ddlDiff = async (
 		return prepareStatement('rename_index', { schema: r.to.schema, from: r.from.name, to: r.to.name });
 	});
 
-	for (const idx of alters.filter((it) => it.entityType === 'indexes')) {
+	const indexesAlters = alters.filter((it): it is DiffEntities['indexes'] => {
+		if (it.entityType !== 'indexes') return false;
+
+		delete it.concurrently;
+
+		return ddl2.indexes.hasDiff(it);
+	});
+
+	for (const idx of indexesAlters) {
 		const forWhere = !!idx.where && (idx.where.from !== null && idx.where.to !== null ? mode !== 'push' : true);
 		const forColumns = !!idx.columns && (idx.columns.from.length === idx.columns.to.length ? mode !== 'push' : true);
 
@@ -962,11 +971,12 @@ export const ddlDiff = async (
 		prepareStatement('alter_sequence', { diff: it, sequence: it.$right })
 	);
 
-	const createRoles = createdRoles.map((it) => prepareStatement('create_role', { role: it }));
-	const dropRoles = deletedRoles.map((it) => prepareStatement('drop_role', { role: it }));
-	const renameRoles = renamedRoles.map((it) => prepareStatement('rename_role', it));
-	const rolesAlter = alters.filter((it) => it.entityType === 'roles');
-	const jsonAlterRoles = rolesAlter.map((it) => prepareStatement('alter_role', { diff: it, role: it.$right }));
+	const jsonCreateRoles = createdRoles.map((it) => prepareStatement('create_role', { role: it }));
+	const jsonDropRoles = deletedRoles.map((it) => prepareStatement('drop_role', { role: it }));
+	const jsonRenameRoles = renamedRoles.map((it) => prepareStatement('rename_role', it));
+	const jsonAlterRoles = alters.filter((it) => it.entityType === 'roles').map((it) =>
+		prepareStatement('alter_role', { diff: it, role: it.$right })
+	);
 
 	const createSchemas = createdSchemas.map((it) => prepareStatement('create_schema', it));
 	const dropSchemas = deletedSchemas.map((it) => prepareStatement('drop_schema', it));
@@ -1038,9 +1048,9 @@ export const ddlDiff = async (
 	jsonStatements.push(...renameSequences);
 	jsonStatements.push(...jsonAlterSequences);
 
-	jsonStatements.push(...renameRoles);
-	jsonStatements.push(...dropRoles);
-	jsonStatements.push(...createRoles);
+	jsonStatements.push(...jsonRenameRoles);
+	jsonStatements.push(...jsonDropRoles);
+	jsonStatements.push(...jsonCreateRoles);
 	jsonStatements.push(...jsonAlterRoles);
 
 	jsonStatements.push(...createTables);

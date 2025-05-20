@@ -1623,7 +1623,7 @@ test('db has checks. Push with same names', async () => {
 
 	const { sqlStatements } = await diffPush({ db, from: schema1, to: schema2 });
 	expect(sqlStatements).toStrictEqual([
-		'ALTER TABLE "test" DROP CONSTRAINT "some_check", ADD CONSTRAINT ADD CONSTRAINT "some_check" CHECK (some new value);',
+		'ALTER TABLE "test" DROP CONSTRAINT "some_check", ADD CONSTRAINT "some_check" CHECK (some new value);',
 	]);
 });
 
@@ -2549,6 +2549,7 @@ test('rename policy that is linked', async (t) => {
 	});
 
 	expect(sqlStatements).toStrictEqual([
+		"ALTER TABLE \"users\" ENABLE ROW LEVEL SECURITY;",
 		'ALTER POLICY "test" ON "users" RENAME TO "newName";',
 	]);
 });
@@ -2577,6 +2578,7 @@ test('alter policy that is linked', async (t) => {
 	});
 
 	expect(sqlStatements).toStrictEqual([
+		"ALTER TABLE \"users\" ENABLE ROW LEVEL SECURITY;",
 		'ALTER POLICY "test" ON "users" TO current_role;',
 	]);
 });
@@ -2604,7 +2606,7 @@ test('alter policy that is linked: withCheck', async (t) => {
 		before: createUsers,
 	});
 
-	expect(sqlStatements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual(["ALTER TABLE \"users\" ENABLE ROW LEVEL SECURITY;",]);
 });
 
 test('alter policy that is linked: using', async (t) => {
@@ -2612,9 +2614,8 @@ test('alter policy that is linked: using', async (t) => {
 		id: integer('id').primaryKey(),
 	});
 
-	const { sqlStatements: createUsers } = await diff({}, { users }, []);
-
 	const schema1 = {
+		users,
 		rls: pgPolicy('test', { as: 'permissive', using: sql`true` }).link(users),
 	};
 
@@ -2627,7 +2628,6 @@ test('alter policy that is linked: using', async (t) => {
 		db,
 		from: schema1,
 		to: schema2,
-		before: createUsers,
 	});
 
 	expect(sqlStatements).toStrictEqual([]);
@@ -2658,6 +2658,7 @@ test('alter policy that is linked: using', async (t) => {
 	});
 
 	expect(sqlStatements).toStrictEqual([
+		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
 		'DROP POLICY "test" ON "users";',
 		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR DELETE TO public;',
 	]);

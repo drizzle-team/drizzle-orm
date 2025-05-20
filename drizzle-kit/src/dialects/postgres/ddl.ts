@@ -399,7 +399,7 @@ export const interimToDDL = (
 				name: it.name,
 			});
 		}
-		
+
 		// TODO: check within schema
 	}
 
@@ -523,7 +523,7 @@ export const interimToDDL = (
 		let err = false;
 
 		if (!ddl.entities.validate(it)) {
-			console.log(it);
+			console.log('invalid entity:', it);
 			err = true;
 		}
 		if (err) throw new Error();

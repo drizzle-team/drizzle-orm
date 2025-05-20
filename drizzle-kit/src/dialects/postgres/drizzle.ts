@@ -231,7 +231,24 @@ export const fromDrizzleSchema = (
 	const errors: SchemaError[] = [];
 	const warnings: SchemaWarning[] = [];
 
-	const schemas = schema.schemas
+	const res: InterimSchema = {
+		indexes: [],
+		pks: [],
+		fks: [],
+		uniques: [],
+		checks: [],
+		columns: [],
+		policies: [],
+		enums: [],
+		roles: [],
+		schemas: [],
+		sequences: [],
+		tables: [],
+		viewColumns: [],
+		views: [],
+	};
+
+	res.schemas = schema.schemas
 		.map<Schema>((it) => ({
 			entityType: 'schemas',
 			name: it.schemaName,
@@ -248,24 +265,45 @@ export const fromDrizzleSchema = (
 		return { config: getTableConfig(it), table: it };
 	});
 
-	const tables = tableConfigPairs.map((it) => {
+	for (const policy of schema.policies) {
+		if (
+			!('_linkedTable' in policy)
+			|| typeof policy._linkedTable === 'undefined'
+		) {
+			warnings.push({ type: 'policy_not_linked', policy: policy.name });
+			continue;
+		}
+
+		// @ts-ignore
+		const { schema: configSchema, name: tableName } = getTableConfig(policy._linkedTable);
+
+		const p = policyFrom(policy, dialect);
+		res.policies.push({
+			entityType: 'policies',
+			schema: configSchema ?? 'public',
+			table: tableName,
+			name: p.name,
+			as: p.as,
+			for: p.for,
+			roles: p.roles,
+			using: p.using,
+			withCheck: p.withCheck,
+		});
+	}
+
+	res.tables = tableConfigPairs.map((it) => {
 		const config = it.config;
+		const schema = config.schema ?? 'public';
+		const isRlsEnabled = config.enableRLS || config.policies.length > 0
+			|| res.policies.some((x) => x.schema === schema && x.table === config.name);
 
 		return {
 			entityType: 'tables',
-			schema: config.schema ?? 'public',
+			schema,
 			name: config.name,
-			isRlsEnabled: config.enableRLS || config.policies.length > 0,
+			isRlsEnabled,
 		} satisfies PostgresEntities['tables'];
 	});
-
-	const indexes: InterimIndex[] = [];
-	const pks: PrimaryKey[] = [];
-	const fks: ForeignKey[] = [];
-	const uniques: UniqueConstraint[] = [];
-	const checks: CheckConstraint[] = [];
-	const columns: InterimColumn[] = [];
-	const policies: Policy[] = [];
 
 	for (const { table, config } of tableConfigPairs) {
 		const {
@@ -286,7 +324,7 @@ export const fromDrizzleSchema = (
 			continue;
 		}
 
-		columns.push(
+		res.columns.push(
 			...drizzleColumns.map<InterimColumn>((column) => {
 				const name = getColumnCasing(column, casing);
 				const notNull = column.notNull;
@@ -372,7 +410,7 @@ export const fromDrizzleSchema = (
 			}),
 		);
 
-		pks.push(
+		res.pks.push(
 			...drizzlePKs.map<PrimaryKey>((pk) => {
 				const columnNames = pk.columns.map((c) => getColumnCasing(c, casing));
 
@@ -389,7 +427,7 @@ export const fromDrizzleSchema = (
 			}),
 		);
 
-		uniques.push(
+		res.uniques.push(
 			...drizzleUniques.map<UniqueConstraint>((unq) => {
 				const columnNames = unq.columns.map((c) => getColumnCasing(c, casing));
 				const name = unq.name || uniqueKeyName(table, columnNames);
@@ -405,7 +443,7 @@ export const fromDrizzleSchema = (
 			}),
 		);
 
-		fks.push(
+		res.fks.push(
 			...drizzleFKs.map<ForeignKey>((fk) => {
 				const onDelete = fk.onDelete;
 				const onUpdate = fk.onUpdate;
@@ -470,7 +508,7 @@ export const fromDrizzleSchema = (
 			}
 		}
 
-		indexes.push(
+		res.indexes.push(
 			...drizzleIndexes.map<InterimIndex>((value) => {
 				const columns = value.config.columns;
 
@@ -539,7 +577,7 @@ export const fromDrizzleSchema = (
 			}),
 		);
 
-		policies.push(
+		res.policies.push(
 			...drizzlePolicies.map<Policy>((policy) => {
 				const p = policyFrom(policy, dialect);
 				return {
@@ -556,7 +594,7 @@ export const fromDrizzleSchema = (
 			}),
 		);
 
-		checks.push(
+		res.checks.push(
 			...drizzleChecks.map<CheckConstraint>((check) => {
 				const checkName = check.name;
 				return {
@@ -570,34 +608,6 @@ export const fromDrizzleSchema = (
 		);
 	}
 
-	for (const policy of schema.policies) {
-		if (
-			!('_linkedTable' in policy)
-			|| typeof policy._linkedTable === 'undefined'
-		) {
-			warnings.push({ type: 'policy_not_linked', policy: policy.name });
-			continue;
-		}
-
-		// @ts-ignore
-		const { schema: configSchema, name: tableName } = getTableConfig(policy._linkedTable);
-
-		const p = policyFrom(policy, dialect);
-		policies.push({
-			entityType: 'policies',
-			schema: configSchema ?? 'public',
-			table: tableName,
-			name: p.name,
-			as: p.as,
-			for: p.for,
-			roles: p.roles,
-			using: p.using,
-			withCheck: p.withCheck,
-		});
-	}
-
-	const sequences: Sequence[] = [];
-
 	for (const sequence of schema.sequences) {
 		const name = sequence.seqName!;
 		const increment = stringFromIdentityProperty(sequence.seqOptions?.increment) ?? '1';
@@ -608,7 +618,7 @@ export const fromDrizzleSchema = (
 		const startWith = stringFromIdentityProperty(sequence.seqOptions?.startWith)
 			?? (parseFloat(increment) < 0 ? maxValue : minValue);
 		const cache = Number(stringFromIdentityProperty(sequence.seqOptions?.cache) ?? 1);
-		sequences.push({
+		res.sequences.push({
 			entityType: 'sequences',
 			name,
 			schema: sequence.schema ?? 'public',
@@ -621,12 +631,11 @@ export const fromDrizzleSchema = (
 		});
 	}
 
-	const roles: Role[] = [];
 	for (const _role of schema.roles) {
 		const role = _role as any;
 		if (role._existing) continue;
 
-		roles.push({
+		res.roles.push({
 			entityType: 'roles',
 			name: role.name,
 			createDb: role.createDb ?? false,
@@ -635,7 +644,6 @@ export const fromDrizzleSchema = (
 		});
 	}
 
-	const views: View[] = [];
 	const combinedViews = [...schema.views, ...schema.matViews].map((it) => {
 		if (is(it, PgView)) {
 			return {
@@ -732,7 +740,7 @@ export const fromDrizzleSchema = (
 
 		const hasNonNullOpts = Object.values(withOpt ?? {}).filter((x) => x !== null).length > 0;
 
-		views.push({
+		res.views.push({
 			entityType: 'views',
 			definition: isExisting ? null : dialect.sqlToQuery(query!).sql,
 			name: viewName,
@@ -751,7 +759,7 @@ export const fromDrizzleSchema = (
 		});
 	}
 
-	const enums = schema.enums.map<Enum>((e) => {
+	res.enums = schema.enums.map<Enum>((e) => {
 		return {
 			entityType: 'enums',
 			name: e.enumName,
@@ -761,22 +769,7 @@ export const fromDrizzleSchema = (
 	});
 
 	return {
-		schema: {
-			schemas,
-			tables,
-			enums,
-			columns,
-			indexes,
-			fks,
-			pks,
-			uniques,
-			checks,
-			sequences,
-			roles,
-			policies,
-			views,
-			viewColumns: [],
-		},
+		schema: res,
 		errors,
 		warnings,
 	};

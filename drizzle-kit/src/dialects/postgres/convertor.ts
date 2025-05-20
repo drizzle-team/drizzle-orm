@@ -619,7 +619,7 @@ const recreateCheckConvertor = convertor('alter_check', (st) => {
 		: `"${check.table}"`;
 
 	let sql = `ALTER TABLE ${key} DROP CONSTRAINT "${check.name}", `;
-	sql += `ADD CONSTRAINT ADD CONSTRAINT "${check.name}" CHECK (${check.value});`;
+	sql += `ADD CONSTRAINT "${check.name}" CHECK (${check.value});`;
 
 	return sql;
 });
