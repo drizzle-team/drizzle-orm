@@ -59,8 +59,7 @@ export type BuildSchema<
 				: z.ZodAny;
 		}
 	>,
-	{},
-	{}
+	{ out: {}; in: {} }
 >;
 
 export type NoUnknownKeys<

@@ -53,16 +53,19 @@ import type {
 	SingleStoreYear,
 } from 'drizzle-orm/singlestore-core';
 import type { SQLiteInteger, SQLiteReal, SQLiteText } from 'drizzle-orm/sqlite-core';
-import { z } from 'zod/v4';
 import { z as zod } from 'zod/v4';
 import { CONSTANTS } from './constants.ts';
 import type { CreateSchemaFactoryOptions } from './schema.types.ts';
 import { isColumnType, isWithEnum } from './utils.ts';
 import type { Json } from './utils.ts';
 
-export const literalSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
-export const jsonSchema: z.ZodType<Json> = z.union([literalSchema, z.record(z.string(), z.any()), z.array(z.any())]);
-export const bufferSchema: z.ZodType<Buffer> = z.custom<Buffer>((v) => v instanceof Buffer); // eslint-disable-line no-instanceof/no-instanceof
+export const literalSchema = zod.union([zod.string(), zod.number(), zod.boolean(), zod.null()]);
+export const jsonSchema: zod.ZodType<Json> = zod.union([
+	literalSchema,
+	zod.record(zod.string(), zod.any()),
+	zod.array(zod.any()),
+]);
+export const bufferSchema: zod.ZodType<Buffer> = zod.custom<Buffer>((v) => v instanceof Buffer); // eslint-disable-line no-instanceof/no-instanceof
 
 export function columnToSchema(
 	column: Column,
@@ -71,10 +74,10 @@ export function columnToSchema(
 			Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined
 		>
 		| undefined,
-): z.ZodType {
+): zod.ZodType {
 	const z: typeof zod = factory?.zodInstance ?? zod;
 	const coerce = factory?.coerce ?? {};
-	let schema!: z.ZodType;
+	let schema!: zod.ZodType;
 
 	if (isWithEnum(column)) {
 		schema = column.enumValues.length ? z.enum(column.enumValues) : z.string();
@@ -90,7 +93,7 @@ export function columnToSchema(
 			schema = z.object({ x: z.number(), y: z.number() });
 		} else if (isColumnType<PgHalfVector<any> | PgVector<any>>(column, ['PgHalfVector', 'PgVector'])) {
 			schema = z.array(z.number());
-			schema = column.dimensions ? (schema as z.ZodArray<any>).length(column.dimensions) : schema;
+			schema = column.dimensions ? (schema as zod.ZodArray<any>).length(column.dimensions) : schema;
 		} else if (isColumnType<PgLineTuple<any>>(column, ['PgLine'])) {
 			schema = z.tuple([z.number(), z.number(), z.number()]);
 		} else if (isColumnType<PgLineABC<any>>(column, ['PgLineABC'])) {
@@ -102,7 +105,7 @@ export function columnToSchema(
 		} // Handle other types
 		else if (isColumnType<PgArray<any, any>>(column, ['PgArray'])) {
 			schema = z.array(columnToSchema(column.baseColumn, factory));
-			schema = column.size ? (schema as z.ZodArray<any>).length(column.size) : schema;
+			schema = column.size ? (schema as zod.ZodArray<any>).length(column.size) : schema;
 		} else if (column.dataType === 'array') {
 			schema = z.array(z.any());
 		} else if (column.dataType === 'number') {
@@ -137,7 +140,7 @@ function numberColumnToSchema(
 	coerce: CreateSchemaFactoryOptions<
 		Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined
 	>['coerce'],
-): z.ZodType {
+): zod.ZodType {
 	let unsigned = column.getSQLType().includes('unsigned');
 	let min!: number;
 	let max!: number;
@@ -252,7 +255,7 @@ function bigintColumnToSchema(
 	coerce: CreateSchemaFactoryOptions<
 		Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined
 	>['coerce'],
-): z.ZodType {
+): zod.ZodType {
 	const unsigned = column.getSQLType().includes('unsigned');
 	const min = unsigned ? 0n : CONSTANTS.INT64_MIN;
 	const max = unsigned ? CONSTANTS.INT64_UNSIGNED_MAX : CONSTANTS.INT64_MAX;
@@ -267,7 +270,7 @@ function stringColumnToSchema(
 	coerce: CreateSchemaFactoryOptions<
 		Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined
 	>['coerce'],
-): z.ZodType {
+): zod.ZodType {
 	if (isColumnType<PgUUID<ColumnBaseConfig<'string', 'PgUUID'>>>(column, ['PgUUID'])) {
 		return z.uuid();
 	}

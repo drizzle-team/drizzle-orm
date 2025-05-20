@@ -28,8 +28,7 @@ export type GetZodType<
 			? z.ZodType<TColumn['_']['data'], TColumn['_']['data']>
 		: z.ZodObject<
 			{ [K in keyof TColumn['_']['data']]: GetZodPrimitiveType<TColumn['_']['data'][K], '', TCoerce> },
-			{},
-			{}
+			{ out: {}; in: {} }
 		>
 	: TColumn['_']['dataType'] extends 'json' ? z.ZodType<Json>
 	: GetZodPrimitiveType<TColumn['_']['data'], TColumn['_']['columnType'], TCoerce>;
