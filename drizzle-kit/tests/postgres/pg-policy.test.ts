@@ -483,7 +483,7 @@ test('add policy with multiple "to" roles', async (t) => {
 	// TODO: it is now really weird that I have to include role names in entities when I just have them in schema
 	// if I don't - it will try to create same roles all the time
 	const st0 = [
-		"CREATE ROLE \"manager\";",
+		'CREATE ROLE "manager";',
 		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
 		'CREATE POLICY "test" ON "users" AS PERMISSIVE FOR ALL TO current_role, "manager";',
 	];

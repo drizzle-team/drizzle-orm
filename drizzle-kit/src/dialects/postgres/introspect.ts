@@ -923,7 +923,7 @@ export const fromDatabase = async (
 			: it.typeId in groupedArrEnums
 			? groupedArrEnums[it.typeId]
 			: null;
-			
+
 		let columnTypeMapped = enumType ? enumType.name : it.type.replace('[]', '');
 		columnTypeMapped = trimChar(columnTypeMapped, '"');
 		if (columnTypeMapped.startsWith('numeric(')) {
@@ -1053,7 +1053,6 @@ export const fromDatabaseForDrizzle = async (
 		status: IntrospectStatus,
 	) => void = () => {},
 ) => {
-
 	const res = await fromDatabase(db, tableFilter, schemaFilters, entities, progressCallback);
 	res.schemas = res.schemas.filter((it) => it.name !== 'public');
 	res.indexes = res.indexes.filter((it) => !it.forPK && !it.forUnique);
