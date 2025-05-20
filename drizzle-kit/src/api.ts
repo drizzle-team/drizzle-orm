@@ -1,13 +1,17 @@
-import { randomUUID } from 'crypto';
 import { LibSQLDatabase } from 'drizzle-orm/libsql';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
 import { PgDatabase } from 'drizzle-orm/pg-core';
 import { SingleStoreDriverDatabase } from 'drizzle-orm/singlestore';
-import { pgPushIntrospect } from './cli/commands/pull-postgres';
+import { introspect as postgresIntrospect } from './cli/commands/pull-postgres';
 import { sqliteIntrospect } from './cli/commands/pull-sqlite';
+import { suggestions } from './cli/commands/push-postgres';
 import { updateUpToV6 as upPgV6, updateUpToV7 as upPgV7 } from './cli/commands/up-postgres';
+import { resolver } from './cli/prompts';
 import type { CasingType } from './cli/validations/common';
 import { ProgressView, schemaError, schemaWarning } from './cli/views';
+import * as postgres from './dialects/postgres/ddl';
+import { fromDrizzleSchema, fromExports } from './dialects/postgres/drizzle';
+import { PostgresSnapshot, toJsonSnapshot } from './dialects/postgres/snapshot';
 import { getTablesFilterByExtensions } from './extensions/getTablesFilterByExtensions';
 import { originUUID } from './global';
 import type { Config } from './index';
@@ -18,23 +22,11 @@ export const generateDrizzleJson = (
 	prevId?: string,
 	schemaFilters?: string[],
 	casing?: CasingType,
-): PgSchemaKit => {
-	const prepared = prepareFromExports(imports);
+): PostgresSnapshot => {
+	const prepared = fromExports(imports);
+	const { schema: interim, errors, warnings } = fromDrizzleSchema(prepared, casing, schemaFilters);
 
-	const id = randomUUID();
-	const { schema, errors, warnings } = fromDrizzleSchema(
-		prepared.tables,
-		prepared.enums,
-		prepared.schemas,
-		prepared.sequences,
-		prepared.roles,
-		prepared.policies,
-		prepared.views,
-		prepared.matViews,
-		casing,
-		schemaFilters,
-	);
-
+	const { ddl, errors: err2 } = postgres.interimToDDL(interim);
 	if (warnings.length > 0) {
 		console.log(warnings.map((it) => schemaWarning(it)).join('\n\n'));
 	}
@@ -44,48 +36,46 @@ export const generateDrizzleJson = (
 		process.exit(1);
 	}
 
-	const snapshot = generatePgSnapshot(
-		schema,
-	);
+	if (err2.length > 0) {
+		console.log(err2.map((it) => schemaError(it)).join('\n'));
+		process.exit(1);
+	}
 
-	return fillPgSnapshot({
-		serialized: snapshot,
-		id,
-		idPrev: prevId ?? originUUID,
-	});
+	return toJsonSnapshot(ddl, prevId ?? originUUID, []);
 };
 
 export const generateMigration = async (
-	prev: DrizzleSnapshotJSON,
-	cur: DrizzleSnapshotJSON,
+	prev: PostgresSnapshot,
+	cur: PostgresSnapshot,
 ) => {
-	const { ddlDiff: applyPgSnapshotsDiff } = await import('./dialects/postgres/diff');
+	const { ddlDiff } = await import('./dialects/postgres/diff');
+	const from = postgres.createDDL();
+	const to = postgres.createDDL();
 
-	const validatedPrev = pgSchema.parse(prev);
-	const validatedCur = pgSchema.parse(cur);
+	for (const it of prev.ddl) {
+		from.entities.push(it);
+	}
+	for (const it of cur.ddl) {
+		to.entities.push(it);
+	}
 
-	const squasher = PostgresGenerateSquasher;
-
-	const squashedPrev = squashPgScheme(validatedPrev, squasher);
-	const squashedCur = squashPgScheme(validatedCur, squasher);
-
-	const { sqlStatements, _meta } = await applyPgSnapshotsDiff(
-		squashedPrev,
-		squashedCur,
-		schemasResolver,
-		enumsResolver,
-		sequencesResolver,
-		policyResolver,
-		indPolicyResolver,
-		roleResolver,
-		tablesResolver,
-		columnsResolver,
-		viewsResolver,
-		uniqueResolver,
-		indexesResolver,
-		validatedPrev,
-		validatedCur,
-		squasher,
+	const { sqlStatements } = await ddlDiff(
+		from,
+		to,
+		resolver<postgres.Schema>('schema'),
+		resolver<postgres.Enum>('enum'),
+		resolver<postgres.Sequence>('sequence'),
+		resolver<postgres.Policy>('policy'),
+		resolver<postgres.Role>('role'),
+		resolver<postgres.PostgresEntities['tables']>('table'),
+		resolver<postgres.Column>('column'),
+		resolver<postgres.View>('view'),
+		resolver<postgres.UniqueConstraint>('unique'),
+		resolver<postgres.Index>('index'),
+		resolver<postgres.CheckConstraint>('check'),
+		resolver<postgres.PrimaryKey>('primary key'),
+		resolver<postgres.ForeignKey>('foreign key'),
+		'default',
 	);
 
 	return sqlStatements;
@@ -94,11 +84,12 @@ export const generateMigration = async (
 export const pushSchema = async (
 	imports: Record<string, unknown>,
 	drizzleInstance: PgDatabase<any>,
+	casing?: CasingType,
 	schemaFilters?: string[],
 	tablesFilter?: string[],
 	extensionsFilters?: Config['extensionsFilters'],
 ) => {
-	const { ddlDiff: applyPgSnapshotsDiff } = await import('./dialects/postgres/diff');
+	const { ddlDiff } = await import('./dialects/postgres/diff');
 	const { sql } = await import('drizzle-orm');
 	const filters = (tablesFilter ?? []).concat(
 		getTablesFilterByExtensions({ extensionsFilters, dialect: 'postgresql' }),
@@ -111,50 +102,48 @@ export const pushSchema = async (
 		},
 	};
 
-	const cur = generateDrizzleJson(imports);
-	const { schema: prev } = await pgPushIntrospect(
-		db,
-		filters,
-		schemaFilters ?? ['public'],
-		undefined,
+	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
+	const { schema: prev } = await postgresIntrospect(db, filters, schemaFilters ?? ['public'], undefined, progress);
+
+	const prepared = fromExports(imports);
+	const { schema: cur, errors, warnings } = fromDrizzleSchema(prepared, casing, schemaFilters);
+
+	const { ddl: from, errors: err1 } = postgres.interimToDDL(prev);
+	const { ddl: to, errors: err2 } = postgres.interimToDDL(cur);
+
+	// TODO: handle errors
+
+	const { sqlStatements, statements } = await ddlDiff(
+		from,
+		to,
+		resolver<postgres.Schema>('schema'),
+		resolver<postgres.Enum>('enum'),
+		resolver<postgres.Sequence>('sequence'),
+		resolver<postgres.Policy>('policy'),
+		resolver<postgres.Role>('role'),
+		resolver<postgres.PostgresEntities['tables']>('table'),
+		resolver<postgres.Column>('column'),
+		resolver<postgres.View>('view'),
+		resolver<postgres.UniqueConstraint>('unique'),
+		resolver<postgres.Index>('index'),
+		resolver<postgres.CheckConstraint>('check'),
+		resolver<postgres.PrimaryKey>('primary key'),
+		resolver<postgres.ForeignKey>('foreign key'),
+		'push',
 	);
 
-	const validatedPrev = pgSchema.parse(prev);
-	const validatedCur = pgSchema.parse(cur);
-
-	const squasher = PostgresPushSquasher;
-
-	const squashedPrev = squashPgScheme(validatedPrev, squasher);
-	const squashedCur = squashPgScheme(validatedCur, squasher);
-
-	const { statements } = await applyPgSnapshotsDiff(
-		squashedPrev,
-		squashedCur,
-		schemasResolver,
-		enumsResolver,
-		sequencesResolver,
-		policyResolver,
-		indPolicyResolver,
-		roleResolver,
-		tablesResolver,
-		columnsResolver,
-		viewsResolver,
-		uniqueResolver,
-		indexesResolver,
-		validatedPrev,
-		validatedCur,
-		squasher,
-	);
-
-	const { shouldAskForApprove, statementsToExecute, infoToPrint } = await pgSuggestions(db, statements);
+	const { hints, losses } = await suggestions(db, statements);
 
 	return {
-		hasDataLoss: shouldAskForApprove,
-		warnings: infoToPrint,
-		statementsToExecute,
+		sqlStatements,
+		hints,
+		losses,
 		apply: async () => {
-			for (const dStmnt of statementsToExecute) {
-				await db.query(dStmnt);
+			for (const st of losses) {
+				await db.query(st);
+			}
+			for (const st of sqlStatements) {
+				await db.query(st);
 			}
 		},
 	};

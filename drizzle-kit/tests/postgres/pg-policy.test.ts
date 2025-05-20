@@ -187,7 +187,7 @@ test('alter policy without recreation: changing using', async (t) => {
 		'ALTER POLICY "test" ON "users" TO public USING (true);',
 	];
 	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual([]); // we ignode [as for roles using withCheck] when push
+	expect(pst).toStrictEqual([]); // we ignore [using withcheck] for push
 });
 
 test('alter policy without recreation: changing with check', async (t) => {
@@ -215,7 +215,7 @@ test('alter policy without recreation: changing with check', async (t) => {
 		'ALTER POLICY "test" ON "users" TO public WITH CHECK (true);',
 	];
 	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual([]); // we ignode [as for roles using withCheck] when push
+	expect(pst).toStrictEqual([]); // we ignore [using withcheck] for push
 });
 
 ///
@@ -1027,7 +1027,7 @@ test('alter policy that is linked: withCheck', async (t) => {
 		'ALTER POLICY "test" ON "users" TO public WITH CHECK (false);',
 	];
 	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual([]); // we ignode [as for roles using withCheck] when push
+	expect(pst).toStrictEqual([]); // we ignore [using withcheck] for push
 });
 
 test('alter policy that is linked: using', async (t) => {
@@ -1057,7 +1057,7 @@ test('alter policy that is linked: using', async (t) => {
 		'ALTER POLICY "test" ON "users" TO public USING (false);',
 	];
 	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual([]); // we ignode [as for roles using withCheck] when push
+	expect(pst).toStrictEqual([]); // we ignore [using withcheck] for push
 });
 
 test('alter policy that is linked: using', async (t) => {
@@ -1158,7 +1158,7 @@ test('alter policy in the table: withCheck', async (t) => {
 		'ALTER POLICY "test" ON "users" TO public WITH CHECK (false);',
 	];
 	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual([]); // we ignode [as for roles using withCheck] when push
+	expect(pst).toStrictEqual([]); // we ignore [using withcheck] for push
 });
 
 test('alter policy in the table: using', async (t) => {
@@ -1190,7 +1190,7 @@ test('alter policy in the table: using', async (t) => {
 		'ALTER POLICY "test" ON "users" TO public USING (false);',
 	];
 	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual([]); // we ignode [as for roles using withCheck] when push
+	expect(pst).toStrictEqual([]); // we ignore [using withcheck] for push
 });
 
 test('alter policy in the table: using', async (t) => {
