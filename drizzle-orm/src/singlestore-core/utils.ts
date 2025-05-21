@@ -1,4 +1,5 @@
 import { is } from '~/entity.ts';
+import { VectorIndex, VectorIndexBuilder, VectorIndexType } from '~/singlestore-core/indexes/vector.ts';
 import { Table } from '~/table.ts';
 import type { Index } from './indexes.ts';
 import { IndexBuilder } from './indexes.ts';
@@ -12,6 +13,7 @@ import type { SingleStoreView } from './view.ts'; */
 export function getTableConfig(table: SingleStoreTable) {
 	const columns = Object.values(table[SingleStoreTable.Symbol.Columns]);
 	const indexes: Index[] = [];
+	const vectorIndexes: VectorIndex<VectorIndexType>[] = [];
 	const primaryKeys: PrimaryKey[] = [];
 	const uniqueConstraints: UniqueConstraint[] = [];
 	const name = table[Table.Symbol.Name];
@@ -26,6 +28,8 @@ export function getTableConfig(table: SingleStoreTable) {
 		for (const builder of Object.values(extraValues)) {
 			if (is(builder, IndexBuilder)) {
 				indexes.push(builder.build(table));
+			} else if (is(builder, VectorIndexBuilder)) {
+				vectorIndexes.push(builder.build(table));
 			} else if (is(builder, UniqueConstraintBuilder)) {
 				uniqueConstraints.push(builder.build(table));
 			} else if (is(builder, PrimaryKeyBuilder)) {
@@ -37,6 +41,7 @@ export function getTableConfig(table: SingleStoreTable) {
 	return {
 		columns,
 		indexes,
+		vectorIndexes,
 		primaryKeys,
 		uniqueConstraints,
 		name,
