@@ -10,6 +10,7 @@ import {
 	isPgSequence,
 	isPgView,
 	PgEnum,
+	PgEnumObject,
 	PgMaterializedView,
 	PgPolicy,
 	PgRole,
@@ -91,6 +92,7 @@ export type PostgresSchema = Record<
 	string,
 	| PgTable<any>
 	| PgEnum<any>
+	| PgEnumObject<any>
 	| PgSchema
 	| PgSequence
 	| PgView

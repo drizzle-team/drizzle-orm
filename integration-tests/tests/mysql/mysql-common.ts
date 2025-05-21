@@ -14,10 +14,12 @@ import {
 	gt,
 	gte,
 	inArray,
+	like,
 	lt,
 	max,
 	min,
 	Name,
+	not,
 	notInArray,
 	sql,
 	sum,
@@ -1454,6 +1456,50 @@ export function tests(driver?: string) {
 			enum3: mysqlEnum('enum3', ['a', 'b', 'c']).notNull().default('b'),
 		});
 
+		test('Mysql enum as ts enum', async (ctx) => {
+			enum Test {
+				a = 'a',
+				b = 'b',
+				c = 'c',
+			}
+
+			const tableWithTsEnums = mysqlTable('enums_test_case', {
+				id: serial('id').primaryKey(),
+				enum1: mysqlEnum('enum1', Test).notNull(),
+				enum2: mysqlEnum('enum2', Test).default(Test.a),
+				enum3: mysqlEnum('enum3', Test).notNull().default(Test.b),
+			});
+
+			const { db } = ctx.mysql;
+
+			await db.execute(sql`drop table if exists \`enums_test_case\``);
+
+			await db.execute(sql`
+				create table \`enums_test_case\` (
+				    \`id\` serial primary key,
+				    \`enum1\` ENUM('a', 'b', 'c') not null,
+				    \`enum2\` ENUM('a', 'b', 'c') default 'a',
+				    \`enum3\` ENUM('a', 'b', 'c') not null default 'b'
+				)
+			`);
+
+			await db.insert(tableWithTsEnums).values([
+				{ id: 1, enum1: Test.a, enum2: Test.b, enum3: Test.c },
+				{ id: 2, enum1: Test.a, enum3: Test.c },
+				{ id: 3, enum1: Test.a },
+			]);
+
+			const res = await db.select().from(tableWithTsEnums);
+
+			await db.execute(sql`drop table \`enums_test_case\``);
+
+			expect(res).toEqual([
+				{ id: 1, enum1: 'a', enum2: 'b', enum3: 'c' },
+				{ id: 2, enum1: 'a', enum2: 'a', enum3: 'c' },
+				{ id: 3, enum1: 'a', enum2: 'a', enum3: 'b' },
+			]);
+		});
+
 		test('Mysql enum test case #1', async (ctx) => {
 			const { db } = ctx.mysql;
 
@@ -1912,7 +1958,7 @@ export function tests(driver?: string) {
 			}
 			{
 				const query = db.select().from(users2Table).for('update', { noWait: true }).toSQL();
-				expect(query.sql).toMatch(/ for update no wait$/);
+				expect(query.sql).toMatch(/ for update nowait$/);
 			}
 		});
 
@@ -4075,6 +4121,182 @@ export function tests(driver?: string) {
 			await db.execute(sql`drop table users`);
 		});
 
+		test('cross join', async (ctx) => {
+			const { db } = ctx.mysql;
+
+			await db
+				.insert(usersTable)
+				.values([
+					{ name: 'John' },
+					{ name: 'Jane' },
+				]);
+
+			await db
+				.insert(citiesTable)
+				.values([
+					{ name: 'Seattle' },
+					{ name: 'New York City' },
+				]);
+
+			const result = await db
+				.select({
+					user: usersTable.name,
+					city: citiesTable.name,
+				})
+				.from(usersTable)
+				.crossJoin(citiesTable)
+				.orderBy(usersTable.name, citiesTable.name);
+
+			expect(result).toStrictEqual([
+				{ city: 'New York City', user: 'Jane' },
+				{ city: 'Seattle', user: 'Jane' },
+				{ city: 'New York City', user: 'John' },
+				{ city: 'Seattle', user: 'John' },
+			]);
+		});
+
+		test('left join (lateral)', async (ctx) => {
+			const { db } = ctx.mysql;
+
+			await db
+				.insert(citiesTable)
+				.values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }]);
+
+			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+			const sq = db
+				.select({
+					userId: users2Table.id,
+					userName: users2Table.name,
+					cityId: users2Table.cityId,
+				})
+				.from(users2Table)
+				.where(eq(users2Table.cityId, citiesTable.id))
+				.as('sq');
+
+			const res = await db
+				.select({
+					cityId: citiesTable.id,
+					cityName: citiesTable.name,
+					userId: sq.userId,
+					userName: sq.userName,
+				})
+				.from(citiesTable)
+				.leftJoinLateral(sq, sql`true`);
+
+			expect(res).toStrictEqual([
+				{ cityId: 1, cityName: 'Paris', userId: 1, userName: 'John' },
+				{ cityId: 2, cityName: 'London', userId: null, userName: null },
+			]);
+		});
+
+		test('inner join (lateral)', async (ctx) => {
+			const { db } = ctx.mysql;
+
+			await db
+				.insert(citiesTable)
+				.values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }]);
+
+			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+			const sq = db
+				.select({
+					userId: users2Table.id,
+					userName: users2Table.name,
+					cityId: users2Table.cityId,
+				})
+				.from(users2Table)
+				.where(eq(users2Table.cityId, citiesTable.id))
+				.as('sq');
+
+			const res = await db
+				.select({
+					cityId: citiesTable.id,
+					cityName: citiesTable.name,
+					userId: sq.userId,
+					userName: sq.userName,
+				})
+				.from(citiesTable)
+				.innerJoinLateral(sq, sql`true`);
+
+			expect(res).toStrictEqual([
+				{ cityId: 1, cityName: 'Paris', userId: 1, userName: 'John' },
+			]);
+		});
+
+		test('cross join (lateral)', async (ctx) => {
+			const { db } = ctx.mysql;
+
+			await db
+				.insert(citiesTable)
+				.values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }, { id: 3, name: 'Berlin' }]);
+
+			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }, {
+				name: 'Patrick',
+				cityId: 2,
+			}]);
+
+			const sq = db
+				.select({
+					userId: users2Table.id,
+					userName: users2Table.name,
+					cityId: users2Table.cityId,
+				})
+				.from(users2Table)
+				.where(not(like(citiesTable.name, 'L%')))
+				.as('sq');
+
+			const res = await db
+				.select({
+					cityId: citiesTable.id,
+					cityName: citiesTable.name,
+					userId: sq.userId,
+					userName: sq.userName,
+				})
+				.from(citiesTable)
+				.crossJoinLateral(sq)
+				.orderBy(citiesTable.id, sq.userId);
+
+			expect(res).toStrictEqual([
+				{
+					cityId: 1,
+					cityName: 'Paris',
+					userId: 1,
+					userName: 'John',
+				},
+				{
+					cityId: 1,
+					cityName: 'Paris',
+					userId: 2,
+					userName: 'Jane',
+				},
+				{
+					cityId: 1,
+					cityName: 'Paris',
+					userId: 3,
+					userName: 'Patrick',
+				},
+				{
+					cityId: 3,
+					cityName: 'Berlin',
+					userId: 1,
+					userName: 'John',
+				},
+				{
+					cityId: 3,
+					cityName: 'Berlin',
+					userId: 2,
+					userName: 'Jane',
+				},
+				{
+					cityId: 3,
+					cityName: 'Berlin',
+					userId: 3,
+					userName: 'Patrick',
+				},
+			]);
+		});
+
 		test('all types', async (ctx) => {
 			const { db } = ctx.mysql;
 
@@ -4620,6 +4842,120 @@ export function tests(driver?: string) {
 		})
 			.from(users)
 			.leftJoin(posts, eq(users.id, posts.userId), {
+				useIndex: postsTableUserIdIndex,
+			})
+			.where(and(
+				eq(users.name, 'David'),
+				eq(posts.text, 'David post'),
+			)).toSQL();
+
+		expect(query.sql).to.include('USE INDEX (posts_user_id_index)');
+	});
+
+	test('MySqlTable :: select with cross join `use index` hint', async (ctx) => {
+		const { db } = ctx.mysql;
+
+		const users = mysqlTable('users', {
+			id: serial('id').primaryKey(),
+			name: varchar('name', { length: 100 }).notNull(),
+		});
+
+		const posts = mysqlTable('posts', {
+			id: serial('id').primaryKey(),
+			text: varchar('text', { length: 100 }).notNull(),
+			userId: int('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+		}, () => [postsTableUserIdIndex]);
+		const postsTableUserIdIndex = index('posts_user_id_index').on(posts.userId);
+
+		await db.execute(sql`drop table if exists ${posts}`);
+		await db.execute(sql`drop table if exists ${users}`);
+		await db.execute(sql`
+			create table ${users} (
+				\`id\` serial primary key,
+				\`name\` varchar(100) not null
+			)
+		`);
+		await db.execute(sql`
+			create table ${posts} (
+				\`id\` serial primary key,
+				\`text\` varchar(100) not null,
+				\`user_id\` int not null references users(id) on delete cascade
+			)
+		`);
+		await db.execute(sql`create index posts_user_id_index ON posts(user_id)`);
+
+		await db.insert(users).values([
+			{ id: 1, name: 'Alice' },
+			{ id: 2, name: 'Bob' },
+		]);
+
+		await db.insert(posts).values([
+			{ id: 1, text: 'Alice post', userId: 1 },
+			{ id: 2, text: 'Bob post', userId: 2 },
+		]);
+
+		const result = await db.select()
+			.from(users)
+			.crossJoin(posts, {
+				useIndex: [postsTableUserIdIndex],
+			})
+			.orderBy(users.id, posts.id);
+
+		expect(result).toStrictEqual([{
+			users: { id: 1, name: 'Alice' },
+			posts: { id: 1, text: 'Alice post', userId: 1 },
+		}, {
+			users: { id: 1, name: 'Alice' },
+			posts: { id: 2, text: 'Bob post', userId: 2 },
+		}, {
+			users: { id: 2, name: 'Bob' },
+			posts: { id: 1, text: 'Alice post', userId: 1 },
+		}, {
+			users: { id: 2, name: 'Bob' },
+			posts: { id: 2, text: 'Bob post', userId: 2 },
+		}]);
+	});
+
+	test('MySqlTable :: select with cross join `use index` hint on 1 index', async (ctx) => {
+		const { db } = ctx.mysql;
+
+		const users = mysqlTable('users', {
+			id: serial('id').primaryKey(),
+			name: varchar('name', { length: 100 }).notNull(),
+		});
+
+		const posts = mysqlTable('posts', {
+			id: serial('id').primaryKey(),
+			text: varchar('text', { length: 100 }).notNull(),
+			userId: int('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+		}, () => [postsTableUserIdIndex]);
+		const postsTableUserIdIndex = index('posts_user_id_index').on(posts.userId);
+
+		await db.execute(sql`drop table if exists ${posts}`);
+		await db.execute(sql`drop table if exists ${users}`);
+		await db.execute(sql`
+			create table ${users} (
+				\`id\` serial primary key,
+				\`name\` varchar(100) not null
+			)
+		`);
+		await db.execute(sql`
+			create table ${posts} (
+				\`id\` serial primary key,
+				\`text\` varchar(100) not null,
+				\`user_id\` int not null references users(id) on delete cascade
+			)
+		`);
+		await db.execute(sql`create index posts_user_id_index ON posts(user_id)`);
+
+		const query = db.select({
+			userId: users.id,
+			name: users.name,
+			postId: posts.id,
+			text: posts.text,
+		})
+			.from(users)
+			.crossJoin(posts, {
 				useIndex: postsTableUserIdIndex,
 			})
 			.where(and(
