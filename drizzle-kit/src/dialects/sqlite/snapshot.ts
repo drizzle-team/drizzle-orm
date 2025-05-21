@@ -1,5 +1,5 @@
 import { boolean, enum as enumType, literal, object, record, string, TypeOf } from 'zod';
-import { originUUID } from '../../global';
+import { originUUID } from '../../utils';
 import { array, validator } from '../simpleValidator';
 import { createDDL, SQLiteDDL, SqliteEntity } from './ddl';
 

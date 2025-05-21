@@ -20,7 +20,7 @@ import {
 	TableV5,
 } from '../../dialects/postgres/snapshot';
 import { getOrNull } from '../../dialects/utils';
-import { prepareOutFolder, validateWithReport } from '../../utils-node';
+import { prepareOutFolder, validateWithReport } from '../../utils/utils-node';
 
 export const upPgHandler = (out: string) => {
 	const { snapshots } = prepareOutFolder(out, 'postgresql');

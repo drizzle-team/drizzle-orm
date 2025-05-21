@@ -19,7 +19,7 @@ import {
 import { ddlDiff } from '../../dialects/postgres/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/postgres/drizzle';
 import type { JsonStatement } from '../../dialects/postgres/statements';
-import { prepareFilenames } from '../../serializer';
+import { prepareFilenames } from '../../utils/utils-node';
 import type { DB } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
 import { resolver } from '../prompts';

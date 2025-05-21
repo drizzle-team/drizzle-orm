@@ -2,152 +2,20 @@ import { LibSQLDatabase } from 'drizzle-orm/libsql';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
 import { PgDatabase } from 'drizzle-orm/pg-core';
 import { SingleStoreDriverDatabase } from 'drizzle-orm/singlestore';
-import { introspect as postgresIntrospect } from './cli/commands/pull-postgres';
-import { sqliteIntrospect } from './cli/commands/pull-sqlite';
-import { suggestions } from './cli/commands/push-postgres';
-import { updateUpToV6 as upPgV6, updateUpToV7 as upPgV7 } from './cli/commands/up-postgres';
-import { resolver } from './cli/prompts';
-import type { CasingType } from './cli/validations/common';
-import { ProgressView, schemaError, schemaWarning } from './cli/views';
-import * as postgres from './dialects/postgres/ddl';
-import { fromDrizzleSchema, fromExports } from './dialects/postgres/drizzle';
-import { PostgresSnapshot, toJsonSnapshot } from './dialects/postgres/snapshot';
+import { introspect as postgresIntrospect } from '../cli/commands/pull-postgres';
+import { sqliteIntrospect } from '../cli/commands/pull-sqlite';
+import { suggestions } from '../cli/commands/push-postgres';
+import { updateUpToV6 as upPgV6, updateUpToV7 as upPgV7 } from '../cli/commands/up-postgres';
+import { resolver } from '../cli/prompts';
+import type { CasingType } from '../cli/validations/common';
+import { ProgressView, schemaError, schemaWarning } from '../cli/views';
+import * as postgres from '../dialects/postgres/ddl';
+import { fromDrizzleSchema, fromExports } from '../dialects/postgres/drizzle';
+import { PostgresSnapshot, toJsonSnapshot } from '../dialects/postgres/snapshot';
 import { getTablesFilterByExtensions } from './extensions/getTablesFilterByExtensions';
-import { originUUID } from './global';
-import type { Config } from './index';
-import type { DB, SQLiteDB } from './utils';
-
-export const generateDrizzleJson = (
-	imports: Record<string, unknown>,
-	prevId?: string,
-	schemaFilters?: string[],
-	casing?: CasingType,
-): PostgresSnapshot => {
-	const prepared = fromExports(imports);
-	const { schema: interim, errors, warnings } = fromDrizzleSchema(prepared, casing, schemaFilters);
-
-	const { ddl, errors: err2 } = postgres.interimToDDL(interim);
-	if (warnings.length > 0) {
-		console.log(warnings.map((it) => schemaWarning(it)).join('\n\n'));
-	}
-
-	if (errors.length > 0) {
-		console.log(errors.map((it) => schemaError(it)).join('\n'));
-		process.exit(1);
-	}
-
-	if (err2.length > 0) {
-		console.log(err2.map((it) => schemaError(it)).join('\n'));
-		process.exit(1);
-	}
-
-	return toJsonSnapshot(ddl, prevId ?? originUUID, []);
-};
-
-export const generateMigration = async (
-	prev: PostgresSnapshot,
-	cur: PostgresSnapshot,
-) => {
-	const { ddlDiff } = await import('./dialects/postgres/diff');
-	const from = postgres.createDDL();
-	const to = postgres.createDDL();
-
-	for (const it of prev.ddl) {
-		from.entities.push(it);
-	}
-	for (const it of cur.ddl) {
-		to.entities.push(it);
-	}
-
-	const { sqlStatements } = await ddlDiff(
-		from,
-		to,
-		resolver<postgres.Schema>('schema'),
-		resolver<postgres.Enum>('enum'),
-		resolver<postgres.Sequence>('sequence'),
-		resolver<postgres.Policy>('policy'),
-		resolver<postgres.Role>('role'),
-		resolver<postgres.PostgresEntities['tables']>('table'),
-		resolver<postgres.Column>('column'),
-		resolver<postgres.View>('view'),
-		resolver<postgres.UniqueConstraint>('unique'),
-		resolver<postgres.Index>('index'),
-		resolver<postgres.CheckConstraint>('check'),
-		resolver<postgres.PrimaryKey>('primary key'),
-		resolver<postgres.ForeignKey>('foreign key'),
-		'default',
-	);
-
-	return sqlStatements;
-};
-
-export const pushSchema = async (
-	imports: Record<string, unknown>,
-	drizzleInstance: PgDatabase<any>,
-	casing?: CasingType,
-	schemaFilters?: string[],
-	tablesFilter?: string[],
-	extensionsFilters?: Config['extensionsFilters'],
-) => {
-	const { ddlDiff } = await import('./dialects/postgres/diff');
-	const { sql } = await import('drizzle-orm');
-	const filters = (tablesFilter ?? []).concat(
-		getTablesFilterByExtensions({ extensionsFilters, dialect: 'postgresql' }),
-	);
-
-	const db: DB = {
-		query: async (query: string, params?: any[]) => {
-			const res = await drizzleInstance.execute(sql.raw(query));
-			return res.rows;
-		},
-	};
-
-	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
-	const { schema: prev } = await postgresIntrospect(db, filters, schemaFilters ?? ['public'], undefined, progress);
-
-	const prepared = fromExports(imports);
-	const { schema: cur, errors, warnings } = fromDrizzleSchema(prepared, casing, schemaFilters);
-
-	const { ddl: from, errors: err1 } = postgres.interimToDDL(prev);
-	const { ddl: to, errors: err2 } = postgres.interimToDDL(cur);
-
-	// TODO: handle errors
-
-	const { sqlStatements, statements } = await ddlDiff(
-		from,
-		to,
-		resolver<postgres.Schema>('schema'),
-		resolver<postgres.Enum>('enum'),
-		resolver<postgres.Sequence>('sequence'),
-		resolver<postgres.Policy>('policy'),
-		resolver<postgres.Role>('role'),
-		resolver<postgres.PostgresEntities['tables']>('table'),
-		resolver<postgres.Column>('column'),
-		resolver<postgres.View>('view'),
-		resolver<postgres.UniqueConstraint>('unique'),
-		resolver<postgres.Index>('index'),
-		resolver<postgres.CheckConstraint>('check'),
-		resolver<postgres.PrimaryKey>('primary key'),
-		resolver<postgres.ForeignKey>('foreign key'),
-		'push',
-	);
-
-	const { hints, losses } = await suggestions(db, statements);
-
-	return {
-		sqlStatements,
-		hints,
-		losses,
-		apply: async () => {
-			for (const st of losses) {
-				await db.query(st);
-			}
-			for (const st of sqlStatements) {
-				await db.query(st);
-			}
-		},
-	};
-};
+import type { Config } from '../index';
+import { originUUID } from '../utils';
+import type { DB, SQLiteDB } from '../utils';
 
 // SQLite
 
@@ -475,12 +343,3 @@ export const pushSchema = async (
 // 	};
 // };
 
-// export const upPgSnapshot = (snapshot: Record<string, unknown>) => {
-// 	if (snapshot.version === '5') {
-// 		return upPgV7(upPgV6(snapshot));
-// 	}
-// 	if (snapshot.version === '6') {
-// 		return upPgV7(snapshot);
-// 	}
-// 	return snapshot;
-// };

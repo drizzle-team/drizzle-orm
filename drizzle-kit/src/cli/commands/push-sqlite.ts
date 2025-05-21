@@ -4,7 +4,7 @@ import { Column, interimToDDL, Table } from 'src/dialects/sqlite/ddl';
 import { ddlDiff } from 'src/dialects/sqlite/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/sqlite/drizzle';
 import { JsonStatement } from 'src/dialects/sqlite/statements';
-import { prepareFilenames } from '../../serializer';
+import { prepareFilenames } from '../../utils/utils-node';
 import type { SQLiteDB } from '../../utils';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';

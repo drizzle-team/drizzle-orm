@@ -1,5 +1,5 @@
-import { softAssertUnreachable } from 'src/global';
 import { literal, object, string, TypeOf, undefined, union } from 'zod';
+import { softAssertUnreachable } from '../../utils';
 import { error } from '../views';
 import { sqliteDriver, wrapParam } from './common';
 

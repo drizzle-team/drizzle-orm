@@ -28,18 +28,3 @@ export const sqlToStr = (sql: SQL, casing: CasingType | undefined) => {
 		casing: new CasingCache(casing),
 	}).sql;
 };
-
-export const sqlToStrGenerated = (sql: SQL, casing: CasingType | undefined) => {
-	return sql.toQuery({
-		escapeName: () => {
-			throw new Error("we don't support params for `sql` default values");
-		},
-		escapeParam: () => {
-			throw new Error("we don't support params for `sql` default values");
-		},
-		escapeString: () => {
-			throw new Error("we don't support params for `sql` default values");
-		},
-		casing: new CasingCache(casing),
-	}).sql;
-};

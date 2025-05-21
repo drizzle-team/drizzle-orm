@@ -2,8 +2,8 @@
 // 	let start = 0;
 // 	let end = str.length;
 
-import { assertUnreachable } from 'src/global';
 import { escapeSingleQuotes } from 'src/utils';
+import { assertUnreachable } from '../../utils';
 import { DefaultConstraint } from './ddl';
 
 // 	while (start < end && str[start] === char) ++start;

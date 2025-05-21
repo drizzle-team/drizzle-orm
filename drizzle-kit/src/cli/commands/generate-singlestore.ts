@@ -2,8 +2,8 @@ import { Column, createDDL, interimToDDL, Table, View } from 'src/dialects/mysql
 import { ddlDiffDry, diffDDL } from 'src/dialects/singlestore/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/singlestore/drizzle';
 import { prepareSnapshot } from 'src/dialects/singlestore/serializer';
-import { prepareFilenames } from 'src/serializer';
-import { assertV1OutFolder, prepareMigrationFolder } from 'src/utils-node';
+import { prepareFilenames } from 'src/utils/utils-node';
+import { assertV1OutFolder, prepareMigrationFolder } from 'src/utils/utils-node';
 import { resolver } from '../prompts';
 import { writeResult } from './generate-common';
 import type { ExportConfig, GenerateConfig } from './utils';

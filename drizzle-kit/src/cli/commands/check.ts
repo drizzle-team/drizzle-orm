@@ -1,5 +1,5 @@
-import { Dialect } from '../../schemaValidator';
-import { prepareOutFolder, validateWithReport } from '../../utils-node';
+import { Dialect } from '../../utils/schemaValidator';
+import { prepareOutFolder, validateWithReport } from '../../utils/utils-node';
 
 export const checkHandler = (out: string, dialect: Dialect) => {
 	const { snapshots } = prepareOutFolder(out, dialect);

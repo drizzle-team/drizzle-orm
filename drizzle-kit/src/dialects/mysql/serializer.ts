@@ -1,6 +1,5 @@
 import type { CasingType } from '../../cli/validations/common';
-import { schemaError, schemaWarning } from '../../cli/views';
-import { prepareFilenames } from '../../serializer';
+import { prepareFilenames } from '../../utils/utils-node';
 import { createDDL, interimToDDL, MysqlDDL } from './ddl';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
 import { drySnapshot, MysqlSnapshot, snapshotValidator } from './snapshot';

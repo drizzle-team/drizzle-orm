@@ -1,6 +1,6 @@
 import type { CasingType } from '../../cli/validations/common';
 import { schemaError, schemaWarning } from '../../cli/views';
-import { prepareFilenames } from '../../serializer';
+import { prepareFilenames } from '../../utils/utils-node';
 import { createDDL, interimToDDL, PostgresDDL } from './ddl';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
 import { drySnapshot, PostgresSnapshot, snapshotValidator } from './snapshot';

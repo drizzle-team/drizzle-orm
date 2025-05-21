@@ -1,5 +1,5 @@
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/postgres/drizzle';
-import { prepareFilenames } from 'src/serializer';
+import { prepareFilenames } from 'src/utils/utils-node';
 import {
 	CheckConstraint,
 	Column,
@@ -19,7 +19,7 @@ import {
 } from '../../dialects/postgres/ddl';
 import { ddlDiff, ddlDiffDry } from '../../dialects/postgres/diff';
 import { prepareSnapshot } from '../../dialects/postgres/serializer';
-import { assertV1OutFolder, prepareMigrationFolder } from '../../utils-node';
+import { assertV1OutFolder, prepareMigrationFolder } from '../../utils/utils-node';
 import { resolver } from '../prompts';
 import { writeResult } from './generate-common';
 import { ExportConfig, GenerateConfig } from './utils';

@@ -12,10 +12,10 @@ import {
 	uniqueKeyName,
 } from 'drizzle-orm/mysql-core';
 import { CasingType } from 'src/cli/validations/common';
-import { getColumnCasing, sqlToStr } from 'src/serializer/utils';
 import { escapeSingleQuotes } from 'src/utils';
-import { safeRegister } from '../../utils-node';
+import { safeRegister } from '../../utils/utils-node';
 import { Column, InterimSchema } from './ddl';
+import { getColumnCasing, sqlToStr } from '../drizzle';
 
 const handleEnumType = (type: string) => {
 	let str = type.split('(')[1];

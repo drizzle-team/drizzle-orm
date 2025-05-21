@@ -4,7 +4,6 @@ import { render, renderWithTask, TaskView } from 'hanji';
 import { Minimatch } from 'minimatch';
 import { join } from 'path';
 import { toJsonSnapshot } from 'src/dialects/postgres/snapshot';
-import { originUUID } from 'src/global';
 import {
 	CheckConstraint,
 	Column,
@@ -25,8 +24,9 @@ import {
 import { ddlDiff } from '../../dialects/postgres/diff';
 import { fromDatabaseForDrizzle } from '../../dialects/postgres/introspect';
 import { ddlToTypeScript as postgresSchemaToTypeScript } from '../../dialects/postgres/typescript';
+import { originUUID } from '../../utils';
 import type { DB } from '../../utils';
-import { prepareOutFolder } from '../../utils-node';
+import { prepareOutFolder } from '../../utils/utils-node';
 import { resolver } from '../prompts';
 import type { Entities } from '../validations/cli';
 import type { Casing, Prefix } from '../validations/common';

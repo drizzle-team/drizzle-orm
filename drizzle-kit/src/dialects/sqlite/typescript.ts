@@ -2,7 +2,7 @@
 import { toCamelCase } from 'drizzle-orm/casing';
 import '../../@types/utils';
 import type { Casing } from '../../cli/validations/common';
-import { assertUnreachable } from '../../global';
+import { assertUnreachable } from '../../utils';
 import type {
 	CheckConstraint,
 	Column,

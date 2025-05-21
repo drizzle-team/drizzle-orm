@@ -8,7 +8,7 @@ import { toJsonSnapshot } from 'src/dialects/mysql/snapshot';
 import { ddlToTypeScript } from 'src/dialects/mysql/typescript';
 import { diffDDL } from 'src/dialects/singlestore/diff';
 import { mockResolver } from 'src/utils/mocks';
-import { prepareOutFolder } from '../../utils-node';
+import { prepareOutFolder } from '../../utils/utils-node';
 import type { Casing, Prefix } from '../validations/common';
 import { SingleStoreCredentials } from '../validations/singlestore';
 import { IntrospectProgress } from '../views';
