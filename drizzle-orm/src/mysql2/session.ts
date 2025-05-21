@@ -175,7 +175,7 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig> extends MyS
 		} finally {
 			stream.off('data', dataListener);
 			if (isPool(client)) {
-				conn.end();
+				(conn as {} as PoolConnection).release();
 			}
 		}
 	}
