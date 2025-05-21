@@ -422,6 +422,33 @@ test('test mode string for timestamp with timezone in different timezone', async
 	await db.execute(sql`drop table if exists ${table}`);
 });
 
+test('date object passed to sql tagged function', async () => {
+	const table = pgTable('all_columns', {
+		id: serial('id').primaryKey(),
+		timestamp: timestamp('timestamp_string', { mode: 'date', precision: 3 }).notNull(),
+	});
+
+	await db.execute(sql`drop table if exists ${table}`);
+
+	await db.execute(sql`
+		create table ${table} (
+					id serial primary key,
+					timestamp_string timestamp(3) not null
+			)
+	`);
+
+	const queryDate = new Date('2022-01-01 02:00:00.123456');
+
+	const result = db.execute<{
+		id: number;
+		timestamp_string: string;
+	}>(sql`select * from ${table} where ${table.timestamp} = ${queryDate}`);
+
+	expect(result).to.not.throw();
+
+	await db.execute(sql`drop table if exists ${table}`);
+});
+
 skipTests([
 	'migrator : default migration strategy',
 	'migrator : migrate with custom schema',
