@@ -1,4 +1,4 @@
-import { type Cache, NoopCache } from '~/cache/core/cache.ts';
+import { type Cache, hashQuery, NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError, TransactionRollbackError } from '~/errors.ts';
@@ -8,7 +8,6 @@ import type { TablesRelationalConfig } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import type { SQLiteAsyncDialect, SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
-import { hashQuery } from '~/utils.ts';
 import { BaseSQLiteDatabase } from './db.ts';
 import type { SQLiteRaw } from './query-builders/raw.ts';
 import type { SelectedFieldsOrdered } from './query-builders/select.types.ts';

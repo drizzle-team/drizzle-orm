@@ -1,4 +1,4 @@
-import { type Cache, NoopCache } from '~/cache/core/cache.ts';
+import { type Cache, hashQuery, NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import { TransactionRollbackError } from '~/errors.ts';
@@ -7,7 +7,7 @@ import type { TablesRelationalConfig } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import { type Query, type SQL, sql } from '~/sql/index.ts';
 import { tracer } from '~/tracing.ts';
-import { hashQuery, type NeonAuthToken } from '~/utils.ts';
+import type { NeonAuthToken } from '~/utils.ts';
 import { PgDatabase } from './db.ts';
 import type { PgDialect } from './dialect.ts';
 import type { SelectedFieldsOrdered } from './query-builders/select.types.ts';
