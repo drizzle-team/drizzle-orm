@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { any, boolean, enum as enumType, literal, object, record, string, TypeOf } from 'zod';
-import { originUUID } from '../../global';
+import { originUUID } from '../../utils';
 import { array, validator } from '../simpleValidator';
 import { createDDL, MysqlDDL, MysqlEntity } from './ddl';
 

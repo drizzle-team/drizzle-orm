@@ -1,5 +1,5 @@
-import { assertUnreachable } from 'src/global';
 import { escapeSingleQuotes } from 'src/utils';
+import { assertUnreachable } from '../../utils';
 import { hash } from '../common';
 import { Column, PostgresEntities } from './ddl';
 
@@ -13,6 +13,17 @@ export const trimChar = (str: string, char: string) => {
 	const res = start > 0 || end < str.length ? str.substring(start, end) : str;
 	return res;
 };
+
+export const vectorOps = [
+	'vector_l2_ops',
+	'vector_ip_ops',
+	'vector_cosine_ops',
+	'vector_l1_ops',
+	'bit_hamming_ops',
+	'bit_jaccard_ops',
+	'halfvec_l2_ops',
+	'sparsevec_l2_ops',
+];
 
 const NativeTypes = [
 	'uuid',

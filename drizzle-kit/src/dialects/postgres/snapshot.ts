@@ -11,7 +11,7 @@ import {
 	string,
 	TypeOf,
 } from 'zod';
-import { originUUID } from '../../global';
+import { originUUID } from '../../utils';
 import { array, validator } from '../simpleValidator';
 import { createDDL, PostgresDDL, PostgresEntity } from './ddl';
 

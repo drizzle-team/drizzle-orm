@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import { render, renderWithTask } from 'hanji';
 import { Column, interimToDDL, Table, View } from 'src/dialects/mysql/ddl';
 import { JsonStatement } from 'src/dialects/mysql/statements';
-import { prepareFilenames } from 'src/serializer';
+import { prepareFilenames } from 'src/utils/utils-node';
 import { diffDDL } from '../../dialects/singlestore/diff';
 import type { DB } from '../../utils';
 import { resolver } from '../prompts';

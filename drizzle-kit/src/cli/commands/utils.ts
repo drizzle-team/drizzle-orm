@@ -3,11 +3,10 @@ import { existsSync } from 'fs';
 import { render } from 'hanji';
 import { join, resolve } from 'path';
 import { object, string } from 'zod';
-import { getTablesFilterByExtensions } from '../../extensions/getTablesFilterByExtensions';
-import { assertUnreachable } from '../../global';
-import { type Dialect, dialect } from '../../schemaValidator';
-import { prepareFilenames } from '../../serializer';
-import { safeRegister } from '../../utils-node';
+import { prepareFilenames } from '../../utils/utils-node';
+import { type Dialect, dialect } from '../../utils/schemaValidator';
+import { assertUnreachable, getTablesFilterByExtensions } from '../../utils';
+import { safeRegister } from '../../utils/utils-node';
 import { Entities, pullParams, pushParams } from '../validations/cli';
 import {
 	Casing,

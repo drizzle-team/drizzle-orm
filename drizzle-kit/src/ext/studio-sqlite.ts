@@ -12,7 +12,7 @@ import type {
 } from '../dialects/sqlite/ddl';
 import { interimToDDL } from '../dialects/sqlite/ddl';
 import { ddlDiff } from '../dialects/sqlite/diff';
-import { mockResolver } from './mocks';
+import { mockResolver } from '../utils/mocks';
 
 export type Interim<T> = Omit<T, 'entityType'>;
 

@@ -1,6 +1,6 @@
-import { ConnectionOptions } from 'tls';
+import type { ConnectionOptions } from 'tls';
 import type { Driver, Prefix } from './cli/validations/common';
-import type { Dialect } from './schemaValidator';
+import type { Dialect } from './utils/schemaValidator';
 
 // import {SslOptions} from 'mysql2'
 type SslOptions = {

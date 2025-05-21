@@ -28,9 +28,8 @@ import {
 	ViewWithConfig,
 } from 'drizzle-orm/pg-core';
 import { CasingType } from 'src/cli/validations/common';
-import { assertUnreachable } from 'src/global';
-import { getColumnCasing } from 'src/serializer/utils';
-import { safeRegister } from 'src/utils-node';
+import { assertUnreachable } from '../../utils';
+import { safeRegister } from 'src/utils/utils-node';
 import { getOrNull } from '../utils';
 import type {
 	CheckConstraint,
@@ -63,6 +62,7 @@ import {
 	stringFromIdentityProperty,
 	trimChar,
 } from './grammar';
+import { getColumnCasing } from '../drizzle';
 
 export const policyFrom = (policy: PgPolicy | GelPolicy, dialect: PgDialect | GelDialect) => {
 	const mappedTo = !policy.to

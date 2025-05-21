@@ -1,14 +1,75 @@
 import chalk from 'chalk';
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, lstatSync } from 'fs';
+import { join, resolve } from 'path';
 import { parse } from 'url';
-import { error, info } from './cli/views';
-import { snapshotValidator as mssqlValidatorSnapshot } from './dialects/mssql/snapshot';
-import { mysqlSchemaV5 } from './dialects/mysql/snapshot';
-import { snapshotValidator } from './dialects/postgres/snapshot';
-import { assertUnreachable } from './global';
+import { error, info } from '../cli/views';
+import { snapshotValidator as mssqlValidatorSnapshot } from '../dialects/mssql/snapshot';
+import { mysqlSchemaV5 } from '../dialects/mysql/snapshot';
+import { snapshotValidator } from '../dialects/postgres/snapshot';
+import { assertUnreachable } from '.';
+import { Journal } from '.';
 import type { Dialect } from './schemaValidator';
-import { Journal } from './utils';
+import {sync as globSync} from "glob"
+
+export const prepareFilenames = (path: string | string[]) => {
+	if (typeof path === 'string') {
+		path = [path];
+	}
+
+	const prefix = process.env.TEST_CONFIG_PATH_PREFIX || '';
+
+	const result = path.reduce((result, cur) => {
+		const globbed = globSync(`${prefix}${cur}`);
+
+		for (const it of globbed) {
+			const fileName = lstatSync(it).isDirectory() ? null : resolve(it);
+
+			const filenames = fileName
+				? [fileName!]
+				: readdirSync(it).map((file) => join(resolve(it), file));
+
+			for (const file of filenames.filter((file) => !lstatSync(file).isDirectory())) {
+				result.add(file);
+			}
+		}
+
+		return result;
+	}, new Set<string>());
+	const res = [...result];
+
+	// TODO: properly handle and test
+	const errors = res.filter((it) => {
+		return !(
+			it.endsWith('.ts')
+			|| it.endsWith('.js')
+			|| it.endsWith('.cjs')
+			|| it.endsWith('.mjs')
+			|| it.endsWith('.mts')
+			|| it.endsWith('.cts')
+		);
+	});
+
+	// when schema: "./schema" and not "./schema.ts"
+	if (res.length === 0) {
+		console.log(
+			error(
+				`No schema files found for path config [${
+					path
+						.map((it) => `'${it}'`)
+						.join(', ')
+				}]`,
+			),
+		);
+		console.log(
+			error(
+				`If path represents a file - please make sure to use .ts or other extension in the path`,
+			),
+		);
+		process.exit(1);
+	}
+
+	return res;
+};
 
 export const assertV1OutFolder = (out: string) => {
 	if (!existsSync(out)) return;

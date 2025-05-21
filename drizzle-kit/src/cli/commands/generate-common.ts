@@ -6,8 +6,7 @@ import { MssqlSnapshot } from 'src/dialects/mssql/snapshot';
 import type { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
 import type { MysqlSnapshot } from '../../dialects/mysql/snapshot';
 import type { SqliteSnapshot } from '../../dialects/sqlite/snapshot';
-import { BREAKPOINT } from '../../global';
-import type { Journal } from '../../utils';
+import { BREAKPOINT, type Journal } from '../../utils';
 import { prepareMigrationMetadata } from '../../utils/words';
 import type { Driver, Prefix } from '../validations/common';
 

@@ -1,9 +1,9 @@
 import chalk from 'chalk';
 import { writeFileSync } from 'fs';
-import { mapEntries } from 'src/global';
-import { prepareOutFolder, validateWithReport } from 'src/utils-node';
+import { prepareOutFolder, validateWithReport } from 'src/utils/utils-node';
 import { createDDL } from '../../dialects/sqlite/ddl';
 import { sqliteSchemaV5, type SQLiteSchemaV6, sqliteSchemaV6, SqliteSnapshot } from '../../dialects/sqlite/snapshot';
+import { mapEntries } from '../../utils';
 
 export const upSqliteHandler = (out: string) => {
 	const { snapshots } = prepareOutFolder(out, 'sqlite');

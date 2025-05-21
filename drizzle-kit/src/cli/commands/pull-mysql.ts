@@ -9,7 +9,7 @@ import { createDDL, interimToDDL } from '../../dialects/mysql/ddl';
 import { diffDDL } from '../../dialects/mysql/diff';
 import { fromDatabaseForDrizzle } from '../../dialects/mysql/introspect';
 import { ddlToTypeScript } from '../../dialects/mysql/typescript';
-import { prepareOutFolder } from '../../utils-node';
+import { prepareOutFolder } from '../../utils/utils-node';
 import type { Casing, Prefix } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
 import { IntrospectProgress } from '../views';

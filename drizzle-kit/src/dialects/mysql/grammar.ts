@@ -1,4 +1,4 @@
-import { assertUnreachable } from 'src/global';
+import { assertUnreachable } from '../../utils';
 import { trimChar } from '../postgres/grammar';
 import { Column, ForeignKey } from './ddl';
 

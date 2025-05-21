@@ -3,19 +3,26 @@ import type { MigrationConfig } from 'drizzle-orm/migrator';
 import type { PreparedQueryConfig } from 'drizzle-orm/pg-core';
 import fetch from 'node-fetch';
 import ws from 'ws';
-import { assertUnreachable } from '../global';
-import type { ProxyParams } from '../serializer/studio';
-import { type DB, LibSQLDB, normalisePGliteUrl, type Proxy, type SQLiteDB, type SqliteProxy } from '../utils';
-import { normaliseSQLiteUrl } from '../utils-node';
+import type { ProxyParams } from './commands/studio';
+import { assertUnreachable } from '../utils';
+import { type DB, LibSQLDB, type Proxy, type SQLiteDB, type SqliteProxy } from '../utils';
+import { normaliseSQLiteUrl } from '../utils/utils-node';
 import { assertPackages, checkPackage } from './utils';
 import { GelCredentials } from './validations/gel';
 import { LibSQLCredentials } from './validations/libsql';
-import { MssqlCredentials } from './validations/mssql';
 import type { MysqlCredentials } from './validations/mysql';
 import { withStyle } from './validations/outputs';
 import type { PostgresCredentials } from './validations/postgres';
 import { SingleStoreCredentials } from './validations/singlestore';
 import type { SqliteCredentials } from './validations/sqlite';
+
+const normalisePGliteUrl = (it: string) => {
+	if (it.startsWith('file:')) {
+		return it.substring(5);
+	}
+
+	return it;
+};
 
 export const preparePostgresDB = async (
 	credentials: PostgresCredentials,

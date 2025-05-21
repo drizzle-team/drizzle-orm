@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { any, boolean, enum as enumType, literal, object, record, string, TypeOf, union } from 'zod';
-import { mapValues, originUUID } from '../../global';
+import { originUUID } from '../../utils';
 import { createDDL, MysqlDDL, MysqlEntity } from '../mysql/ddl';
 import { array, validator } from '../simpleValidator';
 
@@ -138,107 +138,6 @@ export type PrimaryKey = TypeOf<typeof compositePK>;
 export type UniqueConstraint = TypeOf<typeof uniqueConstraint>;
 /* export type View = TypeOf<typeof view>; */
 /* export type ViewSquashed = TypeOf<typeof viewSquashed>; */
-
-export const SingleStoreSquasher = {
-	squashIdx: (idx: Index) => {
-		index.parse(idx);
-		return `${idx.name};${idx.columns.join(',')};${idx.isUnique};${idx.using ?? ''};${idx.algorithm ?? ''};${
-			idx.lock ?? ''
-		}`;
-	},
-	unsquashIdx: (input: string): Index => {
-		const [name, columnsString, isUnique, using, algorithm, lock] = input.split(';');
-		const destructed = {
-			name,
-			columns: columnsString.split(','),
-			isUnique: isUnique === 'true',
-			using: using ? using : undefined,
-			algorithm: algorithm ? algorithm : undefined,
-			lock: lock ? lock : undefined,
-		};
-		return index.parse(destructed);
-	},
-	squashPK: (pk: PrimaryKey) => {
-		return `${pk.name};${pk.columns.join(',')}`;
-	},
-	unsquashPK: (pk: string): PrimaryKey => {
-		const splitted = pk.split(';');
-		return { name: splitted[0], columns: splitted[1].split(',') };
-	},
-	squashUnique: (unq: UniqueConstraint) => {
-		return `${unq.name};${unq.columns.join(',')}`;
-	},
-	unsquashUnique: (unq: string): UniqueConstraint => {
-		const [name, columns] = unq.split(';');
-		return { name, columns: columns.split(',') };
-	},
-	/* squashView: (view: View): string => {
-		return `${view.algorithm};${view.sqlSecurity};${view.withCheckOption}`;
-	},
-	unsquashView: (meta: string): SquasherViewMeta => {
-		const [algorithm, sqlSecurity, withCheckOption] = meta.split(';');
-		const toReturn = {
-			algorithm: algorithm,
-			sqlSecurity: sqlSecurity,
-			withCheckOption: withCheckOption !== 'undefined' ? withCheckOption : undefined,
-		};
-
-		return viewMeta.parse(toReturn);
-	}, */
-};
-
-export const squashSingleStoreScheme = (json: SingleStoreSchema): SingleStoreSchemaSquashed => {
-	const mappedTables = Object.fromEntries(
-		Object.entries(json.tables).map((it) => {
-			const squashedIndexes = mapValues(it[1].indexes, (index) => {
-				return SingleStoreSquasher.squashIdx(index);
-			});
-
-			const squashedPKs = mapValues(it[1].compositePrimaryKeys, (pk) => {
-				return SingleStoreSquasher.squashPK(pk);
-			});
-
-			const squashedUniqueConstraints = mapValues(
-				it[1].uniqueConstraints,
-				(unq) => {
-					return SingleStoreSquasher.squashUnique(unq);
-				},
-			);
-
-			return [
-				it[0],
-				{
-					name: it[1].name,
-					columns: it[1].columns,
-					indexes: squashedIndexes,
-					compositePrimaryKeys: squashedPKs,
-					uniqueConstraints: squashedUniqueConstraints,
-				},
-			];
-		}),
-	);
-
-	/* const mappedViews = Object.fromEntries(
-		Object.entries(json.views).map(([key, value]) => {
-			const meta = SingleStoreSquasher.squashView(value);
-
-			return [key, {
-				name: value.name,
-				isExisting: value.isExisting,
-				columns: value.columns,
-				definition: value.definition,
-				meta,
-			}];
-		}),
-	); */
-
-	return {
-		version: '1',
-		dialect: json.dialect,
-		tables: mappedTables,
-		/* views: mappedViews, */
-	};
-};
 
 const ddl = createDDL();
 export const snapshotValidator = validator({

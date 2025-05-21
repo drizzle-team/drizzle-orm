@@ -3,11 +3,11 @@ import chalk from 'chalk';
 import 'dotenv/config';
 import { mkdirSync } from 'fs';
 import { renderWithTask } from 'hanji';
-import { dialects } from 'src/schemaValidator';
+import { dialects } from 'src/utils/schemaValidator';
 import '../@types/utils';
-import { assertUnreachable } from '../global';
-import { type Setup } from '../serializer/studio';
-import { assertV1OutFolder } from '../utils-node';
+import { assertUnreachable } from '../utils';
+import { type Setup } from './commands/studio';
+import { assertV1OutFolder } from '../utils/utils-node';
 import { checkHandler } from './commands/check';
 import { dropMigration } from './commands/drop';
 import { upMysqlHandler } from './commands/up-mysql';
@@ -669,7 +669,7 @@ export const studio = command({
 			drizzleForLibSQL,
 			prepareMsSqlSchema,
 			// drizzleForMsSQL,
-		} = await import('../serializer/studio');
+		} = await import('./commands/studio');
 
 		let setup: Setup;
 		try {
@@ -741,7 +741,7 @@ export const studio = command({
 				assertUnreachable(dialect);
 			}
 
-			const { prepareServer } = await import('../serializer/studio');
+			const { prepareServer } = await import('./commands/studio');
 
 			const server = await prepareServer(setup);
 

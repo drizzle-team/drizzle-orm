@@ -1,7 +1,7 @@
 import { ddlDiff, ddlDiffDry } from 'src/dialects/mssql/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/mssql/drizzle';
 import { prepareSnapshot } from 'src/dialects/mssql/serializer';
-import { prepareFilenames } from 'src/serializer';
+import { prepareFilenames } from 'src/utils/utils-node';
 import { createDDL, DefaultConstraint } from '../../dialects/mssql/ddl';
 import {
 	CheckConstraint,
@@ -15,7 +15,7 @@ import {
 	UniqueConstraint,
 	View,
 } from '../../dialects/mssql/ddl';
-import { assertV1OutFolder, prepareMigrationFolder } from '../../utils-node';
+import { assertV1OutFolder, prepareMigrationFolder } from '../../utils/utils-node';
 import { resolver } from '../prompts';
 import { writeResult } from './generate-common';
 import { ExportConfig, GenerateConfig } from './utils';

@@ -11,10 +11,10 @@ import {
 	MsSqlView,
 } from 'drizzle-orm/mssql-core';
 import { CasingType } from 'src/cli/validations/common';
-import { getColumnCasing, sqlToStr } from 'src/serializer/utils';
-import { safeRegister } from 'src/utils-node';
+import { safeRegister } from 'src/utils/utils-node';
 import { DefaultConstraint, InterimSchema, MssqlEntities, Schema } from './ddl';
 import { defaultNameForDefault, defaultNameForFK, defaultNameForPK, defaultNameForUnique } from './grammar';
+import { getColumnCasing, sqlToStr } from '../drizzle';
 
 export const upper = <T extends string>(value: T | undefined): Uppercase<T> | null => {
 	if (!value) return null;

@@ -1,5 +1,5 @@
 import { array, boolean, intersection, literal, object, string, TypeOf, union } from 'zod';
-import { dialect } from '../../schemaValidator';
+import { dialect } from '../../utils/schemaValidator';
 import { casing, casingType, prefix } from './common';
 
 export const pushParams = object({

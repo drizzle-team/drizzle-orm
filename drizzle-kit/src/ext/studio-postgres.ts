@@ -1,6 +1,6 @@
 import { InterimSchema, interimToDDL } from '../dialects/postgres/ddl';
 import { ddlDiff } from '../dialects/postgres/diff';
-import { mockResolver } from './mocks';
+import { mockResolver } from '../utils/mocks';
 
 export const diffPostgresql = async (
 	from: InterimSchema,

@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { toCamelCase } from 'drizzle-orm/casing';
 import { Casing } from 'src/cli/validations/common';
-import { assertUnreachable } from 'src/global';
 import { unescapeSingleQuotes } from 'src/utils';
+import { assertUnreachable } from '../../utils';
 import { CheckConstraint, Column, ForeignKey, Index, MysqlDDL, PrimaryKey, ViewColumn } from './ddl';
 
 const mysqlImportsList = new Set([

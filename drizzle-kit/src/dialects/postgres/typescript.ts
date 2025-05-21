@@ -11,7 +11,7 @@ import {
 import '../../@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
 import { Casing } from '../../cli/validations/common';
-import { assertUnreachable } from '../../global';
+import { assertUnreachable } from '../../utils';
 import { unescapeSingleQuotes } from '../../utils';
 import {
 	CheckConstraint,

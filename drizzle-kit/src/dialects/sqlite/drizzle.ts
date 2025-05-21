@@ -8,9 +8,8 @@ import {
 	SQLiteTable,
 	SQLiteView,
 } from 'drizzle-orm/sqlite-core';
-import { safeRegister } from 'src/utils-node';
+import { safeRegister } from 'src/utils/utils-node';
 import { CasingType } from '../../cli/validations/common';
-import { getColumnCasing, sqlToStr } from '../../serializer/utils';
 import type {
 	CheckConstraint,
 	Column,
@@ -24,6 +23,7 @@ import type {
 	View,
 } from './ddl';
 import { nameForForeignKey, nameForUnique } from './grammar';
+import { getColumnCasing, sqlToStr } from '../drizzle';
 
 export const fromDrizzleSchema = (
 	dTables: AnySQLiteTable[],

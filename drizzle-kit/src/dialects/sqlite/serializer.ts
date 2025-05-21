@@ -1,6 +1,6 @@
 import type { CasingType } from 'src/cli/validations/common';
 import { sqliteSchemaError } from '../../cli/views';
-import { prepareFilenames } from '../../serializer';
+import { prepareFilenames } from '../../utils/utils-node';
 import { createDDL, interimToDDL, SQLiteDDL } from './ddl';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
 import { drySqliteSnapshot, snapshotValidator, SqliteSnapshot } from './snapshot';

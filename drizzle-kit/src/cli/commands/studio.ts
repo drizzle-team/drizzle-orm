@@ -28,16 +28,15 @@ import { compress } from 'hono/compress';
 import { cors } from 'hono/cors';
 import { createServer } from 'node:https';
 import { LibSQLCredentials } from 'src/cli/validations/libsql';
-import { MssqlCredentials } from 'src/cli/validations/mssql';
-import { assertUnreachable } from 'src/global';
+import { assertUnreachable } from '../../utils';
 import superjson from 'superjson';
 import { z } from 'zod';
-import type { MysqlCredentials } from '../cli/validations/mysql';
-import type { PostgresCredentials } from '../cli/validations/postgres';
-import type { SingleStoreCredentials } from '../cli/validations/singlestore';
-import type { SqliteCredentials } from '../cli/validations/sqlite';
-import { safeRegister } from '../utils-node';
-import { prepareFilenames } from '.';
+import type { MysqlCredentials } from '../validations/mysql';
+import type { PostgresCredentials } from '../validations/postgres';
+import type { SingleStoreCredentials } from '../validations/singlestore';
+import type { SqliteCredentials } from '../validations/sqlite';
+import { safeRegister } from '../../utils/utils-node';
+import { prepareFilenames } from '../../utils/utils-node';
 
 type CustomDefault = {
 	schema: string;
@@ -297,7 +296,7 @@ export const drizzleForPostgres = async (
 	relations: Record<string, Relations>,
 	schemaFiles?: SchemaFile[],
 ): Promise<Setup> => {
-	const { preparePostgresDB } = await import('../cli/connections');
+	const { preparePostgresDB } = await import('../connections');
 	const db = await preparePostgresDB(credentials);
 	const customDefaults = getCustomDefaults(pgSchema);
 
@@ -339,7 +338,7 @@ export const drizzleForMySQL = async (
 	relations: Record<string, Relations>,
 	schemaFiles?: SchemaFile[],
 ): Promise<Setup> => {
-	const { connectToMySQL } = await import('../cli/connections');
+	const { connectToMySQL } = await import('../connections');
 	const { proxy } = await connectToMySQL(credentials);
 
 	const customDefaults = getCustomDefaults(mysqlSchema);
@@ -406,7 +405,7 @@ export const drizzleForSQLite = async (
 	relations: Record<string, Relations>,
 	schemaFiles?: SchemaFile[],
 ): Promise<Setup> => {
-	const { connectToSQLite } = await import('../cli/connections');
+	const { connectToSQLite } = await import('../connections');
 
 	const sqliteDB = await connectToSQLite(credentials);
 	const customDefaults = getCustomDefaults(sqliteSchema);
@@ -443,7 +442,7 @@ export const drizzleForLibSQL = async (
 	relations: Record<string, Relations>,
 	schemaFiles?: SchemaFile[],
 ): Promise<Setup> => {
-	const { connectToLibSQL } = await import('../cli/connections');
+	const { connectToLibSQL } = await import('../connections');
 
 	const sqliteDB = await connectToLibSQL(credentials);
 	const customDefaults = getCustomDefaults(sqliteSchema);
@@ -470,7 +469,7 @@ export const drizzleForSingleStore = async (
 	relations: Record<string, Relations>,
 	schemaFiles?: SchemaFile[],
 ): Promise<Setup> => {
-	const { connectToSingleStore } = await import('../cli/connections');
+	const { connectToSingleStore } = await import('../connections');
 	const { proxy } = await connectToSingleStore(credentials);
 
 	const customDefaults = getCustomDefaults(singlestoreSchema);

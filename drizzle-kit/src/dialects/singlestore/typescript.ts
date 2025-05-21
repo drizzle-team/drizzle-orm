@@ -3,7 +3,7 @@ import { toCamelCase } from 'drizzle-orm/casing';
 import '../../@types/utils';
 import { singlestoreTable } from 'drizzle-orm/singlestore-core';
 import type { Casing } from '../../cli/validations/common';
-import { assertUnreachable } from '../../global';
+import { assertUnreachable } from '../../utils';
 import { Column, Index, MysqlDDL, PrimaryKey } from '../mysql/ddl';
 // time precision to fsp
 // {mode: "string"} for timestamp by default

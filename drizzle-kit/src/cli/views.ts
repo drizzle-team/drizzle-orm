@@ -1,10 +1,10 @@
 import chalk from 'chalk';
 import { Prompt, render, SelectState, TaskView } from 'hanji';
 import { SchemaError, SchemaWarning } from 'src/dialects/postgres/ddl';
-import { assertUnreachable } from 'src/global';
 import { SchemaError as SqliteSchemaError } from '../dialects/sqlite/ddl';
 import { Named, NamedWithSchema } from '../dialects/utils';
-import { vectorOps } from '../extensions/vector';
+import { vectorOps } from '../dialects/postgres/grammar';
+import { assertUnreachable } from '../utils';
 import { withStyle } from './validations/outputs';
 
 export const warning = (msg: string) => {
