@@ -451,3 +451,32 @@ test('generated as string: change generated constraint', async () => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual([]); // we don't trigger generated column recreate if definition change within push
 });
+
+test('alter generated constraint', async () => {
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id'),
+			id2: integer('id2'),
+			name: text('name'),
+			generatedName: text('gen_name').generatedAlwaysAs((): SQL => sql`${schema1.users.name}`),
+		}),
+	};
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id'),
+			id2: integer('id2'),
+			name: text('name'),
+			generatedName: text('gen_name').generatedAlwaysAs((): SQL => sql`${schema2.users.name} || 'hello'`),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	const st0: string[] = [];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});

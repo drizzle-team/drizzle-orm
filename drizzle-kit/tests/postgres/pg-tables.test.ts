@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm';
+import { SQL, sql } from 'drizzle-orm';
 import {
 	foreignKey,
 	geometry,
@@ -1116,6 +1116,56 @@ test('optional db aliases (camel case)', async () => {
 	const st7 = `CREATE INDEX "t1Idx" ON "t1" ("t1Idx") WHERE "t1"."t1Idx" > 0;`;
 
 	const st0 = [st1, st2, st3, st4, st5, st6, st7];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('create table with generated column', async () => {
+	const schema1 = {};
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id'),
+			id2: integer('id2'),
+			name: text('name'),
+			generatedName: text('gen_name').generatedAlwaysAs((): SQL => sql`${schema2.users.name} || 'hello'`),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	const st0: string[] = [
+		'CREATE TABLE "users" (\n\t"id" integer,\n\t"id2" integer,\n\t"name" text,\n\t"gen_name" text GENERATED ALWAYS AS ("users"."name" || \'hello\') STORED\n);\n',
+	];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('rename table with composite primary key', async () => {
+	const schema1 = {
+		table: pgTable('table1', {
+			productId: text('product_id').notNull(),
+			categoryId: text('category_id').notNull(),
+		}, (t) => [primaryKey({ columns: [t.productId, t.categoryId] })]),
+	};
+	const schema2 = {
+		test: pgTable('table2', {
+			productId: text('product_id').notNull(),
+			categoryId: text('category_id').notNull(),
+		}, (t) => [primaryKey({ columns: [t.productId, t.categoryId] })]),
+	};
+
+	const renames = ['public.table1->public.table2'];
+	const { sqlStatements: st } = await diff(schema1, schema2, renames);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst, losses } = await push({ db, to: schema2, renames });
+
+	const st0: string[] = ['ALTER TABLE "table1" RENAME TO "table2";'];
+
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
