@@ -20,7 +20,7 @@ import type { Subquery } from '~/subquery.ts';
 import type { InferInsertModel } from '~/table.ts';
 import { Columns, getTableName, Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
-import { haveSameKeys, mapUpdateSet, type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
+import { haveSameKeys, isIterable, mapUpdateSet, type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
 import type { AnyPgColumn, PgColumn } from '../columns/common.ts';
 import { QueryBuilder } from './query-builder.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
@@ -80,9 +80,9 @@ export class PgInsertBuilder<
 	values(value: PgInsertValue<TTable, OverrideT>): PgInsertBase<TTable, TQueryResult>;
 	values(values: PgInsertValue<TTable, OverrideT>[]): PgInsertBase<TTable, TQueryResult>;
 	values(
-		values: PgInsertValue<TTable, OverrideT> | PgInsertValue<TTable, OverrideT>[],
+		rawValues: PgInsertValue<TTable, OverrideT> | PgInsertValue<TTable, OverrideT>[],
 	): PgInsertBase<TTable, TQueryResult> {
-		values = Array.isArray(values) ? values : [values];
+		const values = isIterable(rawValues) ? [...rawValues] : [rawValues];
 		if (values.length === 0) {
 			throw new Error('values() must be called with at least one value');
 		}
