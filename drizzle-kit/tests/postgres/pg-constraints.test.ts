@@ -415,7 +415,7 @@ test('unique #13', async () => {
 	};
 
 	// sch1 -> sch2
-	const { sqlStatements: st1 } = await diff(sch1, sch2, [
+	const { sqlStatements: st1, next: n1 } = await diff(sch1, sch2, [
 		'public.users->public.users2',
 		'public.users2.email->public.users2.email2',
 	]);
@@ -438,7 +438,7 @@ test('unique #13', async () => {
 	expect(pst1).toStrictEqual(st10);
 
 	// sch2 -> sch3
-	const { sqlStatements: st2 } = await diff(sch2, sch3, []);
+	const { sqlStatements: st2 } = await diff(n1, sch3, []);
 
 	const { sqlStatements: pst2 } = await push({
 		db,
@@ -472,18 +472,9 @@ test('unique multistep #1', async () => {
 		}),
 	};
 
-	const { sqlStatements: st2, next: n2 } = await diff(n1, sch2, [
-		'public.users->public.users2',
-		'public.users2.name->public.users2.name2',
-	]);
-	const { sqlStatements: pst2 } = await push({
-		db,
-		to: sch2,
-		renames: [
-			'public.users->public.users2',
-			'public.users2.name->public.users2.name2',
-		],
-	});
+	const renames = ['public.users->public.users2', 'public.users2.name->public.users2.name2'];
+	const { sqlStatements: st2, next: n2 } = await diff(n1, sch2, renames);
+	const { sqlStatements: pst2 } = await push({ db, to: sch2, renames });
 
 	const e2 = [
 		'ALTER TABLE "users" RENAME TO "users2";',
@@ -492,11 +483,25 @@ test('unique multistep #1', async () => {
 	expect(st2).toStrictEqual(e2);
 	expect(pst2).toStrictEqual(e2);
 
-	const { sqlStatements: st3 } = await diff(n2, sch2, []);
+	const { sqlStatements: st3, next: n3 } = await diff(n2, sch2, []);
 	const { sqlStatements: pst3 } = await push({ db, to: sch2 });
 
 	expect(st3).toStrictEqual([]);
 	expect(pst3).toStrictEqual([]);
+
+	const sch3 = {
+		users: pgTable('users2', {
+			name: text('name2'),
+		}),
+	};
+
+	const { sqlStatements: st4 } = await diff(n3, sch3, []);
+	const { sqlStatements: pst4 } = await push({ db, to: sch3 });
+
+	const e3 = ['ALTER TABLE "users2" DROP CONSTRAINT "users_name_key";'];
+
+	expect(pst4).toStrictEqual(e3);
+	expect(st4).toStrictEqual(e3);
 });
 
 test('unique multistep #2', async () => {
