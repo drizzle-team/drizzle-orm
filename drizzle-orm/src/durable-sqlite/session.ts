@@ -111,7 +111,8 @@ export class SQLiteDOPreparedQuery<T extends PreparedQueryConfig = PreparedQuery
 		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => unknown,
 	) {
-		super('sync', executeMethod, query);
+		// 3-6 params are for cache. As long as we don't support sync cache - it will be skipped here
+		super('sync', executeMethod, query, {} as any, undefined, undefined);
 	}
 
 	run(placeholderValues?: Record<string, unknown>): void {

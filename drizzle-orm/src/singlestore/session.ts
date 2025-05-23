@@ -10,6 +10,8 @@ import type {
 	RowDataPacket,
 } from 'mysql2/promise';
 import { once } from 'node:events';
+import { type Cache, NoopCache } from '~/cache/core/index.ts';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
@@ -52,14 +54,20 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 		queryString: string,
 		private params: unknown[],
 		private logger: Logger,
+		cache: Cache,
+		queryMetadata: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		} | undefined,
+		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 		// Keys that were used in $default and the value that was generated for them
 		private generatedIds?: Record<string, unknown>[],
-		// Keys that should be returned, it has the column with all properries + key from object
+		// Keys that should be returned, it has the column with all properties + key from object
 		private returningIds?: SelectedFieldsOrdered,
 	) {
-		super();
+		super(cache, queryMetadata, cacheConfig);
 		this.rawQuery = {
 			sql: queryString,
 			// rowsAsArray: true,
@@ -90,7 +98,9 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 		const { fields, client, rawQuery, query, joinsNotNullableMap, customResultMapper, returningIds, generatedIds } =
 			this;
 		if (!fields && !customResultMapper) {
-			const res = await client.query<any>(rawQuery, params);
+			const res = await this.queryWithCache(rawQuery.sql, params, async () => {
+				return await client.query<any>(rawQuery, params);
+			});
 			const insertId = res[0].insertId;
 			const affectedRows = res[0].affectedRows;
 			// for each row, I need to check keys from
@@ -119,7 +129,9 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 			return res;
 		}
 
-		const result = await client.query<any[]>(query, params);
+		const result = await this.queryWithCache(query.sql, params, async () => {
+			return await client.query<any[]>(query, params);
+		});
 		const rows = result[0];
 
 		if (customResultMapper) {
@@ -184,6 +196,7 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 
 export interface SingleStoreDriverSessionOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class SingleStoreDriverSession<
@@ -193,6 +206,7 @@ export class SingleStoreDriverSession<
 	static override readonly [entityKind]: string = 'SingleStoreDriverSession';
 
 	private logger: Logger;
+	private cache: Cache;
 
 	constructor(
 		private client: SingleStoreDriverClient,
@@ -202,6 +216,7 @@ export class SingleStoreDriverSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
+		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends SingleStorePreparedQueryConfig>(
@@ -210,6 +225,11 @@ export class SingleStoreDriverSession<
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 		generatedIds?: Record<string, unknown>[],
 		returningIds?: SelectedFieldsOrdered,
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
 	): PreparedQueryKind<SingleStoreDriverPreparedQueryHKT, T> {
 		// Add returningId fields
 		// Each driver gets them from response from database
@@ -218,6 +238,9 @@ export class SingleStoreDriverSession<
 			query.sql,
 			query.params,
 			this.logger,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
 			fields,
 			customResultMapper,
 			generatedIds,

@@ -1,4 +1,6 @@
 import type { OPSQLiteConnection, QueryResult } from '@op-engineering/op-sqlite';
+import { type Cache, NoopCache } from '~/cache/core/index.ts';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -18,6 +20,7 @@ import { mapResultRow } from '~/utils.ts';
 
 export interface OPSQLiteSessionOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -29,6 +32,7 @@ export class OPSQLiteSession<
 	static override readonly [entityKind]: string = 'OPSQLiteSession';
 
 	private logger: Logger;
+	private cache: Cache;
 
 	constructor(
 		private client: OPSQLiteConnection,
@@ -38,6 +42,7 @@ export class OPSQLiteSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
+		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
@@ -46,11 +51,19 @@ export class OPSQLiteSession<
 		executeMethod: SQLiteExecuteMethod,
 		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => unknown,
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
 	): OPSQLitePreparedQuery<T> {
 		return new OPSQLitePreparedQuery(
 			this.client,
 			query,
 			this.logger,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
 			fields,
 			executeMethod,
 			isResponseInArrayMode,
@@ -105,19 +118,27 @@ export class OPSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQuery
 		private client: OPSQLiteConnection,
 		query: Query,
 		private logger: Logger,
+		cache: Cache,
+		queryMetadata: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		} | undefined,
+		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => unknown,
 	) {
-		super('sync', executeMethod, query);
+		super('sync', executeMethod, query, cache, queryMetadata, cacheConfig);
 	}
 
-	run(placeholderValues?: Record<string, unknown>): Promise<QueryResult> {
+	async run(placeholderValues?: Record<string, unknown>): Promise<QueryResult> {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 
-		return this.client.executeAsync(this.query.sql, params);
+		return await this.queryWithCache(this.query.sql, params, async () => {
+			return this.client.executeAsync(this.query.sql, params);
+		});
 	}
 
 	async all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
@@ -126,7 +147,9 @@ export class OPSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQuery
 			const params = fillPlaceholders(query.params, placeholderValues ?? {});
 			logger.logQuery(query.sql, params);
 
-			return client.execute(query.sql, params).rows?._array || [];
+			return await this.queryWithCache(query.sql, params, async () => {
+				return client.execute(query.sql, params).rows?._array || [];
+			});
 		}
 
 		const rows = await this.values(placeholderValues) as unknown[][];
@@ -141,7 +164,9 @@ export class OPSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQuery
 		const params = fillPlaceholders(query.params, placeholderValues ?? {});
 		logger.logQuery(query.sql, params);
 		if (!fields && !customResultMapper) {
-			const rows = client.execute(query.sql, params).rows?._array || [];
+			const rows = await this.queryWithCache(query.sql, params, async () => {
+				return client.execute(query.sql, params).rows?._array || [];
+			});
 			return rows[0];
 		}
 
@@ -159,10 +184,12 @@ export class OPSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQuery
 		return mapResultRow(fields!, row, joinsNotNullableMap);
 	}
 
-	values(placeholderValues?: Record<string, unknown>): Promise<T['values']> {
+	async values(placeholderValues?: Record<string, unknown>): Promise<T['values']> {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
-		return this.client.executeRawAsync(this.query.sql, params);
+		return await this.queryWithCache(this.query.sql, params, async () => {
+			return await this.client.executeRawAsync(this.query.sql, params);
+		});
 	}
 
 	/** @internal */

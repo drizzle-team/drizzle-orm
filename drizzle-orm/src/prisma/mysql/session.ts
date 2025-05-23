@@ -26,7 +26,7 @@ export class PrismaMySqlPreparedQuery<T> extends MySqlPreparedQuery<MySqlPrepare
 		private readonly query: Query,
 		private readonly logger: Logger,
 	) {
-		super();
+		super({} as any, undefined, undefined);
 	}
 
 	override execute(placeholderValues?: Record<string, unknown>): Promise<T> {

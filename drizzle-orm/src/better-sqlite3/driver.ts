@@ -29,7 +29,7 @@ export class BetterSQLite3Database<TSchema extends Record<string, unknown> = Rec
 
 function construct<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: Database,
-	config: DrizzleConfig<TSchema> = {},
+	config: Omit<DrizzleConfig<TSchema>, 'cache'> = {},
 ): BetterSQLite3Database<TSchema> & {
 	$client: Database;
 } {
@@ -57,6 +57,10 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 	const session = new BetterSQLiteSession(client, dialect, schema, { logger });
 	const db = new BetterSQLite3Database('sync', dialect, session, schema);
 	(<any> db).$client = client;
+	// (<any> db).$cache = config.cache;
+	// if ((<any> db).$cache) {
+	// 	(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	// }
 
 	return db as any;
 }
