@@ -164,6 +164,9 @@ export const push = async (config: {
 
 	// TODO: handle errors
 
+	console.log(ddl1.columns.list())
+	console.log(ddl2.columns.list())
+
 	const renames = new Set(config.renames ?? []);
 	const { sqlStatements, statements } = await ddlDiff(
 		ddl1,

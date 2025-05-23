@@ -206,3 +206,32 @@ test('create checks with same names', async (t) => {
 	// adding only CONSTRAINT "some_check_name" CHECK ("users"."age" > 21), not throwing error
 	await expect(push({ db, to })).rejects.toThrow();
 });
+
+test('db has checks. Push with same names', async () => {
+	const schema1 = {
+		test: pgTable('test', {
+			id: serial('id').primaryKey(),
+			values: integer('values').default(1),
+		}, (table) => [check('some_check', sql`${table.values} < 100`)]),
+	};
+	const schema2 = {
+		test: pgTable('test', {
+			id: serial('id').primaryKey(),
+			values: integer('values').default(1),
+		}, (table) => [check('some_check', sql`some new value`)]),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0: string[] = [
+		'ALTER TABLE "test" DROP CONSTRAINT "some_check", ADD CONSTRAINT ADD CONSTRAINT "some_check" CHECK (some new value);',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});

@@ -1,4 +1,31 @@
-import { boolean, integer, pgTable, primaryKey, serial, text, uuid, varchar } from 'drizzle-orm/pg-core';
+import { SQL, sql } from 'drizzle-orm';
+import {
+	bigint,
+	bigserial,
+	boolean,
+	char,
+	date,
+	doublePrecision,
+	index,
+	integer,
+	interval,
+	json,
+	jsonb,
+	numeric,
+	pgEnum,
+	pgSchema,
+	pgTable,
+	primaryKey,
+	real,
+	serial,
+	smallint,
+	text,
+	time,
+	timestamp,
+	uniqueIndex,
+	uuid,
+	varchar,
+} from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -293,6 +320,30 @@ test('with composite pks #3', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
+test('create composite primary key', async () => {
+	const schema1 = {};
+
+	const schema2 = {
+		table: pgTable('table', {
+			col1: integer('col1').notNull(),
+			col2: integer('col2').notNull(),
+		}, (t) => [primaryKey({
+			columns: [t.col1, t.col2],
+		})]),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	const { sqlStatements: pst, losses } = await push({ db, to: schema2 });
+
+	const st0: string[] = [
+		'CREATE TABLE "table" (\n\t"col1" integer NOT NULL,\n\t"col2" integer NOT NULL,\n\tCONSTRAINT "table_pkey" PRIMARY KEY("col1","col2")\n);\n',
+	];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
 test('add multiple constraints #1', async (t) => {
 	const t1 = pgTable('t1', {
 		id: uuid('id').primaryKey().defaultRandom(),
@@ -509,4 +560,443 @@ test('add columns with defaults', async () => {
 	expect(pst).toStrictEqual(st0);
 
 	// TODO: check for created tables, etc
+});
+
+test('add array column - empty array default', async () => {
+	const schema1 = {
+		test: pgTable('test', {
+			id: serial('id').primaryKey(),
+		}),
+	};
+	const schema2 = {
+		test: pgTable('test', {
+			id: serial('id').primaryKey(),
+			values: integer('values').array().default([]),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0: string[] = [
+		'ALTER TABLE "test" ADD COLUMN "values" integer[] DEFAULT \'{}\';',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('add array column - default', async () => {
+	const schema1 = {
+		test: pgTable('test', {
+			id: serial('id').primaryKey(),
+		}),
+	};
+	const schema2 = {
+		test: pgTable('test', {
+			id: serial('id').primaryKey(),
+			values: integer('values').array().default([1, 2, 3]),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0: string[] = [
+		'ALTER TABLE "test" ADD COLUMN "values" integer[] DEFAULT \'{1,2,3}\';',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('add not null to a column', async () => {
+	const schema1 = {
+		users: pgTable(
+			'User',
+			{
+				id: text('id').primaryKey().notNull(),
+				name: text('name'),
+				username: text('username'),
+				gh_username: text('gh_username'),
+				email: text('email'),
+				emailVerified: timestamp('emailVerified', {
+					precision: 3,
+					mode: 'date',
+				}),
+				image: text('image'),
+				createdAt: timestamp('createdAt', { precision: 3, mode: 'date' })
+					.default(sql`CURRENT_TIMESTAMP`)
+					.notNull(),
+				updatedAt: timestamp('updatedAt', { precision: 3, mode: 'date' })
+					.notNull()
+					.$onUpdate(() => new Date()),
+			},
+			(table) => [uniqueIndex('User_email_key').on(table.email)],
+		),
+	};
+
+	const schema2 = {
+		users: pgTable(
+			'User',
+			{
+				id: text('id').primaryKey().notNull(),
+				name: text('name'),
+				username: text('username'),
+				gh_username: text('gh_username'),
+				email: text('email').notNull(),
+				emailVerified: timestamp('emailVerified', {
+					precision: 3,
+					mode: 'date',
+				}),
+				image: text('image'),
+				createdAt: timestamp('createdAt', { precision: 3, mode: 'date' })
+					.default(sql`CURRENT_TIMESTAMP`)
+					.notNull(),
+				updatedAt: timestamp('updatedAt', { precision: 3, mode: 'date' })
+					.notNull()
+					.$onUpdate(() => new Date()),
+			},
+			(table) => [uniqueIndex('User_email_key').on(table.email)],
+		),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst, losses } = await push({ db, to: schema2 });
+
+	const st0: string[] = ['ALTER TABLE "User" ALTER COLUMN "email" SET NOT NULL;'];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	// TODO: revise should I use suggestion func?
+	// const { losses, hints } = await suggestions(db, statements);
+
+	expect(losses).toStrictEqual([]);
+});
+
+test('add not null to a column with null data. Should rollback', async () => {
+	const schema1 = {
+		users: pgTable('User', {
+			id: text('id').primaryKey(),
+			name: text('name'),
+			username: text('username'),
+			gh_username: text('gh_username'),
+			email: text('email'),
+			emailVerified: timestamp('emailVerified', { precision: 3, mode: 'date' }),
+			image: text('image'),
+			createdAt: timestamp('createdAt', { precision: 3, mode: 'date' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+			updatedAt: timestamp('updatedAt', { precision: 3, mode: 'date' }).notNull().$onUpdate(() => new Date()),
+		}, (table) => [uniqueIndex('User_email_key').on(table.email)]),
+	};
+
+	const schema2 = {
+		users: pgTable('User', {
+			id: text('id').primaryKey(),
+			name: text('name'),
+			username: text('username'),
+			gh_username: text('gh_username'),
+			email: text('email').notNull(),
+			emailVerified: timestamp('emailVerified', { precision: 3, mode: 'date' }),
+			image: text('image'),
+			createdAt: timestamp('createdAt', { precision: 3, mode: 'date' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+			updatedAt: timestamp('updatedAt', { precision: 3, mode: 'date' }).notNull().$onUpdate(() => new Date()),
+		}, (table) => [uniqueIndex('User_email_key').on(table.email)]),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	db.query(`INSERT INTO "User" (id, email, "updatedAt") values ('str', 'email@gmail', '2025-04-29 09:20:39');`);
+	const { sqlStatements: pst, hints } = await push({ db, to: schema2 });
+
+	const st0: string[] = ['ALTER TABLE "User" ALTER COLUMN "email" SET NOT NULL;'];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	expect(hints).toStrictEqual([]);
+});
+
+test('add generated column', async () => {
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id'),
+			id2: integer('id2'),
+			name: text('name'),
+		}),
+	};
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id'),
+			id2: integer('id2'),
+			name: text('name'),
+			generatedName: text('gen_name').generatedAlwaysAs((): SQL => sql`${schema2.users.name}`),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	const st0: string[] = [
+		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name") STORED;',
+	];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('add generated constraint to an existing column', async () => {
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id'),
+			id2: integer('id2'),
+			name: text('name'),
+			generatedName: text('gen_name'),
+		}),
+	};
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id'),
+			id2: integer('id2'),
+			name: text('name'),
+			generatedName: text('gen_name').generatedAlwaysAs((): SQL => sql`${schema2.users.name}`),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	const st0: string[] = [
+		'ALTER TABLE "users" DROP COLUMN "gen_name";',
+		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name") STORED;',
+	];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('drop generated constraint from a column', async () => {
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id'),
+			id2: integer('id2'),
+			name: text('name'),
+			generatedName: text('gen_name').generatedAlwaysAs((): SQL => sql`${schema1.users.name}`),
+		}),
+	};
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id'),
+			id2: integer('id2'),
+			name: text('name'),
+			generatedName: text('gen_name'),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	const st0: string[] = [
+		'ALTER TABLE "users" ALTER COLUMN "gen_name" DROP EXPRESSION;',
+	];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('no diffs for all database types', async () => {
+	const customSchema = pgSchema('schemass');
+
+	const transactionStatusEnum = customSchema.enum('TransactionStatusEnum', ['PENDING', 'FAILED', 'SUCCESS']);
+
+	const enumname = pgEnum('enumname', ['three', 'two', 'one']);
+
+	const schema1 = {
+		test: pgEnum('test', ['ds']),
+		testHello: pgEnum('test_hello', ['ds']),
+		enumname: pgEnum('enumname', ['three', 'two', 'one']),
+
+		customSchema: customSchema,
+		transactionStatusEnum: customSchema.enum('TransactionStatusEnum', ['PENDING', 'FAILED', 'SUCCESS']),
+
+		allSmallSerials: pgTable('schema_test', {
+			columnAll: uuid('column_all').defaultRandom(),
+			column: transactionStatusEnum('column').notNull(),
+		}),
+
+		allSmallInts: customSchema.table(
+			'schema_test2',
+			{
+				columnAll: smallint('column_all').default(124).notNull(),
+				column: smallint('columns').array(),
+				column1: smallint('column1').array().array(),
+				column2: smallint('column2').array().array(),
+				column3: smallint('column3').array(),
+			},
+			(t: any) => [uniqueIndex('testdfds').on(t.column)],
+		),
+
+		allEnums: customSchema.table(
+			'all_enums',
+			{
+				columnAll: enumname('column_all').default('three').notNull(),
+				column: enumname('columns'),
+			},
+			(t: any) => [index('ds').on(t.column)],
+		),
+
+		allTimestamps: customSchema.table('all_timestamps', {
+			columnDateNow: timestamp('column_date_now', {
+				precision: 1,
+				withTimezone: true,
+				mode: 'string',
+			}).defaultNow(),
+			columnAll: timestamp('column_all', { mode: 'string' }).default('2023-03-01 12:47:29.792'),
+			column: timestamp('column', { mode: 'string' }).default(sql`'2023-02-28 16:18:31.18'`),
+			column2: timestamp('column2', { mode: 'string', precision: 3 }).default(sql`'2023-02-28 16:18:31.18'`),
+		}),
+
+		allUuids: customSchema.table('all_uuids', {
+			columnAll: uuid('column_all').defaultRandom().notNull(),
+			column: uuid('column'),
+		}),
+
+		allDates: customSchema.table('all_dates', {
+			column_date_now: date('column_date_now').defaultNow(),
+			column_all: date('column_all', { mode: 'date' }).default(new Date()).notNull(),
+			column: date('column'),
+		}),
+
+		allReals: customSchema.table('all_reals', {
+			columnAll: real('column_all').default(32).notNull(),
+			column: real('column'),
+			columnPrimary: real('column_primary').primaryKey().notNull(),
+		}),
+
+		allBigints: pgTable('all_bigints', {
+			columnAll: bigint('column_all', { mode: 'number' }).default(124).notNull(),
+			column: bigint('column', { mode: 'number' }),
+		}),
+
+		allBigserials: customSchema.table('all_bigserials', {
+			columnAll: bigserial('column_all', { mode: 'bigint' }).notNull(),
+			column: bigserial('column', { mode: 'bigint' }).notNull(),
+		}),
+
+		allIntervals: customSchema.table('all_intervals', {
+			columnAllConstrains: interval('column_all_constrains', {
+				fields: 'month',
+			})
+				.default('1 mon')
+				.notNull(),
+			columnMinToSec: interval('column_min_to_sec', {
+				fields: 'minute to second',
+			}),
+			columnWithoutFields: interval('column_without_fields').default('00:00:01').notNull(),
+			column: interval('column'),
+			column5: interval('column5', {
+				fields: 'minute to second',
+				precision: 3,
+			}),
+			column6: interval('column6'),
+		}),
+
+		allSerials: customSchema.table('all_serials', {
+			columnAll: serial('column_all').notNull(),
+			column: serial('column').notNull(),
+		}),
+
+		allTexts: customSchema.table(
+			'all_texts',
+			{
+				columnAll: text('column_all').default('text').notNull(),
+				column: text('columns').primaryKey(),
+			},
+			(t: any) => [index('test').on(t.column)],
+		),
+
+		allBools: customSchema.table('all_bools', {
+			columnAll: boolean('column_all').default(true).notNull(),
+			column: boolean('column'),
+		}),
+
+		allVarchars: customSchema.table('all_varchars', {
+			columnAll: varchar('column_all').default('text').notNull(),
+			column: varchar('column', { length: 200 }),
+		}),
+
+		allTimes: customSchema.table('all_times', {
+			columnDateNow: time('column_date_now').defaultNow(),
+			columnAll: time('column_all').default('22:12:12').notNull(),
+			column: time('column'),
+		}),
+
+		allChars: customSchema.table('all_chars', {
+			columnAll: char('column_all', { length: 1 }).default('text').notNull(),
+			column: char('column', { length: 1 }),
+		}),
+
+		allDoublePrecision: customSchema.table('all_double_precision', {
+			columnAll: doublePrecision('column_all').default(33.2).notNull(),
+			column: doublePrecision('column'),
+		}),
+
+		allJsonb: customSchema.table('all_jsonb', {
+			columnDefaultObject: jsonb('column_default_object').default({ hello: 'world world' }).notNull(),
+			columnDefaultArray: jsonb('column_default_array').default({
+				hello: { 'world world': ['foo', 'bar'] },
+			}),
+			column: jsonb('column'),
+		}),
+
+		allJson: customSchema.table('all_json', {
+			columnDefaultObject: json('column_default_object').default({ hello: 'world world' }).notNull(),
+			columnDefaultArray: json('column_default_array').default({
+				hello: { 'world world': ['foo', 'bar'] },
+				foo: 'bar',
+				fe: 23,
+			}),
+			column: json('column'),
+		}),
+
+		allIntegers: customSchema.table('all_integers', {
+			columnAll: integer('column_all').primaryKey(),
+			column: integer('column'),
+			columnPrimary: integer('column_primary'),
+		}),
+
+		allNumerics: customSchema.table('all_numerics', {
+			columnAll: numeric('column_all', { precision: 1, scale: 1 }).default('32').notNull(),
+			column: numeric('column'),
+			columnPrimary: numeric('column_primary').primaryKey().notNull(),
+		}),
+	};
+
+	const schemas = ['public', 'schemass'];
+	const { sqlStatements: st } = await diff(schema1, schema1, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema1, schemas });
+
+	const st0: string[] = [];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
