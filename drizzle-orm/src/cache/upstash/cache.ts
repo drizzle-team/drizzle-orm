@@ -130,7 +130,6 @@ export class UpstashCache extends Cache {
 		isTag: boolean = false,
 		isAutoInvalidate?: boolean,
 	): Promise<any[] | undefined> {
-
 		if (!isAutoInvalidate) {
 			const result = await this.redis.hget(UpstashCache.nonAutoInvalidateTablePrefix, key);
 			return result === null ? undefined : result as any[];

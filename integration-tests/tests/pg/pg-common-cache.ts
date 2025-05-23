@@ -318,6 +318,29 @@ export function tests() {
 			await db.$cache?.invalidate({ tags: ['custom'] });
 		});
 
+		test('global: true - with custom tag + with autoinvalidate', async (ctx) => {
+			const { dbGlobalCached: db } = ctx.cachedPg;
+
+			// @ts-expect-error
+			const spyPut = vi.spyOn(db.$cache, 'put');
+			// @ts-expect-error
+			const spyGet = vi.spyOn(db.$cache, 'get');
+			// @ts-expect-error
+			const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+
+			await db.select().from(usersTable).$withCache({ tag: 'custom' });
+
+			expect(spyPut).toHaveBeenCalledTimes(1);
+			expect(spyGet).toHaveBeenCalledTimes(1);
+
+			await db.insert(usersTable).values({ name: 'John' });
+
+			expect(spyInvalidate).toHaveBeenCalledTimes(1);
+
+			// invalidate force
+			await db.$cache?.invalidate({ tags: ['custom'] });
+		});
+
 		// check select used tables
 		test('check simple select used tables', (ctx) => {
 			const { db } = ctx.cachedPg;
