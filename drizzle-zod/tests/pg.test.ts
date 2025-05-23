@@ -25,12 +25,13 @@ const textSchema = z.string();
 
 test('table - select', (t) => {
 	const table = pgTable('test', {
-		id: serial().primaryKey(),
+		id: integer().primaryKey(),
+		generated: integer().generatedAlwaysAsIdentity(),
 		name: text().notNull(),
 	});
 
 	const result = createSelectSchema(table);
-	const expected = z.object({ id: integerSchema, name: textSchema });
+	const expected = z.object({ id: integerSchema, generated: integerSchema, name: textSchema });
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
