@@ -1112,22 +1112,18 @@ test('add with options to materialized view with existing flag #2', async () => 
 		view: pgMaterializedView('view', {}).with({ autovacuumVacuumCostDelay: 100, vacuumTruncate: false }).existing(),
 	};
 
-	// TODO: revise: do I need to check statements?
-	const { sqlStatements: st, statements: st_ } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
 	await push({ db, to: schema1 });
-	const { sqlStatements: pst, statements: pst_ } = await push({
+	const { sqlStatements: pst } = await push({
 		db,
 		to: schema2,
 	});
 
 	const st0: string[] = [];
-	const st_0: string[] = [];
-	expect(st).toStrictEqual(st0);
-	expect(st_).toStrictEqual(st_0);
 
+	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
-	expect(pst_).toStrictEqual(st_0);
 });
 
 test('drop with option from view #1', async () => {
