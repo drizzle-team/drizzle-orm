@@ -116,6 +116,11 @@ export function stringFromDatabaseIdentityProperty(field: any): string | null {
 }
 
 export function buildArrayString(array: any[], sqlType: string): string {
+	// we check if array consists only of empty arrays down to 5th dimension
+	if (array.flat(5).length === 0) {
+		return '{}';
+	}
+
 	const values = array
 		.map((value) => {
 			if (typeof value === 'number' || typeof value === 'bigint') {
@@ -341,7 +346,7 @@ export const trimDefaultValueSuffix = (value: string) => {
 
 export const defaultForColumn = (
 	type: string,
-	def: string | null | undefined,
+	def: string | boolean | number | null | undefined,
 	dimensions: number,
 ): Column['default'] => {
 	if (
@@ -354,6 +359,14 @@ export const defaultForColumn = (
 		return null;
 	}
 
+	if (typeof def === 'boolean') {
+		return { type: 'boolean', value: String(def) };
+	}
+	
+	if (typeof def === 'number') {
+		return { type: 'number', value: String(def) };
+	}
+
 	// trim ::type and []
 	let value = trimDefaultValueSuffix(def);
 
@@ -362,8 +375,9 @@ export const defaultForColumn = (
 
 	if (dimensions > 0) {
 		const values = value
-			.slice(2, -2)
+			.slice(2, -2) // TODO: ??
 			.split(/\s*,\s*/g)
+			.filter((it) => it !== '')
 			.map((value) => {
 				if (['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(type)) {
 					return value;
@@ -410,14 +424,20 @@ export const defaultForColumn = (
 	return { value: value, type: 'unknown' };
 };
 
-export const defaultToSQL = (it: Column['default']) => {
-	if (!it) return '';
+export const defaultToSQL = (it: Column) => {
+	if (!it.default) return '';
 
-	const { value, type } = it;
+	const { type: columnType, dimensions } = it;
+	const { type, value } = it.default;
+
 	if (type === 'string') {
 		return `'${escapeSingleQuotes(value)}'`;
 	}
-	if (type === 'array' || type === 'bigint' || type === 'json' || type === 'jsonb') {
+	if (type === 'array') {
+		const suffix = dimensions > 0 ? '[]' : '';
+		return `'${value}'::${columnType}${suffix}`;
+	}
+	if (type === 'bigint' || type === 'json' || type === 'jsonb') {
 		return `'${value}'`;
 	}
 	if (type === 'boolean' || type === 'null' || type === 'number' || type === 'func' || type === 'unknown') {
