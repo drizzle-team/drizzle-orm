@@ -757,7 +757,7 @@ export function tests() {
 				.single(); 
 		
 			expect(user).toEqual({
-				name: 'JOHN',
+				name: 'John',
 			});
 		});
 
