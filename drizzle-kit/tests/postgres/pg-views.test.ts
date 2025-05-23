@@ -1,5 +1,5 @@
-import { sql } from 'drizzle-orm';
-import { integer, pgMaterializedView, pgSchema, pgTable, pgView } from 'drizzle-orm/pg-core';
+import { eq, sql } from 'drizzle-orm';
+import { integer, pgMaterializedView, pgSchema, pgTable, pgView, serial } from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -18,6 +18,34 @@ afterAll(async () => {
 
 beforeEach(async () => {
 	await _.clear();
+});
+
+test('create view', async () => {
+	const table = pgTable('test', {
+		id: serial('id').primaryKey(),
+	});
+	const schema1 = {
+		test: table,
+	};
+
+	const schema2 = {
+		test: table,
+		view: pgView('view').as((qb) => qb.selectDistinct().from(table)),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0: string[] = [
+		'CREATE VIEW "view" AS (select distinct "id" from "test");',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('create table and view #1', async () => {
@@ -202,6 +230,37 @@ test('create view with existing flag', async () => {
 	});
 
 	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('create materialized view', async () => {
+	const table = pgTable('test', {
+		id: serial('id').primaryKey(),
+	});
+	const schema1 = {
+		test: table,
+	};
+
+	const schema2 = {
+		test: table,
+		view: pgMaterializedView('view')
+			.withNoData()
+			.using('heap')
+			.as((qb) => qb.selectDistinct().from(table)),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0: string[] = [
+		'CREATE MATERIALIZED VIEW "view" USING "heap" AS (select distinct "id" from "test") WITH NO DATA;',
+	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
@@ -397,6 +456,34 @@ test('drop view #1', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+test('drop view #2', async () => {
+	const table = pgTable('test', {
+		id: serial('id').primaryKey(),
+	});
+	const schema1 = {
+		test: table,
+		view: pgView('view').as((qb) => qb.selectDistinct().from(table)),
+	};
+
+	const schema2 = {
+		test: table,
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0: string[] = [
+		'DROP VIEW "view";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
 test('drop view with existing flag', async () => {
 	const users = pgTable('users', {
 		id: integer('id').primaryKey().notNull(),
@@ -422,6 +509,44 @@ test('drop view with existing flag', async () => {
 	const st0: string[] = [];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+test('drop view with data', async () => {
+	const table = pgTable('table', {
+		id: serial('id').primaryKey(),
+	});
+	const schema1 = {
+		test: table,
+		view: pgView('view', {}).as(sql`SELECT * FROM ${table}`),
+	};
+
+	const schema2 = {
+		test: table,
+	};
+
+	const seedStatements = [`INSERT INTO "table" ("id") VALUES (1), (2), (3)`];
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst, hints: phints } = await push({
+		db,
+		to: schema2,
+	});
+
+	// seeding
+	for (const seedSt of seedStatements) {
+		await db.query(seedSt);
+	}
+
+	const st0: string[] = [
+		`DROP VIEW "view";`,
+	];
+	const hints0: string[] = [];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+	expect(phints).toStrictEqual(hints0);
 });
 
 test('drop materialized view #1', async () => {
@@ -453,6 +578,34 @@ test('drop materialized view #1', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+test('drop materialized view #2', async () => {
+	const table = pgTable('test', {
+		id: serial('id').primaryKey(),
+	});
+	const schema1 = {
+		test: table,
+		view: pgMaterializedView('view').as((qb) => qb.selectDistinct().from(table)),
+	};
+
+	const schema2 = {
+		test: table,
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0: string[] = [
+		'DROP MATERIALIZED VIEW "view";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
 test('drop materialized view with existing flag', async () => {
 	const users = pgTable('users', {
 		id: integer('id').primaryKey().notNull(),
@@ -478,6 +631,71 @@ test('drop materialized view with existing flag', async () => {
 	const st0: string[] = [];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+test('drop materialized view with data', async () => {
+	const table = pgTable('table', {
+		id: serial('id').primaryKey(),
+	});
+
+	const schema1 = {
+		test: table,
+		view: pgMaterializedView('view', {}).as(sql`SELECT * FROM ${table}`),
+	};
+
+	const schema2 = {
+		test: table,
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	await db.query(`INSERT INTO "table" ("id") VALUES (1), (2), (3)`);
+
+	const { sqlStatements: pst, hints: phints, losses: plosses } = await push({ db, to: schema2 });
+
+	const st0: string[] = [
+		`DROP MATERIALIZED VIEW "view";`,
+	];
+
+	const hints0 = ['· You\'re about to delete non-empty "view" materialized view'];
+	const losses0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	expect(phints).toStrictEqual(hints0);
+	expect(plosses).toStrictEqual(losses0);
+});
+
+test('drop materialized view without data', async () => {
+	const table = pgTable('table', {
+		id: serial('id').primaryKey(),
+	});
+	const schema1 = {
+		test: table,
+		view: pgMaterializedView('view', {}).as(sql`SELECT * FROM ${table}`),
+	};
+
+	const schema2 = {
+		test: table,
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst, hints: phints } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0: string[] = [
+		`DROP MATERIALIZED VIEW "view";`,
+	];
+	const hints0: string[] = [];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+	expect(phints).toStrictEqual(hints0);
 });
 
 test('rename view #1', async () => {
@@ -790,7 +1008,69 @@ test('add with option to materialized view #1', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add with option to materialized view with existing flag', async () => {
+test('add with options for materialized view #2', async () => {
+	const table = pgTable('test', {
+		id: serial('id').primaryKey(),
+	});
+	const schema1 = {
+		test: table,
+		view: pgMaterializedView('view').as((qb) => qb.selectDistinct().from(table)),
+	};
+
+	const schema2 = {
+		test: table,
+		view: pgMaterializedView('view')
+			.with({ autovacuumFreezeTableAge: 1, autovacuumEnabled: false })
+			.as((qb) => qb.selectDistinct().from(table)),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0: string[] = [
+		`ALTER MATERIALIZED VIEW "view" SET (autovacuum_enabled = false, autovacuum_freeze_table_age = 1);`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('add with options for materialized view #3', async () => {
+	const table = pgTable('test', {
+		id: serial('id').primaryKey(),
+	});
+	const schema1 = {
+		test: table,
+		view: pgMaterializedView('view').as((qb) => qb.selectDistinct().from(table)),
+	};
+
+	const schema2 = {
+		test: table,
+		view: pgMaterializedView('view')
+			.with({ autovacuumVacuumCostDelay: 100, vacuumTruncate: false })
+			.as((qb) => qb.selectDistinct().from(table)),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0: string[] = [
+		`ALTER MATERIALIZED VIEW "view" SET (autovacuum_vacuum_cost_delay = 100, vacuum_truncate = false);`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('add with option to materialized view with existing flag #1', async () => {
 	const users = pgTable('users', {
 		id: integer('id').primaryKey().notNull(),
 	});
@@ -816,6 +1096,38 @@ test('add with option to materialized view with existing flag', async () => {
 	const st0: string[] = [];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+test('add with options to materialized view with existing flag #2', async () => {
+	const table = pgTable('test', {
+		id: serial('id').primaryKey(),
+	});
+	const schema1 = {
+		test: table,
+		view: pgMaterializedView('view', {}).as(sql`SELECT id FROM "test"`),
+	};
+
+	const schema2 = {
+		test: table,
+		view: pgMaterializedView('view', {}).with({ autovacuumVacuumCostDelay: 100, vacuumTruncate: false }).existing(),
+	};
+
+	// TODO: revise: do I need to check statements?
+	const { sqlStatements: st, statements: st_ } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst, statements: pst_ } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0: string[] = [];
+	const st_0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(st_).toStrictEqual(st_0);
+
+	expect(pst).toStrictEqual(st0);
+	expect(pst_).toStrictEqual(st_0);
 });
 
 test('drop with option from view #1', async () => {
@@ -1673,6 +1985,60 @@ test('moved schema and alter view', async () => {
 		`ALTER VIEW "some_view" SET SCHEMA "my_schema";`,
 		`ALTER VIEW "my_schema"."some_view" SET (check_option = cascaded);`,
 	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('push view with same name', async () => {
+	const table = pgTable('test', {
+		id: serial('id').primaryKey(),
+	});
+	const schema1 = {
+		test: table,
+		view: pgView('view').as((qb) => qb.selectDistinct().from(table)),
+	};
+
+	const schema2 = {
+		test: table,
+		view: pgView('view').as((qb) => qb.selectDistinct().from(table).where(eq(table.id, 1))),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('push materialized view with same name', async () => {
+	const table = pgTable('test', {
+		id: serial('id').primaryKey(),
+	});
+	const schema1 = {
+		test: table,
+		view: pgMaterializedView('view').as((qb) => qb.selectDistinct().from(table)),
+	};
+
+	const schema2 = {
+		test: table,
+		view: pgMaterializedView('view').as((qb) => qb.selectDistinct().from(table).where(eq(table.id, 1))),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0: string[] = [];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });

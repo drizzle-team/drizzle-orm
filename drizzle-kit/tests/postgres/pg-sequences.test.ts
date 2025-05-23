@@ -285,3 +285,164 @@ test('alter sequence', async () => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
+
+test('full sequence: no changes', async () => {
+	const schema1 = {
+		seq: pgSequence('my_seq', {
+			startWith: 100,
+			maxValue: 10000,
+			minValue: 100,
+			cycle: true,
+			cache: 10,
+			increment: 2,
+		}),
+	};
+
+	const schema2 = {
+		seq: pgSequence('my_seq', {
+			startWith: 100,
+			maxValue: 10000,
+			minValue: 100,
+			cycle: true,
+			cache: 10,
+			increment: 2,
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('basic sequence: change fields', async () => {
+	const schema1 = {
+		seq: pgSequence('my_seq', {
+			startWith: 100,
+			maxValue: 10000,
+			minValue: 100,
+			cycle: true,
+			cache: 10,
+			increment: 2,
+		}),
+	};
+
+	const schema2 = {
+		seq: pgSequence('my_seq', {
+			startWith: 100,
+			maxValue: 100000,
+			minValue: 100,
+			cycle: true,
+			cache: 10,
+			increment: 4,
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	const st0: string[] = [
+		'ALTER SEQUENCE "my_seq" INCREMENT BY 4 MINVALUE 100 MAXVALUE 100000 START WITH 100 CACHE 10 CYCLE;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('basic sequence: change name', async () => {
+	const schema1 = {
+		seq: pgSequence('my_seq', {
+			startWith: 100,
+			maxValue: 10000,
+			minValue: 100,
+			cycle: true,
+			cache: 10,
+			increment: 2,
+		}),
+	};
+
+	const schema2 = {
+		seq: pgSequence('my_seq2', {
+			startWith: 100,
+			maxValue: 10000,
+			minValue: 100,
+			cycle: true,
+			cache: 10,
+			increment: 2,
+		}),
+	};
+
+	const renames = ['public.my_seq->public.my_seq2'];
+	const { sqlStatements: st } = await diff(schema1, schema2, renames);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2, renames });
+
+	const st0: string[] = [
+		'ALTER SEQUENCE "my_seq" RENAME TO "my_seq2";',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('basic sequence: change name and fields', async () => {
+	const schema1 = {
+		seq: pgSequence('my_seq', {
+			startWith: 100,
+			maxValue: 10000,
+			minValue: 100,
+			cycle: true,
+			cache: 10,
+			increment: 2,
+		}),
+	};
+
+	const schema2 = {
+		seq: pgSequence('my_seq2', {
+			startWith: 100,
+			maxValue: 10000,
+			minValue: 100,
+			cycle: true,
+			cache: 10,
+			increment: 4,
+		}),
+	};
+
+	const renames = ['public.my_seq->public.my_seq2'];
+	const { sqlStatements: st } = await diff(schema1, schema2, renames);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2, renames });
+
+	const st0: string[] = [
+		'ALTER SEQUENCE "my_seq" RENAME TO "my_seq2";',
+		'ALTER SEQUENCE "my_seq2" INCREMENT BY 4 MINVALUE 100 MAXVALUE 10000 START WITH 100 CACHE 10 CYCLE;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('Add basic sequences', async () => {
+	const schema1 = {
+		seq: pgSequence('my_seq', { startWith: 100 }),
+	};
+
+	const schema2 = {
+		seq: pgSequence('my_seq', { startWith: 100 }),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	const st0: string[] = [];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
