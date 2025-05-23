@@ -20,6 +20,35 @@ beforeEach(async () => {
 	await _.clear();
 });
 
+test('full policy: no changes', async () => {
+	const schema1 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => [pgPolicy('test', { as: 'permissive' })]),
+	};
+
+	const schema2 = {
+		users: pgTable('users', {
+			id: integer('id').primaryKey(),
+		}, () => [pgPolicy('test', { as: 'permissive' })]),
+	};
+
+	// TODO: do I need to check statements at all?
+	const { sqlStatements: st, statements: st_ } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst, statements: pst_ } = await push({ db, to: schema2 });
+
+	const st0: string[] = [];
+	const st_0: string[] = [];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	expect(st_).toStrictEqual(st_0);
+	expect(pst_).toStrictEqual(st_0);
+});
+
 test('add policy + enable rls', async (t) => {
 	const schema1 = {
 		users: pgTable('users', {
@@ -384,18 +413,11 @@ test('rename policy in renamed table', async (t) => {
 		}, (t) => [pgPolicy('newName', { as: 'permissive' })]),
 	};
 
-	const renames = [
-		'public.users->public.users2',
-		'public.users2.test->public.users2.newName',
-	];
+	const renames = ['public.users->public.users2', 'public.users2.test->public.users2.newName'];
 	const { sqlStatements: st } = await diff(schema1, schema2, renames);
 
 	await push({ db, to: schema1 });
-	const { sqlStatements: pst } = await push({
-		db,
-		to: schema2,
-		renames,
-	});
+	const { sqlStatements: pst } = await push({ db, to: schema2, renames });
 
 	const st0 = [
 		'ALTER TABLE "users" RENAME TO "users2";',
