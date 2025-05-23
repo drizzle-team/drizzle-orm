@@ -24,6 +24,7 @@ import {
 	JsonAlterIndPolicyStatement,
 	JsonAlterMySqlViewStatement,
 	JsonAlterPolicyStatement,
+	JsonAlterTableSetCommentStatement,
 	JsonAlterTableSetSchema,
 	JsonAlterUniqueConstraint,
 	JsonAlterViewStatement,
@@ -221,6 +222,7 @@ const columnSchema = object({
 		type: enumType(['stored', 'virtual']).default('stored'),
 	}).optional(),
 	identity: string().optional(),
+	comment: string().optional(),
 }).strict();
 
 const alteredColumnSchema = object({
@@ -240,6 +242,7 @@ const alteredColumnSchema = object({
 	).optional(),
 
 	identity: makePatched(string()).optional(),
+	comment: makePatched(string()).optional(),
 }).strict();
 
 const enumSchema = object({
@@ -262,6 +265,7 @@ const tableScheme = object({
 	name: string(),
 	schema: string().default(''),
 	columns: record(string(), columnSchema),
+	comment: string().optional(),
 	indexes: record(string(), string()),
 	foreignKeys: record(string(), string()),
 	compositePrimaryKeys: record(string(), string()).default({}),
@@ -275,6 +279,7 @@ export const alteredTableScheme = object({
 	name: string(),
 	schema: string(),
 	altered: alteredColumnSchema.array(),
+	alteredComment: string().optional(),
 	addedIndexes: record(string(), string()),
 	deletedIndexes: record(string(), string()),
 	alteredIndexes: record(
@@ -1945,6 +1950,16 @@ export const applyPgSnapshotsDiff = async (
 		}
 	}
 
+	const alteredTablesWithComment = alteredTables.filter((it) => it.alteredComment);
+	const jsonAlterTableSetComment: JsonAlterTableSetCommentStatement[] = alteredTablesWithComment.map((it) => {
+		return {
+			tableName: it.name,
+			comment: it.alteredComment,
+			schema: it.schema,
+			type: 'alter_table_set_comment',
+		};
+	});
+
 	jsonStatements.push(...createSchemas);
 	jsonStatements.push(...renameSchemas);
 	jsonStatements.push(...createEnums);
@@ -2020,6 +2035,8 @@ export const applyPgSnapshotsDiff = async (
 	jsonStatements.push(...dropEnums);
 	jsonStatements.push(...dropSequences);
 	jsonStatements.push(...dropSchemas);
+
+	jsonStatements.push(...jsonAlterTableSetComment);
 
 	// generate filters
 	const filteredJsonStatements = jsonStatements.filter((st) => {
@@ -2657,6 +2674,16 @@ export const applyMysqlSnapshotsDiff = async (
 		}
 	}
 
+	const alteredTablesWithComment = alteredTables.filter((it) => it.alteredComment);
+	const jsonAlterTableSetComment: JsonAlterTableSetCommentStatement[] = alteredTablesWithComment.map((it) => {
+		return {
+			tableName: it.name,
+			comment: it.alteredComment,
+			schema: it.schema,
+			type: 'alter_table_set_comment',
+		};
+	});
+
 	jsonStatements.push(...jsonMySqlCreateTables);
 
 	jsonStatements.push(...jsonDropTables);
@@ -2700,6 +2727,7 @@ export const applyMysqlSnapshotsDiff = async (
 	jsonStatements.push(...createViews);
 
 	jsonStatements.push(...jsonAlteredUniqueConstraints);
+	jsonStatements.push(...jsonAlterTableSetComment);
 
 	const sqlStatements = fromJson(jsonStatements, 'mysql');
 
@@ -3178,6 +3206,17 @@ export const applySingleStoreSnapshotsDiff = async (
 		}
 	} */
 
+	const alteredTablesWithComment = alteredTables.filter((it) => it.alteredComment);
+
+	const jsonAlterTableSetComment: JsonAlterTableSetCommentStatement[] = alteredTablesWithComment.map((it) => {
+		return {
+			tableName: it.name,
+			comment: it.alteredComment,
+			schema: it.schema,
+			type: 'alter_table_set_comment',
+		};
+	});
+
 	jsonStatements.push(...jsonSingleStoreCreateTables);
 
 	jsonStatements.push(...jsonDropTables);
@@ -3212,6 +3251,8 @@ export const applySingleStoreSnapshotsDiff = async (
 	jsonStatements.push(...jsonAddedCompositePKs);
 
 	jsonStatements.push(...jsonAlteredUniqueConstraints);
+
+	jsonStatements.push(...jsonAlterTableSetComment);
 
 	const combinedJsonStatements = singleStoreCombineStatements(jsonStatements, json2);
 	const sqlStatements = fromJson(combinedJsonStatements, 'singlestore');
