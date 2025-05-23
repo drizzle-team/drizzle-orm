@@ -1,9 +1,9 @@
 import chalk from 'chalk';
 import { Prompt, render, SelectState, TaskView } from 'hanji';
 import { SchemaError, SchemaWarning } from 'src/dialects/postgres/ddl';
+import { vectorOps } from '../dialects/postgres/grammar';
 import { SchemaError as SqliteSchemaError } from '../dialects/sqlite/ddl';
 import { Named, NamedWithSchema } from '../dialects/utils';
-import { vectorOps } from '../dialects/postgres/grammar';
 import { assertUnreachable } from '../utils';
 import { withStyle } from './validations/outputs';
 

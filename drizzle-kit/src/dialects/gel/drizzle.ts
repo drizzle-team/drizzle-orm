@@ -19,6 +19,7 @@ import {
 } from 'drizzle-orm/gel-core';
 import { PgEnum, PgEnumColumn } from 'drizzle-orm/pg-core';
 import { CasingType } from '../../cli/validations/common';
+import { getColumnCasing } from '../drizzle';
 import {
 	CheckConstraint,
 	Column,
@@ -48,7 +49,6 @@ import {
 	stringFromIdentityProperty,
 } from '../postgres/grammar';
 import { getOrNull } from '../utils';
-import { getColumnCasing } from '../drizzle';
 
 const unwrapArray = (column: GelArray<any, any>, dimensions: number = 1) => {
 	const baseColumn = column.baseColumn;

@@ -252,6 +252,25 @@ export type Config =
 					})
 				);
 		}
+		// TODO update?
+		| {
+			dialect: Verify<Dialect, 'mssql'>;
+			dbCredentials:
+				| {
+					port: number;
+					user: string;
+					password: string;
+					database: string;
+					server: string;
+					options?: {
+						encrypt?: boolean;
+						trustServerCertificate?: boolean;
+					};
+				}
+				| {
+					url: string;
+				};
+		}
 	);
 
 /**

@@ -19,9 +19,9 @@ import {
 import { ddlDiff } from '../../dialects/postgres/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/postgres/drizzle';
 import type { JsonStatement } from '../../dialects/postgres/statements';
-import { prepareFilenames } from '../../utils/utils-node';
 import type { DB } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
+import { prepareFilenames } from '../../utils/utils-node';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import { Entities } from '../validations/cli';

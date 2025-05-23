@@ -159,7 +159,6 @@ export const pushSchema = async (
 	};
 };
 
-
 export const up = (snapshot: Record<string, unknown>) => {
 	if (snapshot.version === '5') {
 		return upPgV7(upPgV6(snapshot));

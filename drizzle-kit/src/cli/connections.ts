@@ -3,13 +3,14 @@ import type { MigrationConfig } from 'drizzle-orm/migrator';
 import type { PreparedQueryConfig } from 'drizzle-orm/pg-core';
 import fetch from 'node-fetch';
 import ws from 'ws';
-import type { ProxyParams } from './commands/studio';
 import { assertUnreachable } from '../utils';
 import { type DB, LibSQLDB, type Proxy, type SQLiteDB, type SqliteProxy } from '../utils';
 import { normaliseSQLiteUrl } from '../utils/utils-node';
+import type { ProxyParams } from './commands/studio';
 import { assertPackages, checkPackage } from './utils';
 import { GelCredentials } from './validations/gel';
 import { LibSQLCredentials } from './validations/libsql';
+import { MssqlCredentials } from './validations/mssql';
 import type { MysqlCredentials } from './validations/mysql';
 import { withStyle } from './validations/outputs';
 import type { PostgresCredentials } from './validations/postgres';
@@ -689,90 +690,58 @@ export const connectToMySQL = async (
 	process.exit(1);
 };
 
-// const parseMssqlCredentials = (credentials: MssqlCredentials) => {
-// 	if ('url' in credentials) {
-// 		const url = credentials.url;
+const parseMssqlCredentials = (credentials: MssqlCredentials) => {
+	if ('url' in credentials) {
+		const url = credentials.url;
+		return { url };
+	} else {
+		return {
+			database: credentials.database,
+			credentials,
+		};
+	}
+};
 
-// 		// TODO() change it
-// 		// const database = pathname.split('/')[pathname.split('/').length - 1];
-// 		// if (!database) {
-// 		// 	console.error(
-// 		// 		'You should specify a database name in connection string (mysql://USER:PASSWORD@HOST:PORT/DATABASE)',
-// 		// 	);
-// 		// 	process.exit(1);
-// 		// }
-// 		// return { database, url };
-// 	} else {
-// 		return {
-// 			database: credentials.database,
-// 			credentials,
-// 		};
-// 	}
-// };
+export const connectToMsSQL = async (
+	it: MssqlCredentials,
+): Promise<{
+	db: DB;
+	migrate: (config: MigrationConfig) => Promise<void>;
+}> => {
+	const result = parseMssqlCredentials(it);
 
-// export const connectToMsSQL = async (
-// 	it: MssqlCredentials,
-// ): Promise<{
-// 	db: DB;
-// 	proxy: Proxy;
-// 	database: string;
-// 	migrate: (config: MigrationConfig) => Promise<void>;
-// }> => {
-// 	const result = parseMssqlCredentials(it);
+	if (await checkPackage('mssql')) {
+		const mssql = await import('mssql');
+		const { drizzle } = await import('drizzle-orm/node-mssql');
+		const { migrate } = await import('drizzle-orm/node-mssql/migrator');
 
-// 	if (await checkPackage('mssql')) {
-// 		const mssql = await import('mssql');
-// 		const { drizzle } = await import('drizzle-orm/node-mssql');
-// 		const { migrate } = await import('drizzle-orm/node-mssql/migrator');
+		const connection = result.url
+			? await mssql.default.connect(result.url)
+			: await mssql.default.connect(result.credentials!);
 
-// 		const connection = result.url
-// 			? await mssql.connect(result.url)
-// 			: await mssql.connect(result.credentials!);
+		const db = drizzle(connection);
+		const migrateFn = async (config: MigrationConfig) => {
+			return migrate(db, config);
+		};
 
-// 		const db = drizzle(connection);
-// 		const migrateFn = async (config: MigrationConfig) => {
-// 			return migrate(db, config);
-// 		};
+		const query: DB['query'] = async <T>(
+			sql: string,
+		): Promise<T[]> => {
+			const res = await connection.query(sql);
+			return res.recordset as any;
+		};
 
-// 		// const typeCast = (field: any, next: any) => {
-// 		// 	if (field.type === 'TIMESTAMP' || field.type === 'DATETIME' || field.type === 'DATE') {
-// 		// 		return field.string();
-// 		// 	}
-// 		// 	return next();
-// 		// };
+		return {
+			db: { query },
+			migrate: migrateFn,
+		};
+	}
 
-// 		await connection.connect();
-// 		const query: DB['query'] = async <T>(
-// 			sql: string,
-// 		): Promise<T[]> => {
-// 			const res = await connection.query`${sql}`;
-// 			return res.recordsets as any; // TODO() check!
-// 		};
-
-// 		const proxy: Proxy = async (params: ProxyParams) => {
-// 			// const result = await connection.query({
-// 			// 	sql: params.sql,
-// 			// 	values: params.params,
-// 			// 	rowsAsArray: params.mode === 'array',
-// 			// 	typeCast,
-// 			// });
-// 			const result = await connection.query`${params.sql}`;
-// 			return result.recordsets as any[]; // TODO() check!
-// 		};
-
-// 		return {
-// 			db: { query },
-// 			proxy,
-// 			database: result.database,
-// 			migrate: migrateFn,
-// 		};
-// 	}
-
-// 	console.error(
-// 		"To connect to MsSQL database - please install 'mssql' driver",
-// 	);
-// 	process.exit(1);
-// };
+	console.error(
+		"To connect to MsSQL database - please install 'mssql' driver",
+	);
+	process.exit(1);
+};
 
 const prepareSqliteParams = (params: any[], driver?: string) => {
 	return params.map((param) => {

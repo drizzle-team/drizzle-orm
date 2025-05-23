@@ -19,8 +19,6 @@ export default defineConfig({
 			'tests/singlestore/**/*.test.ts',
 			'tests/gel/**/*.test.ts',
 			'tests/sqlite/**/*.test.ts',
-			'tests/postgres/**/*.test.ts',
-			'tests/mysql/**/*.test.ts',
 		],
 
 		typecheck: {

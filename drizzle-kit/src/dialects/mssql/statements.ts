@@ -48,7 +48,6 @@ export interface RenameTable {
 export interface AddColumn {
 	type: 'add_column';
 	column: Column;
-	isPK: boolean;
 }
 
 export interface DropColumn {
@@ -65,14 +64,17 @@ export interface RenameColumn {
 export interface AlterColumn {
 	type: 'alter_column';
 	diff: DiffEntities['columns'];
-	column: Column;
-	isPK: boolean;
 }
 
+export interface RecreateIdentityColumn {
+	type: 'recreate_identity_column';
+	column: DiffEntities['columns'];
+	constraintsToDelete: (UniqueConstraint | CheckConstraint | Index | PrimaryKey | ForeignKey | DefaultConstraint)[];
+	constraintsToCreate: (UniqueConstraint | CheckConstraint | Index | PrimaryKey | ForeignKey | DefaultConstraint)[];
+}
 export interface RecreateColumn {
 	type: 'recreate_column';
-	column: Column;
-	isPK: boolean;
+	column: DiffEntities['columns'];
 }
 
 export interface CreateIndex {
@@ -149,11 +151,6 @@ export interface CreateCheck {
 	check: CheckConstraint;
 }
 
-export interface AlterCheckConstraint {
-	type: 'alter_check';
-	diff: DiffEntities['checks'];
-}
-
 export interface CreateUnique {
 	type: 'add_unique';
 	unique: UniqueConstraint;
@@ -174,12 +171,6 @@ export interface MoveTable {
 	name: string;
 	from: string;
 	to: string;
-}
-
-export interface AlterPrimaryKey {
-	type: 'alter_pk';
-	pk: PrimaryKey;
-	diff: DiffEntities['pks'];
 }
 
 export interface AddCheck {
@@ -251,8 +242,6 @@ export type JsonStatement =
 	| RenameSchema
 	| RecreateView
 	| MoveView
-	| AlterCheckConstraint
-	| AlterPrimaryKey
 	| AddCheck
 	| DropCheck
 	| MoveTable
@@ -267,6 +256,7 @@ export type JsonStatement =
 	| RenameColumn
 	| AlterColumn
 	| RecreateColumn
+	| RecreateIdentityColumn
 	| CreateIndex
 	| DropIndex
 	| CreateFK

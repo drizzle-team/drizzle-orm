@@ -3,9 +3,9 @@ import { existsSync } from 'fs';
 import { render } from 'hanji';
 import { join, resolve } from 'path';
 import { object, string } from 'zod';
-import { prepareFilenames } from '../../utils/utils-node';
-import { type Dialect, dialect } from '../../utils/schemaValidator';
 import { assertUnreachable, getTablesFilterByExtensions } from '../../utils';
+import { type Dialect, dialect } from '../../utils/schemaValidator';
+import { prepareFilenames } from '../../utils/utils-node';
 import { safeRegister } from '../../utils/utils-node';
 import { Entities, pullParams, pushParams } from '../validations/cli';
 import {
@@ -25,6 +25,7 @@ import {
 	libSQLCredentials,
 	printConfigConnectionIssues as printIssuesLibSQL,
 } from '../validations/libsql';
+import { MssqlCredentials, mssqlCredentials } from '../validations/mssql';
 import {
 	MysqlCredentials,
 	mysqlCredentials,
@@ -113,6 +114,7 @@ export type ExportConfig = {
 	dialect: Dialect;
 	schema: string | string[];
 	sql: boolean;
+	casing?: CasingType;
 };
 
 export const prepareGenerateConfig = async (
@@ -171,12 +173,13 @@ export const prepareExportConfig = async (
 		schema?: string;
 		dialect?: Dialect;
 		sql: boolean;
+		casing?: CasingType;
 	},
 	from: 'config' | 'cli',
 ): Promise<ExportConfig> => {
 	const config = from === 'config' ? await drizzleConfigFromFile(options.config, true) : options;
 
-	const { schema, dialect, sql } = config;
+	const { schema, dialect, sql, config: conf } = config;
 
 	if (!schema || !dialect) {
 		console.log(error('Please provide required params:'));
@@ -191,6 +194,7 @@ export const prepareExportConfig = async (
 		process.exit(0);
 	}
 	return {
+		casing: config.casing,
 		dialect: dialect,
 		schema: schema,
 		sql: sql,
@@ -224,7 +228,7 @@ export const preparePushConfig = async (
 	options: Record<string, unknown>,
 	from: 'cli' | 'config',
 ): Promise<
-	(
+	& (
 		| {
 			dialect: 'mysql';
 			credentials: MysqlCredentials;
@@ -245,7 +249,12 @@ export const preparePushConfig = async (
 			dialect: 'singlestore';
 			credentials: SingleStoreCredentials;
 		}
-	) & {
+		| {
+			dialect: 'mssql';
+			credentials: MssqlCredentials;
+		}
+	)
+	& {
 		schemaPath: string | string[];
 		verbose: boolean;
 		strict: boolean;
@@ -275,6 +284,12 @@ export const preparePushConfig = async (
 	}
 
 	const config = parsed.data;
+
+	const isEmptySchemaFilter = !config.schemaFilter || config.schemaFilter.length === 0;
+	if (isEmptySchemaFilter) {
+		const defaultSchema = config.dialect === 'mssql' ? 'dbo' : 'public';
+		config.schemaFilter = [defaultSchema];
+	}
 
 	const schemaFiles = prepareFilenames(config.schema);
 	if (schemaFiles.length === 0) {
@@ -406,14 +421,23 @@ export const preparePushConfig = async (
 	}
 
 	if (config.dialect === 'mssql') {
-		console.log(
-			error(
-				`You can't use 'push' command with MsSql dialect yet`,
-			),
-		);
-		process.exit(1);
+		const parsed = mssqlCredentials.safeParse(config);
+		if (!parsed.success) {
+			// printIssuesSqlite(config, 'push'); // TODO print issues
+			process.exit(1);
+		}
+		return {
+			dialect: 'mssql',
+			schemaPath: config.schema,
+			strict: config.strict ?? false,
+			verbose: config.verbose ?? false,
+			force: (options.force as boolean) ?? false,
+			credentials: parsed.data,
+			casing: config.casing,
+			tablesFilter,
+			schemasFilter,
+		};
 	}
-
 	assertUnreachable(config.dialect);
 };
 
@@ -446,6 +470,10 @@ export const preparePullConfig = async (
 			dialect: 'gel';
 			credentials?: GelCredentials;
 		}
+		| {
+			dialect: 'mssql';
+			credentials: MssqlCredentials;
+		}
 	) & {
 		out: string;
 		breakpoints: boolean;
@@ -471,6 +499,12 @@ export const preparePullConfig = async (
 
 	const config = parsed.data;
 	const dialect = config.dialect;
+
+	const isEmptySchemaFilter = !config.schemaFilter || config.schemaFilter.length === 0;
+	if (isEmptySchemaFilter) {
+		const defaultSchema = config.dialect === 'mssql' ? 'dbo' : 'public';
+		config.schemaFilter = [defaultSchema];
+	}
 
 	const tablesFilterConfig = config.tablesFilter;
 	const tablesFilter = tablesFilterConfig
@@ -614,12 +648,23 @@ export const preparePullConfig = async (
 	}
 
 	if (dialect === 'mssql') {
-		console.log(
-			error(
-				`You can't use 'pull' command with MsSql dialect yet`,
-			),
-		);
-		process.exit(1);
+		const parsed = mssqlCredentials.safeParse(config);
+		if (!parsed.success) {
+			// printIssuesPg(config); // TODO add issues printing
+			process.exit(1);
+		}
+
+		return {
+			dialect,
+			out: config.out,
+			breakpoints: config.breakpoints,
+			casing: config.casing,
+			credentials: parsed.data,
+			tablesFilter,
+			schemasFilter,
+			prefix: config.migrations?.prefix || 'index',
+			entities: config.entities,
+		};
 	}
 
 	assertUnreachable(dialect);
