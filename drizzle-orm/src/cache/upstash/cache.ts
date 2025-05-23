@@ -130,13 +130,14 @@ export class UpstashCache extends Cache {
 		isTag: boolean = false,
 		isAutoInvalidate?: boolean,
 	): Promise<any[] | undefined> {
-		if (!isAutoInvalidate) {
-			const result = await this.redis.hget(UpstashCache.nonAutoInvalidateTablePrefix, key);
-			return result === null ? undefined : result as any[];
-		}
 
 		if (isTag) {
 			const result = await this.luaScripts.getByTagScript.exec([UpstashCache.tagsMapKey], [key]);
+			return result === null ? undefined : result as any[];
+		}
+
+		if (!isAutoInvalidate) {
+			const result = await this.redis.hget(UpstashCache.nonAutoInvalidateTablePrefix, key);
 			return result === null ? undefined : result as any[];
 		}
 
@@ -160,6 +161,11 @@ export class UpstashCache extends Cache {
 		const hexOptions = config && config.hexOptions ? config.hexOptions : this.internalConfig?.hexOptions;
 
 		if (!isAutoInvalidate) {
+			if (isTag) {
+				pipeline.hset(UpstashCache.tagsMapKey, { [key]: UpstashCache.nonAutoInvalidateTablePrefix });
+				pipeline.hset(UpstashCache.nonAutoInvalidateTablePrefix, { [key]: response });
+			}
+
 			pipeline.hset(UpstashCache.nonAutoInvalidateTablePrefix, { [key]: response });
 			pipeline.hexpire(UpstashCache.nonAutoInvalidateTablePrefix, key, ttlSeconds, hexOptions);
 			await pipeline.exec();
