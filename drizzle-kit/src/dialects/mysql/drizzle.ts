@@ -14,8 +14,8 @@ import {
 import { CasingType } from 'src/cli/validations/common';
 import { escapeSingleQuotes } from 'src/utils';
 import { safeRegister } from '../../utils/utils-node';
-import { Column, InterimSchema } from './ddl';
 import { getColumnCasing, sqlToStr } from '../drizzle';
+import { Column, InterimSchema } from './ddl';
 
 const handleEnumType = (type: string) => {
 	let str = type.split('(')[1];

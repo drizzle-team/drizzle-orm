@@ -1,5 +1,6 @@
 import chalk from 'chalk';
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, lstatSync } from 'fs';
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
+import { sync as globSync } from 'glob';
 import { join, resolve } from 'path';
 import { parse } from 'url';
 import { error, info } from '../cli/views';
@@ -9,7 +10,6 @@ import { snapshotValidator } from '../dialects/postgres/snapshot';
 import { assertUnreachable } from '.';
 import { Journal } from '.';
 import type { Dialect } from './schemaValidator';
-import {sync as globSync} from "glob"
 
 export const prepareFilenames = (path: string | string[]) => {
 	if (typeof path === 'string') {

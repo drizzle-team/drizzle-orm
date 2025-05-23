@@ -6,10 +6,10 @@ import { renderWithTask } from 'hanji';
 import { dialects } from 'src/utils/schemaValidator';
 import '../@types/utils';
 import { assertUnreachable } from '../utils';
-import { type Setup } from './commands/studio';
 import { assertV1OutFolder } from '../utils/utils-node';
 import { checkHandler } from './commands/check';
 import { dropMigration } from './commands/drop';
+import { type Setup } from './commands/studio';
 import { upMysqlHandler } from './commands/up-mysql';
 import { upPgHandler } from './commands/up-postgres';
 import { upSinglestoreHandler } from './commands/up-singlestore';
@@ -207,20 +207,18 @@ export const migrate = command({
 					),
 				);
 				process.exit(1);
-			} // else if (dialect === 'mssql') {
-			// 	// TODO() check!
-			// 	const { connectToMsSQL } = await import('./connections');
-			// 	const { migrate } = await connectToMsSQL(credentials);
-			// 	await renderWithTask(
-			// 		new MigrateProgress(),
-			// 		migrate({
-			// 			migrationsFolder: out,
-			// 			migrationsTable: table,
-			// 			migrationsSchema: schema,
-			// 		}),
-			// 	);
-			// }
-			else {
+			} else if (dialect === 'mssql') {
+				const { connectToMsSQL } = await import('./connections');
+				const { migrate } = await connectToMsSQL(credentials);
+				await renderWithTask(
+					new MigrateProgress(),
+					migrate({
+						migrationsFolder: out,
+						migrationsTable: table,
+						migrationsSchema: schema,
+					}),
+				);
+			} else {
 				assertUnreachable(dialect);
 			}
 		} catch (e) {
@@ -389,6 +387,19 @@ export const push = command({
 				tablesFilter,
 				strict,
 				verbose,
+				force,
+				casing,
+			);
+		} else if (dialect === 'mssql') {
+			const { handle } = await import('./commands/push-mssql');
+			await handle(
+				schemaPath,
+				verbose,
+				strict,
+				credentials,
+				tablesFilter,
+				schemasFilter,
+				entities,
 				force,
 				casing,
 			);
@@ -593,18 +604,19 @@ export const pull = command({
 					prefix,
 					entities,
 				);
-			} // else if (dialect === 'mssql') {
-			// 	const { introspectMssql } = await import('./commands/introspect');
-			// 	await introspectMssql(
-			// 		casing,
-			// 		out,
-			// 		breakpoints,
-			// 		credentials,
-			// 		tablesFilter,
-			// 		prefix,
-			// 	);
-			// }
-			else {
+			} else if (dialect === 'mssql') {
+				const { handle } = await import('./commands/pull-mssql');
+				await handle(
+					casing,
+					out,
+					breakpoints,
+					credentials,
+					tablesFilter,
+					schemasFilter,
+					prefix,
+					entities,
+				);
+			} else {
 				assertUnreachable(dialect);
 			}
 		} catch (e) {
@@ -731,13 +743,14 @@ export const studio = command({
 					),
 				);
 				process.exit(1);
-			} //  else if (dialect === 'mssql') {
-			// 	const { schema, relations, files } = schemaPath
-			// 		? await prepareMsSqlSchema(schemaPath)
-			// 		: { schema: {}, relations: {}, files: [] };
-			// 	setup = await drizzleForMsSQL(credentials, schema, relations, files);
-			// }
-			else {
+			} else if (dialect === 'mssql') {
+				console.log(
+					error(
+						`You can't use 'studio' command with 'mssql' dialect`,
+					),
+				);
+				process.exit(1);
+			} else {
 				assertUnreachable(dialect);
 			}
 

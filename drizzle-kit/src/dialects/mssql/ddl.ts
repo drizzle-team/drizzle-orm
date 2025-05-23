@@ -34,16 +34,13 @@ export const createDDL = () => {
 			tableTo: 'string',
 			columnsTo: 'string[]',
 			onUpdate: ['NO ACTION', 'CASCADE', 'SET NULL', 'SET DEFAULT'],
-			onDelete: ['NO ACTION', 'CASCADE', 'SET NULL', 'SET DEFAULT'], // TODO need to change in orm
+			onDelete: ['NO ACTION', 'CASCADE', 'SET NULL', 'SET DEFAULT'],
 		},
 		indexes: {
 			nameExplicit: 'boolean',
 			schema: 'required',
 			table: 'required',
-			columns: [{
-				value: 'string',
-				isExpression: 'boolean',
-			}],
+			columns: 'string[]', // does not supported indexing expressions
 			isUnique: 'boolean',
 			where: 'string?',
 		},
@@ -56,7 +53,7 @@ export const createDDL = () => {
 		checks: {
 			schema: 'required',
 			table: 'required',
-			nameExplicit: 'boolean', // TODO why?
+			nameExplicit: 'boolean',
 			value: 'string',
 		},
 		defaults: {
@@ -66,7 +63,7 @@ export const createDDL = () => {
 			nameExplicit: 'boolean',
 			default: {
 				value: 'string',
-				type: ['string', 'number', 'boolean', 'bigint', 'text', 'unknown'],
+				type: ['string', 'number', 'bigint', 'text', 'unknown', 'buffer', 'boolean'],
 			},
 		},
 		views: {
@@ -99,6 +96,7 @@ export type View = MssqlEntities['views'];
 
 export type InterimColumn = Column & {
 	isPK: boolean;
+	pkName: string | null;
 	isUnique: boolean;
 	uniqueName: string | null;
 };
@@ -209,7 +207,7 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MssqlDDL; errors: S
 	}
 
 	for (const column of interim.columns) {
-		const { isPK, isUnique, uniqueName, ...rest } = column;
+		const { isPK, isUnique, pkName, uniqueName, ...rest } = column;
 
 		const res = ddl.columns.push(rest);
 		if (res.status === 'CONFLICT') {
@@ -256,14 +254,14 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MssqlDDL; errors: S
 	}
 
 	for (const column of interim.columns.filter((it) => it.isPK)) {
-		const name = defaultNameForPK(column.table);
+		const name = column.pkName !== null ? column.pkName : defaultNameForPK(column.table);
 		const exists = ddl.pks.one({ schema: column.schema, table: column.table, name: name }) !== null;
 		if (exists) continue;
 
 		ddl.pks.push({
 			table: column.table,
 			name,
-			nameExplicit: false,
+			nameExplicit: column.pkName !== null,
 			columns: [column.name],
 			schema: column.schema,
 		});

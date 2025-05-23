@@ -13,13 +13,14 @@ test('add check', async () => {
 	const schema2 = {
 		table: mssqlTable('table', {
 			id: int(),
-		}, (t) => [check('new_check', sql`${t.id} != 10`)]),
+		}, (t) => [check('new_check', sql`${t.id} != 10`), check('new_check2', sql`${t.id} != 10`)]),
 	};
 
 	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE [table] ADD CONSTRAINT [new_check] CHECK ([table].[id] != 10);',
+		'ALTER TABLE [table] ADD CONSTRAINT [new_check2] CHECK ([table].[id] != 10);',
 	]);
 });
 

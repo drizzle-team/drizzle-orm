@@ -1,6 +1,6 @@
 import { Simplify } from '../../utils';
 import { defaultNameForPK, defaultToSQL } from './grammar';
-import { JsonStatement } from './statements';
+import { DropColumn, JsonStatement, RenameColumn } from './statements';
 
 export const convertor = <
 	TType extends JsonStatement['type'],
@@ -34,7 +34,7 @@ const createTable = convertor('create_table', (st) => {
 
 		const identity = column.identity;
 		const identityStatement = identity ? ` IDENTITY(${identity.seed}, ${identity.increment})` : '';
-		const notNullStatement = isPK ? '' : column.notNull && !column.identity ? ' NOT NULL' : '';
+		const notNullStatement = isPK ? '' : column.notNull && !column.identity && !column.generated ? ' NOT NULL' : '';
 
 		const generatedType = column.generated?.type.toUpperCase() === 'VIRTUAL'
 			? ''
@@ -44,7 +44,9 @@ const createTable = convertor('create_table', (st) => {
 			: '';
 
 		statement += '\t'
-			+ `[${column.name}] ${column.type}${identityStatement}${generatedStatement}${notNullStatement}`;
+			+ `[${column.name}] ${
+				generatedStatement ? '' : column.type
+			}${identityStatement}${generatedStatement}${notNullStatement}`;
 		statement += i === columns.length - 1 ? '' : ',\n';
 	}
 
@@ -98,7 +100,7 @@ const addColumn = convertor('add_column', (st) => {
 		schema,
 	} = column;
 
-	const notNullStatement = `${notNull ? ' NOT NULL' : ''}`;
+	const notNullStatement = `${notNull && !column.generated ? ' NOT NULL' : ''}`;
 	const identityStatement = identity ? ` IDENTITY(${identity.seed}, ${identity.increment})` : '';
 
 	const generatedType = column.generated?.type.toUpperCase() === 'VIRTUAL'
@@ -134,32 +136,75 @@ const renameColumn = convertor('rename_column', (st) => {
 });
 
 const alterColumn = convertor('alter_column', (st) => {
-	const { diff, column, isPK } = st;
+	const { diff } = st;
 
-	const identity = column.identity;
-
+	const column = diff.$right;
 	const notNullStatement = `${column.notNull ? ' NOT NULL' : ''}`;
-	const identityStatement = identity ? ` IDENTITY(${identity.seed}, ${identity.increment})` : '';
-
-	const generatedStatement = column.generated
-		? ` AS (${column.generated.as}) ${column.generated.type.toUpperCase()}`
-		: '';
 
 	const key = column.schema !== 'dbo' ? `[${column.schema}].[${column.table}]` : `[${column.table}]`;
-	return `ALTER TABLE ${key} ALTER COLUMN [${column.name}] ${column.type}${identityStatement}${generatedStatement}${notNullStatement};`;
+	return `ALTER TABLE ${key} ALTER COLUMN [${column.name}] ${column.type}${notNullStatement};`;
 });
 
 const recreateColumn = convertor('recreate_column', (st) => {
-	return [dropColumn.convert(st) as string, addColumn.convert(st) as string];
+	return [
+		dropColumn.convert({ column: st.column.$left }) as string,
+		addColumn.convert({ column: st.column.$right }) as string,
+	];
+});
+
+const recreateIdentityColumn = convertor('recreate_identity_column', (st) => {
+	const { column, constraintsToCreate, constraintsToDelete } = st;
+
+	const shouldTransferData = column.identity?.from && Boolean(!column.identity.to);
+	const statements = [];
+
+	for (const toDelete of constraintsToDelete) {
+		if (toDelete.entityType === 'checks') statements.push(dropCheck.convert({ check: toDelete }) as string);
+		if (toDelete.entityType === 'defaults') statements.push(dropDefault.convert({ default: toDelete }) as string);
+		if (toDelete.entityType === 'fks') statements.push(dropForeignKey.convert({ fk: toDelete }) as string);
+		if (toDelete.entityType === 'pks') statements.push(dropPK.convert({ pk: toDelete }) as string);
+		if (toDelete.entityType === 'indexes') statements.push(dropIndex.convert({ index: toDelete }) as string);
+		if (toDelete.entityType === 'uniques') statements.push(dropUnique.convert({ unique: toDelete }) as string);
+	}
+
+	const renamedColumnName = `__old_${column.name}`;
+	statements.push(
+		renameColumn.convert({
+			from: { table: column.table, name: column.name, schema: column.schema },
+			to: { name: renamedColumnName },
+		} as RenameColumn) as string,
+	);
+	statements.push(addColumn.convert({ column: column.$right }) as string);
+
+	if (shouldTransferData) {
+		statements.push(
+			`INSERT INTO [${column.table}] ([${column.name}]) SELECT [${renamedColumnName}] FROM [${column.table}];`,
+		);
+	}
+
+	statements.push(
+		dropColumn.convert(
+			{ column: { name: renamedColumnName, schema: column.schema, table: column.table } } as DropColumn,
+		) as string,
+	);
+
+	for (const toCreate of constraintsToCreate) {
+		if (toCreate.entityType === 'checks') statements.push(addCheck.convert({ check: toCreate }) as string);
+		if (toCreate.entityType === 'defaults') statements.push(addDefault.convert({ default: toCreate }) as string);
+		if (toCreate.entityType === 'fks') statements.push(createFK.convert({ fk: toCreate }) as string);
+		if (toCreate.entityType === 'pks') statements.push(createPK.convert({ pk: toCreate }) as string);
+		if (toCreate.entityType === 'indexes') statements.push(createIndex.convert({ index: toCreate }) as string);
+		if (toCreate.entityType === 'uniques') statements.push(addUnique.convert({ unique: toCreate }) as string);
+	}
+
+	return statements;
 });
 
 const createIndex = convertor('create_index', (st) => {
 	const { name, table, columns, isUnique, where, schema } = st.index;
 	const indexPart = isUnique ? 'UNIQUE INDEX' : 'INDEX';
 
-	const uniqueString = columns
-		.map((it) => it.isExpression ? `${it.value}` : `[${it.value}]`)
-		.join(',');
+	const uniqueString = columns.join(',');
 
 	const whereClause = where ? ` WHERE ${where}` : '';
 
@@ -350,7 +395,7 @@ const moveView = convertor('move_view', (st) => {
 	return `ALTER SCHEMA [${toSchema}] TRANSFER ${from};`;
 });
 
-const addUniqueConvertor = convertor('add_unique', (st) => {
+const addUnique = convertor('add_unique', (st) => {
 	const { unique } = st;
 	const tableNameWithSchema = unique.schema !== 'dbo'
 		? `[${unique.schema}].[${unique.table}]`
@@ -366,12 +411,6 @@ const dropPK = convertor('drop_pk', (st) => {
 		: `[${pk.table}]`;
 
 	return `ALTER TABLE ${key} DROP CONSTRAINT [${pk.name}];`;
-});
-
-const recreatePK = convertor('alter_pk', (it) => {
-	const drop = dropPK.convert({ pk: it.pk }) as string;
-	const create = createPK.convert({ pk: it.pk }) as string;
-	return [drop, create];
 });
 
 const recreateView = convertor('recreate_view', (st) => {
@@ -398,32 +437,6 @@ const dropCheck = convertor('drop_check', (st) => {
 	return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT [${check.name}];`;
 });
 
-const alterCheck = convertor('alter_check', (st) => {
-	const check = st.diff;
-
-	const dropObj = {
-		entityType: check.entityType,
-		name: check.name,
-		schema: check.schema,
-		nameExplicit: false,
-		table: check.table,
-		value: check.value!.from,
-	};
-	const createObj = {
-		entityType: check.entityType,
-		name: check.name,
-		nameExplicit: false,
-		schema: check.schema,
-		table: check.table,
-		value: check.value!.to,
-	};
-
-	const drop = dropCheck.convert({ check: dropObj }) as string;
-	const create = addCheck.convert({ check: createObj }) as string;
-
-	return [drop, create];
-});
-
 const dropUnique = convertor('drop_unique', (st) => {
 	const { unique } = st;
 
@@ -445,13 +458,15 @@ const dropForeignKey = convertor('drop_fk', (st) => {
 });
 
 const addDefault = convertor('create_default', (st) => {
-	const { schema, table, name, default: tableDefault } = st.default;
+	const { schema, table, name, default: tableDefault, column } = st.default;
 
 	const tableNameWithSchema = schema !== 'dbo'
 		? `[${schema}].[${table}]`
 		: `[${table}]`;
 
-	return `ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT [${name}] DEFAULT ${defaultToSQL(tableDefault)};`;
+	return `ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT [${name}] DEFAULT ${
+		defaultToSQL(tableDefault)
+	} FOR [${column}];`;
 });
 
 const dropDefault = convertor('drop_default', (st) => {
@@ -481,12 +496,12 @@ const convertors = [
 	renameColumn,
 	alterColumn,
 	recreateColumn,
+	recreateIdentityColumn,
 	createIndex,
 	dropIndex,
 	createFK,
 	createPK,
 	dropPK,
-	recreatePK,
 	createCheck,
 	dropConstraint,
 	createView,
@@ -500,9 +515,8 @@ const convertors = [
 	recreateView,
 	addCheck,
 	dropCheck,
-	alterCheck,
 	renameSchema,
-	addUniqueConvertor,
+	addUnique,
 	renamePk,
 	renameCheck,
 	renameFk,

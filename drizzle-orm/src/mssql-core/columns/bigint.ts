@@ -69,7 +69,7 @@ export function bigint<TMode extends MsSqlBigIntConfig['mode']>(
 ): MsSqlBigIntBuilderInitial<'', TMode>;
 export function bigint<TName extends string, TMode extends MsSqlBigIntConfig['mode']>(
 	name: TName,
-	config?: MsSqlBigIntConfig<TMode>,
+	config: MsSqlBigIntConfig<TMode>,
 ): MsSqlBigIntBuilderInitial<TName, TMode>;
 export function bigint(a: string | MsSqlBigIntConfig, b?: MsSqlBigIntConfig) {
 	const { name, config } = getColumnNameAndConfig<MsSqlBigIntConfig>(a, b);
