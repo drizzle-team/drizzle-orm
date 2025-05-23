@@ -362,7 +362,7 @@ export const defaultForColumn = (
 	if (typeof def === 'boolean') {
 		return { type: 'boolean', value: String(def) };
 	}
-	
+
 	if (typeof def === 'number') {
 		return { type: 'number', value: String(def) };
 	}
@@ -424,7 +424,9 @@ export const defaultForColumn = (
 	return { value: value, type: 'unknown' };
 };
 
-export const defaultToSQL = (it: Column) => {
+export const defaultToSQL = (
+	it: Pick<Column, 'default' | 'dimensions' | 'type'>,
+) => {
 	if (!it.default) return '';
 
 	const { type: columnType, dimensions } = it;
