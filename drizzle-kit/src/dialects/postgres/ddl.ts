@@ -340,6 +340,14 @@ interface PolicyNotLinked {
 }
 export type SchemaWarning = PolicyNotLinked;
 
+export const fromEntities = (entities: PostgresEntity[]) => {
+	const ddl = createDDL();
+	for (const it of entities) {
+		ddl.entities.push(it);
+	}
+
+	return ddl;
+};
 export const interimToDDL = (
 	schema: InterimSchema,
 ): { ddl: PostgresDDL; errors: SchemaError[] } => {

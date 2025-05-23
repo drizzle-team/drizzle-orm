@@ -9,13 +9,13 @@ import { updateUpToV6 as upPgV6, updateUpToV7 as upPgV7 } from '../cli/commands/
 import { resolver } from '../cli/prompts';
 import type { CasingType } from '../cli/validations/common';
 import { ProgressView, schemaError, schemaWarning } from '../cli/views';
-import * as postgres from '../dialects/postgres/ddl';
 import { fromDrizzleSchema, fromExports } from '../dialects/postgres/drizzle';
 import { PostgresSnapshot, toJsonSnapshot } from '../dialects/postgres/snapshot';
-import { getTablesFilterByExtensions } from './extensions/getTablesFilterByExtensions';
 import type { Config } from '../index';
 import { originUUID } from '../utils';
 import type { DB, SQLiteDB } from '../utils';
+
+import * as postgres from './api-postgres';
 
 // SQLite
 
@@ -342,4 +342,3 @@ import type { DB, SQLiteDB } from '../utils';
 // 		},
 // 	};
 // };
-

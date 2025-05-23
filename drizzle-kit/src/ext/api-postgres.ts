@@ -1,4 +1,5 @@
 import type { PgDatabase } from 'drizzle-orm/pg-core';
+import { upToV8 } from 'src/cli/commands/up-postgres';
 import { introspect } from '../cli/commands/pull-postgres';
 import { suggestions } from '../cli/commands/push-postgres';
 import { resolver } from '../cli/prompts';
@@ -159,13 +160,4 @@ export const pushSchema = async (
 	};
 };
 
-
-export const up = (snapshot: Record<string, unknown>) => {
-	if (snapshot.version === '5') {
-		return upPgV7(upPgV6(snapshot));
-	}
-	if (snapshot.version === '6') {
-		return upPgV7(snapshot);
-	}
-	return snapshot;
-};
+export const up = upToV8;
