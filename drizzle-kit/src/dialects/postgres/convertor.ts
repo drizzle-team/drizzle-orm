@@ -1,5 +1,4 @@
 import { escapeSingleQuotes, type Simplify } from '../../utils';
-import { View } from './ddl';
 import { defaultNameForPK, defaults, defaultToSQL, isDefaultAction, parseType } from './grammar';
 import type { JsonStatement } from './statements';
 
@@ -135,7 +134,7 @@ const createTableConvertor = convertor('create_table', (st) => {
 
 		const primaryKeyStatement = isPK ? ' PRIMARY KEY' : '';
 		const notNullStatement = isPK ? '' : column.notNull && !column.identity ? ' NOT NULL' : '';
-		const defaultStatement = column.default ? ` DEFAULT ${defaultToSQL(column.default)}` : '';
+		const defaultStatement = column.default ? ` DEFAULT ${defaultToSQL(column)}` : '';
 
 		const unique = uniques.find((u) => u.columns.length === 1 && u.columns[0] === column.name);
 
@@ -263,7 +262,7 @@ const addColumnConvertor = convertor('add_column', (st) => {
 		? `"${schema}"."${table}"`
 		: `"${table}"`;
 
-	const defaultStatement = column.default ? ` DEFAULT ${defaultToSQL(column.default)}` : '';
+	const defaultStatement = column.default ? ` DEFAULT ${defaultToSQL(column)}` : '';
 
 	const schemaPrefix = column.typeSchema && column.typeSchema !== 'public'
 		? `"${column.typeSchema}".`
@@ -364,7 +363,7 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 		if (recreateDefault) {
 			const typeSuffix = isEnum ? `::${type}` : '';
 			statements.push(
-				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(column.default)}${typeSuffix};`,
+				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(column)}${typeSuffix};`,
 			);
 		}
 	}
@@ -376,7 +375,7 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 			const typeSuffix = isEnum ? `::${typeSchema}"${column.type}"${arrSuffix}` : '';
 
 			statements.push(
-				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(diff.default.to)}${typeSuffix};`,
+				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(diff.$right)}${typeSuffix};`,
 			);
 		} else {
 			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
@@ -705,7 +704,9 @@ const recreateEnumConvertor = convertor('recreate_enum', (st) => {
 			`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${enumType} USING "${column.name}"::${enumType};`,
 		);
 		if (column.default) {
-			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(column.default)};`);
+			statements.push(
+				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(column)};`,
+			);
 		}
 	}
 

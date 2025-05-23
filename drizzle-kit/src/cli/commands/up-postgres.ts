@@ -34,7 +34,7 @@ export const upPgHandler = (out: string) => {
 		.forEach((it) => {
 			const path = it.path;
 
-			const { snapshot, hints } = updateToV8(it.raw);
+			const { snapshot, hints } = upToV8(it.raw);
 
 			console.log(hints);
 			console.log(`[${chalk.green('✓')}] ${path}`);
@@ -45,11 +45,8 @@ export const upPgHandler = (out: string) => {
 	console.log("Everything's fine 🐶🔥");
 };
 
-// TODO: handle unique name _unique vs _key
-// TODO: handle pk name table_columns_pk vs table_pkey
-// TODO: handle all entities!
-export const updateToV8 = (it: Record<string, any>): { snapshot: PostgresSnapshot; hints: string[] } => {
-	if (Number(it.version) < 7) return updateToV8(updateUpToV7(it));
+export const upToV8 = (it: Record<string, any>): { snapshot: PostgresSnapshot; hints: string[] } => {
+	if (Number(it.version) < 7) return upToV8(updateUpToV7(it));
 	const json = it as PgSchema;
 
 	const hints = [] as string[];
@@ -80,6 +77,8 @@ export const updateToV8 = (it: Record<string, any>): { snapshot: PostgresSnapsho
 			}
 
 			const [type, dimensions] = extractBaseTypeAndDimensions(column.type);
+			console.log(table.name, column.name, type, dimensions, column.default);
+			const def = defaultForColumn(type, column.default, dimensions);
 
 			ddl.columns.push({
 				schema,
@@ -102,7 +101,7 @@ export const updateToV8 = (it: Record<string, any>): { snapshot: PostgresSnapsho
 						cycle: column.identity.cycle ?? null,
 					}
 					: null,
-				default: defaultForColumn(type, column.default, dimensions),
+				default: def,
 			});
 		}
 
@@ -130,7 +129,7 @@ export const updateToV8 = (it: Record<string, any>): { snapshot: PostgresSnapsho
 				schema,
 				table: table.name,
 				columns: unique.columns,
-				name: nameExplicit ? unique.name : defaultNameForUnique(table.name, ...unique.columns),
+				name: unique.name,
 				nameExplicit: nameExplicit,
 				nullsNotDistinct: unique.nullsNotDistinct ?? defaults.nullsNotDistinct,
 			});
@@ -187,10 +186,12 @@ export const updateToV8 = (it: Record<string, any>): { snapshot: PostgresSnapsho
 		}
 
 		for (const fk of Object.values(table.foreignKeys)) {
-			const nameExplicit = defaultNameForFK(fk.tableFrom, fk.columnsFrom, fk.tableTo, fk.columnsTo) !== fk.name;
+			const nameExplicit =
+				`${fk.tableFrom}_${fk.columnsFrom.join('_')}_${fk.tableTo}_${fk.columnsTo.join('_')}_fk` !== fk.name;
+			const name = fk.name.length < 63 ? fk.name : fk.name.slice(0, 63);
 			ddl.fks.push({
 				schema,
-				name: fk.name,
+				name,
 				nameExplicit,
 				table: fk.tableFrom,
 				columns: fk.columnsFrom,
