@@ -14,11 +14,12 @@ const textSchema = z.string();
 test('table - select', (t) => {
 	const table = sqliteTable('test', {
 		id: int().primaryKey({ autoIncrement: true }),
+		generated: int().generatedAlwaysAs(1).notNull(),
 		name: text().notNull(),
 	});
 
 	const result = createSelectSchema(table);
-	const expected = z.object({ id: intSchema, name: textSchema });
+	const expected = z.object({ id: intSchema, generated: intSchema, name: textSchema });
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });

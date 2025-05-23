@@ -45,8 +45,11 @@ export type BuildSchema<
 > = z.ZodObject<
 	Simplify<
 		{
-			[K in keyof TColumns as ColumnIsGeneratedAlwaysAs<TColumns[K]> extends true ? never : K]: TColumns[K] extends
-				infer TColumn extends Column
+			[
+				K in keyof TColumns as ColumnIsGeneratedAlwaysAs<TColumns[K]> extends true ? TType extends 'select' ? K
+					: never
+					: K
+			]: TColumns[K] extends infer TColumn extends Column
 				? IsRefinementDefined<TRefinements, K> extends true
 					? Assume<HandleRefinement<TType, TRefinements[K & keyof TRefinements], TColumn>, z.ZodType>
 				: HandleColumn<TType, TColumn, TCoerce>
