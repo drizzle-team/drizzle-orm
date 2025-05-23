@@ -747,6 +747,20 @@ export function tests() {
 			expect(result).toEqual([{ name: 'JOHN' }, { name: 'JANE' }, { name: 'JANE' }]);
 		});
 
+		test('select with .single() returns one row', async (ctx) => {
+			const { db } = ctx.pg;
+			await db.insert(usersTable).values({ name: 'John' });
+			const user = await db
+				.select()
+				.from(usersTable)
+				.where(eq(usersTable.name, 'John'))
+				.single(); 
+		
+			expect(user).toEqual({
+				name: 'JOHN',
+			});
+		});
+
 		test('$default function', async (ctx) => {
 			const { db } = ctx.pg;
 
