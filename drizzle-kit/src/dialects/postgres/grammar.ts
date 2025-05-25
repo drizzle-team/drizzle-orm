@@ -426,6 +426,7 @@ export const defaultForColumn = (
 
 export const defaultToSQL = (
 	it: Pick<Column, 'default' | 'dimensions' | 'type' | 'typeSchema'>,
+	isEnum: boolean = false,
 ) => {
 	if (!it.default) return '';
 

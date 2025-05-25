@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 import { render } from 'hanji';
 import { ResolveColumnSelect, ResolveSchemasSelect, ResolveSelect, ResolveSelectNamed } from 'src/cli/views';
 import { any, array, boolean, enum as enumType, literal, object, record, string, TypeOf, union, ZodTypeAny } from 'zod';
