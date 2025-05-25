@@ -21,6 +21,7 @@ import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/postgres
 import { mockResolver } from 'src/utils/mocks';
 import '../../src/@types/utils';
 import { PGlite } from '@electric-sql/pglite';
+import { pg_trgm } from '@electric-sql/pglite/contrib/pg_trgm';
 import { vector } from '@electric-sql/pglite/vector';
 import { rmSync, writeFileSync } from 'fs';
 import { introspect } from 'src/cli/commands/pull-postgres';
@@ -163,9 +164,6 @@ export const push = async (config: {
 	// writeFileSync("./ddl2.json", JSON.stringify(ddl2.entities.list()))
 
 	// TODO: handle errors
-
-	console.log(ddl1.columns.list())
-	console.log(ddl2.columns.list())
 
 	const renames = new Set(config.renames ?? []);
 	const { sqlStatements, statements } = await ddlDiff(
@@ -317,7 +315,8 @@ export type TestDatabase = {
 };
 
 export const prepareTestDatabase = async (): Promise<TestDatabase> => {
-	const client = new PGlite({ extensions: { vector } });
+	const client = new PGlite({ extensions: { vector, pg_trgm } });
+	await client.query(`CREATE ACCESS METHOD drizzle_heap TYPE TABLE HANDLER heap_tableam_handler;`);
 
 	const clear = async () => {
 		const namespaces = await client.query<{ name: string }>('select oid, nspname as name from pg_namespace').then((
@@ -339,6 +338,7 @@ export const prepareTestDatabase = async (): Promise<TestDatabase> => {
 		}
 
 		await client.query(`CREATE EXTENSION vector;`);
+		await client.query(`CREATE EXTENSION pg_trgm;`);
 	};
 
 	const db: TestDatabase['db'] = {

@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm';
+import { eq, gt, sql } from 'drizzle-orm';
 import { integer, pgMaterializedView, pgSchema, pgTable, pgView, serial } from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
@@ -246,7 +246,7 @@ test('create materialized view', async () => {
 		test: table,
 		view: pgMaterializedView('view')
 			.withNoData()
-			.using('heap')
+			.using('drizzle_heap')
 			.as((qb) => qb.selectDistinct().from(table)),
 	};
 
@@ -259,7 +259,7 @@ test('create materialized view', async () => {
 	});
 
 	const st0: string[] = [
-		'CREATE MATERIALIZED VIEW "view" USING "heap" AS (select distinct "id" from "test") WITH NO DATA;',
+		'CREATE MATERIALIZED VIEW "view" USING "drizzle_heap" AS (select distinct "id" from "test") WITH NO DATA;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -320,22 +320,22 @@ test('create table and materialized view #3', async () => {
 	const to = {
 		users: users,
 		view1: pgMaterializedView('some_view1', { id: integer('id') }).as(sql`SELECT * FROM ${users}`),
-		view2: pgMaterializedView('some_view2').tablespace('some_tablespace').using('heap').withNoData().with({
+		view2: pgMaterializedView('some_view2').tablespace('pg_default').using('drizzle_heap').withNoData().with({
 			autovacuumEnabled: true,
-			autovacuumFreezeMaxAge: 1,
-			autovacuumFreezeMinAge: 1,
+			autovacuumFreezeMaxAge: 1000000,
+			autovacuumFreezeMinAge: 1000000,
 			autovacuumFreezeTableAge: 1,
-			autovacuumMultixactFreezeMaxAge: 1,
-			autovacuumMultixactFreezeMinAge: 1,
-			autovacuumMultixactFreezeTableAge: 1,
+			autovacuumMultixactFreezeMaxAge: 1000000,
+			autovacuumMultixactFreezeMinAge: 1000000,
+			autovacuumMultixactFreezeTableAge: 1000000,
 			autovacuumVacuumCostDelay: 1,
 			autovacuumVacuumCostLimit: 1,
 			autovacuumVacuumScaleFactor: 1,
 			autovacuumVacuumThreshold: 1,
-			fillfactor: 1,
+			fillfactor: 10,
 			logAutovacuumMinDuration: 1,
 			parallelWorkers: 1,
-			toastTupleTarget: 1,
+			toastTupleTarget: 128,
 			userCatalogTable: true,
 			vacuumIndexCleanup: 'off',
 			vacuumTruncate: false,
@@ -344,15 +344,12 @@ test('create table and materialized view #3', async () => {
 
 	const { sqlStatements: st } = await diff({}, to, []);
 
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-	});
+	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0 = [
 		`CREATE TABLE "users" (\n\t"id" integer PRIMARY KEY\n);\n`,
 		`CREATE MATERIALIZED VIEW "some_view1" AS (SELECT * FROM "users");`,
-		`CREATE MATERIALIZED VIEW "some_view2" USING "heap" WITH (autovacuum_enabled = true, autovacuum_freeze_max_age = 1, autovacuum_freeze_min_age = 1, autovacuum_freeze_table_age = 1, autovacuum_multixact_freeze_max_age = 1, autovacuum_multixact_freeze_min_age = 1, autovacuum_multixact_freeze_table_age = 1, autovacuum_vacuum_cost_delay = 1, autovacuum_vacuum_cost_limit = 1, autovacuum_vacuum_scale_factor = 1, autovacuum_vacuum_threshold = 1, fillfactor = 1, log_autovacuum_min_duration = 1, parallel_workers = 1, toast_tuple_target = 1, user_catalog_table = true, vacuum_index_cleanup = off, vacuum_truncate = false) TABLESPACE some_tablespace AS (select "id" from "users") WITH NO DATA;`,
+		`CREATE MATERIALIZED VIEW "some_view2" USING "drizzle_heap" WITH (autovacuum_enabled = true, autovacuum_freeze_max_age = 1000000, autovacuum_freeze_min_age = 1000000, autovacuum_freeze_table_age = 1, autovacuum_multixact_freeze_max_age = 1000000, autovacuum_multixact_freeze_min_age = 1000000, autovacuum_multixact_freeze_table_age = 1000000, autovacuum_vacuum_cost_delay = 1, autovacuum_vacuum_cost_limit = 1, autovacuum_vacuum_scale_factor = 1, autovacuum_vacuum_threshold = 1, fillfactor = 10, log_autovacuum_min_duration = 1, parallel_workers = 1, toast_tuple_target = 128, user_catalog_table = true, vacuum_index_cleanup = off, vacuum_truncate = false) TABLESPACE pg_default AS (select "id" from "users") WITH NO DATA;`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -652,19 +649,17 @@ test('drop materialized view with data', async () => {
 	await push({ db, to: schema1 });
 	await db.query(`INSERT INTO "table" ("id") VALUES (1), (2), (3)`);
 
-	const { sqlStatements: pst, hints: phints, losses: plosses } = await push({ db, to: schema2 });
+	const { sqlStatements: pst, hints, losses } = await push({ db, to: schema2 });
 
 	const st0: string[] = [
 		`DROP MATERIALIZED VIEW "view";`,
 	];
 
-	const hints0 = ['· You\'re about to delete non-empty "view" materialized view'];
-	const losses0: string[] = [];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 
-	expect(phints).toStrictEqual(hints0);
-	expect(plosses).toStrictEqual(losses0);
+	expect(hints).toStrictEqual([]);
+	expect(losses).toStrictEqual([]);
 });
 
 test('drop materialized view without data', async () => {
@@ -700,10 +695,12 @@ test('drop materialized view without data', async () => {
 
 test('rename view #1', async () => {
 	const from = {
+		users: pgTable('users', { id: serial() }),
 		view: pgView('some_view', { id: integer('id') }).as(sql`SELECT * FROM "users"`),
 	};
 
 	const to = {
+		users: pgTable('users', { id: serial() }),
 		view: pgView('new_some_view', { id: integer('id') }).as(sql`SELECT * FROM "users"`),
 	};
 
@@ -711,11 +708,7 @@ test('rename view #1', async () => {
 	const { sqlStatements: st } = await diff(from, to, renames);
 
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-		renames,
-	});
+	const { sqlStatements: pst } = await push({ db, to, renames });
 
 	const st0 = [
 		`ALTER VIEW "some_view" RENAME TO "new_some_view";`,
@@ -750,10 +743,12 @@ test('rename view with existing flag', async () => {
 
 test('rename materialized view #1', async () => {
 	const from = {
+		users: pgTable('users', { id: serial() }),
 		view: pgMaterializedView('some_view', { id: integer('id') }).as(sql`SELECT * FROM "users"`),
 	};
 
 	const to = {
+		users: pgTable('users', { id: serial() }),
 		view: pgMaterializedView('new_some_view', { id: integer('id') }).as(sql`SELECT * FROM "users"`),
 	};
 
@@ -761,11 +756,7 @@ test('rename materialized view #1', async () => {
 	const { sqlStatements: st } = await diff(from, to, renames);
 
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-		renames,
-	});
+	const { sqlStatements: pst } = await push({ db, to, renames });
 
 	const st0 = [
 		`ALTER MATERIALIZED VIEW "some_view" RENAME TO "new_some_view";`,
@@ -802,11 +793,13 @@ test('view alter schema', async () => {
 	const schema = pgSchema('new_schema');
 
 	const from = {
+		users: pgTable('users', { id: serial() }),
 		view: pgView('some_view', { id: integer('id') }).as(sql`SELECT * FROM "users"`),
 	};
 
 	const to = {
 		schema,
+		users: pgTable('users', { id: serial() }),
 		view: schema.view('some_view', { id: integer('id') }).as(sql`SELECT * FROM "users"`),
 	};
 
@@ -814,11 +807,7 @@ test('view alter schema', async () => {
 	const { sqlStatements: st } = await diff(from, to, renames);
 
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-		renames,
-	});
+	const { sqlStatements: pst } = await push({ db, to, renames });
 
 	const st0 = [
 		`CREATE SCHEMA "new_schema";\n`,
@@ -861,11 +850,13 @@ test('view alter schema for materialized', async () => {
 	const schema = pgSchema('new_schema');
 
 	const from = {
+		users: pgTable('users', { id: serial() }),
 		view: pgMaterializedView('some_view', { id: integer('id') }).as(sql`SELECT * FROM "users"`),
 	};
 
 	const to = {
 		schema,
+		users: pgTable('users', { id: serial() }),
 		view: schema.materializedView('some_view', { id: integer('id') }).as(sql`SELECT * FROM "users"`),
 	};
 
@@ -873,11 +864,7 @@ test('view alter schema for materialized', async () => {
 	const { sqlStatements: st } = await diff(from, to, renames);
 
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-		renames,
-	});
+	const { sqlStatements: pst } = await push({ db, to, renames });
 
 	const st0 = [
 		`CREATE SCHEMA "new_schema";\n`,
@@ -988,7 +975,7 @@ test('add with option to materialized view #1', async () => {
 
 	const to = {
 		users,
-		view: pgMaterializedView('some_view').with({ autovacuumMultixactFreezeMaxAge: 3 }).as((qb) =>
+		view: pgMaterializedView('some_view').with({ autovacuumMultixactFreezeMaxAge: 1_000_000 }).as((qb) =>
 			qb.select().from(users)
 		),
 	};
@@ -996,13 +983,10 @@ test('add with option to materialized view #1', async () => {
 	const { sqlStatements: st } = await diff(from, to, []);
 
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-	});
+	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0 = [
-		`ALTER MATERIALIZED VIEW "some_view" SET (autovacuum_multixact_freeze_max_age = 3);`,
+		`ALTER MATERIALIZED VIEW "some_view" SET (autovacuum_multixact_freeze_max_age = 1000000);`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1112,22 +1096,17 @@ test('add with options to materialized view with existing flag #2', async () => 
 		view: pgMaterializedView('view', {}).with({ autovacuumVacuumCostDelay: 100, vacuumTruncate: false }).existing(),
 	};
 
-	// TODO: revise: do I need to check statements?
-	const { sqlStatements: st, statements: st_ } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
 	await push({ db, to: schema1 });
-	const { sqlStatements: pst, statements: pst_ } = await push({
+	const { sqlStatements: pst } = await push({
 		db,
 		to: schema2,
 	});
 
-	const st0: string[] = [];
-	const st_0: string[] = [];
+	const st0: string[] = ['DROP MATERIALIZED VIEW "view";'];
 	expect(st).toStrictEqual(st0);
-	expect(st_).toStrictEqual(st_0);
-
 	expect(pst).toStrictEqual(st0);
-	expect(pst_).toStrictEqual(st_0);
 });
 
 test('drop with option from view #1', async () => {
@@ -1198,9 +1177,9 @@ test('drop with option from materialized view #1', async () => {
 
 	const from = {
 		users,
-		view: pgMaterializedView('some_view').with({ autovacuumEnabled: true, autovacuumFreezeMaxAge: 10 }).as((qb) =>
-			qb.select().from(users)
-		),
+		view: pgMaterializedView('some_view').with({ autovacuumEnabled: true, autovacuumFreezeMaxAge: 1_000_000 }).as((
+			qb,
+		) => qb.select().from(users)),
 	};
 
 	const to = {
@@ -1211,10 +1190,7 @@ test('drop with option from materialized view #1', async () => {
 	const { sqlStatements: st } = await diff(from, to, []);
 
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-	});
+	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0 = [
 		`ALTER MATERIALIZED VIEW "some_view" RESET (autovacuum_enabled, autovacuum_freeze_max_age);`,
@@ -1380,24 +1356,21 @@ test('alter with option in view #2', async () => {
 	const from = {
 		users,
 		view: pgView('some_view').with({ checkOption: 'local', securityBarrier: true, securityInvoker: true }).as((qb) =>
-			qb.selectDistinct().from(users)
+			qb.select().from(users).where(gt(users.id, 10))
 		),
 	};
 
 	const to = {
 		users,
 		view: pgView('some_view').with({ checkOption: 'cascaded', securityBarrier: true, securityInvoker: true }).as((qb) =>
-			qb.selectDistinct().from(users)
+			qb.select().from(users).where(gt(users.id, 10))
 		),
 	};
 
 	const { sqlStatements: st } = await diff(from, to, []);
 
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-	});
+	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
 		`ALTER VIEW "some_view" SET (check_option = cascaded);`,
@@ -1413,14 +1386,14 @@ test('alter with option in materialized view #2', async () => {
 
 	const from = {
 		users,
-		view: pgMaterializedView('some_view').with({ autovacuumEnabled: true, fillfactor: 1 }).as((qb) =>
+		view: pgMaterializedView('some_view').with({ autovacuumEnabled: true, fillfactor: 10 }).as((qb) =>
 			qb.select().from(users)
 		),
 	};
 
 	const to = {
 		users,
-		view: pgMaterializedView('some_view').with({ autovacuumEnabled: false, fillfactor: 1 }).as((qb) =>
+		view: pgMaterializedView('some_view').with({ autovacuumEnabled: false, fillfactor: 10 }).as((qb) =>
 			qb.select().from(users)
 		),
 	};
@@ -1428,10 +1401,7 @@ test('alter with option in materialized view #2', async () => {
 	const { sqlStatements: st } = await diff(from, to, []);
 
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-	});
+	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
 		`ALTER MATERIALIZED VIEW "some_view" SET (autovacuum_enabled = false);`,
@@ -1451,7 +1421,7 @@ test('alter view ".as" value', async () => {
 			checkOption: 'local',
 			securityBarrier: true,
 			securityInvoker: true,
-		}).as(sql`SELECT '123'`),
+		}).as(sql`select * from users where id > 100`),
 	};
 
 	const to = {
@@ -1460,7 +1430,7 @@ test('alter view ".as" value', async () => {
 			checkOption: 'local',
 			securityBarrier: true,
 			securityInvoker: true,
-		}).as(sql`SELECT '1234'`),
+		}).as(sql`select * from users where id > 101`),
 	};
 
 	const { sqlStatements: st } = await diff(from, to, []);
@@ -1473,10 +1443,10 @@ test('alter view ".as" value', async () => {
 
 	const st0: string[] = [
 		'DROP VIEW "some_view";',
-		`CREATE VIEW "some_view" WITH (check_option = local, security_barrier = true, security_invoker = true) AS (SELECT '1234');`,
+		`CREATE VIEW "some_view" WITH (check_option = local, security_barrier = true, security_invoker = true) AS (select * from users where id > 101);`,
 	];
 	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+	expect(pst).toStrictEqual([]); // push ignored definition change
 });
 
 test('alter view ".as" value with existing flag', async () => {
@@ -1547,7 +1517,7 @@ test('alter materialized view ".as" value', async () => {
 		`CREATE MATERIALIZED VIEW "some_view" WITH (autovacuum_vacuum_cost_limit = 1) AS (SELECT '1234');`,
 	];
 	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+	expect(pst).toStrictEqual([]); // we ignore definition changes for push
 });
 
 test('alter materialized view ".as" value with existing flag', async () => {
@@ -1610,7 +1580,6 @@ test('drop existing flag', async () => {
 	});
 
 	const st0: string[] = [
-		'DROP MATERIALIZED VIEW "some_view";',
 		`CREATE MATERIALIZED VIEW "some_view" WITH (autovacuum_vacuum_cost_limit = 1) AS (SELECT 'asd');`,
 	];
 	expect(st).toStrictEqual(st0);
@@ -1624,40 +1593,6 @@ test('alter tablespace - materialize', async () => {
 
 	const from = {
 		users,
-		view: pgMaterializedView('some_view', { id: integer('id') }).tablespace('some_tablespace').with({
-			autovacuumVacuumCostLimit: 1,
-		}).as(sql`SELECT 'asd'`),
-	};
-
-	const to = {
-		users,
-		view: pgMaterializedView('some_view', { id: integer('id') }).tablespace('new_tablespace').with({
-			autovacuumVacuumCostLimit: 1,
-		}).as(sql`SELECT 'asd'`),
-	};
-
-	const { sqlStatements: st } = await diff(from, to, []);
-
-	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-	});
-
-	const st0: string[] = [
-		`ALTER MATERIALIZED VIEW "some_view" SET TABLESPACE "new_tablespace";`,
-	];
-	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
-});
-
-test('set tablespace - materialize', async () => {
-	const users = pgTable('users', {
-		id: integer('id').primaryKey().notNull(),
-	});
-
-	const from = {
-		users,
 		view: pgMaterializedView('some_view', { id: integer('id') }).with({
 			autovacuumVacuumCostLimit: 1,
 		}).as(sql`SELECT 'asd'`),
@@ -1665,41 +1600,7 @@ test('set tablespace - materialize', async () => {
 
 	const to = {
 		users,
-		view: pgMaterializedView('some_view', { id: integer('id') }).tablespace('new_tablespace').with({
-			autovacuumVacuumCostLimit: 1,
-		}).as(sql`SELECT 'asd'`),
-	};
-
-	const { sqlStatements: st } = await diff(from, to, []);
-
-	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-	});
-
-	const st0: string[] = [
-		`ALTER MATERIALIZED VIEW "some_view" SET TABLESPACE "new_tablespace";`,
-	];
-	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
-});
-
-test('drop tablespace - materialize', async () => {
-	const users = pgTable('users', {
-		id: integer('id').primaryKey().notNull(),
-	});
-
-	const from = {
-		users,
-		view: pgMaterializedView('some_view', { id: integer('id') }).tablespace('new_tablespace').with({
-			autovacuumVacuumCostLimit: 1,
-		}).as(sql`SELECT 'asd'`),
-	};
-
-	const to = {
-		users,
-		view: pgMaterializedView('some_view', { id: integer('id') }).with({
+		view: pgMaterializedView('some_view', { id: integer('id') }).tablespace('pg_default').with({
 			autovacuumVacuumCostLimit: 1,
 		}).as(sql`SELECT 'asd'`),
 	};
@@ -1716,7 +1617,72 @@ test('drop tablespace - materialize', async () => {
 		`ALTER MATERIALIZED VIEW "some_view" SET TABLESPACE "pg_default";`,
 	];
 	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+	expect(pst).toStrictEqual([]); // commutative
+});
+
+test('set tablespace - materialize', async () => {
+	const users = pgTable('users', {
+		id: integer('id').primaryKey().notNull(),
+	});
+
+	const from = {
+		users,
+		view: pgMaterializedView('some_view', { id: integer('id') }).with({
+			autovacuumVacuumCostLimit: 1,
+		}).as(sql`SELECT 'asd'`),
+	};
+
+	const to = {
+		users,
+		view: pgMaterializedView('some_view', { id: integer('id') }).tablespace('pg_default').with({
+			autovacuumVacuumCostLimit: 1,
+		}).as(sql`SELECT 'asd'`),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
+
+	const st0: string[] = [
+		`ALTER MATERIALIZED VIEW "some_view" SET TABLESPACE "pg_default";`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual([]); // commutative
+});
+
+test('drop tablespace - materialize', async () => {
+	const users = pgTable('users', {
+		id: integer('id').primaryKey().notNull(),
+	});
+
+	const from = {
+		users,
+		view: pgMaterializedView('some_view', { id: integer('id') }).tablespace('pg_default').with({
+			autovacuumVacuumCostLimit: 1,
+		}).as(sql`SELECT 1`),
+	};
+
+	const to = {
+		users,
+		view: pgMaterializedView('some_view', { id: integer('id') }).with({
+			autovacuumVacuumCostLimit: 1,
+		}).as(sql`SELECT 1`),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
+		`ALTER MATERIALIZED VIEW "some_view" SET TABLESPACE "pg_default";`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual([]); // commutative
 });
 
 test('set existing - materialized', async () => {
@@ -1726,7 +1692,7 @@ test('set existing - materialized', async () => {
 
 	const from = {
 		users,
-		view: pgMaterializedView('some_view', { id: integer('id') }).tablespace('new_tablespace').with({
+		view: pgMaterializedView('some_view', { id: integer('id') }).tablespace('pg_default').with({
 			autovacuumVacuumCostLimit: 1,
 		}).as(sql`SELECT 'asd'`),
 	};
@@ -1749,7 +1715,7 @@ test('set existing - materialized', async () => {
 		renames,
 	});
 
-	const st0: string[] = [];
+	const st0: string[] = ['DROP MATERIALIZED VIEW "some_view";'];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
@@ -1761,30 +1727,26 @@ test('drop existing - materialized', async () => {
 
 	const from = {
 		users,
-		view: pgMaterializedView('some_view', { id: integer('id') }).tablespace('new_tablespace').with({
+		view: pgMaterializedView('view', { id: integer('id') }).tablespace('pg_default').with({
 			autovacuumVacuumCostLimit: 1,
 		}).existing(),
 	};
 
 	const to = {
 		users,
-		view: pgMaterializedView('some_view', { id: integer('id') }).with({
+		view: pgMaterializedView('view', { id: integer('id') }).with({
 			autovacuumVacuumCostLimit: 1,
 			autovacuumFreezeMinAge: 1,
-		}).withNoData().as(sql`SELECT 'asd'`),
+		}).withNoData().as(sql`SELECT * FROM users WHERE id > 100`),
 	};
 
 	const { sqlStatements: st } = await diff(from, to, []);
 
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-	});
+	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		'DROP MATERIALIZED VIEW "some_view";',
-		`CREATE MATERIALIZED VIEW "some_view" WITH (autovacuum_freeze_min_age = 1, autovacuum_vacuum_cost_limit = 1) AS (SELECT 'asd') WITH NO DATA;`,
+		`CREATE MATERIALIZED VIEW "view" WITH (autovacuum_freeze_min_age = 1, autovacuum_vacuum_cost_limit = 1) AS (SELECT * FROM users WHERE id > 100) WITH NO DATA;`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1799,7 +1761,7 @@ test('set existing', async () => {
 		users,
 		view: pgView('some_view', { id: integer('id') }).with({
 			checkOption: 'cascaded',
-		}).as(sql`SELECT 'asd'`),
+		}).as(sql`SELECT * from users where id > 100`),
 	};
 
 	const to = {
@@ -1814,13 +1776,9 @@ test('set existing', async () => {
 	const { sqlStatements: st } = await diff(from, to, renames);
 
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-		renames,
-	});
+	const { sqlStatements: pst } = await push({ db, to, renames });
 
-	const st0: string[] = [];
+	const st0: string[] = ['DROP VIEW "some_view";'];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
@@ -1832,18 +1790,18 @@ test('alter using - materialize', async () => {
 
 	const from = {
 		users,
-		view: pgMaterializedView('some_view', { id: integer('id') }).tablespace('some_tablespace').using('some_using').with(
+		view: pgMaterializedView('some_view', { id: integer('id') }).tablespace('pg_default').using('heap').with(
 			{
 				autovacuumVacuumCostLimit: 1,
 			},
-		).as(sql`SELECT 'asd'`),
+		).as(sql`SELECT 1`),
 	};
 
 	const to = {
 		users,
-		view: pgMaterializedView('some_view', { id: integer('id') }).tablespace('some_tablespace').using('new_using').with({
+		view: pgMaterializedView('some_view', { id: integer('id') }).tablespace('pg_default').using('drizzle_heap').with({
 			autovacuumVacuumCostLimit: 1,
-		}).as(sql`SELECT 'asd'`),
+		}).as(sql`SELECT 1`),
 	};
 
 	const { sqlStatements: st } = await diff(from, to, []);
@@ -1855,7 +1813,7 @@ test('alter using - materialize', async () => {
 	});
 
 	const st0: string[] = [
-		`ALTER MATERIALIZED VIEW "some_view" SET ACCESS METHOD "new_using";`,
+		`ALTER MATERIALIZED VIEW "some_view" SET ACCESS METHOD "drizzle_heap";`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1875,7 +1833,7 @@ test('set using - materialize', async () => {
 
 	const to = {
 		users,
-		view: pgMaterializedView('some_view', { id: integer('id') }).using('new_using').with({
+		view: pgMaterializedView('some_view', { id: integer('id') }).using('drizzle_heap').with({
 			autovacuumVacuumCostLimit: 1,
 		}).as(sql`SELECT 'asd'`),
 	};
@@ -1889,7 +1847,7 @@ test('set using - materialize', async () => {
 	});
 
 	const st0: string[] = [
-		`ALTER MATERIALIZED VIEW "some_view" SET ACCESS METHOD "new_using";`,
+		`ALTER MATERIALIZED VIEW "some_view" SET ACCESS METHOD "drizzle_heap";`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1902,7 +1860,7 @@ test('drop using - materialize', async () => {
 
 	const from = {
 		users,
-		view: pgMaterializedView('some_view', { id: integer('id') }).using('new_using').with({
+		view: pgMaterializedView('some_view', { id: integer('id') }).using('drizzle_heap').with({
 			autovacuumVacuumCostLimit: 1,
 		}).as(sql`SELECT 'asd'`),
 	};
@@ -1917,10 +1875,7 @@ test('drop using - materialize', async () => {
 	const { sqlStatements: st } = await diff(from, to, []);
 
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-	});
+	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
 		`ALTER MATERIALIZED VIEW "some_view" SET ACCESS METHOD "heap";`,
@@ -1931,10 +1886,12 @@ test('drop using - materialize', async () => {
 
 test('rename view and alter view', async () => {
 	const from = {
+		users: pgTable('users', { id: serial() }),
 		view: pgView('some_view', { id: integer('id') }).as(sql`SELECT * FROM "users"`),
 	};
 
 	const to = {
+		users: pgTable('users', { id: serial() }),
 		view: pgView('new_some_view', { id: integer('id') }).with({ checkOption: 'cascaded' }).as(
 			sql`SELECT * FROM "users"`,
 		),
@@ -1944,10 +1901,7 @@ test('rename view and alter view', async () => {
 	const { sqlStatements: st } = await diff(from, to, renames);
 
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-	});
+	const { sqlStatements: pst } = await push({ db, to, renames });
 
 	const st0: string[] = [
 		`ALTER VIEW "some_view" RENAME TO "new_some_view";`,
@@ -1961,11 +1915,13 @@ test('moved schema and alter view', async () => {
 	const schema = pgSchema('my_schema');
 	const from = {
 		schema,
+		users: pgTable('users', { id: serial() }),
 		view: pgView('some_view', { id: integer('id') }).as(sql`SELECT * FROM "users"`),
 	};
 
 	const to = {
 		schema,
+		users: pgTable('users', { id: serial() }),
 		view: schema.view('some_view', { id: integer('id') }).with({ checkOption: 'cascaded' }).as(
 			sql`SELECT * FROM "users"`,
 		),
@@ -1975,11 +1931,7 @@ test('moved schema and alter view', async () => {
 	const { sqlStatements: st } = await diff(from, to, renames);
 
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-		renames,
-	});
+	const { sqlStatements: pst } = await push({ db, to, renames });
 
 	const st0: string[] = [
 		`ALTER VIEW "some_view" SET SCHEMA "my_schema";`,
@@ -2006,14 +1958,13 @@ test('push view with same name', async () => {
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
 	await push({ db, to: schema1 });
-	const { sqlStatements: pst } = await push({
-		db,
-		to: schema2,
-	});
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
-	const st0: string[] = [];
-	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+	expect(st).toStrictEqual([
+		'DROP VIEW "view";',
+		'CREATE VIEW "view" AS (select distinct "id" from "test" where "test"."id" = 1);',
+	]);
+	expect(pst).toStrictEqual([]);
 });
 
 test('push materialized view with same name', async () => {
@@ -2033,12 +1984,11 @@ test('push materialized view with same name', async () => {
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
 	await push({ db, to: schema1 });
-	const { sqlStatements: pst } = await push({
-		db,
-		to: schema2,
-	});
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
-	const st0: string[] = [];
-	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+	expect(st).toStrictEqual([
+		'DROP MATERIALIZED VIEW "view";',
+		'CREATE MATERIALIZED VIEW "view" AS (select distinct "id" from "test" where "test"."id" = 1);',
+	]);
+	expect(pst).toStrictEqual([]);
 });

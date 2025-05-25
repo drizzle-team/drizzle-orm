@@ -28,8 +28,9 @@ import {
 	ViewWithConfig,
 } from 'drizzle-orm/pg-core';
 import { CasingType } from 'src/cli/validations/common';
-import { assertUnreachable } from '../../utils';
 import { safeRegister } from 'src/utils/utils-node';
+import { assertUnreachable } from '../../utils';
+import { getColumnCasing } from '../drizzle';
 import { getOrNull } from '../utils';
 import type {
 	CheckConstraint,
@@ -62,7 +63,6 @@ import {
 	stringFromIdentityProperty,
 	trimChar,
 } from './grammar';
-import { getColumnCasing } from '../drizzle';
 
 export const policyFrom = (policy: PgPolicy | GelPolicy, dialect: PgDialect | GelDialect) => {
 	const mappedTo = !policy.to
@@ -659,11 +659,12 @@ export const fromDrizzleSchema = (
 	});
 
 	for (const view of combinedViews) {
+		if (view.isExisting) continue;
+
 		const {
 			name: viewName,
 			schema,
 			query,
-			isExisting,
 			tablespace,
 			using,
 			withNoData,
@@ -742,10 +743,9 @@ export const fromDrizzleSchema = (
 
 		res.views.push({
 			entityType: 'views',
-			definition: isExisting ? null : dialect.sqlToQuery(query!).sql,
+			definition: dialect.sqlToQuery(query!).sql,
 			name: viewName,
 			schema: viewSchema,
-			isExisting,
 			with: hasNonNullOpts ? withOpt : null,
 			withNoData: withNoData ?? null,
 			materialized,

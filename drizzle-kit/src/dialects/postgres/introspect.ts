@@ -22,6 +22,7 @@ import type {
 } from './ddl';
 import {
 	defaultForColumn,
+	defaults,
 	isSerialExpression,
 	isSystemNamespace,
 	parseOnType,
@@ -106,6 +107,11 @@ export const fromDatabase = async (
 		name: string;
 	};
 
+	// TODO: potential improvements
+	// --- default access method
+	// SHOW default_table_access_method;
+	// SELECT current_setting('default_table_access_method') AS default_am;
+
 	const opsQuery = db.query<OP>(`
 		SELECT 
 			pg_opclass.oid as "oid",
@@ -114,6 +120,10 @@ export const fromDatabase = async (
 		FROM pg_opclass
 		LEFT JOIN pg_am on pg_opclass.opcmethod = pg_am.oid
 		`);
+
+	const accessMethodsQuery = db.query<{ oid: number; name: string }>(
+		`SELECT oid, amname as name FROM pg_am WHERE amtype = 't'`,
+	);
 
 	const tablespacesQuery = db.query<{
 		oid: number;
@@ -135,8 +145,9 @@ export const fromDatabase = async (
 			pg_attrdef;
 	`);
 
-	const [ops, tablespaces, namespaces, defaultsList] = await Promise.all([
+	const [ops, ams, tablespaces, namespaces, defaultsList] = await Promise.all([
 		opsQuery,
+		accessMethodsQuery,
 		tablespacesQuery,
 		namespacesQuery,
 		defaultsQuery,
@@ -955,8 +966,9 @@ export const fromDatabase = async (
 		if (!tablesFilter(viewName)) continue;
 		tableCount += 1;
 
-		const accessMethod = view.accessMethod === 0 ? null : ops.find((it) => it.oid === view.accessMethod);
+		const accessMethod = view.accessMethod === 0 ? null : ams.find((it) => it.oid === view.accessMethod);
 		const tablespace = view.tablespaceid === 0 ? null : tablespaces.find((it) => it.oid === view.tablespaceid)!.name;
+
 		const definition = parseViewDefinition(view.definition);
 		const withOpts = wrapRecord(
 			view.options?.reduce((acc, it) => {
@@ -973,7 +985,7 @@ export const fromDatabase = async (
 		);
 
 		const opts = {
-			checkOption: withOpts.literal('withCheckOption', ['local', 'cascaded']),
+			checkOption: withOpts.literal('checkOption', ['local', 'cascaded']),
 			securityBarrier: withOpts.bool('securityBarrier'),
 			securityInvoker: withOpts.bool('securityInvoker'),
 			fillfactor: withOpts.num('fillfactor'),
@@ -997,7 +1009,6 @@ export const fromDatabase = async (
 		};
 
 		const hasNonNullOpt = Object.values(opts).some((x) => x !== null);
-
 		views.push({
 			entityType: 'views',
 			schema: namespaces.find((it) => it.oid === view.schemaId)!.name,
@@ -1009,11 +1020,10 @@ export const fromDatabase = async (
 			using: accessMethod
 				? {
 					name: accessMethod.name,
-					default: accessMethod.default,
+					default: accessMethod.name === defaults.accessMethod,
 				}
 				: null,
 			withNoData: null,
-			isExisting: false,
 		});
 	}
 
@@ -1056,6 +1066,5 @@ export const fromDatabaseForDrizzle = async (
 	const res = await fromDatabase(db, tableFilter, schemaFilters, entities, progressCallback);
 	res.schemas = res.schemas.filter((it) => it.name !== 'public');
 	res.indexes = res.indexes.filter((it) => !it.forPK && !it.forUnique);
-
 	return res;
 };

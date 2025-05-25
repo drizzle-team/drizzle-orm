@@ -584,7 +584,7 @@ test('add array column - empty array default', async () => {
 	});
 
 	const st0: string[] = [
-		'ALTER TABLE "test" ADD COLUMN "values" integer[] DEFAULT \'{}\';',
+		'ALTER TABLE "test" ADD COLUMN "values" integer[] DEFAULT \'{}\'::integer[];',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -612,7 +612,7 @@ test('add array column - default', async () => {
 	});
 
 	const st0: string[] = [
-		'ALTER TABLE "test" ADD COLUMN "values" integer[] DEFAULT \'{1,2,3}\';',
+		'ALTER TABLE "test" ADD COLUMN "values" integer[] DEFAULT \'{1,2,3}\'::integer[];',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);

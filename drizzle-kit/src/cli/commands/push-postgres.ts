@@ -19,9 +19,9 @@ import {
 import { ddlDiff } from '../../dialects/postgres/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/postgres/drizzle';
 import type { JsonStatement } from '../../dialects/postgres/statements';
-import { prepareFilenames } from '../../utils/utils-node';
 import type { DB } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
+import { prepareFilenames } from '../../utils/utils-node';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import { Entities } from '../validations/cli';
@@ -179,10 +179,9 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 
 	for (const statement of filtered) {
 		if (statement.type === 'drop_table') {
-			const id = identifier(statement.table);
-			const res = await db.query(`select 1 from ${id} limit 1`);
+			const res = await db.query(`select 1 from ${statement.key} limit 1`);
 
-			if (res.length > 0) hints.push(`· You're about to delete non-empty ${id} table`);
+			if (res.length > 0) hints.push(`· You're about to delete non-empty ${statement.key} table`);
 			continue;
 		}
 

@@ -210,16 +210,14 @@ test('add table #8: geometry types', async () => {
 
 	const { sqlStatements: st } = await diff({}, to, []);
 
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-	});
+	// TODO: for now pglite does not support postgis extension, revise later https://github.com/electric-sql/pglite/issues/11
+	// const { sqlStatements: pst } = await push({ db, to });
 
 	const st0 = [
 		`CREATE TABLE "users" (\n\t"geom" geometry(point) NOT NULL,\n\t"geom1" geometry(point) NOT NULL\n);\n`,
 	];
 	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+	// expect(pst).toStrictEqual(st0);
 });
 
 /* unique inline */
@@ -263,7 +261,7 @@ test('add table #10', async () => {
 	});
 
 	const st0 = [
-		`CREATE TABLE "users" (\n\t"name" text UNIQUE("name_unique")\n);\n`,
+		`CREATE TABLE "users" (\n\t"name" text CONSTRAINT "name_unique" UNIQUE\n);\n`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -286,7 +284,7 @@ test('add table #11', async () => {
 	});
 
 	const st0 = [
-		`CREATE TABLE "users" (\n\t"name" text UNIQUE("name_unique") NULLS NOT DISTINCT\n);\n`,
+		`CREATE TABLE "users" (\n\t"name" text CONSTRAINT "name_unique" UNIQUE NULLS NOT DISTINCT\n);\n`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -309,7 +307,7 @@ test('add table #12', async () => {
 	});
 
 	const st0 = [
-		`CREATE TABLE "users" (\n\t"name" text UNIQUE("users_name_key") NULLS NOT DISTINCT\n);\n`,
+		`CREATE TABLE "users" (\n\t"name" text CONSTRAINT "users_name_key" UNIQUE NULLS NOT DISTINCT\n);\n`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -331,7 +329,7 @@ test('add table #13', async () => {
 	});
 
 	const st0 = [
-		`CREATE TABLE "users" (\n\t"name" text UNIQUE("users_name_key")\n);\n`,
+		`CREATE TABLE "users" (\n\t"name" text CONSTRAINT "users_name_key" UNIQUE\n);\n`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -354,7 +352,7 @@ test('add table #14', async () => {
 	});
 
 	const st0 = [
-		`CREATE TABLE "users" (\n\t"name" text UNIQUE("users_name_key") NULLS NOT DISTINCT\n);\n`,
+		`CREATE TABLE "users" (\n\t"name" text CONSTRAINT "users_name_key" UNIQUE NULLS NOT DISTINCT\n);\n`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -371,13 +369,10 @@ test('add table #15', async () => {
 
 	const { sqlStatements: st } = await diff(from, to, []);
 
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-	});
+	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0 = [
-		`CREATE TABLE "users" (\n\t"name" text UNIQUE("name_unique") NULLS NOT DISTINCT\n);\n`,
+		`CREATE TABLE "users" (\n\t"name" text CONSTRAINT "name_unique" UNIQUE NULLS NOT DISTINCT\n);\n`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -718,14 +713,10 @@ test('change table schema #5', async () => {
 	const { sqlStatements: st } = await diff(from, to, renames);
 
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-		renames,
-	});
+	const { sqlStatements: pst } = await push({ db, to, renames });
 
 	const st0 = [
-		'ALTER TABLE "folder1"."users" RENAME TO "folder1"."users2";',
+		'ALTER TABLE "folder1"."users" RENAME TO "users2";',
 		'ALTER TABLE "folder1"."users2" SET SCHEMA "folder2";\n',
 	];
 	expect(st).toStrictEqual(st0);
@@ -759,7 +750,7 @@ test('change table schema #6', async () => {
 
 	const st0 = [
 		'ALTER SCHEMA "folder1" RENAME TO "folder2";\n',
-		'ALTER TABLE "folder2"."users" RENAME TO "folder2"."users2";',
+		'ALTER TABLE "folder2"."users" RENAME TO "users2";',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -781,11 +772,7 @@ test('drop table + rename schema #1', async () => {
 	const { sqlStatements: st } = await diff(from, to, renames);
 
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-		renames,
-	});
+	const { sqlStatements: pst } = await push({ db, to, renames });
 
 	const st0 = [
 		'ALTER SCHEMA "folder1" RENAME TO "folder2";\n',
@@ -936,10 +923,7 @@ test('add index with op', async () => {
 	const { sqlStatements: st } = await diff(from, to, []);
 
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-	});
+	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0 = [
 		'CREATE INDEX "users_name_index" ON "users" USING gin ("name" gin_trgm_ops);',
