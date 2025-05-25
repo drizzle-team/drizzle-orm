@@ -2,7 +2,7 @@ import { prepareMigrationRenames } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
 import { diffStringArrays } from '../../utils/sequence-matcher';
 import type { Resolver } from '../common';
-import { diff, DiffAlter } from '../dialect';
+import { diff } from '../dialect';
 import { groupDiffs } from '../utils';
 import { fromJson } from './convertor';
 import {
@@ -24,7 +24,7 @@ import {
 	UniqueConstraint,
 	View,
 } from './ddl';
-import { defaultNameForFK, defaultNameForIndex, defaultNameForPK, defaultNameForUnique } from './grammar';
+import { defaults } from './grammar';
 import { JsonStatement, prepareStatement } from './statements';
 
 export const ddlDiffDry = async (ddlFrom: PostgresDDL, ddlTo: PostgresDDL, mode: 'default' | 'push') => {
@@ -662,7 +662,11 @@ export const ddlDiff = async (
 		}
 	}
 
-	const jsonDropTables = deletedTables.map((it) => prepareStatement('drop_table', { table: tableFromDDL(it, ddl2) }));
+	const jsonDropTables = deletedTables.map((it) => {
+		const oldSchema = renamedSchemas.find((x) => x.to.name === it.schema);
+		const key = oldSchema ? `"${oldSchema.from.name}"."${it.name}"` : `"${it.schema}"."${it.name}"`;
+		return prepareStatement('drop_table', { table: tableFromDDL(it, ddl2), key });
+	});
 	const jsonRenameTables = renamedTables.map((it) =>
 		prepareStatement('rename_table', {
 			schema: it.from.schema,
@@ -984,32 +988,37 @@ export const ddlDiff = async (
 
 	const createTables = createdTables.map((it) => prepareStatement('create_table', { table: tableFromDDL(it, ddl2) }));
 
-	const createViews = createdViews.filter((it) => !it.isExisting).map((it) =>
-		prepareStatement('create_view', { view: it })
-	);
+	const createViews = createdViews.map((it) => prepareStatement('create_view', { view: it }));
 
-	const jsonDropViews = deletedViews.filter((it) => !it.isExisting).map((it) =>
-		prepareStatement('drop_view', { view: it })
-	);
+	const jsonDropViews = deletedViews.map((it) => prepareStatement('drop_view', { view: it }));
 
-	const jsonRenameViews = renamedViews.filter((it) => !it.to.isExisting).map((it) =>
-		prepareStatement('rename_view', it)
-	);
+	const jsonRenameViews = renamedViews.map((it) => prepareStatement('rename_view', it));
 
-	const jsonMoveViews = movedViews.filter((it) => !it.to.isExisting).map((it) =>
+	const jsonMoveViews = movedViews.map((it) =>
 		prepareStatement('move_view', { fromSchema: it.from.schema, toSchema: it.to.schema, view: it.to })
 	);
 
-	const filteredViewAlters = alters.filter((it) => it.entityType === 'views').map((it) => {
+	const filteredViewAlters = alters.filter((it): it is DiffEntities['views'] => {
+		if (it.entityType !== 'views') return false;
+
 		if (it.definition && mode === 'push') {
 			delete it.definition;
 		}
-		return it;
-	}).filter((it) => !(it.isExisting && it.isExisting.to));
 
-	const viewsAlters = filteredViewAlters.map((it) => ({ diff: it, view: it.$right })).filter((it) =>
-		!it.view.isExisting
-	);
+		if (
+			it.using && ((it.using.from === null && it.using.to?.default) || it.using.to === null && it.using.from?.default)
+		) {
+			delete it.using;
+		}
+
+		if (mode === 'push' && it.tablespace && it.tablespace.from === null && it.tablespace.to === defaults.tablespace) {
+			delete it.tablespace;
+		}
+
+		return ddl2.views.hasDiff(it);
+	});
+
+	const viewsAlters = filteredViewAlters.map((it) => ({ diff: it, view: it.$right }));
 
 	const jsonAlterViews = viewsAlters.filter((it) => !it.diff.definition).map((it) => {
 		return prepareStatement('alter_view', {

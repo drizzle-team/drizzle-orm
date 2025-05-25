@@ -475,8 +475,11 @@ test('alter generated constraint', async () => {
 	await push({ db, to: schema1 });
 	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
-	const st0: string[] = [];
+	const st0: string[] = [
+		'ALTER TABLE "users" DROP COLUMN "gen_name";',
+		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name" || \'hello\') STORED;',
+	];
 
 	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+	expect(pst).toStrictEqual([]); // push ignores definition changes
 });

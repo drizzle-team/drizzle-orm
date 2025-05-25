@@ -30,6 +30,7 @@ export interface JsonRecreateTable {
 export interface JsonDropTable {
 	type: 'drop_table';
 	table: Table;
+	key: string;
 }
 
 export interface JsonRenameTable {

@@ -362,7 +362,7 @@ export const defaultForColumn = (
 	if (typeof def === 'boolean') {
 		return { type: 'boolean', value: String(def) };
 	}
-	
+
 	if (typeof def === 'number') {
 		return { type: 'number', value: String(def) };
 	}
@@ -424,22 +424,27 @@ export const defaultForColumn = (
 	return { value: value, type: 'unknown' };
 };
 
-export const defaultToSQL = (it: Column) => {
+export const defaultToSQL = (it: Column, isEnum: boolean = false) => {
 	if (!it.default) return '';
 
-	const { type: columnType, dimensions } = it;
+	const { type: columnType, dimensions, typeSchema } = it;
 	const { type, value } = it.default;
 
 	if (type === 'string') {
 		return `'${escapeSingleQuotes(value)}'`;
 	}
+
 	if (type === 'array') {
 		const suffix = dimensions > 0 ? '[]' : '';
-		return `'${value}'::${columnType}${suffix}`;
+		const schemaPrefix = typeSchema && typeSchema !== 'public' ? `"${typeSchema}".` : '';
+		const t = isEnum || typeSchema ? `${schemaPrefix}"${columnType}"` : columnType;
+		return `'${value}'::${t}${suffix}`;
 	}
+
 	if (type === 'bigint' || type === 'json' || type === 'jsonb') {
 		return `'${value}'`;
 	}
+
 	if (type === 'boolean' || type === 'null' || type === 'number' || type === 'func' || type === 'unknown') {
 		return value;
 	}

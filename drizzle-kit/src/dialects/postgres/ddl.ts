@@ -142,7 +142,6 @@ export const createDDL = () => {
 			},
 			tablespace: 'string?',
 			materialized: 'boolean',
-			isExisting: 'boolean',
 		},
 	});
 };
