@@ -39,7 +39,7 @@ afterAll(async () => {
 	await _.close();
 });
 
-// TODO: Remove the call to _.clear(), since diffDefault already clears it at the start.
+// TODO revise: remove the call to _.clear(), since diffDefault already clears it at the start.
 // beforeEach(async () => {
 // 	await _.clear();
 // });
@@ -473,6 +473,7 @@ test('line + line arrays', async () => {
 });
 
 test('enum + enum arrays', async () => {
+	// TODO revise: provide a way to pass `moodEnum` into the `diffDefault` function.
 	const res1 = await diffDefault(_, moodEnum().default('ok'), `'ok'`);
 	const res2 = await diffDefault(_, moodEnum().array().default([]), `'{}'::mood_enum[]`);
 	const res3 = await diffDefault(_, moodEnum().array().default(['ok']), `'{"ok"}'::mood_enum[]`);

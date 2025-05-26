@@ -1,4 +1,5 @@
-import { Database } from 'better-sqlite3';
+import type { Database } from 'better-sqlite3';
+import BetterSqlite3 from 'better-sqlite3';
 import { is } from 'drizzle-orm';
 import { SQLiteTable, SQLiteView } from 'drizzle-orm/sqlite-core';
 import { rmSync, writeFileSync } from 'fs';
@@ -9,6 +10,7 @@ import { ddlDiff, ddlDiffDry } from 'src/dialects/sqlite/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/sqlite/drizzle';
 import { fromDatabaseForDrizzle } from 'src/dialects/sqlite/introspect';
 import { ddlToTypescript } from 'src/dialects/sqlite/typescript';
+import { DB } from 'src/utils';
 import { mockResolver } from 'src/utils/mocks';
 
 export type SqliteSchema = Record<string, SQLiteTable<any> | SQLiteView>;
@@ -139,4 +141,28 @@ export const diffAfterPull = async (
 	rmSync(path);
 
 	return { sqlStatements, statements };
+};
+
+export type TestDatabase = {
+	db: DB;
+	close: () => Promise<void>;
+	clear: () => Promise<void>;
+};
+
+export const prepareTestDatabase = () => {
+	const client = new BetterSqlite3(':memory:');
+
+	const db = {
+		query: async (sql: string, params: any[]) => {
+			const stmt = client.prepare(sql);
+			return stmt.run(...params) as any;
+		},
+	};
+	const close = async () => {
+		client.close();
+	};
+	const clear = async () => {
+		// TODO implement
+	};
+	return { db, close, clear };
 };
