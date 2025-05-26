@@ -321,16 +321,16 @@ export const diffIntrospect = async (
 export const diffDefault = async <T extends PgColumnBuilder>(
 	kit: TestDatabase,
 	builder: T,
-	def: T['_']['data'] | SQL<unknown>,
 	expectedDefault: string,
 ) => {
 	await kit.clear();
 
-	const table1 = pgTable('table', { column: builder });
-	const table2 = pgTable('table', { column: builder.default(def as any) });
+	const config = (builder as any).config;
+	const def = config['default'];
+	const column = pgTable('table', { column: builder }).column;
 
-	const { baseColumn, dimensions, sqlType, sqlBaseType, typeSchema } = unwrapColumn(table2.column);
-	const columnDefault = defaultFromColumn(baseColumn, table2.column.default, dimensions, new PgDialect());
+	const { baseColumn, dimensions, sqlType, sqlBaseType, typeSchema } = unwrapColumn(column);
+	const columnDefault = defaultFromColumn(baseColumn, column.default, dimensions, new PgDialect());
 	const defaultSql = defaultToSQL({
 		default: columnDefault,
 		type: sqlBaseType,
@@ -342,8 +342,9 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	if (defaultSql !== expectedDefault) {
 		res.push(`Unexpected sql: ${defaultSql} | ${expectedDefault}`);
 	}
+
 	const init = {
-		table2,
+		table: pgTable('table', { column: builder }),
 	};
 
 	const { db, clear } = kit;
@@ -356,11 +357,16 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 
 	await clear();
 
+	config.hasDefault = false;
+	config.default = undefined;
 	const schema1 = {
-		table1,
+		table: pgTable('table', { column: builder }),
 	};
+
+	config.hasDefault = true;
+	config.default = def;
 	const schema2 = {
-		table2,
+		table: pgTable('table', { column: builder }),
 	};
 
 	await push({ db, to: schema1 });
@@ -369,11 +375,13 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	if (st3.length !== 1 || st3[0] !== expectedAlter) res.push(`Unexpected default alter:\n${st3}\n\n${expectedAlter}`);
 
 	await clear();
+
 	const schema3 = {
 		table: pgTable('table', { id: serial() }),
 	};
+
 	const schema4 = {
-		table: pgTable('table', { id: serial(), column: builder.default(def as any) }),
+		table: pgTable('table', { id: serial(), column: builder }),
 	};
 
 	await push({ db, to: schema3 });
@@ -383,7 +391,7 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	if (st4.length !== 1 || st4[0] !== expectedAddColumn) {
 		res.push(`Unexpected add column:\n${st4[0]}\n\n${expectedAddColumn}`);
 	}
-	
+
 	return res;
 };
 
