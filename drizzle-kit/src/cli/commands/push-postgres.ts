@@ -179,10 +179,9 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 
 	for (const statement of filtered) {
 		if (statement.type === 'drop_table') {
-			const id = identifier(statement.table);
-			const res = await db.query(`select 1 from ${id} limit 1`);
+			const res = await db.query(`select 1 from ${statement.key} limit 1`);
 
-			if (res.length > 0) hints.push(`· You're about to delete non-empty ${id} table`);
+			if (res.length > 0) hints.push(`· You're about to delete non-empty ${statement.key} table`);
 			continue;
 		}
 

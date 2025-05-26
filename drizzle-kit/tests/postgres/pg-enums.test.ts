@@ -1015,7 +1015,7 @@ test('column is array enum type with default value. shuffle enum', async () => {
 		`DROP TYPE "enum";`,
 		`CREATE TYPE "enum" AS ENUM('value1', 'value3', 'value2');`,
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum"[] USING "column"::"enum"[];`,
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{"value3"}';`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{"value3"}'::"enum"[];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1054,7 +1054,7 @@ test('column is array enum with custom size type with default value. shuffle enu
 		`DROP TYPE "enum";`,
 		`CREATE TYPE "enum" AS ENUM('value1', 'value3', 'value2');`,
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum"[] USING "column"::"enum"[];`,
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{"value2"}';`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{"value2"}'::"enum"[];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1167,7 +1167,7 @@ test('column is array of enum with multiple dimenions type with custom size with
 		`DROP TYPE "enum";`,
 		`CREATE TYPE "enum" AS ENUM('value1', 'value3', 'value2');`,
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum"[] USING "column"::"enum"[];`,
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{{"value2"}}';`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{{"value2"}}'::"enum"[];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1249,7 +1249,7 @@ test('column is array enum type with default value. custom schema. shuffle enum'
 		`DROP TYPE "new_schema"."enum";`,
 		`CREATE TYPE "new_schema"."enum" AS ENUM('value1', 'value3', 'value2');`,
 		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE "new_schema"."enum"[] USING "column"::"new_schema"."enum"[];`,
-		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DEFAULT '{"value2"}';`,
+		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DEFAULT '{"value2"}'::"new_schema"."enum"[];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1289,7 +1289,7 @@ test('column is array enum type with custom size with default value. custom sche
 		`DROP TYPE "new_schema"."enum";`,
 		`CREATE TYPE "new_schema"."enum" AS ENUM('value1', 'value3', 'value2');`,
 		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE "new_schema"."enum"[] USING "column"::"new_schema"."enum"[];`,
-		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DEFAULT '{"value2"}';`,
+		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DEFAULT '{"value2"}'::"new_schema"."enum"[];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1524,10 +1524,7 @@ test('change data type from array standart type with custom size to array enum w
 	const { sqlStatements: st } = await diff(from, to, []);
 
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-	});
+	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0 = [
 		'ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;',
@@ -1734,7 +1731,7 @@ test('change data type from array enum type to array standart type. column has d
 	const st0 = [
 		'ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;',
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE varchar[];`,
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{"value2"}';`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{"value2"}'::varchar[];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1769,7 +1766,7 @@ test('change data type from array enum type with custom size to array standart t
 	const st0 = [
 		'ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;',
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE varchar[];`,
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{"value2"}';`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{"value2"}'::varchar[];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -2093,10 +2090,7 @@ test('check filtering json statements. here we have recreate enum + set new type
 	const { sqlStatements: st } = await diff(from, to, []);
 
 	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({
-		db,
-		to,
-	});
+	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0 = [
 		'DROP TYPE "enum1";',

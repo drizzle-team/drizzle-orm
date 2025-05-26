@@ -33,20 +33,15 @@ test('full policy: no changes', async () => {
 		}, () => [pgPolicy('test', { as: 'permissive' })]),
 	};
 
-	// TODO: do I need to check statements at all?
-	const { sqlStatements: st, statements: st_ } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
 	await push({ db, to: schema1 });
-	const { sqlStatements: pst, statements: pst_ } = await push({ db, to: schema2 });
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
 	const st0: string[] = [];
-	const st_0: string[] = [];
 
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
-
-	expect(st_).toStrictEqual(st_0);
-	expect(pst_).toStrictEqual(st_0);
 });
 
 test('add policy + enable rls', async (t) => {
