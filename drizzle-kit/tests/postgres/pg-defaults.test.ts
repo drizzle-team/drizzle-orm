@@ -174,11 +174,11 @@ const cases = [
 ] as const;
 
 test('integer', async () => {
-	const res1 = await diffDefault(_, integer(), 10, '10');
-	const res2 = await diffDefault(_, integer(), 0, '0');
-	const res3 = await diffDefault(_, integer(), -10, '-10');
-	const res4 = await diffDefault(_, integer(), 1e4, '10000');
-	const res5 = await diffDefault(_, integer(), -1e4, '-10000');
+	const res1 = await diffDefault(_, integer().default(10), '10');
+	const res2 = await diffDefault(_, integer().default(0), '0');
+	const res3 = await diffDefault(_, integer().default(-10), '-10');
+	const res4 = await diffDefault(_, integer().default(1e4), '10000');
+	const res5 = await diffDefault(_, integer().default(-1e4), '-10000');
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
@@ -188,16 +188,15 @@ test('integer', async () => {
 });
 
 test('integer arrays', async () => {
-	const res1 = await diffDefault(_, integer().array(), [], "'{}'::integer[]");
-	const res2 = await diffDefault(_, integer().array(), [10], "'{10}'::integer[]");
-	const res3 = await diffDefault(_, integer().array().array(), [], "'{}'::integer[]");
-	const res4 = await diffDefault(_, integer().array().array(), [[]], "'{}'::integer[]");
-	const res5 = await diffDefault(_, integer().array().array(), [[1, 2]], "'{{1,2}}'::integer[]");
-	const res6 = await diffDefault(_, integer().array().array(), [[1, 2], [1, 2]], "'{{1,2},{1,2}}'::integer[]");
+	const res1 = await diffDefault(_, integer().array().default([]), "'{}'::integer[]");
+	const res2 = await diffDefault(_, integer().array().default([10]), "'{10}'::integer[]");
+	const res3 = await diffDefault(_, integer().array().array().default([]), "'{}'::integer[]");
+	const res4 = await diffDefault(_, integer().array().array().default([[]]), "'{}'::integer[]");
+	const res5 = await diffDefault(_, integer().array().array().default([[1, 2]]), "'{{1,2}}'::integer[]");
+	const res6 = await diffDefault(_, integer().array().array().default([[1, 2], [1, 2]]), "'{{1,2},{1,2}}'::integer[]");
 	const res7 = await diffDefault(
 		_,
-		integer().array().array().array(),
-		[[[1, 2]], [[1, 2]]],
+		integer().array().array().array().default([[[1, 2]], [[1, 2]]]),
 		"'{{{1,2}},{{1,2}}}'::integer[]",
 	);
 
@@ -211,9 +210,9 @@ test('integer arrays', async () => {
 });
 
 test('small big', async () => {
-	const res1 = await diffDefault(_, smallint(), 10, '10');
-	const res2 = await diffDefault(_, bigint({ mode: 'bigint' }), 9223372036854775807n, "'9223372036854775807'");
-	const res3 = await diffDefault(_, bigint({ mode: 'number' }), 9007199254740991, '9007199254740991');
+	const res1 = await diffDefault(_, smallint().default(10), '10');
+	const res2 = await diffDefault(_, bigint({ mode: 'bigint' }).default(9223372036854775807n), "'9223372036854775807'");
+	const res3 = await diffDefault(_, bigint({ mode: 'number' }).default(9007199254740991), '9007199254740991');
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
@@ -225,21 +224,19 @@ test('small big arrays', async () => {
 });
 
 test('numeric', async () => {
-	const res1 = await diffDefault(_, numeric(), '10.123', "'10.123'");
-	const res2 = await diffDefault(_, numeric({ mode: 'bigint' }), 9223372036854775807n, "'9223372036854775807'");
-	const res3 = await diffDefault(_, numeric({ mode: 'number' }), 9007199254740991, '9007199254740991');
+	const res1 = await diffDefault(_, numeric().default('10.123'), "'10.123'");
+	const res2 = await diffDefault(_, numeric({ mode: 'bigint' }).default(9223372036854775807n), "'9223372036854775807'");
+	const res3 = await diffDefault(_, numeric({ mode: 'number' }).default(9007199254740991), '9007199254740991');
 
-	const res4 = await diffDefault(_, numeric().array(), ['10.123', '123.10'], "'{10.123,123.10}'::numeric[]");
+	const res4 = await diffDefault(_, numeric().array().default(['10.123', '123.10']), "'{10.123,123.10}'::numeric[]");
 	const res5 = await diffDefault(
 		_,
-		numeric({ mode: 'number' }).array(),
-		[10.123, 123.10],
+		numeric({ mode: 'number' }).array().default([10.123, 123.10]),
 		"'{10.123,123.1}'::numeric[]", // .1 due to number->string conversion
 	);
 	const res6 = await diffDefault(
 		_,
-		numeric({ mode: 'bigint' }).array(),
-		[9223372036854775807n, 9223372036854775806n],
+		numeric({ mode: 'bigint' }).array().default([9223372036854775807n, 9223372036854775806n]),
 		"'{9223372036854775807,9223372036854775806}'::numeric[]",
 	);
 
