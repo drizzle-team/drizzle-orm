@@ -438,26 +438,3 @@ test('introspect primary key with unqiue', async () => {
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
 });
-
-test('introspect primary key with unqiue', async () => {
-	const users = mssqlTable('users', {
-		id: int('id').primaryKey(),
-		name: bigint('users', { mode: 'bigint' }).default(BigInt(2 ** 64)),
-	}, (t) => [
-		index('some_name').on(t.name),
-		uniqueIndex('some_name1').on(t.name),
-	]);
-
-	const schema = {
-		users,
-	};
-
-	const { statements, sqlStatements } = await diffIntrospect(
-		db,
-		schema,
-		'introspect-pk',
-	);
-
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
-});

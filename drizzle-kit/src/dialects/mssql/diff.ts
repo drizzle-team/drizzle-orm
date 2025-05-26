@@ -583,16 +583,6 @@ export const ddlDiff = async (
 		})
 	);
 
-	// group by tables?
-	const alteredPKs = alters.filter((it) => it.entityType === 'pks').filter((it) => {
-		return !!it.columns; // ignore explicit name change
-	});
-
-	alteredPKs.forEach((it) => {
-		jsonAddPrimaryKeys.push({ pk: it.$right, type: 'create_pk' });
-		jsonDropPrimaryKeys.push({ pk: it.$left, type: 'drop_pk' });
-	});
-
 	const jsonRecreateIdentityColumns = columnAlters.filter((it) => it.identity).map((column) => {
 		const checksToCreate = ddl2.checks.list({
 			schema: column.schema,
@@ -764,7 +754,7 @@ export const ddlDiff = async (
 
 	// filter identity
 	const primaryKeysIdentityFilter = (type: 'created' | 'deleted') => {
-		return (it: PrimaryKey) => {
+		return (it: PrimaryKey | DiffEntities['pks']) => {
 			return !jsonRecreateIdentityColumns.some((column) => {
 				const constraints = type === 'created' ? column.constraintsToCreate : column.constraintsToDelete;
 
@@ -782,6 +772,13 @@ export const ddlDiff = async (
 	const jsonDropPrimaryKeys = pksDeletes.filter(tablesFilter('deleted')).filter(primaryKeysIdentityFilter('deleted'))
 		.map((it) => prepareStatement('drop_pk', { pk: it }));
 	const jsonRenamePrimaryKeys = pksRenames.map((it) => prepareStatement('rename_pk', { from: it.from, to: it.to }));
+	const alteredPKs = alters.filter((it) => it.entityType === 'pks').filter((it) => {
+		return !!it.columns;
+	});
+	alteredPKs.filter(primaryKeysIdentityFilter('deleted')).filter(primaryKeysIdentityFilter('deleted')).forEach((it) => {
+		jsonAddPrimaryKeys.push({ pk: it.$right, type: 'create_pk' });
+		jsonDropPrimaryKeys.push({ pk: it.$left, type: 'drop_pk' });
+	});
 
 	// filter identity
 	const defaultsIdentityFilter = (type: 'created' | 'deleted') => {

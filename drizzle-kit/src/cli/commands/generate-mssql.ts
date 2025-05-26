@@ -19,6 +19,7 @@ import { assertV1OutFolder, prepareMigrationFolder } from '../../utils/utils-nod
 import { resolver } from '../prompts';
 import { writeResult } from './generate-common';
 import { ExportConfig, GenerateConfig } from './utils';
+
 export const handle = async (config: GenerateConfig) => {
 	const { out: outFolder, schema: schemaPath, casing } = config;
 
@@ -42,7 +43,7 @@ export const handle = async (config: GenerateConfig) => {
 		return;
 	}
 
-	const { sqlStatements, renames } = await ddlDiff(
+	const { sqlStatements, renames, statements } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
 		resolver<Schema>('schema', 'dbo'),
@@ -57,6 +58,28 @@ export const handle = async (config: GenerateConfig) => {
 		resolver<DefaultConstraint>('default', 'dbo'), // fks
 		'default',
 	);
+
+	// TODO add hint for recreating identity column
+	// const recreateIdentity = statements.find((it) => it.type === 'recreate_identity_column');
+	// if (
+	// 	recreateIdentity && Boolean(recreateIdentity.column.identity?.to)
+	// 	&& !Boolean(recreateIdentity.column.identity?.from)
+	// ) {
+	// 	console.log(
+	// 		withStyle.warning(
+	// 			chalk.bold('You are about to add an identity to an existing column.')
+	// 				+ '\n'
+	// 				+ 'This change may lead to data loss because the column will need to be recreated because identity columns cannot be added to existing ones and do not allow manual value insertion.'
+	// 				+ '\n'
+	// 				+ chalk.bold('Are you sure you want to continue?'),
+	// 		),
+	// 	);
+	// 	const { status, data } = await render(new Select(['No, abort', `Yes, proceed`]));
+	// 	if (data?.index === 0) {
+	// 		render(`[${chalk.red('x')}] All changes were aborted`);
+	// 		process.exit(0);
+	// 	}
+	// }
 
 	writeResult({
 		snapshot: snapshot,
