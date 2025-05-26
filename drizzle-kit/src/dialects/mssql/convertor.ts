@@ -100,7 +100,7 @@ const addColumn = convertor('add_column', (st) => {
 		schema,
 	} = column;
 
-	const notNullStatement = `${notNull && !column.generated ? ' NOT NULL' : ''}`;
+	const notNullStatement = `${notNull && !column.generated && !column.identity ? ' NOT NULL' : ''}`;
 	const identityStatement = identity ? ` IDENTITY(${identity.seed}, ${identity.increment})` : '';
 
 	const generatedType = column.generated?.type.toUpperCase() === 'VIRTUAL'
@@ -204,7 +204,7 @@ const createIndex = convertor('create_index', (st) => {
 	const { name, table, columns, isUnique, where, schema } = st.index;
 	const indexPart = isUnique ? 'UNIQUE INDEX' : 'INDEX';
 
-	const uniqueString = columns.join(',');
+	const uniqueString = `[${columns.join('],[')}]`;
 
 	const whereClause = where ? ` WHERE ${where}` : '';
 

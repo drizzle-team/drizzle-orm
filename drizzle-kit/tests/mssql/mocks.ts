@@ -101,8 +101,6 @@ export const diffIntrospect = async (
 	// introspect to schema
 	const schema = await fromDatabaseForDrizzle(db, (_) => true, (it) => schemas.indexOf(it) >= 0, entities);
 
-	console.log('schema: ', schema);
-
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');

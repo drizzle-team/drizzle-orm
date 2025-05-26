@@ -187,7 +187,10 @@ test('drop identity from a column - no params', async () => {
 	});
 
 	const st0: string[] = [
-		`ALTER TABLE [users] ALTER COLUMN [id] DROP IDENTITY;`,
+		`EXEC sp_rename 'users.id', [__old_id], 'COLUMN';`,
+		`ALTER TABLE [users] ADD [id] int;`,
+		`INSERT INTO [users] ([id]) SELECT [__old_id] FROM [users];`,
+		`ALTER TABLE [users] DROP COLUMN [__old_id];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -492,7 +495,7 @@ test('create view', async () => {
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	await push({ db, to: schema1 });
+	await push({ db, to: schema1, schemas: ['dbo'] });
 	const { sqlStatements: pst } = await push({
 		db,
 		to: schema2,
@@ -500,7 +503,7 @@ test('create view', async () => {
 	});
 
 	const st0: string[] = [
-		'CREATE VIEW "view" AS (select distinct "id" from "test");',
+		'CREATE VIEW [view] AS (select distinct [id] from [test]);',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);

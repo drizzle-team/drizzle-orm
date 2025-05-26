@@ -1,8 +1,25 @@
 import { sql } from 'drizzle-orm';
 import { bit, check, int, mssqlSchema, mssqlTable, primaryKey, text, unique, varchar } from 'drizzle-orm/mssql-core';
 import { defaultNameForPK } from 'src/dialects/mssql/grammar';
-import { expect, test } from 'vitest';
-import { diff } from './mocks';
+import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
+
+// @vitest-environment-options {"max-concurrency":1}
+let _: TestDatabase;
+let db: TestDatabase['db'];
+
+beforeAll(async () => {
+	_ = await prepareTestDatabase();
+	db = _.db;
+});
+
+afterAll(async () => {
+	await _.close();
+});
+
+beforeEach(async () => {
+	await _.clear();
+});
 
 test('add columns #1', async (t) => {
 	const schema1 = {
@@ -18,11 +35,18 @@ test('add columns #1', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
-	expect(sqlStatements).toStrictEqual([
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1, schemas: ['dbo'] });
+	const { sqlStatements: pst } = await push({ db, to: schema2, schemas: ['dbo'] });
+
+	const st0 = [
 		'ALTER TABLE [users] ADD [name] text NOT NULL;',
 		`ALTER TABLE [users] ADD CONSTRAINT [users_name_default] DEFAULT 'hey' FOR [name];`,
-	]);
+	];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add columns #2', async (t) => {
@@ -40,12 +64,18 @@ test('add columns #2', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1, schemas: ['dbo'] });
+	const { sqlStatements: pst } = await push({ db, to: schema2, schemas: ['dbo'] });
+
+	const st0 = [
 		'ALTER TABLE [users] ADD [name] text;',
 		'ALTER TABLE [users] ADD [email] text;',
-	]);
+	];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add columns #3', async (t) => {
@@ -63,13 +93,18 @@ test('add columns #3', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1, schemas: ['dbo'] });
+	const { sqlStatements: pst } = await push({ db, to: schema2, schemas: ['dbo'] });
+
+	const st0 = [
 		'ALTER TABLE [users] ADD [name] text NOT NULL;',
 		'ALTER TABLE [users] ADD [email] text;',
 		'ALTER TABLE [users] ADD CONSTRAINT [users_pkey] PRIMARY KEY ([name]);',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter column change name #1', async (t) => {
@@ -1388,7 +1423,7 @@ test('drop identity from existing column #18. Rename Table. Part of fk', async (
 		`ALTER TABLE [new_users] DROP CONSTRAINT [users_pkey];`,
 		'ALTER TABLE [ref] DROP CONSTRAINT [ref_age_users_id_fk];\n',
 		`EXEC sp_rename 'new_users.id', [__old_id], 'COLUMN';`,
-		`ALTER TABLE [new_users] ADD [id] int;`,
+		`ALTER TABLE [new_users] ADD [id] int NOT NULL;`,
 		`INSERT INTO [new_users] ([id]) SELECT [__old_id] FROM [new_users];`,
 		`ALTER TABLE [new_users] DROP COLUMN [__old_id];`,
 		`ALTER TABLE [new_users] ADD CONSTRAINT [users_pkey] PRIMARY KEY ([id]);`,
@@ -1434,7 +1469,7 @@ test('drop identity from existing column #19. Rename Table + Rename column. Part
 		`ALTER TABLE [new_users] DROP CONSTRAINT [users_pkey];`,
 		'ALTER TABLE [ref] DROP CONSTRAINT [ref_age_users_id_fk];\n',
 		`EXEC sp_rename 'new_users.id1', [__old_id1], 'COLUMN';`,
-		`ALTER TABLE [new_users] ADD [id1] int;`,
+		`ALTER TABLE [new_users] ADD [id1] int NOT NULL;`,
 		`INSERT INTO [new_users] ([id1]) SELECT [__old_id1] FROM [new_users];`,
 		`ALTER TABLE [new_users] DROP COLUMN [__old_id1];`,
 		`ALTER TABLE [new_users] ADD CONSTRAINT [users_pkey] PRIMARY KEY ([id1]);`,
@@ -1479,7 +1514,7 @@ test('drop identity from existing column #20. Rename Table + Rename column. Add 
 		`EXEC sp_rename 'new_users.id', [id1], 'COLUMN';`,
 		`ALTER TABLE [new_users] DROP CONSTRAINT [users_pkey];`,
 		`EXEC sp_rename 'new_users.id1', [__old_id1], 'COLUMN';`,
-		`ALTER TABLE [new_users] ADD [id1] int;`,
+		`ALTER TABLE [new_users] ADD [id1] int NOT NULL;`,
 		`INSERT INTO [new_users] ([id1]) SELECT [__old_id1] FROM [new_users];`,
 		`ALTER TABLE [new_users] DROP COLUMN [__old_id1];`,
 		`ALTER TABLE [new_users] ADD CONSTRAINT [users_pkey] PRIMARY KEY ([id1]);`,
@@ -1525,7 +1560,7 @@ test('drop identity from existing column #21. Rename Table + Rename column. Drop
 		`ALTER TABLE [new_users] DROP CONSTRAINT [users_pkey];`,
 		`ALTER TABLE [ref] DROP CONSTRAINT [ref_age_users_id_fk];\n`,
 		`EXEC sp_rename 'new_users.id1', [__old_id1], 'COLUMN';`,
-		`ALTER TABLE [new_users] ADD [id1] int;`,
+		`ALTER TABLE [new_users] ADD [id1] int NOT NULL;`,
 		`INSERT INTO [new_users] ([id1]) SELECT [__old_id1] FROM [new_users];`,
 		`ALTER TABLE [new_users] DROP COLUMN [__old_id1];`,
 		`ALTER TABLE [new_users] ADD CONSTRAINT [users_pkey] PRIMARY KEY ([id1]);`,
@@ -1553,7 +1588,7 @@ test('drop identity from existing column #22. Part of pk constraint', async (t) 
 	expect(sqlStatements).toStrictEqual([
 		'ALTER TABLE [users] DROP CONSTRAINT [users_pkey];',
 		`EXEC sp_rename 'users.id', [__old_id], 'COLUMN';`,
-		`ALTER TABLE [users] ADD [id] int;`,
+		`ALTER TABLE [users] ADD [id] int NOT NULL;`,
 		`INSERT INTO [users] ([id]) SELECT [__old_id] FROM [users];`,
 		`ALTER TABLE [users] DROP COLUMN [__old_id];`,
 		'ALTER TABLE [users] ADD CONSTRAINT [users_pkey] PRIMARY KEY ([id]);',
@@ -1582,7 +1617,7 @@ test('drop identity from existing column #23. Rename table. Part of pk constrain
 		`EXEC sp_rename 'users', [users2];`,
 		'ALTER TABLE [users2] DROP CONSTRAINT [users_pkey];',
 		`EXEC sp_rename 'users2.id', [__old_id], 'COLUMN';`,
-		`ALTER TABLE [users2] ADD [id] int;`,
+		`ALTER TABLE [users2] ADD [id] int NOT NULL;`,
 		`INSERT INTO [users2] ([id]) SELECT [__old_id] FROM [users2];`,
 		`ALTER TABLE [users2] DROP COLUMN [__old_id];`,
 		'ALTER TABLE [users2] ADD CONSTRAINT [users_pkey] PRIMARY KEY ([id]);',
@@ -1612,7 +1647,7 @@ test('drop identity from existing column #24. Rename table + rename column. Part
 		`EXEC sp_rename 'users2.id', [id1], 'COLUMN';`,
 		'ALTER TABLE [users2] DROP CONSTRAINT [users_pkey];',
 		`EXEC sp_rename 'users2.id1', [__old_id1], 'COLUMN';`,
-		`ALTER TABLE [users2] ADD [id1] int;`,
+		`ALTER TABLE [users2] ADD [id1] int NOT NULL;`,
 		`INSERT INTO [users2] ([id1]) SELECT [__old_id1] FROM [users2];`,
 		`ALTER TABLE [users2] DROP COLUMN [__old_id1];`,
 		'ALTER TABLE [users2] ADD CONSTRAINT [users_pkey] PRIMARY KEY ([id1]);',
@@ -1641,7 +1676,7 @@ test('drop identity from existing column #25. Rename table + rename column. Add 
 		`EXEC sp_rename 'users', [users2];`,
 		`EXEC sp_rename 'users2.id', [id1], 'COLUMN';`,
 		`EXEC sp_rename 'users2.id1', [__old_id1], 'COLUMN';`,
-		`ALTER TABLE [users2] ADD [id1] int;`,
+		`ALTER TABLE [users2] ADD [id1] int NOT NULL;`,
 		`INSERT INTO [users2] ([id1]) SELECT [__old_id1] FROM [users2];`,
 		`ALTER TABLE [users2] DROP COLUMN [__old_id1];`,
 		'ALTER TABLE [users2] ADD CONSTRAINT [users2_pkey] PRIMARY KEY ([id1]);',
