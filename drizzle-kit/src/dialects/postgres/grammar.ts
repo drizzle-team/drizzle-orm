@@ -123,13 +123,23 @@ export function buildArrayString(array: any[], sqlType: string): string {
 
 	const values = array
 		.map((value) => {
+			if (sqlType.startsWith('numeric')) {
+				return String(value);
+			}
+
 			if (typeof value === 'number' || typeof value === 'bigint') {
 				return value.toString();
-			} else if (typeof value === 'boolean') {
+			}
+
+			if (typeof value === 'boolean') {
 				return value ? 'true' : 'false';
-			} else if (Array.isArray(value)) {
+			}
+
+			if (Array.isArray(value)) {
 				return buildArrayString(value, sqlType);
-			} else if (value instanceof Date) {
+			}
+
+			if (value instanceof Date) {
 				if (sqlType === 'date') {
 					return `"${value.toISOString().split('T')[0]}"`;
 				} else if (sqlType === 'timestamp') {
@@ -137,7 +147,9 @@ export function buildArrayString(array: any[], sqlType: string): string {
 				} else {
 					return `"${value.toISOString()}"`;
 				}
-			} else if (typeof value === 'object') {
+			}
+
+			if (typeof value === 'object') {
 				return `"${JSON.stringify(value).replaceAll('"', '\\"')}"`;
 			}
 
@@ -374,16 +386,22 @@ export const defaultForColumn = (
 	value = type === 'numeric' || type.startsWith('numeric(') ? trimChar(value, "'") : value;
 
 	if (dimensions > 0) {
-		const values = value
-			.slice(2, -2) // TODO: ??
+		let trimmed = value.trimChar("'"); // '{10,20}' -> {10,20}
+		if (
+			['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(type)
+			|| type.startsWith('timestamp') || type.startsWith('interval')
+			|| type === 'line' || type === 'point'
+			|| type.startsWith('numeric')
+		) {
+			return { value: trimmed, type: 'array' };
+		}
+
+		trimmed = trimmed.substring(1, trimmed.length - 1); // {10.10,20.20} -> 10.10,20.20
+		const values = trimmed
 			.split(/\s*,\s*/g)
 			.filter((it) => it !== '')
 			.map((value) => {
-				if (['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(type)) {
-					return value;
-				} else if (type.startsWith('timestamp') || type.startsWith('interval')) {
-					return value;
-				} else if (type === 'boolean') {
+				if (type === 'boolean') {
 					return value === 't' ? 'true' : 'false';
 				} else if (['json', 'jsonb'].includes(type)) {
 					return JSON.stringify(JSON.stringify(JSON.parse(JSON.parse(value)), null, 0));
@@ -391,6 +409,7 @@ export const defaultForColumn = (
 					return `\"${value}\"`;
 				}
 			});
+
 		const res = `{${values.join(',')}}`;
 		return { value: res, type: 'array' };
 	}

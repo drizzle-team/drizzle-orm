@@ -1,9 +1,12 @@
-import { is } from 'drizzle-orm';
+import { ColumnBuilder, is, SQL } from 'drizzle-orm';
 import {
+	AnyPgColumn,
 	isPgEnum,
 	isPgMaterializedView,
 	isPgSequence,
 	isPgView,
+	PgColumnBuilder,
+	PgDialect,
 	PgEnum,
 	PgEnumObject,
 	PgMaterializedView,
@@ -12,12 +15,19 @@ import {
 	PgSchema,
 	PgSequence,
 	PgTable,
+	pgTable,
 	PgView,
+	serial,
 } from 'drizzle-orm/pg-core';
 import { CasingType } from 'src/cli/validations/common';
 import { createDDL, interimToDDL, PostgresDDL, SchemaError } from 'src/dialects/postgres/ddl';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/postgres/diff';
-import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/postgres/drizzle';
+import {
+	defaultFromColumn,
+	fromDrizzleSchema,
+	prepareFromSchemaFiles,
+	unwrapColumn,
+} from 'src/dialects/postgres/drizzle';
 import { mockResolver } from 'src/utils/mocks';
 import '../../src/@types/utils';
 import { PGlite } from '@electric-sql/pglite';
@@ -28,7 +38,7 @@ import { introspect } from 'src/cli/commands/pull-postgres';
 import { suggestions } from 'src/cli/commands/push-postgres';
 import { Entities } from 'src/cli/validations/cli';
 import { EmptyProgressView } from 'src/cli/views';
-import { isSystemNamespace, isSystemRole } from 'src/dialects/postgres/grammar';
+import { defaultToSQL, isSystemNamespace, isSystemRole } from 'src/dialects/postgres/grammar';
 import { fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
 import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
 import { DB } from 'src/utils';
@@ -306,6 +316,75 @@ export const diffIntrospect = async (
 		sqlStatements: afterFileSqlStatements,
 		statements: afterFileStatements,
 	};
+};
+
+export const diffDefault = async <T extends PgColumnBuilder>(
+	kit: TestDatabase,
+	builder: T,
+	def: T['_']['data'] | SQL<unknown>,
+	expectedDefault: string,
+) => {
+	await kit.clear();
+
+	const table1 = pgTable('table', { column: builder });
+	const table2 = pgTable('table', { column: builder.default(def as any) });
+
+	const { baseColumn, dimensions, sqlType, sqlBaseType, typeSchema } = unwrapColumn(table2.column);
+	const columnDefault = defaultFromColumn(baseColumn, table2.column.default, dimensions, new PgDialect());
+	const defaultSql = defaultToSQL({
+		default: columnDefault,
+		type: sqlBaseType,
+		dimensions,
+		typeSchema: typeSchema,
+	});
+
+	const res = [] as string[];
+	if (defaultSql !== expectedDefault) {
+		res.push(`Unexpected sql: ${defaultSql} | ${expectedDefault}`);
+	}
+	const init = {
+		table2,
+	};
+
+	const { db, clear } = kit;
+	const { sqlStatements: st1 } = await push({ db, to: init });
+	const { sqlStatements: st2 } = await push({ db, to: init });
+
+	const expectedInit = `CREATE TABLE "table" (\n\t"column" ${sqlType} DEFAULT ${expectedDefault}\n);\n`;
+	if (st1.length !== 1 || st1[0] !== expectedInit) res.push(`Unexpected init:\n${st1}\n\n${expectedInit}`);
+	if (st2.length > 0) res.push(`Unexpected subsequent init:\n${st2}`);
+
+	await clear();
+
+	const schema1 = {
+		table1,
+	};
+	const schema2 = {
+		table2,
+	};
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: st3 } = await push({ db, to: schema2 });
+	const expectedAlter = `ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT ${expectedDefault};`;
+	if (st3.length !== 1 || st3[0] !== expectedAlter) res.push(`Unexpected default alter:\n${st3}\n\n${expectedAlter}`);
+
+	await clear();
+	const schema3 = {
+		table: pgTable('table', { id: serial() }),
+	};
+	const schema4 = {
+		table: pgTable('table', { id: serial(), column: builder.default(def as any) }),
+	};
+
+	await push({ db, to: schema3 });
+	const { sqlStatements: st4 } = await push({ db, to: schema4 });
+
+	const expectedAddColumn = `ALTER TABLE "table" ADD COLUMN "column" ${sqlType} DEFAULT ${expectedDefault};`;
+	if (st4.length !== 1 || st4[0] !== expectedAddColumn) {
+		res.push(`Unexpected add column:\n${st4[0]}\n\n${expectedAddColumn}`);
+	}
+	
+	return res;
 };
 
 export type TestDatabase = {
