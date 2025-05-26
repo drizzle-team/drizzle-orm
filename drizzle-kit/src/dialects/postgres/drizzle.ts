@@ -1,5 +1,5 @@
 import { getTableName, is, SQL } from 'drizzle-orm';
-import { AnyGelColumn, GelColumn, GelDialect, GelPolicy } from 'drizzle-orm/gel-core';
+import { AnyGelColumn, GelDialect, GelPolicy } from 'drizzle-orm/gel-core';
 import {
 	AnyPgColumn,
 	AnyPgTable,
@@ -15,6 +15,8 @@ import {
 	PgDialect,
 	PgEnum,
 	PgEnumColumn,
+	PgLineABC,
+	PgLineTuple,
 	PgMaterializedView,
 	PgMaterializedViewWithConfig,
 	PgPolicy,
@@ -44,19 +46,15 @@ import type {
 	Policy,
 	PostgresEntities,
 	PrimaryKey,
-	Role,
 	Schema,
 	SchemaError,
 	SchemaWarning,
-	Sequence,
 	UniqueConstraint,
-	View,
 } from './ddl';
 import {
 	buildArrayString,
 	defaultNameForFK,
 	defaultNameForPK,
-	defaults,
 	indexName,
 	maxRangeForIdentityBasedOn,
 	minRangeForIdentityBasedOn,
@@ -102,7 +100,35 @@ export const policyFrom = (policy: PgPolicy | GelPolicy, dialect: PgDialect | Ge
 	};
 };
 
-const unwrapArray = (column: PgArray<any, any>, dimensions: number = 1) => {
+export const unwrapColumn = (column: AnyPgColumn) => {
+	const { baseColumn, dimensions } = is(column, PgArray)
+		? unwrapArray(column)
+		: { baseColumn: column, dimensions: 0 };
+
+	const isEnum = is(baseColumn, PgEnumColumn);
+	const typeSchema = isEnum
+		? baseColumn.enum.schema || 'public'
+		: null;
+
+	/* TODO: legacy, for not to patch orm and don't up snapshot */
+	let sqlBaseType = baseColumn.getSQLType();
+	sqlBaseType = sqlBaseType.startsWith('timestamp (') ? sqlBaseType.replace('timestamp (', 'timestamp(') : sqlBaseType;
+
+	const sqlType = dimensions > 0 ? `${sqlBaseType}[]` : sqlBaseType;
+	return {
+		baseColumn,
+		dimensions,
+		isEnum,
+		typeSchema,
+		sqlType,
+		sqlBaseType,
+	};
+};
+
+export const unwrapArray = (
+	column: PgArray<any, any>,
+	dimensions: number = 1,
+): { baseColumn: AnyPgColumn; dimensions: number } => {
 	const baseColumn = column.baseColumn;
 	if (is(baseColumn, PgArray)) return unwrapArray(baseColumn, dimensions + 1);
 
@@ -137,6 +163,42 @@ export const defaultFromColumn = (
 			value: sql,
 			type: isText ? 'string' : 'unknown',
 		};
+	}
+
+	if (is(base, PgLineABC)) {
+		if (dimensions === 0) {
+			const { a, b, c } = def as { a: number; b: number; c: number };
+			return {
+				value: `'{${a},${b},${c}}'`,
+				type: 'unknown',
+			};
+		} else {
+			const res = (def as { a: number; b: number; c: number }[]).map(({ a, b, c }) => {
+				return `"{${a},${b},${c}}"`;
+			});
+			return {
+				value: `{${res.join(', ')}}`,
+				type: 'array',
+			};
+		}
+	}
+
+	if (is(base, PgLineTuple)) {
+		if (dimensions === 0) {
+			const [a, b, c] = def as number[];
+			return {
+				value: `'{${a},${b},${c}}'`,
+				type: 'unknown',
+			};
+		} else {
+			const res = (def as number[][]).map(([a, b, c]) => {
+				return `"{${a},${b},${c}}"`;
+			});
+			return {
+				value: `{${res.join(', ')}}`,
+				type: 'array',
+			};
+		}
 	}
 
 	if (typeof def === 'string') {
@@ -194,6 +256,7 @@ export const defaultFromColumn = (
 			type: 'string',
 		};
 	}
+	
 	return {
 		value: String(def),
 		type: 'string',
@@ -328,16 +391,7 @@ export const fromDrizzleSchema = (
 			...drizzleColumns.map<InterimColumn>((column) => {
 				const name = getColumnCasing(column, casing);
 				const notNull = column.notNull;
-				const isPrimary = column.primary;
 
-				const { baseColumn, dimensions } = is(column, PgArray)
-					? unwrapArray(column)
-					: { baseColumn: column, dimensions: 0 };
-
-				const isEnum = is(baseColumn, PgEnumColumn);
-				const typeSchema = isEnum
-					? baseColumn.enum.schema || 'public'
-					: null;
 				const generated = column.generated;
 				const identity = column.generatedIdentity;
 
@@ -383,18 +437,15 @@ export const fromDrizzleSchema = (
 				// TODO:??
 				// Should do for all types
 				// columnToSet.default = `'${column.default}'::${sqlTypeLowered}`;
+				const { baseColumn, dimensions, sqlType, sqlBaseType, typeSchema } = unwrapColumn(column);
 
-				let sqlType = baseColumn.getSQLType();
-				/* legacy, for not to patch orm and don't up snapshot */
-				sqlType = sqlType.startsWith('timestamp (') ? sqlType.replace('timestamp (', 'timestamp(') : sqlType;
 				const columnDefault = defaultFromColumn(baseColumn, column.default, dimensions, dialect);
-
 				return {
 					entityType: 'columns',
 					schema: schema,
 					table: tableName,
 					name,
-					type: sqlType,
+					type: sqlBaseType,
 					typeSchema: typeSchema ?? null,
 					dimensions: dimensions,
 					pk: column.primary,
@@ -659,11 +710,12 @@ export const fromDrizzleSchema = (
 	});
 
 	for (const view of combinedViews) {
+		if (view.isExisting) continue;
+
 		const {
 			name: viewName,
 			schema,
 			query,
-			isExisting,
 			tablespace,
 			using,
 			withNoData,
@@ -742,10 +794,9 @@ export const fromDrizzleSchema = (
 
 		res.views.push({
 			entityType: 'views',
-			definition: isExisting ? null : dialect.sqlToQuery(query!).sql,
+			definition: dialect.sqlToQuery(query!).sql,
 			name: viewName,
 			schema: viewSchema,
-			isExisting,
 			with: hasNonNullOpts ? withOpt : null,
 			withNoData: withNoData ?? null,
 			materialized,

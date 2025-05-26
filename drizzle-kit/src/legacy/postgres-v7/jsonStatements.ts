@@ -646,7 +646,6 @@ export type JsonCreatePgViewStatement = {
 	type: 'create_view';
 } & Omit<PgView, 'columns' | 'isExisting'>;
 
-
 /* export type JsonCreateSingleStoreViewStatement = {
 	type: 'singlestore_create_view';
 	replace: boolean;
@@ -1536,7 +1535,6 @@ export const preparePgAlterColumns = (
 	return [...dropPkStatements, ...setPkStatements, ...statements];
 };
 
-
 export const prepareRenamePolicyJsons = (
 	tableName: string,
 	schema: string,
@@ -1726,7 +1724,6 @@ export const prepareDropReferencesJson = (
 		};
 	});
 };
-
 
 // alter should create 2 statements. It's important to make only 1 sql per statement(for breakpoints)
 export const prepareAlterReferencesJson = (
@@ -2101,7 +2098,6 @@ export const preparePgAlterViewAlterUsingJson = (
 		toUsing: to,
 	} as JsonAlterViewAlterUsingStatement;
 };
-
 
 /* export const prepareSingleStoreAlterView = (
 	view: Omit<SingleStoreView, 'isExisting'>,

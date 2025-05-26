@@ -65,9 +65,8 @@ const dropViewConvertor = convertor('drop_view', (st) => {
 const renameViewConvertor = convertor('rename_view', (st) => {
 	const materialized = st.from.materialized;
 	const nameFrom = st.from.schema !== 'public' ? `"${st.from.schema}"."${st.from.name}"` : `"${st.from.name}"`;
-	const nameTo = st.to.schema !== 'public' ? `"${st.to.schema}"."${st.to.name}"` : `"${st.to.name}"`;
 
-	return `ALTER${materialized ? ' MATERIALIZED' : ''} VIEW ${nameFrom} RENAME TO ${nameTo};`;
+	return `ALTER${materialized ? ' MATERIALIZED' : ''} VIEW ${nameFrom} RENAME TO "${st.to.name}";`;
 });
 
 const moveViewConvertor = convertor('move_view', (st) => {
@@ -243,7 +242,7 @@ const renameTableConvertor = convertor('rename_table', (st) => {
 		? `"${st.schema}".`
 		: '';
 
-	return `ALTER TABLE ${schemaPrefix}"${st.from}" RENAME TO ${schemaPrefix}"${st.to}";`;
+	return `ALTER TABLE ${schemaPrefix}"${st.from}" RENAME TO "${st.to}";`;
 });
 
 const moveTableConvertor = convertor('move_table', (st) => {
@@ -361,9 +360,9 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${type}${suffix};`);
 
 		if (recreateDefault) {
-			const typeSuffix = isEnum ? `::${type}` : '';
+			const typeSuffix = isEnum && column.dimensions === 0 ? `::${type}` : '';
 			statements.push(
-				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(column)}${typeSuffix};`,
+				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(column, isEnum)}${typeSuffix};`,
 			);
 		}
 	}

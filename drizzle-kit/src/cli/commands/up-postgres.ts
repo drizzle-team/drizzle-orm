@@ -77,7 +77,6 @@ export const upToV8 = (it: Record<string, any>): { snapshot: PostgresSnapshot; h
 			}
 
 			const [type, dimensions] = extractBaseTypeAndDimensions(column.type);
-			console.log(table.name, column.name, type, dimensions, column.default);
 			const def = defaultForColumn(type, column.default, dimensions);
 
 			ddl.columns.push({
@@ -244,6 +243,8 @@ export const upToV8 = (it: Record<string, any>): { snapshot: PostgresSnapshot; h
 	}
 
 	for (const v of Object.values(json.views)) {
+		if (v.isExisting) continue;
+
 		const opt = v.with;
 		ddl.views.push({
 			schema: v.schema,
@@ -278,7 +279,6 @@ export const upToV8 = (it: Record<string, any>): { snapshot: PostgresSnapshot; h
 				}
 				: null,
 			materialized: v.materialized,
-			isExisting: v.isExisting,
 		});
 	}
 

@@ -218,19 +218,16 @@ test('db has checks. Push with same names', async () => {
 		test: pgTable('test', {
 			id: serial('id').primaryKey(),
 			values: integer('values').default(1),
-		}, (table) => [check('some_check', sql`some new value`)]),
+		}, (table) => [check('some_check', sql`${table.values} > 100`)]),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
 	await push({ db, to: schema1 });
-	const { sqlStatements: pst } = await push({
-		db,
-		to: schema2,
-	});
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
 	const st0: string[] = [
-		'ALTER TABLE "test" DROP CONSTRAINT "some_check", ADD CONSTRAINT ADD CONSTRAINT "some_check" CHECK (some new value);',
+		'ALTER TABLE "test" DROP CONSTRAINT "some_check", ADD CONSTRAINT "some_check" CHECK ("test"."values" > 100);',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
