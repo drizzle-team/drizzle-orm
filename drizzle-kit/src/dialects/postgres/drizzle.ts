@@ -19,6 +19,7 @@ import {
 	PgLineTuple,
 	PgMaterializedView,
 	PgMaterializedViewWithConfig,
+	PgNumeric,
 	PgPolicy,
 	PgRole,
 	PgSchema,
@@ -201,6 +202,21 @@ export const defaultFromColumn = (
 		}
 	}
 
+	const sqlTypeLowered = base.getSQLType().toLowerCase();
+	if (dimensions > 0 && Array.isArray(def)) {
+		return {
+			value: buildArrayString(def, sqlTypeLowered),
+			type: 'array',
+		};
+	}
+
+	if (sqlTypeLowered === 'jsonb' || sqlTypeLowered === 'json') {
+		return {
+			value: JSON.stringify(def),
+			type: sqlTypeLowered,
+		};
+	}
+
 	if (typeof def === 'string') {
 		return {
 			value: def,
@@ -219,21 +235,6 @@ export const defaultFromColumn = (
 		return {
 			value: String(def),
 			type: 'number',
-		};
-	}
-
-	const sqlTypeLowered = base.getSQLType().toLowerCase();
-	if (dimensions > 0 && Array.isArray(def)) {
-		return {
-			value: buildArrayString(def, sqlTypeLowered),
-			type: 'array',
-		};
-	}
-
-	if (sqlTypeLowered === 'jsonb' || sqlTypeLowered === 'json') {
-		return {
-			value: JSON.stringify(def),
-			type: sqlTypeLowered,
 		};
 	}
 
@@ -256,7 +257,7 @@ export const defaultFromColumn = (
 			type: 'string',
 		};
 	}
-	
+
 	return {
 		value: String(def),
 		type: 'string',
@@ -440,6 +441,7 @@ export const fromDrizzleSchema = (
 				const { baseColumn, dimensions, sqlType, sqlBaseType, typeSchema } = unwrapColumn(column);
 
 				const columnDefault = defaultFromColumn(baseColumn, column.default, dimensions, dialect);
+				console.log(columnDefault, column.default);
 				return {
 					entityType: 'columns',
 					schema: schema,

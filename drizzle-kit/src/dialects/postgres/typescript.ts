@@ -149,7 +149,7 @@ const mapColumnDefault = (def: Exclude<Column['default'], null>) => {
 		return `sql\`${def.value}\``;
 	}
 	if (def.type === 'bigint') {
-		return `${def.value}b`;
+		return `${def.value}n`;
 	}
 	if (def.type === 'string') {
 		return `"${def.value.replaceAll('"', '\\"')}"`;
@@ -578,6 +578,7 @@ const buildArrayDefault = (defaultValue: string, typeName: string): string => {
 	if (typeof defaultValue === 'string' && !(defaultValue.startsWith('{') || defaultValue.startsWith("'{"))) {
 		return `sql\`${defaultValue}\``;
 	}
+
 	defaultValue = defaultValue.substring(1, defaultValue.length - 1);
 	return `[${
 		defaultValue
@@ -589,6 +590,10 @@ const buildArrayDefault = (defaultValue: string, typeName: string): string => {
 				// 		return value.replaceAll('"', "'");
 				// 	} else if (typeName === 'boolean') {
 				// 		return value === 't' ? 'true' : 'false';
+				if (typeName.startsWith('numeric')) {
+					return `'${value}'`;
+				}
+
 				if (typeName === 'json' || typeName === 'jsonb') {
 					return value.substring(1, value.length - 1).replaceAll('\\', '');
 				}
@@ -687,6 +692,7 @@ const column = (
 	enumTypes: Set<string>,
 	typeSchema: string,
 	casing: Casing,
+	def: Column['default'],
 ) => {
 	const lowered = type.toLowerCase().replace('[]', '');
 
@@ -749,12 +755,21 @@ const column = (
 	}
 
 	if (lowered.startsWith('numeric')) {
-		let params: { precision: string | undefined; scale: string | undefined } | undefined;
+		let params: { precision?: string; scale?: string; mode?: any } = {};
 
 		if (lowered.length > 7) {
 			const [precision, scale] = lowered.slice(8, lowered.length - 1).split(',');
 			params = { precision, scale };
 		}
+
+		let mode = def === null || def.type === 'number'
+			? '"number"'
+			: def.type === 'bigint'
+			? '"bigint"'
+			: def.type === 'string'
+			? ''
+			: '';
+		if (mode) params['mode'] = mode;
 
 		let out = params
 			? `${withCasing(name, casing)}: numeric(${dbColumnName({ name, casing, withMode: true })}${timeConfig(params)})`
@@ -968,6 +983,7 @@ const createViewColumns = (
 			enumTypes,
 			it.typeSchema ?? 'public',
 			casing,
+			null
 		);
 		statement += '\t';
 		statement += columnStatement;
@@ -1010,6 +1026,7 @@ const createTableColumns = (
 			enumTypes,
 			it.typeSchema ?? 'public',
 			casing,
+			it.default,
 		);
 		const pk = primaryKey && primaryKey.columns.length === 1 && primaryKey.columns[0] === it.name
 			? primaryKey

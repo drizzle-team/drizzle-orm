@@ -19,7 +19,7 @@ test('create view #1', async () => {
 	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements).toStrictEqual([
-		`CREATE ALGORITHM = undefined\nSQL SECURITY definer\nVIEW \`some_view\` AS (select \`id\` from \`users\`);`,
+		`CREATE ALGORITHM = undefined SQL SECURITY definer VIEW \`some_view\` AS (select \`id\` from \`users\`);`,
 	]);
 });
 
@@ -40,7 +40,7 @@ test('create view #2', async () => {
 	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements).toStrictEqual([
-		`CREATE ALGORITHM = merge\nSQL SECURITY definer\nVIEW \`some_view\` AS (SELECT * FROM \`users\`)\nWITH cascaded CHECK OPTION;`,
+		`CREATE ALGORITHM = merge SQL SECURITY definer VIEW \`some_view\` AS (SELECT * FROM \`users\`) WITH cascaded CHECK OPTION;`,
 	]);
 });
 
@@ -137,7 +137,7 @@ test('rename view and alter meta options', async () => {
 
 	expect(sqlStatements).toStrictEqual([
 		`RENAME TABLE \`some_view\` TO \`new_some_view\`;`,
-		`ALTER ALGORITHM = undefined\nSQL SECURITY definer\nVIEW \`new_some_view\` AS SELECT * FROM \`users\`\nWITH cascaded CHECK OPTION;`,
+		`ALTER ALGORITHM = undefined SQL SECURITY definer VIEW \`new_some_view\` AS SELECT * FROM \`users\` WITH cascaded CHECK OPTION;`,
 	]);
 });
 
@@ -179,7 +179,7 @@ test('add meta to view', async () => {
 
 	const { sqlStatements } = await diff(from, to, []);
 	expect(sqlStatements).toStrictEqual([
-		`ALTER ALGORITHM = merge\nSQL SECURITY definer\nVIEW \`some_view\` AS SELECT * FROM \`users\`\nWITH cascaded CHECK OPTION;`,
+		'ALTER ALGORITHM = merge SQL SECURITY definer VIEW \`some_view\` AS SELECT * FROM \`users\` WITH cascaded CHECK OPTION;',
 	]);
 });
 
@@ -221,7 +221,7 @@ test('alter meta to view', async () => {
 	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements).toStrictEqual([
-		`ALTER ALGORITHM = merge\nSQL SECURITY definer\nVIEW \`some_view\` AS SELECT * FROM \`users\`\nWITH cascaded CHECK OPTION;`,
+		'ALTER ALGORITHM = merge SQL SECURITY definer VIEW \`some_view\` AS SELECT * FROM \`users\` WITH cascaded CHECK OPTION;',
 	]);
 });
 
@@ -264,7 +264,7 @@ test('drop meta from view', async () => {
 	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements).toStrictEqual([
-		`ALTER ALGORITHM = undefined\nSQL SECURITY definer\nVIEW \`some_view\` AS SELECT * FROM \`users\`;`,
+		`ALTER ALGORITHM = undefined SQL SECURITY definer VIEW \`some_view\` AS SELECT * FROM \`users\`;`,
 	]);
 });
 
@@ -305,7 +305,7 @@ test('alter view ".as" value', async () => {
 
 	const { sqlStatements } = await diff(from, to, []);
 	expect(sqlStatements).toStrictEqual([
-		`CREATE OR REPLACE ALGORITHM = temptable\nSQL SECURITY invoker\nVIEW \`some_view\` AS (SELECT * FROM \`users\` WHERE \`users\`.\`id\` = 1)\nWITH cascaded CHECK OPTION;`,
+		`CREATE OR REPLACE ALGORITHM = temptable SQL SECURITY invoker VIEW \`some_view\` AS (SELECT * FROM \`users\` WHERE \`users\`.\`id\` = 1) WITH cascaded CHECK OPTION;`,
 	]);
 });
 
@@ -331,7 +331,7 @@ test('rename and alter view ".as" value', async () => {
 
 	expect(sqlStatements).toStrictEqual([
 		`RENAME TABLE \`some_view\` TO \`new_some_view\`;`,
-		`CREATE OR REPLACE ALGORITHM = temptable\nSQL SECURITY invoker\nVIEW \`new_some_view\` AS (SELECT * FROM \`users\` WHERE \`users\`.\`id\` = 1)\nWITH cascaded CHECK OPTION;`,
+		`CREATE OR REPLACE ALGORITHM = temptable SQL SECURITY invoker VIEW \`new_some_view\` AS (SELECT * FROM \`users\` WHERE \`users\`.\`id\` = 1) WITH cascaded CHECK OPTION;`,
 	]);
 });
 
@@ -381,6 +381,6 @@ test('drop existing', async () => {
 	const { sqlStatements } = await diff(from, to, []);
 
 	expect(sqlStatements).toStrictEqual([
-		`CREATE ALGORITHM = temptable\nSQL SECURITY invoker\nVIEW \`new_some_view\` AS (SELECT * FROM \`users\` WHERE \`users\`.\`id\` = 1)\nWITH cascaded CHECK OPTION;`,
+		`CREATE ALGORITHM = temptable SQL SECURITY invoker VIEW \`new_some_view\` AS (SELECT * FROM \`users\` WHERE \`users\`.\`id\` = 1) WITH cascaded CHECK OPTION;`,
 	]);
 });

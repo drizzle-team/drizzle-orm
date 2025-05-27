@@ -86,7 +86,7 @@ test('check imports sqlite-studio', () => {
 		basePath: '.',
 		localPaths: ['src'],
 		whiteList: [],
-		entry: 'src/utils/studio-sqlite.ts',
+		entry: 'src/ext/studio-sqlite.ts',
 		logger: true,
 		ignoreTypes: true,
 	}).issues;
@@ -105,7 +105,7 @@ test('check imports postgres-studio', () => {
 		basePath: '.',
 		localPaths: ['src'],
 		whiteList: [],
-		entry: 'src/utils/studio-postgres.ts',
+		entry: 'src/ext/studio-postgres.ts',
 		logger: true,
 		ignoreTypes: true,
 	}).issues;
@@ -124,7 +124,7 @@ test('check imports postgres-mover', () => {
 		basePath: '.',
 		localPaths: ['src'],
 		whiteList: ['camelcase'],
-		entry: 'src/utils/mover-postgres.ts',
+		entry: 'src/ext/mover-postgres.ts',
 		logger: true,
 		ignoreTypes: true,
 	}).issues;
@@ -143,7 +143,7 @@ test('check imports mysql-mover', () => {
 		basePath: '.',
 		localPaths: ['src'],
 		whiteList: [],
-		entry: 'src/utils/mover-mysql.ts',
+		entry: 'src/ext/mover-mysql.ts',
 		logger: true,
 		ignoreTypes: true,
 	}).issues;

@@ -48,7 +48,7 @@ export const diff = async (
 	return { sqlStatements, statements };
 };
 
-export const introspectDiff = async (
+export const introspect = async (
 	db: DB,
 	initSchema: MysqlSchema,
 	testName: string,
@@ -147,7 +147,7 @@ export const diffPush = async (config: {
 	return { sqlStatements, statements, hints, truncates };
 };
 
-async function createDockerDB(): Promise<{ url: string; container: Container }> {
+export const createDockerDB = async (): Promise<{ url: string; container: Container }> => {
 	const docker = new Docker();
 	const port = await getPort({ port: 3306 });
 	const image = 'mysql:8';
@@ -173,7 +173,7 @@ async function createDockerDB(): Promise<{ url: string; container: Container }> 
 	await mysqlContainer.start();
 
 	return { url: `mysql://root:mysql@127.0.0.1:${port}/drizzle`, container: mysqlContainer };
-}
+};
 
 export type TestDatabase = {
 	db: DB;
