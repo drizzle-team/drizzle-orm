@@ -18,6 +18,7 @@ export interface PGArrayActionDict<T> extends BaseActionDict<T> {
   stringLiteral_DoubleQuotes?: (this: NonterminalNode, arg0: TerminalNode, arg1: IterationNode, arg2: TerminalNode) => T;
   stringLiteral?: (this: NonterminalNode, arg0: NonterminalNode) => T;
   quotelessString?: (this: NonterminalNode, arg0: IterationNode) => T;
+  escapedSymbol?: (this: NonterminalNode, arg0: TerminalNode, arg1: NonterminalNode) => T;
   nullLiteral?: (this: NonterminalNode, arg0: TerminalNode) => T;
   forbiddenSymbolForQuoteless?: (this: NonterminalNode, arg0: NonterminalNode | TerminalNode) => T;
 }
