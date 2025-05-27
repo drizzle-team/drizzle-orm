@@ -6,6 +6,7 @@ import type {
 	ColumnDataType,
 	HasDefault,
 	IsAutoincrement,
+	IsUnique,
 	MakeColumnConfig,
 } from '~/column-builder.ts';
 import { ColumnBuilder } from '~/column-builder.ts';
@@ -38,10 +39,10 @@ export abstract class SingleStoreColumnBuilder<
 {
 	static override readonly [entityKind]: string = 'SingleStoreColumnBuilder';
 
-	unique(name?: string): this {
+	unique(name?: string): IsUnique<this> {
 		this.config.isUnique = true;
 		this.config.uniqueName = name;
-		return this;
+		return this as IsUnique<this>;
 	}
 
 	// TODO: Implement generated columns for SingleStore (https://docs.singlestore.com/cloud/create-a-database/using-persistent-computed-columns/)
@@ -81,9 +82,7 @@ export abstract class SingleStoreColumn<
 }
 
 export type AnySingleStoreColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType, string>> = {}> =
-	SingleStoreColumn<
-		Required<Update<ColumnBaseConfig<ColumnDataType, string>, TPartial>>
-	>;
+	SingleStoreColumn<Required<Update<ColumnBaseConfig<ColumnDataType, string>, TPartial>>>;
 
 export interface SingleStoreColumnWithAutoIncrementConfig {
 	autoIncrement: boolean;

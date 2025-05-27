@@ -5,6 +5,7 @@ import type {
 	ColumnBuilderRuntimeConfig,
 	ColumnDataType,
 	HasGenerated,
+	IsUnique,
 	MakeColumnConfig,
 } from '~/column-builder.ts';
 import { ColumnBuilder } from '~/column-builder.ts';
@@ -47,25 +48,26 @@ export abstract class SQLiteColumnBuilder<
 
 	private foreignKeyConfigs: ReferenceConfig[] = [];
 
-	references(
-		ref: ReferenceConfig['ref'],
-		actions: ReferenceConfig['actions'] = {},
-	): this {
+	references(ref: ReferenceConfig['ref'], actions: ReferenceConfig['actions'] = {}): this {
 		this.foreignKeyConfigs.push({ ref, actions });
 		return this;
 	}
 
-	unique(
-		name?: string,
-	): this {
+	unique(name?: string): IsUnique<this> {
 		this.config.isUnique = true;
 		this.config.uniqueName = name;
-		return this;
+		return this as IsUnique<this>;
 	}
 
-	generatedAlwaysAs(as: SQL | T['data'] | (() => SQL), config?: SQLiteGeneratedColumnConfig): HasGenerated<this, {
-		type: 'always';
-	}> {
+	generatedAlwaysAs(
+		as: SQL | T['data'] | (() => SQL),
+		config?: SQLiteGeneratedColumnConfig,
+	): HasGenerated<
+		this,
+		{
+			type: 'always';
+		}
+	> {
 		this.config.generated = {
 			as,
 			type: 'always',

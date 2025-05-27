@@ -45,20 +45,20 @@ export const identityColumnsTable = gelTable('identity_columns_table', {
 	name: text('name'),
 });
 
-Expect<Equal<InferSelectModel<typeof identityColumnsTable>, typeof identityColumnsTable['$inferSelect']>>;
-Expect<Equal<InferSelectModel<typeof identityColumnsTable>, typeof identityColumnsTable['_']['inferSelect']>>;
-Expect<Equal<InferInsertModel<typeof identityColumnsTable>, typeof identityColumnsTable['$inferInsert']>>;
-Expect<Equal<InferInsertModel<typeof identityColumnsTable>, typeof identityColumnsTable['_']['inferInsert']>>;
+Expect<Equal<InferSelectModel<typeof identityColumnsTable>, (typeof identityColumnsTable)['$inferSelect']>>;
+Expect<Equal<InferSelectModel<typeof identityColumnsTable>, (typeof identityColumnsTable)['_']['inferSelect']>>;
+Expect<Equal<InferInsertModel<typeof identityColumnsTable>, (typeof identityColumnsTable)['$inferInsert']>>;
+Expect<Equal<InferInsertModel<typeof identityColumnsTable>, (typeof identityColumnsTable)['_']['inferInsert']>>;
 Expect<
 	Equal<
 		InferInsertModel<typeof identityColumnsTable, { dbColumnNames: false; override: true }>,
-		Simplify<typeof identityColumnsTable['$inferInsert'] & { alwaysAsIdentity?: number | undefined }>
+		Simplify<(typeof identityColumnsTable)['$inferInsert'] & { alwaysAsIdentity?: number | undefined }>
 	>
 >;
 Expect<
 	Equal<
 		InferInsertModel<typeof identityColumnsTable, { dbColumnNames: false; override: true }>,
-		Simplify<typeof identityColumnsTable['_']['inferInsert'] & { alwaysAsIdentity?: number | undefined }>
+		Simplify<(typeof identityColumnsTable)['_']['inferInsert'] & { alwaysAsIdentity?: number | undefined }>
 	>
 >;
 
@@ -97,18 +97,22 @@ export const users = gelTable(
 	],
 );
 
-Expect<Equal<InferSelectModel<typeof users>, typeof users['$inferSelect']>>;
-Expect<Equal<InferSelectModel<typeof users>, typeof users['_']['inferSelect']>>;
-Expect<Equal<InferInsertModel<typeof users>, typeof users['$inferInsert']>>;
-Expect<Equal<InferInsertModel<typeof users>, typeof users['_']['inferInsert']>>;
+Expect<Equal<InferSelectModel<typeof users>, (typeof users)['$inferSelect']>>;
+Expect<Equal<InferSelectModel<typeof users>, (typeof users)['_']['inferSelect']>>;
+Expect<Equal<InferInsertModel<typeof users>, (typeof users)['$inferInsert']>>;
+Expect<Equal<InferInsertModel<typeof users>, (typeof users)['_']['inferInsert']>>;
 
-export const cities = gelTable('cities_table', {
-	id: integer('id').primaryKey(),
-	name: text('name').notNull(),
-	population: integer('population').default(0),
-}, (cities) => ({
-	citiesNameIdx: index().on(cities.id),
-}));
+export const cities = gelTable(
+	'cities_table',
+	{
+		id: integer('id').primaryKey(),
+		name: text('name').notNull(),
+		population: integer('population').default(0),
+	},
+	(cities) => ({
+		citiesNameIdx: index().on(cities.id),
+	}),
+);
 
 export const classes = gelTable('classes_table', {
 	id: integer('id').primaryKey(),
@@ -117,11 +121,14 @@ export const classes = gelTable('classes_table', {
 });
 
 Expect<
-	Equal<{
-		id: number;
-		class?: string | null;
-		subClass: string;
-	}, typeof classes.$inferInsert>
+	Equal<
+		{
+			id: number;
+			class?: string | null;
+			subClass: string;
+		},
+		typeof classes.$inferInsert
+	>
 >;
 
 export const salEmp = gelTable('sal_emp', {
@@ -136,11 +143,15 @@ export const tictactoe = gelTable('tictactoe', {
 
 export const customSchema = gelSchema('custom');
 
-export const citiesCustom = customSchema.table('cities_table', {
-	id: integer('id').primaryKey(),
-	name: text('name').notNull(),
-	population: integer('population').default(0),
-}, (cities) => [index().on(cities.id)]);
+export const citiesCustom = customSchema.table(
+	'cities_table',
+	{
+		id: integer('id').primaryKey(),
+		name: text('name').notNull(),
+		population: integer('population').default(0),
+	},
+	(cities) => [index().on(cities.id)],
+);
 
 // TODO not exists
 // {
@@ -670,12 +681,14 @@ export const citiesCustom = customSchema.table('cities_table', {
 	const cities1 = gelTable('cities_table', {
 		id: integer('id').primaryKey(),
 		name: text('name').notNull().primaryKey(),
+		postalCode: text('postal_code').notNull().unique(),
 		role: text('role').$type<'admin' | 'user'>().default('user').notNull(),
 		population: integer('population').default(0),
 	});
 	const cities2 = gelTable('cities_table', ({ text, integer }) => ({
 		id: integer('id').primaryKey(),
 		name: text('name').notNull().primaryKey(),
+		postalCode: text('postal_code').notNull().unique(),
 		role: text('role').$type<'admin' | 'user'>().default('user').notNull(),
 		population: integer('population').default(0),
 	}));
@@ -685,40 +698,75 @@ export const citiesCustom = customSchema.table('cities_table', {
 		schema: undefined;
 		dialect: 'gel';
 		columns: {
-			id: GelColumn<{
-				tableName: 'cities_table';
-				name: 'id';
-				dataType: 'number';
-				columnType: 'GelInteger';
-				data: number;
-				driverParam: number;
-				hasDefault: false;
-				notNull: true;
-				enumValues: undefined;
-				baseColumn: never;
-				generated: undefined;
-				identity: undefined;
-				isPrimaryKey: true;
-				isAutoincrement: false;
-				hasRuntimeDefault: false;
-			}>;
-			name: GelColumn<{
-				tableName: 'cities_table';
-				name: 'name';
-				dataType: 'string';
-				columnType: 'GelText';
-				data: string;
-				driverParam: string;
-				hasDefault: false;
-				enumValues: undefined;
-				notNull: true;
-				baseColumn: never;
-				generated: undefined;
-				identity: undefined;
-				isPrimaryKey: true;
-				isAutoincrement: false;
-				hasRuntimeDefault: false;
-			}>;
+			id: GelColumn<
+				{
+					tableName: 'cities_table';
+					name: 'id';
+					dataType: 'number';
+					columnType: 'GelInteger';
+					data: number;
+					driverParam: number;
+					hasDefault: false;
+					notNull: true;
+					enumValues: undefined;
+					baseColumn: never;
+					generated: undefined;
+					identity: undefined;
+					isPrimaryKey: true;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+				},
+				{},
+				{
+					isUnique: true;
+				}
+			>;
+			name: GelColumn<
+				{
+					tableName: 'cities_table';
+					name: 'name';
+					dataType: 'string';
+					columnType: 'GelText';
+					data: string;
+					driverParam: string;
+					hasDefault: false;
+					enumValues: undefined;
+					notNull: true;
+					baseColumn: never;
+					generated: undefined;
+					identity: undefined;
+					isPrimaryKey: true;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+				},
+				{},
+				{
+					isUnique: true;
+				}
+			>;
+			postalCode: GelColumn<
+				{
+					tableName: 'cities_table';
+					name: 'postal_code';
+					dataType: 'string';
+					columnType: 'GelText';
+					data: string;
+					driverParam: string;
+					notNull: true;
+					hasDefault: false;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+					enumValues: undefined;
+					baseColumn: never;
+					identity: undefined;
+					generated: undefined;
+				},
+				{},
+				{
+					isUnique: true;
+				}
+			>;
 			role: GelColumn<
 				{
 					tableName: 'cities_table';
@@ -810,42 +858,45 @@ export const citiesCustom = customSchema.table('cities_table', {
 	const subq = db
 		.select()
 		.from(internalStaff)
-		.leftJoin(
-			customUser,
-			eq(internalStaff.userId, customUser.id),
-		).as('internal_staff');
+		.leftJoin(customUser, eq(internalStaff.userId, customUser.id))
+		.as('internal_staff');
 
-	const mainQuery = await db
-		.select()
-		.from(ticket)
-		.leftJoin(subq, eq(subq.internal_staff.userId, ticket.staffId));
+	const mainQuery = await db.select().from(ticket).leftJoin(subq, eq(subq.internal_staff.userId, ticket.staffId));
 
 	Expect<
-		Equal<{
-			internal_staff: {
+		Equal<
+			{
 				internal_staff: {
-					userId: number;
+					internal_staff: {
+						userId: number;
+					};
+					custom_user: {
+						id: number | null;
+					};
+				} | null;
+				ticket: {
+					staffId: number;
 				};
-				custom_user: {
-					id: number | null;
-				};
-			} | null;
-			ticket: {
-				staffId: number;
-			};
-		}[], typeof mainQuery>
+			}[],
+			typeof mainQuery
+		>
 	>;
 }
 
 {
 	const test = gelTable('test', {
-		id: text('id').$defaultFn(() => crypto.randomUUID()).primaryKey(),
+		id: text('id')
+			.$defaultFn(() => crypto.randomUUID())
+			.primaryKey(),
 	});
 
 	Expect<
-		Equal<{
-			id?: string;
-		}, typeof test.$inferInsert>
+		Equal<
+			{
+				id?: string;
+			},
+			typeof test.$inferInsert
+		>
 	>;
 }
 
@@ -903,8 +954,8 @@ export const citiesCustom = customSchema.table('cities_table', {
 		name: text(),
 	});
 
-	Expect<Equal<typeof keysAsColumnNames['id']['_']['name'], 'id'>>;
-	Expect<Equal<typeof keysAsColumnNames['name']['_']['name'], 'name'>>;
+	Expect<Equal<(typeof keysAsColumnNames)['id']['_']['name'], 'id'>>;
+	Expect<Equal<(typeof keysAsColumnNames)['name']['_']['name'], 'name'>>;
 }
 
 {
