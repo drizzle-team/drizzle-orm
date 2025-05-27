@@ -13,5 +13,5 @@ PGArray {
 
     nullLiteral = "NULL"
 
-	forbiddenSymbolForQuoteless = "{" | "}" | "," | "\"" | "'" | nullLiteral
+	forbiddenSymbolForQuoteless = "{" | "}" | "," | "\""  | nullLiteral
 }

@@ -36,7 +36,7 @@ semantics.addOperation('parseArray', {
 	},
 
 	quotelessString(string) {
-		return string.sourceString;
+		return string.sourceString.replace("''", "'");
 	},
 
 	nullLiteral(_) {
