@@ -353,11 +353,11 @@ export const fromDrizzleSchema = (
 			entityType: 'views',
 			name,
 			definition: query ? dialect.sqlToQuery(query).sql : '',
-			checkOption: checkOption ?? null,
-			encryption: encryption ?? null,
+			checkOption: checkOption ?? false, // defaut
+			encryption: encryption ?? false, // default
 			schema,
-			schemaBinding: schemaBinding ?? null,
-			viewMetadata: viewMetadata ?? null,
+			schemaBinding: schemaBinding ?? false, // default
+			viewMetadata: viewMetadata ?? false, // default
 		});
 	}
 

@@ -17,11 +17,9 @@ import {
 	MssqlEntities,
 	PrimaryKey,
 	Schema,
-	// tableFromDDL,
 	UniqueConstraint,
 	View,
 } from './ddl';
-import { defaultNameForDefault, defaultNameForFK, defaultNameForPK, defaultNameForUnique } from './grammar';
 import { JsonStatement, prepareStatement } from './statements';
 
 export const ddlDiffDry = async (ddlFrom: MssqlDDL, ddlTo: MssqlDDL, mode: 'default' | 'push') => {
@@ -418,8 +416,6 @@ export const ddlDiff = async (
 		});
 	}
 
-	const jsonRenameFks = fksRenames.map((it) => prepareStatement('rename_fk', { from: it.from, to: it.to }));
-
 	const viewsDiff = diff(ddl1, ddl2, 'views');
 
 	const {
@@ -536,8 +532,8 @@ export const ddlDiff = async (
 	const columnAlters = alters.filter((it) => it.entityType === 'columns').filter((it) => Object.keys(it).length > 5); // $difftype, entitytype, schema, table, name
 
 	const columnsToRecreate = columnAlters.filter((it) => it.generated).filter((it) => {
-		// if push and definition changed
-		return !(it.generated?.to && it.generated.from && mode === 'push');
+		return !(mode === 'push' && it.generated && it.generated.from && it.generated.to
+			&& it.generated.from.as !== it.generated.to.as && it.generated.from.type === it.generated.to.type);
 	});
 
 	const jsonRecreateColumns = columnsToRecreate.map((it) =>
@@ -717,7 +713,20 @@ export const ddlDiff = async (
 	const jsonRenamedCheckConstraints = checkRenames.map((it) =>
 		prepareStatement('rename_check', { from: it.from, to: it.to })
 	);
-	const alteredChecks = alters.filter((it) => it.entityType === 'checks').filter(checkIdentityFilter('created')).filter(
+
+	const filteredChecksAlters = alters.filter((it) => it.entityType === 'checks').filter(
+		(it): it is DiffEntities['checks'] => {
+			if (it.entityType !== 'checks') return false;
+
+			if (it.value && mode === 'push') {
+				delete it.value;
+			}
+
+			return ddl2.checks.hasDiff(it);
+		},
+	);
+
+	const alteredChecks = filteredChecksAlters.filter(checkIdentityFilter('created')).filter(
 		checkIdentityFilter('deleted'),
 	);
 	alteredChecks.forEach((it) => {
@@ -806,7 +815,7 @@ export const ddlDiff = async (
 
 	// filter identity
 	const fksIdentityFilter = (type: 'created' | 'deleted') => {
-		return (it: ForeignKey) => {
+		return (it: ForeignKey | DiffEntities['fks']) => {
 			return !jsonRecreateIdentityColumns.some((column) => {
 				const constraints = type === 'created' ? column.constraintsToCreate : column.constraintsToDelete;
 
@@ -819,12 +828,34 @@ export const ddlDiff = async (
 			});
 		};
 	};
-	const jsonCreateReferences = fksCreates.filter(fksIdentityFilter('created')).map((it) =>
-		prepareStatement('create_fk', { fk: it })
-	);
-	const jsonDropReferences = fksDeletes.filter(fksIdentityFilter('deleted')).map((it) =>
+	const jsonCreateReferences = fksCreates.filter(fksIdentityFilter('created')).map((
+		it,
+	) => prepareStatement('create_fk', { fk: it }));
+	const jsonDropReferences = fksDeletes.filter(tablesFilter('deleted')).filter(fksIdentityFilter('deleted')).map((it) =>
 		prepareStatement('drop_fk', { fk: it })
 	);
+	const jsonRenameReferences = fksRenames.map((it) =>
+		prepareStatement('rename_fk', {
+			from: it.from,
+			to: it.to,
+		})
+	);
+	alters.filter((it) => it.entityType === 'fks').filter((x) => {
+		if (
+			x.nameExplicit
+			&& ((mode === 'push' && x.nameExplicit.from && !x.nameExplicit.to)
+				|| x.nameExplicit.to && !x.nameExplicit.from)
+		) {
+			delete x.nameExplicit;
+		}
+
+		return ddl2.fks.hasDiff(x);
+	}).filter(fksIdentityFilter('created')).filter(
+		fksIdentityFilter('deleted'),
+	).forEach((it) => {
+		jsonDropReferences.push(prepareStatement('drop_fk', { fk: it.$left }));
+		jsonCreateReferences.push(prepareStatement('create_fk', { fk: it.$right }));
+	});
 
 	// filter identity
 	const indexesIdentityFilter = (type: 'created' | 'deleted') => {
@@ -874,11 +905,14 @@ export const ddlDiff = async (
 		prepareStatement('move_view', { fromSchema: it.from.schema, toSchema: it.to.schema, view: it.to })
 	);
 
-	const filteredViewAlters = alters.filter((it) => it.entityType === 'views').map((it) => {
+	const filteredViewAlters = alters.filter((it): it is DiffEntities['views'] => {
+		if (it.entityType !== 'views') return false;
+
 		if (it.definition && mode === 'push') {
 			delete it.definition;
 		}
-		return it;
+
+		return ddl2.views.hasDiff(it);
 	});
 
 	const viewsAlters = filteredViewAlters.map((it) => {
@@ -947,7 +981,6 @@ export const ddlDiff = async (
 
 	jsonStatements.push(...jsonCreateReferences);
 	jsonStatements.push(...jsonCreateDefaults);
-	jsonStatements.push(...jsonRenameFks);
 	jsonStatements.push(...jsonCreateIndexes);
 	jsonStatements.push(...jsonRenameIndex);
 
@@ -957,6 +990,7 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonCreatedCheckConstraints);
 	jsonStatements.push(...jsonRenamedCheckConstraints);
 	jsonStatements.push(...jsonRenameUniqueConstraints);
+	jsonStatements.push(...jsonRenameReferences);
 	jsonStatements.push(...jsonRenameDefaults);
 
 	jsonStatements.push(...createViews);

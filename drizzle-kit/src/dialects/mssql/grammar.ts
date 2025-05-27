@@ -1,7 +1,7 @@
 import { escapeSingleQuotes } from 'src/utils';
 import { assertUnreachable } from '../../utils';
-import { hash } from '../common';
 import { DefaultConstraint, MssqlEntities } from './ddl';
+import { hash } from './utils';
 
 export const defaultNameForPK = (table: string) => {
 	const desired = `${table}_pkey`;

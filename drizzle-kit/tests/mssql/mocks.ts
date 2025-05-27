@@ -53,12 +53,14 @@ export const drizzleToDDL = (
 
 // 2 schemas -> 2 ddls -> diff
 export const diff = async (
-	left: MssqlSchema,
+	left: MssqlSchema | MssqlDDL,
 	right: MssqlSchema,
 	renamesArr: string[],
 	casing?: CasingType | undefined,
 ) => {
-	const { ddl: ddl1, errors: err1 } = drizzleToDDL(left, casing);
+	const { ddl: ddl1, errors: err1 } = 'entities' in left && '_' in left
+		? { ddl: left as MssqlDDL, errors: [] }
+		: drizzleToDDL(left, casing);
 	const { ddl: ddl2, errors: err2 } = drizzleToDDL(right, casing);
 
 	if (err1.length > 0 || err2.length > 0) {
@@ -82,7 +84,8 @@ export const diff = async (
 		mockResolver(renames), // defaults
 		'default',
 	);
-	return { sqlStatements, statements, groupedStatements };
+
+	return { sqlStatements, statements, groupedStatements, next: ddl2 };
 };
 
 export const diffIntrospect = async (
