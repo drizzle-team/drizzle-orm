@@ -81,7 +81,7 @@ export const handle = async (config: GenerateConfig) => {
 export const handleExport = async (config: ExportConfig) => {
 	const filenames = prepareFilenames(config.schema);
 	const res = await prepareFromSchemaFiles(filenames);
-	const { schema } = fromDrizzleSchema(res, undefined);
+	const { schema } = fromDrizzleSchema(res, config.casing);
 	const { ddl } = interimToDDL(schema);
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
 	console.log(sqlStatements.join('\n'));

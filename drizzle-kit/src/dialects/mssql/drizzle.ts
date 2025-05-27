@@ -12,9 +12,9 @@ import {
 } from 'drizzle-orm/mssql-core';
 import { CasingType } from 'src/cli/validations/common';
 import { safeRegister } from 'src/utils/utils-node';
+import { getColumnCasing, sqlToStr } from '../drizzle';
 import { DefaultConstraint, InterimSchema, MssqlEntities, Schema } from './ddl';
 import { defaultNameForDefault, defaultNameForFK, defaultNameForPK, defaultNameForUnique } from './grammar';
-import { getColumnCasing, sqlToStr } from '../drizzle';
 
 export const upper = <T extends string>(value: T | undefined): Uppercase<T> | null => {
 	if (!value) return null;
@@ -25,26 +25,48 @@ export const defaultFromColumn = (
 	column: AnyMsSqlColumn,
 	casing?: Casing,
 ): DefaultConstraint['default'] | null => {
-	if (typeof column.default === 'undefined') return null;
+	const def = column.default;
+	if (typeof def === 'undefined') return null;
 
-	// return { value: String(column.default), type: 'unknown' };
-
-	// TODO skip
-	// const sqlTypeLowered = column.getSQLType().toLowerCase();
-	if (is(column.default, SQL)) {
-		let str = sqlToStr(column.default, casing);
+	if (is(def, SQL)) {
+		let str = sqlToStr(def, casing);
 
 		return { value: str, type: 'unknown' };
 	}
 
 	const sqlType = column.getSQLType();
 	if (sqlType === 'bit') {
-		return { value: String(column.default ? 1 : 0), type: 'number' };
+		return { value: String(column.default), type: 'boolean' };
 	}
 
 	const type = typeof column.default;
 	if (type === 'string' || type === 'number' || type === 'bigint' || type === 'boolean') {
 		return { value: String(column.default), type: type };
+	}
+
+	if (sqlType.startsWith('binary') || sqlType.startsWith('varbinary')) {
+		return { value: String(column.default), type: 'buffer' };
+	}
+
+	if (def instanceof Date) {
+		if (sqlType === 'date') {
+			return {
+				value: def.toISOString().split('T')[0],
+				type: 'string',
+			};
+		}
+
+		if (sqlType === 'datetime' || sqlType === 'datetime2') {
+			return {
+				value: def.toISOString().replace('T', ' ').replace('Z', ''),
+				type: 'string',
+			};
+		}
+
+		return {
+			value: def.toISOString(),
+			type: 'string',
+		};
 	}
 
 	throw new Error(`unexpected default: ${column.default}`);
@@ -122,7 +144,7 @@ export const fromDrizzleSchema = (
 
 		for (const column of columns) {
 			const columnName = getColumnCasing(column, casing);
-			const notNull: boolean = column.notNull;
+			const notNull: boolean = column.notNull || Boolean(column.generated);
 			const sqlType = column.getSQLType();
 
 			// @ts-expect-error
@@ -153,10 +175,8 @@ export const fromDrizzleSchema = (
 				table: tableName,
 				name: columnName,
 				type: sqlType,
-				notNull: notNull
-					&& !column.primary
-					&& !column.generated
-					&& !identity,
+				pkName: null,
+				notNull: notNull,
 				// @ts-expect-error
 				// TODO update description
 				// 'virtual' | 'stored' for all dialects
@@ -270,9 +290,9 @@ export const fromDrizzleSchema = (
 				columns: columns.map((it) => {
 					if (is(it, SQL)) {
 						const sql = dialect.sqlToQuery(it, 'indexes').sql;
-						return { value: sql, isExpression: true };
+						return sql;
 					} else {
-						return { value: `${getColumnCasing(it, casing)}`, isExpression: false };
+						return getColumnCasing(it, casing);
 					}
 				}),
 				isUnique: index.config.unique ?? false,
@@ -290,7 +310,7 @@ export const fromDrizzleSchema = (
 				table: tableName,
 				schema,
 				name,
-				value: dialect.sqlToQuery(value).sql,
+				value: dialect.sqlToQuery(value, 'mssql-check').sql,
 				nameExplicit: true,
 			});
 		}
@@ -333,11 +353,11 @@ export const fromDrizzleSchema = (
 			entityType: 'views',
 			name,
 			definition: query ? dialect.sqlToQuery(query).sql : '',
-			checkOption: checkOption ?? null,
-			encryption: encryption ?? null,
+			checkOption: checkOption ?? false, // defaut
+			encryption: encryption ?? false, // default
 			schema,
-			schemaBinding: schemaBinding ?? null,
-			viewMetadata: viewMetadata ?? null,
+			schemaBinding: schemaBinding ?? false, // default
+			viewMetadata: viewMetadata ?? false, // default
 		});
 	}
 

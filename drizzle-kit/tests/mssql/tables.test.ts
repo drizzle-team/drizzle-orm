@@ -242,7 +242,6 @@ test('multiproject schema alter table name #1', async () => {
 	]);
 	expect(sqlStatements).toStrictEqual([
 		"EXEC sp_rename 'prefix_users', [prefix_users1];",
-		"EXEC sp_rename 'prefix_users_pkey', [prefix_users1_pkey], 'OBJECT';",
 	]);
 });
 

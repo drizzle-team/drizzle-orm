@@ -8,8 +8,7 @@ export const pushParams = object({
 	schema: union([string(), string().array()]),
 	tablesFilter: union([string(), string().array()]).optional(),
 	schemaFilter: union([string(), string().array()])
-		.optional()
-		.default(['public']),
+		.optional(),
 	extensionsFilters: literal('postgis').array().optional(),
 	verbose: boolean().optional(),
 	strict: boolean().optional(),
@@ -30,8 +29,7 @@ export const pullParams = object({
 	out: string().optional().default('drizzle'),
 	tablesFilter: union([string(), string().array()]).optional(),
 	schemaFilter: union([string(), string().array()])
-		.optional()
-		.default(['public']),
+		.optional(),
 	extensionsFilters: literal('postgis').array().optional(),
 	casing,
 	breakpoints: boolean().optional().default(true),

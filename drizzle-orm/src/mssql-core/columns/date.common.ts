@@ -10,8 +10,8 @@ export abstract class MsSqlDateColumnBaseBuilder<
 > extends MsSqlColumnBuilder<T, TRuntimeConfig, TExtraConfig> {
 	static override readonly [entityKind]: string = 'MsSqlDateColumnBuilder';
 
-	defaultCurrentTimestamp() {
-		return this.default(sql`CURRENT_TIMESTAMP`);
+	defaultGetDate() {
+		return this.default(sql`GETDATE()`);
 	}
 }
 
