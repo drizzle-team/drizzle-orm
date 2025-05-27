@@ -5,11 +5,13 @@ PGArray {
 
     stringLiteral 
     =   "'" ((~"'" any) | "''")* "'"   --  SingleQuotes
-    |   "\"" ((~"\"" any) | "\\\"")* "\""  --  DoubleQuotes
+    |   "\"" ((~("\"" | escapedSymbol) any) | escapedSymbol)* "\""  --  DoubleQuotes
     
     quotelessString = (~forbiddenSymbolForQuoteless any)+
 
-    nullLiteral = "NULL" 
-    
-	forbiddenSymbolForQuoteless = "{" | "}" | "," | "\"" | "`" | nullLiteral
+	escapedSymbol = "\\" any 
+
+    nullLiteral = "NULL"
+
+	forbiddenSymbolForQuoteless = "{" | "}" | "," | "\"" | "'" | nullLiteral
 }

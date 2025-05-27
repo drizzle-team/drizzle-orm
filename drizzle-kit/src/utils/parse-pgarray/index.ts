@@ -32,8 +32,7 @@ semantics.addOperation('parseArray', {
 	},
 
 	stringLiteral_SingleQuotes(lQuote, string, rQuote) {
-		// TBD - handle escaped quotes
-		return JSON.parse('"' + string.sourceString + '"');
+		return string.sourceString.replace("''", "'");
 	},
 
 	quotelessString(string) {
