@@ -3,9 +3,7 @@ PGArray {
 
     ArrayItem = stringLiteral | quotelessString | nullLiteral | Array
 
-    stringLiteral 
-    =   "'" ((~"'" any) | "''")* "'"   --  SingleQuotes
-    |   "\"" ((~("\"" | escapedSymbol) any) | escapedSymbol)* "\""  --  DoubleQuotes
+    stringLiteral = "\"" ((~("\"" | escapedSymbol) any) | escapedSymbol)* "\""
     
     quotelessString = (~forbiddenSymbolForQuoteless any)+
 

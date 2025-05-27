@@ -27,12 +27,8 @@ semantics.addOperation('parseArray', {
 		return undefined;
 	},
 
-	stringLiteral_DoubleQuotes(lQuote, string, rQuote) {
-		return JSON.parse('"' + string.sourceString + '"');
-	},
-
-	stringLiteral_SingleQuotes(lQuote, string, rQuote) {
-		return string.sourceString.replace("''", "'");
+	stringLiteral(lQuote, string, rQuote) {
+		return JSON.parse('"' + string.sourceString.replace("''", "'") + '"');
 	},
 
 	quotelessString(string) {
