@@ -212,10 +212,10 @@ const createView = convertor('create_view', (st) => {
 
 	let statement = `CREATE `;
 	statement += st.replace ? `OR REPLACE ` : ''; // NO replace was in the code
-	statement += algorithm ? `ALGORITHM = ${algorithm}\n` : '';
-	statement += sqlSecurity ? `SQL SECURITY ${sqlSecurity}\n` : '';
+	statement += algorithm ? `ALGORITHM = ${algorithm} ` : '';
+	statement += sqlSecurity ? `SQL SECURITY ${sqlSecurity} ` : '';
 	statement += `VIEW \`${name}\` AS (${definition})`;
-	statement += withCheckOption ? `\nWITH ${withCheckOption} CHECK OPTION` : '';
+	statement += withCheckOption ? ` WITH ${withCheckOption} CHECK OPTION` : '';
 
 	statement += ';';
 
@@ -234,10 +234,10 @@ const alterView = convertor('alter_view', (st) => {
 	const { name, definition, withCheckOption, algorithm, sqlSecurity } = st.view;
 
 	let statement = `ALTER `;
-	statement += `ALGORITHM = ${algorithm}\n`;
-	statement += `SQL SECURITY ${sqlSecurity}\n`;
+	statement += `ALGORITHM = ${algorithm} `;
+	statement += `SQL SECURITY ${sqlSecurity} `;
 	statement += `VIEW \`${name}\` AS ${definition}`;
-	statement += withCheckOption ? `\nWITH ${withCheckOption} CHECK OPTION` : '';
+	statement += withCheckOption ? ` WITH ${withCheckOption} CHECK OPTION` : '';
 	statement += ';';
 
 	return statement;
