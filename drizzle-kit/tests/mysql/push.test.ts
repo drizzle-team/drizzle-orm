@@ -317,9 +317,7 @@ test('create view', async () => {
 	const { sqlStatements } = await diffPush({ db, init: schema1, destination: schema2 });
 
 	expect(sqlStatements).toStrictEqual([
-		`CREATE ALGORITHM = undefined
-SQL SECURITY definer
-VIEW \`view\` AS (select \`id\` from \`test\`);`,
+		`CREATE ALGORITHM = undefined SQL SECURITY definer VIEW \`view\` AS (select \`id\` from \`test\`);`,
 	]);
 });
 
@@ -361,7 +359,9 @@ test('alter view ".as"', async () => {
 
 	const { sqlStatements } = await diffPush({ db, init: schema1, destination: schema2 });
 
-	expect(sqlStatements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([
+		'ALTER ALGORITHM = undefined SQL SECURITY definer VIEW `view` AS select `id` from `test`;',
+	]);
 });
 
 test('alter meta options with distinct in definition', async () => {
@@ -503,37 +503,24 @@ test('alter generated', async () => {
 	const schema1 = {
 		users: mysqlTable('users', {
 			id: int('id'),
-			id2: int('id2'),
-			name: text('name'),
-			generatedName: text('gen_name').generatedAlwaysAs(
-				(): SQL => sql`${schema2.users.name}`,
-				{ mode: 'stored' },
-			),
-			generatedName1: text('gen_name1').generatedAlwaysAs(
-				(): SQL => sql`${schema2.users.name}`,
-				{ mode: 'virtual' },
-			),
+			gen1: text().generatedAlwaysAs((): SQL => sql`${schema1.users.id}`, { mode: 'stored' }),
+			gen2: text().generatedAlwaysAs((): SQL => sql`${schema1.users.id}`, { mode: 'virtual' }),
 		}),
 	};
+
 	const schema2 = {
 		users: mysqlTable('users', {
 			id: int('id'),
-			id2: int('id2'),
-			name: text('name'),
-			generatedName: text('gen_name').generatedAlwaysAs(
-				(): SQL => sql`${schema2.users.name} || 'hello'`,
-				{ mode: 'stored' },
-			),
-			generatedName1: text('gen_name1').generatedAlwaysAs(
-				(): SQL => sql`${schema2.users.name} || 'hello'`,
-				{ mode: 'virtual' },
-			),
+			gen1: text().generatedAlwaysAs((): SQL => sql`${schema2.users.id} || 'hello'`, { mode: 'stored' }),
+			gen2: text().generatedAlwaysAs((): SQL => sql`${schema2.users.id} || 'hello'`, { mode: 'virtual' }),
 		}),
 	};
 
 	const { sqlStatements } = await diffPush({ db, init: schema1, destination: schema2 });
-
-	expect(sqlStatements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([
+		"ALTER TABLE `users` MODIFY COLUMN `gen1` text GENERATED ALWAYS AS (`users`.`id` || 'hello') STORED;",
+		"ALTER TABLE `users` MODIFY COLUMN `gen2` text GENERATED ALWAYS AS (`users`.`id` || 'hello') VIRTUAL;",
+	]);
 });
 
 test('composite pk', async () => {

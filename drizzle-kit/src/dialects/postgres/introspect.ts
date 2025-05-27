@@ -627,6 +627,10 @@ export const fromDatabase = async (
 			columnDefault?.expression,
 			column.dimensions,
 		);
+		console.log("----")
+		console.log(defaultValue, columnDefault?.expression)		
+		console.log("---\n")
+
 
 		columnTypeMapped = columnTypeMapped
 			.replace('character varying', 'varchar')

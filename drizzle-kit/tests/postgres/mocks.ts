@@ -33,11 +33,12 @@ import '../../src/@types/utils';
 import { PGlite } from '@electric-sql/pglite';
 import { pg_trgm } from '@electric-sql/pglite/contrib/pg_trgm';
 import { vector } from '@electric-sql/pglite/vector';
-import { rmSync, writeFileSync } from 'fs';
+import { existsSync, rmSync, writeFileSync } from 'fs';
 import { introspect } from 'src/cli/commands/pull-postgres';
 import { suggestions } from 'src/cli/commands/push-postgres';
 import { Entities } from 'src/cli/validations/cli';
 import { EmptyProgressView } from 'src/cli/views';
+import { hash } from 'src/dialects/common';
 import { defaultToSQL, isSystemNamespace, isSystemRole } from 'src/dialects/postgres/grammar';
 import { fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
 import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
@@ -354,6 +355,27 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	const expectedInit = `CREATE TABLE "table" (\n\t"column" ${sqlType} DEFAULT ${expectedDefault}\n);\n`;
 	if (st1.length !== 1 || st1[0] !== expectedInit) res.push(`Unexpected init:\n${st1}\n\n${expectedInit}`);
 	if (st2.length > 0) res.push(`Unexpected subsequent init:\n${st2}`);
+
+	// introspect to schema
+	const schema = await fromDatabaseForDrizzle(db);
+	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
+
+	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel', 'pg');
+	const path = `tests/postgres/tmp/temp-${hash(String(Math.random()))}.ts`;
+
+	if (existsSync(path)) rmSync(path);
+	writeFileSync(path, file.file);
+
+	const response = await prepareFromSchemaFiles([path]);
+	const { schema: sch } = fromDrizzleSchema(response, 'camelCase');
+	const { ddl: ddl2, errors: e3 } = interimToDDL(sch);
+
+	const { sqlStatements: afterFileSqlStatements } = await ddlDiffDry(ddl1, ddl2, 'push');
+	if (afterFileSqlStatements.length === 0) {
+		// rmSync(path);
+	}else{
+		
+	}
 
 	await clear();
 

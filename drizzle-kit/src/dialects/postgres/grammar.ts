@@ -153,6 +153,10 @@ export function buildArrayString(array: any[], sqlType: string): string {
 				return `"${JSON.stringify(value).replaceAll('"', '\\"')}"`;
 			}
 
+			if (typeof value === 'string') {
+				return `"${value.replaceAll("'", "''")}"`;
+			}
+
 			return `"${value}"`;
 		})
 		.join(',');
@@ -387,31 +391,31 @@ export const defaultForColumn = (
 
 	if (dimensions > 0) {
 		let trimmed = value.trimChar("'"); // '{10,20}' -> {10,20}
-		if (
-			['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(type)
-			|| type.startsWith('timestamp') || type.startsWith('interval')
-			|| type === 'line' || type === 'point'
-			|| type.startsWith('numeric')
-		) {
-			return { value: trimmed, type: 'array' };
-		}
+		// if (
+		// 	['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(type)
+		// 	|| type.startsWith('timestamp') || type.startsWith('interval')
+		// 	|| type === 'line' || type === 'point'
+		// 	|| type.startsWith('numeric')
+		// ) {
+		return { value: trimmed, type: 'array' };
+		// }
 
-		trimmed = trimmed.substring(1, trimmed.length - 1); // {10.10,20.20} -> 10.10,20.20
-		const values = trimmed
-			.split(/\s*,\s*/g)
-			.filter((it) => it !== '')
-			.map((value) => {
-				if (type === 'boolean') {
-					return value === 't' ? 'true' : 'false';
-				} else if (['json', 'jsonb'].includes(type)) {
-					return JSON.stringify(JSON.stringify(JSON.parse(JSON.parse(value)), null, 0));
-				} else {
-					return `\"${value}\"`;
-				}
-			});
+		// trimmed = trimmed.substring(1, trimmed.length - 1); // {10.10,20.20} -> 10.10,20.20
+		// const values = trimmed
+		// 	.split(/\s*,\s*/g)
+		// 	.filter((it) => it !== '')
+		// 	.map((value) => {
+		// 		if (type === 'boolean') {
+		// 			return value === 't' ? 'true' : 'false';
+		// 		} else if (['json', 'jsonb'].includes(type)) {
+		// 			return JSON.stringify(JSON.stringify(JSON.parse(JSON.parse(value)), null, 0));
+		// 		} else {
+		// 			return `\"${value}\"`;
+		// 		}
+		// 	});
 
-		const res = `{${values.join(',')}}`;
-		return { value: res, type: 'array' };
+		// const res = `{${values.join(',')}}`;
+		// return { value: res, type: 'array' };
 	}
 
 	// 'text', potentially with escaped double quotes ''
