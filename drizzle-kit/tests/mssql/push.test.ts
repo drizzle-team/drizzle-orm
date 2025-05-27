@@ -1,29 +1,9 @@
-import {
-	bigint,
-	bit,
-	char,
-	check,
-	date,
-	index,
-	int,
-	mssqlSchema,
-	mssqlTable,
-	mssqlView,
-	numeric,
-	primaryKey,
-	real,
-	smallint,
-	text,
-	time,
-	uniqueIndex,
-	varchar,
-} from 'drizzle-orm/mssql-core';
-import { eq, SQL, sql } from 'drizzle-orm/sql';
+import { bigint, check, foreignKey, int, mssqlTable, mssqlView, smallint, text, varchar } from 'drizzle-orm/mssql-core';
+import { eq, sql } from 'drizzle-orm/sql';
 // import { suggestions } from 'src/cli/commands/push-mssql';
 import { DB } from 'src/utils';
 import { diff, prepareTestDatabase, push, TestDatabase } from 'tests/mssql/mocks';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { DialectSuite, run } from '../push/common';
 
 // @vitest-environment-options {"max-concurrency":1}
 let _: TestDatabase;
@@ -196,229 +176,6 @@ test('drop identity from a column - no params', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-// test('drop identity from a column - few params', async () => {
-// 	const schema1 = {
-// 		users: mssqlTable('users', {
-// 			id: int('id').identity({ name: 'custom_name' }),
-// 			id1: int('id1').identity({
-// 				name: 'custom_name1',
-// 				increment: 4,
-// 			}),
-// 			id2: int('id2').generatedAlwaysAsIdentity({
-// 				name: 'custom_name2',
-// 				increment: 4,
-// 			}),
-// 		}),
-// 	};
-
-// 	const schema2 = {
-// 		users: mssqlTable('users', {
-// 			id: int('id'),
-// 			id1: int('id1'),
-// 			id2: int('id2'),
-// 		}),
-// 	};
-
-// 	const { sqlStatements: st } = await diff(schema1, schema2, []);
-
-// 	await push({ db, to: schema1 });
-// 	const { sqlStatements: pst } = await push({
-// 		db,
-// 		to: schema2,
-// 	});
-
-// 	const st0: string[] = [
-// 		`ALTER TABLE \"users\" ALTER COLUMN \"id\" DROP IDENTITY;`,
-// 		'ALTER TABLE "users" ALTER COLUMN "id1" DROP IDENTITY;',
-// 		'ALTER TABLE "users" ALTER COLUMN "id2" DROP IDENTITY;',
-// 	];
-// 	expect(st).toStrictEqual(st0);
-// 	expect(pst).toStrictEqual(st0);
-// });
-
-// test('drop identity from a column - all params', async () => {
-// 	const schema1 = {
-// 		users: mssqlTable('users', {
-// 			id: int('id').identity(),
-// 			id1: int('id1').identity({
-// 				name: 'custom_name1',
-// 				startWith: 10,
-// 				minValue: 10,
-// 				maxValue: 1000,
-// 				cycle: true,
-// 				cache: 10,
-// 				increment: 2,
-// 			}),
-// 			id2: int('id2').generatedAlwaysAsIdentity({
-// 				name: 'custom_name2',
-// 				startWith: 10,
-// 				minValue: 10,
-// 				maxValue: 1000,
-// 				cycle: true,
-// 				cache: 10,
-// 				increment: 2,
-// 			}),
-// 		}),
-// 	};
-
-// 	const schema2 = {
-// 		users: mssqlTable('users', {
-// 			id: int('id'),
-// 			id1: int('id1'),
-// 			id2: int('id2'),
-// 		}),
-// 	};
-
-// 	const { sqlStatements: st } = await diff(schema1, schema2, []);
-
-// 	await push({ db, to: schema1 });
-// 	const { sqlStatements: pst } = await push({
-// 		db,
-// 		to: schema2,
-// 	});
-
-// 	const st0: string[] = [
-// 		`ALTER TABLE \"users\" ALTER COLUMN \"id\" DROP IDENTITY;`,
-// 		'ALTER TABLE "users" ALTER COLUMN "id1" DROP IDENTITY;',
-// 		'ALTER TABLE "users" ALTER COLUMN "id2" DROP IDENTITY;',
-// 	];
-// 	expect(st).toStrictEqual(st0);
-// 	expect(pst).toStrictEqual(st0);
-// });
-
-// test('alter identity from a column - no params', async () => {
-// 	const schema1 = {
-// 		users: mssqlTable('users', {
-// 			id: int('id').identity(),
-// 		}),
-// 	};
-
-// 	const schema2 = {
-// 		users: mssqlTable('users', {
-// 			id: int('id').identity({ startWith: 100 }),
-// 		}),
-// 	};
-
-// 	const { sqlStatements: st } = await diff(schema1, schema2, []);
-
-// 	await push({ db, to: schema1 });
-// 	const { sqlStatements: pst } = await push({
-// 		db,
-// 		to: schema2,
-// 	});
-
-// 	const st0: string[] = [
-// 		'ALTER TABLE "users" ALTER COLUMN "id" SET START WITH 100;',
-// 	];
-// 	expect(st).toStrictEqual(st0);
-// 	expect(pst).toStrictEqual(st0);
-// });
-
-// test('alter identity from a column - few params', async () => {
-// 	const schema1 = {
-// 		users: mssqlTable('users', {
-// 			id: int('id').identity({ startWith: 100 }),
-// 		}),
-// 	};
-
-// 	const schema2 = {
-// 		users: mssqlTable('users', {
-// 			id: int('id').identity({
-// 				startWith: 100,
-// 				increment: 4,
-// 				maxValue: 10000,
-// 			}),
-// 		}),
-// 	};
-
-// 	const { sqlStatements: st } = await diff(schema1, schema2, []);
-
-// 	await push({ db, to: schema1 });
-// 	const { sqlStatements: pst } = await push({
-// 		db,
-// 		to: schema2,
-// 	});
-
-// 	const st0: string[] = [
-// 		'ALTER TABLE "users" ALTER COLUMN "id" SET MAXVALUE 10000;',
-// 		'ALTER TABLE "users" ALTER COLUMN "id" SET INCREMENT BY 4;',
-// 	];
-// 	expect(st).toStrictEqual(st0);
-// 	expect(pst).toStrictEqual(st0);
-// });
-
-// test('alter identity from a column - by default to always', async () => {
-// 	const schema1 = {
-// 		users: mssqlTable('users', {
-// 			id: int('id').identity({ startWith: 100 }),
-// 		}),
-// 	};
-
-// 	const schema2 = {
-// 		users: mssqlTable('users', {
-// 			id: int('id').generatedAlwaysAsIdentity({
-// 				startWith: 100,
-// 				increment: 4,
-// 				maxValue: 10000,
-// 			}),
-// 		}),
-// 	};
-
-// 	const { sqlStatements: st } = await diff(schema1, schema2, []);
-
-// 	await push({ db, to: schema1 });
-// 	const { sqlStatements: pst } = await push({
-// 		db,
-// 		to: schema2,
-// 	});
-
-// 	const st0: string[] = [
-// 		'ALTER TABLE "users" ALTER COLUMN "id" SET GENERATED ALWAYS;',
-// 		'ALTER TABLE "users" ALTER COLUMN "id" SET MAXVALUE 10000;',
-// 		'ALTER TABLE "users" ALTER COLUMN "id" SET INCREMENT BY 4;',
-// 	];
-// 	expect(st).toStrictEqual(st0);
-// 	expect(pst).toStrictEqual(st0);
-// });
-
-// test('alter identity from a column - always to by default', async () => {
-// 	const schema1 = {
-// 		users: mssqlTable('users', {
-// 			id: int('id').generatedAlwaysAsIdentity({ startWith: 100 }),
-// 		}),
-// 	};
-
-// 	const schema2 = {
-// 		users: mssqlTable('users', {
-// 			id: int('id').identity({
-// 				startWith: 100,
-// 				increment: 4,
-// 				maxValue: 10000,
-// 				cycle: true,
-// 				cache: 100,
-// 			}),
-// 		}),
-// 	};
-
-// 	const { sqlStatements: st } = await diff(schema1, schema2, []);
-
-// 	await push({ db, to: schema1 });
-// 	const { sqlStatements: pst } = await push({
-// 		db,
-// 		to: schema2,
-// 	});
-
-// 	const st0: string[] = [
-// 		'ALTER TABLE "users" ALTER COLUMN "id" SET GENERATED BY DEFAULT;',
-// 		'ALTER TABLE "users" ALTER COLUMN "id" SET MAXVALUE 10000;',
-// 		'ALTER TABLE "users" ALTER COLUMN "id" SET INCREMENT BY 4;',
-// 		'ALTER TABLE "users" ALTER COLUMN "id" SET CACHE 100;',
-// 		'ALTER TABLE "users" ALTER COLUMN "id" SET CYCLE;',
-// 	];
-// 	expect(st).toStrictEqual(st0);
-// 	expect(pst).toStrictEqual(st0);
-// });
-
 test('add column with identity - no params', async () => {
 	const schema1 = {
 		users: mssqlTable('users', {
@@ -448,37 +205,6 @@ test('add column with identity - no params', async () => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
-
-// test('add identity to column - all params', async () => {
-// 	const schema1 = {
-// 		users: mssqlTable('users', {
-// 			id: int('id'),
-// 			id1: int('id1'),
-// 		}),
-// 	};
-
-// 	const schema2 = {
-// 		users: mssqlTable('users', {
-// 			id: int('id').identity({ seed: 1, increment: 1 }),
-// 			id1: int('id1'),
-// 		}),
-// 	};
-
-// 	const { sqlStatements: st } = await diff(schema1, schema2, []);
-
-// 	await push({ db, to: schema1 });
-// 	const { sqlStatements: pst } = await push({
-// 		db,
-// 		to: schema2,
-// 	});
-
-// 	const st0: string[] = [
-// 		'ALTER TABLE "users" ALTER COLUMN "id" ADD GENERATED BY DEFAULT AS IDENTITY (sequence name "custom_name" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1);',
-// 		'ALTER TABLE "users" ALTER COLUMN "id1" ADD GENERATED ALWAYS AS IDENTITY (sequence name "custom_name1" INCREMENT BY 4 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1);',
-// 	];
-// 	expect(st).toStrictEqual(st0);
-// 	expect(pst).toStrictEqual(st0);
-// });
 
 test('create view', async () => {
 	const table = mssqlTable('test', {
@@ -573,6 +299,41 @@ test('drop check constraint', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+test('alter check constraint', async () => {
+	const schema1 = {
+		test: mssqlTable('test', {
+			id: int('id').primaryKey(),
+			values: int('values').default(1),
+		}, (table) => [
+			check('some_check', sql`${table.values} < 100`),
+		]),
+	};
+	const schema2 = {
+		test: mssqlTable('test', {
+			id: int('id').primaryKey(),
+			values: int('values').default(1),
+		}, (table) => [
+			check('some_check', sql`${table.values} < 10`),
+		]),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1, schemas: ['dbo'] });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		schemas: ['dbo'],
+	});
+
+	// Only diff should find changes
+	expect(st).toStrictEqual([
+		'ALTER TABLE [test] DROP CONSTRAINT [some_check];',
+		'ALTER TABLE [test] ADD CONSTRAINT [some_check] CHECK ([test].[values] < 10);',
+	]);
+	expect(pst).toStrictEqual([]);
+});
+
 test('db has checks. Push with same names', async () => {
 	const schema1 = {
 		test: mssqlTable('test', {
@@ -596,12 +357,11 @@ test('db has checks. Push with same names', async () => {
 		schemas: ['dbo'],
 	});
 
-	const st0: string[] = [
-		'ALTER TABLE [test] DROP CONSTRAINT [some_check];',
-		'ALTER TABLE [test] ADD CONSTRAINT [some_check] CHECK (1=1);',
-	];
-	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+	expect(st).toStrictEqual([
+		`ALTER TABLE [test] DROP CONSTRAINT [some_check];`,
+		`ALTER TABLE [test] ADD CONSTRAINT [some_check] CHECK (1=1);`,
+	]);
+	expect(pst).toStrictEqual([]);
 });
 
 test('drop view', async () => {
@@ -633,9 +393,7 @@ test('drop view', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-// TODO should be so?
-// Why not recreating, just skipping
-test.todo('push view with same name', async () => {
+test('alter view definition', async () => {
 	const table = mssqlTable('test', {
 		id: int('id').primaryKey(),
 	});
@@ -658,9 +416,11 @@ test.todo('push view with same name', async () => {
 		schemas: ['dbo'],
 	});
 
-	const st0: string[] = [];
-	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+	expect(st).toStrictEqual([
+		`DROP VIEW [view];`,
+		`CREATE VIEW [view] AS (select distinct [id] from [test] where [test].[id] = 1);`,
+	]);
+	expect(pst).toStrictEqual([]);
 });
 
 test('drop view with data', async () => {
@@ -970,4 +730,53 @@ test('fk multistep #2', async (t) => {
 
 	expect(st4).toStrictEqual(st04);
 	// expect(diffSt4).toStrictEqual(st04);
+});
+
+test('rename fk', async (t) => {
+	const refTable = mssqlTable('ref', {
+		id: int().identity(),
+		name: varchar().unique(),
+	});
+
+	const sch1 = {
+		refTable,
+		users: mssqlTable('users', {
+			name: varchar().unique(),
+		}, (t) => [foreignKey({ name: 'some', columns: [t.name], foreignColumns: [refTable.name] })]),
+	};
+
+	const { sqlStatements: diffSt1 } = await diff({}, sch1, []);
+	const { sqlStatements: st1 } = await push({ db, to: sch1, schemas: ['dbo'] });
+
+	const st01 = [
+		'CREATE TABLE [ref] (\n\t[id] int IDENTITY(1, 1),\n\t[name] varchar,\n\tCONSTRAINT [ref_name_key] UNIQUE([name])\n);\n',
+		'CREATE TABLE [users] (\n\t[name] varchar,\n\tCONSTRAINT [users_name_key] UNIQUE([name])\n);\n',
+		'ALTER TABLE [users] ADD CONSTRAINT [some] FOREIGN KEY ([name]) REFERENCES [ref]([name]);',
+	];
+
+	expect(st1).toStrictEqual(st01);
+	expect(diffSt1).toStrictEqual(st01);
+
+	const sch2 = {
+		refTable,
+		users: mssqlTable('users', {
+			name: varchar().unique(),
+		}, (t) => [foreignKey({ name: 'some_new', columns: [t.name], foreignColumns: [refTable.name] })]), // renamed fk
+	};
+
+	const renames = ['dbo.users.some->dbo.users.some_new'];
+	const { sqlStatements: diffSt2 } = await diff(sch1, sch2, renames);
+	const { sqlStatements: st2 } = await push({
+		db,
+		to: sch2,
+		renames,
+		schemas: ['dbo'],
+	});
+
+	const st02 = [
+		`EXEC sp_rename 'some', [some_new], 'OBJECT';`,
+	];
+
+	expect(st2).toStrictEqual(st02);
+	expect(diffSt2).toStrictEqual(st02);
 });

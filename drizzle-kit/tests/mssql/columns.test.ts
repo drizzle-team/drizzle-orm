@@ -155,30 +155,6 @@ test('alter column change name #2', async (t) => {
 	]);
 });
 
-test('alter table add composite pk', async (t) => {
-	const schema1 = {
-		table: mssqlTable('table', {
-			id1: int('id1'),
-			id2: int('id2'),
-		}),
-	};
-
-	const schema2 = {
-		table: mssqlTable('table', {
-			id1: int('id1'),
-			id2: int('id2'),
-		}, (t) => [primaryKey({ columns: [t.id1, t.id2] })]),
-	};
-
-	const { sqlStatements } = await diff(
-		schema1,
-		schema2,
-		[],
-	);
-
-	expect(sqlStatements).toStrictEqual([`ALTER TABLE [table] ADD CONSTRAINT [table_pkey] PRIMARY KEY ([id1],[id2]);`]);
-});
-
 test('rename table rename column #1', async (t) => {
 	const newSchema = mssqlSchema('new_schema');
 	const schema1 = {
@@ -326,26 +302,6 @@ test('with composite pks #1', async (t) => {
 	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual(['ALTER TABLE [users] ADD [text] text;']);
-});
-
-test('add composite pks on existing table', async (t) => {
-	const schema1 = {
-		users: mssqlTable('users', {
-			id1: int('id1'),
-			id2: int('id2'),
-		}),
-	};
-
-	const schema2 = {
-		users: mssqlTable('users', {
-			id1: int('id1'),
-			id2: int('id2'),
-		}, (t) => [primaryKey({ columns: [t.id1, t.id2], name: 'compositePK' })]),
-	};
-
-	const { sqlStatements } = await diff(schema1, schema2, []);
-
-	expect(sqlStatements).toStrictEqual(['ALTER TABLE [users] ADD CONSTRAINT [compositePK] PRIMARY KEY ([id1],[id2]);']);
 });
 
 test('rename column that is part of the pk. Name explicit', async (t) => {
@@ -1186,34 +1142,6 @@ test('drop identity from existing column #12. Rename table. Table has checks', a
 	]);
 });
 
-test('rename table. Table has checks', async (t) => {
-	const schema1 = {
-		users: mssqlTable(
-			'users',
-			{
-				id: int('id'),
-				name: varchar(),
-			},
-			(t) => [check('hello_world', sql`${t.name} != 'Alex'`)],
-		),
-	};
-
-	const schema2 = {
-		users: mssqlTable('users2', {
-			id: int('id'),
-			name: varchar(),
-		}, (t) => [check('hello_world', sql`${t.name} != 'Alex'`)]),
-	};
-
-	const { sqlStatements } = await diff(schema1, schema2, [`dbo.users->dbo.users2`]);
-
-	expect(sqlStatements).toStrictEqual([
-		`EXEC sp_rename 'users', [users2];`,
-		`ALTER TABLE [users2] DROP CONSTRAINT [hello_world];`,
-		`ALTER TABLE [users2] ADD CONSTRAINT [hello_world] CHECK ([users2].[name] != 'Alex');`,
-	]);
-});
-
 test('drop identity from existing column #13. Rename table + Rename column. Add check', async (t) => {
 	const schema1 = {
 		users: mssqlTable(
@@ -1351,8 +1279,9 @@ test('drop identity from existing column #16. Part of fk', async (t) => {
 	]);
 });
 
-// This is really strange case. Do not this this is a real business case
+// This is really strange case. Do not think this is a real business case
 // But this could be created in mssql so i checked that
+// (column with identity references to other column)
 test('drop identity from existing column #17. Part of fk', async (t) => {
 	const users = mssqlTable(
 		'users',

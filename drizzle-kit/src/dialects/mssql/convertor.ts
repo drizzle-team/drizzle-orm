@@ -344,8 +344,7 @@ const alterView = convertor('alter_view', (st) => {
 	const { definition, name, checkOption, encryption, schemaBinding, viewMetadata, schema } = st.view;
 
 	const key = schema === 'dbo' ? `[${name}]` : `[${schema}].[${name}]`;
-	let statement = `ALTER `;
-	statement += `VIEW ${key}`;
+	let statement = `ALTER VIEW ${key}`;
 
 	if (encryption || schemaBinding || viewMetadata) {
 		const options: string[] = [];
