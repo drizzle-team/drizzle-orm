@@ -44,7 +44,7 @@ semantics.addOperation('parseArray', {
 	},
 });
 
-export type ArrayValue = string | number | boolean | null | ArrayValue[];
+export type ArrayValue = string | null | ArrayValue[];
 
 export function parseArray(array: string) {
 	const match = PGArray.match(array, 'Array');
@@ -53,4 +53,14 @@ export function parseArray(array: string) {
 
 	const res = semantics(match)['parseArray']();
 	return res as ArrayValue[];
+}
+
+export function stringifyArrayValue(array: ArrayValue[], mapCallback: (v: string | null) => string): string {
+	return `[${
+		array.map((e) => {
+			if (Array.isArray(e)) return stringifyArrayValue(e, mapCallback);
+
+			return mapCallback(e);
+		}).join(', ')
+	}]`;
 }
