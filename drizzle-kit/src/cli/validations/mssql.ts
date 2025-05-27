@@ -5,24 +5,16 @@ import { outputs } from './outputs';
 
 export const mssqlCredentials = union([
 	object({
-		host: string().min(1),
-		port: coerce.number().min(1).optional(),
-		user: string().min(1).optional(),
-		password: string().min(1).optional(),
+		port: coerce.number().min(1),
+		user: string().min(1),
+		password: string().min(1),
 		database: string().min(1),
-		ssl: union([
-			string(),
-			object({
-				pfx: string().optional(),
-				key: string().optional(),
-				passphrase: string().optional(),
-				cert: string().optional(),
-				ca: union([string(), string().array()]).optional(),
-				crl: union([string(), string().array()]).optional(),
-				ciphers: string().optional(),
-				rejectUnauthorized: boolean().optional(),
-			}),
-		]).optional(),
+		server: string().min(1),
+
+		options: object({
+			encrypt: boolean().optional(),
+			trustServerCertificate: boolean().optional(),
+		}).optional(),
 	}),
 	object({
 		url: string().min(1),

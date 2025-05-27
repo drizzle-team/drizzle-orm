@@ -1,7 +1,7 @@
 import type { RunResult } from 'better-sqlite3';
 import type { ProxyParams } from '../cli/commands/studio';
-import type { Dialect } from './schemaValidator';
 import type { Config } from '../index';
+import type { Dialect } from './schemaValidator';
 
 export const originUUID = '00000000-0000-0000-0000-000000000000';
 export const BREAKPOINT = '--> statement-breakpoint\n';
@@ -83,7 +83,6 @@ export function unescapeSingleQuotes(str: string, ignoreFirstAndLastChar: boolea
 	const regex = ignoreFirstAndLastChar ? /(?<!^)'(?!$)/g : /'/g;
 	return str.replace(/''/g, "'").replace(regex, "\\'");
 }
-
 
 export const getTablesFilterByExtensions = ({
 	extensionsFilters,

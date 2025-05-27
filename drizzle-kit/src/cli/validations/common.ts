@@ -108,7 +108,7 @@ export const configCommonSchema = object({
 	verbose: boolean().optional().default(false),
 	driver: driver.optional(),
 	tablesFilter: union([string(), string().array()]).optional(),
-	schemaFilter: union([string(), string().array()]).default(['public']),
+	schemaFilter: union([string(), string().array()]).optional(),
 	migrations: configMigrations,
 	dbCredentials: any().optional(),
 	casing: casingType.optional(),

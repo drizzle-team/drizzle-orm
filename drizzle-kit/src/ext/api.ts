@@ -14,6 +14,7 @@ import { PostgresSnapshot, toJsonSnapshot } from '../dialects/postgres/snapshot'
 import type { Config } from '../index';
 import { originUUID } from '../utils';
 import type { DB, SQLiteDB } from '../utils';
+import { getTablesFilterByExtensions } from './extensions/getTablesFilterByExtensions';
 
 import * as postgres from './api-postgres';
 

@@ -1,7 +1,7 @@
 import Docker, { Container } from 'dockerode';
 import { is } from 'drizzle-orm';
 import { MySqlSchema, MySqlTable, MySqlView } from 'drizzle-orm/mysql-core';
-import { mkdirSync, writeFileSync } from 'fs';
+import { mkdirSync, rmSync, writeFileSync } from 'fs';
 import getPort from 'get-port';
 import { Connection, createConnection } from 'mysql2/promise';
 import { suggestions } from 'src/cli/commands/push-mysql';
@@ -93,7 +93,7 @@ export const introspect = async (
 		'push',
 	);
 
-	// rmSync(`tests/mysql/tmp/${testName}.ts`);
+	rmSync(`tests/mysql/tmp/${testName}.ts`);
 
 	return {
 		sqlStatements: afterFileSqlStatements,

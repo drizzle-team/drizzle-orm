@@ -555,14 +555,18 @@ export class MsSqlDialect {
 		}${outputSql} values ${valuesSql}`;
 	}
 
-	sqlToQuery(sql: SQL, invokeSource?: 'indexes' | undefined): QueryWithTypings {
-		return sql.toQuery({
+	sqlToQuery(
+		sql: SQL,
+		invokeSource?: 'indexes' | 'mssql-check',
+	): QueryWithTypings {
+		const res = sql.toQuery({
 			casing: this.casing,
 			escapeName: this.escapeName,
 			escapeParam: this.escapeParam,
 			escapeString: this.escapeString,
 			invokeSource,
 		});
+		return res;
 	}
 
 	buildRelationalQuery({
