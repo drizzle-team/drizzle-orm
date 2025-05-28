@@ -10,6 +10,7 @@ import {
 } from 'drizzle-orm/relations';
 import '../../@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
+import { parseArray } from 'src/utils/parse-pgarray';
 import { Casing } from '../../cli/validations/common';
 import { assertUnreachable } from '../../utils';
 import { unescapeSingleQuotes } from '../../utils';
@@ -983,7 +984,7 @@ const createViewColumns = (
 			enumTypes,
 			it.typeSchema ?? 'public',
 			casing,
-			null
+			null,
 		);
 		statement += '\t';
 		statement += columnStatement;
