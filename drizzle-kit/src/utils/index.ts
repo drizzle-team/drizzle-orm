@@ -115,3 +115,21 @@ export const prepareMigrationRenames = (
 		return `${schema1}${table1}${it.from.name}->${schema2}${table2}${it.to.name}`;
 	});
 };
+
+export type ArrayValue = unknown | null | ArrayValue[];
+
+export function stringifyArrayValue(
+	value: ArrayValue,
+	mode: 'sql' | 'ts',
+	mapCallback: (v: any | null, depth: number) => string,
+	depth: number = 0,
+): string {
+	if (!Array.isArray(value)) return mapCallback(value, depth);
+	depth += 1;
+
+	const res = value.map((e) => {
+		if (Array.isArray(e)) return stringifyArrayValue(e, mode, mapCallback);
+		return mapCallback(e, depth);
+	}).join(', ');
+	return mode === 'ts' ? `[${res}]` : `{${res}}`;
+}

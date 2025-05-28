@@ -149,7 +149,7 @@ const createTableConvertor = convertor('create_table', (st) => {
 			? `"${column.typeSchema}".`
 			: '';
 
-		const arr = column.dimensions > 0 ? '[]' : '';
+		const arr = column.dimensions > 0 ? '[]'.repeat(column.dimensions) : '';
 		const type = `${parseType(schemaPrefix, column.type)}${arr}`;
 
 		const generated = column.generated;
@@ -268,7 +268,7 @@ const addColumnConvertor = convertor('add_column', (st) => {
 		: '';
 
 	let fixedType = parseType(schemaPrefix, column.type);
-	fixedType += column.dimensions > 0 ? '[]' : '';
+	fixedType += column.dimensions > 0 ? '[]'.repeat(column.dimensions) : '';
 
 	const notNullStatement = column.notNull && !identity && !generated ? ' NOT NULL' : '';
 
@@ -348,7 +348,7 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 	if (diff.type) {
 		const typeSchema = column.typeSchema && column.typeSchema !== 'public' ? `"${column.typeSchema}".` : '';
 		const textProxy = wasEnum && isEnum ? 'text::' : ''; // using enum1::text::enum2
-		const arrSuffix = column.dimensions > 0 ? '[]' : '';
+		const arrSuffix = column.dimensions > 0 ? '[]'.repeat(column.dimensions) : '';
 		const suffix = isEnum ? ` USING "${column.name}"::${textProxy}${typeSchema}"${column.type}"${arrSuffix}` : '';
 		let type = diff.typeSchema?.to && diff.typeSchema.to !== 'public'
 			? `"${diff.typeSchema.to}"."${diff.type.to}"`
@@ -370,7 +370,7 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 	if (diff.default && !recreateDefault) {
 		if (diff.default.to) {
 			const typeSchema = column.typeSchema && column.typeSchema !== 'public' ? `"${column.typeSchema}".` : '';
-			const arrSuffix = column.dimensions > 0 ? '[]' : '';
+			const arrSuffix = column.dimensions > 0 ? '[]'.repeat(column.dimensions) : '';
 			const typeSuffix = isEnum ? `::${typeSchema}"${column.type}"${arrSuffix}` : '';
 
 			statements.push(
@@ -697,7 +697,7 @@ const recreateEnumConvertor = convertor('recreate_enum', (st) => {
 
 	for (const column of columns) {
 		const key = column.schema !== 'public' ? `"${column.schema}"."${column.table}"` : `"${column.table}"`;
-		const arr = column.dimensions > 0 ? '[]' : '';
+		const arr = column.dimensions > 0 ? '[]'.repeat(column.dimensions) : '';
 		const enumType = to.schema !== 'public' ? `"${to.schema}"."${to.name}"${arr}` : `"${to.name}"${arr}`;
 		statements.push(
 			`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${enumType} USING "${column.name}"::${enumType};`,

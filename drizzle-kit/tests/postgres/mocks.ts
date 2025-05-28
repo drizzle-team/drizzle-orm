@@ -373,8 +373,8 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	const { sqlStatements: afterFileSqlStatements } = await ddlDiffDry(ddl1, ddl2, 'push');
 	if (afterFileSqlStatements.length === 0) {
 		// rmSync(path);
-	}else{
-		
+	} else {
+		console.log(`./${path}`);
 	}
 
 	await clear();

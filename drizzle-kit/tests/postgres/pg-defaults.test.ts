@@ -263,7 +263,7 @@ test('boolean + boolean arrays', async () => {
 test('char + char arrays', async () => {
 	const res1 = await diffDefault(_, char({ length: 256 }).default('text'), `'text'`);
 	const res2 = await diffDefault(_, char({ length: 256 }).array().default([]), `'{}'::char(256)[]`);
-	const res3 = await diffDefault(_, char({ length: 256 }).array().default(['text']), `'{"text"}'::char(256)[]`);
+	const res3 = await diffDefault(_, char({ length: 256 }).array().default(['text']), `'{text}'::char(256)[]`);
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
@@ -277,7 +277,7 @@ test('varchar + varchar arrays', async () => {
 	const res4 = await diffDefault(_, varchar({ length: 10, enum: ['one', 'two', 'three'] }).default('one'), "'one'");
 
 	const res5 = await diffDefault(_, varchar({ length: 10 }).array().default([]), `'{}'::varchar(10)[]`);
-	const res6 = await diffDefault(_, varchar({ length: 10 }).array(1).default(['text']), `'{"text"}'::varchar(10)[]`);
+	const res6 = await diffDefault(_, varchar({ length: 10 }).array(1).default(['text']), `'{text}'::varchar(10)[]`);
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
@@ -294,7 +294,7 @@ test('text + text arrays', async () => {
 	const res4 = await diffDefault(_, text({ enum: ['one', 'two', 'three'] }).default('one'), "'one'");
 
 	const res5 = await diffDefault(_, text().array().default([]), `'{}'::text[]`);
-	const res6 = await diffDefault(_, text().array(1).default(['text']), `'{"text"}'::text[]`);
+	const res6 = await diffDefault(_, text().array(1).default(['text']), `'{text}'::text[]`);
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
@@ -320,7 +320,7 @@ test('json + json arrays', async () => {
 	const res8 = await diffDefault(
 		_,
 		json().array().default([{ key: "val'ue" }]),
-		`'{\"{\\\"key\\\":\\\"val''ue\\\"}\"}'::json[]`,
+		`'{"{\\"key\\":\\"val''ue\\"}"}'::json[]`,
 	);
 
 	expect.soft(res1).toStrictEqual([]);
@@ -494,7 +494,7 @@ test('uuid + uuid arrays', async () => {
 	const res4 = await diffDefault(
 		_,
 		uuid().array().default(['550e8400-e29b-41d4-a716-446655440000']),
-		`'{"550e8400-e29b-41d4-a716-446655440000"}'::uuid[]`,
+		`'{550e8400-e29b-41d4-a716-446655440000}'::uuid[]`,
 	);
 
 	expect.soft(res1).toStrictEqual([]);

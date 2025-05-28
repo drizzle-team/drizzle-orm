@@ -32,7 +32,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { CasingType } from 'src/cli/validations/common';
 import { safeRegister } from 'src/utils/utils-node';
-import { assertUnreachable } from '../../utils';
+import { assertUnreachable, stringifyArrayValue } from '../../utils';
 import { getColumnCasing } from '../drizzle';
 import { getOrNull } from '../utils';
 import type {
@@ -115,7 +115,7 @@ export const unwrapColumn = (column: AnyPgColumn) => {
 	let sqlBaseType = baseColumn.getSQLType();
 	sqlBaseType = sqlBaseType.startsWith('timestamp (') ? sqlBaseType.replace('timestamp (', 'timestamp(') : sqlBaseType;
 
-	const sqlType = dimensions > 0 ? `${sqlBaseType}[]` : sqlBaseType;
+	const sqlType = dimensions > 0 ? `${sqlBaseType}${'[]'.repeat(dimensions)}` : sqlBaseType;
 	return {
 		baseColumn,
 		dimensions,
@@ -146,6 +146,38 @@ export const transformOnUpdateDelete = (on: UpdateDeleteAction): ForeignKey['onU
 	assertUnreachable(on);
 };
 
+type JsonValue = string | number | boolean | null | JsonObject | JsonArray;
+type JsonObject = { [key: string]: JsonValue };
+type JsonArray = JsonValue[];
+
+type MapperFunction<T = any> = (value: JsonValue, key?: string | number, parent?: JsonObject | JsonArray) => T;
+
+function mapJsonValues<T = any>(
+	obj: JsonValue,
+	mapper: MapperFunction<T>,
+): any {
+	function recurse(value: JsonValue, key?: string | number, parent?: JsonObject | JsonArray): any {
+		// Apply mapper to current value first
+		const mappedValue = mapper(value, key, parent);
+
+		// If the mapped value is an object or array, recurse into it
+		if (Array.isArray(mappedValue)) {
+			return mappedValue.map((item, index) => recurse(item, index, mappedValue));
+		} else if (mappedValue !== null && typeof mappedValue === 'object') {
+			const result: any = {};
+			for (const [k, v] of Object.entries(mappedValue)) {
+				result[k] = recurse(v, k, mappedValue as any);
+			}
+			return result;
+		}
+
+		// Return scalar values as-is
+		return mappedValue;
+	}
+
+	return recurse(obj);
+}
+
 export const defaultFromColumn = (
 	base: AnyPgColumn | AnyGelColumn,
 	def: unknown,
@@ -167,99 +199,93 @@ export const defaultFromColumn = (
 	}
 
 	if (is(base, PgLineABC)) {
-		if (dimensions === 0) {
-			const { a, b, c } = def as { a: number; b: number; c: number };
-			return {
-				value: `'{${a},${b},${c}}'`,
-				type: 'unknown',
-			};
-		} else {
-			const res = (def as { a: number; b: number; c: number }[]).map(({ a, b, c }) => {
-				return `"{${a},${b},${c}}"`;
-			});
-			return {
-				value: `{${res.join(', ')}}`,
-				type: 'array',
-			};
-		}
-	}
-
-	if (is(base, PgLineTuple)) {
-		if (dimensions === 0) {
-			const [a, b, c] = def as number[];
-			return {
-				value: `'{${a},${b},${c}}'`,
-				type: 'unknown',
-			};
-		} else {
-			const res = (def as number[][]).map(([a, b, c]) => {
-				return `"{${a},${b},${c}}"`;
-			});
-			return {
-				value: `{${res.join(', ')}}`,
-				type: 'array',
-			};
-		}
-	}
-
-	const sqlTypeLowered = base.getSQLType().toLowerCase();
-	if (dimensions > 0 && Array.isArray(def)) {
 		return {
-			value: buildArrayString(def, sqlTypeLowered),
-			type: 'array',
+			value: stringifyArrayValue(def, 'sql', (x: { a: number; b: number; c: number }, depth: number) => {
+				const res = `{${x.a},${x.b},${x.c}}`;
+				return depth === 0 ? res : `"${res}"`;
+			}),
+			type: 'string',
 		};
 	}
 
-	if (sqlTypeLowered === 'jsonb' || sqlTypeLowered === 'json') {
+	if (is(base, PgLineTuple)) {
+		console.log(def)
 		return {
-			value: JSON.stringify(def),
+			value: stringifyArrayValue(def, 'sql', (x: number[], depth: number) => {
+				console.log(x)
+				const res = `{${x[0]},${x[1]},${x[2]}}`;
+				return depth === 0 ? res : `"${res}"`;
+			}),
+			type: 'string',
+		};
+	}
+
+	const sqlTypeLowered = base.getSQLType().toLowerCase();
+	if (sqlTypeLowered === 'jsonb' || sqlTypeLowered === 'json') {
+		const value = dimensions > 0 && Array.isArray(def) ? buildArrayString(def, sqlTypeLowered) : JSON.stringify(def);
+		return {
+			value: value,
 			type: sqlTypeLowered,
 		};
 	}
 
 	if (typeof def === 'string') {
+		const value = dimensions > 0 && Array.isArray(def) ? buildArrayString(def, sqlTypeLowered) : def;
 		return {
-			value: def,
+			value: value,
 			type: 'string',
 		};
 	}
 
 	if (typeof def === 'boolean') {
+		const value = dimensions > 0 && Array.isArray(def)
+			? buildArrayString(def, sqlTypeLowered)
+			: (def ? 'true' : 'false');
 		return {
-			value: def ? 'true' : 'false',
+			value: value,
 			type: 'boolean',
 		};
 	}
 
 	if (typeof def === 'number') {
+		const value = dimensions > 0 && Array.isArray(def) ? buildArrayString(def, sqlTypeLowered) : String(def);
 		return {
-			value: String(def),
+			value: value,
 			type: 'number',
 		};
 	}
 
 	if (def instanceof Date) {
 		if (sqlTypeLowered === 'date') {
+			const value = dimensions > 0 && Array.isArray(def)
+				? buildArrayString(def, sqlTypeLowered)
+				: def.toISOString().split('T')[0];
 			return {
-				value: def.toISOString().split('T')[0],
+				value: value,
 				type: 'string',
 			};
 		}
 		if (sqlTypeLowered === 'timestamp') {
+			const value = dimensions > 0 && Array.isArray(def)
+				? buildArrayString(def, sqlTypeLowered)
+				: def.toISOString().replace('T', ' ').slice(0, 23);
 			return {
-				value: def.toISOString().replace('T', ' ').slice(0, 23),
+				value: value,
 				type: 'string',
 			};
 		}
-
+		const value = dimensions > 0 && Array.isArray(def)
+			? buildArrayString(def, sqlTypeLowered)
+			: def.toISOString();
 		return {
-			value: def.toISOString(),
+			value: value,
 			type: 'string',
 		};
 	}
 
+	const value = dimensions > 0 && Array.isArray(def) ? buildArrayString(def, sqlTypeLowered) : String(def);
 	return {
-		value: String(def),
+		value: value,
 		type: 'string',
 	};
 };
@@ -441,7 +467,8 @@ export const fromDrizzleSchema = (
 				const { baseColumn, dimensions, sqlType, sqlBaseType, typeSchema } = unwrapColumn(column);
 
 				const columnDefault = defaultFromColumn(baseColumn, column.default, dimensions, dialect);
-				console.log(columnDefault, column.default);
+				// console.log(columnDefault, column.default);
+
 				return {
 					entityType: 'columns',
 					schema: schema,
