@@ -60,3 +60,13 @@ export function stringifyArrayValue(array: ArrayValue[], mapCallback: (v: string
 		}).join(', ')
 	}]`;
 }
+
+export function stringifyArrayValueWithTuples(array: ArrayValue[], mapCallback: (v: ArrayValue) => string): string {
+	return `[${
+		array.map((e) => {
+			if (Array.isArray(e) && !e.find((n) => Array.isArray(n))) return stringifyArrayValueWithTuples(e, mapCallback);
+
+			return mapCallback(e);
+		}).join(', ')
+	}]`;
+}
