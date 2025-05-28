@@ -14,10 +14,9 @@ import {
 export interface PGArrayActionDict<T> extends BaseActionDict<T> {
   Array?: (this: NonterminalNode, arg0: TerminalNode, arg1: NonterminalNode, arg2: TerminalNode) => T;
   ArrayItem?: (this: NonterminalNode, arg0: NonterminalNode) => T;
-  stringLiteral_SingleQuotes?: (this: NonterminalNode, arg0: TerminalNode, arg1: IterationNode, arg2: TerminalNode) => T;
-  stringLiteral_DoubleQuotes?: (this: NonterminalNode, arg0: TerminalNode, arg1: IterationNode, arg2: TerminalNode) => T;
-  stringLiteral?: (this: NonterminalNode, arg0: NonterminalNode) => T;
+  stringLiteral?: (this: NonterminalNode, arg0: TerminalNode, arg1: IterationNode, arg2: TerminalNode) => T;
   quotelessString?: (this: NonterminalNode, arg0: IterationNode) => T;
+  escapedSymbol?: (this: NonterminalNode, arg0: TerminalNode, arg1: NonterminalNode) => T;
   nullLiteral?: (this: NonterminalNode, arg0: TerminalNode) => T;
   forbiddenSymbolForQuoteless?: (this: NonterminalNode, arg0: NonterminalNode | TerminalNode) => T;
 }

@@ -27,17 +27,12 @@ semantics.addOperation('parseArray', {
 		return undefined;
 	},
 
-	stringLiteral_DoubleQuotes(lQuote, string, rQuote) {
-		return JSON.parse('"' + string.sourceString + '"');
-	},
-
-	stringLiteral_SingleQuotes(lQuote, string, rQuote) {
-		// TBD - handle escaped quotes
-		return JSON.parse('"' + string.sourceString + '"');
+	stringLiteral(lQuote, string, rQuote) {
+		return JSON.parse('"' + string.sourceString.replace("''", "'") + '"');
 	},
 
 	quotelessString(string) {
-		return string.sourceString;
+		return string.sourceString.replace("''", "'");
 	},
 
 	nullLiteral(_) {
@@ -54,4 +49,14 @@ export function parseArray(array: string) {
 
 	const res = semantics(match)['parseArray']();
 	return res as ArrayValue[];
+}
+
+export function stringifyArrayValue(array: ArrayValue[], mapCallback: (v: string | null) => string): string {
+	return `[${
+		array.map((e) => {
+			if (Array.isArray(e)) return stringifyArrayValue(e, mapCallback);
+
+			return mapCallback(e);
+		}).join(', ')
+	}]`;
 }
