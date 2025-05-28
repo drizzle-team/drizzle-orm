@@ -1,4 +1,5 @@
 import { type Client, type ConnectOptions, createClient } from 'gel';
+import type { Cache } from '~/cache/core/index.ts';
 import { entityKind } from '~/entity.ts';
 import { GelDatabase } from '~/gel-core/db.ts';
 import { GelDialect } from '~/gel-core/dialect.ts';
@@ -17,6 +18,7 @@ import { GelDbSession } from './session.ts';
 
 export interface GelDriverOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class GelDriver {
@@ -31,7 +33,10 @@ export class GelDriver {
 	createSession(
 		schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined,
 	): GelDbSession<Record<string, unknown>, TablesRelationalConfig> {
-		return new GelDbSession(this.client, this.dialect, schema, { logger: this.options.logger });
+		return new GelDbSession(this.client, this.dialect, schema, {
+			logger: this.options.logger,
+			cache: this.options.cache,
+		});
 	}
 }
 
@@ -68,10 +73,14 @@ function construct<
 		};
 	}
 
-	const driver = new GelDriver(client, dialect, { logger });
+	const driver = new GelDriver(client, dialect, { logger, cache: config.cache });
 	const session = driver.createSession(schema);
 	const db = new GelJsDatabase(dialect, session, schema as any) as GelJsDatabase<TSchema>;
 	(<any> db).$client = client;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
 
 	return db as any;
 }
