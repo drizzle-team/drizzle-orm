@@ -12,7 +12,7 @@ import '../../@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
 import { parseArray } from 'src/utils/parse-pgarray';
 import { Casing } from '../../cli/validations/common';
-import { assertUnreachable } from '../../utils';
+import { assertUnreachable, stringifyArrayValue } from '../../utils';
 import { unescapeSingleQuotes } from '../../utils';
 import {
 	CheckConstraint,
@@ -580,29 +580,21 @@ const buildArrayDefault = (defaultValue: string, typeName: string): string => {
 		return `sql\`${defaultValue}\``;
 	}
 
-	defaultValue = defaultValue.substring(1, defaultValue.length - 1);
-	return `[${
-		defaultValue
-			.split(/\s*,\s*/g)
-			.map((value) => {
-				// 	if (['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(typeName)) {
-				// 		return value;
-				// 	} else if (typeName === 'interval') {
-				// 		return value.replaceAll('"', "'");
-				// 	} else if (typeName === 'boolean') {
-				// 		return value === 't' ? 'true' : 'false';
-				if (typeName.startsWith('numeric')) {
-					return `'${value}'`;
-				}
+	const res = parseArray(defaultValue);
+	const mapper = typeName === 'text' || typeName === 'char' || typeName === 'varchar' || typeName === 'uuid'
+		? (x: string | null) => `'${x}'`
+		: typeName === 'bigint'
+		? (x: string | null) => Number(x) > Number.MAX_SAFE_INTEGER ? `${x}n` : String(x)
+		: typeName === 'line'
+		? (x: string | null) => {
+			if (!x) return 'null';
+			else return `[${x.substring(1, x.length - 1)}]`;
+		}
+		: (x: string | null) => `${x}`;
 
-				if (typeName === 'json' || typeName === 'jsonb') {
-					return value.substring(1, value.length - 1).replaceAll('\\', '');
-				}
-				return value;
-				// 	}
-			})
-			.join(', ')
-	}]`;
+	console.log(typeName, defaultValue, res);
+
+	return stringifyArrayValue(res, 'ts', mapper);
 };
 
 const mapDefault = (
@@ -616,48 +608,60 @@ const mapDefault = (
 
 	const lowered = type.toLowerCase().replace('[]', '');
 
-	if (dimensions > 0) {
-		return `.default(${buildArrayDefault(def.value, lowered)})`;
-	}
-
 	if (enumTypes.has(`${typeSchema}.${type.replace('[]', '')}`)) {
 		return `.default(${mapColumnDefault(def)})`;
 	}
 
+	const parsed = dimensions > 0 ? parseArray(def.value) : def.value;
 	if (lowered.startsWith('uuid')) {
-		return def.value === 'gen_random_uuid()'
-			? '.defaultRandom()'
-			: def.type === 'unknown'
-			? `.default(sql\`${def.value}\`)`
-			: `.default('${def.value}')`;
+		if (def.value === 'gen_random_uuid()') return '.defaultRandom()';
+		const res = stringifyArrayValue(parsed, 'ts', (x) => {
+			return `'${x}'`;
+		});
+		return `.default(${res})`;
 	}
 
 	if (lowered.startsWith('timestamp')) {
-		return def.value === 'now()'
-			? '.defaultNow()'
-			: /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d+)?([+-]\d{2}(:\d{2})?)?$/.test(def.value) // Matches YYYY-MM-DD HH:MI:SS, YYYY-MM-DD HH:MI:SS.FFFFFF, YYYY-MM-DD HH:MI:SS+TZ, YYYY-MM-DD HH:MI:SS.FFFFFF+TZ and YYYY-MM-DD HH:MI:SS+HH:MI
-			? `.default('${def.value}')`
-			: `.default(sql\`${def.value}\`)`;
+		if (def.value === 'now()') return '.defaultNow()';
+		const res = stringifyArrayValue(parsed, 'ts', (x) => {
+			// Matches YYYY-MM-DD HH:MI:SS, YYYY-MM-DD HH:MI:SS.FFFFFF, YYYY-MM-DD HH:MI:SS+TZ, YYYY-MM-DD HH:MI:SS.FFFFFF+TZ and YYYY-MM-DD HH:MI:SS+HH:MI
+			return /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d+)?([+-]\d{2}(:\d{2})?)?$/.test(x) ? `'${x}'` : `sql\`${x}\``;
+		});
+
+		return `.default(${res})`;
 	}
 
 	if (lowered.startsWith('time')) {
-		return def.value === 'now()'
-			? '.defaultNow()'
-			: /^\d{2}:\d{2}(:\d{2})?(\.\d+)?$/.test(def.value) // Matches HH:MI, HH:MI:SS and HH:MI:SS.FFFFFF
-			? `.default('${def.value}')`
-			: `.default(sql\`${def.value}\`)`;
+		if (def.value === 'now()') return '.defaultNow()';
+		const res = stringifyArrayValue(parsed, 'ts', (x) => {
+			return /^\d{2}:\d{2}(:\d{2})?(\.\d+)?$/.test(x) ? `'${x}'` : `sql\`${x}\``; // Matches HH:MI, HH:MI:SS and HH:MI:SS.FFFFFF
+		});
+
+		return `.default(${res})`;
 	}
 
 	if (lowered === 'date') {
-		return def.value === 'now()'
-			? '.defaultNow()'
-			: /^\d{4}-\d{2}-\d{2}$/.test(def.value) // Matches YYYY-MM-DD
-			? `.default('${def.value}')`
-			: `.default(sql\`${def.value}\`)`;
+		if (def.value === 'now()') return '.defaultNow()';
+		const res = stringifyArrayValue(parsed, 'ts', (x) => {
+			return /^\d{4}-\d{2}-\d{2}$/.test(x) ? `'${x}'` : `sql\`${x}\``; // Matches YYYY-MM-DD
+		});
+		return `.default(${res})`;
 	}
 
 	if (lowered.startsWith('json') || lowered.startsWith('jsonb')) {
-		return def.value ? `.default(${def.value})` : '';
+		if (!def.value) return '';
+		const res = stringifyArrayValue(parsed, 'ts', (x) => {
+			return String(x);
+		});
+		return `.default(${res})`;
+	}
+
+	if (lowered.startsWith('point')) {
+		console.log(parsed);
+	}
+
+	if (lowered.startsWith('line')) {
+		console.log(parsed);
 	}
 
 	if (
@@ -730,7 +734,8 @@ const column = (
 
 	if (lowered.startsWith('bigint')) {
 		let out = `// You can use { mode: "bigint" } if numbers are exceeding js number limitations\n\t`;
-		out += `${withCasing(name, casing)}: bigint(${dbColumnName({ name, casing, withMode: true })}{ mode: "number" })`;
+		const mode = def && def.type === 'bigint' ? 'bigint' : 'number';
+		out += `${withCasing(name, casing)}: bigint(${dbColumnName({ name, casing, withMode: true })}{ mode: '${mode}' })`;
 		return out;
 	}
 
@@ -989,7 +994,7 @@ const createViewColumns = (
 		statement += '\t';
 		statement += columnStatement;
 		// Provide just this in column function
-		statement += repeat('.array()', it.dimensions);
+		statement += '.array()'.repeat(it.dimensions);
 		statement += it.notNull ? '.notNull()' : '';
 		statement += ',\n';
 	});
@@ -1036,7 +1041,7 @@ const createTableColumns = (
 		statement += '\t';
 		statement += columnStatement;
 		// Provide just this in column function
-		statement += repeat('.array()', it.dimensions);
+		statement += '.array()'.repeat(it.dimensions);
 		statement += mapDefault(it.type, enumTypes, it.typeSchema ?? 'public', it.dimensions, it.default);
 		statement += pk ? '.primaryKey()' : '';
 		statement += it.notNull && !it.identity && !pk ? '.notNull()' : '';

@@ -18,7 +18,7 @@ export const createDDL = () => {
 			dimensions: 'number',
 			default: {
 				value: 'string',
-				type: ['null', 'boolean', 'number', 'string', 'bigint', 'json', 'jsonb', 'array', 'func', 'unknown'],
+				type: ['null', 'boolean', 'number', 'string', 'bigint', 'json', 'jsonb', 'func', 'unknown'],
 			},
 			generated: {
 				type: ['stored', 'virtual'],
