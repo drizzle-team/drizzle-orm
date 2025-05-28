@@ -133,3 +133,21 @@ export function stringifyArrayValue(
 	}).join(', ');
 	return mode === 'ts' ? `[${res}]` : `{${res}}`;
 }
+
+export function stringifyArrayValueWithTuples(
+	array: ArrayValue[],
+	mode: 'sql' | 'ts',
+	mapCallback: (v: ArrayValue, depth: number) => string,
+	depth: number = 0,
+): string {
+	if (!array.find((n) => Array.isArray(n))) return mapCallback(array, depth);
+
+	depth += 1;
+	const res = array.map((e) => {
+		if (Array.isArray(e) && !e.find((n) => Array.isArray(n))) {
+			return stringifyArrayValueWithTuples(e, mode, mapCallback, depth);
+		}
+		return mapCallback(e, depth);
+	}).join(', ');
+	return mode === 'ts' ? `[${res}]` : `{${res}}`;
+}
