@@ -1,14 +1,163 @@
-import { InterimSchema, interimToDDL } from '../dialects/postgres/ddl';
+import { fromDatabase as fd } from 'src/dialects/postgres/introspect';
+import {
+	CheckConstraint,
+	Column,
+	Enum,
+	ForeignKey,
+	InterimColumn,
+	InterimIndex,
+	InterimSchema,
+	interimToDDL,
+	Policy,
+	PostgresEntities,
+	PrimaryKey,
+	Role,
+	Schema,
+	Sequence,
+	UniqueConstraint,
+	View,
+	ViewColumn,
+} from '../dialects/postgres/ddl';
 import { ddlDiff } from '../dialects/postgres/diff';
 import { mockResolver } from '../utils/mocks';
 
-export const diffPostgresql = async (
-	from: InterimSchema,
-	to: InterimSchema,
-	renamesArr: string[],
-) => {
-	const { ddl: ddl1 } = interimToDDL(from);
-	const { ddl: ddl2 } = interimToDDL(to);
+export type Interim<T> = Omit<T, 'entityType'>;
+
+export type InterimTable = {
+	schema: string;
+	name: string;
+	columns: Interim<InterimColumn>[];
+	indexes: Interim<InterimIndex>[];
+	checks: Interim<CheckConstraint>[];
+	uniques: Interim<UniqueConstraint>[];
+	pks: Interim<PrimaryKey>[];
+	fks: Interim<ForeignKey>[];
+	isRlsEnabled: boolean;
+};
+
+export type InterimView = {
+	schema: string;
+	name: string;
+	materialized: boolean;
+	columns: Interim<Column>[];
+	definition: string | null;
+};
+
+export type InterimStudioSchema = {
+	schemas: Schema[];
+	tables: InterimTable[];
+	views: InterimView[];
+	enums: Enum[];
+	sequences: Sequence[];
+	roles: Role[];
+	policies: Policy[];
+};
+
+const fromInterims = ({
+	schemas,
+	tables,
+	enums,
+	policies,
+	roles,
+	sequences,
+	views,
+}: InterimStudioSchema): InterimSchema => {
+	const tbls: PostgresEntities['tables'][] = tables.map((it) => ({
+		entityType: 'tables',
+		name: it.name,
+		schema: it.schema,
+		isRlsEnabled: it.isRlsEnabled,
+	}));
+	const columns: InterimColumn[] = tables
+		.map((table) => {
+			return table.columns.map((it) => {
+				return {
+					entityType: 'columns',
+					...it,
+				} satisfies InterimColumn;
+			});
+		})
+		.flat(1);
+
+	const indexes: InterimIndex[] = tables
+		.map((table) => {
+			return table.indexes.map((it) => {
+				return { entityType: 'indexes', ...it } satisfies InterimIndex;
+			});
+		})
+		.flat(1);
+
+	const checks: CheckConstraint[] = tables
+		.map((table) => {
+			return table.checks.map((it) => {
+				return { entityType: 'checks', ...it } satisfies CheckConstraint;
+			});
+		})
+		.flat(1);
+	const uniques: UniqueConstraint[] = tables
+		.map((table) => {
+			return table.uniques.map((it) => {
+				return { entityType: 'uniques', ...it } satisfies UniqueConstraint;
+			});
+		})
+		.flat(1);
+	const fks: ForeignKey[] = tables
+		.map((table) => {
+			return table.fks.map((it) => {
+				return { entityType: 'fks', ...it } satisfies ForeignKey;
+			});
+		})
+		.flat(1);
+	const pks: PrimaryKey[] = tables
+		.map((table) => {
+			return table.pks.map((it) => {
+				return { entityType: 'pks', ...it } satisfies PrimaryKey;
+			});
+		})
+		.flat(1);
+
+	const vws: View[] = views.map(({columns, ...it}) => {
+		return {
+			entityType: 'views',
+			tablespace: it.schema,
+			using: null,
+			with: null,
+			withNoData: null,
+			...it,
+		};
+	});
+	const viewColumns: ViewColumn[] = views
+		.map((table) => {
+			return table.columns.map((it) => {
+				return {
+					view: table.name,
+					...it,
+				} satisfies ViewColumn;
+			});
+		})
+		.flat(1);
+
+	return {
+		schemas,
+		tables: tbls,
+		columns: columns,
+		pks,
+		fks,
+		checks,
+		uniques,
+		indexes,
+		views: vws,
+		viewColumns,
+		enums,
+		sequences,
+		roles,
+		policies,
+	};
+};
+
+export const diffPostgresql = async (from: InterimStudioSchema, to: InterimStudioSchema, renamesArr: string[]) => {
+	const { ddl: ddl1 } = interimToDDL(fromInterims(from));
+	const { ddl: ddl2 } = interimToDDL(fromInterims(to));
 
 	const renames = new Set(renamesArr);
 
@@ -34,53 +183,4 @@ export const diffPostgresql = async (
 	return { sqlStatements, groupedStatements, statements };
 };
 
-// const main = async () => {
-// 	const res = await diffPostgresql(
-// 		{
-// 			schemas: [],
-// 			tables: [
-// 				{
-// 					name: 'users',
-// 					schema: 'public',
-// 					columns: [
-// 						{
-// 							name: 'id',
-// 							type: 'serial',
-// 							primaryKey: true,
-// 							notNull: false,
-// 						},
-// 					],
-// 				},
-// 			],
-// 		},
-// 		{
-// 			schemas: ['public'],
-// 			tables: [
-// 				{
-// 					name: 'users',
-// 					schema: 'public',
-// 					columns: [
-// 						{
-// 							name: 'id2',
-// 							type: 'serial',
-// 							primaryKey: true,
-// 							notNull: false,
-// 						},
-// 						{
-// 							name: 'name',
-// 							type: 'text',
-// 							primaryKey: false,
-// 							notNull: true,
-// 							isUnique: true,
-// 						},
-// 					],
-// 				},
-// 			],
-// 		},
-// 		['public.users.id->public.users.id2'],
-// 	);
-
-// 	console.dir(res, { depth: 10 });
-// };
-
-// main();
+export const fromDatabase = fd;
