@@ -70,7 +70,7 @@ const dbColumnName = ({ name, casing, withMode = false }: { name: string; casing
 export const ddlToTypescript = (
 	schema: SQLiteDDL,
 	casing: Casing,
-	viewColumns: Record<string, { view: { name: string; sql: string }; columns: ViewColumn[] }>,
+	viewColumns: Record<string, ViewColumn[]>,
 	type: 'sqlite' | 'libsql',
 ) => {
 	for (const fk of schema.fks.list()) {
@@ -94,7 +94,7 @@ export const ddlToTypescript = (
 		}
 	}
 
-	for (const it of Object.values(viewColumns).map((it) => it.columns).flat()) {
+	for (const it of Object.values(viewColumns).flat()) {
 		if (sqliteImportsList.has(it.type)) imports.add(it.type);
 	}
 
@@ -145,7 +145,7 @@ export const ddlToTypescript = (
 
 	const viewsStatements = schema.views.list().map((view) => {
 		let statement = `export const ${withCasing(view.name, casing)} = sqliteView("${view.name}", {\n`;
-		const columns = viewColumns[view.name]?.columns || [];
+		const columns = viewColumns[view.name] || [];
 		statement += createViewColumns(view, columns, casing);
 		statement += '})';
 		statement += `.as(sql\`${view.definition?.replaceAll('`', '\\`')}\`);`;
