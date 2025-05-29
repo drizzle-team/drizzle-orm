@@ -13,6 +13,7 @@ import {
 	SQLiteUpdateBuilder,
 } from '~/sqlite-core/query-builders/index.ts';
 import type {
+	AbstractSQLiteTransactionConfig,
 	DBResult,
 	Result,
 	SQLiteSession,
@@ -34,6 +35,7 @@ export class BaseSQLiteDatabase<
 	TRunResult,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TSchema extends TablesRelationalConfig = ExtractTablesWithRelations<TFullSchema>,
+	TTransactionConfig extends AbstractSQLiteTransactionConfig<string> = SQLiteTransactionConfig,
 > {
 	static readonly [entityKind]: string = 'BaseSQLiteDatabase';
 
@@ -46,7 +48,7 @@ export class BaseSQLiteDatabase<
 	query: TFullSchema extends Record<string, never>
 		? DrizzleTypeError<'Seems like the schema generic is missing - did you forget to add it to your DB type?'>
 		: {
-			[K in keyof TSchema]: RelationalQueryBuilder<TResultKind, TFullSchema, TSchema, TSchema[K]>;
+			[K in keyof TSchema]: RelationalQueryBuilder<TResultKind, TFullSchema, TSchema, TSchema[K], TTransactionConfig>;
 		};
 
 	constructor(
@@ -54,7 +56,7 @@ export class BaseSQLiteDatabase<
 		/** @internal */
 		readonly dialect: { sync: SQLiteSyncDialect; async: SQLiteAsyncDialect }[TResultKind],
 		/** @internal */
-		readonly session: SQLiteSession<TResultKind, TRunResult, TFullSchema, TSchema>,
+		readonly session: SQLiteSession<TResultKind, TRunResult, TFullSchema, TSchema, TTransactionConfig>,
 		schema: RelationalSchemaConfig<TSchema> | undefined,
 	) {
 		this._ = schema
@@ -70,7 +72,7 @@ export class BaseSQLiteDatabase<
 			};
 		this.query = {} as typeof this['query'];
 		const query = this.query as {
-			[K in keyof TSchema]: RelationalQueryBuilder<TResultKind, TFullSchema, TSchema, TSchema[K]>;
+			[K in keyof TSchema]: RelationalQueryBuilder<TResultKind, TFullSchema, TSchema, TSchema[K], TTransactionConfig>;
 		};
 		if (this._.schema) {
 			for (const [tableName, columns] of Object.entries(this._.schema)) {
@@ -82,7 +84,7 @@ export class BaseSQLiteDatabase<
 					schema!.fullSchema[tableName] as SQLiteTable,
 					columns,
 					dialect,
-					session as SQLiteSession<any, any, any, any> as any,
+					session as SQLiteSession<any, any, any, any, any> as any,
 				) as typeof query[keyof TSchema];
 			}
 		}
@@ -587,8 +589,8 @@ export class BaseSQLiteDatabase<
 	}
 
 	transaction<T>(
-		transaction: (tx: SQLiteTransaction<TResultKind, TRunResult, TFullSchema, TSchema>) => Result<TResultKind, T>,
-		config?: SQLiteTransactionConfig,
+		transaction: (tx: SQLiteTransaction<TResultKind, TRunResult, TFullSchema, TSchema, TTransactionConfig>) => Result<TResultKind, T>,
+		config?: TTransactionConfig,
 	): Result<TResultKind, T> {
 		return this.session.transaction(transaction, config);
 	}

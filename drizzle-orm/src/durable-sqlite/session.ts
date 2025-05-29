@@ -25,7 +25,8 @@ export class SQLiteDOSession<TFullSchema extends Record<string, unknown>, TSchem
 		'sync',
 		SqlStorageCursor<Record<string, SqlStorageValue>>,
 		TFullSchema,
-		TSchema
+		TSchema,
+		SQLiteTransactionConfig
 	>
 {
 	static override readonly [entityKind]: string = 'SQLiteDOSession';
@@ -62,7 +63,7 @@ export class SQLiteDOSession<TFullSchema extends Record<string, unknown>, TSchem
 
 	override transaction<T>(
 		transaction: (
-			tx: SQLiteTransaction<'sync', SqlStorageCursor<Record<string, SqlStorageValue>>, TFullSchema, TSchema>,
+			tx: SQLiteTransaction<'sync', SqlStorageCursor<Record<string, SqlStorageValue>>, TFullSchema, TSchema, SQLiteTransactionConfig>,
 		) => T,
 		_config?: SQLiteTransactionConfig,
 	): T {
@@ -79,7 +80,8 @@ export class SQLiteDOTransaction<TFullSchema extends Record<string, unknown>, TS
 		'sync',
 		SqlStorageCursor<Record<string, SqlStorageValue>>,
 		TFullSchema,
-		TSchema
+		TSchema,
+		SQLiteTransactionConfig
 	>
 {
 	static override readonly [entityKind]: string = 'SQLiteDOTransaction';
