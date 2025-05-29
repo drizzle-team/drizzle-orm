@@ -913,7 +913,7 @@ test('column is enum type with default value. shuffle enum', async () => {
 		`DROP TYPE "enum";`,
 		`CREATE TYPE "enum" AS ENUM('value1', 'value3', 'value2');`,
 		'ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum" USING "column"::"enum";',
-		'ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT \'value2\';',
+		'ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT \'value2\'::"enum";',
 	];
 
 	expect(st).toStrictEqual(st0);
@@ -976,7 +976,7 @@ test('column is enum type with default value. shuffle enum', async () => {
 		`DROP TYPE "enum";`,
 		`CREATE TYPE "enum" AS ENUM('value1', 'value3', 'value2');`,
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum" USING "column"::"enum";`,
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2';`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2'::"enum";`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1128,7 +1128,7 @@ test('column is array of enum with multiple dimenions with custom sizes type. sh
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`,
 		`DROP TYPE "enum";`,
 		`CREATE TYPE "enum" AS ENUM('value1', 'value3', 'value2');`,
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum"[][] USING "column"::"enum"[][];`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum"[][] USING "column"::"enum"[];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1209,7 +1209,7 @@ test('column is enum type with default value. custom schema. shuffle enum', asyn
 		`DROP TYPE "new_schema"."enum";`,
 		`CREATE TYPE "new_schema"."enum" AS ENUM('value1', 'value3', 'value2');`,
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "new_schema"."enum" USING "column"::"new_schema"."enum";`,
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2';`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2'::"new_schema"."enum";`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -2134,8 +2134,8 @@ test('add column with same name as enum', async () => {
 	});
 
 	const st0: string[] = [
-		'CREATE TABLE "table2" (\n\t"id" serial PRIMARY KEY,\n\t"status" "status" DEFAULT \'inactive\'\n);\n',
-		'ALTER TABLE "table1" ADD COLUMN "status" "status" DEFAULT \'inactive\';',
+		'CREATE TABLE "table2" (\n\t"id" serial PRIMARY KEY,\n\t"status" "status" DEFAULT \'inactive\'::"status"\n);\n',
+		'ALTER TABLE "table1" ADD COLUMN "status" "status" DEFAULT \'inactive\'::"status";',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);

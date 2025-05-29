@@ -1,4 +1,5 @@
-import { escapeSingleQuotes, stringifyArrayValue } from 'src/utils';
+import { escapeSingleQuotes, stringifyArray } from 'src/utils';
+import { parseArray } from 'src/utils/parse-pgarray';
 import { assertUnreachable } from '../../utils';
 import { hash } from '../common';
 import { Column, PostgresEntities } from './ddl';
@@ -12,6 +13,12 @@ export const trimChar = (str: string, char: string) => {
 
 	const res = start > 0 || end < str.length ? str.substring(start, end) : str;
 	return res;
+};
+export const splitSqlType = (sqlType: string) => {
+	const match = sqlType.match(/^(\w+)\((.*)\)$/);
+	const type = match ? match[1] : sqlType;
+	const options = match ? match[2] : null;
+	return { type, options };
 };
 
 export const vectorOps = [
@@ -72,15 +79,6 @@ const NativeTypes = [
 	'point',
 ];
 
-export const parseType = (schemaPrefix: string, type: string) => {
-	const arrayDefinitionRegex = /\[\d*(?:\[\d*\])*\]/g;
-	const arrayDefinition = (type.match(arrayDefinitionRegex) ?? []).join('');
-	const withoutArrayDefinition = type.replace(arrayDefinitionRegex, '');
-	return NativeTypes.some((it) => type.startsWith(it))
-		? `${withoutArrayDefinition}${arrayDefinition}`
-		: `${schemaPrefix}"${withoutArrayDefinition}"${arrayDefinition}`;
-};
-
 export const indexName = (tableName: string, columns: string[]) => {
 	return `${tableName}_${columns.join('_')}_index`;
 };
@@ -134,7 +132,7 @@ export function buildArrayString(array: any[], sqlType: string): string {
 			}
 
 			if (typeof value === 'boolean') {
-				return value ? 'true' : 'false';
+				return value ? 't' : 'f';
 			}
 
 			if (Array.isArray(value)) {
@@ -156,7 +154,7 @@ export function buildArrayString(array: any[], sqlType: string): string {
 			}
 
 			if (typeof value === 'string') {
-				if (/^[a-zA-Z0-9._-]+$/.test(value)) return value;
+				if (/^[a-zA-Z0-9._:-]+$/.test(value)) return value;
 				return `"${value.replaceAll("'", "''")}"`;
 			}
 
@@ -359,7 +357,7 @@ export const defaultNameForIndex = (table: string, columns: string[]) => {
 
 export const trimDefaultValueSuffix = (value: string) => {
 	let res = value.endsWith('[]') ? value.slice(0, -2) : value;
-	res = res.replace(/::(.*?)(?<![^\w"])(?=$)/, '');
+	res = res.replace(/::[\w\s()]+(?:\[\])*$/, '');
 	return res;
 };
 
@@ -396,30 +394,49 @@ export const defaultForColumn = (
 		value = value.trimChar("'"); // '{10,20}' -> {10,20}
 	}
 
+	if (type === 'json' || type === 'jsonb') {
+		if (dimensions > 0) {
+			const res = stringifyArray(parseArray(value), 'sql', (it) => {
+				return `"${JSON.stringify(JSON.parse(it.replaceAll('\\"', '"'))).replaceAll('"', '\\"')}"`;
+			});
+			return {
+				value: res,
+				type: 'json',
+			};
+		}
+		const res = JSON.stringify(JSON.parse(value.slice(1, value.length - 1).replaceAll("''", "'")));
+		return {
+			value: res,
+			type: 'json',
+		};
+	}
+
+	const trimmed = value.trimChar("'"); // '{10,20}' -> {10,20}
+
+	if (/^true$|^false$/.test(trimmed)) {
+		return { value: trimmed, type: 'boolean' };
+	}
+
+	// null or NULL
+	if (/^NULL$/i.test(trimmed)) {
+		return { value: trimmed.toUpperCase(), type: 'null' };
+	}
+
+	// previous /^-?[\d.]+(?:e-?\d+)?$/
+	if (/^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(trimmed)) {
+		const num = Number(trimmed);
+		const big = num > Number.MAX_SAFE_INTEGER || num < Number.MIN_SAFE_INTEGER;
+		return { value: trimmed, type: big ? 'bigint' : 'number' };
+	}
+
 	// 'text', potentially with escaped double quotes ''
 	if (/^'(?:[^']|'')*'$/.test(value)) {
 		const res = value.substring(1, value.length - 1).replaceAll("''", "'");
 
 		if (type === 'json' || type === 'jsonb') {
-			return { value: JSON.stringify(JSON.parse(res)), type };
+			return { value: JSON.stringify(JSON.parse(res)), type: 'json' };
 		}
 		return { value: res, type: 'string' };
-	}
-
-	if (/^true$|^false$/.test(value)) {
-		return { value: value, type: 'boolean' };
-	}
-
-	// null or NULL
-	if (/^NULL$/i.test(value)) {
-		return { value: value.toUpperCase(), type: 'null' };
-	}
-
-	// previous /^-?[\d.]+(?:e-?\d+)?$/
-	if (/^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(value)) {
-		const num = Number(value);
-		const big = num > Number.MAX_SAFE_INTEGER || num < Number.MIN_SAFE_INTEGER;
-		return { value: value, type: big ? 'bigint' : 'number' };
 	}
 
 	return { value: value, type: 'unknown' };
@@ -427,7 +444,6 @@ export const defaultForColumn = (
 
 export const defaultToSQL = (
 	it: Pick<Column, 'default' | 'dimensions' | 'type' | 'typeSchema'>,
-	isEnum: boolean = false,
 ) => {
 	if (!it.default) return '';
 
@@ -435,10 +451,9 @@ export const defaultToSQL = (
 	const { type, value } = it.default;
 	const arrsuffix = dimensions > 0 ? '[]' : '';
 
-	if (isEnum) {
+	if (typeSchema) {
 		const schemaPrefix = typeSchema && typeSchema !== 'public' ? `"${typeSchema}".` : '';
-		const t = isEnum || typeSchema ? `${schemaPrefix}"${columnType}"` : columnType;
-		return `'${value}'::${t}${arrsuffix}`;
+		return `'${value}'::${schemaPrefix}"${columnType}"${arrsuffix}`;
 	}
 
 	const suffix = arrsuffix ? `::${columnType}${arrsuffix}` : '';
@@ -447,11 +462,14 @@ export const defaultToSQL = (
 		return `'${escapeSingleQuotes(value)}'${suffix}`;
 	}
 
-	if (type === 'bigint' || type === 'json' || type === 'jsonb') {
+	if (type === 'json') {
+		return `'${value.replaceAll("'", "''")}'${suffix}`;
+	}
+
+	if (type === 'bigint') {
 		return `'${value}'${suffix}`;
 	}
 
-	console.log(type,value,suffix)
 	if (type === 'boolean' || type === 'null' || type === 'number' || type === 'func' || type === 'unknown') {
 		return `${value}${suffix}`;
 	}

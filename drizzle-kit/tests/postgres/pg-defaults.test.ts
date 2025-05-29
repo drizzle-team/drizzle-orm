@@ -44,8 +44,6 @@ afterAll(async () => {
 // 	await _.clear();
 // });
 
-const moodEnum = pgEnum('mood_enum', ['sad', 'ok', 'happy']);
-
 test('integer', async () => {
 	const res1 = await diffDefault(_, integer().default(10), '10');
 	const res2 = await diffDefault(_, integer().default(0), '0');
@@ -251,7 +249,7 @@ test('boolean + boolean arrays', async () => {
 	const res2 = await diffDefault(_, boolean().default(false), 'false');
 	const res3 = await diffDefault(_, boolean().default(sql`true`), 'true');
 	const res4 = await diffDefault(_, boolean().array().default([]), `'{}'::boolean[]`);
-	const res5 = await diffDefault(_, boolean().array().default([true]), `'{true}'::boolean[]`);
+	const res5 = await diffDefault(_, boolean().array().default([true]), `'{t}'::boolean[]`);
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
@@ -262,8 +260,8 @@ test('boolean + boolean arrays', async () => {
 
 test('char + char arrays', async () => {
 	const res1 = await diffDefault(_, char({ length: 256 }).default('text'), `'text'`);
-	const res2 = await diffDefault(_, char({ length: 256 }).array().default([]), `'{}'::char(256)[]`);
-	const res3 = await diffDefault(_, char({ length: 256 }).array().default(['text']), `'{text}'::char(256)[]`);
+	const res2 = await diffDefault(_, char({ length: 256 }).array().default([]), `'{}'::char[]`);
+	const res3 = await diffDefault(_, char({ length: 256 }).array().default(['text']), `'{text}'::char[]`);
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
@@ -276,8 +274,8 @@ test('varchar + varchar arrays', async () => {
 	const res3 = await diffDefault(_, varchar({ length: 10 }).default('text\'text"'), "'text''text\"'");
 	const res4 = await diffDefault(_, varchar({ length: 10, enum: ['one', 'two', 'three'] }).default('one'), "'one'");
 
-	const res5 = await diffDefault(_, varchar({ length: 10 }).array().default([]), `'{}'::varchar(10)[]`);
-	const res6 = await diffDefault(_, varchar({ length: 10 }).array(1).default(['text']), `'{text}'::varchar(10)[]`);
+	const res5 = await diffDefault(_, varchar({ length: 10 }).array().default([]), `'{}'::varchar[]`);
+	const res6 = await diffDefault(_, varchar({ length: 10 }).array(1).default(['text']), `'{text}'::varchar[]`);
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
@@ -402,7 +400,7 @@ test('time + time arrays', async () => {
 	const res1 = await diffDefault(_, time().default('15:50:33'), `'15:50:33'`);
 	const res2 = await diffDefault(_, time().defaultNow(), `now()`);
 	const res3 = await diffDefault(_, time().array().default([]), `'{}'::time[]`);
-	const res4 = await diffDefault(_, time().array().default(['15:50:33']), `'{"15:50:33"}'::time[]`);
+	const res4 = await diffDefault(_, time().array().default(['15:50:33']), `'{15:50:33}'::time[]`);
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
@@ -414,7 +412,7 @@ test('date + date arrays', async () => {
 	const res1 = await diffDefault(_, date().default('2025-05-23'), `'2025-05-23'`);
 	const res2 = await diffDefault(_, date().defaultNow(), `now()`);
 	const res3 = await diffDefault(_, date().array().default([]), `'{}'::date[]`);
-	const res4 = await diffDefault(_, date().array().default(['2025-05-23']), `'{"2025-05-23"}'::date[]`);
+	const res4 = await diffDefault(_, date().array().default(['2025-05-23']), `'{2025-05-23}'::date[]`);
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
@@ -437,10 +435,10 @@ test('point + point arrays', async () => {
 	const res2 = await diffDefault(_, point({ mode: 'tuple' }).default([1, 2]), `'(1,2)'`);
 
 	const res3 = await diffDefault(_, point({ mode: 'tuple' }).array().default([]), `'{}'::point[]`);
-	const res4 = await diffDefault(_, point({ mode: 'tuple' }).array().default([[1, 2]]), `'{{"(1,2)"}}'::point[]`);
+	const res4 = await diffDefault(_, point({ mode: 'tuple' }).array().default([[1, 2]]), `'{"(1,2)"}'::point[]`);
 
 	const res5 = await diffDefault(_, point({ mode: 'xy' }).array().default([]), `'{}'::point[]`);
-	const res6 = await diffDefault(_, point({ mode: 'xy' }).array().default([{ x: 1, y: 2 }]), `'{{"(1,2)"}}'::point[]`);
+	const res6 = await diffDefault(_, point({ mode: 'xy' }).array().default([{ x: 1, y: 2 }]), `'{"(1,2)"}'::point[]`);
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
@@ -473,10 +471,12 @@ test('line + line arrays', async () => {
 });
 
 test('enum + enum arrays', async () => {
+	const moodEnum = pgEnum('mood_enum', ['sad', 'ok', 'happy']);
+	const pre = { moodEnum };
 	// TODO revise: provide a way to pass `moodEnum` into the `diffDefault` function.
-	const res1 = await diffDefault(_, moodEnum().default('ok'), `'ok'`);
-	const res2 = await diffDefault(_, moodEnum().array().default([]), `'{}'::mood_enum[]`);
-	const res3 = await diffDefault(_, moodEnum().array().default(['ok']), `'{"ok"}'::mood_enum[]`);
+	const res1 = await diffDefault(_, moodEnum().default('ok'), `'ok'::"mood_enum"`, pre);
+	const res2 = await diffDefault(_, moodEnum().array().default([]), `'{}'::"mood_enum"[]`, pre);
+	const res3 = await diffDefault(_, moodEnum().array().default(['ok']), `'{ok}'::"mood_enum"[]`, pre);
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);

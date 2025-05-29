@@ -323,6 +323,7 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	kit: TestDatabase,
 	builder: T,
 	expectedDefault: string,
+	pre: PostgresSchema | null = null,
 ) => {
 	await kit.clear();
 
@@ -330,11 +331,11 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	const def = config['default'];
 	const column = pgTable('table', { column: builder }).column;
 
-	const { baseColumn, dimensions, sqlType, sqlBaseType, typeSchema } = unwrapColumn(column);
+	const { baseColumn, dimensions, baseType, options, typeSchema } = unwrapColumn(column);
 	const columnDefault = defaultFromColumn(baseColumn, column.default, dimensions, new PgDialect());
 	const defaultSql = defaultToSQL({
 		default: columnDefault,
-		type: sqlBaseType,
+		type: baseType,
 		dimensions,
 		typeSchema: typeSchema,
 	});
@@ -345,13 +346,18 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	}
 
 	const init = {
+		...pre,
 		table: pgTable('table', { column: builder }),
 	};
 
 	const { db, clear } = kit;
+	if (pre) await push({ db, to: pre });
 	const { sqlStatements: st1 } = await push({ db, to: init });
 	const { sqlStatements: st2 } = await push({ db, to: init });
 
+	const typeSchemaPrefix = typeSchema && typeSchema !== 'public' ? `"${typeSchema}".` : '';
+	const typeValue = typeSchema ? `"${baseType}"` : baseType;
+	const sqlType = `${typeSchemaPrefix}${typeValue}${options ? `(${options})` : ''}${'[]'.repeat(dimensions)}`;
 	const expectedInit = `CREATE TABLE "table" (\n\t"column" ${sqlType} DEFAULT ${expectedDefault}\n);\n`;
 	if (st1.length !== 1 || st1[0] !== expectedInit) res.push(`Unexpected init:\n${st1}\n\n${expectedInit}`);
 	if (st2.length > 0) res.push(`Unexpected subsequent init:\n${st2}`);
@@ -372,8 +378,9 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 
 	const { sqlStatements: afterFileSqlStatements } = await ddlDiffDry(ddl1, ddl2, 'push');
 	if (afterFileSqlStatements.length === 0) {
-		// rmSync(path);
+		rmSync(path);
 	} else {
+		console.log(afterFileSqlStatements);
 		console.log(`./${path}`);
 	}
 
@@ -382,15 +389,18 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	config.hasDefault = false;
 	config.default = undefined;
 	const schema1 = {
+		...pre,
 		table: pgTable('table', { column: builder }),
 	};
 
 	config.hasDefault = true;
 	config.default = def;
 	const schema2 = {
+		...pre,
 		table: pgTable('table', { column: builder }),
 	};
 
+	if (pre) await push({ db, to: pre });
 	await push({ db, to: schema1 });
 	const { sqlStatements: st3 } = await push({ db, to: schema2 });
 	const expectedAlter = `ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT ${expectedDefault};`;
@@ -399,13 +409,16 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	await clear();
 
 	const schema3 = {
+		...pre,
 		table: pgTable('table', { id: serial() }),
 	};
 
 	const schema4 = {
+		...pre,
 		table: pgTable('table', { id: serial(), column: builder }),
 	};
 
+	if (pre) await push({ db, to: pre });
 	await push({ db, to: schema3 });
 	const { sqlStatements: st4 } = await push({ db, to: schema4 });
 

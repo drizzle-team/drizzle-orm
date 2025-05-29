@@ -13,12 +13,13 @@ export const createDDL = () => {
 			schema: 'required',
 			table: 'required',
 			type: 'string',
+			options: 'string?',
 			typeSchema: 'string?',
 			notNull: 'boolean',
 			dimensions: 'number',
 			default: {
 				value: 'string',
-				type: ['null', 'boolean', 'number', 'string', 'bigint', 'json', 'jsonb', 'func', 'unknown'],
+				type: ['null', 'boolean', 'number', 'string', 'bigint', 'json', 'func', 'unknown'],
 			},
 			generated: {
 				type: ['stored', 'virtual'],
