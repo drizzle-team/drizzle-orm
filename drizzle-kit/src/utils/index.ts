@@ -118,7 +118,7 @@ export const prepareMigrationRenames = (
 
 export type ArrayValue = unknown | null | ArrayValue[];
 
-export function stringifyArrayValue(
+export function stringifyArray(
 	value: ArrayValue,
 	mode: 'sql' | 'ts',
 	mapCallback: (v: any | null, depth: number) => string,
@@ -128,13 +128,13 @@ export function stringifyArrayValue(
 	depth += 1;
 
 	const res = value.map((e) => {
-		if (Array.isArray(e)) return stringifyArrayValue(e, mode, mapCallback);
+		if (Array.isArray(e)) return stringifyArray(e, mode, mapCallback);
 		return mapCallback(e, depth);
 	}).join(', ');
 	return mode === 'ts' ? `[${res}]` : `{${res}}`;
 }
 
-export function stringifyArrayValueWithTuples(
+export function stringifyTuplesArray(
 	array: ArrayValue[],
 	mode: 'sql' | 'ts',
 	mapCallback: (v: ArrayValue, depth: number) => string,
@@ -145,7 +145,7 @@ export function stringifyArrayValueWithTuples(
 	depth += 1;
 	const res = array.map((e) => {
 		if (Array.isArray(e) && !e.find((n) => Array.isArray(n))) {
-			return stringifyArrayValueWithTuples(e, mode, mapCallback, depth);
+			return stringifyTuplesArray(e, mode, mapCallback, depth);
 		}
 		return mapCallback(e, depth);
 	}).join(', ');

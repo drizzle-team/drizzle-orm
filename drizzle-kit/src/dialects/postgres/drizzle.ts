@@ -20,6 +20,8 @@ import {
 	PgMaterializedView,
 	PgMaterializedViewWithConfig,
 	PgNumeric,
+	PgPointObject,
+	PgPointTuple,
 	PgPolicy,
 	PgRole,
 	PgSchema,
@@ -32,7 +34,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { CasingType } from 'src/cli/validations/common';
 import { safeRegister } from 'src/utils/utils-node';
-import { assertUnreachable, stringifyArrayValue } from '../../utils';
+import { assertUnreachable, stringifyArray, stringifyTuplesArray } from '../../utils';
 import { getColumnCasing } from '../drizzle';
 import { getOrNull } from '../utils';
 import type {
@@ -59,6 +61,7 @@ import {
 	indexName,
 	maxRangeForIdentityBasedOn,
 	minRangeForIdentityBasedOn,
+	splitSqlType,
 	stringFromIdentityProperty,
 	trimChar,
 } from './grammar';
@@ -115,14 +118,17 @@ export const unwrapColumn = (column: AnyPgColumn) => {
 	let sqlBaseType = baseColumn.getSQLType();
 	sqlBaseType = sqlBaseType.startsWith('timestamp (') ? sqlBaseType.replace('timestamp (', 'timestamp(') : sqlBaseType;
 
+	const { type, options } = splitSqlType(sqlBaseType);
 	const sqlType = dimensions > 0 ? `${sqlBaseType}${'[]'.repeat(dimensions)}` : sqlBaseType;
+
 	return {
 		baseColumn,
 		dimensions,
 		isEnum,
 		typeSchema,
 		sqlType,
-		sqlBaseType,
+		baseType: type,
+		options,
 	};
 };
 
@@ -200,7 +206,7 @@ export const defaultFromColumn = (
 
 	if (is(base, PgLineABC)) {
 		return {
-			value: stringifyArrayValue(def, 'sql', (x: { a: number; b: number; c: number }, depth: number) => {
+			value: stringifyArray(def, 'sql', (x: { a: number; b: number; c: number }, depth: number) => {
 				const res = `{${x.a},${x.b},${x.c}}`;
 				return depth === 0 ? res : `"${res}"`;
 			}),
@@ -209,11 +215,29 @@ export const defaultFromColumn = (
 	}
 
 	if (is(base, PgLineTuple)) {
-		console.log(def)
 		return {
-			value: stringifyArrayValue(def, 'sql', (x: number[], depth: number) => {
-				console.log(x)
-				const res = `{${x[0]},${x[1]},${x[2]}}`;
+			value: stringifyTuplesArray(def as any, 'sql', (x: number[], depth: number) => {
+				const res = x.length > 0 ? `{${x[0]},${x[1]},${x[2]}}` : '{}';
+				return depth === 0 ? res : `"${res}"`;
+			}),
+			type: 'string',
+		};
+	}
+
+	if (is(base, PgPointTuple)) {
+		return {
+			value: stringifyTuplesArray(def as any, 'sql', (x: number[], depth: number) => {
+				const res = x.length > 0 ? `(${x[0]},${x[1]})` : '{}';
+				return depth === 0 ? res : `"${res}"`;
+			}),
+			type: 'string',
+		};
+	}
+
+	if (is(base, PgPointObject)) {
+		return {
+			value: stringifyArray(def, 'sql', (x: { x: number; y: number }, depth: number) => {
+				const res = `(${x.x},${x.y})`;
 				return depth === 0 ? res : `"${res}"`;
 			}),
 			type: 'string',
@@ -225,7 +249,7 @@ export const defaultFromColumn = (
 		const value = dimensions > 0 && Array.isArray(def) ? buildArrayString(def, sqlTypeLowered) : JSON.stringify(def);
 		return {
 			value: value,
-			type: sqlTypeLowered,
+			type: 'json',
 		};
 	}
 
@@ -464,7 +488,7 @@ export const fromDrizzleSchema = (
 				// TODO:??
 				// Should do for all types
 				// columnToSet.default = `'${column.default}'::${sqlTypeLowered}`;
-				const { baseColumn, dimensions, sqlType, sqlBaseType, typeSchema } = unwrapColumn(column);
+				const { baseColumn, dimensions, sqlType, baseType, options, typeSchema } = unwrapColumn(column);
 
 				const columnDefault = defaultFromColumn(baseColumn, column.default, dimensions, dialect);
 				// console.log(columnDefault, column.default);
@@ -474,7 +498,8 @@ export const fromDrizzleSchema = (
 					schema: schema,
 					table: tableName,
 					name,
-					type: sqlBaseType,
+					type: baseType,
+					options,
 					typeSchema: typeSchema ?? null,
 					dimensions: dimensions,
 					pk: column.primary,

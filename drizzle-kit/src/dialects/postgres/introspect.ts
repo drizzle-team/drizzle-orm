@@ -28,6 +28,7 @@ import {
 	parseOnType,
 	parseViewDefinition,
 	splitExpressions,
+	splitSqlType,
 	stringFromDatabaseIdentityProperty as parseIdentityProperty,
 	trimChar,
 	wrapRecord,
@@ -611,30 +612,34 @@ export const fromDatabase = async (
 			: column.typeId in groupedArrEnums
 			? groupedArrEnums[column.typeId]
 			: null;
+
 		let columnTypeMapped = enumType ? enumType.name : column.type.replace('[]', '');
-		columnTypeMapped = trimChar(columnTypeMapped, '"');
 
 		if (columnTypeMapped.startsWith('numeric(')) {
 			columnTypeMapped = columnTypeMapped.replace(',', ', ');
 		}
-
-		const columnDefault = defaultsList.find(
-			(it) => it.tableId === column.tableId && it.ordinality === column.ordinality,
-		);
-
-		const defaultValue = defaultForColumn(
-			columnTypeMapped,
-			columnDefault?.expression,
-			column.dimensions,
-		);
-		// console.log(defaultValue, columnDefault?.expression, column.dimensions)		
-
 
 		columnTypeMapped = columnTypeMapped
 			.replace('character varying', 'varchar')
 			.replace(' without time zone', '')
 			// .replace("timestamp without time zone", "timestamp")
 			.replace('character', 'char');
+
+		columnTypeMapped = trimChar(columnTypeMapped, '"');
+
+		const { type, options } = splitSqlType(columnTypeMapped);
+
+		const columnDefault = defaultsList.find(
+			(it) => it.tableId === column.tableId && it.ordinality === column.ordinality,
+		);
+
+		const defaultValue = defaultForColumn(
+			type,
+			columnDefault?.expression,
+			column.dimensions,
+		);
+
+		// console.log(defaultValue, ':', column.type, type, columnDefault?.expression, column.dimensions);
 
 		const unique = constraintsList.find((it) => {
 			return it.type === 'u' && it.tableId === column.tableId && it.columnsOrdinals.length === 1
@@ -670,8 +675,9 @@ export const fromDatabase = async (
 			schema: schema.name,
 			table: table.name,
 			name: column.name,
-			type: columnTypeMapped,
-			typeSchema: enumType?.schema ?? null,
+			type,
+			options,
+			typeSchema: enumType ? enumType.schema ?? 'public' : null,
 			dimensions: column.dimensions,
 			default: column.generatedType === 's' ? null : defaultValue,
 			unique: !!unique,

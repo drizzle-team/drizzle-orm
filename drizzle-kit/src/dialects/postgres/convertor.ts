@@ -1,5 +1,5 @@
 import { escapeSingleQuotes, type Simplify } from '../../utils';
-import { defaultNameForPK, defaults, defaultToSQL, isDefaultAction, parseType } from './grammar';
+import { defaultNameForPK, defaults, defaultToSQL, isDefaultAction } from './grammar';
 import type { JsonStatement } from './statements';
 
 export const convertor = <
@@ -150,7 +150,9 @@ const createTableConvertor = convertor('create_table', (st) => {
 			: '';
 
 		const arr = column.dimensions > 0 ? '[]'.repeat(column.dimensions) : '';
-		const type = `${parseType(schemaPrefix, column.type)}${arr}`;
+		const options = column.options ? `(${column.options})` : '';
+		const colType = column.typeSchema ? `"${column.type}"` : column.type;
+		const type = `${schemaPrefix}${colType}${options}${arr}`;
 
 		const generated = column.generated;
 
@@ -267,8 +269,9 @@ const addColumnConvertor = convertor('add_column', (st) => {
 		? `"${column.typeSchema}".`
 		: '';
 
-	let fixedType = parseType(schemaPrefix, column.type);
-	fixedType += column.dimensions > 0 ? '[]'.repeat(column.dimensions) : '';
+	const options = column.options ? `(${column.options})` : '';
+	const type = column.typeSchema ? `"${column.type}"` : column.type;
+	let fixedType = `${schemaPrefix}${type}${options}${'[]'.repeat(column.dimensions)}`;
 
 	const notNullStatement = column.notNull && !identity && !generated ? ' NOT NULL' : '';
 
@@ -360,21 +363,16 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${type}${suffix};`);
 
 		if (recreateDefault) {
-			const typeSuffix = isEnum && column.dimensions === 0 ? `::${type}` : '';
 			statements.push(
-				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(column, isEnum)}${typeSuffix};`,
+				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(column)};`,
 			);
 		}
 	}
 
 	if (diff.default && !recreateDefault) {
 		if (diff.default.to) {
-			const typeSchema = column.typeSchema && column.typeSchema !== 'public' ? `"${column.typeSchema}".` : '';
-			const arrSuffix = column.dimensions > 0 ? '[]'.repeat(column.dimensions) : '';
-			const typeSuffix = isEnum ? `::${typeSchema}"${column.type}"${arrSuffix}` : '';
-
 			statements.push(
-				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(diff.$right)}${typeSuffix};`,
+				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(diff.$right)};`,
 			);
 		} else {
 			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);

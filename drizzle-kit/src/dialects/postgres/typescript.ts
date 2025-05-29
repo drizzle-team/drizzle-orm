@@ -12,7 +12,7 @@ import '../../@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
 import { parseArray } from 'src/utils/parse-pgarray';
 import { Casing } from '../../cli/validations/common';
-import { assertUnreachable, stringifyArrayValue } from '../../utils';
+import { assertUnreachable, stringifyArray, stringifyTuplesArray } from '../../utils';
 import { unescapeSingleQuotes } from '../../utils';
 import {
 	CheckConstraint,
@@ -592,9 +592,7 @@ const buildArrayDefault = (defaultValue: string, typeName: string): string => {
 		}
 		: (x: string | null) => `${x}`;
 
-	console.log(typeName, defaultValue, res);
-
-	return stringifyArrayValue(res, 'ts', mapper);
+	return stringifyArray(res, 'ts', mapper);
 };
 
 const mapDefault = (
@@ -609,13 +607,19 @@ const mapDefault = (
 	const lowered = type.toLowerCase().replace('[]', '');
 
 	if (enumTypes.has(`${typeSchema}.${type.replace('[]', '')}`)) {
+		if (dimensions > 0) {
+			const arr = parseArray(def.value);
+			if (arr.flat(5).length === 0) return `.default([])`;
+			const res = stringifyArray(arr, 'ts', (x) => `'${x}'`);
+			return `.default(${res})`;
+		}
 		return `.default(${mapColumnDefault(def)})`;
 	}
 
 	const parsed = dimensions > 0 ? parseArray(def.value) : def.value;
 	if (lowered.startsWith('uuid')) {
 		if (def.value === 'gen_random_uuid()') return '.defaultRandom()';
-		const res = stringifyArrayValue(parsed, 'ts', (x) => {
+		const res = stringifyArray(parsed, 'ts', (x) => {
 			return `'${x}'`;
 		});
 		return `.default(${res})`;
@@ -623,7 +627,7 @@ const mapDefault = (
 
 	if (lowered.startsWith('timestamp')) {
 		if (def.value === 'now()') return '.defaultNow()';
-		const res = stringifyArrayValue(parsed, 'ts', (x) => {
+		const res = stringifyArray(parsed, 'ts', (x) => {
 			// Matches YYYY-MM-DD HH:MI:SS, YYYY-MM-DD HH:MI:SS.FFFFFF, YYYY-MM-DD HH:MI:SS+TZ, YYYY-MM-DD HH:MI:SS.FFFFFF+TZ and YYYY-MM-DD HH:MI:SS+HH:MI
 			return /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d+)?([+-]\d{2}(:\d{2})?)?$/.test(x) ? `'${x}'` : `sql\`${x}\``;
 		});
@@ -633,7 +637,7 @@ const mapDefault = (
 
 	if (lowered.startsWith('time')) {
 		if (def.value === 'now()') return '.defaultNow()';
-		const res = stringifyArrayValue(parsed, 'ts', (x) => {
+		const res = stringifyArray(parsed, 'ts', (x) => {
 			return /^\d{2}:\d{2}(:\d{2})?(\.\d+)?$/.test(x) ? `'${x}'` : `sql\`${x}\``; // Matches HH:MI, HH:MI:SS and HH:MI:SS.FFFFFF
 		});
 
@@ -642,7 +646,7 @@ const mapDefault = (
 
 	if (lowered === 'date') {
 		if (def.value === 'now()') return '.defaultNow()';
-		const res = stringifyArrayValue(parsed, 'ts', (x) => {
+		const res = stringifyArray(parsed, 'ts', (x) => {
 			return /^\d{4}-\d{2}-\d{2}$/.test(x) ? `'${x}'` : `sql\`${x}\``; // Matches YYYY-MM-DD
 		});
 		return `.default(${res})`;
@@ -650,18 +654,28 @@ const mapDefault = (
 
 	if (lowered.startsWith('json') || lowered.startsWith('jsonb')) {
 		if (!def.value) return '';
-		const res = stringifyArrayValue(parsed, 'ts', (x) => {
+		const res = stringifyArray(parsed, 'ts', (x) => {
 			return String(x);
 		});
 		return `.default(${res})`;
 	}
 
 	if (lowered.startsWith('point')) {
-		console.log(parsed);
+		if (typeof parsed === 'string') {
+			return `.default([${parsed.substring(1, parsed.length - 1).split(',')}])`; // "{1,1,1}" -> [1,1,1]
+		}
+		if (parsed.flat(5).length === 0) return `.default([])`;
+		const res = stringifyArray(parsed, 'ts', (x) => String(x.substring(1, x.length - 1).split(',')));
+
+		return `.default([${res}])`;
 	}
 
 	if (lowered.startsWith('line')) {
-		console.log(parsed);
+		const value = typeof parsed === 'string'
+			? parsed.substring(1, parsed.length - 1).split(',') // "{1,1,1}" -> [1,1,1]
+			: parsed.map((x: string) => x.substring(1, x.length - 1).split(','));
+		const res = stringifyTuplesArray(value, 'ts', (x, d) => String(x));
+		return `.default([${res}])`;
 	}
 
 	if (
@@ -685,6 +699,31 @@ const mapDefault = (
 		|| lowered.startsWith('double precision')
 		|| lowered.startsWith('real')
 	) {
+		const mapper = lowered.startsWith('char')
+				|| lowered.startsWith('varchar')
+				|| lowered.startsWith('text')
+				|| lowered.startsWith('interval')
+				|| lowered.startsWith('inet')
+				|| lowered.startsWith('cidr')
+				|| lowered.startsWith('macaddr8')
+				|| lowered.startsWith('macaddr')
+			? (x: string) => `'${x}'`
+			: lowered.startsWith('bigint')
+					|| lowered.startsWith('numeric')
+			? (x: string) => {
+				const value = Number(x);
+				return value > Number.MAX_SAFE_INTEGER || value < Number.MIN_SAFE_INTEGER ? `${x}n` : `${x}`;
+			}
+			: lowered.startsWith('boolean')
+			? (x: string) => x === 't' ? 'true' : 'false'
+			: (x: string) => `${x}`;
+		if (dimensions > 0) {
+			const arr = parseArray(def.value);
+			if (arr.flat(5).length === 0) return `.default([])`;
+			const res = stringifyArray(arr, 'ts', mapper);
+			return `.default(${res})`;
+		}
+
 		return `.default(${mapColumnDefault(def)})`;
 	}
 
@@ -768,17 +807,18 @@ const column = (
 			params = { precision, scale };
 		}
 
-		let mode = def === null || def.type === 'number'
-			? '"number"'
-			: def.type === 'bigint'
-			? '"bigint"'
-			: def.type === 'string'
-			? ''
-			: '';
+		let mode = def !== null && def.type === 'bigint'
+			? 'bigint'
+			: def !== null && def.type === 'string'
+			? 'number'
+			: 'number';
+
 		if (mode) params['mode'] = mode;
 
-		let out = params
-			? `${withCasing(name, casing)}: numeric(${dbColumnName({ name, casing, withMode: true })}${timeConfig(params)})`
+		let out = Object.keys(params).length > 0
+			? `${withCasing(name, casing)}: numeric(${dbColumnName({ name, casing, withMode: true })}${
+				JSON.stringify(params)
+			})`
 			: `${withCasing(name, casing)}: numeric(${dbColumnName({ name, casing })})`;
 
 		return out;
