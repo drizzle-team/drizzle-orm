@@ -30,7 +30,7 @@ type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 export class SQLiteD1Session<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-> extends SQLiteSession<'async', D1Result, TFullSchema, TSchema> {
+> extends SQLiteSession<'async', D1Result, TFullSchema, TSchema, SQLiteTransactionConfig> {
 	static override readonly [entityKind]: string = 'SQLiteD1Session';
 
 	private logger: Logger;
@@ -128,7 +128,7 @@ export class SQLiteD1Session<
 export class D1Transaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-> extends SQLiteTransaction<'async', D1Result, TFullSchema, TSchema> {
+> extends SQLiteTransaction<'async', D1Result, TFullSchema, TSchema, SQLiteTransactionConfig> {
 	static override readonly [entityKind]: string = 'D1Transaction';
 
 	override async transaction<T>(transaction: (tx: D1Transaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {

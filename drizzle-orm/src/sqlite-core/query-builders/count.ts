@@ -5,7 +5,7 @@ import type { SQLiteTable } from '../table.ts';
 import type { SQLiteView } from '../view.ts';
 
 export class SQLiteCountBuilder<
-	TSession extends SQLiteSession<any, any, any, any>,
+	TSession extends SQLiteSession<any, any, any, any, any>,
 > extends SQL<number> implements Promise<number>, SQLWrapper {
 	private sql: SQL<number>;
 

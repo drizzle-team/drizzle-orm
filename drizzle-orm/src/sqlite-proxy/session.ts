@@ -29,7 +29,7 @@ export type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'r
 export class SQLiteRemoteSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-> extends SQLiteSession<'async', SqliteRemoteResult, TFullSchema, TSchema> {
+> extends SQLiteSession<'async', SqliteRemoteResult, TFullSchema, TSchema, SQLiteTransactionConfig> {
 	static override readonly [entityKind]: string = 'SQLiteRemoteSession';
 
 	private logger: Logger;
@@ -120,7 +120,7 @@ export class SQLiteRemoteSession<
 export class SQLiteProxyTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-> extends SQLiteTransaction<'async', SqliteRemoteResult, TFullSchema, TSchema> {
+> extends SQLiteTransaction<'async', SqliteRemoteResult, TFullSchema, TSchema, SQLiteTransactionConfig> {
 	static override readonly [entityKind]: string = 'SQLiteProxyTransaction';
 
 	override async transaction<T>(

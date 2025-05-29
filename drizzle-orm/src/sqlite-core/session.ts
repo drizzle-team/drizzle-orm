@@ -204,7 +204,12 @@ export abstract class SQLitePreparedQuery<T extends PreparedQueryConfig> impleme
 	abstract isResponseInArrayMode(): boolean;
 }
 
-export interface SQLiteTransactionConfig {
+export interface AbstractSQLiteTransactionConfig<T extends string> {
+	behavior?: T;
+}
+
+export interface SQLiteTransactionConfig
+	extends AbstractSQLiteTransactionConfig<'deferred' | 'immediate' | 'exclusive'> {
 	behavior?: 'deferred' | 'immediate' | 'exclusive';
 }
 
@@ -215,6 +220,7 @@ export abstract class SQLiteSession<
 	TRunResult,
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
+	TTransactionConfig extends AbstractSQLiteTransactionConfig<string>,
 > {
 	static readonly [entityKind]: string = 'SQLiteSession';
 
@@ -260,8 +266,8 @@ export abstract class SQLiteSession<
 	}
 
 	abstract transaction<T>(
-		transaction: (tx: SQLiteTransaction<TResultKind, TRunResult, TFullSchema, TSchema>) => Result<TResultKind, T>,
-		config?: SQLiteTransactionConfig,
+		transaction: (tx: SQLiteTransaction<TResultKind, TRunResult, TFullSchema, TSchema, TTransactionConfig>) => Result<TResultKind, T>,
+		config?: TTransactionConfig,
 	): Result<TResultKind, T>;
 
 	run(query: SQL): Result<TResultKind, TRunResult> {
@@ -332,13 +338,14 @@ export abstract class SQLiteTransaction<
 	TRunResult,
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-> extends BaseSQLiteDatabase<TResultType, TRunResult, TFullSchema, TSchema> {
+	TTransactionConfig extends AbstractSQLiteTransactionConfig<string>,
+> extends BaseSQLiteDatabase<TResultType, TRunResult, TFullSchema, TSchema, TTransactionConfig> {
 	static override readonly [entityKind]: string = 'SQLiteTransaction';
 
 	constructor(
 		resultType: TResultType,
 		dialect: { sync: SQLiteSyncDialect; async: SQLiteAsyncDialect }[TResultType],
-		session: SQLiteSession<TResultType, TRunResult, TFullSchema, TSchema>,
+		session: SQLiteSession<TResultType, TRunResult, TFullSchema, TSchema, TTransactionConfig>,
 		protected schema: {
 			fullSchema: Record<string, unknown>;
 			schema: TSchema;

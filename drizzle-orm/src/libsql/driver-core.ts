@@ -12,11 +12,17 @@ import {
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleConfig } from '~/utils.ts';
-import { LibSQLSession } from './session.ts';
+import { LibSQLSession, LibSQLTransactionConfig } from './session.ts';
 
 export class LibSQLDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> extends BaseSQLiteDatabase<'async', ResultSet, TSchema> {
+> extends BaseSQLiteDatabase<
+	'async',
+	ResultSet,
+	TSchema,
+	ExtractTablesWithRelations<TSchema>,
+	LibSQLTransactionConfig
+> {
 	static override readonly [entityKind]: string = 'LibSQLDatabase';
 
 	/** @internal */

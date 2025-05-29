@@ -46,7 +46,7 @@ export class SQLiteInsertBuilder<
 
 	constructor(
 		protected table: TTable,
-		protected session: SQLiteSession<any, any, any, any>,
+		protected session: SQLiteSession<any, any, any, any, any>,
 		protected dialect: SQLiteDialect,
 		private withList?: Subquery[],
 	) {}
@@ -241,7 +241,7 @@ export class SQLiteInsertBase<
 	constructor(
 		table: TTable,
 		values: SQLiteInsertConfig['values'],
-		private session: SQLiteSession<any, any, any, any>,
+		private session: SQLiteSession<any, any, any, any, any>,
 		private dialect: SQLiteDialect,
 		withList?: Subquery[],
 		select?: boolean,

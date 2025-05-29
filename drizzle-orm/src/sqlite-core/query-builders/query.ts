@@ -12,7 +12,7 @@ import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Query, QueryWithTypings, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { KnownKeysOnly } from '~/utils.ts';
 import type { SQLiteDialect } from '../dialect.ts';
-import type { PreparedQueryConfig, SQLitePreparedQuery, SQLiteSession } from '../session.ts';
+import type { AbstractSQLiteTransactionConfig, PreparedQueryConfig, SQLitePreparedQuery, SQLiteSession } from '../session.ts';
 import type { SQLiteTable } from '../table.ts';
 
 export type SQLiteRelationalQueryKind<TMode extends 'sync' | 'async', TResult> = TMode extends 'async'
@@ -24,6 +24,7 @@ export class RelationalQueryBuilder<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
 	TFields extends TableRelationalConfig,
+	TTransactionConfig extends AbstractSQLiteTransactionConfig<string>,
 > {
 	static readonly [entityKind]: string = 'SQLiteAsyncRelationalQueryBuilder';
 
@@ -35,7 +36,7 @@ export class RelationalQueryBuilder<
 		protected table: SQLiteTable,
 		protected tableConfig: TableRelationalConfig,
 		protected dialect: SQLiteDialect,
-		protected session: SQLiteSession<'async', unknown, TFullSchema, TSchema>,
+		protected session: SQLiteSession<'async', unknown, TFullSchema, TSchema, TTransactionConfig>,
 	) {}
 
 	findMany<TConfig extends DBQueryConfig<'many', true, TSchema, TFields>>(
@@ -117,7 +118,7 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 		public table: SQLiteTable,
 		private tableConfig: TableRelationalConfig,
 		private dialect: SQLiteDialect,
-		private session: SQLiteSession<'sync' | 'async', unknown, Record<string, unknown>, TablesRelationalConfig>,
+		private session: SQLiteSession<'sync' | 'async', unknown, Record<string, unknown>, TablesRelationalConfig, any>,
 		private config: DBQueryConfig<'many', true> | true,
 		mode: 'many' | 'first',
 	) {

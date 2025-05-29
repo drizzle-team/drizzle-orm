@@ -12,9 +12,9 @@ import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
 import { SQLiteTransaction } from '~/sqlite-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types.ts';
 import type {
+	AbstractSQLiteTransactionConfig,
 	PreparedQueryConfig as PreparedQueryConfigBase,
 	SQLiteExecuteMethod,
-	SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
 import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
 import { mapResultRow } from '~/utils.ts';
@@ -26,10 +26,15 @@ export interface LibSQLSessionOptions {
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
+export interface LibSQLTransactionConfig
+	extends AbstractSQLiteTransactionConfig<string> {
+	behavior?: "read" | "write" | "deferred"
+}
+
 export class LibSQLSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-> extends SQLiteSession<'async', ResultSet, TFullSchema, TSchema> {
+> extends SQLiteSession<'async', ResultSet, TFullSchema, TSchema, LibSQLTransactionConfig> {
 	static override readonly [entityKind]: string = 'LibSQLSession';
 
 	private logger: Logger;
@@ -74,7 +79,7 @@ export class LibSQLSession<
 		);
 	}
 
-	async batch<T extends BatchItem<'sqlite'>[] | readonly BatchItem<'sqlite'>[]>(queries: T) {
+	async batch<T extends BatchItem<'sqlite'>[] | readonly BatchItem<'sqlite'>[]>(queries: T, config?: LibSQLTransactionConfig) {
 		const preparedQueries: PreparedQuery[] = [];
 		const builtQueries: InStatement[] = [];
 
@@ -85,7 +90,7 @@ export class LibSQLSession<
 			builtQueries.push({ sql: builtQuery.sql, args: builtQuery.params as InArgs });
 		}
 
-		const batchResults = await this.client.batch(builtQueries);
+		const batchResults = await this.client.batch(builtQueries, config?.behavior);
 		return batchResults.map((result, i) => preparedQueries[i]!.mapResult(result, true));
 	}
 
@@ -106,10 +111,9 @@ export class LibSQLSession<
 
 	override async transaction<T>(
 		transaction: (db: LibSQLTransaction<TFullSchema, TSchema>) => T | Promise<T>,
-		_config?: SQLiteTransactionConfig,
+		config?: LibSQLTransactionConfig,
 	): Promise<T> {
-		// TODO: support transaction behavior
-		const libsqlTx = await this.client.transaction();
+		const libsqlTx = await this.client.transaction(config?.behavior);
 		const session = new LibSQLSession<TFullSchema, TSchema>(
 			this.client,
 			this.dialect,
@@ -144,7 +148,7 @@ export class LibSQLSession<
 export class LibSQLTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-> extends SQLiteTransaction<'async', ResultSet, TFullSchema, TSchema> {
+> extends SQLiteTransaction<'async', ResultSet, TFullSchema, TSchema, LibSQLTransactionConfig> {
 	static override readonly [entityKind]: string = 'LibSQLTransaction';
 
 	override async transaction<T>(transaction: (tx: LibSQLTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
