@@ -1,3 +1,4 @@
+import { fromDatabase as fd } from 'src/dialects/sqlite/introspect';
 import type {
 	CheckConstraint,
 	Column,
@@ -79,7 +80,7 @@ const fromInterims = (tables: InterimTable[], views: InterimView[]): InterimSche
 	}).flat(1);
 
 	const vws: View[] = views.map((it) => {
-		return { entityType: 'views', isExisting: false, ...it };
+		return { entityType: 'views', isExisting: false, error: null, ...it };
 	});
 
 	return {
@@ -113,3 +114,5 @@ export const diffSqlite = async (
 
 	return { sqlStatements, statements, groupedStatements };
 };
+
+export const fromDatabase = fd;

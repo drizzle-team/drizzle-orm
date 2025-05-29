@@ -90,6 +90,28 @@ test('basic identity always test', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
+test('identity always test: few schemas', async () => {
+	const testSchema = pgSchema('test');
+	const schema = {
+		testSchema,
+		users: pgTable('users', {
+			id: integer('id').generatedAlwaysAsIdentity(),
+			email: text('email'),
+		}),
+		usersInTestSchema: testSchema.table('users', {
+			id: integer('id').generatedAlwaysAsIdentity(),
+			email: text('email'),
+		}),
+	};
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'identity always test: few schemas', [
+		'public',
+		'test',
+	]);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
 test('basic identity by default test', async () => {
 	const schema = {
 		users: pgTable('users', {

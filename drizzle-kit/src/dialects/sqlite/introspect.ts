@@ -1,5 +1,5 @@
 import { type IntrospectStage, type IntrospectStatus } from '../../cli/views';
-import { type SQLiteDB } from '../../utils';
+import { type DB } from '../../utils';
 import { trimChar } from '../postgres/grammar';
 import {
 	type CheckConstraint,
@@ -24,7 +24,7 @@ import {
 } from './grammar';
 
 export const fromDatabaseForDrizzle = async (
-	db: SQLiteDB,
+	db: DB,
 	tablesFilter: (table: string) => boolean = () => true,
 	progressCallback: (
 		stage: IntrospectStage,
@@ -40,7 +40,7 @@ export const fromDatabaseForDrizzle = async (
 };
 
 export const fromDatabase = async (
-	db: SQLiteDB,
+	db: DB,
 	tablesFilter: (table: string) => boolean = () => true,
 	progressCallback: (
 		stage: IntrospectStage,
@@ -49,17 +49,16 @@ export const fromDatabase = async (
 	) => void = () => {},
 ) => {
 	// TODO: fetch tables and views list with system filter from grammar
-	const dbColumns = await db.query<{
+	const dbTableColumns = await db.query<{
 		table: string;
 		name: string;
 		columnType: string;
 		notNull: number;
 		defaultValue: string;
 		pk: number;
-		seq: number;
 		hidden: number;
 		sql: string;
-		type: 'view' | 'table';
+		type: 'table' | 'view';
 	}>(
 		`SELECT 
 			m.name as "table", 
@@ -67,14 +66,14 @@ export const fromDatabase = async (
 			p.type as "columnType",
 			p."notnull" as "notNull", 
 			p.dflt_value as "defaultValue",
-		  p.pk as pk,
+			p.pk as pk,
 			p.hidden as hidden,
 			m.sql,
 			m.type as type
-    FROM sqlite_master AS m 
-		JOIN pragma_table_xinfo(m.name) AS p
-    WHERE 
-			(m.type = 'table' OR m.type = 'view')
+		FROM sqlite_master AS m 
+			JOIN pragma_table_xinfo(m.name) AS p
+		WHERE 
+			m.type = 'table'
 			and m.tbl_name != '__drizzle_migrations' 
 			and m.tbl_name NOT LIKE '\\_cf\\_%' ESCAPE '\\'
 			and m.tbl_name NOT LIKE '\\_litestream\\_%' ESCAPE '\\'
@@ -84,7 +83,118 @@ export const fromDatabase = async (
     `,
 	).then((columns) => columns.filter((it) => tablesFilter(it.table)));
 
-	type DBColumn = typeof dbColumns[number];
+	const views = await db.query<{
+		name: string;
+		sql: string;
+	}>(
+		`SELECT
+			m.name as "name",
+			m.sql
+		FROM sqlite_master AS m
+			WHERE
+			m.type = 'view'
+			and m.tbl_name != '__drizzle_migrations'
+			and m.tbl_name NOT LIKE '\\_cf\\_%' ESCAPE '\\'
+			and m.tbl_name NOT LIKE '\\_litestream\\_%' ESCAPE '\\'
+			and m.tbl_name NOT LIKE 'libsql\\_%' ESCAPE '\\'
+			and m.tbl_name  NOT LIKE 'sqlite\\_%' ESCAPE '\\'
+			;`,
+	).then((views) =>
+		views.filter((it) => tablesFilter(it.name)).map((it): View => {
+			const definition = parseViewSQL(it.sql);
+
+			if (!definition) {
+				console.log(`Could not process view ${it.name}:\n${it.sql}`);
+				process.exit(1);
+			}
+
+			return {
+				entityType: 'views',
+				name: it.name,
+				definition,
+				isExisting: false,
+				error: null,
+			};
+		})
+	);
+
+	let dbViewColumns: {
+		table: string;
+		name: string;
+		columnType: string;
+		notNull: number;
+		defaultValue: string;
+		pk: number;
+		hidden: number;
+	}[] = [];
+	try {
+		dbViewColumns = await db.query<{
+			table: string;
+			name: string;
+			columnType: string;
+			notNull: number;
+			defaultValue: string;
+			pk: number;
+			hidden: number;
+			sql: string;
+			type: 'view';
+		}>(
+			`SELECT 
+				m.name as "table", 
+				p.name as "name", 
+				p.type as "columnType",
+				p."notnull" as "notNull", 
+				p.dflt_value as "defaultValue",
+				p.pk as pk,
+				p.hidden as hidden,
+				m.sql,
+				m.type as type
+			FROM sqlite_master AS m 
+				JOIN pragma_table_xinfo(m.name) AS p
+			WHERE 
+				m.type = 'view'
+				and m.tbl_name != '__drizzle_migrations' 
+				and m.tbl_name NOT LIKE '\\_cf\\_%' ESCAPE '\\'
+				and m.tbl_name NOT LIKE '\\_litestream\\_%' ESCAPE '\\'
+				and m.tbl_name NOT LIKE 'libsql\\_%' ESCAPE '\\'
+				and m.tbl_name  NOT LIKE 'sqlite\\_%' ESCAPE '\\'
+				;
+		`,
+		).then((columns) => columns.filter((it) => tablesFilter(it.table)));
+	} catch (_) {
+		for (const view of views) {
+			try {
+				const viewColumns = await db.query<{
+					table: string;
+					name: string;
+					columnType: string;
+					notNull: number;
+					defaultValue: string;
+					pk: number;
+					hidden: number;
+				}>(
+					`SELECT 
+						'${view.name}' as "table",
+						p.name as "name", 
+						p.type as "columnType",
+						p."notnull" as "notNull", 
+						p.dflt_value as "defaultValue",
+						p.pk as pk,
+						p.hidden as hidden
+					FROM pragma_table_xinfo(${view.name}) AS p;
+					`,
+				);
+				dbViewColumns.push(...viewColumns);
+			} catch (error) {
+				const errorMessage = (error as Error).message;
+				const viewIndex = views.findIndex((v) => v.name === view.name);
+				views[viewIndex] = {
+					...views[viewIndex],
+					error: errorMessage,
+				};
+			}
+		}
+	}
 
 	const dbTablesWithSequences = await db.query<{
 		name: string;
@@ -134,7 +244,7 @@ export const fromDatabase = async (
 	type DBIndex = typeof dbIndexes[number];
 	// append primaryKeys by table
 
-	const tableToPk = dbColumns.reduce((acc, it) => {
+	const tableToPk = dbTableColumns.reduce((acc, it) => {
 		const isPrimary = it.pk !== 0;
 		if (isPrimary) {
 			if (it.table in acc) {
@@ -146,7 +256,7 @@ export const fromDatabase = async (
 		return acc;
 	}, {} as { [tname: string]: string[] });
 
-	const tableToGenerated = dbColumns.reduce((acc, it) => {
+	const tableToGenerated = dbTableColumns.reduce((acc, it) => {
 		if (it.hidden !== 2 && it.hidden !== 3) return acc;
 		acc[it.table] = extractGeneratedColumns(it.sql);
 		return acc;
@@ -177,7 +287,7 @@ export const fromDatabase = async (
 		>,
 	);
 
-	const tablesToSQL = dbColumns.reduce((acc, it) => {
+	const tablesToSQL = dbTableColumns.reduce((acc, it) => {
 		if (it.table in acc) return acc;
 
 		acc[it.table] = it.sql;
@@ -185,7 +295,7 @@ export const fromDatabase = async (
 	}, {} as Record<string, string>) || {};
 
 	const tables: SqliteEntities['tables'][] = [
-		...new Set(dbColumns.filter((it) => it.type === 'table').map((it) => it.table)),
+		...new Set(dbTableColumns.filter((it) => it.type === 'table').map((it) => it.table)),
 	].map((it) => ({
 		entityType: 'tables',
 		name: it,
@@ -199,7 +309,7 @@ export const fromDatabase = async (
 	}
 
 	const columns: InterimColumn[] = [];
-	for (const column of dbColumns.filter((it) => it.type === 'table')) {
+	for (const column of dbTableColumns.filter((it) => it.type === 'table')) {
 		columnsCount += 1;
 
 		progressCallback('columns', columnsCount, 'fetching');
@@ -349,7 +459,7 @@ export const fromDatabase = async (
 	progressCallback('indexes', indexesCount, 'done');
 	progressCallback('enums', 0, 'done');
 
-	const viewsToColumns = dbColumns.filter((it) => it.type === 'view').reduce((acc, it) => {
+	const viewsToColumns = dbViewColumns.reduce((acc, it) => {
 		const column: ViewColumn = {
 			view: it.table,
 			name: it.name,
@@ -357,32 +467,15 @@ export const fromDatabase = async (
 			notNull: it.notNull === 1,
 		};
 		if (it.table in acc) {
-			acc[it.table].columns.push(column);
+			acc[it.table].push(column);
 		} else {
-			acc[it.table] = { view: { name: it.table, sql: it.sql }, columns: [column] };
+			acc[it.table] = [column];
 		}
 		return acc;
-	}, {} as Record<string, { view: { name: string; sql: string }; columns: ViewColumn[] }>);
+	}, {} as Record<string, ViewColumn[]>);
 
 	viewsCount = Object.keys(viewsToColumns).length;
 	progressCallback('views', viewsCount, 'fetching');
-
-	const views: View[] = [];
-	for (const { view } of Object.values(viewsToColumns)) {
-		const definition = parseViewSQL(view.sql);
-
-		if (!definition) {
-			console.log(`Could not process view ${view.name}:\n${view.sql}`);
-			process.exit(1);
-		}
-
-		views.push({
-			entityType: 'views',
-			name: view.name,
-			definition,
-			isExisting: false,
-		});
-	}
 
 	progressCallback('views', viewsCount, 'done');
 
