@@ -731,8 +731,8 @@ importers:
         specifier: ^1.3.3
         version: 1.3.3
       better-sqlite3:
-        specifier: ^11.9.1
-        version: 11.10.0
+        specifier: 11.9.1
+        version: 11.9.1
       dockerode:
         specifier: ^4.0.6
         version: 4.0.6
@@ -6500,6 +6500,15 @@ packages:
     dependencies:
       bindings: 1.5.0
       prebuild-install: 7.1.3
+    dev: true
+
+  /better-sqlite3@11.9.1:
+    resolution: {integrity: sha512-Ba0KR+Fzxh2jDRhdg6TSH0SJGzb8C0aBY4hR8w8madIdIzzC6Y1+kx5qR6eS1Z+Gy20h6ZU28aeyg0z1VIrShQ==}
+    requiresBuild: true
+    dependencies:
+      bindings: 1.5.0
+      prebuild-install: 7.1.3
+    dev: false
 
   /big-integer@1.6.52:
     resolution: {integrity: sha512-QxD8cf2eVqJOOz63z6JIN9BzvVs/dlySa5HGSBH5xtR8dPteIRQnBxxKqkNTiT6jbDTF6jAfrd4oMcND9RGbQg==}
