@@ -134,17 +134,17 @@
 			"types": "./index.d.mts",
 			"default": "./index.mjs"
 		},
-		"./api": {
+		"./api-postgres": {
 			"import": {
-				"types": "./api.d.mts",
-				"default": "./api.mjs"
+				"types": "./api-postgres.d.mts",
+				"default": "./api-postgres.mjs"
 			},
 			"require": {
-				"types": "./api.d.ts",
-				"default": "./api.js"
+				"types": "./api-postgres.d.ts",
+				"default": "./api-postgres.js"
 			},
-			"types": "./api.d.mts",
-			"default": "./api.mjs"
+			"types": "./api-postgres.d.mts",
+			"default": "./api-postgres.mjs"
 		}
 	}
 }

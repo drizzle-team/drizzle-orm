@@ -156,7 +156,7 @@ const usersSchemaTable = mySchema.table('userstest', {
 	name: varchar('name', { length: 100 }).notNull(),
 	verified: bit('verified').notNull().default(false),
 	jsonb: nvarchar('jsonb', { mode: 'json', length: 100 }).$type<string[]>(),
-	createdAt: datetime2('created_at', { precision: 2 }).notNull().defaultCurrentTimestamp(),
+	createdAt: datetime2('created_at', { precision: 2 }).notNull().defaultGetDate(),
 });
 
 const users2SchemaTable = mySchema.table('users2', {

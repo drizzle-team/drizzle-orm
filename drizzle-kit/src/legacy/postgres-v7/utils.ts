@@ -99,9 +99,6 @@ export const prepareOutFolder = (out: string, dialect: Dialect) => {
 	return { meta, snapshots, journal };
 };
 
-
-
-
 export const columnRenameKey = (
 	table: string,
 	schema: string,
