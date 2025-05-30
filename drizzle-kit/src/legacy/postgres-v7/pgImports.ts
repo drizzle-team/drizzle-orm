@@ -62,4 +62,3 @@ export const prepareFromExports = (exports: Record<string, unknown>) => {
 
 	return { tables, enums, schemas, sequences, views, matViews, roles, policies };
 };
-

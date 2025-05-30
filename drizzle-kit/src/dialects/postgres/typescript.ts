@@ -719,7 +719,7 @@ const column = (
 	def: Column['default'],
 ) => {
 	const lowered = type.toLowerCase().replace('[]', '');
-	
+
 	if (enumTypes.has(`${typeSchema}.${type.replace('[]', '')}`)) {
 		let out = `${withCasing(name, casing)}: ${withCasing(paramNameFor(type.replace('[]', ''), typeSchema), casing)}(${
 			dbColumnName({ name, casing })

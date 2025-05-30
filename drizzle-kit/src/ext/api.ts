@@ -1,22 +1,22 @@
-import { LibSQLDatabase } from 'drizzle-orm/libsql';
-import type { MySql2Database } from 'drizzle-orm/mysql2';
-import { PgDatabase } from 'drizzle-orm/pg-core';
-import { SingleStoreDriverDatabase } from 'drizzle-orm/singlestore';
-import { introspect as postgresIntrospect } from '../cli/commands/pull-postgres';
-import { sqliteIntrospect } from '../cli/commands/pull-sqlite';
-import { suggestions } from '../cli/commands/push-postgres';
-import { updateUpToV6 as upPgV6, updateUpToV7 as upPgV7 } from '../cli/commands/up-postgres';
-import { resolver } from '../cli/prompts';
-import type { CasingType } from '../cli/validations/common';
-import { ProgressView, schemaError, schemaWarning } from '../cli/views';
-import { fromDrizzleSchema, fromExports } from '../dialects/postgres/drizzle';
-import { PostgresSnapshot, toJsonSnapshot } from '../dialects/postgres/snapshot';
-import type { Config } from '../index';
-import { originUUID } from '../utils';
-import type { DB, SQLiteDB } from '../utils';
-import { getTablesFilterByExtensions } from './extensions/getTablesFilterByExtensions';
+// import { LibSQLDatabase } from 'drizzle-orm/libsql';
+// import type { MySql2Database } from 'drizzle-orm/mysql2';
+// import { PgDatabase } from 'drizzle-orm/pg-core';
+// import { SingleStoreDriverDatabase } from 'drizzle-orm/singlestore';
+// import { introspect as postgresIntrospect } from '../cli/commands/pull-postgres';
+// import { sqliteIntrospect } from '../cli/commands/pull-sqlite';
+// import { suggestions } from '../cli/commands/push-postgres';
+// import { updateUpToV6 as upPgV6, updateUpToV7 as upPgV7 } from '../cli/commands/up-postgres';
+// import { resolver } from '../cli/prompts';
+// import type { CasingType } from '../cli/validations/common';
+// import { ProgressView, schemaError, schemaWarning } from '../cli/views';
+// import { fromDrizzleSchema, fromExports } from '../dialects/postgres/drizzle';
+// import { PostgresSnapshot, toJsonSnapshot } from '../dialects/postgres/snapshot';
+// import type { Config } from '../index';
+// import { originUUID } from '../utils';
+// import type { DB, SQLiteDB } from '../utils';
+// import { getTablesFilterByExtensions } from './extensions/getTablesFilterByExtensions';
 
-import * as postgres from './api-postgres';
+// import * as postgres from './api-postgres';
 
 // SQLite
 

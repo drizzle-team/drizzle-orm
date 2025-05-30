@@ -116,7 +116,7 @@ const fromInterims = ({
 		})
 		.flat(1);
 
-	const vws: View[] = views.map(({columns, ...it}) => {
+	const vws: View[] = views.map(({ columns, ...it }) => {
 		return {
 			entityType: 'views',
 			tablespace: it.schema,
