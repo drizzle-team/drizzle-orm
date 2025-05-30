@@ -49,7 +49,7 @@ export abstract class MySqlPreparedQuery<T extends MySqlPreparedQueryConfig> {
 	static readonly [entityKind]: string = 'MySqlPreparedQuery';
 
 	constructor( // cache instance
-		private cache: Cache,
+		private cache: Cache | undefined,
 		// per query related metadata
 		private queryMetadata: {
 			type: 'select' | 'update' | 'delete' | 'insert';
