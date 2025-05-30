@@ -1128,7 +1128,7 @@ test('column is array of enum with multiple dimenions with custom sizes type. sh
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`,
 		`DROP TYPE "enum";`,
 		`CREATE TYPE "enum" AS ENUM('value1', 'value3', 'value2');`,
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum"[][] USING "column"::"enum"[];`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum"[][] USING "column"::"enum"[][];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);

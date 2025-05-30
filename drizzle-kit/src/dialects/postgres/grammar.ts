@@ -15,8 +15,9 @@ export const trimChar = (str: string, char: string) => {
 	return res;
 };
 export const splitSqlType = (sqlType: string) => {
-	const match = sqlType.match(/^(\w+)\((.*)\)$/);
-	const type = match ? match[1] : sqlType;
+	// timestamp(6) with time zone -> [timestamp, 6, with time zone]
+	const match = sqlType.match(/^(\w+)\(([^)]*)\)(?:\s+with time zone)?$/i);
+	let type = match ? (match[1] + (match[3] ?? '')) : sqlType;
 	const options = match ? match[2] : null;
 	return { type, options };
 };
@@ -154,7 +155,7 @@ export function buildArrayString(array: any[], sqlType: string): string {
 			}
 
 			if (typeof value === 'string') {
-				if (/^[a-zA-Z0-9._:-]+$/.test(value)) return value;
+				if (/^[a-zA-Z0-9./_:-]+$/.test(value)) return value;
 				return `"${value.replaceAll("'", "''")}"`;
 			}
 
@@ -398,7 +399,7 @@ export const defaultForColumn = (
 		if (dimensions > 0) {
 			const res = stringifyArray(parseArray(value), 'sql', (it) => {
 				return `"${JSON.stringify(JSON.parse(it.replaceAll('\\"', '"'))).replaceAll('"', '\\"')}"`;
-			});
+			}).replaceAll(`\\"}", "{\\"`, `\\"}","{\\"`); // {{key:val}, {key:val}} -> {{key:val},{key:val}}
 			return {
 				value: res,
 				type: 'json',
@@ -453,7 +454,7 @@ export const defaultToSQL = (
 
 	if (typeSchema) {
 		const schemaPrefix = typeSchema && typeSchema !== 'public' ? `"${typeSchema}".` : '';
-		return `'${value}'::${schemaPrefix}"${columnType}"${arrsuffix}`;
+		return `'${escapeSingleQuotes(value)}'::${schemaPrefix}"${columnType}"${arrsuffix}`;
 	}
 
 	const suffix = arrsuffix ? `::${columnType}${arrsuffix}` : '';

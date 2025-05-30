@@ -348,17 +348,24 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 	}
 
-	if (diff.type) {
+	if (diff.type || diff.options) {
 		const typeSchema = column.typeSchema && column.typeSchema !== 'public' ? `"${column.typeSchema}".` : '';
 		const textProxy = wasEnum && isEnum ? 'text::' : ''; // using enum1::text::enum2
 		const arrSuffix = column.dimensions > 0 ? '[]'.repeat(column.dimensions) : '';
 		const suffix = isEnum ? ` USING "${column.name}"::${textProxy}${typeSchema}"${column.type}"${arrSuffix}` : '';
-		let type = diff.typeSchema?.to && diff.typeSchema.to !== 'public'
-			? `"${diff.typeSchema.to}"."${diff.type.to}"`
-			: isEnum
-			? `"${diff.type.to}"`
-			: diff.type.to; // TODO: enum?
+		let type: string;
 
+		if (diff.type) {
+			type = diff.typeSchema?.to && diff.typeSchema.to !== 'public'
+				? `"${diff.typeSchema.to}"."${diff.type.to}"`
+				: isEnum
+				? `"${diff.type.to}"`
+				: diff.type.to; // TODO: enum?
+		} else {
+			type = `${typeSchema}${column.typeSchema ? `"${column.type}"` : column.type}`;
+		}
+
+		type += column.options ? `(${column.options})` : '';
 		type += arrSuffix;
 		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${type}${suffix};`);
 
