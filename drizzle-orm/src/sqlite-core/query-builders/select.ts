@@ -1,3 +1,4 @@
+import type { CacheConfig, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
@@ -31,6 +32,7 @@ import {
 	type ValueOrArray,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import { extractUsedTable } from '../utils.ts';
 import { SQLiteViewBase } from '../view-base.ts';
 import type {
 	AnySQLiteSelect,
@@ -152,6 +154,7 @@ export abstract class SQLiteSelectQueryBuilderBase<
 		readonly excludedMethods: TExcludedMethods;
 		readonly result: TResult;
 		readonly selectedFields: TSelectedFields;
+		readonly config: SQLiteSelectConfig;
 	};
 
 	/** @internal */
@@ -161,6 +164,8 @@ export abstract class SQLiteSelectQueryBuilderBase<
 	private isPartialSelect: boolean;
 	protected session: SQLiteSession<any, any, any, any> | undefined;
 	protected dialect: SQLiteDialect;
+	protected cacheConfig?: WithCacheConfig = undefined;
+	protected usedTables: Set<string> = new Set();
 
 	constructor(
 		{ table, fields, isPartialSelect, session, dialect, withList, distinct }: {
@@ -186,9 +191,16 @@ export abstract class SQLiteSelectQueryBuilderBase<
 		this.dialect = dialect;
 		this._ = {
 			selectedFields: fields as TSelectedFields,
+			config: this.config,
 		} as this['_'];
 		this.tableName = getTableLikeName(table);
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
+		for (const item of extractUsedTable(table)) this.usedTables.add(item);
+	}
+
+	/** @internal */
+	getUsedTables() {
+		return [...this.usedTables];
 	}
 
 	private createJoin<TJoinType extends JoinType>(
@@ -196,10 +208,13 @@ export abstract class SQLiteSelectQueryBuilderBase<
 	): SQLiteSelectJoinFn<this, TDynamic, TJoinType> {
 		return (
 			table: SQLiteTable | Subquery | SQLiteViewBase | SQL,
-			on: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
+			on?: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
 		) => {
 			const baseTableName = this.tableName;
 			const tableName = getTableLikeName(table);
+
+			// store all tables used in a query
+			for (const item of extractUsedTable(table)) this.usedTables.add(item);
 
 			if (typeof tableName === 'string' && this.config.joins?.some((join) => join.alias === tableName)) {
 				throw new Error(`Alias "${tableName}" is already used in this query`);
@@ -249,6 +264,7 @@ export abstract class SQLiteSelectQueryBuilderBase<
 						this.joinsNotNullableMap[tableName] = true;
 						break;
 					}
+					case 'cross':
 					case 'inner': {
 						this.joinsNotNullableMap[tableName] = true;
 						break;
@@ -281,12 +297,12 @@ export abstract class SQLiteSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Select all users and their pets
-	 * const usersWithPets: { user: User; pets: Pet | null }[] = await db.select()
+	 * const usersWithPets: { user: User; pets: Pet | null; }[] = await db.select()
 	 *   .from(users)
 	 *   .leftJoin(pets, eq(users.id, pets.ownerId))
 	 *
 	 * // Select userId and petId
-	 * const usersIdsAndPetIds: { userId: number; petId: number | null }[] = await db.select({
+	 * const usersIdsAndPetIds: { userId: number; petId: number | null; }[] = await db.select({
 	 *   userId: users.id,
 	 *   petId: pets.id,
 	 * })
@@ -310,12 +326,12 @@ export abstract class SQLiteSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Select all users and their pets
-	 * const usersWithPets: { user: User | null; pets: Pet }[] = await db.select()
+	 * const usersWithPets: { user: User | null; pets: Pet; }[] = await db.select()
 	 *   .from(users)
 	 *   .rightJoin(pets, eq(users.id, pets.ownerId))
 	 *
 	 * // Select userId and petId
-	 * const usersIdsAndPetIds: { userId: number | null; petId: number }[] = await db.select({
+	 * const usersIdsAndPetIds: { userId: number | null; petId: number; }[] = await db.select({
 	 *   userId: users.id,
 	 *   petId: pets.id,
 	 * })
@@ -339,12 +355,12 @@ export abstract class SQLiteSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Select all users and their pets
-	 * const usersWithPets: { user: User; pets: Pet }[] = await db.select()
+	 * const usersWithPets: { user: User; pets: Pet; }[] = await db.select()
 	 *   .from(users)
 	 *   .innerJoin(pets, eq(users.id, pets.ownerId))
 	 *
 	 * // Select userId and petId
-	 * const usersIdsAndPetIds: { userId: number; petId: number }[] = await db.select({
+	 * const usersIdsAndPetIds: { userId: number; petId: number; }[] = await db.select({
 	 *   userId: users.id,
 	 *   petId: pets.id,
 	 * })
@@ -368,12 +384,12 @@ export abstract class SQLiteSelectQueryBuilderBase<
 	 *
 	 * ```ts
 	 * // Select all users and their pets
-	 * const usersWithPets: { user: User | null; pets: Pet | null }[] = await db.select()
+	 * const usersWithPets: { user: User | null; pets: Pet | null; }[] = await db.select()
 	 *   .from(users)
 	 *   .fullJoin(pets, eq(users.id, pets.ownerId))
 	 *
 	 * // Select userId and petId
-	 * const usersIdsAndPetIds: { userId: number | null; petId: number | null }[] = await db.select({
+	 * const usersIdsAndPetIds: { userId: number | null; petId: number | null; }[] = await db.select({
 	 *   userId: users.id,
 	 *   petId: pets.id,
 	 * })
@@ -382,6 +398,34 @@ export abstract class SQLiteSelectQueryBuilderBase<
 	 * ```
 	 */
 	fullJoin = this.createJoin('full');
+
+	/**
+	 * Executes a `cross join` operation by combining rows from two tables into a new table.
+	 *
+	 * Calling this method retrieves all rows from both main and joined tables, merging all rows from each table.
+	 *
+	 * See docs: {@link https://orm.drizzle.team/docs/joins#cross-join}
+	 *
+	 * @param table the table to join.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * // Select all users, each user with every pet
+	 * const usersWithPets: { user: User; pets: Pet; }[] = await db.select()
+	 *   .from(users)
+	 *   .crossJoin(pets)
+	 *
+	 * // Select userId and petId
+	 * const usersIdsAndPetIds: { userId: number; petId: number; }[] = await db.select({
+	 *   userId: users.id,
+	 *   petId: pets.id,
+	 * })
+	 *   .from(users)
+	 *   .crossJoin(pets)
+	 * ```
+	 */
+	crossJoin = this.createJoin('cross');
 
 	private createSetOperator(
 		type: SetOperator,
@@ -780,8 +824,12 @@ export abstract class SQLiteSelectQueryBuilderBase<
 	as<TAlias extends string>(
 		alias: TAlias,
 	): SubqueryWithSelection<this['_']['selectedFields'], TAlias> {
+		const usedTables: string[] = [];
+		usedTables.push(...extractUsedTable(this.config.table));
+		if (this.config.joins) { for (const it of this.config.joins) usedTables.push(...extractUsedTable(it.table)); }
+
 		return new Proxy(
-			new Subquery(this.getSQL(), this.config.fields, alias),
+			new Subquery(this.getSQL(), this.config.fields, alias, false, [...new Set(usedTables)]),
 			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as SubqueryWithSelection<this['_']['selectedFields'], TAlias>;
 	}
@@ -867,9 +915,24 @@ export class SQLiteSelectBase<
 			fieldsList,
 			'all',
 			true,
+			undefined,
+			{
+				type: 'select',
+				tables: [...this.usedTables],
+			},
+			this.cacheConfig,
 		);
 		query.joinsNotNullableMap = this.joinsNotNullableMap;
 		return query as ReturnType<this['prepare']>;
+	}
+
+	$withCache(config?: { config?: CacheConfig; tag?: string; autoInvalidate?: boolean } | false) {
+		this.cacheConfig = config === undefined
+			? { config: {}, enable: true, autoInvalidate: true }
+			: config === false
+			? { enable: false }
+			: { enable: true, autoInvalidate: true, ...config };
+		return this;
 	}
 
 	prepare(): SQLiteSelectPrepare<this> {

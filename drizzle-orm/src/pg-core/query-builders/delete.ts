@@ -1,3 +1,4 @@
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type {
@@ -8,15 +9,18 @@ import type {
 	PreparedQueryConfig,
 } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
-import type { Query, SQL, SQLWrapper } from '~/sql/sql.ts';
+import { SelectionProxyHandler } from '~/selection-proxy.ts';
+import type { ColumnsSelection, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
-import { Table } from '~/table.ts';
+import { getTableName, Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
 import { type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
 import type { PgColumn } from '../columns/common.ts';
+import { extractUsedTable } from '../utils.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 
 export type PgDeleteWithout<
@@ -28,6 +32,7 @@ export type PgDeleteWithout<
 		PgDeleteBase<
 			T['_']['table'],
 			T['_']['queryResult'],
+			T['_']['selectedFields'],
 			T['_']['returning'],
 			TDynamic,
 			T['_']['excludedMethods'] | K
@@ -38,12 +43,14 @@ export type PgDeleteWithout<
 export type PgDelete<
 	TTable extends PgTable = PgTable,
 	TQueryResult extends PgQueryResultHKT = PgQueryResultHKT,
+	TSelectedFields extends ColumnsSelection | undefined = undefined,
 	TReturning extends Record<string, unknown> | undefined = Record<string, unknown> | undefined,
-> = PgDeleteBase<TTable, TQueryResult, TReturning, true, never>;
+> = PgDeleteBase<TTable, TQueryResult, TSelectedFields, TReturning, true, never>;
 
 export interface PgDeleteConfig {
 	where?: SQL | undefined;
 	table: PgTable;
+	returningFields?: SelectedFieldsFlat;
 	returning?: SelectedFieldsOrdered;
 	withList?: Subquery[];
 }
@@ -55,6 +62,7 @@ export type PgDeleteReturningAll<
 	PgDeleteBase<
 		T['_']['table'],
 		T['_']['queryResult'],
+		T['_']['table']['_']['columns'],
 		T['_']['table']['$inferSelect'],
 		TDynamic,
 		T['_']['excludedMethods']
@@ -71,6 +79,7 @@ export type PgDeleteReturning<
 	PgDeleteBase<
 		T['_']['table'],
 		T['_']['queryResult'],
+		TSelectedFields,
 		SelectResultFields<TSelectedFields>,
 		TDynamic,
 		T['_']['excludedMethods']
@@ -89,26 +98,33 @@ export type PgDeletePrepare<T extends AnyPgDeleteBase> = PgPreparedQuery<
 export type PgDeleteDynamic<T extends AnyPgDeleteBase> = PgDelete<
 	T['_']['table'],
 	T['_']['queryResult'],
+	T['_']['selectedFields'],
 	T['_']['returning']
 >;
 
-export type AnyPgDeleteBase = PgDeleteBase<any, any, any, any, any>;
+export type AnyPgDeleteBase = PgDeleteBase<any, any, any, any, any, any>;
 
 export interface PgDeleteBase<
 	TTable extends PgTable,
 	TQueryResult extends PgQueryResultHKT,
+	TSelectedFields extends ColumnsSelection | undefined = undefined,
 	TReturning extends Record<string, unknown> | undefined = undefined,
 	TDynamic extends boolean = false,
 	TExcludedMethods extends string = never,
 > extends
+	TypedQueryBuilder<
+		TSelectedFields,
+		TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]
+	>,
 	QueryPromise<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]>,
 	RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
 	SQLWrapper
 {
 	readonly _: {
-		dialect: 'pg';
+		readonly dialect: 'pg';
 		readonly table: TTable;
 		readonly queryResult: TQueryResult;
+		readonly selectedFields: TSelectedFields;
 		readonly returning: TReturning;
 		readonly dynamic: TDynamic;
 		readonly excludedMethods: TExcludedMethods;
@@ -119,18 +135,24 @@ export interface PgDeleteBase<
 export class PgDeleteBase<
 	TTable extends PgTable,
 	TQueryResult extends PgQueryResultHKT,
+	TSelectedFields extends ColumnsSelection | undefined = undefined,
 	TReturning extends Record<string, unknown> | undefined = undefined,
 	TDynamic extends boolean = false,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TExcludedMethods extends string = never,
 > extends QueryPromise<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]>
 	implements
+		TypedQueryBuilder<
+			TSelectedFields,
+			TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[]
+		>,
 		RunnableQuery<TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[], 'pg'>,
 		SQLWrapper
 {
 	static override readonly [entityKind]: string = 'PgDelete';
 
 	private config: PgDeleteConfig;
+	protected cacheConfig?: WithCacheConfig;
 
 	constructor(
 		table: TTable,
@@ -203,6 +225,7 @@ export class PgDeleteBase<
 	returning(
 		fields: SelectedFieldsFlat = this.config.table[Table.Symbol.Columns],
 	): PgDeleteReturning<this, TDynamic, any> {
+		this.config.returningFields = fields;
 		this.config.returning = orderSelectedFields<PgColumn>(fields);
 		return this as any;
 	}
@@ -224,7 +247,10 @@ export class PgDeleteBase<
 				PreparedQueryConfig & {
 					execute: TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[];
 				}
-			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true);
+			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true, undefined, {
+				type: 'delete',
+				tables: extractUsedTable(this.config.table),
+			}, this.cacheConfig);
 		});
 	}
 
@@ -244,6 +270,22 @@ export class PgDeleteBase<
 			return this._prepare().execute(placeholderValues, this.authToken);
 		});
 	};
+
+	/** @internal */
+	getSelectedFields(): this['_']['selectedFields'] {
+		return (
+			this.config.returningFields
+				? new Proxy(
+					this.config.returningFields,
+					new SelectionProxyHandler({
+						alias: getTableName(this.config.table),
+						sqlAliasedBehavior: 'alias',
+						sqlBehavior: 'error',
+					}),
+				)
+				: undefined
+		) as this['_']['selectedFields'];
+	}
 
 	$dynamic(): PgDeleteDynamic<this> {
 		return this as any;

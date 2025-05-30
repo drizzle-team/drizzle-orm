@@ -130,7 +130,7 @@ export const generateSingleStoreSnapshot = (
 					if (typeof column.default === 'string') {
 						columnToSet.default = `'${column.default}'`;
 					} else {
-						if (sqlTypeLowered === 'json') {
+						if (sqlTypeLowered === 'json' || Array.isArray(column.default)) {
 							columnToSet.default = `'${JSON.stringify(column.default)}'`;
 						} else if (column.default instanceof Date) {
 							if (sqlTypeLowered === 'date') {
