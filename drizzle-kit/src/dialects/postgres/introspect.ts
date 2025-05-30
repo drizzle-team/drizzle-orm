@@ -622,6 +622,7 @@ export const fromDatabase = async (
 		columnTypeMapped = columnTypeMapped
 			.replace('character varying', 'varchar')
 			.replace(' without time zone', '')
+			// .replace(' with time zone', '')
 			// .replace("timestamp without time zone", "timestamp")
 			.replace('character', 'char');
 
@@ -638,8 +639,6 @@ export const fromDatabase = async (
 			columnDefault?.expression,
 			column.dimensions,
 		);
-
-		// console.log(defaultValue, ':', column.type, type, columnDefault?.expression, column.dimensions);
 
 		const unique = constraintsList.find((it) => {
 			return it.type === 'u' && it.tableId === column.tableId && it.columnsOrdinals.length === 1
@@ -962,7 +961,7 @@ export const fromDatabase = async (
 			schema: schema.name,
 			view: view.name,
 			name: it.name,
-			type: it.type,
+			type: columnTypeMapped,
 			notNull: it.notNull,
 			dimensions: it.dimensions,
 			typeSchema: enumType ? enumType.schema : null,
