@@ -8,6 +8,7 @@ import type {
 	HasDefault,
 	HasGenerated,
 	IsAutoincrement,
+	IsUnique,
 	MakeColumnConfig,
 } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
@@ -56,15 +57,21 @@ export abstract class MySqlColumnBuilder<
 		return this;
 	}
 
-	unique(name?: string): this {
+	unique(name?: string): IsUnique<this> {
 		this.config.isUnique = true;
 		this.config.uniqueName = name;
-		return this;
+		return this as IsUnique<this>;
 	}
 
-	generatedAlwaysAs(as: SQL | T['data'] | (() => SQL), config?: MySqlGeneratedColumnConfig): HasGenerated<this, {
-		type: 'always';
-	}> {
+	generatedAlwaysAs(
+		as: SQL | T['data'] | (() => SQL),
+		config?: MySqlGeneratedColumnConfig,
+	): HasGenerated<
+		this,
+		{
+			type: 'always';
+		}
+	> {
 		this.config.generated = {
 			as,
 			type: 'always',

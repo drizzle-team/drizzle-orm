@@ -5,6 +5,7 @@ import type {
 	ColumnBuilderRuntimeConfig,
 	ColumnDataType,
 	HasGenerated,
+	IsUnique,
 	MakeColumnConfig,
 } from '~/column-builder.ts';
 import { ColumnBuilder } from '~/column-builder.ts';
@@ -46,7 +47,9 @@ export abstract class GelColumnBuilder<
 
 	static override readonly [entityKind]: string = 'GelColumnBuilder';
 
-	array<TSize extends number | undefined = undefined>(size?: TSize): GelArrayBuilder<
+	array<TSize extends number | undefined = undefined>(
+		size?: TSize,
+	): GelArrayBuilder<
 		& {
 			name: T['name'];
 			dataType: 'array';
@@ -64,35 +67,35 @@ export abstract class GelColumnBuilder<
 		return new GelArrayBuilder(this.config.name, this as GelColumnBuilder<any, any>, size as any);
 	}
 
-	references(
-		ref: ReferenceConfig['ref'],
-		actions: ReferenceConfig['actions'] = {},
-	): this {
+	references(ref: ReferenceConfig['ref'], actions: ReferenceConfig['actions'] = {}): this {
 		this.foreignKeyConfigs.push({ ref, actions });
 		return this;
 	}
 
-	unique(
-		name?: string,
-		config?: { nulls: 'distinct' | 'not distinct' },
-	): this {
+	unique(name?: string, config?: { nulls: 'distinct' | 'not distinct' }): IsUnique<this> {
 		this.config.isUnique = true;
 		this.config.uniqueName = name;
 		this.config.uniqueType = config?.nulls;
-		return this;
+		return this as IsUnique<this>;
 	}
 
-	generatedAlwaysAs(as: SQL | T['data'] | (() => SQL)): HasGenerated<this, {
-		type: 'always';
-	}> {
+	generatedAlwaysAs(as: SQL | T['data'] | (() => SQL)): HasGenerated<
+		this,
+		{
+			type: 'always';
+		}
+	> {
 		this.config.generated = {
 			as,
 			type: 'always',
 			mode: 'stored',
 		};
-		return this as HasGenerated<this, {
-			type: 'always';
-		}>;
+		return this as HasGenerated<
+			this,
+			{
+				type: 'always';
+			}
+		>;
 	}
 
 	/** @internal */
@@ -124,9 +127,7 @@ export abstract class GelColumnBuilder<
 	): GelColumn<MakeColumnConfig<T, TTableName>>;
 
 	/** @internal */
-	buildExtraConfigColumn<TTableName extends string>(
-		table: AnyGelTable<{ name: TTableName }>,
-	): GelExtraConfigColumn {
+	buildExtraConfigColumn<TTableName extends string>(table: AnyGelTable<{ name: TTableName }>): GelExtraConfigColumn {
 		return new GelExtraConfigColumn(table, this.config);
 	}
 }
@@ -150,7 +151,11 @@ export abstract class GelColumn<
 	}
 }
 
-export type IndexedExtraConfigType = { order?: 'asc' | 'desc'; nulls?: 'first' | 'last'; opClass?: string };
+export type IndexedExtraConfigType = {
+	order?: 'asc' | 'desc';
+	nulls?: 'first' | 'last';
+	opClass?: string;
+};
 
 export class GelExtraConfigColumn<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
@@ -229,12 +234,7 @@ export class GelExtraConfigColumn<
 
 export class IndexedColumn {
 	static readonly [entityKind]: string = 'IndexedColumn';
-	constructor(
-		name: string | undefined,
-		keyAsName: boolean,
-		type: string,
-		indexConfig: IndexedExtraConfigType,
-	) {
+	constructor(name: string | undefined, keyAsName: boolean, type: string, indexConfig: IndexedExtraConfigType) {
 		this.name = name;
 		this.keyAsName = keyAsName;
 		this.type = type;
@@ -264,7 +264,9 @@ export class GelArrayBuilder<
 	{
 		baseBuilder: TBase extends GelArrayColumnBuilderBaseConfig ? GelArrayBuilder<
 				TBase,
-				TBase extends { baseBuilder: infer TBaseBuilder extends ColumnBuilderBaseConfig<any, any> } ? TBaseBuilder
+				TBase extends {
+					baseBuilder: infer TBaseBuilder extends ColumnBuilderBaseConfig<any, any>;
+				} ? TBaseBuilder
 					: never
 			>
 			: GelColumnBuilder<TBase, {}, Simplify<Omit<TBase, keyof ColumnBuilderBaseConfig<any, any>>>>;
@@ -273,7 +275,9 @@ export class GelArrayBuilder<
 	{
 		baseBuilder: TBase extends GelArrayColumnBuilderBaseConfig ? GelArrayBuilder<
 				TBase,
-				TBase extends { baseBuilder: infer TBaseBuilder extends ColumnBuilderBaseConfig<any, any> } ? TBaseBuilder
+				TBase extends {
+					baseBuilder: infer TBaseBuilder extends ColumnBuilderBaseConfig<any, any>;
+				} ? TBaseBuilder
 					: never
 			>
 			: GelColumnBuilder<TBase, {}, Simplify<Omit<TBase, keyof ColumnBuilderBaseConfig<any, any>>>>;
@@ -282,11 +286,7 @@ export class GelArrayBuilder<
 > {
 	static override readonly [entityKind] = 'GelArrayBuilder';
 
-	constructor(
-		name: string,
-		baseBuilder: GelArrayBuilder<T, TBase>['config']['baseBuilder'],
-		size: T['size'],
-	) {
+	constructor(name: string, baseBuilder: GelArrayBuilder<T, TBase>['config']['baseBuilder'], size: T['size']) {
 		super(name, 'array', 'GelArray');
 		this.config.baseBuilder = baseBuilder;
 		this.config.size = size;
@@ -295,10 +295,24 @@ export class GelArrayBuilder<
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyGelTable<{ name: TTableName }>,
-	): GelArray<MakeColumnConfig<T, TTableName> & { size: T['size']; baseBuilder: T['baseBuilder'] }, TBase> {
+	): GelArray<
+		MakeColumnConfig<T, TTableName> & {
+			size: T['size'];
+			baseBuilder: T['baseBuilder'];
+		},
+		TBase
+	> {
 		const baseColumn = this.config.baseBuilder.build(table);
-		return new GelArray<MakeColumnConfig<T, TTableName> & { size: T['size']; baseBuilder: T['baseBuilder'] }, TBase>(
-			table as AnyGelTable<{ name: MakeColumnConfig<T, TTableName>['tableName'] }>,
+		return new GelArray<
+			MakeColumnConfig<T, TTableName> & {
+				size: T['size'];
+				baseBuilder: T['baseBuilder'];
+			},
+			TBase
+		>(
+			table as AnyGelTable<{
+				name: MakeColumnConfig<T, TTableName>['tableName'];
+			}>,
 			this.config as ColumnBuilderRuntimeConfig<any, any>,
 			baseColumn,
 		);
