@@ -140,7 +140,7 @@ export const diffAfterPull = async (
 
 	rmSync(path);
 
-	return { sqlStatements, statements };
+	return { sqlStatements, statements, resultDdl: ddl2 };
 };
 
 export type TestDatabase = {
