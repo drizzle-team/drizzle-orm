@@ -212,7 +212,12 @@ export const fromDatabase = async (
 
 	const viewsList = tablesList.filter((it) => it.kind === 'v' || it.kind === 'm');
 
-	const filteredTables = tablesList.filter((it) => it.kind === 'r' && tablesFilter(it.schema, it.name));
+	const filteredTables = tablesList.filter((it) => {
+		if (!(it.kind === 'r' && tablesFilter(it.schema, it.name))) return false;
+		it.schema = it.schema.trimChar('"'); // when camel case name e.x. mySchema -> it gets wrapped to "mySchema"
+		return true;
+	});
+
 	const filteredTableIds = filteredTables.map((it) => it.oid);
 	const viewsIds = viewsList.map((it) => it.oid);
 	const filteredViewsAndTableIds = [...filteredTableIds, ...viewsIds];
@@ -223,7 +228,7 @@ export const fromDatabase = async (
 	for (const table of filteredTables) {
 		tables.push({
 			entityType: 'tables',
-			schema: table.schema,
+			schema: table.schema.trimChar("'"),
 			name: table.name,
 			isRlsEnabled: table.rlsEnabled,
 		});

@@ -28,11 +28,11 @@ semantics.addOperation('parseArray', {
 	},
 
 	stringLiteral(lQuote, string, rQuote) {
-		return JSON.parse('"' + string.sourceString.replace("''", "'") + '"');
+		return JSON.parse('"' + string.sourceString.replaceAll("''", "'") + '"');
 	},
 
 	quotelessString(string) {
-		return string.sourceString.replace("''", "'");
+		return string.sourceString.replaceAll("''", "'");
 	},
 
 	nullLiteral(_) {

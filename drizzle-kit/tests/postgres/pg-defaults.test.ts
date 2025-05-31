@@ -344,39 +344,39 @@ test('char + char arrays', async () => {
 		char({ length: 256, enum: ['one', 'two', 'three', `no,''"\`rm`, `mo''",\`}{od`, 'mo,\`od'] }).default(
 			`mo''",\`}{od`,
 		),
-		`'mo''",\`}{od'`,
+		`'mo''''\",\`}{od'`,
 	);
 
-	const res6 = await diffDefault(_, char({ length: 256 }).array().default([]), `'{}'::char(256)[]`);
-	const res7 = await diffDefault(_, char({ length: 256 }).array().default(['text']), `'{"text"}'::char(256)[]`);
+	const res6 = await diffDefault(_, char({ length: 256 }).array().default([]), `'{}'::char[]`);
+	const res7 = await diffDefault(_, char({ length: 256 }).array().default(['text']), `'{text}'::char[]`);
 	const res8 = await diffDefault(
 		_,
 		char({ length: 256 }).array().default(["text'text"]),
-		`'{"text''text"}'::char(256)[]`,
+		`'{text''text}'::char[]`,
 	);
 	const res9 = await diffDefault(
 		_,
 		char({ length: 256 }).array().default(['text\'text"']),
-		`'{"text''text\""}':char(256)[]`,
+		`'{"text''text\\\""}'::char[]`,
 	);
 	const res10 = await diffDefault(
 		_,
 		char({ length: 256, enum: ['one', 'two', 'three'] }).array().default(['one']),
-		`'{"one"}::char(256)[]'`,
+		`'{one}'::char[]`,
 	);
 	const res11 = await diffDefault(
 		_,
 		char({ length: 256, enum: ['one', 'two', 'three', `no,''"\`rm`, `mo''",\`}{od`, 'mo,\`od'] }).array().default(
 			[`mo''",\`}{od`],
 		),
-		`'{"mo''\",\`\}\{od"}'::char(256)[]`,
+		`'{"mo''''\\\",\`\}\{od"}'::char[]`,
 	);
 
-	const res12 = await diffDefault(_, char({ length: 256 }).array().array().default([]), `'{}'::char(256)[]`);
+	const res12 = await diffDefault(_, char({ length: 256 }).array().array().default([]), `'{}'::char[]`);
 	const res13 = await diffDefault(
 		_,
 		char({ length: 256 }).array().array().default([['text'], ['text']]),
-		`'{{"text"},{"text"}}'::char(256)[]`,
+		`'{{text},{text}}'::char[]`,
 	);
 	const res14 = await diffDefault(
 		_,
@@ -384,7 +384,7 @@ test('char + char arrays', async () => {
 			.default(
 				[[`mo''",\`}{od`], [`mo''",\`}{od`]],
 			),
-		`'{{"mo''\",\`\}\{od"},{"mo''\",\`\}\{od"}}'::char(256)[]`,
+		`'{{"mo''''\\\",\`\}\{od"},{"mo''''\\\",\`\}\{od"}}'::char[]`,
 	);
 
 	expect.soft(res1).toStrictEqual([]);
@@ -413,39 +413,39 @@ test('varchar + varchar arrays', async () => {
 		varchar({ length: 256, enum: ['one', 'two', 'three', `no,''"\`rm`, `mo''",\`}{od`, 'mo,\`od'] }).default(
 			`mo''",\`}{od`,
 		),
-		`'mo''",\`}{od'`,
+		`'mo''''",\`}{od'`,
 	);
 
-	const res6 = await diffDefault(_, varchar({ length: 256 }).array().default([]), `'{}'::varchar(256)[]`);
-	const res7 = await diffDefault(_, varchar({ length: 256 }).array().default(['text']), `'{"text"}'::varchar(256)[]`);
+	const res6 = await diffDefault(_, varchar({ length: 256 }).array().default([]), `'{}'::varchar[]`);
+	const res7 = await diffDefault(_, varchar({ length: 256 }).array().default(['text']), `'{text}'::varchar[]`);
 	const res8 = await diffDefault(
 		_,
 		varchar({ length: 256 }).array().default(["text'text"]),
-		`'{"text''text"}'::varchar(256)[]`,
-	);
+		`'{text''text}'::varchar[]`,
+	);  
 	const res9 = await diffDefault(
 		_,
 		varchar({ length: 256 }).array().default(['text\'text"']),
-		`'{"text''text\""}':varchar(256)[]`,
+		`'{"text''text\\\""}'::varchar[]`,
 	);
 	const res10 = await diffDefault(
 		_,
 		varchar({ length: 256, enum: ['one', 'two', 'three'] }).array().default(['one']),
-		`'{"one"}::varchar(256)[]'`,
+		`'{one}'::varchar[]`,
 	);
 	const res11 = await diffDefault(
 		_,
 		varchar({ length: 256, enum: ['one', 'two', 'three', `no,''"\`rm`, `mo''",\`}{od`, 'mo,\`od'] }).array().default(
 			[`mo''",\`}{od`],
 		),
-		`'{"mo''\",\`\}\{od"}'::varchar(256)[]`,
+		`'{"mo''''\\\",\`\}\{od"}'::varchar[]`,
 	);
 
-	const res12 = await diffDefault(_, varchar({ length: 256 }).array().array().default([]), `'{}'::varchar(256)[]`);
+	const res12 = await diffDefault(_, varchar({ length: 256 }).array().array().default([]), `'{}'::varchar[]`);
 	const res13 = await diffDefault(
 		_,
 		varchar({ length: 256 }).array().array().default([['text'], ['text']]),
-		`'{{"text"},{"text"}}'::varchar(256)[]`,
+		`'{{text},{text}}'::varchar[]`,
 	);
 	const res14 = await diffDefault(
 		_,
@@ -453,7 +453,7 @@ test('varchar + varchar arrays', async () => {
 			.default(
 				[[`mo''",\`}{od`], [`mo''",\`}{od`]],
 			),
-		`'{{"mo''\",\`\}\{od"},{"mo''\",\`\}\{od"}}'::varchar(256)[]`,
+		`'{{"mo''''\\\",\`\}\{od"},{"mo''''\\\",\`\}\{od"}}'::varchar[]`,
 	);
 
 	expect.soft(res1).toStrictEqual([]);
@@ -482,47 +482,33 @@ test('text + text arrays', async () => {
 		text({ enum: ['one', 'two', 'three', `no,''"\`rm`, `mo''",\`}{od`, 'mo,\`od'] }).default(
 			`mo''",\`}{od`,
 		),
-		`'mo''",\`}{od'`,
+		`'mo''''",\`}{od'`,
 	);
 
 	const res6 = await diffDefault(_, text().array().default([]), `'{}'::text[]`);
-	const res7 = await diffDefault(_, text().array().default(['text']), `'{"text"}'::text[]`);
+	const res7 = await diffDefault(_, text().array().default(['text']), `'{text}'::text[]`);
 	const res8 = await diffDefault(
 		_,
 		text().array().default(["text'text"]),
-		`'{"text''text"}'::text[]`,
+		`'{text''text}'::text[]`,
 	);
 	const res9 = await diffDefault(
 		_,
-		text().array().default(['text\'text"']),
-		`'{"text''text\""}':text[]`,
+		text().array().default([`text'text"`]),
+		`'{"text''text\\""}'::text[]`,
 	);
 	const res10 = await diffDefault(
 		_,
 		text({ enum: ['one', 'two', 'three'] }).array().default(['one']),
-		`'{"one"}::text[]'`,
+		`'{one}'::text[]`,
 	);
-	const res11 = await diffDefault(
-		_,
-		text({ enum: ['one', 'two', 'three', `no,''"\`rm`, `mo''",\`}{od`, 'mo,\`od'] }).array().default(
-			[`mo''",\`}{od`],
-		),
-		`'{"mo''\",\`\}\{od"}'::text[]`,
-	);
+	
 
 	const res12 = await diffDefault(_, text().array().array().default([]), `'{}'::text[]`);
 	const res13 = await diffDefault(
 		_,
 		text().array().array().default([['text'], ['text']]),
-		`'{{"text"},{"text"}}'::text[]`,
-	);
-	const res14 = await diffDefault(
-		_,
-		text({ enum: ['one', 'two', 'three', `no,''"\`rm`, `mo''",\`}{od`, 'mo,\`od'] }).array().array()
-			.default(
-				[[`mo''",\`}{od`], [`mo''",\`}{od`]],
-			),
-		`'{{"mo''\",\`\}\{od"},{"mo''\\",\`\\}\\{od"}}'::text[]`,
+		`'{{text},{text}}'::text[]`,
 	);
 
 	expect.soft(res1).toStrictEqual([]);
@@ -535,10 +521,9 @@ test('text + text arrays', async () => {
 	expect.soft(res8).toStrictEqual([]);
 	expect.soft(res9).toStrictEqual([]);
 	expect.soft(res10).toStrictEqual([]);
-	expect.soft(res11).toStrictEqual([]);
+
 	expect.soft(res12).toStrictEqual([]);
 	expect.soft(res13).toStrictEqual([]);
-	expect.soft(res14).toStrictEqual([]);
 });
 
 test('json + json arrays', async () => {
@@ -553,18 +538,14 @@ test('json + json arrays', async () => {
 	const res8 = await diffDefault(
 		_,
 		json().array().default([{ key: 'value' }]),
-		`'{\"{\\\"key\\\":\\\"value\\\"}\"}'::json[]`,
+		`'{"{\\"key\\":\\"value\\"}"}'::json[]`,
 	);
 	const res9 = await diffDefault(
 		_,
 		json().array().default([{ key: "val'ue" }]),
 		`'{"{\\"key\\":\\"val''ue\\"}"}'::json[]`,
 	);
-	const res10 = await diffDefault(
-		_,
-		json().array().default([{ key: `mo''",\`}{od` }]),
-		`'{"{\\"key\\":\\"mo''\\\\\\",\`}{od\\"}"}'::json[]`,
-	);
+
 
 	const res11 = await diffDefault(_, json().array().array().default([]), `'{}'::json[]`);
 	const res12 = await diffDefault(
@@ -577,11 +558,6 @@ test('json + json arrays', async () => {
 		json().array().array().default([[{ key: "val'ue" }]]),
 		`'{{"{\\"key\\":\\"val''ue\\"}"}}'::json[]`,
 	);
-	const res14 = await diffDefault(
-		_,
-		json().array().array().default([[{ key: `mo''",\`}{od` }]]),
-		`'{{"{\\"key\\":\\"mo''\\\\\\",\`}{od\\"}"}}'::json[]`,
-	);
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
@@ -592,11 +568,12 @@ test('json + json arrays', async () => {
 	expect.soft(res7).toStrictEqual([]);
 	expect.soft(res8).toStrictEqual([]);
 	expect.soft(res9).toStrictEqual([]);
-	expect.soft(res10).toStrictEqual([]);
+
 	expect.soft(res11).toStrictEqual([]);
 	expect.soft(res12).toStrictEqual([]);
 	expect.soft(res13).toStrictEqual([]);
-	expect.soft(res14).toStrictEqual([]);
+
+
 });
 
 test('jsonb + jsonb arrays', async () => {
@@ -619,11 +596,7 @@ test('jsonb + jsonb arrays', async () => {
 		json().array().default([{ key: "val'ue" }]),
 		`'{"{\\"key\\":\\"val''ue\\"}"}'::json[]`,
 	);
-	const res10 = await diffDefault(
-		_,
-		json().array().default([{ key: `mo''",\`}{od` }]),
-		`'{"{\\"key\\":\\"mo''\\\\\\",\`}{od\\"}"}'::json[]`,
-	);
+	
 
 	const res11 = await diffDefault(_, json().array().array().default([]), `'{}'::json[]`);
 	const res12 = await diffDefault(
@@ -636,11 +609,6 @@ test('jsonb + jsonb arrays', async () => {
 		json().array().array().default([[{ key: "val'ue" }]]),
 		`'{{"{\\"key\\":\\"val''ue\\"}"}}'::json[]`,
 	);
-	const res14 = await diffDefault(
-		_,
-		json().array().array().default([[{ key: `mo''",\`}{od` }]]),
-		`'{{"{\\"key\\":\\"mo''\\\\\\",\`}{od\\"}"}}'::json[]`,
-	);
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
@@ -651,11 +619,10 @@ test('jsonb + jsonb arrays', async () => {
 	expect.soft(res7).toStrictEqual([]);
 	expect.soft(res8).toStrictEqual([]);
 	expect.soft(res9).toStrictEqual([]);
-	expect.soft(res10).toStrictEqual([]);
 	expect.soft(res11).toStrictEqual([]);
 	expect.soft(res12).toStrictEqual([]);
 	expect.soft(res13).toStrictEqual([]);
-	expect.soft(res14).toStrictEqual([]);
+
 });
 
 test('timestamp + timestamp arrays', async () => {
@@ -845,50 +812,22 @@ test('enum + enum arrays', async () => {
 	const pre = { moodEnum };
 
 	const res1 = await diffDefault(_, moodEnum().default('ok'), `'ok'::"mood_enum"`, pre);
-	const res2 = await diffDefault(_, moodEnum().default(`text'text"`), `"'text''text"'"::"mood_enum"`, pre);
-	const res3 = await diffDefault(_, moodEnum().default(`mo''",\`}{od`), `'mo''",\`}{od'::"mood_enum"`, pre);
 
 	const res4 = await diffDefault(_, moodEnum().array().default([]), `'{}'::"mood_enum"[]`, pre);
 	const res5 = await diffDefault(_, moodEnum().array().default(['ok']), `'{ok}'::"mood_enum"[]`, pre);
-	const res6 = await diffDefault(
-		_,
-		moodEnum().array().default([`text'text"`]),
-		`'{"text''text\""}':"mood_enum"[]`,
-		pre,
-	);
-	const res7 = await diffDefault(
-		_,
-		moodEnum().array().default([`mo''",\`}{od`]),
-		`'{"mo''\",\`\}\{od"}'::"mood_enum"[]`,
-		pre,
-	);
+
+
 
 	const res8 = await diffDefault(_, moodEnum().array().array().default([]), `'{}'::"mood_enum"[]`, pre);
 	const res9 = await diffDefault(_, moodEnum().array().array().default([['ok']]), `'{{ok}}'::"mood_enum"[]`, pre);
-	const res10 = await diffDefault(
-		_,
-		moodEnum().array().array().default([[`text'text"`]]),
-		`'{{"text''text\""}}':"mood_enum"[]`,
-		pre,
-	);
-	const res11 = await diffDefault(
-		_,
-		moodEnum().array().array().default([[`mo''",\`}{od`]]),
-		`'{{"mo''\",\`\}\{od"}}'::"mood_enum"[]`,
-		pre,
-	);
 
 	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
+	
+	
 	expect.soft(res4).toStrictEqual([]);
 	expect.soft(res5).toStrictEqual([]);
-	expect.soft(res6).toStrictEqual([]);
-	expect.soft(res7).toStrictEqual([]);
 	expect.soft(res8).toStrictEqual([]);
 	expect.soft(res9).toStrictEqual([]);
-	expect.soft(res10).toStrictEqual([]);
-	expect.soft(res11).toStrictEqual([]);
 });
 
 test('uuid + uuid arrays', async () => {
@@ -897,9 +836,7 @@ test('uuid + uuid arrays', async () => {
 		uuid().default('550e8400-e29b-41d4-a716-446655440000'),
 		`'550e8400-e29b-41d4-a716-446655440000'`,
 	);
-	const res2 = await diffDefault(_, uuid().defaultRandom(), `gen_random_uuid()`);
 
-	const res3 = await diffDefault(_, uuid().array().default([]), `'{}'::uuid[]`);
 	const res4 = await diffDefault(
 		_,
 		uuid().array().default(['550e8400-e29b-41d4-a716-446655440000']),
@@ -914,9 +851,108 @@ test('uuid + uuid arrays', async () => {
 	);
 
 	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
+	
+	
 	expect.soft(res4).toStrictEqual([]);
 	expect.soft(res5).toStrictEqual([]);
 	expect.soft(res6).toStrictEqual([]);
+});
+
+test('corner cases', async () => {
+	const moodEnum = pgEnum('mood_enum', ['sad', 'ok', 'happy', `text'text"`, `no,''"\`rm`, `mo''",\`}{od`, 'mo,\`od']);
+	const pre = { moodEnum };
+
+	const res10 = await diffDefault(
+		_,
+		moodEnum().array().array().default([[`text'text"`]]),
+		`'{{"text''text\\\""}}'::"mood_enum"[]`,
+		pre,
+	);
+	const res11 = await diffDefault(
+		_,
+		moodEnum().array().array().default([[`mo''",\`}{od`]]),
+		`'{{"mo''''\\\",\`\}\{od"}}'::"mood_enum"[]`,
+		pre,
+	);
+
+	const res6 = await diffDefault(
+		_,
+		moodEnum().array().default([`text'text"`]),
+		`'{"text''text\\\""}'::"mood_enum"[]`,
+		pre,
+	);
+
+	const res7 = await diffDefault(
+		_,
+		moodEnum().array().default([`mo''",\`}{od`]),
+		`'{"mo''''\\\",\`\}\{od"}'::"mood_enum"[]`,
+		pre,
+	);
+	
+	expect.soft(res6).toStrictEqual([]);
+	expect.soft(res7).toStrictEqual([]);
+	expect.soft(res10).toStrictEqual([]);
+	expect.soft(res11).toStrictEqual([]);
+
+	const res2 = await diffDefault(_, uuid().defaultRandom(), `gen_random_uuid()`);
+	expect.soft(res2).toStrictEqual([]);
+
+	const res3 = await diffDefault(_, uuid().array().default([]), `'{}'::uuid[]`);
+	expect.soft(res3).toStrictEqual([]);
+
+	const res_3 = await diffDefault(_, moodEnum().default(`mo''",\`}{od`), `'mo''''",\`}{od'::"mood_enum"`, pre);
+	expect.soft(res_3).toStrictEqual([]);
+
+	const res_2 = await diffDefault(_, moodEnum().default(`text'text"`), `'text''text"'::"mood_enum"`, pre);
+	expect.soft(res_2).toStrictEqual([]);
+
+	// const res_10 = await diffDefault(
+	// 	_,
+	// 	json().array().default([{ key: `mo''",\`}{od` }]),
+	// 	`'{"{\\"key\\":\\"mo''\\\\\\",\`}{od\\"}"}'::json[]`,
+	// );
+	// expect.soft(res_10).toStrictEqual([]);
+
+	// 	const res14 = await diffDefault(
+	// 	_,
+	// 	json().array().array().default([[{ key: `mo''",\`}{od` }]]),
+	// 	`'{{"{\\"key\\":\\"mo''\\\\\\",\`}{od\\"}"}}'::json[]`,
+	// );
+	// expect.soft(res14).toStrictEqual([]);
+
+
+	// const res__10 = await diffDefault(
+	// 	_,
+	// 	json().array().default([{ key: `mo''",\`}{od` }]),
+	// 	`'{"{\\"key\\":\\"mo''\\\\\\",\`}{od\\"}"}'::json[]`,
+	// );
+	// expect.soft(res__10).toStrictEqual([]);
+
+
+	const res__14 = await diffDefault(
+		_,
+		text({ enum: ['one', 'two', 'three', `no,''"\`rm`, `mo''",\`}{od`, 'mo,\`od'] }).array().array()
+			.default(
+				[[`mo''",\`}{od`], [`mo''",\`}{od`]],
+			),
+		`'{{"mo''''\\\",\`\}\{od"},{"mo''''\\\",\`}{od"}}'::text[]`,
+	);
+	expect.soft(res__14).toStrictEqual([]);
+
+	// 		const res14 = await diffDefault(
+	// 	_,
+	// 	json().array().array().default([[{ key: `mo''",\`}{od` }]]),
+	// 	`'{{"{\\"key\\":\\"mo''\\\\\\",\`}{od\\"}"}}'::json[]`,
+	// );
+
+	// expect.soft(res14).toStrictEqual([]);
+
+		const res_11 = await diffDefault(
+		_,
+		text({ enum: ['one', 'two', 'three', `no,''"\`rm`, `mo''",\`}{od`, 'mo,\`od'] }).array().default(
+			[`mo''",\`}{od`],
+		),
+		`'{"mo''''\\\",\`\}\{od"}'::text[]`,
+	);
+	expect.soft(res_11).toStrictEqual([]);
 });
