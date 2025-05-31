@@ -342,7 +342,7 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 
 	const res = [] as string[];
 	if (defaultSql !== expectedDefault) {
-		res.push(`Unexpected sql: ${defaultSql} | ${expectedDefault}`);
+		res.push(`Unexpected sql: \n${defaultSql}\n${expectedDefault}`);
 	}
 
 	const init = {
@@ -436,11 +436,25 @@ export type TestDatabase = {
 	clear: () => Promise<void>;
 };
 
-export const prepareTestDatabase = async (): Promise<TestDatabase> => {
-	const client = new PGlite({ extensions: { vector, pg_trgm } });
+const client = new PGlite({ extensions: { vector, pg_trgm } });
+
+export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatabase> => {
 	await client.query(`CREATE ACCESS METHOD drizzle_heap TYPE TABLE HANDLER heap_tableam_handler;`);
+	await client.query(`CREATE EXTENSION vector;`);
+	await client.query(`CREATE EXTENSION pg_trgm;`);
+	if (tx) {
+		await client.query('BEGIN').catch();
+		await client.query('SAVEPOINT drizzle');
+	}
 
 	const clear = async () => {
+		if (tx) {
+			await client.query('ROLLBACK TO SAVEPOINT drizzle');
+			await client.query('BEGIN');
+			await client.query('SAVEPOINT drizzle');
+			return;
+		}
+
 		const namespaces = await client.query<{ name: string }>('select oid, nspname as name from pg_namespace').then((
 			res,
 		) => res.rows.filter((r) => !isSystemNamespace(r.name)));

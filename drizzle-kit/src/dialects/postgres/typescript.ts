@@ -153,7 +153,7 @@ const mapColumnDefault = (def: Exclude<Column['default'], null>) => {
 		return `${def.value}n`;
 	}
 	if (def.type === 'string') {
-		return `"${def.value.replaceAll('"', '\\"')}"`;
+		return `"${def.value.replaceAll("''", "'").replaceAll('"', '\\"')}"`;
 	}
 
 	return def.value;
@@ -399,7 +399,9 @@ export const ddlToTypeScript = (
 		const func = enumSchema ? `${enumSchema}.enum` : 'pgEnum';
 
 		const values = Object.values(it.values)
-			.map((it) => `'${unescapeSingleQuotes(it, false)}'`)
+			.map((it) => {
+				return `\`${it.replace('`', '\\`')}\``;
+			})
 			.join(', ');
 		return `export const ${withCasing(paramName, casing)} = ${func}("${it.name}", [${values}])\n`;
 	})
@@ -589,7 +591,7 @@ const mapDefault = (
 		if (dimensions > 0) {
 			const arr = parseArray(def.value);
 			if (arr.flat(5).length === 0) return `.default([])`;
-			const res = stringifyArray(arr, 'ts', (x) => `'${x}'`);
+			const res = stringifyArray(arr, 'ts', (x) => `'${x.replaceAll("'", "\\'")}'`);
 			return `.default(${res})`;
 		}
 		return `.default(${mapColumnDefault(def)})`;
@@ -639,7 +641,7 @@ const mapDefault = (
 		return `.default(${res})`;
 	}
 
-	if (lowered === 'point') {
+	if (lowered === 'point' || lowered === 'line') {
 		if (typeof parsed === 'string') {
 			return `.default([${parsed.substring(1, parsed.length - 1).split(',')}])`; // "{1,1,1}" -> [1,1,1]
 		}
@@ -649,18 +651,18 @@ const mapDefault = (
 		return `.default([${res}])`;
 	}
 
-	if (lowered === 'line') {
-		const value = typeof parsed === 'string'
-			? parsed.substring(1, parsed.length - 1).split(',') // "{1,1,1}" -> [1,1,1]
-			: parsed.map((x: string) => x.substring(1, x.length - 1).split(','));
-		const res = stringifyTuplesArray(value, 'ts', (x, d) => String(x));
-		return `.default([${res}])`;
-	}
+	// if () {
+	// 		if (typeof parsed === 'string') {
+	// 		return `.default([${parsed.substring(1, parsed.length - 1).split(',')}])`; // "{1,1,1}" -> [1,1,1]
+	// 	}
+	// 	if (parsed.flat(5).length === 0) return `.default([])`;
+	// 	const res = stringifyArray(parsed, 'ts', (x) => String(x.substring(1, x.length - 1).split(',')));
+
+	// 	return `.default([${res}])`;
+	// }
 
 	if (
-		lowered === 'point'
-		|| lowered === 'line'
-		|| lowered === 'geometry'
+		lowered === 'geometry'
 		|| lowered === 'vector'
 		|| lowered === 'char'
 		|| lowered === 'varchar'
@@ -686,7 +688,7 @@ const mapDefault = (
 				|| lowered === 'cidr'
 				|| lowered === 'macaddr8'
 				|| lowered === 'macaddr'
-			? (x: string) => `'${x}'`
+			? (x: string) => `\`${x.replaceAll('`', '\\`')}\``
 			: lowered === 'bigint'
 					|| lowered === 'numeric'
 			? (x: string) => {
@@ -719,7 +721,7 @@ const column = (
 	def: Column['default'],
 ) => {
 	const lowered = type.toLowerCase().replace('[]', '');
-	
+
 	if (enumTypes.has(`${typeSchema}.${type.replace('[]', '')}`)) {
 		let out = `${withCasing(name, casing)}: ${withCasing(paramNameFor(type.replace('[]', ''), typeSchema), casing)}(${
 			dbColumnName({ name, casing })
@@ -783,7 +785,8 @@ const column = (
 
 		if (options) {
 			const [p, s] = options.split(',');
-			params = { precision: Number(p), scale: Number(s) };
+			if(p)params["precision"] = Number(p)
+			if(s)params["scale"] = Number(s)
 		}
 
 		let mode = def !== null && def.type === 'bigint'
