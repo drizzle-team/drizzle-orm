@@ -22,7 +22,7 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 	constructor(
 		protected query: Query,
 		// cache instance
-		private cache: Cache,
+		private cache: Cache | undefined,
 		// per query related metadata
 		private queryMetadata: {
 			type: 'select' | 'update' | 'delete' | 'insert';
