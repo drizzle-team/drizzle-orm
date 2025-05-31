@@ -103,6 +103,7 @@ test('set not null', async (t) => {
 		columnOnUpdate: undefined,
 		columnNotNull: true,
 		columnAutoIncrement: false,
+		columnComment: undefined,
 		columnPk: false,
 	});
 
@@ -144,6 +145,7 @@ test('drop not null', async (t) => {
 		columnOnUpdate: undefined,
 		columnNotNull: false,
 		columnAutoIncrement: false,
+		columnComment: undefined,
 		columnPk: false,
 	});
 
@@ -186,6 +188,7 @@ test('set default. set not null. add column', async (t) => {
 		columnOnUpdate: undefined,
 		columnNotNull: true,
 		columnAutoIncrement: false,
+		columnComment: undefined,
 		columnPk: false,
 	});
 	expect(statements[1]).toStrictEqual({
@@ -198,6 +201,7 @@ test('set default. set not null. add column', async (t) => {
 		columnOnUpdate: undefined,
 		columnNotNull: true,
 		columnAutoIncrement: false,
+		columnComment: undefined,
 		columnPk: false,
 	});
 	expect(statements[2]).toStrictEqual({
@@ -254,6 +258,7 @@ test('drop default. drop not null', async (t) => {
 		columnOnUpdate: undefined,
 		columnNotNull: false,
 		columnAutoIncrement: false,
+		columnComment: undefined,
 		columnPk: false,
 	});
 	expect(statements[1]).toStrictEqual({
@@ -266,6 +271,7 @@ test('drop default. drop not null', async (t) => {
 		columnOnUpdate: undefined,
 		columnNotNull: false,
 		columnAutoIncrement: false,
+		columnComment: undefined,
 		columnPk: false,
 	});
 
@@ -308,6 +314,7 @@ test('set data type. set default', async (t) => {
 		columnOnUpdate: undefined,
 		columnNotNull: false,
 		columnAutoIncrement: false,
+		columnComment: undefined,
 		columnPk: false,
 	});
 	expect(statements[1]).toStrictEqual({
@@ -320,6 +327,7 @@ test('set data type. set default', async (t) => {
 		columnOnUpdate: undefined,
 		columnNotNull: false,
 		columnAutoIncrement: false,
+		columnComment: undefined,
 		columnPk: false,
 	});
 
@@ -766,6 +774,7 @@ test('alter column drop generated', async (t) => {
 		columnNotNull: true,
 		columnOnUpdate: undefined,
 		columnPk: false,
+		columnComment: undefined,
 		newDataType: 'text',
 		schema: '',
 		tableName: 'table',
@@ -912,6 +921,7 @@ test('set not null with index', async (t) => {
 		columnOnUpdate: undefined,
 		columnNotNull: true,
 		columnAutoIncrement: false,
+		columnComment: undefined,
 		columnPk: false,
 	});
 
@@ -967,6 +977,7 @@ test('drop not null with two indexes', async (t) => {
 		columnOnUpdate: undefined,
 		columnNotNull: false,
 		columnAutoIncrement: false,
+		columnComment: undefined,
 		columnPk: false,
 	});
 
