@@ -26,8 +26,9 @@ export type RemoteCallback = (
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	callback: RemoteCallback,
 	config: DrizzleConfig<TSchema> = {},
+	_dialect: () => MySqlDialect = () => new MySqlDialect({ casing: config.casing }),
 ): MySqlRemoteDatabase<TSchema> {
-	const dialect = new MySqlDialect({ casing: config.casing });
+	const dialect = _dialect();
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

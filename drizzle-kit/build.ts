@@ -21,46 +21,6 @@ const driversPackages = [
 ];
 
 esbuild.buildSync({
-	entryPoints: ['./src/utils.ts'],
-	bundle: true,
-	outfile: 'dist/utils.js',
-	format: 'cjs',
-	target: 'node16',
-	platform: 'node',
-	external: [
-		'commander',
-		'json-diff',
-		'glob',
-		'esbuild',
-		'drizzle-orm',
-		...driversPackages,
-	],
-	banner: {
-		js: `#!/usr/bin/env node`,
-	},
-});
-
-esbuild.buildSync({
-	entryPoints: ['./src/utils.ts'],
-	bundle: true,
-	outfile: 'dist/utils.mjs',
-	format: 'esm',
-	target: 'node16',
-	platform: 'node',
-	external: [
-		'commander',
-		'json-diff',
-		'glob',
-		'esbuild',
-		'drizzle-orm',
-		...driversPackages,
-	],
-	banner: {
-		js: `#!/usr/bin/env node`,
-	},
-});
-
-esbuild.buildSync({
 	entryPoints: ['./src/cli/index.ts'],
 	bundle: true,
 	outfile: 'dist/bin.cjs',
@@ -82,7 +42,7 @@ esbuild.buildSync({
 
 const main = async () => {
 	await tsup.build({
-		entryPoints: ['./src/index.ts', './src/api.ts'],
+		entryPoints: ['./src/index.ts', './src/ext/api.ts'],
 		outDir: './dist',
 		external: ['bun:sqlite'],
 		splitting: false,

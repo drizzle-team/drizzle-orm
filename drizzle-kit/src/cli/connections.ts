@@ -3,25 +3,27 @@ import type { MigrationConfig } from 'drizzle-orm/migrator';
 import type { PreparedQueryConfig } from 'drizzle-orm/pg-core';
 import fetch from 'node-fetch';
 import ws from 'ws';
-import { assertUnreachable } from '../global';
-import type { ProxyParams } from '../serializer/studio';
-import {
-	type DB,
-	LibSQLDB,
-	normalisePGliteUrl,
-	normaliseSQLiteUrl,
-	type Proxy,
-	type SQLiteDB,
-	type SqliteProxy,
-} from '../utils';
+import { assertUnreachable } from '../utils';
+import { type DB, LibSQLDB, type Proxy, type SQLiteDB, type SqliteProxy } from '../utils';
+import { normaliseSQLiteUrl } from '../utils/utils-node';
+import type { ProxyParams } from './commands/studio';
 import { assertPackages, checkPackage } from './utils';
 import { GelCredentials } from './validations/gel';
 import { LibSQLCredentials } from './validations/libsql';
+import { MssqlCredentials } from './validations/mssql';
 import type { MysqlCredentials } from './validations/mysql';
 import { withStyle } from './validations/outputs';
 import type { PostgresCredentials } from './validations/postgres';
 import { SingleStoreCredentials } from './validations/singlestore';
 import type { SqliteCredentials } from './validations/sqlite';
+
+const normalisePGliteUrl = (it: string) => {
+	if (it.startsWith('file:')) {
+		return it.substring(5);
+	}
+
+	return it;
+};
 
 export const preparePostgresDB = async (
 	credentials: PostgresCredentials,
@@ -684,6 +686,59 @@ export const connectToMySQL = async (
 
 	console.error(
 		"To connect to MySQL database - please install either of 'mysql2' or '@planetscale/database' drivers",
+	);
+	process.exit(1);
+};
+
+const parseMssqlCredentials = (credentials: MssqlCredentials) => {
+	if ('url' in credentials) {
+		const url = credentials.url;
+		return { url };
+	} else {
+		return {
+			database: credentials.database,
+			credentials,
+		};
+	}
+};
+
+export const connectToMsSQL = async (
+	it: MssqlCredentials,
+): Promise<{
+	db: DB;
+	migrate: (config: MigrationConfig) => Promise<void>;
+}> => {
+	const result = parseMssqlCredentials(it);
+
+	if (await checkPackage('mssql')) {
+		const mssql = await import('mssql');
+		const { drizzle } = await import('drizzle-orm/node-mssql');
+		const { migrate } = await import('drizzle-orm/node-mssql/migrator');
+
+		const connection = result.url
+			? await mssql.default.connect(result.url)
+			: await mssql.default.connect(result.credentials!);
+
+		const db = drizzle(connection);
+		const migrateFn = async (config: MigrationConfig) => {
+			return migrate(db, config);
+		};
+
+		const query: DB['query'] = async <T>(
+			sql: string,
+		): Promise<T[]> => {
+			const res = await connection.query(sql);
+			return res.recordset as any;
+		};
+
+		return {
+			db: { query },
+			migrate: migrateFn,
+		};
+	}
+
+	console.error(
+		"To connect to MsSQL database - please install 'mssql' driver",
 	);
 	process.exit(1);
 };

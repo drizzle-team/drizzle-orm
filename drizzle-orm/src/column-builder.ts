@@ -1,6 +1,7 @@
 import { entityKind } from '~/entity.ts';
 import type { Column } from './column.ts';
 import type { GelColumn, GelExtraConfigColumn } from './gel-core/index.ts';
+import type { MsSqlColumn } from './mssql-core/index.ts';
 import type { MySqlColumn } from './mysql-core/index.ts';
 import type { ExtraConfigColumn, PgColumn, PgSequenceOptions } from './pg-core/index.ts';
 import type { SingleStoreColumn } from './singlestore-core/index.ts';
@@ -25,9 +26,15 @@ export type ColumnDataType =
 	| 'localDate'
 	| 'localDateTime';
 
-export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'singlestore' | 'common' | 'gel';
+export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'singlestore' | 'mssql' | 'common' | 'gel';
 
-export type GeneratedStorageMode = 'virtual' | 'stored';
+// TODO update description
+// 'virtual' | 'stored'  for postgres
+// 'stored' for mysql
+// 'virtual' | 'persisted' for mssql
+// We should remove this option from common Column and store it per dialect common
+// Was discussed with Andrew
+export type GeneratedStorageMode = 'virtual' | 'stored' | 'persisted';
 
 export type GeneratedType = 'always' | 'byDefault';
 
@@ -111,6 +118,7 @@ export type ColumnBuilderRuntimeConfig<TData, TRuntimeConfig extends object = ob
 	isUnique: boolean;
 	uniqueName: string | undefined;
 	uniqueType: string | undefined;
+	uniqueNameExplicit: boolean | undefined;
 	dataType: string;
 	columnType: string;
 	generated: GeneratedColumnConfig<TData> | undefined;
@@ -339,6 +347,19 @@ export type BuildColumn<
 				>
 			>
 		>
+	: TDialect extends 'mssql' ? MsSqlColumn<
+			MakeColumnConfig<TBuilder['_'], TTableName>,
+			Simplify<
+				Omit<
+					TBuilder['_'],
+					| keyof MakeColumnConfig<TBuilder['_'], TTableName>
+					| 'brand'
+					| 'dialect'
+					| 'primaryKeyHasDefault'
+					| 'mssqlColumnBuilderBrand'
+				>
+			>
+		>
 	: TDialect extends 'sqlite' ? SQLiteColumn<
 			MakeColumnConfig<TBuilder['_'], TTableName>,
 			{},
@@ -413,4 +434,5 @@ export type ChangeColumnTableName<TColumn extends Column, TAlias extends string,
 		: TDialect extends 'singlestore' ? SingleStoreColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: TDialect extends 'sqlite' ? SQLiteColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: TDialect extends 'gel' ? GelColumn<MakeColumnConfig<TColumn['_'], TAlias>>
+		: TDialect extends 'mssql' ? MsSqlColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: never;

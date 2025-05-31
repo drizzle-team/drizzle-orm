@@ -37,7 +37,7 @@ export interface BuildQueryConfig {
 	prepareTyping?: (encoder: DriverValueEncoder<unknown, unknown>) => QueryTypingsValue;
 	paramStartIndex?: { value: number };
 	inlineParams?: boolean;
-	invokeSource?: 'indexes' | undefined;
+	invokeSource?: 'indexes' | 'mssql-check' | undefined;
 }
 
 export type QueryTypingsValue = 'json' | 'decimal' | 'time' | 'timestamp' | 'uuid' | 'date' | 'none';
@@ -158,6 +158,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 			prepareTyping,
 			inlineParams,
 			paramStartIndex,
+			invokeSource,
 		} = config;
 
 		return mergeQueries(chunks.map((chunk): QueryWithTypings => {
@@ -209,7 +210,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 					return { sql: escapeName(columnName), params: [] };
 				}
 
-				const schemaName = chunk.table[Table.Symbol.Schema];
+				const schemaName = invokeSource === 'mssql-check' ? undefined : chunk.table[Table.Symbol.Schema];
 				return {
 					sql: chunk.table[IsAlias] || schemaName === undefined
 						? escapeName(chunk.table[Table.Symbol.Name]) + '.' + escapeName(columnName)

@@ -16,6 +16,7 @@ JSImports {
     ImportInner = 
     | ("type" "{" NonemptyListOf<ImportExtendedSelectionTypeless, ","> ","? "}")            -- Type
     | ("{" NonemptyListOf<ImportExtendedSelectionTypes, ","> ","? "}")                      -- Types
+    | ("type " "*")                                                                         -- AllTypes
     | ("{" NonemptyListOf<ImportExtendedSelection, ","> ","? "}")                           -- Extended
     | (identifier ("," "type"? "{" NonemptyListOf<ImportExtendedSelection, ","> ","? "}")?) -- Mixed
     | ("*" ("as" identifier)?)                                                              -- All
@@ -29,7 +30,7 @@ JSImports {
     Import = identifier ("as" identifier)?
     TypeImport = "type" Import ("as" identifier)?
 
-    identifier = letter alnum*
+    identifier = (letter | "_" | "$" | "~" ) (alnum | "_" | "$" | "~")*
     quote = "\"" | "'" | "`"
     notQuote = ~quote any
     importSource =
