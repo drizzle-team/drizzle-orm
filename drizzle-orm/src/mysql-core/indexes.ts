@@ -27,6 +27,11 @@ interface IndexConfig {
 	 * If set, adds locks to the index creation.
 	 */
 	lock?: 'default' | 'none' | 'shared' | 'exclusive';
+
+	/**
+	 * If set, use raw sql to create index.
+	 */
+	raw?: string;
 }
 
 export type IndexColumn = MySqlColumn | SQL;
@@ -34,7 +39,7 @@ export type IndexColumn = MySqlColumn | SQL;
 export class IndexBuilderOn {
 	static readonly [entityKind]: string = 'MySqlIndexBuilderOn';
 
-	constructor(private name: string, private unique: boolean) {}
+	constructor(private name: string, private unique: boolean) { }
 
 	on(...columns: [IndexColumn, ...IndexColumn[]]): IndexBuilder {
 		return new IndexBuilder(this.name, columns, this.unique);
@@ -46,7 +51,7 @@ export interface AnyIndexBuilder {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
-export interface IndexBuilder extends AnyIndexBuilder {}
+export interface IndexBuilder extends AnyIndexBuilder { }
 
 export class IndexBuilder implements AnyIndexBuilder {
 	static readonly [entityKind]: string = 'MySqlIndexBuilder';
@@ -54,10 +59,13 @@ export class IndexBuilder implements AnyIndexBuilder {
 	/** @internal */
 	config: IndexConfig;
 
-	constructor(name: string, columns: IndexColumn[], unique: boolean) {
-		this.config = {
+	constructor(name: string, columns: IndexColumn[], unique: boolean);
+	constructor(config: IndexConfig);
+
+	constructor(name: string | IndexConfig, columns?: IndexColumn[], unique?: boolean) {
+		typeof name === 'object' ? this.config = name : this.config = {
 			name,
-			columns,
+			columns: columns as IndexColumn[],
 			unique,
 		};
 	}
@@ -99,10 +107,18 @@ export type GetColumnsTableName<TColumns> = TColumns extends
 	>[] ? TTableName
 	: never;
 
+export interface OptionalIndexConfig extends Omit<IndexConfig, 'columns'> {
+	columns?: IndexColumn[];
+}
+
 export function index(name: string): IndexBuilderOn {
 	return new IndexBuilderOn(name, false);
 }
 
 export function uniqueIndex(name: string): IndexBuilderOn {
 	return new IndexBuilderOn(name, true);
+}
+
+export function customIndex(config: OptionalIndexConfig): IndexBuilder {
+	return new IndexBuilder({ unique: false, columns: [], ...config, raw: config.raw?.endsWith(';') ? config.raw : `${config.raw};` });
 }
