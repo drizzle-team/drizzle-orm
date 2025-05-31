@@ -672,7 +672,7 @@ export const PgSquasher = {
 		return { name: splitted[1], columns: splitted[0].split(',') };
 	},
 	squashUnique: (unq: UniqueConstraint) => {
-		return `${unq.name};${unq.columns.join(',')};${unq.nullsNotDistinct}`;
+		return `${unq.name};${unq.columns.sort().join(',')};${unq.nullsNotDistinct}`;
 	},
 	unsquashUnique: (unq: string): UniqueConstraint => {
 		const [name, columns, nullsNotDistinct] = unq.split(';');
