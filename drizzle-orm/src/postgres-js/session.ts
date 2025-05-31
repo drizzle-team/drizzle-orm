@@ -1,4 +1,6 @@
 import type { Row, RowList, Sql, TransactionSql } from 'postgres';
+import { type Cache, NoopCache } from '~/cache/core/index.ts';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -20,11 +22,17 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 		private queryString: string,
 		private params: unknown[],
 		private logger: Logger,
+		cache: Cache,
+		queryMetadata: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		} | undefined,
+		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
-		super({ sql: queryString, params });
+		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
@@ -41,7 +49,9 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 			const { fields, queryString: query, client, joinsNotNullableMap, customResultMapper } = this;
 			if (!fields && !customResultMapper) {
 				return tracer.startActiveSpan('drizzle.driver.execute', () => {
-					return client.unsafe(query, params as any[]);
+					return this.queryWithCache(query, params, async () => {
+						return await client.unsafe(query, params as any[]);
+					});
 				});
 			}
 
@@ -50,8 +60,9 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 					'drizzle.query.text': query,
 					'drizzle.query.params': JSON.stringify(params),
 				});
-
-				return client.unsafe(query, params as any[]).values();
+				return this.queryWithCache(query, params, async () => {
+					return await client.unsafe(query, params as any[]).values();
+				});
 			});
 
 			return tracer.startActiveSpan('drizzle.mapResponse', () => {
@@ -75,7 +86,9 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 					'drizzle.query.text': this.queryString,
 					'drizzle.query.params': JSON.stringify(params),
 				});
-				return this.client.unsafe(this.queryString, params as any[]);
+				return this.queryWithCache(this.queryString, params, async () => {
+					return this.client.unsafe(this.queryString, params as any[]);
+				});
 			});
 		});
 	}
@@ -88,6 +101,7 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 
 export interface PostgresJsSessionOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class PostgresJsSession<
@@ -98,6 +112,7 @@ export class PostgresJsSession<
 	static override readonly [entityKind]: string = 'PostgresJsSession';
 
 	logger: Logger;
+	private cache: Cache;
 
 	constructor(
 		public client: TSQL,
@@ -108,6 +123,7 @@ export class PostgresJsSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
+		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -116,12 +132,20 @@ export class PostgresJsSession<
 		name: string | undefined,
 		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
 	): PgPreparedQuery<T> {
 		return new PostgresJsPreparedQuery(
 			this.client,
 			query.sql,
 			query.params,
 			this.logger,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
 			fields,
 			isResponseInArrayMode,
 			customResultMapper,

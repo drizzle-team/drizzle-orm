@@ -1,13 +1,7 @@
 import type { Assume, Column, DrizzleTypeError, SelectedFieldsFlat, Simplify, Table, View } from 'drizzle-orm';
 import type * as v from 'valibot';
-import type {
-	ExtractAdditionalProperties,
-	GetBaseColumn,
-	GetEnumValuesFromColumn,
-	GetValibotType,
-	HandleColumn,
-} from './column.types.ts';
-import type { GetSelection, RemoveNever } from './utils.ts';
+import type { ExtractAdditionalProperties, GetValibotType, HandleColumn, HasBaseColumn } from './column.types.ts';
+import type { ColumnIsGeneratedAlwaysAs, GetSelection } from './utils.ts';
 
 export interface Conditions {
 	never: (column?: Column) => boolean;
@@ -15,40 +9,28 @@ export interface Conditions {
 	nullable: (column: Column) => boolean;
 }
 
-export type BuildRefineColumns<
-	TColumns extends Record<string, any>,
-> = Simplify<
-	RemoveNever<
-		{
-			[K in keyof TColumns]: TColumns[K] extends infer TColumn extends Column ? GetValibotType<
-					TColumn['_']['data'],
-					TColumn['_']['dataType'],
-					TColumn['_']['columnType'],
-					GetEnumValuesFromColumn<TColumn>,
-					GetBaseColumn<TColumn>,
-					ExtractAdditionalProperties<TColumn>
-				> extends infer TSchema extends v.GenericSchema ? TSchema
-				: v.AnySchema
-				: TColumns[K] extends infer TObject extends SelectedFieldsFlat<Column> | Table | View
-					? BuildRefineColumns<GetSelection<TObject>>
-				: TColumns[K];
-		}
-	>
->;
+type BuildRefineField<T> = T extends v.GenericSchema ? ((schema: T) => v.GenericSchema) | v.GenericSchema : never;
 
 export type BuildRefine<
 	TColumns extends Record<string, any>,
-> = BuildRefineColumns<TColumns> extends infer TBuildColumns ? {
-		[K in keyof TBuildColumns]?: TBuildColumns[K] extends v.GenericSchema
-			? ((schema: TBuildColumns[K]) => v.GenericSchema) | v.GenericSchema
-			: TBuildColumns[K] extends Record<string, any> ? Simplify<BuildRefine<TBuildColumns[K]>>
-			: never;
-	}
-	: never;
+> = {
+	[K in keyof TColumns as TColumns[K] extends Column | SelectedFieldsFlat<Column> | Table | View ? K : never]?:
+		TColumns[K] extends Column ? BuildRefineField<
+				GetValibotType<
+					TColumns[K]['_']['data'],
+					TColumns[K]['_']['dataType'],
+					TColumns[K]['_']['columnType'],
+					TColumns[K]['_']['enumValues'],
+					HasBaseColumn<TColumns[K]> extends true ? Assume<TColumns[K]['_']['baseColumn'], Column> : undefined,
+					ExtractAdditionalProperties<TColumns[K]>
+				>
+			>
+			: BuildRefine<GetSelection<TColumns[K]>>;
+};
 
 type HandleRefinement<
 	TType extends 'select' | 'insert' | 'update',
-	TRefinement extends v.GenericSchema | ((schema: v.GenericSchema) => v.GenericSchema),
+	TRefinement,
 	TColumn extends Column,
 > = TRefinement extends (schema: any) => v.GenericSchema ? (
 		TColumn['_']['notNull'] extends true ? ReturnType<TRefinement>
@@ -58,8 +40,10 @@ type HandleRefinement<
 	: v.AnySchema
 	: TRefinement;
 
-type IsRefinementDefined<TRefinements, TKey extends string> = TKey extends keyof TRefinements
-	? TRefinements[TKey] extends v.GenericSchema | ((schema: any) => any) ? true
+type IsRefinementDefined<
+	TRefinements extends Record<string | symbol | number, any> | undefined,
+	TKey extends string | symbol | number,
+> = TRefinements extends object ? TRefinements[TKey] extends v.GenericSchema | ((schema: any) => any) ? true
 	: false
 	: false;
 
@@ -69,26 +53,19 @@ export type BuildSchema<
 	TRefinements extends Record<string, any> | undefined,
 > = v.ObjectSchema<
 	Simplify<
-		RemoveNever<
-			{
-				readonly [K in keyof TColumns]: TColumns[K] extends infer TColumn extends Column
-					? TRefinements extends object
-						? IsRefinementDefined<TRefinements, Assume<K, string>> extends true
-							? HandleRefinement<TType, TRefinements[Assume<K, keyof TRefinements>], TColumn>
-						: HandleColumn<TType, TColumn>
+		{
+			readonly [K in keyof TColumns as ColumnIsGeneratedAlwaysAs<TColumns[K]> extends true ? never : K]:
+				TColumns[K] extends infer TColumn extends Column
+					? IsRefinementDefined<TRefinements, Assume<K, string>> extends true
+						? Assume<HandleRefinement<TType, TRefinements[K & keyof TRefinements], TColumn>, v.GenericSchema>
 					: HandleColumn<TType, TColumn>
 					: TColumns[K] extends infer TObject extends SelectedFieldsFlat<Column> | Table | View ? BuildSchema<
 							TType,
 							GetSelection<TObject>,
-							TRefinements extends object
-								? TRefinements[Assume<K, keyof TRefinements>] extends infer TNestedRefinements extends object
-									? TNestedRefinements
-								: undefined
-								: undefined
+							TRefinements extends object ? TRefinements[K & keyof TRefinements] : undefined
 						>
 					: v.AnySchema;
-			}
-		>
+		}
 	>,
 	undefined
 >;
