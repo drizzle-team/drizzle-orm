@@ -25,7 +25,7 @@ type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 export class ExpoSQLiteSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-> extends SQLiteSession<'sync', SQLiteRunResult, TFullSchema, TSchema> {
+> extends SQLiteSession<'sync', SQLiteRunResult, TFullSchema, TSchema, SQLiteTransactionConfig> {
 	static override readonly [entityKind]: string = 'ExpoSQLiteSession';
 
 	private logger: Logger;
@@ -79,7 +79,7 @@ export class ExpoSQLiteSession<
 export class ExpoSQLiteTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-> extends SQLiteTransaction<'sync', SQLiteRunResult, TFullSchema, TSchema> {
+> extends SQLiteTransaction<'sync', SQLiteRunResult, TFullSchema, TSchema, SQLiteTransactionConfig> {
 	static override readonly [entityKind]: string = 'ExpoSQLiteTransaction';
 
 	override transaction<T>(transaction: (tx: ExpoSQLiteTransaction<TFullSchema, TSchema>) => T): T {

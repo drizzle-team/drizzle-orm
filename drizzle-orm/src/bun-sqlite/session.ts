@@ -27,7 +27,7 @@ type Statement = BunStatement<any>;
 export class SQLiteBunSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-> extends SQLiteSession<'sync', void, TFullSchema, TSchema> {
+> extends SQLiteSession<'sync', void, TFullSchema, TSchema, SQLiteTransactionConfig> {
 	static override readonly [entityKind]: string = 'SQLiteBunSession';
 
 	private logger: Logger;
@@ -82,7 +82,7 @@ export class SQLiteBunSession<
 export class SQLiteBunTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-> extends SQLiteTransaction<'sync', void, TFullSchema, TSchema> {
+> extends SQLiteTransaction<'sync', void, TFullSchema, TSchema, SQLiteTransactionConfig> {
 	static override readonly [entityKind]: string = 'SQLiteBunTransaction';
 
 	override transaction<T>(transaction: (tx: SQLiteBunTransaction<TFullSchema, TSchema>) => T): T {

@@ -24,7 +24,7 @@ type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 export class SQLJsSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-> extends SQLiteSession<'sync', void, TFullSchema, TSchema> {
+> extends SQLiteSession<'sync', void, TFullSchema, TSchema, SQLiteTransactionConfig> {
 	static override readonly [entityKind]: string = 'SQLJsSession';
 
 	private logger: Logger;
@@ -68,7 +68,7 @@ export class SQLJsSession<
 export class SQLJsTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-> extends SQLiteTransaction<'sync', void, TFullSchema, TSchema> {
+> extends SQLiteTransaction<'sync', void, TFullSchema, TSchema, SQLiteTransactionConfig> {
 	static override readonly [entityKind]: string = 'SQLJsTransaction';
 
 	override transaction<T>(transaction: (tx: SQLJsTransaction<TFullSchema, TSchema>) => T): T {

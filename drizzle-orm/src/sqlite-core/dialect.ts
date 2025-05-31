@@ -817,7 +817,7 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 
 	migrate(
 		migrations: MigrationMeta[],
-		session: SQLiteSession<'sync', unknown, Record<string, unknown>, TablesRelationalConfig>,
+		session: SQLiteSession<'sync', unknown, Record<string, unknown>, TablesRelationalConfig, any>,
 		config?: string | MigrationConfig,
 	): void {
 		const migrationsTable = config === undefined
@@ -869,7 +869,7 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 
 	async migrate(
 		migrations: MigrationMeta[],
-		session: SQLiteSession<'async', any, any, any>,
+		session: SQLiteSession<'async', any, any, any, any>,
 		config?: string | MigrationConfig,
 	): Promise<void> {
 		const migrationsTable = config === undefined

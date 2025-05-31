@@ -59,7 +59,7 @@ export interface PrismaSQLiteSessionOptions {
 	logger?: Logger;
 }
 
-export class PrismaSQLiteSession extends SQLiteSession<'async', unknown, Record<string, never>, Record<string, never>> {
+export class PrismaSQLiteSession extends SQLiteSession<'async', unknown, Record<string, never>, Record<string, never>, SQLiteTransactionConfig> {
 	static override readonly [entityKind]: string = 'PrismaSQLiteSession';
 
 	private readonly logger: Logger;
@@ -82,7 +82,7 @@ export class PrismaSQLiteSession extends SQLiteSession<'async', unknown, Record<
 	}
 
 	override transaction<T>(
-		_transaction: (tx: SQLiteTransaction<'async', unknown, Record<string, never>, Record<string, never>>) => Promise<T>,
+		_transaction: (tx: SQLiteTransaction<'async', unknown, Record<string, never>, Record<string, never>, SQLiteTransactionConfig>) => Promise<T>,
 		_config?: SQLiteTransactionConfig,
 	): Promise<T> {
 		throw new Error('Method not implemented.');

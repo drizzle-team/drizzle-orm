@@ -28,7 +28,7 @@ type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 export class BetterSQLiteSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-> extends SQLiteSession<'sync', RunResult, TFullSchema, TSchema> {
+> extends SQLiteSession<'sync', RunResult, TFullSchema, TSchema, SQLiteTransactionConfig> {
 	static override readonly [entityKind]: string = 'BetterSQLiteSession';
 
 	private logger: Logger;
@@ -85,7 +85,7 @@ export class BetterSQLiteSession<
 export class BetterSQLiteTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-> extends SQLiteTransaction<'sync', RunResult, TFullSchema, TSchema> {
+> extends SQLiteTransaction<'sync', RunResult, TFullSchema, TSchema, SQLiteTransactionConfig> {
 	static override readonly [entityKind]: string = 'BetterSQLiteTransaction';
 
 	override transaction<T>(transaction: (tx: BetterSQLiteTransaction<TFullSchema, TSchema>) => T): T {
