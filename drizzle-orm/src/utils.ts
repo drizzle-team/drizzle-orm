@@ -1,3 +1,4 @@
+import type { Cache } from './cache/core/cache.ts';
 import type { AnyColumn } from './column.ts';
 import { Column } from './column.ts';
 import { is } from './entity.ts';
@@ -219,6 +220,7 @@ export interface DrizzleConfig<TSchema extends Record<string, unknown> = Record<
 	logger?: boolean | Logger;
 	schema?: TSchema;
 	casing?: Casing;
+	cache?: Cache;
 }
 export type ValidateShape<T, ValidShape, TResult = T> = T extends ValidShape
 	? Exclude<keyof T, keyof ValidShape> extends never ? TResult

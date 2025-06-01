@@ -1,3 +1,4 @@
+import type { CacheConfig, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
@@ -33,6 +34,7 @@ import {
 	orderSelectedFields,
 	type ValueOrArray,
 } from '~/utils.ts';
+import { extractUsedTable } from '../utils.ts';
 import type {
 	AnySingleStoreSelect,
 	CreateSingleStoreSelectFromBuilderMode,
@@ -153,6 +155,7 @@ export abstract class SingleStoreSelectQueryBuilderBase<
 		readonly excludedMethods: TExcludedMethods;
 		readonly result: TResult;
 		readonly selectedFields: TSelectedFields;
+		readonly config: SingleStoreSelectConfig;
 	};
 
 	protected config: SingleStoreSelectConfig;
@@ -162,6 +165,8 @@ export abstract class SingleStoreSelectQueryBuilderBase<
 	/** @internal */
 	readonly session: SingleStoreSession | undefined;
 	protected dialect: SingleStoreDialect;
+	protected cacheConfig?: WithCacheConfig = undefined;
+	protected usedTables: Set<string> = new Set();
 
 	constructor(
 		{ table, fields, isPartialSelect, session, dialect, withList, distinct }: {
@@ -187,9 +192,16 @@ export abstract class SingleStoreSelectQueryBuilderBase<
 		this.dialect = dialect;
 		this._ = {
 			selectedFields: fields as TSelectedFields,
+			config: this.config,
 		} as this['_'];
 		this.tableName = getTableLikeName(table);
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
+		for (const item of extractUsedTable(table)) this.usedTables.add(item);
+	}
+
+	/** @internal */
+	getUsedTables() {
+		return [...this.usedTables];
 	}
 
 	private createJoin<
@@ -205,6 +217,9 @@ export abstract class SingleStoreSelectQueryBuilderBase<
 		) => {
 			const baseTableName = this.tableName;
 			const tableName = getTableLikeName(table);
+
+			// store all tables used in a query
+			for (const item of extractUsedTable(table)) this.usedTables.add(item);
 
 			if (typeof tableName === 'string' && this.config.joins?.some((join) => join.alias === tableName)) {
 				throw new Error(`Alias "${tableName}" is already used in this query`);
@@ -894,8 +909,12 @@ export abstract class SingleStoreSelectQueryBuilderBase<
 	as<TAlias extends string>(
 		alias: TAlias,
 	): SubqueryWithSelection<this['_']['selectedFields'], TAlias> {
+		const usedTables: string[] = [];
+		usedTables.push(...extractUsedTable(this.config.table));
+		if (this.config.joins) { for (const it of this.config.joins) usedTables.push(...extractUsedTable(it.table)); }
+
 		return new Proxy(
-			new Subquery(this.getSQL(), this.config.fields, alias),
+			new Subquery(this.getSQL(), this.config.fields, alias, false, [...new Set(usedTables)]),
 			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as SubqueryWithSelection<this['_']['selectedFields'], TAlias>;
 	}
@@ -973,9 +992,21 @@ export class SingleStoreSelectBase<
 		const query = this.session.prepareQuery<
 			SingleStorePreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] },
 			TPreparedQueryHKT
-		>(this.dialect.sqlToQuery(this.getSQL()), fieldsList);
+		>(this.dialect.sqlToQuery(this.getSQL()), fieldsList, undefined, undefined, undefined, {
+			type: 'select',
+			tables: [...this.usedTables],
+		}, this.cacheConfig);
 		query.joinsNotNullableMap = this.joinsNotNullableMap;
 		return query as SingleStoreSelectPrepare<this>;
+	}
+
+	$withCache(config?: { config?: CacheConfig; tag?: string; autoInvalidate?: boolean } | false) {
+		this.cacheConfig = config === undefined
+			? { config: {}, enable: true, autoInvalidate: true }
+			: config === false
+			? { enable: false }
+			: { enable: true, autoInvalidate: true, ...config };
+		return this;
 	}
 
 	execute = ((placeholderValues) => {
