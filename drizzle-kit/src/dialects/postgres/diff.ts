@@ -223,7 +223,6 @@ export const ddlDiff = async (
 	}
 
 	const tablesDiff = diff(ddl1, ddl2, 'tables');
-
 	const {
 		created: createdTables,
 		deleted: deletedTables,
@@ -917,10 +916,12 @@ export const ddlDiff = async (
 			// recreate enum
 			const columns = ddl1.columns.list({ typeSchema: alter.schema, type: alter.name })
 				.map((it) => {
-					const c2 = ddl2.columns.one({ schema: it.schema, table: it.table, name: it.name })!;
+					const c2 = ddl2.columns.one({ schema: it.schema, table: it.table, name: it.name });
+					if (c2 === null) return null;
 					it.default = c2.default;
 					return it;
-				});
+				})
+				.filter((x) => x !== null);
 			recreateEnums.push(prepareStatement('recreate_enum', { to: e, columns }));
 		} else {
 			jsonAlterEnums.push(prepareStatement('alter_enum', { diff: res, enum: e }));

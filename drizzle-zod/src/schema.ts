@@ -1,7 +1,7 @@
 import { Column, getTableColumns, getViewSelectedFields, is, isTable, isView, SQL } from 'drizzle-orm';
 import type { Table, View } from 'drizzle-orm';
 import type { PgEnum } from 'drizzle-orm/pg-core';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { columnToSchema } from './column.ts';
 import type { Conditions } from './schema.types.internal.ts';
 import type {
@@ -20,9 +20,11 @@ function handleColumns(
 	columns: Record<string, any>,
 	refinements: Record<string, any>,
 	conditions: Conditions,
-	factory?: CreateSchemaFactoryOptions,
-): z.ZodTypeAny {
-	const columnSchemas: Record<string, z.ZodTypeAny> = {};
+	factory?: CreateSchemaFactoryOptions<
+		Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined
+	>,
+): z.ZodType {
+	const columnSchemas: Record<string, z.ZodType> = {};
 
 	for (const [key, selected] of Object.entries(columns)) {
 		if (!is(selected, Column) && !is(selected, SQL) && !is(selected, SQL.Aliased) && typeof selected === 'object') {
@@ -61,7 +63,12 @@ function handleColumns(
 	return z.object(columnSchemas) as any;
 }
 
-function handleEnum(enum_: PgEnum<any>, factory?: CreateSchemaFactoryOptions) {
+function handleEnum(
+	enum_: PgEnum<any>,
+	factory?: CreateSchemaFactoryOptions<
+		Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined
+	>,
+) {
 	const zod: typeof z = factory?.zodInstance ?? z;
 	return zod.enum(enum_.enumValues);
 }
@@ -84,7 +91,7 @@ const updateConditions: Conditions = {
 	nullable: (column) => !column.notNull,
 };
 
-export const createSelectSchema: CreateSelectSchema = (
+export const createSelectSchema: CreateSelectSchema<undefined> = (
 	entity: Table | View | PgEnum<[string, ...string[]]>,
 	refine?: Record<string, any>,
 ) => {
@@ -95,7 +102,7 @@ export const createSelectSchema: CreateSelectSchema = (
 	return handleColumns(columns, refine ?? {}, selectConditions) as any;
 };
 
-export const createInsertSchema: CreateInsertSchema = (
+export const createInsertSchema: CreateInsertSchema<undefined> = (
 	entity: Table,
 	refine?: Record<string, any>,
 ) => {
@@ -103,7 +110,7 @@ export const createInsertSchema: CreateInsertSchema = (
 	return handleColumns(columns, refine ?? {}, insertConditions) as any;
 };
 
-export const createUpdateSchema: CreateUpdateSchema = (
+export const createUpdateSchema: CreateUpdateSchema<undefined> = (
 	entity: Table,
 	refine?: Record<string, any>,
 ) => {
@@ -111,8 +118,10 @@ export const createUpdateSchema: CreateUpdateSchema = (
 	return handleColumns(columns, refine ?? {}, updateConditions) as any;
 };
 
-export function createSchemaFactory(options?: CreateSchemaFactoryOptions) {
-	const createSelectSchema: CreateSelectSchema = (
+export function createSchemaFactory<
+	TCoerce extends Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined,
+>(options?: CreateSchemaFactoryOptions<TCoerce>) {
+	const createSelectSchema: CreateSelectSchema<TCoerce> = (
 		entity: Table | View | PgEnum<[string, ...string[]]>,
 		refine?: Record<string, any>,
 	) => {
@@ -123,7 +132,7 @@ export function createSchemaFactory(options?: CreateSchemaFactoryOptions) {
 		return handleColumns(columns, refine ?? {}, selectConditions, options) as any;
 	};
 
-	const createInsertSchema: CreateInsertSchema = (
+	const createInsertSchema: CreateInsertSchema<TCoerce> = (
 		entity: Table,
 		refine?: Record<string, any>,
 	) => {
@@ -131,7 +140,7 @@ export function createSchemaFactory(options?: CreateSchemaFactoryOptions) {
 		return handleColumns(columns, refine ?? {}, insertConditions, options) as any;
 	};
 
-	const createUpdateSchema: CreateUpdateSchema = (
+	const createUpdateSchema: CreateUpdateSchema<TCoerce> = (
 		entity: Table,
 		refine?: Record<string, any>,
 	) => {

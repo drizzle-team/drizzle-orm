@@ -112,6 +112,7 @@ const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
 			name: view.name,
 			definition: view.definition,
 			isExisting: view.isExisting,
+			error: null,
 		});
 	}
 

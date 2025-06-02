@@ -1,2 +1,0 @@
-DATABASE_URL=postgres://user:password@localhost:5432/dbname
-PROJECT_NAME=shiny-fire-338756

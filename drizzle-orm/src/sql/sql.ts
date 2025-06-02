@@ -112,7 +112,22 @@ export class SQL<T = unknown> implements SQLWrapper {
 	decoder: DriverValueDecoder<T, any> = noopDecoder;
 	private shouldInlineParams = false;
 
-	constructor(readonly queryChunks: SQLChunk[]) {}
+	/** @internal */
+	usedTables: string[] = [];
+
+	constructor(readonly queryChunks: SQLChunk[]) {
+		for (const chunk of queryChunks) {
+			if (is(chunk, Table)) {
+				const schemaName = chunk[Table.Symbol.Schema];
+
+				this.usedTables.push(
+					schemaName === undefined
+						? chunk[Table.Symbol.Name]
+						: schemaName + '.' + chunk[Table.Symbol.Name],
+				);
+			}
+		}
+	}
 
 	append(query: SQL): this {
 		this.queryChunks.push(...query.queryChunks);
