@@ -6,7 +6,7 @@ import { createDDL, interimToDDL } from 'src/dialects/mysql/ddl';
 import { fromDatabaseForDrizzle } from 'src/dialects/mysql/introspect';
 import { toJsonSnapshot } from 'src/dialects/mysql/snapshot';
 import { ddlToTypeScript } from 'src/dialects/mysql/typescript';
-import { diffDDL } from 'src/dialects/singlestore/diff';
+import { ddlDiff } from 'src/dialects/singlestore/diff';
 import { mockResolver } from 'src/utils/mocks';
 import { prepareOutFolder } from '../../utils/utils-node';
 import type { Casing, Prefix } from '../validations/common';
@@ -51,7 +51,7 @@ export const handle = async (
 	const { snapshots, journal } = prepareOutFolder(out, 'mysql');
 
 	if (snapshots.length === 0) {
-		const { sqlStatements } = await diffDDL(
+		const { sqlStatements } = await ddlDiff(
 			createDDL(),
 			ddl,
 			mockResolver(new Set()),

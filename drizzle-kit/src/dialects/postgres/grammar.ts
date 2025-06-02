@@ -1,4 +1,4 @@
-import { escapeSingleQuotes, stringifyArray } from 'src/utils';
+import { escapeSingleQuotes as escapeQuotes, stringifyArray } from 'src/utils';
 import { parseArray } from 'src/utils/parse-pgarray';
 import { assertUnreachable } from '../../utils';
 import { hash } from '../common';
@@ -18,7 +18,11 @@ export const splitSqlType = (sqlType: string) => {
 	// timestamp(6) with time zone -> [timestamp, 6, with time zone]
 	const match = sqlType.match(/^(\w+)\(([^)]*)\)(?:\s+with time zone)?$/i);
 	let type = match ? (match[1] + (match[3] ?? '')) : sqlType;
-	const options = match ? match[2] : null;
+	let options = match ? match[2].replaceAll(', ', ',') : null;
+
+	if (options && type === 'numeric') {
+		options = options.replace(',0', ''); // trim numeric (4,0)->(4), compatibility with Drizzle
+	}
 	return { type, options };
 };
 
@@ -124,10 +128,6 @@ export function buildArrayString(array: any[], sqlType: string): string {
 
 	const values = array
 		.map((value) => {
-			if (sqlType.startsWith('numeric')) {
-				return String(value);
-			}
-
 			if (typeof value === 'number' || typeof value === 'bigint') {
 				return value.toString();
 			}
@@ -138,6 +138,10 @@ export function buildArrayString(array: any[], sqlType: string): string {
 
 			if (Array.isArray(value)) {
 				return buildArrayString(value, sqlType);
+			}
+
+			if (sqlType.startsWith('numeric')) {
+				return String(value);
 			}
 
 			if (value instanceof Date) {
@@ -155,8 +159,8 @@ export function buildArrayString(array: any[], sqlType: string): string {
 			}
 
 			if (typeof value === 'string') {
-				if (/^[a-zA-Z0-9./_:-]+$/.test(value)) return value;
-				return `"${value.replaceAll("'", "''")}"`;
+				if (/^[a-zA-Z0-9./_':-]+$/.test(value)) return value.replaceAll("'", "''");
+				return `"${value.replaceAll("'", "''").replaceAll('"', '\\"')}"`;
 			}
 
 			return `"${value}"`;
@@ -432,10 +436,10 @@ export const defaultForColumn = (
 
 	// 'text', potentially with escaped double quotes ''
 	if (/^'(?:[^']|'')*'$/.test(value)) {
-		const res = value.substring(1, value.length - 1).replaceAll("''", "'");
+		const res = value.substring(1, value.length - 1);
 
 		if (type === 'json' || type === 'jsonb') {
-			return { value: JSON.stringify(JSON.parse(res)), type: 'json' };
+			return { value: JSON.stringify(JSON.parse(res.replaceAll("''", "'"))), type: 'json' };
 		}
 		return { value: res, type: 'string' };
 	}
@@ -454,13 +458,13 @@ export const defaultToSQL = (
 
 	if (typeSchema) {
 		const schemaPrefix = typeSchema && typeSchema !== 'public' ? `"${typeSchema}".` : '';
-		return `'${escapeSingleQuotes(value)}'::${schemaPrefix}"${columnType}"${arrsuffix}`;
+		return `'${value}'::${schemaPrefix}"${columnType}"${arrsuffix}`;
 	}
 
 	const suffix = arrsuffix ? `::${columnType}${arrsuffix}` : '';
 
 	if (type === 'string') {
-		return `'${escapeSingleQuotes(value)}'${suffix}`;
+		return `'${value}'${suffix}`;
 	}
 
 	if (type === 'json') {

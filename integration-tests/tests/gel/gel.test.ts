@@ -77,9 +77,10 @@ import createClient, {
 	RelativeDuration,
 } from 'gel';
 import { v4 as uuidV4 } from 'uuid';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import { Expect } from '~/utils';
 import 'zx/globals';
+import { TestCache, TestGlobalCache } from './cache';
 import { createDockerDB } from './createInstance';
 
 $.quiet = true;
@@ -88,6 +89,8 @@ const ENABLE_LOGGING = false;
 
 let client: Client;
 let db: GelJsDatabase;
+let dbGlobalCached: GelJsDatabase;
+let cachedDb: GelJsDatabase;
 const tlsSecurity: string = 'insecure';
 let dsn: string;
 let container: Docker.Container | undefined;
@@ -101,6 +104,10 @@ declare module 'vitest' {
 		gel: {
 			db: GelJsDatabase;
 		};
+		cachedGel: {
+			db: GelJsDatabase;
+			dbGlobalCached: GelJsDatabase;
+		};
 	}
 }
 
@@ -110,6 +117,12 @@ const usersTable = gelTable('users', {
 	verified: boolean('verified').notNull().default(false),
 	json: json('json').$type<string[]>(),
 	createdAt: timestamptz('created_at').notNull().defaultNow(),
+});
+
+const postsTable = gelTable('posts', {
+	id: integer().primaryKey(),
+	description: text().notNull(),
+	userId: integer('city_id').references(() => usersTable.id1),
 });
 
 const usersOnUpdate = gelTable('users_on_update', {
@@ -222,6 +235,14 @@ beforeAll(async () => {
 		},
 	});
 	db = drizzle(client, { logger: ENABLE_LOGGING });
+	cachedDb = drizzle(client, {
+		logger: ENABLE_LOGGING,
+		cache: new TestCache(),
+	});
+	dbGlobalCached = drizzle(client, {
+		logger: ENABLE_LOGGING,
+		cache: new TestGlobalCache(),
+	});
 
 	dsn = connectionString;
 });
@@ -235,9 +256,17 @@ beforeEach((ctx) => {
 	ctx.gel = {
 		db,
 	};
+	ctx.cachedGel = {
+		db: cachedDb,
+		dbGlobalCached,
+	};
 });
 
 describe('some', async () => {
+	beforeEach(async (ctx) => {
+		await ctx.cachedGel.db.$cache?.invalidate({ tables: 'users' });
+		await ctx.cachedGel.dbGlobalCached.$cache?.invalidate({ tables: 'users' });
+	});
 	beforeAll(async () => {
 		await $`gel query "CREATE TYPE default::users {
             create property id1: int16 {
@@ -4968,5 +4997,251 @@ describe('some', async () => {
 				.returning({ id1: usersTable.id1, name: usersTable.name }),
 		);
 		expect(inserted).toEqual([{ id1: 1, name: 'John' }]);
+	});
+
+	test('test force invalidate', async (ctx) => {
+		const { db } = ctx.cachedGel;
+
+		const spyInvalidate = vi.spyOn(db.$cache, 'invalidate');
+		await db.$cache?.invalidate({ tables: 'users' });
+		expect(spyInvalidate).toHaveBeenCalledTimes(1);
+	});
+
+	test('default global config - no cache should be hit', async (ctx) => {
+		const { db } = ctx.cachedGel;
+
+		// @ts-expect-error
+		const spyPut = vi.spyOn(db.$cache, 'put');
+		// @ts-expect-error
+		const spyGet = vi.spyOn(db.$cache, 'get');
+		// @ts-expect-error
+		const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+
+		await db.select().from(usersTable);
+
+		expect(spyPut).toHaveBeenCalledTimes(0);
+		expect(spyGet).toHaveBeenCalledTimes(0);
+		expect(spyInvalidate).toHaveBeenCalledTimes(0);
+	});
+
+	test('default global config + enable cache on select: get, put', async (ctx) => {
+		const { db } = ctx.cachedGel;
+
+		// @ts-expect-error
+		const spyPut = vi.spyOn(db.$cache, 'put');
+		// @ts-expect-error
+		const spyGet = vi.spyOn(db.$cache, 'get');
+		// @ts-expect-error
+		const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+
+		await db.select().from(usersTable).$withCache();
+
+		expect(spyPut).toHaveBeenCalledTimes(1);
+		expect(spyGet).toHaveBeenCalledTimes(1);
+		expect(spyInvalidate).toHaveBeenCalledTimes(0);
+	});
+
+	test('default global config + enable cache on select + write: get, put, onMutate', async (ctx) => {
+		const { db } = ctx.cachedGel;
+
+		// @ts-expect-error
+		const spyPut = vi.spyOn(db.$cache, 'put');
+		// @ts-expect-error
+		const spyGet = vi.spyOn(db.$cache, 'get');
+		// @ts-expect-error
+		const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+
+		await db.select().from(usersTable).$withCache({ config: { ex: 1 } });
+
+		expect(spyPut).toHaveBeenCalledTimes(1);
+		expect(spyGet).toHaveBeenCalledTimes(1);
+		expect(spyInvalidate).toHaveBeenCalledTimes(0);
+
+		spyPut.mockClear();
+		spyGet.mockClear();
+		spyInvalidate.mockClear();
+
+		await db.insert(usersTable).values({ id1: 1, name: 'John' });
+
+		expect(spyPut).toHaveBeenCalledTimes(0);
+		expect(spyGet).toHaveBeenCalledTimes(0);
+		expect(spyInvalidate).toHaveBeenCalledTimes(1);
+	});
+
+	test('default global config + enable cache on select + disable invalidate: get, put', async (ctx) => {
+		const { db } = ctx.cachedGel;
+
+		// @ts-expect-error
+		const spyPut = vi.spyOn(db.$cache, 'put');
+		// @ts-expect-error
+		const spyGet = vi.spyOn(db.$cache, 'get');
+		// @ts-expect-error
+		const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+
+		await db.select().from(usersTable).$withCache({ tag: 'custom', autoInvalidate: false, config: { ex: 1 } });
+
+		expect(spyPut).toHaveBeenCalledTimes(1);
+		expect(spyGet).toHaveBeenCalledTimes(1);
+		expect(spyInvalidate).toHaveBeenCalledTimes(0);
+
+		await db.insert(usersTable).values({ id1: 1, name: 'John' });
+
+		// invalidate force
+		await db.$cache?.invalidate({ tags: ['custom'] });
+	});
+
+	test('global: true + disable cache', async (ctx) => {
+		const { dbGlobalCached: db } = ctx.cachedGel;
+
+		// @ts-expect-error
+		const spyPut = vi.spyOn(db.$cache, 'put');
+		// @ts-expect-error
+		const spyGet = vi.spyOn(db.$cache, 'get');
+		// @ts-expect-error
+		const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+
+		await db.select().from(usersTable).$withCache(false);
+
+		expect(spyPut).toHaveBeenCalledTimes(0);
+		expect(spyGet).toHaveBeenCalledTimes(0);
+		expect(spyInvalidate).toHaveBeenCalledTimes(0);
+	});
+
+	test('global: true - cache should be hit', async (ctx) => {
+		const { dbGlobalCached: db } = ctx.cachedGel;
+
+		// @ts-expect-error
+		const spyPut = vi.spyOn(db.$cache, 'put');
+		// @ts-expect-error
+		const spyGet = vi.spyOn(db.$cache, 'get');
+		// @ts-expect-error
+		const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+
+		await db.select().from(usersTable);
+
+		expect(spyPut).toHaveBeenCalledTimes(1);
+		expect(spyGet).toHaveBeenCalledTimes(1);
+		expect(spyInvalidate).toHaveBeenCalledTimes(0);
+	});
+
+	test('global: true - cache: false on select - no cache hit', async (ctx) => {
+		const { dbGlobalCached: db } = ctx.cachedGel;
+
+		// @ts-expect-error
+		const spyPut = vi.spyOn(db.$cache, 'put');
+		// @ts-expect-error
+		const spyGet = vi.spyOn(db.$cache, 'get');
+		// @ts-expect-error
+		const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+
+		await db.select().from(usersTable).$withCache(false);
+
+		expect(spyPut).toHaveBeenCalledTimes(0);
+		expect(spyGet).toHaveBeenCalledTimes(0);
+		expect(spyInvalidate).toHaveBeenCalledTimes(0);
+	});
+
+	test('global: true - disable invalidate - cache hit + no invalidate', async (ctx) => {
+		const { dbGlobalCached: db } = ctx.cachedGel;
+
+		// @ts-expect-error
+		const spyPut = vi.spyOn(db.$cache, 'put');
+		// @ts-expect-error
+		const spyGet = vi.spyOn(db.$cache, 'get');
+		// @ts-expect-error
+		const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+
+		await db.select().from(usersTable).$withCache({ autoInvalidate: false });
+
+		expect(spyPut).toHaveBeenCalledTimes(1);
+		expect(spyGet).toHaveBeenCalledTimes(1);
+		expect(spyInvalidate).toHaveBeenCalledTimes(0);
+
+		spyPut.mockClear();
+		spyGet.mockClear();
+		spyInvalidate.mockClear();
+
+		await db.insert(usersTable).values({ id1: 1, name: 'John' });
+
+		expect(spyPut).toHaveBeenCalledTimes(0);
+		expect(spyGet).toHaveBeenCalledTimes(0);
+		expect(spyInvalidate).toHaveBeenCalledTimes(1);
+	});
+
+	test('global: true - with custom tag', async (ctx) => {
+		const { dbGlobalCached: db } = ctx.cachedGel;
+
+		// @ts-expect-error
+		const spyPut = vi.spyOn(db.$cache, 'put');
+		// @ts-expect-error
+		const spyGet = vi.spyOn(db.$cache, 'get');
+		// @ts-expect-error
+		const spyInvalidate = vi.spyOn(db.$cache, 'onMutate');
+
+		await db.select().from(usersTable).$withCache({ tag: 'custom', autoInvalidate: false });
+
+		expect(spyPut).toHaveBeenCalledTimes(1);
+		expect(spyGet).toHaveBeenCalledTimes(1);
+		expect(spyInvalidate).toHaveBeenCalledTimes(0);
+
+		await db.insert(usersTable).values({ id1: 1, name: 'John' });
+
+		// invalidate force
+		await db.$cache?.invalidate({ tags: ['custom'] });
+	});
+
+	// check select used tables
+	test('check simple select used tables', (ctx) => {
+		const { db } = ctx.cachedGel;
+
+		// @ts-expect-error
+		expect(db.select().from(usersTable).getUsedTables()).toStrictEqual(['users']);
+		// @ts-expect-error
+		expect(db.select().from(sql`${usersTable}`).getUsedTables()).toStrictEqual(['users']);
+	});
+	// check select+join used tables
+	test('select+join', (ctx) => {
+		const { db } = ctx.cachedGel;
+
+		// @ts-expect-error
+		expect(db.select().from(usersTable).leftJoin(postsTable, eq(usersTable.id, postsTable.userId)).getUsedTables())
+			.toStrictEqual(['users', 'posts']);
+		expect(
+			// @ts-expect-error
+			db.select().from(sql`${usersTable}`).leftJoin(postsTable, eq(usersTable.id, postsTable.userId)).getUsedTables(),
+		).toStrictEqual(['users', 'posts']);
+	});
+	// check select+2join used tables
+	test('select+2joins', (ctx) => {
+		const { db } = ctx.cachedGel;
+
+		expect(
+			db.select().from(usersTable).leftJoin(
+				postsTable,
+				eq(usersTable.id1, postsTable.userId),
+			).leftJoin(
+				alias(postsTable, 'post2'),
+				eq(usersTable.id1, postsTable.userId),
+			)
+				// @ts-expect-error
+				.getUsedTables(),
+		)
+			.toStrictEqual(['users', 'posts']);
+		expect(
+			db.select().from(sql`${usersTable}`).leftJoin(postsTable, eq(usersTable.id1, postsTable.userId)).leftJoin(
+				alias(postsTable, 'post2'),
+				eq(usersTable.id1, postsTable.userId),
+				// @ts-expect-error
+			).getUsedTables(),
+		).toStrictEqual(['users', 'posts']);
+	});
+	// select subquery used tables
+	test('select+join', (ctx) => {
+		const { db } = ctx.cachedGel;
+
+		const sq = db.select().from(usersTable).where(eq(usersTable.id1, 42)).as('sq');
+
+		// @ts-expect-error
+		expect(db.select().from(sq).getUsedTables()).toStrictEqual(['users']);
 	});
 });

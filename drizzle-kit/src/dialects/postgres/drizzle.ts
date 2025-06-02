@@ -254,7 +254,9 @@ export const defaultFromColumn = (
 	}
 
 	if (typeof def === 'string') {
-		const value = dimensions > 0 && Array.isArray(def) ? buildArrayString(def, sqlTypeLowered) : def;
+		const value = dimensions > 0 && Array.isArray(def)
+			? buildArrayString(def, sqlTypeLowered)
+			: def.replaceAll("'", "''");
 		return {
 			value: value,
 			type: 'string',
@@ -307,7 +309,9 @@ export const defaultFromColumn = (
 		};
 	}
 
-	const value = dimensions > 0 && Array.isArray(def) ? buildArrayString(def, sqlTypeLowered) : String(def);
+	const value = dimensions > 0 && Array.isArray(def)
+		? buildArrayString(def, sqlTypeLowered)
+		: String(def);
 	return {
 		value: value,
 		type: 'string',
@@ -489,9 +493,8 @@ export const fromDrizzleSchema = (
 				// Should do for all types
 				// columnToSet.default = `'${column.default}'::${sqlTypeLowered}`;
 				const { baseColumn, dimensions, sqlType, baseType, options, typeSchema } = unwrapColumn(column);
-
 				const columnDefault = defaultFromColumn(baseColumn, column.default, dimensions, dialect);
-
+		
 				return {
 					entityType: 'columns',
 					schema: schema,

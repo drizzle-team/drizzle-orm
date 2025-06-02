@@ -144,7 +144,7 @@ export function stringifyTuplesArray(
 
 	depth += 1;
 	const res = array.map((e) => {
-		if (Array.isArray(e) && !e.find((n) => Array.isArray(n))) {
+		if (Array.isArray(e) && e.find((n) => Array.isArray(n))) {
 			return stringifyTuplesArray(e, mode, mapCallback, depth);
 		}
 		return mapCallback(e, depth);
