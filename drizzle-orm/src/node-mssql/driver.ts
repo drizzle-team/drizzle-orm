@@ -1,5 +1,5 @@
-import mssql from 'mssql';
-import { entityKind } from '~/entity.ts';
+import type mssql from 'mssql';
+import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { MsSqlDatabase } from '~/mssql-core/db.ts';
@@ -11,6 +11,7 @@ import {
 	type TablesRelationalConfig,
 } from '~/relations.ts';
 import { type DrizzleConfig, isConfig } from '~/utils.ts';
+import { AutoPool } from './pool.ts';
 import type { NodeMsSqlClient, NodeMsSqlPreparedQueryHKT, NodeMsSqlQueryResultHKT } from './session.ts';
 import { NodeMsSqlSession } from './session.ts';
 
@@ -81,7 +82,11 @@ function construct<
 	const driver = new NodeMsSqlDriver(client as NodeMsSqlClient, dialect, { logger });
 	const session = driver.createSession(schema);
 	const db = new MsSqlDatabase(dialect, session, schema) as NodeMsSqlDatabase<TSchema>;
-	(<any> db).$client = client;
+	if (is(client, AutoPool)) {
+		(<any> db).$client = client.$instance();
+	} else {
+		(<any> db).$client = client;
+	}
 
 	return db as any;
 }
@@ -112,7 +117,7 @@ export function drizzle<
 	$client: TClient;
 } {
 	if (typeof params[0] === 'string') {
-		const instance = new mssql.ConnectionPool(params[0]);
+		const instance = new AutoPool(params[0]);
 
 		return construct(instance, params[1] as DrizzleConfig<TSchema> | undefined) as any;
 	}
@@ -126,8 +131,8 @@ export function drizzle<
 		if (client) return construct(client, drizzleConfig);
 
 		const instance = typeof connection === 'string'
-			? new mssql.ConnectionPool(connection)
-			: new mssql.ConnectionPool(connection!);
+			? new AutoPool(connection)
+			: new AutoPool(connection!);
 
 		return construct(instance, drizzleConfig) as any;
 	}

@@ -1,8 +1,8 @@
-require('dotenv/config');
-const { drizzle } = require('drizzle-orm/node-mssql');
-const mssql = require('mssql');
-const { mssql: schema } = require('./schema.cjs');
+import 'dotenv/config';
+import { drizzle } from 'drizzle-orm/node-mssql';
+import mssql from 'mssql';
 import { describe, expect } from 'vitest';
+import { mssql as schema } from './schema.mjs';
 
 const Pool = mssql.ConnectionPool;
 
