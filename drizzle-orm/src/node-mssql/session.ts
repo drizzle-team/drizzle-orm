@@ -1,7 +1,7 @@
 import type { ConnectionPool, IResult, Request } from 'mssql';
 import mssql from 'mssql';
 import { once } from 'node:events';
-import { entityKind } from '~/entity.ts';
+import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { MsSqlDialect } from '~/mssql-core/dialect.ts';
@@ -19,8 +19,9 @@ import {
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
+import { AutoPool } from './pool.ts';
 
-export type NodeMsSqlClient = Pick<ConnectionPool, 'request'>;
+export type NodeMsSqlClient = Pick<ConnectionPool, 'request'> | AutoPool;
 
 export type MsSqlQueryResult<T extends unknown | unknown[] = any> = IResult<T>;
 
@@ -63,7 +64,11 @@ export class NodeMsSqlPreparedQuery<
 			joinsNotNullableMap,
 			customResultMapper,
 		} = this;
-		const request = client.request() as Request & { arrayRowMode: boolean };
+		let queryClient = client as ConnectionPool;
+		if (is(client, AutoPool)) {
+			queryClient = await client.$instance();
+		}
+		const request = queryClient.request() as Request & { arrayRowMode: boolean };
 		for (const [index, param] of params.entries()) {
 			request.input(`par${index}`, param);
 		}
@@ -96,7 +101,11 @@ export class NodeMsSqlPreparedQuery<
 			client,
 			customResultMapper,
 		} = this;
-		const request = client.request() as Request & { arrayRowMode: boolean };
+		let queryClient = client as ConnectionPool;
+		if (is(client, AutoPool)) {
+			queryClient = await client.$instance();
+		}
+		const request = queryClient.request() as Request & { arrayRowMode: boolean };
 		request.stream = true;
 		const hasRowsMapper = Boolean(fields || customResultMapper);
 
@@ -204,10 +213,14 @@ export class NodeMsSqlSession<
 	 * @internal
 	 * What is its purpose?
 	 */
-	query(query: string, params: unknown[]): Promise<MsSqlQueryResult> {
+	async query(query: string, params: unknown[]): Promise<MsSqlQueryResult> {
 		this.logger.logQuery(query, params);
 
-		const request = this.client.request() as Request & {
+		let queryClient = this.client as ConnectionPool;
+		if (is(this.client, AutoPool)) {
+			queryClient = await this.client.$instance();
+		}
+		const request = queryClient.request() as Request & {
 			arrayRowMode: boolean;
 		};
 		request.arrayRowMode = true;
@@ -222,7 +235,7 @@ export class NodeMsSqlSession<
 	override async all<T = unknown>(query: SQL): Promise<T[]> {
 		const querySql = this.dialect.sqlToQuery(query);
 		this.logger.logQuery(querySql.sql, querySql.params);
-		return this.query(querySql.sql, querySql.params).then(
+		return await this.query(querySql.sql, querySql.params).then(
 			(result) => result.recordset,
 		);
 	}

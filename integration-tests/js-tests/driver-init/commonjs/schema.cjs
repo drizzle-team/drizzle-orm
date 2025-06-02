@@ -26,4 +26,3 @@ module.exports.pg = {
 		id: pgInt('id').primaryKey(),
 	}),
 };
-

@@ -6,8 +6,8 @@ export class AutoPool {
 
 	private pool: mssql.ConnectionPool;
 
-	constructor(private config: string | mssql.config) {
-		this.pool = new mssql.ConnectionPool('');
+	constructor(config: string | mssql.config) {
+		this.pool = new mssql.ConnectionPool(config as any);
 	}
 
 	async $instance() {
