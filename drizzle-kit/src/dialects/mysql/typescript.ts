@@ -133,7 +133,7 @@ export const ddlToTypeScript = (
 		} as const;
 	});
 	for (const it of [...ddl.entities.list(), ...viewEntities]) {
-		if (it.entityType === 'indexes') imports.add(it.unique ? 'uniqueIndex' : 'index');
+		if (it.entityType === 'indexes') imports.add(it.isUnique ? 'uniqueIndex' : 'index');
 		if (it.entityType === 'fks') imports.add('foreignKey');
 		if (it.entityType === 'pks' && (it.columns.length > 1 || it.nameExplicit)) imports.add('primaryKey');
 		if (it.entityType === 'checks') imports.add('check');
@@ -770,7 +770,7 @@ const createTableIndexes = (
 	let statement = '';
 	for (const it of idxs) {
 		const columns = it.columns.map((x) => x.isExpression ? `sql\`${x.value}\`` : `table.${casing(x.value)}`).join(', ');
-		statement += it.unique ? '\tuniqueIndex(' : '\tindex(';
+		statement += it.isUnique ? '\tuniqueIndex(' : '\tindex(';
 		statement += `"${it.name}")`;
 		statement += `.on(${columns}),\n`;
 	}
