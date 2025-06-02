@@ -4,7 +4,6 @@ import {
 	bit,
 	boolean,
 	char,
-	cidr,
 	date,
 	doublePrecision,
 	geometry,
@@ -14,8 +13,6 @@ import {
 	json,
 	jsonb,
 	line,
-	macaddr,
-	macaddr8,
 	numeric,
 	pgEnum,
 	point,
@@ -31,7 +28,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { DB } from 'src/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { diffDefault, prepareTestDatabase, TestDatabase } from './mocks';
+import { diffDefault, preparePostgisTestDatabase, prepareTestDatabase, TestDatabase } from './mocks';
 
 // @vitest-environment-options {"max-concurrency":1}
 
@@ -1374,12 +1371,87 @@ test('vector + vector arrays', async () => {
 });
 
 // postgis extension
-// SRID =4326 -> these coordinates are longitude/latitude values
-// test.only('geometry + geometry arrays', async () => {
-// 	await _.db.query('CREATE EXTENSION IF NOT EXISTS postgis;');
-// 	const res1 = await diffDefault(
-// 		_,
-// 		geometry({ srid: 4326, mode: 'tuple', type: 'point' }).default([30.5234, 50.4501]),
-// 		`'[0,-2,3]'`,
-// 	);
-// });
+// SRID=4326 -> these coordinates are longitude/latitude values
+test.only('geometry + geometry arrays', async () => {
+	const postgisDb = await preparePostgisTestDatabase();
+
+	try {
+		const res1 = await diffDefault(
+			postgisDb,
+			geometry({ srid: 4326, mode: 'tuple', type: 'point' }).default([30.5234, 50.4501]),
+			`'SRID=4326;POINT(30.7233 46.4825)'`,
+		);
+
+		const res2 = await diffDefault(
+			postgisDb,
+			geometry({ srid: 4326, mode: 'xy', type: 'point' }).default({ x: 30.5234, y: 50.4501 }),
+			`'SRID=4326;POINT(30.7233 46.4825)'`,
+		);
+
+		const res3 = await diffDefault(
+			postgisDb,
+			geometry({ srid: 4326, mode: 'tuple', type: 'point' }).array().default([]),
+			`'{}'::geometry(point, 4326)[]`,
+		);
+		const res4 = await diffDefault(
+			postgisDb,
+			geometry({ srid: 4326, mode: 'tuple', type: 'point' }).array().default([[30.5234, 50.4501]]),
+			`'{"SRID=4326;POINT(30.7233 46.4825)"}'::geometry(point, 4326)[]`,
+		);
+
+		const res5 = await diffDefault(
+			postgisDb,
+			geometry({ srid: 4326, mode: 'xy', type: 'point' }).array().default([]),
+			`'{}'::geometry(point, 4326)[]`,
+		);
+		const res6 = await diffDefault(
+			postgisDb,
+			geometry({ srid: 4326, mode: 'xy', type: 'point' }).array().default([{ x: 30.5234, y: 50.4501 }]),
+			`'{"SRID=4326;POINT(30.7233 46.4825)"}'::geometry(point, 4326)[]`,
+		);
+
+		const res7 = await diffDefault(
+			postgisDb,
+			geometry({ srid: 4326, mode: 'tuple', type: 'point' }).array().array().default([]),
+			`'{}'::geometry(point, 4326)[]`,
+		);
+		const res8 = await diffDefault(
+			postgisDb,
+			geometry({ srid: 4326, mode: 'tuple', type: 'point' }).array().array().default([[[30.5234, 50.4501]], [[
+				30.5234,
+				50.4501,
+			]]]),
+			`ARRAY[ARRAY['SRID=4326;POINT(30.5234 50.4501)'],ARRAY['SRID=4326;POINT(30.5234 50.4501)']]::geometry(Point,4326)[]`,
+		);
+
+		const res9 = await diffDefault(
+			postgisDb,
+			geometry({ srid: 4326, mode: 'xy', type: 'point' }).array().array().default([]),
+			`'{}'::geometry(point, 4326)[]`,
+		);
+		const res10 = await diffDefault(
+			postgisDb,
+			geometry({ srid: 4326, mode: 'xy', type: 'point' }).array().array().default([[{ x: 30.5234, y: 50.4501 }], [{
+				x: 30.5234,
+				y: 50.4501,
+			}]]),
+			`ARRAY[ARRAY['SRID=4326;POINT(30.5234 50.4501)'],ARRAY['SRID=4326;POINT(30.5234 50.4501)']]::geometry(Point,4326)[]`,
+		);
+
+		expect.soft(res1).toStrictEqual([]);
+		expect.soft(res2).toStrictEqual([]);
+		expect.soft(res3).toStrictEqual([]);
+		expect.soft(res4).toStrictEqual([]);
+		expect.soft(res5).toStrictEqual([]);
+		expect.soft(res6).toStrictEqual([]);
+		expect.soft(res7).toStrictEqual([]);
+		expect.soft(res8).toStrictEqual([]);
+	} catch (error) {
+		await postgisDb.clear();
+		await postgisDb.close();
+		throw error;
+	}
+
+	await postgisDb.clear();
+	await postgisDb.close();
+});
