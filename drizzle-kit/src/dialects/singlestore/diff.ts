@@ -29,7 +29,7 @@ export const ddlDiff = async (
 
 	for (const it of res.groupedStatements) {
 		const st = it.jsonStatement;
-		if (st.type === 'create_index' && st.index.unique) continue;
+		if (st.type === 'create_index' && st.index.isUnique) continue;
 		if (st.type === 'alter_column') {
 			if (st.diff.type) continue;
 			if (st.diff.autoIncrement) continue;

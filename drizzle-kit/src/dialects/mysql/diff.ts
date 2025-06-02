@@ -285,7 +285,7 @@ export const ddlDiff = async (
 		.map((it) => prepareStatement('create_check', { check: it }));
 
 	const createIndexesStatements = indexesDiff.filter((it) => it.$diffType === 'create')
-		.filter((it) => !it.unique || !createdTables.some((x) => x.name === it.table))
+		.filter((it) => !it.isUnique || !createdTables.some((x) => x.name === it.table))
 		.map((it) => prepareStatement('create_index', { index: it }));
 
 	const createFKsStatements = fksDiff.filter((it) => it.$diffType === 'create')
