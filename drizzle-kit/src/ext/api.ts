@@ -156,7 +156,7 @@ import * as postgres from './api-postgres';
 // 	prev: DrizzleMySQLSnapshotJSON,
 // 	cur: DrizzleMySQLSnapshotJSON,
 // ) => {
-// 	const { diffDDL: applyMysqlSnapshotsDiff } = await import('./dialects/mysql/mysql');
+// 	const { ddlDiff: applyMysqlSnapshotsDiff } = await import('./dialects/mysql/mysql');
 
 // 	const validatedPrev = mysqlSchema.parse(prev);
 // 	const validatedCur = mysqlSchema.parse(cur);
@@ -183,7 +183,7 @@ import * as postgres from './api-postgres';
 // 	drizzleInstance: MySql2Database<any>,
 // 	databaseName: string,
 // ) => {
-// 	const { diffDDL: applyMysqlSnapshotsDiff } = await import('./dialects/mysql/mysql');
+// 	const { ddlDiff: applyMysqlSnapshotsDiff } = await import('./dialects/mysql/mysql');
 // 	const { logSuggestionsAndReturn } = await import(
 // 		'./cli/commands/mysqlPushUtils'
 // 	);

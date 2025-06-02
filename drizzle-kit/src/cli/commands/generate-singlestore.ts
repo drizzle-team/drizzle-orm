@@ -1,5 +1,5 @@
 import { Column, createDDL, interimToDDL, Table, View } from 'src/dialects/mysql/ddl';
-import { ddlDiffDry, diffDDL } from 'src/dialects/singlestore/diff';
+import { ddlDiffDry, ddlDiff } from 'src/dialects/singlestore/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/singlestore/drizzle';
 import { prepareSnapshot } from 'src/dialects/singlestore/serializer';
 import { prepareFilenames } from 'src/utils/utils-node';
@@ -34,7 +34,7 @@ export const handle = async (config: GenerateConfig) => {
 		return;
 	}
 
-	const { sqlStatements, renames } = await diffDDL(
+	const { sqlStatements, renames } = await ddlDiff(
 		ddlPrev,
 		ddlCur,
 		resolver<Table>('table'),
