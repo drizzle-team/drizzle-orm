@@ -10,10 +10,10 @@ import { JsonStatement } from './statements';
 
 export const ddlDiffDry = async (from: MysqlDDL, to: MysqlDDL, mode: 'default' | 'push' = 'default') => {
 	const s = new Set<string>();
-	return diffDDL(from, to, mockResolver(s), mockResolver(s), mockResolver(s), mode);
+	return ddlDiff(from, to, mockResolver(s), mockResolver(s), mockResolver(s), mode);
 };
 
-export const diffDDL = async (
+export const ddlDiff = async (
 	ddl1: MysqlDDL,
 	ddl2: MysqlDDL,
 	tablesResolver: Resolver<Table>,
@@ -23,7 +23,7 @@ export const diffDDL = async (
 ): Promise<{
 	statements: JsonStatement[];
 	sqlStatements: string[];
-	grouped: { jsonStatement: JsonStatement; sqlStatements: string[] }[];
+	groupedStatements: { jsonStatement: JsonStatement; sqlStatements: string[] }[];
 	renames: string[];
 }> => {
 	// TODO: @AndriiSherman
@@ -395,7 +395,7 @@ export const diffDDL = async (
 	return {
 		statements: jsonStatements,
 		sqlStatements: res.sqlStatements,
-		grouped: res.groupedStatements,
+		groupedStatements: res.groupedStatements,
 		renames: [],
 	};
 };
