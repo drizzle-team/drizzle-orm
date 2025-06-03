@@ -46,7 +46,7 @@
 		"@drizzle-team/brocli": "^0.10.2",
 		"esbuild": "^0.25.4",
 		"esbuild-register": "^3.5.0",
-		"tsx": "^4.19.4"
+		"tsx": "^3.14.0"
 	},
 	"devDependencies": {
 		"@arethetypeswrong/cli": "^0.15.3",
