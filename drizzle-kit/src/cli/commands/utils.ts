@@ -8,6 +8,8 @@ import { type Dialect, dialect } from '../../utils/schemaValidator';
 import { prepareFilenames } from '../../utils/utils-node';
 import { safeRegister } from '../../utils/utils-node';
 import { Entities, pullParams, pushParams } from '../validations/cli';
+import { CockroachDbCredentials, cockroachdbCredentials } from '../validations/cockroachdb';
+import { printConfigConnectionIssues as printCockroachIssues } from '../validations/cockroachdb';
 import {
 	Casing,
 	CasingType,
@@ -253,6 +255,10 @@ export const preparePushConfig = async (
 			dialect: 'mssql';
 			credentials: MssqlCredentials;
 		}
+		| {
+			dialect: 'cockroachdb';
+			credentials: CockroachDbCredentials;
+		}
 	)
 	& {
 		schemaPath: string | string[];
@@ -438,6 +444,28 @@ export const preparePushConfig = async (
 			schemasFilter,
 		};
 	}
+
+	if (config.dialect === 'cockroachdb') {
+		const parsed = cockroachdbCredentials.safeParse(config);
+		if (!parsed.success) {
+			printCockroachIssues(config);
+			process.exit(1);
+		}
+
+		return {
+			dialect: 'cockroachdb',
+			schemaPath: config.schema,
+			strict: config.strict ?? false,
+			verbose: config.verbose ?? false,
+			force: (options.force as boolean) ?? false,
+			credentials: parsed.data,
+			casing: config.casing,
+			tablesFilter,
+			schemasFilter,
+			entities: config.entities,
+		};
+	}
+
 	assertUnreachable(config.dialect);
 };
 
@@ -473,6 +501,10 @@ export const preparePullConfig = async (
 		| {
 			dialect: 'mssql';
 			credentials: MssqlCredentials;
+		}
+		| {
+			dialect: 'cockroachdb';
+			credentials: CockroachDbCredentials;
 		}
 	) & {
 		out: string;
@@ -667,6 +699,26 @@ export const preparePullConfig = async (
 		};
 	}
 
+	if (dialect === 'cockroachdb') {
+		const parsed = cockroachdbCredentials.safeParse(config);
+		if (!parsed.success) {
+			printCockroachIssues(config);
+			process.exit(1);
+		}
+
+		return {
+			dialect,
+			out: config.out,
+			breakpoints: config.breakpoints,
+			casing: config.casing,
+			credentials: parsed.data,
+			tablesFilter,
+			schemasFilter,
+			prefix: config.migrations?.prefix || 'index',
+			entities: config.entities,
+		};
+	}
+
 	assertUnreachable(dialect);
 };
 
@@ -787,6 +839,22 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 		process.exit(1);
 	}
 
+	if (dialect === 'cockroachdb') {
+		const parsed = cockroachdbCredentials.safeParse(flattened);
+		if (!parsed.success) {
+			printCockroachIssues(flattened as Record<string, unknown>);
+			process.exit(1);
+		}
+		const credentials = parsed.data;
+		return {
+			dialect,
+			schema,
+			host,
+			port,
+			credentials,
+		};
+	}
+
 	assertUnreachable(dialect);
 };
 
@@ -904,6 +972,22 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 			),
 		);
 		process.exit(1);
+	}
+
+	if (dialect === 'cockroachdb') {
+		const parsed = cockroachdbCredentials.safeParse(flattened);
+		if (!parsed.success) {
+			printCockroachIssues(flattened as Record<string, unknown>);
+			process.exit(1);
+		}
+		const credentials = parsed.data;
+		return {
+			dialect,
+			out,
+			credentials,
+			schema,
+			table,
+		};
 	}
 
 	assertUnreachable(dialect);

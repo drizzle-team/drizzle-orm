@@ -627,10 +627,9 @@ export const fromDatabase = async (
 			columnDefault?.expression,
 			column.dimensions,
 		);
-		console.log("----")
-		console.log(defaultValue, columnDefault?.expression)		
-		console.log("---\n")
-
+		console.log('----');
+		console.log(defaultValue, columnDefault?.expression);
+		console.log('---\n');
 
 		columnTypeMapped = columnTypeMapped
 			.replace('character varying', 'varchar')
@@ -1070,5 +1069,6 @@ export const fromDatabaseForDrizzle = async (
 	const res = await fromDatabase(db, tableFilter, schemaFilters, entities, progressCallback);
 	res.schemas = res.schemas.filter((it) => it.name !== 'public');
 	res.indexes = res.indexes.filter((it) => !it.forPK && !it.forUnique);
+
 	return res;
 };

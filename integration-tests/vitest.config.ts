@@ -22,6 +22,7 @@ export default defineConfig({
 			'js-tests/driver-init/commonjs/*.test.cjs',
 			'js-tests/driver-init/module/*.test.mjs',
 			'tests/gel/**/*.test.ts',
+			'tests/cockroachdb/**/*.test.ts',
 		],
 		exclude: [
 			...(process.env.SKIP_EXTERNAL_DB_TESTS
