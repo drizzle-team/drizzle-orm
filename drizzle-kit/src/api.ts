@@ -1,8 +1,10 @@
 import { randomUUID } from 'crypto';
 import { LibSQLDatabase } from 'drizzle-orm/libsql';
+import { MigrationConfig } from 'drizzle-orm/migrator';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
 import { PgDatabase } from 'drizzle-orm/pg-core';
 import { SingleStoreDriverDatabase } from 'drizzle-orm/singlestore';
+import { Minimatch } from 'minimatch';
 import {
 	columnsResolver,
 	enumsResolver,
@@ -22,6 +24,7 @@ import { updateUpToV6 as upPgV6, updateUpToV7 as upPgV7 } from './cli/commands/p
 import { sqlitePushIntrospect } from './cli/commands/sqliteIntrospect';
 import { logSuggestionsAndReturn } from './cli/commands/sqlitePushUtils';
 import type { CasingType } from './cli/validations/common';
+import { PostgresCredentials } from './cli/validations/postgres';
 import { getTablesFilterByExtensions } from './extensions/getTablesFilterByExtensions';
 import { originUUID } from './global';
 import type { Config } from './index';
@@ -30,7 +33,7 @@ import { MySqlSchema as MySQLSchemaKit, mysqlSchema, squashMysqlScheme } from '.
 import { generateMySqlSnapshot } from './serializer/mysqlSerializer';
 import { prepareFromExports } from './serializer/pgImports';
 import { PgSchema as PgSchemaKit, pgSchema, squashPgScheme } from './serializer/pgSchema';
-import { generatePgSnapshot } from './serializer/pgSerializer';
+import { fromDatabase, generatePgSnapshot } from './serializer/pgSerializer';
 import {
 	SingleStoreSchema as SingleStoreSchemaKit,
 	singlestoreSchema,
@@ -39,11 +42,165 @@ import {
 import { generateSingleStoreSnapshot } from './serializer/singlestoreSerializer';
 import { SQLiteSchema as SQLiteSchemaKit, sqliteSchema, squashSqliteScheme } from './serializer/sqliteSchema';
 import { generateSqliteSnapshot } from './serializer/sqliteSerializer';
-import type { DB, SQLiteDB } from './utils';
+import { ProxyParams } from './serializer/studio';
+import type { DB, Proxy, SQLiteDB } from './utils';
 export type DrizzleSnapshotJSON = PgSchemaKit;
 export type DrizzleSQLiteSnapshotJSON = SQLiteSchemaKit;
 export type DrizzleMySQLSnapshotJSON = MySQLSchemaKit;
 export type DrizzleSingleStoreSnapshotJSON = SingleStoreSchemaKit;
+
+// Replit
+
+export const introspectPgDB = async (
+	db: DB,
+	filters: string[],
+	schemaFilters: string[],
+) => {
+	const matchers = filters.map((it) => {
+		return new Minimatch(it);
+	});
+
+	const filter = (tableName: string) => {
+		if (matchers.length === 0) return true;
+
+		let flags: boolean[] = [];
+
+		for (let matcher of matchers) {
+			if (matcher.negate) {
+				if (!matcher.match(tableName)) {
+					flags.push(false);
+				}
+			}
+
+			if (matcher.match(tableName)) {
+				flags.push(true);
+			}
+		}
+
+		if (flags.length > 0) {
+			return flags.every(Boolean);
+		}
+		return false;
+	};
+
+	const res = await fromDatabase(
+		db,
+		filter,
+		schemaFilters,
+		undefined,
+		undefined,
+		undefined
+	);
+
+	const schema = { id: originUUID, prevId: '', ...res } as PgSchemaKit;
+	const { internal, ...schemaWithoutInternals } = schema;
+	return schemaWithoutInternals;
+};
+
+export const preparePgDB = async (
+	credentials: PostgresCredentials,
+): Promise<
+	DB & {
+		proxy: Proxy;
+		migrate: (config: string | MigrationConfig) => Promise<void>;
+	}
+> => {
+		console.log(`Using 'pg' driver for database querying`);
+		const { default: pg } = await import('pg');
+		const { drizzle } = await import('drizzle-orm/node-postgres');
+		const { migrate } = await import('drizzle-orm/node-postgres/migrator');
+
+		const ssl = 'ssl' in credentials
+			? credentials.ssl === 'prefer'
+					|| credentials.ssl === 'require'
+					|| credentials.ssl === 'allow'
+				? { rejectUnauthorized: false }
+				: credentials.ssl === 'verify-full'
+				? {}
+				: credentials.ssl
+			: {};
+
+		// Override pg default date parsers
+		const types: { getTypeParser: typeof pg.types.getTypeParser } = {
+			// @ts-ignore
+			getTypeParser: (typeId, format) => {
+				if (typeId === pg.types.builtins.TIMESTAMPTZ) {
+					return (val) => val;
+				}
+				if (typeId === pg.types.builtins.TIMESTAMP) {
+					return (val) => val;
+				}
+				if (typeId === pg.types.builtins.DATE) {
+					return (val) => val;
+				}
+				if (typeId === pg.types.builtins.INTERVAL) {
+					return (val) => val;
+				}
+				// @ts-ignore
+				return pg.types.getTypeParser(typeId, format);
+			},
+		};
+
+		const client = 'url' in credentials
+			? new pg.Pool({ connectionString: credentials.url, max: 1 })
+			: new pg.Pool({ ...credentials, ssl, max: 1 });
+
+		const db = drizzle(client);
+		const migrateFn = async (config: MigrationConfig) => {
+			return migrate(db, config);
+		};
+
+		const query = async (sql: string, params?: any[]) => {
+			const result = await client.query({
+				text: sql,
+				values: params ?? [],
+				types,
+			});
+			return result.rows;
+		};
+
+		const proxy: Proxy = async (params: ProxyParams) => {
+			const result = await client.query({
+				text: params.sql,
+				values: params.params,
+				...(params.mode === 'array' && { rowMode: 'array' }),
+				types,
+			});
+			return result.rows;
+		};
+
+		return { query, proxy, migrate: migrateFn };
+}
+
+
+export const getPgClientPool = async (
+	targetCredentials: PostgresCredentials
+) => {
+	const { default: pg } = await import('pg');
+	const pool = 'url' in targetCredentials
+		? new pg.Pool({ connectionString: targetCredentials.url, max: 1 })
+		: new pg.Pool({ ...targetCredentials, ssl: undefined, max: 1 });
+
+	return pool;
+};
+
+export { applyPgSnapshotsDiff } from './snapshotsDiffer';
+export {
+	columnsResolver,
+	enumsResolver,
+	indPolicyResolver,
+	pgSchema,
+	pgSuggestions,
+	policyResolver,
+	roleResolver,
+	schemasResolver,
+	sequencesResolver,
+	squashPgScheme,
+	tablesResolver,
+	viewsResolver
+};
+
+// Pg
 
 export const generateDrizzleJson = (
 	imports: Record<string, unknown>,
