@@ -45,6 +45,7 @@ import type {
 	LockStrength,
 	PgCreateSetOperatorFn,
 	PgSelectConfig,
+	PgSelectCrossJoinFn,
 	PgSelectDynamic,
 	PgSelectHKT,
 	PgSelectHKTBase,
@@ -231,7 +232,9 @@ export abstract class PgSelectQueryBuilderBase<
 	>(
 		joinType: TJoinType,
 		lateral: TIsLateral,
-	): PgSelectJoinFn<this, TDynamic, TJoinType, TIsLateral> {
+	): 'cross' extends TJoinType ? PgSelectCrossJoinFn<this, TDynamic, TIsLateral>
+		: PgSelectJoinFn<this, TDynamic, TJoinType, TIsLateral>
+	{
 		return ((
 			table: TIsLateral extends true ? Subquery | SQL : PgTable | Subquery | PgViewBase | SQL,
 			on?: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
