@@ -50,7 +50,7 @@ export class MySqlDialect {
 
 	constructor(config?: MySqlDialectConfig) {
 		this.casing = new CasingCache(config?.casing);
-		
+
 		if (config?.escapeParam) {
 			this.escapeParam = config.escapeParam;
 		}

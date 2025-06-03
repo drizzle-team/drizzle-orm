@@ -28,11 +28,11 @@ semantics.addOperation('parseArray', {
 	},
 
 	stringLiteral(lQuote, string, rQuote) {
-		return JSON.parse('"' + string.sourceString.replace("''", "'") + '"');
+		return JSON.parse('"' + string.sourceString.replaceAll("''", "'") + '"');
 	},
 
 	quotelessString(string) {
-		return string.sourceString.replace("''", "'");
+		return string.sourceString.replaceAll("''", "'");
 	},
 
 	nullLiteral(_) {
@@ -49,14 +49,4 @@ export function parseArray(array: string) {
 
 	const res = semantics(match)['parseArray']();
 	return res as ArrayValue[];
-}
-
-export function stringifyArrayValue(array: ArrayValue[], mapCallback: (v: string | null) => string): string {
-	return `[${
-		array.map((e) => {
-			if (Array.isArray(e)) return stringifyArrayValue(e, mapCallback);
-
-			return mapCallback(e);
-		}).join(', ')
-	}]`;
 }

@@ -115,3 +115,39 @@ export const prepareMigrationRenames = (
 		return `${schema1}${table1}${it.from.name}->${schema2}${table2}${it.to.name}`;
 	});
 };
+
+export type ArrayValue = unknown | null | ArrayValue[];
+
+export function stringifyArray(
+	value: ArrayValue,
+	mode: 'sql' | 'ts',
+	mapCallback: (v: any | null, depth: number) => string,
+	depth: number = 0,
+): string {
+	if (!Array.isArray(value)) return mapCallback(value, depth);
+	depth += 1;
+
+	const res = value.map((e) => {
+		if (Array.isArray(e)) return stringifyArray(e, mode, mapCallback);
+		return mapCallback(e, depth);
+	}).join(', ');
+	return mode === 'ts' ? `[${res}]` : `{${res}}`;
+}
+
+export function stringifyTuplesArray(
+	array: ArrayValue[],
+	mode: 'sql' | 'ts',
+	mapCallback: (v: ArrayValue, depth: number) => string,
+	depth: number = 0,
+): string {
+	if (!array.find((n) => Array.isArray(n))) return mapCallback(array, depth);
+
+	depth += 1;
+	const res = array.map((e) => {
+		if (Array.isArray(e) && e.find((n) => Array.isArray(n))) {
+			return stringifyTuplesArray(e, mode, mapCallback, depth);
+		}
+		return mapCallback(e, depth);
+	}).join(', ');
+	return mode === 'ts' ? `[${res}]` : `{${res}}`;
+}

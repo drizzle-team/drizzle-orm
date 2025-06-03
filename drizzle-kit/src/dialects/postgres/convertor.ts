@@ -1,5 +1,5 @@
 import { escapeSingleQuotes, type Simplify } from '../../utils';
-import { defaultNameForPK, defaults, defaultToSQL, isDefaultAction, parseType } from './grammar';
+import { defaultNameForPK, defaults, defaultToSQL, isDefaultAction } from './grammar';
 import type { JsonStatement } from './statements';
 
 export const convertor = <
@@ -149,8 +149,10 @@ const createTableConvertor = convertor('create_table', (st) => {
 			? `"${column.typeSchema}".`
 			: '';
 
-		const arr = column.dimensions > 0 ? '[]' : '';
-		const type = `${parseType(schemaPrefix, column.type)}${arr}`;
+		const arr = column.dimensions > 0 ? '[]'.repeat(column.dimensions) : '';
+		const options = column.options ? `(${column.options})` : '';
+		const colType = column.typeSchema ? `"${column.type}"` : column.type;
+		const type = `${schemaPrefix}${colType}${options}${arr}`;
 
 		const generated = column.generated;
 
@@ -267,8 +269,9 @@ const addColumnConvertor = convertor('add_column', (st) => {
 		? `"${column.typeSchema}".`
 		: '';
 
-	let fixedType = parseType(schemaPrefix, column.type);
-	fixedType += column.dimensions > 0 ? '[]' : '';
+	const options = column.options ? `(${column.options})` : '';
+	const type = column.typeSchema ? `"${column.type}"` : column.type;
+	let fixedType = `${schemaPrefix}${type}${options}${'[]'.repeat(column.dimensions)}`;
 
 	const notNullStatement = column.notNull && !identity && !generated ? ' NOT NULL' : '';
 
@@ -345,36 +348,38 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 	}
 
-	if (diff.type) {
+	if (diff.type || diff.options) {
 		const typeSchema = column.typeSchema && column.typeSchema !== 'public' ? `"${column.typeSchema}".` : '';
 		const textProxy = wasEnum && isEnum ? 'text::' : ''; // using enum1::text::enum2
-		const arrSuffix = column.dimensions > 0 ? '[]' : '';
+		const arrSuffix = column.dimensions > 0 ? '[]'.repeat(column.dimensions) : '';
 		const suffix = isEnum ? ` USING "${column.name}"::${textProxy}${typeSchema}"${column.type}"${arrSuffix}` : '';
-		let type = diff.typeSchema?.to && diff.typeSchema.to !== 'public'
-			? `"${diff.typeSchema.to}"."${diff.type.to}"`
-			: isEnum
-			? `"${diff.type.to}"`
-			: diff.type.to; // TODO: enum?
+		let type: string;
 
+		if (diff.type) {
+			type = diff.typeSchema?.to && diff.typeSchema.to !== 'public'
+				? `"${diff.typeSchema.to}"."${diff.type.to}"`
+				: isEnum
+				? `"${diff.type.to}"`
+				: diff.type.to; // TODO: enum?
+		} else {
+			type = `${typeSchema}${column.typeSchema ? `"${column.type}"` : column.type}`;
+		}
+
+		type += column.options ? `(${column.options})` : '';
 		type += arrSuffix;
 		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${type}${suffix};`);
 
 		if (recreateDefault) {
-			const typeSuffix = isEnum && column.dimensions === 0 ? `::${type}` : '';
 			statements.push(
-				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(column, isEnum)}${typeSuffix};`,
+				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(column)};`,
 			);
 		}
 	}
 
 	if (diff.default && !recreateDefault) {
 		if (diff.default.to) {
-			const typeSchema = column.typeSchema && column.typeSchema !== 'public' ? `"${column.typeSchema}".` : '';
-			const arrSuffix = column.dimensions > 0 ? '[]' : '';
-			const typeSuffix = isEnum ? `::${typeSchema}"${column.type}"${arrSuffix}` : '';
-
 			statements.push(
-				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(diff.$right)}${typeSuffix};`,
+				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(diff.$right)};`,
 			);
 		} else {
 			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
@@ -697,7 +702,7 @@ const recreateEnumConvertor = convertor('recreate_enum', (st) => {
 
 	for (const column of columns) {
 		const key = column.schema !== 'public' ? `"${column.schema}"."${column.table}"` : `"${column.table}"`;
-		const arr = column.dimensions > 0 ? '[]' : '';
+		const arr = column.dimensions > 0 ? '[]'.repeat(column.dimensions) : '';
 		const enumType = to.schema !== 'public' ? `"${to.schema}"."${to.name}"${arr}` : `"${to.name}"${arr}`;
 		statements.push(
 			`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${enumType} USING "${column.name}"::${enumType};`,

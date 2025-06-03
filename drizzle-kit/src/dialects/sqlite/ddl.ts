@@ -59,11 +59,10 @@ export const createDDL = () => {
 		views: {
 			definition: 'string?',
 			isExisting: 'boolean',
+			error: 'string?',
 		},
 	});
 };
-
-const db = createDDL();
 
 export type SQLiteDDL = ReturnType<typeof createDDL>;
 

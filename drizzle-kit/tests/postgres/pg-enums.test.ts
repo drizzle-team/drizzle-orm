@@ -657,7 +657,7 @@ test('enums #23', async () => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0 = [
-		'CREATE TABLE "table" (\n\t"en1" "schema"."e"[],\n\t"en2" "schema"."e"[]\n);\n',
+		'CREATE TABLE "table" (\n\t"en1" "schema"."e"[],\n\t"en2" "schema"."e"[][]\n);\n',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -913,7 +913,7 @@ test('column is enum type with default value. shuffle enum', async () => {
 		`DROP TYPE "enum";`,
 		`CREATE TYPE "enum" AS ENUM('value1', 'value3', 'value2');`,
 		'ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum" USING "column"::"enum";',
-		'ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT \'value2\';',
+		'ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT \'value2\'::"enum";',
 	];
 
 	expect(st).toStrictEqual(st0);
@@ -976,7 +976,7 @@ test('column is enum type with default value. shuffle enum', async () => {
 		`DROP TYPE "enum";`,
 		`CREATE TYPE "enum" AS ENUM('value1', 'value3', 'value2');`,
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum" USING "column"::"enum";`,
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2';`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2'::"enum";`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1015,7 +1015,7 @@ test('column is array enum type with default value. shuffle enum', async () => {
 		`DROP TYPE "enum";`,
 		`CREATE TYPE "enum" AS ENUM('value1', 'value3', 'value2');`,
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum"[] USING "column"::"enum"[];`,
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{"value3"}'::"enum"[];`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{value3}'::"enum"[];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1054,7 +1054,7 @@ test('column is array enum with custom size type with default value. shuffle enu
 		`DROP TYPE "enum";`,
 		`CREATE TYPE "enum" AS ENUM('value1', 'value3', 'value2');`,
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum"[] USING "column"::"enum"[];`,
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{"value2"}'::"enum"[];`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{value2}'::"enum"[];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1128,7 +1128,7 @@ test('column is array of enum with multiple dimenions with custom sizes type. sh
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`,
 		`DROP TYPE "enum";`,
 		`CREATE TYPE "enum" AS ENUM('value1', 'value3', 'value2');`,
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum"[] USING "column"::"enum"[];`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum"[][] USING "column"::"enum"[][];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1166,8 +1166,8 @@ test('column is array of enum with multiple dimenions type with custom size with
 		`ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;`,
 		`DROP TYPE "enum";`,
 		`CREATE TYPE "enum" AS ENUM('value1', 'value3', 'value2');`,
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum"[] USING "column"::"enum"[];`,
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{{"value2"}}'::"enum"[];`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum"[][] USING "column"::"enum"[][];`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{{value2}}'::"enum"[];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1209,7 +1209,7 @@ test('column is enum type with default value. custom schema. shuffle enum', asyn
 		`DROP TYPE "new_schema"."enum";`,
 		`CREATE TYPE "new_schema"."enum" AS ENUM('value1', 'value3', 'value2');`,
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "new_schema"."enum" USING "column"::"new_schema"."enum";`,
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2';`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2'::"new_schema"."enum";`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1249,7 +1249,7 @@ test('column is array enum type with default value. custom schema. shuffle enum'
 		`DROP TYPE "new_schema"."enum";`,
 		`CREATE TYPE "new_schema"."enum" AS ENUM('value1', 'value3', 'value2');`,
 		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE "new_schema"."enum"[] USING "column"::"new_schema"."enum"[];`,
-		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DEFAULT '{"value2"}'::"new_schema"."enum"[];`,
+		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DEFAULT '{value2}'::"new_schema"."enum"[];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1289,7 +1289,7 @@ test('column is array enum type with custom size with default value. custom sche
 		`DROP TYPE "new_schema"."enum";`,
 		`CREATE TYPE "new_schema"."enum" AS ENUM('value1', 'value3', 'value2');`,
 		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE "new_schema"."enum"[] USING "column"::"new_schema"."enum"[];`,
-		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DEFAULT '{"value2"}'::"new_schema"."enum"[];`,
+		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DEFAULT '{value2}'::"new_schema"."enum"[];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1464,7 +1464,7 @@ test('change data type from array standart type to array enum. column has defaul
 	const st0 = [
 		'ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;',
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum"[] USING "column"::"enum"[];`,
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{"value3"}'::"enum"[];`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{value3}'::"enum"[];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1529,7 +1529,7 @@ test('change data type from array standart type with custom size to array enum w
 	const st0 = [
 		'ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;',
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum"[] USING "column"::"enum"[];`,
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{"value3"}'::"enum"[];`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{value3}'::"enum"[];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1731,7 +1731,7 @@ test('change data type from array enum type to array standart type. column has d
 	const st0 = [
 		'ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;',
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE varchar[];`,
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{"value2"}'::varchar[];`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{value2}'::varchar[];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1766,7 +1766,7 @@ test('change data type from array enum type with custom size to array standart t
 	const st0 = [
 		'ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;',
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE varchar[];`,
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{"value2"}'::varchar[];`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{value2}'::varchar[];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -2134,8 +2134,8 @@ test('add column with same name as enum', async () => {
 	});
 
 	const st0: string[] = [
-		'CREATE TABLE "table2" (\n\t"id" serial PRIMARY KEY,\n\t"status" "status" DEFAULT \'inactive\'\n);\n',
-		'ALTER TABLE "table1" ADD COLUMN "status" "status" DEFAULT \'inactive\';',
+		'CREATE TABLE "table2" (\n\t"id" serial PRIMARY KEY,\n\t"status" "status" DEFAULT \'inactive\'::"status"\n);\n',
+		'ALTER TABLE "table1" ADD COLUMN "status" "status" DEFAULT \'inactive\'::"status";',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);

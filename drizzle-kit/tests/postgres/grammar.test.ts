@@ -74,6 +74,7 @@ test.each([
 	[`'{abc,def}'::bpchar[]`, `'{abc,def}'`],
 	[`'{100,200}'::double precision[]`, `'{100,200}'`],
 	[`'{100,200}'::real[]`, `'{100,200}'`],
+	["'{}'::character(1)[]", "'{}'"],
 	[
 		`'{"{\"attr\":\"value1\"}","{\"attr\":\"value2\"}"}'::json[]`,
 		`'{"{\"attr\":\"value1\"}","{\"attr\":\"value2\"}"}'`,

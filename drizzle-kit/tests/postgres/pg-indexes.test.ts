@@ -8,7 +8,7 @@ let _: TestDatabase;
 let db: TestDatabase['db'];
 
 beforeAll(async () => {
-	_ = await prepareTestDatabase();
+	_ = await prepareTestDatabase(false);
 	db = _.db;
 });
 
@@ -128,7 +128,6 @@ test('altering indexes', async () => {
 
 	await push({ db, to: schema1 });
 	const { sqlStatements: pst } = await push({ db, to: schema2 });
-
 
 	expect(st).toStrictEqual([
 		'DROP INDEX "changeName";',

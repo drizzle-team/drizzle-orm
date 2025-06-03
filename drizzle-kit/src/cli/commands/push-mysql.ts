@@ -3,7 +3,7 @@ import { render, renderWithTask } from 'hanji';
 import { Column, interimToDDL, Table, View } from 'src/dialects/mysql/ddl';
 import { JsonStatement } from 'src/dialects/mysql/statements';
 import { prepareFilenames } from 'src/utils/utils-node';
-import { diffDDL } from '../../dialects/mysql/diff';
+import { ddlDiff } from '../../dialects/mysql/diff';
 import type { DB } from '../../utils';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
@@ -50,7 +50,7 @@ export const handle = async (
 	const { ddl: ddl2 } = interimToDDL(interimFromFiles);
 	// TODO: handle errors
 
-	const { sqlStatements, statements } = await diffDDL(
+	const { sqlStatements, statements } = await ddlDiff(
 		ddl1,
 		ddl2,
 		resolver<Table>('table'),

@@ -33,7 +33,12 @@ import '../../src/@types/utils';
 import { PGlite } from '@electric-sql/pglite';
 import { pg_trgm } from '@electric-sql/pglite/contrib/pg_trgm';
 import { vector } from '@electric-sql/pglite/vector';
+import Docker from 'dockerode';
 import { existsSync, rmSync, writeFileSync } from 'fs';
+import getPort from 'get-port';
+import crypto from 'node:crypto';
+import { type Client as ClientT } from 'pg';
+import pg from 'pg';
 import { introspect } from 'src/cli/commands/pull-postgres';
 import { suggestions } from 'src/cli/commands/push-postgres';
 import { Entities } from 'src/cli/validations/cli';
@@ -43,6 +48,8 @@ import { defaultToSQL, isSystemNamespace, isSystemRole } from 'src/dialects/post
 import { fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
 import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
 import { DB } from 'src/utils';
+
+const { Client } = pg;
 
 export type PostgresSchema = Record<
 	string,
@@ -323,6 +330,7 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	kit: TestDatabase,
 	builder: T,
 	expectedDefault: string,
+	pre: PostgresSchema | null = null,
 ) => {
 	await kit.clear();
 
@@ -330,28 +338,33 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	const def = config['default'];
 	const column = pgTable('table', { column: builder }).column;
 
-	const { baseColumn, dimensions, sqlType, sqlBaseType, typeSchema } = unwrapColumn(column);
+	const { baseColumn, dimensions, baseType, options, typeSchema } = unwrapColumn(column);
 	const columnDefault = defaultFromColumn(baseColumn, column.default, dimensions, new PgDialect());
 	const defaultSql = defaultToSQL({
 		default: columnDefault,
-		type: sqlBaseType,
+		type: baseType,
 		dimensions,
 		typeSchema: typeSchema,
 	});
 
 	const res = [] as string[];
 	if (defaultSql !== expectedDefault) {
-		res.push(`Unexpected sql: ${defaultSql} | ${expectedDefault}`);
+		res.push(`Unexpected sql: \n${defaultSql}\n${expectedDefault}`);
 	}
 
 	const init = {
+		...pre,
 		table: pgTable('table', { column: builder }),
 	};
 
 	const { db, clear } = kit;
+	if (pre) await push({ db, to: pre });
 	const { sqlStatements: st1 } = await push({ db, to: init });
 	const { sqlStatements: st2 } = await push({ db, to: init });
 
+	const typeSchemaPrefix = typeSchema && typeSchema !== 'public' ? `"${typeSchema}".` : '';
+	const typeValue = typeSchema ? `"${baseType}"` : baseType;
+	const sqlType = `${typeSchemaPrefix}${typeValue}${options ? `(${options})` : ''}${'[]'.repeat(dimensions)}`;
 	const expectedInit = `CREATE TABLE "table" (\n\t"column" ${sqlType} DEFAULT ${expectedDefault}\n);\n`;
 	if (st1.length !== 1 || st1[0] !== expectedInit) res.push(`Unexpected init:\n${st1}\n\n${expectedInit}`);
 	if (st2.length > 0) res.push(`Unexpected subsequent init:\n${st2}`);
@@ -372,8 +385,10 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 
 	const { sqlStatements: afterFileSqlStatements } = await ddlDiffDry(ddl1, ddl2, 'push');
 	if (afterFileSqlStatements.length === 0) {
-		// rmSync(path);
+		rmSync(path);
 	} else {
+		console.log(afterFileSqlStatements);
+		console.log(`./${path}`);
 	}
 
 	await clear();
@@ -381,15 +396,18 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	config.hasDefault = false;
 	config.default = undefined;
 	const schema1 = {
+		...pre,
 		table: pgTable('table', { column: builder }),
 	};
 
 	config.hasDefault = true;
 	config.default = def;
 	const schema2 = {
+		...pre,
 		table: pgTable('table', { column: builder }),
 	};
 
+	if (pre) await push({ db, to: pre });
 	await push({ db, to: schema1 });
 	const { sqlStatements: st3 } = await push({ db, to: schema2 });
 	const expectedAlter = `ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT ${expectedDefault};`;
@@ -398,13 +416,16 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	await clear();
 
 	const schema3 = {
+		...pre,
 		table: pgTable('table', { id: serial() }),
 	};
 
 	const schema4 = {
+		...pre,
 		table: pgTable('table', { id: serial(), column: builder }),
 	};
 
+	if (pre) await push({ db, to: pre });
 	await push({ db, to: schema3 });
 	const { sqlStatements: st4 } = await push({ db, to: schema4 });
 
@@ -422,11 +443,25 @@ export type TestDatabase = {
 	clear: () => Promise<void>;
 };
 
-export const prepareTestDatabase = async (): Promise<TestDatabase> => {
-	const client = new PGlite({ extensions: { vector, pg_trgm } });
+const client = new PGlite({ extensions: { vector, pg_trgm } });
+
+export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatabase> => {
 	await client.query(`CREATE ACCESS METHOD drizzle_heap TYPE TABLE HANDLER heap_tableam_handler;`);
+	await client.query(`CREATE EXTENSION vector;`);
+	await client.query(`CREATE EXTENSION pg_trgm;`);
+	if (tx) {
+		await client.query('BEGIN').catch();
+		await client.query('SAVEPOINT drizzle');
+	}
 
 	const clear = async () => {
+		if (tx) {
+			await client.query('ROLLBACK TO SAVEPOINT drizzle');
+			await client.query('BEGIN');
+			await client.query('SAVEPOINT drizzle');
+			return;
+		}
+
 		const namespaces = await client.query<{ name: string }>('select oid, nspname as name from pg_namespace').then((
 			res,
 		) => res.rows.filter((r) => !isSystemNamespace(r.name)));
@@ -463,4 +498,127 @@ export const prepareTestDatabase = async (): Promise<TestDatabase> => {
 		},
 	};
 	return { db, close: async () => {}, clear };
+};
+
+export const createDockerPostgis = async () => {
+	const docker = new Docker();
+	const port = await getPort();
+	const image = 'postgis/postgis:16-3.4';
+
+	const pullStream = await docker.pull(image);
+	await new Promise((resolve, reject) =>
+		docker.modem.followProgress(pullStream, (err: any) => err ? reject(err) : resolve(err))
+	);
+
+	const user = 'postgres', password = 'postgres', database = 'postgres';
+	const pgContainer = await docker.createContainer({
+		Image: image,
+		Env: [`POSTGRES_USER=${user}`, `POSTGRES_PASSWORD=${password}`, `POSTGRES_DATABASE=${database}`],
+		name: `drizzle-integration-tests-${crypto.randomUUID()}`,
+		HostConfig: {
+			AutoRemove: true,
+			PortBindings: {
+				'5432/tcp': [{ HostPort: `${port}` }],
+			},
+		},
+	});
+
+	await pgContainer.start();
+
+	return {
+		pgContainer,
+		connectionParams: {
+			host: 'localhost',
+			port,
+			user,
+			password,
+			database,
+			ssl: false,
+		},
+	};
+};
+
+export const preparePostgisTestDatabase = async (tx: boolean = true): Promise<TestDatabase> => {
+	const dockerPayload = await createDockerPostgis();
+	const sleep = 1000;
+	let timeLeft = 40000;
+	let connected = false;
+	let lastError;
+
+	const pgContainer = dockerPayload.pgContainer;
+	let pgClient: ClientT;
+	do {
+		try {
+			pgClient = new Client(dockerPayload.connectionParams);
+			await pgClient.connect();
+			connected = true;
+			break;
+		} catch (e) {
+			lastError = e;
+			await new Promise((resolve) => setTimeout(resolve, sleep));
+			timeLeft -= sleep;
+		}
+	} while (timeLeft > 0);
+	if (!connected) {
+		console.error('Cannot connect to Postgres');
+		await pgClient!.end().catch(console.error);
+		await pgContainer!.stop().catch(console.error);
+		throw lastError;
+	}
+
+	await pgClient!.query(`CREATE ACCESS METHOD drizzle_heap TYPE TABLE HANDLER heap_tableam_handler;`);
+	await pgClient!.query(`CREATE EXTENSION IF NOT EXISTS postgis;`);
+	if (tx) {
+		await pgClient!.query('BEGIN').catch();
+		await pgClient!.query('SAVEPOINT drizzle');
+	}
+
+	const clear = async () => {
+		if (tx) {
+			await pgClient.query('ROLLBACK TO SAVEPOINT drizzle');
+			await pgClient.query('BEGIN');
+			await pgClient.query('SAVEPOINT drizzle');
+			return;
+		}
+
+		const namespaces = await pgClient.query<{ name: string }>('select oid, nspname as name from pg_namespace').then((
+			res,
+		) => res.rows.filter((r) => !isSystemNamespace(r.name)));
+
+		const roles = await pgClient.query<{ rolname: string }>(
+			`SELECT rolname, rolinherit, rolcreatedb, rolcreaterole FROM pg_roles;`,
+		).then((it) => it.rows.filter((it) => !isSystemRole(it.rolname)));
+
+		for (const namespace of namespaces) {
+			await pgClient.query(`DROP SCHEMA "${namespace.name}" cascade`);
+		}
+
+		await pgClient.query('CREATE SCHEMA public;');
+
+		for (const role of roles) {
+			await pgClient.query(`DROP ROLE "${role.rolname}"`);
+		}
+
+		await pgClient.query(`CREATE EXTENSION IF NOT EXISTS postgis;`);
+	};
+
+	const close = async () => {
+		await pgClient.end().catch(console.error);
+		await pgContainer.stop().catch(console.error);
+	};
+
+	const db: TestDatabase['db'] = {
+		query: async (sql, params) => {
+			return pgClient.query(sql, params).then((it) => it.rows as any[]).catch((e: Error) => {
+				const error = new Error(`query error: ${sql}\n\n${e.message}`);
+				throw error;
+			});
+		},
+		batch: async (sqls) => {
+			for (const sql of sqls) {
+				await pgClient.query(sql);
+			}
+		},
+	};
+	return { db, close, clear };
 };

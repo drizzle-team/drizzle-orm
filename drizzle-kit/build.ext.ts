@@ -13,7 +13,7 @@ const main = async () => {
 	// });
 
 	await tsup.build({
-		entryPoints: ['./src/utils/studio-sqlite.ts'],
+		entryPoints: ['./src/ext/studio-sqlite.ts'],
 		outDir: './dist',
 		external: [],
 		splitting: false,
@@ -23,7 +23,7 @@ const main = async () => {
 	});
 
 	await tsup.build({
-		entryPoints: ['./src/utils/studio-postgres.ts'],
+		entryPoints: ['./src/ext/studio-postgres.ts'],
 		outDir: './dist',
 		external: [],
 		splitting: false,
@@ -32,8 +32,8 @@ const main = async () => {
 		format: ['esm'],
 	});
 
-	await tsup.build({
-		entryPoints: ['./src/utils/mover-postgres.ts', './src/utils/mover-mysql.ts'],
+		await tsup.build({
+		entryPoints: ['./src/ext/studio-mysql.ts'],
 		outDir: './dist',
 		external: [],
 		splitting: false,
@@ -41,6 +41,16 @@ const main = async () => {
 		platform: 'browser',
 		format: ['esm'],
 	});
+
+	// await tsup.build({
+	// 	entryPoints: ['./src/utils/mover-postgres.ts', './src/utils/mover-mysql.ts'],
+	// 	outDir: './dist',
+	// 	external: [],
+	// 	splitting: false,
+	// 	dts: true,
+	// 	platform: 'browser',
+	// 	format: ['esm'],
+	// });
 };
 
 main().then(() => {

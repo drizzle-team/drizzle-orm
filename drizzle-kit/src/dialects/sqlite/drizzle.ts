@@ -205,6 +205,7 @@ export const fromDrizzleSchema = (
 			name: viewName,
 			isExisting,
 			definition: isExisting ? null : dialect.sqlToQuery(query!).sql,
+			error: null,
 		} satisfies View;
 	});
 

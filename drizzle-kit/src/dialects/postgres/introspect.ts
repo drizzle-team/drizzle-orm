@@ -28,6 +28,7 @@ import {
 	parseOnType,
 	parseViewDefinition,
 	splitExpressions,
+	splitSqlType,
 	stringFromDatabaseIdentityProperty as parseIdentityProperty,
 	trimChar,
 	wrapRecord,
@@ -72,7 +73,7 @@ function prepareRoles(entities?: {
 // TODO: since we by default only introspect public
 export const fromDatabase = async (
 	db: DB,
-	tablesFilter: (table: string) => boolean = () => true,
+	tablesFilter: (schema: string, table: string) => boolean = () => true,
 	schemaFilter: (schema: string) => boolean = () => true,
 	entities?: Entities,
 	progressCallback: (
@@ -178,7 +179,7 @@ export const fromDatabase = async (
 	const tablesList = await db
 		.query<{
 			oid: number;
-			schemaId: number;
+			schema: string;
 			name: string;
 
 			/* r - table, v - view, m - materialized view */
@@ -191,7 +192,7 @@ export const fromDatabase = async (
 		}>(`
 				SELECT
 					oid,
-					relnamespace AS "schemaId",
+					relnamespace::regnamespace::text as "schema",
 					relname AS "name",
 					relkind AS "kind",
 					relam as "accessMethod",
@@ -211,13 +212,12 @@ export const fromDatabase = async (
 
 	const viewsList = tablesList.filter((it) => it.kind === 'v' || it.kind === 'm');
 
-	const filteredTables = tablesList.filter((it) => it.kind === 'r' && tablesFilter(it.name)).map((it) => {
-		const schema = filteredNamespaces.find((ns) => ns.oid === it.schemaId)!;
-		return {
-			...it,
-			schema: schema.name,
-		};
+	const filteredTables = tablesList.filter((it) => {
+		if (!(it.kind === 'r' && tablesFilter(it.schema, it.name))) return false;
+		it.schema = it.schema.trimChar('"'); // when camel case name e.x. mySchema -> it gets wrapped to "mySchema"
+		return true;
 	});
+
 	const filteredTableIds = filteredTables.map((it) => it.oid);
 	const viewsIds = viewsList.map((it) => it.oid);
 	const filteredViewsAndTableIds = [...filteredTableIds, ...viewsIds];
@@ -228,7 +228,7 @@ export const fromDatabase = async (
 	for (const table of filteredTables) {
 		tables.push({
 			entityType: 'tables',
-			schema: table.schema,
+			schema: table.schema.trimChar("'"),
 			name: table.name,
 			isRlsEnabled: table.rlsEnabled,
 		});
@@ -436,7 +436,7 @@ export const fromDatabase = async (
 						FROM
 							(
 								SELECT
-									pg_get_serial_sequence("table_schema" || '.' || "table_name", "attname")::regclass::oid as "seqId",
+									pg_get_serial_sequence('"' || "table_schema" || '"."' || "table_name" || '"', "attname")::regclass::oid as "seqId",
 									"identity_generation" AS generation,
 									"identity_start" AS "start",
 									"identity_increment" AS "increment",
@@ -451,7 +451,7 @@ export const fromDatabase = async (
 									-- relnamespace is schemaId, regnamescape::text converts to schemaname
 									AND c.table_schema = cls.relnamespace::regnamespace::text
 									-- attrelid is tableId, regclass::text converts to table name
-									AND c.table_name = attrelid::regclass::text
+									AND c.table_name = cls.relname
 							) c
 						)
 					ELSE NULL
@@ -594,16 +594,14 @@ export const fromDatabase = async (
 
 		if (expr) {
 			const table = tablesList.find((it) => it.oid === column.tableId)!;
-			const schema = namespaces.find((it) => it.oid === table.schemaId)!;
 
-			const isSerial = isSerialExpression(expr.expression, schema.name);
+			const isSerial = isSerialExpression(expr.expression, table.schema);
 			column.type = isSerial ? type === 'bigint' ? 'bigserial' : type === 'integer' ? 'serial' : 'smallserial' : type;
 		}
 	}
 
 	for (const column of columnsList.filter((x) => x.kind === 'r')) {
 		const table = tablesList.find((it) => it.oid === column.tableId)!;
-		const schema = namespaces.find((it) => it.oid === table.schemaId)!;
 
 		// supply enums
 		const enumType = column.typeId in groupedEnums
@@ -611,31 +609,33 @@ export const fromDatabase = async (
 			: column.typeId in groupedArrEnums
 			? groupedArrEnums[column.typeId]
 			: null;
+
 		let columnTypeMapped = enumType ? enumType.name : column.type.replace('[]', '');
-		columnTypeMapped = trimChar(columnTypeMapped, '"');
 
 		if (columnTypeMapped.startsWith('numeric(')) {
 			columnTypeMapped = columnTypeMapped.replace(',', ', ');
 		}
+
+		columnTypeMapped = columnTypeMapped
+			.replace('character varying', 'varchar')
+			.replace(' without time zone', '')
+			// .replace(' with time zone', '')
+			// .replace("timestamp without time zone", "timestamp")
+			.replace('character', 'char');
+
+		columnTypeMapped = trimChar(columnTypeMapped, '"');
+
+		const { type, options } = splitSqlType(columnTypeMapped);
 
 		const columnDefault = defaultsList.find(
 			(it) => it.tableId === column.tableId && it.ordinality === column.ordinality,
 		);
 
 		const defaultValue = defaultForColumn(
-			columnTypeMapped,
+			type,
 			columnDefault?.expression,
 			column.dimensions,
 		);
-		console.log('----');
-		console.log(defaultValue, columnDefault?.expression);
-		console.log('---\n');
-
-		columnTypeMapped = columnTypeMapped
-			.replace('character varying', 'varchar')
-			.replace(' without time zone', '')
-			// .replace("timestamp without time zone", "timestamp")
-			.replace('character', 'char');
 
 		const unique = constraintsList.find((it) => {
 			return it.type === 'u' && it.tableId === column.tableId && it.columnsOrdinals.length === 1
@@ -650,7 +650,7 @@ export const fromDatabase = async (
 		const metadata = column.metadata;
 		if (column.generatedType === 's' && (!metadata || !metadata.expression)) {
 			throw new Error(
-				`Generated ${schema.name}.${table.name}.${column.name} columns missing expression: \n${
+				`Generated ${table.schema}.${table.name}.${column.name} columns missing expression: \n${
 					JSON.stringify(column.metadata)
 				}`,
 			);
@@ -658,7 +658,7 @@ export const fromDatabase = async (
 
 		if (column.identityType !== '' && !metadata) {
 			throw new Error(
-				`Identity ${schema.name}.${table.name}.${column.name} columns missing metadata: \n${
+				`Identity ${table.schema}.${table.name}.${column.name} columns missing metadata: \n${
 					JSON.stringify(column.metadata)
 				}`,
 			);
@@ -668,11 +668,12 @@ export const fromDatabase = async (
 
 		columns.push({
 			entityType: 'columns',
-			schema: schema.name,
+			schema: table.schema,
 			table: table.name,
 			name: column.name,
-			type: columnTypeMapped,
-			typeSchema: enumType?.schema ?? null,
+			type,
+			options,
+			typeSchema: enumType ? enumType.schema ?? 'public' : null,
 			dimensions: column.dimensions,
 			default: column.generatedType === 's' ? null : defaultValue,
 			unique: !!unique,
@@ -691,7 +692,7 @@ export const fromDatabase = async (
 					maxValue: parseIdentityProperty(metadata?.max),
 					startWith: parseIdentityProperty(metadata?.start),
 					cycle: metadata?.cycle === 'YES',
-					cache: sequence?.cacheSize ?? 1,
+					cache: Number(parseIdentityProperty(sequence?.cacheSize)) ?? 1,
 				}
 				: null,
 		});
@@ -930,7 +931,6 @@ export const fromDatabase = async (
 
 	for (const it of columnsList.filter((x) => x.kind === 'm' || x.kind === 'v')) {
 		const view = viewsList.find((x) => x.oid === it.tableId)!;
-		const schema = namespaces.find((x) => x.oid === view.schemaId)!;
 
 		const enumType = it.typeId in groupedEnums
 			? groupedEnums[it.typeId]
@@ -954,10 +954,10 @@ export const fromDatabase = async (
 			.replace('character', 'char');
 
 		viewColumns.push({
-			schema: schema.name,
+			schema: view.schema,
 			view: view.name,
 			name: it.name,
-			type: it.type,
+			type: columnTypeMapped,
 			notNull: it.notNull,
 			dimensions: it.dimensions,
 			typeSchema: enumType ? enumType.schema : null,
@@ -965,8 +965,7 @@ export const fromDatabase = async (
 	}
 
 	for (const view of viewsList) {
-		const viewName = view.name;
-		if (!tablesFilter(viewName)) continue;
+		if (!tablesFilter(view.schema, view.name)) continue;
 		tableCount += 1;
 
 		const accessMethod = view.accessMethod === 0 ? null : ams.find((it) => it.oid === view.accessMethod);
@@ -1014,7 +1013,7 @@ export const fromDatabase = async (
 		const hasNonNullOpt = Object.values(opts).some((x) => x !== null);
 		views.push({
 			entityType: 'views',
-			schema: namespaces.find((it) => it.oid === view.schemaId)!.name,
+			schema: view.schema,
 			name: view.name,
 			definition,
 			with: hasNonNullOpt ? opts : null,

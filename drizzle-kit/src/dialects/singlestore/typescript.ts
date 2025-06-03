@@ -116,7 +116,7 @@ export const schemaToTypeScript = (
 		'AnySingleStoreColumn',
 	]);
 	for (const it of ddl.entities.list()) {
-		if (it.entityType === 'indexes') imports.add(it.unique ? 'uniqueIndex' : 'index');
+		if (it.entityType === 'indexes') imports.add(it.isUnique ? 'uniqueIndex' : 'index');
 		if (it.entityType === 'pks' && it.columns.length > 1) imports.add('primaryKey');
 
 		if (it.entityType === 'columns') {
@@ -672,7 +672,7 @@ const createTableIndexes = (
 	let statement = '';
 	for (const it of idxs) {
 		const columns = it.columns.filter((x) => !x.isExpression).map((it) => `table.${casing(it.value)}`).join(', ');
-		statement += `\t\t${it.unique ? 'uniqueIndex(' : 'index('}`;
+		statement += `\t\t${it.isUnique ? 'uniqueIndex(' : 'index('}`;
 		statement += `"${it.name})"`;
 		statement += `.on(${columns}),\n`;
 	}

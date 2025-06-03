@@ -1,15 +1,15 @@
 import { mockResolver } from '../../utils/mocks';
 import { Resolver } from '../common';
-import { Column, createDDL, MysqlDDL, Table, View } from '../mysql/ddl';
-import { diffDDL as mysqlDiffDDL } from '../mysql/diff';
+import { Column, MysqlDDL, Table, View } from '../mysql/ddl';
+import { ddlDiff as mysqlDdlDiff } from '../mysql/diff';
 import { JsonStatement } from '../mysql/statements';
 
 export const ddlDiffDry = async (from: MysqlDDL, to: MysqlDDL) => {
 	const s = new Set<string>();
-	return diffDDL(from, to, mockResolver(s), mockResolver(s), mockResolver(s), 'default');
+	return ddlDiff(from, to, mockResolver(s), mockResolver(s), mockResolver(s), 'default');
 };
 
-export const diffDDL = async (
+export const ddlDiff = async (
 	ddl1: MysqlDDL,
 	ddl2: MysqlDDL,
 	tablesResolver: Resolver<Table>,
@@ -19,17 +19,17 @@ export const diffDDL = async (
 ): Promise<{
 	statements: JsonStatement[];
 	sqlStatements: string[];
-	grouped: { jsonStatement: JsonStatement; sqlStatements: string[] }[];
+	groupedStatements: { jsonStatement: JsonStatement; sqlStatements: string[] }[];
 	renames: string[];
 }> => {
-	const res = await mysqlDiffDDL(ddl1, ddl2, tablesResolver, columnsResolver, viewsResolver, mode);
+	const res = await mysqlDdlDiff(ddl1, ddl2, tablesResolver, columnsResolver, viewsResolver, mode);
 
 	const statements: JsonStatement[] = [];
 	const sqlStatements: string[] = [];
 
-	for (const it of res.grouped) {
+	for (const it of res.groupedStatements) {
 		const st = it.jsonStatement;
-		if (st.type === 'create_index' && st.index.unique) continue;
+		if (st.type === 'create_index' && st.index.isUnique) continue;
 		if (st.type === 'alter_column') {
 			if (st.diff.type) continue;
 			if (st.diff.autoIncrement) continue;
@@ -45,7 +45,7 @@ export const diffDDL = async (
 	return {
 		statements,
 		sqlStatements,
-		grouped: res.grouped,
+		groupedStatements: res.groupedStatements,
 		renames: res.renames,
 	};
 };
