@@ -91,7 +91,7 @@ export abstract class SQLiteDialect {
 
 		const orderBySql = this.buildOrderBy(orderBy);
 
-		const limitSql = this.buildLimit(limit);
+		const limitSql = this.buildLimitAndOffset(limit, undefined);
 
 		return sql`${withSql}delete from ${table}${whereSql}${returningSql}${orderBySql}${limitSql}`;
 	}
@@ -134,7 +134,7 @@ export abstract class SQLiteDialect {
 
 		const orderBySql = this.buildOrderBy(orderBy);
 
-		const limitSql = this.buildLimit(limit);
+		const limitSql = this.buildLimitAndOffset(limit, undefined);
 
 		return sql`${withSql}update ${table} set ${setSql}${fromSql}${joinsSql}${whereSql}${returningSql}${orderBySql}${limitSql}`;
 	}
@@ -251,10 +251,21 @@ export abstract class SQLiteDialect {
 		return sql.join(joinsArray);
 	}
 
-	private buildLimit(limit: number | Placeholder | undefined): SQL | undefined {
-		return typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
-			? sql` limit ${limit}`
-			: undefined;
+	private buildLimitAndOffset(
+		limit: number | Placeholder | undefined,
+		offset: number | Placeholder | undefined,
+	): SQL | undefined {
+		const isPlaceholderOrPositive = (value: number | Placeholder | undefined): value is number | Placeholder =>
+			typeof value === 'object' || (typeof value === 'number' && value >= 0);
+
+		let query = isPlaceholderOrPositive(limit) ? sql` limit ${limit}` : undefined;
+
+		if (isPlaceholderOrPositive(offset)) {
+			query ??= sql` limit -1`; // in sqlite, if offset is set, limit must be set too to produce a valid query
+			query = query.append(sql` offset ${offset}`);
+		}
+
+		return query;
 	}
 
 	private buildOrderBy(orderBy: (SQLiteColumn | SQL | SQL.Aliased)[] | undefined): SQL | undefined {
@@ -359,12 +370,10 @@ export abstract class SQLiteDialect {
 
 		const orderBySql = this.buildOrderBy(orderBy);
 
-		const limitSql = this.buildLimit(limit);
-
-		const offsetSql = offset ? sql` offset ${offset}` : undefined;
+		const limitOffsetSql = this.buildLimitAndOffset(limit, offset);
 
 		const finalQuery =
-			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitSql}${offsetSql}`;
+			sql`${withSql}select${distinctSql} ${selection} from ${tableSql}${joinsSql}${whereSql}${groupBySql}${havingSql}${orderBySql}${limitOffsetSql}`;
 
 		if (setOperators.length > 0) {
 			return this.buildSetOperations(finalQuery, setOperators);
@@ -426,15 +435,11 @@ export abstract class SQLiteDialect {
 			orderBySql = sql` order by ${sql.join(orderByValues, sql`, `)}`;
 		}
 
-		const limitSql = typeof limit === 'object' || (typeof limit === 'number' && limit >= 0)
-			? sql` limit ${limit}`
-			: undefined;
+		const limitOffsetSql = this.buildLimitAndOffset(limit, offset);
 
 		const operatorChunk = sql.raw(`${type} ${isAll ? 'all ' : ''}`);
 
-		const offsetSql = offset ? sql` offset ${offset}` : undefined;
-
-		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitSql}${offsetSql}`;
+		return sql`${leftChunk}${operatorChunk}${rightChunk}${orderBySql}${limitOffsetSql}`;
 	}
 
 	buildInsertQuery(
