@@ -268,19 +268,19 @@ export const lte: BinaryOperator = (left: SQLWrapper, right: unknown): SQL => {
  */
 export function inArray<T>(
 	column: SQL.Aliased<T>,
-	values: (T | Placeholder)[] | SQLWrapper,
+	values: readonly (T | Placeholder)[] | SQLWrapper,
 ): SQL;
 export function inArray<TColumn extends Column>(
 	column: TColumn,
-	values: ReadonlyArray<GetColumnData<TColumn, 'raw'> | Placeholder> | SQLWrapper,
+	values: readonly (GetColumnData<TColumn, 'raw'> | Placeholder)[] | SQLWrapper,
 ): SQL;
 export function inArray<T extends SQLWrapper>(
 	column: Exclude<T, SQL.Aliased | Column>,
-	values: ReadonlyArray<unknown | Placeholder> | SQLWrapper,
+	values: readonly (unknown | Placeholder)[] | SQLWrapper,
 ): SQL;
 export function inArray(
 	column: SQLWrapper,
-	values: ReadonlyArray<unknown | Placeholder> | SQLWrapper,
+	values: readonly (unknown | Placeholder)[] | SQLWrapper,
 ): SQL {
 	if (Array.isArray(values)) {
 		if (values.length === 0) {
@@ -309,19 +309,19 @@ export function inArray(
  */
 export function notInArray<T>(
 	column: SQL.Aliased<T>,
-	values: (T | Placeholder)[] | SQLWrapper,
+	values: readonly (T | Placeholder)[] | SQLWrapper,
 ): SQL;
 export function notInArray<TColumn extends Column>(
 	column: TColumn,
-	values: (GetColumnData<TColumn, 'raw'> | Placeholder)[] | SQLWrapper,
+	values: readonly (GetColumnData<TColumn, 'raw'> | Placeholder)[] | SQLWrapper,
 ): SQL;
 export function notInArray<T extends SQLWrapper>(
 	column: Exclude<T, SQL.Aliased | Column>,
-	values: (unknown | Placeholder)[] | SQLWrapper,
+	values: readonly (unknown | Placeholder)[] | SQLWrapper,
 ): SQL;
 export function notInArray(
 	column: SQLWrapper,
-	values: (unknown | Placeholder)[] | SQLWrapper,
+	values: readonly (unknown | Placeholder)[] | SQLWrapper,
 ): SQL {
 	if (Array.isArray(values)) {
 		if (values.length === 0) {
