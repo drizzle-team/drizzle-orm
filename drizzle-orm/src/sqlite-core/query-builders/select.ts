@@ -42,6 +42,7 @@ import type {
 	SetOperatorRightSelect,
 	SQLiteCreateSetOperatorFn,
 	SQLiteSelectConfig,
+	SQLiteSelectCrossJoinFn,
 	SQLiteSelectDynamic,
 	SQLiteSelectExecute,
 	SQLiteSelectHKT,
@@ -205,7 +206,9 @@ export abstract class SQLiteSelectQueryBuilderBase<
 
 	private createJoin<TJoinType extends JoinType>(
 		joinType: TJoinType,
-	): SQLiteSelectJoinFn<this, TDynamic, TJoinType> {
+	): 'cross' extends TJoinType ? SQLiteSelectCrossJoinFn<this, TDynamic>
+		: SQLiteSelectJoinFn<this, TDynamic, TJoinType>
+	{
 		return (
 			table: SQLiteTable | Subquery | SQLiteViewBase | SQL,
 			on?: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,

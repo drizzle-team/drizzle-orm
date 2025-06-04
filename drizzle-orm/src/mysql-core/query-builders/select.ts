@@ -34,6 +34,7 @@ import type {
 	LockConfig,
 	LockStrength,
 	MySqlCreateSetOperatorFn,
+	MySqlCrossJoinFn,
 	MySqlJoinFn,
 	MySqlJoinType,
 	MySqlSelectConfig,
@@ -237,7 +238,9 @@ export abstract class MySqlSelectQueryBuilderBase<
 	>(
 		joinType: TJoinType,
 		lateral: TIsLateral,
-	): MySqlJoinFn<this, TDynamic, TJoinType, TIsLateral> {
+	): 'cross' extends TJoinType ? MySqlCrossJoinFn<this, TDynamic, TIsLateral>
+		: MySqlJoinFn<this, TDynamic, TJoinType, TIsLateral>
+	{
 		return <
 			TJoinedTable extends MySqlTable | Subquery | MySqlViewBase | SQL,
 		>(
