@@ -171,7 +171,7 @@ export const fromDrizzleSchema = (
 				table: tableName,
 				name: name,
 				columns: columns,
-				unique: true,
+				isUnique: true,
 				algorithm: null,
 				lock: null,
 				using: null,
@@ -196,7 +196,7 @@ export const fromDrizzleSchema = (
 				}),
 				algorithm: index.config.algorythm ?? null,
 				lock: index.config.lock ?? null,
-				unique: index.config.unique ?? false,
+				isUnique: index.config.unique ?? false,
 				using: index.config.using ?? null,
 			});
 		}

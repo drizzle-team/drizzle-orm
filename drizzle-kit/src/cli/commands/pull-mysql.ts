@@ -6,7 +6,7 @@ import { join } from 'path';
 import { toJsonSnapshot } from 'src/dialects/mysql/snapshot';
 import { mockResolver } from 'src/utils/mocks';
 import { createDDL, interimToDDL } from '../../dialects/mysql/ddl';
-import { diffDDL } from '../../dialects/mysql/diff';
+import { ddlDiff } from '../../dialects/mysql/diff';
 import { fromDatabaseForDrizzle } from '../../dialects/mysql/introspect';
 import { ddlToTypeScript } from '../../dialects/mysql/typescript';
 import { prepareOutFolder } from '../../utils/utils-node';
@@ -50,7 +50,7 @@ export const handle = async (
 	const { snapshots, journal } = prepareOutFolder(out, 'mysql');
 
 	if (snapshots.length === 0) {
-		const { sqlStatements } = await diffDDL(
+		const { sqlStatements } = await ddlDiff(
 			createDDL(),
 			ddl,
 			mockResolver(new Set()),

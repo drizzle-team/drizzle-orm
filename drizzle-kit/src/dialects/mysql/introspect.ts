@@ -15,7 +15,7 @@ export const fromDatabaseForDrizzle = async (
 ): Promise<InterimSchema> => {
 	const res = await fromDatabase(db, schema, tablesFilter, progressCallback);
 	res.indexes = res.indexes.filter((x) => {
-		let skip = x.unique === true && x.columns.length === 1 && x.columns[0].isExpression === false;
+		let skip = x.isUnique === true && x.columns.length === 1 && x.columns[0].isExpression === false;
 		skip &&= res.columns.some((c) => c.type === 'serial' && c.table === x.table && c.name === x.columns[0].value);
 		return !skip;
 	});
@@ -262,7 +262,7 @@ export const fromDatabase = async (
 					value: expression ? expression : column,
 					isExpression: !!expression,
 				}],
-				unique: isUnique,
+				isUnique,
 				algorithm: null,
 				lock: null,
 				using: null,

@@ -39,7 +39,7 @@
 		"build": "rm -rf ./dist && tsx build.ts && cp package.json dist/ && attw --pack dist",
 		"build:cli": "rm -rf ./dist && tsx build.cli.ts && cp package.json dist/ && attw --pack dist",
 		"build:dev": "rm -rf ./dist && tsx build.dev.ts && tsc -p tsconfig.cli-types.json && chmod +x ./dist/index.cjs",
-		"build:ext": "rm -rf ./dist && vitest run bin.test && vitest run ./tests/postgres/ && vitest run ./tests/sqlite && tsx build.ext.ts",
+		"build:ext": "rm -rf ./dist && vitest run bin.test && vitest run ./tests/postgres/ && vitest run ./tests/sqlite && vitest run ./tests/mysql && tsx build.ext.ts",
 		"pack": "cp package.json README.md dist/ && (cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"tsc": "tsc -p tsconfig.build.json --noEmit",
 		"publish": "npm publish package.tgz"
@@ -108,7 +108,6 @@
 		"postgres": "^3.4.4",
 		"prettier": "^3.5.3",
 		"semver": "^7.7.2",
-		"superjson": "^2.2.1",
 		"tsup": "^8.3.5",
 		"tsx": "^3.12.1",
 		"typescript": "^5.6.3",
@@ -132,17 +131,17 @@
 			"types": "./index.d.mts",
 			"default": "./index.mjs"
 		},
-		"./api": {
+		"./api-postgres": {
 			"import": {
-				"types": "./api.d.mts",
-				"default": "./api.mjs"
+				"types": "./api-postgres.d.mts",
+				"default": "./api-postgres.mjs"
 			},
 			"require": {
-				"types": "./api.d.ts",
-				"default": "./api.js"
+				"types": "./api-postgres.d.ts",
+				"default": "./api-postgres.js"
 			},
-			"types": "./api.d.mts",
-			"default": "./api.mjs"
+			"types": "./api-postgres.d.mts",
+			"default": "./api-postgres.mjs"
 		}
 	}
 }
