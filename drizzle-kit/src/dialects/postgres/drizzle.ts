@@ -19,7 +19,6 @@ import {
 	PgLineTuple,
 	PgMaterializedView,
 	PgMaterializedViewWithConfig,
-	PgNumeric,
 	PgPointObject,
 	PgPointTuple,
 	PgPolicy,
@@ -294,7 +293,7 @@ export const defaultFromColumn = (
 		if (sqlTypeLowered === 'timestamp') {
 			const value = dimensions > 0 && Array.isArray(def)
 				? buildArrayString(def, sqlTypeLowered)
-				: def.toISOString().replace('T', ' ').slice(0, 23);
+				: def.toISOString().replace('T', ' ').replace('Z', ' ').slice(0, 23);
 			return {
 				value: value,
 				type: 'string',
@@ -302,7 +301,7 @@ export const defaultFromColumn = (
 		}
 		const value = dimensions > 0 && Array.isArray(def)
 			? buildArrayString(def, sqlTypeLowered)
-			: def.toISOString();
+			: def.toISOString().replace('T', ' ').replace('Z', '');
 		return {
 			value: value,
 			type: 'string',
@@ -489,12 +488,8 @@ export const fromDrizzleSchema = (
 					}
 					: null;
 
-				// TODO:??
-				// Should do for all types
-				// columnToSet.default = `'${column.default}'::${sqlTypeLowered}`;
 				const { baseColumn, dimensions, sqlType, baseType, options, typeSchema } = unwrapColumn(column);
 				const columnDefault = defaultFromColumn(baseColumn, column.default, dimensions, dialect);
-		
 				return {
 					entityType: 'columns',
 					schema: schema,

@@ -28,9 +28,8 @@ import { compress } from 'hono/compress';
 import { cors } from 'hono/cors';
 import { createServer } from 'node:https';
 import { LibSQLCredentials } from 'src/cli/validations/libsql';
-import superjson from 'superjson';
 import { z } from 'zod';
-import { assertUnreachable } from '../../utils';
+import { assertUnreachable, Proxy, TransactionProxy } from '../../utils';
 import { safeRegister } from '../../utils/utils-node';
 import { prepareFilenames } from '../../utils/utils-node';
 import type { MysqlCredentials } from '../validations/mysql';
@@ -54,7 +53,8 @@ export type Setup = {
 	dbHash: string;
 	dialect: 'postgresql' | 'mysql' | 'sqlite' | 'singlestore';
 	driver?: 'aws-data-api' | 'd1-http' | 'turso' | 'pglite';
-	proxy: (params: ProxyParams) => Promise<any[] | any>;
+	proxy: Proxy;
+	transactionProxy: TransactionProxy;
 	customDefaults: CustomDefault[];
 	schema: Record<string, Record<string, AnyTable<any>>>;
 	relations: Record<string, Relations>;
@@ -63,7 +63,7 @@ export type Setup = {
 
 export type ProxyParams = {
 	sql: string;
-	params: any[];
+	params?: any[];
 	typings?: any[];
 	mode: 'array' | 'object';
 	method: 'values' | 'get' | 'all' | 'run' | 'execute';
@@ -325,6 +325,7 @@ export const drizzleForPostgres = async (
 		dialect: 'postgresql',
 		driver: 'driver' in credentials ? credentials.driver : undefined,
 		proxy: db.proxy,
+		transactionProxy: db.transactionProxy,
 		customDefaults,
 		schema: pgSchema,
 		relations,
@@ -339,7 +340,7 @@ export const drizzleForMySQL = async (
 	schemaFiles?: SchemaFile[],
 ): Promise<Setup> => {
 	const { connectToMySQL } = await import('../connections');
-	const { proxy } = await connectToMySQL(credentials);
+	const { proxy, transactionProxy } = await connectToMySQL(credentials);
 
 	const customDefaults = getCustomDefaults(mysqlSchema);
 
@@ -358,6 +359,7 @@ export const drizzleForMySQL = async (
 		dbHash,
 		dialect: 'mysql',
 		proxy,
+		transactionProxy,
 		customDefaults,
 		schema: mysqlSchema,
 		relations,
@@ -430,6 +432,7 @@ export const drizzleForSQLite = async (
 		dialect: 'sqlite',
 		driver: 'driver' in credentials ? credentials.driver : undefined,
 		proxy: sqliteDB.proxy,
+		transactionProxy: sqliteDB.transactionProxy,
 		customDefaults,
 		schema: sqliteSchema,
 		relations,
@@ -456,6 +459,7 @@ export const drizzleForLibSQL = async (
 		dialect: 'sqlite',
 		driver: undefined,
 		proxy: sqliteDB.proxy,
+		transactionProxy: sqliteDB.transactionProxy,
 		customDefaults,
 		schema: sqliteSchema,
 		relations,
@@ -470,7 +474,7 @@ export const drizzleForSingleStore = async (
 	schemaFiles?: SchemaFile[],
 ): Promise<Setup> => {
 	const { connectToSingleStore } = await import('../connections');
-	const { proxy } = await connectToSingleStore(credentials);
+	const { proxy, transactionProxy } = await connectToSingleStore(credentials);
 
 	const customDefaults = getCustomDefaults(singlestoreSchema);
 
@@ -489,6 +493,7 @@ export const drizzleForSingleStore = async (
 		dbHash,
 		dialect: 'singlestore',
 		proxy,
+		transactionProxy,
 		customDefaults,
 		schema: singlestoreSchema,
 		relations,
@@ -573,6 +578,25 @@ const proxySchema = z.object({
 	}),
 });
 
+const transactionProxySchema = z.object({
+	type: z.literal('tproxy'),
+	data: z
+		.object({
+			sql: z.string(),
+			params: z.array(z.any()).optional(),
+			typings: z.string().array().optional(),
+			mode: z.enum(['array', 'object']).default('object'),
+			method: z.union([
+				z.literal('values'),
+				z.literal('get'),
+				z.literal('all'),
+				z.literal('run'),
+				z.literal('execute'),
+			]),
+		})
+		.array(),
+});
+
 const defaultsSchema = z.object({
 	type: z.literal('defaults'),
 	data: z
@@ -586,19 +610,18 @@ const defaultsSchema = z.object({
 		.min(1),
 });
 
-const schema = z.union([init, proxySchema, defaultsSchema]);
-
-superjson.registerCustom<Buffer, number[]>(
-	{
-		isApplicable: (v): v is Buffer => v instanceof Buffer,
-		serialize: (v) => [...v],
-		deserialize: (v) => Buffer.from(v),
-	},
-	'buffer',
-);
+const schema = z.union([init, proxySchema, transactionProxySchema, defaultsSchema]);
 
 const jsonStringify = (data: any) => {
 	return JSON.stringify(data, (_key, value) => {
+		// Convert Error to object
+		if (value instanceof Error) {
+			return {
+				error: value.message,
+			};
+		}
+
+		// Convert BigInt to string
 		if (typeof value === 'bigint') {
 			return value.toString();
 		}
@@ -635,6 +658,7 @@ export const prepareServer = async (
 		dialect,
 		driver,
 		proxy,
+		transactionProxy,
 		customDefaults,
 		schema: drizzleSchema,
 		relations,
@@ -711,6 +735,11 @@ export const prepareServer = async (
 				...body.data,
 				params: body.data.params || [],
 			});
+			return c.json(JSON.parse(jsonStringify(result)));
+		}
+
+		if (type === 'tproxy') {
+			const result = await transactionProxy(body.data);
 			return c.json(JSON.parse(jsonStringify(result)));
 		}
 
