@@ -41,6 +41,7 @@ import type {
 	CreateGelSelectFromBuilderMode,
 	GelCreateSetOperatorFn,
 	GelSelectConfig,
+	GelSelectCrossJoinFn,
 	GelSelectDynamic,
 	GelSelectHKT,
 	GelSelectHKTBase,
@@ -224,8 +225,10 @@ export abstract class GelSelectQueryBuilderBase<
 	>(
 		joinType: TJoinType,
 		lateral: TIsLateral,
-	): GelSelectJoinFn<this, TDynamic, TJoinType, TIsLateral> {
-		return (
+	): 'cross' extends TJoinType ? GelSelectCrossJoinFn<this, TDynamic, TIsLateral>
+		: GelSelectJoinFn<this, TDynamic, TJoinType, TIsLateral>
+	{
+		return ((
 			table: GelTable | Subquery | GelViewBase | SQL,
 			on?: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
 		) => {
@@ -300,7 +303,7 @@ export abstract class GelSelectQueryBuilderBase<
 			}
 
 			return this as any;
-		};
+		}) as any;
 	}
 
 	/**
