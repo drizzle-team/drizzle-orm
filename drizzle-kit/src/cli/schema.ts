@@ -47,6 +47,8 @@ const optionDriver = string()
 
 const optionCasing = string().enum('camelCase', 'snake_case').desc('Casing for serialization');
 
+const optionEnvFile = string().desc('Path to environment file to load before running the command');
+
 export const generate = command({
 	name: 'generate',
 	options: {
@@ -64,12 +66,13 @@ export const generate = command({
 		prefix: string()
 			.enum(...prefixes)
 			.default('index'),
+		'env-file': optionEnvFile,
 	},
 	transform: async (opts) => {
 		const from = assertCollisions(
 			'generate',
 			opts,
-			['prefix', 'name', 'custom'],
+			['prefix', 'name', 'custom', 'env-file'],
 			['driver', 'breakpoints', 'schema', 'out', 'dialect', 'casing'],
 		);
 		return prepareGenerateConfig(opts, from);
@@ -116,9 +119,10 @@ export const migrate = command({
 	name: 'migrate',
 	options: {
 		config: optionConfig,
+		'env-file': optionEnvFile,
 	},
 	transform: async (opts) => {
-		return await prepareMigrateConfig(opts.config);
+		return await prepareMigrateConfig(opts.config, opts['env-file']);
 	},
 	handler: async (opts) => {
 		await assertOrmCoreVersion();

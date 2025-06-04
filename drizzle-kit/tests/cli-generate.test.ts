@@ -217,6 +217,27 @@ test('generate #9', async (t) => {
 	});
 });
 
+// env-file flag
+test('generate #10 --env-file', async (t) => {
+	const res = await brotest(
+		generate,
+		'--config=env.config.ts --env-file=.env.test',
+	);
+	if (res.type !== 'handler') assert.fail(res.type, 'handler');
+	expect(res.options).toStrictEqual({
+		dialect: 'postgresql',
+		name: undefined,
+		custom: false,
+		prefix: 'index',
+		breakpoints: true,
+		schema: './schema.ts',
+		out: 'drizzle',
+		bundle: false,
+		casing: undefined,
+		driver: undefined,
+	});
+});
+
 // --- errors ---
 test('err #1', async (t) => {
 	const res = await brotest(generate, '--schema=src/schema.ts');
