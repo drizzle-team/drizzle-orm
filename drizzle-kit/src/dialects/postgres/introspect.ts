@@ -622,6 +622,7 @@ export const fromDatabase = async (
 			// .replace(' with time zone', '')
 			// .replace("timestamp without time zone", "timestamp")
 			.replace('character', 'char');
+			
 
 		columnTypeMapped = trimChar(columnTypeMapped, '"');
 

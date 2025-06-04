@@ -381,6 +381,7 @@ export const ddlToTypeScript = (
 			patched = patched.startsWith('timestamp(') ? 'timestamp' : patched;
 			patched = patched.startsWith('vector(') ? 'vector' : patched;
 			patched = patched.startsWith('geometry(') ? 'geometry' : patched;
+			patched = patched.startsWith('interval') ? 'interval' : patched;
 
 			if (pgImportsList.has(patched)) imports.add(patched);
 		}
@@ -586,7 +587,6 @@ const mapDefault = (
 	if (!def) return '';
 
 	const lowered = type.toLowerCase().replace('[]', '');
-
 	if (enumTypes.has(`${typeSchema}.${type.replace('[]', '')}`)) {
 		if (dimensions > 0) {
 			const arr = parseArray(def.value);
@@ -661,54 +661,44 @@ const mapDefault = (
 	// 	return `.default([${res}])`;
 	// }
 
-	if (
-		lowered === 'geometry'
-		|| lowered === 'vector'
-		|| lowered === 'char'
-		|| lowered === 'varchar'
-		|| lowered === 'inet'
-		|| lowered === 'cidr'
-		|| lowered === 'macaddr8'
-		|| lowered === 'macaddr'
-		|| lowered === 'text'
-		|| lowered === 'interval'
-		|| lowered === 'numeric'
-		|| lowered === 'integer'
-		|| lowered === 'smallint'
-		|| lowered === 'bigint'
-		|| lowered === 'boolean'
-		|| lowered === 'double precision'
-		|| lowered === 'real'
-	) {
-		const mapper = lowered === 'char'
-				|| lowered === 'varchar'
-				|| lowered === 'text'
-				|| lowered === 'interval'
-				|| lowered === 'inet'
-				|| lowered === 'cidr'
-				|| lowered === 'macaddr8'
-				|| lowered === 'macaddr'
-			? (x: string) => `\`${x.replaceAll('`', '\\`')}\``
-			: lowered === 'bigint'
-					|| lowered === 'numeric'
-			? (x: string) => {
-				const value = Number(x);
-				return value > Number.MAX_SAFE_INTEGER || value < Number.MIN_SAFE_INTEGER ? `${x}n` : `${x}`;
+	const mapper = lowered === 'char'
+			|| lowered === 'varchar'
+			|| lowered === 'text'
+			|| lowered === 'inet'
+			|| lowered === 'cidr'
+			|| lowered === 'macaddr8'
+			|| lowered === 'macaddr'
+		? (x: string) => {
+			if (dimensions === 0) {
+				// TODO: remove trimming in parseArray()??
+				return `\`${x.replaceAll('`', '\\`').replaceAll("''", "'")}\``;
 			}
-			: lowered.startsWith('boolean')
-			? (x: string) => x === 't' ? 'true' : 'false'
-			: (x: string) => `${x}`;
-		if (dimensions > 0) {
-			const arr = parseArray(def.value);
-			if (arr.flat(5).length === 0) return `.default([])`;
-			const res = stringifyArray(arr, 'ts', mapper);
-			return `.default(${res})`;
-		}
 
-		return `.default(${mapColumnDefault(def)})`;
+			return `\`${x.replaceAll('`', '\\`')}\``;
+		}
+		: lowered === 'bigint'
+				|| lowered === 'numeric'
+		? (x: string) => {
+			const value = Number(x);
+			return value > Number.MAX_SAFE_INTEGER || value < Number.MIN_SAFE_INTEGER ? `${x}n` : `${x}`;
+		}
+		: lowered.startsWith('interval')
+		? (x: string) => `'${x}'`
+		: lowered.startsWith('boolean')
+		? (x: string) => x === 't' || x === 'true' ? 'true' : 'false'
+		: (x: string) => `${x}`;
+
+	if (dimensions > 0) {
+		const arr = parseArray(def.value);
+		if (arr.flat(5).length === 0) return `.default([])`;
+		const res = stringifyArray(arr, 'ts', (x) => {
+			const res = mapper(x);
+			return res;
+		});
+		return `.default(${res})`;
 	}
 
-	return '';
+	return `.default(${mapper(def.value)})`;
 };
 
 const column = (
@@ -785,8 +775,8 @@ const column = (
 
 		if (options) {
 			const [p, s] = options.split(',');
-			if(p)params["precision"] = Number(p)
-			if(s)params["scale"] = Number(s)
+			if (p) params['precision'] = Number(p);
+			if (s) params['scale'] = Number(s);
 		}
 
 		let mode = def !== null && def.type === 'bigint'
@@ -842,15 +832,15 @@ const column = (
 		return out;
 	}
 
-	if (lowered === 'interval') {
+	if (lowered.startsWith('interval')) {
 		// const withTimezone = lowered.includes("with time zone");
 		// const split = lowered.split(" ");
 		// let precision = split.length >= 2 ? Number(split[1].substring(1, 2)) : null;
 		// precision = precision ? precision : null;
 
-		const params = intervalConfig(lowered);
-
-		let out = params
+		const suffix = options ? `(${options})` : '';
+		const params = intervalConfig(`${lowered}${suffix}`);
+		let out = options
 			? `${withCasing(name, casing)}: interval(${dbColumnName({ name, casing, withMode: true })}${params})`
 			: `${withCasing(name, casing)}: interval(${dbColumnName({ name, casing })})`;
 
