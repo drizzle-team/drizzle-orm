@@ -443,7 +443,7 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 	await client.query(`CREATE EXTENSION vector;`);
 	await client.query(`CREATE EXTENSION pg_trgm;`);
 	if (tx) {
-		await client.query('BEGIN').catch();
+		await client.query('BEGIN');
 		await client.query('SAVEPOINT drizzle');
 	}
 

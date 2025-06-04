@@ -16,7 +16,7 @@ export const trimChar = (str: string, char: string) => {
 };
 export const splitSqlType = (sqlType: string) => {
 	// timestamp(6) with time zone -> [timestamp, 6, with time zone]
-	const match = sqlType.match(/^(\w+)\(([^)]*)\)(?:\s+with time zone)?$/i);
+	const match = sqlType.match(/^(\w+(?:\s+\w+)*)\(([^)]*)\)(?:\s+with time zone)?$/i);
 	let type = match ? (match[1] + (match[3] ?? '')) : sqlType;
 	let options = match ? match[2].replaceAll(', ', ',') : null;
 
@@ -146,11 +146,11 @@ export function buildArrayString(array: any[], sqlType: string): string {
 
 			if (value instanceof Date) {
 				if (sqlType === 'date') {
-					return `"${value.toISOString().split('T')[0]}"`;
+					return `${value.toISOString().split('T')[0]}`;
 				} else if (sqlType === 'timestamp') {
-					return `"${value.toISOString().replace('T', ' ').slice(0, 23)}"`;
+					return `"${value.toISOString().replace('T', ' ').replace('Z', ' ').slice(0, 23)}"`;
 				} else {
-					return `"${value.toISOString()}"`;
+					return `"${value.toISOString().replace('T', ' ').replace('Z', '')}"`;
 				}
 			}
 
