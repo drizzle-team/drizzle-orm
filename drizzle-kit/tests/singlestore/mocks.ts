@@ -7,7 +7,7 @@ import { Connection, createConnection } from 'mysql2/promise';
 import { suggestions } from 'src/cli/commands/push-mysql';
 import { CasingType } from 'src/cli/validations/common';
 import { createDDL, interimToDDL } from 'src/dialects/mysql/ddl';
-import { ddlDiffDry, diffDDL } from 'src/dialects/mysql/diff';
+import { ddlDiffDry, ddlDiff } from 'src/dialects/mysql/diff';
 import { fromDatabaseForDrizzle } from 'src/dialects/mysql/introspect';
 import { ddlToTypeScript } from 'src/dialects/mysql/typescript';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/singlestore/drizzle';
@@ -33,7 +33,7 @@ export const diff = async (
 
 	const renames = new Set(renamesArr);
 
-	const { sqlStatements, statements } = await diffDDL(
+	const { sqlStatements, statements } = await ddlDiff(
 		ddl1,
 		ddl2,
 		mockResolver(renames),
@@ -74,7 +74,7 @@ export const pullDiff = async (
 	const {
 		sqlStatements: afterFileSqlStatements,
 		statements: afterFileStatements,
-	} = await diffDDL(
+	} = await ddlDiff(
 		ddl1,
 		ddl2,
 		mockResolver(renames),
@@ -124,7 +124,7 @@ export const diffPush = async (config: {
 	// TODO: handle errors
 
 	const renames = new Set(rens);
-	const { sqlStatements, statements } = await diffDDL(
+	const { sqlStatements, statements } = await ddlDiff(
 		ddl1,
 		ddl2,
 		mockResolver(renames),

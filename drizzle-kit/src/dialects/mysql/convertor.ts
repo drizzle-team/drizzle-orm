@@ -21,7 +21,7 @@ export const convertor = <
 const createTable = convertor('create_table', (st) => {
 	const { name, columns, pk, checks, indexes, fks } = st.table;
 
-	const uniqueIndexes = indexes.filter((it) => it.unique);
+	const uniqueIndexes = indexes.filter((it) => it.isUnique);
 
 	let statement = '';
 	statement += `CREATE TABLE \`${name}\` (\n`;
@@ -151,8 +151,8 @@ const recreateColumn = convertor('recreate_column', (st) => {
 
 const createIndex = convertor('create_index', (st) => {
 	// TODO: handle everything?
-	const { name, table, columns, unique, algorithm, entityType, lock, using } = st.index;
-	const indexPart = unique ? 'UNIQUE INDEX' : 'INDEX';
+	const { name, table, columns, isUnique, algorithm, entityType, lock, using } = st.index;
+	const indexPart = isUnique ? 'UNIQUE INDEX' : 'INDEX';
 
 	const uniqueString = columns
 		.map((it) => it.isExpression ? `${it.value}` : `\`${it.value}\``)

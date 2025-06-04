@@ -8,7 +8,7 @@ const usersTable = mssqlTable('users', {
 	name: text('name').notNull(),
 	verified: bit('verified').notNull().default(false),
 	jsonb: varchar('jsonb').$type<string[]>(),
-	createdAt: datetime2('created_at').notNull().defaultCurrentTimestamp(),
+	createdAt: datetime2('created_at').notNull().defaultGetDate(),
 });
 
 const users = mssqlTable('users', {

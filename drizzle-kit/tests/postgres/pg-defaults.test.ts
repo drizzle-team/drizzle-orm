@@ -1,32 +1,34 @@
 import { sql } from 'drizzle-orm';
 import {
 	bigint,
+	bit,
 	boolean,
 	char,
-	cidr,
 	date,
 	doublePrecision,
+	geometry,
+	halfvec,
 	integer,
 	interval,
 	json,
 	jsonb,
 	line,
-	macaddr,
-	macaddr8,
 	numeric,
 	pgEnum,
 	point,
 	real,
 	smallint,
+	sparsevec,
 	text,
 	time,
 	timestamp,
 	uuid,
 	varchar,
+	vector,
 } from 'drizzle-orm/pg-core';
 import { DB } from 'src/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { diffDefault, prepareTestDatabase, TestDatabase } from './mocks';
+import { diffDefault, preparePostgisTestDatabase, prepareTestDatabase, TestDatabase } from './mocks';
 
 // @vitest-environment-options {"max-concurrency":1}
 
@@ -1214,4 +1216,250 @@ test('corner cases', async () => {
 
 	// expect.soft(res21).toStrictEqual([]);
 	// expect.soft(res22).toStrictEqual([]); 
+});
+
+// pgvector extension
+test('bit + bit arrays', async () => {
+	// await _.db.query('create extension vector;');
+	const res1 = await diffDefault(_, bit({ dimensions: 3 }).default(`101`), `'101'`);
+	const res2 = await diffDefault(_, bit({ dimensions: 3 }).default(sql`'101'`), `'101'`);
+
+	const res3 = await diffDefault(_, bit({ dimensions: 3 }).array().default([]), `'{}'::bit(3)[]`);
+	const res4 = await diffDefault(_, bit({ dimensions: 3 }).array().default([`101`]), `'{101}'::bit(3)[]`);
+
+	const res5 = await diffDefault(_, bit({ dimensions: 3 }).array().array().default([]), `'{}'::bit(3)[]`);
+	const res6 = await diffDefault(
+		_,
+		bit({ dimensions: 3 }).array().array().default([[`101`], [`101`]]),
+		`'{{101},{101}}'::bit(3)[]`,
+	);
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
+	expect.soft(res5).toStrictEqual([]);
+	expect.soft(res6).toStrictEqual([]);
+});
+
+test('halfvec + halfvec arrays', async () => {
+	const res1 = await diffDefault(_, halfvec({ dimensions: 3 }).default([0, -2, 3]), `'[0,-2,3]'`);
+	const res2 = await diffDefault(
+		_,
+		halfvec({ dimensions: 3 }).default([0, -2.123456789, 3.123456789]),
+		`'[0,-2.123456789,3.123456789]'`,
+	);
+
+	const res3 = await diffDefault(_, halfvec({ dimensions: 3 }).array().default([]), `'{}'::halfvec(3)[]`);
+	const res4 = await diffDefault(
+		_,
+		halfvec({ dimensions: 3 }).array().default([[0, -2, 3]]),
+		`'{"[0,-2,3]"}'::halfvec(3)[]`,
+	);
+	const res5 = await diffDefault(
+		_,
+		halfvec({ dimensions: 3 }).array().default([[0, -2.123456789, 3.123456789]]),
+		`'{"[0,-2.123456789,3.123456789]"}'::halfvec(3)[]`,
+	);
+
+	const res6 = await diffDefault(_, halfvec({ dimensions: 3 }).array().array().default([]), `'{}'::halfvec(3)[]`);
+	const res7 = await diffDefault(
+		_,
+		halfvec({ dimensions: 3 }).array().array().default([[[0, -2, 3]], [[1, 2, 3]]]),
+		`'{{"[0,-2,3]"},{"[1,2,3]"}}'::halfvec(3)[]`,
+	);
+	const res8 = await diffDefault(
+		_,
+		halfvec({ dimensions: 3 }).array().array().default([[[0, -2.123456789, 3.123456789]], [[
+			1.123456789,
+			2.123456789,
+			3.123456789,
+		]]]),
+		`'{{"[0,-2.123456789,3.123456789]"},{"[1.123456789,2.123456789,3.123456789]"}}'::halfvec(3)[]`,
+	);
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
+	expect.soft(res5).toStrictEqual([]);
+	expect.soft(res6).toStrictEqual([]);
+	expect.soft(res7).toStrictEqual([]);
+	expect.soft(res8).toStrictEqual([]);
+});
+
+test('sparsevec + sparsevec arrays', async () => {
+	const res1 = await diffDefault(_, sparsevec({ dimensions: 5 }).default(`{1:-1,3:2,5:3}/5`), `'{1:-1,3:2,5:3}/5'`);
+	const res2 = await diffDefault(
+		_,
+		sparsevec({ dimensions: 5 }).default(`{1:-1.123456789,3:2.123456789,5:3.123456789}/5`),
+		`'{1:-1.123456789,3:2.123456789,5:3.123456789}/5'`,
+	);
+
+	const res3 = await diffDefault(_, sparsevec({ dimensions: 5 }).array().default([]), `'{}'::sparsevec(5)[]`);
+	const res4 = await diffDefault(
+		_,
+		sparsevec({ dimensions: 5 }).array().default([`{1:-1,3:2,5:3}/5`]),
+		`'{"{1:-1,3:2,5:3}/5"}'::sparsevec(5)[]`,
+	);
+	const res5 = await diffDefault(
+		_,
+		sparsevec({ dimensions: 5 }).array().default(['{1:-1.123456789,3:2.123456789,5:3.123456789}/5']),
+		`'{"{1:-1.123456789,3:2.123456789,5:3.123456789}/5"}'::sparsevec(5)[]`,
+	);
+
+	const res6 = await diffDefault(_, sparsevec({ dimensions: 5 }).array().array().default([]), `'{}'::sparsevec(5)[]`);
+	const res7 = await diffDefault(
+		_,
+		sparsevec({ dimensions: 5 }).array().array().default([[`{1:-1,3:2,5:3}/5`], [`{1:-1,3:2,5:3}/5`]]),
+		`'{{"{1:-1,3:2,5:3}/5"},{"{1:-1,3:2,5:3}/5"}}'::sparsevec(5)[]`,
+	);
+	const res8 = await diffDefault(
+		_,
+		sparsevec({ dimensions: 5 }).array().array().default([['{1:-1.123456789,3:2.123456789,5:3.123456789}/5'], [
+			'{1:-1.123456789,3:2.123456789,5:3.123456789}/5',
+		]]),
+		`'{{"{1:-1.123456789,3:2.123456789,5:3.123456789}/5"},{"{1:-1.123456789,3:2.123456789,5:3.123456789}/5"}}'::sparsevec(5)[]`,
+	);
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
+	expect.soft(res5).toStrictEqual([]);
+	expect.soft(res6).toStrictEqual([]);
+	expect.soft(res7).toStrictEqual([]);
+	expect.soft(res8).toStrictEqual([]);
+});
+
+test('vector + vector arrays', async () => {
+	const res1 = await diffDefault(_, vector({ dimensions: 3 }).default([0, -2, 3]), `'[0,-2,3]'`);
+	const res2 = await diffDefault(
+		_,
+		vector({ dimensions: 3 }).default([0, -2.123456789, 3.123456789]),
+		`'[0,-2.123456789,3.123456789]'`,
+	);
+
+	const res3 = await diffDefault(_, vector({ dimensions: 3 }).array().default([]), `'{}'::vector(3)[]`);
+	const res4 = await diffDefault(
+		_,
+		vector({ dimensions: 3 }).array().default([[0, -2, 3]]),
+		`'{"[0,-2,3]"}'::vector(3)[]`,
+	);
+	const res5 = await diffDefault(
+		_,
+		vector({ dimensions: 3 }).array().default([[0, -2.123456789, 3.123456789]]),
+		`'{"[0,-2.123456789,3.123456789]"}'::vector(3)[]`,
+	);
+
+	const res6 = await diffDefault(_, vector({ dimensions: 3 }).array().array().default([]), `'{}'::vector(3)[]`);
+	const res7 = await diffDefault(
+		_,
+		vector({ dimensions: 3 }).array().array().default([[[0, -2, 3]], [[1, 2, 3]]]),
+		`'{{"[0,-2,3]"},{"[1,2,3]"}}'::vector(3)[]`,
+	);
+	const res8 = await diffDefault(
+		_,
+		vector({ dimensions: 3 }).array().array().default([[[0, -2.123456789, 3.123456789]], [[
+			1.123456789,
+			2.123456789,
+			3.123456789,
+		]]]),
+		`'{{"[0,-2.123456789,3.123456789]"},{"[1.123456789,2.123456789,3.123456789]"}}'::vector(3)[]`,
+	);
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
+	expect.soft(res5).toStrictEqual([]);
+	expect.soft(res6).toStrictEqual([]);
+	expect.soft(res7).toStrictEqual([]);
+	expect.soft(res8).toStrictEqual([]);
+});
+
+// postgis extension
+// SRID=4326 -> these coordinates are longitude/latitude values
+test.only('geometry + geometry arrays', async () => {
+	const postgisDb = await preparePostgisTestDatabase();
+
+	try {
+		const res1 = await diffDefault(
+			postgisDb,
+			geometry({ srid: 4326, mode: 'tuple', type: 'point' }).default([30.5234, 50.4501]),
+			`'SRID=4326;POINT(30.7233 46.4825)'`,
+		);
+
+		const res2 = await diffDefault(
+			postgisDb,
+			geometry({ srid: 4326, mode: 'xy', type: 'point' }).default({ x: 30.5234, y: 50.4501 }),
+			`'SRID=4326;POINT(30.7233 46.4825)'`,
+		);
+
+		const res3 = await diffDefault(
+			postgisDb,
+			geometry({ srid: 4326, mode: 'tuple', type: 'point' }).array().default([]),
+			`'{}'::geometry(point, 4326)[]`,
+		);
+		const res4 = await diffDefault(
+			postgisDb,
+			geometry({ srid: 4326, mode: 'tuple', type: 'point' }).array().default([[30.5234, 50.4501]]),
+			`'{"SRID=4326;POINT(30.7233 46.4825)"}'::geometry(point, 4326)[]`,
+		);
+
+		const res5 = await diffDefault(
+			postgisDb,
+			geometry({ srid: 4326, mode: 'xy', type: 'point' }).array().default([]),
+			`'{}'::geometry(point, 4326)[]`,
+		);
+		const res6 = await diffDefault(
+			postgisDb,
+			geometry({ srid: 4326, mode: 'xy', type: 'point' }).array().default([{ x: 30.5234, y: 50.4501 }]),
+			`'{"SRID=4326;POINT(30.7233 46.4825)"}'::geometry(point, 4326)[]`,
+		);
+
+		const res7 = await diffDefault(
+			postgisDb,
+			geometry({ srid: 4326, mode: 'tuple', type: 'point' }).array().array().default([]),
+			`'{}'::geometry(point, 4326)[]`,
+		);
+		const res8 = await diffDefault(
+			postgisDb,
+			geometry({ srid: 4326, mode: 'tuple', type: 'point' }).array().array().default([[[30.5234, 50.4501]], [[
+				30.5234,
+				50.4501,
+			]]]),
+			`ARRAY[ARRAY['SRID=4326;POINT(30.5234 50.4501)'],ARRAY['SRID=4326;POINT(30.5234 50.4501)']]::geometry(Point,4326)[]`,
+		);
+
+		const res9 = await diffDefault(
+			postgisDb,
+			geometry({ srid: 4326, mode: 'xy', type: 'point' }).array().array().default([]),
+			`'{}'::geometry(point, 4326)[]`,
+		);
+		const res10 = await diffDefault(
+			postgisDb,
+			geometry({ srid: 4326, mode: 'xy', type: 'point' }).array().array().default([[{ x: 30.5234, y: 50.4501 }], [{
+				x: 30.5234,
+				y: 50.4501,
+			}]]),
+			`ARRAY[ARRAY['SRID=4326;POINT(30.5234 50.4501)'],ARRAY['SRID=4326;POINT(30.5234 50.4501)']]::geometry(Point,4326)[]`,
+		);
+
+		expect.soft(res1).toStrictEqual([]);
+		expect.soft(res2).toStrictEqual([]);
+		expect.soft(res3).toStrictEqual([]);
+		expect.soft(res4).toStrictEqual([]);
+		expect.soft(res5).toStrictEqual([]);
+		expect.soft(res6).toStrictEqual([]);
+		expect.soft(res7).toStrictEqual([]);
+		expect.soft(res8).toStrictEqual([]);
+	} catch (error) {
+		await postgisDb.clear();
+		await postgisDb.close();
+		throw error;
+	}
+
+	await postgisDb.clear();
+	await postgisDb.close();
 });

@@ -42,7 +42,7 @@ esbuild.buildSync({
 
 const main = async () => {
 	await tsup.build({
-		entryPoints: ['./src/index.ts', './src/ext/api.ts'],
+		entryPoints: ['./src/index.ts'],
 		outDir: './dist',
 		external: ['bun:sqlite'],
 		splitting: false,
@@ -62,8 +62,29 @@ const main = async () => {
 		},
 	});
 
-	const apiCjs = readFileSync('./dist/api.js', 'utf8').replace(/await import\(/g, 'require(');
-	writeFileSync('./dist/api.js', apiCjs);
+	await tsup.build({
+		entryPoints: ['./src/ext/api-postgres.ts'],
+		outDir: './dist',
+		external: ['bun:sqlite'],
+		splitting: false,
+		dts: true,
+		format: ['cjs', 'esm'],
+		outExtension: (ctx) => {
+			if (ctx.format === 'cjs') {
+				return {
+					dts: '.d.ts',
+					js: '.js',
+				};
+			}
+			return {
+				dts: '.d.mts',
+				js: '.mjs',
+			};
+		},
+	});
+
+	const apiCjs = readFileSync('./dist/api-postgres.js', 'utf8').replace(/await import\(/g, 'require(');
+	writeFileSync('./dist/api-postgres.js', apiCjs);
 };
 
 main().catch((e) => {
