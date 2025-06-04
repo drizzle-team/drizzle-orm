@@ -4,6 +4,7 @@ import type {
 	ColumnDataType,
 	HasDefault,
 	IsPrimaryKey,
+	IsUnique,
 	MakeColumnConfig,
 	NotNull,
 } from '~/column-builder.ts';
@@ -23,12 +24,7 @@ export interface PrimaryKeyConfig {
 export abstract class SQLiteBaseIntegerBuilder<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = object,
-> extends SQLiteColumnBuilder<
-	T,
-	TRuntimeConfig & { autoIncrement: boolean },
-	{},
-	{ primaryKeyHasDefault: true }
-> {
+> extends SQLiteColumnBuilder<T, TRuntimeConfig & { autoIncrement: boolean }, {}, { primaryKeyHasDefault: true }> {
 	static override readonly [entityKind]: string = 'SQLiteBaseIntegerBuilder';
 
 	constructor(name: T['name'], dataType: T['dataType'], columnType: T['columnType']) {
@@ -36,12 +32,12 @@ export abstract class SQLiteBaseIntegerBuilder<
 		this.config.autoIncrement = false;
 	}
 
-	override primaryKey(config?: PrimaryKeyConfig): IsPrimaryKey<HasDefault<NotNull<this>>> {
+	override primaryKey(config?: PrimaryKeyConfig): IsPrimaryKey<IsUnique<HasDefault<NotNull<this>>>> {
 		if (config?.autoIncrement) {
 			this.config.autoIncrement = true;
 		}
 		this.config.hasDefault = true;
-		return super.primaryKey() as IsPrimaryKey<HasDefault<NotNull<this>>>;
+		return super.primaryKey() as IsPrimaryKey<IsUnique<HasDefault<NotNull<this>>>>;
 	}
 
 	/** @internal */
@@ -72,9 +68,9 @@ export type SQLiteIntegerBuilderInitial<TName extends string> = SQLiteIntegerBui
 	enumValues: undefined;
 }>;
 
-export class SQLiteIntegerBuilder<T extends ColumnBuilderBaseConfig<'number', 'SQLiteInteger'>>
-	extends SQLiteBaseIntegerBuilder<T>
-{
+export class SQLiteIntegerBuilder<
+	T extends ColumnBuilderBaseConfig<'number', 'SQLiteInteger'>,
+> extends SQLiteBaseIntegerBuilder<T> {
 	static override readonly [entityKind]: string = 'SQLiteIntegerBuilder';
 
 	constructor(name: T['name']) {
@@ -104,9 +100,9 @@ export type SQLiteTimestampBuilderInitial<TName extends string> = SQLiteTimestam
 	enumValues: undefined;
 }>;
 
-export class SQLiteTimestampBuilder<T extends ColumnBuilderBaseConfig<'date', 'SQLiteTimestamp'>>
-	extends SQLiteBaseIntegerBuilder<T, { mode: 'timestamp' | 'timestamp_ms' }>
-{
+export class SQLiteTimestampBuilder<
+	T extends ColumnBuilderBaseConfig<'date', 'SQLiteTimestamp'>,
+> extends SQLiteBaseIntegerBuilder<T, { mode: 'timestamp' | 'timestamp_ms' }> {
 	static override readonly [entityKind]: string = 'SQLiteTimestampBuilder';
 
 	constructor(name: T['name'], mode: 'timestamp' | 'timestamp_ms') {
@@ -133,9 +129,10 @@ export class SQLiteTimestampBuilder<T extends ColumnBuilderBaseConfig<'date', 'S
 	}
 }
 
-export class SQLiteTimestamp<T extends ColumnBaseConfig<'date', 'SQLiteTimestamp'>>
-	extends SQLiteBaseInteger<T, { mode: 'timestamp' | 'timestamp_ms' }>
-{
+export class SQLiteTimestamp<T extends ColumnBaseConfig<'date', 'SQLiteTimestamp'>> extends SQLiteBaseInteger<
+	T,
+	{ mode: 'timestamp' | 'timestamp_ms' }
+> {
 	static override readonly [entityKind]: string = 'SQLiteTimestamp';
 
 	readonly mode: 'timestamp' | 'timestamp_ms' = this.config.mode;
@@ -165,9 +162,9 @@ export type SQLiteBooleanBuilderInitial<TName extends string> = SQLiteBooleanBui
 	enumValues: undefined;
 }>;
 
-export class SQLiteBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean', 'SQLiteBoolean'>>
-	extends SQLiteBaseIntegerBuilder<T, { mode: 'boolean' }>
-{
+export class SQLiteBooleanBuilder<
+	T extends ColumnBuilderBaseConfig<'boolean', 'SQLiteBoolean'>,
+> extends SQLiteBaseIntegerBuilder<T, { mode: 'boolean' }> {
 	static override readonly [entityKind]: string = 'SQLiteBooleanBuilder';
 
 	constructor(name: T['name'], mode: 'boolean') {
@@ -185,9 +182,10 @@ export class SQLiteBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean', '
 	}
 }
 
-export class SQLiteBoolean<T extends ColumnBaseConfig<'boolean', 'SQLiteBoolean'>>
-	extends SQLiteBaseInteger<T, { mode: 'boolean' }>
-{
+export class SQLiteBoolean<T extends ColumnBaseConfig<'boolean', 'SQLiteBoolean'>> extends SQLiteBaseInteger<
+	T,
+	{ mode: 'boolean' }
+> {
 	static override readonly [entityKind]: string = 'SQLiteBoolean';
 
 	readonly mode: 'boolean' = this.config.mode;

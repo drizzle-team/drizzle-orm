@@ -67,20 +67,20 @@ export const identityColumnsTable = pgTable('identity_columns_table', {
 	name: text('name'),
 });
 
-Expect<Equal<InferSelectModel<typeof identityColumnsTable>, typeof identityColumnsTable['$inferSelect']>>;
-Expect<Equal<InferSelectModel<typeof identityColumnsTable>, typeof identityColumnsTable['_']['inferSelect']>>;
-Expect<Equal<InferInsertModel<typeof identityColumnsTable>, typeof identityColumnsTable['$inferInsert']>>;
-Expect<Equal<InferInsertModel<typeof identityColumnsTable>, typeof identityColumnsTable['_']['inferInsert']>>;
+Expect<Equal<InferSelectModel<typeof identityColumnsTable>, (typeof identityColumnsTable)['$inferSelect']>>;
+Expect<Equal<InferSelectModel<typeof identityColumnsTable>, (typeof identityColumnsTable)['_']['inferSelect']>>;
+Expect<Equal<InferInsertModel<typeof identityColumnsTable>, (typeof identityColumnsTable)['$inferInsert']>>;
+Expect<Equal<InferInsertModel<typeof identityColumnsTable>, (typeof identityColumnsTable)['_']['inferInsert']>>;
 Expect<
 	Equal<
 		InferInsertModel<typeof identityColumnsTable, { dbColumnNames: false; override: true }>,
-		Simplify<typeof identityColumnsTable['$inferInsert'] & { alwaysAsIdentity?: number | undefined }>
+		Simplify<(typeof identityColumnsTable)['$inferInsert'] & { alwaysAsIdentity?: number | undefined }>
 	>
 >;
 Expect<
 	Equal<
 		InferInsertModel<typeof identityColumnsTable, { dbColumnNames: false; override: true }>,
-		Simplify<typeof identityColumnsTable['_']['inferInsert'] & { alwaysAsIdentity?: number | undefined }>
+		Simplify<(typeof identityColumnsTable)['_']['inferInsert'] & { alwaysAsIdentity?: number | undefined }>
 	>
 >;
 
@@ -122,18 +122,22 @@ export const users = pgTable(
 	],
 );
 
-Expect<Equal<InferSelectModel<typeof users>, typeof users['$inferSelect']>>;
-Expect<Equal<InferSelectModel<typeof users>, typeof users['_']['inferSelect']>>;
-Expect<Equal<InferInsertModel<typeof users>, typeof users['$inferInsert']>>;
-Expect<Equal<InferInsertModel<typeof users>, typeof users['_']['inferInsert']>>;
+Expect<Equal<InferSelectModel<typeof users>, (typeof users)['$inferSelect']>>;
+Expect<Equal<InferSelectModel<typeof users>, (typeof users)['_']['inferSelect']>>;
+Expect<Equal<InferInsertModel<typeof users>, (typeof users)['$inferInsert']>>;
+Expect<Equal<InferInsertModel<typeof users>, (typeof users)['_']['inferInsert']>>;
 
-export const cities = pgTable('cities_table', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-	population: integer('population').default(0),
-}, (cities) => ({
-	citiesNameIdx: index().on(cities.id),
-}));
+export const cities = pgTable(
+	'cities_table',
+	{
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		population: integer('population').default(0),
+	},
+	(cities) => ({
+		citiesNameIdx: index().on(cities.id),
+	}),
+);
 
 export const smallSerialTest = pgTable('cities_table', {
 	id: smallserial('id').primaryKey(),
@@ -142,11 +146,14 @@ export const smallSerialTest = pgTable('cities_table', {
 });
 
 Expect<
-	Equal<{
-		id?: number;
-		name: string;
-		population?: number | null;
-	}, typeof smallSerialTest.$inferInsert>
+	Equal<
+		{
+			id?: number;
+			name: string;
+			population?: number | null;
+		},
+		typeof smallSerialTest.$inferInsert
+	>
 >;
 
 export const classes = pgTable('classes_table', {
@@ -156,11 +163,14 @@ export const classes = pgTable('classes_table', {
 });
 
 Expect<
-	Equal<{
-		id?: number;
-		class?: 'A' | 'C' | null;
-		subClass: 'B' | 'D';
-	}, typeof classes.$inferInsert>
+	Equal<
+		{
+			id?: number;
+			class?: 'A' | 'C' | null;
+			subClass: 'B' | 'D';
+		},
+		typeof classes.$inferInsert
+	>
 >;
 
 export const network = pgTable('network_table', {
@@ -171,12 +181,15 @@ export const network = pgTable('network_table', {
 });
 
 Expect<
-	Equal<{
-		inet: string;
-		cidr: string;
-		macaddr: string;
-		macaddr8: string;
-	}, typeof network.$inferSelect>
+	Equal<
+		{
+			inet: string;
+			cidr: string;
+			macaddr: string;
+			macaddr8: string;
+		},
+		typeof network.$inferSelect
+	>
 >;
 
 export const salEmp = pgTable('sal_emp', {
@@ -191,11 +204,15 @@ export const tictactoe = pgTable('tictactoe', {
 
 export const customSchema = pgSchema('custom');
 
-export const citiesCustom = customSchema.table('cities_table', {
-	id: serial('id').primaryKey(),
-	name: text('name').notNull(),
-	population: integer('population').default(0),
-}, (cities) => [index().on(cities.id)]);
+export const citiesCustom = customSchema.table(
+	'cities_table',
+	{
+		id: serial('id').primaryKey(),
+		name: text('name').notNull(),
+		population: integer('population').default(0),
+	},
+	(cities) => [index().on(cities.id)],
+);
 
 export const newYorkers = pgView('new_yorkers')
 	.with({
@@ -204,116 +221,131 @@ export const newYorkers = pgView('new_yorkers')
 		securityInvoker: true,
 	})
 	.as((qb) => {
-		const sq = qb
-			.$with('sq')
-			.as(
-				qb.select({ userId: users.id, cityId: cities.id })
-					.from(users)
-					.leftJoin(cities, eq(cities.id, users.homeCity))
-					.where(sql`${users.age1} > 18`),
-			);
-		return qb.with(sq).select().from(sq).where(sql`${users.homeCity} = 1`);
+		const sq = qb.$with('sq').as(
+			qb
+				.select({ userId: users.id, cityId: cities.id })
+				.from(users)
+				.leftJoin(cities, eq(cities.id, users.homeCity))
+				.where(sql`${users.age1} > 18`),
+		);
+		return qb
+			.with(sq)
+			.select()
+			.from(sq)
+			.where(sql`${users.homeCity} = 1`);
 	});
 
 Expect<
 	Equal<
-		PgViewWithSelection<'new_yorkers', false, {
-			userId: PgColumn<{
-				tableName: 'new_yorkers';
-				name: 'id';
-				dataType: 'number';
-				columnType: 'PgSerial';
-				data: number;
-				driverParam: number;
-				notNull: true;
-				hasDefault: true;
-				enumValues: undefined;
-				baseColumn: never;
-				generated: undefined;
-				identity: undefined;
-				isPrimaryKey: true;
-				isAutoincrement: false;
-				hasRuntimeDefault: false;
-			}>;
-			cityId: PgColumn<{
-				tableName: 'new_yorkers';
-				name: 'id';
-				dataType: 'number';
-				columnType: 'PgSerial';
-				data: number;
-				driverParam: number;
-				notNull: false;
-				hasDefault: true;
-				enumValues: undefined;
-				baseColumn: never;
-				generated: undefined;
-				identity: undefined;
-				isPrimaryKey: true;
-				isAutoincrement: false;
-				hasRuntimeDefault: false;
-			}>;
-		}>,
+		PgViewWithSelection<
+			'new_yorkers',
+			false,
+			{
+				userId: PgColumn<{
+					tableName: 'new_yorkers';
+					name: 'id';
+					dataType: 'number';
+					columnType: 'PgSerial';
+					data: number;
+					driverParam: number;
+					notNull: true;
+					hasDefault: true;
+					enumValues: undefined;
+					baseColumn: never;
+					generated: undefined;
+					identity: undefined;
+					isPrimaryKey: true;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+				}>;
+				cityId: PgColumn<{
+					tableName: 'new_yorkers';
+					name: 'id';
+					dataType: 'number';
+					columnType: 'PgSerial';
+					data: number;
+					driverParam: number;
+					notNull: false;
+					hasDefault: true;
+					enumValues: undefined;
+					baseColumn: never;
+					generated: undefined;
+					identity: undefined;
+					isPrimaryKey: true;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+				}>;
+			}
+		>,
 		typeof newYorkers
 	>
 >;
 
 {
-	const newYorkers = customSchema.view('new_yorkers')
+	const newYorkers = customSchema
+		.view('new_yorkers')
 		.with({
 			checkOption: 'cascaded',
 			securityBarrier: true,
 			securityInvoker: true,
 		})
 		.as((qb) => {
-			const sq = qb
-				.$with('sq')
-				.as(
-					qb.select({ userId: users.id, cityId: cities.id })
-						.from(users)
-						.leftJoin(cities, eq(cities.id, users.homeCity))
-						.where(sql`${users.age1} > 18`),
-				);
-			return qb.with(sq).select().from(sq).where(sql`${users.homeCity} = 1`);
+			const sq = qb.$with('sq').as(
+				qb
+					.select({ userId: users.id, cityId: cities.id })
+					.from(users)
+					.leftJoin(cities, eq(cities.id, users.homeCity))
+					.where(sql`${users.age1} > 18`),
+			);
+			return qb
+				.with(sq)
+				.select()
+				.from(sq)
+				.where(sql`${users.homeCity} = 1`);
 		});
 
 	Expect<
 		Equal<
-			PgViewWithSelection<'new_yorkers', false, {
-				userId: PgColumn<{
-					tableName: 'new_yorkers';
-					name: 'id';
-					dataType: 'number';
-					columnType: 'PgSerial';
-					data: number;
-					driverParam: number;
-					notNull: true;
-					hasDefault: true;
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isPrimaryKey: true;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-				}>;
-				cityId: PgColumn<{
-					tableName: 'new_yorkers';
-					name: 'id';
-					dataType: 'number';
-					columnType: 'PgSerial';
-					data: number;
-					driverParam: number;
-					notNull: false;
-					hasDefault: true;
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isPrimaryKey: true;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-				}>;
-			}>,
+			PgViewWithSelection<
+				'new_yorkers',
+				false,
+				{
+					userId: PgColumn<{
+						tableName: 'new_yorkers';
+						name: 'id';
+						dataType: 'number';
+						columnType: 'PgSerial';
+						data: number;
+						driverParam: number;
+						notNull: true;
+						hasDefault: true;
+						enumValues: undefined;
+						baseColumn: never;
+						generated: undefined;
+						identity: undefined;
+						isPrimaryKey: true;
+						isAutoincrement: false;
+						hasRuntimeDefault: false;
+					}>;
+					cityId: PgColumn<{
+						tableName: 'new_yorkers';
+						name: 'id';
+						dataType: 'number';
+						columnType: 'PgSerial';
+						data: number;
+						driverParam: number;
+						notNull: false;
+						hasDefault: true;
+						enumValues: undefined;
+						baseColumn: never;
+						generated: undefined;
+						identity: undefined;
+						isPrimaryKey: true;
+						isAutoincrement: false;
+						hasRuntimeDefault: false;
+					}>;
+				}
+			>,
 			typeof newYorkers
 		>
 	>;
@@ -331,58 +363,66 @@ Expect<
 		})
 		.as(
 			sql`select ${users.id} as user_id, ${cities.id} as city_id from ${users} left join ${cities} on ${
-				eq(cities.id, users.homeCity)
+				eq(
+					cities.id,
+					users.homeCity,
+				)
 			} where ${gt(users.age1, 18)}`,
 		);
 
 	Expect<
 		Equal<
-			PgViewWithSelection<'new_yorkers', false, {
-				userId: PgColumn<{
-					tableName: 'new_yorkers';
-					name: 'user_id';
-					dataType: 'number';
-					columnType: 'PgInteger';
-					data: number;
-					driverParam: string | number;
-					hasDefault: false;
-					notNull: true;
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-				}>;
-				cityId: PgColumn<{
-					tableName: 'new_yorkers';
-					name: 'city_id';
-					dataType: 'number';
-					columnType: 'PgInteger';
-					notNull: false;
-					hasDefault: false;
-					data: number;
-					driverParam: string | number;
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-				}>;
-			}>,
+			PgViewWithSelection<
+				'new_yorkers',
+				false,
+				{
+					userId: PgColumn<{
+						tableName: 'new_yorkers';
+						name: 'user_id';
+						dataType: 'number';
+						columnType: 'PgInteger';
+						data: number;
+						driverParam: string | number;
+						hasDefault: false;
+						notNull: true;
+						enumValues: undefined;
+						baseColumn: never;
+						generated: undefined;
+						identity: undefined;
+						isPrimaryKey: false;
+						isAutoincrement: false;
+						hasRuntimeDefault: false;
+					}>;
+					cityId: PgColumn<{
+						tableName: 'new_yorkers';
+						name: 'city_id';
+						dataType: 'number';
+						columnType: 'PgInteger';
+						notNull: false;
+						hasDefault: false;
+						data: number;
+						driverParam: string | number;
+						enumValues: undefined;
+						baseColumn: never;
+						generated: undefined;
+						identity: undefined;
+						isPrimaryKey: false;
+						isAutoincrement: false;
+						hasRuntimeDefault: false;
+					}>;
+				}
+			>,
 			typeof newYorkers
 		>
 	>;
 }
 
 {
-	const newYorkers = customSchema.view('new_yorkers', {
-		userId: integer('user_id').notNull(),
-		cityId: integer('city_id'),
-	})
+	const newYorkers = customSchema
+		.view('new_yorkers', {
+			userId: integer('user_id').notNull(),
+			cityId: integer('city_id'),
+		})
 		.with({
 			checkOption: 'cascaded',
 			securityBarrier: true,
@@ -390,48 +430,55 @@ Expect<
 		})
 		.as(
 			sql`select ${users.id} as user_id, ${cities.id} as city_id from ${users} left join ${cities} on ${
-				eq(cities.id, users.homeCity)
+				eq(
+					cities.id,
+					users.homeCity,
+				)
 			} where ${gt(users.age1, 18)}`,
 		);
 
 	Expect<
 		Equal<
-			PgViewWithSelection<'new_yorkers', false, {
-				userId: PgColumn<{
-					tableName: 'new_yorkers';
-					name: 'user_id';
-					dataType: 'number';
-					columnType: 'PgInteger';
-					data: number;
-					driverParam: string | number;
-					hasDefault: false;
-					notNull: true;
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-				}>;
-				cityId: PgColumn<{
-					tableName: 'new_yorkers';
-					name: 'city_id';
-					dataType: 'number';
-					columnType: 'PgInteger';
-					notNull: false;
-					hasDefault: false;
-					data: number;
-					driverParam: string | number;
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-				}>;
-			}>,
+			PgViewWithSelection<
+				'new_yorkers',
+				false,
+				{
+					userId: PgColumn<{
+						tableName: 'new_yorkers';
+						name: 'user_id';
+						dataType: 'number';
+						columnType: 'PgInteger';
+						data: number;
+						driverParam: string | number;
+						hasDefault: false;
+						notNull: true;
+						enumValues: undefined;
+						baseColumn: never;
+						generated: undefined;
+						identity: undefined;
+						isPrimaryKey: false;
+						isAutoincrement: false;
+						hasRuntimeDefault: false;
+					}>;
+					cityId: PgColumn<{
+						tableName: 'new_yorkers';
+						name: 'city_id';
+						dataType: 'number';
+						columnType: 'PgInteger';
+						notNull: false;
+						hasDefault: false;
+						data: number;
+						driverParam: string | number;
+						enumValues: undefined;
+						baseColumn: never;
+						generated: undefined;
+						identity: undefined;
+						isPrimaryKey: false;
+						isAutoincrement: false;
+						hasRuntimeDefault: false;
+					}>;
+				}
+			>,
 			typeof newYorkers
 		>
 	>;
@@ -445,91 +492,101 @@ Expect<
 
 	Expect<
 		Equal<
-			PgViewWithSelection<'new_yorkers', true, {
-				userId: PgColumn<{
-					tableName: 'new_yorkers';
-					name: 'user_id';
-					dataType: 'number';
-					columnType: 'PgInteger';
-					data: number;
-					driverParam: string | number;
-					hasDefault: false;
-					notNull: true;
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-				}>;
-				cityId: PgColumn<{
-					tableName: 'new_yorkers';
-					name: 'city_id';
-					dataType: 'number';
-					columnType: 'PgInteger';
-					notNull: false;
-					hasDefault: false;
-					data: number;
-					driverParam: string | number;
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-				}>;
-			}>,
+			PgViewWithSelection<
+				'new_yorkers',
+				true,
+				{
+					userId: PgColumn<{
+						tableName: 'new_yorkers';
+						name: 'user_id';
+						dataType: 'number';
+						columnType: 'PgInteger';
+						data: number;
+						driverParam: string | number;
+						hasDefault: false;
+						notNull: true;
+						enumValues: undefined;
+						baseColumn: never;
+						generated: undefined;
+						identity: undefined;
+						isPrimaryKey: false;
+						isAutoincrement: false;
+						hasRuntimeDefault: false;
+					}>;
+					cityId: PgColumn<{
+						tableName: 'new_yorkers';
+						name: 'city_id';
+						dataType: 'number';
+						columnType: 'PgInteger';
+						notNull: false;
+						hasDefault: false;
+						data: number;
+						driverParam: string | number;
+						enumValues: undefined;
+						baseColumn: never;
+						generated: undefined;
+						identity: undefined;
+						isPrimaryKey: false;
+						isAutoincrement: false;
+						hasRuntimeDefault: false;
+					}>;
+				}
+			>,
 			typeof newYorkers
 		>
 	>;
 }
 
 {
-	const newYorkers = customSchema.view('new_yorkers', {
-		userId: integer('user_id').notNull(),
-		cityId: integer('city_id'),
-	}).existing();
+	const newYorkers = customSchema
+		.view('new_yorkers', {
+			userId: integer('user_id').notNull(),
+			cityId: integer('city_id'),
+		})
+		.existing();
 
 	Expect<
 		Equal<
-			PgViewWithSelection<'new_yorkers', true, {
-				userId: PgColumn<{
-					tableName: 'new_yorkers';
-					name: 'user_id';
-					dataType: 'number';
-					columnType: 'PgInteger';
-					data: number;
-					driverParam: string | number;
-					hasDefault: false;
-					notNull: true;
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-				}>;
-				cityId: PgColumn<{
-					tableName: 'new_yorkers';
-					name: 'city_id';
-					dataType: 'number';
-					columnType: 'PgInteger';
-					notNull: false;
-					hasDefault: false;
-					data: number;
-					driverParam: string | number;
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-				}>;
-			}>,
+			PgViewWithSelection<
+				'new_yorkers',
+				true,
+				{
+					userId: PgColumn<{
+						tableName: 'new_yorkers';
+						name: 'user_id';
+						dataType: 'number';
+						columnType: 'PgInteger';
+						data: number;
+						driverParam: string | number;
+						hasDefault: false;
+						notNull: true;
+						enumValues: undefined;
+						baseColumn: never;
+						generated: undefined;
+						identity: undefined;
+						isPrimaryKey: false;
+						isAutoincrement: false;
+						hasRuntimeDefault: false;
+					}>;
+					cityId: PgColumn<{
+						tableName: 'new_yorkers';
+						name: 'city_id';
+						dataType: 'number';
+						columnType: 'PgInteger';
+						notNull: false;
+						hasDefault: false;
+						data: number;
+						driverParam: string | number;
+						enumValues: undefined;
+						baseColumn: never;
+						generated: undefined;
+						identity: undefined;
+						isPrimaryKey: false;
+						isAutoincrement: false;
+						hasRuntimeDefault: false;
+					}>;
+				}
+			>,
 			typeof newYorkers
 		>
 	>;
@@ -545,61 +602,69 @@ export const newYorkers2 = pgMaterializedView('new_yorkers')
 	.tablespace('custom_tablespace')
 	.withNoData()
 	.as((qb) => {
-		const sq = qb
-			.$with('sq')
-			.as(
-				qb.select({ userId: users.id, cityId: cities.id })
-					.from(users)
-					.leftJoin(cities, eq(cities.id, users.homeCity))
-					.where(sql`${users.age1} > 18`),
-			);
-		return qb.with(sq).select().from(sq).where(sql`${users.homeCity} = 1`);
+		const sq = qb.$with('sq').as(
+			qb
+				.select({ userId: users.id, cityId: cities.id })
+				.from(users)
+				.leftJoin(cities, eq(cities.id, users.homeCity))
+				.where(sql`${users.age1} > 18`),
+		);
+		return qb
+			.with(sq)
+			.select()
+			.from(sq)
+			.where(sql`${users.homeCity} = 1`);
 	});
 
 Expect<
 	Equal<
-		PgMaterializedViewWithSelection<'new_yorkers', false, {
-			userId: PgColumn<{
-				tableName: 'new_yorkers';
-				name: 'id';
-				dataType: 'number';
-				columnType: 'PgSerial';
-				data: number;
-				driverParam: number;
-				notNull: true;
-				hasDefault: true;
-				enumValues: undefined;
-				baseColumn: never;
-				generated: undefined;
-				identity: undefined;
-				isPrimaryKey: true;
-				isAutoincrement: false;
-				hasRuntimeDefault: false;
-			}>;
-			cityId: PgColumn<{
-				tableName: 'new_yorkers';
-				name: 'id';
-				dataType: 'number';
-				columnType: 'PgSerial';
-				data: number;
-				driverParam: number;
-				notNull: false;
-				hasDefault: true;
-				enumValues: undefined;
-				baseColumn: never;
-				generated: undefined;
-				identity: undefined;
-				isPrimaryKey: true;
-				isAutoincrement: false;
-				hasRuntimeDefault: false;
-			}>;
-		}>,
+		PgMaterializedViewWithSelection<
+			'new_yorkers',
+			false,
+			{
+				userId: PgColumn<{
+					tableName: 'new_yorkers';
+					name: 'id';
+					dataType: 'number';
+					columnType: 'PgSerial';
+					data: number;
+					driverParam: number;
+					notNull: true;
+					hasDefault: true;
+					enumValues: undefined;
+					baseColumn: never;
+					generated: undefined;
+					identity: undefined;
+					isPrimaryKey: true;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+				}>;
+				cityId: PgColumn<{
+					tableName: 'new_yorkers';
+					name: 'id';
+					dataType: 'number';
+					columnType: 'PgSerial';
+					data: number;
+					driverParam: number;
+					notNull: false;
+					hasDefault: true;
+					enumValues: undefined;
+					baseColumn: never;
+					generated: undefined;
+					identity: undefined;
+					isPrimaryKey: true;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+				}>;
+			}
+		>,
 		typeof newYorkers2
 	>
 >;
 
 {
-	const newYorkers2 = customSchema.materializedView('new_yorkers')
+	const newYorkers2 = customSchema
+		.materializedView('new_yorkers')
 		.using('btree')
 		.with({
 			fillfactor: 90,
@@ -609,55 +674,62 @@ Expect<
 		.tablespace('custom_tablespace')
 		.withNoData()
 		.as((qb) => {
-			const sq = qb
-				.$with('sq')
-				.as(
-					qb.select({ userId: users.id, cityId: cities.id })
-						.from(users)
-						.leftJoin(cities, eq(cities.id, users.homeCity))
-						.where(sql`${users.age1} > 18`),
-				);
-			return qb.with(sq).select().from(sq).where(sql`${users.homeCity} = 1`);
+			const sq = qb.$with('sq').as(
+				qb
+					.select({ userId: users.id, cityId: cities.id })
+					.from(users)
+					.leftJoin(cities, eq(cities.id, users.homeCity))
+					.where(sql`${users.age1} > 18`),
+			);
+			return qb
+				.with(sq)
+				.select()
+				.from(sq)
+				.where(sql`${users.homeCity} = 1`);
 		});
 
 	Expect<
 		Equal<
-			PgMaterializedViewWithSelection<'new_yorkers', false, {
-				userId: PgColumn<{
-					tableName: 'new_yorkers';
-					name: 'id';
-					dataType: 'number';
-					columnType: 'PgSerial';
-					data: number;
-					driverParam: number;
-					notNull: true;
-					hasDefault: true;
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isPrimaryKey: true;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-				}>;
-				cityId: PgColumn<{
-					tableName: 'new_yorkers';
-					name: 'id';
-					dataType: 'number';
-					columnType: 'PgSerial';
-					data: number;
-					driverParam: number;
-					notNull: false;
-					hasDefault: true;
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isPrimaryKey: true;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-				}>;
-			}>,
+			PgMaterializedViewWithSelection<
+				'new_yorkers',
+				false,
+				{
+					userId: PgColumn<{
+						tableName: 'new_yorkers';
+						name: 'id';
+						dataType: 'number';
+						columnType: 'PgSerial';
+						data: number;
+						driverParam: number;
+						notNull: true;
+						hasDefault: true;
+						enumValues: undefined;
+						baseColumn: never;
+						generated: undefined;
+						identity: undefined;
+						isPrimaryKey: true;
+						isAutoincrement: false;
+						hasRuntimeDefault: false;
+					}>;
+					cityId: PgColumn<{
+						tableName: 'new_yorkers';
+						name: 'id';
+						dataType: 'number';
+						columnType: 'PgSerial';
+						data: number;
+						driverParam: number;
+						notNull: false;
+						hasDefault: true;
+						enumValues: undefined;
+						baseColumn: never;
+						generated: undefined;
+						identity: undefined;
+						isPrimaryKey: true;
+						isAutoincrement: false;
+						hasRuntimeDefault: false;
+					}>;
+				}
+			>,
 			typeof newYorkers2
 		>
 	>;
@@ -678,58 +750,66 @@ Expect<
 		.withNoData()
 		.as(
 			sql`select ${users.id} as user_id, ${cities.id} as city_id from ${users} left join ${cities} on ${
-				eq(cities.id, users.homeCity)
+				eq(
+					cities.id,
+					users.homeCity,
+				)
 			} where ${gt(users.age1, 18)}`,
 		);
 
 	Expect<
 		Equal<
-			PgMaterializedViewWithSelection<'new_yorkers', false, {
-				userId: PgColumn<{
-					tableName: 'new_yorkers';
-					name: 'user_id';
-					dataType: 'number';
-					columnType: 'PgInteger';
-					data: number;
-					driverParam: string | number;
-					hasDefault: false;
-					notNull: true;
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-				}>;
-				cityId: PgColumn<{
-					tableName: 'new_yorkers';
-					name: 'city_id';
-					dataType: 'number';
-					columnType: 'PgInteger';
-					notNull: false;
-					hasDefault: false;
-					data: number;
-					driverParam: string | number;
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-				}>;
-			}>,
+			PgMaterializedViewWithSelection<
+				'new_yorkers',
+				false,
+				{
+					userId: PgColumn<{
+						tableName: 'new_yorkers';
+						name: 'user_id';
+						dataType: 'number';
+						columnType: 'PgInteger';
+						data: number;
+						driverParam: string | number;
+						hasDefault: false;
+						notNull: true;
+						enumValues: undefined;
+						baseColumn: never;
+						generated: undefined;
+						identity: undefined;
+						isPrimaryKey: false;
+						isAutoincrement: false;
+						hasRuntimeDefault: false;
+					}>;
+					cityId: PgColumn<{
+						tableName: 'new_yorkers';
+						name: 'city_id';
+						dataType: 'number';
+						columnType: 'PgInteger';
+						notNull: false;
+						hasDefault: false;
+						data: number;
+						driverParam: string | number;
+						enumValues: undefined;
+						baseColumn: never;
+						generated: undefined;
+						identity: undefined;
+						isPrimaryKey: false;
+						isAutoincrement: false;
+						hasRuntimeDefault: false;
+					}>;
+				}
+			>,
 			typeof newYorkers2
 		>
 	>;
 }
 
 {
-	const newYorkers2 = customSchema.materializedView('new_yorkers', {
-		userId: integer('user_id').notNull(),
-		cityId: integer('city_id'),
-	})
+	const newYorkers2 = customSchema
+		.materializedView('new_yorkers', {
+			userId: integer('user_id').notNull(),
+			cityId: integer('city_id'),
+		})
 		.using('btree')
 		.with({
 			fillfactor: 90,
@@ -740,48 +820,55 @@ Expect<
 		.withNoData()
 		.as(
 			sql`select ${users.id} as user_id, ${cities.id} as city_id from ${users} left join ${cities} on ${
-				eq(cities.id, users.homeCity)
+				eq(
+					cities.id,
+					users.homeCity,
+				)
 			} where ${gt(users.age1, 18)}`,
 		);
 
 	Expect<
 		Equal<
-			PgMaterializedViewWithSelection<'new_yorkers', false, {
-				userId: PgColumn<{
-					tableName: 'new_yorkers';
-					name: 'user_id';
-					dataType: 'number';
-					columnType: 'PgInteger';
-					data: number;
-					driverParam: string | number;
-					hasDefault: false;
-					notNull: true;
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-				}>;
-				cityId: PgColumn<{
-					tableName: 'new_yorkers';
-					name: 'city_id';
-					dataType: 'number';
-					columnType: 'PgInteger';
-					notNull: false;
-					hasDefault: false;
-					data: number;
-					driverParam: string | number;
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-				}>;
-			}>,
+			PgMaterializedViewWithSelection<
+				'new_yorkers',
+				false,
+				{
+					userId: PgColumn<{
+						tableName: 'new_yorkers';
+						name: 'user_id';
+						dataType: 'number';
+						columnType: 'PgInteger';
+						data: number;
+						driverParam: string | number;
+						hasDefault: false;
+						notNull: true;
+						enumValues: undefined;
+						baseColumn: never;
+						generated: undefined;
+						identity: undefined;
+						isPrimaryKey: false;
+						isAutoincrement: false;
+						hasRuntimeDefault: false;
+					}>;
+					cityId: PgColumn<{
+						tableName: 'new_yorkers';
+						name: 'city_id';
+						dataType: 'number';
+						columnType: 'PgInteger';
+						notNull: false;
+						hasDefault: false;
+						data: number;
+						driverParam: string | number;
+						enumValues: undefined;
+						baseColumn: never;
+						generated: undefined;
+						identity: undefined;
+						isPrimaryKey: false;
+						isAutoincrement: false;
+						hasRuntimeDefault: false;
+					}>;
+				}
+			>,
 			typeof newYorkers2
 		>
 	>;
@@ -795,91 +882,101 @@ Expect<
 
 	Expect<
 		Equal<
-			PgMaterializedViewWithSelection<'new_yorkers', true, {
-				userId: PgColumn<{
-					tableName: 'new_yorkers';
-					name: 'user_id';
-					dataType: 'number';
-					columnType: 'PgInteger';
-					data: number;
-					driverParam: string | number;
-					hasDefault: false;
-					notNull: true;
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-				}>;
-				cityId: PgColumn<{
-					tableName: 'new_yorkers';
-					name: 'city_id';
-					dataType: 'number';
-					columnType: 'PgInteger';
-					notNull: false;
-					hasDefault: false;
-					data: number;
-					driverParam: string | number;
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-				}>;
-			}>,
+			PgMaterializedViewWithSelection<
+				'new_yorkers',
+				true,
+				{
+					userId: PgColumn<{
+						tableName: 'new_yorkers';
+						name: 'user_id';
+						dataType: 'number';
+						columnType: 'PgInteger';
+						data: number;
+						driverParam: string | number;
+						hasDefault: false;
+						notNull: true;
+						enumValues: undefined;
+						baseColumn: never;
+						generated: undefined;
+						identity: undefined;
+						isPrimaryKey: false;
+						isAutoincrement: false;
+						hasRuntimeDefault: false;
+					}>;
+					cityId: PgColumn<{
+						tableName: 'new_yorkers';
+						name: 'city_id';
+						dataType: 'number';
+						columnType: 'PgInteger';
+						notNull: false;
+						hasDefault: false;
+						data: number;
+						driverParam: string | number;
+						enumValues: undefined;
+						baseColumn: never;
+						generated: undefined;
+						identity: undefined;
+						isPrimaryKey: false;
+						isAutoincrement: false;
+						hasRuntimeDefault: false;
+					}>;
+				}
+			>,
 			typeof newYorkers2
 		>
 	>;
 }
 
 {
-	const newYorkers2 = customSchema.materializedView('new_yorkers', {
-		userId: integer('user_id').notNull(),
-		cityId: integer('city_id'),
-	}).existing();
+	const newYorkers2 = customSchema
+		.materializedView('new_yorkers', {
+			userId: integer('user_id').notNull(),
+			cityId: integer('city_id'),
+		})
+		.existing();
 
 	Expect<
 		Equal<
-			PgMaterializedViewWithSelection<'new_yorkers', true, {
-				userId: PgColumn<{
-					tableName: 'new_yorkers';
-					name: 'user_id';
-					dataType: 'number';
-					columnType: 'PgInteger';
-					data: number;
-					driverParam: string | number;
-					hasDefault: false;
-					notNull: true;
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-				}>;
-				cityId: PgColumn<{
-					tableName: 'new_yorkers';
-					name: 'city_id';
-					dataType: 'number';
-					columnType: 'PgInteger';
-					notNull: false;
-					hasDefault: false;
-					data: number;
-					driverParam: string | number;
-					enumValues: undefined;
-					baseColumn: never;
-					generated: undefined;
-					identity: undefined;
-					isPrimaryKey: false;
-					isAutoincrement: false;
-					hasRuntimeDefault: false;
-				}>;
-			}>,
+			PgMaterializedViewWithSelection<
+				'new_yorkers',
+				true,
+				{
+					userId: PgColumn<{
+						tableName: 'new_yorkers';
+						name: 'user_id';
+						dataType: 'number';
+						columnType: 'PgInteger';
+						data: number;
+						driverParam: string | number;
+						hasDefault: false;
+						notNull: true;
+						enumValues: undefined;
+						baseColumn: never;
+						generated: undefined;
+						identity: undefined;
+						isPrimaryKey: false;
+						isAutoincrement: false;
+						hasRuntimeDefault: false;
+					}>;
+					cityId: PgColumn<{
+						tableName: 'new_yorkers';
+						name: 'city_id';
+						dataType: 'number';
+						columnType: 'PgInteger';
+						notNull: false;
+						hasDefault: false;
+						data: number;
+						driverParam: string | number;
+						enumValues: undefined;
+						baseColumn: never;
+						generated: undefined;
+						identity: undefined;
+						isPrimaryKey: false;
+						isAutoincrement: false;
+						hasRuntimeDefault: false;
+					}>;
+				}
+			>,
 			typeof newYorkers2
 		>
 	>;
@@ -963,13 +1060,19 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 	const cities1 = pgTable('cities_table', {
 		id: serial('id').primaryKey(),
 		name: text('name').notNull().primaryKey(),
-		role: text('role', { enum: ['admin', 'user'] }).default('user').notNull(),
+		postalCode: text('postal_code').notNull().unique(),
+		role: text('role', { enum: ['admin', 'user'] })
+			.default('user')
+			.notNull(),
 		population: integer('population').default(0),
 	});
 	const cities2 = pgTable('cities_table', ({ serial, text, integer }) => ({
 		id: serial('id').primaryKey(),
 		name: text('name').notNull().primaryKey(),
-		role: text('role', { enum: ['admin', 'user'] }).default('user').notNull(),
+		postalCode: text('postal_code').notNull().unique(),
+		role: text('role', { enum: ['admin', 'user'] })
+			.default('user')
+			.notNull(),
 		population: integer('population').default(0),
 	}));
 
@@ -978,40 +1081,75 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 		schema: undefined;
 		dialect: 'pg';
 		columns: {
-			id: PgColumn<{
-				tableName: 'cities_table';
-				name: 'id';
-				dataType: 'number';
-				columnType: 'PgSerial';
-				data: number;
-				driverParam: number;
-				hasDefault: true;
-				notNull: true;
-				enumValues: undefined;
-				baseColumn: never;
-				generated: undefined;
-				identity: undefined;
-				isPrimaryKey: true;
-				isAutoincrement: false;
-				hasRuntimeDefault: false;
-			}>;
-			name: PgColumn<{
-				tableName: 'cities_table';
-				name: 'name';
-				dataType: 'string';
-				columnType: 'PgText';
-				data: string;
-				driverParam: string;
-				hasDefault: false;
-				enumValues: [string, ...string[]];
-				notNull: true;
-				baseColumn: never;
-				generated: undefined;
-				identity: undefined;
-				isPrimaryKey: true;
-				isAutoincrement: false;
-				hasRuntimeDefault: false;
-			}>;
+			id: PgColumn<
+				{
+					tableName: 'cities_table';
+					name: 'id';
+					dataType: 'number';
+					columnType: 'PgSerial';
+					data: number;
+					driverParam: number;
+					hasDefault: true;
+					notNull: true;
+					enumValues: undefined;
+					baseColumn: never;
+					generated: undefined;
+					identity: undefined;
+					isPrimaryKey: true;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+				},
+				{},
+				{
+					isUnique: true;
+				}
+			>;
+			name: PgColumn<
+				{
+					tableName: 'cities_table';
+					name: 'name';
+					dataType: 'string';
+					columnType: 'PgText';
+					data: string;
+					driverParam: string;
+					hasDefault: false;
+					enumValues: [string, ...string[]];
+					notNull: true;
+					baseColumn: never;
+					generated: undefined;
+					identity: undefined;
+					isPrimaryKey: true;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+				},
+				{},
+				{
+					isUnique: true;
+				}
+			>;
+			postalCode: PgColumn<
+				{
+					tableName: 'cities_table';
+					name: 'postal_code';
+					dataType: 'string';
+					columnType: 'PgText';
+					data: string;
+					driverParam: string;
+					notNull: true;
+					hasDefault: false;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+					enumValues: [string, ...string[]];
+					baseColumn: never;
+					identity: undefined;
+					generated: undefined;
+				},
+				{},
+				{
+					isUnique: true;
+				}
+			>;
 			role: PgColumn<{
 				tableName: 'cities_table';
 				name: 'role';
@@ -1115,46 +1253,46 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 	const subq = db
 		.select()
 		.from(internalStaff)
-		.leftJoin(
-			customUser,
-			eq(internalStaff.userId, customUser.id),
-		).as('internal_staff');
+		.leftJoin(customUser, eq(internalStaff.userId, customUser.id))
+		.as('internal_staff');
 
-	const mainQuery = await db
-		.select()
-		.from(ticket)
-		.leftJoin(subq, eq(subq.internal_staff.userId, ticket.staffId));
+	const mainQuery = await db.select().from(ticket).leftJoin(subq, eq(subq.internal_staff.userId, ticket.staffId));
 
 	Expect<
-		Equal<{
-			internal_staff: {
+		Equal<
+			{
 				internal_staff: {
-					userId: number;
+					internal_staff: {
+						userId: number;
+					};
+					custom_user: {
+						id: number | null;
+					};
+				} | null;
+				ticket: {
+					staffId: number;
 				};
-				custom_user: {
-					id: number | null;
-				};
-			} | null;
-			ticket: {
-				staffId: number;
-			};
-		}[], typeof mainQuery>
+			}[],
+			typeof mainQuery
+		>
 	>;
 }
 
 {
-	const newYorkers = pgView('new_yorkers')
-		.as((qb) => {
-			const sq = qb
-				.$with('sq')
-				.as(
-					qb.select({ userId: users.id, cityId: cities.id })
-						.from(users)
-						.leftJoin(cities, eq(cities.id, users.homeCity))
-						.where(sql`${users.age1} > 18`),
-				);
-			return qb.with(sq).select().from(sq).where(sql`${users.homeCity} = 1`);
-		});
+	const newYorkers = pgView('new_yorkers').as((qb) => {
+		const sq = qb.$with('sq').as(
+			qb
+				.select({ userId: users.id, cityId: cities.id })
+				.from(users)
+				.leftJoin(cities, eq(cities.id, users.homeCity))
+				.where(sql`${users.age1} > 18`),
+		);
+		return qb
+			.with(sq)
+			.select()
+			.from(sq)
+			.where(sql`${users.homeCity} = 1`);
+	});
 
 	await db.select().from(newYorkers).leftJoin(newYorkers, eq(newYorkers.userId, newYorkers.userId));
 }
@@ -1239,13 +1377,18 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 
 {
 	const test = pgTable('test', {
-		id: text('id').$defaultFn(() => crypto.randomUUID()).primaryKey(),
+		id: text('id')
+			.$defaultFn(() => crypto.randomUUID())
+			.primaryKey(),
 	});
 
 	Expect<
-		Equal<{
-			id?: string;
-		}, typeof test.$inferInsert>
+		Equal<
+			{
+				id?: string;
+			},
+			typeof test.$inferInsert
+		>
 	>;
 }
 
@@ -1341,8 +1484,8 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 		name: text(),
 	});
 
-	Expect<Equal<typeof keysAsColumnNames['id']['_']['name'], 'id'>>;
-	Expect<Equal<typeof keysAsColumnNames['name']['_']['name'], 'name'>>;
+	Expect<Equal<(typeof keysAsColumnNames)['id']['_']['name'], 'id'>>;
+	Expect<Equal<(typeof keysAsColumnNames)['name']['_']['name'], 'name'>>;
 }
 
 {
