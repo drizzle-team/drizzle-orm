@@ -96,6 +96,12 @@ export class LibSQLSession<
 		for (const query of queries) {
 			const preparedQuery = query._prepare();
 			const builtQuery = preparedQuery.getQuery();
+
+			if (!builtQuery.sql.trim()) {
+				// Skip empty queries
+				continue;
+			}
+
 			preparedQueries.push(preparedQuery);
 			builtQueries.push({ sql: builtQuery.sql, args: builtQuery.params as InArgs });
 		}
