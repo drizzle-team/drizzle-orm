@@ -13,6 +13,7 @@ import {
 	CockroachDbTable,
 	cockroachdbTable,
 	CockroachDbView,
+	int4,
 	isCockroachDbEnum,
 	isCockroachDbMaterializedView,
 	isCockroachDbSequence,
@@ -323,6 +324,7 @@ export const diffDefault = async <T extends CockroachDbColumnBuilder>(
 	kit: TestDatabase,
 	builder: T,
 	expectedDefault: string,
+	pre: CockroachDBSchema | null = null,
 ) => {
 	await kit.clear();
 
@@ -330,28 +332,33 @@ export const diffDefault = async <T extends CockroachDbColumnBuilder>(
 	const def = config['default'];
 	const column = cockroachdbTable('table', { column: builder }).column;
 
-	const { baseColumn, dimensions, sqlType, sqlBaseType, typeSchema } = unwrapColumn(column);
-	const columnDefault = defaultFromColumn(baseColumn, column.default, dimensions, new CockroachDbDialect());
+	const { baseColumn, dimensions, baseType, options, typeSchema } = unwrapColumn(column);
+	const columnDefault = defaultFromColumn(baseColumn, column.default, dimensions, new CockroachDbDialect(), options);
 	const defaultSql = defaultToSQL({
 		default: columnDefault,
-		type: sqlBaseType,
+		type: baseType,
 		dimensions,
 		typeSchema: typeSchema,
 	});
 
 	const res = [] as string[];
 	if (defaultSql !== expectedDefault) {
-		res.push(`Unexpected sql: ${defaultSql} | ${expectedDefault}`);
+		res.push(`Unexpected sql: \n${defaultSql}\n${expectedDefault}`);
 	}
 
 	const init = {
+		...pre,
 		table: cockroachdbTable('table', { column: builder }),
 	};
 
 	const { db, clear } = kit;
-	const { sqlStatements: st1 } = await push({ db, to: init });
+	if (pre) await push({ db, to: pre });
+	const { sqlStatements: st1 } = await push({ db, to: init, log: 'statements' });
 	const { sqlStatements: st2 } = await push({ db, to: init });
 
+	const typeSchemaPrefix = typeSchema && typeSchema !== 'public' ? `"${typeSchema}".` : '';
+	const typeValue = typeSchema ? `"${baseType}"` : baseType;
+	const sqlType = `${typeSchemaPrefix}${typeValue}${options ? `(${options})` : ''}${'[]'.repeat(dimensions)}`;
 	const expectedInit = `CREATE TABLE "table" (\n\t"column" ${sqlType} DEFAULT ${expectedDefault}\n);\n`;
 	if (st1.length !== 1 || st1[0] !== expectedInit) res.push(`Unexpected init:\n${st1}\n\n${expectedInit}`);
 	if (st2.length > 0) res.push(`Unexpected subsequent init:\n${st2}`);
@@ -372,8 +379,11 @@ export const diffDefault = async <T extends CockroachDbColumnBuilder>(
 
 	const { sqlStatements: afterFileSqlStatements } = await ddlDiffDry(ddl1, ddl2, 'push');
 	if (afterFileSqlStatements.length === 0) {
-		// rmSync(path);
+		rmSync(path);
 	} else {
+		console.log(afterFileSqlStatements);
+		console.log(`./${path}`);
+		res.push(`Default type mismatch after diff:\n${`./${path}`}`);
 	}
 
 	await clear();
@@ -381,21 +391,43 @@ export const diffDefault = async <T extends CockroachDbColumnBuilder>(
 	config.hasDefault = false;
 	config.default = undefined;
 	const schema1 = {
+		...pre,
 		table: cockroachdbTable('table', { column: builder }),
 	};
 
 	config.hasDefault = true;
 	config.default = def;
 	const schema2 = {
+		...pre,
 		table: cockroachdbTable('table', { column: builder }),
 	};
 
+	if (pre) await push({ db, to: pre });
 	await push({ db, to: schema1 });
 	const { sqlStatements: st3 } = await push({ db, to: schema2 });
 	const expectedAlter = `ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT ${expectedDefault};`;
 	if (st3.length !== 1 || st3[0] !== expectedAlter) res.push(`Unexpected default alter:\n${st3}\n\n${expectedAlter}`);
 
 	await clear();
+
+	const schema3 = {
+		...pre,
+		table: cockroachdbTable('table', { id: int4().generatedAlwaysAsIdentity() }),
+	};
+
+	const schema4 = {
+		...pre,
+		table: cockroachdbTable('table', { id: int4().generatedAlwaysAsIdentity(), column: builder }),
+	};
+
+	if (pre) await push({ db, to: pre });
+	await push({ db, to: schema3 });
+	const { sqlStatements: st4 } = await push({ db, to: schema4 });
+
+	const expectedAddColumn = `ALTER TABLE "table" ADD COLUMN "column" ${sqlType} DEFAULT ${expectedDefault};`;
+	if (st4.length !== 1 || st4[0] !== expectedAddColumn) {
+		res.push(`Unexpected add column:\n${st4[0]}\n\n${expectedAddColumn}`);
+	}
 
 	return res;
 };
@@ -446,6 +478,9 @@ export const prepareTestDatabase = async (): Promise<TestDatabase> => {
 	do {
 		try {
 			client = await (new Pool({ connectionString })).connect();
+
+			await client.query('CREATE EXTENSION IF NOT EXISTS postgis;');
+			await client.query('CREATE EXTENSION IF NOT EXISTS vector;');
 
 			const clear = async () => {
 				await client.query('DROP DATABASE defaultdb;');

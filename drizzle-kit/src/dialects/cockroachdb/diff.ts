@@ -23,7 +23,7 @@ import {
 	tableFromDDL,
 	View,
 } from './ddl';
-import { JsonRecreatePrimaryKey, JsonStatement, prepareStatement } from './statements';
+import { JsonStatement, prepareStatement } from './statements';
 
 export const ddlDiffDry = async (ddlFrom: CockroachDbDDL, ddlTo: CockroachDbDDL, mode: 'default' | 'push') => {
 	const mocks = new Set<string>();

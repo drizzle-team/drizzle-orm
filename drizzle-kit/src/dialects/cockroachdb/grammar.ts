@@ -1,4 +1,3 @@
-import { escapeSingleQuotes } from 'src/utils';
 import { assertUnreachable } from '../../utils';
 import { hash } from '../common';
 import { CockroachDbEntities, Column } from './ddl';
@@ -12,6 +11,18 @@ export const trimChar = (str: string, char: string) => {
 
 	const res = start > 0 || end < str.length ? str.substring(start, end) : str;
 	return res;
+};
+
+export const splitSqlType = (sqlType: string) => {
+	// timestamp(6) with time zone -> [timestamp, 6, with time zone]
+	const match = sqlType.match(/^(\w+)\(([^)]*)\)(?:\s+with time zone)?$/i);
+	let type = match ? (match[1] + (match[3] ?? '')) : sqlType;
+	let options = match ? match[2].replaceAll(', ', ',') : null;
+
+	if (options && type === 'numeric') {
+		options = options.replace(',0', ''); // trim numeric (4,0)->(4), compatibility with Drizzle
+	}
+	return { type, options };
 };
 
 export const vectorOps = [
@@ -109,7 +120,23 @@ export function stringFromDatabaseIdentityProperty(field: any): string | null {
 		: String(field);
 }
 
-export function buildArrayString(array: any[], sqlType: string): string {
+// CockroachDb trims and pads defaults under the hood
+export function fixNumeric(value: string, scale?: number) {
+	const [integerPart, decimalPart] = value.split('.');
+
+	if (typeof scale === 'undefined') return value;
+	if (!decimalPart) return value;
+	if (scale === 0) return integerPart;
+	if (scale === decimalPart.length) return value;
+
+	const fixedDecimal = scale > decimalPart.length
+		? decimalPart.padEnd(scale, '0')
+		: decimalPart.slice(0, scale);
+
+	return `${integerPart}.${fixedDecimal}`;
+}
+
+export function buildArrayString(array: any[], sqlType: string, scale?: number): string {
 	// we check if array consists only of empty arrays down to 5th dimension
 	if (array.flat(5).length === 0) {
 		return '{}';
@@ -118,7 +145,7 @@ export function buildArrayString(array: any[], sqlType: string): string {
 	const values = array
 		.map((value) => {
 			if (sqlType.startsWith('numeric')) {
-				return String(value);
+				return fixNumeric(String(value), scale);
 			}
 
 			if (typeof value === 'number' || typeof value === 'bigint') {
@@ -130,7 +157,7 @@ export function buildArrayString(array: any[], sqlType: string): string {
 			}
 
 			if (Array.isArray(value)) {
-				return buildArrayString(value, sqlType);
+				return buildArrayString(value, sqlType, scale);
 			}
 
 			if (value instanceof Date) {
@@ -145,6 +172,11 @@ export function buildArrayString(array: any[], sqlType: string): string {
 
 			if (typeof value === 'object') {
 				return `"${JSON.stringify(value).replaceAll('"', '\\"')}"`;
+			}
+
+			if (typeof value === 'string') {
+				if (/^[a-zA-Z0-9./_':-]+$/.test(value)) return value.replaceAll("'", "''");
+				return `"${value.replaceAll("'", "''").replaceAll('"', '\\"')}"`;
 			}
 
 			return `"${value}"`;
@@ -336,6 +368,10 @@ export const defaultForColumn = (
 		return null;
 	}
 
+	if (type.startsWith('bit')) {
+		def = String(def).replace("B'", "'");
+	}
+
 	if (typeof def === 'boolean') {
 		return { type: 'boolean', value: String(def) };
 	}
@@ -351,58 +387,51 @@ export const defaultForColumn = (
 	value = type === 'numeric' || type.startsWith('numeric(') ? trimChar(value, "'") : value;
 
 	if (dimensions > 0) {
-		let trimmed = value.trimChar("'"); // '{10,20}' -> {10,20}
-		if (
-			['int4', 'int2', 'int8', 'double precision', 'real'].includes(type)
-			|| type.startsWith('timestamp') || type.startsWith('interval')
-			|| type === 'line' || type === 'point'
-			|| type.startsWith('numeric')
-		) {
-			return { value: trimmed, type: 'array' };
-		}
-
-		trimmed = trimmed.substring(1, trimmed.length - 1); // {10.10,20.20} -> 10.10,20.20
-		const values = trimmed
-			.split(/\s*,\s*/g)
-			.filter((it) => it !== '')
-			.map((value) => {
-				if (type === 'boolean') {
-					return value === 't' ? 'true' : 'false';
-				} else if (['json', 'jsonb'].includes(type)) {
-					return JSON.stringify(JSON.stringify(JSON.parse(JSON.parse(value)), null, 0));
-				} else {
-					return `\"${value}\"`;
-				}
-			});
-
-		const res = `{${values.join(',')}}`;
-		return { value: res, type: 'array' };
+		value = value.trimChar("'"); // '{10,20}' -> {10,20}
 	}
 
-	// 'text', potentially with escaped double quotes ''
-	if (/^'(?:[^']|'')*'$/.test(value)) {
-		const res = value.substring(1, value.length - 1).replaceAll("''", "'");
-
-		if (type === 'json' || type === 'jsonb') {
-			return { value: JSON.stringify(JSON.parse(res)), type };
-		}
-		return { value: res, type: 'string' };
+	if (type === 'jsonb') {
+		const removedEscape = value.startsWith("e'")
+			? value.replace("e'", "'").replaceAll("\\'", "''").replaceAll('\\"', '"')
+			: value;
+		const res = JSON.stringify(JSON.parse(removedEscape.slice(1, removedEscape.length - 1).replaceAll("''", "'")));
+		return {
+			value: res,
+			type: 'json',
+		};
 	}
 
-	if (/^true$|^false$/.test(value)) {
-		return { value: value, type: 'boolean' };
+	const trimmed = value.trimChar("'"); // '{10,20}' -> {10,20}
+
+	if (/^true$|^false$/.test(trimmed)) {
+		return { value: trimmed, type: 'boolean' };
 	}
 
 	// null or NULL
-	if (/^NULL$/i.test(value)) {
-		return { value: value.toUpperCase(), type: 'null' };
+	if (/^NULL$/i.test(trimmed)) {
+		return { value: trimmed.toUpperCase(), type: 'null' };
 	}
 
 	// previous /^-?[\d.]+(?:e-?\d+)?$/
-	if (/^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(value)) {
-		const num = Number(value);
+	if (/^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(trimmed) && !type.startsWith('bit')) {
+		const num = Number(trimmed);
 		const big = num > Number.MAX_SAFE_INTEGER || num < Number.MIN_SAFE_INTEGER;
-		return { value: value, type: big ? 'bigint' : 'number' };
+		return { value: trimmed, type: big ? 'bigint' : 'number' };
+	}
+
+	// for 'text' and e'text\'text'
+	if (/^(e|E)?'(?:[^'\\]|\\.|'')*'$/.test(value)) {
+		// e'text\'text' -> text'text
+		const removedEscape = value.startsWith("e'")
+			? value.replace("e'", "'").replaceAll("\\'", "''").replaceAll('\\"', '"')
+			: value;
+		const res = removedEscape.substring(1, removedEscape.length - 1);
+
+		if (type === 'json' || type === 'jsonb') {
+			return { value: JSON.stringify(JSON.parse(res.replaceAll("''", "'"))), type: 'json' };
+		}
+
+		return { value: res, type: 'string' };
 	}
 
 	return { value: value, type: 'unknown' };
@@ -417,18 +446,23 @@ export const defaultToSQL = (
 	const { type: columnType, dimensions, typeSchema } = it;
 	const { type, value } = it.default;
 
-	if (type === 'string') {
-		return `'${escapeSingleQuotes(value)}'`;
-	}
-
-	if (type === 'array') {
-		const suffix = dimensions > 0 ? '[]' : '';
+	const arrsuffix = dimensions > 0 ? '[]' : '';
+	if (typeSchema) {
 		const schemaPrefix = typeSchema && typeSchema !== 'public' ? `"${typeSchema}".` : '';
-		const t = isEnum || typeSchema ? `${schemaPrefix}"${columnType}"` : columnType;
-		return `'${value}'::${t}${suffix}`;
+		return `'${value}'::${schemaPrefix}"${columnType}"${arrsuffix}`;
 	}
 
-	if (type === 'bigint' || type === 'json' || type === 'jsonb') {
+	const suffix = arrsuffix ? `::${columnType}${arrsuffix}` : '';
+
+	if (type === 'string') {
+		return `'${value}'${suffix}`;
+	}
+
+	if (type === 'json') {
+		return `'${value.replaceAll("'", "''")}'${suffix}`;
+	}
+
+	if (type === 'bigint' || type === 'jsonb') {
 		return `'${value}'`;
 	}
 

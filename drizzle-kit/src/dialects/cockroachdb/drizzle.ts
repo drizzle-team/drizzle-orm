@@ -50,9 +50,11 @@ import {
 	defaultNameForPK,
 	defaultNameForUnique,
 	defaults,
+	fixNumeric,
 	indexName,
 	maxRangeForIdentityBasedOn,
 	minRangeForIdentityBasedOn,
+	splitSqlType,
 	stringFromIdentityProperty,
 	trimChar,
 } from './grammar';
@@ -109,14 +111,17 @@ export const unwrapColumn = (column: AnyCockroachDbColumn) => {
 	let sqlBaseType = baseColumn.getSQLType();
 	sqlBaseType = sqlBaseType.startsWith('timestamp (') ? sqlBaseType.replace('timestamp (', 'timestamp(') : sqlBaseType;
 
-	const sqlType = dimensions > 0 ? `${sqlBaseType}[]` : sqlBaseType;
+	const { type, options } = splitSqlType(sqlBaseType);
+	const sqlType = dimensions > 0 ? `${sqlBaseType}${'[]'.repeat(dimensions)}` : sqlBaseType;
+
 	return {
 		baseColumn,
 		dimensions,
 		isEnum,
 		typeSchema,
 		sqlType,
-		sqlBaseType,
+		baseType: type,
+		options,
 	};
 };
 
@@ -141,10 +146,11 @@ export const transformOnUpdateDelete = (on: UpdateDeleteAction): ForeignKey['onU
 };
 
 export const defaultFromColumn = (
-	base: AnyCockroachDbColumn | AnyGelColumn,
+	base: AnyCockroachDbColumn,
 	def: unknown,
 	dimensions: number,
-	dialect: CockroachDbDialect | GelDialect,
+	dialect: CockroachDbDialect,
+	options: string | null,
 ): Column['default'] => {
 	if (typeof def === 'undefined') return null;
 
@@ -160,64 +166,96 @@ export const defaultFromColumn = (
 		};
 	}
 
-	if (typeof def === 'string') {
+	const sqlTypeLowered = base.getSQLType().toLowerCase();
+	if (sqlTypeLowered === 'jsonb') {
+		const value = dimensions > 0 && Array.isArray(def) ? buildArrayString(def, sqlTypeLowered) : JSON.stringify(def);
 		return {
-			value: def,
+			value: value,
+			type: 'json',
+		};
+	}
+
+	let scale: number | undefined;
+	if (sqlTypeLowered.startsWith('numeric')) {
+		// if precision exists and scale not -> scale = 0
+		// if scale exists -> scale = scale
+		// if options does not exists (p,s are not present) -> scale is undefined
+		if (options) {
+			// if option exists we have 2 possible variants
+			// 1. p exists
+			// 2. p and s exists
+			const [_, s] = options.split(',');
+
+			// if scale exists - use scale
+			// else use 0 (cause p exists)
+			scale = s !== undefined ? Number(s) : 0;
+		}
+	}
+
+	if (typeof def === 'string') {
+		const value = dimensions > 0 && Array.isArray(def)
+			? buildArrayString(def, sqlTypeLowered, scale)
+			: fixNumeric(def, scale).replaceAll("'", "''");
+
+		return {
+			value: value,
 			type: 'string',
 		};
 	}
 
 	if (typeof def === 'boolean') {
+		const value = dimensions > 0 && Array.isArray(def)
+			? buildArrayString(def, sqlTypeLowered)
+			: (def ? 'true' : 'false');
 		return {
-			value: def ? 'true' : 'false',
+			value: value,
 			type: 'boolean',
 		};
 	}
 
 	if (typeof def === 'number') {
+		const value = dimensions > 0 && Array.isArray(def)
+			? buildArrayString(def, sqlTypeLowered, scale)
+			: fixNumeric(String(def), scale);
 		return {
-			value: String(def),
+			value: value,
 			type: 'number',
-		};
-	}
-
-	const sqlTypeLowered = base.getSQLType().toLowerCase();
-	if (dimensions > 0 && Array.isArray(def)) {
-		return {
-			value: buildArrayString(def, sqlTypeLowered),
-			type: 'array',
-		};
-	}
-
-	if (sqlTypeLowered === 'jsonb' || sqlTypeLowered === 'json') {
-		return {
-			value: JSON.stringify(def),
-			type: sqlTypeLowered,
 		};
 	}
 
 	if (def instanceof Date) {
 		if (sqlTypeLowered === 'date') {
+			const value = dimensions > 0 && Array.isArray(def)
+				? buildArrayString(def, sqlTypeLowered)
+				: def.toISOString().split('T')[0];
 			return {
-				value: def.toISOString().split('T')[0],
+				value: value,
 				type: 'string',
 			};
 		}
 		if (sqlTypeLowered === 'timestamp') {
+			const value = dimensions > 0 && Array.isArray(def)
+				? buildArrayString(def, sqlTypeLowered)
+				: def.toISOString().replace('T', ' ').slice(0, 23);
 			return {
-				value: def.toISOString().replace('T', ' ').slice(0, 23),
+				value: value,
 				type: 'string',
 			};
 		}
-
+		const value = dimensions > 0 && Array.isArray(def)
+			? buildArrayString(def, sqlTypeLowered)
+			: def.toISOString();
 		return {
-			value: def.toISOString(),
+			value: value,
 			type: 'string',
 		};
 	}
 
+	const value = dimensions > 0 && Array.isArray(def)
+		? buildArrayString(def, sqlTypeLowered, scale)
+		: fixNumeric(String(def), scale);
 	return {
-		value: String(def),
+		value: value,
 		type: 'string',
 	};
 };
@@ -390,16 +428,17 @@ export const fromDrizzleSchema = (
 					}
 					: null;
 
-				const { baseColumn, dimensions, sqlBaseType, typeSchema } = unwrapColumn(column);
+				const { baseColumn, dimensions, sqlType, baseType, options, typeSchema } = unwrapColumn(column);
 
-				const columnDefault = defaultFromColumn(baseColumn, column.default, dimensions, dialect);
+				const columnDefault = defaultFromColumn(baseColumn, column.default, dimensions, dialect, options);
 				const isPartOfPk = drizzlePKs.find((it) => it.columns.map((it) => it.name).includes(column.name));
 				return {
 					entityType: 'columns',
 					schema: schema,
 					table: tableName,
 					name,
-					type: sqlBaseType,
+					type: baseType,
+					options,
 					typeSchema: typeSchema ?? null,
 					dimensions: dimensions,
 					pk: column.primary,

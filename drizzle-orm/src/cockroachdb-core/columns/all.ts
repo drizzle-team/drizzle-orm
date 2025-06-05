@@ -7,7 +7,6 @@ import { doublePrecision } from './double-precision.ts';
 import { inet } from './inet.ts';
 import { int4 } from './integer.ts';
 import { interval } from './interval.ts';
-import { json } from './json.ts';
 import { jsonb } from './jsonb.ts';
 import { numeric } from './numeric.ts';
 import { geometry } from './postgis_extension/geometry.ts';
@@ -34,7 +33,6 @@ export function getCockroachDbColumnBuilders() {
 		int2,
 		int8,
 		interval,
-		json,
 		jsonb,
 		numeric,
 		geometry,

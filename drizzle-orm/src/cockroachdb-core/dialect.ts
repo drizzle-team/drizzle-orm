@@ -4,7 +4,6 @@ import {
 	CockroachDbColumn,
 	CockroachDbDate,
 	CockroachDbDateString,
-	CockroachDbJson,
 	CockroachDbJsonb,
 	CockroachDbNumeric,
 	CockroachDbTime,
@@ -579,7 +578,7 @@ export class CockroachDbDialect {
 	}
 
 	prepareTyping(encoder: DriverValueEncoder<unknown, unknown>): QueryTypingsValue {
-		if (is(encoder, CockroachDbJsonb) || is(encoder, CockroachDbJson)) {
+		if (is(encoder, CockroachDbJsonb)) {
 			return 'json';
 		} else if (is(encoder, CockroachDbNumeric)) {
 			return 'decimal';

@@ -10,7 +10,6 @@ export * from './inet.ts';
 export * from './int.common.ts';
 export * from './integer.ts';
 export * from './interval.ts';
-export * from './json.ts';
 export * from './jsonb.ts';
 export * from './numeric.ts';
 export * from './postgis_extension/geometry.ts';

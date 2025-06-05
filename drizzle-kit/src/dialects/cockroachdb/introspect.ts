@@ -25,6 +25,7 @@ import {
 	parseOnType,
 	parseViewDefinition,
 	splitExpressions,
+	splitSqlType,
 	stringFromDatabaseIdentityProperty as parseIdentityProperty,
 	trimChar,
 } from './grammar';
@@ -556,7 +557,6 @@ WHERE relnamespace IN (${filteredNamespacesIds.join(',')});`);
 			? groupedArrEnums[column.typeId]
 			: null;
 		let columnTypeMapped = enumType ? enumType.name : column.type.replace('[]', '');
-		columnTypeMapped = trimChar(columnTypeMapped, '"');
 
 		if (columnTypeMapped.startsWith('numeric(')) {
 			columnTypeMapped = columnTypeMapped.replace(',', ', ');
@@ -582,6 +582,10 @@ WHERE relnamespace IN (${filteredNamespacesIds.join(',')});`);
 			.replace('integer', 'int4')
 			.replace('bigint', 'int8')
 			.replace('smallint', 'int2');
+
+		columnTypeMapped = trimChar(columnTypeMapped, '"');
+
+		const { type, options } = splitSqlType(columnTypeMapped);
 
 		const unique = constraintsList.find((it) => {
 			return it.type === 'u' && it.tableId === column.tableId && it.columnsOrdinals.length === 1
@@ -617,7 +621,8 @@ WHERE relnamespace IN (${filteredNamespacesIds.join(',')});`);
 			schema: schema.name,
 			table: table.name,
 			name: column.name,
-			type: columnTypeMapped,
+			type,
+			options,
 			typeSchema: enumType?.schema ?? null,
 			dimensions: columnDimensions,
 			default: column.generatedType === 's' || column.identityType ? null : defaultValue,

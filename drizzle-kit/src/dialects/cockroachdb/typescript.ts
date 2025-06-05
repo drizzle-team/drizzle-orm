@@ -10,8 +10,9 @@ import {
 } from 'drizzle-orm/relations';
 import '../../@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
+import { parseArray } from 'src/utils/parse-pgarray';
 import { Casing } from '../../cli/validations/common';
-import { assertUnreachable } from '../../utils';
+import { assertUnreachable, stringifyArray } from '../../utils';
 import { unescapeSingleQuotes } from '../../utils';
 import {
 	CheckConstraint,
@@ -50,6 +51,7 @@ const cockroachdbImportsList = new Set([
 	'doublePrecision',
 	'uuid',
 	'vector',
+	'bit',
 	'geometry',
 ]);
 
@@ -137,10 +139,10 @@ const mapColumnDefault = (def: Exclude<Column['default'], null>) => {
 		return `sql\`${def.value}\``;
 	}
 	if (def.type === 'bigint') {
-		return `${def.value}b`;
+		return `${def.value}n`;
 	}
 	if (def.type === 'string') {
-		return `"${def.value.replaceAll('"', '\\"')}"`;
+		return `"${def.value.replaceAll("''", "'").replaceAll('"', '\\"')}"`;
 	}
 
 	return def.value;
@@ -581,71 +583,117 @@ const mapDefault = (
 
 	const lowered = type.toLowerCase().replace('[]', '');
 
-	if (dimensions > 0) {
-		return `.default(${buildArrayDefault(def.value, lowered)})`;
-	}
-
 	if (enumTypes.has(`${typeSchema}.${type.replace('[]', '')}`)) {
+		if (dimensions > 0) {
+			const arr = parseArray(def.value);
+			if (arr.flat(5).length === 0) return `.default([])`;
+			const res = stringifyArray(arr, 'ts', (x) => `'${x.replaceAll("'", "\\'")}'`);
+			return `.default(${res})`;
+		}
 		return `.default(${mapColumnDefault(def)})`;
 	}
 
-	if (lowered.startsWith('uuid')) {
-		return def.value === 'gen_random_uuid()'
-			? '.defaultRandom()'
-			: def.type === 'unknown'
-			? `.default(sql\`${def.value}\`)`
-			: `.default('${def.value}')`;
+	const parsed = dimensions > 0 ? parseArray(def.value) : def.value;
+	if (lowered === 'uuid') {
+		if (def.value === 'gen_random_uuid()') return '.defaultRandom()';
+		const res = stringifyArray(parsed, 'ts', (x) => {
+			return `'${x}'`;
+		});
+		return `.default(${res})`;
 	}
 
-	if (lowered.startsWith('timestamp')) {
-		return def.value === 'now()'
-			? '.defaultNow()'
-			: /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d+)?([+-]\d{2}(:\d{2})?)?$/.test(def.value) // Matches YYYY-MM-DD HH:MI:SS, YYYY-MM-DD HH:MI:SS.FFFFFF, YYYY-MM-DD HH:MI:SS+TZ, YYYY-MM-DD HH:MI:SS.FFFFFF+TZ and YYYY-MM-DD HH:MI:SS+HH:MI
-			? `.default('${def.value}')`
-			: `.default(sql\`${def.value}\`)`;
+	if (lowered === 'timestamp') {
+		if (def.value === 'now()') return '.defaultNow()';
+		const res = stringifyArray(parsed, 'ts', (x) => {
+			// Matches YYYY-MM-DD HH:MI:SS, YYYY-MM-DD HH:MI:SS.FFFFFF, YYYY-MM-DD HH:MI:SS+TZ, YYYY-MM-DD HH:MI:SS.FFFFFF+TZ and YYYY-MM-DD HH:MI:SS+HH:MI
+			return /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d+)?([+-]\d{2}(:\d{2})?)?$/.test(x) ? `'${x}'` : `sql\`${x}\``;
+		});
+
+		return `.default(${res})`;
 	}
 
-	if (lowered.startsWith('time')) {
-		return def.value === 'now()'
-			? '.defaultNow()'
-			: /^\d{2}:\d{2}(:\d{2})?(\.\d+)?$/.test(def.value) // Matches HH:MI, HH:MI:SS and HH:MI:SS.FFFFFF
-			? `.default('${def.value}')`
-			: `.default(sql\`${def.value}\`)`;
+	if (lowered === 'time') {
+		if (def.value === 'now()') return '.defaultNow()';
+		const res = stringifyArray(parsed, 'ts', (x) => {
+			return /^\d{2}:\d{2}(:\d{2})?(\.\d+)?$/.test(x) ? `'${x}'` : `sql\`${x}\``; // Matches HH:MI, HH:MI:SS and HH:MI:SS.FFFFFF
+		});
+
+		return `.default(${res})`;
 	}
 
 	if (lowered === 'date') {
-		return def.value === 'now()'
-			? '.defaultNow()'
-			: /^\d{4}-\d{2}-\d{2}$/.test(def.value) // Matches YYYY-MM-DD
-			? `.default('${def.value}')`
-			: `.default(sql\`${def.value}\`)`;
+		if (def.value === 'now()') return '.defaultNow()';
+		const res = stringifyArray(parsed, 'ts', (x) => {
+			return /^\d{4}-\d{2}-\d{2}$/.test(x) ? `'${x}'` : `sql\`${x}\``; // Matches YYYY-MM-DD
+		});
+		return `.default(${res})`;
 	}
 
-	if (lowered.startsWith('json') || lowered.startsWith('jsonb')) {
-		return def.value ? `.default(${def.value})` : '';
+	if (lowered === 'json' || lowered === 'jsonb') {
+		if (!def.value) return '';
+		const res = stringifyArray(parsed, 'ts', (x) => {
+			return String(x);
+		});
+		return `.default(${res})`;
 	}
+
+	if (lowered === 'point' || lowered === 'line') {
+		if (typeof parsed === 'string') {
+			return `.default([${parsed.substring(1, parsed.length - 1).split(',')}])`; // "{1,1,1}" -> [1,1,1]
+		}
+		if (parsed.flat(5).length === 0) return `.default([])`;
+		const res = stringifyArray(parsed, 'ts', (x) => String(x.substring(1, x.length - 1).split(',')));
+
+		return `.default([${res}])`;
+	}
+
+	// if () {
+	// 		if (typeof parsed === 'string') {
+	// 		return `.default([${parsed.substring(1, parsed.length - 1).split(',')}])`; // "{1,1,1}" -> [1,1,1]
+	// 	}
+	// 	if (parsed.flat(5).length === 0) return `.default([])`;
+	// 	const res = stringifyArray(parsed, 'ts', (x) => String(x.substring(1, x.length - 1).split(',')));
+
+	// 	return `.default([${res}])`;
+	// }
 
 	if (
-		lowered.startsWith('point')
-		|| lowered.startsWith('line')
-		|| lowered.startsWith('geometry')
-		|| lowered.startsWith('vector')
-		|| lowered.startsWith('char')
-		|| lowered.startsWith('varchar')
-		|| lowered.startsWith('inet')
-		|| lowered.startsWith('cidr')
-		|| lowered.startsWith('macaddr8')
-		|| lowered.startsWith('macaddr')
-		|| lowered.startsWith('text')
-		|| lowered.startsWith('interval')
-		|| lowered.startsWith('numeric')
-		|| lowered.startsWith('int4')
-		|| lowered.startsWith('int2')
-		|| lowered.startsWith('int8')
-		|| lowered.startsWith('boolean')
-		|| lowered.startsWith('double precision')
-		|| lowered.startsWith('real')
+		lowered === 'geometry'
+		|| lowered === 'vector'
+		|| lowered === 'char'
+		|| lowered === 'varchar'
+		|| lowered === 'inet'
+		|| lowered === 'text'
+		|| lowered === 'interval'
+		|| lowered === 'numeric'
+		|| lowered === 'int4'
+		|| lowered === 'int2'
+		|| lowered === 'int8'
+		|| lowered === 'boolean'
+		|| lowered === 'double precision'
+		|| lowered === 'real'
+		|| lowered === 'bit'
 	) {
+		const mapper = lowered === 'char'
+				|| lowered === 'varchar'
+				|| lowered === 'text'
+				|| lowered === 'interval'
+				|| lowered === 'inet'
+			? (x: string) => `\`${x.replaceAll('`', '\\`')}\``
+			: lowered === 'int8'
+					|| lowered === 'numeric'
+			? (x: string) => {
+				const value = Number(x);
+				return value > Number.MAX_SAFE_INTEGER || value < Number.MIN_SAFE_INTEGER ? `${x}n` : `${x}`;
+			}
+			: (x: string) => `${x}`;
+		if (dimensions > 0) {
+			const arr = parseArray(def.value);
+			if (arr.flat(5).length === 0) return `.default([])`;
+			const res = stringifyArray(arr, 'ts', mapper);
+			return `.default(${res})`;
+		}
+
 		return `.default(${mapColumnDefault(def)})`;
 	}
 
@@ -654,6 +702,7 @@ const mapDefault = (
 
 const column = (
 	type: string,
+	options: string | null,
 	name: string,
 	enumTypes: Set<string>,
 	typeSchema: string,
@@ -681,7 +730,8 @@ const column = (
 
 	if (lowered.startsWith('int8')) {
 		let out = `// You can use { mode: "bigint" } if numbers are exceeding js number limitations\n\t`;
-		out += `${withCasing(name, casing)}: int8(${dbColumnName({ name, casing, withMode: true })}{ mode: "number" })`;
+		const mode = def && def.type === 'bigint' ? 'bigint' : 'number';
+		out += `${withCasing(name, casing)}: int8(${dbColumnName({ name, casing, withMode: true })}{ mode: "${mode}" })`;
 		return out;
 	}
 
@@ -706,37 +756,38 @@ const column = (
 		return out;
 	}
 
-	if (lowered.startsWith('numeric')) {
-		let params: { precision?: string; scale?: string; mode?: any } = {};
+	if (lowered === 'numeric') {
+		let params: { precision?: number; scale?: number; mode?: any } = {};
 
-		if (lowered.length > 7) {
-			const [precision, scale] = lowered.slice(8, lowered.length - 1).split(',');
-			params = { precision, scale };
+		if (options) {
+			const [p, s] = options.split(',');
+			if (p) params['precision'] = Number(p);
+			if (s) params['scale'] = Number(s);
 		}
 
-		let mode = def === null || def.type === 'number'
-			? '"number"'
-			: def.type === 'bigint'
-			? '"bigint"'
-			: def.type === 'string'
-			? ''
-			: '';
+		let mode = def !== null && def.type === 'bigint'
+			? 'bigint'
+			: def !== null && def.type === 'string'
+			? 'number'
+			: 'number';
+
 		if (mode) params['mode'] = mode;
 
-		let out = params
-			? `${withCasing(name, casing)}: numeric(${dbColumnName({ name, casing, withMode: true })}${timeConfig(params)})`
+		let out = Object.keys(params).length > 0
+			? `${withCasing(name, casing)}: numeric(${dbColumnName({ name, casing, withMode: true })}${
+				JSON.stringify(params)
+			})`
 			: `${withCasing(name, casing)}: numeric(${dbColumnName({ name, casing })})`;
 
 		return out;
 	}
 
-	if (lowered.startsWith('timestamp')) {
+	if (lowered === 'timestamp') {
 		const withTimezone = lowered.includes('with time zone');
-		// const split = lowered.split(" ");
-		let precision = lowered.startsWith('timestamp(')
-			? Number(lowered.split(' ')[0].substring('timestamp('.length, lowered.split(' ')[0].length - 1))
+
+		const precision = options
+			? Number(options)
 			: null;
-		precision = precision ? precision : null;
 
 		const params = timeConfig({
 			precision,
@@ -751,13 +802,12 @@ const column = (
 		return out;
 	}
 
-	if (lowered.startsWith('time')) {
+	if (lowered === 'time') {
 		const withTimezone = lowered.includes('with time zone');
 
-		let precision = lowered.startsWith('time(')
-			? Number(lowered.split(' ')[0].substring('time('.length, lowered.split(' ')[0].length - 1))
+		let precision = options
+			? Number(options)
 			: null;
-		precision = precision ? precision : null;
 
 		const params = timeConfig({ precision, withTimezone });
 
@@ -824,17 +874,12 @@ const column = (
 		return out;
 	}
 
-	if (lowered.startsWith('varchar') || lowered.startsWith('character varying')) {
-		const size = lowered.startsWith('character varying(')
-			? lowered.substring(18, lowered.length - 1)
-			: lowered.startsWith('varchar(')
-			? lowered.substring(8, lowered.length - 1)
-			: '';
+	if (lowered === 'varchar') {
 		let out: string;
-		if (size) {
+		if (options) { // size
 			out = `${withCasing(name, casing)}: varchar(${
 				dbColumnName({ name, casing, withMode: true })
-			}{ length: ${size} })`;
+			}{ length: ${options} })`;
 		} else {
 			out = `${withCasing(name, casing)}: varchar(${dbColumnName({ name, casing })})`;
 		}
@@ -842,23 +887,13 @@ const column = (
 		return out;
 	}
 
-	if (lowered.startsWith('point')) {
-		let out: string = `${withCasing(name, casing)}: point(${dbColumnName({ name, casing })})`;
-		return out;
-	}
-
-	if (lowered.startsWith('line')) {
-		let out: string = `${withCasing(name, casing)}: line(${dbColumnName({ name, casing })})`;
-		return out;
-	}
-
-	if (lowered.startsWith('geometry')) {
+	if (lowered === 'geometry') {
 		let out: string = '';
 
 		let isGeoUnknown = false;
 
 		if (lowered.length !== 8) {
-			const geometryOptions = lowered.slice(9, -1).split(',');
+			const geometryOptions = options ? options.split(',') : [];
 			if (geometryOptions.length === 1 && geometryOptions[0] !== '') {
 				out = `${withCasing(name, casing)}: geometry(${dbColumnName({ name, casing, withMode: true })}{ type: "${
 					geometryOptions[0]
@@ -883,12 +918,12 @@ const column = (
 		return out;
 	}
 
-	if (lowered.startsWith('vector')) {
+	if (lowered === 'vector') {
 		let out: string;
-		if (lowered.length !== 6) {
-			out = `${withCasing(name, casing)}: vector(${dbColumnName({ name, casing, withMode: true })}{ dimensions: ${
-				lowered.substring(7, lowered.length - 1)
-			} })`;
+		if (options) {
+			out = `${withCasing(name, casing)}: vector(${
+				dbColumnName({ name, casing, withMode: true })
+			}{ dimensions: ${options} })`;
 		} else {
 			out = `${withCasing(name, casing)}: vector(${dbColumnName({ name, casing })})`;
 		}
@@ -896,16 +931,25 @@ const column = (
 		return out;
 	}
 
-	if (lowered.startsWith('char')) {
-		const size = lowered.startsWith('character(')
-			? lowered.substring(10, lowered.length - 1)
-			: lowered.startsWith('char(')
-			? lowered.substring(5, lowered.length - 1)
-			: '';
-
+	if (lowered === 'bit') {
 		let out: string;
-		if (size) {
-			out = `${withCasing(name, casing)}: char(${dbColumnName({ name, casing, withMode: true })}{ length: ${size} })`;
+		if (options) {
+			out = `${withCasing(name, casing)}: bit(${
+				dbColumnName({ name, casing, withMode: true })
+			}{ dimensions: ${options} })`;
+		} else {
+			out = `${withCasing(name, casing)}: bit(${dbColumnName({ name, casing })})`;
+		}
+
+		return out;
+	}
+
+	if (lowered === 'char') {
+		let out: string;
+		if (options) {
+			out = `${withCasing(name, casing)}: char(${
+				dbColumnName({ name, casing, withMode: true })
+			}{ length: ${options} })`;
 		} else {
 			out = `${withCasing(name, casing)}: char(${dbColumnName({ name, casing })})`;
 		}
@@ -931,6 +975,7 @@ const createViewColumns = (
 	columns.forEach((it) => {
 		const columnStatement = column(
 			it.type,
+			null,
 			it.name,
 			enumTypes,
 			it.typeSchema ?? 'public',
@@ -974,11 +1019,12 @@ const createTableColumns = (
 	columns.forEach((it) => {
 		const columnStatement = column(
 			it.type,
+			it.options,
 			it.name,
 			enumTypes,
 			it.typeSchema ?? 'public',
 			casing,
-			null,
+			it.default,
 		);
 		const pk = primaryKey && primaryKey.columns.length === 1 && primaryKey.columns[0] === it.name
 			? primaryKey

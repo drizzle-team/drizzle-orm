@@ -93,7 +93,9 @@ const createTableConvertor = convertor('create_table', (st) => {
 			: '';
 
 		const arr = column.dimensions > 0 ? '[]' : '';
-		const type = `${parseType(schemaPrefix, column.type)}${arr}`;
+		const options = column.options ? `(${column.options})` : '';
+		const colType = column.typeSchema ? `"${column.type}"` : column.type;
+		const type = `${schemaPrefix}${colType}${options}${arr}`;
 
 		const generated = column.generated;
 
@@ -203,8 +205,9 @@ const addColumnConvertor = convertor('add_column', (st) => {
 		? `"${column.typeSchema}".`
 		: '';
 
-	let fixedType = parseType(schemaPrefix, column.type);
-	fixedType += column.dimensions > 0 ? '[]' : '';
+	const options = column.options ? `(${column.options})` : '';
+	const type = column.typeSchema ? `"${column.type}"` : column.type;
+	let fixedType = `${schemaPrefix}${type}${options}${'[]'.repeat(column.dimensions)}`;
 
 	const notNullStatement = column.notNull && !identity && !generated ? ' NOT NULL' : '';
 
@@ -275,17 +278,24 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 	}
 
-	if (diff.type) {
+	if (diff.type || diff.options) {
 		const typeSchema = column.typeSchema && column.typeSchema !== 'public' ? `"${column.typeSchema}".` : '';
 		const textProxy = wasEnum && isEnum ? 'text::' : ''; // using enum1::text::enum2
 		const arrSuffix = column.dimensions > 0 ? '[]' : '';
 		const suffix = isEnum ? ` USING "${column.name}"::${textProxy}${typeSchema}"${column.type}"${arrSuffix}` : '';
-		let type = diff.typeSchema?.to && diff.typeSchema.to !== 'public'
-			? `"${diff.typeSchema.to}"."${diff.type.to}"`
-			: isEnum
-			? `"${diff.type.to}"`
-			: diff.type.to;
+		let type: string;
 
+		if (diff.type) {
+			type = diff.typeSchema?.to && diff.typeSchema.to !== 'public'
+				? `"${diff.typeSchema.to}"."${diff.type.to}"`
+				: isEnum
+				? `"${diff.type.to}"`
+				: diff.type.to; // TODO: enum?
+		} else {
+			type = `${typeSchema}${column.typeSchema ? `"${column.type}"` : column.type}`;
+		}
+
+		type += column.options ? `(${column.options})` : '';
 		type += arrSuffix;
 		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${type}${suffix};`);
 
