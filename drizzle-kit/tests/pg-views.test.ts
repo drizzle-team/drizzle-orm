@@ -476,6 +476,8 @@ test('create table and materialized view #3', async () => {
 			parallelWorkers: 1,
 			toastTupleTarget: 1,
 			userCatalogTable: true,
+			'timescaledb.continuous': true,
+	    'timescaledb.materializedOnly': false,
 			vacuumIndexCleanup: 'off',
 			vacuumTruncate: false,
 		}).as((qb) => qb.select().from(users)),
@@ -534,6 +536,8 @@ test('create table and materialized view #3', async () => {
 			parallelWorkers: 1,
 			toastTupleTarget: 1,
 			userCatalogTable: true,
+			"timescaledb.continuous": true,
+	    "timescaledb.materializedOnly": false,
 			vacuumIndexCleanup: 'off',
 			vacuumTruncate: false,
 		},
@@ -551,7 +555,7 @@ test('create table and materialized view #3', async () => {
 		`CREATE MATERIALIZED VIEW "public"."some_view1" AS (SELECT * FROM "users");`,
 	);
 	expect(sqlStatements[2]).toBe(
-		`CREATE MATERIALIZED VIEW "public"."some_view2" USING "heap" WITH (autovacuum_enabled = true, autovacuum_freeze_max_age = 1, autovacuum_freeze_min_age = 1, autovacuum_freeze_table_age = 1, autovacuum_multixact_freeze_max_age = 1, autovacuum_multixact_freeze_min_age = 1, autovacuum_multixact_freeze_table_age = 1, autovacuum_vacuum_cost_delay = 1, autovacuum_vacuum_cost_limit = 1, autovacuum_vacuum_scale_factor = 1, autovacuum_vacuum_threshold = 1, fillfactor = 1, log_autovacuum_min_duration = 1, parallel_workers = 1, toast_tuple_target = 1, user_catalog_table = true, vacuum_index_cleanup = off, vacuum_truncate = false) TABLESPACE some_tablespace AS (select "id" from "users") WITH NO DATA;`,
+		`CREATE MATERIALIZED VIEW "public"."some_view2" USING "heap" WITH (autovacuum_enabled = true, autovacuum_freeze_max_age = 1, autovacuum_freeze_min_age = 1, autovacuum_freeze_table_age = 1, autovacuum_multixact_freeze_max_age = 1, autovacuum_multixact_freeze_min_age = 1, autovacuum_multixact_freeze_table_age = 1, autovacuum_vacuum_cost_delay = 1, autovacuum_vacuum_cost_limit = 1, autovacuum_vacuum_scale_factor = 1, autovacuum_vacuum_threshold = 1, fillfactor = 1, log_autovacuum_min_duration = 1, parallel_workers = 1, toast_tuple_target = 1, user_catalog_table = true, timescaledb.continuous = true, timescaledb.materialized_only = false, vacuum_index_cleanup = off, vacuum_truncate = false) TABLESPACE some_tablespace AS (select "id" from "users") WITH NO DATA;`,
 	);
 });
 
