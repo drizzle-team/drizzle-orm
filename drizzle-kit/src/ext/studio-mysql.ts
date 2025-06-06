@@ -119,7 +119,7 @@ const fromInterims = ({
     };
 };
 
-export const diffPostgresql = async (from: InterimStudioSchema, to: InterimStudioSchema, renamesArr: string[]) => {
+export const diffMySql = async (from: InterimStudioSchema, to: InterimStudioSchema, renamesArr: string[]) => {
     const { ddl: ddl1 } = interimToDDL(fromInterims(from));
     const { ddl: ddl2 } = interimToDDL(fromInterims(to));
 
