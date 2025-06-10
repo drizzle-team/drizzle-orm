@@ -114,7 +114,7 @@ beforeAll(async () => {
 			throw e;
 		}
 	}, { logger: ENABLE_LOGGING, extensions: await createExtensions() });
-}, 400000);
+}, 800000);
 
 afterAll(async () => {
 	await client?.end();
