@@ -44,6 +44,7 @@ import type {
 	SelectedFields,
 	SetOperatorRightSelect,
 	SingleStoreCreateSetOperatorFn,
+	SingleStoreCrossJoinFn,
 	SingleStoreJoinFn,
 	SingleStoreSelectConfig,
 	SingleStoreSelectDynamic,
@@ -210,7 +211,9 @@ export abstract class SingleStoreSelectQueryBuilderBase<
 	>(
 		joinType: TJoinType,
 		lateral: TIsLateral,
-	): SingleStoreJoinFn<this, TDynamic, TJoinType, TIsLateral> {
+	): 'cross' extends TJoinType ? SingleStoreCrossJoinFn<this, TDynamic, TIsLateral>
+		: SingleStoreJoinFn<this, TDynamic, TJoinType, TIsLateral>
+	{
 		return (
 			table: SingleStoreTable | Subquery | SQL, // | SingleStoreViewBase
 			on?: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
