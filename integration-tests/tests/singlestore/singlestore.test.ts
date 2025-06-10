@@ -3,7 +3,7 @@ import { drizzle } from 'drizzle-orm/singlestore';
 import type { SingleStoreDriverDatabase } from 'drizzle-orm/singlestore';
 import * as mysql2 from 'mysql2/promise';
 import { afterAll, beforeAll, beforeEach } from 'vitest';
-import { createDockerDB, tests } from './singlestore-common';
+import { createDockerDB, createExtensions, tests } from './singlestore-common';
 
 const ENABLE_LOGGING = false;
 
@@ -35,7 +35,7 @@ beforeAll(async () => {
 
 	await client.query(`CREATE DATABASE IF NOT EXISTS drizzle;`);
 	await client.changeUser({ database: 'drizzle' });
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, { logger: ENABLE_LOGGING, extensions: await createExtensions() });
 });
 
 afterAll(async () => {

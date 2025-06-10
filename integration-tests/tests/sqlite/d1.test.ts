@@ -7,7 +7,7 @@ import { migrate } from 'drizzle-orm/d1/migrator';
 import { beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
-import { anotherUsersMigratorTable, tests, usersMigratorTable } from './sqlite-common';
+import { anotherUsersMigratorTable, createExtensions, tests, usersMigratorTable } from './sqlite-common';
 
 const ENABLE_LOGGING = false;
 
@@ -16,7 +16,7 @@ let db: DrizzleD1Database;
 beforeAll(async () => {
 	const sqliteDb = await createSQLiteDB(':memory:');
 	const d1db = new D1Database(new D1DatabaseAPI(sqliteDb));
-	db = drizzle(d1db, { logger: ENABLE_LOGGING });
+	db = drizzle(d1db, { logger: ENABLE_LOGGING, extensions: await createExtensions() });
 });
 
 beforeEach((ctx) => {
@@ -86,5 +86,6 @@ skipTests([
 	'select from alias',
 	'join view as subquery',
 	'cross join',
+	'S3File - insert + select custom selection',
 ]);
 tests();

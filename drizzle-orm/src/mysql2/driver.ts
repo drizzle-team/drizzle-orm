@@ -1,6 +1,7 @@
 import { type Connection as CallbackConnection, createPool, type Pool as CallbackPool, type PoolOptions } from 'mysql2';
 import type { Connection, Pool } from 'mysql2/promise';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleMySqlExtension } from '~/extension-core/mysql/index.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { MySqlDatabase } from '~/mysql-core/db.ts';
@@ -28,6 +29,7 @@ export class MySql2Driver {
 		private client: MySql2Client,
 		private dialect: MySqlDialect,
 		private options: MySqlDriverOptions = {},
+		private extensions?: DrizzleMySqlExtension[],
 	) {
 	}
 
@@ -35,7 +37,7 @@ export class MySql2Driver {
 		schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined,
 		mode: Mode,
 	): MySql2Session<Record<string, unknown>, TablesRelationalConfig> {
-		return new MySql2Session(this.client, this.dialect, schema, { logger: this.options.logger, mode });
+		return new MySql2Session(this.client, this.dialect, schema, { logger: this.options.logger, mode }, this.extensions);
 	}
 }
 
@@ -48,7 +50,7 @@ export class MySql2Database<
 }
 
 export type MySql2DrizzleConfig<TSchema extends Record<string, unknown> = Record<string, never>> =
-	& Omit<DrizzleConfig<TSchema>, 'schema'>
+	& Omit<DrizzleConfig<TSchema, DrizzleMySqlExtension>, 'schema'>
 	& ({ schema: TSchema; mode: Mode } | { schema?: undefined; mode?: Mode });
 
 function construct<
@@ -92,9 +94,10 @@ function construct<
 
 	const mode = config.mode ?? 'default';
 
-	const driver = new MySql2Driver(clientForInstance as MySql2Client, dialect, { logger });
+	const extensions = config.extensions;
+	const driver = new MySql2Driver(clientForInstance as MySql2Client, dialect, { logger }, extensions);
 	const session = driver.createSession(schema, mode);
-	const db = new MySql2Database(dialect, session, schema as any, mode) as MySql2Database<TSchema>;
+	const db = new MySql2Database(dialect, session, schema as any, mode, extensions) as MySql2Database<TSchema>;
 	(<any> db).$client = client;
 
 	return db as any;

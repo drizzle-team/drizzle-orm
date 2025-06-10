@@ -3,6 +3,7 @@
 import type { SQLOptions } from 'bun';
 import { SQL } from 'bun';
 import { entityKind } from '~/entity.ts';
+import type { DrizzlePgExtension } from '~/extension-core/pg/index.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
@@ -24,7 +25,7 @@ export class BunSQLDatabase<
 
 function construct<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: SQL,
-	config: DrizzleConfig<TSchema> = {},
+	config: DrizzleConfig<TSchema, DrizzlePgExtension> = {},
 ): BunSQLDatabase<TSchema> & {
 	$client: SQL;
 } {
@@ -49,8 +50,9 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 		};
 	}
 
-	const session = new BunSQLSession(client, dialect, schema, { logger });
-	const db = new BunSQLDatabase(dialect, session, schema as any) as BunSQLDatabase<TSchema>;
+	const extensions = config.extensions;
+	const session = new BunSQLSession(client, dialect, schema, { logger }, extensions);
+	const db = new BunSQLDatabase(dialect, session, schema as any, extensions) as BunSQLDatabase<TSchema>;
 	(<any> db).$client = client;
 
 	return db as any;
@@ -64,10 +66,10 @@ export function drizzle<
 		TClient | string,
 	] | [
 		TClient | string,
-		DrizzleConfig<TSchema>,
+		DrizzleConfig<TSchema, DrizzlePgExtension>,
 	] | [
 		(
-			& DrizzleConfig<TSchema>
+			& DrizzleConfig<TSchema, DrizzlePgExtension>
 			& ({
 				connection: string | ({ url?: string } & SQLOptions);
 			} | {
@@ -88,7 +90,7 @@ export function drizzle<
 		const { connection, client, ...drizzleConfig } = params[0] as {
 			connection?: { url?: string } & SQLOptions;
 			client?: TClient;
-		} & DrizzleConfig<TSchema>;
+		} & DrizzleConfig<TSchema, DrizzlePgExtension>;
 
 		if (client) return construct(client, drizzleConfig) as any;
 
@@ -103,12 +105,12 @@ export function drizzle<
 		return construct(instance, drizzleConfig) as any;
 	}
 
-	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema, DrizzlePgExtension> | undefined) as any;
 }
 
 export namespace drizzle {
 	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
-		config?: DrizzleConfig<TSchema>,
+		config?: DrizzleConfig<TSchema, DrizzlePgExtension>,
 	): BunSQLDatabase<TSchema> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {

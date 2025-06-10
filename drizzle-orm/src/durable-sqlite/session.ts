@@ -47,6 +47,7 @@ export class SQLiteDOSession<TFullSchema extends Record<string, unknown>, TSchem
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		isResponseInArrayMode: boolean,
+		hookContext?: undefined,
 		customResultMapper?: (rows: unknown[][]) => unknown,
 	): SQLiteDOPreparedQuery<T> {
 		return new SQLiteDOPreparedQuery(
@@ -114,14 +115,14 @@ export class SQLiteDOPreparedQuery<T extends PreparedQueryConfig = PreparedQuery
 		super('sync', executeMethod, query);
 	}
 
-	run(placeholderValues?: Record<string, unknown>): void {
+	_run(placeholderValues?: Record<string, unknown>): void {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 
 		params.length > 0 ? this.client.sql.exec(this.query.sql, ...params) : this.client.sql.exec(this.query.sql);
 	}
 
-	all(placeholderValues?: Record<string, unknown>): T['all'] {
+	_all(placeholderValues?: Record<string, unknown>): T['all'] {
 		const { fields, joinsNotNullableMap, query, logger, client, customResultMapper } = this;
 		if (!fields && !customResultMapper) {
 			const params = fillPlaceholders(query.params, placeholderValues ?? {});
@@ -139,7 +140,7 @@ export class SQLiteDOPreparedQuery<T extends PreparedQueryConfig = PreparedQuery
 		return rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
-	get(placeholderValues?: Record<string, unknown>): T['get'] {
+	_get(placeholderValues?: Record<string, unknown>): T['get'] {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 
@@ -162,7 +163,7 @@ export class SQLiteDOPreparedQuery<T extends PreparedQueryConfig = PreparedQuery
 		return mapResultRow(fields!, row, joinsNotNullableMap);
 	}
 
-	values(placeholderValues?: Record<string, unknown>): T['values'] {
+	_values(placeholderValues?: Record<string, unknown>): T['values'] {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 

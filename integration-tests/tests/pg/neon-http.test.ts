@@ -6,7 +6,7 @@ import { pgMaterializedView, pgTable, serial, timestamp } from 'drizzle-orm/pg-c
 import { beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
-import { tests, usersMigratorTable, usersTable } from './pg-common';
+import { createExtensions, tests, usersMigratorTable, usersTable } from './pg-common';
 
 const ENABLE_LOGGING = false;
 
@@ -15,14 +15,14 @@ let db: NeonHttpDatabase;
 beforeAll(async () => {
 	const connectionString = process.env['NEON_HTTP_CONNECTION_STRING'];
 	if (!connectionString) {
-		throw new Error('NEON_CONNECTION_STRING is not defined');
+		throw new Error('NEON_HTTP_CONNECTION_STRING is not defined');
 	}
 
 	neonConfig.fetchEndpoint = (host) => {
 		const [protocol, port] = host === 'db.localtest.me' ? ['http', 4444] : ['https', 443];
 		return `${protocol}://${host}:${port}/sql`;
 	};
-	db = drizzle(neon(connectionString), { logger: ENABLE_LOGGING });
+	db = drizzle(neon(connectionString), { logger: ENABLE_LOGGING, extensions: await createExtensions() });
 });
 
 beforeEach((ctx) => {
@@ -414,6 +414,7 @@ skipTests([
 	'transaction',
 	'timestamp timezone',
 	'test $onUpdateFn and $onUpdate works as $default',
+	'S3File - transaction',
 ]);
 tests();
 

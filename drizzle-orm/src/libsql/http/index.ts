@@ -1,4 +1,5 @@
 import { type Client, type Config, createClient } from '@libsql/client/http';
+import type { DrizzleSQLiteExtension } from '~/extension-core/sqlite/index.ts';
 import { type DrizzleConfig, isConfig } from '~/utils.ts';
 import { construct, type LibSQLDatabase } from '../driver-core.ts';
 
@@ -10,10 +11,10 @@ export function drizzle<
 		TClient | string,
 	] | [
 		TClient | string,
-		DrizzleConfig<TSchema>,
+		DrizzleConfig<TSchema, DrizzleSQLiteExtension>,
 	] | [
 		(
-			& DrizzleConfig<TSchema>
+			& DrizzleConfig<TSchema, DrizzleSQLiteExtension>
 			& ({
 				connection: string | Config;
 			} | {
@@ -35,7 +36,7 @@ export function drizzle<
 	if (isConfig(params[0])) {
 		const { connection, client, ...drizzleConfig } = params[0] as
 			& { connection?: Config; client?: TClient }
-			& DrizzleConfig<TSchema>;
+			& DrizzleConfig<TSchema, DrizzleSQLiteExtension>;
 
 		if (client) return construct(client, drizzleConfig) as any;
 
@@ -44,12 +45,15 @@ export function drizzle<
 		return construct(instance, drizzleConfig) as any;
 	}
 
-	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+	return construct(
+		params[0] as TClient,
+		params[1] as DrizzleConfig<TSchema, DrizzleSQLiteExtension> | undefined,
+	) as any;
 }
 
 export namespace drizzle {
 	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
-		config?: DrizzleConfig<TSchema>,
+		config?: DrizzleConfig<TSchema, DrizzleSQLiteExtension>,
 	): LibSQLDatabase<TSchema> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {

@@ -12,6 +12,7 @@ import type {
 import { once } from 'node:events';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
+import type { BlankMySqlHookContext, DrizzleMySqlExtension } from '~/extension-core/mysql/index.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
@@ -49,16 +50,18 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig> extends MyS
 	constructor(
 		private client: MySql2Client,
 		queryString: string,
-		private params: unknown[],
+		params: unknown[],
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
+		extensions?: DrizzleMySqlExtension[],
+		hookContext?: BlankMySqlHookContext,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 		// Keys that were used in $default and the value that was generated for them
 		private generatedIds?: Record<string, unknown>[],
 		// Keys that should be returned, it has the column with all properries + key from object
 		private returningIds?: SelectedFieldsOrdered,
 	) {
-		super();
+		super(queryString, params, extensions, hookContext);
 		this.rawQuery = {
 			sql: queryString,
 			// rowsAsArray: true,
@@ -81,7 +84,7 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig> extends MyS
 		};
 	}
 
-	async execute(placeholderValues: Record<string, unknown> = {}): Promise<T['execute']> {
+	async _execute(placeholderValues: Record<string, unknown> = {}): Promise<T['execute']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 
 		this.logger.logQuery(this.rawQuery.sql, params);
@@ -200,8 +203,9 @@ export class MySql2Session<
 		dialect: MySqlDialect,
 		private schema: RelationalSchemaConfig<TSchema> | undefined,
 		private options: MySql2SessionOptions,
+		extensions?: DrizzleMySqlExtension[],
 	) {
-		super(dialect);
+		super(dialect, extensions);
 		this.logger = options.logger ?? new NoopLogger();
 		this.mode = options.mode;
 	}
@@ -209,6 +213,7 @@ export class MySql2Session<
 	prepareQuery<T extends MySqlPreparedQueryConfig>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
+		hookContext: BlankMySqlHookContext,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 		generatedIds?: Record<string, unknown>[],
 		returningIds?: SelectedFieldsOrdered,
@@ -221,6 +226,8 @@ export class MySql2Session<
 			query.params,
 			this.logger,
 			fields,
+			this.extensions,
+			hookContext,
 			customResultMapper,
 			generatedIds,
 			returningIds,
@@ -263,6 +270,7 @@ export class MySql2Session<
 				this.dialect,
 				this.schema,
 				this.options,
+				this.extensions,
 			)
 			: this;
 		const tx = new MySql2Transaction<TFullSchema, TSchema>(
@@ -271,6 +279,7 @@ export class MySql2Session<
 			this.schema,
 			0,
 			this.mode,
+			this.extensions,
 		);
 		if (config) {
 			const setTransactionConfigSql = this.getSetTransactionSQL(config);
@@ -311,6 +320,7 @@ export class MySql2Transaction<
 			this.schema,
 			this.nestedIndex + 1,
 			this.mode,
+			this._.extensions,
 		);
 		await tx.execute(sql.raw(`savepoint ${savepointName}`));
 		try {

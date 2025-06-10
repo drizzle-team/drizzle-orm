@@ -3,6 +3,8 @@ import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
+import { requiredExtension } from '~/extension-core/index.ts';
+import type { DrizzleSingleStoreExtension } from '~/extension-core/singlestore/index.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
 import {
 	type BuildRelationalQueryResult,
@@ -21,7 +23,7 @@ import type { Name, Placeholder, QueryWithTypings, SQLChunk } from '~/sql/sql.ts
 import { Param, SQL, sql, View } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
-import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import { type Casing, columnExtensionsCheck, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { SingleStoreColumn } from './columns/common.ts';
 import type { SingleStoreDeleteConfig } from './query-builders/delete.ts';
@@ -116,11 +118,14 @@ export class SingleStoreDialect {
 		return sql.join(withSqlChunks);
 	}
 
-	buildDeleteQuery({ table, where, returning, withList, limit, orderBy }: SingleStoreDeleteConfig): SQL {
+	buildDeleteQuery(
+		{ table, where, returning, withList, limit, orderBy }: SingleStoreDeleteConfig,
+		extensions?: DrizzleSingleStoreExtension[],
+	): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: true }, extensions)}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -132,7 +137,7 @@ export class SingleStoreDialect {
 		return sql`${withSql}delete from ${table}${whereSql}${orderBySql}${limitSql}${returningSql}`;
 	}
 
-	buildUpdateSet(table: SingleStoreTable, set: UpdateSet): SQL {
+	buildUpdateSet(table: SingleStoreTable, set: UpdateSet, extensions?: DrizzleSingleStoreExtension[]): SQL {
 		const tableColumns = table[Table.Symbol.Columns];
 
 		const columnNames = Object.keys(tableColumns).filter((colName) =>
@@ -142,8 +147,12 @@ export class SingleStoreDialect {
 		const setSize = columnNames.length;
 		return sql.join(columnNames.flatMap((colName, i) => {
 			const col = tableColumns[colName]!;
+			const ext = col[requiredExtension];
 
-			const value = set[colName] ?? sql.param(col.onUpdateFn!(), col);
+			const value = set[colName]
+				?? (ext && columnExtensionsCheck(col, extensions)
+					? sql.extensionParam(ext, col.onUpdateFn!(), col)
+					: sql.param(col.onUpdateFn!(), col));
 			const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
 
 			if (i < setSize - 1) {
@@ -153,13 +162,16 @@ export class SingleStoreDialect {
 		}));
 	}
 
-	buildUpdateQuery({ table, set, where, returning, withList, limit, orderBy }: SingleStoreUpdateConfig): SQL {
+	buildUpdateQuery(
+		{ table, set, where, returning, withList, limit, orderBy }: SingleStoreUpdateConfig,
+		extensions?: DrizzleSingleStoreExtension[],
+	): SQL {
 		const withSql = this.buildWithCTE(withList);
 
-		const setSql = this.buildUpdateSet(table, set);
+		const setSql = this.buildUpdateSet(table, set, extensions);
 
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: true }, extensions)}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -185,6 +197,7 @@ export class SingleStoreDialect {
 	private buildSelection(
 		fields: SelectedFieldsOrdered,
 		{ isSingleTable = false }: { isSingleTable?: boolean } = {},
+		extensions?: DrizzleSingleStoreExtension[],
 	): SQL {
 		const columnsLen = fields.length;
 
@@ -202,6 +215,8 @@ export class SingleStoreDialect {
 							new SQL(
 								query.queryChunks.map((c) => {
 									if (is(c, SingleStoreColumn)) {
+										columnExtensionsCheck(c, extensions);
+
 										return sql.identifier(this.casing.getColumnCasing(c));
 									}
 									return c;
@@ -216,6 +231,8 @@ export class SingleStoreDialect {
 						chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
 					}
 				} else if (is(field, Column)) {
+					columnExtensionsCheck(field, extensions);
+
 					if (isSingleTable) {
 						chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
 					} else {
@@ -260,6 +277,7 @@ export class SingleStoreDialect {
 			distinct,
 			setOperators,
 		}: SingleStoreSelectConfig,
+		extensions?: DrizzleSingleStoreExtension[],
 	): SQL {
 		const fieldsList = fieldsFlat ?? orderSelectedFields<SingleStoreColumn>(fields);
 		for (const f of fieldsList) {
@@ -293,7 +311,7 @@ export class SingleStoreDialect {
 
 		const distinctSql = distinct ? sql` distinct` : undefined;
 
-		const selection = this.buildSelection(fieldsList, { isSingleTable });
+		const selection = this.buildSelection(fieldsList, { isSingleTable }, extensions);
 
 		const tableSql = (() => {
 			if (is(table, Table) && table[Table.Symbol.IsAlias]) {
@@ -447,6 +465,7 @@ export class SingleStoreDialect {
 
 	buildInsertQuery(
 		{ table, values, ignore, onConflict }: SingleStoreInsertConfig,
+		extensions?: DrizzleSingleStoreExtension[],
 	): { sql: SQL; generatedIds: Record<string, unknown>[] } {
 		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
@@ -463,23 +482,37 @@ export class SingleStoreDialect {
 
 			const valueList: (SQLChunk | SQL)[] = [];
 			for (const [fieldName, col] of colEntries) {
+				const ext = col[requiredExtension];
+
 				const colValue = value[fieldName];
 				if (colValue === undefined || (is(colValue, Param) && colValue.value === undefined)) {
 					// eslint-disable-next-line unicorn/no-negated-condition
 					if (col.defaultFn !== undefined) {
 						const defaultFnResult = col.defaultFn();
 						generatedIds[fieldName] = defaultFnResult;
-						const defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : sql.param(defaultFnResult, col);
+
+						const defaultValue = is(defaultFnResult, SQL)
+							? defaultFnResult
+							: (ext && columnExtensionsCheck(col, extensions)
+								? sql.extensionParam(ext, defaultFnResult, col)
+								: sql.param(defaultFnResult, col));
 						valueList.push(defaultValue);
 						// eslint-disable-next-line unicorn/no-negated-condition
 					} else if (!col.default && col.onUpdateFn !== undefined) {
 						const onUpdateFnResult = col.onUpdateFn();
-						const newValue = is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col);
+
+						const newValue = is(onUpdateFnResult, SQL)
+							? onUpdateFnResult
+							: (ext && columnExtensionsCheck(col, extensions)
+								? sql.extensionParam(ext, onUpdateFnResult, col)
+								: sql.param(onUpdateFnResult, col));
 						valueList.push(newValue);
 					} else {
 						valueList.push(sql`default`);
 					}
 				} else {
+					if (ext && !is(colValue, SQL) && colValue.value !== null) columnExtensionsCheck(col, extensions);
+
 					if (col.defaultFn && is(colValue, Param)) {
 						generatedIds[fieldName] = colValue.value;
 					}
@@ -536,7 +569,7 @@ export class SingleStoreDialect {
 		tableAlias: string;
 		nestedQueryRelation?: Relation;
 		joinOn?: SQL;
-	}): BuildRelationalQueryResult<SingleStoreTable, SingleStoreColumn> {
+	}, extensions?: DrizzleSingleStoreExtension[]): BuildRelationalQueryResult<SingleStoreTable, SingleStoreColumn> {
 		let selection: BuildRelationalQueryResult<SingleStoreTable, SingleStoreColumn>['selection'] = [];
 		let limit, offset, orderBy: SingleStoreSelectConfig['orderBy'], where;
 		const joins: SingleStoreSelectJoinConfig[] = [];
@@ -691,7 +724,7 @@ export class SingleStoreDialect {
 					tableAlias: relationTableAlias,
 					joinOn,
 					nestedQueryRelation: relation,
-				});
+				}, extensions);
 				const field = sql`${sql.identifier(relationTableAlias)}.${sql.identifier('data')}`.as(selectedRelationTsKey);
 				joins.push({
 					on: sql`true`,
@@ -766,7 +799,7 @@ export class SingleStoreDialect {
 					limit,
 					offset,
 					setOperators: [],
-				});
+				}, extensions);
 
 				where = undefined;
 				limit = undefined;
@@ -789,7 +822,7 @@ export class SingleStoreDialect {
 				offset,
 				orderBy,
 				setOperators: [],
-			});
+			}, extensions);
 		} else {
 			result = this.buildSelectQuery({
 				table: aliasedTable(table, tableAlias),
@@ -804,7 +837,7 @@ export class SingleStoreDialect {
 				offset,
 				orderBy,
 				setOperators: [],
-			});
+			}, extensions);
 		}
 
 		return {

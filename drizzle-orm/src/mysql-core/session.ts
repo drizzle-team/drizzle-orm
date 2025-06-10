@@ -1,5 +1,10 @@
 import { entityKind } from '~/entity.ts';
 import { TransactionRollbackError } from '~/errors.ts';
+import type {
+	BlankMySqlHookContext,
+	DrizzleMySqlExtension,
+	DrizzleMySqlHookContext,
+} from '~/extension-core/mysql/index.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { type Query, type SQL, sql } from '~/sql/sql.ts';
 import type { Assume, Equal } from '~/utils.ts';
@@ -47,8 +52,55 @@ export abstract class MySqlPreparedQuery<T extends MySqlPreparedQueryConfig> {
 
 	/** @internal */
 	joinsNotNullableMap?: Record<string, boolean>;
+	private extensionMetas: unknown[] = [];
 
-	abstract execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
+	constructor(
+		protected queryString: string,
+		protected params: unknown[],
+		protected extensions?: DrizzleMySqlExtension[],
+		protected hookContext?: BlankMySqlHookContext,
+	) {}
+
+	async execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']> {
+		const {
+			extensions,
+			hookContext,
+			queryString,
+			params,
+			extensionMetas,
+		} = this;
+		if (!extensions?.length || !hookContext) return await this._execute(placeholderValues);
+
+		for (const [i, extension] of extensions.entries()) {
+			const ext = extension!;
+			const config = {
+				...hookContext,
+				stage: 'before',
+				sql: queryString,
+				params: params,
+				placeholders: placeholderValues,
+				metadata: extensionMetas[i],
+			} as DrizzleMySqlHookContext;
+
+			await ext.hook(config);
+			extensionMetas[i] = config.metadata;
+		}
+
+		const res = await this._execute(placeholderValues);
+
+		for (const [i, ext] of extensions.entries()) {
+			await ext.hook({
+				...hookContext,
+				metadata: extensionMetas[i],
+				stage: 'after',
+				data: res as unknown[],
+			});
+		}
+
+		return res;
+	}
+
+	protected abstract _execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
 
 	abstract iterator(placeholderValues?: Record<string, unknown>): AsyncGenerator<T['iterator']>;
 }
@@ -67,11 +119,12 @@ export abstract class MySqlSession<
 > {
 	static readonly [entityKind]: string = 'MySqlSession';
 
-	constructor(protected dialect: MySqlDialect) {}
+	constructor(protected dialect: MySqlDialect, readonly extensions?: DrizzleMySqlExtension[]) {}
 
 	abstract prepareQuery<T extends MySqlPreparedQueryConfig, TPreparedQueryHKT extends MySqlPreparedQueryHKT>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
+		hookContext?: BlankMySqlHookContext,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 		generatedIds?: Record<string, unknown>[],
 		returningIds?: SelectedFieldsOrdered,
@@ -138,8 +191,9 @@ export abstract class MySqlTransaction<
 		protected schema: RelationalSchemaConfig<TSchema> | undefined,
 		protected readonly nestedIndex: number,
 		mode: Mode,
+		extensions?: DrizzleMySqlExtension[],
 	) {
-		super(dialect, session, schema, mode);
+		super(dialect, session, schema, mode, extensions);
 	}
 
 	rollback(): never {

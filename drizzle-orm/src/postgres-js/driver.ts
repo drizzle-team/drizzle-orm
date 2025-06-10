@@ -1,5 +1,6 @@
 import pgClient, { type Options, type PostgresType, type Sql } from 'postgres';
 import { entityKind } from '~/entity.ts';
+import type { DrizzlePgExtension } from '~/extension-core/pg/index.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
@@ -21,7 +22,7 @@ export class PostgresJsDatabase<
 
 function construct<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: Sql,
-	config: DrizzleConfig<TSchema> = {},
+	config: DrizzleConfig<TSchema, DrizzlePgExtension> = {},
 ): PostgresJsDatabase<TSchema> & {
 	$client: Sql;
 } {
@@ -56,8 +57,9 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 		};
 	}
 
-	const session = new PostgresJsSession(client, dialect, schema, { logger });
-	const db = new PostgresJsDatabase(dialect, session, schema as any) as PostgresJsDatabase<TSchema>;
+	const extensions = config.extensions;
+	const session = new PostgresJsSession(client, dialect, schema, { logger }, extensions);
+	const db = new PostgresJsDatabase(dialect, session, schema as any, extensions) as PostgresJsDatabase<TSchema>;
 	(<any> db).$client = client;
 
 	return db as any;
@@ -71,10 +73,10 @@ export function drizzle<
 		TClient | string,
 	] | [
 		TClient | string,
-		DrizzleConfig<TSchema>,
+		DrizzleConfig<TSchema, DrizzlePgExtension>,
 	] | [
 		(
-			& DrizzleConfig<TSchema>
+			& DrizzleConfig<TSchema, DrizzlePgExtension>
 			& ({
 				connection: string | ({ url?: string } & Options<Record<string, PostgresType>>);
 			} | {
@@ -95,7 +97,7 @@ export function drizzle<
 		const { connection, client, ...drizzleConfig } = params[0] as {
 			connection?: { url?: string } & Options<Record<string, PostgresType>>;
 			client?: TClient;
-		} & DrizzleConfig<TSchema>;
+		} & DrizzleConfig<TSchema, DrizzlePgExtension>;
 
 		if (client) return construct(client, drizzleConfig) as any;
 
@@ -110,12 +112,12 @@ export function drizzle<
 		return construct(instance, drizzleConfig) as any;
 	}
 
-	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema, DrizzlePgExtension> | undefined) as any;
 }
 
 export namespace drizzle {
 	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
-		config?: DrizzleConfig<TSchema>,
+		config?: DrizzleConfig<TSchema, DrizzlePgExtension>,
 	): PostgresJsDatabase<TSchema> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {

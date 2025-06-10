@@ -1,5 +1,6 @@
 import type { SQLPluginResult, SQLQueryResult } from '@xata.io/client';
 import { entityKind } from '~/entity.ts';
+import type { BlankPgHookContext, DrizzlePgExtension } from '~/extension-core/pg/index.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -30,12 +31,14 @@ export class XataHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		private _isResponseInArrayMode: boolean,
+		extensions?: DrizzlePgExtension[],
+		hookContext?: BlankPgHookContext,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
-		super(query);
+		super(query, extensions, hookContext);
 	}
 
-	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+	async _execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		const params = fillPlaceholders(this.query.params, placeholderValues);
 
 		this.logger.logQuery(this.query.sql, params);
@@ -93,8 +96,9 @@ export class XataHttpSession<TFullSchema extends Record<string, unknown>, TSchem
 		dialect: PgDialect,
 		private schema: RelationalSchemaConfig<TSchema> | undefined,
 		private options: XataHttpSessionOptions = {},
+		extensions?: DrizzlePgExtension[],
 	) {
-		super(dialect);
+		super(dialect, extensions);
 		this.logger = options.logger ?? new NoopLogger();
 	}
 
@@ -103,6 +107,7 @@ export class XataHttpSession<TFullSchema extends Record<string, unknown>, TSchem
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		isResponseInArrayMode: boolean,
+		hookContext?: BlankPgHookContext,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 	): PgPreparedQuery<T> {
 		return new XataHttpPreparedQuery(
@@ -111,6 +116,8 @@ export class XataHttpSession<TFullSchema extends Record<string, unknown>, TSchem
 			this.logger,
 			fields,
 			isResponseInArrayMode,
+			this.extensions,
+			hookContext,
 			customResultMapper,
 		);
 	}

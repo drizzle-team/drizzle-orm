@@ -6,7 +6,7 @@ import { migrate } from 'drizzle-orm/libsql/migrator';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
-import { anotherUsersMigratorTable, tests, usersMigratorTable } from './sqlite-common';
+import { anotherUsersMigratorTable, createExtensions, tests, usersMigratorTable } from './sqlite-common';
 
 const ENABLE_LOGGING = false;
 
@@ -32,7 +32,7 @@ beforeAll(async () => {
 			client?.close();
 		},
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, { logger: ENABLE_LOGGING, extensions: await createExtensions() });
 });
 
 afterAll(async () => {

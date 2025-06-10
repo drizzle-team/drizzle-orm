@@ -1,5 +1,6 @@
 import { entityKind } from '~/entity.ts';
 import { TransactionRollbackError } from '~/errors.ts';
+import type { BlankGelHookContext, DrizzleGelExtension, DrizzleGelHookContext } from '~/extension-core/gel/index.ts';
 import type { TablesRelationalConfig } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import type { Query, SQL } from '~/sql/index.ts';
@@ -16,9 +17,14 @@ export interface PreparedQueryConfig {
 }
 
 export abstract class GelPreparedQuery<T extends PreparedQueryConfig> implements PreparedQuery {
-	constructor(protected query: Query) {}
+	constructor(
+		protected query: Query,
+		protected extensions?: DrizzleGelExtension[],
+		protected hookContext?: BlankGelHookContext,
+	) {}
 
 	protected authToken?: NeonAuthToken;
+	private extensionMetas: unknown[] = [];
 
 	getQuery(): Query {
 		return this.query;
@@ -33,7 +39,52 @@ export abstract class GelPreparedQuery<T extends PreparedQueryConfig> implements
 	/** @internal */
 	joinsNotNullableMap?: Record<string, boolean>;
 
-	abstract execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
+	async execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']> {
+		const {
+			extensions,
+			hookContext,
+			query: {
+				sql: queryString,
+				params,
+			},
+			extensionMetas,
+		} = this;
+		if (!extensions?.length || !hookContext) return await this._execute(placeholderValues);
+
+		await tracer.startActiveSpan('drizzle.hooks.beforeExecute', async () => {
+			for (const [i, extension] of extensions.entries()) {
+				const ext = extension!;
+				const config = {
+					...hookContext,
+					stage: 'before',
+					sql: queryString,
+					params: params,
+					placeholders: placeholderValues,
+					metadata: extensionMetas[i],
+				} as DrizzleGelHookContext;
+
+				await ext.hook(config);
+				extensionMetas[i] = config.metadata;
+			}
+		});
+
+		const res = await this._execute(placeholderValues);
+
+		return await tracer.startActiveSpan('drizzle.hooks.afterExecute', async () => {
+			for (const [i, ext] of extensions.entries()) {
+				await ext.hook({
+					...hookContext,
+					metadata: extensionMetas[i],
+					stage: 'after',
+					data: res as unknown[],
+				});
+			}
+
+			return res;
+		});
+	}
+
+	protected abstract _execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
 
 	/** @internal */
 	abstract all(placeholderValues?: Record<string, unknown>): Promise<T['all']>;
@@ -49,13 +100,14 @@ export abstract class GelSession<
 > {
 	static readonly [entityKind]: string = 'GelSession';
 
-	constructor(protected dialect: GelDialect) {}
+	constructor(protected dialect: GelDialect, readonly extensions?: DrizzleGelExtension[]) {}
 
 	abstract prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		isResponseInArrayMode: boolean,
+		hookContext?: BlankGelHookContext,
 		customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => T['execute'],
 	): GelPreparedQuery<T>;
 
@@ -111,8 +163,9 @@ export abstract class GelTransaction<
 			schema: TSchema;
 			tableNamesMap: Record<string, string>;
 		} | undefined,
+		extensions?: DrizzleGelExtension[],
 	) {
-		super(dialect, session, schema);
+		super(dialect, session, schema, extensions);
 	}
 
 	rollback(): never {

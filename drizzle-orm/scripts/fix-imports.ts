@@ -5,8 +5,8 @@ import path from 'node:path';
 import { parse, print, visit } from 'recast';
 import parser from 'recast/parsers/typescript';
 
-function resolvePathAlias(importPath: string, file: string) {
-	if (importPath.startsWith('~/')) {
+function resolvePathAlias(importPath: string | undefined, file: string) {
+	if (importPath?.startsWith('~/')) {
 		const relativePath = path.relative(path.dirname(file), path.resolve('dist.new', importPath.slice(2)));
 		importPath = relativePath.startsWith('.') ? relativePath : './' + relativePath;
 	}
@@ -14,8 +14,9 @@ function resolvePathAlias(importPath: string, file: string) {
 	return importPath;
 }
 
-function fixImportPath(importPath: string, file: string, ext: string) {
+function fixImportPath(importPath: string | undefined, file: string, ext: string) {
 	importPath = resolvePathAlias(importPath, file);
+	if (importPath === undefined) return importPath;
 
 	if (!/\..*\.(js|ts)$/.test(importPath)) {
 		return importPath;

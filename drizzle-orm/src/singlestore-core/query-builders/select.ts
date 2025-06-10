@@ -883,7 +883,7 @@ export abstract class SingleStoreSelectQueryBuilderBase<
 
 	/** @internal */
 	getSQL(): SQL {
-		return this.dialect.buildSelectQuery(this.config);
+		return this.dialect.buildSelectQuery(this.config, this.session?.extensions);
 	}
 
 	toSQL(): Query {
@@ -969,12 +969,21 @@ export class SingleStoreSelectBase<
 		if (!this.session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
-		const fieldsList = orderSelectedFields<SingleStoreColumn>(this.config.fields);
-		const query = this.session.prepareQuery<
+		const { joinsNotNullableMap, dialect, session, config } = this;
+
+		const fieldsList = orderSelectedFields<SingleStoreColumn>(config.fields);
+		const query = session.prepareQuery<
 			SingleStorePreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] },
 			TPreparedQueryHKT
-		>(this.dialect.sqlToQuery(this.getSQL()), fieldsList);
-		query.joinsNotNullableMap = this.joinsNotNullableMap;
+		>(dialect.sqlToQuery(this.getSQL()), fieldsList, {
+			query: 'select',
+			joinsNotNullableMap,
+			dialect,
+			session,
+			config,
+			fieldsOrdered: fieldsList,
+		});
+		query.joinsNotNullableMap = joinsNotNullableMap;
 		return query as SingleStoreSelectPrepare<this>;
 	}
 

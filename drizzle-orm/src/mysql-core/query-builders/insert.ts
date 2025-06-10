@@ -1,4 +1,5 @@
 import { entityKind, is } from '~/entity.ts';
+import { requiredExtension } from '~/extension-core/index.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type {
 	AnyMySqlQueryResultHKT,
@@ -14,10 +15,10 @@ import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
-import { Param, SQL, sql } from '~/sql/sql.ts';
+import { ExtensionParam, Param, SQL, sql } from '~/sql/sql.ts';
 import type { InferModelFromColumns } from '~/table.ts';
 import { Columns, Table } from '~/table.ts';
-import { haveSameKeys, mapUpdateSet } from '~/utils.ts';
+import { columnExtensionsCheck, haveSameKeys, mapUpdateSet } from '~/utils.ts';
 import type { AnyMySqlColumn } from '../columns/common.ts';
 import { QueryBuilder } from './query-builder.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
@@ -73,15 +74,35 @@ export class MySqlInsertBuilder<
 		if (values.length === 0) {
 			throw new Error('values() must be called with at least one value');
 		}
+
+		const extColumns = new Set<string>();
+		const cols = this.table[Table.Symbol.Columns];
+
 		const mappedValues = values.map((entry) => {
 			const result: Record<string, Param | SQL> = {};
-			const cols = this.table[Table.Symbol.Columns];
 			for (const colKey of Object.keys(entry)) {
 				const colValue = entry[colKey as keyof typeof entry];
-				result[colKey] = is(colValue, SQL) ? colValue : new Param(colValue, cols[colKey]);
+
+				if (is(colValue, SQL)) {
+					result[colKey] = colValue;
+					continue;
+				}
+
+				if (cols[colKey]![requiredExtension]) {
+					extColumns.add(colKey);
+					result[colKey] = new ExtensionParam(cols[colKey]![requiredExtension], colValue, cols[colKey]);
+
+					continue;
+				}
+
+				result[colKey] = new Param(colValue, cols[colKey]);
 			}
 			return result;
 		});
+
+		for (const colKey of extColumns.values()) {
+			columnExtensionsCheck(cols[colKey]!, this.session.extensions);
+		}
 
 		return new MySqlInsertBase(this.table, mappedValues, this.shouldIgnore, this.session, this.dialect);
 	}
@@ -270,7 +291,11 @@ export class MySqlInsertBase<
 	onDuplicateKeyUpdate(
 		config: MySqlInsertOnDuplicateKeyUpdateConfig<this>,
 	): MySqlInsertWithout<this, TDynamic, 'onDuplicateKeyUpdate'> {
-		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
+		const setSql = this.dialect.buildUpdateSet(
+			this.config.table,
+			mapUpdateSet(this.config.table, config.set, this.session.extensions),
+			this.session.extensions,
+		);
 		this.config.onConflict = sql`update ${setSql}`;
 		return this as any;
 	}
@@ -292,7 +317,7 @@ export class MySqlInsertBase<
 
 	/** @internal */
 	getSQL(): SQL {
-		return this.dialect.buildInsertQuery(this.config).sql;
+		return this.dialect.buildInsertQuery(this.config, this.session.extensions).sql;
 	}
 
 	toSQL(): Query {
@@ -301,10 +326,16 @@ export class MySqlInsertBase<
 	}
 
 	prepare(): MySqlInsertPrepare<this, TReturning> {
-		const { sql, generatedIds } = this.dialect.buildInsertQuery(this.config);
+		const { sql, generatedIds } = this.dialect.buildInsertQuery(this.config, this.session.extensions);
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(sql),
 			undefined,
+			{
+				query: 'insert',
+				dialect: this.dialect,
+				session: this.session,
+				config: this.config,
+			},
 			undefined,
 			generatedIds,
 			this.config.returning,

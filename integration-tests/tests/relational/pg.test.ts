@@ -1,16 +1,29 @@
 import 'dotenv/config';
 import Docker from 'dockerode';
 import { desc, DrizzleError, eq, gt, gte, or, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
+import type { DrizzlePgExtension } from 'drizzle-orm/extension-core/pg';
+import { s3FileExt } from 'drizzle-orm/extensions/s3-file/pg';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import getPort from 'get-port';
 import pg from 'pg';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
+import { createDockerS3, s3BucketName as bucket } from '~/create-docker-s3.ts';
 import * as schema from './pg.schema.ts';
 
 const { Client } = pg;
 
-const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable, usersV1, usersTableV1 } = schema;
+const {
+	usersTable,
+	postsTable,
+	commentsTable,
+	usersToGroupsTable,
+	groupsTable,
+	usersV1,
+	usersTableV1,
+	s3Table,
+	exampleS3Files,
+} = schema;
 
 const ENABLE_LOGGING = false;
 
@@ -32,6 +45,18 @@ let globalDocker: Docker;
 let pgContainer: Docker.Container;
 let db: NodePgDatabase<typeof schema>;
 let client: pg.Client;
+
+const beforeEachHooks: (() => any)[] = [];
+const afterAllHooks: (() => any)[] = [];
+
+export async function createExtensions(): Promise<DrizzlePgExtension[]> {
+	const { s3, s3Wipe, s3Stop } = await createDockerS3();
+
+	beforeEachHooks.push(s3Wipe);
+	afterAllHooks.push(s3Stop);
+
+	return [s3FileExt(s3)];
+}
 
 async function createDockerDB(): Promise<string> {
 	const docker = (globalDocker = new Docker());
@@ -89,12 +114,16 @@ beforeAll(async () => {
 		await pgContainer?.stop().catch(console.error);
 		throw lastError;
 	}
-	db = drizzle(client, { schema, logger: ENABLE_LOGGING });
+	db = drizzle(client, { schema, logger: ENABLE_LOGGING, extensions: await createExtensions() });
 });
 
 afterAll(async () => {
 	await client?.end().catch(console.error);
 	await pgContainer?.stop().catch(console.error);
+
+	for (const hook of afterAllHooks) {
+		await hook();
+	}
 });
 
 beforeEach(async (ctx) => {
@@ -186,6 +215,23 @@ beforeEach(async (ctx) => {
 			);
 		`,
 	);
+	await ctx.pgDb.execute(sql`
+		CREATE TABLE ${s3Table} (
+			"id" INTEGER PRIMARY KEY,
+			"file" TEXT,
+			"file_arr" TEXT[],
+			"file_mtx" TEXT[][],
+			"file_default_fn" TEXT,
+			"f64" TEXT,
+			"f16" TEXT,
+			"f_int8" TEXT,
+			"common" INTEGER DEFAULT 1
+		);
+	`);
+
+	for (const hook of beforeEachHooks) {
+		await hook();
+	}
 });
 
 /*
@@ -6381,6 +6427,525 @@ test('[Find Many] Get schema users - dbName & tsName mismatch', async (t) => {
 		verified: false,
 		invitedBy: null,
 	});
+});
+
+test('[Find First] S3File - relational empty', async (t) => {
+	const { pgDb: db } = t;
+
+	const res = await db.query.s3Table.findFirst({
+		with: {
+			oneSelf: {
+				with: {
+					manySelf: {
+						orderBy: ({ id }, { asc }) => asc(id),
+					},
+					oneSelf: true,
+					emptySelf: true,
+					nullSelf: true,
+				},
+			},
+			manySelf: {
+				with: {
+					manySelf: {
+						orderBy: ({ id }, { asc }) => asc(id),
+					},
+					oneSelf: true,
+					emptySelf: true,
+					nullSelf: true,
+				},
+				orderBy: ({ id }, { asc }) => asc(id),
+			},
+			emptySelf: true,
+			nullSelf: true,
+		},
+		orderBy: ({ id }, { asc }) => asc(id),
+	});
+
+	expect(res).toStrictEqual(undefined);
+});
+
+test('[Find Many] S3File - relational empty', async (t) => {
+	const { pgDb: db } = t;
+
+	const res = await db.query.s3Table.findMany({
+		with: {
+			oneSelf: {
+				with: {
+					manySelf: {
+						orderBy: ({ id }, { asc }) => asc(id),
+					},
+					oneSelf: true,
+					emptySelf: true,
+					nullSelf: true,
+				},
+			},
+			manySelf: {
+				with: {
+					manySelf: {
+						orderBy: ({ id }, { asc }) => asc(id),
+					},
+					oneSelf: true,
+					emptySelf: true,
+					nullSelf: true,
+				},
+				orderBy: ({ id }, { asc }) => asc(id),
+			},
+			emptySelf: true,
+			nullSelf: true,
+		},
+		orderBy: ({ id }, { asc }) => asc(id),
+	});
+
+	expect(res).toStrictEqual([]);
+});
+
+test('[Find First] S3File - relational', async (t) => {
+	const { pgDb: db } = t;
+
+	await db.insert(s3Table).values([{
+		id: 1,
+		file: {
+			bucket,
+			key: 'zero',
+			data: exampleS3Files[0],
+		},
+		fileArr: [
+			{
+				bucket,
+				key: 'one',
+				data: exampleS3Files[1],
+			},
+			{
+				bucket,
+				key: 'two',
+				data: exampleS3Files[2],
+			},
+		],
+		fileMtx: [[
+			{
+				bucket,
+				key: 'three',
+				data: exampleS3Files[3],
+			},
+			{
+				bucket,
+				key: 'four',
+				data: exampleS3Files[4],
+			},
+		], [
+			{
+				bucket,
+				key: 'five',
+				data: exampleS3Files[5],
+			},
+			{
+				bucket,
+				key: 'six',
+				data: exampleS3Files[6],
+			},
+		]],
+		f64: {
+			bucket,
+			key: 'base64',
+			data: exampleS3Files[7].toString('base64'),
+		},
+		f16: {
+			bucket,
+			key: 'hex',
+			data: exampleS3Files[7].toString('hex'),
+		},
+		fInt8: {
+			bucket,
+			key: 'uint8arr',
+			data: Uint8Array.from(exampleS3Files[7]),
+		},
+	}, {
+		id: 2,
+		file: {
+			bucket,
+			key: 'file2',
+			data: exampleS3Files[8],
+		},
+	}]);
+
+	const res = await db.query.s3Table.findFirst({
+		with: {
+			oneSelf: {
+				with: {
+					manySelf: {
+						orderBy: ({ id }, { asc }) => asc(id),
+					},
+					oneSelf: true,
+					emptySelf: true,
+					nullSelf: true,
+				},
+			},
+			manySelf: {
+				with: {
+					manySelf: {
+						orderBy: ({ id }, { asc }) => asc(id),
+					},
+					oneSelf: true,
+					emptySelf: true,
+					nullSelf: true,
+				},
+				orderBy: ({ id }, { asc }) => asc(id),
+			},
+			emptySelf: true,
+			nullSelf: true,
+		},
+		orderBy: ({ id }, { asc }) => asc(id),
+	});
+
+	const data = [{
+		id: 1,
+		common: 1,
+		file: {
+			bucket,
+			key: 'zero',
+			data: exampleS3Files[0],
+		},
+		fileArr: [
+			{
+				bucket,
+				key: 'one',
+				data: exampleS3Files[1],
+			},
+			{
+				bucket,
+				key: 'two',
+				data: exampleS3Files[2],
+			},
+		],
+		fileMtx: [[
+			{
+				bucket,
+				key: 'three',
+				data: exampleS3Files[3],
+			},
+			{
+				bucket,
+				key: 'four',
+				data: exampleS3Files[4],
+			},
+		], [
+			{
+				bucket,
+				key: 'five',
+				data: exampleS3Files[5],
+			},
+			{
+				bucket,
+				key: 'six',
+				data: exampleS3Files[6],
+			},
+		]],
+		f64: {
+			bucket,
+			key: 'base64',
+			data: exampleS3Files[7].toString('base64'),
+		},
+		f16: {
+			bucket,
+			key: 'hex',
+			data: exampleS3Files[7].toString('hex'),
+		},
+		fInt8: {
+			bucket,
+			key: 'uint8arr',
+			data: Uint8Array.from(exampleS3Files[7]),
+		},
+		defaultFnFile: {
+			bucket,
+			key: 'default-key',
+			data: exampleS3Files[0],
+		},
+	}, {
+		id: 2,
+		common: 1,
+		file: {
+			bucket,
+			key: 'file2',
+			data: exampleS3Files[8],
+		},
+		fileArr: null,
+		fileMtx: null,
+		f16: null,
+		f64: null,
+		fInt8: null,
+		defaultFnFile: {
+			bucket,
+			key: 'default-key',
+			data: exampleS3Files[0],
+		},
+	}];
+
+	expect(res).toStrictEqual({
+		...data[0],
+		nullSelf: null,
+		emptySelf: [],
+		oneSelf: {
+			...data[0],
+			nullSelf: null,
+			emptySelf: [],
+			manySelf: data,
+			oneSelf: data[0],
+		},
+		manySelf: [
+			{
+				...data[0],
+				nullSelf: null,
+				emptySelf: [],
+				manySelf: data,
+				oneSelf: data[0],
+			},
+			{
+				...data[1],
+				nullSelf: null,
+				emptySelf: [],
+				manySelf: data,
+				oneSelf: data[1],
+			},
+		],
+	});
+});
+
+test('[Find Many] S3File - relational', async (t) => {
+	const { pgDb: db } = t;
+
+	await db.insert(s3Table).values([{
+		id: 1,
+		file: {
+			bucket,
+			key: 'zero',
+			data: exampleS3Files[0],
+		},
+		fileArr: [
+			{
+				bucket,
+				key: 'one',
+				data: exampleS3Files[1],
+			},
+			{
+				bucket,
+				key: 'two',
+				data: exampleS3Files[2],
+			},
+		],
+		fileMtx: [[
+			{
+				bucket,
+				key: 'three',
+				data: exampleS3Files[3],
+			},
+			{
+				bucket,
+				key: 'four',
+				data: exampleS3Files[4],
+			},
+		], [
+			{
+				bucket,
+				key: 'five',
+				data: exampleS3Files[5],
+			},
+			{
+				bucket,
+				key: 'six',
+				data: exampleS3Files[6],
+			},
+		]],
+		f64: {
+			bucket,
+			key: 'base64',
+			data: exampleS3Files[7].toString('base64'),
+		},
+		f16: {
+			bucket,
+			key: 'hex',
+			data: exampleS3Files[7].toString('hex'),
+		},
+		fInt8: {
+			bucket,
+			key: 'uint8arr',
+			data: Uint8Array.from(exampleS3Files[7]),
+		},
+	}, {
+		id: 2,
+		file: {
+			bucket,
+			key: 'file2',
+			data: exampleS3Files[8],
+		},
+	}]);
+
+	const res = await db.query.s3Table.findMany({
+		with: {
+			oneSelf: {
+				with: {
+					manySelf: {
+						orderBy: ({ id }, { asc }) => asc(id),
+					},
+					oneSelf: true,
+					emptySelf: true,
+					nullSelf: true,
+				},
+			},
+			manySelf: {
+				with: {
+					manySelf: {
+						orderBy: ({ id }, { asc }) => asc(id),
+					},
+					oneSelf: true,
+					emptySelf: true,
+					nullSelf: true,
+				},
+				orderBy: ({ id }, { asc }) => asc(id),
+			},
+			emptySelf: true,
+			nullSelf: true,
+		},
+		orderBy: ({ id }, { asc }) => asc(id),
+	});
+
+	const data = [{
+		id: 1,
+		common: 1,
+		file: {
+			bucket,
+			key: 'zero',
+			data: exampleS3Files[0],
+		},
+		fileArr: [
+			{
+				bucket,
+				key: 'one',
+				data: exampleS3Files[1],
+			},
+			{
+				bucket,
+				key: 'two',
+				data: exampleS3Files[2],
+			},
+		],
+		fileMtx: [[
+			{
+				bucket,
+				key: 'three',
+				data: exampleS3Files[3],
+			},
+			{
+				bucket,
+				key: 'four',
+				data: exampleS3Files[4],
+			},
+		], [
+			{
+				bucket,
+				key: 'five',
+				data: exampleS3Files[5],
+			},
+			{
+				bucket,
+				key: 'six',
+				data: exampleS3Files[6],
+			},
+		]],
+		f64: {
+			bucket,
+			key: 'base64',
+			data: exampleS3Files[7].toString('base64'),
+		},
+		f16: {
+			bucket,
+			key: 'hex',
+			data: exampleS3Files[7].toString('hex'),
+		},
+		fInt8: {
+			bucket,
+			key: 'uint8arr',
+			data: Uint8Array.from(exampleS3Files[7]),
+		},
+		defaultFnFile: {
+			bucket,
+			key: 'default-key',
+			data: exampleS3Files[0],
+		},
+	}, {
+		id: 2,
+		common: 1,
+		file: {
+			bucket,
+			key: 'file2',
+			data: exampleS3Files[8],
+		},
+		fileArr: null,
+		fileMtx: null,
+		f16: null,
+		f64: null,
+		fInt8: null,
+		defaultFnFile: {
+			bucket,
+			key: 'default-key',
+			data: exampleS3Files[0],
+		},
+	}];
+
+	expect(res).toStrictEqual([{
+		...data[0],
+		nullSelf: null,
+		emptySelf: [],
+		oneSelf: {
+			...data[0],
+			nullSelf: null,
+			emptySelf: [],
+			manySelf: data,
+			oneSelf: data[0],
+		},
+		manySelf: [
+			{
+				...data[0],
+				nullSelf: null,
+				emptySelf: [],
+				manySelf: data,
+				oneSelf: data[0],
+			},
+			{
+				...data[1],
+				nullSelf: null,
+				emptySelf: [],
+				manySelf: data,
+				oneSelf: data[1],
+			},
+		],
+	}, {
+		...data[1],
+		nullSelf: null,
+		emptySelf: [],
+		oneSelf: {
+			...data[1],
+			nullSelf: null,
+			emptySelf: [],
+			manySelf: data,
+			oneSelf: data[1],
+		},
+		manySelf: [
+			{
+				...data[0],
+				nullSelf: null,
+				emptySelf: [],
+				manySelf: data,
+				oneSelf: data[0],
+			},
+			{
+				...data[1],
+				nullSelf: null,
+				emptySelf: [],
+				manySelf: data,
+				oneSelf: data[1],
+			},
+		],
+	}]);
 });
 
 test('.toSQL()', () => {

@@ -45,6 +45,7 @@ export class BetterSQLiteSession<
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		isResponseInArrayMode: boolean,
+		hookContext?: undefined,
 		customResultMapper?: (rows: unknown[][]) => unknown,
 	): PreparedQuery<T> {
 		const stmt = this.client.prepare(query.sql);
@@ -107,13 +108,13 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		super('sync', executeMethod, query);
 	}
 
-	run(placeholderValues?: Record<string, unknown>): RunResult {
+	_run(placeholderValues?: Record<string, unknown>): RunResult {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 		return this.stmt.run(...params);
 	}
 
-	all(placeholderValues?: Record<string, unknown>): T['all'] {
+	_all(placeholderValues?: Record<string, unknown>): T['all'] {
 		const { fields, joinsNotNullableMap, query, logger, stmt, customResultMapper } = this;
 		if (!fields && !customResultMapper) {
 			const params = fillPlaceholders(query.params, placeholderValues ?? {});
@@ -128,7 +129,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		return rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
-	get(placeholderValues?: Record<string, unknown>): T['get'] {
+	_get(placeholderValues?: Record<string, unknown>): T['get'] {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 
@@ -150,7 +151,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		return mapResultRow(fields!, row, joinsNotNullableMap);
 	}
 
-	values(placeholderValues?: Record<string, unknown>): T['values'] {
+	_values(placeholderValues?: Record<string, unknown>): T['values'] {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 		return this.stmt.raw().all(...params) as T['values'];

@@ -7,7 +7,7 @@ import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import ws from 'ws';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
-import { mySchema, tests, usersMigratorTable, usersMySchemaTable, usersTable } from './pg-common';
+import { createExtensions, mySchema, tests, usersMigratorTable, usersMySchemaTable, usersTable } from './pg-common';
 
 const ENABLE_LOGGING = false;
 
@@ -27,7 +27,7 @@ beforeAll(async () => {
 	}
 
 	client = new Pool({ connectionString });
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, { logger: ENABLE_LOGGING, extensions: await createExtensions() });
 });
 
 afterAll(async () => {

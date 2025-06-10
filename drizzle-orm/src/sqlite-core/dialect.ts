@@ -4,6 +4,8 @@ import type { AnyColumn } from '~/column.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
+import { requiredExtension } from '~/extension-core/index.ts';
+import type { DrizzleSQLiteExtension } from '~/extension-core/sqlite/index.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
 import {
 	type BuildRelationalQueryResult,
@@ -30,7 +32,7 @@ import type {
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
-import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import { type Casing, columnExtensionsCheck, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type {
 	SelectedFieldsOrdered,
@@ -80,11 +82,14 @@ export abstract class SQLiteDialect {
 		return sql.join(withSqlChunks);
 	}
 
-	buildDeleteQuery({ table, where, returning, withList, limit, orderBy }: SQLiteDeleteConfig): SQL {
+	buildDeleteQuery(
+		{ table, where, returning, withList, limit, orderBy }: SQLiteDeleteConfig,
+		extensions?: DrizzleSQLiteExtension[],
+	): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: true }, extensions)}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -96,7 +101,7 @@ export abstract class SQLiteDialect {
 		return sql`${withSql}delete from ${table}${whereSql}${returningSql}${orderBySql}${limitSql}`;
 	}
 
-	buildUpdateSet(table: SQLiteTable, set: UpdateSet): SQL {
+	buildUpdateSet(table: SQLiteTable, set: UpdateSet, extensions?: DrizzleSQLiteExtension[]): SQL {
 		const tableColumns = table[Table.Symbol.Columns];
 
 		const columnNames = Object.keys(tableColumns).filter((colName) =>
@@ -106,8 +111,12 @@ export abstract class SQLiteDialect {
 		const setSize = columnNames.length;
 		return sql.join(columnNames.flatMap((colName, i) => {
 			const col = tableColumns[colName]!;
+			const ext = col[requiredExtension];
 
-			const value = set[colName] ?? sql.param(col.onUpdateFn!(), col);
+			const value = set[colName]
+				?? (ext && columnExtensionsCheck(col, extensions)
+					? sql.extensionParam(ext, col.onUpdateFn!(), col)
+					: sql.param(col.onUpdateFn!(), col));
 			const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
 
 			if (i < setSize - 1) {
@@ -117,17 +126,20 @@ export abstract class SQLiteDialect {
 		}));
 	}
 
-	buildUpdateQuery({ table, set, where, returning, withList, joins, from, limit, orderBy }: SQLiteUpdateConfig): SQL {
+	buildUpdateQuery(
+		{ table, set, where, returning, withList, joins, from, limit, orderBy }: SQLiteUpdateConfig,
+		extensions?: DrizzleSQLiteExtension[],
+	): SQL {
 		const withSql = this.buildWithCTE(withList);
 
-		const setSql = this.buildUpdateSet(table, set);
+		const setSql = this.buildUpdateSet(table, set, extensions);
 
 		const fromSql = from && sql.join([sql.raw(' from '), this.buildFromTable(from)]);
 
 		const joinsSql = this.buildJoins(joins);
 
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: true }, extensions)}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -153,6 +165,7 @@ export abstract class SQLiteDialect {
 	private buildSelection(
 		fields: SelectedFieldsOrdered,
 		{ isSingleTable = false }: { isSingleTable?: boolean } = {},
+		extensions?: DrizzleSQLiteExtension[],
 	): SQL {
 		const columnsLen = fields.length;
 
@@ -170,6 +183,12 @@ export abstract class SQLiteDialect {
 							new SQL(
 								query.queryChunks.map((c) => {
 									if (is(c, Column)) {
+										columnExtensionsCheck(c, extensions);
+
+										if (c.columnType === 'SQLiteNumericBigInt') {
+											return sql`cast(${sql.identifier(this.casing.getColumnCasing(c))} as text)`;
+										}
+
 										return sql.identifier(this.casing.getColumnCasing(c));
 									}
 									return c;
@@ -184,6 +203,8 @@ export abstract class SQLiteDialect {
 						chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
 					}
 				} else if (is(field, Column)) {
+					columnExtensionsCheck(field, extensions);
+
 					const tableName = field.table[Table.Symbol.Name];
 					if (field.columnType === 'SQLiteNumericBigInt') {
 						if (isSingleTable) {
@@ -301,6 +322,7 @@ export abstract class SQLiteDialect {
 			distinct,
 			setOperators,
 		}: SQLiteSelectConfig,
+		extensions?: DrizzleSQLiteExtension[],
 	): SQL {
 		const fieldsList = fieldsFlat ?? orderSelectedFields<SQLiteColumn>(fields);
 		for (const f of fieldsList) {
@@ -334,7 +356,7 @@ export abstract class SQLiteDialect {
 
 		const distinctSql = distinct ? sql` distinct` : undefined;
 
-		const selection = this.buildSelection(fieldsList, { isSingleTable });
+		const selection = this.buildSelection(fieldsList, { isSingleTable }, extensions);
 
 		const tableSql = this.buildFromTable(table);
 
@@ -439,6 +461,7 @@ export abstract class SQLiteDialect {
 
 	buildInsertQuery(
 		{ table, values: valuesOrSelect, onConflict, returning, withList, select }: SQLiteInsertConfig,
+		extensions?: DrizzleSQLiteExtension[],
 	): SQL {
 		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
@@ -464,6 +487,8 @@ export abstract class SQLiteDialect {
 			for (const [valueIndex, value] of values.entries()) {
 				const valueList: (SQLChunk | SQL)[] = [];
 				for (const [fieldName, col] of colEntries) {
+					const ext = col[requiredExtension];
+
 					const colValue = value[fieldName];
 					if (colValue === undefined || (is(colValue, Param) && colValue.value === undefined)) {
 						let defaultValue;
@@ -472,16 +497,28 @@ export abstract class SQLiteDialect {
 							// eslint-disable-next-line unicorn/no-negated-condition
 						} else if (col.defaultFn !== undefined) {
 							const defaultFnResult = col.defaultFn();
-							defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : sql.param(defaultFnResult, col);
+							defaultValue = is(defaultFnResult, SQL)
+								? defaultFnResult
+								: (ext && columnExtensionsCheck(col, extensions)
+									? sql.extensionParam(ext, defaultFnResult, col)
+									: sql.param(defaultFnResult, col));
 							// eslint-disable-next-line unicorn/no-negated-condition
 						} else if (!col.default && col.onUpdateFn !== undefined) {
+							columnExtensionsCheck(col, extensions);
+
 							const onUpdateFnResult = col.onUpdateFn();
-							defaultValue = is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col);
+							defaultValue = is(onUpdateFnResult, SQL)
+								? onUpdateFnResult
+								: (ext && columnExtensionsCheck(col, extensions)
+									? sql.extensionParam(ext, onUpdateFnResult, col)
+									: sql.param(onUpdateFnResult, col));
 						} else {
 							defaultValue = sql`null`;
 						}
 						valueList.push(defaultValue);
 					} else {
+						if (ext && !is(colValue, SQL) && colValue.value !== null) columnExtensionsCheck(col, extensions);
+
 						valueList.push(colValue);
 					}
 				}
@@ -497,7 +534,7 @@ export abstract class SQLiteDialect {
 		const valuesSql = sql.join(valuesSqlList);
 
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: true }, extensions)}`
 			: undefined;
 
 		const onConflictSql = onConflict?.length
@@ -541,7 +578,7 @@ export abstract class SQLiteDialect {
 		tableAlias: string;
 		nestedQueryRelation?: Relation;
 		joinOn?: SQL;
-	}): BuildRelationalQueryResult<SQLiteTable, SQLiteColumn> {
+	}, extensions?: DrizzleSQLiteExtension[]): BuildRelationalQueryResult<SQLiteTable, SQLiteColumn> {
 		let selection: BuildRelationalQueryResult<SQLiteTable, SQLiteColumn>['selection'] = [];
 		let limit, offset, orderBy: SQLiteSelectConfig['orderBy'] = [], where;
 		const joins: SQLiteSelectJoinConfig[] = [];
@@ -697,7 +734,7 @@ export abstract class SQLiteDialect {
 					tableAlias: relationTableAlias,
 					joinOn,
 					nestedQueryRelation: relation,
-				});
+				}, extensions);
 				const field = (sql`(${builtRelation.sql})`).as(selectedRelationTsKey);
 				selection.push({
 					dbKey: selectedRelationTsKey,
@@ -763,7 +800,7 @@ export abstract class SQLiteDialect {
 					offset,
 					orderBy,
 					setOperators: [],
-				});
+				}, extensions);
 
 				where = undefined;
 				limit = undefined;
@@ -786,7 +823,7 @@ export abstract class SQLiteDialect {
 				offset,
 				orderBy,
 				setOperators: [],
-			});
+			}, extensions);
 		} else {
 			result = this.buildSelectQuery({
 				table: aliasedTable(table, tableAlias),
@@ -801,7 +838,7 @@ export abstract class SQLiteDialect {
 				offset,
 				orderBy,
 				setOperators: [],
-			});
+			}, extensions);
 		}
 
 		return {

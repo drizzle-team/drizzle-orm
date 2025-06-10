@@ -1,4 +1,5 @@
 import { entityKind, is } from '~/entity.ts';
+import { requiredExtension } from '~/extension-core/index.ts';
 import type { GelDialect } from '~/gel-core/dialect.ts';
 import type { IndexColumn } from '~/gel-core/indexes.ts';
 import type {
@@ -14,12 +15,12 @@ import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
-import { Param, SQL } from '~/sql/sql.ts';
+import { ExtensionParam, Param, SQL } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { InferInsertModel } from '~/table.ts';
 import { Columns, Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
-import { haveSameKeys, type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
+import { columnExtensionsCheck, haveSameKeys, type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
 import type { AnyGelColumn, GelColumn } from '../columns/common.ts';
 import { QueryBuilder } from './query-builder.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
@@ -84,15 +85,35 @@ export class GelInsertBuilder<
 		if (values.length === 0) {
 			throw new Error('values() must be called with at least one value');
 		}
+
+		const extColumns = new Set<string>();
+		const cols = this.table[Table.Symbol.Columns];
+
 		const mappedValues = values.map((entry) => {
 			const result: Record<string, Param | SQL> = {};
-			const cols = this.table[Table.Symbol.Columns];
 			for (const colKey of Object.keys(entry)) {
 				const colValue = entry[colKey as keyof typeof entry];
-				result[colKey] = is(colValue, SQL) ? colValue : new Param(colValue, cols[colKey]);
+
+				if (is(colValue, SQL)) {
+					result[colKey] = colValue;
+					continue;
+				}
+
+				if (cols[colKey]![requiredExtension]) {
+					extColumns.add(colKey);
+					result[colKey] = new ExtensionParam(cols[colKey]![requiredExtension], colValue, cols[colKey]);
+
+					continue;
+				}
+
+				result[colKey] = new Param(colValue, cols[colKey]);
 			}
 			return result;
 		});
+
+		for (const colKey of extColumns.values()) {
+			columnExtensionsCheck(cols[colKey]!, this.session.extensions);
+		}
 
 		return new GelInsertBase(
 			this.table,
@@ -126,7 +147,14 @@ export class GelInsertBuilder<
 			);
 		}
 
-		return new GelInsertBase(this.table, select, this.session, this.dialect, this.withList, true);
+		return new GelInsertBase(
+			this.table,
+			select,
+			this.session,
+			this.dialect,
+			this.withList,
+			true,
+		);
 	}
 }
 
@@ -358,7 +386,7 @@ export class GelInsertBase<
 	// 	const whereSql = config.where ? sql` where ${config.where}` : undefined;
 	// 	const targetWhereSql = config.targetWhere ? sql` where ${config.targetWhere}` : undefined;
 	// 	const setWhereSql = config.setWhere ? sql` where ${config.setWhere}` : undefined;
-	// 	const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
+	// 	const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set, this.session.extensions));
 	// 	let targetColumn = '';
 	// 	targetColumn = Array.isArray(config.target)
 	// 		? config.target.map((it) => this.dialect.escapeName(this.dialect.casing.getColumnCasing(it))).join(',')
@@ -371,7 +399,7 @@ export class GelInsertBase<
 
 	/** @internal */
 	getSQL(): SQL {
-		return this.dialect.buildInsertQuery(this.config);
+		return this.dialect.buildInsertQuery(this.config, this.session.extensions);
 	}
 
 	toSQL(): Query {
@@ -386,7 +414,12 @@ export class GelInsertBase<
 				PreparedQueryConfig & {
 					execute: TReturning extends undefined ? GelQueryResultKind<TQueryResult, never> : TReturning[];
 				}
-			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true);
+			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true, {
+				query: 'insert',
+				dialect: this.dialect,
+				session: this.session,
+				config: this.config,
+			});
 		});
 	}
 

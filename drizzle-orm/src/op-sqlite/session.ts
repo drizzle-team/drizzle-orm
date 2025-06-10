@@ -45,6 +45,7 @@ export class OPSQLiteSession<
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		isResponseInArrayMode: boolean,
+		hookContext?: undefined,
 		customResultMapper?: (rows: unknown[][]) => unknown,
 	): OPSQLitePreparedQuery<T> {
 		return new OPSQLitePreparedQuery(
@@ -113,14 +114,14 @@ export class OPSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQuery
 		super('sync', executeMethod, query);
 	}
 
-	run(placeholderValues?: Record<string, unknown>): Promise<QueryResult> {
+	_run(placeholderValues?: Record<string, unknown>): Promise<QueryResult> {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 
 		return this.client.executeAsync(this.query.sql, params);
 	}
 
-	async all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
+	async _all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
 		const { fields, joinsNotNullableMap, query, logger, customResultMapper, client } = this;
 		if (!fields && !customResultMapper) {
 			const params = fillPlaceholders(query.params, placeholderValues ?? {});
@@ -136,7 +137,7 @@ export class OPSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQuery
 		return rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
-	async get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
+	async _get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
 		const { fields, joinsNotNullableMap, customResultMapper, query, logger, client } = this;
 		const params = fillPlaceholders(query.params, placeholderValues ?? {});
 		logger.logQuery(query.sql, params);
@@ -159,7 +160,7 @@ export class OPSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQuery
 		return mapResultRow(fields!, row, joinsNotNullableMap);
 	}
 
-	values(placeholderValues?: Record<string, unknown>): Promise<T['values']> {
+	_values(placeholderValues?: Record<string, unknown>): Promise<T['values']> {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 		return this.client.executeRawAsync(this.query.sql, params);

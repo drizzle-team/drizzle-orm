@@ -7,7 +7,7 @@ import { migrate } from 'drizzle-orm/pg-proxy/migrator';
 import * as pg from 'pg';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
-import { createDockerDB, tests, usersMigratorTable, usersTable } from './pg-common';
+import { createDockerDB, createExtensions, tests, usersMigratorTable, usersTable } from './pg-common';
 
 // eslint-disable-next-line drizzle-internal/require-entity-kind
 class ServerSimulator {
@@ -114,6 +114,7 @@ beforeAll(async () => {
 		}
 	}, {
 		logger: ENABLE_LOGGING,
+		extensions: await createExtensions(),
 	});
 });
 
@@ -447,6 +448,7 @@ skipTests([
 	'nested transaction',
 	'nested transaction rollback',
 	'test $onUpdateFn and $onUpdate works updating',
+	'S3File - transaction',
 ]);
 
 beforeEach(async () => {

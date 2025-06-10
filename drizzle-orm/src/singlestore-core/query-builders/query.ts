@@ -1,4 +1,5 @@
 import { entityKind } from '~/entity.ts';
+import type { BlankSingleStoreHookContext } from '~/extension-core/singlestore/index.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import {
 	type BuildQueryResult,
@@ -93,9 +94,24 @@ export class SingleStoreRelationalQuery<
 
 	prepare() {
 		const { query, builtQuery } = this._toSQL();
+
+		const extCfg: BlankSingleStoreHookContext | undefined = this.session.extensions?.length
+			? {
+				query: '_query',
+				session: this.session,
+				dialect: this.dialect,
+				tableNamesMap: this.tableNamesMap,
+				tablesConfig: this.schema,
+				tableConfig: this.tableConfig,
+				mode: this.queryMode,
+				config: query,
+			}
+			: undefined;
+
 		return this.session.prepareQuery(
 			builtQuery,
 			undefined,
+			extCfg,
 			(rawRows) => {
 				const rows = rawRows.map((row) => mapRelationalRow(this.schema, this.tableConfig, row, query.selection));
 				if (this.queryMode === 'first') {
@@ -115,7 +131,7 @@ export class SingleStoreRelationalQuery<
 			tableConfig: this.tableConfig,
 			queryConfig: this.config,
 			tableAlias: this.tableConfig.tsName,
-		});
+		}, this.session.extensions);
 	}
 
 	private _toSQL(): { query: BuildRelationalQueryResult; builtQuery: QueryWithTypings } {

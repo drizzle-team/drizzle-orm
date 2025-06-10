@@ -13,6 +13,7 @@ import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { Simplify, Update } from '~/utils.ts';
 
+import { requiredExtension } from '~/extension-core/index.ts';
 import type { ForeignKey, UpdateDeleteAction } from '~/pg-core/foreign-keys.ts';
 import { ForeignKeyBuilder } from '~/pg-core/foreign-keys.ts';
 import type { AnyPgTable, PgTable } from '~/pg-core/table.ts';
@@ -325,6 +326,7 @@ export class PgArray<
 	) {
 		super(table, config);
 		this.size = config.size;
+		this[requiredExtension] = baseColumn[requiredExtension];
 	}
 
 	getSQLType(): string {

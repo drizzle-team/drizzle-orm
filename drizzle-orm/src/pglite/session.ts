@@ -11,6 +11,7 @@ import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
 import { types } from '@electric-sql/pglite';
+import type { BlankPgHookContext, DrizzlePgExtension } from '~/extension-core/pg/index.ts';
 
 export type PgliteClient = PGlite;
 
@@ -28,9 +29,11 @@ export class PglitePreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		private _isResponseInArrayMode: boolean,
+		extensions?: DrizzlePgExtension[],
+		hookContext?: BlankPgHookContext,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
-		super({ sql: queryString, params });
+		super({ sql: queryString, params }, extensions, hookContext);
 		this.rawQueryConfig = {
 			rowMode: 'object',
 			parsers: {
@@ -71,7 +74,7 @@ export class PglitePreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 		};
 	}
 
-	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+	async _execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 
 		this.logger.logQuery(this.queryString, params);
@@ -118,8 +121,9 @@ export class PgliteSession<
 		dialect: PgDialect,
 		private schema: RelationalSchemaConfig<TSchema> | undefined,
 		private options: PgliteSessionOptions = {},
+		extensions?: DrizzlePgExtension[],
 	) {
-		super(dialect);
+		super(dialect, extensions);
 		this.logger = options.logger ?? new NoopLogger();
 	}
 
@@ -128,6 +132,7 @@ export class PgliteSession<
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		isResponseInArrayMode: boolean,
+		hookContext?: BlankPgHookContext,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 	): PgPreparedQuery<T> {
 		return new PglitePreparedQuery(
@@ -138,6 +143,8 @@ export class PgliteSession<
 			fields,
 			name,
 			isResponseInArrayMode,
+			this.extensions,
+			hookContext,
 			customResultMapper,
 		);
 	}
@@ -152,8 +159,15 @@ export class PgliteSession<
 				this.dialect,
 				this.schema,
 				this.options,
+				this.extensions,
 			);
-			const tx = new PgliteTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
+			const tx = new PgliteTransaction<TFullSchema, TSchema>(
+				this.dialect,
+				session,
+				this.schema,
+				undefined,
+				this.extensions,
+			);
 			if (config) {
 				await tx.setTransaction(config);
 			}
@@ -182,6 +196,7 @@ export class PgliteTransaction<
 			this.session,
 			this.schema,
 			this.nestedIndex + 1,
+			this._.extensions,
 		);
 		await tx.execute(sql.raw(`savepoint ${savepointName}`));
 		try {

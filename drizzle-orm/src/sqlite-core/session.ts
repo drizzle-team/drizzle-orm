@@ -5,6 +5,7 @@ import type { PreparedQuery } from '~/session.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import type { SQLiteAsyncDialect, SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 // import { QueryPromise } from '../index.ts';
+import type { BlankSQLiteHookContext, DrizzleSQLiteExtension } from '~/extension-core/sqlite/index.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import { BaseSQLiteDatabase } from './db.ts';
 import type { SQLiteRaw } from './query-builders/raw.ts';
@@ -43,36 +44,125 @@ export abstract class SQLitePreparedQuery<T extends PreparedQueryConfig> impleme
 
 	/** @internal */
 	joinsNotNullableMap?: Record<string, boolean>;
+	private extensionMetas = {
+		run: [] as unknown[],
+		get: [] as unknown[],
+		all: [] as unknown[],
+		values: [] as unknown[],
+	};
 
 	constructor(
 		private mode: 'sync' | 'async',
 		private executeMethod: SQLiteExecuteMethod,
 		protected query: Query,
-	) {}
+		protected extensions?: DrizzleSQLiteExtension[],
+		protected hookContext?: BlankSQLiteHookContext,
+	) {
+	}
 
 	getQuery(): Query {
 		return this.query;
 	}
 
-	abstract run(placeholderValues?: Record<string, unknown>): Result<T['type'], T['run']>;
+	private async extQuery(executionMode: 'all' | 'get' | 'run' | 'values', placeholderValues?: Record<string, unknown>) {
+		const {
+			extensions,
+			hookContext,
+			query: {
+				sql: queryString,
+				params,
+			},
+			extensionMetas,
+		} = this;
+		const extMetas = extensionMetas[executionMode];
+		const targetMethod = `_${executionMode}` as const;
+
+		if (!extensions?.length || !hookContext) {
+			return this[targetMethod](placeholderValues);
+		}
+
+		for (const [i, extension] of extensions.entries()) {
+			const ext = extension!;
+			const config = {
+				...hookContext,
+				executionMode,
+				stage: 'before' as const,
+				sql: queryString,
+				params: params,
+				placeholders: placeholderValues,
+				metadata: extMetas[i],
+			};
+
+			await ext.hook(config);
+			extMetas[i] = config.metadata;
+		}
+
+		const res = await (this[targetMethod](placeholderValues));
+
+		for (const [i, ext] of extensions.entries()) {
+			await ext.hook({
+				...hookContext,
+				executionMode,
+				metadata: extMetas[i],
+				stage: 'after' as const,
+				data: res as unknown[],
+			});
+		}
+
+		return res;
+	}
+
+	run(placeholderValues?: Record<string, unknown>): Result<T['type'], T['run']> {
+		if (this.mode === 'async') {
+			return this.extQuery('run', placeholderValues);
+		}
+
+		return this._run(placeholderValues);
+	}
+
+	protected abstract _run(placeholderValues?: Record<string, unknown>): Result<T['type'], T['run']>;
 
 	mapRunResult(result: unknown, _isFromBatch?: boolean): unknown {
 		return result;
 	}
 
-	abstract all(placeholderValues?: Record<string, unknown>): Result<T['type'], T['all']>;
+	all(placeholderValues?: Record<string, unknown>): Result<T['type'], T['all']> {
+		if (this.mode === 'async') {
+			return this.extQuery('all', placeholderValues);
+		}
+
+		return this._all(placeholderValues);
+	}
+
+	protected abstract _all(placeholderValues?: Record<string, unknown>): Result<T['type'], T['all']>;
 
 	mapAllResult(_result: unknown, _isFromBatch?: boolean): unknown {
 		throw new Error('Not implemented');
 	}
 
-	abstract get(placeholderValues?: Record<string, unknown>): Result<T['type'], T['get']>;
+	get(placeholderValues?: Record<string, unknown>): Result<T['type'], T['get']> {
+		if (this.mode === 'async') {
+			return this.extQuery('get', placeholderValues);
+		}
+
+		return this._get(placeholderValues);
+	}
+
+	protected abstract _get(placeholderValues?: Record<string, unknown>): Result<T['type'], T['get']>;
 
 	mapGetResult(_result: unknown, _isFromBatch?: boolean): unknown {
 		throw new Error('Not implemented');
 	}
 
-	abstract values(placeholderValues?: Record<string, unknown>): Result<T['type'], T['values']>;
+	values(placeholderValues?: Record<string, unknown>): Result<T['type'], T['values']> {
+		if (this.mode === 'async') {
+			return this.extQuery('values', placeholderValues);
+		}
+
+		return this._values(placeholderValues);
+	}
+
+	protected abstract _values(placeholderValues?: Record<string, unknown>): Result<T['type'], T['values']>;
 
 	execute(placeholderValues?: Record<string, unknown>): ExecuteResult<T['type'], T['execute']> {
 		if (this.mode === 'async') {
@@ -116,6 +206,7 @@ export abstract class SQLiteSession<
 	constructor(
 		/** @internal */
 		readonly dialect: { sync: SQLiteSyncDialect; async: SQLiteAsyncDialect }[TResultKind],
+		readonly extensions?: DrizzleSQLiteExtension[],
 	) {}
 
 	abstract prepareQuery(
@@ -123,6 +214,7 @@ export abstract class SQLiteSession<
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		isResponseInArrayMode: boolean,
+		hookContext?: BlankSQLiteHookContext,
 		customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => unknown,
 	): SQLitePreparedQuery<PreparedQueryConfig & { type: TResultKind }>;
 
@@ -131,8 +223,9 @@ export abstract class SQLiteSession<
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		isResponseInArrayMode: boolean,
+		hookContext?: BlankSQLiteHookContext,
 	): SQLitePreparedQuery<PreparedQueryConfig & { type: TResultKind }> {
-		return this.prepareQuery(query, fields, executeMethod, isResponseInArrayMode);
+		return this.prepareQuery(query, fields, executeMethod, isResponseInArrayMode, hookContext);
 	}
 
 	abstract transaction<T>(
@@ -221,8 +314,9 @@ export abstract class SQLiteTransaction<
 			tableNamesMap: Record<string, string>;
 		} | undefined,
 		protected readonly nestedIndex = 0,
+		extensions?: DrizzleSQLiteExtension[],
 	) {
-		super(resultType, dialect, session, schema);
+		super(resultType, dialect, session, schema, extensions);
 	}
 
 	rollback(): never {

@@ -1,6 +1,7 @@
 import { type Connection as CallbackConnection, createPool, type Pool as CallbackPool, type PoolOptions } from 'mysql2';
 import type { Connection, Pool } from 'mysql2/promise';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleSingleStoreExtension } from '~/extension-core/singlestore/index.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import {
@@ -31,13 +32,20 @@ export class SingleStoreDriverDriver {
 		private client: SingleStoreDriverClient,
 		private dialect: SingleStoreDialect,
 		private options: SingleStoreDriverOptions = {},
+		private extensions?: DrizzleSingleStoreExtension[],
 	) {
 	}
 
 	createSession(
 		schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined,
 	): SingleStoreDriverSession<Record<string, unknown>, TablesRelationalConfig> {
-		return new SingleStoreDriverSession(this.client, this.dialect, schema, { logger: this.options.logger });
+		return new SingleStoreDriverSession(
+			this.client,
+			this.dialect,
+			schema,
+			{ logger: this.options.logger },
+			this.extensions,
+		);
 	}
 }
 
@@ -50,7 +58,7 @@ export class SingleStoreDriverDatabase<
 }
 
 export type SingleStoreDriverDrizzleConfig<TSchema extends Record<string, unknown> = Record<string, never>> =
-	& Omit<DrizzleConfig<TSchema>, 'schema'>
+	& Omit<DrizzleConfig<TSchema, DrizzleSingleStoreExtension>, 'schema'>
 	& ({ schema: TSchema } | { schema?: undefined });
 
 function construct<
@@ -85,9 +93,17 @@ function construct<
 		};
 	}
 
-	const driver = new SingleStoreDriverDriver(clientForInstance as SingleStoreDriverClient, dialect, { logger });
+	const extensions = config.extensions;
+	const driver = new SingleStoreDriverDriver(
+		clientForInstance as SingleStoreDriverClient,
+		dialect,
+		{ logger },
+		extensions,
+	);
 	const session = driver.createSession(schema);
-	const db = new SingleStoreDriverDatabase(dialect, session, schema as any) as SingleStoreDriverDatabase<TSchema>;
+	const db = new SingleStoreDriverDatabase(dialect, session, schema as any, extensions) as SingleStoreDriverDatabase<
+		TSchema
+	>;
 	(<any> db).$client = client;
 
 	return db as any;
@@ -148,21 +164,19 @@ export function drizzle<
 		if (client) return construct(client, drizzleConfig) as any;
 
 		let opts: PoolOptions = {};
-		if (typeof connection === 'string') {
-			opts = {
+		opts = typeof connection === 'string'
+			? {
 				uri: connection,
 				supportBigNumbers: true,
 				connectAttributes: CONNECTION_ATTRS,
-			};
-		} else {
-			opts = {
+			}
+			: {
 				...connection,
 				connectAttributes: {
 					...connection!.connectAttributes,
 					...CONNECTION_ATTRS,
 				},
 			};
-		}
 
 		const instance = createPool(opts);
 		const db = construct(instance, drizzleConfig);

@@ -6,7 +6,7 @@ import { migrate } from 'drizzle-orm/vercel-postgres/migrator';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
-import { createDockerDB, tests, usersMigratorTable, usersTable } from './pg-common';
+import { createDockerDB, createExtensions, tests, usersMigratorTable, usersTable } from './pg-common';
 
 const ENABLE_LOGGING = false;
 
@@ -45,7 +45,7 @@ beforeAll(async () => {
 		// await pgContainer?.stop().catch(console.error);
 		throw lastError;
 	}
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, { logger: ENABLE_LOGGING, extensions: await createExtensions() });
 });
 
 afterAll(async () => {

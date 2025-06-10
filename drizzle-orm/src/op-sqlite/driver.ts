@@ -18,9 +18,14 @@ export class OPSQLiteDatabase<
 	static override readonly [entityKind]: string = 'OPSQLiteDatabase';
 }
 
+export type OPSQLiteDrizzleConfig<TSchema extends Record<string, unknown> = Record<string, never>> = Omit<
+	DrizzleConfig<TSchema>,
+	'extensions'
+>;
+
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: OPSQLiteConnection,
-	config: DrizzleConfig<TSchema> = {},
+	config: OPSQLiteDrizzleConfig<TSchema> = {},
 ): OPSQLiteDatabase<TSchema> & {
 	$client: OPSQLiteConnection;
 } {

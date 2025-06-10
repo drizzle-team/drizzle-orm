@@ -1,5 +1,10 @@
 import { entityKind } from '~/entity.ts';
 import { TransactionRollbackError } from '~/errors.ts';
+import type {
+	BlankSingleStoreHookContext,
+	DrizzleSingleStoreExtension,
+	DrizzleSingleStoreHookContext,
+} from '~/extension-core/singlestore/index.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { type Query, type SQL, sql } from '~/sql/sql.ts';
 import type { Assume, Equal } from '~/utils.ts';
@@ -45,8 +50,55 @@ export abstract class SingleStorePreparedQuery<T extends SingleStorePreparedQuer
 
 	/** @internal */
 	joinsNotNullableMap?: Record<string, boolean>;
+	private extensionMetas: unknown[] = [];
 
-	abstract execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
+	constructor(
+		protected queryString: string,
+		protected params: unknown[],
+		protected extensions?: DrizzleSingleStoreExtension[],
+		protected hookContext?: BlankSingleStoreHookContext,
+	) {}
+
+	async execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']> {
+		const {
+			extensions,
+			hookContext,
+			queryString,
+			params,
+			extensionMetas,
+		} = this;
+		if (!extensions?.length || !hookContext) return await this._execute(placeholderValues);
+
+		for (const [i, extension] of extensions.entries()) {
+			const ext = extension!;
+			const config = {
+				...hookContext,
+				stage: 'before',
+				sql: queryString,
+				params: params,
+				placeholders: placeholderValues,
+				metadata: extensionMetas[i],
+			} as DrizzleSingleStoreHookContext;
+
+			await ext.hook(config);
+			extensionMetas[i] = config.metadata;
+		}
+
+		const res = await this._execute(placeholderValues);
+
+		for (const [i, ext] of extensions.entries()) {
+			await ext.hook({
+				...hookContext,
+				metadata: extensionMetas[i],
+				stage: 'after',
+				data: res as unknown[],
+			});
+		}
+
+		return res;
+	}
+
+	protected abstract _execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
 
 	abstract iterator(placeholderValues?: Record<string, unknown>): AsyncGenerator<T['iterator']>;
 }
@@ -65,7 +117,7 @@ export abstract class SingleStoreSession<
 > {
 	static readonly [entityKind]: string = 'SingleStoreSession';
 
-	constructor(protected dialect: SingleStoreDialect) {}
+	constructor(protected dialect: SingleStoreDialect, readonly extensions?: DrizzleSingleStoreExtension[]) {}
 
 	abstract prepareQuery<
 		T extends SingleStorePreparedQueryConfig,
@@ -73,6 +125,7 @@ export abstract class SingleStoreSession<
 	>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
+		hookContext?: BlankSingleStoreHookContext,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 		generatedIds?: Record<string, unknown>[],
 		returningIds?: SelectedFieldsOrdered,
@@ -138,8 +191,9 @@ export abstract class SingleStoreTransaction<
 		session: SingleStoreSession,
 		protected schema: RelationalSchemaConfig<TSchema> | undefined,
 		protected readonly nestedIndex: number,
+		extensions?: DrizzleSingleStoreExtension[],
 	) {
-		super(dialect, session, schema);
+		super(dialect, session, schema, extensions);
 	}
 
 	rollback(): never {

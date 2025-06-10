@@ -1,5 +1,6 @@
 import { type Client, type ConnectOptions, createClient } from 'gel';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleGelExtension } from '~/extension-core/gel/index.ts';
 import { GelDatabase } from '~/gel-core/db.ts';
 import { GelDialect } from '~/gel-core/dialect.ts';
 import type { GelQueryResultHKT } from '~/gel-core/session.ts';
@@ -26,12 +27,13 @@ export class GelDriver {
 		private client: GelClient,
 		private dialect: GelDialect,
 		private options: GelDriverOptions = {},
+		private extensions?: DrizzleGelExtension[],
 	) {}
 
 	createSession(
 		schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined,
 	): GelDbSession<Record<string, unknown>, TablesRelationalConfig> {
-		return new GelDbSession(this.client, this.dialect, schema, { logger: this.options.logger });
+		return new GelDbSession(this.client, this.dialect, schema, { logger: this.options.logger }, this.extensions);
 	}
 }
 
@@ -46,7 +48,7 @@ function construct<
 	TClient extends GelClient = GelClient,
 >(
 	client: TClient,
-	config: DrizzleConfig<TSchema> = {},
+	config: DrizzleConfig<TSchema, DrizzleGelExtension> = {},
 ): GelJsDatabase<TSchema> & {
 	$client: TClient;
 } {
@@ -68,9 +70,10 @@ function construct<
 		};
 	}
 
-	const driver = new GelDriver(client, dialect, { logger });
+	const extensions = config.extensions;
+	const driver = new GelDriver(client, dialect, { logger }, extensions);
 	const session = driver.createSession(schema);
-	const db = new GelJsDatabase(dialect, session, schema as any) as GelJsDatabase<TSchema>;
+	const db = new GelJsDatabase(dialect, session, schema as any, extensions) as GelJsDatabase<TSchema>;
 	(<any> db).$client = client;
 
 	return db as any;
@@ -82,9 +85,9 @@ export function drizzle<
 >(
 	...params:
 		| [TClient | string]
-		| [TClient | string, DrizzleConfig<TSchema>]
+		| [TClient | string, DrizzleConfig<TSchema, DrizzleGelExtension>]
 		| [
-			& DrizzleConfig<TSchema>
+			& DrizzleConfig<TSchema, DrizzleGelExtension>
 			& (
 				| {
 					connection: string | ConnectOptions;
@@ -100,13 +103,13 @@ export function drizzle<
 	if (typeof params[0] === 'string') {
 		const instance = createClient({ dsn: params[0] });
 
-		return construct(instance, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+		return construct(instance, params[1] as DrizzleConfig<TSchema, DrizzleGelExtension> | undefined) as any;
 	}
 
 	if (isConfig(params[0])) {
 		const { connection, client, ...drizzleConfig } = params[0] as (
 			& ({ connection?: ConnectOptions | string; client?: TClient })
-			& DrizzleConfig<TSchema>
+			& DrizzleConfig<TSchema, DrizzleGelExtension>
 		);
 
 		if (client) return construct(client, drizzleConfig);
@@ -116,12 +119,12 @@ export function drizzle<
 		return construct(instance, drizzleConfig) as any;
 	}
 
-	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema, DrizzleGelExtension> | undefined) as any;
 }
 
 export namespace drizzle {
 	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
-		config?: DrizzleConfig<TSchema>,
+		config?: DrizzleConfig<TSchema, DrizzleGelExtension>,
 	): GelJsDatabase<TSchema> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {

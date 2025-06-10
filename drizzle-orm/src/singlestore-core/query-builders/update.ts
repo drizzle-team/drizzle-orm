@@ -60,7 +60,7 @@ export class SingleStoreUpdateBuilder<
 	set(values: SingleStoreUpdateSetSource<TTable>): SingleStoreUpdateBase<TTable, TQueryResult, TPreparedQueryHKT> {
 		return new SingleStoreUpdateBase(
 			this.table,
-			mapUpdateSet(this.table, values),
+			mapUpdateSet(this.table, values, this.session.extensions),
 			this.session,
 			this.dialect,
 			this.withList,
@@ -218,7 +218,7 @@ export class SingleStoreUpdateBase<
 
 	/** @internal */
 	getSQL(): SQL {
-		return this.dialect.buildUpdateQuery(this.config);
+		return this.dialect.buildUpdateQuery(this.config, this.session.extensions);
 	}
 
 	toSQL(): Query {
@@ -230,6 +230,12 @@ export class SingleStoreUpdateBase<
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(this.getSQL()),
 			this.config.returning,
+			{
+				query: 'update',
+				config: this.config,
+				dialect: this.dialect,
+				session: this.session,
+			},
 		) as SingleStoreUpdatePrepare<this>;
 	}
 

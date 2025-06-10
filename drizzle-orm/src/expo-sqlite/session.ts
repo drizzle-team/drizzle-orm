@@ -45,6 +45,7 @@ export class ExpoSQLiteSession<
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		isResponseInArrayMode: boolean,
+		hookContext?: undefined,
 		customResultMapper?: (rows: unknown[][]) => unknown,
 	): ExpoSQLitePreparedQuery<T> {
 		const stmt = this.client.prepareSync(query.sql);
@@ -114,7 +115,7 @@ export class ExpoSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQue
 		super('sync', executeMethod, query);
 	}
 
-	run(placeholderValues?: Record<string, unknown>): SQLiteRunResult {
+	_run(placeholderValues?: Record<string, unknown>): SQLiteRunResult {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 		const { changes, lastInsertRowId } = this.stmt.executeSync(params as any[]);
@@ -124,7 +125,7 @@ export class ExpoSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQue
 		};
 	}
 
-	all(placeholderValues?: Record<string, unknown>): T['all'] {
+	_all(placeholderValues?: Record<string, unknown>): T['all'] {
 		const { fields, joinsNotNullableMap, query, logger, stmt, customResultMapper } = this;
 		if (!fields && !customResultMapper) {
 			const params = fillPlaceholders(query.params, placeholderValues ?? {});
@@ -139,7 +140,7 @@ export class ExpoSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQue
 		return rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
-	get(placeholderValues?: Record<string, unknown>): T['get'] {
+	_get(placeholderValues?: Record<string, unknown>): T['get'] {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 
@@ -162,7 +163,7 @@ export class ExpoSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQue
 		return mapResultRow(fields!, row, joinsNotNullableMap);
 	}
 
-	values(placeholderValues?: Record<string, unknown>): T['values'] {
+	_values(placeholderValues?: Record<string, unknown>): T['values'] {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 		return this.stmt.executeForRawResultSync(params as any[]).getAllSync();

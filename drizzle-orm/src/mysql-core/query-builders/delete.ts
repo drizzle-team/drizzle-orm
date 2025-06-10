@@ -173,7 +173,7 @@ export class MySqlDeleteBase<
 
 	/** @internal */
 	getSQL(): SQL {
-		return this.dialect.buildDeleteQuery(this.config);
+		return this.dialect.buildDeleteQuery(this.config, this.session.extensions);
 	}
 
 	toSQL(): Query {
@@ -185,6 +185,12 @@ export class MySqlDeleteBase<
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(this.getSQL()),
 			this.config.returning,
+			{
+				query: 'delete',
+				config: this.config,
+				session: this.session,
+				dialect: this.dialect,
+			},
 		) as MySqlDeletePrepare<this>;
 	}
 

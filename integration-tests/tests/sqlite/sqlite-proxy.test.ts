@@ -6,7 +6,7 @@ import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy';
 import { drizzle as proxyDrizzle } from 'drizzle-orm/sqlite-proxy';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
-import { tests, usersTable } from './sqlite-common';
+import { createExtensions, tests, usersTable } from './sqlite-common';
 
 class ServerSimulator {
 	constructor(private db: BetterSqlite3.Database) {}
@@ -75,6 +75,8 @@ beforeAll(async () => {
 			console.error('Error from sqlite proxy server:', e.response?.data ?? e.message);
 			throw e;
 		}
+	}, {
+		extensions: await createExtensions(),
 	});
 });
 

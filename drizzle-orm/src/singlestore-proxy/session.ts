@@ -1,6 +1,7 @@
 import type { FieldPacket, ResultSetHeader } from 'mysql2/promise';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
+import type { BlankSingleStoreHookContext, DrizzleSingleStoreExtension } from '~/extension-core/singlestore/index.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
@@ -39,14 +40,16 @@ export class SingleStoreRemoteSession<
 		dialect: SingleStoreDialect,
 		private schema: RelationalSchemaConfig<TSchema> | undefined,
 		options: SingleStoreRemoteSessionOptions,
+		extensions?: DrizzleSingleStoreExtension[],
 	) {
-		super(dialect);
+		super(dialect, extensions);
 		this.logger = options.logger ?? new NoopLogger();
 	}
 
 	prepareQuery<T extends SingleStorePreparedQueryConfig>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
+		hookContext?: BlankSingleStoreHookContext,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 		generatedIds?: Record<string, unknown>[],
 		returningIds?: SelectedFieldsOrdered,
@@ -57,6 +60,8 @@ export class SingleStoreRemoteSession<
 			query.params,
 			this.logger,
 			fields,
+			this.extensions,
+			hookContext,
 			customResultMapper,
 			generatedIds,
 			returningIds,
@@ -100,20 +105,22 @@ export class PreparedQuery<T extends SingleStorePreparedQueryConfig> extends Pre
 
 	constructor(
 		private client: RemoteCallback,
-		private queryString: string,
-		private params: unknown[],
+		queryString: string,
+		params: unknown[],
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
+		extensions?: DrizzleSingleStoreExtension[],
+		hookContext?: BlankSingleStoreHookContext,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 		// Keys that were used in $default and the value that was generated for them
 		private generatedIds?: Record<string, unknown>[],
 		// Keys that should be returned, it has the column with all properries + key from object
 		private returningIds?: SelectedFieldsOrdered,
 	) {
-		super();
+		super(queryString, params, extensions, hookContext);
 	}
 
-	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+	async _execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 
 		const { fields, client, queryString, logger, joinsNotNullableMap, customResultMapper, returningIds, generatedIds } =

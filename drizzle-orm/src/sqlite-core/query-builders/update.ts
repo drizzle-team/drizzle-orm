@@ -72,7 +72,7 @@ export class SQLiteUpdateBuilder<
 	> {
 		return new SQLiteUpdateBase(
 			this.table,
-			mapUpdateSet(this.table, values),
+			mapUpdateSet(this.table, values, this.session.extensions),
 			this.session,
 			this.dialect,
 			this.withList,
@@ -411,7 +411,7 @@ export class SQLiteUpdateBase<
 
 	/** @internal */
 	getSQL(): SQL {
-		return this.dialect.buildUpdateQuery(this.config);
+		return this.dialect.buildUpdateQuery(this.config, this.session.extensions);
 	}
 
 	toSQL(): Query {
@@ -426,6 +426,12 @@ export class SQLiteUpdateBase<
 			this.config.returning,
 			this.config.returning ? 'all' : 'run',
 			true,
+			{
+				query: 'update',
+				config: this.config,
+				dialect: this.dialect,
+				session: this.session,
+			},
 		) as SQLiteUpdatePrepare<this>;
 	}
 

@@ -2,6 +2,7 @@
 import type { D1Database as MiniflareD1Database } from '@miniflare/d1';
 import type { BatchItem, BatchResponse } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleSQLiteExtension } from '~/extension-core/sqlite/index.ts';
 import { DefaultLogger } from '~/logger.ts';
 import {
 	createTableRelationsHelpers,
@@ -41,7 +42,7 @@ export function drizzle<
 	TClient extends AnyD1Database = AnyD1Database,
 >(
 	client: TClient,
-	config: DrizzleConfig<TSchema> = {},
+	config: DrizzleConfig<TSchema, DrizzleSQLiteExtension> = {},
 ): DrizzleD1Database<TSchema> & {
 	$client: TClient;
 } {
@@ -66,8 +67,9 @@ export function drizzle<
 		};
 	}
 
-	const session = new SQLiteD1Session(client as D1Database, dialect, schema, { logger });
-	const db = new DrizzleD1Database('async', dialect, session, schema) as DrizzleD1Database<TSchema>;
+	const extensions = config.extensions;
+	const session = new SQLiteD1Session(client as D1Database, dialect, schema, { logger }, extensions);
+	const db = new DrizzleD1Database('async', dialect, session, schema, extensions) as DrizzleD1Database<TSchema>;
 	(<any> db).$client = client;
 
 	return db as any;

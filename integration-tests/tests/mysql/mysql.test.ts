@@ -3,7 +3,7 @@ import type { MySql2Database } from 'drizzle-orm/mysql2';
 import { drizzle } from 'drizzle-orm/mysql2';
 import * as mysql from 'mysql2/promise';
 import { afterAll, beforeAll, beforeEach } from 'vitest';
-import { createDockerDB, tests } from './mysql-common';
+import { createDockerDB, createExtensions, tests } from './mysql-common';
 
 const ENABLE_LOGGING = false;
 
@@ -35,7 +35,7 @@ beforeAll(async () => {
 			client?.end();
 		},
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, { logger: ENABLE_LOGGING, extensions: await createExtensions() });
 });
 
 afterAll(async () => {

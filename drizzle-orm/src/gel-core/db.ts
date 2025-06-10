@@ -1,4 +1,5 @@
 import { entityKind } from '~/entity.ts';
+import type { DrizzleGelExtension } from '~/extension-core/gel/index.ts';
 import type { GelDialect } from '~/gel-core/dialect.ts';
 import {
 	GelDeleteBase,
@@ -35,6 +36,7 @@ export class GelDatabase<
 		readonly fullSchema: TFullSchema;
 		readonly tableNamesMap: Record<string, string>;
 		readonly session: GelSession<TQueryResult, TFullSchema, TSchema>;
+		readonly extensions?: DrizzleGelExtension[];
 	};
 
 	query: TFullSchema extends Record<string, never>
@@ -49,6 +51,7 @@ export class GelDatabase<
 		/** @internal */
 		readonly session: GelSession<any, any, any>,
 		schema: RelationalSchemaConfig<TSchema> | undefined,
+		extensions?: DrizzleGelExtension[],
 	) {
 		this._ = schema
 			? {
@@ -56,12 +59,14 @@ export class GelDatabase<
 				fullSchema: schema.fullSchema as TFullSchema,
 				tableNamesMap: schema.tableNamesMap,
 				session,
+				extensions: extensions,
 			}
 			: {
 				schema: undefined,
 				fullSchema: {} as TFullSchema,
 				tableNamesMap: {},
 				session,
+				extensions: extensions,
 			};
 		this.query = {} as typeof this['query'];
 		if (this._.schema) {

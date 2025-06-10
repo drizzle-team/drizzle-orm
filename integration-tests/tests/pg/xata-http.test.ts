@@ -8,7 +8,7 @@ import { beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
 import { getXataClient } from '../xata/xata.ts';
-import { tests, usersMigratorTable, usersTable } from './pg-common';
+import { createExtensions, tests, usersMigratorTable, usersTable } from './pg-common';
 
 const ENABLE_LOGGING = false;
 
@@ -31,7 +31,7 @@ beforeAll(async () => {
 		maxTimeout: 250,
 		randomize: false,
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, { logger: ENABLE_LOGGING, extensions: await createExtensions() });
 });
 
 beforeEach((ctx) => {

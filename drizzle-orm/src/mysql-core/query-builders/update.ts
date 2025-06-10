@@ -58,7 +58,13 @@ export class MySqlUpdateBuilder<
 	) {}
 
 	set(values: MySqlUpdateSetSource<TTable>): MySqlUpdateBase<TTable, TQueryResult, TPreparedQueryHKT> {
-		return new MySqlUpdateBase(this.table, mapUpdateSet(this.table, values), this.session, this.dialect, this.withList);
+		return new MySqlUpdateBase(
+			this.table,
+			mapUpdateSet(this.table, values, this.session.extensions),
+			this.session,
+			this.dialect,
+			this.withList,
+		);
 	}
 }
 
@@ -212,7 +218,7 @@ export class MySqlUpdateBase<
 
 	/** @internal */
 	getSQL(): SQL {
-		return this.dialect.buildUpdateQuery(this.config);
+		return this.dialect.buildUpdateQuery(this.config, this.session.extensions);
 	}
 
 	toSQL(): Query {
@@ -224,6 +230,12 @@ export class MySqlUpdateBase<
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(this.getSQL()),
 			this.config.returning,
+			{
+				query: 'update',
+				config: this.config,
+				dialect: this.dialect,
+				session: this.session,
+			},
 		) as MySqlUpdatePrepare<this>;
 	}
 

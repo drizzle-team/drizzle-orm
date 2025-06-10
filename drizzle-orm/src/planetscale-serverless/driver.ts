@@ -1,6 +1,7 @@
 import type { Config } from '@planetscale/database';
 import { Client } from '@planetscale/database';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleMySqlExtension } from '~/extension-core/mysql/index.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { MySqlDatabase } from '~/mysql-core/db.ts';
@@ -30,7 +31,7 @@ function construct<
 	TClient extends Client = Client,
 >(
 	client: TClient,
-	config: DrizzleConfig<TSchema> = {},
+	config: DrizzleConfig<TSchema, DrizzleMySqlExtension> = {},
 ): PlanetScaleDatabase<TSchema> & {
 	$client: TClient;
 } {
@@ -72,8 +73,11 @@ const db = drizzle(client);
 		};
 	}
 
-	const session = new PlanetscaleSession(client, dialect, undefined, schema, { logger });
-	const db = new PlanetScaleDatabase(dialect, session, schema as any, 'planetscale') as PlanetScaleDatabase<TSchema>;
+	const extensions = config.extensions;
+	const session = new PlanetscaleSession(client, dialect, undefined, schema, { logger }, extensions);
+	const db = new PlanetScaleDatabase(dialect, session, schema as any, 'planetscale', extensions) as PlanetScaleDatabase<
+		TSchema
+	>;
 	(<any> db).$client = client;
 
 	return db as any;
@@ -87,10 +91,10 @@ export function drizzle<
 		TClient | string,
 	] | [
 		TClient | string,
-		DrizzleConfig<TSchema>,
+		DrizzleConfig<TSchema, DrizzleMySqlExtension>,
 	] | [
 		(
-			& DrizzleConfig<TSchema>
+			& DrizzleConfig<TSchema, DrizzleMySqlExtension>
 			& ({
 				connection: string | Config;
 			} | {
@@ -127,12 +131,12 @@ export function drizzle<
 		return construct(instance, drizzleConfig) as any;
 	}
 
-	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema, DrizzleMySqlExtension> | undefined) as any;
 }
 
 export namespace drizzle {
 	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
-		config?: DrizzleConfig<TSchema>,
+		config?: DrizzleConfig<TSchema, DrizzleMySqlExtension>,
 	): PlanetScaleDatabase<TSchema> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {

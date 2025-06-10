@@ -2,6 +2,7 @@
 
 import type { BatchItem } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
+import type { BlankSQLiteHookContext, DrizzleSQLiteExtension } from '~/extension-core/sqlite/index.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
@@ -37,8 +38,9 @@ export class SQLiteD1Session<
 		dialect: SQLiteAsyncDialect,
 		private schema: RelationalSchemaConfig<TSchema> | undefined,
 		private options: SQLiteD1SessionOptions = {},
+		extensions?: DrizzleSQLiteExtension[],
 	) {
-		super(dialect);
+		super(dialect, extensions);
 		this.logger = options.logger ?? new NoopLogger();
 	}
 
@@ -47,6 +49,7 @@ export class SQLiteD1Session<
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		isResponseInArrayMode: boolean,
+		hookContext?: BlankSQLiteHookContext,
 		customResultMapper?: (rows: unknown[][]) => unknown,
 	): D1PreparedQuery {
 		const stmt = this.client.prepare(query.sql);
@@ -57,6 +60,8 @@ export class SQLiteD1Session<
 			fields,
 			executeMethod,
 			isResponseInArrayMode,
+			this.extensions,
+			hookContext,
 			customResultMapper,
 		);
 	}
@@ -99,7 +104,7 @@ export class SQLiteD1Session<
 		transaction: (tx: D1Transaction<TFullSchema, TSchema>) => T | Promise<T>,
 		config?: SQLiteTransactionConfig,
 	): Promise<T> {
-		const tx = new D1Transaction('async', this.dialect, this, this.schema);
+		const tx = new D1Transaction('async', this.dialect, this, this.schema, undefined, this.extensions);
 		await this.run(sql.raw(`begin${config?.behavior ? ' ' + config.behavior : ''}`));
 		try {
 			const result = await transaction(tx);
@@ -120,7 +125,14 @@ export class D1Transaction<
 
 	override async transaction<T>(transaction: (tx: D1Transaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex}`;
-		const tx = new D1Transaction('async', this.dialect, this.session, this.schema, this.nestedIndex + 1);
+		const tx = new D1Transaction(
+			'async',
+			this.dialect,
+			this.session,
+			this.schema,
+			this.nestedIndex + 1,
+			this._.extensions,
+		);
 		await this.session.run(sql.raw(`savepoint ${savepointName}`));
 		try {
 			const result = await transaction(tx);
@@ -169,21 +181,23 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		private _isResponseInArrayMode: boolean,
+		extensions?: DrizzleSQLiteExtension[],
+		hookContext?: BlankSQLiteHookContext,
 		customResultMapper?: (rows: unknown[][]) => unknown,
 	) {
-		super('async', executeMethod, query);
+		super('async', executeMethod, query, extensions, hookContext);
 		this.customResultMapper = customResultMapper;
 		this.fields = fields;
 		this.stmt = stmt;
 	}
 
-	run(placeholderValues?: Record<string, unknown>): Promise<D1Response> {
+	_run(placeholderValues?: Record<string, unknown>): Promise<D1Response> {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 		return this.stmt.bind(...params).run();
 	}
 
-	async all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
+	async _all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
 		const { fields, query, logger, stmt, customResultMapper } = this;
 		if (!fields && !customResultMapper) {
 			const params = fillPlaceholders(query.params, placeholderValues ?? {});
@@ -212,7 +226,7 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 		return (rows as unknown[][]).map((row) => mapResultRow(this.fields!, row, this.joinsNotNullableMap));
 	}
 
-	async get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
+	async _get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
 		const { fields, joinsNotNullableMap, query, logger, stmt, customResultMapper } = this;
 		if (!fields && !customResultMapper) {
 			const params = fillPlaceholders(query.params, placeholderValues ?? {});
@@ -220,7 +234,7 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 			return stmt.bind(...params).all().then(({ results }) => results![0]);
 		}
 
-		const rows = await this.values(placeholderValues);
+		const rows = await this.values(placeholderValues) as unknown[][];
 
 		if (!rows[0]) {
 			return undefined;
@@ -249,7 +263,7 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 		return mapResultRow(this.fields!, result as unknown[], this.joinsNotNullableMap);
 	}
 
-	values<T extends any[] = unknown[]>(placeholderValues?: Record<string, unknown>): Promise<T[]> {
+	_values<T extends any[] = unknown[]>(placeholderValues?: Record<string, unknown>): Promise<T[]> {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 		return this.stmt.bind(...params).raw();

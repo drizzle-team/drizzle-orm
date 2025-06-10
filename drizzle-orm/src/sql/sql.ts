@@ -1,5 +1,6 @@
 import type { CasingCache } from '~/casing.ts';
 import { entityKind, is } from '~/entity.ts';
+import type { DrizzleExtension } from '~/extension-core/index.ts';
 import { isPgEnum } from '~/pg-core/columns/enum.ts';
 import type { SelectResult } from '~/query-builders/select.types.ts';
 import { Subquery } from '~/subquery.ts';
@@ -220,7 +221,9 @@ export class SQL<T = unknown> implements SQLWrapper {
 					return { sql: escapeParam(paramStartIndex.value++, chunk), params: [chunk], typings: ['none'] };
 				}
 
-				const mappedValue = chunk.value === null ? null : chunk.encoder.mapToDriverValue(chunk.value);
+				const isNull = chunk.value === null;
+
+				const mappedValue = isNull ? null : chunk.encoder.mapToDriverValue(chunk.value);
 
 				if (is(mappedValue, SQL)) {
 					return this.buildQueryFromSourceParams([mappedValue], config);
@@ -235,7 +238,11 @@ export class SQL<T = unknown> implements SQLWrapper {
 					typings = [prepareTyping(chunk.encoder)];
 				}
 
-				return { sql: escapeParam(paramStartIndex.value++, mappedValue), params: [mappedValue], typings };
+				return {
+					sql: escapeParam(paramStartIndex.value++, mappedValue),
+					params: [(isNull || !is(chunk, ExtensionParam)) ? mappedValue : chunk],
+					typings,
+				};
 			}
 
 			if (is(chunk, Placeholder)) {
@@ -434,6 +441,25 @@ export class Param<TDataType = unknown, TDriverParamType = TDataType> implements
 	}
 }
 
+/** Parameter value bound to an extension */
+export class ExtensionParam<TDataType = unknown, TDriverParamType = TDataType>
+	extends Param<TDataType, TDriverParamType>
+{
+	static override readonly [entityKind]: string = 'ExtendsParam';
+
+	/**
+	 * @param value - Parameter value
+	 * @param encoder - Encoder to convert the value to a driver parameter
+	 */
+	constructor(
+		readonly extension: typeof DrizzleExtension<any>,
+		value: TDataType,
+		encoder: DriverValueEncoder<TDataType, TDriverParamType> = noopEncoder,
+	) {
+		super(value, encoder);
+	}
+}
+
 /** @deprecated Use `sql.param` instead. */
 export function param<TData, TDriver>(
 	value: TData,
@@ -546,6 +572,14 @@ export namespace sql {
 		encoder?: DriverValueEncoder<TData, TDriver>,
 	): Param<TData, TDriver> {
 		return new Param(value, encoder);
+	}
+
+	export function extensionParam<TData, TDriver>(
+		extension: typeof DrizzleExtension<any>,
+		value: TData,
+		encoder?: DriverValueEncoder<TData, TDriver>,
+	): Param<TData, TDriver> {
+		return new ExtensionParam(extension, value, encoder);
 	}
 }
 

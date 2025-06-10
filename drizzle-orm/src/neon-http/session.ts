@@ -1,6 +1,7 @@
 import type { FullQueryResults, NeonQueryFunction, NeonQueryPromise } from '@neondatabase/serverless';
 import type { BatchItem } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
+import type { BlankPgHookContext, DrizzlePgExtension } from '~/extension-core/pg/index.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -34,20 +35,22 @@ export class NeonHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		private _isResponseInArrayMode: boolean,
+		extensions?: DrizzlePgExtension[],
+		hookContext?: BlankPgHookContext,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
-		super(query);
+		super(query, extensions, hookContext);
 		// `client.query` is for @neondatabase/serverless v1.0.0 and up, where the
 		// root query function `client` is only usable as a template function;
 		// `client` is a fallback for earlier versions
 		this.clientQuery = (client as any).query ?? client as any;
 	}
 
-	async execute(placeholderValues: Record<string, unknown> | undefined): Promise<T['execute']>;
+	async _execute(placeholderValues: Record<string, unknown> | undefined): Promise<T['execute']>;
 	/** @internal */
-	async execute(placeholderValues: Record<string, unknown> | undefined, token?: NeonAuthToken): Promise<T['execute']>;
+	async _execute(placeholderValues: Record<string, unknown> | undefined, token?: NeonAuthToken): Promise<T['execute']>;
 	/** @internal */
-	async execute(
+	async _execute(
 		placeholderValues: Record<string, unknown> | undefined = {},
 		token: NeonAuthToken | undefined = this.authToken,
 	): Promise<T['execute']> {
@@ -147,8 +150,9 @@ export class NeonHttpSession<
 		dialect: PgDialect,
 		private schema: RelationalSchemaConfig<TSchema> | undefined,
 		private options: NeonHttpSessionOptions = {},
+		extensions?: DrizzlePgExtension[],
 	) {
-		super(dialect);
+		super(dialect, extensions);
 		// `client.query` is for @neondatabase/serverless v1.0.0 and up, where the
 		// root query function `client` is only usable as a template function;
 		// `client` is a fallback for earlier versions
@@ -161,6 +165,7 @@ export class NeonHttpSession<
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		isResponseInArrayMode: boolean,
+		hookContext?: BlankPgHookContext,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 	): PgPreparedQuery<T> {
 		return new NeonHttpPreparedQuery(
@@ -169,6 +174,8 @@ export class NeonHttpSession<
 			this.logger,
 			fields,
 			isResponseInArrayMode,
+			this.extensions,
+			hookContext,
 			customResultMapper,
 		);
 	}

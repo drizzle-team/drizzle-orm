@@ -4,7 +4,7 @@ import { drizzle as proxyDrizzle } from 'drizzle-orm/mysql-proxy';
 import * as mysql from 'mysql2/promise';
 import { afterAll, beforeAll, beforeEach } from 'vitest';
 import { skipTests } from '~/common';
-import { createDockerDB, tests } from './mysql-common';
+import { createDockerDB, createExtensions, tests } from './mysql-common';
 
 const ENABLE_LOGGING = false;
 
@@ -112,7 +112,7 @@ beforeAll(async () => {
 			console.error('Error from mysql proxy server:', e.message);
 			throw e;
 		}
-	}, { logger: ENABLE_LOGGING });
+	}, { logger: ENABLE_LOGGING, extensions: await createExtensions() });
 });
 
 afterAll(async () => {
@@ -134,6 +134,8 @@ skipTests([
 	'transaction',
 	'transaction with options (set isolationLevel)',
 	'migrator',
+	'S3File - transaction',
+	'S3File - returnless transaction',
 ]);
 
 tests();

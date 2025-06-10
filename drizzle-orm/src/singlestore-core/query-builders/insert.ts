@@ -1,4 +1,5 @@
 import { entityKind, is } from '~/entity.ts';
+import { requiredExtension } from '~/extension-core/index.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
@@ -13,10 +14,10 @@ import type {
 } from '~/singlestore-core/session.ts';
 import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
-import { Param, SQL, sql } from '~/sql/sql.ts';
+import { ExtensionParam, Param, SQL, sql } from '~/sql/sql.ts';
 import type { InferModelFromColumns } from '~/table.ts';
 import { Table } from '~/table.ts';
-import { mapUpdateSet, orderSelectedFields } from '~/utils.ts';
+import { columnExtensionsCheck, mapUpdateSet, orderSelectedFields } from '~/utils.ts';
 import type { AnySingleStoreColumn, SingleStoreColumn } from '../columns/common.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
 import type { SingleStoreUpdateSetSource } from './update.ts';
@@ -66,15 +67,35 @@ export class SingleStoreInsertBuilder<
 		if (values.length === 0) {
 			throw new Error('values() must be called with at least one value');
 		}
+
+		const extColumns = new Set<string>();
+		const cols = this.table[Table.Symbol.Columns];
+
 		const mappedValues = values.map((entry) => {
 			const result: Record<string, Param | SQL> = {};
-			const cols = this.table[Table.Symbol.Columns];
 			for (const colKey of Object.keys(entry)) {
 				const colValue = entry[colKey as keyof typeof entry];
-				result[colKey] = is(colValue, SQL) ? colValue : new Param(colValue, cols[colKey]);
+
+				if (is(colValue, SQL)) {
+					result[colKey] = colValue;
+					continue;
+				}
+
+				if (cols[colKey]![requiredExtension]) {
+					extColumns.add(colKey);
+					result[colKey] = new ExtensionParam(cols[colKey]![requiredExtension], colValue, cols[colKey]);
+
+					continue;
+				}
+
+				result[colKey] = new Param(colValue, cols[colKey]);
 			}
 			return result;
 		});
+
+		for (const colKey of extColumns.values()) {
+			columnExtensionsCheck(cols[colKey]!, this.session.extensions);
+		}
 
 		return new SingleStoreInsertBase(this.table, mappedValues, this.shouldIgnore, this.session, this.dialect);
 	}
@@ -245,7 +266,11 @@ export class SingleStoreInsertBase<
 	onDuplicateKeyUpdate(
 		config: SingleStoreInsertOnDuplicateKeyUpdateConfig<this>,
 	): SingleStoreInsertWithout<this, TDynamic, 'onDuplicateKeyUpdate'> {
-		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
+		const setSql = this.dialect.buildUpdateSet(
+			this.config.table,
+			mapUpdateSet(this.config.table, config.set),
+			this.session.extensions,
+		);
 		this.config.onConflict = sql`update ${setSql}`;
 		return this as any;
 	}
@@ -267,7 +292,7 @@ export class SingleStoreInsertBase<
 
 	/** @internal */
 	getSQL(): SQL {
-		return this.dialect.buildInsertQuery(this.config).sql;
+		return this.dialect.buildInsertQuery(this.config, this.session.extensions).sql;
 	}
 
 	toSQL(): Query {
@@ -276,10 +301,16 @@ export class SingleStoreInsertBase<
 	}
 
 	prepare(): SingleStoreInsertPrepare<this, TReturning> {
-		const { sql, generatedIds } = this.dialect.buildInsertQuery(this.config);
+		const { sql, generatedIds } = this.dialect.buildInsertQuery(this.config, this.session.extensions);
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(sql),
 			undefined,
+			{
+				query: 'insert',
+				dialect: this.dialect,
+				session: this.session,
+				config: this.config,
+			},
 			undefined,
 			generatedIds,
 			this.config.returning,

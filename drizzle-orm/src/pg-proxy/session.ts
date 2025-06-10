@@ -1,4 +1,5 @@
 import { entityKind } from '~/entity.ts';
+import type { BlankPgHookContext, DrizzlePgExtension } from '~/extension-core/pg/index.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -30,8 +31,9 @@ export class PgRemoteSession<
 		dialect: PgDialect,
 		private schema: RelationalSchemaConfig<TSchema> | undefined,
 		options: PgRemoteSessionOptions = {},
+		extensions?: DrizzlePgExtension[],
 	) {
-		super(dialect);
+		super(dialect, extensions);
 		this.logger = options.logger ?? new NoopLogger();
 	}
 
@@ -40,6 +42,7 @@ export class PgRemoteSession<
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		isResponseInArrayMode: boolean,
+		hookContext?: BlankPgHookContext,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 	): PreparedQuery<T> {
 		return new PreparedQuery(
@@ -50,6 +53,8 @@ export class PgRemoteSession<
 			this.logger,
 			fields,
 			isResponseInArrayMode,
+			this.extensions,
+			hookContext,
 			customResultMapper,
 		);
 	}
@@ -86,12 +91,14 @@ export class PreparedQuery<T extends PreparedQueryConfig> extends PreparedQueryB
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
 		private _isResponseInArrayMode: boolean,
+		extensions?: DrizzlePgExtension[],
+		hookContext?: BlankPgHookContext,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
-		super({ sql: queryString, params });
+		super({ sql: queryString, params }, extensions, hookContext);
 	}
 
-	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+	async _execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		return tracer.startActiveSpan('drizzle.execute', async (span) => {
 			const params = fillPlaceholders(this.params, placeholderValues);
 			const { fields, client, queryString, joinsNotNullableMap, customResultMapper, logger, typings } = this;

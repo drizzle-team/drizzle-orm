@@ -1,4 +1,5 @@
 import { entityKind } from '~/entity.ts';
+import type { DrizzlePgExtension } from '~/extension-core/pg/index.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
@@ -20,6 +21,7 @@ export class XataHttpDriver {
 		private client: XataHttpClient,
 		private dialect: PgDialect,
 		private options: XataDriverOptions = {},
+		private extensions?: DrizzlePgExtension[],
 	) {
 		this.initMappers();
 	}
@@ -29,7 +31,7 @@ export class XataHttpDriver {
 	): XataHttpSession<Record<string, unknown>, TablesRelationalConfig> {
 		return new XataHttpSession(this.client, this.dialect, schema, {
 			logger: this.options.logger,
-		});
+		}, this.extensions);
 	}
 
 	initMappers() {
@@ -48,7 +50,7 @@ export class XataHttpDatabase<TSchema extends Record<string, unknown> = Record<s
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: XataHttpClient,
-	config: DrizzleConfig<TSchema> = {},
+	config: DrizzleConfig<TSchema, DrizzlePgExtension> = {},
 ): XataHttpDatabase<TSchema> & {
 	$client: XataHttpClient;
 } {
@@ -70,13 +72,15 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		};
 	}
 
-	const driver = new XataHttpDriver(client, dialect, { logger });
+	const extensions = config.extensions;
+	const driver = new XataHttpDriver(client, dialect, { logger }, extensions);
 	const session = driver.createSession(schema);
 
 	const db = new XataHttpDatabase(
 		dialect,
 		session,
 		schema as RelationalSchemaConfig<ExtractTablesWithRelations<TSchema>> | undefined,
+		extensions,
 	);
 	(<any> db).$client = client;
 

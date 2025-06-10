@@ -1,5 +1,6 @@
 import type { BatchItem } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
+import type { BlankSQLiteHookContext, DrizzleSQLiteExtension } from '~/extension-core/sqlite/index.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
@@ -37,8 +38,9 @@ export class SQLiteRemoteSession<
 		private schema: RelationalSchemaConfig<TSchema> | undefined,
 		private batchCLient?: AsyncBatchRemoteCallback,
 		options: SQLiteRemoteSessionOptions = {},
+		extensions?: DrizzleSQLiteExtension[],
 	) {
-		super(dialect);
+		super(dialect, extensions);
 		this.logger = options.logger ?? new NoopLogger();
 	}
 
@@ -47,6 +49,7 @@ export class SQLiteRemoteSession<
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		isResponseInArrayMode: boolean,
+		hookContext?: BlankSQLiteHookContext,
 		customResultMapper?: (rows: unknown[][]) => unknown,
 	): RemotePreparedQuery<T> {
 		return new RemotePreparedQuery(
@@ -56,6 +59,8 @@ export class SQLiteRemoteSession<
 			fields,
 			executeMethod,
 			isResponseInArrayMode,
+			this.extensions,
+			hookContext,
 			customResultMapper,
 		);
 	}
@@ -79,7 +84,7 @@ export class SQLiteRemoteSession<
 		transaction: (tx: SQLiteProxyTransaction<TFullSchema, TSchema>) => Promise<T>,
 		config?: SQLiteTransactionConfig,
 	): Promise<T> {
-		const tx = new SQLiteProxyTransaction('async', this.dialect, this, this.schema);
+		const tx = new SQLiteProxyTransaction('async', this.dialect, this, this.schema, undefined, this.extensions);
 		await this.run(sql.raw(`begin${config?.behavior ? ' ' + config.behavior : ''}`));
 		try {
 			const result = await transaction(tx);
@@ -114,7 +119,14 @@ export class SQLiteProxyTransaction<
 		transaction: (tx: SQLiteProxyTransaction<TFullSchema, TSchema>) => Promise<T>,
 	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex}`;
-		const tx = new SQLiteProxyTransaction('async', this.dialect, this.session, this.schema, this.nestedIndex + 1);
+		const tx = new SQLiteProxyTransaction(
+			'async',
+			this.dialect,
+			this.session,
+			this.schema,
+			this.nestedIndex + 1,
+			this._.extensions,
+		);
 		await this.session.run(sql.raw(`savepoint ${savepointName}`));
 		try {
 			const result = await transaction(tx);
@@ -141,12 +153,14 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		private fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		private _isResponseInArrayMode: boolean,
+		extensions?: DrizzleSQLiteExtension[],
+		hookContext?: BlankSQLiteHookContext,
 		/** @internal */ public customResultMapper?: (
 			rows: unknown[][],
 			mapColumnValue?: (value: unknown) => unknown,
 		) => unknown,
 	) {
-		super('async', executeMethod, query);
+		super('async', executeMethod, query, extensions, hookContext);
 		this.customResultMapper = customResultMapper;
 		this.method = executeMethod;
 	}
@@ -155,7 +169,7 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		return { ...this.query, method: this.method };
 	}
 
-	run(placeholderValues?: Record<string, unknown>): Promise<SqliteRemoteResult> {
+	_run(placeholderValues?: Record<string, unknown>): Promise<SqliteRemoteResult> {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 		return (this.client as AsyncRemoteCallback)(this.query.sql, params, 'run') as Promise<
@@ -185,7 +199,7 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		});
 	}
 
-	async all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
+	async _all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
 		const { query, logger, client } = this;
 
 		const params = fillPlaceholders(query.params, placeholderValues ?? {});
@@ -195,7 +209,7 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		return this.mapAllResult(rows);
 	}
 
-	async get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
+	async _get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
 		const { query, logger, client } = this;
 
 		const params = fillPlaceholders(query.params, placeholderValues ?? {});
@@ -232,7 +246,7 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		);
 	}
 
-	async values<T extends any[] = unknown[]>(placeholderValues?: Record<string, unknown>): Promise<T[]> {
+	async _values<T extends any[] = unknown[]>(placeholderValues?: Record<string, unknown>): Promise<T[]> {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 		const clientResult = await (this.client as AsyncRemoteCallback)(this.query.sql, params, 'values');

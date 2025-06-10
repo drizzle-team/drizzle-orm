@@ -1,5 +1,6 @@
 import { sql } from '@vercel/postgres';
 import { entityKind } from '~/entity.ts';
+import type { DrizzlePgExtension } from '~/extension-core/pg/index.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
@@ -24,13 +25,14 @@ export class VercelPgDriver {
 		private client: VercelPgClient,
 		private dialect: PgDialect,
 		private options: VercelPgDriverOptions = {},
+		private extensions?: DrizzlePgExtension[],
 	) {
 	}
 
 	createSession(
 		schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined,
 	): VercelPgSession<Record<string, unknown>, TablesRelationalConfig> {
-		return new VercelPgSession(this.client, this.dialect, schema, { logger: this.options.logger });
+		return new VercelPgSession(this.client, this.dialect, schema, { logger: this.options.logger }, this.extensions);
 	}
 }
 
@@ -42,7 +44,7 @@ export class VercelPgDatabase<
 
 function construct<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: VercelPgClient,
-	config: DrizzleConfig<TSchema> = {},
+	config: DrizzleConfig<TSchema, DrizzlePgExtension> = {},
 ): VercelPgDatabase<TSchema> & {
 	$client: VercelPgClient;
 } {
@@ -67,9 +69,10 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 		};
 	}
 
-	const driver = new VercelPgDriver(client, dialect, { logger });
+	const extensions = config.extensions;
+	const driver = new VercelPgDriver(client, dialect, { logger }, extensions);
 	const session = driver.createSession(schema);
-	const db = new VercelPgDatabase(dialect, session, schema as any) as VercelPgDatabase<TSchema>;
+	const db = new VercelPgDatabase(dialect, session, schema as any, extensions) as VercelPgDatabase<TSchema>;
 	(<any> db).$client = client;
 
 	return db as any;
@@ -83,10 +86,10 @@ export function drizzle<
 		TClient,
 	] | [
 		TClient,
-		DrizzleConfig<TSchema>,
+		DrizzleConfig<TSchema, DrizzlePgExtension>,
 	] | [
 		(
-			& DrizzleConfig<TSchema>
+			& DrizzleConfig<TSchema, DrizzlePgExtension>
 			& ({
 				client?: TClient;
 			})
@@ -96,16 +99,20 @@ export function drizzle<
 	$client: TClient;
 } {
 	if (isConfig(params[0])) {
-		const { client, ...drizzleConfig } = params[0] as ({ client?: TClient } & DrizzleConfig<TSchema>);
+		const { client, ...drizzleConfig } =
+			params[0] as ({ client?: TClient } & DrizzleConfig<TSchema, DrizzlePgExtension>);
 		return construct(client ?? sql, drizzleConfig) as any;
 	}
 
-	return construct((params[0] ?? sql) as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+	return construct(
+		(params[0] ?? sql) as TClient,
+		params[1] as DrizzleConfig<TSchema, DrizzlePgExtension> | undefined,
+	) as any;
 }
 
 export namespace drizzle {
 	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
-		config?: DrizzleConfig<TSchema>,
+		config?: DrizzleConfig<TSchema, DrizzlePgExtension>,
 	): VercelPgDatabase<TSchema> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {

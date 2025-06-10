@@ -4,7 +4,7 @@ import { drizzle, type PgliteDatabase } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
-import { tests, usersMigratorTable, usersTable } from './pg-common';
+import { createExtensions, tests, usersMigratorTable, usersTable } from './pg-common';
 
 const ENABLE_LOGGING = false;
 
@@ -13,7 +13,7 @@ let client: PGlite;
 
 beforeAll(async () => {
 	client = new PGlite();
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, { logger: ENABLE_LOGGING, extensions: await createExtensions() });
 });
 
 afterAll(async () => {

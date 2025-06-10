@@ -4,7 +4,7 @@ import { drizzle as proxyDrizzle } from 'drizzle-orm/singlestore-proxy';
 import * as mysql2 from 'mysql2/promise';
 import { afterAll, beforeAll, beforeEach } from 'vitest';
 import { skipTests } from '~/common';
-import { createDockerDB, tests } from './singlestore-common';
+import { createDockerDB, createExtensions, tests } from './singlestore-common';
 
 const ENABLE_LOGGING = false;
 
@@ -113,7 +113,7 @@ beforeAll(async () => {
 			console.error('Error from singlestore proxy server:', e.message);
 			throw e;
 		}
-	}, { logger: ENABLE_LOGGING });
+	}, { logger: ENABLE_LOGGING, extensions: await createExtensions() });
 });
 
 afterAll(async () => {
@@ -135,6 +135,7 @@ skipTests([
 	'transaction',
 	'transaction with options (set isolationLevel)',
 	'migrator',
+	'S3File - transaction',
 ]);
 
 tests();

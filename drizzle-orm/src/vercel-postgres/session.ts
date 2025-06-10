@@ -9,6 +9,7 @@ import {
 	type VercelPoolClient,
 } from '@vercel/postgres';
 import { entityKind } from '~/entity.ts';
+import type { BlankPgHookContext, DrizzlePgExtension } from '~/extension-core/pg/index.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import { type PgDialect, PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
@@ -34,9 +35,11 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		private _isResponseInArrayMode: boolean,
+		extensions?: DrizzlePgExtension[],
+		hookContext?: BlankPgHookContext,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
-		super({ sql: queryString, params });
+		super({ sql: queryString, params }, extensions, hookContext);
 		this.rawQuery = {
 			name,
 			text: queryString,
@@ -126,7 +129,7 @@ export class VercelPgPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 		};
 	}
 
-	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+	async _execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 
 		this.logger.logQuery(this.rawQuery.text, params);
@@ -180,8 +183,9 @@ export class VercelPgSession<
 		dialect: PgDialect,
 		private schema: RelationalSchemaConfig<TSchema> | undefined,
 		private options: VercelPgSessionOptions = {},
+		extensions?: DrizzlePgExtension[],
 	) {
-		super(dialect);
+		super(dialect, extensions);
 		this.logger = options.logger ?? new NoopLogger();
 	}
 
@@ -190,6 +194,7 @@ export class VercelPgSession<
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		isResponseInArrayMode: boolean,
+		hookContext?: BlankPgHookContext,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 	): PgPreparedQuery<T> {
 		return new VercelPgPreparedQuery(
@@ -200,6 +205,8 @@ export class VercelPgSession<
 			fields,
 			name,
 			isResponseInArrayMode,
+			this.extensions,
+			hookContext,
 			customResultMapper,
 		);
 	}
@@ -232,9 +239,15 @@ export class VercelPgSession<
 		config?: PgTransactionConfig | undefined,
 	): Promise<T> {
 		const session = this.client instanceof VercelPool // eslint-disable-line no-instanceof/no-instanceof
-			? new VercelPgSession(await this.client.connect(), this.dialect, this.schema, this.options)
+			? new VercelPgSession(await this.client.connect(), this.dialect, this.schema, this.options, this.extensions)
 			: this;
-		const tx = new VercelPgTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
+		const tx = new VercelPgTransaction<TFullSchema, TSchema>(
+			this.dialect,
+			session,
+			this.schema,
+			undefined,
+			this.extensions,
+		);
 		await tx.execute(sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`);
 		try {
 			const result = await transaction(tx);
@@ -266,6 +279,7 @@ export class VercelPgTransaction<
 			this.session,
 			this.schema,
 			this.nestedIndex + 1,
+			this._.extensions,
 		);
 		await tx.execute(sql.raw(`savepoint ${savepointName}`));
 		try {

@@ -79,7 +79,10 @@ import createClient, {
 import { v4 as uuidV4 } from 'uuid';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { Expect } from '~/utils';
+import { createDockerS3, s3BucketName as bucket } from '../create-docker-s3';
 import 'zx/globals';
+import type { DrizzleGelExtension } from 'drizzle-orm/extension-core/gel';
+import { s3File, s3FileExt } from 'drizzle-orm/extensions/s3-file/gel';
 import { createDockerDB } from './createInstance';
 
 $.quiet = true;
@@ -103,6 +106,9 @@ declare module 'vitest' {
 		};
 	}
 }
+
+const beforeEachHooks: (() => any)[] = [];
+const afterAllHooks: (() => any)[] = [];
 
 const usersTable = gelTable('users', {
 	id1: integer('id1').notNull(),
@@ -198,6 +204,48 @@ const usersMySchemaTable = mySchema.table('users', {
 	createdAt: timestamptz('created_at').notNull().defaultNow(),
 });
 
+const exampleS3Files = [
+	Buffer.from('examplefile-zero', 'ascii'),
+	Buffer.from('examplefile-first', 'ascii'),
+	Buffer.from('examplefile-second', 'ascii'),
+	Buffer.from('examplefile-third', 'ascii'),
+	Buffer.from('examplefile-fourth', 'ascii'),
+	Buffer.from('examplefile-fifth', 'ascii'),
+	Buffer.from('examplefile-sixth', 'ascii'),
+	Buffer.from('examplefile-seventh', 'ascii'),
+	Buffer.from('examplefile-eigth', 'ascii'),
+	Buffer.from('examplefile-ninth', 'ascii'),
+] as const;
+
+const s3Table = gelTable('s3files', {
+	id: integer('id1'),
+	file: s3File('file', { mode: 'buffer' }),
+	fileArr: s3File('file_arr', { mode: 'buffer' }).array(),
+	defaultFnFile: s3File('file_default_fn', { mode: 'buffer' }).$default(() => ({
+		bucket,
+		key: 'default-key',
+		data: exampleS3Files[0]!,
+	})),
+	f64: s3File('f64', {
+		mode: 'base64',
+	}),
+	f16: s3File('f16', {
+		mode: 'hex',
+	}),
+	fInt8: s3File('f_int8', {
+		mode: 'uint8array',
+	}),
+});
+
+async function createExtensions(): Promise<DrizzleGelExtension[]> {
+	const { s3, s3Wipe, s3Stop } = await createDockerS3();
+
+	beforeEachHooks.push(s3Wipe);
+	afterAllHooks.push(s3Stop);
+
+	return [s3FileExt(s3)];
+}
+
 beforeAll(async () => {
 	let connectionString;
 	if (process.env['GEL_CONNECTION_STRING']) {
@@ -221,7 +269,7 @@ beforeAll(async () => {
 			client?.close();
 		},
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, { logger: ENABLE_LOGGING, extensions: await createExtensions() });
 
 	dsn = connectionString;
 });
@@ -229,12 +277,20 @@ beforeAll(async () => {
 afterAll(async () => {
 	await client?.close().catch(console.error);
 	await container?.stop().catch(console.error);
+
+	for (const hook of afterAllHooks) {
+		await hook();
+	}
 });
 
-beforeEach((ctx) => {
+beforeEach(async (ctx) => {
 	ctx.gel = {
 		db,
 	};
+
+	for (const hook of beforeEachHooks) {
+		await hook();
+	}
 });
 
 describe('some', async () => {
@@ -506,11 +562,21 @@ describe('some', async () => {
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
 		await $`gel query "CREATE TYPE default::users_with_age {
-        create required property id1: int16;
-        create required property name: str;
-        create required property age: int32;
-        create required property city: str;
-        };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+    create required property id1: int16;
+    create required property name: str;
+    create required property age: int32;
+    create required property city: str;
+    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+
+		await $`gel query "CREATE TYPE default::s3files {
+    create property id1 -> int16;
+    create property file -> str;
+    create property file_arr -> array<str>;
+    create property file_default_fn -> str;
+    create property f64 -> str;
+    create property f16 -> str;
+    create property f_int8 -> str;
+    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 	});
 
 	afterEach(async () => {
@@ -526,6 +592,7 @@ describe('some', async () => {
 		await $`gel query "DELETE default::users1;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 		await $`gel query "DELETE default::users2;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 		await $`gel query "DELETE default::jsontest;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DELETE default::s3files;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 	});
 
 	afterAll(async () => {
@@ -572,6 +639,7 @@ describe('some', async () => {
 		await $`gel query "DROP TYPE default::users_with_names" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 		await $`gel query "DROP MODULE mySchema;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 		await $`gel query "DROP TYPE users_with_age;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::s3files;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 	});
 
 	async function setupSetOperationTest(db: GelJsDatabase) {
@@ -4975,5 +5043,972 @@ describe('some', async () => {
 				.returning({ id1: usersTable.id1, name: usersTable.name }),
 		);
 		expect(inserted).toEqual([{ id1: 1, name: 'John' }]);
+	});
+
+	test('S3File - insert + select + query reuse', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const reusable = db.select().from(s3Table).orderBy(s3Table.id);
+		const blank = await reusable;
+		expect(blank).toEqual([]);
+
+		await db.insert(s3Table).values([{
+			id: 1,
+			file: {
+				bucket,
+				key: 'zero',
+				data: exampleS3Files[0],
+			},
+			fileArr: [
+				{
+					bucket,
+					key: 'one',
+					data: exampleS3Files[1],
+				},
+				{
+					bucket,
+					key: 'two',
+					data: exampleS3Files[2],
+				},
+			],
+			f64: {
+				bucket,
+				key: 'base64',
+				data: exampleS3Files[7].toString('base64'),
+			},
+			f16: {
+				bucket,
+				key: 'hex',
+				data: exampleS3Files[7].toString('hex'),
+			},
+			fInt8: {
+				bucket,
+				key: 'uint8arr',
+				data: Uint8Array.from(exampleS3Files[7]),
+			},
+		}, {
+			id: 2,
+			file: {
+				bucket,
+				key: 'file2',
+				data: exampleS3Files[8],
+			},
+		}]);
+
+		const res = await reusable;
+
+		expect(res).toStrictEqual([{
+			id: 1,
+			file: {
+				bucket,
+				key: 'zero',
+				data: exampleS3Files[0],
+			},
+			fileArr: [
+				{
+					bucket,
+					key: 'one',
+					data: exampleS3Files[1],
+				},
+				{
+					bucket,
+					key: 'two',
+					data: exampleS3Files[2],
+				},
+			],
+			f64: {
+				bucket,
+				key: 'base64',
+				data: exampleS3Files[7].toString('base64'),
+			},
+			f16: {
+				bucket,
+				key: 'hex',
+				data: exampleS3Files[7].toString('hex'),
+			},
+			fInt8: {
+				bucket,
+				key: 'uint8arr',
+				data: Uint8Array.from(exampleS3Files[7]),
+			},
+			defaultFnFile: {
+				bucket,
+				key: 'default-key',
+				data: exampleS3Files[0],
+			},
+		}, {
+			id: 2,
+			file: {
+				bucket,
+				key: 'file2',
+				data: exampleS3Files[8],
+			},
+			fileArr: null,
+			f16: null,
+			f64: null,
+			fInt8: null,
+			defaultFnFile: {
+				bucket,
+				key: 'default-key',
+				data: exampleS3Files[0],
+			},
+		}]);
+	});
+
+	test('S3File - insert + select custom selection', async (ctx) => {
+		const { db } = ctx.gel;
+
+		await db.insert(s3Table).values([{
+			id: 1,
+			file: {
+				bucket,
+				key: 'zero',
+				data: exampleS3Files[0],
+			},
+			fileArr: [
+				{
+					bucket,
+					key: 'one',
+					data: exampleS3Files[1],
+				},
+				{
+					bucket,
+					key: 'two',
+					data: exampleS3Files[2],
+				},
+			],
+			f64: {
+				bucket,
+				key: 'base64',
+				data: exampleS3Files[7].toString('base64'),
+			},
+			f16: {
+				bucket,
+				key: 'hex',
+				data: exampleS3Files[7].toString('hex'),
+			},
+			fInt8: {
+				bucket,
+				key: 'uint8arr',
+				data: Uint8Array.from(exampleS3Files[7]),
+			},
+		}, {
+			id: 2,
+			file: {
+				bucket,
+				key: 'file2',
+				data: exampleS3Files[8],
+			},
+		}]);
+
+		const res = await db.select({
+			fullTable: s3Table,
+			nested: {
+				file: s3Table.file,
+				fileArr: s3Table.fileArr,
+			},
+			root: s3Table.defaultFnFile,
+			presigned: s3Table.file.presigned(),
+			data: s3Table.file.data(),
+		}).from(s3Table).orderBy(s3Table.id);
+
+		expect(res).toStrictEqual([{
+			fullTable: {
+				id: 1,
+				file: {
+					bucket,
+					key: 'zero',
+					data: exampleS3Files[0],
+				},
+				fileArr: [
+					{
+						bucket,
+						key: 'one',
+						data: exampleS3Files[1],
+					},
+					{
+						bucket,
+						key: 'two',
+						data: exampleS3Files[2],
+					},
+				],
+				f64: {
+					bucket,
+					key: 'base64',
+					data: exampleS3Files[7].toString('base64'),
+				},
+				f16: {
+					bucket,
+					key: 'hex',
+					data: exampleS3Files[7].toString('hex'),
+				},
+				fInt8: {
+					bucket,
+					key: 'uint8arr',
+					data: Uint8Array.from(exampleS3Files[7]),
+				},
+				defaultFnFile: {
+					bucket,
+					key: 'default-key',
+					data: exampleS3Files[0],
+				},
+			},
+			nested: {
+				file: {
+					bucket,
+					key: 'zero',
+					data: exampleS3Files[0],
+				},
+				fileArr: [
+					{
+						bucket,
+						key: 'one',
+						data: exampleS3Files[1],
+					},
+					{
+						bucket,
+						key: 'two',
+						data: exampleS3Files[2],
+					},
+				],
+			},
+			root: {
+				bucket,
+				key: 'default-key',
+				data: exampleS3Files[0],
+			},
+			data: exampleS3Files[0],
+			presigned: expect.stringMatching(/^https?:\/\/.*/),
+		}, {
+			fullTable: {
+				id: 2,
+				file: {
+					bucket,
+					key: 'file2',
+					data: exampleS3Files[8],
+				},
+				fileArr: null,
+				f16: null,
+				f64: null,
+				fInt8: null,
+				defaultFnFile: {
+					bucket,
+					key: 'default-key',
+					data: exampleS3Files[0],
+				},
+			},
+			nested: {
+				file: {
+					bucket,
+					key: 'file2',
+					data: exampleS3Files[8],
+				},
+				fileArr: null,
+			},
+			root: {
+				bucket,
+				key: 'default-key',
+				data: exampleS3Files[0],
+			},
+			data: exampleS3Files[8],
+			presigned: expect.stringMatching(/^https?:\/\/.*/),
+		}]);
+	});
+
+	test('S3File - insert + update + delete', async (ctx) => {
+		const { db } = ctx.gel;
+
+		await db.insert(s3Table).values([{
+			id: 1,
+			file: {
+				bucket,
+				key: 'zero',
+				data: exampleS3Files[0],
+			},
+			fileArr: [
+				{
+					bucket,
+					key: 'one',
+					data: exampleS3Files[1],
+				},
+				{
+					bucket,
+					key: 'two',
+					data: exampleS3Files[2],
+				},
+			],
+			f64: {
+				bucket,
+				key: 'base64',
+				data: exampleS3Files[7].toString('base64'),
+			},
+			f16: {
+				bucket,
+				key: 'hex',
+				data: exampleS3Files[7].toString('hex'),
+			},
+			fInt8: {
+				bucket,
+				key: 'uint8arr',
+				data: Uint8Array.from(exampleS3Files[7]),
+			},
+		}, {
+			id: 2,
+			file: {
+				bucket,
+				key: 'file2',
+				data: exampleS3Files[8],
+			},
+		}]);
+
+		const upd = await db.update(s3Table).set({
+			id: 3,
+			file: {
+				bucket,
+				key: 'zero-new',
+				data: exampleS3Files[9],
+			},
+		}).where(eq(s3Table.id, 1)).returning({
+			id: s3Table.id,
+			file: s3Table.file,
+			defaultFnFile: s3Table.defaultFnFile,
+		});
+
+		const del = await db.delete(s3Table).where(eq(s3Table.id, 2)).returning({
+			id: s3Table.id,
+			file: s3Table.file,
+			defaultFnFile: s3Table.defaultFnFile,
+		});
+
+		const sel = await db.select({
+			id: s3Table.id,
+			file: s3Table.file,
+			defaultFnFile: s3Table.defaultFnFile,
+		}).from(s3Table).orderBy(s3Table.id);
+
+		expect(upd).toStrictEqual([
+			{
+				id: 3,
+				file: {
+					bucket,
+					key: 'zero-new',
+					data: exampleS3Files[9],
+				},
+				defaultFnFile: {
+					bucket,
+					key: 'default-key',
+					data: exampleS3Files[0],
+				},
+			},
+		]);
+
+		expect(del).toStrictEqual([{
+			id: 2,
+			file: {
+				bucket,
+				key: 'file2',
+				data: exampleS3Files[8],
+			},
+			defaultFnFile: {
+				bucket,
+				key: 'default-key',
+				data: exampleS3Files[0],
+			},
+		}]);
+
+		expect(sel).toStrictEqual([
+			{
+				id: 3,
+				file: {
+					bucket,
+					key: 'zero-new',
+					data: exampleS3Files[9],
+				},
+				defaultFnFile: {
+					bucket,
+					key: 'default-key',
+					data: exampleS3Files[0],
+				},
+			},
+		]);
+	});
+
+	test('S3File - insert returning', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const res = await db.insert(s3Table).values([{
+			id: 1,
+			file: {
+				bucket,
+				key: 'zero',
+				data: exampleS3Files[0],
+			},
+			fileArr: [
+				{
+					bucket,
+					key: 'one',
+					data: exampleS3Files[1],
+				},
+				{
+					bucket,
+					key: 'two',
+					data: exampleS3Files[2],
+				},
+			],
+			f64: {
+				bucket,
+				key: 'base64',
+				data: exampleS3Files[7].toString('base64'),
+			},
+			f16: {
+				bucket,
+				key: 'hex',
+				data: exampleS3Files[7].toString('hex'),
+			},
+			fInt8: {
+				bucket,
+				key: 'uint8arr',
+				data: Uint8Array.from(exampleS3Files[7]),
+			},
+		}, {
+			id: 2,
+			file: {
+				bucket,
+				key: 'file2',
+				data: exampleS3Files[8],
+			},
+		}]).returning();
+
+		expect(res).toStrictEqual([{
+			id: 1,
+			file: {
+				bucket,
+				key: 'zero',
+				data: exampleS3Files[0],
+			},
+			fileArr: [
+				{
+					bucket,
+					key: 'one',
+					data: exampleS3Files[1],
+				},
+				{
+					bucket,
+					key: 'two',
+					data: exampleS3Files[2],
+				},
+			],
+			f64: {
+				bucket,
+				key: 'base64',
+				data: exampleS3Files[7].toString('base64'),
+			},
+			f16: {
+				bucket,
+				key: 'hex',
+				data: exampleS3Files[7].toString('hex'),
+			},
+			fInt8: {
+				bucket,
+				key: 'uint8arr',
+				data: Uint8Array.from(exampleS3Files[7]),
+			},
+			defaultFnFile: {
+				bucket,
+				key: 'default-key',
+				data: exampleS3Files[0],
+			},
+		}, {
+			id: 2,
+			file: {
+				bucket,
+				key: 'file2',
+				data: exampleS3Files[8],
+			},
+			fileArr: null,
+			f16: null,
+			f64: null,
+			fInt8: null,
+			defaultFnFile: {
+				bucket,
+				key: 'default-key',
+				data: exampleS3Files[0],
+			},
+		}]);
+	});
+
+	test('S3File - insert placeholder', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const res = await db.insert(s3Table).values([{
+			id: 1,
+			file: sql.placeholder('fOne'),
+			fileArr: sql.placeholder('fArr'),
+			f64: sql.placeholder('f64'),
+			f16: sql.placeholder('f16'),
+			fInt8: sql.placeholder('fInt8'),
+		}, {
+			id: 2,
+			file: {
+				bucket,
+				key: 'file2',
+				data: exampleS3Files[8],
+			},
+		}]).returning().execute({
+			fOne: {
+				bucket,
+				key: 'zero',
+				data: exampleS3Files[0],
+			},
+			fArr: [
+				{
+					bucket,
+					key: 'one',
+					data: exampleS3Files[1],
+				},
+				{
+					bucket,
+					key: 'two',
+					data: exampleS3Files[2],
+				},
+			],
+			f64: {
+				bucket,
+				key: 'base64',
+				data: exampleS3Files[7].toString('base64'),
+			},
+			f16: {
+				bucket,
+				key: 'hex',
+				data: exampleS3Files[7].toString('hex'),
+			},
+			fInt8: {
+				bucket,
+				key: 'uint8arr',
+				data: Uint8Array.from(exampleS3Files[7]),
+			},
+		});
+
+		expect(res).toStrictEqual([{
+			id: 1,
+			file: {
+				bucket,
+				key: 'zero',
+				data: exampleS3Files[0],
+			},
+			fileArr: [
+				{
+					bucket,
+					key: 'one',
+					data: exampleS3Files[1],
+				},
+				{
+					bucket,
+					key: 'two',
+					data: exampleS3Files[2],
+				},
+			],
+			f64: {
+				bucket,
+				key: 'base64',
+				data: exampleS3Files[7].toString('base64'),
+			},
+			f16: {
+				bucket,
+				key: 'hex',
+				data: exampleS3Files[7].toString('hex'),
+			},
+			fInt8: {
+				bucket,
+				key: 'uint8arr',
+				data: Uint8Array.from(exampleS3Files[7]),
+			},
+			defaultFnFile: {
+				bucket,
+				key: 'default-key',
+				data: exampleS3Files[0],
+			},
+		}, {
+			id: 2,
+			file: {
+				bucket,
+				key: 'file2',
+				data: exampleS3Files[8],
+			},
+			fileArr: null,
+			f16: null,
+			f64: null,
+			fInt8: null,
+			defaultFnFile: {
+				bucket,
+				key: 'default-key',
+				data: exampleS3Files[0],
+			},
+		}]);
+	});
+
+	test('S3File - insert prepared', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const query = await db.insert(s3Table).values([{
+			id: sql.placeholder('id'),
+			file: sql.placeholder('fOne'),
+			fileArr: sql.placeholder('fArr'),
+			f64: sql.placeholder('f64'),
+			f16: sql.placeholder('f16'),
+			fInt8: sql.placeholder('fInt8'),
+		}]).returning().prepare('insert_s3_files');
+
+		const insertOne = await query.execute({
+			id: 1,
+			fOne: {
+				bucket,
+				key: 'zero',
+				data: exampleS3Files[0],
+			},
+			fArr: [
+				{
+					bucket,
+					key: 'one',
+					data: exampleS3Files[1],
+				},
+				{
+					bucket,
+					key: 'two',
+					data: exampleS3Files[2],
+				},
+			],
+			f64: {
+				bucket,
+				key: 'base64',
+				data: exampleS3Files[7].toString('base64'),
+			},
+			f16: {
+				bucket,
+				key: 'hex',
+				data: exampleS3Files[7].toString('hex'),
+			},
+			fInt8: {
+				bucket,
+				key: 'uint8arr',
+				data: Uint8Array.from(exampleS3Files[7]),
+			},
+		});
+
+		const insertTwo = await query.execute({
+			id: 2,
+			fOne: {
+				bucket,
+				key: 'five',
+				data: exampleS3Files[5],
+			},
+			fArr: [
+				{
+					bucket,
+					key: 'one',
+					data: exampleS3Files[1],
+				},
+				{
+					bucket,
+					key: 'two',
+					data: exampleS3Files[2],
+				},
+			],
+			f64: {
+				bucket,
+				key: 'base64-2',
+				data: exampleS3Files[9].toString('base64'),
+			},
+			f16: {
+				bucket,
+				key: 'hex-2',
+				data: exampleS3Files[9].toString('hex'),
+			},
+			fInt8: {
+				bucket,
+				key: 'uint8arr-2',
+				data: Uint8Array.from(exampleS3Files[9]),
+			},
+		});
+
+		const res = await db.select().from(s3Table).orderBy(s3Table.id);
+
+		expect(insertOne).toStrictEqual([{
+			id: 1,
+			file: {
+				bucket,
+				key: 'zero',
+				data: exampleS3Files[0],
+			},
+			fileArr: [
+				{
+					bucket,
+					key: 'one',
+					data: exampleS3Files[1],
+				},
+				{
+					bucket,
+					key: 'two',
+					data: exampleS3Files[2],
+				},
+			],
+			f64: {
+				bucket,
+				key: 'base64',
+				data: exampleS3Files[7].toString('base64'),
+			},
+			f16: {
+				bucket,
+				key: 'hex',
+				data: exampleS3Files[7].toString('hex'),
+			},
+			fInt8: {
+				bucket,
+				key: 'uint8arr',
+				data: Uint8Array.from(exampleS3Files[7]),
+			},
+			defaultFnFile: {
+				bucket,
+				key: 'default-key',
+				data: exampleS3Files[0],
+			},
+		}]);
+
+		expect(insertTwo).toStrictEqual([
+			{
+				id: 2,
+				file: {
+					bucket,
+					key: 'five',
+					data: exampleS3Files[5],
+				},
+				fileArr: [
+					{
+						bucket,
+						key: 'one',
+						data: exampleS3Files[1],
+					},
+					{
+						bucket,
+						key: 'two',
+						data: exampleS3Files[2],
+					},
+				],
+				f64: {
+					bucket,
+					key: 'base64-2',
+					data: exampleS3Files[9].toString('base64'),
+				},
+				f16: {
+					bucket,
+					key: 'hex-2',
+					data: exampleS3Files[9].toString('hex'),
+				},
+				fInt8: {
+					bucket,
+					key: 'uint8arr-2',
+					data: Uint8Array.from(exampleS3Files[9]),
+				},
+				defaultFnFile: {
+					bucket,
+					key: 'default-key',
+					data: exampleS3Files[0],
+				},
+			},
+		]);
+
+		expect(res).toStrictEqual([{
+			id: 1,
+			file: {
+				bucket,
+				key: 'zero',
+				data: exampleS3Files[0],
+			},
+			fileArr: [
+				{
+					bucket,
+					key: 'one',
+					data: exampleS3Files[1],
+				},
+				{
+					bucket,
+					key: 'two',
+					data: exampleS3Files[2],
+				},
+			],
+			f64: {
+				bucket,
+				key: 'base64',
+				data: exampleS3Files[7].toString('base64'),
+			},
+			f16: {
+				bucket,
+				key: 'hex',
+				data: exampleS3Files[7].toString('hex'),
+			},
+			fInt8: {
+				bucket,
+				key: 'uint8arr',
+				data: Uint8Array.from(exampleS3Files[7]),
+			},
+			defaultFnFile: {
+				bucket,
+				key: 'default-key',
+				data: exampleS3Files[0],
+			},
+		}, {
+			id: 2,
+			file: {
+				bucket,
+				key: 'five',
+				data: exampleS3Files[5],
+			},
+			fileArr: [
+				{
+					bucket,
+					key: 'one',
+					data: exampleS3Files[1],
+				},
+				{
+					bucket,
+					key: 'two',
+					data: exampleS3Files[2],
+				},
+			],
+			f64: {
+				bucket,
+				key: 'base64-2',
+				data: exampleS3Files[9].toString('base64'),
+			},
+			f16: {
+				bucket,
+				key: 'hex-2',
+				data: exampleS3Files[9].toString('hex'),
+			},
+			fInt8: {
+				bucket,
+				key: 'uint8arr-2',
+				data: Uint8Array.from(exampleS3Files[9]),
+			},
+			defaultFnFile: {
+				bucket,
+				key: 'default-key',
+				data: exampleS3Files[0],
+			},
+		}]);
+	});
+
+	test('S3File - transaction', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const res = await db.transaction(async (tx) => {
+			const first = await tx.insert(s3Table).values({
+				id: 1,
+				file: {
+					bucket,
+					key: 'zero',
+					data: exampleS3Files[0],
+				},
+				fileArr: [
+					{
+						bucket,
+						key: 'one',
+						data: exampleS3Files[1],
+					},
+					{
+						bucket,
+						key: 'two',
+						data: exampleS3Files[2],
+					},
+				],
+				f64: {
+					bucket,
+					key: 'base64',
+					data: exampleS3Files[7].toString('base64'),
+				},
+				f16: {
+					bucket,
+					key: 'hex',
+					data: exampleS3Files[7].toString('hex'),
+				},
+				fInt8: {
+					bucket,
+					key: 'uint8arr',
+					data: Uint8Array.from(exampleS3Files[7]),
+				},
+			}).returning();
+
+			const second = await tx.transaction(async (tx2) => {
+				const second = await tx2.insert(s3Table).values({
+					id: 2,
+					file: {
+						bucket,
+						key: 'file2',
+						data: exampleS3Files[8],
+					},
+				}).returning();
+
+				return second;
+			});
+
+			return [first[0], second[0]];
+		});
+
+		expect(res).toStrictEqual([{
+			id: 1,
+			file: {
+				bucket,
+				key: 'zero',
+				data: exampleS3Files[0],
+			},
+			fileArr: [
+				{
+					bucket,
+					key: 'one',
+					data: exampleS3Files[1],
+				},
+				{
+					bucket,
+					key: 'two',
+					data: exampleS3Files[2],
+				},
+			],
+			f64: {
+				bucket,
+				key: 'base64',
+				data: exampleS3Files[7].toString('base64'),
+			},
+			f16: {
+				bucket,
+				key: 'hex',
+				data: exampleS3Files[7].toString('hex'),
+			},
+			fInt8: {
+				bucket,
+				key: 'uint8arr',
+				data: Uint8Array.from(exampleS3Files[7]),
+			},
+			defaultFnFile: {
+				bucket,
+				key: 'default-key',
+				data: exampleS3Files[0],
+			},
+		}, {
+			id: 2,
+			file: {
+				bucket,
+				key: 'file2',
+				data: exampleS3Files[8],
+			},
+			fileArr: null,
+			f16: null,
+			f64: null,
+			fInt8: null,
+			defaultFnFile: {
+				bucket,
+				key: 'default-key',
+				data: exampleS3Files[0],
+			},
+		}]);
 	});
 });

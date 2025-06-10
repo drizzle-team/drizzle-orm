@@ -3,14 +3,17 @@ import type { PlanetScaleDatabase } from 'drizzle-orm/planetscale-serverless';
 import { drizzle } from 'drizzle-orm/planetscale-serverless';
 import { beforeAll, beforeEach } from 'vitest';
 import { skipTests } from '~/common';
-import { tests } from './mysql-common';
+import { createExtensions, tests } from './mysql-common';
 
 const ENABLE_LOGGING = false;
 
 let db: PlanetScaleDatabase;
 
 beforeAll(async () => {
-	db = drizzle(new Client({ url: process.env['PLANETSCALE_CONNECTION_STRING']! }), { logger: ENABLE_LOGGING });
+	db = drizzle(new Client({ url: process.env['PLANETSCALE_CONNECTION_STRING']! }), {
+		logger: ENABLE_LOGGING,
+		extensions: await createExtensions(),
+	});
 });
 
 beforeEach((ctx) => {
@@ -55,6 +58,7 @@ skipTests([
 	'with ... delete',
 	'with ... update',
 	'with ... select',
+	'S3File - transaction',
 
 	// to redefine in this file
 	'utc config for datetime',

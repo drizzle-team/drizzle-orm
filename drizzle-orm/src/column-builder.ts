@@ -1,5 +1,10 @@
 import { entityKind } from '~/entity.ts';
-import type { Column } from './column.ts';
+import type { Column, ColumnBaseConfig } from './column.ts';
+import type { GelS3File } from './extensions/s3-file/gel/column.ts';
+import type { MySqlS3File } from './extensions/s3-file/mysql/column.ts';
+import type { PgS3File } from './extensions/s3-file/pg/column.ts';
+import type { SingleStoreS3File } from './extensions/s3-file/singlestore/column.ts';
+import type { SQLiteS3File } from './extensions/s3-file/sqlite/column.ts';
 import type { GelColumn, GelExtraConfigColumn } from './gel-core/index.ts';
 import type { MySqlColumn } from './mysql-core/index.ts';
 import type { ExtraConfigColumn, PgColumn, PgSequenceOptions } from './pg-core/index.ts';
@@ -316,16 +321,24 @@ export abstract class ColumnBuilder<
 	}
 }
 
+// TODO: Remake type to allow preservation of columns' specific class instead of using dialect's generic one
+// Currently checks for S3File columns specifically to allow usage of their `.data()`\`.presigned()` methods
 export type BuildColumn<
 	TTableName extends string,
 	TBuilder extends ColumnBuilderBase,
 	TDialect extends Dialect,
-> = TDialect extends 'pg' ? PgColumn<
+> = TDialect extends 'pg'
+	? TBuilder['_']['columnType'] extends 'PgS3File'
+		? PgS3File<Assume<MakeColumnConfig<TBuilder['_'], TTableName>, ColumnBaseConfig<'custom', 'PgS3File'>>>
+	: PgColumn<
 		MakeColumnConfig<TBuilder['_'], TTableName>,
 		{},
 		Simplify<Omit<TBuilder['_'], keyof MakeColumnConfig<TBuilder['_'], TTableName> | 'brand' | 'dialect'>>
 	>
-	: TDialect extends 'mysql' ? MySqlColumn<
+	: TDialect extends 'mysql'
+		? TBuilder['_']['columnType'] extends 'MySqlS3File'
+			? MySqlS3File<Assume<MakeColumnConfig<TBuilder['_'], TTableName>, ColumnBaseConfig<'custom', 'MySqlS3File'>>>
+		: MySqlColumn<
 			MakeColumnConfig<TBuilder['_'], TTableName>,
 			{},
 			Simplify<
@@ -339,7 +352,10 @@ export type BuildColumn<
 				>
 			>
 		>
-	: TDialect extends 'sqlite' ? SQLiteColumn<
+	: TDialect extends 'sqlite'
+		? TBuilder['_']['columnType'] extends 'SQLiteS3File'
+			? SQLiteS3File<Assume<MakeColumnConfig<TBuilder['_'], TTableName>, ColumnBaseConfig<'custom', 'SQLiteS3File'>>>
+		: SQLiteColumn<
 			MakeColumnConfig<TBuilder['_'], TTableName>,
 			{},
 			Simplify<Omit<TBuilder['_'], keyof MakeColumnConfig<TBuilder['_'], TTableName> | 'brand' | 'dialect'>>
@@ -349,7 +365,10 @@ export type BuildColumn<
 			{},
 			Simplify<Omit<TBuilder['_'], keyof MakeColumnConfig<TBuilder['_'], TTableName> | 'brand' | 'dialect'>>
 		>
-	: TDialect extends 'singlestore' ? SingleStoreColumn<
+	: TDialect extends 'singlestore' ? TBuilder['_']['columnType'] extends 'SingleStoreS3File' ? SingleStoreS3File<
+				Assume<MakeColumnConfig<TBuilder['_'], TTableName>, ColumnBaseConfig<'custom', 'SingleStoreS3File'>>
+			>
+		: SingleStoreColumn<
 			MakeColumnConfig<TBuilder['_'], TTableName>,
 			{},
 			Simplify<
@@ -363,7 +382,10 @@ export type BuildColumn<
 				>
 			>
 		>
-	: TDialect extends 'gel' ? GelColumn<
+	: TDialect extends 'gel'
+		? TBuilder['_']['columnType'] extends 'GelS3File'
+			? GelS3File<Assume<MakeColumnConfig<TBuilder['_'], TTableName>, ColumnBaseConfig<'custom', 'GelS3File'>>>
+		: GelColumn<
 			MakeColumnConfig<TBuilder['_'], TTableName>,
 			{},
 			Simplify<Omit<TBuilder['_'], keyof MakeColumnConfig<TBuilder['_'], TTableName> | 'brand' | 'dialect'>>

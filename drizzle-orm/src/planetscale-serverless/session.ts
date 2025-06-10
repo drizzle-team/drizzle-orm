@@ -1,6 +1,7 @@
 import type { Client, Connection, ExecutedQuery, Transaction } from '@planetscale/database';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
+import type { BlankMySqlHookContext, DrizzleMySqlExtension } from '~/extension-core/mysql/index.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
@@ -25,20 +26,22 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig> extend
 
 	constructor(
 		private client: Client | Transaction | Connection,
-		private queryString: string,
-		private params: unknown[],
+		queryString: string,
+		params: unknown[],
 		private logger: Logger,
 		private fields: SelectedFieldsOrdered | undefined,
+		extensions?: DrizzleMySqlExtension[],
+		hookContext?: BlankMySqlHookContext,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 		// Keys that were used in $default and the value that was generated for them
 		private generatedIds?: Record<string, unknown>[],
 		// Keys that should be returned, it has the column with all properries + key from object
 		private returningIds?: SelectedFieldsOrdered,
 	) {
-		super();
+		super(queryString, params, extensions, hookContext);
 	}
 
-	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+	async _execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 
 		this.logger.logQuery(this.queryString, params);
@@ -117,8 +120,9 @@ export class PlanetscaleSession<
 		tx: Transaction | undefined,
 		private schema: RelationalSchemaConfig<TSchema> | undefined,
 		private options: PlanetscaleSessionOptions = {},
+		extensions?: DrizzleMySqlExtension[],
 	) {
-		super(dialect);
+		super(dialect, extensions);
 		this.client = tx ?? baseClient;
 		this.logger = options.logger ?? new NoopLogger();
 	}
@@ -126,6 +130,7 @@ export class PlanetscaleSession<
 	prepareQuery<T extends MySqlPreparedQueryConfig = MySqlPreparedQueryConfig>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
+		hookContext?: BlankMySqlHookContext,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 		generatedIds?: Record<string, unknown>[],
 		returningIds?: SelectedFieldsOrdered,
@@ -136,6 +141,8 @@ export class PlanetscaleSession<
 			query.params,
 			this.logger,
 			fields,
+			this.extensions,
+			hookContext,
 			customResultMapper,
 			generatedIds,
 			returningIds,
@@ -176,11 +183,20 @@ export class PlanetscaleSession<
 		transaction: (tx: PlanetScaleTransaction<TFullSchema, TSchema>) => Promise<T>,
 	): Promise<T> {
 		return this.baseClient.transaction((pstx) => {
-			const session = new PlanetscaleSession(this.baseClient, this.dialect, pstx, this.schema, this.options);
+			const session = new PlanetscaleSession(
+				this.baseClient,
+				this.dialect,
+				pstx,
+				this.schema,
+				this.options,
+				this.extensions,
+			);
 			const tx = new PlanetScaleTransaction<TFullSchema, TSchema>(
 				this.dialect,
 				session as MySqlSession<any, any, any, any>,
 				this.schema,
+				undefined,
+				this.extensions,
 			);
 			return transaction(tx);
 		});
@@ -198,8 +214,9 @@ export class PlanetScaleTransaction<
 		session: MySqlSession,
 		schema: RelationalSchemaConfig<TSchema> | undefined,
 		nestedIndex = 0,
+		extensions?: DrizzleMySqlExtension[],
 	) {
-		super(dialect, session, schema, nestedIndex, 'planetscale');
+		super(dialect, session, schema, nestedIndex, 'planetscale', extensions);
 	}
 
 	override async transaction<T>(
@@ -211,6 +228,7 @@ export class PlanetScaleTransaction<
 			this.session,
 			this.schema,
 			this.nestedIndex + 1,
+			this._.extensions,
 		);
 		await tx.execute(sql.raw(`savepoint ${savepointName}`));
 		try {

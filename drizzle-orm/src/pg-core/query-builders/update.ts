@@ -9,7 +9,7 @@ import type {
 	PreparedQueryConfig,
 } from '~/pg-core/session.ts';
 import { PgTable } from '~/pg-core/table.ts';
-import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	AppendToNullabilityMap,
 	AppendToResult,
@@ -26,17 +26,8 @@ import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type Query, SQL, type SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
-import {
-	type Assume,
-	DrizzleTypeError,
-	Equal,
-	getTableLikeName,
-	mapUpdateSet,
-	type NeonAuthToken,
-	orderSelectedFields,
-	Simplify,
-	type UpdateSet,
-} from '~/utils.ts';
+import { getTableLikeName, mapUpdateSet, orderSelectedFields } from '~/utils.ts';
+import type { Assume, DrizzleTypeError, Equal, NeonAuthToken, Simplify, UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgColumn } from '../columns/common.ts';
 import type { PgViewBase } from '../view-base.ts';
@@ -93,7 +84,7 @@ export class PgUpdateBuilder<TTable extends PgTable, TQueryResult extends PgQuer
 	): PgUpdateWithout<PgUpdateBase<TTable, TQueryResult>, false, 'leftJoin' | 'rightJoin' | 'innerJoin' | 'fullJoin'> {
 		return new PgUpdateBase<TTable, TQueryResult>(
 			this.table,
-			mapUpdateSet(this.table, values),
+			mapUpdateSet(this.table, values, this.session.extensions),
 			this.session,
 			this.dialect,
 			this.withList,
@@ -340,6 +331,7 @@ export class PgUpdateBase<
 	TTable extends PgTable,
 	TQueryResult extends PgQueryResultHKT,
 	TFrom extends PgTable | Subquery | PgViewBase | SQL | undefined = undefined,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TSelectedFields extends ColumnsSelection | undefined = undefined,
 	TReturning extends Record<string, unknown> | undefined = undefined,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -564,7 +556,7 @@ export class PgUpdateBase<
 
 	/** @internal */
 	getSQL(): SQL {
-		return this.dialect.buildUpdateQuery(this.config);
+		return this.dialect.buildUpdateQuery(this.config, this.session.extensions);
 	}
 
 	toSQL(): Query {
@@ -576,7 +568,12 @@ export class PgUpdateBase<
 	_prepare(name?: string): PgUpdatePrepare<this> {
 		const query = this.session.prepareQuery<
 			PreparedQueryConfig & { execute: TReturning[] }
-		>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true);
+		>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true, {
+			query: 'update',
+			config: this.config,
+			dialect: this.dialect,
+			session: this.session,
+		});
 		query.joinsNotNullableMap = this.joinsNotNullableMap;
 		return query;
 	}

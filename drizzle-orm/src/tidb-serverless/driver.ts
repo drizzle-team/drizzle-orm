@@ -1,5 +1,6 @@
 import { type Config, connect, type Connection } from '@tidbcloud/serverless';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleMySqlExtension } from '~/extension-core/mysql/index.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { MySqlDatabase } from '~/mysql-core/db.ts';
@@ -26,7 +27,7 @@ export class TiDBServerlessDatabase<
 
 function construct<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: Connection,
-	config: DrizzleConfig<TSchema> = {},
+	config: DrizzleConfig<TSchema, DrizzleMySqlExtension> = {},
 ): TiDBServerlessDatabase<TSchema> & {
 	$client: Connection;
 } {
@@ -51,8 +52,15 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 		};
 	}
 
-	const session = new TiDBServerlessSession(client, dialect, undefined, schema, { logger });
-	const db = new TiDBServerlessDatabase(dialect, session, schema as any, 'default') as TiDBServerlessDatabase<TSchema>;
+	const extensions = config.extensions;
+	const session = new TiDBServerlessSession(client, dialect, undefined, schema, { logger }, extensions);
+	const db = new TiDBServerlessDatabase(
+		dialect,
+		session,
+		schema as any,
+		'default',
+		extensions,
+	) as TiDBServerlessDatabase<TSchema>;
 	(<any> db).$client = client;
 
 	return db as any;
@@ -66,14 +74,14 @@ export function drizzle<
 		TClient | string,
 	] | [
 		TClient | string,
-		DrizzleConfig<TSchema>,
+		DrizzleConfig<TSchema, DrizzleMySqlExtension>,
 	] | [
 		& ({
 			connection: string | Config;
 		} | {
 			client: TClient;
 		})
-		& DrizzleConfig<TSchema>,
+		& DrizzleConfig<TSchema, DrizzleMySqlExtension>,
 	]
 ): TiDBServerlessDatabase<TSchema> & {
 	$client: TClient;
@@ -89,7 +97,7 @@ export function drizzle<
 	if (isConfig(params[0])) {
 		const { connection, client, ...drizzleConfig } = params[0] as
 			& { connection?: Config | string; client?: TClient }
-			& DrizzleConfig<TSchema>;
+			& DrizzleConfig<TSchema, DrizzleMySqlExtension>;
 
 		if (client) return construct(client, drizzleConfig) as any;
 
@@ -102,12 +110,12 @@ export function drizzle<
 		return construct(instance, drizzleConfig) as any;
 	}
 
-	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema, DrizzleMySqlExtension> | undefined) as any;
 }
 
 export namespace drizzle {
 	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
-		config?: DrizzleConfig<TSchema>,
+		config?: DrizzleConfig<TSchema, DrizzleMySqlExtension>,
 	): TiDBServerlessDatabase<TSchema> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {

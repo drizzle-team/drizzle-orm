@@ -56,5 +56,14 @@ skipTests([
 	 */
 	'transaction rollback',
 	'nested transaction rollback',
+
+	'S3File - insert + select + query reuse',
+	'S3File - insert + select custom selection',
+	'S3File - insert + update + delete',
+	'S3File - insert returning',
+	'S3File - insert placeholder',
+	'S3File - insert prepared',
+	'S3File - transaction',
+	'S3File - run + all + get + values',
 ]);
 tests();
