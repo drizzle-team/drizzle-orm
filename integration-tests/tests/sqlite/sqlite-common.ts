@@ -1976,7 +1976,7 @@ export function tests() {
 			);
 			await db.run(sql`create view if not exists ${newYorkers} as ${getViewConfig(newYorkers).query}`);
 
-			db.insert(users).values([
+			await db.insert(users).values([
 				{ name: 'John', cityId: 1 },
 				{ name: 'Jane', cityId: 2 },
 				{ name: 'Jack', cityId: 1 },

@@ -15,7 +15,7 @@ export async function createDockerS3() {
 	let baseUrl: string | undefined = process.env['S3_CONNECTION_ENDPOINT'] ?? 'http://localhost:9000';
 	let container: Docker.Container | undefined;
 
-	const { status } = await fetch(`${baseUrl}/minio/health/ready`);
+	const { status } = await fetch(`${baseUrl}/minio/health/ready`).catch(() => ({ status: 500 }));
 	if (status < 200 || status >= 300) {
 		const docker = new Docker();
 		const port = await getPort({ port: 9000 });
@@ -72,7 +72,8 @@ export async function createDockerS3() {
 		}
 	}
 
-	const clientConfig = {
+	const bucket = `bucket-${uuidV4()}-test`;
+	const s3 = new S3Client({
 		endpoint: baseUrl,
 		region: 'us-east-1',
 		credentials: {
@@ -80,10 +81,17 @@ export async function createDockerS3() {
 			secretAccessKey: 'minioadmin',
 		},
 		forcePathStyle: true,
-	};
+		// Supress MD5 warnings - appear only in workflow tests
+		// TBD: figure out why MD5 warnings appear in tests
+		logger: {
+			trace: () => null,
+			debug: () => null,
+			error: () => null,
+			info: () => null,
+			warn: () => null,
+		},
+	});
 
-	const bucket = `bucket-${uuidV4()}-test`;
-	const s3 = new S3Client(clientConfig);
 	await s3.send(
 		new CreateBucketCommand({
 			Bucket: bucket,
