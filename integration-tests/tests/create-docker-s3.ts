@@ -9,61 +9,67 @@ import Docker from 'dockerode';
 import getPort from 'get-port';
 import { v4 as uuidV4 } from 'uuid';
 
-export const s3BucketName = 's3-file';
+export const defaultBucket = 'default-file-bucket';
 
 export async function createDockerS3() {
-	const docker = new Docker();
-	const port = await getPort({ port: 9000 });
-	const image = 'minio/minio:RELEASE.2025-05-24T17-08-30Z';
+	let baseUrl: string | undefined = process.env['S3_CONNECTION_ENDPOINT'] ?? 'http://localhost:9000';
+	let container: Docker.Container | undefined;
 
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
-	);
+	const { status } = await fetch(`${baseUrl}/minio/health/ready`);
+	if (status < 200 || status >= 300) {
+		const docker = new Docker();
+		const port = await getPort({ port: 9000 });
+		const image = 'minio/minio:RELEASE.2025-05-24T17-08-30Z';
 
-	const container = await docker.createContainer({
-		Image: image,
-		Env: [
-			'MINIO_ROOT_USER=minioadmin',
-			'MINIO_ROOT_PASSWORD=minioadmin',
-		],
-		name: `drizzle-integration-tests-s3-${uuidV4()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'9000/tcp': [{ HostPort: `${port}` }],
+		const pullStream = await docker.pull(image);
+		await new Promise((resolve, reject) =>
+			docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
+		);
+
+		container = await docker.createContainer({
+			Image: image,
+			Env: [
+				'MINIO_ROOT_USER=minioadmin',
+				'MINIO_ROOT_PASSWORD=minioadmin',
+			],
+			name: `drizzle-integration-tests-s3-${uuidV4()}`,
+			HostConfig: {
+				AutoRemove: true,
+				PortBindings: {
+					'9000/tcp': [{ HostPort: `${port}` }],
+				},
 			},
-		},
-		ExposedPorts: {
-			'9000/tcp': {},
-		},
-		Cmd: ['server', '/data', '--console-address', ':9001'],
-	});
+			ExposedPorts: {
+				'9000/tcp': {},
+			},
+			Cmd: ['server', '/data', '--console-address', ':9001'],
+		});
 
-	await container.start();
+		await container.start();
 
-	const baseUrl = `http://localhost:${port}`;
-	const sleep = 1000;
-	let timeLeft = 30000;
-	let connected = false;
-	let lastError: unknown | undefined;
-	do {
-		try {
-			const res = await fetch(`${baseUrl}/minio/health/ready`);
-			if (res.status > 200 || res.status >= 300) throw new Error(`Health check failed with status ${res.status}`);
-			connected = true;
-			break;
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
+		baseUrl = `http://localhost:${port}`;
+		const sleep = 1000;
+		let timeLeft = 30000;
+		let connected = false;
+		let lastError: unknown | undefined;
+		do {
+			try {
+				const res = await fetch(`${baseUrl}/minio/health/ready`);
+				if (res.status > 200 || res.status >= 300) throw new Error(`Health check failed with status ${res.status}`);
+				connected = true;
+				break;
+			} catch (e) {
+				lastError = e;
+				await new Promise((resolve) => setTimeout(resolve, sleep));
+				timeLeft -= sleep;
+			}
+		} while (timeLeft > 0);
+
+		if (!connected) {
+			console.error('Cannot connect to MinIO');
+			await container.stop().catch(console.error);
+			throw lastError;
 		}
-	} while (timeLeft > 0);
-
-	if (!connected) {
-		console.error('Cannot connect to MinIO');
-		await container.stop().catch(console.error);
-		throw lastError;
 	}
 
 	const clientConfig = {
@@ -75,13 +81,20 @@ export async function createDockerS3() {
 		},
 		forcePathStyle: true,
 	};
-	const bucket = s3BucketName;
+
+	const bucket = `bucket-${uuidV4()}-test`;
 	const s3 = new S3Client(clientConfig);
 	await s3.send(
 		new CreateBucketCommand({
 			Bucket: bucket,
 		}),
 	);
+
+	await s3.send(
+		new CreateBucketCommand({
+			Bucket: defaultBucket,
+		}),
+	).catch(() => null);
 
 	const s3Wipe = async () => {
 		try {
@@ -110,12 +123,13 @@ export async function createDockerS3() {
 
 	const s3Stop = async () => {
 		s3.destroy();
-		await container.stop().catch((e) => console.log(e));
+		await container?.stop().catch((e) => console.log(e));
 	};
 
 	return {
 		s3,
 		s3Wipe,
 		s3Stop,
+		bucket,
 	};
 }

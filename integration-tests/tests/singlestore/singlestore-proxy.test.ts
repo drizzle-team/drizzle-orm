@@ -72,6 +72,7 @@ class ServerSimulator {
 let db: SingleStoreRemoteDatabase;
 let client: mysql2.Connection;
 let serverSimulator: ServerSimulator;
+let s3Bucket: string;
 
 beforeAll(async () => {
 	let connectionString;
@@ -100,6 +101,8 @@ beforeAll(async () => {
 	await client.changeUser({ database: 'drizzle' });
 
 	serverSimulator = new ServerSimulator(client);
+	const { bucket, extensions } = await createExtensions();
+	s3Bucket = bucket;
 	db = proxyDrizzle(async (sql, params, method) => {
 		try {
 			const response = await serverSimulator.query(sql, params, method);
@@ -113,8 +116,8 @@ beforeAll(async () => {
 			console.error('Error from singlestore proxy server:', e.message);
 			throw e;
 		}
-	}, { logger: ENABLE_LOGGING, extensions: await createExtensions() });
-}, 800000);
+	}, { logger: ENABLE_LOGGING, extensions });
+});
 
 afterAll(async () => {
 	await client?.end();
@@ -123,6 +126,7 @@ afterAll(async () => {
 beforeEach((ctx) => {
 	ctx.singlestore = {
 		db,
+		bucket: s3Bucket,
 	};
 });
 

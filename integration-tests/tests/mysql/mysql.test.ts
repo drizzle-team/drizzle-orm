@@ -9,6 +9,7 @@ const ENABLE_LOGGING = false;
 
 let db: MySql2Database;
 let client: mysql.Connection;
+let s3Bucket: string;
 
 beforeAll(async () => {
 	let connectionString;
@@ -35,7 +36,9 @@ beforeAll(async () => {
 			client?.end();
 		},
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING, extensions: await createExtensions() });
+	const { bucket, extensions } = await createExtensions();
+	s3Bucket = bucket;
+	db = drizzle(client, { logger: ENABLE_LOGGING, extensions });
 });
 
 afterAll(async () => {
@@ -45,6 +48,7 @@ afterAll(async () => {
 beforeEach((ctx) => {
 	ctx.mysql = {
 		db,
+		bucket: s3Bucket,
 	};
 });
 

@@ -1,5 +1,5 @@
 import { type AnySQLiteColumn, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import { s3BucketName as bucket } from '../create-docker-s3';
+import { defaultBucket } from '../create-docker-s3';
 
 import { relations, sql } from 'drizzle-orm';
 import { s3File } from 'drizzle-orm/extensions/s3-file/sqlite';
@@ -132,7 +132,7 @@ export const s3Table = sqliteTable('s3files', {
 	id: integer('id').primaryKey(),
 	file: s3File('file', { mode: 'buffer' }),
 	defaultFnFile: s3File('file_default_fn', { mode: 'buffer' }).$default(() => ({
-		bucket,
+		bucket: defaultBucket,
 		key: 'default-key',
 		data: exampleS3Files[0]!,
 	})),

@@ -14,6 +14,7 @@ const ENABLE_LOGGING = false;
 
 let db: XataHttpDatabase;
 let client: XataHttpClient;
+let s3Bucket: string;
 
 beforeAll(async () => {
 	const apiKey = process.env['XATA_API_KEY'];
@@ -31,12 +32,16 @@ beforeAll(async () => {
 		maxTimeout: 250,
 		randomize: false,
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING, extensions: await createExtensions() });
+
+	const { bucket, extensions } = await createExtensions();
+	s3Bucket = bucket;
+	db = drizzle(client, { logger: ENABLE_LOGGING, extensions });
 });
 
 beforeEach((ctx) => {
 	ctx.pg = {
 		db,
+		bucket: s3Bucket,
 	};
 });
 

@@ -72,6 +72,7 @@ class ServerSimulator {
 let db: MySqlRemoteDatabase;
 let client: mysql.Connection;
 let serverSimulator: ServerSimulator;
+let s3Bucket: string;
 
 beforeAll(async () => {
 	let connectionString;
@@ -99,6 +100,8 @@ beforeAll(async () => {
 		},
 	});
 	serverSimulator = new ServerSimulator(client);
+	const { bucket, extensions } = await createExtensions();
+	s3Bucket = bucket;
 	db = proxyDrizzle(async (sql, params, method) => {
 		try {
 			const response = await serverSimulator.query(sql, params, method);
@@ -112,7 +115,7 @@ beforeAll(async () => {
 			console.error('Error from mysql proxy server:', e.message);
 			throw e;
 		}
-	}, { logger: ENABLE_LOGGING, extensions: await createExtensions() });
+	}, { logger: ENABLE_LOGGING, extensions });
 });
 
 afterAll(async () => {
@@ -122,6 +125,7 @@ afterAll(async () => {
 beforeEach((ctx) => {
 	ctx.mysql = {
 		db,
+		bucket: s3Bucket,
 	};
 });
 

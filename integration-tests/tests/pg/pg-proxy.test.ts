@@ -75,6 +75,7 @@ const ENABLE_LOGGING = false;
 let db: PgRemoteDatabase;
 let client: pg.Client;
 let serverSimulator: ServerSimulator;
+let s3Bucket: string;
 
 beforeAll(async () => {
 	let connectionString;
@@ -99,6 +100,9 @@ beforeAll(async () => {
 		},
 	});
 	serverSimulator = new ServerSimulator(client);
+
+	const { bucket, extensions } = await createExtensions();
+	s3Bucket = bucket;
 	db = proxyDrizzle(async (sql, params, method) => {
 		try {
 			const response = await serverSimulator.query(sql, params, method);
@@ -114,7 +118,7 @@ beforeAll(async () => {
 		}
 	}, {
 		logger: ENABLE_LOGGING,
-		extensions: await createExtensions(),
+		extensions,
 	});
 });
 
@@ -125,6 +129,7 @@ afterAll(async () => {
 beforeEach((ctx) => {
 	ctx.pg = {
 		db,
+		bucket: s3Bucket,
 	};
 });
 

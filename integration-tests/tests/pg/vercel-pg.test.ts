@@ -12,6 +12,7 @@ const ENABLE_LOGGING = false;
 
 let db: VercelPgDatabase;
 let client: VercelClient;
+let s3Bucket: string;
 
 beforeAll(async () => {
 	let connectionString;
@@ -45,7 +46,9 @@ beforeAll(async () => {
 		// await pgContainer?.stop().catch(console.error);
 		throw lastError;
 	}
-	db = drizzle(client, { logger: ENABLE_LOGGING, extensions: await createExtensions() });
+	const { bucket, extensions } = await createExtensions();
+	s3Bucket = bucket;
+	db = drizzle(client, { logger: ENABLE_LOGGING, extensions });
 });
 
 afterAll(async () => {
@@ -55,6 +58,7 @@ afterAll(async () => {
 beforeEach((ctx) => {
 	ctx.pg = {
 		db,
+		bucket: s3Bucket,
 	};
 });
 

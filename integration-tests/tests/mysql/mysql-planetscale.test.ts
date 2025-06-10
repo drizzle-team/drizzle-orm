@@ -8,17 +8,21 @@ import { createExtensions, tests } from './mysql-common';
 const ENABLE_LOGGING = false;
 
 let db: PlanetScaleDatabase;
+let s3Bucket: string;
 
 beforeAll(async () => {
+	const { bucket, extensions } = await createExtensions();
+	s3Bucket = bucket;
 	db = drizzle(new Client({ url: process.env['PLANETSCALE_CONNECTION_STRING']! }), {
 		logger: ENABLE_LOGGING,
-		extensions: await createExtensions(),
+		extensions,
 	});
 });
 
 beforeEach((ctx) => {
 	ctx.mysql = {
 		db,
+		bucket: s3Bucket,
 	};
 });
 

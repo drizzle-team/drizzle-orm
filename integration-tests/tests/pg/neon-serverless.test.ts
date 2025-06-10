@@ -13,6 +13,7 @@ const ENABLE_LOGGING = false;
 
 let db: NeonDatabase;
 let client: Pool;
+let s3Bucket: string;
 
 neonConfig.wsProxy = (host) => `${host}:5446/v1`;
 neonConfig.useSecureWebSocket = false;
@@ -27,7 +28,9 @@ beforeAll(async () => {
 	}
 
 	client = new Pool({ connectionString });
-	db = drizzle(client, { logger: ENABLE_LOGGING, extensions: await createExtensions() });
+	const { bucket, extensions } = await createExtensions();
+	s3Bucket = bucket;
+	db = drizzle(client, { logger: ENABLE_LOGGING, extensions });
 });
 
 afterAll(async () => {
@@ -37,6 +40,7 @@ afterAll(async () => {
 beforeEach((ctx) => {
 	ctx.pg = {
 		db,
+		bucket: s3Bucket,
 	};
 });
 

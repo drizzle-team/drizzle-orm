@@ -56,12 +56,15 @@ class ServerSimulator {
 let db: SqliteRemoteDatabase;
 let client: Database.Database;
 let serverSimulator: ServerSimulator;
+let s3Bucket: string;
 
 beforeAll(async () => {
 	const dbPath = process.env['SQLITE_DB_PATH'] ?? ':memory:';
 	client = new Database(dbPath);
 	serverSimulator = new ServerSimulator(client);
 
+	const { bucket, extensions } = await createExtensions();
+	s3Bucket = bucket;
 	db = proxyDrizzle(async (sql, params, method) => {
 		try {
 			const rows = await serverSimulator.query(sql, params, method);
@@ -76,13 +79,14 @@ beforeAll(async () => {
 			throw e;
 		}
 	}, {
-		extensions: await createExtensions(),
+		extensions,
 	});
 });
 
 beforeEach((ctx) => {
 	ctx.sqlite = {
 		db,
+		bucket: s3Bucket,
 	};
 });
 

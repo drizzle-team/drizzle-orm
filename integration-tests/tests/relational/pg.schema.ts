@@ -9,7 +9,7 @@ import {
 	text,
 	timestamp,
 } from 'drizzle-orm/pg-core';
-import { s3BucketName as bucket } from '../create-docker-s3';
+import { defaultBucket } from '../create-docker-s3';
 
 import { relations } from 'drizzle-orm';
 import { s3File } from 'drizzle-orm/extensions/s3-file/pg';
@@ -123,7 +123,7 @@ export const s3Table = pgTable('s3files', {
 	fileArr: s3File('file_arr', { mode: 'buffer' }).array(),
 	fileMtx: s3File('file_mtx', { mode: 'buffer' }).array().array(),
 	defaultFnFile: s3File('file_default_fn', { mode: 'buffer' }).$default(() => ({
-		bucket,
+		bucket: defaultBucket,
 		key: 'default-key',
 		data: exampleS3Files[0]!,
 	})),

@@ -79,9 +79,8 @@ import createClient, {
 import { v4 as uuidV4 } from 'uuid';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { Expect } from '~/utils';
-import { createDockerS3, s3BucketName as bucket } from '../create-docker-s3';
+import { createDockerS3, defaultBucket } from '../create-docker-s3';
 import 'zx/globals';
-import type { DrizzleGelExtension } from 'drizzle-orm/extension-core/gel';
 import { s3File, s3FileExt } from 'drizzle-orm/extensions/s3-file/gel';
 import { createDockerDB } from './createInstance';
 
@@ -94,6 +93,7 @@ let db: GelJsDatabase;
 const tlsSecurity: string = 'insecure';
 let dsn: string;
 let container: Docker.Container | undefined;
+let s3Bucket: string;
 
 function sleep(ms: number) {
 	return new Promise((resolve) => setTimeout(resolve, ms));
@@ -103,6 +103,7 @@ declare module 'vitest' {
 	interface TestContext {
 		gel: {
 			db: GelJsDatabase;
+			bucket?: string;
 		};
 	}
 }
@@ -222,7 +223,7 @@ const s3Table = gelTable('s3files', {
 	file: s3File('file', { mode: 'buffer' }),
 	fileArr: s3File('file_arr', { mode: 'buffer' }).array(),
 	defaultFnFile: s3File('file_default_fn', { mode: 'buffer' }).$default(() => ({
-		bucket,
+		bucket: defaultBucket,
 		key: 'default-key',
 		data: exampleS3Files[0]!,
 	})),
@@ -237,13 +238,13 @@ const s3Table = gelTable('s3files', {
 	}),
 });
 
-async function createExtensions(): Promise<DrizzleGelExtension[]> {
-	const { s3, s3Wipe, s3Stop } = await createDockerS3();
+async function createExtensions() {
+	const { s3, s3Wipe, s3Stop, bucket } = await createDockerS3();
 
 	beforeEachHooks.push(s3Wipe);
 	afterAllHooks.push(s3Stop);
 
-	return [s3FileExt(s3)];
+	return { extensions: [s3FileExt(s3)], bucket };
 }
 
 beforeAll(async () => {
@@ -269,7 +270,10 @@ beforeAll(async () => {
 			client?.close();
 		},
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING, extensions: await createExtensions() });
+
+	const { bucket, extensions } = await createExtensions();
+	s3Bucket = bucket;
+	db = drizzle(client, { logger: ENABLE_LOGGING, extensions });
 
 	dsn = connectionString;
 });
@@ -286,6 +290,7 @@ afterAll(async () => {
 beforeEach(async (ctx) => {
 	ctx.gel = {
 		db,
+		bucket: s3Bucket,
 	};
 
 	for (const hook of beforeEachHooks) {
@@ -5046,7 +5051,7 @@ describe('some', async () => {
 	});
 
 	test('S3File - insert + select + query reuse', async (ctx) => {
-		const { db } = ctx.gel;
+		const { db, bucket } = ctx.gel;
 
 		const reusable = db.select().from(s3Table).orderBy(s3Table.id);
 		const blank = await reusable;
@@ -5055,41 +5060,41 @@ describe('some', async () => {
 		await db.insert(s3Table).values([{
 			id: 1,
 			file: {
-				bucket,
+				bucket: bucket!,
 				key: 'zero',
 				data: exampleS3Files[0],
 			},
 			fileArr: [
 				{
-					bucket,
+					bucket: bucket!,
 					key: 'one',
 					data: exampleS3Files[1],
 				},
 				{
-					bucket,
+					bucket: bucket!,
 					key: 'two',
 					data: exampleS3Files[2],
 				},
 			],
 			f64: {
-				bucket,
+				bucket: bucket!,
 				key: 'base64',
 				data: exampleS3Files[7].toString('base64'),
 			},
 			f16: {
-				bucket,
+				bucket: bucket!,
 				key: 'hex',
 				data: exampleS3Files[7].toString('hex'),
 			},
 			fInt8: {
-				bucket,
+				bucket: bucket!,
 				key: 'uint8arr',
 				data: Uint8Array.from(exampleS3Files[7]),
 			},
 		}, {
 			id: 2,
 			file: {
-				bucket,
+				bucket: bucket!,
 				key: 'file2',
 				data: exampleS3Files[8],
 			},
@@ -5100,46 +5105,46 @@ describe('some', async () => {
 		expect(res).toStrictEqual([{
 			id: 1,
 			file: {
-				bucket,
+				bucket: bucket!,
 				key: 'zero',
 				data: exampleS3Files[0],
 			},
 			fileArr: [
 				{
-					bucket,
+					bucket: bucket!,
 					key: 'one',
 					data: exampleS3Files[1],
 				},
 				{
-					bucket,
+					bucket: bucket!,
 					key: 'two',
 					data: exampleS3Files[2],
 				},
 			],
 			f64: {
-				bucket,
+				bucket: bucket!,
 				key: 'base64',
 				data: exampleS3Files[7].toString('base64'),
 			},
 			f16: {
-				bucket,
+				bucket: bucket!,
 				key: 'hex',
 				data: exampleS3Files[7].toString('hex'),
 			},
 			fInt8: {
-				bucket,
+				bucket: bucket!,
 				key: 'uint8arr',
 				data: Uint8Array.from(exampleS3Files[7]),
 			},
 			defaultFnFile: {
-				bucket,
+				bucket: defaultBucket,
 				key: 'default-key',
 				data: exampleS3Files[0],
 			},
 		}, {
 			id: 2,
 			file: {
-				bucket,
+				bucket: bucket!,
 				key: 'file2',
 				data: exampleS3Files[8],
 			},
@@ -5148,7 +5153,7 @@ describe('some', async () => {
 			f64: null,
 			fInt8: null,
 			defaultFnFile: {
-				bucket,
+				bucket: defaultBucket,
 				key: 'default-key',
 				data: exampleS3Files[0],
 			},
@@ -5156,46 +5161,46 @@ describe('some', async () => {
 	});
 
 	test('S3File - insert + select custom selection', async (ctx) => {
-		const { db } = ctx.gel;
+		const { db, bucket } = ctx.gel;
 
 		await db.insert(s3Table).values([{
 			id: 1,
 			file: {
-				bucket,
+				bucket: bucket!,
 				key: 'zero',
 				data: exampleS3Files[0],
 			},
 			fileArr: [
 				{
-					bucket,
+					bucket: bucket!,
 					key: 'one',
 					data: exampleS3Files[1],
 				},
 				{
-					bucket,
+					bucket: bucket!,
 					key: 'two',
 					data: exampleS3Files[2],
 				},
 			],
 			f64: {
-				bucket,
+				bucket: bucket!,
 				key: 'base64',
 				data: exampleS3Files[7].toString('base64'),
 			},
 			f16: {
-				bucket,
+				bucket: bucket!,
 				key: 'hex',
 				data: exampleS3Files[7].toString('hex'),
 			},
 			fInt8: {
-				bucket,
+				bucket: bucket!,
 				key: 'uint8arr',
 				data: Uint8Array.from(exampleS3Files[7]),
 			},
 		}, {
 			id: 2,
 			file: {
-				bucket,
+				bucket: bucket!,
 				key: 'file2',
 				data: exampleS3Files[8],
 			},
@@ -5208,7 +5213,16 @@ describe('some', async () => {
 				fileArr: s3Table.fileArr,
 			},
 			root: s3Table.defaultFnFile,
-			presigned: s3Table.file.presigned(),
+			presigned: s3Table.file.presigned({
+				expiresIn: 6000,
+				hoistableHeaders: new Set(['h1', 'h2']),
+				signableHeaders: new Set(['h1', 'h2']),
+				signingDate: new Date(),
+				signingRegion: 'us-east-1',
+				signingService: 'service?',
+				unhoistableHeaders: new Set(['h3', 'h4']),
+				unsignableHeaders: new Set(['h87', 'h22']),
+			}),
 			data: s3Table.file.data(),
 		}).from(s3Table).orderBy(s3Table.id);
 
@@ -5216,64 +5230,64 @@ describe('some', async () => {
 			fullTable: {
 				id: 1,
 				file: {
-					bucket,
+					bucket: bucket!,
 					key: 'zero',
 					data: exampleS3Files[0],
 				},
 				fileArr: [
 					{
-						bucket,
+						bucket: bucket!,
 						key: 'one',
 						data: exampleS3Files[1],
 					},
 					{
-						bucket,
+						bucket: bucket!,
 						key: 'two',
 						data: exampleS3Files[2],
 					},
 				],
 				f64: {
-					bucket,
+					bucket: bucket!,
 					key: 'base64',
 					data: exampleS3Files[7].toString('base64'),
 				},
 				f16: {
-					bucket,
+					bucket: bucket!,
 					key: 'hex',
 					data: exampleS3Files[7].toString('hex'),
 				},
 				fInt8: {
-					bucket,
+					bucket: bucket!,
 					key: 'uint8arr',
 					data: Uint8Array.from(exampleS3Files[7]),
 				},
 				defaultFnFile: {
-					bucket,
+					bucket: defaultBucket,
 					key: 'default-key',
 					data: exampleS3Files[0],
 				},
 			},
 			nested: {
 				file: {
-					bucket,
+					bucket: bucket!,
 					key: 'zero',
 					data: exampleS3Files[0],
 				},
 				fileArr: [
 					{
-						bucket,
+						bucket: bucket!,
 						key: 'one',
 						data: exampleS3Files[1],
 					},
 					{
-						bucket,
+						bucket: bucket!,
 						key: 'two',
 						data: exampleS3Files[2],
 					},
 				],
 			},
 			root: {
-				bucket,
+				bucket: defaultBucket,
 				key: 'default-key',
 				data: exampleS3Files[0],
 			},
@@ -5283,7 +5297,7 @@ describe('some', async () => {
 			fullTable: {
 				id: 2,
 				file: {
-					bucket,
+					bucket: bucket!,
 					key: 'file2',
 					data: exampleS3Files[8],
 				},
@@ -5292,21 +5306,21 @@ describe('some', async () => {
 				f64: null,
 				fInt8: null,
 				defaultFnFile: {
-					bucket,
+					bucket: defaultBucket,
 					key: 'default-key',
 					data: exampleS3Files[0],
 				},
 			},
 			nested: {
 				file: {
-					bucket,
+					bucket: bucket!,
 					key: 'file2',
 					data: exampleS3Files[8],
 				},
 				fileArr: null,
 			},
 			root: {
-				bucket,
+				bucket: defaultBucket,
 				key: 'default-key',
 				data: exampleS3Files[0],
 			},
@@ -5316,46 +5330,46 @@ describe('some', async () => {
 	});
 
 	test('S3File - insert + update + delete', async (ctx) => {
-		const { db } = ctx.gel;
+		const { db, bucket } = ctx.gel;
 
 		await db.insert(s3Table).values([{
 			id: 1,
 			file: {
-				bucket,
+				bucket: bucket!,
 				key: 'zero',
 				data: exampleS3Files[0],
 			},
 			fileArr: [
 				{
-					bucket,
+					bucket: bucket!,
 					key: 'one',
 					data: exampleS3Files[1],
 				},
 				{
-					bucket,
+					bucket: bucket!,
 					key: 'two',
 					data: exampleS3Files[2],
 				},
 			],
 			f64: {
-				bucket,
+				bucket: bucket!,
 				key: 'base64',
 				data: exampleS3Files[7].toString('base64'),
 			},
 			f16: {
-				bucket,
+				bucket: bucket!,
 				key: 'hex',
 				data: exampleS3Files[7].toString('hex'),
 			},
 			fInt8: {
-				bucket,
+				bucket: bucket!,
 				key: 'uint8arr',
 				data: Uint8Array.from(exampleS3Files[7]),
 			},
 		}, {
 			id: 2,
 			file: {
-				bucket,
+				bucket: bucket!,
 				key: 'file2',
 				data: exampleS3Files[8],
 			},
@@ -5364,7 +5378,7 @@ describe('some', async () => {
 		const upd = await db.update(s3Table).set({
 			id: 3,
 			file: {
-				bucket,
+				bucket: bucket!,
 				key: 'zero-new',
 				data: exampleS3Files[9],
 			},
@@ -5390,12 +5404,12 @@ describe('some', async () => {
 			{
 				id: 3,
 				file: {
-					bucket,
+					bucket: bucket!,
 					key: 'zero-new',
 					data: exampleS3Files[9],
 				},
 				defaultFnFile: {
-					bucket,
+					bucket: defaultBucket,
 					key: 'default-key',
 					data: exampleS3Files[0],
 				},
@@ -5405,12 +5419,12 @@ describe('some', async () => {
 		expect(del).toStrictEqual([{
 			id: 2,
 			file: {
-				bucket,
+				bucket: bucket!,
 				key: 'file2',
 				data: exampleS3Files[8],
 			},
 			defaultFnFile: {
-				bucket,
+				bucket: defaultBucket,
 				key: 'default-key',
 				data: exampleS3Files[0],
 			},
@@ -5420,12 +5434,12 @@ describe('some', async () => {
 			{
 				id: 3,
 				file: {
-					bucket,
+					bucket: bucket!,
 					key: 'zero-new',
 					data: exampleS3Files[9],
 				},
 				defaultFnFile: {
-					bucket,
+					bucket: defaultBucket,
 					key: 'default-key',
 					data: exampleS3Files[0],
 				},
@@ -5434,46 +5448,46 @@ describe('some', async () => {
 	});
 
 	test('S3File - insert returning', async (ctx) => {
-		const { db } = ctx.gel;
+		const { db, bucket } = ctx.gel;
 
 		const res = await db.insert(s3Table).values([{
 			id: 1,
 			file: {
-				bucket,
+				bucket: bucket!,
 				key: 'zero',
 				data: exampleS3Files[0],
 			},
 			fileArr: [
 				{
-					bucket,
+					bucket: bucket!,
 					key: 'one',
 					data: exampleS3Files[1],
 				},
 				{
-					bucket,
+					bucket: bucket!,
 					key: 'two',
 					data: exampleS3Files[2],
 				},
 			],
 			f64: {
-				bucket,
+				bucket: bucket!,
 				key: 'base64',
 				data: exampleS3Files[7].toString('base64'),
 			},
 			f16: {
-				bucket,
+				bucket: bucket!,
 				key: 'hex',
 				data: exampleS3Files[7].toString('hex'),
 			},
 			fInt8: {
-				bucket,
+				bucket: bucket!,
 				key: 'uint8arr',
 				data: Uint8Array.from(exampleS3Files[7]),
 			},
 		}, {
 			id: 2,
 			file: {
-				bucket,
+				bucket: bucket!,
 				key: 'file2',
 				data: exampleS3Files[8],
 			},
@@ -5482,46 +5496,46 @@ describe('some', async () => {
 		expect(res).toStrictEqual([{
 			id: 1,
 			file: {
-				bucket,
+				bucket: bucket!,
 				key: 'zero',
 				data: exampleS3Files[0],
 			},
 			fileArr: [
 				{
-					bucket,
+					bucket: bucket!,
 					key: 'one',
 					data: exampleS3Files[1],
 				},
 				{
-					bucket,
+					bucket: bucket!,
 					key: 'two',
 					data: exampleS3Files[2],
 				},
 			],
 			f64: {
-				bucket,
+				bucket: bucket!,
 				key: 'base64',
 				data: exampleS3Files[7].toString('base64'),
 			},
 			f16: {
-				bucket,
+				bucket: bucket!,
 				key: 'hex',
 				data: exampleS3Files[7].toString('hex'),
 			},
 			fInt8: {
-				bucket,
+				bucket: bucket!,
 				key: 'uint8arr',
 				data: Uint8Array.from(exampleS3Files[7]),
 			},
 			defaultFnFile: {
-				bucket,
+				bucket: defaultBucket,
 				key: 'default-key',
 				data: exampleS3Files[0],
 			},
 		}, {
 			id: 2,
 			file: {
-				bucket,
+				bucket: bucket!,
 				key: 'file2',
 				data: exampleS3Files[8],
 			},
@@ -5530,7 +5544,7 @@ describe('some', async () => {
 			f64: null,
 			fInt8: null,
 			defaultFnFile: {
-				bucket,
+				bucket: defaultBucket,
 				key: 'default-key',
 				data: exampleS3Files[0],
 			},
@@ -5538,7 +5552,7 @@ describe('some', async () => {
 	});
 
 	test('S3File - insert placeholder', async (ctx) => {
-		const { db } = ctx.gel;
+		const { db, bucket } = ctx.gel;
 
 		const res = await db.insert(s3Table).values([{
 			id: 1,
@@ -5550,40 +5564,40 @@ describe('some', async () => {
 		}, {
 			id: 2,
 			file: {
-				bucket,
+				bucket: bucket!,
 				key: 'file2',
 				data: exampleS3Files[8],
 			},
 		}]).returning().execute({
 			fOne: {
-				bucket,
+				bucket: bucket!,
 				key: 'zero',
 				data: exampleS3Files[0],
 			},
 			fArr: [
 				{
-					bucket,
+					bucket: bucket!,
 					key: 'one',
 					data: exampleS3Files[1],
 				},
 				{
-					bucket,
+					bucket: bucket!,
 					key: 'two',
 					data: exampleS3Files[2],
 				},
 			],
 			f64: {
-				bucket,
+				bucket: bucket!,
 				key: 'base64',
 				data: exampleS3Files[7].toString('base64'),
 			},
 			f16: {
-				bucket,
+				bucket: bucket!,
 				key: 'hex',
 				data: exampleS3Files[7].toString('hex'),
 			},
 			fInt8: {
-				bucket,
+				bucket: bucket!,
 				key: 'uint8arr',
 				data: Uint8Array.from(exampleS3Files[7]),
 			},
@@ -5592,46 +5606,46 @@ describe('some', async () => {
 		expect(res).toStrictEqual([{
 			id: 1,
 			file: {
-				bucket,
+				bucket: bucket!,
 				key: 'zero',
 				data: exampleS3Files[0],
 			},
 			fileArr: [
 				{
-					bucket,
+					bucket: bucket!,
 					key: 'one',
 					data: exampleS3Files[1],
 				},
 				{
-					bucket,
+					bucket: bucket!,
 					key: 'two',
 					data: exampleS3Files[2],
 				},
 			],
 			f64: {
-				bucket,
+				bucket: bucket!,
 				key: 'base64',
 				data: exampleS3Files[7].toString('base64'),
 			},
 			f16: {
-				bucket,
+				bucket: bucket!,
 				key: 'hex',
 				data: exampleS3Files[7].toString('hex'),
 			},
 			fInt8: {
-				bucket,
+				bucket: bucket!,
 				key: 'uint8arr',
 				data: Uint8Array.from(exampleS3Files[7]),
 			},
 			defaultFnFile: {
-				bucket,
+				bucket: defaultBucket,
 				key: 'default-key',
 				data: exampleS3Files[0],
 			},
 		}, {
 			id: 2,
 			file: {
-				bucket,
+				bucket: bucket!,
 				key: 'file2',
 				data: exampleS3Files[8],
 			},
@@ -5640,7 +5654,7 @@ describe('some', async () => {
 			f64: null,
 			fInt8: null,
 			defaultFnFile: {
-				bucket,
+				bucket: defaultBucket,
 				key: 'default-key',
 				data: exampleS3Files[0],
 			},
@@ -5648,7 +5662,7 @@ describe('some', async () => {
 	});
 
 	test('S3File - insert prepared', async (ctx) => {
-		const { db } = ctx.gel;
+		const { db, bucket } = ctx.gel;
 
 		const query = await db.insert(s3Table).values([{
 			id: sql.placeholder('id'),
@@ -5662,34 +5676,34 @@ describe('some', async () => {
 		const insertOne = await query.execute({
 			id: 1,
 			fOne: {
-				bucket,
+				bucket: bucket!,
 				key: 'zero',
 				data: exampleS3Files[0],
 			},
 			fArr: [
 				{
-					bucket,
+					bucket: bucket!,
 					key: 'one',
 					data: exampleS3Files[1],
 				},
 				{
-					bucket,
+					bucket: bucket!,
 					key: 'two',
 					data: exampleS3Files[2],
 				},
 			],
 			f64: {
-				bucket,
+				bucket: bucket!,
 				key: 'base64',
 				data: exampleS3Files[7].toString('base64'),
 			},
 			f16: {
-				bucket,
+				bucket: bucket!,
 				key: 'hex',
 				data: exampleS3Files[7].toString('hex'),
 			},
 			fInt8: {
-				bucket,
+				bucket: bucket!,
 				key: 'uint8arr',
 				data: Uint8Array.from(exampleS3Files[7]),
 			},
@@ -5698,34 +5712,34 @@ describe('some', async () => {
 		const insertTwo = await query.execute({
 			id: 2,
 			fOne: {
-				bucket,
+				bucket: bucket!,
 				key: 'five',
 				data: exampleS3Files[5],
 			},
 			fArr: [
 				{
-					bucket,
+					bucket: bucket!,
 					key: 'one',
 					data: exampleS3Files[1],
 				},
 				{
-					bucket,
+					bucket: bucket!,
 					key: 'two',
 					data: exampleS3Files[2],
 				},
 			],
 			f64: {
-				bucket,
+				bucket: bucket!,
 				key: 'base64-2',
 				data: exampleS3Files[9].toString('base64'),
 			},
 			f16: {
-				bucket,
+				bucket: bucket!,
 				key: 'hex-2',
 				data: exampleS3Files[9].toString('hex'),
 			},
 			fInt8: {
-				bucket,
+				bucket: bucket!,
 				key: 'uint8arr-2',
 				data: Uint8Array.from(exampleS3Files[9]),
 			},
@@ -5736,39 +5750,39 @@ describe('some', async () => {
 		expect(insertOne).toStrictEqual([{
 			id: 1,
 			file: {
-				bucket,
+				bucket: bucket!,
 				key: 'zero',
 				data: exampleS3Files[0],
 			},
 			fileArr: [
 				{
-					bucket,
+					bucket: bucket!,
 					key: 'one',
 					data: exampleS3Files[1],
 				},
 				{
-					bucket,
+					bucket: bucket!,
 					key: 'two',
 					data: exampleS3Files[2],
 				},
 			],
 			f64: {
-				bucket,
+				bucket: bucket!,
 				key: 'base64',
 				data: exampleS3Files[7].toString('base64'),
 			},
 			f16: {
-				bucket,
+				bucket: bucket!,
 				key: 'hex',
 				data: exampleS3Files[7].toString('hex'),
 			},
 			fInt8: {
-				bucket,
+				bucket: bucket!,
 				key: 'uint8arr',
 				data: Uint8Array.from(exampleS3Files[7]),
 			},
 			defaultFnFile: {
-				bucket,
+				bucket: defaultBucket,
 				key: 'default-key',
 				data: exampleS3Files[0],
 			},
@@ -5778,39 +5792,39 @@ describe('some', async () => {
 			{
 				id: 2,
 				file: {
-					bucket,
+					bucket: bucket!,
 					key: 'five',
 					data: exampleS3Files[5],
 				},
 				fileArr: [
 					{
-						bucket,
+						bucket: bucket!,
 						key: 'one',
 						data: exampleS3Files[1],
 					},
 					{
-						bucket,
+						bucket: bucket!,
 						key: 'two',
 						data: exampleS3Files[2],
 					},
 				],
 				f64: {
-					bucket,
+					bucket: bucket!,
 					key: 'base64-2',
 					data: exampleS3Files[9].toString('base64'),
 				},
 				f16: {
-					bucket,
+					bucket: bucket!,
 					key: 'hex-2',
 					data: exampleS3Files[9].toString('hex'),
 				},
 				fInt8: {
-					bucket,
+					bucket: bucket!,
 					key: 'uint8arr-2',
 					data: Uint8Array.from(exampleS3Files[9]),
 				},
 				defaultFnFile: {
-					bucket,
+					bucket: defaultBucket,
 					key: 'default-key',
 					data: exampleS3Files[0],
 				},
@@ -5820,78 +5834,78 @@ describe('some', async () => {
 		expect(res).toStrictEqual([{
 			id: 1,
 			file: {
-				bucket,
+				bucket: bucket!,
 				key: 'zero',
 				data: exampleS3Files[0],
 			},
 			fileArr: [
 				{
-					bucket,
+					bucket: bucket!,
 					key: 'one',
 					data: exampleS3Files[1],
 				},
 				{
-					bucket,
+					bucket: bucket!,
 					key: 'two',
 					data: exampleS3Files[2],
 				},
 			],
 			f64: {
-				bucket,
+				bucket: bucket!,
 				key: 'base64',
 				data: exampleS3Files[7].toString('base64'),
 			},
 			f16: {
-				bucket,
+				bucket: bucket!,
 				key: 'hex',
 				data: exampleS3Files[7].toString('hex'),
 			},
 			fInt8: {
-				bucket,
+				bucket: bucket!,
 				key: 'uint8arr',
 				data: Uint8Array.from(exampleS3Files[7]),
 			},
 			defaultFnFile: {
-				bucket,
+				bucket: defaultBucket,
 				key: 'default-key',
 				data: exampleS3Files[0],
 			},
 		}, {
 			id: 2,
 			file: {
-				bucket,
+				bucket: bucket!,
 				key: 'five',
 				data: exampleS3Files[5],
 			},
 			fileArr: [
 				{
-					bucket,
+					bucket: bucket!,
 					key: 'one',
 					data: exampleS3Files[1],
 				},
 				{
-					bucket,
+					bucket: bucket!,
 					key: 'two',
 					data: exampleS3Files[2],
 				},
 			],
 			f64: {
-				bucket,
+				bucket: bucket!,
 				key: 'base64-2',
 				data: exampleS3Files[9].toString('base64'),
 			},
 			f16: {
-				bucket,
+				bucket: bucket!,
 				key: 'hex-2',
 				data: exampleS3Files[9].toString('hex'),
 			},
 			fInt8: {
-				bucket,
+				bucket: bucket!,
 				key: 'uint8arr-2',
 				data: Uint8Array.from(exampleS3Files[9]),
 			},
 			defaultFnFile: {
-				bucket,
+				bucket: defaultBucket,
 				key: 'default-key',
 				data: exampleS3Files[0],
 			},
@@ -5899,40 +5913,40 @@ describe('some', async () => {
 	});
 
 	test('S3File - transaction', async (ctx) => {
-		const { db } = ctx.gel;
+		const { db, bucket } = ctx.gel;
 
 		const res = await db.transaction(async (tx) => {
 			const first = await tx.insert(s3Table).values({
 				id: 1,
 				file: {
-					bucket,
+					bucket: bucket!,
 					key: 'zero',
 					data: exampleS3Files[0],
 				},
 				fileArr: [
 					{
-						bucket,
+						bucket: bucket!,
 						key: 'one',
 						data: exampleS3Files[1],
 					},
 					{
-						bucket,
+						bucket: bucket!,
 						key: 'two',
 						data: exampleS3Files[2],
 					},
 				],
 				f64: {
-					bucket,
+					bucket: bucket!,
 					key: 'base64',
 					data: exampleS3Files[7].toString('base64'),
 				},
 				f16: {
-					bucket,
+					bucket: bucket!,
 					key: 'hex',
 					data: exampleS3Files[7].toString('hex'),
 				},
 				fInt8: {
-					bucket,
+					bucket: bucket!,
 					key: 'uint8arr',
 					data: Uint8Array.from(exampleS3Files[7]),
 				},
@@ -5942,7 +5956,7 @@ describe('some', async () => {
 				const second = await tx2.insert(s3Table).values({
 					id: 2,
 					file: {
-						bucket,
+						bucket: bucket!,
 						key: 'file2',
 						data: exampleS3Files[8],
 					},
@@ -5957,46 +5971,46 @@ describe('some', async () => {
 		expect(res).toStrictEqual([{
 			id: 1,
 			file: {
-				bucket,
+				bucket: bucket!,
 				key: 'zero',
 				data: exampleS3Files[0],
 			},
 			fileArr: [
 				{
-					bucket,
+					bucket: bucket!,
 					key: 'one',
 					data: exampleS3Files[1],
 				},
 				{
-					bucket,
+					bucket: bucket!,
 					key: 'two',
 					data: exampleS3Files[2],
 				},
 			],
 			f64: {
-				bucket,
+				bucket: bucket!,
 				key: 'base64',
 				data: exampleS3Files[7].toString('base64'),
 			},
 			f16: {
-				bucket,
+				bucket: bucket!,
 				key: 'hex',
 				data: exampleS3Files[7].toString('hex'),
 			},
 			fInt8: {
-				bucket,
+				bucket: bucket!,
 				key: 'uint8arr',
 				data: Uint8Array.from(exampleS3Files[7]),
 			},
 			defaultFnFile: {
-				bucket,
+				bucket: defaultBucket,
 				key: 'default-key',
 				data: exampleS3Files[0],
 			},
 		}, {
 			id: 2,
 			file: {
-				bucket,
+				bucket: bucket!,
 				key: 'file2',
 				data: exampleS3Files[8],
 			},
@@ -6005,7 +6019,7 @@ describe('some', async () => {
 			f64: null,
 			fInt8: null,
 			defaultFnFile: {
-				bucket,
+				bucket: defaultBucket,
 				key: 'default-key',
 				data: exampleS3Files[0],
 			},

@@ -1,11 +1,10 @@
 import 'dotenv/config';
 import { type Client, createClient } from '@libsql/client';
 import { desc, DrizzleError, eq, gt, gte, or, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
-import type { DrizzleSQLiteExtension } from 'drizzle-orm/extension-core/sqlite';
 import { s3FileExt } from 'drizzle-orm/extensions/s3-file/sqlite';
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
-import { createDockerS3, s3BucketName as bucket } from '~/create-docker-s3.ts';
+import { createDockerS3, defaultBucket } from '~/create-docker-s3.ts';
 import * as schema from './sqlite.schema.ts';
 
 const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable, s3Table, exampleS3Files } = schema;
@@ -18,17 +17,18 @@ const ENABLE_LOGGING = false;
 */
 
 let db: LibSQLDatabase<typeof schema>;
+let s3Bucket: string;
 
 const beforeEachHooks: (() => any)[] = [];
 const afterAllHooks: (() => any)[] = [];
 
-export async function createExtensions(): Promise<DrizzleSQLiteExtension[]> {
-	const { s3, s3Wipe, s3Stop } = await createDockerS3();
+export async function createExtensions() {
+	const { s3, s3Wipe, s3Stop, bucket } = await createDockerS3();
 
 	beforeEachHooks.push(s3Wipe);
 	afterAllHooks.push(s3Stop);
 
-	return [s3FileExt(s3)];
+	return { extensions: [s3FileExt(s3)], bucket };
 }
 
 beforeAll(async () => {
@@ -57,7 +57,9 @@ beforeAll(async () => {
 		console.error('Cannot connect to libsql');
 		throw lastError;
 	}
-	db = drizzle(client!, { logger: ENABLE_LOGGING, schema, extensions: await createExtensions() });
+	const { bucket, extensions } = await createExtensions();
+	s3Bucket = bucket;
+	db = drizzle(client!, { logger: ENABLE_LOGGING, schema, extensions });
 });
 
 afterAll(async () => {
@@ -6097,29 +6099,29 @@ test('[Find First] S3File - relational', async () => {
 	await db.insert(s3Table).values([{
 		id: 1,
 		file: {
-			bucket,
+			bucket: s3Bucket,
 			key: 'zero',
 			data: exampleS3Files[0],
 		},
 		f64: {
-			bucket,
+			bucket: s3Bucket,
 			key: 'base64',
 			data: exampleS3Files[7].toString('base64'),
 		},
 		f16: {
-			bucket,
+			bucket: s3Bucket,
 			key: 'hex',
 			data: exampleS3Files[7].toString('hex'),
 		},
 		fInt8: {
-			bucket,
+			bucket: s3Bucket,
 			key: 'uint8arr',
 			data: Uint8Array.from(exampleS3Files[7]),
 		},
 	}, {
 		id: 2,
 		file: {
-			bucket,
+			bucket: s3Bucket,
 			key: 'file2',
 			data: exampleS3Files[8],
 		},
@@ -6158,27 +6160,27 @@ test('[Find First] S3File - relational', async () => {
 		id: 1,
 		common: 1,
 		file: {
-			bucket,
+			bucket: s3Bucket,
 			key: 'zero',
 			data: exampleS3Files[0],
 		},
 		f64: {
-			bucket,
+			bucket: s3Bucket,
 			key: 'base64',
 			data: exampleS3Files[7].toString('base64'),
 		},
 		f16: {
-			bucket,
+			bucket: s3Bucket,
 			key: 'hex',
 			data: exampleS3Files[7].toString('hex'),
 		},
 		fInt8: {
-			bucket,
+			bucket: s3Bucket,
 			key: 'uint8arr',
 			data: Uint8Array.from(exampleS3Files[7]),
 		},
 		defaultFnFile: {
-			bucket,
+			bucket: defaultBucket,
 			key: 'default-key',
 			data: exampleS3Files[0],
 		},
@@ -6186,7 +6188,7 @@ test('[Find First] S3File - relational', async () => {
 		id: 2,
 		common: 1,
 		file: {
-			bucket,
+			bucket: s3Bucket,
 			key: 'file2',
 			data: exampleS3Files[8],
 		},
@@ -6194,7 +6196,7 @@ test('[Find First] S3File - relational', async () => {
 		f64: null,
 		fInt8: null,
 		defaultFnFile: {
-			bucket,
+			bucket: defaultBucket,
 			key: 'default-key',
 			data: exampleS3Files[0],
 		},
@@ -6234,29 +6236,29 @@ test('[Find Many] S3File - relational', async () => {
 	await db.insert(s3Table).values([{
 		id: 1,
 		file: {
-			bucket,
+			bucket: s3Bucket,
 			key: 'zero',
 			data: exampleS3Files[0],
 		},
 		f64: {
-			bucket,
+			bucket: s3Bucket,
 			key: 'base64',
 			data: exampleS3Files[7].toString('base64'),
 		},
 		f16: {
-			bucket,
+			bucket: s3Bucket,
 			key: 'hex',
 			data: exampleS3Files[7].toString('hex'),
 		},
 		fInt8: {
-			bucket,
+			bucket: s3Bucket,
 			key: 'uint8arr',
 			data: Uint8Array.from(exampleS3Files[7]),
 		},
 	}, {
 		id: 2,
 		file: {
-			bucket,
+			bucket: s3Bucket,
 			key: 'file2',
 			data: exampleS3Files[8],
 		},
@@ -6295,27 +6297,27 @@ test('[Find Many] S3File - relational', async () => {
 		id: 1,
 		common: 1,
 		file: {
-			bucket,
+			bucket: s3Bucket,
 			key: 'zero',
 			data: exampleS3Files[0],
 		},
 		f64: {
-			bucket,
+			bucket: s3Bucket,
 			key: 'base64',
 			data: exampleS3Files[7].toString('base64'),
 		},
 		f16: {
-			bucket,
+			bucket: s3Bucket,
 			key: 'hex',
 			data: exampleS3Files[7].toString('hex'),
 		},
 		fInt8: {
-			bucket,
+			bucket: s3Bucket,
 			key: 'uint8arr',
 			data: Uint8Array.from(exampleS3Files[7]),
 		},
 		defaultFnFile: {
-			bucket,
+			bucket: defaultBucket,
 			key: 'default-key',
 			data: exampleS3Files[0],
 		},
@@ -6323,7 +6325,7 @@ test('[Find Many] S3File - relational', async () => {
 		id: 2,
 		common: 1,
 		file: {
-			bucket,
+			bucket: s3Bucket,
 			key: 'file2',
 			data: exampleS3Files[8],
 		},
@@ -6331,7 +6333,7 @@ test('[Find Many] S3File - relational', async () => {
 		f64: null,
 		fInt8: null,
 		defaultFnFile: {
-			bucket,
+			bucket: defaultBucket,
 			key: 'default-key',
 			data: exampleS3Files[0],
 		},

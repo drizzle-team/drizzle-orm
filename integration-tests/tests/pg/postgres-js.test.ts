@@ -15,6 +15,7 @@ const ENABLE_LOGGING = false;
 
 let db: PostgresJsDatabase;
 let client: Sql;
+let s3Bucket: string;
 
 beforeAll(async () => {
 	let connectionString;
@@ -43,7 +44,10 @@ beforeAll(async () => {
 			client?.end();
 		},
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING, extensions: await createExtensions() });
+
+	const { bucket, extensions } = await createExtensions();
+	s3Bucket = bucket;
+	db = drizzle(client, { logger: ENABLE_LOGGING, extensions });
 });
 
 afterAll(async () => {
@@ -53,6 +57,7 @@ afterAll(async () => {
 beforeEach((ctx) => {
 	ctx.pg = {
 		db,
+		bucket: s3Bucket,
 	};
 });
 

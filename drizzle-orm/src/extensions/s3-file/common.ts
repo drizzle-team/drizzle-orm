@@ -68,8 +68,8 @@ const formPresignerOptions = (options?: RequestPresigningArguments) => {
 
 	const fields = Object.entries(options).map(([k, v]) =>
 		// eslint-disable-next-line no-instanceof/no-instanceof
-		`${JSON.stringify(k)}: ${v instanceof Set ? `new Set(${JSON.stringify([...v])})` : JSON.stringify(v)};`
-	).join('\n');
+		`${JSON.stringify(k)}: ${v instanceof Set ? `new Set(${JSON.stringify([...v])})` : JSON.stringify(v)}`
+	).join(',\n');
 
 	return `{${fields}}`;
 };

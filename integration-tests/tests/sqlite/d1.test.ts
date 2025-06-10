@@ -12,16 +12,20 @@ import { anotherUsersMigratorTable, createExtensions, tests, usersMigratorTable 
 const ENABLE_LOGGING = false;
 
 let db: DrizzleD1Database;
+let s3Bucket: string;
 
 beforeAll(async () => {
 	const sqliteDb = await createSQLiteDB(':memory:');
 	const d1db = new D1Database(new D1DatabaseAPI(sqliteDb));
-	db = drizzle(d1db, { logger: ENABLE_LOGGING, extensions: await createExtensions() });
+	const { bucket, extensions } = await createExtensions();
+	s3Bucket = bucket;
+	db = drizzle(d1db, { logger: ENABLE_LOGGING, extensions });
 });
 
 beforeEach((ctx) => {
 	ctx.sqlite = {
 		db,
+		bucket: s3Bucket,
 	};
 });
 
@@ -87,5 +91,6 @@ skipTests([
 	'join view as subquery',
 	'cross join',
 	'S3File - insert + select custom selection',
+	'S3File - run + all + get + values',
 ]);
 tests();

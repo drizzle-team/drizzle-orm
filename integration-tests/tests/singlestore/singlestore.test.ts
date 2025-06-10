@@ -9,6 +9,7 @@ const ENABLE_LOGGING = false;
 
 let db: SingleStoreDriverDatabase;
 let client: mysql2.Connection;
+let s3Bucket: string;
 
 beforeAll(async () => {
 	let connectionString;
@@ -35,8 +36,10 @@ beforeAll(async () => {
 
 	await client.query(`CREATE DATABASE IF NOT EXISTS drizzle;`);
 	await client.changeUser({ database: 'drizzle' });
-	db = drizzle(client, { logger: ENABLE_LOGGING, extensions: await createExtensions() });
-}, 800000);
+	const { bucket, extensions } = await createExtensions();
+	s3Bucket = bucket;
+	db = drizzle(client, { logger: ENABLE_LOGGING, extensions });
+});
 
 afterAll(async () => {
 	await client?.end();
@@ -45,6 +48,7 @@ afterAll(async () => {
 beforeEach((ctx) => {
 	ctx.singlestore = {
 		db,
+		bucket: s3Bucket,
 	};
 });
 

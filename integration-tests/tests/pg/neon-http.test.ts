@@ -11,6 +11,7 @@ import { createExtensions, tests, usersMigratorTable, usersTable } from './pg-co
 const ENABLE_LOGGING = false;
 
 let db: NeonHttpDatabase;
+let s3Bucket: string;
 
 beforeAll(async () => {
 	const connectionString = process.env['NEON_HTTP_CONNECTION_STRING'];
@@ -22,12 +23,16 @@ beforeAll(async () => {
 		const [protocol, port] = host === 'db.localtest.me' ? ['http', 4444] : ['https', 443];
 		return `${protocol}://${host}:${port}/sql`;
 	};
-	db = drizzle(neon(connectionString), { logger: ENABLE_LOGGING, extensions: await createExtensions() });
+
+	const { bucket, extensions } = await createExtensions();
+	s3Bucket = bucket;
+	db = drizzle(neon(connectionString), { logger: ENABLE_LOGGING, extensions });
 });
 
 beforeEach((ctx) => {
 	ctx.pg = {
 		db,
+		bucket: s3Bucket,
 	};
 });
 

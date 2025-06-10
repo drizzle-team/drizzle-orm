@@ -13,6 +13,7 @@ const ENABLE_LOGGING = false;
 
 let db: LibSQLDatabase;
 let client: Client;
+let s3Bucket: string;
 
 beforeAll(async () => {
 	const url = process.env['LIBSQL_REMOTE_URL'];
@@ -33,7 +34,10 @@ beforeAll(async () => {
 			client?.close();
 		},
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING, extensions: await createExtensions() });
+
+	const { bucket, extensions } = await createExtensions();
+	s3Bucket = bucket;
+	db = drizzle(client, { logger: ENABLE_LOGGING, extensions });
 });
 
 afterAll(async () => {
@@ -43,6 +47,7 @@ afterAll(async () => {
 beforeEach((ctx) => {
 	ctx.sqlite = {
 		db,
+		bucket: s3Bucket,
 	};
 });
 
