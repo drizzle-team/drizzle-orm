@@ -3989,7 +3989,7 @@ export function tests(driver?: string) {
 			expect(rawRes).toStrictEqual(expectedRes);
 		});
 
-		test.only('S3File - insert + select + query reuse', async (ctx) => {
+		test('S3File - insert + select + query reuse', async (ctx) => {
 			const { db } = ctx.singlestore;
 
 			await db.execute(s3tableCreate);
@@ -4076,7 +4076,7 @@ export function tests(driver?: string) {
 			}]);
 		});
 
-		test.only('S3File - insert + select custom selection', async (ctx) => {
+		test('S3File - insert + select custom selection', async (ctx) => {
 			const { db } = ctx.singlestore;
 
 			await db.execute(s3tableCreate);
@@ -4199,7 +4199,7 @@ export function tests(driver?: string) {
 			}]);
 		});
 
-		test.only('S3File - insert + update + delete', async (ctx) => {
+		test('S3File - insert + update + delete', async (ctx) => {
 			const { db } = ctx.singlestore;
 
 			await db.execute(s3tableCreate);
@@ -4269,7 +4269,7 @@ export function tests(driver?: string) {
 			]);
 		});
 
-		test.only('S3File - insert placeholder', async (ctx) => {
+		test('S3File - insert placeholder', async (ctx) => {
 			const { db } = ctx.singlestore;
 
 			await db.execute(s3tableCreate);
@@ -4357,7 +4357,7 @@ export function tests(driver?: string) {
 			}]);
 		});
 
-		test.only('S3File - insert prepared', async (ctx) => {
+		test('S3File - insert prepared', async (ctx) => {
 			const { db } = ctx.singlestore;
 
 			await db.execute(s3tableCreate);
@@ -4477,7 +4477,7 @@ export function tests(driver?: string) {
 			}]);
 		});
 
-		test.only('S3File - transaction', async (ctx) => {
+		test('S3File - transaction', async (ctx) => {
 			const { db } = ctx.singlestore;
 
 			await db.execute(s3tableCreate);
