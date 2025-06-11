@@ -21,6 +21,7 @@ import { Columns, Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
 import { haveSameKeys, type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
 import type { AnyGelColumn, GelColumn } from '../columns/common.ts';
+import { extractUsedTable } from '../utils.ts';
 import { QueryBuilder } from './query-builder.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 import type { GelUpdateSetSource } from './update.ts';
@@ -386,7 +387,10 @@ export class GelInsertBase<
 				PreparedQueryConfig & {
 					execute: TReturning extends undefined ? GelQueryResultKind<TQueryResult, never> : TReturning[];
 				}
-			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true);
+			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true, undefined, {
+				type: 'insert',
+				tables: extractUsedTable(this.config.table),
+			});
 		});
 	}
 
