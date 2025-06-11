@@ -271,6 +271,27 @@ export type Config =
 					url: string;
 				};
 		}
+		| {
+			dialect: Verify<Dialect, 'cockroachdb'>;
+			dbCredentials:
+				| ({
+					host: string;
+					port?: number;
+					user?: string;
+					password?: string;
+					database: string;
+					ssl?:
+						| boolean
+						| 'require'
+						| 'allow'
+						| 'prefer'
+						| 'verify-full'
+						| ConnectionOptions;
+				} & {})
+				| {
+					url: string;
+				};
+		}
 	);
 
 /**
