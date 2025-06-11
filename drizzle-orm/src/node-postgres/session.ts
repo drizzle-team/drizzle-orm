@@ -48,36 +48,36 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 				// @ts-ignore
 				getTypeParser: (typeId, format) => {
 					if (typeId === types.builtins.TIMESTAMPTZ) {
-						return (val) => val;
+						return (val: any) => val;
 					}
 					if (typeId === types.builtins.TIMESTAMP) {
-						return (val) => val;
+						return (val: any) => val;
 					}
 					if (typeId === types.builtins.DATE) {
-						return (val) => val;
+						return (val: any) => val;
 					}
 					if (typeId === types.builtins.INTERVAL) {
-						return (val) => val;
+						return (val: any) => val;
 					}
 					// numeric[]
-					if (typeId === 1231) {
-						return (val) => val;
+					if (typeId as number === 1231) {
+						return (val: any) => val;
 					}
 					// timestamp[]
-					if (typeId === 1115) {
-						return (val) => val;
+					if (typeId as number === 1115) {
+						return (val: any) => val;
 					}
 					// timestamp with timezone[]
-					if (typeId === 1185) {
-						return (val) => val;
+					if (typeId as number === 1185) {
+						return (val: any) => val;
 					}
 					// interval[]
-					if (typeId === 1187) {
-						return (val) => val;
+					if (typeId as number === 1187) {
+						return (val: any) => val;
 					}
 					// date[]
-					if (typeId === 1182) {
-						return (val) => val;
+					if (typeId as number === 1182) {
+						return (val: any) => val;
 					}
 					// @ts-ignore
 					return types.getTypeParser(typeId, format);
@@ -92,36 +92,36 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 				// @ts-ignore
 				getTypeParser: (typeId, format) => {
 					if (typeId === types.builtins.TIMESTAMPTZ) {
-						return (val) => val;
+						return (val: any) => val;
 					}
 					if (typeId === types.builtins.TIMESTAMP) {
-						return (val) => val;
+						return (val: any) => val;
 					}
 					if (typeId === types.builtins.DATE) {
-						return (val) => val;
+						return (val: any) => val;
 					}
 					if (typeId === types.builtins.INTERVAL) {
-						return (val) => val;
+						return (val: any) => val;
 					}
 					// numeric[]
-					if (typeId === 1231) {
-						return (val) => val;
+					if (typeId as number === 1231) {
+						return (val: any) => val;
 					}
 					// timestamp[]
-					if (typeId === 1115) {
-						return (val) => val;
+					if (typeId as number === 1115) {
+						return (val: any) => val;
 					}
 					// timestamp with timezone[]
-					if (typeId === 1185) {
-						return (val) => val;
+					if (typeId as number === 1185) {
+						return (val: any) => val;
 					}
 					// interval[]
-					if (typeId === 1187) {
-						return (val) => val;
+					if (typeId as number === 1187) {
+						return (val: any) => val;
 					}
 					// date[]
-					if (typeId === 1182) {
-						return (val) => val;
+					if (typeId as number === 1182) {
+						return (val: any) => val;
 					}
 					// @ts-ignore
 					return types.getTypeParser(typeId, format);

@@ -79,15 +79,15 @@ export function text(
 	return new MsSqlTextBuilder(name, { ...config, nonUnicode: false } as any);
 }
 
-export function nText(): MsSqlTextBuilderInitial<'', [string, ...string[]]>;
-export function nText<U extends string, T extends Readonly<[U, ...U[]]>>(
+export function ntext(): MsSqlTextBuilderInitial<'', [string, ...string[]]>;
+export function ntext<U extends string, T extends Readonly<[U, ...U[]]>>(
 	config?: MsSqlTextConfig<T | Writable<T>>,
 ): MsSqlTextBuilderInitial<'', [string, ...string[]]>;
-export function nText<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
+export function ntext<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
 	name: TName,
 	config?: MsSqlTextConfig<T | Writable<T>>,
 ): MsSqlTextBuilderInitial<TName, Writable<T>>;
-export function nText(
+export function ntext(
 	a?: string | MsSqlTextConfig,
 	b?: MsSqlTextConfig,
 ): any {
