@@ -4,7 +4,7 @@ import {
 	bit,
 	boolean,
 	char,
-	cockroachdbEnum,
+	cockroachEnum,
 	date,
 	doublePrecision,
 	geometry,
@@ -20,7 +20,7 @@ import {
 	uuid,
 	varchar,
 	vector,
-} from 'drizzle-orm/cockroachdb-core';
+} from 'drizzle-orm/cockroach-core';
 import { DB } from 'src/utils';
 import { afterAll, beforeAll, expect, test } from 'vitest';
 import { diffDefault, prepareTestDatabase, TestDatabase } from './mocks';
@@ -623,7 +623,7 @@ test('interval + interval arrays', async () => {
 });
 
 test('enum + enum arrays', async () => {
-	const moodEnum = cockroachdbEnum('mood_enum', [
+	const moodEnum = cockroachEnum('mood_enum', [
 		'sad',
 		'ok',
 		'happy',
@@ -670,7 +670,7 @@ test('uuid + uuid arrays', async () => {
 });
 
 test('corner cases', async () => {
-	const moodEnum = cockroachdbEnum('mood_enum', [
+	const moodEnum = cockroachEnum('mood_enum', [
 		'sad',
 		'ok',
 		'happy',

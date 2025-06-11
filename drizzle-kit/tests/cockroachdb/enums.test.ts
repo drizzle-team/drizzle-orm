@@ -1,11 +1,4 @@
-import {
-	cockroachdbEnum,
-	cockroachdbSchema,
-	cockroachdbTable,
-	int4,
-	text,
-	varchar,
-} from 'drizzle-orm/cockroachdb-core';
+import { cockroachEnum, cockroachSchema, cockroachTable, int4, text, varchar } from 'drizzle-orm/cockroach-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -28,7 +21,7 @@ beforeEach(async () => {
 
 test('enums #1', async () => {
 	const to = {
-		enum: cockroachdbEnum('enum', ['value']),
+		enum: cockroachEnum('enum', ['value']),
 	};
 
 	const { sqlStatements: st } = await diff({}, to, []);
@@ -46,7 +39,7 @@ test('enums #1', async () => {
 });
 
 test('enums #2', async () => {
-	const folder = cockroachdbSchema('folder');
+	const folder = cockroachSchema('folder');
 	const to = {
 		folder,
 		enum: folder.enum('enum', ['value']),
@@ -65,7 +58,7 @@ test('enums #2', async () => {
 
 test('enums #3', async () => {
 	const from = {
-		enum: cockroachdbEnum('enum', ['value']),
+		enum: cockroachEnum('enum', ['value']),
 	};
 
 	const { sqlStatements: st } = await diff(from, {}, []);
@@ -84,7 +77,7 @@ test('enums #3', async () => {
 });
 
 test('enums #4', async () => {
-	const folder = cockroachdbSchema('folder');
+	const folder = cockroachSchema('folder');
 
 	const from = {
 		folder,
@@ -104,8 +97,8 @@ test('enums #4', async () => {
 });
 
 test('enums #5', async () => {
-	const folder1 = cockroachdbSchema('folder1');
-	const folder2 = cockroachdbSchema('folder2');
+	const folder1 = cockroachSchema('folder1');
+	const folder2 = cockroachSchema('folder2');
 
 	const from = {
 		folder1,
@@ -134,8 +127,8 @@ test('enums #5', async () => {
 });
 
 test('enums #6', async () => {
-	const folder1 = cockroachdbSchema('folder1');
-	const folder2 = cockroachdbSchema('folder2');
+	const folder1 = cockroachSchema('folder1');
+	const folder2 = cockroachSchema('folder2');
 
 	const from = {
 		folder1,
@@ -169,11 +162,11 @@ test('enums #6', async () => {
 
 test('enums #7', async () => {
 	const from = {
-		enum: cockroachdbEnum('enum', ['value1']),
+		enum: cockroachEnum('enum', ['value1']),
 	};
 
 	const to = {
-		enum: cockroachdbEnum('enum', ['value1', 'value2']),
+		enum: cockroachEnum('enum', ['value1', 'value2']),
 	};
 
 	const { sqlStatements: st } = await diff(from, to, []);
@@ -193,11 +186,11 @@ test('enums #7', async () => {
 
 test('enums #8', async () => {
 	const from = {
-		enum: cockroachdbEnum('enum', ['value1']),
+		enum: cockroachEnum('enum', ['value1']),
 	};
 
 	const to = {
-		enum: cockroachdbEnum('enum', ['value1', 'value2', 'value3']),
+		enum: cockroachEnum('enum', ['value1', 'value2', 'value3']),
 	};
 
 	const { sqlStatements: st } = await diff(from, to, []);
@@ -218,11 +211,11 @@ test('enums #8', async () => {
 
 test('enums #9', async () => {
 	const from = {
-		enum: cockroachdbEnum('enum', ['value1', 'value3']),
+		enum: cockroachEnum('enum', ['value1', 'value3']),
 	};
 
 	const to = {
-		enum: cockroachdbEnum('enum', ['value1', 'value2', 'value3']),
+		enum: cockroachEnum('enum', ['value1', 'value2', 'value3']),
 	};
 
 	const { sqlStatements: st } = await diff(from, to, []);
@@ -239,7 +232,7 @@ test('enums #9', async () => {
 });
 
 test('enums #10', async () => {
-	const schema = cockroachdbSchema('folder');
+	const schema = cockroachSchema('folder');
 	const from = {
 		schema,
 		enum: schema.enum('enum', ['value1']),
@@ -264,7 +257,7 @@ test('enums #10', async () => {
 });
 
 test('enums #11', async () => {
-	const schema1 = cockroachdbSchema('folder1');
+	const schema1 = cockroachSchema('folder1');
 	const from = {
 		schema1,
 		enum: schema1.enum('enum', ['value1']),
@@ -272,7 +265,7 @@ test('enums #11', async () => {
 
 	const to = {
 		schema1,
-		enum: cockroachdbEnum('enum', ['value1']),
+		enum: cockroachEnum('enum', ['value1']),
 	};
 
 	const renames = [
@@ -293,10 +286,10 @@ test('enums #11', async () => {
 });
 
 test('enums #12', async () => {
-	const schema1 = cockroachdbSchema('folder1');
+	const schema1 = cockroachSchema('folder1');
 	const from = {
 		schema1,
-		enum: cockroachdbEnum('enum', ['value1']),
+		enum: cockroachEnum('enum', ['value1']),
 	};
 
 	const to = {
@@ -323,11 +316,11 @@ test('enums #12', async () => {
 
 test('enums #13', async () => {
 	const from = {
-		enum: cockroachdbEnum('enum1', ['value1']),
+		enum: cockroachEnum('enum1', ['value1']),
 	};
 
 	const to = {
-		enum: cockroachdbEnum('enum2', ['value1']),
+		enum: cockroachEnum('enum2', ['value1']),
 	};
 
 	const renames = [
@@ -348,8 +341,8 @@ test('enums #13', async () => {
 });
 
 test('enums #14', async () => {
-	const folder1 = cockroachdbSchema('folder1');
-	const folder2 = cockroachdbSchema('folder2');
+	const folder1 = cockroachSchema('folder1');
+	const folder2 = cockroachSchema('folder2');
 	const from = {
 		folder1,
 		folder2,
@@ -379,8 +372,8 @@ test('enums #14', async () => {
 });
 
 test('enums #15', async () => {
-	const folder1 = cockroachdbSchema('folder1');
-	const folder2 = cockroachdbSchema('folder2');
+	const folder1 = cockroachSchema('folder1');
+	const folder2 = cockroachSchema('folder2');
 	const from = {
 		folder1,
 		folder2,
@@ -410,19 +403,19 @@ test('enums #15', async () => {
 });
 
 test('enums #16', async () => {
-	const enum1 = cockroachdbEnum('enum1', ['value1']);
-	const enum2 = cockroachdbEnum('enum2', ['value1']);
+	const enum1 = cockroachEnum('enum1', ['value1']);
+	const enum2 = cockroachEnum('enum2', ['value1']);
 
 	const from = {
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum1('test_column'),
 		}),
 	};
 
 	const to = {
 		enum2,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum2('test_column'),
 		}),
 	};
@@ -445,14 +438,14 @@ test('enums #16', async () => {
 });
 
 test('enums #17', async () => {
-	const schema = cockroachdbSchema('schema');
-	const enum1 = cockroachdbEnum('enum1', ['value1']);
+	const schema = cockroachSchema('schema');
+	const enum1 = cockroachEnum('enum1', ['value1']);
 	const enum2 = schema.enum('enum1', ['value1']);
 
 	const from = {
 		schema,
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum1('test_column'),
 		}),
 	};
@@ -460,7 +453,7 @@ test('enums #17', async () => {
 	const to = {
 		schema,
 		enum2,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum2('test_column'),
 		}),
 	};
@@ -483,8 +476,8 @@ test('enums #17', async () => {
 });
 
 test('enums #18', async () => {
-	const schema1 = cockroachdbSchema('schema1');
-	const schema2 = cockroachdbSchema('schema2');
+	const schema1 = cockroachSchema('schema1');
+	const schema2 = cockroachSchema('schema2');
 
 	const enum1 = schema1.enum('enum1', ['value1']);
 	const enum2 = schema2.enum('enum2', ['value1']);
@@ -493,7 +486,7 @@ test('enums #18', async () => {
 		schema1,
 		schema2,
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum1('test_column'),
 		}),
 	};
@@ -502,7 +495,7 @@ test('enums #18', async () => {
 		schema1,
 		schema2,
 		enum2,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum2('test_column'),
 		}),
 	};
@@ -525,7 +518,7 @@ test('enums #18', async () => {
 });
 
 test('enums #19', async () => {
-	const myEnum = cockroachdbEnum('my_enum', ["escape's quotes"]);
+	const myEnum = cockroachEnum('my_enum', ["escape's quotes"]);
 
 	const from = {};
 
@@ -544,18 +537,18 @@ test('enums #19', async () => {
 });
 
 test('enums #20', async () => {
-	const myEnum = cockroachdbEnum('my_enum', ['one', 'two', 'three']);
+	const myEnum = cockroachEnum('my_enum', ['one', 'two', 'three']);
 
 	const from = {
 		myEnum,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			id: int4('id').primaryKey(),
 		}),
 	};
 
 	const to = {
 		myEnum,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			id: int4('id').primaryKey(),
 			col1: myEnum('col1'),
 			col2: int4('col2'),
@@ -579,18 +572,18 @@ test('enums #20', async () => {
 });
 
 test('enums #21', async () => {
-	const myEnum = cockroachdbEnum('my_enum', ['one', 'two', 'three']);
+	const myEnum = cockroachEnum('my_enum', ['one', 'two', 'three']);
 
 	const from = {
 		myEnum,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			id: int4('id').primaryKey(),
 		}),
 	};
 
 	const to = {
 		myEnum,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			id: int4('id').primaryKey(),
 			col1: myEnum('col1').array(),
 			col2: int4('col2').array(),
@@ -614,7 +607,7 @@ test('enums #21', async () => {
 });
 
 test('enums #22', async () => {
-	const schema = cockroachdbSchema('schema');
+	const schema = cockroachSchema('schema');
 	const en = schema.enum('e', ['a', 'b']);
 
 	const from = {
@@ -625,7 +618,7 @@ test('enums #22', async () => {
 	const to = {
 		schema,
 		en,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			en: en(),
 		}),
 	};
@@ -641,7 +634,7 @@ test('enums #22', async () => {
 });
 
 test('enums #23', async () => {
-	const schema = cockroachdbSchema('schema');
+	const schema = cockroachSchema('schema');
 	const en = schema.enum('e', ['a', 'b']);
 
 	const from = {
@@ -652,7 +645,7 @@ test('enums #23', async () => {
 	const to = {
 		schema,
 		en,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			en1: en().array(),
 		}),
 	};
@@ -670,13 +663,13 @@ test('enums #23', async () => {
 });
 
 test('drop enum value', async () => {
-	const enum1 = cockroachdbEnum('enum', ['value1', 'value2', 'value3']);
+	const enum1 = cockroachEnum('enum', ['value1', 'value2', 'value3']);
 
 	const from = {
 		enum1,
 	};
 
-	const enum2 = cockroachdbEnum('enum', ['value1', 'value3']);
+	const enum2 = cockroachEnum('enum', ['value1', 'value3']);
 	const to = {
 		enum2,
 	};
@@ -698,8 +691,8 @@ test('drop enum value', async () => {
 });
 
 test('drop enum values', async () => {
-	const newSchema = cockroachdbSchema('mySchema');
-	const enum3 = cockroachdbEnum('enum_users_customer_and_ship_to_settings_roles', [
+	const newSchema = cockroachSchema('mySchema');
+	const enum3 = cockroachEnum('enum_users_customer_and_ship_to_settings_roles', [
 		'addedToTop',
 		'custAll',
 		'custAdmin',
@@ -713,7 +706,7 @@ test('drop enum values', async () => {
 	]);
 	const schema1 = {
 		enum3,
-		table: cockroachdbTable('enum_table', {
+		table: cockroachTable('enum_table', {
 			id: enum3(),
 		}),
 		newSchema,
@@ -722,7 +715,7 @@ test('drop enum values', async () => {
 		}),
 	};
 
-	const enum4 = cockroachdbEnum('enum_users_customer_and_ship_to_settings_roles', [
+	const enum4 = cockroachEnum('enum_users_customer_and_ship_to_settings_roles', [
 		'addedToTop',
 		'custAll',
 		'custAdmin',
@@ -734,7 +727,7 @@ test('drop enum values', async () => {
 	]);
 	const schema2 = {
 		enum4,
-		table: cockroachdbTable('enum_table', {
+		table: cockroachTable('enum_table', {
 			id: enum4(),
 		}),
 		newSchema,
@@ -763,17 +756,17 @@ test('drop enum values', async () => {
 });
 
 test('drop enum', async () => {
-	const enum1 = cockroachdbEnum('enum', ['value1', 'value2', 'value3']);
+	const enum1 = cockroachEnum('enum', ['value1', 'value2', 'value3']);
 
 	const from = {
 		enum1,
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			col: enum1().default('value1'),
 		}),
 	};
 
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			col: text().default('value1'),
 		}),
 	};
@@ -797,14 +790,14 @@ test('drop enum', async () => {
 });
 
 test('drop enum value. enum is columns data type', async () => {
-	const enum1 = cockroachdbEnum('enum', ['value1', 'value2', 'value3']);
+	const enum1 = cockroachEnum('enum', ['value1', 'value2', 'value3']);
 
-	const schema = cockroachdbSchema('new_schema');
+	const schema = cockroachSchema('new_schema');
 
 	const from = {
 		schema,
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum1('test_column'),
 		}),
 		table2: schema.table('table', {
@@ -812,11 +805,11 @@ test('drop enum value. enum is columns data type', async () => {
 		}),
 	};
 
-	const enum2 = cockroachdbEnum('enum', ['value1', 'value3']);
+	const enum2 = cockroachEnum('enum', ['value1', 'value3']);
 	const to = {
 		schema,
 		enum2,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum1('test_column'),
 		}),
 		table2: schema.table('table', {
@@ -845,14 +838,14 @@ test('drop enum value. enum is columns data type', async () => {
 });
 
 test('shuffle enum values', async () => {
-	const enum1 = cockroachdbEnum('enum', ['value1', 'value2', 'value3']);
+	const enum1 = cockroachEnum('enum', ['value1', 'value2', 'value3']);
 
-	const schema = cockroachdbSchema('new_schema');
+	const schema = cockroachSchema('new_schema');
 
 	const from = {
 		schema,
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum1('test_column'),
 		}),
 		table2: schema.table('table', {
@@ -860,11 +853,11 @@ test('shuffle enum values', async () => {
 		}),
 	};
 
-	const enum2 = cockroachdbEnum('enum', ['value1', 'value3', 'value2']);
+	const enum2 = cockroachEnum('enum', ['value1', 'value3', 'value2']);
 	const to = {
 		schema,
 		enum2,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum1('test_column'),
 		}),
 		table2: schema.table('table', {
@@ -890,19 +883,19 @@ test('shuffle enum values', async () => {
 });
 
 test('column is enum type with default value. shuffle enum', async () => {
-	const enum1 = cockroachdbEnum('enum', ['value1', 'value2', 'value3']);
+	const enum1 = cockroachEnum('enum', ['value1', 'value2', 'value3']);
 
 	const from = {
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum1('test_column').default('value2'),
 		}),
 	};
 
-	const enum2 = cockroachdbEnum('enum', ['value1', 'value3', 'value2']);
+	const enum2 = cockroachEnum('enum', ['value1', 'value3', 'value2']);
 	const to = {
 		enum2,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum2('test_column').default('value2'),
 		}),
 	};
@@ -931,7 +924,7 @@ test('enums as ts enum', async () => {
 	}
 
 	const to = {
-		enum: cockroachdbEnum('enum', Test),
+		enum: cockroachEnum('enum', Test),
 	};
 
 	const { sqlStatements: st } = await diff({}, to, []);
@@ -949,19 +942,19 @@ test('enums as ts enum', async () => {
 });
 
 test('column is enum type with default value. shuffle enum', async () => {
-	const enum1 = cockroachdbEnum('enum', ['value1', 'value2', 'value3']);
+	const enum1 = cockroachEnum('enum', ['value1', 'value2', 'value3']);
 
 	const from = {
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum1('test_column').default('value2'),
 		}),
 	};
 
-	const enum2 = cockroachdbEnum('enum', ['value1', 'value3', 'value2']);
+	const enum2 = cockroachEnum('enum', ['value1', 'value3', 'value2']);
 	const to = {
 		enum2,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum2('test_column').default('value2'),
 		}),
 	};
@@ -987,19 +980,19 @@ test('column is enum type with default value. shuffle enum', async () => {
 });
 
 test('column is array enum type with default value. shuffle enum', async () => {
-	const enum1 = cockroachdbEnum('enum', ['value1', 'value2', 'value3']);
+	const enum1 = cockroachEnum('enum', ['value1', 'value2', 'value3']);
 
 	const from = {
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum1('test_column').array().default(['value2']),
 		}),
 	};
 
-	const enum2 = cockroachdbEnum('enum', ['value1', 'value3', 'value2']);
+	const enum2 = cockroachEnum('enum', ['value1', 'value3', 'value2']);
 	const to = {
 		enum2,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum2('test_column').array().default(['value3']),
 		}),
 	};
@@ -1025,19 +1018,19 @@ test('column is array enum type with default value. shuffle enum', async () => {
 });
 
 test('column is array enum with custom size type with default value. shuffle enum', async () => {
-	const enum1 = cockroachdbEnum('enum', ['value1', 'value2', 'value3']);
+	const enum1 = cockroachEnum('enum', ['value1', 'value2', 'value3']);
 
 	const from = {
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum1('test_column').array(3).default(['value2']),
 		}),
 	};
 
-	const enum2 = cockroachdbEnum('enum', ['value1', 'value3', 'value2']);
+	const enum2 = cockroachEnum('enum', ['value1', 'value3', 'value2']);
 	const to = {
 		enum2,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum2('test_column').array(3).default(['value2']),
 		}),
 	};
@@ -1063,19 +1056,19 @@ test('column is array enum with custom size type with default value. shuffle enu
 });
 
 test('column is array enum with custom size type. shuffle enum', async () => {
-	const enum1 = cockroachdbEnum('enum', ['value1', 'value2', 'value3']);
+	const enum1 = cockroachEnum('enum', ['value1', 'value2', 'value3']);
 
 	const from = {
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum1('test_column').array(3),
 		}),
 	};
 
-	const enum2 = cockroachdbEnum('enum', ['value1', 'value3', 'value2']);
+	const enum2 = cockroachEnum('enum', ['value1', 'value3', 'value2']);
 	const to = {
 		enum2,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum2('test_column').array(3),
 		}),
 	};
@@ -1099,13 +1092,13 @@ test('column is array enum with custom size type. shuffle enum', async () => {
 });
 
 test('column is enum type with default value. custom schema. shuffle enum', async () => {
-	const schema = cockroachdbSchema('new_schema');
+	const schema = cockroachSchema('new_schema');
 
 	const enum1 = schema.enum('enum', ['value1', 'value2', 'value3']);
 	const from = {
 		schema,
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum1('test_column').default('value2'),
 		}),
 	};
@@ -1114,7 +1107,7 @@ test('column is enum type with default value. custom schema. shuffle enum', asyn
 	const to = {
 		schema,
 		enum2,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum2('test_column').default('value2'),
 		}),
 	};
@@ -1140,7 +1133,7 @@ test('column is enum type with default value. custom schema. shuffle enum', asyn
 });
 
 test('column is array enum type with default value. custom schema. shuffle enum', async () => {
-	const schema = cockroachdbSchema('new_schema');
+	const schema = cockroachSchema('new_schema');
 
 	const enum1 = schema.enum('enum', ['value1', 'value2', 'value3']);
 
@@ -1179,7 +1172,7 @@ test('column is array enum type with default value. custom schema. shuffle enum'
 });
 
 test('column is array enum type with custom size with default value. custom schema. shuffle enum', async () => {
-	const schema = cockroachdbSchema('new_schema');
+	const schema = cockroachSchema('new_schema');
 
 	const enum1 = schema.enum('enum', ['value1', 'value2', 'value3']);
 
@@ -1218,7 +1211,7 @@ test('column is array enum type with custom size with default value. custom sche
 });
 
 test('column is array enum type with custom size. custom schema. shuffle enum', async () => {
-	const schema = cockroachdbSchema('new_schema');
+	const schema = cockroachSchema('new_schema');
 
 	const enum1 = schema.enum('enum', ['value1', 'value2', 'value3']);
 
@@ -1255,19 +1248,19 @@ test('column is array enum type with custom size. custom schema. shuffle enum', 
 });
 
 test('column is enum type without default value. add default to column', async () => {
-	const enum1 = cockroachdbEnum('enum', ['value1', 'value3']);
+	const enum1 = cockroachEnum('enum', ['value1', 'value3']);
 
 	const from = {
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum1('test_column'),
 		}),
 	};
 
-	const enum2 = cockroachdbEnum('enum', ['value1', 'value3']);
+	const enum2 = cockroachEnum('enum', ['value1', 'value3']);
 	const to = {
 		enum2,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum2('test_column').default('value3'),
 		}),
 	};
@@ -1288,18 +1281,18 @@ test('column is enum type without default value. add default to column', async (
 });
 
 test('change data type from standart type to enum', async () => {
-	const enum1 = cockroachdbEnum('enum', ['value1', 'value3']);
+	const enum1 = cockroachEnum('enum', ['value1', 'value3']);
 
 	const from = {
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: varchar('test_column'),
 		}),
 	};
 
 	const to = {
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum1('test_column'),
 		}),
 	};
@@ -1319,30 +1312,30 @@ test('change data type from standart type to enum', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test.only('change data type from standart type to enum. column has default', async () => {
-	const enum1 = cockroachdbEnum('enum', ['value1', 'value3']);
+test('change data type from standart type to enum. column has default', async () => {
+	const enum1 = cockroachEnum('enum', ['value1', 'value3']);
 
 	const from = {
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: varchar('test_column').default('value2'),
 		}),
 	};
 
 	const to = {
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum1('test_column').default('value3'),
 		}),
 	};
 
 	const { sqlStatements: st } = await diff(from, to, []);
 
-	// await push({ db, to: from, log: 'statements' });
-	// const { sqlStatements: pst } = await push({
-	// 	db,
-	// 	to,
-	// });
+	await push({ db, to: from, log: 'statements' });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+	});
 
 	const st0 = [
 		'ALTER TABLE "table" ALTER COLUMN "test_column" DROP DEFAULT;',
@@ -1350,22 +1343,22 @@ test.only('change data type from standart type to enum. column has default', asy
 		`ALTER TABLE "table" ALTER COLUMN "test_column" SET DEFAULT 'value3'::"enum";`,
 	];
 	expect(st).toStrictEqual(st0);
-	// expect(pst).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('change data type from array standart type to array enum. column has default', async () => {
-	const enum1 = cockroachdbEnum('enum', ['value1', 'value3']);
+	const enum1 = cockroachEnum('enum', ['value1', 'value3']);
 
 	const from = {
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: varchar('test_column').array().default(['value2']),
 		}),
 	};
 
 	const to = {
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum1('test_column').array().default(['value3']),
 		}),
 	};
@@ -1388,18 +1381,18 @@ test('change data type from array standart type to array enum. column has defaul
 });
 
 test('change data type from array standart type to array enum. column without default', async () => {
-	const enum1 = cockroachdbEnum('enum', ['value1', 'value3']);
+	const enum1 = cockroachEnum('enum', ['value1', 'value3']);
 
 	const from = {
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: varchar('test_column').array(),
 		}),
 	};
 
 	const to = {
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum1('test_column').array(),
 		}),
 	};
@@ -1420,18 +1413,18 @@ test('change data type from array standart type to array enum. column without de
 });
 
 test('change data type from array standart type with custom size to array enum with custom size. column has default', async () => {
-	const enum1 = cockroachdbEnum('enum', ['value1', 'value3']);
+	const enum1 = cockroachEnum('enum', ['value1', 'value3']);
 
 	const from = {
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: varchar('test_column').array(3).default(['value2']),
 		}),
 	};
 
 	const to = {
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum1('test_column').array(3).default(['value3']),
 		}),
 	};
@@ -1451,18 +1444,18 @@ test('change data type from array standart type with custom size to array enum w
 });
 
 test('change data type from array standart type with custom size to array enum with custom size. column without default', async () => {
-	const enum1 = cockroachdbEnum('enum', ['value1', 'value3']);
+	const enum1 = cockroachEnum('enum', ['value1', 'value3']);
 
 	const from = {
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: varchar('test_column').array(2),
 		}),
 	};
 
 	const to = {
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum1('test_column').array(2),
 		}),
 	};
@@ -1483,18 +1476,18 @@ test('change data type from array standart type with custom size to array enum w
 });
 
 test('change data type from enum type to standart type', async () => {
-	const enum1 = cockroachdbEnum('enum', ['value1', 'value3']);
+	const enum1 = cockroachEnum('enum', ['value1', 'value3']);
 
 	const from = {
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum1('test_column'),
 		}),
 	};
 
 	const to = {
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: varchar('test_column'),
 		}),
 	};
@@ -1515,18 +1508,18 @@ test('change data type from enum type to standart type', async () => {
 });
 
 test('change data type from array enum type to standart type', async () => {
-	const enum1 = cockroachdbEnum('enum', ['value1', 'value3']);
+	const enum1 = cockroachEnum('enum', ['value1', 'value3']);
 
 	const from = {
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum1('test_column').array(),
 		}),
 	};
 
 	const to = {
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: varchar('test_column').array(),
 		}),
 	};
@@ -1547,18 +1540,18 @@ test('change data type from array enum type to standart type', async () => {
 });
 
 test('change data type from enum type to standart type. column has default', async () => {
-	const enum1 = cockroachdbEnum('enum', ['value1', 'value3']);
+	const enum1 = cockroachEnum('enum', ['value1', 'value3']);
 
 	const from = {
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum1('test_column').default('value3'),
 		}),
 	};
 
 	const to = {
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: varchar('test_column').default('value2'),
 		}),
 	};
@@ -1581,18 +1574,18 @@ test('change data type from enum type to standart type. column has default', asy
 });
 
 test('change data type from array enum type to array standart type', async () => {
-	const enum1 = cockroachdbEnum('enum', ['value1', 'value3']);
+	const enum1 = cockroachEnum('enum', ['value1', 'value3']);
 
 	const from = {
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum1('test_column').array(),
 		}),
 	};
 
 	const to = {
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: varchar('test_column').array(),
 		}),
 	};
@@ -1613,18 +1606,18 @@ test('change data type from array enum type to array standart type', async () =>
 });
 
 test('change data type from array enum with custom size type to array standart type with custom size', async () => {
-	const enum1 = cockroachdbEnum('enum', ['value1', 'value3']);
+	const enum1 = cockroachEnum('enum', ['value1', 'value3']);
 
 	const from = {
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum1('test_column').array(2),
 		}),
 	};
 
 	const to = {
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: varchar('test_column').array(2),
 		}),
 	};
@@ -1646,18 +1639,18 @@ test('change data type from array enum with custom size type to array standart t
 
 //
 test('change data type from array enum type to array standart type. column has default', async () => {
-	const enum1 = cockroachdbEnum('enum', ['value1', 'value2']);
+	const enum1 = cockroachEnum('enum', ['value1', 'value2']);
 
 	const from = {
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum1('test_column').array().default(['value2']),
 		}),
 	};
 
 	const to = {
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: varchar('test_column').array().default(['value2']),
 		}),
 	};
@@ -1680,18 +1673,18 @@ test('change data type from array enum type to array standart type. column has d
 });
 
 test('change data type from array enum type with custom size to array standart type with custom size. column has default', async () => {
-	const enum1 = cockroachdbEnum('enum', ['value1', 'value2']);
+	const enum1 = cockroachEnum('enum', ['value1', 'value2']);
 
 	const from = {
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum1('test_column').array(3).default(['value2']),
 		}),
 	};
 
 	const to = {
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: varchar('test_column').array(3).default(['value2']),
 		}),
 	};
@@ -1715,13 +1708,13 @@ test('change data type from array enum type with custom size to array standart t
 
 test('change data type from standart type to standart type', async () => {
 	const from = {
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: varchar('test_column'),
 		}),
 	};
 
 	const to = {
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: text('test_column'),
 		}),
 	};
@@ -1743,13 +1736,13 @@ test('change data type from standart type to standart type', async () => {
 
 test('change data type from standart type to standart type. column has default', async () => {
 	const from = {
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: varchar('test_column').default('value3'),
 		}),
 	};
 
 	const to = {
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: text('test_column').default('value2'),
 		}),
 	};
@@ -1773,13 +1766,13 @@ test('change data type from standart type to standart type. column has default',
 // TODO if leave "column" as name - strange error occurres. Could be bug in cockroachdb
 test('change data type from standart type to standart type. columns are arrays', async () => {
 	const from = {
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			test_column: varchar('test_column').array(),
 		}),
 	};
 
 	const to = {
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			test_column: text('test_column').array(),
 		}),
 	};
@@ -1801,13 +1794,13 @@ test('change data type from standart type to standart type. columns are arrays',
 
 test('change data type from standart type to standart type. columns are arrays with custom sizes', async () => {
 	const from = {
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			test_column: varchar('test_column').array(2),
 		}),
 	};
 
 	const to = {
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			test_column: text('test_column').array(2),
 		}),
 	};
@@ -1829,13 +1822,13 @@ test('change data type from standart type to standart type. columns are arrays w
 
 test('change data type from standart type to standart type. columns are arrays. column has default', async () => {
 	const from = {
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			test_column: varchar('test_column').array().default(['hello']),
 		}),
 	};
 
 	const to = {
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			test_column: text('test_column').array().default(['hello']),
 		}),
 	};
@@ -1859,13 +1852,13 @@ test('change data type from standart type to standart type. columns are arrays. 
 
 test('change data type from standart type to standart type. columns are arrays with custom sizes.column has default', async () => {
 	const from = {
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: varchar('test_column').array(2).default(['hello']),
 		}),
 	};
 
 	const to = {
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: text('test_column').array(2).default(['hello']),
 		}),
 	};
@@ -1895,13 +1888,13 @@ test('change data type from standart type to standart type. columns are arrays w
 });
 
 test('change data type from one enum to other', async () => {
-	const enum1 = cockroachdbEnum('enum1', ['value1', 'value3']);
-	const enum2 = cockroachdbEnum('enum2', ['value1', 'value3']);
+	const enum1 = cockroachEnum('enum1', ['value1', 'value3']);
+	const enum2 = cockroachEnum('enum2', ['value1', 'value3']);
 
 	const from = {
 		enum1,
 		enum2,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum1('test_column'),
 		}),
 	};
@@ -1909,7 +1902,7 @@ test('change data type from one enum to other', async () => {
 	const to = {
 		enum1,
 		enum2,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum2('test_column'),
 		}),
 	};
@@ -1930,13 +1923,13 @@ test('change data type from one enum to other', async () => {
 });
 
 test('change data type from one enum to other. column has default', async () => {
-	const enum1 = cockroachdbEnum('enum1', ['value1', 'value3']);
-	const enum2 = cockroachdbEnum('enum2', ['value1', 'value3']);
+	const enum1 = cockroachEnum('enum1', ['value1', 'value3']);
+	const enum2 = cockroachEnum('enum2', ['value1', 'value3']);
 
 	const from = {
 		enum1,
 		enum2,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum1('test_column').default('value3'),
 		}),
 	};
@@ -1944,7 +1937,7 @@ test('change data type from one enum to other. column has default', async () => 
 	const to = {
 		enum1,
 		enum2,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum2('test_column').default('value3'),
 		}),
 	};
@@ -1967,13 +1960,13 @@ test('change data type from one enum to other. column has default', async () => 
 });
 
 test('change data type from one enum to other. changed defaults', async () => {
-	const enum1 = cockroachdbEnum('enum1', ['value1', 'value3']);
-	const enum2 = cockroachdbEnum('enum2', ['value1', 'value3']);
+	const enum1 = cockroachEnum('enum1', ['value1', 'value3']);
+	const enum2 = cockroachEnum('enum2', ['value1', 'value3']);
 
 	const from = {
 		enum1,
 		enum2,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum1('test_column').default('value3'),
 		}),
 	};
@@ -1981,7 +1974,7 @@ test('change data type from one enum to other. changed defaults', async () => {
 	const to = {
 		enum1,
 		enum2,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum2('test_column').default('value1'),
 		}),
 	};
@@ -2004,18 +1997,18 @@ test('change data type from one enum to other. changed defaults', async () => {
 });
 
 test('check filtering json statements. here we have recreate enum + set new type + alter default', async () => {
-	const enum1 = cockroachdbEnum('enum1', ['value1', 'value3']);
+	const enum1 = cockroachEnum('enum1', ['value1', 'value3']);
 	const from = {
 		enum1,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: varchar('test_column').default('value3'),
 		}),
 	};
 
-	const enum2 = cockroachdbEnum('enum1', ['value3', 'value1', 'value2']);
+	const enum2 = cockroachEnum('enum1', ['value3', 'value1', 'value2']);
 	const to = {
 		enum2,
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			column: enum2('test_column').default('value2'),
 		}),
 	};
@@ -2037,22 +2030,22 @@ test('check filtering json statements. here we have recreate enum + set new type
 });
 
 test('add column with same name as enum', async () => {
-	const statusEnum = cockroachdbEnum('status', ['inactive', 'active', 'banned']);
+	const statusEnum = cockroachEnum('status', ['inactive', 'active', 'banned']);
 
 	const schema1 = {
 		statusEnum,
-		table1: cockroachdbTable('table1', {
+		table1: cockroachTable('table1', {
 			id: int4('id').primaryKey(),
 		}),
 	};
 
 	const schema2 = {
 		statusEnum,
-		table1: cockroachdbTable('table1', {
+		table1: cockroachTable('table1', {
 			id: int4('id').primaryKey(),
 			status: statusEnum('status').default('inactive'),
 		}),
-		table2: cockroachdbTable('table2', {
+		table2: cockroachTable('table2', {
 			id: int4('id').primaryKey(),
 			status: statusEnum('status').default('inactive'),
 		}),
@@ -2067,8 +2060,8 @@ test('add column with same name as enum', async () => {
 	});
 
 	const st0: string[] = [
-		'CREATE TABLE "table2" (\n\t"id" int4 PRIMARY KEY,\n\t"status" "status" DEFAULT \'inactive\'\n);\n',
-		'ALTER TABLE "table1" ADD COLUMN "status" "status" DEFAULT \'inactive\';',
+		'CREATE TABLE "table2" (\n\t"id" int4 PRIMARY KEY,\n\t"status" "status" DEFAULT \'inactive\'::"status"\n);\n',
+		'ALTER TABLE "table1" ADD COLUMN "status" "status" DEFAULT \'inactive\'::"status";',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -2076,14 +2069,14 @@ test('add column with same name as enum', async () => {
 
 test('enums ordering', async () => {
 	const schema1 = {
-		enum: cockroachdbEnum('settings', ['all', 'admin']),
+		enum: cockroachEnum('settings', ['all', 'admin']),
 	};
 
 	const { next: n1 } = await diff({}, schema1, []);
 	await push({ db, to: schema1 });
 
 	const schema3 = {
-		enum: cockroachdbEnum('settings', ['new', 'all', 'admin']),
+		enum: cockroachEnum('settings', ['new', 'all', 'admin']),
 	};
 
 	const { sqlStatements: st2, next: n2 } = await diff(n1, schema3, []);
@@ -2093,7 +2086,7 @@ test('enums ordering', async () => {
 	expect(pst2).toStrictEqual(["ALTER TYPE \"settings\" ADD VALUE 'new' BEFORE 'all';"]);
 
 	const schema4 = {
-		enum3: cockroachdbEnum('settings', ['new', 'all', 'new2', 'admin']),
+		enum3: cockroachEnum('settings', ['new', 'all', 'new2', 'admin']),
 	};
 
 	const { sqlStatements: st3, next: n3 } = await diff(n2, schema4, []);

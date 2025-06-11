@@ -1,28 +1,28 @@
 import { getTableName, is, SQL } from 'drizzle-orm';
 import {
-	AnyCockroachDbColumn,
-	AnyCockroachDbTable,
-	CockroachDbArray,
-	CockroachDbDialect,
-	CockroachDbEnum,
-	CockroachDbEnumColumn,
-	CockroachDbMaterializedView,
-	CockroachDbPolicy,
-	CockroachDbRole,
-	CockroachDbSchema,
-	CockroachDbSequence,
-	CockroachDbTable,
-	CockroachDbView,
+	AnyCockroachColumn,
+	AnyCockroachTable,
+	CockroachArray,
+	CockroachDialect,
+	CockroachEnum,
+	CockroachEnumColumn,
+	CockroachMaterializedView,
+	CockroachPolicy,
+	CockroachRole,
+	CockroachSchema,
+	CockroachSequence,
+	CockroachTable,
+	CockroachView,
 	getMaterializedViewConfig,
 	getTableConfig,
 	getViewConfig,
 	IndexedColumn,
-	isCockroachDbEnum,
-	isCockroachDbMaterializedView,
-	isCockroachDbSequence,
-	isCockroachDbView,
+	isCockroachEnum,
+	isCockroachMaterializedView,
+	isCockroachSequence,
+	isCockroachView,
 	UpdateDeleteAction,
-} from 'drizzle-orm/cockroachdb-core';
+} from 'drizzle-orm/cockroach-core';
 import { AnyGelColumn, GelDialect, GelPolicy } from 'drizzle-orm/gel-core';
 import { CasingType } from 'src/cli/validations/common';
 import { safeRegister } from 'src/utils/utils-node';
@@ -30,7 +30,7 @@ import { assertUnreachable } from '../../utils';
 import { getColumnCasing } from '../drizzle';
 import type {
 	CheckConstraint,
-	CockroachDbEntities,
+	CockroachEntities,
 	Column,
 	Enum,
 	ForeignKey,
@@ -60,18 +60,18 @@ import {
 	trimChar,
 } from './grammar';
 
-export const policyFrom = (policy: CockroachDbPolicy | GelPolicy, dialect: CockroachDbDialect | GelDialect) => {
+export const policyFrom = (policy: CockroachPolicy | GelPolicy, dialect: CockroachDialect | GelDialect) => {
 	const mappedTo = !policy.to
 		? ['public']
 		: typeof policy.to === 'string'
 		? [policy.to]
-		: is(policy, CockroachDbRole)
-		? [(policy.to as CockroachDbRole).name]
+		: is(policy, CockroachRole)
+		? [(policy.to as CockroachRole).name]
 		: Array.isArray(policy.to)
 		? policy.to.map((it) => {
 			if (typeof it === 'string') {
 				return it;
-			} else if (is(it, CockroachDbRole)) {
+			} else if (is(it, CockroachRole)) {
 				return it.name;
 			}
 			return '' as never; // unreachable unless error in types
@@ -98,12 +98,12 @@ export const policyFrom = (policy: CockroachDbPolicy | GelPolicy, dialect: Cockr
 	};
 };
 
-export const unwrapColumn = (column: AnyCockroachDbColumn) => {
-	const { baseColumn, dimensions } = is(column, CockroachDbArray)
+export const unwrapColumn = (column: AnyCockroachColumn) => {
+	const { baseColumn, dimensions } = is(column, CockroachArray)
 		? unwrapArray(column)
 		: { baseColumn: column, dimensions: 0 };
 
-	const isEnum = is(baseColumn, CockroachDbEnumColumn);
+	const isEnum = is(baseColumn, CockroachEnumColumn);
 	const typeSchema = isEnum
 		? baseColumn.enum.schema || 'public'
 		: null;
@@ -127,11 +127,11 @@ export const unwrapColumn = (column: AnyCockroachDbColumn) => {
 };
 
 export const unwrapArray = (
-	column: CockroachDbArray<any, any>,
+	column: CockroachArray<any, any>,
 	dimensions: number = 1,
-): { baseColumn: AnyCockroachDbColumn; dimensions: number } => {
+): { baseColumn: AnyCockroachColumn; dimensions: number } => {
 	const baseColumn = column.baseColumn;
-	if (is(baseColumn, CockroachDbArray)) return unwrapArray(baseColumn, dimensions + 1);
+	if (is(baseColumn, CockroachArray)) return unwrapArray(baseColumn, dimensions + 1);
 
 	return { baseColumn, dimensions };
 };
@@ -147,10 +147,10 @@ export const transformOnUpdateDelete = (on: UpdateDeleteAction): ForeignKey['onU
 };
 
 export const defaultFromColumn = (
-	base: AnyCockroachDbColumn,
+	base: AnyCockroachColumn,
 	def: unknown,
 	dimensions: number,
-	dialect: CockroachDbDialect,
+	dialect: CockroachDialect,
 	options: string | null,
 ): Column['default'] => {
 	if (typeof def === 'undefined') return null;
@@ -315,14 +315,14 @@ export const defaultFromColumn = (
 */
 export const fromDrizzleSchema = (
 	schema: {
-		schemas: CockroachDbSchema[];
-		tables: AnyCockroachDbTable[];
-		enums: CockroachDbEnum<any>[];
-		sequences: CockroachDbSequence[];
-		roles: CockroachDbRole[];
-		policies: CockroachDbPolicy[];
-		views: CockroachDbView[];
-		matViews: CockroachDbMaterializedView[];
+		schemas: CockroachSchema[];
+		tables: AnyCockroachTable[];
+		enums: CockroachEnum<any>[];
+		sequences: CockroachSequence[];
+		roles: CockroachRole[];
+		policies: CockroachPolicy[];
+		views: CockroachView[];
+		matViews: CockroachMaterializedView[];
 	},
 	casing: CasingType | undefined,
 	schemaFilter?: string[],
@@ -331,7 +331,7 @@ export const fromDrizzleSchema = (
 	errors: SchemaError[];
 	warnings: SchemaWarning[];
 } => {
-	const dialect = new CockroachDbDialect({ casing });
+	const dialect = new CockroachDialect({ casing });
 	const errors: SchemaError[] = [];
 	const warnings: SchemaWarning[] = [];
 
@@ -405,7 +405,7 @@ export const fromDrizzleSchema = (
 			schema,
 			name: config.name,
 			isRlsEnabled,
-		} satisfies CockroachDbEntities['tables'];
+		} satisfies CockroachEntities['tables'];
 	});
 
 	for (const { table, config } of tableConfigPairs) {
@@ -547,7 +547,7 @@ export const fromDrizzleSchema = (
 		for (const index of drizzleIndexes) {
 			const columns = index.config.columns;
 			for (const column of columns) {
-				if (is(column, IndexedColumn) && column.type !== 'CockroachDbVector') continue;
+				if (is(column, IndexedColumn) && column.type !== 'CockroachVector') continue;
 
 				if (is(column, SQL) && !index.config.name) {
 					errors.push({
@@ -706,7 +706,7 @@ export const fromDrizzleSchema = (
 	}
 
 	const combinedViews = [...schema.views, ...schema.matViews].map((it) => {
-		if (is(it, CockroachDbView)) {
+		if (is(it, CockroachView)) {
 			return {
 				...getViewConfig(it),
 				materialized: false,
@@ -759,46 +759,46 @@ export const fromDrizzleSchema = (
 };
 
 export const fromExports = (exports: Record<string, unknown>) => {
-	const tables: AnyCockroachDbTable[] = [];
-	const enums: CockroachDbEnum<any>[] = [];
-	const schemas: CockroachDbSchema[] = [];
-	const sequences: CockroachDbSequence[] = [];
-	const roles: CockroachDbRole[] = [];
-	const policies: CockroachDbPolicy[] = [];
-	const views: CockroachDbView[] = [];
-	const matViews: CockroachDbMaterializedView[] = [];
+	const tables: AnyCockroachTable[] = [];
+	const enums: CockroachEnum<any>[] = [];
+	const schemas: CockroachSchema[] = [];
+	const sequences: CockroachSequence[] = [];
+	const roles: CockroachRole[] = [];
+	const policies: CockroachPolicy[] = [];
+	const views: CockroachView[] = [];
+	const matViews: CockroachMaterializedView[] = [];
 
 	const i0values = Object.values(exports);
 	i0values.forEach((t) => {
-		if (isCockroachDbEnum(t)) {
+		if (isCockroachEnum(t)) {
 			enums.push(t);
 			return;
 		}
-		if (is(t, CockroachDbTable)) {
+		if (is(t, CockroachTable)) {
 			tables.push(t);
 		}
 
-		if (is(t, CockroachDbSchema)) {
+		if (is(t, CockroachSchema)) {
 			schemas.push(t);
 		}
 
-		if (isCockroachDbView(t)) {
+		if (isCockroachView(t)) {
 			views.push(t);
 		}
 
-		if (isCockroachDbMaterializedView(t)) {
+		if (isCockroachMaterializedView(t)) {
 			matViews.push(t);
 		}
 
-		if (isCockroachDbSequence(t)) {
+		if (isCockroachSequence(t)) {
 			sequences.push(t);
 		}
 
-		if (is(t, CockroachDbRole)) {
+		if (is(t, CockroachRole)) {
 			roles.push(t);
 		}
 
-		if (is(t, CockroachDbPolicy)) {
+		if (is(t, CockroachPolicy)) {
 			policies.push(t);
 		}
 	});
@@ -816,14 +816,14 @@ export const fromExports = (exports: Record<string, unknown>) => {
 };
 
 export const prepareFromSchemaFiles = async (imports: string[]) => {
-	const tables: AnyCockroachDbTable[] = [];
-	const enums: CockroachDbEnum<any>[] = [];
-	const schemas: CockroachDbSchema[] = [];
-	const sequences: CockroachDbSequence[] = [];
-	const views: CockroachDbView[] = [];
-	const roles: CockroachDbRole[] = [];
-	const policies: CockroachDbPolicy[] = [];
-	const matViews: CockroachDbMaterializedView[] = [];
+	const tables: AnyCockroachTable[] = [];
+	const enums: CockroachEnum<any>[] = [];
+	const schemas: CockroachSchema[] = [];
+	const sequences: CockroachSequence[] = [];
+	const views: CockroachView[] = [];
+	const roles: CockroachRole[] = [];
+	const policies: CockroachPolicy[] = [];
+	const matViews: CockroachMaterializedView[] = [];
 
 	const { unregister } = await safeRegister();
 	for (let i = 0; i < imports.length; i++) {

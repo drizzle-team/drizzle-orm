@@ -1,7 +1,7 @@
 import { type Equal, Expect } from 'type-tests/utils.ts';
-import { alias as cockroachdbAliasFn } from '~/cockroachdb-core/alias.ts';
-import { cockroachdbView } from '~/cockroachdb-core/view.ts';
-import { drizzle as cockroachdbd } from '~/cockroachdb/index.ts';
+import { alias as cockroachdbAliasFn } from '~/cockroach-core/alias.ts';
+import { cockroachView } from '~/cockroach-core/view.ts';
+import { drizzle as cockroachdbd } from '~/cockroach/index.ts';
 import { eq } from '~/index.ts';
 import { drizzle as sqlited } from '~/libsql/index.ts';
 import { alias as mysqlAliasFn } from '~/mysql-core/alias.ts';
@@ -12,7 +12,7 @@ import { pgView } from '~/pg-core/view.ts';
 import { drizzle as pgd } from '~/postgres-js/index.ts';
 import { alias as sqliteAliasFn } from '~/sqlite-core/alias.ts';
 import { sqliteView } from '~/sqlite-core/view.ts';
-import { users as cockroachdbUsers } from '../cockroachdb/tables.ts';
+import { users as cockroachdbUsers } from '../cockroach/tables.ts';
 import { users as mysqlUsers } from '../mysql/tables.ts';
 import { users as pgUsers } from '../pg/tables.ts';
 import { users as sqliteUsers } from '../sqlite/tables.ts';
@@ -23,7 +23,7 @@ const mysql = mysqld.mock();
 const cockroachdb = cockroachdbd.mock();
 
 const pgvUsers = pgView('users_view').as((qb) => qb.select().from(pgUsers));
-const cockroachdbvUsers = cockroachdbView('users_view').as((qb) => qb.select().from(cockroachdbUsers));
+const cockroachdbvUsers = cockroachView('users_view').as((qb) => qb.select().from(cockroachdbUsers));
 const sqlitevUsers = sqliteView('users_view').as((qb) => qb.select().from(sqliteUsers));
 const mysqlvUsers = mysqlView('users_view').as((qb) => qb.select().from(mysqlUsers));
 

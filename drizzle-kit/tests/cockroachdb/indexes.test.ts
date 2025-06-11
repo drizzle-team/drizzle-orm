@@ -1,14 +1,5 @@
 import { sql } from 'drizzle-orm';
-import {
-	boolean,
-	cockroachdbRole,
-	cockroachdbTable,
-	index,
-	int4,
-	text,
-	uuid,
-	vector,
-} from 'drizzle-orm/cockroachdb-core';
+import { boolean, cockroachTable, index, int4, text, uuid, vector } from 'drizzle-orm/cockroach-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -31,14 +22,14 @@ beforeEach(async () => {
 
 test('adding basic indexes', async () => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 			name: text('name'),
 		}),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable(
+		users: cockroachTable(
 			'users',
 			{
 				id: int4('id').primaryKey(),
@@ -69,7 +60,7 @@ test('adding basic indexes', async () => {
 
 test('dropping basic index', async () => {
 	const schema1 = {
-		users: cockroachdbTable(
+		users: cockroachTable(
 			'users',
 			{
 				id: int4('id').primaryKey(),
@@ -80,7 +71,7 @@ test('dropping basic index', async () => {
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 			name: text('name'),
 		}),
@@ -99,7 +90,7 @@ test('dropping basic index', async () => {
 
 test('altering indexes', async () => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 			name: text('name'),
 		}, (t) => [
@@ -114,7 +105,7 @@ test('altering indexes', async () => {
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 			name: text('name'),
 		}, (t) => [
@@ -163,7 +154,7 @@ test('altering indexes', async () => {
 
 test('indexes test case #1', async () => {
 	const schema1 = {
-		users: cockroachdbTable(
+		users: cockroachTable(
 			'users',
 			{
 				id: uuid('id').defaultRandom().primaryKey(),
@@ -181,7 +172,7 @@ test('indexes test case #1', async () => {
 	};
 
 	const schema2 = {
-		users: cockroachdbTable(
+		users: cockroachTable(
 			'users',
 			{
 				id: uuid('id').defaultRandom().primaryKey(),
@@ -211,7 +202,7 @@ test('indexes test case #1', async () => {
 
 test('Indexes properties that should not trigger push changes', async () => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 			name: text('name'),
 		}, (t) => [
@@ -223,7 +214,7 @@ test('Indexes properties that should not trigger push changes', async () => {
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 			name: text('name'),
 		}, (t) => [
@@ -255,7 +246,7 @@ test('Indexes properties that should not trigger push changes', async () => {
 
 test('indexes #0', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable(
+		users: cockroachTable(
 			'users',
 			{
 				id: int4('id').primaryKey(),
@@ -276,7 +267,7 @@ test('indexes #0', async (t) => {
 	};
 
 	const schema2 = {
-		users: cockroachdbTable(
+		users: cockroachTable(
 			'users',
 			{
 				id: int4('id').primaryKey(),
@@ -336,14 +327,14 @@ test('indexes #0', async (t) => {
 
 test('vector index', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 			name: vector('name', { dimensions: 3 }),
 		}),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 			embedding: vector('name', { dimensions: 3 }),
 		}, (t) => [
@@ -366,7 +357,7 @@ test('vector index', async (t) => {
 
 test('index #2', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 			name: text('name'),
 		}, (t) => [
@@ -377,7 +368,7 @@ test('index #2', async (t) => {
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 			name: text('name'),
 		}, (t) => [
@@ -412,14 +403,14 @@ test('index #2', async (t) => {
 
 test('index #3', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 			name: text('name'),
 		}),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 			name: text('name'),
 		}, (t) => [

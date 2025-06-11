@@ -1,11 +1,5 @@
 import { sql } from 'drizzle-orm';
-import {
-	cockroachdbPolicy,
-	cockroachdbRole,
-	cockroachdbSchema,
-	cockroachdbTable,
-	int4,
-} from 'drizzle-orm/cockroachdb-core';
+import { cockroachPolicy, cockroachRole, cockroachSchema, cockroachTable, int4 } from 'drizzle-orm/cockroach-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -28,15 +22,15 @@ beforeEach(async () => {
 
 test('full policy: no changes', async () => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('test', { as: 'permissive' })]),
+		}, () => [cockroachPolicy('test', { as: 'permissive' })]),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('test', { as: 'permissive' })]),
+		}, () => [cockroachPolicy('test', { as: 'permissive' })]),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -52,15 +46,15 @@ test('full policy: no changes', async () => {
 
 test('add policy + enable rls', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 		}),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('test', { as: 'permissive' })]),
+		}, () => [cockroachPolicy('test', { as: 'permissive' })]),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -81,13 +75,13 @@ test('add policy + enable rls', async (t) => {
 
 test('drop policy + disable rls', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('test', { as: 'permissive' })]),
+		}, () => [cockroachPolicy('test', { as: 'permissive' })]),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 		}),
 	};
@@ -110,15 +104,15 @@ test('drop policy + disable rls', async (t) => {
 
 test('add policy without enable rls', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('test', { as: 'permissive' })]),
+		}, () => [cockroachPolicy('test', { as: 'permissive' })]),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('test', { as: 'permissive' }), cockroachdbPolicy('newRls')]),
+		}, () => [cockroachPolicy('test', { as: 'permissive' }), cockroachPolicy('newRls')]),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -138,15 +132,15 @@ test('add policy without enable rls', async (t) => {
 
 test('drop policy without disable rls', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('test', { as: 'permissive' }), cockroachdbPolicy('oldRls')]),
+		}, () => [cockroachPolicy('test', { as: 'permissive' }), cockroachPolicy('oldRls')]),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('test', { as: 'permissive' })]),
+		}, () => [cockroachPolicy('test', { as: 'permissive' })]),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -166,15 +160,15 @@ test('drop policy without disable rls', async (t) => {
 
 test('alter policy without recreation: changing roles', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('test', { as: 'permissive' })]),
+		}, () => [cockroachPolicy('test', { as: 'permissive' })]),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('test', { as: 'permissive', to: 'session_user' })]),
+		}, () => [cockroachPolicy('test', { as: 'permissive', to: 'session_user' })]),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -194,15 +188,15 @@ test('alter policy without recreation: changing roles', async (t) => {
 
 test('alter policy without recreation: changing using', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('test', { as: 'permissive' })]),
+		}, () => [cockroachPolicy('test', { as: 'permissive' })]),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('test', { as: 'permissive', using: sql`true` })]),
+		}, () => [cockroachPolicy('test', { as: 'permissive', using: sql`true` })]),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -222,15 +216,15 @@ test('alter policy without recreation: changing using', async (t) => {
 
 test('alter policy without recreation: changing with check', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('test', { as: 'permissive' })]),
+		}, () => [cockroachPolicy('test', { as: 'permissive' })]),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('test', { as: 'permissive', withCheck: sql`true` })]),
+		}, () => [cockroachPolicy('test', { as: 'permissive', withCheck: sql`true` })]),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -252,15 +246,15 @@ test('alter policy without recreation: changing with check', async (t) => {
 
 test('alter policy with recreation: changing as', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('test', { as: 'permissive' })]),
+		}, () => [cockroachPolicy('test', { as: 'permissive' })]),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('test', { as: 'restrictive' })]),
+		}, () => [cockroachPolicy('test', { as: 'restrictive' })]),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -281,15 +275,15 @@ test('alter policy with recreation: changing as', async (t) => {
 
 test('alter policy with recreation: changing for', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('test', { as: 'permissive' })]),
+		}, () => [cockroachPolicy('test', { as: 'permissive' })]),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('test', { as: 'permissive', for: 'delete' })]),
+		}, () => [cockroachPolicy('test', { as: 'permissive', for: 'delete' })]),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -310,15 +304,15 @@ test('alter policy with recreation: changing for', async (t) => {
 
 test('alter policy with recreation: changing both "as" and "for"', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('test', { as: 'permissive' })]),
+		}, () => [cockroachPolicy('test', { as: 'permissive' })]),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('test', { as: 'restrictive', for: 'insert' })]),
+		}, () => [cockroachPolicy('test', { as: 'restrictive', for: 'insert' })]),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -339,15 +333,15 @@ test('alter policy with recreation: changing both "as" and "for"', async (t) => 
 
 test('alter policy with recreation: changing all fields', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('test', { as: 'permissive', for: 'select', using: sql`true` })]),
+		}, () => [cockroachPolicy('test', { as: 'permissive', for: 'select', using: sql`true` })]),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('test', { as: 'restrictive', to: 'current_user', withCheck: sql`true` })]),
+		}, () => [cockroachPolicy('test', { as: 'restrictive', to: 'current_user', withCheck: sql`true` })]),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -368,15 +362,15 @@ test('alter policy with recreation: changing all fields', async (t) => {
 
 test('rename policy', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('test', { as: 'permissive' })]),
+		}, () => [cockroachPolicy('test', { as: 'permissive' })]),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('newName', { as: 'permissive' })]),
+		}, () => [cockroachPolicy('newName', { as: 'permissive' })]),
 	};
 
 	const renames = [
@@ -401,17 +395,17 @@ test('rename policy', async (t) => {
 
 test('rename policy in renamed table', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 		}, () => [
-			cockroachdbPolicy('test', { as: 'permissive' }),
+			cockroachPolicy('test', { as: 'permissive' }),
 		]),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			id: int4('id').primaryKey(),
-		}, (t) => [cockroachdbPolicy('newName', { as: 'permissive' })]),
+		}, (t) => [cockroachPolicy('newName', { as: 'permissive' })]),
 	};
 
 	const renames = ['public.users->public.users2', 'public.users2.test->public.users2.newName'];
@@ -432,9 +426,9 @@ test('create table with a policy', async (t) => {
 	const schema1 = {};
 
 	const schema2 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('test', { as: 'permissive' })]),
+		}, () => [cockroachPolicy('test', { as: 'permissive' })]),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -456,9 +450,9 @@ test('create table with a policy', async (t) => {
 
 test('drop table with a policy', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('test', { as: 'permissive' })]),
+		}, () => [cockroachPolicy('test', { as: 'permissive' })]),
 	};
 
 	const schema2 = {};
@@ -481,18 +475,18 @@ test('drop table with a policy', async (t) => {
 
 test('add policy with multiple "to" roles', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 		}),
 	};
 
-	const role = cockroachdbRole('manager');
+	const role = cockroachRole('manager');
 
 	const schema2 = {
 		role,
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('test', { to: ['current_user', role] })]),
+		}, () => [cockroachPolicy('test', { to: ['current_user', role] })]),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -516,7 +510,7 @@ test('create table with rls enabled', async (t) => {
 	const schema1 = {};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 		}).enableRLS(),
 	};
@@ -539,13 +533,13 @@ test('create table with rls enabled', async (t) => {
 
 test('enable rls force', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 		}),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 		}).enableRLS(),
 	};
@@ -567,13 +561,13 @@ test('enable rls force', async (t) => {
 
 test('disable rls force', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 		}).enableRLS(),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 		}),
 	};
@@ -594,18 +588,18 @@ test('disable rls force', async (t) => {
 });
 
 test('drop policy with enabled rls', async (t) => {
-	const role = cockroachdbRole('manager');
+	const role = cockroachRole('manager');
 
 	const schema1 = {
 		role,
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('test', { to: ['current_user', role] })]).enableRLS(),
+		}, () => [cockroachPolicy('test', { to: ['current_user', role] })]).enableRLS(),
 	};
 
 	const schema2 = {
 		role,
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 		}).enableRLS(),
 	};
@@ -628,18 +622,18 @@ test('drop policy with enabled rls', async (t) => {
 
 test('add policy with enabled rls', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 		}).enableRLS(),
 	};
 
-	const role = cockroachdbRole('manager');
+	const role = cockroachRole('manager');
 
 	const schema2 = {
 		role,
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('test', { to: ['current_user', role] })]).enableRLS(),
+		}, () => [cockroachPolicy('test', { to: ['current_user', role] })]).enableRLS(),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -661,18 +655,18 @@ test('add policy with enabled rls', async (t) => {
 
 test('add policy + link table', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 		}),
 	};
 
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey(),
 	});
 
 	const schema2 = {
 		users,
-		rls: cockroachdbPolicy('test', { as: 'permissive' }).link(users),
+		rls: cockroachPolicy('test', { as: 'permissive' }).link(users),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -693,19 +687,19 @@ test('add policy + link table', async (t) => {
 
 test('link table', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 		}),
-		rls: cockroachdbPolicy('test', { as: 'permissive' }),
+		rls: cockroachPolicy('test', { as: 'permissive' }),
 	};
 
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey(),
 	});
 
 	const schema2 = {
 		users,
-		rls: cockroachdbPolicy('test', { as: 'permissive' }).link(users),
+		rls: cockroachPolicy('test', { as: 'permissive' }).link(users),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -725,18 +719,18 @@ test('link table', async (t) => {
 });
 
 test('unlink table', async (t) => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey(),
 	});
 
 	const schema1 = {
 		users,
-		rls: cockroachdbPolicy('test', { as: 'permissive' }).link(users),
+		rls: cockroachPolicy('test', { as: 'permissive' }).link(users),
 	};
 
 	const schema2 = {
 		users,
-		rls: cockroachdbPolicy('test', { as: 'permissive' }),
+		rls: cockroachPolicy('test', { as: 'permissive' }),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -756,13 +750,13 @@ test('unlink table', async (t) => {
 });
 
 test('drop policy with link', async (t) => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey(),
 	});
 
 	const schema1 = {
 		users,
-		rls: cockroachdbPolicy('test', { as: 'permissive' }).link(users),
+		rls: cockroachPolicy('test', { as: 'permissive' }).link(users),
 	};
 
 	const schema2 = {
@@ -787,20 +781,20 @@ test('drop policy with link', async (t) => {
 
 test('add policy in table and with link table', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 		}),
 	};
 
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey(),
 	}, () => [
-		cockroachdbPolicy('test1', { to: 'current_user' }),
+		cockroachPolicy('test1', { to: 'current_user' }),
 	]);
 
 	const schema2 = {
 		users,
-		rls: cockroachdbPolicy('test', { as: 'permissive' }).link(users),
+		rls: cockroachPolicy('test', { as: 'permissive' }).link(users),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -821,7 +815,7 @@ test('add policy in table and with link table', async (t) => {
 });
 
 test('link non-schema table', async (t) => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey(),
 	});
 
@@ -829,7 +823,7 @@ test('link non-schema table', async (t) => {
 
 	const schema2 = {
 		users,
-		rls: cockroachdbPolicy('test', { as: 'permissive' }).link(users),
+		rls: cockroachPolicy('test', { as: 'permissive' }).link(users),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -849,18 +843,18 @@ test('link non-schema table', async (t) => {
 });
 
 test('unlink non-schema table', async (t) => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey(),
 	});
 
 	const schema1 = {
 		users,
-		rls: cockroachdbPolicy('test', { as: 'permissive' }).link(users),
+		rls: cockroachPolicy('test', { as: 'permissive' }).link(users),
 	};
 
 	const schema2 = {
 		users,
-		rls: cockroachdbPolicy('test', { as: 'permissive' }),
+		rls: cockroachPolicy('test', { as: 'permissive' }),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -877,25 +871,25 @@ test('unlink non-schema table', async (t) => {
 });
 
 test('add policy + link non-schema table', async (t) => {
-	const cities = cockroachdbTable('cities', {
+	const cities = cockroachTable('cities', {
 		id: int4('id').primaryKey(),
 	}).enableRLS();
 
 	const schema1 = {
 		cities,
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 		}),
 	};
 
 	const schema2 = {
 		cities,
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 		}, (t) => [
-			cockroachdbPolicy('test2'),
+			cockroachPolicy('test2'),
 		]),
-		rls: cockroachdbPolicy('test', { as: 'permissive' }).link(cities),
+		rls: cockroachPolicy('test', { as: 'permissive' }).link(cities),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -913,7 +907,7 @@ test('add policy + link non-schema table', async (t) => {
 });
 
 test('add policy + link non-schema table from auth schema', async (t) => {
-	const authSchema = cockroachdbSchema('auth');
+	const authSchema = cockroachSchema('auth');
 	const cities = authSchema.table('cities', {
 		id: int4('id').primaryKey(),
 	});
@@ -921,20 +915,20 @@ test('add policy + link non-schema table from auth schema', async (t) => {
 	const schema1 = {
 		authSchema,
 		cities,
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 		}),
 	};
 
 	const schema2 = {
 		authSchema,
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 		}, (t) => [
-			cockroachdbPolicy('test2'),
+			cockroachPolicy('test2'),
 		]),
 		cities,
-		rls: cockroachdbPolicy('test', { as: 'permissive' }).link(cities),
+		rls: cockroachPolicy('test', { as: 'permissive' }).link(cities),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -957,18 +951,18 @@ test('add policy + link non-schema table from auth schema', async (t) => {
 });
 
 test('rename policy that is linked', async (t) => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey(),
 	});
 
 	const schema1 = {
 		users,
-		rls: cockroachdbPolicy('test', { as: 'permissive' }).link(users),
+		rls: cockroachPolicy('test', { as: 'permissive' }).link(users),
 	};
 
 	const schema2 = {
 		users,
-		rls: cockroachdbPolicy('newName', { as: 'permissive' }).link(users),
+		rls: cockroachPolicy('newName', { as: 'permissive' }).link(users),
 	};
 
 	const renames = [
@@ -992,18 +986,18 @@ test('rename policy that is linked', async (t) => {
 });
 
 test('alter policy that is linked', async (t) => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey(),
 	});
 
 	const schema1 = {
 		users,
-		rls: cockroachdbPolicy('test', { as: 'permissive' }).link(users),
+		rls: cockroachPolicy('test', { as: 'permissive' }).link(users),
 	};
 
 	const schema2 = {
 		users,
-		rls: cockroachdbPolicy('test', { as: 'permissive', to: 'current_user' }).link(users),
+		rls: cockroachPolicy('test', { as: 'permissive', to: 'current_user' }).link(users),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -1022,18 +1016,18 @@ test('alter policy that is linked', async (t) => {
 });
 
 test('alter policy that is linked: withCheck', async (t) => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey(),
 	});
 
 	const schema1 = {
 		users,
-		rls: cockroachdbPolicy('test', { as: 'permissive', withCheck: sql`true` }).link(users),
+		rls: cockroachPolicy('test', { as: 'permissive', withCheck: sql`true` }).link(users),
 	};
 
 	const schema2 = {
 		users,
-		rls: cockroachdbPolicy('test', { as: 'permissive', withCheck: sql`false` }).link(users),
+		rls: cockroachPolicy('test', { as: 'permissive', withCheck: sql`false` }).link(users),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -1052,18 +1046,18 @@ test('alter policy that is linked: withCheck', async (t) => {
 });
 
 test('alter policy that is linked: using', async (t) => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey(),
 	});
 
 	const schema1 = {
 		users,
-		rls: cockroachdbPolicy('test', { as: 'permissive', using: sql`true` }).link(users),
+		rls: cockroachPolicy('test', { as: 'permissive', using: sql`true` }).link(users),
 	};
 
 	const schema2 = {
 		users,
-		rls: cockroachdbPolicy('test', { as: 'permissive', using: sql`false` }).link(users),
+		rls: cockroachPolicy('test', { as: 'permissive', using: sql`false` }).link(users),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -1082,18 +1076,18 @@ test('alter policy that is linked: using', async (t) => {
 });
 
 test('alter policy that is linked: using', async (t) => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey(),
 	});
 
 	const schema1 = {
 		users,
-		rls: cockroachdbPolicy('test', { for: 'insert' }).link(users),
+		rls: cockroachPolicy('test', { for: 'insert' }).link(users),
 	};
 
 	const schema2 = {
 		users,
-		rls: cockroachdbPolicy('test', { for: 'delete' }).link(users),
+		rls: cockroachPolicy('test', { for: 'delete' }).link(users),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -1116,18 +1110,18 @@ test('alter policy that is linked: using', async (t) => {
 
 test('alter policy in the table', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 		}, (t) => [
-			cockroachdbPolicy('test', { as: 'permissive' }),
+			cockroachPolicy('test', { as: 'permissive' }),
 		]),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 		}, (t) => [
-			cockroachdbPolicy('test', { as: 'permissive', to: 'current_user' }),
+			cockroachPolicy('test', { as: 'permissive', to: 'current_user' }),
 		]),
 	};
 
@@ -1147,23 +1141,23 @@ test('alter policy in the table', async (t) => {
 });
 
 test('alter policy in the table: withCheck', async (t) => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey(),
 	});
 
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 		}, (t) => [
-			cockroachdbPolicy('test', { as: 'permissive', withCheck: sql`true` }),
+			cockroachPolicy('test', { as: 'permissive', withCheck: sql`true` }),
 		]),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 		}, (t) => [
-			cockroachdbPolicy('test', { as: 'permissive', withCheck: sql`false` }),
+			cockroachPolicy('test', { as: 'permissive', withCheck: sql`false` }),
 		]),
 	};
 
@@ -1184,18 +1178,18 @@ test('alter policy in the table: withCheck', async (t) => {
 
 test('alter policy in the table: using', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 		}, (t) => [
-			cockroachdbPolicy('test', { as: 'permissive', using: sql`true` }),
+			cockroachPolicy('test', { as: 'permissive', using: sql`true` }),
 		]),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 		}, (t) => [
-			cockroachdbPolicy('test', { as: 'permissive', using: sql`false` }),
+			cockroachPolicy('test', { as: 'permissive', using: sql`false` }),
 		]),
 	};
 
@@ -1215,23 +1209,23 @@ test('alter policy in the table: using', async (t) => {
 });
 
 test('alter policy in the table: using', async (t) => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey(),
 	});
 
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 		}, (t) => [
-			cockroachdbPolicy('test', { for: 'insert' }),
+			cockroachPolicy('test', { for: 'insert' }),
 		]),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 		}, (t) => [
-			cockroachdbPolicy('test', { for: 'delete' }),
+			cockroachPolicy('test', { for: 'delete' }),
 		]),
 	};
 

@@ -1,5 +1,5 @@
 import { SQL, sql } from 'drizzle-orm';
-import { cockroachdbTable, int4, text } from 'drizzle-orm/cockroachdb-core';
+import { cockroachTable, int4, text } from 'drizzle-orm/cockroach-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -22,14 +22,14 @@ beforeEach(async () => {
 
 test('generated as callback: add column with generated constraint', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id2: int4('id2'),
 			name: text('name'),
 		}),
 	};
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id2: int4('id2'),
 			name: text('name'),
@@ -56,7 +56,7 @@ test('generated as callback: add column with generated constraint', async () => 
 
 test('generated as callback: add generated constraint to an exisiting column', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id2: int4('id2'),
 			name: text('name'),
@@ -64,7 +64,7 @@ test('generated as callback: add generated constraint to an exisiting column', a
 		}),
 	};
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id2: int4('id2'),
 			name: text('name'),
@@ -92,7 +92,7 @@ test('generated as callback: add generated constraint to an exisiting column', a
 
 test('generated as callback: drop generated constraint', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id2: int4('id2'),
 			name: text('name'),
@@ -102,7 +102,7 @@ test('generated as callback: drop generated constraint', async () => {
 		}),
 	};
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id2: int4('id2'),
 			name: text('name'),
@@ -128,7 +128,7 @@ test('generated as callback: drop generated constraint', async () => {
 
 test('generated as callback: change generated constraint', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id2: int4('id2'),
 			name: text('name'),
@@ -138,7 +138,7 @@ test('generated as callback: change generated constraint', async () => {
 		}),
 	};
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id2: int4('id2'),
 			name: text('name'),
@@ -163,14 +163,14 @@ test('generated as callback: change generated constraint', async () => {
 
 test('generated as sql: add column with generated constraint', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id2: int4('id2'),
 			name: text('name'),
 		}),
 	};
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id2: int4('id2'),
 			name: text('name'),
@@ -197,7 +197,7 @@ test('generated as sql: add column with generated constraint', async () => {
 
 test('generated as sql: add generated constraint to an exisiting column', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id2: int4('id2'),
 			name: text('name'),
@@ -205,7 +205,7 @@ test('generated as sql: add generated constraint to an exisiting column', async 
 		}),
 	};
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id2: int4('id2'),
 			name: text('name'),
@@ -233,7 +233,7 @@ test('generated as sql: add generated constraint to an exisiting column', async 
 
 test('generated as sql: drop generated constraint', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id2: int4('id2'),
 			name: text('name'),
@@ -243,7 +243,7 @@ test('generated as sql: drop generated constraint', async () => {
 		}),
 	};
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id2: int4('id2'),
 			name: text('name'),
@@ -269,7 +269,7 @@ test('generated as sql: drop generated constraint', async () => {
 
 test('generated as sql: change generated constraint', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id2: int4('id2'),
 			name: text('name'),
@@ -279,7 +279,7 @@ test('generated as sql: change generated constraint', async () => {
 		}),
 	};
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id2: int4('id2'),
 			name: text('name'),
@@ -307,14 +307,14 @@ test('generated as sql: change generated constraint', async () => {
 
 test('generated as string: add column with generated constraint', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id2: int4('id2'),
 			name: text('name'),
 		}),
 	};
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id2: int4('id2'),
 			name: text('name'),
@@ -341,7 +341,7 @@ test('generated as string: add column with generated constraint', async () => {
 
 test('generated as string: add generated constraint to an exisiting column', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id2: int4('id2'),
 			name: text('name'),
@@ -349,7 +349,7 @@ test('generated as string: add generated constraint to an exisiting column', asy
 		}),
 	};
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id2: int4('id2'),
 			name: text('name'),
@@ -377,7 +377,7 @@ test('generated as string: add generated constraint to an exisiting column', asy
 
 test('generated as string: drop generated constraint', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id2: int4('id2'),
 			name: text('name'),
@@ -387,7 +387,7 @@ test('generated as string: drop generated constraint', async () => {
 		}),
 	};
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id2: int4('id2'),
 			name: text('name'),
@@ -413,7 +413,7 @@ test('generated as string: drop generated constraint', async () => {
 
 test('generated as string: change generated constraint', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id2: int4('id2'),
 			name: text('name'),
@@ -423,7 +423,7 @@ test('generated as string: change generated constraint', async () => {
 		}),
 	};
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id2: int4('id2'),
 			name: text('name'),
@@ -451,7 +451,7 @@ test('generated as string: change generated constraint', async () => {
 
 test('alter generated constraint', async () => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id2: int4('id2'),
 			name: text('name'),
@@ -459,7 +459,7 @@ test('alter generated constraint', async () => {
 		}),
 	};
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id2: int4('id2'),
 			name: text('name'),

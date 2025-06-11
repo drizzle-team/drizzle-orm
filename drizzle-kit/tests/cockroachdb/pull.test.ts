@@ -4,20 +4,19 @@ import {
 	boolean,
 	char,
 	check,
-	cockroachdbEnum,
-	cockroachdbMaterializedView,
-	cockroachdbPolicy,
-	cockroachdbRole,
-	cockroachdbSchema,
-	cockroachdbTable,
-	cockroachdbView,
+	cockroachEnum,
+	cockroachMaterializedView,
+	cockroachPolicy,
+	cockroachRole,
+	cockroachSchema,
+	cockroachTable,
+	cockroachView,
 	date,
 	doublePrecision,
 	index,
 	inet,
 	int4,
 	interval,
-	json,
 	jsonb,
 	numeric,
 	real,
@@ -27,7 +26,7 @@ import {
 	timestamp,
 	uuid,
 	varchar,
-} from 'drizzle-orm/cockroachdb-core';
+} from 'drizzle-orm/cockroach-core';
 import fs from 'fs';
 import { DB } from 'src/utils';
 import { diffIntrospect, prepareTestDatabase, TestDatabase } from 'tests/cockroachdb/mocks';
@@ -57,7 +56,7 @@ beforeEach(async () => {
 
 test('basic introspect test', async () => {
 	const schema = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').notNull(),
 			email: text('email'),
 		}),
@@ -71,7 +70,7 @@ test('basic introspect test', async () => {
 
 test('basic identity always test', async () => {
 	const schema = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').generatedAlwaysAsIdentity(),
 			email: text('email'),
 		}),
@@ -85,7 +84,7 @@ test('basic identity always test', async () => {
 
 test('basic identity by default test', async () => {
 	const schema = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').generatedByDefaultAsIdentity(),
 			email: text('email'),
 		}),
@@ -103,7 +102,7 @@ test('basic identity by default test', async () => {
 
 test('basic index test', async () => {
 	const schema = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			firstName: text('first_name'),
 			lastName: text('last_name'),
 			data: jsonb('data'),
@@ -133,7 +132,7 @@ test('basic index test', async () => {
 
 test('identity always test: few params', async () => {
 	const schema = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').generatedAlwaysAsIdentity({
 				startWith: 100,
 			}),
@@ -153,7 +152,7 @@ test('identity always test: few params', async () => {
 
 test('identity by default test: few params', async () => {
 	const schema = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').generatedByDefaultAsIdentity({
 				maxValue: 10000,
 			}),
@@ -173,7 +172,7 @@ test('identity by default test: few params', async () => {
 
 test('identity always test: all params', async () => {
 	const schema = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').generatedAlwaysAsIdentity({
 				startWith: 10,
 				increment: 4,
@@ -197,7 +196,7 @@ test('identity always test: all params', async () => {
 
 test('identity by default test: all params', async () => {
 	const schema = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').generatedByDefaultAsIdentity({
 				startWith: 10,
 				increment: 4,
@@ -221,7 +220,7 @@ test('identity by default test: all params', async () => {
 
 test('generated column: link to another column', async () => {
 	const schema = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').generatedAlwaysAsIdentity(),
 			email: text('email'),
 			generatedEmail: text('generatedEmail').generatedAlwaysAs(
@@ -242,10 +241,10 @@ test('generated column: link to another column', async () => {
 
 // defaults mismatch
 test.todo('introspect all column types', async () => {
-	const myEnum = cockroachdbEnum('my_enum', ['a', 'b', 'c']);
+	const myEnum = cockroachEnum('my_enum', ['a', 'b', 'c']);
 	const schema = {
 		enum_: myEnum,
-		columns: cockroachdbTable('columns', {
+		columns: cockroachTable('columns', {
 			enum: myEnum('my_enum').default('a'),
 			smallint: smallint('smallint').default(10),
 			int4: int4('int4').default(10),
@@ -259,7 +258,6 @@ test.todo('introspect all column types', async () => {
 			char: char('char', { length: 3 }).default('abc'),
 			doublePrecision: doublePrecision('doublePrecision').default(100),
 			real: real('real').default(100),
-			json: json('json').$type<{ attr: string }>().default({ attr: 'value' }),
 			jsonb: jsonb('jsonb').$type<{ attr: string }>().default({ attr: 'value' }),
 			time1: time('time1').default('00:00:00'),
 			timestamp1: timestamp('timestamp1', { withTimezone: true, precision: 6 }).default(new Date()),
@@ -288,11 +286,11 @@ test.todo('introspect all column types', async () => {
 });
 
 test('introspect all column array types', async () => {
-	const myEnum = cockroachdbEnum('my_enum', ['a', 'b', 'c']);
+	const myEnum = cockroachEnum('my_enum', ['a', 'b', 'c']);
 	const schema = {
 		enum_: myEnum,
 		// TODO test extensions
-		columns: cockroachdbTable('columns', {
+		columns: cockroachTable('columns', {
 			enum: myEnum('my_enum').array().default(['a', 'b']),
 			smallint: smallint('smallint').array().default([10, 20]),
 			int4: int4('int4').array().default([10, 20]),
@@ -330,7 +328,7 @@ test('introspect all column array types', async () => {
 
 test('introspect columns with name with non-alphanumeric characters', async () => {
 	const schema = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			'not:allowed': int4('not:allowed'),
 			'nuh--uh': int4('nuh-uh'),
 			'1_nope': int4('1_nope'),
@@ -349,12 +347,12 @@ test('introspect columns with name with non-alphanumeric characters', async () =
 });
 
 test('introspect enum from different schema', async () => {
-	const schema2 = cockroachdbSchema('schema2');
+	const schema2 = cockroachSchema('schema2');
 	const myEnumInSchema2 = schema2.enum('my_enum', ['a', 'b', 'c']);
 	const schema = {
 		schema2,
 		myEnumInSchema2,
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			col: myEnumInSchema2('col'),
 		}),
 	};
@@ -371,14 +369,14 @@ test('introspect enum from different schema', async () => {
 });
 
 test('introspect enum with same names across different schema', async () => {
-	const schema2 = cockroachdbSchema('schema2');
+	const schema2 = cockroachSchema('schema2');
 	const myEnumInSchema2 = schema2.enum('my_enum', ['a', 'b', 'c']);
-	const myEnum = cockroachdbEnum('my_enum', ['a', 'b', 'c']);
+	const myEnum = cockroachEnum('my_enum', ['a', 'b', 'c']);
 	const schema = {
 		schema2,
 		myEnumInSchema2,
 		myEnum,
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			col1: myEnumInSchema2('col1'),
 			col2: myEnum('col2'),
 		}),
@@ -396,10 +394,10 @@ test('introspect enum with same names across different schema', async () => {
 });
 
 test('introspect enum with similar name to native type', async () => {
-	const timeLeft = cockroachdbEnum('time_left', ['short', 'medium', 'long']);
+	const timeLeft = cockroachEnum('time_left', ['short', 'medium', 'long']);
 	const schema = {
 		timeLeft,
-		auction: cockroachdbTable('auction', {
+		auction: cockroachTable('auction', {
 			col: timeLeft('col1'),
 		}),
 	};
@@ -416,10 +414,10 @@ test('introspect enum with similar name to native type', async () => {
 
 // defaults mismatch
 test.todo('introspect strings with single quotes', async () => {
-	const myEnum = cockroachdbEnum('my_enum', ['escape\'s quotes " ']);
+	const myEnum = cockroachEnum('my_enum', ['escape\'s quotes " ']);
 	const schema = {
 		enum_: myEnum,
-		columns: cockroachdbTable('columns', {
+		columns: cockroachTable('columns', {
 			enum: myEnum('my_enum').default('escape\'s quotes " '),
 			text: text('text').default('escape\'s quotes " '),
 			varchar: varchar('varchar').default('escape\'s quotes " '),
@@ -438,7 +436,7 @@ test.todo('introspect strings with single quotes', async () => {
 
 test('introspect checks', async () => {
 	const schema = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			name: varchar('name'),
 			age: int4('age'),
@@ -456,10 +454,10 @@ test('introspect checks', async () => {
 });
 
 test('introspect checks from different schemas with same names', async () => {
-	const mySchema = cockroachdbSchema('schema2');
+	const mySchema = cockroachSchema('schema2');
 	const schema = {
 		mySchema,
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			age: int4('age'),
 		}, (table) => [check('some_check', sql`${table.age} > 21`)]),
@@ -481,12 +479,12 @@ test('introspect checks from different schemas with same names', async () => {
 });
 
 test('introspect view #1', async () => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 		name: varchar('users'),
 	});
 
-	const view = cockroachdbView('some_view').as((qb) => qb.select().from(users));
+	const view = cockroachView('some_view').as((qb) => qb.select().from(users));
 	const schema = {
 		view,
 		users,
@@ -503,12 +501,12 @@ test('introspect view #1', async () => {
 });
 
 test('introspect view #2', async () => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 		name: varchar('users'),
 	});
 
-	const view = cockroachdbView('some_view', { id: int4('asd') }).as(
+	const view = cockroachView('some_view', { id: int4('asd') }).as(
 		sql`SELECT * FROM ${users}`,
 	);
 	const schema = {
@@ -527,8 +525,8 @@ test('introspect view #2', async () => {
 });
 
 test('introspect view in other schema', async () => {
-	const newSchema = cockroachdbSchema('new_schema');
-	const users = cockroachdbTable('users', {
+	const newSchema = cockroachSchema('new_schema');
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 		name: varchar('users'),
 	});
@@ -554,8 +552,8 @@ test('introspect view in other schema', async () => {
 });
 
 test('introspect materialized view in other schema', async () => {
-	const newSchema = cockroachdbSchema('new_schema');
-	const users = cockroachdbTable('users', {
+	const newSchema = cockroachSchema('new_schema');
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 		name: varchar('users'),
 	});
@@ -581,12 +579,12 @@ test('introspect materialized view in other schema', async () => {
 });
 
 test('introspect materialized view #1', async () => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 		name: varchar('users'),
 	});
 
-	const view = cockroachdbMaterializedView('some_view').withNoData().as((qb) => qb.select().from(users));
+	const view = cockroachMaterializedView('some_view').withNoData().as((qb) => qb.select().from(users));
 	const schema = {
 		view,
 		users,
@@ -603,12 +601,12 @@ test('introspect materialized view #1', async () => {
 });
 
 test('introspect materialized view #2', async () => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 		name: varchar('users'),
 	});
 
-	const view = cockroachdbMaterializedView('some_view', { id: int4('asd') }).as(
+	const view = cockroachMaterializedView('some_view', { id: int4('asd') }).as(
 		sql`SELECT * FROM ${users}`,
 	);
 	const schema = {
@@ -628,9 +626,9 @@ test('introspect materialized view #2', async () => {
 
 test('basic policy', async () => {
 	const schema = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('test')]),
+		}, () => [cockroachPolicy('test')]),
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
@@ -645,9 +643,9 @@ test('basic policy', async () => {
 
 test('basic policy with "as"', async () => {
 	const schema = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('test', { as: 'permissive' })]),
+		}, () => [cockroachPolicy('test', { as: 'permissive' })]),
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
@@ -662,9 +660,9 @@ test('basic policy with "as"', async () => {
 
 test('basic policy with CURRENT_USER role', async () => {
 	const schema = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('test', { to: 'current_user' })]),
+		}, () => [cockroachPolicy('test', { to: 'current_user' })]),
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
@@ -679,9 +677,9 @@ test('basic policy with CURRENT_USER role', async () => {
 
 test('basic policy with all fields except "using" and "with"', async () => {
 	const schema = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('test', { as: 'permissive', for: 'all', to: ['root'] })]),
+		}, () => [cockroachPolicy('test', { as: 'permissive', for: 'all', to: ['root'] })]),
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
@@ -696,9 +694,9 @@ test('basic policy with all fields except "using" and "with"', async () => {
 
 test('basic policy with "using" and "with"', async () => {
 	const schema = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('test', { using: sql`true`, withCheck: sql`true` })]),
+		}, () => [cockroachPolicy('test', { using: sql`true`, withCheck: sql`true` })]),
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
@@ -713,9 +711,9 @@ test('basic policy with "using" and "with"', async () => {
 
 test('multiple policies', async () => {
 	const schema = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
-		}, () => [cockroachdbPolicy('test', { using: sql`true`, withCheck: sql`true` }), cockroachdbPolicy('newRls')]),
+		}, () => [cockroachPolicy('test', { using: sql`true`, withCheck: sql`true` }), cockroachPolicy('newRls')]),
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
@@ -732,14 +730,14 @@ test('multiple policies with roles', async () => {
 	await db.query(`CREATE ROLE new_manager;`);
 
 	const schema = {
-		users: cockroachdbTable(
+		users: cockroachTable(
 			'users',
 			{
 				id: int4('id').primaryKey(),
 			},
 			() => [
-				cockroachdbPolicy('test', { using: sql`true`, withCheck: sql`true` }),
-				cockroachdbPolicy('newRls', { to: ['root', 'new_manager'] }),
+				cockroachPolicy('test', { using: sql`true`, withCheck: sql`true` }),
+				cockroachPolicy('newRls', { to: ['root', 'new_manager'] }),
 			],
 		),
 	};
@@ -756,7 +754,7 @@ test('multiple policies with roles', async () => {
 
 test('basic roles', async () => {
 	const schema = {
-		usersRole: cockroachdbRole('user'),
+		usersRole: cockroachRole('user'),
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
@@ -773,7 +771,7 @@ test('basic roles', async () => {
 
 test('role with properties', async () => {
 	const schema = {
-		usersRole: cockroachdbRole('user', { createDb: true, createRole: true }),
+		usersRole: cockroachRole('user', { createDb: true, createRole: true }),
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
@@ -790,7 +788,7 @@ test('role with properties', async () => {
 
 test('role with a few properties', async () => {
 	const schema = {
-		usersRole: cockroachdbRole('user', { createRole: true }),
+		usersRole: cockroachRole('user', { createRole: true }),
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(
@@ -806,18 +804,18 @@ test('role with a few properties', async () => {
 });
 
 test('multiple policies with roles from schema', async () => {
-	const usersRole = cockroachdbRole('user_role', { createRole: true });
+	const usersRole = cockroachRole('user_role', { createRole: true });
 
 	const schema = {
 		usersRole,
-		users: cockroachdbTable(
+		users: cockroachTable(
 			'users',
 			{
 				id: int4('id').primaryKey(),
 			},
 			() => [
-				cockroachdbPolicy('test', { using: sql`true`, withCheck: sql`true` }),
-				cockroachdbPolicy('newRls', { to: ['root', usersRole] }),
+				cockroachPolicy('test', { using: sql`true`, withCheck: sql`true` }),
+				cockroachPolicy('newRls', { to: ['root', usersRole] }),
 			],
 		),
 	};
