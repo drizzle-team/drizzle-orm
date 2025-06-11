@@ -1,4 +1,5 @@
 import { entityKind } from '~/entity.ts';
+import type { CockroachDbColumn, ExtraConfigColumn as CockroachDbExtraConfigColumn } from './cockroachdb-core/index.ts';
 import type { Column } from './column.ts';
 import type { GelColumn, GelExtraConfigColumn } from './gel-core/index.ts';
 import type { MsSqlColumn } from './mssql-core/index.ts';
@@ -26,7 +27,7 @@ export type ColumnDataType =
 	| 'localDate'
 	| 'localDateTime';
 
-export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'singlestore' | 'mssql' | 'common' | 'gel';
+export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'singlestore' | 'mssql' | 'common' | 'gel' | 'cockroachdb';
 
 // TODO update description
 // 'virtual' | 'stored'  for postgres
@@ -106,24 +107,26 @@ export type ColumnBuilderTypeConfig<
 	& TTypeConfig
 >;
 
-export type ColumnBuilderRuntimeConfig<TData, TRuntimeConfig extends object = object> = {
-	name: string;
-	keyAsName: boolean;
-	notNull: boolean;
-	default: TData | SQL | undefined;
-	defaultFn: (() => TData | SQL) | undefined;
-	onUpdateFn: (() => TData | SQL) | undefined;
-	hasDefault: boolean;
-	primaryKey: boolean;
-	isUnique: boolean;
-	uniqueName: string | undefined;
-	uniqueType: string | undefined;
-	uniqueNameExplicit: boolean | undefined;
-	dataType: string;
-	columnType: string;
-	generated: GeneratedColumnConfig<TData> | undefined;
-	generatedIdentity: GeneratedIdentityConfig | undefined;
-} & TRuntimeConfig;
+export type ColumnBuilderRuntimeConfig<TData, TRuntimeConfig extends object = object> =
+	& {
+		name: string;
+		keyAsName: boolean;
+		notNull: boolean;
+		default: TData | SQL | undefined;
+		defaultFn: (() => TData | SQL) | undefined;
+		onUpdateFn: (() => TData | SQL) | undefined;
+		hasDefault: boolean;
+		primaryKey: boolean;
+		isUnique: boolean;
+		uniqueName: string | undefined;
+		uniqueType: string | undefined;
+		uniqueNameExplicit: boolean | undefined;
+		dataType: string;
+		columnType: string;
+		generated: GeneratedColumnConfig<TData> | undefined;
+		generatedIdentity: GeneratedIdentityConfig | undefined;
+	}
+	& TRuntimeConfig;
 
 export interface ColumnBuilderExtraConfig {
 	primaryKeyHasDefault?: boolean;
@@ -333,6 +336,11 @@ export type BuildColumn<
 		{},
 		Simplify<Omit<TBuilder['_'], keyof MakeColumnConfig<TBuilder['_'], TTableName> | 'brand' | 'dialect'>>
 	>
+	: TDialect extends 'cockroachdb' ? CockroachDbColumn<
+			MakeColumnConfig<TBuilder['_'], TTableName>,
+			{},
+			Simplify<Omit<TBuilder['_'], keyof MakeColumnConfig<TBuilder['_'], TTableName> | 'brand' | 'dialect'>>
+		>
 	: TDialect extends 'mysql' ? MySqlColumn<
 			MakeColumnConfig<TBuilder['_'], TTableName>,
 			{},
@@ -394,6 +402,7 @@ export type BuildColumn<
 export type BuildIndexColumn<
 	TDialect extends Dialect,
 > = TDialect extends 'pg' ? ExtraConfigColumn
+	: TDialect extends 'cockroachdb' ? CockroachDbExtraConfigColumn
 	: TDialect extends 'gel' ? GelExtraConfigColumn
 	: never;
 
@@ -435,4 +444,5 @@ export type ChangeColumnTableName<TColumn extends Column, TAlias extends string,
 		: TDialect extends 'sqlite' ? SQLiteColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: TDialect extends 'gel' ? GelColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: TDialect extends 'mssql' ? MsSqlColumn<MakeColumnConfig<TColumn['_'], TAlias>>
+		: TDialect extends 'cockroachdb' ? CockroachDbColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: never;

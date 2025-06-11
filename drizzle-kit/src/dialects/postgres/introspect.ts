@@ -214,7 +214,7 @@ export const fromDatabase = async (
 
 	const filteredTables = tablesList.filter((it) => {
 		if (!(it.kind === 'r' && tablesFilter(it.schema, it.name))) return false;
-		it.schema = it.schema.trimChar('"'); // when camel case name e.x. mySchema -> it gets wrapped to "mySchema"
+		it.schema = trimChar(it.schema, '"'); // when camel case name e.x. mySchema -> it gets wrapped to "mySchema"
 		return true;
 	});
 
@@ -228,7 +228,7 @@ export const fromDatabase = async (
 	for (const table of filteredTables) {
 		tables.push({
 			entityType: 'tables',
-			schema: table.schema.trimChar("'"),
+			schema: trimChar(table.schema, "'"),
 			name: table.name,
 			isRlsEnabled: table.rlsEnabled,
 		});
@@ -1069,5 +1069,6 @@ export const fromDatabaseForDrizzle = async (
 	const res = await fromDatabase(db, tableFilter, schemaFilters, entities, progressCallback);
 	res.schemas = res.schemas.filter((it) => it.name !== 'public');
 	res.indexes = res.indexes.filter((it) => !it.forPK && !it.forUnique);
+
 	return res;
 };

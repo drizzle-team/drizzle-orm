@@ -42,7 +42,7 @@ import {
 	mssqlTableCreator,
 	mssqlView,
 	nchar,
-	nText,
+	ntext,
 	numeric,
 	nvarchar,
 	primaryKey,
@@ -267,9 +267,9 @@ const allPossibleColumns = mssqlTable('all_possible_columns', {
 	textEnum: text({ enum: ['only', 'this', 'values'] }),
 	textDefault: text().default('hello, world'),
 
-	nText: nText(),
-	nTextEnum: nText({ enum: ['only', 'this', 'values'] }),
-	nTextDefault: nText().default('hello, world'),
+	nText: ntext(),
+	nTextEnum: ntext({ enum: ['only', 'this', 'values'] }),
+	nTextDefault: ntext().default('hello, world'),
 
 	time: time(),
 	timeModeDate: time({ mode: 'date' }),
