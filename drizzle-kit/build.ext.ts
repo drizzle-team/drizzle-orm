@@ -32,7 +32,7 @@ const main = async () => {
 		format: ['esm'],
 	});
 
-		await tsup.build({
+	await tsup.build({
 		entryPoints: ['./src/ext/studio-mysql.ts'],
 		outDir: './dist',
 		external: [],

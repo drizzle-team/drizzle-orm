@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import fs from 'fs';
 import { render } from 'hanji';
 import path, { join } from 'path';
+import { CockroachDbSnapshot } from 'src/dialects/cockroachdb/snapshot';
 import { MssqlSnapshot } from 'src/dialects/mssql/snapshot';
 import type { PostgresSnapshot } from 'src/dialects/postgres/snapshot';
 import type { MysqlSnapshot } from '../../dialects/mysql/snapshot';
@@ -11,7 +12,7 @@ import { prepareMigrationMetadata } from '../../utils/words';
 import type { Driver, Prefix } from '../validations/common';
 
 export const writeResult = (config: {
-	snapshot: SqliteSnapshot | PostgresSnapshot | MysqlSnapshot | MssqlSnapshot;
+	snapshot: SqliteSnapshot | PostgresSnapshot | MysqlSnapshot | MssqlSnapshot | CockroachDbSnapshot;
 	sqlStatements: string[];
 	journal: Journal;
 	outFolder: string;

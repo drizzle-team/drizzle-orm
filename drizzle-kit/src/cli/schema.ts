@@ -10,6 +10,7 @@ import { assertV1OutFolder } from '../utils/utils-node';
 import { checkHandler } from './commands/check';
 import { dropMigration } from './commands/drop';
 import { type Setup } from './commands/studio';
+import { upCockroachDbHandler } from './commands/up-cockroachdb';
 import { upMysqlHandler } from './commands/up-mysql';
 import { upPgHandler } from './commands/up-postgres';
 import { upSinglestoreHandler } from './commands/up-singlestore';
@@ -105,6 +106,9 @@ export const generate = command({
 		} else if (dialect === 'mssql') {
 			const { handle } = await import('./commands/generate-mssql');
 			await handle(opts);
+		} else if (dialect === 'cockroachdb') {
+			const { handle } = await import('./commands/generate-cockroachdb');
+			await handle(opts);
 		} else {
 			assertUnreachable(dialect);
 		}
@@ -196,6 +200,17 @@ export const migrate = command({
 					new MigrateProgress(),
 					migrate({
 						migrationsFolder: opts.out,
+						migrationsTable: table,
+						migrationsSchema: schema,
+					}),
+				);
+			} else if (dialect === 'cockroachdb') {
+				const { prepareCockroachDB } = await import('./connections');
+				const { migrate } = await prepareCockroachDB(credentials);
+				await renderWithTask(
+					new MigrateProgress(),
+					migrate({
+						migrationsFolder: out,
 						migrationsTable: table,
 						migrationsSchema: schema,
 					}),
@@ -390,6 +405,19 @@ export const push = command({
 				force,
 				casing,
 			);
+		} else if (dialect === 'cockroachdb') {
+			const { handle } = await import('./commands/push-cockroachdb');
+			await handle(
+				schemaPath,
+				verbose,
+				strict,
+				credentials,
+				tablesFilter,
+				schemasFilter,
+				entities,
+				force,
+				casing,
+			);
 		} else if (dialect === 'mssql') {
 			const { handle } = await import('./commands/push-mssql');
 			await handle(
@@ -468,6 +496,10 @@ export const up = command({
 
 		if (dialect === 'singlestore') {
 			upSinglestoreHandler(out);
+		}
+
+		if (dialect === 'cockroachdb') {
+			upCockroachDbHandler(out);
 		}
 
 		if (dialect === 'gel') {
@@ -616,6 +648,18 @@ export const pull = command({
 					prefix,
 					entities,
 				);
+			} else if (dialect === 'cockroachdb') {
+				const { handle } = await import('./commands/pull-cockroachdb');
+				await handle(
+					casing,
+					out,
+					breakpoints,
+					credentials,
+					tablesFilter,
+					schemasFilter,
+					prefix,
+					entities,
+				);
 			} else {
 				assertUnreachable(dialect);
 			}
@@ -736,6 +780,13 @@ export const studio = command({
 					relations,
 					files,
 				);
+			} else if (dialect === 'cockroachdb') {
+				console.log(
+					error(
+						`You can't use 'studio' command with 'cockroachdb' dialect`,
+					),
+				);
+				process.exit(1);
 			} else if (dialect === 'gel') {
 				console.log(
 					error(
@@ -850,6 +901,9 @@ export const exportRaw = command({
 			process.exit(1);
 		} else if (dialect === 'mssql') {
 			const { handleExport } = await import('./commands/generate-mssql');
+			await handleExport(opts);
+		} else if (dialect === 'cockroachdb') {
+			const { handleExport } = await import('./commands/generate-cockroachdb');
 			await handleExport(opts);
 		} else {
 			assertUnreachable(dialect);
