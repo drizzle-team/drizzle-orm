@@ -1,6 +1,7 @@
+import { Temporal } from '@js-temporal/polyfill';
 import { assertUnreachable } from '../../utils';
 import { hash } from '../common';
-import { CockroachDbEntities, Column } from './ddl';
+import { CockroachDbEntities, Column, DiffEntities } from './ddl';
 
 export const trimChar = (str: string, char: string) => {
 	let start = 0;
@@ -15,7 +16,7 @@ export const trimChar = (str: string, char: string) => {
 
 export const splitSqlType = (sqlType: string) => {
 	// timestamp(6) with time zone -> [timestamp, 6, with time zone]
-	const match = sqlType.match(/^(\w+)\(([^)]*)\)(?:\s+with time zone)?$/i);
+	const match = sqlType.match(/^(\w+(?:\s+\w+)*)\(([^)]*)\)(\s+with time zone)?$/i);
 	let type = match ? (match[1] + (match[3] ?? '')) : sqlType;
 	let options = match ? match[2].replaceAll(', ', ',') : null;
 
@@ -121,8 +122,24 @@ export function stringFromDatabaseIdentityProperty(field: any): string | null {
 }
 
 // CockroachDb trims and pads defaults under the hood
-export function fixNumeric(value: string, scale?: number) {
+export function fixNumeric(value: string, options: string | null) {
 	const [integerPart, decimalPart] = value.split('.');
+
+	let scale: number | undefined;
+
+	// if precision exists and scale not -> scale = 0
+	// if scale exists -> scale = scale
+	// if options does not exists (p,s are not present) -> scale is undefined
+	if (options) {
+		// if option exists we have 2 possible variants
+		// 1. p exists
+		// 2. p and s exists
+		const [_, s] = options.split(',');
+
+		// if scale exists - use scale
+		// else use 0 (cause p exists)
+		scale = s !== undefined ? Number(s) : 0;
+	}
 
 	if (typeof scale === 'undefined') return value;
 	if (!decimalPart) return value;
@@ -136,7 +153,7 @@ export function fixNumeric(value: string, scale?: number) {
 	return `${integerPart}.${fixedDecimal}`;
 }
 
-export function buildArrayString(array: any[], sqlType: string, scale?: number): string {
+export function buildArrayString(array: any[], sqlType: string, options: string | null): string {
 	// we check if array consists only of empty arrays down to 5th dimension
 	if (array.flat(5).length === 0) {
 		return '{}';
@@ -145,7 +162,15 @@ export function buildArrayString(array: any[], sqlType: string, scale?: number):
 	const values = array
 		.map((value) => {
 			if (sqlType.startsWith('numeric')) {
-				return fixNumeric(String(value), scale);
+				return fixNumeric(String(value), options);
+			}
+
+			if (sqlType.startsWith('timestamp') && sqlType.includes('with time zone')) {
+				return `"${formatTimestampWithTZ(value, options ? Number(options) : undefined)}"`;
+			}
+
+			if (sqlType.startsWith('time') && sqlType.includes('with time zone')) {
+				return `${value.replace('Z', '+00').replace('z', '+00')}`;
 			}
 
 			if (typeof value === 'number' || typeof value === 'bigint') {
@@ -157,14 +182,21 @@ export function buildArrayString(array: any[], sqlType: string, scale?: number):
 			}
 
 			if (Array.isArray(value)) {
-				return buildArrayString(value, sqlType, scale);
+				return buildArrayString(value, sqlType, options);
 			}
 
 			if (value instanceof Date) {
 				if (sqlType === 'date') {
-					return `"${value.toISOString().split('T')[0]}"`;
-				} else if (sqlType === 'timestamp') {
-					return `"${value.toISOString().replace('T', ' ').slice(0, 23)}"`;
+					return `${value.toISOString().split('T')[0]}`;
+				} else if (sqlType.startsWith('timestamp')) {
+					let res;
+					if (sqlType.includes('with time zone')) {
+						res = formatTimestampWithTZ(value, options ? Number(options) : undefined);
+					} else {
+						res = value.toISOString().replace('T', ' ').replace('Z', ' ').slice(0, 23);
+					}
+
+					return `"${res}"`;
 				} else {
 					return `"${value.toISOString()}"`;
 				}
@@ -350,16 +382,18 @@ export const defaultNameForIndex = (table: string, columns: string[]) => {
 	return `${table}_${columns.join('_')}_idx`;
 };
 
-export const trimDefaultValueSuffix = (value: string) => {
-	let res = value.endsWith('[]') ? value.slice(0, -2) : value;
-	res = res.replace(/::(.*?)(?<![^\w"])(?=$)/, '');
+// ::text, ::varchar(256), ::text::varchar(256)
+export function trimDefaultValueSuffix(defaultValue: string) {
+	let res = defaultValue.endsWith('[]') ? defaultValue.slice(0, -2) : defaultValue;
+	res = res.replace(/(::[a-zA-Z_][\w\s.]*?(?:\([^()]*\))?(?:\[\])?)+$/g, '');
 	return res;
-};
+}
 
 export const defaultForColumn = (
 	type: string,
 	def: string | boolean | number | null | undefined,
 	dimensions: number,
+	isEnum: boolean,
 ): Column['default'] => {
 	if (
 		def === null
@@ -419,32 +453,40 @@ export const defaultForColumn = (
 		return { value: trimmed, type: big ? 'bigint' : 'number' };
 	}
 
-	// for 'text' and e'text\'text'
-	if (/^(e|E)?'(?:[^'\\]|\\.|'')*'$/.test(value)) {
-		// e'text\'text' -> text'text
-		const removedEscape = value.startsWith("e'")
-			? value.replace("e'", "'").replaceAll("\\'", "''").replaceAll('\\"', '"')
-			: value;
+	// e'text\'text' and 'text'
+	if (/^e'|'(?:[^']|'')*'$/.test(value)) {
+		let removedEscape = value.startsWith("e'") ? value.replace("e'", "'") : value;
+		removedEscape = removedEscape.replaceAll("\\'", "''").replaceAll('\\"', '"');
+
 		const res = removedEscape.substring(1, removedEscape.length - 1);
 
-		if (type === 'json' || type === 'jsonb') {
+		if (type === 'jsonb') {
 			return { value: JSON.stringify(JSON.parse(res.replaceAll("''", "'"))), type: 'json' };
 		}
 
 		return { value: res, type: 'string' };
 	}
 
+	// CREATE TYPE myEnum1 AS ENUM ('hey', 'te''text');
+	// CREATE TABLE "table22" (
+	//    "column" myEnum1[] DEFAULT '{hey, te''text}'::myEnum1[]
+	// );
+	// '{hey,"e''te\\''text''"}' -> '{hey,"'te\\''text'"}' - this will replace e'<VALUE>' to <VALUE>
+	if (isEnum && dimensions > 0 && value.includes("e'")) {
+		value = value.replace(/"\be''((?:["']|[^'])*)''"/g, '"$1"').replaceAll("\\\\'", "'"); // .replaceAll('"', '\\"');
+	}
+
 	return { value: value, type: 'unknown' };
 };
 
 export const defaultToSQL = (
-	it: Pick<Column, 'default' | 'dimensions' | 'type' | 'typeSchema'>,
+	it: Column,
 	isEnum: boolean = false,
 ) => {
 	if (!it.default) return '';
 
 	const { type: columnType, dimensions, typeSchema } = it;
-	const { type, value } = it.default;
+	const { type: defaultType, value } = it.default;
 
 	const arrsuffix = dimensions > 0 ? '[]' : '';
 	if (typeSchema) {
@@ -452,26 +494,110 @@ export const defaultToSQL = (
 		return `'${value}'::${schemaPrefix}"${columnType}"${arrsuffix}`;
 	}
 
-	const suffix = arrsuffix ? `::${columnType}${arrsuffix}` : '';
-
-	if (type === 'string') {
+	const suffix = arrsuffix ? `::${typeToSql(it)}` : '';
+	if (defaultType === 'string') {
 		return `'${value}'${suffix}`;
 	}
 
-	if (type === 'json') {
+	if (defaultType === 'json') {
 		return `'${value.replaceAll("'", "''")}'${suffix}`;
 	}
 
-	if (type === 'bigint' || type === 'jsonb') {
+	if (defaultType === 'bigint' || defaultType === 'jsonb') {
 		return `'${value}'`;
 	}
 
-	if (type === 'boolean' || type === 'null' || type === 'number' || type === 'func' || type === 'unknown') {
+	if (
+		defaultType === 'boolean' || defaultType === 'null' || defaultType === 'number' || defaultType === 'func'
+		|| defaultType === 'unknown'
+	) {
 		return value;
 	}
 
-	assertUnreachable(type);
+	assertUnreachable(defaultType);
 };
+
+export const typeToSql = (
+	column: Column,
+	diff?: DiffEntities['columns'],
+	wasEnum = false,
+	isEnum = false,
+): string => {
+	const {
+		type: columnType,
+		typeSchema: columnTypeSchema,
+		dimensions,
+		options,
+		name: columnName,
+	} = column;
+
+	const schemaPrefix = columnTypeSchema && columnTypeSchema !== 'public'
+		? `"${columnTypeSchema}".`
+		: '';
+
+	// enum1::text::enum2
+	const textProxy = wasEnum && isEnum ? 'text::' : '';
+	const arraySuffix = dimensions > 0 ? '[]'.repeat(dimensions) : '';
+	const optionSuffix = options ? `(${options})` : '';
+
+	const isTimeWithTZ = columnType === 'timestamp with time zone' || columnType === 'time with time zone';
+
+	let finalType: string;
+
+	if (diff?.type) {
+		const newType = diff.type.to;
+		const newSchema = diff.typeSchema?.to;
+
+		const newSchemaPrefix = newSchema && newSchema !== 'public' ? `"${newSchema}".` : '';
+
+		finalType = isEnum
+			? `"${newType}"`
+			: `${newSchemaPrefix}${newType}`;
+	} else {
+		if (optionSuffix && isTimeWithTZ) {
+			const [baseType, ...rest] = columnType.split(' ');
+			const base = columnTypeSchema ? `"${baseType}"` : baseType;
+			finalType = `${schemaPrefix}${base}${optionSuffix} ${rest.join(' ')}`;
+		} else {
+			const base = columnTypeSchema ? `"${columnType}"` : columnType;
+			finalType = `${schemaPrefix}${base}${optionSuffix}`;
+		}
+	}
+
+	finalType += arraySuffix;
+
+	finalType += isEnum
+		? ` USING "${columnName}"::${textProxy}${finalType}`
+		: '';
+
+	return finalType;
+};
+
+function hasTimeZoneSuffix(s: string): boolean {
+	return /([+-]\d{2}(:?\d{2})?|Z)$/.test(s);
+}
+export function formatTimestampWithTZ(date: Date | string, precision: number = 3) {
+	// Convert to Temporal.Instant
+	let instant;
+
+	if (date instanceof Date) {
+		instant = Temporal.Instant.from(date.toISOString());
+	} else {
+		instant = hasTimeZoneSuffix(date) ? Temporal.Instant.from(date) : Temporal.Instant.from(date + 'Z');
+	}
+
+	const iso = instant.toString();
+
+	const fractionalDigits = iso.split('.')[1]!.replace('Z', '').length;
+
+	// decide whether to limit precision
+	const formatted = fractionalDigits > precision
+		// @ts-expect-error
+		? instant.toString({ fractionalSecondDigits: precision })
+		: iso;
+
+	return formatted.replace('T', ' ').replace('Z', '+00');
+}
 
 export const isDefaultAction = (action: string) => {
 	return action.toLowerCase() === 'no action';
@@ -492,6 +618,6 @@ export const defaults = {
 	},
 
 	index: {
-		method: 'prefix',
+		method: 'btree',
 	},
 } as const;

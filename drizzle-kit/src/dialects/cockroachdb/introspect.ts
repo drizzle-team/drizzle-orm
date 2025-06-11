@@ -434,7 +434,29 @@ WHERE relnamespace IN (${filteredNamespacesIds.join(',')});`);
 				AND attnum > 0
 				AND attisdropped = FALSE;`);
 
-	const [dependList, enumsList, sequencesList, policiesList, rolesList, constraintsList, columnsList] = await Promise
+	const extraColumnDataTypesQuery = db.query<{
+		table_schema: string;
+		table_name: string;
+		column_name: string;
+		data_type: string;
+	}>(`SELECT 
+			table_schema as table_schema, 
+			table_name as table_name, 
+			column_name as column_name, 
+			lower(crdb_sql_type) as data_type  
+		FROM information_schema.columns 
+		WHERE  ${tablesList.length ? `table_name in (${tablesList.map((it) => `'${it.name}'`).join(', ')})` : 'false'}`);
+
+	const [
+		dependList,
+		enumsList,
+		sequencesList,
+		policiesList,
+		rolesList,
+		constraintsList,
+		columnsList,
+		extraColumnDataTypesList,
+	] = await Promise
 		.all([
 			dependQuery,
 			enumsQuery,
@@ -443,6 +465,7 @@ WHERE relnamespace IN (${filteredNamespacesIds.join(',')});`);
 			rolesQuery,
 			constraintsQuery,
 			columnsQuery,
+			extraColumnDataTypesQuery,
 		]);
 
 	const groupedEnums = enumsList.reduce((acc, it) => {
@@ -549,6 +572,9 @@ WHERE relnamespace IN (${filteredNamespacesIds.join(',')});`);
 	for (const column of columnsList.filter((x) => x.kind === 'r' && !x.isHidden)) {
 		const table = tablesList.find((it) => it.oid === column.tableId)!;
 		const schema = namespaces.find((it) => it.oid === table.schemaId)!;
+		const extraColumnConfig = extraColumnDataTypesList.find((it) =>
+			it.column_name === column.name && it.table_name === table.name && it.table_schema === schema.name
+		)!;
 
 		// supply enums
 		const enumType = column.typeId in groupedEnums
@@ -556,7 +582,18 @@ WHERE relnamespace IN (${filteredNamespacesIds.join(',')});`);
 			: column.typeId in groupedArrEnums
 			? groupedArrEnums[column.typeId]
 			: null;
-		let columnTypeMapped = enumType ? enumType.name : column.type.replace('[]', '');
+
+		let columnTypeMapped;
+		const unintrospectedPrecisions = ['vector', 'interval'];
+		if (enumType) {
+			columnTypeMapped = enumType.name;
+		} else if (unintrospectedPrecisions.find((it) => extraColumnConfig.data_type.startsWith(it))) {
+			columnTypeMapped = extraColumnConfig.data_type;
+		} else {
+			columnTypeMapped = column.type;
+		}
+
+		columnTypeMapped = columnTypeMapped.replace('[]', '');
 
 		if (columnTypeMapped.startsWith('numeric(')) {
 			columnTypeMapped = columnTypeMapped.replace(',', ', ');
@@ -572,6 +609,7 @@ WHERE relnamespace IN (${filteredNamespacesIds.join(',')});`);
 			columnTypeMapped,
 			columnDefault?.expression,
 			columnDimensions,
+			Boolean(enumType),
 		);
 
 		columnTypeMapped = columnTypeMapped
@@ -736,6 +774,7 @@ WHERE relnamespace IN (${filteredNamespacesIds.join(',')});`);
 			expression: string | null;
 			where: string;
 			columnOrdinals: number[];
+			index_def: string;
 			opclassIds: number[];
 			options: number[];
 			isUnique: boolean;
@@ -757,6 +796,7 @@ WHERE relnamespace IN (${filteredNamespacesIds.join(',')});`);
           pg_get_expr(indexprs, indrelid) AS "expression",
           pg_get_expr(indpred, indrelid) AS "where",
           indrelid::int AS "tableId",
+          pg_get_indexdef(indexrelid) AS index_def,
           indkey::int[] as "columnOrdinals",
           indclass::int[] as "opclassIds",
           indoption::int[] as "options",
@@ -772,7 +812,7 @@ WHERE relnamespace IN (${filteredNamespacesIds.join(',')});`);
     `);
 
 	for (const idx of idxs) {
-		const { metadata } = idx;
+		const { metadata, accessMethod } = idx;
 
 		// filter for drizzle only?
 		const forPK = metadata.isPrimary && constraintsList.some((x) => x.type === 'p' && x.indexId === idx.oid);
@@ -800,7 +840,6 @@ WHERE relnamespace IN (${filteredNamespacesIds.join(',')});`);
 		const opts = metadata.options.map((it) => {
 			return {
 				descending: (it & 1) === 1,
-				nullsFirst: (it & 2) === 2,
 			};
 		});
 
@@ -840,12 +879,19 @@ WHERE relnamespace IN (${filteredNamespacesIds.join(',')});`);
 		const columns = res.map((it) => {
 			return {
 				asc: !it.options.descending,
-				nullsFirst: it.options.nullsFirst,
-				opclass: null, // TODO for now
 				isExpression: it.type === 'expression',
 				value: it.type === 'expression' ? it.value : it.value.name, // column name
 			} satisfies Index['columns'][number];
 		});
+
+		// TODO
+		const indexAccessMethod = metadata.index_def.includes(' USING HASH ')
+			? 'hash'
+			: metadata.index_def.includes(' USING cspann ')
+			? 'cspann'
+			: accessMethod === 'inverted'
+			? 'gin'
+			: 'btree';
 
 		indexes.push({
 			entityType: 'indexes',
@@ -853,9 +899,8 @@ WHERE relnamespace IN (${filteredNamespacesIds.join(',')});`);
 			table: table.name,
 			name: idx.name,
 			nameExplicit: true,
-			method: idx.accessMethod,
+			method: indexAccessMethod,
 			isUnique: metadata.isUnique,
-			with: idx.with?.join(', ') ?? '',
 			where: idx.metadata.where,
 			columns: columns,
 			concurrently: false,

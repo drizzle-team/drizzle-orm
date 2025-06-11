@@ -31,12 +31,7 @@ interface IndexConfig {
 	where?: SQL;
 
 	/**
-	 * The optional WITH clause specifies storage parameters for the index
-	 */
-	with?: Record<string, any>;
-
-	/**
-	 * The optional WITH clause method for the index
+	 * The optional USING clause method for the index
 	 */
 	method?: 'btree' | string;
 }
@@ -44,77 +39,10 @@ interface IndexConfig {
 export type IndexColumn = CockroachDbColumn;
 
 export type CockroachDbIndexMethod =
-	| 'prefix'
 	| 'btree'
 	| 'hash'
-	| 'gist'
-	| 'spgist'
 	| 'gin'
-	| 'brin'
-	| 'hnsw'
-	| 'ivfflat'
-	| (string & {});
-
-export type CockroachDbIndexOpClass =
-	| 'abstime_ops'
-	| 'access_method'
-	| 'anyarray_eq'
-	| 'anyarray_ge'
-	| 'anyarray_gt'
-	| 'anyarray_le'
-	| 'anyarray_lt'
-	| 'anyarray_ne'
-	| 'bigint_ops'
-	| 'bit_ops'
-	| 'bool_ops'
-	| 'box_ops'
-	| 'bpchar_ops'
-	| 'char_ops'
-	| 'cidr_ops'
-	| 'cstring_ops'
-	| 'date_ops'
-	| 'float_ops'
-	| 'int2_ops'
-	| 'int4_ops'
-	| 'int8_ops'
-	| 'interval_ops'
-	| 'jsonb_ops'
-	| 'macaddr_ops'
-	| 'name_ops'
-	| 'numeric_ops'
-	| 'oid_ops'
-	| 'oidint4_ops'
-	| 'oidint8_ops'
-	| 'oidname_ops'
-	| 'oidvector_ops'
-	| 'point_ops'
-	| 'polygon_ops'
-	| 'range_ops'
-	| 'record_eq'
-	| 'record_ge'
-	| 'record_gt'
-	| 'record_le'
-	| 'record_lt'
-	| 'record_ne'
-	| 'text_ops'
-	| 'time_ops'
-	| 'timestamp_ops'
-	| 'timestamptz_ops'
-	| 'timetz_ops'
-	| 'uuid_ops'
-	| 'varbit_ops'
-	| 'varchar_ops'
-	// pg_vector types
-	| 'xml_ops'
-	| 'vector_l2_ops'
-	| 'vector_ip_ops'
-	| 'vector_cosine_ops'
-	| 'vector_l1_ops'
-	| 'bit_hamming_ops'
-	| 'bit_jaccard_ops'
-	| 'halfvec_l2_ops'
-	| 'sparsevec_l2_op'
-	| (string & {});
+	| 'cspann';
 
 export class IndexBuilderOn {
 	static readonly [entityKind]: string = 'CockroachDbIndexBuilderOn';
@@ -156,11 +84,7 @@ export class IndexBuilderOn {
 	}
 
 	/**
-	 * Specify what index method to use. Choices are `btree`, `hash`, `gist`, `spgist`, `gin`, `brin`, or user-installed access methods like `bloom`. The default method is `btree.
-	 *
-	 * If you have the `pg_vector` extension installed in your database, you can use the `hnsw` and `ivfflat` options, which are predefined types.
-	 *
-	 * **You can always specify any string you want in the method, in case Drizzle doesn't have it natively in its types**
+	 * Specify what index method to use. Choices are `btree`, `hash`, `gin`, `cspann`. The default method is `btree`.
 	 *
 	 * @param method The name of the index method to be used
 	 * @param columns
@@ -206,7 +130,7 @@ export class IndexBuilder implements AnyIndexBuilder {
 		unique: boolean,
 		only: boolean,
 		name?: string,
-		method: string = 'prefix',
+		method: string = 'btree',
 	) {
 		this.config = {
 			name,
@@ -219,11 +143,6 @@ export class IndexBuilder implements AnyIndexBuilder {
 
 	concurrently(): this {
 		this.config.concurrently = true;
-		return this;
-	}
-
-	with(obj: Record<string, any>): this {
-		this.config.with = obj;
 		return this;
 	}
 

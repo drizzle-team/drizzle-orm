@@ -44,16 +44,10 @@ export const createDDL = () => {
 					value: 'string',
 					isExpression: 'boolean',
 					asc: 'boolean',
-					nullsFirst: 'boolean',
-					opclass: {
-						name: 'string',
-						default: 'boolean',
-					},
 				},
 			],
 			isUnique: 'boolean',
 			where: 'string?',
-			with: 'string',
 			method: 'string',
 			concurrently: 'boolean',
 		},
@@ -414,12 +408,11 @@ export const interimToDDL = (
 			name,
 			concurrently: false,
 			isUnique: true,
-			with: '',
 			method: defaults.index.method,
 			nameExplicit: !!column.uniqueName,
 			where: null,
 			schema: column.schema,
-			columns: [{ asc: true, isExpression: false, nullsFirst: true, opclass: null, value: column.name }],
+			columns: [{ asc: true, isExpression: false, value: column.name }],
 		});
 	}
 

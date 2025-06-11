@@ -3,7 +3,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
-import { CockroachDbColumn, CockroachDbColumnWithArrayBuilder } from '../common.ts';
+import { CockroachDbColumn, CockroachDbColumnBuilder } from './common.ts';
 
 export type CockroachDbVectorBuilderInitial<TName extends string, TDimensions extends number> =
 	CockroachDbVectorBuilder<{
@@ -18,7 +18,7 @@ export type CockroachDbVectorBuilderInitial<TName extends string, TDimensions ex
 
 export class CockroachDbVectorBuilder<
 	T extends ColumnBuilderBaseConfig<'array', 'CockroachDbVector'> & { dimensions: number },
-> extends CockroachDbColumnWithArrayBuilder<
+> extends CockroachDbColumnBuilder<
 	T,
 	{ dimensions: T['dimensions'] },
 	{ dimensions: T['dimensions'] }

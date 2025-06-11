@@ -18,7 +18,6 @@ import { ForeignKeyBuilder } from '~/cockroachdb-core/foreign-keys.ts';
 import type { AnyCockroachDbTable, CockroachDbTable } from '~/cockroachdb-core/table.ts';
 import type { SQL } from '~/sql/sql.ts';
 import { iife } from '~/tracing-utils.ts';
-import type { CockroachDbIndexOpClass } from '../indexes.ts';
 import { makeCockroachDbArray, parseCockroachDbArray } from '../utils/array.ts';
 
 export interface ReferenceConfig {
@@ -169,7 +168,7 @@ export abstract class CockroachDbColumn<
 	}
 }
 
-export type IndexedExtraConfigType = { order?: 'asc' | 'desc'; nulls?: 'first' | 'last'; opClass?: string };
+export type IndexedExtraConfigType = { order?: 'asc' | 'desc' };
 
 export class ExtraConfigColumn<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
@@ -182,13 +181,9 @@ export class ExtraConfigColumn<
 
 	indexConfig: IndexedExtraConfigType = {
 		order: this.config.order ?? 'asc',
-		nulls: this.config.nulls ?? 'first',
-		opClass: this.config.opClass,
 	};
 	defaultConfig: IndexedExtraConfigType = {
 		order: 'asc',
-		nulls: 'first',
-		opClass: undefined,
 	};
 
 	asc(): Omit<this, 'asc' | 'desc'> {
@@ -198,21 +193,6 @@ export class ExtraConfigColumn<
 
 	desc(): Omit<this, 'asc' | 'desc'> {
 		this.indexConfig.order = 'desc';
-		return this;
-	}
-
-	nullsFirst(): Omit<this, 'nullsFirst' | 'nullsLast'> {
-		this.indexConfig.nulls = 'first';
-		return this;
-	}
-
-	nullsLast(): Omit<this, 'nullsFirst' | 'nullsLast'> {
-		this.indexConfig.nulls = 'last';
-		return this;
-	}
-
-	op(opClass: CockroachDbIndexOpClass): Omit<this, 'op'> {
-		this.indexConfig.opClass = opClass;
 		return this;
 	}
 }

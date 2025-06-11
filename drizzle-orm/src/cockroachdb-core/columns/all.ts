@@ -1,4 +1,5 @@
 import { bigint, int8 } from './bigint.ts';
+import { bit } from './bit.ts';
 import { boolean } from './boolean.ts';
 import { char } from './char.ts';
 import { customType } from './custom.ts';
@@ -17,8 +18,7 @@ import { time } from './time.ts';
 import { timestamp } from './timestamp.ts';
 import { uuid } from './uuid.ts';
 import { varchar } from './varchar.ts';
-import { bit } from './vector_extension/bit.ts';
-import { vector } from './vector_extension/vector.ts';
+import { vector } from './vector.ts';
 
 export function getCockroachDbColumnBuilders() {
 	return {

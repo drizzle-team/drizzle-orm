@@ -12,7 +12,7 @@ export const defaultNameForPK = (table: string) => {
 };
 
 export const defaultNameForUnique = (table: string, column: string[]) => {
-	const desired = `${table}_${column}_key`;
+	const desired = `${table}_${column.join('_')}_key`;
 	const res = desired.length > 128
 		? table.length < 128 - 18 // _{hash(12)}_key
 			? `${table}_${hash(desired)}_key`

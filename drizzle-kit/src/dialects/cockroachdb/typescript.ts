@@ -365,6 +365,7 @@ export const ddlToTypeScript = (
 			patched = patched.startsWith('timestamp(') ? 'timestamp' : patched;
 			patched = patched.startsWith('vector(') ? 'vector' : patched;
 			patched = patched.startsWith('geometry(') ? 'geometry' : patched;
+			patched = patched.startsWith('interval') ? 'interval' : patched;
 
 			if (cockroachdbImportsList.has(patched)) imports.add(patched);
 		}
@@ -383,7 +384,9 @@ export const ddlToTypeScript = (
 		const func = enumSchema ? `${enumSchema}.enum` : 'cockroachdbEnum';
 
 		const values = Object.values(it.values)
-			.map((it) => `'${unescapeSingleQuotes(it, false)}'`)
+			.map((it) => {
+				return `\`${it.replace('`', '\\`')}\``;
+			})
 			.join(', ');
 		return `export const ${withCasing(paramName, casing)} = ${func}("${it.name}", [${values}])\n`;
 	})
@@ -547,31 +550,6 @@ const isSelf = (fk: ForeignKey) => {
 	return fk.table === fk.tableTo;
 };
 
-const buildArrayDefault = (defaultValue: string, typeName: string): string => {
-	if (typeof defaultValue === 'string' && !(defaultValue.startsWith('{') || defaultValue.startsWith("'{"))) {
-		return `sql\`${defaultValue}\``;
-	}
-	defaultValue = defaultValue.substring(1, defaultValue.length - 1);
-	return `[${
-		defaultValue
-			.split(/\s*,\s*/g)
-			.map((value) => {
-				// 	if (['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(typeName)) {
-				// 		return value;
-				// 	} else if (typeName === 'interval') {
-				// 		return value.replaceAll('"', "'");
-				// 	} else if (typeName === 'boolean') {
-				// 		return value === 't' ? 'true' : 'false';
-				if (typeName === 'json' || typeName === 'jsonb') {
-					return value.substring(1, value.length - 1).replaceAll('\\', '');
-				}
-				return value;
-				// 	}
-			})
-			.join(', ')
-	}]`;
-};
-
 const mapDefault = (
 	type: string,
 	enumTypes: Set<string>,
@@ -602,7 +580,7 @@ const mapDefault = (
 		return `.default(${res})`;
 	}
 
-	if (lowered === 'timestamp') {
+	if (lowered.startsWith('timestamp')) {
 		if (def.value === 'now()') return '.defaultNow()';
 		const res = stringifyArray(parsed, 'ts', (x) => {
 			// Matches YYYY-MM-DD HH:MI:SS, YYYY-MM-DD HH:MI:SS.FFFFFF, YYYY-MM-DD HH:MI:SS+TZ, YYYY-MM-DD HH:MI:SS.FFFFFF+TZ and YYYY-MM-DD HH:MI:SS+HH:MI
@@ -612,7 +590,7 @@ const mapDefault = (
 		return `.default(${res})`;
 	}
 
-	if (lowered === 'time') {
+	if (lowered.startsWith('time')) {
 		if (def.value === 'now()') return '.defaultNow()';
 		const res = stringifyArray(parsed, 'ts', (x) => {
 			return /^\d{2}:\d{2}(:\d{2})?(\.\d+)?$/.test(x) ? `'${x}'` : `sql\`${x}\``; // Matches HH:MI, HH:MI:SS and HH:MI:SS.FFFFFF
@@ -629,7 +607,7 @@ const mapDefault = (
 		return `.default(${res})`;
 	}
 
-	if (lowered === 'json' || lowered === 'jsonb') {
+	if (lowered === 'jsonb') {
 		if (!def.value) return '';
 		const res = stringifyArray(parsed, 'ts', (x) => {
 			return String(x);
@@ -637,67 +615,45 @@ const mapDefault = (
 		return `.default(${res})`;
 	}
 
-	if (lowered === 'point' || lowered === 'line') {
-		if (typeof parsed === 'string') {
-			return `.default([${parsed.substring(1, parsed.length - 1).split(',')}])`; // "{1,1,1}" -> [1,1,1]
-		}
-		if (parsed.flat(5).length === 0) return `.default([])`;
-		const res = stringifyArray(parsed, 'ts', (x) => String(x.substring(1, x.length - 1).split(',')));
-
-		return `.default([${res}])`;
-	}
-
-	// if () {
-	// 		if (typeof parsed === 'string') {
-	// 		return `.default([${parsed.substring(1, parsed.length - 1).split(',')}])`; // "{1,1,1}" -> [1,1,1]
-	// 	}
-	// 	if (parsed.flat(5).length === 0) return `.default([])`;
-	// 	const res = stringifyArray(parsed, 'ts', (x) => String(x.substring(1, x.length - 1).split(',')));
-
-	// 	return `.default([${res}])`;
-	// }
-
-	if (
-		lowered === 'geometry'
-		|| lowered === 'vector'
-		|| lowered === 'char'
-		|| lowered === 'varchar'
-		|| lowered === 'inet'
-		|| lowered === 'text'
-		|| lowered === 'interval'
-		|| lowered === 'numeric'
-		|| lowered === 'int4'
-		|| lowered === 'int2'
-		|| lowered === 'int8'
-		|| lowered === 'boolean'
-		|| lowered === 'double precision'
-		|| lowered === 'real'
-		|| lowered === 'bit'
-	) {
-		const mapper = lowered === 'char'
-				|| lowered === 'varchar'
-				|| lowered === 'text'
-				|| lowered === 'interval'
-				|| lowered === 'inet'
-			? (x: string) => `\`${x.replaceAll('`', '\\`')}\``
-			: lowered === 'int8'
-					|| lowered === 'numeric'
-			? (x: string) => {
-				const value = Number(x);
-				return value > Number.MAX_SAFE_INTEGER || value < Number.MIN_SAFE_INTEGER ? `${x}n` : `${x}`;
+	const mapper = lowered === 'char'
+			|| lowered === 'varchar'
+			|| lowered === 'text'
+			|| lowered === 'inet'
+		? (x: string) => {
+			if (dimensions === 0) {
+				return `\`${x.replaceAll('`', '\\`').replaceAll("''", "'")}\``;
 			}
-			: (x: string) => `${x}`;
-		if (dimensions > 0) {
-			const arr = parseArray(def.value);
-			if (arr.flat(5).length === 0) return `.default([])`;
-			const res = stringifyArray(arr, 'ts', mapper);
-			return `.default(${res})`;
-		}
 
-		return `.default(${mapColumnDefault(def)})`;
+			return `\`${x.replaceAll('`', '\\`')}\``;
+		}
+		: lowered === 'int8'
+		? (x: string) => {
+			const value = Number(x);
+			return value > Number.MAX_SAFE_INTEGER || value < Number.MIN_SAFE_INTEGER ? `${x}n` : `${x}`;
+		}
+		: lowered.startsWith('numeric')
+		? (x: string) => {
+			const value = Number(x);
+			return value > Number.MAX_SAFE_INTEGER || value < Number.MIN_SAFE_INTEGER ? `${x}n` : `${x}`;
+		}
+		: lowered.startsWith('interval')
+		? (x: string) => `'${x}'`
+		: lowered.startsWith('boolean')
+		? (x: string) => x === 't' || x === 'true' ? 'true' : 'false'
+		: (x: string) => `${x}`;
+
+	if (dimensions > 0) {
+		const arr = parseArray(def.value);
+		if (arr.flat(5).length === 0) return `.default([])`;
+
+		const res = stringifyArray(arr, 'ts', (x) => {
+			const res = mapper(x);
+			return res;
+		});
+		return `.default(${res})`;
 	}
 
-	return '';
+	return `.default(${mapper(def.value)})`;
 };
 
 const column = (
@@ -768,12 +724,13 @@ const column = (
 		let mode = def !== null && def.type === 'bigint'
 			? 'bigint'
 			: def !== null && def.type === 'string'
-			? 'number'
+			? 'string'
 			: 'number';
 
 		if (mode) params['mode'] = mode;
 
-		let out = Object.keys(params).length > 0
+		let out = `// You can use { mode: "bigint" } if numbers are exceeding js number limitations\n\t`;
+		out += Object.keys(params).length > 0
 			? `${withCasing(name, casing)}: numeric(${dbColumnName({ name, casing, withMode: true })}${
 				JSON.stringify(params)
 			})`
@@ -782,7 +739,7 @@ const column = (
 		return out;
 	}
 
-	if (lowered === 'timestamp') {
+	if (lowered.startsWith('timestamp')) {
 		const withTimezone = lowered.includes('with time zone');
 
 		const precision = options
@@ -802,7 +759,7 @@ const column = (
 		return out;
 	}
 
-	if (lowered === 'time') {
+	if (lowered.startsWith('time')) {
 		const withTimezone = lowered.includes('with time zone');
 
 		let precision = options
@@ -819,14 +776,9 @@ const column = (
 	}
 
 	if (lowered.startsWith('interval')) {
-		// const withTimezone = lowered.includes("with time zone");
-		// const split = lowered.split(" ");
-		// let precision = split.length >= 2 ? Number(split[1].substring(1, 2)) : null;
-		// precision = precision ? precision : null;
-
-		const params = intervalConfig(lowered);
-
-		let out = params
+		const suffix = options ? `(${options})` : '';
+		const params = intervalConfig(`${lowered}${suffix}`);
+		let out = options
 			? `${withCasing(name, casing)}: interval(${dbColumnName({ name, casing, withMode: true })}${params})`
 			: `${withCasing(name, casing)}: interval(${dbColumnName({ name, casing })})`;
 
@@ -1107,20 +1059,13 @@ const createTableIndexes = (tableName: string, idxs: Index[], casing: Casing): s
 					if (it.isExpression) {
 						return `sql\`${it.isExpression}\``;
 					} else {
-						return `table.${withCasing(it.value, casing)}${it.asc ? '.asc()' : '.desc()'}${
-							it.nullsFirst ? '.nullsFirst()' : '.nullsLast()'
-						}${
-							it.opclass && !it.opclass.default
-								? `.op("${it.opclass.name}")`
-								: ''
-						}`;
+						return `table.${withCasing(it.value, casing)}${it.asc ? '.asc()' : '.desc()'}`;
 					}
 				})
 				.join(', ')
 		})`;
 		statement += it.where ? `.where(sql\`${it.where}\`)` : '';
 
-		statement += it.with && Object.keys(it.with).length > 0 ? `.with(${it.with})` : '';
 		statement += `,\n`;
 	});
 

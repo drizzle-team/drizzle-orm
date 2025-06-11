@@ -1,4 +1,5 @@
 export * from './bigint.ts';
+export * from './bit.ts';
 export * from './boolean.ts';
 export * from './char.ts';
 export * from './common.ts';
@@ -20,5 +21,4 @@ export * from './time.ts';
 export * from './timestamp.ts';
 export * from './uuid.ts';
 export * from './varchar.ts';
-export * from './vector_extension/bit.ts';
-export * from './vector_extension/vector.ts';
+export * from './vector.ts';

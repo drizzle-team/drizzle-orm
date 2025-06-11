@@ -1,5 +1,5 @@
 import { escapeSingleQuotes, type Simplify } from '../../utils';
-import { defaultNameForPK, defaults, defaultToSQL, isDefaultAction, parseType } from './grammar';
+import { defaultNameForPK, defaults, defaultToSQL, isDefaultAction, typeToSql } from './grammar';
 import type { JsonStatement } from './statements';
 
 export const convertor = <
@@ -88,14 +88,7 @@ const createTableConvertor = convertor('create_table', (st) => {
 		const notNullStatement = isPK ? '' : column.notNull && !column.identity ? ' NOT NULL' : '';
 		const defaultStatement = column.default ? ` DEFAULT ${defaultToSQL(column)}` : '';
 
-		const schemaPrefix = column.typeSchema && column.typeSchema !== 'public'
-			? `"${column.typeSchema}".`
-			: '';
-
-		const arr = column.dimensions > 0 ? '[]' : '';
-		const options = column.options ? `(${column.options})` : '';
-		const colType = column.typeSchema ? `"${column.type}"` : column.type;
-		const type = `${schemaPrefix}${colType}${options}${arr}`;
+		const type = typeToSql(column);
 
 		const generated = column.generated;
 
@@ -201,13 +194,7 @@ const addColumnConvertor = convertor('add_column', (st) => {
 
 	const defaultStatement = column.default ? ` DEFAULT ${defaultToSQL(column)}` : '';
 
-	const schemaPrefix = column.typeSchema && column.typeSchema !== 'public'
-		? `"${column.typeSchema}".`
-		: '';
-
-	const options = column.options ? `(${column.options})` : '';
-	const type = column.typeSchema ? `"${column.type}"` : column.type;
-	let fixedType = `${schemaPrefix}${type}${options}${'[]'.repeat(column.dimensions)}`;
+	const type = typeToSql(column);
 
 	const notNullStatement = column.notNull && !identity && !generated ? ' NOT NULL' : '';
 
@@ -233,7 +220,7 @@ const addColumnConvertor = convertor('add_column', (st) => {
 
 	const generatedStatement = column.generated ? ` GENERATED ALWAYS AS (${column.generated.as}) STORED` : '';
 
-	return `ALTER TABLE ${tableNameWithSchema} ADD COLUMN "${name}" ${fixedType}${primaryKeyStatement}${defaultStatement}${generatedStatement}${notNullStatement}${identityStatement};`;
+	return `ALTER TABLE ${tableNameWithSchema} ADD COLUMN "${name}" ${type}${primaryKeyStatement}${defaultStatement}${generatedStatement}${notNullStatement}${identityStatement};`;
 });
 
 const dropColumnConvertor = convertor('drop_column', (st) => {
@@ -279,25 +266,9 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 	}
 
 	if (diff.type || diff.options) {
-		const typeSchema = column.typeSchema && column.typeSchema !== 'public' ? `"${column.typeSchema}".` : '';
-		const textProxy = wasEnum && isEnum ? 'text::' : ''; // using enum1::text::enum2
-		const arrSuffix = column.dimensions > 0 ? '[]' : '';
-		const suffix = isEnum ? ` USING "${column.name}"::${textProxy}${typeSchema}"${column.type}"${arrSuffix}` : '';
-		let type: string;
+		const type = typeToSql(column, diff, wasEnum, isEnum);
 
-		if (diff.type) {
-			type = diff.typeSchema?.to && diff.typeSchema.to !== 'public'
-				? `"${diff.typeSchema.to}"."${diff.type.to}"`
-				: isEnum
-				? `"${diff.type.to}"`
-				: diff.type.to; // TODO: enum?
-		} else {
-			type = `${typeSchema}${column.typeSchema ? `"${column.type}"` : column.type}`;
-		}
-
-		type += column.options ? `(${column.options})` : '';
-		type += arrSuffix;
-		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${type}${suffix};`);
+		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${type};`);
 
 		if (recreateDefault) {
 			const typeSuffix = isEnum && column.dimensions === 0 ? `::${type}` : '';
@@ -309,12 +280,8 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 
 	if (diff.default && !recreateDefault) {
 		if (diff.default.to) {
-			const typeSchema = column.typeSchema && column.typeSchema !== 'public' ? `"${column.typeSchema}".` : '';
-			const arrSuffix = column.dimensions > 0 ? '[]' : '';
-			const typeSuffix = isEnum ? `::${typeSchema}"${column.type}"${arrSuffix}` : '';
-
 			statements.push(
-				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(diff.$right)}${typeSuffix};`,
+				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(diff.$right)};`,
 			);
 		} else {
 			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
@@ -383,7 +350,6 @@ const createIndexConvertor = convertor('create_index', (st) => {
 		columns,
 		isUnique,
 		concurrently,
-		with: w,
 		method,
 		where,
 	} = st.index;
@@ -391,19 +357,11 @@ const createIndexConvertor = convertor('create_index', (st) => {
 	const value = columns
 		.map((it) => {
 			const expr = it.isExpression ? it.value : `"${it.value}"`;
-			const opcl = it.opclass && !it.opclass.default ? ` ${it.opclass.name}` : '';
 
 			// ASC - default
 			const ord = it.asc ? '' : ' DESC';
 
-			// skip if asc+nulls first or desc+nulls last
-			const nulls = (it.asc && it.nullsFirst) || (!it.asc && !it.nullsFirst)
-				? ''
-				: it.nullsFirst
-				? ' NULLS FIRST'
-				: ' NULLS LAST';
-
-			return `${expr}${opcl}${ord}${nulls}`;
+			return `${expr}${ord}`;
 		}).join(',');
 
 	const key = schema !== 'public'
@@ -411,7 +369,6 @@ const createIndexConvertor = convertor('create_index', (st) => {
 		: `"${table}"`;
 
 	const concur = concurrently ? ' CONCURRENTLY' : '';
-	const withClause = w ? ` WITH (${w})` : '';
 	const whereClause = where ? ` WHERE ${where}` : '';
 	const using = method !== defaults.index.method ? method : null;
 
@@ -419,9 +376,9 @@ const createIndexConvertor = convertor('create_index', (st) => {
 	if (using === 'hash') {
 		statement += ` (${value}) USING ${using}`;
 	} else {
-		statement += using ? ` USING ${using}` : '' + ` (${value})`;
+		statement += (using ? ` USING ${using}` : '') + ` (${value})`;
 	}
-	statement += `${withClause}${whereClause};`;
+	statement += `${whereClause};`;
 
 	return statement;
 });

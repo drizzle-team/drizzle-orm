@@ -51,6 +51,7 @@ import {
 	defaultNameForUnique,
 	defaults,
 	fixNumeric,
+	formatTimestampWithTZ,
 	indexName,
 	maxRangeForIdentityBasedOn,
 	minRangeForIdentityBasedOn,
@@ -168,34 +169,52 @@ export const defaultFromColumn = (
 
 	const sqlTypeLowered = base.getSQLType().toLowerCase();
 	if (sqlTypeLowered === 'jsonb') {
-		const value = dimensions > 0 && Array.isArray(def) ? buildArrayString(def, sqlTypeLowered) : JSON.stringify(def);
+		const value = dimensions > 0 && Array.isArray(def)
+			? buildArrayString(def, sqlTypeLowered, options)
+			: JSON.stringify(def);
 		return {
 			value: value,
 			type: 'json',
 		};
 	}
 
-	let scale: number | undefined;
-	if (sqlTypeLowered.startsWith('numeric')) {
-		// if precision exists and scale not -> scale = 0
-		// if scale exists -> scale = scale
-		// if options does not exists (p,s are not present) -> scale is undefined
-		if (options) {
-			// if option exists we have 2 possible variants
-			// 1. p exists
-			// 2. p and s exists
-			const [_, s] = options.split(',');
+	if (sqlTypeLowered.startsWith('timestamp') && sqlTypeLowered.includes('with time zone') && typeof def === 'string') {
+		const value = dimensions > 0 && Array.isArray(def)
+			? buildArrayString(def, sqlTypeLowered, options)
+			: formatTimestampWithTZ(def, options ? Number(options) : undefined);
 
-			// if scale exists - use scale
-			// else use 0 (cause p exists)
-			scale = s !== undefined ? Number(s) : 0;
-		}
+		return {
+			value: value,
+			type: 'string',
+		};
+	}
+
+	if (sqlTypeLowered.startsWith('time') && sqlTypeLowered.includes('with time zone') && typeof def === 'string') {
+		const value = dimensions > 0 && Array.isArray(def)
+			? buildArrayString(def, sqlTypeLowered, options)
+			: def.replace('Z', '+00').replace('z', '+00');
+
+		return {
+			value: value,
+			type: 'string',
+		};
+	}
+
+	if (sqlTypeLowered.startsWith('numeric')) {
+		const value = dimensions > 0 && Array.isArray(def)
+			? buildArrayString(def, sqlTypeLowered, options)
+			: fixNumeric(String(def), options);
+
+		return {
+			value: value,
+			type: typeof def === 'number' ? 'number' : 'string',
+		};
 	}
 
 	if (typeof def === 'string') {
 		const value = dimensions > 0 && Array.isArray(def)
-			? buildArrayString(def, sqlTypeLowered, scale)
-			: fixNumeric(def, scale).replaceAll("'", "''");
+			? buildArrayString(def, sqlTypeLowered, options)
+			: def.replaceAll("'", "''");
 
 		return {
 			value: value,
@@ -205,7 +224,7 @@ export const defaultFromColumn = (
 
 	if (typeof def === 'boolean') {
 		const value = dimensions > 0 && Array.isArray(def)
-			? buildArrayString(def, sqlTypeLowered)
+			? buildArrayString(def, sqlTypeLowered, options)
 			: (def ? 'true' : 'false');
 		return {
 			value: value,
@@ -215,8 +234,8 @@ export const defaultFromColumn = (
 
 	if (typeof def === 'number') {
 		const value = dimensions > 0 && Array.isArray(def)
-			? buildArrayString(def, sqlTypeLowered, scale)
-			: fixNumeric(String(def), scale);
+			? buildArrayString(def, sqlTypeLowered, options)
+			: String(def);
 		return {
 			value: value,
 			type: 'number',
@@ -226,25 +245,49 @@ export const defaultFromColumn = (
 	if (def instanceof Date) {
 		if (sqlTypeLowered === 'date') {
 			const value = dimensions > 0 && Array.isArray(def)
-				? buildArrayString(def, sqlTypeLowered)
+				? buildArrayString(def, sqlTypeLowered, options)
 				: def.toISOString().split('T')[0];
 			return {
 				value: value,
 				type: 'string',
 			};
 		}
-		if (sqlTypeLowered === 'timestamp') {
-			const value = dimensions > 0 && Array.isArray(def)
-				? buildArrayString(def, sqlTypeLowered)
-				: def.toISOString().replace('T', ' ').slice(0, 23);
+		if (sqlTypeLowered.startsWith('timestamp')) {
+			let value;
+			if (dimensions > 0 && Array.isArray(def)) {
+				value = buildArrayString(def, sqlTypeLowered, options);
+			} else {
+				if (sqlTypeLowered.includes('with time zone')) {
+					value = formatTimestampWithTZ(def, options ? Number(options) : undefined);
+				} else {
+					value = def.toISOString().replace('T', ' ').replace('Z', ' ').slice(0, 23);
+				}
+			}
+
 			return {
 				value: value,
 				type: 'string',
 			};
 		}
 		const value = dimensions > 0 && Array.isArray(def)
-			? buildArrayString(def, sqlTypeLowered)
-			: def.toISOString();
+			? buildArrayString(def, sqlTypeLowered, options)
+			: def.toISOString().replace('T', ' ').replace('Z', '');
+		return {
+			value: value,
+			type: 'string',
+		};
+	}
+
+	if (sqlTypeLowered.startsWith('vector') && Array.isArray(def)) {
+		const value = JSON.stringify(def.map((it: number) => {
+			const str = String(it);
+			const [integerPart, decimal] = str.split('.');
+			if (!decimal || decimal.length <= 7) {
+				return it;
+			}
+			return Number(`${integerPart}.${decimal.slice(0, 7)}`);
+		}));
+
 		return {
 			value: value,
 			type: 'string',
@@ -252,8 +295,9 @@ export const defaultFromColumn = (
 	}
 
 	const value = dimensions > 0 && Array.isArray(def)
-		? buildArrayString(def, sqlTypeLowered, scale)
-		: fixNumeric(String(def), scale);
+		? buildArrayString(def, sqlTypeLowered, options)
+		: String(def);
+
 	return {
 		value: value,
 		type: 'string',
@@ -514,20 +558,6 @@ export const fromDrizzleSchema = (
 					});
 					continue;
 				}
-
-				if (
-					is(column, IndexedColumn)
-					&& column.type === 'CockroachDbVector'
-				) {
-					const columnName = getColumnCasing(column, casing);
-					errors.push({
-						type: 'pgvector_index_noop',
-						table: tableName,
-						column: columnName,
-						indexName: index.config.name!,
-						method: index.config.method!,
-					});
-				}
 			}
 		}
 
@@ -555,7 +585,6 @@ export const fromDrizzleSchema = (
 				schema: schema,
 				table: tableName,
 				where: null,
-				with: '',
 			});
 		}
 
@@ -579,33 +608,18 @@ export const fromDrizzleSchema = (
 							value: dialect.sqlToQuery(it, 'indexes').sql,
 							isExpression: true,
 							asc: true,
-							nullsFirst: true,
-							opclass: null,
 						} satisfies Index['columns'][number];
 					} else {
 						it = it as IndexedColumn;
+
+						const asc = it.indexConfig?.order ? it.indexConfig.order === 'asc' : true;
 						return {
 							value: getColumnCasing(it as IndexedColumn, casing),
 							isExpression: false,
-							asc: it.indexConfig?.order ? it.indexConfig.order === 'asc' : true,
-							nullsFirst: it.indexConfig?.nulls
-								? it.indexConfig.nulls === 'first'
-									? true
-									: false
-								: true,
-							opclass: it.indexConfig?.opClass
-								? {
-									name: it.indexConfig.opClass,
-									default: false,
-								}
-								: null,
+							asc: asc,
 						} satisfies Index['columns'][number];
 					}
 				});
-
-				const withOpt = Object.entries(value.config.with || {})
-					.map((it) => `${it[0]}=${it[1]}`)
-					.join(', ');
 
 				let where = value.config.where ? dialect.sqlToQuery(value.config.where).sql : '';
 				where = where === 'true' ? '' : where;
@@ -621,7 +635,6 @@ export const fromDrizzleSchema = (
 					where: where ? where : null,
 					concurrently: value.config.concurrently ?? false,
 					method: value.config.method ?? defaults.index.method,
-					with: withOpt,
 					forPK: false,
 				} satisfies InterimIndex;
 			}),

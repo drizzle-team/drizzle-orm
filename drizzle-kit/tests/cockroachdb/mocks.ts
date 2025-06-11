@@ -20,7 +20,7 @@ import {
 	isCockroachDbView,
 } from 'drizzle-orm/cockroachdb-core';
 import { CasingType } from 'src/cli/validations/common';
-import { CockroachDbDDL, createDDL, interimToDDL, SchemaError } from 'src/dialects/cockroachdb/ddl';
+import { CockroachDbDDL, Column, createDDL, interimToDDL, SchemaError } from 'src/dialects/cockroachdb/ddl';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/cockroachdb/diff';
 import {
 	defaultFromColumn,
@@ -39,7 +39,7 @@ import { introspect } from 'src/cli/commands/pull-cockroachdb';
 import { suggestions } from 'src/cli/commands/push-cockroachdb';
 import { Entities } from 'src/cli/validations/cli';
 import { EmptyProgressView } from 'src/cli/views';
-import { defaultToSQL, isSystemNamespace, isSystemRole } from 'src/dialects/cockroachdb/grammar';
+import { defaultToSQL, isSystemRole } from 'src/dialects/cockroachdb/grammar';
 import { fromDatabaseForDrizzle } from 'src/dialects/cockroachdb/introspect';
 import { ddlToTypeScript } from 'src/dialects/cockroachdb/typescript';
 import { hash } from 'src/dialects/common';
@@ -339,7 +339,8 @@ export const diffDefault = async <T extends CockroachDbColumnBuilder>(
 		type: baseType,
 		dimensions,
 		typeSchema: typeSchema,
-	});
+		options: options,
+	} as Column);
 
 	const res = [] as string[];
 	if (defaultSql !== expectedDefault) {
@@ -358,7 +359,15 @@ export const diffDefault = async <T extends CockroachDbColumnBuilder>(
 
 	const typeSchemaPrefix = typeSchema && typeSchema !== 'public' ? `"${typeSchema}".` : '';
 	const typeValue = typeSchema ? `"${baseType}"` : baseType;
-	const sqlType = `${typeSchemaPrefix}${typeValue}${options ? `(${options})` : ''}${'[]'.repeat(dimensions)}`;
+	let sqlType;
+	if (baseType.includes('with time zone')) {
+		const [type, ...rest] = typeValue.split(' ');
+
+		sqlType = `${typeSchemaPrefix}${type}${options ? `(${options})` : ''} ${rest.join(' ')}${'[]'.repeat(dimensions)}`;
+	} else {
+		sqlType = `${typeSchemaPrefix}${typeValue}${options ? `(${options})` : ''}${'[]'.repeat(dimensions)}`;
+	}
+
 	const expectedInit = `CREATE TABLE "table" (\n\t"column" ${sqlType} DEFAULT ${expectedDefault}\n);\n`;
 	if (st1.length !== 1 || st1[0] !== expectedInit) res.push(`Unexpected init:\n${st1}\n\n${expectedInit}`);
 	if (st2.length > 0) res.push(`Unexpected subsequent init:\n${st2}`);
@@ -481,6 +490,7 @@ export const prepareTestDatabase = async (): Promise<TestDatabase> => {
 
 			await client.query('CREATE EXTENSION IF NOT EXISTS postgis;');
 			await client.query('CREATE EXTENSION IF NOT EXISTS vector;');
+			await client.query(`SET CLUSTER SETTING feature.vector_index.enabled = true;`);
 
 			const clear = async () => {
 				await client.query('DROP DATABASE defaultdb;');

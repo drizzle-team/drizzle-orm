@@ -12,7 +12,6 @@ import {
 	int4,
 	int8,
 	interval,
-	json,
 	jsonb,
 	numeric,
 	primaryKey,
