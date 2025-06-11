@@ -190,7 +190,7 @@ export const fromDatabase = async (
 		const schema = filteredNamespaces.find((ns) => ns.oid === it.schemaId)!;
 		return {
 			...it,
-			schema: schema.name,
+			schema: trimChar(schema.name, '"'), // when camel case name e.x. mySchema -> it gets wrapped to "mySchema"
 		};
 	});
 	const filteredTableIds = filteredTables.map((it) => it.oid);
@@ -866,6 +866,7 @@ WHERE relnamespace IN (${filteredNamespacesIds.join(',')});`);
 					return column.tableId == metadata.tableId && column.ordinality === ordinal;
 				});
 
+				if (column?.isHidden) continue;
 				if (!column) throw new Error(`missing column: ${metadata.tableId}:${ordinal}`);
 
 				res.push({
@@ -884,14 +885,28 @@ WHERE relnamespace IN (${filteredNamespacesIds.join(',')});`);
 			} satisfies Index['columns'][number];
 		});
 
-		// TODO
-		const indexAccessMethod = metadata.index_def.includes(' USING HASH ')
-			? 'hash'
-			: metadata.index_def.includes(' USING cspann ')
-			? 'cspann'
-			: accessMethod === 'inverted'
-			? 'gin'
-			: 'btree';
+		const getUsing = (def: string, accessMethod: string): Index['method'] => {
+			const regex = /USING\s+(HASH|CSPANN)/gi;
+
+			let match: RegExpExecArray | null;
+			while ((match = regex.exec(def)) !== null) {
+				const beforeMatch = def.slice(0, match.index);
+
+				// count how many double quotes before this match
+				const quoteCount = (beforeMatch.match(/"/g) || []).length;
+
+				// if even number of quotes - outside quotes
+				if (quoteCount % 2 === 0) {
+					return match[1].toLowerCase();
+				}
+			}
+
+			if (accessMethod === 'inverted') return 'gin';
+
+			return 'btree';
+		};
+
+		const indexAccessMethod = getUsing(metadata.index_def, accessMethod);
 
 		indexes.push({
 			entityType: 'indexes',

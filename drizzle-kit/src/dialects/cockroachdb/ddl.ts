@@ -48,7 +48,7 @@ export const createDDL = () => {
 			],
 			isUnique: 'boolean',
 			where: 'string?',
-			method: 'string',
+			method: 'string?',
 			concurrently: 'boolean',
 		},
 		fks: {

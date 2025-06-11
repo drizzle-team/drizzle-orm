@@ -565,9 +565,9 @@ export const fromDrizzleSchema = (
 			const columns: InterimIndex['columns'] = unique.columns.map((c) => {
 				if (is(c, SQL)) {
 					const sql = dialect.sqlToQuery(c).sql;
-					return { value: sql, isExpression: true, nullsFirst: true, asc: true, opclass: null };
+					return { value: sql, isExpression: true, asc: true };
 				}
-				return { value: getColumnCasing(c, casing), isExpression: false, nullsFirst: true, asc: true, opclass: null };
+				return { value: getColumnCasing(c, casing), isExpression: false, asc: true };
 			});
 
 			const name = unique.name
