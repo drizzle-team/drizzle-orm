@@ -1,11 +1,11 @@
 import { eq, gt, sql } from 'drizzle-orm';
 import {
-	cockroachdbMaterializedView,
-	cockroachdbSchema,
-	cockroachdbTable,
-	cockroachdbView,
+	cockroachMaterializedView,
+	cockroachSchema,
+	cockroachTable,
+	cockroachView,
 	int4,
-} from 'drizzle-orm/cockroachdb-core';
+} from 'drizzle-orm/cockroach-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -27,7 +27,7 @@ beforeEach(async () => {
 });
 
 test('create view', async () => {
-	const table = cockroachdbTable('test', {
+	const table = cockroachTable('test', {
 		id: int4('id').primaryKey(),
 	});
 	const schema1 = {
@@ -36,7 +36,7 @@ test('create view', async () => {
 
 	const schema2 = {
 		test: table,
-		view: cockroachdbView('view').as((qb) => qb.selectDistinct().from(table)),
+		view: cockroachView('view').as((qb) => qb.selectDistinct().from(table)),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -55,12 +55,12 @@ test('create view', async () => {
 });
 
 test('create table and view #1', async () => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
 	const to = {
 		users: users,
-		view: cockroachdbView('some_view').as((qb) => qb.select().from(users)),
+		view: cockroachView('some_view').as((qb) => qb.select().from(users)),
 	};
 
 	const { sqlStatements: st } = await diff({}, to, []);
@@ -79,12 +79,12 @@ test('create table and view #1', async () => {
 });
 
 test('create table and view #2', async () => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
 	const to = {
 		users: users,
-		view: cockroachdbView('some_view', { id: int4('id') }).as(sql`SELECT * FROM ${users}`),
+		view: cockroachView('some_view', { id: int4('id') }).as(sql`SELECT * FROM ${users}`),
 	};
 
 	const { sqlStatements: st } = await diff({}, to, []);
@@ -103,13 +103,13 @@ test('create table and view #2', async () => {
 });
 
 test('create table and view #5', async () => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
 	const to = {
 		users: users,
-		view1: cockroachdbView('some_view', { id: int4('id') }).as(sql`SELECT * FROM ${users}`),
-		view2: cockroachdbView('some_view', { id: int4('id') }).as(sql`SELECT * FROM ${users}`),
+		view1: cockroachView('some_view', { id: int4('id') }).as(sql`SELECT * FROM ${users}`),
+		view2: cockroachView('some_view', { id: int4('id') }).as(sql`SELECT * FROM ${users}`),
 	};
 
 	// view_name_duplicate
@@ -118,7 +118,7 @@ test('create table and view #5', async () => {
 });
 
 test('create view with existing flag', async () => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
 
@@ -128,7 +128,7 @@ test('create view with existing flag', async () => {
 
 	const to = {
 		users: users,
-		view1: cockroachdbView('some_view', { id: int4('id') }).existing(),
+		view1: cockroachView('some_view', { id: int4('id') }).existing(),
 	};
 
 	const { sqlStatements: st } = await diff(from, to, []);
@@ -145,7 +145,7 @@ test('create view with existing flag', async () => {
 });
 
 test('create materialized view', async () => {
-	const table = cockroachdbTable('test', {
+	const table = cockroachTable('test', {
 		id: int4('id').primaryKey(),
 	});
 	const schema1 = {
@@ -154,7 +154,7 @@ test('create materialized view', async () => {
 
 	const schema2 = {
 		test: table,
-		view: cockroachdbMaterializedView('view')
+		view: cockroachMaterializedView('view')
 			.withNoData()
 			.as((qb) => qb.selectDistinct().from(table)),
 	};
@@ -175,12 +175,12 @@ test('create materialized view', async () => {
 });
 
 test('create table and materialized view #1', async () => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
 	const to = {
 		users: users,
-		view: cockroachdbMaterializedView('some_view').as((qb) => qb.select().from(users)),
+		view: cockroachMaterializedView('some_view').as((qb) => qb.select().from(users)),
 	};
 
 	const { sqlStatements: st } = await diff({}, to, []);
@@ -199,12 +199,12 @@ test('create table and materialized view #1', async () => {
 });
 
 test('create table and materialized view #2', async () => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
 	const to = {
 		users: users,
-		view: cockroachdbMaterializedView('some_view', { id: int4('id') }).as(sql`SELECT * FROM ${users}`),
+		view: cockroachMaterializedView('some_view', { id: int4('id') }).as(sql`SELECT * FROM ${users}`),
 	};
 
 	const { sqlStatements: st } = await diff({}, to, []);
@@ -223,13 +223,13 @@ test('create table and materialized view #2', async () => {
 });
 
 test('create table and materialized view #3', async () => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
 	const to = {
 		users: users,
-		view1: cockroachdbMaterializedView('some_view1', { id: int4('id') }).as(sql`SELECT * FROM ${users}`),
-		view2: cockroachdbMaterializedView('some_view2')
+		view1: cockroachMaterializedView('some_view1', { id: int4('id') }).as(sql`SELECT * FROM ${users}`),
+		view2: cockroachMaterializedView('some_view2')
 			.withNoData().as((qb) => qb.select().from(users)),
 	};
 
@@ -248,13 +248,13 @@ test('create table and materialized view #3', async () => {
 
 test('create table and materialized view #4', async () => {
 	// same names
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
 	const to = {
 		users: users,
-		view1: cockroachdbMaterializedView('some_view', { id: int4('id') }).as(sql`SELECT * FROM ${users}`),
-		view2: cockroachdbMaterializedView('some_view', { id: int4('id') }).as(sql`SELECT * FROM ${users}`),
+		view1: cockroachMaterializedView('some_view', { id: int4('id') }).as(sql`SELECT * FROM ${users}`),
+		view2: cockroachMaterializedView('some_view', { id: int4('id') }).as(sql`SELECT * FROM ${users}`),
 	};
 
 	// view_name_duplicate
@@ -263,7 +263,7 @@ test('create table and materialized view #4', async () => {
 });
 
 test('create materialized view with existing flag', async () => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
 
@@ -273,7 +273,7 @@ test('create materialized view with existing flag', async () => {
 
 	const to = {
 		users: users,
-		view1: cockroachdbMaterializedView('some_view', { id: int4('id') }).existing(),
+		view1: cockroachMaterializedView('some_view', { id: int4('id') }).existing(),
 	};
 
 	const { sqlStatements: st } = await diff(from, to, []);
@@ -290,13 +290,13 @@ test('create materialized view with existing flag', async () => {
 });
 
 test('drop view #1', async () => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
 
 	const from = {
 		users,
-		view: cockroachdbView('some_view', { id: int4('id') }).as(sql`SELECT * FROM ${users}`),
+		view: cockroachView('some_view', { id: int4('id') }).as(sql`SELECT * FROM ${users}`),
 	};
 
 	const to = {
@@ -319,12 +319,12 @@ test('drop view #1', async () => {
 });
 
 test('drop view #2', async () => {
-	const table = cockroachdbTable('test', {
+	const table = cockroachTable('test', {
 		id: int4('id').primaryKey(),
 	});
 	const schema1 = {
 		test: table,
-		view: cockroachdbView('view').as((qb) => qb.selectDistinct().from(table)),
+		view: cockroachView('view').as((qb) => qb.selectDistinct().from(table)),
 	};
 
 	const schema2 = {
@@ -347,13 +347,13 @@ test('drop view #2', async () => {
 });
 
 test('drop view with existing flag', async () => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
 
 	const from = {
 		users,
-		view: cockroachdbView('some_view', { id: int4('id') }).existing(),
+		view: cockroachView('some_view', { id: int4('id') }).existing(),
 	};
 
 	const to = {
@@ -374,12 +374,12 @@ test('drop view with existing flag', async () => {
 });
 
 test('drop view with data', async () => {
-	const table = cockroachdbTable('table', {
+	const table = cockroachTable('table', {
 		id: int4('id').primaryKey(),
 	});
 	const schema1 = {
 		test: table,
-		view: cockroachdbView('view', {}).as(sql`SELECT * FROM ${table}`),
+		view: cockroachView('view', {}).as(sql`SELECT * FROM ${table}`),
 	};
 
 	const schema2 = {
@@ -412,13 +412,13 @@ test('drop view with data', async () => {
 });
 
 test('drop materialized view #1', async () => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
 
 	const from = {
 		users,
-		view: cockroachdbMaterializedView('some_view', { id: int4('id') }).as(sql`SELECT * FROM ${users}`),
+		view: cockroachMaterializedView('some_view', { id: int4('id') }).as(sql`SELECT * FROM ${users}`),
 	};
 
 	const to = {
@@ -441,12 +441,12 @@ test('drop materialized view #1', async () => {
 });
 
 test('drop materialized view #2', async () => {
-	const table = cockroachdbTable('test', {
+	const table = cockroachTable('test', {
 		id: int4('id').primaryKey(),
 	});
 	const schema1 = {
 		test: table,
-		view: cockroachdbMaterializedView('view').as((qb) => qb.selectDistinct().from(table)),
+		view: cockroachMaterializedView('view').as((qb) => qb.selectDistinct().from(table)),
 	};
 
 	const schema2 = {
@@ -469,13 +469,13 @@ test('drop materialized view #2', async () => {
 });
 
 test('drop materialized view with existing flag', async () => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
 
 	const from = {
 		users,
-		view: cockroachdbMaterializedView('some_view', { id: int4('id') }).existing(),
+		view: cockroachMaterializedView('some_view', { id: int4('id') }).existing(),
 	};
 
 	const to = {
@@ -496,13 +496,13 @@ test('drop materialized view with existing flag', async () => {
 });
 
 test('drop materialized view with data', async () => {
-	const table = cockroachdbTable('table', {
+	const table = cockroachTable('table', {
 		id: int4('id').primaryKey(),
 	});
 
 	const schema1 = {
 		test: table,
-		view: cockroachdbMaterializedView('view', {}).as(sql`SELECT * FROM ${table}`),
+		view: cockroachMaterializedView('view', {}).as(sql`SELECT * FROM ${table}`),
 	};
 
 	const schema2 = {
@@ -528,12 +528,12 @@ test('drop materialized view with data', async () => {
 });
 
 test('drop materialized view without data', async () => {
-	const table = cockroachdbTable('table', {
+	const table = cockroachTable('table', {
 		id: int4('id').primaryKey(),
 	});
 	const schema1 = {
 		test: table,
-		view: cockroachdbMaterializedView('view', {}).as(sql`SELECT * FROM ${table}`),
+		view: cockroachMaterializedView('view', {}).as(sql`SELECT * FROM ${table}`),
 	};
 
 	const schema2 = {
@@ -560,13 +560,13 @@ test('drop materialized view without data', async () => {
 
 test('rename view #1', async () => {
 	const from = {
-		users: cockroachdbTable('users', { id: int4() }),
-		view: cockroachdbView('some_view', { id: int4('id') }).as(sql`SELECT * FROM "users"`),
+		users: cockroachTable('users', { id: int4() }),
+		view: cockroachView('some_view', { id: int4('id') }).as(sql`SELECT * FROM "users"`),
 	};
 
 	const to = {
-		users: cockroachdbTable('users', { id: int4() }),
-		view: cockroachdbView('new_some_view', { id: int4('id') }).as(sql`SELECT * FROM "users"`),
+		users: cockroachTable('users', { id: int4() }),
+		view: cockroachView('new_some_view', { id: int4('id') }).as(sql`SELECT * FROM "users"`),
 	};
 
 	const renames = ['public.some_view->public.new_some_view'];
@@ -584,11 +584,11 @@ test('rename view #1', async () => {
 
 test('rename view with existing flag', async () => {
 	const from = {
-		view: cockroachdbView('some_view', { id: int4('id') }).existing(),
+		view: cockroachView('some_view', { id: int4('id') }).existing(),
 	};
 
 	const to = {
-		view: cockroachdbView('new_some_view', { id: int4('id') }).existing(),
+		view: cockroachView('new_some_view', { id: int4('id') }).existing(),
 	};
 
 	const renames = ['public.some_view->public.new_some_view'];
@@ -608,13 +608,13 @@ test('rename view with existing flag', async () => {
 
 test('rename materialized view #1', async () => {
 	const from = {
-		users: cockroachdbTable('users', { id: int4() }),
-		view: cockroachdbMaterializedView('some_view', { id: int4('id') }).as(sql`SELECT * FROM "users"`),
+		users: cockroachTable('users', { id: int4() }),
+		view: cockroachMaterializedView('some_view', { id: int4('id') }).as(sql`SELECT * FROM "users"`),
 	};
 
 	const to = {
-		users: cockroachdbTable('users', { id: int4() }),
-		view: cockroachdbMaterializedView('new_some_view', { id: int4('id') }).as(sql`SELECT * FROM "users"`),
+		users: cockroachTable('users', { id: int4() }),
+		view: cockroachMaterializedView('new_some_view', { id: int4('id') }).as(sql`SELECT * FROM "users"`),
 	};
 
 	const renames = ['public.some_view->public.new_some_view'];
@@ -632,11 +632,11 @@ test('rename materialized view #1', async () => {
 
 test('rename materialized view with existing flag', async () => {
 	const from = {
-		view: cockroachdbMaterializedView('some_view', { id: int4('id') }).existing(),
+		view: cockroachMaterializedView('some_view', { id: int4('id') }).existing(),
 	};
 
 	const to = {
-		view: cockroachdbMaterializedView('new_some_view', { id: int4('id') }).existing(),
+		view: cockroachMaterializedView('new_some_view', { id: int4('id') }).existing(),
 	};
 
 	const renames = ['public.some_view->public.new_some_view'];
@@ -655,16 +655,16 @@ test('rename materialized view with existing flag', async () => {
 });
 
 test('view alter schema', async () => {
-	const schema = cockroachdbSchema('new_schema');
+	const schema = cockroachSchema('new_schema');
 
 	const from = {
-		users: cockroachdbTable('users', { id: int4() }),
-		view: cockroachdbView('some_view', { id: int4('id') }).as(sql`SELECT * FROM "users"`),
+		users: cockroachTable('users', { id: int4() }),
+		view: cockroachView('some_view', { id: int4('id') }).as(sql`SELECT * FROM "users"`),
 	};
 
 	const to = {
 		schema,
-		users: cockroachdbTable('users', { id: int4() }),
+		users: cockroachTable('users', { id: int4() }),
 		view: schema.view('some_view', { id: int4('id') }).as(sql`SELECT * FROM "users"`),
 	};
 
@@ -683,10 +683,10 @@ test('view alter schema', async () => {
 });
 
 test('view alter schema with existing flag', async () => {
-	const schema = cockroachdbSchema('new_schema');
+	const schema = cockroachSchema('new_schema');
 
 	const from = {
-		view: cockroachdbView('some_view', { id: int4('id') }).existing(),
+		view: cockroachView('some_view', { id: int4('id') }).existing(),
 	};
 
 	const to = {
@@ -712,16 +712,16 @@ test('view alter schema with existing flag', async () => {
 });
 
 test('view alter schema for materialized', async () => {
-	const schema = cockroachdbSchema('new_schema');
+	const schema = cockroachSchema('new_schema');
 
 	const from = {
-		users: cockroachdbTable('users', { id: int4() }),
-		view: cockroachdbMaterializedView('some_view', { id: int4('id') }).as(sql`SELECT * FROM "users"`),
+		users: cockroachTable('users', { id: int4() }),
+		view: cockroachMaterializedView('some_view', { id: int4('id') }).as(sql`SELECT * FROM "users"`),
 	};
 
 	const to = {
 		schema,
-		users: cockroachdbTable('users', { id: int4() }),
+		users: cockroachTable('users', { id: int4() }),
 		view: schema.materializedView('some_view', { id: int4('id') }).as(sql`SELECT * FROM "users"`),
 	};
 
@@ -740,10 +740,10 @@ test('view alter schema for materialized', async () => {
 });
 
 test('view alter schema for materialized with existing flag', async () => {
-	const schema = cockroachdbSchema('new_schema');
+	const schema = cockroachSchema('new_schema');
 
 	const from = {
-		view: cockroachdbMaterializedView('some_view', { id: int4('id') }).existing(),
+		view: cockroachMaterializedView('some_view', { id: int4('id') }).existing(),
 	};
 
 	const to = {
@@ -769,18 +769,18 @@ test('view alter schema for materialized with existing flag', async () => {
 });
 
 test('alter view ".as" value', async () => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
 
 	const from = {
 		users,
-		view: cockroachdbView('some_view', { id: int4('id') }).as(sql`select * from users where id > 100`),
+		view: cockroachView('some_view', { id: int4('id') }).as(sql`select * from users where id > 100`),
 	};
 
 	const to = {
 		users,
-		view: cockroachdbView('some_view', { id: int4('id') }).as(sql`select * from users where id > 101`),
+		view: cockroachView('some_view', { id: int4('id') }).as(sql`select * from users where id > 101`),
 	};
 
 	const { sqlStatements: st } = await diff(from, to, []);
@@ -800,18 +800,18 @@ test('alter view ".as" value', async () => {
 });
 
 test('alter view ".as" value with existing flag', async () => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
 
 	const from = {
 		users,
-		view: cockroachdbView('some_view', { id: int4('id') }).existing(),
+		view: cockroachView('some_view', { id: int4('id') }).existing(),
 	};
 
 	const to = {
 		users,
-		view: cockroachdbView('some_view', { id: int4('id') }).existing(),
+		view: cockroachView('some_view', { id: int4('id') }).existing(),
 	};
 
 	const { sqlStatements: st } = await diff(from, to, []);
@@ -828,18 +828,18 @@ test('alter view ".as" value with existing flag', async () => {
 });
 
 test('alter materialized view ".as" value', async () => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
 
 	const from = {
 		users,
-		view: cockroachdbMaterializedView('some_view', { id: int4('id') }).as(sql`SELECT '123'`),
+		view: cockroachMaterializedView('some_view', { id: int4('id') }).as(sql`SELECT '123'`),
 	};
 
 	const to = {
 		users,
-		view: cockroachdbMaterializedView('some_view', { id: int4('id') }).as(sql`SELECT '1234'`),
+		view: cockroachMaterializedView('some_view', { id: int4('id') }).as(sql`SELECT '1234'`),
 	};
 
 	const { sqlStatements: st } = await diff(from, to, []);
@@ -859,18 +859,18 @@ test('alter materialized view ".as" value', async () => {
 });
 
 test('alter materialized view ".as" value with existing flag', async () => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
 
 	const from = {
 		users,
-		view: cockroachdbMaterializedView('some_view', { id: int4('id') }).existing(),
+		view: cockroachMaterializedView('some_view', { id: int4('id') }).existing(),
 	};
 
 	const to = {
 		users,
-		view: cockroachdbMaterializedView('some_view', { id: int4('id') }).existing(),
+		view: cockroachMaterializedView('some_view', { id: int4('id') }).existing(),
 	};
 
 	const { sqlStatements: st } = await diff(from, to, []);
@@ -887,18 +887,18 @@ test('alter materialized view ".as" value with existing flag', async () => {
 });
 
 test('drop existing flag', async () => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
 
 	const from = {
 		users,
-		view: cockroachdbMaterializedView('some_view', { id: int4('id') }).existing(),
+		view: cockroachMaterializedView('some_view', { id: int4('id') }).existing(),
 	};
 
 	const to = {
 		users,
-		view: cockroachdbMaterializedView('some_view', { id: int4('id') }).as(sql`SELECT 'asd'`),
+		view: cockroachMaterializedView('some_view', { id: int4('id') }).as(sql`SELECT 'asd'`),
 	};
 
 	const { sqlStatements: st } = await diff(from, to, []);
@@ -917,18 +917,18 @@ test('drop existing flag', async () => {
 });
 
 test('set existing - materialized', async () => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
 
 	const from = {
 		users,
-		view: cockroachdbMaterializedView('some_view', { id: int4('id') }).as(sql`SELECT 'asd'`),
+		view: cockroachMaterializedView('some_view', { id: int4('id') }).as(sql`SELECT 'asd'`),
 	};
 
 	const to = {
 		users,
-		view: cockroachdbMaterializedView('new_some_view', { id: int4('id') }).withNoData().existing(),
+		view: cockroachMaterializedView('new_some_view', { id: int4('id') }).withNoData().existing(),
 	};
 
 	const renames = ['public.some_view->public.new_some_view'];
@@ -947,18 +947,18 @@ test('set existing - materialized', async () => {
 });
 
 test('drop existing - materialized', async () => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
 
 	const from = {
 		users,
-		view: cockroachdbMaterializedView('view', { id: int4('id') }).existing(),
+		view: cockroachMaterializedView('view', { id: int4('id') }).existing(),
 	};
 
 	const to = {
 		users,
-		view: cockroachdbMaterializedView('view', { id: int4('id') }).withNoData().as(
+		view: cockroachMaterializedView('view', { id: int4('id') }).withNoData().as(
 			sql`SELECT * FROM users WHERE id > 100`,
 		),
 	};
@@ -976,18 +976,18 @@ test('drop existing - materialized', async () => {
 });
 
 test('set existing', async () => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4('id').primaryKey().notNull(),
 	});
 
 	const from = {
 		users,
-		view: cockroachdbView('some_view', { id: int4('id') }).as(sql`SELECT * from users where id > 100`),
+		view: cockroachView('some_view', { id: int4('id') }).as(sql`SELECT * from users where id > 100`),
 	};
 
 	const to = {
 		users,
-		view: cockroachdbView('new_some_view', { id: int4('id') }).existing(),
+		view: cockroachView('new_some_view', { id: int4('id') }).existing(),
 	};
 
 	const renames = ['public.some_view->public.new_some_view'];
@@ -1002,16 +1002,16 @@ test('set existing', async () => {
 });
 
 test('moved schema', async () => {
-	const schema = cockroachdbSchema('my_schema');
+	const schema = cockroachSchema('my_schema');
 	const from = {
 		schema,
-		users: cockroachdbTable('users', { id: int4() }),
-		view: cockroachdbView('some_view', { id: int4('id') }).as(sql`SELECT * FROM "users"`),
+		users: cockroachTable('users', { id: int4() }),
+		view: cockroachView('some_view', { id: int4('id') }).as(sql`SELECT * FROM "users"`),
 	};
 
 	const to = {
 		schema,
-		users: cockroachdbTable('users', { id: int4() }),
+		users: cockroachTable('users', { id: int4() }),
 		view: schema.view('some_view', { id: int4('id') }).as(
 			sql`SELECT * FROM "users"`,
 		),
@@ -1031,17 +1031,17 @@ test('moved schema', async () => {
 });
 
 test('push view with same name', async () => {
-	const table = cockroachdbTable('test', {
+	const table = cockroachTable('test', {
 		id: int4('id').primaryKey(),
 	});
 	const schema1 = {
 		test: table,
-		view: cockroachdbView('view').as((qb) => qb.selectDistinct().from(table)),
+		view: cockroachView('view').as((qb) => qb.selectDistinct().from(table)),
 	};
 
 	const schema2 = {
 		test: table,
-		view: cockroachdbView('view').as((qb) => qb.selectDistinct().from(table).where(eq(table.id, 1))),
+		view: cockroachView('view').as((qb) => qb.selectDistinct().from(table).where(eq(table.id, 1))),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -1057,17 +1057,17 @@ test('push view with same name', async () => {
 });
 
 test('push materialized view with same name', async () => {
-	const table = cockroachdbTable('test', {
+	const table = cockroachTable('test', {
 		id: int4('id').primaryKey(),
 	});
 	const schema1 = {
 		test: table,
-		view: cockroachdbMaterializedView('view').as((qb) => qb.selectDistinct().from(table)),
+		view: cockroachMaterializedView('view').as((qb) => qb.selectDistinct().from(table)),
 	};
 
 	const schema2 = {
 		test: table,
-		view: cockroachdbMaterializedView('view').as((qb) => qb.selectDistinct().from(table).where(eq(table.id, 1))),
+		view: cockroachMaterializedView('view').as((qb) => qb.selectDistinct().from(table).where(eq(table.id, 1))),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);

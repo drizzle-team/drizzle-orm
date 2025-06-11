@@ -1,4 +1,4 @@
-import { cockroachdbSchema, cockroachdbSequence } from 'drizzle-orm/cockroachdb-core';
+import { cockroachSchema, cockroachSequence } from 'drizzle-orm/cockroach-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -21,7 +21,7 @@ beforeEach(async () => {
 
 test('create sequence', async () => {
 	const to = {
-		seq: cockroachdbSequence('name', { startWith: 100 }),
+		seq: cockroachSequence('name', { startWith: 100 }),
 	};
 
 	const { sqlStatements: st } = await diff({}, to, []);
@@ -41,7 +41,7 @@ test('create sequence', async () => {
 test('create sequence: all fields', async () => {
 	const from = {};
 	const to = {
-		seq: cockroachdbSequence('name', {
+		seq: cockroachSequence('name', {
 			startWith: 100,
 			maxValue: 10000,
 			minValue: 100,
@@ -65,7 +65,7 @@ test('create sequence: all fields', async () => {
 });
 
 test('create sequence: custom schema', async () => {
-	const customSchema = cockroachdbSchema('custom');
+	const customSchema = cockroachSchema('custom');
 	const from = { customSchema };
 	const to = {
 		customSchema,
@@ -85,7 +85,7 @@ test('create sequence: custom schema', async () => {
 });
 
 test('create sequence: custom schema + all fields', async () => {
-	const customSchema = cockroachdbSchema('custom');
+	const customSchema = cockroachSchema('custom');
 	const from = { customSchema };
 	const to = {
 		customSchema,
@@ -112,7 +112,7 @@ test('create sequence: custom schema + all fields', async () => {
 });
 
 test('drop sequence', async () => {
-	const from = { seq: cockroachdbSequence('name', { startWith: 100 }) };
+	const from = { seq: cockroachSequence('name', { startWith: 100 }) };
 	const to = {};
 
 	const { sqlStatements: st } = await diff(from, to, []);
@@ -131,7 +131,7 @@ test('drop sequence', async () => {
 });
 
 test('drop sequence: custom schema', async () => {
-	const customSchema = cockroachdbSchema('custom');
+	const customSchema = cockroachSchema('custom');
 	const from = { customSchema, seq: customSchema.sequence('name', { startWith: 100 }) };
 	const to = { customSchema };
 
@@ -151,8 +151,8 @@ test('drop sequence: custom schema', async () => {
 });
 
 test('rename sequence', async () => {
-	const from = { seq: cockroachdbSequence('name', { startWith: 100 }) };
-	const to = { seq: cockroachdbSequence('name_new', { startWith: 100 }) };
+	const from = { seq: cockroachSequence('name', { startWith: 100 }) };
+	const to = { seq: cockroachSequence('name_new', { startWith: 100 }) };
 
 	const renames = [
 		'public.name->public.name_new',
@@ -174,7 +174,7 @@ test('rename sequence', async () => {
 });
 
 test('rename sequence in custom schema', async () => {
-	const customSchema = cockroachdbSchema('custom');
+	const customSchema = cockroachSchema('custom');
 
 	const from = { customSchema, seq: customSchema.sequence('name', { startWith: 100 }) };
 	const to = { customSchema, seq: customSchema.sequence('name_new', { startWith: 100 }) };
@@ -199,8 +199,8 @@ test('rename sequence in custom schema', async () => {
 });
 
 test('move sequence between schemas #1', async () => {
-	const customSchema = cockroachdbSchema('custom');
-	const from = { customSchema, seq: cockroachdbSequence('name', { startWith: 100 }) };
+	const customSchema = cockroachSchema('custom');
+	const from = { customSchema, seq: cockroachSequence('name', { startWith: 100 }) };
 	const to = { customSchema, seq: customSchema.sequence('name', { startWith: 100 }) };
 
 	const renames = [
@@ -223,9 +223,9 @@ test('move sequence between schemas #1', async () => {
 });
 
 test('move sequence between schemas #2', async () => {
-	const customSchema = cockroachdbSchema('custom');
+	const customSchema = cockroachSchema('custom');
 	const from = { customSchema, seq: customSchema.sequence('name', { startWith: 100 }) };
-	const to = { customSchema, seq: cockroachdbSequence('name', { startWith: 100 }) };
+	const to = { customSchema, seq: cockroachSequence('name', { startWith: 100 }) };
 
 	const renames = [
 		'custom.name->public.name',
@@ -247,8 +247,8 @@ test('move sequence between schemas #2', async () => {
 });
 
 test('alter sequence', async () => {
-	const from = { seq: cockroachdbSequence('name', { startWith: 100 }) };
-	const to = { seq: cockroachdbSequence('name', { startWith: 105 }) };
+	const from = { seq: cockroachSequence('name', { startWith: 100 }) };
+	const to = { seq: cockroachSequence('name', { startWith: 105 }) };
 
 	const { sqlStatements: st } = await diff(from, to, []);
 
@@ -267,7 +267,7 @@ test('alter sequence', async () => {
 
 test('full sequence: no changes', async () => {
 	const schema1 = {
-		seq: cockroachdbSequence('my_seq', {
+		seq: cockroachSequence('my_seq', {
 			startWith: 100,
 			maxValue: 10000,
 			minValue: 100,
@@ -278,7 +278,7 @@ test('full sequence: no changes', async () => {
 	};
 
 	const schema2 = {
-		seq: cockroachdbSequence('my_seq', {
+		seq: cockroachSequence('my_seq', {
 			startWith: 100,
 			maxValue: 10000,
 			minValue: 100,
@@ -300,7 +300,7 @@ test('full sequence: no changes', async () => {
 
 test('basic sequence: change fields', async () => {
 	const schema1 = {
-		seq: cockroachdbSequence('my_seq', {
+		seq: cockroachSequence('my_seq', {
 			startWith: 100,
 			maxValue: 10000,
 			minValue: 100,
@@ -311,7 +311,7 @@ test('basic sequence: change fields', async () => {
 	};
 
 	const schema2 = {
-		seq: cockroachdbSequence('my_seq', {
+		seq: cockroachSequence('my_seq', {
 			startWith: 100,
 			maxValue: 100000,
 			minValue: 100,
@@ -335,7 +335,7 @@ test('basic sequence: change fields', async () => {
 
 test('basic sequence: change name', async () => {
 	const schema1 = {
-		seq: cockroachdbSequence('my_seq', {
+		seq: cockroachSequence('my_seq', {
 			startWith: 100,
 			maxValue: 10000,
 			minValue: 100,
@@ -346,7 +346,7 @@ test('basic sequence: change name', async () => {
 	};
 
 	const schema2 = {
-		seq: cockroachdbSequence('my_seq2', {
+		seq: cockroachSequence('my_seq2', {
 			startWith: 100,
 			maxValue: 10000,
 			minValue: 100,
@@ -371,7 +371,7 @@ test('basic sequence: change name', async () => {
 
 test('basic sequence: change name and fields', async () => {
 	const schema1 = {
-		seq: cockroachdbSequence('my_seq', {
+		seq: cockroachSequence('my_seq', {
 			startWith: 100,
 			maxValue: 10000,
 			minValue: 100,
@@ -382,7 +382,7 @@ test('basic sequence: change name and fields', async () => {
 	};
 
 	const schema2 = {
-		seq: cockroachdbSequence('my_seq2', {
+		seq: cockroachSequence('my_seq2', {
 			startWith: 100,
 			maxValue: 10000,
 			minValue: 100,
@@ -408,11 +408,11 @@ test('basic sequence: change name and fields', async () => {
 
 test('Add basic sequences', async () => {
 	const schema1 = {
-		seq: cockroachdbSequence('my_seq', { startWith: 100 }),
+		seq: cockroachSequence('my_seq', { startWith: 100 }),
 	};
 
 	const schema2 = {
-		seq: cockroachdbSequence('my_seq', { startWith: 100 }),
+		seq: cockroachSequence('my_seq', { startWith: 100 }),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);

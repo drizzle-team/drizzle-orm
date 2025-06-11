@@ -13,7 +13,7 @@ import {
 } from 'zod';
 import { originUUID } from '../../utils';
 import { array, validator } from '../simpleValidator';
-import { CockroachDbDDL, CockroachDbEntity, createDDL } from './ddl';
+import { CockroachDDL, CockroachEntity, createDDL } from './ddl';
 import { defaults } from './grammar';
 
 const enumSchema = object({
@@ -218,7 +218,7 @@ export type CockroachDbSchema = TypeOf<typeof cockroachdbSchema>;
 export type Index = TypeOf<typeof index>;
 export type Column = TypeOf<typeof column>;
 
-export const toJsonSnapshot = (ddl: CockroachDbDDL, prevId: string, renames: string[]): CockroachDbSnapshot => {
+export const toJsonSnapshot = (ddl: CockroachDDL, prevId: string, renames: string[]): CockroachDbSnapshot => {
 	return { dialect: 'cockroachdb', id: randomUUID(), prevId, version: '1', ddl: ddl.entities.list(), renames };
 };
 
@@ -228,7 +228,7 @@ export const snapshotValidator = validator({
 	dialect: ['cockroachdb'],
 	id: 'string',
 	prevId: 'string',
-	ddl: array<CockroachDbEntity>((it) => {
+	ddl: array<CockroachEntity>((it) => {
 		const res = ddl.entities.validate(it);
 		if (!res) {
 			console.log(it);

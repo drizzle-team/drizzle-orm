@@ -7,8 +7,8 @@ import { groupDiffs } from '../utils';
 import { fromJson } from './convertor';
 import {
 	CheckConstraint,
-	CockroachDbDDL,
-	CockroachDbEntities,
+	CockroachDDL,
+	CockroachEntities,
 	Column,
 	createDDL,
 	DiffEntities,
@@ -25,7 +25,7 @@ import {
 } from './ddl';
 import { JsonStatement, prepareStatement } from './statements';
 
-export const ddlDiffDry = async (ddlFrom: CockroachDbDDL, ddlTo: CockroachDbDDL, mode: 'default' | 'push') => {
+export const ddlDiffDry = async (ddlFrom: CockroachDDL, ddlTo: CockroachDDL, mode: 'default' | 'push') => {
 	const mocks = new Set<string>();
 	return ddlDiff(
 		ddlFrom,
@@ -46,13 +46,13 @@ export const ddlDiffDry = async (ddlFrom: CockroachDbDDL, ddlTo: CockroachDbDDL,
 };
 
 export const ddlDiff = async (
-	ddl1: CockroachDbDDL,
-	ddl2: CockroachDbDDL,
+	ddl1: CockroachDDL,
+	ddl2: CockroachDDL,
 	schemasResolver: Resolver<Schema>,
 	enumsResolver: Resolver<Enum>,
 	sequencesResolver: Resolver<Sequence>,
 	policyResolver: Resolver<Policy>,
-	tablesResolver: Resolver<CockroachDbEntities['tables']>,
+	tablesResolver: Resolver<CockroachEntities['tables']>,
 	columnsResolver: Resolver<Column>,
 	viewsResolver: Resolver<View>,
 	indexesResolver: Resolver<Index>,
@@ -196,7 +196,7 @@ export const ddlDiff = async (
 	}
 
 	const rolesDiff = diff(ddl1, ddl2, 'roles');
-	// CockroachDb does not allow to rename roles
+	// Cockroach does not allow to rename roles
 	const createdRoles = rolesDiff.filter((it) => it.$diffType === 'create');
 	const deletedRoles = rolesDiff.filter((it) => it.$diffType === 'drop');
 
@@ -879,7 +879,7 @@ export const ddlDiff = async (
 			}
 
 			const pkIn2 = ddl2.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } });
-			// CockroachDb forces adding not null and only than primary key
+			// Cockroach forces adding not null and only than primary key
 			// if (it.notNull && pkIn2) {
 			// 	delete it.notNull;
 			// }
@@ -1061,7 +1061,7 @@ export const ddlDiff = async (
 	};
 };
 
-const preserveEntityNames = <C extends CockroachDbDDL['fks' | 'pks' | 'indexes']>(
+const preserveEntityNames = <C extends CockroachDDL['fks' | 'pks' | 'indexes']>(
 	collection1: C,
 	collection2: C,
 	mode: 'push' | 'default',

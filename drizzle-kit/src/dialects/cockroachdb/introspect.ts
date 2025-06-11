@@ -4,7 +4,7 @@ import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
 import type { DB } from '../../utils';
 import type {
 	CheckConstraint,
-	CockroachDbEntities,
+	CockroachEntities,
 	Enum,
 	ForeignKey,
 	Index,
@@ -80,7 +80,7 @@ export const fromDatabase = async (
 ): Promise<InterimSchema> => {
 	const schemas: Schema[] = [];
 	const enums: Enum[] = [];
-	const tables: CockroachDbEntities['tables'][] = [];
+	const tables: CockroachEntities['tables'][] = [];
 	const columns: InterimColumn[] = [];
 	const indexes: InterimIndex[] = [];
 	const pks: PrimaryKey[] = [];

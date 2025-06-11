@@ -273,7 +273,7 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 		if (recreateDefault) {
 			const typeSuffix = isEnum && column.dimensions === 0 ? `::${type}` : '';
 			statements.push(
-				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(column, isEnum)}${typeSuffix};`,
+				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(column, isEnum)};`,
 			);
 		}
 	}

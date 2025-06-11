@@ -1,5 +1,5 @@
 import { getTableName, is } from 'drizzle-orm';
-import { AnyCockroachDbTable } from 'drizzle-orm/cockroachdb-core';
+import { AnyCockroachTable } from 'drizzle-orm/cockroach-core';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
@@ -13,10 +13,9 @@ import { toCamelCase } from 'drizzle-orm/casing';
 import { parseArray } from 'src/utils/parse-pgarray';
 import { Casing } from '../../cli/validations/common';
 import { assertUnreachable, stringifyArray } from '../../utils';
-import { unescapeSingleQuotes } from '../../utils';
 import {
 	CheckConstraint,
-	CockroachDbDDL,
+	CockroachDDL,
 	Column,
 	ForeignKey,
 	Index,
@@ -189,7 +188,7 @@ const dbColumnName = ({ name, casing, withMode = false }: { name: string; casing
 };
 
 export const relationsToTypeScriptForStudio = (
-	schema: Record<string, Record<string, AnyCockroachDbTable<{}>>>,
+	schema: Record<string, Record<string, AnyCockroachTable<{}>>>,
 	relations: Record<string, Relations<string, Record<string, Relation<string>>>>,
 ) => {
 	const relationalSchema: Record<string, unknown> = {
@@ -212,7 +211,7 @@ export const relationsToTypeScriptForStudio = (
 
 	let result = '';
 
-	function findColumnKey(table: AnyCockroachDbTable, columnName: string) {
+	function findColumnKey(table: AnyCockroachTable, columnName: string) {
 		for (const tableEntry of Object.entries(table)) {
 			const key = tableEntry[0];
 			const value = tableEntry[1];
@@ -308,7 +307,7 @@ export const paramNameFor = (name: string, schema: string | null) => {
 
 // prev: schemaToTypeScript
 export const ddlToTypeScript = (
-	ddl: CockroachDbDDL,
+	ddl: CockroachDDL,
 	columnsForViews: ViewColumn[],
 	casing: Casing,
 	mode: 'cockroachdb',
@@ -512,7 +511,7 @@ export const ddlToTypeScript = (
 		uniqueCockroachDbImports.join(
 			', ',
 		)
-	} } from "drizzle-orm/cockroachdb-core"
+	} } from "drizzle-orm/cockroach-core"
 import { sql } from "drizzle-orm"\n\n`;
 
 	let decalrations = schemaStatements;

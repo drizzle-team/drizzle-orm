@@ -1,5 +1,5 @@
 import { entityKind } from '~/entity.ts';
-import type { CockroachDbColumn, ExtraConfigColumn as CockroachDbExtraConfigColumn } from './cockroachdb-core/index.ts';
+import type { CockroachColumn, ExtraConfigColumn as CockroachExtraConfigColumn } from './cockroach-core/index.ts';
 import type { Column } from './column.ts';
 import type { GelColumn, GelExtraConfigColumn } from './gel-core/index.ts';
 import type { MsSqlColumn } from './mssql-core/index.ts';
@@ -27,7 +27,7 @@ export type ColumnDataType =
 	| 'localDate'
 	| 'localDateTime';
 
-export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'singlestore' | 'mssql' | 'common' | 'gel' | 'cockroachdb';
+export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'singlestore' | 'mssql' | 'common' | 'gel' | 'cockroach';
 
 // TODO update description
 // 'virtual' | 'stored'  for postgres
@@ -336,7 +336,7 @@ export type BuildColumn<
 		{},
 		Simplify<Omit<TBuilder['_'], keyof MakeColumnConfig<TBuilder['_'], TTableName> | 'brand' | 'dialect'>>
 	>
-	: TDialect extends 'cockroachdb' ? CockroachDbColumn<
+	: TDialect extends 'cockroach' ? CockroachColumn<
 			MakeColumnConfig<TBuilder['_'], TTableName>,
 			{},
 			Simplify<Omit<TBuilder['_'], keyof MakeColumnConfig<TBuilder['_'], TTableName> | 'brand' | 'dialect'>>
@@ -402,7 +402,7 @@ export type BuildColumn<
 export type BuildIndexColumn<
 	TDialect extends Dialect,
 > = TDialect extends 'pg' ? ExtraConfigColumn
-	: TDialect extends 'cockroachdb' ? CockroachDbExtraConfigColumn
+	: TDialect extends 'cockroach' ? CockroachExtraConfigColumn
 	: TDialect extends 'gel' ? GelExtraConfigColumn
 	: never;
 
@@ -444,5 +444,5 @@ export type ChangeColumnTableName<TColumn extends Column, TAlias extends string,
 		: TDialect extends 'sqlite' ? SQLiteColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: TDialect extends 'gel' ? GelColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: TDialect extends 'mssql' ? MsSqlColumn<MakeColumnConfig<TColumn['_'], TAlias>>
-		: TDialect extends 'cockroachdb' ? CockroachDbColumn<MakeColumnConfig<TColumn['_'], TAlias>>
+		: TDialect extends 'cockroach' ? CockroachColumn<MakeColumnConfig<TColumn['_'], TAlias>>
 		: never;

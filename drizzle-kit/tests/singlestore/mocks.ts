@@ -7,7 +7,7 @@ import { Connection, createConnection } from 'mysql2/promise';
 import { suggestions } from 'src/cli/commands/push-mysql';
 import { CasingType } from 'src/cli/validations/common';
 import { createDDL, interimToDDL } from 'src/dialects/mysql/ddl';
-import { ddlDiffDry, ddlDiff } from 'src/dialects/mysql/diff';
+import { ddlDiff, ddlDiffDry } from 'src/dialects/mysql/diff';
 import { fromDatabaseForDrizzle } from 'src/dialects/mysql/introspect';
 import { ddlToTypeScript } from 'src/dialects/mysql/typescript';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/singlestore/drizzle';

@@ -1,4 +1,4 @@
-import { cockroachdbSchema } from 'drizzle-orm/cockroachdb-core';
+import { cockroachSchema } from 'drizzle-orm/cockroach-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -21,7 +21,7 @@ beforeEach(async () => {
 
 test('add schema #1', async () => {
 	const to = {
-		devSchema: cockroachdbSchema('dev'),
+		devSchema: cockroachSchema('dev'),
 	};
 
 	const { sqlStatements: st } = await diff({}, to, []);
@@ -40,11 +40,11 @@ test('add schema #1', async () => {
 
 test('add schema #2', async () => {
 	const from = {
-		devSchema: cockroachdbSchema('dev'),
+		devSchema: cockroachSchema('dev'),
 	};
 	const to = {
-		devSchema: cockroachdbSchema('dev'),
-		devSchema2: cockroachdbSchema('dev2'),
+		devSchema: cockroachSchema('dev'),
+		devSchema2: cockroachSchema('dev2'),
 	};
 
 	const { sqlStatements: st } = await diff(from, to, []);
@@ -64,7 +64,7 @@ test('add schema #2', async () => {
 
 test('delete schema #1', async () => {
 	const from = {
-		devSchema: cockroachdbSchema('dev'),
+		devSchema: cockroachSchema('dev'),
 	};
 
 	const { sqlStatements: st } = await diff(from, {}, []);
@@ -84,11 +84,11 @@ test('delete schema #1', async () => {
 
 test('delete schema #2', async () => {
 	const from = {
-		devSchema: cockroachdbSchema('dev'),
-		devSchema2: cockroachdbSchema('dev2'),
+		devSchema: cockroachSchema('dev'),
+		devSchema2: cockroachSchema('dev2'),
 	};
 	const to = {
-		devSchema: cockroachdbSchema('dev'),
+		devSchema: cockroachSchema('dev'),
 	};
 
 	const { sqlStatements: st } = await diff(from, to, []);
@@ -108,11 +108,11 @@ test('delete schema #2', async () => {
 
 test('rename schema #1', async () => {
 	const from = {
-		devSchema: cockroachdbSchema('dev'),
+		devSchema: cockroachSchema('dev'),
 	};
 
 	const to = {
-		devSchema2: cockroachdbSchema('dev2'),
+		devSchema2: cockroachSchema('dev2'),
 	};
 
 	const renames = ['dev->dev2'];
@@ -134,12 +134,12 @@ test('rename schema #1', async () => {
 
 test('rename schema #2', async () => {
 	const from = {
-		devSchema: cockroachdbSchema('dev'),
-		devSchema1: cockroachdbSchema('dev1'),
+		devSchema: cockroachSchema('dev'),
+		devSchema1: cockroachSchema('dev1'),
 	};
 	const to = {
-		devSchema: cockroachdbSchema('dev'),
-		devSchema2: cockroachdbSchema('dev2'),
+		devSchema: cockroachSchema('dev'),
+		devSchema2: cockroachSchema('dev2'),
 	};
 
 	const renames = ['dev1->dev2'];

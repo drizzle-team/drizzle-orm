@@ -6,7 +6,7 @@ import { join } from 'path';
 import { toJsonSnapshot } from 'src/dialects/cockroachdb/snapshot';
 import {
 	CheckConstraint,
-	CockroachDbEntities,
+	CockroachEntities,
 	Column,
 	createDDL,
 	Enum,
@@ -89,7 +89,7 @@ export const handle = async (
 			resolver<Enum>('enum'),
 			resolver<Sequence>('sequence'),
 			resolver<Policy>('policy'),
-			resolver<CockroachDbEntities['tables']>('table'),
+			resolver<CockroachEntities['tables']>('table'),
 			resolver<Column>('column'),
 			resolver<View>('view'),
 			resolver<Index>('index'),

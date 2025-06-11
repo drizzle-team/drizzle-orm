@@ -1,7 +1,7 @@
 import { Temporal } from '@js-temporal/polyfill';
 import { assertUnreachable } from '../../utils';
 import { hash } from '../common';
-import { CockroachDbEntities, Column, DiffEntities } from './ddl';
+import { CockroachEntities, Column, DiffEntities } from './ddl';
 
 export const trimChar = (str: string, char: string) => {
 	let start = 0;
@@ -218,7 +218,7 @@ export function buildArrayString(array: any[], sqlType: string, options: string 
 	return `{${values}}`;
 }
 
-export type OnAction = CockroachDbEntities['fks']['onUpdate'];
+export type OnAction = CockroachEntities['fks']['onUpdate'];
 export const parseOnType = (type: string): OnAction => {
 	switch (type) {
 		case 'a':

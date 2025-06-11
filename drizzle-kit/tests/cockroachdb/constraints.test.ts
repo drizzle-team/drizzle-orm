@@ -1,13 +1,13 @@
 import {
-	AnyCockroachDbColumn,
-	cockroachdbTable,
+	AnyCockroachColumn,
+	cockroachTable,
 	foreignKey,
 	index,
 	int4,
 	primaryKey,
 	text,
 	unique,
-} from 'drizzle-orm/cockroachdb-core';
+} from 'drizzle-orm/cockroach-core';
 import { DB } from 'src/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
@@ -31,12 +31,12 @@ beforeEach(async () => {
 
 test('unique #1', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text(),
 		}),
 	};
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text().unique(),
 		}),
 	};
@@ -58,12 +58,12 @@ test('unique #1', async () => {
 
 test('unique #2', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text(),
 		}),
 	};
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text().unique('unique_name'),
 		}),
 	};
@@ -85,12 +85,12 @@ test('unique #2', async () => {
 
 test('unique #3', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text(),
 		}),
 	};
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text().unique('unique_name'),
 		}),
 	};
@@ -112,12 +112,12 @@ test('unique #3', async () => {
 
 test('unique #6', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text(),
 		}),
 	};
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text(),
 		}, (t) => [unique('unique_name').on(t.name)]),
 	};
@@ -139,12 +139,12 @@ test('unique #6', async () => {
 
 test('unique #7', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text(),
 		}),
 	};
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text(),
 		}, (t) => [unique('unique_name').on(t.name)]),
 	};
@@ -166,12 +166,12 @@ test('unique #7', async () => {
 
 test('unique #8', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text(),
 		}, (t) => [unique('unique_name').on(t.name)]),
 	};
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text(),
 		}, (t) => [unique('unique_name2').on(t.name)]),
 	};
@@ -194,12 +194,12 @@ test('unique #8', async () => {
 
 test('unique #9', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text(),
 		}, (t) => [unique('unique_name').on(t.name)]),
 	};
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text(),
 		}, (t) => [unique('unique_name2').on(t.name)]),
 	};
@@ -226,13 +226,13 @@ test('unique #9', async () => {
 
 test('unique #10', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text(),
 			email: text(),
 		}, (t) => [unique('unique_name').on(t.name)]),
 	};
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text(),
 			email2: text(),
 		}, (t) => [unique('unique_name2').on(t.name)]),
@@ -263,7 +263,7 @@ test('unique #10', async () => {
 
 test('unique #11', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text(),
 			email: text(),
 		}, (t) => [
@@ -272,7 +272,7 @@ test('unique #11', async () => {
 		]),
 	};
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text(),
 			email: text(),
 		}, (t) => [
@@ -305,13 +305,13 @@ test('unique #11', async () => {
 
 test('unique #12', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text(),
 			email: text().unique(),
 		}),
 	};
 	const to = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			name: text(),
 			email: text().unique(),
 		}),
@@ -339,20 +339,20 @@ test('unique #12', async () => {
 
 test('unique #13', async () => {
 	const sch1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text(),
 			email: text().unique(),
 		}),
 	};
 	const sch2 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			name: text(),
 			email2: text().unique('users_email_key'),
 		}),
 	};
 
 	const sch3 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			name: text(),
 			email2: text(),
 		}),
@@ -398,7 +398,7 @@ test('unique #13', async () => {
 
 test('unique multistep #1', async () => {
 	const sch1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text().unique(),
 		}),
 	};
@@ -411,7 +411,7 @@ test('unique multistep #1', async () => {
 	expect(pst1).toStrictEqual(e1);
 
 	const sch2 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			name: text('name2').unique(),
 		}),
 	};
@@ -434,7 +434,7 @@ test('unique multistep #1', async () => {
 	expect(pst3).toStrictEqual([]);
 
 	const sch3 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			name: text('name2'),
 		}),
 	};
@@ -450,7 +450,7 @@ test('unique multistep #1', async () => {
 
 test('unique multistep #2', async () => {
 	const sch1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text().unique(),
 		}),
 	};
@@ -465,7 +465,7 @@ test('unique multistep #2', async () => {
 	]);
 
 	const sch2 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			name: text('name2').unique(),
 		}),
 	};
@@ -491,7 +491,7 @@ test('unique multistep #2', async () => {
 	expect(pst3).toStrictEqual([]);
 
 	const sch3 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			name: text('name2'),
 		}, (t) => [unique().on(t.name)]),
 	};
@@ -502,7 +502,7 @@ test('unique multistep #2', async () => {
 	expect(pst4).toStrictEqual([]);
 
 	const sch4 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			name: text('name2'),
 		}),
 	};
@@ -515,7 +515,7 @@ test('unique multistep #2', async () => {
 
 test('unique multistep #3', async () => {
 	const sch1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text().unique(),
 		}),
 	};
@@ -531,7 +531,7 @@ test('unique multistep #3', async () => {
 	]);
 
 	const sch2 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			name: text('name2').unique(),
 		}),
 	};
@@ -554,7 +554,7 @@ test('unique multistep #3', async () => {
 	expect(pst3).toStrictEqual([]);
 
 	const sch3 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			name: text('name2'),
 		}, (t) => [unique('name_unique').on(t.name)]),
 	};
@@ -570,7 +570,7 @@ test('unique multistep #3', async () => {
 	expect(pst4).toStrictEqual(e4);
 
 	const sch4 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			name: text('name2'),
 		}),
 	};
@@ -583,7 +583,7 @@ test('unique multistep #3', async () => {
 
 test('unique multistep #4', async () => {
 	const sch1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text().unique(),
 		}),
 	};
@@ -598,7 +598,7 @@ test('unique multistep #4', async () => {
 	]);
 
 	const sch2 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			name: text('name2').unique(),
 		}),
 	};
@@ -624,7 +624,7 @@ test('unique multistep #4', async () => {
 	expect(pst3).toStrictEqual([]);
 
 	const sch3 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			name: text('name2'),
 		}, (t) => [unique('name_unique').on(t.name)]),
 	};
@@ -637,7 +637,7 @@ test('unique multistep #4', async () => {
 	expect(pst4).toStrictEqual(['ALTER INDEX "users_name_key" RENAME TO "name_unique";']);
 
 	const sch4 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			name: text('name2'),
 		}),
 	};
@@ -650,7 +650,7 @@ test('unique multistep #4', async () => {
 
 test('index multistep #1', async () => {
 	const sch1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text(),
 		}, (t) => [index().on(t.name)]),
 	};
@@ -666,7 +666,7 @@ test('index multistep #1', async () => {
 	expect(pst1).toStrictEqual(e1);
 
 	const sch2 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			name: text('name2'),
 		}, (t) => [index().on(t.name)]),
 	};
@@ -692,7 +692,7 @@ test('index multistep #1', async () => {
 	expect(pst3).toStrictEqual([]);
 
 	const sch3 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			name: text('name2'),
 		}),
 	};
@@ -706,7 +706,7 @@ test('index multistep #1', async () => {
 
 test('index multistep #2', async () => {
 	const sch1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text(),
 		}, (t) => [index().on(t.name)]),
 	};
@@ -722,7 +722,7 @@ test('index multistep #2', async () => {
 	expect(pst1).toStrictEqual(e1);
 
 	const sch2 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			name: text('name2'),
 		}, (t) => [index().on(t.name)]),
 	};
@@ -742,7 +742,7 @@ test('index multistep #2', async () => {
 	expect(pst2).toStrictEqual(e2);
 
 	const sch3 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			name: text('name2'),
 		}, (t) => [index('name2_idx').on(t.name)]),
 	};
@@ -758,7 +758,7 @@ test('index multistep #2', async () => {
 	expect(pst3).toStrictEqual(e3);
 
 	const sch4 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			name: text('name2'),
 		}),
 	};
@@ -771,7 +771,7 @@ test('index multistep #2', async () => {
 
 test('index multistep #3', async () => {
 	const sch1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text(),
 		}, (t) => [index().on(t.name)]),
 	};
@@ -787,7 +787,7 @@ test('index multistep #3', async () => {
 	expect(pst1).toStrictEqual(e1);
 
 	const sch2 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			name: text('name2'),
 		}, (t) => [index().on(t.name)]),
 	};
@@ -807,7 +807,7 @@ test('index multistep #3', async () => {
 	expect(pst2).toStrictEqual(e2);
 
 	const sch3 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			name: text('name2'),
 		}, (t) => [index('name2_idx').on(t.name)]),
 	};
@@ -822,7 +822,7 @@ test('index multistep #3', async () => {
 	expect(pst3).toStrictEqual(['ALTER INDEX "users_name_index" RENAME TO "name2_idx";']);
 
 	const sch4 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			name: text('name2'),
 		}),
 	};
@@ -835,7 +835,7 @@ test('index multistep #3', async () => {
 
 test('index multistep #3', async () => {
 	const sch1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text(),
 		}, (t) => [index().on(t.name)]),
 	};
@@ -851,7 +851,7 @@ test('index multistep #3', async () => {
 	expect(pst1).toStrictEqual(e1);
 
 	const sch2 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			name: text('name2'),
 		}, (t) => [index().on(t.name)]),
 	};
@@ -871,7 +871,7 @@ test('index multistep #3', async () => {
 	expect(pst2).toStrictEqual(e2);
 
 	const sch3 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			name: text('name2'),
 		}, (t) => [index('name2_idx').on(t.name)]),
 	};
@@ -887,7 +887,7 @@ test('index multistep #3', async () => {
 	expect(pst3).toStrictEqual(e3);
 
 	const sch4 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			name: text('name2'),
 		}),
 	};
@@ -901,13 +901,13 @@ test('index multistep #3', async () => {
 
 test('pk #1', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text().notNull(),
 		}),
 	};
 
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text().notNull().primaryKey(),
 		}),
 	};
@@ -923,12 +923,12 @@ test('pk #1', async () => {
 
 test('pk #2', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text().notNull().primaryKey(),
 		}),
 	};
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text().notNull().primaryKey(),
 		}),
 	};
@@ -944,12 +944,12 @@ test('pk #2', async () => {
 
 test('pk #3', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text().notNull().primaryKey(),
 		}),
 	};
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text().notNull(),
 		}, (t) => [primaryKey({ columns: [t.name] })]),
 	};
@@ -964,13 +964,13 @@ test('pk #3', async () => {
 
 test('pk #4', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text().notNull(),
 		}, (t) => [primaryKey({ columns: [t.name] })]),
 	};
 
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text().notNull().primaryKey(),
 		}),
 	};
@@ -985,13 +985,13 @@ test('pk #4', async () => {
 
 test('pk #5', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text().notNull(),
 		}, (t) => [primaryKey({ columns: [t.name] })]),
 	};
 
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text().notNull(),
 		}),
 	};
@@ -1005,7 +1005,7 @@ test('pk #5', async () => {
 
 test('pk multistep #1', async () => {
 	const sch1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text().primaryKey(),
 		}),
 	};
@@ -1017,7 +1017,7 @@ test('pk multistep #1', async () => {
 	expect(pst1).toStrictEqual(['CREATE TABLE "users" (\n\t"name" text PRIMARY KEY\n);\n']);
 
 	const sch2 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			name: text('name2').primaryKey(),
 		}),
 	};
@@ -1043,7 +1043,7 @@ test('pk multistep #1', async () => {
 	expect(pst3).toStrictEqual([]);
 
 	const sch3 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			name: text('name2'),
 		}),
 	};
@@ -1056,7 +1056,7 @@ test('pk multistep #1', async () => {
 
 test('pk multistep #2', async () => {
 	const sch1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text().primaryKey(),
 		}),
 	};
@@ -1068,7 +1068,7 @@ test('pk multistep #2', async () => {
 	expect(pst1).toStrictEqual(['CREATE TABLE "users" (\n\t"name" text PRIMARY KEY\n);\n']);
 
 	const sch2 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			name: text('name2'),
 		}, (t) => [primaryKey({ columns: [t.name] })]),
 	};
@@ -1094,7 +1094,7 @@ test('pk multistep #2', async () => {
 	expect(pst3).toStrictEqual([]);
 
 	const sch3 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			name: text('name2'),
 		}, (t) => [primaryKey({ name: 'users2_pk', columns: [t.name] })]),
 	};
@@ -1107,7 +1107,7 @@ test('pk multistep #2', async () => {
 	expect(pst4).toStrictEqual(['ALTER TABLE "users2" RENAME CONSTRAINT "users_pkey" TO "users2_pk";']);
 
 	const sch4 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			name: text('name2'),
 		}),
 	};
@@ -1120,7 +1120,7 @@ test('pk multistep #2', async () => {
 
 test('pk multistep #3', async () => {
 	const sch1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text().primaryKey(),
 		}),
 	};
@@ -1132,7 +1132,7 @@ test('pk multistep #3', async () => {
 	expect(pst1).toStrictEqual(['CREATE TABLE "users" (\n\t"name" text PRIMARY KEY\n);\n']);
 
 	const sch2 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			name: text('name2'),
 		}, (t) => [primaryKey({ columns: [t.name] })]),
 	};
@@ -1158,7 +1158,7 @@ test('pk multistep #3', async () => {
 	expect(pst3).toStrictEqual([]);
 
 	const sch3 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			name: text('name2'),
 		}, (t) => [primaryKey({ name: 'users2_pk', columns: [t.name] })]),
 	};
@@ -1173,7 +1173,7 @@ test('pk multistep #3', async () => {
 	expect(pst4).toStrictEqual(e4);
 
 	const sch4 = {
-		users: cockroachdbTable('users2', {
+		users: cockroachTable('users2', {
 			name: text('name2'),
 		}),
 	};
@@ -1185,10 +1185,10 @@ test('pk multistep #3', async () => {
 });
 
 test('fk #1', async () => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4().primaryKey(),
 	});
-	const posts = cockroachdbTable('posts', {
+	const posts = cockroachTable('posts', {
 		id: int4().primaryKey(),
 		authorId: int4().references(() => users.id),
 	});
@@ -1212,9 +1212,9 @@ test('fk #1', async () => {
 
 // exactly 63 symbols fkey, fkey name explicit
 test('fk #2', async () => {
-	const users = cockroachdbTable('123456789_123456789_users', {
+	const users = cockroachTable('123456789_123456789_users', {
 		id: int4().primaryKey(),
-		id2: int4().references((): AnyCockroachDbColumn => users.id),
+		id2: int4().references((): AnyCockroachColumn => users.id),
 	});
 
 	const to = { users };
@@ -1232,9 +1232,9 @@ test('fk #2', async () => {
 
 // 65 symbols fkey, fkey = table_hash_fkey
 test('fk #3', async () => {
-	const users = cockroachdbTable('1234567890_1234567890_users', {
+	const users = cockroachTable('1234567890_1234567890_users', {
 		id: int4().primaryKey(),
-		id2: int4().references((): AnyCockroachDbColumn => users.id),
+		id2: int4().references((): AnyCockroachColumn => users.id),
 	});
 
 	const to = { users };
@@ -1252,9 +1252,9 @@ test('fk #3', async () => {
 
 // >=45 length table name, fkey = hash_fkey
 test('fk #4', async () => {
-	const users = cockroachdbTable('1234567890_1234567890_1234567890_123456_users', {
+	const users = cockroachTable('1234567890_1234567890_1234567890_123456_users', {
 		id: int4().primaryKey(),
-		id2: int4().references((): AnyCockroachDbColumn => users.id),
+		id2: int4().references((): AnyCockroachColumn => users.id),
 	});
 
 	const to = { users };
@@ -1271,9 +1271,9 @@ test('fk #4', async () => {
 });
 
 test('fk #5', async () => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4().primaryKey(),
-		id2: int4().references((): AnyCockroachDbColumn => users.id),
+		id2: int4().references((): AnyCockroachColumn => users.id),
 	});
 
 	const to = { users };
@@ -1290,14 +1290,14 @@ test('fk #5', async () => {
 });
 
 test('fk #6', async () => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4().primaryKey(),
-		id2: int4().references((): AnyCockroachDbColumn => users.id),
+		id2: int4().references((): AnyCockroachColumn => users.id),
 	});
 
-	const users2 = cockroachdbTable('users2', {
+	const users2 = cockroachTable('users2', {
 		id: int4('id3').primaryKey(),
-		id2: int4().references((): AnyCockroachDbColumn => users2.id),
+		id2: int4().references((): AnyCockroachColumn => users2.id),
 	});
 
 	const from = { users };
@@ -1317,12 +1317,12 @@ test('fk #6', async () => {
 });
 
 test('fk #7', async () => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id1: int4().primaryKey(),
-		id2: int4().references((): AnyCockroachDbColumn => users.id1),
+		id2: int4().references((): AnyCockroachColumn => users.id1),
 	});
 
-	const users2 = cockroachdbTable('users', {
+	const users2 = cockroachTable('users', {
 		id1: int4().primaryKey(),
 		id2: int4(),
 	}, (t) => [foreignKey({ name: 'id2_id1_fk', columns: [t.id2], foreignColumns: [t.id1] })]);
@@ -1343,16 +1343,16 @@ test('fk #7', async () => {
 });
 
 test('fk #8', async () => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id1: int4().primaryKey(),
 		id2: int4().unique(),
-		id3: int4().references((): AnyCockroachDbColumn => users.id1),
+		id3: int4().references((): AnyCockroachColumn => users.id1),
 	});
 
-	const users2 = cockroachdbTable('users', {
+	const users2 = cockroachTable('users', {
 		id1: int4().primaryKey(),
 		id2: int4().unique(),
-		id3: int4().references((): AnyCockroachDbColumn => users.id2),
+		id3: int4().references((): AnyCockroachColumn => users.id2),
 	});
 
 	const from = { users };
@@ -1371,13 +1371,13 @@ test('fk #8', async () => {
 });
 
 test('fk #9', async () => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id1: int4().primaryKey(),
 		id2: int4().unique(),
 		id3: int4(),
 	}, (t) => [foreignKey({ name: 'fk1', columns: [t.id3], foreignColumns: [t.id1] })]);
 
-	const users2 = cockroachdbTable('users', {
+	const users2 = cockroachTable('users', {
 		id1: int4().primaryKey(),
 		id2: int4().unique(),
 		id3: int4(),
@@ -1398,13 +1398,13 @@ test('fk #9', async () => {
 });
 
 test('fk #10', async () => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id1: int4().primaryKey(),
 	});
 
-	const users2 = cockroachdbTable('users2', {
+	const users2 = cockroachTable('users2', {
 		id1: int4().primaryKey(),
-		id2: int4().references((): AnyCockroachDbColumn => users2.id1),
+		id2: int4().references((): AnyCockroachColumn => users2.id1),
 	});
 
 	const from = { users };
@@ -1425,12 +1425,12 @@ test('fk #10', async () => {
 });
 
 test('fk #11', async () => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id1: int4().primaryKey(),
-		id2: int4().references((): AnyCockroachDbColumn => users.id1),
+		id2: int4().references((): AnyCockroachColumn => users.id1),
 	});
 
-	const users2 = cockroachdbTable('users2', {
+	const users2 = cockroachTable('users2', {
 		id1: int4().primaryKey(),
 		id2: int4(),
 	});
@@ -1452,14 +1452,14 @@ test('fk #11', async () => {
 });
 
 test('fk multistep #1', async () => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4().primaryKey(),
-		id2: int4().references((): AnyCockroachDbColumn => users.id),
+		id2: int4().references((): AnyCockroachColumn => users.id),
 	});
 
-	const users2 = cockroachdbTable('users2', {
+	const users2 = cockroachTable('users2', {
 		id: int4('id3').primaryKey(),
-		id2: int4().references((): AnyCockroachDbColumn => users2.id),
+		id2: int4().references((): AnyCockroachColumn => users2.id),
 	});
 
 	const sch1 = { users };
@@ -1492,7 +1492,7 @@ test('fk multistep #1', async () => {
 	expect(st3).toStrictEqual([]);
 	expect(pst3).toStrictEqual([]);
 
-	const users3 = cockroachdbTable('users2', {
+	const users3 = cockroachTable('users2', {
 		id: int4('id3').primaryKey(),
 		id2: int4(),
 	});
@@ -1505,14 +1505,14 @@ test('fk multistep #1', async () => {
 });
 
 test('fk multistep #2', async () => {
-	const users = cockroachdbTable('users', {
+	const users = cockroachTable('users', {
 		id: int4().primaryKey(),
-		id2: int4().references((): AnyCockroachDbColumn => users.id),
+		id2: int4().references((): AnyCockroachColumn => users.id),
 	});
 
-	const users2 = cockroachdbTable('users2', {
+	const users2 = cockroachTable('users2', {
 		id: int4('id3').primaryKey(),
-		id2: int4().references((): AnyCockroachDbColumn => users2.id),
+		id2: int4().references((): AnyCockroachColumn => users2.id),
 	});
 
 	const sch1 = { users };

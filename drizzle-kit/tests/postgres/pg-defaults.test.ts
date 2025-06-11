@@ -967,11 +967,11 @@ test('interval + interval arrays', async () => {
 
 	expect.soft(res1).toStrictEqual([]);
 	// it's ok, that's due to '1 day 3 second' vs '1 day 00:00:03'
-	expect.soft(res10.length).toBe(1); 
+	expect.soft(res10.length).toBe(1);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res20).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
-	
+
 	// it's ok, that's due to '1 day 3 second' vs '1 day 00:00:03'
 	expect.soft(res30.length).toBe(1);
 	expect.soft(res4).toStrictEqual([]);
@@ -1215,7 +1215,7 @@ test('corner cases', async () => {
 	);
 
 	// expect.soft(res21).toStrictEqual([]);
-	// expect.soft(res22).toStrictEqual([]); 
+	// expect.soft(res22).toStrictEqual([]);
 });
 
 // pgvector extension
