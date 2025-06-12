@@ -6,7 +6,9 @@ import {
 	char,
 	cockroachEnum,
 	date,
+	decimal,
 	doublePrecision,
+	float,
 	geometry,
 	int4,
 	interval,
@@ -14,6 +16,7 @@ import {
 	numeric,
 	real,
 	smallint,
+	string,
 	text,
 	time,
 	timestamp,
@@ -163,60 +166,176 @@ test('numeric', async () => {
 
 // when was string array and introspect gives trimmed .10 -> 0.1
 test('numeric arrays', async () => {
-	const res1 = await diffDefault(_, numeric({ mode: 'number' }).array().default([]), "'{}'::numeric[]");
+	const res1 = await diffDefault(_, numeric({ mode: 'number' }).array().default([]), "'{}'::decimal[]");
 	const res2 = await diffDefault(
 		_,
 		numeric({ mode: 'number', precision: 4, scale: 2 }).array().default([]),
-		"'{}'::numeric(4,2)[]",
+		"'{}'::decimal(4,2)[]",
 	);
-	const res3 = await diffDefault(_, numeric({ mode: 'bigint' }).array().default([]), "'{}'::numeric[]");
+	const res3 = await diffDefault(_, numeric({ mode: 'bigint' }).array().default([]), "'{}'::decimal[]");
 	const res4 = await diffDefault(
 		_,
 		numeric({ mode: 'bigint', precision: 4 }).array().default([]),
-		"'{}'::numeric(4)[]",
+		"'{}'::decimal(4)[]",
 	);
-	const res5 = await diffDefault(_, numeric({ mode: 'string' }).array().default([]), "'{}'::numeric[]");
+	const res5 = await diffDefault(_, numeric({ mode: 'string' }).array().default([]), "'{}'::decimal[]");
 	const res6 = await diffDefault(
 		_,
 		numeric({ mode: 'string', precision: 4, scale: 2 }).array().default([]),
-		"'{}'::numeric(4,2)[]",
+		"'{}'::decimal(4,2)[]",
 	);
 
 	const res7 = await diffDefault(
 		_,
 		numeric({ mode: 'number' }).array().default([10.123, 123.10]),
-		"'{10.123,123.1}'::numeric[]",
+		"'{10.123,123.1}'::decimal[]",
 	);
 	const res70 = await diffDefault(
 		_,
 		numeric({ mode: 'number', scale: 2, precision: 6 }).array().default([10.123, 123.10]),
-		"'{10.12,123.10}'::numeric(6,2)[]",
+		"'{10.12,123.10}'::decimal(6,2)[]",
 	);
 
 	const res8 = await diffDefault(
 		_,
 		numeric({ mode: 'number', precision: 6, scale: 2 }).array().default([10.123, 123.10]),
-		"'{10.12,123.10}'::numeric(6,2)[]",
+		"'{10.12,123.10}'::decimal(6,2)[]",
 	);
 	const res9 = await diffDefault(
 		_,
 		numeric({ mode: 'bigint' }).array().default([9223372036854775807n, 9223372036854775806n]),
-		"'{9223372036854775807,9223372036854775806}'::numeric[]",
+		"'{9223372036854775807,9223372036854775806}'::decimal[]",
 	);
 	const res10 = await diffDefault(
 		_,
 		numeric({ mode: 'bigint', precision: 19 }).array().default([9223372036854775807n, 9223372036854775806n]),
-		"'{9223372036854775807,9223372036854775806}'::numeric(19)[]",
+		"'{9223372036854775807,9223372036854775806}'::decimal(19)[]",
 	);
 	const res11 = await diffDefault(
 		_,
 		numeric({ mode: 'string' }).array().default(['10.123', '123.10']),
-		"'{10.123,123.10}'::numeric[]",
+		"'{10.123,123.10}'::decimal[]",
 	);
 	const res12 = await diffDefault(
 		_,
 		numeric({ mode: 'string', precision: 6, scale: 2 }).array().default(['10.123', '123.10']),
-		"'{10.12,123.10}'::numeric(6,2)[]",
+		"'{10.12,123.10}'::decimal(6,2)[]",
+	);
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
+	expect.soft(res5).toStrictEqual([]);
+	expect.soft(res6).toStrictEqual([]);
+	expect.soft(res7).toStrictEqual([]);
+	expect.soft(res70).toStrictEqual([]);
+	expect.soft(res8).toStrictEqual([]);
+	expect.soft(res9).toStrictEqual([]);
+	expect.soft(res10).toStrictEqual([]);
+	// it's ok, that's due to '.10' is parsed to '0.1'
+	expect.soft(res11.length).toBe(1);
+	expect.soft(res12).toStrictEqual([]);
+});
+
+test('decimal', async () => {
+	const res1 = await diffDefault(_, decimal().default('10.123'), "'10.123'");
+
+	const res2 = await diffDefault(_, decimal({ mode: 'bigint' }).default(9223372036854775807n), "'9223372036854775807'");
+	const res3 = await diffDefault(_, decimal({ mode: 'number' }).default(9007199254740991), '9007199254740991');
+	const res4 = await diffDefault(_, decimal({ mode: 'string' }).default('10.123'), "'10.123'");
+
+	const res5 = await diffDefault(_, decimal({ precision: 6 }).default('10.123'), "'10'");
+	const res6 = await diffDefault(_, decimal({ precision: 6, scale: 2 }).default('10.123'), "'10.12'");
+	const res7 = await diffDefault(_, decimal({ precision: 6, scale: 3 }).default('10.12'), "'10.120'");
+
+	const res8 = await diffDefault(_, decimal({ mode: 'string', scale: 2 }).default('10.123'), "'10.123'");
+	const res9 = await diffDefault(_, decimal({ mode: 'string', precision: 6 }).default('10.123'), "'10'");
+	const res10 = await diffDefault(_, decimal({ mode: 'string', precision: 6, scale: 2 }).default('10.123'), "'10.12'");
+	const res11 = await diffDefault(_, decimal({ mode: 'string', precision: 6, scale: 3 }).default('10.12'), "'10.120'");
+
+	const res12 = await diffDefault(
+		_,
+		decimal({ mode: 'bigint', precision: 19 }).default(9223372036854775807n),
+		"'9223372036854775807'",
+	);
+	const res13 = await diffDefault(_, decimal({ mode: 'number', precision: 6, scale: 2 }).default(10.123), '10.12');
+	const res14 = await diffDefault(_, decimal({ mode: 'number', scale: 2 }).default(10.123), '10.123');
+	const res15 = await diffDefault(_, decimal({ mode: 'number', precision: 6 }).default(10.123), '10');
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
+	expect.soft(res5).toStrictEqual([]);
+	expect.soft(res6).toStrictEqual([]);
+	expect.soft(res7).toStrictEqual([]);
+	expect.soft(res8).toStrictEqual([]);
+	expect.soft(res9).toStrictEqual([]);
+	expect.soft(res10).toStrictEqual([]);
+	expect.soft(res11).toStrictEqual([]);
+	expect.soft(res12).toStrictEqual([]);
+	expect.soft(res13).toStrictEqual([]);
+	expect.soft(res14).toStrictEqual([]);
+	expect.soft(res15).toStrictEqual([]);
+});
+
+// when was string array and introspect gives trimmed .10 -> 0.1
+test('decimal arrays', async () => {
+	const res1 = await diffDefault(_, decimal({ mode: 'number' }).array().default([]), "'{}'::decimal[]");
+	const res2 = await diffDefault(
+		_,
+		decimal({ mode: 'number', precision: 4, scale: 2 }).array().default([]),
+		"'{}'::decimal(4,2)[]",
+	);
+	const res3 = await diffDefault(_, decimal({ mode: 'bigint' }).array().default([]), "'{}'::decimal[]");
+	const res4 = await diffDefault(
+		_,
+		decimal({ mode: 'bigint', precision: 4 }).array().default([]),
+		"'{}'::decimal(4)[]",
+	);
+	const res5 = await diffDefault(_, decimal({ mode: 'string' }).array().default([]), "'{}'::decimal[]");
+	const res6 = await diffDefault(
+		_,
+		decimal({ mode: 'string', precision: 4, scale: 2 }).array().default([]),
+		"'{}'::decimal(4,2)[]",
+	);
+
+	const res7 = await diffDefault(
+		_,
+		decimal({ mode: 'number' }).array().default([10.123, 123.10]),
+		"'{10.123,123.1}'::decimal[]",
+	);
+	const res70 = await diffDefault(
+		_,
+		decimal({ mode: 'number', scale: 2, precision: 6 }).array().default([10.123, 123.10]),
+		"'{10.12,123.10}'::decimal(6,2)[]",
+	);
+
+	const res8 = await diffDefault(
+		_,
+		decimal({ mode: 'number', precision: 6, scale: 2 }).array().default([10.123, 123.10]),
+		"'{10.12,123.10}'::decimal(6,2)[]",
+	);
+	const res9 = await diffDefault(
+		_,
+		decimal({ mode: 'bigint' }).array().default([9223372036854775807n, 9223372036854775806n]),
+		"'{9223372036854775807,9223372036854775806}'::decimal[]",
+	);
+	const res10 = await diffDefault(
+		_,
+		decimal({ mode: 'bigint', precision: 19 }).array().default([9223372036854775807n, 9223372036854775806n]),
+		"'{9223372036854775807,9223372036854775806}'::decimal(19)[]",
+	);
+	const res11 = await diffDefault(
+		_,
+		decimal({ mode: 'string' }).array().default(['10.123', '123.10']),
+		"'{10.123,123.10}'::decimal[]",
+	);
+	const res12 = await diffDefault(
+		_,
+		decimal({ mode: 'string', precision: 6, scale: 2 }).array().default(['10.123', '123.10']),
+		"'{10.12,123.10}'::decimal(6,2)[]",
 	);
 
 	expect.soft(res1).toStrictEqual([]);
@@ -237,23 +356,50 @@ test('numeric arrays', async () => {
 
 test('real + real arrays', async () => {
 	const res1 = await diffDefault(_, real().default(1000.123), '1000.123');
+	const res10 = await diffDefault(_, real().default(1000), '1000');
 
 	const res2 = await diffDefault(_, real().array().default([]), `'{}'::real[]`);
 	const res3 = await diffDefault(_, real().array().default([1000.123, 10.2]), `'{1000.123,10.2}'::real[]`);
+	const res30 = await diffDefault(_, real().array().default([1000.123, 10]), `'{1000.123,10}'::real[]`);
 
 	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res10).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res30).toStrictEqual([]);
+});
+
+test('float + float arrays', async () => {
+	const res1 = await diffDefault(_, float().default(10000.123), '10000.123');
+	const res10 = await diffDefault(_, float().default(10000), '10000');
+
+	const res2 = await diffDefault(_, float().array().default([]), `'{}'::float[]`);
+	const res3 = await diffDefault(
+		_,
+		float().array().default([10000.123]),
+		`'{10000.123}'::float[]`,
+	);
+	const res30 = await diffDefault(
+		_,
+		float().array().default([10000, 14]),
+		`'{10000,14}'::float[]`,
+	);
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res10).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res30).toStrictEqual([]);
 });
 
 test('doublePrecision + doublePrecision arrays', async () => {
 	const res1 = await diffDefault(_, doublePrecision().default(10000.123), '10000.123');
 
-	const res2 = await diffDefault(_, doublePrecision().array().default([]), `'{}'::double precision[]`);
+	const res2 = await diffDefault(_, doublePrecision().array().default([]), `'{}'::float[]`);
 	const res3 = await diffDefault(
 		_,
 		doublePrecision().array().default([10000.123]),
-		`'{10000.123}'::double precision[]`,
+		`'{10000.123}'::float[]`,
 	);
 
 	expect.soft(res1).toStrictEqual([]);
@@ -393,23 +539,67 @@ test('text + text arrays', async () => {
 		`'mo''''",\`}{od'`,
 	);
 
-	const res6 = await diffDefault(_, text().array().default([]), `'{}'::text[]`);
+	const res6 = await diffDefault(_, text().array().default([]), `'{}'::string[]`);
 
-	const res7 = await diffDefault(_, text().array().default(['text']), `'{text}'::text[]`);
+	const res7 = await diffDefault(_, text().array().default(['text']), `'{text}'::string[]`);
 	const res8 = await diffDefault(
 		_,
 		text().array().default(["text'text"]),
-		`'{text''text}'::text[]`,
+		`'{text''text}'::string[]`,
 	);
 	const res9 = await diffDefault(
 		_,
 		text().array().default([`text'text"`]),
-		`'{"text''text\\""}'::text[]`,
+		`'{"text''text\\""}'::string[]`,
 	);
 	const res10 = await diffDefault(
 		_,
 		text({ enum: ['one', 'two', 'three'] }).array().default(['one']),
-		`'{one}'::text[]`,
+		`'{one}'::string[]`,
+	);
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
+	expect.soft(res5).toStrictEqual([]);
+	expect.soft(res6).toStrictEqual([]);
+	expect.soft(res7).toStrictEqual([]);
+	expect.soft(res8).toStrictEqual([]);
+	expect.soft(res9).toStrictEqual([]);
+	expect.soft(res10).toStrictEqual([]);
+});
+
+test('string + string arrays', async () => {
+	const res1 = await diffDefault(_, string().default('text'), `'text'`);
+	const res2 = await diffDefault(_, string().default("text'text"), `'text''text'`);
+	const res3 = await diffDefault(_, string().default('text\'text"'), "'text''text\"'");
+	const res4 = await diffDefault(_, string({ enum: ['one', 'two', 'three'] }).default('one'), "'one'");
+	const res5 = await diffDefault(
+		_,
+		text({ enum: ['one', 'two', 'three', `no,''"\`rm`, `mo''",\`}{od`, 'mo,\`od'] }).default(
+			`mo''",\`}{od`,
+		),
+		`'mo''''",\`}{od'`,
+	);
+
+	const res6 = await diffDefault(_, string().array().default([]), `'{}'::string[]`);
+
+	const res7 = await diffDefault(_, string().array().default(['text']), `'{text}'::string[]`);
+	const res8 = await diffDefault(
+		_,
+		text().array().default(["text'text"]),
+		`'{text''text}'::string[]`,
+	);
+	const res9 = await diffDefault(
+		_,
+		string().array().default([`text'text"`]),
+		`'{"text''text\\""}'::string[]`,
+	);
+	const res10 = await diffDefault(
+		_,
+		string({ enum: ['one', 'two', 'three'], length: 10 }).array().default(['one']),
+		`'{one}'::string(10)[]`,
 	);
 
 	expect.soft(res1).toStrictEqual([]);
@@ -723,7 +913,7 @@ test('corner cases', async () => {
 			.default(
 				[`mo''",\`}{od`],
 			),
-		`'{"mo''''\\\",\`\}\{od"}'::text[]`,
+		`'{"mo''''\\\",\`\}\{od"}'::string[]`,
 	);
 	expect.soft(res__14).toStrictEqual([]);
 });

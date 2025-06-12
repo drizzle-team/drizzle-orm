@@ -234,7 +234,7 @@ test('add table #9', async () => {
 
 	const st0 = [
 		'CREATE TABLE "users" (\n'
-		+ '\t"name" text,\n'
+		+ '\t"name" string,\n'
 		+ '\tCONSTRAINT "users_name_key" UNIQUE("name")\n'
 		+ ');\n',
 	];
@@ -259,7 +259,7 @@ test('add table #10', async () => {
 	});
 
 	const st0 = [
-		`CREATE TABLE "users" (\n\t"name" text,\n\tCONSTRAINT "name_unique" UNIQUE("name")\n);\n`,
+		`CREATE TABLE "users" (\n\t"name" string,\n\tCONSTRAINT "name_unique" UNIQUE("name")\n);\n`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -281,7 +281,7 @@ test('add table #11', async () => {
 	});
 
 	const st0 = [
-		`CREATE TABLE "users" (\n\t"name" text,\n\tCONSTRAINT "name_unique" UNIQUE("name")\n);\n`,
+		`CREATE TABLE "users" (\n\t"name" string,\n\tCONSTRAINT "name_unique" UNIQUE("name")\n);\n`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -303,7 +303,7 @@ test('add table #12', async () => {
 	});
 
 	const st0 = [
-		`CREATE TABLE "users" (\n\t"name" text,\n\tCONSTRAINT "users_name_key" UNIQUE("name")\n);\n`,
+		`CREATE TABLE "users" (\n\t"name" string,\n\tCONSTRAINT "users_name_key" UNIQUE("name")\n);\n`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -325,7 +325,7 @@ test('add table #13', async () => {
 	});
 
 	const st0 = [
-		`CREATE TABLE "users" (\n\t"name" text,\n\tCONSTRAINT "users_name_key" UNIQUE("name")\n);\n`,
+		`CREATE TABLE "users" (\n\t"name" string,\n\tCONSTRAINT "users_name_key" UNIQUE("name")\n);\n`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -347,7 +347,7 @@ test('add table #14', async () => {
 	});
 
 	const st0 = [
-		`CREATE TABLE "users" (\n\t"name" text,\n\tCONSTRAINT "users_name_key" UNIQUE("name")\n);\n`,
+		`CREATE TABLE "users" (\n\t"name" string,\n\tCONSTRAINT "users_name_key" UNIQUE("name")\n);\n`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -367,7 +367,7 @@ test('add table #15', async () => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0 = [
-		`CREATE TABLE "users" (\n\t"name" text,\n\tCONSTRAINT "name_unique" UNIQUE("name")\n);\n`,
+		`CREATE TABLE "users" (\n\t"name" string,\n\tCONSTRAINT "name_unique" UNIQUE("name")\n);\n`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -777,8 +777,7 @@ test('drop table + rename schema #1', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-// TODO Need to know about using and op classes to finish this
-test.todo('create table with tsvector', async () => {
+test('create table with tsvector', async () => {
 	const from = {};
 	const to = {
 		users: cockroachTable('posts', {
@@ -798,7 +797,7 @@ test.todo('create table with tsvector', async () => {
 	});
 
 	const st0 = [
-		'CREATE TABLE "posts" (\n\t"id" int4 PRIMARY KEY,\n\t"title" text NOT NULL,\n\t"description" text NOT NULL\n);\n',
+		'CREATE TABLE "posts" (\n\t"id" int4 PRIMARY KEY,\n\t"title" string NOT NULL,\n\t"description" string NOT NULL\n);\n',
 		`CREATE INDEX "title_search_index" ON "posts" USING gin (to_tsvector('english', "title"));`,
 	];
 	expect(st).toStrictEqual(st0);
@@ -825,7 +824,7 @@ test('composite primary key', async () => {
 	});
 
 	const st0 = [
-		'CREATE TABLE "works_to_creators" (\n\t"work_id" int4 NOT NULL,\n\t"creator_id" int4 NOT NULL,\n\t"classification" text NOT NULL,\n\tCONSTRAINT "works_to_creators_pkey" PRIMARY KEY("work_id","creator_id","classification")\n);\n',
+		'CREATE TABLE "works_to_creators" (\n\t"work_id" int4 NOT NULL,\n\t"creator_id" int4 NOT NULL,\n\t"classification" string NOT NULL,\n\tCONSTRAINT "works_to_creators_pkey" PRIMARY KEY("work_id","creator_id","classification")\n);\n',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -853,7 +852,7 @@ test('add column before creating unique constraint', async () => {
 	});
 
 	const st0 = [
-		'ALTER TABLE "table" ADD COLUMN "name" text NOT NULL;',
+		'ALTER TABLE "table" ADD COLUMN "name" string NOT NULL;',
 		'CREATE UNIQUE INDEX "uq" ON "table" ("name");',
 	];
 	expect(st).toStrictEqual(st0);
@@ -1092,7 +1091,7 @@ test('create table with generated column', async () => {
 	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
 	const st0: string[] = [
-		'CREATE TABLE "users" (\n\t"id" int4,\n\t"id2" int4,\n\t"name" text,\n\t"gen_name" text GENERATED ALWAYS AS ("users"."name" || \'hello\') STORED\n);\n',
+		'CREATE TABLE "users" (\n\t"id" int4,\n\t"id2" int4,\n\t"name" string,\n\t"gen_name" string GENERATED ALWAYS AS ("users"."name" || \'hello\') STORED\n);\n',
 	];
 
 	expect(st).toStrictEqual(st0);

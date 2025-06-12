@@ -27,7 +27,7 @@ import type { DB } from '../../utils';
 import { prepareOutFolder } from '../../utils/utils-node';
 import { resolver } from '../prompts';
 import type { Entities } from '../validations/cli';
-import type { CockroachDbCredentials } from '../validations/cockroachdb';
+import type { CockroachDbCredentials } from '../validations/cockroach';
 import type { Casing, Prefix } from '../validations/common';
 import { IntrospectProgress } from '../views';
 import { writeResult } from './generate-common';
@@ -71,7 +71,7 @@ export const handle = async (
 		process.exit(1);
 	}
 
-	const ts = cockroachdbSequenceSchemaToTypeScript(ddl2, res.viewColumns, casing, 'cockroachdb');
+	const ts = cockroachdbSequenceSchemaToTypeScript(ddl2, res.viewColumns, casing);
 	const relationsTs = relationsToTypeScript(ddl2.fks.list(), casing);
 
 	const schemaFile = join(out, 'schema.ts');

@@ -162,9 +162,8 @@ export abstract class CockroachColumn<
 
 	/** @internal */
 	override shouldDisableInsert(): boolean {
-		// return (this.config.generatedIdentity !== undefined && this.config.generatedIdentity.type === 'always')
-		// 	|| (this.config.generated !== undefined && this.config.generated.type !== 'byDefault');
-		return this.config.generated !== undefined && this.config.generated.type !== 'byDefault';
+		return (this.config.generatedIdentity !== undefined && this.config.generatedIdentity.type === 'always')
+			|| (this.config.generated !== undefined && this.config.generated.type !== 'byDefault');
 	}
 }
 

@@ -4,8 +4,8 @@ import {
 	CockroachColumn,
 	CockroachDate,
 	CockroachDateString,
+	CockroachDecimal,
 	CockroachJsonb,
-	CockroachNumeric,
 	CockroachTime,
 	CockroachTimestamp,
 	CockroachTimestampString,
@@ -580,7 +580,7 @@ export class CockroachDialect {
 	prepareTyping(encoder: DriverValueEncoder<unknown, unknown>): QueryTypingsValue {
 		if (is(encoder, CockroachJsonb)) {
 			return 'json';
-		} else if (is(encoder, CockroachNumeric)) {
+		} else if (is(encoder, CockroachDecimal)) {
 			return 'decimal';
 		} else if (is(encoder, CockroachTime)) {
 			return 'time';

@@ -8,8 +8,8 @@ import { type Dialect, dialect } from '../../utils/schemaValidator';
 import { prepareFilenames } from '../../utils/utils-node';
 import { safeRegister } from '../../utils/utils-node';
 import { Entities, pullParams, pushParams } from '../validations/cli';
-import { CockroachDbCredentials, cockroachdbCredentials } from '../validations/cockroachdb';
-import { printConfigConnectionIssues as printCockroachIssues } from '../validations/cockroachdb';
+import { CockroachCredentials, cockroachCredentials } from '../validations/cockroach';
+import { printConfigConnectionIssues as printCockroachIssues } from '../validations/cockroach';
 import {
 	Casing,
 	CasingType,
@@ -256,8 +256,8 @@ export const preparePushConfig = async (
 			credentials: MssqlCredentials;
 		}
 		| {
-			dialect: 'cockroachdb';
-			credentials: CockroachDbCredentials;
+			dialect: 'cockroach';
+			credentials: CockroachCredentials;
 		}
 	)
 	& {
@@ -445,15 +445,15 @@ export const preparePushConfig = async (
 		};
 	}
 
-	if (config.dialect === 'cockroachdb') {
-		const parsed = cockroachdbCredentials.safeParse(config);
+	if (config.dialect === 'cockroach') {
+		const parsed = cockroachCredentials.safeParse(config);
 		if (!parsed.success) {
 			printCockroachIssues(config);
 			process.exit(1);
 		}
 
 		return {
-			dialect: 'cockroachdb',
+			dialect: 'cockroach',
 			schemaPath: config.schema,
 			strict: config.strict ?? false,
 			verbose: config.verbose ?? false,
@@ -503,8 +503,8 @@ export const preparePullConfig = async (
 			credentials: MssqlCredentials;
 		}
 		| {
-			dialect: 'cockroachdb';
-			credentials: CockroachDbCredentials;
+			dialect: 'cockroach';
+			credentials: CockroachCredentials;
 		}
 	) & {
 		out: string;
@@ -699,8 +699,8 @@ export const preparePullConfig = async (
 		};
 	}
 
-	if (dialect === 'cockroachdb') {
-		const parsed = cockroachdbCredentials.safeParse(config);
+	if (dialect === 'cockroach') {
+		const parsed = cockroachCredentials.safeParse(config);
 		if (!parsed.success) {
 			printCockroachIssues(config);
 			process.exit(1);
@@ -839,8 +839,8 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 		process.exit(1);
 	}
 
-	if (dialect === 'cockroachdb') {
-		const parsed = cockroachdbCredentials.safeParse(flattened);
+	if (dialect === 'cockroach') {
+		const parsed = cockroachCredentials.safeParse(flattened);
 		if (!parsed.success) {
 			printCockroachIssues(flattened as Record<string, unknown>);
 			process.exit(1);
@@ -974,8 +974,8 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 		process.exit(1);
 	}
 
-	if (dialect === 'cockroachdb') {
-		const parsed = cockroachdbCredentials.safeParse(flattened);
+	if (dialect === 'cockroach') {
+		const parsed = cockroachCredentials.safeParse(flattened);
 		if (!parsed.success) {
 			printCockroachIssues(flattened as Record<string, unknown>);
 			process.exit(1);

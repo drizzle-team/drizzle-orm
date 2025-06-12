@@ -7,8 +7,11 @@ import {
 	cockroachSchema,
 	cockroachTable,
 	date,
+	decimal,
 	doublePrecision,
+	float,
 	index,
+	int2,
 	int4,
 	int8,
 	interval,
@@ -17,6 +20,7 @@ import {
 	primaryKey,
 	real,
 	smallint,
+	string,
 	text,
 	time,
 	timestamp,
@@ -63,7 +67,7 @@ test('add columns #1', async (t) => {
 	await push({ db, to: schema1 });
 	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
-	const st0 = ['ALTER TABLE "users" ADD COLUMN "name" text;'];
+	const st0 = ['ALTER TABLE "users" ADD COLUMN "name" string;'];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
@@ -89,8 +93,8 @@ test('add columns #2', async (t) => {
 	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
 	const st0 = [
-		'ALTER TABLE "users" ADD COLUMN "name" text;',
-		'ALTER TABLE "users" ADD COLUMN "email" text;',
+		'ALTER TABLE "users" ADD COLUMN "name" string;',
+		'ALTER TABLE "users" ADD COLUMN "email" string;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -160,7 +164,7 @@ test('alter column change name #2', async (t) => {
 
 	const st0 = [
 		'ALTER TABLE "users" RENAME COLUMN "name" TO "name1";',
-		'ALTER TABLE "users" ADD COLUMN "email" text;',
+		'ALTER TABLE "users" ADD COLUMN "email" string;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -255,7 +259,7 @@ test('with composite pks #1', async (t) => {
 	await push({ db, to: schema1 });
 	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
-	const st0 = ['ALTER TABLE "users" ADD COLUMN "text" text;'];
+	const st0 = ['ALTER TABLE "users" ADD COLUMN "text" string;'];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
@@ -514,7 +518,7 @@ test('varchar and text default values escape single quotes', async () => {
 	});
 
 	const st0 = [
-		`ALTER TABLE "table" ADD COLUMN "text" text DEFAULT 'escape''s quotes';`,
+		`ALTER TABLE "table" ADD COLUMN "text" string DEFAULT 'escape''s quotes';`,
 		`ALTER TABLE "table" ADD COLUMN "varchar" varchar DEFAULT 'escape''s quotes';`,
 	];
 	expect(st).toStrictEqual(st0);
@@ -532,7 +536,7 @@ test('add columns with defaults', async () => {
 		table: cockroachTable('table', {
 			id: int4().primaryKey(),
 			text1: text().default(''),
-			text2: text().default('text'),
+			text2: string({ length: 100 }).default('text'),
 			int1: int4().default(10),
 			int2: int4().default(0),
 			int3: int4().default(-10),
@@ -550,8 +554,8 @@ test('add columns with defaults', async () => {
 	});
 
 	const st0 = [
-		'ALTER TABLE "table" ADD COLUMN "text1" text DEFAULT \'\';',
-		'ALTER TABLE "table" ADD COLUMN "text2" text DEFAULT \'text\';',
+		'ALTER TABLE "table" ADD COLUMN "text1" string DEFAULT \'\';',
+		'ALTER TABLE "table" ADD COLUMN "text2" string(100) DEFAULT \'text\';',
 		'ALTER TABLE "table" ADD COLUMN "int1" int4 DEFAULT 10;',
 		'ALTER TABLE "table" ADD COLUMN "int2" int4 DEFAULT 0;',
 		'ALTER TABLE "table" ADD COLUMN "int3" int4 DEFAULT -10;',
@@ -753,7 +757,7 @@ test('add generated column', async () => {
 	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
 	const st0: string[] = [
-		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name") STORED;',
+		'ALTER TABLE "users" ADD COLUMN "gen_name" string GENERATED ALWAYS AS ("users"."name") STORED;',
 	];
 
 	expect(st).toStrictEqual(st0);
@@ -785,7 +789,7 @@ test('add generated constraint to an existing column', async () => {
 
 	const st0: string[] = [
 		'ALTER TABLE "users" DROP COLUMN "gen_name";',
-		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name") STORED;',
+		'ALTER TABLE "users" ADD COLUMN "gen_name" string GENERATED ALWAYS AS ("users"."name") STORED;',
 	];
 
 	expect(st).toStrictEqual(st0);
@@ -817,14 +821,13 @@ test('drop generated constraint from a column', async () => {
 
 	const st0: string[] = [
 		'ALTER TABLE "users" DROP COLUMN "gen_name";',
-		'ALTER TABLE "users" ADD COLUMN "gen_name" text;',
+		'ALTER TABLE "users" ADD COLUMN "gen_name" string;',
 	];
 
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
 
-// fix defaults
 test('no diffs for all database types', async () => {
 	const customSchema = cockroachSchema('schemass');
 
@@ -853,6 +856,15 @@ test('no diffs for all database types', async () => {
 				column2: smallint('column2').array(),
 			},
 			(t: any) => [uniqueIndex('testdfds').on(t.column)],
+		),
+
+		allInt2: customSchema.table(
+			'all_int2',
+			{
+				columnAll: int2('column_all').default(124).notNull(),
+				column: int2('columns').array(),
+				column2: int2('column2').array(),
+			},
 		),
 
 		allEnums: customSchema.table(
@@ -930,6 +942,15 @@ test('no diffs for all database types', async () => {
 			(t: any) => [index('test').on(t.column)],
 		),
 
+		allStrings: customSchema.table(
+			'all_strings',
+			{
+				columnAll: string('column_all').default('text').notNull(),
+				column: string('columns').primaryKey(),
+				column2: string('column2', { length: 200 }),
+			},
+			(t: any) => [index('test').on(t.column)],
+		),
 		allBools: customSchema.table('all_bools', {
 			columnAll: boolean('column_all').default(true).notNull(),
 			column: boolean('column'),
@@ -955,6 +976,10 @@ test('no diffs for all database types', async () => {
 			column: doublePrecision('column'),
 		}),
 
+		allFloat: customSchema.table('all_float', {
+			columnAll: float('column_all').default(33).notNull(),
+			column: float('column'),
+		}),
 		allJsonb: customSchema.table('all_jsonb', {
 			columnDefaultObject: jsonb('column_default_object').default({ hello: 'world world' }).notNull(),
 			columnDefaultArray: jsonb('column_default_array').default({
@@ -973,6 +998,12 @@ test('no diffs for all database types', async () => {
 			columnAll: numeric('column_all').default('32').notNull(),
 			column: numeric('column', { precision: 1, scale: 1 }),
 			columnPrimary: numeric('column_primary').primaryKey().notNull(),
+		}),
+
+		allDecimals: customSchema.table('all_decimals', {
+			columnAll: decimal('column_all').default('32').notNull(),
+			column: decimal('column', { precision: 1, scale: 1 }),
+			columnPrimary: decimal('column_primary').primaryKey().notNull(),
 		}),
 	};
 

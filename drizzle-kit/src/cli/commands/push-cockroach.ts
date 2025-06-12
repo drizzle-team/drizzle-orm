@@ -22,7 +22,7 @@ import { prepareFilenames } from '../../utils/utils-node';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import { Entities } from '../validations/cli';
-import type { CockroachDbCredentials } from '../validations/cockroachdb';
+import type { CockroachDbCredentials } from '../validations/cockroach';
 import { CasingType } from '../validations/common';
 import { withStyle } from '../validations/outputs';
 import { ProgressView, schemaError, schemaWarning } from '../views';
@@ -39,7 +39,7 @@ export const handle = async (
 	casing: CasingType | undefined,
 ) => {
 	const { prepareCockroachDB } = await import('../connections');
-	const { introspect: cockroachdbPushIntrospect } = await import('./pull-cockroachdb');
+	const { introspect: cockroachdbPushIntrospect } = await import('./pull-cockroach');
 
 	const db = await prepareCockroachDB(credentials);
 	const filenames = prepareFilenames(schemaPath);

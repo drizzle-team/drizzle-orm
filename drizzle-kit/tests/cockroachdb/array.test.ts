@@ -191,7 +191,7 @@ test('array #9: text array default', async (t) => {
 	await push({ db, to: from });
 	const { sqlStatements: pst } = await push({ db, to });
 
-	const st0 = ['ALTER TABLE "test" ADD COLUMN "values" text[] DEFAULT \'{abc,def}\'::text[];'];
+	const st0 = ['ALTER TABLE "test" ADD COLUMN "values" string[] DEFAULT \'{abc,def}\'::string[];'];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
