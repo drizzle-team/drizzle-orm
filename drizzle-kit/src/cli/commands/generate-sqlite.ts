@@ -1,7 +1,7 @@
 import { ddlDiff, ddlDiffDry } from 'src/dialects/sqlite/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/sqlite/drizzle';
 import { prepareFilenames } from 'src/utils/utils-node';
-import { Column, interimToDDL, SqliteEntities } from '../../dialects/sqlite/ddl';
+import { Column, createDDL, interimToDDL, SqliteEntities } from '../../dialects/sqlite/ddl';
 import { prepareSqliteSnapshot } from '../../dialects/sqlite/serializer';
 import { assertV1OutFolder, prepareMigrationFolder } from '../../utils/utils-node';
 import { resolver } from '../prompts';
@@ -74,6 +74,6 @@ export const handleExport = async (config: ExportConfig) => {
 	const res = await prepareFromSchemaFiles(filenames);
 	const schema = fromDrizzleSchema(res.tables, res.views, config.casing);
 	const { ddl } = interimToDDL(schema);
-	const { sqlStatements } = await ddlDiffDry(ddl, 'generate');
+	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'generate');
 	console.log(sqlStatements.join('\n'));
 };

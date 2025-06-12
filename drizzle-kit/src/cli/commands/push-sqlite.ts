@@ -23,7 +23,7 @@ export const handle = async (
 	casing: CasingType | undefined,
 ) => {
 	const { connectToSQLite } = await import('../connections');
-	const { sqliteIntrospect } = await import('./pull-sqlite');
+	const { introspect: sqliteIntrospect } = await import('./pull-sqlite');
 
 	const db = await connectToSQLite(credentials);
 	const files = prepareFilenames(schemaPath);
