@@ -60,7 +60,7 @@ const createTable = convertor('create_table', (st) => {
 
 		// in SQLite we escape single quote by doubling it, `'`->`''`, but we don't do it here
 		// because it is handled by drizzle orm serialization or on drizzle studio side
-		const defaultStatement = column.default ? ` DEFAULT ${defaultToSQL(column.default)}'` : '';
+		const defaultStatement = column.default ? ` DEFAULT ${defaultToSQL(column.default)}` : '';
 
 		const autoincrementStatement = column.autoincrement ? ' AUTOINCREMENT' : '';
 
