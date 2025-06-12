@@ -4,7 +4,6 @@ import {
 	AnyMySqlTable,
 	getTableConfig,
 	getViewConfig,
-	MySqlBinary,
 	MySqlColumn,
 	MySqlDialect,
 	MySqlTable,
