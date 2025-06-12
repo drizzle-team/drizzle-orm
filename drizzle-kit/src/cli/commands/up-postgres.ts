@@ -8,6 +8,7 @@ import {
 	defaultNameForPK,
 	defaultNameForUnique,
 	defaults,
+	splitSqlType,
 } from '../../dialects/postgres/grammar';
 import {
 	Column,
@@ -77,6 +78,8 @@ export const upToV8 = (it: Record<string, any>): { snapshot: PostgresSnapshot; h
 			}
 
 			const [type, dimensions] = extractBaseTypeAndDimensions(column.type);
+			const {options} = splitSqlType(type);
+
 			const def = defaultForColumn(type, column.default, dimensions);
 
 			ddl.columns.push({
@@ -84,6 +87,7 @@ export const upToV8 = (it: Record<string, any>): { snapshot: PostgresSnapshot; h
 				table: table.name,
 				name: column.name,
 				type,
+				options, // todo: check
 				notNull: column.notNull,
 				typeSchema: column.typeSchema ?? null, // TODO: if public - empty or missing?
 				dimensions,
