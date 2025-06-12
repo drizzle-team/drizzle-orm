@@ -18,9 +18,14 @@ export class ExpoSQLiteDatabase<TSchema extends Record<string, unknown> = Record
 	static override readonly [entityKind]: string = 'ExpoSQLiteDatabase';
 }
 
+export type ExpoSQLiteDrizzleConfig<TSchema extends Record<string, unknown> = Record<string, never>> = Omit<
+	DrizzleConfig<TSchema>,
+	'extensions'
+>;
+
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: SQLiteDatabase,
-	config: DrizzleConfig<TSchema> = {},
+	config: ExpoSQLiteDrizzleConfig<TSchema> = {},
 ): ExpoSQLiteDatabase<TSchema> & {
 	$client: SQLiteDatabase;
 } {

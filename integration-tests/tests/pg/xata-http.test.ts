@@ -8,7 +8,7 @@ import { beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
 import { getXataClient } from '../xata/xata.ts';
-import { tests, tests as cacheTests, usersMigratorTable, usersTable } from './pg-common';
+import { createExtensions, tests, tests as cacheTests, usersMigratorTable, usersTable } from './pg-common';
 import { TestCache, TestGlobalCache } from './pg-common-cache.ts';
 
 const ENABLE_LOGGING = false;
@@ -17,6 +17,7 @@ let db: XataHttpDatabase;
 let dbGlobalCached: XataHttpDatabase;
 let cachedDb: XataHttpDatabase;
 let client: XataHttpClient;
+let s3Bucket: string;
 
 beforeAll(async () => {
 	const apiKey = process.env['XATA_API_KEY'];
@@ -34,7 +35,10 @@ beforeAll(async () => {
 		maxTimeout: 250,
 		randomize: false,
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+
+	const { bucket, extensions } = await createExtensions();
+	s3Bucket = bucket;
+	db = drizzle(client, { logger: ENABLE_LOGGING, extensions });
 	cachedDb = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestCache() });
 	dbGlobalCached = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 });
@@ -42,6 +46,7 @@ beforeAll(async () => {
 beforeEach((ctx) => {
 	ctx.pg = {
 		db,
+		bucket: s3Bucket,
 	};
 	ctx.cachedPg = {
 		db: cachedDb,

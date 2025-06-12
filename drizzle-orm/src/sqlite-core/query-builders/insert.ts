@@ -1,17 +1,25 @@
 import { entityKind, is } from '~/entity.ts';
+import { requiredExtension } from '~/extension-core/index.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
-import { Param, SQL, sql } from '~/sql/sql.ts';
+import { ExtensionParam, Param, SQL, sql } from '~/sql/sql.ts';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { IndexColumn } from '~/sqlite-core/indexes.ts';
 import type { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import type { Subquery } from '~/subquery.ts';
 import { Columns, Table } from '~/table.ts';
-import { type DrizzleTypeError, haveSameKeys, mapUpdateSet, orderSelectedFields, type Simplify } from '~/utils.ts';
+import {
+	columnExtensionsCheck,
+	type DrizzleTypeError,
+	haveSameKeys,
+	mapUpdateSet,
+	orderSelectedFields,
+	type Simplify,
+} from '~/utils.ts';
 import type { AnySQLiteColumn, SQLiteColumn } from '../columns/common.ts';
 import { extractUsedTable } from '../utils.ts';
 import { QueryBuilder } from './query-builder.ts';
@@ -60,15 +68,35 @@ export class SQLiteInsertBuilder<
 		if (values.length === 0) {
 			throw new Error('values() must be called with at least one value');
 		}
+
+		const extColumns = new Set<string>();
+		const cols = this.table[Table.Symbol.Columns];
+
 		const mappedValues = values.map((entry) => {
 			const result: Record<string, Param | SQL> = {};
-			const cols = this.table[Table.Symbol.Columns];
 			for (const colKey of Object.keys(entry)) {
 				const colValue = entry[colKey as keyof typeof entry];
-				result[colKey] = is(colValue, SQL) ? colValue : new Param(colValue, cols[colKey]);
+
+				if (is(colValue, SQL)) {
+					result[colKey] = colValue;
+					continue;
+				}
+
+				if (cols[colKey]![requiredExtension]) {
+					extColumns.add(colKey);
+					result[colKey] = new ExtensionParam(cols[colKey]![requiredExtension], colValue, cols[colKey]);
+
+					continue;
+				}
+
+				result[colKey] = new Param(colValue, cols[colKey]);
 			}
 			return result;
 		});
+
+		for (const colKey of extColumns.values()) {
+			columnExtensionsCheck(cols[colKey]!, this.session.extensions);
+		}
 
 		// if (mappedValues.length > 1 && mappedValues.some((t) => Object.keys(t).length === 0)) {
 		// 	throw new Error(
@@ -358,7 +386,10 @@ export class SQLiteInsertBase<
 		const targetWhereSql = config.targetWhere ? sql` where ${config.targetWhere}` : undefined;
 		const setWhereSql = config.setWhere ? sql` where ${config.setWhere}` : undefined;
 		const targetSql = Array.isArray(config.target) ? sql`${config.target}` : sql`${[config.target]}`;
-		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
+		const setSql = this.dialect.buildUpdateSet(
+			this.config.table,
+			mapUpdateSet(this.config.table, config.set, this.session.extensions),
+		);
 		this.config.onConflict.push(
 			sql` on conflict ${targetSql}${targetWhereSql} do update set ${setSql}${whereSql}${setWhereSql}`,
 		);
@@ -367,7 +398,7 @@ export class SQLiteInsertBase<
 
 	/** @internal */
 	getSQL(): SQL {
-		return this.dialect.buildInsertQuery(this.config);
+		return this.dialect.buildInsertQuery(this.config, this.session.extensions);
 	}
 
 	toSQL(): Query {
@@ -386,6 +417,13 @@ export class SQLiteInsertBase<
 			{
 				type: 'insert',
 				tables: extractUsedTable(this.config.table),
+			},
+			undefined,
+			{
+				query: 'insert',
+				dialect: this.dialect,
+				session: this.session,
+				config: this.config,
 			},
 		) as SQLiteInsertPrepare<this>;
 	}

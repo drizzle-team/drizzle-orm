@@ -1,4 +1,5 @@
 import { entityKind } from '~/entity.ts';
+import type { BlankMySqlHookContext } from '~/extension-core/mysql/index.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import {
 	type BuildQueryResult,
@@ -98,6 +99,21 @@ export class MySqlRelationalQuery<
 
 	prepare() {
 		const { query, builtQuery } = this._toSQL();
+
+		const extCfg: BlankMySqlHookContext | undefined = this.session.extensions?.length
+			? {
+				query: '_query',
+				session: this.session,
+				dialect: this.dialect,
+				tableNamesMap: this.tableNamesMap,
+				tablesConfig: this.schema,
+				tableConfig: this.tableConfig,
+				mode: this.queryMode,
+				planetscale: this.mode === 'planetscale',
+				config: query,
+			}
+			: undefined;
+
 		return this.session.prepareQuery(
 			builtQuery,
 			undefined,
@@ -108,6 +124,11 @@ export class MySqlRelationalQuery<
 				}
 				return rows as TResult;
 			},
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			extCfg,
 		) as PreparedQueryKind<TPreparedQueryHKT, MySqlPreparedQueryConfig & { execute: TResult }, true>;
 	}
 
@@ -121,7 +142,7 @@ export class MySqlRelationalQuery<
 				tableConfig: this.tableConfig,
 				queryConfig: this.config,
 				tableAlias: this.tableConfig.tsName,
-			})
+			}, this.session.extensions)
 			: this.dialect.buildRelationalQuery({
 				fullSchema: this.fullSchema,
 				schema: this.schema,
@@ -130,7 +151,7 @@ export class MySqlRelationalQuery<
 				tableConfig: this.tableConfig,
 				queryConfig: this.config,
 				tableAlias: this.tableConfig.tsName,
-			});
+			}, this.session.extensions);
 		return query;
 	}
 

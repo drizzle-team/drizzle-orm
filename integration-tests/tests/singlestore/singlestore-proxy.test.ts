@@ -4,7 +4,7 @@ import { drizzle as proxyDrizzle } from 'drizzle-orm/singlestore-proxy';
 import * as mysql2 from 'mysql2/promise';
 import { afterAll, beforeAll, beforeEach } from 'vitest';
 import { skipTests } from '~/common';
-import { createDockerDB, tests } from './singlestore-common';
+import { createDockerDB, createExtensions, tests } from './singlestore-common';
 
 const ENABLE_LOGGING = false;
 
@@ -72,6 +72,7 @@ class ServerSimulator {
 let db: SingleStoreRemoteDatabase;
 let client: mysql2.Connection;
 let serverSimulator: ServerSimulator;
+let s3Bucket: string;
 
 beforeAll(async () => {
 	let connectionString;
@@ -100,6 +101,8 @@ beforeAll(async () => {
 	await client.changeUser({ database: 'drizzle' });
 
 	serverSimulator = new ServerSimulator(client);
+	const { bucket, extensions } = await createExtensions();
+	s3Bucket = bucket;
 	db = proxyDrizzle(async (sql, params, method) => {
 		try {
 			const response = await serverSimulator.query(sql, params, method);
@@ -113,7 +116,7 @@ beforeAll(async () => {
 			console.error('Error from singlestore proxy server:', e.message);
 			throw e;
 		}
-	}, { logger: ENABLE_LOGGING });
+	}, { logger: ENABLE_LOGGING, extensions });
 });
 
 afterAll(async () => {
@@ -123,6 +126,7 @@ afterAll(async () => {
 beforeEach((ctx) => {
 	ctx.singlestore = {
 		db,
+		bucket: s3Bucket,
 	};
 });
 
@@ -135,6 +139,7 @@ skipTests([
 	'transaction',
 	'transaction with options (set isolationLevel)',
 	'migrator',
+	'S3File - transaction',
 ]);
 
 tests();

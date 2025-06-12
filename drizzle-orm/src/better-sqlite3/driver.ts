@@ -27,9 +27,14 @@ export class BetterSQLite3Database<TSchema extends Record<string, unknown> = Rec
 	static override readonly [entityKind]: string = 'BetterSQLite3Database';
 }
 
+export type BetterSQLite3DrizzleConfig<TSchema extends Record<string, unknown> = Record<string, never>> = Omit<
+	DrizzleConfig<TSchema>,
+	'extensions' | 'cache'
+>;
+
 function construct<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: Database,
-	config: Omit<DrizzleConfig<TSchema>, 'cache'> = {},
+	config: BetterSQLite3DrizzleConfig<TSchema> = {},
 ): BetterSQLite3Database<TSchema> & {
 	$client: Database;
 } {
@@ -75,11 +80,11 @@ export function drizzle<
 		]
 		| [
 			Database | string,
-			DrizzleConfig<TSchema>,
+			BetterSQLite3DrizzleConfig<TSchema>,
 		]
 		| [
 			(
-				& DrizzleConfig<TSchema>
+				& BetterSQLite3DrizzleConfig<TSchema>
 				& ({
 					connection?: DrizzleBetterSQLite3DatabaseConfig;
 				} | {
@@ -102,7 +107,7 @@ export function drizzle<
 				connection?: DrizzleBetterSQLite3DatabaseConfig;
 				client?: Database;
 			}
-			& DrizzleConfig<TSchema>;
+			& BetterSQLite3DrizzleConfig<TSchema>;
 
 		if (client) return construct(client, drizzleConfig) as any;
 
@@ -119,12 +124,12 @@ export function drizzle<
 		return construct(instance, drizzleConfig) as any;
 	}
 
-	return construct(params[0] as Database, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+	return construct(params[0] as Database, params[1] as BetterSQLite3DrizzleConfig<TSchema> | undefined) as any;
 }
 
 export namespace drizzle {
 	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
-		config?: DrizzleConfig<TSchema>,
+		config?: BetterSQLite3DrizzleConfig<TSchema>,
 	): BetterSQLite3Database<TSchema> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {

@@ -976,7 +976,7 @@ export abstract class GelSelectQueryBuilderBase<
 
 	/** @internal */
 	getSQL(): SQL {
-		return this.dialect.buildSelectQuery(this.config);
+		return this.dialect.buildSelectQuery(this.config, this.session?.extensions);
 	}
 
 	toSQL(): Query {
@@ -1069,10 +1069,26 @@ export class GelSelectBase<
 			const fieldsList = orderSelectedFields<GelColumn>(config.fields);
 			const query = session.prepareQuery<
 				PreparedQueryConfig & { execute: TResult }
-			>(dialect.sqlToQuery(this.getSQL()), fieldsList, name, true, undefined, {
-				type: 'select',
-				tables: [...usedTables],
-			}, cacheConfig);
+			>(
+				dialect.sqlToQuery(this.getSQL()),
+				fieldsList,
+				name,
+				true,
+				undefined,
+				{
+					type: 'select',
+					tables: [...usedTables],
+				},
+				cacheConfig,
+				{
+					query: 'select',
+					fieldsOrdered: fieldsList,
+					joinsNotNullableMap,
+					dialect,
+					session,
+					config,
+				},
+			);
 			query.joinsNotNullableMap = joinsNotNullableMap;
 
 			return query;

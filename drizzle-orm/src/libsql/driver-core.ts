@@ -1,6 +1,7 @@
 import type { Client, ResultSet } from '@libsql/client';
 import type { BatchItem, BatchResponse } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleSQLiteExtension } from '~/extension-core/sqlite/index.ts';
 import { DefaultLogger } from '~/logger.ts';
 import {
 	createTableRelationsHelpers,
@@ -32,7 +33,7 @@ export class LibSQLDatabase<
 /** @internal */
 export function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
->(client: Client, config: DrizzleConfig<TSchema> = {}): LibSQLDatabase<TSchema> & {
+>(client: Client, config: DrizzleConfig<TSchema, DrizzleSQLiteExtension> = {}): LibSQLDatabase<TSchema> & {
 	$client: Client;
 } {
 	const dialect = new SQLiteAsyncDialect({ casing: config.casing });
@@ -56,8 +57,9 @@ export function construct<
 		};
 	}
 
-	const session = new LibSQLSession(client, dialect, schema, { logger, cache: config.cache }, undefined);
-	const db = new LibSQLDatabase('async', dialect, session, schema) as LibSQLDatabase<TSchema>;
+	const extensions = config.extensions;
+	const session = new LibSQLSession(client, dialect, schema, { logger, cache: config.cache }, undefined, extensions);
+	const db = new LibSQLDatabase('async', dialect, session, schema, extensions) as LibSQLDatabase<TSchema>;
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;
 	if ((<any> db).$cache) {

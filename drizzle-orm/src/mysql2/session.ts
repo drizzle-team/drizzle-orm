@@ -14,6 +14,7 @@ import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
+import type { BlankMySqlHookContext, DrizzleMySqlExtension } from '~/extension-core/mysql/index.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
@@ -51,7 +52,7 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig> extends MyS
 	constructor(
 		private client: MySql2Client,
 		queryString: string,
-		private params: unknown[],
+		params: unknown[],
 		private logger: Logger,
 		cache: Cache,
 		queryMetadata: {
@@ -60,13 +61,15 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig> extends MyS
 		} | undefined,
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
+		extensions?: DrizzleMySqlExtension[],
+		hookContext?: BlankMySqlHookContext,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 		// Keys that were used in $default and the value that was generated for them
 		private generatedIds?: Record<string, unknown>[],
 		// Keys that should be returned, it has the column with all properries + key from object
 		private returningIds?: SelectedFieldsOrdered,
 	) {
-		super(cache, queryMetadata, cacheConfig);
+		super(queryString, params, cache, queryMetadata, cacheConfig, extensions, hookContext);
 		this.rawQuery = {
 			sql: queryString,
 			// rowsAsArray: true,
@@ -89,7 +92,7 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig> extends MyS
 		};
 	}
 
-	async execute(placeholderValues: Record<string, unknown> = {}): Promise<T['execute']> {
+	async _execute(placeholderValues: Record<string, unknown> = {}): Promise<T['execute']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 
 		this.logger.logQuery(this.rawQuery.sql, params);
@@ -216,8 +219,9 @@ export class MySql2Session<
 		dialect: MySqlDialect,
 		private schema: RelationalSchemaConfig<TSchema> | undefined,
 		private options: MySql2SessionOptions,
+		extensions?: DrizzleMySqlExtension[],
 	) {
-		super(dialect);
+		super(dialect, extensions);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
 		this.mode = options.mode;
@@ -234,6 +238,7 @@ export class MySql2Session<
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
+		hookContext?: BlankMySqlHookContext,
 	): PreparedQueryKind<MySql2PreparedQueryHKT, T> {
 		// Add returningId fields
 		// Each driver gets them from response from database
@@ -246,6 +251,8 @@ export class MySql2Session<
 			queryMetadata,
 			cacheConfig,
 			fields,
+			this.extensions,
+			hookContext,
 			customResultMapper,
 			generatedIds,
 			returningIds,
@@ -288,6 +295,7 @@ export class MySql2Session<
 				this.dialect,
 				this.schema,
 				this.options,
+				this.extensions,
 			)
 			: this;
 		const tx = new MySql2Transaction<TFullSchema, TSchema>(
@@ -296,6 +304,7 @@ export class MySql2Session<
 			this.schema,
 			0,
 			this.mode,
+			this.extensions,
 		);
 		if (config) {
 			const setTransactionConfigSql = this.getSetTransactionSQL(config);
@@ -336,6 +345,7 @@ export class MySql2Transaction<
 			this.schema,
 			this.nestedIndex + 1,
 			this.mode,
+			this._.extensions,
 		);
 		await tx.execute(sql.raw(`savepoint ${savepointName}`));
 		try {

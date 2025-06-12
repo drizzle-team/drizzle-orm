@@ -48,9 +48,14 @@ export type DrizzleBunSqliteDatabaseConfig =
 	| string
 	| undefined;
 
+export type BunSQLiteDrizzleConfig<TSchema extends Record<string, unknown> = Record<string, never>> = Omit<
+	DrizzleConfig<TSchema>,
+	'extensions'
+>;
+
 function construct<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: Database,
-	config: DrizzleConfig<TSchema> = {},
+	config: BunSQLiteDrizzleConfig<TSchema> = {},
 ): BunSQLiteDatabase<TSchema> & {
 	$client: Database;
 } {
@@ -93,11 +98,11 @@ export function drizzle<
 		]
 		| [
 			TClient | string,
-			DrizzleConfig<TSchema>,
+			BunSQLiteDrizzleConfig<TSchema>,
 		]
 		| [
 			(
-				& DrizzleConfig<TSchema>
+				& BunSQLiteDrizzleConfig<TSchema>
 				& ({
 					connection?: DrizzleBunSqliteDatabaseConfig;
 				} | {
@@ -120,7 +125,7 @@ export function drizzle<
 				connection?: DrizzleBunSqliteDatabaseConfig | string;
 				client?: TClient;
 			})
-			& DrizzleConfig<TSchema>;
+			& BunSQLiteDrizzleConfig<TSchema>;
 
 		if (client) return construct(client, drizzleConfig) as any;
 
@@ -139,12 +144,12 @@ export function drizzle<
 		return construct(instance, drizzleConfig) as any;
 	}
 
-	return construct(params[0] as Database, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+	return construct(params[0] as Database, params[1] as BunSQLiteDrizzleConfig<TSchema> | undefined) as any;
 }
 
 export namespace drizzle {
 	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
-		config?: DrizzleConfig<TSchema>,
+		config?: BunSQLiteDrizzleConfig<TSchema>,
 	): BunSQLiteDatabase<TSchema> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {

@@ -4,7 +4,7 @@ import { drizzle as proxyDrizzle } from 'drizzle-orm/mysql-proxy';
 import * as mysql from 'mysql2/promise';
 import { afterAll, beforeAll, beforeEach } from 'vitest';
 import { skipTests } from '~/common';
-import { createDockerDB, tests } from './mysql-common';
+import { createDockerDB, createExtensions, tests } from './mysql-common';
 
 const ENABLE_LOGGING = false;
 
@@ -72,6 +72,7 @@ class ServerSimulator {
 let db: MySqlRemoteDatabase;
 let client: mysql.Connection;
 let serverSimulator: ServerSimulator;
+let s3Bucket: string;
 
 beforeAll(async () => {
 	let connectionString;
@@ -99,6 +100,8 @@ beforeAll(async () => {
 		},
 	});
 	serverSimulator = new ServerSimulator(client);
+	const { bucket, extensions } = await createExtensions();
+	s3Bucket = bucket;
 	db = proxyDrizzle(async (sql, params, method) => {
 		try {
 			const response = await serverSimulator.query(sql, params, method);
@@ -112,7 +115,7 @@ beforeAll(async () => {
 			console.error('Error from mysql proxy server:', e.message);
 			throw e;
 		}
-	}, { logger: ENABLE_LOGGING });
+	}, { logger: ENABLE_LOGGING, extensions });
 });
 
 afterAll(async () => {
@@ -122,6 +125,7 @@ afterAll(async () => {
 beforeEach((ctx) => {
 	ctx.mysql = {
 		db,
+		bucket: s3Bucket,
 	};
 });
 
@@ -134,6 +138,8 @@ skipTests([
 	'transaction',
 	'transaction with options (set isolationLevel)',
 	'migrator',
+	'S3File - transaction',
+	'S3File - returnless transaction',
 ]);
 
 tests();

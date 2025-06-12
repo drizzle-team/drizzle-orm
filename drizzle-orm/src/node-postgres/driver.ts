@@ -1,6 +1,7 @@
 import pg, { type Pool, type PoolConfig } from 'pg';
 import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
+import type { DrizzlePgExtension } from '~/extension-core/pg/index.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
@@ -27,6 +28,7 @@ export class NodePgDriver {
 		private client: NodePgClient,
 		private dialect: PgDialect,
 		private options: PgDriverOptions = {},
+		private extensions?: DrizzlePgExtension[],
 	) {
 	}
 
@@ -36,7 +38,7 @@ export class NodePgDriver {
 		return new NodePgSession(this.client, this.dialect, schema, {
 			logger: this.options.logger,
 			cache: this.options.cache,
-		});
+		}, this.extensions);
 	}
 }
 
@@ -51,7 +53,7 @@ function construct<
 	TClient extends NodePgClient = NodePgClient,
 >(
 	client: TClient,
-	config: DrizzleConfig<TSchema> = {},
+	config: DrizzleConfig<TSchema, DrizzlePgExtension> = {},
 ): NodePgDatabase<TSchema> & {
 	$client: TClient;
 } {
@@ -76,9 +78,10 @@ function construct<
 		};
 	}
 
-	const driver = new NodePgDriver(client, dialect, { logger, cache: config.cache });
+	const extensions = config.extensions;
+	const driver = new NodePgDriver(client, dialect, { logger, cache: config.cache }, extensions);
 	const session = driver.createSession(schema);
-	const db = new NodePgDatabase(dialect, session, schema as any) as NodePgDatabase<TSchema>;
+	const db = new NodePgDatabase(dialect, session, schema as any, extensions) as NodePgDatabase<TSchema>;
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;
 	if ((<any> db).$cache) {
@@ -98,11 +101,11 @@ export function drizzle<
 		]
 		| [
 			TClient | string,
-			DrizzleConfig<TSchema>,
+			DrizzleConfig<TSchema, DrizzlePgExtension>,
 		]
 		| [
 			(
-				& DrizzleConfig<TSchema>
+				& DrizzleConfig<TSchema, DrizzlePgExtension>
 				& ({
 					connection: string | PoolConfig;
 				} | {
@@ -118,13 +121,13 @@ export function drizzle<
 			connectionString: params[0],
 		});
 
-		return construct(instance, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+		return construct(instance, params[1] as DrizzleConfig<TSchema, DrizzlePgExtension> | undefined) as any;
 	}
 
 	if (isConfig(params[0])) {
 		const { connection, client, ...drizzleConfig } = params[0] as (
 			& ({ connection?: PoolConfig | string; client?: TClient })
-			& DrizzleConfig<TSchema>
+			& DrizzleConfig<TSchema, DrizzlePgExtension>
 		);
 
 		if (client) return construct(client, drizzleConfig);
@@ -138,12 +141,12 @@ export function drizzle<
 		return construct(instance, drizzleConfig) as any;
 	}
 
-	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema, DrizzlePgExtension> | undefined) as any;
 }
 
 export namespace drizzle {
 	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
-		config?: DrizzleConfig<TSchema>,
+		config?: DrizzleConfig<TSchema, DrizzlePgExtension>,
 	): NodePgDatabase<TSchema> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {

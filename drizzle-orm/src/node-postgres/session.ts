@@ -3,6 +3,7 @@ import pg from 'pg';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
+import type { BlankPgHookContext, DrizzlePgExtension } from '~/extension-core/pg/index.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import { PgTransaction } from '~/pg-core/index.ts';
@@ -38,9 +39,11 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		private _isResponseInArrayMode: boolean,
+		extensions?: DrizzlePgExtension[],
+		hookContext?: BlankPgHookContext,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
-		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
+		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig, extensions, hookContext);
 		this.rawQueryConfig = {
 			name,
 			text: queryString,
@@ -130,7 +133,7 @@ export class NodePgPreparedQuery<T extends PreparedQueryConfig> extends PgPrepar
 		};
 	}
 
-	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+	async _execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		return tracer.startActiveSpan('drizzle.execute', async () => {
 			const params = fillPlaceholders(this.params, placeholderValues);
 
@@ -212,8 +215,9 @@ export class NodePgSession<
 		dialect: PgDialect,
 		private schema: RelationalSchemaConfig<TSchema> | undefined,
 		private options: NodePgSessionOptions = {},
+		extensions?: DrizzlePgExtension[],
 	) {
-		super(dialect);
+		super(dialect, extensions);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
 	}
@@ -229,6 +233,7 @@ export class NodePgSession<
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
+		hookContext?: BlankPgHookContext,
 	): PgPreparedQuery<T> {
 		return new NodePgPreparedQuery(
 			this.client,
@@ -241,6 +246,8 @@ export class NodePgSession<
 			fields,
 			name,
 			isResponseInArrayMode,
+			this.extensions,
+			hookContext,
 			customResultMapper,
 		);
 	}
@@ -250,9 +257,15 @@ export class NodePgSession<
 		config?: PgTransactionConfig | undefined,
 	): Promise<T> {
 		const session = this.client instanceof Pool // eslint-disable-line no-instanceof/no-instanceof
-			? new NodePgSession(await this.client.connect(), this.dialect, this.schema, this.options)
+			? new NodePgSession(await this.client.connect(), this.dialect, this.schema, this.options, this.extensions)
 			: this;
-		const tx = new NodePgTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
+		const tx = new NodePgTransaction<TFullSchema, TSchema>(
+			this.dialect,
+			session,
+			this.schema,
+			undefined,
+			this.extensions,
+		);
 		await tx.execute(sql`begin${config ? sql` ${tx.getTransactionConfigSQL(config)}` : undefined}`);
 		try {
 			const result = await transaction(tx);
@@ -289,6 +302,7 @@ export class NodePgTransaction<
 			this.session,
 			this.schema,
 			this.nestedIndex + 1,
+			this._.extensions,
 		);
 		await tx.execute(sql.raw(`savepoint ${savepointName}`));
 		try {

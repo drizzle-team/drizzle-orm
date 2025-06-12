@@ -1,6 +1,7 @@
 import { PGlite, type PGliteOptions } from '@electric-sql/pglite';
 import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
+import type { DrizzlePgExtension } from '~/extension-core/pg/index.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
@@ -27,6 +28,7 @@ export class PgliteDriver {
 		private client: PgliteClient,
 		private dialect: PgDialect,
 		private options: PgDriverOptions = {},
+		private extensions?: DrizzlePgExtension[],
 	) {
 	}
 
@@ -36,7 +38,7 @@ export class PgliteDriver {
 		return new PgliteSession(this.client, this.dialect, schema, {
 			logger: this.options.logger,
 			cache: this.options.cache,
-		});
+		}, this.extensions);
 	}
 }
 
@@ -48,7 +50,7 @@ export class PgliteDatabase<
 
 function construct<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: PgliteClient,
-	config: DrizzleConfig<TSchema> = {},
+	config: DrizzleConfig<TSchema, DrizzlePgExtension> = {},
 ): PgliteDatabase<TSchema> & {
 	$client: PgliteClient;
 } {
@@ -73,9 +75,10 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 		};
 	}
 
-	const driver = new PgliteDriver(client, dialect, { logger, cache: config.cache });
+	const extensions = config.extensions;
+	const driver = new PgliteDriver(client, dialect, { logger, cache: config.cache }, extensions);
 	const session = driver.createSession(schema);
-	const db = new PgliteDatabase(dialect, session, schema as any) as PgliteDatabase<TSchema>;
+	const db = new PgliteDatabase(dialect, session, schema as any, extensions) as PgliteDatabase<TSchema>;
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;
 	if ((<any> db).$cache) {
@@ -106,11 +109,11 @@ export function drizzle<
 		]
 		| [
 			TClient | string,
-			DrizzleConfig<TSchema>,
+			DrizzleConfig<TSchema, DrizzlePgExtension>,
 		]
 		| [
 			(
-				& DrizzleConfig<TSchema>
+				& DrizzleConfig<TSchema, DrizzlePgExtension>
 				& ({
 					connection?: (PGliteOptions & { dataDir?: string }) | string;
 				} | {
@@ -130,7 +133,7 @@ export function drizzle<
 		const { connection, client, ...drizzleConfig } = params[0] as {
 			connection?: PGliteOptions & { dataDir: string };
 			client?: TClient;
-		} & DrizzleConfig<TSchema>;
+		} & DrizzleConfig<TSchema, DrizzlePgExtension>;
 
 		if (client) return construct(client, drizzleConfig) as any;
 
@@ -147,12 +150,12 @@ export function drizzle<
 		return construct(instance, drizzleConfig) as any;
 	}
 
-	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema, DrizzlePgExtension> | undefined) as any;
 }
 
 export namespace drizzle {
 	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
-		config?: DrizzleConfig<TSchema>,
+		config?: DrizzleConfig<TSchema, DrizzlePgExtension>,
 	): PgliteDatabase<TSchema> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {

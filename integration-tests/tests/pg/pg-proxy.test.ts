@@ -7,7 +7,7 @@ import { migrate } from 'drizzle-orm/pg-proxy/migrator';
 import * as pg from 'pg';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
-import { createDockerDB, tests, usersMigratorTable, usersTable } from './pg-common';
+import { createDockerDB, createExtensions, tests, usersMigratorTable, usersTable } from './pg-common';
 import { TestCache, TestGlobalCache, tests as cacheTests } from './pg-common-cache';
 
 // eslint-disable-next-line drizzle-internal/require-entity-kind
@@ -78,6 +78,7 @@ let dbGlobalCached: PgRemoteDatabase;
 let cachedDb: PgRemoteDatabase;
 let client: pg.Client;
 let serverSimulator: ServerSimulator;
+let s3Bucket: string;
 
 beforeAll(async () => {
 	let connectionString;
@@ -102,6 +103,9 @@ beforeAll(async () => {
 		},
 	});
 	serverSimulator = new ServerSimulator(client);
+
+	const { bucket, extensions } = await createExtensions();
+	s3Bucket = bucket;
 	const proxyHandler = async (sql: string, params: any[], method: any) => {
 		try {
 			const response = await serverSimulator.query(sql, params, method);
@@ -118,6 +122,7 @@ beforeAll(async () => {
 	};
 	db = proxyDrizzle(proxyHandler, {
 		logger: ENABLE_LOGGING,
+		extensions,
 	});
 
 	cachedDb = proxyDrizzle(proxyHandler, { logger: ENABLE_LOGGING, cache: new TestCache() });
@@ -131,6 +136,7 @@ afterAll(async () => {
 beforeEach((ctx) => {
 	ctx.pg = {
 		db,
+		bucket: s3Bucket,
 	};
 	ctx.cachedPg = {
 		db: cachedDb,
@@ -458,6 +464,7 @@ skipTests([
 	'nested transaction',
 	'nested transaction rollback',
 	'test $onUpdateFn and $onUpdate works updating',
+	'S3File - transaction',
 ]);
 
 beforeEach(async () => {

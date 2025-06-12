@@ -22,12 +22,17 @@ export class DrizzleSqliteDODatabase<
 	declare readonly session: SQLiteDOSession<TSchema, ExtractTablesWithRelations<TSchema>>;
 }
 
+export type DurableSQLiteDrizzleConfig<TSchema extends Record<string, unknown> = Record<string, never>> = Omit<
+	DrizzleConfig<TSchema>,
+	'extensions'
+>;
+
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TClient extends DurableObjectStorage = DurableObjectStorage,
 >(
 	client: TClient,
-	config: DrizzleConfig<TSchema> = {},
+	config: DurableSQLiteDrizzleConfig<TSchema> = {},
 ): DrizzleSqliteDODatabase<TSchema> & {
 	$client: TClient;
 } {

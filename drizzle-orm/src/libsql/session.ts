@@ -3,6 +3,7 @@ import type { BatchItem as BatchItem } from '~/batch.ts';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
+import type { BlankSQLiteHookContext, DrizzleSQLiteExtension } from '~/extension-core/sqlite/index.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
@@ -41,8 +42,9 @@ export class LibSQLSession<
 		private schema: RelationalSchemaConfig<TSchema> | undefined,
 		private options: LibSQLSessionOptions,
 		private tx: Transaction | undefined,
+		extensions?: DrizzleSQLiteExtension[],
 	) {
-		super(dialect);
+		super(dialect, extensions);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
 	}
@@ -58,6 +60,7 @@ export class LibSQLSession<
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
+		hookContext?: BlankSQLiteHookContext,
 	): LibSQLPreparedQuery<T> {
 		return new LibSQLPreparedQuery(
 			this.client,
@@ -70,6 +73,8 @@ export class LibSQLSession<
 			this.tx,
 			executeMethod,
 			isResponseInArrayMode,
+			this.extensions,
+			hookContext,
 			customResultMapper,
 		);
 	}
@@ -116,8 +121,16 @@ export class LibSQLSession<
 			this.schema,
 			this.options,
 			libsqlTx,
+			this.extensions,
 		);
-		const tx = new LibSQLTransaction<TFullSchema, TSchema>('async', this.dialect, session, this.schema);
+		const tx = new LibSQLTransaction<TFullSchema, TSchema>(
+			'async',
+			this.dialect,
+			session,
+			this.schema,
+			undefined,
+			this.extensions,
+		);
 		try {
 			const result = await transaction(tx);
 			await libsqlTx.commit();
@@ -149,7 +162,14 @@ export class LibSQLTransaction<
 
 	override async transaction<T>(transaction: (tx: LibSQLTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex}`;
-		const tx = new LibSQLTransaction('async', this.dialect, this.session, this.schema, this.nestedIndex + 1);
+		const tx = new LibSQLTransaction(
+			'async',
+			this.dialect,
+			this.session,
+			this.schema,
+			this.nestedIndex + 1,
+			this._.extensions,
+		);
 		await this.session.run(sql.raw(`savepoint ${savepointName}`));
 		try {
 			const result = await transaction(tx);
@@ -181,17 +201,19 @@ export class LibSQLPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		private tx: Transaction | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		private _isResponseInArrayMode: boolean,
+		extensions?: DrizzleSQLiteExtension[],
+		hookContext?: BlankSQLiteHookContext,
 		/** @internal */ public customResultMapper?: (
 			rows: unknown[][],
 			mapColumnValue?: (value: unknown) => unknown,
 		) => unknown,
 	) {
-		super('async', executeMethod, query, cache, queryMetadata, cacheConfig);
+		super('async', executeMethod, query, cache, queryMetadata, cacheConfig, extensions, hookContext);
 		this.customResultMapper = customResultMapper;
 		this.fields = fields;
 	}
 
-	async run(placeholderValues?: Record<string, unknown>): Promise<ResultSet> {
+	async _run(placeholderValues?: Record<string, unknown>): Promise<ResultSet> {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 		return await this.queryWithCache(this.query.sql, params, async () => {
@@ -200,7 +222,7 @@ export class LibSQLPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		});
 	}
 
-	async all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
+	async _all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
 		const { fields, logger, query, tx, client, customResultMapper } = this;
 		if (!fields && !customResultMapper) {
 			const params = fillPlaceholders(query.params, placeholderValues ?? {});
@@ -238,7 +260,7 @@ export class LibSQLPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		});
 	}
 
-	async get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
+	async _get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
 		const { fields, logger, query, tx, client, customResultMapper } = this;
 		if (!fields && !customResultMapper) {
 			const params = fillPlaceholders(query.params, placeholderValues ?? {});
@@ -280,7 +302,7 @@ export class LibSQLPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		);
 	}
 
-	async values(placeholderValues?: Record<string, unknown>): Promise<T['values']> {
+	async _values(placeholderValues?: Record<string, unknown>): Promise<T['values']> {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 		return await this.queryWithCache(this.query.sql, params, async () => {

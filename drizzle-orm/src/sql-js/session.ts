@@ -103,7 +103,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		super('sync', executeMethod, query);
 	}
 
-	run(placeholderValues?: Record<string, unknown>): void {
+	_run(placeholderValues?: Record<string, unknown>): void {
 		const stmt = this.client.prepare(this.query.sql);
 
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
@@ -115,7 +115,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		return result;
 	}
 
-	all(placeholderValues?: Record<string, unknown>): T['all'] {
+	_all(placeholderValues?: Record<string, unknown>): T['all'] {
 		const stmt = this.client.prepare(this.query.sql);
 
 		const { fields, joinsNotNullableMap, logger, query, customResultMapper } = this;
@@ -142,7 +142,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		return rows.map((row) => mapResultRow(fields!, row.map((v) => normalizeFieldValue(v)), joinsNotNullableMap));
 	}
 
-	get(placeholderValues?: Record<string, unknown>): T['get'] {
+	_get(placeholderValues?: Record<string, unknown>): T['get'] {
 		const stmt = this.client.prepare(this.query.sql);
 
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
@@ -172,7 +172,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> 
 		return mapResultRow(fields!, row.map((v) => normalizeFieldValue(v)), joinsNotNullableMap);
 	}
 
-	values(placeholderValues?: Record<string, unknown>): T['values'] {
+	_values(placeholderValues?: Record<string, unknown>): T['values'] {
 		const stmt = this.client.prepare(this.query.sql);
 
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});

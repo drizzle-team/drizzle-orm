@@ -1,5 +1,6 @@
 import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
+import type { DrizzlePgExtension } from '~/extension-core/pg/index.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import {
 	PgDeleteBase,
@@ -45,6 +46,7 @@ export class PgDatabase<
 		readonly fullSchema: TFullSchema;
 		readonly tableNamesMap: Record<string, string>;
 		readonly session: PgSession<TQueryResult, TFullSchema, TSchema>;
+		readonly extensions?: DrizzlePgExtension[];
 	};
 
 	query: TFullSchema extends Record<string, never>
@@ -59,6 +61,7 @@ export class PgDatabase<
 		/** @internal */
 		readonly session: PgSession<any, any, any>,
 		schema: RelationalSchemaConfig<TSchema> | undefined,
+		extensions?: DrizzlePgExtension[],
 	) {
 		this._ = schema
 			? {
@@ -66,12 +69,14 @@ export class PgDatabase<
 				fullSchema: schema.fullSchema as TFullSchema,
 				tableNamesMap: schema.tableNamesMap,
 				session,
+				extensions,
 			}
 			: {
 				schema: undefined,
 				fullSchema: {} as TFullSchema,
 				tableNamesMap: {},
 				session,
+				extensions,
 			};
 		this.query = {} as typeof this['query'];
 		if (this._.schema) {

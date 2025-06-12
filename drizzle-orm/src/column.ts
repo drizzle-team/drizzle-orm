@@ -6,6 +6,7 @@ import type {
 	GeneratedIdentityConfig,
 } from './column-builder.ts';
 import { entityKind } from './entity.ts';
+import { type extensionName, requiredExtension } from './extension-core/index.ts';
 import type { DriverValueMapper, SQL, SQLWrapper } from './sql/sql.ts';
 import type { Table } from './table.ts';
 import type { Update } from './utils.ts';
@@ -66,6 +67,11 @@ export abstract class Column<
 	TTypeConfig extends object = object,
 > implements DriverValueMapper<T['data'], T['driverParam']>, SQLWrapper {
 	static readonly [entityKind]: string = 'Column';
+	[requiredExtension]?: {
+		[entityKind]: string;
+		[extensionName]: string;
+		new(...args: any[]): any;
+	} = undefined;
 
 	declare readonly _: ColumnTypeConfig<T, TTypeConfig>;
 

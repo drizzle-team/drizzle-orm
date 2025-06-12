@@ -1,4 +1,5 @@
 import { entityKind } from '~/entity.ts';
+import type { BlankGelHookContext } from '~/extension-core/gel/index.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import {
 	type BuildQueryResult,
@@ -91,6 +92,19 @@ export class GelRelationalQuery<TResult> extends QueryPromise<TResult>
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			const { query, builtQuery } = this._toSQL();
 
+			const extCfg: BlankGelHookContext | undefined = this.session.extensions?.length
+				? {
+					query: '_query',
+					session: this.session,
+					dialect: this.dialect,
+					tableNamesMap: this.tableNamesMap,
+					tablesConfig: this.schema,
+					tableConfig: this.tableConfig,
+					mode: this.mode,
+					config: query,
+				}
+				: undefined;
+
 			return this.session.prepareQuery<PreparedQueryConfig & { execute: TResult }>(
 				builtQuery,
 				undefined,
@@ -105,6 +119,9 @@ export class GelRelationalQuery<TResult> extends QueryPromise<TResult>
 					}
 					return rows as TResult;
 				},
+				undefined,
+				undefined,
+				extCfg,
 			);
 		});
 	}
@@ -122,7 +139,7 @@ export class GelRelationalQuery<TResult> extends QueryPromise<TResult>
 			tableConfig: this.tableConfig,
 			queryConfig: this.config,
 			tableAlias: this.tableConfig.tsName,
-		});
+		}, this.session.extensions);
 	}
 
 	/** @internal */

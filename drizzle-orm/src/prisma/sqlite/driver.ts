@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 
+import type { DrizzleSQLiteExtension } from '~/extension-core/sqlite/index.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { BaseSQLiteDatabase, SQLiteAsyncDialect } from '~/sqlite-core/index.ts';
@@ -8,7 +9,7 @@ import { PrismaSQLiteSession } from './session.ts';
 
 export type PrismaSQLiteDatabase = BaseSQLiteDatabase<'async', []>;
 
-export type PrismaSQLiteConfig = Omit<DrizzleConfig, 'schema'>;
+export type PrismaSQLiteConfig = Omit<DrizzleConfig<any, DrizzleSQLiteExtension>, 'schema'>;
 
 export function drizzle(config: PrismaSQLiteConfig = {}) {
 	const dialect = new SQLiteAsyncDialect();
@@ -25,7 +26,13 @@ export function drizzle(config: PrismaSQLiteConfig = {}) {
 		return client.$extends({
 			name: 'drizzle',
 			client: {
-				$drizzle: new BaseSQLiteDatabase('async', dialect, session, undefined) as PrismaSQLiteDatabase,
+				$drizzle: new BaseSQLiteDatabase(
+					'async',
+					dialect,
+					session,
+					undefined,
+					config.extensions,
+				) as PrismaSQLiteDatabase,
 			},
 		});
 	});

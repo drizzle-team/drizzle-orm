@@ -3,6 +3,8 @@ import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
+import type { DrizzleGelExtension } from '~/extension-core/gel/index.ts';
+import { requiredExtension } from '~/extension-core/index.ts';
 import { GelColumn, GelDecimal, GelJson, GelUUID } from '~/gel-core/columns/index.ts';
 import type {
 	AnyGelSelectQueryBuilder,
@@ -38,7 +40,7 @@ import {
 } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
-import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import { type Casing, columnExtensionsCheck, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { GelTimestamp } from './columns/timestamp.ts';
 import { GelViewBase } from './view-base.ts';
@@ -126,11 +128,11 @@ export class GelDialect {
 		return sql.join(withSqlChunks);
 	}
 
-	buildDeleteQuery({ table, where, returning, withList }: GelDeleteConfig): SQL {
+	buildDeleteQuery({ table, where, returning, withList }: GelDeleteConfig, extensions?: DrizzleGelExtension[]): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: true }, extensions)}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -138,7 +140,7 @@ export class GelDialect {
 		return sql`${withSql}delete from ${table}${whereSql}${returningSql}`;
 	}
 
-	buildUpdateSet(table: GelTable, set: UpdateSet): SQL {
+	buildUpdateSet(table: GelTable, set: UpdateSet, extensions?: DrizzleGelExtension[]): SQL {
 		const tableColumns = table[Table.Symbol.Columns];
 
 		const columnNames = Object.keys(tableColumns).filter((colName) =>
@@ -148,8 +150,12 @@ export class GelDialect {
 		const setSize = columnNames.length;
 		return sql.join(columnNames.flatMap((colName, i) => {
 			const col = tableColumns[colName]!;
+			const ext = col[requiredExtension];
 
-			const value = set[colName] ?? sql.param(col.onUpdateFn!(), col);
+			const value = set[colName]
+				?? (ext && columnExtensionsCheck(col, extensions)
+					? sql.extensionParam(ext, col.onUpdateFn!(), col)
+					: sql.param(col.onUpdateFn!(), col));
 			const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
 
 			if (i < setSize - 1) {
@@ -159,7 +165,10 @@ export class GelDialect {
 		}));
 	}
 
-	buildUpdateQuery({ table, set, where, returning, withList, from, joins }: GelUpdateConfig): SQL {
+	buildUpdateQuery(
+		{ table, set, where, returning, withList, from, joins }: GelUpdateConfig,
+		extensions?: DrizzleGelExtension[],
+	): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const tableName = table[GelTable.Symbol.Name];
@@ -170,14 +179,14 @@ export class GelDialect {
 			sql.identifier(origTableName)
 		}${alias && sql` ${sql.identifier(alias)}`}`;
 
-		const setSql = this.buildUpdateSet(table, set);
+		const setSql = this.buildUpdateSet(table, set, extensions);
 
 		const fromSql = from && sql.join([sql.raw(' from '), this.buildFromTable(from)]);
 
 		const joinsSql = this.buildJoins(joins);
 
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: !from })}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: !from }, extensions)}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -201,6 +210,7 @@ export class GelDialect {
 		fields: SelectedFieldsOrdered,
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		{ isSingleTable = false }: { isSingleTable?: boolean } = {},
+		extensions?: DrizzleGelExtension[],
 	): SQL {
 		const columnsLen = fields.length;
 
@@ -234,6 +244,8 @@ export class GelDialect {
 						chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
 					}
 				} else if (is(field, Column)) {
+					columnExtensionsCheck(field, extensions);
+
 					// Gel throws an error when more than one similarly named columns exist within context instead of preferring the closest one
 					// thus forcing us to be explicit about column's source
 					// if (isSingleTable) {
@@ -332,6 +344,7 @@ export class GelDialect {
 			distinct,
 			setOperators,
 		}: GelSelectConfig,
+		extensions?: DrizzleGelExtension[],
 	): SQL {
 		const fieldsList = fieldsFlat ?? orderSelectedFields<GelColumn>(fields);
 		for (const f of fieldsList) {
@@ -368,7 +381,7 @@ export class GelDialect {
 			distinctSql = distinct === true ? sql` distinct` : sql` distinct on (${sql.join(distinct.on, sql`, `)})`;
 		}
 
-		const selection = this.buildSelection(fieldsList, { isSingleTable });
+		const selection = this.buildSelection(fieldsList, { isSingleTable }, extensions);
 
 		const tableSql = this.buildFromTable(table);
 
@@ -489,6 +502,7 @@ export class GelDialect {
 
 	buildInsertQuery(
 		{ table, values: valuesOrSelect, onConflict, returning, withList, select, overridingSystemValue_ }: GelInsertConfig,
+		extensions?: DrizzleGelExtension[],
 	): SQL {
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
 		const columns: Record<string, GelColumn> = table[Table.Symbol.Columns];
@@ -514,22 +528,36 @@ export class GelDialect {
 			for (const [valueIndex, value] of values.entries()) {
 				const valueList: (SQLChunk | SQL)[] = [];
 				for (const [fieldName, col] of colEntries) {
+					const ext = col[requiredExtension];
+
 					const colValue = value[fieldName];
 					if (colValue === undefined || (is(colValue, Param) && colValue.value === undefined)) {
 						// eslint-disable-next-line unicorn/no-negated-condition
 						if (col.defaultFn !== undefined) {
 							const defaultFnResult = col.defaultFn();
-							const defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : sql.param(defaultFnResult, col);
+
+							const defaultValue = is(defaultFnResult, SQL)
+								? defaultFnResult
+								: (ext && columnExtensionsCheck(col, extensions)
+									? sql.extensionParam(ext, defaultFnResult, col)
+									: sql.param(defaultFnResult, col));
 							valueList.push(defaultValue);
 							// eslint-disable-next-line unicorn/no-negated-condition
 						} else if (!col.default && col.onUpdateFn !== undefined) {
 							const onUpdateFnResult = col.onUpdateFn();
-							const newValue = is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col);
+
+							const newValue = is(onUpdateFnResult, SQL)
+								? onUpdateFnResult
+								: (ext && columnExtensionsCheck(col, extensions)
+									? sql.extensionParam(ext, onUpdateFnResult, col)
+									: sql.param(onUpdateFnResult, col));
 							valueList.push(newValue);
 						} else {
 							valueList.push(sql`default`);
 						}
 					} else {
+						if (ext && !is(colValue, SQL) && colValue.value !== null) columnExtensionsCheck(col, extensions);
+
 						valueList.push(colValue);
 					}
 				}
@@ -546,7 +574,7 @@ export class GelDialect {
 		const valuesSql = sql.join(valuesSqlList);
 
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: true }, extensions)}`
 			: undefined;
 
 		const onConflictSql = onConflict ? sql` on conflict ${onConflict}` : undefined;
@@ -1140,7 +1168,7 @@ export class GelDialect {
 		tableAlias: string;
 		nestedQueryRelation?: Relation;
 		joinOn?: SQL;
-	}): BuildRelationalQueryResult<GelTable, GelColumn> {
+	}, extensions?: DrizzleGelExtension[]): BuildRelationalQueryResult<GelTable, GelColumn> {
 		let selection: BuildRelationalQueryResult<GelTable, GelColumn>['selection'] = [];
 		let limit, offset, orderBy: NonNullable<GelSelectConfig['orderBy']> = [], where;
 		const joins: GelSelectJoinConfig[] = [];
@@ -1297,7 +1325,7 @@ export class GelDialect {
 					tableAlias: relationTableAlias,
 					joinOn,
 					nestedQueryRelation: relation,
-				});
+				}, extensions);
 				const field = sql`${sql.identifier(relationTableAlias)}.${sql.identifier('data')}`.as(selectedRelationTsKey);
 				joins.push({
 					on: sql`true`,
@@ -1368,7 +1396,7 @@ export class GelDialect {
 					offset,
 					orderBy,
 					setOperators: [],
-				});
+				}, extensions);
 
 				where = undefined;
 				limit = undefined;
@@ -1391,7 +1419,7 @@ export class GelDialect {
 				offset,
 				orderBy,
 				setOperators: [],
-			});
+			}, extensions);
 		} else {
 			result = this.buildSelectQuery({
 				table: aliasedTable(table, tableAlias),
@@ -1406,7 +1434,7 @@ export class GelDialect {
 				offset,
 				orderBy,
 				setOperators: [],
-			});
+			}, extensions);
 		}
 
 		return {

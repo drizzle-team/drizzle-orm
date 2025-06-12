@@ -88,6 +88,18 @@ jobs:
           ROOT_PASSWORD: singlestore
         ports:
           - 33307:3306
+      minio:
+        image: lazybit/minio:latest
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+        options: >-
+          --health-cmd "curl http://localhost:9000/minio/health/live"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 9000:9000
     steps:
       - uses: actions/checkout@v4
 

@@ -11,6 +11,7 @@ import {
 import { type Cache, NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
+import type { BlankPgHookContext, DrizzlePgExtension } from '~/extension-core/pg/index.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -44,9 +45,11 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig> extends PgPrepared
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		private _isResponseInArrayMode: boolean,
+		extensions?: DrizzlePgExtension[],
+		hookContext?: BlankPgHookContext,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
-		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
+		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig, extensions, hookContext);
 		this.rawQueryConfig = {
 			name,
 			text: queryString,
@@ -136,7 +139,7 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig> extends PgPrepared
 		};
 	}
 
-	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+	async _execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 
 		this.logger.logQuery(this.rawQueryConfig.text, params);
@@ -199,8 +202,9 @@ export class NeonSession<
 		dialect: PgDialect,
 		private schema: RelationalSchemaConfig<TSchema> | undefined,
 		private options: NeonSessionOptions = {},
+		extensions?: DrizzlePgExtension[],
 	) {
-		super(dialect);
+		super(dialect, extensions);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
 	}
@@ -216,6 +220,7 @@ export class NeonSession<
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
+		hookContext?: BlankPgHookContext,
 	): PgPreparedQuery<T> {
 		return new NeonPreparedQuery(
 			this.client,
@@ -228,6 +233,8 @@ export class NeonSession<
 			fields,
 			name,
 			isResponseInArrayMode,
+			this.extensions,
+			hookContext,
 			customResultMapper,
 		);
 	}
@@ -262,9 +269,15 @@ export class NeonSession<
 		config: PgTransactionConfig = {},
 	): Promise<T> {
 		const session = this.client instanceof Pool // eslint-disable-line no-instanceof/no-instanceof
-			? new NeonSession(await this.client.connect(), this.dialect, this.schema, this.options)
+			? new NeonSession(await this.client.connect(), this.dialect, this.schema, this.options, this.extensions)
 			: this;
-		const tx = new NeonTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
+		const tx = new NeonTransaction<TFullSchema, TSchema>(
+			this.dialect,
+			session,
+			this.schema,
+			undefined,
+			this.extensions,
+		);
 		await tx.execute(sql`begin ${tx.getTransactionConfigSQL(config)}`);
 		try {
 			const result = await transaction(tx);
@@ -289,7 +302,13 @@ export class NeonTransaction<
 
 	override async transaction<T>(transaction: (tx: NeonTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new NeonTransaction<TFullSchema, TSchema>(this.dialect, this.session, this.schema, this.nestedIndex + 1);
+		const tx = new NeonTransaction<TFullSchema, TSchema>(
+			this.dialect,
+			this.session,
+			this.schema,
+			this.nestedIndex + 1,
+			this._.extensions,
+		);
 		await tx.execute(sql.raw(`savepoint ${savepointName}`));
 		try {
 			const result = await transaction(tx);

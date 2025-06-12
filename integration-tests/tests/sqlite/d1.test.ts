@@ -7,7 +7,7 @@ import { migrate } from 'drizzle-orm/d1/migrator';
 import { beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
-import { anotherUsersMigratorTable, tests, usersMigratorTable } from './sqlite-common';
+import { anotherUsersMigratorTable, createExtensions, tests, usersMigratorTable } from './sqlite-common';
 import { TestCache, TestGlobalCache, tests as cacheTests } from './sqlite-common-cache';
 
 const ENABLE_LOGGING = false;
@@ -15,11 +15,14 @@ const ENABLE_LOGGING = false;
 let db: DrizzleD1Database;
 let dbGlobalCached: DrizzleD1Database;
 let cachedDb: DrizzleD1Database;
+let s3Bucket: string;
 
 beforeAll(async () => {
 	const sqliteDb = await createSQLiteDB(':memory:');
 	const d1db = new D1Database(new D1DatabaseAPI(sqliteDb));
-	db = drizzle(d1db, { logger: ENABLE_LOGGING });
+	const { bucket, extensions } = await createExtensions();
+	s3Bucket = bucket;
+	db = drizzle(d1db, { logger: ENABLE_LOGGING, extensions });
 	cachedDb = drizzle(d1db, { logger: ENABLE_LOGGING, cache: new TestCache() });
 	dbGlobalCached = drizzle(d1db, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 });
@@ -27,6 +30,7 @@ beforeAll(async () => {
 beforeEach((ctx) => {
 	ctx.sqlite = {
 		db,
+		bucket: s3Bucket,
 	};
 	ctx.cachedSqlite = {
 		db: cachedDb,
@@ -95,6 +99,8 @@ skipTests([
 	'select from alias',
 	'join view as subquery',
 	'cross join',
+	'S3File - insert + select custom selection',
+	'S3File - run + all + get + values',
 ]);
 cacheTests();
 tests();

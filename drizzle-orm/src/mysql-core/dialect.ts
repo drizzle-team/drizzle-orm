@@ -3,6 +3,8 @@ import { CasingCache } from '~/casing.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
+import { requiredExtension } from '~/extension-core/index.ts';
+import type { DrizzleMySqlExtension } from '~/extension-core/mysql/index.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
 import {
 	type BuildRelationalQueryResult,
@@ -21,7 +23,7 @@ import { Param, SQL, sql, View } from '~/sql/sql.ts';
 import type { Name, Placeholder, QueryWithTypings, SQLChunk } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, getTableUniqueName, Table } from '~/table.ts';
-import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import { type Casing, columnExtensionsCheck, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { MySqlColumn } from './columns/common.ts';
 import type { MySqlDeleteConfig } from './query-builders/delete.ts';
@@ -117,11 +119,14 @@ export class MySqlDialect {
 		return sql.join(withSqlChunks);
 	}
 
-	buildDeleteQuery({ table, where, returning, withList, limit, orderBy }: MySqlDeleteConfig): SQL {
+	buildDeleteQuery(
+		{ table, where, returning, withList, limit, orderBy }: MySqlDeleteConfig,
+		extensions?: DrizzleMySqlExtension[],
+	): SQL {
 		const withSql = this.buildWithCTE(withList);
 
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: true }, extensions)}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -133,7 +138,7 @@ export class MySqlDialect {
 		return sql`${withSql}delete from ${table}${whereSql}${orderBySql}${limitSql}${returningSql}`;
 	}
 
-	buildUpdateSet(table: MySqlTable, set: UpdateSet): SQL {
+	buildUpdateSet(table: MySqlTable, set: UpdateSet, extensions?: DrizzleMySqlExtension[]): SQL {
 		const tableColumns = table[Table.Symbol.Columns];
 
 		const columnNames = Object.keys(tableColumns).filter((colName) =>
@@ -143,8 +148,12 @@ export class MySqlDialect {
 		const setSize = columnNames.length;
 		return sql.join(columnNames.flatMap((colName, i) => {
 			const col = tableColumns[colName]!;
+			const ext = col[requiredExtension];
 
-			const value = set[colName] ?? sql.param(col.onUpdateFn!(), col);
+			const value = set[colName]
+				?? (ext && columnExtensionsCheck(col, extensions)
+					? sql.extensionParam(ext, col.onUpdateFn!(), col)
+					: sql.param(col.onUpdateFn!(), col));
 			const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
 
 			if (i < setSize - 1) {
@@ -154,13 +163,16 @@ export class MySqlDialect {
 		}));
 	}
 
-	buildUpdateQuery({ table, set, where, returning, withList, limit, orderBy }: MySqlUpdateConfig): SQL {
+	buildUpdateQuery(
+		{ table, set, where, returning, withList, limit, orderBy }: MySqlUpdateConfig,
+		extensions?: DrizzleMySqlExtension[],
+	): SQL {
 		const withSql = this.buildWithCTE(withList);
 
-		const setSql = this.buildUpdateSet(table, set);
+		const setSql = this.buildUpdateSet(table, set, extensions);
 
 		const returningSql = returning
-			? sql` returning ${this.buildSelection(returning, { isSingleTable: true })}`
+			? sql` returning ${this.buildSelection(returning, { isSingleTable: true }, extensions)}`
 			: undefined;
 
 		const whereSql = where ? sql` where ${where}` : undefined;
@@ -186,6 +198,7 @@ export class MySqlDialect {
 	private buildSelection(
 		fields: SelectedFieldsOrdered,
 		{ isSingleTable = false }: { isSingleTable?: boolean } = {},
+		extensions?: DrizzleMySqlExtension[],
 	): SQL {
 		const columnsLen = fields.length;
 
@@ -203,6 +216,8 @@ export class MySqlDialect {
 							new SQL(
 								query.queryChunks.map((c) => {
 									if (is(c, MySqlColumn)) {
+										columnExtensionsCheck(c, extensions);
+
 										return sql.identifier(this.casing.getColumnCasing(c));
 									}
 									return c;
@@ -217,6 +232,8 @@ export class MySqlDialect {
 						chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
 					}
 				} else if (is(field, Column)) {
+					columnExtensionsCheck(field, extensions);
+
 					if (isSingleTable) {
 						chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
 					} else {
@@ -276,6 +293,7 @@ export class MySqlDialect {
 			forceIndex,
 			ignoreIndex,
 		}: MySqlSelectConfig,
+		extensions?: DrizzleMySqlExtension[],
 	): SQL {
 		const fieldsList = fieldsFlat ?? orderSelectedFields<MySqlColumn>(fields);
 		for (const f of fieldsList) {
@@ -309,7 +327,7 @@ export class MySqlDialect {
 
 		const distinctSql = distinct ? sql` distinct` : undefined;
 
-		const selection = this.buildSelection(fieldsList, { isSingleTable });
+		const selection = this.buildSelection(fieldsList, { isSingleTable }, extensions);
 
 		const tableSql = (() => {
 			if (is(table, Table) && table[Table.Symbol.IsAlias]) {
@@ -474,6 +492,7 @@ export class MySqlDialect {
 
 	buildInsertQuery(
 		{ table, values: valuesOrSelect, ignore, onConflict, select }: MySqlInsertConfig,
+		extensions?: DrizzleMySqlExtension[],
 	): { sql: SQL; generatedIds: Record<string, unknown>[] } {
 		// const isSingleValue = values.length === 1;
 		const valuesSqlList: ((SQLChunk | SQL)[] | SQL)[] = [];
@@ -502,23 +521,37 @@ export class MySqlDialect {
 
 				const valueList: (SQLChunk | SQL)[] = [];
 				for (const [fieldName, col] of colEntries) {
+					const ext = col[requiredExtension];
+
 					const colValue = value[fieldName];
 					if (colValue === undefined || (is(colValue, Param) && colValue.value === undefined)) {
 						// eslint-disable-next-line unicorn/no-negated-condition
 						if (col.defaultFn !== undefined) {
 							const defaultFnResult = col.defaultFn();
 							generatedIds[fieldName] = defaultFnResult;
-							const defaultValue = is(defaultFnResult, SQL) ? defaultFnResult : sql.param(defaultFnResult, col);
+
+							const defaultValue = is(defaultFnResult, SQL)
+								? defaultFnResult
+								: (ext && columnExtensionsCheck(col, extensions)
+									? sql.extensionParam(ext, defaultFnResult, col)
+									: sql.param(defaultFnResult, col));
 							valueList.push(defaultValue);
 							// eslint-disable-next-line unicorn/no-negated-condition
 						} else if (!col.default && col.onUpdateFn !== undefined) {
 							const onUpdateFnResult = col.onUpdateFn();
-							const newValue = is(onUpdateFnResult, SQL) ? onUpdateFnResult : sql.param(onUpdateFnResult, col);
+
+							const newValue = is(onUpdateFnResult, SQL)
+								? onUpdateFnResult
+								: (ext && columnExtensionsCheck(col, extensions)
+									? sql.extensionParam(ext, onUpdateFnResult, col)
+									: sql.param(onUpdateFnResult, col));
 							valueList.push(newValue);
 						} else {
 							valueList.push(sql`default`);
 						}
 					} else {
+						if (ext && !is(colValue, SQL) && colValue.value !== null) columnExtensionsCheck(col, extensions);
+
 						if (col.defaultFn && is(colValue, Param)) {
 							generatedIds[fieldName] = colValue.value;
 						}
@@ -576,7 +609,7 @@ export class MySqlDialect {
 		tableAlias: string;
 		nestedQueryRelation?: Relation;
 		joinOn?: SQL;
-	}): BuildRelationalQueryResult<MySqlTable, MySqlColumn> {
+	}, extensions?: DrizzleMySqlExtension[]): BuildRelationalQueryResult<MySqlTable, MySqlColumn> {
 		let selection: BuildRelationalQueryResult<MySqlTable, MySqlColumn>['selection'] = [];
 		let limit, offset, orderBy: MySqlSelectConfig['orderBy'], where;
 		const joins: MySqlSelectJoinConfig[] = [];
@@ -731,7 +764,7 @@ export class MySqlDialect {
 					tableAlias: relationTableAlias,
 					joinOn,
 					nestedQueryRelation: relation,
-				});
+				}, extensions);
 				const field = sql`${sql.identifier(relationTableAlias)}.${sql.identifier('data')}`.as(selectedRelationTsKey);
 				joins.push({
 					on: sql`true`,
@@ -806,7 +839,7 @@ export class MySqlDialect {
 					limit,
 					offset,
 					setOperators: [],
-				});
+				}, extensions);
 
 				where = undefined;
 				limit = undefined;
@@ -829,7 +862,7 @@ export class MySqlDialect {
 				offset,
 				orderBy,
 				setOperators: [],
-			});
+			}, extensions);
 		} else {
 			result = this.buildSelectQuery({
 				table: aliasedTable(table, tableAlias),
@@ -844,7 +877,7 @@ export class MySqlDialect {
 				offset,
 				orderBy,
 				setOperators: [],
-			});
+			}, extensions);
 		}
 
 		return {
@@ -874,7 +907,7 @@ export class MySqlDialect {
 		tableAlias: string;
 		nestedQueryRelation?: Relation;
 		joinOn?: SQL;
-	}): BuildRelationalQueryResult<MySqlTable, MySqlColumn> {
+	}, extensions?: DrizzleMySqlExtension[]): BuildRelationalQueryResult<MySqlTable, MySqlColumn> {
 		let selection: BuildRelationalQueryResult<MySqlTable, MySqlColumn>['selection'] = [];
 		let limit, offset, orderBy: MySqlSelectConfig['orderBy'] = [], where;
 
@@ -1028,7 +1061,7 @@ export class MySqlDialect {
 					tableAlias: relationTableAlias,
 					joinOn,
 					nestedQueryRelation: relation,
-				});
+				}, extensions);
 				let fieldSql = sql`(${builtRelation.sql})`;
 				if (is(relation, Many)) {
 					fieldSql = sql`coalesce(${fieldSql}, json_array())`;
@@ -1103,7 +1136,7 @@ export class MySqlDialect {
 					limit,
 					offset,
 					setOperators: [],
-				});
+				}, extensions);
 
 				where = undefined;
 				limit = undefined;
@@ -1125,7 +1158,7 @@ export class MySqlDialect {
 				offset,
 				orderBy,
 				setOperators: [],
-			});
+			}, extensions);
 		} else {
 			result = this.buildSelectQuery({
 				table: aliasedTable(table, tableAlias),
@@ -1139,7 +1172,7 @@ export class MySqlDialect {
 				offset,
 				orderBy,
 				setOperators: [],
-			});
+			}, extensions);
 		}
 
 		return {

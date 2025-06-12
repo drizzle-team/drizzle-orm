@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client/extension';
-
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
+import type { BlankPgHookContext, DrizzlePgExtension } from '~/extension-core/pg/index.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import type {
 	PgDialect,
@@ -8,6 +9,7 @@ import type {
 	PgTransaction,
 	PgTransactionConfig,
 	PreparedQueryConfig,
+	SelectedFieldsOrdered,
 } from '~/pg-core/index.ts';
 import { PgPreparedQuery, PgSession } from '~/pg-core/index.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
@@ -20,11 +22,13 @@ export class PrismaPgPreparedQuery<T> extends PgPreparedQuery<PreparedQueryConfi
 		private readonly prisma: PrismaClient,
 		query: Query,
 		private readonly logger: Logger,
+		extensions?: DrizzlePgExtension[],
+		hookContext?: BlankPgHookContext,
 	) {
-		super(query, undefined, undefined, undefined);
+		super(query, undefined, undefined, undefined, extensions, hookContext);
 	}
 
-	override execute(placeholderValues?: Record<string, unknown>): Promise<T> {
+	override _execute(placeholderValues?: Record<string, unknown>): Promise<T> {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 		return this.prisma.$queryRawUnsafe(this.query.sql, ...params);
@@ -52,8 +56,9 @@ export class PrismaPgSession extends PgSession {
 		dialect: PgDialect,
 		private readonly prisma: PrismaClient,
 		private readonly options: PrismaPgSessionOptions,
+		extensions?: DrizzlePgExtension[],
 	) {
-		super(dialect);
+		super(dialect, extensions);
 		this.logger = options.logger ?? new NoopLogger();
 	}
 
@@ -61,8 +66,20 @@ export class PrismaPgSession extends PgSession {
 		return this.prepareQuery<PreparedQueryConfig & { execute: T }>(this.dialect.sqlToQuery(query)).execute();
 	}
 
-	override prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(query: Query): PgPreparedQuery<T> {
-		return new PrismaPgPreparedQuery(this.prisma, query, this.logger);
+	override prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
+		query: Query,
+		fields?: SelectedFieldsOrdered | undefined,
+		name?: string | undefined,
+		isResponseInArrayMode?: boolean,
+		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
+		hookContext?: BlankPgHookContext,
+	): PgPreparedQuery<T> {
+		return new PrismaPgPreparedQuery(this.prisma, query, this.logger, this.extensions, hookContext);
 	}
 
 	override transaction<T>(

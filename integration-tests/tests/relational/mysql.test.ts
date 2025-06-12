@@ -1,14 +1,26 @@
 import 'dotenv/config';
 import Docker from 'dockerode';
 import { desc, DrizzleError, eq, gt, gte, or, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
+import { s3FileExt } from 'drizzle-orm/extensions/s3-file/mysql';
 import { drizzle, type MySql2Database } from 'drizzle-orm/mysql2';
 import getPort from 'get-port';
 import * as mysql from 'mysql2/promise';
 import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
+import { createDockerS3, defaultBucket } from '~/create-docker-s3.ts';
 import * as schema from './mysql.schema.ts';
 
-const { usersTable, postsTable, commentsTable, usersToGroupsTable, groupsTable, usersV1, usersTableV1 } = schema;
+const {
+	usersTable,
+	postsTable,
+	commentsTable,
+	usersToGroupsTable,
+	groupsTable,
+	usersV1,
+	usersTableV1,
+	s3Table,
+	exampleS3Files,
+} = schema;
 
 const ENABLE_LOGGING = false;
 
@@ -23,6 +35,7 @@ declare module 'vitest' {
 		mysqlContainer: Docker.Container;
 		mysqlDb: MySql2Database<typeof schema>;
 		mysqlClient: mysql.Connection;
+		bucket?: string;
 	}
 }
 
@@ -30,6 +43,19 @@ let globalDocker: Docker;
 let mysqlContainer: Docker.Container;
 let db: MySql2Database<typeof schema>;
 let client: mysql.Connection;
+let s3Bucket: string;
+
+const beforeEachHooks: (() => any)[] = [];
+const afterAllHooks: (() => any)[] = [];
+
+export async function createExtensions() {
+	const { s3, s3Wipe, s3Stop, bucket } = await createDockerS3();
+
+	beforeEachHooks.push(s3Wipe);
+	afterAllHooks.push(s3Stop);
+
+	return { extensions: [s3FileExt(s3)], bucket };
+}
 
 async function createDockerDB(): Promise<string> {
 	const docker = (globalDocker = new Docker());
@@ -83,12 +109,18 @@ beforeAll(async () => {
 		await mysqlContainer?.stop().catch(console.error);
 		throw lastError;
 	}
-	db = drizzle(client, { schema, logger: ENABLE_LOGGING, mode: 'default' });
+	const { bucket, extensions } = await createExtensions();
+	s3Bucket = bucket;
+	db = drizzle(client, { schema, logger: ENABLE_LOGGING, mode: 'default', extensions });
 });
 
 afterAll(async () => {
 	await client?.end().catch(console.error);
 	await mysqlContainer?.stop().catch(console.error);
+
+	for (const hook of afterAllHooks) {
+		await hook();
+	}
 });
 
 beforeEach(async (ctx) => {
@@ -96,6 +128,7 @@ beforeEach(async (ctx) => {
 	ctx.mysqlClient = client;
 	ctx.docker = globalDocker;
 	ctx.mysqlContainer = mysqlContainer;
+	ctx.bucket = s3Bucket;
 
 	await ctx.mysqlDb.execute(sql`drop table if exists \`users\``);
 	await ctx.mysqlDb.execute(sql`drop table if exists \`schemaV1\`.\`usersV1\``);
@@ -105,6 +138,7 @@ beforeEach(async (ctx) => {
 	await ctx.mysqlDb.execute(sql`drop table if exists \`posts\``);
 	await ctx.mysqlDb.execute(sql`drop table if exists \`comments\``);
 	await ctx.mysqlDb.execute(sql`drop table if exists \`comment_likes\``);
+	await ctx.mysqlDb.execute(sql`drop table if exists \`s3files\``);
 
 	await ctx.mysqlDb.execute(sql`create schema if not exists \`schemaV1\``);
 
@@ -187,6 +221,21 @@ beforeEach(async (ctx) => {
 			);
 		`,
 	);
+	await ctx.mysqlDb.execute(sql`
+		CREATE TABLE ${s3Table} (
+			\`id\` INTEGER PRIMARY KEY,
+			\`file\` TEXT,
+			\`file_default_fn\` TEXT,
+			\`f64\` TEXT,
+			\`f16\` TEXT,
+			\`f_int8\` TEXT,
+			\`common\` INTEGER DEFAULT 1
+		);
+	`);
+
+	for (const hook of beforeEachHooks) {
+		await hook();
+	}
 });
 
 /*
@@ -6384,6 +6433,381 @@ test('[Find Many] Get schema users - dbName & tsName mismatch', async (t) => {
 		verified: false,
 		invitedBy: null,
 	});
+});
+
+test('[Find First] S3File - relational empty', async (t) => {
+	const { mysqlDb: db } = t;
+
+	const res = await db.query.s3Table.findFirst({
+		with: {
+			oneSelf: {
+				with: {
+					manySelf: {
+						orderBy: ({ id }, { asc }) => asc(id),
+					},
+					oneSelf: true,
+					emptySelf: true,
+					nullSelf: true,
+				},
+			},
+			manySelf: {
+				with: {
+					manySelf: {
+						orderBy: ({ id }, { asc }) => asc(id),
+					},
+					oneSelf: true,
+					emptySelf: true,
+					nullSelf: true,
+				},
+				orderBy: ({ id }, { asc }) => asc(id),
+			},
+			emptySelf: true,
+			nullSelf: true,
+		},
+		orderBy: ({ id }, { asc }) => asc(id),
+	});
+
+	expect(res).toStrictEqual(undefined);
+});
+
+test('[Find Many] S3File - relational empty', async (t) => {
+	const { mysqlDb: db } = t;
+
+	const res = await db.query.s3Table.findMany({
+		with: {
+			oneSelf: {
+				with: {
+					manySelf: {
+						orderBy: ({ id }, { asc }) => asc(id),
+					},
+					oneSelf: true,
+					emptySelf: true,
+					nullSelf: true,
+				},
+			},
+			manySelf: {
+				with: {
+					manySelf: {
+						orderBy: ({ id }, { asc }) => asc(id),
+					},
+					oneSelf: true,
+					emptySelf: true,
+					nullSelf: true,
+				},
+				orderBy: ({ id }, { asc }) => asc(id),
+			},
+			emptySelf: true,
+			nullSelf: true,
+		},
+		orderBy: ({ id }, { asc }) => asc(id),
+	});
+
+	expect(res).toStrictEqual([]);
+});
+
+test('[Find First] S3File - relational', async (t) => {
+	const { mysqlDb: db, bucket } = t;
+
+	await db.insert(s3Table).values([{
+		id: 1,
+		file: {
+			bucket: bucket!,
+			key: 'zero',
+			data: exampleS3Files[0],
+		},
+		f64: {
+			bucket: bucket!,
+			key: 'base64',
+			data: exampleS3Files[7].toString('base64'),
+		},
+		f16: {
+			bucket: bucket!,
+			key: 'hex',
+			data: exampleS3Files[7].toString('hex'),
+		},
+		fInt8: {
+			bucket: bucket!,
+			key: 'uint8arr',
+			data: Uint8Array.from(exampleS3Files[7]),
+		},
+	}, {
+		id: 2,
+		file: {
+			bucket: bucket!,
+			key: 'file2',
+			data: exampleS3Files[8],
+		},
+	}]);
+
+	const res = await db.query.s3Table.findFirst({
+		with: {
+			oneSelf: {
+				with: {
+					manySelf: {
+						orderBy: ({ id }, { asc }) => asc(id),
+					},
+					oneSelf: true,
+					emptySelf: true,
+					nullSelf: true,
+				},
+			},
+			manySelf: {
+				with: {
+					manySelf: {
+						orderBy: ({ id }, { asc }) => asc(id),
+					},
+					oneSelf: true,
+					emptySelf: true,
+					nullSelf: true,
+				},
+				orderBy: ({ id }, { asc }) => asc(id),
+			},
+			emptySelf: true,
+			nullSelf: true,
+		},
+		orderBy: ({ id }, { asc }) => asc(id),
+	});
+
+	const data = [{
+		id: 1,
+		common: 1,
+		file: {
+			bucket: bucket!,
+			key: 'zero',
+			data: exampleS3Files[0],
+		},
+		f64: {
+			bucket: bucket!,
+			key: 'base64',
+			data: exampleS3Files[7].toString('base64'),
+		},
+		f16: {
+			bucket: bucket!,
+			key: 'hex',
+			data: exampleS3Files[7].toString('hex'),
+		},
+		fInt8: {
+			bucket: bucket!,
+			key: 'uint8arr',
+			data: Uint8Array.from(exampleS3Files[7]),
+		},
+		defaultFnFile: {
+			bucket: defaultBucket,
+			key: 'default-key',
+			data: exampleS3Files[0],
+		},
+	}, {
+		id: 2,
+		common: 1,
+		file: {
+			bucket: bucket!,
+			key: 'file2',
+			data: exampleS3Files[8],
+		},
+		f16: null,
+		f64: null,
+		fInt8: null,
+		defaultFnFile: {
+			bucket: defaultBucket,
+			key: 'default-key',
+			data: exampleS3Files[0],
+		},
+	}];
+
+	expect(res).toStrictEqual({
+		...data[0],
+		nullSelf: null,
+		emptySelf: [],
+		oneSelf: {
+			...data[0],
+			nullSelf: null,
+			emptySelf: [],
+			manySelf: data,
+			oneSelf: data[0],
+		},
+		manySelf: [
+			{
+				...data[0],
+				nullSelf: null,
+				emptySelf: [],
+				manySelf: data,
+				oneSelf: data[0],
+			},
+			{
+				...data[1],
+				nullSelf: null,
+				emptySelf: [],
+				manySelf: data,
+				oneSelf: data[1],
+			},
+		],
+	});
+});
+
+test('[Find Many] S3File - relational', async (t) => {
+	const { mysqlDb: db, bucket } = t;
+
+	await db.insert(s3Table).values([{
+		id: 1,
+		file: {
+			bucket: bucket!,
+			key: 'zero',
+			data: exampleS3Files[0],
+		},
+		f64: {
+			bucket: bucket!,
+			key: 'base64',
+			data: exampleS3Files[7].toString('base64'),
+		},
+		f16: {
+			bucket: bucket!,
+			key: 'hex',
+			data: exampleS3Files[7].toString('hex'),
+		},
+		fInt8: {
+			bucket: bucket!,
+			key: 'uint8arr',
+			data: Uint8Array.from(exampleS3Files[7]),
+		},
+	}, {
+		id: 2,
+		file: {
+			bucket: bucket!,
+			key: 'file2',
+			data: exampleS3Files[8],
+		},
+	}]);
+
+	const res = await db.query.s3Table.findMany({
+		with: {
+			oneSelf: {
+				with: {
+					manySelf: {
+						orderBy: ({ id }, { asc }) => asc(id),
+					},
+					oneSelf: true,
+					emptySelf: true,
+					nullSelf: true,
+				},
+			},
+			manySelf: {
+				with: {
+					manySelf: {
+						orderBy: ({ id }, { asc }) => asc(id),
+					},
+					oneSelf: true,
+					emptySelf: true,
+					nullSelf: true,
+				},
+				orderBy: ({ id }, { asc }) => asc(id),
+			},
+			emptySelf: true,
+			nullSelf: true,
+		},
+		orderBy: ({ id }, { asc }) => asc(id),
+	});
+
+	const data = [{
+		id: 1,
+		common: 1,
+		file: {
+			bucket: bucket!,
+			key: 'zero',
+			data: exampleS3Files[0],
+		},
+		f64: {
+			bucket: bucket!,
+			key: 'base64',
+			data: exampleS3Files[7].toString('base64'),
+		},
+		f16: {
+			bucket: bucket!,
+			key: 'hex',
+			data: exampleS3Files[7].toString('hex'),
+		},
+		fInt8: {
+			bucket: bucket!,
+			key: 'uint8arr',
+			data: Uint8Array.from(exampleS3Files[7]),
+		},
+		defaultFnFile: {
+			bucket: defaultBucket,
+			key: 'default-key',
+			data: exampleS3Files[0],
+		},
+	}, {
+		id: 2,
+		common: 1,
+		file: {
+			bucket: bucket!,
+			key: 'file2',
+			data: exampleS3Files[8],
+		},
+		f16: null,
+		f64: null,
+		fInt8: null,
+		defaultFnFile: {
+			bucket: defaultBucket,
+			key: 'default-key',
+			data: exampleS3Files[0],
+		},
+	}];
+
+	expect(res).toStrictEqual([{
+		...data[0],
+		nullSelf: null,
+		emptySelf: [],
+		oneSelf: {
+			...data[0],
+			nullSelf: null,
+			emptySelf: [],
+			manySelf: data,
+			oneSelf: data[0],
+		},
+		manySelf: [
+			{
+				...data[0],
+				nullSelf: null,
+				emptySelf: [],
+				manySelf: data,
+				oneSelf: data[0],
+			},
+			{
+				...data[1],
+				nullSelf: null,
+				emptySelf: [],
+				manySelf: data,
+				oneSelf: data[1],
+			},
+		],
+	}, {
+		...data[1],
+		nullSelf: null,
+		emptySelf: [],
+		oneSelf: {
+			...data[1],
+			nullSelf: null,
+			emptySelf: [],
+			manySelf: data,
+			oneSelf: data[1],
+		},
+		manySelf: [
+			{
+				...data[0],
+				nullSelf: null,
+				emptySelf: [],
+				manySelf: data,
+				oneSelf: data[0],
+			},
+			{
+				...data[1],
+				nullSelf: null,
+				emptySelf: [],
+				manySelf: data,
+				oneSelf: data[1],
+			},
+		],
+	}]);
 });
 
 test('.toSQL()', () => {

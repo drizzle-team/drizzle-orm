@@ -15,9 +15,14 @@ export type SQLJsDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 > = BaseSQLiteDatabase<'sync', void, TSchema>;
 
+export type SQLJsDrizzleConfig<TSchema extends Record<string, unknown> = Record<string, never>> = Omit<
+	DrizzleConfig<TSchema>,
+	'extensions'
+>;
+
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: Database,
-	config: DrizzleConfig<TSchema> = {},
+	config: SQLJsDrizzleConfig<TSchema> = {},
 ): SQLJsDatabase<TSchema> {
 	const dialect = new SQLiteSyncDialect({ casing: config.casing });
 	let logger;

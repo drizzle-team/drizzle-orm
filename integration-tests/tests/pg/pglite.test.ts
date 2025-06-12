@@ -4,7 +4,7 @@ import { drizzle, type PgliteDatabase } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
-import { tests, usersMigratorTable, usersTable } from './pg-common';
+import { createExtensions, tests, usersMigratorTable, usersTable } from './pg-common';
 import { TestCache, TestGlobalCache, tests as cacheTests } from './pg-common-cache';
 
 const ENABLE_LOGGING = false;
@@ -13,10 +13,14 @@ let db: PgliteDatabase;
 let dbGlobalCached: PgliteDatabase;
 let cachedDb: PgliteDatabase;
 let client: PGlite;
+let s3Bucket: string;
 
 beforeAll(async () => {
 	client = new PGlite();
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+
+	const { bucket, extensions } = await createExtensions();
+	s3Bucket = bucket;
+	db = drizzle(client, { logger: ENABLE_LOGGING, extensions });
 	cachedDb = drizzle(client, {
 		logger: ENABLE_LOGGING,
 		cache: new TestCache(),
@@ -34,6 +38,7 @@ afterAll(async () => {
 beforeEach((ctx) => {
 	ctx.pg = {
 		db,
+		bucket: s3Bucket,
 	};
 	ctx.cachedPg = {
 		db: cachedDb,
