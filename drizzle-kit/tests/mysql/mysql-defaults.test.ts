@@ -6,19 +6,13 @@ import {
 	int,
 	json,
 	MySqlColumnBuilder,
-	mysqlTable,
 	text,
 	timestamp,
 	varchar,
 } from 'drizzle-orm/mysql-core';
-import { createDDL, interimToDDL } from 'src/dialects/mysql/ddl';
-import { ddlDiffDry } from 'src/dialects/mysql/diff';
-import { defaultFromColumn } from 'src/dialects/mysql/drizzle';
-import { defaultToSQL } from 'src/dialects/mysql/grammar';
-import { fromDatabase } from 'src/dialects/mysql/introspect';
 import { DB } from 'src/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { drizzleToDDL, prepareTestDatabase, TestDatabase } from './mocks';
+import { prepareTestDatabase, TestDatabase } from './mocks';
 
 // @vitest-environment-options {"max-concurrency":1}
 
@@ -220,42 +214,3 @@ test('timestamp', async () => {
 
 	expect.soft(res1).toStrictEqual([]);
 });
-
-const { c1, c2, c3 } = cases.reduce((acc, it) => {
-	const l1 = (it[1] as string)?.length || 0;
-	const l2 = (it[2] as string)?.length || 0;
-	const l3 = (it[3] as string)?.length || 0;
-	acc.c1 = l1 > acc.c1 ? l1 : acc.c1;
-	acc.c2 = l2 > acc.c2 ? l2 : acc.c2;
-	acc.c3 = l3 > acc.c3 ? l3 : acc.c3;
-	return acc;
-}, { c1: 0, c2: 0, c3: 0 });
-
-for (const it of cases) {
-	const [column, value, type] = it;
-	const sql = it[3] || value;
-
-	const paddedType = (type || '').padStart(c2, ' ');
-	const paddedValue = (value || '').padStart(c1, ' ');
-	const paddedSql = (sql || '').padEnd(c3, ' ');
-
-	test(`default | ${paddedType} | ${paddedValue} | ${paddedSql}`, async () => {
-		const t = mysqlTable('table', { column });
-		const res = defaultFromColumn(t.column);
-
-		expect.soft(res).toStrictEqual(value === null ? null : { value, type });
-		expect.soft(defaultToSQL(res)).toStrictEqual(sql);
-
-		const { ddl } = drizzleToDDL({ t });
-		const { sqlStatements: init } = await ddlDiffDry(createDDL(), ddl);
-
-		for (const statement of init) {
-			await db.query(statement);
-		}
-
-		const { ddl: ddl2 } = interimToDDL(await fromDatabase(db, 'drizzle'));
-		const { sqlStatements } = await ddlDiffDry(ddl2, ddl);
-
-		expect.soft(sqlStatements).toStrictEqual([]);
-	});
-}

@@ -1,19 +1,34 @@
 import Docker, { Container } from 'dockerode';
 import { is } from 'drizzle-orm';
-import { MySqlSchema, MySqlTable, MySqlView } from 'drizzle-orm/mysql-core';
-import { mkdirSync, rmSync, writeFileSync } from 'fs';
+import {
+	int,
+	MySqlColumnBuilder,
+	MySqlDialect,
+	MySqlSchema,
+	MySqlTable,
+	mysqlTable,
+	MySqlView,
+} from 'drizzle-orm/mysql-core';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import getPort from 'get-port';
 import { Connection, createConnection } from 'mysql2/promise';
+import { introspect } from 'src/cli/commands/pull-mysql';
 import { suggestions } from 'src/cli/commands/push-mysql';
 import { CasingType } from 'src/cli/validations/common';
-import { createDDL, interimToDDL } from 'src/dialects/mysql/ddl';
-import { ddlDiffDry, ddlDiff } from 'src/dialects/mysql/diff';
-import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/mysql/drizzle';
+import { EmptyProgressView } from 'src/cli/views';
+import { hash } from 'src/dialects/common';
+import { createDDL, interimToDDL, MysqlDDL } from 'src/dialects/mysql/ddl';
+import { ddlDiff, ddlDiffDry } from 'src/dialects/mysql/diff';
+import { defaultFromColumn, fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/mysql/drizzle';
+import { defaultToSQL } from 'src/dialects/mysql/grammar';
 import { fromDatabaseForDrizzle } from 'src/dialects/mysql/introspect';
 import { ddlToTypeScript } from 'src/dialects/mysql/typescript';
+import { unwrapColumn } from 'src/dialects/postgres/drizzle';
 import { DB } from 'src/utils';
 import { mockResolver } from 'src/utils/mocks';
 import { v4 as uuid } from 'uuid';
+
+mkdirSync('tests/mysql/tmp', { recursive: true });
 
 export type MysqlSchema = Record<
 	string,
@@ -48,13 +63,12 @@ export const diff = async (
 	return { sqlStatements, statements };
 };
 
-export const introspect = async (
+export const diffIntrospect = async (
 	db: DB,
 	initSchema: MysqlSchema,
 	testName: string,
 	casing?: CasingType | undefined,
 ) => {
-	mkdirSync('tests/mysql/tmp', { recursive: true });
 	const { ddl: initDDL } = drizzleToDDL(initSchema, casing);
 	const { sqlStatements: init } = await ddlDiffDry(createDDL(), initDDL);
 	for (const st of init) await db.query(st);
@@ -101,39 +115,36 @@ export const introspect = async (
 	};
 };
 
-export const diffPush = async (config: {
+export const push = async (config: {
 	db: DB;
-	init: MysqlSchema;
-	destination: MysqlSchema;
+	to: MysqlSchema | MysqlDDL;
 	renames?: string[];
 	casing?: CasingType;
-	before?: string[];
-	after?: string[];
-	apply?: boolean;
 }) => {
-	const { db, init: initSchema, destination, casing, before, after, renames: rens } = config;
-	const apply = config.apply ?? true;
-	const { ddl: initDDL } = drizzleToDDL(initSchema, casing);
-	const { sqlStatements: inits } = await ddlDiffDry(createDDL(), initDDL, 'default');
+	const { db, to } = config;
+	const casing = config.casing ?? 'camelCase';
 
-	const init = [] as string[];
-	if (before) init.push(...before);
-	if (apply) init.push(...inits);
-	if (after) init.push(...after);
-
-	for (const st of init) {
-		await db.query(st);
+	const { schema } = await introspect({ db, database: 'drizzle', tablesFilter: [], progress: new EmptyProgressView() });
+	const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
+	const { ddl: ddl2, errors: err2 } = 'entities' in to && '_' in to
+		? { ddl: to as MysqlDDL, errors: [] }
+		: drizzleToDDL(to, casing);
+	if (err2.length > 0) {
+		for (const e of err2) {
+			console.error(`err2: ${JSON.stringify(e)}`);
+		}
+		throw new Error();
 	}
 
-	// do introspect into PgSchemaInternal
-	const introspectedSchema = await fromDatabaseForDrizzle(db, 'drizzle');
-
-	const { ddl: ddl1, errors: err3 } = interimToDDL(introspectedSchema);
-	const { ddl: ddl2, errors: err2 } = drizzleToDDL(destination, casing);
+	if (err3.length > 0) {
+		for (const e of err3) {
+			console.error(`err3: ${JSON.stringify(e)}`);
+		}
+		throw new Error();
+	}
 
 	// TODO: handle errors
-
-	const renames = new Set(rens);
+	const renames = new Set(config.renames ?? []);
 	const { sqlStatements, statements } = await ddlDiff(
 		ddl1,
 		ddl2,
@@ -144,7 +155,115 @@ export const diffPush = async (config: {
 	);
 
 	const { hints, truncates } = await suggestions(db, statements);
+
+	for (const sql of sqlStatements) {
+		// if (log === 'statements') console.log(sql);
+		await db.query(sql);
+	}
+
 	return { sqlStatements, statements, hints, truncates };
+};
+
+export const diffDefault = async <T extends MySqlColumnBuilder>(
+	kit: TestDatabase,
+	builder: T,
+	expectedDefault: string,
+	pre: MysqlSchema | null = null,
+) => {
+	await kit.clear();
+
+	const config = (builder as any).config;
+	const def = config['default'];
+	const column = mysqlTable('table', { column: builder }).column;
+	const type = column.getSQLType();
+	const columnDefault = defaultFromColumn(column, 'camelCase');
+	const defaultSql = defaultToSQL(columnDefault);
+
+	const res = [] as string[];
+	if (defaultSql !== expectedDefault) {
+		res.push(`Unexpected sql: \n${defaultSql}\n${expectedDefault}`);
+	}
+
+	const init = {
+		...pre,
+		table: mysqlTable('table', { column: builder }),
+	};
+
+	const { db, clear } = kit;
+	if (pre) await push({ db, to: pre });
+	const { sqlStatements: st1 } = await push({ db, to: init });
+	const { sqlStatements: st2 } = await push({ db, to: init });
+
+	const expectedInit = `CREATE TABLE \`table\` (\n\t\`column\` ${type} DEFAULT ${expectedDefault}\n);\n`;
+	if (st1.length !== 1 || st1[0] !== expectedInit) res.push(`Unexpected init:\n${st1}\n\n${expectedInit}`);
+	if (st2.length > 0) res.push(`Unexpected subsequent init:\n${st2}`);
+
+	// introspect to schema
+	const schema = await fromDatabaseForDrizzle(db, 'drizzle');
+	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
+
+	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
+	const path = `tests/postgres/tmp/temp-${hash(String(Math.random()))}.ts`;
+
+	if (existsSync(path)) rmSync(path);
+	writeFileSync(path, file.file);
+
+	const response = await prepareFromSchemaFiles([path]);
+	const sch = fromDrizzleSchema(response.tables, response.views, 'camelCase');
+	const { ddl: ddl2, errors: e3 } = interimToDDL(sch);
+
+	const { sqlStatements: afterFileSqlStatements } = await ddlDiffDry(ddl1, ddl2, 'push');
+	if (afterFileSqlStatements.length === 0) {
+		rmSync(path);
+	} else {
+		console.log(afterFileSqlStatements);
+		console.log(`./${path}`);
+	}
+
+	await clear();
+
+	config.hasDefault = false;
+	config.default = undefined;
+	const schema1 = {
+		...pre,
+		table: mysqlTable('table', { column: builder }),
+	};
+
+	config.hasDefault = true;
+	config.default = def;
+	const schema2 = {
+		...pre,
+		table: mysqlTable('table', { column: builder }),
+	};
+
+	if (pre) await push({ db, to: pre });
+	await push({ db, to: schema1 });
+	const { sqlStatements: st3 } = await push({ db, to: schema2 });
+	const expectedAlter = `ALTER TABLE \`table\` ALTER COLUMN \`column\` SET DEFAULT ${expectedDefault};`;
+	if (st3.length !== 1 || st3[0] !== expectedAlter) res.push(`Unexpected default alter:\n${st3}\n\n${expectedAlter}`);
+
+	await clear();
+
+	const schema3 = {
+		...pre,
+		table: mysqlTable('table', { id: int() }),
+	};
+
+	const schema4 = {
+		...pre,
+		table: mysqlTable('table', { id: int(), column: builder }),
+	};
+
+	if (pre) await push({ db, to: pre });
+	await push({ db, to: schema3 });
+	const { sqlStatements: st4 } = await push({ db, to: schema4 });
+
+	const expectedAddColumn = `ALTER TABLE \`table\` ADD COLUMN "\`column\` ${type} DEFAULT ${expectedDefault};`;
+	if (st4.length !== 1 || st4[0] !== expectedAddColumn) {
+		res.push(`Unexpected add column:\n${st4[0]}\n\n${expectedAddColumn}`);
+	}
+
+	return res;
 };
 
 export const createDockerDB = async (): Promise<{ url: string; container: Container }> => {
@@ -191,6 +310,7 @@ export const prepareTestDatabase = async (): Promise<TestDatabase> => {
 		try {
 			const client: Connection = await createConnection(url);
 			await client.connect();
+
 			const db = {
 				query: async (sql: string, params: any[]) => {
 					const [res] = await client.query(sql);
