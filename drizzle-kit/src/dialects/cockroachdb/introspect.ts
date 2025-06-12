@@ -923,7 +923,6 @@ WHERE relnamespace IN (${filteredNamespacesIds.join(',')});`);
 			isUnique: metadata.isUnique,
 			where: idx.metadata.where,
 			columns: columns,
-			concurrently: false,
 			forPK,
 		});
 	}

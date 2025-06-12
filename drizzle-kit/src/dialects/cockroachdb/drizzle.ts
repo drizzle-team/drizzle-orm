@@ -576,7 +576,6 @@ export const fromDrizzleSchema = (
 			res.indexes.push({
 				entityType: 'indexes',
 				columns: columns,
-				concurrently: false,
 				forPK: false,
 				isUnique: true,
 				method: defaults.index.method,
@@ -633,7 +632,6 @@ export const fromDrizzleSchema = (
 					columns: indexColumns,
 					isUnique: value.config.unique,
 					where: where ? where : null,
-					concurrently: value.config.concurrently ?? false,
 					method: value.config.method ?? defaults.index.method,
 					forPK: false,
 				} satisfies InterimIndex;

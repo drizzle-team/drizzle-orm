@@ -16,11 +16,6 @@ interface IndexConfig {
 	unique: boolean;
 
 	/**
-	 * If true, the index will be created as `create index concurrently` instead of `create index`.
-	 */
-	concurrently?: boolean;
-
-	/**
 	 * If true, the index will be created as `create index ... on only <table>` instead of `create index ... on <table>`.
 	 */
 	only: boolean;
@@ -139,11 +134,6 @@ export class IndexBuilder implements AnyIndexBuilder {
 			only,
 			method,
 		};
-	}
-
-	concurrently(): this {
-		this.config.concurrently = true;
-		return this;
 	}
 
 	where(condition: SQL): this {

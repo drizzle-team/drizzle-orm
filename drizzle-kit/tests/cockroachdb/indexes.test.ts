@@ -96,7 +96,7 @@ test('altering indexes', async () => {
 		}, (t) => [
 			index('removeColumn').on(t.name, t.id),
 			index('addColumn').on(t.name.desc()),
-			index('removeExpression').on(t.name.desc(), sql`id`).concurrently(),
+			index('removeExpression').on(t.name.desc(), sql`id`),
 			index('addExpression').on(t.id.desc()),
 			index('changeExpression').on(t.id.desc(), sql`name`),
 			index('changeName').on(t.name.desc(), t.id.asc()),
@@ -111,7 +111,7 @@ test('altering indexes', async () => {
 		}, (t) => [
 			index('removeColumn').on(t.name),
 			index('addColumn').on(t.name.desc(), t.id.asc()),
-			index('removeExpression').on(t.name.desc()).concurrently(),
+			index('removeExpression').on(t.name.desc()),
 			index('addExpression').on(t.id.desc()),
 			index('changeExpression').on(t.id.desc(), sql`name desc`),
 			index('newName').on(t.name.desc(), sql`id`),
@@ -121,7 +121,7 @@ test('altering indexes', async () => {
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	await push({ db, to: schema1, log: 'statements' });
+	await push({ db, to: schema1 });
 	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
 	expect(st).toStrictEqual([
@@ -134,7 +134,7 @@ test('altering indexes', async () => {
 		'CREATE INDEX "newName" ON "users" ("name" DESC,id);',
 		'CREATE INDEX "removeColumn" ON "users" ("name");',
 		'CREATE INDEX "addColumn" ON "users" ("name" DESC,"id");',
-		'CREATE INDEX CONCURRENTLY "removeExpression" ON "users" ("name" DESC);',
+		'CREATE INDEX "removeExpression" ON "users" ("name" DESC);',
 		'CREATE INDEX "changeExpression" ON "users" ("id" DESC,name desc);',
 		'CREATE INDEX "changeUsing" ON "users" ("name") USING hash;',
 	]);
@@ -146,7 +146,7 @@ test('altering indexes', async () => {
 		'DROP INDEX "removeColumn";',
 		'CREATE INDEX "newName" ON "users" ("name" DESC,id);',
 		'CREATE INDEX "changeUsing" ON "users" ("name") USING hash;',
-		'CREATE INDEX CONCURRENTLY "removeExpression" ON "users" ("name" DESC);',
+		'CREATE INDEX "removeExpression" ON "users" ("name" DESC);',
 		'CREATE INDEX "addColumn" ON "users" ("name" DESC,"id");',
 		'CREATE INDEX "removeColumn" ON "users" ("name");',
 	]);
@@ -207,7 +207,7 @@ test('Indexes properties that should not trigger push changes', async () => {
 			name: text('name'),
 		}, (t) => [
 			index('changeExpression').on(t.id.desc(), sql`name`),
-			index('indx1').on(t.name.desc()).concurrently(),
+			index('indx1').on(t.name.desc()),
 			index('indx2').on(t.name.desc()).where(sql`true`),
 			index('indx4').on(sql`lower(name)`).where(sql`true`),
 		]),
@@ -257,7 +257,7 @@ test('indexes #0', async (t) => {
 			) => [
 				index('removeColumn').on(t.name, t.id),
 				index('addColumn').on(t.name.desc()),
-				index('removeExpression').on(t.name.desc(), sql`id`).concurrently(),
+				index('removeExpression').on(t.name.desc(), sql`id`),
 				index('addExpression').on(t.id.desc()),
 				index('changeExpression').on(t.id.desc(), sql`name`),
 				index('changeName').on(t.name.desc(), t.id.asc()),
@@ -276,7 +276,7 @@ test('indexes #0', async (t) => {
 			(t) => [
 				index('removeColumn').on(t.name),
 				index('addColumn').on(t.name.desc(), t.id),
-				index('removeExpression').on(t.name.desc()).concurrently(),
+				index('removeExpression').on(t.name.desc()),
 				index('addExpression').on(t.id.desc()),
 				index('changeExpression').on(t.id.desc(), sql`name desc`),
 				index('newName').on(t.name.desc(), sql`id`),
@@ -303,7 +303,7 @@ test('indexes #0', async (t) => {
 		'CREATE INDEX "newName" ON "users" ("name" DESC,id);',
 		'CREATE INDEX "removeColumn" ON "users" ("name");',
 		'CREATE INDEX "addColumn" ON "users" ("name" DESC,"id");',
-		'CREATE INDEX CONCURRENTLY "removeExpression" ON "users" ("name" DESC);',
+		'CREATE INDEX "removeExpression" ON "users" ("name" DESC);',
 		'CREATE INDEX "changeExpression" ON "users" ("id" DESC,name desc);',
 		'CREATE INDEX "changeUsing" ON "users" ("name") USING hash;',
 	]);
@@ -319,7 +319,7 @@ test('indexes #0', async (t) => {
 		'CREATE INDEX "newName" ON "users" ("name" DESC,id);',
 		// 'CREATE INDEX "changeExpression" ON "users" ("id" DESC,name desc);',
 		'CREATE INDEX "changeUsing" ON "users" ("name") USING hash;',
-		'CREATE INDEX CONCURRENTLY "removeExpression" ON "users" ("name" DESC);',
+		'CREATE INDEX "removeExpression" ON "users" ("name" DESC);',
 		'CREATE INDEX "addColumn" ON "users" ("name" DESC,"id");',
 		'CREATE INDEX "removeColumn" ON "users" ("name");',
 	]);
@@ -361,7 +361,7 @@ test('index #2', async (t) => {
 			id: int4('id').primaryKey(),
 			name: text('name'),
 		}, (t) => [
-			index('indx').on(t.name.desc()).concurrently(),
+			index('indx').on(t.name.desc()),
 			index('indx1').on(t.name.desc()),
 			index('indx3').on(sql`lower(name)`),
 		]),
