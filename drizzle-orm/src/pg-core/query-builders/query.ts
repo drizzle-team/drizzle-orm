@@ -110,7 +110,6 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
 				undefined,
 				name,
 				true,
-				extCfg,
 				(rawRows, mapColumnValue) => {
 					const rows = rawRows.map((row) =>
 						mapRelationalRow(this.schema, this.tableConfig, row, query.selection, mapColumnValue)
@@ -120,6 +119,9 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
 					}
 					return rows as TResult;
 				},
+				undefined,
+				undefined,
+				extCfg,
 			);
 		});
 	}

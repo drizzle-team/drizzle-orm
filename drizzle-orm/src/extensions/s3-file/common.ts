@@ -1,4 +1,4 @@
-import { GetObjectCommand, /*HeadObjectCommand,*/ PutObjectCommand, type S3Client } from '@aws-sdk/client-s3';
+import { GetObjectCommand, PutObjectCommand, type S3Client } from '@aws-sdk/client-s3';
 import type { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { DrizzleError } from '~/errors.ts';
 import type { ExtensionParam } from '~/sql/sql.ts';
@@ -31,7 +31,6 @@ export interface DecoderFunction {
 		data: Record<string, unknown>[] | Record<string, unknown>,
 		errors: unknown[],
 		downloader: typeof downloadFile,
-		// metagetter: typeof downloadFileMeta,
 		presigner: typeof presignDownload,
 		idGetter: typeof textToObjectId,
 	): Promise<void>;
@@ -95,9 +94,7 @@ export const buildDecoderInner = (mappingInstructions: DrizzleS3FileOutputMappin
 								row${path}${buildArrayRecursionIndexAccess(i.arrayDimensions)} = await ${
 						i.fetchMode === 'file' || i.fetchMode === 'data'
 							? 'downloader'
-							: i.fetchMode === 'presigned'
-							? 'presigner'
-							: 'metagetter'
+							: 'presigner'
 					}({ key, bucket, s3, mode: ${JSON.stringify(i.fileMode)}, fileOnly: ${
 						i.fetchMode === 'data' ? 'true' : 'false'
 					}, options: ${formPresignerOptions(i.options)}});
@@ -111,9 +108,7 @@ export const buildDecoderInner = (mappingInstructions: DrizzleS3FileOutputMappin
 						row${path} = await ${
 					i.fetchMode === 'file' || i.fetchMode === 'data'
 						? 'downloader'
-						: i.fetchMode === 'presigned'
-						? 'presigner'
-						: 'metagetter'
+						: 'presigner'
 				}({ key, bucket, s3, mode: ${JSON.stringify(i.fileMode)}, fileOnly: ${
 					i.fetchMode === 'data' ? 'true' : 'false'
 				}, options: ${formPresignerOptions(i.options)}});
@@ -134,7 +129,6 @@ export const buildDecoder = (
 		'data',
 		'errors',
 		'downloader',
-		// 'metagetter',
 		'presigner',
 		'idGetter',
 		mode === 'many'
@@ -151,64 +145,6 @@ export const buildDecoder = (
 		`,
 	);
 };
-
-// export const buildDecoder = (mappingInstructions: DrizzleS3FileOutputMappingInstruction[]): DecoderFunction => {
-// 	if (!mappingInstructions.length) return () => undefined as any;
-
-// 	return new AsyncFunction(
-// 		's3',
-// 		'data',
-// 		'errors',
-// 		'downloader',
-// 		'metagetter',
-// 		'presigner',
-// 		'idGetter',
-// 		`await Promise.all(data.reduce((p, row) => {
-// 				${
-// 			mappingInstructions.map((i) => {
-// 				const path = i.path.join('');
-// 				const optPath = i.path.join('?.');
-
-// 				return `if(row${optPath}) {
-// 					${(i.arrayDimensions
-// 					? `
-// 						const arr = row${path}
-// 						${
-// 						buildFunctionArrayRecursion(
-// 							i.arrayDimensions,
-// 							`p.push((async () => {
-// 								if(!arr || typeof arr !== 'string') return;
-
-// 								const { key, bucket } = idGetter(arr);
-// 								row${path}${buildArrayRecursionIndexAccess(i.arrayDimensions)} = await ${
-// 								i.fetchMode === 'file' ? 'downloader' : i.fetchMode === 'meta' ? 'metagetter' : 'presigner'
-// 							}({ key, bucket, s3, mode: ${JSON.stringify(i.fileMode)}, fileOnly: ${
-// 								i.fetchMode === 'data' ? 'true' : 'false'
-// 							}, options: ${JSON.stringify(i.options)} });
-// 						})().catch((e) => errors.push(e)))`,
-// 						)
-// 					}
-// 						`
-// 					: `p.push((async () => {
-// 						const str = row${path};
-// 						if(typeof str !== 'string') return;
-
-// 						const { key, bucket } = idGetter(str);
-// 						row${path} = await ${
-// 						i.fetchMode === 'file' ? 'downloader' : i.fetchMode === 'meta' ? 'metagetter' : 'presigner'
-// 					}({ key, bucket, s3, mode: ${JSON.stringify(i.fileMode)}, fileOnly: ${
-// 						i.fetchMode === 'data' ? 'true' : 'false'
-// 					}, options: ${JSON.stringify(i.options)} });
-// 						})().catch((e) => errors.push(e)));`)}
-// 					}`;
-// 			}).join('\n')
-// 		}
-// 				return p;
-// 			}, []
-// 			));
-// 		`,
-// 	);
-// };
 
 export const buildEncoder = (mappingInstructions: DrizzleS3FilePlaceholderMappingInstruction[]): EncoderFunction => {
 	if (!mappingInstructions.length) return () => undefined as any;
@@ -268,15 +204,7 @@ export type DrizzleS3FileModeToData = {
 	uint8array: Uint8Array;
 };
 
-export type DrizzleS3FetchMode = 'file' | 'meta' | 'data' | 'presigned';
-
-// export interface DrizzleS3FileOutputMappingInstruction {
-// 	fileMode: DrizzleS3FileMode;
-// 	fetchMode: DrizzleS3FetchMode;
-// 	options?: RequestPresigningArguments;
-// 	arrayDimensions?: number;
-// 	path: string[];
-// }
+export type DrizzleS3FetchMode = 'file' | 'data' | 'presigned';
 
 export type DrizzleS3FileOutputMappingInstructionNodeCommon = {
 	path: string[];
@@ -432,7 +360,7 @@ export async function presignDownload(
 	});
 
 	const presigner = await PresignerImporter.importPresigner();
-	// Types are compatible, errors seem to be caused by internal package issues
+	// Types are compatible, errors seem to be caused by internal package or package resolution issues
 	const url = await presigner(s3 as any, command as any, options);
 
 	return url;

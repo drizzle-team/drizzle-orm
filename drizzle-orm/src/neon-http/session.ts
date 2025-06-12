@@ -1,5 +1,7 @@
 import type { FullQueryResults, NeonQueryFunction, NeonQueryPromise } from '@neondatabase/serverless';
 import type { BatchItem } from '~/batch.ts';
+import { type Cache, NoopCache } from '~/cache/core/index.ts';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { BlankPgHookContext, DrizzlePgExtension } from '~/extension-core/pg/index.ts';
 import type { Logger } from '~/logger.ts';
@@ -33,13 +35,19 @@ export class NeonHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 		private client: NeonHttpClient,
 		query: Query,
 		private logger: Logger,
+		cache: Cache,
+		queryMetadata: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		} | undefined,
+		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		private _isResponseInArrayMode: boolean,
 		extensions?: DrizzlePgExtension[],
 		hookContext?: BlankPgHookContext,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
-		super(query, extensions, hookContext);
+		super(query, cache, queryMetadata, cacheConfig, extensions, hookContext);
 		// `client.query` is for @neondatabase/serverless v1.0.0 and up, where the
 		// root query function `client` is only usable as a template function;
 		// `client` is a fallback for earlier versions
@@ -61,28 +69,32 @@ export class NeonHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 		const { fields, clientQuery, query, customResultMapper } = this;
 
 		if (!fields && !customResultMapper) {
-			return clientQuery(
+			return this.queryWithCache(query.sql, params, async () => {
+				return clientQuery(
+					query.sql,
+					params,
+					token === undefined
+						? rawQueryConfig
+						: {
+							...rawQueryConfig,
+							authToken: token,
+						},
+				);
+			});
+		}
+
+		const result = await this.queryWithCache(query.sql, params, async () => {
+			return await clientQuery(
 				query.sql,
 				params,
 				token === undefined
-					? rawQueryConfig
+					? queryConfig
 					: {
-						...rawQueryConfig,
+						...queryConfig,
 						authToken: token,
 					},
 			);
-		}
-
-		const result = await clientQuery(
-			query.sql,
-			params,
-			token === undefined
-				? queryConfig
-				: {
-					...queryConfig,
-					authToken: token,
-				},
-		);
+		});
 
 		return this.mapResult(result);
 	}
@@ -134,6 +146,7 @@ export class NeonHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 
 export interface NeonHttpSessionOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class NeonHttpSession<
@@ -144,6 +157,7 @@ export class NeonHttpSession<
 
 	private clientQuery: (sql: string, params: any[], opts: Record<string, any>) => NeonQueryPromise<any, any>;
 	private logger: Logger;
+	private cache: Cache;
 
 	constructor(
 		private client: NeonHttpClient,
@@ -158,6 +172,7 @@ export class NeonHttpSession<
 		// `client` is a fallback for earlier versions
 		this.clientQuery = (client as any).query ?? client as any;
 		this.logger = options.logger ?? new NoopLogger();
+		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -165,13 +180,21 @@ export class NeonHttpSession<
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		isResponseInArrayMode: boolean,
-		hookContext?: BlankPgHookContext,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
+		hookContext?: BlankPgHookContext,
 	): PgPreparedQuery<T> {
 		return new NeonHttpPreparedQuery(
 			this.client,
 			query,
 			this.logger,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
 			fields,
 			isResponseInArrayMode,
 			this.extensions,

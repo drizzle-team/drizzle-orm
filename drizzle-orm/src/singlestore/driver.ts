@@ -1,5 +1,6 @@
 import { type Connection as CallbackConnection, createPool, type Pool as CallbackPool, type PoolOptions } from 'mysql2';
 import type { Connection, Pool } from 'mysql2/promise';
+import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { DrizzleSingleStoreExtension } from '~/extension-core/singlestore/index.ts';
 import type { Logger } from '~/logger.ts';
@@ -23,6 +24,7 @@ import { SingleStoreDriverSession } from './session.ts';
 
 export interface SingleStoreDriverOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class SingleStoreDriverDriver {
@@ -43,7 +45,10 @@ export class SingleStoreDriverDriver {
 			this.client,
 			this.dialect,
 			schema,
-			{ logger: this.options.logger },
+			{
+				logger: this.options.logger,
+				cache: this.options.cache,
+			},
 			this.extensions,
 		);
 	}
@@ -97,7 +102,10 @@ function construct<
 	const driver = new SingleStoreDriverDriver(
 		clientForInstance as SingleStoreDriverClient,
 		dialect,
-		{ logger },
+		{
+			logger,
+			cache: config.cache,
+		},
 		extensions,
 	);
 	const session = driver.createSession(schema);
@@ -105,6 +113,10 @@ function construct<
 		TSchema
 	>;
 	(<any> db).$client = client;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
 
 	return db as any;
 }

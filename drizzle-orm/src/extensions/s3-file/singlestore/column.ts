@@ -125,17 +125,6 @@ export class SingleStoreS3File<
 		);
 	}
 
-	// meta(): Omit<SingleStoreS3File<Omit<T, 'data'> & { data: DrizzleS3ObjectMeta }>, 'data' | 'meta' | 'presigned'> {
-	// 	return new SingleStoreS3File(
-	// 		this.table,
-	// 		this.config as ColumnRuntimeConfig<
-	// 			DrizzleS3ObjectMeta,
-	// 			Omit<T, 'data'> & { data: DrizzleS3ObjectMeta }
-	// 		>,
-	// 		{ fileMode: this[extensionColumnConfig].fileMode, fetchMode: 'meta' },
-	// 	);
-	// }
-
 	presigned(options?: RequestPresigningArguments): SingleStoreColumn<Omit<T, 'data'> & { data: string }> {
 		return new SingleStoreS3File(
 			this.table,

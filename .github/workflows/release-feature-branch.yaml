@@ -249,7 +249,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '18.18'
+          node-version: '22'
           registry-url: 'https://registry.npmjs.org'
 
       - uses: pnpm/action-setup@v3
@@ -346,7 +346,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '18.18'
+          node-version: '22'
           registry-url: 'https://registry.npmjs.org'
 
       - uses: pnpm/action-setup@v3

@@ -1,4 +1,5 @@
 import type { ResultSetHeader } from 'mysql2/promise';
+import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { DrizzleMySqlExtension } from '~/extension-core/mysql/index.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
@@ -90,6 +91,7 @@ export class MySqlDatabase<
 					);
 			}
 		}
+		this.$cache = { invalidate: async (_params: any) => {} };
 	}
 
 	/**
@@ -155,6 +157,8 @@ export class MySqlDatabase<
 	) {
 		return new MySqlCountBuilder({ source, filters, session: this.session });
 	}
+
+	$cache: { invalidate: Cache['onMutate'] };
 
 	/**
 	 * Incorporates a previously defined CTE (using `$with`) into the main query.

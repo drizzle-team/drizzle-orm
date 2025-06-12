@@ -45,7 +45,6 @@ export class ExpoSQLiteSession<
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		isResponseInArrayMode: boolean,
-		hookContext?: undefined,
 		customResultMapper?: (rows: unknown[][]) => unknown,
 	): ExpoSQLitePreparedQuery<T> {
 		const stmt = this.client.prepareSync(query.sql);

@@ -1,6 +1,8 @@
 /// <reference types="@cloudflare/workers-types" />
 
 import type { BatchItem } from '~/batch.ts';
+import { type Cache, NoopCache } from '~/cache/core/index.ts';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { BlankSQLiteHookContext, DrizzleSQLiteExtension } from '~/extension-core/sqlite/index.ts';
 import type { Logger } from '~/logger.ts';
@@ -21,6 +23,7 @@ import { mapResultRow } from '~/utils.ts';
 
 export interface SQLiteD1SessionOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -32,6 +35,7 @@ export class SQLiteD1Session<
 	static override readonly [entityKind]: string = 'SQLiteD1Session';
 
 	private logger: Logger;
+	private cache: Cache;
 
 	constructor(
 		private client: D1Database,
@@ -42,6 +46,7 @@ export class SQLiteD1Session<
 	) {
 		super(dialect, extensions);
 		this.logger = options.logger ?? new NoopLogger();
+		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery(
@@ -49,14 +54,22 @@ export class SQLiteD1Session<
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		isResponseInArrayMode: boolean,
-		hookContext?: BlankSQLiteHookContext,
 		customResultMapper?: (rows: unknown[][]) => unknown,
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
+		hookContext?: BlankSQLiteHookContext,
 	): D1PreparedQuery {
 		const stmt = this.client.prepare(query.sql);
 		return new D1PreparedQuery(
 			stmt,
 			query,
 			this.logger,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
 			fields,
 			executeMethod,
 			isResponseInArrayMode,
@@ -178,6 +191,12 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 		stmt: D1PreparedStatement,
 		query: Query,
 		private logger: Logger,
+		cache: Cache,
+		queryMetadata: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		} | undefined,
+		cacheConfig: WithCacheConfig | undefined,
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		private _isResponseInArrayMode: boolean,
@@ -185,16 +204,18 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 		hookContext?: BlankSQLiteHookContext,
 		customResultMapper?: (rows: unknown[][]) => unknown,
 	) {
-		super('async', executeMethod, query, extensions, hookContext);
+		super('async', executeMethod, query, cache, queryMetadata, cacheConfig, extensions, hookContext);
 		this.customResultMapper = customResultMapper;
 		this.fields = fields;
 		this.stmt = stmt;
 	}
 
-	_run(placeholderValues?: Record<string, unknown>): Promise<D1Response> {
+	async _run(placeholderValues?: Record<string, unknown>): Promise<D1Response> {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
-		return this.stmt.bind(...params).run();
+		return await this.queryWithCache(this.query.sql, params, async () => {
+			return this.stmt.bind(...params).run();
+		});
 	}
 
 	async _all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
@@ -202,7 +223,9 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 		if (!fields && !customResultMapper) {
 			const params = fillPlaceholders(query.params, placeholderValues ?? {});
 			logger.logQuery(query.sql, params);
-			return stmt.bind(...params).all().then(({ results }) => this.mapAllResult(results!));
+			return await this.queryWithCache(query.sql, params, async () => {
+				return stmt.bind(...params).all().then(({ results }) => this.mapAllResult(results!));
+			});
 		}
 
 		const rows = await this.values(placeholderValues);
@@ -231,7 +254,9 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 		if (!fields && !customResultMapper) {
 			const params = fillPlaceholders(query.params, placeholderValues ?? {});
 			logger.logQuery(query.sql, params);
-			return stmt.bind(...params).all().then(({ results }) => results![0]);
+			return await this.queryWithCache(query.sql, params, async () => {
+				return stmt.bind(...params).all().then(({ results }) => results![0]);
+			});
 		}
 
 		const rows = await this.values(placeholderValues) as unknown[][];
@@ -263,10 +288,12 @@ export class D1PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig
 		return mapResultRow(this.fields!, result as unknown[], this.joinsNotNullableMap);
 	}
 
-	_values<T extends any[] = unknown[]>(placeholderValues?: Record<string, unknown>): Promise<T[]> {
+	async _values<T extends any[] = unknown[]>(placeholderValues?: Record<string, unknown>): Promise<T[]> {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
-		return this.stmt.bind(...params).raw();
+		return await this.queryWithCache(this.query.sql, params, async () => {
+			return this.stmt.bind(...params).raw();
+		});
 	}
 
 	/** @internal */

@@ -1,4 +1,5 @@
 import type { ResultSetHeader } from 'mysql2/promise';
+import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { DrizzleSingleStoreExtension } from '~/extension-core/singlestore/index.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
@@ -84,6 +85,7 @@ export class SingleStoreDatabase<
 		// 			);
 		// 	}
 		// }
+		this.$cache = { invalidate: async (_params: any) => {} };
 	}
 
 	/**
@@ -479,6 +481,8 @@ export class SingleStoreDatabase<
 	): Promise<SingleStoreQueryResultKind<TQueryResult, T>> {
 		return this.session.execute(typeof query === 'string' ? sql.raw(query) : query.getSQL());
 	}
+
+	$cache: { invalidate: Cache['onMutate'] };
 
 	transaction<T>(
 		transaction: (

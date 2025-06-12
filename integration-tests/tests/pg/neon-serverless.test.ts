@@ -8,10 +8,13 @@ import ws from 'ws';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
 import { createExtensions, mySchema, tests, usersMigratorTable, usersMySchemaTable, usersTable } from './pg-common';
+import { TestCache, TestGlobalCache, tests as cacheTests } from './pg-common-cache';
 
 const ENABLE_LOGGING = false;
 
 let db: NeonDatabase;
+let dbGlobalCached: NeonDatabase;
+let cachedDb: NeonDatabase;
 let client: Pool;
 let s3Bucket: string;
 
@@ -31,6 +34,14 @@ beforeAll(async () => {
 	const { bucket, extensions } = await createExtensions();
 	s3Bucket = bucket;
 	db = drizzle(client, { logger: ENABLE_LOGGING, extensions });
+	cachedDb = drizzle(client, {
+		logger: ENABLE_LOGGING,
+		cache: new TestCache(),
+	});
+	dbGlobalCached = drizzle(client, {
+		logger: ENABLE_LOGGING,
+		cache: new TestGlobalCache(),
+	});
 });
 
 afterAll(async () => {
@@ -41,6 +52,10 @@ beforeEach((ctx) => {
 	ctx.pg = {
 		db,
 		bucket: s3Bucket,
+	};
+	ctx.cachedPg = {
+		db: cachedDb,
+		dbGlobalCached,
 	};
 });
 
@@ -507,6 +522,7 @@ skipTests([
 	'mySchema :: delete with returning all fields',
 ]);
 tests();
+cacheTests();
 
 beforeEach(async () => {
 	await db.execute(sql`drop schema if exists public cascade`);

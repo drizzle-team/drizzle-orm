@@ -1,5 +1,6 @@
 import type { OPSQLiteConnection, QueryResult } from '@op-engineering/op-sqlite';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleSQLiteExtension } from '~/extension-core/sqlite/index.ts';
 import { DefaultLogger } from '~/logger.ts';
 import {
 	createTableRelationsHelpers,
@@ -18,14 +19,9 @@ export class OPSQLiteDatabase<
 	static override readonly [entityKind]: string = 'OPSQLiteDatabase';
 }
 
-export type OPSQLiteDrizzleConfig<TSchema extends Record<string, unknown> = Record<string, never>> = Omit<
-	DrizzleConfig<TSchema>,
-	'extensions'
->;
-
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: OPSQLiteConnection,
-	config: OPSQLiteDrizzleConfig<TSchema> = {},
+	config: DrizzleConfig<TSchema, DrizzleSQLiteExtension> = {},
 ): OPSQLiteDatabase<TSchema> & {
 	$client: OPSQLiteConnection;
 } {
@@ -50,9 +46,14 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		};
 	}
 
-	const session = new OPSQLiteSession(client, dialect, schema, { logger });
-	const db = new OPSQLiteDatabase('async', dialect, session, schema) as OPSQLiteDatabase<TSchema>;
+	const extensions = config.extensions;
+	const session = new OPSQLiteSession(client, dialect, schema, { logger, cache: config.cache }, extensions);
+	const db = new OPSQLiteDatabase('async', dialect, session, schema, extensions) as OPSQLiteDatabase<TSchema>;
 	(<any> db).$client = client;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
 
 	return db as any;
 }

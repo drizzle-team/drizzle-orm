@@ -8,6 +8,7 @@ import * as pg from 'pg';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
 import { createDockerDB, createExtensions, tests, usersMigratorTable, usersTable } from './pg-common';
+import { TestCache, TestGlobalCache, tests as cacheTests } from './pg-common-cache';
 
 // eslint-disable-next-line drizzle-internal/require-entity-kind
 class ServerSimulator {
@@ -73,6 +74,8 @@ class ServerSimulator {
 const ENABLE_LOGGING = false;
 
 let db: PgRemoteDatabase;
+let dbGlobalCached: PgRemoteDatabase;
+let cachedDb: PgRemoteDatabase;
 let client: pg.Client;
 let serverSimulator: ServerSimulator;
 let s3Bucket: string;
@@ -103,7 +106,7 @@ beforeAll(async () => {
 
 	const { bucket, extensions } = await createExtensions();
 	s3Bucket = bucket;
-	db = proxyDrizzle(async (sql, params, method) => {
+	const proxyHandler = async (sql: string, params: any[], method: any) => {
 		try {
 			const response = await serverSimulator.query(sql, params, method);
 
@@ -116,10 +119,14 @@ beforeAll(async () => {
 			console.error('Error from pg proxy server:', e.message);
 			throw e;
 		}
-	}, {
+	};
+	db = proxyDrizzle(proxyHandler, {
 		logger: ENABLE_LOGGING,
 		extensions,
 	});
+
+	cachedDb = proxyDrizzle(proxyHandler, { logger: ENABLE_LOGGING, cache: new TestCache() });
+	dbGlobalCached = proxyDrizzle(proxyHandler, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 });
 
 afterAll(async () => {
@@ -130,6 +137,10 @@ beforeEach((ctx) => {
 	ctx.pg = {
 		db,
 		bucket: s3Bucket,
+	};
+	ctx.cachedPg = {
+		db: cachedDb,
+		dbGlobalCached,
 	};
 });
 
@@ -505,3 +516,4 @@ test('insert via db.execute w/ query builder', async () => {
 });
 
 tests();
+cacheTests();

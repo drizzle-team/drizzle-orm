@@ -8,11 +8,14 @@ import { beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
 import { getXataClient } from '../xata/xata.ts';
-import { createExtensions, tests, usersMigratorTable, usersTable } from './pg-common';
+import { createExtensions, tests, tests as cacheTests, usersMigratorTable, usersTable } from './pg-common';
+import { TestCache, TestGlobalCache } from './pg-common-cache.ts';
 
 const ENABLE_LOGGING = false;
 
 let db: XataHttpDatabase;
+let dbGlobalCached: XataHttpDatabase;
+let cachedDb: XataHttpDatabase;
 let client: XataHttpClient;
 let s3Bucket: string;
 
@@ -36,12 +39,18 @@ beforeAll(async () => {
 	const { bucket, extensions } = await createExtensions();
 	s3Bucket = bucket;
 	db = drizzle(client, { logger: ENABLE_LOGGING, extensions });
+	cachedDb = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestCache() });
+	dbGlobalCached = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 });
 
 beforeEach((ctx) => {
 	ctx.pg = {
 		db,
 		bucket: s3Bucket,
+	};
+	ctx.cachedPg = {
+		db: cachedDb,
+		dbGlobalCached,
 	};
 });
 
@@ -380,6 +389,7 @@ skipTests([
 	'subquery with view',
 ]);
 tests();
+cacheTests();
 
 beforeEach(async () => {
 	await db.execute(sql`drop schema if exists public cascade`);

@@ -1,3 +1,4 @@
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import { requiredExtension } from '~/extension-core/index.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
@@ -20,6 +21,7 @@ import type { InferModelFromColumns } from '~/table.ts';
 import { Columns, Table } from '~/table.ts';
 import { columnExtensionsCheck, haveSameKeys, mapUpdateSet } from '~/utils.ts';
 import type { AnyMySqlColumn } from '../columns/common.ts';
+import { extractUsedTable } from '../utils.ts';
 import { QueryBuilder } from './query-builder.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
 import type { MySqlUpdateSetSource } from './update.ts';
@@ -249,6 +251,7 @@ export class MySqlInsertBase<
 	declare protected $table: TTable;
 
 	private config: MySqlInsertConfig<TTable>;
+	protected cacheConfig?: WithCacheConfig;
 
 	constructor(
 		table: TTable,
@@ -330,15 +333,20 @@ export class MySqlInsertBase<
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(sql),
 			undefined,
+			undefined,
+			generatedIds,
+			this.config.returning,
+			{
+				type: 'insert',
+				tables: extractUsedTable(this.config.table),
+			},
+			this.cacheConfig,
 			{
 				query: 'insert',
 				dialect: this.dialect,
 				session: this.session,
 				config: this.config,
 			},
-			undefined,
-			generatedIds,
-			this.config.returning,
 		) as MySqlInsertPrepare<this, TReturning>;
 	}
 

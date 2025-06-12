@@ -1,3 +1,4 @@
+import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { DrizzleGelExtension } from '~/extension-core/gel/index.ts';
 import type { GelDialect } from '~/gel-core/dialect.ts';
@@ -82,6 +83,8 @@ export class GelDatabase<
 				);
 			}
 		}
+
+		this.$cache = { invalidate: async (_params: any) => {} };
 	}
 
 	/**
@@ -501,6 +504,8 @@ export class GelDatabase<
 			distinct: { on },
 		});
 	}
+
+	$cache: { invalidate: Cache['onMutate'] };
 
 	/**
 	 * Creates an update query.

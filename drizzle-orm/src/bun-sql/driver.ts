@@ -51,9 +51,13 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 	}
 
 	const extensions = config.extensions;
-	const session = new BunSQLSession(client, dialect, schema, { logger }, extensions);
+	const session = new BunSQLSession(client, dialect, schema, { logger, cache: config.cache }, extensions);
 	const db = new BunSQLDatabase(dialect, session, schema as any, extensions) as BunSQLDatabase<TSchema>;
 	(<any> db).$client = client;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
 
 	return db as any;
 }

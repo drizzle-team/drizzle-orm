@@ -17,7 +17,6 @@ import {
 	buildDecoder,
 	buildEncoder,
 	downloadFile,
-	// downloadFileMeta,
 	mapParams,
 	objectIdToText,
 	presignDownload,
@@ -286,7 +285,6 @@ export class DrizzleSingleStoreS3Extension extends DrizzleSingleStoreExtension<S
 			data,
 			errors,
 			downloadFile,
-			// downloadFileMeta,
 			presignDownload,
 			textToObjectId,
 		);

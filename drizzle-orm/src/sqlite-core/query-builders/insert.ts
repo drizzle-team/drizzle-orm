@@ -21,6 +21,7 @@ import {
 	type Simplify,
 } from '~/utils.ts';
 import type { AnySQLiteColumn, SQLiteColumn } from '../columns/common.ts';
+import { extractUsedTable } from '../utils.ts';
 import { QueryBuilder } from './query-builder.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 import type { SQLiteUpdateSetSource } from './update.ts';
@@ -412,6 +413,12 @@ export class SQLiteInsertBase<
 			this.config.returning,
 			this.config.returning ? 'all' : 'run',
 			true,
+			undefined,
+			{
+				type: 'insert',
+				tables: extractUsedTable(this.config.table),
+			},
+			undefined,
 			{
 				query: 'insert',
 				dialect: this.dialect,

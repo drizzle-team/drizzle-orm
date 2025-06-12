@@ -111,7 +111,6 @@ export class SingleStoreRelationalQuery<
 		return this.session.prepareQuery(
 			builtQuery,
 			undefined,
-			extCfg,
 			(rawRows) => {
 				const rows = rawRows.map((row) => mapRelationalRow(this.schema, this.tableConfig, row, query.selection));
 				if (this.queryMode === 'first') {
@@ -119,6 +118,11 @@ export class SingleStoreRelationalQuery<
 				}
 				return rows as TResult;
 			},
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			extCfg,
 		) as PreparedQueryKind<TPreparedQueryHKT, SingleStorePreparedQueryConfig & { execute: TResult }, true>;
 	}
 

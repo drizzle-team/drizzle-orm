@@ -17,7 +17,6 @@ import {
 	buildDecoder,
 	buildEncoder,
 	downloadFile,
-	// downloadFileMeta,
 	mapParams,
 	objectIdToText,
 	presignDownload,
@@ -316,7 +315,6 @@ export class DrizzlePgS3Extension extends DrizzlePgExtension<S3ExtMeta> {
 			data,
 			errors,
 			downloadFile,
-			// downloadFileMeta,
 			presignDownload,
 			textToObjectId,
 		);

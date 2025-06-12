@@ -3,11 +3,14 @@ import { drizzle } from 'drizzle-orm/singlestore';
 import type { SingleStoreDriverDatabase } from 'drizzle-orm/singlestore';
 import * as mysql2 from 'mysql2/promise';
 import { afterAll, beforeAll, beforeEach } from 'vitest';
+import { TestCache, TestGlobalCache, tests as cacheTests } from './singlestore-cache';
 import { createDockerDB, createExtensions, tests } from './singlestore-common';
 
 const ENABLE_LOGGING = false;
 
 let db: SingleStoreDriverDatabase;
+let dbGlobalCached: SingleStoreDriverDatabase;
+let cachedDb: SingleStoreDriverDatabase;
 let client: mysql2.Connection;
 let s3Bucket: string;
 
@@ -39,6 +42,8 @@ beforeAll(async () => {
 	const { bucket, extensions } = await createExtensions();
 	s3Bucket = bucket;
 	db = drizzle(client, { logger: ENABLE_LOGGING, extensions });
+	cachedDb = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestCache() });
+	dbGlobalCached = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 });
 
 afterAll(async () => {
@@ -50,6 +55,11 @@ beforeEach((ctx) => {
 		db,
 		bucket: s3Bucket,
 	};
+	ctx.cachedSingleStore = {
+		db: cachedDb,
+		dbGlobalCached,
+	};
 });
 
+cacheTests();
 tests();

@@ -339,18 +339,18 @@ export async function createExtensions() {
 	return { extensions: [s3FileExt(s3)], bucket };
 }
 
-// afterAll(async () => {
-// 	await mysqlContainer?.stop().catch(console.error);
-// });
+afterAll(async () => {
+	await mysqlContainer?.stop().catch(console.error);
+	for (const hook of afterAllHooks) {
+		await hook();
+	}
+});
 
 export function tests(driver?: string) {
 	describe('common', () => {
-		afterAll(async () => {
-			await mysqlContainer?.stop().catch(console.error);
-			for (const hook of afterAllHooks) {
-				await hook();
-			}
-		});
+		// afterAll(async () => {
+		// 	await mysqlContainer?.stop().catch(console.error);
+		// });
 
 		beforeEach(async (ctx) => {
 			const { db } = ctx.mysql;

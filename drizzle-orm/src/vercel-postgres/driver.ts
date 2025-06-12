@@ -1,4 +1,5 @@
 import { sql } from '@vercel/postgres';
+import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { DrizzlePgExtension } from '~/extension-core/pg/index.ts';
 import type { Logger } from '~/logger.ts';
@@ -16,6 +17,7 @@ import { type VercelPgClient, type VercelPgQueryResultHKT, VercelPgSession } fro
 
 export interface VercelPgDriverOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class VercelPgDriver {
@@ -32,7 +34,10 @@ export class VercelPgDriver {
 	createSession(
 		schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined,
 	): VercelPgSession<Record<string, unknown>, TablesRelationalConfig> {
-		return new VercelPgSession(this.client, this.dialect, schema, { logger: this.options.logger }, this.extensions);
+		return new VercelPgSession(this.client, this.dialect, schema, {
+			logger: this.options.logger,
+			cache: this.options.cache,
+		}, this.extensions);
 	}
 }
 
@@ -70,10 +75,14 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 	}
 
 	const extensions = config.extensions;
-	const driver = new VercelPgDriver(client, dialect, { logger }, extensions);
+	const driver = new VercelPgDriver(client, dialect, { logger, cache: config.cache }, extensions);
 	const session = driver.createSession(schema);
 	const db = new VercelPgDatabase(dialect, session, schema as any, extensions) as VercelPgDatabase<TSchema>;
 	(<any> db).$client = client;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
 
 	return db as any;
 }

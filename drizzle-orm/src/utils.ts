@@ -1,3 +1,4 @@
+import { Cache } from './cache/core/cache.ts';
 import type { AnyColumn } from './column.ts';
 import { Column } from './column.ts';
 import { is } from './entity.ts';
@@ -245,6 +246,7 @@ export interface DrizzleConfig<
 	logger?: boolean | Logger;
 	schema?: TSchema;
 	casing?: Casing;
+	cache?: Cache;
 	extensions?: TExtensionKind[];
 }
 export type ValidateShape<T, ValidShape, TResult = T> = T extends ValidShape
@@ -343,6 +345,12 @@ export function isConfig(data: any): boolean {
 
 	if ('extensions' in data) {
 		if (data['extensions'] !== undefined && !Array.isArray(data['extensions'])) return false;
+
+		return true;
+	}
+
+	if ('cache' in data) {
+		if (data['cache'] !== undefined && !is(data['cache'], Cache)) return false;
 
 		return true;
 	}

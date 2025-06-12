@@ -6,7 +6,7 @@ import type {
 	HasGenerated,
 	MakeColumnConfig,
 } from '~/column-builder.ts';
-import type { ColumnBaseConfig, /*, ColumnRuntimeConfig*/ ColumnRuntimeConfig } from '~/column.ts';
+import type { ColumnBaseConfig, ColumnRuntimeConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { extensionColumnConfig, requiredExtension } from '~/extension-core/index.ts';
 import {
@@ -24,7 +24,6 @@ import {
 	type DrizzleS3FileModeToData,
 	type DrizzleS3ObjectFile,
 	type DrizzleS3ObjectIdentification,
-	// type DrizzleS3ObjectMeta,
 	objectIdToText,
 	type RequestPresigningArguments,
 } from '../common.ts';
@@ -171,17 +170,6 @@ export class GelS3File<T extends ColumnBaseConfig<'custom', 'GelS3File'> = Colum
 			{ fileMode: this[extensionColumnConfig].fileMode, fetchMode: 'data' },
 		);
 	}
-
-	// meta(): Omit<GelS3File<Omit<T, 'data'> & { data: DrizzleS3ObjectMeta }>, 'data' | 'meta' | 'presigned'> {
-	// 	return new GelS3File(
-	// 		this.table,
-	// 		this.config as ColumnRuntimeConfig<
-	// 			DrizzleS3ObjectMeta,
-	// 			Omit<T, 'data'> & { data: DrizzleS3ObjectMeta }
-	// 		>,
-	// 		{ fileMode: this[extensionColumnConfig].fileMode, fetchMode: 'meta' },
-	// 	);
-	// }
 
 	presigned(options?: RequestPresigningArguments): GelColumn<Omit<T, 'data'> & { data: string }> {
 		return new GelS3File(

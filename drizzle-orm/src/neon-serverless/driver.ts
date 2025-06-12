@@ -1,4 +1,5 @@
 import { neonConfig, Pool, type PoolConfig } from '@neondatabase/serverless';
+import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { DrizzlePgExtension } from '~/extension-core/pg/index.ts';
 import type { Logger } from '~/logger.ts';
@@ -17,6 +18,7 @@ import { NeonSession } from './session.ts';
 
 export interface NeonDriverOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class NeonDriver {
@@ -33,7 +35,10 @@ export class NeonDriver {
 	createSession(
 		schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined,
 	): NeonSession<Record<string, unknown>, TablesRelationalConfig> {
-		return new NeonSession(this.client, this.dialect, schema, { logger: this.options.logger }, this.extensions);
+		return new NeonSession(this.client, this.dialect, schema, {
+			logger: this.options.logger,
+			cache: this.options.cache,
+		}, this.extensions);
 	}
 }
 
@@ -74,10 +79,14 @@ function construct<
 	}
 
 	const extensions = config.extensions;
-	const driver = new NeonDriver(client, dialect, { logger }, extensions);
+	const driver = new NeonDriver(client, dialect, { logger, cache: config.cache }, extensions);
 	const session = driver.createSession(schema);
 	const db = new NeonDatabase(dialect, session, schema as any, extensions) as NeonDatabase<TSchema>;
 	(<any> db).$client = client;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
 
 	return db as any;
 }

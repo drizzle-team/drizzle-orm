@@ -1,4 +1,5 @@
 import { PGlite, type PGliteOptions } from '@electric-sql/pglite';
+import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { DrizzlePgExtension } from '~/extension-core/pg/index.ts';
 import type { Logger } from '~/logger.ts';
@@ -17,6 +18,7 @@ import { PgliteSession } from './session.ts';
 
 export interface PgDriverOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class PgliteDriver {
@@ -33,7 +35,10 @@ export class PgliteDriver {
 	createSession(
 		schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined,
 	): PgliteSession<Record<string, unknown>, TablesRelationalConfig> {
-		return new PgliteSession(this.client, this.dialect, schema, { logger: this.options.logger }, this.extensions);
+		return new PgliteSession(this.client, this.dialect, schema, {
+			logger: this.options.logger,
+			cache: this.options.cache,
+		}, this.extensions);
 	}
 }
 
@@ -71,10 +76,24 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 	}
 
 	const extensions = config.extensions;
-	const driver = new PgliteDriver(client, dialect, { logger }, extensions);
+	const driver = new PgliteDriver(client, dialect, { logger, cache: config.cache }, extensions);
 	const session = driver.createSession(schema);
 	const db = new PgliteDatabase(dialect, session, schema as any, extensions) as PgliteDatabase<TSchema>;
 	(<any> db).$client = client;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
+	// (<any> db).$cache = { invalidate: (<any> config).cache?.onMutate };
+	// if (config.cache) {
+	// 	for (
+	// 		const key of Object.getOwnPropertyNames(Object.getPrototypeOf(config.cache)).filter((key) =>
+	// 			key !== 'constructor'
+	// 		)
+	// 	) {
+	// 		(<any> db).$cache[key as keyof typeof config.cache] = (<any> config).cache[key];
+	// 	}
+	// }
 
 	return db as any;
 }

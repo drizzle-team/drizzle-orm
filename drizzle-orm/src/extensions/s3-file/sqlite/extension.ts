@@ -17,7 +17,6 @@ import {
 	buildDecoder,
 	buildEncoder,
 	downloadFile,
-	// downloadFileMeta,
 	mapParams,
 	objectIdToText,
 	presignDownload,
@@ -289,7 +288,6 @@ export class DrizzleSQLiteS3Extension extends DrizzleSQLiteExtension<S3ExtMeta> 
 			data!,
 			errors,
 			downloadFile,
-			// downloadFileMeta,
 			presignDownload,
 			textToObjectId,
 		);

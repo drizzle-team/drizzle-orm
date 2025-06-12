@@ -10,10 +10,13 @@ import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
 import { createDockerDB, createExtensions, tests, usersMigratorTable, usersTable } from './pg-common';
+import { TestCache, TestGlobalCache, tests as cacheTests } from './pg-common-cache';
 
 const ENABLE_LOGGING = false;
 
 let db: PostgresJsDatabase;
+let dbGlobalCached: PostgresJsDatabase;
+let cachedDb: PostgresJsDatabase;
 let client: Sql;
 let s3Bucket: string;
 
@@ -48,6 +51,8 @@ beforeAll(async () => {
 	const { bucket, extensions } = await createExtensions();
 	s3Bucket = bucket;
 	db = drizzle(client, { logger: ENABLE_LOGGING, extensions });
+	cachedDb = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestCache() });
+	dbGlobalCached = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 });
 
 afterAll(async () => {
@@ -58,6 +63,10 @@ beforeEach((ctx) => {
 	ctx.pg = {
 		db,
 		bucket: s3Bucket,
+	};
+	ctx.cachedPg = {
+		db: cachedDb,
+		dbGlobalCached,
 	};
 });
 
@@ -444,6 +453,7 @@ skipTests([
 ]);
 
 tests();
+cacheTests();
 
 beforeEach(async () => {
 	await db.execute(sql`drop schema if exists public cascade`);

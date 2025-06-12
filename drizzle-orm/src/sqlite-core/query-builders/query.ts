@@ -163,7 +163,6 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 			undefined,
 			this.mode === 'first' ? 'get' : 'all',
 			true,
-			extCfg,
 			(rawRows, mapColumnValue) => {
 				const rows = rawRows.map((row) =>
 					mapRelationalRow(this.schema, this.tableConfig, row, query.selection, mapColumnValue)
@@ -173,6 +172,9 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 				}
 				return rows as TResult;
 			},
+			undefined,
+			undefined,
+			extCfg,
 		) as SQLitePreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }>;
 	}
 

@@ -1,4 +1,6 @@
 import type { FieldPacket, ResultSetHeader } from 'mysql2/promise';
+import { type Cache, NoopCache } from '~/cache/core/index.ts';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { BlankMySqlHookContext, DrizzleMySqlExtension } from '~/extension-core/mysql/index.ts';
@@ -25,6 +27,7 @@ export type MySqlRawQueryResult = [ResultSetHeader, FieldPacket[]];
 
 export interface MySqlRemoteSessionOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class MySqlRemoteSession<
@@ -34,6 +37,7 @@ export class MySqlRemoteSession<
 	static override readonly [entityKind]: string = 'MySqlRemoteSession';
 
 	private logger: Logger;
+	private cache: Cache;
 
 	constructor(
 		private client: RemoteCallback,
@@ -44,21 +48,30 @@ export class MySqlRemoteSession<
 	) {
 		super(dialect, extensions);
 		this.logger = options.logger ?? new NoopLogger();
+		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends MySqlPreparedQueryConfig>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
-		hookContext?: BlankMySqlHookContext,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 		generatedIds?: Record<string, unknown>[],
 		returningIds?: SelectedFieldsOrdered,
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
+		hookContext?: BlankMySqlHookContext,
 	): PreparedQueryKind<MySqlRemotePreparedQueryHKT, T> {
 		return new PreparedQuery(
 			this.client,
 			query.sql,
 			query.params,
 			this.logger,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
 			fields,
 			this.extensions,
 			hookContext,
@@ -103,6 +116,12 @@ export class PreparedQuery<T extends MySqlPreparedQueryConfig> extends PreparedQ
 		queryString: string,
 		params: unknown[],
 		private logger: Logger,
+		cache: Cache,
+		queryMetadata: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		} | undefined,
+		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		extensions?: DrizzleMySqlExtension[],
 		hookContext?: BlankMySqlHookContext,
@@ -112,7 +131,7 @@ export class PreparedQuery<T extends MySqlPreparedQueryConfig> extends PreparedQ
 		// Keys that should be returned, it has the column with all properries + key from object
 		private returningIds?: SelectedFieldsOrdered,
 	) {
-		super(queryString, params, extensions, hookContext);
+		super(queryString, params, cache, queryMetadata, cacheConfig, extensions, hookContext);
 	}
 
 	async _execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
@@ -124,7 +143,9 @@ export class PreparedQuery<T extends MySqlPreparedQueryConfig> extends PreparedQ
 		logger.logQuery(queryString, params);
 
 		if (!fields && !customResultMapper) {
-			const { rows: data } = await client(queryString, params, 'execute');
+			const { rows: data } = await this.queryWithCache(queryString, params, async () => {
+				return await client(queryString, params, 'execute');
+			});
 
 			const insertId = data[0].insertId as number;
 			const affectedRows = data[0].affectedRows;
@@ -155,7 +176,9 @@ export class PreparedQuery<T extends MySqlPreparedQueryConfig> extends PreparedQ
 			return data;
 		}
 
-		const { rows } = await client(queryString, params, 'all');
+		const { rows } = await this.queryWithCache(queryString, params, async () => {
+			return await client(queryString, params, 'all');
+		});
 
 		if (customResultMapper) {
 			return customResultMapper(rows);

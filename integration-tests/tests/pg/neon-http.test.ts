@@ -7,10 +7,13 @@ import { beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
 import { createExtensions, tests, usersMigratorTable, usersTable } from './pg-common';
+import { TestCache, TestGlobalCache, tests as cacheTests } from './pg-common-cache';
 
 const ENABLE_LOGGING = false;
 
 let db: NeonHttpDatabase;
+let dbGlobalCached: NeonHttpDatabase;
+let cachedDb: NeonHttpDatabase;
 let s3Bucket: string;
 
 beforeAll(async () => {
@@ -26,13 +29,26 @@ beforeAll(async () => {
 
 	const { bucket, extensions } = await createExtensions();
 	s3Bucket = bucket;
-	db = drizzle(neon(connectionString), { logger: ENABLE_LOGGING, extensions });
+	const client = neon(connectionString);
+	db = drizzle(client, { logger: ENABLE_LOGGING, extensions });
+	cachedDb = drizzle(client, {
+		logger: ENABLE_LOGGING,
+		cache: new TestCache(),
+	});
+	dbGlobalCached = drizzle(client, {
+		logger: ENABLE_LOGGING,
+		cache: new TestGlobalCache(),
+	});
 });
 
 beforeEach((ctx) => {
 	ctx.pg = {
 		db,
 		bucket: s3Bucket,
+	};
+	ctx.cachedPg = {
+		db: cachedDb,
+		dbGlobalCached,
 	};
 });
 
@@ -422,6 +438,7 @@ skipTests([
 	'S3File - transaction',
 ]);
 tests();
+cacheTests();
 
 beforeEach(async () => {
 	await db.execute(sql`drop schema if exists public cascade`);

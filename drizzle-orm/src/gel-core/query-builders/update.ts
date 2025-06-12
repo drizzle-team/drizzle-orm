@@ -35,6 +35,7 @@ import {
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { GelColumn } from '../columns/common.ts';
+import { extractUsedTable } from '../utils.ts';
 import type { GelViewBase } from '../view-base.ts';
 import type { GelSelectJoinConfig, SelectedFields, SelectedFieldsOrdered } from './select.types.ts';
 
@@ -538,12 +539,24 @@ export class GelUpdateBase<
 	_prepare(name?: string): GelUpdatePrepare<this> {
 		const query = this.session.prepareQuery<
 			PreparedQueryConfig & { execute: TReturning[] }
-		>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true, {
-			query: 'update',
-			config: this.config,
-			dialect: this.dialect,
-			session: this.session,
-		});
+		>(
+			this.dialect.sqlToQuery(this.getSQL()),
+			this.config.returning,
+			name,
+			true,
+			undefined,
+			{
+				type: 'update',
+				tables: extractUsedTable(this.config.table),
+			},
+			undefined,
+			{
+				query: 'update',
+				config: this.config,
+				dialect: this.dialect,
+				session: this.session,
+			},
+		);
 		query.joinsNotNullableMap = this.joinsNotNullableMap;
 		return query;
 	}

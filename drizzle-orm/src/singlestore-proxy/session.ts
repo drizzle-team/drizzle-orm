@@ -1,4 +1,5 @@
 import type { FieldPacket, ResultSetHeader } from 'mysql2/promise';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { BlankSingleStoreHookContext, DrizzleSingleStoreExtension } from '~/extension-core/singlestore/index.ts';
@@ -49,10 +50,15 @@ export class SingleStoreRemoteSession<
 	prepareQuery<T extends SingleStorePreparedQueryConfig>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
-		hookContext?: BlankSingleStoreHookContext,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 		generatedIds?: Record<string, unknown>[],
 		returningIds?: SelectedFieldsOrdered,
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
+		hookContext?: BlankSingleStoreHookContext,
 	): PreparedQueryKind<SingleStoreRemotePreparedQueryHKT, T> {
 		return new PreparedQuery(
 			this.client,
@@ -117,7 +123,7 @@ export class PreparedQuery<T extends SingleStorePreparedQueryConfig> extends Pre
 		// Keys that should be returned, it has the column with all properries + key from object
 		private returningIds?: SelectedFieldsOrdered,
 	) {
-		super(queryString, params, extensions, hookContext);
+		super(queryString, params, undefined, undefined, undefined, extensions, hookContext);
 	}
 
 	async _execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {

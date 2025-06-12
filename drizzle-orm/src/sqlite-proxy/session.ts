@@ -1,4 +1,6 @@
 import type { BatchItem } from '~/batch.ts';
+import { type Cache, NoopCache } from '~/cache/core/index.ts';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { BlankSQLiteHookContext, DrizzleSQLiteExtension } from '~/extension-core/sqlite/index.ts';
 import type { Logger } from '~/logger.ts';
@@ -20,6 +22,7 @@ import type { AsyncBatchRemoteCallback, AsyncRemoteCallback, RemoteCallback, Sql
 
 export interface SQLiteRemoteSessionOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -31,6 +34,7 @@ export class SQLiteRemoteSession<
 	static override readonly [entityKind]: string = 'SQLiteRemoteSession';
 
 	private logger: Logger;
+	private cache: Cache;
 
 	constructor(
 		private client: RemoteCallback,
@@ -42,6 +46,7 @@ export class SQLiteRemoteSession<
 	) {
 		super(dialect, extensions);
 		this.logger = options.logger ?? new NoopLogger();
+		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
@@ -49,13 +54,21 @@ export class SQLiteRemoteSession<
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		isResponseInArrayMode: boolean,
-		hookContext?: BlankSQLiteHookContext,
 		customResultMapper?: (rows: unknown[][]) => unknown,
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
+		hookContext?: BlankSQLiteHookContext,
 	): RemotePreparedQuery<T> {
 		return new RemotePreparedQuery(
 			this.client,
 			query,
 			this.logger,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
 			fields,
 			executeMethod,
 			isResponseInArrayMode,
@@ -150,6 +163,12 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		private client: RemoteCallback,
 		query: Query,
 		private logger: Logger,
+		cache: Cache,
+		queryMetadata: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		} | undefined,
+		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		private _isResponseInArrayMode: boolean,
@@ -160,7 +179,7 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 			mapColumnValue?: (value: unknown) => unknown,
 		) => unknown,
 	) {
-		super('async', executeMethod, query, extensions, hookContext);
+		super('async', executeMethod, query, cache, queryMetadata, cacheConfig, extensions, hookContext);
 		this.customResultMapper = customResultMapper;
 		this.method = executeMethod;
 	}
@@ -169,12 +188,12 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		return { ...this.query, method: this.method };
 	}
 
-	_run(placeholderValues?: Record<string, unknown>): Promise<SqliteRemoteResult> {
+	async _run(placeholderValues?: Record<string, unknown>): Promise<SqliteRemoteResult> {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
-		return (this.client as AsyncRemoteCallback)(this.query.sql, params, 'run') as Promise<
-			SqliteRemoteResult
-		>;
+		return await this.queryWithCache(this.query.sql, params, async () => {
+			return await (this.client as AsyncRemoteCallback)(this.query.sql, params, 'run');
+		});
 	}
 
 	override mapAllResult(rows: unknown, isFromBatch?: boolean): unknown {
@@ -205,7 +224,9 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		const params = fillPlaceholders(query.params, placeholderValues ?? {});
 		logger.logQuery(query.sql, params);
 
-		const { rows } = await (client as AsyncRemoteCallback)(query.sql, params, 'all');
+		const { rows } = await this.queryWithCache(query.sql, params, async () => {
+			return await (client as AsyncRemoteCallback)(query.sql, params, 'all');
+		});
 		return this.mapAllResult(rows);
 	}
 
@@ -215,7 +236,9 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		const params = fillPlaceholders(query.params, placeholderValues ?? {});
 		logger.logQuery(query.sql, params);
 
-		const clientResult = await (client as AsyncRemoteCallback)(query.sql, params, 'get');
+		const clientResult = await this.queryWithCache(query.sql, params, async () => {
+			return await (client as AsyncRemoteCallback)(query.sql, params, 'get');
+		});
 
 		return this.mapGetResult(clientResult.rows);
 	}
@@ -249,7 +272,9 @@ export class RemotePreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 	async _values<T extends any[] = unknown[]>(placeholderValues?: Record<string, unknown>): Promise<T[]> {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
-		const clientResult = await (this.client as AsyncRemoteCallback)(this.query.sql, params, 'values');
+		const clientResult = await this.queryWithCache(this.query.sql, params, async () => {
+			return await (this.client as AsyncRemoteCallback)(this.query.sql, params, 'values');
+		});
 		return clientResult.rows as T[];
 	}
 

@@ -1,3 +1,4 @@
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import { requiredExtension } from '~/extension-core/index.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -23,6 +24,7 @@ import { Columns, getTableName, Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
 import { columnExtensionsCheck, haveSameKeys, mapUpdateSet, type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
 import type { AnyPgColumn, PgColumn } from '../columns/common.ts';
+import { extractUsedTable } from '../utils.ts';
 import { QueryBuilder } from './query-builder.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 import type { PgUpdateSetSource } from './update.ts';
@@ -278,6 +280,7 @@ export class PgInsertBase<
 	static override readonly [entityKind]: string = 'PgInsert';
 
 	private config: PgInsertConfig<TTable>;
+	protected cacheConfig?: WithCacheConfig;
 
 	constructor(
 		table: TTable,
@@ -435,12 +438,24 @@ export class PgInsertBase<
 				PreparedQueryConfig & {
 					execute: TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[];
 				}
-			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true, {
-				query: 'insert',
-				dialect: this.dialect,
-				session: this.session,
-				config: this.config,
-			});
+			>(
+				this.dialect.sqlToQuery(this.getSQL()),
+				this.config.returning,
+				name,
+				true,
+				undefined,
+				{
+					type: 'insert',
+					tables: extractUsedTable(this.config.table),
+				},
+				this.cacheConfig,
+				{
+					query: 'insert',
+					dialect: this.dialect,
+					session: this.session,
+					config: this.config,
+				},
+			);
 		});
 	}
 

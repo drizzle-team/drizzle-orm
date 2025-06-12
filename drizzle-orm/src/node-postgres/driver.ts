@@ -1,4 +1,5 @@
 import pg, { type Pool, type PoolConfig } from 'pg';
+import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { DrizzlePgExtension } from '~/extension-core/pg/index.ts';
 import type { Logger } from '~/logger.ts';
@@ -17,6 +18,7 @@ import { NodePgSession } from './session.ts';
 
 export interface PgDriverOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class NodePgDriver {
@@ -33,7 +35,10 @@ export class NodePgDriver {
 	createSession(
 		schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined,
 	): NodePgSession<Record<string, unknown>, TablesRelationalConfig> {
-		return new NodePgSession(this.client, this.dialect, schema, { logger: this.options.logger }, this.extensions);
+		return new NodePgSession(this.client, this.dialect, schema, {
+			logger: this.options.logger,
+			cache: this.options.cache,
+		}, this.extensions);
 	}
 }
 
@@ -74,10 +79,14 @@ function construct<
 	}
 
 	const extensions = config.extensions;
-	const driver = new NodePgDriver(client, dialect, { logger }, extensions);
+	const driver = new NodePgDriver(client, dialect, { logger, cache: config.cache }, extensions);
 	const session = driver.createSession(schema);
 	const db = new NodePgDatabase(dialect, session, schema as any, extensions) as NodePgDatabase<TSchema>;
 	(<any> db).$client = client;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
 
 	return db as any;
 }

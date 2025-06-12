@@ -17,6 +17,7 @@ import { TiDBServerlessSession } from './session.ts';
 
 export interface TiDBServerlessSDriverOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class TiDBServerlessDatabase<
@@ -53,7 +54,14 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 	}
 
 	const extensions = config.extensions;
-	const session = new TiDBServerlessSession(client, dialect, undefined, schema, { logger }, extensions);
+	const session = new TiDBServerlessSession(
+		client,
+		dialect,
+		undefined,
+		schema,
+		{ logger, cache: config.cache },
+		extensions,
+	);
 	const db = new TiDBServerlessDatabase(
 		dialect,
 		session,
@@ -62,6 +70,10 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 		extensions,
 	) as TiDBServerlessDatabase<TSchema>;
 	(<any> db).$client = client;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
 
 	return db as any;
 }

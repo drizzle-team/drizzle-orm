@@ -124,17 +124,6 @@ export class SQLiteS3File<
 		);
 	}
 
-	// meta(): Omit<SQLiteS3File<Omit<T, 'data'> & { data: DrizzleS3ObjectMeta }>, 'data' | 'meta' | 'presigned'> {
-	// 	return new SQLiteS3File(
-	// 		this.table,
-	// 		this.config as ColumnRuntimeConfig<
-	// 			DrizzleS3ObjectMeta,
-	// 			Omit<T, 'data'> & { data: DrizzleS3ObjectMeta }
-	// 		>,
-	// 		{ fileMode: this[extensionColumnConfig].fileMode, fetchMode: 'meta' },
-	// 	);
-	// }
-
 	presigned(options?: RequestPresigningArguments): SQLiteColumn<Omit<T, 'data'> & { data: string }> {
 		return new SQLiteS3File(
 			this.table,

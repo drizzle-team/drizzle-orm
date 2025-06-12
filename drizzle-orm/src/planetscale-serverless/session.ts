@@ -1,4 +1,6 @@
 import type { Client, Connection, ExecutedQuery, Transaction } from '@planetscale/database';
+import { type Cache, NoopCache } from '~/cache/core/index.ts';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { BlankMySqlHookContext, DrizzleMySqlExtension } from '~/extension-core/mysql/index.ts';
@@ -29,6 +31,12 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig> extend
 		queryString: string,
 		params: unknown[],
 		private logger: Logger,
+		cache: Cache,
+		queryMetadata: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		} | undefined,
+		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		extensions?: DrizzleMySqlExtension[],
 		hookContext?: BlankMySqlHookContext,
@@ -38,7 +46,7 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig> extend
 		// Keys that should be returned, it has the column with all properries + key from object
 		private returningIds?: SelectedFieldsOrdered,
 	) {
-		super(queryString, params, extensions, hookContext);
+		super(queryString, params, cache, queryMetadata, cacheConfig, extensions, hookContext);
 	}
 
 	async _execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
@@ -58,7 +66,9 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig> extend
 			generatedIds,
 		} = this;
 		if (!fields && !customResultMapper) {
-			const res = await client.execute(queryString, params, rawQuery);
+			const res = await this.queryWithCache(queryString, params, async () => {
+				return await client.execute(queryString, params, rawQuery);
+			});
 
 			const insertId = Number.parseFloat(res.insertId);
 			const affectedRows = res.rowsAffected;
@@ -87,7 +97,9 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig> extend
 			}
 			return res;
 		}
-		const { rows } = await client.execute(queryString, params, query);
+		const { rows } = await this.queryWithCache(queryString, params, async () => {
+			return await client.execute(queryString, params, query);
+		});
 
 		if (customResultMapper) {
 			return customResultMapper(rows as unknown[][]);
@@ -103,6 +115,7 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig> extend
 
 export interface PlanetscaleSessionOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class PlanetscaleSession<
@@ -113,6 +126,7 @@ export class PlanetscaleSession<
 
 	private logger: Logger;
 	private client: Client | Transaction | Connection;
+	private cache: Cache;
 
 	constructor(
 		private baseClient: Client | Connection,
@@ -125,21 +139,30 @@ export class PlanetscaleSession<
 		super(dialect, extensions);
 		this.client = tx ?? baseClient;
 		this.logger = options.logger ?? new NoopLogger();
+		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends MySqlPreparedQueryConfig = MySqlPreparedQueryConfig>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
-		hookContext?: BlankMySqlHookContext,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 		generatedIds?: Record<string, unknown>[],
 		returningIds?: SelectedFieldsOrdered,
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
+		hookContext?: BlankMySqlHookContext,
 	): MySqlPreparedQuery<T> {
 		return new PlanetScalePreparedQuery(
 			this.client,
 			query.sql,
 			query.params,
 			this.logger,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
 			fields,
 			this.extensions,
 			hookContext,

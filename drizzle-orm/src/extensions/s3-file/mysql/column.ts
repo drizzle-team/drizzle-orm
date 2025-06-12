@@ -124,17 +124,6 @@ export class MySqlS3File<
 		);
 	}
 
-	// meta(): Omit<MySqlS3File<Omit<T, 'data'> & { data: DrizzleS3ObjectMeta }>, 'data' | 'meta' | 'presigned'> {
-	// 	return new MySqlS3File(
-	// 		this.table,
-	// 		this.config as ColumnRuntimeConfig<
-	// 			DrizzleS3ObjectMeta,
-	// 			Omit<T, 'data'> & { data: DrizzleS3ObjectMeta }
-	// 		>,
-	// 		{ fileMode: this[extensionColumnConfig].fileMode, fetchMode: 'meta' },
-	// 	);
-	// }
-
 	presigned(options?: RequestPresigningArguments): MySqlColumn<Omit<T, 'data'> & { data: string }> {
 		return new MySqlS3File(
 			this.table,

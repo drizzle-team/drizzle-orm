@@ -1,5 +1,5 @@
 import type { PrismaClient } from '@prisma/client/extension';
-
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { BlankPgHookContext, DrizzlePgExtension } from '~/extension-core/pg/index.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
@@ -25,7 +25,7 @@ export class PrismaPgPreparedQuery<T> extends PgPreparedQuery<PreparedQueryConfi
 		extensions?: DrizzlePgExtension[],
 		hookContext?: BlankPgHookContext,
 	) {
-		super(query, extensions, hookContext);
+		super(query, undefined, undefined, undefined, extensions, hookContext);
 	}
 
 	override _execute(placeholderValues?: Record<string, unknown>): Promise<T> {
@@ -71,6 +71,12 @@ export class PrismaPgSession extends PgSession {
 		fields?: SelectedFieldsOrdered | undefined,
 		name?: string | undefined,
 		isResponseInArrayMode?: boolean,
+		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
 		hookContext?: BlankPgHookContext,
 	): PgPreparedQuery<T> {
 		return new PrismaPgPreparedQuery(this.prisma, query, this.logger, this.extensions, hookContext);

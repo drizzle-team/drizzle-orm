@@ -10,6 +10,8 @@ import type {
 	RowDataPacket,
 } from 'mysql2/promise';
 import { once } from 'node:events';
+import { type Cache, NoopCache } from '~/cache/core/index.ts';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { BlankMySqlHookContext, DrizzleMySqlExtension } from '~/extension-core/mysql/index.ts';
@@ -52,6 +54,12 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig> extends MyS
 		queryString: string,
 		params: unknown[],
 		private logger: Logger,
+		cache: Cache,
+		queryMetadata: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		} | undefined,
+		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		extensions?: DrizzleMySqlExtension[],
 		hookContext?: BlankMySqlHookContext,
@@ -61,7 +69,7 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig> extends MyS
 		// Keys that should be returned, it has the column with all properries + key from object
 		private returningIds?: SelectedFieldsOrdered,
 	) {
-		super(queryString, params, extensions, hookContext);
+		super(queryString, params, cache, queryMetadata, cacheConfig, extensions, hookContext);
 		this.rawQuery = {
 			sql: queryString,
 			// rowsAsArray: true,
@@ -92,7 +100,10 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig> extends MyS
 		const { fields, client, rawQuery, query, joinsNotNullableMap, customResultMapper, returningIds, generatedIds } =
 			this;
 		if (!fields && !customResultMapper) {
-			const res = await client.query<any>(rawQuery, params);
+			const res = await this.queryWithCache(rawQuery.sql, params, async () => {
+				return await client.query<any>(rawQuery, params);
+			});
+
 			const insertId = res[0].insertId;
 			const affectedRows = res[0].affectedRows;
 			// for each row, I need to check keys from
@@ -121,7 +132,10 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig> extends MyS
 			return res;
 		}
 
-		const result = await client.query<any[]>(query, params);
+		const result = await this.queryWithCache(query.sql, params, async () => {
+			return await client.query<any[]>(query, params);
+		});
+
 		const rows = result[0];
 
 		if (customResultMapper) {
@@ -186,6 +200,7 @@ export class MySql2PreparedQuery<T extends MySqlPreparedQueryConfig> extends MyS
 
 export interface MySql2SessionOptions {
 	logger?: Logger;
+	cache?: Cache;
 	mode: Mode;
 }
 
@@ -197,6 +212,7 @@ export class MySql2Session<
 
 	private logger: Logger;
 	private mode: Mode;
+	private cache: Cache;
 
 	constructor(
 		private client: MySql2Client,
@@ -207,16 +223,22 @@ export class MySql2Session<
 	) {
 		super(dialect, extensions);
 		this.logger = options.logger ?? new NoopLogger();
+		this.cache = options.cache ?? new NoopCache();
 		this.mode = options.mode;
 	}
 
 	prepareQuery<T extends MySqlPreparedQueryConfig>(
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
-		hookContext: BlankMySqlHookContext,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 		generatedIds?: Record<string, unknown>[],
 		returningIds?: SelectedFieldsOrdered,
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
+		hookContext?: BlankMySqlHookContext,
 	): PreparedQueryKind<MySql2PreparedQueryHKT, T> {
 		// Add returningId fields
 		// Each driver gets them from response from database
@@ -225,6 +247,9 @@ export class MySql2Session<
 			query.sql,
 			query.params,
 			this.logger,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
 			fields,
 			this.extensions,
 			hookContext,

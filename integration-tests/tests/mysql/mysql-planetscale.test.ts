@@ -4,25 +4,35 @@ import { drizzle } from 'drizzle-orm/planetscale-serverless';
 import { beforeAll, beforeEach } from 'vitest';
 import { skipTests } from '~/common';
 import { createExtensions, tests } from './mysql-common';
+import { TestCache, TestGlobalCache, tests as cacheTests } from './mysql-common-cache';
 
 const ENABLE_LOGGING = false;
 
 let db: PlanetScaleDatabase;
+let dbGlobalCached: PlanetScaleDatabase;
+let cachedDb: PlanetScaleDatabase;
 let s3Bucket: string;
 
 beforeAll(async () => {
 	const { bucket, extensions } = await createExtensions();
 	s3Bucket = bucket;
-	db = drizzle(new Client({ url: process.env['PLANETSCALE_CONNECTION_STRING']! }), {
+	const client = new Client({ url: process.env['PLANETSCALE_CONNECTION_STRING']! });
+	db = drizzle(client, {
 		logger: ENABLE_LOGGING,
 		extensions,
 	});
+	cachedDb = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestCache() });
+	dbGlobalCached = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 });
 
 beforeEach((ctx) => {
 	ctx.mysql = {
 		db,
 		bucket: s3Bucket,
+	};
+	ctx.cachedMySQL = {
+		db: cachedDb,
+		dbGlobalCached,
 	};
 });
 
@@ -83,3 +93,4 @@ skipTests([
 ]);
 
 tests('planetscale');
+cacheTests();

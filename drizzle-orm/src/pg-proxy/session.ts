@@ -1,3 +1,5 @@
+import { type Cache, NoopCache } from '~/cache/core/cache.ts';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { BlankPgHookContext, DrizzlePgExtension } from '~/extension-core/pg/index.ts';
 import type { Logger } from '~/logger.ts';
@@ -16,6 +18,7 @@ import type { RemoteCallback } from './driver.ts';
 
 export interface PgRemoteSessionOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class PgRemoteSession<
@@ -25,6 +28,7 @@ export class PgRemoteSession<
 	static override readonly [entityKind]: string = 'PgRemoteSession';
 
 	private logger: Logger;
+	private cache: Cache;
 
 	constructor(
 		private client: RemoteCallback,
@@ -35,6 +39,7 @@ export class PgRemoteSession<
 	) {
 		super(dialect, extensions);
 		this.logger = options.logger ?? new NoopLogger();
+		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig>(
@@ -42,8 +47,13 @@ export class PgRemoteSession<
 		fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		isResponseInArrayMode: boolean,
-		hookContext?: BlankPgHookContext,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
+		hookContext?: BlankPgHookContext,
 	): PreparedQuery<T> {
 		return new PreparedQuery(
 			this.client,
@@ -51,6 +61,9 @@ export class PgRemoteSession<
 			query.params,
 			query.typings,
 			this.logger,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
 			fields,
 			isResponseInArrayMode,
 			this.extensions,
@@ -89,13 +102,19 @@ export class PreparedQuery<T extends PreparedQueryConfig> extends PreparedQueryB
 		private params: unknown[],
 		private typings: any[] | undefined,
 		private logger: Logger,
+		cache: Cache,
+		queryMetadata: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		} | undefined,
+		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		private _isResponseInArrayMode: boolean,
 		extensions?: DrizzlePgExtension[],
 		hookContext?: BlankPgHookContext,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
-		super({ sql: queryString, params }, extensions, hookContext);
+		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig, extensions, hookContext);
 	}
 
 	async _execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
@@ -112,7 +131,9 @@ export class PreparedQuery<T extends PreparedQueryConfig> extends PreparedQueryB
 
 			if (!fields && !customResultMapper) {
 				return tracer.startActiveSpan('drizzle.driver.execute', async () => {
-					const { rows } = await client(queryString, params as any[], 'execute', typings);
+					const { rows } = await this.queryWithCache(queryString, params, async () => {
+						return await client(queryString, params as any[], 'execute', typings);
+					});
 
 					return rows;
 				});
@@ -124,7 +145,9 @@ export class PreparedQuery<T extends PreparedQueryConfig> extends PreparedQueryB
 					'drizzle.query.params': JSON.stringify(params),
 				});
 
-				const { rows } = await client(queryString, params as any[], 'all', typings);
+				const { rows } = await this.queryWithCache(queryString, params, async () => {
+					return await client(queryString, params as any[], 'all', typings);
+				});
 
 				return rows;
 			});

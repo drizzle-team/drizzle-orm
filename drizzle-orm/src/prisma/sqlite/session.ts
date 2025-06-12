@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client/extension';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 
 import { entityKind } from '~/entity.ts';
 import type { BlankSQLiteHookContext, DrizzleSQLiteExtension } from '~/extension-core/sqlite/index.ts';
@@ -30,7 +31,7 @@ export class PrismaSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQ
 		extensions?: DrizzleSQLiteExtension[],
 		hookContext?: BlankSQLiteHookContext,
 	) {
-		super('async', executeMethod, query, extensions, hookContext);
+		super('async', executeMethod, query, undefined, undefined, undefined, extensions, hookContext);
 	}
 
 	override _all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
@@ -71,8 +72,9 @@ export class PrismaSQLiteSession extends SQLiteSession<'async', unknown, Record<
 		private readonly prisma: PrismaClient,
 		dialect: SQLiteAsyncDialect,
 		options: PrismaSQLiteSessionOptions,
+		extensions?: DrizzleSQLiteExtension[],
 	) {
-		super(dialect);
+		super(dialect, extensions);
 		this.logger = options.logger ?? new NoopLogger();
 	}
 
@@ -80,8 +82,16 @@ export class PrismaSQLiteSession extends SQLiteSession<'async', unknown, Record<
 		query: Query,
 		fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
+		isResponseInArrayMode?: boolean,
+		customResultMapper?: (rows: unknown[][]) => unknown,
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
+		hookContext?: undefined,
 	): PrismaSQLitePreparedQuery<T> {
-		return new PrismaSQLitePreparedQuery(this.prisma, query, this.logger, executeMethod);
+		return new PrismaSQLitePreparedQuery(this.prisma, query, this.logger, executeMethod, this.extensions, hookContext);
 	}
 
 	override transaction<T>(

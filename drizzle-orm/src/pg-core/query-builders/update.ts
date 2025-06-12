@@ -1,3 +1,4 @@
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import type { GetColumnData } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -26,10 +27,20 @@ import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type Query, SQL, type SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { getTableName, Table } from '~/table.ts';
-import { getTableLikeName, mapUpdateSet, orderSelectedFields } from '~/utils.ts';
-import type { Assume, DrizzleTypeError, Equal, NeonAuthToken, Simplify, UpdateSet } from '~/utils.ts';
+import {
+	type Assume,
+	type DrizzleTypeError,
+	type Equal,
+	getTableLikeName,
+	mapUpdateSet,
+	type NeonAuthToken,
+	orderSelectedFields,
+	type Simplify,
+	type UpdateSet,
+} from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgColumn } from '../columns/common.ts';
+import { extractUsedTable } from '../utils.ts';
 import type { PgViewBase } from '../view-base.ts';
 import type {
 	PgSelectJoinConfig,
@@ -352,6 +363,7 @@ export class PgUpdateBase<
 	private config: PgUpdateConfig;
 	private tableName: string | undefined;
 	private joinsNotNullableMap: Record<string, boolean>;
+	protected cacheConfig?: WithCacheConfig;
 
 	constructor(
 		table: TTable,
@@ -568,12 +580,24 @@ export class PgUpdateBase<
 	_prepare(name?: string): PgUpdatePrepare<this> {
 		const query = this.session.prepareQuery<
 			PreparedQueryConfig & { execute: TReturning[] }
-		>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true, {
-			query: 'update',
-			config: this.config,
-			dialect: this.dialect,
-			session: this.session,
-		});
+		>(
+			this.dialect.sqlToQuery(this.getSQL()),
+			this.config.returning,
+			name,
+			true,
+			undefined,
+			{
+				type: 'insert',
+				tables: extractUsedTable(this.config.table),
+			},
+			this.cacheConfig,
+			{
+				query: 'update',
+				config: this.config,
+				dialect: this.dialect,
+				session: this.session,
+			},
+		);
 		query.joinsNotNullableMap = this.joinsNotNullableMap;
 		return query;
 	}

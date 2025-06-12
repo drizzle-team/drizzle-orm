@@ -57,6 +57,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 	config?: DrizzleConfig<TSchema, DrizzleSQLiteExtension>,
 ): SqliteRemoteDatabase<TSchema> {
 	let logger;
+	let cache;
 	let _batchCallback: AsyncBatchRemoteCallback | undefined;
 	let _config: DrizzleConfig<TSchema, DrizzleSQLiteExtension> = {};
 
@@ -73,6 +74,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 			logger = new DefaultLogger();
 		} else if (_config.logger !== false) {
 			logger = _config.logger;
+			cache = _config.cache;
 		}
 	}
 
@@ -91,6 +93,11 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 
 	const extensions = _config.extensions;
 	const dialect = new SQLiteAsyncDialect({ casing: _config.casing });
-	const session = new SQLiteRemoteSession(callback, dialect, schema, _batchCallback, { logger }, extensions);
-	return new SqliteRemoteDatabase('async', dialect, session, schema, extensions) as SqliteRemoteDatabase<TSchema>;
+	const session = new SQLiteRemoteSession(callback, dialect, schema, _batchCallback, { logger, cache }, extensions);
+	const db = new SqliteRemoteDatabase('async', dialect, session, schema, extensions) as SqliteRemoteDatabase<TSchema>;
+	(<any> db).$cache = cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = cache?.onMutate;
+	}
+	return db;
 }

@@ -1,10 +1,9 @@
 import type { PrismaClient } from '@prisma/client/extension';
-
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { BlankMySqlHookContext, DrizzleMySqlExtension } from '~/extension-core/mysql/index.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import type {
-	MySqlColumn,
 	MySqlDialect,
 	MySqlPreparedQueryConfig,
 	MySqlPreparedQueryHKT,
@@ -13,7 +12,7 @@ import type {
 	MySqlTransactionConfig,
 } from '~/mysql-core/index.ts';
 import { MySqlPreparedQuery, MySqlSession } from '~/mysql-core/index.ts';
-import type { SelectedFieldsOrdered } from '~/operations.ts';
+import type { SelectedFieldsOrdered } from '~/mysql-core/query-builders/select.types.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
@@ -31,7 +30,7 @@ export class PrismaMySqlPreparedQuery<T> extends MySqlPreparedQuery<MySqlPrepare
 		extensions?: DrizzleMySqlExtension[],
 		hookContext?: BlankMySqlHookContext,
 	) {
-		super(query.sql, query.params, extensions, hookContext);
+		super(query.sql, query.params, undefined, undefined, undefined, extensions, hookContext);
 	}
 
 	override _execute(placeholderValues?: Record<string, unknown>): Promise<T> {
@@ -70,7 +69,15 @@ export class PrismaMySqlSession extends MySqlSession {
 
 	override prepareQuery<T extends MySqlPreparedQueryConfig = MySqlPreparedQueryConfig>(
 		query: Query,
-		returning?: SelectedFieldsOrdered<MySqlColumn>,
+		fields?: SelectedFieldsOrdered,
+		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		generatedIds?: Record<string, unknown>[],
+		returningIds?: SelectedFieldsOrdered,
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
 		hookContext?: BlankMySqlHookContext,
 	): MySqlPreparedQuery<T> {
 		return new PrismaMySqlPreparedQuery(this.prisma, query, this.logger, this.extensions, hookContext);

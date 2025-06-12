@@ -19,6 +19,7 @@ import type { InferModelFromColumns } from '~/table.ts';
 import { Table } from '~/table.ts';
 import { columnExtensionsCheck, mapUpdateSet, orderSelectedFields } from '~/utils.ts';
 import type { AnySingleStoreColumn, SingleStoreColumn } from '../columns/common.ts';
+import { extractUsedTable } from '../utils.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
 import type { SingleStoreUpdateSetSource } from './update.ts';
 
@@ -305,15 +306,20 @@ export class SingleStoreInsertBase<
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(sql),
 			undefined,
+			undefined,
+			generatedIds,
+			this.config.returning,
+			{
+				type: 'delete',
+				tables: extractUsedTable(this.config.table),
+			},
+			undefined,
 			{
 				query: 'insert',
 				dialect: this.dialect,
 				session: this.session,
 				config: this.config,
 			},
-			undefined,
-			generatedIds,
-			this.config.returning,
 		) as SingleStoreInsertPrepare<this, TReturning>;
 	}
 

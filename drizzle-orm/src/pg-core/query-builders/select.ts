@@ -1,3 +1,4 @@
+import type { CacheConfig, WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { PgColumn } from '~/pg-core/columns/index.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -35,6 +36,7 @@ import {
 } from '~/utils.ts';
 import { orderSelectedFields } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
+import { extractUsedTable } from '../utils.ts';
 import type {
 	AnyPgSelect,
 	CreatePgSelectFromBuilderMode,
@@ -43,6 +45,7 @@ import type {
 	LockStrength,
 	PgCreateSetOperatorFn,
 	PgSelectConfig,
+	PgSelectCrossJoinFn,
 	PgSelectDynamic,
 	PgSelectHKT,
 	PgSelectHKTBase,
@@ -172,14 +175,17 @@ export abstract class PgSelectQueryBuilderBase<
 		readonly excludedMethods: TExcludedMethods;
 		readonly result: TResult;
 		readonly selectedFields: TSelectedFields;
+		readonly config: PgSelectConfig;
 	};
 
 	protected config: PgSelectConfig;
 	protected joinsNotNullableMap: Record<string, boolean>;
-	private tableName: string | undefined;
+	protected tableName: string | undefined;
 	private isPartialSelect: boolean;
 	protected session: PgSession | undefined;
 	protected dialect: PgDialect;
+	protected cacheConfig?: WithCacheConfig = undefined;
+	protected usedTables: Set<string> = new Set();
 
 	constructor(
 		{ table, fields, isPartialSelect, session, dialect, withList, distinct }: {
@@ -207,9 +213,17 @@ export abstract class PgSelectQueryBuilderBase<
 		this.dialect = dialect;
 		this._ = {
 			selectedFields: fields as TSelectedFields,
+			config: this.config,
 		} as this['_'];
 		this.tableName = getTableLikeName(table);
 		this.joinsNotNullableMap = typeof this.tableName === 'string' ? { [this.tableName]: true } : {};
+
+		for (const item of extractUsedTable(table)) this.usedTables.add(item);
+	}
+
+	/** @internal */
+	getUsedTables() {
+		return [...this.usedTables];
 	}
 
 	private createJoin<
@@ -218,13 +232,18 @@ export abstract class PgSelectQueryBuilderBase<
 	>(
 		joinType: TJoinType,
 		lateral: TIsLateral,
-	): PgSelectJoinFn<this, TDynamic, TJoinType, TIsLateral> {
+	): 'cross' extends TJoinType ? PgSelectCrossJoinFn<this, TDynamic, TIsLateral>
+		: PgSelectJoinFn<this, TDynamic, TJoinType, TIsLateral>
+	{
 		return ((
 			table: TIsLateral extends true ? Subquery | SQL : PgTable | Subquery | PgViewBase | SQL,
 			on?: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,
 		) => {
 			const baseTableName = this.tableName;
 			const tableName = getTableLikeName(table);
+
+			// store all tables used in a query
+			for (const item of extractUsedTable(table)) this.usedTables.add(item);
 
 			if (typeof tableName === 'string' && this.config.joins?.some((join) => join.alias === tableName)) {
 				throw new Error(`Alias "${tableName}" is already used in this query`);
@@ -971,12 +990,15 @@ export abstract class PgSelectQueryBuilderBase<
 		const { typings: _typings, ...rest } = this.dialect.sqlToQuery(this.getSQL());
 		return rest;
 	}
-
 	as<TAlias extends string>(
 		alias: TAlias,
 	): SubqueryWithSelection<this['_']['selectedFields'], TAlias> {
+		const usedTables: string[] = [];
+		usedTables.push(...extractUsedTable(this.config.table));
+		if (this.config.joins) { for (const it of this.config.joins) usedTables.push(...extractUsedTable(it.table)); }
+
 		return new Proxy(
-			new Subquery(this.getSQL(), this.config.fields, alias),
+			new Subquery(this.getSQL(), this.config.fields, alias, false, [...new Set(usedTables)]),
 			new SelectionProxyHandler({ alias, sqlAliasedBehavior: 'alias', sqlBehavior: 'error' }),
 		) as SubqueryWithSelection<this['_']['selectedFields'], TAlias>;
 	}
@@ -990,6 +1012,15 @@ export abstract class PgSelectQueryBuilderBase<
 	}
 
 	$dynamic(): PgSelectDynamic<this> {
+		return this;
+	}
+
+	$withCache(config?: { config?: CacheConfig; tag?: string; autoInvalidate?: boolean } | false) {
+		this.cacheConfig = config === undefined
+			? { config: {}, enable: true, autoInvalidate: true }
+			: config === false
+			? { enable: false }
+			: { enable: true, autoInvalidate: true, ...config };
 		return this;
 	}
 }
@@ -1049,19 +1080,33 @@ export class PgSelectBase<
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
 
-		const { session, config, dialect, joinsNotNullableMap, authToken } = this;
+		const { session, config, dialect, joinsNotNullableMap, authToken, cacheConfig, usedTables } = this;
+		const { fields } = config;
+
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
-			const fieldsList = orderSelectedFields<PgColumn>(config.fields);
+			const fieldsList = orderSelectedFields<PgColumn>(fields);
 			const query = session.prepareQuery<
 				PreparedQueryConfig & { execute: TResult }
-			>(dialect.sqlToQuery(this.getSQL()), fieldsList, name, true, {
-				query: 'select',
-				joinsNotNullableMap,
-				dialect,
-				session,
-				config,
-				fieldsOrdered: fieldsList,
-			});
+			>(
+				dialect.sqlToQuery(this.getSQL()),
+				fieldsList,
+				name,
+				true,
+				undefined,
+				{
+					type: 'select',
+					tables: [...usedTables],
+				},
+				cacheConfig,
+				{
+					query: 'select',
+					joinsNotNullableMap,
+					dialect,
+					session,
+					config,
+					fieldsOrdered: fieldsList,
+				},
+			);
 			query.joinsNotNullableMap = joinsNotNullableMap;
 
 			return query.setToken(authToken);
