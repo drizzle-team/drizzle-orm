@@ -194,16 +194,16 @@ export const preparePostgresDB = async (
 			// @ts-ignore
 			getTypeParser: (typeId, format) => {
 				if (typeId === pg.types.builtins.TIMESTAMPTZ) {
-					return (val) => val;
+					return (val: any) => val;
 				}
 				if (typeId === pg.types.builtins.TIMESTAMP) {
-					return (val) => val;
+					return (val: any) => val;
 				}
 				if (typeId === pg.types.builtins.DATE) {
-					return (val) => val;
+					return (val: any) => val;
 				}
 				if (typeId === pg.types.builtins.INTERVAL) {
-					return (val) => val;
+					return (val: any) => val;
 				}
 				// @ts-ignore
 				return pg.types.getTypeParser(typeId, format);
@@ -544,8 +544,8 @@ export const prepareCockroachDB = async (
 > => {
 	if (await checkPackage('pg')) {
 		const { default: pg } = await import('pg');
-		const { drizzle } = await import('drizzle-orm/cockroachdb');
-		const { migrate } = await import('drizzle-orm/cockroachdb/migrator');
+		const { drizzle } = await import('drizzle-orm/cockroach');
+		const { migrate } = await import('drizzle-orm/cockroach/migrator');
 
 		const ssl = 'ssl' in credentials
 			? credentials.ssl === 'prefer'
@@ -562,16 +562,16 @@ export const prepareCockroachDB = async (
 			// @ts-ignore
 			getTypeParser: (typeId, format) => {
 				if (typeId === pg.types.builtins.TIMESTAMPTZ) {
-					return (val) => val;
+					return (val: any) => val;
 				}
 				if (typeId === pg.types.builtins.TIMESTAMP) {
-					return (val) => val;
+					return (val: any) => val;
 				}
 				if (typeId === pg.types.builtins.DATE) {
-					return (val) => val;
+					return (val: any) => val;
 				}
 				if (typeId === pg.types.builtins.INTERVAL) {
-					return (val) => val;
+					return (val: any) => val;
 				}
 				// @ts-ignore
 				return pg.types.getTypeParser(typeId, format);

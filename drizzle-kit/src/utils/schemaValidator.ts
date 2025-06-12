@@ -8,7 +8,7 @@ export const dialects = [
 	'singlestore',
 	'gel',
 	'mssql',
-	'cockroachdb',
+	'cockroach',
 ] as const;
 export const dialect = enumType(dialects);
 

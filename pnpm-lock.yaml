@@ -291,6 +291,9 @@ importers:
       minimatch:
         specifier: ^7.4.3
         version: 7.4.6
+      mssql:
+        specifier: ^11.0.1
+        version: 11.0.1
       mysql2:
         specifier: 3.14.1
         version: 3.14.1

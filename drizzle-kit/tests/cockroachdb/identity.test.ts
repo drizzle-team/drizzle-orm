@@ -1,4 +1,4 @@
-import { cockroachdbTable, int2, int4, int8, text } from 'drizzle-orm/cockroachdb-core';
+import { cockroachTable, int2, int4, int8, text } from 'drizzle-orm/cockroach-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -23,7 +23,7 @@ test('create table: identity always/by default - no params', async () => {
 	const from = {};
 
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').generatedByDefaultAsIdentity(),
 			id1: int8('id1', { mode: 'number' }).generatedByDefaultAsIdentity(),
 			id2: int2('id2').generatedByDefaultAsIdentity(),
@@ -48,7 +48,7 @@ test('create table: identity always/by default - few params', async () => {
 	const from = {};
 
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').generatedByDefaultAsIdentity({
 				increment: 4,
 			}),
@@ -79,7 +79,7 @@ test('create table: identity always/by default - all params', async () => {
 	const from = {};
 
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').generatedByDefaultAsIdentity({
 				increment: 4,
 				minValue: 3,
@@ -112,14 +112,14 @@ test('create table: identity always/by default - all params', async () => {
 
 test('no diff: identity always/by default - no params', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').generatedByDefaultAsIdentity(),
 			id2: int4('id2').generatedAlwaysAsIdentity(),
 		}),
 	};
 
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').generatedByDefaultAsIdentity(),
 			id2: int4('id2').generatedAlwaysAsIdentity(),
 		}),
@@ -140,7 +140,7 @@ test('no diff: identity always/by default - no params', async () => {
 
 test('no diff: identity always/by default - few params', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').generatedByDefaultAsIdentity({
 				increment: 4,
 			}),
@@ -152,7 +152,7 @@ test('no diff: identity always/by default - few params', async () => {
 	};
 
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').generatedByDefaultAsIdentity({
 				increment: 4,
 			}),
@@ -178,7 +178,7 @@ test('no diff: identity always/by default - few params', async () => {
 
 test('no diff: identity always/by default - all params', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').generatedByDefaultAsIdentity({
 				increment: 4,
 				minValue: 3,
@@ -196,7 +196,7 @@ test('no diff: identity always/by default - all params', async () => {
 	};
 
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').generatedByDefaultAsIdentity({
 				increment: 4,
 				minValue: 3,
@@ -228,13 +228,13 @@ test('no diff: identity always/by default - all params', async () => {
 
 test('drop identity from a column - no params', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').generatedByDefaultAsIdentity(),
 		}),
 	};
 
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 		}),
 	};
@@ -257,7 +257,7 @@ test('drop identity from a column - no params', async () => {
 test('drop identity from a column - few params', async () => {
 	// TODO revise: added id1, id2 columns to users table, like in the same test from push.test.ts
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').generatedByDefaultAsIdentity({
 				startWith: 100,
 				increment: 3,
@@ -272,7 +272,7 @@ test('drop identity from a column - few params', async () => {
 	};
 
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id1: int4('id1'),
 			id2: int4('id2'),
@@ -299,7 +299,7 @@ test('drop identity from a column - few params', async () => {
 test('drop identity from a column - all params', async () => {
 	// TODO revise: added id1, id2 columns to users table, like in the same test from push.test.ts
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').generatedByDefaultAsIdentity({
 				startWith: 100,
 				increment: 3,
@@ -323,7 +323,7 @@ test('drop identity from a column - all params', async () => {
 	};
 
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id1: int4('id1'),
 			id2: int4('id2'),
@@ -349,13 +349,13 @@ test('drop identity from a column - all params', async () => {
 
 test('alter identity from a column - no params', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').generatedByDefaultAsIdentity(),
 		}),
 	};
 
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').generatedByDefaultAsIdentity({ startWith: 100 }),
 		}),
 	};
@@ -377,14 +377,14 @@ test('alter identity from a column - no params', async () => {
 
 test('alter identity from a column - few params', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').generatedByDefaultAsIdentity({ startWith: 100 }),
 		}),
 	};
 
 	// TODO revise: added more params, like in same test from push.test.ts
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').generatedByDefaultAsIdentity({
 				startWith: 100,
 				cache: 10,
@@ -414,13 +414,13 @@ test('alter identity from a column - few params', async () => {
 
 test('alter identity from a column - by default to always', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').generatedByDefaultAsIdentity(),
 		}),
 	};
 
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').generatedAlwaysAsIdentity({
 				startWith: 100,
 				cache: 10,
@@ -447,13 +447,13 @@ test('alter identity from a column - by default to always', async () => {
 
 test('alter identity from a column - always to by default', async () => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').generatedAlwaysAsIdentity(),
 		}),
 	};
 
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').generatedByDefaultAsIdentity({
 				startWith: 100,
 				cache: 10,
@@ -480,13 +480,13 @@ test('alter identity from a column - always to by default', async () => {
 
 test('add column with identity - few params', async () => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			email: text('email'),
 		}),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			email: text('email'),
 			id: int4('id').generatedByDefaultAsIdentity({}),
 			id1: int4('id1').generatedAlwaysAsIdentity({
@@ -510,14 +510,14 @@ test('add column with identity - few params', async () => {
 
 test('add identity to column - few params', async () => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').notNull(),
 			id1: int4('id1').notNull(),
 		}),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').generatedByDefaultAsIdentity({}),
 			id1: int4('id1').generatedAlwaysAsIdentity({
 				increment: 4,

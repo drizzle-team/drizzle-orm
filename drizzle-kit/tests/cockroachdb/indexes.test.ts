@@ -1,14 +1,5 @@
 import { sql } from 'drizzle-orm';
-import {
-	boolean,
-	cockroachdbRole,
-	cockroachdbTable,
-	index,
-	int4,
-	text,
-	uuid,
-	vector,
-} from 'drizzle-orm/cockroachdb-core';
+import { boolean, cockroachTable, index, int4, text, uuid, vector } from 'drizzle-orm/cockroach-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -31,14 +22,14 @@ beforeEach(async () => {
 
 test('adding basic indexes', async () => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 			name: text('name'),
 		}),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable(
+		users: cockroachTable(
 			'users',
 			{
 				id: int4('id').primaryKey(),
@@ -69,7 +60,7 @@ test('adding basic indexes', async () => {
 
 test('dropping basic index', async () => {
 	const schema1 = {
-		users: cockroachdbTable(
+		users: cockroachTable(
 			'users',
 			{
 				id: int4('id').primaryKey(),
@@ -80,7 +71,7 @@ test('dropping basic index', async () => {
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 			name: text('name'),
 		}),
@@ -99,13 +90,13 @@ test('dropping basic index', async () => {
 
 test('altering indexes', async () => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 			name: text('name'),
 		}, (t) => [
 			index('removeColumn').on(t.name, t.id),
 			index('addColumn').on(t.name.desc()),
-			index('removeExpression').on(t.name.desc(), sql`id`).concurrently(),
+			index('removeExpression').on(t.name.desc(), sql`id`),
 			index('addExpression').on(t.id.desc()),
 			index('changeExpression').on(t.id.desc(), sql`name`),
 			index('changeName').on(t.name.desc(), t.id.asc()),
@@ -114,13 +105,13 @@ test('altering indexes', async () => {
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 			name: text('name'),
 		}, (t) => [
 			index('removeColumn').on(t.name),
 			index('addColumn').on(t.name.desc(), t.id.asc()),
-			index('removeExpression').on(t.name.desc()).concurrently(),
+			index('removeExpression').on(t.name.desc()),
 			index('addExpression').on(t.id.desc()),
 			index('changeExpression').on(t.id.desc(), sql`name desc`),
 			index('newName').on(t.name.desc(), sql`id`),
@@ -130,7 +121,7 @@ test('altering indexes', async () => {
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	await push({ db, to: schema1, log: 'statements' });
+	await push({ db, to: schema1 });
 	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
 	expect(st).toStrictEqual([
@@ -143,7 +134,7 @@ test('altering indexes', async () => {
 		'CREATE INDEX "newName" ON "users" ("name" DESC,id);',
 		'CREATE INDEX "removeColumn" ON "users" ("name");',
 		'CREATE INDEX "addColumn" ON "users" ("name" DESC,"id");',
-		'CREATE INDEX CONCURRENTLY "removeExpression" ON "users" ("name" DESC);',
+		'CREATE INDEX "removeExpression" ON "users" ("name" DESC);',
 		'CREATE INDEX "changeExpression" ON "users" ("id" DESC,name desc);',
 		'CREATE INDEX "changeUsing" ON "users" ("name") USING hash;',
 	]);
@@ -155,7 +146,7 @@ test('altering indexes', async () => {
 		'DROP INDEX "removeColumn";',
 		'CREATE INDEX "newName" ON "users" ("name" DESC,id);',
 		'CREATE INDEX "changeUsing" ON "users" ("name") USING hash;',
-		'CREATE INDEX CONCURRENTLY "removeExpression" ON "users" ("name" DESC);',
+		'CREATE INDEX "removeExpression" ON "users" ("name" DESC);',
 		'CREATE INDEX "addColumn" ON "users" ("name" DESC,"id");',
 		'CREATE INDEX "removeColumn" ON "users" ("name");',
 	]);
@@ -163,7 +154,7 @@ test('altering indexes', async () => {
 
 test('indexes test case #1', async () => {
 	const schema1 = {
-		users: cockroachdbTable(
+		users: cockroachTable(
 			'users',
 			{
 				id: uuid('id').defaultRandom().primaryKey(),
@@ -181,7 +172,7 @@ test('indexes test case #1', async () => {
 	};
 
 	const schema2 = {
-		users: cockroachdbTable(
+		users: cockroachTable(
 			'users',
 			{
 				id: uuid('id').defaultRandom().primaryKey(),
@@ -211,19 +202,19 @@ test('indexes test case #1', async () => {
 
 test('Indexes properties that should not trigger push changes', async () => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 			name: text('name'),
 		}, (t) => [
 			index('changeExpression').on(t.id.desc(), sql`name`),
-			index('indx1').on(t.name.desc()).concurrently(),
+			index('indx1').on(t.name.desc()),
 			index('indx2').on(t.name.desc()).where(sql`true`),
 			index('indx4').on(sql`lower(name)`).where(sql`true`),
 		]),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 			name: text('name'),
 		}, (t) => [
@@ -255,7 +246,7 @@ test('Indexes properties that should not trigger push changes', async () => {
 
 test('indexes #0', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable(
+		users: cockroachTable(
 			'users',
 			{
 				id: int4('id').primaryKey(),
@@ -266,7 +257,7 @@ test('indexes #0', async (t) => {
 			) => [
 				index('removeColumn').on(t.name, t.id),
 				index('addColumn').on(t.name.desc()),
-				index('removeExpression').on(t.name.desc(), sql`id`).concurrently(),
+				index('removeExpression').on(t.name.desc(), sql`id`),
 				index('addExpression').on(t.id.desc()),
 				index('changeExpression').on(t.id.desc(), sql`name`),
 				index('changeName').on(t.name.desc(), t.id.asc()),
@@ -276,7 +267,7 @@ test('indexes #0', async (t) => {
 	};
 
 	const schema2 = {
-		users: cockroachdbTable(
+		users: cockroachTable(
 			'users',
 			{
 				id: int4('id').primaryKey(),
@@ -285,7 +276,7 @@ test('indexes #0', async (t) => {
 			(t) => [
 				index('removeColumn').on(t.name),
 				index('addColumn').on(t.name.desc(), t.id),
-				index('removeExpression').on(t.name.desc()).concurrently(),
+				index('removeExpression').on(t.name.desc()),
 				index('addExpression').on(t.id.desc()),
 				index('changeExpression').on(t.id.desc(), sql`name desc`),
 				index('newName').on(t.name.desc(), sql`id`),
@@ -312,7 +303,7 @@ test('indexes #0', async (t) => {
 		'CREATE INDEX "newName" ON "users" ("name" DESC,id);',
 		'CREATE INDEX "removeColumn" ON "users" ("name");',
 		'CREATE INDEX "addColumn" ON "users" ("name" DESC,"id");',
-		'CREATE INDEX CONCURRENTLY "removeExpression" ON "users" ("name" DESC);',
+		'CREATE INDEX "removeExpression" ON "users" ("name" DESC);',
 		'CREATE INDEX "changeExpression" ON "users" ("id" DESC,name desc);',
 		'CREATE INDEX "changeUsing" ON "users" ("name") USING hash;',
 	]);
@@ -328,7 +319,7 @@ test('indexes #0', async (t) => {
 		'CREATE INDEX "newName" ON "users" ("name" DESC,id);',
 		// 'CREATE INDEX "changeExpression" ON "users" ("id" DESC,name desc);',
 		'CREATE INDEX "changeUsing" ON "users" ("name") USING hash;',
-		'CREATE INDEX CONCURRENTLY "removeExpression" ON "users" ("name" DESC);',
+		'CREATE INDEX "removeExpression" ON "users" ("name" DESC);',
 		'CREATE INDEX "addColumn" ON "users" ("name" DESC,"id");',
 		'CREATE INDEX "removeColumn" ON "users" ("name");',
 	]);
@@ -336,14 +327,14 @@ test('indexes #0', async (t) => {
 
 test('vector index', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 			name: vector('name', { dimensions: 3 }),
 		}),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 			embedding: vector('name', { dimensions: 3 }),
 		}, (t) => [
@@ -366,18 +357,18 @@ test('vector index', async (t) => {
 
 test('index #2', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 			name: text('name'),
 		}, (t) => [
-			index('indx').on(t.name.desc()).concurrently(),
+			index('indx').on(t.name.desc()),
 			index('indx1').on(t.name.desc()),
 			index('indx3').on(sql`lower(name)`),
 		]),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 			name: text('name'),
 		}, (t) => [
@@ -412,14 +403,14 @@ test('index #2', async (t) => {
 
 test('index #3', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 			name: text('name'),
 		}),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 			name: text('name'),
 		}, (t) => [

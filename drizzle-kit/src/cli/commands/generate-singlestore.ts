@@ -1,5 +1,5 @@
 import { Column, createDDL, interimToDDL, Table, View } from 'src/dialects/mysql/ddl';
-import { ddlDiffDry, ddlDiff } from 'src/dialects/singlestore/diff';
+import { ddlDiff, ddlDiffDry } from 'src/dialects/singlestore/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/singlestore/drizzle';
 import { prepareSnapshot } from 'src/dialects/singlestore/serializer';
 import { prepareFilenames } from 'src/utils/utils-node';

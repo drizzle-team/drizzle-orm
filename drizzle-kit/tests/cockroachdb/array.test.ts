@@ -1,14 +1,14 @@
 import {
 	bigint,
 	boolean,
-	cockroachdbEnum,
-	cockroachdbTable,
+	cockroachEnum,
+	cockroachTable,
 	date,
 	int4,
 	text,
 	timestamp,
 	uuid,
-} from 'drizzle-orm/cockroachdb-core';
+} from 'drizzle-orm/cockroach-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -31,12 +31,12 @@ beforeEach(async () => {
 
 test('array #1: empty array default', async (t) => {
 	const from = {
-		test: cockroachdbTable('test', {
+		test: cockroachTable('test', {
 			id: int4('id'),
 		}),
 	};
 	const to = {
-		test: cockroachdbTable('test', {
+		test: cockroachTable('test', {
 			id: int4('id'),
 			values: int4('values').array().default([]),
 		}),
@@ -54,12 +54,12 @@ test('array #1: empty array default', async (t) => {
 
 test('array #2: int4 array default', async (t) => {
 	const from = {
-		test: cockroachdbTable('test', {
+		test: cockroachTable('test', {
 			id: int4('id'),
 		}),
 	};
 	const to = {
-		test: cockroachdbTable('test', {
+		test: cockroachTable('test', {
 			id: int4('id'),
 			values: int4('values').array().default([1, 2, 3]),
 		}),
@@ -77,12 +77,12 @@ test('array #2: int4 array default', async (t) => {
 
 test('array #3: bigint array default', async (t) => {
 	const from = {
-		test: cockroachdbTable('test', {
+		test: cockroachTable('test', {
 			id: int4('id'),
 		}),
 	};
 	const to = {
-		test: cockroachdbTable('test', {
+		test: cockroachTable('test', {
 			id: int4('id'),
 			values: bigint('values', { mode: 'bigint' }).array().default([BigInt(1), BigInt(2), BigInt(3)]),
 		}),
@@ -100,12 +100,12 @@ test('array #3: bigint array default', async (t) => {
 
 test('array #4: boolean array default', async (t) => {
 	const from = {
-		test: cockroachdbTable('test', {
+		test: cockroachTable('test', {
 			id: int4('id'),
 		}),
 	};
 	const to = {
-		test: cockroachdbTable('test', {
+		test: cockroachTable('test', {
 			id: int4('id'),
 			values: boolean('values').array().default([true, false, true]),
 		}),
@@ -125,12 +125,12 @@ test('array #4: boolean array default', async (t) => {
 
 test('array #6: date array default', async (t) => {
 	const from = {
-		test: cockroachdbTable('test', {
+		test: cockroachTable('test', {
 			id: int4('id'),
 		}),
 	};
 	const to = {
-		test: cockroachdbTable('test', {
+		test: cockroachTable('test', {
 			id: int4('id'),
 			values: date('values').array().default(['2024-08-06', '2024-08-07']),
 		}),
@@ -150,12 +150,12 @@ test('array #6: date array default', async (t) => {
 
 test('array #7: timestamp array default', async (t) => {
 	const from = {
-		test: cockroachdbTable('test', {
+		test: cockroachTable('test', {
 			id: int4('id'),
 		}),
 	};
 	const to = {
-		test: cockroachdbTable('test', {
+		test: cockroachTable('test', {
 			id: int4('id'),
 			values: timestamp('values').array().default([new Date('2024-08-06'), new Date('2024-08-07')]),
 		}),
@@ -175,12 +175,12 @@ test('array #7: timestamp array default', async (t) => {
 
 test('array #9: text array default', async (t) => {
 	const from = {
-		test: cockroachdbTable('test', {
+		test: cockroachTable('test', {
 			id: int4('id'),
 		}),
 	};
 	const to = {
-		test: cockroachdbTable('test', {
+		test: cockroachTable('test', {
 			id: int4('id'),
 			values: text('values').array().default(['abc', 'def']),
 		}),
@@ -191,19 +191,19 @@ test('array #9: text array default', async (t) => {
 	await push({ db, to: from });
 	const { sqlStatements: pst } = await push({ db, to });
 
-	const st0 = ['ALTER TABLE "test" ADD COLUMN "values" text[] DEFAULT \'{abc,def}\'::text[];'];
+	const st0 = ['ALTER TABLE "test" ADD COLUMN "values" string[] DEFAULT \'{abc,def}\'::string[];'];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
 
 test('array #10: uuid array default', async (t) => {
 	const from = {
-		test: cockroachdbTable('test', {
+		test: cockroachTable('test', {
 			id: int4('id'),
 		}),
 	};
 	const to = {
-		test: cockroachdbTable('test', {
+		test: cockroachTable('test', {
 			id: int4('id'),
 			values: uuid('values').array().default([
 				'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
@@ -225,17 +225,17 @@ test('array #10: uuid array default', async (t) => {
 });
 
 test('array #11: enum array default', async (t) => {
-	const testEnum = cockroachdbEnum('test_enum', ['a', 'b', 'c']);
+	const testEnum = cockroachEnum('test_enum', ['a', 'b', 'c']);
 
 	const from = {
 		enum: testEnum,
-		test: cockroachdbTable('test', {
+		test: cockroachTable('test', {
 			id: int4('id'),
 		}),
 	};
 	const to = {
 		enum: testEnum,
-		test: cockroachdbTable('test', {
+		test: cockroachTable('test', {
 			id: int4('id'),
 			values: testEnum('values').array().default(['a', 'b', 'c']),
 		}),
@@ -254,17 +254,17 @@ test('array #11: enum array default', async (t) => {
 });
 
 test('array #12: enum empty array default', async (t) => {
-	const testEnum = cockroachdbEnum('test_enum', ['a', 'b', 'c']);
+	const testEnum = cockroachEnum('test_enum', ['a', 'b', 'c']);
 
 	const from = {
 		enum: testEnum,
-		test: cockroachdbTable('test', {
+		test: cockroachTable('test', {
 			id: int4('id'),
 		}),
 	};
 	const to = {
 		enum: testEnum,
-		test: cockroachdbTable('test', {
+		test: cockroachTable('test', {
 			id: int4('id'),
 			values: testEnum('values').array().default([]),
 		}),

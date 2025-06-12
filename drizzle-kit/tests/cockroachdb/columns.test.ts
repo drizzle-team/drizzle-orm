@@ -3,12 +3,15 @@ import {
 	bigint,
 	boolean,
 	char,
-	cockroachdbEnum,
-	cockroachdbSchema,
-	cockroachdbTable,
+	cockroachEnum,
+	cockroachSchema,
+	cockroachTable,
 	date,
+	decimal,
 	doublePrecision,
+	float,
 	index,
+	int2,
 	int4,
 	int8,
 	interval,
@@ -17,13 +20,14 @@ import {
 	primaryKey,
 	real,
 	smallint,
+	string,
 	text,
 	time,
 	timestamp,
 	uniqueIndex,
 	uuid,
 	varchar,
-} from 'drizzle-orm/cockroachdb-core';
+} from 'drizzle-orm/cockroach-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -46,13 +50,13 @@ beforeEach(async () => {
 
 test('add columns #1', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 		}),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 			name: text('name'),
 		}),
@@ -63,20 +67,20 @@ test('add columns #1', async (t) => {
 	await push({ db, to: schema1 });
 	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
-	const st0 = ['ALTER TABLE "users" ADD COLUMN "name" text;'];
+	const st0 = ['ALTER TABLE "users" ADD COLUMN "name" string;'];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
 
 test('add columns #2', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 		}),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 			name: text('name'),
 			email: text('email'),
@@ -89,8 +93,8 @@ test('add columns #2', async (t) => {
 	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
 	const st0 = [
-		'ALTER TABLE "users" ADD COLUMN "name" text;',
-		'ALTER TABLE "users" ADD COLUMN "email" text;',
+		'ALTER TABLE "users" ADD COLUMN "name" string;',
+		'ALTER TABLE "users" ADD COLUMN "email" string;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -98,14 +102,14 @@ test('add columns #2', async (t) => {
 
 test('alter column change name #1', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 			name: text('name'),
 		}),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 			name: text('name1'),
 		}),
@@ -131,14 +135,14 @@ test('alter column change name #1', async (t) => {
 
 test('alter column change name #2', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 			name: text('name'),
 		}),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 			name: text('name1'),
 			email: text('email'),
@@ -160,7 +164,7 @@ test('alter column change name #2', async (t) => {
 
 	const st0 = [
 		'ALTER TABLE "users" RENAME COLUMN "name" TO "name1";',
-		'ALTER TABLE "users" ADD COLUMN "email" text;',
+		'ALTER TABLE "users" ADD COLUMN "email" string;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -168,14 +172,14 @@ test('alter column change name #2', async (t) => {
 
 test('alter table add composite pk', async (t) => {
 	const schema1 = {
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			id1: int4('id1').notNull(),
 			id2: int4('id2').notNull(),
 		}),
 	};
 
 	const schema2 = {
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			id1: int4('id1').notNull(),
 			id2: int4('id2').notNull(),
 		}, (t) => [primaryKey({ columns: [t.id1, t.id2] })]),
@@ -200,13 +204,13 @@ test('alter table add composite pk', async (t) => {
 
 test('rename table rename column #1', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 		}),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users1', {
+		users: cockroachTable('users1', {
 			id: int4('id1'),
 		}),
 	};
@@ -236,14 +240,14 @@ test('rename table rename column #1', async (t) => {
 
 test('with composite pks #1', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id1: int4('id1'),
 			id2: int4('id2'),
 		}, (t) => [primaryKey({ columns: [t.id1, t.id2], name: 'compositePK' })]),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id1: int4('id1'),
 			id2: int4('id2'),
 			text: text('text'),
@@ -255,21 +259,21 @@ test('with composite pks #1', async (t) => {
 	await push({ db, to: schema1 });
 	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
-	const st0 = ['ALTER TABLE "users" ADD COLUMN "text" text;'];
+	const st0 = ['ALTER TABLE "users" ADD COLUMN "text" string;'];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
 
 test('with composite pks #2', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id1: int4('id1'),
 			id2: int4('id2'),
 		}),
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id1: int4('id1').notNull(),
 			id2: int4('id2').notNull(),
 		}, (t) => [primaryKey({ columns: [t.id1, t.id2], name: 'compositePK' })]),
@@ -294,7 +298,7 @@ test('with composite pks #2', async (t) => {
 
 test('with composite pks #3', async (t) => {
 	const schema1 = {
-		users: cockroachdbTable(
+		users: cockroachTable(
 			'users',
 			{
 				id1: int4('id1'),
@@ -305,7 +309,7 @@ test('with composite pks #3', async (t) => {
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id1: int4('id1'),
 			id3: int4('id3'),
 		}, (t) => [primaryKey({ columns: [t.id1, t.id3], name: 'compositePK' })]),
@@ -326,7 +330,7 @@ test('create composite primary key', async () => {
 	const schema1 = {};
 
 	const schema2 = {
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			col1: int4('col1').notNull(),
 			col2: int4('col2').notNull(),
 		}, (t) => [primaryKey({
@@ -347,15 +351,15 @@ test('create composite primary key', async () => {
 });
 
 test('add multiple constraints #1', async (t) => {
-	const t1 = cockroachdbTable('t1', {
+	const t1 = cockroachTable('t1', {
 		id: uuid('id').primaryKey().defaultRandom(),
 	});
 
-	const t2 = cockroachdbTable('t2', {
+	const t2 = cockroachTable('t2', {
 		id: uuid('id').primaryKey().defaultRandom(),
 	});
 
-	const t3 = cockroachdbTable('t3', {
+	const t3 = cockroachTable('t3', {
 		id: uuid('id').primaryKey().defaultRandom(),
 	});
 
@@ -363,7 +367,7 @@ test('add multiple constraints #1', async (t) => {
 		t1,
 		t2,
 		t3,
-		ref1: cockroachdbTable('ref1', {
+		ref1: cockroachTable('ref1', {
 			id1: uuid('id1').references(() => t1.id),
 			id2: uuid('id2').references(() => t2.id),
 			id3: uuid('id3').references(() => t3.id),
@@ -374,7 +378,7 @@ test('add multiple constraints #1', async (t) => {
 		t1,
 		t2,
 		t3,
-		ref1: cockroachdbTable('ref1', {
+		ref1: cockroachTable('ref1', {
 			id1: uuid('id1').references(() => t1.id, { onDelete: 'cascade' }),
 			id2: uuid('id2').references(() => t2.id, { onDelete: 'set null' }),
 			id3: uuid('id3').references(() => t3.id, { onDelete: 'cascade' }),
@@ -400,7 +404,7 @@ test('add multiple constraints #1', async (t) => {
 });
 
 test('add multiple constraints #2', async (t) => {
-	const t1 = cockroachdbTable('t1', {
+	const t1 = cockroachTable('t1', {
 		id1: uuid('id1').unique(),
 		id2: uuid('id2').unique(),
 		id3: uuid('id3').unique(),
@@ -408,7 +412,7 @@ test('add multiple constraints #2', async (t) => {
 
 	const schema1 = {
 		t1,
-		ref1: cockroachdbTable('ref1', {
+		ref1: cockroachTable('ref1', {
 			id1: uuid('id1').references(() => t1.id1),
 			id2: uuid('id2').references(() => t1.id2),
 			id3: uuid('id3').references(() => t1.id3),
@@ -417,7 +421,7 @@ test('add multiple constraints #2', async (t) => {
 
 	const schema2 = {
 		t1,
-		ref1: cockroachdbTable('ref1', {
+		ref1: cockroachTable('ref1', {
 			id1: uuid('id1').references(() => t1.id1, { onDelete: 'cascade' }),
 			id2: uuid('id2').references(() => t1.id2, { onDelete: 'set null' }),
 			id3: uuid('id3').references(() => t1.id3, { onDelete: 'cascade' }),
@@ -440,7 +444,7 @@ test('add multiple constraints #2', async (t) => {
 });
 
 test('add multiple constraints #3', async (t) => {
-	const t1 = cockroachdbTable('t1', {
+	const t1 = cockroachTable('t1', {
 		id1: uuid('id1').unique(),
 		id2: uuid('id2').unique(),
 		id3: uuid('id3').unique(),
@@ -448,26 +452,26 @@ test('add multiple constraints #3', async (t) => {
 
 	const schema1 = {
 		t1,
-		ref1: cockroachdbTable('ref1', {
+		ref1: cockroachTable('ref1', {
 			id: uuid('id').references(() => t1.id1),
 		}),
-		ref2: cockroachdbTable('ref2', {
+		ref2: cockroachTable('ref2', {
 			id: uuid('id').references(() => t1.id2),
 		}),
-		ref3: cockroachdbTable('ref3', {
+		ref3: cockroachTable('ref3', {
 			id: uuid('id').references(() => t1.id3),
 		}),
 	};
 
 	const schema2 = {
 		t1,
-		ref1: cockroachdbTable('ref1', {
+		ref1: cockroachTable('ref1', {
 			id: uuid('id').references(() => t1.id1, { onDelete: 'cascade' }),
 		}),
-		ref2: cockroachdbTable('ref2', {
+		ref2: cockroachTable('ref2', {
 			id: uuid('id').references(() => t1.id2, { onDelete: 'set null' }),
 		}),
-		ref3: cockroachdbTable('ref3', {
+		ref3: cockroachTable('ref3', {
 			id: uuid('id').references(() => t1.id3, { onDelete: 'cascade' }),
 		}),
 	};
@@ -492,13 +496,13 @@ test('add multiple constraints #3', async (t) => {
 
 test('varchar and text default values escape single quotes', async () => {
 	const schema1 = {
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			id: int4('id').primaryKey(),
 		}),
 	};
 
 	const schema2 = {
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			id: int4('id').primaryKey(),
 			text: text('text').default("escape's quotes"),
 			varchar: varchar('varchar').default("escape's quotes"),
@@ -514,7 +518,7 @@ test('varchar and text default values escape single quotes', async () => {
 	});
 
 	const st0 = [
-		`ALTER TABLE "table" ADD COLUMN "text" text DEFAULT 'escape''s quotes';`,
+		`ALTER TABLE "table" ADD COLUMN "text" string DEFAULT 'escape''s quotes';`,
 		`ALTER TABLE "table" ADD COLUMN "varchar" varchar DEFAULT 'escape''s quotes';`,
 	];
 	expect(st).toStrictEqual(st0);
@@ -523,16 +527,16 @@ test('varchar and text default values escape single quotes', async () => {
 
 test('add columns with defaults', async () => {
 	const schema1 = {
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			id: int4().primaryKey(),
 		}),
 	};
 
 	const schema2 = {
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			id: int4().primaryKey(),
 			text1: text().default(''),
-			text2: text().default('text'),
+			text2: string({ length: 100 }).default('text'),
 			int1: int4().default(10),
 			int2: int4().default(0),
 			int3: int4().default(-10),
@@ -550,8 +554,8 @@ test('add columns with defaults', async () => {
 	});
 
 	const st0 = [
-		'ALTER TABLE "table" ADD COLUMN "text1" text DEFAULT \'\';',
-		'ALTER TABLE "table" ADD COLUMN "text2" text DEFAULT \'text\';',
+		'ALTER TABLE "table" ADD COLUMN "text1" string DEFAULT \'\';',
+		'ALTER TABLE "table" ADD COLUMN "text2" string(100) DEFAULT \'text\';',
 		'ALTER TABLE "table" ADD COLUMN "int1" int4 DEFAULT 10;',
 		'ALTER TABLE "table" ADD COLUMN "int2" int4 DEFAULT 0;',
 		'ALTER TABLE "table" ADD COLUMN "int3" int4 DEFAULT -10;',
@@ -566,12 +570,12 @@ test('add columns with defaults', async () => {
 
 test('add array column - empty array default', async () => {
 	const schema1 = {
-		test: cockroachdbTable('test', {
+		test: cockroachTable('test', {
 			id: int4('id').primaryKey(),
 		}),
 	};
 	const schema2 = {
-		test: cockroachdbTable('test', {
+		test: cockroachTable('test', {
 			id: int4('id').primaryKey(),
 			values: int4('values').array().default([]),
 		}),
@@ -594,12 +598,12 @@ test('add array column - empty array default', async () => {
 
 test('add array column - default', async () => {
 	const schema1 = {
-		test: cockroachdbTable('test', {
+		test: cockroachTable('test', {
 			id: int4('id').primaryKey(),
 		}),
 	};
 	const schema2 = {
-		test: cockroachdbTable('test', {
+		test: cockroachTable('test', {
 			id: int4('id').primaryKey(),
 			values: int4('values').array().default([1, 2, 3]),
 		}),
@@ -622,7 +626,7 @@ test('add array column - default', async () => {
 
 test('add not null to a column', async () => {
 	const schema1 = {
-		users: cockroachdbTable(
+		users: cockroachTable(
 			'User',
 			{
 				id: text('id').primaryKey().notNull(),
@@ -647,7 +651,7 @@ test('add not null to a column', async () => {
 	};
 
 	const schema2 = {
-		users: cockroachdbTable(
+		users: cockroachTable(
 			'User',
 			{
 				id: text('id').primaryKey().notNull(),
@@ -689,7 +693,7 @@ test('add not null to a column', async () => {
 
 test('add not null to a column with null data. Should rollback', async () => {
 	const schema1 = {
-		users: cockroachdbTable('User', {
+		users: cockroachTable('User', {
 			id: text('id').primaryKey(),
 			name: text('name'),
 			username: text('username'),
@@ -703,7 +707,7 @@ test('add not null to a column with null data. Should rollback', async () => {
 	};
 
 	const schema2 = {
-		users: cockroachdbTable('User', {
+		users: cockroachTable('User', {
 			id: text('id').primaryKey(),
 			name: text('name'),
 			username: text('username'),
@@ -732,14 +736,14 @@ test('add not null to a column with null data. Should rollback', async () => {
 
 test('add generated column', async () => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id2: int4('id2'),
 			name: text('name'),
 		}),
 	};
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id2: int4('id2'),
 			name: text('name'),
@@ -753,7 +757,7 @@ test('add generated column', async () => {
 	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
 	const st0: string[] = [
-		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name") STORED;',
+		'ALTER TABLE "users" ADD COLUMN "gen_name" string GENERATED ALWAYS AS ("users"."name") STORED;',
 	];
 
 	expect(st).toStrictEqual(st0);
@@ -762,7 +766,7 @@ test('add generated column', async () => {
 
 test('add generated constraint to an existing column', async () => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id2: int4('id2'),
 			name: text('name'),
@@ -770,7 +774,7 @@ test('add generated constraint to an existing column', async () => {
 		}),
 	};
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id2: int4('id2'),
 			name: text('name'),
@@ -785,7 +789,7 @@ test('add generated constraint to an existing column', async () => {
 
 	const st0: string[] = [
 		'ALTER TABLE "users" DROP COLUMN "gen_name";',
-		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name") STORED;',
+		'ALTER TABLE "users" ADD COLUMN "gen_name" string GENERATED ALWAYS AS ("users"."name") STORED;',
 	];
 
 	expect(st).toStrictEqual(st0);
@@ -794,7 +798,7 @@ test('add generated constraint to an existing column', async () => {
 
 test('drop generated constraint from a column', async () => {
 	const schema1 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id2: int4('id2'),
 			name: text('name'),
@@ -802,7 +806,7 @@ test('drop generated constraint from a column', async () => {
 		}),
 	};
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id2: int4('id2'),
 			name: text('name'),
@@ -817,183 +821,200 @@ test('drop generated constraint from a column', async () => {
 
 	const st0: string[] = [
 		'ALTER TABLE "users" DROP COLUMN "gen_name";',
-		'ALTER TABLE "users" ADD COLUMN "gen_name" text;',
+		'ALTER TABLE "users" ADD COLUMN "gen_name" string;',
 	];
 
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
 
-// fix defaults
-test.todo('no diffs for all database types', async () => {
-	const customSchema = cockroachdbSchema('schemass');
+test('no diffs for all database types', async () => {
+	const customSchema = cockroachSchema('schemass');
 
 	const transactionStatusEnum = customSchema.enum('TransactionStatusEnum', ['PENDING', 'FAILED', 'SUCCESS']);
 
-	const enumname = cockroachdbEnum('enumname', ['three', 'two', 'one']);
+	const enumname = cockroachEnum('enumname', ['three', 'two', 'one']);
 
 	const schema1 = {
-		// test: cockroachdbEnum('test', ['ds']),
-		// testHello: cockroachdbEnum('test_hello', ['ds']),
-		// enumname: cockroachdbEnum('enumname', ['three', 'two', 'one']),
+		test: cockroachEnum('test', ['ds']),
+		testHello: cockroachEnum('test_hello', ['ds']),
+		enumname: cockroachEnum('enumname', ['three', 'two', 'one']),
 
 		customSchema: customSchema,
-		// transactionStatusEnum: customSchema.enum('TransactionStatusEnum', ['PENDING', 'FAILED', 'SUCCESS']),
+		transactionStatusEnum: customSchema.enum('TransactionStatusEnum', ['PENDING', 'FAILED', 'SUCCESS']),
 
-		// allSmallSerials: cockroachdbTable('schema_test', {
-		// 	columnAll: uuid('column_all').defaultRandom(),
-		// 	column: transactionStatusEnum('column').notNull(),
-		// }),
+		allSmallSerials: cockroachTable('schema_test', {
+			columnAll: uuid('column_all').defaultRandom(),
+			column: transactionStatusEnum('column').notNull(),
+		}),
 
-		// allSmallInts: customSchema.table(
-		// 	'schema_test2',
-		// 	{
-		// 		columnAll: smallint('column_all').default(124).notNull(),
-		// 		column: smallint('columns').array(),
-		// 		column2: smallint('column2').array(),
-		// 	},
-		// 	(t: any) => [uniqueIndex('testdfds').on(t.column)],
-		// ),
+		allSmallInts: customSchema.table(
+			'schema_test2',
+			{
+				columnAll: smallint('column_all').default(124).notNull(),
+				column: smallint('columns').array(),
+				column2: smallint('column2').array(),
+			},
+			(t: any) => [uniqueIndex('testdfds').on(t.column)],
+		),
 
-		// allEnums: customSchema.table(
-		// 	'all_enums',
-		// 	{
-		// 		columnAll: enumname('column_all').default('three').notNull(),
-		// 		column: enumname('columns'),
-		// 	},
-		// 	(t: any) => [index('ds').on(t.column)],
-		// ),
+		allInt2: customSchema.table(
+			'all_int2',
+			{
+				columnAll: int2('column_all').default(124).notNull(),
+				column: int2('columns').array(),
+				column2: int2('column2').array(),
+			},
+		),
 
-		// allTimestamps: customSchema.table('all_timestamps', {
-		// 	columnDateNow: timestamp('column_date_now', {
-		// 		precision: 1,
-		// 		withTimezone: true,
-		// 		mode: 'string',
-		// 	}).defaultNow(),
-		// 	columnAll: timestamp('column_all', { mode: 'string' }).default('2023-03-01 12:47:29.792'),
-		// 	column: timestamp('column', { mode: 'string' }).default(sql`'2023-02-28 16:18:31.18'`),
-		// 	column2: timestamp('column2', { mode: 'string', precision: 3 }).default(sql`'2023-02-28 16:18:31.18'`),
-		// }),
+		allEnums: customSchema.table(
+			'all_enums',
+			{
+				columnAll: enumname('column_all').default('three').notNull(),
+				column: enumname('columns'),
+			},
+			(t: any) => [index('ds').on(t.column)],
+		),
 
-		// allUuids: customSchema.table('all_uuids', {
-		// 	columnAll: uuid('column_all').defaultRandom().notNull(),
-		// 	column: uuid('column'),
-		// }),
+		allTimestamps: customSchema.table('all_timestamps', {
+			columnDateNow: timestamp('column_date_now', {
+				precision: 1,
+				withTimezone: true,
+				mode: 'string',
+			}).defaultNow(),
+			columnAll: timestamp('column_all', { mode: 'string' }).default('2023-03-01 12:47:29.792'),
+			column: timestamp('column', { mode: 'string' }).default(sql`'2023-02-28 16:18:31.18'`),
+			column2: timestamp('column2', { mode: 'string', precision: 3 }).default(sql`'2023-02-28 16:18:31.18'`),
+		}),
 
-		// allDates: customSchema.table('all_dates', {
-		// 	column_date_now: date('column_date_now').defaultNow(),
-		// 	column_all: date('column_all', { mode: 'date' }).default(new Date()).notNull(),
-		// 	column: date('column'),
-		// }),
+		allUuids: customSchema.table('all_uuids', {
+			columnAll: uuid('column_all').defaultRandom().notNull(),
+			column: uuid('column'),
+		}),
+
+		allDates: customSchema.table('all_dates', {
+			column_date_now: date('column_date_now').defaultNow(),
+			column_all: date('column_all', { mode: 'date' }).default(new Date()).notNull(),
+			column: date('column'),
+		}),
 
 		allReals: customSchema.table('all_reals', {
 			columnAll: real('column_all').default(32).notNull(),
 			column: real('column'),
 			columnPrimary: real('column_primary').primaryKey().notNull(),
 		}),
-		// allBigints: cockroachdbTable('all_bigints', {
-		// 	columnAll: bigint('column_all', { mode: 'number' }).default(124).notNull(),
-		// 	column: bigint('column', { mode: 'number' }),
-		// 	column1: int8('column1', { mode: 'number' }),
-		// 	column2: int8('column2', { mode: 'bigint' }),
-		// }),
+		allBigints: cockroachTable('all_bigints', {
+			columnAll: bigint('column_all', { mode: 'number' }).default(124).notNull(),
+			column: bigint('column', { mode: 'number' }),
+			column1: int8('column1', { mode: 'number' }),
+			column2: int8('column2', { mode: 'bigint' }),
+		}),
 
-		// allIntervals: customSchema.table('all_intervals', {
-		// 	columnAllConstrains: interval('column_all_constrains', {
-		// 		fields: 'month',
-		// 	})
-		// 		.default('1 mon')
-		// 		.notNull(),
-		// 	columnMinToSec: interval('column_min_to_sec', {
-		// 		fields: 'minute to second',
-		// 	}),
-		// 	columnWithoutFields: interval('column_without_fields').default('00:00:01').notNull(),
-		// 	column: interval('column'),
-		// 	column5: interval('column5', {
-		// 		fields: 'minute to second',
-		// 		precision: 3,
-		// 	}),
-		// 	column6: interval('column6'),
-		// }),
+		allIntervals: customSchema.table('all_intervals', {
+			columnAllConstrains: interval('column_all_constrains', {
+				fields: 'month',
+			})
+				.default('1 mon')
+				.notNull(),
+			columnMinToSec: interval('column_min_to_sec', {
+				fields: 'minute to second',
+			}),
+			columnWithoutFields: interval('column_without_fields').default('00:00:01').notNull(),
+			column: interval('column'),
+			column5: interval('column5', {
+				fields: 'minute to second',
+				precision: 3,
+			}),
+			column6: interval('column6'),
+		}),
 
-		// allSerials: customSchema.table('all_serials', {
-		// 	columnAll: int4('column_all').notNull(),
-		// 	column: int4('column').notNull(),
-		// }),
+		allSerials: customSchema.table('all_serials', {
+			columnAll: int4('column_all').notNull(),
+			column: int4('column').notNull(),
+		}),
 
-		// allTexts: customSchema.table(
-		// 	'all_texts',
-		// 	{
-		// 		columnAll: text('column_all').default('text').notNull(),
-		// 		column: text('columns').primaryKey(),
-		// 	},
-		// 	(t: any) => [index('test').on(t.column)],
-		// ),
+		allTexts: customSchema.table(
+			'all_texts',
+			{
+				columnAll: text('column_all').default('text').notNull(),
+				column: text('columns').primaryKey(),
+			},
+			(t: any) => [index('test').on(t.column)],
+		),
 
-		// allBools: customSchema.table('all_bools', {
-		// 	columnAll: boolean('column_all').default(true).notNull(),
-		// 	column: boolean('column'),
-		// }),
+		allStrings: customSchema.table(
+			'all_strings',
+			{
+				columnAll: string('column_all').default('text').notNull(),
+				column: string('columns').primaryKey(),
+				column2: string('column2', { length: 200 }),
+			},
+			(t: any) => [index('test').on(t.column)],
+		),
+		allBools: customSchema.table('all_bools', {
+			columnAll: boolean('column_all').default(true).notNull(),
+			column: boolean('column'),
+		}),
 
-		// allVarchars: customSchema.table('all_varchars', {
-		// 	columnAll: varchar('column_all').default('text').notNull(),
-		// 	column: varchar('column', { length: 200 }),
-		// }),
+		allVarchars: customSchema.table('all_varchars', {
+			columnAll: varchar('column_all').default('text').notNull(),
+			column: varchar('column', { length: 200 }),
+		}),
 
-		// allTimes: customSchema.table('all_times', {
-		// 	columnAll: time('column_all').default('22:12:12').notNull(),
-		// 	column: time('column'),
-		// }),
+		allTimes: customSchema.table('all_times', {
+			columnAll: time('column_all').default('22:12:12').notNull(),
+			column: time('column'),
+		}),
 
-		// allChars: customSchema.table('all_chars', {
-		// 	columnAll: char('column_all', { length: 1 }).default('text').notNull(),
-		// 	column: char('column', { length: 1 }),
-		// }),
+		allChars: customSchema.table('all_chars', {
+			columnAll: char('column_all', { length: 1 }).default('text').notNull(),
+			column: char('column', { length: 1 }),
+		}),
 
-		// allDoublePrecision: customSchema.table('all_double_precision', {
-		// 	columnAll: doublePrecision('column_all').default(33.2).notNull(),
-		// 	column: doublePrecision('column'),
-		// }),
+		allDoublePrecision: customSchema.table('all_double_precision', {
+			columnAll: doublePrecision('column_all').default(33.2).notNull(),
+			column: doublePrecision('column'),
+		}),
 
-		// allJsonb: customSchema.table('all_jsonb', {
-		// 	columnDefaultObject: jsonb('column_default_object').default({ hello: 'world world' }).notNull(),
-		// 	columnDefaultArray: jsonb('column_default_array').default({
-		// 		hello: { 'world world': ['foo', 'bar'] },
-		// 	}),
-		// 	column: jsonb('column'),
-		// }),
+		allFloat: customSchema.table('all_float', {
+			columnAll: float('column_all').default(33).notNull(),
+			column: float('column'),
+		}),
+		allJsonb: customSchema.table('all_jsonb', {
+			columnDefaultObject: jsonb('column_default_object').default({ hello: 'world world' }).notNull(),
+			columnDefaultArray: jsonb('column_default_array').default({
+				hello: { 'world world': ['foo', 'bar'] },
+			}),
+			column: jsonb('column'),
+		}),
 
-		// allJson: customSchema.table('all_json', {
-		// 	columnDefaultObject: json('column_default_object').default({ hello: 'world world' }).notNull(),
-		// 	columnDefaultArray: json('column_default_array').default({
-		// 		hello: { 'world world': ['foo', 'bar'] },
-		// 		foo: 'bar',
-		// 		fe: 23,
-		// 	}),
-		// 	column: json('column'),
-		// }),
+		allIntegers: customSchema.table('all_integers', {
+			columnAll: int4('column_all').primaryKey(),
+			column: int4('column'),
+			columnPrimary: int4('column_primary'),
+		}),
 
-		// allIntegers: customSchema.table('all_integers', {
-		// 	columnAll: int4('column_all').primaryKey(),
-		// 	column: int4('column'),
-		// 	columnPrimary: int4('column_primary'),
-		// }),
+		allNumerics: customSchema.table('all_numerics', {
+			columnAll: numeric('column_all').default('32').notNull(),
+			column: numeric('column', { precision: 1, scale: 1 }),
+			columnPrimary: numeric('column_primary').primaryKey().notNull(),
+		}),
 
-		// allNumerics: customSchema.table('all_numerics', {
-		// 	columnAll: numeric('column_all').default('32').notNull(),
-		// 	column: numeric('column', { precision: 1, scale: 1 }),
-		// 	columnPrimary: numeric('column_primary').primaryKey().notNull(),
-		// }),
+		allDecimals: customSchema.table('all_decimals', {
+			columnAll: decimal('column_all').default('32').notNull(),
+			column: decimal('column', { precision: 1, scale: 1 }),
+			columnPrimary: decimal('column_primary').primaryKey().notNull(),
+		}),
 	};
 
 	const schemas = ['public', 'schemass'];
-	// const { sqlStatements: st } = await diff(schema1, schema1, []);
+	const { sqlStatements: st } = await diff(schema1, schema1, []);
 
 	await push({ db, to: schema1 });
 	const { sqlStatements: pst } = await push({ db, to: schema1, schemas });
 
 	const st0: string[] = [];
 
-	// expect(st).toStrictEqual(st0);
+	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });

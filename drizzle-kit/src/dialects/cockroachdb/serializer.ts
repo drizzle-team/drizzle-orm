@@ -1,7 +1,7 @@
 import type { CasingType } from '../../cli/validations/common';
 import { schemaError, schemaWarning } from '../../cli/views';
 import { prepareFilenames } from '../../utils/utils-node';
-import { CockroachDbDDL, createDDL, interimToDDL } from './ddl';
+import { CockroachDDL, createDDL, interimToDDL } from './ddl';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
 import { CockroachDbSnapshot, drySnapshot, snapshotValidator } from './snapshot';
 
@@ -11,8 +11,8 @@ export const prepareSnapshot = async (
 	casing: CasingType | undefined,
 ): Promise<
 	{
-		ddlPrev: CockroachDbDDL;
-		ddlCur: CockroachDbDDL;
+		ddlPrev: CockroachDDL;
+		ddlCur: CockroachDDL;
 		snapshot: CockroachDbSnapshot;
 		snapshotPrev: CockroachDbSnapshot;
 		custom: CockroachDbSnapshot;

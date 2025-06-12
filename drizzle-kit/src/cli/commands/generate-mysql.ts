@@ -2,7 +2,7 @@ import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/mysql/dr
 import { prepareSnapshot } from 'src/dialects/mysql/serializer';
 import { prepareFilenames } from 'src/utils/utils-node';
 import { Column, createDDL, interimToDDL, type Table, View } from '../../dialects/mysql/ddl';
-import { ddlDiffDry, ddlDiff } from '../../dialects/mysql/diff';
+import { ddlDiff, ddlDiffDry } from '../../dialects/mysql/diff';
 import { assertV1OutFolder, prepareMigrationFolder } from '../../utils/utils-node';
 import { resolver } from '../prompts';
 import { writeResult } from './generate-common';

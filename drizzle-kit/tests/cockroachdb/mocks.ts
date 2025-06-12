@@ -1,26 +1,26 @@
 import { is } from 'drizzle-orm';
 import {
-	AnyCockroachDbColumn,
-	CockroachDbColumnBuilder,
-	CockroachDbDialect,
-	CockroachDbEnum,
-	CockroachDbEnumObject,
-	CockroachDbMaterializedView,
-	CockroachDbPolicy,
-	CockroachDbRole,
-	CockroachDbSchema,
-	CockroachDbSequence,
-	CockroachDbTable,
-	cockroachdbTable,
-	CockroachDbView,
+	AnyCockroachColumn,
+	CockroachColumnBuilder,
+	CockroachDialect,
+	CockroachEnum,
+	CockroachEnumObject,
+	CockroachMaterializedView,
+	CockroachPolicy,
+	CockroachRole,
+	CockroachSchema,
+	CockroachSequence,
+	CockroachTable,
+	cockroachTable,
+	CockroachView,
 	int4,
-	isCockroachDbEnum,
-	isCockroachDbMaterializedView,
-	isCockroachDbSequence,
-	isCockroachDbView,
-} from 'drizzle-orm/cockroachdb-core';
+	isCockroachEnum,
+	isCockroachMaterializedView,
+	isCockroachSequence,
+	isCockroachView,
+} from 'drizzle-orm/cockroach-core';
 import { CasingType } from 'src/cli/validations/common';
-import { CockroachDbDDL, Column, createDDL, interimToDDL, SchemaError } from 'src/dialects/cockroachdb/ddl';
+import { CockroachDDL, Column, createDDL, interimToDDL, SchemaError } from 'src/dialects/cockroachdb/ddl';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/cockroachdb/diff';
 import {
 	defaultFromColumn,
@@ -34,9 +34,9 @@ import Docker from 'dockerode';
 import { existsSync, rmSync, writeFileSync } from 'fs';
 import getPort from 'get-port';
 import { Pool, PoolClient } from 'pg';
-import { introspect } from 'src/cli/commands/pull-cockroachdb';
+import { introspect } from 'src/cli/commands/pull-cockroach';
 
-import { suggestions } from 'src/cli/commands/push-cockroachdb';
+import { suggestions } from 'src/cli/commands/push-cockroach';
 import { Entities } from 'src/cli/validations/cli';
 import { EmptyProgressView } from 'src/cli/views';
 import { defaultToSQL, isSystemRole } from 'src/dialects/cockroachdb/grammar';
@@ -48,15 +48,15 @@ import { v4 as uuidV4 } from 'uuid';
 
 export type CockroachDBSchema = Record<
 	string,
-	| CockroachDbTable<any>
-	| CockroachDbEnum<any>
-	| CockroachDbEnumObject<any>
-	| CockroachDbSchema
-	| CockroachDbSequence
-	| CockroachDbView
-	| CockroachDbMaterializedView
-	| CockroachDbRole
-	| CockroachDbPolicy
+	| CockroachTable<any>
+	| CockroachEnum<any>
+	| CockroachEnumObject<any>
+	| CockroachSchema
+	| CockroachSequence
+	| CockroachView
+	| CockroachMaterializedView
+	| CockroachRole
+	| CockroachPolicy
 >;
 
 class MockError extends Error {
@@ -69,16 +69,16 @@ export const drizzleToDDL = (
 	schema: CockroachDBSchema,
 	casing?: CasingType | undefined,
 ) => {
-	const tables = Object.values(schema).filter((it) => is(it, CockroachDbTable)) as CockroachDbTable[];
-	const schemas = Object.values(schema).filter((it) => is(it, CockroachDbSchema)) as CockroachDbSchema[];
-	const enums = Object.values(schema).filter((it) => isCockroachDbEnum(it)) as CockroachDbEnum<any>[];
-	const sequences = Object.values(schema).filter((it) => isCockroachDbSequence(it)) as CockroachDbSequence[];
-	const roles = Object.values(schema).filter((it) => is(it, CockroachDbRole)) as CockroachDbRole[];
-	const policies = Object.values(schema).filter((it) => is(it, CockroachDbPolicy)) as CockroachDbPolicy[];
-	const views = Object.values(schema).filter((it) => isCockroachDbView(it)) as CockroachDbView[];
+	const tables = Object.values(schema).filter((it) => is(it, CockroachTable)) as CockroachTable[];
+	const schemas = Object.values(schema).filter((it) => is(it, CockroachSchema)) as CockroachSchema[];
+	const enums = Object.values(schema).filter((it) => isCockroachEnum(it)) as CockroachEnum<any>[];
+	const sequences = Object.values(schema).filter((it) => isCockroachSequence(it)) as CockroachSequence[];
+	const roles = Object.values(schema).filter((it) => is(it, CockroachRole)) as CockroachRole[];
+	const policies = Object.values(schema).filter((it) => is(it, CockroachPolicy)) as CockroachPolicy[];
+	const views = Object.values(schema).filter((it) => isCockroachView(it)) as CockroachView[];
 	const materializedViews = Object.values(schema).filter((it) =>
-		isCockroachDbMaterializedView(it)
-	) as CockroachDbMaterializedView[];
+		isCockroachMaterializedView(it)
+	) as CockroachMaterializedView[];
 
 	const {
 		schema: res,
@@ -98,13 +98,13 @@ export const drizzleToDDL = (
 
 // 2 schemas -> 2 ddls -> diff
 export const diff = async (
-	left: CockroachDBSchema | CockroachDbDDL,
+	left: CockroachDBSchema | CockroachDDL,
 	right: CockroachDBSchema,
 	renamesArr: string[],
 	casing?: CasingType | undefined,
 ) => {
 	const { ddl: ddl1, errors: err1 } = 'entities' in left && '_' in left
-		? { ddl: left as CockroachDbDDL, errors: [] }
+		? { ddl: left as CockroachDDL, errors: [] }
 		: drizzleToDDL(left, casing);
 
 	const { ddl: ddl2, errors: err2 } = drizzleToDDL(right, casing);
@@ -136,7 +136,7 @@ export const diff = async (
 // init schema flush to db -> introspect db to ddl -> compare ddl with destination schema
 export const push = async (config: {
 	db: DB;
-	to: CockroachDBSchema | CockroachDbDDL;
+	to: CockroachDBSchema | CockroachDDL;
 	renames?: string[];
 	schemas?: string[];
 	casing?: CasingType;
@@ -152,7 +152,7 @@ export const push = async (config: {
 
 	const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
 	const { ddl: ddl2, errors: err2 } = 'entities' in to && '_' in to
-		? { ddl: to as CockroachDbDDL, errors: [] }
+		? { ddl: to as CockroachDDL, errors: [] }
 		: drizzleToDDL(to, casing);
 
 	if (err2.length > 0) {
@@ -239,7 +239,7 @@ export const diffPush = async (config: {
 		await db.query(st);
 	}
 
-	// do introspect into CockroachDbSchemaInternal
+	// do introspect into CockroachSchemaInternal
 	const introspectedSchema = await fromDatabaseForDrizzle(db, undefined, (it) => schemas.indexOf(it) >= 0, entities);
 
 	const { ddl: ddl1, errors: err3 } = interimToDDL(introspectedSchema);
@@ -291,7 +291,7 @@ export const diffIntrospect = async (
 
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
-	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel', 'cockroachdb');
+	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
 	writeFileSync(`tests/cockroachdb/tmp/${testName}.ts`, file.file);
 
 	// generate snapshot from ts file
@@ -320,7 +320,7 @@ export const diffIntrospect = async (
 	};
 };
 
-export const diffDefault = async <T extends CockroachDbColumnBuilder>(
+export const diffDefault = async <T extends CockroachColumnBuilder>(
 	kit: TestDatabase,
 	builder: T,
 	expectedDefault: string,
@@ -330,10 +330,10 @@ export const diffDefault = async <T extends CockroachDbColumnBuilder>(
 
 	const config = (builder as any).config;
 	const def = config['default'];
-	const column = cockroachdbTable('table', { column: builder }).column;
+	const column = cockroachTable('table', { column: builder }).column;
 
 	const { baseColumn, dimensions, baseType, options, typeSchema } = unwrapColumn(column);
-	const columnDefault = defaultFromColumn(baseColumn, column.default, dimensions, new CockroachDbDialect(), options);
+	const columnDefault = defaultFromColumn(baseColumn, column.default, dimensions, new CockroachDialect(), options);
 	const defaultSql = defaultToSQL({
 		default: columnDefault,
 		type: baseType,
@@ -349,12 +349,12 @@ export const diffDefault = async <T extends CockroachDbColumnBuilder>(
 
 	const init = {
 		...pre,
-		table: cockroachdbTable('table', { column: builder }),
+		table: cockroachTable('table', { column: builder }),
 	};
 
 	const { db, clear } = kit;
 	if (pre) await push({ db, to: pre });
-	const { sqlStatements: st1 } = await push({ db, to: init, log: 'statements' });
+	const { sqlStatements: st1 } = await push({ db, to: init });
 	const { sqlStatements: st2 } = await push({ db, to: init });
 
 	const typeSchemaPrefix = typeSchema && typeSchema !== 'public' ? `"${typeSchema}".` : '';
@@ -376,7 +376,7 @@ export const diffDefault = async <T extends CockroachDbColumnBuilder>(
 	const schema = await fromDatabaseForDrizzle(db);
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
-	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel', 'cockroachdb');
+	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
 	const path = `tests/cockroachdb/tmp/temp-${hash(String(Math.random()))}.ts`;
 
 	if (existsSync(path)) rmSync(path);
@@ -401,14 +401,14 @@ export const diffDefault = async <T extends CockroachDbColumnBuilder>(
 	config.default = undefined;
 	const schema1 = {
 		...pre,
-		table: cockroachdbTable('table', { column: builder }),
+		table: cockroachTable('table', { column: builder }),
 	};
 
 	config.hasDefault = true;
 	config.default = def;
 	const schema2 = {
 		...pre,
-		table: cockroachdbTable('table', { column: builder }),
+		table: cockroachTable('table', { column: builder }),
 	};
 
 	if (pre) await push({ db, to: pre });
@@ -421,12 +421,12 @@ export const diffDefault = async <T extends CockroachDbColumnBuilder>(
 
 	const schema3 = {
 		...pre,
-		table: cockroachdbTable('table', { id: int4().generatedAlwaysAsIdentity() }),
+		table: cockroachTable('table', { id: int4().generatedAlwaysAsIdentity() }),
 	};
 
 	const schema4 = {
 		...pre,
-		table: cockroachdbTable('table', { id: int4().generatedAlwaysAsIdentity(), column: builder }),
+		table: cockroachTable('table', { id: int4().generatedAlwaysAsIdentity(), column: builder }),
 	};
 
 	if (pre) await push({ db, to: pre });
