@@ -28,6 +28,7 @@ import {
 	primaryKey,
 	real,
 	smallint,
+	string,
 	text,
 	time,
 	timestamp,
@@ -895,12 +896,14 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 		id: int4('id').primaryKey(),
 		name: text('name').notNull().primaryKey(),
 		role: text('role', { enum: ['admin', 'user'] }).default('user').notNull(),
+		role1: string('role1', { enum: ['admin', 'user'], length: 200 }).default('user').notNull(),
 		population: int4('population').default(0),
 	});
 	const cities2 = cockroachTable('cities_table', ({ int4, text }) => ({
 		id: int4('id').primaryKey(),
 		name: text('name').notNull().primaryKey(),
 		role: text('role', { enum: ['admin', 'user'] }).default('user').notNull(),
+		role1: string('role1', { enum: ['admin', 'user'], length: 200 }).default('user').notNull(),
 		population: int4('population').default(0),
 	}));
 
@@ -926,40 +929,69 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
 			}>;
-			name: CockroachColumn<{
-				tableName: 'cities_table';
-				name: 'name';
-				dataType: 'string';
-				columnType: 'CockroachText';
-				data: string;
-				driverParam: string;
-				hasDefault: false;
-				enumValues: [string, ...string[]];
-				notNull: true;
-				baseColumn: never;
-				generated: undefined;
-				identity: undefined;
-				isPrimaryKey: true;
-				isAutoincrement: false;
-				hasRuntimeDefault: false;
-			}>;
-			role: CockroachColumn<{
-				tableName: 'cities_table';
-				name: 'role';
-				dataType: 'string';
-				columnType: 'CockroachText';
-				data: 'admin' | 'user';
-				driverParam: string;
-				hasDefault: true;
-				enumValues: ['admin', 'user'];
-				notNull: true;
-				baseColumn: never;
-				generated: undefined;
-				identity: undefined;
-				isPrimaryKey: false;
-				isAutoincrement: false;
-				hasRuntimeDefault: false;
-			}>;
+			name: CockroachColumn<
+				{
+					tableName: 'cities_table';
+					name: 'name';
+					dataType: 'string';
+					columnType: 'CockroachString';
+					data: string;
+					driverParam: string;
+					hasDefault: false;
+					enumValues: [string, ...string[]];
+					notNull: true;
+					baseColumn: never;
+					generated: undefined;
+					identity: undefined;
+					isPrimaryKey: true;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+				},
+				{},
+				{ length: undefined }
+			>;
+			role: CockroachColumn<
+				{
+					tableName: 'cities_table';
+					name: 'role';
+					dataType: 'string';
+					columnType: 'CockroachString';
+					data: 'admin' | 'user';
+					driverParam: string;
+					hasDefault: true;
+					enumValues: ['admin', 'user'];
+					notNull: true;
+					baseColumn: never;
+					generated: undefined;
+					identity: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+				},
+				{},
+				{ length: undefined }
+			>;
+			role1: CockroachColumn<
+				{
+					tableName: 'cities_table';
+					name: 'role1';
+					dataType: 'string';
+					columnType: 'CockroachString';
+					data: 'admin' | 'user';
+					driverParam: string;
+					hasDefault: true;
+					enumValues: ['admin', 'user'];
+					notNull: true;
+					baseColumn: never;
+					generated: undefined;
+					identity: undefined;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+				},
+				{},
+				{ length: 200 }
+			>;
 			population: CockroachColumn<{
 				tableName: 'cities_table';
 				name: 'population';

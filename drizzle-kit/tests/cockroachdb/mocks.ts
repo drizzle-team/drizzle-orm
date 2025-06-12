@@ -34,9 +34,9 @@ import Docker from 'dockerode';
 import { existsSync, rmSync, writeFileSync } from 'fs';
 import getPort from 'get-port';
 import { Pool, PoolClient } from 'pg';
-import { introspect } from 'src/cli/commands/pull-cockroachdb';
+import { introspect } from 'src/cli/commands/pull-cockroach';
 
-import { suggestions } from 'src/cli/commands/push-cockroachdb';
+import { suggestions } from 'src/cli/commands/push-cockroach';
 import { Entities } from 'src/cli/validations/cli';
 import { EmptyProgressView } from 'src/cli/views';
 import { defaultToSQL, isSystemRole } from 'src/dialects/cockroachdb/grammar';
@@ -291,7 +291,7 @@ export const diffIntrospect = async (
 
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
-	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel', 'cockroachdb');
+	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
 	writeFileSync(`tests/cockroachdb/tmp/${testName}.ts`, file.file);
 
 	// generate snapshot from ts file
@@ -354,7 +354,7 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 
 	const { db, clear } = kit;
 	if (pre) await push({ db, to: pre });
-	const { sqlStatements: st1 } = await push({ db, to: init, log: 'statements' });
+	const { sqlStatements: st1 } = await push({ db, to: init });
 	const { sqlStatements: st2 } = await push({ db, to: init });
 
 	const typeSchemaPrefix = typeSchema && typeSchema !== 'public' ? `"${typeSchema}".` : '';
@@ -376,7 +376,7 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 	const schema = await fromDatabaseForDrizzle(db);
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
-	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel', 'cockroachdb');
+	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
 	const path = `tests/cockroachdb/tmp/temp-${hash(String(Math.random()))}.ts`;
 
 	if (existsSync(path)) rmSync(path);

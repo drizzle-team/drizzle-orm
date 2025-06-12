@@ -2,7 +2,7 @@ import { boolean, coerce, literal, object, string, TypeOf, undefined, union } fr
 import { error } from '../views';
 import { wrapParam } from './common';
 
-export const cockroachdbCredentials = union([
+export const cockroachCredentials = union([
 	object({
 		host: string().min(1),
 		port: coerce.number().min(1).optional(),
@@ -24,7 +24,7 @@ export const cockroachdbCredentials = union([
 	}),
 ]);
 
-export type CockroachDbCredentials = TypeOf<typeof cockroachdbCredentials>;
+export type CockroachCredentials = TypeOf<typeof cockroachCredentials>;
 
 export const printConfigConnectionIssues = (
 	options: Record<string, unknown>,

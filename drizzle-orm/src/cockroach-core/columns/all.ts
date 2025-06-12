@@ -4,16 +4,16 @@ import { boolean } from './boolean.ts';
 import { char } from './char.ts';
 import { customType } from './custom.ts';
 import { date } from './date.ts';
-import { doublePrecision } from './double-precision.ts';
+import { decimal, numeric } from './decimal.ts';
+import { doublePrecision, float } from './float.ts';
 import { inet } from './inet.ts';
 import { int4 } from './integer.ts';
 import { interval } from './interval.ts';
 import { jsonb } from './jsonb.ts';
-import { numeric } from './numeric.ts';
 import { geometry } from './postgis_extension/geometry.ts';
 import { real } from './real.ts';
 import { int2, smallint } from './smallint.ts';
-import { text } from './text.ts';
+import { string, text } from './string.ts';
 import { time } from './time.ts';
 import { timestamp } from './timestamp.ts';
 import { uuid } from './uuid.ts';
@@ -35,6 +35,7 @@ export function getCockroachColumnBuilders() {
 		interval,
 		jsonb,
 		numeric,
+		decimal,
 		geometry,
 		real,
 		smallint,
@@ -45,6 +46,8 @@ export function getCockroachColumnBuilders() {
 		varchar,
 		bit,
 		vector,
+		float,
+		string,
 	};
 }
 

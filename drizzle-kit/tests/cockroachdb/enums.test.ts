@@ -781,7 +781,7 @@ test('drop enum', async () => {
 
 	const st0 = [
 		'ALTER TABLE "users" ALTER COLUMN "col" DROP DEFAULT;',
-		'ALTER TABLE "users" ALTER COLUMN "col" SET DATA TYPE text;',
+		'ALTER TABLE "users" ALTER COLUMN "col" SET DATA TYPE string;',
 		'ALTER TABLE "users" ALTER COLUMN "col" SET DEFAULT \'value1\';',
 		`DROP TYPE "enum";`,
 	];
@@ -1331,7 +1331,7 @@ test('change data type from standart type to enum. column has default', async ()
 
 	const { sqlStatements: st } = await diff(from, to, []);
 
-	await push({ db, to: from, log: 'statements' });
+	await push({ db, to: from });
 	const { sqlStatements: pst } = await push({
 		db,
 		to,
@@ -1728,7 +1728,7 @@ test('change data type from standart type to standart type', async () => {
 	});
 
 	const st0 = [
-		`ALTER TABLE "table" ALTER COLUMN "test_column" SET DATA TYPE text;`,
+		`ALTER TABLE "table" ALTER COLUMN "test_column" SET DATA TYPE string;`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1756,7 +1756,7 @@ test('change data type from standart type to standart type. column has default',
 	});
 
 	const st0 = [
-		`ALTER TABLE "table" ALTER COLUMN "test_column" SET DATA TYPE text;`,
+		`ALTER TABLE "table" ALTER COLUMN "test_column" SET DATA TYPE string;`,
 		`ALTER TABLE "table" ALTER COLUMN "test_column" SET DEFAULT 'value2';`,
 	];
 	expect(st).toStrictEqual(st0);
@@ -1786,7 +1786,7 @@ test('change data type from standart type to standart type. columns are arrays',
 	});
 
 	const st0 = [
-		`ALTER TABLE "table" ALTER COLUMN "test_column" SET DATA TYPE text[];`,
+		`ALTER TABLE "table" ALTER COLUMN "test_column" SET DATA TYPE string[];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1814,7 +1814,7 @@ test('change data type from standart type to standart type. columns are arrays w
 	});
 
 	const st0 = [
-		`ALTER TABLE "table" ALTER COLUMN "test_column" SET DATA TYPE text[];`,
+		`ALTER TABLE "table" ALTER COLUMN "test_column" SET DATA TYPE string[];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1842,7 +1842,7 @@ test('change data type from standart type to standart type. columns are arrays. 
 	});
 
 	const st0 = [
-		`ALTER TABLE "table" ALTER COLUMN "test_column" SET DATA TYPE text[];`,
+		`ALTER TABLE "table" ALTER COLUMN "test_column" SET DATA TYPE string[];`,
 		// TODO: discuss with @AndriiSherman, redundand statement
 		// `ALTER TABLE "table" ALTER COLUMN "test_column" SET DEFAULT '{"hello"}';`,
 	];
@@ -1872,7 +1872,7 @@ test('change data type from standart type to standart type. columns are arrays w
 	});
 
 	const st0 = [
-		`ALTER TABLE "table" ALTER COLUMN "test_column" SET DATA TYPE text[];`,
+		`ALTER TABLE "table" ALTER COLUMN "test_column" SET DATA TYPE string[];`,
 		/*
 				TODO: discuss with @AndriiSherman, redundand statement
 				CREATE TABLE "table" (

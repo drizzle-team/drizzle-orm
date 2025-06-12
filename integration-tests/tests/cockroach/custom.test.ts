@@ -608,12 +608,11 @@ test('prepared statement with placeholder in .offset', async (ctx) => {
 	expect(result).toEqual([{ id: 2, name: 'John1' }]);
 });
 
-test.todo('migrator : default migration strategy', async () => {
-	await db.execute(sql`drop table if exists all_columns`);
+test('migrator : default migration strategy', async () => {
 	await db.execute(sql`drop table if exists users12`);
 	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
 
-	await migrate(db, { migrationsFolder: './drizzle2/cockroachdb' });
+	await migrate(db, { migrationsFolder: './drizzle2/cockroach' });
 
 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 
@@ -621,18 +620,16 @@ test.todo('migrator : default migration strategy', async () => {
 
 	expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
 
-	await db.execute(sql`drop table all_columns`);
 	await db.execute(sql`drop table users12`);
 	await db.execute(sql`drop table "drizzle"."__drizzle_migrations"`);
 });
 
-test.todo('migrator : migrate with custom schema', async () => {
+test('migrator : migrate with custom schema', async () => {
 	const customSchema = randomString();
-	await db.execute(sql`drop table if exists all_columns`);
 	await db.execute(sql`drop table if exists users12`);
 	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
 
-	await migrate(db, { migrationsFolder: './drizzle2/cockroachdb', migrationsSchema: customSchema });
+	await migrate(db, { migrationsFolder: './drizzle2/cockroach', migrationsSchema: customSchema });
 
 	// test if the custom migrations table was created
 	const { rowCount } = await db.execute(sql`select * from ${sql.identifier(customSchema)}."__drizzle_migrations";`);
@@ -643,18 +640,16 @@ test.todo('migrator : migrate with custom schema', async () => {
 	const result = await db.select().from(usersMigratorTable);
 	expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
 
-	await db.execute(sql`drop table all_columns`);
 	await db.execute(sql`drop table users12`);
 	await db.execute(sql`drop table ${sql.identifier(customSchema)}."__drizzle_migrations"`);
 });
 
-test.todo('migrator : migrate with custom table', async () => {
+test('migrator : migrate with custom table', async () => {
 	const customTable = randomString();
-	await db.execute(sql`drop table if exists all_columns`);
 	await db.execute(sql`drop table if exists users12`);
 	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
 
-	await migrate(db, { migrationsFolder: './drizzle2/cockroachdb', migrationsTable: customTable });
+	await migrate(db, { migrationsFolder: './drizzle2/cockroach', migrationsTable: customTable });
 
 	// test if the custom migrations table was created
 	const { rowCount } = await db.execute(sql`select * from "drizzle".${sql.identifier(customTable)};`);
@@ -665,20 +660,18 @@ test.todo('migrator : migrate with custom table', async () => {
 	const result = await db.select().from(usersMigratorTable);
 	expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
 
-	await db.execute(sql`drop table all_columns`);
 	await db.execute(sql`drop table users12`);
 	await db.execute(sql`drop table "drizzle".${sql.identifier(customTable)}`);
 });
 
-test.todo('migrator : migrate with custom table and custom schema', async () => {
+test('migrator : migrate with custom table and custom schema', async () => {
 	const customTable = randomString();
 	const customSchema = randomString();
-	await db.execute(sql`drop table if exists all_columns`);
 	await db.execute(sql`drop table if exists users12`);
 	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
 
 	await migrate(db, {
-		migrationsFolder: './drizzle2/cockroachdb',
+		migrationsFolder: './drizzle2/cockroach',
 		migrationsTable: customTable,
 		migrationsSchema: customSchema,
 	});
@@ -694,7 +687,6 @@ test.todo('migrator : migrate with custom table and custom schema', async () => 
 	const result = await db.select().from(usersMigratorTable);
 	expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
 
-	await db.execute(sql`drop table all_columns`);
 	await db.execute(sql`drop table users12`);
 	await db.execute(sql`drop table ${sql.identifier(customSchema)}.${sql.identifier(customTable)}`);
 });

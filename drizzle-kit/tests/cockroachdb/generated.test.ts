@@ -48,7 +48,7 @@ test('generated as callback: add column with generated constraint', async () => 
 	});
 
 	const st0 = [
-		`ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS (\"users\".\"name\" || 'hello') STORED;`,
+		`ALTER TABLE "users" ADD COLUMN "gen_name" string GENERATED ALWAYS AS (\"users\".\"name\" || 'hello') STORED;`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -84,7 +84,7 @@ test('generated as callback: add generated constraint to an exisiting column', a
 
 	const st0 = [
 		'ALTER TABLE "users" DROP COLUMN "gen_name";',
-		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name" || \'to add\') STORED;',
+		'ALTER TABLE "users" ADD COLUMN "gen_name" string GENERATED ALWAYS AS ("users"."name" || \'to add\') STORED;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -120,7 +120,7 @@ test('generated as callback: drop generated constraint', async () => {
 
 	const st0 = [
 		`ALTER TABLE \"users\" DROP COLUMN \"gen_name\";`,
-		`ALTER TABLE \"users\" ADD COLUMN \"gen_name\" text;`,
+		`ALTER TABLE \"users\" ADD COLUMN \"gen_name\" string;`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -155,7 +155,7 @@ test('generated as callback: change generated constraint', async () => {
 
 	const st0 = [
 		'ALTER TABLE "users" DROP COLUMN "gen_name";',
-		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name" || \'hello\') STORED;',
+		'ALTER TABLE "users" ADD COLUMN "gen_name" string GENERATED ALWAYS AS ("users"."name" || \'hello\') STORED;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual([]); // we don't trigger generated column recreate if definition change within push
@@ -189,7 +189,7 @@ test('generated as sql: add column with generated constraint', async () => {
 	});
 
 	const st0 = [
-		`ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS (\"users\".\"name\" || 'hello') STORED;`,
+		`ALTER TABLE "users" ADD COLUMN "gen_name" string GENERATED ALWAYS AS (\"users\".\"name\" || 'hello') STORED;`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -225,7 +225,7 @@ test('generated as sql: add generated constraint to an exisiting column', async 
 
 	const st0 = [
 		'ALTER TABLE "users" DROP COLUMN "gen_name";',
-		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name" || \'to add\') STORED;',
+		'ALTER TABLE "users" ADD COLUMN "gen_name" string GENERATED ALWAYS AS ("users"."name" || \'to add\') STORED;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -261,7 +261,7 @@ test('generated as sql: drop generated constraint', async () => {
 
 	const st0 = [
 		`ALTER TABLE \"users\" DROP COLUMN \"gen_name\";`,
-		`ALTER TABLE \"users\" ADD COLUMN \"gen_name\" text;`,
+		`ALTER TABLE \"users\" ADD COLUMN \"gen_name\" string;`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -299,7 +299,7 @@ test('generated as sql: change generated constraint', async () => {
 
 	const st0 = [
 		'ALTER TABLE "users" DROP COLUMN "gen_name";',
-		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name" || \'hello\') STORED;',
+		'ALTER TABLE "users" ADD COLUMN "gen_name" string GENERATED ALWAYS AS ("users"."name" || \'hello\') STORED;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual([]); // we don't trigger generated column recreate if definition change within push
@@ -333,7 +333,7 @@ test('generated as string: add column with generated constraint', async () => {
 	});
 
 	const st0 = [
-		`ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS (\"users\".\"name\" || 'hello') STORED;`,
+		`ALTER TABLE "users" ADD COLUMN "gen_name" string GENERATED ALWAYS AS (\"users\".\"name\" || 'hello') STORED;`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -369,7 +369,7 @@ test('generated as string: add generated constraint to an exisiting column', asy
 
 	const st0 = [
 		'ALTER TABLE "users" DROP COLUMN "gen_name";',
-		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name" || \'to add\') STORED;',
+		'ALTER TABLE "users" ADD COLUMN "gen_name" string GENERATED ALWAYS AS ("users"."name" || \'to add\') STORED;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -405,7 +405,7 @@ test('generated as string: drop generated constraint', async () => {
 
 	const st0 = [
 		`ALTER TABLE \"users\" DROP COLUMN \"gen_name\";`,
-		`ALTER TABLE \"users\" ADD COLUMN \"gen_name\" text;`,
+		`ALTER TABLE \"users\" ADD COLUMN \"gen_name\" string;`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -443,7 +443,7 @@ test('generated as string: change generated constraint', async () => {
 
 	const st0 = [
 		'ALTER TABLE "users" DROP COLUMN "gen_name";',
-		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name" || \'hello\') STORED;',
+		'ALTER TABLE "users" ADD COLUMN "gen_name" string GENERATED ALWAYS AS ("users"."name" || \'hello\') STORED;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual([]); // we don't trigger generated column recreate if definition change within push
@@ -474,7 +474,7 @@ test('alter generated constraint', async () => {
 
 	const st0: string[] = [
 		'ALTER TABLE "users" DROP COLUMN "gen_name";',
-		'ALTER TABLE "users" ADD COLUMN "gen_name" text GENERATED ALWAYS AS ("users"."name" || \'hello\') STORED;',
+		'ALTER TABLE "users" ADD COLUMN "gen_name" string GENERATED ALWAYS AS ("users"."name" || \'hello\') STORED;',
 	];
 
 	expect(st).toStrictEqual(st0);

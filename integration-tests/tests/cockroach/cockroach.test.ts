@@ -50,12 +50,11 @@ beforeEach((ctx) => {
 	};
 });
 
-test.todo('migrator : default migration strategy', async () => {
-	await db.execute(sql`drop table if exists all_columns`);
+test('migrator : default migration strategy', async () => {
 	await db.execute(sql`drop table if exists users12`);
 	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
 
-	await migrate(db, { migrationsFolder: './drizzle2/cockroachdb' });
+	await migrate(db, { migrationsFolder: './drizzle2/cockroach' });
 
 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 
@@ -63,18 +62,16 @@ test.todo('migrator : default migration strategy', async () => {
 
 	expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
 
-	await db.execute(sql`drop table all_columns`);
 	await db.execute(sql`drop table users12`);
 	await db.execute(sql`drop table "drizzle"."__drizzle_migrations"`);
 });
 
-test.todo('migrator : migrate with custom schema', async () => {
+test('migrator : migrate with custom schema', async () => {
 	const customSchema = randomString();
-	await db.execute(sql`drop table if exists all_columns`);
 	await db.execute(sql`drop table if exists users12`);
 	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
 
-	await migrate(db, { migrationsFolder: './drizzle2/cockroachdb', migrationsSchema: customSchema });
+	await migrate(db, { migrationsFolder: './drizzle2/cockroach', migrationsSchema: customSchema });
 
 	// test if the custom migrations table was created
 	const { rowCount } = await db.execute(sql`select * from ${sql.identifier(customSchema)}."__drizzle_migrations";`);
@@ -85,18 +82,16 @@ test.todo('migrator : migrate with custom schema', async () => {
 	const result = await db.select().from(usersMigratorTable);
 	expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
 
-	await db.execute(sql`drop table all_columns`);
 	await db.execute(sql`drop table users12`);
 	await db.execute(sql`drop table ${sql.identifier(customSchema)}."__drizzle_migrations"`);
 });
 
-test.todo('migrator : migrate with custom table', async () => {
+test('migrator : migrate with custom table', async () => {
 	const customTable = randomString();
-	await db.execute(sql`drop table if exists all_columns`);
 	await db.execute(sql`drop table if exists users12`);
 	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
 
-	await migrate(db, { migrationsFolder: './drizzle2/cockroachdb', migrationsTable: customTable });
+	await migrate(db, { migrationsFolder: './drizzle2/cockroach', migrationsTable: customTable });
 
 	// test if the custom migrations table was created
 	const { rowCount } = await db.execute(sql`select * from "drizzle".${sql.identifier(customTable)};`);
@@ -107,20 +102,18 @@ test.todo('migrator : migrate with custom table', async () => {
 	const result = await db.select().from(usersMigratorTable);
 	expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
 
-	await db.execute(sql`drop table all_columns`);
 	await db.execute(sql`drop table users12`);
 	await db.execute(sql`drop table "drizzle".${sql.identifier(customTable)}`);
 });
 
-test.todo('migrator : migrate with custom table and custom schema', async () => {
+test('migrator : migrate with custom table and custom schema', async () => {
 	const customTable = randomString();
 	const customSchema = randomString();
-	await db.execute(sql`drop table if exists all_columns`);
 	await db.execute(sql`drop table if exists users12`);
 	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
 
 	await migrate(db, {
-		migrationsFolder: './drizzle2/cockroachdb',
+		migrationsFolder: './drizzle2/cockroach',
 		migrationsTable: customTable,
 		migrationsSchema: customSchema,
 	});
@@ -136,7 +129,6 @@ test.todo('migrator : migrate with custom table and custom schema', async () => 
 	const result = await db.select().from(usersMigratorTable);
 	expect(result).toEqual([{ id: 1, name: 'John', email: 'email' }]);
 
-	await db.execute(sql`drop table all_columns`);
 	await db.execute(sql`drop table users12`);
 	await db.execute(sql`drop table ${sql.identifier(customSchema)}.${sql.identifier(customTable)}`);
 });
@@ -172,7 +164,7 @@ test('all date and time columns without timezone first case mode string', async 
 		timestamp_string: string;
 	}>(sql`select * from ${table}`);
 
-	expect(result2.rows).toEqual([{ id: '1', timestamp_string: '2022-01-01 02:00:00.123456' }]);
+	expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
 
 	await db.execute(sql`drop table if exists ${table}`);
 });
@@ -203,8 +195,7 @@ test('all date and time columns without timezone second case mode string', async
 		timestamp_string: string;
 	}>(sql`select * from ${table}`);
 
-	// cockroachdb returns strings by default
-	expect(result.rows).toEqual([{ id: '1', timestamp_string: '2022-01-01 02:00:00.123456' }]);
+	expect(result.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456' }]);
 
 	await db.execute(sql`drop table if exists ${table}`);
 });
@@ -219,7 +210,7 @@ test('all date and time columns without timezone third case mode date', async ()
 
 	await db.execute(sql`
 		create table ${table} (
-					id int4 primary key,
+					id int4 primary key generated always as identity,
 					timestamp_string timestamp(3) not null
 			)
 	`);
@@ -276,8 +267,7 @@ test('test mode string for timestamp with timezone', async () => {
 		timestamp_string: string;
 	}>(sql`select * from ${table}`);
 
-	// cockroach db will return string from int4 columns
-	expect(result2.rows).toEqual([{ id: '1', timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
+	expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
 
 	await db.execute(sql`drop table if exists ${table}`);
 });
@@ -312,8 +302,7 @@ test('test mode date for timestamp with timezone', async () => {
 		timestamp_string: string;
 	}>(sql`select * from ${table}`);
 
-	// cockroachdb returns string from int4 columns
-	expect(result2.rows).toEqual([{ id: '1', timestamp_string: '2022-01-01 02:00:00.456+00' }]);
+	expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.456+00' }]);
 
 	await db.execute(sql`drop table if exists ${table}`);
 });
@@ -354,8 +343,7 @@ test('test mode string for timestamp with timezone in UTC timezone', async () =>
 		timestamp_string: string;
 	}>(sql`select * from ${table}`);
 
-	// cockroachdb returns string from int4 columns
-	expect(result2.rows).toEqual([{ id: '1', timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
+	expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 02:00:00.123456+00' }]);
 
 	await db.execute(sql`set time zone '${sql.raw(timezone.rows[0]!.TimeZone)}'`);
 
@@ -401,7 +389,7 @@ test('test mode string for timestamp with timezone in different timezone', async
 		timestamp_string: string;
 	}>(sql`select * from ${table}`);
 
-	expect(result2.rows).toEqual([{ id: '1', timestamp_string: '2022-01-01 00:00:00.123456-10' }]);
+	expect(result2.rows).toEqual([{ id: 1, timestamp_string: '2022-01-01 00:00:00.123456-10' }]);
 
 	await db.execute(sql`set time zone '${sql.raw(timezone.rows[0]!.TimeZone)}'`);
 
@@ -449,8 +437,7 @@ test('insert via db.execute + select via db.execute', async () => {
 	const result = await db.execute<{ id: string; name: string }>(
 		sql`select id, name from "users"`,
 	);
-	// cockroachdb returns string from int4 columns
-	expect(result.rows).toEqual([{ id: '1', name: 'John' }]);
+	expect(result.rows).toEqual([{ id: 1, name: 'John' }]);
 });
 
 test('insert via db.execute + returning', async () => {
@@ -461,7 +448,7 @@ test('insert via db.execute + returning', async () => {
 			)
 		}) values (${'John'}) returning ${usersTable.id}, ${usersTable.name}`,
 	);
-	expect(inserted.rows).toEqual([{ id: '1', name: 'John' }]);
+	expect(inserted.rows).toEqual([{ id: 1, name: 'John' }]);
 });
 
 test('insert via db.execute w/ query builder', async () => {
@@ -471,5 +458,5 @@ test('insert via db.execute w/ query builder', async () => {
 			.values({ name: 'John' })
 			.returning({ id: usersTable.id, name: usersTable.name }),
 	);
-	expect(inserted.rows).toEqual([{ id: '1', name: 'John' }]);
+	expect(inserted.rows).toEqual([{ id: 1, name: 'John' }]);
 });

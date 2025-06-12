@@ -20,8 +20,8 @@ export const splitSqlType = (sqlType: string) => {
 	let type = match ? (match[1] + (match[3] ?? '')) : sqlType;
 	let options = match ? match[2].replaceAll(', ', ',') : null;
 
-	if (options && type === 'numeric') {
-		options = options.replace(',0', ''); // trim numeric (4,0)->(4), compatibility with Drizzle
+	if (options && type === 'decimal') {
+		options = options.replace(',0', ''); // trim decimal (4,0)->(4), compatibility with Drizzle
 	}
 	return { type, options };
 };
@@ -122,7 +122,7 @@ export function stringFromDatabaseIdentityProperty(field: any): string | null {
 }
 
 // CockroachDb trims and pads defaults under the hood
-export function fixNumeric(value: string, options: string | null) {
+export function fixDecimal(value: string, options: string | null) {
 	const [integerPart, decimalPart] = value.split('.');
 
 	let scale: number | undefined;
@@ -161,8 +161,8 @@ export function buildArrayString(array: any[], sqlType: string, options: string 
 
 	const values = array
 		.map((value) => {
-			if (sqlType.startsWith('numeric')) {
-				return fixNumeric(String(value), options);
+			if (sqlType.startsWith('decimal')) {
+				return fixDecimal(String(value), options);
 			}
 
 			if (sqlType.startsWith('timestamp') && sqlType.includes('with time zone')) {
@@ -418,7 +418,7 @@ export const defaultForColumn = (
 	let value = trimDefaultValueSuffix(def);
 
 	// numeric stores 99 as '99'::numeric
-	value = type === 'numeric' || type.startsWith('numeric(') ? trimChar(value, "'") : value;
+	value = type === 'decimal' || type.startsWith('decimal(') ? trimChar(value, "'") : value;
 
 	if (dimensions > 0) {
 		value = value.trimChar("'"); // '{10,20}' -> {10,20}
@@ -448,9 +448,14 @@ export const defaultForColumn = (
 
 	// previous /^-?[\d.]+(?:e-?\d+)?$/
 	if (/^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(trimmed) && !type.startsWith('bit')) {
-		const num = Number(trimmed);
+		let value = trimmed;
+		if (type === 'float' || type === 'double precision' || type === 'real') {
+			value = value.replace('.0', '');
+		}
+
+		const num = Number(value);
 		const big = num > Number.MAX_SAFE_INTEGER || num < Number.MIN_SAFE_INTEGER;
-		return { value: trimmed, type: big ? 'bigint' : 'number' };
+		return { value: value, type: big ? 'bigint' : 'number' };
 	}
 
 	// e'text\'text' and 'text'

@@ -50,7 +50,7 @@ import {
 	defaultNameForPK,
 	defaultNameForUnique,
 	defaults,
-	fixNumeric,
+	fixDecimal,
 	formatTimestampWithTZ,
 	indexName,
 	maxRangeForIdentityBasedOn,
@@ -200,10 +200,10 @@ export const defaultFromColumn = (
 		};
 	}
 
-	if (sqlTypeLowered.startsWith('numeric')) {
+	if (sqlTypeLowered.startsWith('decimal')) {
 		const value = dimensions > 0 && Array.isArray(def)
 			? buildArrayString(def, sqlTypeLowered, options)
-			: fixNumeric(String(def), options);
+			: fixDecimal(String(def), options);
 
 		return {
 			value: value,

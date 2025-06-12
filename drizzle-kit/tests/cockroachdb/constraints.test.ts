@@ -406,7 +406,7 @@ test('unique multistep #1', async () => {
 	const { sqlStatements: st1, next: n1 } = await diff({}, sch1, []);
 	const { sqlStatements: pst1 } = await push({ db, to: sch1 });
 
-	const e1 = ['CREATE TABLE "users" (\n\t"name" text,\n\tCONSTRAINT "users_name_key" UNIQUE("name")\n);\n'];
+	const e1 = ['CREATE TABLE "users" (\n\t"name" string,\n\tCONSTRAINT "users_name_key" UNIQUE("name")\n);\n'];
 	expect(st1).toStrictEqual(e1);
 	expect(pst1).toStrictEqual(e1);
 
@@ -458,10 +458,10 @@ test('unique multistep #2', async () => {
 	const { sqlStatements: st1, next: n1 } = await diff({}, sch1, []);
 	const { sqlStatements: pst1 } = await push({ db, to: sch1 });
 	expect(st1).toStrictEqual([
-		'CREATE TABLE "users" (\n\t"name" text,\n\tCONSTRAINT "users_name_key" UNIQUE("name")\n);\n',
+		'CREATE TABLE "users" (\n\t"name" string,\n\tCONSTRAINT "users_name_key" UNIQUE("name")\n);\n',
 	]);
 	expect(pst1).toStrictEqual([
-		'CREATE TABLE "users" (\n\t"name" text,\n\tCONSTRAINT "users_name_key" UNIQUE("name")\n);\n',
+		'CREATE TABLE "users" (\n\t"name" string,\n\tCONSTRAINT "users_name_key" UNIQUE("name")\n);\n',
 	]);
 
 	const sch2 = {
@@ -524,10 +524,10 @@ test('unique multistep #3', async () => {
 	const { sqlStatements: pst1 } = await push({ db, to: sch1 });
 
 	expect(st1).toStrictEqual([
-		'CREATE TABLE "users" (\n\t"name" text,\n\tCONSTRAINT "users_name_key" UNIQUE("name")\n);\n',
+		'CREATE TABLE "users" (\n\t"name" string,\n\tCONSTRAINT "users_name_key" UNIQUE("name")\n);\n',
 	]);
 	expect(pst1).toStrictEqual([
-		'CREATE TABLE "users" (\n\t"name" text,\n\tCONSTRAINT "users_name_key" UNIQUE("name")\n);\n',
+		'CREATE TABLE "users" (\n\t"name" string,\n\tCONSTRAINT "users_name_key" UNIQUE("name")\n);\n',
 	]);
 
 	const sch2 = {
@@ -591,10 +591,10 @@ test('unique multistep #4', async () => {
 	const { sqlStatements: st1, next: n1 } = await diff({}, sch1, []);
 	const { sqlStatements: pst1 } = await push({ db, to: sch1 });
 	expect(st1).toStrictEqual([
-		'CREATE TABLE "users" (\n\t"name" text,\n\tCONSTRAINT "users_name_key" UNIQUE("name")\n);\n',
+		'CREATE TABLE "users" (\n\t"name" string,\n\tCONSTRAINT "users_name_key" UNIQUE("name")\n);\n',
 	]);
 	expect(pst1).toStrictEqual([
-		'CREATE TABLE "users" (\n\t"name" text,\n\tCONSTRAINT "users_name_key" UNIQUE("name")\n);\n',
+		'CREATE TABLE "users" (\n\t"name" string,\n\tCONSTRAINT "users_name_key" UNIQUE("name")\n);\n',
 	]);
 
 	const sch2 = {
@@ -659,7 +659,7 @@ test('index multistep #1', async () => {
 	const { sqlStatements: pst1 } = await push({ db, to: sch1 });
 
 	const e1 = [
-		'CREATE TABLE "users" (\n\t"name" text\n);\n',
+		'CREATE TABLE "users" (\n\t"name" string\n);\n',
 		'CREATE INDEX "users_name_index" ON "users" ("name");',
 	];
 	expect(st1).toStrictEqual(e1);
@@ -715,7 +715,7 @@ test('index multistep #2', async () => {
 	const { sqlStatements: pst1 } = await push({ db, to: sch1 });
 
 	const e1 = [
-		'CREATE TABLE "users" (\n\t"name" text\n);\n',
+		'CREATE TABLE "users" (\n\t"name" string\n);\n',
 		'CREATE INDEX "users_name_index" ON "users" ("name");',
 	];
 	expect(st1).toStrictEqual(e1);
@@ -780,7 +780,7 @@ test('index multistep #3', async () => {
 	const { sqlStatements: pst1 } = await push({ db, to: sch1 });
 
 	const e1 = [
-		'CREATE TABLE "users" (\n\t"name" text\n);\n',
+		'CREATE TABLE "users" (\n\t"name" string\n);\n',
 		'CREATE INDEX "users_name_index" ON "users" ("name");',
 	];
 	expect(st1).toStrictEqual(e1);
@@ -844,7 +844,7 @@ test('index multistep #3', async () => {
 	const { sqlStatements: pst1 } = await push({ db, to: sch1 });
 
 	const e1 = [
-		'CREATE TABLE "users" (\n\t"name" text\n);\n',
+		'CREATE TABLE "users" (\n\t"name" string\n);\n',
 		'CREATE INDEX "users_name_index" ON "users" ("name");',
 	];
 	expect(st1).toStrictEqual(e1);
@@ -1013,8 +1013,8 @@ test('pk multistep #1', async () => {
 	const { sqlStatements: st1, next: n1 } = await diff({}, sch1, []);
 	const { sqlStatements: pst1 } = await push({ db, to: sch1 });
 
-	expect(st1).toStrictEqual(['CREATE TABLE "users" (\n\t"name" text PRIMARY KEY\n);\n']);
-	expect(pst1).toStrictEqual(['CREATE TABLE "users" (\n\t"name" text PRIMARY KEY\n);\n']);
+	expect(st1).toStrictEqual(['CREATE TABLE "users" (\n\t"name" string PRIMARY KEY\n);\n']);
+	expect(pst1).toStrictEqual(['CREATE TABLE "users" (\n\t"name" string PRIMARY KEY\n);\n']);
 
 	const sch2 = {
 		users: cockroachTable('users2', {
@@ -1064,8 +1064,8 @@ test('pk multistep #2', async () => {
 	const { sqlStatements: st1, next: n1 } = await diff({}, sch1, []);
 	const { sqlStatements: pst1 } = await push({ db, to: sch1 });
 
-	expect(st1).toStrictEqual(['CREATE TABLE "users" (\n\t"name" text PRIMARY KEY\n);\n']);
-	expect(pst1).toStrictEqual(['CREATE TABLE "users" (\n\t"name" text PRIMARY KEY\n);\n']);
+	expect(st1).toStrictEqual(['CREATE TABLE "users" (\n\t"name" string PRIMARY KEY\n);\n']);
+	expect(pst1).toStrictEqual(['CREATE TABLE "users" (\n\t"name" string PRIMARY KEY\n);\n']);
 
 	const sch2 = {
 		users: cockroachTable('users2', {
@@ -1128,8 +1128,8 @@ test('pk multistep #3', async () => {
 	const { sqlStatements: st1, next: n1 } = await diff({}, sch1, []);
 	const { sqlStatements: pst1 } = await push({ db, to: sch1 });
 
-	expect(st1).toStrictEqual(['CREATE TABLE "users" (\n\t"name" text PRIMARY KEY\n);\n']);
-	expect(pst1).toStrictEqual(['CREATE TABLE "users" (\n\t"name" text PRIMARY KEY\n);\n']);
+	expect(st1).toStrictEqual(['CREATE TABLE "users" (\n\t"name" string PRIMARY KEY\n);\n']);
+	expect(pst1).toStrictEqual(['CREATE TABLE "users" (\n\t"name" string PRIMARY KEY\n);\n']);
 
 	const sch2 = {
 		users: cockroachTable('users2', {

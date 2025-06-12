@@ -2,7 +2,7 @@ import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/cockroac
 import { prepareFilenames } from 'src/utils/utils-node';
 import {
 	CheckConstraint,
-	CockroachDbEntities,
+	CockroachEntities,
 	Column,
 	createDDL,
 	Enum,
@@ -26,7 +26,7 @@ export const handle = async (config: GenerateConfig) => {
 	const { out: outFolder, schema: schemaPath, casing } = config;
 
 	assertV1OutFolder(outFolder);
-	const { snapshots, journal } = prepareMigrationFolder(outFolder, 'cockroachdb');
+	const { snapshots, journal } = prepareMigrationFolder(outFolder, 'cockroach');
 	const { ddlCur, ddlPrev, snapshot, custom } = await prepareSnapshot(snapshots, schemaPath, casing);
 	if (config.custom) {
 		writeResult({
@@ -50,7 +50,7 @@ export const handle = async (config: GenerateConfig) => {
 		resolver<Enum>('enum'),
 		resolver<Sequence>('sequence'),
 		resolver<Policy>('policy'),
-		resolver<CockroachDbEntities['tables']>('table'),
+		resolver<CockroachEntities['tables']>('table'),
 		resolver<Column>('column'),
 		resolver<View>('view'),
 		resolver<Index>('index'),

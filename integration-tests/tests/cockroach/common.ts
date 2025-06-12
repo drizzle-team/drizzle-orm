@@ -52,6 +52,7 @@ import {
 	doublePrecision,
 	except,
 	exceptAll,
+	float,
 	foreignKey,
 	getMaterializedViewConfig,
 	getTableConfig,
@@ -66,6 +67,7 @@ import {
 	primaryKey,
 	real,
 	smallint,
+	string,
 	text,
 	time,
 	timestamp,
@@ -101,6 +103,7 @@ const allTypesTable = cockroachTable('all_types', {
 	}),
 	bool: boolean('bool'),
 	char: char('char'),
+	string: string('string'),
 	date: date('date', {
 		mode: 'date',
 	}),
@@ -120,6 +123,7 @@ const allTypesTable = cockroachTable('all_types', {
 		mode: 'bigint',
 	}),
 	real: real('real'),
+	float: float('float'),
 	smallint: smallint('smallint'),
 	text: text('text'),
 	time: time('time'),
@@ -148,6 +152,7 @@ const allTypesTable = cockroachTable('all_types', {
 	}).array(),
 	arrbool: boolean('arrbool').array(),
 	arrchar: char('arrchar').array(),
+	arrstring: string('arrstring').array(),
 	arrdate: date('arrdate', {
 		mode: 'date',
 	}).array(),
@@ -155,6 +160,7 @@ const allTypesTable = cockroachTable('all_types', {
 		mode: 'string',
 	}).array(),
 	arrdouble: doublePrecision('arrdouble').array(),
+	arrfloat: float('arrfloat').array(),
 	arrenum: en('arrenum').array(),
 	arrinet: inet('arrinet').array(),
 	arrinterval: interval('arrinterval').array(),
@@ -571,7 +577,7 @@ export function tests() {
 			const columnField = tableConfig.columns.find((it) => it.name === 'field');
 			expect(columnField?.uniqueName).toBe('custom_field');
 			expect(columnField?.isUnique).toBe(true);
-			expect(columnField?.uniqueType).toBe('not distinct');
+			expect(columnField?.uniqueType).toBe(undefined);
 		});
 
 		test('table config: foreign keys name', async () => {
@@ -1789,38 +1795,38 @@ export function tests() {
 				{
 					region: 'Europe',
 					product: 'A',
-					productUnits: '3',
-					productSales: '30',
+					productUnits: 3,
+					productSales: 30,
 				},
 				{
 					region: 'Europe',
 					product: 'B',
-					productUnits: '5',
-					productSales: '50',
+					productUnits: 5,
+					productSales: 50,
 				},
 				{
 					region: 'US',
 					product: 'A',
-					productUnits: '7',
-					productSales: '70',
+					productUnits: 7,
+					productSales: 70,
 				},
 				{
 					region: 'US',
 					product: 'B',
-					productUnits: '9',
-					productSales: '90',
+					productUnits: 9,
+					productSales: 90,
 				},
 			]);
 			expect(result2).toEqual(result1);
 			expect(result3).toEqual([
 				{
 					region: 'Europe',
-					productUnits: '8',
+					productUnits: 8,
 					productSales: 80,
 				},
 				{
 					region: 'US',
-					productUnits: '16',
+					productUnits: 16,
 					productSales: 160,
 				},
 			]);
@@ -2128,12 +2134,12 @@ export function tests() {
 				{
 					id: 1,
 					name: 'LONDON',
-					usersCount: '2',
+					usersCount: 2,
 				},
 				{
 					id: 2,
 					name: 'PARIS',
-					usersCount: '1',
+					usersCount: 1,
 				},
 			]);
 		});
@@ -4876,8 +4882,6 @@ export function tests() {
 			}).from(jsonTestTable);
 
 			expect(result).toStrictEqual([{
-				jsonStringField: testString,
-				jsonNumberField: String(testNumber),
 				jsonbStringField: testString,
 				jsonbNumberField: String(testNumber),
 			}]);
@@ -4899,8 +4903,6 @@ export function tests() {
 			}).from(jsonTestTable);
 
 			expect(result).toStrictEqual([{
-				jsonStringField: testString,
-				jsonNumberField: String(testNumber),
 				jsonbStringField: testString,
 				jsonbNumberField: String(testNumber),
 			}]);
@@ -5895,26 +5897,24 @@ export function tests() {
 			await db.execute(sql`
 				CREATE TABLE "all_types" (
 					"int4" int4 NOT NULL,
-					"bigint453" bigint4 NOT NULL,
-					"bigint464" bigint4,
-					"bigint53" bigint,
+					"bigint53" bigint NOT NULL,
 					"bigint64" bigint,
 					"bool" boolean,
 					"char" char,
 					"date" date,
 					"date_str" date,
+					"string" string,
 					"double" double precision,
+					"float" float,
 					"enum" "en",
 					"inet" "inet",
 					"interval" interval,
-					"json" json,
 					"jsonb" jsonb,
 					"numeric" numeric,
 					"numeric_num" numeric,
 					"numeric_big" numeric,
 					"real" real,
 					"smallint" smallint,
-					"smallint4" "smallint4" NOT NULL,
 					"text" text,
 					"time" time,
 					"timestamp" timestamp,
@@ -5946,6 +5946,8 @@ export function tests() {
 					"arrtimestamp_str" timestamp[],
 					"arrtimestamp_tz_str" timestamp with time zone[],
 					"arruuid" uuid[],
+					"arrstring" string[],
+					"arrfloat" float[],
 					"arrvarchar" varchar[]
 				);
 			`);
@@ -6003,6 +6005,10 @@ export function tests() {
 				arrtimestampTzStr: [new Date(1741743161623).toISOString()],
 				arruuid: ['b77c9eef-8e28-4654-88a1-7221b46d2a1c'],
 				arrvarchar: ['C4-'],
+				string: 'TEXT STRING',
+				arrfloat: [1.12, 1.13],
+				arrstring: ['TEXT STRING', 'TEXT STRING1'],
+				float: 1.12,
 			});
 
 			const rawRes = await db.select().from(allTypesTable);
@@ -6057,6 +6063,10 @@ export function tests() {
 				arrtimestampTzStr: string[] | null;
 				arruuid: string[] | null;
 				arrvarchar: string[] | null;
+				string: string | null;
+				arrfloat: number[] | null;
+				arrstring: string[] | null;
+				float: number | null;
 			}[];
 
 			const expectedRes: ExpectedType = [
@@ -6077,7 +6087,7 @@ export function tests() {
 					numericNum: 9007199254740991,
 					numericBig: 5044565289845416380n,
 					real: 1.048596,
-					smallint: 10,
+					smallint: 15,
 					text: 'TEXT STRING',
 					time: '13:59:28',
 					timestamp: new Date('2025-03-12T01:32:41.623Z'),
@@ -6110,6 +6120,10 @@ export function tests() {
 					arrtimestampTzStr: ['2025-03-12 01:32:41.623+00'],
 					arruuid: ['b77c9eef-8e28-4654-88a1-7221b46d2a1c'],
 					arrvarchar: ['C4-'],
+					arrfloat: [1.12, 1.13],
+					arrstring: ['TEXT STRING', 'TEXT STRING1'],
+					float: 1.12,
+					string: 'TEXT STRING',
 				},
 			];
 

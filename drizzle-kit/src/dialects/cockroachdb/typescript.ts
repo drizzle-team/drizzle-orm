@@ -27,18 +27,16 @@ import {
 import { defaults } from './grammar';
 
 // TODO: omit defaults opclass...
-const cockroachdbImportsList = new Set([
-	'cockroachdbTable',
-	'cockroachdbEnum',
+const cockroachImportsList = new Set([
+	'cockroachTable',
+	'cockroachEnum',
 	'int2',
 	'int4',
 	'int8',
 	'boolean',
-	'text',
 	'varchar',
 	'char',
 	'decimal',
-	'numeric',
 	'real',
 	'json',
 	'jsonb',
@@ -47,11 +45,12 @@ const cockroachdbImportsList = new Set([
 	'date',
 	'interval',
 	'inet',
-	'doublePrecision',
 	'uuid',
 	'vector',
 	'bit',
 	'geometry',
+	'float',
+	'string',
 ]);
 
 const objToStatement2 = (json: { [s: string]: unknown }) => {
@@ -148,7 +147,6 @@ const mapColumnDefault = (def: Exclude<Column['default'], null>) => {
 };
 
 const importsPatch = {
-	'double precision': 'doublePrecision',
 	'timestamp without time zone': 'timestamp',
 	'timestamp with time zone': 'timestamp',
 	'time without time zone': 'time',
@@ -310,9 +308,8 @@ export const ddlToTypeScript = (
 	ddl: CockroachDDL,
 	columnsForViews: ViewColumn[],
 	casing: Casing,
-	mode: 'cockroachdb',
 ) => {
-	const tableFn = `${mode}Table`;
+	const tableFn = `cockroachTable`;
 	for (const fk of ddl.fks.list()) {
 		relations.add(`${fk.table}-${fk.tableTo}`);
 	}
@@ -329,8 +326,8 @@ export const ddlToTypeScript = (
 	const vcs = columnsForViews.map((it) => ({ entityType: 'viewColumns' as const, ...it }));
 	const entities = [...ddl.entities.list(), ...vcs];
 	for (const x of entities) {
-		if (x.entityType === 'schemas' && x.name !== 'public') imports.add('cockroachdbSchema');
-		if (x.entityType === 'enums' && x.schema === 'public') imports.add('cockroachdbEnum');
+		if (x.entityType === 'schemas' && x.name !== 'public') imports.add('cockroachSchema');
+		if (x.entityType === 'enums' && x.schema === 'public') imports.add('cockroachEnum');
 		if (x.entityType === 'tables') imports.add(tableFn);
 
 		if (x.entityType === 'indexes') {
@@ -341,46 +338,45 @@ export const ddlToTypeScript = (
 		if (x.entityType === 'fks') {
 			imports.add('foreignKey');
 
-			if (isCyclic(x) && !isSelf(x)) imports.add('type AnyCockroachDbColumn');
+			if (isCyclic(x) && !isSelf(x)) imports.add('type AnyCockroachColumn');
 		}
 		if (x.entityType === 'pks') imports.add('primaryKey');
 		if (x.entityType === 'checks') imports.add('check');
 		if (x.entityType === 'views' && x.schema === 'public') {
-			if (x.materialized) imports.add('cockroachdbMaterializedView');
-			else imports.add('cockroachdbView');
+			if (x.materialized) imports.add('cockroachMaterializedView');
+			else imports.add('cockroachView');
 		}
 
 		if (x.entityType === 'columns' || x.entityType === 'viewColumns') {
 			let patched = x.type.replace('[]', '');
 			patched = importsPatch[patched] || patched;
 
-			patched = patched === 'double precision' ? 'doublePrecision' : patched;
 			patched = patched.startsWith('varchar(') ? 'varchar' : patched;
 			patched = patched.startsWith('character varying(') ? 'varchar' : patched;
 			patched = patched.startsWith('character(') ? 'char' : patched;
 			patched = patched.startsWith('char(') ? 'char' : patched;
-			patched = patched.startsWith('numeric(') ? 'numeric' : patched;
+			patched = patched.startsWith('decimal(') ? 'decimal' : patched;
 			patched = patched.startsWith('time(') ? 'time' : patched;
 			patched = patched.startsWith('timestamp(') ? 'timestamp' : patched;
 			patched = patched.startsWith('vector(') ? 'vector' : patched;
 			patched = patched.startsWith('geometry(') ? 'geometry' : patched;
 			patched = patched.startsWith('interval') ? 'interval' : patched;
 
-			if (cockroachdbImportsList.has(patched)) imports.add(patched);
+			if (cockroachImportsList.has(patched)) imports.add(patched);
 		}
 
-		if (x.entityType === 'sequences' && x.schema === 'public') imports.add('cockroachdbSequence');
-		if (x.entityType === 'enums' && x.schema === 'public') imports.add('cockroachdbEnum');
-		if (x.entityType === 'policies') imports.add('cockroachdbPolicy');
-		if (x.entityType === 'roles') imports.add('cockroachdbRole');
+		if (x.entityType === 'sequences' && x.schema === 'public') imports.add('cockroachSequence');
+		if (x.entityType === 'enums' && x.schema === 'public') imports.add('cockroachEnum');
+		if (x.entityType === 'policies') imports.add('cockroachPolicy');
+		if (x.entityType === 'roles') imports.add('cockroachRole');
 	}
 
 	const enumStatements = ddl.enums.list().map((it) => {
 		const enumSchema = schemas[it.schema];
-		// const func = schema || schema === "public" ? "cockroachdbTable" : schema;
+		// const func = schema || schema === "public" ? "cockroachTable" : schema;
 		const paramName = paramNameFor(it.name, enumSchema);
 
-		const func = enumSchema ? `${enumSchema}.enum` : 'cockroachdbEnum';
+		const func = enumSchema ? `${enumSchema}.enum` : 'cockroachEnum';
 
 		const values = Object.values(it.values)
 			.map((it) => {
@@ -396,7 +392,7 @@ export const ddlToTypeScript = (
 		const seqSchema = schemas[it.schema];
 		const paramName = paramNameFor(it.name, seqSchema);
 
-		const func = seqSchema ? `${seqSchema}.sequence` : 'cockroachdbSequence';
+		const func = seqSchema ? `${seqSchema}.sequence` : 'cockroachSequence';
 
 		let params = '';
 		if (it.startWith) params += `, startWith: "${it.startWith}"`;
@@ -414,7 +410,7 @@ export const ddlToTypeScript = (
 		.concat('');
 
 	const schemaStatements = Object.entries(schemas).map((it) => {
-		return `export const ${it[1]} = cockroachdbSchema("${it[0]}");\n`;
+		return `export const ${it[1]} = cockroachSchema("${it[0]}");\n`;
 	}).join('');
 
 	const rolesNameToTsKey: Record<string, string> = {};
@@ -426,7 +422,7 @@ export const ddlToTypeScript = (
 			? ''
 			: `${`, { ${it.createDb ? `createDb: true,` : ''}${it.createRole ? ` createRole: true,` : ''}`.trimChar(',')}	}`;
 
-		return `export const ${identifier} = cockroachdbRole("${it.name}", ${params});\n`;
+		return `export const ${identifier} = cockroachRole("${it.name}", ${params});\n`;
 	})
 		.join('');
 
@@ -485,8 +481,8 @@ export const ddlToTypeScript = (
 			const func = it.schema !== 'public'
 				? (it.materialized ? `${viewSchema}.materializedView` : `${viewSchema}.view`)
 				: it.materialized
-				? 'cockroachdbMaterializedView'
-				: 'cockroachdbView';
+				? 'cockroachMaterializedView'
+				: 'cockroachView';
 
 			const as = `sql\`${it.definition}\``;
 
@@ -505,10 +501,10 @@ export const ddlToTypeScript = (
 		})
 		.join('\n\n');
 
-	const uniqueCockroachDbImports = [...imports];
+	const uniqueCockroachImports = [...imports];
 
 	const importsTs = `import { ${
-		uniqueCockroachDbImports.join(
+		uniqueCockroachImports.join(
 			', ',
 		)
 	} } from "drizzle-orm/cockroach-core"
@@ -616,7 +612,7 @@ const mapDefault = (
 
 	const mapper = lowered === 'char'
 			|| lowered === 'varchar'
-			|| lowered === 'text'
+			|| lowered === 'string'
 			|| lowered === 'inet'
 		? (x: string) => {
 			if (dimensions === 0) {
@@ -630,7 +626,7 @@ const mapDefault = (
 			const value = Number(x);
 			return value > Number.MAX_SAFE_INTEGER || value < Number.MIN_SAFE_INTEGER ? `${x}n` : `${x}`;
 		}
-		: lowered.startsWith('numeric')
+		: lowered.startsWith('decimal')
 		? (x: string) => {
 			const value = Number(x);
 			return value > Number.MAX_SAFE_INTEGER || value < Number.MIN_SAFE_INTEGER ? `${x}n` : `${x}`;
@@ -695,8 +691,8 @@ const column = (
 		return out;
 	}
 
-	if (lowered.startsWith('double precision')) {
-		let out = `${withCasing(name, casing)}: doublePrecision(${dbColumnName({ name, casing })})`;
+	if (lowered === 'float') {
+		let out = `${withCasing(name, casing)}: float(${dbColumnName({ name, casing })})`;
 		return out;
 	}
 
@@ -711,7 +707,7 @@ const column = (
 		return out;
 	}
 
-	if (lowered === 'numeric') {
+	if (lowered === 'decimal') {
 		let params: { precision?: number; scale?: number; mode?: any } = {};
 
 		if (options) {
@@ -730,10 +726,10 @@ const column = (
 
 		let out = `// You can use { mode: "bigint" } if numbers are exceeding js number limitations\n\t`;
 		out += Object.keys(params).length > 0
-			? `${withCasing(name, casing)}: numeric(${dbColumnName({ name, casing, withMode: true })}${
+			? `${withCasing(name, casing)}: decimal(${dbColumnName({ name, casing, withMode: true })}${
 				JSON.stringify(params)
 			})`
-			: `${withCasing(name, casing)}: numeric(${dbColumnName({ name, casing })})`;
+			: `${withCasing(name, casing)}: decimal(${dbColumnName({ name, casing })})`;
 
 		return out;
 	}
@@ -790,8 +786,15 @@ const column = (
 		return out;
 	}
 
-	if (lowered.startsWith('text')) {
-		let out = `${withCasing(name, casing)}: text(${dbColumnName({ name, casing })})`;
+	if (lowered.startsWith('string')) {
+		let out: string;
+		if (options) { // size
+			out = `${withCasing(name, casing)}: string(${
+				dbColumnName({ name, casing, withMode: true })
+			}{ length: ${options} })`;
+		} else {
+			out = `${withCasing(name, casing)}: string(${dbColumnName({ name, casing })})`;
+		}
 		return out;
 	}
 
@@ -1002,7 +1005,7 @@ const createTableColumns = (
 					const onUpdate = it.onUpdate && it.onUpdate !== 'NO ACTION' ? it.onUpdate : null;
 					const params = { onDelete, onUpdate };
 
-					const typeSuffix = isCyclic(it) ? ': AnyCockroachDbColumn' : '';
+					const typeSuffix = isCyclic(it) ? ': AnyCockroachColumn' : '';
 
 					const paramsStr = objToStatement2(params);
 					const tableSchema = schemas[it.schemaTo || ''];
@@ -1111,7 +1114,7 @@ const createTablePolicies = (
 		if (it.using !== null) tuples.push(['using', `sql\`${it.using}\``]);
 		if (it.withCheck !== null) tuples.push(['withCheck', `sql\`${it.withCheck}\``]);
 		const opts = tuples.length > 0 ? `, { ${tuples.map((x) => `${x[0]}: ${x[1]}`).join(', ')} }` : '';
-		statement += `\tcockroachdbPolicy("${it.name}"${opts}),\n`;
+		statement += `\tcockroachPolicy("${it.name}"${opts}),\n`;
 	});
 
 	return statement;
