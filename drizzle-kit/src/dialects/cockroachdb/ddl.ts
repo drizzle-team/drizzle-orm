@@ -49,7 +49,6 @@ export const createDDL = () => {
 			isUnique: 'boolean',
 			where: 'string?',
 			method: 'string?',
-			concurrently: 'boolean',
 		},
 		fks: {
 			schema: 'required',
@@ -406,7 +405,6 @@ export const interimToDDL = (
 		ddl.indexes.push({
 			table: column.table,
 			name,
-			concurrently: false,
 			isUnique: true,
 			method: defaults.index.method,
 			nameExplicit: !!column.uniqueName,

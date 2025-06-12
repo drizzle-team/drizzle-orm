@@ -1053,7 +1053,6 @@ const createTableIndexes = (tableName: string, idxs: Index[], casing: Casing): s
 
 		statement += it.isUnique ? '\tuniqueIndex(' : '\tindex(';
 		statement += name ? `"${name}")` : ')';
-		statement += `${it.concurrently ? `.concurrently()` : ''}`;
 
 		statement += `.using("${it.method}", ${
 			it.columns

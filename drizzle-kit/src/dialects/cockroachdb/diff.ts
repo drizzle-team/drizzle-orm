@@ -589,8 +589,6 @@ export const ddlDiff = async (
 	const indexesAlters = alters.filter((it): it is DiffEntities['indexes'] => {
 		if (it.entityType !== 'indexes') return false;
 
-		delete it.concurrently;
-
 		return ddl2.indexes.hasDiff(it);
 	});
 
@@ -598,7 +596,7 @@ export const ddlDiff = async (
 		const forWhere = !!idx.where && (idx.where.from !== null && idx.where.to !== null ? mode !== 'push' : true);
 		const forColumns = !!idx.columns && (idx.columns.from.length === idx.columns.to.length ? mode !== 'push' : true);
 
-		if (idx.isUnique || idx.concurrently || idx.method || forColumns || forWhere) {
+		if (idx.isUnique || idx.method || forColumns || forWhere) {
 			const index = ddl2.indexes.one({ schema: idx.schema, table: idx.table, name: idx.name })!;
 			jsonDropIndexes.push(prepareStatement('drop_index', { index }));
 			jsonCreateIndexes.push(prepareStatement('create_index', { index }));

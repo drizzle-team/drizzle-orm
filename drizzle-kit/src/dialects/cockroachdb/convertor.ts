@@ -349,7 +349,6 @@ const createIndexConvertor = convertor('create_index', (st) => {
 		name,
 		columns,
 		isUnique,
-		concurrently,
 		method,
 		where,
 	} = st.index;
@@ -368,11 +367,10 @@ const createIndexConvertor = convertor('create_index', (st) => {
 		? `"${schema}"."${table}"`
 		: `"${table}"`;
 
-	const concur = concurrently ? ' CONCURRENTLY' : '';
 	const whereClause = where ? ` WHERE ${where}` : '';
 	const using = method !== defaults.index.method ? method : null;
 
-	let statement = `CREATE ${indexPart}${concur} "${name}" ON ${key}`;
+	let statement = `CREATE ${indexPart} "${name}" ON ${key}`;
 	if (using === 'hash') {
 		statement += ` (${value}) USING ${using}`;
 	} else {
