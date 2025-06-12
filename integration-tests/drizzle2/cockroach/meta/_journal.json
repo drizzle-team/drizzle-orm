@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "cockroachdb",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "1",
+      "when": 1749649555400,
+      "tag": "0000_melted_dreaming_celestial",
+      "breakpoints": true
+    }
+  ]
+}

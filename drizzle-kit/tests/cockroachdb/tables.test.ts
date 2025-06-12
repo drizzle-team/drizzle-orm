@@ -1,8 +1,8 @@
 import { SQL, sql } from 'drizzle-orm';
 import {
-	cockroachdbSchema,
-	cockroachdbTable,
-	cockroachdbTableCreator,
+	cockroachSchema,
+	cockroachTable,
+	cockroachTableCreator,
 	foreignKey,
 	geometry,
 	index,
@@ -12,7 +12,7 @@ import {
 	unique,
 	uniqueIndex,
 	vector,
-} from 'drizzle-orm/cockroachdb-core';
+} from 'drizzle-orm/cockroach-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -35,7 +35,7 @@ beforeEach(async () => {
 
 test('add table #1', async () => {
 	const to = {
-		users: cockroachdbTable('users', {}),
+		users: cockroachTable('users', {}),
 	};
 
 	const { sqlStatements: st } = await diff({}, to, []);
@@ -54,7 +54,7 @@ test('add table #1', async () => {
 
 test('add table #2', async () => {
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id').primaryKey(),
 		}),
 	};
@@ -75,7 +75,7 @@ test('add table #2', async () => {
 
 test('add table #3', async () => {
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 		}, (t) => [primaryKey({ name: 'users_pk', columns: [t.id] })]),
 	};
@@ -99,8 +99,8 @@ test('add table #3', async () => {
 
 test('add table #4', async () => {
 	const to = {
-		users: cockroachdbTable('users', { id: int4() }),
-		posts: cockroachdbTable('posts', { id: int4() }),
+		users: cockroachTable('users', { id: int4() }),
+		posts: cockroachTable('posts', { id: int4() }),
 	};
 
 	const { sqlStatements: st } = await diff({}, to, []);
@@ -119,7 +119,7 @@ test('add table #4', async () => {
 });
 
 test('add table #5', async () => {
-	const schema = cockroachdbSchema('folder');
+	const schema = cockroachSchema('folder');
 	const from = {
 		schema,
 	};
@@ -148,11 +148,11 @@ test('add table #5', async () => {
 
 test('add table #6', async () => {
 	const from = {
-		users1: cockroachdbTable('users1', { id: int4() }),
+		users1: cockroachTable('users1', { id: int4() }),
 	};
 
 	const to = {
-		users2: cockroachdbTable('users2', { id: int4() }),
+		users2: cockroachTable('users2', { id: int4() }),
 	};
 
 	const { sqlStatements: st } = await diff(from, to, []);
@@ -173,12 +173,12 @@ test('add table #6', async () => {
 
 test('add table #7', async () => {
 	const from = {
-		users1: cockroachdbTable('users1', { id: int4() }),
+		users1: cockroachTable('users1', { id: int4() }),
 	};
 
 	const to = {
-		users: cockroachdbTable('users', { id: int4() }),
-		users2: cockroachdbTable('users2', { id: int4() }),
+		users: cockroachTable('users', { id: int4() }),
+		users2: cockroachTable('users2', { id: int4() }),
 	};
 
 	const renames = ['public.users1->public.users2'];
@@ -201,7 +201,7 @@ test('add table #7', async () => {
 
 test('add table #8: geometry types', async () => {
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			geom: geometry('geom', { type: 'point' }).notNull(),
 			geom1: geometry('geom1').notNull(),
 		}),
@@ -220,7 +220,7 @@ test('add table #8: geometry types', async () => {
 /* unique inline */
 test('add table #9', async () => {
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text().unique(),
 		}),
 	};
@@ -234,7 +234,7 @@ test('add table #9', async () => {
 
 	const st0 = [
 		'CREATE TABLE "users" (\n'
-		+ '\t"name" text,\n'
+		+ '\t"name" string,\n'
 		+ '\tCONSTRAINT "users_name_key" UNIQUE("name")\n'
 		+ ');\n',
 	];
@@ -246,7 +246,7 @@ test('add table #9', async () => {
 test('add table #10', async () => {
 	const from = {};
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text().unique('name_unique'),
 		}),
 	};
@@ -259,7 +259,7 @@ test('add table #10', async () => {
 	});
 
 	const st0 = [
-		`CREATE TABLE "users" (\n\t"name" text,\n\tCONSTRAINT "name_unique" UNIQUE("name")\n);\n`,
+		`CREATE TABLE "users" (\n\t"name" string,\n\tCONSTRAINT "name_unique" UNIQUE("name")\n);\n`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -268,7 +268,7 @@ test('add table #10', async () => {
 test('add table #11', async () => {
 	const from = {};
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text().unique('name_unique'),
 		}),
 	};
@@ -281,7 +281,7 @@ test('add table #11', async () => {
 	});
 
 	const st0 = [
-		`CREATE TABLE "users" (\n\t"name" text,\n\tCONSTRAINT "name_unique" UNIQUE("name")\n);\n`,
+		`CREATE TABLE "users" (\n\t"name" string,\n\tCONSTRAINT "name_unique" UNIQUE("name")\n);\n`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -290,7 +290,7 @@ test('add table #11', async () => {
 test('add table #12', async () => {
 	const from = {};
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text().unique('users_name_key'),
 		}),
 	};
@@ -303,7 +303,7 @@ test('add table #12', async () => {
 	});
 
 	const st0 = [
-		`CREATE TABLE "users" (\n\t"name" text,\n\tCONSTRAINT "users_name_key" UNIQUE("name")\n);\n`,
+		`CREATE TABLE "users" (\n\t"name" string,\n\tCONSTRAINT "users_name_key" UNIQUE("name")\n);\n`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -312,7 +312,7 @@ test('add table #12', async () => {
 /* unique default-named */
 test('add table #13', async () => {
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text(),
 		}, (t) => [unique('users_name_key').on(t.name)]),
 	};
@@ -325,7 +325,7 @@ test('add table #13', async () => {
 	});
 
 	const st0 = [
-		`CREATE TABLE "users" (\n\t"name" text,\n\tCONSTRAINT "users_name_key" UNIQUE("name")\n);\n`,
+		`CREATE TABLE "users" (\n\t"name" string,\n\tCONSTRAINT "users_name_key" UNIQUE("name")\n);\n`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -334,7 +334,7 @@ test('add table #13', async () => {
 test('add table #14', async () => {
 	const from = {};
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text(),
 		}, (t) => [unique('users_name_key').on(t.name)]),
 	};
@@ -347,7 +347,7 @@ test('add table #14', async () => {
 	});
 
 	const st0 = [
-		`CREATE TABLE "users" (\n\t"name" text,\n\tCONSTRAINT "users_name_key" UNIQUE("name")\n);\n`,
+		`CREATE TABLE "users" (\n\t"name" string,\n\tCONSTRAINT "users_name_key" UNIQUE("name")\n);\n`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -357,7 +357,7 @@ test('add table #14', async () => {
 test('add table #15', async () => {
 	const from = {};
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			name: text(),
 		}, (t) => [unique('name_unique').on(t.name)]),
 	};
@@ -367,14 +367,14 @@ test('add table #15', async () => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0 = [
-		`CREATE TABLE "users" (\n\t"name" text,\n\tCONSTRAINT "name_unique" UNIQUE("name")\n);\n`,
+		`CREATE TABLE "users" (\n\t"name" string,\n\tCONSTRAINT "name_unique" UNIQUE("name")\n);\n`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
 
 test('multiproject schema add table #1', async () => {
-	const table = cockroachdbTableCreator((name) => `prefix_${name}`);
+	const table = cockroachTableCreator((name) => `prefix_${name}`);
 
 	const to = {
 		users: table('users', {
@@ -397,7 +397,7 @@ test('multiproject schema add table #1', async () => {
 });
 
 test('multiproject schema drop table #1', async () => {
-	const table = cockroachdbTableCreator((name) => `prefix_${name}`);
+	const table = cockroachTableCreator((name) => `prefix_${name}`);
 
 	const from = {
 		users: table('users', {
@@ -421,7 +421,7 @@ test('multiproject schema drop table #1', async () => {
 });
 
 test('multiproject schema alter table name #1', async () => {
-	const table = cockroachdbTableCreator((name) => `prefix_${name}`);
+	const table = cockroachTableCreator((name) => `prefix_${name}`);
 
 	const from = {
 		users: table('users', {
@@ -455,7 +455,7 @@ test('multiproject schema alter table name #1', async () => {
 
 test('add table #8: column with vector', async () => {
 	const to = {
-		users2: cockroachdbTable('users2', {
+		users2: cockroachTable('users2', {
 			id: int4('id').primaryKey(),
 			name: vector('name', { dimensions: 3 }),
 		}),
@@ -476,7 +476,7 @@ test('add table #8: column with vector', async () => {
 });
 
 test('add schema + table #1', async () => {
-	const schema = cockroachdbSchema('folder');
+	const schema = cockroachSchema('folder');
 
 	const to = {
 		schema,
@@ -501,8 +501,8 @@ test('add schema + table #1', async () => {
 });
 
 test('change schema with tables #1', async () => {
-	const schema = cockroachdbSchema('folder');
-	const schema2 = cockroachdbSchema('folder2');
+	const schema = cockroachSchema('folder');
+	const schema2 = cockroachSchema('folder2');
 	const from = {
 		schema,
 		users: schema.table('users', {}),
@@ -530,10 +530,10 @@ test('change schema with tables #1', async () => {
 });
 
 test('change table schema #1', async () => {
-	const schema = cockroachdbSchema('folder');
+	const schema = cockroachSchema('folder');
 	const from = {
 		schema,
-		users: cockroachdbTable('users', {}),
+		users: cockroachTable('users', {}),
 	};
 	const to = {
 		schema,
@@ -560,14 +560,14 @@ test('change table schema #1', async () => {
 });
 
 test('change table schema #2', async () => {
-	const schema = cockroachdbSchema('folder');
+	const schema = cockroachSchema('folder');
 	const from = {
 		schema,
 		users: schema.table('users', {}),
 	};
 	const to = {
 		schema,
-		users: cockroachdbTable('users', {}),
+		users: cockroachTable('users', {}),
 	};
 
 	const renames = [
@@ -590,8 +590,8 @@ test('change table schema #2', async () => {
 });
 
 test('change table schema #3', async () => {
-	const schema1 = cockroachdbSchema('folder1');
-	const schema2 = cockroachdbSchema('folder2');
+	const schema1 = cockroachSchema('folder1');
+	const schema2 = cockroachSchema('folder2');
 	const from = {
 		schema1,
 		schema2,
@@ -623,8 +623,8 @@ test('change table schema #3', async () => {
 });
 
 test('change table schema #4', async () => {
-	const schema1 = cockroachdbSchema('folder1');
-	const schema2 = cockroachdbSchema('folder2');
+	const schema1 = cockroachSchema('folder1');
+	const schema2 = cockroachSchema('folder2');
 	const from = {
 		schema1,
 		users: schema1.table('users', {}),
@@ -656,8 +656,8 @@ test('change table schema #4', async () => {
 });
 
 test('change table schema #5', async () => {
-	const schema1 = cockroachdbSchema('folder1');
-	const schema2 = cockroachdbSchema('folder2');
+	const schema1 = cockroachSchema('folder1');
+	const schema2 = cockroachSchema('folder2');
 	const from = {
 		schema1, // remove schema
 		users: schema1.table('users', {}),
@@ -689,8 +689,8 @@ test('change table schema #5', async () => {
 });
 
 test('change table schema #5', async () => {
-	const schema1 = cockroachdbSchema('folder1');
-	const schema2 = cockroachdbSchema('folder2');
+	const schema1 = cockroachSchema('folder1');
+	const schema2 = cockroachSchema('folder2');
 	const from = {
 		schema1,
 		schema2,
@@ -719,8 +719,8 @@ test('change table schema #5', async () => {
 });
 
 test('change table schema #6', async () => {
-	const schema1 = cockroachdbSchema('folder1');
-	const schema2 = cockroachdbSchema('folder2');
+	const schema1 = cockroachSchema('folder1');
+	const schema2 = cockroachSchema('folder2');
 	const from = {
 		schema1,
 		users: schema1.table('users', {}),
@@ -752,8 +752,8 @@ test('change table schema #6', async () => {
 });
 
 test('drop table + rename schema #1', async () => {
-	const schema1 = cockroachdbSchema('folder1');
-	const schema2 = cockroachdbSchema('folder2');
+	const schema1 = cockroachSchema('folder1');
+	const schema2 = cockroachSchema('folder2');
 	const from = {
 		schema1,
 		users: schema1.table('users', {}),
@@ -777,11 +777,10 @@ test('drop table + rename schema #1', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-// TODO Need to know about using and op classes to finish this
-test.todo('create table with tsvector', async () => {
+test('create table with tsvector', async () => {
 	const from = {};
 	const to = {
-		users: cockroachdbTable('posts', {
+		users: cockroachTable('posts', {
 			id: int4('id').primaryKey(),
 			title: text('title').notNull(),
 			description: text('description').notNull(),
@@ -798,7 +797,7 @@ test.todo('create table with tsvector', async () => {
 	});
 
 	const st0 = [
-		'CREATE TABLE "posts" (\n\t"id" int4 PRIMARY KEY,\n\t"title" text NOT NULL,\n\t"description" text NOT NULL\n);\n',
+		'CREATE TABLE "posts" (\n\t"id" int4 PRIMARY KEY,\n\t"title" string NOT NULL,\n\t"description" string NOT NULL\n);\n',
 		`CREATE INDEX "title_search_index" ON "posts" USING gin (to_tsvector('english', "title"));`,
 	];
 	expect(st).toStrictEqual(st0);
@@ -808,7 +807,7 @@ test.todo('create table with tsvector', async () => {
 test('composite primary key', async () => {
 	const from = {};
 	const to = {
-		table: cockroachdbTable('works_to_creators', {
+		table: cockroachTable('works_to_creators', {
 			workId: int4('work_id').notNull(),
 			creatorId: int4('creator_id').notNull(),
 			classification: text('classification').notNull(),
@@ -825,7 +824,7 @@ test('composite primary key', async () => {
 	});
 
 	const st0 = [
-		'CREATE TABLE "works_to_creators" (\n\t"work_id" int4 NOT NULL,\n\t"creator_id" int4 NOT NULL,\n\t"classification" text NOT NULL,\n\tCONSTRAINT "works_to_creators_pkey" PRIMARY KEY("work_id","creator_id","classification")\n);\n',
+		'CREATE TABLE "works_to_creators" (\n\t"work_id" int4 NOT NULL,\n\t"creator_id" int4 NOT NULL,\n\t"classification" string NOT NULL,\n\tCONSTRAINT "works_to_creators_pkey" PRIMARY KEY("work_id","creator_id","classification")\n);\n',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -833,12 +832,12 @@ test('composite primary key', async () => {
 
 test('add column before creating unique constraint', async () => {
 	const from = {
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			id: int4('id').primaryKey(),
 		}),
 	};
 	const to = {
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			id: int4('id').primaryKey(),
 			name: text('name').notNull(),
 		}, (t) => [unique('uq').on(t.name)]),
@@ -853,7 +852,7 @@ test('add column before creating unique constraint', async () => {
 	});
 
 	const st0 = [
-		'ALTER TABLE "table" ADD COLUMN "name" text NOT NULL;',
+		'ALTER TABLE "table" ADD COLUMN "name" string NOT NULL;',
 		'CREATE UNIQUE INDEX "uq" ON "table" ("name");',
 	];
 	expect(st).toStrictEqual(st0);
@@ -862,7 +861,7 @@ test('add column before creating unique constraint', async () => {
 
 test('alter composite primary key', async () => {
 	const from = {
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			col1: int4('col1').notNull(),
 			col2: int4('col2').notNull(),
 			col3: text('col3').notNull(),
@@ -874,7 +873,7 @@ test('alter composite primary key', async () => {
 		]),
 	};
 	const to = {
-		table: cockroachdbTable('table', {
+		table: cockroachTable('table', {
 			col1: int4('col1').notNull(),
 			col2: int4('col2').notNull(),
 			col3: text('col3').notNull(),
@@ -901,37 +900,10 @@ test('alter composite primary key', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-// TODO Need to know about op
-test.todo('add index with op', async () => {
-	const from = {
-		users: cockroachdbTable('users', {
-			id: int4('id').primaryKey(),
-			name: text('name').notNull(),
-		}),
-	};
-	const to = {
-		users: cockroachdbTable('users', {
-			id: int4('id').primaryKey(),
-			name: text('name').notNull(),
-		}, (t) => [index().using('gin', t.name.op('gin_trgm_ops'))]),
-	};
-
-	const { sqlStatements: st } = await diff(from, to, []);
-
-	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({ db, to });
-
-	const st0 = [
-		'CREATE INDEX "users_name_index" ON "users" USING gin ("name" gin_trgm_ops);',
-	];
-	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
-});
-
 test('optional db aliases (snake case)', async () => {
 	const from = {};
 
-	const t1 = cockroachdbTable(
+	const t1 = cockroachTable(
 		't1',
 		{
 			t1Id1: int4().notNull().primaryKey(),
@@ -953,14 +925,14 @@ test('optional db aliases (snake case)', async () => {
 		],
 	);
 
-	const t2 = cockroachdbTable(
+	const t2 = cockroachTable(
 		't2',
 		{
 			t2Id: int4().primaryKey(),
 		},
 	);
 
-	const t3 = cockroachdbTable(
+	const t3 = cockroachTable(
 		't3',
 		{
 			t3Id1: int4(),
@@ -1024,7 +996,7 @@ test('optional db aliases (snake case)', async () => {
 test('optional db aliases (camel case)', async () => {
 	const from = {};
 
-	const t1 = cockroachdbTable('t1', {
+	const t1 = cockroachTable('t1', {
 		t1_id1: int4().notNull().primaryKey(),
 		t1_col2: int4().notNull(),
 		t1_col3: int4().notNull(),
@@ -1042,11 +1014,11 @@ test('optional db aliases (camel case)', async () => {
 		}),
 	]);
 
-	const t2 = cockroachdbTable('t2', {
+	const t2 = cockroachTable('t2', {
 		t2_id: int4().primaryKey(),
 	});
 
-	const t3 = cockroachdbTable('t3', {
+	const t3 = cockroachTable('t3', {
 		t3_id1: int4(),
 		t3_id2: int4(),
 	}, (table) => [primaryKey({ columns: [table.t3_id1, table.t3_id2] })]);
@@ -1105,7 +1077,7 @@ test('optional db aliases (camel case)', async () => {
 test('create table with generated column', async () => {
 	const schema1 = {};
 	const schema2 = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			id: int4('id'),
 			id2: int4('id2'),
 			name: text('name'),
@@ -1119,7 +1091,7 @@ test('create table with generated column', async () => {
 	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
 	const st0: string[] = [
-		'CREATE TABLE "users" (\n\t"id" int4,\n\t"id2" int4,\n\t"name" text,\n\t"gen_name" text GENERATED ALWAYS AS ("users"."name" || \'hello\') STORED\n);\n',
+		'CREATE TABLE "users" (\n\t"id" int4,\n\t"id2" int4,\n\t"name" string,\n\t"gen_name" string GENERATED ALWAYS AS ("users"."name" || \'hello\') STORED\n);\n',
 	];
 
 	expect(st).toStrictEqual(st0);
@@ -1128,13 +1100,13 @@ test('create table with generated column', async () => {
 
 test('rename table with composite primary key', async () => {
 	const schema1 = {
-		table: cockroachdbTable('table1', {
+		table: cockroachTable('table1', {
 			productId: text('product_id').notNull(),
 			categoryId: text('category_id').notNull(),
 		}, (t) => [primaryKey({ columns: [t.productId, t.categoryId] })]),
 	};
 	const schema2 = {
-		test: cockroachdbTable('table2', {
+		test: cockroachTable('table2', {
 			productId: text('product_id').notNull(),
 			categoryId: text('category_id').notNull(),
 		}, (t) => [primaryKey({ columns: [t.productId, t.categoryId] })]),

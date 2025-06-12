@@ -10,7 +10,7 @@ import { assertV1OutFolder } from '../utils/utils-node';
 import { checkHandler } from './commands/check';
 import { dropMigration } from './commands/drop';
 import { type Setup } from './commands/studio';
-import { upCockroachDbHandler } from './commands/up-cockroachdb';
+import { upCockroachDbHandler } from './commands/up-cockroach';
 import { upMysqlHandler } from './commands/up-mysql';
 import { upPgHandler } from './commands/up-postgres';
 import { upSinglestoreHandler } from './commands/up-singlestore';
@@ -106,8 +106,8 @@ export const generate = command({
 		} else if (dialect === 'mssql') {
 			const { handle } = await import('./commands/generate-mssql');
 			await handle(opts);
-		} else if (dialect === 'cockroachdb') {
-			const { handle } = await import('./commands/generate-cockroachdb');
+		} else if (dialect === 'cockroach') {
+			const { handle } = await import('./commands/generate-cockroach');
 			await handle(opts);
 		} else {
 			assertUnreachable(dialect);
@@ -204,7 +204,7 @@ export const migrate = command({
 						migrationsSchema: schema,
 					}),
 				);
-			} else if (dialect === 'cockroachdb') {
+			} else if (dialect === 'cockroach') {
 				const { prepareCockroachDB } = await import('./connections');
 				const { migrate } = await prepareCockroachDB(credentials);
 				await renderWithTask(
@@ -405,8 +405,8 @@ export const push = command({
 				force,
 				casing,
 			);
-		} else if (dialect === 'cockroachdb') {
-			const { handle } = await import('./commands/push-cockroachdb');
+		} else if (dialect === 'cockroach') {
+			const { handle } = await import('./commands/push-cockroach');
 			await handle(
 				schemaPath,
 				verbose,
@@ -498,7 +498,7 @@ export const up = command({
 			upSinglestoreHandler(out);
 		}
 
-		if (dialect === 'cockroachdb') {
+		if (dialect === 'cockroach') {
 			upCockroachDbHandler(out);
 		}
 
@@ -648,8 +648,8 @@ export const pull = command({
 					prefix,
 					entities,
 				);
-			} else if (dialect === 'cockroachdb') {
-				const { handle } = await import('./commands/pull-cockroachdb');
+			} else if (dialect === 'cockroach') {
+				const { handle } = await import('./commands/pull-cockroach');
 				await handle(
 					casing,
 					out,
@@ -780,10 +780,10 @@ export const studio = command({
 					relations,
 					files,
 				);
-			} else if (dialect === 'cockroachdb') {
+			} else if (dialect === 'cockroach') {
 				console.log(
 					error(
-						`You can't use 'studio' command with 'cockroachdb' dialect`,
+						`You can't use 'studio' command with 'cockroach' dialect`,
 					),
 				);
 				process.exit(1);
@@ -902,8 +902,8 @@ export const exportRaw = command({
 		} else if (dialect === 'mssql') {
 			const { handleExport } = await import('./commands/generate-mssql');
 			await handleExport(opts);
-		} else if (dialect === 'cockroachdb') {
-			const { handleExport } = await import('./commands/generate-cockroachdb');
+		} else if (dialect === 'cockroach') {
+			const { handleExport } = await import('./commands/generate-cockroach');
 			await handleExport(opts);
 		} else {
 			assertUnreachable(dialect);

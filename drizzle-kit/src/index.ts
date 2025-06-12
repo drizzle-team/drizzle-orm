@@ -272,7 +272,7 @@ export type Config =
 				};
 		}
 		| {
-			dialect: Verify<Dialect, 'cockroachdb'>;
+			dialect: Verify<Dialect, 'cockroach'>;
 			dbCredentials:
 				| ({
 					host: string;

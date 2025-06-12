@@ -4,7 +4,7 @@ import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
 import type { DB } from '../../utils';
 import type {
 	CheckConstraint,
-	CockroachDbEntities,
+	CockroachEntities,
 	Enum,
 	ForeignKey,
 	Index,
@@ -80,7 +80,7 @@ export const fromDatabase = async (
 ): Promise<InterimSchema> => {
 	const schemas: Schema[] = [];
 	const enums: Enum[] = [];
-	const tables: CockroachDbEntities['tables'][] = [];
+	const tables: CockroachEntities['tables'][] = [];
 	const columns: InterimColumn[] = [];
 	const indexes: InterimIndex[] = [];
 	const pks: PrimaryKey[] = [];
@@ -584,10 +584,13 @@ WHERE relnamespace IN (${filteredNamespacesIds.join(',')});`);
 			: null;
 
 		let columnTypeMapped;
-		const unintrospectedPrecisions = ['vector', 'interval'];
+		const unintrospectedPrecisions = ['vector', 'interval', 'text'];
 		if (enumType) {
 			columnTypeMapped = enumType.name;
 		} else if (unintrospectedPrecisions.find((it) => extraColumnConfig.data_type.startsWith(it))) {
+			columnTypeMapped = extraColumnConfig.data_type;
+		} else if (column.type.startsWith('text')) {
+			// this is because if you create string(200), in pg system tables this will be stored as text(204)
 			columnTypeMapped = extraColumnConfig.data_type;
 		} else {
 			columnTypeMapped = column.type;
@@ -615,11 +618,13 @@ WHERE relnamespace IN (${filteredNamespacesIds.join(',')});`);
 		columnTypeMapped = columnTypeMapped
 			.replace('character varying', 'varchar')
 			.replace(' without time zone', '')
-			// .replace("timestamp without time zone", "timestamp")
 			.replace('character', 'char')
 			.replace('integer', 'int4')
 			.replace('bigint', 'int8')
-			.replace('smallint', 'int2');
+			.replace('smallint', 'int2')
+			.replace('double precision', 'float')
+			.replace('text', 'string')
+			.replace('numeric', 'decimal');
 
 		columnTypeMapped = trimChar(columnTypeMapped, '"');
 
@@ -918,7 +923,6 @@ WHERE relnamespace IN (${filteredNamespacesIds.join(',')});`);
 			isUnique: metadata.isUnique,
 			where: idx.metadata.where,
 			columns: columns,
-			concurrently: false,
 			forPK,
 		});
 	}

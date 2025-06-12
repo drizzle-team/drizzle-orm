@@ -219,7 +219,7 @@ export const validatorForDialect = (dialect: Dialect): (snapshot: Object) => Val
 			return singlestoreSnapshotValidator;
 		case 'mssql':
 			return mssqlSnapshotValidator;
-		case 'cockroachdb':
+		case 'cockroach':
 			return cockroachdbSnapshotValidator;
 		case 'gel':
 			throw Error('gel validator is not implemented yet'); // TODO

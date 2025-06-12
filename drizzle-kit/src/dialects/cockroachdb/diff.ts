@@ -7,8 +7,8 @@ import { groupDiffs } from '../utils';
 import { fromJson } from './convertor';
 import {
 	CheckConstraint,
-	CockroachDbDDL,
-	CockroachDbEntities,
+	CockroachDDL,
+	CockroachEntities,
 	Column,
 	createDDL,
 	DiffEntities,
@@ -25,7 +25,7 @@ import {
 } from './ddl';
 import { JsonStatement, prepareStatement } from './statements';
 
-export const ddlDiffDry = async (ddlFrom: CockroachDbDDL, ddlTo: CockroachDbDDL, mode: 'default' | 'push') => {
+export const ddlDiffDry = async (ddlFrom: CockroachDDL, ddlTo: CockroachDDL, mode: 'default' | 'push') => {
 	const mocks = new Set<string>();
 	return ddlDiff(
 		ddlFrom,
@@ -46,13 +46,13 @@ export const ddlDiffDry = async (ddlFrom: CockroachDbDDL, ddlTo: CockroachDbDDL,
 };
 
 export const ddlDiff = async (
-	ddl1: CockroachDbDDL,
-	ddl2: CockroachDbDDL,
+	ddl1: CockroachDDL,
+	ddl2: CockroachDDL,
 	schemasResolver: Resolver<Schema>,
 	enumsResolver: Resolver<Enum>,
 	sequencesResolver: Resolver<Sequence>,
 	policyResolver: Resolver<Policy>,
-	tablesResolver: Resolver<CockroachDbEntities['tables']>,
+	tablesResolver: Resolver<CockroachEntities['tables']>,
 	columnsResolver: Resolver<Column>,
 	viewsResolver: Resolver<View>,
 	indexesResolver: Resolver<Index>,
@@ -196,7 +196,7 @@ export const ddlDiff = async (
 	}
 
 	const rolesDiff = diff(ddl1, ddl2, 'roles');
-	// CockroachDb does not allow to rename roles
+	// Cockroach does not allow to rename roles
 	const createdRoles = rolesDiff.filter((it) => it.$diffType === 'create');
 	const deletedRoles = rolesDiff.filter((it) => it.$diffType === 'drop');
 
@@ -589,8 +589,6 @@ export const ddlDiff = async (
 	const indexesAlters = alters.filter((it): it is DiffEntities['indexes'] => {
 		if (it.entityType !== 'indexes') return false;
 
-		delete it.concurrently;
-
 		return ddl2.indexes.hasDiff(it);
 	});
 
@@ -598,7 +596,7 @@ export const ddlDiff = async (
 		const forWhere = !!idx.where && (idx.where.from !== null && idx.where.to !== null ? mode !== 'push' : true);
 		const forColumns = !!idx.columns && (idx.columns.from.length === idx.columns.to.length ? mode !== 'push' : true);
 
-		if (idx.isUnique || idx.concurrently || idx.method || forColumns || forWhere) {
+		if (idx.isUnique || idx.method || forColumns || forWhere) {
 			const index = ddl2.indexes.one({ schema: idx.schema, table: idx.table, name: idx.name })!;
 			jsonDropIndexes.push(prepareStatement('drop_index', { index }));
 			jsonCreateIndexes.push(prepareStatement('create_index', { index }));
@@ -879,7 +877,7 @@ export const ddlDiff = async (
 			}
 
 			const pkIn2 = ddl2.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } });
-			// CockroachDb forces adding not null and only than primary key
+			// Cockroach forces adding not null and only than primary key
 			// if (it.notNull && pkIn2) {
 			// 	delete it.notNull;
 			// }
@@ -1061,7 +1059,7 @@ export const ddlDiff = async (
 	};
 };
 
-const preserveEntityNames = <C extends CockroachDbDDL['fks' | 'pks' | 'indexes']>(
+const preserveEntityNames = <C extends CockroachDDL['fks' | 'pks' | 'indexes']>(
 	collection1: C,
 	collection2: C,
 	mode: 'push' | 'default',

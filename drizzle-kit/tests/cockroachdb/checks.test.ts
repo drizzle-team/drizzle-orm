@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { check, cockroachdbTable, int4, varchar } from 'drizzle-orm/cockroachdb-core';
+import { check, cockroachTable, int4, varchar } from 'drizzle-orm/cockroach-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -22,7 +22,7 @@ beforeEach(async () => {
 
 test('create table with check', async (t) => {
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			age: int4('age'),
 		}, (table) => [check('some_check_name', sql`${table.age} > 21`)]),
 	};
@@ -39,13 +39,13 @@ test('create table with check', async (t) => {
 
 test('add check contraint to existing table', async (t) => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			age: int4('age'),
 		}),
 	};
 
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			age: int4('age'),
 		}, (table) => [
 			check('some_check_name', sql`${table.age} > 21`),
@@ -64,13 +64,13 @@ test('add check contraint to existing table', async (t) => {
 
 test('drop check contraint in existing table', async (t) => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			age: int4('age'),
 		}, (table) => [check('some_check_name', sql`${table.age} > 21`)]),
 	};
 
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			age: int4('age'),
 		}),
 	};
@@ -87,13 +87,13 @@ test('drop check contraint in existing table', async (t) => {
 
 test('rename check constraint', async (t) => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			age: int4('age'),
 		}, (table) => [check('some_check_name', sql`${table.age} > 21`)]),
 	};
 
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			age: int4('age'),
 		}, (table) => [check('new_check_name', sql`${table.age} > 21`)]),
 	};
@@ -113,13 +113,13 @@ test('rename check constraint', async (t) => {
 
 test('alter check constraint', async (t) => {
 	const from = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			age: int4('age'),
 		}, (table) => [check('some_check_name', sql`${table.age} > 21`)]),
 	};
 
 	const to = {
-		users: cockroachdbTable('users', {
+		users: cockroachTable('users', {
 			age: int4('age'),
 		}, (table) => [check('some_check_name', sql`${table.age} > 10`)]),
 	};
@@ -138,7 +138,7 @@ test('alter check constraint', async (t) => {
 
 test('alter multiple check constraints', async (t) => {
 	const from = {
-		users: cockroachdbTable(
+		users: cockroachTable(
 			'users',
 			{
 				id: int4('id').primaryKey(),
@@ -155,7 +155,7 @@ test('alter multiple check constraints', async (t) => {
 	};
 
 	const to = {
-		users: cockroachdbTable(
+		users: cockroachTable(
 			'users',
 			{
 				id: int4('id').primaryKey(),
@@ -188,7 +188,7 @@ test('alter multiple check constraints', async (t) => {
 
 test('create checks with same names', async (t) => {
 	const to = {
-		users: cockroachdbTable(
+		users: cockroachTable(
 			'users',
 			{
 				id: int4('id').primaryKey(),
@@ -209,13 +209,13 @@ test('create checks with same names', async (t) => {
 
 test('db has checks. Push with same names', async () => {
 	const schema1 = {
-		test: cockroachdbTable('test', {
+		test: cockroachTable('test', {
 			id: int4('id').primaryKey(),
 			values: int4('values').default(1),
 		}, (table) => [check('some_check', sql`${table.values} < 100`)]),
 	};
 	const schema2 = {
-		test: cockroachdbTable('test', {
+		test: cockroachTable('test', {
 			id: int4('id').primaryKey(),
 			values: int4('values').default(1),
 		}, (table) => [check('some_check', sql`${table.values} > 100`)]),

@@ -49,7 +49,6 @@ export const createDDL = () => {
 			isUnique: 'boolean',
 			where: 'string?',
 			method: 'string?',
-			concurrently: 'boolean',
 		},
 		fks: {
 			schema: 'required',
@@ -103,25 +102,25 @@ export const createDDL = () => {
 	});
 };
 
-export type CockroachDbDDL = ReturnType<typeof createDDL>;
+export type CockroachDDL = ReturnType<typeof createDDL>;
 
-export type CockroachDbEntities = CockroachDbDDL['_']['types'];
-export type CockroachDbEntity = CockroachDbEntities[keyof CockroachDbEntities];
+export type CockroachEntities = CockroachDDL['_']['types'];
+export type CockroachEntity = CockroachEntities[keyof CockroachEntities];
 
-export type DiffEntities = CockroachDbDDL['_']['diffs']['alter'];
+export type DiffEntities = CockroachDDL['_']['diffs']['alter'];
 
-export type Schema = CockroachDbEntities['schemas'];
-export type Enum = CockroachDbEntities['enums'];
-export type Sequence = CockroachDbEntities['sequences'];
-export type Column = CockroachDbEntities['columns'];
+export type Schema = CockroachEntities['schemas'];
+export type Enum = CockroachEntities['enums'];
+export type Sequence = CockroachEntities['sequences'];
+export type Column = CockroachEntities['columns'];
 export type Identity = Column['identity'];
-export type Role = CockroachDbEntities['roles'];
-export type Index = CockroachDbEntities['indexes'];
-export type ForeignKey = CockroachDbEntities['fks'];
-export type PrimaryKey = CockroachDbEntities['pks'];
-export type CheckConstraint = CockroachDbEntities['checks'];
-export type Policy = CockroachDbEntities['policies'];
-export type View = CockroachDbEntities['views'];
+export type Role = CockroachEntities['roles'];
+export type Index = CockroachEntities['indexes'];
+export type ForeignKey = CockroachEntities['fks'];
+export type PrimaryKey = CockroachEntities['pks'];
+export type CheckConstraint = CockroachEntities['checks'];
+export type Policy = CockroachEntities['policies'];
+export type View = CockroachEntities['views'];
 export type ViewColumn = {
 	schema: string;
 	view: string;
@@ -159,7 +158,7 @@ export type InterimIndex = Index & {
 export interface InterimSchema {
 	schemas: Schema[];
 	enums: Enum[];
-	tables: CockroachDbEntities['tables'][];
+	tables: CockroachEntities['tables'][];
 	columns: InterimColumn[];
 	indexes: InterimIndex[];
 	pks: PrimaryKey[];
@@ -173,8 +172,8 @@ export interface InterimSchema {
 }
 
 export const tableFromDDL = (
-	table: CockroachDbEntities['tables'],
-	ddl: CockroachDbDDL,
+	table: CockroachEntities['tables'],
+	ddl: CockroachDDL,
 ): Table => {
 	const filter = { schema: table.schema, table: table.name } as const;
 	const columns = ddl.columns.list(filter);
@@ -289,7 +288,7 @@ interface PolicyNotLinked {
 }
 export type SchemaWarning = PolicyNotLinked;
 
-export const fromEntities = (entities: CockroachDbEntity[]) => {
+export const fromEntities = (entities: CockroachEntity[]) => {
 	const ddl = createDDL();
 	for (const it of entities) {
 		ddl.entities.push(it);
@@ -299,7 +298,7 @@ export const fromEntities = (entities: CockroachDbEntity[]) => {
 };
 export const interimToDDL = (
 	schema: InterimSchema,
-): { ddl: CockroachDbDDL; errors: SchemaError[] } => {
+): { ddl: CockroachDDL; errors: SchemaError[] } => {
 	const ddl = createDDL();
 	const errors: SchemaError[] = [];
 
@@ -406,7 +405,6 @@ export const interimToDDL = (
 		ddl.indexes.push({
 			table: column.table,
 			name,
-			concurrently: false,
 			isUnique: true,
 			method: defaults.index.method,
 			nameExplicit: !!column.uniqueName,

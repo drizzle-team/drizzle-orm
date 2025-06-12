@@ -1,4 +1,4 @@
-import { cockroachdbRole } from 'drizzle-orm/cockroachdb-core';
+import { cockroachRole } from 'drizzle-orm/cockroach-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -23,7 +23,7 @@ test('create role', async (t) => {
 	const schema1 = {};
 
 	const schema2 = {
-		manager: cockroachdbRole('manager'),
+		manager: cockroachRole('manager'),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -41,7 +41,7 @@ test('create role with properties', async (t) => {
 	const schema1 = {};
 
 	const schema2 = {
-		manager: cockroachdbRole('manager', { createDb: true, createRole: true }),
+		manager: cockroachRole('manager', { createDb: true, createRole: true }),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -59,7 +59,7 @@ test('create role with some properties', async (t) => {
 	const schema1 = {};
 
 	const schema2 = {
-		manager: cockroachdbRole('manager', { createDb: true }),
+		manager: cockroachRole('manager', { createDb: true }),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -74,7 +74,7 @@ test('create role with some properties', async (t) => {
 });
 
 test('drop role', async (t) => {
-	const schema1 = { manager: cockroachdbRole('manager') };
+	const schema1 = { manager: cockroachRole('manager') };
 
 	const schema2 = {};
 
@@ -92,11 +92,11 @@ test('drop role', async (t) => {
 
 test('create and drop role', async (t) => {
 	const schema1 = {
-		manager: cockroachdbRole('manager'),
+		manager: cockroachRole('manager'),
 	};
 
 	const schema2 = {
-		superuser: cockroachdbRole('superuser'),
+		superuser: cockroachRole('superuser'),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -118,11 +118,11 @@ test('create and drop role', async (t) => {
 
 test('rename role - recreate', async (t) => {
 	const schema1 = {
-		manager: cockroachdbRole('manager'),
+		manager: cockroachRole('manager'),
 	};
 
 	const schema2 = {
-		superuser: cockroachdbRole('superuser'),
+		superuser: cockroachRole('superuser'),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -144,11 +144,11 @@ test('rename role - recreate', async (t) => {
 
 test('alter all role field', async (t) => {
 	const schema1 = {
-		manager: cockroachdbRole('manager'),
+		manager: cockroachRole('manager'),
 	};
 
 	const schema2 = {
-		manager: cockroachdbRole('manager', { createDb: true, createRole: true }),
+		manager: cockroachRole('manager', { createDb: true, createRole: true }),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -165,11 +165,11 @@ test('alter all role field', async (t) => {
 
 test('alter createdb in role', async (t) => {
 	const schema1 = {
-		manager: cockroachdbRole('manager'),
+		manager: cockroachRole('manager'),
 	};
 
 	const schema2 = {
-		manager: cockroachdbRole('manager', { createDb: true }),
+		manager: cockroachRole('manager', { createDb: true }),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -186,11 +186,11 @@ test('alter createdb in role', async (t) => {
 
 test('alter createrole in role', async (t) => {
 	const schema1 = {
-		manager: cockroachdbRole('manager'),
+		manager: cockroachRole('manager'),
 	};
 
 	const schema2 = {
-		manager: cockroachdbRole('manager', { createRole: true }),
+		manager: cockroachRole('manager', { createRole: true }),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
