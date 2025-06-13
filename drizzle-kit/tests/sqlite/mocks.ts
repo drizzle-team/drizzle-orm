@@ -190,7 +190,7 @@ export const push = async (config: {
 
 	for (const sql of sqlStatements) {
 		// if (log === 'statements') console.log(sql);
-		await db.query(sql);
+		await db.run(sql);
 	}
 
 	return { sqlStatements, statements, hints };
@@ -235,7 +235,7 @@ export const diffDefault = async <T extends SQLiteColumnBuilder>(
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
 	const file = ddlToTypeScript(ddl1, 'camel', schema.viewsToColumns, 'sqlite');
-	const path = `tests/postgres/tmp/temp-${hash(String(Math.random()))}.ts`;
+	const path = `tests/sqlite/tmp/temp-${hash(String(Math.random()))}.ts`;
 
 	if (existsSync(path)) rmSync(path);
 	writeFileSync(path, file.file);
@@ -305,19 +305,36 @@ export type TestDatabase = {
 };
 
 export const prepareTestDatabase = () => {
-	const client = new BetterSqlite3(':memory:');
+	let client = new BetterSqlite3(':memory:');
 
 	const db = {
-		query: async (sql: string, params: any[]) => {
-			const stmt = client.prepare(sql);
-			return stmt.run(...params) as any;
+		query: async (sql: string, params?: any[]) => {
+			try {
+				const stmt = client.prepare(sql);
+				const res = stmt.all(...(params ?? [])) as any;
+				return res;
+			} catch (error) {
+				const newError = new Error(`query error: ${sql}\n\n${(error as Error).message}`);
+				throw newError;
+			}
+		},
+		run: async (sql: string) => {
+			try {
+				const stmt = client.prepare(sql);
+				stmt.run();
+				return;
+			} catch (error) {
+				const newError = new Error(`query error: ${sql}\n\n${(error as Error).message}`);
+				throw newError;
+			}
 		},
 	};
 	const close = async () => {
 		client.close();
 	};
 	const clear = async () => {
-		// TODO implement
+		client.close();
+		client = new BetterSqlite3(':memory:');
 	};
 	return { db, close, clear };
 };

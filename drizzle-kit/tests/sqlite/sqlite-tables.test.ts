@@ -1,27 +1,52 @@
+import Database from 'better-sqlite3';
 import { sql } from 'drizzle-orm';
 import {
 	AnySQLiteColumn,
+	blob,
 	foreignKey,
 	index,
 	int,
 	integer,
+	numeric,
 	primaryKey,
+	real,
 	sqliteTable,
 	text,
 	unique,
 	uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
-import { expect, test } from 'vitest';
-import { diff } from './mocks';
+import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { K } from 'vitest/dist/chunks/reporters.d.C1ogPriE';
+import { diff, diff2, prepareTestDatabase, push, TestDatabase } from './mocks';
+
+// @vitest-environment-options {"max-concurrency":1}
+let _: TestDatabase;
+let db: TestDatabase['db'];
+
+beforeAll(() => {
+	_ = prepareTestDatabase();
+	db = _.db;
+});
+
+afterAll(async () => {
+	await _.close();
+});
+
+beforeEach(async () => {
+	await _.clear();
+});
 
 test('add table #1', async () => {
 	const to = {
 		users: sqliteTable('users', {}),
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
 
-	expect(sqlStatements).toStrictEqual([]);
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add table #2', async () => {
@@ -31,11 +56,14 @@ test('add table #2', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
 
-	expect(sqlStatements).toStrictEqual([
+	const st0: string[] = [
 		'CREATE TABLE `users` (\n\t`id` integer PRIMARY KEY AUTOINCREMENT\n);\n',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add table #3', async () => {
@@ -52,11 +80,12 @@ test('add table #3', async () => {
 		),
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
 
-	expect(sqlStatements).toStrictEqual([
-		'CREATE TABLE `users` (\n\t`id` integer PRIMARY KEY\n);\n',
-	]);
+	const st0: string[] = ['CREATE TABLE `users` (\n\t`id` integer PRIMARY KEY\n);\n'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add table #4', async () => {
@@ -65,9 +94,12 @@ test('add table #4', async () => {
 		posts: sqliteTable('posts', {}),
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
 
-	expect(sqlStatements).toStrictEqual([]);
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add table #5', async () => {
@@ -80,15 +112,18 @@ test('add table #5', async () => {
 		]),
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
 
-	expect(sqlStatements).toStrictEqual([
+	const st0: string[] = [
 		'CREATE TABLE `users` (\n'
 		+ '\t`id1` integer,\n'
 		+ '\t`id2` integer,\n'
 		+ '\tPRIMARY KEY(`id1`, `id2`)\n'
 		+ ');\n',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add table #6', async () => {
@@ -100,9 +135,14 @@ test('add table #6', async () => {
 		users2: sqliteTable('users2', {}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([]);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add table #7', async () => {
@@ -115,9 +155,15 @@ test('add table #7', async () => {
 		users2: sqliteTable('users2', {}),
 	};
 
-	const { sqlStatements } = await diff(from, to, ['public.users1->public.users2']);
+	const renames = ['public.users1->public.users2'];
+	const { sqlStatements: st } = await diff(from, to, renames);
 
-	expect(sqlStatements).toStrictEqual([]);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add table #8', async () => {
@@ -130,15 +176,18 @@ test('add table #8', async () => {
 		users,
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
 
-	expect(sqlStatements).toStrictEqual([
+	const st0: string[] = [
 		'CREATE TABLE `users` (\n'
 		+ '\t`id` integer PRIMARY KEY AUTOINCREMENT,\n'
 		+ '\t`reportee_id` integer,\n'
 		+ '\tFOREIGN KEY (`reportee_id`) REFERENCES `users`(`id`)\n'
 		+ ');\n',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add table #9', async () => {
@@ -153,15 +202,18 @@ test('add table #9', async () => {
 		),
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
 
-	expect(sqlStatements).toStrictEqual([
+	const st0: string[] = [
 		'CREATE TABLE `users` (\n'
 		+ '\t`id` integer PRIMARY KEY AUTOINCREMENT,\n'
 		+ '\t`reportee_id` integer\n'
 		+ ');\n',
 		'CREATE INDEX `reportee_idx` ON `users` (`reportee_id`);',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add table #10', async () => {
@@ -171,10 +223,12 @@ test('add table #10', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
-	expect(sqlStatements).toStrictEqual([
-		"CREATE TABLE `table` (\n\t`json` text DEFAULT '{}'\n);\n",
-	]);
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = ["CREATE TABLE `table` (\n\t`json` text DEFAULT '{}'\n);\n"];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add table #11', async () => {
@@ -184,10 +238,12 @@ test('add table #11', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
-	expect(sqlStatements).toStrictEqual([
-		"CREATE TABLE `table` (\n\t`json` text DEFAULT '[]'\n);\n",
-	]);
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = ["CREATE TABLE `table` (\n\t`json` text DEFAULT '[]'\n);\n"];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add table #12', async () => {
@@ -197,10 +253,13 @@ test('add table #12', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
-	expect(sqlStatements).toStrictEqual([
-		"CREATE TABLE `table` (\n\t`json` text DEFAULT '[1,2,3]'\n);\n",
-	]);
+	const { sqlStatements: st } = await diff({}, to, []);
+
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = ["CREATE TABLE `table` (\n\t`json` text DEFAULT '[1,2,3]'\n);\n"];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add table #13', async () => {
@@ -210,10 +269,12 @@ test('add table #13', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
-	expect(sqlStatements).toStrictEqual([
-		'CREATE TABLE `table` (\n\t`json` text DEFAULT \'{"key":"value"}\'\n);\n',
-	]);
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = ['CREATE TABLE `table` (\n\t`json` text DEFAULT \'{"key":"value"}\'\n);\n'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add table #14', async () => {
@@ -226,10 +287,12 @@ test('add table #14', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
-	expect(sqlStatements).toStrictEqual([
-		'CREATE TABLE `table` (\n\t`json` text DEFAULT \'{"key":"value","arr":[1,2,3]}\'\n);\n',
-	]);
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = ['CREATE TABLE `table` (\n\t`json` text DEFAULT \'{"key":"value","arr":[1,2,3]}\'\n);\n'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('rename table #1', async () => {
@@ -243,8 +306,16 @@ test('rename table #1', async () => {
 			id: integer(),
 		}),
 	};
-	const { sqlStatements } = await diff(from, to, ['table->table1']);
-	expect(sqlStatements).toStrictEqual(['ALTER TABLE `table` RENAME TO `table1`;']);
+
+	const renames = ['table->table1'];
+	const { sqlStatements: st } = await diff(from, to, renames);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0: string[] = ['ALTER TABLE `table` RENAME TO `table1`;'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('rename table #2', async () => {
@@ -283,8 +354,16 @@ test('rename table #2', async () => {
 			})],
 		),
 	};
-	const { sqlStatements } = await diff(from, to, ['table->table1']);
-	expect(sqlStatements).toStrictEqual(['ALTER TABLE `table` RENAME TO `table1`;']);
+
+	const renames = ['table->table1'];
+	const { sqlStatements: st } = await diff(from, to, renames);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0: string[] = ['ALTER TABLE `table` RENAME TO `table1`;'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('rename table #2', async () => {
@@ -309,8 +388,15 @@ test('rename table #2', async () => {
 	};
 
 	// breaks due to fk name changed
-	const { sqlStatements } = await diff(from, to, ['table->table1']);
-	expect(sqlStatements).toStrictEqual(['ALTER TABLE `table` RENAME TO `table1`;']);
+	const renames = ['table->table1'];
+	const { sqlStatements: st } = await diff(from, to, renames);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0: string[] = ['ALTER TABLE `table` RENAME TO `table1`;'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add table with indexes', async () => {
@@ -344,9 +430,12 @@ test('add table with indexes', async () => {
 		),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
-	expect(sqlStatements.length).toBe(8);
-	expect(sqlStatements).toStrictEqual([
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		'CREATE TABLE `users` (\n\t`id` integer PRIMARY KEY,\n\t`name` text,\n\t`email` text\n);\n',
 		'CREATE UNIQUE INDEX `uniqueExpr` ON `users` ((lower("email")));',
 		'CREATE INDEX `indexExpr` ON `users` ((lower("email")));',
@@ -355,7 +444,9 @@ test('add table with indexes', async () => {
 		'CREATE INDEX `indexCol` ON `users` (`email`);',
 		'CREATE INDEX `indexColMultiple` ON `users` (`email`,`email`);',
 		'CREATE INDEX `indexColExpr` ON `users` ((lower("email")),`email`);',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('composite primary key', async () => {
@@ -370,11 +461,16 @@ test('composite primary key', async () => {
 		})]),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		'CREATE TABLE `works_to_creators` (\n\t`work_id` integer NOT NULL,\n\t`creator_id` integer NOT NULL,\n\t`classification` text NOT NULL,\n\tPRIMARY KEY(`work_id`, `creator_id`, `classification`)\n);\n',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add column before creating unique constraint', async () => {
@@ -390,9 +486,12 @@ test('add column before creating unique constraint', async () => {
 		}, (t) => [unique('uq').on(t.name)]),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		'ALTER TABLE `table` ADD `name` text NOT NULL;',
 		'PRAGMA foreign_keys=OFF;',
 		'CREATE TABLE `__new_table` (\n'
@@ -404,7 +503,9 @@ test('add column before creating unique constraint', async () => {
 		'DROP TABLE `table`;',
 		'ALTER TABLE `__new_table` RENAME TO `table`;',
 		'PRAGMA foreign_keys=ON;',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('optional db aliases (snake case)', async () => {
@@ -456,9 +557,13 @@ test('optional db aliases (snake case)', async () => {
 		t3,
 	};
 
-	const { sqlStatements } = await diff(from, to, [], 'snake_case');
+	const casing = 'snake_case';
+	const { sqlStatements: st } = await diff(from, to, [], casing);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, casing });
+
+	const st0: string[] = [
 		'CREATE TABLE `t1` (\n'
 		+ '\t`t1_id1` integer PRIMARY KEY,\n'
 		+ '\t`t1_col2` integer NOT NULL,\n'
@@ -479,7 +584,9 @@ test('optional db aliases (snake case)', async () => {
 		+ ');\n',
 		'CREATE UNIQUE INDEX `t1_uni_idx` ON `t1` (`t1_uni_idx`);',
 		'CREATE INDEX `t1_idx` ON `t1` (`t1_idx`);',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('optional db aliases (camel case)', async () => {
@@ -531,9 +638,13 @@ test('optional db aliases (camel case)', async () => {
 		t3,
 	};
 
-	const { sqlStatements } = await diff(from, to, [], 'camelCase');
+	const casing = 'camelCase';
+	const { sqlStatements: st } = await diff(from, to, [], casing);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, casing });
+
+	const st0: string[] = [
 		'CREATE TABLE `t1` (\n'
 		+ '\t`t1Id1` integer PRIMARY KEY,\n'
 		+ '\t`t1Col2` integer NOT NULL,\n'
@@ -554,5 +665,345 @@ test('optional db aliases (camel case)', async () => {
 		+ ');\n',
 		'CREATE UNIQUE INDEX `t1UniIdx` ON `t1` (`t1UniIdx`);',
 		'CREATE INDEX `t1Idx` ON `t1` (`t1Idx`);',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('nothing changed in schema', async (t) => {
+	const client = new Database(':memory:');
+
+	const users = sqliteTable('users', {
+		id: integer('id').primaryKey().notNull(),
+		name: text('name').notNull(),
+		email: text('email'),
+		textJson: text('text_json', { mode: 'json' }),
+		blobJon: blob('blob_json', { mode: 'json' }),
+		blobBigInt: blob('blob_bigint', { mode: 'bigint' }),
+		numeric: numeric('numeric'),
+		createdAt: integer('created_at', { mode: 'timestamp' }),
+		createdAtMs: integer('created_at_ms', { mode: 'timestamp_ms' }),
+		real: real('real'),
+		text: text('text', { length: 255 }),
+		role: text('role', { enum: ['admin', 'user'] }).default('user'),
+		isConfirmed: integer('is_confirmed', {
+			mode: 'boolean',
+		}),
+	});
+
+	const schema1 = {
+		users,
+		customers: sqliteTable('customers', {
+			id: integer('id').primaryKey(),
+			address: text('address').notNull(),
+			isConfirmed: integer('is_confirmed', { mode: 'boolean' }),
+			registrationDate: integer('registration_date', { mode: 'timestamp_ms' })
+				.notNull()
+				.$defaultFn(() => new Date()),
+			userId: integer('user_id')
+				.references(() => users.id)
+				.notNull(),
+		}),
+
+		posts: sqliteTable('posts', {
+			id: integer('id').primaryKey(),
+			content: text('content'),
+			authorId: integer('author_id'),
+		}),
+	};
+
+	const { sqlStatements: st, hints } = await diff2({ client, left: schema1, right: schema1 });
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema1 });
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	const hints0: string[] = [];
+	expect(hints).toStrictEqual(hints0);
+	expect(phints).toStrictEqual(hints0);
+});
+
+test('create table with custom name references', async (t) => {
+	const client = new Database(':memory:');
+
+	const users = sqliteTable('users', {
+		id: int('id').primaryKey({ autoIncrement: true }),
+		name: text('name').notNull(),
+	});
+
+	const schema1 = {
+		users,
+		posts: sqliteTable(
+			'posts',
+			{
+				id: int('id').primaryKey({ autoIncrement: true }),
+				name: text('name'),
+				userId: int('user_id'),
+			},
+			(t) => [foreignKey({
+				columns: [t.id],
+				foreignColumns: [users.id],
+				name: 'custom_name_fk',
+			})],
+		),
+	};
+
+	const schema2 = {
+		users,
+		posts: sqliteTable(
+			'posts',
+			{
+				id: int('id').primaryKey({ autoIncrement: true }),
+				name: text('name'),
+				userId: int('user_id'),
+			},
+			(t) => [foreignKey({
+				columns: [t.id],
+				foreignColumns: [users.id],
+				name: 'custom_name_fk',
+			})],
+		),
+	};
+
+	const { sqlStatements: st, hints } = await diff2({ client, left: schema1, right: schema2 });
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2 });
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	const hints0: string[] = [];
+	expect(hints).toStrictEqual(hints0);
+	expect(phints).toStrictEqual(hints0);
+});
+
+test('rename table and change data type', async (t) => {
+	const client = new Database(':memory:');
+
+	const schema1 = {
+		users: sqliteTable('old_users', {
+			id: int('id').primaryKey({ autoIncrement: true }),
+			age: text('age'),
+		}),
+	};
+
+	const schema2 = {
+		users: sqliteTable('new_users', {
+			id: int('id').primaryKey({ autoIncrement: true }),
+			age: integer('age'),
+		}),
+	};
+
+	const renames = ['old_users->new_users'];
+	const { sqlStatements: st, hints } = await diff2({
+		client,
+		left: schema1,
+		right: schema2,
+		renames,
+	});
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2, renames });
+
+	const st0: string[] = [
+		'ALTER TABLE `old_users` RENAME TO `new_users`;',
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_new_users` (\n'
+		+ '\t`id` integer PRIMARY KEY AUTOINCREMENT,\n'
+		+ '\t`age` integer\n'
+		+ ');\n',
+		'INSERT INTO `__new_new_users`(`id`, `age`) SELECT `id`, `age` FROM `new_users`;',
+		'DROP TABLE `new_users`;',
+		'ALTER TABLE `__new_new_users` RENAME TO `new_users`;',
+		'PRAGMA foreign_keys=ON;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	const hints0: string[] = [];
+	expect(hints).toStrictEqual(hints0);
+	expect(phints).toStrictEqual(hints0);
+
+	expect(hints.length).toBe(0);
+});
+
+test('recreate table with nested references', async (t) => {
+	const client = new Database(':memory:');
+
+	let users = sqliteTable('users', {
+		id: int('id').primaryKey({ autoIncrement: true }),
+		name: text('name'),
+		age: integer('age'),
+	});
+	let subscriptions = sqliteTable('subscriptions', {
+		id: int('id').primaryKey({ autoIncrement: true }),
+		userId: integer('user_id').references(() => users.id),
+		customerId: text('customer_id'),
+	});
+	const schema1 = {
+		users: users,
+		subscriptions: subscriptions,
+		subscriptionMetadata: sqliteTable('subscriptions_metadata', {
+			id: int('id').primaryKey({ autoIncrement: true }),
+			subscriptionId: text('subscription_id').references(
+				() => subscriptions.id,
+			),
+		}),
+	};
+
+	users = sqliteTable('users', {
+		id: int('id').primaryKey({ autoIncrement: false }),
+		name: text('name'),
+		age: integer('age'),
+	});
+	const schema2 = {
+		users: users,
+		subscriptions: subscriptions,
+		subscriptionMetadata: sqliteTable('subscriptions_metadata', {
+			id: int('id').primaryKey({ autoIncrement: true }),
+			subscriptionId: text('subscription_id').references(
+				() => subscriptions.id,
+			),
+		}),
+	};
+
+	const renames = ['users.name->users.age'];
+	const { sqlStatements: st, hints } = await diff2({
+		client,
+		left: schema1,
+		right: schema2,
+		renames,
+	});
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2, renames });
+
+	const st0: string[] = [
+		'PRAGMA foreign_keys=OFF;',
+		`CREATE TABLE \`__new_users\` (
+\t\`id\` integer PRIMARY KEY,
+\t\`name\` text,
+\t\`age\` integer
+);\n`,
+		`INSERT INTO \`__new_users\`(\`id\`, \`name\`, \`age\`) SELECT \`id\`, \`name\`, \`age\` FROM \`users\`;`,
+		`DROP TABLE \`users\`;`,
+		`ALTER TABLE \`__new_users\` RENAME TO \`users\`;`,
+		'PRAGMA foreign_keys=ON;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	const hints0: string[] = [];
+	expect(hints).toStrictEqual(hints0);
+	expect(phints).toStrictEqual(hints0);
+});
+
+test('recreate table with added column not null and without default with data', async (t) => {
+	const client = new Database(':memory:');
+
+	const schema1 = {
+		users: sqliteTable('users', {
+			id: int('id').primaryKey({ autoIncrement: true }),
+			name: text('name'),
+			age: integer('age'),
+		}),
+	};
+
+	const schema2 = {
+		users: sqliteTable('users', {
+			id: int('id').primaryKey({ autoIncrement: false }),
+			name: text('name'),
+			age: integer('age'),
+			newColumn: text('new_column').notNull(),
+		}),
+	};
+
+	const seedStatements = [
+		`INSERT INTO \`users\` ("name", "age") VALUES ('drizzle', 12)`,
+		`INSERT INTO \`users\` ("name", "age") VALUES ('turso', 12)`,
+	];
+
+	const { sqlStatements: st, hints } = await diff2({
+		client,
+		left: schema1,
+		right: schema2,
+		seed: seedStatements,
+	});
+
+	await push({ db, to: schema1 });
+	// TODO: revise: should I seed here? And should I seed at all for push?
+	for (const seedSt of seedStatements) {
+		await db.run(seedSt);
+	}
+
+	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2 });
+
+	const st0: string[] = [
+		'ALTER TABLE `users` ADD `new_column` text NOT NULL;',
+		'PRAGMA foreign_keys=OFF;',
+		'CREATE TABLE `__new_users` (\n'
+		+ '\t`id` integer PRIMARY KEY,\n'
+		+ '\t`name` text,\n'
+		+ '\t`age` integer,\n'
+		+ '\t`new_column` text NOT NULL\n'
+		+ ');\n',
+		'INSERT INTO `__new_users`(`id`, `name`, `age`) SELECT `id`, `name`, `age` FROM `users`;',
+		'DROP TABLE `users`;',
+		'ALTER TABLE `__new_users` RENAME TO `users`;',
+		'PRAGMA foreign_keys=ON;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	const hints0: string[] = [
+		`· You're about to add not-null 'new_column' column without default value to non-empty 'users' table`,
+	];
+	expect(hints).toStrictEqual(hints0);
+	expect(phints).toStrictEqual(hints0);
+});
+
+test('rename table with composite primary key', async () => {
+	const client = new Database(':memory:');
+
+	const productsCategoriesTable = (tableName: string) => {
+		return sqliteTable(tableName, {
+			productId: text('product_id').notNull(),
+			categoryId: text('category_id').notNull(),
+		}, (t) => [primaryKey({
+			columns: [t.productId, t.categoryId],
+		})]);
+	};
+
+	const schema1 = {
+		table: productsCategoriesTable('products_categories'),
+	};
+	const schema2 = {
+		test: productsCategoriesTable('products_to_categories'),
+	};
+
+	const renames = ['products_categories->products_to_categories'];
+	const { sqlStatements: st, hints } = await diff2({
+		client,
+		left: schema1,
+		right: schema2,
+		renames,
+	});
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2, renames });
+
+	const st0: string[] = [
+		'ALTER TABLE `products_categories` RENAME TO `products_to_categories`;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	const hints0: string[] = [];
+	expect(hints).toStrictEqual(hints0);
+	expect(phints).toStrictEqual(hints0);
 });
