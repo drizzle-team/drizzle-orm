@@ -160,17 +160,13 @@ const pkExampleTable = sqliteTable('pk_example', {
 	id: integer('id').notNull(),
 	name: text('name').notNull(),
 	email: text('email').notNull(),
-}, (table) => ({
-	compositePk: primaryKey({ columns: [table.id, table.name] }),
-}));
+}, (table) => [primaryKey({ columns: [table.id, table.name] })]);
 
 const conflictChainExampleTable = sqliteTable('conflict_chain_example', {
 	id: integer('id').notNull().unique(),
 	name: text('name').notNull(),
 	email: text('email').notNull(),
-}, (table) => ({
-	compositePk: primaryKey({ columns: [table.id, table.name] }),
-}));
+}, (table) => [primaryKey({ columns: [table.id, table.name] })]);
 
 const bigIntExample = sqliteTable('big_int_example', {
 	id: integer('id').primaryKey(),
@@ -340,14 +336,20 @@ export function tests() {
 		}
 
 		test('table config: foreign keys name', async () => {
-			const table = sqliteTable('cities', {
-				id: int('id').primaryKey(),
-				name: text('name').notNull(),
-				state: text('state'),
-			}, (t) => ({
-				f: foreignKey({ foreignColumns: [t.id], columns: [t.id], name: 'custom_fk' }),
-				f1: foreignKey({ foreignColumns: [t.id], columns: [t.id], name: 'custom_fk_deprecated' }),
-			}));
+			const table = sqliteTable(
+				'cities',
+				{
+					id: int('id').primaryKey(),
+					name: text('name').notNull(),
+					state: text('state'),
+				},
+				(
+					t,
+				) => [
+					foreignKey({ foreignColumns: [t.id], columns: [t.id], name: 'custom_fk' }),
+					foreignKey({ foreignColumns: [t.id], columns: [t.id], name: 'custom_fk_deprecated' }),
+				],
+			);
 
 			const tableConfig = getTableConfig(table);
 
@@ -361,9 +363,7 @@ export function tests() {
 				id: int('id').primaryKey(),
 				name: text('name').notNull(),
 				state: text('state'),
-			}, (t) => ({
-				f: primaryKey({ columns: [t.id, t.name], name: 'custom_pk' }),
-			}));
+			}, (t) => [primaryKey({ columns: [t.id, t.name], name: 'custom_pk' })]);
 
 			const tableConfig = getTableConfig(table);
 
@@ -3407,10 +3407,10 @@ export function tests() {
 			id: int('id').primaryKey(),
 			name: text('name').notNull(),
 			state: text('state'),
-		}, (t) => ({
-			f: unique().on(t.name, t.state),
-			f1: unique('custom').on(t.name, t.state),
-		}));
+		}, (t) => [
+			unique().on(t.name, t.state),
+			unique('custom').on(t.name, t.state),
+		]);
 
 		const tableConfig = getTableConfig(cities1Table);
 
@@ -3668,9 +3668,7 @@ export function tests() {
 		const userNotications = sqliteTable('user_notifications_insert_into', {
 			userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
 			notificationId: integer('notification_id').notNull().references(() => notifications.id, { onDelete: 'cascade' }),
-		}, (t) => ({
-			pk: primaryKey({ columns: [t.userId, t.notificationId] }),
-		}));
+		}, (t) => [primaryKey({ columns: [t.userId, t.notificationId] })]);
 
 		await db.run(sql`drop table if exists notifications_insert_into`);
 		await db.run(sql`drop table if exists users_insert_into`);

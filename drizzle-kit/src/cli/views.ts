@@ -1,8 +1,11 @@
 import chalk from 'chalk';
 import { Prompt, render, SelectState, TaskView } from 'hanji';
-import type { CommonSchema } from '../schemaValidator';
-import { objectValues } from '../utils';
-import type { Named, NamedWithSchema } from './commands/migrate';
+import { SchemaError, SchemaWarning } from 'src/dialects/postgres/ddl';
+import { vectorOps } from '../dialects/postgres/grammar';
+import { SchemaError as SqliteSchemaError } from '../dialects/sqlite/ddl';
+import { Named, NamedWithSchema } from '../dialects/utils';
+import { assertUnreachable } from '../utils';
+import { withStyle } from './validations/outputs';
 
 export const warning = (msg: string) => {
 	render(`[${chalk.yellow('Warning')}] ${msg}`);
@@ -22,57 +25,120 @@ export const error = (error: string, greyMsg: string = ''): string => {
 	return `${chalk.bgRed.bold(' Error ')} ${error} ${greyMsg ? chalk.grey(greyMsg) : ''}`.trim();
 };
 
-export const schema = (schema: CommonSchema): string => {
-	type TableEntry = (typeof schema)['tables'][keyof (typeof schema)['tables']];
-	const tables = Object.values(schema.tables) as unknown as TableEntry[];
-
-	let msg = chalk.bold(`${tables.length} tables\n`);
-
-	msg += tables
-		.map((t) => {
-			const columnsCount = Object.values(t.columns).length;
-			const indexesCount = Object.values(t.indexes).length;
-			let foreignKeys: number = 0;
-			// Singlestore doesn't have foreign keys
-			if (schema.dialect !== 'singlestore') {
-				// @ts-expect-error
-				foreignKeys = Object.values(t.foreignKeys).length;
-			}
-
-			return `${chalk.bold.blue(t.name)} ${
-				chalk.gray(
-					`${columnsCount} columns ${indexesCount} indexes ${foreignKeys} fks`,
-				)
-			}`;
-		})
-		.join('\n');
-
-	msg += '\n';
-
-	const enums = objectValues(
-		'enums' in schema
-			? 'values' in schema['enums']
-				? schema['enums']
-				: {}
-			: {},
-	);
-
-	if (enums.length > 0) {
-		msg += '\n';
-		msg += chalk.bold(`${enums.length} enums\n`);
-
-		msg += enums
-			.map((it) => {
-				return `${chalk.bold.blue(it.name)} ${
-					chalk.gray(
-						`[${Object.values(it.values).join(', ')}]`,
-					)
-				}`;
-			})
-			.join('\n');
-		msg += '\n';
+export const schemaWarning = (warning: SchemaWarning): string => {
+	if (warning.type === 'policy_not_linked') {
+		return withStyle.errorWarning(
+			`"Policy ${warning.policy} was skipped because it was not linked to any table. You should either include the policy in a table or use .link() on the policy to link it to any table you have. For more information, please check:`,
+		);
 	}
-	return msg;
+
+	assertUnreachable(warning.type);
+};
+
+export const sqliteSchemaError = (error: SqliteSchemaError): string => {
+	if (error.type === 'conflict_table') {
+		return `'${error.table}' table name is a duplicate`;
+	}
+
+	if (error.type === 'conflict_check') {
+		return `'${error.name}' check constraint name is a duplicate`;
+	}
+
+	if (error.type === 'conflict_unique') {
+		return `'${error.name}' unique constraint name is a duplicate`;
+	}
+
+	if (error.type === 'conflict_view') {
+		return `'${error.view}' view name is a duplicate`;
+	}
+
+	// assertUnreachable(error.type)
+	return '';
+};
+
+export const schemaError = (error: SchemaError): string => {
+	if (error.type === 'constraint_name_duplicate') {
+		const { name, schema, table } = error;
+		const tableName = chalk.underline.blue(`"${schema}"."${table}"`);
+		const constraintName = chalk.underline.blue(`'${name}'`);
+		return withStyle.errorWarning(
+			`There's a duplicate constraint name ${constraintName} in ${tableName} table`,
+		);
+	}
+
+	if (error.type === 'index_duplicate') {
+		// check for index names duplicates
+		const { schema, table, name } = error;
+		const sch = chalk.underline.blue(`"${schema}"`);
+		const idx = chalk.underline.blue(`'${name}'`);
+		const tableName = chalk.underline.blue(`"${schema}"."${table}"`);
+		return withStyle.errorWarning(
+			`There's a duplicate index name ${idx} in ${sch} schema in ${tableName}`,
+		);
+	}
+
+	if (error.type === 'index_no_name') {
+		const { schema, table, sql } = error;
+		const tableName = chalk.underline.blue(`"${schema}"."${table}"`);
+		return withStyle.errorWarning(
+			`Please specify an index name in ${tableName} table that has "${sql}" expression.\n\nWe can generate index names for indexes on columns only; for expressions in indexes, you need to specify index name yourself.`,
+		);
+	}
+
+	if (error.type === 'pgvector_index_noop') {
+		const { table, indexName, column, method } = error;
+		return withStyle.errorWarning(
+			`You are specifying an index on the ${
+				chalk.blueBright(
+					column,
+				)
+			} column inside the ${
+				chalk.blueBright(
+					table,
+				)
+			} table with the ${
+				chalk.blueBright(
+					'vector',
+				)
+			} type without specifying an operator class. Vector extension doesn't have a default operator class, so you need to specify one of the available options. Here is a list of available op classes for the vector extension: [${
+				vectorOps
+					.map((it) => `${chalk.underline(`${it}`)}`)
+					.join(', ')
+			}].\n\nYou can specify it using current syntax: ${
+				chalk.underline(
+					`index("${indexName}").using("${method}", table.${column}.op("${vectorOps[0]}"))`,
+				)
+			}\n\nYou can check the "pg_vector" docs for more info: https://github.com/pgvector/pgvector?tab=readme-ov-file#indexing\n`,
+		);
+	}
+
+	if (error.type === 'policy_duplicate') {
+		const { schema, table, policy } = error;
+		const tableName = chalk.underline.blue(`"${schema}"."${table}"`);
+
+		return withStyle.errorWarning(
+			`We\'ve found duplicated policy name across ${tableName} table. Please rename one of the policies with ${
+				chalk.underline.blue(
+					policy,
+				)
+			} name`,
+		);
+	}
+
+	if (error.type === 'view_name_duplicate') {
+		const schema = chalk.underline.blue(error.schema ?? 'public');
+		const name = chalk.underline.blue(error.name);
+		return withStyle.errorWarning(
+			`There's a view duplicate name ${name} in ${schema} schema`,
+		);
+	}
+
+	if (error.type === 'sequence_name_duplicate') {
+		return withStyle.errorWarning(`There's a sequence name duplicate '${error.name}' in '${error.schema}' schema`);
+	}
+
+	// assertUnreachable(error);
+	return '';
 };
 
 export interface RenamePropmtItem<T> {
@@ -80,7 +146,7 @@ export interface RenamePropmtItem<T> {
 	to: T;
 }
 
-export const isRenamePromptItem = <T extends Named>(
+export const isRenamePromptItem = <T extends EntityBase>(
 	item: RenamePropmtItem<T> | T,
 ): item is RenamePropmtItem<T> => {
 	return 'from' in item && 'to' in item;
@@ -235,7 +301,15 @@ export class ResolveSelectNamed<T extends Named> extends Prompt<
 	}
 }
 
-export class ResolveSelect<T extends NamedWithSchema> extends Prompt<
+type EntityBase = { schema?: string; table?: string; name: string };
+
+const keyFor = (it: EntityBase, defaultSchema: 'dbo' | 'public' = 'public') => {
+	const schemaPrefix = it.schema && it.schema !== defaultSchema ? `${it.schema}.` : '';
+	const tablePrefix = it.table ? `${it.schema}.` : '';
+	return `${schemaPrefix}${tablePrefix}${it.name}`;
+};
+
+export class ResolveSelect<T extends EntityBase> extends Prompt<
 	RenamePropmtItem<T> | T
 > {
 	private readonly state: SelectState<RenamePropmtItem<T> | T>;
@@ -243,7 +317,22 @@ export class ResolveSelect<T extends NamedWithSchema> extends Prompt<
 	constructor(
 		private readonly base: T,
 		data: (RenamePropmtItem<T> | T)[],
-		private readonly entityType: 'table' | 'enum' | 'sequence' | 'view' | 'role',
+		private readonly entityType:
+			| 'schema'
+			| 'enum'
+			| 'table'
+			| 'column'
+			| 'sequence'
+			| 'view'
+			| 'policy'
+			| 'role'
+			| 'check'
+			| 'index'
+			| 'unique'
+			| 'primary key'
+			| 'foreign key'
+			| 'default',
+		private defaultSchema: 'dbo' | 'public' = 'public',
 	) {
 		super();
 		this.on('attach', (terminal) => terminal.toggleCursor('hide'));
@@ -256,8 +345,8 @@ export class ResolveSelect<T extends NamedWithSchema> extends Prompt<
 		if (status === 'submitted' || status === 'aborted') {
 			return '';
 		}
-		const key = tableKey(this.base);
 
+		const key = keyFor(this.base, this.defaultSchema);
 		let text = `\nIs ${chalk.bold.blue(key)} ${this.entityType} created or renamed from another ${this.entityType}?\n`;
 
 		const isSelectedRenamed = isRenamePromptItem(
@@ -272,7 +361,7 @@ export class ResolveSelect<T extends NamedWithSchema> extends Prompt<
 			.filter((it) => isRenamePromptItem(it))
 			.map((_) => {
 				const it = _ as RenamePropmtItem<T>;
-				const keyFrom = tableKey(it.from);
+				const keyFrom = keyFor(it.from);
 				return key.length + 3 + keyFrom.length;
 			})
 			.reduce((a, b) => {
@@ -288,8 +377,8 @@ export class ResolveSelect<T extends NamedWithSchema> extends Prompt<
 			const isRenamed = isRenamePromptItem(it);
 
 			const title = isRenamed
-				? `${tableKey(it.from)} › ${tableKey(it.to)}`.padEnd(labelLength, ' ')
-				: tableKey(it).padEnd(labelLength, ' ');
+				? `${keyFor(it.from, this.defaultSchema)} › ${keyFor(it.to, this.defaultSchema)}`.padEnd(labelLength, ' ')
+				: keyFor(it, this.defaultSchema).padEnd(labelLength, ' ');
 
 			const label = isRenamed
 				? `${chalk.yellow('~')} ${title} ${chalk.gray(`rename ${entityType}`)}`
@@ -546,6 +635,12 @@ export class MigrateProgress extends TaskView {
 			return `[${spin}] applying migrations...`;
 		}
 		return `[${chalk.green('✓')}] migrations applied successfully!`;
+	}
+}
+
+export class EmptyProgressView extends TaskView {
+	override render(): string {
+		return '';
 	}
 }
 

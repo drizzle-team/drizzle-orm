@@ -1,19 +1,6 @@
 import { array, boolean, intersection, literal, object, string, TypeOf, union } from 'zod';
-import { dialect } from '../../schemaValidator';
+import { dialect } from '../../utils/schemaValidator';
 import { casing, casingType, prefix } from './common';
-
-export const cliConfigGenerate = object({
-	dialect: dialect.optional(),
-	schema: union([string(), string().array()]).optional(),
-	out: string().optional().default('./drizzle'),
-	config: string().optional(),
-	name: string().optional(),
-	prefix: prefix.optional(),
-	breakpoints: boolean().optional().default(true),
-	custom: boolean().optional().default(false),
-}).strict();
-
-export type CliConfigGenerate = TypeOf<typeof cliConfigGenerate>;
 
 export const pushParams = object({
 	dialect: dialect,
@@ -21,8 +8,7 @@ export const pushParams = object({
 	schema: union([string(), string().array()]),
 	tablesFilter: union([string(), string().array()]).optional(),
 	schemaFilter: union([string(), string().array()])
-		.optional()
-		.default(['public']),
+		.optional(),
 	extensionsFilters: literal('postgis').array().optional(),
 	verbose: boolean().optional(),
 	strict: boolean().optional(),
@@ -43,8 +29,7 @@ export const pullParams = object({
 	out: string().optional().default('drizzle'),
 	tablesFilter: union([string(), string().array()]).optional(),
 	schemaFilter: union([string(), string().array()])
-		.optional()
-		.default(['public']),
+		.optional(),
 	extensionsFilters: literal('postgis').array().optional(),
 	casing,
 	breakpoints: boolean().optional().default(true),
@@ -61,8 +46,6 @@ export const pullParams = object({
 }).passthrough();
 
 export type Entities = TypeOf<typeof pullParams>['entities'];
-
-export type PullParams = TypeOf<typeof pullParams>;
 
 export const configCheck = object({
 	dialect: dialect.optional(),
