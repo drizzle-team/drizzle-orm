@@ -1,7 +1,25 @@
+import Database from 'better-sqlite3';
 import { sql } from 'drizzle-orm';
 import { int, sqliteTable, sqliteView } from 'drizzle-orm/sqlite-core';
-import { expect, test } from 'vitest';
-import { diff } from './mocks';
+import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { diff, diff2, prepareTestDatabase, push, TestDatabase } from './mocks';
+
+// @vitest-environment-options {"max-concurrency":1}
+let _: TestDatabase;
+let db: TestDatabase['db'];
+
+beforeAll(() => {
+	_ = prepareTestDatabase();
+	db = _.db;
+});
+
+afterAll(async () => {
+	await _.close();
+});
+
+beforeEach(async () => {
+	await _.clear();
+});
 
 test('create view', async () => {
 	const users = sqliteTable('users', { id: int('id').default(1) });
@@ -11,15 +29,18 @@ test('create view', async () => {
 		testView: view,
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
 
-	expect(sqlStatements).toStrictEqual([
+	const st0: string[] = [
 		`CREATE TABLE \`users\` (\n\t\`id\` integer DEFAULT 1\n);\n`,
 		`CREATE VIEW \`view\` AS select "id" from "users";`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
-test('drop view', async () => {
+test('drop view #1', async () => {
 	const users = sqliteTable('users', {
 		id: int('id').primaryKey({ autoIncrement: true }),
 	});
@@ -32,12 +53,51 @@ test('drop view', async () => {
 		users,
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([`DROP VIEW \`view\`;`]);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [`DROP VIEW \`view\`;`];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
-test('alter view', async () => {
+test('drop view #2', async () => {
+	const client = new Database(':memory:');
+
+	const table = sqliteTable('test', {
+		id: int('id').primaryKey(),
+	});
+
+	const schema1 = {
+		test: table,
+		view: sqliteView('view').as((qb) => qb.select().from(table)),
+	};
+
+	const schema2 = {
+		test: table,
+	};
+
+	const { sqlStatements: st, hints } = await diff2({
+		client,
+		left: schema1,
+		right: schema2,
+	});
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2 });
+
+	const st0: string[] = ['DROP VIEW \`view\`;'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	const hints0: string[] = [];
+	expect(hints).toStrictEqual(hints0);
+	expect(phints).toStrictEqual(hints0);
+});
+
+test('alter view ".as" #1', async () => {
 	const users = sqliteTable('users', {
 		id: int('id').primaryKey({ autoIncrement: true }),
 	});
@@ -50,14 +110,52 @@ test('alter view', async () => {
 		users,
 		testView: sqliteView('view', { id: int('id') }).as(sql`SELECT * FROM users WHERE users.id = 1`),
 	};
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual(
-		[
-			'DROP VIEW `view`;',
-			'CREATE VIEW `view` AS SELECT * FROM users WHERE users.id = 1;',
-		],
-	);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
+		'DROP VIEW `view`;',
+		'CREATE VIEW `view` AS SELECT * FROM users WHERE users.id = 1;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('alter view ".as" #2', async () => {
+	const client = new Database(':memory:');
+
+	const table = sqliteTable('test', {
+		id: int('id').primaryKey(),
+	});
+
+	const schema1 = {
+		test: table,
+		view: sqliteView('view').as((qb) => qb.select().from(table).where(sql`${table.id} = 1`)),
+	};
+
+	const schema2 = {
+		test: table,
+		view: sqliteView('view').as((qb) => qb.select().from(table)),
+	};
+
+	const { sqlStatements: st, hints } = await diff2({
+		client,
+		left: schema1,
+		right: schema2,
+	});
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2 });
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	const hints0: string[] = [];
+	expect(hints).toStrictEqual(hints0);
+	expect(phints).toStrictEqual(hints0);
 });
 
 test('create view with existing flag', async () => {
@@ -66,10 +164,14 @@ test('create view with existing flag', async () => {
 		testView: view,
 	};
 
-	const { statements, sqlStatements } = await diff({}, to, []);
+	const { statements, sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 
 	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
 });
 
 test('drop view with existing flag', async () => {
@@ -85,10 +187,16 @@ test('drop view with existing flag', async () => {
 		users,
 	};
 
-	const { statements, sqlStatements } = await diff(from, to, []);
+	const { statements, sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 
 	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
 });
 
 test('rename view with existing flag', async () => {
@@ -104,10 +212,18 @@ test('rename view with existing flag', async () => {
 		users,
 		testView: sqliteView('new_view', { id: int('id') }).existing(),
 	};
-	const { statements, sqlStatements } = await diff(from, to, ['view->new_view']);
+
+	const renames = ['view->new_view'];
+	const { statements, sqlStatements: st } = await diff(from, to, renames);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 
 	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
 });
 
 test('rename view and drop existing flag', async () => {
@@ -123,9 +239,15 @@ test('rename view and drop existing flag', async () => {
 		users,
 		testView: sqliteView('new_view', { id: int('id') }).as(sql`SELECT * FROM users`),
 	};
-	const { sqlStatements } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual(['CREATE VIEW `new_view` AS SELECT * FROM users;']);
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = ['CREATE VIEW `new_view` AS SELECT * FROM users;'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('rename view and alter ".as"', async () => {
@@ -141,10 +263,52 @@ test('rename view and alter ".as"', async () => {
 		users,
 		testView: sqliteView('new_view', { id: int('id') }).as(sql`SELECT * FROM users WHERE 1=1`),
 	};
-	const { sqlStatements } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		'DROP VIEW `view`;',
 		'CREATE VIEW `new_view` AS SELECT * FROM users WHERE 1=1;',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('create view', async () => {
+	const client = new Database(':memory:');
+
+	const table = sqliteTable('test', {
+		id: int('id').primaryKey(),
+	});
+
+	const schema1 = {
+		test: table,
+	};
+
+	const schema2 = {
+		test: table,
+		view: sqliteView('view').as((qb) => qb.select().from(table)),
+	};
+
+	const { sqlStatements: st, hints } = await diff2({
+		client,
+		left: schema1,
+		right: schema2,
+	});
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2 });
+
+	const st0: string[] = [
+		`CREATE VIEW \`view\` AS select "id" from "test";`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	const hints0: string[] = [];
+	expect(hints).toStrictEqual(hints0);
+	expect(phints).toStrictEqual(hints0);
 });
