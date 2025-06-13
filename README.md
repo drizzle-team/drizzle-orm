@@ -16,16 +16,14 @@
 <br/>
 
 ### Replit development
-We use `drizzle-kit` for handling database migrations. However in order expose drizzle-kits internal functions (which are not exported by default) they suggested cloning the `drizzle-orm` repo and making our changes just to the one `drizzle-kit/api` file ([see here](./drizzle-kit/src/api.ts)) to build an external API particular for our use case. 
+
+We use `drizzle-kit` for handling database migrations. However in order expose `drizzle-kit`s internal functions (which are not exported by default) they suggested cloning the `drizzle-orm` repo and making our changes just to the one `drizzle-kit/api` file ([see here](./drizzle-kit/src/api.ts)) to build an external API particular for our use case. 
 
 #### Getting started
 Run the below in the project root:
-```
+
+```bash
 pnpm install && pnpm build
-```
-Navigate to `drizzle-kit` and run:
-```
-pnpm install
 ```
 
 #### Development
