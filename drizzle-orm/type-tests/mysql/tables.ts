@@ -84,6 +84,7 @@ export const users = mysqlTable(
 export const cities = mysqlTable('cities_table', {
 	id: serial('id').primaryKey(),
 	name: text('name_db').notNull(),
+	postalCode: text('postal_code').notNull().unique(),
 	population: int('population').default(0),
 }, (cities) => ({
 	citiesNameIdx: index('citiesNameIdx').on(cities.id),
@@ -134,6 +135,29 @@ Expect<
 				{},
 				{}
 			>;
+			postalCode: MySqlColumn<
+				{
+					name: 'postal_code';
+					tableName: 'cities_table';
+					dataType: 'string';
+					columnType: 'MySqlText';
+					data: string;
+					driverParam: string;
+					notNull: true;
+					hasDefault: false;
+					isPrimaryKey: false;
+					isAutoincrement: false;
+					hasRuntimeDefault: false;
+					enumValues: [string, ...string[]];
+					baseColumn: never;
+					identity: undefined;
+					generated: undefined;
+				},
+				{},
+				{
+					isUnique: true;
+				}
+			>;
 			population: MySqlColumn<
 				{
 					name: 'population';
@@ -164,6 +188,7 @@ Expect<
 	Equal<{
 		id: number;
 		name_db: string;
+		postal_code: string;
 		population: number | null;
 	}, InferSelectModel<typeof cities, { dbColumnNames: true }>>
 >;
@@ -172,6 +197,7 @@ Expect<
 	Equal<{
 		id?: number;
 		name: string;
+		postalCode: string;
 		population?: number | null;
 	}, typeof cities.$inferInsert>
 >;
@@ -181,6 +207,7 @@ export const customSchema = mysqlSchema('custom_schema');
 export const citiesCustom = customSchema.table('cities_table', {
 	id: serial('id').primaryKey(),
 	name: text('name_db').notNull(),
+	postalCode: text('postal_code').notNull().unique(),
 	population: int('population').default(0),
 }, (cities) => ({
 	citiesNameIdx: index('citiesNameIdx').on(cities.id),
