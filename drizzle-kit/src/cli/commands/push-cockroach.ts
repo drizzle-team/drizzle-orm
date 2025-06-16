@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import { render } from 'hanji';
 import {
 	CheckConstraint,
-	CockroachDbEntities,
+	CockroachEntities,
 	Column,
 	Enum,
 	ForeignKey,
@@ -13,16 +13,16 @@ import {
 	Schema,
 	Sequence,
 	View,
-} from '../../dialects/cockroachdb/ddl';
-import { ddlDiff } from '../../dialects/cockroachdb/diff';
-import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/cockroachdb/drizzle';
-import type { JsonStatement } from '../../dialects/cockroachdb/statements';
+} from '../../dialects/cockroach/ddl';
+import { ddlDiff } from '../../dialects/cockroach/diff';
+import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/cockroach/drizzle';
+import type { JsonStatement } from '../../dialects/cockroach/statements';
 import type { DB } from '../../utils';
 import { prepareFilenames } from '../../utils/utils-node';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import { Entities } from '../validations/cli';
-import type { CockroachDbCredentials } from '../validations/cockroach';
+import type { CockroachCredentials } from '../validations/cockroach';
 import { CasingType } from '../validations/common';
 import { withStyle } from '../validations/outputs';
 import { ProgressView, schemaError, schemaWarning } from '../views';
@@ -31,17 +31,17 @@ export const handle = async (
 	schemaPath: string | string[],
 	verbose: boolean,
 	strict: boolean,
-	credentials: CockroachDbCredentials,
+	credentials: CockroachCredentials,
 	tablesFilter: string[],
 	schemasFilter: string[],
 	entities: Entities,
 	force: boolean,
 	casing: CasingType | undefined,
 ) => {
-	const { prepareCockroachDB } = await import('../connections');
-	const { introspect: cockroachdbPushIntrospect } = await import('./pull-cockroach');
+	const { prepareCockroach } = await import('../connections');
+	const { introspect: cockroachPushIntrospect } = await import('./pull-cockroach');
 
-	const db = await prepareCockroachDB(credentials);
+	const db = await prepareCockroach(credentials);
 	const filenames = prepareFilenames(schemaPath);
 	const res = await prepareFromSchemaFiles(filenames);
 
@@ -57,7 +57,7 @@ export const handle = async (
 	}
 
 	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
-	const { schema: schemaFrom } = await cockroachdbPushIntrospect(db, tablesFilter, schemasFilter, entities, progress);
+	const { schema: schemaFrom } = await cockroachPushIntrospect(db, tablesFilter, schemasFilter, entities, progress);
 
 	const { ddl: ddl1, errors: errors1 } = interimToDDL(schemaFrom);
 	const { ddl: ddl2, errors: errors2 } = interimToDDL(schemaTo);
@@ -76,7 +76,7 @@ export const handle = async (
 		resolver<Enum>('enum'),
 		resolver<Sequence>('sequence'),
 		resolver<Policy>('policy'),
-		resolver<CockroachDbEntities['tables']>('table'),
+		resolver<CockroachEntities['tables']>('table'),
 		resolver<Column>('column'),
 		resolver<View>('view'),
 		resolver<Index>('index'),

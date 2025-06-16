@@ -1,4 +1,4 @@
-import { splitExpressions, trimDefaultValueSuffix } from 'src/dialects/cockroachdb/grammar';
+import { splitExpressions, trimDefaultValueSuffix } from 'src/dialects/cockroach/grammar';
 import { expect, test } from 'vitest';
 
 test.each([

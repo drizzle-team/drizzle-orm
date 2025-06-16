@@ -6,7 +6,7 @@ import * as schema from './tables-rel.ts';
 
 const { Pool } = pg;
 
-const pdb = new Pool({ connectionString: process.env['COCKROACHDB_CONNECTION_STRING'] });
+const pdb = new Pool({ connectionString: process.env['COCKROACH_CONNECTION_STRING'] });
 const db = drizzle(pdb, { schema });
 
 {

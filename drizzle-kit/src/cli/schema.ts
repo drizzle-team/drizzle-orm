@@ -10,7 +10,7 @@ import { assertV1OutFolder } from '../utils/utils-node';
 import { checkHandler } from './commands/check';
 import { dropMigration } from './commands/drop';
 import { type Setup } from './commands/studio';
-import { upCockroachDbHandler } from './commands/up-cockroach';
+import { upCockroachHandler } from './commands/up-cockroach';
 import { upMysqlHandler } from './commands/up-mysql';
 import { upPgHandler } from './commands/up-postgres';
 import { upSinglestoreHandler } from './commands/up-singlestore';
@@ -205,8 +205,19 @@ export const migrate = command({
 					}),
 				);
 			} else if (dialect === 'cockroach') {
-				const { prepareCockroachDB } = await import('./connections');
-				const { migrate } = await prepareCockroachDB(credentials);
+				const { prepareCockroach } = await import('./connections');
+				const { migrate } = await prepareCockroach(credentials);
+				await renderWithTask(
+					new MigrateProgress(),
+					migrate({
+						migrationsFolder: out,
+						migrationsTable: table,
+						migrationsSchema: schema,
+					}),
+				);
+			} else if (dialect === 'mssql') {
+				const { connectToMsSQL } = await import('./connections');
+				const { migrate } = await connectToMsSQL(credentials);
 				await renderWithTask(
 					new MigrateProgress(),
 					migrate({
@@ -222,17 +233,6 @@ export const migrate = command({
 					),
 				);
 				process.exit(1);
-			} else if (dialect === 'mssql') {
-				const { connectToMsSQL } = await import('./connections');
-				const { migrate } = await connectToMsSQL(credentials);
-				await renderWithTask(
-					new MigrateProgress(),
-					migrate({
-						migrationsFolder: out,
-						migrationsTable: table,
-						migrationsSchema: schema,
-					}),
-				);
 			} else {
 				assertUnreachable(dialect);
 			}
@@ -499,7 +499,7 @@ export const up = command({
 		}
 
 		if (dialect === 'cockroach') {
-			upCockroachDbHandler(out);
+			upCockroachHandler(out);
 		}
 
 		if (dialect === 'gel') {

@@ -1,6 +1,6 @@
-export const upCockroachDbHandler = (out: string) => {
-	// const { snapshots } = prepareOutFolder(out, "cockroachdb");
-	// const report = validateWithReport(snapshots, "cockroachdb");
+export const upCockroachHandler = (out: string) => {
+	// const { snapshots } = prepareOutFolder(out, "cockroach");
+	// const report = validateWithReport(snapshots, "cockroach");
 
 	console.log("Everything's fine 🐶🔥");
 };

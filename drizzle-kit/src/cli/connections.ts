@@ -534,7 +534,7 @@ export const preparePostgresDB = async (
 	process.exit(1);
 };
 
-export const prepareCockroachDB = async (
+export const prepareCockroach = async (
 	credentials: PostgresCredentials,
 ): Promise<
 	DB & {
@@ -610,7 +610,7 @@ export const prepareCockroachDB = async (
 	}
 
 	console.error(
-		"To connect to CockroachDb - please install 'pg' package",
+		"To connect to Cockroach - please install 'pg' package",
 	);
 	process.exit(1);
 };
