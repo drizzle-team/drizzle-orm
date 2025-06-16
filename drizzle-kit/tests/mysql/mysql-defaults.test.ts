@@ -1,18 +1,8 @@
 import { sql } from 'drizzle-orm';
-import {
-	binary,
-	boolean,
-	char,
-	int,
-	json,
-	MySqlColumnBuilder,
-	text,
-	timestamp,
-	varchar,
-} from 'drizzle-orm/mysql-core';
+import { binary, boolean, char, int, json, MySqlColumnBuilder, text, timestamp, varchar } from 'drizzle-orm/mysql-core';
 import { DB } from 'src/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { prepareTestDatabase, TestDatabase } from './mocks';
+import { diffDefault, prepareTestDatabase, TestDatabase } from './mocks';
 
 // @vitest-environment-options {"max-concurrency":1}
 
@@ -72,14 +62,6 @@ const cases = [
 	[char({ length: 10 }).default('10'), '10', 'string', "'10'"],
 	[timestamp().defaultNow(), '(now())', 'unknown', '(now())'],
 ] as const;
-
-// TODO implement
-
-const diffDefault = async <T extends MySqlColumnBuilder>(
-	kit: TestDatabase,
-	builder: T,
-	expectedDefault: string,
-): Promise<string[]> => [];
 
 // TODO add tests for more types
 
