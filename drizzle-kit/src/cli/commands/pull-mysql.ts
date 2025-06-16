@@ -1,9 +1,11 @@
 import chalk from 'chalk';
+import { count } from 'console';
 import { writeFileSync } from 'fs';
 import { renderWithTask, TaskView } from 'hanji';
 import { render } from 'hanji';
 import { join } from 'path';
 import { toJsonSnapshot } from 'src/dialects/mysql/snapshot';
+import { DB } from 'src/utils';
 import { mockResolver } from 'src/utils/mocks';
 import { createDDL, interimToDDL } from '../../dialects/mysql/ddl';
 import { ddlDiff } from '../../dialects/mysql/diff';
@@ -12,7 +14,7 @@ import { ddlToTypeScript } from '../../dialects/mysql/typescript';
 import { prepareOutFolder } from '../../utils/utils-node';
 import type { Casing, Prefix } from '../validations/common';
 import type { MysqlCredentials } from '../validations/mysql';
-import { IntrospectProgress } from '../views';
+import { IntrospectProgress, IntrospectStage, IntrospectStatus } from '../views';
 import { writeResult } from './generate-common';
 import { prepareTablesFilter, relationsToTypeScript } from './pull-common';
 
@@ -27,17 +29,19 @@ export const handle = async (
 	const { connectToMySQL } = await import('../connections');
 	const { db, database } = await connectToMySQL(credentials);
 
-	const filter = prepareTablesFilter(tablesFilter);
 	const progress = new IntrospectProgress();
-	const res = await renderWithTask(
+	const { schema } = await introspect({
+		db,
+		database,
 		progress,
-		fromDatabaseForDrizzle(db, database, filter, (stage, count, status) => {
+		progressCallback: (stage, count, status) => {
 			progress.update(stage, count, status);
-		}),
-	);
-	const { ddl } = interimToDDL(res);
+		},
+		tablesFilter,
+	});
+	const { ddl } = interimToDDL(schema);
 
-	const ts = ddlToTypeScript(ddl, res.viewColumns, casing);
+	const ts = ddlToTypeScript(ddl, schema.viewColumns, casing);
 	const relations = relationsToTypeScript(ddl.fks.list(), casing);
 
 	const schemaFile = join(out, 'schema.ts');
@@ -98,4 +102,23 @@ export const handle = async (
 		} 🚀`,
 	);
 	process.exit(0);
+};
+
+export const introspect = async (props: {
+	db: DB;
+	database: string;
+	tablesFilter: string[];
+	progress: TaskView;
+	progressCallback?: (
+		stage: IntrospectStage,
+		count: number,
+		status: IntrospectStatus,
+	) => void;
+}) => {
+	const { db, database, progress, tablesFilter } = props;
+	const pcb = props.progressCallback ?? (() => {});
+	const filter = prepareTablesFilter(tablesFilter);
+
+	const res = await renderWithTask(progress, fromDatabaseForDrizzle(db, database, filter, pcb));
+	return { schema: res };
 };

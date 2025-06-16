@@ -1,5 +1,6 @@
 import { getTableName, is, SQL } from 'drizzle-orm';
 import {
+	AnySQLiteColumn,
 	AnySQLiteTable,
 	getTableConfig,
 	getViewConfig,
@@ -65,15 +66,7 @@ export const fromDrizzleSchema = (
 				}
 				: null;
 
-			const defalutValue = column.default
-				? is(column.default, SQL)
-					? { value: sqlToStr(column.default, casing), isExpression: true }
-					: typeof column.default === 'string'
-					? { value: column.default, isExpression: false }
-					: typeof column.default === 'object' || Array.isArray(column.default)
-					? { value: JSON.stringify(column.default), isExpression: false }
-					: { value: String(column.default), isExpression: true } // integer boolean etc
-				: null;
+			const defalutValue = defaultFromColumn(column, casing);
 
 			const hasUniqueIndex = it.config.indexes.find((item) => {
 				const i = item.config;
@@ -248,4 +241,16 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 	unregister();
 
 	return { tables: Array.from(new Set(tables)), views };
+};
+
+export const defaultFromColumn = (column: AnySQLiteColumn, casing: CasingType | undefined) => {
+	return column.default
+		? is(column.default, SQL)
+			? { value: sqlToStr(column.default, casing), isExpression: true }
+			: typeof column.default === 'string'
+			? { value: column.default, isExpression: false }
+			: typeof column.default === 'object' || Array.isArray(column.default)
+			? { value: JSON.stringify(column.default), isExpression: false }
+			: { value: String(column.default), isExpression: true } // integer boolean etc
+		: null;
 };

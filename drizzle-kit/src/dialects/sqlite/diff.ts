@@ -15,9 +15,9 @@ import {
 	prepareStatement,
 } from './statements';
 
-export const ddlDiffDry = async (ddl: SQLiteDDL, action: 'push' | 'generate') => {
+export const ddlDiffDry = async (left: SQLiteDDL, right: SQLiteDDL, action: 'push' | 'generate') => {
 	const empty = new Set<string>();
-	return ddlDiff(createDDL(), ddl, mockResolver(empty), mockResolver(empty), action);
+	return ddlDiff(left, right, mockResolver(empty), mockResolver(empty), action);
 };
 
 export const ddlDiff = async (
