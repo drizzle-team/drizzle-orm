@@ -5,6 +5,7 @@ import { JsonStatement } from 'src/dialects/mysql/statements';
 import { prepareFilenames } from 'src/utils/utils-node';
 import { ddlDiff } from '../../dialects/mysql/diff';
 import type { DB } from '../../utils';
+import { connectToMySQL } from '../connections';
 import { resolver } from '../prompts';
 import { Select } from '../selector-ui';
 import type { CasingType } from '../validations/common';
@@ -12,6 +13,7 @@ import type { MysqlCredentials } from '../validations/mysql';
 import { withStyle } from '../validations/outputs';
 import { ProgressView } from '../views';
 import { prepareTablesFilter } from './pull-common';
+import { introspect } from './pull-mysql';
 
 export const handle = async (
 	schemaPath: string | string[],
@@ -22,9 +24,6 @@ export const handle = async (
 	force: boolean,
 	casing: CasingType | undefined,
 ) => {
-	const { connectToMySQL } = await import('../connections');
-	const { fromDatabaseForDrizzle } = await import('../../dialects/mysql/introspect');
-
 	const filter = prepareTablesFilter(tablesFilter);
 	const { db, database } = await connectToMySQL(credentials);
 	const progress = new ProgressView(
@@ -32,10 +31,7 @@ export const handle = async (
 		'Pulling schema from database...',
 	);
 
-	const interimFromDB = await renderWithTask(
-		progress,
-		fromDatabaseForDrizzle(db, database, filter),
-	);
+	const { schema: interimFromDB } = await introspect({ db, database, progress, tablesFilter });
 
 	const filenames = prepareFilenames(schemaPath);
 

@@ -1,7 +1,7 @@
-import { blob, integer, numeric, real, SQLiteColumnBuilder, text } from 'drizzle-orm/sqlite-core';
+import { blob, integer, numeric, real, text } from 'drizzle-orm/sqlite-core';
 import { DB } from 'src/utils';
 import { afterAll, beforeAll, expect, test } from 'vitest';
-import { prepareTestDatabase, TestDatabase } from './mocks';
+import { diffDefault, prepareTestDatabase, TestDatabase } from './mocks';
 
 // @vitest-environment-options {"max-concurrency":1}
 
@@ -16,14 +16,6 @@ beforeAll(async () => {
 afterAll(async () => {
 	await _.close();
 });
-
-// TODO: implement
-
-const diffDefault = async <T extends SQLiteColumnBuilder>(
-	kit: TestDatabase,
-	builder: T,
-	expectedDefault: string,
-): Promise<string[]> => [];
 
 test('integer', async () => {
 	const res1 = await diffDefault(_, integer({ mode: 'number' }).default(10), '10');

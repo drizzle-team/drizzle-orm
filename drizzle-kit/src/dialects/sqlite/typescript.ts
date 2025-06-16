@@ -67,7 +67,7 @@ const dbColumnName = ({ name, casing, withMode = false }: { name: string; casing
 	assertUnreachable(casing);
 };
 
-export const ddlToTypescript = (
+export const ddlToTypeScript = (
 	schema: SQLiteDDL,
 	casing: Casing,
 	viewColumns: Record<string, ViewColumn[]>,
