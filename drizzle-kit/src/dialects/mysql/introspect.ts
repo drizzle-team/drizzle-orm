@@ -43,11 +43,14 @@ export const fromDatabase = async (
 		viewColumns: [],
 	};
 
+	// TODO revise: perfomance_schema contains 'users' table
 	const tablesAndViews = await db.query<{ name: string; type: 'BASE TABLE' | 'VIEW' }>(`
 		SELECT 
 			TABLE_NAME as name, 
 			TABLE_TYPE as type 
-		FROM INFORMATION_SCHEMA.TABLES`).then((rows) => rows.filter((it) => tablesFilter(it.name)));
+		FROM INFORMATION_SCHEMA.TABLES
+		WHERE TABLE_SCHEMA = '${schema}';
+		`).then((rows) => rows.filter((it) => tablesFilter(it.name)));
 
 	const columns = await db.query(`
     SELECT 

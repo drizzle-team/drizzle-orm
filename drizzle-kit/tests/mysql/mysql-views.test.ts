@@ -1,7 +1,24 @@
 import { sql } from 'drizzle-orm';
 import { int, mysqlTable, mysqlView } from 'drizzle-orm/mysql-core';
-import { expect, test } from 'vitest';
-import { diff } from './mocks';
+import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
+
+// @vitest-environment-options {"max-concurrency":1}
+let _: TestDatabase;
+let db: TestDatabase['db'];
+
+beforeAll(async () => {
+	_ = await prepareTestDatabase();
+	db = _.db;
+});
+
+afterAll(async () => {
+	await _.close();
+});
+
+beforeEach(async () => {
+	await _.clear();
+});
 
 test('create view #1', async () => {
 	const users = mysqlTable('users', {
@@ -16,11 +33,16 @@ test('create view #1', async () => {
 		view: mysqlView('some_view').as((qb) => qb.select().from(users)),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		`CREATE ALGORITHM = undefined SQL SECURITY definer VIEW \`some_view\` AS (select \`id\` from \`users\`);`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('create view #2', async () => {
@@ -37,11 +59,16 @@ test('create view #2', async () => {
 			.withCheckOption('cascaded').as(sql`SELECT * FROM ${users}`),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		`CREATE ALGORITHM = merge SQL SECURITY definer VIEW \`some_view\` AS (SELECT * FROM \`users\`) WITH cascaded CHECK OPTION;`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('create view with existing flag', async () => {
@@ -57,11 +84,17 @@ test('create view with existing flag', async () => {
 		view: mysqlView('some_view', {}).existing(),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
-	expect(sqlStatements).toStrictEqual([]);
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
-test('drop view', async () => {
+test('drop view #1', async () => {
 	const users = mysqlTable('users', {
 		id: int('id'),
 	});
@@ -74,8 +107,38 @@ test('drop view', async () => {
 
 	const to = { users: users };
 
-	const { sqlStatements } = await diff(from, to, []);
-	expect(sqlStatements).toStrictEqual([`DROP VIEW \`some_view\`;`]);
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [`DROP VIEW \`some_view\`;`];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('drop view #2', async () => {
+	const table = mysqlTable('test', {
+		id: int('id').primaryKey(),
+	});
+
+	const schema1 = {
+		test: table,
+		view: mysqlView('view').as((qb) => qb.select().from(table)),
+	};
+
+	const schema2 = {
+		test: table,
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	const st0: string[] = ['DROP VIEW \`view\`;'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop view with existing flag', async () => {
@@ -91,8 +154,14 @@ test('drop view with existing flag', async () => {
 		users: users,
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
-	expect(sqlStatements).toStrictEqual([]);
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('rename view', async () => {
@@ -111,8 +180,15 @@ test('rename view', async () => {
 			.withCheckOption('cascaded').as(sql`SELECT * FROM ${users}`),
 	};
 
-	const { sqlStatements } = await diff(from, to, ['some_view->new_some_view']);
-	expect(sqlStatements).toStrictEqual([`RENAME TABLE \`some_view\` TO \`new_some_view\`;`]);
+	const renames = ['some_view->new_some_view'];
+	const { sqlStatements: st } = await diff(from, to, renames);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0: string[] = [`RENAME TABLE \`some_view\` TO \`new_some_view\`;`];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('rename view and alter meta options', async () => {
@@ -131,14 +207,18 @@ test('rename view and alter meta options', async () => {
 			.withCheckOption('cascaded').as(sql`SELECT * FROM ${users}`),
 	};
 
-	const { sqlStatements } = await diff(from, to, [
-		'some_view->new_some_view',
-	]);
+	const renames = ['some_view->new_some_view'];
+	const { sqlStatements: st } = await diff(from, to, renames);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0: string[] = [
 		`RENAME TABLE \`some_view\` TO \`new_some_view\`;`,
 		`ALTER ALGORITHM = undefined SQL SECURITY definer VIEW \`new_some_view\` AS SELECT * FROM \`users\` WITH cascaded CHECK OPTION;`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('rename view with existing flag', async () => {
@@ -157,9 +237,15 @@ test('rename view with existing flag', async () => {
 			.withCheckOption('cascaded').existing(),
 	};
 
-	const { sqlStatements } = await diff(from, to, ['some_view->new_some_view']);
+	const renames = ['some_view->new_some_view'];
+	const { sqlStatements: st } = await diff(from, to, renames);
 
-	expect(sqlStatements).toStrictEqual([]);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add meta to view', async () => {
@@ -177,10 +263,16 @@ test('add meta to view', async () => {
 			.withCheckOption('cascaded').as(sql`SELECT * FROM ${users}`),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
-	expect(sqlStatements).toStrictEqual([
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		'ALTER ALGORITHM = merge SQL SECURITY definer VIEW \`some_view\` AS SELECT * FROM \`users\` WITH cascaded CHECK OPTION;',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add meta to view with existing flag', async () => {
@@ -198,8 +290,14 @@ test('add meta to view with existing flag', async () => {
 			.withCheckOption('cascaded').existing(),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
-	expect(sqlStatements).toStrictEqual([]);
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter meta to view', async () => {
@@ -218,11 +316,16 @@ test('alter meta to view', async () => {
 			.withCheckOption('cascaded').as(sql`SELECT * FROM ${users}`),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		'ALTER ALGORITHM = merge SQL SECURITY definer VIEW \`some_view\` AS SELECT * FROM \`users\` WITH cascaded CHECK OPTION;',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter meta to view with existing flag', async () => {
@@ -241,9 +344,14 @@ test('alter meta to view with existing flag', async () => {
 			.withCheckOption('cascaded').existing(),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([]);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop meta from view', async () => {
@@ -261,11 +369,16 @@ test('drop meta from view', async () => {
 		view: mysqlView('some_view', {}).as(sql`SELECT * FROM ${users}`),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		`ALTER ALGORITHM = undefined SQL SECURITY definer VIEW \`some_view\` AS SELECT * FROM \`users\`;`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop meta from view existing flag', async () => {
@@ -283,8 +396,14 @@ test('drop meta from view existing flag', async () => {
 		view: mysqlView('some_view', {}).existing(),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
-	expect(sqlStatements).toStrictEqual([]);
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter view ".as" value', async () => {
@@ -303,10 +422,43 @@ test('alter view ".as" value', async () => {
 			.withCheckOption('cascaded').as(sql`SELECT * FROM ${users} WHERE ${users.id} = 1`),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
-	expect(sqlStatements).toStrictEqual([
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		`CREATE OR REPLACE ALGORITHM = temptable SQL SECURITY invoker VIEW \`some_view\` AS (SELECT * FROM \`users\` WHERE \`users\`.\`id\` = 1) WITH cascaded CHECK OPTION;`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('alter view ".as"', async () => {
+	const table = mysqlTable('test', {
+		id: int('id').primaryKey(),
+	});
+
+	const schema1 = {
+		test: table,
+		view: mysqlView('view').as((qb) => qb.select().from(table).where(sql`${table.id} = 1`)),
+	};
+
+	const schema2 = {
+		test: table,
+		view: mysqlView('view').as((qb) => qb.select().from(table)),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	const st0: string[] = [
+		'ALTER ALGORITHM = undefined SQL SECURITY definer VIEW `view` AS select `id` from `test`;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('rename and alter view ".as" value', async () => {
@@ -325,14 +477,18 @@ test('rename and alter view ".as" value', async () => {
 			.withCheckOption('cascaded').as(sql`SELECT * FROM ${users} WHERE ${users.id} = 1`),
 	};
 
-	const { sqlStatements } = await diff(from, to, [
-		'some_view->new_some_view',
-	]);
+	const renames = ['some_view->new_some_view'];
+	const { sqlStatements: st } = await diff(from, to, renames);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0: string[] = [
 		`RENAME TABLE \`some_view\` TO \`new_some_view\`;`,
 		`CREATE OR REPLACE ALGORITHM = temptable SQL SECURITY invoker VIEW \`new_some_view\` AS (SELECT * FROM \`users\` WHERE \`users\`.\`id\` = 1) WITH cascaded CHECK OPTION;`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('set existing', async () => {
@@ -352,14 +508,24 @@ test('set existing', async () => {
 	};
 
 	const { sqlStatements: st1 } = await diff(from, to, []);
-	const { sqlStatements: st2 } = await diff(from, to, [`some_view->new_some_view`]);
+	const renames = [`some_view->new_some_view`];
+	const { sqlStatements: st2 } = await diff(from, to, renames);
 
-	expect(st1).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst1 } = await push({ db, to });
+
+	// TODO: revise
+	await _.clear();
+	await push({ db, to: from });
+	const { sqlStatements: pst2 } = await push({ db, to, renames });
+
+	const st0: string[] = [
 		`DROP VIEW \`some_view\`;`,
-	]);
-	expect(st2).toStrictEqual([
-		`DROP VIEW \`some_view\`;`,
-	]);
+	];
+	expect(st1).toStrictEqual(st0);
+	expect(st2).toStrictEqual(st0);
+	expect(pst1).toStrictEqual(st0);
+	expect(pst2).toStrictEqual(st0);
 });
 
 test('drop existing', async () => {
@@ -378,9 +544,39 @@ test('drop existing', async () => {
 			.withCheckOption('cascaded').as(sql`SELECT * FROM ${users} WHERE ${users.id} = 1`),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		`CREATE ALGORITHM = temptable SQL SECURITY invoker VIEW \`new_some_view\` AS (SELECT * FROM \`users\` WHERE \`users\`.\`id\` = 1) WITH cascaded CHECK OPTION;`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('alter meta options with distinct in definition', async () => {
+	const table = mysqlTable('test', {
+		id: int('id').primaryKey(),
+	});
+
+	const schema1 = {
+		test: table,
+		view: mysqlView('view').withCheckOption('cascaded').sqlSecurity('definer').algorithm('merge').as((
+			qb,
+		) => qb.selectDistinct().from(table).where(sql`${table.id} = 1`)),
+	};
+
+	const schema2 = {
+		test: table,
+		view: mysqlView('view').withCheckOption('cascaded').sqlSecurity('definer').algorithm('undefined').as((qb) =>
+			qb.selectDistinct().from(table)
+		),
+	};
+
+	await expect(diff(schema1, schema2, [])).rejects.toThrowError();
+
+	await push({ db, to: schema1 });
+	await expect(push({ db, to: schema1 })).rejects.toThrowError();
 });

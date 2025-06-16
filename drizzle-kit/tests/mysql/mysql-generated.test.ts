@@ -1,9 +1,26 @@
 import { SQL, sql } from 'drizzle-orm';
 import { int, mysqlTable, text } from 'drizzle-orm/mysql-core';
-import { expect, test } from 'vitest';
-import { diff } from './mocks';
+import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
-test('generated as callback: add column with generated constraint', async () => {
+// @vitest-environment-options {"max-concurrency":1}
+let _: TestDatabase;
+let db: TestDatabase['db'];
+
+beforeAll(async () => {
+	_ = await prepareTestDatabase();
+	db = _.db;
+});
+
+afterAll(async () => {
+	await _.close();
+});
+
+beforeEach(async () => {
+	await _.clear();
+});
+
+test('generated as callback: add column with generated constraint #1', async () => {
 	const from = {
 		users: mysqlTable('users', {
 			id: int('id'),
@@ -23,11 +40,93 @@ test('generated as callback: add column with generated constraint', async () => 
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		"ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS (`users`.`name` || 'hello') STORED;",
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('generated as callback: add column with generated constraint #2', async () => {
+	const schema1 = {
+		users: mysqlTable('users', {
+			id: int('id'),
+			id2: int('id2'),
+			name: text('name'),
+		}),
+	};
+	const schema2 = {
+		users: mysqlTable('users', {
+			id: int('id'),
+			id2: int('id2'),
+			name: text('name'),
+			generatedName: text('gen_name').generatedAlwaysAs(
+				(): SQL => sql`${schema2.users.name} || 'hello'`,
+				{ mode: 'stored' },
+			),
+			generatedName1: text('gen_name1').generatedAlwaysAs(
+				(): SQL => sql`${schema2.users.name} || 'hello'`,
+				{ mode: 'virtual' },
+			),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	const st0: string[] = [
+		"ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS (`users`.`name` || 'hello') STORED;",
+		"ALTER TABLE `users` ADD `gen_name1` text GENERATED ALWAYS AS (`users`.`name` || 'hello') VIRTUAL;",
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('generated as callback: add generated constraints to an exisiting columns', async () => {
+	const schema1 = {
+		users: mysqlTable('users', {
+			id: int('id'),
+			id2: int('id2'),
+			name: text('name'),
+			generatedName: text('gen_name'),
+			generatedName1: text('gen_name1'),
+		}),
+	};
+	const schema2 = {
+		users: mysqlTable('users', {
+			id: int('id'),
+			id2: int('id2'),
+			name: text('name'),
+			generatedName: text('gen_name').generatedAlwaysAs(
+				(): SQL => sql`${schema2.users.name} || 'hello'`,
+				{ mode: 'stored' },
+			),
+			generatedName1: text('gen_name1').generatedAlwaysAs(
+				(): SQL => sql`${schema2.users.name} || 'hello'`,
+				{ mode: 'virtual' },
+			),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	const st0: string[] = [
+		"ALTER TABLE `users` MODIFY COLUMN `gen_name` text GENERATED ALWAYS AS (`users`.`name` || 'hello') STORED;",
+		'ALTER TABLE `users` DROP COLUMN `gen_name1`;',
+		"ALTER TABLE `users` ADD `gen_name1` text GENERATED ALWAYS AS (`users`.`name` || 'hello') VIRTUAL;",
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('generated as callback: add generated constraint to an exisiting column as stored', async () => {
@@ -52,15 +151,20 @@ test('generated as callback: add generated constraint to an exisiting column as 
 		}),
 	};
 
-	const { sqlStatements } = await diff(
+	const { sqlStatements: st } = await diff(
 		from,
 		to,
 		[],
 	);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		"ALTER TABLE `users` MODIFY COLUMN `gen_name` text GENERATED ALWAYS AS (`users`.`name` || 'to add') STORED NOT NULL;",
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('generated as callback: add generated constraint to an exisiting column as virtual', async () => {
@@ -85,12 +189,57 @@ test('generated as callback: add generated constraint to an exisiting column as 
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
 		"ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS (`users`.`name` || 'to add') VIRTUAL NOT NULL;",
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('generated as callback: drop generated constraint', async () => {
+	const schema1 = {
+		users: mysqlTable('users', {
+			id: int('id'),
+			id2: int('id2'),
+			name: text('name'),
+			generatedName: text('gen_name').generatedAlwaysAs(
+				(): SQL => sql`${schema2.users.name}`,
+				{ mode: 'stored' },
+			),
+			generatedName1: text('gen_name1').generatedAlwaysAs(
+				(): SQL => sql`${schema2.users.name}`,
+				{ mode: 'virtual' },
+			),
+		}),
+	};
+	const schema2 = {
+		users: mysqlTable('users', {
+			id: int('id'),
+			id2: int('id2'),
+			name: text('name'),
+			generatedName: text('gen_name'),
+			generatedName1: text('gen_name1'),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	const st0: string[] = [
+		'ALTER TABLE `users` MODIFY COLUMN `gen_name` text;',
+		'ALTER TABLE `users` DROP COLUMN `gen_name1`;',
+		'ALTER TABLE `users` ADD `gen_name1` text;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('generated as callback: drop generated constraint as stored', async () => {
@@ -114,11 +263,14 @@ test('generated as callback: drop generated constraint as stored', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
-		'ALTER TABLE `users` MODIFY COLUMN `gen_name` text;',
-	]);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = ['ALTER TABLE `users` MODIFY COLUMN `gen_name` text;'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('generated as callback: drop generated constraint as virtual', async () => {
@@ -142,16 +294,21 @@ test('generated as callback: drop generated constraint as virtual', async () => 
 		}),
 	};
 
-	const { sqlStatements } = await diff(
+	const { sqlStatements: st } = await diff(
 		from,
 		to,
 		[],
 	);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
 		'ALTER TABLE `users` ADD `gen_name` text;',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('generated as callback: change generated constraint type from virtual to stored', async () => {
@@ -178,16 +335,21 @@ test('generated as callback: change generated constraint type from virtual to st
 		}),
 	};
 
-	const { sqlStatements } = await diff(
+	const { sqlStatements: st } = await diff(
 		from,
 		to,
 		[],
 	);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
 		"ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS (`users`.`name` || 'hello') STORED;",
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('generated as callback: change generated constraint type from stored to virtual', async () => {
@@ -212,19 +374,24 @@ test('generated as callback: change generated constraint type from stored to vir
 		}),
 	};
 
-	const { sqlStatements } = await diff(
+	const { sqlStatements: st } = await diff(
 		from,
 		to,
 		[],
 	);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
 		"ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS (`users`.`name` || 'hello') VIRTUAL;",
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
-test('generated as callback: change generated constraint', async () => {
+test('generated as callback: change generated constraint #1', async () => {
 	const from = {
 		users: mysqlTable('users', {
 			id: int('id'),
@@ -246,16 +413,51 @@ test('generated as callback: change generated constraint', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(
+	const { sqlStatements: st } = await diff(
 		from,
 		to,
 		[],
 	);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
 		"ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS (`users`.`name` || 'hello') VIRTUAL;",
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('generated as callback: change generated constraint #2', async () => {
+	const schema1 = {
+		users: mysqlTable('users', {
+			id: int('id'),
+			gen1: text().generatedAlwaysAs((): SQL => sql`${schema1.users.id}`, { mode: 'stored' }),
+			gen2: text().generatedAlwaysAs((): SQL => sql`${schema1.users.id}`, { mode: 'virtual' }),
+		}),
+	};
+
+	const schema2 = {
+		users: mysqlTable('users', {
+			id: int('id'),
+			gen1: text().generatedAlwaysAs((): SQL => sql`${schema2.users.id} || 'hello'`, { mode: 'stored' }),
+			gen2: text().generatedAlwaysAs((): SQL => sql`${schema2.users.id} || 'hello'`, { mode: 'virtual' }),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	const st0: string[] = [
+		"ALTER TABLE `users` MODIFY COLUMN `gen1` text GENERATED ALWAYS AS (`users`.`id` || 'hello') STORED;",
+		"ALTER TABLE `users` MODIFY COLUMN `gen2` text GENERATED ALWAYS AS (`users`.`id` || 'hello') VIRTUAL;",
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 // ---
@@ -280,15 +482,20 @@ test('generated as sql: add column with generated constraint', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(
+	const { sqlStatements: st } = await diff(
 		from,
 		to,
 		[],
 	);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		"ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS (`users`.`name` || 'hello') STORED;",
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('generated as sql: add generated constraint to an exisiting column as stored', async () => {
@@ -313,15 +520,20 @@ test('generated as sql: add generated constraint to an exisiting column as store
 		}),
 	};
 
-	const { sqlStatements } = await diff(
+	const { sqlStatements: st } = await diff(
 		from,
 		to,
 		[],
 	);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		"ALTER TABLE `users` MODIFY COLUMN `gen_name` text GENERATED ALWAYS AS (`users`.`name` || 'to add') STORED NOT NULL;",
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('generated as sql: add generated constraint to an exisiting column as virtual', async () => {
@@ -346,16 +558,21 @@ test('generated as sql: add generated constraint to an exisiting column as virtu
 		}),
 	};
 
-	const { sqlStatements } = await diff(
+	const { sqlStatements: st } = await diff(
 		from,
 		to,
 		[],
 	);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
 		"ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS (`users`.`name` || 'to add') VIRTUAL NOT NULL;",
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('generated as sql: drop generated constraint as stored', async () => {
@@ -379,15 +596,18 @@ test('generated as sql: drop generated constraint as stored', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(
+	const { sqlStatements: st } = await diff(
 		from,
 		to,
 		[],
 	);
 
-	expect(sqlStatements).toStrictEqual([
-		'ALTER TABLE `users` MODIFY COLUMN `gen_name` text;',
-	]);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = ['ALTER TABLE `users` MODIFY COLUMN `gen_name` text;'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('generated as sql: drop generated constraint as virtual', async () => {
@@ -411,16 +631,21 @@ test('generated as sql: drop generated constraint as virtual', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(
+	const { sqlStatements: st } = await diff(
 		from,
 		to,
 		[],
 	);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
 		'ALTER TABLE `users` ADD `gen_name` text;',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('generated as sql: change generated constraint type from virtual to stored', async () => {
@@ -447,16 +672,21 @@ test('generated as sql: change generated constraint type from virtual to stored'
 		}),
 	};
 
-	const { sqlStatements } = await diff(
+	const { sqlStatements: st } = await diff(
 		from,
 		to,
 		[],
 	);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
 		"ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS (`users`.`name` || 'hello') STORED;",
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('generated as sql: change generated constraint type from stored to virtual', async () => {
@@ -481,16 +711,21 @@ test('generated as sql: change generated constraint type from stored to virtual'
 		}),
 	};
 
-	const { sqlStatements } = await diff(
+	const { sqlStatements: st } = await diff(
 		from,
 		to,
 		[],
 	);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
 		"ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS (`users`.`name` || 'hello') VIRTUAL;",
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('generated as sql: change generated constraint', async () => {
@@ -515,16 +750,21 @@ test('generated as sql: change generated constraint', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(
+	const { sqlStatements: st } = await diff(
 		from,
 		to,
 		[],
 	);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
 		"ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS (`users`.`name` || 'hello') VIRTUAL;",
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 // ---
@@ -549,15 +789,20 @@ test('generated as string: add column with generated constraint', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(
+	const { sqlStatements: st } = await diff(
 		from,
 		to,
 		[],
 	);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		"ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS (`users`.`name` || 'hello') STORED;",
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('generated as string: add generated constraint to an exisiting column as stored', async () => {
@@ -582,15 +827,20 @@ test('generated as string: add generated constraint to an exisiting column as st
 		}),
 	};
 
-	const { sqlStatements } = await diff(
+	const { sqlStatements: st } = await diff(
 		from,
 		to,
 		[],
 	);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		"ALTER TABLE `users` MODIFY COLUMN `gen_name` text GENERATED ALWAYS AS (`users`.`name` || 'to add') STORED NOT NULL;",
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('generated as string: add generated constraint to an exisiting column as virtual', async () => {
@@ -615,16 +865,21 @@ test('generated as string: add generated constraint to an exisiting column as vi
 		}),
 	};
 
-	const { sqlStatements } = await diff(
+	const { sqlStatements: st } = await diff(
 		from,
 		to,
 		[],
 	);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
 		"ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS (`users`.`name` || 'to add') VIRTUAL NOT NULL;",
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('generated as string: drop generated constraint as stored', async () => {
@@ -648,15 +903,20 @@ test('generated as string: drop generated constraint as stored', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(
+	const { sqlStatements: st } = await diff(
 		from,
 		to,
 		[],
 	);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		'ALTER TABLE `users` MODIFY COLUMN `gen_name` text;',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('generated as string: drop generated constraint as virtual', async () => {
@@ -680,16 +940,21 @@ test('generated as string: drop generated constraint as virtual', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(
+	const { sqlStatements: st } = await diff(
 		from,
 		to,
 		[],
 	);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
 		'ALTER TABLE `users` ADD `gen_name` text;',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('generated as string: change generated constraint type from virtual to stored', async () => {
@@ -715,16 +980,21 @@ test('generated as string: change generated constraint type from virtual to stor
 		}),
 	};
 
-	const { sqlStatements } = await diff(
+	const { sqlStatements: st } = await diff(
 		from,
 		to,
 		[],
 	);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
 		"ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS (`users`.`name` || 'hello') STORED;",
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('generated as string: change generated constraint type from stored to virtual', async () => {
@@ -747,16 +1017,21 @@ test('generated as string: change generated constraint type from stored to virtu
 		}),
 	};
 
-	const { sqlStatements } = await diff(
+	const { sqlStatements: st } = await diff(
 		from,
 		to,
 		[],
 	);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
 		"ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS (`users`.`name` || 'hello') VIRTUAL;",
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('generated as string: change generated constraint', async () => {
@@ -779,14 +1054,19 @@ test('generated as string: change generated constraint', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(
+	const { sqlStatements: st } = await diff(
 		from,
 		to,
 		[],
 	);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
 		"ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS (`users`.`name` || 'hello') VIRTUAL;",
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
