@@ -13,8 +13,8 @@ import { PrismaPgSession } from './session.ts';
 export class PrismaPgDatabase extends PgDatabase<PrismaPgQueryResultHKT, Record<string, never>> {
 	static override readonly [entityKind]: string = 'PrismaPgDatabase';
 
-	constructor(client: PrismaClient, logger: Logger | undefined) {
-		const dialect = new PgDialect();
+	constructor(client: PrismaClient, logger: Logger | undefined, safeMutations: boolean = false) {
+		const dialect = new PgDialect({ safeMutations });
 		super(dialect, new PrismaPgSession(dialect, client, { logger }), undefined);
 	}
 }
@@ -33,7 +33,7 @@ export function drizzle(config: PrismaPgConfig = {}) {
 		return client.$extends({
 			name: 'drizzle',
 			client: {
-				$drizzle: new PrismaPgDatabase(client, logger),
+				$drizzle: new PrismaPgDatabase(client, logger, config.safeMutations),
 			},
 		});
 	});

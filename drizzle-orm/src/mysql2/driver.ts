@@ -66,7 +66,7 @@ function construct<
 ): MySql2Database<TSchema> & {
 	$client: AnyMySql2Connection extends TClient ? CallbackPool : TClient;
 } {
-	const dialect = new MySqlDialect({ casing: config.casing });
+	const dialect = new MySqlDialect({ casing: config.casing, safeMutations: config.safeMutations });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

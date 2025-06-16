@@ -54,7 +54,7 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 ): BunSQLiteDatabase<TSchema> & {
 	$client: Database;
 } {
-	const dialect = new SQLiteSyncDialect({ casing: config.casing });
+	const dialect = new SQLiteSyncDialect({ casing: config.casing, safeMutations: config.safeMutations });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

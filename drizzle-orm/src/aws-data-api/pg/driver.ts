@@ -98,7 +98,7 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 ): AwsDataApiPgDatabase<TSchema> & {
 	$client: AwsDataApiClient;
 } {
-	const dialect = new AwsPgDialect({ casing: config.casing });
+	const dialect = new AwsPgDialect({ casing: config.casing, safeMutations: config.safeMutations });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

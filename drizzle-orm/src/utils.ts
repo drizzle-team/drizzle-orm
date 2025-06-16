@@ -221,6 +221,7 @@ export interface DrizzleConfig<TSchema extends Record<string, unknown> = Record<
 	schema?: TSchema;
 	casing?: Casing;
 	cache?: Cache;
+	safeMutations?: boolean;
 }
 export type ValidateShape<T, ValidShape, TResult = T> = T extends ValidShape
 	? Exclude<keyof T, keyof ValidShape> extends never ? TResult

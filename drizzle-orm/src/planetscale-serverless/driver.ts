@@ -52,7 +52,7 @@ const db = drizzle(client);
 		`);
 	}
 
-	const dialect = new MySqlDialect({ casing: config.casing });
+	const dialect = new MySqlDialect({ casing: config.casing, safeMutations: config.safeMutations });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();

@@ -28,7 +28,7 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 ): BunSQLDatabase<TSchema> & {
 	$client: SQL;
 } {
-	const dialect = new PgDialect({ casing: config.casing });
+	const dialect = new PgDialect({ casing: config.casing, safeMutations: config.safeMutations });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
