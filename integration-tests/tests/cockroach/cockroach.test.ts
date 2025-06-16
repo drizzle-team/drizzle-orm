@@ -17,8 +17,8 @@ let client: Client;
 
 beforeAll(async () => {
 	let connectionString;
-	if (process.env['COCKROACHDB_CONNECTION_STRING']) {
-		connectionString = process.env['COCKROACHDB_CONNECTION_STRING'];
+	if (process.env['COCKROACH_CONNECTION_STRING']) {
+		connectionString = process.env['COCKROACH_CONNECTION_STRING'];
 	} else {
 		const { connectionString: conStr } = await createDockerDB();
 		connectionString = conStr;
@@ -45,7 +45,7 @@ afterAll(async () => {
 });
 
 beforeEach((ctx) => {
-	ctx.cockroachdb = {
+	ctx.cockroach = {
 		db,
 	};
 });

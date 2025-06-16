@@ -18,8 +18,8 @@ let container: Docker.Container | undefined;
 
 beforeAll(async () => {
 	let connectionString;
-	if (process.env['COCKROACHDB_CONNECTION_STRING']) {
-		connectionString = process.env['COCKROACHDB_CONNECTION_STRING'];
+	if (process.env['COCKROACH_CONNECTION_STRING']) {
+		connectionString = process.env['COCKROACH_CONNECTION_STRING'];
 	} else {
 		const { connectionString: conStr, container: contrainerObj } = await createDockerDB();
 		connectionString = conStr;
@@ -48,7 +48,7 @@ afterAll(async () => {
 });
 
 beforeEach((ctx) => {
-	ctx.cockroachdb = {
+	ctx.cockroach = {
 		db,
 	};
 });
@@ -115,7 +115,7 @@ const usersMigratorTable = cockroachTable('users12', {
 });
 
 beforeEach(async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 	await db.execute(sql`drop database defaultdb;`);
 	await db.execute(sql`create database defaultdb;`);
 	await db.execute(
@@ -132,7 +132,7 @@ beforeEach(async (ctx) => {
 });
 
 test('select all fields', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	const now = Date.now();
 
@@ -152,7 +152,7 @@ test('select all fields', async (ctx) => {
 });
 
 test('select sql', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	await db.insert(usersTable).values({ name: 'John' });
 	const users = await db.select({
@@ -163,7 +163,7 @@ test('select sql', async (ctx) => {
 });
 
 test('select typed sql', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	await db.insert(usersTable).values({ name: 'John' });
 	const users = await db.select({
@@ -174,7 +174,7 @@ test('select typed sql', async (ctx) => {
 });
 
 test('insert returning sql', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	const users = await db.insert(usersTable).values({ name: 'John' }).returning({
 		name: sql`upper(${usersTable.name})`,
@@ -184,7 +184,7 @@ test('insert returning sql', async (ctx) => {
 });
 
 test('delete returning sql', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	await db.insert(usersTable).values({ name: 'John' });
 	const users = await db.delete(usersTable).where(eq(usersTable.name, 'John')).returning({
@@ -195,7 +195,7 @@ test('delete returning sql', async (ctx) => {
 });
 
 test('update returning sql', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	await db.insert(usersTable).values({ name: 'John' });
 	const users = await db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John')).returning({
@@ -206,7 +206,7 @@ test('update returning sql', async (ctx) => {
 });
 
 test('update with returning all fields', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	const now = Date.now();
 
@@ -226,7 +226,7 @@ test('update with returning all fields', async (ctx) => {
 });
 
 test('update with returning partial', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	await db.insert(usersTable).values({ name: 'John' });
 	const users = await db.update(usersTable).set({ name: 'Jane' }).where(eq(usersTable.name, 'John')).returning({
@@ -237,7 +237,7 @@ test('update with returning partial', async (ctx) => {
 });
 
 test('delete with returning all fields', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	const now = Date.now();
 
@@ -257,7 +257,7 @@ test('delete with returning all fields', async (ctx) => {
 });
 
 test('delete with returning partial', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	await db.insert(usersTable).values({ name: 'John' });
 	const users = await db.delete(usersTable).where(eq(usersTable.name, 'John')).returning({
@@ -268,7 +268,7 @@ test('delete with returning partial', async (ctx) => {
 });
 
 test('insert + select', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	await db.insert(usersTable).values({ name: 'John' });
 	const result = await db.select().from(usersTable);
@@ -289,7 +289,7 @@ test('insert + select', async (ctx) => {
 });
 
 test('json insert', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	await db.insert(usersTable).values({ name: 'John', jsonb: ['foo', 'bar'] });
 	const result = await db.select({
@@ -301,7 +301,7 @@ test('json insert', async (ctx) => {
 });
 
 test('insert with overridden default values', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	await db.insert(usersTable).values({ id: 1, name: 'John', verified: true });
 	const result = await db.select().from(usersTable);
@@ -316,7 +316,7 @@ test('insert with overridden default values', async (ctx) => {
 });
 
 test('insert many', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	await db.insert(usersTable).values([
 		{ name: 'John' },
@@ -339,7 +339,7 @@ test('insert many', async (ctx) => {
 });
 
 test('insert many with returning', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	const result = await db.insert(usersTable).values([
 		{ name: 'John' },
@@ -362,7 +362,7 @@ test('insert many with returning', async (ctx) => {
 });
 
 test('select with group by as field', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
@@ -373,7 +373,7 @@ test('select with group by as field', async (ctx) => {
 });
 
 test('select with group by as sql', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
@@ -384,7 +384,7 @@ test('select with group by as sql', async (ctx) => {
 });
 
 test('select with group by as sql + column', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
@@ -395,7 +395,7 @@ test('select with group by as sql + column', async (ctx) => {
 });
 
 test('select with group by as column + sql', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
@@ -406,7 +406,7 @@ test('select with group by as column + sql', async (ctx) => {
 });
 
 test('select with group by complex query', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
@@ -419,7 +419,7 @@ test('select with group by complex query', async (ctx) => {
 });
 
 test('build query', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	const query = db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable)
 		.groupBy(usersTable.id, usersTable.name)
@@ -432,7 +432,7 @@ test('build query', async (ctx) => {
 });
 
 test('insert sql', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	await db.insert(usersTable).values({ name: sql`${'John'}` });
 	const result = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable);
@@ -440,7 +440,7 @@ test('insert sql', async (ctx) => {
 });
 
 test('partial join with alias', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 	const customerAlias = alias(usersTable, 'customer');
 
 	await db.insert(usersTable).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
@@ -465,7 +465,7 @@ test('partial join with alias', async (ctx) => {
 });
 
 test('full join with alias', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	const cockroachTable = cockroachTableCreator((name) => `prefixed_${name}`);
 
@@ -503,7 +503,7 @@ test('full join with alias', async (ctx) => {
 });
 
 test('insert with spaces', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	await db.insert(usersTable).values({ name: sql`'Jo   h     n'` });
 	const result = await db.select({ name: usersTable.name }).from(usersTable);
@@ -512,7 +512,7 @@ test('insert with spaces', async (ctx) => {
 });
 
 test('prepared statement', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	await db.insert(usersTable).values({ name: 'John' });
 	const statement = db.select({
@@ -525,7 +525,7 @@ test('prepared statement', async (ctx) => {
 });
 
 test('prepared statement reuse', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	const stmt = db.insert(usersTable).values({
 		verified: true,
@@ -556,7 +556,7 @@ test('prepared statement reuse', async (ctx) => {
 });
 
 test('prepared statement with placeholder in .where', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	await db.insert(usersTable).values({ id: 1, name: 'John' });
 	const stmt = db.select({
@@ -571,7 +571,7 @@ test('prepared statement with placeholder in .where', async (ctx) => {
 });
 
 test('prepared statement with placeholder in .limit', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	await db.insert(usersTable).values([{ id: 1, name: 'John' }, { id: 2, name: 'John2' }]);
 	const stmt = db
@@ -591,7 +591,7 @@ test('prepared statement with placeholder in .limit', async (ctx) => {
 });
 
 test('prepared statement with placeholder in .offset', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	await db.insert(usersTable).values([{ id: 1, name: 'John' }, { id: 2, name: 'John1' }]);
 	const stmt = db
@@ -715,7 +715,7 @@ test('insert via db.execute w/ query builder', async () => {
 });
 
 test('build query insert with onConflict do update', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	const query = db.insert(usersTable)
 		.values({ name: 'John', jsonb: ['foo', 'bar'] })
@@ -730,7 +730,7 @@ test('build query insert with onConflict do update', async (ctx) => {
 });
 
 test('build query insert with onConflict do update / multiple columns', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	const query = db.insert(usersTable)
 		.values({ name: 'John', jsonb: ['foo', 'bar'] })
@@ -745,7 +745,7 @@ test('build query insert with onConflict do update / multiple columns', async (c
 });
 
 test('build query insert with onConflict do nothing', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	const query = db.insert(usersTable)
 		.values({ name: 'John', jsonb: ['foo', 'bar'] })
@@ -760,7 +760,7 @@ test('build query insert with onConflict do nothing', async (ctx) => {
 });
 
 test('build query insert with onConflict do nothing + target', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	const query = db.insert(usersTable)
 		.values({ name: 'John', jsonb: ['foo', 'bar'] })
@@ -775,7 +775,7 @@ test('build query insert with onConflict do nothing + target', async (ctx) => {
 });
 
 test('insert with onConflict do update', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	await db.insert(usersTable)
 		.values({ name: 'John' });
@@ -792,7 +792,7 @@ test('insert with onConflict do update', async (ctx) => {
 });
 
 test('insert with onConflict do nothing', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	await db.insert(usersTable)
 		.values({ name: 'John' });
@@ -809,7 +809,7 @@ test('insert with onConflict do nothing', async (ctx) => {
 });
 
 test('insert with onConflict do nothing + target', async (ctx) => {
-	const { db } = ctx.cockroachdb;
+	const { db } = ctx.cockroach;
 
 	await db.insert(usersTable)
 		.values({ name: 'John' });
