@@ -3,8 +3,293 @@ name: Release (latest)
 on: workflow_dispatch
 
 jobs:
+  test:
+    strategy:
+      matrix:
+        shard:
+          - gel
+          - planetscale
+          - singlestore-core
+          - singlestore-proxy
+          - singlestore-prefixed
+          - singlestore-custom
+          - neon-http
+          - neon-serverless
+          - drizzle-orm
+          - drizzle-kit
+          - drizzle-zod
+          - drizzle-seed
+          - drizzle-typebox
+          - drizzle-valibot
+          - drizzle-arktype
+          - other
+    runs-on: ubuntu-22.04
+    services:
+      postgres-postgis:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: drizzle
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 54322:5432
+      postgres-vector:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: drizzle
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 54321:5432
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: drizzle
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 55433:5432
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: drizzle
+        options: >-
+          --health-cmd "mysqladmin ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 33306:3306
+      singlestore:
+        image: ghcr.io/singlestore-labs/singlestoredb-dev:latest
+        env:
+          ROOT_PASSWORD: singlestore
+        ports:
+          - 33307:3306
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.19'
+          registry-url: 'https://registry.npmjs.org'
+
+      - uses: pnpm/action-setup@v3
+        name: Install pnpm
+        id: pnpm-install
+        with:
+          version: latest
+          run_install: false
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - uses: actions/cache@v4
+        name: Setup pnpm cache
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build Prisma client
+        working-directory: drizzle-orm
+        run: pnpm prisma generate --schema src/prisma/schema.prisma
+
+      - name: Build
+        run: pnpm build
+
+      - name: Run tests
+        env:
+          PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
+          PG_VECTOR_CONNECTION_STRING: postgres://postgres:postgres@localhost:54321/drizzle
+          PG_POSTGIS_CONNECTION_STRING: postgres://postgres:postgres@localhost:54322/drizzle
+          MYSQL_CONNECTION_STRING: mysql://root:root@localhost:33306/drizzle
+          PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
+          NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
+          # NEON_HTTP_CONNECTION_STRING: postgres://postgres:postgres@db.localtest.me:5432/postgres
+          NEON_HTTP_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
+          NEON_SERVERLESS_CONNECTION_STRING: postgres://postgres:postgres@localhost:5445/postgres
+          TIDB_CONNECTION_STRING: ${{ secrets.TIDB_CONNECTION_STRING }}
+          XATA_API_KEY: ${{ secrets.XATA_API_KEY }}
+          XATA_BRANCH: ${{ secrets.XATA_BRANCH }}
+          LIBSQL_URL: file:local.db
+          LIBSQL_REMOTE_URL: ${{ secrets.LIBSQL_REMOTE_URL }}
+          LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
+          SINGLESTORE_CONNECTION_STRING: singlestore://root:singlestore@localhost:33307/
+        working-directory: integration-tests
+        run: |
+          case ${{ matrix.shard }} in
+
+            gel)
+              pnpm vitest run tests/gel
+            ;;
+
+            planetscale)
+              pnpm vitest run \
+                tests/mysql/mysql-planetscale.test.ts \
+                tests/relational/mysql.planetscale-v1.test.ts \
+                tests/relational/mysql.planetscale.test.ts
+            ;;
+
+            singlestore-core)
+              pnpm vitest run tests/singlestore/singlestore.test.ts
+            ;;
+
+            singlestore-proxy)
+              pnpm vitest run tests/singlestore/singlestore-proxy.test.ts
+            ;;
+
+            singlestore-prefixed)
+              pnpm vitest run tests/singlestore/singlestore-prefixed.test.ts
+            ;;
+
+            singlestore-custom)
+              pnpm vitest run tests/singlestore/singlestore-custom.test.ts
+            ;;
+
+            neon-http)
+              pnpm vitest run tests/pg/neon-http.test.ts tests/pg/neon-http-batch.test.ts
+            ;;
+
+            neon-serverless)
+              docker compose -f docker-neon.yml up -d
+              pnpm vitest run tests/pg/neon-serverless.test.ts
+              docker compose -f docker-neon.yml down
+            ;;
+
+            drizzle-orm|drizzle-kit|drizzle-zod|drizzle-seed|drizzle-typebox|drizzle-valibot|drizzle-arktype)
+              (cd .. && pnpm test --filter ${{ matrix.shard }})
+            ;;
+
+            other)
+              pnpm vitest run \
+                --exclude tests/gel \
+                --exclude tests/mysql/mysql-planetscale.test.ts \
+                --exclude tests/relational/mysql.planetscale-v1.test.ts \
+                --exclude tests/relational/mysql.planetscale.test.ts \
+                --exclude tests/singlestore/singlestore.test.ts \
+                --exclude tests/singlestore/singlestore-proxy.test.ts \
+                --exclude tests/singlestore/singlestore-prefixed.test.ts \
+                --exclude tests/singlestore/singlestore-custom.test.ts \
+                --exclude tests/pg/neon-http.test.ts \
+                --exclude tests/pg/neon-http-batch.test.ts \
+                --exclude tests/pg/neon-serverless.test.ts
+            ;;
+
+          esac
+
+  attw:
+    strategy:
+      matrix:
+        package:
+          - drizzle-orm
+          - drizzle-kit
+          - drizzle-zod
+          - drizzle-seed
+          - drizzle-typebox
+          - drizzle-valibot
+          - drizzle-arktype
+          - eslint-plugin-drizzle
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18.18'
+          registry-url: 'https://registry.npmjs.org'
+
+      - uses: pnpm/action-setup@v3
+        name: Install pnpm
+        id: pnpm-install
+        with:
+          version: latest
+          run_install: false
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - uses: actions/cache@v4
+        name: Setup pnpm cache
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Check preconditions
+        id: checks
+        shell: bash
+        working-directory: ${{ matrix.package }}
+        run: |
+          latest="$(npm view --json ${{ matrix.package }} dist-tags.latest | jq -r)"
+          version="$(jq -r .version package.json)"
+          is_version_published="$(npm view ${{ matrix.package }} versions --json | jq -r '.[] | select(. == "'$version'") | . == "'$version'"')"
+
+          if [[ "$is_version_published" == "false" && "$latest" != "$version" ]]; then
+            {
+              echo "version=$version"
+              echo "has_new_release=true"
+              echo "changelog_path=$changelogPath"
+            } >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build Prisma client
+        if: steps.checks.outputs.has_new_release == 'true'
+        working-directory: drizzle-orm
+        run: pnpm prisma generate --schema src/prisma/schema.prisma
+
+      - name: Build
+        if: steps.checks.outputs.has_new_release == 'true'
+        run: pnpm build
+      
+      - name: Pack
+        if: steps.checks.outputs.has_new_release == 'true'
+        working-directory: ${{ matrix.package }}
+        run: npm run pack
+  
+      - name: Run @arethetypeswrong/cli
+        if: steps.checks.outputs.has_new_release == 'true'
+        working-directory: ${{ matrix.package }}
+        run: bunx attw package.tgz
+
   release:
     permissions: write-all
+    needs:
+      - test
+      - attw
     strategy:
       fail-fast: false
       matrix:
@@ -15,8 +300,9 @@ jobs:
           - drizzle-seed
           - drizzle-typebox
           - drizzle-valibot
+          - drizzle-arktype
           - eslint-plugin-drizzle
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     services:
       postgres-postgis:
         image: postgis/postgis:16-3.4
@@ -74,7 +360,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '18.18'
+          node-version: '22'
           registry-url: 'https://registry.npmjs.org'
 
       - uses: pnpm/action-setup@v3
@@ -133,36 +419,14 @@ jobs:
             echo "\`$version\` is already latest on NPM" >> $GITHUB_STEP_SUMMARY
           fi
 
+      - name: Build Prisma client
+        if: steps.checks.outputs.has_new_release == 'true'
+        working-directory: drizzle-orm
+        run: pnpm prisma generate --schema src/prisma/schema.prisma
+
       - name: Build
         if: steps.checks.outputs.has_new_release == 'true'
-        run: |
-          (
-            cd drizzle-orm
-            pnpm prisma generate --schema src/prisma/schema.prisma
-          )
-          pnpm build
-
-      - name: Run tests
-        if: steps.checks.outputs.has_new_release == 'true'
-        env:
-          PG_CONNECTION_STRING: postgres://postgres:postgres@localhost:55433/drizzle
-          PG_VECTOR_CONNECTION_STRING: postgres://postgres:postgres@localhost:54321/drizzle
-          PG_POSTGIS_CONNECTION_STRING: postgres://postgres:postgres@localhost:54322/drizzle
-          MYSQL_CONNECTION_STRING: mysql://root:root@localhost:33306/drizzle
-          PLANETSCALE_CONNECTION_STRING: ${{ secrets.PLANETSCALE_CONNECTION_STRING }}
-          NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
-          TIDB_CONNECTION_STRING: ${{ secrets.TIDB_CONNECTION_STRING }}
-          XATA_API_KEY: ${{ secrets.XATA_API_KEY }}
-          XATA_BRANCH: ${{ secrets.XATA_BRANCH }}
-          LIBSQL_URL: file:local.db
-          LIBSQL_REMOTE_URL: ${{ secrets.LIBSQL_REMOTE_URL }}
-          LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
-        run: |
-          if [[ "${{ matrix.package }}" == "drizzle-orm" ]]; then
-            pnpm test --filter ${{ matrix.package }} --filter integration-tests
-          else
-          pnpm test --filter ${{ matrix.package }}
-          fi
+        run: pnpm build
 
       - name: Pack
         if: steps.checks.outputs.has_new_release == 'true'
@@ -170,17 +434,7 @@ jobs:
         shell: bash
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
-        run: |
-          npm run pack
-
-      - name: Run @arethetypeswrong/cli
-        if: steps.checks.outputs.has_new_release == 'true'
-        working-directory: ${{ matrix.package }}
-        shell: bash
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
-        run: |
-          pnpm attw package.tgz
+        run: npm run pack
 
       - name: Publish
         if: steps.checks.outputs.has_new_release == 'true'

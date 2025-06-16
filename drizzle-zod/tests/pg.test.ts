@@ -2,6 +2,8 @@ import { type Equal, sql } from 'drizzle-orm';
 import {
 	customType,
 	integer,
+	json,
+	jsonb,
 	pgEnum,
 	pgMaterializedView,
 	pgSchema,
@@ -10,24 +12,26 @@ import {
 	serial,
 	text,
 } from 'drizzle-orm/pg-core';
+import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSchemaFactory, createSelectSchema, createUpdateSchema } from '../src';
 import { Expect, expectEnumValues, expectSchemaShape } from './utils.ts';
 
-const integerSchema = z.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int();
+const integerSchema = z.int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX);
 const textSchema = z.string();
 
 test('table - select', (t) => {
 	const table = pgTable('test', {
-		id: serial().primaryKey(),
+		id: integer().primaryKey(),
+		generated: integer().generatedAlwaysAsIdentity(),
 		name: text().notNull(),
 	});
 
 	const result = createSelectSchema(table);
-	const expected = z.object({ id: integerSchema, name: textSchema });
+	const expected = z.object({ id: integerSchema, generated: integerSchema, name: textSchema });
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -219,7 +223,6 @@ test('nullability - update', (t) => {
 		c4: integerSchema.optional(),
 		c7: integerSchema.optional(),
 	});
-	table.c5.generated?.type;
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -232,12 +235,12 @@ test('refine table - select', (t) => {
 	});
 
 	const result = createSelectSchema(table, {
-		c2: (schema) => schema.max(1000),
+		c2: (schema) => schema.lte(1000),
 		c3: z.string().transform(Number),
 	});
 	const expected = z.object({
 		c1: integerSchema.nullable(),
-		c2: integerSchema.max(1000),
+		c2: integerSchema.lte(1000),
 		c3: z.string().transform(Number),
 	});
 	expectSchemaShape(t, expected).from(result);
@@ -255,13 +258,13 @@ test('refine table - select with custom data type', (t) => {
 
 	const customTextSchema = z.string().min(1).max(100);
 	const result = createSelectSchema(table, {
-		c2: (schema) => schema.max(1000),
+		c2: (schema) => schema.lte(1000),
 		c3: z.string().transform(Number),
 		c4: customTextSchema,
 	});
 	const expected = z.object({
 		c1: integerSchema.nullable(),
-		c2: integerSchema.max(1000),
+		c2: integerSchema.lte(1000),
 		c3: z.string().transform(Number),
 		c4: customTextSchema,
 	});
@@ -279,12 +282,12 @@ test('refine table - insert', (t) => {
 	});
 
 	const result = createInsertSchema(table, {
-		c2: (schema) => schema.max(1000),
+		c2: (schema) => schema.lte(1000),
 		c3: z.string().transform(Number),
 	});
 	const expected = z.object({
 		c1: integerSchema.nullable().optional(),
-		c2: integerSchema.max(1000),
+		c2: integerSchema.lte(1000),
 		c3: z.string().transform(Number),
 	});
 	expectSchemaShape(t, expected).from(result);
@@ -300,12 +303,12 @@ test('refine table - update', (t) => {
 	});
 
 	const result = createUpdateSchema(table, {
-		c2: (schema) => schema.max(1000),
+		c2: (schema) => schema.lte(1000),
 		c3: z.string().transform(Number),
 	});
 	const expected = z.object({
 		c1: integerSchema.nullable().optional(),
-		c2: integerSchema.max(1000).optional(),
+		c2: integerSchema.lte(1000).optional(),
 		c3: z.string().transform(Number),
 	});
 	expectSchemaShape(t, expected).from(result);
@@ -336,29 +339,29 @@ test('refine view - select', (t) => {
 	);
 
 	const result = createSelectSchema(view, {
-		c2: (schema) => schema.max(1000),
+		c2: (schema) => schema.lte(1000),
 		c3: z.string().transform(Number),
 		nested: {
-			c5: (schema) => schema.max(1000),
+			c5: (schema) => schema.lte(1000),
 			c6: z.string().transform(Number),
 		},
 		table: {
-			c2: (schema) => schema.max(1000),
+			c2: (schema) => schema.lte(1000),
 			c3: z.string().transform(Number),
 		},
 	});
 	const expected = z.object({
 		c1: integerSchema.nullable(),
-		c2: integerSchema.max(1000).nullable(),
+		c2: integerSchema.lte(1000).nullable(),
 		c3: z.string().transform(Number),
 		nested: z.object({
 			c4: integerSchema.nullable(),
-			c5: integerSchema.max(1000).nullable(),
+			c5: integerSchema.lte(1000).nullable(),
 			c6: z.string().transform(Number),
 		}),
 		table: z.object({
 			c1: integerSchema.nullable(),
-			c2: integerSchema.max(1000).nullable(),
+			c2: integerSchema.lte(1000).nullable(),
 			c3: z.string().transform(Number),
 			c4: integerSchema.nullable(),
 			c5: integerSchema.nullable(),
@@ -451,10 +454,10 @@ test('all data types', (t) => {
 
 	const result = createSelectSchema(table);
 	const expected = z.object({
-		bigint1: z.number().min(Number.MIN_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER).int(),
-		bigint2: z.bigint().min(CONSTANTS.INT64_MIN).max(CONSTANTS.INT64_MAX),
-		bigserial1: z.number().min(Number.MIN_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER).int(),
-		bigserial2: z.bigint().min(CONSTANTS.INT64_MIN).max(CONSTANTS.INT64_MAX),
+		bigint1: z.int().gte(Number.MIN_SAFE_INTEGER).lte(Number.MAX_SAFE_INTEGER),
+		bigint2: z.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
+		bigserial1: z.int().gte(Number.MIN_SAFE_INTEGER).lte(Number.MAX_SAFE_INTEGER),
+		bigserial2: z.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
 		bit: z.string().regex(/^[01]+$/).max(5),
 		boolean: z.boolean(),
 		date1: z.date(),
@@ -462,12 +465,12 @@ test('all data types', (t) => {
 		char1: z.string().length(10),
 		char2: z.enum(['a', 'b', 'c']),
 		cidr: z.string(),
-		doublePrecision: z.number().min(CONSTANTS.INT48_MIN).max(CONSTANTS.INT48_MAX),
+		doublePrecision: z.number().gte(CONSTANTS.INT48_MIN).lte(CONSTANTS.INT48_MAX),
 		geometry1: z.tuple([z.number(), z.number()]),
 		geometry2: z.object({ x: z.number(), y: z.number() }),
 		halfvec: z.array(z.number()).length(3),
 		inet: z.string(),
-		integer: z.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int(),
+		integer: z.int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX),
 		interval: z.string(),
 		json: jsonSchema,
 		jsonb: jsonSchema,
@@ -478,17 +481,17 @@ test('all data types', (t) => {
 		numeric: z.string(),
 		point1: z.object({ x: z.number(), y: z.number() }),
 		point2: z.tuple([z.number(), z.number()]),
-		real: z.number().min(CONSTANTS.INT24_MIN).max(CONSTANTS.INT24_MAX),
-		serial: z.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int(),
-		smallint: z.number().min(CONSTANTS.INT16_MIN).max(CONSTANTS.INT16_MAX).int(),
-		smallserial: z.number().min(CONSTANTS.INT16_MIN).max(CONSTANTS.INT16_MAX).int(),
+		real: z.number().gte(CONSTANTS.INT24_MIN).lte(CONSTANTS.INT24_MAX),
+		serial: z.int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX),
+		smallint: z.int().gte(CONSTANTS.INT16_MIN).lte(CONSTANTS.INT16_MAX),
+		smallserial: z.int().gte(CONSTANTS.INT16_MIN).lte(CONSTANTS.INT16_MAX),
 		text1: z.string(),
 		text2: z.enum(['a', 'b', 'c']),
 		sparsevec: z.string(),
 		time: z.string(),
 		timestamp1: z.date(),
 		timestamp2: z.string(),
-		uuid: z.string().uuid(),
+		uuid: z.uuid(),
 		varchar1: z.string().max(10),
 		varchar2: z.enum(['a', 'b', 'c']),
 		vector: z.array(z.number()).length(3),
@@ -496,6 +499,7 @@ test('all data types', (t) => {
 		array2: z.array(z.array(integerSchema).length(2)),
 		array3: z.array(z.array(z.string().max(10)).length(2)),
 	});
+
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -520,10 +524,10 @@ test('type coercion - all', (t) => {
 	});
 	const result = createSelectSchema(table);
 	const expected = z.object({
-		bigint: z.coerce.bigint().min(CONSTANTS.INT64_MIN).max(CONSTANTS.INT64_MAX),
+		bigint: z.coerce.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
 		boolean: z.coerce.boolean(),
 		timestamp: z.coerce.date(),
-		integer: z.coerce.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int(),
+		integer: z.coerce.number().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX).int(),
 		text: z.coerce.string(),
 	});
 	expectSchemaShape(t, expected).from(result);
@@ -547,11 +551,25 @@ test('type coercion - mixed', (t) => {
 	const result = createSelectSchema(table);
 	const expected = z.object({
 		timestamp: z.coerce.date(),
-		integer: z.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int(),
+		integer: z.int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
+
+/* Infinitely recursive type */ {
+	const TopLevelCondition: z.ZodType<TopLevelCondition> = z.custom<TopLevelCondition>().superRefine(() => {});
+	const table = pgTable('test', {
+		json: json().$type<TopLevelCondition>().notNull(),
+		jsonb: jsonb().$type<TopLevelCondition>(),
+	});
+	const result = createSelectSchema(table);
+	const expected = z.object({
+		json: TopLevelCondition,
+		jsonb: z.nullable(TopLevelCondition),
+	});
+	Expect<Equal<z.infer<typeof result>, z.infer<typeof expected>>>();
+}
 
 /* Disallow unknown keys in table refinement - select */ {
 	const table = pgTable('test', { id: integer() });

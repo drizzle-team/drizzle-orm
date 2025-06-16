@@ -1,24 +1,26 @@
 import type { Equal } from 'drizzle-orm';
-import { customType, int, serial, singlestoreSchema, singlestoreTable, text } from 'drizzle-orm/singlestore-core';
+import { customType, int, json, serial, singlestoreSchema, singlestoreTable, text } from 'drizzle-orm/singlestore-core';
+import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSchemaFactory, createSelectSchema, createUpdateSchema } from '../src';
 import { Expect, expectSchemaShape } from './utils.ts';
 
-const intSchema = z.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int();
-const serialNumberModeSchema = z.number().min(0).max(Number.MAX_SAFE_INTEGER).int();
+const intSchema = z.int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX);
+const serialNumberModeSchema = z.int().gte(0).lte(Number.MAX_SAFE_INTEGER);
 const textSchema = z.string().max(CONSTANTS.INT16_UNSIGNED_MAX);
 
 test('table - select', (t) => {
 	const table = singlestoreTable('test', {
 		id: serial().primaryKey(),
+		generated: int().generatedAlwaysAs(1).notNull(),
 		name: text().notNull(),
 	});
 
 	const result = createSelectSchema(table);
-	const expected = z.object({ id: serialNumberModeSchema, name: textSchema });
+	const expected = z.object({ id: serialNumberModeSchema, generated: intSchema, name: textSchema });
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -190,12 +192,12 @@ test('refine table - select', (t) => {
 	});
 
 	const result = createSelectSchema(table, {
-		c2: (schema) => schema.max(1000),
+		c2: (schema) => schema.lte(1000),
 		c3: z.string().transform(Number),
 	});
 	const expected = z.object({
 		c1: intSchema.nullable(),
-		c2: intSchema.max(1000),
+		c2: intSchema.lte(1000),
 		c3: z.string().transform(Number),
 	});
 
@@ -214,13 +216,13 @@ test('refine table - select with custom data type', (t) => {
 
 	const customTextSchema = z.string().min(1).max(100);
 	const result = createSelectSchema(table, {
-		c2: (schema) => schema.max(1000),
+		c2: (schema) => schema.lte(1000),
 		c3: z.string().transform(Number),
 		c4: customTextSchema,
 	});
 	const expected = z.object({
 		c1: intSchema.nullable(),
-		c2: intSchema.max(1000),
+		c2: intSchema.lte(1000),
 		c3: z.string().transform(Number),
 		c4: customTextSchema,
 	});
@@ -238,12 +240,12 @@ test('refine table - insert', (t) => {
 	});
 
 	const result = createInsertSchema(table, {
-		c2: (schema) => schema.max(1000),
+		c2: (schema) => schema.lte(1000),
 		c3: z.string().transform(Number),
 	});
 	const expected = z.object({
 		c1: intSchema.nullable().optional(),
-		c2: intSchema.max(1000),
+		c2: intSchema.lte(1000),
 		c3: z.string().transform(Number),
 	});
 	expectSchemaShape(t, expected).from(result);
@@ -259,12 +261,12 @@ test('refine table - update', (t) => {
 	});
 
 	const result = createUpdateSchema(table, {
-		c2: (schema) => schema.max(1000),
+		c2: (schema) => schema.lte(1000),
 		c3: z.string().transform(Number),
 	});
 	const expected = z.object({
 		c1: intSchema.nullable().optional(),
-		c2: intSchema.max(1000).optional(),
+		c2: intSchema.lte(1000).optional(),
 		c3: z.string().transform(Number),
 	});
 	expectSchemaShape(t, expected).from(result);
@@ -295,29 +297,29 @@ test('refine table - update', (t) => {
 // 	);
 
 // 	const result = createSelectSchema(view, {
-// 		c2: (schema) => schema.max(1000),
+// 		c2: (schema) => schema.lte(1000),
 // 		c3: z.string().transform(Number),
 // 		nested: {
-// 			c5: (schema) => schema.max(1000),
+// 			c5: (schema) => schema.lte(1000),
 // 			c6: z.string().transform(Number),
 // 		},
 // 		table: {
-// 			c2: (schema) => schema.max(1000),
+// 			c2: (schema) => schema.lte(1000),
 // 			c3: z.string().transform(Number),
 // 		},
 // 	});
 // 	const expected = z.object({
 // 		c1: intSchema.nullable(),
-// 		c2: intSchema.max(1000).nullable(),
+// 		c2: intSchema.lte(1000).nullable(),
 // 		c3: z.string().transform(Number),
 // 		nested: z.object({
 // 			c4: intSchema.nullable(),
-// 			c5: intSchema.max(1000).nullable(),
+// 			c5: intSchema.lte(1000).nullable(),
 // 			c6: z.string().transform(Number),
 // 		}),
 // 		table: z.object({
 // 			c1: intSchema.nullable(),
-// 			c2: intSchema.max(1000).nullable(),
+// 			c2: intSchema.lte(1000).nullable(),
 // 			c3: z.string().transform(Number),
 // 			c4: intSchema.nullable(),
 // 			c5: intSchema.nullable(),
@@ -406,10 +408,10 @@ test('all data types', (t) => {
 
 	const result = createSelectSchema(table);
 	const expected = z.object({
-		bigint1: z.number().min(Number.MIN_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER).int(),
-		bigint2: z.bigint().min(CONSTANTS.INT64_MIN).max(CONSTANTS.INT64_MAX),
-		bigint3: z.number().min(0).max(Number.MAX_SAFE_INTEGER).int(),
-		bigint4: z.bigint().min(0n).max(CONSTANTS.INT64_UNSIGNED_MAX),
+		bigint1: z.int().gte(Number.MIN_SAFE_INTEGER).lte(Number.MAX_SAFE_INTEGER),
+		bigint2: z.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
+		bigint3: z.int().gte(0).lte(Number.MAX_SAFE_INTEGER),
+		bigint4: z.bigint().gte(0n).lte(CONSTANTS.INT64_UNSIGNED_MAX),
 		binary: z.string(),
 		boolean: z.boolean(),
 		char1: z.string().length(10),
@@ -420,31 +422,31 @@ test('all data types', (t) => {
 		datetime2: z.string(),
 		decimal1: z.string(),
 		decimal2: z.string(),
-		double1: z.number().min(CONSTANTS.INT48_MIN).max(CONSTANTS.INT48_MAX),
-		double2: z.number().min(0).max(CONSTANTS.INT48_UNSIGNED_MAX),
-		float1: z.number().min(CONSTANTS.INT24_MIN).max(CONSTANTS.INT24_MAX),
-		float2: z.number().min(0).max(CONSTANTS.INT24_UNSIGNED_MAX),
-		int1: z.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int(),
-		int2: z.number().min(0).max(CONSTANTS.INT32_UNSIGNED_MAX).int(),
+		double1: z.number().gte(CONSTANTS.INT48_MIN).lte(CONSTANTS.INT48_MAX),
+		double2: z.number().gte(0).lte(CONSTANTS.INT48_UNSIGNED_MAX),
+		float1: z.number().gte(CONSTANTS.INT24_MIN).lte(CONSTANTS.INT24_MAX),
+		float2: z.number().gte(0).lte(CONSTANTS.INT24_UNSIGNED_MAX),
+		int1: z.int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX),
+		int2: z.int().gte(0).lte(CONSTANTS.INT32_UNSIGNED_MAX),
 		json: jsonSchema,
-		mediumint1: z.number().min(CONSTANTS.INT24_MIN).max(CONSTANTS.INT24_MAX).int(),
-		mediumint2: z.number().min(0).max(CONSTANTS.INT24_UNSIGNED_MAX).int(),
+		mediumint1: z.int().gte(CONSTANTS.INT24_MIN).lte(CONSTANTS.INT24_MAX),
+		mediumint2: z.int().gte(0).lte(CONSTANTS.INT24_UNSIGNED_MAX),
 		enum: z.enum(['a', 'b', 'c']),
-		real: z.number().min(CONSTANTS.INT48_MIN).max(CONSTANTS.INT48_MAX),
-		serial: z.number().min(0).max(Number.MAX_SAFE_INTEGER).int(),
-		smallint1: z.number().min(CONSTANTS.INT16_MIN).max(CONSTANTS.INT16_MAX).int(),
-		smallint2: z.number().min(0).max(CONSTANTS.INT16_UNSIGNED_MAX).int(),
+		real: z.number().gte(CONSTANTS.INT48_MIN).lte(CONSTANTS.INT48_MAX),
+		serial: z.int().gte(0).lte(Number.MAX_SAFE_INTEGER),
+		smallint1: z.int().gte(CONSTANTS.INT16_MIN).lte(CONSTANTS.INT16_MAX),
+		smallint2: z.int().gte(0).lte(CONSTANTS.INT16_UNSIGNED_MAX),
 		text1: z.string().max(CONSTANTS.INT16_UNSIGNED_MAX),
 		text2: z.enum(['a', 'b', 'c']),
 		time: z.string(),
 		timestamp1: z.date(),
 		timestamp2: z.string(),
-		tinyint1: z.number().min(CONSTANTS.INT8_MIN).max(CONSTANTS.INT8_MAX).int(),
-		tinyint2: z.number().min(0).max(CONSTANTS.INT8_UNSIGNED_MAX).int(),
+		tinyint1: z.int().gte(CONSTANTS.INT8_MIN).lte(CONSTANTS.INT8_MAX),
+		tinyint2: z.int().gte(0).lte(CONSTANTS.INT8_UNSIGNED_MAX),
 		varchar1: z.string().max(10),
 		varchar2: z.enum(['a', 'b', 'c']),
 		varbinary: z.string(),
-		year: z.number().min(1901).max(2155).int(),
+		year: z.int().gte(1901).lte(2155),
 		longtext1: z.string().max(CONSTANTS.INT32_UNSIGNED_MAX),
 		longtext2: z.enum(['a', 'b', 'c']),
 		mediumtext1: z.string().max(CONSTANTS.INT24_UNSIGNED_MAX),
@@ -476,10 +478,10 @@ test('type coercion - all', (t) => {
 	});
 	const result = createSelectSchema(table);
 	const expected = z.object({
-		bigint: z.coerce.bigint().min(CONSTANTS.INT64_MIN).max(CONSTANTS.INT64_MAX),
+		bigint: z.coerce.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
 		boolean: z.coerce.boolean(),
 		timestamp: z.coerce.date(),
-		int: z.coerce.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int(),
+		int: z.coerce.number().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX).int(),
 		text: z.coerce.string().max(CONSTANTS.INT16_UNSIGNED_MAX),
 	});
 	expectSchemaShape(t, expected).from(result);
@@ -503,11 +505,23 @@ test('type coercion - mixed', (t) => {
 	const result = createSelectSchema(table);
 	const expected = z.object({
 		timestamp: z.coerce.date(),
-		int: z.number().min(CONSTANTS.INT32_MIN).max(CONSTANTS.INT32_MAX).int(),
+		int: z.int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
+
+/* Infinitely recursive type */ {
+	const TopLevelCondition: z.ZodType<TopLevelCondition> = z.custom<TopLevelCondition>().superRefine(() => {});
+	const table = singlestoreTable('test', {
+		json: json().$type<TopLevelCondition>(),
+	});
+	const result = createSelectSchema(table);
+	const expected = z.object({
+		json: z.nullable(TopLevelCondition),
+	});
+	Expect<Equal<z.infer<typeof result>, z.infer<typeof expected>>>();
+}
 
 /* Disallow unknown keys in table refinement - select */ {
 	const table = singlestoreTable('test', { id: int() });
