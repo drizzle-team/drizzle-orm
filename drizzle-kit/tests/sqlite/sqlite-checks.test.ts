@@ -228,7 +228,7 @@ test('db has checks. Push with same names', async () => {
 	};
 
 	const { sqlStatements: st, hints } = await diff2({
-		client,
+		db: client,
 		left: schema1,
 		right: schema2,
 	});

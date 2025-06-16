@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { sql } from 'drizzle-orm';
 import { int, sqliteTable, sqliteView } from 'drizzle-orm/sqlite-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { diff, diff2, prepareTestDatabase, push, TestDatabase } from './mocks';
+import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
 // @vitest-environment-options {"max-concurrency":1}
 let _: TestDatabase;
@@ -79,11 +79,7 @@ test('drop view #2', async () => {
 		test: table,
 	};
 
-	const { sqlStatements: st, hints } = await diff2({
-		client,
-		left: schema1,
-		right: schema2,
-	});
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
 	await push({ db, to: schema1 });
 	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2 });
@@ -92,9 +88,7 @@ test('drop view #2', async () => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 
-	const hints0: string[] = [];
-	expect(hints).toStrictEqual(hints0);
-	expect(phints).toStrictEqual(hints0);
+	expect(phints).toStrictEqual([]);
 });
 
 test('alter view ".as" #1', async () => {
@@ -120,12 +114,10 @@ test('alter view ".as" #1', async () => {
 		'CREATE VIEW `view` AS SELECT * FROM users WHERE users.id = 1;',
 	];
 	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+	expect(pst).toStrictEqual([]); // ignore AS sql for 'push'
 });
 
 test('alter view ".as" #2', async () => {
-	const client = new Database(':memory:');
-
 	const table = sqliteTable('test', {
 		id: int('id').primaryKey(),
 	});
@@ -140,11 +132,7 @@ test('alter view ".as" #2', async () => {
 		view: sqliteView('view').as((qb) => qb.select().from(table)),
 	};
 
-	const { sqlStatements: st, hints } = await diff2({
-		client,
-		left: schema1,
-		right: schema2,
-	});
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
 	await push({ db, to: schema1 });
 	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2 });
@@ -153,9 +141,7 @@ test('alter view ".as" #2', async () => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 
-	const hints0: string[] = [];
-	expect(hints).toStrictEqual(hints0);
-	expect(phints).toStrictEqual(hints0);
+	expect(phints).toStrictEqual([]);
 });
 
 test('create view with existing flag', async () => {
@@ -293,11 +279,7 @@ test('create view', async () => {
 		view: sqliteView('view').as((qb) => qb.select().from(table)),
 	};
 
-	const { sqlStatements: st, hints } = await diff2({
-		client,
-		left: schema1,
-		right: schema2,
-	});
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
 	await push({ db, to: schema1 });
 	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2 });
@@ -307,8 +289,5 @@ test('create view', async () => {
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
-
-	const hints0: string[] = [];
-	expect(hints).toStrictEqual(hints0);
-	expect(phints).toStrictEqual(hints0);
+	expect(phints).toStrictEqual([]);
 });

@@ -247,7 +247,7 @@ test('added column not null and without default to table with data', async (t) =
 		`INSERT INTO \`${table.name}\` ("${schema1.companies.name.name}") VALUES ('turso');`,
 	];
 
-	const { sqlStatements: st, hints } = await diff2({ client, left: schema1, right: schema2, seed: seedStatements });
+	const { sqlStatements: st, hints } = await diff2({ db: client, left: schema1, right: schema2, seed: seedStatements });
 
 	await push({ db, to: schema1 });
 	// TODO: revise: should I seed here? And should I seed at all for push?
@@ -288,7 +288,7 @@ test('added column not null and without default to table without data', async (t
 		}),
 	};
 
-	const { sqlStatements: st, hints } = await diff2({ client: turso, left: schema1, right: schema2 });
+	const { sqlStatements: st, hints } = await diff2({ db: turso, left: schema1, right: schema2 });
 
 	await push({ db, to: schema1 });
 	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2 });
@@ -490,7 +490,7 @@ test('rename column and change data type', async (t) => {
 
 	const renames = ['users.name->users.age'];
 	const { sqlStatements: st, hints } = await diff2({
-		client,
+		db: client,
 		left: schema1,
 		right: schema2,
 		renames,
@@ -611,7 +611,7 @@ test('dropped, added unique index', async (t) => {
 		}),
 	};
 
-	const { sqlStatements: st, hints } = await diff2({ client, left: schema1, right: schema2 });
+	const { sqlStatements: st, hints } = await diff2({ db: client, left: schema1, right: schema2 });
 
 	await push({ db, to: schema1 });
 	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2 });
@@ -651,7 +651,7 @@ test('drop autoincrement. drop column with data', async (t) => {
 	];
 
 	const { sqlStatements: st, hints } = await diff2({
-		client: turso,
+		db: turso,
 		left: schema1,
 		right: schema2,
 		seed: seedStatements,
@@ -710,7 +710,7 @@ test('drop autoincrement. drop column with data with pragma off', async (t) => {
 		`INSERT INTO \`${table.name}\` ("${schema1.companies.id.name}", "${schema1.companies.name.name}") VALUES (2, 'turso');`,
 	];
 
-	const { sqlStatements: st, hints } = await diff2({ client, left: schema1, right: schema2, seed: seedStatements });
+	const { sqlStatements: st, hints } = await diff2({ db: client, left: schema1, right: schema2, seed: seedStatements });
 
 	await push({ db, to: schema1 });
 	// TODO: revise: should I seed here? And should I seed at all for push?
@@ -781,7 +781,7 @@ test('change autoincrement. other table references current', async (t) => {
 		`INSERT INTO \`${companiesTableName}\` ("${schema1.companies.id.name}") VALUES ('2');`,
 	];
 
-	const { sqlStatements: st, hints } = await diff2({ client, left: schema1, right: schema2, seed: seedStatements });
+	const { sqlStatements: st, hints } = await diff2({ db: client, left: schema1, right: schema2, seed: seedStatements });
 
 	await push({ db, to: schema1 });
 	// TODO: revise: should I seed here? And should I seed at all for push?
@@ -824,7 +824,7 @@ test('create composite primary key', async (t) => {
 	};
 
 	const { sqlStatements: st, hints } = await diff2({
-		client,
+		db: client,
 		left: schema1,
 		right: schema2,
 	});
@@ -1483,7 +1483,7 @@ test('alter column drop not null, add not null', async (t) => {
 		}),
 	};
 
-	const { sqlStatements: st, hints } = await diff2({ client, left: schema1, right: schema2 });
+	const { sqlStatements: st, hints } = await diff2({ db: client, left: schema1, right: schema2 });
 
 	await push({ db, to: schema1 });
 	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2 });

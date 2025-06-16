@@ -3,7 +3,7 @@ import { Column } from './ddl';
 import type { JsonStatement } from './statements';
 
 export const defaultToSQL = (value: Column['default']) => {
-	if(!value)return ""
+	if (!value) return '';
 	return value.isExpression ? value.value : `'${value.value.replace(/'/g, "''")}'`;
 };
 
@@ -144,7 +144,8 @@ const alterTableAddColumn = convertor('add_column', (st) => {
 	const { fk, column } = st;
 	const { table: tableName, name, type, notNull, primaryKey, generated } = st.column;
 
-	const defaultStatement = column.default ? ` DEFAULT ${defaultToSQL(column.default)}` : '';
+	const defaultStatement = column.default !== null ? ` DEFAULT ${defaultToSQL(column.default)}` : '';
+
 	const notNullStatement = `${notNull ? ' NOT NULL' : ''}`;
 	const primaryKeyStatement = `${primaryKey ? ' PRIMARY KEY' : ''}`;
 	const referenceStatement = `${
