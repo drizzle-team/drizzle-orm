@@ -161,6 +161,7 @@ export type Column = PostgresEntities['columns'];
 export type Identity = Column['identity'];
 export type Role = PostgresEntities['roles'];
 export type Index = PostgresEntities['indexes'];
+export type IndexColumn = Index['columns'][number];
 export type ForeignKey = PostgresEntities['fks'];
 export type PrimaryKey = PostgresEntities['pks'];
 export type UniqueConstraint = PostgresEntities['uniques'];
