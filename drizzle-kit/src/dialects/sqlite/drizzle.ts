@@ -244,7 +244,7 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 };
 
 export const defaultFromColumn = (column: AnySQLiteColumn, casing: CasingType | undefined) => {
-	return column.default
+	return typeof column.default !== 'undefined' // '', 0, false, etc.
 		? is(column.default, SQL)
 			? { value: sqlToStr(column.default, casing), isExpression: true }
 			: typeof column.default === 'string'

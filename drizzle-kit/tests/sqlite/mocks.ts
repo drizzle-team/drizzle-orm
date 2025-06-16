@@ -66,50 +66,6 @@ const dbFrom = (client: Database) => {
 	};
 };
 
-export const diff2 = async (config: {
-	client: Database;
-	left: SqliteSchema;
-	right: SqliteSchema;
-	renames?: string[];
-	seed?: string[];
-	casing?: CasingType;
-}) => {
-	const { client, left, right, casing } = config;
-
-	const { ddl: initDDL, errors: err1 } = drizzleToDDL(left, casing);
-	const { sqlStatements: initStatements } = await ddlDiffDry(createDDL(), initDDL, 'push');
-
-	if (config.seed) initStatements.push(...config.seed);
-	for (const st of initStatements) {
-		client.exec(st);
-	}
-
-	const db = dbFrom(client);
-
-	const schema = await fromDatabaseForDrizzle(db);
-
-	const { ddl: ddl1, errors: err2 } = interimToDDL(schema);
-	const { ddl: ddl2, errors: err3 } = drizzleToDDL(right, casing);
-
-	// console.log(ddl1.entities.list())
-	// console.log("-----")
-	// console.log(ddl2.entities.list())
-	// console.log("-----")
-
-	const rens = new Set<string>(config.renames || []);
-
-	const { sqlStatements, statements, renames } = await ddlDiff(
-		ddl1,
-		ddl2,
-		mockResolver(rens),
-		mockResolver(rens),
-		'push',
-	);
-
-	const { statements: truncates, hints } = await suggestions(db, statements);
-	return { sqlStatements, statements, truncates, hints };
-};
-
 export const diffAfterPull = async (
 	client: Database,
 	initSchema: SqliteSchema,
