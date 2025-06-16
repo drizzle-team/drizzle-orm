@@ -124,11 +124,11 @@ export const mysqlPush = async (
 						'No, abort',
 						`Yes, I want to${
 							tablesToRemove.length > 0
-								? ` remove ${tablesToRemove.length} ${tablesToRemove.length > 1 ? 'tables' : 'table'},`
+								? ` remove ${tablesToRemove.length} ${tablesToRemove.length > 1 ? 'tables' : 'table'}`
 								: ' '
 						}${
 							columnsToRemove.length > 0
-								? ` remove ${columnsToRemove.length} ${columnsToRemove.length > 1 ? 'columns' : 'column'},`
+								? ` remove ${columnsToRemove.length} ${columnsToRemove.length > 1 ? 'columns' : 'column'}`
 								: ' '
 						}${
 							tablesToTruncate.length > 0
@@ -250,11 +250,11 @@ export const singlestorePush = async (
 						'No, abort',
 						`Yes, I want to${
 							tablesToRemove.length > 0
-								? ` remove ${tablesToRemove.length} ${tablesToRemove.length > 1 ? 'tables' : 'table'},`
+								? ` remove ${tablesToRemove.length} ${tablesToRemove.length > 1 ? 'tables' : 'table'}`
 								: ' '
 						}${
 							columnsToRemove.length > 0
-								? ` remove ${columnsToRemove.length} ${columnsToRemove.length > 1 ? 'columns' : 'column'},`
+								? ` remove ${columnsToRemove.length} ${columnsToRemove.length > 1 ? 'columns' : 'column'}`
 								: ' '
 						}${
 							tablesToTruncate.length > 0
@@ -368,11 +368,11 @@ export const pgPush = async (
 						'No, abort',
 						`Yes, I want to${
 							tablesToRemove.length > 0
-								? ` remove ${tablesToRemove.length} ${tablesToRemove.length > 1 ? 'tables' : 'table'},`
+								? ` remove ${tablesToRemove.length} ${tablesToRemove.length > 1 ? 'tables' : 'table'}`
 								: ' '
 						}${
 							columnsToRemove.length > 0
-								? ` remove ${columnsToRemove.length} ${columnsToRemove.length > 1 ? 'columns' : 'column'},`
+								? ` remove ${columnsToRemove.length} ${columnsToRemove.length > 1 ? 'columns' : 'column'}`
 								: ' '
 						}${
 							tablesToTruncate.length > 0
@@ -486,11 +486,11 @@ export const sqlitePush = async (
 					'No, abort',
 					`Yes, I want to${
 						tablesToRemove.length > 0
-							? ` remove ${tablesToRemove.length} ${tablesToRemove.length > 1 ? 'tables' : 'table'},`
+							? ` remove ${tablesToRemove.length} ${tablesToRemove.length > 1 ? 'tables' : 'table'}`
 							: ' '
 					}${
 						columnsToRemove.length > 0
-							? ` remove ${columnsToRemove.length} ${columnsToRemove.length > 1 ? 'columns' : 'column'},`
+							? ` remove ${columnsToRemove.length} ${columnsToRemove.length > 1 ? 'columns' : 'column'}`
 							: ' '
 					}${
 						tablesToTruncate.length > 0
@@ -607,11 +607,11 @@ export const libSQLPush = async (
 					'No, abort',
 					`Yes, I want to${
 						tablesToRemove.length > 0
-							? ` remove ${tablesToRemove.length} ${tablesToRemove.length > 1 ? 'tables' : 'table'},`
+							? ` remove ${tablesToRemove.length} ${tablesToRemove.length > 1 ? 'tables' : 'table'}`
 							: ' '
 					}${
 						columnsToRemove.length > 0
-							? ` remove ${columnsToRemove.length} ${columnsToRemove.length > 1 ? 'columns' : 'column'},`
+							? ` remove ${columnsToRemove.length} ${columnsToRemove.length > 1 ? 'columns' : 'column'}`
 							: ' '
 					}${
 						tablesToTruncate.length > 0
