@@ -13,6 +13,7 @@ import {
 	Enum,
 	ForeignKey,
 	Index,
+	IndexColumn,
 	Policy,
 	PostgresDDL,
 	PostgresEntities,
@@ -279,6 +280,18 @@ export const ddlDiff = async (
 				schema: rename.from.schema,
 			},
 		});
+
+		// DDL2 updates are needed for Drizzle Studio
+		ddl2.policies.update({
+			set: {
+				schema: rename.to.schema,
+				table: rename.to.name,
+			},
+			where: {
+				schema: rename.from.schema,
+				table: rename.from.name,
+			},
+		});
 	}
 
 	const columnsDiff = diff(ddl1, ddl2, 'columns');
@@ -311,9 +324,10 @@ export const ddlDiff = async (
 			},
 		});
 
-		ddl1.indexes.update({
+		// DDL2 updates are needed for Drizzle Studio
+		const update1 = {
 			set: {
-				columns: (it) => {
+				columns: (it: IndexColumn) => {
 					if (!it.isExpression && it.value === rename.from.name) {
 						return { ...it, value: rename.to.name };
 					}
@@ -324,11 +338,13 @@ export const ddlDiff = async (
 				schema: rename.from.schema,
 				table: rename.from.table,
 			},
-		});
+		} as const;
+		ddl1.indexes.update(update1);
+		ddl2.indexes.update(update1);
 
-		ddl1.pks.update({
+		const update2 = {
 			set: {
-				columns: (it) => {
+				columns: (it: string) => {
 					return it === rename.from.name ? rename.to.name : it;
 				},
 			},
@@ -336,11 +352,13 @@ export const ddlDiff = async (
 				schema: rename.from.schema,
 				table: rename.from.table,
 			},
-		});
+		} as const;
+		ddl1.pks.update(update2);
+		ddl2.pks.update(update2);
 
-		ddl1.fks.update({
+		const update3 = {
 			set: {
-				columns: (it) => {
+				columns: (it: string) => {
 					return it === rename.from.name ? rename.to.name : it;
 				},
 			},
@@ -348,11 +366,13 @@ export const ddlDiff = async (
 				schema: rename.from.schema,
 				table: rename.from.table,
 			},
-		});
+		} as const;
+		ddl1.fks.update(update3);
+		ddl2.fks.update(update3);
 
-		ddl1.fks.update({
+		const update4 = {
 			set: {
-				columnsTo: (it) => {
+				columnsTo: (it: string) => {
 					return it === rename.from.name ? rename.to.name : it;
 				},
 			},
@@ -360,11 +380,13 @@ export const ddlDiff = async (
 				schemaTo: rename.from.schema,
 				tableTo: rename.from.table,
 			},
-		});
+		} as const;
+		ddl1.fks.update(update4);
+		ddl2.fks.update(update4);
 
-		ddl1.uniques.update({
+		const update5 = {
 			set: {
-				columns: (it) => {
+				columns: (it: string) => {
 					return it === rename.from.name ? rename.to.name : it;
 				},
 			},
@@ -372,9 +394,11 @@ export const ddlDiff = async (
 				schema: rename.from.schema,
 				table: rename.from.table,
 			},
-		});
+		} as const;
+		ddl1.uniques.update(update5);
+		ddl2.uniques.update(update5);
 
-		ddl1.checks.update({
+		const update6 = {
 			set: {
 				value: rename.to.name,
 			},
@@ -383,7 +407,9 @@ export const ddlDiff = async (
 				table: rename.from.table,
 				value: rename.from.name,
 			},
-		});
+		} as const;
+		ddl1.checks.update(update6);
+		ddl2.checks.update(update6);
 	}
 
 	preserveEntityNames(ddl1.uniques, ddl2.uniques, mode);

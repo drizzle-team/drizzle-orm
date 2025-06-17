@@ -1,7 +1,24 @@
 import { sql } from 'drizzle-orm';
 import { check, int, mysqlTable, serial, varchar } from 'drizzle-orm/mysql-core';
-import { expect, test } from 'vitest';
-import { diff } from './mocks';
+import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
+
+// @vitest-environment-options {"max-concurrency":1}
+let _: TestDatabase;
+let db: TestDatabase['db'];
+
+beforeAll(async () => {
+	_ = await prepareTestDatabase();
+	db = _.db;
+});
+
+afterAll(async () => {
+	await _.close();
+});
+
+beforeEach(async () => {
+	await _.clear();
+});
 
 test('create table with check', async (t) => {
 	const to = {
@@ -13,18 +30,21 @@ test('create table with check', async (t) => {
 		]),
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
 
-	expect(sqlStatements).toStrictEqual([
+	const st0: string[] = [
 		`CREATE TABLE \`users\` (
 \t\`id\` serial PRIMARY KEY,
 \t\`age\` int,
 \tCONSTRAINT \`some_check_name\` CHECK(\`users\`.\`age\` > 21)
 );\n`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
-test('add check contraint to existing table', async (t) => {
+test('add check constraint to existing table #1', async (t) => {
 	const from = {
 		users: mysqlTable('users', {
 			id: serial('id').primaryKey(),
@@ -41,14 +61,46 @@ test('add check contraint to existing table', async (t) => {
 		]),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		`ALTER TABLE \`users\` ADD CONSTRAINT \`some_check_name\` CHECK (\`users\`.\`age\` > 21);`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
-test('drop check contraint in existing table', async (t) => {
+test('add check constraint to existing table #2', async () => {
+	const schema1 = {
+		test: mysqlTable('test', {
+			id: int('id').primaryKey(),
+			values: int('values'),
+		}),
+	};
+	const schema2 = {
+		test: mysqlTable('test', {
+			id: int('id').primaryKey(),
+			values: int('values'),
+		}, (table) => [check('some_check1', sql`${table.values} < 100`), check('some_check2', sql`'test' < 100`)]),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	const st0: string[] = [
+		'ALTER TABLE \`test\` ADD CONSTRAINT \`some_check1\` CHECK (\`test\`.\`values\` < 100);',
+		`ALTER TABLE \`test\` ADD CONSTRAINT \`some_check2\` CHECK ('test' < 100);`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('drop check constraint in existing table #1', async (t) => {
 	const to = {
 		users: mysqlTable('users', {
 			id: serial('id').primaryKey(),
@@ -63,11 +115,46 @@ test('drop check contraint in existing table', async (t) => {
 		}, (table) => [check('some_check_name', sql`${table.age} > 21`)]),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		`ALTER TABLE \`users\` DROP CONSTRAINT \`some_check_name\`;`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('drop check constraint in existing table #2', async () => {
+	const schema1 = {
+		test: mysqlTable('test', {
+			id: int('id').primaryKey(),
+			values: int('values'),
+		}, (table) => [
+			check('some_check1', sql`${table.values} < 100`),
+			check('some_check2', sql`'test' < 100`),
+		]),
+	};
+	const schema2 = {
+		test: mysqlTable('test', {
+			id: int('id').primaryKey(),
+			values: int('values'),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	const st0: string[] = [
+		'ALTER TABLE \`test\` DROP CONSTRAINT \`some_check1\`;',
+		`ALTER TABLE \`test\` DROP CONSTRAINT \`some_check2\`;`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('rename check constraint', async (t) => {
@@ -85,12 +172,17 @@ test('rename check constraint', async (t) => {
 		}, (table) => [check('new_check_name', sql`${table.age} > 21`)]),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		`ALTER TABLE \`users\` DROP CONSTRAINT \`some_check_name\`;`,
 		`ALTER TABLE \`users\` ADD CONSTRAINT \`new_check_name\` CHECK (\`users\`.\`age\` > 21);`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter check constraint', async (t) => {
@@ -108,12 +200,17 @@ test('alter check constraint', async (t) => {
 		}, (table) => [check('new_check_name', sql`${table.age} > 10`)]),
 	};
 
-	const { sqlStatements, statements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		`ALTER TABLE \`users\` DROP CONSTRAINT \`some_check_name\`;`,
 		`ALTER TABLE \`users\` ADD CONSTRAINT \`new_check_name\` CHECK (\`users\`.\`age\` > 10);`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter multiple check constraints', async (t) => {
@@ -151,13 +248,19 @@ test('alter multiple check constraints', async (t) => {
 		),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
-	expect(sqlStatements).toStrictEqual([
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
 		`ALTER TABLE \`users\` DROP CONSTRAINT \`some_check_name_1\`;`,
 		`ALTER TABLE \`users\` DROP CONSTRAINT \`some_check_name_2\`;`,
 		`ALTER TABLE \`users\` ADD CONSTRAINT \`some_check_name_3\` CHECK (\`users\`.\`age\` > 21);`,
 		`ALTER TABLE \`users\` ADD CONSTRAINT \`some_check_name_4\` CHECK (\`users\`.\`name\` != \'Alex\');`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('create checks with same names', async (t) => {
@@ -173,4 +276,33 @@ test('create checks with same names', async (t) => {
 	};
 
 	await expect(diff({}, to, [])).rejects.toThrowError();
+	await expect(push({ db, to })).rejects.toThrowError();
+});
+
+test('db has checks. Push with same names', async () => {
+	const schema1 = {
+		test: mysqlTable('test', {
+			id: int('id').primaryKey(),
+			values: int('values').default(1),
+		}, (table) => [
+			check('some_check', sql`${table.values} < 100`),
+		]),
+	};
+	const schema2 = {
+		test: mysqlTable('test', {
+			id: int('id').primaryKey(),
+			values: int('values').default(1),
+		}, (table) => [
+			check('some_check', sql`some new value`),
+		]),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });

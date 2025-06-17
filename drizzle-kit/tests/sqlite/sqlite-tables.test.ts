@@ -1,4 +1,3 @@
-import { s } from '@electric-sql/pglite/dist/pglite-BvWM7BTQ';
 import { sql } from 'drizzle-orm';
 import {
 	AnySQLiteColumn,
@@ -138,7 +137,7 @@ test('add table #6', async () => {
 	await push({ db, to: from });
 	const { sqlStatements: pst } = await push({ db, to });
 
-	const st0: string[] = ["CREATE TABLE `users2` (\n\t`id` integer\n);\n","DROP TABLE `users1`;" ];
+	const st0: string[] = ['CREATE TABLE `users2` (\n\t`id` integer\n);\n', 'DROP TABLE `users1`;'];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
@@ -159,7 +158,7 @@ test('add table #7', async () => {
 	await push({ db, to: from });
 	const { sqlStatements: pst } = await push({ db, to, renames });
 
-	const st0: string[] = ["CREATE TABLE `users` (\n\t`id` integer\n);\n","ALTER TABLE `users1` RENAME TO `users2`;"];
+	const st0: string[] = ['CREATE TABLE `users` (\n\t`id` integer\n);\n', 'ALTER TABLE `users1` RENAME TO `users2`;'];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
