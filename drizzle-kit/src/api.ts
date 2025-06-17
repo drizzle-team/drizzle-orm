@@ -89,7 +89,7 @@ export const introspectPgDB = async (
 		schemaFilters,
 		undefined,
 		undefined,
-		undefined
+		undefined,
 	);
 
 	const schema = { id: originUUID, prevId: '', ...res } as PgSchemaKit;
@@ -105,76 +105,75 @@ export const preparePgDB = async (
 		migrate: (config: string | MigrationConfig) => Promise<void>;
 	}
 > => {
-		console.log(`Using 'pg' driver for database querying`);
-		const { default: pg } = await import('pg');
-		const { drizzle } = await import('drizzle-orm/node-postgres');
-		const { migrate } = await import('drizzle-orm/node-postgres/migrator');
+	console.log(`Using 'pg' driver for database querying`);
+	const { default: pg } = await import('pg');
+	const { drizzle } = await import('drizzle-orm/node-postgres');
+	const { migrate } = await import('drizzle-orm/node-postgres/migrator');
 
-		const ssl = 'ssl' in credentials
-			? credentials.ssl === 'prefer'
-					|| credentials.ssl === 'require'
-					|| credentials.ssl === 'allow'
-				? { rejectUnauthorized: false }
-				: credentials.ssl === 'verify-full'
-				? {}
-				: credentials.ssl
-			: {};
+	const ssl = 'ssl' in credentials
+		? credentials.ssl === 'prefer'
+				|| credentials.ssl === 'require'
+				|| credentials.ssl === 'allow'
+			? { rejectUnauthorized: false }
+			: credentials.ssl === 'verify-full'
+			? {}
+			: credentials.ssl
+		: {};
 
-		// Override pg default date parsers
-		const types: { getTypeParser: typeof pg.types.getTypeParser } = {
+	// Override pg default date parsers
+	const types: { getTypeParser: typeof pg.types.getTypeParser } = {
+		// @ts-ignore
+		getTypeParser: (typeId, format) => {
+			if (typeId === pg.types.builtins.TIMESTAMPTZ) {
+				return (val: any) => val;
+			}
+			if (typeId === pg.types.builtins.TIMESTAMP) {
+				return (val: any) => val;
+			}
+			if (typeId === pg.types.builtins.DATE) {
+				return (val: any) => val;
+			}
+			if (typeId === pg.types.builtins.INTERVAL) {
+				return (val: any) => val;
+			}
 			// @ts-ignore
-			getTypeParser: (typeId, format) => {
-				if (typeId === pg.types.builtins.TIMESTAMPTZ) {
-					return (val) => val;
-				}
-				if (typeId === pg.types.builtins.TIMESTAMP) {
-					return (val) => val;
-				}
-				if (typeId === pg.types.builtins.DATE) {
-					return (val) => val;
-				}
-				if (typeId === pg.types.builtins.INTERVAL) {
-					return (val) => val;
-				}
-				// @ts-ignore
-				return pg.types.getTypeParser(typeId, format);
-			},
-		};
+			return pg.types.getTypeParser(typeId, format);
+		},
+	};
 
-		const client = 'url' in credentials
-			? new pg.Pool({ connectionString: credentials.url, max: 1 })
-			: new pg.Pool({ ...credentials, ssl, max: 1 });
+	const client = 'url' in credentials
+		? new pg.Pool({ connectionString: credentials.url, max: 1 })
+		: new pg.Pool({ ...credentials, ssl, max: 1 });
 
-		const db = drizzle(client);
-		const migrateFn = async (config: MigrationConfig) => {
-			return migrate(db, config);
-		};
+	const db = drizzle(client);
+	const migrateFn = async (config: MigrationConfig) => {
+		return migrate(db, config);
+	};
 
-		const query = async (sql: string, params?: any[]) => {
-			const result = await client.query({
-				text: sql,
-				values: params ?? [],
-				types,
-			});
-			return result.rows;
-		};
+	const query = async (sql: string, params?: any[]) => {
+		const result = await client.query({
+			text: sql,
+			values: params ?? [],
+			types,
+		});
+		return result.rows;
+	};
 
-		const proxy: Proxy = async (params: ProxyParams) => {
-			const result = await client.query({
-				text: params.sql,
-				values: params.params,
-				...(params.mode === 'array' && { rowMode: 'array' }),
-				types,
-			});
-			return result.rows;
-		};
+	const proxy: Proxy = async (params: ProxyParams) => {
+		const result = await client.query({
+			text: params.sql,
+			values: params.params,
+			...(params.mode === 'array' && { rowMode: 'array' }),
+			types,
+		});
+		return result.rows;
+	};
 
-		return { query, proxy, migrate: migrateFn };
-}
-
+	return { query, proxy, migrate: migrateFn };
+};
 
 export const getPgClientPool = async (
-	targetCredentials: PostgresCredentials
+	targetCredentials: PostgresCredentials,
 ) => {
 	const { default: pg } = await import('pg');
 	const pool = 'url' in targetCredentials
@@ -197,7 +196,7 @@ export {
 	sequencesResolver,
 	squashPgScheme,
 	tablesResolver,
-	viewsResolver
+	viewsResolver,
 };
 
 // Pg

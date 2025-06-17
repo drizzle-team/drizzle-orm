@@ -17,44 +17,12 @@
 
 ### Replit development
 
-We use `drizzle-kit` for handling database migrations. However in order expose `drizzle-kit`s internal functions (which are not exported by default) they suggested cloning the `drizzle-orm` repo and making our changes just to the one `drizzle-kit/api` file ([see here](./drizzle-kit/src/api.ts)) to build an external API particular for our use case. 
+We use `drizzle-kit` for handling database migrations. However in order expose `drizzle-kit`s internal functions (which are not exported by default) they suggested cloning the `drizzle-orm` repo and making our changes just to the `drizzle-kit/api` file ([see here](./drizzle-kit/src/api.ts)) to build an external API particular for our use case.
+
+We do not require/import any of the other packages in this repo.
 
 #### Getting started
-Run the below in the project root:
-
-```bash
-pnpm install && pnpm build
-```
-
-#### Development
-Navigate to `drizzle-kit` and make any changes you require to the `drizzle-kit/api` file ([see here](./drizzle-kit/src/api.ts)), then run:
-```
-pnpm build
-```
-This will build a dist file that you can import into `repl-it-web` using the `file:` protocol in `package.json` like so:
-```
-"@drizzle-team/drizzle-kit": "file:../drizzle-orm/drizzle-kit/dist",
-```
-> [!NOTE]
-> - After any changes to you'll need to run the build command again.
-> - If you're using `drizzle-kit` in pid2 you'll also need to rebuild your pid2 build and re-upload.
-
-#### Publishing changes
-Once your changes have been made, bump the package version in `drizzle-kit/package.json`:
-```
-	"version": "0.31.1",
-```
-Then build and pack your changes via:
-```
-pnpm build && pnpm pack
-```
-This should generate a file ending in `.tgz` in the project root, make sure you rename this file to `package.tgz`, then run:
-```
-npm run login
-npm publish package.tgz --provenance=false
-```
-> [!NOTE]
-> In repl-it-web we scope drizzle packages to our replit-internal npm registry via the @drizzle-team scope, hence we've updated the package name to `@drizzle-team/drizzle-kit` and not just `drizzle-kit`.
+To get started see the `drizzle-kit` ([README.md]./drizzle-kit/README.md).
 
 ### What's Drizzle?
 Drizzle is a modern TypeScript ORM developers [wanna use in their next project](https://stateofdb.com/tools/drizzle). 
