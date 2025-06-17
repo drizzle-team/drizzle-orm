@@ -114,7 +114,7 @@ export const unwrapColumn = (column: AnyPgColumn) => {
 		: null;
 
 	let sqlBaseType = baseColumn.getSQLType();
-	
+
 	/* legacy, for not to patch orm and don't up snapshot */
 	sqlBaseType = sqlBaseType.startsWith('timestamp (') ? sqlBaseType.replace('timestamp (', 'timestamp(') : sqlBaseType;
 

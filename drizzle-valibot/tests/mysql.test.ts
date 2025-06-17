@@ -420,7 +420,7 @@ test('all data types', (t) => {
 		bigint4: v.pipe(v.bigint(), v.minValue(0n as bigint), v.maxValue(CONSTANTS.INT64_UNSIGNED_MAX)),
 		binary: v.string(),
 		boolean: v.boolean(),
-		char1: v.pipe(v.string(), v.length(10 as number)),
+		char1: v.pipe(v.string(), v.maxLength(10 as number)),
 		char2: v.enum({ a: 'a', b: 'b', c: 'c' }),
 		date1: v.date(),
 		date2: v.string(),

@@ -461,7 +461,7 @@ test('all data types', (tc) => {
 		boolean: t.Boolean(),
 		date1: t.Date(),
 		date2: t.String(),
-		char1: t.String({ minLength: 10, maxLength: 10 }),
+		char1: t.String({ maxLength: 10 }),
 		char2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
 		cidr: t.String(),
 		doublePrecision: t.Number({ minimum: CONSTANTS.INT48_MIN, maximum: CONSTANTS.INT48_MAX }),

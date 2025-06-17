@@ -180,7 +180,7 @@ export const fromDrizzleSchema = (
 	const checks = tableConfigs.map((it) => {
 		return it.config.checks.map((check) => {
 			// TODO: dialect.sqlToQuery(check.value).sql returns "users"."age" > 21, as opposed to "age" > 21 for checks, which is wrong
-			const value = dialect.sqlToQuery(check.value, /* should fix */ "indexes").sql.replace(`"${it.config.name}".`, '');
+			const value = dialect.sqlToQuery(check.value, /* should fix */ 'indexes').sql.replace(`"${it.config.name}".`, '');
 			return {
 				entityType: 'checks',
 				table: it.config.name,

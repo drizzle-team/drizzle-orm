@@ -51,6 +51,7 @@ import type {
 	SingleStoreText,
 	SingleStoreTinyInt,
 	SingleStoreVarChar,
+	SingleStoreVector,
 	SingleStoreYear,
 } from 'drizzle-orm/singlestore-core';
 import type { SQLiteInteger, SQLiteReal, SQLiteText } from 'drizzle-orm/sqlite-core';
@@ -81,7 +82,13 @@ export function columnToSchema(column: Column): Type {
 				x: type.number,
 				y: type.number,
 			});
-		} else if (isColumnType<PgHalfVector<any> | PgVector<any>>(column, ['PgHalfVector', 'PgVector'])) {
+		} else if (
+			isColumnType<PgHalfVector<any> | PgVector<any> | SingleStoreVector<any>>(column, [
+				'PgHalfVector',
+				'PgVector',
+				'SingleStoreVector',
+			])
+		) {
 			schema = column.dimensions
 				? type.number.array().exactlyLength(column.dimensions)
 				: type.number.array();
@@ -261,7 +268,16 @@ function stringColumnToSchema(column: Column): Type {
 	let max: number | undefined;
 	let fixed = false;
 
-	if (isColumnType<PgVarchar<any> | SQLiteText<any>>(column, ['PgVarchar', 'SQLiteText'])) {
+	// Char columns are padded to a fixed length. The input can be equal or less than the set length
+	if (
+		isColumnType<PgVarchar<any> | SQLiteText<any> | PgChar<any> | MySqlChar<any> | SingleStoreChar<any>>(column, [
+			'PgVarchar',
+			'SQLiteText',
+			'PgChar',
+			'MySqlChar',
+			'SingleStoreChar',
+		])
+	) {
 		max = column.length;
 	} else if (
 		isColumnType<MySqlVarChar<any> | SingleStoreVarChar<any>>(column, ['MySqlVarChar', 'SingleStoreVarChar'])
@@ -277,17 +293,6 @@ function stringColumnToSchema(column: Column): Type {
 		} else {
 			max = CONSTANTS.INT8_UNSIGNED_MAX;
 		}
-	}
-
-	if (
-		isColumnType<PgChar<any> | MySqlChar<any> | SingleStoreChar<any>>(column, [
-			'PgChar',
-			'MySqlChar',
-			'SingleStoreChar',
-		])
-	) {
-		max = column.length;
-		fixed = true;
 	}
 
 	return max && fixed ? type.string.exactlyLength(max) : max ? type.string.atMostLength(max) : type.string;
