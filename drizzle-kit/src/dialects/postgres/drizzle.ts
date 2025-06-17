@@ -85,7 +85,7 @@ export const policyFrom = (policy: PgPolicy | GelPolicy, dialect: PgDialect | Ge
 
 	const policyAs = (policy.as?.toUpperCase() as Policy['as']) ?? 'PERMISSIVE';
 	const policyFor = (policy.for?.toUpperCase() as Policy['for']) ?? 'ALL';
-	const policyTo = mappedTo.sort(); // TODO: ??
+	const policyTo = mappedTo.sort();
 	const policyUsing = is(policy.using, SQL)
 		? dialect.sqlToQuery(policy.using).sql
 		: null;
@@ -113,8 +113,9 @@ export const unwrapColumn = (column: AnyPgColumn) => {
 		? baseColumn.enum.schema || 'public'
 		: null;
 
-	/* TODO: legacy, for not to patch orm and don't up snapshot */
 	let sqlBaseType = baseColumn.getSQLType();
+	
+	/* legacy, for not to patch orm and don't up snapshot */
 	sqlBaseType = sqlBaseType.startsWith('timestamp (') ? sqlBaseType.replace('timestamp (', 'timestamp(') : sqlBaseType;
 
 	const { type, options } = splitSqlType(sqlBaseType);
@@ -471,7 +472,7 @@ export const fromDrizzleSchema = (
 							? dialect.sqlToQuery(generated.as() as SQL).sql
 							: String(generated.as),
 
-						type: 'stored', // TODO: why only stored? https://orm.drizzle.team/docs/generated-columns
+						type: 'stored',
 					}
 					: null;
 
@@ -552,10 +553,6 @@ export const fromDrizzleSchema = (
 				const reference = fk.reference();
 
 				const tableTo = getTableName(reference.foreignTable);
-
-				// TODO: resolve issue with schema undefined/public for db push(or squasher)
-				// getTableConfig(reference.foreignTable).schema || "public";
-
 				const schemaTo = getTableConfig(reference.foreignTable).schema || 'public';
 				const columnsFrom = reference.columns.map((it) => getColumnCasing(it, casing));
 				const columnsTo = reference.foreignColumns.map((it) => getColumnCasing(it, casing));

@@ -31,7 +31,7 @@ import { resolver } from '../prompts';
 import type { Entities } from '../validations/cli';
 import type { Casing, Prefix } from '../validations/common';
 import type { PostgresCredentials } from '../validations/postgres';
-import { IntrospectProgress } from '../views';
+import { error, IntrospectProgress } from '../views';
 import { writeResult } from './generate-common';
 import { prepareTablesFilter, relationsToTypeScript } from './pull-common';
 

@@ -28,7 +28,8 @@ import {
 } from './ddl';
 import { defaultNameForIdentitySequence, defaults, indexName } from './grammar';
 
-// TODO: omit defaults opclass...
+// TODO: omit defaults opclass... improvement
+
 const pgImportsList = new Set([
 	'pgTable',
 	'gelTable',
@@ -670,7 +671,6 @@ const mapDefault = (
 			|| lowered === 'macaddr'
 		? (x: string) => {
 			if (dimensions === 0) {
-				// TODO: remove trimming in parseArray()??
 				return `\`${x.replaceAll('`', '\\`').replaceAll("''", "'")}\``;
 			}
 
@@ -933,8 +933,9 @@ const column = (
 		}
 
 		if (isGeoUnknown) {
+			//  TODO: 
 			let unknown =
-				`// TODO: failed to parse geometry type because found more than 2 options inside geometry function '${type}'\n// Introspect is currently supporting only type and srid options\n`;
+				`// failed to parse geometry type because found more than 2 options inside geometry function '${type}'\n// Introspect is currently supporting only type and srid options\n`;
 			unknown += `\t${withCasing(name, casing)}: unknown("${name}")`;
 			return unknown;
 		}

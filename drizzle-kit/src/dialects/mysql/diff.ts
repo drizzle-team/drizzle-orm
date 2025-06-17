@@ -26,9 +26,6 @@ export const ddlDiff = async (
 	groupedStatements: { jsonStatement: JsonStatement; sqlStatements: string[] }[];
 	renames: string[];
 }> => {
-	// TODO: @AndriiSherman
-	// Add an upgrade to v6 and move all snaphosts to this strcutre
-	// After that we can generate mysql in 1 object directly(same as sqlite)
 	const tablesDiff = diff(ddl1, ddl2, 'tables');
 
 	const {
