@@ -136,6 +136,9 @@ const parseType = (schemaPrefix: string, type: string) => {
 		'char',
 		'vector',
 		'geometry',
+		'halfvec', 
+		'sparsevec', 
+		'bit'
 	];
 	const arrayDefinitionRegex = /\[\d*(?:\[\d*\])*\]/g;
 	const arrayDefinition = (type.match(arrayDefinitionRegex) ?? []).join('');
