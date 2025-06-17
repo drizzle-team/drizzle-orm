@@ -63,9 +63,9 @@ test('table - update', (t) => {
 
 	const result = createUpdateSchema(table);
 	const expected = v.object({
-		id: v.optional(intSchema),
-		name: v.optional(textSchema),
-		age: v.optional(v.nullable(intSchema)),
+		id: intOptionalSchema,
+		name: textOptionalSchema,
+		age: intNullableOptionalSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
