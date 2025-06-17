@@ -66,8 +66,8 @@ export type NamedWithSchema = {
 };
 
 export const schemasResolver = async (
-	input: ResolverInput<Table>,
-): Promise<ResolverOutput<Table>> => {
+	input: ResolverInput<Named>,
+): Promise<ResolverOutput<Named>> => {
 	try {
 		const { created, deleted, renamed } = await promptSchemasConflict(
 			input.created,
