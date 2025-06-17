@@ -462,7 +462,7 @@ test('all data types', (t) => {
 		boolean: z.boolean(),
 		date1: z.date(),
 		date2: z.string(),
-		char1: z.string().length(10),
+		char1: z.string().max(10),
 		char2: z.enum(['a', 'b', 'c']),
 		cidr: z.string(),
 		doublePrecision: z.number().gte(CONSTANTS.INT48_MIN).lte(CONSTANTS.INT48_MAX),

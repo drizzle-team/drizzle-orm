@@ -933,7 +933,7 @@ const column = (
 		}
 
 		if (isGeoUnknown) {
-			//  TODO: 
+			//  TODO:
 			let unknown =
 				`// failed to parse geometry type because found more than 2 options inside geometry function '${type}'\n// Introspect is currently supporting only type and srid options\n`;
 			unknown += `\t${withCasing(name, casing)}: unknown("${name}")`;

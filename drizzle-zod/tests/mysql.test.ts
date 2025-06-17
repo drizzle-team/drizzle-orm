@@ -412,7 +412,7 @@ test('all data types', (t) => {
 		bigint4: z.bigint().gte(0n).lte(CONSTANTS.INT64_UNSIGNED_MAX),
 		binary: z.string(),
 		boolean: z.boolean(),
-		char1: z.string().length(10),
+		char1: z.string().max(10),
 		char2: z.enum(['a', 'b', 'c']),
 		date1: z.date(),
 		date2: z.string(),

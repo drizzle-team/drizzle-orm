@@ -467,7 +467,7 @@ test('all data types', (t) => {
 		boolean: v.boolean(),
 		date1: v.date(),
 		date2: v.string(),
-		char1: v.pipe(v.string(), v.length(10 as number)),
+		char1: v.pipe(v.string(), v.maxLength(10 as number)),
 		char2: v.enum({ a: 'a', b: 'b', c: 'c' }),
 		cidr: v.string(),
 		doublePrecision: v.pipe(v.number(), v.minValue(CONSTANTS.INT48_MIN), v.maxValue(CONSTANTS.INT48_MAX)),

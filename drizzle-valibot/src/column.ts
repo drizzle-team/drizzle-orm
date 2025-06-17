@@ -50,6 +50,7 @@ import type {
 	SingleStoreText,
 	SingleStoreTinyInt,
 	SingleStoreVarChar,
+	SingleStoreVector,
 	SingleStoreYear,
 } from 'drizzle-orm/singlestore-core';
 import type { SQLiteInteger, SQLiteReal, SQLiteText } from 'drizzle-orm/sqlite-core';
@@ -85,7 +86,13 @@ export function columnToSchema(column: Column): v.GenericSchema {
 			isColumnType<PgPointObject<any> | PgGeometryObject<any>>(column, ['PgGeometryObject', 'PgPointObject'])
 		) {
 			schema = v.object({ x: v.number(), y: v.number() });
-		} else if (isColumnType<PgHalfVector<any> | PgVector<any>>(column, ['PgHalfVector', 'PgVector'])) {
+		} else if (
+			isColumnType<PgHalfVector<any> | PgVector<any> | SingleStoreVector<any>>(column, [
+				'PgHalfVector',
+				'PgVector',
+				'SingleStoreVector',
+			])
+		) {
 			schema = v.array(v.number());
 			schema = column.dimensions ? v.pipe(schema as v.ArraySchema<any, any>, v.length(column.dimensions)) : schema;
 		} else if (isColumnType<PgLineTuple<any>>(column, ['PgLine'])) {
@@ -249,7 +256,16 @@ function stringColumnToSchema(column: Column): v.GenericSchema {
 	let regex: RegExp | undefined;
 	let fixed = false;
 
-	if (isColumnType<PgVarchar<any> | SQLiteText<any>>(column, ['PgVarchar', 'SQLiteText'])) {
+	// Char columns are padded to a fixed length. The input can be equal or less than the set length
+	if (
+		isColumnType<PgVarchar<any> | SQLiteText<any> | PgChar<any> | MySqlChar<any> | SingleStoreChar<any>>(column, [
+			'PgVarchar',
+			'SQLiteText',
+			'PgChar',
+			'MySqlChar',
+			'SingleStoreChar',
+		])
+	) {
 		max = column.length;
 	} else if (
 		isColumnType<MySqlVarChar<any> | SingleStoreVarChar<any>>(column, ['MySqlVarChar', 'SingleStoreVarChar'])
@@ -265,17 +281,6 @@ function stringColumnToSchema(column: Column): v.GenericSchema {
 		} else {
 			max = CONSTANTS.INT8_UNSIGNED_MAX;
 		}
-	}
-
-	if (
-		isColumnType<PgChar<any> | MySqlChar<any> | SingleStoreChar<any>>(column, [
-			'PgChar',
-			'MySqlChar',
-			'SingleStoreChar',
-		])
-	) {
-		max = column.length;
-		fixed = true;
 	}
 
 	if (isColumnType<PgBinaryVector<any>>(column, ['PgBinaryVector'])) {

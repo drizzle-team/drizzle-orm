@@ -358,6 +358,7 @@ test('all data types', (t) => {
 		longtext,
 		mediumtext,
 		tinytext,
+		vector,
 	}) => ({
 		bigint1: bigint({ mode: 'number' }).notNull(),
 		bigint2: bigint({ mode: 'bigint' }).notNull(),
@@ -404,6 +405,10 @@ test('all data types', (t) => {
 		mediumtext2: mediumtext({ enum: ['a', 'b', 'c'] }).notNull(),
 		tinytext1: tinytext().notNull(),
 		tinytext2: tinytext({ enum: ['a', 'b', 'c'] }).notNull(),
+		vector: vector({
+			dimensions: 3,
+			elementType: 'F32',
+		}).notNull(),
 	}));
 
 	const result = createSelectSchema(table);
@@ -414,7 +419,7 @@ test('all data types', (t) => {
 		bigint4: z.bigint().gte(0n).lte(CONSTANTS.INT64_UNSIGNED_MAX),
 		binary: z.string(),
 		boolean: z.boolean(),
-		char1: z.string().length(10),
+		char1: z.string().max(10),
 		char2: z.enum(['a', 'b', 'c']),
 		date1: z.date(),
 		date2: z.string(),
@@ -453,6 +458,7 @@ test('all data types', (t) => {
 		mediumtext2: z.enum(['a', 'b', 'c']),
 		tinytext1: z.string().max(CONSTANTS.INT8_UNSIGNED_MAX),
 		tinytext2: z.enum(['a', 'b', 'c']),
+		vector: z.array(z.number()).length(3),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
