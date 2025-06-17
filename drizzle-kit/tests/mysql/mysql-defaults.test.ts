@@ -1,8 +1,34 @@
 import { sql } from 'drizzle-orm';
-import { binary, boolean, char, int, json, MySqlColumnBuilder, text, timestamp, varchar } from 'drizzle-orm/mysql-core';
+import {
+	bigint,
+	binary,
+	boolean,
+	char,
+	date,
+	datetime,
+	decimal,
+	double,
+	float,
+	int,
+	json,
+	longtext,
+	mediumint,
+	mediumtext,
+	mysqlEnum,
+	real,
+	smallint,
+	text,
+	time,
+	timestamp,
+	tinyint,
+	tinytext,
+	varbinary,
+	varchar,
+	year,
+} from 'drizzle-orm/mysql-core';
 import { DB } from 'src/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { prepareTestDatabase, TestDatabase, diffDefault} from './mocks';
+import { diffDefault, prepareTestDatabase, TestDatabase } from './mocks';
 
 // @vitest-environment-options {"max-concurrency":1}
 
@@ -24,18 +50,159 @@ beforeEach(async () => {
 
 // TODO add tests for more types
 
-test('int', async () => {
-	// [int().default(10), '10', 'number'],
-	// [int().default(0), '0', 'number'],
-	// [int().default(-10), '-10', 'number'],
-	// [int().default(1e4), '10000', 'number'],
-	// [int().default(-1e4), '-10000', 'number'],
+test('tinyint', async () => {
+	const res1 = await diffDefault(_, tinyint().default(-128), '-128');
+	const res2 = await diffDefault(_, tinyint().default(0), '0');
+	const res3 = await diffDefault(_, tinyint().default(127), '127');
 
-	const res1 = await diffDefault(_, int().default(10), '10');
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+});
+
+test('smallint', async () => {
+	const res1 = await diffDefault(_, smallint().default(-32768), '-32768');
+	const res2 = await diffDefault(_, smallint().default(0), '0');
+	const res3 = await diffDefault(_, smallint().default(32767), '32767');
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+});
+
+test('mediumint', async () => {
+	const res1 = await diffDefault(_, mediumint().default(-8388608), '-8388608');
+	const res2 = await diffDefault(_, mediumint().default(0), '0');
+	const res3 = await diffDefault(_, mediumint().default(8388607), '8388607');
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+});
+
+test('int', async () => {
+	const res1 = await diffDefault(_, int().default(-2147483648), '-2147483648');
 	const res2 = await diffDefault(_, int().default(0), '0');
-	const res3 = await diffDefault(_, int().default(-10), '-10');
+	const res3 = await diffDefault(_, int().default(2147483647), '2147483647');
 	const res4 = await diffDefault(_, int().default(1e4), '10000');
 	const res5 = await diffDefault(_, int().default(-1e4), '-10000');
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
+	expect.soft(res5).toStrictEqual([]);
+});
+
+test('bigint', async () => {
+	// 2^53
+	const res1 = await diffDefault(_, bigint({ mode: 'number' }).default(9007199254740991), '9007199254740991');
+	const res2 = await diffDefault(_, bigint({ mode: 'number' }).default(-9007199254740991), '-9007199254740991');
+	// 2^63 - 1
+	const res3 = await diffDefault(_, bigint({ mode: 'bigint' }).default(9223372036854775807n), "'9223372036854775807'");
+	// -2^63
+	const res4 = await diffDefault(
+		_,
+		bigint({ mode: 'bigint' }).default(-9223372036854775808n),
+		"'-9223372036854775808'",
+	);
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
+});
+
+test('decimal', async () => {
+	const res1 = await diffDefault(_, decimal().default('10.123'), "'10.123'");
+
+	const res2 = await diffDefault(_, decimal({ precision: 6 }).default('10.123'), "'10.123'");
+	const res3 = await diffDefault(_, decimal({ precision: 6, scale: 2 }).default('10.123'), "'10.123'");
+
+	// string
+	const res4 = await diffDefault(_, decimal({ mode: 'string' }).default('10.123'), "'10.123'");
+
+	const res5 = await diffDefault(_, decimal({ mode: 'string', scale: 2 }).default('10.123'), "'10.123'");
+	const res6 = await diffDefault(_, decimal({ mode: 'string', precision: 6 }).default('10.123'), "'10.123'");
+	const res7 = await diffDefault(_, decimal({ mode: 'string', precision: 6, scale: 2 }).default('10.123'), "'10.123'");
+
+	// number
+	// const res8 = await diffDefault(_, decimal({ mode: 'number' }).default(9007199254740991), '9007199254740991');
+	const res9 = await diffDefault(
+		_,
+		decimal({ mode: 'number', precision: 16 }).default(9007199254740991),
+		'9007199254740991',
+	);
+
+	const res10 = await diffDefault(_, decimal({ mode: 'number', precision: 6, scale: 2 }).default(10.123), '10.123');
+	const res11 = await diffDefault(_, decimal({ mode: 'number', scale: 2 }).default(10.123), '10.123');
+	const res12 = await diffDefault(_, decimal({ mode: 'number', precision: 6 }).default(10.123), '10.123');
+
+	// TODO revise: maybe bigint mode should set the precision to a value appropriate for bigint, since the default precision (10) is insufficient.
+	// the line below will fail
+	const res13 = await diffDefault(
+		_,
+		decimal({ mode: 'bigint' }).default(9223372036854775807n),
+		"'9223372036854775807'",
+	);
+	const res14 = await diffDefault(
+		_,
+		decimal({ mode: 'bigint', precision: 19 }).default(9223372036854775807n),
+		"'9223372036854775807'",
+	);
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
+	expect.soft(res5).toStrictEqual([]);
+	expect.soft(res6).toStrictEqual([]);
+	expect.soft(res7).toStrictEqual([]);
+	// expect.soft(res8).toStrictEqual([]);
+	expect.soft(res9).toStrictEqual([]);
+	expect.soft(res10).toStrictEqual([]);
+	expect.soft(res11).toStrictEqual([]);
+	expect.soft(res12).toStrictEqual([]);
+	expect.soft(res13).toStrictEqual([]);
+	expect.soft(res14).toStrictEqual([]);
+});
+
+test('real', async () => {
+	const res1 = await diffDefault(_, real().default(10.123), '10.123');
+	// TODO: revise: It seems that the real type can’t be configured using only one property—precision or scale; both must be specified.
+	// The commented line below will fail
+	// const res2 = await diffDefault(_, real({ precision: 6 }).default(10.123), '10.123');
+	const res3 = await diffDefault(_, real({ precision: 6, scale: 2 }).default(10.123), '10.123');
+
+	expect.soft(res1).toStrictEqual([]);
+	// expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+});
+
+test('double', async () => {
+	const res1 = await diffDefault(_, double().default(10.123), '10.123');
+	// TODO: revise: It seems that the double type can’t be configured using only one property precision or scale; both must be specified.
+	// The commented line below will fail
+	// const res2 = await diffDefault(_, double({ precision: 6 }).default(10.123), '10.123');
+	const res3 = await diffDefault(_, double({ precision: 6, scale: 2 }).default(10.123), '10.123');
+	const res4 = await diffDefault(_, double({ unsigned: true }).default(10.123), '10.123');
+	const res5 = await diffDefault(_, double({ unsigned: true, precision: 6, scale: 2 }).default(10.123), '10.123');
+
+	expect.soft(res1).toStrictEqual([]);
+	// expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
+	expect.soft(res5).toStrictEqual([]);
+});
+
+test('float', async () => {
+	const res1 = await diffDefault(_, float().default(10.123), '10.123');
+
+	const res2 = await diffDefault(_, float({ precision: 6 }).default(10.123), '10.123');
+	const res3 = await diffDefault(_, float({ precision: 6, scale: 2 }).default(10.123), '10.123');
+
+	const res4 = await diffDefault(_, float({ unsigned: true }).default(10.123), '10.123');
+	const res5 = await diffDefault(_, float({ unsigned: true, precision: 6, scale: 2 }).default(10.123), '10.123');
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
@@ -51,19 +218,18 @@ test('boolean', async () => {
 	// [boolean().default(false), 'false', 'boolean'],
 	// [boolean().default(sql`true`), 'true', 'unknown'],
 
-	const res1 = await diffDefault(_, boolean().default(true), 'true');
-	const res2 = await diffDefault(_, boolean().default(false), 'false');
-	const res3 = await diffDefault(_, boolean().default(sql`true`), 'true');
+	const res1 = await diffDefault(_, boolean().default(sql`null`), 'null');
+	const res2 = await diffDefault(_, boolean().default(true), 'true');
+	const res3 = await diffDefault(_, boolean().default(false), 'false');
+	const res4 = await diffDefault(_, boolean().default(sql`true`), 'true');
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
 });
 
 test('char', async () => {
-	// char
-	// [char({ length: 10 }).default('10'), '10', 'string', "'10'"],
-
 	const res1 = await diffDefault(_, char({ length: 10 }).default('10'), `'10'`);
 	const res2 = await diffDefault(_, char({ length: 10 }).default("text'text"), `'text''text'`);
 	const res3 = await diffDefault(_, char({ length: 10 }).default('text\'text"'), "'text''text\"'");
@@ -93,13 +259,31 @@ test('varchar', async () => {
 	expect.soft(res4).toStrictEqual([]);
 });
 
-test('text', async () => {
-	// text
-	// [text().default('text'), 'text', 'text', `('text')`],
-	// [text().default("text'text"), "text'text", 'text', `('text''text')`],
-	// [text().default('text\'text"'), 'text\'text"', 'text', `('text''text"')`],
-	// [text({ enum: ['one', 'two', 'three'] }).default('one'), 'one', 'text', `('one')`],
+test('tinytext', async () => {
+	const res1 = await diffDefault(_, tinytext().default('text'), `('text')`);
+	const res2 = await diffDefault(_, tinytext().default("text'text"), `('text''text')`);
+	const res3 = await diffDefault(_, tinytext().default('text\'text"'), `('text''text"')`);
+	const res4 = await diffDefault(_, tinytext({ enum: ['one', 'two', 'three'] }).default('one'), `('one')`);
 
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
+});
+
+test('mediumtext', async () => {
+	const res1 = await diffDefault(_, mediumtext().default('text'), `('text')`);
+	const res2 = await diffDefault(_, mediumtext().default("text'text"), `('text''text')`);
+	const res3 = await diffDefault(_, mediumtext().default('text\'text"'), `('text''text"')`);
+	const res4 = await diffDefault(_, mediumtext({ enum: ['one', 'two', 'three'] }).default('one'), `('one')`);
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
+});
+
+test('text', async () => {
 	const res1 = await diffDefault(_, text().default('text'), `('text')`);
 	const res2 = await diffDefault(_, text().default("text'text"), `('text''text')`);
 	const res3 = await diffDefault(_, text().default('text\'text"'), `('text''text"')`);
@@ -109,6 +293,34 @@ test('text', async () => {
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
 	expect.soft(res4).toStrictEqual([]);
+});
+
+test('longtext', async () => {
+	const res1 = await diffDefault(_, longtext().default('text'), `('text')`);
+	const res2 = await diffDefault(_, longtext().default("text'text"), `('text''text')`);
+	const res3 = await diffDefault(_, longtext().default('text\'text"'), `('text''text"')`);
+	const res4 = await diffDefault(_, longtext({ enum: ['one', 'two', 'three'] }).default('one'), `('one')`);
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
+});
+
+test('enum', async () => {
+	const res1 = await diffDefault(
+		_,
+		mysqlEnum(['sad', 'ok', 'happy', `text'text"`, `no,'"\`rm`, `mo''",\`}{od`, 'mo,\`od']).default('ok'),
+		`('ok')`,
+	);
+	const res2 = await diffDefault(
+		_,
+		mysqlEnum(['sad', 'ok', 'happy', `text'text"`, `no,'"\`rm`, `mo''",\`}{od`, 'mo,\`od']).default(`no,'"\`rm`),
+		`('no,''"\`rm')`,
+	);
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
 });
 
 test('binary', async () => {
@@ -124,6 +336,14 @@ test('binary', async () => {
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
+});
+
+test('varbinary', async () => {
+	const res1 = await diffDefault(_, varbinary({ length: 10 }).default('binary'), `('binary')`);
+	const res2 = await diffDefault(_, varbinary({ length: 16 }).default(sql`(lower('HELLO'))`), `(lower('HELLO'))`);
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
 });
 
 test('json', async () => {
@@ -148,10 +368,110 @@ test('json', async () => {
 });
 
 test('timestamp', async () => {
-	// timestamp
-	// [timestamp().defaultNow(), '(now())', 'unknown', '(now())'],
+	const res1 = await diffDefault(_, timestamp({ mode: 'date' }).defaultNow(), `(now())`);
+	const res2 = await diffDefault(_, timestamp({ mode: 'string' }).defaultNow(), `(now())`);
 
-	const res1 = await diffDefault(_, timestamp().defaultNow(), `(now())`);
+	const res3 = await diffDefault(
+		_,
+		timestamp({ mode: 'date' }).default(new Date('2025-05-23T12:53:53.115Z')),
+		`'2025-05-23 12:53:53.115'`,
+	);
+	const res4 = await diffDefault(
+		_,
+		timestamp({ mode: 'date', fsp: 3 }).default(new Date('2025-05-23T12:53:53.115Z')),
+		`'2025-05-23 12:53:53.115'`,
+	);
+
+	const res5 = await diffDefault(
+		_,
+		timestamp({ mode: 'string' }).default('2025-05-23 12:53:53.115'),
+		`'2025-05-23 12:53:53.115'`,
+	);
+	const res6 = await diffDefault(
+		_,
+		timestamp({ mode: 'string', fsp: 3 }).default('2025-05-23 12:53:53.115'),
+		`'2025-05-23 12:53:53.115'`,
+	);
+	const res7 = await diffDefault(
+		_,
+		timestamp({ mode: 'string', fsp: 6 }).default('2025-05-23 12:53:53.123456'),
+		`'2025-05-23 12:53:53.123456'`,
+	);
 
 	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
+	expect.soft(res5).toStrictEqual([]);
+	expect.soft(res6).toStrictEqual([]);
+	expect.soft(res7).toStrictEqual([]);
+});
+
+test('datetime', async () => {
+	const res1 = await diffDefault(
+		_,
+		datetime({ mode: 'date' }).default(new Date('2025-05-23T12:53:53.115Z')),
+		`'2025-05-23 12:53:53.115'`,
+	);
+	const res2 = await diffDefault(
+		_,
+		datetime({ mode: 'date', fsp: 3 }).default(new Date('2025-05-23T12:53:53.115Z')),
+		`'2025-05-23 12:53:53.115'`,
+	);
+
+	const res3 = await diffDefault(
+		_,
+		datetime({ mode: 'string' }).default('2025-05-23 12:53:53.115'),
+		`'2025-05-23 12:53:53.115'`,
+	);
+	const res4 = await diffDefault(
+		_,
+		datetime({ mode: 'string', fsp: 3 }).default('2025-05-23 12:53:53.115'),
+		`'2025-05-23 12:53:53.115'`,
+	);
+	const res5 = await diffDefault(
+		_,
+		datetime({ mode: 'string', fsp: 6 }).default('2025-05-23 12:53:53.123456'),
+		`'2025-05-23 12:53:53.123456'`,
+	);
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
+	expect.soft(res5).toStrictEqual([]);
+});
+
+test('time', async () => {
+	const res1 = await diffDefault(_, time().default('15:50:33'), `'15:50:33'`);
+	const res2 = await diffDefault(
+		_,
+		time({ fsp: 3 }).default('15:50:33.123'),
+		`'15:50:33.123'`,
+	);
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+});
+
+test('date', async () => {
+	const res1 = await diffDefault(_, date({ mode: 'string' }).default('2025-05-23'), `'2025-05-23'`);
+	const res2 = await diffDefault(_, date({ mode: 'date' }).default(new Date('2025-05-23')), `'2025-05-23'`);
+	const res3 = await diffDefault(
+		_,
+		date({ mode: 'date' }).default(new Date('2025-05-23T12:53:53.115Z')),
+		`'2025-05-23'`,
+	);
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+});
+
+test('year', async () => {
+	const res1 = await diffDefault(_, year().default(2025), `2025`);
+	const res2 = await diffDefault(_, year().default(sql`2025`), `2025`);
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
 });
