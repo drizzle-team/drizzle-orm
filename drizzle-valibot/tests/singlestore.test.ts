@@ -29,10 +29,10 @@ const serialOptionalSchema = v.optional(serialSchema);
 const textSchema = v.pipe(v.string(), v.maxLength(CONSTANTS.INT16_UNSIGNED_MAX as number));
 const textOptionalSchema = v.optional(textSchema);
 
-const anySchema = v.any();
+//const anySchema = v.any();
 
 const extendedSchema = v.pipe(intSchema, v.maxValue(1000));
-const extendedNullableSchema = v.nullable(extendedSchema);
+//const extendedNullableSchema = v.nullable(extendedSchema);
 const extendedOptionalSchema = v.optional(extendedSchema);
 
 const customSchema = v.pipe(v.string(), v.transform(Number));
