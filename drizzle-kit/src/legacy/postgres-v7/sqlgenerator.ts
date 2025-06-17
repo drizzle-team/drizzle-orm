@@ -955,7 +955,6 @@ class CreateTypeEnumConvertor extends Convertor {
 		valuesStatement += values.map((it) => `'${escapeSingleQuotes(it)}'`).join(', ');
 		valuesStatement += ')';
 
-		// TODO do we need this?
 		// let statement = 'DO $$ BEGIN';
 		// statement += '\n';
 		let statement = `CREATE TYPE ${enumNameWithSchema} AS ENUM${valuesStatement};`;

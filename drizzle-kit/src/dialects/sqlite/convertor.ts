@@ -194,8 +194,6 @@ const recreateTable = convertor('recreate_table', (st) => {
 	const { name } = st.to;
 	const { columns: columnsFrom } = st.from;
 
-	// TODO: filter out generated columns
-	// TODO: test above
 	const columnNames = columnsFrom.filter((it) => {
 		const newColumn = st.to.columns.find((col) => col.name === it.name);
 		return !it.generated && newColumn && !newColumn.generated;
@@ -213,8 +211,6 @@ const recreateTable = convertor('recreate_table', (st) => {
 	};
 	sqlStatements.push(createTable.convert({ table: tmpTable }) as string);
 
-	// migrate data
-	// TODO: columns mismatch?
 	sqlStatements.push(
 		`INSERT INTO \`${newTableName}\`(${columnNames}) SELECT ${columnNames} FROM \`${st.to.name}\`;`,
 	);

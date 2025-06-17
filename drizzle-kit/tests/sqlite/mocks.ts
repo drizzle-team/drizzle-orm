@@ -142,7 +142,13 @@ export const push = async (config: {
 		'push',
 	);
 
-	const { hints } = await suggestions(db, statements);
+	const { hints, statements: losses } = await suggestions(db, statements);
+
+	// if (force) {
+	// 	for (const st of losses) {
+	// 		await db.run(st);
+	// 	}
+	// }
 
 	for (const sql of sqlStatements) {
 		// if (log === 'statements') console.log(sql);

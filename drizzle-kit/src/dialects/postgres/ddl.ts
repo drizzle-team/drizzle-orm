@@ -22,7 +22,7 @@ export const createDDL = () => {
 				type: ['null', 'boolean', 'number', 'string', 'bigint', 'json', 'func', 'unknown'],
 			},
 			generated: {
-				type: ['stored', 'virtual'],
+				type: ['stored'],
 				as: 'string',
 			},
 			identity: {
@@ -398,6 +398,7 @@ export const interimToDDL = (
 
 	for (const it of schema.indexes) {
 		const { forPK, forUnique, ...rest } = it;
+		// TODO: check within schema, pk =[schema, table, name], we need only [schema, table]
 		const res = ddl.indexes.push(rest);
 		if (res.status === 'CONFLICT') {
 			errors.push({
@@ -408,7 +409,6 @@ export const interimToDDL = (
 			});
 		}
 
-		// TODO: check within schema
 	}
 
 	for (const it of schema.fks) {

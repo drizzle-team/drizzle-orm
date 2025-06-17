@@ -32,49 +32,6 @@ beforeEach(async () => {
 	await _.clear();
 });
 
-const cases = [
-	[int().default(10), '10', 'number'],
-	[int().default(0), '0', 'number'],
-	[int().default(-10), '-10', 'number'],
-	[int().default(1e4), '10000', 'number'],
-	[int().default(-1e4), '-10000', 'number'],
-
-	// bools
-	[boolean(), null, null, ''],
-	[boolean().default(true), 'true', 'boolean'],
-	[boolean().default(false), 'false', 'boolean'],
-	[boolean().default(sql`true`), 'true', 'unknown'],
-
-	// varchar
-	[varchar({ length: 10 }).default('text'), 'text', 'string', `'text'`],
-	[varchar({ length: 10 }).default("text'text"), "text'text", 'string', `'text''text'`],
-	[varchar({ length: 10 }).default('text\'text"'), 'text\'text"', 'string', "'text''text\"'"],
-	[varchar({ length: 10, enum: ['one', 'two', 'three'] }).default('one'), 'one', 'string', "'one'"],
-
-	//
-	[text().default('text'), 'text', 'text', `('text')`],
-	[text().default("text'text"), "text'text", 'text', `('text''text')`],
-	[text().default('text\'text"'), 'text\'text"', 'text', `('text''text"')`],
-	[text({ enum: ['one', 'two', 'three'] }).default('one'), 'one', 'text', `('one')`],
-
-	//
-	[binary().default('binary'), 'binary', 'text', `('binary')`],
-	[binary({ length: 10 }).default('binary'), 'binary', 'text', `('binary')`],
-	[binary().default(sql`(lower('HELLO'))`), `(lower('HELLO'))`, 'unknown'],
-
-	//
-	[json().default({}), '{}', 'json', `('{}')`],
-	[json().default([]), '[]', 'json', `('[]')`],
-	[json().default([1, 2, 3]), '[1,2,3]', 'json', `('[1,2,3]')`],
-	[json().default({ key: 'value' }), '{"key":"value"}', 'json', `('{"key":"value"}')`],
-	[json().default({ key: "val'ue" }), '{"key":"val\'ue"}', 'json', `('{"key":"val''ue"}')`],
-
-	[char({ length: 10 }).default('10'), '10', 'string', "'10'"],
-	[timestamp().defaultNow(), '(now())', 'unknown', '(now())'],
-] as const;
-
-// TODO implement
-
 const diffDefault = async <T extends MySqlColumnBuilder>(
 	kit: TestDatabase,
 	builder: T,

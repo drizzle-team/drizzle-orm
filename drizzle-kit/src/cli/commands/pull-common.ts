@@ -49,6 +49,7 @@ export const prepareTablesFilter = (set: string[]) => {
 	return filter;
 };
 
+// TODO: take from beta
 export const relationsToTypeScript = (
 	fks: (PostgresEntities['fks'] | SqliteEntities['fks'] | MysqlEntities['fks'])[],
 	casing: Casing,

@@ -69,7 +69,7 @@ function prepareRoles(entities?: {
 	return { useRoles, include, exclude };
 }
 
-// TODO: tables/schema/entities -> filter: (entity: {type: ..., metadata....})=>boolean;
+// TODO: tables/schema/entities -> filter: (entity: {type: ... , metadata: ... }) => boolean;
 // TODO: since we by default only introspect public
 export const fromDatabase = async (
 	db: DB,
@@ -336,7 +336,7 @@ export const fromDatabase = async (
 			table: string;
 			name: string;
 			as: Policy['as'];
-			to: string | string[]; // TODO: | string[] ??
+			to: string | string[];
 			for: Policy['for'];
 			using: string | undefined | null;
 			withCheck: string | undefined | null;

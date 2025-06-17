@@ -819,14 +819,12 @@ export type JsonStatement =
 
 export const preparePgCreateTableJson = (
 	table: Table,
-	// TODO: remove?
 	json2: PgSchema,
 ): JsonCreateTableStatement => {
 	const { name, schema, columns, compositePrimaryKeys, uniqueConstraints, checkConstraints, policies, isRLSEnabled } =
 		table;
 	const tableKey = `${schema || 'public'}.${name}`;
 
-	// TODO: @AndriiSherman. We need this, will add test cases
 	const compositePkName = Object.values(compositePrimaryKeys).length > 0
 		? json2.tables[tableKey].compositePrimaryKeys[
 			`${PgSquasher.unsquashPK(Object.values(compositePrimaryKeys)[0]).name}`
@@ -1129,7 +1127,6 @@ export const prepareDeleteSchemasJson = (
 
 export const prepareRenameColumns = (
 	tableName: string,
-	// TODO: split for pg and mysql+sqlite and singlestore without schema
 	schema: string,
 	pairs: { from: Column; to: Column }[],
 ): JsonRenameColumnStatement[] => {
@@ -1178,7 +1175,6 @@ export const preparePgAlterColumns = (
 	_tableName: string,
 	schema: string,
 	columns: AlteredColumn[],
-	// TODO: remove?
 	json2: PgSchemaSquashed,
 	json1: PgSchemaSquashed,
 	action?: 'push' | undefined,
@@ -1809,11 +1805,8 @@ export const prepareAddCompositePrimaryKeyPg = (
 	tableName: string,
 	schema: string,
 	pks: Record<string, string>,
-	// TODO: remove?
-	json2: PgSchema,
 ): JsonCreateCompositePK[] => {
 	return Object.values(pks).map((it) => {
-		const unsquashed = PgSquasher.unsquashPK(it);
 		return {
 			type: 'create_composite_pk',
 			tableName,
@@ -1828,8 +1821,6 @@ export const prepareDeleteCompositePrimaryKeyPg = (
 	tableName: string,
 	schema: string,
 	pks: Record<string, string>,
-	// TODO: remove?
-	json1: PgSchema,
 ): JsonDeleteCompositePK[] => {
 	return Object.values(pks).map((it) => {
 		return {
@@ -1846,9 +1837,6 @@ export const prepareAlterCompositePrimaryKeyPg = (
 	tableName: string,
 	schema: string,
 	pks: Record<string, { __old: string; __new: string }>,
-	// TODO: remove?
-	json1: PgSchema,
-	json2: PgSchema,
 ): JsonAlterCompositePK[] => {
 	return Object.values(pks).map((it) => {
 		return {

@@ -1913,8 +1913,6 @@ test('change data type from standart type to standart type. columns are arrays. 
 
 	const st0 = [
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text[];`,
-		// TODO: discuss with @AndriiSherman, redundand statement
-		// `ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{"hello"}';`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1944,15 +1942,6 @@ test('change data type from standart type to standart type. columns are arrays w
 
 	const st0 = [
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text[];`,
-		/*
-				TODO: discuss with @AndriiSherman, redundand statement
-				CREATE TABLE "table" (
-        	"column" varchar[2] DEFAULT '{"hello"}'
-				);
-
-				ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text[2];
-		 */
-		// `ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT '{"hello"}';`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);

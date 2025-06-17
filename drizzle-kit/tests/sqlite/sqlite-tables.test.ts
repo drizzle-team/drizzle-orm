@@ -874,7 +874,7 @@ test('recreate table with added column not null and without default with data', 
 			id: int('id').primaryKey({ autoIncrement: false }),
 			name: text('name'),
 			age: integer('age'),
-			newColumn: text('new_column').notNull().default(''),
+			newColumn: text('new_column').notNull(),
 		}),
 	};
 
