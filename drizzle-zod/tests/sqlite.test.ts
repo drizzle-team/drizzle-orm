@@ -45,7 +45,7 @@ test('table - insert', (t) => {
 	});
 
 	const result = createInsertSchema(table);
-	const expected = z.object({ id: intSchema.optional(), name: textSchema, age: intNullableOptionalSchema });
+	const expected = z.object({ id: intOptionalSchema, name: textSchema, age: intNullableOptionalSchema });
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
