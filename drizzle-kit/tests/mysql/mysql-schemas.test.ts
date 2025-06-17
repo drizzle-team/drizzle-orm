@@ -1,6 +1,23 @@
 import { int, mysqlSchema, mysqlTable } from 'drizzle-orm/mysql-core';
-import { expect, test } from 'vitest';
-import { diff } from './mocks';
+import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
+
+// @vitest-environment-options {"max-concurrency":1}
+let _: TestDatabase;
+let db: TestDatabase['db'];
+
+beforeAll(async () => {
+	_ = await prepareTestDatabase();
+	db = _.db;
+});
+
+afterAll(async () => {
+	await _.close();
+});
+
+beforeEach(async () => {
+	await _.clear();
+});
 
 // We don't manage databases(schemas) in MySQL with Drizzle Kit
 test('add schema #1', async () => {
@@ -8,9 +25,12 @@ test('add schema #1', async () => {
 		devSchema: mysqlSchema('dev'),
 	};
 
-	const { statements } = await diff({}, to, []);
+	const { statements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
 
-	expect(statements.length).toBe(0);
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add schema #2', async () => {
@@ -22,9 +42,14 @@ test('add schema #2', async () => {
 		devSchema2: mysqlSchema('dev2'),
 	};
 
-	const { statements } = await diff(from, to, []);
+	const { statements: st } = await diff(from, to, []);
 
-	expect(statements.length).toBe(0);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('delete schema #1', async () => {
@@ -32,9 +57,14 @@ test('delete schema #1', async () => {
 		devSchema: mysqlSchema('dev'),
 	};
 
-	const { statements } = await diff(from, {}, []);
+	const { statements: st } = await diff(from, {}, []);
 
-	expect(statements.length).toBe(0);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to: {} });
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('delete schema #2', async () => {
@@ -46,9 +76,14 @@ test('delete schema #2', async () => {
 		devSchema: mysqlSchema('dev'),
 	};
 
-	const { statements } = await diff(from, to, []);
+	const { statements: st } = await diff(from, to, []);
 
-	expect(statements.length).toBe(0);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to: {} });
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('rename schema #1', async () => {
@@ -59,9 +94,15 @@ test('rename schema #1', async () => {
 		devSchema2: mysqlSchema('dev2'),
 	};
 
-	const { statements } = await diff(from, to, ['dev->dev2']);
+	const renames = ['dev->dev2'];
+	const { statements: st } = await diff(from, to, renames);
 
-	expect(statements.length).toBe(0);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('rename schema #2', async () => {
@@ -74,9 +115,15 @@ test('rename schema #2', async () => {
 		devSchema2: mysqlSchema('dev2'),
 	};
 
-	const { statements } = await diff(from, to, ['dev1->dev2']);
+	const renames = ['dev->dev2'];
+	const { statements: st } = await diff(from, to, renames);
 
-	expect(statements.length).toBe(0);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add table to schema #1', async () => {
@@ -87,9 +134,15 @@ test('add table to schema #1', async () => {
 		users: dev.table('users', {}),
 	};
 
-	const { statements } = await diff(from, to, ['dev1->dev2']);
+	const renames = ['dev->dev2'];
+	const { statements: st } = await diff(from, to, renames);
 
-	expect(statements.length).toBe(0);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add table to schema #2', async () => {
@@ -100,9 +153,15 @@ test('add table to schema #2', async () => {
 		users: dev.table('users', {}),
 	};
 
-	const { statements } = await diff(from, to, ['dev1->dev2']);
+	const renames = ['dev->dev2'];
+	const { statements: st } = await diff(from, to, renames);
 
-	expect(statements.length).toBe(0);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add table to schema #3', async () => {
@@ -114,9 +173,15 @@ test('add table to schema #3', async () => {
 		users: mysqlTable('users', { id: int() }),
 	};
 
-	const { sqlStatements } = await diff(from, to, ['dev1->dev2']);
+	const renames = ['dev->dev2'];
+	const { sqlStatements: st } = await diff(from, to, renames);
 
-	expect(sqlStatements).toStrictEqual(['CREATE TABLE `users` (\n\t`id` int\n);\n']);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0: string[] = ['CREATE TABLE `users` (\n\t`id` int\n);\n'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('remove table from schema #1', async () => {
@@ -126,9 +191,15 @@ test('remove table from schema #1', async () => {
 		dev,
 	};
 
-	const { statements } = await diff(from, to, ['dev1->dev2']);
+	const renames = ['dev->dev2'];
+	const { statements: st } = await diff(from, to, renames);
 
-	expect(statements.length).toBe(0);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('remove table from schema #2', async () => {
@@ -136,7 +207,13 @@ test('remove table from schema #2', async () => {
 	const from = { dev, users: dev.table('users', {}) };
 	const to = {};
 
-	const { statements } = await diff(from, to, ['dev1->dev2']);
+	const renames = ['dev->dev2'];
+	const { statements: st } = await diff(from, to, renames);
 
-	expect(statements.length).toBe(0);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to, renames });
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });

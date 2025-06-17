@@ -1,4 +1,3 @@
-import Database from 'better-sqlite3';
 import { sql } from 'drizzle-orm';
 import { int, sqliteTable, sqliteView } from 'drizzle-orm/sqlite-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
@@ -64,8 +63,6 @@ test('drop view #1', async () => {
 });
 
 test('drop view #2', async () => {
-	const client = new Database(':memory:');
-
 	const table = sqliteTable('test', {
 		id: int('id').primaryKey(),
 	});
@@ -264,8 +261,6 @@ test('rename view and alter ".as"', async () => {
 });
 
 test('create view', async () => {
-	const client = new Database(':memory:');
-
 	const table = sqliteTable('test', {
 		id: int('id').primaryKey(),
 	});

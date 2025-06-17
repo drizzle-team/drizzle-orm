@@ -203,6 +203,18 @@ export const ddlDiff = async (
 		};
 		ddl1.uniques.update(update5);
 		ddl2.uniques.update(update5);
+
+		const update6 = {
+			set: {
+				value: rename.to.name,
+			},
+			where: {
+				table: rename.from.table,
+				value: rename.from.name,
+			},
+		} as const;
+		ddl1.checks.update(update6);
+		ddl2.checks.update(update6);
 	}
 
 	const pksDiff = diff(ddl1, ddl2, 'pks');
