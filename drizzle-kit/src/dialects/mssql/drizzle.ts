@@ -1,4 +1,4 @@
-import { Casing, GeneratedStorageMode, getTableName, is, SQL } from 'drizzle-orm';
+import { getTableName, is, SQL } from 'drizzle-orm';
 import {
 	AnyMsSqlColumn,
 	AnyMsSqlTable,
@@ -14,51 +14,96 @@ import { CasingType } from 'src/cli/validations/common';
 import { safeRegister } from 'src/utils/utils-node';
 import { getColumnCasing, sqlToStr } from '../drizzle';
 import { DefaultConstraint, InterimSchema, MssqlEntities, Schema } from './ddl';
-import { defaultNameForDefault, defaultNameForFK, defaultNameForPK, defaultNameForUnique } from './grammar';
+import {
+	bufferToBinary,
+	defaultNameForDefault,
+	defaultNameForFK,
+	defaultNameForPK,
+	defaultNameForUnique,
+	splitSqlType,
+	trimChar,
+} from './grammar';
 
 export const upper = <T extends string>(value: T | undefined): Uppercase<T> | null => {
 	if (!value) return null;
 	return value.toUpperCase() as Uppercase<T>;
 };
 
+export const unwrapColumn = (column: AnyMsSqlColumn) => {
+	const baseColumn = column;
+
+	const sqlType = baseColumn.getSQLType();
+
+	const { type, options } = splitSqlType(sqlType);
+
+	return {
+		baseColumn,
+		sqlType,
+		baseType: type,
+		options,
+	};
+};
+
 export const defaultFromColumn = (
-	column: AnyMsSqlColumn,
-	casing?: Casing,
+	baseType: string,
+	def: unknown,
+	dialect: MsSqlDialect,
 ): DefaultConstraint['default'] | null => {
-	const def = column.default;
 	if (typeof def === 'undefined') return null;
 
 	if (is(def, SQL)) {
-		let str = sqlToStr(def, casing);
+		let sql = dialect.sqlToQuery(def).sql;
 
-		return { value: str, type: 'unknown' };
+		const isText = /^'(?:[^']|'')*'$/.test(sql);
+		sql = isText ? trimChar(sql, "'") : sql;
+
+		return {
+			value: sql,
+			type: isText ? 'string' : 'unknown',
+		};
 	}
 
-	const sqlType = column.getSQLType();
-	if (sqlType === 'bit') {
-		return { value: String(column.default), type: 'boolean' };
+	const sqlTypeLowered = baseType.toLowerCase();
+	if (sqlTypeLowered === 'bit') {
+		return { value: String(def) === 'true' ? '1' : '0', type: 'boolean' };
 	}
 
-	const type = typeof column.default;
+	if (typeof def === 'string') {
+		const value = def.replaceAll("'", "''");
+
+		return {
+			value: value,
+			type: 'string',
+		};
+	}
+
+	if ((sqlTypeLowered === 'binary' || sqlTypeLowered === 'varbinary') && Buffer.isBuffer(def)) {
+		return { value: bufferToBinary(def), type: 'binary' };
+	}
+
+	const type = typeof def;
 	if (type === 'string' || type === 'number' || type === 'bigint' || type === 'boolean') {
-		return { value: String(column.default), type: type };
-	}
-
-	if (sqlType.startsWith('binary') || sqlType.startsWith('varbinary')) {
-		return { value: String(column.default), type: 'buffer' };
+		return { value: String(def), type: type };
 	}
 
 	if (def instanceof Date) {
-		if (sqlType === 'date') {
+		if (sqlTypeLowered === 'date') {
 			return {
 				value: def.toISOString().split('T')[0],
 				type: 'string',
 			};
 		}
 
-		if (sqlType === 'datetime' || sqlType === 'datetime2') {
+		if (sqlTypeLowered === 'datetime' || sqlTypeLowered === 'datetime2') {
 			return {
 				value: def.toISOString().replace('T', ' ').replace('Z', ''),
+				type: 'string',
+			};
+		}
+
+		if (sqlTypeLowered === 'time') {
+			return {
+				value: def.toISOString().split('T')[1].replace('Z', ''),
 				type: 'string',
 			};
 		}
@@ -69,7 +114,7 @@ export const defaultFromColumn = (
 		};
 	}
 
-	throw new Error(`unexpected default: ${column.default}`);
+	throw new Error(`unexpected default: ${def}`);
 };
 
 export const fromDrizzleSchema = (
@@ -145,7 +190,6 @@ export const fromDrizzleSchema = (
 		for (const column of columns) {
 			const columnName = getColumnCasing(column, casing);
 			const notNull: boolean = column.notNull || Boolean(column.generated);
-			const sqlType = column.getSQLType();
 
 			// @ts-expect-error
 			// Drizzle ORM gives this value in runtime, but not in types.
@@ -169,12 +213,15 @@ export const fromDrizzleSchema = (
 				}
 				: null;
 
+			const { baseType, options } = unwrapColumn(column);
+
 			result.columns.push({
 				schema,
 				entityType: 'columns',
 				table: tableName,
 				name: columnName,
-				type: sqlType,
+				type: baseType,
+				options,
 				pkName: null,
 				notNull: notNull,
 				// @ts-expect-error
@@ -199,7 +246,7 @@ export const fromDrizzleSchema = (
 					schema,
 					column: columnName,
 					table: tableName,
-					default: defaultFromColumn(column, casing),
+					default: defaultFromColumn(baseType, column.default, dialect),
 				});
 			}
 		}

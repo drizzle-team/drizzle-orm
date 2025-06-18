@@ -20,11 +20,10 @@ import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/mssql/
 import type { JsonStatement } from '../../dialects/mssql/statements';
 import type { DB } from '../../utils';
 import { resolver } from '../prompts';
-import { Select } from '../selector-ui';
 import { Entities } from '../validations/cli';
 import { CasingType } from '../validations/common';
 import type { MssqlCredentials } from '../validations/mssql';
-import { withStyle } from '../validations/outputs';
+import { ProgressView } from '../views';
 
 export const handle = async (
 	schemaPath: string | string[],
@@ -46,6 +45,7 @@ export const handle = async (
 
 	const schemaTo = fromDrizzleSchema(res, casing);
 
+	// TODO handle warnings?
 	// if (warnings.length > 0) {
 	// 	console.log(warnings.map((it) => schemaWarning(it)).join('\n\n'));
 	// }
@@ -55,7 +55,8 @@ export const handle = async (
 	// 	process.exit(1);
 	// }
 
-	const { schema: schemaFrom } = await introspect(db, tablesFilter, schemasFilter, entities);
+	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
+	const { schema: schemaFrom } = await introspect(db, tablesFilter, schemasFilter, entities, progress);
 
 	const { ddl: ddl1, errors: errors1 } = interimToDDL(schemaFrom);
 	const { ddl: ddl2, errors: errors2 } = interimToDDL(schemaTo);

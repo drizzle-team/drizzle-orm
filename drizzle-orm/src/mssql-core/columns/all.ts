@@ -6,10 +6,11 @@ import { customType } from './custom.ts';
 import { date } from './date.ts';
 import { datetime } from './datetime.ts';
 import { datetime2 } from './datetime2.ts';
-import { datetimeOffset } from './datetimeoffset.ts';
+import { datetimeoffset } from './datetimeoffset.ts';
 import { decimal } from './decimal.ts';
 import { float } from './float.ts';
 import { int } from './int.ts';
+import { json } from './json.ts';
 import { numeric } from './numeric.ts';
 import { real } from './real.ts';
 import { smallint } from './smallint.ts';
@@ -29,7 +30,7 @@ export function getMsSqlColumnBuilders() {
 		date,
 		datetime,
 		datetime2,
-		datetimeOffset,
+		datetimeoffset,
 		decimal,
 		float,
 		int,
@@ -41,6 +42,7 @@ export function getMsSqlColumnBuilders() {
 		tinyint,
 		varbinary,
 		varchar,
+		json,
 	};
 }
 
