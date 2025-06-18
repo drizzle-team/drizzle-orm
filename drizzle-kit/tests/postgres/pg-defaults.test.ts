@@ -44,10 +44,9 @@ afterAll(async () => {
 	await _.close();
 });
 
-// TODO revise: remove the call to _.clear(), since diffDefault already clears it at the start.
-// beforeEach(async () => {
-// 	await _.clear();
-// });
+beforeEach(async () => {
+	await _.clear();
+});
 
 test('integer', async () => {
 	const res1 = await diffDefault(_, integer().default(10), '10');

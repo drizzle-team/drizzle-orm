@@ -88,7 +88,7 @@ export const handle = async (
 		return;
 	}
 
-	// TODO handle suggestions
+	// TODO handle suggestions, froce flag
 	const { losses, hints } = await suggestions(db, jsonStatements, ddl2);
 
 	const statementsToExecute = [...losses, ...sqlStatements];

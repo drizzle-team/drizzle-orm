@@ -3,7 +3,7 @@ import { Column } from './ddl';
 import type { JsonStatement } from './statements';
 
 export const defaultToSQL = (value: Column['default']) => {
-	if(!value)return ""
+	if (!value) return '';
 	return value.isExpression ? value.value : `'${value.value.replace(/'/g, "''")}'`;
 };
 
@@ -144,7 +144,8 @@ const alterTableAddColumn = convertor('add_column', (st) => {
 	const { fk, column } = st;
 	const { table: tableName, name, type, notNull, primaryKey, generated } = st.column;
 
-	const defaultStatement = column.default ? ` DEFAULT ${defaultToSQL(column.default)}` : '';
+	const defaultStatement = column.default !== null ? ` DEFAULT ${defaultToSQL(column.default)}` : '';
+
 	const notNullStatement = `${notNull ? ' NOT NULL' : ''}`;
 	const primaryKeyStatement = `${primaryKey ? ' PRIMARY KEY' : ''}`;
 	const referenceStatement = `${
@@ -193,8 +194,6 @@ const recreateTable = convertor('recreate_table', (st) => {
 	const { name } = st.to;
 	const { columns: columnsFrom } = st.from;
 
-	// TODO: filter out generated columns
-	// TODO: test above
 	const columnNames = columnsFrom.filter((it) => {
 		const newColumn = st.to.columns.find((col) => col.name === it.name);
 		return !it.generated && newColumn && !newColumn.generated;
@@ -212,8 +211,6 @@ const recreateTable = convertor('recreate_table', (st) => {
 	};
 	sqlStatements.push(createTable.convert({ table: tmpTable }) as string);
 
-	// migrate data
-	// TODO: columns mismatch?
 	sqlStatements.push(
 		`INSERT INTO \`${newTableName}\`(${columnNames}) SELECT ${columnNames} FROM \`${st.to.name}\`;`,
 	);

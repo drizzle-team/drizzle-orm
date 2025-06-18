@@ -410,7 +410,7 @@ test('all data types', (t) => {
 		bigint4: type.bigint.narrow(unsignedBigintNarrow),
 		binary: type.string,
 		boolean: type.boolean,
-		char1: type.string.exactlyLength(10),
+		char1: type.string.atMostLength(10),
 		char2: type.enumerated('a', 'b', 'c'),
 		date1: type.Date,
 		date2: type.string,

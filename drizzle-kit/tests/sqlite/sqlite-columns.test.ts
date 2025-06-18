@@ -1,4 +1,3 @@
-import Database from 'better-sqlite3';
 import { sql } from 'drizzle-orm';
 import {
 	AnySQLiteColumn,
@@ -16,7 +15,7 @@ import {
 	uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { diff, diff2, prepareTestDatabase, push, TestDatabase } from './mocks';
+import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
 // @vitest-environment-options {"max-concurrency":1}
 let _: TestDatabase;
@@ -224,8 +223,6 @@ test('add columns #6', async (t) => {
 });
 
 test('added column not null and without default to table with data', async (t) => {
-	const client = new Database(':memory:');
-
 	const schema1 = {
 		companies: sqliteTable('companies', {
 			id: integer('id').primaryKey(),
@@ -242,19 +239,14 @@ test('added column not null and without default to table with data', async (t) =
 	};
 
 	const table = getTableConfig(schema1.companies);
-	const seedStatements = [
-		`INSERT INTO \`${table.name}\` ("${schema1.companies.name.name}") VALUES ('drizzle');`,
-		`INSERT INTO \`${table.name}\` ("${schema1.companies.name.name}") VALUES ('turso');`,
-	];
 
-	const { sqlStatements: st, hints } = await diff2({ client, left: schema1, right: schema2, seed: seedStatements });
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
 	await push({ db, to: schema1 });
-	// TODO: revise: should I seed here? And should I seed at all for push?
-	for (const seedSt of seedStatements) {
-		await db.run(seedSt);
-	}
+	await db.run(`INSERT INTO \`${table.name}\` ("${schema1.companies.name.name}") VALUES ('drizzle');`);
+	await db.run(`INSERT INTO \`${table.name}\` ("${schema1.companies.name.name}") VALUES ('turso');`);
 
+	// TODO: reivise
 	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2 });
 
 	const st0: string[] = [`ALTER TABLE \`companies\` ADD \`age\` integer NOT NULL;`];
@@ -264,15 +256,12 @@ test('added column not null and without default to table with data', async (t) =
 	const hints0: string[] = [
 		"· You're about to add not-null 'age' column without default value to non-empty 'companies' table",
 	];
-	expect(hints).toStrictEqual(hints0);
 	expect(phints).toStrictEqual(hints0);
 
 	// TODO: check truncations
 });
 
 test('added column not null and without default to table without data', async (t) => {
-	const turso = new Database(':memory:');
-
 	const schema1 = {
 		companies: sqliteTable('companies', {
 			id: integer('id').primaryKey(),
@@ -288,7 +277,7 @@ test('added column not null and without default to table without data', async (t
 		}),
 	};
 
-	const { sqlStatements: st, hints } = await diff2({ client: turso, left: schema1, right: schema2 });
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
 	await push({ db, to: schema1 });
 	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2 });
@@ -298,7 +287,6 @@ test('added column not null and without default to table without data', async (t
 	expect(pst).toStrictEqual(st0);
 
 	const hints0: string[] = [];
-	expect(hints).toStrictEqual(hints0);
 	expect(phints).toStrictEqual(hints0);
 });
 
@@ -472,8 +460,6 @@ test('rename column', async (t) => {
 });
 
 test('rename column and change data type', async (t) => {
-	const client = new Database(':memory:');
-
 	const schema1 = {
 		users: sqliteTable('users', {
 			id: int('id').primaryKey({ autoIncrement: true }),
@@ -489,12 +475,7 @@ test('rename column and change data type', async (t) => {
 	};
 
 	const renames = ['users.name->users.age'];
-	const { sqlStatements: st, hints } = await diff2({
-		client,
-		left: schema1,
-		right: schema2,
-		renames,
-	});
+	const { sqlStatements: st } = await diff(schema1, schema2, renames);
 
 	await push({ db, to: schema1 });
 	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2, renames });
@@ -515,7 +496,6 @@ test('rename column and change data type', async (t) => {
 	expect(pst).toStrictEqual(st0);
 
 	const hints0: string[] = [];
-	expect(hints).toStrictEqual(hints0);
 	expect(phints).toStrictEqual(hints0);
 });
 
@@ -553,8 +533,6 @@ test('add index #1', async (t) => {
 });
 
 test('dropped, added unique index', async (t) => {
-	const client = new Database(':memory:');
-
 	const users = sqliteTable('users', {
 		id: integer('id').primaryKey().notNull(),
 		name: text('name').notNull(),
@@ -611,7 +589,7 @@ test('dropped, added unique index', async (t) => {
 		}),
 	};
 
-	const { sqlStatements: st, hints } = await diff2({ client, left: schema1, right: schema2 });
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
 	await push({ db, to: schema1 });
 	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2 });
@@ -624,13 +602,10 @@ test('dropped, added unique index', async (t) => {
 	expect(pst).toStrictEqual(st0);
 
 	const hints0: string[] = [];
-	expect(hints).toStrictEqual(hints0);
 	expect(phints).toStrictEqual(hints0);
 });
 
 test('drop autoincrement. drop column with data', async (t) => {
-	const turso = new Database(':memory:');
-
 	const schema1 = {
 		companies: sqliteTable('companies', {
 			id: integer('id').primaryKey({ autoIncrement: true }),
@@ -645,23 +620,16 @@ test('drop autoincrement. drop column with data', async (t) => {
 	};
 
 	const table = getTableConfig(schema1.companies);
-	const seedStatements = [
-		`INSERT INTO \`${table.name}\` ("${schema1.companies.id.name}", "${schema1.companies.name.name}") VALUES (1, 'drizzle');`,
-		`INSERT INTO \`${table.name}\` ("${schema1.companies.id.name}", "${schema1.companies.name.name}") VALUES (2, 'turso');`,
-	];
 
-	const { sqlStatements: st, hints } = await diff2({
-		client: turso,
-		left: schema1,
-		right: schema2,
-		seed: seedStatements,
-	});
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
 	await push({ db, to: schema1 });
-	// TODO: revise: should I seed here? And should I seed at all for push?
-	for (const seedSt of seedStatements) {
-		await db.run(seedSt);
-	}
+	await db.run(
+		`INSERT INTO \`${table.name}\` ("${schema1.companies.id.name}", "${schema1.companies.name.name}") VALUES (1, 'drizzle');`,
+	);
+	await db.run(
+		`INSERT INTO \`${table.name}\` ("${schema1.companies.id.name}", "${schema1.companies.name.name}") VALUES (2, 'turso');`,
+	);
 
 	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2 });
 
@@ -677,14 +645,11 @@ test('drop autoincrement. drop column with data', async (t) => {
 	expect(pst).toStrictEqual(st0);
 
 	const hints0: string[] = ["· You're about to drop 'name' column(s) in a non-empty 'companies' table"];
-	expect(hints).toStrictEqual(hints0);
 	expect(phints).toStrictEqual(hints0);
 });
 
 test('drop autoincrement. drop column with data with pragma off', async (t) => {
-	const client = new Database(':memory:');
-
-	client.exec('PRAGMA foreign_keys=OFF;');
+	await db.run('PRAGMA foreign_keys=OFF;');
 
 	const users = sqliteTable('users', {
 		id: integer('id').primaryKey({ autoIncrement: true }),
@@ -705,18 +670,16 @@ test('drop autoincrement. drop column with data with pragma off', async (t) => {
 	};
 
 	const table = getTableConfig(schema1.companies);
-	const seedStatements = [
-		`INSERT INTO \`${table.name}\` ("${schema1.companies.id.name}", "${schema1.companies.name.name}") VALUES (1, 'drizzle');`,
-		`INSERT INTO \`${table.name}\` ("${schema1.companies.id.name}", "${schema1.companies.name.name}") VALUES (2, 'turso');`,
-	];
 
-	const { sqlStatements: st, hints } = await diff2({ client, left: schema1, right: schema2, seed: seedStatements });
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
 	await push({ db, to: schema1 });
-	// TODO: revise: should I seed here? And should I seed at all for push?
-	for (const seedSt of seedStatements) {
-		await db.run(seedSt);
-	}
+	await db.run(
+		`INSERT INTO \`${table.name}\` ("${schema1.companies.id.name}", "${schema1.companies.name.name}") VALUES (1, 'drizzle');`,
+	);
+	await db.run(
+		`INSERT INTO \`${table.name}\` ("${schema1.companies.id.name}", "${schema1.companies.name.name}") VALUES (2, 'turso');`,
+	);
 
 	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2 });
 
@@ -736,13 +699,10 @@ test('drop autoincrement. drop column with data with pragma off', async (t) => {
 	expect(pst).toStrictEqual(st0);
 
 	const hints0: string[] = ["· You're about to drop 'name' column(s) in a non-empty 'companies' table"];
-	expect(hints).toStrictEqual(hints0);
 	expect(phints).toStrictEqual(hints0);
 });
 
 test('change autoincrement. other table references current', async (t) => {
-	const client = new Database(':memory:');
-
 	const companies1 = sqliteTable('companies', {
 		id: integer('id').primaryKey({ autoIncrement: true }),
 	});
@@ -781,10 +741,9 @@ test('change autoincrement. other table references current', async (t) => {
 		`INSERT INTO \`${companiesTableName}\` ("${schema1.companies.id.name}") VALUES ('2');`,
 	];
 
-	const { sqlStatements: st, hints } = await diff2({ client, left: schema1, right: schema2, seed: seedStatements });
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
 	await push({ db, to: schema1 });
-	// TODO: revise: should I seed here? And should I seed at all for push?
 	for (const seedSt of seedStatements) {
 		await db.run(seedSt);
 	}
@@ -805,13 +764,10 @@ test('change autoincrement. other table references current', async (t) => {
 	expect(pst).toStrictEqual(st0);
 
 	const hints0: string[] = [];
-	expect(hints).toStrictEqual(hints0);
 	expect(phints).toStrictEqual(hints0);
 });
 
 test('create composite primary key', async (t) => {
-	const client = new Database(':memory:');
-
 	const schema1 = {};
 
 	const schema2 = {
@@ -823,11 +779,7 @@ test('create composite primary key', async (t) => {
 		})]),
 	};
 
-	const { sqlStatements: st, hints } = await diff2({
-		client,
-		left: schema1,
-		right: schema2,
-	});
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
 	await push({ db, to: schema1 });
 	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2 });
@@ -839,7 +791,6 @@ test('create composite primary key', async (t) => {
 	expect(pst).toStrictEqual(st0);
 
 	const hints0: string[] = [];
-	expect(hints).toStrictEqual(hints0);
 	expect(phints).toStrictEqual(hints0);
 });
 
@@ -1457,8 +1408,6 @@ test('alter column drop generated', async (t) => {
 });
 
 test('alter column drop not null, add not null', async (t) => {
-	const client = new Database(':memory:');
-
 	const schema1 = {
 		users: sqliteTable('users', {
 			id: int('id').primaryKey({ autoIncrement: true }),
@@ -1483,7 +1432,7 @@ test('alter column drop not null, add not null', async (t) => {
 		}),
 	};
 
-	const { sqlStatements: st, hints } = await diff2({ client, left: schema1, right: schema2 });
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
 	await push({ db, to: schema1 });
 	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2 });
@@ -1513,7 +1462,6 @@ test('alter column drop not null, add not null', async (t) => {
 	expect(pst).toStrictEqual(st0);
 
 	const hints0: string[] = [];
-	expect(hints).toStrictEqual(hints0);
 	expect(phints).toStrictEqual(hints0);
 });
 

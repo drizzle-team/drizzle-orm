@@ -203,6 +203,18 @@ export const ddlDiff = async (
 		};
 		ddl1.uniques.update(update5);
 		ddl2.uniques.update(update5);
+
+		const update6 = {
+			set: {
+				value: rename.to.name,
+			},
+			where: {
+				table: rename.from.table,
+				value: rename.from.name,
+			},
+		} as const;
+		ddl1.checks.update(update6);
+		ddl2.checks.update(update6);
 	}
 
 	const pksDiff = diff(ddl1, ddl2, 'pks');
@@ -306,7 +318,10 @@ export const ddlDiff = async (
 	// we need to add column for table, which is going to be recreated to match columns during recreation
 	const columnDeletes = columnsToDelete.filter((it) => !setOfTablesToRecereate.has(it.table));
 
-	const jsonDropColumnsStatemets = columnDeletes.map((it) => prepareStatement('drop_column', { column: it }));
+	const jsonDropColumnsStatemets = columnDeletes.filter((x) => {
+		return !jsonDropTables.some((t) => t.tableName === x.table);
+	}).map((it) => prepareStatement('drop_column', { column: it }));
+
 	const createdFilteredColumns = columnsToCreate.filter((it) => !it.generated || it.generated.type === 'virtual');
 
 	const warnings: string[] = [];

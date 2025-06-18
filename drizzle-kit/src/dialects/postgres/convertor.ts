@@ -195,9 +195,6 @@ const createTableConvertor = convertor('create_table', (st) => {
 	}
 
 	for (const it of uniques.filter((u) => u.columns.length > 1)) {
-		// TODO: skip for inlined uniques || DECIDE
-		// if (it.columns.length === 1 && it.name === `${name}_${it.columns[0]}_key`) continue;
-
 		statement += ',\n';
 		statement += `\tCONSTRAINT "${it.name}" UNIQUE${it.nullsNotDistinct ? ' NULLS NOT DISTINCT' : ''}(\"${
 			it.columns.join(`","`)
@@ -360,7 +357,7 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 				? `"${diff.typeSchema.to}"."${diff.type.to}"`
 				: isEnum
 				? `"${diff.type.to}"`
-				: diff.type.to; // TODO: enum?
+				: diff.type.to;
 		} else {
 			type = `${typeSchema}${column.typeSchema ? `"${column.type}"` : column.type}`;
 		}
@@ -418,7 +415,6 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 		} else {
 			const { from, to } = diff.identity;
 
-			// TODO: when to.prop === null?
 			if (from.type !== to.type) {
 				const typeClause = to.type === 'always' ? 'ALWAYS' : 'BY DEFAULT';
 				statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET GENERATED ${typeClause};`);

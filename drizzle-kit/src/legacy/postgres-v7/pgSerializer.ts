@@ -374,7 +374,6 @@ export const generatePgSnapshot = (
 			const reference = fk.reference();
 
 			const tableTo = getTableName(reference.foreignTable);
-			// TODO: resolve issue with schema undefined/public for db push(or squasher)
 			// getTableConfig(reference.foreignTable).schema || "public";
 			const schemaTo = getTableConfig(reference.foreignTable).schema;
 

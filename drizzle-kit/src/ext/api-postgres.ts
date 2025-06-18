@@ -122,7 +122,7 @@ export const pushSchema = async (
 	const { ddl: from, errors: err1 } = interimToDDL(prev);
 	const { ddl: to, errors: err2 } = interimToDDL(cur);
 
-	// TODO: handle errors
+	// TODO: handle errors, for now don't throw
 
 	const { sqlStatements, statements } = await ddlDiff(
 		from,

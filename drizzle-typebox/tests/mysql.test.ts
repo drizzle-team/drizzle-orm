@@ -417,7 +417,7 @@ test('all data types', (tc) => {
 		bigint4: t.BigInt({ minimum: 0n, maximum: CONSTANTS.INT64_UNSIGNED_MAX }),
 		binary: t.String(),
 		boolean: t.Boolean(),
-		char1: t.String({ minLength: 10, maxLength: 10 }),
+		char1: t.String({ maxLength: 10 }),
 		char2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
 		date1: t.Date(),
 		date2: t.String(),

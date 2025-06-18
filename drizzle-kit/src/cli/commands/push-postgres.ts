@@ -245,6 +245,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[]) => {
 			continue;
 		}
 
+		// todo: alter column to not null no default
 		if (statement.type === 'add_column' && statement.column.notNull && statement.column.default === null) {
 			const column = statement.column;
 			const id = identifier({ schema: column.schema, name: column.table });
