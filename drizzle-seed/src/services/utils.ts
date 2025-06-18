@@ -1,3 +1,16 @@
+import { is } from 'drizzle-orm';
+import type { PgColumn } from 'drizzle-orm/pg-core';
+import {
+	PgBigInt53,
+	PgBigInt64,
+	PgBigSerial53,
+	PgBigSerial64,
+	PgInteger,
+	PgSerial,
+	PgSmallInt,
+	PgSmallSerial,
+} from 'drizzle-orm/pg-core';
+
 export const fastCartesianProduct = (sets: (number | string | boolean | object)[][], index: number) => {
 	const resultList = [];
 	let currSet: (typeof sets)[number];
@@ -109,3 +122,14 @@ export const isValidDate = (date: Date) => {
 };
 
 export const intMax = (args: (number | bigint)[]) => args.reduce((m, e) => e > m ? e : m);
+
+export const isPostgresColumnIntLike = (column: PgColumn) => {
+	return is(column, PgSmallInt)
+		|| is(column, PgInteger)
+		|| is(column, PgBigInt53)
+		|| is(column, PgBigInt64)
+		|| is(column, PgSmallSerial)
+		|| is(column, PgSerial)
+		|| is(column, PgBigSerial53)
+		|| is(column, PgBigSerial64);
+};

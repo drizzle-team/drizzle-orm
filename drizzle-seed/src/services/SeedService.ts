@@ -1,9 +1,9 @@
 /* eslint-disable drizzle-internal/require-entity-kind */
-import { entityKind, eq, getTableColumns, is, sql } from 'drizzle-orm';
+import { entityKind, eq, is, sql } from 'drizzle-orm';
 import type { MySqlTable, MySqlTableWithColumns } from 'drizzle-orm/mysql-core';
 import { MySqlDatabase } from 'drizzle-orm/mysql-core';
 import type { PgTable, PgTableWithColumns } from 'drizzle-orm/pg-core';
-import { PgDatabase } from 'drizzle-orm/pg-core';
+import { getTableConfig, PgDatabase } from 'drizzle-orm/pg-core';
 import type { SQLiteTable, SQLiteTableWithColumns } from 'drizzle-orm/sqlite-core';
 import { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
 import type {
@@ -17,7 +17,7 @@ import { generatorsMap } from './GeneratorFuncs.ts';
 import type { AbstractGenerator, GenerateArray, GenerateInterval, GenerateWeightedCount } from './Generators.ts';
 
 import { latestVersion } from './apiVersion.ts';
-import { equalSets, generateHashFromString, intMax } from './utils.ts';
+import { equalSets, generateHashFromString, intMax, isPostgresColumnIntLike } from './utils.ts';
 
 export class SeedService {
 	static readonly entityKind: string = 'SeedService';
@@ -1256,7 +1256,8 @@ export class SeedService {
 
 			// get values to generate columns with foreign key
 
-			// if table posts contains foreign key to table users, then rel.table === 'posts' and rel.refTable === 'users', because table posts has reference to table users.
+			// if table posts contains foreign key to table users, then rel.table === 'posts' and rel.refTable === 'users',
+			// because table posts has reference to table users.
 			if (filteredRelations.length !== 0) {
 				for (const rel of filteredRelations) {
 					if (
@@ -1455,13 +1456,27 @@ export class SeedService {
 			// }
 		}
 
-		const columnsToUpdateSeq: Map<string, { tableName: string; columnName: string; valueToUpdate?: number | bigint }> =
-			new Map();
-		if (count > 0 && schema !== undefined && tableName !== undefined && schema[tableName] !== undefined) {
-			const tableColumns = getTableColumns(schema[tableName]);
-			for (const column of Object.values(tableColumns)) {
-				if (column.primary && (column.dataType === 'number' || column.dataType === 'bigint')) {
-					columnsToUpdateSeq.set(column.name, { tableName, columnName: column.name, valueToUpdate: undefined });
+		// sequence updates will only be performed for PostgreSQL, since MySQL and SQLite already update their sequences correctly on their own.
+		const columnsToUpdateSeq: Map<
+			string,
+			{ schemaName: string | undefined; tableName: string; columnName: string; valueToUpdate?: number | bigint }
+		> = new Map();
+		if (
+			count > 0 && is(db, PgDatabase) && schema !== undefined && tableName !== undefined
+			&& schema[tableName] !== undefined
+		) {
+			const tableConfig = getTableConfig(schema[tableName] as PgTable);
+			for (const column of tableConfig.columns) {
+				// TODO should I filter only primary key columns?
+				// should I filter column by dataType or by column drizzle type?
+				// column.dataType === 'number' || column.dataType === 'bigint'
+				if (isPostgresColumnIntLike(column)) {
+					columnsToUpdateSeq.set(column.name, {
+						schemaName: tableConfig.schema,
+						tableName: tableConfig.name,
+						columnName: column.name,
+						valueToUpdate: undefined,
+					});
 				}
 			}
 		}
@@ -1506,12 +1521,12 @@ export class SeedService {
 					| number
 					| boolean;
 				row[columnName as keyof typeof row] = generatedValue;
-				if (columnsToUpdateSeq.size !== 0) {
-					// colToUpdateSeq should not be undefined if columnsToUpdateSeq.size !== 0
-					const colToUpdateSeq = columnsToUpdateSeq.get(columnName)!;
+
+				const colToUpdateSeq = columnsToUpdateSeq.get(columnName);
+				if (columnsToUpdateSeq.size !== 0 && colToUpdateSeq !== undefined) {
 					colToUpdateSeq.valueToUpdate = colToUpdateSeq?.valueToUpdate === undefined
 						? generatedValue as number | bigint
-						: intMax([colToUpdateSeq?.valueToUpdate, generatedValue as number | bigint]);
+						: intMax([colToUpdateSeq!.valueToUpdate, generatedValue as number | bigint]);
 				}
 			}
 
@@ -1588,7 +1603,13 @@ export class SeedService {
 				}
 			}
 
-			if (i === count - 1 && columnsToUpdateSeq.size !== 0 && db !== undefined) {
+			const columnsToUpdateSeqFiltered = [...columnsToUpdateSeq.values()].filter((col) =>
+				col.valueToUpdate !== undefined
+			);
+			if (
+				i === count - 1
+				&& columnsToUpdateSeqFiltered.length !== 0 && db !== undefined
+			) {
 				for (const columnConfig of columnsToUpdateSeq.values()) {
 					if (columnConfig) {
 						await this.updateColumnSequence({ db, columnConfig });
@@ -1609,20 +1630,14 @@ export class SeedService {
 	}) => {
 		if (is(db, PgDatabase)) {
 			const fullTableName = schemaName ? `"${schemaName}"."${tableName}"` : `"${tableName}"`;
-			await db.execute(
-				sql.raw(
-					`SELECT setval(pg_get_serial_sequence('${fullTableName}', '"${columnName}"'), ${
-						(valueToUpdate ?? 'null').toString()
-					}, true)`,
-				),
-			);
-		} else if (is(db, MySqlDatabase)) {
-			// mysql updates auto_increment or serial column by itself
-			return;
-		} else {
-			// sqlite updates autoincrement  column by itself
-			return;
+			const rawQuery = `SELECT setval(pg_get_serial_sequence('${fullTableName}', '${columnName}'), ${
+				(valueToUpdate ?? 'null').toString()
+			}, true);`;
+			await db.execute(sql.raw(rawQuery));
 		}
+		// mysql updates auto_increment or serial column by itself
+		// sqlite updates autoincrement  column by itself
+		return;
 	};
 
 	insertInDb = async ({

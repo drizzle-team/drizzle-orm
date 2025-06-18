@@ -1,5 +1,17 @@
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
-import { integer, numeric, pgSchema, serial, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import {
+	bigint,
+	bigserial,
+	integer,
+	numeric,
+	pgSchema,
+	serial,
+	smallint,
+	smallserial,
+	text,
+	timestamp,
+	varchar,
+} from 'drizzle-orm/pg-core';
 
 export const schema = pgSchema('seeder_lib_pg');
 
@@ -125,5 +137,19 @@ export const posts = schema.table(
 		name: text(),
 		content: text(),
 		userId: integer().references(() => users.id),
+	},
+);
+
+export const testSequences = schema.table(
+	'test_sequences',
+	{
+		col1: integer().generatedAlwaysAsIdentity(),
+		col2: bigint({ mode: 'number' }).generatedByDefaultAsIdentity(),
+		col3: bigint({ mode: 'bigint' }).generatedByDefaultAsIdentity(),
+		col4: smallint(),
+		col5: serial(),
+		col6: bigserial({ mode: 'number' }),
+		col7: bigserial({ mode: 'bigint' }),
+		col8: smallserial(),
 	},
 );
