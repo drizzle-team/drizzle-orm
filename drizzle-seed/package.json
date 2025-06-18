@@ -69,7 +69,7 @@
 	},
 	"peerDependenciesMeta": {
 		"drizzle-orm": {
-			"optional": true
+			"optional": false
 		}
 	},
 	"devDependencies": {
