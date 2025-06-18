@@ -273,9 +273,73 @@ test('drop column #1. Part of check constraint', async (t) => {
 		users: newSchema.table('users', {}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [
-		'new_schema.users.id->new_schema.users.id1',
+	const { sqlStatements } = await diff(schema1, schema2, []);
+
+	expect(sqlStatements).toStrictEqual([
+		`ALTER TABLE [new_schema].[users] DROP CONSTRAINT [hey];`,
+		`ALTER TABLE [new_schema].[users] DROP COLUMN [id];`,
 	]);
+});
+
+test('drop column #2. Part of unique constraint', async (t) => {
+	const newSchema = mssqlSchema('new_schema');
+	const schema1 = {
+		newSchema,
+		users: newSchema.table('users', {
+			id: int('id'),
+		}, (t) => [unique('hey').on(t.id)]),
+	};
+
+	const schema2 = {
+		newSchema,
+		users: newSchema.table('users', {}),
+	};
+
+	const { sqlStatements } = await diff(schema1, schema2, []);
+
+	expect(sqlStatements).toStrictEqual([
+		`ALTER TABLE [new_schema].[users] DROP CONSTRAINT [hey];`,
+		`ALTER TABLE [new_schema].[users] DROP COLUMN [id];`,
+	]);
+});
+
+test('drop column #3. Part of pk', async (t) => {
+	const newSchema = mssqlSchema('new_schema');
+	const schema1 = {
+		newSchema,
+		users: newSchema.table('users', {
+			id: int('id'),
+		}, (t) => [primaryKey({ name: 'hey', columns: [t.id] })]),
+	};
+
+	const schema2 = {
+		newSchema,
+		users: newSchema.table('users', {}),
+	};
+
+	const { sqlStatements } = await diff(schema1, schema2, []);
+
+	expect(sqlStatements).toStrictEqual([
+		`ALTER TABLE [new_schema].[users] DROP CONSTRAINT [hey];`,
+		`ALTER TABLE [new_schema].[users] DROP COLUMN [id];`,
+	]);
+});
+
+test('drop column #4. Has default', async (t) => {
+	const newSchema = mssqlSchema('new_schema');
+	const schema1 = {
+		newSchema,
+		users: newSchema.table('users', {
+			id: int('id'),
+		}, (t) => [primaryKey({ name: 'hey', columns: [t.id] })]),
+	};
+
+	const schema2 = {
+		newSchema,
+		users: newSchema.table('users', {}),
+	};
+
+	const { sqlStatements } = await diff(schema1, schema2, []);
 
 	expect(sqlStatements).toStrictEqual([
 		`ALTER TABLE [new_schema].[users] DROP CONSTRAINT [hey];`,

@@ -75,7 +75,7 @@ import {
 	unionAll,
 	unique,
 	uuid,
-	uuid as cockroachdbUuid,
+	uuid as cockroachUuid,
 	varchar,
 } from 'drizzle-orm/cockroach-core';
 import getPort from 'get-port';
@@ -85,7 +85,7 @@ import { Expect } from '~/utils';
 
 declare module 'vitest' {
 	interface TestContext {
-		cockroachdb: {
+		cockroach: {
 			db: CockroachDatabase<CockroachQueryResultHKT>;
 		};
 	}
@@ -207,7 +207,7 @@ const usersOnUpdate = cockroachTable('users_on_update', {
 	updateCounter: int4('update_counter').default(sql`1`).$onUpdateFn(() => sql`update_counter + 1`),
 	updatedAt: timestamp('updated_at', { mode: 'date', precision: 3 }).$onUpdate(() => new Date()),
 	alwaysNull: text('always_null').$type<string | null>().$onUpdate(() => null),
-	// uppercaseName: text('uppercase_name').$onUpdateFn(() => sql`upper(name)`), looks like this is not supported in cockroachdb
+	uppercaseName: text('uppercase_name').$onUpdateFn(() => sql`upper(name)`),
 });
 
 const citiesTable = cockroachTable('cities', {
@@ -299,7 +299,7 @@ const jsonTestTable = cockroachTable('jsontest', {
 	jsonb: jsonb('jsonb').$type<{ string: string; number: number }>(),
 });
 
-let cockroachdbContainer: Docker.Container;
+let cockroachContainer: Docker.Container;
 
 export async function createDockerDB(): Promise<{ connectionString: string; container: Docker.Container }> {
 	const docker = new Docker();
@@ -311,7 +311,7 @@ export async function createDockerDB(): Promise<{ connectionString: string; cont
 		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
 	);
 
-	cockroachdbContainer = await docker.createContainer({
+	cockroachContainer = await docker.createContainer({
 		Image: image,
 		Cmd: ['start-single-node', '--insecure'],
 		name: `drizzle-integration-tests-${uuidV4()}`,
@@ -323,22 +323,22 @@ export async function createDockerDB(): Promise<{ connectionString: string; cont
 		},
 	});
 
-	await cockroachdbContainer.start();
+	await cockroachContainer.start();
 
 	return {
 		connectionString: `postgresql://root@127.0.0.1:${port}/defaultdb?sslmode=disable`,
-		container: cockroachdbContainer,
+		container: cockroachContainer,
 	};
 }
 
 afterAll(async () => {
-	await cockroachdbContainer?.stop().catch(console.error);
+	await cockroachContainer?.stop().catch(console.error);
 });
 
 export function tests() {
 	describe('common', () => {
 		beforeEach(async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 			await db.execute(sql`drop database defaultdb;`);
 			await db.execute(sql`create database defaultdb;`);
 			await db.execute(sql`create schema if not exists custom_migrations`);
@@ -463,7 +463,7 @@ export function tests() {
 		});
 
 		afterEach(async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 			await db.execute(sql`drop schema if exists custom_migrations cascade`);
 		});
 
@@ -607,7 +607,7 @@ export function tests() {
 		});
 
 		test('select all fields', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const now = Date.now();
 
@@ -620,7 +620,7 @@ export function tests() {
 		});
 
 		test('select sql', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersTable).values({ name: 'John' });
 			const users = await db
@@ -633,7 +633,7 @@ export function tests() {
 		});
 
 		test('select typed sql', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersTable).values({ name: 'John' });
 
@@ -645,7 +645,7 @@ export function tests() {
 		});
 
 		test('select with empty array in inArray', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 			const result = await db
@@ -659,7 +659,7 @@ export function tests() {
 		});
 
 		test('select with empty array in notInArray', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 			const result = await db
@@ -673,7 +673,7 @@ export function tests() {
 		});
 
 		test('$default function', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const insertedOrder = await db.insert(orders).values({ id: 1, region: 'Ukraine', amount: 1, quantity: 1 })
 				.returning();
@@ -697,7 +697,7 @@ export function tests() {
 		});
 
 		test('select distinct', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const usersDistinctTable = cockroachTable('users_distinct', {
 				id: int4('id').notNull(),
@@ -754,7 +754,7 @@ export function tests() {
 		});
 
 		test('insert returning sql', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const users = await db
 				.insert(usersTable)
@@ -767,7 +767,7 @@ export function tests() {
 		});
 
 		test('delete returning sql', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersTable).values({ name: 'John' });
 			const users = await db
@@ -781,7 +781,7 @@ export function tests() {
 		});
 
 		test('update returning sql', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersTable).values({ name: 'John' });
 			const users = await db
@@ -796,7 +796,7 @@ export function tests() {
 		});
 
 		test('update with returning all fields', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const now = Date.now();
 
@@ -815,7 +815,7 @@ export function tests() {
 		});
 
 		test('update with returning partial', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersTable).values({ name: 'John' });
 			const users = await db
@@ -831,7 +831,7 @@ export function tests() {
 		});
 
 		test('delete with returning all fields', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const now = Date.now();
 
@@ -846,7 +846,7 @@ export function tests() {
 		});
 
 		test('delete with returning partial', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersTable).values({ name: 'John' });
 			const users = await db.delete(usersTable).where(eq(usersTable.name, 'John')).returning({
@@ -858,7 +858,7 @@ export function tests() {
 		});
 
 		test('insert + select', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersTable).values({ name: 'John' });
 			const result = await db.select().from(usersTable);
@@ -875,7 +875,7 @@ export function tests() {
 		});
 
 		test('json insert', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersTable).values({ name: 'John', jsonb: ['foo', 'bar'] });
 			const result = await db
@@ -890,7 +890,7 @@ export function tests() {
 		});
 
 		test('char insert', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(citiesTable).values({ name: 'Austin', state: 'TX' });
 			const result = await db
@@ -901,7 +901,7 @@ export function tests() {
 		});
 
 		test('char update', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(citiesTable).values({ name: 'Austin', state: 'TX' });
 			await db.update(citiesTable).set({ name: 'Atlanta', state: 'GA' }).where(eq(citiesTable.id, 1));
@@ -913,7 +913,7 @@ export function tests() {
 		});
 
 		test('char delete', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(citiesTable).values({ name: 'Austin', state: 'TX' });
 			await db.delete(citiesTable).where(eq(citiesTable.state, 'TX'));
@@ -925,7 +925,7 @@ export function tests() {
 		});
 
 		test('insert with overridden default values', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersTable).values({ name: 'John', verified: true });
 			const result = await db.select().from(usersTable);
@@ -936,7 +936,7 @@ export function tests() {
 		});
 
 		test('insert many', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db
 				.insert(usersTable)
@@ -964,7 +964,7 @@ export function tests() {
 		});
 
 		test('insert many with returning', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const result = await db
 				.insert(usersTable)
@@ -990,7 +990,7 @@ export function tests() {
 		});
 
 		test('select with group by as field', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
@@ -1003,7 +1003,7 @@ export function tests() {
 		});
 
 		test('select with exists', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
@@ -1018,7 +1018,7 @@ export function tests() {
 		});
 
 		test('select with group by as sql', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
@@ -1031,7 +1031,7 @@ export function tests() {
 		});
 
 		test('select with group by as sql + column', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
@@ -1044,7 +1044,7 @@ export function tests() {
 		});
 
 		test('select with group by as column + sql', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
@@ -1057,7 +1057,7 @@ export function tests() {
 		});
 
 		test('select with group by complex query', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
@@ -1072,7 +1072,7 @@ export function tests() {
 		});
 
 		test('build query', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const query = db
 				.select({ id: usersTable.id, name: usersTable.name })
@@ -1087,7 +1087,7 @@ export function tests() {
 		});
 
 		test('insert sql', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersTable).values({ name: sql`${'John'}` });
 			const result = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable);
@@ -1095,7 +1095,7 @@ export function tests() {
 		});
 
 		test('partial join with alias', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 			const customerAlias = alias(usersTable, 'customer');
 
 			await db.insert(usersTable).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
@@ -1123,7 +1123,7 @@ export function tests() {
 		});
 
 		test('full join with alias', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const cockroachTable = cockroachTableCreator((name) => `prefixed_${name}`);
 
@@ -1159,7 +1159,7 @@ export function tests() {
 		});
 
 		test('select from alias', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const cockroachTable = cockroachTableCreator((name) => `prefixed_${name}`);
 
@@ -1196,7 +1196,7 @@ export function tests() {
 		});
 
 		test('insert with spaces', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersTable).values({ name: sql`'Jo   h     n'` });
 			const result = await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable);
@@ -1205,7 +1205,7 @@ export function tests() {
 		});
 
 		test('prepared statement', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersTable).values({ name: 'John' });
 			const statement = db
@@ -1221,7 +1221,7 @@ export function tests() {
 		});
 
 		test('insert: placeholders on columns with encoder', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const statement = db.insert(usersTable).values({
 				name: 'John',
@@ -1243,7 +1243,7 @@ export function tests() {
 		});
 
 		test('prepared statement reuse', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const stmt = db
 				.insert(usersTable)
@@ -1280,7 +1280,7 @@ export function tests() {
 		});
 
 		test('prepared statement with placeholder in .where', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersTable).values({ name: 'John' });
 			const stmt = db
@@ -1297,7 +1297,7 @@ export function tests() {
 		});
 
 		test('prepared statement with placeholder in .limit', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersTable).values({ name: 'John' });
 			const stmt = db
@@ -1317,7 +1317,7 @@ export function tests() {
 		});
 
 		test('prepared statement with placeholder in .offset', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersTable).values([{ name: 'John' }, { name: 'John1' }]);
 			const stmt = db
@@ -1335,7 +1335,7 @@ export function tests() {
 		});
 
 		test('prepared statement built using $dynamic', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			function withLimitOffset(qb: any) {
 				return qb.limit(sql.placeholder('limit')).offset(sql.placeholder('offset'));
@@ -1358,7 +1358,7 @@ export function tests() {
 		});
 
 		test('Query check: Insert all defaults in 1 row', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const users = cockroachTable('users', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
@@ -1378,7 +1378,7 @@ export function tests() {
 		});
 
 		test('Query check: Insert all defaults in multiple rows', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const users = cockroachTable('users', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
@@ -1399,7 +1399,7 @@ export function tests() {
 		});
 
 		test('Insert all defaults in 1 row', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const users = cockroachTable('empty_insert_single', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
@@ -1421,7 +1421,7 @@ export function tests() {
 		});
 
 		test('Insert all defaults in multiple rows', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const users = cockroachTable('empty_insert_multiple', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
@@ -1443,7 +1443,7 @@ export function tests() {
 		});
 
 		test('build query insert with onConflict do update', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const query = db
 				.insert(usersTable)
@@ -1459,7 +1459,7 @@ export function tests() {
 		});
 
 		test('build query insert with onConflict do update / multiple columns', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const query = db
 				.insert(usersTable)
@@ -1475,7 +1475,7 @@ export function tests() {
 		});
 
 		test('build query insert with onConflict do nothing', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const query = db
 				.insert(usersTable)
@@ -1491,7 +1491,7 @@ export function tests() {
 		});
 
 		test('build query insert with onConflict do nothing + target', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const query = db
 				.insert(usersTable)
@@ -1507,7 +1507,7 @@ export function tests() {
 		});
 
 		test('insert with onConflict do update', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersTable).values({ name: 'John' });
 
@@ -1525,7 +1525,7 @@ export function tests() {
 		});
 
 		test('insert with onConflict do nothing', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersTable).values({ name: 'John' });
 
@@ -1540,7 +1540,7 @@ export function tests() {
 		});
 
 		test('insert with onConflict do nothing + target', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersTable).values({ name: 'John' });
 
@@ -1558,7 +1558,7 @@ export function tests() {
 		});
 
 		test('left join (flat object fields)', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const { id: cityId } = await db
 				.insert(citiesTable)
@@ -1585,7 +1585,7 @@ export function tests() {
 		});
 
 		test('left join (grouped fields)', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const { id: cityId } = await db
 				.insert(citiesTable)
@@ -1626,7 +1626,7 @@ export function tests() {
 		});
 
 		test('left join (all fields)', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const { id: cityId } = await db
 				.insert(citiesTable)
@@ -1666,7 +1666,7 @@ export function tests() {
 		});
 
 		test('join subquery', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db
 				.insert(courseCategoriesTable)
@@ -1714,7 +1714,7 @@ export function tests() {
 		});
 
 		test('with ... select', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(orders).values([
 				{ region: 'Europe', product: 'A', amount: 10, quantity: 1 },
@@ -1833,7 +1833,7 @@ export function tests() {
 		});
 
 		test('with ... update', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const products = cockroachTable('products', {
 				id: int4('id').primaryKey().generatedAlwaysAsIdentity(),
@@ -1887,7 +1887,7 @@ export function tests() {
 		});
 
 		test('with ... insert', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const users = cockroachTable('users', {
 				username: text('username').notNull(),
@@ -1921,7 +1921,7 @@ export function tests() {
 		});
 
 		test('with ... delete', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(orders).values([
 				{ region: 'Europe', product: 'A', amount: 10, quantity: 1 },
@@ -1960,7 +1960,7 @@ export function tests() {
 		});
 
 		test('select from subquery sql', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(users2Table).values([{ name: 'John' }, { name: 'Jane' }]);
 
@@ -1975,13 +1975,13 @@ export function tests() {
 		});
 
 		test('select a field without joining its table', (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			expect(() => db.select({ name: users2Table.name }).from(usersTable).prepare('query')).toThrowError();
 		});
 
 		test('select all fields from subquery without alias', (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const sq = db.$with('sq').as(db.select({ name: sql<string>`upper(${users2Table.name})` }).from(users2Table));
 
@@ -1989,7 +1989,7 @@ export function tests() {
 		});
 
 		test('select count()', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersTable).values([{ name: 'John' }, { name: 'Jane' }]);
 
@@ -1999,7 +1999,7 @@ export function tests() {
 		});
 
 		test('select count w/ custom mapper', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			function count(value: CockroachColumn | SQLWrapper): SQL<number>;
 			function count(value: CockroachColumn | SQLWrapper, alias: string): SQL.Aliased<number>;
@@ -2019,7 +2019,7 @@ export function tests() {
 		});
 
 		test('network types', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const value: typeof network.$inferSelect = {
 				inet: '127.0.0.1',
@@ -2033,7 +2033,7 @@ export function tests() {
 		});
 
 		test('array types', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const values: typeof salEmp.$inferSelect[] = [
 				{
@@ -2054,7 +2054,7 @@ export function tests() {
 		});
 
 		test('select for ...', (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			{
 				const query = db
@@ -2108,7 +2108,7 @@ export function tests() {
 		});
 
 		test('having', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(citiesTable).values([{ name: 'London' }, { name: 'Paris' }, { name: 'New York' }]);
 
@@ -2145,7 +2145,7 @@ export function tests() {
 		});
 
 		test('view', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const newYorkers1 = cockroachView('new_yorkers')
 				.as((qb) => qb.select().from(users2Table).where(eq(users2Table.cityId, 1)));
@@ -2209,7 +2209,7 @@ export function tests() {
 
 		// NEXT
 		test('materialized view', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const newYorkers1 = cockroachMaterializedView('new_yorkers')
 				.as((qb) => qb.select().from(users2Table).where(eq(users2Table.cityId, 1)));
@@ -2279,7 +2279,7 @@ export function tests() {
 		});
 
 		test('select from existing view', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const schema = cockroachSchema('test_schema');
 
@@ -2301,7 +2301,7 @@ export function tests() {
 		});
 
 		test('select from raw sql', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const result = await db.select({
 				id: sql<string>`id`,
@@ -2315,7 +2315,7 @@ export function tests() {
 		});
 
 		test('select from raw sql with joins', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const result = await db
 				.select({
@@ -2335,7 +2335,7 @@ export function tests() {
 		});
 
 		test('join on aliased sql from select', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const result = await db
 				.select({
@@ -2358,7 +2358,7 @@ export function tests() {
 		});
 
 		test('join on aliased sql from with clause', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const users = db.$with('users').as(
 				db.select({
@@ -2401,7 +2401,7 @@ export function tests() {
 		});
 
 		test('prefixed table', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const cockroachTable = cockroachTableCreator((name) => `myprefix_${name}`);
 
@@ -2426,7 +2426,7 @@ export function tests() {
 		});
 
 		test('select from enum as ts enum', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			enum Muscle {
 				abdominals = 'abdominals',
@@ -2595,7 +2595,7 @@ export function tests() {
 		});
 
 		test('select from enum', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const muscleEnum = cockroachEnum('muscle', [
 				'abdominals',
@@ -2737,7 +2737,7 @@ export function tests() {
 		});
 
 		test('all date and time columns', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const table = cockroachTable('all_columns', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
@@ -2830,7 +2830,7 @@ export function tests() {
 		});
 
 		test('all date and time columns with timezone second case mode date', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const table = cockroachTable('all_columns', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
@@ -2866,7 +2866,7 @@ export function tests() {
 		});
 
 		test('all date and time columns with timezone third case mode date', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const table = cockroachTable('all_columns', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
@@ -2900,7 +2900,7 @@ export function tests() {
 		});
 
 		test('orderBy with aliased column', (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const query = db.select({
 				test: sql`something`.as('test'),
@@ -2910,10 +2910,10 @@ export function tests() {
 		});
 
 		test('select from sql', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const metricEntry = cockroachTable('metric_entry', {
-				id: cockroachdbUuid('id').notNull(),
+				id: cockroachUuid('id').notNull(),
 				createdAt: timestamp('created_at').notNull(),
 			});
 
@@ -2957,7 +2957,7 @@ export function tests() {
 		});
 
 		test('timestamp timezone', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const usersTableWithAndWithoutTimezone = cockroachTable('users_test_with_and_without_timezone', {
 				id: int4('id').primaryKey().generatedAlwaysAsIdentity(),
@@ -2999,7 +2999,7 @@ export function tests() {
 		});
 
 		test('transaction', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const users = cockroachTable('users_transactions', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
@@ -3038,7 +3038,7 @@ export function tests() {
 		});
 
 		test('transaction rollback', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const users = cockroachTable('users_transactions_rollback', {
 				id: int4('id').primaryKey().generatedAlwaysAsIdentity(),
@@ -3066,7 +3066,7 @@ export function tests() {
 		});
 
 		test('nested transaction', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const users = cockroachTable('users_nested_transactions', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
@@ -3095,7 +3095,7 @@ export function tests() {
 		});
 
 		test('nested transaction rollback', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const users = cockroachTable('users_nested_transactions_rollback', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
@@ -3127,7 +3127,7 @@ export function tests() {
 		});
 
 		test('join subquery with join', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const internalStaff = cockroachTable('internal_staff', {
 				userId: int4('user_id').notNull(),
@@ -3178,7 +3178,7 @@ export function tests() {
 		});
 
 		test('subquery with view', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const users = cockroachTable('users_subquery_view', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
@@ -3216,7 +3216,7 @@ export function tests() {
 		});
 
 		test('join view as subquery', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const users = cockroachTable('users_join_view', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
@@ -3269,7 +3269,7 @@ export function tests() {
 		});
 
 		test('table selection with single table', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const users = cockroachTable('users', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
@@ -3293,7 +3293,7 @@ export function tests() {
 		});
 
 		test('set null to jsonb field', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const users = cockroachTable('users', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
@@ -3314,7 +3314,7 @@ export function tests() {
 		});
 
 		test('insert undefined', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const users = cockroachTable('users', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
@@ -3335,7 +3335,7 @@ export function tests() {
 		});
 
 		test('update undefined', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const users = cockroachTable('users', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
@@ -3359,7 +3359,7 @@ export function tests() {
 		});
 
 		test('array operators', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const posts = cockroachTable('posts', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
@@ -3405,7 +3405,7 @@ export function tests() {
 		});
 
 		test('set operations (union) from query builder with subquery', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await setupSetOperationTest(db);
 
@@ -3439,7 +3439,7 @@ export function tests() {
 		});
 
 		test('set operations (union) as function', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await setupSetOperationTest(db);
 
@@ -3477,7 +3477,7 @@ export function tests() {
 		});
 
 		test('set operations (union all) from query builder', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await setupSetOperationTest(db);
 
@@ -3510,7 +3510,7 @@ export function tests() {
 		});
 
 		test('set operations (union all) as function', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await setupSetOperationTest(db);
 
@@ -3550,7 +3550,7 @@ export function tests() {
 		});
 
 		test('set operations (intersect) from query builder', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await setupSetOperationTest(db);
 
@@ -3582,7 +3582,7 @@ export function tests() {
 		});
 
 		test('set operations (intersect) as function', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await setupSetOperationTest(db);
 
@@ -3618,7 +3618,7 @@ export function tests() {
 		});
 
 		test('set operations (intersect all) from query builder', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await setupSetOperationTest(db);
 
@@ -3649,7 +3649,7 @@ export function tests() {
 		});
 
 		test('set operations (intersect all) as function', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await setupSetOperationTest(db);
 
@@ -3687,7 +3687,7 @@ export function tests() {
 		});
 
 		test('set operations (except) from query builder', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await setupSetOperationTest(db);
 
@@ -3717,7 +3717,7 @@ export function tests() {
 		});
 
 		test('set operations (except) as function', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await setupSetOperationTest(db);
 
@@ -3756,7 +3756,7 @@ export function tests() {
 		});
 
 		test('set operations (except all) from query builder', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await setupSetOperationTest(db);
 
@@ -3787,7 +3787,7 @@ export function tests() {
 		});
 
 		test('set operations (except all) as function', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await setupSetOperationTest(db);
 
@@ -3828,7 +3828,7 @@ export function tests() {
 		});
 
 		test('set operations (mixed) from query builder with subquery', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await setupSetOperationTest(db);
 			const sq = db
@@ -3867,7 +3867,7 @@ export function tests() {
 		});
 
 		test('set operations (mixed all) as function', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await setupSetOperationTest(db);
 
@@ -3918,7 +3918,7 @@ export function tests() {
 		});
 
 		test('aggregate function: count', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 			const table = aggregateTable;
 			await setupAggregateFunctionsTest(db);
 
@@ -3932,7 +3932,7 @@ export function tests() {
 		});
 
 		test('aggregate function: avg', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 			const table = aggregateTable;
 			await setupAggregateFunctionsTest(db);
 
@@ -3946,7 +3946,7 @@ export function tests() {
 		});
 
 		test('aggregate function: sum', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 			const table = aggregateTable;
 			await setupAggregateFunctionsTest(db);
 
@@ -3960,7 +3960,7 @@ export function tests() {
 		});
 
 		test('aggregate function: max', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 			const table = aggregateTable;
 			await setupAggregateFunctionsTest(db);
 
@@ -3972,7 +3972,7 @@ export function tests() {
 		});
 
 		test('aggregate function: min', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 			const table = aggregateTable;
 			await setupAggregateFunctionsTest(db);
 
@@ -3984,7 +3984,7 @@ export function tests() {
 		});
 
 		test('array mapping and parsing', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const arrays = cockroachTable('arrays_tests', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
@@ -4018,7 +4018,7 @@ export function tests() {
 		});
 
 		test('test $onUpdateFn and $onUpdate works as $default', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.execute(sql`drop table if exists ${usersOnUpdate}`);
 
@@ -4061,7 +4061,7 @@ export function tests() {
 		});
 
 		test('test $onUpdateFn and $onUpdate works updating', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.execute(sql`drop table if exists ${usersOnUpdate}`);
 
@@ -4110,7 +4110,7 @@ export function tests() {
 		});
 
 		test('test if method with sql operators', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const users = cockroachTable('users', {
 				id: int4('id').primaryKey(),
@@ -4312,7 +4312,7 @@ export function tests() {
 
 		// MySchema tests
 		test('mySchema :: select all fields', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const now = Date.now();
 
@@ -4325,7 +4325,7 @@ export function tests() {
 		});
 
 		test('mySchema :: select sql', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersMySchemaTable).values({ name: 'John' });
 			const users = await db.select({
@@ -4336,7 +4336,7 @@ export function tests() {
 		});
 
 		test('mySchema :: select typed sql', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersMySchemaTable).values({ name: 'John' });
 			const users = await db.select({
@@ -4347,7 +4347,7 @@ export function tests() {
 		});
 
 		test('mySchema :: select distinct', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const usersDistinctTable = cockroachTable('users_distinct', {
 				id: int4('id').notNull(),
@@ -4388,7 +4388,7 @@ export function tests() {
 		});
 
 		test('mySchema :: insert returning sql', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const users = await db.insert(usersMySchemaTable).values({ name: 'John' }).returning({
 				name: sql`upper(${usersMySchemaTable.name})`,
@@ -4398,7 +4398,7 @@ export function tests() {
 		});
 
 		test('mySchema :: delete returning sql', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersMySchemaTable).values({ name: 'John' });
 			const users = await db.delete(usersMySchemaTable).where(eq(usersMySchemaTable.name, 'John')).returning({
@@ -4409,7 +4409,7 @@ export function tests() {
 		});
 
 		test('mySchema :: update with returning partial', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersMySchemaTable).values({ name: 'John' });
 			const users = await db.update(usersMySchemaTable).set({ name: 'Jane' }).where(eq(usersMySchemaTable.name, 'John'))
@@ -4422,7 +4422,7 @@ export function tests() {
 		});
 
 		test('mySchema :: delete with returning all fields', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const now = Date.now();
 
@@ -4435,7 +4435,7 @@ export function tests() {
 		});
 
 		test('mySchema :: insert + select', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersMySchemaTable).values({ name: 'John' });
 			const result = await db.select().from(usersMySchemaTable);
@@ -4450,7 +4450,7 @@ export function tests() {
 		});
 
 		test('mySchema :: insert with overridden default values', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersMySchemaTable).values({ name: 'John', verified: true });
 			const result = await db.select().from(usersMySchemaTable);
@@ -4459,7 +4459,7 @@ export function tests() {
 		});
 
 		test('mySchema :: insert many', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersMySchemaTable).values([
 				{ name: 'John' },
@@ -4483,7 +4483,7 @@ export function tests() {
 		});
 
 		test('mySchema :: select with group by as field', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersMySchemaTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
@@ -4494,7 +4494,7 @@ export function tests() {
 		});
 
 		test('mySchema :: select with group by as column + sql', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersMySchemaTable).values([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
 
@@ -4505,7 +4505,7 @@ export function tests() {
 		});
 
 		test('mySchema :: build query', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const query = db.select({ id: usersMySchemaTable.id, name: usersMySchemaTable.name }).from(usersMySchemaTable)
 				.groupBy(usersMySchemaTable.id, usersMySchemaTable.name)
@@ -4518,7 +4518,7 @@ export function tests() {
 		});
 
 		test('mySchema :: partial join with alias', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 			const customerAlias = alias(usersMySchemaTable, 'customer');
 
 			await db.insert(usersMySchemaTable).values([{ id: 10, name: 'Ivan' }, { id: 11, name: 'Hans' }]);
@@ -4543,7 +4543,7 @@ export function tests() {
 		});
 
 		test('mySchema :: insert with spaces', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersMySchemaTable).values({ name: sql`'Jo   h     n'` });
 			const result = await db.select({ id: usersMySchemaTable.id, name: usersMySchemaTable.name }).from(
@@ -4554,7 +4554,7 @@ export function tests() {
 		});
 
 		test('mySchema :: prepared statement with placeholder in .limit', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersMySchemaTable).values({ name: 'John' });
 			const stmt = db
@@ -4574,7 +4574,7 @@ export function tests() {
 		});
 
 		test('mySchema :: build query insert with onConflict do update / multiple columns', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const query = db.insert(usersMySchemaTable)
 				.values({ name: 'John', jsonb: ['foo', 'bar'] })
@@ -4589,7 +4589,7 @@ export function tests() {
 		});
 
 		test('mySchema :: build query insert with onConflict do nothing + target', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const query = db.insert(usersMySchemaTable)
 				.values({ name: 'John', jsonb: ['foo', 'bar'] })
@@ -4604,7 +4604,7 @@ export function tests() {
 		});
 
 		test('mySchema :: select from tables with same name from different schema using alias', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersMySchemaTable).values({ id: 10, name: 'Ivan' });
 			await db.insert(usersTable).values({ id: 11, name: 'Hans' });
@@ -4635,7 +4635,7 @@ export function tests() {
 		});
 
 		test('mySchema :: view', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const newYorkers1 = mySchema.view('new_yorkers')
 				.as((qb) => qb.select().from(users2MySchemaTable).where(eq(users2MySchemaTable.cityId, 1)));
@@ -4698,7 +4698,7 @@ export function tests() {
 		});
 
 		test('mySchema :: materialized view', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const newYorkers1 = mySchema.materializedView('new_yorkers')
 				.as((qb) => qb.select().from(users2MySchemaTable).where(eq(users2MySchemaTable.cityId, 1)));
@@ -4768,7 +4768,7 @@ export function tests() {
 		});
 
 		test('limit 0', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersTable).values({ name: 'John' });
 			const users = await db
@@ -4780,7 +4780,7 @@ export function tests() {
 		});
 
 		test('limit -1', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(usersTable).values({ name: 'John' });
 			const users = await db
@@ -4792,7 +4792,7 @@ export function tests() {
 		});
 
 		test('Object keys as column names', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			// Tests the following:
 			// Column with required config
@@ -4835,7 +4835,7 @@ export function tests() {
 		});
 
 		test('proper json and jsonb handling', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const jsonTable = cockroachTable('json_table', {
 				jsonb: jsonb('jsonb').$type<{ name: string; age: number }>(),
@@ -4867,7 +4867,7 @@ export function tests() {
 		});
 
 		test('set json/jsonb fields with objects and retrieve with the ->> operator', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const obj = { string: 'test', number: 123 };
 			const { string: testString, number: testNumber } = obj;
@@ -4888,7 +4888,7 @@ export function tests() {
 		});
 
 		test('set json/jsonb fields with strings and retrieve with the ->> operator', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const obj = { string: 'test', number: 123 };
 			const { string: testString, number: testNumber } = obj;
@@ -4909,7 +4909,7 @@ export function tests() {
 		});
 
 		test('set json/jsonb fields with objects and retrieve with the -> operator', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const obj = { string: 'test', number: 123 };
 			const { string: testString, number: testNumber } = obj;
@@ -4930,7 +4930,7 @@ export function tests() {
 		});
 
 		test('set json/jsonb fields with strings and retrieve with the -> operator', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const obj = { string: 'test', number: 123 };
 			const { string: testString, number: testNumber } = obj;
@@ -4951,7 +4951,7 @@ export function tests() {
 		});
 
 		test('update ... from', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(cities2Table).values([
 				{ name: 'New York City' },
@@ -4983,7 +4983,7 @@ export function tests() {
 		});
 
 		test('update ... from with alias', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.insert(cities2Table).values([
 				{ name: 'New York City' },
@@ -5017,7 +5017,7 @@ export function tests() {
 		});
 
 		test('update ... from with join', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const states = cockroachTable('states', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
@@ -5120,7 +5120,7 @@ export function tests() {
 		});
 
 		test('insert into ... select', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const notifications = cockroachTable('notifications', {
 				id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
@@ -5197,7 +5197,7 @@ export function tests() {
 		});
 
 		test('insert into ... select with keys in different order', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const users1 = cockroachTable('users1', {
 				id: int4('id').primaryKey(),
@@ -5316,7 +5316,7 @@ export function tests() {
 		});
 
 		test('$count separate', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const countTestTable = cockroachTable('count_test', {
 				id: int4('id').notNull(),
@@ -5341,7 +5341,7 @@ export function tests() {
 		});
 
 		test('$count embedded', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const countTestTable = cockroachTable('count_test', {
 				id: int4('id').notNull(),
@@ -5373,7 +5373,7 @@ export function tests() {
 		});
 
 		test('$count separate reuse', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const countTestTable = cockroachTable('count_test', {
 				id: int4('id').notNull(),
@@ -5410,7 +5410,7 @@ export function tests() {
 		});
 
 		test('$count embedded reuse', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const countTestTable = cockroachTable('count_test', {
 				id: int4('id').notNull(),
@@ -5467,7 +5467,7 @@ export function tests() {
 		});
 
 		test('$count separate with filters', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const countTestTable = cockroachTable('count_test', {
 				id: int4('id').notNull(),
@@ -5492,7 +5492,7 @@ export function tests() {
 		});
 
 		test('$count embedded with filters', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const countTestTable = cockroachTable('count_test', {
 				id: int4('id').notNull(),
@@ -5524,7 +5524,7 @@ export function tests() {
 		});
 
 		test('insert multiple rows into table with generated identity column', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const identityColumnsTable = cockroachTable('identity_columns_table', {
 				id: int4('id').generatedAlwaysAsIdentity(),
@@ -5570,7 +5570,7 @@ export function tests() {
 		});
 
 		test('insert as cte', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const users = cockroachTable('users', {
 				id: int4('id').primaryKey().generatedAlwaysAsIdentity(),
@@ -5601,7 +5601,7 @@ export function tests() {
 		});
 
 		test('update as cte', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const users = cockroachTable('users', {
 				id: int4('id').primaryKey().generatedAlwaysAsIdentity(),
@@ -5640,7 +5640,7 @@ export function tests() {
 		});
 
 		test('delete as cte', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const users = cockroachTable('users', {
 				id: int4('id').primaryKey().generatedAlwaysAsIdentity(),
@@ -5678,7 +5678,7 @@ export function tests() {
 		});
 
 		test('sql operator as cte', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			const users = cockroachTable('users', {
 				id: int4('id').primaryKey().generatedAlwaysAsIdentity(),
@@ -5715,7 +5715,7 @@ export function tests() {
 		});
 
 		test('cross join', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db
 				.insert(usersTable)
@@ -5749,7 +5749,7 @@ export function tests() {
 		});
 
 		test('left join (lateral)', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db
 				.insert(citiesTable)
@@ -5784,7 +5784,7 @@ export function tests() {
 		});
 
 		test('inner join (lateral)', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db
 				.insert(citiesTable)
@@ -5818,7 +5818,7 @@ export function tests() {
 		});
 
 		test('cross join (lateral)', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db
 				.insert(citiesTable)
@@ -5891,7 +5891,7 @@ export function tests() {
 		});
 
 		test('all types', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.execute(sql`CREATE TYPE "public"."en" AS ENUM('enVal1', 'enVal2');`);
 			await db.execute(sql`
@@ -6132,7 +6132,7 @@ export function tests() {
 		});
 
 		test('generated always columns', async (ctx) => {
-			const { db } = ctx.cockroachdb;
+			const { db } = ctx.cockroach;
 
 			await db.execute(sql`
 				CREATE TABLE "gen_columns" (

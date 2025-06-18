@@ -117,17 +117,17 @@ export class MsSqlDateTimeOffsetString<T extends ColumnBaseConfig<'string', 'MsS
 	}
 }
 
-export function datetimeOffset(): MsSqlDateTimeOffsetBuilderInitial<''>;
-export function datetimeOffset<TMode extends MsSqlDatetimeConfig['mode'] & {}>(
+export function datetimeoffset(): MsSqlDateTimeOffsetBuilderInitial<''>;
+export function datetimeoffset<TMode extends MsSqlDatetimeConfig['mode'] & {}>(
 	config?: MsSqlDatetimeConfig<TMode>,
 ): Equal<TMode, 'string'> extends true ? MsSqlDateTimeOffsetStringBuilderInitial<''>
 	: MsSqlDateTimeOffsetBuilderInitial<''>;
-export function datetimeOffset<TName extends string, TMode extends MsSqlDatetimeConfig['mode'] & {}>(
+export function datetimeoffset<TName extends string, TMode extends MsSqlDatetimeConfig['mode'] & {}>(
 	name: TName,
 	config?: MsSqlDatetimeConfig<TMode>,
 ): Equal<TMode, 'string'> extends true ? MsSqlDateTimeOffsetStringBuilderInitial<TName>
 	: MsSqlDateTimeOffsetBuilderInitial<TName>;
-export function datetimeOffset(a?: string | MsSqlDatetimeConfig, b?: MsSqlDatetimeConfig) {
+export function datetimeoffset(a?: string | MsSqlDatetimeConfig, b?: MsSqlDatetimeConfig) {
 	const { name, config } = getColumnNameAndConfig<MsSqlDatetimeConfig | undefined>(a, b);
 	if (config?.mode === 'string') {
 		return new MsSqlDateTimeOffsetStringBuilder(name, config);

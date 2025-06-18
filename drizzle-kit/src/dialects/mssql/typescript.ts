@@ -27,7 +27,7 @@ const mssqlImportsList = new Set([
 	'date',
 	'datetime',
 	'datetime2',
-	'datetimeOffset',
+	'datetimeoffset',
 	'decimal',
 	'float',
 	'int',
@@ -35,7 +35,8 @@ const mssqlImportsList = new Set([
 	'real',
 	'smallint',
 	'text',
-	'nText',
+	'ntext',
+	'json',
 	'time',
 	'tinyint',
 	'varbinary',
@@ -53,21 +54,6 @@ const objToStatement2 = (json: { [s: string]: unknown }, mode: 'string' | 'numbe
 	statement += ' }';
 	return statement;
 };
-
-const mapColumnDefault = (def: Exclude<DefaultConstraint['default'], null>) => {
-	if (def.type === 'unknown') {
-		return `sql\`${def.value}\``;
-	}
-	if (def.type === 'string') {
-		return `"${def.value.replaceAll('"', '\\"')}"`;
-	}
-
-	return def.value;
-};
-
-const importsPatch = {
-	ntext: 'nText',
-} as Record<string, string>;
 
 const escapeColumnKey = (value: string) => {
 	if (/^(?![a-zA-Z_$][a-zA-Z0-9_$]*$).+$/.test(value)) {
@@ -160,15 +146,13 @@ export const ddlToTypeScript = (
 
 		if (x.entityType === 'columns' || x.entityType === 'viewColumns') {
 			let patched = x.type.replace('[]', '');
-			patched = importsPatch[patched] || patched;
 
-			patched = patched === 'double precision' ? 'doublePrecision' : patched;
-			patched = patched.startsWith('varchar(') ? 'varchar' : patched;
 			patched = patched.startsWith('nvarchar(') ? 'nvarchar' : patched;
-			patched = patched.startsWith('char(') ? 'char' : patched;
+			patched = patched.startsWith('varchar(') ? 'varchar' : patched;
 			patched = patched.startsWith('nchar(') ? 'nchar' : patched;
-			patched = patched.startsWith('binary(') ? 'binary' : patched;
+			patched = patched.startsWith('char(') ? 'char' : patched;
 			patched = patched.startsWith('varbinary(') ? 'varbinary' : patched;
+			patched = patched.startsWith('binary(') ? 'binary' : patched;
 			patched = patched.startsWith('float(') ? 'float' : patched;
 			patched = patched.startsWith('datetimeoffset(') ? 'datetimeOffset' : patched;
 			patched = patched.startsWith('datetime2(') ? 'datetime2' : patched;
@@ -190,7 +174,6 @@ export const ddlToTypeScript = (
 		const table = fullTableFromDDL(it, ddl);
 		const columns = ddl.columns.list({ schema: table.schema, table: table.name });
 		const fks = ddl.fks.list({ schema: table.schema, table: table.name });
-		const defaults = ddl.defaults.list({ schema: table.schema, table: table.name });
 
 		const func = tableSchema ? `${tableSchema}.table` : tableFn;
 		let statement = `export const ${withCasing(paramName, casing)} = ${func}("${table.name}", {\n`;
@@ -199,7 +182,7 @@ export const ddlToTypeScript = (
 			table.pk,
 			fks,
 			schemas,
-			defaults,
+			ddl.defaults.list({ schema: table.schema, table: table.name }),
 			casing,
 		);
 		statement += '}';
@@ -311,49 +294,74 @@ const mapDefault = (
 ) => {
 	if (!def) return '';
 
-	const lowered = type.toLowerCase().replace('[]', '');
+	const lowered = type.toLowerCase();
 
-	// TODO can be updated - parse?
 	if (lowered === 'datetime' || lowered === 'datetime2') {
-		return def.value === '(getdate())'
+		return def.value === 'getdate()'
 			? '.defaultGetDate()'
-			: `.default(sql\`${def.value}\`)`;
+			: `.default('${def.value}')`;
 	}
 
 	if (lowered.startsWith('time')) {
-		return def.value === '(getdate())'
+		return def.value === 'getdate()'
 			? '.defaultGetDate()'
 			: /^\d{2}:\d{2}(:\d{2})?(\.\d+)?$/.test(def.value) // Matches HH:MI, HH:MI:SS and HH:MI:SS.FFFFFF
 			? `.default('${def.value}')`
 			: `.default(sql\`${def.value}\`)`;
 	}
 
-	// TODO can be updated - parse?
 	if (lowered === 'datetimeoffset') {
-		return def.value === '(getdate())'
+		return def.value === 'getdate()'
 			? '.defaultGetDate()'
-			: `.default(sql\`${def.value}\`)`;
+			: `.default('${def.value}')`;
 	}
 
 	if (lowered === 'date') {
-		return def.value === '(getdate())'
+		return def.value === 'getdate()'
 			? '.defaultGetDate()'
 			: /^\d{4}-\d{2}-\d{2}$/.test(def.value) // Matches YYYY-MM-DD
 			? `.default('${def.value}')`
 			: `.default(sql\`${def.value}\`)`;
 	}
 
-	return `.default(${mapColumnDefault(def)})`;
+	if (lowered === 'binary' || lowered === 'varbinary') {
+		return `.default(sql\`${def.value}\`)`;
+	}
+
+	const mapper = lowered === 'char'
+			|| lowered === 'nchar'
+			|| lowered === 'varchar'
+			|| lowered === 'nvarchar'
+			|| lowered === 'text'
+			|| lowered === 'ntext'
+		? (x: string) => {
+			return `\`${x.replaceAll('`', '\\`').replaceAll("''", "'")}\``;
+		}
+		: lowered === 'bigint'
+		? (x: string) => {
+			const value = Number(x);
+			return value > Number.MAX_SAFE_INTEGER || value < Number.MIN_SAFE_INTEGER ? `${x}n` : `${x}`;
+		}
+		: lowered.startsWith('decimal') || lowered.startsWith('numeric')
+		? (x: string) => {
+			const value = Number(x);
+			return value > Number.MAX_SAFE_INTEGER || value < Number.MIN_SAFE_INTEGER ? `${x}n` : `${x}`;
+		}
+		: lowered === 'bit'
+		? (x: string) => {
+			return x === '1' ? 'true' : 'false';
+		}
+		: (x: string) => `${x}`;
+
+	return `.default(${mapper(def.value)})`;
 };
 
-const parseSize = (val: string) => {
-	if (val === 'max') return '"max"';
-	return val;
-};
 const column = (
 	type: string,
+	options: string | null,
 	name: string,
 	casing: Casing,
+	def?: DefaultConstraint['default'],
 ) => {
 	const lowered = type.toLowerCase().replace('[]', '');
 
@@ -361,15 +369,12 @@ const column = (
 		return `${withCasing(name, casing)}: bigint(${dbColumnName({ name, casing, withMode: true })}{ mode: "bigint" })`;
 	}
 
-	if (lowered.startsWith('binary')) {
-		const size = parseSize(
-			lowered.startsWith('binary(')
-				? lowered.substring(7, lowered.length - 1)
-				: '',
-		);
+	if (lowered === 'binary') {
 		let out: string;
-		if (size) {
-			out = `${withCasing(name, casing)}: binary(${dbColumnName({ name, casing, withMode: true })}{ length: ${size} })`;
+		if (options) {
+			out = `${withCasing(name, casing)}: binary(${
+				dbColumnName({ name, casing, withMode: true })
+			}{ length: ${options} })`;
 		} else {
 			out = `${withCasing(name, casing)}: binary(${dbColumnName({ name, casing })})`;
 		}
@@ -381,15 +386,12 @@ const column = (
 		return `${withCasing(name, casing)}: bit(${dbColumnName({ name, casing })})`;
 	}
 
-	if (lowered.startsWith('char')) {
-		const size = parseSize(
-			lowered.startsWith('char(')
-				? lowered.substring(5, lowered.length - 1)
-				: '',
-		);
+	if (lowered === 'char') {
 		let out: string;
-		if (size) {
-			out = `${withCasing(name, casing)}: char(${dbColumnName({ name, casing, withMode: true })}{ length: ${size} })`;
+		if (options) {
+			out = `${withCasing(name, casing)}: char(${
+				dbColumnName({ name, casing, withMode: true })
+			}{ length: ${options} })`;
 		} else {
 			out = `${withCasing(name, casing)}: char(${dbColumnName({ name, casing })})`;
 		}
@@ -397,15 +399,12 @@ const column = (
 		return out;
 	}
 
-	if (lowered.startsWith('nchar')) {
-		const size = parseSize(
-			lowered.startsWith('nchar(')
-				? lowered.substring(6, lowered.length - 1)
-				: '',
-		);
+	if (lowered === 'nchar') {
 		let out: string;
-		if (size) {
-			out = `${withCasing(name, casing)}: nchar(${dbColumnName({ name, casing, withMode: true })}{ length: ${size} })`;
+		if (options) {
+			out = `${withCasing(name, casing)}: nchar(${
+				dbColumnName({ name, casing, withMode: true })
+			}{ length: ${options} })`;
 		} else {
 			out = `${withCasing(name, casing)}: nchar(${dbColumnName({ name, casing })})`;
 		}
@@ -413,17 +412,12 @@ const column = (
 		return out;
 	}
 
-	if (lowered.startsWith('varchar')) {
-		const size = parseSize(
-			lowered.startsWith('varchar(')
-				? lowered.substring(8, lowered.length - 1)
-				: '',
-		);
+	if (lowered === 'varchar') {
 		let out: string;
-		if (size) {
+		if (options) {
 			out = `${withCasing(name, casing)}: varchar(${
 				dbColumnName({ name, casing, withMode: true })
-			}{ length: ${size} })`;
+			}{ length: ${options} })`;
 		} else {
 			out = `${withCasing(name, casing)}: varchar(${dbColumnName({ name, casing })})`;
 		}
@@ -431,17 +425,12 @@ const column = (
 		return out;
 	}
 
-	if (lowered.startsWith('nvarchar')) {
-		const size = parseSize(
-			lowered.startsWith('nvarchar(')
-				? lowered.substring(9, lowered.length - 1)
-				: '',
-		);
+	if (lowered === 'nvarchar') {
 		let out: string;
-		if (size) {
+		if (options) {
 			out = `${withCasing(name, casing)}: nvarchar(${
 				dbColumnName({ name, casing, withMode: true })
-			}{ length: ${size} })`;
+			}{ length: ${options} })`;
 		} else {
 			out = `${withCasing(name, casing)}: nvarchar(${dbColumnName({ name, casing })})`;
 		}
@@ -449,40 +438,39 @@ const column = (
 		return out;
 	}
 
-	if (lowered.startsWith('datetime2')) {
-		const precision = lowered.startsWith('datetime2(')
-			? lowered.substring(10, lowered.length - 1)
-			: '';
+	if (lowered === 'datetime2') {
+		const mode = JSON.stringify({ mode: 'string' });
+
 		let out: string;
-		if (precision) {
+		if (options) {
 			out = `${withCasing(name, casing)}: datetime2(${
 				dbColumnName({ name, casing, withMode: true })
-			}{ precision: ${precision} })`;
+			}{ precision: ${options}, mode: "string" })`;
 		} else {
-			out = `${withCasing(name, casing)}: datetime2(${dbColumnName({ name, casing })})`;
+			out = `${withCasing(name, casing)}: datetime2(${dbColumnName({ name, casing, withMode: true })}${mode})`;
 		}
 
 		return out;
 	}
 
-	if (lowered.startsWith('datetimeoffset')) {
-		const precision = lowered.startsWith('datetimeoffset(')
-			? lowered.substring(15, lowered.length - 1)
-			: '';
+	if (lowered === 'datetimeoffset') {
+		const mode = JSON.stringify({ mode: 'string' });
+
 		let out: string;
-		if (precision) {
-			out = `${withCasing(name, casing)}: datetimeOffset(${
+		if (options) {
+			out = `${withCasing(name, casing)}: datetimeoffset(${
 				dbColumnName({ name, casing, withMode: true })
-			}{ precision: ${precision} })`;
+			}{ precision: ${options}, mode: "string" })`;
 		} else {
-			out = `${withCasing(name, casing)}: datetimeOffset(${dbColumnName({ name, casing })})`;
+			out = `${withCasing(name, casing)}: datetimeoffset(${dbColumnName({ name, casing, withMode: true })}${mode})`;
 		}
 
 		return out;
 	}
 
-	if (lowered.startsWith('datetime')) {
-		return `${withCasing(name, casing)}: datetime(${dbColumnName({ name, casing })})`;
+	if (lowered === 'datetime') {
+		const mode = JSON.stringify({ mode: 'string' });
+		return `${withCasing(name, casing)}: datetime(${dbColumnName({ name, casing, withMode: true })}${mode})`;
 	}
 
 	if (lowered === 'date') {
@@ -490,35 +478,16 @@ const column = (
 		return out;
 	}
 
-	if (lowered.startsWith('decimal')) {
-		let params: { precision: string | undefined; scale: string | undefined } | undefined;
+	if (lowered === 'float') {
+		let params: { precision?: number } = {};
 
-		if (lowered.length > 7) {
-			const [precision, scale] = lowered.slice(8, lowered.length - 1).split(',');
-			params = { precision, scale };
+		if (options) {
+			params['precision'] = Number(options);
 		}
 
-		let out = params
-			? `${withCasing(name, casing)}: decimal(${dbColumnName({ name, casing, withMode: true })}${
-				objToStatement2(params, 'number')
-			})`
-			: `${withCasing(name, casing)}: decimal(${dbColumnName({ name, casing })})`;
-
-		return out;
-	}
-
-	if (lowered.startsWith('float')) {
-		const precision = lowered.startsWith('float(')
-			? lowered.substring(6, lowered.length - 1)
-			: '';
-		let out: string;
-		if (precision) {
-			out = `${withCasing(name, casing)}: float(${
-				dbColumnName({ name, casing, withMode: true })
-			}{ precision: ${precision} })`;
-		} else {
-			out = `${withCasing(name, casing)}: float(${dbColumnName({ name, casing })})`;
-		}
+		let out = Object.keys(params).length > 0
+			? `${withCasing(name, casing)}: float(${dbColumnName({ name, casing, withMode: true })}${JSON.stringify(params)})`
+			: `${withCasing(name, casing)}: float(${dbColumnName({ name, casing })})`;
 
 		return out;
 	}
@@ -529,17 +498,54 @@ const column = (
 		return out;
 	}
 
-	if (lowered.startsWith('numeric')) {
-		let params: { precision: string | undefined; scale: string | undefined } | undefined;
+	if (lowered.startsWith('decimal')) {
+		let params: { precision?: number; scale?: number; mode?: any } = {};
 
-		if (lowered.length > 7) {
-			const [precision, scale] = lowered.slice(8, lowered.length - 1).split(',');
-			params = { precision, scale };
+		if (options) {
+			const [p, s] = options.split(',');
+			if (p) params['precision'] = Number(p);
+			if (s) params['scale'] = Number(s);
 		}
 
-		let out = params
+		let mode = def && def.type === 'bigint'
+			? 'bigint'
+			: def && def.type === 'string'
+			? 'string'
+			: 'number';
+
+		if (mode) params['mode'] = mode;
+
+		let out = `// You can use { mode: "bigint" } if numbers are exceeding js number limitations\n\t`;
+		out += Object.keys(params).length > 0
+			? `${withCasing(name, casing)}: decimal(${dbColumnName({ name, casing, withMode: true })}${
+				JSON.stringify(params)
+			})`
+			: `${withCasing(name, casing)}: decimal(${dbColumnName({ name, casing })})`;
+
+		return out;
+	}
+
+	if (lowered.startsWith('numeric')) {
+		let params: { precision?: number; scale?: number; mode?: any } = {};
+
+		if (options) {
+			const [p, s] = options.split(',');
+			if (p) params['precision'] = Number(p);
+			if (s) params['scale'] = Number(s);
+		}
+
+		let mode = def && def.type === 'bigint'
+			? 'bigint'
+			: def && def.type === 'string'
+			? 'string'
+			: 'number';
+
+		if (mode) params['mode'] = mode;
+
+		let out = `// You can use { mode: "bigint" } if numbers are exceeding js number limitations\n\t`;
+		out += Object.keys(params).length > 0
 			? `${withCasing(name, casing)}: numeric(${dbColumnName({ name, casing, withMode: true })}${
-				objToStatement2(params, 'number')
+				JSON.stringify(params)
 			})`
 			: `${withCasing(name, casing)}: numeric(${dbColumnName({ name, casing })})`;
 
@@ -556,51 +562,47 @@ const column = (
 		return out;
 	}
 
-	if (lowered.startsWith('text')) {
+	if (lowered === 'text') {
 		let out = `${withCasing(name, casing)}: text(${dbColumnName({ name, casing })})`;
 		return out;
 	}
 
-	if (lowered.startsWith('ntext')) {
-		let out = `${withCasing(name, casing)}: nText(${dbColumnName({ name, casing })})`;
+	if (lowered === 'ntext') {
+		let out = `${withCasing(name, casing)}: ntext(${dbColumnName({ name, casing })})`;
 		return out;
 	}
 
-	if (lowered.startsWith('time')) {
-		const precision = lowered.startsWith('time(')
-			? lowered.substring(5, lowered.length - 1)
-			: '';
-		let out: string;
-		if (precision) {
-			out = `${withCasing(name, casing)}: time(${
-				dbColumnName({ name, casing, withMode: true })
-			}{ precision: ${precision} })`;
-		} else {
-			out = `${withCasing(name, casing)}: time(${dbColumnName({ name, casing })})`;
+	if (lowered === 'time') {
+		let params: { precision?: number; mode?: any } = {};
+
+		if (options) {
+			params['precision'] = Number(options);
 		}
 
+		params['mode'] = 'string';
+
+		let out = Object.keys(params).length > 0
+			? `${withCasing(name, casing)}: time(${dbColumnName({ name, casing, withMode: true })}${JSON.stringify(params)})`
+			: `${withCasing(name, casing)}: time(${dbColumnName({ name, casing })})`;
+
 		return out;
 	}
 
-	if (lowered.startsWith('tinyint')) {
+	if (lowered === 'tinyint') {
 		let out = `${withCasing(name, casing)}: tinyint(${dbColumnName({ name, casing })})`;
 		return out;
 	}
 
-	if (lowered.startsWith('varbinary')) {
-		const size = parseSize(
-			lowered.startsWith('varbinary(')
-				? lowered.substring(10, lowered.length - 1)
-				: '',
-		);
+	if (lowered === 'varbinary') {
 		let out: string;
-		if (size) {
-			out = `${withCasing(name, casing)}: varbinary(${
-				dbColumnName({ name, casing, withMode: true })
-			}{ length: ${size} })`;
+		if (options) {
+			out = `${withCasing(name, casing)}: varbinary(${dbColumnName({ name, casing, withMode: true })}{ length: ${
+				options === 'max' ? "'max'" : options
+			} })`;
 		} else {
 			out = `${withCasing(name, casing)}: varbinary(${dbColumnName({ name, casing })})`;
 		}
+
 		return out;
 	}
 
@@ -618,8 +620,10 @@ const createViewColumns = (
 	columns.forEach((it) => {
 		const columnStatement = column(
 			it.type,
+			null,
 			it.name,
 			casing,
+			null,
 		);
 		statement += '\t';
 		statement += columnStatement;
@@ -655,16 +659,18 @@ const createTableColumns = (
 	}, {} as Record<string, ForeignKey[]>);
 
 	columns.forEach((it) => {
+		const def = defaults.find((def) => def.column === it.name && def.schema === it.schema);
+
 		const columnStatement = column(
 			it.type,
+			it.options,
 			it.name,
 			casing,
+			def?.default,
 		);
 		const pk = primaryKey && primaryKey.columns.length === 1 && primaryKey.columns[0] === it.name
 			? primaryKey
 			: null;
-
-		const def = defaults.find((def) => def.column === it.name);
 
 		statement += '\t';
 		statement += columnStatement;

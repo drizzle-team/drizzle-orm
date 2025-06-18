@@ -3,7 +3,7 @@ import { writeFileSync } from 'fs';
 import { render, renderWithTask, TaskView } from 'hanji';
 import { Minimatch } from 'minimatch';
 import { join } from 'path';
-import { toJsonSnapshot } from 'src/dialects/cockroachdb/snapshot';
+import { toJsonSnapshot } from 'src/dialects/cockroach/snapshot';
 import {
 	CheckConstraint,
 	CockroachEntities,
@@ -18,16 +18,16 @@ import {
 	Schema,
 	Sequence,
 	View,
-} from '../../dialects/cockroachdb/ddl';
-import { ddlDiff } from '../../dialects/cockroachdb/diff';
-import { fromDatabaseForDrizzle } from '../../dialects/cockroachdb/introspect';
-import { ddlToTypeScript as cockroachdbSequenceSchemaToTypeScript } from '../../dialects/cockroachdb/typescript';
+} from '../../dialects/cockroach/ddl';
+import { ddlDiff } from '../../dialects/cockroach/diff';
+import { fromDatabaseForDrizzle } from '../../dialects/cockroach/introspect';
+import { ddlToTypeScript as cockroachSequenceSchemaToTypeScript } from '../../dialects/cockroach/typescript';
 import { originUUID } from '../../utils';
 import type { DB } from '../../utils';
 import { prepareOutFolder } from '../../utils/utils-node';
 import { resolver } from '../prompts';
 import type { Entities } from '../validations/cli';
-import type { CockroachDbCredentials } from '../validations/cockroach';
+import type { CockroachCredentials } from '../validations/cockroach';
 import type { Casing, Prefix } from '../validations/common';
 import { IntrospectProgress } from '../views';
 import { writeResult } from './generate-common';
@@ -37,14 +37,14 @@ export const handle = async (
 	casing: Casing,
 	out: string,
 	breakpoints: boolean,
-	credentials: CockroachDbCredentials,
+	credentials: CockroachCredentials,
 	tablesFilter: string[],
 	schemasFilters: string[],
 	prefix: Prefix,
 	entities: Entities,
 ) => {
-	const { prepareCockroachDB } = await import('../connections');
-	const db = await prepareCockroachDB(credentials);
+	const { prepareCockroach } = await import('../connections');
+	const db = await prepareCockroach(credentials);
 
 	const filter = prepareTablesFilter(tablesFilter);
 	const schemaFilter = (it: string) => schemasFilters.some((x) => x === it);
@@ -71,7 +71,7 @@ export const handle = async (
 		process.exit(1);
 	}
 
-	const ts = cockroachdbSequenceSchemaToTypeScript(ddl2, res.viewColumns, casing);
+	const ts = cockroachSequenceSchemaToTypeScript(ddl2, res.viewColumns, casing);
 	const relationsTs = relationsToTypeScript(ddl2.fks.list(), casing);
 
 	const schemaFile = join(out, 'schema.ts');
@@ -80,7 +80,7 @@ export const handle = async (
 	writeFileSync(relationsFile, relationsTs.file);
 	console.log();
 
-	const { snapshots, journal } = prepareOutFolder(out, 'cockroachdb');
+	const { snapshots, journal } = prepareOutFolder(out, 'cockroach');
 	if (snapshots.length === 0) {
 		const { sqlStatements, renames } = await ddlDiff(
 			createDDL(), // dry ddl
