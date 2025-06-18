@@ -22,7 +22,7 @@ export interface CreateSelectSchema {
 		refine: NoUnknownKeys<TRefine, TView['$inferSelect']>,
 	): BuildSchema<'select', TView['_']['selectedFields'], TRefine>;
 
-	<TEnum extends PgEnum<any>>(enum_: TEnum): Type<TEnum['enumValues'][number], {}>;
+	<TEnum extends PgEnum<any>>(enum_: TEnum): Type<TEnum['enumValues'][number]>;
 }
 
 export interface CreateInsertSchema {
