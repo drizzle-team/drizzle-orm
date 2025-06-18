@@ -44,8 +44,11 @@ export const fromDatabase = async (
 
 	// schema_id is needed for not joining tables by schema name but just to pass where schema_id = id
 	const introspectedSchemas = await db.query<{ schema_name: string; schema_id: number }>(`
-		SELECT name as schema_name, schema_id as schema_id
-FROM sys.schemas;
+	SELECT s.name as schema_name, s.schema_id as schema_id
+	FROM sys.schemas s
+	JOIN sys.database_principals p ON s.principal_id = p.principal_id
+	WHERE p.type IN ('S', 'U')  -- Only SQL users and Windows users
+	  AND s.name NOT IN ('guest', 'INFORMATION_SCHEMA', 'sys');
 `);
 
 	const filteredSchemas = introspectedSchemas.filter((it) => schemaFilter(it.schema_name));
@@ -286,40 +289,40 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 	for (const column of columnsList.filter((it) => it.rel_kind.trim() === 'U')) {
 		const table = tablesList.find((it) => it.object_id === column.table_object_id)!;
 		const schema = filteredSchemas.find((it) => it.schema_id === table.schema_id)!;
-		const bytesLength = column.max_length_bytes === 1 ? null : column.max_length_bytes;
 		const precision = column.precision;
 		const scale = column.scale;
+		const bytesLength = column.max_length_bytes;
 
 		const formatLength = (length: number | null, divisor: number = 1) => {
 			if (length === null) return '';
-			if (length === -1) return "'max'";
-			return `(${length / divisor})`;
+			if (length === -1) return 'max';
+			return `${length / divisor}`;
 		};
 
-		const parseType = (type: string) => {
+		const parseOptions = (type: string) => {
 			if (type === 'nchar' || type === 'nvarchar') {
-				return `${type}${formatLength(bytesLength, 2)}`;
+				return formatLength(bytesLength, 2);
 			}
 
 			if (type === 'char' || type === 'varchar' || type === 'binary' || type === 'varbinary') {
-				return `${type}${formatLength(bytesLength)}`;
+				return formatLength(bytesLength);
 			}
 
 			if (type === 'float') {
-				return `${type}(${precision})`;
+				return String(precision);
 			}
 
 			if (type === 'datetimeoffset' || type === 'datetime2' || type === 'time') {
-				return `${type}(${scale})`;
+				return String(scale);
 			}
 
 			if (type === 'decimal' || type === 'numeric') {
-				return `${type}(${precision},${scale})`;
+				return `${precision},${scale}`;
 			}
 
-			return type;
+			return null;
 		};
-		const columnType = parseType(column.type);
+		const options = parseOptions(column.type);
 
 		const unique = pksUniquesAndIdxsList.filter((it) => it.is_unique_constraint).find((it) => {
 			return it.table_id === table.object_id && it.column_id === column.column_id;
@@ -334,7 +337,8 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 			schema: schema.schema_name,
 			table: table.name,
 			name: column.name,
-			type: columnType,
+			options,
+			type: column.type,
 			isUnique: unique ? true : false,
 			uniqueName: unique ? unique.name : null,
 			pkName: pk ? pk.name : null,
@@ -530,7 +534,7 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 			entityType: 'defaults',
 			schema: schema.schema_name,
 			table: table.name,
-			default: defaultForColumn(defaultConstraint.definition),
+			default: defaultForColumn(column.type, defaultConstraint.definition),
 			nameExplicit: true,
 			column: column.name,
 			name: defaultConstraint.name,

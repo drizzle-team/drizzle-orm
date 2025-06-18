@@ -461,7 +461,7 @@ test('all data types', (t) => {
 		boolean: type.boolean,
 		date1: type.Date,
 		date2: type.string,
-		char1: type.string.exactlyLength(10),
+		char1: type.string.atMostLength(10),
 		char2: type.enumerated('a', 'b', 'c'),
 		cidr: type.string,
 		doublePrecision: type.number.atLeast(CONSTANTS.INT48_MIN).atMost(CONSTANTS.INT48_MAX),

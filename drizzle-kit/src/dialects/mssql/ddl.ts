@@ -9,6 +9,7 @@ export const createDDL = () => {
 			schema: 'required',
 			table: 'required',
 			type: 'string',
+			options: 'string?',
 			notNull: 'boolean',
 			generated: {
 				type: ['persisted', 'virtual'],
@@ -63,7 +64,7 @@ export const createDDL = () => {
 			nameExplicit: 'boolean',
 			default: {
 				value: 'string',
-				type: ['string', 'number', 'bigint', 'text', 'unknown', 'buffer', 'boolean'],
+				type: ['string', 'number', 'bigint', 'text', 'unknown', 'binary', 'boolean', 'json'],
 			},
 		},
 		views: {

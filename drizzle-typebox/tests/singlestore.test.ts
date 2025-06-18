@@ -363,6 +363,7 @@ test('all data types', (tc) => {
 		longtext,
 		mediumtext,
 		tinytext,
+		vector,
 	}) => ({
 		bigint1: bigint({ mode: 'number' }).notNull(),
 		bigint2: bigint({ mode: 'bigint' }).notNull(),
@@ -409,6 +410,10 @@ test('all data types', (tc) => {
 		mediumtext2: mediumtext({ enum: ['a', 'b', 'c'] }).notNull(),
 		tinytext1: tinytext().notNull(),
 		tinytext2: tinytext({ enum: ['a', 'b', 'c'] }).notNull(),
+		vector: vector({
+			dimensions: 3,
+			elementType: 'F32',
+		}).notNull(),
 	}));
 
 	const result = createSelectSchema(table);
@@ -419,7 +424,7 @@ test('all data types', (tc) => {
 		bigint4: t.BigInt({ minimum: 0n, maximum: CONSTANTS.INT64_UNSIGNED_MAX }),
 		binary: t.String(),
 		boolean: t.Boolean(),
-		char1: t.String({ minLength: 10, maxLength: 10 }),
+		char1: t.String({ maxLength: 10 }),
 		char2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
 		date1: t.Date(),
 		date2: t.String(),
@@ -458,6 +463,7 @@ test('all data types', (tc) => {
 		mediumtext2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
 		tinytext1: t.String({ maxLength: CONSTANTS.INT8_UNSIGNED_MAX }),
 		tinytext2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
+		vector: t.Array(t.Number(), { minItems: 3, maxItems: 3 }),
 	});
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();

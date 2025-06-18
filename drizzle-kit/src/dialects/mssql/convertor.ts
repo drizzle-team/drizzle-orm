@@ -1,5 +1,5 @@
 import { Simplify } from '../../utils';
-import { defaultNameForPK, defaultToSQL } from './grammar';
+import { defaultNameForPK, defaultToSQL, typeToSql } from './grammar';
 import { DropColumn, JsonStatement, RenameColumn } from './statements';
 
 export const convertor = <
@@ -19,7 +19,7 @@ export const convertor = <
 };
 
 const createTable = convertor('create_table', (st) => {
-	const { name, schema, columns, pk, checks, uniques } = st.table;
+	const { name, schema, columns, pk, checks, uniques, defaults } = st.table;
 
 	let statement = '';
 
@@ -36,6 +36,13 @@ const createTable = convertor('create_table', (st) => {
 		const identityStatement = identity ? ` IDENTITY(${identity.seed}, ${identity.increment})` : '';
 		const notNullStatement = isPK ? '' : column.notNull && !column.identity && !column.generated ? ' NOT NULL' : '';
 
+		const type = typeToSql(column);
+
+		const hasDefault = defaults.find((it) => it.column === column.name && it.schema === column.schema);
+		const defaultStatement = !hasDefault
+			? ''
+			: ` CONSTRAINT [${hasDefault.name}] DEFAULT ${defaultToSQL(hasDefault.default)}`;
+
 		const generatedType = column.generated?.type.toUpperCase() === 'VIRTUAL'
 			? ''
 			: column.generated?.type.toUpperCase();
@@ -45,8 +52,8 @@ const createTable = convertor('create_table', (st) => {
 
 		statement += '\t'
 			+ `[${column.name}] ${
-				generatedStatement ? '' : column.type
-			}${identityStatement}${generatedStatement}${notNullStatement}`;
+				generatedStatement ? '' : type
+			}${identityStatement}${generatedStatement}${notNullStatement}${defaultStatement}`;
 		statement += i === columns.length - 1 ? '' : ',\n';
 	}
 
@@ -92,13 +99,14 @@ const addColumn = convertor('add_column', (st) => {
 	const { column } = st;
 	const {
 		name,
-		type,
 		notNull,
 		table,
 		generated,
 		identity,
 		schema,
 	} = column;
+
+	const type = typeToSql(column);
 
 	const notNullStatement = `${notNull && !column.generated && !column.identity ? ' NOT NULL' : ''}`;
 	const identityStatement = identity ? ` IDENTITY(${identity.seed}, ${identity.increment})` : '';
@@ -141,8 +149,10 @@ const alterColumn = convertor('alter_column', (st) => {
 	const column = diff.$right;
 	const notNullStatement = `${column.notNull ? ' NOT NULL' : ''}`;
 
+	const type = typeToSql(column);
+
 	const key = column.schema !== 'dbo' ? `[${column.schema}].[${column.table}]` : `[${column.table}]`;
-	return `ALTER TABLE ${key} ALTER COLUMN [${column.name}] ${column.type}${notNullStatement};`;
+	return `ALTER TABLE ${key} ALTER COLUMN [${column.name}] ${type}${notNullStatement};`;
 });
 
 const recreateColumn = convertor('recreate_column', (st) => {

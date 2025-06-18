@@ -204,7 +204,7 @@ export const diffDefault = async <T extends MySqlColumnBuilder>(
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
-	const path = `tests/postgres/tmp/temp-${hash(String(Math.random()))}.ts`;
+	const path = `tests/mysql/tmp/temp-${hash(String(Math.random()))}.ts`;
 
 	if (existsSync(path)) rmSync(path);
 	writeFileSync(path, file.file);

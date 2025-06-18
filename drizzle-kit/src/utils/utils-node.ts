@@ -4,7 +4,7 @@ import { sync as globSync } from 'glob';
 import { join, resolve } from 'path';
 import { parse } from 'url';
 import { error, info } from '../cli/views';
-import { snapshotValidator as cockroachdbValidator } from '../dialects/cockroachdb/snapshot';
+import { snapshotValidator as cockroachValidator } from '../dialects/cockroach/snapshot';
 import { snapshotValidator as mssqlValidatorSnapshot } from '../dialects/mssql/snapshot';
 import { mysqlSchemaV5 } from '../dialects/mysql/snapshot';
 import { snapshotValidator } from '../dialects/postgres/snapshot';
@@ -141,11 +141,11 @@ const postgresValidator = (snapshot: Object): ValidationResult => {
 	return { status: 'valid' };
 };
 
-const cockroachdbSnapshotValidator = (snapshot: Object): ValidationResult => {
+const cockroachSnapshotValidator = (snapshot: Object): ValidationResult => {
 	const versionError = assertVersion(snapshot, 1);
 	if (versionError) return { status: versionError };
 
-	const res = cockroachdbValidator.parse(snapshot);
+	const res = cockroachValidator.parse(snapshot);
 	if (!res.success) {
 		return { status: 'malformed', errors: res.errors ?? [] };
 	}
@@ -220,7 +220,7 @@ export const validatorForDialect = (dialect: Dialect): (snapshot: Object) => Val
 		case 'mssql':
 			return mssqlSnapshotValidator;
 		case 'cockroach':
-			return cockroachdbSnapshotValidator;
+			return cockroachSnapshotValidator;
 		case 'gel':
 			throw Error('gel validator is not implemented yet'); // TODO
 		default:

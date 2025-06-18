@@ -321,7 +321,7 @@ export const ddlDiff = async (
 	const jsonDropColumnsStatemets = columnDeletes.filter((x) => {
 		return !jsonDropTables.some((t) => t.tableName === x.table);
 	}).map((it) => prepareStatement('drop_column', { column: it }));
-	
+
 	const createdFilteredColumns = columnsToCreate.filter((it) => !it.generated || it.generated.type === 'virtual');
 
 	const warnings: string[] = [];

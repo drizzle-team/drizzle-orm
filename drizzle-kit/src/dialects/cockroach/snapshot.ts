@@ -193,9 +193,9 @@ export const kitInternals = object({
 	),
 }).optional();
 
-export const cockroachdbSchemaInternal = object({
+export const cockroachSchemaInternal = object({
 	version: literal('1'),
-	dialect: literal('cockroachdb'),
+	dialect: literal('cockroach'),
 	tables: record(string(), table),
 	enums: record(string(), enumSchema),
 	schemas: record(string(), string()),
@@ -211,21 +211,21 @@ export const cockroachdbSchemaInternal = object({
 	internal: kitInternals,
 }).strict();
 
-export const cockroachdbSchema = cockroachdbSchemaInternal.merge(schemaHash);
+export const cockroachSchema = cockroachSchemaInternal.merge(schemaHash);
 
-export type CockroachDbSchema = TypeOf<typeof cockroachdbSchema>;
+export type CockroachSchema = TypeOf<typeof cockroachSchema>;
 
 export type Index = TypeOf<typeof index>;
 export type Column = TypeOf<typeof column>;
 
-export const toJsonSnapshot = (ddl: CockroachDDL, prevId: string, renames: string[]): CockroachDbSnapshot => {
-	return { dialect: 'cockroachdb', id: randomUUID(), prevId, version: '1', ddl: ddl.entities.list(), renames };
+export const toJsonSnapshot = (ddl: CockroachDDL, prevId: string, renames: string[]): CockroachSnapshot => {
+	return { dialect: 'cockroach', id: randomUUID(), prevId, version: '1', ddl: ddl.entities.list(), renames };
 };
 
 const ddl = createDDL();
 export const snapshotValidator = validator({
 	version: ['1'],
-	dialect: ['cockroachdb'],
+	dialect: ['cockroach'],
 	id: 'string',
 	prevId: 'string',
 	ddl: array<CockroachEntity>((it) => {
@@ -238,15 +238,15 @@ export const snapshotValidator = validator({
 	renames: array<string>((_) => true),
 });
 
-export type CockroachDbSnapshot = typeof snapshotValidator.shape;
+export type CockroachSnapshot = typeof snapshotValidator.shape;
 
 export const drySnapshot = snapshotValidator.strict(
 	{
 		version: '1',
-		dialect: 'cockroachdb',
+		dialect: 'cockroach',
 		id: originUUID,
 		prevId: '',
 		ddl: [],
 		renames: [],
-	} satisfies CockroachDbSnapshot,
+	} satisfies CockroachSnapshot,
 );

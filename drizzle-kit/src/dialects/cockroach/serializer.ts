@@ -3,7 +3,7 @@ import { schemaError, schemaWarning } from '../../cli/views';
 import { prepareFilenames } from '../../utils/utils-node';
 import { CockroachDDL, createDDL, interimToDDL } from './ddl';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from './drizzle';
-import { CockroachDbSnapshot, drySnapshot, snapshotValidator } from './snapshot';
+import { CockroachSnapshot, drySnapshot, snapshotValidator } from './snapshot';
 
 export const prepareSnapshot = async (
 	snapshots: string[],
@@ -13,9 +13,9 @@ export const prepareSnapshot = async (
 	{
 		ddlPrev: CockroachDDL;
 		ddlCur: CockroachDDL;
-		snapshot: CockroachDbSnapshot;
-		snapshotPrev: CockroachDbSnapshot;
-		custom: CockroachDbSnapshot;
+		snapshot: CockroachSnapshot;
+		snapshotPrev: CockroachSnapshot;
+		custom: CockroachSnapshot;
 	}
 > => {
 	const { readFileSync } = await import('fs') as typeof import('fs');
@@ -58,17 +58,17 @@ export const prepareSnapshot = async (
 
 	const snapshot = {
 		version: '1',
-		dialect: 'cockroachdb',
+		dialect: 'cockroach',
 		id,
 		prevId,
 		ddl: ddlCur.entities.list(),
 		renames: [],
-	} satisfies CockroachDbSnapshot;
+	} satisfies CockroachSnapshot;
 
 	const { id: _ignoredId, prevId: _ignoredPrevId, ...prevRest } = prevSnapshot;
 
 	// that's for custom migrations, when we need new IDs, but old snapshot
-	const custom: CockroachDbSnapshot = {
+	const custom: CockroachSnapshot = {
 		id,
 		prevId,
 		...prevRest,
