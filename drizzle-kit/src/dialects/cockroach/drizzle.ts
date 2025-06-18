@@ -23,7 +23,6 @@ import {
 	isCockroachView,
 	UpdateDeleteAction,
 } from 'drizzle-orm/cockroach-core';
-import { AnyGelColumn, GelDialect, GelPolicy } from 'drizzle-orm/gel-core';
 import { CasingType } from 'src/cli/validations/common';
 import { safeRegister } from 'src/utils/utils-node';
 import { assertUnreachable } from '../../utils';
@@ -60,7 +59,7 @@ import {
 	trimChar,
 } from './grammar';
 
-export const policyFrom = (policy: CockroachPolicy | GelPolicy, dialect: CockroachDialect | GelDialect) => {
+export const policyFrom = (policy: CockroachPolicy, dialect: CockroachDialect) => {
 	const mappedTo = !policy.to
 		? ['public']
 		: typeof policy.to === 'string'

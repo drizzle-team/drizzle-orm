@@ -14,7 +14,20 @@ const intSchema = v.pipe(
 	v.maxValue(Number.MAX_SAFE_INTEGER),
 	v.integer(),
 );
+const intNullableSchema = v.nullable(intSchema);
+const intOptionalSchema = v.optional(intSchema);
+const intNullableOptionalSchema = v.optional(v.nullable(intSchema));
+
 const textSchema = v.string();
+const textOptionalSchema = v.optional(textSchema);
+
+const anySchema = v.any();
+
+const extendedSchema = v.pipe(intSchema, v.maxValue(1000));
+const extendedNullableSchema = v.nullable(extendedSchema);
+const extendedOptionalSchema = v.optional(extendedSchema);
+
+const customSchema = v.pipe(v.string(), v.transform(Number));
 
 test('table - select', (t) => {
 	const table = sqliteTable('test', {
@@ -36,7 +49,7 @@ test('table - insert', (t) => {
 	});
 
 	const result = createInsertSchema(table);
-	const expected = v.object({ id: v.optional(intSchema), name: textSchema, age: v.optional(v.nullable(intSchema)) });
+	const expected = v.object({ id: intOptionalSchema, name: textSchema, age: intNullableOptionalSchema });
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -50,9 +63,9 @@ test('table - update', (t) => {
 
 	const result = createUpdateSchema(table);
 	const expected = v.object({
-		id: v.optional(intSchema),
-		name: v.optional(textSchema),
-		age: v.optional(v.nullable(intSchema)),
+		id: intOptionalSchema,
+		name: textOptionalSchema,
+		age: intNullableOptionalSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -66,7 +79,7 @@ test('view qb - select', (t) => {
 	const view = sqliteView('test').as((qb) => qb.select({ id: table.id, age: sql``.as('age') }).from(table));
 
 	const result = createSelectSchema(view);
-	const expected = v.object({ id: intSchema, age: v.any() });
+	const expected = v.object({ id: intSchema, age: anySchema });
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -102,7 +115,7 @@ test('view with nested fields - select', (t) => {
 	const result = createSelectSchema(view);
 	const expected = v.object({
 		id: intSchema,
-		nested: v.object({ name: textSchema, age: v.any() }),
+		nested: v.object({ name: textSchema, age: anySchema }),
 		table: v.object({ id: intSchema, name: textSchema }),
 	});
 	expectSchemaShape(t, expected).from(result);
@@ -119,9 +132,9 @@ test('nullability - select', (t) => {
 
 	const result = createSelectSchema(table);
 	const expected = v.object({
-		c1: v.nullable(intSchema),
+		c1: intNullableSchema,
 		c2: intSchema,
-		c3: v.nullable(intSchema),
+		c3: intNullableSchema,
 		c4: intSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
@@ -139,10 +152,10 @@ test('nullability - insert', (t) => {
 
 	const result = createInsertSchema(table);
 	const expected = v.object({
-		c1: v.optional(v.nullable(intSchema)),
+		c1: intNullableOptionalSchema,
 		c2: intSchema,
-		c3: v.optional(v.nullable(intSchema)),
-		c4: v.optional(intSchema),
+		c3: intNullableOptionalSchema,
+		c4: intOptionalSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -159,10 +172,10 @@ test('nullability - update', (t) => {
 
 	const result = createUpdateSchema(table);
 	const expected = v.object({
-		c1: v.optional(v.nullable(intSchema)),
-		c2: v.optional(intSchema),
-		c3: v.optional(v.nullable(intSchema)),
-		c4: v.optional(intSchema),
+		c1: intNullableOptionalSchema,
+		c2: intOptionalSchema,
+		c3: intNullableOptionalSchema,
+		c4: intOptionalSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -180,9 +193,9 @@ test('refine table - select', (t) => {
 		c3: v.pipe(v.string(), v.transform(Number)),
 	});
 	const expected = v.object({
-		c1: v.nullable(intSchema),
-		c2: v.pipe(intSchema, v.maxValue(1000)),
-		c3: v.pipe(v.string(), v.transform(Number)),
+		c1: intNullableSchema,
+		c2: extendedSchema,
+		c3: customSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -204,9 +217,9 @@ test('refine table - select with custom data type', (t) => {
 		c4: customTextSchema,
 	});
 	const expected = v.object({
-		c1: v.nullable(intSchema),
-		c2: v.pipe(intSchema, v.maxValue(1000)),
-		c3: v.pipe(v.string(), v.transform(Number)),
+		c1: intNullableSchema,
+		c2: extendedSchema,
+		c3: customSchema,
 		c4: customTextSchema,
 	});
 
@@ -227,9 +240,9 @@ test('refine table - insert', (t) => {
 		c3: v.pipe(v.string(), v.transform(Number)),
 	});
 	const expected = v.object({
-		c1: v.optional(v.nullable(intSchema)),
-		c2: v.pipe(intSchema, v.maxValue(1000)),
-		c3: v.pipe(v.string(), v.transform(Number)),
+		c1: intNullableOptionalSchema,
+		c2: extendedSchema,
+		c3: customSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -248,9 +261,9 @@ test('refine table - update', (t) => {
 		c3: v.pipe(v.string(), v.transform(Number)),
 	});
 	const expected = v.object({
-		c1: v.optional(v.nullable(intSchema)),
-		c2: v.optional(v.pipe(intSchema, v.maxValue(1000))),
-		c3: v.pipe(v.string(), v.transform(Number)),
+		c1: intNullableOptionalSchema,
+		c2: extendedOptionalSchema,
+		c3: customSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -292,21 +305,21 @@ test('refine view - select', (t) => {
 		},
 	});
 	const expected = v.object({
-		c1: v.nullable(intSchema),
-		c2: v.nullable(v.pipe(intSchema, v.maxValue(1000))),
-		c3: v.pipe(v.string(), v.transform(Number)),
+		c1: intNullableSchema,
+		c2: extendedNullableSchema,
+		c3: customSchema,
 		nested: v.object({
-			c4: v.nullable(intSchema),
-			c5: v.nullable(v.pipe(intSchema, v.maxValue(1000))),
-			c6: v.pipe(v.string(), v.transform(Number)),
+			c4: intNullableSchema,
+			c5: extendedNullableSchema,
+			c6: customSchema,
 		}),
 		table: v.object({
-			c1: v.nullable(intSchema),
-			c2: v.nullable(v.pipe(intSchema, v.maxValue(1000))),
-			c3: v.pipe(v.string(), v.transform(Number)),
-			c4: v.nullable(intSchema),
-			c5: v.nullable(intSchema),
-			c6: v.nullable(intSchema),
+			c1: intNullableSchema,
+			c2: extendedNullableSchema,
+			c3: customSchema,
+			c4: intNullableSchema,
+			c5: intNullableSchema,
+			c6: intNullableSchema,
 		}),
 	});
 	expectSchemaShape(t, expected).from(result);

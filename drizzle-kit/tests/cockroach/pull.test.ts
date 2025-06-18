@@ -29,13 +29,13 @@ import {
 } from 'drizzle-orm/cockroach-core';
 import fs from 'fs';
 import { DB } from 'src/utils';
-import { diffIntrospect, prepareTestDatabase, TestDatabase } from 'tests/cockroachdb/mocks';
+import { diffIntrospect, prepareTestDatabase, TestDatabase } from 'tests/cockroach/mocks';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 
 // @vitest-environment-options {"max-concurrency":1}
 
-if (!fs.existsSync('tests/cockroachdb/tmp')) {
-	fs.mkdirSync(`tests/cockroachdb/tmp`, { recursive: true });
+if (!fs.existsSync('tests/cockroach/tmp')) {
+	fs.mkdirSync(`tests/cockroach/tmp`, { recursive: true });
 }
 
 let _: TestDatabase;

@@ -20,14 +20,14 @@ import {
 	isCockroachView,
 } from 'drizzle-orm/cockroach-core';
 import { CasingType } from 'src/cli/validations/common';
-import { CockroachDDL, Column, createDDL, interimToDDL, SchemaError } from 'src/dialects/cockroachdb/ddl';
-import { ddlDiff, ddlDiffDry } from 'src/dialects/cockroachdb/diff';
+import { CockroachDDL, Column, createDDL, interimToDDL, SchemaError } from 'src/dialects/cockroach/ddl';
+import { ddlDiff, ddlDiffDry } from 'src/dialects/cockroach/diff';
 import {
 	defaultFromColumn,
 	fromDrizzleSchema,
 	prepareFromSchemaFiles,
 	unwrapColumn,
-} from 'src/dialects/cockroachdb/drizzle';
+} from 'src/dialects/cockroach/drizzle';
 import { mockResolver } from 'src/utils/mocks';
 import '../../src/@types/utils';
 import Docker from 'dockerode';
@@ -39,9 +39,9 @@ import { introspect } from 'src/cli/commands/pull-cockroach';
 import { suggestions } from 'src/cli/commands/push-cockroach';
 import { Entities } from 'src/cli/validations/cli';
 import { EmptyProgressView } from 'src/cli/views';
-import { defaultToSQL, isSystemRole } from 'src/dialects/cockroachdb/grammar';
-import { fromDatabaseForDrizzle } from 'src/dialects/cockroachdb/introspect';
-import { ddlToTypeScript } from 'src/dialects/cockroachdb/typescript';
+import { defaultToSQL, isSystemRole } from 'src/dialects/cockroach/grammar';
+import { fromDatabaseForDrizzle } from 'src/dialects/cockroach/introspect';
+import { ddlToTypeScript } from 'src/dialects/cockroach/typescript';
 import { hash } from 'src/dialects/common';
 import { DB } from 'src/utils';
 import { v4 as uuidV4 } from 'uuid';
