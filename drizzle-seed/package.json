@@ -1,13 +1,13 @@
 {
 	"name": "drizzle-seed",
-	"version": "0.3.1",
+	"version": "0.3.2",
 	"main": "index.js",
 	"type": "module",
 	"scripts": {
 		"build": "tsx scripts/build.ts",
 		"pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"test": "vitest --config ./vitest.config.ts",
-		"test:types": "cd type-tests && tsc",
+		"test:types": "cd type-tests && tsc -p ./../tsconfig.json",
 		"generate-for-tests:pg": "drizzle-kit generate --config=./src/tests/pg/drizzle.config.ts",
 		"generate-for-tests:mysql": "drizzle-kit generate --config=./src/tests/mysql/drizzle.config.ts",
 		"generate-for-tests:sqlite": "drizzle-kit generate --config=./src/tests/sqlite/drizzle.config.ts",
@@ -69,7 +69,7 @@
 	},
 	"peerDependenciesMeta": {
 		"drizzle-orm": {
-			"optional": true
+			"optional": false
 		}
 	},
 	"devDependencies": {
