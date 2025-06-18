@@ -118,7 +118,6 @@ export const ddlDiff = async (
 	const uniqueRenames = [] as { from: UniqueConstraint; to: UniqueConstraint }[];
 	const fksRenames = [] as { from: ForeignKey; to: ForeignKey }[];
 	const checkRenames = [] as { from: CheckConstraint; to: CheckConstraint }[];
-	const defaultsRenames = [] as { from: DefaultConstraint; to: DefaultConstraint }[];
 
 	for (const rename of renamedOrMovedTables) {
 		ddl1.tables.update({
@@ -455,33 +454,38 @@ export const ddlDiff = async (
 	}
 
 	const diffDefaults = diff(ddl1, ddl2, 'defaults');
-	const groupedDefaultsDiff = groupDiffs(diffDefaults);
-	const defaultsCreates = [] as DefaultConstraint[];
-	const defaultsDeletes = [] as DefaultConstraint[];
+	const defaultsCreates: DefaultConstraint[] = diffDefaults.filter((it) => it.$diffType === 'create').map((it) => ({
+		...it,
+		$diffType: undefined,
+	}));
+	const defaultsDeletes: DefaultConstraint[] = diffDefaults.filter((it) => it.$diffType === 'drop').map((it) => ({
+		...it,
+		$diffType: undefined,
+	}));
 
-	for (const entry of groupedDefaultsDiff) {
-		const { renamedOrMoved, created, deleted } = await defaultsResolver({
-			created: entry.inserted,
-			deleted: entry.deleted,
-		});
+	// TODO for now drizzle-orm does not provides passing names for defaults
+	// for (const entry of groupedDefaultsDiff) {
+	// 	const { renamedOrMoved, created, deleted } = await defaultsResolver({
+	// 		created: entry.inserted,
+	// 		deleted: entry.deleted,
+	// 	});
 
-		defaultsCreates.push(...created);
-		defaultsDeletes.push(...deleted);
-		defaultsRenames.push(...renamedOrMoved);
-	}
-
-	for (const rename of defaultsRenames) {
-		ddl1.defaults.update({
-			set: {
-				name: rename.to.name,
-				schema: rename.to.schema,
-			},
-			where: {
-				name: rename.from.name,
-				schema: rename.from.schema,
-			},
-		});
-	}
+	// 	defaultsCreates.push(...created);
+	// 	defaultsDeletes.push(...deleted);
+	// 	defaultsRenames.push(...renamedOrMoved);
+	// }
+	// for (const rename of defaultsRenames) {
+	// 	ddl1.defaults.update({
+	// 		set: {
+	// 			name: rename.to.name,
+	// 			schema: rename.to.schema,
+	// 		},
+	// 		where: {
+	// 			name: rename.from.name,
+	// 			schema: rename.from.schema,
+	// 		},
+	// 	});
+	// }
 
 	const alters = diff.alters(ddl1, ddl2);
 
@@ -791,7 +795,7 @@ export const ddlDiff = async (
 
 	// filter identity
 	const defaultsIdentityFilter = (type: 'created' | 'deleted') => {
-		return (it: DefaultConstraint) => {
+		return (it: DefaultConstraint | DiffEntities['defaults']) => {
 			return !jsonRecreateIdentityColumns.some((column) => {
 				const constraints = type === 'created' ? column.constraintsToCreate : column.constraintsToDelete;
 
@@ -804,14 +808,28 @@ export const ddlDiff = async (
 			});
 		};
 	};
-	const jsonCreateDefaults = defaultsCreates.filter(defaultsIdentityFilter('created'))
+	const jsonCreateDefaults = defaultsCreates.filter(tablesFilter('created')).filter(defaultsIdentityFilter('created'))
 		.map((defaultValue) => prepareStatement('create_default', { default: defaultValue }));
-	const jsonDropDefaults = defaultsDeletes.filter(defaultsIdentityFilter('deleted'))
+	const jsonDropDefaults = defaultsDeletes.filter(tablesFilter('deleted')).filter(defaultsIdentityFilter('deleted'))
 		.map((defaultValue) => prepareStatement('drop_default', { default: defaultValue }));
-	// TODO do we need rename?
-	const jsonRenameDefaults = defaultsRenames.map((it) =>
-		prepareStatement('rename_default', { from: it.from, to: it.to })
-	);
+	const alteredDefaults = alters.filter((it) => it.entityType === 'defaults')
+		.filter((it) => {
+			if (it.nameExplicit) {
+				delete it.nameExplicit;
+			}
+
+			if (it.default && it.default.from?.value === it.default.to?.value) {
+				delete it.default;
+			}
+
+			return ddl2.defaults.hasDiff(it);
+		})
+		.filter(defaultsIdentityFilter('created'))
+		.filter(defaultsIdentityFilter('deleted'));
+	alteredDefaults.forEach((it) => {
+		jsonCreateDefaults.push(prepareStatement('create_default', { default: it.$right }));
+		jsonDropDefaults.push(prepareStatement('drop_default', { default: it.$left }));
+	});
 
 	// filter identity
 	const fksIdentityFilter = (type: 'created' | 'deleted') => {
@@ -991,7 +1009,7 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonRenamedCheckConstraints);
 	jsonStatements.push(...jsonRenameUniqueConstraints);
 	jsonStatements.push(...jsonRenameReferences);
-	jsonStatements.push(...jsonRenameDefaults);
+	// jsonStatements.push(...jsonRenameDefaults);
 
 	jsonStatements.push(...createViews);
 

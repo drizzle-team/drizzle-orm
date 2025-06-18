@@ -1,4 +1,4 @@
-import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/cockroachdb/drizzle';
+import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/cockroach/drizzle';
 import { prepareFilenames } from 'src/utils/utils-node';
 import {
 	CheckConstraint,
@@ -14,9 +14,9 @@ import {
 	Schema,
 	Sequence,
 	View,
-} from '../../dialects/cockroachdb/ddl';
-import { ddlDiff, ddlDiffDry } from '../../dialects/cockroachdb/diff';
-import { prepareSnapshot } from '../../dialects/cockroachdb/serializer';
+} from '../../dialects/cockroach/ddl';
+import { ddlDiff, ddlDiffDry } from '../../dialects/cockroach/diff';
+import { prepareSnapshot } from '../../dialects/cockroach/serializer';
 import { assertV1OutFolder, prepareMigrationFolder } from '../../utils/utils-node';
 import { resolver } from '../prompts';
 import { writeResult } from './generate-common';

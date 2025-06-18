@@ -507,12 +507,12 @@ WHERE relnamespace IN (${filteredNamespacesIds.join(',')});`);
 		});
 	}
 
-	let columnsCount = 0;
+	let columnsCount = columnsList.filter((it) => !it.isHidden).length;
 	let indexesCount = 0;
-	let foreignKeysCount = 0;
-	let tableCount = 0;
-	let checksCount = 0;
-	let viewsCount = 0;
+	let foreignKeysCount = constraintsList.filter((it) => it.type === 'f').length;
+	let tableCount = tablesList.filter((it) => it.kind === 'r').length;
+	let checksCount = constraintsList.filter((it) => it.type === 'c').length;
+	let viewsCount = tablesList.filter((it) => it.kind === 'm' || it.kind === 'v').length;
 
 	for (const seq of sequencesList) {
 		const depend = dependList.find((it) => it.oid === seq.oid);
@@ -821,6 +821,7 @@ WHERE relnamespace IN (${filteredNamespacesIds.join(',')});`);
 
 		// filter for drizzle only?
 		const forPK = metadata.isPrimary && constraintsList.some((x) => x.type === 'p' && x.indexId === idx.oid);
+		if (!forPK) indexesCount += 1;
 
 		const expr = splitExpressions(metadata.expression);
 
@@ -930,7 +931,8 @@ WHERE relnamespace IN (${filteredNamespacesIds.join(',')});`);
 	progressCallback('columns', columnsCount, 'fetching');
 	progressCallback('checks', checksCount, 'fetching');
 	progressCallback('indexes', indexesCount, 'fetching');
-	progressCallback('tables', tableCount, 'done');
+	progressCallback('tables', tableCount, 'fetching');
+	progressCallback('views', viewsCount, 'fetching');
 
 	for (const it of columnsList.filter((x) => (x.kind === 'm' || x.kind === 'v') && !x.isHidden)) {
 		const view = viewsList.find((x) => x.oid === it.tableId)!;
@@ -974,7 +976,6 @@ WHERE relnamespace IN (${filteredNamespacesIds.join(',')});`);
 	for (const view of viewsList) {
 		const viewName = view.name;
 		if (!tablesFilter(viewName)) continue;
-		tableCount += 1;
 
 		const definition = parseViewDefinition(view.definition);
 
@@ -988,7 +989,7 @@ WHERE relnamespace IN (${filteredNamespacesIds.join(',')});`);
 		});
 	}
 
-	// TODO: update counts!
+	progressCallback('tables', tableCount, 'done');
 	progressCallback('columns', columnsCount, 'done');
 	progressCallback('indexes', indexesCount, 'done');
 	progressCallback('fks', foreignKeysCount, 'done');

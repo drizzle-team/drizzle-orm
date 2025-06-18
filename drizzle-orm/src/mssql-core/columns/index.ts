@@ -11,6 +11,7 @@ export * from './datetimeoffset.ts';
 export * from './decimal.ts';
 export * from './float.ts';
 export * from './int.ts';
+export * from './json.ts';
 export * from './numeric.ts';
 export * from './real.ts';
 export * from './smallint.ts';

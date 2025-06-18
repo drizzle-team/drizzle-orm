@@ -1745,3 +1745,281 @@ test('add composite pks on existing table', async (t) => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
+
+test('default #1', async () => {
+	const from = {
+		users: mssqlTable('users', {
+			name: varchar({ length: 255 }),
+		}),
+	};
+	const to = {
+		users: mssqlTable('users', {
+			name: varchar({ length: 255 }).default('hey'),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from, schemas: ['dbo'] });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		schemas: ['dbo'],
+	});
+
+	const st0 = [
+		`ALTER TABLE [users] ADD CONSTRAINT [users_name_default] DEFAULT 'hey' FOR [name];`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('default #2', async () => {
+	const from = {
+		users: mssqlTable('users', {
+			name: varchar({ length: 255 }).default('hey'),
+		}),
+	};
+	const to = {
+		users: mssqlTable('users', {
+			name: varchar({ length: 255 }).default('hey'),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from, schemas: ['dbo'] });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		schemas: ['dbo'],
+	});
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('default #3', async () => {
+	const from = {
+		users: mssqlTable('users', {
+			name: varchar({ length: 255 }).default('hey'),
+		}),
+	};
+	const to = {
+		users: mssqlTable('users', {
+			name: varchar({ length: 255 }).default('hey1'),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from, schemas: ['dbo'] });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		schemas: ['dbo'],
+		renames: [],
+	});
+
+	const st0 = [
+		'ALTER TABLE [users] DROP CONSTRAINT [users_name_default];',
+		"ALTER TABLE [users] ADD CONSTRAINT [users_name_default] DEFAULT 'hey1' FOR [name];",
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('default #4', async () => {
+	const mySchema = mssqlSchema('my_schema');
+	const from = {
+		mySchema,
+		users: mySchema.table('users', {
+			name: varchar({ length: 255 }).default('hey'),
+		}),
+	};
+	const to = {
+		mySchema,
+		users: mySchema.table('users', {
+			name: varchar('name2', { length: 255 }).default('hey'),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, [
+		'my_schema.users.name->my_schema.users.name2',
+	]);
+
+	await push({ db, to: from, schemas: ['dbo'] });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		schemas: ['my_schema'],
+		renames: [
+			'my_schema.users.name->my_schema.users.name2',
+		],
+	});
+
+	const st0 = [
+		"EXEC sp_rename 'my_schema.users.name', [name2], 'COLUMN';",
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+/* rename table */
+test('default #5', async () => {
+	const from = {
+		users: mssqlTable('users', {
+			name: varchar({ length: 255 }),
+			email: varchar({ length: 255 }).unique(),
+		}),
+	};
+	const to = {
+		users: mssqlTable('users2', {
+			name: varchar({ length: 255 }),
+			email: varchar({ length: 255 }).unique(),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, [
+		'dbo.users->dbo.users2',
+	]);
+
+	await push({ db, to: from, schemas: ['dbo'] });
+	const { sqlStatements: pst } = await push({
+		db,
+		to,
+		schemas: ['dbo'],
+		renames: [
+			'dbo.users->dbo.users2',
+		],
+	});
+
+	const st0 = [
+		`EXEC sp_rename 'users', [users2];`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('default multistep #1', async () => {
+	const sch1 = {
+		users: mssqlTable('users', {
+			name: varchar({ length: 255 }).default('hey'),
+		}),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, sch1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: sch1, schemas: ['dbo'] });
+
+	const e1 = [
+		"CREATE TABLE [users] (\n\t[name] varchar(255) CONSTRAINT [users_name_default] DEFAULT 'hey'\n);\n",
+	];
+	expect(st1).toStrictEqual(e1);
+	expect(pst1).toStrictEqual(e1);
+
+	const sch2 = {
+		users: mssqlTable('users2', {
+			name: varchar('name2', { length: 255 }).default('hey'),
+		}),
+	};
+
+	const renames = ['dbo.users->dbo.users2', 'dbo.users2.name->dbo.users2.name2'];
+	const { sqlStatements: st2, next: n2 } = await diff(n1, sch2, renames);
+	const { sqlStatements: pst2 } = await push({ db, to: sch2, renames, schemas: ['dbo'] });
+
+	const e2 = [
+		`EXEC sp_rename 'users', [users2];`,
+		`EXEC sp_rename 'users2.name', [name2], 'COLUMN';`,
+	];
+	expect(st2).toStrictEqual(e2);
+	expect(pst2).toStrictEqual(e2);
+
+	const { sqlStatements: st3, next: n3 } = await diff(n2, sch2, []);
+	const { sqlStatements: pst3 } = await push({ db, to: sch2, schemas: ['dbo'] });
+
+	expect(st3).toStrictEqual([]);
+	expect(pst3).toStrictEqual([]);
+
+	const sch3 = {
+		users: mssqlTable('users2', {
+			name: varchar('name2', { length: 255 }),
+		}),
+	};
+
+	const { sqlStatements: st4 } = await diff(n3, sch3, []);
+	const { sqlStatements: pst4 } = await push({ db, to: sch3, schemas: ['dbo'] });
+
+	const e3 = ['ALTER TABLE [users2] DROP CONSTRAINT [users_name_default];'];
+
+	expect(pst4).toStrictEqual(e3);
+	expect(st4).toStrictEqual(e3);
+});
+
+test('default multistep #2', async () => {
+	const sch1 = {
+		users: mssqlTable('users', {
+			name: varchar({ length: 255 }).default('hey'),
+		}),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, sch1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: sch1, schemas: ['dbo'] });
+
+	expect(st1).toStrictEqual([
+		"CREATE TABLE [users] (\n\t[name] varchar(255) CONSTRAINT [users_name_default] DEFAULT 'hey'\n);\n",
+	]);
+	expect(pst1).toStrictEqual([
+		"CREATE TABLE [users] (\n\t[name] varchar(255) CONSTRAINT [users_name_default] DEFAULT 'hey'\n);\n",
+	]);
+
+	const sch2 = {
+		users: mssqlTable('users2', {
+			name: varchar('name2', { length: 255 }).default('hey'),
+		}),
+	};
+
+	const renames = ['dbo.users->dbo.users2', 'dbo.users2.name->dbo.users2.name2'];
+	const { sqlStatements: st2, next: n2 } = await diff(n1, sch2, renames);
+	const { sqlStatements: pst2 } = await push({ db, to: sch2, renames, schemas: ['dbo'] });
+
+	const e2 = [
+		`EXEC sp_rename 'users', [users2];`,
+		`EXEC sp_rename 'users2.name', [name2], 'COLUMN';`,
+	];
+	expect(st2).toStrictEqual(e2);
+	expect(pst2).toStrictEqual(e2);
+
+	const { sqlStatements: st3, next: n3 } = await diff(n2, sch2, []);
+	const { sqlStatements: pst3 } = await push({ db, to: sch2, schemas: ['dbo'] });
+
+	expect(st3).toStrictEqual([]);
+	expect(pst3).toStrictEqual([]);
+
+	const sch3 = {
+		users: mssqlTable('users2', {
+			name: varchar('name2', { length: 255 }).default('hey1'),
+		}),
+	};
+
+	const { sqlStatements: st4, next: n4 } = await diff(n3, sch3, []);
+	const { sqlStatements: pst4 } = await push({ db, to: sch3, schemas: ['dbo'] });
+
+	const e4 = [
+		'ALTER TABLE [users2] DROP CONSTRAINT [users_name_default];',
+		"ALTER TABLE [users2] ADD CONSTRAINT [users2_name2_default] DEFAULT 'hey1' FOR [name2];",
+	];
+	expect(st4).toStrictEqual(e4);
+	expect(pst4).toStrictEqual(e4);
+
+	const sch4 = {
+		users: mssqlTable('users2', {
+			name: varchar('name2', { length: 255 }),
+		}),
+	};
+
+	const { sqlStatements: st5 } = await diff(n4, sch4, []);
+	const { sqlStatements: pst5 } = await push({ db, to: sch4, schemas: ['dbo'] });
+	expect(st5).toStrictEqual(['ALTER TABLE [users2] DROP CONSTRAINT [users2_name2_default];']);
+	expect(pst5).toStrictEqual(['ALTER TABLE [users2] DROP CONSTRAINT [users2_name2_default];']);
+});

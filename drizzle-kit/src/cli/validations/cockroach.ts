@@ -30,14 +30,14 @@ export const printConfigConnectionIssues = (
 	options: Record<string, unknown>,
 ) => {
 	if ('url' in options) {
-		let text = `Please provide required params for CockroachDb driver:\n`;
+		let text = `Please provide required params for Cockroach dialect:\n`;
 		console.log(error(text));
 		console.log(wrapParam('url', options.url, false, 'url'));
 		process.exit(1);
 	}
 
 	if ('host' in options || 'database' in options) {
-		let text = `Please provide required params for CockroachDb driver:\n`;
+		let text = `Please provide required params for Cockroach dialect:\n`;
 		console.log(error(text));
 		console.log(wrapParam('host', options.host));
 		console.log(wrapParam('port', options.port, true));
@@ -50,7 +50,7 @@ export const printConfigConnectionIssues = (
 
 	console.log(
 		error(
-			`Either connection "url" or "host", "database" are required for CockroachDb connection`,
+			`Either connection "url" or "host", "database", "user", "server" are required for Cockroach connection`,
 		),
 	);
 	process.exit(1);

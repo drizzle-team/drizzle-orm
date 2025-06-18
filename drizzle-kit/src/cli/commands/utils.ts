@@ -27,6 +27,7 @@ import {
 	libSQLCredentials,
 	printConfigConnectionIssues as printIssuesLibSQL,
 } from '../validations/libsql';
+import { printConfigConnectionIssues as printMssqlIssues } from '../validations/mssql';
 import { MssqlCredentials, mssqlCredentials } from '../validations/mssql';
 import {
 	MysqlCredentials,
@@ -966,12 +967,19 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 	}
 
 	if (dialect === 'mssql') {
-		console.log(
-			error(
-				`You can't use 'migrate' command with MsSql dialect yet`,
-			),
-		);
-		process.exit(1);
+		const parsed = mssqlCredentials.safeParse(flattened);
+		if (!parsed.success) {
+			printMssqlIssues(flattened as Record<string, unknown>);
+			process.exit(1);
+		}
+		const credentials = parsed.data;
+		return {
+			dialect,
+			out,
+			credentials,
+			schema,
+			table,
+		};
 	}
 
 	if (dialect === 'cockroach') {

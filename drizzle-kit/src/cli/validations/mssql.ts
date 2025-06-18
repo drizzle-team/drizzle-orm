@@ -43,11 +43,10 @@ export const printConfigConnectionIssues = (
 
 	let text = `Please provide required params for MySQL driver:\n`;
 	console.log(error(text));
-	console.log(wrapParam('host', options.host));
-	console.log(wrapParam('port', options.port, true));
-	console.log(wrapParam('user', options.user, true));
-	console.log(wrapParam('password', options.password, true, 'secret'));
+	console.log(wrapParam('server', options.server));
+	console.log(wrapParam('port', options.port));
+	console.log(wrapParam('user', options.user));
+	console.log(wrapParam('password', options.password, false, 'secret'));
 	console.log(wrapParam('database', options.database));
-	console.log(wrapParam('ssl', options.ssl, true));
 	process.exit(1);
 };

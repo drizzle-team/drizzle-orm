@@ -143,6 +143,7 @@ export const introspect = async (
 	filters: string[],
 	schemaFilters: string[] | ((x: string) => boolean),
 	entities: Entities,
+	progress: TaskView,
 ) => {
 	const matchers = filters.map((it) => {
 		return new Minimatch(it);
@@ -170,10 +171,7 @@ export const introspect = async (
 		}
 		return false;
 	};
-	const progress = new ProgressView(
-		'Pulling schema from database...',
-		'Pulling schema from database...',
-	);
+
 	const schemaFilter = typeof schemaFilters === 'function'
 		? schemaFilters
 		: (it: string) => schemaFilters.some((x) => x === it);

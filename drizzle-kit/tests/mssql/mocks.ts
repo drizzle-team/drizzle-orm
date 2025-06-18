@@ -1,24 +1,35 @@
 import { is } from 'drizzle-orm';
-import { MsSqlSchema, MsSqlTable, MsSqlView } from 'drizzle-orm/mssql-core';
+import {
+	int,
+	MsSqlColumnBuilder,
+	MsSqlDialect,
+	MsSqlSchema,
+	MsSqlTable,
+	mssqlTable,
+	MsSqlView,
+} from 'drizzle-orm/mssql-core';
 import { CasingType } from 'src/cli/validations/common';
-import { interimToDDL, MssqlDDL, SchemaError } from 'src/dialects/mssql/ddl';
+import { Column, interimToDDL, MssqlDDL, SchemaError } from 'src/dialects/mssql/ddl';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/mssql/diff';
-import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/mssql/drizzle';
+import { defaultFromColumn, fromDrizzleSchema, prepareFromSchemaFiles, unwrapColumn } from 'src/dialects/mssql/drizzle';
 import { mockResolver } from 'src/utils/mocks';
 import '../../src/@types/utils';
 import Docker from 'dockerode';
-import { rmSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import getPort from 'get-port';
 import mssql from 'mssql';
 import { introspect } from 'src/cli/commands/pull-mssql';
 import { Entities } from 'src/cli/validations/cli';
+import { EmptyProgressView } from 'src/cli/views';
 import { createDDL } from 'src/dialects/mssql/ddl';
+import { defaultNameForDefault, defaultToSQL } from 'src/dialects/mssql/grammar';
 import { fromDatabaseForDrizzle } from 'src/dialects/mssql/introspect';
 import { ddlToTypeScript } from 'src/dialects/mssql/typescript';
+import { hash } from 'src/dialects/mssql/utils';
 import { DB } from 'src/utils';
 import { v4 as uuid } from 'uuid';
 
-export type MssqlSchema = Record<
+export type MssqlDBSchema = Record<
 	string,
 	| MsSqlTable<any>
 	| MsSqlSchema
@@ -32,7 +43,7 @@ class MockError extends Error {
 }
 
 export const drizzleToDDL = (
-	schema: MssqlSchema,
+	schema: MssqlDBSchema,
 	casing?: CasingType | undefined,
 ) => {
 	const tables = Object.values(schema).filter((it) => is(it, MsSqlTable)) as MsSqlTable[];
@@ -53,8 +64,8 @@ export const drizzleToDDL = (
 
 // 2 schemas -> 2 ddls -> diff
 export const diff = async (
-	left: MssqlSchema | MssqlDDL,
-	right: MssqlSchema,
+	left: MssqlDBSchema | MssqlDDL,
+	right: MssqlDBSchema,
 	renamesArr: string[],
 	casing?: CasingType | undefined,
 ) => {
@@ -90,7 +101,7 @@ export const diff = async (
 
 export const diffIntrospect = async (
 	db: DB,
-	initSchema: MssqlSchema,
+	initSchema: MssqlDBSchema,
 	testName: string,
 	schemas: string[] = ['dbo'],
 	entities?: Entities,
@@ -134,7 +145,7 @@ export const diffIntrospect = async (
 // init schema flush to db -> introspect db to ddl -> compare ddl with destination schema
 export const push = async (config: {
 	db: DB;
-	to: MssqlSchema | MssqlDDL;
+	to: MssqlDBSchema | MssqlDDL;
 	renames?: string[];
 	schemas?: string[];
 	casing?: CasingType;
@@ -146,7 +157,7 @@ export const push = async (config: {
 	const casing = config.casing ?? 'camelCase';
 	const schemas = config.schemas ?? ((_: string) => true);
 
-	const { schema } = await introspect(db, [], schemas, config.entities);
+	const { schema } = await introspect(db, [], schemas, config.entities, new EmptyProgressView());
 
 	const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
 	const { ddl: ddl2, errors: err2 } = 'entities' in to && '_' in to
@@ -191,6 +202,7 @@ export const push = async (config: {
 		'push',
 	);
 
+	// TODO add hints and losses
 	// const { hints, losses } = await suggestions(db, statements);
 
 	for (const sql of sqlStatements) {
@@ -203,8 +215,8 @@ export const push = async (config: {
 
 export const diffPush = async (config: {
 	db: DB;
-	from: MssqlSchema;
-	to: MssqlSchema;
+	from: MssqlDBSchema;
+	to: MssqlDBSchema;
 	renames?: string[];
 	schemas?: string[];
 	casing?: CasingType;
@@ -311,6 +323,128 @@ export async function createDockerDB(): Promise<
 		container: mssqlContainer,
 	};
 }
+
+export const diffDefault = async <T extends MsSqlColumnBuilder>(
+	kit: TestDatabase,
+	builder: T,
+	expectedDefault: string,
+	pre: MssqlDBSchema | null = null,
+) => {
+	await kit.clear();
+
+	const config = (builder as any).config;
+	const def = config['default'];
+	const tableName = 'table';
+	const column = mssqlTable(tableName, { column: builder }).column;
+
+	const { baseType, options } = unwrapColumn(column);
+	const columnDefault = defaultFromColumn(baseType, column.default, new MsSqlDialect());
+	const defaultSql = defaultToSQL(columnDefault);
+
+	const res = [] as string[];
+	if (defaultSql !== expectedDefault) {
+		res.push(`Unexpected sql: \n${defaultSql}\n${expectedDefault}`);
+	}
+
+	const init = {
+		...pre,
+		table: mssqlTable(tableName, { column: builder }),
+	};
+
+	const { db, clear } = kit;
+	if (pre) await push({ db, to: pre });
+	const { sqlStatements: st1 } = await push({ db, to: init });
+	const { sqlStatements: st2 } = await push({ db, to: init });
+
+	let sqlType;
+	if (options === 'max') {
+		sqlType = `${baseType}(max)`;
+	} else {
+		sqlType = `${baseType}${options ? `(${options})` : ''}`;
+	}
+
+	const expectedInit = `CREATE TABLE [${tableName}] (\n\t[${column.name}] ${sqlType} CONSTRAINT [${
+		defaultNameForDefault(tableName, column.name)
+	}] DEFAULT ${expectedDefault}\n);\n`;
+	if (st1.length !== 1 || st1[0] !== expectedInit) res.push(`Unexpected init:\n${st1}\n\n${expectedInit}`);
+	if (st2.length > 0) res.push(`Unexpected subsequent init:\n${st2}`);
+
+	// introspect to schema
+	const schema = await fromDatabaseForDrizzle(db);
+	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
+
+	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
+	mkdirSync(`tests/mssql/tmp`, { recursive: true });
+	const path = `tests/mssql/tmp/temp-${hash(String(Math.random()))}.ts`;
+
+	if (existsSync(path)) rmSync(path);
+	writeFileSync(path, file.file);
+
+	const response = await prepareFromSchemaFiles([path]);
+	const sch = fromDrizzleSchema(response, 'camelCase');
+	const { ddl: ddl2, errors: e3 } = interimToDDL(sch);
+
+	const { sqlStatements: afterFileSqlStatements } = await ddlDiffDry(ddl1, ddl2, 'push');
+	if (afterFileSqlStatements.length === 0) {
+		rmSync(path);
+	} else {
+		console.log(afterFileSqlStatements);
+		console.log(`./${path}`);
+		res.push(`Default type mismatch after diff:\n${`./${path}`}`);
+	}
+
+	await clear();
+
+	config.hasDefault = false;
+	config.default = undefined;
+	const schema1 = {
+		...pre,
+		table: mssqlTable('table', { column: builder }),
+	};
+
+	config.hasDefault = true;
+	config.default = def;
+	const schema2 = {
+		...pre,
+		table: mssqlTable('table', { column: builder }),
+	};
+
+	if (pre) await push({ db, to: pre });
+	await push({ db, to: schema1 });
+	const { sqlStatements: st3 } = await push({ db, to: schema2 });
+
+	const expectedAlter = `ALTER TABLE [${tableName}] ADD CONSTRAINT [${
+		defaultNameForDefault(tableName, column.name)
+	}] DEFAULT ${expectedDefault} FOR [${column.name}];`;
+	if (st3.length !== 1 || st3[0] !== expectedAlter) res.push(`Unexpected default alter:\n${st3}\n\n${expectedAlter}`);
+
+	await clear();
+
+	const schema3 = {
+		...pre,
+		table: mssqlTable('table', { id: int().identity() }),
+	};
+
+	const schema4 = {
+		...pre,
+		table: mssqlTable('table', { id: int().identity(), column: builder }),
+	};
+
+	if (pre) await push({ db, to: pre });
+	await push({ db, to: schema3 });
+	const { sqlStatements: st4 } = await push({ db, to: schema4 });
+
+	const expectedAddColumn = `ALTER TABLE [${tableName}] ADD [${column.name}] ${sqlType};`;
+	const expectedAddDefault = `ALTER TABLE [${tableName}] ADD CONSTRAINT [${
+		defaultNameForDefault(tableName, column.name)
+	}] DEFAULT ${expectedDefault} FOR [${column.name}];`;
+	if (st4.length !== 2 || st4[0] !== expectedAddColumn || st4[1] !== expectedAddDefault) {
+		res.push(`Unexpected add column:\n${st4[0]}\n\n${expectedAddColumn}`);
+		res.push(`Unexpected add default:\n${st4[1]}\n\n${expectedAddDefault}`);
+	}
+
+	return res;
+};
 
 export const prepareTestDatabase = async (): Promise<TestDatabase> => {
 	const { container, options } = await createDockerDB();
