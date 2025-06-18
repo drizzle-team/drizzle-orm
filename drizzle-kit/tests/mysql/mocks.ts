@@ -18,11 +18,11 @@ import { CasingType } from 'src/cli/validations/common';
 import { EmptyProgressView } from 'src/cli/views';
 import { hash } from 'src/dialects/common';
 import { MysqlDDL } from 'src/dialects/mysql/ddl';
-import { defaultFromColumn } from 'src/dialects/mysql/drizzle';
-import { defaultToSQL } from 'src/dialects/mysql/grammar';
 import { createDDL, interimToDDL } from 'src/dialects/mysql/ddl';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/mysql/diff';
+import { defaultFromColumn } from 'src/dialects/mysql/drizzle';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/mysql/drizzle';
+import { defaultToSQL } from 'src/dialects/mysql/grammar';
 import { fromDatabaseForDrizzle } from 'src/dialects/mysql/introspect';
 import { ddlToTypeScript } from 'src/dialects/mysql/typescript';
 import { DB } from 'src/utils';
@@ -204,7 +204,7 @@ export const diffDefault = async <T extends MySqlColumnBuilder>(
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
-	const path = `tests/postgres/tmp/temp-${hash(String(Math.random()))}.ts`;
+	const path = `tests/mysql/tmp/temp-${hash(String(Math.random()))}.ts`;
 
 	if (existsSync(path)) rmSync(path);
 	writeFileSync(path, file.file);
@@ -314,7 +314,10 @@ export const prepareTestDatabase = async (): Promise<TestDatabase> => {
 
 			const db = {
 				query: async (sql: string, params: any[]) => {
-					const [res] = await client.query(sql);
+					const [res] = await client.query(sql).catch((e: Error) => {
+						const error = new Error(`query error: ${sql}\n\n${e.message}`);
+						throw error;
+					});
 					return res as any[];
 				},
 			};

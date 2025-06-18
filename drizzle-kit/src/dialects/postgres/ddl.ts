@@ -22,7 +22,7 @@ export const createDDL = () => {
 				type: ['null', 'boolean', 'number', 'string', 'bigint', 'json', 'func', 'unknown'],
 			},
 			generated: {
-				type: ['stored', 'virtual'],
+				type: ['stored'],
 				as: 'string',
 			},
 			identity: {
@@ -161,6 +161,7 @@ export type Column = PostgresEntities['columns'];
 export type Identity = Column['identity'];
 export type Role = PostgresEntities['roles'];
 export type Index = PostgresEntities['indexes'];
+export type IndexColumn = Index['columns'][number];
 export type ForeignKey = PostgresEntities['fks'];
 export type PrimaryKey = PostgresEntities['pks'];
 export type UniqueConstraint = PostgresEntities['uniques'];
@@ -398,6 +399,7 @@ export const interimToDDL = (
 
 	for (const it of schema.indexes) {
 		const { forPK, forUnique, ...rest } = it;
+		// TODO: check within schema, pk =[schema, table, name], we need only [schema, table]
 		const res = ddl.indexes.push(rest);
 		if (res.status === 'CONFLICT') {
 			errors.push({
@@ -407,8 +409,6 @@ export const interimToDDL = (
 				name: it.name,
 			});
 		}
-
-		// TODO: check within schema
 	}
 
 	for (const it of schema.fks) {

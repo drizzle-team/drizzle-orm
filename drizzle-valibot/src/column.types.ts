@@ -1,6 +1,6 @@
 import type { Assume, Column } from 'drizzle-orm';
 import type * as v from 'valibot';
-import type { ColumnIsGeneratedAlwaysAs, IsEnumDefined, IsNever, Json, RemoveNeverElements } from './utils.ts';
+import type { IsEnumDefined, IsNever, Json, RemoveNeverElements } from './utils.ts';
 
 export type HasBaseColumn<TColumn> = TColumn extends { _: { baseColumn: Column | undefined } }
 	? IsNever<TColumn['_']['baseColumn']> extends false ? true
@@ -14,12 +14,11 @@ export type ExtractAdditionalProperties<TColumn extends Column> = {
 		? Assume<TColumn['_'], { length: number | undefined }>['length']
 		: TColumn['_']['columnType'] extends 'MySqlText' | 'MySqlVarChar' | 'SingleStoreText' | 'SingleStoreVarChar'
 			? number
-		: TColumn['_']['columnType'] extends 'PgBinaryVector' | 'PgHalfVector' | 'PgVector'
+		: TColumn['_']['columnType'] extends 'PgBinaryVector' | 'PgHalfVector' | 'PgVector' | 'SingleStoreVector'
 			? Assume<TColumn['_'], { dimensions: number }>['dimensions']
 		: TColumn['_']['columnType'] extends 'PgArray' ? Assume<TColumn['_'], { size: number | undefined }>['size']
 		: undefined;
-	fixedLength: TColumn['_']['columnType'] extends
-		'PgChar' | 'PgHalfVector' | 'PgVector' | 'PgArray' | 'MySqlChar' | 'SingleStoreChar' ? true
+	fixedLength: TColumn['_']['columnType'] extends 'PgHalfVector' | 'PgVector' | 'PgArray' | 'SingleStoreVector' ? true
 		: false;
 };
 
@@ -46,7 +45,8 @@ export type GetValibotType<
 	TEnumValues extends string[] | undefined,
 	TBaseColumn extends Column | undefined,
 	TAdditionalProperties extends Record<string, any>,
-> = TColumnType extends 'PgHalfVector' | 'PgVector' ? TAdditionalProperties['max'] extends number ? v.SchemaWithPipe<
+> = TColumnType extends 'PgHalfVector' | 'PgVector' | 'SingleStoreVector'
+	? TAdditionalProperties['max'] extends number ? v.SchemaWithPipe<
 			[v.ArraySchema<v.NumberSchema<undefined>, undefined>, GetLengthAction<TAdditionalProperties, number[]>]
 		>
 	: v.ArraySchema<v.NumberSchema<undefined>, undefined>

@@ -136,7 +136,7 @@ export const suggestions = async (
 		if (statement.type === 'drop_column') {
 			const { table, name } = statement.column;
 
-			const res = await connection.query(`select 1 from "${name}" limit 1;`);
+			const res = await connection.query(`select 1 from "${table}" limit 1;`);
 			if (res.length > 0) hints.push(`· You're about to delete '${name}' column in a non-empty '${table}' table`);
 			continue;
 		}
