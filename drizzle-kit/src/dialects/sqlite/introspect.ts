@@ -511,8 +511,6 @@ export const fromDatabase = async (
 
 			const name = nameForUnique(table, columns.filter((it) => !it.isExpression).map((it) => it.value));
 
-			console.log('intro', name);
-
 			uniques.push({
 				entityType: 'uniques',
 				table,
