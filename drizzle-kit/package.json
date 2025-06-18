@@ -1,6 +1,6 @@
 {
 	"name": "@drizzle-team/drizzle-kit",
-	"version": "0.31.1",
+	"version": "0.31.3",
 	"homepage": "https://orm.drizzle.team",
 	"keywords": [
 		"drizzle",
@@ -38,9 +38,10 @@
 		"test": "pnpm tsc && TEST_CONFIG_PATH_PREFIX=./tests/cli/ vitest",
 		"build": "rm -rf ./dist && tsx build.ts && cp package.json dist/ && attw --pack dist",
 		"build:dev": "rm -rf ./dist && tsx build.dev.ts && tsc -p tsconfig.cli-types.json && chmod +x ./dist/index.cjs",
-		"pack": "cp package.json README.md dist/ && (cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
+		"pack": "cd dist && PACK_FILE=$(npm pack --pack-destination ..) && cd .. && rm -f package.tgz && mv \"$PACK_FILE\" package.tgz",
 		"tsc": "tsc -p tsconfig.build.json --noEmit",
-		"publish": "npm publish package.tgz"
+		"login": "npx google-artifactregistry-auth --repo-config ~/.npmrc",
+		"publish": "npm publish package.tgz --provenance=false"
 	},
 	"dependencies": {
 		"@drizzle-team/brocli": "^0.10.2",
@@ -83,7 +84,7 @@
 		"dockerode": "^4.0.6",
 		"dotenv": "^16.0.3",
 		"drizzle-kit": "0.25.0-b1faa33",
-		"drizzle-orm": "workspace:./drizzle-orm/dist",
+		"drizzle-orm": "0.44.1",
 		"env-paths": "^3.0.0",
 		"esbuild-node-externals": "^1.9.0",
 		"eslint": "^8.57.0",
