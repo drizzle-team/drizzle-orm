@@ -26,6 +26,7 @@ const {
 	studentGrades,
 	students,
 	courseOfferings,
+	customTypesTable,
 } = schema;
 
 declare module 'vitest' {
@@ -12729,6 +12730,7 @@ test('alltypes', async () => {
 			"bigint53" bigint,
 			"bigint64" bigint,
 			"bool" boolean,
+			"bytea" bytea,
 			"char" char,
 			"cidr" "cidr",
 			"date" date,
@@ -12744,6 +12746,8 @@ test('alltypes', async () => {
 			"macaddr" "macaddr",
 			"macaddr8" "macaddr8",
 			"numeric" numeric,
+			"numeric_num" numeric,
+			"numeric_big" numeric,
 			"point" "point",
 			"point_tuple" "point",
 			"real" real,
@@ -12761,6 +12765,7 @@ test('alltypes', async () => {
 			"arrbigint53" bigint[],
 			"arrbigint64" bigint[],
 			"arrbool" boolean[],
+			"arrbytea" bytea[],
 			"arrchar" char[],
 			"arrcidr" "cidr"[],
 			"arrdate" date[],
@@ -12776,6 +12781,8 @@ test('alltypes', async () => {
 			"arrmacaddr" "macaddr"[],
 			"arrmacaddr8" "macaddr8"[],
 			"arrnumeric" numeric[],
+			"arrnumeric_num" numeric[],
+			"arrnumeric_big" numeric[],
 			"arrpoint" "point"[],
 			"arrpoint_tuple" "point"[],
 			"arrreal" real[],
@@ -12804,6 +12811,7 @@ test('alltypes', async () => {
 		bigserial53: 9007199254740991,
 		bigserial64: 5044565289845416380n,
 		bool: true,
+		bytea: Buffer.from('BYTES'),
 		char: 'c',
 		cidr: '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128',
 		inet: '192.168.0.1/24',
@@ -12830,6 +12838,8 @@ test('alltypes', async () => {
 		},
 		lineTuple: [1, 2, 3],
 		numeric: '475452353476',
+		numericNum: 9007199254740991,
+		numericBig: 5044565289845416380n,
 		point: {
 			x: 24.5,
 			y: 49.6,
@@ -12848,6 +12858,7 @@ test('alltypes', async () => {
 		arrbigint53: [9007199254740991],
 		arrbigint64: [5044565289845416380n],
 		arrbool: [true],
+		arrbytea: [Buffer.from('BYTES')],
 		arrchar: ['c'],
 		arrcidr: ['2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128'],
 		arrinet: ['192.168.0.1/24'],
@@ -12874,6 +12885,8 @@ test('alltypes', async () => {
 		}],
 		arrlineTuple: [[1, 2, 3]],
 		arrnumeric: ['475452353476'],
+		arrnumericNum: [9007199254740991],
+		arrnumericBig: [5044565289845416380n],
 		arrpoint: [{
 			x: 24.5,
 			y: 49.6,
@@ -12914,6 +12927,7 @@ test('alltypes', async () => {
 			bigint53: 9007199254740991,
 			bigint64: 5044565289845416380n,
 			bool: true,
+			bytea: Buffer.from('BYTES'),
 			char: 'c',
 			cidr: '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128',
 			date: new Date('2025-03-12T00:00:00.000Z'),
@@ -12929,6 +12943,8 @@ test('alltypes', async () => {
 			macaddr: '08:00:2b:01:02:03',
 			macaddr8: '08:00:2b:01:02:03:04:05',
 			numeric: '475452353476',
+			numericNum: 9007199254740991,
+			numericBig: 5044565289845416380n,
 			point: { x: 24.5, y: 49.6 },
 			pointTuple: [57.2, 94.3],
 			real: 1.048596,
@@ -12946,6 +12962,7 @@ test('alltypes', async () => {
 			arrbigint53: [9007199254740991],
 			arrbigint64: [5044565289845416380n],
 			arrbool: [true],
+			arrbytea: [Buffer.from('BYTES')],
 			arrchar: ['c'],
 			arrcidr: ['2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128'],
 			arrdate: [new Date('2025-03-12T00:00:00.000Z')],
@@ -12961,6 +12978,8 @@ test('alltypes', async () => {
 			arrmacaddr: ['08:00:2b:01:02:03'],
 			arrmacaddr8: ['08:00:2b:01:02:03:04:05'],
 			arrnumeric: ['475452353476'],
+			arrnumericNum: [9007199254740991],
+			arrnumericBig: [5044565289845416380n],
 			arrpoint: [{ x: 24.5, y: 49.6 }],
 			arrpointTuple: [[57.2, 94.3]],
 			arrreal: [1.048596],
@@ -12973,6 +12992,93 @@ test('alltypes', async () => {
 			arrtimestampTzStr: ['2025-03-12 01:32:41.623+00'],
 			arruuid: ['b77c9eef-8e28-4654-88a1-7221b46d2a1c'],
 			arrvarchar: ['C4-'],
+		},
+	];
+
+	expect(rawRes).toStrictEqual(expectedRes);
+});
+
+test('custom types', async () => {
+	await db.execute(sql`
+		CREATE TABLE "custom_types" (
+			"id" serial,
+			"big" bigint,
+			"big_arr" bigint[],
+			"big_mtx" bigint[][],
+			"bytes" bytea,
+			"bytes_arr" bytea[],
+			"bytes_mtx" bytea[][],
+			"time" timestamp(3),
+			"time_arr" timestamp(3)[],
+			"time_mtx" timestamp(3)[][],
+			"int" integer,
+			"int_arr" integer[],
+			"int_mtx" integer[][]
+		);
+	`);
+
+	await db.insert(customTypesTable).values({
+		id: 1,
+		big: 5044565289845416380n,
+		bigArr: [5044565289845416380n],
+		bigMtx: [[5044565289845416380n]],
+		bytes: Buffer.from('BYTES'),
+		bytesArr: [Buffer.from('BYTES')],
+		bytesMtx: [[Buffer.from('BYTES')]],
+		time: new Date(1741743161623),
+		timeArr: [new Date(1741743161623)],
+		timeMtx: [[new Date(1741743161623)]],
+		int: 250,
+		intArr: [250],
+		intMtx: [[250]],
+	});
+
+	const rawRes = await db.select().from(customTypesTable);
+	const relationRootRes = await db.query.customTypesTable.findMany();
+	const { self: nestedRelationRes } = (await db.query.customTypesTable.findFirst({
+		with: {
+			self: true,
+		},
+	}))!;
+
+	type ExpectedType = {
+		id: number;
+		big: bigint | null;
+		bigArr: bigint[] | null;
+		bigMtx: bigint[][] | null;
+		bytes: Buffer | null;
+		bytesArr: Buffer[] | null;
+		bytesMtx: Buffer[][] | null;
+		time: Date | null;
+		timeArr: Date[] | null;
+		timeMtx: Date[][] | null;
+		int: number | null;
+		intArr: number[] | null;
+		intMtx: number[][] | null;
+	}[];
+
+	expectTypeOf<ExpectedType>().toEqualTypeOf(rawRes);
+	expectTypeOf(relationRootRes).toEqualTypeOf(rawRes);
+	expectTypeOf(nestedRelationRes).toEqualTypeOf(rawRes);
+
+	expect(nestedRelationRes).toStrictEqual(rawRes);
+	expect(relationRootRes).toStrictEqual(rawRes);
+
+	const expectedRes: ExpectedType = [
+		{
+			id: 1,
+			big: 5044565289845416380n,
+			bigArr: [5044565289845416380n],
+			bigMtx: [[5044565289845416380n]],
+			bytes: Buffer.from('BYTES'),
+			bytesArr: [Buffer.from('BYTES')],
+			bytesMtx: [[Buffer.from('BYTES')]],
+			time: new Date(1741743161623),
+			timeArr: [new Date(1741743161623)],
+			timeMtx: [[new Date(1741743161623)]],
+			int: 250,
+			intArr: [250],
+			intMtx: [[250]],
 		},
 	];
 

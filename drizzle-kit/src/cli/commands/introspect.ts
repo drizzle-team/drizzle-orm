@@ -52,6 +52,25 @@ import {
 	writeResult,
 } from './migrate';
 
+function postgresToRelationsPull(schema: PgSchema): SchemaForPull {
+	return Object.values(schema.tables).map((table) => ({
+		schema: table.schema,
+		foreignKeys: Object.values(table.foreignKeys),
+		uniques: [
+			...Object.values(table.uniqueConstraints).map((unq) => ({
+				columns: unq.columns,
+			})),
+			...Object.values(table.indexes).map((idx) => ({
+				columns: idx.columns.map((idxc) => {
+					if (!idxc.isExpression && idx.isUnique) {
+						return idxc.expression;
+					}
+				}).filter((item) => item !== undefined),
+			})),
+		],
+	}));
+}
+
 export const introspectPostgres = async (
 	casing: Casing,
 	out: string,
@@ -109,7 +128,8 @@ export const introspectPostgres = async (
 
 	const schema = { id: originUUID, prevId: '', ...res } as PgSchema;
 	const ts = postgresSchemaToTypeScript(schema, casing);
-	const relationsTs = relationsToTypeScript(schema, casing);
+
+	const relationsTs = relationsToTypeScript(postgresToRelationsPull(schema), casing);
 	const { internal, ...schemaWithoutInternals } = schema;
 
 	const schemaFile = join(out, 'schema.ts');
@@ -178,6 +198,25 @@ export const introspectPostgres = async (
 	process.exit(0);
 };
 
+function gelToRelationsPull(schema: GelSchema): SchemaForPull {
+	return Object.values(schema.tables).map((table) => ({
+		schema: table.schema,
+		foreignKeys: Object.values(table.foreignKeys),
+		uniques: [
+			...Object.values(table.uniqueConstraints).map((unq) => ({
+				columns: unq.columns,
+			})),
+			...Object.values(table.indexes).map((idx) => ({
+				columns: idx.columns.map((idxc) => {
+					if (!idxc.isExpression && idx.isUnique) {
+						return idxc.expression;
+					}
+				}).filter((item) => item !== undefined),
+			})),
+		],
+	}));
+}
+
 export const introspectGel = async (
 	casing: Casing,
 	out: string,
@@ -235,7 +274,8 @@ export const introspectGel = async (
 
 	const schema = { id: originUUID, prevId: '', ...res } as GelSchema;
 	const ts = gelSchemaToTypeScript(schema, casing);
-	const relationsTs = relationsToTypeScript(schema, casing);
+	// TODO
+	const relationsTs = relationsToTypeScript(gelToRelationsPull(schema), casing);
 	const { internal, ...schemaWithoutInternals } = schema;
 
 	const schemaFile = join(out, 'schema.ts');
@@ -304,6 +344,21 @@ export const introspectGel = async (
 	process.exit(0);
 };
 
+function mysqlToRelationsPull(schema: MySqlSchema): SchemaForPull {
+	return Object.values(schema.tables).map((table) => ({
+		schema: undefined,
+		foreignKeys: Object.values(table.foreignKeys),
+		uniques: [
+			...Object.values(table.uniqueConstraints).map((unq) => ({
+				columns: unq.columns,
+			})),
+			...Object.values(table.indexes).map((idx) => ({
+				columns: idx.columns,
+			})),
+		],
+	}));
+}
+
 export const introspectMysql = async (
 	casing: Casing,
 	out: string,
@@ -352,7 +407,8 @@ export const introspectMysql = async (
 
 	const schema = { id: originUUID, prevId: '', ...res } as MySqlSchema;
 	const ts = mysqlSchemaToTypeScript(schema, casing);
-	const relationsTs = relationsToTypeScript(schema, casing);
+	// TODO
+	const relationsTs = relationsToTypeScript(mysqlToRelationsPull(schema), casing);
 	const { internal, ...schemaWithoutInternals } = schema;
 
 	const schemaFile = join(out, 'schema.ts');
@@ -512,6 +568,21 @@ export const introspectSingleStore = async (
 	process.exit(0);
 };
 
+function sqliteToRelationsPull(schema: SQLiteSchema): SchemaForPull {
+	return Object.values(schema.tables).map((table) => ({
+		schema: undefined,
+		foreignKeys: Object.values(table.foreignKeys),
+		uniques: [
+			...Object.values(table.uniqueConstraints).map((unq) => ({
+				columns: unq.columns,
+			})),
+			...Object.values(table.indexes).map((idx) => ({
+				columns: idx.columns,
+			})),
+		],
+	}));
+}
+
 export const introspectSqlite = async (
 	casing: Casing,
 	out: string,
@@ -560,7 +631,8 @@ export const introspectSqlite = async (
 
 	const schema = { id: originUUID, prevId: '', ...res } as SQLiteSchema;
 	const ts = sqliteSchemaToTypeScript(schema, casing);
-	const relationsTs = relationsToTypeScript(schema, casing);
+	// TODO
+	const relationsTs = relationsToTypeScript(sqliteToRelationsPull(schema), casing);
 
 	// check orm and orm-pg api version
 
@@ -672,7 +744,8 @@ export const introspectLibSQL = async (
 
 	const schema = { id: originUUID, prevId: '', ...res } as SQLiteSchema;
 	const ts = sqliteSchemaToTypeScript(schema, casing);
-	const relationsTs = relationsToTypeScript(schema, casing);
+	// TODO
+	const relationsTs = relationsToTypeScript(sqliteToRelationsPull(schema), casing);
 
 	// check orm and orm-pg api version
 
@@ -747,28 +820,26 @@ const withCasing = (value: string, casing: Casing) => {
 	assertUnreachable(casing);
 };
 
+export type SchemaForPull = {
+	schema?: string;
+	foreignKeys: {
+		name: string;
+		tableFrom: string;
+		columnsFrom: string[];
+		tableTo: string;
+		schemaTo?: string;
+		columnsTo: string[];
+		onUpdate?: string | undefined;
+		onDelete?: string | undefined;
+	}[];
+	// both unique constraints and unique indexes
+	uniques: {
+		columns: string[];
+	}[];
+}[];
+
 export const relationsToTypeScript = (
-	schema: {
-		tables: Record<
-			string,
-			{
-				schema?: string;
-				foreignKeys: Record<
-					string,
-					{
-						name: string;
-						tableFrom: string;
-						columnsFrom: string[];
-						tableTo: string;
-						schemaTo?: string;
-						columnsTo: string[];
-						onUpdate?: string | undefined;
-						onDelete?: string | undefined;
-					}
-				>;
-			}
-		>;
-	},
+	schema: SchemaForPull,
 	casing: Casing,
 ) => {
 	const imports: string[] = [];
@@ -776,7 +847,7 @@ export const relationsToTypeScript = (
 		string,
 		{
 			name: string;
-			type: 'one' | 'many' | 'through';
+			type: 'one' | 'many' | 'through' | 'many-through' | 'one-one';
 			tableFrom: string;
 			schemaFrom?: string;
 			columnsFrom: string[];
@@ -791,14 +862,8 @@ export const relationsToTypeScript = (
 	> = {};
 
 	// Process all foreign keys as before.
-	Object.values(schema.tables).forEach((table) => {
+	schema.forEach((table) => {
 		const fks = Object.values(table.foreignKeys);
-
-		// if table has 2 from fk's(one) from different tables
-		//   - do not include this table in one
-		//   - include many and one of them include through
-
-		// if more - just one to many
 
 		if (fks.length === 2) {
 			const [fk1, fk2] = fks;
@@ -839,11 +904,15 @@ export const relationsToTypeScript = (
 
 				tableRelations[toTable2].push({
 					name: plural(toTable1),
-					type: 'many',
-					tableFrom: tableFrom2,
-					columnsFrom: fk2.columnsFrom,
-					tableTo: toTable2,
+					// this type is used for .many() side of relation, when another side has .through() with from and to fields
+					type: 'many-through',
+					tableFrom: toTable2,
+					columnsFrom: fk2.columnsTo,
+					tableTo: toTable1,
 					columnsTo: columnsTo2,
+					tableThrough,
+					columnsThroughFrom,
+					columnsThroughTo,
 				});
 			}
 		} else {
@@ -876,14 +945,36 @@ export const relationsToTypeScript = (
 					tableRelations[keyTo] = [];
 				}
 
-				tableRelations[keyTo].push({
-					name: plural(tableFrom),
-					type: 'many',
-					tableFrom: tableTo,
-					columnsFrom: columnsTo,
-					tableTo: tableFrom,
-					columnsTo: columnsFrom,
-				});
+				// if this table has a unique on a column, that is used for 1-m, then we can assume that it's 1-1 relation
+				// we will check that all of the fk columns are unique, so we can assume it's 1-1
+				// not matter if it's 1 column, 2 columns or more
+				if (
+					table.uniques.find((constraint) =>
+						constraint.columns.length === columnsFrom.length
+						&& constraint.columns.every((col, i) => col === columnsFrom[i])
+					)
+				) {
+					// the difference between one and one-one is that one-one won't contain from and to
+					// maybe it can be done by introducing some sort of flag or just not providing columnsFrom and columnsTo
+					// but I decided just to have a different type field here
+					tableRelations[keyTo].push({
+						name: plural(tableFrom),
+						type: 'one-one',
+						tableFrom: tableTo,
+						columnsFrom: columnsTo,
+						tableTo: tableFrom,
+						columnsTo: columnsFrom,
+					});
+				} else {
+					tableRelations[keyTo].push({
+						name: plural(tableFrom),
+						type: 'many',
+						tableFrom: tableTo,
+						columnsFrom: columnsTo,
+						tableTo: tableFrom,
+						columnsTo: columnsFrom,
+					});
+				}
 			});
 		}
 	});
@@ -902,27 +993,45 @@ export const relationsToTypeScript = (
 					(it, originIndex) => relationIndex !== originIndex && it.tableTo === relation.tableTo,
 				);
 				if (hasMultipleRelations) {
-					relationName = relation.type === 'one'
-						? `${relation.tableFrom}_${relation.columnsFrom.join('_')}_${relation.tableTo}_${
+					// if one relation - we need to name a relation from this table to "many" table
+					if (relation.type === 'one') {
+						relationName = `${relation.tableFrom}_${relation.columnsFrom.join('_')}_${relation.tableTo}_${
 							relation.columnsTo.join('_')
-						}`
-						: `${relation.tableTo}_${relation.columnsTo.join('_')}_${relation.tableFrom}_${
+						}`;
+						// if many relation - name in in different order, so alias names will match
+					} else if (relation.type === 'many' || relation.type === 'one-one') {
+						relationName = `${relation.tableTo}_${relation.columnsTo.join('_')}_${relation.tableFrom}_${
 							relation.columnsFrom.join('_')
 						}`;
+						// if through relation - we need to name a relation from this table to "many" table and include "via"
+					} else if (relation.type === 'through') {
+						relationName = `${relation.tableFrom}_${relation.columnsFrom.join('_')}_${relation.tableTo}_${
+							relation.columnsTo.join('_')
+						}_via_${relation.tableThrough}`;
+						// else is for many-through, meaning we need to reverse the order for tables and columns, but leave "via" the same
+					} else {
+						relationName = `${relation.tableTo}_${relation.columnsTo.join('_')}_${relation.tableFrom}_${
+							relation.columnsFrom.join('_')
+						}_via_${relation.tableThrough}`;
+					}
 				}
 				const hasDuplicatedRelation = originArray.some(
 					(it, originIndex) => relationIndex !== originIndex && it.name === relation.name,
 				);
 				if (hasDuplicatedRelation) {
 					name = `${relation.name}_${
-						relation.type === 'one'
+						relation.type === 'through'
+							? `via_${relation.tableThrough}`
+							: relation.type === 'many-through'
+							? `via_${relation.tableThrough}`
+							: relation.type === 'one'
 							? relation.columnsFrom.join('_')
 							: relation.columnsTo.join('_')
 					}`;
 				}
 				return {
 					...relation,
-					name,
+					name: withCasing(name, casing),
 					relationName,
 				};
 			},
@@ -949,38 +1058,14 @@ export const relationsToTypeScript = (
 				relationString += `\n\t\t${relation.name}: r.one.${relation.tableTo}({\n\t\t\tfrom: ${from},\n\t\t\tto: ${to}`
 					+ (relation.relationName ? `,\n\t\t\talias: "${relation.relationName}"` : '')
 					+ `\n\t\t}),`;
-			} else if (relation.type === 'many') {
+			} else if (relation.type === 'many' || relation.type === 'many-through') {
 				relationString += `\n\t\t${relation.name}: r.many.${relation.tableTo}(`
 					+ (relation.relationName ? `{\n\t\t\talias: "${relation.relationName}"\n\t\t}` : '')
 					+ `),`;
-
-				// // For many-to-many relations using .through().
-				// if (relation.hasThrough) {
-				// 	const from = relation.columnsFrom.length === 1
-				// 		? `r.${relation.tableFrom}.${
-				// 			relation.columnsFrom[0]
-				// 		}.through(r.${relation.tableFrom}.${relation.tableFrom})`
-				// 		: `[${
-				// 			relation.columnsFrom
-				// 				.map((it) => `r.${relation.tableFrom}.${it}.through(r.${relation.tableFrom}.${relation.tableFrom})`)
-				// 				.join(', ')
-				// 		}]`;
-				// 	const to = relation.columnsTo.length === 1
-				// 		? `r.${relation.tableTo}.${relation.columnsTo[0]}.through(r.${relation.tableTo}.${relation.tableTo})`
-				// 		: `[${
-				// 			relation.columnsTo
-				// 				.map((it) => `r.${relation.tableTo}.${it}.through(r.${relation.tableTo}.${relation.tableTo})`)
-				// 				.join(', ')
-				// 		}]`;
-				// 	relationString +=
-				// 		`\n\t\t${relation.name}: r.many.${relation.tableTo}({\n\t\t\tfrom: ${from},\n\t\t\tto: ${to}`
-				// 		+ (relation.relationName ? `,\n\t\t\talias: "${relation.relationName}"` : '')
-				// 		+ `\n\t\t}),`;
-				// } else {
-				// 	relationString += `\n\t\t${relation.name}: r.many.${relation.tableTo}({`
-				// 		+ (relation.relationName ? `\n\t\t\talias: "${relation.relationName}"` : '')
-				// 		+ `\n\t\t}),`;
-				// }
+			} else if (relation.type === 'one-one') {
+				relationString += `\n\t\t${relation.name}: r.one.${relation.tableTo}(`
+					+ (relation.relationName ? `{\n\t\t\talias: "${relation.relationName}"\n\t\t}` : '')
+					+ `),`;
 			} else {
 				const from = relation.columnsThroughFrom!.length === 1
 					? `r.${relation.tableFrom}.${relation.columnsFrom[0]}.through(r.${relation.tableThrough}.${
@@ -992,7 +1077,7 @@ export const relationsToTypeScript = (
 							.join(', ')
 					}]`;
 				const to = relation.columnsThroughTo!.length === 1
-					? `r.${relation.tableTo}.${relation.columnsThroughTo![0]}.through(r.${relation.tableThrough}.${
+					? `r.${relation.tableTo}.${relation.columnsTo![0]}.through(r.${relation.tableThrough}.${
 						relation.columnsThroughTo![0]
 					})`
 					: `[${

@@ -5,6 +5,9 @@ import { relationsFilterToSQL, relationsOrderToSQL } from '~/relations';
 import type { OrderBy, OrderByOperators, TableFilter } from '~/relations';
 import {
 	and,
+	arrayContained,
+	arrayContains,
+	arrayOverlaps,
 	asc,
 	desc,
 	eq,
@@ -32,12 +35,13 @@ import type { Simplify, ValueOrArray } from '~/utils';
 const table = pgTable('test', {
 	string: text(),
 	number: integer(),
+	arr: integer().array(),
 	date: date('date', {
 		mode: 'date',
 	}),
 });
 
-const buildFilter = <TTable extends Table>(table: TTable, filter: TableFilter<typeof table>) =>
+const buildFilter = <TTable extends Table>(table: TTable, filter: TableFilter<TTable>) =>
 	relationsFilterToSQL(table, filter as TableFilter);
 
 describe('Filters', () => {
@@ -48,7 +52,6 @@ describe('Filters', () => {
 				date: new Date(),
 			});
 			buildFilter(table, {
-				// @ts-expect-error
 				date: sql.placeholder('date'),
 			});
 			buildFilter(table, {
@@ -168,6 +171,30 @@ describe('Filters', () => {
 				notIn: [2, 3],
 			},
 		})).toStrictEqual(and(and(notInArray(table.number, [2, 3]))));
+	});
+
+	test('arrayContains', () => {
+		expect(buildFilter(table, {
+			arr: {
+				arrayContains: [2, 3],
+			},
+		})).toStrictEqual(and(and(arrayContains(table.arr, [2, 3]))));
+	});
+
+	test('arrayContained', () => {
+		expect(buildFilter(table, {
+			arr: {
+				arrayContained: [2, 3],
+			},
+		})).toStrictEqual(and(and(arrayContained(table.arr, [2, 3]))));
+	});
+
+	test('arrayOverlaps', () => {
+		expect(buildFilter(table, {
+			arr: {
+				arrayOverlaps: [2, 3],
+			},
+		})).toStrictEqual(and(and(arrayOverlaps(table.arr, [2, 3]))));
 	});
 
 	test('isNotNull', () => {

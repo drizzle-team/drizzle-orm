@@ -9,6 +9,7 @@ import {
 	allTypesTable,
 	commentsTable,
 	courseOfferings,
+	customTypesTable,
 	groupsTable,
 	postsTable,
 	studentGrades,
@@ -36,6 +37,7 @@ beforeEach(() => {
 	db.run(sql`drop table if exists \`comments\``);
 	db.run(sql`drop table if exists \`comment_likes\``);
 	db.run(sql`drop table if exists \`all_types\``);
+	db.run(sql`drop table if exists \`custom_types\``);
 	db.run(sql`drop table if exists \`course_offerings\``);
 	db.run(sql`drop table if exists \`student_grades\``);
 	db.run(sql`drop table if exists \`students\``);
@@ -11413,6 +11415,8 @@ test('alltypes', async () => {
 			\`buffer\` blob,
 			\`json\` blob,
 			\`numeric\` numeric,
+			\`numeric_num\` numeric,
+			\`numeric_big\` numeric,
 			\`real\` real,
 			\`text\` text,
 			\`json_text\` text
@@ -11459,6 +11463,8 @@ test('alltypes', async () => {
 			arr: ['strb', 11],
 		},
 		numeric: '475452353476',
+		numericNum: 9007199254740991,
+		numericBig: 5044565289845416380n,
 		real: 1.048596,
 		text: 'TEXT STRING',
 		time: new Date(1741743161623),
@@ -11509,10 +11515,67 @@ test('alltypes', async () => {
 				0x2E,
 			]),
 			json: { str: 'strval', arr: ['str', 10] },
-			numeric: 475452353476,
+			numeric: '475452353476',
+			numericNum: 9007199254740991,
+			numericBig: 5044565289845416380n,
 			real: 1.048596,
 			text: 'TEXT STRING',
 			jsonText: { str: 'strvalb', arr: ['strb', 11] },
+		},
+	];
+
+	expect(rawRes).toStrictEqual(expectedRes);
+});
+
+test('custom types', async () => {
+	db.run(sql`
+		CREATE TABLE \`custom_types\` (
+			\`id\` integer,
+			\`big\` blob,
+			\`bytes\` blob,
+			\`time\` integer,
+			\`int\` integer
+		);
+	`);
+
+	db.insert(customTypesTable).values({
+		id: 1,
+		big: 5044565289845416380n,
+		bytes: Buffer.from('BYTES'),
+		time: new Date(1741743161623),
+		int: 250,
+	}).run();
+
+	const rawRes = await db.select().from(customTypesTable);
+	const relationRootRes = await db.query.customTypesTable.findMany();
+	const { self: nestedRelationRes } = (await db.query.customTypesTable.findFirst({
+		with: {
+			self: true,
+		},
+	}))!;
+
+	type ExpectedType = {
+		id: number | null;
+		big: bigint | null;
+		bytes: Buffer | null;
+		time: Date | null;
+		int: number | null;
+	}[];
+
+	expectTypeOf<ExpectedType>().toEqualTypeOf(rawRes);
+	expectTypeOf(relationRootRes).toEqualTypeOf(rawRes);
+	expectTypeOf(nestedRelationRes).toEqualTypeOf(rawRes);
+
+	expect(nestedRelationRes).toStrictEqual(rawRes);
+	expect(relationRootRes).toStrictEqual(rawRes);
+
+	const expectedRes: ExpectedType = [
+		{
+			id: 1,
+			big: 5044565289845416380n,
+			bytes: Buffer.from('BYTES'),
+			time: new Date(1741743161623),
+			int: 250,
 		},
 	];
 

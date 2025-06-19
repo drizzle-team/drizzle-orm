@@ -5,8 +5,10 @@ import {
 	bigint,
 	bigserial,
 	boolean,
+	bytea,
 	char,
 	cidr,
+	customType,
 	date,
 	doublePrecision,
 	inet,
@@ -37,10 +39,26 @@ import {
 } from 'drizzle-orm/pg-core';
 
 export const usersTable = pgTable('users', {
-	id: serial().primaryKey(),
-	name: text().notNull(),
-	verified: boolean().notNull().default(false),
-	invitedBy: integer().references((): PgColumn => usersTable.id),
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	verified: boolean('verified').notNull().default(false),
+	invitedBy: integer('invited_by').references((): PgColumn => usersTable.id),
+});
+
+export const schemaV1 = pgSchema('schemaV1');
+
+export const usersV1 = schemaV1.table('usersV1', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	verified: boolean('verified').notNull().default(false),
+	invitedBy: integer('invited_by'),
+});
+
+export const usersTableV1 = schemaV1.table('users_table_V1', {
+	id: serial('id').primaryKey(),
+	name: text('name').notNull(),
+	verified: boolean('verified').notNull().default(false),
+	invitedBy: integer('invited_by'),
 });
 
 export const usersConfig = relations(usersTable, ({ one, many }) => ({
@@ -188,6 +206,7 @@ export const allTypesTable = pgTable('all_types', {
 		mode: 'bigint',
 	}),
 	bool: boolean(),
+	bytea: bytea(),
 	char: char(),
 	cidr: cidr(),
 	date: date({
@@ -211,6 +230,12 @@ export const allTypesTable = pgTable('all_types', {
 	macaddr: macaddr(),
 	macaddr8: macaddr8(),
 	numeric: numeric(),
+	numericNum: numeric({
+		mode: 'number',
+	}),
+	numericBig: numeric({
+		mode: 'bigint',
+	}),
 	point: point({
 		mode: 'xy',
 	}),
@@ -246,6 +271,7 @@ export const allTypesTable = pgTable('all_types', {
 		mode: 'bigint',
 	}).array(),
 	arrbool: boolean().array(),
+	arrbytea: bytea().array(),
 	arrchar: char().array(),
 	arrcidr: cidr().array(),
 	arrdate: date({
@@ -269,6 +295,12 @@ export const allTypesTable = pgTable('all_types', {
 	arrmacaddr: macaddr().array(),
 	arrmacaddr8: macaddr8().array(),
 	arrnumeric: numeric().array(),
+	arrnumericNum: numeric({
+		mode: 'number',
+	}).array(),
+	arrnumericBig: numeric({
+		mode: 'bigint',
+	}).array(),
 	arrpoint: point({
 		mode: 'xy',
 	}).array(),
@@ -312,4 +344,65 @@ export const studentGrades = pgTable('student_grades', {
 	courseId: integer('course_id').notNull(),
 	semester: varchar({ length: 10 }).notNull(),
 	grade: char({ length: 2 }),
+});
+
+const customBigInt = customType<{
+	data: bigint;
+	driverData: bigint;
+	driverOutput: string;
+	jsonData: string;
+}>({
+	dataType: () => 'bigint',
+	fromDriver: BigInt,
+	fromJson: BigInt,
+});
+
+const customBytes = customType<{
+	data: Buffer;
+	driverData: Buffer;
+	jsonData: string;
+}>({
+	dataType: () => 'bytea',
+	fromJson: (value) => {
+		return Buffer.from(value.slice(2, value.length), 'hex');
+	},
+	forJsonSelect: (identifier, sql, arrayDimensions) =>
+		sql`${identifier}::text${sql.raw('[]'.repeat(arrayDimensions ?? 0))}`,
+});
+
+const customTimestamp = customType<{
+	data: Date;
+	driverData: string;
+	jsonData: string;
+}>({
+	dataType: () => 'timestamp(3)',
+	fromDriver: (value: string) => {
+		return new Date(value + '+0000');
+	},
+	toDriver: (value: Date) => {
+		return value.toISOString();
+	},
+});
+
+const customInt = customType<{
+	data: number;
+	driverData: number;
+}>({
+	dataType: () => 'integer',
+});
+
+export const customTypesTable = pgTable('custom_types', {
+	id: serial('id'),
+	big: customBigInt(),
+	bigArr: customBigInt().array(),
+	bigMtx: customBigInt().array().array(),
+	bytes: customBytes(),
+	bytesArr: customBytes().array(),
+	bytesMtx: customBytes().array().array(),
+	time: customTimestamp(),
+	timeArr: customTimestamp().array(),
+	timeMtx: customTimestamp().array().array(),
+	int: customInt(),
+	intArr: customInt().array(),
+	intMtx: customInt().array().array(),
 });

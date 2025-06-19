@@ -7,6 +7,9 @@ import { entityKind, is } from './entity.ts';
 import { DrizzleError } from './errors.ts';
 import {
 	and,
+	arrayContained,
+	arrayContains,
+	arrayOverlaps,
 	asc,
 	between,
 	desc,
@@ -58,8 +61,6 @@ export class Relations<
 		readonly config: TConfig,
 	) {
 		for (const [tsName, table] of Object.entries(tables)) {
-			if (config[tsName]?.$drizzleTypeError) continue;
-
 			const isTable = is(table, Table);
 			const isView = is(table, View);
 
@@ -190,7 +191,7 @@ export class Relations<
 					if (reverseRelations.length > 1) {
 						throw new Error(
 							`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and multiple relations between "${targetTableTsName}" and "${
-								getTableUniqueName(relation.sourceTable)
+								this.tableNamesMap[getTableUniqueName(relation.sourceTable)] ?? getTableUniqueName(relation.sourceTable)
 							}" were found.\nHint: you can specify "alias" on both sides of the relation with the same value`,
 						);
 					}
@@ -198,7 +199,7 @@ export class Relations<
 					if (!reverseRelation) {
 						throw new Error(
 							`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and no reverse relation of table "${targetTableTsName}" with target table "${
-								getTableUniqueName(relation.sourceTable)
+								this.tableNamesMap[getTableUniqueName(relation.sourceTable)] ?? getTableUniqueName(relation.sourceTable)
 							}" was found`,
 						);
 					}
@@ -408,6 +409,9 @@ export const operators = {
 	gte,
 	ilike,
 	inArray,
+	arrayContains,
+	arrayContained,
+	arrayOverlaps,
 	isNull,
 	isNotNull,
 	like,
@@ -788,7 +792,10 @@ export function mapRelationalRow(
 		} else {
 			decoder = field.getSQL().decoder;
 		}
-		row[selectionItem.key] = decoder.mapFromDriverValue(value);
+
+		row[selectionItem.key] = 'mapFromJsonValue' in decoder
+			? (<(value: unknown) => unknown> decoder.mapFromJsonValue)(value)
+			: decoder.mapFromDriverValue(value);
 	}
 
 	return row;
@@ -903,6 +910,9 @@ export interface RelationFieldsFilterInternals<T> {
 	lte?: T | Placeholder | undefined;
 	in?: (T | Placeholder)[] | Placeholder | undefined;
 	notIn?: (T | Placeholder)[] | Placeholder | undefined;
+	arrayContains?: (T extends Array<infer E> ? (E | Placeholder)[] : T) | Placeholder | undefined;
+	arrayContained?: (T extends Array<infer E> ? (E | Placeholder)[] : T) | Placeholder | undefined;
+	arrayOverlaps?: (T extends Array<infer E> ? (E | Placeholder)[] : T) | Placeholder | undefined;
 	like?: string | Placeholder | undefined;
 	ilike?: string | Placeholder | undefined;
 	notLike?: string | Placeholder | undefined;
@@ -981,9 +991,10 @@ export type TableFilter<
 		: Assume<TTable, Table>['_']['columns'],
 > =
 	& {
-		[K in keyof TColumns as K extends keyof TableFilterCommons ? never : K]?: TColumns[K] extends Column
-			? RelationsFieldFilter<TColumns[K]['_']['data']>
-			: RelationsFieldFilter<unknown>;
+		[K in keyof TColumns as K extends keyof TableFilterCommons ? never : K]?:
+			| (TColumns[K] extends Column ? RelationsFieldFilter<TColumns[K]['_']['data']>
+				: RelationsFieldFilter<unknown>)
+			| undefined;
 	}
 	& TableFilterCommons<TTable, TColumns>;
 
@@ -1131,11 +1142,13 @@ export class RelationsHelperStatic<TTables extends Record<string, Table | View>>
 	}
 
 	one: {
-		[K in keyof TTables]: OneFn<TTables, K & string>;
+		[K in keyof TTables]: TTables[K] extends Table | View<string, boolean, FieldSelection> ? OneFn<TTables, K & string>
+			: DrizzleTypeError<'Views with nested selections are not supported by the relational query builder'>;
 	};
 
 	many: {
-		[K in keyof TTables]: ManyFn<TTables, K & string>;
+		[K in keyof TTables]: TTables[K] extends Table | View<string, boolean, FieldSelection> ? ManyFn<TTables, K & string>
+			: DrizzleTypeError<'Views with nested selections are not supported by the relational query builder'>;
 	};
 
 	/** @internal - to be reworked */
@@ -1171,9 +1184,7 @@ export type RelationsBuilder<TSchema extends Record<string, Table | View>> =
 	& RelationsHelperStatic<TSchema>;
 
 export type RelationsBuilderConfig<TTables extends Record<string, Table | View>> = {
-	[TTableName in keyof TTables & string]?: TTables[TTableName] extends Table | View<string, boolean, FieldSelection>
-		? Record<string, RelationsBuilderEntry<TTables, TTableName>>
-		: DrizzleTypeError<'Views with nested selections are not supported by the relational query builder'>;
+	[TTableName in keyof TTables & string]?: Record<string, RelationsBuilderEntry<TTables, TTableName>>;
 };
 
 export type RelationsBuilderEntry<

@@ -155,13 +155,17 @@ export class SQLiteBlobBufferBuilder<T extends ColumnBuilderBaseConfig<'buffer',
 export class SQLiteBlobBuffer<T extends ColumnBaseConfig<'buffer', 'SQLiteBlobBuffer'>> extends SQLiteColumn<T> {
 	static override readonly [entityKind]: string = 'SQLiteBlobBuffer';
 
-	override mapFromDriverValue(value: unknown): Buffer {
+	override mapFromDriverValue(value: Buffer | Uint8Array | ArrayBuffer): T['data'] {
+		if (Buffer.isBuffer(value)) {
+			return value;
+		}
+
 		// For RQBv2
 		if (typeof value === 'string') {
 			return Buffer.from(value, 'hex');
 		}
 
-		return value as Buffer;
+		return Buffer.from(value as Uint8Array);
 	}
 
 	getSQLType(): string {

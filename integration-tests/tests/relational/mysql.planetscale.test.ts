@@ -9,6 +9,7 @@ import relations from './mysql.relations.ts';
 import {
 	allTypesTable,
 	commentsTable,
+	customTypesTable,
 	groupsTable,
 	postsTable,
 	usersTable,
@@ -35,6 +36,7 @@ beforeAll(async () => {
 		db.execute(sql`drop table if exists \`comments\``),
 		db.execute(sql`drop table if exists \`comment_likes\``),
 		db.execute(sql`drop table if exists \`all_types\``),
+		db.execute(sql`drop table if exists \`custom_types\``),
 	]);
 	await Promise.all([
 		db.execute(
@@ -10101,6 +10103,8 @@ test('alltypes', async () => {
 				\`datetime\` datetime,
 				\`datetime_str\` datetime,
 				\`decimal\` decimal,
+				\`decimal_num\` decimal(30),
+				\`decimal_big\` decimal(30),
 				\`double\` double,
 				\`float\` float,
 				\`int\` int,
@@ -10137,6 +10141,8 @@ test('alltypes', async () => {
 		datetime: new Date(1741743161623),
 		datetimeStr: new Date(1741743161623).toISOString().slice(0, 19).replace('T', ' '),
 		decimal: '47521',
+		decimalNum: 9007199254740991,
+		decimalBig: 5044565289845416380n,
 		double: 15.35325689124218,
 		enum: 'enV1',
 		float: 1.048596,
@@ -10185,6 +10191,8 @@ test('alltypes', async () => {
 			datetime: new Date('2025-03-12T01:32:42.000Z'),
 			datetimeStr: '2025-03-12 01:32:41',
 			decimal: '47521',
+			decimalNum: 9007199254740991,
+			decimalBig: 5044565289845416380n,
 			double: 15.35325689124218,
 			float: 1.0486,
 			int: 621,
@@ -10201,6 +10209,61 @@ test('alltypes', async () => {
 			varchar: 'VCHAR',
 			year: 2025,
 			enum: 'enV1',
+		},
+	];
+
+	expect(rawRes).toStrictEqual(expectedRes);
+});
+
+test('custom types', async () => {
+	await db.execute(sql`
+		CREATE TABLE \`custom_types\` (
+			\`id\` int,
+			\`big\` bigint,
+			\`bytes\` blob,
+			\`time\` timestamp,
+			\`int\` int
+		);
+	`);
+
+	await db.insert(customTypesTable).values({
+		id: 1,
+		big: 5044565289845416380n,
+		bytes: Buffer.from('BYTES'),
+		time: new Date(1741743161000),
+		int: 250,
+	});
+
+	const rawRes = await db.select().from(customTypesTable);
+	const relationRootRes = await db.query.customTypesTable.findMany();
+	const { self: nestedRelationRes } = (await db.query.customTypesTable.findFirst({
+		with: {
+			self: true,
+		},
+	}))!;
+
+	type ExpectedType = {
+		id: number | null;
+		big: bigint | null;
+		bytes: Buffer | null;
+		time: Date | null;
+		int: number | null;
+	}[];
+
+	expectTypeOf<ExpectedType>().toEqualTypeOf(rawRes);
+	expectTypeOf(relationRootRes).toEqualTypeOf(rawRes);
+	expectTypeOf(nestedRelationRes).toEqualTypeOf(rawRes);
+
+	expect(nestedRelationRes).toStrictEqual(rawRes);
+	expect(relationRootRes).toStrictEqual(rawRes);
+
+	const expectedRes: ExpectedType = [
+		{
+			id: 1,
+			big: 5044565289845416380n,
+			bytes: Buffer.from('BYTES'),
+			time: new Date(1741743161000),
+			int: 250,
 		},
 	];
 

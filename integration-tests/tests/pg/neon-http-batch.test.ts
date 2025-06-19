@@ -39,9 +39,9 @@ let db: NeonHttpDatabase<typeof schema, typeof neonRelations>;
 let client: NeonQueryFunction<false, true>;
 
 beforeAll(async () => {
-	const connectionString = process.env['NEON_CONNECTION_STRING'];
+	const connectionString = process.env['NEON_HTTP_CONNECTION_STRING'];
 	if (!connectionString) {
-		throw new Error('NEON_CONNECTION_STRING is not defined');
+		throw new Error('NEON_HTTP_CONNECTION_STRING is not defined');
 	}
 	client = neon(connectionString);
 	db = drizzle(client, { schema, logger: ENABLE_LOGGING, relations: neonRelations });

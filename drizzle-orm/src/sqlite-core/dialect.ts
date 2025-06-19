@@ -26,7 +26,7 @@ import {
 import type { Name, Placeholder, SQLWrapper, View } from '~/sql/index.ts';
 import { and, eq, isSQLWrapper } from '~/sql/index.ts';
 import { Param, type QueryWithTypings, SQL, sql, type SQLChunk } from '~/sql/sql.ts';
-import { SQLiteColumn } from '~/sqlite-core/columns/index.ts';
+import { SQLiteColumn, type SQLiteCustomColumn } from '~/sqlite-core/columns/index.ts';
 import type {
 	AnySQLiteSelectQueryBuilder,
 	SQLiteDeleteConfig,
@@ -192,10 +192,20 @@ export abstract class SQLiteDialect {
 					}
 				} else if (is(field, Column)) {
 					const tableName = field.table[Table.Symbol.Name];
-					if (isSingleTable) {
-						chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
+					if (field.columnType === 'SQLiteNumericBigInt') {
+						if (isSingleTable) {
+							chunk.push(sql`cast(${sql.identifier(this.casing.getColumnCasing(field))} as text)`);
+						} else {
+							chunk.push(
+								sql`cast(${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))} as text)`,
+							);
+						}
 					} else {
-						chunk.push(sql`${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))}`);
+						if (isSingleTable) {
+							chunk.push(sql.identifier(this.casing.getColumnCasing(field)));
+						} else {
+							chunk.push(sql`${sql.identifier(tableName)}.${sql.identifier(this.casing.getColumnCasing(field))}`);
+						}
 					}
 				}
 
@@ -222,6 +232,7 @@ export abstract class SQLiteDialect {
 					joinsArray.push(sql` `);
 				}
 				const table = joinMeta.table;
+				const onSql = joinMeta.on ? sql` on ${joinMeta.on}` : undefined;
 
 				if (is(table, SQLiteTable)) {
 					const tableName = table[SQLiteTable.Symbol.Name];
@@ -231,11 +242,11 @@ export abstract class SQLiteDialect {
 					joinsArray.push(
 						sql`${sql.raw(joinMeta.joinType)} join ${tableSchema ? sql`${sql.identifier(tableSchema)}.` : undefined}${
 							sql.identifier(origTableName)
-						}${alias && sql` ${sql.identifier(alias)}`} on ${joinMeta.on}`,
+						}${alias && sql` ${sql.identifier(alias)}`}${onSql}`,
 					);
 				} else {
 					joinsArray.push(
-						sql`${sql.raw(joinMeta.joinType)} join ${table} on ${joinMeta.on}`,
+						sql`${sql.raw(joinMeta.joinType)} join ${table}${onSql}`,
 					);
 				}
 				if (index < joins.length - 1) {
@@ -272,8 +283,10 @@ export abstract class SQLiteDialect {
 	private buildFromTable(
 		table: SQL | Subquery | SQLiteViewBase | SQLiteTable | undefined,
 	): SQL | Subquery | SQLiteViewBase | SQLiteTable | undefined {
-		if (is(table, Table) && table[Table.Symbol.OriginalName] !== table[Table.Symbol.Name]) {
-			return sql`${sql.identifier(table[Table.Symbol.OriginalName])} ${sql.identifier(table[Table.Symbol.Name])}`;
+		if (is(table, Table) && table[Table.Symbol.IsAlias]) {
+			return sql`${sql`${sql.identifier(table[Table.Symbol.Schema] ?? '')}.`.if(table[Table.Symbol.Schema])}${
+				sql.identifier(table[Table.Symbol.OriginalName])
+			} ${sql.identifier(table[Table.Symbol.Name])}`;
 		}
 
 		return table;
@@ -823,6 +836,16 @@ export abstract class SQLiteDialect {
 					return sql`hex(${name}) as ${sql.identifier(key)}`;
 				}
 
+				case 'SQLiteNumeric':
+				case 'SQLiteNumericNumber':
+				case 'SQLiteNumericBigInt': {
+					return sql`cast(${name} as text) as ${sql.identifier(key)}`;
+				}
+
+				case 'SQLiteCustomColumn': {
+					return sql`${(<SQLiteCustomColumn<any>> column).jsonSelectIdentifier(name, sql)} as ${sql.identifier(key)}`;
+				}
+
 				default: {
 					return sql`${name} as ${sql.identifier(key)}`;
 				}
@@ -925,6 +948,7 @@ export abstract class SQLiteDialect {
 			errorPath,
 			depth,
 			throughJoin,
+			jsonb,
 		}: {
 			tables: Record<string, SQLiteTable | SQLiteView>;
 			schema: TablesRelationalConfig;
@@ -938,6 +962,7 @@ export abstract class SQLiteDialect {
 			errorPath?: string;
 			depth?: number;
 			throughJoin?: SQL;
+			jsonb: SQL;
 		},
 	): BuildRelationalQueryResult {
 		const selection: BuildRelationalQueryResult['selection'] = [];
@@ -1019,6 +1044,7 @@ export abstract class SQLiteDialect {
 							errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
 							depth: currentDepth + 1,
 							throughJoin,
+							jsonb,
 						});
 
 						selection.push({
@@ -1033,13 +1059,13 @@ export abstract class SQLiteDialect {
 						const jsonColumns = sql.join(
 							innerQuery.selection.map((s) => {
 								return sql`${sql.raw(this.escapeString(s.key))}, ${
-									s.selection ? sql`jsonb(${sql.identifier(s.key)})` : sql.identifier(s.key)
+									s.selection ? sql`${jsonb}(${sql.identifier(s.key)})` : sql.identifier(s.key)
 								}`;
 							}),
 							sql`, `,
 						);
 
-						const json = isNested ? sql`jsonb` : sql`json`;
+						const json = isNested ? jsonb : sql`json`;
 
 						const joinQuery = isSingle
 							? sql`(select ${json}_object(${jsonColumns}) as ${sql.identifier('r')} from (${innerQuery.sql}) as ${
@@ -1047,7 +1073,7 @@ export abstract class SQLiteDialect {
 							}) as ${sql.identifier(k)}`
 							: sql`coalesce((select ${json}_group_array(json_object(${jsonColumns})) as ${
 								sql.identifier('r')
-							} from (${innerQuery.sql}) as ${sql.identifier('t')}), jsonb_array()) as ${sql.identifier(k)}`;
+							} from (${innerQuery.sql}) as ${sql.identifier('t')}), ${jsonb}_array()) as ${sql.identifier(k)}`;
 
 						return joinQuery;
 					}),
