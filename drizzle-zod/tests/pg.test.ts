@@ -130,7 +130,7 @@ test('materialized view qb - select', (t) => {
 });
 
 test('materialized view columns - select', (t) => {
-	const view = pgView('test', {
+	const view = pgMaterializedView('test', {
 		id: serial().primaryKey(),
 		name: text().notNull(),
 	}).as(sql``);
@@ -146,7 +146,7 @@ test('view with nested fields - select', (t) => {
 		id: serial().primaryKey(),
 		name: text().notNull(),
 	});
-	const view = pgMaterializedView('test').as((qb) =>
+	const view = pgView('test').as((qb) =>
 		qb.select({
 			id: table.id,
 			nested: {
