@@ -1,7 +1,7 @@
 import camelcase from 'camelcase';
 import type { Entities } from '../../cli/validations/cli';
 import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
-import type { DB } from '../../utils';
+import { trimChar, type DB } from '../../utils';
 import type {
 	CheckConstraint,
 	Enum,
@@ -30,7 +30,6 @@ import {
 	splitExpressions,
 	splitSqlType,
 	stringFromDatabaseIdentityProperty as parseIdentityProperty,
-	trimChar,
 	wrapRecord,
 } from './grammar';
 

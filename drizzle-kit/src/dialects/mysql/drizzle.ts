@@ -37,6 +37,11 @@ export const defaultFromColumn = (column: AnyMySqlColumn, casing?: Casing): Colu
 		return { value: str, type: 'unknown' };
 	}
 	const sqlType = column.getSQLType();
+
+	if (sqlTypeLowered.startsWith('varbinary')) {
+		return { value: `(0x${Buffer.from(String(column.default)).toString('hex').toLowerCase()})`, type: 'unknown' };
+	}
+
 	if (sqlType.startsWith('binary') || sqlType === 'text') {
 		return { value: String(column.default), type: 'text' };
 	}
@@ -125,6 +130,8 @@ export const fromDrizzleSchema = (
 				}
 				: null;
 
+			const defaultValue = defaultFromColumn(column, casing);
+			// console.log(defaultValue, column.default);
 			result.columns.push({
 				entityType: 'columns',
 				table: tableName,
@@ -136,7 +143,7 @@ export const fromDrizzleSchema = (
 				generated,
 				isPK: column.primary,
 				isUnique: column.isUnique,
-				default: defaultFromColumn(column, casing),
+				default: defaultValue,
 			});
 		}
 
