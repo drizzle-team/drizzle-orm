@@ -1,6 +1,5 @@
 import { type IntrospectStage, type IntrospectStatus } from '../../cli/views';
 import { type DB } from '../../utils';
-import { trimChar } from '../postgres/grammar';
 import {
 	type CheckConstraint,
 	type Column,
@@ -18,6 +17,7 @@ import {
 	Generated,
 	nameForForeignKey,
 	nameForUnique,
+	parseDefault,
 	parseTableSQL,
 	parseViewSQL,
 	sqlTypeFrom,
@@ -323,21 +323,7 @@ export const fromDatabase = async (
 		const type = sqlTypeFrom(column.columnType); // varchar(256)
 		const isPrimary = column.pk !== 0;
 
-		const columnDefaultValue = column.defaultValue;
-		const columnDefault: Column['default'] = columnDefaultValue !== null
-			? /^-?[\d.]+(?:e-?\d+)?$/.test(columnDefaultValue)
-				? { value: columnDefaultValue, isExpression: true }
-				: ['CURRENT_TIME', 'CURRENT_DATE', 'CURRENT_TIMESTAMP'].includes(
-						columnDefaultValue,
-					)
-				? { value: `(${columnDefaultValue})`, isExpression: true }
-				: columnDefaultValue === 'false' || columnDefaultValue === 'true'
-				? { value: columnDefaultValue, isExpression: true }
-				: columnDefaultValue.startsWith("'") && columnDefaultValue.endsWith("'")
-				? { value: trimChar(columnDefaultValue, "'").replaceAll("''", "'"), isExpression: false }
-				: { value: `(${columnDefaultValue})`, isExpression: true }
-			: null;
-
+		const columnDefault: Column['default'] = parseDefault(column.defaultValue);
 		const autoincrement = isPrimary && dbTablesWithSequences.some((it) => it.name === column.table);
 		const pk = tableToPk[column.table];
 		const primaryKey = isPrimary && pk && pk.length === 1;
