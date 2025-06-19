@@ -240,7 +240,7 @@ export const diffDefault = async <T extends MySqlColumnBuilder>(
 	if (pre) await push({ db, to: pre });
 	await push({ db, to: schema1 });
 	const { sqlStatements: st3 } = await push({ db, to: schema2 });
-	const expectedAlter = `ALTER TABLE \`table\` ALTER COLUMN \`column\` SET DEFAULT ${expectedDefault};`;
+	const expectedAlter = `ALTER TABLE \`table\` MODIFY COLUMN \`column\` ${column.getSQLType()} DEFAULT ${expectedDefault};`;
 	if (st3.length !== 1 || st3[0] !== expectedAlter) res.push(`Unexpected default alter:\n${st3}\n\n${expectedAlter}`);
 
 	await clear();
@@ -259,7 +259,7 @@ export const diffDefault = async <T extends MySqlColumnBuilder>(
 	await push({ db, to: schema3 });
 	const { sqlStatements: st4 } = await push({ db, to: schema4 });
 
-	const expectedAddColumn = `ALTER TABLE \`table\` ADD COLUMN "\`column\` ${type} DEFAULT ${expectedDefault};`;
+	const expectedAddColumn = `ALTER TABLE \`table\` ADD \`column\` ${type} DEFAULT ${expectedDefault};`;
 	if (st4.length !== 1 || st4[0] !== expectedAddColumn) {
 		res.push(`Unexpected add column:\n${st4[0]}\n\n${expectedAddColumn}`);
 	}
