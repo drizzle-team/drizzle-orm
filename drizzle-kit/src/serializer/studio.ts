@@ -33,6 +33,7 @@ import type { PostgresCredentials } from '../cli/validations/postgres';
 import type { SingleStoreCredentials } from '../cli/validations/singlestore';
 import type { SqliteCredentials } from '../cli/validations/sqlite';
 import { prepareFilenames } from '.';
+import type { Proxy, TransactionProxy } from '../utils'
 
 type CustomDefault = {
 	schema: string;
@@ -50,8 +51,8 @@ export type Setup = {
 	dbHash: string;
 	dialect: 'postgresql' | 'mysql' | 'sqlite' | 'singlestore';
 	driver?: 'aws-data-api' | 'd1-http' | 'turso' | 'pglite';
-	proxy: (params: ProxyParams) => Promise<any[] | any>;
-	transaction?: (queries: ProxyParams[]) => Promise<any[]>;
+	proxy: Proxy;
+	transactionProxy: TransactionProxy;
 	customDefaults: CustomDefault[];
 	schema: Record<string, Record<string, AnyTable<any>>>;
 	relations: Record<string, Relations>;
@@ -283,6 +284,7 @@ export const drizzleForPostgres = async (
 		dialect: 'postgresql',
 		driver: 'driver' in credentials ? credentials.driver : undefined,
 		proxy: db.proxy,
+		transactionProxy: db.transactionProxy,
 		customDefaults,
 		schema: pgSchema,
 		relations,
@@ -297,7 +299,7 @@ export const drizzleForMySQL = async (
 	schemaFiles?: SchemaFile[],
 ): Promise<Setup> => {
 	const { connectToMySQL } = await import('../cli/connections');
-	const { proxy } = await connectToMySQL(credentials);
+	const { proxy, transactionProxy } = await connectToMySQL(credentials);
 
 	const customDefaults = getCustomDefaults(mysqlSchema);
 
@@ -316,6 +318,7 @@ export const drizzleForMySQL = async (
 		dbHash,
 		dialect: 'mysql',
 		proxy,
+		transactionProxy,
 		customDefaults,
 		schema: mysqlSchema,
 		relations,
@@ -354,7 +357,7 @@ export const drizzleForSQLite = async (
 		dialect: 'sqlite',
 		driver: 'driver' in credentials ? credentials.driver : undefined,
 		proxy: sqliteDB.proxy,
-		transaction: sqliteDB.transaction,
+		transactionProxy: sqliteDB.transactionProxy,
 		customDefaults,
 		schema: sqliteSchema,
 		relations,
@@ -381,6 +384,7 @@ export const drizzleForLibSQL = async (
 		dialect: 'sqlite',
 		driver: undefined,
 		proxy: sqliteDB.proxy,
+		transactionProxy: sqliteDB.transactionProxy,
 		customDefaults,
 		schema: sqliteSchema,
 		relations,
@@ -395,7 +399,7 @@ export const drizzleForSingleStore = async (
 	schemaFiles?: SchemaFile[],
 ): Promise<Setup> => {
 	const { connectToSingleStore } = await import('../cli/connections');
-	const { proxy } = await connectToSingleStore(credentials);
+	const { proxy, transactionProxy } = await connectToSingleStore(credentials);
 
 	const customDefaults = getCustomDefaults(singlestoreSchema);
 
@@ -414,6 +418,7 @@ export const drizzleForSingleStore = async (
 		dbHash,
 		dialect: 'singlestore',
 		proxy,
+		transactionProxy,
 		customDefaults,
 		schema: singlestoreSchema,
 		relations,
@@ -488,8 +493,8 @@ const proxySchema = z.object({
 	}),
 });
 
-const transactionSchema = z.object({
-	type: z.literal('transaction'),
+const transactionProxySchema = z.object({
+	type: z.literal('tproxy'),
 	data: z
 		.object({
 			sql: z.string(),
@@ -520,7 +525,7 @@ const defaultsSchema = z.object({
 		.min(1),
 });
 
-const schema = z.union([init, proxySchema, transactionSchema, defaultsSchema]);
+const schema = z.union([init, proxySchema, transactionProxySchema, defaultsSchema]);
 
 const jsonStringify = (data: any) => {
 	return JSON.stringify(data, (_key, value) => {
@@ -560,7 +565,7 @@ export type Server = {
 };
 
 export const prepareServer = async (
-	{ dialect, driver, proxy, transaction, customDefaults, schema: drizzleSchema, relations, dbHash, schemaFiles }: Setup,
+	{ dialect, driver, proxy, transactionProxy, customDefaults, schema: drizzleSchema, relations, dbHash, schemaFiles }: Setup,
 	app?: Hono,
 ): Promise<Server> => {
 	app = app !== undefined ? app : new Hono();
@@ -611,7 +616,7 @@ export const prepareServer = async (
 			}));
 
 			return c.json({
-				version: '6',
+				version: '6.1',
 				dialect,
 				driver,
 				schemaFiles,
@@ -629,8 +634,8 @@ export const prepareServer = async (
 			return c.json(JSON.parse(jsonStringify(result)));
 		}
 
-		if (type === 'transaction' && transaction) {
-			const result = await transaction(body.data);
+		if (type === 'tproxy') {
+			const result = await transactionProxy(body.data);
 			return c.json(JSON.parse(jsonStringify(result)));
 		}
 
