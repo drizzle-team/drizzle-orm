@@ -9,8 +9,23 @@ import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../s
 import { Expect, expectSchemaShape } from './utils.ts';
 
 const intSchema = type.keywords.number.integer.atLeast(CONSTANTS.INT32_MIN).atMost(CONSTANTS.INT32_MAX);
-const serialNumberModeSchema = type.keywords.number.integer.atLeast(0).atMost(Number.MAX_SAFE_INTEGER);
+const intNullableSchema = intSchema.or(type.null);
+const intOptionalSchema = intSchema.optional();
+const intNullableOptionalSchema = intSchema.or(type.null).optional();
+
+const serialSchema = type.keywords.number.integer.atLeast(0).atMost(Number.MAX_SAFE_INTEGER);
+const serialOptionalSchema = serialSchema.optional();
+
 const textSchema = type.string.atMostLength(CONSTANTS.INT16_UNSIGNED_MAX);
+const textOptionalSchema = textSchema.optional();
+
+const anySchema = type('unknown.any');
+
+const extendedSchema = intSchema.atMost(1000);
+const extendedNullableSchema = extendedSchema.or(type.null);
+const extendedOptionalSchema = extendedSchema.optional();
+
+const customSchema = type.string.pipe(Number);
 
 test('table - select', (t) => {
 	const table = mysqlTable('test', {
@@ -19,7 +34,7 @@ test('table - select', (t) => {
 	});
 
 	const result = createSelectSchema(table);
-	const expected = type({ id: serialNumberModeSchema, name: textSchema });
+	const expected = type({ id: serialSchema, name: textSchema });
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -32,7 +47,7 @@ test('table in schema - select', (tc) => {
 	});
 
 	const result = createSelectSchema(table);
-	const expected = type({ id: serialNumberModeSchema, name: textSchema });
+	const expected = type({ id: serialSchema, name: textSchema });
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -46,9 +61,9 @@ test('table - insert', (t) => {
 
 	const result = createInsertSchema(table);
 	const expected = type({
-		id: serialNumberModeSchema.optional(),
+		id: serialOptionalSchema,
 		name: textSchema,
-		age: intSchema.or(type.null).optional(),
+		age: intNullableOptionalSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -63,9 +78,9 @@ test('table - update', (t) => {
 
 	const result = createUpdateSchema(table);
 	const expected = type({
-		id: serialNumberModeSchema.optional(),
-		name: textSchema.optional(),
-		age: intSchema.or(type.null).optional(),
+		id: serialOptionalSchema,
+		name: textOptionalSchema,
+		age: intNullableOptionalSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -79,7 +94,7 @@ test('view qb - select', (t) => {
 	const view = mysqlView('test').as((qb) => qb.select({ id: table.id, age: sql``.as('age') }).from(table));
 
 	const result = createSelectSchema(view);
-	const expected = type({ id: serialNumberModeSchema, age: type('unknown.any') });
+	const expected = type({ id: serialSchema, age: anySchema });
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -91,7 +106,7 @@ test('view columns - select', (t) => {
 	}).as(sql``);
 
 	const result = createSelectSchema(view);
-	const expected = type({ id: serialNumberModeSchema, name: textSchema });
+	const expected = type({ id: serialSchema, name: textSchema });
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -114,9 +129,9 @@ test('view with nested fields - select', (t) => {
 
 	const result = createSelectSchema(view);
 	const expected = type({
-		id: serialNumberModeSchema,
-		nested: type({ name: textSchema, age: type('unknown.any') }),
-		table: type({ id: serialNumberModeSchema, name: textSchema }),
+		id: serialSchema,
+		nested: type({ name: textSchema, age: anySchema }),
+		table: type({ id: serialSchema, name: textSchema }),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -132,9 +147,9 @@ test('nullability - select', (t) => {
 
 	const result = createSelectSchema(table);
 	const expected = type({
-		c1: intSchema.or(type.null),
+		c1: intNullableSchema,
 		c2: intSchema,
-		c3: intSchema.or(type.null),
+		c3: intNullableSchema,
 		c4: intSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
@@ -152,10 +167,10 @@ test('nullability - insert', (t) => {
 
 	const result = createInsertSchema(table);
 	const expected = type({
-		c1: intSchema.or(type.null).optional(),
+		c1: intNullableOptionalSchema,
 		c2: intSchema,
-		c3: intSchema.or(type.null).optional(),
-		c4: intSchema.optional(),
+		c3: intNullableOptionalSchema,
+		c4: intOptionalSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -172,10 +187,10 @@ test('nullability - update', (t) => {
 
 	const result = createUpdateSchema(table);
 	const expected = type({
-		c1: intSchema.or(type.null).optional(),
-		c2: intSchema.optional(),
-		c3: intSchema.or(type.null).optional(),
-		c4: intSchema.optional(),
+		c1: intNullableOptionalSchema,
+		c2: intOptionalSchema,
+		c3: intNullableOptionalSchema,
+		c4: intOptionalSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -193,9 +208,9 @@ test('refine table - select', (t) => {
 		c3: type.string.pipe(Number),
 	});
 	const expected = type({
-		c1: intSchema.or(type.null),
-		c2: intSchema.atMost(1000),
-		c3: type.string.pipe(Number),
+		c1: intNullableSchema,
+		c2: extendedSchema,
+		c3: customSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -217,9 +232,9 @@ test('refine table - select with custom data type', (t) => {
 		c4: customTextSchema,
 	});
 	const expected = type({
-		c1: intSchema.or(type.null),
-		c2: intSchema.atMost(1000),
-		c3: type.string.pipe(Number),
+		c1: intNullableSchema,
+		c2: extendedSchema,
+		c3: customSchema,
 		c4: customTextSchema,
 	});
 
@@ -240,9 +255,9 @@ test('refine table - insert', (t) => {
 		c3: type.string.pipe(Number),
 	});
 	const expected = type({
-		c1: intSchema.or(type.null).optional(),
-		c2: intSchema.atMost(1000),
-		c3: type.string.pipe(Number),
+		c1: intNullableOptionalSchema,
+		c2: extendedSchema,
+		c3: customSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -261,9 +276,9 @@ test('refine table - update', (t) => {
 		c3: type.string.pipe(Number),
 	});
 	const expected = type({
-		c1: intSchema.or(type.null).optional(),
-		c2: intSchema.atMost(1000).optional(),
-		c3: type.string.pipe(Number),
+		c1: intNullableOptionalSchema,
+		c2: extendedOptionalSchema,
+		c3: customSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -305,21 +320,21 @@ test('refine view - select', (t) => {
 		},
 	});
 	const expected = type({
-		c1: intSchema.or(type.null),
-		c2: intSchema.atMost(1000).or(type.null),
-		c3: type.string.pipe(Number),
+		c1: intNullableSchema,
+		c2: extendedNullableSchema,
+		c3: customSchema,
 		nested: type({
-			c4: intSchema.or(type.null),
-			c5: intSchema.atMost(1000).or(type.null),
-			c6: type.string.pipe(Number),
+			c4: intNullableSchema,
+			c5: extendedNullableSchema,
+			c6: customSchema,
 		}),
 		table: type({
-			c1: intSchema.or(type.null),
-			c2: intSchema.atMost(1000).or(type.null),
-			c3: type.string.pipe(Number),
-			c4: intSchema.or(type.null),
-			c5: intSchema.or(type.null),
-			c6: intSchema.or(type.null),
+			c1: intNullableSchema,
+			c2: extendedNullableSchema,
+			c3: customSchema,
+			c4: intNullableSchema,
+			c5: intNullableSchema,
+			c6: intNullableSchema,
 		}),
 	});
 	expectSchemaShape(t, expected).from(result);
