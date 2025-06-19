@@ -883,16 +883,21 @@ test('recreate table with added column not null and without default with data', 
 	await db.run(`INSERT INTO \`users\` ("name", "age") VALUES ('drizzle', 12)`);
 	await db.run(`INSERT INTO \`users\` ("name", "age") VALUES ('turso', 12)`);
 
-	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2 });
+	const { sqlStatements: pst, hints: phints, losses, error } = await push({
+		db,
+		to: schema2,
+		expectError: true,
+		force: true,
+	});
 
 	const st0: string[] = [
-		"ALTER TABLE `users` ADD `new_column` text DEFAULT '' NOT NULL;",
+		'ALTER TABLE `users` ADD `new_column` text NOT NULL;',
 		'PRAGMA foreign_keys=OFF;',
 		'CREATE TABLE `__new_users` (\n'
 		+ '\t`id` integer PRIMARY KEY,\n'
 		+ '\t`name` text,\n'
 		+ '\t`age` integer,\n'
-		+ "\t`new_column` text DEFAULT '' NOT NULL\n"
+		+ '\t`new_column` text NOT NULL\n'
 		+ ');\n',
 		'INSERT INTO `__new_users`(`id`, `name`, `age`) SELECT `id`, `name`, `age` FROM `users`;',
 		'DROP TABLE `users`;',
@@ -902,10 +907,11 @@ test('recreate table with added column not null and without default with data', 
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 
-	const hints0: string[] = [
+	expect(phints).toStrictEqual([
 		`· You're about to add not-null 'new_column' column without default value to non-empty 'users' table`,
-	];
-	expect(phints).toStrictEqual(hints0);
+	]);
+	expect(losses).toStrictEqual(['DELETE FROM "users" where true;']);
+	expect(error).toBeNull();
 });
 
 test('rename table with composite primary key', async () => {

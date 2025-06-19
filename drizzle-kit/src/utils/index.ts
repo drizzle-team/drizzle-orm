@@ -148,3 +148,14 @@ export function stringifyTuplesArray(
 	}).join(', ');
 	return mode === 'ts' ? `[${res}]` : `{${res}}`;
 }
+
+export const trimChar = (str: string, char: string) => {
+	let start = 0;
+	let end = str.length;
+
+	while (start < end && str[start] === char) ++start;
+	while (end > start && str[end - 1] === char) --end;
+
+	const res = start > 0 || end < str.length ? str.substring(start, end) : str;
+	return res;
+};

@@ -2,7 +2,7 @@ import type { Database } from 'better-sqlite3';
 import BetterSqlite3 from 'better-sqlite3';
 import { is } from 'drizzle-orm';
 import { int, SQLiteColumnBuilder, SQLiteTable, sqliteTable, SQLiteView } from 'drizzle-orm/sqlite-core';
-import { existsSync, rmSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { introspect } from 'src/cli/commands/pull-sqlite';
 import { suggestions } from 'src/cli/commands/push-sqlite';
 import { CasingType } from 'src/cli/validations/common';
@@ -16,6 +16,8 @@ import { fromDatabaseForDrizzle } from 'src/dialects/sqlite/introspect';
 import { ddlToTypeScript } from 'src/dialects/sqlite/typescript';
 import { DB, SQLiteDB } from 'src/utils';
 import { mockResolver } from 'src/utils/mocks';
+
+mkdirSync('tests/sqlite/tmp/', { recursive: true });
 
 export type SqliteSchema = Record<string, SQLiteTable<any> | SQLiteView>;
 
@@ -109,8 +111,10 @@ export const push = async (config: {
 	to: SqliteSchema | SQLiteDDL;
 	renames?: string[];
 	casing?: CasingType;
+	force?: boolean;
+	expectError?: boolean;
 }) => {
-	const { db, to } = config;
+	const { db, to, expectError, force } = config;
 	const casing = config.casing ?? 'camelCase';
 
 	const { ddl: ddl1, errors: err1, viewColumns } = await introspect(db, [], new EmptyProgressView());
@@ -144,18 +148,25 @@ export const push = async (config: {
 
 	const { hints, statements: losses } = await suggestions(db, statements);
 
-	// if (force) {
-	// 	for (const st of losses) {
-	// 		await db.run(st);
-	// 	}
-	// }
-
-	for (const sql of sqlStatements) {
-		// if (log === 'statements') console.log(sql);
-		await db.run(sql);
+	if (force) {
+		for (const st of losses) {
+			await db.run(st);
+		}
 	}
 
-	return { sqlStatements, statements, hints };
+	let error: Error | null = null;
+	for (const sql of sqlStatements) {
+		// if (log === 'statements') console.log(sql);
+		try {
+			await db.run(sql);
+		} catch (e) {
+			if (!expectError) throw e;
+			error = e as Error;
+			break;
+		}
+	}
+
+	return { sqlStatements, statements, hints, losses, error };
 };
 
 export const diffDefault = async <T extends SQLiteColumnBuilder>(
@@ -190,7 +201,7 @@ export const diffDefault = async <T extends SQLiteColumnBuilder>(
 
 	const expectedInit = `CREATE TABLE \`table\` (\n\t\`column\` ${type} DEFAULT ${expectedDefault}\n);\n`;
 	if (st1.length !== 1 || st1[0] !== expectedInit) res.push(`Unexpected init:\n${st1}\n\n${expectedInit}`);
-	if (st2.length > 0) res.push(`Unexpected subsequent init:\n${st2}`);
+	if (st2.length > 0) res.push(`Unexpected subsequent init:\n${st2.join('\n')}`);
 
 	// introspect to schema
 	const schema = await fromDatabaseForDrizzle(db);
@@ -233,8 +244,12 @@ export const diffDefault = async <T extends SQLiteColumnBuilder>(
 	if (pre) await push({ db, to: pre });
 	await push({ db, to: schema1 });
 	const { sqlStatements: st3 } = await push({ db, to: schema2 });
-	const expectedAlter = `ALTER TABLE \`table\` ALTER COLUMN \`column\` SET DEFAULT ${expectedDefault};`;
-	if (st3.length !== 1 || st3[0] !== expectedAlter) res.push(`Unexpected default alter:\n${st3}\n\n${expectedAlter}`);
+
+	const expectedAlter =
+		`CREATE TABLE \`__new_table\` (\n\t\`column\` ${column.getSQLType()} DEFAULT ${expectedDefault}\n);\n`;
+	if (st3.length !== 6 || st3[1] !== expectedAlter) {
+		res.push(`Unexpected default alter:\n${st3.join('\n')}\n\n${expectedAlter}`);
+	}
 
 	await clear();
 
@@ -252,7 +267,7 @@ export const diffDefault = async <T extends SQLiteColumnBuilder>(
 	await push({ db, to: schema3 });
 	const { sqlStatements: st4 } = await push({ db, to: schema4 });
 
-	const expectedAddColumn = `ALTER TABLE \`table\` ADD COLUMN "\`column\` ${type} DEFAULT ${expectedDefault};`;
+	const expectedAddColumn = `ALTER TABLE \`table\` ADD \`column\` ${type} DEFAULT ${expectedDefault};`;
 	if (st4.length !== 1 || st4[0] !== expectedAddColumn) {
 		res.push(`Unexpected add column:\n${st4[0]}\n\n${expectedAddColumn}`);
 	}
