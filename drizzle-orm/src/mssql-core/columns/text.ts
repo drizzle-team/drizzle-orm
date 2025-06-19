@@ -82,7 +82,7 @@ export function text(
 export function ntext(): MsSqlTextBuilderInitial<'', [string, ...string[]]>;
 export function ntext<U extends string, T extends Readonly<[U, ...U[]]>>(
 	config?: MsSqlTextConfig<T | Writable<T>>,
-): MsSqlTextBuilderInitial<'', [string, ...string[]]>;
+): MsSqlTextBuilderInitial<'', Writable<T>>;
 export function ntext<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
 	name: TName,
 	config?: MsSqlTextConfig<T | Writable<T>>,
