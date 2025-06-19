@@ -50,12 +50,20 @@ export type DrizzleMySQLSnapshotJSON = MySQLSchemaKit;
 export type DrizzleSingleStoreSnapshotJSON = SingleStoreSchemaKit;
 
 // Replit
+export type DrizzlePostgresCredentials = PostgresCredentials;
+export type DrizzlePgDB = DB & {
+	proxy: Proxy;
+	migrate: (config: string | MigrationConfig) => Promise<void>;
+};
+export type DrizzlePgDBIntrospectSchema = Omit<
+	PgSchemaKit,
+	| 'internal'>;
 
 export const introspectPgDB = async (
-	db: DB,
+	db: DrizzlePgDB,
 	filters: string[],
 	schemaFilters: string[],
-) => {
+): Promise<DrizzlePgDBIntrospectSchema> => {
 	const matchers = filters.map((it) => {
 		return new Minimatch(it);
 	});
@@ -98,12 +106,9 @@ export const introspectPgDB = async (
 };
 
 export const preparePgDB = async (
-	credentials: PostgresCredentials,
+	credentials: DrizzlePostgresCredentials,
 ): Promise<
-	DB & {
-		proxy: Proxy;
-		migrate: (config: string | MigrationConfig) => Promise<void>;
-	}
+	DrizzlePgDB
 > => {
 	console.log(`Using 'pg' driver for database querying`);
 	const { default: pg } = await import('pg');
@@ -173,7 +178,7 @@ export const preparePgDB = async (
 };
 
 export const getPgClientPool = async (
-	targetCredentials: PostgresCredentials,
+	targetCredentials: DrizzlePostgresCredentials,
 ) => {
 	const { default: pg } = await import('pg');
 	const pool = 'url' in targetCredentials
