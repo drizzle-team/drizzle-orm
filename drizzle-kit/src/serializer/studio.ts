@@ -10,7 +10,7 @@ import {
 	One,
 	Relations,
 	TablesRelationalConfig,
-} from 'drizzle-orm/_relations';
+} from 'drizzle-orm';
 import { AnyMySqlTable, getTableConfig as mysqlTableConfig, MySqlTable } from 'drizzle-orm/mysql-core';
 import { AnyPgTable, getTableConfig as pgTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import {
