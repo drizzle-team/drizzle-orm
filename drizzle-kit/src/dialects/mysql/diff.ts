@@ -321,7 +321,7 @@ export const ddlDiff = async (
 			}
 
 			if (it.default) {
-				console.log(it.default)
+				console.log(it.default);
 				let deleteDefault =
 					!!(it.default.from && it.default.to && typesCommutative(it.default.from.value, it.default.to.value));
 				deleteDefault ||= it.default.from?.value === it.default.to?.value;

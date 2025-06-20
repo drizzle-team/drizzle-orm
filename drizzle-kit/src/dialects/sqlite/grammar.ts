@@ -99,7 +99,7 @@ export const parseDefault = (it: string): Column['default'] => {
 	if (it === 'false' || it === 'true') {
 		return { value: it, isExpression: true };
 	}
-	
+
 	if (it.startsWith("'") && it.endsWith("'")) {
 		return { value: trimmed.replaceAll("''", "'"), isExpression: false };
 	}
