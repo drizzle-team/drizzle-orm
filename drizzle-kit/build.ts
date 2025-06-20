@@ -20,6 +20,13 @@ const driversPackages = [
 	'bun:sqlite',
 ];
 
+// Problematic dependencies that should be external
+const externalDeps = [
+	'json-diff',
+	'commander',
+	'glob',
+];
+
 esbuild.buildSync({
 	entryPoints: ['./src/utils.ts'],
 	bundle: true,
@@ -28,12 +35,10 @@ esbuild.buildSync({
 	target: 'node16',
 	platform: 'node',
 	external: [
-		'commander',
-		'json-diff',
-		'glob',
 		'esbuild',
 		'drizzle-orm',
 		...driversPackages,
+		...externalDeps,
 	],
 	banner: {
 		js: `#!/usr/bin/env node`,
@@ -48,12 +53,10 @@ esbuild.buildSync({
 	target: 'node16',
 	platform: 'node',
 	external: [
-		'commander',
-		'json-diff',
-		'glob',
 		'esbuild',
 		'drizzle-orm',
 		...driversPackages,
+		...externalDeps,
 	],
 	banner: {
 		js: `#!/usr/bin/env node`,
@@ -84,7 +87,10 @@ const main = async () => {
 	await tsup.build({
 		entryPoints: ['./src/index.ts', './src/api.ts'],
 		outDir: './dist',
-		external: ['bun:sqlite'],
+		external: [
+			'bun:sqlite',
+			...externalDeps,
+		],
 		splitting: false,
 		dts: true,
 		format: ['cjs', 'esm'],

@@ -1,4 +1,3 @@
-import { diff } from 'json-diff';
 import { MigrationConfig } from 'drizzle-orm/migrator';
 import { Minimatch } from 'minimatch';
 import {
@@ -14,7 +13,7 @@ import { pgSuggestions } from './cli/commands/pgPushUtils';
 import { PostgresCredentials } from './cli/validations/postgres';
 import { originUUID } from './global';
 import { MySqlSchema as MySQLSchemaKit } from './serializer/mysqlSchema';
-import { PgSchema as PgSchemaKit, PgSchemaSquashed, pgSchema, squashPgScheme } from './serializer/pgSchema';
+import { PgSchema as PgSchemaKit, pgSchema, squashPgScheme } from './serializer/pgSchema';
 import { fromDatabase } from './serializer/pgSerializer';
 import {
 	SingleStoreSchema as SingleStoreSchemaKit
@@ -36,17 +35,6 @@ export type DrizzlePgDB = DB & {
 export type DrizzlePgDBIntrospectSchema = Omit<
 	PgSchemaKit,
 	| 'internal'>;
-
-export function diffPgSquashedSchemas(left: PgSchemaSquashed, right: PgSchemaSquashed) {
-	left = JSON.parse(JSON.stringify(left));
-	right = JSON.parse(JSON.stringify(right));
-
-	const _diff = diff(left, right);
-	return {
-		diff: _diff,
-		hasDiff: _diff !== undefined,
-	}
-}
 
 export const introspectPgDB = async (
 	db: DrizzlePgDB,
