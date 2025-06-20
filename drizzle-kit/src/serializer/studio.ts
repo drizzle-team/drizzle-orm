@@ -426,52 +426,75 @@ export const drizzleForSingleStore = async (
 	};
 };
 
+type Relation = {
+	name: string;
+	type: 'one' | 'many';
+	table: string;
+	schema: string;
+	columns: string[];
+	refTable: string;
+	refSchema: string;
+	refColumns: string[];
+};
+
 export const extractRelations = (tablesConfig: {
 	tables: TablesRelationalConfig;
 	tableNamesMap: Record<string, string>;
-}) => {
+}): Relation[] => {
 	const relations = Object.values(tablesConfig.tables)
 		.map((it) =>
 			Object.entries(it.relations).map(([name, relation]) => {
-				const normalized = normalizeRelation(tablesConfig.tables, tablesConfig.tableNamesMap, relation);
-				const rel = relation;
-				const refTableName = rel.referencedTableName;
-				const refTable = rel.referencedTable;
-				const fields = normalized.fields.map((it) => it.name).flat();
-				const refColumns = normalized.references.map((it) => it.name).flat();
+				try {
+					const normalized = normalizeRelation(
+						tablesConfig.tables,
+						tablesConfig.tableNamesMap,
+						relation,
+					);
+					const rel = relation;
+					const refTableName = rel.referencedTableName;
+					const refTable = rel.referencedTable;
+					const fields = normalized.fields.map((it) => it.name).flat();
+					const refColumns = normalized.references.map((it) => it.name).flat();
 
-				let refSchema: string | undefined;
-				if (is(refTable, PgTable)) {
-					refSchema = pgTableConfig(refTable).schema;
-				} else if (is(refTable, MySqlTable)) {
-					refSchema = mysqlTableConfig(refTable).schema;
-				} else if (is(refTable, SQLiteTable)) {
-					refSchema = undefined;
-				} else if (is(refTable, SingleStoreTable)) {
-					refSchema = singlestoreTableConfig(refTable).schema;
-				} else {
-					throw new Error('unsupported dialect');
+					let refSchema: string | undefined;
+					if (is(refTable, PgTable)) {
+						refSchema = pgTableConfig(refTable).schema;
+					} else if (is(refTable, MySqlTable)) {
+						refSchema = mysqlTableConfig(refTable).schema;
+					} else if (is(refTable, SQLiteTable)) {
+						refSchema = undefined;
+					} else if (is(refTable, SingleStoreTable)) {
+						refSchema = singlestoreTableConfig(refTable).schema;
+					} else {
+						throw new Error('unsupported dialect');
+					}
+
+					let type: 'one' | 'many';
+					if (is(rel, One)) {
+						type = 'one';
+					} else if (is(rel, Many)) {
+						type = 'many';
+					} else {
+						throw new Error('unsupported relation type');
+					}
+
+					return {
+						name,
+						type,
+						table: it.dbName,
+						schema: it.schema || 'public',
+						columns: fields,
+						refTable: refTableName,
+						refSchema: refSchema || 'public',
+						refColumns: refColumns,
+					};
+				} catch (error) {
+					throw new Error(
+						`Invalid relation "${relation.fieldName}" for table "${
+							it.schema ? `${it.schema}.${it.dbName}` : it.dbName
+						}"`,
+					);
 				}
-
-				let type: 'one' | 'many';
-				if (is(rel, One)) {
-					type = 'one';
-				} else if (is(rel, Many)) {
-					type = 'many';
-				} else {
-					throw new Error('unsupported relation type');
-				}
-
-				return {
-					name,
-					type,
-					table: it.dbName,
-					schema: it.schema || 'public',
-					columns: fields,
-					refTable: refTableName,
-					refSchema: refSchema || 'public',
-					refColumns: refColumns,
-				};
 			})
 		)
 		.flat();
@@ -608,13 +631,25 @@ export const prepareServer = async (
 				column: d.column,
 			}));
 
+			let relations: Relation[] = [];
+			// Attempt to extract relations from the relational config.
+			// An error may occur if the relations are ambiguous or misconfigured.
+			try {
+				relations = extractRelations(relationsConfig);
+			} catch (error) {
+				console.warn('Failed to extract relations. This is likely due to ambiguous or misconfigured relations.');
+				console.warn('Please check your schema and ensure that all relations are correctly defined.');
+				console.warn('See: https://orm.drizzle.team/docs/relations#disambiguating-relations');
+				console.warn('Error message:', (error as Error).message);
+			}
+
 			return c.json({
 				version: '6.1',
 				dialect,
 				driver,
 				schemaFiles,
 				customDefaults: preparedDefaults,
-				relations: extractRelations(relationsConfig),
+				relations,
 				dbHash,
 			});
 		}
