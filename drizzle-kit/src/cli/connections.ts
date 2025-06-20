@@ -1,4 +1,3 @@
-import { sql } from 'drizzle-orm';
 import type { AwsDataApiPgQueryResult, AwsDataApiSessionOptions } from 'drizzle-orm/aws-data-api/pg';
 import type { MigrationConfig } from 'drizzle-orm/migrator';
 import type { PreparedQueryConfig } from 'drizzle-orm/pg-core';
@@ -12,8 +11,8 @@ import {
 	normalisePGliteUrl,
 	normaliseSQLiteUrl,
 	type Proxy,
-	type TransactionProxy,
 	type SQLiteDB,
+	type TransactionProxy,
 } from '../utils';
 import { assertPackages, checkPackage } from './utils';
 import { GelCredentials } from './validations/gel';
@@ -151,8 +150,7 @@ export const preparePostgresDB = async (
 				try {
 					await pglite.transaction(async (tx) => {
 						for (const query of queries) {
-							const preparedParams = preparePGliteParams(query.params || []);
-							const result = await tx.query(query.sql, preparedParams, {
+							const result = await tx.query(query.sql, undefined, {
 								parsers,
 							});
 							results.push(result.rows);
@@ -243,7 +241,6 @@ export const preparePostgresDB = async (
 				for (const query of queries) {
 					const result = await tx.query({
 						text: query.sql,
-						values: query.params,
 						types,
 					});
 					results.push(result.rows);
@@ -306,8 +303,7 @@ export const preparePostgresDB = async (
 			try {
 				await client.begin(async (sql) => {
 					for (const query of queries) {
-						const preparedParams = prepareSqliteParams(query.params || []);
-						const result = await sql.unsafe(query.sql, preparedParams);
+						const result = await sql.unsafe(query.sql);
 						results.push(result);
 					}
 				});
@@ -401,7 +397,6 @@ export const preparePostgresDB = async (
 				for (const query of queries) {
 					const result = await tx.query({
 						text: query.sql,
-						values: query.params,
 						types,
 					});
 					results.push(result.rows);
@@ -502,7 +497,6 @@ export const preparePostgresDB = async (
 				for (const query of queries) {
 					const result = await tx.query({
 						text: query.sql,
-						values: query.params,
 						types,
 					});
 					results.push(result.rows);
@@ -589,9 +583,7 @@ To link your project, please refer https://docs.geldata.com/reference/cli/gel_in
 			try {
 				await client.transaction(async (tx) => {
 					for (const query of queries) {
-						const res = query.params?.length
-							? await tx.querySQL(query.sql, query.params)
-							: await tx.querySQL(query.sql);
+						const res = await tx.querySQL(query.sql);
 						result.push(res);
 					}
 				});
@@ -681,10 +673,7 @@ export const connectToSingleStore = async (
 			try {
 				await connection.beginTransaction();
 				for (const query of queries) {
-					const res = await connection.query({
-						sql: query.sql,
-						values: query.params,
-					});
+					const res = await connection.query(query.sql);
 					results.push(res[0]);
 				}
 				await connection.commit();
@@ -793,10 +782,7 @@ export const connectToMySQL = async (
 			try {
 				await connection.beginTransaction();
 				for (const query of queries) {
-					const res = await connection.query({
-						sql: query.sql,
-						values: query.params,
-					});
+					const res = await connection.query(query.sql);
 					results.push(res[0]);
 				}
 				await connection.commit();
@@ -848,7 +834,7 @@ export const connectToMySQL = async (
 			try {
 				await connection.transaction(async (tx) => {
 					for (const query of queries) {
-						const res = await tx.execute(query.sql, query.params);
+						const res = await tx.execute(query.sql);
 						results.push(res.rows);
 					}
 				});
@@ -982,16 +968,14 @@ export const connectToSQLite = async (
 			const remoteBatchCallback = async (
 				queries: {
 					sql: string;
-					params?: any[];
 				}[],
 			) => {
 				const sql = queries.map((q) => q.sql).join('; ');
-				const params = queries.flatMap((q) => q.params || []);
 				const res = await fetch(
 					`https://api.cloudflare.com/client/v4/accounts/${credentials.accountId}/d1/database/${credentials.databaseId}/query`,
 					{
 						method: 'POST',
-						body: JSON.stringify({ sql, params }),
+						body: JSON.stringify({ sql }),
 						headers: {
 							'Content-Type': 'application/json',
 							Authorization: `Bearer ${credentials.token}`,
@@ -1050,13 +1034,7 @@ export const connectToSQLite = async (
 				return result.rows;
 			};
 			const transactionProxy: TransactionProxy = async (queries) => {
-				const preparedQueries = queries.map((query) => ({
-					sql: query.sql,
-					params: prepareSqliteParams(query.params || [], 'd1-http'),
-				}));
-				const result = await remoteBatchCallback(
-					preparedQueries,
-				);
+				const result = await remoteBatchCallback(queries);
 				return result.rows;
 			};
 			return { ...db, proxy, transactionProxy, migrate: migrateFn };
@@ -1110,11 +1088,7 @@ export const connectToSQLite = async (
 			try {
 				transaction = await client.transaction();
 				for (const query of queries) {
-					const preparedParams = prepareSqliteParams(query.params || []);
-					const result = await transaction.execute({
-						sql: query.sql,
-						args: preparedParams,
-					});
+					const result = await transaction.execute(query.sql);
 					results.push(result.rows);
 				}
 				await transaction.commit();
@@ -1175,10 +1149,14 @@ export const connectToSQLite = async (
 
 			const tx = sqlite.transaction(async (queries: Parameters<TransactionProxy>[0]) => {
 				for (const query of queries) {
-					const preparedParams = prepareSqliteParams(query.params || []);
-					const result = sqlite
-						.prepare(query.sql)
-						.all(preparedParams);
+					let result: any[] = [];
+					if (query.method === 'values' || query.method === 'get' || query.method === 'all') {
+						result = sqlite
+							.prepare(query.sql)
+							.all();
+					} else {
+						sqlite.prepare(query.sql).run();
+					}
 					results.push(result);
 				}
 			});
@@ -1254,11 +1232,7 @@ export const connectToLibSQL = async (credentials: LibSQLCredentials): Promise<
 			try {
 				transaction = await client.transaction();
 				for (const query of queries) {
-					const preparedParams = prepareSqliteParams(query.params || []);
-					const result = await transaction.execute({
-						sql: query.sql,
-						args: preparedParams,
-					});
+					const result = await transaction.execute(query.sql);
 					results.push(result.rows);
 				}
 				await transaction.commit();
