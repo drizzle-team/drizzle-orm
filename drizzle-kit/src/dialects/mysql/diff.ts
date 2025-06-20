@@ -315,12 +315,13 @@ export const ddlDiff = async (
 	};
 
 	const columnAlterStatements = alters.filter((it) => it.entityType === 'columns')
-		.map((it) => {
+		.filter((it) => {
 			if (it.type && typesCommutative(it.type.from, it.type.to)) {
 				delete it.type;
 			}
 
 			if (it.default) {
+				console.log(it.default);
 				let deleteDefault =
 					!!(it.default.from && it.default.to && typesCommutative(it.default.from.value, it.default.to.value));
 				deleteDefault ||= it.default.from?.value === it.default.to?.value;
@@ -337,11 +338,8 @@ export const ddlDiff = async (
 			) {
 				delete it.generated;
 			}
-			return it;
-		})
-		.filter((it) => Object.keys(it).length > 4)
-		.filter((it) => alterColumnPredicate(it))
-		.map((it) => {
+			return ddl2.columns.hasDiff(it) && alterColumnPredicate(it);
+		}).map((it) => {
 			const column = ddl2.columns.one({ name: it.name, table: it.table })!;
 			const pk = ddl2.pks.one({ table: it.table });
 			const isPK = pk && pk.columns.length === 1 && pk.columns[0] === column.name;

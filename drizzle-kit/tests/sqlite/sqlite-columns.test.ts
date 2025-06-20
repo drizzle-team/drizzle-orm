@@ -238,25 +238,29 @@ test('added column not null and without default to table with data', async (t) =
 		}),
 	};
 
-	const table = getTableConfig(schema1.companies);
-
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
 	await push({ db, to: schema1 });
-	await db.run(`INSERT INTO \`${table.name}\` ("${schema1.companies.name.name}") VALUES ('drizzle');`);
-	await db.run(`INSERT INTO \`${table.name}\` ("${schema1.companies.name.name}") VALUES ('turso');`);
+	await db.run(`INSERT INTO \`companies\` ("name") VALUES ('drizzle');`);
+	await db.run(`INSERT INTO \`companies\` ("name") VALUES ('turso');`);
 
 	// TODO: reivise
-	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2 });
+	const { sqlStatements: pst, hints: phints, error, losses } = await push({
+		db,
+		to: schema2,
+		expectError: true,
+		force: true,
+	});
 
 	const st0: string[] = [`ALTER TABLE \`companies\` ADD \`age\` integer NOT NULL;`];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 
-	const hints0: string[] = [
+	expect(phints).toStrictEqual([
 		"· You're about to add not-null 'age' column without default value to non-empty 'companies' table",
-	];
-	expect(phints).toStrictEqual(hints0);
+	]);
+	expect(error).toBeNull();
+	expect(losses).toStrictEqual(['DELETE FROM "companies" where true;']);
 
 	// TODO: check truncations
 });
@@ -1379,7 +1383,7 @@ test('alter column drop generated', async (t) => {
 	const from = {
 		users: sqliteTable('table', {
 			id: int('id').primaryKey().notNull(),
-			name: text('name').generatedAlwaysAs('drizzle is the best').notNull(),
+			name: text('name').generatedAlwaysAs("'drizzle is the best'").notNull(),
 		}),
 	};
 

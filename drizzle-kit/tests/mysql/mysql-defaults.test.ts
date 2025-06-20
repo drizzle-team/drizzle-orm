@@ -339,7 +339,7 @@ test('binary', async () => {
 });
 
 test('varbinary', async () => {
-	const res1 = await diffDefault(_, varbinary({ length: 10 }).default('binary'), `('binary')`);
+	const res1 = await diffDefault(_, varbinary({ length: 10 }).default('binary'), `(0x62696e617279)`);
 	const res2 = await diffDefault(_, varbinary({ length: 16 }).default(sql`(lower('HELLO'))`), `(lower('HELLO'))`);
 
 	expect.soft(res1).toStrictEqual([]);

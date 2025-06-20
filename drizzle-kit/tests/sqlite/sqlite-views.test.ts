@@ -134,9 +134,9 @@ test('alter view ".as" #2', async () => {
 	await push({ db, to: schema1 });
 	const { sqlStatements: pst, hints: phints } = await push({ db, to: schema2 });
 
-	const st0: string[] = [];
-	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+	const st0: string[] = ['DROP VIEW `view`;', 'CREATE VIEW `view` AS select "id" from "test";'];
+	expect.soft(st).toStrictEqual(st0);
+	expect.soft(pst).toStrictEqual([]); // ignore sql change for push
 
 	expect(phints).toStrictEqual([]);
 });

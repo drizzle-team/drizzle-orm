@@ -527,7 +527,7 @@ test('generated as sql: add column with stored generated constraint', async () =
 			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				sql`"users"."name" || \'hello\' || 'hello'`,
+				sql`"name" || \'hello\' || 'hello'`,
 				{ mode: 'stored' },
 			),
 		}),
@@ -548,7 +548,7 @@ test('generated as sql: add column with stored generated constraint', async () =
 		+ '\t`id` integer,\n'
 		+ '\t`id2` integer,\n'
 		+ '\t`name` text,\n'
-		+ '\t`gen_name` text GENERATED ALWAYS AS ("users"."name" || \'hello\' || \'hello\') STORED\n'
+		+ "\t`gen_name` text GENERATED ALWAYS AS (\"name\" || 'hello' || 'hello') STORED\n"
 		+ ');\n',
 		'INSERT INTO `__new_users`(`id`, `id2`, `name`) SELECT `id`, `id2`, `name` FROM `users`;',
 		'DROP TABLE `users`;',
@@ -573,7 +573,7 @@ test('generated as sql: add column with virtual generated constraint', async () 
 			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				sql`"users"."name" || \'hello\'`,
+				sql`"name" || \'hello\'`,
 				{ mode: 'virtual' },
 			),
 		}),
@@ -589,7 +589,7 @@ test('generated as sql: add column with virtual generated constraint', async () 
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		'ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS ("users"."name" || \'hello\') VIRTUAL;',
+		'ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS ("name" || \'hello\') VIRTUAL;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -611,7 +611,7 @@ test('generated as sql: add generated constraint to an exisiting column as store
 			name: text('name'),
 			generatedName: text('gen_name')
 				.notNull()
-				.generatedAlwaysAs(sql`"users"."name" || 'to add'`, {
+				.generatedAlwaysAs(sql`"name" || 'to add'`, {
 					mode: 'stored',
 				}),
 		}),
@@ -632,7 +632,7 @@ test('generated as sql: add generated constraint to an exisiting column as store
 		+ '\t`id` integer,\n'
 		+ '\t`id2` integer,\n'
 		+ '\t`name` text,\n'
-		+ '\t`gen_name` text GENERATED ALWAYS AS ("users"."name" || \'to add\') STORED NOT NULL\n'
+		+ '\t`gen_name` text GENERATED ALWAYS AS ("name" || \'to add\') STORED NOT NULL\n'
 		+ ');\n',
 		'INSERT INTO `__new_users`(`id`, `id2`, `name`) SELECT `id`, `id2`, `name` FROM `users`;',
 		'DROP TABLE `users`;',
@@ -659,7 +659,7 @@ test('generated as sql: add generated constraint to an exisiting column as virtu
 			name: text('name'),
 			generatedName: text('gen_name')
 				.notNull()
-				.generatedAlwaysAs(sql`"users"."name" || 'to add'`, {
+				.generatedAlwaysAs(sql`"name" || 'to add'`, {
 					mode: 'virtual',
 				}),
 		}),
@@ -676,7 +676,7 @@ test('generated as sql: add generated constraint to an exisiting column as virtu
 
 	const st0: string[] = [
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
-		'ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS ("users"."name" || \'to add\') VIRTUAL NOT NULL;',
+		'ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS ("name" || \'to add\') VIRTUAL NOT NULL;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -689,7 +689,7 @@ test('generated as sql: drop generated constraint as stored', async () => {
 			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				sql`"users"."name" || 'to delete'`,
+				sql`"name" || 'to delete'`,
 				{ mode: 'stored' },
 			),
 		}),
@@ -727,7 +727,7 @@ test('generated as sql: drop generated constraint as virtual', async () => {
 			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				sql`"users"."name" || 'to delete'`,
+				sql`"name" || 'to delete'`,
 				{ mode: 'virtual' },
 			),
 		}),
@@ -764,7 +764,7 @@ test('generated as sql: change generated constraint type from virtual to stored'
 		users: sqliteTable('users', {
 			id: int('id'),
 			name: text('name'),
-			generatedName: text('gen_name').generatedAlwaysAs(sql`"users"."name"`, {
+			generatedName: text('gen_name').generatedAlwaysAs(sql`"name"`, {
 				mode: 'virtual',
 			}),
 		}),
@@ -811,7 +811,7 @@ test('generated as sql: change generated constraint type from stored to virtual'
 			id: int('id'),
 			id2: int('id2'),
 			name: text('name'),
-			generatedName: text('gen_name').generatedAlwaysAs(sql`"users"."name"`, {
+			generatedName: text('gen_name').generatedAlwaysAs(sql`"name"`, {
 				mode: 'stored',
 			}),
 		}),
@@ -822,7 +822,7 @@ test('generated as sql: change generated constraint type from stored to virtual'
 			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				sql`"users"."name" || 'hello'`,
+				sql`"name" || 'hello'`,
 				{ mode: 'virtual' },
 			),
 		}),
@@ -839,7 +839,7 @@ test('generated as sql: change generated constraint type from stored to virtual'
 
 	const st0: string[] = [
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
-		'ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS ("users"."name" || \'hello\') VIRTUAL;',
+		'ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS ("name" || \'hello\') VIRTUAL;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -852,7 +852,7 @@ test('generated as sql: change stored generated constraint', async () => {
 			id: int('id'),
 			id2: int('id2'),
 			name: text('name'),
-			generatedName: text('gen_name').generatedAlwaysAs(sql`"users"."name"`, {
+			generatedName: text('gen_name').generatedAlwaysAs(sql`"name"`, {
 				mode: 'stored',
 			}),
 		}),
@@ -901,7 +901,7 @@ test('generated as sql: change virtual generated constraint', async () => {
 			id: int('id'),
 			id2: int('id2'),
 			name: text('name'),
-			generatedName: text('gen_name').generatedAlwaysAs(sql`"users"."name"`),
+			generatedName: text('gen_name').generatedAlwaysAs(sql`"name"`),
 		}),
 	};
 	const to = {
@@ -910,7 +910,7 @@ test('generated as sql: change virtual generated constraint', async () => {
 			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				sql`"users"."name" || 'hello'`,
+				sql`"name" || 'hello'`,
 			),
 		}),
 	};
@@ -926,7 +926,7 @@ test('generated as sql: change virtual generated constraint', async () => {
 
 	const st0: string[] = [
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
-		'ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS ("users"."name" || \'hello\') VIRTUAL;',
+		'ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS ("name" || \'hello\') VIRTUAL;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -940,7 +940,7 @@ test('generated as sql: add table with column with stored generated constraint',
 			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				sql`"users"."name" || 'hello'`,
+				sql`"name" || 'hello'`,
 				{ mode: 'stored' },
 			),
 		}),
@@ -956,7 +956,7 @@ test('generated as sql: add table with column with stored generated constraint',
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		'CREATE TABLE `users` (\n\t`id` integer,\n\t`id2` integer,\n\t`name` text,\n\t`gen_name` text GENERATED ALWAYS AS ("users"."name" || \'hello\') STORED\n);\n',
+		'CREATE TABLE `users` (\n\t`id` integer,\n\t`id2` integer,\n\t`name` text,\n\t`gen_name` text GENERATED ALWAYS AS ("name" || \'hello\') STORED\n);\n',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -970,7 +970,7 @@ test('generated as sql: add table with column with virtual generated constraint'
 			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				sql`"users"."name" || 'hello'`,
+				sql`"name" || 'hello'`,
 				{ mode: 'virtual' },
 			),
 		}),
@@ -986,7 +986,7 @@ test('generated as sql: add table with column with virtual generated constraint'
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		'CREATE TABLE `users` (\n\t`id` integer,\n\t`id2` integer,\n\t`name` text,\n\t`gen_name` text GENERATED ALWAYS AS ("users"."name" || \'hello\') VIRTUAL\n);\n',
+		'CREATE TABLE `users` (\n\t`id` integer,\n\t`id2` integer,\n\t`name` text,\n\t`gen_name` text GENERATED ALWAYS AS ("name" || \'hello\') VIRTUAL\n);\n',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1051,7 +1051,7 @@ test('generated as string: add column with virtual generated constraint', async 
 			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				`"users"."name" || \'hello\'`,
+				`"name" || \'hello\'`,
 				{ mode: 'virtual' },
 			),
 		}),
@@ -1067,7 +1067,7 @@ test('generated as string: add column with virtual generated constraint', async 
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		'ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS ("users"."name" || \'hello\') VIRTUAL;',
+		'ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS ("name" || \'hello\') VIRTUAL;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1089,7 +1089,7 @@ test('generated as string: add generated constraint to an exisiting column as st
 			name: text('name'),
 			generatedName: text('gen_name')
 				.notNull()
-				.generatedAlwaysAs(`"users"."name" || 'to add'`, {
+				.generatedAlwaysAs(`"name" || 'to add'`, {
 					mode: 'stored',
 				}),
 		}),
@@ -1110,7 +1110,7 @@ test('generated as string: add generated constraint to an exisiting column as st
 		+ '\t`id` integer,\n'
 		+ '\t`id2` integer,\n'
 		+ '\t`name` text,\n'
-		+ '\t`gen_name` text GENERATED ALWAYS AS ("users"."name" || \'to add\') STORED NOT NULL\n'
+		+ '\t`gen_name` text GENERATED ALWAYS AS ("name" || \'to add\') STORED NOT NULL\n'
 		+ ');\n',
 		'INSERT INTO `__new_users`(`id`, `id2`, `name`) SELECT `id`, `id2`, `name` FROM `users`;',
 		'DROP TABLE `users`;',
@@ -1137,7 +1137,7 @@ test('generated as string: add generated constraint to an exisiting column as vi
 			name: text('name'),
 			generatedName: text('gen_name')
 				.notNull()
-				.generatedAlwaysAs(`"users"."name" || 'to add'`, {
+				.generatedAlwaysAs(`"name" || 'to add'`, {
 					mode: 'virtual',
 				}),
 		}),
@@ -1154,7 +1154,7 @@ test('generated as string: add generated constraint to an exisiting column as vi
 
 	const st0: string[] = [
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
-		'ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS ("users"."name" || \'to add\') VIRTUAL NOT NULL;',
+		'ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS ("name" || \'to add\') VIRTUAL NOT NULL;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1167,7 +1167,7 @@ test('generated as string: drop generated constraint as stored', async () => {
 			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				`"users"."name" || 'to delete'`,
+				`"name" || 'to delete'`,
 				{ mode: 'stored' },
 			),
 		}),
@@ -1205,7 +1205,7 @@ test('generated as string: drop generated constraint as virtual', async () => {
 			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				`"users"."name" || 'to delete'`,
+				`"name" || 'to delete'`,
 				{ mode: 'virtual' },
 			),
 		}),
@@ -1243,7 +1243,7 @@ test('generated as string: change generated constraint type from virtual to stor
 			id: int('id'),
 			id2: int('id2'),
 			name: text('name'),
-			generatedName: text('gen_name').generatedAlwaysAs(`"users"."name"`, {
+			generatedName: text('gen_name').generatedAlwaysAs(`"name"`, {
 				mode: 'virtual',
 			}),
 		}),
@@ -1292,7 +1292,7 @@ test('generated as string: change generated constraint type from stored to virtu
 			id: int('id'),
 			id2: int('id2'),
 			name: text('name'),
-			generatedName: text('gen_name').generatedAlwaysAs(`"users"."name"`, {
+			generatedName: text('gen_name').generatedAlwaysAs(`"name"`, {
 				mode: 'stored',
 			}),
 		}),
@@ -1303,7 +1303,7 @@ test('generated as string: change generated constraint type from stored to virtu
 			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				`"users"."name" || 'hello'`,
+				`"name" || 'hello'`,
 				{ mode: 'virtual' },
 			),
 		}),
@@ -1320,7 +1320,7 @@ test('generated as string: change generated constraint type from stored to virtu
 
 	const st0: string[] = [
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
-		'ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS ("users"."name" || \'hello\') VIRTUAL;',
+		'ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS ("name" || \'hello\') VIRTUAL;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1332,7 +1332,7 @@ test('generated as string: change stored generated constraint', async () => {
 		users: sqliteTable('users', {
 			id: int('id'),
 			name: text('name'),
-			generatedName: text('gen_name').generatedAlwaysAs(`"users"."name"`, {
+			generatedName: text('gen_name').generatedAlwaysAs(`"name"`, {
 				mode: 'stored',
 			}),
 		}),
@@ -1379,7 +1379,7 @@ test('generated as string: change virtual generated constraint', async () => {
 			id: int('id'),
 			id2: int('id2'),
 			name: text('name'),
-			generatedName: text('gen_name').generatedAlwaysAs(`"users"."name"`),
+			generatedName: text('gen_name').generatedAlwaysAs(`"name"`),
 		}),
 	};
 	const to = {
@@ -1388,7 +1388,7 @@ test('generated as string: change virtual generated constraint', async () => {
 			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				`"users"."name" || 'hello'`,
+				`"name" || 'hello'`,
 			),
 		}),
 	};
@@ -1404,7 +1404,7 @@ test('generated as string: change virtual generated constraint', async () => {
 
 	const st0: string[] = [
 		'ALTER TABLE `users` DROP COLUMN `gen_name`;',
-		'ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS ("users"."name" || \'hello\') VIRTUAL;',
+		'ALTER TABLE `users` ADD `gen_name` text GENERATED ALWAYS AS ("name" || \'hello\') VIRTUAL;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1418,7 +1418,7 @@ test('generated as string: add table with column with stored generated constrain
 			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				`"users"."name" || 'hello'`,
+				`"name" || 'hello'`,
 				{ mode: 'stored' },
 			),
 		}),
@@ -1434,7 +1434,7 @@ test('generated as string: add table with column with stored generated constrain
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		'CREATE TABLE `users` (\n\t`id` integer,\n\t`id2` integer,\n\t`name` text,\n\t`gen_name` text GENERATED ALWAYS AS ("users"."name" || \'hello\') STORED\n);\n',
+		'CREATE TABLE `users` (\n\t`id` integer,\n\t`id2` integer,\n\t`name` text,\n\t`gen_name` text GENERATED ALWAYS AS ("name" || \'hello\') STORED\n);\n',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1448,7 +1448,7 @@ test('generated as string: add table with column with virtual generated constrai
 			id2: int('id2'),
 			name: text('name'),
 			generatedName: text('gen_name').generatedAlwaysAs(
-				`"users"."name" || 'hello'`,
+				`"name" || 'hello'`,
 				{ mode: 'virtual' },
 			),
 		}),
@@ -1464,7 +1464,7 @@ test('generated as string: add table with column with virtual generated constrai
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		'CREATE TABLE `users` (\n\t`id` integer,\n\t`id2` integer,\n\t`name` text,\n\t`gen_name` text GENERATED ALWAYS AS ("users"."name" || \'hello\') VIRTUAL\n);\n',
+		'CREATE TABLE `users` (\n\t`id` integer,\n\t`id2` integer,\n\t`name` text,\n\t`gen_name` text GENERATED ALWAYS AS ("name" || \'hello\') VIRTUAL\n);\n',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);

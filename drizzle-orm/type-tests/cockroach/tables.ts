@@ -100,8 +100,7 @@ export const users = cockroachTable(
 		index('usersAge2Idx').on(sql``),
 		uniqueIndex('uniqueClass')
 			.using('btree', users.class.desc(), users.subClass)
-			.where(sql`${users.class} is not null`)
-			.concurrently(),
+			.where(sql`${users.class} is not null`),
 		check('legalAge', sql`${users.age1} > 18`),
 		foreignKey({ columns: [users.subClass], foreignColumns: [classes.subClass] })
 			.onUpdate('cascade')
