@@ -1,5 +1,4 @@
-import { assertUnreachable } from '../../utils';
-import { trimChar } from '../postgres/grammar';
+import { assertUnreachable, trimChar } from '../../utils';
 import { Column, ForeignKey } from './ddl';
 
 export const nameForForeignKey = (fk: Pick<ForeignKey, 'table' | 'columns' | 'tableTo' | 'columnsTo'>) => {

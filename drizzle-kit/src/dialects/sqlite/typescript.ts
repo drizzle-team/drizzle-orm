@@ -109,13 +109,7 @@ export const ddlToTypeScript = (
 
 		let statement = `export const ${withCasing(table.name, casing)} = sqliteTable("${table.name}", {\n`;
 
-		statement += createTableColumns(
-			columns,
-			fks,
-			pk,
-			casing,
-		);
-
+		statement += createTableColumns(columns, fks, pk, casing);
 		statement += '}';
 
 		// more than 2 fields or self reference or cyclic

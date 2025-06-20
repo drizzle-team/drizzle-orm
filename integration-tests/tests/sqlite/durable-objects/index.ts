@@ -1,6 +1,5 @@
 /// <reference types="@cloudflare/workers-types" />
 
-import { expect } from 'chai';
 import { DurableObject } from 'cloudflare:workers';
 import {
 	and,
@@ -44,6 +43,7 @@ import {
 	union,
 	unionAll,
 } from 'drizzle-orm/sqlite-core';
+import { expect } from 'vitest';
 import { type Equal, Expect } from '~/utils';
 import migrations from './drizzle/migrations';
 

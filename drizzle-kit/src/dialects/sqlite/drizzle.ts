@@ -67,7 +67,6 @@ export const fromDrizzleSchema = (
 				: null;
 
 			const defalutValue = defaultFromColumn(column, casing);
-
 			const hasUniqueIndex = it.config.indexes.find((item) => {
 				const i = item.config;
 				const column = i.columns.length === 1 ? i.columns[0] : null;
@@ -244,13 +243,28 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 };
 
 export const defaultFromColumn = (column: AnySQLiteColumn, casing: CasingType | undefined) => {
-	return typeof column.default !== 'undefined' // '', 0, false, etc.
-		? is(column.default, SQL)
-			? { value: sqlToStr(column.default, casing), isExpression: true }
-			: typeof column.default === 'string'
-			? { value: column.default, isExpression: false }
-			: typeof column.default === 'object' || Array.isArray(column.default)
-			? { value: JSON.stringify(column.default), isExpression: false }
-			: { value: String(column.default), isExpression: true } // integer boolean etc
-		: null;
+	const def = column.default;
+	if (typeof def === 'undefined') return null; // '', 0, false, etc.
+
+	if (is(def, SQL)) return { value: sqlToStr(def, casing), isExpression: true };
+
+	if (column.getSQLType() === 'numeric' && typeof def === 'string') {
+		return { value: `'${def}'`, isExpression: true };
+	}
+
+	if (def instanceof Date && column.getSQLType() === 'integer') {
+		return { value: (def.getTime() / 1000).toFixed(0), isExpression: true };
+	}
+
+	if (typeof def === 'object' || Array.isArray(def)) {
+		return { value: JSON.stringify(def), isExpression: false };
+	}
+
+	if (typeof def === 'bigint') {
+		return { value: `'${def.toString()}'`, isExpression: true };
+	}
+
+	if (typeof def === 'string') return { value: def, isExpression: false };
+
+	return { value: String(def), isExpression: true }; // integer boolean etc
 };
