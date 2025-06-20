@@ -32,8 +32,8 @@ import type { MysqlCredentials } from '../cli/validations/mysql';
 import type { PostgresCredentials } from '../cli/validations/postgres';
 import type { SingleStoreCredentials } from '../cli/validations/singlestore';
 import type { SqliteCredentials } from '../cli/validations/sqlite';
+import type { Proxy, TransactionProxy } from '../utils';
 import { prepareFilenames } from '.';
-import type { Proxy, TransactionProxy } from '../utils'
 
 type CustomDefault = {
 	schema: string;
@@ -500,14 +500,6 @@ const transactionProxySchema = z.object({
 			sql: z.string(),
 			params: z.array(z.any()).optional(),
 			typings: z.string().array().optional(),
-			mode: z.enum(['array', 'object']).default('object'),
-			method: z.union([
-				z.literal('values'),
-				z.literal('get'),
-				z.literal('all'),
-				z.literal('run'),
-				z.literal('execute'),
-			]),
 		})
 		.array(),
 });
@@ -565,7 +557,8 @@ export type Server = {
 };
 
 export const prepareServer = async (
-	{ dialect, driver, proxy, transactionProxy, customDefaults, schema: drizzleSchema, relations, dbHash, schemaFiles }: Setup,
+	{ dialect, driver, proxy, transactionProxy, customDefaults, schema: drizzleSchema, relations, dbHash, schemaFiles }:
+		Setup,
 	app?: Hono,
 ): Promise<Server> => {
 	app = app !== undefined ? app : new Hono();

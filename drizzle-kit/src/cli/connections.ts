@@ -53,6 +53,7 @@ export const preparePostgresDB = async (
 				rdsClient,
 				new PgDialect(),
 				undefined,
+				undefined,
 				config,
 				undefined,
 			);
@@ -145,7 +146,6 @@ export const preparePostgresDB = async (
 						for (const query of queries) {
 							const preparedParams = preparePGliteParams(query.params || []);
 							const result = await tx.query(query.sql, preparedParams, {
-								rowMode: query.mode,
 								parsers,
 							});
 							results.push(result.rows);
@@ -235,7 +235,6 @@ export const preparePostgresDB = async (
 					const result = await tx.query({
 						text: query.sql,
 						values: query.params,
-						...(query.mode === 'array' && { rowMode: 'array' }),
 						types,
 					});
 					results.push(result.rows);
@@ -297,9 +296,7 @@ export const preparePostgresDB = async (
 				await client.begin(async (sql) => {
 					for (const query of queries) {
 						const preparedParams = prepareSqliteParams(query.params || []);
-						const result = query.mode === 'array'
-							? await sql.unsafe(query.sql, preparedParams).values()
-							: await sql.unsafe(query.sql, preparedParams);
+						const result = await sql.unsafe(query.sql, preparedParams);
 						results.push(result);
 					}
 				});
@@ -390,7 +387,6 @@ export const preparePostgresDB = async (
 					const result = await tx.query({
 						text: query.sql,
 						values: query.params,
-						...(query.mode === 'array' && { rowMode: 'array' }),
 						types,
 					});
 					results.push(result.rows);
@@ -486,7 +482,6 @@ export const preparePostgresDB = async (
 					const result = await tx.query({
 						text: query.sql,
 						values: query.params,
-						...(query.mode === 'array' && { rowMode: 'array' }),
 						types,
 					});
 					results.push(result.rows);
@@ -573,11 +568,7 @@ To link your project, please refer https://docs.geldata.com/reference/cli/gel_in
 			try {
 				await client.transaction(async (tx) => {
 					for (const query of queries) {
-						const res = query.mode === 'array'
-							? query.params?.length
-								? await tx.withSQLRowMode('array').querySQL(query.sql, query.params)
-								: await tx.withSQLRowMode('array').querySQL(query.sql)
-							: query.params?.length
+						const res = query.params?.length
 							? await tx.querySQL(query.sql, query.params)
 							: await tx.querySQL(query.sql);
 						result.push(res);
@@ -665,7 +656,6 @@ export const connectToSingleStore = async (
 					const res = await connection.query({
 						sql: query.sql,
 						values: query.params,
-						rowsAsArray: query.mode === 'array',
 					});
 					results.push(res[0]);
 				}
@@ -771,7 +761,6 @@ export const connectToMySQL = async (
 					const res = await connection.query({
 						sql: query.sql,
 						values: query.params,
-						rowsAsArray: query.mode === 'array',
 					});
 					results.push(res[0]);
 				}
@@ -822,7 +811,7 @@ export const connectToMySQL = async (
 			try {
 				await connection.transaction(async (tx) => {
 					for (const query of queries) {
-						const res = await tx.execute(query.sql, query.params, query.mode === 'array' ? { as: 'array' } : undefined);
+						const res = await tx.execute(query.sql, query.params);
 						results.push(res.rows);
 					}
 				});
@@ -1066,8 +1055,12 @@ export const connectToSQLite = async (
 			try {
 				transaction = await client.transaction();
 				for (const query of queries) {
-					const result = await proxy(query, transaction);
-					results.push(result);
+					const preparedParams = prepareSqliteParams(query.params || []);
+					const result = await transaction.execute({
+						sql: query.sql,
+						args: preparedParams,
+					});
+					results.push(result.rows);
 				}
 				await transaction.commit();
 			} catch (error) {
@@ -1125,7 +1118,10 @@ export const connectToSQLite = async (
 
 			const tx = sqlite.transaction(async (queries: Parameters<TransactionProxy>[0]) => {
 				for (const query of queries) {
-					const result = await proxy(query);
+					const preparedParams = prepareSqliteParams(query.params || []);
+					const result = sqlite
+						.prepare(query.sql)
+						.all(preparedParams);
 					results.push(result);
 				}
 			});
@@ -1201,8 +1197,12 @@ export const connectToLibSQL = async (credentials: LibSQLCredentials): Promise<
 			try {
 				transaction = await client.transaction();
 				for (const query of queries) {
-					const result = await proxy(query, transaction);
-					results.push(result);
+					const preparedParams = prepareSqliteParams(query.params || []);
+					const result = await transaction.execute({
+						sql: query.sql,
+						args: preparedParams,
+					});
+					results.push(result.rows);
 				}
 				await transaction.commit();
 			} catch (error) {
