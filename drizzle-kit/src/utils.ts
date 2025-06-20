@@ -16,9 +16,7 @@ import type { ProxyParams } from './serializer/studio';
 
 export type Proxy = (params: ProxyParams) => Promise<any[]>;
 
-export type SqliteProxy = {
-	proxy: (params: ProxyParams) => Promise<any[] | RunResult>;
-};
+export type TransactionProxy = (queries: Omit<ProxyParams, 'mode' | 'method'>[]) => Promise<any[]>;
 
 export type DB = {
 	query: <T extends any = any>(sql: string, params?: any[]) => Promise<T[]>;
