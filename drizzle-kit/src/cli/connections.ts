@@ -1147,7 +1147,7 @@ export const connectToSQLite = async (
 		const transactionProxy: TransactionProxy = async (queries) => {
 			const results: (any[] | Error)[] = [];
 
-			const tx = sqlite.transaction(async (queries: Parameters<TransactionProxy>[0]) => {
+			const tx = sqlite.transaction((queries: Parameters<TransactionProxy>[0]) => {
 				for (const query of queries) {
 					let result: any[] = [];
 					if (query.method === 'values' || query.method === 'get' || query.method === 'all') {
@@ -1162,7 +1162,7 @@ export const connectToSQLite = async (
 			});
 
 			try {
-				await tx(queries);
+				tx(queries);
 			} catch (error) {
 				results.push(error as Error);
 			}
