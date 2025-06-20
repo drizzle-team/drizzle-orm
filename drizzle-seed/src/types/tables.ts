@@ -18,6 +18,7 @@ export type Column = {
 	notNull: boolean;
 	primary: boolean;
 	generatedIdentityType?: 'always' | 'byDefault' | undefined;
+	identity?: boolean;
 	baseColumn?: Omit<Column, 'generatedIdentityType'>;
 };
 
