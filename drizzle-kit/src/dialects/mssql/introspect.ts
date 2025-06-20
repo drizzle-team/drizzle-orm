@@ -1,5 +1,3 @@
-import camelcase from 'camelcase';
-import { writeFileSync } from 'fs';
 import type { Entities } from '../../cli/validations/cli';
 import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
 import type { DB } from '../../utils';
@@ -23,7 +21,6 @@ export const fromDatabase = async (
 	db: DB,
 	tablesFilter: (table: string) => boolean = () => true,
 	schemaFilter: (schema: string) => boolean = () => true,
-	entities?: Entities,
 	progressCallback: (
 		stage: IntrospectStage,
 		count: number,
@@ -286,8 +283,13 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 			columnsQuery,
 		]);
 
+	columnsCount = columnsList.length;
+	tableCount = tablesList.length;
+
 	for (const column of columnsList.filter((it) => it.rel_kind.trim() === 'U')) {
-		const table = tablesList.find((it) => it.object_id === column.table_object_id)!;
+		const table = tablesList.find((it) => it.object_id === column.table_object_id);
+		if (!table) continue; // skip if no table found
+
 		const schema = filteredSchemas.find((it) => it.schema_id === table.schema_id)!;
 		const precision = column.precision;
 		const scale = column.scale;
@@ -381,6 +383,8 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 	const groupedUniqueConstraints: GroupedIdxsAndContraints[] = [];
 	const groupedIndexes: GroupedIdxsAndContraints[] = [];
 
+	indexesCount = groupedIndexes.length;
+
 	groupedIdxsAndContraints.forEach((it) => {
 		if (it.is_primary_key) groupedPrimaryKeys.push(it);
 		else if (it.is_unique_constraint) groupedUniqueConstraints.push(it);
@@ -388,7 +392,9 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 	});
 
 	for (const unique of groupedUniqueConstraints) {
-		const table = tablesList.find((it) => it.object_id === unique.table_id)!;
+		const table = tablesList.find((it) => it.object_id === unique.table_id);
+		if (!table) continue;
+
 		const schema = filteredSchemas.find((it) => it.schema_id === table.schema_id)!;
 
 		const columns = unique.column_ids.map((it) => {
@@ -409,7 +415,9 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 	}
 
 	for (const pk of groupedPrimaryKeys) {
-		const table = tablesList.find((it) => it.object_id === pk.table_id)!;
+		const table = tablesList.find((it) => it.object_id === pk.table_id);
+		if (!table) continue;
+
 		const schema = filteredSchemas.find((it) => it.schema_id === table.schema_id)!;
 
 		const columns = pk.column_ids.map((it) => {
@@ -428,7 +436,9 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 	}
 
 	for (const index of groupedIndexes) {
-		const table = tablesList.find((it) => it.object_id === index.table_id)!;
+		const table = tablesList.find((it) => it.object_id === index.table_id);
+		if (!table) continue;
+
 		const schema = filteredSchemas.find((it) => it.schema_id === table.schema_id)!;
 
 		const columns = index.column_ids.map((it) => {
@@ -475,8 +485,12 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 			return acc;
 		}, {}),
 	);
+
+	foreignKeysCount = groupedFkCostraints.length;
 	for (const fk of groupedFkCostraints) {
-		const table = tablesList.find((it) => it.object_id === fk.parent_table_id)!;
+		const table = tablesList.find((it) => it.object_id === fk.parent_table_id);
+		if (!table) continue;
+
 		const schema = filteredSchemas.find((it) => it.schema_id === fk.schema_id)!;
 		const tableTo = tablesList.find((it) => it.object_id === fk.reference_table_id)!;
 
@@ -509,8 +523,11 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 		});
 	}
 
+	checksCount = checkConstraintList.length;
 	for (const check of checkConstraintList) {
-		const table = tablesList.find((it) => it.object_id === check.parent_table_id)!;
+		const table = tablesList.find((it) => it.object_id === check.parent_table_id);
+		if (!table) continue;
+
 		const schema = filteredSchemas.find((it) => it.schema_id === check.schema_id)!;
 
 		checks.push({
@@ -524,7 +541,9 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 	}
 
 	for (const defaultConstraint of defaultsConstraintList) {
-		const table = tablesList.find((it) => it.object_id === defaultConstraint.parent_table_id)!;
+		const table = tablesList.find((it) => it.object_id === defaultConstraint.parent_table_id);
+		if (!table) continue;
+
 		const schema = filteredSchemas.find((it) => it.schema_id === defaultConstraint.schema_id)!;
 		const column = columnsList.find((it) =>
 			it.column_id === defaultConstraint.parent_column_id && it.table_object_id === defaultConstraint.parent_table_id
@@ -546,9 +565,12 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 	progressCallback('indexes', indexesCount, 'fetching');
 	progressCallback('tables', tableCount, 'done');
 
+	viewsCount = viewsList.length;
 	for (const view of viewsList) {
 		const viewName = view.name;
-		const viewSchema = filteredSchemas.find((it) => it.schema_id === view.schema_id)!.schema_name;
+		const viewSchema = filteredSchemas.find((it) => it.schema_id === view.schema_id);
+		if (!viewSchema) continue;
+
 		if (!tablesFilter(viewName)) continue;
 		tableCount += 1;
 
@@ -564,7 +586,7 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 
 		views.push({
 			entityType: 'views',
-			schema: viewSchema,
+			schema: viewSchema.schema_name,
 			name: view.name,
 			definition,
 			checkOption,
@@ -580,7 +602,7 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 				notNull: !viewColumn.is_nullable,
 				name: viewColumn.name,
 				type: viewColumn.type,
-				schema: viewSchema,
+				schema: viewSchema.schema_name,
 				view: view.name,
 			});
 		}
@@ -611,14 +633,13 @@ export const fromDatabaseForDrizzle = async (
 	db: DB,
 	tableFilter: (it: string) => boolean = () => true,
 	schemaFilters: (it: string) => boolean = () => true,
-	entities?: Entities,
 	progressCallback: (
 		stage: IntrospectStage,
 		count: number,
 		status: IntrospectStatus,
 	) => void = () => {},
 ) => {
-	const res = await fromDatabase(db, tableFilter, schemaFilters, entities, progressCallback);
+	const res = await fromDatabase(db, tableFilter, schemaFilters, progressCallback);
 
 	return res;
 };

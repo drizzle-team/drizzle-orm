@@ -32,7 +32,6 @@ export const handle = async (
 	credentials: MssqlCredentials,
 	tablesFilter: string[],
 	schemasFilter: string[],
-	entities: Entities,
 	force: boolean,
 	casing: CasingType | undefined,
 ) => {
@@ -56,7 +55,7 @@ export const handle = async (
 	// }
 
 	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
-	const { schema: schemaFrom } = await introspect(db, tablesFilter, schemasFilter, entities, progress);
+	const { schema: schemaFrom } = await introspect(db, tablesFilter, schemasFilter, progress);
 
 	const { ddl: ddl1, errors: errors1 } = interimToDDL(schemaFrom);
 	const { ddl: ddl2, errors: errors2 } = interimToDDL(schemaTo);

@@ -679,11 +679,11 @@ export const ddlDiff = async (
 			],
 			constraintsToDelete: [
 				...checksToDelete,
+				...fk1ToDelete,
+				...fk2ToDelete,
 				...uniquesToDelete,
 				...pksToDelete,
 				...defToDelete,
-				...fk1ToDelete,
-				...fk2ToDelete,
 				...indexesToDelete,
 			],
 		});
