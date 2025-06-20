@@ -498,8 +498,7 @@ const transactionProxySchema = z.object({
 	data: z
 		.object({
 			sql: z.string(),
-			params: z.array(z.any()).optional(),
-			typings: z.string().array().optional(),
+			method: z.union([z.literal('values'), z.literal('get'), z.literal('all'), z.literal('run'), z.literal('execute')]).optional(),
 		})
 		.array(),
 });
