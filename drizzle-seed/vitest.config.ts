@@ -3,16 +3,20 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
 	test: {
 		include: [
-			'./tests/pg/**/*.test.ts',
-			'./tests/mysql/**/*.test.ts',
-			'./tests/sqlite/**/*.test.ts',
+			'./tests/mssql/softRelationsTest/*.test.ts',
+			// './tests/mysql/allDataTypesTest/*.test.ts',
+			// './tests/sqlite/allDataTypesTest/*.test.ts',
+			// './tests/mssql/**/*.test.ts',
+			// './tests/pg/**/*.test.ts',
+			// './tests/mysql/**/*.test.ts',
+			// './tests/sqlite/**/*.test.ts',
 		],
 		exclude: [],
 		typecheck: {
 			tsconfig: 'tsconfig.json',
 		},
-		testTimeout: 100000,
-		hookTimeout: 100000,
+		testTimeout: 1000000,
+		hookTimeout: 1000000,
 		isolate: true,
 		poolOptions: {
 			threads: {

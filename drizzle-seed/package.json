@@ -7,7 +7,7 @@
 		"build": "tsx scripts/build.ts",
 		"pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"test": "vitest --config ./vitest.config.ts",
-		"test:types": "cd type-tests && tsc",
+		"test:types": "cd type-tests && tsc -p ./../tsconfig.json",
 		"generate-for-tests:pg": "drizzle-kit generate --config=./src/tests/pg/drizzle.config.ts",
 		"generate-for-tests:mysql": "drizzle-kit generate --config=./src/tests/mysql/drizzle.config.ts",
 		"generate-for-tests:sqlite": "drizzle-kit generate --config=./src/tests/sqlite/drizzle.config.ts",
@@ -69,7 +69,7 @@
 	},
 	"peerDependenciesMeta": {
 		"drizzle-orm": {
-			"optional": true
+			"optional": false
 		}
 	},
 	"devDependencies": {
@@ -79,6 +79,7 @@
 		"@rollup/plugin-typescript": "^11.1.6",
 		"@types/better-sqlite3": "^7.6.11",
 		"@types/dockerode": "^3.3.31",
+		"@types/mssql": "^9.1.4",
 		"@types/node": "^22.5.4",
 		"@types/pg": "^8.11.6",
 		"@types/uuid": "^10.0.0",
@@ -89,6 +90,7 @@
 		"drizzle-kit": "workspace:./drizzle-kit/dist",
 		"drizzle-orm": "workspace:./drizzle-orm/dist",
 		"get-port": "^7.1.0",
+		"mssql": "^11.0.1",
 		"mysql2": "^3.14.1",
 		"pg": "^8.12.0",
 		"resolve-tspaths": "^0.8.19",
