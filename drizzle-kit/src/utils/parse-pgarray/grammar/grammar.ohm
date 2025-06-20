@@ -1,0 +1,15 @@
+PGArray {    
+    Array = "{" ListOf<ArrayItem, ","> "}"
+
+    ArrayItem = stringLiteral | quotelessString | nullLiteral | Array
+
+    stringLiteral = "\"" ((~("\"" | escapedSymbol) any) | escapedSymbol)* "\""
+    
+    quotelessString = (~forbiddenSymbolForQuoteless any)+
+
+	escapedSymbol = "\\" any 
+
+    nullLiteral = "NULL"
+
+	forbiddenSymbolForQuoteless = "{" | "}" | "," | "\""  | nullLiteral
+}

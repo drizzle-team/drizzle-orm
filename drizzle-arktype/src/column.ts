@@ -3,6 +3,7 @@ import type { Column, ColumnBaseConfig } from 'drizzle-orm';
 import type {
 	MySqlBigInt53,
 	MySqlChar,
+	MySqlDecimalNumber,
 	MySqlDouble,
 	MySqlFloat,
 	MySqlInt,
@@ -41,6 +42,7 @@ import type {
 import type {
 	SingleStoreBigInt53,
 	SingleStoreChar,
+	SingleStoreDecimalNumber,
 	SingleStoreDouble,
 	SingleStoreFloat,
 	SingleStoreInt,
@@ -51,6 +53,7 @@ import type {
 	SingleStoreText,
 	SingleStoreTinyInt,
 	SingleStoreVarChar,
+	SingleStoreVector,
 	SingleStoreYear,
 } from 'drizzle-orm/singlestore-core';
 import type { SQLiteInteger, SQLiteReal, SQLiteText } from 'drizzle-orm/sqlite-core';
@@ -81,7 +84,13 @@ export function columnToSchema(column: Column): Type {
 				x: type.number,
 				y: type.number,
 			});
-		} else if (isColumnType<PgHalfVector<any> | PgVector<any>>(column, ['PgHalfVector', 'PgVector'])) {
+		} else if (
+			isColumnType<PgHalfVector<any> | PgVector<any> | SingleStoreVector<any>>(column, [
+				'PgHalfVector',
+				'PgVector',
+				'SingleStoreVector',
+			])
+		) {
 			schema = column.dimensions
 				? type.number.array().exactlyLength(column.dimensions)
 				: type.number.array();
@@ -196,8 +205,10 @@ function numberColumnToSchema(column: Column): Type<number, any> {
 			| PgBigSerial53<any>
 			| MySqlBigInt53<any>
 			| MySqlSerial<any>
+			| MySqlDecimalNumber<any>
 			| SingleStoreBigInt53<any>
 			| SingleStoreSerial<any>
+			| SingleStoreDecimalNumber<any>
 			| SQLiteInteger<any>
 		>(
 			column,
@@ -206,8 +217,10 @@ function numberColumnToSchema(column: Column): Type<number, any> {
 				'PgBigSerial53',
 				'MySqlBigInt53',
 				'MySqlSerial',
+				'MySqlDecimalNumber',
 				'SingleStoreBigInt53',
 				'SingleStoreSerial',
+				'SingleStoreDecimalNumber',
 				'SQLiteInteger',
 			],
 		)
@@ -215,7 +228,7 @@ function numberColumnToSchema(column: Column): Type<number, any> {
 		unsigned = unsigned || isColumnType(column, ['MySqlSerial', 'SingleStoreSerial']);
 		min = unsigned ? 0 : Number.MIN_SAFE_INTEGER;
 		max = Number.MAX_SAFE_INTEGER;
-		integer = true;
+		integer = !isColumnType(column, ['MySqlDecimalNumber', 'SingleStoreDecimalNumber']);
 	} else if (isColumnType<MySqlYear<any> | SingleStoreYear<any>>(column, ['MySqlYear', 'SingleStoreYear'])) {
 		min = 1901;
 		max = 2155;
@@ -261,7 +274,16 @@ function stringColumnToSchema(column: Column): Type {
 	let max: number | undefined;
 	let fixed = false;
 
-	if (isColumnType<PgVarchar<any> | SQLiteText<any>>(column, ['PgVarchar', 'SQLiteText'])) {
+	// Char columns are padded to a fixed length. The input can be equal or less than the set length
+	if (
+		isColumnType<PgVarchar<any> | SQLiteText<any> | PgChar<any> | MySqlChar<any> | SingleStoreChar<any>>(column, [
+			'PgVarchar',
+			'SQLiteText',
+			'PgChar',
+			'MySqlChar',
+			'SingleStoreChar',
+		])
+	) {
 		max = column.length;
 	} else if (
 		isColumnType<MySqlVarChar<any> | SingleStoreVarChar<any>>(column, ['MySqlVarChar', 'SingleStoreVarChar'])
@@ -277,17 +299,6 @@ function stringColumnToSchema(column: Column): Type {
 		} else {
 			max = CONSTANTS.INT8_UNSIGNED_MAX;
 		}
-	}
-
-	if (
-		isColumnType<PgChar<any> | MySqlChar<any> | SingleStoreChar<any>>(column, [
-			'PgChar',
-			'MySqlChar',
-			'SingleStoreChar',
-		])
-	) {
-		max = column.length;
-		fixed = true;
 	}
 
 	return max && fixed ? type.string.exactlyLength(max) : max ? type.string.atMostLength(max) : type.string;

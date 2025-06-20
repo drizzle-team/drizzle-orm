@@ -39,27 +39,27 @@ export const users = sqliteTable(
 		createdAt: integer('created_at', { mode: 'timestamp' }).notNull().defaultNow(),
 		enumCol: text('enum_col', { enum: ['a', 'b', 'c'] }).notNull(),
 	},
-	(users) => ({
-		usersAge1Idx: uniqueIndex('usersAge1Idx').on(users.class),
-		usersAge2Idx: index('usersAge2Idx').on(users.class),
-		uniqueClass: uniqueIndex('uniqueClass')
+	(users) => [
+		uniqueIndex('usersAge1Idx').on(users.class),
+		index('usersAge2Idx').on(users.class),
+		uniqueIndex('uniqueClass')
 			.on(users.class, users.subClass)
 			.where(
 				sql`${users.class} is not null`,
 			),
-		uniqueClassEvenBetterThanPrisma: uniqueIndex('uniqueClass')
+		uniqueIndex('uniqueClass')
 			.on(users.class, users.subClass)
 			.where(
 				sql`${users.class} is not null`,
 			),
-		legalAge: check('legalAge', sql`${users.age1} > 18`),
-		usersClassFK: foreignKey(() => ({ columns: [users.subClass], foreignColumns: [classes.subClass] })),
-		usersClassComplexFK: foreignKey(() => ({
+		check('legalAge', sql`${users.age1} > 18`),
+		foreignKey({ columns: [users.subClass], foreignColumns: [classes.subClass] }),
+		foreignKey({
 			columns: [users.class, users.subClass],
 			foreignColumns: [classes.class, classes.subClass],
-		})),
-		pk: primaryKey(users.age1, users.class),
-	}),
+		}),
+		primaryKey({ columns: [users.age1, users.class] }),
+	],
 );
 
 export type User = typeof users.$inferSelect;

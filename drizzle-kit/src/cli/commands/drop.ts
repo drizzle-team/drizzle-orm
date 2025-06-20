@@ -5,7 +5,7 @@ import { render } from 'hanji';
 import { join } from 'path';
 import { Journal } from '../../utils';
 import { DropMigrationView } from '../views';
-import { embeddedMigrations } from './migrate';
+import { embeddedMigrations } from './generate-common';
 
 export const dropMigration = async ({
 	out,
