@@ -28,7 +28,7 @@ import {
 	date,
 	datetime,
 	datetime2,
-	datetimeOffset,
+	datetimeoffset,
 	decimal,
 	except,
 	float,
@@ -235,19 +235,19 @@ const allPossibleColumns = mssqlTable('all_possible_columns', {
 		'2025-04-17 13:55:07.5300000',
 	),
 
-	datetimeOffset: datetimeOffset(),
-	datetimeOffsetModeDate: datetimeOffset({ mode: 'date' }),
-	datetimeOffsetModeString: datetimeOffset({ mode: 'string' }),
-	datetimeOffsetDefault: datetimeOffset().default(new Date('2025-04-18 11:47:41.000+3:00')),
-	datetimeOffsetModeStringDefault: datetimeOffset({ mode: 'string' }).default('2025-04-18 11:47:41.000+3:00'),
-	datetimeOffsetModeStringWithPrecisionDefault: datetimeOffset({ mode: 'string', precision: 1 }).default(
+	datetimeOffset: datetimeoffset(),
+	datetimeOffsetModeDate: datetimeoffset({ mode: 'date' }),
+	datetimeOffsetModeString: datetimeoffset({ mode: 'string' }),
+	datetimeOffsetDefault: datetimeoffset().default(new Date('2025-04-18 11:47:41.000+3:00')),
+	datetimeOffsetModeStringDefault: datetimeoffset({ mode: 'string' }).default('2025-04-18 11:47:41.000+3:00'),
+	datetimeOffsetModeStringWithPrecisionDefault: datetimeoffset({ mode: 'string', precision: 1 }).default(
 		'2025-04-18 11:47:41.000+3:00',
 	),
 
 	decimal: decimal(),
 	decimalWithPrecision: decimal({ precision: 3 }),
 	decimalWithConfig: decimal({ precision: 10, scale: 8 }),
-	decimalDefault: decimal().default(1.312),
+	decimalDefault: decimal().default('1.312'),
 
 	float: float(),
 	floatWithPrecision: float({ precision: 3 }),
@@ -259,7 +259,7 @@ const allPossibleColumns = mssqlTable('all_possible_columns', {
 	numeric: numeric(),
 	numericWithPrecision: numeric({ precision: 3 }),
 	numericWithConfig: numeric({ precision: 10, scale: 8 }),
-	numericDefault: numeric().default(1.312),
+	numericDefault: numeric().default('1.312'),
 	real: real(),
 	realDefault: real().default(5231.4123),
 
@@ -3575,9 +3575,9 @@ export function tests() {
 				datetimeOffsetModeStringDefault: undefined,
 				datetimeOffsetModeStringWithPrecisionDefault: undefined,
 
-				decimal: 1.33,
-				decimalWithPrecision: 4.11,
-				decimalWithConfig: 41.34234526,
+				decimal: '1.33',
+				decimalWithPrecision: '4.11',
+				decimalWithConfig: '41.34234526',
 				decimalDefault: undefined,
 
 				float: 5234.132,
@@ -3587,9 +3587,9 @@ export function tests() {
 				int: 140,
 				intDefault: undefined,
 
-				numeric: 33.2,
-				numericWithPrecision: 33.4,
-				numericWithConfig: 41.34512,
+				numeric: '33.2',
+				numericWithPrecision: '33.4',
+				numericWithConfig: '41.34512',
 				numericDefault: undefined,
 				real: 421.4,
 				realDefault: undefined,

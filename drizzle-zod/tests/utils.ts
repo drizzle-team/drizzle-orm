@@ -15,7 +15,7 @@ export function expectSchemaShape<T extends z.ZodObject<z.ZodRawShape>>(t: TaskC
 export function expectEnumValues<T extends z.ZodEnum<any>>(t: TaskContext, expected: T) {
 	return {
 		from(actual: T) {
-			expect(actual.def).toStrictEqual(expected.def);
+			expect(actual.def).toStrictEqual(expected.def as any);
 		},
 	};
 }
