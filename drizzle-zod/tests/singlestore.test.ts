@@ -502,7 +502,7 @@ test('type coercion - all', (t) => {
 		bigint: z.coerce.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
 		boolean: z.coerce.boolean(),
 		timestamp: z.coerce.date(),
-		int: z.coerce.number().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX).int(),
+		int: z.coerce.number().int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX),
 		text: z.coerce.string().max(CONSTANTS.INT16_UNSIGNED_MAX),
 	});
 	expectSchemaShape(t, expected).from(result);

@@ -14,11 +14,11 @@ import { json } from './json.ts';
 import { numeric } from './numeric.ts';
 import { real } from './real.ts';
 import { smallint } from './smallint.ts';
-import { text, ntext } from './text.ts';
+import { ntext, text } from './text.ts';
 import { time } from './time.ts';
 import { tinyint } from './tinyint.ts';
 import { varbinary } from './varbinary.ts';
-import { varchar, nvarchar } from './varchar.ts';
+import { nvarchar, varchar } from './varchar.ts';
 
 export function getMsSqlColumnBuilders() {
 	return {

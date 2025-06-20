@@ -7,30 +7,45 @@ type HasBaseColumn<TColumn> = TColumn extends { _: { baseColumn: Column | undefi
 	: false
 	: false;
 
+type IsBigIntStringMode<TColumn extends Column> = TColumn['_']['columnType'] extends 'MsSqlBigInt'
+	? TColumn['_']['data'] extends string ? true
+	: false
+	: false;
+
 export type GetZodType<
 	TColumn extends Column,
 	TCoerce extends Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined,
 > = HasBaseColumn<TColumn> extends true ? z.ZodArray<
 		GetZodType<Assume<TColumn['_']['baseColumn'], Column>, TCoerce>
 	>
-	: TColumn['_']['columnType'] extends 'PgUUID' ? z.ZodUUID
+	: TColumn['_']['columnType'] extends 'PgUUID' | 'CockroachUUID' ? z.ZodUUID
 	: IsEnumDefined<TColumn['_']['enumValues']> extends true
 		? z.ZodEnum<{ [K in Assume<TColumn['_']['enumValues'], [string, ...string[]]>[number]]: K }>
-	: TColumn['_']['columnType'] extends 'PgGeometry' | 'PgPointTuple' ? z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>
+	: TColumn['_']['columnType'] extends 'PgGeometry' | 'PgPointTuple' | 'CockroachGeometry'
+		? z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>
 	: TColumn['_']['columnType'] extends 'PgLine' ? z.ZodTuple<[z.ZodNumber, z.ZodNumber, z.ZodNumber], null>
 	: TColumn['_']['data'] extends Date ? CanCoerce<TCoerce, 'date'> extends true ? z.coerce.ZodCoercedDate : z.ZodDate
 	: TColumn['_']['data'] extends Buffer ? z.ZodType<Buffer>
 	: TColumn['_']['dataType'] extends 'array'
 		? z.ZodArray<GetZodPrimitiveType<Assume<TColumn['_']['data'], any[]>[number], '', TCoerce>>
-	: TColumn['_']['data'] extends Record<string, any>
-		? TColumn['_']['columnType'] extends
-			'PgJson' | 'PgJsonb' | 'MySqlJson' | 'SingleStoreJson' | 'SQLiteTextJson' | 'SQLiteBlobJson'
-			? z.ZodType<TColumn['_']['data'], TColumn['_']['data']>
+	: TColumn['_']['data'] extends Record<string, any> ? TColumn['_']['columnType'] extends
+			| 'PgJson'
+			| 'PgJsonb'
+			| 'MySqlJson'
+			| 'SingleStoreJson'
+			| 'SQLiteTextJson'
+			| 'SQLiteBlobJson'
+			| 'MsSqlJson'
+			| 'CockroachJsonb' ? z.ZodType<TColumn['_']['data'], TColumn['_']['data']>
 		: z.ZodObject<
 			{ [K in keyof TColumn['_']['data']]: GetZodPrimitiveType<TColumn['_']['data'][K], '', TCoerce> },
 			{ out: {}; in: {} }
 		>
 	: TColumn['_']['dataType'] extends 'json' ? z.ZodType<Json>
+	: IsBigIntStringMode<TColumn> extends true ? z.ZodPipe<
+			z.ZodPipe<z.ZodPipe<z.ZodString, z.ZodTransform<bigint, string>>, z.ZodBigInt>,
+			z.ZodTransform<string, bigint>
+		>
 	: GetZodPrimitiveType<TColumn['_']['data'], TColumn['_']['columnType'], TCoerce>;
 
 type CanCoerce<
@@ -41,11 +56,7 @@ type CanCoerce<
 		: false
 	: false;
 
-type GetZodPrimitiveType<
-	TData,
-	TColumnType,
-	TCoerce extends Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined,
-> = TColumnType extends
+type IsIntegerColumnType<TData, TColumnType> = TColumnType extends
 	| 'MySqlTinyInt'
 	| 'SingleStoreTinyInt'
 	| 'PgSmallInt'
@@ -66,7 +77,23 @@ type GetZodPrimitiveType<
 	| 'SingleStoreSerial'
 	| 'SQLiteInteger'
 	| 'MySqlYear'
-	| 'SingleStoreYear' ? CanCoerce<TCoerce, 'number'> extends true ? z.coerce.ZodCoercedNumber : z.ZodInt
+	| 'SingleStoreYear'
+	| 'MsSqlTinyInt'
+	| 'MsSqlSmallInt'
+	| 'MsSqlInt'
+	| 'CockroachInteger'
+	| 'CockroachBigInt53'
+	| 'CockroachSmallInt' ? true
+	: TColumnType extends 'MsSqlBigInt' ? TData extends number ? true
+		: false
+	: false;
+
+type GetZodPrimitiveType<
+	TData,
+	TColumnType,
+	TCoerce extends Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined,
+> = IsIntegerColumnType<TData, TColumnType> extends true
+	? CanCoerce<TCoerce, 'number'> extends true ? z.coerce.ZodCoercedNumber : z.ZodInt
 	: TData extends number ? CanCoerce<TCoerce, 'number'> extends true ? z.coerce.ZodCoercedNumber : z.ZodNumber
 	: TData extends bigint ? CanCoerce<TCoerce, 'bigint'> extends true ? z.coerce.ZodCoercedBigInt : z.ZodBigInt
 	: TData extends boolean ? CanCoerce<TCoerce, 'boolean'> extends true ? z.coerce.ZodCoercedBoolean : z.ZodBoolean

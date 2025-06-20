@@ -509,8 +509,8 @@ test('all data types', (t) => {
 		varchar2: z.enum(['a', 'b', 'c']),
 		vector: z.array(z.number()).length(3),
 		array1: z.array(integerSchema),
-		array2: z.array(z.array(integerSchema).length(2)),
-		array3: z.array(z.array(z.string().max(10)).length(2)),
+		array2: z.array(z.array(integerSchema)).length(2),
+		array3: z.array(z.array(z.string().max(10))).length(2),
 	});
 
 	expectSchemaShape(t, expected).from(result);
@@ -540,7 +540,7 @@ test('type coercion - all', (t) => {
 		bigint: z.coerce.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
 		boolean: z.coerce.boolean(),
 		timestamp: z.coerce.date(),
-		integer: z.coerce.number().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX).int(),
+		integer: z.coerce.number().int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX),
 		text: z.coerce.string(),
 	});
 	expectSchemaShape(t, expected).from(result);
