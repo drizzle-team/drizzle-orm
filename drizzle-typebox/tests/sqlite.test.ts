@@ -188,7 +188,7 @@ test('refine table - select', (tc) => {
 	});
 
 	const result = createSelectSchema(table, {
-		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
+		c2: (schema) => t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 	});
 	const expected = t.Object({
@@ -211,7 +211,7 @@ test('refine table - select with custom data type', (tc) => {
 
 	const customTextSchema = t.String({ minLength: 1, maxLength: 100 });
 	const result = createSelectSchema(table, {
-		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
+		c2: (schema) => t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 		c4: customTextSchema,
 	});
@@ -235,7 +235,7 @@ test('refine table - insert', (tc) => {
 	});
 
 	const result = createInsertSchema(table, {
-		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
+		c2: (schema) => t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 	});
 	const expected = t.Object({
@@ -256,7 +256,7 @@ test('refine table - update', (tc) => {
 	});
 
 	const result = createUpdateSchema(table, {
-		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
+		c2: (schema) => t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 	});
 	const expected = t.Object({
@@ -292,14 +292,14 @@ test('refine view - select', (tc) => {
 	);
 
 	const result = createSelectSchema(view, {
-		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
+		c2: (schema) => t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 		nested: {
-			c5: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
+			c5: (schema) => t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
 			c6: t.Integer({ minimum: 1, maximum: 10 }),
 		},
 		table: {
-			c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
+			c2: (schema) => t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
 			c3: t.Integer({ minimum: 1, maximum: 10 }),
 		},
 	});
@@ -340,7 +340,9 @@ test('all data types', (tc) => {
 		integer2: integer({ mode: 'boolean' }).notNull(),
 		integer3: integer({ mode: 'timestamp' }).notNull(),
 		integer4: integer({ mode: 'timestamp_ms' }).notNull(),
-		numeric: numeric().notNull(),
+		numeric1: numeric({ mode: 'number' }).notNull(),
+		numeric2: numeric({ mode: 'bigint' }).notNull(),
+		numeric3: numeric({ mode: 'string' }).notNull(),
 		real: real().notNull(),
 		text1: text({ mode: 'text' }).notNull(),
 		text2: text({ mode: 'text', length: 10 }).notNull(),
@@ -357,7 +359,9 @@ test('all data types', (tc) => {
 		integer2: t.Boolean(),
 		integer3: t.Date(),
 		integer4: t.Date(),
-		numeric: t.String(),
+		numeric1: t.Number({ minimum: Number.MIN_SAFE_INTEGER, maximum: Number.MAX_SAFE_INTEGER }),
+		numeric2: t.BigInt({ minimum: CONSTANTS.INT64_MIN, maximum: CONSTANTS.INT64_MAX }),
+		numeric3: t.String(),
 		real: t.Number({ minimum: CONSTANTS.INT48_MIN, maximum: CONSTANTS.INT48_MAX }),
 		text1: t.String(),
 		text2: t.String({ maxLength: 10 }),

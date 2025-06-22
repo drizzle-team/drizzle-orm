@@ -130,7 +130,7 @@ test('materialized view qb - select', (t) => {
 });
 
 test('materialized view columns - select', (t) => {
-	const view = pgView('test', {
+	const view = pgMaterializedView('test', {
 		id: serial().primaryKey(),
 		name: text().notNull(),
 	}).as(sql``);
@@ -146,7 +146,7 @@ test('view with nested fields - select', (t) => {
 		id: serial().primaryKey(),
 		name: text().notNull(),
 	});
-	const view = pgMaterializedView('test').as((qb) =>
+	const view = pgView('test').as((qb) =>
 		qb.select({
 			id: table.id,
 			nested: {
@@ -443,7 +443,9 @@ test('all data types', (t) => {
 		line2: line({ mode: 'tuple' }).notNull(),
 		macaddr: macaddr().notNull(),
 		macaddr8: macaddr8().notNull(),
-		numeric: numeric().notNull(),
+		numeric1: numeric({ mode: 'number' }).notNull(),
+		numeric2: numeric({ mode: 'bigint' }).notNull(),
+		numeric3: numeric({ mode: 'string' }).notNull(),
 		point1: point({ mode: 'xy' }).notNull(),
 		point2: point({ mode: 'tuple' }).notNull(),
 		real: real().notNull(),
@@ -491,7 +493,9 @@ test('all data types', (t) => {
 		line2: z.tuple([z.number(), z.number(), z.number()]),
 		macaddr: z.string(),
 		macaddr8: z.string(),
-		numeric: z.string(),
+		numeric1: z.number().gte(Number.MIN_SAFE_INTEGER).lte(Number.MAX_SAFE_INTEGER),
+		numeric2: z.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
+		numeric3: z.string(),
 		point1: z.object({ x: z.number(), y: z.number() }),
 		point2: z.tuple([z.number(), z.number()]),
 		real: z.number().gte(CONSTANTS.INT24_MIN).lte(CONSTANTS.INT24_MAX),
@@ -509,8 +513,8 @@ test('all data types', (t) => {
 		varchar2: z.enum(['a', 'b', 'c']),
 		vector: z.array(z.number()).length(3),
 		array1: z.array(integerSchema),
-		array2: z.array(z.array(integerSchema).length(2)),
-		array3: z.array(z.array(z.string().max(10)).length(2)),
+		array2: z.array(z.array(integerSchema)).length(2),
+		array3: z.array(z.array(z.string().max(10))).length(2),
 	});
 
 	expectSchemaShape(t, expected).from(result);
@@ -540,7 +544,7 @@ test('type coercion - all', (t) => {
 		bigint: z.coerce.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
 		boolean: z.coerce.boolean(),
 		timestamp: z.coerce.date(),
-		integer: z.coerce.number().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX).int(),
+		integer: z.coerce.number().int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX),
 		text: z.coerce.string(),
 	});
 	expectSchemaShape(t, expected).from(result);
