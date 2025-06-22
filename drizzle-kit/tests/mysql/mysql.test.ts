@@ -230,11 +230,11 @@ test('change table schema #1', async () => {
 	const schema = mysqlSchema('folder');
 	const from = {
 		schema,
-		users: mysqlTable('users', {}),
+		users: mysqlTable('users', { id: int() }),
 	};
 	const to = {
 		schema,
-		users: schema.table('users', {}),
+		users: schema.table('users', { id: int() }),
 	};
 
 	const renames = ['users->folder.users'];
@@ -480,20 +480,16 @@ test('add table #14', async () => {
 
 test('drop index', async () => {
 	const from = {
-		users: mysqlTable(
-			'table',
-			{
-				name: text('name'),
-			},
-			(t) => [
-				index('name_idx').on(t.name),
-			],
-		),
+		users: mysqlTable('table', {
+			name: varchar({ length: 10 }),
+		}, (t) => [
+			index('name_idx').on(t.name),
+		]),
 	};
 
 	const to = {
 		users: mysqlTable('table', {
-			name: text('name'),
+			name: varchar({ length: 10 }),
 		}),
 	};
 
@@ -510,13 +506,13 @@ test('drop index', async () => {
 test('drop unique constraint', async () => {
 	const from = {
 		users: mysqlTable('table', {
-			name: text('name'),
+			name: varchar({ length: 10 }),
 		}, (t) => [unique('name_uq').on(t.name)]),
 	};
 
 	const to = {
 		users: mysqlTable('table', {
-			name: text('name'),
+			name: varchar({ length: 10 }),
 		}),
 	};
 
@@ -536,42 +532,30 @@ test('add table with indexes', async () => {
 	const from = {};
 
 	const to = {
-		users: mysqlTable(
-			'users',
-			{
-				id: serial('id').primaryKey(),
-				name: text('name'),
-				email: text('email'),
-			},
-			(t) => [
-				uniqueIndex('uniqueExpr').on(sql`(lower(${t.email}))`),
-				index('indexExpr').on(sql`(lower(${t.email}))`),
-				index('indexExprMultiple').on(
-					sql`(lower(${t.email}))`,
-					sql`(lower(${t.email}))`,
-				),
-
-				uniqueIndex('uniqueCol').on(t.email),
-				index('indexCol').on(t.email),
-				index('indexColMultiple').on(t.email, t.email),
-
-				index('indexColExpr').on(
-					sql`(lower(${t.email}))`,
-					t.email,
-				),
-			],
-		),
+		users: mysqlTable('users', {
+			id: serial().primaryKey(),
+			name: varchar({ length: 100 }),
+			email: varchar({ length: 100 }),
+		}, (t) => [
+			uniqueIndex('uniqueExpr').on(sql`(lower(${t.email}))`),
+			index('indexExpr').on(sql`(lower(${t.email}))`),
+			index('indexExprMultiple').on(sql`(lower(${t.email}))`, sql`(lower(${t.email}))`),
+			uniqueIndex('uniqueCol').on(t.email),
+			index('indexCol').on(t.email),
+			index('indexColMultiple').on(t.email, t.name),
+			index('indexColExpr').on(sql`(lower(${t.email}))`, t.email),
+		]),
 	};
 
 	const { sqlStatements: st } = await diff(from, to, []);
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		`CREATE TABLE \`users\` (\n\t\`id\` serial PRIMARY KEY,\n\t\`name\` text,\n\t\`email\` text,\n\tCONSTRAINT \`uniqueExpr\` UNIQUE((lower(\`email\`))),\n\tCONSTRAINT \`uniqueCol\` UNIQUE(\`email\`)\n);\n`,
+		`CREATE TABLE \`users\` (\n\t\`id\` serial PRIMARY KEY,\n\t\`name\` varchar(100),\n\t\`email\` varchar(100),\n\tCONSTRAINT \`uniqueExpr\` UNIQUE((lower(\`email\`))),\n\tCONSTRAINT \`uniqueCol\` UNIQUE(\`email\`)\n);\n`,
 		'CREATE INDEX `indexExpr` ON `users` ((lower(`email`)));',
 		'CREATE INDEX `indexExprMultiple` ON `users` ((lower(`email`)),(lower(`email`)));',
 		'CREATE INDEX `indexCol` ON `users` (`email`);',
-		'CREATE INDEX `indexColMultiple` ON `users` (`email`,`email`);',
+		'CREATE INDEX `indexColMultiple` ON `users` (`email`,`name`);',
 		'CREATE INDEX `indexColExpr` ON `users` ((lower(`email`)),`email`);',
 	];
 	expect(st).toStrictEqual(st0);
@@ -612,9 +596,9 @@ test('composite primary key #1', async () => {
 	const from = {};
 	const to = {
 		table: mysqlTable('works_to_creators', {
-			workId: int('work_id').notNull(),
-			creatorId: int('creator_id').notNull(),
-			classification: text('classification').notNull(),
+			workId: int().notNull(),
+			creatorId: int().notNull(),
+			classification: varchar({ length: 10 }).notNull(),
 		}, (t) => [
 			primaryKey({
 				columns: [t.workId, t.creatorId, t.classification],
@@ -626,7 +610,7 @@ test('composite primary key #1', async () => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		'CREATE TABLE `works_to_creators` (\n\t`work_id` int NOT NULL,\n\t`creator_id` int NOT NULL,\n\t`classification` text NOT NULL,\n\tCONSTRAINT `works_to_creators_work_id_creator_id_classification_pk` PRIMARY KEY(`work_id`,`creator_id`,`classification`)\n);\n',
+		'CREATE TABLE `works_to_creators` (\n\t`workId` int NOT NULL,\n\t`creatorId` int NOT NULL,\n\t`classification` varchar(10) NOT NULL,\n\tCONSTRAINT `works_to_creators_workId_creatorId_classification_pk` PRIMARY KEY(`workId`,`creatorId`,`classification`)\n);\n',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -701,7 +685,7 @@ test('add column before creating unique constraint', async () => {
 	const to = {
 		table: mysqlTable('table', {
 			id: serial('id').primaryKey(),
-			name: text('name').notNull(),
+			name: varchar({ length: 10 }).notNull(),
 		}, (t) => [
 			unique('uq').on(t.name),
 		]),
@@ -713,7 +697,7 @@ test('add column before creating unique constraint', async () => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		'ALTER TABLE `table` ADD `name` text NOT NULL;',
+		'ALTER TABLE `table` ADD `name` varchar(10) NOT NULL;',
 		'CREATE UNIQUE INDEX `uq` ON `table` (`name`);',
 	];
 	expect(st).toStrictEqual(st0);
@@ -878,7 +862,7 @@ test('add+drop unique', async () => {
 
 test('fk #1', async () => {
 	const users = mysqlTable('users', {
-		id: int(),
+		id: int().unique(),
 	});
 	const to = {
 		users,
@@ -892,7 +876,7 @@ test('fk #1', async () => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		'CREATE TABLE `users` (\n\t`id` int\n);\n',
+		'CREATE TABLE `users` (\n\t`id` int,\n\tCONSTRAINT `id_unique` UNIQUE(`id`)\n);\n',
 		'CREATE TABLE `places` (\n\t`id` int,\n\t`ref` int,\n\tCONSTRAINT `places_ref_users_id_fk` FOREIGN KEY (`ref`) REFERENCES `users`(`id`)\n);\n',
 	];
 	expect(st).toStrictEqual(st0);
