@@ -711,7 +711,7 @@ test('optional db aliases (snake case)', async () => {
 		t1Id1: int().notNull().primaryKey(),
 		t1Col2: int().notNull(),
 		t1Col3: int().notNull(),
-		t2Ref: int().notNull().references(() => t2.t2Id),
+		t2Ref: bigint({ mode: 'number', unsigned: true }).references(() => t2.t2Id),
 		t1Uni: int().notNull(),
 		t1UniIdx: int().notNull(),
 		t1Idx: int().notNull(),
@@ -740,28 +740,28 @@ test('optional db aliases (snake case)', async () => {
 
 	const casing = 'snake_case';
 	const { sqlStatements: st } = await diff(from, to, [], casing);
-	const { sqlStatements: pst } = await push({ db, to });
+	const { sqlStatements: pst } = await push({ db, to, casing });
 
 	const st0: string[] = [
 		`CREATE TABLE \`t1\` (
 	\`t1_id1\` int PRIMARY KEY,
 	\`t1_col2\` int NOT NULL,
 	\`t1_col3\` int NOT NULL,
-	\`t2_ref\` int NOT NULL,
+	\`t2_ref\` bigint unsigned,
 	\`t1_uni\` int NOT NULL,
 	\`t1_uni_idx\` int NOT NULL,
 	\`t1_idx\` int NOT NULL,
 	CONSTRAINT \`t1_uni\` UNIQUE(\`t1_uni\`),
-	CONSTRAINT \`t1_uni_idx\` UNIQUE(\`t1_uni_idx\`),
-	CONSTRAINT \`t1_t2_ref_t2_t2_id_fk\` FOREIGN KEY (\`t2_ref\`) REFERENCES \`t2\`(\`t2_id\`),
-	CONSTRAINT \`t1_t1_col2_t1_col3_t3_t3_id1_t3_id2_fk\` FOREIGN KEY (\`t1_col2\`,\`t1_col3\`) REFERENCES \`t3\`(\`t3_id1\`,\`t3_id2\`)
+	CONSTRAINT \`t1_uni_idx\` UNIQUE(\`t1_uni_idx\`)
 );\n`,
 		`CREATE TABLE \`t2\` (\n\t\`t2_id\` serial PRIMARY KEY\n);\n`,
 		`CREATE TABLE \`t3\` (
 	\`t3_id1\` int,
 	\`t3_id2\` int,
 	CONSTRAINT \`t3_t3_id1_t3_id2_pk\` PRIMARY KEY(\`t3_id1\`,\`t3_id2\`)
-);`,
+);\n`,
+		'ALTER TABLE `t1` ADD CONSTRAINT `t1_t2_ref_t2_t2_id_fk` FOREIGN KEY (`t2_ref`) REFERENCES `t2`(`t2_id`);',
+		'ALTER TABLE `t1` ADD CONSTRAINT `t1_t1_col2_t1_col3_t3_t3_id1_t3_id2_fk` FOREIGN KEY (`t1_col2`,`t1_col3`) REFERENCES `t3`(`t3_id1`,`t3_id2`);',
 		`CREATE INDEX \`t1_idx\` ON \`t1\` (\`t1_idx\`);`,
 	];
 	expect(st).toStrictEqual(st0);
@@ -775,7 +775,7 @@ test('optional db aliases (camel case)', async () => {
 		t1_id1: int().notNull().primaryKey(),
 		t1_col2: int().notNull(),
 		t1_col3: int().notNull(),
-		t2_ref: int().notNull().references(() => t2.t2_id),
+		t2_ref: bigint({ mode: 'number', unsigned: true }).references(() => t2.t2_id),
 		t1_uni: int().notNull(),
 		t1_uni_idx: int().notNull(),
 		t1_idx: int().notNull(),
@@ -812,14 +812,14 @@ test('optional db aliases (camel case)', async () => {
 
 	const st0: string[] = [
 		`CREATE TABLE \`t1\` (\n\t\`t1Id1\` int PRIMARY KEY,\n\t\`t1Col2\` int NOT NULL,\n\t\`t1Col3\` int NOT NULL,\n`
-		+ `\t\`t2Ref\` int NOT NULL,\n\t\`t1Uni\` int NOT NULL,\n\t\`t1UniIdx\` int NOT NULL,\n\t\`t1Idx\` int NOT NULL,\n`
+		+ `\t\`t2Ref\` bigint unsigned,\n\t\`t1Uni\` int NOT NULL,\n\t\`t1UniIdx\` int NOT NULL,\n\t\`t1Idx\` int NOT NULL,\n`
 		+ `\tCONSTRAINT \`t1Uni\` UNIQUE(\`t1Uni\`),\n`
-		+ `\tCONSTRAINT \`t1UniIdx\` UNIQUE(\`t1UniIdx\`),\n`
-		+ `\tCONSTRAINT \`t1_t2Ref_t2_t2Id_fk\` FOREIGN KEY (\`t2Ref\`) REFERENCES \`t2\`(\`t2Id\`),\n`
-		+ `\tCONSTRAINT \`t1_t1Col2_t1Col3_t3_t3Id1_t3Id2_fk\` FOREIGN KEY (\`t1Col2\`,\`t1Col3\`) REFERENCES \`t3\`(\`t3Id1\`,\`t3Id2\`)\n`
+		+ `\tCONSTRAINT \`t1UniIdx\` UNIQUE(\`t1UniIdx\`)\n`
 		+ `);\n`,
 		`CREATE TABLE \`t2\` (\n\t\`t2Id\` serial PRIMARY KEY\n);\n`,
 		`CREATE TABLE \`t3\` (\n\t\`t3Id1\` int,\n\t\`t3Id2\` int,\n\tCONSTRAINT \`t3_t3Id1_t3Id2_pk\` PRIMARY KEY(\`t3Id1\`,\`t3Id2\`)\n);\n`,
+		'ALTER TABLE `t1` ADD CONSTRAINT `t1_t2Ref_t2_t2Id_fk` FOREIGN KEY (`t2Ref`) REFERENCES `t2`(`t2Id`);',
+		'ALTER TABLE `t1` ADD CONSTRAINT `t1_t1Col2_t1Col3_t3_t3Id1_t3Id2_fk` FOREIGN KEY (`t1Col2`,`t1Col3`) REFERENCES `t3`(`t3Id1`,`t3Id2`);',
 		'CREATE INDEX `t1Idx` ON `t1` (`t1Idx`);',
 	];
 	expect(st).toStrictEqual(st0);
@@ -877,7 +877,8 @@ test('fk #1', async () => {
 
 	const st0: string[] = [
 		'CREATE TABLE `users` (\n\t`id` int,\n\tCONSTRAINT `id_unique` UNIQUE(`id`)\n);\n',
-		'CREATE TABLE `places` (\n\t`id` int,\n\t`ref` int,\n\tCONSTRAINT `places_ref_users_id_fk` FOREIGN KEY (`ref`) REFERENCES `users`(`id`)\n);\n',
+		'CREATE TABLE `places` (\n\t`id` int,\n\t`ref` int\n);\n',
+		'ALTER TABLE `places` ADD CONSTRAINT `places_ref_users_id_fk` FOREIGN KEY (`ref`) REFERENCES `users`(`id`);',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);

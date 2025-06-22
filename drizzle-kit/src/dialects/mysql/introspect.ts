@@ -124,6 +124,7 @@ export const fromDatabase = async (
 		}
 
 		const def = parseDefaultValue(changedType, columnDefault, collation);
+		
 		res.columns.push({
 			entityType: 'columns',
 			table: table,
