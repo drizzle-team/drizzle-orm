@@ -125,7 +125,6 @@ export const typesCommutative = (left: string, right: string, mode: 'push' | 'de
 		if (left.startsWith('real(') && right.startsWith('double(') && right.replace('double', 'real') === left) {
 			return true;
 		}
-
 		if (left.replace(',0)', ')') === right.replace(',0)', ')')) return true; // { from: 'decimal(19,0)', to: 'decimal(19)' }
 	}
 

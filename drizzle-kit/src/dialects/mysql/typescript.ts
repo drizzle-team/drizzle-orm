@@ -156,6 +156,7 @@ export const ddlToTypeScript = (
 			patched = patched.startsWith('float(') ? 'float' : patched;
 			patched = patched.startsWith('float unsigned') ? 'float' : patched;
 			patched = patched.startsWith('int unsigned') ? 'int' : patched;
+			patched = patched === 'tinyint(1)' ? 'boolean' : patched;
 			patched = patched.startsWith('tinyint(') ? 'tinyint' : patched;
 			patched = patched.startsWith('tinyint unsigned') ? 'tinyint' : patched;
 			patched = patched.startsWith('smallint unsigned') ? 'smallint' : patched;
@@ -314,7 +315,7 @@ const column = (
 		return out;
 	}
 
-	if (lowered.startsWith('tinyint')) {
+	if (lowered.startsWith('tinyint') && lowered !== 'tinyint(1)') {
 		const isUnsigned = lowered.startsWith('tinyint unsigned');
 		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
 		// let out = `${name.camelCase()}: tinyint("${name}")`;
@@ -352,7 +353,7 @@ const column = (
 		return out;
 	}
 
-	if (lowered === 'boolean') {
+	if (lowered === 'boolean' || lowered === 'tinyint(1)') {
 		let out = `${casing(name)}: boolean(${dbColumnName({ name, casing: rawCasing })})`;
 		out += defaultValue ? `.default(${mapColumnDefault(defaultValue)})` : '';
 		return out;
