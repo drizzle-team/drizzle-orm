@@ -366,7 +366,7 @@ Expect<
 
 {
 	mssqlTable('test', {
-		col1: decimal('col1').default(1),
+		col1: decimal('col1').default('1'),
 	});
 }
 
