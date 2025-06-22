@@ -316,14 +316,13 @@ export const ddlDiff = async (
 
 	const columnAlterStatements = alters.filter((it) => it.entityType === 'columns')
 		.filter((it) => {
-			if (it.type && typesCommutative(it.type.from, it.type.to)) {
+			if (it.type && typesCommutative(it.type.from, it.type.to, mode)) {
 				delete it.type;
 			}
 
 			if (it.default) {
-				console.log(it.default)
 				let deleteDefault =
-					!!(it.default.from && it.default.to && typesCommutative(it.default.from.value, it.default.to.value));
+					!!(it.default.from && it.default.to && typesCommutative(it.default.from.value, it.default.to.value, mode));
 				deleteDefault ||= it.default.from?.value === it.default.to?.value;
 				deleteDefault ||= it.default.from?.value === `(${it.default.to?.value})`;
 

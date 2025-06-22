@@ -4,6 +4,7 @@ import { Casing } from 'src/cli/validations/common';
 import { unescapeSingleQuotes } from 'src/utils';
 import { assertUnreachable } from '../../utils';
 import { CheckConstraint, Column, ForeignKey, Index, MysqlDDL, PrimaryKey, ViewColumn } from './ddl';
+import { parseEnum } from './grammar';
 
 const mysqlImportsList = new Set([
 	'mysqlTable',
@@ -151,12 +152,17 @@ export const ddlToTypeScript = (
 			patched = patched.startsWith('varbinary(') ? 'varbinary' : patched;
 			patched = patched.startsWith('int(') ? 'int' : patched;
 			patched = patched.startsWith('double(') ? 'double' : patched;
+			patched = patched.startsWith('double unsigned') ? 'double' : patched;
 			patched = patched.startsWith('float(') ? 'float' : patched;
+			patched = patched.startsWith('float unsigned') ? 'float' : patched;
 			patched = patched.startsWith('int unsigned') ? 'int' : patched;
+			patched = patched.startsWith('tinyint(') ? 'tinyint' : patched;
 			patched = patched.startsWith('tinyint unsigned') ? 'tinyint' : patched;
 			patched = patched.startsWith('smallint unsigned') ? 'smallint' : patched;
 			patched = patched.startsWith('mediumint unsigned') ? 'mediumint' : patched;
 			patched = patched.startsWith('bigint unsigned') ? 'bigint' : patched;
+			patched = patched.startsWith('time(') ? 'time' : patched;
+			patched = patched.startsWith('timestamp(') ? 'timestamp' : patched;
 
 			if (mysqlImportsList.has(patched)) imports.add(patched);
 		}
@@ -268,19 +274,18 @@ const mapColumnDefault = (it: NonNullable<Column['default']>) => {
 		return `sql\`${it.value}\``;
 	}
 
-	return it.value.replace(/'/g, "\\'");
-};
-
-const mapColumnDefaultForJson = (defaultValue: any) => {
-	if (
-		typeof defaultValue === 'string'
-		&& defaultValue.startsWith("('")
-		&& defaultValue.endsWith("')")
-	) {
-		return defaultValue.substring(2, defaultValue.length - 2);
+	if (it.type === 'json') {
+		return it.value;
 	}
 
-	return defaultValue;
+	if (it.type === 'bigint') {
+		return `${it.value}n`;
+	}
+	if (it.type === 'number' || it.type === 'boolean') {
+		return it.value;
+	}
+
+	return `"${it.value.replace(/'/g, "\\'").replaceAll('"', '\\"')}"`;
 };
 
 const column = (
@@ -292,10 +297,7 @@ const column = (
 	autoincrement: boolean,
 	onUpdate: boolean,
 ) => {
-	let lowered = type;
-	if (!type.startsWith('enum(')) {
-		lowered = type.toLowerCase();
-	}
+	let lowered = type.startsWith('enum(') ? type : type.toLowerCase();
 
 	if (lowered === 'serial') {
 		return `${casing(name)}: serial(${dbColumnName({ name, casing: rawCasing })})`;
@@ -488,7 +490,7 @@ const column = (
 	if (lowered === 'text') {
 		let out = `${casing(name)}: text(${dbColumnName({ name, casing: rawCasing })})`;
 		out += defaultValue
-			? `.default('${mapColumnDefault(defaultValue)}')`
+			? `.default(${mapColumnDefault(defaultValue)})`
 			: '';
 		return out;
 	}
@@ -533,7 +535,7 @@ const column = (
 		let out = `${casing(name)}: json(${dbColumnName({ name, casing: rawCasing })})`;
 
 		out += defaultValue
-			? `.default(${mapColumnDefaultForJson(defaultValue)})`
+			? `.default(${mapColumnDefault(defaultValue)})`
 			: '';
 
 		return out;
@@ -570,7 +572,7 @@ const column = (
 		} })`;
 
 		out += defaultValue
-			? `.default("${mapColumnDefault(defaultValue)}")`
+			? `.default(${mapColumnDefault(defaultValue)})`
 			: '';
 		return out;
 	}
@@ -657,11 +659,7 @@ const column = (
 	}
 
 	if (lowered.startsWith('enum')) {
-		const values = lowered
-			.substring('enum'.length + 1, lowered.length - 1)
-			.split(',')
-			.map((v) => unescapeSingleQuotes(v, true))
-			.join(',');
+		const values = parseEnum(lowered).map((it) => `"${it.replaceAll("''", "'").replaceAll('"', '\\"')}"`).join(',');
 		let out = `${casing(name)}: mysqlEnum(${dbColumnName({ name, casing: rawCasing, withMode: true })}[${values}])`;
 		out += defaultValue
 			? `.default('${unescapeSingleQuotes(defaultValue.value, true)}')`
