@@ -415,7 +415,7 @@ test('json', async () => {
 	// raw sql for the line below: create table `table` (`column` json default ('{"key1":{"key2":"mo\\\",\\\\`}{od"}}'));
 	const res8 = await diffDefault(
 		_,
-		json().default({ key1: { key2: 'value' } }),
+		json().default({ key1: { key2: 'mo",\\`}{od' } }),
 		`('{"key1":{"key2":"mo\\\\",\\\\\\\\\`}{od"}}')`,
 	);
 
