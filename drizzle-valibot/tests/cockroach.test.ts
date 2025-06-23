@@ -11,28 +11,28 @@ import {
 	text,
 } from 'drizzle-orm/cockroach-core';
 import type { TopLevelCondition } from 'json-rules-engine';
+import * as v from 'valibot';
 import { test } from 'vitest';
-import { z } from 'zod/v4';
 import { jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
-import { createInsertSchema, createSchemaFactory, createSelectSchema, createUpdateSchema } from '../src';
+import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src';
 import { Expect, expectEnumValues, expectSchemaShape } from './utils.ts';
 
-const int4Schema = z.int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX);
-const int4NullableSchema = int4Schema.nullable();
-const int4OptionalSchema = int4Schema.optional();
-const int4NullableOptionalSchema = int4Schema.nullable().optional();
+const int4Schema = v.pipe(v.number(), v.minValue(CONSTANTS.INT32_MIN), v.maxValue(CONSTANTS.INT32_MAX), v.integer());
+const int4NullableSchema = v.nullable(int4Schema);
+const int4OptionalSchema = v.optional(int4Schema);
+const int4NullableOptionalSchema = v.optional(v.nullable(int4Schema));
 
-const textSchema = z.string();
-const textOptionalSchema = textSchema.optional();
+const textSchema = v.string();
+const textOptionalSchema = v.optional(textSchema);
 
-const anySchema = z.any();
+const anySchema = v.any();
 
-const extendedSchema = int4Schema.lte(1000);
-const extendedNullableSchema = extendedSchema.nullable();
-const extendedOptionalSchema = extendedSchema.optional();
+const extendedSchema = v.pipe(int4Schema, v.maxValue(1000));
+const extendedNullableSchema = v.nullable(extendedSchema);
+const extendedOptionalSchema = v.optional(extendedSchema);
 
-const customSchema = z.string().transform(Number);
+const customSchema = v.pipe(v.string(), v.transform(Number));
 
 test('table - select', (t) => {
 	const table = cockroachTable('test', {
@@ -42,7 +42,7 @@ test('table - select', (t) => {
 	});
 
 	const result = createSelectSchema(table);
-	const expected = z.object({ id: int4Schema, generated: int4Schema, name: textSchema });
+	const expected = v.object({ id: int4Schema, generated: int4Schema, name: textSchema });
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -55,7 +55,7 @@ test('table in schema - select', (tc) => {
 	});
 
 	const result = createSelectSchema(table);
-	const expected = z.object({ id: int4Schema, name: textSchema });
+	const expected = v.object({ id: int4Schema, name: textSchema });
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -68,7 +68,7 @@ test('table - insert', (t) => {
 	});
 
 	const result = createInsertSchema(table);
-	const expected = z.object({ name: textSchema, age: int4NullableOptionalSchema });
+	const expected = v.object({ name: textSchema, age: int4NullableOptionalSchema });
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -81,7 +81,7 @@ test('table - update', (t) => {
 	});
 
 	const result = createUpdateSchema(table);
-	const expected = z.object({
+	const expected = v.object({
 		name: textOptionalSchema,
 		age: int4NullableOptionalSchema,
 	});
@@ -97,7 +97,7 @@ test('view qb - select', (t) => {
 	const view = cockroachView('test').as((qb) => qb.select({ id: table.id, age: sql``.as('age') }).from(table));
 
 	const result = createSelectSchema(view);
-	const expected = z.object({ id: int4Schema, age: anySchema });
+	const expected = v.object({ id: int4Schema, age: anySchema });
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -109,7 +109,7 @@ test('view columns - select', (t) => {
 	}).as(sql``);
 
 	const result = createSelectSchema(view);
-	const expected = z.object({ id: int4Schema, name: textSchema });
+	const expected = v.object({ id: int4Schema, name: textSchema });
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -124,7 +124,7 @@ test('materialized view qb - select', (t) => {
 	);
 
 	const result = createSelectSchema(view);
-	const expected = z.object({ id: int4Schema, age: anySchema });
+	const expected = v.object({ id: int4Schema, age: anySchema });
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -136,7 +136,7 @@ test('materialized view columns - select', (t) => {
 	}).as(sql``);
 
 	const result = createSelectSchema(view);
-	const expected = z.object({ id: int4Schema, name: textSchema });
+	const expected = v.object({ id: int4Schema, name: textSchema });
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -158,10 +158,10 @@ test('view with nested fields - select', (t) => {
 	);
 
 	const result = createSelectSchema(view);
-	const expected = z.object({
+	const expected = v.object({
 		id: int4Schema,
-		nested: z.object({ name: textSchema, age: anySchema }),
-		table: z.object({ id: int4Schema, name: textSchema }),
+		nested: v.object({ name: textSchema, age: anySchema }),
+		table: v.object({ id: int4Schema, name: textSchema }),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -171,7 +171,7 @@ test('enum - select', (t) => {
 	const enum_ = cockroachEnum('test', ['a', 'b', 'c']);
 
 	const result = createSelectSchema(enum_);
-	const expected = z.enum(['a', 'b', 'c']);
+	const expected = v.enum({ a: 'a', b: 'b', c: 'c' });
 	expectEnumValues(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -185,7 +185,7 @@ test('nullability - select', (t) => {
 	});
 
 	const result = createSelectSchema(table);
-	const expected = z.object({
+	const expected = v.object({
 		c1: int4NullableSchema,
 		c2: int4Schema,
 		c3: int4NullableSchema,
@@ -207,7 +207,7 @@ test('nullability - insert', (t) => {
 	});
 
 	const result = createInsertSchema(table);
-	const expected = z.object({
+	const expected = v.object({
 		c1: int4NullableOptionalSchema,
 		c2: int4Schema,
 		c3: int4NullableOptionalSchema,
@@ -229,7 +229,7 @@ test('nullability - update', (t) => {
 	});
 
 	const result = createUpdateSchema(table);
-	const expected = z.object({
+	const expected = v.object({
 		c1: int4NullableOptionalSchema,
 		c2: int4OptionalSchema,
 		c3: int4NullableOptionalSchema,
@@ -248,10 +248,10 @@ test('refine table - select', (t) => {
 	});
 
 	const result = createSelectSchema(table, {
-		c2: (schema) => schema.lte(1000),
-		c3: z.string().transform(Number),
+		c2: (schema) => v.pipe(schema, v.maxValue(1000)),
+		c3: v.pipe(v.string(), v.transform(Number)),
 	});
-	const expected = z.object({
+	const expected = v.object({
 		c1: int4NullableSchema,
 		c2: extendedSchema,
 		c3: customSchema,
@@ -269,13 +269,13 @@ test('refine table - select with custom data type', (t) => {
 		c4: customText(),
 	});
 
-	const customTextSchema = z.string().min(1).max(100);
+	const customTextSchema = v.pipe(v.string(), v.minLength(1), v.maxLength(100));
 	const result = createSelectSchema(table, {
-		c2: (schema) => schema.lte(1000),
-		c3: z.string().transform(Number),
+		c2: (schema) => v.pipe(schema, v.maxValue(1000)),
+		c3: v.pipe(v.string(), v.transform(Number)),
 		c4: customTextSchema,
 	});
-	const expected = z.object({
+	const expected = v.object({
 		c1: int4NullableSchema,
 		c2: extendedSchema,
 		c3: customSchema,
@@ -295,10 +295,10 @@ test('refine table - insert', (t) => {
 	});
 
 	const result = createInsertSchema(table, {
-		c2: (schema) => schema.lte(1000),
-		c3: z.string().transform(Number),
+		c2: (schema) => v.pipe(schema, v.maxValue(1000)),
+		c3: v.pipe(v.string(), v.transform(Number)),
 	});
-	const expected = z.object({
+	const expected = v.object({
 		c1: int4NullableOptionalSchema,
 		c2: extendedSchema,
 		c3: customSchema,
@@ -316,10 +316,10 @@ test('refine table - update', (t) => {
 	});
 
 	const result = createUpdateSchema(table, {
-		c2: (schema) => schema.lte(1000),
-		c3: z.string().transform(Number),
+		c2: (schema) => v.pipe(schema, v.maxValue(1000)),
+		c3: v.pipe(v.string(), v.transform(Number)),
 	});
-	const expected = z.object({
+	const expected = v.object({
 		c1: int4NullableOptionalSchema,
 		c2: extendedOptionalSchema,
 		c3: customSchema,
@@ -352,27 +352,27 @@ test('refine view - select', (t) => {
 	);
 
 	const result = createSelectSchema(view, {
-		c2: (schema) => schema.lte(1000),
-		c3: z.string().transform(Number),
+		c2: (schema) => v.pipe(schema, v.maxValue(1000)),
+		c3: v.pipe(v.string(), v.transform(Number)),
 		nested: {
-			c5: (schema) => schema.lte(1000),
-			c6: z.string().transform(Number),
+			c5: (schema) => v.pipe(schema, v.maxValue(1000)),
+			c6: v.pipe(v.string(), v.transform(Number)),
 		},
 		table: {
-			c2: (schema) => schema.lte(1000),
-			c3: z.string().transform(Number),
+			c2: (schema) => v.pipe(schema, v.maxValue(1000)),
+			c3: v.pipe(v.string(), v.transform(Number)),
 		},
 	});
-	const expected = z.object({
+	const expected = v.object({
 		c1: int4NullableSchema,
 		c2: extendedNullableSchema,
 		c3: customSchema,
-		nested: z.object({
+		nested: v.object({
 			c4: int4NullableSchema,
 			c5: extendedNullableSchema,
 			c6: customSchema,
 		}),
-		table: z.object({
+		table: v.object({
 			c1: int4NullableSchema,
 			c2: extendedNullableSchema,
 			c3: customSchema,
@@ -455,133 +455,80 @@ test('all data types', (t) => {
 	}));
 
 	const result = createSelectSchema(table);
-	const expected = z.object({
-		bigint1: z.int().gte(Number.MIN_SAFE_INTEGER).lte(Number.MAX_SAFE_INTEGER),
-		bigint2: z.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
-		bit: z.string().regex(/^[01]+$/).max(5),
-		boolean: z.boolean(),
-		char1: z.string().max(10),
-		char2: z.enum(['a', 'b', 'c']),
-		date1: z.date(),
-		date2: z.string(),
-		decimal1: z.number().gte(Number.MIN_SAFE_INTEGER).lte(Number.MAX_SAFE_INTEGER),
-		decimal2: z.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
-		decimal3: z.string(),
-		float: z.number().gte(CONSTANTS.INT48_MIN).lte(CONSTANTS.INT48_MAX),
-		doublePrecision: z.number().gte(CONSTANTS.INT48_MIN).lte(CONSTANTS.INT48_MAX),
-		geometry1: z.tuple([z.number(), z.number()]),
-		geometry2: z.object({ x: z.number(), y: z.number() }),
-		inet: z.string(),
-		int2: z.int().gte(CONSTANTS.INT16_MIN).lte(CONSTANTS.INT16_MAX),
-		int4: z.int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX),
-		int8_1: z.int().gte(Number.MIN_SAFE_INTEGER).lte(Number.MAX_SAFE_INTEGER),
-		int8_2: z.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
-		interval: z.string(),
+	const expected = v.object({
+		bigint1: v.pipe(v.number(), v.minValue(Number.MIN_SAFE_INTEGER), v.maxValue(Number.MAX_SAFE_INTEGER), v.integer()),
+		bigint2: v.pipe(v.bigint(), v.minValue(CONSTANTS.INT64_MIN), v.maxValue(CONSTANTS.INT64_MAX)),
+		bit: v.pipe(v.string(), v.regex(/^[01]+$/), v.maxLength(5 as number)),
+		boolean: v.boolean(),
+		char1: v.pipe(v.string(), v.maxLength(10 as number)),
+		char2: v.enum({ a: 'a', b: 'b', c: 'c' }),
+		date1: v.date(),
+		date2: v.string(),
+		decimal1: v.pipe(v.number(), v.minValue(Number.MIN_SAFE_INTEGER), v.maxValue(Number.MAX_SAFE_INTEGER)),
+		decimal2: v.pipe(v.bigint(), v.minValue(CONSTANTS.INT64_MIN), v.maxValue(CONSTANTS.INT64_MAX)),
+		decimal3: v.string(),
+		float: v.pipe(v.number(), v.minValue(CONSTANTS.INT48_MIN), v.maxValue(CONSTANTS.INT48_MAX)),
+		doublePrecision: v.pipe(v.number(), v.minValue(CONSTANTS.INT48_MIN), v.maxValue(CONSTANTS.INT48_MAX)),
+		geometry1: v.tuple([v.number(), v.number()]),
+		geometry2: v.object({ x: v.number(), y: v.number() }),
+		inet: v.string(),
+		int2: v.pipe(v.number(), v.minValue(CONSTANTS.INT16_MIN), v.maxValue(CONSTANTS.INT16_MAX), v.integer()),
+		int4: v.pipe(v.number(), v.minValue(CONSTANTS.INT32_MIN), v.maxValue(CONSTANTS.INT32_MAX), v.integer()),
+		int8_1: v.pipe(v.number(), v.minValue(Number.MIN_SAFE_INTEGER), v.maxValue(Number.MAX_SAFE_INTEGER), v.integer()),
+		int8_2: v.pipe(v.bigint(), v.minValue(CONSTANTS.INT64_MIN), v.maxValue(CONSTANTS.INT64_MAX)),
+		interval: v.string(),
 		jsonb: jsonSchema,
-		numeric1: z.number().gte(Number.MIN_SAFE_INTEGER).lte(Number.MAX_SAFE_INTEGER),
-		numeric2: z.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
-		numeric3: z.string(),
-		real: z.number().gte(CONSTANTS.INT24_MIN).lte(CONSTANTS.INT24_MAX),
-		smallint: z.int().gte(CONSTANTS.INT16_MIN).lte(CONSTANTS.INT16_MAX),
-		string1: z.string(),
-		string2: z.enum(['a', 'b', 'c']),
-		text1: z.string(),
-		text2: z.enum(['a', 'b', 'c']),
-		time: z.string(),
-		timestamp1: z.date(),
-		timestamp2: z.string(),
-		uuid: z.uuid(),
-		varchar1: z.string().max(10),
-		varchar2: z.enum(['a', 'b', 'c']),
-		vector: z.array(z.number()).length(3),
-		array: z.array(int4Schema),
+		numeric1: v.pipe(v.number(), v.minValue(Number.MIN_SAFE_INTEGER), v.maxValue(Number.MAX_SAFE_INTEGER)),
+		numeric2: v.pipe(v.bigint(), v.minValue(CONSTANTS.INT64_MIN), v.maxValue(CONSTANTS.INT64_MAX)),
+		numeric3: v.string(),
+		real: v.pipe(v.number(), v.minValue(CONSTANTS.INT24_MIN), v.maxValue(CONSTANTS.INT24_MAX)),
+		smallint: v.pipe(v.number(), v.minValue(CONSTANTS.INT16_MIN), v.maxValue(CONSTANTS.INT16_MAX), v.integer()),
+		string1: v.string(),
+		string2: v.enum({ a: 'a', b: 'b', c: 'c' }),
+		text1: v.string(),
+		text2: v.enum({ a: 'a', b: 'b', c: 'c' }),
+		time: v.string(),
+		timestamp1: v.date(),
+		timestamp2: v.string(),
+		uuid: v.pipe(v.string(), v.uuid()),
+		varchar1: v.pipe(v.string(), v.maxLength(10 as number)),
+		varchar2: v.enum({ a: 'a', b: 'b', c: 'c' }),
+		vector: v.pipe(v.array(v.number()), v.length(3 as number)),
+		array: v.array(int4Schema),
 	});
 
-	expectSchemaShape(t, expected).from(result);
-	Expect<Equal<typeof result, typeof expected>>();
-});
-
-test('type coercion - all', (t) => {
-	const table = cockroachTable('test', ({
-		bigint,
-		boolean,
-		timestamp,
-		int4,
-		text,
-	}) => ({
-		bigint: bigint({ mode: 'bigint' }).notNull(),
-		boolean: boolean().notNull(),
-		timestamp: timestamp().notNull(),
-		int4: int4().notNull(),
-		text: text().notNull(),
-	}));
-
-	const { createSelectSchema } = createSchemaFactory({
-		coerce: true,
-	});
-	const result = createSelectSchema(table);
-	const expected = z.object({
-		bigint: z.coerce.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
-		boolean: z.coerce.boolean(),
-		timestamp: z.coerce.date(),
-		int4: z.coerce.number().int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX),
-		text: z.coerce.string(),
-	});
-	expectSchemaShape(t, expected).from(result);
-	Expect<Equal<typeof result, typeof expected>>();
-});
-
-test('type coercion - mixed', (t) => {
-	const table = cockroachTable('test', ({
-		timestamp,
-		int4,
-	}) => ({
-		timestamp: timestamp().notNull(),
-		int4: int4().notNull(),
-	}));
-
-	const { createSelectSchema } = createSchemaFactory({
-		coerce: {
-			date: true,
-		},
-	});
-	const result = createSelectSchema(table);
-	const expected = z.object({
-		timestamp: z.coerce.date(),
-		int4: z.int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX),
-	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
 /* Infinitely recursive type */ {
-	const TopLevelCondition: z.ZodType<TopLevelCondition> = z.custom<TopLevelCondition>().superRefine(() => {});
+	const TopLevelCondition: v.GenericSchema<TopLevelCondition> = v.custom<TopLevelCondition>(() => true);
 	const table = cockroachTable('test', {
 		jsonb: jsonb().$type<TopLevelCondition>(),
 	});
 	const result = createSelectSchema(table);
-	const expected = z.object({
-		jsonb: z.nullable(TopLevelCondition),
+	const expected = v.object({
+		jsonb: v.nullable(TopLevelCondition),
 	});
-	Expect<Equal<z.infer<typeof result>, z.infer<typeof expected>>>();
+	Expect<Equal<v.InferOutput<typeof result>, v.InferOutput<typeof expected>>>();
 }
 
 /* Disallow unknown keys in table refinement - select */ {
 	const table = cockroachTable('test', { id: int4() });
 	// @ts-expect-error
-	createSelectSchema(table, { unknown: z.string() });
+	createSelectSchema(table, { unknown: v.string() });
 }
 
 /* Disallow unknown keys in table refinement - insert */ {
 	const table = cockroachTable('test', { id: int4() });
 	// @ts-expect-error
-	createInsertSchema(table, { unknown: z.string() });
+	createInsertSchema(table, { unknown: v.string() });
 }
 
 /* Disallow unknown keys in table refinement - update */ {
 	const table = cockroachTable('test', { id: int4() });
 	// @ts-expect-error
-	createUpdateSchema(table, { unknown: z.string() });
+	createUpdateSchema(table, { unknown: v.string() });
 }
 
 /* Disallow unknown keys in view qb - select */ {
@@ -590,18 +537,18 @@ test('type coercion - mixed', (t) => {
 	const mView = cockroachMaterializedView('test').as((qb) => qb.select().from(table));
 	const nestedSelect = cockroachView('test').as((qb) => qb.select({ table }).from(table));
 	// @ts-expect-error
-	createSelectSchema(view, { unknown: z.string() });
+	createSelectSchema(view, { unknown: v.string() });
 	// @ts-expect-error
-	createSelectSchema(mView, { unknown: z.string() });
+	createSelectSchema(mView, { unknown: v.string() });
 	// @ts-expect-error
-	createSelectSchema(nestedSelect, { table: { unknown: z.string() } });
+	createSelectSchema(nestedSelect, { table: { unknown: v.string() } });
 }
 
 /* Disallow unknown keys in view columns - select */ {
 	const view = cockroachView('test', { id: int4() }).as(sql``);
 	const mView = cockroachView('test', { id: int4() }).as(sql``);
 	// @ts-expect-error
-	createSelectSchema(view, { unknown: z.string() });
+	createSelectSchema(view, { unknown: v.string() });
 	// @ts-expect-error
-	createSelectSchema(mView, { unknown: z.string() });
+	createSelectSchema(mView, { unknown: v.string() });
 }
