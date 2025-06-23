@@ -24,6 +24,7 @@ import {
 	varchar,
 	vector,
 } from 'drizzle-orm/cockroach-core';
+import { mkdirSync } from 'fs';
 import { DB } from 'src/utils';
 import { afterAll, beforeAll, expect, test } from 'vitest';
 import { diffDefault, prepareTestDatabase, TestDatabase } from './mocks';
@@ -36,6 +37,7 @@ let db: DB;
 beforeAll(async () => {
 	_ = await prepareTestDatabase();
 	db = _.db;
+	mkdirSync('tests/cockroach/tmp', { recursive: true });
 });
 
 afterAll(async () => {
