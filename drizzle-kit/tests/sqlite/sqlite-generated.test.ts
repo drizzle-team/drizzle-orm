@@ -548,7 +548,7 @@ test('generated as sql: add column with stored generated constraint', async () =
 		+ '\t`id` integer,\n'
 		+ '\t`id2` integer,\n'
 		+ '\t`name` text,\n'
-		+ '\t`gen_name` text GENERATED ALWAYS AS ("name" || \'hello\' || \'hello\') STORED\n'
+		+ "\t`gen_name` text GENERATED ALWAYS AS (\"name\" || 'hello' || 'hello') STORED\n"
 		+ ');\n',
 		'INSERT INTO `__new_users`(`id`, `id2`, `name`) SELECT `id`, `id2`, `name` FROM `users`;',
 		'DROP TABLE `users`;',

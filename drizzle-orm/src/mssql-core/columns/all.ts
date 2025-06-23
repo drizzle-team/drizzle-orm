@@ -13,11 +13,11 @@ import { int } from './int.ts';
 import { numeric } from './numeric.ts';
 import { real } from './real.ts';
 import { smallint } from './smallint.ts';
-import { text } from './text.ts';
+import { ntext, text } from './text.ts';
 import { time } from './time.ts';
 import { tinyint } from './tinyint.ts';
 import { varbinary } from './varbinary.ts';
-import { varchar } from './varchar.ts';
+import { nvarchar, varchar } from './varchar.ts';
 
 export function getMsSqlColumnBuilders() {
 	return {
@@ -37,10 +37,12 @@ export function getMsSqlColumnBuilders() {
 		numeric,
 		smallint,
 		text,
+		ntext,
 		time,
 		tinyint,
 		varbinary,
 		varchar,
+		nvarchar,
 	};
 }
 

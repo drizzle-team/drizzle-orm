@@ -129,7 +129,7 @@ test('materialized view qb - select', (tc) => {
 });
 
 test('materialized view columns - select', (tc) => {
-	const view = pgView('test', {
+	const view = pgMaterializedView('test', {
 		id: serial().primaryKey(),
 		name: text().notNull(),
 	}).as(sql``);
@@ -145,7 +145,7 @@ test('view with nested fields - select', (tc) => {
 		id: serial().primaryKey(),
 		name: text().notNull(),
 	});
-	const view = pgMaterializedView('test').as((qb) =>
+	const view = pgView('test').as((qb) =>
 		qb.select({
 			id: table.id,
 			nested: {
@@ -442,7 +442,9 @@ test('all data types', (tc) => {
 		line2: line({ mode: 'tuple' }).notNull(),
 		macaddr: macaddr().notNull(),
 		macaddr8: macaddr8().notNull(),
-		numeric: numeric().notNull(),
+		numeric1: numeric({ mode: 'number' }).notNull(),
+		numeric2: numeric({ mode: 'bigint' }).notNull(),
+		numeric3: numeric({ mode: 'string' }).notNull(),
 		point1: point({ mode: 'xy' }).notNull(),
 		point2: point({ mode: 'tuple' }).notNull(),
 		real: real().notNull(),
@@ -490,7 +492,9 @@ test('all data types', (tc) => {
 		line2: t.Tuple([t.Number(), t.Number(), t.Number()]),
 		macaddr: t.String(),
 		macaddr8: t.String(),
-		numeric: t.String(),
+		numeric1: t.Number({ minimum: Number.MIN_SAFE_INTEGER, maximum: Number.MAX_SAFE_INTEGER }),
+		numeric2: t.BigInt({ minimum: CONSTANTS.INT64_MIN, maximum: CONSTANTS.INT64_MAX }),
+		numeric3: t.String(),
 		point1: t.Object({ x: t.Number(), y: t.Number() }),
 		point2: t.Tuple([t.Number(), t.Number()]),
 		real: t.Number({ minimum: CONSTANTS.INT24_MIN, maximum: CONSTANTS.INT24_MAX }),

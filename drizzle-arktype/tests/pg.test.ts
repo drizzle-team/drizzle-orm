@@ -129,7 +129,7 @@ test('materialized view qb - select', (t) => {
 });
 
 test('materialized view columns - select', (t) => {
-	const view = pgView('test', {
+	const view = pgMaterializedView('test', {
 		id: serial().primaryKey(),
 		name: text().notNull(),
 	}).as(sql``);
@@ -145,7 +145,7 @@ test('view with nested fields - select', (t) => {
 		id: serial().primaryKey(),
 		name: text().notNull(),
 	});
-	const view = pgMaterializedView('test').as((qb) =>
+	const view = pgView('test').as((qb) =>
 		qb.select({
 			id: table.id,
 			nested: {
@@ -442,7 +442,9 @@ test('all data types', (t) => {
 		line2: line({ mode: 'tuple' }).notNull(),
 		macaddr: macaddr().notNull(),
 		macaddr8: macaddr8().notNull(),
-		numeric: numeric().notNull(),
+		numeric1: numeric({ mode: 'number' }).notNull(),
+		numeric2: numeric({ mode: 'bigint' }).notNull(),
+		numeric3: numeric({ mode: 'string' }).notNull(),
 		point1: point({ mode: 'xy' }).notNull(),
 		point2: point({ mode: 'tuple' }).notNull(),
 		real: real().notNull(),
@@ -490,7 +492,9 @@ test('all data types', (t) => {
 		line2: type([type.number, type.number, type.number]),
 		macaddr: type.string,
 		macaddr8: type.string,
-		numeric: type.string,
+		numeric1: type.number.atLeast(Number.MIN_SAFE_INTEGER).atMost(Number.MAX_SAFE_INTEGER),
+		numeric2: type.bigint.narrow(bigintNarrow),
+		numeric3: type.string,
 		point1: type({ x: type.number, y: type.number }),
 		point2: type([type.number, type.number]),
 		real: type.number.atLeast(CONSTANTS.INT24_MIN).atMost(CONSTANTS.INT24_MAX),
