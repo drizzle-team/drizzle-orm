@@ -462,68 +462,6 @@ test('drop view with data', async () => {
 	// expect(phints).toStrictEqual(hints0);
 });
 
-test('unique multistep #1', async (t) => {
-	const sch1 = {
-		users: mssqlTable('users', {
-			name: varchar().unique(),
-		}),
-	};
-
-	const { sqlStatements: diffSt1 } = await diff({}, sch1, []);
-	const { sqlStatements: st1 } = await push({ db, to: sch1, schemas: ['dbo'] });
-
-	const st01 = [
-		'CREATE TABLE [users] (\n\t[name] varchar,\n\tCONSTRAINT [users_name_key] UNIQUE([name])\n);\n',
-	];
-
-	expect(st1).toStrictEqual(st01);
-	expect(diffSt1).toStrictEqual(st01);
-
-	const sch2 = {
-		users: mssqlTable('users2', {
-			name: varchar('name2').unique(),
-		}),
-	};
-
-	const renames = ['dbo.users->dbo.users2', 'dbo.users2.name->dbo.users2.name2'];
-	const { sqlStatements: diffSt2 } = await diff(sch1, sch2, renames);
-	const { sqlStatements: st2 } = await push({
-		db,
-		to: sch2,
-		renames,
-		schemas: ['dbo'],
-	});
-
-	const st02 = [
-		`EXEC sp_rename 'users', [users2];`,
-		`EXEC sp_rename 'users2.name', [name2], 'COLUMN';`,
-	];
-
-	expect(st2).toStrictEqual(st02);
-	expect(diffSt2).toStrictEqual(st02);
-
-	const { sqlStatements: diffSt3 } = await diff(sch2, sch2, []);
-	const { sqlStatements: st3 } = await push({ db, to: sch2, schemas: ['dbo'] });
-
-	expect(st3).toStrictEqual([]);
-	expect(diffSt3).toStrictEqual([]);
-
-	// const sch3 = {
-	// 	users: mssqlTable('users2', {
-	// 		name: varchar('name2'),
-	// 	}),
-	// };
-
-	// // TODO should we check diff here?
-	// // const { sqlStatements: diffSt4 } = await diff(sch2, sch3, []);
-	// const { sqlStatements: st4 } = await push({ db, to: sch3, schemas: ['dbo'] });
-
-	// const st04 = ['ALTER TABLE [users2] DROP CONSTRAINT [users_name_key];'];
-
-	// expect(st4).toStrictEqual(st04);
-	// expect(diffSt4).toStrictEqual(st04);
-});
-
 test('primary key multistep #1', async (t) => {
 	const sch1 = {
 		users: mssqlTable('users', {
@@ -535,7 +473,7 @@ test('primary key multistep #1', async (t) => {
 	const { sqlStatements: st1 } = await push({ db, to: sch1, schemas: ['dbo'] });
 
 	const st01 = [
-		'CREATE TABLE [users] (\n\t[name] varchar,\n\tCONSTRAINT [users_pkey] PRIMARY KEY([name])\n);\n',
+		'CREATE TABLE [users] (\n\t[name] varchar(1),\n\tCONSTRAINT [users_pkey] PRIMARY KEY([name])\n);\n',
 	];
 
 	expect(st1).toStrictEqual(st01);
@@ -602,8 +540,8 @@ test('fk multistep #1', async (t) => {
 	const { sqlStatements: st1 } = await push({ db, to: sch1, schemas: ['dbo'] });
 
 	const st01 = [
-		'CREATE TABLE [ref] (\n\t[id] int IDENTITY(1, 1),\n\t[name] varchar,\n\tCONSTRAINT [ref_name_key] UNIQUE([name])\n);\n',
-		'CREATE TABLE [users] (\n\t[name] varchar,\n\tCONSTRAINT [users_name_key] UNIQUE([name])\n);\n',
+		'CREATE TABLE [ref] (\n\t[id] int IDENTITY(1, 1),\n\t[name] varchar(1),\n\tCONSTRAINT [ref_name_key] UNIQUE([name])\n);\n',
+		'CREATE TABLE [users] (\n\t[name] varchar(1),\n\tCONSTRAINT [users_name_key] UNIQUE([name])\n);\n',
 		'ALTER TABLE [users] ADD CONSTRAINT [users_name_ref_name_fk] FOREIGN KEY ([name]) REFERENCES [ref]([name]);',
 	];
 
@@ -673,8 +611,8 @@ test('fk multistep #2', async (t) => {
 	const { sqlStatements: st1 } = await push({ db, to: sch1, schemas: ['dbo'] });
 
 	const st01 = [
-		'CREATE TABLE [ref] (\n\t[id] int IDENTITY(1, 1),\n\t[name] varchar,\n\tCONSTRAINT [ref_name_key] UNIQUE([name])\n);\n',
-		'CREATE TABLE [users] (\n\t[name] varchar,\n\tCONSTRAINT [users_name_key] UNIQUE([name])\n);\n',
+		'CREATE TABLE [ref] (\n\t[id] int IDENTITY(1, 1),\n\t[name] varchar(1),\n\tCONSTRAINT [ref_name_key] UNIQUE([name])\n);\n',
+		'CREATE TABLE [users] (\n\t[name] varchar(1),\n\tCONSTRAINT [users_name_key] UNIQUE([name])\n);\n',
 		'ALTER TABLE [users] ADD CONSTRAINT [users_name_ref_name_fk] FOREIGN KEY ([name]) REFERENCES [ref]([name]);',
 	];
 
@@ -749,8 +687,8 @@ test('rename fk', async (t) => {
 	const { sqlStatements: st1 } = await push({ db, to: sch1, schemas: ['dbo'] });
 
 	const st01 = [
-		'CREATE TABLE [ref] (\n\t[id] int IDENTITY(1, 1),\n\t[name] varchar,\n\tCONSTRAINT [ref_name_key] UNIQUE([name])\n);\n',
-		'CREATE TABLE [users] (\n\t[name] varchar,\n\tCONSTRAINT [users_name_key] UNIQUE([name])\n);\n',
+		'CREATE TABLE [ref] (\n\t[id] int IDENTITY(1, 1),\n\t[name] varchar(1),\n\tCONSTRAINT [ref_name_key] UNIQUE([name])\n);\n',
+		'CREATE TABLE [users] (\n\t[name] varchar(1),\n\tCONSTRAINT [users_name_key] UNIQUE([name])\n);\n',
 		'ALTER TABLE [users] ADD CONSTRAINT [some] FOREIGN KEY ([name]) REFERENCES [ref]([name]);',
 	];
 

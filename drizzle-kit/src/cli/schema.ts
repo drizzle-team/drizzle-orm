@@ -332,113 +332,116 @@ export const push = command({
 			entities,
 		} = config;
 
-		if (dialect === 'mysql') {
-			const { handle } = await import('./commands/push-mysql');
-			await handle(
-				schemaPath,
-				credentials,
-				tablesFilter,
-				strict,
-				verbose,
-				force,
-				casing,
-			);
-		} else if (dialect === 'postgresql') {
-			if ('driver' in credentials) {
-				const { driver } = credentials;
-				if (driver === 'aws-data-api' && !(await ormVersionGt('0.30.10'))) {
-					console.log(
-						"To use 'aws-data-api' driver - please update drizzle-orm to the latest version",
-					);
-					process.exit(1);
+		try {
+			if (dialect === 'mysql') {
+				const { handle } = await import('./commands/push-mysql');
+				await handle(
+					schemaPath,
+					credentials,
+					tablesFilter,
+					strict,
+					verbose,
+					force,
+					casing,
+				);
+			} else if (dialect === 'postgresql') {
+				if ('driver' in credentials) {
+					const { driver } = credentials;
+					if (driver === 'aws-data-api' && !(await ormVersionGt('0.30.10'))) {
+						console.log(
+							"To use 'aws-data-api' driver - please update drizzle-orm to the latest version",
+						);
+						process.exit(1);
+					}
+					if (driver === 'pglite' && !(await ormVersionGt('0.30.6'))) {
+						console.log(
+							"To use 'pglite' driver - please update drizzle-orm to the latest version",
+						);
+						process.exit(1);
+					}
 				}
-				if (driver === 'pglite' && !(await ormVersionGt('0.30.6'))) {
-					console.log(
-						"To use 'pglite' driver - please update drizzle-orm to the latest version",
-					);
-					process.exit(1);
-				}
-			}
 
-			const { handle } = await import('./commands/push-postgres');
-			await handle(
-				schemaPath,
-				verbose,
-				strict,
-				credentials,
-				tablesFilter,
-				schemasFilter,
-				entities,
-				force,
-				casing,
-			);
-		} else if (dialect === 'sqlite') {
-			const { handle: sqlitePush } = await import('./commands/push-sqlite');
-			await sqlitePush(
-				schemaPath,
-				verbose,
-				strict,
-				credentials,
-				tablesFilter,
-				force,
-				casing,
-			);
-		} else if (dialect === 'turso') {
-			const { handle: libSQLPush } = await import('./commands/push-libsql');
-			await libSQLPush(
-				schemaPath,
-				verbose,
-				strict,
-				credentials,
-				tablesFilter,
-				force,
-				casing,
-			);
-		} else if (dialect === 'singlestore') {
-			const { handle } = await import('./commands/push-singlestore');
-			await handle(
-				schemaPath,
-				credentials,
-				tablesFilter,
-				strict,
-				verbose,
-				force,
-				casing,
-			);
-		} else if (dialect === 'cockroach') {
-			const { handle } = await import('./commands/push-cockroach');
-			await handle(
-				schemaPath,
-				verbose,
-				strict,
-				credentials,
-				tablesFilter,
-				schemasFilter,
-				entities,
-				force,
-				casing,
-			);
-		} else if (dialect === 'mssql') {
-			const { handle } = await import('./commands/push-mssql');
-			await handle(
-				schemaPath,
-				verbose,
-				strict,
-				credentials,
-				tablesFilter,
-				schemasFilter,
-				entities,
-				force,
-				casing,
-			);
-		} else if (dialect === 'gel') {
-			console.log(
-				error(
-					`You can't use 'push' command with Gel dialect`,
-				),
-			);
-		} else {
-			assertUnreachable(dialect);
+				const { handle } = await import('./commands/push-postgres');
+				await handle(
+					schemaPath,
+					verbose,
+					strict,
+					credentials,
+					tablesFilter,
+					schemasFilter,
+					entities,
+					force,
+					casing,
+				);
+			} else if (dialect === 'sqlite') {
+				const { handle: sqlitePush } = await import('./commands/push-sqlite');
+				await sqlitePush(
+					schemaPath,
+					verbose,
+					strict,
+					credentials,
+					tablesFilter,
+					force,
+					casing,
+				);
+			} else if (dialect === 'turso') {
+				const { handle: libSQLPush } = await import('./commands/push-libsql');
+				await libSQLPush(
+					schemaPath,
+					verbose,
+					strict,
+					credentials,
+					tablesFilter,
+					force,
+					casing,
+				);
+			} else if (dialect === 'singlestore') {
+				const { handle } = await import('./commands/push-singlestore');
+				await handle(
+					schemaPath,
+					credentials,
+					tablesFilter,
+					strict,
+					verbose,
+					force,
+					casing,
+				);
+			} else if (dialect === 'cockroach') {
+				const { handle } = await import('./commands/push-cockroach');
+				await handle(
+					schemaPath,
+					verbose,
+					strict,
+					credentials,
+					tablesFilter,
+					schemasFilter,
+					entities,
+					force,
+					casing,
+				);
+			} else if (dialect === 'mssql') {
+				const { handle } = await import('./commands/push-mssql');
+				await handle(
+					schemaPath,
+					verbose,
+					strict,
+					credentials,
+					tablesFilter,
+					schemasFilter,
+					force,
+					casing,
+				);
+			} else if (dialect === 'gel') {
+				console.log(
+					error(
+						`You can't use 'push' command with Gel dialect`,
+					),
+				);
+			} else {
+				assertUnreachable(dialect);
+			}
+		} catch (error: any) {
+			console.error(error);
 		}
 
 		process.exit(0);
@@ -646,7 +649,6 @@ export const pull = command({
 					tablesFilter,
 					schemasFilter,
 					prefix,
-					entities,
 				);
 			} else if (dialect === 'cockroach') {
 				const { handle } = await import('./commands/pull-cockroach');
