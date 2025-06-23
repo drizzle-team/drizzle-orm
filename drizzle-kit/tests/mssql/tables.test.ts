@@ -10,17 +10,39 @@ import {
 	text,
 	unique,
 	uniqueIndex,
+	varchar,
 } from 'drizzle-orm/mssql-core';
-import { expect, test } from 'vitest';
-import { diff } from './mocks';
+import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
+
+// @vitest-environment-options {"max-concurrency":1}
+let _: TestDatabase;
+let db: TestDatabase['db'];
+
+beforeAll(async () => {
+	_ = await prepareTestDatabase();
+	db = _.db;
+});
+
+afterAll(async () => {
+	await _.close();
+});
+
+beforeEach(async () => {
+	await _.clear();
+});
 
 test('add table #1', async () => {
 	const to = {
-		users: mssqlTable('users', {}),
+		users: mssqlTable('users', { id: int() }),
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
-	expect(sqlStatements).toStrictEqual(['CREATE TABLE [users] (\n\n);\n']);
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to: to });
+
+	const st0 = ['CREATE TABLE [users] (\n\t[id] int\n);\n'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add table #2', async () => {
@@ -30,10 +52,15 @@ test('add table #2', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
-	expect(sqlStatements).toStrictEqual([
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to: to });
+
+	const st0 = [
 		'CREATE TABLE [users] (\n\t[id] int,\n\tCONSTRAINT [users_pkey] PRIMARY KEY([id])\n);\n',
-	]);
+	];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add table #3', async () => {
@@ -43,13 +70,17 @@ test('add table #3', async () => {
 		}, (t) => [primaryKey({ name: 'users_pk', columns: [t.id] })]),
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
-	expect(sqlStatements).toStrictEqual([
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to: to });
+
+	const st0 = [
 		'CREATE TABLE [users] (\n'
 		+ '\t[id] int,\n'
 		+ '\tCONSTRAINT [users_pk] PRIMARY KEY([id])\n'
 		+ ');\n',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add table #4', async () => {
@@ -58,11 +89,15 @@ test('add table #4', async () => {
 		posts: mssqlTable('posts', { id: int() }),
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
-	expect(sqlStatements).toStrictEqual([
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to: to });
+
+	const st0 = [
 		'CREATE TABLE [users] (\n\t[id] int\n);\n',
 		'CREATE TABLE [posts] (\n\t[id] int\n);\n',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add table #5', async () => {
@@ -78,10 +113,15 @@ test('add table #5', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
-	expect(sqlStatements).toStrictEqual([
+	const { sqlStatements: st } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to: to });
+
+	const st0 = [
 		'CREATE TABLE [folder].[users] (\n\t[id] int\n);\n',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add table #6', async () => {
@@ -93,11 +133,16 @@ test('add table #6', async () => {
 		users2: mssqlTable('users2', { id: int() }),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
-	expect(sqlStatements).toStrictEqual([
+	const { sqlStatements: st } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to: to });
+
+	const st0 = [
 		'CREATE TABLE [users2] (\n\t[id] int\n);\n',
 		'DROP TABLE [users1];',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add table #7', async () => {
@@ -110,28 +155,41 @@ test('add table #7', async () => {
 		users2: mssqlTable('users2', { id: int() }),
 	};
 
-	const { sqlStatements } = await diff(from, to, [
+	const { sqlStatements: st } = await diff(from, to, [
 		'dbo.users1->dbo.users2',
 	]);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to: to, renames: ['dbo.users1->dbo.users2'] });
+
+	const st0 = [
 		'CREATE TABLE [users] (\n\t[id] int\n);\n',
 		`EXEC sp_rename 'users1', [users2];`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 /* unique inline */
 test('add table #9', async () => {
 	const to = {
 		users: mssqlTable('users', {
-			name: text().unique(),
+			name: varchar().unique(),
 		}),
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
-	expect(sqlStatements).toStrictEqual([
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to: to });
+
+	expect(st).toStrictEqual([
 		'CREATE TABLE [users] (\n'
-		+ '\t[name] text,\n'
+		+ '\t[name] varchar(1),\n'
+		+ '\tCONSTRAINT [users_name_key] UNIQUE([name])\n'
+		+ ');\n',
+	]);
+	expect(pst).toStrictEqual([
+		'CREATE TABLE [users] (\n'
+		+ '\t[name] varchar(1),\n'
 		+ '\tCONSTRAINT [users_name_key] UNIQUE([name])\n'
 		+ ');\n',
 	]);
@@ -142,13 +200,18 @@ test('add table #10', async () => {
 	const from = {};
 	const to = {
 		users: mssqlTable('users', {
-			name: text().unique('name_unique'),
+			name: varchar().unique('name_unique'),
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
-	expect(sqlStatements).toStrictEqual([
-		`CREATE TABLE [users] (\n\t[name] text,\n\tCONSTRAINT [name_unique] UNIQUE([name])\n);\n`,
+	const { sqlStatements: st } = await diff(from, to, []);
+	const { sqlStatements: pst } = await push({ db, to: to });
+
+	expect(st).toStrictEqual([
+		`CREATE TABLE [users] (\n\t[name] varchar(1),\n\tCONSTRAINT [name_unique] UNIQUE([name])\n);\n`,
+	]);
+	expect(pst).toStrictEqual([
+		`CREATE TABLE [users] (\n\t[name] varchar(1),\n\tCONSTRAINT [name_unique] UNIQUE([name])\n);\n`,
 	]);
 });
 
@@ -156,20 +219,25 @@ test('add table #10', async () => {
 test('add table #13', async () => {
 	const to = {
 		users: mssqlTable('users', {
-			name: text(),
+			name: varchar(),
 		}, (t) => [unique('users_name_key').on(t.name)]),
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
-	expect(sqlStatements).toStrictEqual([
-		`CREATE TABLE [users] (\n\t[name] text,\n\tCONSTRAINT [users_name_key] UNIQUE([name])\n);\n`,
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to: to });
+
+	expect(st).toStrictEqual([
+		`CREATE TABLE [users] (\n\t[name] varchar(1),\n\tCONSTRAINT [users_name_key] UNIQUE([name])\n);\n`,
+	]);
+	expect(pst).toStrictEqual([
+		`CREATE TABLE [users] (\n\t[name] varchar(1),\n\tCONSTRAINT [users_name_key] UNIQUE([name])\n);\n`,
 	]);
 });
 
 // reference
-test('add table #13', async () => {
+test('add table #14', async () => {
 	const company = mssqlTable('company', {
-		id: int(),
+		id: int().primaryKey(),
 		name: text(),
 	});
 
@@ -181,18 +249,23 @@ test('add table #13', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
-	expect(sqlStatements).toStrictEqual([
+	const { sqlStatements: st } = await diff({}, to, [], 'snake_case');
+	const { sqlStatements: pst } = await push({ db, to: to, casing: 'snake_case' });
+
+	const st0 = [
 		`CREATE TABLE [company] (
 \t[id] int,
-\t[name] text
+\t[name] text,
+\tCONSTRAINT [company_pkey] PRIMARY KEY([id])
 );\n`,
 		`CREATE TABLE [users] (
 \t[company_id] int,
 \t[name] text
 );\n`,
 		`ALTER TABLE [users] ADD CONSTRAINT [users_company_id_company_id_fk] FOREIGN KEY ([company_id]) REFERENCES [company]([id]);`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('multiproject schema add table #1', async () => {
@@ -204,8 +277,13 @@ test('multiproject schema add table #1', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
-	expect(sqlStatements).toStrictEqual([
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to: to });
+
+	expect(st).toStrictEqual([
+		'CREATE TABLE [prefix_users] (\n\t[id] int,\n\tCONSTRAINT [prefix_users_pkey] PRIMARY KEY([id])\n);\n',
+	]);
+	expect(pst).toStrictEqual([
 		'CREATE TABLE [prefix_users] (\n\t[id] int,\n\tCONSTRAINT [prefix_users_pkey] PRIMARY KEY([id])\n);\n',
 	]);
 });
@@ -219,8 +297,12 @@ test('multiproject schema drop table #1', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, {}, []);
-	expect(sqlStatements).toStrictEqual(['DROP TABLE [prefix_users];']);
+	const { sqlStatements: st } = await diff(from, {}, []);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to: {} });
+
+	expect(st).toStrictEqual(['DROP TABLE [prefix_users];']);
+	expect(pst).toStrictEqual(['DROP TABLE [prefix_users];']);
 });
 
 test('multiproject schema alter table name #1', async () => {
@@ -237,12 +319,17 @@ test('multiproject schema alter table name #1', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(from, to, [
+	const { sqlStatements: st } = await diff(from, to, [
 		'dbo.prefix_users->dbo.prefix_users1',
 	]);
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to: to, renames: ['dbo.prefix_users->dbo.prefix_users1'] });
+
+	const st0 = [
 		"EXEC sp_rename 'prefix_users', [prefix_users1];",
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add schema + table #1', async () => {
@@ -255,8 +342,14 @@ test('add schema + table #1', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff({}, to, []);
-	expect(sqlStatements).toStrictEqual([
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to: to });
+
+	expect(st).toStrictEqual([
+		'CREATE SCHEMA [folder];\n',
+		'CREATE TABLE [folder].[users] (\n\t[id] int\n);\n',
+	]);
+	expect(pst).toStrictEqual([
 		'CREATE SCHEMA [folder];\n',
 		'CREATE TABLE [folder].[users] (\n\t[id] int\n);\n',
 	]);
@@ -267,15 +360,25 @@ test('change schema with tables #1', async () => {
 	const schema2 = mssqlSchema('folder2');
 	const from = {
 		schema,
-		users: schema.table('users', {}),
+		users: schema.table('users', { id: int() }),
 	};
 	const to = {
 		schema2,
-		users: schema2.table('users', {}),
+		users: schema2.table('users', { id: int() }),
 	};
 
-	const { sqlStatements } = await diff(from, to, ['folder->folder2']);
-	expect(sqlStatements).toStrictEqual([`/**
+	const { sqlStatements: st } = await diff(from, to, ['folder->folder2']);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to: to, renames: ['folder->folder2'] });
+
+	expect(st).toStrictEqual([`/**
+ * ⚠️ Renaming schemas is not supported in SQL Server (MSSQL),
+ * and therefore is not supported in Drizzle ORM at this time
+ * 
+ * SQL Server does not provide a built-in command to rename a schema directly.
+ * Workarounds involve creating a new schema and migrating objects manually
+ */`]);
+	expect(pst).toStrictEqual([`/**
  * ⚠️ Renaming schemas is not supported in SQL Server (MSSQL),
  * and therefore is not supported in Drizzle ORM at this time
  * 
@@ -288,34 +391,42 @@ test('change table schema #1', async () => {
 	const schema = mssqlSchema('folder');
 	const from = {
 		schema,
-		users: mssqlTable('users', {}),
+		users: mssqlTable('users', { id: int() }),
 	};
 	const to = {
 		schema,
-		users: schema.table('users', {}),
+		users: schema.table('users', { id: int() }),
 	};
 
-	const { sqlStatements } = await diff(from, to, [
+	const { sqlStatements: st } = await diff(from, to, [
 		'dbo.users->folder.users',
 	]);
-	expect(sqlStatements).toStrictEqual([`ALTER SCHEMA [folder] TRANSFER [dbo].[users];\n`]);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to: to, renames: ['dbo.users->folder.users'] });
+
+	expect(st).toStrictEqual([`ALTER SCHEMA [folder] TRANSFER [dbo].[users];\n`]);
+	expect(pst).toStrictEqual([`ALTER SCHEMA [folder] TRANSFER [dbo].[users];\n`]);
 });
 
 test('change table schema #2', async () => {
 	const schema = mssqlSchema('folder');
 	const from = {
 		schema,
-		users: schema.table('users', {}),
+		users: schema.table('users', { id: int() }),
 	};
 	const to = {
 		schema,
-		users: mssqlTable('users', {}),
+		users: mssqlTable('users', { id: int() }),
 	};
 
-	const { sqlStatements } = await diff(from, to, [
+	const { sqlStatements: st } = await diff(from, to, [
 		'folder.users->dbo.users',
 	]);
-	expect(sqlStatements).toStrictEqual(['ALTER SCHEMA [dbo] TRANSFER [folder].[users];\n']);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to: to, renames: ['folder.users->dbo.users'] });
+
+	expect(st).toStrictEqual(['ALTER SCHEMA [dbo] TRANSFER [folder].[users];\n']);
+	expect(pst).toStrictEqual(['ALTER SCHEMA [dbo] TRANSFER [folder].[users];\n']);
 });
 
 test('change table schema #3', async () => {
@@ -324,18 +435,22 @@ test('change table schema #3', async () => {
 	const from = {
 		schema1,
 		schema2,
-		users: schema1.table('users', {}),
+		users: schema1.table('users', { id: int() }),
 	};
 	const to = {
 		schema1,
 		schema2,
-		users: schema2.table('users', {}),
+		users: schema2.table('users', { id: int() }),
 	};
 
-	const { sqlStatements } = await diff(from, to, [
+	const { sqlStatements: st } = await diff(from, to, [
 		'folder1.users->folder2.users',
 	]);
-	expect(sqlStatements).toStrictEqual(['ALTER SCHEMA [folder2] TRANSFER [folder1].[users];\n']);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to: to, renames: ['folder1.users->folder2.users'] });
+
+	expect(st).toStrictEqual(['ALTER SCHEMA [folder2] TRANSFER [folder1].[users];\n']);
+	expect(pst).toStrictEqual(['ALTER SCHEMA [folder2] TRANSFER [folder1].[users];\n']);
 });
 
 test('change table schema #4', async () => {
@@ -343,18 +458,25 @@ test('change table schema #4', async () => {
 	const schema2 = mssqlSchema('folder2');
 	const from = {
 		schema1,
-		users: schema1.table('users', {}),
+		users: schema1.table('users', { id: int() }),
 	};
 	const to = {
 		schema1,
 		schema2, // add schema
-		users: schema2.table('users', {}), // move table
+		users: schema2.table('users', { id: int() }), // move table
 	};
 
-	const { sqlStatements } = await diff(from, to, [
+	const { sqlStatements: st } = await diff(from, to, [
 		'folder1.users->folder2.users',
 	]);
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to: to, renames: ['folder1.users->folder2.users'] });
+
+	expect(st).toStrictEqual([
+		'CREATE SCHEMA [folder2];\n',
+		'ALTER SCHEMA [folder2] TRANSFER [folder1].[users];\n',
+	]);
+	expect(pst).toStrictEqual([
 		'CREATE SCHEMA [folder2];\n',
 		'ALTER SCHEMA [folder2] TRANSFER [folder1].[users];\n',
 	]);
@@ -365,18 +487,25 @@ test('change table schema #5', async () => {
 	const schema2 = mssqlSchema('folder2');
 	const from = {
 		schema1, // remove schema
-		users: schema1.table('users', {}),
+		users: schema1.table('users', { id: int() }),
 	};
 	const to = {
 		schema2, // add schema
-		users: schema2.table('users', {}), // move table
+		users: schema2.table('users', { id: int() }), // move table
 	};
 
-	const { sqlStatements } = await diff(from, to, [
+	const { sqlStatements: st } = await diff(from, to, [
 		'folder1.users->folder2.users',
 	]);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to: to, renames: ['folder1.users->folder2.users'] });
 
-	expect(sqlStatements).toStrictEqual([
+	expect(st).toStrictEqual([
+		'CREATE SCHEMA [folder2];\n',
+		'ALTER SCHEMA [folder2] TRANSFER [folder1].[users];\n',
+		'DROP SCHEMA [folder1];\n',
+	]);
+	expect(pst).toStrictEqual([
 		'CREATE SCHEMA [folder2];\n',
 		'ALTER SCHEMA [folder2] TRANSFER [folder1].[users];\n',
 		'DROP SCHEMA [folder1];\n',
@@ -389,18 +518,25 @@ test('change table schema #6', async () => {
 	const from = {
 		schema1,
 		schema2,
-		users: schema1.table('users', {}),
+		users: schema1.table('users', { id: int() }),
 	};
 	const to = {
 		schema1,
 		schema2,
-		users: schema2.table('users2', {}), // rename and move table
+		users: schema2.table('users2', { id: int() }), // rename and move table
 	};
 
-	const { sqlStatements } = await diff(from, to, [
+	const { sqlStatements: st } = await diff(from, to, [
 		'folder1.users->folder2.users2',
 	]);
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to: to, renames: ['folder1.users->folder2.users2'] });
+
+	expect(st).toStrictEqual([
+		`EXEC sp_rename 'folder1.users', [users2];`,
+		`ALTER SCHEMA [folder2] TRANSFER [folder1].[users2];\n`,
+	]);
+	expect(pst).toStrictEqual([
 		`EXEC sp_rename 'folder1.users', [users2];`,
 		`ALTER SCHEMA [folder2] TRANSFER [folder1].[users2];\n`,
 	]);
@@ -411,18 +547,20 @@ test('change table schema #7', async () => {
 	const schema2 = mssqlSchema('folder2');
 	const from = {
 		schema1,
-		users: schema1.table('users', {}),
+		users: schema1.table('users', { id: int() }),
 	};
 	const to = {
 		schema2, // rename schema
-		users: schema2.table('users2', {}), // rename table
+		users: schema2.table('users2', { id: int() }), // rename table
 	};
 
-	const { sqlStatements } = await diff(from, to, [
+	const { sqlStatements: st } = await diff(from, to, [
 		'folder1->folder2',
 		'folder2.users->folder2.users2',
 	]);
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: from });
+
+	expect(st).toStrictEqual([
 		`/**
  * ⚠️ Renaming schemas is not supported in SQL Server (MSSQL),
  * and therefore is not supported in Drizzle ORM at this time
@@ -432,6 +570,11 @@ test('change table schema #7', async () => {
  */`,
 		`EXEC sp_rename 'folder2.users', [users2];`,
 	]);
+	await expect(push({
+		db,
+		to: to,
+		renames: ['folder1->folder2', 'folder2.users->folder2.users2'],
+	})).rejects.toThrowError(); // no folder2.users to rename
 });
 
 test('drop table + rename schema #1', async () => {
@@ -439,15 +582,17 @@ test('drop table + rename schema #1', async () => {
 	const schema2 = mssqlSchema('folder2');
 	const from = {
 		schema1,
-		users: schema1.table('users', {}),
+		users: schema1.table('users', { id: int() }),
 	};
 	const to = {
 		schema2, // rename schema
 		// drop table
 	};
 
-	const { sqlStatements } = await diff(from, to, ['folder1->folder2']);
-	expect(sqlStatements).toStrictEqual([
+	const { sqlStatements: st } = await diff(from, to, ['folder1->folder2']);
+	await push({ db, to: from });
+
+	expect(st).toStrictEqual([
 		`/**
  * ⚠️ Renaming schemas is not supported in SQL Server (MSSQL),
  * and therefore is not supported in Drizzle ORM at this time
@@ -457,6 +602,11 @@ test('drop table + rename schema #1', async () => {
  */`,
 		`DROP TABLE [folder2].[users];`,
 	]);
+	await expect(push({
+		db,
+		to: to,
+		renames: ['folder1->folder2', 'folder2.users->folder2.users2'],
+	})).rejects.toThrowError(); // no folder2.users to drop
 });
 
 test('composite primary key', async () => {
@@ -465,17 +615,21 @@ test('composite primary key', async () => {
 		table: mssqlTable('works_to_creators', {
 			workId: int('work_id').notNull(),
 			creatorId: int('creator_id').notNull(),
-			classification: text('classification').notNull(),
+			classification: varchar('classification').notNull(),
 		}, (t) => [
 			primaryKey({ columns: [t.workId, t.creatorId, t.classification] }),
 		]),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to: to });
 
-	expect(sqlStatements).toStrictEqual([
-		'CREATE TABLE [works_to_creators] (\n\t[work_id] int NOT NULL,\n\t[creator_id] int NOT NULL,\n\t[classification] text NOT NULL,\n\tCONSTRAINT [works_to_creators_pkey] PRIMARY KEY([work_id],[creator_id],[classification])\n);\n',
-	]);
+	const st0 = [
+		'CREATE TABLE [works_to_creators] (\n\t[work_id] int NOT NULL,\n\t[creator_id] int NOT NULL,\n\t[classification] varchar(1) NOT NULL,\n\tCONSTRAINT [works_to_creators_pkey] PRIMARY KEY([work_id],[creator_id],[classification])\n);\n',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add column before creating unique constraint', async () => {
@@ -487,14 +641,21 @@ test('add column before creating unique constraint', async () => {
 	const to = {
 		table: mssqlTable('table', {
 			id: int('id').primaryKey(),
-			name: text('name').notNull(),
+			name: varchar('name', { length: 255 }).notNull(),
 		}, (t) => [unique('uq').on(t.name)]),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to: to });
 
-	expect(sqlStatements).toStrictEqual([
-		'ALTER TABLE [table] ADD [name] text NOT NULL;',
+	expect(st).toStrictEqual([
+		'ALTER TABLE [table] ADD [name] varchar(255) NOT NULL;',
+		'ALTER TABLE [table] ADD CONSTRAINT [uq] UNIQUE([name]);',
+	]);
+
+	expect(pst).toStrictEqual([
+		'ALTER TABLE [table] ADD [name] varchar(255) NOT NULL;',
 		'ALTER TABLE [table] ADD CONSTRAINT [uq] UNIQUE([name]);',
 	]);
 });
@@ -502,9 +663,9 @@ test('add column before creating unique constraint', async () => {
 test('alter composite primary key', async () => {
 	const from = {
 		table: mssqlTable('table', {
-			col1: int('col1').notNull(),
-			col2: int('col2').notNull(),
-			col3: text('col3').notNull(),
+			col1: int('col1'),
+			col2: int('col2'),
+			col3: varchar('col3').notNull(),
 		}, (t) => [
 			primaryKey({
 				name: 'table_pk',
@@ -514,9 +675,9 @@ test('alter composite primary key', async () => {
 	};
 	const to = {
 		table: mssqlTable('table', {
-			col1: int('col1').notNull(),
-			col2: int('col2').notNull(),
-			col3: text('col3').notNull(),
+			col1: int('col1'),
+			col2: int('col2'),
+			col3: varchar('col3').notNull(),
 		}, (t) => [
 			primaryKey({
 				name: 'table_pk',
@@ -525,8 +686,15 @@ test('alter composite primary key', async () => {
 		]),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
-	expect(sqlStatements).toStrictEqual([
+	const { sqlStatements: st } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to: to });
+
+	expect(st).toStrictEqual([
+		'ALTER TABLE [table] DROP CONSTRAINT [table_pk];',
+		'ALTER TABLE [table] ADD CONSTRAINT [table_pk] PRIMARY KEY ([col2],[col3]);',
+	]);
+	expect(pst).toStrictEqual([
 		'ALTER TABLE [table] DROP CONSTRAINT [table_pk];',
 		'ALTER TABLE [table] ADD CONSTRAINT [table_pk] PRIMARY KEY ([col2],[col3]);',
 	]);
@@ -536,19 +704,24 @@ test('add index', async () => {
 	const from = {
 		users: mssqlTable('users', {
 			id: int('id').primaryKey(),
-			name: text('name').notNull(),
+			name: varchar('name', { length: 255 }).notNull(),
 		}),
 	};
 	const to = {
 		users: mssqlTable('users', {
 			id: int('id').primaryKey(),
-			name: text('name').notNull(),
+			name: varchar('name', { length: 255 }).notNull(),
 		}, (t) => [index('some_index_name').on(t.name)]),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to: to });
 
-	expect(sqlStatements).toStrictEqual([
+	expect(st).toStrictEqual([
+		'CREATE INDEX [some_index_name] ON [users] ([name]);',
+	]);
+	expect(pst).toStrictEqual([
 		'CREATE INDEX [some_index_name] ON [users] ([name]);',
 	]);
 });
@@ -557,19 +730,24 @@ test('add unique index', async () => {
 	const from = {
 		users: mssqlTable('users', {
 			id: int('id').primaryKey(),
-			name: text('name').notNull(),
+			name: varchar('name', { length: 255 }).notNull(),
 		}),
 	};
 	const to = {
 		users: mssqlTable('users', {
 			id: int('id').primaryKey(),
-			name: text('name').notNull(),
+			name: varchar('name', { length: 255 }).notNull(),
 		}, (t) => [uniqueIndex('some_index_name').on(t.name)]),
 	};
 
-	const { sqlStatements } = await diff(from, to, []);
+	const { sqlStatements: st } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to: to });
 
-	expect(sqlStatements).toStrictEqual([
+	expect(st).toStrictEqual([
+		'CREATE UNIQUE INDEX [some_index_name] ON [users] ([name]);',
+	]);
+	expect(pst).toStrictEqual([
 		'CREATE UNIQUE INDEX [some_index_name] ON [users] ([name]);',
 	]);
 });
@@ -621,7 +799,9 @@ test('optional db aliases (snake case)', async () => {
 		t3,
 	};
 
-	const { sqlStatements } = await diff(from, to, [], 'snake_case');
+	const { sqlStatements: st } = await diff(from, to, [], 'snake_case');
+	await push({ db, to: from, casing: 'snake_case' });
+	const { sqlStatements: pst } = await push({ db, to: to, casing: 'snake_case' });
 
 	const st1 = `CREATE TABLE [t1] (
 	[t1_id1] int,
@@ -658,7 +838,8 @@ test('optional db aliases (snake case)', async () => {
 
 	const st7 = `CREATE INDEX [t1_idx] ON [t1] ([t1_idx]) WHERE [t1].[t1_idx] > 0;`;
 
-	expect(sqlStatements).toStrictEqual([st1, st2, st3, st4, st5, st6, st7]);
+	expect(st).toStrictEqual([st1, st2, st3, st4, st5, st6, st7]);
+	expect(pst).toStrictEqual([st1, st2, st3, st4, st5, st6, st7]);
 });
 
 test('optional db aliases (camel case)', async () => {
@@ -697,7 +878,9 @@ test('optional db aliases (camel case)', async () => {
 		t3,
 	};
 
-	const { sqlStatements } = await diff(from, to, [], 'camelCase');
+	const { sqlStatements: st } = await diff(from, to, [], 'camelCase');
+	await push({ db, to: from, casing: 'camelCase' });
+	const { sqlStatements: pst } = await push({ db, to: to, casing: 'camelCase' });
 
 	const st1 = `CREATE TABLE [t1] (
 	[t1Id1] int,
@@ -733,5 +916,6 @@ test('optional db aliases (camel case)', async () => {
 
 	const st7 = `CREATE INDEX [t1Idx] ON [t1] ([t1Idx]) WHERE [t1].[t1Idx] > 0;`;
 
-	expect(sqlStatements).toStrictEqual([st1, st2, st3, st4, st5, st6, st7]);
+	expect(st).toStrictEqual([st1, st2, st3, st4, st5, st6, st7]);
+	expect(pst).toStrictEqual([st1, st2, st3, st4, st5, st6, st7]);
 });

@@ -459,30 +459,23 @@ export const createDockerPostgis = async () => {
 	await pgContainer.start();
 
 	return {
-		pgContainer,
-		connectionParams: {
-			host: 'localhost',
-			port,
-			user,
-			password,
-			database,
-			ssl: false,
-		},
+		url: `postgresql://postgres:postgres@127.0.0.1:${port}/postgres`,
+		container: pgContainer,
 	};
 };
 
 export const preparePostgisTestDatabase = async (tx: boolean = true): Promise<TestDatabase> => {
-	const dockerPayload = await createDockerPostgis();
+	const envURL = process.env.POSTGIS_URL;
+	const { url, container } = envURL ? { url: envURL, container: null } : await createDockerPostgis();
 	const sleep = 1000;
 	let timeLeft = 40000;
 	let connected = false;
 	let lastError;
 
-	const pgContainer = dockerPayload.pgContainer;
 	let pgClient: ClientT;
 	do {
 		try {
-			pgClient = new Client(dockerPayload.connectionParams);
+			pgClient = new Client({ connectionString: url });
 			await pgClient.connect();
 			connected = true;
 			break;
@@ -495,7 +488,7 @@ export const preparePostgisTestDatabase = async (tx: boolean = true): Promise<Te
 	if (!connected) {
 		console.error('Cannot connect to Postgres');
 		await pgClient!.end().catch(console.error);
-		await pgContainer!.stop().catch(console.error);
+		await container?.stop().catch(console.error);
 		throw lastError;
 	}
 
@@ -537,7 +530,7 @@ export const preparePostgisTestDatabase = async (tx: boolean = true): Promise<Te
 
 	const close = async () => {
 		await pgClient.end().catch(console.error);
-		await pgContainer.stop().catch(console.error);
+		await container?.stop().catch(console.error);
 	};
 
 	const db: TestDatabase['db'] = {

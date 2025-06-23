@@ -1,6 +1,24 @@
 import { assertUnreachable, trimChar } from '../../utils';
 import { Column, ForeignKey } from './ddl';
 
+/*
+	TODO: revise handling of float/double in both orm and kit
+	in orm we can limit 0-23 precision for float and 24-53 in float/double types
+	in kit we can trim default values based on scale param with .toFixed(scale ?? defaultScale)
+
+	MySQL also supports this optional precision specification,
+	but the precision value in FLOAT(p) is used only to determine storage size.
+	A precision from 0 to 23 results in a 4-byte single-precision FLOAT column.
+	A precision from 24 to 53 results in an 8-byte double-precision DOUBLE column.
+
+	MySQL performs rounding when storing values, so if you insert 999.00009 into a FLOAT(7,4) column, the approximate result is 999.0001.
+*/
+
+/*
+	TODO:
+	Drizzle ORM allows real/double({ precision: 6 }) which is only allowed with scale
+*/
+
 export const nameForForeignKey = (fk: Pick<ForeignKey, 'table' | 'columns' | 'tableTo' | 'columnsTo'>) => {
 	return `fk_${fk.table}_${fk.columns.join('_')}_${fk.tableTo}_${fk.columnsTo.join('_')}_fk`;
 };
@@ -27,6 +45,10 @@ function trimCollation(defaultValue: string, collate: string = 'utf8mb4') {
 	return defaultValue;
 }
 
+export const parseEnum = (it: string) => {
+	return Array.from(it.matchAll(/'((?:[^']|'')*)'/g), (m) => m[1]);
+};
+
 export const parseDefaultValue = (
 	columnType: string,
 	value: string | undefined,
@@ -36,7 +58,14 @@ export const parseDefaultValue = (
 
 	value = stripCollation(value, collation);
 
-	if (columnType.startsWith('binary') || columnType.startsWith('varbinary') || columnType === 'text') {
+	if (columnType.startsWith('decimal')) {
+		return { value: trimChar(value, "'"), type: 'decimal' };
+	}
+
+	if (
+		columnType.startsWith('binary') || columnType.startsWith('varbinary')
+		|| columnType === 'text' || columnType === 'tinytext' || columnType === 'longtext' || columnType === 'mediumtext'
+	) {
 		if (/^'(?:[^']|'')*'$/.test(value)) {
 			return { value: trimChar(value, "'").replaceAll("''", "'"), type: 'text' };
 		}
@@ -80,12 +109,30 @@ const commutativeTypes = [
 	['now()', '(now())', 'CURRENT_TIMESTAMP', '(CURRENT_TIMESTAMP)', 'CURRENT_TIMESTAMP()'],
 ];
 
-export const typesCommutative = (left: string, right: string) => {
+export const typesCommutative = (left: string, right: string, mode: 'push' | 'default' = 'default') => {
 	for (const it of commutativeTypes) {
 		const leftIn = it.some((x) => x === left);
 		const rightIn = it.some((x) => x === right);
 
 		if (leftIn && rightIn) return true;
+	}
+
+	if (mode === 'push') {
+		if (left === 'double' && right === 'real') return true;
+		if (left.startsWith('double(') && right.startsWith('real(') && right.replace('real', 'double') === left) {
+			return true;
+		}
+		if (left.startsWith('real(') && right.startsWith('double(') && right.replace('double', 'real') === left) {
+			return true;
+		}
+		if (left.replace(',0)', ')') === right.replace(',0)', ')')) return true; // { from: 'decimal(19,0)', to: 'decimal(19)' }
+	}
+
+	if (
+		(left.startsWith('float(') && right === 'float')
+		|| (right.startsWith('float(') && left === 'float')
+	) {
+		return true; // column type is float regardless of float(M,D), always stored as 7 digits precision
 	}
 	return false;
 };
@@ -96,6 +143,10 @@ export const defaultToSQL = (it: Column['default']) => {
 	if (it.type === 'bigint') {
 		return `'${it.value}'`;
 	}
+	if (it.type === 'decimal') {
+		return `('${it.value}')`;
+	}
+
 	if (it.type === 'boolean' || it.type === 'number' || it.type === 'unknown') {
 		return it.value;
 	}

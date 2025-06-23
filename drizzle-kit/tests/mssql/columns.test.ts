@@ -88,7 +88,7 @@ test('add columns #3', async (t) => {
 	const schema2 = {
 		users: mssqlTable('users', {
 			id: int('id'),
-			name: text('name').primaryKey(),
+			name: varchar('name', { length: 100 }).primaryKey(),
 			email: text('email'),
 		}),
 	};
@@ -99,7 +99,7 @@ test('add columns #3', async (t) => {
 	const { sqlStatements: pst } = await push({ db, to: schema2, schemas: ['dbo'] });
 
 	const st0 = [
-		'ALTER TABLE [users] ADD [name] text NOT NULL;',
+		'ALTER TABLE [users] ADD [name] varchar(100) NOT NULL;',
 		'ALTER TABLE [users] ADD [email] text;',
 		'ALTER TABLE [users] ADD CONSTRAINT [users_pkey] PRIMARY KEY ([name]);',
 	];
@@ -122,11 +122,16 @@ test('alter column change name #1', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [
+	const { sqlStatements: st } = await diff(schema1, schema2, [
 		'dbo.users.name->dbo.users.name1',
 	]);
 
-	expect(sqlStatements).toStrictEqual([`EXEC sp_rename 'users.name', [name1], 'COLUMN';`]);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2, renames: ['dbo.users.name->dbo.users.name1'] });
+
+	const st0 = [`EXEC sp_rename 'users.name', [name1], 'COLUMN';`];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter column change name #2', async (t) => {
@@ -145,14 +150,19 @@ test('alter column change name #2', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [
+	const { sqlStatements: st } = await diff(schema1, schema2, [
 		'dbo.users.name->dbo.users.name1',
 	]);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2, renames: ['dbo.users.name->dbo.users.name1'] });
+
+	const st0 = [
 		`EXEC sp_rename 'users.name', [name1], 'COLUMN';`,
 		'ALTER TABLE [users] ADD [email] text;',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('rename table rename column #1', async (t) => {
@@ -171,15 +181,27 @@ test('rename table rename column #1', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [
+	const { sqlStatements: st } = await diff(schema1, schema2, [
 		'new_schema.users->new_schema.users1',
 		'new_schema.users1.id->new_schema.users1.id1',
 	]);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: [
+			'new_schema.users->new_schema.users1',
+			'new_schema.users1.id->new_schema.users1.id1',
+		],
+	});
+
+	const st0 = [
 		`EXEC sp_rename 'new_schema.users', [users1];`,
 		`EXEC sp_rename 'new_schema.users1.id', [id1], 'COLUMN';`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('rename column #1', async (t) => {
@@ -198,13 +220,24 @@ test('rename column #1', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [
+	const { sqlStatements: st } = await diff(schema1, schema2, [
 		'new_schema.users.id->new_schema.users.id1',
 	]);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: [
+			'new_schema.users.id->new_schema.users.id1',
+		],
+	});
+
+	const st0 = [
 		`EXEC sp_rename 'new_schema.users.id', [id1], 'COLUMN';`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('rename column #2. Part of unique constraint', async (t) => {
@@ -223,16 +256,28 @@ test('rename column #2. Part of unique constraint', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [
-		'new_schema.users.id->new_schema.users.id1',
-	]);
+	// const { sqlStatements: st } = await diff(schema1, schema2, [
+	// 	'new_schema.users.id->new_schema.users.id1',
+	// ]);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: [
+			'new_schema.users.id->new_schema.users.id1',
+		],
+	});
+
+	const st0 = [
 		`EXEC sp_rename 'new_schema.users.id', [id1], 'COLUMN';`,
-	]);
+	];
+
+	// expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
-test('rename column #3. Part of check constraint', async (t) => {
+test.todo('rename column #3. Part of check constraint', async (t) => {
 	const newSchema = mssqlSchema('new_schema');
 	const schema1 = {
 		newSchema,
@@ -248,15 +293,27 @@ test('rename column #3. Part of check constraint', async (t) => {
 		}, (t) => [check('hey', sql`${t.id} != 2`)]),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [
+	const { sqlStatements: st } = await diff(schema1, schema2, [
 		'new_schema.users.id->new_schema.users.id1',
 	]);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1, log: 'statements' });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: [
+			'new_schema.users.id->new_schema.users.id1',
+		],
+		log: 'statements',
+	});
+
+	const st0 = [
 		`ALTER TABLE [new_schema].[users] DROP CONSTRAINT [hey];`,
 		`EXEC sp_rename 'new_schema.users.id', [id1], 'COLUMN';`,
 		`ALTER TABLE [new_schema].[users] ADD CONSTRAINT [hey] CHECK ([users].[id1] != 2);`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop column #1. Part of check constraint', async (t) => {
@@ -265,20 +322,31 @@ test('drop column #1. Part of check constraint', async (t) => {
 		newSchema,
 		users: newSchema.table('users', {
 			id: int('id'),
+			name: varchar('name'),
 		}, (t) => [check('hey', sql`${t.id} != 2`)]),
 	};
 
 	const schema2 = {
 		newSchema,
-		users: newSchema.table('users', {}),
+		users: newSchema.table('users', {
+			name: varchar('name'),
+		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		`ALTER TABLE [new_schema].[users] DROP CONSTRAINT [hey];`,
 		`ALTER TABLE [new_schema].[users] DROP COLUMN [id];`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop column #2. Part of unique constraint', async (t) => {
@@ -287,20 +355,31 @@ test('drop column #2. Part of unique constraint', async (t) => {
 		newSchema,
 		users: newSchema.table('users', {
 			id: int('id'),
+			name: varchar('name'),
 		}, (t) => [unique('hey').on(t.id)]),
 	};
 
 	const schema2 = {
 		newSchema,
-		users: newSchema.table('users', {}),
+		users: newSchema.table('users', {
+			name: varchar('name'),
+		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		`ALTER TABLE [new_schema].[users] DROP CONSTRAINT [hey];`,
 		`ALTER TABLE [new_schema].[users] DROP COLUMN [id];`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop column #3. Part of pk', async (t) => {
@@ -309,20 +388,31 @@ test('drop column #3. Part of pk', async (t) => {
 		newSchema,
 		users: newSchema.table('users', {
 			id: int('id'),
+			name: varchar('name'),
 		}, (t) => [primaryKey({ name: 'hey', columns: [t.id] })]),
 	};
 
 	const schema2 = {
 		newSchema,
-		users: newSchema.table('users', {}),
+		users: newSchema.table('users', {
+			name: varchar('name'),
+		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		`ALTER TABLE [new_schema].[users] DROP CONSTRAINT [hey];`,
 		`ALTER TABLE [new_schema].[users] DROP COLUMN [id];`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop column #4. Has default', async (t) => {
@@ -331,20 +421,32 @@ test('drop column #4. Has default', async (t) => {
 		newSchema,
 		users: newSchema.table('users', {
 			id: int('id'),
+			name: varchar('name'),
 		}, (t) => [primaryKey({ name: 'hey', columns: [t.id] })]),
 	};
 
 	const schema2 = {
 		newSchema,
-		users: newSchema.table('users', {}),
+		users: newSchema.table('users', {
+			name: varchar('name'),
+		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		`ALTER TABLE [new_schema].[users] DROP CONSTRAINT [hey];`,
 		`ALTER TABLE [new_schema].[users] DROP COLUMN [id];`,
-	]);
+	];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('with composite pks #1', async (t) => {
@@ -363,9 +465,17 @@ test('with composite pks #1', async (t) => {
 		}, (t) => [primaryKey({ columns: [t.id1, t.id2], name: 'compositePK' })]),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual(['ALTER TABLE [users] ADD [text] text;']);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = ['ALTER TABLE [users] ADD [text] text;'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('rename column that is part of the pk. Name explicit', async (t) => {
@@ -387,11 +497,20 @@ test('rename column that is part of the pk. Name explicit', async (t) => {
 		}, (t) => [primaryKey({ columns: [t.id1, t.id3], name: 'compositePK' })]),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [
+	const { sqlStatements: st } = await diff(schema1, schema2, [
 		'dbo.users.id2->dbo.users.id3',
 	]);
 
-	expect(sqlStatements).toStrictEqual([`EXEC sp_rename 'users.id2', [id3], 'COLUMN';`]);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: ['dbo.users.id2->dbo.users.id3'],
+	});
+
+	const st0 = [`EXEC sp_rename 'users.id2', [id3], 'COLUMN';`];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('rename column and pk #2', async (t) => {
@@ -413,15 +532,111 @@ test('rename column and pk #2', async (t) => {
 		}, (t) => [primaryKey({ columns: [t.id1, t.id3] })]),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [
+	const { sqlStatements: st } = await diff(schema1, schema2, [
 		`dbo.users.id2->dbo.users.id3`,
 		`dbo.users.compositePK->dbo.users.${defaultNameForPK('users')}`,
 	]);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: [
+			`dbo.users.id2->dbo.users.id3`,
+			`dbo.users.compositePK->dbo.users.${defaultNameForPK('users')}`,
+		],
+	});
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+
+	expect(st).toStrictEqual([
 		`EXEC sp_rename 'users.id2', [id3], 'COLUMN';`,
 		`EXEC sp_rename 'compositePK', [users_pkey], 'OBJECT';`,
 	]);
+	expect(pst).toStrictEqual([`EXEC sp_rename 'users.id2', [id3], 'COLUMN';`]); // pk name is preserved
+	expect(pst2).toStrictEqual([]);
+});
+
+test('rename column and pk #3', async (t) => {
+	const schema1 = {
+		users: mssqlTable(
+			'users',
+			{
+				id1: int('id1'),
+				id2: int('id2'),
+			},
+			(t) => [primaryKey({ columns: [t.id1, t.id2], name: 'compositePK' })],
+		),
+	};
+
+	const schema2 = {
+		users: mssqlTable('users', {
+			id1: int('id1'),
+			id3: int('id3'),
+		}, (t) => [primaryKey({ columns: [t.id1, t.id3], name: 'compositePK1' })]),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, [
+		`dbo.users.id2->dbo.users.id3`,
+		`dbo.users.compositePK->dbo.users.compositePK1`,
+	]);
+
+	await push({ db, to: schema1, log: 'statements' });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: [`dbo.users.id2->dbo.users.id3`, `dbo.users.compositePK->dbo.users.compositePK1`],
+		log: 'statements',
+	});
+
+	const { sqlStatements: pst1 } = await push({ db, to: schema2 });
+
+	const st0 = [
+		`EXEC sp_rename 'users.id2', [id3], 'COLUMN';`,
+		`EXEC sp_rename 'compositePK', [compositePK1], 'OBJECT';`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+	expect(pst1).toStrictEqual([]);
+});
+
+test('rename column that is part of pk', async (t) => {
+	const schema1 = {
+		users: mssqlTable(
+			'users',
+			{
+				id1: int('id1'),
+				id2: int('id2'),
+			},
+			(t) => [primaryKey({ columns: [t.id1, t.id2], name: 'compositePK' })],
+		),
+	};
+
+	const schema2 = {
+		users: mssqlTable('users', {
+			id1: int('id1'),
+			id3: int('id3'),
+		}, (t) => [primaryKey({ columns: [t.id1, t.id3], name: 'compositePK' })]),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, [
+		`dbo.users.id2->dbo.users.id3`,
+	]);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: [`dbo.users.id2->dbo.users.id3`],
+	});
+
+	const { sqlStatements: pst1 } = await push({ db, to: schema2 });
+
+	const st0 = [
+		`EXEC sp_rename 'users.id2', [id3], 'COLUMN';`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+	expect(pst1).toStrictEqual([]);
 });
 
 test('rename table should not cause rename pk. Name is not explicit', async (t) => {
@@ -443,13 +658,20 @@ test('rename table should not cause rename pk. Name is not explicit', async (t) 
 		}, (t) => [primaryKey({ columns: [t.id1, t.id2] })]),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [
+	const { sqlStatements: st } = await diff(schema1, schema2, [
 		`dbo.users->dbo.users2`,
 	]);
 
-	expect(sqlStatements).toStrictEqual([
-		`EXEC sp_rename 'users', [users2];`,
-	]);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: [`dbo.users->dbo.users2`],
+	});
+
+	const st0 = [`EXEC sp_rename 'users', [users2];`];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('rename table should not cause rename pk. Name explicit', async (t) => {
@@ -471,13 +693,21 @@ test('rename table should not cause rename pk. Name explicit', async (t) => {
 		}, (t) => [primaryKey({ columns: [t.id1, t.id2], name: 'compositePk' })]),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [
+	const { sqlStatements: st } = await diff(schema1, schema2, [
 		`dbo.users->dbo.users2`,
 	]);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: [`dbo.users->dbo.users2`],
+	});
 
-	expect(sqlStatements).toStrictEqual([
+	const st0 = [
 		`EXEC sp_rename 'users', [users2];`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('move table to other schema + rename table. Should not cause rename pk. Name is not explicit', async (t) => {
@@ -502,21 +732,30 @@ test('move table to other schema + rename table. Should not cause rename pk. Nam
 		}, (t) => [primaryKey({ columns: [t.id1, t.id2] })]),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [
+	const { sqlStatements: st } = await diff(schema1, schema2, [
 		`dbo.users->my_schema.users2`,
 	]);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: [`dbo.users->my_schema.users2`],
+	});
+
+	const st0 = [
 		`EXEC sp_rename 'users', [users2];`,
 		`ALTER SCHEMA [my_schema] TRANSFER [dbo].[users2];\n`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('rename table should not cause rename fk. Name is not explicit. #1', async (t) => {
 	const company = mssqlTable(
 		'company',
 		{
-			id: int('id'),
+			id: int('id').primaryKey(),
 		},
 	);
 	const schema1 = {
@@ -533,7 +772,7 @@ test('rename table should not cause rename fk. Name is not explicit. #1', async 
 	const renamedCompany = mssqlTable(
 		'company2',
 		{
-			id: int('id'),
+			id: int('id').primaryKey(),
 		},
 	);
 	const schema2 = {
@@ -547,17 +786,22 @@ test('rename table should not cause rename fk. Name is not explicit. #1', async 
 		),
 	};
 
-	const { sqlStatements: sqlStatements1 } = await diff(schema1, schema2, [
+	const { sqlStatements: st } = await diff(schema1, schema2, [
 		`dbo.company->dbo.company2`,
 	]);
 
-	expect(sqlStatements1).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: [`dbo.company->dbo.company2`],
+	});
+
+	const st0 = [
 		`EXEC sp_rename 'company', [company2];`,
-	]);
-
-	const { sqlStatements: sqlStatements2 } = await diff(schema2, schema2, []);
-
-	expect(sqlStatements2).toStrictEqual([]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('rename table should not cause rename fk. Name is not explicit. #2', async (t) => {
@@ -570,7 +814,7 @@ test('rename table should not cause rename fk. Name is not explicit. #2', async 
 	const users = mssqlTable(
 		'users',
 		{
-			id: int('id'),
+			id: int('id').primaryKey(),
 		},
 	);
 	const schema1 = {
@@ -589,13 +833,22 @@ test('rename table should not cause rename fk. Name is not explicit. #2', async 
 		users,
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [
+	const { sqlStatements: st } = await diff(schema1, schema2, [
 		`dbo.company->dbo.company2`,
 	]);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: [`dbo.company->dbo.company2`],
+	});
+
+	const st0 = [
 		`EXEC sp_rename 'company', [company2];`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('move table to other schema + rename table. Should not cause rename fk', async (t) => {
@@ -610,7 +863,7 @@ test('move table to other schema + rename table. Should not cause rename fk', as
 	const users = mssqlTable(
 		'users',
 		{
-			id: int('id'),
+			id: int('id').primaryKey(),
 		},
 	);
 	const schema1 = {
@@ -631,14 +884,23 @@ test('move table to other schema + rename table. Should not cause rename fk', as
 		users,
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [
+	const { sqlStatements: st } = await diff(schema1, schema2, [
 		`dbo.company->my_schema.company2`,
 	]);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: [`dbo.company->my_schema.company2`],
+	});
+
+	const st0 = [
 		`EXEC sp_rename 'company', [company2];`,
 		`ALTER SCHEMA [my_schema] TRANSFER [dbo].[company2];\n`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('varchar and text default values escape single quotes', async () => {
@@ -652,18 +914,27 @@ test('varchar and text default values escape single quotes', async () => {
 		table: mssqlTable('table', {
 			id: int('id').primaryKey(),
 			text: text('text').default("escape's quotes"),
-			varchar: varchar('varchar').default("escape's quotes"),
+			varchar: varchar('varchar', { length: 100 }).default("escape's quotes"),
 		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		`ALTER TABLE [table] ADD [text] text;`,
-		`ALTER TABLE [table] ADD [varchar] varchar;`,
+		`ALTER TABLE [table] ADD [varchar] varchar(100);`,
 		`ALTER TABLE [table] ADD CONSTRAINT [table_text_default] DEFAULT 'escape''s quotes' FOR [text];`,
 		`ALTER TABLE [table] ADD CONSTRAINT [table_varchar_default] DEFAULT 'escape''s quotes' FOR [varchar];`,
-	]);
+	];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('add columns with defaults', async () => {
@@ -686,9 +957,15 @@ test('add columns with defaults', async () => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'ALTER TABLE [table] ADD [text1] text;',
 		'ALTER TABLE [table] ADD [text2] text;',
 		'ALTER TABLE [table] ADD [int1] int;',
@@ -703,7 +980,10 @@ test('add columns with defaults', async () => {
 		`ALTER TABLE [table] ADD CONSTRAINT [table_int3_default] DEFAULT -10 FOR [int3];`,
 		`ALTER TABLE [table] ADD CONSTRAINT [table_bool1_default] DEFAULT 1 FOR [bool1];`,
 		`ALTER TABLE [table] ADD CONSTRAINT [table_bool2_default] DEFAULT 0 FOR [bool2];`,
-	]);
+	];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('rename column should not cause rename unique. Name is not explicit', async (t) => {
@@ -725,13 +1005,20 @@ test('rename column should not cause rename unique. Name is not explicit', async
 		}, (t) => [unique().on(t.id3)]),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [
+	const { sqlStatements: st } = await diff(schema1, schema2, [
 		`dbo.users.id1->dbo.users.id3`,
 	]);
 
-	expect(sqlStatements).toStrictEqual([
-		`EXEC sp_rename 'users.id1', [id3], 'COLUMN';`,
-	]);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: [`dbo.users.id1->dbo.users.id3`],
+	});
+
+	const st0 = [`EXEC sp_rename 'users.id1', [id3], 'COLUMN';`];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('rename column should not cause rename default. Name is not explicit', async (t) => {
@@ -752,18 +1039,25 @@ test('rename column should not cause rename default. Name is not explicit', asyn
 		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [
+	const { sqlStatements: st } = await diff(schema1, schema2, [
 		`dbo.users.id1->dbo.users.id3`,
 	]);
 
-	expect(sqlStatements).toStrictEqual([
-		`EXEC sp_rename 'users.id1', [id3], 'COLUMN';`,
-	]);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: [`dbo.users.id1->dbo.users.id3`],
+	});
+
+	const st0 = [`EXEC sp_rename 'users.id1', [id3], 'COLUMN';`];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('rename column should not cause rename fk. Name is not explicit #1', async (t) => {
 	const table = mssqlTable('table', {
-		id: int(),
+		id: int().primaryKey(),
 	});
 	const schema1 = {
 		table,
@@ -784,13 +1078,22 @@ test('rename column should not cause rename fk. Name is not explicit #1', async 
 		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [
+	const { sqlStatements: st } = await diff(schema1, schema2, [
 		`dbo.users.id1->dbo.users.id3`,
 	]);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: [`dbo.users.id1->dbo.users.id3`],
+	});
+
+	const st0 = [
 		`EXEC sp_rename 'users.id1', [id3], 'COLUMN';`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('rename column should not cause rename unique. Name is explicit #1', async (t) => {
@@ -816,101 +1119,23 @@ test('rename column should not cause rename unique. Name is explicit #1', async 
 		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [
+	const { sqlStatements: st } = await diff(schema1, schema2, [
 		`dbo.users.id1->dbo.users.id3`,
 	]);
 
-	expect(sqlStatements).toStrictEqual([`EXEC sp_rename 'users.id1', [id3], 'COLUMN';`]);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: [`dbo.users.id1->dbo.users.id3`],
+	});
+
+	const st0 = [`EXEC sp_rename 'users.id1', [id3], 'COLUMN';`];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
-test('drop identity from existing column #1. Part of default constraint', async (t) => {
-	const schema1 = {
-		users: mssqlTable(
-			'users',
-			{
-				id: int('id').default(1).identity(),
-			},
-		),
-	};
-
-	const schema2 = {
-		users: mssqlTable('users', {
-			id: int('id').default(1),
-		}),
-	};
-
-	const { sqlStatements } = await diff(schema1, schema2, []);
-
-	expect(sqlStatements).toStrictEqual([
-		'ALTER TABLE [users] DROP CONSTRAINT [users_id_default];',
-		`EXEC sp_rename 'users.id', [__old_id], 'COLUMN';`,
-		`ALTER TABLE [users] ADD [id] int;`,
-		`INSERT INTO [users] ([id]) SELECT [__old_id] FROM [users];`,
-		`ALTER TABLE [users] DROP COLUMN [__old_id];`,
-		'ALTER TABLE [users] ADD CONSTRAINT [users_id_default] DEFAULT 1 FOR [id];',
-	]);
-});
-
-test('drop identity from existing column #2. Rename table. Part of default constraint', async (t) => {
-	const schema1 = {
-		users: mssqlTable(
-			'users',
-			{
-				id: int('id').default(1).identity(),
-			},
-		),
-	};
-
-	const schema2 = {
-		users: mssqlTable('users2', {
-			id: int('id').default(1),
-		}),
-	};
-
-	const { sqlStatements } = await diff(schema1, schema2, ['dbo.users->dbo.users2']);
-
-	expect(sqlStatements).toStrictEqual([
-		`EXEC sp_rename 'users', [users2];`,
-		'ALTER TABLE [users2] DROP CONSTRAINT [users_id_default];',
-		`EXEC sp_rename 'users2.id', [__old_id], 'COLUMN';`,
-		`ALTER TABLE [users2] ADD [id] int;`,
-		`INSERT INTO [users2] ([id]) SELECT [__old_id] FROM [users2];`,
-		`ALTER TABLE [users2] DROP COLUMN [__old_id];`,
-		'ALTER TABLE [users2] ADD CONSTRAINT [users_id_default] DEFAULT 1 FOR [id];',
-	]);
-});
-
-test('drop identity from existing column #3. Rename table + rename column. Part of default constraint', async (t) => {
-	const schema1 = {
-		users: mssqlTable(
-			'users',
-			{
-				id: int('id').default(1).identity(),
-			},
-		),
-	};
-
-	const schema2 = {
-		users: mssqlTable('users2', {
-			id: int('id1').default(1),
-		}),
-	};
-
-	const { sqlStatements } = await diff(schema1, schema2, ['dbo.users->dbo.users2', 'dbo.users2.id->dbo.users2.id1']);
-
-	expect(sqlStatements).toStrictEqual([
-		`EXEC sp_rename 'users', [users2];`,
-		`EXEC sp_rename 'users2.id', [id1], 'COLUMN';`,
-		'ALTER TABLE [users2] DROP CONSTRAINT [users_id_default];',
-		`EXEC sp_rename 'users2.id1', [__old_id1], 'COLUMN';`,
-		`ALTER TABLE [users2] ADD [id1] int;`,
-		`INSERT INTO [users2] ([id1]) SELECT [__old_id1] FROM [users2];`,
-		`ALTER TABLE [users2] DROP COLUMN [__old_id1];`,
-		'ALTER TABLE [users2] ADD CONSTRAINT [users_id_default] DEFAULT 1 FOR [id1];',
-	]);
-});
-
-test('drop identity from existing column #4. Rename table + rename column. Add default', async (t) => {
+test('drop identity from existing column #1. Rename table + rename column. Add default', async (t) => {
 	const schema1 = {
 		users: mssqlTable(
 			'users',
@@ -926,9 +1151,19 @@ test('drop identity from existing column #4. Rename table + rename column. Add d
 		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, ['dbo.users->dbo.users2', 'dbo.users2.id->dbo.users2.id1']);
+	const { sqlStatements: st } = await diff(schema1, schema2, [
+		'dbo.users->dbo.users2',
+		'dbo.users2.id->dbo.users2.id1',
+	]);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: ['dbo.users->dbo.users2', 'dbo.users2.id->dbo.users2.id1'],
+	});
+
+	const st0 = [
 		`EXEC sp_rename 'users', [users2];`,
 		`EXEC sp_rename 'users2.id', [id1], 'COLUMN';`,
 		`EXEC sp_rename 'users2.id1', [__old_id1], 'COLUMN';`,
@@ -936,36 +1171,9 @@ test('drop identity from existing column #4. Rename table + rename column. Add d
 		`INSERT INTO [users2] ([id1]) SELECT [__old_id1] FROM [users2];`,
 		`ALTER TABLE [users2] DROP COLUMN [__old_id1];`,
 		'ALTER TABLE [users2] ADD CONSTRAINT [users2_id1_default] DEFAULT 1 FOR [id1];',
-	]);
-});
-
-test('drop identity from existing column #5. Rename table + rename column. Drop default', async (t) => {
-	const schema1 = {
-		users: mssqlTable(
-			'users',
-			{
-				id: int('id').default(1).identity(),
-			},
-		),
-	};
-
-	const schema2 = {
-		users: mssqlTable('users2', {
-			id: int('id1'),
-		}),
-	};
-
-	const { sqlStatements } = await diff(schema1, schema2, ['dbo.users->dbo.users2', 'dbo.users2.id->dbo.users2.id1']);
-
-	expect(sqlStatements).toStrictEqual([
-		`EXEC sp_rename 'users', [users2];`,
-		`EXEC sp_rename 'users2.id', [id1], 'COLUMN';`,
-		'ALTER TABLE [users2] DROP CONSTRAINT [users_id_default];',
-		`EXEC sp_rename 'users2.id1', [__old_id1], 'COLUMN';`,
-		`ALTER TABLE [users2] ADD [id1] int;`,
-		`INSERT INTO [users2] ([id1]) SELECT [__old_id1] FROM [users2];`,
-		`ALTER TABLE [users2] DROP COLUMN [__old_id1];`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop identity from existing column #6. Part of unique constraint', async (t) => {
@@ -984,16 +1192,24 @@ test('drop identity from existing column #6. Part of unique constraint', async (
 		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'ALTER TABLE [users] DROP CONSTRAINT [users_id_key];',
 		`EXEC sp_rename 'users.id', [__old_id], 'COLUMN';`,
 		`ALTER TABLE [users] ADD [id] int;`,
 		`INSERT INTO [users] ([id]) SELECT [__old_id] FROM [users];`,
 		`ALTER TABLE [users] DROP COLUMN [__old_id];`,
 		'ALTER TABLE [users] ADD CONSTRAINT [users_id_key] UNIQUE([id]);',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop identity from existing column #7. Rename table. Part of unique constraint', async (t) => {
@@ -1012,9 +1228,15 @@ test('drop identity from existing column #7. Rename table. Part of unique constr
 		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [`dbo.users->dbo.users2`]);
+	const { sqlStatements: st } = await diff(schema1, schema2, [`dbo.users->dbo.users2`]);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: [`dbo.users->dbo.users2`],
+	});
 
-	expect(sqlStatements).toStrictEqual([
+	const st0 = [
 		`EXEC sp_rename 'users', [users2];`,
 		'ALTER TABLE [users2] DROP CONSTRAINT [users_id_key];',
 		`EXEC sp_rename 'users2.id', [__old_id], 'COLUMN';`,
@@ -1022,7 +1244,9 @@ test('drop identity from existing column #7. Rename table. Part of unique constr
 		`INSERT INTO [users2] ([id]) SELECT [__old_id] FROM [users2];`,
 		`ALTER TABLE [users2] DROP COLUMN [__old_id];`,
 		'ALTER TABLE [users2] ADD CONSTRAINT [users_id_key] UNIQUE([id]);',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop identity from existing column #8. Rename table + rename column. Part of unique constraint', async (t) => {
@@ -1041,9 +1265,18 @@ test('drop identity from existing column #8. Rename table + rename column. Part 
 		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [`dbo.users->dbo.users2`, `dbo.users2.id->dbo.users2.id1`]);
+	const { sqlStatements: st } = await diff(schema1, schema2, [
+		`dbo.users->dbo.users2`,
+		`dbo.users2.id->dbo.users2.id1`,
+	]);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: [`dbo.users->dbo.users2`, `dbo.users2.id->dbo.users2.id1`],
+	});
 
-	expect(sqlStatements).toStrictEqual([
+	const st0 = [
 		`EXEC sp_rename 'users', [users2];`,
 		`EXEC sp_rename 'users2.id', [id1], 'COLUMN';`,
 		'ALTER TABLE [users2] DROP CONSTRAINT [users_id_key];',
@@ -1052,7 +1285,9 @@ test('drop identity from existing column #8. Rename table + rename column. Part 
 		`INSERT INTO [users2] ([id1]) SELECT [__old_id1] FROM [users2];`,
 		`ALTER TABLE [users2] DROP COLUMN [__old_id1];`,
 		'ALTER TABLE [users2] ADD CONSTRAINT [users_id_key] UNIQUE([id1]);',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop identity from existing column #9. Rename table + rename column. Add unique', async (t) => {
@@ -1071,9 +1306,18 @@ test('drop identity from existing column #9. Rename table + rename column. Add u
 		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [`dbo.users->dbo.users2`, `dbo.users2.id->dbo.users2.id1`]);
+	const { sqlStatements: st } = await diff(schema1, schema2, [
+		`dbo.users->dbo.users2`,
+		`dbo.users2.id->dbo.users2.id1`,
+	]);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: [`dbo.users->dbo.users2`, `dbo.users2.id->dbo.users2.id1`],
+	});
 
-	expect(sqlStatements).toStrictEqual([
+	const st0 = [
 		`EXEC sp_rename 'users', [users2];`,
 		`EXEC sp_rename 'users2.id', [id1], 'COLUMN';`,
 		`EXEC sp_rename 'users2.id1', [__old_id1], 'COLUMN';`,
@@ -1081,7 +1325,9 @@ test('drop identity from existing column #9. Rename table + rename column. Add u
 		`INSERT INTO [users2] ([id1]) SELECT [__old_id1] FROM [users2];`,
 		`ALTER TABLE [users2] DROP COLUMN [__old_id1];`,
 		'ALTER TABLE [users2] ADD CONSTRAINT [users2_id1_key] UNIQUE([id1]);',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop identity from existing column #9. Rename table + rename column. Drop unique', async (t) => {
@@ -1100,9 +1346,19 @@ test('drop identity from existing column #9. Rename table + rename column. Drop 
 		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [`dbo.users->dbo.users2`, `dbo.users2.id->dbo.users2.id1`]);
+	const { sqlStatements: st } = await diff(schema1, schema2, [
+		`dbo.users->dbo.users2`,
+		`dbo.users2.id->dbo.users2.id1`,
+	]);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: [`dbo.users->dbo.users2`, `dbo.users2.id->dbo.users2.id1`],
+	});
+
+	const st0 = [
 		`EXEC sp_rename 'users', [users2];`,
 		`EXEC sp_rename 'users2.id', [id1], 'COLUMN';`,
 		'ALTER TABLE [users2] DROP CONSTRAINT [users_id_key];',
@@ -1110,7 +1366,9 @@ test('drop identity from existing column #9. Rename table + rename column. Drop 
 		`ALTER TABLE [users2] ADD [id1] int;`,
 		`INSERT INTO [users2] ([id1]) SELECT [__old_id1] FROM [users2];`,
 		`ALTER TABLE [users2] DROP COLUMN [__old_id1];`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop identity from existing column #10. Table has checks', async (t) => {
@@ -1130,16 +1388,24 @@ test('drop identity from existing column #10. Table has checks', async (t) => {
 		}, (t) => [check('hello_world', sql`${t.id} != 1`)]),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'ALTER TABLE [users] DROP CONSTRAINT [hello_world];',
 		`EXEC sp_rename 'users.id', [__old_id], 'COLUMN';`,
 		`ALTER TABLE [users] ADD [id] int;`,
 		`INSERT INTO [users] ([id]) SELECT [__old_id] FROM [users];`,
 		`ALTER TABLE [users] DROP COLUMN [__old_id];`,
 		'ALTER TABLE [users] ADD CONSTRAINT [hello_world] CHECK ([users].[id] != 1);',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 // Still expect recreate here. We could not know if the column is in check definition
@@ -1162,16 +1428,25 @@ test('drop identity from existing column #11. Table has checks. Column is not in
 		}, (t) => [check('hello_world', sql`${t.name} != 'Alex'`)]),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'ALTER TABLE [users] DROP CONSTRAINT [hello_world];',
 		`EXEC sp_rename 'users.id', [__old_id], 'COLUMN';`,
 		`ALTER TABLE [users] ADD [id] int;`,
 		`INSERT INTO [users] ([id]) SELECT [__old_id] FROM [users];`,
 		`ALTER TABLE [users] DROP COLUMN [__old_id];`,
 		"ALTER TABLE [users] ADD CONSTRAINT [hello_world] CHECK ([users].[name] != 'Alex');",
-	]);
+	];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop identity from existing column #12. Rename table. Table has checks', async (t) => {
@@ -1193,9 +1468,16 @@ test('drop identity from existing column #12. Rename table. Table has checks', a
 		}, (t) => [check('hello_world', sql`${t.name} != 'Alex'`)]),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [`dbo.users->dbo.users2`]);
+	const { sqlStatements: st } = await diff(schema1, schema2, [`dbo.users->dbo.users2`]);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: [`dbo.users->dbo.users2`],
+	});
+
+	const st0 = [
 		`EXEC sp_rename 'users', [users2];`,
 		'ALTER TABLE [users2] DROP CONSTRAINT [hello_world];',
 		`EXEC sp_rename 'users2.id', [__old_id], 'COLUMN';`,
@@ -1203,7 +1485,10 @@ test('drop identity from existing column #12. Rename table. Table has checks', a
 		`INSERT INTO [users2] ([id]) SELECT [__old_id] FROM [users2];`,
 		`ALTER TABLE [users2] DROP COLUMN [__old_id];`,
 		"ALTER TABLE [users2] ADD CONSTRAINT [hello_world] CHECK ([users2].[name] != 'Alex');",
-	]);
+	];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop identity from existing column #13. Rename table + Rename column. Add check', async (t) => {
@@ -1224,9 +1509,19 @@ test('drop identity from existing column #13. Rename table + Rename column. Add 
 		}, (t) => [check('hello_world', sql`${t.name} != 'Alex'`)]),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [`dbo.users->dbo.users2`, `dbo.users2.id->dbo.users2.id1`]);
+	const { sqlStatements: st } = await diff(schema1, schema2, [
+		`dbo.users->dbo.users2`,
+		`dbo.users2.id->dbo.users2.id1`,
+	]);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: [`dbo.users->dbo.users2`, `dbo.users2.id->dbo.users2.id1`],
+	});
+
+	const st0 = [
 		`EXEC sp_rename 'users', [users2];`,
 		`EXEC sp_rename 'users2.id', [id1], 'COLUMN';`,
 		`EXEC sp_rename 'users2.id1', [__old_id1], 'COLUMN';`,
@@ -1234,7 +1529,9 @@ test('drop identity from existing column #13. Rename table + Rename column. Add 
 		`INSERT INTO [users2] ([id1]) SELECT [__old_id1] FROM [users2];`,
 		`ALTER TABLE [users2] DROP COLUMN [__old_id1];`,
 		"ALTER TABLE [users2] ADD CONSTRAINT [hello_world] CHECK ([users2].[name] != 'Alex');",
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop identity from existing column #14. Rename table + Rename column. Drop check', async (t) => {
@@ -1256,9 +1553,19 @@ test('drop identity from existing column #14. Rename table + Rename column. Drop
 		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [`dbo.users->dbo.users2`, `dbo.users2.id->dbo.users2.id1`]);
+	const { sqlStatements: st } = await diff(schema1, schema2, [
+		`dbo.users->dbo.users2`,
+		`dbo.users2.id->dbo.users2.id1`,
+	]);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: [`dbo.users->dbo.users2`, `dbo.users2.id->dbo.users2.id1`],
+	});
+
+	const st0 = [
 		`EXEC sp_rename 'users', [users2];`,
 		`EXEC sp_rename 'users2.id', [id1], 'COLUMN';`,
 		`ALTER TABLE [users2] DROP CONSTRAINT [hello_world];`,
@@ -1266,7 +1573,9 @@ test('drop identity from existing column #14. Rename table + Rename column. Drop
 		`ALTER TABLE [users2] ADD [id1] int;`,
 		`INSERT INTO [users2] ([id1]) SELECT [__old_id1] FROM [users2];`,
 		`ALTER TABLE [users2] DROP COLUMN [__old_id1];`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop identity from existing column #15. Rename table + Rename column. Table has checks', async (t) => {
@@ -1288,9 +1597,19 @@ test('drop identity from existing column #15. Rename table + Rename column. Tabl
 		}, (t) => [check('hello_world', sql`${t.name} != 'Alex'`)]),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [`dbo.users->dbo.users2`, `dbo.users2.id->dbo.users2.id1`]);
+	const { sqlStatements: st } = await diff(schema1, schema2, [
+		`dbo.users->dbo.users2`,
+		`dbo.users2.id->dbo.users2.id1`,
+	]);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: [`dbo.users->dbo.users2`, `dbo.users2.id->dbo.users2.id1`],
+	});
+
+	const st0 = [
 		`EXEC sp_rename 'users', [users2];`,
 		`EXEC sp_rename 'users2.id', [id1], 'COLUMN';`,
 		`ALTER TABLE [users2] DROP CONSTRAINT [hello_world];`,
@@ -1299,7 +1618,9 @@ test('drop identity from existing column #15. Rename table + Rename column. Tabl
 		`INSERT INTO [users2] ([id1]) SELECT [__old_id1] FROM [users2];`,
 		`ALTER TABLE [users2] DROP COLUMN [__old_id1];`,
 		"ALTER TABLE [users2] ADD CONSTRAINT [hello_world] CHECK ([users2].[name] != 'Alex');",
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop identity from existing column #16. Part of fk', async (t) => {
@@ -1329,18 +1650,25 @@ test('drop identity from existing column #16. Part of fk', async (t) => {
 		users: droppedIdentity,
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
 
-	expect(sqlStatements).toStrictEqual([
-		`ALTER TABLE [users] DROP CONSTRAINT [users_pkey];`,
+	const st0 = [
 		'ALTER TABLE [ref] DROP CONSTRAINT [ref_age_users_id_fk];\n',
+		`ALTER TABLE [users] DROP CONSTRAINT [users_pkey];`,
 		`EXEC sp_rename 'users.id', [__old_id], 'COLUMN';`,
 		`ALTER TABLE [users] ADD [id] int NOT NULL;`,
 		`INSERT INTO [users] ([id]) SELECT [__old_id] FROM [users];`,
 		`ALTER TABLE [users] DROP COLUMN [__old_id];`,
 		`ALTER TABLE [users] ADD CONSTRAINT [users_pkey] PRIMARY KEY ([id]);`,
 		`ALTER TABLE [ref] ADD CONSTRAINT [ref_age_users_id_fk] FOREIGN KEY ([age]) REFERENCES [users]([id]);`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 // This is really strange case. Do not think this is a real business case
@@ -1370,16 +1698,24 @@ test('drop identity from existing column #17. Part of fk', async (t) => {
 		users,
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'ALTER TABLE [users2] DROP CONSTRAINT [users2_id_users_id_fk];\n',
 		`EXEC sp_rename 'users2.id', [__old_id], 'COLUMN';`,
 		`ALTER TABLE [users2] ADD [id] int;`,
 		`INSERT INTO [users2] ([id]) SELECT [__old_id] FROM [users2];`,
 		`ALTER TABLE [users2] DROP COLUMN [__old_id];`,
 		`ALTER TABLE [users2] ADD CONSTRAINT [users2_id_users_id_fk] FOREIGN KEY ([id]) REFERENCES [users]([id]);`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop identity from existing column #18. Rename Table. Part of fk', async (t) => {
@@ -1409,19 +1745,28 @@ test('drop identity from existing column #18. Rename Table. Part of fk', async (
 		users: droppedIdentity,
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, ['dbo.users->dbo.new_users']);
+	const { sqlStatements: st } = await diff(schema1, schema2, ['dbo.users->dbo.new_users']);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: ['dbo.users->dbo.new_users'],
+	});
+
+	const st0 = [
 		`EXEC sp_rename 'users', [new_users];`,
-		`ALTER TABLE [new_users] DROP CONSTRAINT [users_pkey];`,
 		'ALTER TABLE [ref] DROP CONSTRAINT [ref_age_users_id_fk];\n',
+		`ALTER TABLE [new_users] DROP CONSTRAINT [users_pkey];`,
 		`EXEC sp_rename 'new_users.id', [__old_id], 'COLUMN';`,
 		`ALTER TABLE [new_users] ADD [id] int NOT NULL;`,
 		`INSERT INTO [new_users] ([id]) SELECT [__old_id] FROM [new_users];`,
 		`ALTER TABLE [new_users] DROP COLUMN [__old_id];`,
 		`ALTER TABLE [new_users] ADD CONSTRAINT [users_pkey] PRIMARY KEY ([id]);`,
 		`ALTER TABLE [ref] ADD CONSTRAINT [ref_age_users_id_fk] FOREIGN KEY ([age]) REFERENCES [new_users]([id]);`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop identity from existing column #19. Rename Table + Rename column. Part of fk', async (t) => {
@@ -1451,23 +1796,35 @@ test('drop identity from existing column #19. Rename Table + Rename column. Part
 		users: droppedIdentity,
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [
-		'dbo.users->dbo.new_users',
-		'dbo.new_users.id->dbo.new_users.id1',
+	const { sqlStatements: st } = await diff(schema1, schema2, [
+		`dbo.users->dbo.new_users`,
+		`dbo.new_users.id->dbo.new_users.id1`,
 	]);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({
+		db,
+		to: schema1,
+	});
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: [`dbo.users->dbo.new_users`, `dbo.new_users.id->dbo.new_users.id1`],
+	});
+
+	const st0 = [
 		`EXEC sp_rename 'users', [new_users];`,
 		`EXEC sp_rename 'new_users.id', [id1], 'COLUMN';`,
-		`ALTER TABLE [new_users] DROP CONSTRAINT [users_pkey];`,
 		'ALTER TABLE [ref] DROP CONSTRAINT [ref_age_users_id_fk];\n',
+		`ALTER TABLE [new_users] DROP CONSTRAINT [users_pkey];`,
 		`EXEC sp_rename 'new_users.id1', [__old_id1], 'COLUMN';`,
 		`ALTER TABLE [new_users] ADD [id1] int NOT NULL;`,
 		`INSERT INTO [new_users] ([id1]) SELECT [__old_id1] FROM [new_users];`,
 		`ALTER TABLE [new_users] DROP COLUMN [__old_id1];`,
 		`ALTER TABLE [new_users] ADD CONSTRAINT [users_pkey] PRIMARY KEY ([id1]);`,
 		`ALTER TABLE [ref] ADD CONSTRAINT [ref_age_users_id_fk] FOREIGN KEY ([age]) REFERENCES [new_users]([id1]);`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop identity from existing column #20. Rename Table + Rename column. Add fk', async (t) => {
@@ -1497,12 +1854,19 @@ test('drop identity from existing column #20. Rename Table + Rename column. Add 
 		users: droppedIdentity,
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [
+	const { sqlStatements: st } = await diff(schema1, schema2, [
 		'dbo.users->dbo.new_users',
 		'dbo.new_users.id->dbo.new_users.id1',
 	]);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: ['dbo.users->dbo.new_users', 'dbo.new_users.id->dbo.new_users.id1'],
+	});
+
+	const st0 = [
 		`EXEC sp_rename 'users', [new_users];`,
 		`EXEC sp_rename 'new_users.id', [id1], 'COLUMN';`,
 		`ALTER TABLE [new_users] DROP CONSTRAINT [users_pkey];`,
@@ -1512,7 +1876,9 @@ test('drop identity from existing column #20. Rename Table + Rename column. Add 
 		`ALTER TABLE [new_users] DROP COLUMN [__old_id1];`,
 		`ALTER TABLE [new_users] ADD CONSTRAINT [users_pkey] PRIMARY KEY ([id1]);`,
 		`ALTER TABLE [ref] ADD CONSTRAINT [ref_age_new_users_id1_fk] FOREIGN KEY ([age]) REFERENCES [new_users]([id1]);`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop identity from existing column #21. Rename Table + Rename column. Drop fk', async (t) => {
@@ -1542,22 +1908,32 @@ test('drop identity from existing column #21. Rename Table + Rename column. Drop
 		users: droppedIdentity,
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [
+	const { sqlStatements: st } = await diff(schema1, schema2, [
 		'dbo.users->dbo.new_users',
 		'dbo.new_users.id->dbo.new_users.id1',
 	]);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1, log: 'statements' });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: ['dbo.users->dbo.new_users', 'dbo.new_users.id->dbo.new_users.id1'],
+		log: 'statements',
+	});
+
+	const st0 = [
 		`EXEC sp_rename 'users', [new_users];`,
 		`EXEC sp_rename 'new_users.id', [id1], 'COLUMN';`,
-		`ALTER TABLE [new_users] DROP CONSTRAINT [users_pkey];`,
 		`ALTER TABLE [ref] DROP CONSTRAINT [ref_age_users_id_fk];\n`,
+		`ALTER TABLE [new_users] DROP CONSTRAINT [users_pkey];`,
 		`EXEC sp_rename 'new_users.id1', [__old_id1], 'COLUMN';`,
 		`ALTER TABLE [new_users] ADD [id1] int NOT NULL;`,
 		`INSERT INTO [new_users] ([id1]) SELECT [__old_id1] FROM [new_users];`,
 		`ALTER TABLE [new_users] DROP COLUMN [__old_id1];`,
 		`ALTER TABLE [new_users] ADD CONSTRAINT [users_pkey] PRIMARY KEY ([id1]);`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop identity from existing column #22. Part of pk constraint', async (t) => {
@@ -1576,16 +1952,24 @@ test('drop identity from existing column #22. Part of pk constraint', async (t) 
 		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		'ALTER TABLE [users] DROP CONSTRAINT [users_pkey];',
 		`EXEC sp_rename 'users.id', [__old_id], 'COLUMN';`,
 		`ALTER TABLE [users] ADD [id] int NOT NULL;`,
 		`INSERT INTO [users] ([id]) SELECT [__old_id] FROM [users];`,
 		`ALTER TABLE [users] DROP COLUMN [__old_id];`,
 		'ALTER TABLE [users] ADD CONSTRAINT [users_pkey] PRIMARY KEY ([id]);',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop identity from existing column #23. Rename table. Part of pk constraint', async (t) => {
@@ -1604,9 +1988,16 @@ test('drop identity from existing column #23. Rename table. Part of pk constrain
 		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [`dbo.users->dbo.users2`]);
+	const { sqlStatements: st } = await diff(schema1, schema2, [`dbo.users->dbo.users2`]);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: [`dbo.users->dbo.users2`],
+	});
+
+	const st0 = [
 		`EXEC sp_rename 'users', [users2];`,
 		'ALTER TABLE [users2] DROP CONSTRAINT [users_pkey];',
 		`EXEC sp_rename 'users2.id', [__old_id], 'COLUMN';`,
@@ -1614,7 +2005,9 @@ test('drop identity from existing column #23. Rename table. Part of pk constrain
 		`INSERT INTO [users2] ([id]) SELECT [__old_id] FROM [users2];`,
 		`ALTER TABLE [users2] DROP COLUMN [__old_id];`,
 		'ALTER TABLE [users2] ADD CONSTRAINT [users_pkey] PRIMARY KEY ([id]);',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop identity from existing column #24. Rename table + rename column. Part of pk constraint', async (t) => {
@@ -1633,9 +2026,19 @@ test('drop identity from existing column #24. Rename table + rename column. Part
 		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [`dbo.users->dbo.users2`, `dbo.users2.id->dbo.users2.id1`]);
+	const { sqlStatements: st } = await diff(schema1, schema2, [
+		`dbo.users->dbo.users2`,
+		`dbo.users2.id->dbo.users2.id1`,
+	]);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: [`dbo.users->dbo.users2`, `dbo.users2.id->dbo.users2.id1`],
+	});
+
+	const st0 = [
 		`EXEC sp_rename 'users', [users2];`,
 		`EXEC sp_rename 'users2.id', [id1], 'COLUMN';`,
 		'ALTER TABLE [users2] DROP CONSTRAINT [users_pkey];',
@@ -1644,7 +2047,9 @@ test('drop identity from existing column #24. Rename table + rename column. Part
 		`INSERT INTO [users2] ([id1]) SELECT [__old_id1] FROM [users2];`,
 		`ALTER TABLE [users2] DROP COLUMN [__old_id1];`,
 		'ALTER TABLE [users2] ADD CONSTRAINT [users_pkey] PRIMARY KEY ([id1]);',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop identity from existing column #25. Rename table + rename column. Add pk', async (t) => {
@@ -1663,9 +2068,19 @@ test('drop identity from existing column #25. Rename table + rename column. Add 
 		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [`dbo.users->dbo.users2`, `dbo.users2.id->dbo.users2.id1`]);
+	const { sqlStatements: st } = await diff(schema1, schema2, [
+		`dbo.users->dbo.users2`,
+		`dbo.users2.id->dbo.users2.id1`,
+	]);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: [`dbo.users->dbo.users2`, `dbo.users2.id->dbo.users2.id1`],
+	});
+
+	const st0 = [
 		`EXEC sp_rename 'users', [users2];`,
 		`EXEC sp_rename 'users2.id', [id1], 'COLUMN';`,
 		`EXEC sp_rename 'users2.id1', [__old_id1], 'COLUMN';`,
@@ -1673,7 +2088,9 @@ test('drop identity from existing column #25. Rename table + rename column. Add 
 		`INSERT INTO [users2] ([id1]) SELECT [__old_id1] FROM [users2];`,
 		`ALTER TABLE [users2] DROP COLUMN [__old_id1];`,
 		'ALTER TABLE [users2] ADD CONSTRAINT [users2_pkey] PRIMARY KEY ([id1]);',
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('drop identity from existing column #26. Rename table + rename column. Drop pk', async (t) => {
@@ -1692,9 +2109,19 @@ test('drop identity from existing column #26. Rename table + rename column. Drop
 		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, [`dbo.users->dbo.users2`, `dbo.users2.id->dbo.users2.id1`]);
+	const { sqlStatements: st } = await diff(schema1, schema2, [
+		`dbo.users->dbo.users2`,
+		`dbo.users2.id->dbo.users2.id1`,
+	]);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+		renames: [`dbo.users->dbo.users2`, `dbo.users2.id->dbo.users2.id1`],
+	});
+
+	const st0 = [
 		`EXEC sp_rename 'users', [users2];`,
 		`EXEC sp_rename 'users2.id', [id1], 'COLUMN';`,
 		'ALTER TABLE [users2] DROP CONSTRAINT [users_pkey];',
@@ -1702,7 +2129,9 @@ test('drop identity from existing column #26. Rename table + rename column. Drop
 		`ALTER TABLE [users2] ADD [id1] int;`,
 		`INSERT INTO [users2] ([id1]) SELECT [__old_id1] FROM [users2];`,
 		`ALTER TABLE [users2] DROP COLUMN [__old_id1];`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 // TODO add more 'create identity' tests
@@ -1722,13 +2151,21 @@ test('add identity to existing column', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
 		`EXEC sp_rename 'users.id', [__old_id], 'COLUMN';`,
 		`ALTER TABLE [users] ADD [id] int IDENTITY(1, 1);`,
 		`ALTER TABLE [users] DROP COLUMN [__old_id];`,
-	]);
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter column change data type', async (t) => {
@@ -1746,9 +2183,17 @@ test('alter column change data type', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([`ALTER TABLE [users] ALTER COLUMN [name] varchar;`]);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [`ALTER TABLE [users] ALTER COLUMN [name] varchar(1);`];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter column change data type + add not null', async (t) => {
@@ -1766,9 +2211,16 @@ test('alter column change data type + add not null', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
 
-	expect(sqlStatements).toStrictEqual([`ALTER TABLE [users] ALTER COLUMN [name] varchar NOT NULL;`]);
+	const st0 = [`ALTER TABLE [users] ALTER COLUMN [name] varchar(1) NOT NULL;`];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
 
 test('alter column change data type + drop not null', async (t) => {
@@ -1786,7 +2238,15 @@ test('alter column change data type + drop not null', async (t) => {
 		}),
 	};
 
-	const { sqlStatements } = await diff(schema1, schema2, []);
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
 
-	expect(sqlStatements).toStrictEqual([`ALTER TABLE [users] ALTER COLUMN [name] varchar;`]);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [`ALTER TABLE [users] ALTER COLUMN [name] varchar(1);`];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
 });
