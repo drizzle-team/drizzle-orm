@@ -16,8 +16,11 @@ import type {
 } from './types/seedService.ts';
 import type { Prettify, Relation, Table } from './types/tables.ts';
 
+import type { CockroachTable, CockroachTableWithColumns } from 'drizzle-orm/cockroach-core';
+import { CockroachDatabase } from 'drizzle-orm/cockroach-core';
 import type { MsSqlTable, MsSqlTableWithColumns } from 'drizzle-orm/mssql-core';
 import { getTableConfig, MsSqlDatabase } from 'drizzle-orm/mssql-core';
+import { selectGeneratorForCockroachColumn } from './cockroach-core/selectGensForColumn.ts';
 import { latestVersion } from './generators/apiVersion.ts';
 import { selectGeneratorForMssqlColumn } from './mssql-core/selectGensForColumn.ts';
 import { selectGeneratorForMysqlColumn } from './mysql-core/selectGensForColumn.ts';
@@ -39,7 +42,7 @@ export class SeedService {
 	private version?: number;
 
 	generatePossibleGenerators = (
-		connectionType: 'postgresql' | 'mysql' | 'sqlite' | 'mssql',
+		connectionType: 'postgresql' | 'mysql' | 'sqlite' | 'mssql' | 'cockroach',
 		tables: Table[],
 		relations: (Relation & { isCyclic: boolean })[],
 		refinements?: RefinementsType,
@@ -267,6 +270,8 @@ export class SeedService {
 					columnPossibleGenerator.generator = selectGeneratorForSqlite(table, col);
 				} else if (connectionType === 'mssql') {
 					columnPossibleGenerator.generator = selectGeneratorForMssqlColumn(table, col);
+				} else if (connectionType === 'cockroach') {
+					columnPossibleGenerator.generator = selectGeneratorForCockroachColumn(table, col);
 				}
 
 				if (columnPossibleGenerator.generator === undefined) {
@@ -542,7 +547,8 @@ export class SeedService {
 			| PgDatabase<any>
 			| MySqlDatabase<any, any>
 			| BaseSQLiteDatabase<any, any>
-			| MsSqlDatabase<any, any>,
+			| MsSqlDatabase<any, any>
+			| CockroachDatabase<any, any>,
 		schema?: { [key: string]: PgTable | MySqlTable | SQLiteTable },
 		options?: {
 			count?: number;
@@ -765,7 +771,8 @@ export class SeedService {
 			| PgDatabase<any>
 			| MySqlDatabase<any, any>
 			| BaseSQLiteDatabase<any, any>
-			| MsSqlDatabase<any, any>;
+			| MsSqlDatabase<any, any>
+			| CockroachDatabase<any, any>;
 		schema?: { [key: string]: PgTable | MySqlTable | SQLiteTable };
 		tableName?: string;
 		count?: number;
@@ -987,6 +994,10 @@ export class SeedService {
 			if (override === true) {
 				await db.execute(sql.raw(`SET IDENTITY_INSERT [${schemaDbName}].[${tableDbName}] OFF;`));
 			}
+		} else if (is(db, CockroachDatabase<any, any>)) {
+			await db
+				.insert((schema as { [key: string]: CockroachTable })[tableName]!)
+				.values(generatedValues);
 		}
 	};
 
@@ -1032,6 +1043,11 @@ export class SeedService {
 			);
 		} else if (is(db, MsSqlDatabase<any, any>)) {
 			const table = (schema as { [key: string]: MsSqlTableWithColumns<any> })[tableName]!;
+			await db.update(table).set(values).where(
+				eq(table[uniqueNotNullColName], uniqueNotNullColValue),
+			);
+		} else if (is(db, CockroachDatabase<any, any>)) {
+			const table = (schema as { [key: string]: CockroachTableWithColumns<any> })[tableName]!;
 			await db.update(table).set(values).where(
 				eq(table[uniqueNotNullColName], uniqueNotNullColValue),
 			);

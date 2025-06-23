@@ -14,6 +14,9 @@ import { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
 import type { MsSqlColumn, MsSqlSchema, MsSqlTable } from 'drizzle-orm/mssql-core';
 import { MsSqlDatabase } from 'drizzle-orm/mssql-core';
 
+import type { CockroachColumn, CockroachSchema, CockroachTable } from 'drizzle-orm/cockroach-core';
+import { CockroachDatabase } from 'drizzle-orm/cockroach-core';
+import { filterCockroachSchema, resetCockroach, seedCockroach } from './cockroach-core/index.ts';
 import { generatorsFuncs, generatorsFuncsV2 } from './generators/GeneratorFuncs.ts';
 import type { AbstractGenerator } from './generators/Generators.ts';
 import { filterMsSqlTables, resetMsSql, seedMsSql } from './mssql-core/index.ts';
@@ -25,17 +28,30 @@ import type { DrizzleStudioObjectType, DrizzleStudioRelationType } from './types
 import type { RefinementsType } from './types/seedService.ts';
 import type { Relation, Table } from './types/tables.ts';
 
+type SchemaValuesType =
+	| PgTable
+	| PgSchema
+	| MySqlTable
+	| MySqlSchema
+	| SQLiteTable
+	| MsSqlTable
+	| MsSqlSchema
+	| CockroachTable
+	| CockroachSchema
+	| Relations;
+
 type InferCallbackType<
 	DB extends
 		| PgDatabase<any, any>
 		| MySqlDatabase<any, any>
 		| BaseSQLiteDatabase<any, any>
-		| MsSqlDatabase<any, any>,
+		| MsSqlDatabase<any, any>
+		| CockroachDatabase<any, any>,
 	SCHEMA extends {
-		[key: string]: PgTable | PgSchema | MySqlTable | MySqlSchema | SQLiteTable | MsSqlTable | MsSqlSchema | Relations;
+		[key: string]: SchemaValuesType;
 	},
 > = DB extends PgDatabase<any, any> ? SCHEMA extends {
-		[key: string]: PgTable | PgSchema | MySqlTable | MySqlSchema | SQLiteTable | MsSqlTable | MsSqlSchema | Relations;
+		[key: string]: SchemaValuesType;
 	} ? {
 			// iterates through schema fields. example -> schema: {"tableName": PgTable}
 			[
@@ -62,7 +78,7 @@ type InferCallbackType<
 		}
 	: {}
 	: DB extends MySqlDatabase<any, any> ? SCHEMA extends {
-			[key: string]: PgTable | PgSchema | MySqlTable | MySqlSchema | SQLiteTable | MsSqlTable | MsSqlSchema | Relations;
+			[key: string]: SchemaValuesType;
 		} ? {
 				// iterates through schema fields. example -> schema: {"tableName": MySqlTable}
 				[
@@ -89,7 +105,7 @@ type InferCallbackType<
 			}
 		: {}
 	: DB extends BaseSQLiteDatabase<any, any> ? SCHEMA extends {
-			[key: string]: PgTable | PgSchema | MySqlTable | MySqlSchema | SQLiteTable | MsSqlTable | MsSqlSchema | Relations;
+			[key: string]: SchemaValuesType;
 		} ? {
 				// iterates through schema fields. example -> schema: {"tableName": SQLiteTable}
 				[
@@ -116,7 +132,7 @@ type InferCallbackType<
 			}
 		: {}
 	: DB extends MsSqlDatabase<any, any> ? SCHEMA extends {
-			[key: string]: PgTable | PgSchema | MySqlTable | MySqlSchema | SQLiteTable | MsSqlTable | MsSqlSchema | Relations;
+			[key: string]: SchemaValuesType;
 		} ? {
 				// iterates through schema fields. example -> schema: {"tableName": PgTable}
 				[
@@ -142,6 +158,33 @@ type InferCallbackType<
 				};
 			}
 		: {}
+	: DB extends CockroachDatabase<any, any> ? SCHEMA extends {
+			[key: string]: SchemaValuesType;
+		} ? {
+				// iterates through schema fields. example -> schema: {"tableName": PgTable}
+				[
+					table in keyof SCHEMA as SCHEMA[table] extends CockroachTable ? table
+						: never
+				]?: {
+					count?: number;
+					columns?: {
+						// iterates through table fields. example -> table: {"columnName": PgColumn}
+						[
+							column in keyof SCHEMA[table] as SCHEMA[table][column] extends CockroachColumn ? column
+								: never
+						]?: AbstractGenerator<any>;
+					};
+					with?: {
+						[
+							refTable in keyof SCHEMA as SCHEMA[refTable] extends CockroachTable ? refTable
+								: never
+						]?:
+							| number
+							| { weight: number; count: number | number[] }[];
+					};
+				};
+			}
+		: {}
 	: {};
 
 class SeedPromise<
@@ -149,9 +192,10 @@ class SeedPromise<
 		| PgDatabase<any, any>
 		| MySqlDatabase<any, any>
 		| BaseSQLiteDatabase<any, any>
-		| MsSqlDatabase<any, any>,
+		| MsSqlDatabase<any, any>
+		| CockroachDatabase<any, any>,
 	SCHEMA extends {
-		[key: string]: PgTable | PgSchema | MySqlTable | MySqlSchema | MsSqlTable | MsSqlSchema | SQLiteTable | Relations;
+		[key: string]: SchemaValuesType;
 	},
 	VERSION extends string | undefined,
 > implements Promise<void> {
@@ -359,7 +403,8 @@ export function seed<
 		| PgDatabase<any, any>
 		| MySqlDatabase<any, any, any, any>
 		| BaseSQLiteDatabase<any, any>
-		| MsSqlDatabase<any, any>,
+		| MsSqlDatabase<any, any>
+		| CockroachDatabase<any, any>,
 	SCHEMA extends {
 		[key: string]:
 			| PgTable
@@ -378,17 +423,15 @@ export function seed<
 }
 
 const seedFunc = async (
-	db: PgDatabase<any, any> | MySqlDatabase<any, any> | BaseSQLiteDatabase<any, any> | MsSqlDatabase<any, any>,
+	db:
+		| PgDatabase<any, any>
+		| MySqlDatabase<any, any>
+		| BaseSQLiteDatabase<any, any>
+		| MsSqlDatabase<any, any>
+		| CockroachDatabase<any, any>,
 	schema: {
 		[key: string]:
-			| PgTable
-			| PgSchema
-			| MySqlTable
-			| MySqlSchema
-			| SQLiteTable
-			| MsSqlTable
-			| MsSqlSchema
-			| Relations
+			| SchemaValuesType
 			| any;
 	},
 	options: { count?: number; seed?: number; version?: string } = {},
@@ -407,6 +450,8 @@ const seedFunc = async (
 		await seedSqlite(db, schema, { ...options, version }, refinements);
 	} else if (is(db, MsSqlDatabase<any, any>)) {
 		await seedMsSql(db, schema, { ...options, version }, refinements);
+	} else if (is(db, CockroachDatabase<any, any>)) {
+		await seedCockroach(db, schema, { ...options, version }, refinements);
 	} else {
 		throw new Error(
 			'The drizzle-seed package currently supports only PostgreSQL, MySQL, and SQLite databases. Please ensure your database is one of these supported types',
@@ -461,16 +506,11 @@ export async function reset<
 		| PgDatabase<any, any>
 		| MySqlDatabase<any, any, any, any>
 		| BaseSQLiteDatabase<any, any>
-		| MsSqlDatabase<any, any>,
+		| MsSqlDatabase<any, any>
+		| CockroachDatabase<any, any>,
 	SCHEMA extends {
 		[key: string]:
-			| PgTable
-			| PgSchema
-			| MySqlTable
-			| MySqlSchema
-			| MsSqlSchema
-			| MsSqlTable
-			| SQLiteTable
+			| SchemaValuesType
 			| any;
 	},
 >(db: DB, schema: SCHEMA) {
@@ -497,6 +537,12 @@ export async function reset<
 
 		if (Object.entries(mssqlTables).length > 0) {
 			await resetMsSql(db, mssqlTables);
+		}
+	} else if (is(db, CockroachDatabase<any, any>)) {
+		const { cockroachTables } = filterCockroachSchema(schema);
+
+		if (Object.entries(cockroachTables).length > 0) {
+			await resetCockroach(db, cockroachTables);
 		}
 	} else {
 		throw new Error(
