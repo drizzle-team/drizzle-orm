@@ -450,6 +450,7 @@ test('all data types', (t) => {
 		uuid: uuid().notNull(),
 		varchar1: varchar({ length: 10 }).notNull(),
 		varchar2: varchar({ length: 1, enum: ['a', 'b', 'c'] }).notNull(),
+		array: int4().array().notNull(),
 	}));
 
 	const result = createSelectSchema(table);
@@ -491,6 +492,7 @@ test('all data types', (t) => {
 		uuid: z.uuid(),
 		varchar1: z.string().max(10),
 		varchar2: z.enum(['a', 'b', 'c']),
+		array: z.array(int4Schema),
 	});
 
 	expectSchemaShape(t, expected).from(result);
