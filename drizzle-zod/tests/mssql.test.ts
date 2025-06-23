@@ -1,123 +1,115 @@
 import { type Equal, sql } from 'drizzle-orm';
-import { customType, int, json, mysqlSchema, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
+import { customType, int, json, mssqlSchema, mssqlTable, mssqlView, text } from 'drizzle-orm/mssql-core';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
 import { z } from 'zod/v4';
-import { jsonSchema } from '~/column.ts';
+import { bigintStringModeSchema, bufferSchema, jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
-import { createInsertSchema, createSchemaFactory, createSelectSchema, createUpdateSchema } from '../src';
-import { Expect, expectSchemaShape } from './utils.ts';
+import { createInsertSchema, createSchemaFactory, createSelectSchema, createUpdateSchema } from '../src/index.ts';
+import { Expect, expectEnumValues, expectSchemaShape } from './utils.ts';
 
-const intSchema = z.int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX);
-const intNullableSchema = intSchema.nullable();
-const intOptionalSchema = intSchema.optional();
-const intNullableOptionalSchema = intSchema.nullable().optional();
+const integerSchema = z.int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX);
+const integerNullableSchema = integerSchema.nullable();
+const integerOptionalSchema = integerSchema.optional();
+const integerNullableOptionalSchema = integerSchema.nullable().optional();
 
-const serialSchema = z.int().gte(0).lte(Number.MAX_SAFE_INTEGER);
-const serialOptionalSchema = serialSchema.optional();
-
-const textSchema = z.string().max(CONSTANTS.INT16_UNSIGNED_MAX);
+const textSchema = z.string();
 const textOptionalSchema = textSchema.optional();
 
 const anySchema = z.any();
 
-const extendedSchema = intSchema.lte(1000);
+const extendedSchema = integerSchema.lte(1000);
 const extendedNullableSchema = extendedSchema.nullable();
 const extendedOptionalSchema = extendedSchema.optional();
 
 const customSchema = z.string().transform(Number);
 
 test('table - select', (t) => {
-	const table = mysqlTable('test', {
-		id: serial().primaryKey(),
-		generated: int().generatedAlwaysAs(1).notNull(),
+	const table = mssqlTable('test', {
+		id: int().primaryKey(),
+		generated: int().identity(),
 		name: text().notNull(),
 	});
 
 	const result = createSelectSchema(table);
-	const expected = z.object({ id: serialSchema, generated: intSchema, name: textSchema });
+	const expected = z.object({ id: integerSchema, generated: integerSchema, name: textSchema });
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
 test('table in schema - select', (tc) => {
-	const schema = mysqlSchema('test');
+	const schema = mssqlSchema('test');
 	const table = schema.table('test', {
-		id: serial().primaryKey(),
+		id: int().primaryKey(),
 		name: text().notNull(),
 	});
 
 	const result = createSelectSchema(table);
-	const expected = z.object({ id: serialSchema, name: textSchema });
+	const expected = z.object({ id: integerSchema, name: textSchema });
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
 test('table - insert', (t) => {
-	const table = mysqlTable('test', {
-		id: serial().primaryKey(),
+	const table = mssqlTable('test', {
+		id: int().identity().primaryKey(),
 		name: text().notNull(),
 		age: int(),
 	});
 
 	const result = createInsertSchema(table);
-	const expected = z.object({
-		id: serialOptionalSchema,
-		name: textSchema,
-		age: intNullableOptionalSchema,
-	});
+	const expected = z.object({ name: textSchema, age: integerNullableOptionalSchema });
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
 test('table - update', (t) => {
-	const table = mysqlTable('test', {
-		id: serial().primaryKey(),
+	const table = mssqlTable('test', {
+		id: int().identity().primaryKey(),
 		name: text().notNull(),
 		age: int(),
 	});
 
 	const result = createUpdateSchema(table);
 	const expected = z.object({
-		id: serialOptionalSchema,
 		name: textOptionalSchema,
-		age: intNullableOptionalSchema,
+		age: integerNullableOptionalSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
 test('view qb - select', (t) => {
-	const table = mysqlTable('test', {
-		id: serial().primaryKey(),
+	const table = mssqlTable('test', {
+		id: int().primaryKey(),
 		name: text().notNull(),
 	});
-	const view = mysqlView('test').as((qb) => qb.select({ id: table.id, age: sql``.as('age') }).from(table));
+	const view = mssqlView('test').as((qb) => qb.select({ id: table.id, age: sql``.as('age') }).from(table));
 
 	const result = createSelectSchema(view);
-	const expected = z.object({ id: serialSchema, age: anySchema });
+	const expected = z.object({ id: integerSchema, age: anySchema });
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
 test('view columns - select', (t) => {
-	const view = mysqlView('test', {
-		id: serial().primaryKey(),
+	const view = mssqlView('test', {
+		id: int().primaryKey(),
 		name: text().notNull(),
 	}).as(sql``);
 
 	const result = createSelectSchema(view);
-	const expected = z.object({ id: serialSchema, name: textSchema });
+	const expected = z.object({ id: integerSchema, name: textSchema });
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
 test('view with nested fields - select', (t) => {
-	const table = mysqlTable('test', {
-		id: serial().primaryKey(),
+	const table = mssqlTable('test', {
+		id: int().primaryKey(),
 		name: text().notNull(),
 	});
-	const view = mysqlView('test').as((qb) =>
+	const view = mssqlView('test').as((qb) =>
 		qb.select({
 			id: table.id,
 			nested: {
@@ -130,16 +122,16 @@ test('view with nested fields - select', (t) => {
 
 	const result = createSelectSchema(view);
 	const expected = z.object({
-		id: serialSchema,
+		id: integerSchema,
 		nested: z.object({ name: textSchema, age: anySchema }),
-		table: z.object({ id: serialSchema, name: textSchema }),
+		table: z.object({ id: integerSchema, name: textSchema }),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
 test('nullability - select', (t) => {
-	const table = mysqlTable('test', {
+	const table = mssqlTable('test', {
 		c1: int(),
 		c2: int().notNull(),
 		c3: int().default(1),
@@ -148,57 +140,58 @@ test('nullability - select', (t) => {
 
 	const result = createSelectSchema(table);
 	const expected = z.object({
-		c1: intSchema.nullable(),
-		c2: intSchema,
-		c3: intSchema.nullable(),
-		c4: intSchema,
+		c1: integerNullableSchema,
+		c2: integerSchema,
+		c3: integerNullableSchema,
+		c4: integerSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
 test('nullability - insert', (t) => {
-	const table = mysqlTable('test', {
+	const table = mssqlTable('test', {
 		c1: int(),
 		c2: int().notNull(),
 		c3: int().default(1),
 		c4: int().notNull().default(1),
 		c5: int().generatedAlwaysAs(1),
+		c6: int().identity(),
 	});
 
 	const result = createInsertSchema(table);
 	const expected = z.object({
-		c1: intNullableOptionalSchema,
-		c2: intSchema,
-		c3: intNullableOptionalSchema,
-		c4: intOptionalSchema,
+		c1: integerNullableOptionalSchema,
+		c2: integerSchema,
+		c3: integerNullableOptionalSchema,
+		c4: integerOptionalSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
-	Expect<Equal<typeof result, typeof expected>>();
 });
 
 test('nullability - update', (t) => {
-	const table = mysqlTable('test', {
+	const table = mssqlTable('test', {
 		c1: int(),
 		c2: int().notNull(),
 		c3: int().default(1),
 		c4: int().notNull().default(1),
 		c5: int().generatedAlwaysAs(1),
+		c6: int().identity(),
 	});
 
 	const result = createUpdateSchema(table);
 	const expected = z.object({
-		c1: intNullableOptionalSchema,
-		c2: intOptionalSchema,
-		c3: intNullableOptionalSchema,
-		c4: intOptionalSchema,
+		c1: integerNullableOptionalSchema,
+		c2: integerOptionalSchema,
+		c3: integerNullableOptionalSchema,
+		c4: integerOptionalSchema,
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
 test('refine table - select', (t) => {
-	const table = mysqlTable('test', {
+	const table = mssqlTable('test', {
 		c1: int(),
 		c2: int().notNull(),
 		c3: int().notNull(),
@@ -209,18 +202,17 @@ test('refine table - select', (t) => {
 		c3: z.string().transform(Number),
 	});
 	const expected = z.object({
-		c1: intNullableSchema,
+		c1: integerNullableSchema,
 		c2: extendedSchema,
 		c3: customSchema,
 	});
-
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
 test('refine table - select with custom data type', (t) => {
 	const customText = customType({ dataType: () => 'text' });
-	const table = mysqlTable('test', {
+	const table = mssqlTable('test', {
 		c1: int(),
 		c2: int().notNull(),
 		c3: int().notNull(),
@@ -234,7 +226,7 @@ test('refine table - select with custom data type', (t) => {
 		c4: customTextSchema,
 	});
 	const expected = z.object({
-		c1: intNullableSchema,
+		c1: integerNullableSchema,
 		c2: extendedSchema,
 		c3: customSchema,
 		c4: customTextSchema,
@@ -245,7 +237,7 @@ test('refine table - select with custom data type', (t) => {
 });
 
 test('refine table - insert', (t) => {
-	const table = mysqlTable('test', {
+	const table = mssqlTable('test', {
 		c1: int(),
 		c2: int().notNull(),
 		c3: int().notNull(),
@@ -257,7 +249,7 @@ test('refine table - insert', (t) => {
 		c3: z.string().transform(Number),
 	});
 	const expected = z.object({
-		c1: intNullableOptionalSchema,
+		c1: integerNullableOptionalSchema,
 		c2: extendedSchema,
 		c3: customSchema,
 	});
@@ -266,7 +258,7 @@ test('refine table - insert', (t) => {
 });
 
 test('refine table - update', (t) => {
-	const table = mysqlTable('test', {
+	const table = mssqlTable('test', {
 		c1: int(),
 		c2: int().notNull(),
 		c3: int().notNull(),
@@ -278,7 +270,7 @@ test('refine table - update', (t) => {
 		c3: z.string().transform(Number),
 	});
 	const expected = z.object({
-		c1: intNullableOptionalSchema,
+		c1: integerNullableOptionalSchema,
 		c2: extendedOptionalSchema,
 		c3: customSchema,
 	});
@@ -287,7 +279,7 @@ test('refine table - update', (t) => {
 });
 
 test('refine view - select', (t) => {
-	const table = mysqlTable('test', {
+	const table = mssqlTable('test', {
 		c1: int(),
 		c2: int(),
 		c3: int(),
@@ -295,7 +287,7 @@ test('refine view - select', (t) => {
 		c5: int(),
 		c6: int(),
 	});
-	const view = mysqlView('test').as((qb) =>
+	const view = mssqlView('test').as((qb) =>
 		qb.select({
 			c1: table.c1,
 			c2: table.c2,
@@ -322,21 +314,21 @@ test('refine view - select', (t) => {
 		},
 	});
 	const expected = z.object({
-		c1: intNullableSchema,
+		c1: integerNullableSchema,
 		c2: extendedNullableSchema,
 		c3: customSchema,
 		nested: z.object({
-			c4: intNullableSchema,
+			c4: integerNullableSchema,
 			c5: extendedNullableSchema,
 			c6: customSchema,
 		}),
 		table: z.object({
-			c1: intNullableSchema,
+			c1: integerNullableSchema,
 			c2: extendedNullableSchema,
 			c3: customSchema,
-			c4: intNullableSchema,
-			c5: intNullableSchema,
-			c6: intNullableSchema,
+			c4: integerNullableSchema,
+			c5: integerNullableSchema,
+			c6: integerNullableSchema,
 		}),
 	});
 	expectSchemaShape(t, expected).from(result);
@@ -344,152 +336,127 @@ test('refine view - select', (t) => {
 });
 
 test('all data types', (t) => {
-	const table = mysqlTable('test', ({
+	const table = mssqlTable('test', ({
 		bigint,
 		binary,
-		boolean,
+		bit,
 		char,
 		date,
 		datetime,
+		datetime2,
+		datetimeoffset,
 		decimal,
-		double,
 		float,
 		int,
 		json,
-		mediumint,
-		mysqlEnum,
+		numeric,
 		real,
-		serial,
 		smallint,
 		text,
 		time,
-		timestamp,
 		tinyint,
-		varchar,
 		varbinary,
-		year,
-		longtext,
-		mediumtext,
-		tinytext,
+		varchar,
+		ntext,
+		nvarchar,
 	}) => ({
 		bigint1: bigint({ mode: 'number' }).notNull(),
 		bigint2: bigint({ mode: 'bigint' }).notNull(),
-		bigint3: bigint({ unsigned: true, mode: 'number' }).notNull(),
-		bigint4: bigint({ unsigned: true, mode: 'bigint' }).notNull(),
+		bigint3: bigint({ mode: 'string' }).notNull(),
 		binary: binary({ length: 10 }).notNull(),
-		boolean: boolean().notNull(),
+		bit: bit().notNull(),
 		char1: char({ length: 10 }).notNull(),
 		char2: char({ length: 1, enum: ['a', 'b', 'c'] }).notNull(),
 		date1: date({ mode: 'date' }).notNull(),
 		date2: date({ mode: 'string' }).notNull(),
 		datetime1: datetime({ mode: 'date' }).notNull(),
 		datetime2: datetime({ mode: 'string' }).notNull(),
+		datetime2_1: datetime2({ mode: 'date' }).notNull(),
+		datetime2_2: datetime2({ mode: 'string' }).notNull(),
+		datetimeoffset1: datetimeoffset({ mode: 'date' }).notNull(),
+		datetimeoffset2: datetimeoffset({ mode: 'string' }).notNull(),
 		decimal1: decimal({ mode: 'number' }).notNull(),
-		decimal2: decimal({ mode: 'number', unsigned: true }).notNull(),
-		decimal3: decimal({ mode: 'bigint' }).notNull(),
-		decimal4: decimal({ mode: 'bigint', unsigned: true }).notNull(),
-		decimal5: decimal({ mode: 'string' }).notNull(),
-		decimal6: decimal({ mode: 'string', unsigned: true }).notNull(),
-		double1: double().notNull(),
-		double2: double({ unsigned: true }).notNull(),
-		float1: float().notNull(),
-		float2: float({ unsigned: true }).notNull(),
-		int1: int().notNull(),
-		int2: int({ unsigned: true }).notNull(),
+		decimal2: decimal({ mode: 'bigint' }).notNull(),
+		decimal3: decimal({ mode: 'string' }).notNull(),
+		float: float().notNull(),
+		int: int().notNull(),
 		json: json().notNull(),
-		mediumint1: mediumint().notNull(),
-		mediumint2: mediumint({ unsigned: true }).notNull(),
-		enum: mysqlEnum('enum', ['a', 'b', 'c']).notNull(),
+		numeric1: numeric({ mode: 'number' }).notNull(),
+		numeric2: numeric({ mode: 'bigint' }).notNull(),
+		numeric3: numeric({ mode: 'string' }).notNull(),
 		real: real().notNull(),
-		serial: serial().notNull(),
-		smallint1: smallint().notNull(),
-		smallint2: smallint({ unsigned: true }).notNull(),
+		smallint: smallint().notNull(),
 		text1: text().notNull(),
 		text2: text({ enum: ['a', 'b', 'c'] }).notNull(),
-		time: time().notNull(),
-		timestamp1: timestamp({ mode: 'date' }).notNull(),
-		timestamp2: timestamp({ mode: 'string' }).notNull(),
-		tinyint1: tinyint().notNull(),
-		tinyint2: tinyint({ unsigned: true }).notNull(),
+		time1: time({ mode: 'date' }).notNull(),
+		time2: time({ mode: 'string' }).notNull(),
+		tinyint: tinyint().notNull(),
+		varbinary: varbinary({ length: 10 }).notNull(),
 		varchar1: varchar({ length: 10 }).notNull(),
 		varchar2: varchar({ length: 1, enum: ['a', 'b', 'c'] }).notNull(),
-		varbinary: varbinary({ length: 10 }).notNull(),
-		year: year().notNull(),
-		longtext1: longtext().notNull(),
-		longtext2: longtext({ enum: ['a', 'b', 'c'] }).notNull(),
-		mediumtext1: mediumtext().notNull(),
-		mediumtext2: mediumtext({ enum: ['a', 'b', 'c'] }).notNull(),
-		tinytext1: tinytext().notNull(),
-		tinytext2: tinytext({ enum: ['a', 'b', 'c'] }).notNull(),
+		ntext1: ntext().notNull(),
+		ntext2: ntext({ enum: ['a', 'b', 'c'] }).notNull(),
+		nvarchar1: nvarchar({ length: 10 }).notNull(),
+		nvarchar2: nvarchar({ length: 1, enum: ['a', 'b', 'c'] }).notNull(),
 	}));
 
 	const result = createSelectSchema(table);
 	const expected = z.object({
 		bigint1: z.int().gte(Number.MIN_SAFE_INTEGER).lte(Number.MAX_SAFE_INTEGER),
 		bigint2: z.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
-		bigint3: z.int().gte(0).lte(Number.MAX_SAFE_INTEGER),
-		bigint4: z.bigint().gte(0n).lte(CONSTANTS.INT64_UNSIGNED_MAX),
-		binary: z.string(),
-		boolean: z.boolean(),
+		bigint3: bigintStringModeSchema,
+		binary: bufferSchema,
+		bit: z.boolean(),
 		char1: z.string().max(10),
 		char2: z.enum(['a', 'b', 'c']),
 		date1: z.date(),
 		date2: z.string(),
 		datetime1: z.date(),
 		datetime2: z.string(),
+		datetime2_1: z.date(),
+		datetime2_2: z.string(),
+		datetimeoffset1: z.date(),
+		datetimeoffset2: z.string(),
 		decimal1: z.number().gte(Number.MIN_SAFE_INTEGER).lte(Number.MAX_SAFE_INTEGER),
-		decimal2: z.number().gte(0).lte(Number.MAX_SAFE_INTEGER),
-		decimal3: z.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
-		decimal4: z.bigint().gte(0n).lte(CONSTANTS.INT64_UNSIGNED_MAX),
-		decimal5: z.string(),
-		decimal6: z.string(),
-		double1: z.number().gte(CONSTANTS.INT48_MIN).lte(CONSTANTS.INT48_MAX),
-		double2: z.number().gte(0).lte(CONSTANTS.INT48_UNSIGNED_MAX),
-		float1: z.number().gte(CONSTANTS.INT24_MIN).lte(CONSTANTS.INT24_MAX),
-		float2: z.number().gte(0).lte(CONSTANTS.INT24_UNSIGNED_MAX),
-		int1: z.int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX),
-		int2: z.int().gte(0).lte(CONSTANTS.INT32_UNSIGNED_MAX),
+		decimal2: z.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
+		decimal3: z.string(),
+		float: z.number().gte(CONSTANTS.INT48_MIN).lte(CONSTANTS.INT48_MAX),
+		int: z.int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX),
 		json: jsonSchema,
-		mediumint1: z.int().gte(CONSTANTS.INT24_MIN).lte(CONSTANTS.INT24_MAX),
-		mediumint2: z.int().gte(0).lte(CONSTANTS.INT24_UNSIGNED_MAX),
-		enum: z.enum(['a', 'b', 'c']),
-		real: z.number().gte(CONSTANTS.INT48_MIN).lte(CONSTANTS.INT48_MAX),
-		serial: z.int().gte(0).lte(Number.MAX_SAFE_INTEGER),
-		smallint1: z.int().gte(CONSTANTS.INT16_MIN).lte(CONSTANTS.INT16_MAX),
-		smallint2: z.int().gte(0).lte(CONSTANTS.INT16_UNSIGNED_MAX),
-		text1: z.string().max(CONSTANTS.INT16_UNSIGNED_MAX),
+		numeric1: z.number().gte(Number.MIN_SAFE_INTEGER).lte(Number.MAX_SAFE_INTEGER),
+		numeric2: z.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
+		numeric3: z.string(),
+		real: z.number().gte(CONSTANTS.INT24_MIN).lte(CONSTANTS.INT24_MAX),
+		smallint: z.int().gte(CONSTANTS.INT16_MIN).lte(CONSTANTS.INT16_MAX),
+		text1: z.string(),
 		text2: z.enum(['a', 'b', 'c']),
-		time: z.string(),
-		timestamp1: z.date(),
-		timestamp2: z.string(),
-		tinyint1: z.int().gte(CONSTANTS.INT8_MIN).lte(CONSTANTS.INT8_MAX),
-		tinyint2: z.int().gte(0).lte(CONSTANTS.INT8_UNSIGNED_MAX),
+		time1: z.date(),
+		time2: z.string(),
+		tinyint: z.int().gte(0).lte(CONSTANTS.INT8_UNSIGNED_MAX),
+		varbinary: bufferSchema,
 		varchar1: z.string().max(10),
 		varchar2: z.enum(['a', 'b', 'c']),
-		varbinary: z.string(),
-		year: z.int().gte(1901).lte(2155),
-		longtext1: z.string().max(CONSTANTS.INT32_UNSIGNED_MAX),
-		longtext2: z.enum(['a', 'b', 'c']),
-		mediumtext1: z.string().max(CONSTANTS.INT24_UNSIGNED_MAX),
-		mediumtext2: z.enum(['a', 'b', 'c']),
-		tinytext1: z.string().max(CONSTANTS.INT8_UNSIGNED_MAX),
-		tinytext2: z.enum(['a', 'b', 'c']),
+		ntext1: z.string(),
+		ntext2: z.enum(['a', 'b', 'c']),
+		nvarchar1: z.string().max(10),
+		nvarchar2: z.enum(['a', 'b', 'c']),
 	});
+
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
 test('type coercion - all', (t) => {
-	const table = mysqlTable('test', ({
+	const table = mssqlTable('test', ({
 		bigint,
-		boolean,
-		timestamp,
+		bit,
+		datetime,
 		int,
 		text,
 	}) => ({
 		bigint: bigint({ mode: 'bigint' }).notNull(),
-		boolean: boolean().notNull(),
-		timestamp: timestamp().notNull(),
+		bit: bit().notNull(),
+		datetime: datetime().notNull(),
 		int: int().notNull(),
 		text: text().notNull(),
 	}));
@@ -500,21 +467,21 @@ test('type coercion - all', (t) => {
 	const result = createSelectSchema(table);
 	const expected = z.object({
 		bigint: z.coerce.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
-		boolean: z.coerce.boolean(),
-		timestamp: z.coerce.date(),
+		bit: z.coerce.boolean(),
+		datetime: z.coerce.date(),
 		int: z.coerce.number().int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX),
-		text: z.coerce.string().max(CONSTANTS.INT16_UNSIGNED_MAX),
+		text: z.coerce.string(),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
 test('type coercion - mixed', (t) => {
-	const table = mysqlTable('test', ({
-		timestamp,
+	const table = mssqlTable('test', ({
+		datetime,
 		int,
 	}) => ({
-		timestamp: timestamp().notNull(),
+		datetime: datetime().notNull(),
 		int: int().notNull(),
 	}));
 
@@ -525,7 +492,7 @@ test('type coercion - mixed', (t) => {
 	});
 	const result = createSelectSchema(table);
 	const expected = z.object({
-		timestamp: z.coerce.date(),
+		datetime: z.coerce.date(),
 		int: z.int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX),
 	});
 	expectSchemaShape(t, expected).from(result);
@@ -534,7 +501,7 @@ test('type coercion - mixed', (t) => {
 
 /* Infinitely recursive type */ {
 	const TopLevelCondition: z.ZodType<TopLevelCondition> = z.custom<TopLevelCondition>().superRefine(() => {});
-	const table = mysqlTable('test', {
+	const table = mssqlTable('test', {
 		json: json().$type<TopLevelCondition>(),
 	});
 	const result = createSelectSchema(table);
@@ -545,27 +512,27 @@ test('type coercion - mixed', (t) => {
 }
 
 /* Disallow unknown keys in table refinement - select */ {
-	const table = mysqlTable('test', { id: int() });
+	const table = mssqlTable('test', { id: int() });
 	// @ts-expect-error
 	createSelectSchema(table, { unknown: z.string() });
 }
 
 /* Disallow unknown keys in table refinement - insert */ {
-	const table = mysqlTable('test', { id: int() });
+	const table = mssqlTable('test', { id: int() });
 	// @ts-expect-error
 	createInsertSchema(table, { unknown: z.string() });
 }
 
 /* Disallow unknown keys in table refinement - update */ {
-	const table = mysqlTable('test', { id: int() });
+	const table = mssqlTable('test', { id: int() });
 	// @ts-expect-error
 	createUpdateSchema(table, { unknown: z.string() });
 }
 
 /* Disallow unknown keys in view qb - select */ {
-	const table = mysqlTable('test', { id: int() });
-	const view = mysqlView('test').as((qb) => qb.select().from(table));
-	const nestedSelect = mysqlView('test').as((qb) => qb.select({ table }).from(table));
+	const table = mssqlTable('test', { id: int() });
+	const view = mssqlView('test').as((qb) => qb.select().from(table));
+	const nestedSelect = mssqlView('test').as((qb) => qb.select({ table }).from(table));
 	// @ts-expect-error
 	createSelectSchema(view, { unknown: z.string() });
 	// @ts-expect-error
@@ -573,7 +540,10 @@ test('type coercion - mixed', (t) => {
 }
 
 /* Disallow unknown keys in view columns - select */ {
-	const view = mysqlView('test', { id: int() }).as(sql``);
+	const view = mssqlView('test', { id: int() }).as(sql``);
+	const mView = mssqlView('test', { id: int() }).as(sql``);
 	// @ts-expect-error
 	createSelectSchema(view, { unknown: z.string() });
+	// @ts-expect-error
+	createSelectSchema(mView, { unknown: z.string() });
 }

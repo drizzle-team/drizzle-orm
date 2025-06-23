@@ -10,7 +10,7 @@ export const createDDL = () => {
 			autoIncrement: 'boolean',
 			default: {
 				value: 'string',
-				type: ['string', 'number', 'boolean', 'bigint', 'json', 'text', 'unknown'],
+				type: ['string', 'number', 'boolean', 'bigint', 'decimal', 'json', 'text', 'unknown'],
 			},
 			onUpdateNow: 'boolean',
 			generated: {

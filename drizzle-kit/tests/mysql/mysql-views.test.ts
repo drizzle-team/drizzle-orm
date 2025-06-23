@@ -535,13 +535,13 @@ test('drop existing', async () => {
 
 	const from = {
 		users: users,
-		view: mysqlView('some_view', {}).algorithm('temptable').sqlSecurity('invoker')
-			.withCheckOption('cascaded').existing(),
+		view: mysqlView('some_view', {}).algorithm('temptable').sqlSecurity('invoker').existing(),
 	};
 	const to = {
 		users: users,
-		view: mysqlView('new_some_view', {}).algorithm('temptable').sqlSecurity('invoker')
-			.withCheckOption('cascaded').as(sql`SELECT * FROM ${users} WHERE ${users.id} = 1`),
+		view: mysqlView('new_some_view', {}).algorithm('temptable').sqlSecurity('invoker').as(
+			sql`SELECT * FROM ${users} WHERE ${users.id} = 1`,
+		),
 	};
 
 	const { sqlStatements: st } = await diff(from, to, []);
@@ -550,7 +550,7 @@ test('drop existing', async () => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		`CREATE ALGORITHM = temptable SQL SECURITY invoker VIEW \`new_some_view\` AS (SELECT * FROM \`users\` WHERE \`users\`.\`id\` = 1) WITH cascaded CHECK OPTION;`,
+		`CREATE ALGORITHM = temptable SQL SECURITY invoker VIEW \`new_some_view\` AS (SELECT * FROM \`users\` WHERE \`users\`.\`id\` = 1);`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);

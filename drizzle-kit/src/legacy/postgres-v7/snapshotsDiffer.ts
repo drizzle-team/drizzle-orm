@@ -1701,21 +1701,17 @@ export const _diff = async (
 				it.name,
 				it.schema,
 				it.addedCompositePKs,
-				curFull as PgSchema,
 			);
 			deletedCompositePKs = prepareDeleteCompositePrimaryKeyPg(
 				it.name,
 				it.schema,
 				it.deletedCompositePKs,
-				prevFull as PgSchema,
 			);
 		}
 		alteredCompositePKs = prepareAlterCompositePrimaryKeyPg(
 			it.name,
 			it.schema,
 			it.alteredCompositePKs,
-			prevFull as PgSchema,
-			curFull as PgSchema,
 		);
 
 		// add logic for unique constraints

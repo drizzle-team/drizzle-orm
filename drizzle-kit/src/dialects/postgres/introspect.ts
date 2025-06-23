@@ -1,7 +1,7 @@
 import camelcase from 'camelcase';
 import type { Entities } from '../../cli/validations/cli';
 import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
-import { trimChar, type DB } from '../../utils';
+import { type DB, trimChar } from '../../utils';
 import type {
 	CheckConstraint,
 	Enum,
