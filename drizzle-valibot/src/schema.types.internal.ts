@@ -54,17 +54,20 @@ export type BuildSchema<
 > = v.ObjectSchema<
 	Simplify<
 		{
-			readonly [K in keyof TColumns as ColumnIsGeneratedAlwaysAs<TColumns[K]> extends true ? never : K]:
-				TColumns[K] extends infer TColumn extends Column
-					? IsRefinementDefined<TRefinements, Assume<K, string>> extends true
-						? Assume<HandleRefinement<TType, TRefinements[K & keyof TRefinements], TColumn>, v.GenericSchema>
-					: HandleColumn<TType, TColumn>
-					: TColumns[K] extends infer TObject extends SelectedFieldsFlat<Column> | Table | View ? BuildSchema<
-							TType,
-							GetSelection<TObject>,
-							TRefinements extends object ? TRefinements[K & keyof TRefinements] : undefined
-						>
-					: v.AnySchema;
+			readonly [
+				K in keyof TColumns as ColumnIsGeneratedAlwaysAs<TColumns[K]> extends true ? TType extends 'select' ? K
+					: never
+					: K
+			]: TColumns[K] extends infer TColumn extends Column
+				? IsRefinementDefined<TRefinements, Assume<K, string>> extends true
+					? Assume<HandleRefinement<TType, TRefinements[K & keyof TRefinements], TColumn>, v.GenericSchema>
+				: HandleColumn<TType, TColumn>
+				: TColumns[K] extends infer TObject extends SelectedFieldsFlat<Column> | Table | View ? BuildSchema<
+						TType,
+						GetSelection<TObject>,
+						TRefinements extends object ? TRefinements[K & keyof TRefinements] : undefined
+					>
+				: v.AnySchema;
 		}
 	>,
 	undefined
