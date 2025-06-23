@@ -29,10 +29,10 @@ const serialOptionalSchema = v.optional(serialSchema);
 const textSchema = v.pipe(v.string(), v.maxLength(CONSTANTS.INT16_UNSIGNED_MAX as number));
 const textOptionalSchema = v.optional(textSchema);
 
-//const anySchema = v.any();
+// const anySchema = v.any();
 
 const extendedSchema = v.pipe(intSchema, v.maxValue(1000));
-//const extendedNullableSchema = v.nullable(extendedSchema);
+// const extendedNullableSchema = v.nullable(extendedSchema);
 const extendedOptionalSchema = v.optional(extendedSchema);
 
 const customSchema = v.pipe(v.string(), v.transform(Number));
@@ -395,8 +395,12 @@ test('all data types', (t) => {
 		date2: date({ mode: 'string' }).notNull(),
 		datetime1: datetime({ mode: 'date' }).notNull(),
 		datetime2: datetime({ mode: 'string' }).notNull(),
-		decimal1: decimal().notNull(),
-		decimal2: decimal({ unsigned: true }).notNull(),
+		decimal1: decimal({ mode: 'number' }).notNull(),
+		decimal2: decimal({ mode: 'number', unsigned: true }).notNull(),
+		decimal3: decimal({ mode: 'bigint' }).notNull(),
+		decimal4: decimal({ mode: 'bigint', unsigned: true }).notNull(),
+		decimal5: decimal({ mode: 'string' }).notNull(),
+		decimal6: decimal({ mode: 'string', unsigned: true }).notNull(),
 		double1: double().notNull(),
 		double2: double({ unsigned: true }).notNull(),
 		float1: float().notNull(),
@@ -448,8 +452,12 @@ test('all data types', (t) => {
 		date2: v.string(),
 		datetime1: v.date(),
 		datetime2: v.string(),
-		decimal1: v.string(),
-		decimal2: v.string(),
+		decimal1: v.pipe(v.number(), v.minValue(Number.MIN_SAFE_INTEGER), v.maxValue(Number.MAX_SAFE_INTEGER)),
+		decimal2: v.pipe(v.number(), v.minValue(0 as number), v.maxValue(Number.MAX_SAFE_INTEGER)),
+		decimal3: v.pipe(v.bigint(), v.minValue(CONSTANTS.INT64_MIN), v.maxValue(CONSTANTS.INT64_MAX)),
+		decimal4: v.pipe(v.bigint(), v.minValue(0n as bigint), v.maxValue(CONSTANTS.INT64_UNSIGNED_MAX)),
+		decimal5: v.string(),
+		decimal6: v.string(),
 		double1: v.pipe(v.number(), v.minValue(CONSTANTS.INT48_MIN), v.maxValue(CONSTANTS.INT48_MAX)),
 		double2: v.pipe(v.number(), v.minValue(0 as number), v.maxValue(CONSTANTS.INT48_UNSIGNED_MAX)),
 		float1: v.pipe(v.number(), v.minValue(CONSTANTS.INT24_MIN), v.maxValue(CONSTANTS.INT24_MAX)),

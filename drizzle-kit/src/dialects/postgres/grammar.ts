@@ -1,19 +1,9 @@
-import { escapeSingleQuotes as escapeQuotes, stringifyArray } from 'src/utils';
+import { escapeSingleQuotes as escapeQuotes, stringifyArray, trimChar } from 'src/utils';
 import { parseArray } from 'src/utils/parse-pgarray';
 import { assertUnreachable } from '../../utils';
 import { hash } from '../common';
 import { Column, PostgresEntities } from './ddl';
 
-export const trimChar = (str: string, char: string) => {
-	let start = 0;
-	let end = str.length;
-
-	while (start < end && str[start] === char) ++start;
-	while (end > start && str[end - 1] === char) --end;
-
-	const res = start > 0 || end < str.length ? str.substring(start, end) : str;
-	return res;
-};
 export const splitSqlType = (sqlType: string) => {
 	// timestamp(6) with time zone -> [timestamp, 6, with time zone]
 	const match = sqlType.match(/^(\w+(?:\s+\w+)*)\(([^)]*)\)(?:\s+with time zone)?$/i);
@@ -205,6 +195,7 @@ export const splitExpressions = (input: string | null): string[] => {
 	return expressions.filter((s) => s.length > 0);
 };
 
+// TODO: check
 // export const splitExpressions = (input: string | null): string[] => {
 // 	if (!input) return [];
 

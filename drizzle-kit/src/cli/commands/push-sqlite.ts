@@ -148,6 +148,8 @@ export const suggestions = async (
 				hints.push(
 					`· You're about to add not-null '${name}' column without default value to non-empty '${table}' table`,
 				);
+
+				statements.push(`DELETE FROM "${table}" where true;`);
 			}
 
 			continue;

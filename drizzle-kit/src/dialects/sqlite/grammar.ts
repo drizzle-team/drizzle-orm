@@ -1,4 +1,5 @@
-import { ForeignKey } from './ddl';
+import { trimChar } from 'src/utils';
+import { Column, ForeignKey } from './ddl';
 
 const namedCheckPattern = /CONSTRAINT\s*["']?(\w+)["']?\s*CHECK\s*\((.*?)\)/gi;
 const unnamedCheckPattern = /CHECK\s*\((.*?)\)/gi;
@@ -76,6 +77,35 @@ export function sqlTypeFrom(sqlType: string): string {
 
 	return 'numeric';
 }
+
+export const parseDefault = (it: string): Column['default'] => {
+	if (it === null) return null;
+
+	const trimmed = it.trimChar("'");
+
+	if (/^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(trimmed)) {
+		const n = Number(it);
+
+		if (n >= Number.MIN_SAFE_INTEGER && n <= Number.MAX_SAFE_INTEGER) {
+			return { value: trimmed, isExpression: true };
+		}
+		return { value: `'${trimmed}'`, isExpression: true };
+	}
+
+	if (['CURRENT_TIME', 'CURRENT_DATE', 'CURRENT_TIMESTAMP'].includes(it)) {
+		return { value: `(${it})`, isExpression: true };
+	}
+
+	if (it === 'false' || it === 'true') {
+		return { value: it, isExpression: true };
+	}
+
+	if (it.startsWith("'") && it.endsWith("'")) {
+		return { value: trimmed.replaceAll("''", "'"), isExpression: false };
+	}
+
+	return { value: `(${it})`, isExpression: true };
+};
 
 export const parseTableSQL = (sql: string) => {
 	const namedChecks = [...sql.matchAll(namedCheckPattern)].map((it) => {
