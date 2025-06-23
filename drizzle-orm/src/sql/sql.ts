@@ -37,7 +37,7 @@ export interface BuildQueryConfig {
 	prepareTyping?: (encoder: DriverValueEncoder<unknown, unknown>) => QueryTypingsValue;
 	paramStartIndex?: { value: number };
 	inlineParams?: boolean;
-	invokeSource?: 'indexes' | 'mssql-check' | undefined;
+	invokeSource?: 'indexes' | 'mssql-check' | 'mssql-view-with-schemabinding' | undefined;
 }
 
 export type QueryTypingsValue = 'json' | 'decimal' | 'time' | 'timestamp' | 'uuid' | 'date' | 'none';
@@ -196,6 +196,15 @@ export class SQL<T = unknown> implements SQLWrapper {
 			if (is(chunk, Table)) {
 				const schemaName = chunk[Table.Symbol.Schema];
 				const tableName = chunk[Table.Symbol.Name];
+
+				if (invokeSource === 'mssql-view-with-schemabinding') {
+					return {
+						sql: (schemaName === undefined ? escapeName('dbo') : escapeName(schemaName)) + '.'
+							+ escapeName(tableName),
+						params: [],
+					};
+				}
+
 				return {
 					sql: schemaName === undefined || chunk[IsAlias]
 						? escapeName(tableName)

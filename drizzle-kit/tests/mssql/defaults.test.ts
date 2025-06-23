@@ -11,7 +11,6 @@ import {
 	decimal,
 	float,
 	int,
-	json,
 	nchar,
 	ntext,
 	numeric,
@@ -336,23 +335,6 @@ test('ntext', async () => {
 	expect.soft(res3).toStrictEqual([]);
 	expect.soft(res4).toStrictEqual([]);
 	expect.soft(res5).toStrictEqual([]);
-});
-
-test.todo('json', async () => {
-	const res1 = await diffDefault(_, json().default({}), `'{}'`);
-	const res2 = await diffDefault(_, json().default([]), `'[]'`);
-	const res3 = await diffDefault(_, json().default([1, 2, 3]), `'[1,2,3]'`);
-	const res4 = await diffDefault(_, json().default({ key: 'value' }), `'{"key":"value"}'`);
-	const res5 = await diffDefault(_, json().default({ key: "val'ue" }), `'{"key":"val''ue"}'`);
-
-	const res6 = await diffDefault(_, json().default({ key: `mo''",\`}{od` }), `'{"key":"mo''''\\\",\`}{od"}'`);
-
-	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res5).toStrictEqual([]);
-	expect.soft(res6).toStrictEqual([]);
 });
 
 test('datetime', async () => {
