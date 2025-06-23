@@ -8,7 +8,7 @@ import {
 	date,
 	datetime,
 	datetime2,
-	datetimeOffset,
+	datetimeoffset,
 	decimal,
 	float,
 	index,
@@ -17,7 +17,7 @@ import {
 	mssqlTable,
 	mssqlView,
 	nchar,
-	nText,
+	ntext,
 	numeric,
 	nvarchar,
 	real,
@@ -246,23 +246,23 @@ test('introspect all column types', async () => {
 			datetime2: datetime2({ mode: 'date' }).default(new Date()),
 			datetime2_1: datetime2({ mode: 'string' }).default('2023-05-05'),
 
-			datetimeOffset: datetimeOffset({ mode: 'date' }).default(new Date()),
-			datetimeOffset1: datetimeOffset({ mode: 'string' }).default('2023-05-05'),
+			datetimeoffset: datetimeoffset({ mode: 'date' }).default(new Date()),
+			datetimeoffset1: datetimeoffset({ mode: 'string' }).default('2023-05-05'),
 
-			decimal: decimal({ precision: 3, scale: 1 }).default(32.1),
+			decimal: decimal({ precision: 3, scale: 1 }).default('32.1'),
 
 			float: float({ precision: 3 }).default(32.1),
 
 			int: int().default(32),
 
-			numeric: numeric({ precision: 3, scale: 1 }).default(32.1),
+			numeric: numeric({ precision: 3, scale: 1 }).default('32.1'),
 
 			real: real().default(32.4),
 
 			smallint: smallint().default(3),
 
 			text: text().default('hey'),
-			nText: nText().default('hey'),
+			nText: ntext().default('hey'),
 
 			time: time({ mode: 'date', precision: 2 }).default(new Date()),
 			time1: time({ mode: 'string', precision: 2 }).default('14:53:00.000'),
@@ -311,7 +311,7 @@ test('introspect strings with single quotes', async () => {
 		columns: mssqlTable('columns', {
 			text: text('text').default('escape\'s quotes " '),
 			varchar: varchar('varchar').default('escape\'s quotes " '),
-			ntext: nText('ntext').default('escape\'s quotes " '),
+			ntext: ntext('ntext').default('escape\'s quotes " '),
 			nvarchar: nvarchar('nvarchar').default('escape\'s quotes " '),
 		}),
 	};
