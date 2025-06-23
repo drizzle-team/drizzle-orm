@@ -195,6 +195,7 @@ export const splitExpressions = (input: string | null): string[] => {
 	return expressions.filter((s) => s.length > 0);
 };
 
+// TODO: check
 // export const splitExpressions = (input: string | null): string[] => {
 // 	if (!input) return [];
 
@@ -339,7 +340,7 @@ export const defaultForColumn = (
 	value = type === 'numeric' || type.startsWith('numeric(') ? trimChar(value, "'") : value;
 
 	if (dimensions > 0) {
-		value = value.trimChar("'"); // '{10,20}' -> {10,20}
+		value = trimChar(value, "'"); // '{10,20}' -> {10,20}
 	}
 
 	if (type === 'json' || type === 'jsonb') {
@@ -359,7 +360,7 @@ export const defaultForColumn = (
 		};
 	}
 
-	const trimmed = value.trimChar("'"); // '{10,20}' -> {10,20}
+	const trimmed = trimChar(value, "'"); // '{10,20}' -> {10,20}
 
 	if (/^true$|^false$/.test(trimmed)) {
 		return { value: trimmed, type: 'boolean' };

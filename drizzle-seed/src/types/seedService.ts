@@ -1,4 +1,4 @@
-import type { AbstractGenerator } from '../services/Generators.ts';
+import type { AbstractGenerator } from '../generators/Generators.ts';
 import type { Prettify } from './tables.ts';
 
 export type TableGeneratorsType = {
@@ -18,6 +18,7 @@ export type GeneratePossibleGeneratorsColumnType = {
 	notNull: boolean;
 	primary: boolean;
 	generatedIdentityType?: 'always' | 'byDefault' | undefined;
+	identity?: boolean;
 	wasRefined: boolean;
 	wasDefinedBefore: boolean;
 	isCyclic: boolean;

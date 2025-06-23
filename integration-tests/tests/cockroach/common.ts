@@ -207,7 +207,7 @@ const usersOnUpdate = cockroachTable('users_on_update', {
 	updateCounter: int4('update_counter').default(sql`1`).$onUpdateFn(() => sql`update_counter + 1`),
 	updatedAt: timestamp('updated_at', { mode: 'date', precision: 3 }).$onUpdate(() => new Date()),
 	alwaysNull: text('always_null').$type<string | null>().$onUpdate(() => null),
-	uppercaseName: text('uppercase_name').$onUpdateFn(() => sql`upper(name)`),
+	// uppercaseName: text('uppercase_name').$onUpdateFn(() => sql`upper("name")`),
 });
 
 const citiesTable = cockroachTable('cities', {

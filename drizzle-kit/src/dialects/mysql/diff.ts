@@ -217,6 +217,7 @@ export const ddlDiff = async (
 
 	const createTableStatements = createdTables.map((it) => {
 		const full = fullTableFromDDL(it, ddl2);
+		if (createdTables.length > 1) full.fks = []; // fks have to be created after all tables created
 		return prepareStatement('create_table', { table: full });
 	});
 
@@ -286,7 +287,7 @@ export const ddlDiff = async (
 		.map((it) => prepareStatement('create_index', { index: it }));
 
 	const createFKsStatements = fksDiff.filter((it) => it.$diffType === 'create')
-		.filter((x) => !createdTables.some((it) => it.name === x.table))
+		.filter((x) => createdTables.length >= 2 || !createdTables.some((it) => it.name === x.table))
 		.map((it) => prepareStatement('create_fk', { fk: it }));
 
 	const createPKStatements = pksDiff.filter((it) => it.$diffType === 'create')
@@ -316,14 +317,13 @@ export const ddlDiff = async (
 
 	const columnAlterStatements = alters.filter((it) => it.entityType === 'columns')
 		.filter((it) => {
-			if (it.type && typesCommutative(it.type.from, it.type.to)) {
+			if (it.type && typesCommutative(it.type.from, it.type.to, mode)) {
 				delete it.type;
 			}
 
 			if (it.default) {
-				console.log(it.default);
 				let deleteDefault =
-					!!(it.default.from && it.default.to && typesCommutative(it.default.from.value, it.default.to.value));
+					!!(it.default.from && it.default.to && typesCommutative(it.default.from.value, it.default.to.value, mode));
 				deleteDefault ||= it.default.from?.value === it.default.to?.value;
 				deleteDefault ||= it.default.from?.value === `(${it.default.to?.value})`;
 

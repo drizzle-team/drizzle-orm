@@ -42,19 +42,6 @@ export const getWeightedIndices = (weights: number[], accuracy = 100) => {
 	return weightedIndices;
 };
 
-export const generateHashFromString = (s: string) => {
-	let hash = 0;
-	// p and m are prime numbers
-	const p = 53;
-	const m = 28871271685163;
-
-	for (let i = 0; i < s.length; i++) {
-		hash += ((s.codePointAt(i) || 0) * Math.pow(p, i)) % m;
-	}
-
-	return hash;
-};
-
 /**
  * @param param0.template example: "#####" or "#####-####"
  * @param param0.values example: ["3", "2", "h"]
@@ -98,8 +85,4 @@ export const fillTemplate = ({ template, placeholdersCount, values, defaultValue
 export const isObject = (value: any) => {
 	if (value !== null && value !== undefined && value.constructor === Object) return true;
 	return false;
-};
-
-export const equalSets = (set1: Set<any>, set2: Set<any>) => {
-	return set1.size === set2.size && [...set1].every((si) => set2.has(si));
 };

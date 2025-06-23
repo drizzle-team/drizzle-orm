@@ -20,9 +20,10 @@ import { fromDrizzleSchema, prepareFromSchemaFiles } from '../../dialects/mssql/
 import type { JsonStatement } from '../../dialects/mssql/statements';
 import type { DB } from '../../utils';
 import { resolver } from '../prompts';
-import { Entities } from '../validations/cli';
+import { Select } from '../selector-ui';
 import { CasingType } from '../validations/common';
 import type { MssqlCredentials } from '../validations/mssql';
+import { withStyle } from '../validations/outputs';
 import { ProgressView } from '../views';
 
 export const handle = async (
@@ -32,7 +33,6 @@ export const handle = async (
 	credentials: MssqlCredentials,
 	tablesFilter: string[],
 	schemasFilter: string[],
-	entities: Entities,
 	force: boolean,
 	casing: CasingType | undefined,
 ) => {
@@ -56,7 +56,7 @@ export const handle = async (
 	// }
 
 	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
-	const { schema: schemaFrom } = await introspect(db, tablesFilter, schemasFilter, entities, progress);
+	const { schema: schemaFrom } = await introspect(db, tablesFilter, schemasFilter, progress);
 
 	const { ddl: ddl1, errors: errors1 } = interimToDDL(schemaFrom);
 	const { ddl: ddl2, errors: errors2 } = interimToDDL(schemaTo);
@@ -88,45 +88,44 @@ export const handle = async (
 		return;
 	}
 
-	// TODO handle suggestions, froce flag
 	const { losses, hints } = await suggestions(db, jsonStatements, ddl2);
 
 	const statementsToExecute = [...losses, ...sqlStatements];
-	// if (verbose) {
-	// 	console.log();
-	// 	console.log(withStyle.warning('You are about to execute these statements:'));
-	// 	console.log();
-	// 	console.log(statementsToExecute.map((s) => chalk.blue(s)).join('\n'));
-	// 	console.log();
-	// }
+	if (verbose) {
+		console.log();
+		console.log(withStyle.warning('You are about to execute these statements:'));
+		console.log();
+		console.log(statementsToExecute.map((s) => chalk.blue(s)).join('\n'));
+		console.log();
+	}
 
-	// if (!force && strict && hints.length === 0) {
-	// 	const { status, data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
+	if (!force && strict && hints.length === 0) {
+		const { status, data } = await render(new Select(['No, abort', 'Yes, I want to execute all statements']));
 
-	// 	if (data?.index === 0) {
-	// 		render(`[${chalk.red('x')}] All changes were aborted`);
-	// 		process.exit(0);
-	// 	}
-	// }
+		if (data?.index === 0) {
+			render(`[${chalk.red('x')}] All changes were aborted`);
+			process.exit(0);
+		}
+	}
 
-	// if (!force && hints.length > 0) {
-	// 	console.log(withStyle.warning('Found data-loss statements:'));
-	// 	console.log(losses.join('\n'));
-	// 	console.log();
-	// 	console.log(
-	// 		chalk.red.bold(
-	// 			'THIS ACTION WILL CAUSE DATA LOSS AND CANNOT BE REVERTED\n',
-	// 		),
-	// 	);
+	if (!force && hints.length > 0) {
+		console.log(withStyle.warning('Found data-loss statements:'));
+		console.log(hints.join('\n'));
+		console.log();
+		console.log(
+			chalk.red.bold(
+				'THIS ACTION WILL CAUSE DATA LOSS AND CANNOT BE REVERTED\n',
+			),
+		);
 
-	// 	console.log(chalk.white('Do you still want to push changes?'));
+		console.log(chalk.white('Do you still want to push changes?'));
 
-	// 	const { status, data } = await render(new Select(['No, abort', `Yes, proceed`]));
-	// 	if (data?.index === 0) {
-	// 		render(`[${chalk.red('x')}] All changes were aborted`);
-	// 		process.exit(0);
-	// 	}
-	// }
+		const { status, data } = await render(new Select(['No, abort', `Yes, proceed`]));
+		if (data?.index === 0) {
+			render(`[${chalk.red('x')}] All changes were aborted`);
+			process.exit(0);
+		}
+	}
 
 	for (const statement of statementsToExecute) {
 		await db.query(statement);
@@ -142,11 +141,10 @@ const identifier = (it: { schema?: string; name: string }) => {
 };
 
 export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2: MssqlDDL) => {
-	const statements: string[] = [];
+	const losses: string[] = [];
 	const hints = [] as string[];
 
 	const filtered = jsonStatements.filter((it) => {
-		// TODO need more here?
 		if (it.type === 'recreate_view') return false;
 
 		if (it.type === 'alter_column' && it.diff.generated) return false;
@@ -207,7 +205,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 
 		if (
 			statement.type === 'add_column' && statement.column.notNull
-			&& ddl2.defaults.one({
+			&& !ddl2.defaults.one({
 				column: statement.column.name,
 				schema: statement.column.schema,
 				table: statement.column.table,
@@ -227,6 +225,28 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			continue;
 		}
 
+		if (
+			statement.type === 'alter_column' && statement.diff.$right.notNull
+			&& !ddl2.defaults.one({
+				column: statement.diff.$right.name,
+				schema: statement.diff.$right.schema,
+				table: statement.diff.$right.table,
+			})
+		) {
+			const column = statement.diff.$right;
+			const id = identifier({ schema: column.schema, name: column.table });
+			const res = await db.query(`select 1 from ${id} limit 1`);
+
+			if (res.length === 0) continue;
+			hints.push(
+				`· You're about to add not-null ${
+					chalk.underline(statement.diff.$right.name)
+				} column without default value to a non-empty ${id} table`,
+			);
+
+			continue;
+		}
+
 		if (statement.type === 'add_unique') {
 			const unique = statement.unique;
 			const id = identifier({ schema: unique.schema, name: unique.table });
@@ -234,27 +254,45 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			const res = await db.query(`select 1 from ${id} limit 1`);
 			if (res.length === 0) continue;
 
-			console.log(
+			hints.push(
 				`· You're about to add ${
 					chalk.underline(unique.name)
 				} unique constraint to a non-empty ${id} table which may fail`,
 			);
-			// const { status, data } = await render(
-			// 	new Select(['No, add the constraint without truncating the table', `Yes, truncate the table`]),
-			// );
-			// if (data?.index === 1) {
-			// 	statementsToExecute.push(
-			// 		`truncate table ${
-			// 			tableNameWithSchemaFrom(statement.schema, statement.tableName, renamedSchemas, renamedTables)
-			// 		} cascade;`,
-			// 	);
-			// }
+
+			continue;
+		}
+
+		if (
+			statement.type === 'rename_column'
+			&& ddl2.checks.one({ schema: statement.to.schema, table: statement.to.table })
+		) {
+			const left = statement.from;
+			const right = statement.to;
+
+			hints.push(
+				`· You are trying to rename column from ${left.name} to ${right.name}, but it is not possible to rename a column if it is used in a check constraint on the table. 
+To rename the column, first drop the check constraint, then rename the column, and finally recreate the check constraint`,
+			);
+
+			continue;
+		}
+
+		if (statement.type === 'rename_schema') {
+			const left = statement.from;
+			const right = statement.to;
+
+			hints.push(
+				`· You are trying to rename schema ${left.name} to ${right.name}, but it is not supported to rename a schema in mssql.
+You should create new schema and transfer everything to it`,
+			);
+
 			continue;
 		}
 	}
 
 	return {
-		losses: statements,
+		losses: losses,
 		hints,
 	};
 };

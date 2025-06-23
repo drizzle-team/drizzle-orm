@@ -3,7 +3,7 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
-import { CockroachColumn, CockroachColumnWithArrayBuilder } from '../common.ts';
+import { CockroachColumn, CockroachColumnWithArrayBuilder } from './common.ts';
 import { parseEWKB } from './utils.ts';
 
 export type CockroachGeometryBuilderInitial<TName extends string> = CockroachGeometryBuilder<{

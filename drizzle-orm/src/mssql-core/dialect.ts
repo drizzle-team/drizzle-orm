@@ -557,7 +557,7 @@ export class MsSqlDialect {
 
 	sqlToQuery(
 		sql: SQL,
-		invokeSource?: 'indexes' | 'mssql-check',
+		invokeSource?: 'indexes' | 'mssql-check' | 'mssql-view-with-schemabinding',
 	): QueryWithTypings {
 		const res = sql.toQuery({
 			casing: this.casing,

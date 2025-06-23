@@ -421,7 +421,7 @@ export const defaultForColumn = (
 	value = type === 'decimal' || type.startsWith('decimal(') ? trimChar(value, "'") : value;
 
 	if (dimensions > 0) {
-		value = value.trimChar("'"); // '{10,20}' -> {10,20}
+		value = trimChar(value, "'"); // '{10,20}' -> {10,20}
 	}
 
 	if (type === 'jsonb') {
@@ -435,7 +435,7 @@ export const defaultForColumn = (
 		};
 	}
 
-	const trimmed = value.trimChar("'"); // '{10,20}' -> {10,20}
+	const trimmed = trimChar(value, "'"); // '{10,20}' -> {10,20}
 
 	if (/^true$|^false$/.test(trimmed)) {
 		return { value: trimmed, type: 'boolean' };

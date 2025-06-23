@@ -104,6 +104,8 @@ export const fromDatabase = async (
 		const isDefaultAnExpression = extra.includes('DEFAULT_GENERATED'); // 'auto_increment', ''
 		const dataType = column['DATA_TYPE']; // varchar
 		const isPrimary = column['COLUMN_KEY'] === 'PRI'; // 'PRI', ''
+		const numericPrecision = column['NUMERIC_PRECISION'];
+		const numericScale = column['NUMERIC_SCALE'];
 		const isAutoincrement = extra === 'auto_increment';
 		const onUpdateNow = extra.includes('on update CURRENT_TIMESTAMP');
 
@@ -122,6 +124,7 @@ export const fromDatabase = async (
 		}
 
 		const def = parseDefaultValue(changedType, columnDefault, collation);
+		
 		res.columns.push({
 			entityType: 'columns',
 			table: table,
@@ -323,7 +326,6 @@ export const fromDatabase = async (
 	}
 
 	progressCallback('indexes', indexesCount, 'done');
-	progressCallback('enums', 0, 'done');
 	progressCallback('views', viewsCount, 'done');
 
 	const checks = await db.query(`
