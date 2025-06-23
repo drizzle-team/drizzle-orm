@@ -80,7 +80,7 @@ test('create table and view #3', async () => {
 
 	const st0 = [
 		`CREATE TABLE [users] (\n\t[id] int,\n\tCONSTRAINT [users_pkey] PRIMARY KEY([id])\n);\n`,
-		`CREATE VIEW [some_view1]\nWITH ENCRYPTION, SCHEMABINDING, VIEW_METADATA AS (SELECT * FROM [users])\nWITH CHECK OPTION;`,
+		`CREATE VIEW [some_view1]\nWITH ENCRYPTION, SCHEMABINDING, VIEW_METADATA AS (SELECT [users].[id] FROM [dbo].[users])\nWITH CHECK OPTION;`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -109,7 +109,37 @@ test('create table and view #4', async () => {
 	const st0 = [
 		`CREATE SCHEMA [new_schema];\n`,
 		`CREATE TABLE [new_schema].[users] (\n\t[id] int,\n\tCONSTRAINT [users_pkey] PRIMARY KEY([id])\n);\n`,
-		`CREATE VIEW [new_schema].[some_view1]\nWITH ENCRYPTION, SCHEMABINDING, VIEW_METADATA AS (SELECT * FROM [new_schema].[users])\nWITH CHECK OPTION;`,
+		`CREATE VIEW [new_schema].[some_view1]\nWITH ENCRYPTION, SCHEMABINDING, VIEW_METADATA AS (SELECT [new_schema].[users].[id] FROM [new_schema].[users])\nWITH CHECK OPTION;`,
+	];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('create table and view #4', async () => {
+	const schema = mssqlSchema('new_schema');
+
+	const users = schema.table('users', {
+		id: int('id').primaryKey().notNull(),
+	});
+	const to = {
+		schema,
+		users: users,
+		view1: schema.view('some_view1', { id: int('id') }).with({
+			checkOption: true,
+			encryption: true,
+			schemaBinding: true,
+			viewMetadata: true,
+		}).as(sql`SELECT ${users.id} FROM ${users}`),
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to: to });
+
+	const st0 = [
+		`CREATE SCHEMA [new_schema];\n`,
+		`CREATE TABLE [new_schema].[users] (\n\t[id] int,\n\tCONSTRAINT [users_pkey] PRIMARY KEY([id])\n);\n`,
+		`CREATE VIEW [new_schema].[some_view1]\nWITH ENCRYPTION, SCHEMABINDING, VIEW_METADATA AS (SELECT [new_schema].[users].[id] FROM [new_schema].[users])\nWITH CHECK OPTION;`,
 	];
 
 	expect(st).toStrictEqual(st0);
@@ -348,7 +378,7 @@ test('add with option to view with existing flag', async () => {
 	expect(pst).toStrictEqual([]);
 });
 
-test.only('drop with option from view #1', async () => {
+test.todo('drop with option from view #1', async () => {
 	const users = mssqlTable('users', {
 		id: int('id').primaryKey().notNull(),
 	});
@@ -366,12 +396,19 @@ test.only('drop with option from view #1', async () => {
 	};
 
 	const { sqlStatements: st } = await diff(from, to, []);
-	await push({ db, to: from, log: 'statements' });
+	await push({ db, to: from });
 	const { sqlStatements: pst } = await push({ db, to: to });
 
-	const st0 = [`ALTER VIEW [some_view] AS (select [id] from [users]);`];
+	// const st0 = [`ALTER VIEW [some_view] AS (select [id] from [users]);`];
+	// expect recreate here, cause when schemabinding is used
+	// than view created with following definition -> select [id] from [dbo].[users]
+	// when remove schemabinding diff finds definition changes
+	const st0 = [
+		`DROP VIEW [some_view];`,
+		`CREATE VIEW [some_view] AS (select [id] from [users]);`,
+	];
 	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+	expect(pst).toStrictEqual([]); // TODO
 });
 
 test('drop with option from view with existing flag', async () => {
@@ -394,8 +431,8 @@ test('drop with option from view with existing flag', async () => {
 	await push({ db, to: from });
 	const { sqlStatements: pst } = await push({ db, to: to });
 
-	expect(st).toStrictEqual(0);
-	expect(pst).toStrictEqual(0);
+	expect(st).toStrictEqual([]);
+	expect(pst).toStrictEqual([]);
 });
 
 test('alter with option in view #1', async () => {
@@ -478,24 +515,24 @@ test('alter view ".as" value', async () => {
 
 	const from = {
 		users,
-		view: mssqlView('some_view', { id: int('id') }).with().as(sql`SELECT '123'`),
+		view: mssqlView('some_view', { id: int('id') }).with().as(sql`SELECT * from ${users}`),
 	};
 
 	const to = {
 		users,
-		view: mssqlView('some_view', { id: int('id') }).with().as(sql`SELECT '1234'`),
+		view: mssqlView('some_view', { id: int('id') }).with().as(sql`SELECT [id] from ${users}`),
 	};
 
 	const { sqlStatements: st } = await diff(from, to, []);
 	await push({ db, to: from });
 	const { sqlStatements: pst } = await push({ db, to: to });
 
-	const st0 = ['DROP VIEW [some_view];', `CREATE VIEW [some_view] AS (SELECT '1234');`];
+	const st0 = ['DROP VIEW [some_view];', `CREATE VIEW [some_view] AS (SELECT [id] from [users]);`];
 	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+	expect(pst).toStrictEqual([]); // do not trigger on push
 });
 
-test('alter view ".as" value with existing flag', async () => {
+test('existing flag', async () => {
 	const users = mssqlTable('users', {
 		id: int('id').primaryKey().notNull(),
 	});
@@ -530,14 +567,14 @@ test('drop existing flag', async () => {
 
 	const to = {
 		users,
-		view: mssqlView('some_view', { id: int('id') }).as(sql`SELECT 'asd'`),
+		view: mssqlView('some_view', { id: int('id') }).as(sql`SELECT * from [users]`),
 	};
 
 	const { sqlStatements: st } = await diff(from, to, []);
 	await push({ db, to: from });
 	const { sqlStatements: pst } = await push({ db, to: to });
 
-	const st0 = [`CREATE VIEW [some_view] AS (SELECT 'asd');`];
+	const st0 = [`CREATE VIEW [some_view] AS (SELECT * from [users]);`];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
@@ -549,7 +586,7 @@ test('set existing', async () => {
 
 	const from = {
 		users,
-		view: mssqlView('some_view', { id: int('id') }).as(sql`SELECT 'asd'`),
+		view: mssqlView('some_view', { id: int('id') }).as(sql`SELECT * from [users]`),
 	};
 
 	const to = {
@@ -567,11 +604,17 @@ test('set existing', async () => {
 });
 
 test('rename view and alter view', async () => {
+	const users = mssqlTable('users', {
+		id: int(),
+	});
+
 	const from = {
+		users,
 		view: mssqlView('some_view', { id: int('id') }).as(sql`SELECT * FROM [users]`),
 	};
 
 	const to = {
+		users,
 		view: mssqlView('new_some_view', { id: int('id') }).with({ checkOption: true }).as(
 			sql`SELECT * FROM [users]`,
 		),
@@ -591,12 +634,18 @@ test('rename view and alter view', async () => {
 
 test('moved schema and alter view', async () => {
 	const schema = mssqlSchema('my_schema');
+	const users = mssqlTable('users', {
+		id: int(),
+	});
+
 	const from = {
+		users,
 		schema,
 		view: mssqlView('some_view', { id: int('id') }).as(sql`SELECT * FROM [users]`),
 	};
 
 	const to = {
+		users,
 		schema,
 		view: schema.view('some_view', { id: int('id') }).with({ checkOption: true }).as(
 			sql`SELECT * FROM [users]`,

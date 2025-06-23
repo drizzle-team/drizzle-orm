@@ -28,7 +28,7 @@ import {
 	date,
 	datetime,
 	datetime2,
-	datetimeOffset,
+	datetimeoffset,
 	decimal,
 	except,
 	float,
@@ -81,6 +81,11 @@ const usersTable = mssqlTable('userstest', {
 	verified: bit('verified').notNull().default(false),
 	jsonb: nvarchar('jsonb', { length: 300, mode: 'json' }).$type<string[]>(),
 	createdAt: datetime('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+const nvarcharWithJsonTable = mssqlTable('nvarchar_with_json', {
+	id: int('id').identity().primaryKey(),
+	json: nvarchar({ mode: 'json', length: 'max' }),
 });
 
 const users2Table = mssqlTable('users2', {
@@ -196,7 +201,7 @@ const allPossibleColumns = mssqlTable('all_possible_columns', {
 	bigintStringDefault: bigint({ mode: 'string' }).default('123'),
 	bigintNumberDefault: bigint({ mode: 'number' }).default(123),
 	binary: binary(),
-	binaryLength: binary({ length: 13 }),
+	binaryLength: binary({ length: 1 }),
 	binaryDefault: binary().default(Buffer.from([0x01])),
 
 	bit: bit(),
@@ -235,19 +240,20 @@ const allPossibleColumns = mssqlTable('all_possible_columns', {
 		'2025-04-17 13:55:07.5300000',
 	),
 
-	datetimeOffset: datetimeOffset(),
-	datetimeOffsetModeDate: datetimeOffset({ mode: 'date' }),
-	datetimeOffsetModeString: datetimeOffset({ mode: 'string' }),
-	datetimeOffsetDefault: datetimeOffset().default(new Date('2025-04-18 11:47:41.000+3:00')),
-	datetimeOffsetModeStringDefault: datetimeOffset({ mode: 'string' }).default('2025-04-18 11:47:41.000+3:00'),
-	datetimeOffsetModeStringWithPrecisionDefault: datetimeOffset({ mode: 'string', precision: 1 }).default(
+	datetimeOffset: datetimeoffset(),
+	datetimeOffsetModeDate: datetimeoffset({ mode: 'date' }),
+	datetimeOffsetModeString: datetimeoffset({ mode: 'string' }),
+	datetimeOffsetDefault: datetimeoffset().default(new Date('2025-04-18 11:47:41.000+3:00')),
+	datetimeOffsetModeStringDefault: datetimeoffset({ mode: 'string' }).default('2025-04-18 11:47:41.000+3:00'),
+	datetimeOffsetModeStringWithPrecisionDefault: datetimeoffset({ mode: 'string', precision: 1 }).default(
 		'2025-04-18 11:47:41.000+3:00',
 	),
 
 	decimal: decimal(),
 	decimalWithPrecision: decimal({ precision: 3 }),
 	decimalWithConfig: decimal({ precision: 10, scale: 8 }),
-	decimalDefault: decimal().default(1.312),
+	decimalDefaultString: decimal().default('1.312'),
+	decimalDefaultNumber: decimal({ mode: 'number' }).default(1.3),
 
 	float: float(),
 	floatWithPrecision: float({ precision: 3 }),
@@ -259,7 +265,9 @@ const allPossibleColumns = mssqlTable('all_possible_columns', {
 	numeric: numeric(),
 	numericWithPrecision: numeric({ precision: 3 }),
 	numericWithConfig: numeric({ precision: 10, scale: 8 }),
-	numericDefault: numeric().default(1.312),
+	numericDefault: numeric().default('1.312'),
+	numericDefaultNumber: numeric({ mode: 'number' }).default(1.312),
+
 	real: real(),
 	realDefault: real().default(5231.4123),
 
@@ -286,7 +294,7 @@ const allPossibleColumns = mssqlTable('all_possible_columns', {
 	tinyintDefault: tinyint().default(23),
 
 	varbinary: varbinary(),
-	varbinaryWithLength: varbinary({ length: 3 }),
+	varbinaryWithLength: varbinary({ length: 100 }),
 	varbinaryDefault: varbinary().default(Buffer.from([0x01])),
 
 	varchar: varchar(),
@@ -342,6 +350,7 @@ export function tests() {
 		beforeEach(async (ctx) => {
 			const { db } = ctx.mssql;
 			await db.execute(sql`drop table if exists [userstest]`);
+			await db.execute(sql`drop table if exists [nvarchar_with_json]`);
 			await db.execute(sql`drop table if exists [users2]`);
 			await db.execute(sql`drop table if exists [cities]`);
 			await db.execute(sql`drop table if exists [mySchema].[userstest]`);
@@ -358,6 +367,15 @@ export function tests() {
 					  [verified] bit not null default 0,
 					  [jsonb] text,
 					  [created_at] datetime not null default current_timestamp
+					)
+				`,
+			);
+
+			await db.execute(
+				sql`
+					create table [nvarchar_with_json] (
+					  [id] int identity primary key,
+					  [json] nvarchar(max)
 					)
 				`,
 			);
@@ -3430,7 +3448,7 @@ export function tests() {
 		bigintNumberDefault bigint DEFAULT 123,
 
 		binary binary,
-		binaryLength binary(13),
+		binaryLength binary(1),
 		binaryDefault binary DEFAULT 0x01,
 
 		bit bit,
@@ -3470,7 +3488,8 @@ export function tests() {
 		decimal decimal,
 		decimalWithPrecision decimal(3),
 		decimalWithConfig decimal(10,8),
-		decimalDefault decimal DEFAULT 1.312,
+		decimalDefaultString decimal DEFAULT 1.312,
+		decimalDefaultNumber decimal DEFAULT 1.312,
 
 		float float,
 		floatWithPrecision float(3),
@@ -3483,6 +3502,7 @@ export function tests() {
 		numericWithPrecision numeric(3),
 		numericWithConfig numeric(10,8),
 		numericDefault numeric DEFAULT 1.312,
+		numericDefaultNumber numeric DEFAULT 1.312,
 
 		real real,
 		realDefault real DEFAULT 5231.4123,
@@ -3509,7 +3529,7 @@ export function tests() {
 		tinyintDefault tinyint DEFAULT 23,
 
 		varbinary varbinary,
-		varbinaryWithLength varbinary(3),
+		varbinaryWithLength varbinary(100),
 		varbinaryDefault varbinary DEFAULT 0x01,
 
 		varchar varchar,
@@ -3540,7 +3560,7 @@ export function tests() {
 				bigintStringDefault: undefined,
 				bigintNumberDefault: undefined,
 
-				binary: Buffer.from([0x01]),
+				binary: Buffer.from('1'),
 				binaryLength: Buffer.from([0x01]),
 				binaryDefault: undefined,
 
@@ -3575,10 +3595,11 @@ export function tests() {
 				datetimeOffsetModeStringDefault: undefined,
 				datetimeOffsetModeStringWithPrecisionDefault: undefined,
 
-				decimal: 1.33,
-				decimalWithPrecision: 4.11,
-				decimalWithConfig: 41.34234526,
-				decimalDefault: undefined,
+				decimal: '1.33',
+				decimalWithPrecision: '4.11',
+				decimalWithConfig: '41.34234526',
+				decimalDefaultString: undefined,
+				decimalDefaultNumber: undefined,
 
 				float: 5234.132,
 				floatWithPrecision: 1.23,
@@ -3587,10 +3608,12 @@ export function tests() {
 				int: 140,
 				intDefault: undefined,
 
-				numeric: 33.2,
-				numericWithPrecision: 33.4,
-				numericWithConfig: 41.34512,
+				numeric: '33.2',
+				numericWithPrecision: '33.4',
+				numericWithConfig: '41.34512',
 				numericDefault: undefined,
+				numericDefaultNumber: undefined,
+
 				real: 421.4,
 				realDefault: undefined,
 
@@ -3615,8 +3638,8 @@ export function tests() {
 				tinyint: 31,
 				tinyintDefault: undefined,
 
-				varbinary: Buffer.from([0x01]),
-				varbinaryWithLength: Buffer.from([0x01, 0x01, 0x01]),
+				varbinary: Buffer.from('1'),
+				varbinaryWithLength: Buffer.from([0x01]),
 				varbinaryDefault: undefined,
 
 				varchar: 'v',
@@ -3646,15 +3669,17 @@ export function tests() {
 			expect(Buffer.isBuffer(res[0]?.varbinaryWithLength)).toBe(true);
 			expect(Buffer.isBuffer(res[0]?.varbinaryDefault)).toBe(true);
 
-			expect({
-				...res[0],
-				binary: undefined,
-				binaryLength: undefined,
-				binaryDefault: undefined,
-				varbinary: undefined,
-				varbinaryWithLength: undefined,
-				varbinaryDefault: undefined,
-			}).toStrictEqual(
+			expect(
+				res.map((it) => ({
+					...it,
+					binary: it.binary ? it.binary.toString() : null,
+					binaryLength: it.binaryLength ? it.binaryLength.toString('hex') : null,
+					binaryDefault: it.binaryDefault ? it.binaryDefault.toString('hex') : null,
+					varbinary: it.varbinary ? it.varbinary.toString() : null,
+					varbinaryDefault: it.varbinaryDefault ? it.varbinaryDefault.toString('hex') : null,
+					varbinaryWithLength: it.varbinaryWithLength ? it.varbinaryWithLength.toString('hex') : null,
+				})),
+			).toStrictEqual([
 				{
 					bigintBigint: 100n,
 					bigintString: '100',
@@ -3662,9 +3687,11 @@ export function tests() {
 					bigintBigintDefault: 123n,
 					bigintStringDefault: '123',
 					bigintNumberDefault: 123,
-					binary: undefined,
-					binaryLength: undefined,
-					binaryDefault: undefined,
+
+					binary: '1',
+					binaryLength: '01',
+					binaryDefault: '01',
+
 					bit: true,
 					bitDefault: false,
 					char: 'a',
@@ -3697,19 +3724,21 @@ export function tests() {
 					datetimeOffsetDefault: currentDate,
 					datetimeOffsetModeStringDefault: currentDate.toISOString(),
 					datetimeOffsetModeStringWithPrecisionDefault: currentDate.toISOString(),
-					decimal: 1,
-					decimalWithPrecision: 4,
-					decimalWithConfig: 41.34234526,
-					decimalDefault: 1,
+					decimal: '1',
+					decimalWithPrecision: '4',
+					decimalWithConfig: '41.34234526',
+					decimalDefaultNumber: 1,
+					decimalDefaultString: '1',
 					float: 5234.132,
 					floatWithPrecision: 1.2300000190734863,
 					floatDefault: 32.412,
 					int: 140,
 					intDefault: 43,
-					numeric: 33,
-					numericWithPrecision: 33,
-					numericWithConfig: 41.34512,
-					numericDefault: 1,
+					numeric: '33',
+					numericWithPrecision: '33',
+					numericWithConfig: '41.34512',
+					numericDefault: '1',
+					numericDefaultNumber: 1,
 					real: 421.3999938964844,
 					realDefault: 5231.412109375,
 					text: 'hello',
@@ -3729,9 +3758,11 @@ export function tests() {
 					smallintDefault: 331,
 					tinyint: 31,
 					tinyintDefault: 23,
-					varbinary: undefined,
-					varbinaryWithLength: undefined,
-					varbinaryDefault: undefined,
+
+					varbinary: '1',
+					varbinaryWithLength: '01',
+					varbinaryDefault: '01',
+
 					varchar: 'v',
 					varcharWithEnum: '123',
 					varcharWithLength: '301',
@@ -3748,7 +3779,7 @@ export function tests() {
 					nvarcharDefault: 'h',
 					nvarcharJson: { hello: 'world' },
 				},
-			);
+			]);
 		});
 
 		test('inner join', async (ctx) => {
@@ -4201,6 +4232,20 @@ export function tests() {
 			expect(updateOutput).toStrictEqual(
 				[
 					{ deleted: { id: 3 }, inserted: { name: 'city3hey' } },
+				],
+			);
+		});
+
+		test('nvarchar with json mode', async (ctx) => {
+			const { db } = ctx.mssql;
+
+			await db.insert(nvarcharWithJsonTable).values([{ json: { hello: 'world' } }]);
+
+			const res = await db.select().from(nvarcharWithJsonTable);
+
+			expect(res).toStrictEqual(
+				[
+					{ id: 1, json: { hello: 'world' } },
 				],
 			);
 		});
