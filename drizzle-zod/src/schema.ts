@@ -80,13 +80,17 @@ const selectConditions: Conditions = {
 };
 
 const insertConditions: Conditions = {
-	never: (column) => column?.generated?.type === 'always' || column?.generatedIdentity?.type === 'always',
+	never: (column) =>
+		column?.generated?.type === 'always' || column?.generatedIdentity?.type === 'always'
+		|| ('identity' in (column ?? {}) && typeof (column as any)?.identity !== 'undefined'),
 	optional: (column) => !column.notNull || (column.notNull && column.hasDefault),
 	nullable: (column) => !column.notNull,
 };
 
 const updateConditions: Conditions = {
-	never: (column) => column?.generated?.type === 'always' || column?.generatedIdentity?.type === 'always',
+	never: (column) =>
+		column?.generated?.type === 'always' || column?.generatedIdentity?.type === 'always'
+		|| ('identity' in (column ?? {}) && typeof (column as any)?.identity !== 'undefined'),
 	optional: () => true,
 	nullable: (column) => !column.notNull,
 };

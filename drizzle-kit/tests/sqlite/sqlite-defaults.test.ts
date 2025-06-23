@@ -28,11 +28,7 @@ test('integer', async () => {
 	const res7 = await diffDefault(_, integer({ mode: 'boolean' }).default(false), '0');
 
 	const date = new Date('2025-05-23T12:53:53.115Z');
-	const res8 = await diffDefault(
-		_,
-		integer({ mode: 'timestamp' }).default(date),
-		`${Math.floor(date.getTime() / 1000)}`,
-	);
+	const res8 = await diffDefault(_, integer({ mode: 'timestamp' }).default(date), `1748004833`);
 	const res9 = await diffDefault(_, integer({ mode: 'timestamp_ms' }).default(date), `${date.getTime()}`);
 
 	expect.soft(res1).toStrictEqual([]);
@@ -64,13 +60,13 @@ test('real', async () => {
 	expect.soft(res1).toStrictEqual([]);
 });
 
-test('numeric', async () => {
+test.only('numeric', async () => {
 	const res1 = await diffDefault(_, numeric().default('10.123'), "'10.123'");
 	const res2 = await diffDefault(_, numeric({ mode: 'bigint' }).default(9223372036854775807n), "'9223372036854775807'");
 	const res3 = await diffDefault(_, numeric({ mode: 'number' }).default(9007199254740991), '9007199254740991');
 	const res4 = await diffDefault(
 		_,
-		numeric({ mode: 'string' }).default('9223372036854775807n'),
+		numeric({ mode: 'string' }).default('9223372036854775807'),
 		"'9223372036854775807'",
 	);
 

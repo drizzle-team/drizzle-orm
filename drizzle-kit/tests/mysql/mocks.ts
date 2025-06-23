@@ -170,13 +170,17 @@ export const diffDefault = async <T extends MySqlColumnBuilder>(
 	builder: T,
 	expectedDefault: string,
 	pre: MysqlSchema | null = null,
+	override?: {
+		type?: string;
+	},
 ) => {
 	await kit.clear();
 
 	const config = (builder as any).config;
 	const def = config['default'];
 	const column = mysqlTable('table', { column: builder }).column;
-	const type = column.getSQLType();
+	const type = override?.type ?? column.getSQLType().replace(', ', ','); // real(6, 3)->real(6,3)
+
 	const columnDefault = defaultFromColumn(column, 'camelCase');
 	const defaultSql = defaultToSQL(columnDefault);
 
@@ -215,6 +219,7 @@ export const diffDefault = async <T extends MySqlColumnBuilder>(
 
 	const { sqlStatements: afterFileSqlStatements } = await ddlDiffDry(ddl1, ddl2, 'push');
 	if (afterFileSqlStatements.length === 0) {
+		// TODO: tsc on temp files, it consumes them with TS errors now
 		rmSync(path);
 	} else {
 		console.log(afterFileSqlStatements);
@@ -240,7 +245,7 @@ export const diffDefault = async <T extends MySqlColumnBuilder>(
 	if (pre) await push({ db, to: pre });
 	await push({ db, to: schema1 });
 	const { sqlStatements: st3 } = await push({ db, to: schema2 });
-	const expectedAlter = `ALTER TABLE \`table\` ALTER COLUMN \`column\` SET DEFAULT ${expectedDefault};`;
+	const expectedAlter = `ALTER TABLE \`table\` MODIFY COLUMN \`column\` ${type} DEFAULT ${expectedDefault};`;
 	if (st3.length !== 1 || st3[0] !== expectedAlter) res.push(`Unexpected default alter:\n${st3}\n\n${expectedAlter}`);
 
 	await clear();
@@ -259,7 +264,7 @@ export const diffDefault = async <T extends MySqlColumnBuilder>(
 	await push({ db, to: schema3 });
 	const { sqlStatements: st4 } = await push({ db, to: schema4 });
 
-	const expectedAddColumn = `ALTER TABLE \`table\` ADD COLUMN "\`column\` ${type} DEFAULT ${expectedDefault};`;
+	const expectedAddColumn = `ALTER TABLE \`table\` ADD \`column\` ${type} DEFAULT ${expectedDefault};`;
 	if (st4.length !== 1 || st4[0] !== expectedAddColumn) {
 		res.push(`Unexpected add column:\n${st4[0]}\n\n${expectedAddColumn}`);
 	}
@@ -332,6 +337,7 @@ export const prepareTestDatabase = async (): Promise<TestDatabase> => {
 			};
 			return { db, close, clear };
 		} catch (e) {
+			console.error(e);
 			await new Promise((resolve) => setTimeout(resolve, sleep));
 			timeLeft -= sleep;
 		}

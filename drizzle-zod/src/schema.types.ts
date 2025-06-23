@@ -1,4 +1,5 @@
 import type { Table, View } from 'drizzle-orm';
+import type { CockroachEnum } from 'drizzle-orm/cockroach-core';
 import type { PgEnum } from 'drizzle-orm/pg-core';
 import type { z } from 'zod/v4';
 import type { BuildRefine, BuildSchema, NoUnknownKeys } from './schema.types.internal.ts';
@@ -24,7 +25,7 @@ export interface CreateSelectSchema<
 		refine: NoUnknownKeys<TRefine, TView['$inferSelect']>,
 	): BuildSchema<'select', TView['_']['selectedFields'], TRefine, TCoerce>;
 
-	<TEnum extends PgEnum<any>>(enum_: TEnum): z.ZodEnum<{ [K in TEnum['enumValues'][number]]: K }>;
+	<TEnum extends PgEnum<any> | CockroachEnum<any>>(enum_: TEnum): z.ZodEnum<{ [K in TEnum['enumValues'][number]]: K }>;
 }
 
 export interface CreateInsertSchema<

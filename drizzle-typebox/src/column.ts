@@ -4,6 +4,7 @@ import type { Column, ColumnBaseConfig } from 'drizzle-orm';
 import type {
 	MySqlBigInt53,
 	MySqlChar,
+	MySqlDecimalNumber,
 	MySqlDouble,
 	MySqlFloat,
 	MySqlInt,
@@ -42,6 +43,7 @@ import type {
 import type {
 	SingleStoreBigInt53,
 	SingleStoreChar,
+	SingleStoreDecimalNumber,
 	SingleStoreDouble,
 	SingleStoreFloat,
 	SingleStoreInt,
@@ -218,8 +220,10 @@ function numberColumnToSchema(column: Column, t: typeof typebox): TSchema {
 			| PgBigSerial53<any>
 			| MySqlBigInt53<any>
 			| MySqlSerial<any>
+			| MySqlDecimalNumber<any>
 			| SingleStoreBigInt53<any>
 			| SingleStoreSerial<any>
+			| SingleStoreDecimalNumber<any>
 			| SQLiteInteger<any>
 		>(
 			column,
@@ -228,8 +232,10 @@ function numberColumnToSchema(column: Column, t: typeof typebox): TSchema {
 				'PgBigSerial53',
 				'MySqlBigInt53',
 				'MySqlSerial',
+				'MySqlDecimalNumber',
 				'SingleStoreBigInt53',
 				'SingleStoreSerial',
+				'SingleStoreDecimalNumber',
 				'SQLiteInteger',
 			],
 		)
@@ -237,7 +243,7 @@ function numberColumnToSchema(column: Column, t: typeof typebox): TSchema {
 		unsigned = unsigned || isColumnType(column, ['MySqlSerial', 'SingleStoreSerial']);
 		min = unsigned ? 0 : Number.MIN_SAFE_INTEGER;
 		max = Number.MAX_SAFE_INTEGER;
-		integer = true;
+		integer = !isColumnType(column, ['MySqlDecimalNumber', 'SingleStoreDecimalNumber']);
 	} else if (isColumnType<MySqlYear<any> | SingleStoreYear<any>>(column, ['MySqlYear', 'SingleStoreYear'])) {
 		min = 1901;
 		max = 2155;

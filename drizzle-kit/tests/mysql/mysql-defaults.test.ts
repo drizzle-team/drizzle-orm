@@ -114,41 +114,41 @@ test('bigint', async () => {
 });
 
 test('decimal', async () => {
-	const res1 = await diffDefault(_, decimal().default('10.123'), "'10.123'");
+	const res1 = await diffDefault(_, decimal().default('10.123'), "('10.123')");
 
-	const res2 = await diffDefault(_, decimal({ precision: 6 }).default('10.123'), "'10.123'");
-	const res3 = await diffDefault(_, decimal({ precision: 6, scale: 2 }).default('10.123'), "'10.123'");
+	const res2 = await diffDefault(_, decimal({ precision: 6 }).default('10.123'), "('10.123')");
+	const res3 = await diffDefault(_, decimal({ precision: 6, scale: 2 }).default('10.123'), "('10.123')");
 
 	// string
-	const res4 = await diffDefault(_, decimal({ mode: 'string' }).default('10.123'), "'10.123'");
+	const res4 = await diffDefault(_, decimal({ mode: 'string' }).default('10.123'), "('10.123')");
 
-	const res5 = await diffDefault(_, decimal({ mode: 'string', scale: 2 }).default('10.123'), "'10.123'");
-	const res6 = await diffDefault(_, decimal({ mode: 'string', precision: 6 }).default('10.123'), "'10.123'");
-	const res7 = await diffDefault(_, decimal({ mode: 'string', precision: 6, scale: 2 }).default('10.123'), "'10.123'");
+	const res5 = await diffDefault(_, decimal({ mode: 'string', scale: 2 }).default('10.123'), "('10.123')");
+	const res6 = await diffDefault(_, decimal({ mode: 'string', precision: 6 }).default('10.123'), "('10.123')");
+	const res7 = await diffDefault(_, decimal({ mode: 'string', precision: 6, scale: 2 }).default('10.123'), "('10.123')");
 
 	// number
 	// const res8 = await diffDefault(_, decimal({ mode: 'number' }).default(9007199254740991), '9007199254740991');
 	const res9 = await diffDefault(
 		_,
 		decimal({ mode: 'number', precision: 16 }).default(9007199254740991),
-		'9007199254740991',
+		"('9007199254740991')",
 	);
 
-	const res10 = await diffDefault(_, decimal({ mode: 'number', precision: 6, scale: 2 }).default(10.123), '10.123');
-	const res11 = await diffDefault(_, decimal({ mode: 'number', scale: 2 }).default(10.123), '10.123');
-	const res12 = await diffDefault(_, decimal({ mode: 'number', precision: 6 }).default(10.123), '10.123');
+	const res10 = await diffDefault(_, decimal({ mode: 'number', precision: 6, scale: 2 }).default(10.123),"('10.123')");
+	const res11 = await diffDefault(_, decimal({ mode: 'number', scale: 2 }).default(10.123), "('10.123')");
+	const res12 = await diffDefault(_, decimal({ mode: 'number', precision: 6 }).default(10.123), "('10.123')");
 
 	// TODO revise: maybe bigint mode should set the precision to a value appropriate for bigint, since the default precision (10) is insufficient.
 	// the line below will fail
 	const res13 = await diffDefault(
 		_,
 		decimal({ mode: 'bigint' }).default(9223372036854775807n),
-		"'9223372036854775807'",
+		"('9223372036854775807')",
 	);
 	const res14 = await diffDefault(
 		_,
 		decimal({ mode: 'bigint', precision: 19 }).default(9223372036854775807n),
-		"'9223372036854775807'",
+		"('9223372036854775807')",
 	);
 
 	expect.soft(res1).toStrictEqual([]);
@@ -172,11 +172,16 @@ test('real', async () => {
 	// TODO: revise: It seems that the real type can’t be configured using only one property—precision or scale; both must be specified.
 	// The commented line below will fail
 	// const res2 = await diffDefault(_, real({ precision: 6 }).default(10.123), '10.123');
-	const res3 = await diffDefault(_, real({ precision: 6, scale: 2 }).default(10.123), '10.123');
+	const res3 = await diffDefault(_, real({ precision: 6, scale: 3 }).default(10.123), '10.123');
+	const res4 = await diffDefault(_, real({ precision: 6, scale: 2 }).default(10.123), '10.123');
 
 	expect.soft(res1).toStrictEqual([]);
 	// expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([
+		'Unexpected subsequent init:\n'
+		+ 'ALTER TABLE `table` MODIFY COLUMN `column` real(6,2) DEFAULT 10.123;',
+	]);
 });
 
 test('double', async () => {
@@ -190,25 +195,38 @@ test('double', async () => {
 
 	expect.soft(res1).toStrictEqual([]);
 	// expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([
+		'Unexpected subsequent init:\n'
+		+ 'ALTER TABLE `table` MODIFY COLUMN `column` double(6,2) DEFAULT 10.123;',
+	]);
 	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res5).toStrictEqual([]);
+
+	//
+	expect.soft(res5).toStrictEqual([
+		'Unexpected subsequent init:\n'
+		+ 'ALTER TABLE `table` MODIFY COLUMN `column` double(6,2) unsigned DEFAULT 10.123;',
+	]);
 });
 
 test('float', async () => {
 	const res1 = await diffDefault(_, float().default(10.123), '10.123');
 
 	const res2 = await diffDefault(_, float({ precision: 6 }).default(10.123), '10.123');
-	const res3 = await diffDefault(_, float({ precision: 6, scale: 2 }).default(10.123), '10.123');
+	const res3 = await diffDefault(_, float({ precision: 6, scale: 3 }).default(10.123), '10.123');
 
 	const res4 = await diffDefault(_, float({ unsigned: true }).default(10.123), '10.123');
-	const res5 = await diffDefault(_, float({ unsigned: true, precision: 6, scale: 2 }).default(10.123), '10.123');
+	const res5 = await diffDefault(_, float({ unsigned: true, precision: 6, scale: 3 }).default(10.123), '10.123');
+	const res6 = await diffDefault(_, float({ unsigned: true, precision: 6, scale: 2 }).default(10.123), '10.123');
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
 	expect.soft(res4).toStrictEqual([]);
 	expect.soft(res5).toStrictEqual([]);
+	expect.soft(res6).toStrictEqual([
+		'Unexpected subsequent init:\n'
+		+ 'ALTER TABLE `table` MODIFY COLUMN `column` float(6,2) unsigned DEFAULT 10.123;',
+	]);
 });
 
 test('boolean', async () => {
@@ -223,7 +241,11 @@ test('boolean', async () => {
 	const res3 = await diffDefault(_, boolean().default(false), 'false');
 	const res4 = await diffDefault(_, boolean().default(sql`true`), 'true');
 
-	expect.soft(res1).toStrictEqual([]);
+	// null vs { value: "null", type: "unknown" }
+	expect.soft(res1).toStrictEqual([
+		'Unexpected subsequent init:\n'
+		+ 'ALTER TABLE `table` MODIFY COLUMN `column` boolean DEFAULT null;',
+	]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
 	expect.soft(res4).toStrictEqual([]);
@@ -311,12 +333,18 @@ test('enum', async () => {
 	const res1 = await diffDefault(
 		_,
 		mysqlEnum(['sad', 'ok', 'happy', `text'text"`, `no,'"\`rm`, `mo''",\`}{od`, 'mo,\`od']).default('ok'),
-		`('ok')`,
+		`'ok'`,
+		null,
+		{
+			type: `enum('sad','ok','happy','text''text\"','no,''\"\`rm','mo''''\",\`}{od','mo,\`od')`,
+		},
 	);
 	const res2 = await diffDefault(
 		_,
 		mysqlEnum(['sad', 'ok', 'happy', `text'text"`, `no,'"\`rm`, `mo''",\`}{od`, 'mo,\`od']).default(`no,'"\`rm`),
-		`('no,''"\`rm')`,
+		`'no,''"\`rm'`,
+		null,
+		{ type: `enum('sad','ok','happy','text''text\"','no,''\"\`rm','mo''''\",\`}{od','mo,\`od')` },
 	);
 
 	expect.soft(res1).toStrictEqual([]);
@@ -339,7 +367,7 @@ test('binary', async () => {
 });
 
 test('varbinary', async () => {
-	const res1 = await diffDefault(_, varbinary({ length: 10 }).default('binary'), `('binary')`);
+	const res1 = await diffDefault(_, varbinary({ length: 10 }).default('binary'), `(0x62696e617279)`);
 	const res2 = await diffDefault(_, varbinary({ length: 16 }).default(sql`(lower('HELLO'))`), `(lower('HELLO'))`);
 
 	expect.soft(res1).toStrictEqual([]);
@@ -400,9 +428,18 @@ test('timestamp', async () => {
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([
+		// without fsp timestamp column returns no .115
+		'Unexpected subsequent init:\n'
+		+ "ALTER TABLE `table` MODIFY COLUMN `column` timestamp DEFAULT '2025-05-23 12:53:53.115';",
+	]);
 	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res5).toStrictEqual([]);
+	expect.soft(res5).toStrictEqual([
+		// without fsp timestamp column returns no .115
+		'Unexpected subsequent init:\n'
+		+ "ALTER TABLE `table` MODIFY COLUMN `column` timestamp DEFAULT '2025-05-23 12:53:53.115';",
+	]);
+
 	expect.soft(res6).toStrictEqual([]);
 	expect.soft(res7).toStrictEqual([]);
 });
@@ -435,9 +472,19 @@ test('datetime', async () => {
 		`'2025-05-23 12:53:53.123456'`,
 	);
 
-	expect.soft(res1).toStrictEqual([]);
+	// database datetime without precision does not return .115 fraction
+	expect.soft(res1).toStrictEqual([
+		'Unexpected subsequent init:\n'
+		+ "ALTER TABLE `table` MODIFY COLUMN `column` datetime DEFAULT '2025-05-23 12:53:53.115';",
+	]);
 	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res3).toStrictEqual([]);
+
+	// database datetime without precision does not return .115 fraction
+	expect.soft(res3).toStrictEqual([
+		'Unexpected subsequent init:\n'
+		+ "ALTER TABLE `table` MODIFY COLUMN `column` datetime DEFAULT '2025-05-23 12:53:53.115';",
+	]);
+
 	expect.soft(res4).toStrictEqual([]);
 	expect.soft(res5).toStrictEqual([]);
 });

@@ -230,11 +230,11 @@ test('change table schema #1', async () => {
 	const schema = mysqlSchema('folder');
 	const from = {
 		schema,
-		users: mysqlTable('users', {}),
+		users: mysqlTable('users', { id: int() }),
 	};
 	const to = {
 		schema,
-		users: schema.table('users', {}),
+		users: schema.table('users', { id: int() }),
 	};
 
 	const renames = ['users->folder.users'];
@@ -480,20 +480,16 @@ test('add table #14', async () => {
 
 test('drop index', async () => {
 	const from = {
-		users: mysqlTable(
-			'table',
-			{
-				name: text('name'),
-			},
-			(t) => [
-				index('name_idx').on(t.name),
-			],
-		),
+		users: mysqlTable('table', {
+			name: varchar({ length: 10 }),
+		}, (t) => [
+			index('name_idx').on(t.name),
+		]),
 	};
 
 	const to = {
 		users: mysqlTable('table', {
-			name: text('name'),
+			name: varchar({ length: 10 }),
 		}),
 	};
 
@@ -510,13 +506,13 @@ test('drop index', async () => {
 test('drop unique constraint', async () => {
 	const from = {
 		users: mysqlTable('table', {
-			name: text('name'),
+			name: varchar({ length: 10 }),
 		}, (t) => [unique('name_uq').on(t.name)]),
 	};
 
 	const to = {
 		users: mysqlTable('table', {
-			name: text('name'),
+			name: varchar({ length: 10 }),
 		}),
 	};
 
@@ -536,42 +532,30 @@ test('add table with indexes', async () => {
 	const from = {};
 
 	const to = {
-		users: mysqlTable(
-			'users',
-			{
-				id: serial('id').primaryKey(),
-				name: text('name'),
-				email: text('email'),
-			},
-			(t) => [
-				uniqueIndex('uniqueExpr').on(sql`(lower(${t.email}))`),
-				index('indexExpr').on(sql`(lower(${t.email}))`),
-				index('indexExprMultiple').on(
-					sql`(lower(${t.email}))`,
-					sql`(lower(${t.email}))`,
-				),
-
-				uniqueIndex('uniqueCol').on(t.email),
-				index('indexCol').on(t.email),
-				index('indexColMultiple').on(t.email, t.email),
-
-				index('indexColExpr').on(
-					sql`(lower(${t.email}))`,
-					t.email,
-				),
-			],
-		),
+		users: mysqlTable('users', {
+			id: serial().primaryKey(),
+			name: varchar({ length: 100 }),
+			email: varchar({ length: 100 }),
+		}, (t) => [
+			uniqueIndex('uniqueExpr').on(sql`(lower(${t.email}))`),
+			index('indexExpr').on(sql`(lower(${t.email}))`),
+			index('indexExprMultiple').on(sql`(lower(${t.email}))`, sql`(lower(${t.email}))`),
+			uniqueIndex('uniqueCol').on(t.email),
+			index('indexCol').on(t.email),
+			index('indexColMultiple').on(t.email, t.name),
+			index('indexColExpr').on(sql`(lower(${t.email}))`, t.email),
+		]),
 	};
 
 	const { sqlStatements: st } = await diff(from, to, []);
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		`CREATE TABLE \`users\` (\n\t\`id\` serial PRIMARY KEY,\n\t\`name\` text,\n\t\`email\` text,\n\tCONSTRAINT \`uniqueExpr\` UNIQUE((lower(\`email\`))),\n\tCONSTRAINT \`uniqueCol\` UNIQUE(\`email\`)\n);\n`,
+		`CREATE TABLE \`users\` (\n\t\`id\` serial PRIMARY KEY,\n\t\`name\` varchar(100),\n\t\`email\` varchar(100),\n\tCONSTRAINT \`uniqueExpr\` UNIQUE((lower(\`email\`))),\n\tCONSTRAINT \`uniqueCol\` UNIQUE(\`email\`)\n);\n`,
 		'CREATE INDEX `indexExpr` ON `users` ((lower(`email`)));',
 		'CREATE INDEX `indexExprMultiple` ON `users` ((lower(`email`)),(lower(`email`)));',
 		'CREATE INDEX `indexCol` ON `users` (`email`);',
-		'CREATE INDEX `indexColMultiple` ON `users` (`email`,`email`);',
+		'CREATE INDEX `indexColMultiple` ON `users` (`email`,`name`);',
 		'CREATE INDEX `indexColExpr` ON `users` ((lower(`email`)),`email`);',
 	];
 	expect(st).toStrictEqual(st0);
@@ -612,9 +596,9 @@ test('composite primary key #1', async () => {
 	const from = {};
 	const to = {
 		table: mysqlTable('works_to_creators', {
-			workId: int('work_id').notNull(),
-			creatorId: int('creator_id').notNull(),
-			classification: text('classification').notNull(),
+			workId: int().notNull(),
+			creatorId: int().notNull(),
+			classification: varchar({ length: 10 }).notNull(),
 		}, (t) => [
 			primaryKey({
 				columns: [t.workId, t.creatorId, t.classification],
@@ -626,7 +610,7 @@ test('composite primary key #1', async () => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		'CREATE TABLE `works_to_creators` (\n\t`work_id` int NOT NULL,\n\t`creator_id` int NOT NULL,\n\t`classification` text NOT NULL,\n\tCONSTRAINT `works_to_creators_work_id_creator_id_classification_pk` PRIMARY KEY(`work_id`,`creator_id`,`classification`)\n);\n',
+		'CREATE TABLE `works_to_creators` (\n\t`workId` int NOT NULL,\n\t`creatorId` int NOT NULL,\n\t`classification` varchar(10) NOT NULL,\n\tCONSTRAINT `works_to_creators_workId_creatorId_classification_pk` PRIMARY KEY(`workId`,`creatorId`,`classification`)\n);\n',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -701,7 +685,7 @@ test('add column before creating unique constraint', async () => {
 	const to = {
 		table: mysqlTable('table', {
 			id: serial('id').primaryKey(),
-			name: text('name').notNull(),
+			name: varchar({ length: 10 }).notNull(),
 		}, (t) => [
 			unique('uq').on(t.name),
 		]),
@@ -713,7 +697,7 @@ test('add column before creating unique constraint', async () => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		'ALTER TABLE `table` ADD `name` text NOT NULL;',
+		'ALTER TABLE `table` ADD `name` varchar(10) NOT NULL;',
 		'CREATE UNIQUE INDEX `uq` ON `table` (`name`);',
 	];
 	expect(st).toStrictEqual(st0);
@@ -727,7 +711,7 @@ test('optional db aliases (snake case)', async () => {
 		t1Id1: int().notNull().primaryKey(),
 		t1Col2: int().notNull(),
 		t1Col3: int().notNull(),
-		t2Ref: int().notNull().references(() => t2.t2Id),
+		t2Ref: bigint({ mode: 'number', unsigned: true }).references(() => t2.t2Id),
 		t1Uni: int().notNull(),
 		t1UniIdx: int().notNull(),
 		t1Idx: int().notNull(),
@@ -756,28 +740,28 @@ test('optional db aliases (snake case)', async () => {
 
 	const casing = 'snake_case';
 	const { sqlStatements: st } = await diff(from, to, [], casing);
-	const { sqlStatements: pst } = await push({ db, to });
+	const { sqlStatements: pst } = await push({ db, to, casing });
 
 	const st0: string[] = [
 		`CREATE TABLE \`t1\` (
 	\`t1_id1\` int PRIMARY KEY,
 	\`t1_col2\` int NOT NULL,
 	\`t1_col3\` int NOT NULL,
-	\`t2_ref\` int NOT NULL,
+	\`t2_ref\` bigint unsigned,
 	\`t1_uni\` int NOT NULL,
 	\`t1_uni_idx\` int NOT NULL,
 	\`t1_idx\` int NOT NULL,
 	CONSTRAINT \`t1_uni\` UNIQUE(\`t1_uni\`),
-	CONSTRAINT \`t1_uni_idx\` UNIQUE(\`t1_uni_idx\`),
-	CONSTRAINT \`t1_t2_ref_t2_t2_id_fk\` FOREIGN KEY (\`t2_ref\`) REFERENCES \`t2\`(\`t2_id\`),
-	CONSTRAINT \`t1_t1_col2_t1_col3_t3_t3_id1_t3_id2_fk\` FOREIGN KEY (\`t1_col2\`,\`t1_col3\`) REFERENCES \`t3\`(\`t3_id1\`,\`t3_id2\`)
+	CONSTRAINT \`t1_uni_idx\` UNIQUE(\`t1_uni_idx\`)
 );\n`,
 		`CREATE TABLE \`t2\` (\n\t\`t2_id\` serial PRIMARY KEY\n);\n`,
 		`CREATE TABLE \`t3\` (
 	\`t3_id1\` int,
 	\`t3_id2\` int,
 	CONSTRAINT \`t3_t3_id1_t3_id2_pk\` PRIMARY KEY(\`t3_id1\`,\`t3_id2\`)
-);`,
+);\n`,
+		'ALTER TABLE `t1` ADD CONSTRAINT `t1_t2_ref_t2_t2_id_fk` FOREIGN KEY (`t2_ref`) REFERENCES `t2`(`t2_id`);',
+		'ALTER TABLE `t1` ADD CONSTRAINT `t1_t1_col2_t1_col3_t3_t3_id1_t3_id2_fk` FOREIGN KEY (`t1_col2`,`t1_col3`) REFERENCES `t3`(`t3_id1`,`t3_id2`);',
 		`CREATE INDEX \`t1_idx\` ON \`t1\` (\`t1_idx\`);`,
 	];
 	expect(st).toStrictEqual(st0);
@@ -791,7 +775,7 @@ test('optional db aliases (camel case)', async () => {
 		t1_id1: int().notNull().primaryKey(),
 		t1_col2: int().notNull(),
 		t1_col3: int().notNull(),
-		t2_ref: int().notNull().references(() => t2.t2_id),
+		t2_ref: bigint({ mode: 'number', unsigned: true }).references(() => t2.t2_id),
 		t1_uni: int().notNull(),
 		t1_uni_idx: int().notNull(),
 		t1_idx: int().notNull(),
@@ -828,14 +812,14 @@ test('optional db aliases (camel case)', async () => {
 
 	const st0: string[] = [
 		`CREATE TABLE \`t1\` (\n\t\`t1Id1\` int PRIMARY KEY,\n\t\`t1Col2\` int NOT NULL,\n\t\`t1Col3\` int NOT NULL,\n`
-		+ `\t\`t2Ref\` int NOT NULL,\n\t\`t1Uni\` int NOT NULL,\n\t\`t1UniIdx\` int NOT NULL,\n\t\`t1Idx\` int NOT NULL,\n`
+		+ `\t\`t2Ref\` bigint unsigned,\n\t\`t1Uni\` int NOT NULL,\n\t\`t1UniIdx\` int NOT NULL,\n\t\`t1Idx\` int NOT NULL,\n`
 		+ `\tCONSTRAINT \`t1Uni\` UNIQUE(\`t1Uni\`),\n`
-		+ `\tCONSTRAINT \`t1UniIdx\` UNIQUE(\`t1UniIdx\`),\n`
-		+ `\tCONSTRAINT \`t1_t2Ref_t2_t2Id_fk\` FOREIGN KEY (\`t2Ref\`) REFERENCES \`t2\`(\`t2Id\`),\n`
-		+ `\tCONSTRAINT \`t1_t1Col2_t1Col3_t3_t3Id1_t3Id2_fk\` FOREIGN KEY (\`t1Col2\`,\`t1Col3\`) REFERENCES \`t3\`(\`t3Id1\`,\`t3Id2\`)\n`
+		+ `\tCONSTRAINT \`t1UniIdx\` UNIQUE(\`t1UniIdx\`)\n`
 		+ `);\n`,
 		`CREATE TABLE \`t2\` (\n\t\`t2Id\` serial PRIMARY KEY\n);\n`,
 		`CREATE TABLE \`t3\` (\n\t\`t3Id1\` int,\n\t\`t3Id2\` int,\n\tCONSTRAINT \`t3_t3Id1_t3Id2_pk\` PRIMARY KEY(\`t3Id1\`,\`t3Id2\`)\n);\n`,
+		'ALTER TABLE `t1` ADD CONSTRAINT `t1_t2Ref_t2_t2Id_fk` FOREIGN KEY (`t2Ref`) REFERENCES `t2`(`t2Id`);',
+		'ALTER TABLE `t1` ADD CONSTRAINT `t1_t1Col2_t1Col3_t3_t3Id1_t3Id2_fk` FOREIGN KEY (`t1Col2`,`t1Col3`) REFERENCES `t3`(`t3Id1`,`t3Id2`);',
 		'CREATE INDEX `t1Idx` ON `t1` (`t1Idx`);',
 	];
 	expect(st).toStrictEqual(st0);
@@ -878,7 +862,7 @@ test('add+drop unique', async () => {
 
 test('fk #1', async () => {
 	const users = mysqlTable('users', {
-		id: int(),
+		id: int().unique(),
 	});
 	const to = {
 		users,
@@ -892,8 +876,9 @@ test('fk #1', async () => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		'CREATE TABLE `users` (\n\t`id` int\n);\n',
-		'CREATE TABLE `places` (\n\t`id` int,\n\t`ref` int,\n\tCONSTRAINT `places_ref_users_id_fk` FOREIGN KEY (`ref`) REFERENCES `users`(`id`)\n);\n',
+		'CREATE TABLE `users` (\n\t`id` int,\n\tCONSTRAINT `id_unique` UNIQUE(`id`)\n);\n',
+		'CREATE TABLE `places` (\n\t`id` int,\n\t`ref` int\n);\n',
+		'ALTER TABLE `places` ADD CONSTRAINT `places_ref_users_id_fk` FOREIGN KEY (`ref`) REFERENCES `users`(`id`);',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);

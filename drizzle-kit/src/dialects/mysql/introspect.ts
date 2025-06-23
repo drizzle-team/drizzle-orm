@@ -95,16 +95,18 @@ export const fromDatabase = async (
 		const table = column['TABLE_NAME'];
 		const name: string = column['COLUMN_NAME'];
 		const isNullable = column['IS_NULLABLE'] === 'YES'; // 'YES', 'NO'
-		const dataType = column['DATA_TYPE']; // varchar
 		const columnType = column['COLUMN_TYPE']; // varchar(256)
-		const isPrimary = column['COLUMN_KEY'] === 'PRI'; // 'PRI', ''
 		const columnDefault: string = column['COLUMN_DEFAULT'] ?? null;
 		const collation: string = column['CHARACTER_SET_NAME'];
 		const geenratedExpression: string = column['GENERATION_EXPRESSION'];
 
 		const extra = column['EXTRA'] ?? '';
-		const isAutoincrement = extra === 'auto_increment';
 		const isDefaultAnExpression = extra.includes('DEFAULT_GENERATED'); // 'auto_increment', ''
+		const dataType = column['DATA_TYPE']; // varchar
+		const isPrimary = column['COLUMN_KEY'] === 'PRI'; // 'PRI', ''
+		const numericPrecision = column['NUMERIC_PRECISION'];
+		const numericScale = column['NUMERIC_SCALE'];
+		const isAutoincrement = extra === 'auto_increment';
 		const onUpdateNow = extra.includes('on update CURRENT_TIMESTAMP');
 
 		let changedType = columnType.replace('decimal(10,0)', 'decimal');
@@ -122,7 +124,7 @@ export const fromDatabase = async (
 		}
 
 		const def = parseDefaultValue(changedType, columnDefault, collation);
-
+		
 		res.columns.push({
 			entityType: 'columns',
 			table: table,
@@ -324,7 +326,6 @@ export const fromDatabase = async (
 	}
 
 	progressCallback('indexes', indexesCount, 'done');
-	progressCallback('enums', 0, 'done');
 	progressCallback('views', viewsCount, 'done');
 
 	const checks = await db.query(`
