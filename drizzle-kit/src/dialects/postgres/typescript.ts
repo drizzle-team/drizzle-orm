@@ -12,7 +12,7 @@ import '../../@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
 import { parseArray } from 'src/utils/parse-pgarray';
 import { Casing } from '../../cli/validations/common';
-import { assertUnreachable, stringifyArray, stringifyTuplesArray } from '../../utils';
+import { assertUnreachable, stringifyArray, stringifyTuplesArray, trimChar } from '../../utils';
 import { unescapeSingleQuotes } from '../../utils';
 import {
 	CheckConstraint,
@@ -426,7 +426,7 @@ export const ddlToTypeScript = (
 		if (it.cycle) params += `, cycle: true`;
 		else params += `, cycle: false`;
 
-		params = params ? `, { ${params.trimChar(',')} }` : '';
+		params = params ? `, { ${trimChar(params, ',')} }` : '';
 
 		return `export const ${withCasing(paramName, casing)} = ${func}("${it.name}"${params})\n`;
 	})
@@ -445,9 +445,12 @@ export const ddlToTypeScript = (
 		const params = !it.createDb && !it.createRole && it.inherit
 			? ''
 			: `${
-				`, { ${it.createDb ? `createDb: true,` : ''}${it.createRole ? ` createRole: true,` : ''}${
-					!it.inherit ? ` inherit: false ` : ''
-				}`.trimChar(',')
+				trimChar(
+					`, { ${it.createDb ? `createDb: true,` : ''}${it.createRole ? ` createRole: true,` : ''}${
+						!it.inherit ? ` inherit: false ` : ''
+					}`,
+					',',
+				)
 			}	}`;
 
 		return `export const ${identifier} = pgRole("${it.name}", ${params});\n`;

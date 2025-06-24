@@ -319,7 +319,7 @@ export const diffIntrospect = async (
 		statements: afterFileStatements,
 	} = await ddlDiffDry(ddl1, ddl2, 'push');
 
-	rmSync(`tests/cockroachdb/tmp/${testName}.ts`);
+	rmSync(`tests/cockroach/tmp/${testName}.ts`);
 
 	return {
 		sqlStatements: afterFileSqlStatements,
@@ -384,7 +384,7 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
-	const path = `tests/cockroachdb/tmp/temp-${hash(String(Math.random()))}.ts`;
+	const path = `tests/cockroach/tmp/temp-${hash(String(Math.random()))}.ts`;
 
 	if (existsSync(path)) rmSync(path);
 	writeFileSync(path, file.file);

@@ -113,7 +113,7 @@ export const diffIntrospect = async (
 	for (const st of init) await db.query(st);
 
 	// introspect to schema
-	const schema = await fromDatabaseForDrizzle(db, (_) => true, (it) => schemas.indexOf(it) >= 0, entities);
+	const schema = await fromDatabaseForDrizzle(db, (_) => true, (it) => schemas.indexOf(it) >= 0);
 
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
@@ -164,7 +164,7 @@ export const push = async (config: {
 	const casing = config.casing ?? 'camelCase';
 	const schemas = config.schemas ?? ((_: string) => true);
 
-	const { schema } = await introspect(db, [], schemas, config.entities, new EmptyProgressView());
+	const { schema } = await introspect(db, [], schemas, new EmptyProgressView());
 
 	const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
 	const { ddl: ddl2, errors: err2 } = 'entities' in to && '_' in to
@@ -249,7 +249,7 @@ export const diffPush = async (config: {
 	}
 
 	// do introspect into PgSchemaInternal
-	const introspectedSchema = await fromDatabaseForDrizzle(db, undefined, (it) => schemas.indexOf(it) >= 0, entities);
+	const introspectedSchema = await fromDatabaseForDrizzle(db, undefined, (it) => schemas.indexOf(it) >= 0);
 
 	const { ddl: ddl1, errors: err3 } = interimToDDL(introspectedSchema);
 	const { ddl: ddl2, errors: err2 } = drizzleToDDL(destination, casing);
@@ -454,6 +454,10 @@ export const diffDefault = async <T extends MsSqlColumnBuilder>(
 };
 
 export const prepareTestDatabase = async (): Promise<TestDatabase> => {
+	// TODO
+	// const envUrl = process.env.MSSQL_CONNECTION_STRING;
+	// const { url, container } = envUrl ? { url: envUrl, container: null } : await createDockerDB();
+
 	const { container, options } = await createDockerDB();
 
 	const sleep = 1000;
