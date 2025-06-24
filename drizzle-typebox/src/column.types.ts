@@ -1,6 +1,6 @@
 import type * as t from '@sinclair/typebox';
 import type { Assume, Column } from 'drizzle-orm';
-import type { BufferSchema, IsEnumDefined, IsNever, JsonSchema } from './utils.ts';
+import type { BigIntStringModeSchema, BufferSchema, IsEnumDefined, IsNever, JsonSchema } from './utils.ts';
 
 type HasBaseColumn<TColumn> = TColumn extends { _: { baseColumn: Column | undefined } }
 	? IsNever<TColumn['_']['baseColumn']> extends false ? true
@@ -13,9 +13,12 @@ export interface GenericSchema<T> extends t.TSchema {
 	static: T;
 }
 
-export type GetTypeboxType<
-	TColumn extends Column,
-> = TColumn['_']['columnType'] extends
+type IsBigIntStringMode<TColumn extends Column> = TColumn['_']['columnType'] extends 'MsSqlBigInt'
+	? TColumn['_']['data'] extends string ? true
+	: false
+	: false;
+
+type IsIntegerColumnType<TData, TColumnType> = TColumnType extends
 	| 'MySqlTinyInt'
 	| 'SingleStoreTinyInt'
 	| 'PgSmallInt'
@@ -36,23 +39,43 @@ export type GetTypeboxType<
 	| 'SingleStoreSerial'
 	| 'SQLiteInteger'
 	| 'MySqlYear'
-	| 'SingleStoreYear' ? t.TInteger
-	: TColumn['_']['columnType'] extends 'PgBinaryVector' ? t.TRegExp
+	| 'SingleStoreYear'
+	| 'MsSqlTinyInt'
+	| 'MsSqlSmallInt'
+	| 'MsSqlInt'
+	| 'CockroachInteger'
+	| 'CockroachBigInt53'
+	| 'CockroachSmallInt' ? true
+	: TColumnType extends 'MsSqlBigInt' ? TData extends number ? true
+		: false
+	: false;
+
+export type GetTypeboxType<
+	TColumn extends Column,
+> = IsBigIntStringMode<TColumn> extends true ? BigIntStringModeSchema
+	: IsIntegerColumnType<TColumn['_']['data'], TColumn['_']['columnType']> extends true ? t.TInteger
+	: TColumn['_']['columnType'] extends 'PgBinaryVector' | 'CockroachBinaryVector' ? t.TRegExp
 	: HasBaseColumn<TColumn> extends true ? t.TArray<
 			GetTypeboxType<Assume<TColumn['_']['baseColumn'], Column>>
 		>
 	: IsEnumDefined<TColumn['_']['enumValues']> extends true
 		? t.TEnum<{ [K in Assume<TColumn['_']['enumValues'], string[]>[number]]: K }>
-	: TColumn['_']['columnType'] extends 'PgGeometry' | 'PgPointTuple' ? t.TTuple<[t.TNumber, t.TNumber]>
+	: TColumn['_']['columnType'] extends 'PgGeometry' | 'PgPointTuple' | 'CockroachGeometry'
+		? t.TTuple<[t.TNumber, t.TNumber]>
 	: TColumn['_']['columnType'] extends 'PgLine' ? t.TTuple<[t.TNumber, t.TNumber, t.TNumber]>
 	: TColumn['_']['data'] extends Date ? t.TDate
 	: TColumn['_']['data'] extends Buffer ? BufferSchema
 	: TColumn['_']['dataType'] extends 'array'
 		? t.TArray<GetTypeboxPrimitiveType<Assume<TColumn['_']['data'], any[]>[number]>>
-	: TColumn['_']['data'] extends Record<string, any>
-		? TColumn['_']['columnType'] extends
-			'PgJson' | 'PgJsonb' | 'MySqlJson' | 'SingleStoreJson' | 'SQLiteTextJson' | 'SQLiteBlobJson'
-			? GenericSchema<TColumn['_']['data']>
+	: TColumn['_']['data'] extends Record<string, any> ? TColumn['_']['columnType'] extends
+			| 'PgJson'
+			| 'PgJsonb'
+			| 'MySqlJson'
+			| 'SingleStoreJson'
+			| 'SQLiteTextJson'
+			| 'SQLiteBlobJson'
+			| 'MsSqlJson'
+			| 'CockroachJsonb' ? GenericSchema<TColumn['_']['data']>
 		: t.TObject<{ [K in keyof TColumn['_']['data']]: GetTypeboxPrimitiveType<TColumn['_']['data'][K]> }>
 	: TColumn['_']['dataType'] extends 'json' ? JsonSchema
 	: GetTypeboxPrimitiveType<TColumn['_']['data']>;
