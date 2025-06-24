@@ -7,7 +7,7 @@ import {
 	date,
 	datetime,
 	datetime2,
-	datetimeOffset,
+	datetimeoffset,
 	decimal,
 	float,
 	int,

@@ -28,6 +28,7 @@ import { ddlToTypeScript } from 'src/dialects/mssql/typescript';
 import { hash } from 'src/dialects/mssql/utils';
 import { DB } from 'src/utils';
 import { v4 as uuid } from 'uuid';
+import 'zx/globals';
 
 export type MssqlDBSchema = Record<
 	string,
@@ -50,14 +51,14 @@ export const drizzleToDDL = (
 	const schemas = Object.values(schema).filter((it) => is(it, MsSqlSchema)) as MsSqlSchema[];
 	const views = Object.values(schema).filter((it) => is(it, MsSqlView)) as MsSqlView[];
 
-	const res = fromDrizzleSchema(
+	const { schema: res, errors } = fromDrizzleSchema(
 		{ schemas, tables, views },
 		casing,
 	);
 
-	// if (errors.length > 0) {
-	// 	throw new Error();
-	// }
+	if (errors.length > 0) {
+		throw new Error();
+	}
 
 	return interimToDDL(res);
 };
@@ -119,14 +120,21 @@ export const diffIntrospect = async (
 
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
 
-	writeFileSync(`tests/mssql/tmp/${testName}.ts`, file.file);
+	const filePath = `tests/mssql/tmp/${testName}.ts`;
+
+	writeFileSync(filePath, file.file);
+
+	const typeCheckResult = await $`pnpm exec tsc --noEmit --skipLibCheck ${filePath}`.nothrow();
+	if (typeCheckResult.exitCode !== 0) {
+		throw new Error(typeCheckResult.stderr || typeCheckResult.stdout);
+	}
 
 	// generate snapshot from ts file
 	const response = await prepareFromSchemaFiles([
-		`tests/mssql/tmp/${testName}.ts`,
+		filePath,
 	]);
 
-	const schema2 = fromDrizzleSchema(response, casing);
+	const { schema: schema2, errors: e2 } = fromDrizzleSchema(response, casing);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(schema2);
 
 	const {
@@ -165,17 +173,11 @@ export const push = async (config: {
 		: drizzleToDDL(to, casing);
 
 	if (err2.length > 0) {
-		for (const e of err2) {
-			console.error(`err2: ${JSON.stringify(e)}`);
-		}
-		throw new Error();
+		throw new MockError(err2);
 	}
 
 	if (err3.length > 0) {
-		for (const e of err3) {
-			console.error(`err3: ${JSON.stringify(e)}`);
-		}
-		throw new Error();
+		throw new MockError(err3);
 	}
 
 	if (log === 'statements') {
@@ -381,7 +383,7 @@ export const diffDefault = async <T extends MsSqlColumnBuilder>(
 	writeFileSync(path, file.file);
 
 	const response = await prepareFromSchemaFiles([path]);
-	const sch = fromDrizzleSchema(response, 'camelCase');
+	const { schema: sch, errors: e2 } = fromDrizzleSchema(response, 'camelCase');
 	const { ddl: ddl2, errors: e3 } = interimToDDL(sch);
 
 	const { sqlStatements: afterFileSqlStatements } = await ddlDiffDry(ddl1, ddl2, 'push');
