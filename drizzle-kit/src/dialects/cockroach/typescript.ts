@@ -24,7 +24,7 @@ import {
 	tableFromDDL,
 	ViewColumn,
 } from './ddl';
-import { defaults } from './grammar';
+import { defaults, trimChar } from './grammar';
 
 // TODO: omit defaults opclass...
 const cockroachImportsList = new Set([
@@ -402,7 +402,7 @@ export const ddlToTypeScript = (
 		if (it.cacheSize) params += `, cache: "${it.cacheSize}"`;
 		else params += `, cycle: false`;
 
-		params = params ? `, { ${params.trimChar(',')} }` : '';
+		params = params ? `, { ${trimChar(params, ',')} }` : '';
 
 		return `export const ${withCasing(paramName, casing)} = ${func}("${it.name}"${params})\n`;
 	})
@@ -420,7 +420,7 @@ export const ddlToTypeScript = (
 
 		const params = !it.createDb && !it.createRole
 			? ''
-			: `${`, { ${it.createDb ? `createDb: true,` : ''}${it.createRole ? ` createRole: true,` : ''}`.trimChar(',')}	}`;
+			: `${trimChar(`, { ${it.createDb ? `createDb: true,` : ''}${it.createRole ? ` createRole: true,` : ''}`, ',')}	}`;
 
 		return `export const ${identifier} = cockroachRole("${it.name}", ${params});\n`;
 	})

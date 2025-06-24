@@ -1,12 +1,10 @@
 import { serve } from '@hono/node-server';
 import { zValidator } from '@hono/zod-validator';
 import { createHash } from 'crypto';
+import { AnyColumn, AnyTable, is } from 'drizzle-orm';
 import {
-	AnyColumn,
-	AnyTable,
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
-	is,
 	Many,
 	normalizeRelation,
 	One,
@@ -253,9 +251,7 @@ export const prepareSingleStoreSchema = async (path: string | string[]) => {
 	return { schema: singlestoreSchema, relations, files };
 };
 
-const getCustomDefaults = <T extends AnyTable<{}>>(
-	schema: Record<string, Record<string, T>>,
-): CustomDefault[] => {
+const getCustomDefaults = <T extends AnyTable<{}>>(schema: Record<string, Record<string, T>>): CustomDefault[] => {
 	const customDefaults: CustomDefault[] = [];
 
 	Object.entries(schema).map(([schema, tables]) => {
@@ -587,13 +583,7 @@ const proxySchema = z.object({
 		params: z.array(z.any()).optional(),
 		typings: z.string().array().optional(),
 		mode: z.enum(['array', 'object']).default('object'),
-		method: z.union([
-			z.literal('values'),
-			z.literal('get'),
-			z.literal('all'),
-			z.literal('run'),
-			z.literal('execute'),
-		]),
+		method: z.union([z.literal('values'), z.literal('get'), z.literal('all'), z.literal('run'), z.literal('execute')]),
 	}),
 });
 
@@ -602,16 +592,8 @@ const transactionProxySchema = z.object({
 	data: z
 		.object({
 			sql: z.string(),
-			params: z.array(z.any()).optional(),
-			typings: z.string().array().optional(),
-			mode: z.enum(['array', 'object']).default('object'),
-			method: z.union([
-				z.literal('values'),
-				z.literal('get'),
-				z.literal('all'),
-				z.literal('run'),
-				z.literal('execute'),
-			]),
+			method: z.union([z.literal('values'), z.literal('get'), z.literal('all'), z.literal('run'), z.literal('execute')])
+				.optional(),
 		})
 		.array(),
 });
@@ -647,11 +629,7 @@ const jsonStringify = (data: any) => {
 
 		// Convert Buffer and ArrayBuffer to base64
 		if (
-			(value
-				&& typeof value === 'object'
-				&& 'type' in value
-				&& 'data' in value
-				&& value.type === 'Buffer')
+			(value && typeof value === 'object' && 'type' in value && 'data' in value && value.type === 'Buffer')
 			|| value instanceof ArrayBuffer
 			|| value instanceof Buffer
 		) {
@@ -709,11 +687,9 @@ export const prepareServer = async (
 			Object.entries(drizzleSchema)
 				.map(([schemaName, schema]) => {
 					// have unique keys across schemas
-					const mappedTableEntries = Object.entries(schema).map(
-						([tableName, table]) => {
-							return [`__${schemaName}__.${tableName}`, table];
-						},
-					);
+					const mappedTableEntries = Object.entries(schema).map(([tableName, table]) => {
+						return [`__${schemaName}__.${tableName}`, table];
+					});
 
 					return mappedTableEntries;
 				})
@@ -722,10 +698,7 @@ export const prepareServer = async (
 		...relations,
 	};
 
-	const relationsConfig = extractTablesRelationalConfig(
-		relationalSchema,
-		createTableRelationsHelpers,
-	);
+	const relationsConfig = extractTablesRelationalConfig(relationalSchema, createTableRelationsHelpers);
 
 	app.post('/', zValidator('json', schema), async (c) => {
 		const body = c.req.valid('json');
@@ -779,17 +752,11 @@ export const prepareServer = async (
 
 			const result = columns.map((column) => {
 				const found = customDefaults.find((d) => {
-					return (
-						d.schema === column.schema
-						&& d.table === column.table
-						&& d.column === column.column
-					);
+					return d.schema === column.schema && d.table === column.table && d.column === column.column;
 				});
 
 				if (!found) {
-					throw new Error(
-						`Custom default not found for ${column.schema}.${column.table}.${column.column}`,
-					);
+					throw new Error(`Custom default not found for ${column.schema}.${column.table}.${column.column}`);
 				}
 
 				const value = found.func();
