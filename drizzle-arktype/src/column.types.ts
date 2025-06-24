@@ -15,7 +15,6 @@ export type GetArktypeType<
 	| 'SingleStoreJson'
 	| 'SQLiteTextJson'
 	| 'SQLiteBlobJson'
-	| 'MsSqlJson'
 	| 'CockroachJsonb' ? unknown extends TColumn['_']['data'] ? Type<Json> : Type<TColumn['_']['data']>
 	: Type<TColumn['_']['data']>;
 

@@ -98,7 +98,6 @@ export type GetValibotType<
 			| 'SingleStoreJson'
 			| 'SQLiteTextJson'
 			| 'SQLiteBlobJson'
-			| 'MsSqlJson'
 			| 'CockroachJsonb' ? v.GenericSchema<TData>
 		: v.ObjectSchema<
 			{ readonly [K in keyof TData]: GetValibotPrimitiveType<TData[K], '', { noPipe: true }> },
