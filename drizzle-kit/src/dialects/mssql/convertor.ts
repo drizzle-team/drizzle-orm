@@ -169,9 +169,9 @@ const recreateIdentityColumn = convertor('recreate_identity_column', (st) => {
 	const statements = [];
 
 	for (const toDelete of constraintsToDelete) {
+		if (toDelete.entityType === 'fks') statements.push(dropForeignKey.convert({ fk: toDelete }) as string);
 		if (toDelete.entityType === 'checks') statements.push(dropCheck.convert({ check: toDelete }) as string);
 		if (toDelete.entityType === 'defaults') statements.push(dropDefault.convert({ default: toDelete }) as string);
-		if (toDelete.entityType === 'fks') statements.push(dropForeignKey.convert({ fk: toDelete }) as string);
 		if (toDelete.entityType === 'pks') statements.push(dropPK.convert({ pk: toDelete }) as string);
 		if (toDelete.entityType === 'indexes') statements.push(dropIndex.convert({ index: toDelete }) as string);
 		if (toDelete.entityType === 'uniques') statements.push(dropUnique.convert({ unique: toDelete }) as string);

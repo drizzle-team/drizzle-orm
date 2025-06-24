@@ -29,7 +29,7 @@ export const mapEntries = <T>(
 };
 
 export type Proxy = (params: ProxyParams) => Promise<any[]>;
-export type TransactionProxy = (queries: ProxyParams[]) => Promise<any[]>;
+export type TransactionProxy = (queries: { sql: string; method?: ProxyParams['method'] }[]) => Promise<any[]>;
 
 export type DB = {
 	query: <T extends any = any>(sql: string, params?: any[]) => Promise<T[]>;

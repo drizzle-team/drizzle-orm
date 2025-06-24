@@ -59,7 +59,7 @@ export const parseDefaultValue = (
 	value = stripCollation(value, collation);
 
 	if (columnType.startsWith('decimal')) {
-		return { value: value.trimChar("'"), type: 'decimal' };
+		return { value: trimChar(value, "'"), type: 'decimal' };
 	}
 
 	if (
