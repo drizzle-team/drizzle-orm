@@ -50,14 +50,14 @@ export const drizzleToDDL = (
 	const schemas = Object.values(schema).filter((it) => is(it, MsSqlSchema)) as MsSqlSchema[];
 	const views = Object.values(schema).filter((it) => is(it, MsSqlView)) as MsSqlView[];
 
-	const res = fromDrizzleSchema(
+	const { schema: res, errors } = fromDrizzleSchema(
 		{ schemas, tables, views },
 		casing,
 	);
 
-	// if (errors.length > 0) {
-	// 	throw new Error();
-	// }
+	if (errors.length > 0) {
+		throw new Error();
+	}
 
 	return interimToDDL(res);
 };
@@ -126,7 +126,7 @@ export const diffIntrospect = async (
 		`tests/mssql/tmp/${testName}.ts`,
 	]);
 
-	const schema2 = fromDrizzleSchema(response, casing);
+	const { schema: schema2, errors: e2 } = fromDrizzleSchema(response, casing);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(schema2);
 
 	const {
@@ -381,7 +381,7 @@ export const diffDefault = async <T extends MsSqlColumnBuilder>(
 	writeFileSync(path, file.file);
 
 	const response = await prepareFromSchemaFiles([path]);
-	const sch = fromDrizzleSchema(response, 'camelCase');
+	const { schema: sch, errors: e2 } = fromDrizzleSchema(response, 'camelCase');
 	const { ddl: ddl2, errors: e3 } = interimToDDL(sch);
 
 	const { sqlStatements: afterFileSqlStatements } = await ddlDiffDry(ddl1, ddl2, 'push');

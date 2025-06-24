@@ -1,3 +1,4 @@
+import { mssqlSchemaError } from 'src/cli/views';
 import type { CasingType } from '../../cli/validations/common';
 import { prepareFilenames } from '../../utils/utils-node';
 import { createDDL, interimToDDL, MssqlDDL } from './ddl';
@@ -31,25 +32,19 @@ export const prepareSnapshot = async (
 
 	const res = await prepareFromSchemaFiles(filenames);
 
-	const schema = fromDrizzleSchema(res, casing);
+	const { schema, errors } = fromDrizzleSchema(res, casing);
 
-	// TODO
-	// if (warnings.length > 0) {
-	// 	console.log(warnings.map((it) => schemaWarning(it)).join('\n\n'));
-	// }
-
-	// if (errors.length > 0) {
-	// 	console.log(errors.map((it) => schemaError(it)).join('\n'));
-	// 	process.exit(1);
-	// }
+	if (errors.length > 0) {
+		console.log(errors.map((it) => mssqlSchemaError(it)).join('\n'));
+		process.exit(1);
+	}
 
 	const { ddl: ddlCur, errors: errors2 } = interimToDDL(schema);
 
-	// TODO
-	// if (errors2.length > 0) {
-	// 	console.log(errors2.map((it) => schemaError(it)).join('\n'));
-	// 	process.exit(1);
-	// }
+	if (errors2.length > 0) {
+		console.log(errors2.map((it) => mssqlSchemaError(it)).join('\n'));
+		process.exit(1);
+	}
 
 	const id = randomUUID();
 	const prevId = prevSnapshot.id;

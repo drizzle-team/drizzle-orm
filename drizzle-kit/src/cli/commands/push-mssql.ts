@@ -24,7 +24,7 @@ import { Select } from '../selector-ui';
 import { CasingType } from '../validations/common';
 import type { MssqlCredentials } from '../validations/mssql';
 import { withStyle } from '../validations/outputs';
-import { ProgressView } from '../views';
+import { mssqlSchemaError, ProgressView } from '../views';
 
 export const handle = async (
 	schemaPath: string | string[],
@@ -43,29 +43,28 @@ export const handle = async (
 	const filenames = prepareFilenames(schemaPath);
 	const res = await prepareFromSchemaFiles(filenames);
 
-	const schemaTo = fromDrizzleSchema(res, casing);
+	const { schema: schemaTo, errors } = fromDrizzleSchema(res, casing);
 
-	// TODO handle warnings?
-	// if (warnings.length > 0) {
-	// 	console.log(warnings.map((it) => schemaWarning(it)).join('\n\n'));
-	// }
-
-	// if (errors.length > 0) {
-	// 	console.log(errors.map((it) => schemaError(it)).join('\n'));
-	// 	process.exit(1);
-	// }
+	if (errors.length > 0) {
+		console.log(errors.map((it) => mssqlSchemaError(it)).join('\n'));
+		process.exit(1);
+	}
 
 	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
 	const { schema: schemaFrom } = await introspect(db, tablesFilter, schemasFilter, progress);
 
 	const { ddl: ddl1, errors: errors1 } = interimToDDL(schemaFrom);
 	const { ddl: ddl2, errors: errors2 } = interimToDDL(schemaTo);
-	// todo: handle errors?
 
-	// if (errors1.length > 0) {
-	// 	console.log(errors.map((it) => schemaError(it)).join('\n'));
-	// 	process.exit(1);
-	// }
+	if (errors1.length > 0) {
+		console.log(errors.map((it) => mssqlSchemaError(it)).join('\n'));
+		process.exit(1);
+	}
+
+	if (errors2.length > 0) {
+		console.log(errors.map((it) => mssqlSchemaError(it)).join('\n'));
+		process.exit(1);
+	}
 
 	const { sqlStatements, statements: jsonStatements } = await ddlDiff(
 		ddl1,

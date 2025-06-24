@@ -107,6 +107,27 @@ test('add columns #3', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
+test('column conflict duplicate name #1', async (t) => {
+	const schema1 = {
+		users: mssqlTable('users', {
+			id: int('id'),
+		}),
+	};
+
+	const schema2 = {
+		users: mssqlTable('users', {
+			id: int('id'),
+			name: varchar('name', { length: 100 }).primaryKey(),
+			email: text('name'),
+		}),
+	};
+
+	await push({ to: schema1, db, schemas: ['dbo'] });
+
+	await expect(diff(schema1, schema2, [])).rejects.toThrowError(); // duplicate names in columns
+	await expect(push({ to: schema2, db, schemas: ['dbo'] })).rejects.toThrowError(); // duplicate names in columns
+});
+
 test('alter column change name #1', async (t) => {
 	const schema1 = {
 		users: mssqlTable('users', {

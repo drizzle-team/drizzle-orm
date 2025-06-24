@@ -12,8 +12,8 @@ import {
 } from 'drizzle-orm/mssql-core';
 import { CasingType } from 'src/cli/validations/common';
 import { safeRegister } from 'src/utils/utils-node';
-import { getColumnCasing, sqlToStr } from '../drizzle';
-import { DefaultConstraint, InterimSchema, MssqlEntities, Schema } from './ddl';
+import { getColumnCasing } from '../drizzle';
+import { DefaultConstraint, InterimSchema, MssqlEntities, Schema, SchemaError } from './ddl';
 import {
 	bufferToBinary,
 	defaultNameForDefault,
@@ -125,9 +125,9 @@ export const fromDrizzleSchema = (
 	},
 	casing: CasingType | undefined,
 	schemaFilter?: string[],
-): InterimSchema => {
+): { schema: InterimSchema; errors: SchemaError[] } => {
 	const dialect = new MsSqlDialect({ casing });
-	// const errors: SchemaError[] = [];
+	const errors: SchemaError[] = [];
 
 	const schemas = schema.schemas
 		.map<Schema>((it) => ({
@@ -326,6 +326,18 @@ export const fromDrizzleSchema = (
 			const columns = index.config.columns;
 			const name = index.config.name;
 
+			for (const column of columns) {
+				if (is(column, SQL) && !index.config.name) {
+					errors.push({
+						type: 'index_no_name',
+						schema: schema,
+						table: getTableName(index.config.table),
+						sql: dialect.sqlToQuery(column).sql,
+					});
+					continue;
+				}
+			}
+
 			let where = index.config.where ? dialect.sqlToQuery(index.config.where).sql : '';
 			where = where === 'true' ? '' : where;
 
@@ -410,7 +422,7 @@ export const fromDrizzleSchema = (
 		});
 	}
 
-	return result;
+	return { schema: result, errors };
 };
 
 export const prepareFromSchemaFiles = async (imports: string[]) => {
