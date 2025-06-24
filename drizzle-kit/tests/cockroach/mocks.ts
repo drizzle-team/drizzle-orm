@@ -150,23 +150,17 @@ export const push = async (config: {
 
 	const { schema } = await introspect(db, [], schemas, config.entities, new EmptyProgressView());
 
-	const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
-	const { ddl: ddl2, errors: err2 } = 'entities' in to && '_' in to
+	const { ddl: ddl1, errors: err2 } = interimToDDL(schema);
+	const { ddl: ddl2, errors: err3 } = 'entities' in to && '_' in to
 		? { ddl: to as CockroachDDL, errors: [] }
 		: drizzleToDDL(to, casing);
 
 	if (err2.length > 0) {
-		for (const e of err2) {
-			console.error(`err2: ${JSON.stringify(e)}`);
-		}
-		throw new Error();
+		throw new MockError(err2);
 	}
 
 	if (err3.length > 0) {
-		for (const e of err3) {
-			console.error(`err3: ${JSON.stringify(e)}`);
-		}
-		throw new Error();
+		throw new MockError(err3);
 	}
 
 	if (log === 'statements') {
@@ -305,7 +299,6 @@ export const diffIntrospect = async (
 		warnings,
 	} = fromDrizzleSchema(response, casing);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(schema2);
-	// TODO: handle errors
 
 	const {
 		sqlStatements: afterFileSqlStatements,

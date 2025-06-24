@@ -165,17 +165,11 @@ export const push = async (config: {
 		: drizzleToDDL(to, casing);
 
 	if (err2.length > 0) {
-		for (const e of err2) {
-			console.error(`err2: ${JSON.stringify(e)}`);
-		}
-		throw new Error();
+		throw new MockError(err2);
 	}
 
 	if (err3.length > 0) {
-		for (const e of err3) {
-			console.error(`err3: ${JSON.stringify(e)}`);
-		}
-		throw new Error();
+		throw new MockError(err3);
 	}
 
 	if (log === 'statements') {

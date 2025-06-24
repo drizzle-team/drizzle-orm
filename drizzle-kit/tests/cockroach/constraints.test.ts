@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import {
 	AnyCockroachColumn,
 	cockroachTable,
@@ -7,6 +8,7 @@ import {
 	primaryKey,
 	text,
 	unique,
+	varchar,
 } from 'drizzle-orm/cockroach-core';
 import { DB } from 'src/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
@@ -1544,4 +1546,119 @@ test('fk multistep #2', async () => {
 
 	expect(st3).toStrictEqual([]);
 	expect(pst3).toStrictEqual([]);
+});
+
+test('unique duplicate name', async (t) => {
+	const from = {
+		users: cockroachTable('users', {
+			name: varchar({ length: 255 }),
+			age: int4(),
+		}),
+		users2: cockroachTable('users2', {
+			name: varchar({ length: 255 }),
+			age: int4(),
+		}),
+	};
+	const to = {
+		users: cockroachTable('users', {
+			name: varchar({ length: 255 }),
+			age: int4(),
+		}, (t) => [unique('test').on(t.name)]),
+		users2: cockroachTable('users2', {
+			name: varchar({ length: 255 }),
+			age: int4(),
+		}, (t) => [unique('test').on(t.name)]),
+	};
+
+	await push({ db, to: from });
+
+	await expect(diff(from, to, [])).rejects.toThrowError();
+	await expect(push({ db, to })).rejects.toThrowError();
+});
+
+test('pk duplicate name', async (t) => {
+	const from = {
+		users: cockroachTable('users', {
+			name: varchar({ length: 255 }),
+			age: int4(),
+		}),
+		users2: cockroachTable('users2', {
+			name: varchar({ length: 255 }),
+			age: int4(),
+		}),
+	};
+	const to = {
+		users: cockroachTable('users', {
+			name: varchar({ length: 255 }),
+			age: int4(),
+		}, (t) => [primaryKey({ name: 'test', columns: [t.name] })]),
+		users2: cockroachTable('users2', {
+			name: varchar({ length: 255 }),
+			age: int4(),
+		}, (t) => [primaryKey({ name: 'test', columns: [t.name] })]),
+	};
+
+	await push({ db, to: from });
+
+	await expect(diff(from, to, [])).rejects.toThrowError();
+	await expect(push({ db, to })).rejects.toThrowError();
+});
+
+test('fk duplicate name', async (t) => {
+	const users = cockroachTable('users', {
+		name: varchar({ length: 255 }).primaryKey(),
+		age: int4().unique(),
+	});
+	const from = {
+		users,
+		users2: cockroachTable('users2', {
+			name: varchar({ length: 255 }),
+			age: int4(),
+		}),
+	};
+	const to = {
+		users,
+		users2: cockroachTable(
+			'users2',
+			{
+				name: varchar({ length: 255 }),
+				age: int4(),
+			},
+			(
+				t,
+			) => [
+				foreignKey({ name: 'test', columns: [t.age], foreignColumns: [users.age] }),
+				foreignKey({ name: 'test', columns: [t.name], foreignColumns: [users.name] }),
+			],
+		),
+	};
+
+	await push({ db, to: from });
+
+	await expect(diff(from, to, [])).rejects.toThrowError();
+	await expect(push({ db, to })).rejects.toThrowError();
+});
+
+test('index duplicate name', async (t) => {
+	const to = {
+		users: cockroachTable('users', {
+			name: varchar({ length: 255 }).primaryKey(),
+			age: int4().unique(),
+		}, (t) => [index('test').on(t.age), index('test').on(t.name)]),
+	};
+
+	await expect(diff({}, to, [])).rejects.toThrowError();
+	await expect(push({ db, to })).rejects.toThrowError();
+});
+
+test('index with no name', async (t) => {
+	const to = {
+		users: cockroachTable('users', {
+			name: varchar({ length: 255 }).primaryKey(),
+			age: int4().unique(),
+		}, (t) => [index().on(sql`${t.age}`)]),
+	};
+
+	await expect(diff({}, to, [])).rejects.toThrowError();
+	await expect(push({ db, to })).rejects.toThrowError();
 });
