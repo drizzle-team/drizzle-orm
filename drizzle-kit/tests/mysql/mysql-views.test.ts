@@ -500,7 +500,7 @@ test('push: alter view ".as" value', async () => {
 		`CREATE OR REPLACE ALGORITHM = merge SQL SECURITY invoker VIEW \`some_view\` AS (SELECT * FROM \`users\` WHERE \`users\`.\`id\` = 1) WITH cascaded CHECK OPTION;`,
 	];
 	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+	expect(pst).toStrictEqual([]); // Do not trigger definition changes on push
 });
 
 test('alter view ".as"', async () => {
@@ -524,7 +524,7 @@ test('alter view ".as"', async () => {
 	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
 	const st0: string[] = [
-		'ALTER ALGORITHM = undefined SQL SECURITY definer VIEW `view` AS select `id` from `test`;',
+		'CREATE OR REPLACE ALGORITHM = undefined SQL SECURITY definer VIEW `view` AS (select `id` from `test`);',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual([]); // do not trigger definition changes on push
