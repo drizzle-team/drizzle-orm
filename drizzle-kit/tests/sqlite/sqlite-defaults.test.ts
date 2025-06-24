@@ -45,7 +45,8 @@ test('integer', async () => {
 test('text', async () => {
 	const res1 = await diffDefault(_, text().default('text'), `('text')`);
 	const res2 = await diffDefault(_, text().default("text'text"), `('text''text')`);
-	const res3 = await diffDefault(_, text().default('text\'text"'), `('text''text"')`);
+	// raw default sql for the line below: ('text''\text"')
+	const res3 = await diffDefault(_, text().default('text\'\\text"'), `('text''\\text"')`);
 	const res4 = await diffDefault(_, text({ enum: ['one', 'two', 'three'] }).default('one'), `('one')`);
 
 	expect.soft(res1).toStrictEqual([]);
@@ -79,7 +80,8 @@ test.only('numeric', async () => {
 test('blob', async () => {
 	const res1 = await diffDefault(_, blob({ mode: 'buffer' }).default(Buffer.from('text')), `'text'`);
 	const res2 = await diffDefault(_, blob({ mode: 'buffer' }).default(Buffer.from("text'text")), `'text''text'`);
-	const res3 = await diffDefault(_, blob({ mode: 'buffer' }).default(Buffer.from('text\'text"')), `'text''text"'`);
+	// raw default sql for the line below: ('text''\text"')
+	const res3 = await diffDefault(_, blob({ mode: 'buffer' }).default(Buffer.from('text\'\\text"')), `'text''\\text"'`);
 
 	const res4 = await diffDefault(_, blob({ mode: 'bigint' }).default(9223372036854775807n), "'9223372036854775807'");
 
@@ -88,7 +90,8 @@ test('blob', async () => {
 	const res7 = await diffDefault(_, blob({ mode: 'json' }).default([]), `'[]'`);
 	const res8 = await diffDefault(_, blob({ mode: 'json' }).default([1, 2, 3]), `'[1,2,3]'`);
 	const res9 = await diffDefault(_, blob({ mode: 'json' }).default({ key: 'value' }), `'{"key":"value"}'`);
-	const res10 = await diffDefault(_, blob({ mode: 'json' }).default({ key: "val'ue" }), `'{"key":"val''ue"}'`);
+	// raw default sql for the line below: '{"key":"val'\ue"}'
+	const res10 = await diffDefault(_, blob({ mode: 'json' }).default({ key: "val'\\ue" }), `'{"key":"val''\\ue"}'`);
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);

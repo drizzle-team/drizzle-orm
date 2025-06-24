@@ -1,5 +1,6 @@
 import type { Column, ColumnBaseConfig } from 'drizzle-orm';
 import type {
+	CockroachArray,
 	CockroachBigInt53,
 	CockroachBinaryVector,
 	CockroachChar,
@@ -148,7 +149,7 @@ export function columnToSchema(
 				c: z.number(),
 			});
 		} // Handle other types
-		else if (isColumnType<PgArray<any, any>>(column, ['PgArray'])) {
+		else if (isColumnType<PgArray<any, any> | CockroachArray<any, any>>(column, ['PgArray', 'CockroachArray'])) {
 			schema = z.array(columnToSchema(column.baseColumn, factory));
 			schema = column.size ? (schema as zod.ZodArray<any>).length(column.size) : schema;
 		} else if (column.dataType === 'array') {
