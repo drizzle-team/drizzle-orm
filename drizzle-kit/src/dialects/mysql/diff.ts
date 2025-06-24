@@ -255,7 +255,7 @@ export const ddlDiff = async (
 			if (it.definition && mode === 'push') delete it.definition;
 			return it;
 		})
-		.filter((it) => Object.keys(it).length > 3)
+		.filter((it) => ddl2.views.hasDiff(it))
 		.map((it) => {
 			const view = ddl2.views.one({ name: it.name })!;
 			if (it.definition) return prepareStatement('create_view', { view, replace: true });
@@ -338,7 +338,7 @@ export const ddlDiff = async (
 			) {
 				delete it.generated;
 			}
-			
+
 			return ddl2.columns.hasDiff(it) && alterColumnPredicate(it);
 		}).map((it) => {
 			const column = ddl2.columns.one({ name: it.name, table: it.table })!;
