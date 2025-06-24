@@ -12,7 +12,9 @@ import {
 	cockroachTable,
 	cockroachView,
 	date,
+	decimal,
 	doublePrecision,
+	float,
 	index,
 	inet,
 	int4,
@@ -21,6 +23,7 @@ import {
 	numeric,
 	real,
 	smallint,
+	string,
 	text,
 	time,
 	timestamp,
@@ -239,39 +242,45 @@ test('generated column: link to another column', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-// defaults mismatch
-test.todo('introspect all column types', async () => {
+test('introspect all column types', async () => {
 	const myEnum = cockroachEnum('my_enum', ['a', 'b', 'c']);
 	const schema = {
 		enum_: myEnum,
 		columns: cockroachTable('columns', {
-			enum: myEnum('my_enum').default('a'),
-			smallint: smallint('smallint').default(10),
-			int4: int4('int4').default(10),
+			bigint: bigint('bigint', { mode: 'number' }).default(100),
+			// bit
+			boolean: boolean('boolean').default(true),
+			char: char('char', { length: 3 }).default('abc'),
+			date1: date('date1').default('2024-01-01'),
+			date2: date('date2').defaultNow(),
+			date3: date('date3').default(sql`current_timestamp`),
 			numeric: numeric('numeric', { precision: 3, scale: 1 }).default('99.9'),
 			numeric2: numeric('numeric2', { precision: 1, scale: 1 }).default('0.9'),
 			numeric3: numeric('numeric3').default('99.9'),
-			bigint: bigint('bigint', { mode: 'number' }).default(100),
-			boolean: boolean('boolean').default(true),
-			text: text('test').default('abc'),
-			varchar: varchar('varchar', { length: 25 }).default('abc'),
-			char: char('char', { length: 3 }).default('abc'),
+			decimal: decimal('decimal', { precision: 3, scale: 1 }).default('99.9'),
+			decimal2: decimal('decimal2', { precision: 1, scale: 1 }).default('0.9'),
+			decimal3: decimal('decimal3').default('99.9'),
+			enum: myEnum('my_enum').default('a'),
+			// geometry
+			float: float('float').default(100),
 			doublePrecision: doublePrecision('doublePrecision').default(100),
-			real: real('real').default(100),
+			inet: inet('inet').default('127.0.0.1'),
+			int4: int4('int4').default(10),
+			interval: interval('interval').default('1 day 01:00:00'),
 			jsonb: jsonb('jsonb').$type<{ attr: string }>().default({ attr: 'value' }),
+			real: real('real').default(100),
+			smallint: smallint('smallint').default(10),
+			string: string('string').default('value'),
+			text: text('test').default('abc'),
 			time1: time('time1').default('00:00:00'),
 			timestamp1: timestamp('timestamp1', { withTimezone: true, precision: 6 }).default(new Date()),
 			timestamp2: timestamp('timestamp2', { withTimezone: true, precision: 6 }).defaultNow(),
 			timestamp3: timestamp('timestamp3', { withTimezone: true, precision: 6 }).default(
 				sql`timezone('utc'::text, now())`,
 			),
-			date1: date('date1').default('2024-01-01'),
-			date2: date('date2').defaultNow(),
-			date3: date('date3').default(sql`current_timestamp`),
 			uuid1: uuid('uuid1').default('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'),
 			uuid2: uuid('uuid2').defaultRandom(),
-			inet: inet('inet').default('127.0.0.1'),
-			interval: interval('interval').default('1 day 01:00:00'),
+			varchar: varchar('varchar', { length: 25 }).default('abc'),
 		}),
 	};
 
@@ -289,30 +298,40 @@ test('introspect all column array types', async () => {
 	const myEnum = cockroachEnum('my_enum', ['a', 'b', 'c']);
 	const schema = {
 		enum_: myEnum,
-		// TODO test extensions
 		columns: cockroachTable('columns', {
-			enum: myEnum('my_enum').array().default(['a', 'b']),
-			smallint: smallint('smallint').array().default([10, 20]),
-			int4: int4('int4').array().default([10, 20]),
-			numeric: numeric('numeric', { precision: 3, scale: 1 }).array().default(['99.9', '88.8']),
-			bigint: bigint('bigint', { mode: 'number' }).array().default([100, 200]),
-			boolean: boolean('boolean').array().default([true, false]),
-			text: text('test').array().default(['abc', 'def']),
-			varchar: varchar('varchar', { length: 25 }).array().default(['abc', 'def']),
-			char: char('char', { length: 3 }).array().default(['abc', 'def']),
-			doublePrecision: doublePrecision('doublePrecision').array().default([100, 200]),
-			real: real('real').array().default([100, 200]),
-			time: time('time').array().default(['00:00:00', '01:00:00']),
-			timestamp: timestamp('timestamp', { withTimezone: true, precision: 6 })
-				.array()
-				.default([new Date(), new Date()]),
-			date: date('date').array().default(['2024-01-01', '2024-01-02']),
-			uuid: uuid('uuid').array().default([
-				'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
-				'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12',
-			]),
-			inet: inet('inet').array().default(['127.0.0.1', '127.0.0.2']),
-			interval: interval('interval').array().default(['1 day 01:00:00', '1 day 02:00:00']),
+			bigint: bigint('bigint', { mode: 'number' }).default(100).array(),
+			// bit
+			boolean: boolean('boolean').default(true).array(),
+			char: char('char', { length: 3 }).default('abc').array(),
+			date1: date('date1').default('2024-01-01').array(),
+			date2: date('date2').defaultNow().array(),
+			date3: date('date3').default(sql`current_timestamp`).array(),
+			numeric: numeric('numeric', { precision: 3, scale: 1 }).default('99.9').array(),
+			numeric2: numeric('numeric2', { precision: 1, scale: 1 }).default('0.9').array(),
+			numeric3: numeric('numeric3').default('99.9').array(),
+			decimal: decimal('decimal', { precision: 3, scale: 1 }).default('99.9').array(),
+			decimal2: decimal('decimal2', { precision: 1, scale: 1 }).default('0.9').array(),
+			decimal3: decimal('decimal3').default('99.9').array(),
+			enum: myEnum('my_enum').default('a').array(),
+			// geometry
+			float: float('float').default(100).array(),
+			doublePrecision: doublePrecision('doublePrecision').default(100).array(),
+			inet: inet('inet').default('127.0.0.1').array(),
+			int4: int4('int4').default(10).array(),
+			interval: interval('interval').default('1 day 01:00:00').array(),
+			real: real('real').default(100).array(),
+			smallint: smallint('smallint').default(10).array(),
+			string: string('string').default('value').array(),
+			text: text('test').default('abc').array(),
+			time1: time('time1').default('00:00:00').array(),
+			timestamp1: timestamp('timestamp1', { withTimezone: true, precision: 6 }).default(new Date()).array(),
+			timestamp2: timestamp('timestamp2', { withTimezone: true, precision: 6 }).defaultNow().array(),
+			timestamp3: timestamp('timestamp3', { withTimezone: true, precision: 6 }).default(
+				sql`timezone('utc'::text, now())`,
+			).array(),
+			uuid1: uuid('uuid1').default('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11').array(),
+			uuid2: uuid('uuid2').defaultRandom().array(),
+			varchar: varchar('varchar', { length: 25 }).default('abc').array(),
 		}),
 	};
 
@@ -412,8 +431,7 @@ test('introspect enum with similar name to native type', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
-// defaults mismatch
-test.todo('introspect strings with single quotes', async () => {
+test('introspect strings with single quotes', async () => {
 	const myEnum = cockroachEnum('my_enum', ['escape\'s quotes " ']);
 	const schema = {
 		enum_: myEnum,

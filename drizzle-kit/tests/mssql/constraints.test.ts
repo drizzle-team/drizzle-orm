@@ -3,6 +3,7 @@ import {
 	AnyMsSqlColumn,
 	check,
 	foreignKey,
+	index,
 	int,
 	mssqlSchema,
 	mssqlTable,
@@ -2062,4 +2063,107 @@ test('default multistep #2', async () => {
 	const { sqlStatements: pst5 } = await push({ db, to: sch4, schemas: ['dbo'] });
 	expect(st5).toStrictEqual(['ALTER TABLE [users2] DROP CONSTRAINT [users2_name2_default];']);
 	expect(pst5).toStrictEqual(['ALTER TABLE [users2] DROP CONSTRAINT [users2_name2_default];']);
+});
+
+test('unique duplicate name', async (t) => {
+	const from = {
+		users: mssqlTable('users', {
+			name: varchar({ length: 255 }),
+			age: int(),
+		}),
+		users2: mssqlTable('users2', {
+			name: varchar({ length: 255 }),
+			age: int(),
+		}),
+	};
+	const to = {
+		users: mssqlTable('users', {
+			name: varchar({ length: 255 }),
+			age: int(),
+		}, (t) => [unique('test').on(t.name)]),
+		users2: mssqlTable('users2', {
+			name: varchar({ length: 255 }),
+			age: int(),
+		}, (t) => [unique('test').on(t.name)]),
+	};
+
+	await push({ db, to: from });
+
+	await expect(diff(from, to, [])).rejects.toThrowError();
+	await expect(push({ db, to })).rejects.toThrowError();
+});
+
+test('pk duplicate name', async (t) => {
+	const from = {
+		users: mssqlTable('users', {
+			name: varchar({ length: 255 }),
+			age: int(),
+		}),
+		users2: mssqlTable('users2', {
+			name: varchar({ length: 255 }),
+			age: int(),
+		}),
+	};
+	const to = {
+		users: mssqlTable('users', {
+			name: varchar({ length: 255 }),
+			age: int(),
+		}, (t) => [primaryKey({ name: 'test', columns: [t.name] })]),
+		users2: mssqlTable('users2', {
+			name: varchar({ length: 255 }),
+			age: int(),
+		}, (t) => [primaryKey({ name: 'test', columns: [t.name] })]),
+	};
+
+	await push({ db, to: from });
+
+	await expect(diff(from, to, [])).rejects.toThrowError();
+	await expect(push({ db, to })).rejects.toThrowError();
+});
+
+test('fk duplicate name', async (t) => {
+	const users = mssqlTable('users', {
+		name: varchar({ length: 255 }).primaryKey(),
+		age: int().unique(),
+	});
+	const from = {
+		users,
+		users2: mssqlTable('users2', {
+			name: varchar({ length: 255 }),
+			age: int(),
+		}),
+	};
+	const to = {
+		users,
+		users2: mssqlTable(
+			'users2',
+			{
+				name: varchar({ length: 255 }),
+				age: int(),
+			},
+			(
+				t,
+			) => [
+				foreignKey({ name: 'test', columns: [t.age], foreignColumns: [users.age] }),
+				foreignKey({ name: 'test', columns: [t.name], foreignColumns: [users.name] }),
+			],
+		),
+	};
+
+	await push({ db, to: from });
+
+	await expect(diff(from, to, [])).rejects.toThrowError();
+	await expect(push({ db, to })).rejects.toThrowError();
+});
+
+test('index duplicate name', async (t) => {
+	const to = {
+		users: mssqlTable('users', {
+			name: varchar({ length: 255 }).primaryKey(),
+			age: int().unique(),
+		}, (t) => [index('test').on(t.age), index('test').on(t.name)]),
+	};
+
+	await expect(diff({}, to, [])).rejects.toThrowError();
+	await expect(push({ db, to })).rejects.toThrowError();
 });

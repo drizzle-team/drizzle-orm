@@ -1,5 +1,5 @@
 import type { CasingType } from '../../cli/validations/common';
-import { schemaError, schemaWarning } from '../../cli/views';
+import { postgresSchemaError, postgresSchemaWarning } from '../../cli/views';
 import { prepareFilenames } from '../../utils/utils-node';
 import { createDDL, interimToDDL, MysqlDDL } from '../mysql/ddl';
 import { drySnapshot, MysqlSnapshot, snapshotValidator } from '../mysql/snapshot';

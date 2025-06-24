@@ -89,6 +89,12 @@ export const pull = async (
 
 	const path = `tests/gel/tmp/${testName}.ts`;
 	fs.writeFileSync(path, file.file);
+
+	const typeCheckResult = await $`pnpm exec tsc --noEmit --skipLibCheck ${path}`.nothrow();
+	if (typeCheckResult.exitCode !== 0) {
+		throw new Error(typeCheckResult.stderr || typeCheckResult.stdout);
+	}
+
 	return path;
 };
 
