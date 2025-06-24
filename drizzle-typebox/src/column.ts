@@ -332,7 +332,7 @@ function numberColumnToSchema(column: Column, t: typeof typebox): TSchema {
 }
 
 TypeRegistry.Set('BigIntStringMode', (_, value) => {
-	if (typeof value !== 'string' || /^-?\d+$/.test(value)) {
+	if (typeof value !== 'string' || !(/^-?\d+$/.test(value))) {
 		return false;
 	}
 
