@@ -338,6 +338,7 @@ export const ddlDiff = async (
 			) {
 				delete it.generated;
 			}
+			
 			return ddl2.columns.hasDiff(it) && alterColumnPredicate(it);
 		}).map((it) => {
 			const column = ddl2.columns.one({ name: it.name, table: it.table })!;
