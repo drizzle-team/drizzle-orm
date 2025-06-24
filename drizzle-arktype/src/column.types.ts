@@ -9,8 +9,14 @@ export type ArktypeOptional<TSchema> = [Type<type.infer<TSchema>>, '?'];
 export type GetArktypeType<
 	TColumn extends Column,
 > = TColumn['_']['columnType'] extends
-	'PgJson' | 'PgJsonb' | 'MySqlJson' | 'SingleStoreJson' | 'SQLiteTextJson' | 'SQLiteBlobJson'
-	? unknown extends TColumn['_']['data'] ? Type<Json> : Type<TColumn['_']['data']>
+	| 'PgJson'
+	| 'PgJsonb'
+	| 'MySqlJson'
+	| 'SingleStoreJson'
+	| 'SQLiteTextJson'
+	| 'SQLiteBlobJson'
+	| 'MsSqlJson'
+	| 'CockroachJsonb' ? unknown extends TColumn['_']['data'] ? Type<Json> : Type<TColumn['_']['data']>
 	: Type<TColumn['_']['data']>;
 
 type HandleSelectColumn<

@@ -1,6 +1,32 @@
 import { type Type, type } from 'arktype';
 import type { Column, ColumnBaseConfig } from 'drizzle-orm';
 import type {
+	CockroachArray,
+	CockroachBigInt53,
+	CockroachBinaryVector,
+	CockroachChar,
+	CockroachFloat,
+	CockroachGeometry,
+	CockroachGeometryObject,
+	CockroachInteger,
+	CockroachReal,
+	CockroachSmallInt,
+	CockroachString,
+	CockroachUUID,
+	CockroachVarchar,
+	CockroachVector,
+} from 'drizzle-orm/cockroach-core';
+import type {
+	MsSqlBigInt,
+	MsSqlChar,
+	MsSqlFloat,
+	MsSqlInt,
+	MsSqlReal,
+	MsSqlSmallInt,
+	MsSqlTinyInt,
+	MsSqlVarChar,
+} from 'drizzle-orm/mssql-core';
+import type {
 	MySqlBigInt53,
 	MySqlChar,
 	MySqlDecimalNumber,
@@ -75,20 +101,31 @@ export function columnToSchema(column: Column): Type {
 
 	if (!schema) {
 		// Handle specific types
-		if (isColumnType<PgGeometry<any> | PgPointTuple<any>>(column, ['PgGeometry', 'PgPointTuple'])) {
+		if (
+			isColumnType<PgGeometry<any> | PgPointTuple<any> | CockroachGeometry<any>>(column, [
+				'PgGeometry',
+				'PgPointTuple',
+				'CockroachGeometry',
+			])
+		) {
 			schema = type([type.number, type.number]);
 		} else if (
-			isColumnType<PgPointObject<any> | PgGeometryObject<any>>(column, ['PgGeometryObject', 'PgPointObject'])
+			isColumnType<PgPointObject<any> | PgGeometryObject<any> | CockroachGeometryObject<any>>(column, [
+				'PgGeometryObject',
+				'PgPointObject',
+				'CockroachGeometryObject',
+			])
 		) {
 			schema = type({
 				x: type.number,
 				y: type.number,
 			});
 		} else if (
-			isColumnType<PgHalfVector<any> | PgVector<any> | SingleStoreVector<any>>(column, [
+			isColumnType<PgHalfVector<any> | PgVector<any> | SingleStoreVector<any> | CockroachVector<any>>(column, [
 				'PgHalfVector',
 				'PgVector',
 				'SingleStoreVector',
+				'CockroachVector',
 			])
 		) {
 			schema = column.dimensions
@@ -103,7 +140,7 @@ export function columnToSchema(column: Column): Type {
 				c: type.number,
 			});
 		} // Handle other types
-		else if (isColumnType<PgArray<any, any>>(column, ['PgArray'])) {
+		else if (isColumnType<PgArray<any, any> | CockroachArray<any, any>>(column, ['PgArray', 'CockroachArray'])) {
 			const arraySchema = columnToSchema(column.baseColumn).array();
 			schema = column.size ? arraySchema.exactlyLength(column.size) : arraySchema;
 		} else if (column.dataType === 'array') {
@@ -135,21 +172,36 @@ export function columnToSchema(column: Column): Type {
 }
 
 function numberColumnToSchema(column: Column): Type<number, any> {
-	let unsigned = column.getSQLType().includes('unsigned');
+	let unsigned = column.getSQLType().includes('unsigned') || isColumnType(column, ['MsSqlTinyInt']);
 	let min!: number;
 	let max!: number;
 	let integer = false;
 
-	if (isColumnType<MySqlTinyInt<any> | SingleStoreTinyInt<any>>(column, ['MySqlTinyInt', 'SingleStoreTinyInt'])) {
+	if (
+		isColumnType<MySqlTinyInt<any> | SingleStoreTinyInt<any> | MsSqlTinyInt<any>>(column, [
+			'MySqlTinyInt',
+			'SingleStoreTinyInt',
+			'MsSqlTinyInt',
+		])
+	) {
 		min = unsigned ? 0 : CONSTANTS.INT8_MIN;
 		max = unsigned ? CONSTANTS.INT8_UNSIGNED_MAX : CONSTANTS.INT8_MAX;
 		integer = true;
 	} else if (
-		isColumnType<PgSmallInt<any> | PgSmallSerial<any> | MySqlSmallInt<any> | SingleStoreSmallInt<any>>(column, [
+		isColumnType<
+			| PgSmallInt<any>
+			| PgSmallSerial<any>
+			| MySqlSmallInt<any>
+			| SingleStoreSmallInt<any>
+			| MsSqlSmallInt<any>
+			| CockroachSmallInt<any>
+		>(column, [
 			'PgSmallInt',
 			'PgSmallSerial',
 			'MySqlSmallInt',
 			'SingleStoreSmallInt',
+			'MsSqlSmallInt',
+			'CockroachSmallInt',
 		])
 	) {
 		min = unsigned ? 0 : CONSTANTS.INT16_MIN;
@@ -157,24 +209,36 @@ function numberColumnToSchema(column: Column): Type<number, any> {
 		integer = true;
 	} else if (
 		isColumnType<
-			PgReal<any> | MySqlFloat<any> | MySqlMediumInt<any> | SingleStoreFloat<any> | SingleStoreMediumInt<any>
+			| PgReal<any>
+			| MySqlFloat<any>
+			| MySqlMediumInt<any>
+			| SingleStoreFloat<any>
+			| SingleStoreMediumInt<any>
+			| MsSqlReal<any>
+			| CockroachReal<any>
 		>(column, [
 			'PgReal',
 			'MySqlFloat',
 			'MySqlMediumInt',
 			'SingleStoreFloat',
 			'SingleStoreMediumInt',
+			'MsSqlReal',
+			'CockroachReal',
 		])
 	) {
 		min = unsigned ? 0 : CONSTANTS.INT24_MIN;
 		max = unsigned ? CONSTANTS.INT24_UNSIGNED_MAX : CONSTANTS.INT24_MAX;
 		integer = isColumnType(column, ['MySqlMediumInt', 'SingleStoreMediumInt']);
 	} else if (
-		isColumnType<PgInteger<any> | PgSerial<any> | MySqlInt<any> | SingleStoreInt<any>>(column, [
+		isColumnType<
+			PgInteger<any> | PgSerial<any> | MySqlInt<any> | SingleStoreInt<any> | MsSqlInt<any> | CockroachInteger<any>
+		>(column, [
 			'PgInteger',
 			'PgSerial',
 			'MySqlInt',
 			'SingleStoreInt',
+			'MsSqlInt',
+			'CockroachInteger',
 		])
 	) {
 		min = unsigned ? 0 : CONSTANTS.INT32_MIN;
@@ -188,6 +252,8 @@ function numberColumnToSchema(column: Column): Type<number, any> {
 			| SingleStoreReal<any>
 			| SingleStoreDouble<any>
 			| SQLiteReal<any>
+			| MsSqlFloat<any>
+			| CockroachFloat<any>
 		>(column, [
 			'PgDoublePrecision',
 			'MySqlReal',
@@ -195,6 +261,8 @@ function numberColumnToSchema(column: Column): Type<number, any> {
 			'SingleStoreReal',
 			'SingleStoreDouble',
 			'SQLiteReal',
+			'MsSqlFloat',
+			'CockroachFloat',
 		])
 	) {
 		min = unsigned ? 0 : CONSTANTS.INT48_MIN;
@@ -210,6 +278,7 @@ function numberColumnToSchema(column: Column): Type<number, any> {
 			| SingleStoreSerial<any>
 			| SingleStoreDecimalNumber<any>
 			| SQLiteInteger<any>
+			| CockroachBigInt53<any>
 		>(
 			column,
 			[
@@ -222,8 +291,10 @@ function numberColumnToSchema(column: Column): Type<number, any> {
 				'SingleStoreSerial',
 				'SingleStoreDecimalNumber',
 				'SQLiteInteger',
+				'CockroachBigInt53',
 			],
 		)
+		|| (isColumnType<MsSqlBigInt<any>>(column, ['MsSqlBigInt']) && (column as MsSqlBigInt<any>).mode === 'number')
 	) {
 		unsigned = unsigned || isColumnType(column, ['MySqlSerial', 'SingleStoreSerial']);
 		min = unsigned ? 0 : Number.MIN_SAFE_INTEGER;
@@ -249,23 +320,60 @@ export const unsignedBigintNarrow = (v: bigint, ctx: { mustBe: (expected: string
 export const bigintNarrow = (v: bigint, ctx: { mustBe: (expected: string) => false }) =>
 	v < CONSTANTS.INT64_MIN ? ctx.mustBe('greater than') : v > CONSTANTS.INT64_MAX ? ctx.mustBe('less than') : true;
 
+/** @internal */
+export const bigintStringModeSchema = type.string.narrow((v, ctx) => {
+	if (typeof v !== 'string') {
+		return ctx.mustBe('a string');
+	}
+	if (!(/^-?\d+$/.test(v))) {
+		return ctx.mustBe('a string representing a number');
+	}
+
+	const bigint = BigInt(v);
+	if (bigint < CONSTANTS.INT64_MIN) {
+		return ctx.mustBe('greater than');
+	}
+	if (bigint > CONSTANTS.INT64_MAX) {
+		return ctx.mustBe('less than');
+	}
+
+	return true;
+});
+
 function bigintColumnToSchema(column: Column): Type {
+	if (isColumnType<MsSqlBigInt<any>>(column, ['MsSqlBigInt'])) {
+		if (column.mode === 'string') {
+			return bigintStringModeSchema;
+		} else if (column.mode === 'number') {
+			return numberColumnToSchema(column);
+		}
+	}
+
 	const unsigned = column.getSQLType().includes('unsigned');
 	return type.bigint.narrow(unsigned ? unsignedBigintNarrow : bigintNarrow);
 }
 
 function stringColumnToSchema(column: Column): Type {
-	if (isColumnType<PgUUID<ColumnBaseConfig<'string', 'PgUUID'>>>(column, ['PgUUID'])) {
+	if (
+		isColumnType<
+			PgUUID<ColumnBaseConfig<'string', 'PgUUID'>> | CockroachUUID<ColumnBaseConfig<'string', 'CockroachUUID'>>
+		>(column, ['PgUUID', 'CockroachUUID'])
+	) {
 		return type(/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/iu).describe('a RFC-4122-compliant UUID');
 	}
 	if (
 		isColumnType<
-			PgBinaryVector<
+			| PgBinaryVector<
 				ColumnBaseConfig<'string', 'PgBinaryVector'> & {
 					dimensions: number;
 				}
 			>
-		>(column, ['PgBinaryVector'])
+			| CockroachBinaryVector<
+				ColumnBaseConfig<'string', 'CockroachBinaryVector'> & {
+					dimensions: number;
+				}
+			>
+		>(column, ['PgBinaryVector', 'CockroachBinaryVector'])
 	) {
 		return type(`/^[01]{${column.dimensions}}$/`)
 			.describe(`a string containing ones or zeros while being ${column.dimensions} characters long`);
@@ -276,12 +384,28 @@ function stringColumnToSchema(column: Column): Type {
 
 	// Char columns are padded to a fixed length. The input can be equal or less than the set length
 	if (
-		isColumnType<PgVarchar<any> | SQLiteText<any> | PgChar<any> | MySqlChar<any> | SingleStoreChar<any>>(column, [
+		isColumnType<
+			| PgVarchar<any>
+			| SQLiteText<any>
+			| PgChar<any>
+			| MySqlChar<any>
+			| SingleStoreChar<any>
+			| MsSqlChar<any>
+			| MsSqlVarChar<any>
+			| CockroachChar<any>
+			| CockroachVarchar<any>
+			| CockroachString<any>
+		>(column, [
 			'PgVarchar',
 			'SQLiteText',
 			'PgChar',
 			'MySqlChar',
 			'SingleStoreChar',
+			'MsSqlChar',
+			'MsSqlVarChar',
+			'CockroachChar',
+			'CockroachVarchar',
+			'CockroachString',
 		])
 	) {
 		max = column.length;
