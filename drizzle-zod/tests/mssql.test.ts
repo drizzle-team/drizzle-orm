@@ -6,7 +6,7 @@ import { z } from 'zod/v4';
 import { bigintStringModeSchema, bufferSchema, jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSchemaFactory, createSelectSchema, createUpdateSchema } from '../src/index.ts';
-import { Expect, expectEnumValues, expectSchemaShape } from './utils.ts';
+import { Expect, expectSchemaShape } from './utils.ts';
 
 const integerSchema = z.int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX);
 const integerNullableSchema = integerSchema.nullable();

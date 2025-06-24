@@ -10,15 +10,28 @@ export type HasBaseColumn<TColumn> = TColumn extends { _: { baseColumn: Column |
 export type EnumValuesToEnum<TEnumValues extends [string, ...string[]]> = { readonly [K in TEnumValues[number]]: K };
 
 export type ExtractAdditionalProperties<TColumn extends Column> = {
-	max: TColumn['_']['columnType'] extends 'PgVarchar' | 'SQLiteText' | 'PgChar' | 'MySqlChar' | 'SingleStoreChar'
-		? Assume<TColumn['_'], { length: number | undefined }>['length']
-		: TColumn['_']['columnType'] extends 'MySqlText' | 'MySqlVarChar' | 'SingleStoreText' | 'SingleStoreVarChar'
-			? number
-		: TColumn['_']['columnType'] extends 'PgBinaryVector' | 'PgHalfVector' | 'PgVector' | 'SingleStoreVector'
+	max: TColumn['_']['columnType'] extends
+		| 'PgVarchar'
+		| 'SQLiteText'
+		| 'PgChar'
+		| 'MySqlChar'
+		| 'MySqlVarChar'
+		| 'MySqlText'
+		| 'SingleStoreChar'
+		| 'SingleStoreText'
+		| 'SingleStoreVarChar'
+		| 'MsSqlChar'
+		| 'MsSqlVarChar'
+		| 'CockroachChar'
+		| 'CockroachVarchar' ? number
+		: TColumn['_']['columnType'] extends
+			'PgBinaryVector' | 'PgHalfVector' | 'PgVector' | 'SingleStoreVector' | 'CockroachVector' | 'CockroachBinaryVector'
 			? Assume<TColumn['_'], { dimensions: number }>['dimensions']
-		: TColumn['_']['columnType'] extends 'PgArray' ? Assume<TColumn['_'], { size: number | undefined }>['size']
+		: TColumn['_']['columnType'] extends 'PgArray' | 'CockroachArray'
+			? Assume<TColumn['_'], { size: number | undefined }>['size']
 		: undefined;
-	fixedLength: TColumn['_']['columnType'] extends 'PgHalfVector' | 'PgVector' | 'PgArray' | 'SingleStoreVector' ? true
+	fixedLength: TColumn['_']['columnType'] extends
+		'PgHalfVector' | 'PgVector' | 'PgArray' | 'SingleStoreVector' | 'CockroachVector' | 'CockroachArray' ? true
 		: false;
 };
 
@@ -45,13 +58,14 @@ export type GetValibotType<
 	TEnumValues extends string[] | undefined,
 	TBaseColumn extends Column | undefined,
 	TAdditionalProperties extends Record<string, any>,
-> = TColumnType extends 'PgHalfVector' | 'PgVector' | 'SingleStoreVector'
+> = TColumnType extends 'PgHalfVector' | 'PgVector' | 'SingleStoreVector' | 'CockroachVector'
 	? TAdditionalProperties['max'] extends number ? v.SchemaWithPipe<
 			[v.ArraySchema<v.NumberSchema<undefined>, undefined>, GetLengthAction<TAdditionalProperties, number[]>]
 		>
 	: v.ArraySchema<v.NumberSchema<undefined>, undefined>
-	: TColumnType extends 'PgUUID' ? v.SchemaWithPipe<[v.StringSchema<undefined>, v.UuidAction<string, undefined>]>
-	: TColumnType extends 'PgBinaryVector' ? v.SchemaWithPipe<
+	: TColumnType extends 'PgUUID' | 'CockroachUUID'
+		? v.SchemaWithPipe<[v.StringSchema<undefined>, v.UuidAction<string, undefined>]>
+	: TColumnType extends 'PgBinaryVector' | 'CockroachBinaryVector' ? v.SchemaWithPipe<
 			RemoveNeverElements<[
 				v.StringSchema<undefined>,
 				v.RegexAction<string, undefined>,
@@ -67,7 +81,7 @@ export type GetValibotType<
 		: GetArraySchema<Assume<TBaseColumn, Column>>
 	: IsEnumDefined<TEnumValues> extends true
 		? v.EnumSchema<{ readonly [K in Assume<TEnumValues, [string, ...string[]]>[number]]: K }, undefined>
-	: TColumnType extends 'PgGeometry' | 'PgPointTuple'
+	: TColumnType extends 'PgGeometry' | 'PgPointTuple' | 'CockroachGeometry'
 		? v.TupleSchema<[v.NumberSchema<undefined>, v.NumberSchema<undefined>], undefined>
 	: TColumnType extends 'PgLine'
 		? v.TupleSchema<[v.NumberSchema<undefined>, v.NumberSchema<undefined>, v.NumberSchema<undefined>], undefined>
@@ -77,9 +91,15 @@ export type GetValibotType<
 			GetValibotPrimitiveType<Assume<TData, any[]>[number], '', { noPipe: true }>,
 			undefined
 		>
-	: TData extends Record<string, any>
-		? TColumnType extends 'PgJson' | 'PgJsonb' | 'MySqlJson' | 'SingleStoreJson' | 'SQLiteTextJson' | 'SQLiteBlobJson'
-			? v.GenericSchema<TData>
+	: TData extends Record<string, any> ? TColumnType extends
+			| 'PgJson'
+			| 'PgJsonb'
+			| 'MySqlJson'
+			| 'SingleStoreJson'
+			| 'SQLiteTextJson'
+			| 'SQLiteBlobJson'
+			| 'MsSqlJson'
+			| 'CockroachJsonb' ? v.GenericSchema<TData>
 		: v.ObjectSchema<
 			{ readonly [K in keyof TData]: GetValibotPrimitiveType<TData[K], '', { noPipe: true }> },
 			undefined
@@ -87,48 +107,71 @@ export type GetValibotType<
 	: TDataType extends 'json' ? v.GenericSchema<Json>
 	: GetValibotPrimitiveType<TData, TColumnType, TAdditionalProperties>;
 
-type GetValibotPrimitiveType<TData, TColumnType, TAdditionalProperties extends Record<string, any>> = TData extends
-	number ? TAdditionalProperties['noPipe'] extends true ? v.NumberSchema<undefined> : v.SchemaWithPipe<
-		RemoveNeverElements<[
-			v.NumberSchema<undefined>,
-			v.MinValueAction<number, number, undefined>,
-			v.MaxValueAction<number, number, undefined>,
-			TColumnType extends
-				| 'MySqlTinyInt'
-				| 'SingleStoreTinyInt'
-				| 'PgSmallInt'
-				| 'PgSmallSerial'
-				| 'MySqlSmallInt'
-				| 'MySqlMediumInt'
-				| 'SingleStoreSmallInt'
-				| 'SingleStoreMediumInt'
-				| 'PgInteger'
-				| 'PgSerial'
-				| 'MySqlInt'
-				| 'SingleStoreInt'
-				| 'PgBigInt53'
-				| 'PgBigSerial53'
-				| 'MySqlBigInt53'
-				| 'MySqlSerial'
-				| 'SingleStoreBigInt53'
-				| 'SingleStoreSerial'
-				| 'SQLiteInteger'
-				| 'MySqlYear'
-				| 'SingleStoreYear' ? v.IntegerAction<number, undefined>
-				: never,
-		]>
-	>
-	: TData extends bigint ? TAdditionalProperties['noPipe'] extends true ? v.BigintSchema<undefined> : v.SchemaWithPipe<[
-			v.BigintSchema<undefined>,
-			v.MinValueAction<bigint, bigint, undefined>,
-			v.MaxValueAction<bigint, bigint, undefined>,
-		]>
-	: TData extends boolean ? v.BooleanSchema<undefined>
-	: TData extends string
-		? TAdditionalProperties['max'] extends number
-			? v.SchemaWithPipe<[v.StringSchema<undefined>, GetLengthAction<TAdditionalProperties, string>]>
-		: v.StringSchema<undefined>
-	: v.AnySchema;
+type IsBigIntStringMode<TData, TColumnType> = TColumnType extends 'MsSqlBigInt' ? TData extends string ? true
+	: false
+	: false;
+
+type GetValibotPrimitiveType<TData, TColumnType, TAdditionalProperties extends Record<string, any>> =
+	IsBigIntStringMode<TData, TColumnType> extends true ? v.SchemaWithPipe<
+			[
+				v.StringSchema<undefined>,
+				v.RegexAction<string, undefined>,
+				v.TransformAction<string, bigint>,
+				v.MinValueAction<bigint, bigint, undefined>,
+				v.MaxValueAction<bigint, bigint, undefined>,
+				v.TransformAction<bigint, string>,
+			]
+		>
+		: TData extends number
+			? TAdditionalProperties['noPipe'] extends true ? v.NumberSchema<undefined> : v.SchemaWithPipe<
+				RemoveNeverElements<[
+					v.NumberSchema<undefined>,
+					v.MinValueAction<number, number, undefined>,
+					v.MaxValueAction<number, number, undefined>,
+					TColumnType extends
+						| 'MySqlTinyInt'
+						| 'SingleStoreTinyInt'
+						| 'PgSmallInt'
+						| 'PgSmallSerial'
+						| 'MySqlSmallInt'
+						| 'MySqlMediumInt'
+						| 'SingleStoreSmallInt'
+						| 'SingleStoreMediumInt'
+						| 'PgInteger'
+						| 'PgSerial'
+						| 'MySqlInt'
+						| 'SingleStoreInt'
+						| 'PgBigInt53'
+						| 'PgBigSerial53'
+						| 'MySqlBigInt53'
+						| 'MySqlSerial'
+						| 'SingleStoreBigInt53'
+						| 'SingleStoreSerial'
+						| 'SQLiteInteger'
+						| 'MySqlYear'
+						| 'SingleStoreYear'
+						| 'MsSqlTinyInt'
+						| 'MsSqlSmallInt'
+						| 'MsSqlInt'
+						| 'CockroachInteger'
+						| 'CockroachBigInt53'
+						| 'CockroachSmallInt'
+						| 'MsSqlBigInt' ? v.IntegerAction<number, undefined>
+						: never,
+				]>
+			>
+		: TData extends bigint
+			? TAdditionalProperties['noPipe'] extends true ? v.BigintSchema<undefined> : v.SchemaWithPipe<[
+				v.BigintSchema<undefined>,
+				v.MinValueAction<bigint, bigint, undefined>,
+				v.MaxValueAction<bigint, bigint, undefined>,
+			]>
+		: TData extends boolean ? v.BooleanSchema<undefined>
+		: TData extends string
+			? TAdditionalProperties['max'] extends number
+				? v.SchemaWithPipe<[v.StringSchema<undefined>, GetLengthAction<TAdditionalProperties, string>]>
+			: v.StringSchema<undefined>
+		: v.AnySchema;
 
 type HandleSelectColumn<
 	TSchema extends v.GenericSchema,

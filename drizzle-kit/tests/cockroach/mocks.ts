@@ -285,12 +285,19 @@ export const diffIntrospect = async (
 
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
+	const filePath = `tests/cockroachdb/tmp/${testName}.ts`;
+
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
-	writeFileSync(`tests/cockroach/tmp/${testName}.ts`, file.file);
+	writeFileSync(filePath, file.file);
+
+	const typeCheckResult = await $`pnpm exec tsc --noEmit --skipLibCheck ${filePath}`.nothrow();
+	if (typeCheckResult.exitCode !== 0) {
+		throw new Error(typeCheckResult.stderr || typeCheckResult.stdout);
+	}
 
 	// generate snapshot from ts file
 	const response = await prepareFromSchemaFiles([
-		`tests/cockroach/tmp/${testName}.ts`,
+		filePath,
 	]);
 
 	const {
