@@ -1,9 +1,8 @@
 import { type Static, Type as t } from '@sinclair/typebox';
 import { type Equal, sql } from 'drizzle-orm';
-import { customType, int, json, mssqlSchema, mssqlTable, mssqlView, text } from 'drizzle-orm/mssql-core';
-import type { TopLevelCondition } from 'json-rules-engine';
+import { customType, int, mssqlSchema, mssqlTable, mssqlView, text } from 'drizzle-orm/mssql-core';
 import { test } from 'vitest';
-import { bigintStringModeSchema, bufferSchema, jsonSchema } from '~/column.ts';
+import { bigintStringModeSchema, bufferSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSelectSchema, createUpdateSchema, type GenericSchema } from '../src/index.ts';
 import { Expect, expectSchemaShape } from './utils.ts';
@@ -354,7 +353,6 @@ test('all data types', (tc) => {
 		decimal,
 		float,
 		int,
-		json,
 		numeric,
 		real,
 		smallint,
@@ -386,7 +384,6 @@ test('all data types', (tc) => {
 		decimal3: decimal({ mode: 'string' }).notNull(),
 		float: float().notNull(),
 		int: int().notNull(),
-		json: json().notNull(),
 		numeric1: numeric({ mode: 'number' }).notNull(),
 		numeric2: numeric({ mode: 'bigint' }).notNull(),
 		numeric3: numeric({ mode: 'string' }).notNull(),
@@ -428,7 +425,6 @@ test('all data types', (tc) => {
 		decimal3: t.String(),
 		float: t.Number({ minimum: CONSTANTS.INT48_MIN, maximum: CONSTANTS.INT48_MAX }),
 		int: t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: CONSTANTS.INT32_MAX }),
-		json: jsonSchema,
 		numeric1: t.Number({ minimum: Number.MIN_SAFE_INTEGER, maximum: Number.MAX_SAFE_INTEGER }),
 		numeric2: t.BigInt({ minimum: CONSTANTS.INT64_MIN, maximum: CONSTANTS.INT64_MAX }),
 		numeric3: t.String(),
@@ -452,17 +448,18 @@ test('all data types', (tc) => {
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-/* Infinitely recursive type */ {
-	const TopLevelCondition: GenericSchema<TopLevelCondition> = t.Any() as any;
-	const table = mssqlTable('test', {
-		json: json().$type<TopLevelCondition>(),
-	});
-	const result = createSelectSchema(table);
-	const expected = t.Object({
-		json: t.Union([TopLevelCondition, t.Null()]),
-	});
-	Expect<Equal<Static<typeof result>, Static<typeof expected>>>();
-}
+// MSSQL doesn't support JSON data type
+// /* Infinitely recursive type */ {
+// 	const TopLevelCondition: GenericSchema<TopLevelCondition> = t.Any() as any;
+// 	const table = mssqlTable('test', {
+// 		json: json().$type<TopLevelCondition>(),
+// 	});
+// 	const result = createSelectSchema(table);
+// 	const expected = t.Object({
+// 		json: t.Union([TopLevelCondition, t.Null()]),
+// 	});
+// 	Expect<Equal<Static<typeof result>, Static<typeof expected>>>();
+// }
 
 /* Disallow unknown keys in table refinement - select */ {
 	const table = mssqlTable('test', { id: int() });

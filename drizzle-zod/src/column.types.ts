@@ -35,7 +35,6 @@ export type GetZodType<
 			| 'SingleStoreJson'
 			| 'SQLiteTextJson'
 			| 'SQLiteBlobJson'
-			| 'MsSqlJson'
 			| 'CockroachJsonb' ? z.ZodType<TColumn['_']['data'], TColumn['_']['data']>
 		: z.ZodObject<
 			{ [K in keyof TColumn['_']['data']]: GetZodPrimitiveType<TColumn['_']['data'][K], '', TCoerce> },

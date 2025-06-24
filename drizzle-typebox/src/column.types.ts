@@ -74,7 +74,6 @@ export type GetTypeboxType<
 			| 'SingleStoreJson'
 			| 'SQLiteTextJson'
 			| 'SQLiteBlobJson'
-			| 'MsSqlJson'
 			| 'CockroachJsonb' ? GenericSchema<TColumn['_']['data']>
 		: t.TObject<{ [K in keyof TColumn['_']['data']]: GetTypeboxPrimitiveType<TColumn['_']['data'][K]> }>
 	: TColumn['_']['dataType'] extends 'json' ? JsonSchema

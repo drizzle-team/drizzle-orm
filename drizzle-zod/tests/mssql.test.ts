@@ -1,9 +1,8 @@
 import { type Equal, sql } from 'drizzle-orm';
-import { customType, int, json, mssqlSchema, mssqlTable, mssqlView, text } from 'drizzle-orm/mssql-core';
-import type { TopLevelCondition } from 'json-rules-engine';
+import { customType, int, mssqlSchema, mssqlTable, mssqlView, text } from 'drizzle-orm/mssql-core';
 import { test } from 'vitest';
 import { z } from 'zod/v4';
-import { bigintStringModeSchema, bufferSchema, jsonSchema } from '~/column.ts';
+import { bigintStringModeSchema, bufferSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSchemaFactory, createSelectSchema, createUpdateSchema } from '../src/index.ts';
 import { Expect, expectSchemaShape } from './utils.ts';
@@ -348,7 +347,6 @@ test('all data types', (t) => {
 		decimal,
 		float,
 		int,
-		json,
 		numeric,
 		real,
 		smallint,
@@ -380,7 +378,6 @@ test('all data types', (t) => {
 		decimal3: decimal({ mode: 'string' }).notNull(),
 		float: float().notNull(),
 		int: int().notNull(),
-		json: json().notNull(),
 		numeric1: numeric({ mode: 'number' }).notNull(),
 		numeric2: numeric({ mode: 'bigint' }).notNull(),
 		numeric3: numeric({ mode: 'string' }).notNull(),
@@ -422,7 +419,6 @@ test('all data types', (t) => {
 		decimal3: z.string(),
 		float: z.number().gte(CONSTANTS.INT48_MIN).lte(CONSTANTS.INT48_MAX),
 		int: z.int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX),
-		json: jsonSchema,
 		numeric1: z.number().gte(Number.MIN_SAFE_INTEGER).lte(Number.MAX_SAFE_INTEGER),
 		numeric2: z.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
 		numeric3: z.string(),
@@ -499,17 +495,18 @@ test('type coercion - mixed', (t) => {
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-/* Infinitely recursive type */ {
-	const TopLevelCondition: z.ZodType<TopLevelCondition> = z.custom<TopLevelCondition>().superRefine(() => {});
-	const table = mssqlTable('test', {
-		json: json().$type<TopLevelCondition>(),
-	});
-	const result = createSelectSchema(table);
-	const expected = z.object({
-		json: z.nullable(TopLevelCondition),
-	});
-	Expect<Equal<z.infer<typeof result>, z.infer<typeof expected>>>();
-}
+// MSSQL doesn't support JSON data type
+// /* Infinitely recursive type */ {
+// 	const TopLevelCondition: z.ZodType<TopLevelCondition> = z.custom<TopLevelCondition>().superRefine(() => {});
+// 	const table = mssqlTable('test', {
+// 		json: json().$type<TopLevelCondition>(),
+// 	});
+// 	const result = createSelectSchema(table);
+// 	const expected = z.object({
+// 		json: z.nullable(TopLevelCondition),
+// 	});
+// 	Expect<Equal<z.infer<typeof result>, z.infer<typeof expected>>>();
+// }
 
 /* Disallow unknown keys in table refinement - select */ {
 	const table = mssqlTable('test', { id: int() });
