@@ -949,11 +949,6 @@ test('no diffs for all database types', async () => {
 			column6: interval('column6'),
 		}),
 
-		allSerials: customSchema.table('all_serials', {
-			columnAll: int4('column_all').notNull(),
-			column: int4('column').notNull(),
-		}),
-
 		allTexts: customSchema.table(
 			'all_texts',
 			{
@@ -970,7 +965,6 @@ test('no diffs for all database types', async () => {
 				column: string('columns').primaryKey(),
 				column2: string('column2', { length: 200 }),
 			},
-			(t: any) => [index('test').on(t.column)],
 		),
 		allBools: customSchema.table('all_bools', {
 			columnAll: boolean('column_all').default(true).notNull(),

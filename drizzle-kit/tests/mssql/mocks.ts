@@ -28,6 +28,7 @@ import { ddlToTypeScript } from 'src/dialects/mssql/typescript';
 import { hash } from 'src/dialects/mssql/utils';
 import { DB } from 'src/utils';
 import { v4 as uuid } from 'uuid';
+import 'zx/globals';
 
 export type MssqlDBSchema = Record<
 	string,

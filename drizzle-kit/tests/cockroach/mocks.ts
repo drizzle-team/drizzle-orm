@@ -35,7 +35,6 @@ import { existsSync, rmSync, writeFileSync } from 'fs';
 import getPort from 'get-port';
 import { Pool, PoolClient } from 'pg';
 import { introspect } from 'src/cli/commands/pull-cockroach';
-
 import { suggestions } from 'src/cli/commands/push-cockroach';
 import { Entities } from 'src/cli/validations/cli';
 import { EmptyProgressView } from 'src/cli/views';
@@ -45,6 +44,7 @@ import { ddlToTypeScript } from 'src/dialects/cockroach/typescript';
 import { hash } from 'src/dialects/common';
 import { DB } from 'src/utils';
 import { v4 as uuidV4 } from 'uuid';
+import 'zx/globals';
 
 export type CockroachDBSchema = Record<
 	string,
@@ -285,7 +285,7 @@ export const diffIntrospect = async (
 
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
-	const filePath = `tests/cockroachdb/tmp/${testName}.ts`;
+	const filePath = `tests/cockroach/tmp/${testName}.ts`;
 
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
 	writeFileSync(filePath, file.file);

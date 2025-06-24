@@ -366,7 +366,8 @@ const column = (
 	const lowered = type.toLowerCase().replace('[]', '');
 
 	if (lowered.startsWith('bigint')) {
-		return `${withCasing(name, casing)}: bigint(${dbColumnName({ name, casing, withMode: true })}{ mode: "bigint" })`;
+		const mode = def && def.type === 'bigint' ? 'bigint' : 'number';
+		return `${withCasing(name, casing)}: bigint(${dbColumnName({ name, casing, withMode: true })}{ mode: "${mode}" })`;
 	}
 
 	if (lowered === 'binary') {
@@ -474,7 +475,8 @@ const column = (
 	}
 
 	if (lowered === 'date') {
-		let out = `${withCasing(name, casing)}: date(${dbColumnName({ name, casing })})`;
+		const mode = JSON.stringify({ mode: 'string' });
+		let out = `${withCasing(name, casing)}: date(${dbColumnName({ name, casing, withMode: true })}${mode})`;
 		return out;
 	}
 
