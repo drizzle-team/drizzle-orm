@@ -399,7 +399,9 @@ export const fromDrizzleSchema = (
 		result.views.push({
 			entityType: 'views',
 			name,
-			definition: query ? dialect.sqlToQuery(query).sql : '',
+			definition: query
+				? dialect.sqlToQuery(query, schemaBinding ? 'mssql-view-with-schemabinding' : undefined).sql
+				: '',
 			checkOption: checkOption ?? false, // defaut
 			encryption: encryption ?? false, // default
 			schema,

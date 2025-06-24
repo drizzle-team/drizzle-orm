@@ -40,7 +40,6 @@ export const handle = async (
 	tablesFilter: string[],
 	schemasFilters: string[],
 	prefix: Prefix,
-	entities: Entities,
 ) => {
 	const { connectToMsSQL } = await import('../connections');
 	const { db } = await connectToMsSQL(credentials);
@@ -55,7 +54,6 @@ export const handle = async (
 			db,
 			filter,
 			schemaFilter,
-			entities,
 			(stage, count, status) => {
 				progress.update(stage, count, status);
 			},
@@ -142,7 +140,6 @@ export const introspect = async (
 	db: DB,
 	filters: string[],
 	schemaFilters: string[] | ((x: string) => boolean),
-	entities: Entities,
 	progress: TaskView,
 ) => {
 	const matchers = filters.map((it) => {
@@ -178,7 +175,7 @@ export const introspect = async (
 
 	const schema = await renderWithTask(
 		progress,
-		fromDatabaseForDrizzle(db, filter, schemaFilter, entities),
+		fromDatabaseForDrizzle(db, filter, schemaFilter),
 	);
 
 	return { schema };

@@ -164,6 +164,8 @@ export class GenerateStringV2 extends AbstractGenerator<{
 			);
 			currStr += stringChars[idx];
 		}
+
+		if (this.dataType === 'buffer') return Buffer.from(currStr);
 		return currStr;
 	}
 }

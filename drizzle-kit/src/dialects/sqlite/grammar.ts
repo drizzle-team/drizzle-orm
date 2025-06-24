@@ -81,7 +81,7 @@ export function sqlTypeFrom(sqlType: string): string {
 export const parseDefault = (it: string): Column['default'] => {
 	if (it === null) return null;
 
-	const trimmed = it.trimChar("'");
+	const trimmed = trimChar(it, "'");
 
 	if (/^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(trimmed)) {
 		const n = Number(it);
