@@ -31,7 +31,9 @@ import {
 import { mockResolver } from 'src/utils/mocks';
 import '../../src/@types/utils';
 import { PGlite } from '@electric-sql/pglite';
+// @ts-expect-error
 import { pg_trgm } from '@electric-sql/pglite/contrib/pg_trgm';
+// @ts-expect-error
 import { vector } from '@electric-sql/pglite/vector';
 import Docker from 'dockerode';
 import { existsSync, rmSync, writeFileSync } from 'fs';
@@ -48,6 +50,7 @@ import { defaultToSQL, isSystemNamespace, isSystemRole } from 'src/dialects/post
 import { fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
 import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
 import { DB } from 'src/utils';
+import 'zx/globals';
 
 const { Client } = pg;
 
@@ -230,12 +233,18 @@ export const diffIntrospect = async (
 	const schema = await fromDatabaseForDrizzle(db, (_) => true, (it) => schemas.indexOf(it) >= 0, entities);
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
+	const filePath = `tests/postgres/tmp/${testName}.ts`;
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel', 'pg');
-	writeFileSync(`tests/postgres/tmp/${testName}.ts`, file.file);
+	writeFileSync(filePath, file.file);
+
+	const typeCheckResult = await $`pnpm exec tsc --noEmit --skipLibCheck ${filePath}`.nothrow();
+	if (typeCheckResult.exitCode !== 0) {
+		throw new Error(typeCheckResult.stderr || typeCheckResult.stdout);
+	}
 
 	// generate snapshot from ts file
 	const response = await prepareFromSchemaFiles([
-		`tests/postgres/tmp/${testName}.ts`,
+		filePath,
 	]);
 
 	const {
