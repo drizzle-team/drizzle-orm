@@ -119,11 +119,18 @@ export const diffIntrospect = async (
 
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
 
-	writeFileSync(`tests/mssql/tmp/${testName}.ts`, file.file);
+	const filePath = `tests/mssql/tmp/${testName}.ts`;
+
+	writeFileSync(filePath, file.file);
+
+	const typeCheckResult = await $`pnpm exec tsc --noEmit --skipLibCheck ${filePath}`.nothrow();
+	if (typeCheckResult.exitCode !== 0) {
+		throw new Error(typeCheckResult.stderr || typeCheckResult.stdout);
+	}
 
 	// generate snapshot from ts file
 	const response = await prepareFromSchemaFiles([
-		`tests/mssql/tmp/${testName}.ts`,
+		filePath,
 	]);
 
 	const schema2 = fromDrizzleSchema(response, casing);
