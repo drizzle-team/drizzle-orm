@@ -1,25 +1,21 @@
 import type * as t from '@sinclair/typebox';
 import type { Assume, Column } from 'drizzle-orm';
-import type { ArrayHasAtLeastOneValue, BufferSchema, ColumnIsGeneratedAlwaysAs, IsNever, JsonSchema } from './utils.ts';
+import type { BufferSchema, IsEnumDefined, IsNever, JsonSchema } from './utils.ts';
 
-export type GetEnumValuesFromColumn<TColumn extends Column> = TColumn['_'] extends { enumValues: [string, ...string[]] }
-	? TColumn['_']['enumValues']
-	: undefined;
-
-export type GetBaseColumn<TColumn extends Column> = TColumn['_'] extends { baseColumn: Column | never | undefined }
-	? IsNever<TColumn['_']['baseColumn']> extends false ? TColumn['_']['baseColumn']
-	: undefined
-	: undefined;
+type HasBaseColumn<TColumn> = TColumn extends { _: { baseColumn: Column | undefined } }
+	? IsNever<TColumn['_']['baseColumn']> extends false ? true
+	: false
+	: false;
 
 export type EnumValuesToEnum<TEnumValues extends [string, ...string[]]> = { [K in TEnumValues[number]]: K };
 
+export interface GenericSchema<T> extends t.TSchema {
+	static: T;
+}
+
 export type GetTypeboxType<
-	TData,
-	TDataType extends string,
-	TColumnType extends string,
-	TEnumValues extends [string, ...string[]] | undefined,
-	TBaseColumn extends Column | undefined,
-> = TColumnType extends
+	TColumn extends Column,
+> = TColumn['_']['columnType'] extends
 	| 'MySqlTinyInt'
 	| 'SingleStoreTinyInt'
 	| 'PgSmallInt'
@@ -41,29 +37,27 @@ export type GetTypeboxType<
 	| 'SQLiteInteger'
 	| 'MySqlYear'
 	| 'SingleStoreYear' ? t.TInteger
-	: TColumnType extends 'PgBinaryVector' ? t.TRegExp
-	: TBaseColumn extends Column ? t.TArray<
-			GetTypeboxType<
-				TBaseColumn['_']['data'],
-				TBaseColumn['_']['dataType'],
-				TBaseColumn['_']['columnType'],
-				GetEnumValuesFromColumn<TBaseColumn>,
-				GetBaseColumn<TBaseColumn>
-			>
+	: TColumn['_']['columnType'] extends 'PgBinaryVector' ? t.TRegExp
+	: HasBaseColumn<TColumn> extends true ? t.TArray<
+			GetTypeboxType<Assume<TColumn['_']['baseColumn'], Column>>
 		>
-	: ArrayHasAtLeastOneValue<TEnumValues> extends true
-		? t.TEnum<EnumValuesToEnum<Assume<TEnumValues, [string, ...string[]]>>>
-	: TData extends infer TTuple extends [any, ...any[]] ? t.TTuple<
-			Assume<{ [K in keyof TTuple]: GetTypeboxType<TTuple[K], string, string, undefined, undefined> }, [any, ...any[]]>
-		>
-	: TData extends Date ? t.TDate
-	: TData extends Buffer ? BufferSchema
-	: TDataType extends 'array'
-		? t.TArray<GetTypeboxType<Assume<TData, any[]>[number], string, string, undefined, undefined>>
-	: TData extends infer TDict extends Record<string, any>
-		? t.TObject<{ [K in keyof TDict]: GetTypeboxType<TDict[K], string, string, undefined, undefined> }>
-	: TDataType extends 'json' ? JsonSchema
-	: TData extends number ? t.TNumber
+	: IsEnumDefined<TColumn['_']['enumValues']> extends true
+		? t.TEnum<{ [K in Assume<TColumn['_']['enumValues'], string[]>[number]]: K }>
+	: TColumn['_']['columnType'] extends 'PgGeometry' | 'PgPointTuple' ? t.TTuple<[t.TNumber, t.TNumber]>
+	: TColumn['_']['columnType'] extends 'PgLine' ? t.TTuple<[t.TNumber, t.TNumber, t.TNumber]>
+	: TColumn['_']['data'] extends Date ? t.TDate
+	: TColumn['_']['data'] extends Buffer ? BufferSchema
+	: TColumn['_']['dataType'] extends 'array'
+		? t.TArray<GetTypeboxPrimitiveType<Assume<TColumn['_']['data'], any[]>[number]>>
+	: TColumn['_']['data'] extends Record<string, any>
+		? TColumn['_']['columnType'] extends
+			'PgJson' | 'PgJsonb' | 'MySqlJson' | 'SingleStoreJson' | 'SQLiteTextJson' | 'SQLiteBlobJson'
+			? GenericSchema<TColumn['_']['data']>
+		: t.TObject<{ [K in keyof TColumn['_']['data']]: GetTypeboxPrimitiveType<TColumn['_']['data'][K]> }>
+	: TColumn['_']['dataType'] extends 'json' ? JsonSchema
+	: GetTypeboxPrimitiveType<TColumn['_']['data']>;
+
+type GetTypeboxPrimitiveType<TData> = TData extends number ? t.TNumber
 	: TData extends bigint ? t.TBigInt
 	: TData extends boolean ? t.TBoolean
 	: TData extends string ? t.TString
@@ -78,30 +72,20 @@ type HandleSelectColumn<
 type HandleInsertColumn<
 	TSchema extends t.TSchema,
 	TColumn extends Column,
-> = ColumnIsGeneratedAlwaysAs<TColumn> extends true ? never
-	: TColumn['_']['notNull'] extends true ? TColumn['_']['hasDefault'] extends true ? t.TOptional<TSchema>
-		: TSchema
+> = TColumn['_']['notNull'] extends true ? TColumn['_']['hasDefault'] extends true ? t.TOptional<TSchema>
+	: TSchema
 	: t.TOptional<t.Union<[TSchema, t.TNull]>>;
 
 type HandleUpdateColumn<
 	TSchema extends t.TSchema,
 	TColumn extends Column,
-> = ColumnIsGeneratedAlwaysAs<TColumn> extends true ? never
-	: TColumn['_']['notNull'] extends true ? t.TOptional<TSchema>
+> = TColumn['_']['notNull'] extends true ? t.TOptional<TSchema>
 	: t.TOptional<t.Union<[TSchema, t.TNull]>>;
 
 export type HandleColumn<
 	TType extends 'select' | 'insert' | 'update',
 	TColumn extends Column,
-> = GetTypeboxType<
-	TColumn['_']['data'],
-	TColumn['_']['dataType'],
-	TColumn['_']['columnType'],
-	GetEnumValuesFromColumn<TColumn>,
-	GetBaseColumn<TColumn>
-> extends infer TSchema extends t.TSchema ? TSchema extends t.TAny ? t.TAny
-	: TType extends 'select' ? HandleSelectColumn<TSchema, TColumn>
-	: TType extends 'insert' ? HandleInsertColumn<TSchema, TColumn>
-	: TType extends 'update' ? HandleUpdateColumn<TSchema, TColumn>
-	: TSchema
-	: t.TAny;
+> = TType extends 'select' ? HandleSelectColumn<GetTypeboxType<TColumn>, TColumn>
+	: TType extends 'insert' ? HandleInsertColumn<GetTypeboxType<TColumn>, TColumn>
+	: TType extends 'update' ? HandleUpdateColumn<GetTypeboxType<TColumn>, TColumn>
+	: GetTypeboxType<TColumn>;

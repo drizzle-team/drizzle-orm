@@ -27,8 +27,9 @@ jobs:
           - drizzle-seed
           - drizzle-typebox
           - drizzle-valibot
+          - drizzle-arktype
           - other
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     services:
       postgres-postgis:
         image: postgis/postgis:16-3.4
@@ -191,11 +192,11 @@ jobs:
 
             neon-serverless)
               docker compose -f docker-neon.yml up -d
-              pnpm vitest run tests/pg/neon-serverless.test.ts
+              pnpm vitest run --config=./vitest-ci.config.ts tests/pg/neon-serverless.test.ts
               docker compose -f docker-neon.yml down
             ;;
 
-            drizzle-orm|drizzle-kit|drizzle-zod|drizzle-seed|drizzle-typebox|drizzle-valibot)
+            drizzle-orm|drizzle-kit|drizzle-zod|drizzle-seed|drizzle-typebox|drizzle-valibot|drizzle-arktype)
               (cd .. && pnpm test --filter ${{ matrix.shard }})
             ;;
 
@@ -228,14 +229,15 @@ jobs:
           - drizzle-seed
           - drizzle-typebox
           - drizzle-valibot
+          - drizzle-arktype
           - eslint-plugin-drizzle
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '18.18'
+          node-version: '22'
           registry-url: 'https://registry.npmjs.org'
 
       - uses: pnpm/action-setup@v3
@@ -321,8 +323,9 @@ jobs:
           - drizzle-seed
           - drizzle-typebox
           - drizzle-valibot
+          - drizzle-arktype
           - eslint-plugin-drizzle
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     permissions:
       contents: read
       id-token: write
@@ -331,7 +334,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '18.18'
+          node-version: '22'
           registry-url: 'https://registry.npmjs.org'
 
       - uses: pnpm/action-setup@v3
