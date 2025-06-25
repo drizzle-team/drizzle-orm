@@ -3,21 +3,21 @@ import { Minimatch } from 'minimatch';
 import {
 	columnsResolver,
 	enumsResolver,
-	indPolicyResolver, policyResolver,
+	indPolicyResolver,
+	policyResolver,
 	roleResolver,
 	schemasResolver,
-	sequencesResolver, tablesResolver,
-	viewsResolver
+	sequencesResolver,
+	tablesResolver,
+	viewsResolver,
 } from './cli/commands/migrate';
 import { pgSuggestions } from './cli/commands/pgPushUtils';
 import { PostgresCredentials } from './cli/validations/postgres';
 import { originUUID } from './global';
 import { MySqlSchema as MySQLSchemaKit } from './serializer/mysqlSchema';
-import { PgSchema as PgSchemaKit, pgSchema, squashPgScheme } from './serializer/pgSchema';
+import { PgSchema as PgSchemaKit, pgSchema, Role, squashPgScheme, View } from './serializer/pgSchema';
 import { fromDatabase } from './serializer/pgSerializer';
-import {
-	SingleStoreSchema as SingleStoreSchemaKit
-} from './serializer/singlestoreSchema';
+import { SingleStoreSchema as SingleStoreSchemaKit } from './serializer/singlestoreSchema';
 import { SQLiteSchema as SQLiteSchemaKit } from './serializer/sqliteSchema';
 import { ProxyParams } from './serializer/studio';
 import type { DB, Proxy } from './utils';
@@ -34,7 +34,8 @@ export type DrizzlePgDB = DB & {
 };
 export type DrizzlePgDBIntrospectSchema = Omit<
 	PgSchemaKit,
-	| 'internal'>;
+	'internal'
+>;
 
 export const introspectPgDB = async (
 	db: DrizzlePgDB,
@@ -166,6 +167,16 @@ export const getPgClientPool = async (
 };
 
 export { applyPgSnapshotsDiff } from './snapshotsDiffer';
+export type {
+	ColumnsResolverInput,
+	Enum,
+	PolicyResolverInput,
+	ResolverInput,
+	RolesResolverInput,
+	Sequence,
+	Table,
+	TablePolicyResolverInput,
+} from './snapshotsDiffer';
 export {
 	columnsResolver,
 	enumsResolver,
@@ -180,3 +191,4 @@ export {
 	tablesResolver,
 	viewsResolver,
 };
+export type { Role, View };
