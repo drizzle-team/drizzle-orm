@@ -187,9 +187,27 @@ export const fromDrizzleSchema = (
 			continue;
 		}
 
+		for (const pk of primaryKeys) {
+			const columnNames = pk.columns.map((c: any) => getColumnCasing(c, casing));
+
+			const name = pk.name || defaultNameForPK(tableName);
+			const isNameExplicit = !!pk.name;
+
+			result.pks.push({
+				entityType: 'pks',
+				table: tableName,
+				schema: schema,
+				name: name,
+				nameExplicit: isNameExplicit,
+				columns: columnNames,
+			});
+		}
+
 		for (const column of columns) {
 			const columnName = getColumnCasing(column, casing);
-			const notNull: boolean = column.notNull || Boolean(column.generated);
+
+			const isPk = result.pks.find((it) => it.columns.includes(columnName));
+			const notNull: boolean = column.notNull || Boolean(column.generated) || Boolean(isPk);
 
 			// @ts-expect-error
 			// Drizzle ORM gives this value in runtime, but not in types.
@@ -249,22 +267,6 @@ export const fromDrizzleSchema = (
 					default: defaultFromColumn(baseType, column.default, dialect),
 				});
 			}
-		}
-
-		for (const pk of primaryKeys) {
-			const columnNames = pk.columns.map((c: any) => getColumnCasing(c, casing));
-
-			const name = pk.name || defaultNameForPK(tableName);
-			const isNameExplicit = !!pk.name;
-
-			result.pks.push({
-				entityType: 'pks',
-				table: tableName,
-				schema: schema,
-				name: name,
-				nameExplicit: isNameExplicit,
-				columns: columnNames,
-			});
 		}
 
 		for (const unique of uniqueConstraints) {
