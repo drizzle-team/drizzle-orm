@@ -28,6 +28,7 @@ import { ddlToTypeScript } from 'src/dialects/mysql/typescript';
 import { DB } from 'src/utils';
 import { mockResolver } from 'src/utils/mocks';
 import { v4 as uuid } from 'uuid';
+import 'zx/globals';
 
 mkdirSync('tests/mysql/tmp', { recursive: true });
 
