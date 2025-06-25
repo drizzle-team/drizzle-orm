@@ -135,6 +135,7 @@ const parseType = (schemaPrefix: string, type: string) => {
 		'interval minute to second',
 		'char',
 		'vector',
+		'halfvec',
 		'geometry',
 	];
 	const arrayDefinitionRegex = /\[\d*(?:\[\d*\])*\]/g;
@@ -3269,7 +3270,7 @@ class PgAlterTableAlterColumnDropPrimaryKeyConvertor extends Convertor {
 
 	convert(statement: JsonAlterColumnDropPrimaryKeyStatement) {
 		const { tableName, columnName, schema } = statement;
-		return `/* 
+		return `/*
     Unfortunately in current drizzle-kit version we can't automatically get name for primary key.
     We are working on making it available!
 
@@ -3280,7 +3281,7 @@ class PgAlterTableAlterColumnDropPrimaryKeyConvertor extends Convertor {
                 AND table_name = '${tableName}'
                 AND constraint_type = 'PRIMARY KEY';
         2. Uncomment code below and paste pk name manually
-        
+
     Hope to release this update as soon as possible
 */
 
