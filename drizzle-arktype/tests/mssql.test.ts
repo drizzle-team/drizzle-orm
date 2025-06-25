@@ -1,27 +1,27 @@
+import { type } from 'arktype';
 import { type Equal, sql } from 'drizzle-orm';
 import { customType, int, mssqlSchema, mssqlTable, mssqlView, text } from 'drizzle-orm/mssql-core';
 import { test } from 'vitest';
-import { z } from 'zod/v4';
-import { bigintStringModeSchema, bufferSchema } from '~/column.ts';
+import { bigintNarrow, bigintStringModeSchema, bufferSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
-import { createInsertSchema, createSchemaFactory, createSelectSchema, createUpdateSchema } from '../src/index.ts';
+import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src/index.ts';
 import { Expect, expectSchemaShape } from './utils.ts';
 
-const integerSchema = z.int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX);
-const integerNullableSchema = integerSchema.nullable();
+const integerSchema = type.keywords.number.integer.atLeast(CONSTANTS.INT32_MIN).atMost(CONSTANTS.INT32_MAX);
+const integerNullableSchema = integerSchema.or(type.null);
 const integerOptionalSchema = integerSchema.optional();
-const integerNullableOptionalSchema = integerSchema.nullable().optional();
+const integerNullableOptionalSchema = integerSchema.or(type.null).optional();
 
-const textSchema = z.string();
+const textSchema = type.string;
 const textOptionalSchema = textSchema.optional();
 
-const anySchema = z.any();
+const anySchema = type('unknown.any');
 
-const extendedSchema = integerSchema.lte(1000);
-const extendedNullableSchema = extendedSchema.nullable();
+const extendedSchema = integerSchema.atMost(1000);
+const extendedNullableSchema = extendedSchema.or(type.null);
 const extendedOptionalSchema = extendedSchema.optional();
 
-const customSchema = z.string().transform(Number);
+const customSchema = type.string.pipe(Number);
 
 test('table - select', (t) => {
 	const table = mssqlTable('test', {
@@ -31,7 +31,7 @@ test('table - select', (t) => {
 	});
 
 	const result = createSelectSchema(table);
-	const expected = z.object({ id: integerSchema, generated: integerSchema, name: textSchema });
+	const expected = type({ id: integerSchema, generated: integerSchema, name: textSchema });
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -44,7 +44,7 @@ test('table in schema - select', (tc) => {
 	});
 
 	const result = createSelectSchema(table);
-	const expected = z.object({ id: integerSchema, name: textSchema });
+	const expected = type({ id: integerSchema, name: textSchema });
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -57,7 +57,7 @@ test('table - insert', (t) => {
 	});
 
 	const result = createInsertSchema(table);
-	const expected = z.object({ name: textSchema, age: integerNullableOptionalSchema });
+	const expected = type({ name: textSchema, age: integerNullableOptionalSchema });
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -70,7 +70,7 @@ test('table - update', (t) => {
 	});
 
 	const result = createUpdateSchema(table);
-	const expected = z.object({
+	const expected = type({
 		name: textOptionalSchema,
 		age: integerNullableOptionalSchema,
 	});
@@ -86,7 +86,7 @@ test('view qb - select', (t) => {
 	const view = mssqlView('test').as((qb) => qb.select({ id: table.id, age: sql``.as('age') }).from(table));
 
 	const result = createSelectSchema(view);
-	const expected = z.object({ id: integerSchema, age: anySchema });
+	const expected = type({ id: integerSchema, age: anySchema });
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -98,7 +98,7 @@ test('view columns - select', (t) => {
 	}).as(sql``);
 
 	const result = createSelectSchema(view);
-	const expected = z.object({ id: integerSchema, name: textSchema });
+	const expected = type({ id: integerSchema, name: textSchema });
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -120,10 +120,10 @@ test('view with nested fields - select', (t) => {
 	);
 
 	const result = createSelectSchema(view);
-	const expected = z.object({
+	const expected = type({
 		id: integerSchema,
-		nested: z.object({ name: textSchema, age: anySchema }),
-		table: z.object({ id: integerSchema, name: textSchema }),
+		nested: type({ name: textSchema, age: anySchema }),
+		table: type({ id: integerSchema, name: textSchema }),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -138,7 +138,7 @@ test('nullability - select', (t) => {
 	});
 
 	const result = createSelectSchema(table);
-	const expected = z.object({
+	const expected = type({
 		c1: integerNullableSchema,
 		c2: integerSchema,
 		c3: integerNullableSchema,
@@ -159,7 +159,7 @@ test('nullability - insert', (t) => {
 	});
 
 	const result = createInsertSchema(table);
-	const expected = z.object({
+	const expected = type({
 		c1: integerNullableOptionalSchema,
 		c2: integerSchema,
 		c3: integerNullableOptionalSchema,
@@ -179,7 +179,7 @@ test('nullability - update', (t) => {
 	});
 
 	const result = createUpdateSchema(table);
-	const expected = z.object({
+	const expected = type({
 		c1: integerNullableOptionalSchema,
 		c2: integerOptionalSchema,
 		c3: integerNullableOptionalSchema,
@@ -197,10 +197,10 @@ test('refine table - select', (t) => {
 	});
 
 	const result = createSelectSchema(table, {
-		c2: (schema) => schema.lte(1000),
-		c3: z.string().transform(Number),
+		c2: (schema) => schema.atMost(1000),
+		c3: type.string.pipe(Number),
 	});
-	const expected = z.object({
+	const expected = type({
 		c1: integerNullableSchema,
 		c2: extendedSchema,
 		c3: customSchema,
@@ -218,13 +218,13 @@ test('refine table - select with custom data type', (t) => {
 		c4: customText(),
 	});
 
-	const customTextSchema = z.string().min(1).max(100);
+	const customTextSchema = type.string.atLeastLength(1).atMostLength(100);
 	const result = createSelectSchema(table, {
-		c2: (schema) => schema.lte(1000),
-		c3: z.string().transform(Number),
+		c2: (schema) => schema.atMost(1000),
+		c3: type.string.pipe(Number),
 		c4: customTextSchema,
 	});
-	const expected = z.object({
+	const expected = type({
 		c1: integerNullableSchema,
 		c2: extendedSchema,
 		c3: customSchema,
@@ -244,10 +244,10 @@ test('refine table - insert', (t) => {
 	});
 
 	const result = createInsertSchema(table, {
-		c2: (schema) => schema.lte(1000),
-		c3: z.string().transform(Number),
+		c2: (schema) => schema.atMost(1000),
+		c3: type.string.pipe(Number),
 	});
-	const expected = z.object({
+	const expected = type({
 		c1: integerNullableOptionalSchema,
 		c2: extendedSchema,
 		c3: customSchema,
@@ -265,10 +265,10 @@ test('refine table - update', (t) => {
 	});
 
 	const result = createUpdateSchema(table, {
-		c2: (schema) => schema.lte(1000),
-		c3: z.string().transform(Number),
+		c2: (schema) => schema.atMost(1000),
+		c3: type.string.pipe(Number),
 	});
-	const expected = z.object({
+	const expected = type({
 		c1: integerNullableOptionalSchema,
 		c2: extendedOptionalSchema,
 		c3: customSchema,
@@ -301,27 +301,27 @@ test('refine view - select', (t) => {
 	);
 
 	const result = createSelectSchema(view, {
-		c2: (schema) => schema.lte(1000),
-		c3: z.string().transform(Number),
+		c2: (schema) => schema.atMost(1000),
+		c3: type.string.pipe(Number),
 		nested: {
-			c5: (schema) => schema.lte(1000),
-			c6: z.string().transform(Number),
+			c5: (schema) => schema.atMost(1000),
+			c6: type.string.pipe(Number),
 		},
 		table: {
-			c2: (schema) => schema.lte(1000),
-			c3: z.string().transform(Number),
+			c2: (schema) => schema.atMost(1000),
+			c3: type.string.pipe(Number),
 		},
 	});
-	const expected = z.object({
+	const expected = type({
 		c1: integerNullableSchema,
 		c2: extendedNullableSchema,
 		c3: customSchema,
-		nested: z.object({
+		nested: type({
 			c4: integerNullableSchema,
 			c5: extendedNullableSchema,
 			c6: customSchema,
 		}),
-		table: z.object({
+		table: type({
 			c1: integerNullableSchema,
 			c2: extendedNullableSchema,
 			c3: customSchema,
@@ -398,132 +398,79 @@ test('all data types', (t) => {
 	}));
 
 	const result = createSelectSchema(table);
-	const expected = z.object({
-		bigint1: z.int().gte(Number.MIN_SAFE_INTEGER).lte(Number.MAX_SAFE_INTEGER),
-		bigint2: z.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
+	const expected = type({
+		bigint1: type.keywords.number.integer.atLeast(Number.MIN_SAFE_INTEGER).atMost(Number.MAX_SAFE_INTEGER),
+		bigint2: type.bigint.narrow(bigintNarrow),
 		bigint3: bigintStringModeSchema,
 		binary: bufferSchema,
-		bit: z.boolean(),
-		char1: z.string().max(10),
-		char2: z.enum(['a', 'b', 'c']),
-		date1: z.date(),
-		date2: z.string(),
-		datetime1: z.date(),
-		datetime2: z.string(),
-		datetime2_1: z.date(),
-		datetime2_2: z.string(),
-		datetimeoffset1: z.date(),
-		datetimeoffset2: z.string(),
-		decimal1: z.number().gte(Number.MIN_SAFE_INTEGER).lte(Number.MAX_SAFE_INTEGER),
-		decimal2: z.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
-		decimal3: z.string(),
-		float: z.number().gte(CONSTANTS.INT48_MIN).lte(CONSTANTS.INT48_MAX),
-		int: z.int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX),
-		numeric1: z.number().gte(Number.MIN_SAFE_INTEGER).lte(Number.MAX_SAFE_INTEGER),
-		numeric2: z.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
-		numeric3: z.string(),
-		real: z.number().gte(CONSTANTS.INT24_MIN).lte(CONSTANTS.INT24_MAX),
-		smallint: z.int().gte(CONSTANTS.INT16_MIN).lte(CONSTANTS.INT16_MAX),
-		text1: z.string(),
-		text2: z.enum(['a', 'b', 'c']),
-		time1: z.date(),
-		time2: z.string(),
-		tinyint: z.int().gte(0).lte(CONSTANTS.INT8_UNSIGNED_MAX),
+		bit: type.boolean,
+		char1: type.string.atMostLength(10),
+		char2: type.enumerated('a', 'b', 'c'),
+		date1: type.Date,
+		date2: type.string,
+		datetime1: type.Date,
+		datetime2: type.string,
+		datetime2_1: type.Date,
+		datetime2_2: type.string,
+		datetimeoffset1: type.Date,
+		datetimeoffset2: type.string,
+		decimal1: type.number.atLeast(Number.MIN_SAFE_INTEGER).atMost(Number.MAX_SAFE_INTEGER),
+		decimal2: type.bigint.narrow(bigintNarrow),
+		decimal3: type.string,
+		float: type.number.atLeast(CONSTANTS.INT48_MIN).atMost(CONSTANTS.INT48_MAX),
+		int: type.keywords.number.integer.atLeast(CONSTANTS.INT32_MIN).atMost(CONSTANTS.INT32_MAX),
+		numeric1: type.number.atLeast(Number.MIN_SAFE_INTEGER).atMost(Number.MAX_SAFE_INTEGER),
+		numeric2: type.bigint.narrow(bigintNarrow),
+		numeric3: type.string,
+		real: type.number.atLeast(CONSTANTS.INT24_MIN).atMost(CONSTANTS.INT24_MAX),
+		smallint: type.keywords.number.integer.atLeast(CONSTANTS.INT16_MIN).atMost(CONSTANTS.INT16_MAX),
+		text1: type.string,
+		text2: type.enumerated('a', 'b', 'c'),
+		time1: type.Date,
+		time2: type.string,
+		tinyint: type.keywords.number.integer.atLeast(0).atMost(CONSTANTS.INT8_UNSIGNED_MAX),
 		varbinary: bufferSchema,
-		varchar1: z.string().max(10),
-		varchar2: z.enum(['a', 'b', 'c']),
-		ntext1: z.string(),
-		ntext2: z.enum(['a', 'b', 'c']),
-		nvarchar1: z.string().max(10),
-		nvarchar2: z.enum(['a', 'b', 'c']),
+		varchar1: type.string.atMostLength(10),
+		varchar2: type.enumerated('a', 'b', 'c'),
+		ntext1: type.string,
+		ntext2: type.enumerated('a', 'b', 'c'),
+		nvarchar1: type.string.atMostLength(10),
+		nvarchar2: type.enumerated('a', 'b', 'c'),
 	});
 
-	expectSchemaShape(t, expected).from(result);
-	Expect<Equal<typeof result, typeof expected>>();
-});
-
-test('type coercion - all', (t) => {
-	const table = mssqlTable('test', ({
-		bigint,
-		bit,
-		datetime,
-		int,
-		text,
-	}) => ({
-		bigint: bigint({ mode: 'bigint' }).notNull(),
-		bit: bit().notNull(),
-		datetime: datetime().notNull(),
-		int: int().notNull(),
-		text: text().notNull(),
-	}));
-
-	const { createSelectSchema } = createSchemaFactory({
-		coerce: true,
-	});
-	const result = createSelectSchema(table);
-	const expected = z.object({
-		bigint: z.coerce.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
-		bit: z.coerce.boolean(),
-		datetime: z.coerce.date(),
-		int: z.coerce.number().int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX),
-		text: z.coerce.string(),
-	});
-	expectSchemaShape(t, expected).from(result);
-	Expect<Equal<typeof result, typeof expected>>();
-});
-
-test('type coercion - mixed', (t) => {
-	const table = mssqlTable('test', ({
-		datetime,
-		int,
-	}) => ({
-		datetime: datetime().notNull(),
-		int: int().notNull(),
-	}));
-
-	const { createSelectSchema } = createSchemaFactory({
-		coerce: {
-			date: true,
-		},
-	});
-	const result = createSelectSchema(table);
-	const expected = z.object({
-		datetime: z.coerce.date(),
-		int: z.int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX),
-	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
 // MSSQL doesn't support JSON data type
 // /* Infinitely recursive type */ {
-// 	const TopLevelCondition: z.ZodType<TopLevelCondition> = z.custom<TopLevelCondition>().superRefine(() => {});
+// 	const TopLevelCondition: Type<TopLevelCondition, {}> = type('unknown.any') as any;
 // 	const table = mssqlTable('test', {
 // 		json: json().$type<TopLevelCondition>(),
 // 	});
 // 	const result = createSelectSchema(table);
-// 	const expected = z.object({
-// 		json: z.nullable(TopLevelCondition),
+// 	const expected = type({
+// 		json: TopLevelCondition.or(type.null),
 // 	});
-// 	Expect<Equal<z.infer<typeof result>, z.infer<typeof expected>>>();
+// 	Expect<Equal<type.infer<typeof result>, type.infer<typeof expected>>>();
 // }
 
 /* Disallow unknown keys in table refinement - select */ {
 	const table = mssqlTable('test', { id: int() });
 	// @ts-expect-error
-	createSelectSchema(table, { unknown: z.string() });
+	createSelectSchema(table, { unknown: type.string });
 }
 
 /* Disallow unknown keys in table refinement - insert */ {
 	const table = mssqlTable('test', { id: int() });
 	// @ts-expect-error
-	createInsertSchema(table, { unknown: z.string() });
+	createInsertSchema(table, { unknown: type.string });
 }
 
 /* Disallow unknown keys in table refinement - update */ {
 	const table = mssqlTable('test', { id: int() });
 	// @ts-expect-error
-	createUpdateSchema(table, { unknown: z.string() });
+	createUpdateSchema(table, { unknown: type.string });
 }
 
 /* Disallow unknown keys in view qb - select */ {
@@ -531,16 +478,16 @@ test('type coercion - mixed', (t) => {
 	const view = mssqlView('test').as((qb) => qb.select().from(table));
 	const nestedSelect = mssqlView('test').as((qb) => qb.select({ table }).from(table));
 	// @ts-expect-error
-	createSelectSchema(view, { unknown: z.string() });
+	createSelectSchema(view, { unknown: type.string });
 	// @ts-expect-error
-	createSelectSchema(nestedSelect, { table: { unknown: z.string() } });
+	createSelectSchema(nestedSelect, { table: { unknown: type.string } });
 }
 
 /* Disallow unknown keys in view columns - select */ {
 	const view = mssqlView('test', { id: int() }).as(sql``);
 	const mView = mssqlView('test', { id: int() }).as(sql``);
 	// @ts-expect-error
-	createSelectSchema(view, { unknown: z.string() });
+	createSelectSchema(view, { unknown: type.string });
 	// @ts-expect-error
-	createSelectSchema(mView, { unknown: z.string() });
+	createSelectSchema(mView, { unknown: type.string });
 }

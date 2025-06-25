@@ -1,9 +1,8 @@
 import { type Equal, sql } from 'drizzle-orm';
-import { customType, int, json, mssqlSchema, mssqlTable, mssqlView, text } from 'drizzle-orm/mssql-core';
-import type { TopLevelCondition } from 'json-rules-engine';
+import { customType, int, mssqlSchema, mssqlTable, mssqlView, text } from 'drizzle-orm/mssql-core';
 import * as v from 'valibot';
 import { test } from 'vitest';
-import { bigintStringModeSchema, bufferSchema, jsonSchema } from '~/column.ts';
+import { bigintStringModeSchema, bufferSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src/index.ts';
 import { Expect, expectSchemaShape } from './utils.ts';
@@ -348,7 +347,6 @@ test('all data types', (t) => {
 		decimal,
 		float,
 		int,
-		json,
 		numeric,
 		real,
 		smallint,
@@ -380,7 +378,6 @@ test('all data types', (t) => {
 		decimal3: decimal({ mode: 'string' }).notNull(),
 		float: float().notNull(),
 		int: int().notNull(),
-		json: json().notNull(),
 		numeric1: numeric({ mode: 'number' }).notNull(),
 		numeric2: numeric({ mode: 'bigint' }).notNull(),
 		numeric3: numeric({ mode: 'string' }).notNull(),
@@ -422,7 +419,6 @@ test('all data types', (t) => {
 		decimal3: v.string(),
 		float: v.pipe(v.number(), v.minValue(CONSTANTS.INT48_MIN), v.maxValue(CONSTANTS.INT48_MAX)),
 		int: v.pipe(v.number(), v.minValue(CONSTANTS.INT32_MIN), v.maxValue(CONSTANTS.INT32_MAX), v.integer()),
-		json: jsonSchema,
 		numeric1: v.pipe(v.number(), v.minValue(Number.MIN_SAFE_INTEGER), v.maxValue(Number.MAX_SAFE_INTEGER)),
 		numeric2: v.pipe(v.bigint(), v.minValue(CONSTANTS.INT64_MIN), v.maxValue(CONSTANTS.INT64_MAX)),
 		numeric3: v.string(),
@@ -446,17 +442,18 @@ test('all data types', (t) => {
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-/* Infinitely recursive type */ {
-	const TopLevelCondition: v.GenericSchema<TopLevelCondition> = v.custom<TopLevelCondition>(() => true);
-	const table = mssqlTable('test', {
-		json: json().$type<TopLevelCondition>(),
-	});
-	const result = createSelectSchema(table);
-	const expected = v.object({
-		json: v.nullable(TopLevelCondition),
-	});
-	Expect<Equal<v.InferOutput<typeof result>, v.InferOutput<typeof expected>>>();
-}
+// MSSQL doesn't support JSON data type
+// /* Infinitely recursive type */ {
+// 	const TopLevelCondition: v.GenericSchema<TopLevelCondition> = v.custom<TopLevelCondition>(() => true);
+// 	const table = mssqlTable('test', {
+// 		json: json().$type<TopLevelCondition>(),
+// 	});
+// 	const result = createSelectSchema(table);
+// 	const expected = v.object({
+// 		json: v.nullable(TopLevelCondition),
+// 	});
+// 	Expect<Equal<v.InferOutput<typeof result>, v.InferOutput<typeof expected>>>();
+// }
 
 /* Disallow unknown keys in table refinement - select */ {
 	const table = mssqlTable('test', { id: int() });

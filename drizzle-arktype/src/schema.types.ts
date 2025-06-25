@@ -1,5 +1,6 @@
 import type { Type } from 'arktype';
 import type { Table, View } from 'drizzle-orm';
+import type { CockroachEnum } from 'drizzle-orm/cockroach-core';
 import type { PgEnum } from 'drizzle-orm/pg-core';
 import type { BuildRefine, BuildSchema, NoUnknownKeys } from './schema.types.internal.ts';
 
@@ -22,7 +23,7 @@ export interface CreateSelectSchema {
 		refine: NoUnknownKeys<TRefine, TView['$inferSelect']>,
 	): BuildSchema<'select', TView['_']['selectedFields'], TRefine>;
 
-	<TEnum extends PgEnum<any>>(enum_: TEnum): Type<TEnum['enumValues'][number]>;
+	<TEnum extends PgEnum<any> | CockroachEnum<any>>(enum_: TEnum): Type<TEnum['enumValues'][number]>;
 }
 
 export interface CreateInsertSchema {
