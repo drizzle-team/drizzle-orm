@@ -1071,3 +1071,24 @@ test('all types', async () => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
+
+test.only('drop primary key', async () => {
+	const from = {
+		table: mysqlTable('table', {
+			id: int().primaryKey(),
+		}),
+	};
+	const to = {
+		table: mysqlTable('table', {
+			id: int(),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = ['ALTER TABLE `table` DROP PRIMARY KEY;'];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
