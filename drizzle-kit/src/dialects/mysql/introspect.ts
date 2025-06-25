@@ -50,7 +50,7 @@ export const fromDatabase = async (
 			TABLE_TYPE as type 
 		FROM INFORMATION_SCHEMA.TABLES
 		WHERE TABLE_SCHEMA = '${schema}'
-		ORDER BY TABLE_NAME;
+		ORDER BY lower(TABLE_NAME);
 		`).then((rows) => rows.filter((it) => tablesFilter(it.name)));
 
 	const columns = await db.query(`
@@ -58,7 +58,7 @@ export const fromDatabase = async (
 			* 
 		FROM information_schema.columns
 		WHERE table_schema = '${schema}' and table_name != '__drizzle_migrations'
-		ORDER BY table_name, ordinal_position;
+		ORDER BY lower(table_name), ordinal_position;
 	`).then((rows) => rows.filter((it) => tablesFilter(it['TABLE_NAME'])));
 
 	const idxs = await db.query(`
@@ -67,7 +67,7 @@ export const fromDatabase = async (
 		FROM INFORMATION_SCHEMA.STATISTICS
 		WHERE INFORMATION_SCHEMA.STATISTICS.TABLE_SCHEMA = '${schema}' 
 			AND INFORMATION_SCHEMA.STATISTICS.INDEX_NAME != 'PRIMARY'
-		ORDER BY INDEX_NAME;
+		ORDER BY lower(INDEX_NAME);
 	`).then((rows) => rows.filter((it) => tablesFilter(it['TABLE_NAME'])));
 
 	const filteredTablesAndViews = tablesAndViews.filter((it) => columns.some((x) => x['TABLE_NAME'] === it.name));

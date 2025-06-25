@@ -79,7 +79,7 @@ export const fromDatabase = async (
 			and m.tbl_name NOT LIKE '\\_litestream\\_%' ESCAPE '\\'
 			and m.tbl_name NOT LIKE 'libsql\\_%' ESCAPE '\\'
 			and m.tbl_name  NOT LIKE 'sqlite\\_%' ESCAPE '\\'
-		ORDER BY m.name, p.cid
+		ORDER BY m.name COLLATE NOCASE, p.cid
 		;
     `,
 	).then((columns) => columns.filter((it) => tablesFilter(it.table)));
@@ -160,7 +160,7 @@ export const fromDatabase = async (
 				and m.tbl_name NOT LIKE '\\_litestream\\_%' ESCAPE '\\'
 				and m.tbl_name NOT LIKE 'libsql\\_%' ESCAPE '\\'
 				and m.tbl_name  NOT LIKE 'sqlite\\_%' ESCAPE '\\'
-			ORDER BY m.name, p.cid
+			ORDER BY m.name COLLATE NOCASE, p.cid
 			;
 		`,
 		).then((columns) => columns.filter((it) => tablesFilter(it.table)));
@@ -185,7 +185,7 @@ export const fromDatabase = async (
 						p.pk as pk,
 						p.hidden as hidden
 					FROM pragma_table_xinfo(${view.name}) AS p
-					ORDER BY p.name, p.cid
+					ORDER BY p.name COLLATE NOCASE, p.cid
 					;
 					`,
 				);
@@ -237,7 +237,7 @@ export const fromDatabase = async (
 		WHERE 
 			m.type = 'table' 
 			and m.tbl_name != '_cf_KV'
-		ORDER BY m.name
+		ORDER BY m.name COLLATE NOCASE
 		;
 		`).then((indexes) => indexes.filter((it) => tablesFilter(it.table)));
 
