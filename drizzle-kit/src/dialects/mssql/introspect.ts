@@ -46,7 +46,7 @@ export const fromDatabase = async (
 	JOIN sys.database_principals p ON s.principal_id = p.principal_id
 	WHERE p.type IN ('S', 'U')  -- Only SQL users and Windows users
 	  AND s.name NOT IN ('guest', 'INFORMATION_SCHEMA', 'sys')
-	ORDER BY s.name;
+	ORDER BY lower(s.name);
 `);
 
 	const filteredSchemas = introspectedSchemas.filter((it) => schemaFilter(it.schema_name));
@@ -74,7 +74,7 @@ FROM
     sys.tables
 WHERE 
     schema_id IN (${filteredSchemaIds.join(', ')})
-ORDER BY name;
+ORDER BY lower(name);
 `);
 
 	const viewsList = await db.query<{
@@ -96,7 +96,7 @@ FROM
 sys.views views
 LEFT JOIN sys.sql_modules modules on modules.object_id = views.object_id
 WHERE views.schema_id IN (${filteredSchemaIds.join(', ')})
-ORDER BY views.name;
+ORDER BY lower(views.name);
 `);
 
 	const filteredTables = tablesList.filter((it) => tablesFilter(it.name)).map((it) => {
@@ -138,7 +138,7 @@ SELECT
 	is_system_named as is_system_named 
 FROM sys.check_constraints
 ${filterByTableIds ? 'WHERE parent_object_id in ' + filterByTableIds : ''}
-ORDER BY name
+ORDER BY lower(name)
 ;`);
 
 	const defaultsConstraintQuery = db.query<{
@@ -158,7 +158,7 @@ SELECT
 	is_system_named as is_system_named 
 FROM sys.default_constraints
 ${filterByTableIds ? 'WHERE parent_object_id in ' + filterByTableIds : ''}
-ORDER BY name
+ORDER BY lower(name)
 ;`);
 
 	type ForeignKeyRow = {
@@ -187,7 +187,7 @@ SELECT
 sys.foreign_keys fk
 LEFT JOIN sys.foreign_key_columns fkc ON fkc.constraint_object_id = fk.object_id
 WHERE fk.schema_id IN (${filteredSchemaIds.join(', ')})
-ORDER BY fk.name;
+ORDER BY lower(fk.name);
  	`);
 
 	type RawIdxsAndConstraints = {
@@ -217,7 +217,7 @@ INNER JOIN sys.index_columns ic
     ON i.object_id = ic.object_id
    AND i.index_id = ic.index_id
 ${filterByTableIds ? 'WHERE i.object_id in ' + filterByTableIds : ''}
-ORDER BY i.name
+ORDER BY lower(i.name)
 ;`);
 
 	const columnsQuery = db.query<{
