@@ -25,7 +25,7 @@ import { Entities } from '../validations/cli';
 import type { CockroachCredentials } from '../validations/cockroach';
 import { CasingType } from '../validations/common';
 import { withStyle } from '../validations/outputs';
-import { ProgressView, schemaError, schemaWarning } from '../views';
+import { postgresSchemaError, postgresSchemaWarning, ProgressView } from '../views';
 
 export const handle = async (
 	schemaPath: string | string[],
@@ -48,11 +48,11 @@ export const handle = async (
 	const { schema: schemaTo, errors, warnings } = fromDrizzleSchema(res, casing);
 
 	if (warnings.length > 0) {
-		console.log(warnings.map((it) => schemaWarning(it)).join('\n\n'));
+		console.log(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
 	}
 
 	if (errors.length > 0) {
-		console.log(errors.map((it) => schemaError(it)).join('\n'));
+		console.log(errors.map((it) => postgresSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 
@@ -64,7 +64,7 @@ export const handle = async (
 	// todo: handle errors?
 
 	if (errors1.length > 0) {
-		console.log(errors.map((it) => schemaError(it)).join('\n'));
+		console.log(errors.map((it) => postgresSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 

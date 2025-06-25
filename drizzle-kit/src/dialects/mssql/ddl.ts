@@ -159,31 +159,33 @@ export const fullTableFromDDL = (table: Table, ddl: MssqlDDL): TableFull => {
 };
 
 export type SchemaError = {
-	type: 'table_name_conflict';
+	type: 'table_duplicate';
 	name: string;
+	schema: string;
 } | {
-	type: 'column_name_conflict';
+	type: 'column_duplicate';
 	table: string;
 	name: string;
+	schema: string;
 } | {
-	type: 'view_name_conflict';
+	type: 'view_name_duplicate';
 	schema: string;
 	name: string;
 } | {
-	type: 'schema_name_conflict';
+	type: 'schema_duplicate';
 	name: string;
 } | {
-	type: 'index_name_conflict';
+	type: 'index_duplicate';
 	schema: string;
 	table: string;
 	name: string;
 } | {
-	type: 'index_no_name_conflict';
+	type: 'index_no_name';
 	schema: string;
 	table: string;
 	sql: string;
 } | {
-	type: 'constraint_name_conflict';
+	type: 'constraint_duplicate';
 	schema: string;
 	table: string;
 	name: string;
@@ -196,14 +198,14 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MssqlDDL; errors: S
 	for (const it of interim.schemas) {
 		const res = ddl.schemas.push(it);
 		if (res.status === 'CONFLICT') {
-			errors.push({ type: 'schema_name_conflict', name: it.name });
+			errors.push({ type: 'schema_duplicate', name: it.name });
 		}
 	}
 
 	for (const table of interim.tables) {
 		const res = ddl.tables.push(table);
 		if (res.status === 'CONFLICT') {
-			errors.push({ type: 'table_name_conflict', name: table.name });
+			errors.push({ type: 'table_duplicate', name: table.name, schema: res.data.schema });
 		}
 	}
 
@@ -212,46 +214,55 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MssqlDDL; errors: S
 
 		const res = ddl.columns.push(rest);
 		if (res.status === 'CONFLICT') {
-			errors.push({ type: 'column_name_conflict', table: column.table, name: column.name });
+			errors.push({ type: 'column_duplicate', table: column.table, name: column.name, schema: res.data.schema });
 		}
 	}
 
 	for (const index of interim.indexes) {
-		const res = ddl.indexes.push(index);
-		if (res.status === 'CONFLICT') {
+		const isConflictNamePerSchema = ddl.indexes.one({ schema: index.schema, name: index.name });
+
+		if (isConflictNamePerSchema) {
 			errors.push({
-				type: 'index_name_conflict',
+				type: 'index_duplicate',
 				schema: index.schema,
 				table: index.table,
 				name: index.name,
 			});
 		}
+		ddl.indexes.push(index);
 	}
 
 	for (const unique of interim.uniques) {
-		const res = ddl.uniques.push(unique);
-		if (res.status === 'CONFLICT') {
+		const isConflictNamePerSchema = ddl.uniques.one({ schema: unique.schema, name: unique.name });
+
+		if (isConflictNamePerSchema) {
 			errors.push({
-				type: 'constraint_name_conflict',
+				type: 'constraint_duplicate',
 				schema: unique.schema,
 				table: unique.table,
 				name: unique.name,
 			});
 		}
+		ddl.uniques.push(unique);
 	}
 
 	for (const fk of interim.fks) {
-		const res = ddl.fks.push(fk);
-		if (res.status === 'CONFLICT') {
-			errors.push({ type: 'constraint_name_conflict', name: fk.name, table: fk.table, schema: fk.schema });
+		const isConflictNamePerSchema = ddl.fks.one({ schema: fk.schema, name: fk.name });
+
+		if (isConflictNamePerSchema) {
+			errors.push({ type: 'constraint_duplicate', name: fk.name, table: fk.table, schema: fk.schema });
 		}
+
+		ddl.fks.push(fk);
 	}
 
 	for (const pk of interim.pks) {
-		const res = ddl.pks.push(pk);
-		if (res.status === 'CONFLICT') {
-			errors.push({ type: 'constraint_name_conflict', name: pk.name, table: pk.table, schema: pk.schema });
+		const isConflictNamePerSchema = ddl.pks.one({ schema: pk.schema, name: pk.name });
+
+		if (isConflictNamePerSchema) {
+			errors.push({ type: 'constraint_duplicate', name: pk.name, table: pk.table, schema: pk.schema });
 		}
+		ddl.pks.push(pk);
 	}
 
 	for (const column of interim.columns.filter((it) => it.isPK)) {
@@ -286,7 +297,7 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MssqlDDL; errors: S
 		const res = ddl.defaults.push(columnDefault);
 		if (res.status === 'CONFLICT') {
 			errors.push({
-				type: 'constraint_name_conflict',
+				type: 'constraint_duplicate',
 				schema: columnDefault.schema,
 				table: columnDefault.table,
 				name: columnDefault.name,
@@ -295,22 +306,25 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MssqlDDL; errors: S
 	}
 
 	for (const check of interim.checks) {
-		const res = ddl.checks.push(check);
-		if (res.status === 'CONFLICT') {
+		const isConflictNamePerSchema = ddl.checks.one({ schema: check.schema, name: check.name });
+
+		if (isConflictNamePerSchema) {
 			errors.push({
-				type: 'constraint_name_conflict',
+				type: 'constraint_duplicate',
 				schema: check.schema,
 				table: check.table,
 				name: check.name,
 			});
 		}
+
+		ddl.checks.push(check);
 	}
 
 	for (const view of interim.views) {
 		const res = ddl.views.push(view);
 		if (res.status === 'CONFLICT') {
 			errors.push({
-				type: 'view_name_conflict',
+				type: 'view_name_duplicate',
 				schema: view.schema,
 				name: view.name,
 			});

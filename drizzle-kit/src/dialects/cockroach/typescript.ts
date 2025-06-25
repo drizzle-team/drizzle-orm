@@ -420,7 +420,9 @@ export const ddlToTypeScript = (
 
 		const params = !it.createDb && !it.createRole
 			? ''
-			: `${trimChar(`, { ${it.createDb ? `createDb: true,` : ''}${it.createRole ? ` createRole: true,` : ''}`, ',')}	}`;
+			: `${
+				trimChar(`, { ${it.createDb ? `createDb: true,` : ''}${it.createRole ? ` createRole: true,` : ''}`, ',')
+			}	}`;
 
 		return `export const ${identifier} = cockroachRole("${it.name}", ${params});\n`;
 	})

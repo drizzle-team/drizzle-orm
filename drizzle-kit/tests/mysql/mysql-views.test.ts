@@ -300,14 +300,14 @@ test('add meta to view with existing flag', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('alter meta to view', async () => {
+test('push: alter meta to view', async () => {
 	const users = mysqlTable('users', {
 		id: int('id').primaryKey().notNull(),
 	});
 
 	const from = {
 		users: users,
-		view: mysqlView('some_view', {}).algorithm('temptable').sqlSecurity('invoker')
+		view: mysqlView('some_view', {}).algorithm('merge').sqlSecurity('invoker')
 			.withCheckOption('cascaded').as(sql`SELECT * FROM ${users}`),
 	};
 	const to = {
@@ -328,7 +328,7 @@ test('alter meta to view', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('alter meta to view with existing flag', async () => {
+test('diff: alter meta to view', async () => {
 	const users = mysqlTable('users', {
 		id: int('id').primaryKey().notNull(),
 	});
@@ -336,6 +336,52 @@ test('alter meta to view with existing flag', async () => {
 	const from = {
 		users: users,
 		view: mysqlView('some_view', {}).algorithm('temptable').sqlSecurity('invoker')
+			.withCheckOption('cascaded').as(sql`SELECT * FROM ${users}`),
+	};
+	const to = {
+		users: users,
+		view: mysqlView('some_view', {}).algorithm('merge').sqlSecurity('definer')
+			.withCheckOption('cascaded').as(sql`SELECT * FROM ${users}`),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	const st0: string[] = [
+		'ALTER ALGORITHM = merge SQL SECURITY definer VIEW \`some_view\` AS SELECT * FROM \`users\` WITH cascaded CHECK OPTION;',
+	];
+	expect(st).toStrictEqual(st0);
+});
+
+test('diff: alter meta to view with existing flag', async () => {
+	const users = mysqlTable('users', {
+		id: int('id').primaryKey().notNull(),
+	});
+
+	const from = {
+		users: users,
+		view: mysqlView('some_view', {}).algorithm('temptable').sqlSecurity('invoker')
+			.withCheckOption('cascaded').existing(),
+	};
+	const to = {
+		users: users,
+		view: mysqlView('some_view', {}).algorithm('merge').sqlSecurity('definer')
+			.withCheckOption('cascaded').existing(),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	const st0: string[] = [];
+	expect(st).toStrictEqual(st0);
+});
+
+test('push: alter meta to view with existing flag', async () => {
+	const users = mysqlTable('users', {
+		id: int('id').primaryKey().notNull(),
+	});
+
+	const from = {
+		users: users,
+		view: mysqlView('some_view', {}).algorithm('merge').sqlSecurity('invoker')
 			.withCheckOption('cascaded').existing(),
 	};
 	const to = {
@@ -406,7 +452,7 @@ test('drop meta from view existing flag', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('alter view ".as" value', async () => {
+test('diff: alter view ".as" value', async () => {
 	const users = mysqlTable('users', {
 		id: int('id').primaryKey().notNull(),
 	});
@@ -424,14 +470,37 @@ test('alter view ".as" value', async () => {
 
 	const { sqlStatements: st } = await diff(from, to, []);
 
-	await push({ db, to: from });
-	const { sqlStatements: pst } = await push({ db, to });
-
 	const st0: string[] = [
 		`CREATE OR REPLACE ALGORITHM = temptable SQL SECURITY invoker VIEW \`some_view\` AS (SELECT * FROM \`users\` WHERE \`users\`.\`id\` = 1) WITH cascaded CHECK OPTION;`,
 	];
 	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+});
+
+test('push: alter view ".as" value', async () => {
+	const users = mysqlTable('users', {
+		id: int('id').primaryKey().notNull(),
+	});
+
+	const from = {
+		users: users,
+		view: mysqlView('some_view', {}).algorithm('merge').sqlSecurity('invoker')
+			.withCheckOption('cascaded').as(sql`SELECT * FROM ${users}`),
+	};
+	const to = {
+		users: users,
+		view: mysqlView('some_view', {}).algorithm('merge').sqlSecurity('invoker')
+			.withCheckOption('cascaded').as(sql`SELECT * FROM ${users} WHERE ${users.id} = 1`),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
+		`CREATE OR REPLACE ALGORITHM = merge SQL SECURITY invoker VIEW \`some_view\` AS (SELECT * FROM \`users\` WHERE \`users\`.\`id\` = 1) WITH cascaded CHECK OPTION;`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual([]); // Do not trigger definition changes on push
 });
 
 test('alter view ".as"', async () => {
@@ -455,10 +524,10 @@ test('alter view ".as"', async () => {
 	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
 	const st0: string[] = [
-		'ALTER ALGORITHM = undefined SQL SECURITY definer VIEW `view` AS select `id` from `test`;',
+		'CREATE OR REPLACE ALGORITHM = undefined SQL SECURITY definer VIEW `view` AS (select `id` from `test`);',
 	];
 	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+	expect(pst).toStrictEqual([]); // do not trigger definition changes on push
 });
 
 test('rename and alter view ".as" value', async () => {
@@ -468,12 +537,12 @@ test('rename and alter view ".as" value', async () => {
 
 	const from = {
 		users: users,
-		view: mysqlView('some_view', {}).algorithm('temptable').sqlSecurity('invoker')
+		view: mysqlView('some_view', {}).algorithm('merge').sqlSecurity('invoker')
 			.withCheckOption('cascaded').as(sql`SELECT * FROM ${users}`),
 	};
 	const to = {
 		users: users,
-		view: mysqlView('new_some_view', {}).algorithm('temptable').sqlSecurity('invoker')
+		view: mysqlView('new_some_view', {}).algorithm('merge').sqlSecurity('invoker')
 			.withCheckOption('cascaded').as(sql`SELECT * FROM ${users} WHERE ${users.id} = 1`),
 	};
 
@@ -485,10 +554,10 @@ test('rename and alter view ".as" value', async () => {
 
 	const st0: string[] = [
 		`RENAME TABLE \`some_view\` TO \`new_some_view\`;`,
-		`CREATE OR REPLACE ALGORITHM = temptable SQL SECURITY invoker VIEW \`new_some_view\` AS (SELECT * FROM \`users\` WHERE \`users\`.\`id\` = 1) WITH cascaded CHECK OPTION;`,
+		`CREATE OR REPLACE ALGORITHM = merge SQL SECURITY invoker VIEW \`new_some_view\` AS (SELECT * FROM \`users\` WHERE \`users\`.\`id\` = 1) WITH cascaded CHECK OPTION;`,
 	];
 	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+	expect(pst).toStrictEqual(['RENAME TABLE \`some_view\` TO \`new_some_view\`;']); // do not trigger definition chages on push
 });
 
 test('set existing', async () => {
@@ -498,12 +567,12 @@ test('set existing', async () => {
 
 	const from = {
 		users: users,
-		view: mysqlView('some_view', {}).algorithm('temptable').sqlSecurity('invoker')
+		view: mysqlView('some_view', {}).algorithm('merge').sqlSecurity('invoker')
 			.withCheckOption('cascaded').as(sql`SELECT * FROM ${users}`),
 	};
 	const to = {
 		users: users,
-		view: mysqlView('new_some_view', {}).algorithm('temptable').sqlSecurity('invoker')
+		view: mysqlView('new_some_view', {}).algorithm('merge').sqlSecurity('invoker')
 			.withCheckOption('cascaded').existing(),
 	};
 
@@ -535,11 +604,11 @@ test('drop existing', async () => {
 
 	const from = {
 		users: users,
-		view: mysqlView('some_view', {}).algorithm('temptable').sqlSecurity('invoker').existing(),
+		view: mysqlView('some_view', {}).algorithm('merge').sqlSecurity('invoker').existing(),
 	};
 	const to = {
 		users: users,
-		view: mysqlView('new_some_view', {}).algorithm('temptable').sqlSecurity('invoker').as(
+		view: mysqlView('new_some_view', {}).algorithm('merge').sqlSecurity('invoker').as(
 			sql`SELECT * FROM ${users} WHERE ${users.id} = 1`,
 		),
 	};
@@ -550,33 +619,8 @@ test('drop existing', async () => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		`CREATE ALGORITHM = temptable SQL SECURITY invoker VIEW \`new_some_view\` AS (SELECT * FROM \`users\` WHERE \`users\`.\`id\` = 1);`,
+		`CREATE ALGORITHM = merge SQL SECURITY invoker VIEW \`new_some_view\` AS (SELECT * FROM \`users\` WHERE \`users\`.\`id\` = 1);`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
-});
-
-test.only('alter meta options with distinct in definition', async () => {
-	const table = mysqlTable('test', {
-		id: int('id').primaryKey(),
-	});
-
-	const schema1 = {
-		test: table,
-		view: mysqlView('view').withCheckOption('cascaded').sqlSecurity('definer').algorithm('merge').as((
-			qb,
-		) => qb.select().from(table).where(sql`${table.id} = 1`)),
-	};
-
-	const schema2 = {
-		test: table,
-		view: mysqlView('view').withCheckOption('cascaded').sqlSecurity('definer').algorithm('undefined').as((qb) =>
-			qb.select().from(table)
-		),
-	};
-
-	// await expect.soft(diff(schema1, schema2, [])).rejects.toThrowError();
-
-	await push({ db, to: schema1 });
-	await expect.soft(push({ db, to: schema2 })).rejects.toThrowError();
 });

@@ -346,8 +346,9 @@ export const interimToDDL = (
 
 	for (const it of schema.indexes) {
 		const { forPK, ...rest } = it;
-		const res = ddl.indexes.push(rest);
-		if (res.status === 'CONFLICT') {
+		const isConflictNamePerSchema = ddl.indexes.one({ schema: it.schema, name: it.name });
+
+		if (isConflictNamePerSchema) {
 			errors.push({
 				type: 'index_duplicate',
 				schema: it.schema,
@@ -356,12 +357,13 @@ export const interimToDDL = (
 			});
 		}
 
-		// TODO: check within schema
+		ddl.indexes.push(rest);
 	}
 
 	for (const it of schema.fks) {
-		const res = ddl.fks.push(it);
-		if (res.status === 'CONFLICT') {
+		const isConflictNamePerSchema = ddl.fks.one({ schema: it.schema, name: it.name });
+
+		if (isConflictNamePerSchema) {
 			errors.push({
 				type: 'constraint_name_duplicate',
 				schema: it.schema,
@@ -369,11 +371,12 @@ export const interimToDDL = (
 				name: it.name,
 			});
 		}
+		ddl.fks.push(it);
 	}
 
 	for (const it of schema.pks) {
-		const res = ddl.pks.push(it);
-		if (res.status === 'CONFLICT') {
+		const isConflictNamePerSchema = ddl.pks.one({ schema: it.schema, name: it.name });
+		if (isConflictNamePerSchema) {
 			errors.push({
 				type: 'constraint_name_duplicate',
 				schema: it.schema,
@@ -381,6 +384,7 @@ export const interimToDDL = (
 				name: it.name,
 			});
 		}
+		ddl.pks.push(it);
 	}
 
 	for (const column of schema.columns.filter((it) => it.pk)) {
@@ -415,8 +419,9 @@ export const interimToDDL = (
 	}
 
 	for (const it of schema.checks) {
-		const res = ddl.checks.push(it);
-		if (res.status === 'CONFLICT') {
+		const isConflictNamePerSchema = ddl.checks.one({ schema: it.schema, name: it.name });
+
+		if (isConflictNamePerSchema) {
 			errors.push({
 				type: 'constraint_name_duplicate',
 				schema: it.schema,
@@ -424,17 +429,20 @@ export const interimToDDL = (
 				name: it.name,
 			});
 		}
+		ddl.checks.push(it);
 	}
 
 	for (const it of schema.sequences) {
-		const res = ddl.sequences.push(it);
-		if (res.status === 'CONFLICT') {
+		const isConflictNamePerSchema = ddl.sequences.one({ schema: it.schema, name: it.name });
+
+		if (isConflictNamePerSchema) {
 			errors.push({
 				type: 'sequence_name_duplicate',
 				schema: it.schema,
 				name: it.name,
 			});
 		}
+		ddl.sequences.push(it);
 	}
 
 	for (const it of schema.roles) {

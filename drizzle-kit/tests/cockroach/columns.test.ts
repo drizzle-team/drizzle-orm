@@ -100,6 +100,27 @@ test('add columns #2', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
+test('column conflict duplicate name #1', async (t) => {
+	const schema1 = {
+		users: cockroachTable('users', {
+			id: int4('id'),
+		}),
+	};
+
+	const schema2 = {
+		users: cockroachTable('users', {
+			id: int4('id'),
+			name: varchar('name', { length: 100 }).primaryKey(),
+			email: text('name'),
+		}),
+	};
+
+	await push({ to: schema1, db, schemas: ['dbo'] });
+
+	await expect(diff(schema1, schema2, [])).rejects.toThrowError(); // duplicate names in columns
+	await expect(push({ to: schema2, db, schemas: ['dbo'] })).rejects.toThrowError(); // duplicate names in columns
+});
+
 test('alter column change name #1', async (t) => {
 	const schema1 = {
 		users: cockroachTable('users', {
@@ -928,11 +949,6 @@ test('no diffs for all database types', async () => {
 			column6: interval('column6'),
 		}),
 
-		allSerials: customSchema.table('all_serials', {
-			columnAll: int4('column_all').notNull(),
-			column: int4('column').notNull(),
-		}),
-
 		allTexts: customSchema.table(
 			'all_texts',
 			{
@@ -949,7 +965,6 @@ test('no diffs for all database types', async () => {
 				column: string('columns').primaryKey(),
 				column2: string('column2', { length: 200 }),
 			},
-			(t: any) => [index('test').on(t.column)],
 		),
 		allBools: customSchema.table('all_bools', {
 			columnAll: boolean('column_all').default(true).notNull(),

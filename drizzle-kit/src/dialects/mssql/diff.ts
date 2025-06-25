@@ -509,6 +509,12 @@ export const ddlDiff = async (
 		};
 	};
 
+	const columnsFilter = (type: 'added') => {
+		return (it: { schema: string; table: string; column: string }) => {
+			return !columnsToCreate.some((t) => t.schema === it.schema && t.table === it.table && t.name === it.column);
+		};
+	};
+
 	const createTables = createdTables.map((it) =>
 		prepareStatement('create_table', { table: fullTableFromDDL(it, ddl2) })
 	);
@@ -531,6 +537,7 @@ export const ddlDiff = async (
 	const jsonAddColumnsStatemets = columnsToCreate.filter(tablesFilter('created')).map((it) =>
 		prepareStatement('add_column', {
 			column: it,
+			defaults: ddl2.defaults.list(),
 		})
 	);
 	const columnAlters = alters.filter((it) => it.entityType === 'columns').filter((it) => Object.keys(it).length > 5); // $difftype, entitytype, schema, table, name
@@ -543,6 +550,7 @@ export const ddlDiff = async (
 	const jsonRecreateColumns = columnsToRecreate.map((it) =>
 		prepareStatement('recreate_column', {
 			column: it,
+			defaults: ddl2.defaults.list(),
 		})
 	);
 
@@ -553,14 +561,15 @@ export const ddlDiff = async (
 		}
 
 		const pkIn2 = ddl2.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } });
-		if (it.notNull && pkIn2) {
-			delete it.notNull;
-		}
+		// When adding primary key to column it is needed to add not null first
+		// if (it.notNull && pkIn2) {
+		// 	delete it.notNull;
+		// }
 
 		const pkIn1 = ddl1.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } });
-		if (it.notNull && it.notNull.from && pkIn1 && !pkIn2) {
-			delete it.notNull;
-		}
+		// if (it.notNull && it.notNull.from && pkIn1 && !pkIn2) {
+		// 	delete it.notNull;
+		// }
 
 		if ((it.$right.generated || it.$left.generated) && it.$right.type !== it.$left.type) {
 			delete it.type;
@@ -686,6 +695,7 @@ export const ddlDiff = async (
 				...defToDelete,
 				...indexesToDelete,
 			],
+			defaults: ddl2.defaults.list(),
 		});
 	});
 
@@ -808,9 +818,14 @@ export const ddlDiff = async (
 			});
 		};
 	};
-	const jsonCreateDefaults = defaultsCreates.filter(tablesFilter('created')).filter(defaultsIdentityFilter('created'))
+	const jsonCreateDefaults = defaultsCreates.filter(tablesFilter('created'))
+		.filter(columnsFilter('added'))
+		.filter(
+			defaultsIdentityFilter('created'),
+		)
 		.map((defaultValue) => prepareStatement('create_default', { default: defaultValue }));
-	const jsonDropDefaults = defaultsDeletes.filter(tablesFilter('deleted')).filter(defaultsIdentityFilter('deleted'))
+	const jsonDropDefaults = defaultsDeletes.filter(tablesFilter('deleted'))
+		.filter(defaultsIdentityFilter('deleted'))
 		.map((defaultValue) => prepareStatement('drop_default', { default: defaultValue }));
 	const alteredDefaults = alters.filter((it) => it.entityType === 'defaults')
 		.filter((it) => {
