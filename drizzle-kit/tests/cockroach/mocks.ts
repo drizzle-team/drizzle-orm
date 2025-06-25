@@ -35,7 +35,6 @@ import { existsSync, rmSync, writeFileSync } from 'fs';
 import getPort from 'get-port';
 import { Pool, PoolClient } from 'pg';
 import { introspect } from 'src/cli/commands/pull-cockroach';
-
 import { suggestions } from 'src/cli/commands/push-cockroach';
 import { Entities } from 'src/cli/validations/cli';
 import { EmptyProgressView } from 'src/cli/views';
@@ -45,6 +44,7 @@ import { ddlToTypeScript } from 'src/dialects/cockroach/typescript';
 import { hash } from 'src/dialects/common';
 import { DB } from 'src/utils';
 import { v4 as uuidV4 } from 'uuid';
+import 'zx/globals';
 
 export type CockroachDBSchema = Record<
 	string,
@@ -150,23 +150,17 @@ export const push = async (config: {
 
 	const { schema } = await introspect(db, [], schemas, config.entities, new EmptyProgressView());
 
-	const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
-	const { ddl: ddl2, errors: err2 } = 'entities' in to && '_' in to
+	const { ddl: ddl1, errors: err2 } = interimToDDL(schema);
+	const { ddl: ddl2, errors: err3 } = 'entities' in to && '_' in to
 		? { ddl: to as CockroachDDL, errors: [] }
 		: drizzleToDDL(to, casing);
 
 	if (err2.length > 0) {
-		for (const e of err2) {
-			console.error(`err2: ${JSON.stringify(e)}`);
-		}
-		throw new Error();
+		throw new MockError(err2);
 	}
 
 	if (err3.length > 0) {
-		for (const e of err3) {
-			console.error(`err3: ${JSON.stringify(e)}`);
-		}
-		throw new Error();
+		throw new MockError(err3);
 	}
 
 	if (log === 'statements') {
@@ -291,7 +285,7 @@ export const diffIntrospect = async (
 
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
-	const filePath = `tests/cockroachdb/tmp/${testName}.ts`;
+	const filePath = `tests/cockroach/tmp/${testName}.ts`;
 
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
 	writeFileSync(filePath, file.file);
@@ -312,7 +306,6 @@ export const diffIntrospect = async (
 		warnings,
 	} = fromDrizzleSchema(response, casing);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(schema2);
-	// TODO: handle errors
 
 	const {
 		sqlStatements: afterFileSqlStatements,

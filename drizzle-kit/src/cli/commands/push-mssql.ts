@@ -24,7 +24,7 @@ import { Select } from '../selector-ui';
 import { CasingType } from '../validations/common';
 import type { MssqlCredentials } from '../validations/mssql';
 import { withStyle } from '../validations/outputs';
-import { ProgressView } from '../views';
+import { mssqlSchemaError, ProgressView } from '../views';
 
 export const handle = async (
 	schemaPath: string | string[],
@@ -43,29 +43,28 @@ export const handle = async (
 	const filenames = prepareFilenames(schemaPath);
 	const res = await prepareFromSchemaFiles(filenames);
 
-	const schemaTo = fromDrizzleSchema(res, casing);
+	const { schema: schemaTo, errors } = fromDrizzleSchema(res, casing);
 
-	// TODO handle warnings?
-	// if (warnings.length > 0) {
-	// 	console.log(warnings.map((it) => schemaWarning(it)).join('\n\n'));
-	// }
-
-	// if (errors.length > 0) {
-	// 	console.log(errors.map((it) => schemaError(it)).join('\n'));
-	// 	process.exit(1);
-	// }
+	if (errors.length > 0) {
+		console.log(errors.map((it) => mssqlSchemaError(it)).join('\n'));
+		process.exit(1);
+	}
 
 	const progress = new ProgressView('Pulling schema from database...', 'Pulling schema from database...');
 	const { schema: schemaFrom } = await introspect(db, tablesFilter, schemasFilter, progress);
 
 	const { ddl: ddl1, errors: errors1 } = interimToDDL(schemaFrom);
 	const { ddl: ddl2, errors: errors2 } = interimToDDL(schemaTo);
-	// todo: handle errors?
 
-	// if (errors1.length > 0) {
-	// 	console.log(errors.map((it) => schemaError(it)).join('\n'));
-	// 	process.exit(1);
-	// }
+	if (errors1.length > 0) {
+		console.log(errors.map((it) => mssqlSchemaError(it)).join('\n'));
+		process.exit(1);
+	}
+
+	if (errors2.length > 0) {
+		console.log(errors.map((it) => mssqlSchemaError(it)).join('\n'));
+		process.exit(1);
+	}
 
 	const { sqlStatements, statements: jsonStatements } = await ddlDiff(
 		ddl1,
@@ -134,10 +133,13 @@ export const handle = async (
 	render(`[${chalk.green('✓')}] Changes applied`);
 };
 
-const identifier = (it: { schema?: string; name: string }) => {
-	const { schema, name } = it;
-	const schemakey = schema && schema !== 'dbo' ? `[${schema}].` : '';
-	return `${schemakey}[${name}]`;
+const identifier = (it: { schema?: string; table: string }) => {
+	const { schema, table } = it;
+
+	const schemaKey = schema && schema !== 'dbo' ? `[${schema}].` : '';
+	const tableKey = `[${table}]`;
+
+	return `${schemaKey}${tableKey}`;
 };
 
 export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2: MssqlDDL) => {
@@ -145,8 +147,6 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 	const hints = [] as string[];
 
 	const filtered = jsonStatements.filter((it) => {
-		if (it.type === 'recreate_view') return false;
-
 		if (it.type === 'alter_column' && it.diff.generated) return false;
 
 		return true;
@@ -154,20 +154,22 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 
 	for (const statement of filtered) {
 		if (statement.type === 'drop_table') {
-			const id = identifier(statement.table);
-			const res = await db.query(`select 1 from ${id} limit 1`);
+			const tableName = identifier({ schema: statement.table.schema, table: statement.table.name });
+			const res = await db.query(`select top(1) 1 from ${tableName};`);
 
-			if (res.length > 0) hints.push(`· You're about to delete non-empty ${id} table`);
+			if (res.length > 0) hints.push(`· You're about to delete non-empty [${statement.table.name}] table`);
 			continue;
 		}
 
 		if (statement.type === 'drop_column') {
 			const column = statement.column;
-			const id = identifier({ schema: column.schema, name: column.table });
-			const res = await db.query(`select 1 from ${id} limit 1`);
+
+			const key = identifier({ schema: column.schema, table: column.table });
+
+			const res = await db.query(`SELECT TOP(1) 1 FROM ${key} WHERE [${column.name}] IS NOT NULL;`);
 			if (res.length === 0) continue;
 
-			hints.push(`· You're about to delete non-empty ${column.name} column in ${id} table`);
+			hints.push(`· You're about to delete non-empty [${column.name}] column in [${column.table}] table`);
 			continue;
 		}
 
@@ -179,27 +181,10 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			const count = Number(res[0].count);
 			if (count === 0) continue;
 
-			hints.push(`· You're about to delete ${chalk.underline(statement.name)} schema with ${count} tables`);
-			continue;
-		}
-
-		// drop pk
-		if (statement.type === 'drop_pk') {
-			const schema = statement.pk.schema ?? 'dbo';
-			const table = statement.pk.table;
-			const id = identifier({ name: table, schema: schema });
-			const res = await db.query(
-				`select 1 from ${id} limit 1`,
+			const tableGrammar = count === 1 ? 'table' : 'tables';
+			hints.push(
+				`· You're about to delete [${statement.name}] schema with ${count} ${tableGrammar}`,
 			);
-
-			if (res.length > 0) {
-				hints.push(
-					`· You're about to drop ${
-						chalk.underline(id)
-					} primary key, this statements may fail and your table may loose primary key`,
-				);
-			}
-
 			continue;
 		}
 
@@ -212,15 +197,16 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			})
 		) {
 			const column = statement.column;
-			const id = identifier({ schema: column.schema, name: column.table });
-			const res = await db.query(`select 1 from ${id} limit 1`);
+			const key = identifier({ schema: column.schema, table: column.table });
+			const res = await db.query(`select top(1) 1 from ${key}`);
 
 			if (res.length === 0) continue;
+
 			hints.push(
-				`· You're about to add not-null ${
-					chalk.underline(statement.column.name)
-				} column without default value to a non-empty ${id} table`,
+				`· You're about to add not-null [${column.name}] column without default value to a non-empty ${key} table`,
 			);
+
+			losses.push(`DELETE FROM ${key};`);
 
 			continue;
 		}
@@ -234,24 +220,43 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			})
 		) {
 			const column = statement.diff.$right;
-			const id = identifier({ schema: column.schema, name: column.table });
-			const res = await db.query(`select 1 from ${id} limit 1`);
+			const key = identifier({ schema: column.schema, table: column.table });
+			const res = await db.query(`select top(1) 1 from ${key};`);
 
 			if (res.length === 0) continue;
 			hints.push(
-				`· You're about to add not-null ${
-					chalk.underline(statement.diff.$right.name)
-				} column without default value to a non-empty ${id} table`,
+				`· You're about to add not-null to [${statement.diff.$right.name}] column without default value to a non-empty ${key} table`,
 			);
+
+			losses.push(`DELETE FROM ${key};`);
+
+			continue;
+		}
+
+		if (statement.type === 'drop_pk') {
+			const schema = statement.pk.schema ?? 'dbo';
+			const table = statement.pk.table;
+			const id = identifier({ table: table, schema: schema });
+			const res = await db.query(
+				`select top(1) 1 from ${id};`,
+			);
+
+			if (res.length > 0) {
+				hints.push(
+					`· You're about to drop ${
+						chalk.underline(id)
+					} primary key, this statements may fail and your table may loose primary key`,
+				);
+			}
 
 			continue;
 		}
 
 		if (statement.type === 'add_unique') {
 			const unique = statement.unique;
-			const id = identifier({ schema: unique.schema, name: unique.table });
+			const id = identifier({ schema: unique.schema, table: unique.table });
 
-			const res = await db.query(`select 1 from ${id} limit 1`);
+			const res = await db.query(`select top(1) 1 from ${id};`);
 			if (res.length === 0) continue;
 
 			hints.push(
@@ -263,6 +268,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			continue;
 		}
 
+		// TODO should we abort process here?
 		if (
 			statement.type === 'rename_column'
 			&& ddl2.checks.one({ schema: statement.to.schema, table: statement.to.table })
@@ -292,7 +298,7 @@ You should create new schema and transfer everything to it`,
 	}
 
 	return {
-		losses: losses,
+		losses,
 		hints,
 	};
 };

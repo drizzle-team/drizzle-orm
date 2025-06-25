@@ -28,6 +28,8 @@ import { ddlToTypeScript } from 'src/dialects/mssql/typescript';
 import { hash } from 'src/dialects/mssql/utils';
 import { DB } from 'src/utils';
 import { v4 as uuid } from 'uuid';
+import 'zx/globals';
+import { suggestions } from 'src/cli/commands/push-mssql';
 
 export type MssqlDBSchema = Record<
 	string,
@@ -50,14 +52,14 @@ export const drizzleToDDL = (
 	const schemas = Object.values(schema).filter((it) => is(it, MsSqlSchema)) as MsSqlSchema[];
 	const views = Object.values(schema).filter((it) => is(it, MsSqlView)) as MsSqlView[];
 
-	const res = fromDrizzleSchema(
+	const { schema: res, errors } = fromDrizzleSchema(
 		{ schemas, tables, views },
 		casing,
 	);
 
-	// if (errors.length > 0) {
-	// 	throw new Error();
-	// }
+	if (errors.length > 0) {
+		throw new Error();
+	}
 
 	return interimToDDL(res);
 };
@@ -133,7 +135,7 @@ export const diffIntrospect = async (
 		filePath,
 	]);
 
-	const schema2 = fromDrizzleSchema(response, casing);
+	const { schema: schema2, errors: e2 } = fromDrizzleSchema(response, casing);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(schema2);
 
 	const {
@@ -157,10 +159,10 @@ export const push = async (config: {
 	schemas?: string[];
 	casing?: CasingType;
 	log?: 'statements' | 'none';
-	entities?: Entities;
+	force?: boolean;
+	expectError?: boolean;
 }) => {
-	const { db, to } = config;
-	const log = config.log ?? 'none';
+	const { db, to, force, expectError } = config;
 	const casing = config.casing ?? 'camelCase';
 	const schemas = config.schemas ?? ((_: string) => true);
 
@@ -172,27 +174,15 @@ export const push = async (config: {
 		: drizzleToDDL(to, casing);
 
 	if (err2.length > 0) {
-		for (const e of err2) {
-			console.error(`err2: ${JSON.stringify(e)}`);
-		}
-		throw new Error();
+		throw new MockError(err2);
 	}
 
 	if (err3.length > 0) {
-		for (const e of err3) {
-			console.error(`err3: ${JSON.stringify(e)}`);
-		}
-		throw new Error();
+		throw new MockError(err3);
 	}
-
-	if (log === 'statements') {
-		// console.dir(ddl1.roles.list());
-		// console.dir(ddl2.roles.list());
-	}
-
-	// TODO: handle errors
 
 	const renames = new Set(config.renames ?? []);
+
 	const { sqlStatements, statements } = await ddlDiff(
 		ddl1,
 		ddl2,
@@ -209,74 +199,27 @@ export const push = async (config: {
 		'push',
 	);
 
-	// TODO add hints and losses
-	// const { hints, losses } = await suggestions(db, statements);
+	const { hints, losses } = await suggestions(db, statements, ddl2);
 
+	if (force) {
+		for (const st of losses) {
+			await db.query(st);
+		}
+	}
+
+	let error: Error | null = null;
 	for (const sql of sqlStatements) {
-		if (log === 'statements') console.log(sql);
-		await db.query(sql);
+		// if (log === 'statements') console.log(sql);
+		try {
+			await db.query(sql);
+		} catch (e) {
+			if (!expectError) throw e;
+			error = e as Error;
+			break;
+		}
 	}
 
-	return { sqlStatements, statements, hints: undefined, losses: undefined };
-};
-
-export const diffPush = async (config: {
-	db: DB;
-	from: MssqlDBSchema;
-	to: MssqlDBSchema;
-	renames?: string[];
-	schemas?: string[];
-	casing?: CasingType;
-	entities?: Entities;
-	before?: string[];
-	after?: string[];
-	apply?: boolean;
-}) => {
-	const { db, from: initSchema, to: destination, casing, before, after, renames: rens, entities } = config;
-
-	const schemas = config.schemas ?? ['dbo'];
-	const apply = typeof config.apply === 'undefined' ? true : config.apply;
-	const { ddl: initDDL } = drizzleToDDL(initSchema, casing);
-	const { sqlStatements: inits } = await ddlDiffDry(createDDL(), initDDL, 'default');
-
-	const init = [] as string[];
-	if (before) init.push(...before);
-	if (apply) init.push(...inits);
-	if (after) init.push(...after);
-
-	for (const st of init) {
-		await db.query(st);
-	}
-
-	// do introspect into PgSchemaInternal
-	const introspectedSchema = await fromDatabaseForDrizzle(db, undefined, (it) => schemas.indexOf(it) >= 0);
-
-	const { ddl: ddl1, errors: err3 } = interimToDDL(introspectedSchema);
-	const { ddl: ddl2, errors: err2 } = drizzleToDDL(destination, casing);
-
-	const renames = new Set(rens);
-	const { sqlStatements, statements } = await ddlDiff(
-		ddl1,
-		ddl2,
-		mockResolver(renames),
-		mockResolver(renames),
-		mockResolver(renames),
-		mockResolver(renames), // views
-		mockResolver(renames), // uniques
-		mockResolver(renames), // indexes
-		mockResolver(renames), // checks
-		mockResolver(renames), // pks
-		mockResolver(renames), // fks
-		mockResolver(renames), // defaults
-		'push',
-	);
-
-	// TODO suggestions
-	// const { hints, losses } = await suggestions(
-	// 	db,
-	// 	statements,
-	// );
-	return { sqlStatements, statements, hints: undefined, losses: undefined };
+	return { sqlStatements, statements, hints, losses, error };
 };
 
 export type TestDatabase = {
@@ -388,7 +331,7 @@ export const diffDefault = async <T extends MsSqlColumnBuilder>(
 	writeFileSync(path, file.file);
 
 	const response = await prepareFromSchemaFiles([path]);
-	const sch = fromDrizzleSchema(response, 'camelCase');
+	const { schema: sch, errors: e2 } = fromDrizzleSchema(response, 'camelCase');
 	const { ddl: ddl2, errors: e3 } = interimToDDL(sch);
 
 	const { sqlStatements: afterFileSqlStatements } = await ddlDiffDry(ddl1, ddl2, 'push');
@@ -441,13 +384,11 @@ export const diffDefault = async <T extends MsSqlColumnBuilder>(
 	await push({ db, to: schema3 });
 	const { sqlStatements: st4 } = await push({ db, to: schema4 });
 
-	const expectedAddColumn = `ALTER TABLE [${tableName}] ADD [${column.name}] ${sqlType};`;
-	const expectedAddDefault = `ALTER TABLE [${tableName}] ADD CONSTRAINT [${
+	const expectedAddColumn = `ALTER TABLE [${tableName}] ADD [${column.name}] ${sqlType} CONSTRAINT [${
 		defaultNameForDefault(tableName, column.name)
-	}] DEFAULT ${expectedDefault} FOR [${column.name}];`;
-	if (st4.length !== 2 || st4[0] !== expectedAddColumn || st4[1] !== expectedAddDefault) {
+	}] DEFAULT ${expectedDefault};`;
+	if (st4.length !== 1 || st4[0] !== expectedAddColumn) {
 		res.push(`Unexpected add column:\n${st4[0]}\n\n${expectedAddColumn}`);
-		res.push(`Unexpected add default:\n${st4[1]}\n\n${expectedAddDefault}`);
 	}
 
 	return res;

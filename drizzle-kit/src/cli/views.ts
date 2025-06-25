@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import { Prompt, render, SelectState, TaskView } from 'hanji';
-import { SchemaError, SchemaWarning } from 'src/dialects/postgres/ddl';
+import { SchemaError as MssqlSchemaError } from 'src/dialects/mssql/ddl';
+import { SchemaError as PostgresSchemaError, SchemaWarning as PostgresSchemaWarning } from 'src/dialects/postgres/ddl';
 import { vectorOps } from '../dialects/postgres/grammar';
 import { SchemaError as SqliteSchemaError } from '../dialects/sqlite/ddl';
 import { Named, NamedWithSchema } from '../dialects/utils';
@@ -25,7 +26,7 @@ export const error = (error: string, greyMsg: string = ''): string => {
 	return `${chalk.bgRed.bold(' Error ')} ${error} ${greyMsg ? chalk.grey(greyMsg) : ''}`.trim();
 };
 
-export const schemaWarning = (warning: SchemaWarning): string => {
+export const postgresSchemaWarning = (warning: PostgresSchemaWarning): string => {
 	if (warning.type === 'policy_not_linked') {
 		return withStyle.errorWarning(
 			`"Policy ${warning.policy} was skipped because it was not linked to any table. You should either include the policy in a table or use .link() on the policy to link it to any table you have. For more information, please check:`,
@@ -56,7 +57,7 @@ export const sqliteSchemaError = (error: SqliteSchemaError): string => {
 	return '';
 };
 
-export const schemaError = (error: SchemaError): string => {
+export const postgresSchemaError = (error: PostgresSchemaError): string => {
 	if (error.type === 'constraint_name_duplicate') {
 		const { name, schema, table } = error;
 		const tableName = chalk.underline.blue(`"${schema}"."${table}"`);
@@ -139,6 +140,72 @@ export const schemaError = (error: SchemaError): string => {
 
 	// assertUnreachable(error);
 	return '';
+};
+
+export const mssqlSchemaError = (error: MssqlSchemaError): string => {
+	if (error.type === 'constraint_duplicate') {
+		const { name, schema, table } = error;
+		const constraintName = chalk.underline.blue(`'${name}'`);
+		const schemaName = chalk.underline.blue(`'${schema}'`);
+
+		return withStyle.errorWarning(
+			`There's a duplicate constraint name ${constraintName} across ${schemaName} schema`,
+		);
+	}
+
+	if (error.type === 'index_duplicate') {
+		// check for index names duplicates
+		const { schema, table, name } = error;
+		const sch = chalk.underline.blue(`"${schema}"`);
+		const idx = chalk.underline.blue(`'${name}'`);
+		const tableName = chalk.underline.blue(`"${schema}"."${table}"`);
+		return withStyle.errorWarning(
+			`There's a duplicate index name ${idx} in ${sch} schema in ${tableName}`,
+		);
+	}
+
+	if (error.type === 'index_no_name') {
+		const { schema, table, sql } = error;
+		const tableName = chalk.underline.blue(`"${schema}"."${table}"`);
+		return withStyle.errorWarning(
+			`Please specify an index name in ${tableName} table that has "${sql}" expression.\n\nWe can generate index names for indexes on columns only; for expressions in indexes, you need to specify index name yourself.`,
+		);
+	}
+
+	if (error.type === 'view_name_duplicate') {
+		const schema = chalk.underline.blue(error.schema);
+		const name = chalk.underline.blue(error.name);
+		return withStyle.errorWarning(
+			`There's a view duplicate name ${name} across ${schema} schema`,
+		);
+	}
+
+	if (error.type === 'column_duplicate') {
+		const schema = chalk.underline.blue(error.schema);
+		const name = chalk.underline.blue(error.name);
+		const tableName = chalk.underline.blue(`"${schema}"."${error.table}"`);
+		return withStyle.errorWarning(
+			`There's a column duplicate name ${name} in ${tableName} table`,
+		);
+	}
+
+	if (error.type === 'schema_duplicate') {
+		const schemaName = chalk.underline.blue(error.name);
+		return withStyle.errorWarning(
+			`There's a schema duplicate name ${schemaName}`,
+		);
+	}
+
+	if (error.type === 'table_duplicate') {
+		const schema = chalk.underline.blue(error.schema);
+		const tableName = chalk.underline.blue(`"${schema}"."${error.name}"`);
+
+		return withStyle.errorWarning(
+			`There's a table duplicate name ${tableName} across ${schema} schema`,
+		);
+	}
+
+	assertUnreachable(error);
 };
 
 export interface RenamePropmtItem<T> {

@@ -9,21 +9,27 @@ export type HasBaseColumn<TColumn> = TColumn extends { _: { baseColumn: Column |
 
 export type EnumValuesToEnum<TEnumValues extends [string, ...string[]]> = { readonly [K in TEnumValues[number]]: K };
 
+type StringHasMaxLength<TColumn extends Column> = TColumn['_']['columnType'] extends
+	| 'PgVarchar'
+	| 'PgChar'
+	| 'MySqlChar'
+	| 'MySqlVarChar'
+	| 'MySqlText'
+	| 'SingleStoreChar'
+	| 'SingleStoreText'
+	| 'SingleStoreVarChar'
+	| 'MsSqlChar'
+	| 'MsSqlVarChar'
+	| 'CockroachChar'
+	| 'CockroachVarchar' ? true
+	: TColumn['_']['columnType'] extends 'SQLiteText'
+		? TColumn['_'] extends { length: number | undefined } ? undefined extends TColumn['_']['length'] ? false
+			: true
+		: false
+	: false;
+
 export type ExtractAdditionalProperties<TColumn extends Column> = {
-	max: TColumn['_']['columnType'] extends
-		| 'PgVarchar'
-		| 'SQLiteText'
-		| 'PgChar'
-		| 'MySqlChar'
-		| 'MySqlVarChar'
-		| 'MySqlText'
-		| 'SingleStoreChar'
-		| 'SingleStoreText'
-		| 'SingleStoreVarChar'
-		| 'MsSqlChar'
-		| 'MsSqlVarChar'
-		| 'CockroachChar'
-		| 'CockroachVarchar' ? number
+	max: StringHasMaxLength<TColumn> extends true ? number
 		: TColumn['_']['columnType'] extends
 			'PgBinaryVector' | 'PgHalfVector' | 'PgVector' | 'SingleStoreVector' | 'CockroachVector' | 'CockroachBinaryVector'
 			? Assume<TColumn['_'], { dimensions: number }>['dimensions']
@@ -98,7 +104,6 @@ export type GetValibotType<
 			| 'SingleStoreJson'
 			| 'SQLiteTextJson'
 			| 'SQLiteBlobJson'
-			| 'MsSqlJson'
 			| 'CockroachJsonb' ? v.GenericSchema<TData>
 		: v.ObjectSchema<
 			{ readonly [K in keyof TData]: GetValibotPrimitiveType<TData[K], '', { noPipe: true }> },

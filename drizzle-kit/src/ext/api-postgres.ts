@@ -4,7 +4,7 @@ import { introspect } from '../cli/commands/pull-postgres';
 import { suggestions } from '../cli/commands/push-postgres';
 import { resolver } from '../cli/prompts';
 import type { CasingType } from '../cli/validations/common';
-import { ProgressView, schemaError, schemaWarning } from '../cli/views';
+import { postgresSchemaError, postgresSchemaWarning, ProgressView } from '../cli/views';
 import {
 	CheckConstraint,
 	Column,
@@ -39,16 +39,16 @@ export const generateDrizzleJson = (
 
 	const { ddl, errors: err2 } = interimToDDL(interim);
 	if (warnings.length > 0) {
-		console.log(warnings.map((it) => schemaWarning(it)).join('\n\n'));
+		console.log(warnings.map((it) => postgresSchemaWarning(it)).join('\n\n'));
 	}
 
 	if (errors.length > 0) {
-		console.log(errors.map((it) => schemaError(it)).join('\n'));
+		console.log(errors.map((it) => postgresSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 
 	if (err2.length > 0) {
-		console.log(err2.map((it) => schemaError(it)).join('\n'));
+		console.log(err2.map((it) => postgresSchemaError(it)).join('\n'));
 		process.exit(1);
 	}
 

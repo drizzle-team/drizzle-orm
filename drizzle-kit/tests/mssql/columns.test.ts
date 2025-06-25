@@ -41,8 +41,7 @@ test('add columns #1', async (t) => {
 	const { sqlStatements: pst } = await push({ db, to: schema2, schemas: ['dbo'] });
 
 	const st0 = [
-		'ALTER TABLE [users] ADD [name] text NOT NULL;',
-		`ALTER TABLE [users] ADD CONSTRAINT [users_name_default] DEFAULT 'hey' FOR [name];`,
+		`ALTER TABLE [users] ADD [name] text NOT NULL CONSTRAINT [users_name_default] DEFAULT 'hey';`,
 	];
 
 	expect(st).toStrictEqual(st0);
@@ -105,6 +104,116 @@ test('add columns #3', async (t) => {
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+test('add columns #4. With default', async (t) => {
+	const schema1 = {
+		users: mssqlTable('users', {
+			id: int('id'),
+		}),
+	};
+
+	const schema2 = {
+		users: mssqlTable('users', {
+			id: int('id'),
+			name: varchar('name', { length: 100 }).primaryKey(),
+			email: text('email').default('hey'),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1, schemas: ['dbo'] });
+	const { sqlStatements: pst } = await push({ db, to: schema2, schemas: ['dbo'] });
+
+	const st0 = [
+		'ALTER TABLE [users] ADD [name] varchar(100) NOT NULL;',
+		`ALTER TABLE [users] ADD [email] text CONSTRAINT [users_email_default] DEFAULT 'hey';`,
+		'ALTER TABLE [users] ADD CONSTRAINT [users_pkey] PRIMARY KEY ([name]);',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('add columns #5. With not null and with default', async (t) => {
+	const schema1 = {
+		users: mssqlTable('users', {
+			id: int('id'),
+		}),
+	};
+
+	const schema2 = {
+		users: mssqlTable('users', {
+			id: int('id'),
+			name: varchar('name', { length: 100 }).primaryKey(),
+			email: text('email').notNull().default('hey'),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1, schemas: ['dbo'] });
+	const { sqlStatements: pst } = await push({ db, to: schema2, schemas: ['dbo'] });
+
+	const st0 = [
+		'ALTER TABLE [users] ADD [name] varchar(100) NOT NULL;',
+		`ALTER TABLE [users] ADD [email] text NOT NULL CONSTRAINT [users_email_default] DEFAULT 'hey';`,
+		'ALTER TABLE [users] ADD CONSTRAINT [users_pkey] PRIMARY KEY ([name]);',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('alter column: change data type, add not null with default', async (t) => {
+	const from = {
+		users: mssqlTable('users', {
+			id: int(),
+			name: varchar({ length: 200 }),
+		}),
+	};
+
+	await push({ db, to: from });
+
+	await db.query(`INSERT INTO [users] ([id]) VALUES (1), (2);`);
+
+	const to = {
+		users: mssqlTable('users', {
+			id: int(),
+			name: varchar({ length: 200 }).notNull().default('1'),
+		}),
+	};
+	const { sqlStatements: pst1, hints, losses, error } = await push({ db, to: to, expectError: true });
+
+	const st_01 = [
+		`ALTER TABLE [users] ALTER COLUMN [name] varchar(200) NOT NULL;`,
+		`ALTER TABLE [users] ADD CONSTRAINT [users_name_default] DEFAULT '1' FOR [name];`,
+	];
+
+	expect(pst1).toStrictEqual(st_01);
+	expect(hints).toStrictEqual([]);
+	expect(error).not.toBeNull();
+	expect(losses).toStrictEqual([]);
+});
+
+test('column conflict duplicate name #1', async (t) => {
+	const schema1 = {
+		users: mssqlTable('users', {
+			id: int('id'),
+		}),
+	};
+
+	const schema2 = {
+		users: mssqlTable('users', {
+			id: int('id'),
+			name: varchar('name', { length: 100 }).primaryKey(),
+			email: text('name'),
+		}),
+	};
+
+	await push({ to: schema1, db, schemas: ['dbo'] });
+
+	await expect(diff(schema1, schema2, [])).rejects.toThrowError(); // duplicate names in columns
+	await expect(push({ to: schema2, db, schemas: ['dbo'] })).rejects.toThrowError(); // duplicate names in columns
 });
 
 test('alter column change name #1', async (t) => {
@@ -927,10 +1036,8 @@ test('varchar and text default values escape single quotes', async () => {
 	});
 
 	const st0 = [
-		`ALTER TABLE [table] ADD [text] text;`,
-		`ALTER TABLE [table] ADD [varchar] varchar(100);`,
-		`ALTER TABLE [table] ADD CONSTRAINT [table_text_default] DEFAULT 'escape''s quotes' FOR [text];`,
-		`ALTER TABLE [table] ADD CONSTRAINT [table_varchar_default] DEFAULT 'escape''s quotes' FOR [varchar];`,
+		`ALTER TABLE [table] ADD [text] text CONSTRAINT [table_text_default] DEFAULT 'escape''s quotes';`,
+		`ALTER TABLE [table] ADD [varchar] varchar(100) CONSTRAINT [table_varchar_default] DEFAULT 'escape''s quotes';`,
 	];
 
 	expect(st).toStrictEqual(st0);
@@ -966,20 +1073,13 @@ test('add columns with defaults', async () => {
 	});
 
 	const st0 = [
-		'ALTER TABLE [table] ADD [text1] text;',
-		'ALTER TABLE [table] ADD [text2] text;',
-		'ALTER TABLE [table] ADD [int1] int;',
-		'ALTER TABLE [table] ADD [int2] int;',
-		'ALTER TABLE [table] ADD [int3] int;',
-		'ALTER TABLE [table] ADD [bool1] bit;',
-		'ALTER TABLE [table] ADD [bool2] bit;',
-		`ALTER TABLE [table] ADD CONSTRAINT [table_text1_default] DEFAULT '' FOR [text1];`,
-		`ALTER TABLE [table] ADD CONSTRAINT [table_text2_default] DEFAULT 'text' FOR [text2];`,
-		`ALTER TABLE [table] ADD CONSTRAINT [table_int1_default] DEFAULT 10 FOR [int1];`,
-		`ALTER TABLE [table] ADD CONSTRAINT [table_int2_default] DEFAULT 0 FOR [int2];`,
-		`ALTER TABLE [table] ADD CONSTRAINT [table_int3_default] DEFAULT -10 FOR [int3];`,
-		`ALTER TABLE [table] ADD CONSTRAINT [table_bool1_default] DEFAULT 1 FOR [bool1];`,
-		`ALTER TABLE [table] ADD CONSTRAINT [table_bool2_default] DEFAULT 0 FOR [bool2];`,
+		`ALTER TABLE [table] ADD [text1] text CONSTRAINT [table_text1_default] DEFAULT '';`,
+		`ALTER TABLE [table] ADD [text2] text CONSTRAINT [table_text2_default] DEFAULT 'text';`,
+		`ALTER TABLE [table] ADD [int1] int CONSTRAINT [table_int1_default] DEFAULT 10;`,
+		`ALTER TABLE [table] ADD [int2] int CONSTRAINT [table_int2_default] DEFAULT 0;`,
+		`ALTER TABLE [table] ADD [int3] int CONSTRAINT [table_int3_default] DEFAULT -10;`,
+		`ALTER TABLE [table] ADD [bool1] bit CONSTRAINT [table_bool1_default] DEFAULT 1;`,
+		`ALTER TABLE [table] ADD [bool2] bit CONSTRAINT [table_bool2_default] DEFAULT 0;`,
 	];
 
 	expect(st).toStrictEqual(st0);
@@ -1167,10 +1267,9 @@ test('drop identity from existing column #1. Rename table + rename column. Add d
 		`EXEC sp_rename 'users', [users2];`,
 		`EXEC sp_rename 'users2.id', [id1], 'COLUMN';`,
 		`EXEC sp_rename 'users2.id1', [__old_id1], 'COLUMN';`,
-		`ALTER TABLE [users2] ADD [id1] int;`,
+		`ALTER TABLE [users2] ADD [id1] int CONSTRAINT [users2_id1_default] DEFAULT 1;`,
 		`INSERT INTO [users2] ([id1]) SELECT [__old_id1] FROM [users2];`,
 		`ALTER TABLE [users2] DROP COLUMN [__old_id1];`,
-		'ALTER TABLE [users2] ADD CONSTRAINT [users2_id1_default] DEFAULT 1 FOR [id1];',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -2129,6 +2228,44 @@ test('drop identity from existing column #26. Rename table + rename column. Drop
 		`ALTER TABLE [users2] ADD [id1] int;`,
 		`INSERT INTO [users2] ([id1]) SELECT [__old_id1] FROM [users2];`,
 		`ALTER TABLE [users2] DROP COLUMN [__old_id1];`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('drop identity from existing column #27. Add not null and add default', async (t) => {
+	const schema1 = {
+		users: mssqlTable(
+			'users',
+			{
+				id: int('id').identity(),
+				name: varchar({ length: 100 }),
+			},
+		),
+	};
+
+	const schema2 = {
+		users: mssqlTable('users', {
+			id: int('id').default(1).notNull(),
+			name: varchar({ length: 100 }),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+
+	await db.query(`INSERT INTO [users] ([name]) VALUES ('Alex');`);
+	const { sqlStatements: pst } = await push({
+		db,
+		to: schema2,
+	});
+
+	const st0 = [
+		`EXEC sp_rename 'users.id', [__old_id], 'COLUMN';`,
+		`ALTER TABLE [users] ADD [id] int NOT NULL CONSTRAINT [users_id_default] DEFAULT 1;`,
+		`INSERT INTO [users] ([id]) SELECT [__old_id] FROM [users];`,
+		`ALTER TABLE [users] DROP COLUMN [__old_id];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);

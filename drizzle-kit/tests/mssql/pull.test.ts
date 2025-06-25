@@ -239,15 +239,19 @@ test('introspect all column types', async () => {
 
 			date: date({ mode: 'date' }).default(new Date()),
 			date1: date({ mode: 'string' }).default('2023-05-05'),
+			date2: date({ mode: 'string' }).defaultGetDate(),
 
 			datetime: datetime({ mode: 'date' }).default(new Date()),
 			datetime1: datetime({ mode: 'string' }).default('2023-05-05'),
+			datetime12: datetime({ mode: 'string' }).defaultGetDate(),
 
 			datetime2: datetime2({ mode: 'date' }).default(new Date()),
-			datetime2_1: datetime2({ mode: 'string' }).default('2023-05-05'),
+			datetime21: datetime2({ mode: 'string' }).default('2023-05-05'),
+			datetime22: datetime2({ mode: 'string' }).defaultGetDate(),
 
 			datetimeoffset: datetimeoffset({ mode: 'date' }).default(new Date()),
 			datetimeoffset1: datetimeoffset({ mode: 'string' }).default('2023-05-05'),
+			datetimeoffset2: datetimeoffset({ mode: 'string' }).defaultGetDate(),
 
 			decimal: decimal({ precision: 3, scale: 1 }).default('32.1'),
 
