@@ -45,7 +45,8 @@ export const fromDatabase = async (
 	FROM sys.schemas s
 	JOIN sys.database_principals p ON s.principal_id = p.principal_id
 	WHERE p.type IN ('S', 'U')  -- Only SQL users and Windows users
-	  AND s.name NOT IN ('guest', 'INFORMATION_SCHEMA', 'sys');
+	  AND s.name NOT IN ('guest', 'INFORMATION_SCHEMA', 'sys')
+	ORDER BY s.name;
 `);
 
 	const filteredSchemas = introspectedSchemas.filter((it) => schemaFilter(it.schema_name));
@@ -72,7 +73,8 @@ export const fromDatabase = async (
 FROM 
     sys.tables
 WHERE 
-    schema_id IN (${filteredSchemaIds.join(', ')});
+    schema_id IN (${filteredSchemaIds.join(', ')})
+ORDER BY name;
 `);
 
 	const viewsList = await db.query<{
@@ -93,7 +95,8 @@ modules.is_schema_bound as schema_binding
 FROM 
 sys.views views
 LEFT JOIN sys.sql_modules modules on modules.object_id = views.object_id
-WHERE views.schema_id IN (${filteredSchemaIds.join(', ')});
+WHERE views.schema_id IN (${filteredSchemaIds.join(', ')})
+ORDER BY views.name;
 `);
 
 	const filteredTables = tablesList.filter((it) => tablesFilter(it.name)).map((it) => {
@@ -134,7 +137,9 @@ SELECT
 	definition as definition, 
 	is_system_named as is_system_named 
 FROM sys.check_constraints
-${filterByTableIds ? 'WHERE parent_object_id in ' + filterByTableIds : ''};`);
+${filterByTableIds ? 'WHERE parent_object_id in ' + filterByTableIds : ''}
+ORDER BY name
+;`);
 
 	const defaultsConstraintQuery = db.query<{
 		name: string;
@@ -152,7 +157,9 @@ SELECT
 	definition as definition, 
 	is_system_named as is_system_named 
 FROM sys.default_constraints
-${filterByTableIds ? 'WHERE parent_object_id in ' + filterByTableIds : ''};`);
+${filterByTableIds ? 'WHERE parent_object_id in ' + filterByTableIds : ''}
+ORDER BY name
+;`);
 
 	type ForeignKeyRow = {
 		name: string;
@@ -179,7 +186,8 @@ SELECT
  FROM 
 sys.foreign_keys fk
 LEFT JOIN sys.foreign_key_columns fkc ON fkc.constraint_object_id = fk.object_id
-WHERE fk.schema_id IN (${filteredSchemaIds.join(', ')});
+WHERE fk.schema_id IN (${filteredSchemaIds.join(', ')})
+ORDER BY fk.name;
  	`);
 
 	type RawIdxsAndConstraints = {
@@ -208,7 +216,9 @@ FROM sys.indexes i
 INNER JOIN sys.index_columns ic 
     ON i.object_id = ic.object_id
    AND i.index_id = ic.index_id
-${filterByTableIds ? 'WHERE i.object_id in ' + filterByTableIds : ''};`);
+${filterByTableIds ? 'WHERE i.object_id in ' + filterByTableIds : ''}
+ORDER BY i.name
+;`);
 
 	const columnsQuery = db.query<{
 		column_id: number;

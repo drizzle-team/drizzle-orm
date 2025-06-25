@@ -119,18 +119,19 @@ export const fromDatabase = async (
 			amname as "name"
 		FROM pg_opclass
 		LEFT JOIN pg_am on pg_opclass.opcmethod = pg_am.oid
+		ORDER BY amname;
 		`);
 
 	const accessMethodsQuery = db.query<{ oid: number; name: string }>(
-		`SELECT oid, amname as name FROM pg_am WHERE amtype = 't'`,
+		`SELECT oid, amname as name FROM pg_am WHERE amtype = 't' ORDER BY amname;`,
 	);
 
 	const tablespacesQuery = db.query<{
 		oid: number;
 		name: string;
-	}>('SELECT oid, spcname as "name" FROM pg_tablespace');
+	}>('SELECT oid, spcname as "name" FROM pg_tablespace ORDER BY spcname');
 
-	const namespacesQuery = db.query<Namespace>('select oid, nspname as name from pg_namespace');
+	const namespacesQuery = db.query<Namespace>('SELECT oid, nspname as name FROM pg_namespace ORDER BY nspname');
 
 	const defaultsQuery = await db.query<{
 		tableId: number;
@@ -207,7 +208,8 @@ export const fromDatabase = async (
 					pg_class
 				WHERE
 					relkind IN ('r', 'v', 'm')
-					AND relnamespace IN (${filteredNamespacesIds.join(', ')});`);
+					AND relnamespace IN (${filteredNamespacesIds.join(', ')})
+				ORDER BY schema, relname;`);
 
 	const viewsList = tablesList.filter((it) => it.kind === 'v' || it.kind === 'm');
 
@@ -303,7 +305,7 @@ export const fromDatabase = async (
 			WHERE ${filterByTableIds ? ` adrelid in ${filterByTableIds}` : 'false'}`);
 
 	const sequencesQuery = db.query<{
-		schemaId: number;
+		schema: string;
 		oid: number;
 		name: string;
 		startWith: string;
@@ -313,18 +315,19 @@ export const fromDatabase = async (
 		cycle: boolean;
 		cacheSize: number;
 	}>(`SELECT 
-				relnamespace as "schemaId",
-				relname as "name",
-				seqrelid as "oid",
-				seqstart as "startWith", 
-				seqmin as "minValue", 
-				seqmax as "maxValue", 
-				seqincrement as "incrementBy", 
-				seqcycle as "cycle", 
-				seqcache as "cacheSize" 
-			FROM pg_sequence
-			LEFT JOIN pg_class ON pg_sequence.seqrelid=pg_class.oid
-			WHERE relnamespace IN (${filteredNamespacesIds.join(',')});`);
+			relnamespace::regnamespace::text as "schema",
+			relname as "name",
+			seqrelid as "oid",
+			seqstart as "startWith", 
+			seqmin as "minValue", 
+			seqmax as "maxValue", 
+			seqincrement as "incrementBy", 
+			seqcycle as "cycle", 
+			seqcache as "cacheSize" 
+		FROM pg_sequence
+		LEFT JOIN pg_class ON pg_sequence.seqrelid=pg_class.oid
+		WHERE relnamespace IN (${filteredNamespacesIds.join(',')})
+		ORDER BY schema, relname;`);
 
 	// I'm not yet aware of how we handle policies down the pipeline for push,
 	// and since postgres does not have any default policies, we can safely fetch all of them for now
@@ -349,12 +352,13 @@ export const fromDatabase = async (
 			cmd as "for", 
 			qual as "using", 
 			with_check as "withCheck" 
-		FROM pg_policies;`);
+		FROM pg_policies
+		ORDER BY schemaname, tablename;`);
 
 	const rolesQuery = await db.query<
 		{ rolname: string; rolinherit: boolean; rolcreatedb: boolean; rolcreaterole: boolean }
 	>(
-		`SELECT rolname, rolinherit, rolcreatedb, rolcreaterole FROM pg_roles;`,
+		`SELECT rolname, rolinherit, rolcreatedb, rolcreaterole FROM pg_roles ORDER BY rolname;`,
 	);
 
 	const constraintsQuery = db.query<{
@@ -387,6 +391,7 @@ export const fromDatabase = async (
     FROM
       pg_constraint
     WHERE ${filterByTableIds ? ` conrelid in ${filterByTableIds}` : 'false'}
+	ORDER BY conrelid, contype, conname;
   `);
 
 	// for serials match with pg_attrdef via attrelid(tableid)+adnum(ordinal position), for enums with pg_enum above
@@ -461,7 +466,8 @@ export const fromDatabase = async (
 			WHERE
 			${filterByTableAndViewIds ? ` attrelid in ${filterByTableAndViewIds}` : 'false'}
 				AND attnum > 0
-				AND attisdropped = FALSE;`);
+				AND attisdropped = FALSE
+			ORDER BY attnum;`);
 
 	const [dependList, enumsList, serialsList, sequencesList, policiesList, rolesList, constraintsList, columnsList] =
 		await Promise
@@ -534,7 +540,7 @@ export const fromDatabase = async (
 
 		sequences.push({
 			entityType: 'sequences',
-			schema: namespaces.find((ns) => ns.oid === seq.schemaId)?.name!,
+			schema: seq.schema,
 			name: seq.name,
 			startWith: parseIdentityProperty(seq.startWith),
 			minValue: parseIdentityProperty(seq.minValue),
@@ -781,7 +787,7 @@ export const fromDatabase = async (
 
 	const idxs = await db.query<{
 		oid: number;
-		schemaId: number;
+		schema: string;
 		name: string;
 		accessMethod: string;
 		with?: string[];
@@ -798,7 +804,7 @@ export const fromDatabase = async (
 	}>(`
       SELECT
         pg_class.oid,
-        relnamespace AS "schemaId",
+        relnamespace::regnamespace::text as "schema",
         relname AS "name",
         am.amname AS "accessMethod",
         reloptions AS "with",
@@ -814,8 +820,8 @@ export const fromDatabase = async (
           indkey::int[] as "columnOrdinals",
           indclass::int[] as "opclassIds",
           indoption::int[] as "options",
-					indisunique as "isUnique",
-					indisprimary as "isPrimary"
+          indisunique as "isUnique",
+          indisprimary as "isPrimary"
         FROM
           pg_index
         WHERE
@@ -823,6 +829,7 @@ export const fromDatabase = async (
       ) metadata ON TRUE
       WHERE
         relkind = 'i' and ${filterByTableIds ? `metadata."tableId" in ${filterByTableIds}` : 'false'}
+	  ORDER BY schema, relname;
     `);
 
 	for (const idx of idxs) {
@@ -835,7 +842,6 @@ export const fromDatabase = async (
 		const opclasses = metadata.opclassIds.map((it) => opsById[it]!);
 		const expr = splitExpressions(metadata.expression);
 
-		const schema = namespaces.find((it) => it.oid === idx.schemaId)!;
 		const table = tablesList.find((it) => it.oid === idx.metadata.tableId)!;
 
 		const nonColumnsCount = metadata.columnOrdinals.reduce((acc, it) => {
@@ -908,7 +914,7 @@ export const fromDatabase = async (
 
 		indexes.push({
 			entityType: 'indexes',
-			schema: schema.name,
+			schema: idx.schema,
 			table: table.name,
 			name: idx.name,
 			nameExplicit: true,

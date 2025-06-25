@@ -49,29 +49,26 @@ export const fromDatabase = async (
 			TABLE_NAME as name, 
 			TABLE_TYPE as type 
 		FROM INFORMATION_SCHEMA.TABLES
-		WHERE TABLE_SCHEMA = '${schema}';
+		WHERE TABLE_SCHEMA = '${schema}'
+		ORDER BY TABLE_NAME;
 		`).then((rows) => rows.filter((it) => tablesFilter(it.name)));
 
 	const columns = await db.query(`
-    SELECT 
-      * 
-    FROM 
-      information_schema.columns
-	  WHERE 
-      table_schema = '${schema}' and table_name != '__drizzle_migrations'
-	  ORDER BY
-      table_name, ordinal_position;
-  `).then((rows) => rows.filter((it) => tablesFilter(it['TABLE_NAME'])));
+		SELECT 
+			* 
+		FROM information_schema.columns
+		WHERE table_schema = '${schema}' and table_name != '__drizzle_migrations'
+		ORDER BY table_name, ordinal_position;
+	`).then((rows) => rows.filter((it) => tablesFilter(it['TABLE_NAME'])));
 
 	const idxs = await db.query(`
-    SELECT 
-      * 
-    FROM 
-      INFORMATION_SCHEMA.STATISTICS
-	  WHERE 
-      INFORMATION_SCHEMA.STATISTICS.TABLE_SCHEMA = '${schema}' 
-      and INFORMATION_SCHEMA.STATISTICS.INDEX_NAME != 'PRIMARY';
-  `).then((rows) => rows.filter((it) => tablesFilter(it['TABLE_NAME'])));
+		SELECT 
+			* 
+		FROM INFORMATION_SCHEMA.STATISTICS
+		WHERE INFORMATION_SCHEMA.STATISTICS.TABLE_SCHEMA = '${schema}' 
+			AND INFORMATION_SCHEMA.STATISTICS.INDEX_NAME != 'PRIMARY'
+		ORDER BY INDEX_NAME;
+	`).then((rows) => rows.filter((it) => tablesFilter(it['TABLE_NAME'])));
 
 	const filteredTablesAndViews = tablesAndViews.filter((it) => columns.some((x) => x['TABLE_NAME'] === it.name));
 	const tables = filteredTablesAndViews.filter((it) => it.type === 'BASE TABLE').map((it) => it.name);
@@ -146,17 +143,14 @@ export const fromDatabase = async (
 	}
 
 	const pks = await db.query(`
-    SELECT 
-      CONSTRAINT_NAME, table_name, column_name, ordinal_position
-    FROM 
-      information_schema.table_constraints t
-    LEFT JOIN 
-      information_schema.key_column_usage k USING(constraint_name,table_schema,table_name)
-    WHERE 
-      t.constraint_type='PRIMARY KEY'
-      and table_name != '__drizzle_migrations'
-      AND t.table_schema = '${schema}'
-      ORDER BY ordinal_position`);
+		SELECT 
+			CONSTRAINT_NAME, table_name, column_name, ordinal_position
+		FROM information_schema.table_constraints t
+		LEFT JOIN information_schema.key_column_usage k USING(constraint_name,table_schema,table_name)
+		WHERE t.constraint_type='PRIMARY KEY'
+			AND table_name != '__drizzle_migrations'
+			AND t.table_schema = '${schema}'
+		ORDER BY ordinal_position`);
 
 	const tableToPKs = pks.filter((it) => tables.some((x) => x === it['TABLE_NAME'])).reduce<Record<string, PrimaryKey>>(
 		(acc, it) => {
@@ -188,23 +182,22 @@ export const fromDatabase = async (
 	progressCallback('tables', tables.length, 'done');
 
 	const fks = await db.query(`
-    SELECT 
-      kcu.TABLE_SCHEMA,
-      kcu.TABLE_NAME,
-      kcu.CONSTRAINT_NAME,
-      kcu.COLUMN_NAME,
-      kcu.REFERENCED_TABLE_SCHEMA,
-      kcu.REFERENCED_TABLE_NAME,
-      kcu.REFERENCED_COLUMN_NAME,
-      rc.UPDATE_RULE,
-      rc.DELETE_RULE
-    FROM 
-      INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu
-    LEFT JOIN 
-      information_schema.referential_constraints rc ON kcu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME
-    WHERE kcu.TABLE_SCHEMA = '${schema}' 
-      AND kcu.CONSTRAINT_NAME != 'PRIMARY' 
-      AND kcu.REFERENCED_TABLE_NAME IS NOT NULL;`);
+		SELECT 
+			kcu.TABLE_SCHEMA,
+			kcu.TABLE_NAME,
+			kcu.CONSTRAINT_NAME,
+			kcu.COLUMN_NAME,
+			kcu.REFERENCED_TABLE_SCHEMA,
+			kcu.REFERENCED_TABLE_NAME,
+			kcu.REFERENCED_COLUMN_NAME,
+			rc.UPDATE_RULE,
+			rc.DELETE_RULE
+		FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu
+		LEFT JOIN information_schema.referential_constraints rc ON kcu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME
+		WHERE kcu.TABLE_SCHEMA = '${schema}' 
+			AND kcu.CONSTRAINT_NAME != 'PRIMARY' 
+			AND kcu.REFERENCED_TABLE_NAME IS NOT NULL;
+	`);
 
 	const groupedFKs = fks.filter((it) => tables.some((x) => x === it['TABLE_NAME'])).reduce<Record<string, ForeignKey>>(
 		(acc, it) => {
@@ -329,19 +322,15 @@ export const fromDatabase = async (
 	progressCallback('views', viewsCount, 'done');
 
 	const checks = await db.query(`
-    SELECT 
-      tc.table_name, 
-      tc.constraint_name, 
-      cc.check_clause
-    FROM 
-      information_schema.table_constraints tc
-    JOIN 
-      information_schema.check_constraints cc 
-      ON tc.constraint_name = cc.constraint_name
-    WHERE 
-      tc.constraint_schema = '${schema}'
-    AND 
-      tc.constraint_type = 'CHECK';`);
+		SELECT 
+			tc.table_name, 
+			tc.constraint_name, 
+			cc.check_clause
+		FROM information_schema.table_constraints tc
+		JOIN information_schema.check_constraints cc ON tc.constraint_name = cc.constraint_name
+		WHERE tc.constraint_schema = '${schema}'
+			AND tc.constraint_type = 'CHECK';
+	`);
 
 	checksCount += checks.length;
 	progressCallback('checks', checksCount, 'fetching');
