@@ -1,29 +1,35 @@
+import { type Static, Type as t } from '@sinclair/typebox';
 import { type Equal, sql } from 'drizzle-orm';
 import { customType, int, mssqlSchema, mssqlTable, mssqlView, text } from 'drizzle-orm/mssql-core';
 import { test } from 'vitest';
-import { z } from 'zod/v4';
 import { bigintStringModeSchema, bufferSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
-import { createInsertSchema, createSchemaFactory, createSelectSchema, createUpdateSchema } from '../src/index.ts';
+import { createInsertSchema, createSelectSchema, createUpdateSchema, type GenericSchema } from '../src/index.ts';
 import { Expect, expectSchemaShape } from './utils.ts';
 
-const integerSchema = z.int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX);
-const integerNullableSchema = integerSchema.nullable();
-const integerOptionalSchema = integerSchema.optional();
-const integerNullableOptionalSchema = integerSchema.nullable().optional();
+const integerSchema = t.Integer({
+	minimum: CONSTANTS.INT32_MIN,
+	maximum: CONSTANTS.INT32_MAX,
+});
+const integerNullableSchema = t.Union([integerSchema, t.Null()]);
+const integerOptionalSchema = t.Optional(integerSchema);
+const integerNullableOptionalSchema = t.Optional(t.Union([integerSchema, t.Null()]));
 
-const textSchema = z.string();
-const textOptionalSchema = textSchema.optional();
+const textSchema = t.String();
+const textOptionalSchema = t.Optional(textSchema);
 
-const anySchema = z.any();
+const anySchema = t.Any();
 
-const extendedSchema = integerSchema.lte(1000);
-const extendedNullableSchema = extendedSchema.nullable();
-const extendedOptionalSchema = extendedSchema.optional();
+const extendedSchema = t.Integer({
+	minimum: CONSTANTS.INT32_MIN,
+	maximum: 1000,
+});
+const extendedNullableSchema = t.Union([extendedSchema, t.Null()]);
+const extendedOptionalSchema = t.Optional(extendedSchema);
 
-const customSchema = z.string().transform(Number);
+const customSchema = t.Integer({ minimum: 1, maximum: 10 });
 
-test('table - select', (t) => {
+test('table - select', (tc) => {
 	const table = mssqlTable('test', {
 		id: int().primaryKey(),
 		generated: int().identity(),
@@ -31,8 +37,8 @@ test('table - select', (t) => {
 	});
 
 	const result = createSelectSchema(table);
-	const expected = z.object({ id: integerSchema, generated: integerSchema, name: textSchema });
-	expectSchemaShape(t, expected).from(result);
+	const expected = t.Object({ id: integerSchema, generated: integerSchema, name: textSchema });
+	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
@@ -44,12 +50,12 @@ test('table in schema - select', (tc) => {
 	});
 
 	const result = createSelectSchema(table);
-	const expected = z.object({ id: integerSchema, name: textSchema });
+	const expected = t.Object({ id: integerSchema, name: textSchema });
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('table - insert', (t) => {
+test('table - insert', (tc) => {
 	const table = mssqlTable('test', {
 		id: int().identity().primaryKey(),
 		name: text().notNull(),
@@ -57,12 +63,12 @@ test('table - insert', (t) => {
 	});
 
 	const result = createInsertSchema(table);
-	const expected = z.object({ name: textSchema, age: integerNullableOptionalSchema });
-	expectSchemaShape(t, expected).from(result);
+	const expected = t.Object({ name: textSchema, age: integerNullableOptionalSchema });
+	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('table - update', (t) => {
+test('table - update', (tc) => {
 	const table = mssqlTable('test', {
 		id: int().identity().primaryKey(),
 		name: text().notNull(),
@@ -70,15 +76,15 @@ test('table - update', (t) => {
 	});
 
 	const result = createUpdateSchema(table);
-	const expected = z.object({
+	const expected = t.Object({
 		name: textOptionalSchema,
 		age: integerNullableOptionalSchema,
 	});
-	expectSchemaShape(t, expected).from(result);
+	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('view qb - select', (t) => {
+test('view qb - select', (tc) => {
 	const table = mssqlTable('test', {
 		id: int().primaryKey(),
 		name: text().notNull(),
@@ -86,24 +92,24 @@ test('view qb - select', (t) => {
 	const view = mssqlView('test').as((qb) => qb.select({ id: table.id, age: sql``.as('age') }).from(table));
 
 	const result = createSelectSchema(view);
-	const expected = z.object({ id: integerSchema, age: anySchema });
-	expectSchemaShape(t, expected).from(result);
+	const expected = t.Object({ id: integerSchema, age: anySchema });
+	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('view columns - select', (t) => {
+test('view columns - select', (tc) => {
 	const view = mssqlView('test', {
 		id: int().primaryKey(),
 		name: text().notNull(),
 	}).as(sql``);
 
 	const result = createSelectSchema(view);
-	const expected = z.object({ id: integerSchema, name: textSchema });
-	expectSchemaShape(t, expected).from(result);
+	const expected = t.Object({ id: integerSchema, name: textSchema });
+	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('view with nested fields - select', (t) => {
+test('view with nested fields - select', (tc) => {
 	const table = mssqlTable('test', {
 		id: int().primaryKey(),
 		name: text().notNull(),
@@ -120,16 +126,16 @@ test('view with nested fields - select', (t) => {
 	);
 
 	const result = createSelectSchema(view);
-	const expected = z.object({
+	const expected = t.Object({
 		id: integerSchema,
-		nested: z.object({ name: textSchema, age: anySchema }),
-		table: z.object({ id: integerSchema, name: textSchema }),
+		nested: t.Object({ name: textSchema, age: anySchema }),
+		table: t.Object({ id: integerSchema, name: textSchema }),
 	});
-	expectSchemaShape(t, expected).from(result);
+	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('nullability - select', (t) => {
+test('nullability - select', (tc) => {
 	const table = mssqlTable('test', {
 		c1: int(),
 		c2: int().notNull(),
@@ -138,17 +144,17 @@ test('nullability - select', (t) => {
 	});
 
 	const result = createSelectSchema(table);
-	const expected = z.object({
+	const expected = t.Object({
 		c1: integerNullableSchema,
 		c2: integerSchema,
 		c3: integerNullableSchema,
 		c4: integerSchema,
 	});
-	expectSchemaShape(t, expected).from(result);
+	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('nullability - insert', (t) => {
+test('nullability - insert', (tc) => {
 	const table = mssqlTable('test', {
 		c1: int(),
 		c2: int().notNull(),
@@ -159,16 +165,16 @@ test('nullability - insert', (t) => {
 	});
 
 	const result = createInsertSchema(table);
-	const expected = z.object({
+	const expected = t.Object({
 		c1: integerNullableOptionalSchema,
 		c2: integerSchema,
 		c3: integerNullableOptionalSchema,
 		c4: integerOptionalSchema,
 	});
-	expectSchemaShape(t, expected).from(result);
+	expectSchemaShape(tc, expected).from(result);
 });
 
-test('nullability - update', (t) => {
+test('nullability - update', (tc) => {
 	const table = mssqlTable('test', {
 		c1: int(),
 		c2: int().notNull(),
@@ -179,17 +185,17 @@ test('nullability - update', (t) => {
 	});
 
 	const result = createUpdateSchema(table);
-	const expected = z.object({
+	const expected = t.Object({
 		c1: integerNullableOptionalSchema,
 		c2: integerOptionalSchema,
 		c3: integerNullableOptionalSchema,
 		c4: integerOptionalSchema,
 	});
-	expectSchemaShape(t, expected).from(result);
+	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('refine table - select', (t) => {
+test('refine table - select', (tc) => {
 	const table = mssqlTable('test', {
 		c1: int(),
 		c2: int().notNull(),
@@ -197,19 +203,19 @@ test('refine table - select', (t) => {
 	});
 
 	const result = createSelectSchema(table, {
-		c2: (schema) => schema.lte(1000),
-		c3: z.string().transform(Number),
+		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
+		c3: t.Integer({ minimum: 1, maximum: 10 }),
 	});
-	const expected = z.object({
+	const expected = t.Object({
 		c1: integerNullableSchema,
 		c2: extendedSchema,
 		c3: customSchema,
 	});
-	expectSchemaShape(t, expected).from(result);
+	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('refine table - select with custom data type', (t) => {
+test('refine table - select with custom data type', (tc) => {
 	const customText = customType({ dataType: () => 'text' });
 	const table = mssqlTable('test', {
 		c1: int(),
@@ -218,24 +224,24 @@ test('refine table - select with custom data type', (t) => {
 		c4: customText(),
 	});
 
-	const customTextSchema = z.string().min(1).max(100);
+	const customTextSchema = t.String({ minLength: 1, maxLength: 100 });
 	const result = createSelectSchema(table, {
-		c2: (schema) => schema.lte(1000),
-		c3: z.string().transform(Number),
+		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
+		c3: t.Integer({ minimum: 1, maximum: 10 }),
 		c4: customTextSchema,
 	});
-	const expected = z.object({
+	const expected = t.Object({
 		c1: integerNullableSchema,
 		c2: extendedSchema,
 		c3: customSchema,
 		c4: customTextSchema,
 	});
 
-	expectSchemaShape(t, expected).from(result);
+	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('refine table - insert', (t) => {
+test('refine table - insert', (tc) => {
 	const table = mssqlTable('test', {
 		c1: int(),
 		c2: int().notNull(),
@@ -244,19 +250,19 @@ test('refine table - insert', (t) => {
 	});
 
 	const result = createInsertSchema(table, {
-		c2: (schema) => schema.lte(1000),
-		c3: z.string().transform(Number),
+		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
+		c3: t.Integer({ minimum: 1, maximum: 10 }),
 	});
-	const expected = z.object({
+	const expected = t.Object({
 		c1: integerNullableOptionalSchema,
 		c2: extendedSchema,
 		c3: customSchema,
 	});
-	expectSchemaShape(t, expected).from(result);
+	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('refine table - update', (t) => {
+test('refine table - update', (tc) => {
 	const table = mssqlTable('test', {
 		c1: int(),
 		c2: int().notNull(),
@@ -265,19 +271,19 @@ test('refine table - update', (t) => {
 	});
 
 	const result = createUpdateSchema(table, {
-		c2: (schema) => schema.lte(1000),
-		c3: z.string().transform(Number),
+		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
+		c3: t.Integer({ minimum: 1, maximum: 10 }),
 	});
-	const expected = z.object({
+	const expected = t.Object({
 		c1: integerNullableOptionalSchema,
 		c2: extendedOptionalSchema,
 		c3: customSchema,
 	});
-	expectSchemaShape(t, expected).from(result);
+	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('refine view - select', (t) => {
+test('refine view - select', (tc) => {
 	const table = mssqlTable('test', {
 		c1: int(),
 		c2: int(),
@@ -301,27 +307,27 @@ test('refine view - select', (t) => {
 	);
 
 	const result = createSelectSchema(view, {
-		c2: (schema) => schema.lte(1000),
-		c3: z.string().transform(Number),
+		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
+		c3: t.Integer({ minimum: 1, maximum: 10 }),
 		nested: {
-			c5: (schema) => schema.lte(1000),
-			c6: z.string().transform(Number),
+			c5: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
+			c6: t.Integer({ minimum: 1, maximum: 10 }),
 		},
 		table: {
-			c2: (schema) => schema.lte(1000),
-			c3: z.string().transform(Number),
+			c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
+			c3: t.Integer({ minimum: 1, maximum: 10 }),
 		},
 	});
-	const expected = z.object({
+	const expected = t.Object({
 		c1: integerNullableSchema,
 		c2: extendedNullableSchema,
 		c3: customSchema,
-		nested: z.object({
+		nested: t.Object({
 			c4: integerNullableSchema,
 			c5: extendedNullableSchema,
 			c6: customSchema,
 		}),
-		table: z.object({
+		table: t.Object({
 			c1: integerNullableSchema,
 			c2: extendedNullableSchema,
 			c3: customSchema,
@@ -330,11 +336,11 @@ test('refine view - select', (t) => {
 			c6: integerNullableSchema,
 		}),
 	});
-	expectSchemaShape(t, expected).from(result);
+	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
-test('all data types', (t) => {
+test('all data types', (tc) => {
 	const table = mssqlTable('test', ({
 		bigint,
 		binary,
@@ -398,132 +404,79 @@ test('all data types', (t) => {
 	}));
 
 	const result = createSelectSchema(table);
-	const expected = z.object({
-		bigint1: z.int().gte(Number.MIN_SAFE_INTEGER).lte(Number.MAX_SAFE_INTEGER),
-		bigint2: z.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
+	const expected = t.Object({
+		bigint1: t.Integer({ minimum: Number.MIN_SAFE_INTEGER, maximum: Number.MAX_SAFE_INTEGER }),
+		bigint2: t.BigInt({ minimum: CONSTANTS.INT64_MIN, maximum: CONSTANTS.INT64_MAX }),
 		bigint3: bigintStringModeSchema,
 		binary: bufferSchema,
-		bit: z.boolean(),
-		char1: z.string().max(10),
-		char2: z.enum(['a', 'b', 'c']),
-		date1: z.date(),
-		date2: z.string(),
-		datetime1: z.date(),
-		datetime2: z.string(),
-		datetime2_1: z.date(),
-		datetime2_2: z.string(),
-		datetimeoffset1: z.date(),
-		datetimeoffset2: z.string(),
-		decimal1: z.number().gte(Number.MIN_SAFE_INTEGER).lte(Number.MAX_SAFE_INTEGER),
-		decimal2: z.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
-		decimal3: z.string(),
-		float: z.number().gte(CONSTANTS.INT48_MIN).lte(CONSTANTS.INT48_MAX),
-		int: z.int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX),
-		numeric1: z.number().gte(Number.MIN_SAFE_INTEGER).lte(Number.MAX_SAFE_INTEGER),
-		numeric2: z.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
-		numeric3: z.string(),
-		real: z.number().gte(CONSTANTS.INT24_MIN).lte(CONSTANTS.INT24_MAX),
-		smallint: z.int().gte(CONSTANTS.INT16_MIN).lte(CONSTANTS.INT16_MAX),
-		text1: z.string(),
-		text2: z.enum(['a', 'b', 'c']),
-		time1: z.date(),
-		time2: z.string(),
-		tinyint: z.int().gte(0).lte(CONSTANTS.INT8_UNSIGNED_MAX),
+		bit: t.Boolean(),
+		char1: t.String({ maxLength: 10 }),
+		char2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
+		date1: t.Date(),
+		date2: t.String(),
+		datetime1: t.Date(),
+		datetime2: t.String(),
+		datetime2_1: t.Date(),
+		datetime2_2: t.String(),
+		datetimeoffset1: t.Date(),
+		datetimeoffset2: t.String(),
+		decimal1: t.Number({ minimum: Number.MIN_SAFE_INTEGER, maximum: Number.MAX_SAFE_INTEGER }),
+		decimal2: t.BigInt({ minimum: CONSTANTS.INT64_MIN, maximum: CONSTANTS.INT64_MAX }),
+		decimal3: t.String(),
+		float: t.Number({ minimum: CONSTANTS.INT48_MIN, maximum: CONSTANTS.INT48_MAX }),
+		int: t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: CONSTANTS.INT32_MAX }),
+		numeric1: t.Number({ minimum: Number.MIN_SAFE_INTEGER, maximum: Number.MAX_SAFE_INTEGER }),
+		numeric2: t.BigInt({ minimum: CONSTANTS.INT64_MIN, maximum: CONSTANTS.INT64_MAX }),
+		numeric3: t.String(),
+		real: t.Number({ minimum: CONSTANTS.INT24_MIN, maximum: CONSTANTS.INT24_MAX }),
+		smallint: t.Integer({ minimum: CONSTANTS.INT16_MIN, maximum: CONSTANTS.INT16_MAX }),
+		text1: t.String(),
+		text2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
+		time1: t.Date(),
+		time2: t.String(),
+		tinyint: t.Integer({ minimum: 0, maximum: CONSTANTS.INT8_UNSIGNED_MAX }),
 		varbinary: bufferSchema,
-		varchar1: z.string().max(10),
-		varchar2: z.enum(['a', 'b', 'c']),
-		ntext1: z.string(),
-		ntext2: z.enum(['a', 'b', 'c']),
-		nvarchar1: z.string().max(10),
-		nvarchar2: z.enum(['a', 'b', 'c']),
+		varchar1: t.String({ maxLength: 10 }),
+		varchar2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
+		ntext1: t.String(),
+		ntext2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
+		nvarchar1: t.String({ maxLength: 10 }),
+		nvarchar2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
 	});
 
-	expectSchemaShape(t, expected).from(result);
-	Expect<Equal<typeof result, typeof expected>>();
-});
-
-test('type coercion - all', (t) => {
-	const table = mssqlTable('test', ({
-		bigint,
-		bit,
-		datetime,
-		int,
-		text,
-	}) => ({
-		bigint: bigint({ mode: 'bigint' }).notNull(),
-		bit: bit().notNull(),
-		datetime: datetime().notNull(),
-		int: int().notNull(),
-		text: text().notNull(),
-	}));
-
-	const { createSelectSchema } = createSchemaFactory({
-		coerce: true,
-	});
-	const result = createSelectSchema(table);
-	const expected = z.object({
-		bigint: z.coerce.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
-		bit: z.coerce.boolean(),
-		datetime: z.coerce.date(),
-		int: z.coerce.number().int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX),
-		text: z.coerce.string(),
-	});
-	expectSchemaShape(t, expected).from(result);
-	Expect<Equal<typeof result, typeof expected>>();
-});
-
-test('type coercion - mixed', (t) => {
-	const table = mssqlTable('test', ({
-		datetime,
-		int,
-	}) => ({
-		datetime: datetime().notNull(),
-		int: int().notNull(),
-	}));
-
-	const { createSelectSchema } = createSchemaFactory({
-		coerce: {
-			date: true,
-		},
-	});
-	const result = createSelectSchema(table);
-	const expected = z.object({
-		datetime: z.coerce.date(),
-		int: z.int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX),
-	});
-	expectSchemaShape(t, expected).from(result);
+	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
 
 // MSSQL doesn't support JSON data type
 // /* Infinitely recursive type */ {
-// 	const TopLevelCondition: z.ZodType<TopLevelCondition> = z.custom<TopLevelCondition>().superRefine(() => {});
+// 	const TopLevelCondition: GenericSchema<TopLevelCondition> = t.Any() as any;
 // 	const table = mssqlTable('test', {
 // 		json: json().$type<TopLevelCondition>(),
 // 	});
 // 	const result = createSelectSchema(table);
-// 	const expected = z.object({
-// 		json: z.nullable(TopLevelCondition),
+// 	const expected = t.Object({
+// 		json: t.Union([TopLevelCondition, t.Null()]),
 // 	});
-// 	Expect<Equal<z.infer<typeof result>, z.infer<typeof expected>>>();
+// 	Expect<Equal<Static<typeof result>, Static<typeof expected>>>();
 // }
 
 /* Disallow unknown keys in table refinement - select */ {
 	const table = mssqlTable('test', { id: int() });
 	// @ts-expect-error
-	createSelectSchema(table, { unknown: z.string() });
+	createSelectSchema(table, { unknown: t.String() });
 }
 
 /* Disallow unknown keys in table refinement - insert */ {
 	const table = mssqlTable('test', { id: int() });
 	// @ts-expect-error
-	createInsertSchema(table, { unknown: z.string() });
+	createInsertSchema(table, { unknown: t.String() });
 }
 
 /* Disallow unknown keys in table refinement - update */ {
 	const table = mssqlTable('test', { id: int() });
 	// @ts-expect-error
-	createUpdateSchema(table, { unknown: z.string() });
+	createUpdateSchema(table, { unknown: t.String() });
 }
 
 /* Disallow unknown keys in view qb - select */ {
@@ -531,16 +484,16 @@ test('type coercion - mixed', (t) => {
 	const view = mssqlView('test').as((qb) => qb.select().from(table));
 	const nestedSelect = mssqlView('test').as((qb) => qb.select({ table }).from(table));
 	// @ts-expect-error
-	createSelectSchema(view, { unknown: z.string() });
+	createSelectSchema(view, { unknown: t.String() });
 	// @ts-expect-error
-	createSelectSchema(nestedSelect, { table: { unknown: z.string() } });
+	createSelectSchema(nestedSelect, { table: { unknown: t.String() } });
 }
 
 /* Disallow unknown keys in view columns - select */ {
 	const view = mssqlView('test', { id: int() }).as(sql``);
 	const mView = mssqlView('test', { id: int() }).as(sql``);
 	// @ts-expect-error
-	createSelectSchema(view, { unknown: z.string() });
+	createSelectSchema(view, { unknown: t.String() });
 	// @ts-expect-error
-	createSelectSchema(mView, { unknown: z.string() });
+	createSelectSchema(mView, { unknown: t.String() });
 }
