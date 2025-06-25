@@ -1,4 +1,5 @@
 import { Simplify } from '../../utils';
+import { DefaultConstraint } from './ddl';
 import { defaultNameForPK, defaultToSQL, typeToSql } from './grammar';
 import { DropColumn, JsonStatement, RenameColumn } from './statements';
 
@@ -38,7 +39,9 @@ const createTable = convertor('create_table', (st) => {
 
 		const type = typeToSql(column);
 
-		const hasDefault = defaults.find((it) => it.column === column.name && it.schema === column.schema);
+		const hasDefault = defaults.find((it) =>
+			it.table === column.table && it.column === column.name && it.schema === column.schema
+		);
 		const defaultStatement = !hasDefault
 			? ''
 			: ` CONSTRAINT [${hasDefault.name}] DEFAULT ${defaultToSQL(hasDefault.default)}`;
@@ -96,7 +99,7 @@ const renameTable = convertor('rename_table', (st) => {
 });
 
 const addColumn = convertor('add_column', (st) => {
-	const { column } = st;
+	const { column, defaults } = st;
 	const {
 		name,
 		notNull,
@@ -118,11 +121,18 @@ const addColumn = convertor('add_column', (st) => {
 		? ` AS (${generated?.as})${generatedType ? ' ' + generatedType : ''}`
 		: '';
 
+	const hasDefault = defaults.find((it) =>
+		it.table === column.table && it.column === column.name && it.schema === column.schema
+	);
+	const defaultStatement = !hasDefault
+		? ''
+		: ` CONSTRAINT [${hasDefault.name}] DEFAULT ${defaultToSQL(hasDefault.default)}`;
+
 	const key = schema !== 'dbo' ? `[${schema}].[${table}]` : `[${table}]`;
 
 	let statement = `ALTER TABLE ${key} ADD [${name}]`;
 	if (!generated) statement += ` ${type}`;
-	statement += `${identityStatement}${generatedStatement}${notNullStatement};`;
+	statement += `${identityStatement}${generatedStatement}${notNullStatement}${defaultStatement};`;
 
 	return statement;
 });
@@ -152,13 +162,26 @@ const alterColumn = convertor('alter_column', (st) => {
 	const type = typeToSql(column);
 
 	const key = column.schema !== 'dbo' ? `[${column.schema}].[${column.table}]` : `[${column.table}]`;
+
+	// TODO not needed
+	// this is corner case when it is needed to add not null with default to column
+	// since mssql treats defaults as separate constraints - it is not possible to add default in alter column
+	// that is why this workaround was made
+	// if (hasDefault && !diff.$left.notNull && diff.$right.notNull) {
+	// 	return [
+	// 		`ALTER TABLE ${key} ALTER COLUMN [${column.name}] ${type}`,
+	// 		addDefault.convert({ default: hasDefault }) as string,
+	// 		`ALTER TABLE ${key} ALTER COLUMN [${column.name}] ${type}${notNullStatement}`,
+	// 	];
+	// }
+
 	return `ALTER TABLE ${key} ALTER COLUMN [${column.name}] ${type}${notNullStatement};`;
 });
 
 const recreateColumn = convertor('recreate_column', (st) => {
 	return [
 		dropColumn.convert({ column: st.column.$left }) as string,
-		addColumn.convert({ column: st.column.$right }) as string,
+		addColumn.convert({ column: st.column.$right, defaults: [] }) as string,
 	];
 });
 
@@ -184,7 +207,9 @@ const recreateIdentityColumn = convertor('recreate_identity_column', (st) => {
 			to: { name: renamedColumnName },
 		} as RenameColumn) as string,
 	);
-	statements.push(addColumn.convert({ column: column.$right }) as string);
+
+	const defaultsToCreate: DefaultConstraint[] = constraintsToCreate.filter((it) => it.entityType === 'defaults');
+	statements.push(addColumn.convert({ column: column.$right, defaults: defaultsToCreate }) as string);
 
 	if (shouldTransferData) {
 		statements.push(
@@ -200,7 +225,6 @@ const recreateIdentityColumn = convertor('recreate_identity_column', (st) => {
 
 	for (const toCreate of constraintsToCreate) {
 		if (toCreate.entityType === 'checks') statements.push(addCheck.convert({ check: toCreate }) as string);
-		if (toCreate.entityType === 'defaults') statements.push(addDefault.convert({ default: toCreate }) as string);
 		if (toCreate.entityType === 'fks') statements.push(createFK.convert({ fk: toCreate }) as string);
 		if (toCreate.entityType === 'pks') statements.push(createPK.convert({ pk: toCreate }) as string);
 		if (toCreate.entityType === 'indexes') statements.push(createIndex.convert({ index: toCreate }) as string);
