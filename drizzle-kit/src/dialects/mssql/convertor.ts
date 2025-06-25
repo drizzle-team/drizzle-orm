@@ -30,8 +30,7 @@ const createTable = convertor('create_table', (st) => {
 	for (let i = 0; i < columns.length; i++) {
 		const column = columns[i];
 
-		const isPK = pk && pk.columns.length === 1 && pk.columns[0] === column.name
-			&& pk.name === defaultNameForPK(column.table);
+		const isPK = pk && pk.columns.includes(column.name);
 
 		const identity = column.identity;
 		const identityStatement = identity ? ` IDENTITY(${identity.seed}, ${identity.increment})` : '';

@@ -344,7 +344,7 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 			isUnique: unique ? true : false,
 			uniqueName: unique ? unique.name : null,
 			pkName: pk ? pk.name : null,
-			notNull: !column.is_nullable && !pk && !column.is_identity,
+			notNull: !column.is_nullable && !column.is_identity,
 			isPK: pk ? true : false,
 			generated: column.is_computed
 				? {

@@ -561,14 +561,15 @@ export const ddlDiff = async (
 		}
 
 		const pkIn2 = ddl2.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } });
-		if (it.notNull && pkIn2) {
-			delete it.notNull;
-		}
+		// When adding primary key to column it is needed to add not null first
+		// if (it.notNull && pkIn2) {
+		// 	delete it.notNull;
+		// }
 
 		const pkIn1 = ddl1.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } });
-		if (it.notNull && it.notNull.from && pkIn1 && !pkIn2) {
-			delete it.notNull;
-		}
+		// if (it.notNull && it.notNull.from && pkIn1 && !pkIn2) {
+		// 	delete it.notNull;
+		// }
 
 		if ((it.$right.generated || it.$left.generated) && it.$right.type !== it.$left.type) {
 			delete it.type;

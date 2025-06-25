@@ -58,6 +58,7 @@ test('drop primary key', async () => {
 
 	const st0 = [
 		'ALTER TABLE [table] DROP CONSTRAINT [table_pkey];',
+		'ALTER TABLE [table] ALTER COLUMN [id] int;',
 	];
 
 	expect(st1).toStrictEqual(st0);
@@ -876,8 +877,209 @@ test('pk #5', async () => {
 	await push({ db, to: from, schemas: ['dbo'] });
 	const { sqlStatements: pst } = await push({ db, to, schemas: ['dbo'] });
 
-	expect(sqlStatements).toStrictEqual(['ALTER TABLE [users] DROP CONSTRAINT [users_pkey];']);
-	expect(pst).toStrictEqual(['ALTER TABLE [users] DROP CONSTRAINT [users_pkey];']);
+	const st0 = [
+		'ALTER TABLE [users] DROP CONSTRAINT [users_pkey];',
+		'ALTER TABLE [users] ALTER COLUMN [name] varchar(255);',
+	];
+	expect(sqlStatements).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('pk #6', async () => {
+	const from = {
+		users: mssqlTable('users', {
+			name: varchar({ length: 255 }),
+		}),
+	};
+
+	const to = {
+		users: mssqlTable('users', {
+			name: varchar({ length: 255 }),
+		}, (t) => [primaryKey({ columns: [t.name] })]),
+	};
+
+	const { sqlStatements } = await diff(from, to, []);
+	await push({ db, to: from, schemas: ['dbo'] });
+	const { sqlStatements: pst } = await push({ db, to, schemas: ['dbo'] });
+
+	const st0 = [
+		`ALTER TABLE [users] ALTER COLUMN [name] varchar(255) NOT NULL;`,
+		'ALTER TABLE [users] ADD CONSTRAINT [users_pkey] PRIMARY KEY ([name]);',
+	];
+	expect(sqlStatements).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('pk extra #1', async () => {
+	const from = {
+		users: mssqlTable('users', {
+			name: varchar({ length: 255 }),
+		}),
+	};
+
+	const to = {
+		users: mssqlTable('users', {
+			name: varchar({ length: 255 }).primaryKey(),
+		}),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff(from, to, []);
+	await push({ db, to: from, schemas: ['dbo'] });
+	const { sqlStatements: pst } = await push({ db, to, schemas: ['dbo'] });
+
+	const st0 = [
+		`ALTER TABLE [users] ALTER COLUMN [name] varchar(255) NOT NULL;`,
+		'ALTER TABLE [users] ADD CONSTRAINT [users_pkey] PRIMARY KEY ([name]);',
+	];
+	expect(st1).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	// drop pk
+	// expect to drop not null because current state is without not null
+	// expect to drop pk
+	const to2 = {
+		users: mssqlTable('users', {
+			name: varchar({ length: 255 }),
+		}),
+	};
+
+	const { sqlStatements: st2 } = await diff(n1, to2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: to2 });
+
+	const st01 = [
+		'ALTER TABLE [users] DROP CONSTRAINT [users_pkey];',
+		`ALTER TABLE [users] ALTER COLUMN [name] varchar(255);`,
+	];
+	expect(st2).toStrictEqual(st01);
+	expect(pst2).toStrictEqual(st01);
+});
+
+test('pk extra #2', async () => {
+	const from = {
+		users: mssqlTable('users', {
+			name: varchar({ length: 255 }),
+		}),
+	};
+
+	const to = {
+		users: mssqlTable('users', {
+			name: varchar({ length: 255 }).primaryKey(),
+		}),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff(from, to, []);
+	await push({ db, to: from, schemas: ['dbo'] });
+	const { sqlStatements: pst } = await push({ db, to, schemas: ['dbo'] });
+
+	const st0 = [
+		`ALTER TABLE [users] ALTER COLUMN [name] varchar(255) NOT NULL;`,
+		'ALTER TABLE [users] ADD CONSTRAINT [users_pkey] PRIMARY KEY ([name]);',
+	];
+	expect(st1).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	// drop pk but left not nutt
+	// expect to drop pk only
+	const to2 = {
+		users: mssqlTable('users', {
+			name: varchar({ length: 255 }).notNull(),
+		}),
+	};
+
+	const { sqlStatements: st2, next: n2 } = await diff(n1, to2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: to2 });
+
+	const st01 = [
+		'ALTER TABLE [users] DROP CONSTRAINT [users_pkey];',
+	];
+	expect(st2).toStrictEqual(st01);
+	expect(pst2).toStrictEqual(st01);
+});
+
+test('pk extra #3', async () => {
+	const from = {
+		users: mssqlTable('users', {
+			name: varchar({ length: 255 }),
+		}),
+	};
+
+	const to = {
+		users: mssqlTable('users', {
+			name: varchar({ length: 255 }),
+		}, (t) => [primaryKey({ columns: [t.name] })]),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff(from, to, []);
+	await push({ db, to: from, schemas: ['dbo'] });
+	const { sqlStatements: pst } = await push({ db, to, schemas: ['dbo'] });
+
+	const st0 = [
+		`ALTER TABLE [users] ALTER COLUMN [name] varchar(255) NOT NULL;`,
+		'ALTER TABLE [users] ADD CONSTRAINT [users_pkey] PRIMARY KEY ([name]);',
+	];
+	expect(st1).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	// drop pk
+	// expect to drop not null because current state is without not null
+	// expect to drop pk
+	const to2 = {
+		users: mssqlTable('users', {
+			name: varchar({ length: 255 }),
+		}),
+	};
+
+	const { sqlStatements: st2, next: n2 } = await diff(n1, to2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: to2 });
+
+	const st01 = [
+		'ALTER TABLE [users] DROP CONSTRAINT [users_pkey];',
+		`ALTER TABLE [users] ALTER COLUMN [name] varchar(255);`,
+	];
+	expect(st2).toStrictEqual(st01);
+	expect(pst2).toStrictEqual(st01);
+});
+
+test('pk extra #4', async () => {
+	const from = {
+		users: mssqlTable('users', {
+			name: varchar({ length: 255 }),
+		}),
+	};
+
+	const to = {
+		users: mssqlTable('users', {
+			name: varchar({ length: 255 }),
+		}, (t) => [primaryKey({ columns: [t.name] })]),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff(from, to, []);
+	await push({ db, to: from, schemas: ['dbo'] });
+	const { sqlStatements: pst } = await push({ db, to, schemas: ['dbo'] });
+
+	const st0 = [
+		`ALTER TABLE [users] ALTER COLUMN [name] varchar(255) NOT NULL;`,
+		'ALTER TABLE [users] ADD CONSTRAINT [users_pkey] PRIMARY KEY ([name]);',
+	];
+	expect(st1).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+
+	// drop pk but left not nutt
+	// expect to drop pk only
+	const to2 = {
+		users: mssqlTable('users', {
+			name: varchar({ length: 255 }).notNull(),
+		}),
+	};
+
+	const { sqlStatements: st2, next: n2 } = await diff(n1, to2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: to2 });
+
+	const st01 = [
+		'ALTER TABLE [users] DROP CONSTRAINT [users_pkey];',
+	];
+	expect(st2).toStrictEqual(st01);
+	expect(pst2).toStrictEqual(st01);
 });
 
 test('pk multistep #1', async () => {
@@ -929,8 +1131,12 @@ test('pk multistep #1', async () => {
 	const { sqlStatements: st4 } = await diff(n3, sch3, []);
 	const { sqlStatements: pst4 } = await push({ db, to: sch3, schemas: ['dbo'] });
 
-	expect(st4).toStrictEqual(['ALTER TABLE [users2] DROP CONSTRAINT [users_pkey];']);
-	expect(pst4).toStrictEqual(['ALTER TABLE [users2] DROP CONSTRAINT [users_pkey];']);
+	const st04 = [
+		'ALTER TABLE [users2] DROP CONSTRAINT [users_pkey];',
+		`ALTER TABLE [users2] ALTER COLUMN [name2] varchar(255);`,
+	];
+	expect(st4).toStrictEqual(st04);
+	expect(pst4).toStrictEqual(st04);
 });
 
 test('pk multistep #2', async () => {
@@ -995,8 +1201,12 @@ test('pk multistep #2', async () => {
 	const { sqlStatements: st5 } = await diff(n4, sch4, []);
 	const { sqlStatements: pst5 } = await push({ db, to: sch4, schemas: ['dbo'] });
 
-	expect(st5).toStrictEqual(['ALTER TABLE [users2] DROP CONSTRAINT [users2_pk];']);
-	expect(pst5).toStrictEqual(['ALTER TABLE [users2] DROP CONSTRAINT [users2_pk];']);
+	const st05 = [
+		'ALTER TABLE [users2] DROP CONSTRAINT [users2_pk];',
+		`ALTER TABLE [users2] ALTER COLUMN [name2] varchar(255);`,
+	];
+	expect(st5).toStrictEqual(st05);
+	expect(pst5).toStrictEqual(st05);
 });
 
 test('pk multistep #3', async () => {
@@ -1067,8 +1277,12 @@ test('pk multistep #3', async () => {
 	const { sqlStatements: st5 } = await diff(n4, sch4, []);
 	const { sqlStatements: pst5 } = await push({ db, to: sch4, schemas: ['dbo'] });
 
-	expect(st5).toStrictEqual(['ALTER TABLE [users2] DROP CONSTRAINT [users2_pk];']);
-	expect(pst5).toStrictEqual(['ALTER TABLE [users2] DROP CONSTRAINT [users2_pk];']);
+	const st05 = [
+		'ALTER TABLE [users2] DROP CONSTRAINT [users2_pk];',
+		`ALTER TABLE [users2] ALTER COLUMN [name2] varchar(255);`,
+	];
+	expect(st5).toStrictEqual(st05);
+	expect(pst5).toStrictEqual(st05);
 });
 
 test('pk multistep #4', async () => {
