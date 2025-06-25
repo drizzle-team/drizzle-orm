@@ -902,7 +902,7 @@ test('hints + losses: drop schema with tables', async (t) => {
 	];
 
 	expect(pst1).toStrictEqual(st_01);
-	expect(hints).toStrictEqual([`· You're about to delete [test] schema with 1 tables`]);
+	expect(hints).toStrictEqual([`· You're about to delete [test] schema with 1 table`]);
 	expect(error).toBeNull();
 	expect(losses).toStrictEqual([]);
 });
@@ -968,7 +968,7 @@ test('hints + losses: add column with not null without default', async (t) => {
 		`· You're about to add not-null [age] column without default value to a non-empty [users] table`,
 	]);
 	expect(error).not.toBeNull();
-	expect(losses).toStrictEqual([`DELETE FROM [users] where true;`]);
+	expect(losses).toStrictEqual([`DELETE FROM [users];`]);
 
 	await expect(push({ db, to: to, force: true })).resolves.not.toThrowError();
 });
@@ -1033,7 +1033,7 @@ test('hints + losses: alter column add not null without default', async (t) => {
 		`· You're about to add not-null to [name] column without default value to a non-empty [users] table`,
 	]);
 	expect(error).not.toBeNull();
-	expect(losses).toStrictEqual([`DELETE FROM [users] where true;`]);
+	expect(losses).toStrictEqual([`DELETE FROM [users];`]);
 
 	await expect(push({ db, to: to, force: true })).resolves.not.toThrowError();
 });

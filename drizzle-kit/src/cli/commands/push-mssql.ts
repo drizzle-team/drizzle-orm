@@ -206,7 +206,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 				`· You're about to add not-null [${column.name}] column without default value to a non-empty ${key} table`,
 			);
 
-			losses.push(`DELETE FROM ${key} where true;`);
+			losses.push(`DELETE FROM ${key};`);
 
 			continue;
 		}
@@ -228,7 +228,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 				`· You're about to add not-null to [${statement.diff.$right.name}] column without default value to a non-empty ${key} table`,
 			);
 
-			losses.push(`DELETE FROM ${key} where true;`);
+			losses.push(`DELETE FROM ${key};`);
 
 			continue;
 		}

@@ -384,13 +384,11 @@ export const diffDefault = async <T extends MsSqlColumnBuilder>(
 	await push({ db, to: schema3 });
 	const { sqlStatements: st4 } = await push({ db, to: schema4 });
 
-	const expectedAddColumn = `ALTER TABLE [${tableName}] ADD [${column.name}] ${sqlType};`;
-	const expectedAddDefault = `ALTER TABLE [${tableName}] ADD CONSTRAINT [${
+	const expectedAddColumn = `ALTER TABLE [${tableName}] ADD [${column.name}] ${sqlType} CONSTRAINT [${
 		defaultNameForDefault(tableName, column.name)
-	}] DEFAULT ${expectedDefault} FOR [${column.name}];`;
-	if (st4.length !== 2 || st4[0] !== expectedAddColumn || st4[1] !== expectedAddDefault) {
+	}] DEFAULT ${expectedDefault};`;
+	if (st4.length !== 1 || st4[0] !== expectedAddColumn) {
 		res.push(`Unexpected add column:\n${st4[0]}\n\n${expectedAddColumn}`);
-		res.push(`Unexpected add default:\n${st4[1]}\n\n${expectedAddDefault}`);
 	}
 
 	return res;
