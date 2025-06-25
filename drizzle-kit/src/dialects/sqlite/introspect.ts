@@ -79,7 +79,8 @@ export const fromDatabase = async (
 			and m.tbl_name NOT LIKE '\\_litestream\\_%' ESCAPE '\\'
 			and m.tbl_name NOT LIKE 'libsql\\_%' ESCAPE '\\'
 			and m.tbl_name  NOT LIKE 'sqlite\\_%' ESCAPE '\\'
-			;
+		ORDER BY m.name, p.cid
+		;
     `,
 	).then((columns) => columns.filter((it) => tablesFilter(it.table)));
 
@@ -98,7 +99,8 @@ export const fromDatabase = async (
 			and m.tbl_name NOT LIKE '\\_litestream\\_%' ESCAPE '\\'
 			and m.tbl_name NOT LIKE 'libsql\\_%' ESCAPE '\\'
 			and m.tbl_name  NOT LIKE 'sqlite\\_%' ESCAPE '\\'
-			;`,
+		ORDER BY m.name COLLATE NOCASE;
+		;`,
 	).then((views) =>
 		views.filter((it) => tablesFilter(it.name)).map((it): View => {
 			const definition = parseViewSQL(it.sql);
@@ -158,7 +160,8 @@ export const fromDatabase = async (
 				and m.tbl_name NOT LIKE '\\_litestream\\_%' ESCAPE '\\'
 				and m.tbl_name NOT LIKE 'libsql\\_%' ESCAPE '\\'
 				and m.tbl_name  NOT LIKE 'sqlite\\_%' ESCAPE '\\'
-				;
+			ORDER BY m.name, p.cid
+			;
 		`,
 		).then((columns) => columns.filter((it) => tablesFilter(it.table)));
 	} catch (_) {
@@ -181,7 +184,9 @@ export const fromDatabase = async (
 						p.dflt_value as "defaultValue",
 						p.pk as pk,
 						p.hidden as hidden
-					FROM pragma_table_xinfo(${view.name}) AS p;
+					FROM pragma_table_xinfo(${view.name}) AS p
+					ORDER BY p.name, p.cid
+					;
 					`,
 				);
 				dbViewColumns.push(...viewColumns);
@@ -218,20 +223,22 @@ export const fromDatabase = async (
 		cid: number;
 	}>(`
 		SELECT 
-				m.tbl_name as "table",
-				m.sql,
-				il.name as "name",
-				ii.name as "column",
-				il.[unique] as "isUnique",
-				il.origin,
-				il.seq,
-				ii.cid
+			m.tbl_name as "table",
+			m.sql,
+			il.name as "name",
+			ii.name as "column",
+			il.[unique] as "isUnique",
+			il.origin,
+			il.seq,
+			ii.cid
 		FROM sqlite_master AS m,
-				pragma_index_list(m.name) AS il,
-				pragma_index_info(il.name) AS ii
+			pragma_index_list(m.name) AS il,
+			pragma_index_info(il.name) AS ii
 		WHERE 
-				m.type = 'table' 
-				and m.tbl_name != '_cf_KV';
+			m.type = 'table' 
+			and m.tbl_name != '_cf_KV'
+		ORDER BY m.name
+		;
 		`).then((indexes) => indexes.filter((it) => tablesFilter(it.table)));
 
 	let columnsCount = 0;
