@@ -1,4 +1,5 @@
 import { fromDatabase as fd } from 'src/dialects/postgres/introspect';
+import { fromDatabase as afd } from 'src/dialects/postgres/aws-introspect';
 import {
 	CheckConstraint,
 	Column,
@@ -184,3 +185,4 @@ export const diffPostgresql = async (from: InterimStudioSchema, to: InterimStudi
 };
 
 export const fromDatabase = fd;
+export const fromAwsDatabase = afd;
