@@ -1,11 +1,14 @@
 import {
 	bigint,
 	bigserial,
+	bit,
 	boolean,
 	char,
 	date,
 	decimal,
 	doublePrecision,
+	// geometry,
+	inet,
 	integer,
 	interval,
 	json,
@@ -24,6 +27,7 @@ import {
 	timestamp,
 	uuid,
 	varchar,
+	vector,
 } from 'drizzle-orm/pg-core';
 
 export const schema = pgSchema('seeder_lib_pg');
@@ -39,14 +43,15 @@ export const allDataTypes = schema.table('all_data_types', {
 	smallserial: smallserial('smallserial'),
 	bigserial: bigserial('bigserial', { mode: 'bigint' }),
 	bigserialNumber: bigserial('bigserial_number', { mode: 'number' }),
-	boolean: boolean('boolean'),
-	text: text('text'),
-	varchar: varchar('varchar', { length: 256 }),
-	char: char('char', { length: 256 }),
 	numeric: numeric('numeric'),
 	decimal: decimal('decimal'),
 	real: real('real'),
 	doublePrecision: doublePrecision('double_precision'),
+	boolean: boolean('boolean'),
+	text: text('text'),
+	char: char('char', { length: 256 }),
+	varchar: varchar('varchar', { length: 256 }),
+	bit: bit('bit', { dimensions: 11 }),
 	json: json('json'),
 	jsonb: jsonb('jsonb'),
 	time: time('time'),
@@ -61,6 +66,9 @@ export const allDataTypes = schema.table('all_data_types', {
 	lineTuple: line('line_tuple', { mode: 'tuple' }),
 	moodEnum: moodEnum('mood_enum'),
 	uuid: uuid('uuid'),
+	inet: inet('inet'),
+	// geometry: geometry('geometry', { type: 'point', mode: 'tuple', srid: 0 }),
+	vector: vector('vector', { dimensions: 3 }),
 });
 
 export const allArrayDataTypes = schema.table('all_array_data_types', {
@@ -68,14 +76,15 @@ export const allArrayDataTypes = schema.table('all_array_data_types', {
 	smallintArray: smallint('smallint_array').array(),
 	bigintegerArray: bigint('bigint_array', { mode: 'bigint' }).array(),
 	bigintNumberArray: bigint('bigint_number_array', { mode: 'number' }).array(),
-	booleanArray: boolean('boolean_array').array(),
-	textArray: text('text_array').array(),
-	varcharArray: varchar('varchar_array', { length: 256 }).array(),
-	charArray: char('char_array', { length: 256 }).array(),
 	numericArray: numeric('numeric_array').array(),
 	decimalArray: decimal('decimal_array').array(),
 	realArray: real('real_array').array(),
 	doublePrecisionArray: doublePrecision('double_precision_array').array(),
+	booleanArray: boolean('boolean_array').array(),
+	charArray: char('char_array', { length: 256 }).array(),
+	varcharArray: varchar('varchar_array', { length: 256 }).array(),
+	textArray: text('text_array').array(),
+	bitArray: bit('bit_array', { dimensions: 11 }).array(),
 	jsonArray: json('json_array').array(),
 	jsonbArray: jsonb('jsonb_array').array(),
 	timeArray: time('time_array').array(),
@@ -89,6 +98,9 @@ export const allArrayDataTypes = schema.table('all_array_data_types', {
 	lineArray: line('line_array', { mode: 'abc' }).array(),
 	lineTupleArray: line('line_tuple_array', { mode: 'tuple' }).array(),
 	moodEnumArray: moodEnum('mood_enum_array').array(),
+	uuidArray: uuid('uuid_array').array(),
+	inetArray: inet('inet_array').array(),
+	// geometryArray: geometry('geometry_array', { type: 'point', mode: 'tuple', srid: 0 }).array(1),
 });
 
 export const ndArrays = schema.table('nd_arrays', {

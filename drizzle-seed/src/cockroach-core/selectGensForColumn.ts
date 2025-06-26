@@ -72,7 +72,7 @@ export const selectGeneratorForCockroachColumn = (
 
 		let minValue: number | bigint | undefined;
 		let maxValue: number | bigint | undefined;
-		if (col.columnType.includes('int')) {
+		if (col.columnType.startsWith('int')) {
 			if (col.columnType === 'int2') {
 				// 2^16 / 2 - 1, 2 bytes
 				minValue = -32768;
@@ -96,7 +96,7 @@ export const selectGeneratorForCockroachColumn = (
 		}
 
 		if (
-			col.columnType.includes('int')
+			col.columnType.startsWith('int')
 			&& !col.columnType.includes('interval')
 		) {
 			const generator = new generatorsMap.GenerateInt[0]({
@@ -155,7 +155,7 @@ export const selectGeneratorForCockroachColumn = (
 		}
 
 		if (
-			(col.columnType === 'text'
+			(col.columnType === 'string'
 				|| col.columnType.startsWith('varchar')
 				|| col.columnType.startsWith('char'))
 			&& col.name.toLowerCase().includes('email')
@@ -171,6 +171,34 @@ export const selectGeneratorForCockroachColumn = (
 			|| col.columnType.startsWith('char')
 		) {
 			const generator = new generatorsMap.GenerateString[0]();
+
+			return generator;
+		}
+
+		// BIT
+		if (col.columnType.startsWith('bit')) {
+			const generator = new generatorsMap.GenerateBitString[0]();
+
+			return generator;
+		}
+
+		// INET
+		if (col.columnType === 'inet') {
+			const generator = new generatorsMap.GenerateInet[0]();
+
+			return generator;
+		}
+
+		// geometry(point)
+		if (col.columnType.startsWith('geometry')) {
+			const generator = new generatorsMap.GenerateGeometry[0]();
+
+			return generator;
+		}
+
+		// vector
+		if (col.columnType.startsWith('vector')) {
+			const generator = new generatorsMap.GenerateVector[0]();
 
 			return generator;
 		}
@@ -254,10 +282,12 @@ export const selectGeneratorForCockroachColumn = (
 	};
 
 	const generator = pickGenerator(table, col);
+	// set params for base column
 	if (generator !== undefined) {
 		generator.isUnique = col.isUnique;
 		generator.dataType = col.dataType;
-		generator.stringLength = col.typeParams.length;
+		// generator.stringLength = col.typeParams.length;
+		generator.typeParams = col.typeParams;
 	}
 
 	return generator;

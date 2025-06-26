@@ -3,11 +3,13 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
 	test: {
 		include: [
-			'./tests/cockroach/allDataTypesTest/*.test.ts',
-			// './tests/mssql/**/*.test.ts',
-			// './tests/pg/**/*.test.ts',
-			// './tests/mysql/**/*.test.ts',
-			// './tests/sqlite/**/*.test.ts',
+			// './tests/pg/generatorsTest/*.test.ts',
+			// './tests/pg/allDataTypesTest/*.test.ts',
+			'./tests/cockroach/**/*.test.ts',
+			'./tests/mssql/**/*.test.ts',
+			'./tests/pg/**/*.test.ts',
+			'./tests/mysql/**/*.test.ts',
+			'./tests/sqlite/**/*.test.ts',
 		],
 		exclude: [],
 		typecheck: {

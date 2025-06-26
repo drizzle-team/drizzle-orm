@@ -299,6 +299,7 @@ const getPostgresInfo = (
 				|| sqlType.startsWith('bpchar')
 				|| sqlType.startsWith('char')
 				|| sqlType.startsWith('bit')
+				|| sqlType.startsWith('vector')
 				|| sqlType.startsWith('time')
 				|| sqlType.startsWith('timestamp')
 				|| sqlType.startsWith('interval')

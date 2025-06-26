@@ -196,6 +196,34 @@ export const selectGeneratorForPostgresColumn = (
 			return generator;
 		}
 
+		// BIT
+		if (col.columnType.startsWith('bit')) {
+			const generator = new generatorsMap.GenerateBitString[0]();
+
+			return generator;
+		}
+
+		// INET
+		if (col.columnType === 'inet') {
+			const generator = new generatorsMap.GenerateInet[0]();
+
+			return generator;
+		}
+
+		// geometry(point)
+		if (col.columnType.startsWith('geometry')) {
+			const generator = new generatorsMap.GenerateGeometry[0]();
+
+			return generator;
+		}
+
+		// vector
+		if (col.columnType.startsWith('vector')) {
+			const generator = new generatorsMap.GenerateVector[0]();
+
+			return generator;
+		}
+
 		// UUID
 		if (col.columnType === 'uuid') {
 			const generator = new generatorsMap.GenerateUUID[0]();
@@ -288,10 +316,12 @@ export const selectGeneratorForPostgresColumn = (
 	};
 
 	const generator = pickGenerator(table, col);
+	// set params for base column generator
 	if (generator !== undefined) {
 		generator.isUnique = col.isUnique;
 		generator.dataType = col.dataType;
-		generator.stringLength = col.typeParams.length;
+		generator.typeParams = col.typeParams;
+		// generator.stringLength = col.typeParams.length;
 	}
 
 	return generator;

@@ -297,7 +297,8 @@ export class SeedService {
 				// TODO: for now only GenerateValuesFromArray support notNull property
 				columnPossibleGenerator.generator.notNull = col.notNull;
 				columnPossibleGenerator.generator.dataType = col.dataType;
-				columnPossibleGenerator.generator.stringLength = col.typeParams.length;
+				// columnPossibleGenerator.generator.stringLength = col.typeParams.length;
+				columnPossibleGenerator.generator.typeParams = col.typeParams ?? columnPossibleGenerator.generator.typeParams;
 
 				tablePossibleGenerators.columnsPossibleGenerators.push(
 					columnPossibleGenerator,
@@ -337,7 +338,8 @@ export class SeedService {
 		// TODO: for now only GenerateValuesFromArray support notNull property
 		newGenerator.notNull = generator.notNull;
 		newGenerator.dataType = generator.dataType;
-		newGenerator.stringLength = generator.stringLength;
+		// newGenerator.stringLength = generator.stringLength;
+		newGenerator.typeParams = generator.typeParams ?? newGenerator.typeParams;
 
 		return newGenerator;
 	};
@@ -995,9 +997,11 @@ export class SeedService {
 				await db.execute(sql.raw(`SET IDENTITY_INSERT [${schemaDbName}].[${tableDbName}] OFF;`));
 			}
 		} else if (is(db, CockroachDatabase<any, any>)) {
-			await db
+			const query = db
 				.insert((schema as { [key: string]: CockroachTable })[tableName]!)
 				.values(generatedValues);
+			// console.log(query.toSQL());
+			await query;
 		}
 	};
 

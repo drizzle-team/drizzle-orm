@@ -1,6 +1,7 @@
 import type { AbstractGenerator } from './Generators.ts';
 import {
 	GenerateArray,
+	GenerateBitString,
 	GenerateBoolean,
 	GenerateCity,
 	GenerateCompanyName,
@@ -12,6 +13,8 @@ import {
 	GenerateEnum,
 	GenerateFirstName,
 	GenerateFullName,
+	GenerateGeometry,
+	GenerateInet,
 	GenerateInt,
 	GenerateInterval,
 	GenerateIntPrimaryKey,
@@ -30,11 +33,14 @@ import {
 	GenerateString,
 	GenerateTime,
 	GenerateTimestamp,
+	GenerateUniqueBitString,
 	GenerateUniqueCity,
 	GenerateUniqueCompanyName,
 	GenerateUniqueCountry,
 	GenerateUniqueFirstName,
 	GenerateUniqueFullName,
+	GenerateUniqueGeometry,
+	GenerateUniqueInet,
 	GenerateUniqueInt,
 	GenerateUniqueInterval,
 	GenerateUniqueLastName,
@@ -44,8 +50,10 @@ import {
 	GenerateUniquePostcode,
 	GenerateUniqueStreetAddress,
 	GenerateUniqueString,
+	GenerateUniqueVector,
 	GenerateUUID,
 	GenerateValuesFromArray,
+	GenerateVector,
 	GenerateWeightedCount,
 	GenerateYear,
 	HollowGenerator,
@@ -914,5 +922,29 @@ export const generatorsMap = {
 	],
 	GenerateWeightedCount: [
 		GenerateWeightedCount,
+	],
+	GenerateBitString: [
+		GenerateBitString,
+	],
+	GenerateUniqueBitString: [
+		GenerateUniqueBitString,
+	],
+	GenerateInet: [
+		GenerateInet,
+	],
+	GenerateUniqueInet: [
+		GenerateUniqueInet,
+	],
+	GenerateGeometry: [
+		GenerateGeometry,
+	],
+	GenerateUniqueGeometry: [
+		GenerateUniqueGeometry,
+	],
+	GenerateVector: [
+		GenerateVector,
+	],
+	GenerateUniqueVector: [
+		GenerateUniqueVector,
 	],
 } as const;

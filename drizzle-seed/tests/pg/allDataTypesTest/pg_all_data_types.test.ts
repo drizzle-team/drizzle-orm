@@ -1,4 +1,5 @@
 import { PGlite } from '@electric-sql/pglite';
+import { vector } from '@electric-sql/pglite/vector';
 import { sql } from 'drizzle-orm';
 import type { PgliteDatabase } from 'drizzle-orm/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
@@ -10,7 +11,11 @@ let client: PGlite;
 let db: PgliteDatabase;
 
 beforeAll(async () => {
-	client = new PGlite();
+	client = new PGlite({
+		extensions: { vector },
+	});
+
+	await client.query(`CREATE EXTENSION vector;`);
 
 	db = drizzle(client);
 
@@ -37,14 +42,15 @@ beforeAll(async () => {
 				"smallserial" smallserial,
 				"bigserial" bigserial,
 				"bigserial_number" bigserial,
-				"boolean" boolean,
-				"text" text,
-				"varchar" varchar(256),
-				"char" char(256),
 				"numeric" numeric,
 				"decimal" numeric,
 				"real" real,
 				"double_precision" double precision,
+				"boolean" boolean,
+				"char" char(256),
+				"varchar" varchar(256),
+				"text" text,
+				"bit" bit(11),
 				"json" json,
 				"jsonb" jsonb,
 				"time" time,
@@ -58,7 +64,10 @@ beforeAll(async () => {
 				"line" "line",
 				"line_tuple" "line",
 				"mood_enum" "seeder_lib_pg"."mood_enum",
-				"uuid" "uuid"
+				"uuid" "uuid",
+				"inet" inet,
+				-- "geometry" geometry(point, 0),
+				"vector" vector(3)
 			);
 		`,
 	);
@@ -70,14 +79,15 @@ beforeAll(async () => {
 				"smallint_array" smallint[],
 				"bigint_array" bigint[],
 				"bigint_number_array" bigint[],
-				"boolean_array" boolean[],
-				"text_array" text[],
-				"varchar_array" varchar(256)[],
-				"char_array" char(256)[],
 				"numeric_array" numeric[],
 				"decimal_array" numeric[],
 				"real_array" real[],
 				"double_precision_array" double precision[],
+				"boolean_array" boolean[],
+				"char_array" char(256)[],
+				"varchar_array" varchar(256)[],
+				"text_array" text[],
+				"bit_array" bit(11)[],
 				"json_array" json[],
 				"jsonb_array" jsonb[],
 				"time_array" time[],
@@ -90,7 +100,10 @@ beforeAll(async () => {
 				"point_tuple_array" "point"[],
 				"line_array" "line"[],
 				"line_tuple_array" "line"[],
-				"mood_enum_array" "seeder_lib_pg"."mood_enum"[]
+				"mood_enum_array" "seeder_lib_pg"."mood_enum"[],
+				"uuid_array" uuid[],
+				"inet_array" inet[]
+				-- "geometry_array" geometry(point, 0)[]
 			);
 		`,
 	);
