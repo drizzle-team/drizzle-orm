@@ -127,7 +127,7 @@ export const fromDatabase = async (
 			table: table,
 			name: name,
 			type: changedType,
-			isPK: false, // isPK is an interim flag we use in Drizzle Schema and ignore in database introspect
+			isPK: isPrimary, // isPK is an interim flag we use in Drizzle Schema and ignore in database introspect
 			notNull: !isNullable,
 			autoIncrement: isAutoincrement,
 			onUpdateNow,

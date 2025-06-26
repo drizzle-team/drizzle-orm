@@ -85,7 +85,7 @@ export const diffIntrospect = async (
 
 	const typeCheckResult = await $`pnpm exec tsc --noEmit --skipLibCheck ${filePath}`.nothrow();
 	if (typeCheckResult.exitCode !== 0) {
-		throw new Error(typeCheckResult.stderr || typeCheckResult.stdout);
+		throw new Error(`${typeCheckResult.stderr || typeCheckResult.stdout}: ${filePath}`);
 	}
 
 	// generate snapshot from ts file
