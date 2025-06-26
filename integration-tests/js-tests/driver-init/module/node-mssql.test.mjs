@@ -2,8 +2,8 @@ import 'dotenv/config';
 import { drizzle } from 'drizzle-orm/node-mssql';
 import mssql from 'mssql';
 import { afterAll, beforeAll, describe, expect } from 'vitest';
-import { mssql as schema } from './schema.mjs';
 import { createDockerDB } from '../../../tests/mssql/mssql-common.ts';
+import { mssql as schema } from './schema.mjs';
 
 const Pool = mssql.ConnectionPool;
 let container;
