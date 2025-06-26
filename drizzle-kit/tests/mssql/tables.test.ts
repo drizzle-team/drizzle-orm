@@ -626,7 +626,7 @@ test('composite primary key', async () => {
 	const { sqlStatements: pst } = await push({ db, to: to });
 
 	const st0 = [
-		'CREATE TABLE [works_to_creators] (\n\t[work_id] int NOT NULL,\n\t[creator_id] int NOT NULL,\n\t[classification] varchar(1) NOT NULL,\n\tCONSTRAINT [works_to_creators_pkey] PRIMARY KEY([work_id],[creator_id],[classification])\n);\n',
+		'CREATE TABLE [works_to_creators] (\n\t[work_id] int,\n\t[creator_id] int,\n\t[classification] varchar(1),\n\tCONSTRAINT [works_to_creators_pkey] PRIMARY KEY([work_id],[creator_id],[classification])\n);\n',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -663,8 +663,8 @@ test('add column before creating unique constraint', async () => {
 test('alter composite primary key', async () => {
 	const from = {
 		table: mssqlTable('table', {
-			col1: int('col1'),
-			col2: int('col2'),
+			col1: int('col1').notNull(),
+			col2: int('col2').notNull(),
 			col3: varchar('col3').notNull(),
 		}, (t) => [
 			primaryKey({
@@ -675,8 +675,8 @@ test('alter composite primary key', async () => {
 	};
 	const to = {
 		table: mssqlTable('table', {
-			col1: int('col1'),
-			col2: int('col2'),
+			col1: int('col1').notNull(),
+			col2: int('col2').notNull(),
 			col3: varchar('col3').notNull(),
 		}, (t) => [
 			primaryKey({

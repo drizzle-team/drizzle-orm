@@ -28,6 +28,7 @@ import { ddlToTypeScript } from 'src/dialects/mysql/typescript';
 import { DB } from 'src/utils';
 import { mockResolver } from 'src/utils/mocks';
 import { v4 as uuid } from 'uuid';
+import 'zx/globals';
 
 mkdirSync('tests/mysql/tmp', { recursive: true });
 
@@ -84,7 +85,7 @@ export const diffIntrospect = async (
 
 	const typeCheckResult = await $`pnpm exec tsc --noEmit --skipLibCheck ${filePath}`.nothrow();
 	if (typeCheckResult.exitCode !== 0) {
-		throw new Error(typeCheckResult.stderr || typeCheckResult.stdout);
+		throw new Error(`${typeCheckResult.stderr || typeCheckResult.stdout}: ${filePath}`);
 	}
 
 	// generate snapshot from ts file

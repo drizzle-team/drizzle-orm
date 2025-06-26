@@ -48,6 +48,7 @@ export interface RenameTable {
 export interface AddColumn {
 	type: 'add_column';
 	column: Column;
+	defaults: DefaultConstraint[];
 }
 
 export interface DropColumn {
@@ -69,12 +70,14 @@ export interface AlterColumn {
 export interface RecreateIdentityColumn {
 	type: 'recreate_identity_column';
 	column: DiffEntities['columns'];
+	defaults: DefaultConstraint[];
 	constraintsToDelete: (UniqueConstraint | CheckConstraint | Index | PrimaryKey | ForeignKey | DefaultConstraint)[];
 	constraintsToCreate: (UniqueConstraint | CheckConstraint | Index | PrimaryKey | ForeignKey | DefaultConstraint)[];
 }
 export interface RecreateColumn {
 	type: 'recreate_column';
 	column: DiffEntities['columns'];
+	defaults: DefaultConstraint[];
 }
 
 export interface CreateIndex {

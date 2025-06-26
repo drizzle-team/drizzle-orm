@@ -242,12 +242,12 @@ test('introspect all column types', async () => {
 			date2: date({ mode: 'string' }).defaultGetDate(),
 
 			datetime: datetime({ mode: 'date' }).default(new Date()),
-			datetime_1: datetime({ mode: 'string' }).default('2023-05-05'),
-			datetime_2: datetimeoffset({ mode: 'string' }).defaultGetDate(),
+			datetime1: datetime({ mode: 'string' }).default('2023-05-05'),
+			datetime12: datetime({ mode: 'string' }).defaultGetDate(),
 
 			datetime2: datetime2({ mode: 'date' }).default(new Date()),
-			datetime2_1: datetime2({ mode: 'string' }).default('2023-05-05'),
-			datetime2_2: datetimeoffset({ mode: 'string' }).defaultGetDate(),
+			datetime21: datetime2({ mode: 'string' }).default('2023-05-05'),
+			datetime22: datetime2({ mode: 'string' }).defaultGetDate(),
 
 			datetimeoffset: datetimeoffset({ mode: 'date' }).default(new Date()),
 			datetimeoffset1: datetimeoffset({ mode: 'string' }).default('2023-05-05'),

@@ -103,15 +103,15 @@ export const fromDatabase = async (
 	// SELECT current_setting('default_table_access_method') AS default_am;
 
 	const accessMethodsQuery = db.query<{ oid: number; name: string }>(
-		`SELECT oid, amname as name FROM pg_am WHERE amtype = 't'`,
+		`SELECT oid, amname as name FROM pg_am WHERE amtype = 't' ORDER BY amname;`,
 	);
 
 	const tablespacesQuery = db.query<{
 		oid: number;
 		name: string;
-	}>('SELECT oid, spcname as "name" FROM pg_tablespace');
+	}>('SELECT oid, spcname as "name" FROM pg_tablespace ORDER BY spcname;');
 
-	const namespacesQuery = db.query<Namespace>('select oid, nspname as name from pg_namespace');
+	const namespacesQuery = db.query<Namespace>('select oid, nspname as name from pg_namespace ORDER BY nspname;');
 
 	const defaultsQuery = await db.query<{
 		tableId: number;
@@ -182,7 +182,9 @@ export const fromDatabase = async (
 					pg_class
 				WHERE
 					relkind IN ('r', 'v', 'm')
-					AND relnamespace IN (${filteredNamespacesIds.join(', ')});`);
+					AND relnamespace IN (${filteredNamespacesIds.join(', ')})
+				ORDER BY relnamespace, relname
+					;`);
 
 	const viewsList = tablesList.filter((it) => it.kind === 'v' || it.kind === 'm');
 
@@ -288,7 +290,9 @@ LEFT JOIN pg_sequences pgs ON (
     pgs.sequencename = pg_class.relname 
     AND pgs.schemaname = pg_class.relnamespace::regnamespace::text
 )
-WHERE relnamespace IN (${filteredNamespacesIds.join(',')});`);
+WHERE relnamespace IN (${filteredNamespacesIds.join(',')})
+ORDER BY pg_class.relnamespace, pg_class.relname
+;`);
 
 	// I'm not yet aware of how we handle policies down the pipeline for push,
 	// and since postgres does not have any default policies, we can safely fetch all of them for now
@@ -313,12 +317,14 @@ WHERE relnamespace IN (${filteredNamespacesIds.join(',')});`);
 			cmd as "for", 
 			qual as "using", 
 			with_check as "withCheck" 
-		FROM pg_policies;`);
+		FROM pg_policies
+		ORDER BY schemaname, tablename, policyname
+		;`);
 
 	const rolesQuery = await db.query<
 		{ rolname: string; rolinherit: boolean; rolcreatedb: boolean; rolcreaterole: boolean }
 	>(
-		`SELECT rolname, rolinherit, rolcreatedb, rolcreaterole FROM pg_roles;`,
+		`SELECT rolname, rolinherit, rolcreatedb, rolcreaterole FROM pg_roles ORDER BY rolname;`,
 	);
 
 	const constraintsQuery = db.query<{
@@ -351,6 +357,7 @@ WHERE relnamespace IN (${filteredNamespacesIds.join(',')});`);
     FROM
       pg_constraint
     WHERE ${filterByTableIds ? ` conrelid in ${filterByTableIds}` : 'false'}
+	ORDER BY connamespace, conrelid, conname
   `);
 
 	// for serials match with pg_attrdef via attrelid(tableid)+adnum(ordinal position), for enums with pg_enum above
@@ -432,7 +439,9 @@ WHERE relnamespace IN (${filteredNamespacesIds.join(',')});`);
 			WHERE
 			${filterByTableAndViewIds ? ` attrelid in ${filterByTableAndViewIds}` : 'false'}
 				AND attnum > 0
-				AND attisdropped = FALSE;`);
+				AND attisdropped = FALSE
+			ORDER BY attnum
+				;`);
 
 	const extraColumnDataTypesQuery = db.query<{
 		table_schema: string;
@@ -814,6 +823,7 @@ WHERE relnamespace IN (${filteredNamespacesIds.join(',')});`);
       ) metadata ON TRUE
       WHERE
         relkind = 'i' and ${filterByTableIds ? `metadata."tableId" in ${filterByTableIds}` : 'false'}
+	  ORDER BY relnamespace, relname
     `);
 
 	for (const idx of idxs) {

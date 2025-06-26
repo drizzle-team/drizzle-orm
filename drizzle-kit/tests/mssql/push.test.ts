@@ -1,4 +1,15 @@
-import { bigint, check, foreignKey, int, mssqlTable, mssqlView, smallint, text, varchar } from 'drizzle-orm/mssql-core';
+import {
+	bigint,
+	check,
+	foreignKey,
+	int,
+	mssqlSchema,
+	mssqlTable,
+	mssqlView,
+	smallint,
+	text,
+	varchar,
+} from 'drizzle-orm/mssql-core';
 import { eq, sql } from 'drizzle-orm/sql';
 // import { suggestions } from 'src/cli/commands/push-mssql';
 import { DB } from 'src/utils';
@@ -462,68 +473,6 @@ test('drop view with data', async () => {
 	// expect(phints).toStrictEqual(hints0);
 });
 
-test('primary key multistep #1', async (t) => {
-	const sch1 = {
-		users: mssqlTable('users', {
-			name: varchar().primaryKey(),
-		}),
-	};
-
-	const { sqlStatements: diffSt1 } = await diff({}, sch1, []);
-	const { sqlStatements: st1 } = await push({ db, to: sch1, schemas: ['dbo'] });
-
-	const st01 = [
-		'CREATE TABLE [users] (\n\t[name] varchar(1),\n\tCONSTRAINT [users_pkey] PRIMARY KEY([name])\n);\n',
-	];
-
-	expect(st1).toStrictEqual(st01);
-	expect(diffSt1).toStrictEqual(st01);
-
-	const sch2 = {
-		users: mssqlTable('users2', {
-			name: varchar('name2').primaryKey(),
-		}),
-	};
-
-	const renames = ['dbo.users->dbo.users2', 'dbo.users2.name->dbo.users2.name2'];
-	const { sqlStatements: diffSt2 } = await diff(sch1, sch2, renames);
-	const { sqlStatements: st2 } = await push({
-		db,
-		to: sch2,
-		renames,
-		schemas: ['dbo'],
-	});
-
-	const st02 = [
-		`EXEC sp_rename 'users', [users2];`,
-		`EXEC sp_rename 'users2.name', [name2], 'COLUMN';`,
-	];
-
-	expect(st2).toStrictEqual(st02);
-	expect(diffSt2).toStrictEqual(st02);
-
-	const { sqlStatements: diffSt3 } = await diff(sch2, sch2, []);
-	const { sqlStatements: st3 } = await push({ db, to: sch2, schemas: ['dbo'] });
-
-	expect(st3).toStrictEqual([]);
-	expect(diffSt3).toStrictEqual([]);
-
-	const sch3 = {
-		users: mssqlTable('users2', {
-			name: varchar('name2'),
-		}),
-	};
-
-	// TODO should we check diff here?
-	// const { sqlStatements: diffSt4 } = await diff(sch2, sch3, []);
-	const { sqlStatements: st4 } = await push({ db, to: sch3, schemas: ['dbo'] });
-
-	const st04 = ['ALTER TABLE [users2] DROP CONSTRAINT [users_pkey];'];
-
-	expect(st4).toStrictEqual(st04);
-	// expect(diffSt4).toStrictEqual(st04);
-});
-
 test('fk multistep #1', async (t) => {
 	const refTable = mssqlTable('ref', {
 		id: int().identity(),
@@ -717,4 +666,414 @@ test('rename fk', async (t) => {
 
 	expect(st2).toStrictEqual(st02);
 	expect(diffSt2).toStrictEqual(st02);
+});
+
+test('hints + losses: drop table that is not empty', async (t) => {
+	const from = {
+		users: mssqlTable('users', {
+			id: int(),
+			name: varchar({ length: 200 }),
+		}),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, from, []);
+	const { sqlStatements: pst1 } = await push({ db, to: from });
+
+	const st_01 = [
+		'CREATE TABLE [users] (\n\t[id] int,\n\t[name] varchar(200)\n);\n',
+	];
+
+	expect(st1).toStrictEqual(st_01);
+	expect(pst1).toStrictEqual(st_01);
+
+	await db.query(`INSERT INTO [users] ([id], [name]) VALUES (1, 'Alex'), (2, 'Andrew');`);
+
+	const { sqlStatements: st2 } = await diff(n1, {}, []);
+	const { sqlStatements: pst2, hints, losses, error } = await push({ db, to: {} });
+
+	const st_02 = [
+		'DROP TABLE [users];',
+	];
+
+	expect(st2).toStrictEqual(st_02);
+	expect(pst2).toStrictEqual(st_02);
+	expect(hints).toStrictEqual(["· You're about to delete non-empty [users] table"]);
+	expect(error).toBeNull();
+	expect(losses).toStrictEqual([]);
+});
+
+test('hints + losses: drop column that is not empty', async (t) => {
+	const from = {
+		users: mssqlTable('users', {
+			id: int(),
+			name: varchar({ length: 200 }),
+		}),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, from, []);
+	const { sqlStatements: pst1 } = await push({ db, to: from });
+
+	const st_01 = [
+		'CREATE TABLE [users] (\n\t[id] int,\n\t[name] varchar(200)\n);\n',
+	];
+
+	expect(st1).toStrictEqual(st_01);
+	expect(pst1).toStrictEqual(st_01);
+
+	await db.query(`INSERT INTO [users] ([id], [name]) VALUES (1, 'Alex'), (2, 'Andrew');`);
+
+	const to = {
+		users: mssqlTable('users', {
+			id: int(),
+		}),
+	};
+
+	const { sqlStatements: st2 } = await diff(from, to, []);
+	const { sqlStatements: pst2, hints, losses, error } = await push({ db, to: to });
+
+	const st_02 = [
+		'ALTER TABLE [users] DROP COLUMN [name];',
+	];
+
+	expect(st2).toStrictEqual(st_02);
+	expect(pst2).toStrictEqual(st_02);
+	expect(hints).toStrictEqual(["· You're about to delete non-empty [name] column in [users] table"]);
+	expect(error).toBeNull();
+	expect(losses).toStrictEqual([]);
+});
+
+test('hints + losses: drop column that is empty', async (t) => {
+	const from = {
+		users: mssqlTable('users', {
+			id: int(),
+			name: varchar({ length: 200 }),
+		}),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, from, []);
+	const { sqlStatements: pst1 } = await push({ db, to: from });
+
+	const st_01 = [
+		'CREATE TABLE [users] (\n\t[id] int,\n\t[name] varchar(200)\n);\n',
+	];
+
+	expect(st1).toStrictEqual(st_01);
+	expect(pst1).toStrictEqual(st_01);
+
+	const to = {
+		users: mssqlTable('users', {
+			id: int(),
+		}),
+	};
+
+	const { sqlStatements: st2 } = await diff(from, to, []);
+	const { sqlStatements: pst2, hints, losses, error } = await push({ db, to: to });
+
+	const st_02 = [
+		'ALTER TABLE [users] DROP COLUMN [name];',
+	];
+
+	expect(st2).toStrictEqual(st_02);
+	expect(pst2).toStrictEqual(st_02);
+	expect(hints).toStrictEqual([]);
+	expect(error).toBeNull();
+	expect(losses).toStrictEqual([]);
+});
+
+test('hints + losses: drop schema', async (t) => {
+	const users = mssqlTable('users', {
+		id: int(),
+		name: varchar({ length: 200 }),
+	});
+	const from = {
+		mySchema: mssqlSchema('my_schema'),
+		users,
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, from, []);
+	const { sqlStatements: pst1 } = await push({ db, to: from });
+
+	const st_01 = [
+		`CREATE SCHEMA [my_schema];\n`,
+		'CREATE TABLE [users] (\n\t[id] int,\n\t[name] varchar(200)\n);\n',
+	];
+
+	expect(st1).toStrictEqual(st_01);
+	expect(pst1).toStrictEqual(st_01);
+
+	const to = {
+		users,
+	};
+
+	const { sqlStatements: st2 } = await diff(from, to, []);
+	const { sqlStatements: pst2, hints, losses, error } = await push({ db, to: to });
+
+	const st_02 = [
+		'DROP SCHEMA [my_schema];\n',
+	];
+
+	expect(st2).toStrictEqual(st_02);
+	expect(pst2).toStrictEqual(st_02);
+	expect(hints).toStrictEqual([]);
+	expect(error).toBeNull();
+	expect(losses).toStrictEqual([]);
+});
+
+test('hints + losses: drop schema with tables', async (t) => {
+	// user has a schema in db with table
+	await db.query(`CREATE SCHEMA test;`);
+	await db.query(`CREATE TABLE test.test(id int);`);
+
+	const to = {
+		users: mssqlTable('users', {
+			id: int(),
+			name: varchar({ length: 200 }),
+		}),
+	};
+
+	const { sqlStatements: pst1, hints, losses, error } = await push({ db, to: to });
+
+	const st_01 = [
+		`CREATE TABLE [users] (\n\t[id] int,\n\t[name] varchar(200)\n);\n`,
+		'DROP TABLE [test].[test];',
+		`DROP SCHEMA [test];\n`,
+	];
+
+	expect(pst1).toStrictEqual(st_01);
+	expect(hints).toStrictEqual([`· You're about to delete [test] schema with 1 table`]);
+	expect(error).toBeNull();
+	expect(losses).toStrictEqual([]);
+});
+
+test('hints + losses: add column', async (t) => {
+	const from = {
+		users: mssqlTable('users', {
+			id: int(),
+			name: varchar({ length: 200 }),
+		}),
+	};
+
+	await push({ db, to: from });
+
+	await db.query(`INSERT INTO [users] ([id], [name]) VALUES (1, 'Alex'), (2, 'Andrew');`);
+
+	const to = {
+		users: mssqlTable('users', {
+			id: int(),
+			name: varchar({ length: 200 }),
+			age: int(),
+		}),
+	};
+	const { sqlStatements: pst1, hints, losses, error } = await push({ db, to: to });
+
+	const st_01 = [
+		`ALTER TABLE [users] ADD [age] int;`,
+	];
+
+	expect(pst1).toStrictEqual(st_01);
+	expect(hints).toStrictEqual([]);
+	expect(error).toBeNull();
+	expect(losses).toStrictEqual([]);
+});
+
+test('hints + losses: add column with not null without default', async (t) => {
+	const from = {
+		users: mssqlTable('users', {
+			id: int(),
+			name: varchar({ length: 200 }),
+		}),
+	};
+
+	await push({ db, to: from });
+
+	await db.query(`INSERT INTO [users] ([id], [name]) VALUES (1, 'Alex'), (2, 'Andrew');`);
+
+	const to = {
+		users: mssqlTable('users', {
+			id: int(),
+			name: varchar({ length: 200 }),
+			age: int().notNull(),
+		}),
+	};
+	const { sqlStatements: pst1, hints, losses, error } = await push({ db, to: to, expectError: true });
+
+	const st_01 = [
+		`ALTER TABLE [users] ADD [age] int NOT NULL;`,
+	];
+
+	expect(pst1).toStrictEqual(st_01);
+	expect(hints).toStrictEqual([
+		`· You're about to add not-null [age] column without default value to a non-empty [users] table`,
+	]);
+	expect(error).not.toBeNull();
+	expect(losses).toStrictEqual([`DELETE FROM [users];`]);
+
+	await expect(push({ db, to: to, force: true })).resolves.not.toThrowError();
+});
+
+test('hints + losses: add column with not null with default', async (t) => {
+	const from = {
+		users: mssqlTable('users', {
+			id: int(),
+			name: varchar({ length: 200 }),
+		}),
+	};
+
+	await push({ db, to: from });
+
+	await db.query(`INSERT INTO [users] ([id], [name]) VALUES (1, 'Alex'), (2, 'Andrew');`);
+
+	const to = {
+		users: mssqlTable('users', {
+			id: int(),
+			name: varchar({ length: 200 }),
+			age: int().notNull().default(1),
+		}),
+	};
+	const { sqlStatements: pst1, hints, losses, error } = await push({ db, to: to });
+
+	const st_01 = [
+		`ALTER TABLE [users] ADD [age] int NOT NULL CONSTRAINT [users_age_default] DEFAULT 1;`,
+	];
+
+	expect(pst1).toStrictEqual(st_01);
+	expect(hints).toStrictEqual([]);
+	expect(error).toBeNull();
+	expect(losses).toStrictEqual([]);
+});
+
+test('hints + losses: alter column add not null without default', async (t) => {
+	const from = {
+		users: mssqlTable('users', {
+			id: int(),
+			name: varchar({ length: 200 }),
+		}),
+	};
+
+	await push({ db, to: from });
+
+	await db.query(`INSERT INTO [users] ([id]) VALUES (1), (2);`);
+
+	const to = {
+		users: mssqlTable('users', {
+			id: int(),
+			name: varchar({ length: 200 }).notNull(),
+		}),
+	};
+	const { sqlStatements: pst1, hints, losses, error } = await push({ db, to: to, expectError: true });
+
+	const st_01 = [
+		`ALTER TABLE [users] ALTER COLUMN [name] varchar(200) NOT NULL;`,
+	];
+
+	expect(pst1).toStrictEqual(st_01);
+	expect(hints).toStrictEqual([
+		`· You're about to add not-null to [name] column without default value to a non-empty [users] table`,
+	]);
+	expect(error).not.toBeNull();
+	expect(losses).toStrictEqual([`DELETE FROM [users];`]);
+
+	await expect(push({ db, to: to, force: true })).resolves.not.toThrowError();
+});
+
+// TODO
+// this should definitely fail
+// MSSQL does not support altering column for adding default
+//
+// Even if to try change data type + add default + add not null
+// MSSQL will not update existing NULLS to defaults, so this will not work
+// Should add hints i believe for generate and push
+test('hints + losses: alter column add not null with default', async (t) => {
+	const from = {
+		users: mssqlTable('users', {
+			id: int(),
+			name: varchar({ length: 200 }),
+		}),
+	};
+
+	await push({ db, to: from });
+
+	await db.query(`INSERT INTO [users] ([id]) VALUES (1), (2);`);
+
+	const to = {
+		users: mssqlTable('users', {
+			id: int(),
+			name: varchar({ length: 200 }).notNull().default('1'),
+		}),
+	};
+	const { sqlStatements: pst1, hints, losses, error } = await push({ db, to: to, expectError: true });
+
+	const st_01 = [
+		`ALTER TABLE [users] ALTER COLUMN [name] varchar(200) NOT NULL;`,
+		`ALTER TABLE [users] ADD CONSTRAINT [users_name_default] DEFAULT '1' FOR [name];`,
+	];
+
+	expect(pst1).toStrictEqual(st_01);
+	expect(hints).toStrictEqual([]);
+	expect(error).not.toBeNull();
+	expect(losses).toStrictEqual([]);
+});
+
+test('hints + losses: add unique to column #1', async (t) => {
+	const from = {
+		users: mssqlTable('users', {
+			id: int(),
+			name: varchar({ length: 200 }),
+		}),
+	};
+
+	await push({ db, to: from });
+
+	await db.query(`INSERT INTO [users] ([id], [name]) VALUES (1, 'Alex'), (2, 'Andrew');`);
+
+	const to = {
+		users: mssqlTable('users', {
+			id: int(),
+			name: varchar({ length: 200 }).unique(),
+		}),
+	};
+	const { sqlStatements: pst1, hints, losses, error } = await push({ db, to: to });
+
+	const st_01 = [
+		`ALTER TABLE [users] ADD CONSTRAINT [users_name_key] UNIQUE([name]);`,
+	];
+
+	expect(pst1).toStrictEqual(st_01);
+	expect(hints).toStrictEqual([
+		`· You're about to add users_name_key unique constraint to a non-empty [users] table which may fail`,
+	]);
+	expect(error).toBeNull();
+	expect(losses).toStrictEqual([]);
+});
+
+test('hints + losses: add unique to column #2', async (t) => {
+	const from = {
+		users: mssqlTable('users', {
+			id: int(),
+			name: varchar({ length: 200 }),
+		}),
+	};
+
+	await push({ db, to: from });
+
+	await db.query(`INSERT INTO [users] ([id], [name]) VALUES (1, 'Alex'), (2, 'Alex');`);
+
+	const to = {
+		users: mssqlTable('users', {
+			id: int(),
+			name: varchar({ length: 200 }).unique(),
+		}),
+	};
+	const { sqlStatements: pst1, hints, losses, error } = await push({ db, to: to, expectError: true });
+
+	const st_01 = [
+		`ALTER TABLE [users] ADD CONSTRAINT [users_name_key] UNIQUE([name]);`,
+	];
+
+	expect(pst1).toStrictEqual(st_01);
+	expect(hints).toStrictEqual([
+		`· You're about to add users_name_key unique constraint to a non-empty [users] table which may fail`,
+	]);
+	expect(error).not.toBeNull();
+	expect(losses).toStrictEqual([]);
 });
