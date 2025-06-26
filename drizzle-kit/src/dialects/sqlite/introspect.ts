@@ -99,7 +99,7 @@ export const fromDatabase = async (
 			and m.tbl_name NOT LIKE '\\_litestream\\_%' ESCAPE '\\'
 			and m.tbl_name NOT LIKE 'libsql\\_%' ESCAPE '\\'
 			and m.tbl_name  NOT LIKE 'sqlite\\_%' ESCAPE '\\'
-		ORDER BY m.name COLLATE NOCASE;
+		ORDER BY m.name COLLATE NOCASE
 		;`,
 	).then((views) =>
 		views.filter((it) => tablesFilter(it.name)).map((it): View => {
