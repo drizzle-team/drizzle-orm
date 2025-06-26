@@ -89,8 +89,16 @@ test('geometry generator test', async () => {
 		geometryTable: {
 			count,
 			columns: {
-				geometryPointTuple: funcs.geometry({ type: 'point' }),
-				geometryPointXy: funcs.geometry({ type: 'point' }),
+				geometryPointTuple: funcs.geometry({
+					type: 'point',
+					srid: 4326,
+					decimalPlaces: 5,
+				}),
+				geometryPointXy: funcs.geometry({
+					type: 'point',
+					srid: 4326,
+					decimalPlaces: 5,
+				}),
 			},
 		},
 	}));
@@ -108,8 +116,18 @@ test('geometry unique generator test', async () => {
 		geometryUniqueTable: {
 			count,
 			columns: {
-				geometryPointTuple: funcs.geometry({ type: 'point', isUnique: true }),
-				geometryPointXy: funcs.geometry({ type: 'point', isUnique: true }),
+				geometryPointTuple: funcs.geometry({
+					isUnique: true,
+					type: 'point',
+					srid: 4326,
+					decimalPlaces: 5,
+				}),
+				geometryPointXy: funcs.geometry({
+					isUnique: true,
+					type: 'point',
+					srid: 4326,
+					decimalPlaces: 5,
+				}),
 			},
 		},
 	}));
@@ -127,8 +145,18 @@ test('geometry array generator test', async () => {
 		geometryArrayTable: {
 			count,
 			columns: {
-				geometryPointTuple: funcs.geometry({ type: 'point', arraySize: 1 }),
-				geometryPointXy: funcs.geometry({ type: 'point', arraySize: 1 }),
+				geometryPointTuple: funcs.geometry({
+					arraySize: 1,
+					type: 'point',
+					srid: 4326,
+					decimalPlaces: 5,
+				}),
+				geometryPointXy: funcs.geometry({
+					arraySize: 1,
+					type: 'point',
+					srid: 4326,
+					decimalPlaces: 5,
+				}),
 			},
 		},
 	}));
