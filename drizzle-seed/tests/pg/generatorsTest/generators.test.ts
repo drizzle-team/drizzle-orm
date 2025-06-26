@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, test } from 'vitest';
 
 import { PGlite } from '@electric-sql/pglite';
+import { vector } from '@electric-sql/pglite/vector';
 import type { PgliteDatabase } from 'drizzle-orm/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 
@@ -17,7 +18,9 @@ let client: PGlite;
 let db: PgliteDatabase;
 
 beforeAll(async () => {
-	client = new PGlite();
+	client = new PGlite({ extensions: { vector } });
+
+	await client.query('CREATE EXTENSION IF NOT EXISTS vector;');
 
 	db = drizzle(client);
 
@@ -628,6 +631,77 @@ beforeAll(async () => {
 		sql`
 			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."uuid_array_table" (
 				"uuid" uuid[]
+			);    
+		`,
+	);
+
+	await db.execute(
+		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."bit_string_table" (
+				"bit" bit(12)
+			);    
+		`,
+	);
+
+	await db.execute(
+		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."bit_string_unique_table" (
+				"bit" bit(12) unique
+			);    
+		`,
+	);
+
+	await db.execute(
+		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."bit_string_array_table" (
+				"bit" bit(12)[]
+			);    
+		`,
+	);
+	await db.execute(
+		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."inet_table" (
+				"inet" inet
+			);    
+		`,
+	);
+
+	await db.execute(
+		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."inet_unique_table" (
+				"inet" inet unique
+			);    
+		`,
+	);
+
+	await db.execute(
+		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."inet_array_table" (
+				"inet" inet[]
+			);    
+		`,
+	);
+
+	await db.execute(
+		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."vector_table" (
+				"vector" vector(12)
+			);    
+		`,
+	);
+
+	await db.execute(
+		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."vector_unique_table" (
+				"vector" vector(12) unique
+			);    
+		`,
+	);
+
+	await db.execute(
+		sql`
+			    CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."vector_array_table" (
+				"vector" vector(12)[]
 			);    
 		`,
 	);
@@ -2090,6 +2164,168 @@ test('uuid array generator test', async () => {
 	}));
 
 	const data = await db.select().from(schema.uuidArrayTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
+});
+
+test('bitString generator test', async () => {
+	await reset(db, { bitStringTable: schema.bitStringTable });
+	await seed(db, { bitStringTable: schema.bitStringTable }).refine((funcs) => ({
+		bitStringTable: {
+			count,
+			columns: {
+				bit: funcs.bitString(),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.bitStringTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
+});
+
+test('bitString unique generator test', async () => {
+	await reset(db, { bitStringUniqueTable: schema.bitStringUniqueTable });
+	await seed(db, { bitStringUniqueTable: schema.bitStringUniqueTable }).refine((funcs) => ({
+		bitStringUniqueTable: {
+			count,
+			columns: {
+				bit: funcs.bitString({ isUnique: true }),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.bitStringUniqueTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
+});
+
+test('bitString array generator test', async () => {
+	await reset(db, { bitStringArrayTable: schema.bitStringArrayTable });
+	await seed(db, { bitStringArrayTable: schema.bitStringArrayTable }).refine((funcs) => ({
+		bitStringArrayTable: {
+			count,
+			columns: {
+				bit: funcs.bitString({ arraySize: 4 }),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.bitStringArrayTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
+});
+
+test('inet generator test', async () => {
+	await reset(db, { inetTable: schema.inetTable });
+	await seed(db, { inetTable: schema.inetTable }).refine((funcs) => ({
+		inetTable: {
+			count,
+			columns: {
+				inet: funcs.inet(),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.inetTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
+});
+
+test('inet unique generator test', async () => {
+	await reset(db, { inetUniqueTable: schema.inetUniqueTable });
+	await seed(db, { inetUniqueTable: schema.inetUniqueTable }).refine((funcs) => ({
+		inetUniqueTable: {
+			count,
+			columns: {
+				inet: funcs.inet({ isUnique: true }),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.inetUniqueTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
+});
+
+test('inet array generator test', async () => {
+	await reset(db, { inetArrayTable: schema.inetArrayTable });
+	await seed(db, { inetArrayTable: schema.inetArrayTable }).refine((funcs) => ({
+		inetArrayTable: {
+			count,
+			columns: {
+				inet: funcs.inet({ arraySize: 4 }),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.inetArrayTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
+});
+
+test('vector generator test', async () => {
+	await reset(db, { vectorTable: schema.vectorTable });
+	await seed(db, { vectorTable: schema.vectorTable }).refine((funcs) => ({
+		vectorTable: {
+			count,
+			columns: {
+				vector: funcs.vector(),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.vectorTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
+});
+
+test('vector unique generator test', async () => {
+	await reset(db, { vectorUniqueTable: schema.vectorUniqueTable });
+	await seed(db, { vectorUniqueTable: schema.vectorUniqueTable }).refine((funcs) => ({
+		vectorUniqueTable: {
+			count,
+			columns: {
+				vector: funcs.vector({ isUnique: true }),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.vectorUniqueTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
+});
+
+test('vector array generator test', async () => {
+	await reset(db, { vectorArrayTable: schema.vectorArrayTable });
+	await seed(db, { vectorArrayTable: schema.vectorArrayTable }).refine((funcs) => ({
+		vectorArrayTable: {
+			count,
+			columns: {
+				vector: funcs.vector({ arraySize: 4 }),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.vectorArrayTable);
 	// every value in each row does not equal undefined.
 	const predicate = data.length !== 0
 		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));

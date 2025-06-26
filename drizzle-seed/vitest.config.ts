@@ -3,8 +3,6 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
 	test: {
 		include: [
-			// './tests/pg/generatorsTest/*.test.ts',
-			// './tests/pg/allDataTypesTest/*.test.ts',
 			'./tests/cockroach/**/*.test.ts',
 			'./tests/mssql/**/*.test.ts',
 			'./tests/pg/**/*.test.ts',

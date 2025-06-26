@@ -762,6 +762,10 @@ export const generatorsFuncs = {
 	 * ```
 	 */
 	weightedRandom: createGenerator(WeightedRandomGenerator),
+	bitString: createGenerator(GenerateBitString),
+	inet: createGenerator(GenerateInet),
+	geometry: createGenerator(GenerateGeometry),
+	vector: createGenerator(GenerateVector),
 };
 
 // so far, version changes don’t affect generator parameters.
