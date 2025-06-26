@@ -2,17 +2,39 @@ require('dotenv/config');
 const { drizzle } = require('drizzle-orm/node-mssql');
 const mssql = require('mssql');
 const { mssql: schema } = require('./schema.cjs');
-import { describe, expect } from 'vitest';
+import { afterAll, beforeAll, describe, expect } from 'vitest';
+import { createDockerDB } from '../../../tests/mssql/mssql-common.ts';
 
 const Pool = mssql.ConnectionPool;
-
-if (!process.env['MSSQL_CONNECTION_STRING']) {
-	throw new Error('MSSQL_CONNECTION_STRING is not defined');
-}
+let container;
+let connectionString;
 
 describe('node-mssql', async (it) => {
+	beforeAll(async () => {
+		if (process.env['MSSQL_CONNECTION_STRING']) {
+			connectionString = process.env['MSSQL_CONNECTION_STRING'];
+		} else {
+			const { connectionString: conStr, container: contrainerObj } = await createDockerDB();
+			container = contrainerObj;
+			connectionString = conStr;
+		}
+
+		while (true) {
+			try {
+				await mssql.connect(connectionString);
+				break;
+			} catch (e) {
+				await new Promise((resolve) => setTimeout(resolve, 1000));
+			}
+		}
+	});
+
+	afterAll(async () => {
+		await container?.stop();
+	});
+
 	it('drizzle(string)', async () => {
-		const db = drizzle(process.env['MSSQL_CONNECTION_STRING']);
+		const db = drizzle(connectionString);
 
 		const awaitedPool = await db.$client;
 
@@ -22,7 +44,7 @@ describe('node-mssql', async (it) => {
 	});
 
 	it('drizzle(string, config)', async () => {
-		const db = drizzle(process.env['MSSQL_CONNECTION_STRING'], {
+		const db = drizzle(connectionString, {
 			schema,
 		});
 
@@ -36,7 +58,7 @@ describe('node-mssql', async (it) => {
 
 	it('drizzle({connection: string, ...config})', async () => {
 		const db = drizzle({
-			connection: process.env['MSSQL_CONNECTION_STRING'],
+			connection: connectionString,
 			schema,
 		});
 
@@ -49,7 +71,7 @@ describe('node-mssql', async (it) => {
 	});
 
 	it('drizzle(client)', async () => {
-		const client = await mssql.connect(process.env['MSSQL_CONNECTION_STRING']);
+		const client = await mssql.connect(connectionString);
 		const db = drizzle(client);
 
 		await db.$client.query('SELECT 1;');
@@ -58,7 +80,7 @@ describe('node-mssql', async (it) => {
 	});
 
 	it('drizzle(client, config)', async () => {
-		const client = await mssql.connect(process.env['MSSQL_CONNECTION_STRING']);
+		const client = await mssql.connect(connectionString);
 		const db = drizzle(client, {
 			schema,
 		});
