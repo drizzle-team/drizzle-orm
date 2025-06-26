@@ -762,9 +762,113 @@ export const generatorsFuncs = {
 	 * ```
 	 */
 	weightedRandom: createGenerator(WeightedRandomGenerator),
+
+	/**
+	 * generates bit strings based on specified parameters
+	 *
+	 * @param isUnique - property that controls if generated values gonna be unique or not.
+	 * @param arraySize - number of elements in each one-dimensional array (If specified, arrays will be generated).
+	 * @param dimensions - desired length of each bit string (e.g., dimensions = 3 => '010').
+	 *
+	 * @example
+	 * ```ts
+	 *  await seed(db, { bitStringTable: schema.bitStringTable }).refine((funcs) => ({
+	 * 		bitStringTable: {
+	 * 			count,
+	 * 			columns: {
+	 * 				bit: funcs.bitString({
+	 * 					dimensions: 12,
+	 * 					isUnique: true
+	 * 				}),
+	 * 			},
+	 * 		},
+	 * 	}));
+	 * ```
+	 */
 	bitString: createGenerator(GenerateBitString),
+
+	/**
+	 * generates ip addresses based on specified parameters
+	 *
+	 * @param isUnique - property that controls if generated values gonna be unique or not.
+	 * @param arraySize - number of elements in each one-dimensional array (If specified, arrays will be generated).
+	 * @param ipAddress - type of IP address to generate — either "ipv4" or "ipv6".
+	 * @param includeCidr - determines whether generated IPs include a CIDR suffix.
+	 *
+	 * @example
+	 * ```ts
+	 *  await seed(db, { inetTable: schema.inetTable }).refine((funcs) => ({
+	 * 		inetTable: {
+	 * 			count,
+	 * 			columns: {
+	 * 				inet: funcs.inet({
+	 * 					ipAddress: 'ipv4',
+	 * 					includeCidr: true,
+	 * 					isUnique: true
+	 * 				}),
+	 * 			},
+	 * 		},
+	 * 	}));
+	 * ```
+	 */
 	inet: createGenerator(GenerateInet),
+
+	/**
+	 * generates PostGIS geometry objects based on the given parameters.
+	 *
+	 * @param isUnique - property that controls if generated values gonna be unique or not.
+	 * @param arraySize - number of elements in each one-dimensional array (If specified, arrays will be generated).
+	 * @param type - geometry type to generate; currently only `'point'` is supported.
+	 * @param srid - Spatial Reference System Identifier: determines what type of point will be generated - either '4326' or '3857'.
+	 * @param decimalPlaces - number of decimal places for points when `srid` is `4326` (e.g., decimalPlaces = 3 => 'point(30.723 46.482)').
+	 *
+	 * @example
+	 * ```ts
+	 *  await seed(db, { geometryTable: schema.geometryTable }).refine((funcs) => ({
+	 * 		geometryTable: {
+	 * 			count,
+	 * 			columns: {
+	 * 				geometryPointTuple: funcs.geometry({
+	 * 					type: 'point',
+	 * 					srid: 4326,
+	 * 					decimalPlaces: 5,
+	 * 					isUnique: true
+	 * 				})
+	 * 			},
+	 * 		},
+	 * 	}));
+	 * ```
+	 */
 	geometry: createGenerator(GenerateGeometry),
+
+	/**
+	 * generates PgVector vectors based on the provided parameters.
+	 *
+	 * @param isUnique - property that controls if generated values gonna be unique or not.
+	 * @param arraySize - number of elements in each one-dimensional array (If specified, arrays will be generated).
+	 * @param decimalPlaces - number of decimal places for each vector element (e.g., decimalPlaces = 3 => 1.123).
+	 * @param dimensions - number of elements in each generated vector (e.g., dimensions = `3` → `[1,2,3]`).
+	 * @param minValue - minimum allowed value for each vector element.
+	 * @param maxValue - maximum allowed value for each vector element.
+	 *
+	 * @example
+	 * ```ts
+	 *  await seed(db, { vectorTable: schema.vectorTable }).refine((funcs) => ({
+	 * 		vectorTable: {
+	 * 			count,
+	 * 			columns: {
+	 * 				vector: funcs.vector({
+	 * 					decimalPlaces: 5,
+	 * 					dimensions: 12,
+	 * 					minValue: -100,
+	 * 					maxValue: 100,
+	 * 					isUnique: true
+	 * 				}),
+	 * 			},
+	 * 		},
+	 * 	}));
+	 * ```
+	 */
 	vector: createGenerator(GenerateVector),
 };
 

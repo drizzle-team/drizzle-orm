@@ -2176,7 +2176,9 @@ test('bitString generator test', async () => {
 		bitStringTable: {
 			count,
 			columns: {
-				bit: funcs.bitString(),
+				bit: funcs.bitString({
+					dimensions: 12,
+				}),
 			},
 		},
 	}));
@@ -2194,7 +2196,10 @@ test('bitString unique generator test', async () => {
 		bitStringUniqueTable: {
 			count,
 			columns: {
-				bit: funcs.bitString({ isUnique: true }),
+				bit: funcs.bitString({
+					isUnique: true,
+					dimensions: 12,
+				}),
 			},
 		},
 	}));
@@ -2212,7 +2217,10 @@ test('bitString array generator test', async () => {
 		bitStringArrayTable: {
 			count,
 			columns: {
-				bit: funcs.bitString({ arraySize: 4 }),
+				bit: funcs.bitString({
+					arraySize: 4,
+					dimensions: 12,
+				}),
 			},
 		},
 	}));
@@ -2230,7 +2238,10 @@ test('inet generator test', async () => {
 		inetTable: {
 			count,
 			columns: {
-				inet: funcs.inet(),
+				inet: funcs.inet({
+					ipAddress: 'ipv4',
+					includeCidr: true,
+				}),
 			},
 		},
 	}));
@@ -2248,7 +2259,11 @@ test('inet unique generator test', async () => {
 		inetUniqueTable: {
 			count,
 			columns: {
-				inet: funcs.inet({ isUnique: true }),
+				inet: funcs.inet({
+					isUnique: true,
+					ipAddress: 'ipv4',
+					includeCidr: true,
+				}),
 			},
 		},
 	}));
@@ -2266,7 +2281,11 @@ test('inet array generator test', async () => {
 		inetArrayTable: {
 			count,
 			columns: {
-				inet: funcs.inet({ arraySize: 4 }),
+				inet: funcs.inet({
+					arraySize: 4,
+					ipAddress: 'ipv4',
+					includeCidr: true,
+				}),
 			},
 		},
 	}));
@@ -2284,7 +2303,12 @@ test('vector generator test', async () => {
 		vectorTable: {
 			count,
 			columns: {
-				vector: funcs.vector(),
+				vector: funcs.vector({
+					decimalPlaces: 5,
+					dimensions: 12,
+					minValue: -100,
+					maxValue: 100,
+				}),
 			},
 		},
 	}));
@@ -2302,7 +2326,13 @@ test('vector unique generator test', async () => {
 		vectorUniqueTable: {
 			count,
 			columns: {
-				vector: funcs.vector({ isUnique: true }),
+				vector: funcs.vector({
+					isUnique: true,
+					decimalPlaces: 5,
+					dimensions: 12,
+					minValue: -100,
+					maxValue: 100,
+				}),
 			},
 		},
 	}));
@@ -2320,7 +2350,13 @@ test('vector array generator test', async () => {
 		vectorArrayTable: {
 			count,
 			columns: {
-				vector: funcs.vector({ arraySize: 4 }),
+				vector: funcs.vector({
+					arraySize: 4,
+					decimalPlaces: 5,
+					dimensions: 12,
+					minValue: -100,
+					maxValue: 100,
+				}),
 			},
 		},
 	}));
