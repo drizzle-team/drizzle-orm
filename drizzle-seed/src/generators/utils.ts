@@ -1,4 +1,9 @@
-export const fastCartesianProduct = (sets: (number | string | boolean | object)[][], index: number) => {
+/* eslint-disable drizzle-internal/require-entity-kind */
+
+export const fastCartesianProduct = (
+	sets: ((number | string | boolean | object)[] | OrderedNumberRange)[],
+	index: number,
+) => {
 	const resultList = [];
 	let currSet: (typeof sets)[number];
 	let element: (typeof sets)[number][number];
@@ -12,6 +17,57 @@ export const fastCartesianProduct = (sets: (number | string | boolean | object)[
 
 	return resultList;
 };
+
+export const fastCartesianProductForBigint = (
+	sets: ((number | string | boolean | object)[] | OrderedNumberRange)[],
+	index: bigint,
+) => {
+	const resultList = [];
+	let currSet: (typeof sets)[number];
+	let element: (typeof sets)[number][number];
+
+	for (let i = sets.length - 1; i >= 0; i--) {
+		currSet = sets[i]!;
+		const remainder = Number(index % BigInt(currSet.length));
+		element = currSet[remainder]!;
+		resultList.unshift(element);
+		index = index / BigInt(currSet.length);
+	}
+
+	return resultList;
+};
+
+export class OrderedNumberRange<T extends number = number> {
+	// Tell TS “obj[n]” will be a T:
+	[index: number]: T;
+	public readonly length: number;
+
+	constructor(
+		private readonly min: number,
+		private readonly max: number,
+		private readonly step: number,
+	) {
+		this.length = Math.floor((this.max - this.min) / this.step) + 1;
+
+		const handler: ProxyHandler<OrderedNumberRange<T>> = {
+			get(
+				target: OrderedNumberRange<T>,
+				prop: PropertyKey,
+				receiver: any,
+			): T | unknown {
+				if (typeof prop === 'string' && /^\d+$/.test(prop)) {
+					const idx = Number(prop);
+					if (idx >= target.length) return undefined;
+					return (target.min + idx * target.step) as T;
+				}
+				// fallback to normal lookup (and TS knows this has the right signature)
+				return Reflect.get(target, prop, receiver);
+			},
+		};
+
+		return new Proxy(this, handler);
+	}
+}
 
 const sumArray = (weights: number[]) => {
 	const scale = 1e10;
@@ -86,3 +142,30 @@ export const isObject = (value: any) => {
 	if (value !== null && value !== undefined && value.constructor === Object) return true;
 	return false;
 };
+
+// const main = () => {
+// 	console.time('range');
+// 	const range = new OrderedNumberRange(-10, 10, 0.01);
+
+// 	console.log(range.length);
+// 	for (let i = 0; i < 2001 + 1; i++) {
+// 		console.log(range[i]);
+// 	}
+// 	console.timeEnd('range');
+
+// 	console.time('list');
+// 	const list = Array.from({ length: 2e6 + 1 }, (_, idx) => idx);
+
+// 	console.log(list.length);
+// 	for (let i = 0; i < 2e6 + 1; i++) {
+// 		list[i];
+// 	}
+// 	console.timeEnd('list');
+
+// 	const n = 5;
+// 	for (let i = 0; i < n; i++) {
+// 		console.log(fastCartesianProduct([[1, 2], [1, 2]], i));
+// 	}
+// };
+
+// main();

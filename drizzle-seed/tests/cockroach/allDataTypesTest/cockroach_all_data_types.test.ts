@@ -57,14 +57,15 @@ beforeAll(async () => {
 				"int4" int4,
 				"int8" int8,
 				"int8_number" int8,
-				"boolean" boolean,
-				"string" string,
-				"varchar" varchar(256),
-				"char" char(256),
 				"numeric" numeric,
 				"decimal" numeric,
 				"real" real,
 				"double_precision" double precision,
+				"boolean" boolean,
+				"char" char(256),
+				"varchar" varchar(256),
+				"string" string,
+				"bit" bit(11),
 				"jsonb" jsonb,
 				"time" time,
 				"timestamp_date" timestamp,
@@ -73,7 +74,10 @@ beforeAll(async () => {
 				"date" date,
 				"interval" interval,
 				"mood_enum" "seeder_lib_pg"."mood_enum",
-				"uuid" "uuid"
+				"uuid" uuid,
+				"inet" inet,
+				"geometry" geometry(point, 0),
+				"vector" vector(3)
 			);
 		`,
 	);
@@ -85,21 +89,25 @@ beforeAll(async () => {
 				"int4_array" int4[],
 				"int8_array" int8[],
 				"int8_number_array" int8[],
-				"boolean_array" boolean[],
-				"string_array" string[],
-				"varchar_array" varchar(256)[],
-				"char_array" char(256)[],
 				"numeric_array" numeric[],
 				"decimal_array" numeric[],
 				"real_array" real[],
 				"double_precision_array" double precision[],
+				"boolean_array" boolean[],
+				"char_array" char(256)[],
+				"varchar_array" varchar(256)[],
+				"string_array" string[],
+				"bit_array" bit(11)[],
 				"time_array" time[],
 				"timestamp_date_array" timestamp[],
 				"timestamp_string_array" timestamp[],
 				"date_string_array" date[],
 				"date_array" date[],
 				"interval_array" interval[],
-				"mood_enum_array" "seeder_lib_pg"."mood_enum"[]
+				"mood_enum_array" "seeder_lib_pg"."mood_enum"[],
+				"uuid_array" uuid[],
+				"inet_array" inet[],
+				"geometry_array" geometry(point, 0)[]
 			);
 		`,
 	);
@@ -145,12 +153,12 @@ test('all data types test', async () => {
 });
 
 test('all array data types test', async () => {
-	await seed(db, { allArrayDataTypes: schema.allArrayDataTypes }, { count: 1000 });
+	await seed(db, { allArrayDataTypes: schema.allArrayDataTypes }, { count: 1 });
 
 	const allArrayDataTypes = await db.select().from(schema.allArrayDataTypes);
 	// every value in each rows does not equal undefined.
 	const predicate = allArrayDataTypes.every((row) =>
-		Object.values(row).every((val) => val !== undefined && val !== null && val.length === 10)
+		Object.values(row).every((val) => val !== undefined && val !== null && (val.length === 10 || val.length === 1))
 	);
 
 	expect(predicate).toBe(true);

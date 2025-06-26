@@ -1,4 +1,5 @@
 import {
+	bit,
 	boolean,
 	char,
 	cockroachEnum,
@@ -6,6 +7,8 @@ import {
 	date,
 	decimal,
 	float,
+	geometry,
+	inet,
 	int2,
 	int4,
 	int8,
@@ -18,6 +21,7 @@ import {
 	timestamp,
 	uuid,
 	varchar,
+	vector,
 } from 'drizzle-orm/cockroach-core';
 
 export const schema = cockroachSchema('seeder_lib_pg');
@@ -29,14 +33,15 @@ export const allDataTypes = schema.table('all_data_types', {
 	int2: int2('int2'),
 	int8: int8('int8', { mode: 'bigint' }),
 	int8Number: int8('int8_number', { mode: 'number' }),
-	boolean: boolean('boolean'),
-	string: string('string'),
-	varchar: varchar('varchar', { length: 256 }),
-	char: char('char', { length: 256 }),
 	numeric: numeric('numeric'),
 	decimal: decimal('decimal'),
 	real: real('real'),
 	doublePrecision: float('double_precision'),
+	boolean: boolean('boolean'),
+	char: char('char', { length: 256 }),
+	varchar: varchar('varchar', { length: 256 }),
+	string: string('string'),
+	bit: bit('bit', { dimensions: 11 }),
 	jsonb: jsonb('jsonb'),
 	time: time('time'),
 	timestampDate: timestamp('timestamp_date', { mode: 'date' }),
@@ -46,6 +51,9 @@ export const allDataTypes = schema.table('all_data_types', {
 	interval: interval('interval'),
 	moodEnum: moodEnum('mood_enum'),
 	uuid: uuid('uuid'),
+	inet: inet('inet'),
+	geometry: geometry('geometry', { type: 'point', mode: 'tuple', srid: 0 }),
+	vector: vector('vector', { dimensions: 3 }),
 });
 
 export const allArrayDataTypes = schema.table('all_array_data_types', {
@@ -53,14 +61,15 @@ export const allArrayDataTypes = schema.table('all_array_data_types', {
 	int2Array: int2('int2_array').array(),
 	int8Array: int8('int8_array', { mode: 'bigint' }).array(),
 	int8NumberArray: int8('int8_number_array', { mode: 'number' }).array(),
-	booleanArray: boolean('boolean_array').array(),
-	stringArray: string('string_array').array(),
-	varcharArray: varchar('varchar_array', { length: 256 }).array(),
-	charArray: char('char_array', { length: 256 }).array(),
 	numericArray: numeric('numeric_array').array(),
 	decimalArray: decimal('decimal_array').array(),
 	realArray: real('real_array').array(),
 	doublePrecisionArray: float('double_precision_array').array(),
+	booleanArray: boolean('boolean_array').array(),
+	charArray: char('char_array', { length: 256 }).array(),
+	varcharArray: varchar('varchar_array', { length: 256 }).array(),
+	stringArray: string('string_array').array(),
+	bitArray: bit('bit_array', { dimensions: 11 }).array(),
 	timeArray: time('time_array').array(),
 	timestampDateArray: timestamp('timestamp_date_array', { mode: 'date' }).array(),
 	timestampStringArray: timestamp('timestamp_string_array', { mode: 'string' }).array(),
@@ -68,6 +77,9 @@ export const allArrayDataTypes = schema.table('all_array_data_types', {
 	dateArray: date('date_array', { mode: 'date' }).array(),
 	intervalArray: interval('interval_array').array(),
 	moodEnumArray: moodEnum('mood_enum_array').array(),
+	uuidArray: uuid('uuid_array').array(),
+	inetArray: inet('inet_array').array(),
+	geometryArray: geometry('geometry_array', { type: 'point', mode: 'tuple', srid: 0 }).array(1),
 });
 
 export const intervals = schema.table('intervals', {

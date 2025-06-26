@@ -12,7 +12,15 @@ import loremIpsumSentences, { maxStringLength as maxLoremIpsumLength } from '../
 import phonesInfo from '../datasets/phonesInfo.ts';
 import states, { maxStringLength as maxStateLength } from '../datasets/states.ts';
 import streetSuffix, { maxStringLength as maxStreetSuffixLength } from '../datasets/streetSuffix.ts';
-import { fastCartesianProduct, fillTemplate, getWeightedIndices, isObject } from './utils.ts';
+import type { Column } from '../types/tables.ts';
+import {
+	fastCartesianProduct,
+	fastCartesianProductForBigint,
+	fillTemplate,
+	getWeightedIndices,
+	isObject,
+	OrderedNumberRange,
+} from './utils.ts';
 
 export abstract class AbstractGenerator<T = {}> {
 	static readonly entityKind: string = 'AbstractGenerator';
@@ -32,11 +40,13 @@ export abstract class AbstractGenerator<T = {}> {
 	public baseColumnDataType?: string;
 
 	// param for text-like generators
-	public stringLength?: number;
+	// public stringLength?: number;
 
 	// params for GenerateValuesFromArray
 	public weightedCountSeed?: number | undefined;
 	public maxRepeatedValuesCount?: number | { weight: number; count: number | number[] }[] | undefined;
+
+	public typeParams: Column['typeParams'] = {};
 
 	public params: T;
 
@@ -1573,9 +1583,9 @@ export class GenerateFirstName extends AbstractGenerator<{
 
 		const rng = prand.xoroshiro128plus(seed);
 
-		if (this.stringLength !== undefined && this.stringLength < maxFirstNameLength) {
+		if (this.typeParams?.length !== undefined && this.typeParams?.length < maxFirstNameLength) {
 			throw new Error(
-				`You can't use first name generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxFirstNameLength}.`,
+				`You can't use first name generator with a db column length restriction of ${this.typeParams?.length}. Set the maximum string length to at least ${maxFirstNameLength}.`,
 			);
 		}
 
@@ -1611,9 +1621,9 @@ export class GenerateUniqueFirstName extends AbstractGenerator<{
 			throw new Error('count exceeds max number of unique first names.');
 		}
 
-		if (this.stringLength !== undefined && this.stringLength < maxFirstNameLength) {
+		if (this.typeParams?.length !== undefined && this.typeParams?.length < maxFirstNameLength) {
 			throw new Error(
-				`You can't use first name generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxFirstNameLength}.`,
+				`You can't use first name generator with a db column length restriction of ${this.typeParams?.length}. Set the maximum string length to at least ${maxFirstNameLength}.`,
 			);
 		}
 
@@ -1652,9 +1662,9 @@ export class GenerateLastName extends AbstractGenerator<{
 
 		const rng = prand.xoroshiro128plus(seed);
 
-		if (this.stringLength !== undefined && this.stringLength < maxLastNameLength) {
+		if (this.typeParams?.length !== undefined && this.typeParams?.length < maxLastNameLength) {
 			throw new Error(
-				`You can't use last name generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxLastNameLength}.`,
+				`You can't use last name generator with a db column length restriction of ${this.typeParams?.length}. Set the maximum string length to at least ${maxLastNameLength}.`,
 			);
 		}
 
@@ -1685,9 +1695,9 @@ export class GenerateUniqueLastName extends AbstractGenerator<{ isUnique?: boole
 			throw new Error('count exceeds max number of unique last names.');
 		}
 
-		if (this.stringLength !== undefined && this.stringLength < maxLastNameLength) {
+		if (this.typeParams?.length !== undefined && this.typeParams?.length < maxLastNameLength) {
 			throw new Error(
-				`You can't use last name generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxLastNameLength}.`,
+				`You can't use last name generator with a db column length restriction of ${this.typeParams?.length}. Set the maximum string length to at least ${maxLastNameLength}.`,
 			);
 		}
 
@@ -1725,9 +1735,11 @@ export class GenerateFullName extends AbstractGenerator<{
 
 		const rng = prand.xoroshiro128plus(seed);
 
-		if (this.stringLength !== undefined && this.stringLength < (maxFirstNameLength + maxLastNameLength + 1)) {
+		if (
+			this.typeParams?.length !== undefined && this.typeParams?.length < (maxFirstNameLength + maxLastNameLength + 1)
+		) {
 			throw new Error(
-				`You can't use full name generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${
+				`You can't use full name generator with a db column length restriction of ${this.typeParams?.length}. Set the maximum string length to at least ${
 					maxFirstNameLength + maxLastNameLength + 1
 				}.`,
 			);
@@ -1777,9 +1789,11 @@ export class GenerateUniqueFullName extends AbstractGenerator<{
 			);
 		}
 
-		if (this.stringLength !== undefined && this.stringLength < (maxFirstNameLength + maxLastNameLength + 1)) {
+		if (
+			this.typeParams?.length !== undefined && this.typeParams?.length < (maxFirstNameLength + maxLastNameLength + 1)
+		) {
 			throw new Error(
-				`You can't use full name generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${
+				`You can't use full name generator with a db column length restriction of ${this.typeParams?.length}. Set the maximum string length to at least ${
 					maxFirstNameLength + maxLastNameLength + 1
 				}.`,
 			);
@@ -1847,9 +1861,9 @@ export class GenerateEmail extends AbstractGenerator<{
 		}
 
 		const maxEmailLength = maxAdjectiveLength + maxFirstNameLength + maxEmailDomainLength + 2;
-		if (this.stringLength !== undefined && this.stringLength < maxEmailLength) {
+		if (this.typeParams?.length !== undefined && this.typeParams?.length < maxEmailLength) {
 			throw new Error(
-				`You can't use email generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxEmailLength}.`,
+				`You can't use email generator with a db column length restriction of ${this.typeParams?.length}. Set the maximum string length to at least ${maxEmailLength}.`,
 			);
 		}
 
@@ -1911,9 +1925,9 @@ export class GeneratePhoneNumber extends AbstractGenerator<{
 		const rng = prand.xoroshiro128plus(seed);
 
 		if (template !== undefined) {
-			if (this.stringLength !== undefined && this.stringLength < template.length) {
+			if (this.typeParams?.length !== undefined && this.typeParams?.length < template.length) {
 				throw new Error(
-					`Length of phone number template is shorter than db column length restriction: ${this.stringLength}. 
+					`Length of phone number template is shorter than db column length restriction: ${this.typeParams?.length}. 
 					Set the maximum string length to at least ${template.length}.`,
 				);
 			}
@@ -1976,9 +1990,9 @@ export class GeneratePhoneNumber extends AbstractGenerator<{
 		const maxPrefixLength = Math.max(...prefixesArray.map((prefix) => prefix.length));
 		const maxGeneratedDigits = Math.max(...generatedDigitsNumbers);
 
-		if (this.stringLength !== undefined && this.stringLength < (maxPrefixLength + maxGeneratedDigits)) {
+		if (this.typeParams?.length !== undefined && this.typeParams?.length < (maxPrefixLength + maxGeneratedDigits)) {
 			throw new Error(
-				`You can't use phone number generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${
+				`You can't use phone number generator with a db column length restriction of ${this.typeParams?.length}. Set the maximum string length to at least ${
 					maxPrefixLength + maxGeneratedDigits
 				}.`,
 			);
@@ -2096,9 +2110,9 @@ export class GenerateCountry extends AbstractGenerator<{
 
 		const rng = prand.xoroshiro128plus(seed);
 
-		if (this.stringLength !== undefined && this.stringLength < maxCountryLength) {
+		if (this.typeParams?.length !== undefined && this.typeParams?.length < maxCountryLength) {
 			throw new Error(
-				`You can't use country generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxCountryLength}.`,
+				`You can't use country generator with a db column length restriction of ${this.typeParams?.length}. Set the maximum string length to at least ${maxCountryLength}.`,
 			);
 		}
 
@@ -2132,9 +2146,9 @@ export class GenerateUniqueCountry extends AbstractGenerator<{ isUnique?: boolea
 			throw new Error('count exceeds max number of unique countries.');
 		}
 
-		if (this.stringLength !== undefined && this.stringLength < maxCountryLength) {
+		if (this.typeParams?.length !== undefined && this.typeParams?.length < maxCountryLength) {
 			throw new Error(
-				`You can't use country generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxCountryLength}.`,
+				`You can't use country generator with a db column length restriction of ${this.typeParams?.length}. Set the maximum string length to at least ${maxCountryLength}.`,
 			);
 		}
 
@@ -2170,9 +2184,9 @@ export class GenerateJobTitle extends AbstractGenerator<{
 
 		const rng = prand.xoroshiro128plus(seed);
 
-		if (this.stringLength !== undefined && this.stringLength < maxJobTitleLength) {
+		if (this.typeParams?.length !== undefined && this.typeParams?.length < maxJobTitleLength) {
 			throw new Error(
-				`You can't use job title generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxJobTitleLength}.`,
+				`You can't use job title generator with a db column length restriction of ${this.typeParams?.length}. Set the maximum string length to at least ${maxJobTitleLength}.`,
 			);
 		}
 
@@ -2210,9 +2224,9 @@ export class GenerateStreetAddress extends AbstractGenerator<{
 		const possStreetNames = [firstNames, lastNames];
 
 		const maxStreetAddressLength = 4 + Math.max(maxFirstNameLength, maxLastNameLength) + 1 + maxStreetSuffixLength;
-		if (this.stringLength !== undefined && this.stringLength < maxStreetAddressLength) {
+		if (this.typeParams?.length !== undefined && this.typeParams?.length < maxStreetAddressLength) {
 			throw new Error(
-				`You can't use street address generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxStreetAddressLength}.`,
+				`You can't use street address generator with a db column length restriction of ${this.typeParams?.length}. Set the maximum string length to at least ${maxStreetAddressLength}.`,
 			);
 		}
 
@@ -2267,9 +2281,9 @@ export class GenerateUniqueStreetAddress extends AbstractGenerator<{ isUnique?: 
 		}
 
 		const maxStreetAddressLength = 4 + Math.max(maxFirstNameLength, maxLastNameLength) + 1 + maxStreetSuffixLength;
-		if (this.stringLength !== undefined && this.stringLength < maxStreetAddressLength) {
+		if (this.typeParams?.length !== undefined && this.typeParams?.length < maxStreetAddressLength) {
 			throw new Error(
-				`You can't use street address generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxStreetAddressLength}.`,
+				`You can't use street address generator with a db column length restriction of ${this.typeParams?.length}. Set the maximum string length to at least ${maxStreetAddressLength}.`,
 			);
 		}
 
@@ -2350,9 +2364,9 @@ export class GenerateCity extends AbstractGenerator<{
 
 		const rng = prand.xoroshiro128plus(seed);
 
-		if (this.stringLength !== undefined && this.stringLength < maxCityNameLength) {
+		if (this.typeParams?.length !== undefined && this.typeParams?.length < maxCityNameLength) {
 			throw new Error(
-				`You can't use city generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxCityNameLength}.`,
+				`You can't use city generator with a db column length restriction of ${this.typeParams?.length}. Set the maximum string length to at least ${maxCityNameLength}.`,
 			);
 		}
 
@@ -2384,9 +2398,9 @@ export class GenerateUniqueCity extends AbstractGenerator<{ isUnique?: boolean }
 			throw new Error('count exceeds max number of unique cities.');
 		}
 
-		if (this.stringLength !== undefined && this.stringLength < maxCityNameLength) {
+		if (this.typeParams?.length !== undefined && this.typeParams?.length < maxCityNameLength) {
 			throw new Error(
-				`You can't use city generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxCityNameLength}.`,
+				`You can't use city generator with a db column length restriction of ${this.typeParams?.length}. Set the maximum string length to at least ${maxCityNameLength}.`,
 			);
 		}
 
@@ -2427,9 +2441,9 @@ export class GeneratePostcode extends AbstractGenerator<{
 		const templates = ['#####', '#####-####'];
 
 		const maxPostcodeLength = Math.max(...templates.map((template) => template.length));
-		if (this.stringLength !== undefined && this.stringLength < maxPostcodeLength) {
+		if (this.typeParams?.length !== undefined && this.typeParams?.length < maxPostcodeLength) {
 			throw new Error(
-				`You can't use postcode generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxPostcodeLength}.`,
+				`You can't use postcode generator with a db column length restriction of ${this.typeParams?.length}. Set the maximum string length to at least ${maxPostcodeLength}.`,
 			);
 		}
 
@@ -2507,9 +2521,9 @@ export class GenerateUniquePostcode extends AbstractGenerator<{ isUnique?: boole
 		];
 
 		const maxPostcodeLength = Math.max(...templates.map((template) => template.template.length));
-		if (this.stringLength !== undefined && this.stringLength < maxPostcodeLength) {
+		if (this.typeParams?.length !== undefined && this.typeParams?.length < maxPostcodeLength) {
 			throw new Error(
-				`You can't use postcode generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxPostcodeLength}.`,
+				`You can't use postcode generator with a db column length restriction of ${this.typeParams?.length}. Set the maximum string length to at least ${maxPostcodeLength}.`,
 			);
 		}
 
@@ -2564,9 +2578,9 @@ export class GenerateState extends AbstractGenerator<{
 
 		const rng = prand.xoroshiro128plus(seed);
 
-		if (this.stringLength !== undefined && this.stringLength < maxStateLength) {
+		if (this.typeParams?.length !== undefined && this.typeParams?.length < maxStateLength) {
 			throw new Error(
-				`You can't use state generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxStateLength}.`,
+				`You can't use state generator with a db column length restriction of ${this.typeParams?.length}. Set the maximum string length to at least ${maxStateLength}.`,
 			);
 		}
 
@@ -2613,9 +2627,9 @@ export class GenerateCompanyName extends AbstractGenerator<{
 			maxLastNameLength + maxCompanyNameSuffixLength + 1,
 			3 * maxLastNameLength + 7,
 		);
-		if (this.stringLength !== undefined && this.stringLength < maxCompanyNameLength) {
+		if (this.typeParams?.length !== undefined && this.typeParams?.length < maxCompanyNameLength) {
 			throw new Error(
-				`You can't use company name generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxCompanyNameLength}.`,
+				`You can't use company name generator with a db column length restriction of ${this.typeParams?.length}. Set the maximum string length to at least ${maxCompanyNameLength}.`,
 			);
 		}
 
@@ -2687,9 +2701,9 @@ export class GenerateUniqueCompanyName extends AbstractGenerator<{ isUnique?: bo
 			maxLastNameLength + maxCompanyNameSuffixLength + 1,
 			3 * maxLastNameLength + 7,
 		);
-		if (this.stringLength !== undefined && this.stringLength < maxCompanyNameLength) {
+		if (this.typeParams?.length !== undefined && this.typeParams?.length < maxCompanyNameLength) {
 			throw new Error(
-				`You can't use company name generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxCompanyNameLength}.`,
+				`You can't use company name generator with a db column length restriction of ${this.typeParams?.length}. Set the maximum string length to at least ${maxCompanyNameLength}.`,
 			);
 		}
 
@@ -2783,9 +2797,9 @@ export class GenerateLoremIpsum extends AbstractGenerator<{
 
 		const maxLoremIpsumSentencesLength = maxLoremIpsumLength * this.params.sentencesCount + this.params.sentencesCount
 			- 1;
-		if (this.stringLength !== undefined && this.stringLength < maxLoremIpsumSentencesLength) {
+		if (this.typeParams?.length !== undefined && this.typeParams?.length < maxLoremIpsumSentencesLength) {
 			throw new Error(
-				`You can't use lorem ipsum generator with a db column length restriction of ${this.stringLength}. Set the maximum string length to at least ${maxLoremIpsumSentencesLength}.`,
+				`You can't use lorem ipsum generator with a db column length restriction of ${this.typeParams?.length}. Set the maximum string length to at least ${maxLoremIpsumSentencesLength}.`,
 			);
 		}
 
@@ -3115,5 +3129,542 @@ export class GenerateUniqueLine extends AbstractGenerator<{
 			// if (this.dataType === "array")
 			return [a, b, c];
 		}
+	}
+}
+
+export class GenerateBitString extends AbstractGenerator<{
+	dimensions?: number;
+	isUnique?: boolean;
+	arraySize?: number;
+}> {
+	static override readonly entityKind: string = 'GenerateBitString';
+	dimensions: number = 11;
+
+	private state: {
+		intGen: GenerateInt;
+	} | undefined;
+
+	override uniqueVersionOfGen = GenerateUniqueBitString;
+
+	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
+
+		this.dimensions = this.params.dimensions ?? this.typeParams?.length ?? this.dimensions;
+		let intGen: GenerateInt;
+
+		if (this.dimensions > 53) {
+			const maxValue = (BigInt(2) ** BigInt(this.dimensions)) - BigInt(1);
+			intGen = new GenerateInt({ minValue: BigInt(0), maxValue });
+		} else {
+			// dimensions <= 53
+			const maxValue = Math.pow(2, this.dimensions) - 1;
+			intGen = new GenerateInt({ minValue: 0, maxValue });
+		}
+
+		intGen.init({ count, seed });
+
+		this.state = { intGen };
+	}
+	generate() {
+		if (this.state === undefined) {
+			throw new Error('state is not defined.');
+		}
+
+		const bitString = this.state.intGen.generate().toString(2);
+		return bitString.padStart(this.dimensions!, '0');
+	}
+}
+
+export class GenerateUniqueBitString
+	extends AbstractGenerator<{ dimensions?: number; isUnique?: boolean; arraySize?: number }>
+{
+	static override readonly entityKind: string = 'GenerateUniqueBitString';
+	dimensions: number = 11;
+
+	private state: {
+		intGen: GenerateUniqueInt;
+	} | undefined;
+
+	public override isUnique = true;
+
+	override init({ count, seed }: { count: number; seed: number }) {
+		this.dimensions = this.params.dimensions ?? this.typeParams?.length ?? this.dimensions;
+		let intGen: GenerateUniqueInt;
+
+		if (this.dimensions > 53) {
+			const maxValue = (BigInt(2) ** BigInt(this.dimensions)) - BigInt(1);
+			intGen = new GenerateUniqueInt({ minValue: BigInt(0), maxValue });
+		} else {
+			// dimensions <= 53
+			const maxValue = Math.pow(2, this.dimensions) - 1;
+			intGen = new GenerateUniqueInt({ minValue: 0, maxValue });
+		}
+
+		intGen.init({ count, seed });
+
+		this.state = { intGen };
+	}
+	generate() {
+		if (this.state === undefined) {
+			throw new Error('state is not defined.');
+		}
+
+		const bitString = this.state.intGen.generate()!.toString(2);
+		return bitString.padStart(this.dimensions!, '0');
+	}
+}
+
+export class GenerateInet extends AbstractGenerator<
+	{ ipAddress?: 'ipv4' | 'ipv6'; includeCidr?: boolean; isUnique?: boolean; arraySize?: number }
+> {
+	static override readonly entityKind: string = 'GenerateInet';
+	ipAddress: 'ipv4' | 'ipv6' = 'ipv4';
+	includeCidr: boolean = true;
+
+	private state: {
+		rng: prand.RandomGenerator;
+	} | undefined;
+
+	override uniqueVersionOfGen = GenerateUniqueInet;
+
+	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
+		this.ipAddress = this.params.ipAddress ?? this.ipAddress;
+		this.includeCidr = this.params.includeCidr ?? this.includeCidr;
+
+		const rng = prand.xoroshiro128plus(seed);
+
+		this.state = { rng };
+	}
+	generate() {
+		if (this.state === undefined) {
+			throw new Error('state is not defined.');
+		}
+
+		let value: number;
+		const values: string[] = [];
+		let inetVal = '';
+		if (this.ipAddress === 'ipv4') {
+			for (let octet = 0; octet < 4; octet++) {
+				[value, this.state.rng] = prand.uniformIntDistribution(
+					0,
+					255,
+					this.state.rng,
+				);
+				values.push(value.toString());
+			}
+
+			inetVal += values.join('.');
+
+			if (this.includeCidr) {
+				[value, this.state.rng] = prand.uniformIntDistribution(
+					0,
+					32,
+					this.state.rng,
+				);
+				inetVal += `/${value}`;
+			}
+			return inetVal;
+		} else {
+			// this.ipAddress === 'ipv6'
+			for (let hextet = 0; hextet < 8; hextet++) {
+				[value, this.state.rng] = prand.uniformIntDistribution(
+					0,
+					65535,
+					this.state.rng,
+				);
+				values.push(value.toString(16));
+			}
+
+			inetVal += values.join(':');
+
+			if (this.includeCidr) {
+				[value, this.state.rng] = prand.uniformIntDistribution(
+					0,
+					128,
+					this.state.rng,
+				);
+				inetVal += `/${value}`;
+			}
+			return inetVal;
+		}
+	}
+}
+
+export class GenerateUniqueInet extends AbstractGenerator<
+	{ ipAddress?: 'ipv4' | 'ipv6'; includeCidr?: boolean; isUnique?: boolean; arraySize?: number }
+> {
+	static override readonly entityKind: string = 'GenerateUniqueInet';
+	ipAddress: 'ipv4' | 'ipv6' = 'ipv4';
+	includeCidr: boolean = true;
+	delimiter: '.' | ':' = '.';
+
+	private state: {
+		indexGen: GenerateUniqueInt;
+		octetSet: string[];
+		ipv4PrefixSet: string[];
+		hextetSet: string[];
+		ipv6PrefixSet: string[];
+	} | undefined;
+
+	public override isUnique = true;
+
+	override init({ count, seed }: { count: number; seed: number }) {
+		this.ipAddress = this.params.ipAddress ?? this.ipAddress;
+		this.delimiter = this.ipAddress === 'ipv4' ? '.' : ':';
+		this.includeCidr = this.params.includeCidr ?? this.includeCidr;
+
+		// maxValue - number of combinations for cartesian product: {0…255} × {0…255} × {0…255} × {0…255} × {0…32}
+		// where pattern for ipv4 ip is {0–255}.{0–255}.{0–255}.{0–255}[/{0–32}?]
+		// or number of combinations for cartesian product: {0…65535} × {0…65535} × {0…65535} × {0…65535} × {0…65535} × {0…65535} × {0…65535} × {0…65535} × {0…128}
+		// where pattern for ipv6 ip is {0-65535}:{0-65535}:{0-65535}:{0-65535}:{0-65535}:{0-65535}:{0-65535}:{0-65535}[/0-128?]
+		let minValue: number | bigint, maxValue: number | bigint;
+
+		if (this.ipAddress === 'ipv4') {
+			minValue = 0;
+			maxValue = 256 ** 4;
+			if (this.includeCidr) {
+				maxValue = maxValue * 33;
+			}
+		} else {
+			// this.ipAddress === 'ipv6'
+			minValue = BigInt(0);
+			maxValue = BigInt(65535) ** BigInt(8);
+			if (this.includeCidr) {
+				maxValue = maxValue * BigInt(129);
+			}
+		}
+
+		const indexGen = new GenerateUniqueInt({ minValue, maxValue });
+		indexGen.init({ count, seed });
+
+		const octetSet = Array.from({ length: 256 }, (_, i) => i.toString());
+		const ipv4PrefixSet = Array.from({ length: 33 }, (_, i) => i.toString());
+		const hextetSet = Array.from({ length: 65536 }, (_, i) => i.toString(16));
+		const ipv6PrefixSet = Array.from({ length: 129 }, (_, i) => i.toString());
+
+		this.state = { indexGen, octetSet, ipv4PrefixSet, hextetSet, ipv6PrefixSet };
+	}
+	generate() {
+		if (this.state === undefined) {
+			throw new Error('state is not defined.');
+		}
+		let inetVal = '';
+		let tokens: string[] = [];
+
+		if (this.ipAddress === 'ipv4') {
+			const sets = Array.from({ length: 4 }).fill(this.state.octetSet) as string[][];
+			if (this.includeCidr) sets.push(this.state.ipv4PrefixSet);
+
+			const index = this.state.indexGen.generate() as number;
+			tokens = fastCartesianProduct(sets, index) as string[];
+		} else {
+			// this.ipAddress === 'ipv6'
+			const sets = Array.from({ length: 8 }).fill(this.state.hextetSet) as string[][];
+			if (this.includeCidr) sets.push(this.state.ipv6PrefixSet);
+
+			const idx = this.state.indexGen.generate() as bigint;
+			tokens = fastCartesianProductForBigint(sets, idx) as string[];
+		}
+
+		inetVal = this.includeCidr
+			? tokens.slice(0, -1).join(this.delimiter) + `/${tokens.at(-1)}`
+			: tokens.join(this.delimiter);
+
+		return inetVal;
+	}
+}
+
+export class GenerateGeometry extends AbstractGenerator<
+	{
+		type?: 'point';
+		srid: 4326 | 3857;
+		decimalPlaces: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+		isUnique?: boolean;
+		arraySize?: number;
+	}
+> {
+	static override readonly entityKind: string = 'GenerateGeometry';
+	type = 'point' as const;
+	srid: 4326 | 3857 = 4326;
+	decimalPlaces: 1 | 2 | 3 | 4 | 5 | 6 | 7 = 6;
+
+	private state: {
+		rng: prand.RandomGenerator;
+		minXValue: number;
+		maxXValue: number;
+		minYValue: number;
+		maxYValue: number;
+		denominator: number;
+	} | undefined;
+
+	override uniqueVersionOfGen = GenerateUniqueGeometry;
+
+	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
+
+		this.type = this.params.type ?? this.type;
+		this.srid = this.params.srid ?? this.srid;
+		this.decimalPlaces = this.params.decimalPlaces ?? this.decimalPlaces;
+
+		let minXValue: number, maxXValue: number, minYValue: number, maxYValue: number, denominator: number;
+		if (this.type === 'point') {
+			if (this.srid === 4326) {
+				// Degrees (latitude / longitude)
+				denominator = 10 ** this.decimalPlaces;
+				minXValue = -180 * denominator;
+				maxXValue = 180 * denominator;
+				minYValue = -90 * denominator;
+				maxYValue = 90 * denominator;
+			} else {
+				// this.srid === 3857
+				// Meters (projected X / Y)
+				denominator = 1;
+				minXValue = -20026376;
+				maxXValue = 20026376;
+				minYValue = -20048966;
+				maxYValue = 20048966;
+			}
+		} else {
+			throw new Error('geometry generator currently supports only the point type.');
+		}
+
+		const rng = prand.xoroshiro128plus(seed);
+
+		this.state = { rng, minXValue, maxXValue, minYValue, maxYValue, denominator };
+	}
+	generate() {
+		if (this.state === undefined) {
+			throw new Error('state is not defined.');
+		}
+
+		let x: number, y: number;
+		[x, this.state.rng] = prand.uniformIntDistribution(
+			this.state.minXValue,
+			this.state.maxXValue,
+			this.state.rng,
+		);
+		x = x / this.state.denominator;
+
+		[y, this.state.rng] = prand.uniformIntDistribution(
+			this.state.minYValue,
+			this.state.maxYValue,
+			this.state.rng,
+		);
+		y = y / this.state.denominator;
+
+		if (this.dataType === 'array') {
+			return [x, y];
+		}
+
+		// this.dataType === 'object'
+		return { x, y };
+	}
+}
+
+export class GenerateUniqueGeometry extends AbstractGenerator<
+	{
+		type?: 'point';
+		srid: 4326 | 3857;
+		decimalPlaces: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+		isUnique?: boolean;
+		arraySize?: number;
+	}
+> {
+	static override readonly entityKind: string = 'GenerateUniqueGeometry';
+	type = 'point' as const;
+	srid: 4326 | 3857 = 4326;
+	decimalPlaces: 1 | 2 | 3 | 4 | 5 | 6 | 7 = 6;
+
+	private state: {
+		denominator: number;
+		indexGen: GenerateUniqueInt;
+		xySets: OrderedNumberRange[];
+	} | undefined;
+
+	public override isUnique = true;
+
+	override init({ count, seed }: { count: number; seed: number }) {
+		this.type = this.params.type ?? this.type;
+		this.srid = this.params.srid ?? this.srid;
+		this.decimalPlaces = this.params.decimalPlaces ?? this.decimalPlaces;
+
+		let minXValue: number, maxXValue: number, minYValue: number, maxYValue: number, denominator: number;
+		if (this.type === 'point') {
+			if (this.srid === 4326) {
+				// Degrees (latitude / longitude)
+				denominator = 10 ** this.decimalPlaces;
+				minXValue = -180 * denominator;
+				maxXValue = 180 * denominator;
+				minYValue = -90 * denominator;
+				maxYValue = 90 * denominator;
+			} else {
+				// this.srid === 3857
+				// Meters (projected X / Y)
+				denominator = 1;
+				minXValue = -20026376;
+				maxXValue = 20026376;
+				minYValue = -20048966;
+				maxYValue = 20048966;
+			}
+		} else {
+			throw new Error('geometry generator currently supports only the point type.');
+		}
+
+		const xRange = new OrderedNumberRange(minXValue, maxXValue, 1);
+		const yRange = new OrderedNumberRange(minYValue, maxYValue, 1);
+		const xySets = [xRange, yRange];
+
+		const maxCombIdx = BigInt(maxXValue - minXValue + 1) * BigInt(maxYValue - minYValue + 1) - BigInt(1);
+		const indexGen = maxCombIdx <= 2 ** 53
+			? new GenerateUniqueInt({ minValue: 0, maxValue: Number(maxCombIdx) })
+			: new GenerateUniqueInt({ minValue: BigInt(0), maxValue: maxCombIdx });
+		indexGen.init({ count, seed });
+
+		this.state = { denominator, indexGen, xySets };
+	}
+	generate() {
+		if (this.state === undefined) {
+			throw new Error('state is not defined.');
+		}
+
+		const idx = this.state.indexGen.generate();
+		let x: number, y: number;
+		if (typeof idx === 'number') {
+			[x, y] = fastCartesianProduct(this.state.xySets, idx) as [number, number];
+		} else {
+			// typeof idx === 'bigint'
+			[x, y] = fastCartesianProductForBigint(this.state.xySets, idx as bigint) as [number, number];
+		}
+
+		if (this.dataType === 'array') {
+			return [x, y];
+		}
+
+		// this.dataType === 'object'
+		return { x, y };
+	}
+}
+
+export class GenerateVector extends AbstractGenerator<
+	{
+		dimensions?: number;
+		minValue?: number;
+		maxValue?: number;
+		decimalPlaces?: number;
+		isUnique?: boolean;
+	}
+> {
+	static override readonly entityKind: string = 'GenerateVector';
+	// property below should be overridden in init
+	dimensions: number = 3;
+	minValue: number = -1000;
+	maxValue: number = 1000;
+	decimalPlaces: number = 2;
+
+	private state: {
+		vectorGen: GenerateArray;
+	} | undefined;
+
+	override uniqueVersionOfGen = GenerateUniqueVector;
+
+	override init({ count, seed }: { count: number; seed: number }) {
+		super.init({ count, seed });
+
+		this.dimensions = this.params.dimensions ?? this.typeParams.length ?? this.dimensions;
+		this.decimalPlaces = this.params.decimalPlaces ?? this.decimalPlaces;
+		this.minValue = this.params.minValue ?? this.minValue;
+		this.maxValue = this.params.maxValue ?? this.maxValue;
+		if (this.minValue > this.maxValue) {
+			throw new Error(
+				`minValue ( ${this.minValue} ) cannot be greater than maxValue ( ${this.maxValue} ).\n`
+					+ `Did you forget to pass both minValue and maxValue to the generator's properties?`,
+			);
+		}
+
+		// `numberGen` is initialized in the `init` method of `GenerateArray`
+		const numberGen = new GenerateNumber({
+			minValue: this.minValue,
+			maxValue: this.maxValue,
+			precision: 10 ** this.decimalPlaces,
+		});
+		const vectorGen = new GenerateArray({ baseColumnGen: numberGen, size: this.dimensions });
+		vectorGen.init({ count, seed });
+
+		this.state = { vectorGen };
+	}
+	generate() {
+		if (this.state === undefined) {
+			throw new Error('state is not defined.');
+		}
+
+		return this.state.vectorGen.generate();
+	}
+}
+
+export class GenerateUniqueVector extends AbstractGenerator<
+	{
+		dimensions?: number;
+		minValue?: number;
+		maxValue?: number;
+		decimalPlaces?: number;
+		isUnique?: boolean;
+	}
+> {
+	static override readonly entityKind: string = 'GenerateUniqueVector';
+	// property below should be overridden in init
+	dimensions: number = 3;
+	minValue: number = -1000;
+	maxValue: number = 1000;
+	decimalPlaces: number = 2;
+
+	private state: {
+		denominator: number;
+		indexGen: GenerateUniqueInt;
+		vectorSets: OrderedNumberRange[];
+	} | undefined;
+
+	public override isUnique = true;
+
+	override init({ count, seed }: { count: number; seed: number }) {
+		this.dimensions = this.params.dimensions ?? this.typeParams.length ?? this.dimensions;
+		this.decimalPlaces = this.params.decimalPlaces ?? this.decimalPlaces;
+		const denominator = 10 ** this.decimalPlaces;
+		this.minValue = this.params.minValue ?? this.minValue;
+		this.maxValue = this.params.maxValue ?? this.maxValue;
+		if (this.minValue > this.maxValue) {
+			throw new Error(
+				`minValue ( ${this.minValue} ) cannot be greater than maxValue ( ${this.maxValue} ).\n`
+					+ `Did you forget to pass both minValue and maxValue to the generator's properties?`,
+			);
+		}
+
+		const dimensionRange = new OrderedNumberRange(this.minValue * denominator, this.maxValue * denominator, 1);
+		const vectorSets = Array.from({ length: this.dimensions }).fill(dimensionRange) as OrderedNumberRange[];
+
+		const maxCombIdx = vectorSets.reduce((acc, curr) => acc * BigInt(curr.length), BigInt(1)) - BigInt(1);
+		const indexGen = maxCombIdx <= 2 ** 53
+			? new GenerateUniqueInt({ minValue: 0, maxValue: Number(maxCombIdx) })
+			: new GenerateUniqueInt({ minValue: BigInt(0), maxValue: maxCombIdx });
+		indexGen.init({ count, seed });
+
+		this.state = { indexGen, vectorSets, denominator };
+	}
+	generate() {
+		if (this.state === undefined) {
+			throw new Error('state is not defined.');
+		}
+
+		const idx = this.state.indexGen.generate();
+		const vector = typeof idx === 'number'
+			? fastCartesianProduct(this.state.vectorSets, idx) as number[]
+			// typeof idx === 'bigint'
+			: fastCartesianProductForBigint(this.state.vectorSets, idx as bigint) as number[];
+
+		for (let i = 0; i < vector.length; i++) {
+			vector[i] = vector[i]! / this.state.denominator;
+		}
+
+		return vector;
 	}
 }

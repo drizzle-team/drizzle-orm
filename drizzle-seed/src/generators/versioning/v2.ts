@@ -128,8 +128,8 @@ export class GenerateStringV2 extends AbstractGenerator<{
 
 		let minStringLength = 7;
 		let maxStringLength = 20;
-		if (this.stringLength !== undefined) {
-			maxStringLength = this.stringLength;
+		if (this.typeParams?.length !== undefined) {
+			maxStringLength = this.typeParams?.length;
 			if (maxStringLength === 1) minStringLength = maxStringLength;
 			if (maxStringLength < minStringLength) minStringLength = 1;
 		}
@@ -187,8 +187,8 @@ export class GenerateUniqueStringV2 extends AbstractGenerator<{ isUnique?: boole
 		let minStringLength = 7;
 		let maxStringLength = 20;
 		// TODO: revise later
-		if (this.stringLength !== undefined) {
-			maxStringLength = this.stringLength;
+		if (this.typeParams?.length !== undefined) {
+			maxStringLength = this.typeParams?.length;
 			if (maxStringLength === 1 || maxStringLength < minStringLength) minStringLength = maxStringLength;
 		}
 

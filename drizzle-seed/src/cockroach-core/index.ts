@@ -298,6 +298,7 @@ const getCockroachInfo = (
 				sqlType.startsWith('varchar')
 				|| sqlType.startsWith('char')
 				|| sqlType.startsWith('bit')
+				|| sqlType.startsWith('vector')
 				|| sqlType.startsWith('time')
 				|| sqlType.startsWith('timestamp')
 				|| sqlType.startsWith('interval')
