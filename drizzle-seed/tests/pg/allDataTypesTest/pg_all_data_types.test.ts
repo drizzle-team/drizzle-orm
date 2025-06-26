@@ -66,7 +66,6 @@ beforeAll(async () => {
 				"mood_enum" "seeder_lib_pg"."mood_enum",
 				"uuid" "uuid",
 				"inet" inet,
-				-- "geometry" geometry(point, 0),
 				"vector" vector(3)
 			);
 		`,
@@ -103,7 +102,6 @@ beforeAll(async () => {
 				"mood_enum_array" "seeder_lib_pg"."mood_enum"[],
 				"uuid_array" uuid[],
 				"inet_array" inet[]
-				-- "geometry_array" geometry(point, 0)[]
 			);
 		`,
 	);

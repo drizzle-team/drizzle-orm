@@ -316,7 +316,6 @@ export const selectGeneratorForPostgresColumn = (
 	};
 
 	const generator = pickGenerator(table, col);
-	// set params for base column generator
 	if (generator !== undefined) {
 		generator.isUnique = col.isUnique;
 		generator.dataType = col.dataType;

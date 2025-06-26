@@ -92,6 +92,7 @@ export abstract class AbstractGenerator<T = {}> {
 
 			uniqueGen.isUnique = this.isUnique;
 			uniqueGen.dataType = this.dataType;
+			uniqueGen.typeParams = this.typeParams;
 
 			return uniqueGen;
 		}
@@ -103,13 +104,18 @@ export abstract class AbstractGenerator<T = {}> {
 		if (!(this.getEntityKind() === 'GenerateArray') && this.arraySize !== undefined) {
 			const uniqueGen = this.replaceIfUnique();
 			const baseColumnGen = uniqueGen === undefined ? this : uniqueGen;
+
 			baseColumnGen.dataType = this.baseColumnDataType;
+			const { dimensions, ...rest } = baseColumnGen.typeParams;
+			baseColumnGen.typeParams = rest;
+
 			const arrayGen = new GenerateArray(
 				{
 					baseColumnGen,
 					size: this.arraySize,
 				},
 			);
+			arrayGen.typeParams = { dimensions };
 
 			return arrayGen;
 		}
@@ -3378,8 +3384,8 @@ export class GenerateUniqueInet extends AbstractGenerator<
 export class GenerateGeometry extends AbstractGenerator<
 	{
 		type?: 'point';
-		srid: 4326 | 3857;
-		decimalPlaces: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+		srid?: 4326 | 3857;
+		decimalPlaces?: 1 | 2 | 3 | 4 | 5 | 6 | 7;
 		isUnique?: boolean;
 		arraySize?: number;
 	}
@@ -3465,8 +3471,8 @@ export class GenerateGeometry extends AbstractGenerator<
 export class GenerateUniqueGeometry extends AbstractGenerator<
 	{
 		type?: 'point';
-		srid: 4326 | 3857;
-		decimalPlaces: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+		srid?: 4326 | 3857;
+		decimalPlaces?: 1 | 2 | 3 | 4 | 5 | 6 | 7;
 		isUnique?: boolean;
 		arraySize?: number;
 	}
@@ -3553,6 +3559,7 @@ export class GenerateVector extends AbstractGenerator<
 		maxValue?: number;
 		decimalPlaces?: number;
 		isUnique?: boolean;
+		arraySize?: number;
 	}
 > {
 	static override readonly entityKind: string = 'GenerateVector';
@@ -3609,6 +3616,7 @@ export class GenerateUniqueVector extends AbstractGenerator<
 		maxValue?: number;
 		decimalPlaces?: number;
 		isUnique?: boolean;
+		arraySize?: number;
 	}
 > {
 	static override readonly entityKind: string = 'GenerateUniqueVector';

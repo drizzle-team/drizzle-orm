@@ -280,6 +280,7 @@ export class SeedService {
 					);
 				}
 
+				columnPossibleGenerator.generator.typeParams = col.typeParams ?? columnPossibleGenerator.generator.typeParams;
 				const arrayGen = columnPossibleGenerator.generator.replaceIfArray();
 				if (arrayGen !== undefined) {
 					columnPossibleGenerator.generator = arrayGen;
@@ -298,7 +299,6 @@ export class SeedService {
 				columnPossibleGenerator.generator.notNull = col.notNull;
 				columnPossibleGenerator.generator.dataType = col.dataType;
 				// columnPossibleGenerator.generator.stringLength = col.typeParams.length;
-				columnPossibleGenerator.generator.typeParams = col.typeParams ?? columnPossibleGenerator.generator.typeParams;
 
 				tablePossibleGenerators.columnsPossibleGenerators.push(
 					columnPossibleGenerator,
@@ -315,7 +315,7 @@ export class SeedService {
 			const oldBaseColumnGen = (generator as GenerateArray).params.baseColumnGen;
 
 			const newBaseColumnGen = this.selectVersionOfGenerator(oldBaseColumnGen);
-			// newGenerator.baseColumnDataType = oldGenerator.baseColumnDataType;
+			newBaseColumnGen.typeParams = oldBaseColumnGen.typeParams;
 
 			(generator as GenerateArray).params.baseColumnGen = newBaseColumnGen;
 		}
