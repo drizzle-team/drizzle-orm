@@ -27,6 +27,13 @@ export const preparePostgresDB = async (
 	credentials: PostgresCredentials,
 ): Promise<
 	DB & {
+		packageName:
+			| '@aws-sdk/client-rds-data'
+			| 'pglite'
+			| 'pg'
+			| 'postgres'
+			| '@vercel/postgres'
+			| '@neondatabase/serverless';
 		proxy: Proxy;
 		transactionProxy: TransactionProxy;
 		migrate: (config: string | MigrationConfig) => Promise<void>;
@@ -102,6 +109,7 @@ export const preparePostgresDB = async (
 			};
 
 			return {
+				packageName: '@aws-sdk/client-rds-data',
 				query,
 				proxy,
 				transactionProxy,
@@ -162,7 +170,7 @@ export const preparePostgresDB = async (
 				return results;
 			};
 
-			return { query, proxy, transactionProxy, migrate: migrateFn };
+			return { packageName: 'pglite', query, proxy, transactionProxy, migrate: migrateFn };
 		}
 
 		assertUnreachable(driver);
@@ -255,7 +263,7 @@ export const preparePostgresDB = async (
 			return results;
 		};
 
-		return { query, proxy, transactionProxy, migrate: migrateFn };
+		return { packageName: 'pg', query, proxy, transactionProxy, migrate: migrateFn };
 	}
 
 	if (await checkPackage('postgres')) {
@@ -313,7 +321,7 @@ export const preparePostgresDB = async (
 			return results;
 		};
 
-		return { query, proxy, transactionProxy, migrate: migrateFn };
+		return { packageName: 'postgres', query, proxy, transactionProxy, migrate: migrateFn };
 	}
 
 	if (await checkPackage('@vercel/postgres')) {
@@ -411,7 +419,7 @@ export const preparePostgresDB = async (
 			return results;
 		};
 
-		return { query, proxy, transactionProxy, migrate: migrateFn };
+		return { packageName: '@vercel/postgres', query, proxy, transactionProxy, migrate: migrateFn };
 	}
 
 	if (await checkPackage('@neondatabase/serverless')) {
@@ -511,7 +519,7 @@ export const preparePostgresDB = async (
 			return results;
 		};
 
-		return { query, proxy, transactionProxy, migrate: migrateFn };
+		return { packageName: '@neondatabase/serverless', query, proxy, transactionProxy, migrate: migrateFn };
 	}
 
 	console.error(
@@ -524,6 +532,7 @@ export const prepareGelDB = async (
 	credentials?: GelCredentials,
 ): Promise<
 	DB & {
+		packageName: 'gel';
 		proxy: Proxy;
 		transactionProxy: TransactionProxy;
 	}
@@ -593,7 +602,7 @@ To link your project, please refer https://docs.geldata.com/reference/cli/gel_in
 			return result;
 		};
 
-		return { query, proxy, transactionProxy };
+		return { packageName: 'gel', query, proxy, transactionProxy };
 	}
 
 	console.error(
@@ -629,6 +638,7 @@ export const connectToSingleStore = async (
 	it: SingleStoreCredentials,
 ): Promise<{
 	db: DB;
+	packageName: 'mysql2';
 	proxy: Proxy;
 	transactionProxy: TransactionProxy;
 	database: string;
@@ -686,6 +696,7 @@ export const connectToSingleStore = async (
 
 		return {
 			db: { query },
+			packageName: 'mysql2',
 			proxy,
 			transactionProxy,
 			database: result.database,
@@ -694,7 +705,7 @@ export const connectToSingleStore = async (
 	}
 
 	console.error(
-		"To connect to SingleStore database - please install 'singlestore' driver",
+		"To connect to SingleStore database - please install 'mysql2' driver",
 	);
 	process.exit(1);
 };
@@ -726,6 +737,7 @@ export const connectToMySQL = async (
 	it: MysqlCredentials,
 ): Promise<{
 	db: DB;
+	packageName: 'mysql2' | '@planetscale/database';
 	proxy: Proxy;
 	transactionProxy: TransactionProxy;
 	database: string;
@@ -795,6 +807,7 @@ export const connectToMySQL = async (
 
 		return {
 			db: { query },
+			packageName: 'mysql2',
 			proxy,
 			transactionProxy,
 			database: result.database,
@@ -846,6 +859,7 @@ export const connectToMySQL = async (
 
 		return {
 			db: { query },
+			packageName: '@planetscale/database',
 			proxy,
 			transactionProxy,
 			database: result.database,
@@ -905,7 +919,12 @@ export const connectToSQLite = async (
 	credentials: SqliteCredentials,
 ): Promise<
 	& SQLiteDB
-	& { migrate: (config: MigrationConfig) => Promise<void>; proxy: Proxy; transactionProxy: TransactionProxy }
+	& {
+		packageName: 'd1-http' | '@libsql/client' | 'better-sqlite3';
+		migrate: (config: MigrationConfig) => Promise<void>;
+		proxy: Proxy;
+		transactionProxy: TransactionProxy;
+	}
 > => {
 	if ('driver' in credentials) {
 		const { driver } = credentials;
@@ -1037,7 +1056,7 @@ export const connectToSQLite = async (
 				const result = await remoteBatchCallback(queries);
 				return result.rows;
 			};
-			return { ...db, proxy, transactionProxy, migrate: migrateFn };
+			return { ...db, packageName: 'd1-http', proxy, transactionProxy, migrate: migrateFn };
 		} else {
 			assertUnreachable(driver);
 		}
@@ -1101,7 +1120,7 @@ export const connectToSQLite = async (
 			return results;
 		};
 
-		return { ...db, proxy, transactionProxy, migrate: migrateFn };
+		return { ...db, packageName: '@libsql/client', proxy, transactionProxy, migrate: migrateFn };
 	}
 
 	if (await checkPackage('better-sqlite3')) {
@@ -1170,7 +1189,7 @@ export const connectToSQLite = async (
 			return results;
 		};
 
-		return { ...db, proxy, transactionProxy, migrate: migrateFn };
+		return { ...db, packageName: 'better-sqlite3', proxy, transactionProxy, migrate: migrateFn };
 	}
 
 	console.log(
@@ -1181,7 +1200,12 @@ export const connectToSQLite = async (
 
 export const connectToLibSQL = async (credentials: LibSQLCredentials): Promise<
 	& LibSQLDB
-	& { migrate: (config: MigrationConfig) => Promise<void>; proxy: Proxy; transactionProxy: TransactionProxy }
+	& {
+		packageName: '@libsql/client';
+		migrate: (config: MigrationConfig) => Promise<void>;
+		proxy: Proxy;
+		transactionProxy: TransactionProxy;
+	}
 > => {
 	if (await checkPackage('@libsql/client')) {
 		const { createClient } = await import('@libsql/client');
@@ -1245,7 +1269,7 @@ export const connectToLibSQL = async (credentials: LibSQLCredentials): Promise<
 			return results;
 		};
 
-		return { ...db, proxy, transactionProxy, migrate: migrateFn };
+		return { ...db, packageName: '@libsql/client', proxy, transactionProxy, migrate: migrateFn };
 	}
 
 	console.log(
