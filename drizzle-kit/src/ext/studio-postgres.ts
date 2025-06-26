@@ -1,5 +1,5 @@
-import { fromDatabase as fd } from 'src/dialects/postgres/introspect';
 import { fromDatabase as afd } from 'src/dialects/postgres/aws-introspect';
+import { fromDatabase as fd } from 'src/dialects/postgres/introspect';
 import {
 	CheckConstraint,
 	Column,
