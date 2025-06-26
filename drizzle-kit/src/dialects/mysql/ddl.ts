@@ -150,16 +150,29 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: S
 	}
 
 	for (const column of interim.columns.filter((it) => it.isPK)) {
-		const res = ddl.pks.push({
+		// const res = ddl.pks.push({
+		// 	table: column.table,
+		// 	name: 'PRIMARY', // database default
+		// 	nameExplicit: false,
+		// 	columns: [column.name],
+		// });
+
+		// if (res.status === 'CONFLICT') {
+		// 	throw new Error(`PK conflict: ${JSON.stringify(column)}`);
+		// }
+
+		const exists = ddl.pks.one({
+			table: column.table,
+			name: 'PRIMARY', // database default
+		}) !== null;
+		if (exists) continue;
+
+		ddl.pks.push({
 			table: column.table,
 			name: 'PRIMARY', // database default
 			nameExplicit: false,
 			columns: [column.name],
 		});
-
-		if (res.status === 'CONFLICT') {
-			throw new Error(`PK conflict: ${JSON.stringify(column)}`);
-		}
 	}
 
 	for (const column of interim.columns.filter((it) => it.isUnique)) {

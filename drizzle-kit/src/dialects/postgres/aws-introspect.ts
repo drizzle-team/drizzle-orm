@@ -97,13 +97,13 @@ export const fromDatabase = async (
 	const viewColumns: ViewColumn[] = [];
 
 	type OP = {
-		oid: number;
+		oid: string;
 		name: string;
 		default: boolean;
 	};
 
 	type Namespace = {
-		oid: number;
+		oid: string;
 		name: string;
 	};
 
@@ -113,38 +113,38 @@ export const fromDatabase = async (
 	// SELECT current_setting('default_table_access_method') AS default_am;
 
 	const opsQuery = db.query<OP>(`
-		SELECT 
-			pg_opclass.oid as "oid",
-			opcdefault as "default", 
-			amname as "name"
-		FROM pg_opclass
-		LEFT JOIN pg_am on pg_opclass.opcmethod = pg_am.oid
-		ORDER BY lower(amname);
-		`);
+        SELECT 
+            pg_opclass.oid as "oid",
+            opcdefault as "default", 
+            amname as "name"
+        FROM pg_opclass
+        LEFT JOIN pg_am on pg_opclass.opcmethod = pg_am.oid
+        ORDER BY lower(amname);
+        `);
 
-	const accessMethodsQuery = db.query<{ oid: number; name: string }>(
+	const accessMethodsQuery = db.query<{ oid: string; name: string }>(
 		`SELECT oid, amname as name FROM pg_am WHERE amtype = 't' ORDER BY lower(amname);`,
 	);
 
 	const tablespacesQuery = db.query<{
-		oid: number;
+		oid: string;
 		name: string;
 	}>('SELECT oid, spcname as "name" FROM pg_tablespace ORDER BY lower(spcname)');
 
 	const namespacesQuery = db.query<Namespace>('SELECT oid, nspname as name FROM pg_namespace ORDER BY lower(nspname)');
 
 	const defaultsQuery = await db.query<{
-		tableId: number;
+		tableId: string;
 		ordinality: number;
 		expression: string;
 	}>(`
-		SELECT
-			adrelid AS "tableId",
-			adnum AS "ordinality",
-			pg_get_expr(adbin, adrelid) AS "expression"
-		FROM
-			pg_attrdef;
-	`);
+        SELECT
+            adrelid AS "tableId",
+            adnum AS "ordinality",
+            pg_get_expr(adbin, adrelid) AS "expression"
+        FROM
+            pg_attrdef;
+    `);
 
 	const [ops, ams, tablespaces, namespaces, defaultsList] = await Promise.all([
 		opsQuery,
@@ -157,7 +157,7 @@ export const fromDatabase = async (
 	const opsById = ops.reduce((acc, it) => {
 		acc[it.oid] = it;
 		return acc;
-	}, {} as Record<number, OP>);
+	}, {} as Record<string, OP>);
 
 	const { system, other } = namespaces.reduce<{ system: Namespace[]; other: Namespace[] }>(
 		(acc, it) => {
@@ -178,38 +178,38 @@ export const fromDatabase = async (
 
 	const tablesList = await db
 		.query<{
-			oid: number;
+			oid: string;
 			schema: string;
 			name: string;
 
 			/* r - table, v - view, m - materialized view */
 			kind: 'r' | 'v' | 'm';
-			accessMethod: number;
+			accessMethod: string;
 			options: string[] | null;
 			rlsEnabled: boolean;
-			tablespaceid: number;
+			tablespaceid: string;
 			definition: string | null;
 		}>(`
-				SELECT
-					oid,
-					relnamespace::regnamespace::text as "schema",
-					relname AS "name",
-					relkind AS "kind",
-					relam as "accessMethod",
-					reloptions::text[] as "options",
-					reltablespace as "tablespaceid",
-					relrowsecurity AS "rlsEnabled",
-					case 
-						when relkind = 'v' or relkind = 'm'
-							then pg_get_viewdef(oid, true)
-						else null 
-					end as "definition"
-				FROM
-					pg_class
-				WHERE
-					relkind IN ('r', 'v', 'm')
-					AND relnamespace IN (${filteredNamespacesIds.join(', ')})
-				ORDER BY relnamespace, lower(relname);`);
+                SELECT
+                    oid,
+                    relnamespace::regnamespace::text as "schema",
+                    relname AS "name",
+                    relkind::text AS "kind",
+                    relam as "accessMethod",
+                    reloptions::text[] as "options",
+                    reltablespace as "tablespaceid",
+                    relrowsecurity AS "rlsEnabled",
+                    case 
+                        when relkind = 'v' or relkind = 'm'
+                            then pg_get_viewdef(oid, true)
+                        else null 
+                    end as "definition"
+                FROM
+                    pg_class
+                WHERE
+                    relkind IN ('r', 'v', 'm')
+                    AND relnamespace IN (${filteredNamespacesIds.join(', ')})
+                ORDER BY relnamespace, lower(relname);`);
 
 	const viewsList = tablesList.filter((it) => it.kind === 'v' || it.kind === 'm');
 
@@ -236,77 +236,77 @@ export const fromDatabase = async (
 	}
 
 	const dependQuery = db.query<{
-		oid: number;
-		tableId: number;
+		oid: string;
+		tableId: string;
 		ordinality: number;
 
 		/*
-			a - An “auto” dependency means the dependent object can be dropped separately,
-					and will be automatically removed if the referenced object is dropped—regardless of CASCADE or RESTRICT.
-					Example: A named constraint on a table is auto-dependent on the table, so it vanishes when the table is dropped
+            a - An “auto” dependency means the dependent object can be dropped separately,
+                    and will be automatically removed if the referenced object is dropped—regardless of CASCADE or RESTRICT.
+                    Example: A named constraint on a table is auto-dependent on the table, so it vanishes when the table is dropped
 
-					i - An “internal” dependency marks objects that were created as part of building another object.
-					Directly dropping the dependent is disallowed—you must drop the referenced object instead.
-					Dropping the referenced object always cascades to the dependent
-					Example: A trigger enforcing a foreign-key constraint is internally dependent on its pg_constraint entry
-		 */
+                    i - An “internal” dependency marks objects that were created as part of building another object.
+                    Directly dropping the dependent is disallowed—you must drop the referenced object instead.
+                    Dropping the referenced object always cascades to the dependent
+                    Example: A trigger enforcing a foreign-key constraint is internally dependent on its pg_constraint entry
+         */
 		deptype: 'a' | 'i';
 	}>(
 		`SELECT
-			-- sequence id
-			objid as oid,
-			refobjid as "tableId",
-			refobjsubid as "ordinality",
-			
-			-- a = auto
-			deptype
-		FROM
-			pg_depend
-		where ${filterByTableIds ? ` refobjid in ${filterByTableIds}` : 'false'};`,
+            -- sequence id
+            objid as oid,
+            refobjid as "tableId",
+            refobjsubid as "ordinality",
+            
+            -- a = auto
+            deptype::text
+        FROM
+            pg_depend
+        where ${filterByTableIds ? ` refobjid in ${filterByTableIds}` : 'false'};`,
 	);
 
 	const enumsQuery = db
 		.query<{
-			oid: number;
+			oid: string;
 			name: string;
-			schemaId: number;
+			schemaId: string;
 			arrayTypeId: number;
 			ordinality: number;
 			value: string;
 		}>(`SELECT
-					pg_type.oid as "oid",
-					typname as "name",
-					typnamespace as "schemaId",
-					pg_type.typarray as "arrayTypeId",
-					pg_enum.enumsortorder AS "ordinality",
-					pg_enum.enumlabel AS "value"
-				FROM
-					pg_type
-				JOIN pg_enum on pg_enum.enumtypid=pg_type.oid
-				WHERE
-					pg_type.typtype = 'e'
-					AND typnamespace IN (${filteredNamespacesIds.join(',')})
-				ORDER BY pg_type.oid, pg_enum.enumsortorder`);
+                    pg_type.oid as "oid",
+                    typname as "name",
+                    typnamespace as "schemaId",
+                    pg_type.typarray as "arrayTypeId",
+                    pg_enum.enumsortorder AS "ordinality",
+                    pg_enum.enumlabel AS "value"
+                FROM
+                    pg_type
+                JOIN pg_enum on pg_enum.enumtypid=pg_type.oid
+                WHERE
+                    pg_type.typtype = 'e'
+                    AND typnamespace IN (${filteredNamespacesIds.join(',')})
+                ORDER BY pg_type.oid, pg_enum.enumsortorder`);
 
 	// fetch for serials, adrelid = tableid
 	const serialsQuery = db
 		.query<{
-			oid: number;
-			tableId: number;
+			oid: string;
+			tableId: string;
 			ordinality: number;
 			expression: string;
 		}>(`SELECT
-				oid,
-				adrelid as "tableId",
-				adnum as "ordinality",
-				pg_get_expr(adbin, adrelid) as "expression"
-			FROM
-				pg_attrdef
-			WHERE ${filterByTableIds ? ` adrelid in ${filterByTableIds}` : 'false'}`);
+                oid,
+                adrelid as "tableId",
+                adnum as "ordinality",
+                pg_get_expr(adbin, adrelid) as "expression"
+            FROM
+                pg_attrdef
+            WHERE ${filterByTableIds ? ` adrelid in ${filterByTableIds}` : 'false'}`);
 
 	const sequencesQuery = db.query<{
 		schema: string;
-		oid: number;
+		oid: string;
 		name: string;
 		startWith: string;
 		minValue: string;
@@ -315,19 +315,19 @@ export const fromDatabase = async (
 		cycle: boolean;
 		cacheSize: number;
 	}>(`SELECT 
-			relnamespace::regnamespace::text as "schema",
-			relname as "name",
-			seqrelid as "oid",
-			seqstart as "startWith", 
-			seqmin as "minValue", 
-			seqmax as "maxValue", 
-			seqincrement as "incrementBy", 
-			seqcycle as "cycle", 
-			seqcache as "cacheSize" 
-		FROM pg_sequence
-		LEFT JOIN pg_class ON pg_sequence.seqrelid=pg_class.oid
-		WHERE relnamespace IN (${filteredNamespacesIds.join(',')})
-		ORDER BY relnamespace, lower(relname);`);
+            relnamespace::regnamespace::text as "schema",
+            relname as "name",
+            seqrelid as "oid",
+            seqstart as "startWith", 
+            seqmin as "minValue", 
+            seqmax as "maxValue", 
+            seqincrement as "incrementBy", 
+            seqcycle as "cycle", 
+            seqcache as "cacheSize" 
+        FROM pg_sequence
+        LEFT JOIN pg_class ON pg_sequence.seqrelid=pg_class.oid
+        WHERE relnamespace IN (${filteredNamespacesIds.join(',')})
+        ORDER BY relnamespace, lower(relname);`);
 
 	// I'm not yet aware of how we handle policies down the pipeline for push,
 	// and since postgres does not have any default policies, we can safely fetch all of them for now
@@ -344,16 +344,16 @@ export const fromDatabase = async (
 			withCheck: string | undefined | null;
 		}
 	>(`SELECT 
-			schemaname as "schema", 
-			tablename as "table", 
-			policyname as "name", 
-			permissive as "as", 
-			roles as "to", 
-			cmd as "for", 
-			qual as "using", 
-			with_check as "withCheck" 
-		FROM pg_policies
-		ORDER BY lower(schemaname), lower(tablename);`);
+            schemaname as "schema", 
+            tablename as "table", 
+            policyname as "name", 
+            permissive as "as", 
+            roles as "to", 
+            cmd as "for", 
+            qual as "using", 
+            with_check as "withCheck" 
+        FROM pg_policies
+        ORDER BY lower(schemaname), lower(tablename);`);
 
 	const rolesQuery = await db.query<
 		{ rolname: string; rolinherit: boolean; rolcreatedb: boolean; rolcreaterole: boolean }
@@ -362,15 +362,15 @@ export const fromDatabase = async (
 	);
 
 	const constraintsQuery = db.query<{
-		oid: number;
-		schemaId: number;
-		tableId: number;
+		oid: string;
+		schemaId: string;
+		tableId: string;
 		name: string;
 		type: 'p' | 'u' | 'f' | 'c'; // p - primary key, u - unique, f - foreign key, c - check
 		definition: string;
 		indexId: number;
 		columnsOrdinals: number[];
-		tableToId: number;
+		tableToId: string;
 		columnsToOrdinals: number[];
 		onUpdate: 'a' | 'd' | 'r' | 'c' | 'n';
 		onDelete: 'a' | 'd' | 'r' | 'c' | 'n';
@@ -380,94 +380,96 @@ export const fromDatabase = async (
       connamespace AS "schemaId",
       conrelid AS "tableId",
       conname AS "name",
-      contype AS "type", 
+      contype::text AS "type", 
       pg_get_constraintdef(oid) AS "definition",
       conindid AS "indexId",
       conkey AS "columnsOrdinals",
       confrelid AS "tableToId",
       confkey AS "columnsToOrdinals",
-      confupdtype AS "onUpdate",
-      confdeltype AS "onDelete"
+      confupdtype::text AS "onUpdate",
+      confdeltype::text AS "onDelete"
     FROM
       pg_constraint
     WHERE ${filterByTableIds ? ` conrelid in ${filterByTableIds}` : 'false'}
-	ORDER BY conrelid, contype, lower(conname);
+    ORDER BY conrelid, contype, lower(conname);
   `);
+
+	type ColumnMetadata = {
+		seqId: string | null;
+		generation: string | null;
+		start: string | null;
+		increment: string | null;
+		max: string | null;
+		min: string | null;
+		cycle: string;
+		generated: 'ALWAYS' | 'BY DEFAULT';
+		expression: string | null;
+	};
 
 	// for serials match with pg_attrdef via attrelid(tableid)+adnum(ordinal position), for enums with pg_enum above
 	const columnsQuery = db.query<{
-		tableId: number;
+		tableId: string;
 		kind: 'r' | 'v' | 'm';
 		name: string;
 		ordinality: number;
 		notNull: boolean;
 		type: string;
 		dimensions: number;
-		typeId: number;
+		typeId: string;
 		/* s - stored */
 		generatedType: 's' | '';
 		/*
-		'a' for GENERATED ALWAYS
-		'd' for GENERATED BY DEFAULT
-		*/
+        'a' for GENERATED ALWAYS
+        'd' for GENERATED BY DEFAULT
+        */
 		identityType: 'a' | 'd' | '';
-		metadata: {
-			seqId: string | null;
-			generation: string | null;
-			start: string | null;
-			increment: string | null;
-			max: string | null;
-			min: string | null;
-			cycle: string;
-			generated: 'ALWAYS' | 'BY DEFAULT';
-			expression: string | null;
-		} | null;
+		metadata: string | null;
 	}>(`SELECT
-				attrelid AS "tableId",
-				relkind AS "kind",
-				attname AS "name",
-				attnum AS "ordinality",
-				attnotnull AS "notNull",
-				attndims as "dimensions",
-				atttypid as "typeId",
-				attgenerated as "generatedType", 
-				attidentity as "identityType",
-				format_type(atttypid, atttypmod) as "type",
-				CASE
-					WHEN attidentity in ('a', 'd') or attgenerated = 's' THEN (
-						SELECT
-							row_to_json(c.*)
-						FROM
-							(
-								SELECT
-									pg_get_serial_sequence('"' || "table_schema" || '"."' || "table_name" || '"', "attname")::regclass::oid as "seqId",
-									"identity_generation" AS generation,
-									"identity_start" AS "start",
-									"identity_increment" AS "increment",
-									"identity_maximum" AS "max",
-									"identity_minimum" AS "min",
-									"identity_cycle" AS "cycle",
-									"generation_expression" AS "expression"
-								FROM
-									information_schema.columns c
-								WHERE
-									c.column_name = attname
-									-- relnamespace is schemaId, regnamescape::text converts to schemaname
-									AND c.table_schema = cls.relnamespace::regnamespace::text
-									-- attrelid is tableId, regclass::text converts to table name
-									AND c.table_name = cls.relname
-							) c
-						)
-					ELSE NULL
-				END AS "metadata"
-			FROM
-				pg_attribute attr
-				LEFT JOIN pg_class cls ON cls.oid = attr.attrelid
-			WHERE
-			${filterByTableAndViewIds ? ` attrelid in ${filterByTableAndViewIds}` : 'false'}
-				AND attnum > 0
-				AND attisdropped = FALSE
-			ORDER BY attnum;`);
+                attrelid AS "tableId",
+                relkind::text AS "kind",
+                attname AS "name",
+                attnum AS "ordinality",
+                attnotnull AS "notNull",
+                attndims as "dimensions",
+                atttypid as "typeId",
+                attgenerated::text as "generatedType", 
+                attidentity::text as "identityType",
+                format_type(atttypid, atttypmod) as "type",
+                CASE
+                    WHEN attidentity in ('a', 'd') or attgenerated = 's' THEN (
+                        SELECT
+                            row_to_json(c.*)
+                        FROM
+                            (
+                                SELECT
+                                    pg_get_serial_sequence('"' || "table_schema" || '"."' || "table_name" || '"', "attname")::regclass::oid as "seqId",
+                                    "identity_generation" AS generation,
+                                    "identity_start" AS "start",
+                                    "identity_increment" AS "increment",
+                                    "identity_maximum" AS "max",
+                                    "identity_minimum" AS "min",
+                                    "identity_cycle" AS "cycle",
+                                    "generation_expression" AS "expression"
+                                FROM
+                                    information_schema.columns c
+                                WHERE
+                                    c.column_name = attname
+                                    -- relnamespace is schemaId, regnamescape::text converts to schemaname
+                                    AND c.table_schema = cls.relnamespace::regnamespace::text
+                                    -- attrelid is tableId, regclass::text converts to table name
+                                    AND c.table_name = cls.relname
+                            ) c
+                        )
+                    ELSE NULL
+                END AS "metadata"
+            FROM
+                pg_attribute attr
+                LEFT JOIN pg_class cls ON cls.oid = attr.attrelid
+            WHERE
+            ${filterByTableAndViewIds ? ` attrelid in ${filterByTableAndViewIds}` : 'false'}
+                AND attnum > 0
+                AND attisdropped = FALSE
+            ORDER BY attnum;`);
 
 	const [dependList, enumsList, serialsList, sequencesList, policiesList, rolesList, constraintsList, columnsList] =
 		await Promise
@@ -495,7 +497,7 @@ export const fromDatabase = async (
 			acc[it.oid].values.push(it.value);
 		}
 		return acc;
-	}, {} as Record<number, { oid: number; schema: string; name: string; values: string[] }>);
+	}, {} as Record<string, { oid: string; schema: string; name: string; values: string[] }>);
 
 	const groupedArrEnums = enumsList.reduce((acc, it) => {
 		if (!(it.arrayTypeId in acc)) {
@@ -510,7 +512,7 @@ export const fromDatabase = async (
 			acc[it.arrayTypeId].values.push(it.value);
 		}
 		return acc;
-	}, {} as Record<number, { oid: number; schema: string; name: string; values: string[] }>);
+	}, {} as Record<string, { oid: string; schema: string; name: string; values: string[] }>);
 
 	for (const it of Object.values(groupedEnums)) {
 		enums.push({
@@ -652,7 +654,7 @@ export const fromDatabase = async (
 				&& it.columnsOrdinals.includes(column.ordinality);
 		}) ?? null;
 
-		const metadata = column.metadata;
+		const metadata = column.metadata ? JSON.parse(column.metadata) as ColumnMetadata : null;
 		if (column.generatedType === 's' && (!metadata || !metadata.expression)) {
 			throw new Error(
 				`Generated ${table.schema}.${table.name}.${column.name} columns missing expression: \n${
@@ -669,7 +671,7 @@ export const fromDatabase = async (
 			);
 		}
 
-		const sequence = metadata?.seqId ? sequencesList.find((it) => it.oid === Number(metadata.seqId)) ?? null : null;
+		const sequence = metadata?.seqId ? sequencesList.find((it) => it.oid === metadata.seqId) ?? null : null;
 
 		columns.push({
 			entityType: 'columns',
@@ -785,22 +787,24 @@ export const fromDatabase = async (
 		});
 	}
 
+	type IndexMetadata = {
+		tableId: number;
+		expression: string | null;
+		where: string;
+		columnOrdinals: number[];
+		opclassIds: number[];
+		options: number[];
+		isUnique: boolean;
+		isPrimary: boolean;
+	};
+
 	const idxs = await db.query<{
 		oid: number;
 		schema: string;
 		name: string;
 		accessMethod: string;
 		with?: string[];
-		metadata: {
-			tableId: number;
-			expression: string | null;
-			where: string;
-			columnOrdinals: number[];
-			opclassIds: number[];
-			options: number[];
-			isUnique: boolean;
-			isPrimary: boolean;
-		};
+		metadata: string;
 	}>(`
       SELECT
         pg_class.oid,
@@ -808,7 +812,7 @@ export const fromDatabase = async (
         relname AS "name",
         am.amname AS "accessMethod",
         reloptions AS "with",
-        row_to_json(metadata.*) as "metadata"
+        row_to_json(metadata.*) AS "metadata"
       FROM
         pg_class
       JOIN pg_am am ON am.oid = pg_class.relam
@@ -829,11 +833,11 @@ export const fromDatabase = async (
       ) metadata ON TRUE
       WHERE
         relkind = 'i' and ${filterByTableIds ? `metadata."tableId" in ${filterByTableIds}` : 'false'}
-	  ORDER BY relnamespace, lower(relname);
+      ORDER BY relnamespace, lower(relname);
     `);
 
 	for (const idx of idxs) {
-		const { metadata } = idx;
+		const metadata = JSON.parse(idx.metadata) as IndexMetadata;
 
 		// filter for drizzle only?
 		const forUnique = metadata.isUnique && constraintsList.some((x) => x.type === 'u' && x.indexId === idx.oid);
@@ -842,7 +846,7 @@ export const fromDatabase = async (
 		const opclasses = metadata.opclassIds.map((it) => opsById[it]!);
 		const expr = splitExpressions(metadata.expression);
 
-		const table = tablesList.find((it) => it.oid === idx.metadata.tableId)!;
+		const table = tablesList.find((it) => it.oid === String(metadata.tableId))!;
 
 		const nonColumnsCount = metadata.columnOrdinals.reduce((acc, it) => {
 			if (it === 0) acc += 1;
@@ -887,7 +891,7 @@ export const fromDatabase = async (
 				k += 1;
 			} else {
 				const column = columnsList.find((column) => {
-					return column.tableId == metadata.tableId && column.ordinality === ordinal;
+					return column.tableId == String(metadata.tableId) && column.ordinality === ordinal;
 				});
 				if (!column) throw new Error(`missing column: ${metadata.tableId}:${ordinal}`);
 				res.push({
@@ -921,7 +925,7 @@ export const fromDatabase = async (
 			method: idx.accessMethod,
 			isUnique: metadata.isUnique,
 			with: idx.with?.join(', ') ?? '',
-			where: idx.metadata.where,
+			where: metadata.where,
 			columns: columns,
 			concurrently: false,
 			forUnique,
@@ -973,8 +977,8 @@ export const fromDatabase = async (
 		if (!tablesFilter(view.schema, view.name)) continue;
 		tableCount += 1;
 
-		const accessMethod = view.accessMethod === 0 ? null : ams.find((it) => it.oid === view.accessMethod);
-		const tablespace = view.tablespaceid === 0 ? null : tablespaces.find((it) => it.oid === view.tablespaceid)!.name;
+		const accessMethod = view.accessMethod === '0' ? null : ams.find((it) => it.oid === view.accessMethod);
+		const tablespace = view.tablespaceid === '0' ? null : tablespaces.find((it) => it.oid === view.tablespaceid)!.name;
 
 		const definition = parseViewDefinition(view.definition);
 		const withOpts = wrapRecord(

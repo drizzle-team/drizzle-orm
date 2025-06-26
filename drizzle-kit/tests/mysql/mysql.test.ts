@@ -1071,3 +1071,32 @@ test('all types', async () => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
+
+test.only('drop primary key', async () => {
+	const from = {
+		table: mysqlTable('table', {
+			id: int().primaryKey(),
+		}),
+	};
+	const to = {
+		table: mysqlTable('table', {
+			id: int(),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
+		'ALTER TABLE `table` DROP PRIMARY KEY;',
+		/*
+			when we drop pk from the column - we expect implicit not null constraint
+			to be dropped, though it's not. Thus we need to not only drop pk,
+			but a not null constraint too.
+		*/
+		'ALTER TABLE `table` MODIFY COLUMN `id` int;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
