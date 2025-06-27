@@ -1503,7 +1503,7 @@ WHERE
 							type:
 								// filter vectors, but in future we should filter any extension that was installed by user
 								columnAdditionalDT === 'USER-DEFINED'
-									&& !['vector', 'geometry'].includes(enumType)
+									&& !['vector', 'geometry', 'halfvec', 'sparsevec', 'bit'].includes(enumType)
 									? enumType
 									: columnTypeMapped,
 							typeSchema: enumsToReturn[`${typeSchema}.${enumType}`] !== undefined
@@ -1800,7 +1800,8 @@ WHERE
 							name: columnName,
 							type:
 								// filter vectors, but in future we should filter any extension that was installed by user
-								columnAdditionalDT === 'USER-DEFINED' && !['vector', 'geometry'].includes(enumType)
+								columnAdditionalDT === 'USER-DEFINED'
+									&& !['vector', 'geometry', 'halfvec', 'sparsevec', 'bit'].includes(enumType)
 									? enumType
 									: columnTypeMapped,
 							typeSchema: enumsToReturn[`${typeSchema}.${enumType}`] !== undefined
