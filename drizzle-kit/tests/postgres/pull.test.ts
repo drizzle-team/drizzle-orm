@@ -36,6 +36,7 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 import fs from 'fs';
+import { fromDatabase } from 'src/dialects/postgres/introspect';
 import { DB } from 'src/utils';
 import { diffIntrospect, prepareTestDatabase, TestDatabase } from 'tests/postgres/mocks';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
@@ -160,6 +161,47 @@ test('basic index test', async () => {
 	);
 
 	expect(sqlStatements).toStrictEqual([]);
+});
+
+// TODO: Refactor this test
+test('advanced index test', async () => {
+	db.query('CREATE table job (name text, start_after text, priority text, created_on text, id text, state text);')
+	db.query("CREATE INDEX job_i5 ON job (name, start_after) INCLUDE (priority, created_on, id) WHERE state < 'active';")
+
+	const { indexes } = await fromDatabase(db);
+
+	expect(indexes).toStrictEqual([
+		{
+			name: 'job_i5',
+			table: 'job',
+			columns: [
+				{
+					asc: true,
+					isExpression: false,
+					nullsFirst: false,
+					opclass: null,
+					value: 'name',
+				},
+				{
+					asc: true,
+					isExpression: false,
+					nullsFirst: false,
+					opclass: null,
+					value: 'start_after',
+				},
+			],
+			concurrently: false,
+			entityType: 'indexes',
+			forPK: false,
+			isUnique: false,
+			method: 'btree',
+			forUnique: false,
+			nameExplicit: true,
+			schema: 'public',
+			where: "(state < 'active'::text)",
+			with: '',
+		} satisfies typeof indexes[number],
+	]);
 });
 
 test('identity always test: few params', async () => {

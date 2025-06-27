@@ -117,22 +117,6 @@ export const fromDatabase = async (
 	// SHOW default_table_access_method;
 	// SELECT current_setting('default_table_access_method') AS default_am;
 
-	const opsQuery = db.query<OP>(`
-		SELECT 
-			pg_opclass.oid as "oid",
-			opcdefault as "default", 
-			amname as "name"
-		FROM pg_opclass
-		LEFT JOIN pg_am on pg_opclass.opcmethod = pg_am.oid
-		ORDER BY lower(amname);
-	`).then((rows) => {
-		queryCallback('ops', rows, null);
-		return rows;
-	}).catch((err) => {
-		queryCallback('ops', [], err);
-		throw err;
-	});
-
 	const accessMethodsQuery = db.query<{ oid: number; name: string }>(
 		`SELECT oid, amname as name FROM pg_am WHERE amtype = 't' ORDER BY lower(amname);`,
 	).then((rows) => {
@@ -182,18 +166,12 @@ export const fromDatabase = async (
 		throw err;
 	});
 
-	const [ops, ams, tablespaces, namespaces, defaultsList] = await Promise.all([
-		opsQuery,
+	const [ams, tablespaces, namespaces, defaultsList] = await Promise.all([
 		accessMethodsQuery,
 		tablespacesQuery,
 		namespacesQuery,
 		defaultsQuery,
 	]);
-
-	const opsById = ops.reduce((acc, it) => {
-		acc[it.oid] = it;
-		return acc;
-	}, {} as Record<number, OP>);
 
 	const { system, other } = namespaces.reduce<{ system: Namespace[]; other: Namespace[] }>(
 		(acc, it) => {
@@ -892,7 +870,7 @@ export const fromDatabase = async (
 			expression: string | null;
 			where: string;
 			columnOrdinals: number[];
-			opclassIds: number[];
+			opclasses: { oid: number; name: string; default: boolean }[];
 			options: number[];
 			isUnique: boolean;
 			isPrimary: boolean;
@@ -914,10 +892,22 @@ export const fromDatabase = async (
           pg_get_expr(indpred, indrelid) AS "where",
           indrelid::int AS "tableId",
           indkey::int[] as "columnOrdinals",
-          indclass::int[] as "opclassIds",
           indoption::int[] as "options",
           indisunique as "isUnique",
-          indisprimary as "isPrimary"
+          indisprimary as "isPrimary",
+		  array(
+			SELECT
+			  json_build_object(
+				'oid', opclass.oid,
+				'name', pg_am.amname,
+				'default', pg_opclass.opcdefault
+			  )
+			FROM
+			  unnest(indclass) WITH ORDINALITY AS opclass(oid, ordinality)
+			JOIN pg_opclass ON opclass.oid = pg_opclass.oid
+			JOIN pg_am ON pg_opclass.opcmethod = pg_am.oid
+			ORDER BY opclass.ordinality
+		  ) as "opclasses"
         FROM
           pg_index
         WHERE
@@ -941,7 +931,6 @@ export const fromDatabase = async (
 		const forUnique = metadata.isUnique && constraintsList.some((x) => x.type === 'u' && x.indexId === idx.oid);
 		const forPK = metadata.isPrimary && constraintsList.some((x) => x.type === 'p' && x.indexId === idx.oid);
 
-		const opclasses = metadata.opclassIds.map((it) => opsById[it]!);
 		const expr = splitExpressions(metadata.expression);
 
 		const table = tablesList.find((it) => it.oid === idx.metadata.tableId)!;
@@ -984,7 +973,7 @@ export const fromDatabase = async (
 					type: 'expression',
 					value: expr[k],
 					options: opts[i],
-					opclass: opclasses[i],
+					opclass: metadata.opclasses[i],
 				});
 				k += 1;
 			} else {
@@ -992,12 +981,18 @@ export const fromDatabase = async (
 					return column.tableId == metadata.tableId && column.ordinality === ordinal;
 				});
 				if (!column) throw new Error(`missing column: ${metadata.tableId}:${ordinal}`);
-				res.push({
-					type: 'column',
-					value: column,
-					options: opts[i],
-					opclass: opclasses[i],
-				});
+
+				// ! options and opclass can be undefined when index have "INCLUDE" columns (columns from "INCLUDE" don't have options and opclass)
+				const options = opts[i] as typeof opts[number] | undefined;
+				const opclass = metadata.opclasses[i] as { name: string; default: boolean } | undefined;
+				if (options && opclass) {
+					res.push({
+						type: 'column',
+						value: column,
+						options: opts[i],
+						opclass: metadata.opclasses[i],
+					});
+				}
 			}
 		}
 
