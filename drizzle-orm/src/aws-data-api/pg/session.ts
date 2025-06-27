@@ -9,6 +9,7 @@ import type { Cache } from '~/cache/core/cache.ts';
 import { NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
+import type { BlankPgHookContext, DrizzlePgExtension } from '~/extension-core/pg/index.ts';
 import type { Logger } from '~/logger.ts';
 import {
 	type PgDialect,
@@ -50,9 +51,11 @@ export class AwsDataApiPreparedQuery<
 		/** @internal */
 		readonly transactionId: string | undefined,
 		private _isResponseInArrayMode: boolean,
+		extensions?: DrizzlePgExtension[],
+		hookContext?: BlankPgHookContext,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
-		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
+		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig, extensions, hookContext);
 		this.rawQuery = new ExecuteStatementCommand({
 			sql: queryString,
 			parameters: [],
@@ -64,7 +67,7 @@ export class AwsDataApiPreparedQuery<
 		});
 	}
 
-	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+	async _execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		const { fields, joinsNotNullableMap, customResultMapper } = this;
 
 		const result = await this.values(placeholderValues);
@@ -180,8 +183,9 @@ export class AwsDataApiSession<
 		private options: AwsDataApiSessionOptions,
 		/** @internal */
 		readonly transactionId: string | undefined,
+		extensions?: DrizzlePgExtension[],
 	) {
-		super(dialect);
+		super(dialect, extensions);
 		this.rawQuery = {
 			secretArn: options.secretArn,
 			resourceArn: options.resourceArn,
@@ -204,6 +208,7 @@ export class AwsDataApiSession<
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 		queryMetadata?: { type: 'select' | 'update' | 'delete' | 'insert'; tables: string[] },
 		cacheConfig?: WithCacheConfig,
+		hookContext?: BlankPgHookContext,
 		transactionId?: string,
 	): AwsDataApiPreparedQuery<T> {
 		return new AwsDataApiPreparedQuery(
@@ -218,6 +223,8 @@ export class AwsDataApiSession<
 			fields,
 			transactionId ?? this.transactionId,
 			isResponseInArrayMode,
+			this.extensions,
+			hookContext,
 			customResultMapper,
 		);
 	}
@@ -231,6 +238,7 @@ export class AwsDataApiSession<
 			undefined,
 			undefined,
 			undefined,
+			undefined,
 			this.transactionId,
 		).execute();
 	}
@@ -240,8 +248,21 @@ export class AwsDataApiSession<
 		config?: PgTransactionConfig | undefined,
 	): Promise<T> {
 		const { transactionId } = await this.client.send(new BeginTransactionCommand(this.rawQuery));
-		const session = new AwsDataApiSession(this.client, this.dialect, this.schema, this.options, transactionId);
-		const tx = new AwsDataApiTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
+		const session = new AwsDataApiSession(
+			this.client,
+			this.dialect,
+			this.schema,
+			this.options,
+			transactionId,
+			this.extensions,
+		);
+		const tx = new AwsDataApiTransaction<TFullSchema, TSchema>(
+			this.dialect,
+			session,
+			this.schema,
+			undefined,
+			this.extensions,
+		);
 		if (config) {
 			await tx.setTransaction(config);
 		}
@@ -271,6 +292,7 @@ export class AwsDataApiTransaction<
 			this.session,
 			this.schema,
 			this.nestedIndex + 1,
+			this._.extensions,
 		);
 		await this.session.execute(sql.raw(`savepoint ${savepointName}`));
 		try {

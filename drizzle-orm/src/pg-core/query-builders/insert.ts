@@ -1,5 +1,6 @@
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
+import { requiredExtension } from '~/extension-core/index.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
 import type { IndexColumn } from '~/pg-core/indexes.ts';
 import type {
@@ -16,12 +17,12 @@ import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
-import { Param, SQL, sql } from '~/sql/sql.ts';
+import { ExtensionParam, Param, SQL, sql } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { InferInsertModel } from '~/table.ts';
 import { Columns, getTableName, Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
-import { haveSameKeys, mapUpdateSet, type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
+import { columnExtensionsCheck, haveSameKeys, mapUpdateSet, type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
 import type { AnyPgColumn, PgColumn } from '../columns/common.ts';
 import { extractUsedTable } from '../utils.ts';
 import { QueryBuilder } from './query-builder.ts';
@@ -88,15 +89,35 @@ export class PgInsertBuilder<
 		if (values.length === 0) {
 			throw new Error('values() must be called with at least one value');
 		}
+
+		const extColumns = new Set<string>();
+		const cols = this.table[Table.Symbol.Columns];
+
 		const mappedValues = values.map((entry) => {
 			const result: Record<string, Param | SQL> = {};
-			const cols = this.table[Table.Symbol.Columns];
 			for (const colKey of Object.keys(entry)) {
 				const colValue = entry[colKey as keyof typeof entry];
-				result[colKey] = is(colValue, SQL) ? colValue : new Param(colValue, cols[colKey]);
+
+				if (is(colValue, SQL)) {
+					result[colKey] = colValue;
+					continue;
+				}
+
+				if (cols[colKey]![requiredExtension]) {
+					extColumns.add(colKey);
+					result[colKey] = new ExtensionParam(cols[colKey]![requiredExtension], colValue, cols[colKey]);
+
+					continue;
+				}
+
+				result[colKey] = new Param(colValue, cols[colKey]);
 			}
 			return result;
 		});
+
+		for (const colKey of extColumns.values()) {
+			columnExtensionsCheck(cols[colKey]!, this.session.extensions);
+		}
 
 		return new PgInsertBase(
 			this.table,
@@ -130,7 +151,15 @@ export class PgInsertBuilder<
 			);
 		}
 
-		return new PgInsertBase(this.table, select, this.session, this.dialect, this.withList, true);
+		return new PgInsertBase(
+			this.table,
+			select,
+			this.session,
+			this.dialect,
+			this.withList,
+			true,
+			undefined,
+		);
 	}
 }
 
@@ -377,7 +406,11 @@ export class PgInsertBase<
 		const whereSql = config.where ? sql` where ${config.where}` : undefined;
 		const targetWhereSql = config.targetWhere ? sql` where ${config.targetWhere}` : undefined;
 		const setWhereSql = config.setWhere ? sql` where ${config.setWhere}` : undefined;
-		const setSql = this.dialect.buildUpdateSet(this.config.table, mapUpdateSet(this.config.table, config.set));
+		const setSql = this.dialect.buildUpdateSet(
+			this.config.table,
+			mapUpdateSet(this.config.table, config.set),
+			this.session.extensions,
+		);
 		let targetColumn = '';
 		targetColumn = Array.isArray(config.target)
 			? config.target.map((it) => this.dialect.escapeName(this.dialect.casing.getColumnCasing(it))).join(',')
@@ -390,7 +423,7 @@ export class PgInsertBase<
 
 	/** @internal */
 	getSQL(): SQL {
-		return this.dialect.buildInsertQuery(this.config);
+		return this.dialect.buildInsertQuery(this.config, this.session.extensions);
 	}
 
 	toSQL(): Query {
@@ -405,10 +438,24 @@ export class PgInsertBase<
 				PreparedQueryConfig & {
 					execute: TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[];
 				}
-			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true, undefined, {
-				type: 'insert',
-				tables: extractUsedTable(this.config.table),
-			}, this.cacheConfig);
+			>(
+				this.dialect.sqlToQuery(this.getSQL()),
+				this.config.returning,
+				name,
+				true,
+				undefined,
+				{
+					type: 'insert',
+					tables: extractUsedTable(this.config.table),
+				},
+				this.cacheConfig,
+				{
+					query: 'insert',
+					dialect: this.dialect,
+					session: this.session,
+					config: this.config,
+				},
+			);
 		});
 	}
 

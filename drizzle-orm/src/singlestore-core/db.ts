@@ -1,6 +1,7 @@
 import type { ResultSetHeader } from 'mysql2/promise';
 import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleSingleStoreExtension } from '~/extension-core/singlestore/index.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
@@ -40,6 +41,7 @@ export class SingleStoreDatabase<
 		readonly schema: TSchema | undefined;
 		readonly fullSchema: TFullSchema;
 		readonly tableNamesMap: Record<string, string>;
+		readonly extensions?: DrizzleSingleStoreExtension[];
 	};
 
 	// We are waiting for SingleStore support for `json_array` function
@@ -52,17 +54,20 @@ export class SingleStoreDatabase<
 		/** @internal */
 		readonly session: SingleStoreSession<any, any, any, any>,
 		schema: RelationalSchemaConfig<TSchema> | undefined,
+		extensions?: DrizzleSingleStoreExtension[],
 	) {
 		this._ = schema
 			? {
 				schema: schema.schema,
 				fullSchema: schema.fullSchema as TFullSchema,
 				tableNamesMap: schema.tableNamesMap,
+				extensions,
 			}
 			: {
 				schema: undefined,
 				fullSchema: {} as TFullSchema,
 				tableNamesMap: {},
+				extensions,
 			};
 		this.query = {} as typeof this['query'];
 		// this.queryNotSupported = true;

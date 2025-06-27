@@ -3,6 +3,7 @@ import type { Transaction } from 'gel/dist/transaction';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
+import type { BlankGelHookContext, DrizzleGelExtension } from '~/extension-core/gel/index.ts';
 import type { GelDialect } from '~/gel-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/gel-core/query-builders/select.types.ts';
 import { GelPreparedQuery, GelSession, GelTransaction, type PreparedQueryConfig } from '~/gel-core/session.ts';
@@ -30,13 +31,15 @@ export class GelDbPreparedQuery<T extends PreparedQueryConfig> extends GelPrepar
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		private _isResponseInArrayMode: boolean,
+		extensions?: DrizzleGelExtension[],
+		hookContext?: BlankGelHookContext,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 		private transaction: boolean = false,
 	) {
-		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
+		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig, extensions, hookContext);
 	}
 
-	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+	async _execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		return tracer.startActiveSpan('drizzle.execute', async () => {
 			const params = fillPlaceholders(this.params, placeholderValues);
 
@@ -119,8 +122,9 @@ export class GelDbSession<TFullSchema extends Record<string, unknown>, TSchema e
 		dialect: GelDialect,
 		private schema: RelationalSchemaConfig<TSchema> | undefined,
 		private options: GelSessionOptions = {},
+		extensions?: DrizzleGelExtension[],
 	) {
-		super(dialect);
+		super(dialect, extensions);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
 	}
@@ -136,6 +140,7 @@ export class GelDbSession<TFullSchema extends Record<string, unknown>, TSchema e
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
+		hookContext?: BlankGelHookContext,
 	): GelDbPreparedQuery<T> {
 		return new GelDbPreparedQuery(
 			this.client,
@@ -147,6 +152,8 @@ export class GelDbSession<TFullSchema extends Record<string, unknown>, TSchema e
 			cacheConfig,
 			fields,
 			isResponseInArrayMode,
+			this.extensions,
+			hookContext,
 			customResultMapper,
 		);
 	}
@@ -155,8 +162,8 @@ export class GelDbSession<TFullSchema extends Record<string, unknown>, TSchema e
 		transaction: (tx: GelTransaction<GelQueryResultHKT, TFullSchema, TSchema>) => Promise<T>,
 	): Promise<T> {
 		return await (this.client as Client).transaction(async (clientTx) => {
-			const session = new GelDbSession(clientTx, this.dialect, this.schema, this.options);
-			const tx = new GelDbTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
+			const session = new GelDbSession(clientTx, this.dialect, this.schema, this.options, this.extensions);
+			const tx = new GelDbTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema, this.extensions);
 			return await transaction(tx);
 		});
 	}
@@ -177,6 +184,7 @@ export class GelDbTransaction<TFullSchema extends Record<string, unknown>, TSche
 			this.dialect,
 			this.session,
 			this.schema,
+			this._.extensions,
 		);
 		return await transaction(tx);
 	}

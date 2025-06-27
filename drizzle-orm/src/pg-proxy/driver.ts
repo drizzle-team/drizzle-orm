@@ -1,4 +1,5 @@
 import { entityKind } from '~/entity.ts';
+import type { DrizzlePgExtension } from '~/extension-core/pg/index.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
@@ -26,7 +27,7 @@ export type RemoteCallback = (
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	callback: RemoteCallback,
-	config: DrizzleConfig<TSchema> = {},
+	config: DrizzleConfig<TSchema, DrizzlePgExtension> = {},
 	_dialect: () => PgDialect = () => new PgDialect({ casing: config.casing }),
 ): PgRemoteDatabase<TSchema> {
 	const dialect = _dialect();
@@ -50,8 +51,9 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		};
 	}
 
-	const session = new PgRemoteSession(callback, dialect, schema, { logger, cache: config.cache });
-	const db = new PgRemoteDatabase(dialect, session, schema as any) as PgRemoteDatabase<TSchema>;
+	const extensions = config.extensions;
+	const session = new PgRemoteSession(callback, dialect, schema, { logger, cache: config.cache }, extensions);
+	const db = new PgRemoteDatabase(dialect, session, schema as any, extensions) as PgRemoteDatabase<TSchema>;
 	(<any> db).$cache = config.cache;
 	if ((<any> db).$cache) {
 		(<any> db).$cache['invalidate'] = config.cache?.onMutate;

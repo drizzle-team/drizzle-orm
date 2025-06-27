@@ -1,5 +1,6 @@
 import type { OPSQLiteConnection, QueryResult } from '@op-engineering/op-sqlite';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleSQLiteExtension } from '~/extension-core/sqlite/index.ts';
 import { DefaultLogger } from '~/logger.ts';
 import {
 	createTableRelationsHelpers,
@@ -20,7 +21,7 @@ export class OPSQLiteDatabase<
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	client: OPSQLiteConnection,
-	config: DrizzleConfig<TSchema> = {},
+	config: DrizzleConfig<TSchema, DrizzleSQLiteExtension> = {},
 ): OPSQLiteDatabase<TSchema> & {
 	$client: OPSQLiteConnection;
 } {
@@ -45,8 +46,9 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		};
 	}
 
-	const session = new OPSQLiteSession(client, dialect, schema, { logger, cache: config.cache });
-	const db = new OPSQLiteDatabase('async', dialect, session, schema) as OPSQLiteDatabase<TSchema>;
+	const extensions = config.extensions;
+	const session = new OPSQLiteSession(client, dialect, schema, { logger, cache: config.cache }, extensions);
+	const db = new OPSQLiteDatabase('async', dialect, session, schema, extensions) as OPSQLiteDatabase<TSchema>;
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;
 	if ((<any> db).$cache) {

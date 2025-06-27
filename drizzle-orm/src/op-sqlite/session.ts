@@ -2,6 +2,7 @@ import type { OPSQLiteConnection, QueryResult } from '@op-engineering/op-sqlite'
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
+import type { BlankSQLiteHookContext, DrizzleSQLiteExtension } from '~/extension-core/sqlite/index.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
@@ -39,8 +40,9 @@ export class OPSQLiteSession<
 		dialect: SQLiteAsyncDialect,
 		private schema: RelationalSchemaConfig<TSchema> | undefined,
 		options: OPSQLiteSessionOptions = {},
+		extensions?: DrizzleSQLiteExtension[],
 	) {
-		super(dialect);
+		super(dialect, extensions);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
 	}
@@ -56,6 +58,7 @@ export class OPSQLiteSession<
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
+		hookContext?: undefined,
 	): OPSQLitePreparedQuery<T> {
 		return new OPSQLitePreparedQuery(
 			this.client,
@@ -67,6 +70,8 @@ export class OPSQLiteSession<
 			fields,
 			executeMethod,
 			isResponseInArrayMode,
+			this.extensions,
+			hookContext,
 			customResultMapper,
 		);
 	}
@@ -75,7 +80,7 @@ export class OPSQLiteSession<
 		transaction: (tx: OPSQLiteTransaction<TFullSchema, TSchema>) => T,
 		config: SQLiteTransactionConfig = {},
 	): T {
-		const tx = new OPSQLiteTransaction('async', this.dialect, this, this.schema);
+		const tx = new OPSQLiteTransaction('async', this.dialect, this, this.schema, undefined, this.extensions);
 		this.run(sql.raw(`begin${config?.behavior ? ' ' + config.behavior : ''}`));
 		try {
 			const result = transaction(tx);
@@ -96,7 +101,14 @@ export class OPSQLiteTransaction<
 
 	override transaction<T>(transaction: (tx: OPSQLiteTransaction<TFullSchema, TSchema>) => T): T {
 		const savepointName = `sp${this.nestedIndex}`;
-		const tx = new OPSQLiteTransaction('async', this.dialect, this.session, this.schema, this.nestedIndex + 1);
+		const tx = new OPSQLiteTransaction(
+			'async',
+			this.dialect,
+			this.session,
+			this.schema,
+			this.nestedIndex + 1,
+			this._.extensions,
+		);
 		this.session.run(sql.raw(`savepoint ${savepointName}`));
 		try {
 			const result = transaction(tx);
@@ -127,12 +139,14 @@ export class OPSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQuery
 		private fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		private _isResponseInArrayMode: boolean,
+		extensions?: DrizzleSQLiteExtension[],
+		hookContext?: BlankSQLiteHookContext,
 		private customResultMapper?: (rows: unknown[][]) => unknown,
 	) {
-		super('sync', executeMethod, query, cache, queryMetadata, cacheConfig);
+		super('sync', executeMethod, query, cache, queryMetadata, cacheConfig, extensions, hookContext);
 	}
 
-	async run(placeholderValues?: Record<string, unknown>): Promise<QueryResult> {
+	async _run(placeholderValues?: Record<string, unknown>): Promise<QueryResult> {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 
@@ -141,7 +155,7 @@ export class OPSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQuery
 		});
 	}
 
-	async all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
+	async _all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
 		const { fields, joinsNotNullableMap, query, logger, customResultMapper, client } = this;
 		if (!fields && !customResultMapper) {
 			const params = fillPlaceholders(query.params, placeholderValues ?? {});
@@ -159,7 +173,7 @@ export class OPSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQuery
 		return rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
-	async get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
+	async _get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
 		const { fields, joinsNotNullableMap, customResultMapper, query, logger, client } = this;
 		const params = fillPlaceholders(query.params, placeholderValues ?? {});
 		logger.logQuery(query.sql, params);
@@ -184,7 +198,7 @@ export class OPSQLitePreparedQuery<T extends PreparedQueryConfig = PreparedQuery
 		return mapResultRow(fields!, row, joinsNotNullableMap);
 	}
 
-	async values(placeholderValues?: Record<string, unknown>): Promise<T['values']> {
+	async _values(placeholderValues?: Record<string, unknown>): Promise<T['values']> {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 		return await this.queryWithCache(this.query.sql, params, async () => {

@@ -210,7 +210,7 @@ export class GelDeleteBase<
 
 	/** @internal */
 	getSQL(): SQL {
-		return this.dialect.buildDeleteQuery(this.config);
+		return this.dialect.buildDeleteQuery(this.config, this.session.extensions);
 	}
 
 	toSQL(): Query {
@@ -225,10 +225,24 @@ export class GelDeleteBase<
 				PreparedQueryConfig & {
 					execute: TReturning extends undefined ? GelQueryResultKind<TQueryResult, never> : TReturning[];
 				}
-			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true, undefined, {
-				type: 'delete',
-				tables: extractUsedTable(this.config.table),
-			});
+			>(
+				this.dialect.sqlToQuery(this.getSQL()),
+				this.config.returning,
+				name,
+				true,
+				undefined,
+				{
+					type: 'delete',
+					tables: extractUsedTable(this.config.table),
+				},
+				undefined,
+				{
+					query: 'delete',
+					config: this.config,
+					session: this.session,
+					dialect: this.dialect,
+				},
+			);
 		});
 	}
 

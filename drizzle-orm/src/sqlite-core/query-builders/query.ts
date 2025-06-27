@@ -1,4 +1,5 @@
 import { entityKind } from '~/entity.ts';
+import type { BlankSQLiteHookContext } from '~/extension-core/sqlite/index.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import {
 	type BuildQueryResult,
@@ -144,6 +145,19 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 	): SQLitePreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }> {
 		const { query, builtQuery } = this._toSQL();
 
+		const extCfg: BlankSQLiteHookContext | undefined = this.session.extensions?.length
+			? {
+				query: '_query',
+				session: this.session as SQLiteSession<'async', unknown, Record<string, unknown>, TablesRelationalConfig>,
+				dialect: this.dialect,
+				tableNamesMap: this.tableNamesMap,
+				tablesConfig: this.schema,
+				tableConfig: this.tableConfig,
+				mode: this.mode,
+				config: query,
+			}
+			: undefined;
+
 		return this.session[isOneTimeQuery ? 'prepareOneTimeQuery' : 'prepareQuery'](
 			builtQuery,
 			undefined,
@@ -158,6 +172,9 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 				}
 				return rows as TResult;
 			},
+			undefined,
+			undefined,
+			extCfg,
 		) as SQLitePreparedQuery<PreparedQueryConfig & { type: TType; all: TResult; get: TResult; execute: TResult }>;
 	}
 
@@ -174,7 +191,7 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 			tableConfig: this.tableConfig,
 			queryConfig: this.config,
 			tableAlias: this.tableConfig.tsName,
-		});
+		}, this.session.extensions);
 
 		const builtQuery = this.dialect.sqlToQuery(query.sql as SQL);
 

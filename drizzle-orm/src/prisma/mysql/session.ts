@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client/extension';
-
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
+import type { BlankMySqlHookContext, DrizzleMySqlExtension } from '~/extension-core/mysql/index.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
 import type {
 	MySqlDialect,
@@ -11,6 +12,7 @@ import type {
 	MySqlTransactionConfig,
 } from '~/mysql-core/index.ts';
 import { MySqlPreparedQuery, MySqlSession } from '~/mysql-core/index.ts';
+import type { SelectedFieldsOrdered } from '~/mysql-core/query-builders/select.types.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import type { Assume } from '~/utils.ts';
@@ -23,16 +25,18 @@ export class PrismaMySqlPreparedQuery<T> extends MySqlPreparedQuery<MySqlPrepare
 
 	constructor(
 		private readonly prisma: PrismaClient,
-		private readonly query: Query,
+		query: Query,
 		private readonly logger: Logger,
+		extensions?: DrizzleMySqlExtension[],
+		hookContext?: BlankMySqlHookContext,
 	) {
-		super(undefined, undefined, undefined);
+		super(query.sql, query.params, undefined, undefined, undefined, extensions, hookContext);
 	}
 
-	override execute(placeholderValues?: Record<string, unknown>): Promise<T> {
-		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
-		this.logger.logQuery(this.query.sql, params);
-		return this.prisma.$queryRawUnsafe(this.query.sql, ...params);
+	override _execute(placeholderValues?: Record<string, unknown>): Promise<T> {
+		const params = fillPlaceholders(this.params, placeholderValues ?? {});
+		this.logger.logQuery(this.queryString, params);
+		return this.prisma.$queryRawUnsafe(this.queryString, ...params);
 	}
 }
 
@@ -49,8 +53,9 @@ export class PrismaMySqlSession extends MySqlSession {
 		dialect: MySqlDialect,
 		private readonly prisma: PrismaClient,
 		private readonly options: PrismaMySqlSessionOptions,
+		extensions?: DrizzleMySqlExtension[],
 	) {
-		super(dialect);
+		super(dialect, extensions);
 		this.logger = options.logger ?? new NoopLogger();
 	}
 
@@ -64,8 +69,18 @@ export class PrismaMySqlSession extends MySqlSession {
 
 	override prepareQuery<T extends MySqlPreparedQueryConfig = MySqlPreparedQueryConfig>(
 		query: Query,
+		fields?: SelectedFieldsOrdered,
+		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		generatedIds?: Record<string, unknown>[],
+		returningIds?: SelectedFieldsOrdered,
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
+		hookContext?: BlankMySqlHookContext,
 	): MySqlPreparedQuery<T> {
-		return new PrismaMySqlPreparedQuery(this.prisma, query, this.logger);
+		return new PrismaMySqlPreparedQuery(this.prisma, query, this.logger, this.extensions, hookContext);
 	}
 
 	override transaction<T>(

@@ -3,6 +3,7 @@ import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
+import type { BlankMySqlHookContext, DrizzleMySqlExtension } from '~/extension-core/mysql/index.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
@@ -43,8 +44,9 @@ export class MySqlRemoteSession<
 		dialect: MySqlDialect,
 		private schema: RelationalSchemaConfig<TSchema> | undefined,
 		options: MySqlRemoteSessionOptions,
+		extensions?: DrizzleMySqlExtension[],
 	) {
-		super(dialect);
+		super(dialect, extensions);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
 	}
@@ -60,6 +62,7 @@ export class MySqlRemoteSession<
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
+		hookContext?: BlankMySqlHookContext,
 	): PreparedQueryKind<MySqlRemotePreparedQueryHKT, T> {
 		return new PreparedQuery(
 			this.client,
@@ -70,6 +73,8 @@ export class MySqlRemoteSession<
 			queryMetadata,
 			cacheConfig,
 			fields,
+			this.extensions,
+			hookContext,
 			customResultMapper,
 			generatedIds,
 			returningIds,
@@ -108,8 +113,8 @@ export class PreparedQuery<T extends MySqlPreparedQueryConfig> extends PreparedQ
 
 	constructor(
 		private client: RemoteCallback,
-		private queryString: string,
-		private params: unknown[],
+		queryString: string,
+		params: unknown[],
 		private logger: Logger,
 		cache: Cache,
 		queryMetadata: {
@@ -118,16 +123,18 @@ export class PreparedQuery<T extends MySqlPreparedQueryConfig> extends PreparedQ
 		} | undefined,
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
+		extensions?: DrizzleMySqlExtension[],
+		hookContext?: BlankMySqlHookContext,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 		// Keys that were used in $default and the value that was generated for them
 		private generatedIds?: Record<string, unknown>[],
 		// Keys that should be returned, it has the column with all properries + key from object
 		private returningIds?: SelectedFieldsOrdered,
 	) {
-		super(cache, queryMetadata, cacheConfig);
+		super(queryString, params, cache, queryMetadata, cacheConfig, extensions, hookContext);
 	}
 
-	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+	async _execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 
 		const { fields, client, queryString, logger, joinsNotNullableMap, customResultMapper, returningIds, generatedIds } =

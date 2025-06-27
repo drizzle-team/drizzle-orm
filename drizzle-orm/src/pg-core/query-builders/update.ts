@@ -95,7 +95,7 @@ export class PgUpdateBuilder<TTable extends PgTable, TQueryResult extends PgQuer
 	): PgUpdateWithout<PgUpdateBase<TTable, TQueryResult>, false, 'leftJoin' | 'rightJoin' | 'innerJoin' | 'fullJoin'> {
 		return new PgUpdateBase<TTable, TQueryResult>(
 			this.table,
-			mapUpdateSet(this.table, values),
+			mapUpdateSet(this.table, values, this.session.extensions),
 			this.session,
 			this.dialect,
 			this.withList,
@@ -568,7 +568,7 @@ export class PgUpdateBase<
 
 	/** @internal */
 	getSQL(): SQL {
-		return this.dialect.buildUpdateQuery(this.config);
+		return this.dialect.buildUpdateQuery(this.config, this.session.extensions);
 	}
 
 	toSQL(): Query {
@@ -580,10 +580,24 @@ export class PgUpdateBase<
 	_prepare(name?: string): PgUpdatePrepare<this> {
 		const query = this.session.prepareQuery<
 			PreparedQueryConfig & { execute: TReturning[] }
-		>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true, undefined, {
-			type: 'insert',
-			tables: extractUsedTable(this.config.table),
-		}, this.cacheConfig);
+		>(
+			this.dialect.sqlToQuery(this.getSQL()),
+			this.config.returning,
+			name,
+			true,
+			undefined,
+			{
+				type: 'insert',
+				tables: extractUsedTable(this.config.table),
+			},
+			this.cacheConfig,
+			{
+				query: 'update',
+				config: this.config,
+				dialect: this.dialect,
+				session: this.session,
+			},
+		);
 		query.joinsNotNullableMap = this.joinsNotNullableMap;
 		return query;
 	}

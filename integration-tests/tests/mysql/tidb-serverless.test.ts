@@ -5,11 +5,12 @@ import type { TiDBServerlessDatabase } from 'drizzle-orm/tidb-serverless';
 import { drizzle } from 'drizzle-orm/tidb-serverless';
 import { beforeAll, beforeEach } from 'vitest';
 import { skipTests } from '~/common.ts';
-import { tests } from './mysql-common.ts';
+import { createExtensions, tests } from './mysql-common.ts';
 
 const ENABLE_LOGGING = false;
 
 let db: TiDBServerlessDatabase;
+let s3Bucket: string;
 
 beforeAll(async () => {
 	const connectionString = process.env['TIDB_CONNECTION_STRING'];
@@ -18,12 +19,15 @@ beforeAll(async () => {
 	}
 
 	const client = connect({ url: connectionString });
-	db = drizzle(client!, { logger: ENABLE_LOGGING });
+	const { bucket, extensions } = await createExtensions();
+	s3Bucket = bucket;
+	db = drizzle(client!, { logger: ENABLE_LOGGING, extensions });
 });
 
 beforeEach((ctx) => {
 	ctx.mysql = {
 		db,
+		bucket: s3Bucket,
 	};
 });
 
@@ -55,6 +59,7 @@ skipTests([
 	'update returning sql',
 	'delete returning sql',
 	'insert returning sql',
+	'S3File - transaction',
 
 	// not supported
 	'set operations (except all) as function',

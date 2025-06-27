@@ -18,7 +18,9 @@ type SpanName =
 	| 'drizzle.buildSQL'
 	| 'drizzle.execute'
 	| 'drizzle.driver.execute'
-	| 'drizzle.mapResponse';
+	| 'drizzle.hooks.beforeExecute'
+	| 'drizzle.mapResponse'
+	| 'drizzle.hooks.afterExecute';
 
 /** @internal */
 export const tracer = {

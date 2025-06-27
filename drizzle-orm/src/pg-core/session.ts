@@ -3,6 +3,7 @@ import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import { TransactionRollbackError } from '~/errors.ts';
 import { DrizzleQueryError } from '~/errors/index.ts';
+import type { BlankPgHookContext, DrizzlePgExtension, DrizzlePgHookContext } from '~/extension-core/pg/index.ts';
 import type { TablesRelationalConfig } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import { type Query, type SQL, sql } from '~/sql/index.ts';
@@ -30,6 +31,8 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 		} | undefined,
 		// config that was passed through $withCache
 		private cacheConfig?: WithCacheConfig,
+		protected extensions?: DrizzlePgExtension[],
+		protected hookContext?: BlankPgHookContext,
 	) {
 		// it means that no $withCache options were passed and it should be just enabled
 		if (cache && cache.strategy() === 'all' && cacheConfig === undefined) {
@@ -41,6 +44,7 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 	}
 
 	protected authToken?: NeonAuthToken;
+	private extensionMetas: unknown[] = [];
 
 	getQuery(): Query {
 		return this.query;
@@ -147,11 +151,59 @@ export abstract class PgPreparedQuery<T extends PreparedQueryConfig> implements 
 		}
 	}
 
-	abstract execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
+	async execute(placeholderValues?: Record<string, unknown>): Promise<T['execute']>;
 	/** @internal */
-	abstract execute(placeholderValues?: Record<string, unknown>, token?: NeonAuthToken): Promise<T['execute']>;
+	async execute(placeholderValues?: Record<string, unknown>, token?: NeonAuthToken): Promise<T['execute']>;
 	/** @internal */
-	abstract execute(placeholderValues?: Record<string, unknown>, token?: NeonAuthToken): Promise<T['execute']>;
+	async execute(placeholderValues?: Record<string, unknown>, token?: NeonAuthToken): Promise<T['execute']> {
+		const {
+			extensions,
+			hookContext,
+			query: {
+				sql: queryString,
+				params,
+			},
+			extensionMetas,
+		} = this;
+		if (!extensions?.length || !hookContext) return await this._execute(placeholderValues, token);
+
+		await tracer.startActiveSpan('drizzle.hooks.beforeExecute', async () => {
+			for (const [i, extension] of extensions.entries()) {
+				const ext = extension!;
+				const config = {
+					...hookContext,
+					stage: 'before',
+					sql: queryString,
+					params: params,
+					placeholders: placeholderValues,
+					metadata: extensionMetas[i],
+				} as DrizzlePgHookContext;
+
+				await ext.hook(config);
+				extensionMetas[i] = config.metadata;
+			}
+		});
+
+		const res = await this._execute(placeholderValues, token);
+
+		return await tracer.startActiveSpan('drizzle.hooks.afterExecute', async () => {
+			for (const [i, ext] of extensions.entries()) {
+				await ext.hook({
+					...hookContext,
+					metadata: extensionMetas[i],
+					stage: 'after',
+					data: res as unknown[],
+				});
+			}
+
+			return res;
+		});
+	}
+
+	protected abstract _execute(
+		placeholderValues?: Record<string, unknown>,
+		token?: NeonAuthToken,
+	): Promise<T['execute']>;
 
 	/** @internal */
 	abstract all(placeholderValues?: Record<string, unknown>): Promise<T['all']>;
@@ -173,7 +225,7 @@ export abstract class PgSession<
 > {
 	static readonly [entityKind]: string = 'PgSession';
 
-	constructor(protected dialect: PgDialect) {}
+	constructor(protected dialect: PgDialect, readonly extensions?: DrizzlePgExtension[]) {}
 
 	abstract prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
 		query: Query,
@@ -186,6 +238,7 @@ export abstract class PgSession<
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
+		hookContext?: BlankPgHookContext,
 	): PgPreparedQuery<T>;
 
 	execute<T>(query: SQL): Promise<T>;
@@ -250,8 +303,9 @@ export abstract class PgTransaction<
 			tableNamesMap: Record<string, string>;
 		} | undefined,
 		protected readonly nestedIndex = 0,
+		extensions?: DrizzlePgExtension[],
 	) {
-		super(dialect, session, schema);
+		super(dialect, session, schema, extensions);
 	}
 
 	rollback(): never {

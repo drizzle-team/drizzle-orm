@@ -1,6 +1,7 @@
 import type { ResultSetHeader } from 'mysql2/promise';
 import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleMySqlExtension } from '~/extension-core/mysql/index.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
@@ -43,6 +44,7 @@ export class MySqlDatabase<
 		readonly schema: TSchema | undefined;
 		readonly fullSchema: TFullSchema;
 		readonly tableNamesMap: Record<string, string>;
+		readonly extensions?: DrizzleMySqlExtension[];
 	};
 
 	query: TFullSchema extends Record<string, never>
@@ -58,17 +60,20 @@ export class MySqlDatabase<
 		readonly session: MySqlSession<any, any, any, any>,
 		schema: RelationalSchemaConfig<TSchema> | undefined,
 		protected readonly mode: Mode,
+		extensions?: DrizzleMySqlExtension[],
 	) {
 		this._ = schema
 			? {
 				schema: schema.schema,
 				fullSchema: schema.fullSchema as TFullSchema,
 				tableNamesMap: schema.tableNamesMap,
+				extensions,
 			}
 			: {
 				schema: undefined,
 				fullSchema: {} as TFullSchema,
 				tableNamesMap: {},
+				extensions,
 			};
 		this.query = {} as typeof this['query'];
 		if (this._.schema) {

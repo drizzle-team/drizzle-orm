@@ -1,5 +1,6 @@
 import type { BatchItem, BatchResponse } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleSQLiteExtension } from '~/extension-core/sqlite/index.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { createTableRelationsHelpers, extractTablesRelationalConfig } from '~/relations.ts';
 import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
@@ -43,23 +44,22 @@ export type RemoteCallback = AsyncRemoteCallback;
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	callback: RemoteCallback,
-	config?: DrizzleConfig<TSchema>,
+	config?: DrizzleConfig<TSchema, DrizzleSQLiteExtension>,
 ): SqliteRemoteDatabase<TSchema>;
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	callback: RemoteCallback,
 	batchCallback?: AsyncBatchRemoteCallback,
-	config?: DrizzleConfig<TSchema>,
+	config?: DrizzleConfig<TSchema, DrizzleSQLiteExtension>,
 ): SqliteRemoteDatabase<TSchema>;
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	callback: RemoteCallback,
-	batchCallback?: AsyncBatchRemoteCallback | DrizzleConfig<TSchema>,
-	config?: DrizzleConfig<TSchema>,
+	batchCallback?: AsyncBatchRemoteCallback | DrizzleConfig<TSchema, DrizzleSQLiteExtension>,
+	config?: DrizzleConfig<TSchema, DrizzleSQLiteExtension>,
 ): SqliteRemoteDatabase<TSchema> {
-	const dialect = new SQLiteAsyncDialect({ casing: config?.casing });
 	let logger;
 	let cache;
 	let _batchCallback: AsyncBatchRemoteCallback | undefined;
-	let _config: DrizzleConfig<TSchema> = {};
+	let _config: DrizzleConfig<TSchema, DrizzleSQLiteExtension> = {};
 
 	if (batchCallback) {
 		if (typeof batchCallback === 'function') {
@@ -67,7 +67,7 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 			_config = config ?? {};
 		} else {
 			_batchCallback = undefined;
-			_config = batchCallback as DrizzleConfig<TSchema>;
+			_config = batchCallback as DrizzleConfig<TSchema, DrizzleSQLiteExtension>;
 		}
 
 		if (_config.logger === true) {
@@ -91,8 +91,10 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		};
 	}
 
-	const session = new SQLiteRemoteSession(callback, dialect, schema, _batchCallback, { logger, cache });
-	const db = new SqliteRemoteDatabase('async', dialect, session, schema) as SqliteRemoteDatabase<TSchema>;
+	const extensions = _config.extensions;
+	const dialect = new SQLiteAsyncDialect({ casing: _config.casing });
+	const session = new SQLiteRemoteSession(callback, dialect, schema, _batchCallback, { logger, cache }, extensions);
+	const db = new SqliteRemoteDatabase('async', dialect, session, schema, extensions) as SqliteRemoteDatabase<TSchema>;
 	(<any> db).$cache = cache;
 	if ((<any> db).$cache) {
 		(<any> db).$cache['invalidate'] = cache?.onMutate;

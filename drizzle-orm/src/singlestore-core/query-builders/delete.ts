@@ -174,7 +174,7 @@ export class SingleStoreDeleteBase<
 
 	/** @internal */
 	getSQL(): SQL {
-		return this.dialect.buildDeleteQuery(this.config);
+		return this.dialect.buildDeleteQuery(this.config, this.session.extensions);
 	}
 
 	toSQL(): Query {
@@ -192,6 +192,13 @@ export class SingleStoreDeleteBase<
 			{
 				type: 'delete',
 				tables: extractUsedTable(this.config.table),
+			},
+			undefined,
+			{
+				query: 'delete',
+				config: this.config,
+				session: this.session,
+				dialect: this.dialect,
 			},
 		) as SingleStoreDeletePrepare<this>;
 	}

@@ -6,7 +6,7 @@ import { pgMaterializedView, pgTable, serial, timestamp } from 'drizzle-orm/pg-c
 import { beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
-import { tests, usersMigratorTable, usersTable } from './pg-common';
+import { createExtensions, tests, usersMigratorTable, usersTable } from './pg-common';
 import { TestCache, TestGlobalCache, tests as cacheTests } from './pg-common-cache';
 
 const ENABLE_LOGGING = false;
@@ -14,19 +14,23 @@ const ENABLE_LOGGING = false;
 let db: NeonHttpDatabase;
 let dbGlobalCached: NeonHttpDatabase;
 let cachedDb: NeonHttpDatabase;
+let s3Bucket: string;
 
 beforeAll(async () => {
 	const connectionString = process.env['NEON_HTTP_CONNECTION_STRING'];
 	if (!connectionString) {
-		throw new Error('NEON_CONNECTION_STRING is not defined');
+		throw new Error('NEON_HTTP_CONNECTION_STRING is not defined');
 	}
 
 	neonConfig.fetchEndpoint = (host) => {
 		const [protocol, port] = host === 'db.localtest.me' ? ['http', 4444] : ['https', 443];
 		return `${protocol}://${host}:${port}/sql`;
 	};
+
+	const { bucket, extensions } = await createExtensions();
+	s3Bucket = bucket;
 	const client = neon(connectionString);
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, { logger: ENABLE_LOGGING, extensions });
 	cachedDb = drizzle(client, {
 		logger: ENABLE_LOGGING,
 		cache: new TestCache(),
@@ -40,6 +44,7 @@ beforeAll(async () => {
 beforeEach((ctx) => {
 	ctx.pg = {
 		db,
+		bucket: s3Bucket,
 	};
 	ctx.cachedPg = {
 		db: cachedDb,
@@ -430,6 +435,7 @@ skipTests([
 	'transaction',
 	'timestamp timezone',
 	'test $onUpdateFn and $onUpdate works as $default',
+	'S3File - transaction',
 ]);
 tests();
 cacheTests();

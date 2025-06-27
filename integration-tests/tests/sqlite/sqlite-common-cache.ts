@@ -82,6 +82,7 @@ declare module 'vitest' {
 		};
 		sqlite: {
 			db: BaseSQLiteDatabase<'async' | 'sync', any, Record<string, never>>;
+			bucket?: string;
 		};
 	}
 }

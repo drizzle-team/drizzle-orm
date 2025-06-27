@@ -7,7 +7,7 @@ import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import ws from 'ws';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
-import { mySchema, tests, usersMigratorTable, usersMySchemaTable, usersTable } from './pg-common';
+import { createExtensions, mySchema, tests, usersMigratorTable, usersMySchemaTable, usersTable } from './pg-common';
 import { TestCache, TestGlobalCache, tests as cacheTests } from './pg-common-cache';
 
 const ENABLE_LOGGING = false;
@@ -16,6 +16,7 @@ let db: NeonDatabase;
 let dbGlobalCached: NeonDatabase;
 let cachedDb: NeonDatabase;
 let client: Pool;
+let s3Bucket: string;
 
 neonConfig.wsProxy = (host) => `${host}:5446/v1`;
 neonConfig.useSecureWebSocket = false;
@@ -30,7 +31,9 @@ beforeAll(async () => {
 	}
 
 	client = new Pool({ connectionString });
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	const { bucket, extensions } = await createExtensions();
+	s3Bucket = bucket;
+	db = drizzle(client, { logger: ENABLE_LOGGING, extensions });
 	cachedDb = drizzle(client, {
 		logger: ENABLE_LOGGING,
 		cache: new TestCache(),
@@ -48,6 +51,7 @@ afterAll(async () => {
 beforeEach((ctx) => {
 	ctx.pg = {
 		db,
+		bucket: s3Bucket,
 	};
 	ctx.cachedPg = {
 		db: cachedDb,

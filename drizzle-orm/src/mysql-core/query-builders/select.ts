@@ -1030,7 +1030,7 @@ export abstract class MySqlSelectQueryBuilderBase<
 
 	/** @internal */
 	getSQL(): SQL {
-		return this.dialect.buildSelectQuery(this.config);
+		return this.dialect.buildSelectQuery(this.config, this.session?.extensions);
 	}
 
 	toSQL(): Query {
@@ -1129,14 +1129,32 @@ export class MySqlSelectBase<
 		if (!this.session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
-		const fieldsList = orderSelectedFields<MySqlColumn>(this.config.fields);
-		const query = this.session.prepareQuery<
+		const { joinsNotNullableMap, dialect, session, config } = this;
+
+		const fieldsList = orderSelectedFields<MySqlColumn>(config.fields);
+		const query = session.prepareQuery<
 			MySqlPreparedQueryConfig & { execute: SelectResult<TSelection, TSelectMode, TNullabilityMap>[] },
 			TPreparedQueryHKT
-		>(this.dialect.sqlToQuery(this.getSQL()), fieldsList, undefined, undefined, undefined, {
-			type: 'select',
-			tables: [...this.usedTables],
-		}, this.cacheConfig);
+		>(
+			this.dialect.sqlToQuery(this.getSQL()),
+			fieldsList,
+			undefined,
+			undefined,
+			undefined,
+			{
+				type: 'select',
+				tables: [...this.usedTables],
+			},
+			this.cacheConfig,
+			{
+				query: 'select',
+				joinsNotNullableMap,
+				dialect,
+				session,
+				config,
+				fieldsOrdered: fieldsList,
+			},
+		);
 		query.joinsNotNullableMap = this.joinsNotNullableMap;
 		return query as MySqlSelectPrepare<this>;
 	}

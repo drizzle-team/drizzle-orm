@@ -1,4 +1,5 @@
 import { entityKind } from '~/entity.ts';
+import type { DrizzleSingleStoreExtension } from '~/extension-core/singlestore/index.ts';
 import { DefaultLogger } from '~/logger.ts';
 import {
 	createTableRelationsHelpers,
@@ -29,7 +30,7 @@ export type RemoteCallback = (
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
 	callback: RemoteCallback,
-	config: DrizzleConfig<TSchema> = {},
+	config: DrizzleConfig<TSchema, DrizzleSingleStoreExtension> = {},
 ): SingleStoreRemoteDatabase<TSchema> {
 	const dialect = new SingleStoreDialect({ casing: config.casing });
 	let logger;
@@ -52,8 +53,9 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		};
 	}
 
-	const session = new SingleStoreRemoteSession(callback, dialect, schema, { logger });
-	return new SingleStoreRemoteDatabase(dialect, session, schema as any) as SingleStoreRemoteDatabase<
+	const extensions = config.extensions;
+	const session = new SingleStoreRemoteSession(callback, dialect, schema, { logger }, extensions);
+	return new SingleStoreRemoteDatabase(dialect, session, schema as any, extensions) as SingleStoreRemoteDatabase<
 		TSchema
 	>;
 }

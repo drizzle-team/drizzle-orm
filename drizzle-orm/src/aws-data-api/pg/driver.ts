@@ -1,5 +1,6 @@
 import { RDSDataClient, type RDSDataClientConfig } from '@aws-sdk/client-rds-data';
 import { entityKind, is } from '~/entity.ts';
+import type { DrizzlePgExtension } from '~/extension-core/pg/index.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
@@ -29,7 +30,7 @@ export interface PgDriverOptions {
 
 export interface DrizzleAwsDataApiPgConfig<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> extends DrizzleConfig<TSchema> {
+> extends DrizzleConfig<TSchema, DrizzlePgExtension> {
 	database: string;
 	resourceArn: string;
 	secretArn: string;
@@ -56,6 +57,7 @@ export class AwsPgDialect extends PgDialect {
 
 	override buildInsertQuery(
 		{ table, values, onConflict, returning, select, withList }: PgInsertConfig<PgTable<TableConfig>>,
+		extensions?: DrizzlePgExtension[],
 	): SQL<unknown> {
 		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
 
@@ -73,10 +75,14 @@ export class AwsPgDialect extends PgDialect {
 			}
 		}
 
-		return super.buildInsertQuery({ table, values, onConflict, returning, withList });
+		return super.buildInsertQuery({ table, values, onConflict, returning, withList }, extensions);
 	}
 
-	override buildUpdateSet(table: PgTable<TableConfig>, set: UpdateSet): SQL<unknown> {
+	override buildUpdateSet(
+		table: PgTable<TableConfig>,
+		set: UpdateSet,
+		extensions?: DrizzlePgExtension[],
+	): SQL<unknown> {
 		const columns: Record<string, PgColumn> = table[Table.Symbol.Columns];
 
 		for (const [colName, colValue] of Object.entries(set)) {
@@ -88,7 +94,7 @@ export class AwsPgDialect extends PgDialect {
 				set[colName] = sql`cast(${colValue} as ${sql.raw(colValue.encoder.getSQLType())})`;
 			}
 		}
-		return super.buildUpdateSet(table, set);
+		return super.buildUpdateSet(table, set, extensions);
 	}
 }
 
@@ -119,8 +125,16 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 		};
 	}
 
-	const session = new AwsDataApiSession(client, dialect, schema, { ...config, logger, cache: config.cache }, undefined);
-	const db = new AwsDataApiPgDatabase(dialect, session, schema as any);
+	const extensions = config.extensions;
+	const session = new AwsDataApiSession(
+		client,
+		dialect,
+		schema,
+		{ ...config, logger, cache: config.cache },
+		undefined,
+		extensions,
+	);
+	const db = new AwsDataApiPgDatabase(dialect, session, schema as any, extensions);
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;
 	if ((<any> db).$cache) {

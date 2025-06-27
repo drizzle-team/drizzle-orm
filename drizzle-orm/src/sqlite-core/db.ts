@@ -1,5 +1,6 @@
 import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
+import type { DrizzleSQLiteExtension } from '~/extension-core/sqlite/index.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
@@ -41,6 +42,7 @@ export class BaseSQLiteDatabase<
 		readonly schema: TSchema | undefined;
 		readonly fullSchema: TFullSchema;
 		readonly tableNamesMap: Record<string, string>;
+		readonly extensions?: DrizzleSQLiteExtension[];
 	};
 
 	query: TFullSchema extends Record<string, never>
@@ -56,17 +58,20 @@ export class BaseSQLiteDatabase<
 		/** @internal */
 		readonly session: SQLiteSession<TResultKind, TRunResult, TFullSchema, TSchema>,
 		schema: RelationalSchemaConfig<TSchema> | undefined,
+		extensions?: DrizzleSQLiteExtension[],
 	) {
 		this._ = schema
 			? {
 				schema: schema.schema,
 				fullSchema: schema.fullSchema as TFullSchema,
 				tableNamesMap: schema.tableNamesMap,
+				extensions,
 			}
 			: {
 				schema: undefined,
 				fullSchema: {} as TFullSchema,
 				tableNamesMap: {},
+				extensions,
 			};
 		this.query = {} as typeof this['query'];
 		const query = this.query as {

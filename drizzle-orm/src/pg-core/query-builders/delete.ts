@@ -232,7 +232,7 @@ export class PgDeleteBase<
 
 	/** @internal */
 	getSQL(): SQL {
-		return this.dialect.buildDeleteQuery(this.config);
+		return this.dialect.buildDeleteQuery(this.config, this.session.extensions);
 	}
 
 	toSQL(): Query {
@@ -247,10 +247,24 @@ export class PgDeleteBase<
 				PreparedQueryConfig & {
 					execute: TReturning extends undefined ? PgQueryResultKind<TQueryResult, never> : TReturning[];
 				}
-			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true, undefined, {
-				type: 'delete',
-				tables: extractUsedTable(this.config.table),
-			}, this.cacheConfig);
+			>(
+				this.dialect.sqlToQuery(this.getSQL()),
+				this.config.returning,
+				name,
+				true,
+				undefined,
+				{
+					type: 'delete',
+					tables: extractUsedTable(this.config.table),
+				},
+				this.cacheConfig,
+				{
+					query: 'delete',
+					config: this.config,
+					session: this.session,
+					dialect: this.dialect,
+				},
+			);
 		});
 	}
 

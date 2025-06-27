@@ -1,14 +1,15 @@
-import type { Cache } from './cache/core/cache.ts';
+import { Cache } from './cache/core/cache.ts';
 import type { AnyColumn } from './column.ts';
 import { Column } from './column.ts';
 import { is } from './entity.ts';
+import { type DrizzleExtension, extensionName, requiredExtension } from './extension-core/index.ts';
 import type { Logger } from './logger.ts';
 import type { SelectedFieldsOrdered } from './operations.ts';
 import type { TableLike } from './query-builders/select.types.ts';
-import { Param, SQL, View } from './sql/sql.ts';
+import { ExtensionParam, Param, SQL, View } from './sql/sql.ts';
 import type { DriverValueDecoder } from './sql/sql.ts';
 import { Subquery } from './subquery.ts';
-import { getTableName, Table } from './table.ts';
+import { getTableName, OriginalName, Table } from './table.ts';
 import { ViewBaseConfig } from './view-common.ts';
 
 /** @internal */
@@ -110,7 +111,11 @@ export function haveSameKeys(left: Record<string, unknown>, right: Record<string
 }
 
 /** @internal */
-export function mapUpdateSet(table: Table, values: Record<string, unknown>): UpdateSet {
+export function mapUpdateSet(
+	table: Table,
+	values: Record<string, unknown>,
+	extensions?: DrizzleExtension[],
+): UpdateSet {
 	const entries: [string, UpdateSet[string]][] = Object.entries(values)
 		.filter(([, value]) => value !== undefined)
 		.map(([key, value]) => {
@@ -118,7 +123,25 @@ export function mapUpdateSet(table: Table, values: Record<string, unknown>): Upd
 			if (is(value, SQL) || is(value, Column)) {
 				return [key, value];
 			} else {
-				return [key, new Param(value, table[Table.Symbol.Columns][key])];
+				const column = table[Table.Symbol.Columns][key]!;
+				if (column[requiredExtension]) {
+					columnExtensionsCheck(column, extensions);
+
+					return [
+						key,
+						new ExtensionParam(
+							(<any> table[Table.Symbol.Columns][key])[requiredExtension],
+							value,
+							table[Table.Symbol.Columns][key],
+						),
+					];
+				}
+
+				return [
+					key,
+
+					new Param(value, table[Table.Symbol.Columns][key]),
+				];
 			}
 		});
 
@@ -216,11 +239,15 @@ export type ColumnsWithTable<
 
 export type Casing = 'snake_case' | 'camelCase';
 
-export interface DrizzleConfig<TSchema extends Record<string, unknown> = Record<string, never>> {
+export interface DrizzleConfig<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TExtensionKind extends DrizzleExtension = DrizzleExtension,
+> {
 	logger?: boolean | Logger;
 	schema?: TSchema;
 	casing?: Casing;
 	cache?: Cache;
+	extensions?: TExtensionKind[];
 }
 export type ValidateShape<T, ValidShape, TResult = T> = T extends ValidShape
 	? Exclude<keyof T, keyof ValidShape> extends never ? TResult
@@ -260,6 +287,7 @@ type ExpectedConfigShape = {
 	};
 	schema?: Record<string, never>;
 	casing?: 'snake_case' | 'camelCase';
+	extensions?: DrizzleExtension[];
 };
 
 // If this errors, you must update config shape checker function with new config specs
@@ -315,9 +343,38 @@ export function isConfig(data: any): boolean {
 		return true;
 	}
 
+	if ('extensions' in data) {
+		if (data['extensions'] !== undefined && !Array.isArray(data['extensions'])) return false;
+
+		return true;
+	}
+
+	if ('cache' in data) {
+		if (data['cache'] !== undefined && !is(data['cache'], Cache)) return false;
+
+		return true;
+	}
+
 	if (Object.keys(data).length === 0) return true;
 
 	return false;
 }
 
 export type NeonAuthToken = string | (() => string | Promise<string>);
+
+export function columnExtensionsCheck(column: Column, extensions?: DrizzleExtension[]) {
+	const ext = column[requiredExtension];
+
+	if (
+		ext
+		&& !extensions?.find((e) => is(e, ext))
+	) {
+		throw new Error(
+			`Column "${
+				column.table[OriginalName]
+			}"."${column.name}" requires extension "${ext![extensionName]!}" to be queried!`,
+		);
+	}
+
+	return column;
+}

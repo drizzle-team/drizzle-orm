@@ -6,7 +6,7 @@ import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy';
 import { drizzle as proxyDrizzle } from 'drizzle-orm/sqlite-proxy';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
-import { tests, usersTable } from './sqlite-common';
+import { createExtensions, tests, usersTable } from './sqlite-common';
 import { TestCache, TestGlobalCache, tests as cacheTests } from './sqlite-common-cache';
 
 class ServerSimulator {
@@ -59,12 +59,15 @@ let dbGlobalCached: SqliteRemoteDatabase;
 let cachedDb: SqliteRemoteDatabase;
 let client: Database.Database;
 let serverSimulator: ServerSimulator;
+let s3Bucket: string;
 
 beforeAll(async () => {
 	const dbPath = process.env['SQLITE_DB_PATH'] ?? ':memory:';
 	client = new Database(dbPath);
 	serverSimulator = new ServerSimulator(client);
 
+	const { bucket, extensions } = await createExtensions();
+	s3Bucket = bucket;
 	const callback = async (sql: string, params: any[], method: string) => {
 		try {
 			const rows = await serverSimulator.query(sql, params, method);
@@ -79,7 +82,9 @@ beforeAll(async () => {
 			throw e;
 		}
 	};
-	db = proxyDrizzle(callback);
+	db = proxyDrizzle(callback, {
+		extensions,
+	});
 	cachedDb = proxyDrizzle(callback, { cache: new TestCache() });
 	dbGlobalCached = proxyDrizzle(callback, { cache: new TestGlobalCache() });
 });
@@ -87,6 +92,7 @@ beforeAll(async () => {
 beforeEach((ctx) => {
 	ctx.sqlite = {
 		db,
+		bucket: s3Bucket,
 	};
 	ctx.cachedSqlite = {
 		db: cachedDb,

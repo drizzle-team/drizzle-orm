@@ -13,6 +13,7 @@ import { Column } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { Simplify, Update } from '~/utils.ts';
 
+import { requiredExtension } from '~/extension-core/index.ts';
 import type { ForeignKey, UpdateDeleteAction } from '~/gel-core/foreign-keys.ts';
 import { ForeignKeyBuilder } from '~/gel-core/foreign-keys.ts';
 import type { AnyGelTable, GelTable } from '~/gel-core/table.ts';
@@ -324,6 +325,15 @@ export class GelArray<
 	) {
 		super(table, config);
 		this.size = config.size;
+		this[requiredExtension] = baseColumn[requiredExtension];
+	}
+
+	override mapToDriverValue(value: unknown[]): T['data'] {
+		return value.map((v) => this.baseColumn.mapToDriverValue(v));
+	}
+
+	override mapFromDriverValue(value: unknown[]): T['data'] {
+		return value.map((v) => this.baseColumn.mapFromDriverValue(v));
 	}
 
 	getSQLType(): string {

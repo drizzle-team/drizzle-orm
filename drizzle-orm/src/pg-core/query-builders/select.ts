@@ -983,7 +983,7 @@ export abstract class PgSelectQueryBuilderBase<
 
 	/** @internal */
 	getSQL(): SQL {
-		return this.dialect.buildSelectQuery(this.config);
+		return this.dialect.buildSelectQuery(this.config, this.session?.extensions);
 	}
 
 	toSQL(): Query {
@@ -1076,21 +1076,37 @@ export class PgSelectBase<
 
 	/** @internal */
 	_prepare(name?: string): PgSelectPrepare<this> {
-		const { session, config, dialect, joinsNotNullableMap, authToken, cacheConfig, usedTables } = this;
-		if (!session) {
+		if (!this.session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
 
+		const { session, config, dialect, joinsNotNullableMap, authToken, cacheConfig, usedTables } = this;
 		const { fields } = config;
 
 		return tracer.startActiveSpan('drizzle.prepareQuery', () => {
 			const fieldsList = orderSelectedFields<PgColumn>(fields);
 			const query = session.prepareQuery<
 				PreparedQueryConfig & { execute: TResult }
-			>(dialect.sqlToQuery(this.getSQL()), fieldsList, name, true, undefined, {
-				type: 'select',
-				tables: [...usedTables],
-			}, cacheConfig);
+			>(
+				dialect.sqlToQuery(this.getSQL()),
+				fieldsList,
+				name,
+				true,
+				undefined,
+				{
+					type: 'select',
+					tables: [...usedTables],
+				},
+				cacheConfig,
+				{
+					query: 'select',
+					joinsNotNullableMap,
+					dialect,
+					session,
+					config,
+					fieldsOrdered: fieldsList,
+				},
+			);
 			query.joinsNotNullableMap = joinsNotNullableMap;
 
 			return query.setToken(authToken);

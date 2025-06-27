@@ -4,6 +4,7 @@ import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { Column } from '~/column.ts';
 
 import { entityKind, is } from '~/entity.ts';
+import type { BlankMySqlHookContext, DrizzleMySqlExtension } from '~/extension-core/mysql/index.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
@@ -28,8 +29,8 @@ export class TiDBServerlessPreparedQuery<T extends MySqlPreparedQueryConfig> ext
 
 	constructor(
 		private client: Tx | Connection,
-		private queryString: string,
-		private params: unknown[],
+		queryString: string,
+		params: unknown[],
 		private logger: Logger,
 		cache: Cache,
 		queryMetadata: {
@@ -38,16 +39,18 @@ export class TiDBServerlessPreparedQuery<T extends MySqlPreparedQueryConfig> ext
 		} | undefined,
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
+		extensions?: DrizzleMySqlExtension[],
+		hookContext?: BlankMySqlHookContext,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 		// Keys that were used in $default and the value that was generated for them
 		private generatedIds?: Record<string, unknown>[],
 		// Keys that should be returned, it has the column with all properries + key from object
 		private returningIds?: SelectedFieldsOrdered,
 	) {
-		super(cache, queryMetadata, cacheConfig);
+		super(queryString, params, cache, queryMetadata, cacheConfig, extensions, hookContext);
 	}
 
-	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+	async _execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 
 		this.logger.logQuery(this.queryString, params);
@@ -122,8 +125,9 @@ export class TiDBServerlessSession<
 		tx: Tx | undefined,
 		private schema: RelationalSchemaConfig<TSchema> | undefined,
 		private options: TiDBServerlessSessionOptions = {},
+		extensions?: DrizzleMySqlExtension[],
 	) {
-		super(dialect);
+		super(dialect, extensions);
 		this.client = tx ?? baseClient;
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
@@ -140,6 +144,7 @@ export class TiDBServerlessSession<
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
+		hookContext?: BlankMySqlHookContext,
 	): MySqlPreparedQuery<T> {
 		return new TiDBServerlessPreparedQuery(
 			this.client,
@@ -150,6 +155,8 @@ export class TiDBServerlessSession<
 			queryMetadata,
 			cacheConfig,
 			fields,
+			this.extensions,
+			hookContext,
 			customResultMapper,
 			generatedIds,
 			returningIds,
@@ -175,11 +182,20 @@ export class TiDBServerlessSession<
 	): Promise<T> {
 		const nativeTx = await this.baseClient.begin();
 		try {
-			const session = new TiDBServerlessSession(this.baseClient, this.dialect, nativeTx, this.schema, this.options);
+			const session = new TiDBServerlessSession(
+				this.baseClient,
+				this.dialect,
+				nativeTx,
+				this.schema,
+				this.options,
+				this.extensions,
+			);
 			const tx = new TiDBServerlessTransaction<TFullSchema, TSchema>(
 				this.dialect,
 				session as MySqlSession<any, any, any, any>,
 				this.schema,
+				undefined,
+				this.extensions,
 			);
 			const result = await transaction(tx);
 			await nativeTx.commit();
@@ -202,8 +218,9 @@ export class TiDBServerlessTransaction<
 		session: MySqlSession,
 		schema: RelationalSchemaConfig<TSchema> | undefined,
 		nestedIndex = 0,
+		extensions?: DrizzleMySqlExtension[],
 	) {
-		super(dialect, session, schema, nestedIndex, 'default');
+		super(dialect, session, schema, nestedIndex, 'default', extensions);
 	}
 
 	override async transaction<T>(
@@ -215,6 +232,7 @@ export class TiDBServerlessTransaction<
 			this.session,
 			this.schema,
 			this.nestedIndex + 1,
+			this._.extensions,
 		);
 		await tx.execute(sql.raw(`savepoint ${savepointName}`));
 		try {

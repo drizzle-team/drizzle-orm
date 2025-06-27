@@ -6,7 +6,14 @@ import { migrate } from 'drizzle-orm/vercel-postgres/migrator';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
-import { createDockerDB, tests, tests as cacheTests, usersMigratorTable, usersTable } from './pg-common';
+import {
+	createDockerDB,
+	createExtensions,
+	tests,
+	tests as cacheTests,
+	usersMigratorTable,
+	usersTable,
+} from './pg-common';
 import { TestCache, TestGlobalCache } from './pg-common-cache';
 
 const ENABLE_LOGGING = false;
@@ -15,6 +22,7 @@ let db: VercelPgDatabase;
 let dbGlobalCached: VercelPgDatabase;
 let cachedDb: VercelPgDatabase;
 let client: VercelClient;
+let s3Bucket: string;
 
 beforeAll(async () => {
 	let connectionString;
@@ -48,7 +56,9 @@ beforeAll(async () => {
 		// await pgContainer?.stop().catch(console.error);
 		throw lastError;
 	}
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	const { bucket, extensions } = await createExtensions();
+	s3Bucket = bucket;
+	db = drizzle(client, { logger: ENABLE_LOGGING, extensions });
 	cachedDb = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestCache() });
 	dbGlobalCached = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 });
@@ -60,6 +70,7 @@ afterAll(async () => {
 beforeEach((ctx) => {
 	ctx.pg = {
 		db,
+		bucket: s3Bucket,
 	};
 	ctx.cachedPg = {
 		db: cachedDb,

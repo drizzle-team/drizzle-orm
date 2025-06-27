@@ -1,6 +1,7 @@
 import { neonConfig, Pool, type PoolConfig } from '@neondatabase/serverless';
 import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
+import type { DrizzlePgExtension } from '~/extension-core/pg/index.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
@@ -27,6 +28,7 @@ export class NeonDriver {
 		private client: NeonClient,
 		private dialect: PgDialect,
 		private options: NeonDriverOptions = {},
+		private extensions?: DrizzlePgExtension[],
 	) {
 	}
 
@@ -36,7 +38,7 @@ export class NeonDriver {
 		return new NeonSession(this.client, this.dialect, schema, {
 			logger: this.options.logger,
 			cache: this.options.cache,
-		});
+		}, this.extensions);
 	}
 }
 
@@ -51,7 +53,7 @@ function construct<
 	TClient extends NeonClient = NeonClient,
 >(
 	client: TClient,
-	config: DrizzleConfig<TSchema> = {},
+	config: DrizzleConfig<TSchema, DrizzlePgExtension> = {},
 ): NeonDatabase<TSchema> & {
 	$client: TClient;
 } {
@@ -76,9 +78,10 @@ function construct<
 		};
 	}
 
-	const driver = new NeonDriver(client, dialect, { logger, cache: config.cache });
+	const extensions = config.extensions;
+	const driver = new NeonDriver(client, dialect, { logger, cache: config.cache }, extensions);
 	const session = driver.createSession(schema);
-	const db = new NeonDatabase(dialect, session, schema as any) as NeonDatabase<TSchema>;
+	const db = new NeonDatabase(dialect, session, schema as any, extensions) as NeonDatabase<TSchema>;
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;
 	if ((<any> db).$cache) {
@@ -96,10 +99,10 @@ export function drizzle<
 		TClient | string,
 	] | [
 		TClient | string,
-		DrizzleConfig<TSchema>,
+		DrizzleConfig<TSchema, DrizzlePgExtension>,
 	] | [
 		(
-			& DrizzleConfig<TSchema>
+			& DrizzleConfig<TSchema, DrizzlePgExtension>
 			& ({
 				connection: string | PoolConfig;
 			} | {
@@ -126,7 +129,7 @@ export function drizzle<
 			connection?: PoolConfig | string;
 			ws?: any;
 			client?: TClient;
-		} & DrizzleConfig<TSchema>;
+		} & DrizzleConfig<TSchema, DrizzlePgExtension>;
 
 		if (ws) {
 			neonConfig.webSocketConstructor = ws;
@@ -143,12 +146,12 @@ export function drizzle<
 		return construct(instance, drizzleConfig) as any;
 	}
 
-	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema> | undefined) as any;
+	return construct(params[0] as TClient, params[1] as DrizzleConfig<TSchema, DrizzlePgExtension> | undefined) as any;
 }
 
 export namespace drizzle {
 	export function mock<TSchema extends Record<string, unknown> = Record<string, never>>(
-		config?: DrizzleConfig<TSchema>,
+		config?: DrizzleConfig<TSchema, DrizzlePgExtension>,
 	): NeonDatabase<TSchema> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {

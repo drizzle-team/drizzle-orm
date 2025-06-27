@@ -3,6 +3,7 @@ import type { Cache } from '~/cache/core/index.ts';
 import { NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
+import type { BlankPgHookContext, DrizzlePgExtension } from '~/extension-core/pg/index.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -39,12 +40,14 @@ export class XataHttpPreparedQuery<T extends PreparedQueryConfig> extends PgPrep
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		private _isResponseInArrayMode: boolean,
+		extensions?: DrizzlePgExtension[],
+		hookContext?: BlankPgHookContext,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
-		super(query, cache, queryMetadata, cacheConfig);
+		super(query, cache, queryMetadata, cacheConfig, extensions, hookContext);
 	}
 
-	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+	async _execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		const params = fillPlaceholders(this.query.params, placeholderValues);
 
 		this.logger.logQuery(this.query.sql, params);
@@ -112,8 +115,9 @@ export class XataHttpSession<TFullSchema extends Record<string, unknown>, TSchem
 		dialect: PgDialect,
 		private schema: RelationalSchemaConfig<TSchema> | undefined,
 		private options: XataHttpSessionOptions = {},
+		extensions?: DrizzlePgExtension[],
 	) {
-		super(dialect);
+		super(dialect, extensions);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
 	}
@@ -129,6 +133,7 @@ export class XataHttpSession<TFullSchema extends Record<string, unknown>, TSchem
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
+		hookContext?: BlankPgHookContext,
 	): PgPreparedQuery<T> {
 		return new XataHttpPreparedQuery(
 			this.client,
@@ -139,6 +144,8 @@ export class XataHttpSession<TFullSchema extends Record<string, unknown>, TSchem
 			cacheConfig,
 			fields,
 			isResponseInArrayMode,
+			this.extensions,
+			hookContext,
 			customResultMapper,
 		);
 	}

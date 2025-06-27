@@ -8,7 +8,7 @@ import { Client } from 'pg';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
-import { createDockerDB, tests, usersMigratorTable, usersTable } from './pg-common';
+import { createDockerDB, createExtensions, tests, usersMigratorTable, usersTable } from './pg-common';
 import { TestCache, TestGlobalCache, tests as cacheTests } from './pg-common-cache';
 
 const ENABLE_LOGGING = false;
@@ -17,6 +17,7 @@ let db: NodePgDatabase;
 let client: Client;
 let dbGlobalCached: NodePgDatabase;
 let cachedDb: NodePgDatabase;
+let s3Bucket: string;
 
 beforeAll(async () => {
 	let connectionString;
@@ -40,7 +41,10 @@ beforeAll(async () => {
 			client?.end();
 		},
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+
+	const { bucket, extensions } = await createExtensions();
+	s3Bucket = bucket;
+	db = drizzle(client, { logger: ENABLE_LOGGING, extensions });
 	cachedDb = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestCache() });
 	dbGlobalCached = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 });
@@ -52,6 +56,7 @@ afterAll(async () => {
 beforeEach((ctx) => {
 	ctx.pg = {
 		db,
+		bucket: s3Bucket,
 	};
 	ctx.cachedPg = {
 		db: cachedDb,

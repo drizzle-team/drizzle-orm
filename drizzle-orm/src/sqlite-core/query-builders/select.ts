@@ -816,7 +816,7 @@ export abstract class SQLiteSelectQueryBuilderBase<
 
 	/** @internal */
 	getSQL(): SQL {
-		return this.dialect.buildSelectQuery(this.config);
+		return this.dialect.buildSelectQuery(this.config, this.session?.extensions);
 	}
 
 	toSQL(): Query {
@@ -912,9 +912,10 @@ export class SQLiteSelectBase<
 		if (!this.session) {
 			throw new Error('Cannot execute a query on a query builder. Please use a database instance instead.');
 		}
-		const fieldsList = orderSelectedFields<SQLiteColumn>(this.config.fields);
-		const query = this.session[isOneTimeQuery ? 'prepareOneTimeQuery' : 'prepareQuery'](
-			this.dialect.sqlToQuery(this.getSQL()),
+		const { session, config, dialect, joinsNotNullableMap } = this;
+		const fieldsList = orderSelectedFields<SQLiteColumn>(config.fields);
+		const query = session[isOneTimeQuery ? 'prepareOneTimeQuery' : 'prepareQuery'](
+			dialect.sqlToQuery(this.getSQL()),
 			fieldsList,
 			'all',
 			true,
@@ -924,8 +925,16 @@ export class SQLiteSelectBase<
 				tables: [...this.usedTables],
 			},
 			this.cacheConfig,
+			{
+				query: 'select',
+				joinsNotNullableMap,
+				dialect,
+				session,
+				config,
+				fieldsOrdered: fieldsList,
+			},
 		);
-		query.joinsNotNullableMap = this.joinsNotNullableMap;
+		query.joinsNotNullableMap = joinsNotNullableMap;
 		return query as ReturnType<this['prepare']>;
 	}
 

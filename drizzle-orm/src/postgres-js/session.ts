@@ -2,6 +2,7 @@ import type { Row, RowList, Sql, TransactionSql } from 'postgres';
 import { type Cache, NoopCache } from '~/cache/core/index.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
+import type { BlankPgHookContext, DrizzlePgExtension } from '~/extension-core/pg/index.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -30,12 +31,14 @@ export class PostgresJsPreparedQuery<T extends PreparedQueryConfig> extends PgPr
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		private _isResponseInArrayMode: boolean,
+		extensions?: DrizzlePgExtension[],
+		hookContext?: BlankPgHookContext,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
-		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
+		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig, extensions, hookContext);
 	}
 
-	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
+	async _execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
 		return tracer.startActiveSpan('drizzle.execute', async (span) => {
 			const params = fillPlaceholders(this.params, placeholderValues);
 
@@ -120,8 +123,9 @@ export class PostgresJsSession<
 		private schema: RelationalSchemaConfig<TSchema> | undefined,
 		/** @internal */
 		readonly options: PostgresJsSessionOptions = {},
+		extensions?: DrizzlePgExtension[],
 	) {
-		super(dialect);
+		super(dialect, extensions);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
 	}
@@ -137,6 +141,7 @@ export class PostgresJsSession<
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
+		hookContext?: BlankPgHookContext,
 	): PgPreparedQuery<T> {
 		return new PostgresJsPreparedQuery(
 			this.client,
@@ -148,6 +153,8 @@ export class PostgresJsSession<
 			cacheConfig,
 			fields,
 			isResponseInArrayMode,
+			this.extensions,
+			hookContext,
 			customResultMapper,
 		);
 	}
@@ -168,14 +175,17 @@ export class PostgresJsSession<
 		transaction: (tx: PostgresJsTransaction<TFullSchema, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig,
 	): Promise<T> {
-		return this.client.begin(async (client) => {
+		const { extensions, schema, dialect, options, client } = this;
+
+		return client.begin(async (client) => {
 			const session = new PostgresJsSession<TransactionSql, TFullSchema, TSchema>(
 				client,
-				this.dialect,
-				this.schema,
-				this.options,
+				dialect,
+				schema,
+				options,
+				extensions,
 			);
-			const tx = new PostgresJsTransaction(this.dialect, session, this.schema);
+			const tx = new PostgresJsTransaction(dialect, session, schema, undefined, extensions);
 			if (config) {
 				await tx.setTransaction(config);
 			}
@@ -196,8 +206,9 @@ export class PostgresJsTransaction<
 		override readonly session: PostgresJsSession<TransactionSql, TFullSchema, TSchema>,
 		schema: RelationalSchemaConfig<TSchema> | undefined,
 		nestedIndex = 0,
+		extensions?: DrizzlePgExtension[],
 	) {
-		super(dialect, session, schema, nestedIndex);
+		super(dialect, session, schema, nestedIndex, extensions);
 	}
 
 	override transaction<T>(
@@ -209,8 +220,15 @@ export class PostgresJsTransaction<
 				this.dialect,
 				this.schema,
 				this.session.options,
+				this._.extensions,
 			);
-			const tx = new PostgresJsTransaction<TFullSchema, TSchema>(this.dialect, session, this.schema);
+			const tx = new PostgresJsTransaction<TFullSchema, TSchema>(
+				this.dialect,
+				session,
+				this.schema,
+				undefined,
+				this._.extensions,
+			);
 			return transaction(tx);
 		}) as Promise<T>;
 	}

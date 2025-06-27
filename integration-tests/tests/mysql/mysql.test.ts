@@ -3,7 +3,7 @@ import type { MySql2Database } from 'drizzle-orm/mysql2';
 import { drizzle } from 'drizzle-orm/mysql2';
 import * as mysql from 'mysql2/promise';
 import { afterAll, beforeAll, beforeEach } from 'vitest';
-import { createDockerDB, tests } from './mysql-common';
+import { createDockerDB, createExtensions, tests } from './mysql-common';
 import { TestCache, TestGlobalCache, tests as cacheTests } from './mysql-common-cache';
 
 const ENABLE_LOGGING = false;
@@ -12,6 +12,7 @@ let db: MySql2Database;
 let dbGlobalCached: MySql2Database;
 let cachedDb: MySql2Database;
 let client: mysql.Connection;
+let s3Bucket: string;
 
 beforeAll(async () => {
 	let connectionString;
@@ -38,7 +39,9 @@ beforeAll(async () => {
 			client?.end();
 		},
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	const { bucket, extensions } = await createExtensions();
+	s3Bucket = bucket;
+	db = drizzle(client, { logger: ENABLE_LOGGING, extensions });
 	cachedDb = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestCache() });
 	dbGlobalCached = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 });
@@ -50,6 +53,7 @@ afterAll(async () => {
 beforeEach((ctx) => {
 	ctx.mysql = {
 		db,
+		bucket: s3Bucket,
 	};
 	ctx.cachedMySQL = {
 		db: cachedDb,
