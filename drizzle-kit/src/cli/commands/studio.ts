@@ -50,7 +50,21 @@ type SchemaFile = {
 export type Setup = {
 	dbHash: string;
 	dialect: 'postgresql' | 'mysql' | 'sqlite' | 'singlestore';
+	packageName:
+		| '@aws-sdk/client-rds-data'
+		| 'pglite'
+		| 'pg'
+		| 'postgres'
+		| '@vercel/postgres'
+		| '@neondatabase/serverless'
+		| 'gel'
+		| 'mysql2'
+		| '@planetscale/database'
+		| 'd1-http'
+		| '@libsql/client'
+		| 'better-sqlite3';
 	driver?: 'aws-data-api' | 'd1-http' | 'turso' | 'pglite';
+	databaseName?: string; // for planetscale (driver remove database name from connection string)
 	proxy: Proxy;
 	transactionProxy: TransactionProxy;
 	customDefaults: CustomDefault[];
@@ -320,6 +334,7 @@ export const drizzleForPostgres = async (
 		dbHash,
 		dialect: 'postgresql',
 		driver: 'driver' in credentials ? credentials.driver : undefined,
+		packageName: db.packageName,
 		proxy: db.proxy,
 		transactionProxy: db.transactionProxy,
 		customDefaults,
@@ -336,7 +351,7 @@ export const drizzleForMySQL = async (
 	schemaFiles?: SchemaFile[],
 ): Promise<Setup> => {
 	const { connectToMySQL } = await import('../connections');
-	const { proxy, transactionProxy } = await connectToMySQL(credentials);
+	const { proxy, transactionProxy, database, packageName } = await connectToMySQL(credentials);
 
 	const customDefaults = getCustomDefaults(mysqlSchema);
 
@@ -354,6 +369,8 @@ export const drizzleForMySQL = async (
 	return {
 		dbHash,
 		dialect: 'mysql',
+		packageName,
+		databaseName: database,
 		proxy,
 		transactionProxy,
 		customDefaults,
@@ -427,6 +444,7 @@ export const drizzleForSQLite = async (
 		dbHash,
 		dialect: 'sqlite',
 		driver: 'driver' in credentials ? credentials.driver : undefined,
+		packageName: sqliteDB.packageName,
 		proxy: sqliteDB.proxy,
 		transactionProxy: sqliteDB.transactionProxy,
 		customDefaults,
@@ -454,6 +472,7 @@ export const drizzleForLibSQL = async (
 		dbHash,
 		dialect: 'sqlite',
 		driver: undefined,
+		packageName: sqliteDB.packageName,
 		proxy: sqliteDB.proxy,
 		transactionProxy: sqliteDB.transactionProxy,
 		customDefaults,
@@ -470,7 +489,7 @@ export const drizzleForSingleStore = async (
 	schemaFiles?: SchemaFile[],
 ): Promise<Setup> => {
 	const { connectToSingleStore } = await import('../connections');
-	const { proxy, transactionProxy } = await connectToSingleStore(credentials);
+	const { proxy, transactionProxy, database, packageName } = await connectToSingleStore(credentials);
 
 	const customDefaults = getCustomDefaults(singlestoreSchema);
 
@@ -488,6 +507,8 @@ export const drizzleForSingleStore = async (
 	return {
 		dbHash,
 		dialect: 'singlestore',
+		databaseName: database,
+		packageName,
 		proxy,
 		transactionProxy,
 		customDefaults,
@@ -654,6 +675,8 @@ export const prepareServer = async (
 	{
 		dialect,
 		driver,
+		packageName,
+		databaseName,
 		proxy,
 		transactionProxy,
 		customDefaults,
@@ -724,13 +747,15 @@ export const prepareServer = async (
 			}
 
 			return c.json({
-				version: '6.1', // version of the studio API (still compatible with 6.0)
+				version: '6.2',
 				dialect,
 				driver,
+				packageName,
 				schemaFiles,
 				customDefaults: preparedDefaults,
 				relations,
 				dbHash,
+				databaseName,
 			});
 		}
 
