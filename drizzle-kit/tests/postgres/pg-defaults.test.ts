@@ -674,6 +674,11 @@ test('json + json arrays', async () => {
 		json().array().array().default([[{ key: 'mo",\\`}{od' }]]),
 		`'{{"{\"key\":\"mo\\\",\\\\\\\\\`}{od\"}"}}'::json[]`,
 	);
+	const res16 = await diffDefault(
+		_,
+		json().default(sql`jsonb_build_object('chunkIndex', NULL, 'totalChunks', NULL)`),
+		`jsonb_build_object('chunkIndex', NULL, 'totalChunks', NULL)`,
+	);
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
@@ -690,6 +695,7 @@ test('json + json arrays', async () => {
 	expect.soft(res13).toStrictEqual([]);
 	expect.soft(res14).toStrictEqual([]);
 	expect.soft(res15).toStrictEqual([]);
+	expect.soft(res16).toStrictEqual([]);
 });
 
 test('jsonb + jsonb arrays', async () => {
