@@ -77,6 +77,11 @@ export const fromDatabase = async (
 		count: number,
 		status: IntrospectStatus,
 	) => void = () => {},
+	queryCallback: (
+		id: string,
+		rows: Record<string, unknown>[],
+		error: Error | null,
+	) => void = () => {},
 ): Promise<InterimSchema> => {
 	const schemas: Schema[] = [];
 	const enums: Enum[] = [];
@@ -104,14 +109,33 @@ export const fromDatabase = async (
 
 	const accessMethodsQuery = db.query<{ oid: number; name: string }>(
 		`SELECT oid, amname as name FROM pg_am WHERE amtype = 't' ORDER BY amname;`,
-	);
+	).then((rows) => {
+		queryCallback('accessMethods', rows, null);
+		return rows;
+	}).catch((err) => {
+		queryCallback('accessMethods', [], err);
+		throw err;
+	});
 
 	const tablespacesQuery = db.query<{
 		oid: number;
 		name: string;
-	}>('SELECT oid, spcname as "name" FROM pg_tablespace ORDER BY spcname;');
+	}>('SELECT oid, spcname as "name" FROM pg_tablespace ORDER BY lower(spcname);').then((rows) => {
+		queryCallback('tablespaces', rows, null);
+		return rows;
+	}).catch((err) => {
+		queryCallback('tablespaces', [], err);
+		throw err;
+	});
 
-	const namespacesQuery = db.query<Namespace>('select oid, nspname as name from pg_namespace ORDER BY nspname;');
+	const namespacesQuery = db.query<Namespace>('select oid, nspname as name from pg_namespace ORDER BY lower(nspname);')
+		.then((rows) => {
+			queryCallback('namespaces', rows, null);
+			return rows;
+		}).catch((err) => {
+			queryCallback('namespaces', [], err);
+			throw err;
+		});
 
 	const defaultsQuery = await db.query<{
 		tableId: number;
@@ -124,7 +148,13 @@ export const fromDatabase = async (
 			pg_get_expr(adbin, adrelid) AS "expression"
 		FROM
 			pg_attrdef;
-	`);
+	`).then((rows) => {
+		queryCallback('defaults', rows, null);
+		return rows;
+	}).catch((err) => {
+		queryCallback('defaults', [], err);
+		throw err;
+	});
 
 	const [ams, tablespaces, namespaces, defaultsList] = await Promise.all([
 		accessMethodsQuery,
@@ -164,27 +194,34 @@ export const fromDatabase = async (
 			tablespaceid: number;
 			definition: string | null;
 		}>(`
-				SELECT
-					oid,
-					relnamespace AS "schemaId",
-					relname AS "name",
-					relkind AS "kind",
-					relam as "accessMethod",
-					reloptions::text[] as "options",
-					reltablespace as "tablespaceid",
-					relrowsecurity AS "rlsEnabled",
-					case 
-						when relkind = 'v' or relkind = 'm'
-							then pg_get_viewdef(oid, true)
-						else null 
-					end as "definition"
-				FROM
-					pg_class
-				WHERE
-					relkind IN ('r', 'v', 'm')
-					AND relnamespace IN (${filteredNamespacesIds.join(', ')})
-				ORDER BY relnamespace, relname
-					;`);
+			SELECT
+				oid,
+				relnamespace AS "schemaId",
+				relname AS "name",
+				relkind AS "kind",
+				relam as "accessMethod",
+				reloptions::text[] as "options",
+				reltablespace as "tablespaceid",
+				relrowsecurity AS "rlsEnabled",
+				case 
+					when relkind = 'v' or relkind = 'm'
+						then pg_get_viewdef(oid, true)
+					else null 
+				end as "definition"
+			FROM
+				pg_class
+			WHERE
+				relkind IN ('r', 'v', 'm')
+				AND relnamespace IN (${filteredNamespacesIds.join(', ')})
+			ORDER BY relnamespace, lower(relname)
+		;`).then((rows) => {
+			queryCallback('tables', rows, null);
+			return rows;
+		})
+		.catch((err) => {
+			queryCallback('tables', [], err);
+			throw err;
+		});
 
 	const viewsList = tablesList.filter((it) => it.kind === 'v' || it.kind === 'm');
 
@@ -227,8 +264,8 @@ export const fromDatabase = async (
 					Example: A trigger enforcing a foreign-key constraint is internally dependent on its pg_constraint entry
 		 */
 		deptype: 'a' | 'i';
-	}>(
-		`SELECT
+	}>(`
+		SELECT
 			-- sequence id
 			objid as oid,
 			refobjid as "tableId",
@@ -238,8 +275,14 @@ export const fromDatabase = async (
 			deptype
 		FROM
 			pg_depend
-		where ${filterByTableIds ? ` refobjid in ${filterByTableIds}` : 'false'};`,
-	);
+		where ${filterByTableIds ? ` refobjid in ${filterByTableIds}` : 'false'};
+	`).then((rows) => {
+		queryCallback('dependencies', rows, null);
+		return rows;
+	}).catch((err) => {
+		queryCallback('dependencies', [], err);
+		throw err;
+	});
 
 	const enumsQuery = db
 		.query<{
@@ -262,7 +305,14 @@ export const fromDatabase = async (
 				WHERE
 					pg_type.typtype = 'e'
 					AND typnamespace IN (${filteredNamespacesIds.join(',')})
-				ORDER BY pg_type.oid, pg_enum.enumsortorder`);
+				ORDER BY pg_type.oid, pg_enum.enumsortorder
+		`).then((rows) => {
+			queryCallback('enums', rows, null);
+			return rows;
+		}).catch((err) => {
+			queryCallback('enums', [], err);
+			throw err;
+		});
 
 	const sequencesQuery = db.query<{
 		schemaId: number;
@@ -291,8 +341,14 @@ LEFT JOIN pg_sequences pgs ON (
     AND pgs.schemaname = pg_class.relnamespace::regnamespace::text
 )
 WHERE relnamespace IN (${filteredNamespacesIds.join(',')})
-ORDER BY pg_class.relnamespace, pg_class.relname
-;`);
+ORDER BY pg_class.relnamespace, lower(pg_class.relname)
+;`).then((rows) => {
+		queryCallback('sequences', rows, null);
+		return rows;
+	}).catch((err) => {
+		queryCallback('sequences', [], err);
+		throw err;
+	});
 
 	// I'm not yet aware of how we handle policies down the pipeline for push,
 	// and since postgres does not have any default policies, we can safely fetch all of them for now
@@ -318,14 +374,26 @@ ORDER BY pg_class.relnamespace, pg_class.relname
 			qual as "using", 
 			with_check as "withCheck" 
 		FROM pg_policies
-		ORDER BY schemaname, tablename, policyname
-		;`);
+		ORDER BY lower(schemaname), lower(tablename), lower(policyname)
+		;`).then((rows) => {
+		queryCallback('policies', rows, null);
+		return rows;
+	}).catch((err) => {
+		queryCallback('policies', [], err);
+		throw err;
+	});
 
-	const rolesQuery = await db.query<
+	const rolesQuery = db.query<
 		{ rolname: string; rolinherit: boolean; rolcreatedb: boolean; rolcreaterole: boolean }
 	>(
-		`SELECT rolname, rolinherit, rolcreatedb, rolcreaterole FROM pg_roles ORDER BY rolname;`,
-	);
+		`SELECT rolname, rolinherit, rolcreatedb, rolcreaterole FROM pg_roles ORDER BY lower(rolname);`,
+	).then((rows) => {
+		queryCallback('roles', rows, null);
+		return rows;
+	}).catch((err) => {
+		queryCallback('roles', [], err);
+		throw err;
+	});
 
 	const constraintsQuery = db.query<{
 		oid: number;
@@ -357,8 +425,14 @@ ORDER BY pg_class.relnamespace, pg_class.relname
     FROM
       pg_constraint
     WHERE ${filterByTableIds ? ` conrelid in ${filterByTableIds}` : 'false'}
-	ORDER BY connamespace, conrelid, conname
-  `);
+	ORDER BY connamespace, conrelid, lower(conname)
+  `).then((rows) => {
+		queryCallback('constraints', rows, null);
+		return rows;
+	}).catch((err) => {
+		queryCallback('constraints', [], err);
+		throw err;
+	});
 
 	// for serials match with pg_attrdef via attrelid(tableid)+adnum(ordinal position), for enums with pg_enum above
 	const columnsQuery = db.query<{
@@ -441,7 +515,13 @@ ORDER BY pg_class.relnamespace, pg_class.relname
 				AND attnum > 0
 				AND attisdropped = FALSE
 			ORDER BY attnum
-				;`);
+		;`).then((rows) => {
+		queryCallback('columns', rows, null);
+		return rows;
+	}).catch((err) => {
+		queryCallback('columns', [], err);
+		throw err;
+	});
 
 	const extraColumnDataTypesQuery = db.query<{
 		table_schema: string;
@@ -454,7 +534,14 @@ ORDER BY pg_class.relnamespace, pg_class.relname
 			column_name as column_name, 
 			lower(crdb_sql_type) as data_type  
 		FROM information_schema.columns 
-		WHERE  ${tablesList.length ? `table_name in (${tablesList.map((it) => `'${it.name}'`).join(', ')})` : 'false'}`);
+		WHERE  ${tablesList.length ? `table_name in (${tablesList.map((it) => `'${it.name}'`).join(', ')})` : 'false'}
+	`).then((rows) => {
+		queryCallback('extraColumnDataTypes', rows, null);
+		return rows;
+	}).catch((err) => {
+		queryCallback('extraColumnDataTypes', [], err);
+		throw err;
+	});
 
 	const [
 		dependList,
@@ -823,8 +910,14 @@ ORDER BY pg_class.relnamespace, pg_class.relname
       ) metadata ON TRUE
       WHERE
         relkind = 'i' and ${filterByTableIds ? `metadata."tableId" in ${filterByTableIds}` : 'false'}
-	  ORDER BY relnamespace, relname
-    `);
+	  ORDER BY relnamespace, lower(relname)
+    `).then((rows) => {
+		queryCallback('indexes', rows, null);
+		return rows;
+	}).catch((err) => {
+		queryCallback('indexes', [], err);
+		throw err;
+	});
 
 	for (const idx of idxs) {
 		const { metadata, accessMethod } = idx;

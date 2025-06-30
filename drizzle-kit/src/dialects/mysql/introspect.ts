@@ -31,6 +31,11 @@ export const fromDatabase = async (
 		count: number,
 		status: IntrospectStatus,
 	) => void = () => {},
+	queryCallback: (
+		id: string,
+		rows: Record<string, unknown>[],
+		error: Error | null,
+	) => void = () => {},
 ): Promise<InterimSchema> => {
 	const res: InterimSchema = {
 		tables: [],
@@ -51,7 +56,13 @@ export const fromDatabase = async (
 		FROM INFORMATION_SCHEMA.TABLES
 		WHERE TABLE_SCHEMA = '${schema}'
 		ORDER BY lower(TABLE_NAME);
-		`).then((rows) => rows.filter((it) => tablesFilter(it.name)));
+	`).then((rows) => {
+		queryCallback('tables', rows, null);
+		return rows.filter((it) => tablesFilter(it.name));
+	}).catch((err) => {
+		queryCallback('tables', [], err);
+		throw err;
+	});
 
 	const columns = await db.query(`
 		SELECT 
@@ -59,7 +70,13 @@ export const fromDatabase = async (
 		FROM information_schema.columns
 		WHERE table_schema = '${schema}' and table_name != '__drizzle_migrations'
 		ORDER BY lower(table_name), ordinal_position;
-	`).then((rows) => rows.filter((it) => tablesFilter(it['TABLE_NAME'])));
+	`).then((rows) => {
+		queryCallback('columns', rows, null);
+		return rows.filter((it) => tablesFilter(it['TABLE_NAME']));
+	}).catch((err) => {
+		queryCallback('columns', [], err);
+		throw err;
+	});
 
 	const idxs = await db.query(`
 		SELECT 
@@ -68,7 +85,13 @@ export const fromDatabase = async (
 		WHERE INFORMATION_SCHEMA.STATISTICS.TABLE_SCHEMA = '${schema}' 
 			AND INFORMATION_SCHEMA.STATISTICS.INDEX_NAME != 'PRIMARY'
 		ORDER BY lower(INDEX_NAME);
-	`).then((rows) => rows.filter((it) => tablesFilter(it['TABLE_NAME'])));
+	`).then((rows) => {
+		queryCallback('indexes', rows, null);
+		return rows.filter((it) => tablesFilter(it['TABLE_NAME']));
+	}).catch((err) => {
+		queryCallback('indexes', [], err);
+		throw err;
+	});
 
 	const filteredTablesAndViews = tablesAndViews.filter((it) => columns.some((x) => x['TABLE_NAME'] === it.name));
 	const tables = filteredTablesAndViews.filter((it) => it.type === 'BASE TABLE').map((it) => it.name);
@@ -150,7 +173,14 @@ export const fromDatabase = async (
 		WHERE t.constraint_type='PRIMARY KEY'
 			AND table_name != '__drizzle_migrations'
 			AND t.table_schema = '${schema}'
-		ORDER BY ordinal_position`);
+		ORDER BY ordinal_position
+	`).then((rows) => {
+		queryCallback('pks', rows, null);
+		return rows;
+	}).catch((err) => {
+		queryCallback('pks', [], err);
+		throw err;
+	});
 
 	const tableToPKs = pks.filter((it) => tables.some((x) => x === it['TABLE_NAME'])).reduce<Record<string, PrimaryKey>>(
 		(acc, it) => {
@@ -197,7 +227,13 @@ export const fromDatabase = async (
 		WHERE kcu.TABLE_SCHEMA = '${schema}' 
 			AND kcu.CONSTRAINT_NAME != 'PRIMARY' 
 			AND kcu.REFERENCED_TABLE_NAME IS NOT NULL;
-	`);
+	`).then((rows) => {
+		queryCallback('fks', rows, null);
+		return rows;
+	}).catch((err) => {
+		queryCallback('fks', [], err);
+		throw err;
+	});
 
 	const groupedFKs = fks.filter((it) => tables.some((x) => x === it['TABLE_NAME'])).reduce<Record<string, ForeignKey>>(
 		(acc, it) => {
@@ -330,7 +366,13 @@ export const fromDatabase = async (
 		JOIN information_schema.check_constraints cc ON tc.constraint_name = cc.constraint_name
 		WHERE tc.constraint_schema = '${schema}'
 			AND tc.constraint_type = 'CHECK';
-	`);
+	`).then((rows) => {
+		queryCallback('checks', rows, null);
+		return rows;
+	}).catch((err) => {
+		queryCallback('checks', [], err);
+		throw err;
+	});
 
 	checksCount += checks.length;
 	progressCallback('checks', checksCount, 'fetching');
