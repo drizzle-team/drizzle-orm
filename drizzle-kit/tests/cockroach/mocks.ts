@@ -451,7 +451,7 @@ let cockroachdbContainer: Docker.Container;
 export async function createDockerDB(): Promise<{ connectionString: string; container: Docker.Container }> {
 	const docker = new Docker();
 	const port = await getPort({ port: 26257 });
-	const image = 'cockroachdb/cockroach:v25.2.0';
+	const image = 'cockroachdb/cockroach:v25.2.0'; 
 
 	const pullStream = await docker.pull(image);
 	await new Promise((resolve, reject) =>
