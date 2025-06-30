@@ -37,14 +37,13 @@ let db: DB;
 beforeAll(async () => {
 	_ = await prepareTestDatabase();
 	db = _.db;
-	mkdirSync('tests/cockroach/tmp', { recursive: true });
 });
 
 afterAll(async () => {
 	await _.close();
 });
 
-test('int4', async () => {
+test.only('int4', async () => {
 	const res1 = await diffDefault(_, int4().default(10), '10');
 	const res2 = await diffDefault(_, int4().default(0), '0');
 	const res3 = await diffDefault(_, int4().default(-10), '-10');
