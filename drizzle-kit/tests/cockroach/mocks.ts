@@ -31,7 +31,7 @@ import {
 import { mockResolver } from 'src/utils/mocks';
 import '../../src/@types/utils';
 import Docker from 'dockerode';
-import { existsSync, rmSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import getPort from 'get-port';
 import { Pool, PoolClient } from 'pg';
 import { introspect } from 'src/cli/commands/pull-cockroach';
@@ -45,6 +45,9 @@ import { hash } from 'src/dialects/common';
 import { DB } from 'src/utils';
 import { v4 as uuidV4 } from 'uuid';
 import 'zx/globals';
+import { measure } from 'tests/utils';
+
+mkdirSync('tests/cockroach/tmp', { recursive: true });
 
 export type CockroachDBSchema = Record<
 	string,
@@ -133,6 +136,17 @@ export const diff = async (
 	return { sqlStatements, statements, groupedStatements, next: ddl2 };
 };
 
+export const pushM = async (config: {
+	db: DB;
+	to: CockroachDBSchema | CockroachDDL;
+	renames?: string[];
+	schemas?: string[];
+	casing?: CasingType;
+	log?: 'statements' | 'none';
+	entities?: Entities;
+}) => {
+	return measure(push(config), 'push');
+};
 // init schema flush to db -> introspect db to ddl -> compare ddl with destination schema
 export const push = async (config: {
 	db: DB;
@@ -353,7 +367,7 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 	};
 
 	const { db, clear } = kit;
-	if (pre) await push({ db, to: pre });
+	if (pre) push({ db, to: pre });
 	const { sqlStatements: st1 } = await push({ db, to: init });
 	const { sqlStatements: st2 } = await push({ db, to: init });
 
@@ -373,7 +387,9 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 	if (st2.length > 0) res.push(`Unexpected subsequent init:\n${st2}`);
 
 	// introspect to schema
+	console.time();
 	const schema = await fromDatabaseForDrizzle(db);
+
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
@@ -395,7 +411,9 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 		res.push(`Default type mismatch after diff:\n${`./${path}`}`);
 	}
 
-	await clear();
+	console.timeEnd();
+
+	await measure(clear(), 'clir');
 
 	config.hasDefault = false;
 	config.default = undefined;
@@ -421,17 +439,17 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 
 	const schema3 = {
 		...pre,
-		table: cockroachTable('table', { id: int4().generatedAlwaysAsIdentity() }),
+		table: cockroachTable('table', { id: int4() }),
 	};
 
 	const schema4 = {
 		...pre,
-		table: cockroachTable('table', { id: int4().generatedAlwaysAsIdentity(), column: builder }),
+		table: cockroachTable('table', { id: int4(), column: builder }),
 	};
 
 	if (pre) await push({ db, to: pre });
-	await push({ db, to: schema3 });
-	const { sqlStatements: st4 } = await push({ db, to: schema4 });
+	await push({ db, to: schema3, log: 'statements' });
+	const { sqlStatements: st4 } = await push({ db, to: schema4, log: 'statements' });
 
 	const expectedAddColumn = `ALTER TABLE "table" ADD COLUMN "column" ${sqlType} DEFAULT ${expectedDefault};`;
 	if (st4.length !== 1 || st4[0] !== expectedAddColumn) {
@@ -447,18 +465,17 @@ export type TestDatabase = {
 	clear: () => Promise<void>;
 };
 
-let cockroachdbContainer: Docker.Container;
-export async function createDockerDB(): Promise<{ connectionString: string; container: Docker.Container }> {
+export async function createDockerDB() {
 	const docker = new Docker();
 	const port = await getPort({ port: 26257 });
-	const image = 'cockroachdb/cockroach:v25.2.0'; 
+	const image = 'cockroachdb/cockroach:v25.2.0';
 
 	const pullStream = await docker.pull(image);
 	await new Promise((resolve, reject) =>
 		docker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
 	);
 
-	cockroachdbContainer = await docker.createContainer({
+	const container = await docker.createContainer({
 		Image: image,
 		Cmd: ['start-single-node', '--insecure'],
 		name: `drizzle-integration-tests-${uuidV4()}`,
@@ -470,29 +487,43 @@ export async function createDockerDB(): Promise<{ connectionString: string; cont
 		},
 	});
 
-	await cockroachdbContainer.start();
+	await container.start();
 
 	return {
-		connectionString: `postgresql://root@127.0.0.1:${port}/defaultdb?sslmode=disable`,
-		container: cockroachdbContainer,
+		url: `postgresql://root@127.0.0.1:${port}/defaultdb?sslmode=disable`,
+		container,
 	};
 }
 
-export const prepareTestDatabase = async (): Promise<TestDatabase> => {
-	const { connectionString, container } = await createDockerDB();
+export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatabase> => {
+	const envUrl = process.env.COCKROACH_URL;
+	const { url, container } = envUrl ? { url: envUrl, container: null } : await createDockerDB();
 
 	let client: PoolClient;
 	const sleep = 1000;
 	let timeLeft = 20000;
 	do {
 		try {
-			client = await (new Pool({ connectionString })).connect();
+			client = await(new Pool({ connectionString: url })).connect();
+
+			await client.query('DROP DATABASE defaultdb;');
+			await client.query('CREATE DATABASE defaultdb;');
 
 			await client.query('CREATE EXTENSION IF NOT EXISTS postgis;');
 			await client.query('CREATE EXTENSION IF NOT EXISTS vector;');
 			await client.query(`SET CLUSTER SETTING feature.vector_index.enabled = true;`);
 
+			if (tx) {
+				await client.query('BEGIN');
+			}
+
 			const clear = async () => {
+				if (tx) {
+					await client.query('ROLLBACK;');
+					await client.query('BEGIN;');
+					return;
+				}
+
 				await client.query('DROP DATABASE defaultdb;');
 				await client.query('CREATE DATABASE defaultdb;');
 
@@ -522,7 +553,7 @@ export const prepareTestDatabase = async (): Promise<TestDatabase> => {
 				db,
 				close: async () => {
 					client.release();
-					await container.stop();
+					await container?.stop();
 				},
 				clear,
 			};
