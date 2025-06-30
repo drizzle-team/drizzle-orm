@@ -191,15 +191,16 @@ export const ddlToTypeScript = (
 			return it.columns.length > 1 || isSelf(it) || isCyclic(it);
 		});
 
-		if (
-			indexes.length > 0
-			|| filteredFKs.length > 0
-			|| pk && pk.columns.length > 1
-			|| checks.length > 0
-		) {
+		const hasIndexes = indexes.length > 0;
+		const hasFKs = filteredFKs.length > 0;
+		const hasPK = pk && pk.columns.length > 1;
+		const hasChecks = checks.length > 0;
+		const hasCallbackParams = hasIndexes || hasFKs || hasPK || hasChecks;
+
+		if (hasCallbackParams) {
 			statement += ',\n';
 			statement += '(table) => [\n';
-			statement += pk ? createTablePK(pk, withCasing) : '';
+			statement += hasPK ? createTablePK(pk, withCasing) : '';
 			statement += createTableIndexes(indexes, withCasing);
 			statement += createTableFKs(filteredFKs, withCasing);
 			statement += createTableChecks(checks);

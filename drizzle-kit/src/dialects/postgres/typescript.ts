@@ -11,8 +11,9 @@ import {
 import '../../@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
 import { parseArray } from 'src/utils/parse-pgarray';
+import { unknown } from 'zod';
 import { Casing } from '../../cli/validations/common';
-import { assertUnreachable, stringifyArray, stringifyTuplesArray, trimChar } from '../../utils';
+import { ArrayValue, assertUnreachable, stringifyArray, stringifyTuplesArray, trimChar } from '../../utils';
 import { unescapeSingleQuotes } from '../../utils';
 import {
 	CheckConstraint,
@@ -26,7 +27,7 @@ import {
 	UniqueConstraint,
 	ViewColumn,
 } from './ddl';
-import { defaultNameForIdentitySequence, defaults, indexName } from './grammar';
+import { defaultNameForIdentitySequence, defaults, indexName, trimDefaultValueSuffix } from './grammar';
 
 // TODO: omit defaults opclass... improvement
 
@@ -601,7 +602,7 @@ const mapDefault = (
 		return `.default(${mapColumnDefault(def)})`;
 	}
 
-	const parsed = dimensions > 0 ? parseArray(def.value) : def.value;
+	const parsed = dimensions > 0 ? parseArray(trimChar(trimDefaultValueSuffix(def.value), "'")) : def.value;
 	if (lowered === 'uuid') {
 		if (def.value === 'gen_random_uuid()') return '.defaultRandom()';
 		const res = stringifyArray(parsed, 'ts', (x) => {
@@ -689,15 +690,15 @@ const mapDefault = (
 		? (x: string) => `'${x}'`
 		: lowered.startsWith('boolean')
 		? (x: string) => x === 't' || x === 'true' ? 'true' : 'false'
-		: (x: string) => `${x}`;
+		: (x: string) => def.type === 'unknown' ? `sql\`${x}\`` : `${x}`;
 
 	if (dimensions > 0) {
-		const arr = parseArray(def.value);
-		if (arr.flat(5).length === 0) return `.default([])`;
-		const res = stringifyArray(arr, 'ts', (x) => {
-			const res = mapper(x);
-			return res;
-		});
+		if (def.type === 'unknown') {
+			return `.default(sql\`${def.value}\`)`;
+		}
+		
+		if ((parsed as ArrayValue[]).flat(5).length === 0) return `.default([])`;
+		const res = stringifyArray(parsed, 'ts', mapper);
 		return `.default(${res})`;
 	}
 

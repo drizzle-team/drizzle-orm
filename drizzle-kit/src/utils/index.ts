@@ -145,7 +145,7 @@ export function stringifyTuplesArray(
 			return stringifyTuplesArray(e, mode, mapCallback, depth);
 		}
 		return mapCallback(e, depth);
-	}).join(', ');
+	}).join(',');
 	return mode === 'ts' ? `[${res}]` : `{${res}}`;
 }
 
