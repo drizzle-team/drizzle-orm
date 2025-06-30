@@ -696,7 +696,7 @@ const mapDefault = (
 		if (def.type === 'unknown') {
 			return `.default(sql\`${def.value}\`)`;
 		}
-		
+
 		if ((parsed as ArrayValue[]).flat(5).length === 0) return `.default([])`;
 		const res = stringifyArray(parsed, 'ts', mapper);
 		return `.default(${res})`;
