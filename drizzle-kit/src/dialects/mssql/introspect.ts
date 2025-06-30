@@ -26,6 +26,11 @@ export const fromDatabase = async (
 		count: number,
 		status: IntrospectStatus,
 	) => void = () => {},
+	queryCallback: (
+		id: string,
+		rows: Record<string, unknown>[],
+		error: Error | null,
+	) => void = () => {},
 ): Promise<InterimSchema> => {
 	const schemas: Schema[] = [];
 	const tables: MssqlEntities['tables'][] = [];
@@ -47,7 +52,13 @@ export const fromDatabase = async (
 	WHERE p.type IN ('S', 'U')  -- Only SQL users and Windows users
 	  AND s.name NOT IN ('guest', 'INFORMATION_SCHEMA', 'sys')
 	ORDER BY lower(s.name);
-`);
+	`).then((rows) => {
+		queryCallback('schemas', rows, null);
+		return rows;
+	}).catch((error) => {
+		queryCallback('schemas', [], error);
+		throw error;
+	});
 
 	const filteredSchemas = introspectedSchemas.filter((it) => schemaFilter(it.schema_name));
 
@@ -75,7 +86,13 @@ FROM
 WHERE 
     schema_id IN (${filteredSchemaIds.join(', ')})
 ORDER BY lower(name);
-`);
+`).then((rows) => {
+			queryCallback('tables', rows, null);
+			return rows;
+		}).catch((error) => {
+			queryCallback('tables', [], error);
+			throw error;
+		});
 
 	const viewsList = await db.query<{
 		name: string;
@@ -97,7 +114,13 @@ sys.views views
 LEFT JOIN sys.sql_modules modules on modules.object_id = views.object_id
 WHERE views.schema_id IN (${filteredSchemaIds.join(', ')})
 ORDER BY lower(views.name);
-`);
+`).then((rows) => {
+			queryCallback('views', rows, null);
+			return rows;
+		}).catch((error) => {
+			queryCallback('views', [], error);
+			throw error;
+		});
 
 	const filteredTables = tablesList.filter((it) => tablesFilter(it.name)).map((it) => {
 		const schema = filteredSchemas.find((schema) => schema.schema_id === it.schema_id)!;
@@ -139,7 +162,13 @@ SELECT
 FROM sys.check_constraints
 ${filterByTableIds ? 'WHERE parent_object_id in ' + filterByTableIds : ''}
 ORDER BY lower(name)
-;`);
+;`).then((rows) => {
+		queryCallback('checks', rows, null);
+		return rows;
+	}).catch((error) => {
+		queryCallback('checks', [], error);
+		throw error;
+	});
 
 	const defaultsConstraintQuery = db.query<{
 		name: string;
@@ -159,7 +188,13 @@ SELECT
 FROM sys.default_constraints
 ${filterByTableIds ? 'WHERE parent_object_id in ' + filterByTableIds : ''}
 ORDER BY lower(name)
-;`);
+;`).then((rows) => {
+		queryCallback('defaults', rows, null);
+		return rows;
+	}).catch((error) => {
+		queryCallback('defaults', [], error);
+		throw error;
+	});
 
 	type ForeignKeyRow = {
 		name: string;
@@ -188,7 +223,13 @@ sys.foreign_keys fk
 LEFT JOIN sys.foreign_key_columns fkc ON fkc.constraint_object_id = fk.object_id
 WHERE fk.schema_id IN (${filteredSchemaIds.join(', ')})
 ORDER BY lower(fk.name);
- 	`);
+ 	`).then((rows) => {
+		queryCallback('fks', rows, null);
+		return rows;
+	}).catch((error) => {
+		queryCallback('fks', [], error);
+		throw error;
+	});
 
 	type RawIdxsAndConstraints = {
 		table_id: number;
@@ -218,7 +259,13 @@ INNER JOIN sys.index_columns ic
    AND i.index_id = ic.index_id
 ${filterByTableIds ? 'WHERE i.object_id in ' + filterByTableIds : ''}
 ORDER BY lower(i.name)
-;`);
+;`).then((rows) => {
+		queryCallback('indexes', rows, null);
+		return rows;
+	}).catch((error) => {
+		queryCallback('indexes', [], error);
+		throw error;
+	});
 
 	const columnsQuery = db.query<{
 		column_id: number;
@@ -268,7 +315,14 @@ LEFT JOIN sys.computed_columns computed
 LEFT JOIN sys.objects obj 
   ON obj.object_id = col.object_id
 WHERE obj.type in ('U', 'V')
-${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` : ``};`);
+${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` : ``};
+`).then((rows) => {
+		queryCallback('columns', rows, null);
+		return rows;
+	}).catch((error) => {
+		queryCallback('columns', [], error);
+		throw error;
+	});
 
 	// TODO add counting
 	let columnsCount = 0;
