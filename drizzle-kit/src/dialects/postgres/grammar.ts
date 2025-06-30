@@ -1,6 +1,6 @@
 import { stringifyArray, stringifyTuplesArray, trimChar } from '../../utils';
-import { parseArray } from '../../utils/parse-pgarray';
 import { assertUnreachable } from '../../utils';
+import { parseArray } from '../../utils/parse-pgarray';
 import { hash } from '../common';
 import { Column, PostgresEntities } from './ddl';
 
@@ -199,7 +199,7 @@ type DefaultMapper<IN> = (value: IN | IN[]) => Column['default'];
 
 export const defaultForVector: DefaultMapper<[number, number, number]> = (value) => {
 	const res = stringifyTuplesArray(value, 'sql', (x: number[], depth: number) => {
-		const res = x.length > 0 ? `[${x[0]},${x[1]},${x[2]}]` : "{}";
+		const res = x.length > 0 ? `[${x[0]},${x[1]},${x[2]}]` : '{}';
 		return depth === 0 ? res : `"${res}"`;
 	});
 	return { value: `'${res}'`, type: 'unknown' };

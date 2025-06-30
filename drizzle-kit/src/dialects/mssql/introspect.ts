@@ -317,12 +317,12 @@ LEFT JOIN sys.objects obj
 WHERE obj.type in ('U', 'V')
 ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` : ``};
 `).then((rows) => {
-		queryCallback('columns', rows, null);
-		return rows;
-	}).catch((error) => {
-		queryCallback('columns', [], error);
-		throw error;
-	});
+			queryCallback('columns', rows, null);
+			return rows;
+		}).catch((error) => {
+			queryCallback('columns', [], error);
+			throw error;
+		});
 
 	// TODO add counting
 	let columnsCount = 0;
