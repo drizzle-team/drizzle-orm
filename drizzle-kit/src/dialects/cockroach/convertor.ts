@@ -527,8 +527,8 @@ const recreateCheckConvertor = convertor('alter_check', (st) => {
 		? `"${check.schema}"."${check.table}"`
 		: `"${check.table}"`;
 
-	let sql = `ALTER TABLE ${key} DROP CONSTRAINT "${check.name}", `;
-	sql += `ADD CONSTRAINT "${check.name}" CHECK (${check.value});`;
+	let sql = [`ALTER TABLE ${key} DROP CONSTRAINT "${check.name}";`];
+	sql.push(`ALTER TABLE ${key} ADD CONSTRAINT "${check.name}" CHECK (${check.value});`);
 
 	return sql;
 });
