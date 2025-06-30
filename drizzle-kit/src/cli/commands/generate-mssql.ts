@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/mssql/diff';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/mssql/drizzle';
 import { prepareSnapshot } from 'src/dialects/mssql/serializer';
@@ -17,6 +18,8 @@ import {
 } from '../../dialects/mssql/ddl';
 import { assertV1OutFolder, prepareMigrationFolder } from '../../utils/utils-node';
 import { resolver } from '../prompts';
+import { withStyle } from '../validations/outputs';
+import { mssqlSchemaError } from '../views';
 import { writeResult } from './generate-common';
 import { ExportConfig, GenerateConfig } from './utils';
 
@@ -59,27 +62,23 @@ export const handle = async (config: GenerateConfig) => {
 		'default',
 	);
 
-	// TODO add hint for recreating identity column
-	// const recreateIdentity = statements.find((it) => it.type === 'recreate_identity_column');
-	// if (
-	// 	recreateIdentity && Boolean(recreateIdentity.column.identity?.to)
-	// 	&& !Boolean(recreateIdentity.column.identity?.from)
-	// ) {
-	// 	console.log(
-	// 		withStyle.warning(
-	// 			chalk.bold('You are about to add an identity to an existing column.')
-	// 				+ '\n'
-	// 				+ 'This change may lead to data loss because the column will need to be recreated because identity columns cannot be added to existing ones and do not allow manual value insertion.'
-	// 				+ '\n'
-	// 				+ chalk.bold('Are you sure you want to continue?'),
-	// 		),
-	// 	);
-	// 	const { status, data } = await render(new Select(['No, abort', `Yes, proceed`]));
-	// 	if (data?.index === 0) {
-	// 		render(`[${chalk.red('x')}] All changes were aborted`);
-	// 		process.exit(0);
-	// 	}
-	// }
+	const recreateIdentity = statements.find((it) => it.type === 'recreate_identity_column');
+	if (
+		recreateIdentity && Boolean(recreateIdentity.column.identity?.to)
+		&& !Boolean(recreateIdentity.column.identity?.from)
+	) {
+		console.log(
+			withStyle.warning(
+				chalk.red.bold('You are about to add an identity property to an existing column.')
+					+ '\n'
+					+ chalk.red(
+						'This operation may result in data loss as the column must be recreated. Identity columns cannot be added to existing ones and do not permit manual value insertion.',
+					)
+					+ '\n'
+					+ chalk.red('All existing data in the column will be overwritten with new identity values'),
+			),
+		);
+	}
 
 	writeResult({
 		snapshot: snapshot,
@@ -96,8 +95,14 @@ export const handle = async (config: GenerateConfig) => {
 export const handleExport = async (config: ExportConfig) => {
 	const filenames = prepareFilenames(config.schema);
 	const res = await prepareFromSchemaFiles(filenames);
-	const schema = fromDrizzleSchema(res, config.casing);
-	const { ddl } = interimToDDL(schema.schema);
+	const { schema, errors } = fromDrizzleSchema(res, config.casing);
+
+	if (errors.length > 0) {
+		console.log(errors.map((it) => mssqlSchemaError(it)).join('\n'));
+		process.exit(1);
+	}
+
+	const { ddl } = interimToDDL(schema);
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
 	console.log(sqlStatements.join('\n'));
 };
