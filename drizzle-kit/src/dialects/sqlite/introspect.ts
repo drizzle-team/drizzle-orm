@@ -79,9 +79,7 @@ export const fromDatabase = async (
 			and m.tbl_name NOT LIKE '\\_litestream\\_%' ESCAPE '\\'
 			and m.tbl_name NOT LIKE 'libsql\\_%' ESCAPE '\\'
 			and m.tbl_name  NOT LIKE 'sqlite\\_%' ESCAPE '\\'
-		ORDER BY m.name COLLATE NOCASE, p.cid
-		;
-    `,
+		ORDER BY p.cid;`,
 	).then((columns) => columns.filter((it) => tablesFilter(it.table)));
 
 	const views = await db.query<{

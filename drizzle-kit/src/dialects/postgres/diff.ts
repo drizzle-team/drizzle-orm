@@ -711,6 +711,28 @@ export const ddlDiff = async (
 		})
 	);
 	const columnAlters = alters.filter((it) => it.entityType === 'columns').filter((it) => {
+		/*
+			from: { value: '2023-02-28 16:18:31.18', type: 'string' },
+			to: { value: "'2023-02-28 16:18:31.18'", type: 'unknown' }
+	 	*/
+		if (
+			it.default
+			&& it.default.from?.type === 'string'
+			&& it.default.to?.type === 'unknown'
+			&& `'${it.default.from.value}'` === it.default.to.value
+		) {
+			delete it.default;
+		}
+
+		if (
+			it.default
+			&& it.default.from?.type === 'unknown'
+			&& it.default.to?.type === 'string'
+			&& `'${it.default.to.value}'` === it.default.from.value
+		) {
+			delete it.default;
+		}
+
 		if (it.default && it.default.from?.value === it.default.to?.value) {
 			delete it.default;
 		}
