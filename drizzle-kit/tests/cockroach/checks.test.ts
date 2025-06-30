@@ -130,7 +130,8 @@ test('alter check constraint', async (t) => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0 = [
-		'ALTER TABLE "users" DROP CONSTRAINT "some_check_name", ADD CONSTRAINT "some_check_name" CHECK ("users"."age" > 10);',
+		'ALTER TABLE "users" DROP CONSTRAINT "some_check_name";',
+		'ALTER TABLE "users" ADD CONSTRAINT "some_check_name" CHECK ("users"."age" > 10);',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -227,7 +228,8 @@ test('db has checks. Push with same names', async () => {
 	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
 	const st0: string[] = [
-		'ALTER TABLE "test" DROP CONSTRAINT "some_check", ADD CONSTRAINT "some_check" CHECK ("test"."values" > 100);',
+		'ALTER TABLE "test" DROP CONSTRAINT "some_check";',
+		'ALTER TABLE "test" ADD CONSTRAINT "some_check" CHECK ("test"."values" > 100);',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);

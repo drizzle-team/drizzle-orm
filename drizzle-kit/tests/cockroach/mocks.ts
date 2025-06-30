@@ -367,7 +367,7 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 	};
 
 	const { db, clear } = kit;
-	if (pre) push({ db, to: pre });
+	if (pre) await push({ db, to: pre });
 	const { sqlStatements: st1 } = await push({ db, to: init });
 	const { sqlStatements: st2 } = await push({ db, to: init });
 
@@ -387,7 +387,7 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 	if (st2.length > 0) res.push(`Unexpected subsequent init:\n${st2}`);
 
 	// introspect to schema
-	console.time();
+	// console.time();
 	const schema = await fromDatabaseForDrizzle(db);
 
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
@@ -411,9 +411,9 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 		res.push(`Default type mismatch after diff:\n${`./${path}`}`);
 	}
 
-	console.timeEnd();
+	// console.timeEnd();
 
-	await measure(clear(), 'clir');
+	await clear();
 
 	config.hasDefault = false;
 	config.default = undefined;
@@ -448,8 +448,8 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 	};
 
 	if (pre) await push({ db, to: pre });
-	await push({ db, to: schema3, log: 'statements' });
-	const { sqlStatements: st4 } = await push({ db, to: schema4, log: 'statements' });
+	await push({ db, to: schema3 });
+	const { sqlStatements: st4 } = await push({ db, to: schema4 });
 
 	const expectedAddColumn = `ALTER TABLE "table" ADD COLUMN "column" ${sqlType} DEFAULT ${expectedDefault};`;
 	if (st4.length !== 1 || st4[0] !== expectedAddColumn) {
@@ -504,13 +504,12 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 	let timeLeft = 20000;
 	do {
 		try {
-			client = await(new Pool({ connectionString: url })).connect();
+			client = await (new Pool({ connectionString: url })).connect();
 
 			await client.query('DROP DATABASE defaultdb;');
 			await client.query('CREATE DATABASE defaultdb;');
 
-			await client.query('CREATE EXTENSION IF NOT EXISTS postgis;');
-			await client.query('CREATE EXTENSION IF NOT EXISTS vector;');
+			await client.query('SET autocommit_before_ddl = OFF;'); // for transactions to work
 			await client.query(`SET CLUSTER SETTING feature.vector_index.enabled = true;`);
 
 			if (tx) {
