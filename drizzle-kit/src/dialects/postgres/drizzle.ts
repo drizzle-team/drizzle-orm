@@ -169,7 +169,7 @@ export const defaultFromColumn = (
 		let sql = dialect.sqlToQuery(def).sql;
 
 		// TODO: check if needed
-		
+
 		// const isText = /^'(?:[^']|'')*'$/.test(sql);
 		// sql = isText ? trimChar(sql, "'") : sql;
 
