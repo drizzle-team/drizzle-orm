@@ -15,7 +15,7 @@ let client: mssql.ConnectionPool;
 let db: MsSqlDatabase<any, any>;
 
 beforeAll(async () => {
-	const { options, container } = await createDockerDB();
+	const { options, container } = await createDockerDB('mssql');
 	mssqlContainer = container;
 
 	const sleep = 1000;
@@ -28,6 +28,7 @@ beforeAll(async () => {
 			await client.connect();
 			db = drizzle(client);
 			connected = true;
+			// console.log('mssql test connection is successfull.')
 			break;
 		} catch (e) {
 			lastError = e;

@@ -3,6 +3,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
 	test: {
 		include: [
+			'./tests/singlestore/**/*.test.ts',
 			'./tests/cockroach/**/*.test.ts',
 			'./tests/mssql/**/*.test.ts',
 			'./tests/pg/**/*.test.ts',
@@ -13,8 +14,8 @@ export default defineConfig({
 		typecheck: {
 			tsconfig: 'tsconfig.json',
 		},
-		testTimeout: 1000000,
-		hookTimeout: 1000000,
+		testTimeout: 100000,
+		hookTimeout: 100000,
 		isolate: true,
 		poolOptions: {
 			threads: {
