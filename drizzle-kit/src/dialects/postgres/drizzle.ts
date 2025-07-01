@@ -26,6 +26,7 @@ import {
 	PgSchema,
 	PgSequence,
 	PgTable,
+	PgVector,
 	PgView,
 	uniqueKeyName,
 	UpdateDeleteAction,
@@ -55,6 +56,7 @@ import type {
 } from './ddl';
 import {
 	buildArrayString,
+	defaultForVector,
 	defaultNameForFK,
 	defaultNameForPK,
 	indexName,
@@ -155,34 +157,6 @@ type JsonValue = string | number | boolean | null | JsonObject | JsonArray;
 type JsonObject = { [key: string]: JsonValue };
 type JsonArray = JsonValue[];
 
-type MapperFunction<T = any> = (value: JsonValue, key?: string | number, parent?: JsonObject | JsonArray) => T;
-
-function mapJsonValues<T = any>(
-	obj: JsonValue,
-	mapper: MapperFunction<T>,
-): any {
-	function recurse(value: JsonValue, key?: string | number, parent?: JsonObject | JsonArray): any {
-		// Apply mapper to current value first
-		const mappedValue = mapper(value, key, parent);
-
-		// If the mapped value is an object or array, recurse into it
-		if (Array.isArray(mappedValue)) {
-			return mappedValue.map((item, index) => recurse(item, index, mappedValue));
-		} else if (mappedValue !== null && typeof mappedValue === 'object') {
-			const result: any = {};
-			for (const [k, v] of Object.entries(mappedValue)) {
-				result[k] = recurse(v, k, mappedValue as any);
-			}
-			return result;
-		}
-
-		// Return scalar values as-is
-		return mappedValue;
-	}
-
-	return recurse(obj);
-}
-
 export const defaultFromColumn = (
 	base: AnyPgColumn | AnyGelColumn,
 	def: unknown,
@@ -194,12 +168,14 @@ export const defaultFromColumn = (
 	if (is(def, SQL)) {
 		let sql = dialect.sqlToQuery(def).sql;
 
-		const isText = /^'(?:[^']|'')*'$/.test(sql);
-		sql = isText ? trimChar(sql, "'") : sql;
+		// TODO: check if needed
+
+		// const isText = /^'(?:[^']|'')*'$/.test(sql);
+		// sql = isText ? trimChar(sql, "'") : sql;
 
 		return {
 			value: sql,
-			type: isText ? 'string' : 'unknown',
+			type: 'unknown',
 		};
 	}
 
@@ -241,6 +217,10 @@ export const defaultFromColumn = (
 			}),
 			type: 'string',
 		};
+	}
+
+	if (is(base, PgVector)) {
+		return defaultForVector(def as any);
 	}
 
 	const sqlTypeLowered = base.getSQLType().toLowerCase();
@@ -311,6 +291,7 @@ export const defaultFromColumn = (
 	const value = dimensions > 0 && Array.isArray(def)
 		? buildArrayString(def, sqlTypeLowered)
 		: String(def);
+
 	return {
 		value: value,
 		type: 'string',

@@ -1,6 +1,6 @@
-import { escapeSingleQuotes as escapeQuotes, stringifyArray, trimChar } from 'src/utils';
-import { parseArray } from 'src/utils/parse-pgarray';
+import { stringifyArray, stringifyTuplesArray, trimChar } from '../../utils';
 import { assertUnreachable } from '../../utils';
+import { parseArray } from '../../utils/parse-pgarray';
 import { hash } from '../common';
 import { Column, PostgresEntities } from './ddl';
 
@@ -195,6 +195,16 @@ export const splitExpressions = (input: string | null): string[] => {
 	return expressions.filter((s) => s.length > 0);
 };
 
+type DefaultMapper<IN> = (value: IN | IN[]) => Column['default'];
+
+export const defaultForVector: DefaultMapper<[number, number, number]> = (value) => {
+	const res = stringifyTuplesArray(value, 'sql', (x: number[], depth: number) => {
+		const res = x.length > 0 ? `[${x[0]},${x[1]},${x[2]}]` : '{}';
+		return depth === 0 ? res : `"${res}"`;
+	});
+	return { value: `'${res}'`, type: 'unknown' };
+};
+
 // TODO: check
 // export const splitExpressions = (input: string | null): string[] => {
 // 	if (!input) return [];
@@ -335,6 +345,10 @@ export const defaultForColumn = (
 
 	// trim ::type and []
 	let value = trimDefaultValueSuffix(def);
+
+	if (type.startsWith('vector')) {
+		return { value: value, type: 'unknown' };
+	}
 
 	// numeric stores 99 as '99'::numeric
 	value = type === 'numeric' || type.startsWith('numeric(') ? trimChar(value, "'") : value;

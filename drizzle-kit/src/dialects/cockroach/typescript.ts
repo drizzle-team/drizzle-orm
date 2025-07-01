@@ -380,7 +380,7 @@ export const ddlToTypeScript = (
 
 		const values = Object.values(it.values)
 			.map((it) => {
-				return `\`${it.replace('`', '\\`')}\``;
+				return `\`${it.replaceAll('\\', '\\\\').replace('`', '\\`')}\``;
 			})
 			.join(', ');
 		return `export const ${withCasing(paramName, casing)} = ${func}("${it.name}", [${values}])\n`;
@@ -617,6 +617,7 @@ const mapDefault = (
 			|| lowered === 'string'
 			|| lowered === 'inet'
 		? (x: string) => {
+			x = x.replaceAll('\\', '\\\\');
 			if (dimensions === 0) {
 				return `\`${x.replaceAll('`', '\\`').replaceAll("''", "'")}\``;
 			}

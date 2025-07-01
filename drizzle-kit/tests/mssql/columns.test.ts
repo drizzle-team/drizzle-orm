@@ -406,14 +406,13 @@ test.todo('rename column #3. Part of check constraint', async (t) => {
 		'new_schema.users.id->new_schema.users.id1',
 	]);
 
-	await push({ db, to: schema1, log: 'statements' });
+	await push({ db, to: schema1 });
 	const { sqlStatements: pst } = await push({
 		db,
 		to: schema2,
 		renames: [
 			'new_schema.users.id->new_schema.users.id1',
 		],
-		log: 'statements',
 	});
 
 	const st0 = [
@@ -689,12 +688,11 @@ test('rename column and pk #3', async (t) => {
 		`dbo.users.compositePK->dbo.users.compositePK1`,
 	]);
 
-	await push({ db, to: schema1, log: 'statements' });
+	await push({ db, to: schema1 });
 	const { sqlStatements: pst } = await push({
 		db,
 		to: schema2,
 		renames: [`dbo.users.id2->dbo.users.id3`, `dbo.users.compositePK->dbo.users.compositePK1`],
-		log: 'statements',
 	});
 
 	const { sqlStatements: pst1 } = await push({ db, to: schema2 });
@@ -2012,12 +2010,11 @@ test('drop identity from existing column #21. Rename Table + Rename column. Drop
 		'dbo.new_users.id->dbo.new_users.id1',
 	]);
 
-	await push({ db, to: schema1, log: 'statements' });
+	await push({ db, to: schema1 });
 	const { sqlStatements: pst } = await push({
 		db,
 		to: schema2,
 		renames: ['dbo.users->dbo.new_users', 'dbo.new_users.id->dbo.new_users.id1'],
-		log: 'statements',
 	});
 
 	const st0 = [

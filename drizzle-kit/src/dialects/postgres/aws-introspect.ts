@@ -80,6 +80,11 @@ export const fromDatabase = async (
 		count: number,
 		status: IntrospectStatus,
 	) => void = () => {},
+	queryCallback: (
+		id: string,
+		rows: Record<string, unknown>[],
+		error: Error | null,
+	) => void = () => {},
 ): Promise<InterimSchema> => {
 	const schemas: Schema[] = [];
 	const enums: Enum[] = [];
@@ -112,28 +117,37 @@ export const fromDatabase = async (
 	// SHOW default_table_access_method;
 	// SELECT current_setting('default_table_access_method') AS default_am;
 
-	const opsQuery = db.query<OP>(`
-        SELECT 
-            pg_opclass.oid as "oid",
-            opcdefault as "default", 
-            amname as "name"
-        FROM pg_opclass
-        LEFT JOIN pg_am on pg_opclass.opcmethod = pg_am.oid
-        ORDER BY lower(amname);
-        `);
-
 	const accessMethodsQuery = db.query<{ oid: string; name: string }>(
 		`SELECT oid, amname as name FROM pg_am WHERE amtype = 't' ORDER BY lower(amname);`,
-	);
+	).then((rows) => {
+		queryCallback('accessMethods', rows, null);
+		return rows;
+	}).catch((error) => {
+		queryCallback('accessMethods', [], error);
+		throw error;
+	});
 
 	const tablespacesQuery = db.query<{
 		oid: string;
 		name: string;
-	}>('SELECT oid, spcname as "name" FROM pg_tablespace ORDER BY lower(spcname)');
+	}>('SELECT oid, spcname as "name" FROM pg_tablespace ORDER BY lower(spcname)').then((rows) => {
+		queryCallback('tablespaces', rows, null);
+		return rows;
+	}).catch((error) => {
+		queryCallback('tablespaces', [], error);
+		throw error;
+	});
 
-	const namespacesQuery = db.query<Namespace>('SELECT oid, nspname as name FROM pg_namespace ORDER BY lower(nspname)');
+	const namespacesQuery = db.query<Namespace>('SELECT oid, nspname as name FROM pg_namespace ORDER BY lower(nspname)')
+		.then((rows) => {
+			queryCallback('namespaces', rows, null);
+			return rows;
+		}).catch((error) => {
+			queryCallback('namespaces', [], error);
+			throw error;
+		});
 
-	const defaultsQuery = await db.query<{
+	const defaultsQuery = db.query<{
 		tableId: string;
 		ordinality: number;
 		expression: string;
@@ -144,20 +158,20 @@ export const fromDatabase = async (
             pg_get_expr(adbin, adrelid) AS "expression"
         FROM
             pg_attrdef;
-    `);
+    `).then((rows) => {
+		queryCallback('defaults', rows, null);
+		return rows;
+	}).catch((error) => {
+		queryCallback('defaults', [], error);
+		throw error;
+	});
 
-	const [ops, ams, tablespaces, namespaces, defaultsList] = await Promise.all([
-		opsQuery,
+	const [ams, tablespaces, namespaces, defaultsList] = await Promise.all([
 		accessMethodsQuery,
 		tablespacesQuery,
 		namespacesQuery,
 		defaultsQuery,
 	]);
-
-	const opsById = ops.reduce((acc, it) => {
-		acc[it.oid] = it;
-		return acc;
-	}, {} as Record<string, OP>);
 
 	const { system, other } = namespaces.reduce<{ system: Namespace[]; other: Namespace[] }>(
 		(acc, it) => {
@@ -209,7 +223,14 @@ export const fromDatabase = async (
                 WHERE
                     relkind IN ('r', 'v', 'm')
                     AND relnamespace IN (${filteredNamespacesIds.join(', ')})
-                ORDER BY relnamespace, lower(relname);`);
+                ORDER BY relnamespace, lower(relname);
+	`).then((rows) => {
+			queryCallback('tables', rows, null);
+			return rows;
+		}).catch((error) => {
+			queryCallback('tables', [], error);
+			throw error;
+		});
 
 	const viewsList = tablesList.filter((it) => it.kind === 'v' || it.kind === 'm');
 
@@ -263,7 +284,13 @@ export const fromDatabase = async (
         FROM
             pg_depend
         where ${filterByTableIds ? ` refobjid in ${filterByTableIds}` : 'false'};`,
-	);
+	).then((rows) => {
+		queryCallback('depend', rows, null);
+		return rows;
+	}).catch((error) => {
+		queryCallback('depend', [], error);
+		throw error;
+	});
 
 	const enumsQuery = db
 		.query<{
@@ -286,7 +313,14 @@ export const fromDatabase = async (
                 WHERE
                     pg_type.typtype = 'e'
                     AND typnamespace IN (${filteredNamespacesIds.join(',')})
-                ORDER BY pg_type.oid, pg_enum.enumsortorder`);
+                ORDER BY pg_type.oid, pg_enum.enumsortorder
+		`).then((rows) => {
+			queryCallback('enums', rows, null);
+			return rows;
+		}).catch((error) => {
+			queryCallback('enums', [], error);
+			throw error;
+		});
 
 	// fetch for serials, adrelid = tableid
 	const serialsQuery = db
@@ -302,7 +336,14 @@ export const fromDatabase = async (
                 pg_get_expr(adbin, adrelid) as "expression"
             FROM
                 pg_attrdef
-            WHERE ${filterByTableIds ? ` adrelid in ${filterByTableIds}` : 'false'}`);
+            WHERE ${filterByTableIds ? ` adrelid in ${filterByTableIds}` : 'false'}
+	`).then((rows) => {
+			queryCallback('serials', rows, null);
+			return rows;
+		}).catch((error) => {
+			queryCallback('serials', [], error);
+			throw error;
+		});
 
 	const sequencesQuery = db.query<{
 		schema: string;
@@ -327,7 +368,14 @@ export const fromDatabase = async (
         FROM pg_sequence
         LEFT JOIN pg_class ON pg_sequence.seqrelid=pg_class.oid
         WHERE relnamespace IN (${filteredNamespacesIds.join(',')})
-        ORDER BY relnamespace, lower(relname);`);
+        ORDER BY relnamespace, lower(relname);
+	`).then((rows) => {
+		queryCallback('sequences', rows, null);
+		return rows;
+	}).catch((error) => {
+		queryCallback('sequences', [], error);
+		throw error;
+	});
 
 	// I'm not yet aware of how we handle policies down the pipeline for push,
 	// and since postgres does not have any default policies, we can safely fetch all of them for now
@@ -353,13 +401,26 @@ export const fromDatabase = async (
             qual as "using", 
             with_check as "withCheck" 
         FROM pg_policies
-        ORDER BY lower(schemaname), lower(tablename);`);
+        ORDER BY lower(schemaname), lower(tablename);
+	`).then((rows) => {
+		queryCallback('policies', rows, null);
+		return rows;
+	}).catch((error) => {
+		queryCallback('policies', [], error);
+		throw error;
+	});
 
-	const rolesQuery = await db.query<
+	const rolesQuery = db.query<
 		{ rolname: string; rolinherit: boolean; rolcreatedb: boolean; rolcreaterole: boolean }
 	>(
 		`SELECT rolname, rolinherit, rolcreatedb, rolcreaterole FROM pg_roles ORDER BY lower(rolname);`,
-	);
+	).then((rows) => {
+		queryCallback('roles', rows, null);
+		return rows;
+	}).catch((error) => {
+		queryCallback('roles', [], error);
+		throw error;
+	});
 
 	const constraintsQuery = db.query<{
 		oid: string;
@@ -392,7 +453,13 @@ export const fromDatabase = async (
       pg_constraint
     WHERE ${filterByTableIds ? ` conrelid in ${filterByTableIds}` : 'false'}
     ORDER BY conrelid, contype, lower(conname);
-  `);
+  `).then((rows) => {
+		queryCallback('constraints', rows, null);
+		return rows;
+	}).catch((error) => {
+		queryCallback('constraints', [], error);
+		throw error;
+	});
 
 	type ColumnMetadata = {
 		seqId: string | null;
@@ -469,7 +536,14 @@ export const fromDatabase = async (
             ${filterByTableAndViewIds ? ` attrelid in ${filterByTableAndViewIds}` : 'false'}
                 AND attnum > 0
                 AND attisdropped = FALSE
-            ORDER BY attnum;`);
+            ORDER BY attnum;
+	`).then((rows) => {
+		queryCallback('columns', rows, null);
+		return rows;
+	}).catch((error) => {
+		queryCallback('columns', [], error);
+		throw error;
+	});
 
 	const [dependList, enumsList, serialsList, sequencesList, policiesList, rolesList, constraintsList, columnsList] =
 		await Promise
@@ -792,7 +866,7 @@ export const fromDatabase = async (
 		expression: string | null;
 		where: string;
 		columnOrdinals: number[];
-		opclassIds: number[];
+		opclasses: { oid: number; name: string; default: boolean }[];
 		options: number[];
 		isUnique: boolean;
 		isPrimary: boolean;
@@ -812,7 +886,7 @@ export const fromDatabase = async (
         relname AS "name",
         am.amname AS "accessMethod",
         reloptions AS "with",
-        row_to_json(metadata.*) AS "metadata"
+        row_to_json(metadata.*) as "metadata"
       FROM
         pg_class
       JOIN pg_am am ON am.oid = pg_class.relam
@@ -822,10 +896,22 @@ export const fromDatabase = async (
           pg_get_expr(indpred, indrelid) AS "where",
           indrelid::int AS "tableId",
           indkey::int[] as "columnOrdinals",
-          indclass::int[] as "opclassIds",
           indoption::int[] as "options",
           indisunique as "isUnique",
-          indisprimary as "isPrimary"
+          indisprimary as "isPrimary",
+		  array(
+			SELECT
+			  json_build_object(
+				'oid', opclass.oid,
+				'name', pg_am.amname,
+				'default', pg_opclass.opcdefault
+			  )
+			FROM
+			  unnest(indclass) WITH ORDINALITY AS opclass(oid, ordinality)
+			JOIN pg_opclass ON opclass.oid = pg_opclass.oid
+			JOIN pg_am ON pg_opclass.opcmethod = pg_am.oid
+			ORDER BY opclass.ordinality
+		  ) as "opclasses"
         FROM
           pg_index
         WHERE
@@ -833,8 +919,14 @@ export const fromDatabase = async (
       ) metadata ON TRUE
       WHERE
         relkind = 'i' and ${filterByTableIds ? `metadata."tableId" in ${filterByTableIds}` : 'false'}
-      ORDER BY relnamespace, lower(relname);
-    `);
+	  ORDER BY relnamespace, lower(relname);
+    `).then((rows) => {
+		queryCallback('indexes', rows, null);
+		return rows;
+	}).catch((error) => {
+		queryCallback('indexes', [], error);
+		throw error;
+	});
 
 	for (const idx of idxs) {
 		const metadata = JSON.parse(idx.metadata) as IndexMetadata;
@@ -843,7 +935,6 @@ export const fromDatabase = async (
 		const forUnique = metadata.isUnique && constraintsList.some((x) => x.type === 'u' && x.indexId === idx.oid);
 		const forPK = metadata.isPrimary && constraintsList.some((x) => x.type === 'p' && x.indexId === idx.oid);
 
-		const opclasses = metadata.opclassIds.map((it) => opsById[it]!);
 		const expr = splitExpressions(metadata.expression);
 
 		const table = tablesList.find((it) => it.oid === String(metadata.tableId))!;
@@ -886,7 +977,7 @@ export const fromDatabase = async (
 					type: 'expression',
 					value: expr[k],
 					options: opts[i],
-					opclass: opclasses[i],
+					opclass: metadata.opclasses[i],
 				});
 				k += 1;
 			} else {
@@ -894,12 +985,18 @@ export const fromDatabase = async (
 					return column.tableId == String(metadata.tableId) && column.ordinality === ordinal;
 				});
 				if (!column) throw new Error(`missing column: ${metadata.tableId}:${ordinal}`);
-				res.push({
-					type: 'column',
-					value: column,
-					options: opts[i],
-					opclass: opclasses[i],
-				});
+
+				// ! options and opclass can be undefined when index have "INCLUDE" columns (columns from "INCLUDE" don't have options and opclass)
+				const options = opts[i] as typeof opts[number] | undefined;
+				const opclass = metadata.opclasses[i] as { name: string; default: boolean } | undefined;
+				if (options && opclass) {
+					res.push({
+						type: 'column',
+						value: column,
+						options: opts[i],
+						opclass: metadata.opclasses[i],
+					});
+				}
 			}
 		}
 

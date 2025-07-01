@@ -208,7 +208,7 @@ export function buildArrayString(array: any[], sqlType: string, options: string 
 
 			if (typeof value === 'string') {
 				if (/^[a-zA-Z0-9./_':-]+$/.test(value)) return value.replaceAll("'", "''");
-				return `"${value.replaceAll("'", "''").replaceAll('"', '\\"')}"`;
+				return `"${value.replaceAll('\\', '\\\\').replaceAll("'", "''").replaceAll('"', '\\"')}"`;
 			}
 
 			return `"${value}"`;
@@ -426,7 +426,7 @@ export const defaultForColumn = (
 
 	if (type === 'jsonb') {
 		const removedEscape = value.startsWith("e'")
-			? value.replace("e'", "'").replaceAll("\\'", "''").replaceAll('\\"', '"')
+			? value.replace("e'", "'").replaceAll("\\'", "''").replaceAll('\\"', '"').replaceAll('\\\\', '\\')
 			: value;
 		const res = JSON.stringify(JSON.parse(removedEscape.slice(1, removedEscape.length - 1).replaceAll("''", "'")));
 		return {
@@ -461,7 +461,7 @@ export const defaultForColumn = (
 	// e'text\'text' and 'text'
 	if (/^e'|'(?:[^']|'')*'$/.test(value)) {
 		let removedEscape = value.startsWith("e'") ? value.replace("e'", "'") : value;
-		removedEscape = removedEscape.replaceAll("\\'", "''").replaceAll('\\"', '"');
+		removedEscape = removedEscape.replaceAll("\\'", "''").replaceAll('\\"', '"').replaceAll('\\\\', '\\');
 
 		const res = removedEscape.substring(1, removedEscape.length - 1);
 
