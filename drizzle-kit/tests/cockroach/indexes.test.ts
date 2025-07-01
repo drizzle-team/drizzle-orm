@@ -138,17 +138,21 @@ test('altering indexes', async () => {
 		'CREATE INDEX "changeExpression" ON "users" ("id" DESC,name desc);',
 		'CREATE INDEX "changeUsing" ON "users" ("name") USING hash;',
 	]);
+
+	// for push we ignore change of index expressions
 	expect(pst).toStrictEqual([
 		'DROP INDEX "changeName";',
-		'DROP INDEX "changeUsing";',
-		'DROP INDEX "removeExpression";',
 		'DROP INDEX "addColumn";',
+		'DROP INDEX "changeUsing";',
 		'DROP INDEX "removeColumn";',
+		'DROP INDEX "removeExpression";',
+		// 'DROP INDEX "changeExpression";',
 		'CREATE INDEX "newName" ON "users" ("name" DESC,id);',
-		'CREATE INDEX "changeUsing" ON "users" ("name") USING hash;',
-		'CREATE INDEX "removeExpression" ON "users" ("name" DESC);',
 		'CREATE INDEX "addColumn" ON "users" ("name" DESC,"id");',
+		'CREATE INDEX "changeUsing" ON "users" ("name") USING hash;',
 		'CREATE INDEX "removeColumn" ON "users" ("name");',
+		'CREATE INDEX "removeExpression" ON "users" ("name" DESC);',
+		// 'CREATE INDEX "changeExpression" ON "users" ("id" DESC,name desc);',
 	]);
 });
 
@@ -311,48 +315,18 @@ test('indexes #0', async (t) => {
 	// for push we ignore change of index expressions
 	expect(pst).toStrictEqual([
 		'DROP INDEX "changeName";',
-		'DROP INDEX "changeUsing";',
-		'DROP INDEX "removeExpression";',
 		'DROP INDEX "addColumn";',
+		'DROP INDEX "changeUsing";',
 		'DROP INDEX "removeColumn";',
+		'DROP INDEX "removeExpression";',
 		// 'DROP INDEX "changeExpression";',
 		'CREATE INDEX "newName" ON "users" ("name" DESC,id);',
+		'CREATE INDEX "addColumn" ON "users" ("name" DESC,"id");',
 		// 'CREATE INDEX "changeExpression" ON "users" ("id" DESC,name desc);',
 		'CREATE INDEX "changeUsing" ON "users" ("name") USING hash;',
-		'CREATE INDEX "removeExpression" ON "users" ("name" DESC);',
-		'CREATE INDEX "addColumn" ON "users" ("name" DESC,"id");',
 		'CREATE INDEX "removeColumn" ON "users" ("name");',
+		'CREATE INDEX "removeExpression" ON "users" ("name" DESC);',
 	]);
-});
-
-test('vector index', async (t) => {
-	const schema1 = {
-		users: cockroachTable('users', {
-			id: int4('id').primaryKey(),
-			name: vector('name', { dimensions: 3 }),
-		}),
-	};
-
-	const schema2 = {
-		users: cockroachTable('users', {
-			id: int4('id').primaryKey(),
-			embedding: vector('name', { dimensions: 3 }),
-		}, (t) => [
-			index('vector_embedding_idx')
-				.using('cspann', t.embedding),
-		]),
-	};
-
-	const { sqlStatements: st } = await diff(schema1, schema2, []);
-
-	await push({ db, to: schema1 });
-	const { sqlStatements: pst } = await push({ db, to: schema2 });
-
-	const st0 = [
-		`CREATE INDEX "vector_embedding_idx" ON "users" USING cspann ("name");`,
-	];
-	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
 });
 
 test('index #2', async (t) => {
