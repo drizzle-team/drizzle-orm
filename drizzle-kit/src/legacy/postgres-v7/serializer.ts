@@ -29,6 +29,7 @@ export type PostgresSchema = Record<
 	| PgMaterializedView
 	| PgRole
 	| PgPolicy
+	| unknown
 >;
 
 export const serializePg = async (

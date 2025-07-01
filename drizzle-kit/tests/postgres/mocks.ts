@@ -20,7 +20,7 @@ import {
 	serial,
 } from 'drizzle-orm/pg-core';
 import { CasingType } from 'src/cli/validations/common';
-import { createDDL, interimToDDL, PostgresDDL, SchemaError } from 'src/dialects/postgres/ddl';
+import { createDDL, fromEntities, interimToDDL, PostgresDDL, SchemaError } from 'src/dialects/postgres/ddl';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/postgres/diff';
 import {
 	defaultFromColumn,
@@ -51,6 +51,9 @@ import { fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
 import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
 import { DB } from 'src/utils';
 import 'zx/globals';
+import { upToV8 } from 'src/cli/commands/up-postgres';
+import { serializePg } from 'src/legacy/postgres-v7/serializer';
+import { diff as legacyDiff } from 'src/legacy/postgres-v7/snapshotsDiffer';
 
 mkdirSync(`tests/postgres/tmp/`, { recursive: true });
 
@@ -67,6 +70,7 @@ export type PostgresSchema = Record<
 	| PgMaterializedView
 	| PgRole
 	| PgPolicy
+	| unknown
 >;
 
 class MockError extends Error {
@@ -379,6 +383,31 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	}
 
 	return res;
+};
+
+export const diffSnapshotV7 = async (db: DB, schema: PostgresSchema) => {
+	const res = await serializePg(schema, 'camelCase');
+	const { sqlStatements } = await legacyDiff({ right: res });
+
+	for (const st of sqlStatements) {
+		await db.query(st);
+	}
+
+	const { snapshot, hints } = upToV8(res);
+	const ddl = fromEntities(snapshot.ddl);
+
+	const { sqlStatements: st, next } = await diff(ddl, schema, []);
+	const { sqlStatements: pst } = await push({ db, to: schema });
+	const { sqlStatements: st1 } = await diff(next, schema, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema });
+
+	return {
+		step1: st,
+		step2: pst,
+		step3: st1,
+		step4: pst1,
+		all: [...st, ...pst, ...st1, ...pst1],
+	};
 };
 
 export type TestDatabase = {
