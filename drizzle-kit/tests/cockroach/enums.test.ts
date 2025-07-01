@@ -7,7 +7,7 @@ let _: TestDatabase;
 let db: TestDatabase['db'];
 
 beforeAll(async () => {
-	_ = await prepareTestDatabase();
+	_ = await prepareTestDatabase(false); // some of the statements fail in tx
 	db = _.db;
 });
 
