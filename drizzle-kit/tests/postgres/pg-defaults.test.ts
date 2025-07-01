@@ -1380,7 +1380,7 @@ test('sparsevec + sparsevec arrays', async () => {
 	expect.soft(res8).toStrictEqual([]);
 });
 
-test.only('vector + vector arrays', async () => {
+test('vector + vector arrays', async () => {
 	const res1 = await diffDefault(_, vector({ dimensions: 3 }).default([0, -2, 3]), `'[0,-2,3]'`);
 	const res2 = await diffDefault(
 		_,
