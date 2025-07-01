@@ -15,7 +15,7 @@ export const createDockerPostgis = async () => {
 	const pgContainer = await docker.createContainer({
 		Image: image,
 		Env: [`POSTGRES_USER=${user}`, `POSTGRES_PASSWORD=${password}`, `POSTGRES_DATABASE=${database}`],
-		name: `drizzle-integration-tests-${crypto.randomUUID()}`,
+		name: `drizzle-seed-tests-${crypto.randomUUID()}`,
 		HostConfig: {
 			AutoRemove: true,
 			PortBindings: {
