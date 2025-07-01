@@ -47,6 +47,11 @@ export const fromDatabase = async (
 		count: number,
 		status: IntrospectStatus,
 	) => void = () => {},
+	queryCallback: (
+		id: string,
+		rows: Record<string, unknown>[],
+		error: Error | null,
+	) => void = () => {},
 ) => {
 	// TODO: fetch tables and views list with system filter from grammar
 	const dbTableColumns = await db.query<{
@@ -79,10 +84,16 @@ export const fromDatabase = async (
 			and m.tbl_name NOT LIKE '\\_litestream\\_%' ESCAPE '\\'
 			and m.tbl_name NOT LIKE 'libsql\\_%' ESCAPE '\\'
 			and m.tbl_name  NOT LIKE 'sqlite\\_%' ESCAPE '\\'
-		ORDER BY m.name COLLATE NOCASE, p.cid
+		ORDER BY p.cid
 		;
     `,
-	).then((columns) => columns.filter((it) => tablesFilter(it.table)));
+	).then((columns) => {
+		queryCallback('columns', columns, null);
+		return columns.filter((it) => tablesFilter(it.table));
+	}).catch((error) => {
+		queryCallback('columns', [], error);
+		throw error;
+	});
 
 	const views = await db.query<{
 		name: string;
@@ -101,8 +112,9 @@ export const fromDatabase = async (
 			and m.tbl_name  NOT LIKE 'sqlite\\_%' ESCAPE '\\'
 		ORDER BY m.name COLLATE NOCASE
 		;`,
-	).then((views) =>
-		views.filter((it) => tablesFilter(it.name)).map((it): View => {
+	).then((views) => {
+		queryCallback('views', views, null);
+		return views.filter((it) => tablesFilter(it.name)).map((it): View => {
 			const definition = parseViewSQL(it.sql);
 
 			if (!definition) {
@@ -117,8 +129,11 @@ export const fromDatabase = async (
 				isExisting: false,
 				error: null,
 			};
-		})
-	);
+		});
+	}).catch((error) => {
+		queryCallback('views', [], error);
+		throw error;
+	});
 
 	let dbViewColumns: {
 		table: string;
@@ -163,7 +178,13 @@ export const fromDatabase = async (
 			ORDER BY m.name COLLATE NOCASE, p.cid
 			;
 		`,
-		).then((columns) => columns.filter((it) => tablesFilter(it.table)));
+		).then((columns) => {
+			queryCallback('viewColumns', columns, null);
+			return columns.filter((it) => tablesFilter(it.table));
+		}).catch((error) => {
+			queryCallback('viewColumns', [], error);
+			throw error;
+		});
 	} catch (_) {
 		for (const view of views) {
 			try {
@@ -188,7 +209,13 @@ export const fromDatabase = async (
 					ORDER BY p.name COLLATE NOCASE, p.cid
 					;
 					`,
-				);
+				).then((columns) => {
+					queryCallback(`viewColumns:${view.name}`, columns, null);
+					return columns;
+				}).catch((error) => {
+					queryCallback(`viewColumns:${view.name}`, [], error);
+					throw error;
+				});
 				dbViewColumns.push(...viewColumns);
 			} catch (error) {
 				const errorMessage = (error as Error).message;
@@ -210,7 +237,13 @@ export const fromDatabase = async (
     and name != '_litestream_lock' 
     and tbl_name != '_cf_KV' 
     and sql GLOB '*[ *' || CHAR(9) || CHAR(10) || CHAR(13) || ']AUTOINCREMENT[^'']*';`,
-	);
+	).then((tables) => {
+		queryCallback('tablesWithSequences', tables, null);
+		return tables.filter((it) => tablesFilter(it.name));
+	}).catch((error) => {
+		queryCallback('tablesWithSequences', [], error);
+		throw error;
+	});
 
 	const dbIndexes = await db.query<{
 		table: string;
@@ -237,9 +270,14 @@ export const fromDatabase = async (
 		WHERE 
 			m.type = 'table' 
 			and m.tbl_name != '_cf_KV'
-		ORDER BY m.name COLLATE NOCASE
-		;
-		`).then((indexes) => indexes.filter((it) => tablesFilter(it.table)));
+		ORDER BY m.name COLLATE NOCASE;
+	`).then((indexes) => {
+		queryCallback('indexes', indexes, null);
+		return indexes.filter((it) => tablesFilter(it.table));
+	}).catch((error) => {
+		queryCallback('indexes', [], error);
+		throw error;
+	});
 
 	let columnsCount = 0;
 	let tablesCount = new Set();
@@ -388,7 +426,13 @@ export const fromDatabase = async (
 			f.seq as "seq"
 		FROM sqlite_master m, pragma_foreign_key_list(m.name) as f 
 		WHERE m.tbl_name != '_cf_KV';`,
-	).then((fks) => fks.filter((it) => tablesFilter(it.tableFrom)));
+	).then((fks) => {
+		queryCallback('fks', fks, null);
+		return fks.filter((it) => tablesFilter(it.tableFrom));
+	}).catch((error) => {
+		queryCallback('fks', [], error);
+		throw error;
+	});
 	type DBFK = typeof dbFKs[number];
 
 	const fksToColumns = dbFKs.reduce((acc, it) => {

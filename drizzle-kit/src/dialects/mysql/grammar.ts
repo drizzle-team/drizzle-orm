@@ -19,6 +19,22 @@ import { Column, ForeignKey } from './ddl';
 	Drizzle ORM allows real/double({ precision: 6 }) which is only allowed with scale
 */
 
+type InvalidDefault = 'text_no_parentecies';
+export const checkDefault = (value: string, type: string): InvalidDefault | null => {
+	if (
+		(type === 'tinytext' || type === 'mediumtext' || type === 'text' || type === 'longtext'
+			|| type === 'binary' || type === 'varbinary'
+			|| type === 'json') && !value.startsWith('(') && !value.endsWith(')')
+	) {
+		return 'text_no_parentecies';
+	}
+
+	if (type === 'binary' || type === 'varbinary') {
+	}
+
+	return null;
+};
+
 export const nameForForeignKey = (fk: Pick<ForeignKey, 'table' | 'columns' | 'tableTo' | 'columnsTo'>) => {
 	return `fk_${fk.table}_${fk.columns.join('_')}_${fk.tableTo}_${fk.columnsTo.join('_')}_fk`;
 };

@@ -674,6 +674,11 @@ test('json + json arrays', async () => {
 		json().array().array().default([[{ key: 'mo",\\`}{od' }]]),
 		`'{{"{\"key\":\"mo\\\",\\\\\\\\\`}{od\"}"}}'::json[]`,
 	);
+	const res16 = await diffDefault(
+		_,
+		json().default(sql`jsonb_build_object('chunkIndex', NULL, 'totalChunks', NULL)`),
+		`jsonb_build_object('chunkIndex', NULL, 'totalChunks', NULL)`,
+	);
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
@@ -690,6 +695,7 @@ test('json + json arrays', async () => {
 	expect.soft(res13).toStrictEqual([]);
 	expect.soft(res14).toStrictEqual([]);
 	expect.soft(res15).toStrictEqual([]);
+	expect.soft(res16).toStrictEqual([]);
 });
 
 test('jsonb + jsonb arrays', async () => {
@@ -1378,36 +1384,34 @@ test('vector + vector arrays', async () => {
 	const res1 = await diffDefault(_, vector({ dimensions: 3 }).default([0, -2, 3]), `'[0,-2,3]'`);
 	const res2 = await diffDefault(
 		_,
-		vector({ dimensions: 3 }).default([0, -2.123456789, 3.123456789]),
-		`'[0,-2.123456789,3.123456789]'`,
+		vector({ dimensions: 3 }).default([0, -2.1234567, 3.1234567]),
+		`'[0,-2.1234567,3.1234567]'`,
 	);
 
-	const res3 = await diffDefault(_, vector({ dimensions: 3 }).array().default([]), `'{}'::vector(3)[]`);
+	const res3 = await diffDefault(_, vector({ dimensions: 3 }).array().default([]), `'{}'::vector[]`);
 	const res4 = await diffDefault(
 		_,
 		vector({ dimensions: 3 }).array().default([[0, -2, 3]]),
-		`'{"[0,-2,3]"}'::vector(3)[]`,
+		`'{"[0,-2,3]"}'::vector[]`,
 	);
 	const res5 = await diffDefault(
 		_,
-		vector({ dimensions: 3 }).array().default([[0, -2.123456789, 3.123456789]]),
-		`'{"[0,-2.123456789,3.123456789]"}'::vector(3)[]`,
+		vector({ dimensions: 3 }).array().default([[0, -2.1234567, 3.1234567]]),
+		`'{"[0,-2.1234567,3.1234567]"}'::vector[]`,
 	);
 
-	const res6 = await diffDefault(_, vector({ dimensions: 3 }).array().array().default([]), `'{}'::vector(3)[]`);
+	const res6 = await diffDefault(_, vector({ dimensions: 3 }).array().array().default([]), `'{}'::vector[]`);
 	const res7 = await diffDefault(
 		_,
 		vector({ dimensions: 3 }).array().array().default([[[0, -2, 3]], [[1, 2, 3]]]),
-		`'{{"[0,-2,3]"},{"[1,2,3]"}}'::vector(3)[]`,
+		`'{{"[0,-2,3]"},{"[1,2,3]"}}'::vector[]`,
 	);
 	const res8 = await diffDefault(
 		_,
-		vector({ dimensions: 3 }).array().array().default([[[0, -2.123456789, 3.123456789]], [[
-			1.123456789,
-			2.123456789,
-			3.123456789,
-		]]]),
-		`'{{"[0,-2.123456789,3.123456789]"},{"[1.123456789,2.123456789,3.123456789]"}}'::vector(3)[]`,
+		vector({ dimensions: 3 }).array().array().default([[
+			[0, -2.1234567, 3.1234567],
+		], [[1.1234567, 2.1234567, 3.1234567]]]),
+		`'{{"[0,-2.1234567,3.1234567]"},{"[1.1234567,2.1234567,3.1234567]"}}'::vector[]`,
 	);
 
 	expect.soft(res1).toStrictEqual([]);

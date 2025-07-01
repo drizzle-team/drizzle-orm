@@ -36,7 +36,7 @@ import { pg_trgm } from '@electric-sql/pglite/contrib/pg_trgm';
 // @ts-expect-error
 import { vector } from '@electric-sql/pglite/vector';
 import Docker from 'dockerode';
-import { existsSync, rmSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import getPort from 'get-port';
 import crypto from 'node:crypto';
 import { type Client as ClientT } from 'pg';
@@ -51,6 +51,8 @@ import { fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
 import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
 import { DB } from 'src/utils';
 import 'zx/globals';
+
+mkdirSync(`tests/postgres/tmp/`, { recursive: true });
 
 const { Client } = pg;
 
@@ -501,6 +503,7 @@ export const preparePostgisTestDatabase = async (tx: boolean = true): Promise<Te
 		throw lastError;
 	}
 
+	await pgClient!.query(`DROP ACCESS METHOD IF EXISTS drizzle_heap;`);
 	await pgClient!.query(`CREATE ACCESS METHOD drizzle_heap TYPE TABLE HANDLER heap_tableam_handler;`);
 	await pgClient!.query(`CREATE EXTENSION IF NOT EXISTS postgis;`);
 	if (tx) {

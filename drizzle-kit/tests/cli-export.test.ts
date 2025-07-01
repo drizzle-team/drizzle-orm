@@ -26,6 +26,7 @@ test('export #1', async (t) => {
 		dialect: 'postgresql',
 		schema: 'schema.ts',
 		sql: true,
+		casing: undefined,
 	});
 });
 
@@ -37,6 +38,7 @@ test('export #2', async (t) => {
 		dialect: 'postgresql',
 		schema: './schema.ts',
 		sql: true,
+		casing: undefined,
 	});
 });
 
@@ -49,6 +51,7 @@ test('export #3', async (t) => {
 		dialect: 'sqlite',
 		schema: './schema.ts',
 		sql: true,
+		casing: undefined,
 	});
 });
 
