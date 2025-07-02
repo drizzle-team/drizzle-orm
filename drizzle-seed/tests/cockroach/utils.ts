@@ -15,7 +15,7 @@ export async function createDockerDB(): Promise<{ connectionString: string; cont
 	const cockroachdbContainer = await docker.createContainer({
 		Image: image,
 		Cmd: ['start-single-node', '--insecure'],
-		name: `drizzle-integration-tests-${uuidV4()}`,
+		name: `drizzle-seed-tests-${uuidV4()}`,
 		HostConfig: {
 			AutoRemove: true,
 			PortBindings: {

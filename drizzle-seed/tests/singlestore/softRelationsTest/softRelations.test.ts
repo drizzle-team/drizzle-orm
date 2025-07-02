@@ -1,73 +1,41 @@
-import Docker from 'dockerode';
+import retry from 'async-retry';
+import type { Container } from 'dockerode';
 import { sql } from 'drizzle-orm';
-import type { MySql2Database } from 'drizzle-orm/mysql2';
-import { drizzle } from 'drizzle-orm/mysql2';
-import getPort from 'get-port';
+import type { SingleStoreDriverDatabase } from 'drizzle-orm/singlestore';
+import { drizzle } from 'drizzle-orm/singlestore';
 import type { Connection } from 'mysql2/promise';
 import { createConnection } from 'mysql2/promise';
-import { v4 as uuid } from 'uuid';
 import { afterAll, afterEach, beforeAll, expect, test } from 'vitest';
 import { reset, seed } from '../../../src/index.ts';
-import * as schema from './mysqlSchema.ts';
+import { createDockerDB } from '../utils.ts';
+import * as schema from './singlestoreSchema.ts';
 
-let mysqlContainer: Docker.Container;
-let client: Connection;
-let db: MySql2Database;
+let singleStoreContainer: Container;
+let client: Connection | undefined;
+let db: SingleStoreDriverDatabase;
 
-async function createDockerDB(): Promise<string> {
-	const docker = new Docker();
-	const port = await getPort({ port: 3306 });
-	const image = 'mysql:8';
+beforeAll(async () => {
+	const { url: connectionString, container } = await createDockerDB();
+	singleStoreContainer = container;
 
-	const pullStream = await docker.pull(image);
-	await new Promise((resolve, reject) =>
-		// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-		docker.modem.followProgress(pullStream, (err) => err ? reject(err) : resolve(err))
-	);
-
-	mysqlContainer = await docker.createContainer({
-		Image: image,
-		Env: ['MYSQL_ROOT_PASSWORD=mysql', 'MYSQL_DATABASE=drizzle'],
-		name: `drizzle-seed-tests-${uuid()}`,
-		HostConfig: {
-			AutoRemove: true,
-			PortBindings: {
-				'3306/tcp': [{ HostPort: `${port}` }],
-			},
+	client = await retry(async () => {
+		client = await createConnection({ uri: connectionString, supportBigNumbers: true });
+		await client.connect();
+		return client;
+	}, {
+		retries: 20,
+		factor: 1,
+		minTimeout: 250,
+		maxTimeout: 250,
+		randomize: false,
+		onRetry() {
+			client?.end();
 		},
 	});
 
-	await mysqlContainer.start();
-
-	return `mysql://root:mysql@127.0.0.1:${port}/drizzle`;
-}
-
-beforeAll(async () => {
-	const connectionString = await createDockerDB();
-
-	const sleep = 1000;
-	let timeLeft = 40000;
-	let connected = false;
-	let lastError: unknown | undefined;
-	do {
-		try {
-			client = await createConnection(connectionString);
-			await client.connect();
-			db = drizzle(client);
-			connected = true;
-			break;
-		} catch (e) {
-			lastError = e;
-			await new Promise((resolve) => setTimeout(resolve, sleep));
-			timeLeft -= sleep;
-		}
-	} while (timeLeft > 0);
-	if (!connected) {
-		console.error('Cannot connect to MySQL');
-		await client?.end().catch(console.error);
-		await mysqlContainer?.stop().catch(console.error);
-		throw lastError;
-	}
+	await client.query(`CREATE DATABASE IF NOT EXISTS drizzle;`);
+	await client.changeUser({ database: 'drizzle' });
+	db = drizzle(client);
 
 	await db.execute(
 		sql`
@@ -183,7 +151,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
 	await client?.end().catch(console.error);
-	await mysqlContainer?.stop().catch(console.error);
+	await singleStoreContainer?.stop().catch(console.error);
 });
 
 afterEach(async () => {
@@ -246,6 +214,89 @@ test('basic seed, soft relations test', async () => {
 	expect(orders.length).toBe(10);
 	expect(products.length).toBe(10);
 	expect(suppliers.length).toBe(10);
+
+	checkSoftRelations(customers, details, employees, orders, products, suppliers);
+});
+
+test('seed with options.count:11, soft relations test', async () => {
+	await seed(db, schema, { count: 11 });
+
+	const customers = await db.select().from(schema.customers);
+	const details = await db.select().from(schema.details);
+	const employees = await db.select().from(schema.employees);
+	const orders = await db.select().from(schema.orders);
+	const products = await db.select().from(schema.products);
+	const suppliers = await db.select().from(schema.suppliers);
+
+	expect(customers.length).toBe(11);
+	expect(details.length).toBe(11);
+	expect(employees.length).toBe(11);
+	expect(orders.length).toBe(11);
+	expect(products.length).toBe(11);
+	expect(suppliers.length).toBe(11);
+
+	checkSoftRelations(customers, details, employees, orders, products, suppliers);
+});
+
+test('redefine(refine) customers count, soft relations test', async () => {
+	await seed(db, schema, { count: 11 }).refine(() => ({
+		customers: {
+			count: 12,
+		},
+	}));
+
+	const customers = await db.select().from(schema.customers);
+	const details = await db.select().from(schema.details);
+	const employees = await db.select().from(schema.employees);
+	const orders = await db.select().from(schema.orders);
+	const products = await db.select().from(schema.products);
+	const suppliers = await db.select().from(schema.suppliers);
+
+	expect(customers.length).toBe(12);
+	expect(details.length).toBe(11);
+	expect(employees.length).toBe(11);
+	expect(orders.length).toBe(11);
+	expect(products.length).toBe(11);
+	expect(suppliers.length).toBe(11);
+
+	checkSoftRelations(customers, details, employees, orders, products, suppliers);
+});
+
+test('redefine(refine) all tables count, soft relations test', async () => {
+	await seed(db, schema, { count: 11 }).refine(() => ({
+		customers: {
+			count: 12,
+		},
+		details: {
+			count: 13,
+		},
+		employees: {
+			count: 14,
+		},
+		orders: {
+			count: 15,
+		},
+		products: {
+			count: 16,
+		},
+		suppliers: {
+			count: 17,
+		},
+	}));
+
+	const customers = await db.select().from(schema.customers);
+	const details = await db.select().from(schema.details);
+	const employees = await db.select().from(schema.employees);
+	const orders = await db.select().from(schema.orders);
+	const products = await db.select().from(schema.products);
+	const suppliers = await db.select().from(schema.suppliers);
+
+	expect(customers.length).toBe(12);
+	expect(details.length).toBe(13);
+	expect(employees.length).toBe(14);
+	expect(orders.length).toBe(15);
+	expect(products.length).toBe(16);
+	expect(suppliers.length).toBe(17);
 
 	checkSoftRelations(customers, details, employees, orders, products, suppliers);
 });
