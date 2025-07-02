@@ -3,7 +3,7 @@ import { Column, ForeignKey } from './ddl';
 
 const namedCheckPattern = /CONSTRAINT\s*["']?(\w+)["']?\s*CHECK\s*\((.*?)\)/gi;
 const unnamedCheckPattern = /CHECK\s*\((.*?)\)/gi;
-const viewAsStatementRegex = new RegExp(`\\bAS\\b\\s+(SELECT.+)$`, 'i');
+const viewAsStatementRegex = new RegExp(`\\bAS\\b\\s+(SELECT.+)$`, 'is'); // 'i' for case-insensitive, 's' for dotall mode
 
 export const nameForForeignKey = (fk: Pick<ForeignKey, 'table' | 'columns' | 'tableTo' | 'columnsTo'>) => {
 	return `fk_${fk.table}_${fk.columns.join('_')}_${fk.tableTo}_${fk.columnsTo.join('_')}_fk`;
