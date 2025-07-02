@@ -1072,7 +1072,7 @@ test('all types', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test.only('drop primary key', async () => {
+test('drop primary key', async () => {
 	const from = {
 		table: mysqlTable('table', {
 			id: int().primaryKey(),

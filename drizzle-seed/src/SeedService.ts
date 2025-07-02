@@ -9,10 +9,13 @@ import { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
 import { generatorsMap } from './generators/GeneratorFuncs.ts';
 import type { AbstractGenerator, GenerateArray, GenerateWeightedCount } from './generators/Generators.ts';
 import type {
+	DbType,
+	GeneratedValueType,
 	GeneratePossibleGeneratorsColumnType,
 	GeneratePossibleGeneratorsTableType,
 	RefinementsType,
 	TableGeneratorsType,
+	TableType,
 } from './types/seedService.ts';
 import type { Prettify, Relation, Table } from './types/tables.ts';
 
@@ -20,11 +23,14 @@ import type { CockroachTable, CockroachTableWithColumns } from 'drizzle-orm/cock
 import { CockroachDatabase } from 'drizzle-orm/cockroach-core';
 import type { MsSqlTable, MsSqlTableWithColumns } from 'drizzle-orm/mssql-core';
 import { getTableConfig, MsSqlDatabase } from 'drizzle-orm/mssql-core';
+import type { SingleStoreTable, SingleStoreTableWithColumns } from 'drizzle-orm/singlestore-core';
+import { SingleStoreDatabase } from 'drizzle-orm/singlestore-core';
 import { selectGeneratorForCockroachColumn } from './cockroach-core/selectGensForColumn.ts';
 import { latestVersion } from './generators/apiVersion.ts';
 import { selectGeneratorForMssqlColumn } from './mssql-core/selectGensForColumn.ts';
 import { selectGeneratorForMysqlColumn } from './mysql-core/selectGensForColumn.ts';
 import { selectGeneratorForPostgresColumn } from './pg-core/selectGensForColumn.ts';
+import { selectGeneratorForSingleStoreColumn } from './singlestore-core/selectGensForColumn.ts';
 import { selectGeneratorForSqlite } from './sqlite-core/selectGensForColumn.ts';
 import { equalSets, generateHashFromString } from './utils.ts';
 
@@ -42,7 +48,7 @@ export class SeedService {
 	private version?: number;
 
 	generatePossibleGenerators = (
-		connectionType: 'postgresql' | 'mysql' | 'sqlite' | 'mssql' | 'cockroach',
+		connectionType: 'postgresql' | 'mysql' | 'sqlite' | 'mssql' | 'cockroach' | 'singlestore',
 		tables: Table[],
 		relations: (Relation & { isCyclic: boolean })[],
 		refinements?: RefinementsType,
@@ -272,6 +278,8 @@ export class SeedService {
 					columnPossibleGenerator.generator = selectGeneratorForMssqlColumn(table, col);
 				} else if (connectionType === 'cockroach') {
 					columnPossibleGenerator.generator = selectGeneratorForCockroachColumn(table, col);
+				} else if (connectionType === 'singlestore') {
+					columnPossibleGenerator.generator = selectGeneratorForSingleStoreColumn(table, col);
 				}
 
 				if (columnPossibleGenerator.generator === undefined) {
@@ -545,13 +553,8 @@ export class SeedService {
 	generateTablesValues = async (
 		relations: (Relation & { isCyclic: boolean })[],
 		tablesGenerators: ReturnType<typeof this.generatePossibleGenerators>,
-		db?:
-			| PgDatabase<any>
-			| MySqlDatabase<any, any>
-			| BaseSQLiteDatabase<any, any>
-			| MsSqlDatabase<any, any>
-			| CockroachDatabase<any, any>,
-		schema?: { [key: string]: PgTable | MySqlTable | SQLiteTable },
+		db?: DbType,
+		schema?: { [key: string]: TableType },
 		options?: {
 			count?: number;
 			seed?: number;
@@ -562,7 +565,7 @@ export class SeedService {
 			tablesValues?: {
 				tableName: string;
 				rows: {
-					[columnName: string]: string | number | boolean | undefined;
+					[columnName: string]: GeneratedValueType;
 				}[];
 			}[];
 			tablesUniqueNotNullColumn?: { [tableName: string]: { uniqueNotNullColName: string } };
@@ -574,7 +577,7 @@ export class SeedService {
 		let tableGenerators: Prettify<TableGeneratorsType>;
 
 		let tableValues: {
-			[columnName: string]: string | number | boolean | undefined;
+			[columnName: string]: GeneratedValueType;
 		}[];
 
 		let tablesValues: {
@@ -632,7 +635,7 @@ export class SeedService {
 					}
 
 					for (let colIdx = 0; colIdx < rel.columns.length; colIdx++) {
-						let refColumnValues: (string | number | boolean)[];
+						let refColumnValues: GeneratedValueType[];
 						let hasSelfRelation: boolean = false;
 						let repeatedValuesCount:
 								| number
@@ -661,11 +664,11 @@ export class SeedService {
 								count: tableCount,
 								preserveData: true,
 								insertDataInDb: false,
-							}))!.map((rows) => rows[refColName]) as (string | number | boolean)[];
+							}))!.map((rows) => rows[refColName]);
 
 							hasSelfRelation = true;
 							genObj = new generatorsMap.GenerateSelfRelationsValuesFromArray[0]({
-								values: refColumnValues,
+								values: refColumnValues as (string | number | bigint)[],
 							});
 							genObj = this.selectVersionOfGenerator(genObj);
 							// genObj = new GenerateSelfRelationsValuesFromArray({
@@ -689,7 +692,9 @@ export class SeedService {
 							}
 
 							// TODO: revise maybe need to select version of generator here too
-							genObj = new generatorsMap.GenerateValuesFromArray[0]({ values: refColumnValues });
+							genObj = new generatorsMap.GenerateValuesFromArray[0]({
+								values: refColumnValues as (string | number | bigint)[],
+							});
 							genObj.notNull = tableGenerators[rel.columns[colIdx]!]!.notNull;
 							genObj.weightedCountSeed = weightedCountSeed;
 							genObj.maxRepeatedValuesCount = repeatedValuesCount;
@@ -769,13 +774,8 @@ export class SeedService {
 		batchSize = 10000,
 	}: {
 		tableGenerators: Prettify<TableGeneratorsType>;
-		db?:
-			| PgDatabase<any>
-			| MySqlDatabase<any, any>
-			| BaseSQLiteDatabase<any, any>
-			| MsSqlDatabase<any, any>
-			| CockroachDatabase<any, any>;
-		schema?: { [key: string]: PgTable | MySqlTable | SQLiteTable };
+		db?: DbType;
+		schema?: { [key: string]: TableType };
 		tableName?: string;
 		count?: number;
 		preserveData?: boolean;
@@ -796,7 +796,7 @@ export class SeedService {
 		const columnsGenerators: {
 			[columnName: string]: AbstractGenerator<any>;
 		} = {};
-		let generatedValues: { [columnName: string]: number | string | boolean | undefined }[] = [];
+		let generatedValues: { [columnName: string]: GeneratedValueType }[] = [];
 
 		let columnsNumber = 0;
 		let override = false;
@@ -848,7 +848,7 @@ export class SeedService {
 			throw new Error('db or schema or tableName is undefined.');
 		}
 
-		let row: { [columnName: string]: string | number | boolean },
+		let row: { [columnName: string]: string | Buffer | bigint | number | boolean },
 			generatedValue,
 			i: number;
 
@@ -876,12 +876,9 @@ export class SeedService {
 					if (insertDataInDb === true) {
 						await this.insertInDb({
 							generatedValues,
-							db: db as
-								| PgDatabase<any, any>
-								| MySqlDatabase<any, any>
-								| BaseSQLiteDatabase<any, any>,
+							db: db as DbType,
 							schema: schema as {
-								[key: string]: PgTable | MySqlTable | SQLiteTable;
+								[key: string]: TableType;
 							},
 							tableName: tableName as string,
 							override,
@@ -889,12 +886,9 @@ export class SeedService {
 					} else if (updateDataInDb === true) {
 						await this.updateDb({
 							generatedValues,
-							db: db as
-								| PgDatabase<any, any>
-								| MySqlDatabase<any, any>
-								| BaseSQLiteDatabase<any, any>,
+							db: db as DbType,
 							schema: schema as {
-								[key: string]: PgTable | MySqlTable | SQLiteTable;
+								[key: string]: TableType;
 							},
 							tableName: tableName as string,
 							uniqueNotNullColName: uniqueNotNullColName as string,
@@ -911,12 +905,9 @@ export class SeedService {
 								batchSize * batchCount,
 								batchSize * (batchCount + 1),
 							),
-							db: db as
-								| PgDatabase<any, any>
-								| MySqlDatabase<any, any>
-								| BaseSQLiteDatabase<any, any>,
+							db: db as DbType,
 							schema: schema as {
-								[key: string]: PgTable | MySqlTable | SQLiteTable;
+								[key: string]: TableType;
 							},
 							tableName: tableName as string,
 							override,
@@ -927,12 +918,9 @@ export class SeedService {
 								batchSize * batchCount,
 								batchSize * (batchCount + 1),
 							),
-							db: db as
-								| PgDatabase<any, any>
-								| MySqlDatabase<any, any>
-								| BaseSQLiteDatabase<any, any>,
+							db: db as DbType,
 							schema: schema as {
-								[key: string]: PgTable | MySqlTable | SQLiteTable;
+								[key: string]: TableType;
 							},
 							tableName: tableName as string,
 							uniqueNotNullColName: uniqueNotNullColName as string,
@@ -953,14 +941,11 @@ export class SeedService {
 		override,
 	}: {
 		generatedValues: {
-			[columnName: string]: number | string | boolean | undefined;
+			[columnName: string]: GeneratedValueType;
 		}[];
-		db:
-			| PgDatabase<any, any>
-			| MySqlDatabase<any, any>
-			| BaseSQLiteDatabase<any, any>;
+		db: DbType;
 		schema: {
-			[key: string]: PgTable | MySqlTable | SQLiteTable;
+			[key: string]: TableType;
 		};
 		tableName: string;
 		override: boolean;
@@ -1000,7 +985,11 @@ export class SeedService {
 			const query = db
 				.insert((schema as { [key: string]: CockroachTable })[tableName]!)
 				.values(generatedValues);
-			// console.log(query.toSQL());
+			await query;
+		} else if (is(db, SingleStoreDatabase<any, any>)) {
+			const query = db
+				.insert((schema as { [key: string]: SingleStoreTable })[tableName]!)
+				.values(generatedValues);
 			await query;
 		}
 	};
@@ -1013,14 +1002,11 @@ export class SeedService {
 		uniqueNotNullColName,
 	}: {
 		generatedValues: {
-			[columnName: string]: number | string | boolean | undefined;
+			[columnName: string]: GeneratedValueType;
 		}[];
-		db:
-			| PgDatabase<any, any>
-			| MySqlDatabase<any, any>
-			| BaseSQLiteDatabase<any, any>;
+		db: DbType;
 		schema: {
-			[key: string]: PgTable | MySqlTable | SQLiteTable;
+			[key: string]: TableType;
 		};
 		tableName: string;
 		uniqueNotNullColName: string;
@@ -1052,6 +1038,11 @@ export class SeedService {
 			);
 		} else if (is(db, CockroachDatabase<any, any>)) {
 			const table = (schema as { [key: string]: CockroachTableWithColumns<any> })[tableName]!;
+			await db.update(table).set(values).where(
+				eq(table[uniqueNotNullColName], uniqueNotNullColValue),
+			);
+		} else if (is(db, SingleStoreDatabase<any, any>)) {
+			const table = (schema as { [key: string]: SingleStoreTableWithColumns<any> })[tableName]!;
 			await db.update(table).set(values).where(
 				eq(table[uniqueNotNullColName], uniqueNotNullColValue),
 			);
