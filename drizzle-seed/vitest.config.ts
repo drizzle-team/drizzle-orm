@@ -6,6 +6,7 @@ export default defineConfig({
 			'./tests/pg/**/*.test.ts',
 			'./tests/mysql/**/*.test.ts',
 			'./tests/sqlite/**/*.test.ts',
+			'./tests/singlestore/**/*.test.ts',
 		],
 		exclude: [],
 		typecheck: {

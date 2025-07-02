@@ -4,6 +4,8 @@ import type { MySqlTable, MySqlTableWithColumns } from 'drizzle-orm/mysql-core';
 import { MySqlDatabase } from 'drizzle-orm/mysql-core';
 import type { PgTable, PgTableWithColumns } from 'drizzle-orm/pg-core';
 import { PgDatabase } from 'drizzle-orm/pg-core';
+import type { SingleStoreTable, SingleStoreTableWithColumns } from 'drizzle-orm/singlestore-core';
+import { SingleStoreDatabase } from 'drizzle-orm/singlestore-core';
 import type { SQLiteTable, SQLiteTableWithColumns } from 'drizzle-orm/sqlite-core';
 import { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
 import type {
@@ -27,12 +29,14 @@ export class SeedService {
 	private postgresMaxParametersNumber = 65535;
 	// there is no max parameters number in mysql, so you can increase mysqlMaxParametersNumber if it's needed.
 	private mysqlMaxParametersNumber = 100000;
+	// SingleStore is MySQL-compatible, so use similar parameter limits
+	private singlestoreMaxParametersNumber = 100000;
 	//  SQLITE_MAX_VARIABLE_NUMBER, which by default equals to 999 for SQLite versions prior to 3.32.0 (2020-05-22) or 32766 for SQLite versions after 3.32.0.
 	private sqliteMaxParametersNumber = 32766;
 	private version?: number;
 
 	generatePossibleGenerators = (
-		connectionType: 'postgresql' | 'mysql' | 'sqlite',
+		connectionType: 'postgresql' | 'mysql' | 'sqlite' | 'singlestore',
 		tables: Table[],
 		relations: (Relation & { isCyclic: boolean })[],
 		refinements?: RefinementsType,
@@ -258,6 +262,11 @@ export class SeedService {
 					);
 				} else if (connectionType === 'mysql') {
 					columnPossibleGenerator.generator = this.selectGeneratorForMysqlColumn(
+						table,
+						col,
+					);
+				} else if (connectionType === 'singlestore') {
+					columnPossibleGenerator.generator = this.selectGeneratorForSingleStoreColumn(
 						table,
 						col,
 					);
@@ -990,6 +999,194 @@ export class SeedService {
 		return generator;
 	};
 
+	selectGeneratorForSingleStoreColumn = (
+		table: Table,
+		col: Column,
+	) => {
+		const pickGenerator = (table: Table, col: Column) => {
+			// VECTOR - SingleStore-specific type
+			if (col.columnType.startsWith('vector')) {
+				const dimensions = col.typeParams.dimensions || 1536;
+				const generator = new generatorsMap.GenerateArray[0]({
+					baseColumnGen: new generatorsMap.GenerateNumber[0]({
+						minValue: -1,
+						maxValue: 1,
+						precision: 0.0001
+					}),
+					size: dimensions
+				});
+				return generator;
+			}
+
+			// INT - Primary key handling
+			if (
+				(col.columnType.includes('bigint') || col.columnType.includes('int'))
+				&& table.primaryKeys.includes(col.name)
+			) {
+				const generator = new generatorsMap.GenerateIntPrimaryKey[0]();
+				return generator;
+			}
+
+			// INT - Regular integer columns
+			let minValue: number | bigint | undefined;
+			let maxValue: number | bigint | undefined;
+			
+			if (col.columnType.includes('int')) {
+				if (col.columnType === 'tinyint') {
+					minValue = -128;
+					maxValue = 127;
+				} else if (col.columnType === 'smallint') {
+					minValue = -32768;
+					maxValue = 32767;
+				} else if (col.columnType === 'mediumint') {
+					minValue = -8388608;
+					maxValue = 8388607;
+				} else if (col.columnType === 'int') {
+					minValue = -2147483648;
+					maxValue = 2147483647;
+				} else if (col.columnType === 'bigint') {
+					minValue = BigInt('-9223372036854775808');
+					maxValue = BigInt('9223372036854775807');
+				}
+				
+				const generator = new generatorsMap.GenerateInt[0]({
+					minValue,
+					maxValue,
+				});
+				return generator;
+			}
+
+			// NUMBER (decimal, float, double, real)
+			if (
+				col.columnType.startsWith('decimal') ||
+				col.columnType.startsWith('float') ||
+				col.columnType.startsWith('double') ||
+				col.columnType.startsWith('real') ||
+				col.columnType.startsWith('numeric')
+			) {
+				if (col.typeParams.precision !== undefined) {
+					const precision = col.typeParams.precision;
+					const scale = col.typeParams.scale === undefined ? 0 : col.typeParams.scale;
+					const maxAbsoluteValue = Math.pow(10, precision - scale) - Math.pow(10, -scale);
+					
+					const generator = new generatorsMap.GenerateNumber[0]({
+						minValue: -maxAbsoluteValue,
+						maxValue: maxAbsoluteValue,
+						precision: Math.pow(10, scale),
+					});
+					return generator;
+				}
+				
+				const generator = new generatorsMap.GenerateNumber[0]();
+				return generator;
+			}
+
+			// STRING - Primary key handling
+			if (
+				(col.columnType === 'text'
+					|| col.columnType.startsWith('varchar')
+					|| col.columnType.startsWith('char'))
+				&& table.primaryKeys.includes(col.name)
+			) {
+				const generator = new generatorsMap.GenerateUniqueString[0]();
+				return generator;
+			}
+
+			// STRING - Name fields
+			if (
+				(col.columnType === 'text'
+					|| col.columnType.startsWith('varchar')
+					|| col.columnType.startsWith('char'))
+				&& col.name.toLowerCase().includes('name')
+			) {
+				const generator = new generatorsMap.GenerateFirstName[0]();
+				return generator;
+			}
+
+			// STRING - Email fields
+			if (
+				(col.columnType === 'text'
+					|| col.columnType.startsWith('varchar')
+					|| col.columnType.startsWith('char'))
+				&& col.name.toLowerCase().includes('email')
+			) {
+				const generator = new generatorsMap.GenerateEmail[0]();
+				return generator;
+			}
+
+			// STRING - General text fields
+			if (
+				col.columnType === 'text' ||
+				col.columnType.startsWith('varchar') ||
+				col.columnType.startsWith('char')
+			) {
+				const generator = new generatorsMap.GenerateString[0]();
+				return generator;
+			}
+
+			// BOOLEAN
+			if (col.columnType === 'boolean') {
+				const generator = new generatorsMap.GenerateBoolean[0]();
+				return generator;
+			}
+
+			// DATE, TIME, TIMESTAMP, DATETIME
+			if (col.columnType.includes('datetime')) {
+				const generator = new generatorsMap.GenerateDatetime[0]();
+				return generator;
+			}
+
+			if (col.columnType.includes('date')) {
+				const generator = new generatorsMap.GenerateDate[0]();
+				return generator;
+			}
+
+			if (col.columnType === 'time') {
+				const generator = new generatorsMap.GenerateTime[0]();
+				return generator;
+			}
+
+			if (col.columnType.includes('timestamp')) {
+				const generator = new generatorsMap.GenerateTimestamp[0]();
+				return generator;
+			}
+
+			// JSON
+			if (col.columnType === 'json') {
+				const generator = new generatorsMap.GenerateJson[0]();
+				return generator;
+			}
+
+			// ENUM
+			if (col.enumValues !== undefined) {
+				const generator = new generatorsMap.GenerateEnum[0]({
+					enumValues: col.enumValues,
+				});
+				return generator;
+			}
+
+			// DEFAULT values
+			if (col.hasDefault && col.default !== undefined) {
+				const generator = new generatorsMap.GenerateDefault[0]({
+					defaultValue: col.default,
+				});
+				return generator;
+			}
+
+			// Return undefined for unsupported types
+			return;
+		};
+
+		const generator = pickGenerator(table, col);
+		if (generator !== undefined) {
+			generator.isUnique = col.isUnique;
+			generator.dataType = col.dataType;
+			generator.stringLength = col.typeParams.length;
+		}
+
+		return generator;
+	};
+
 	selectGeneratorForSqlite = (
 		table: Table,
 		col: Column,
@@ -1145,8 +1342,9 @@ export class SeedService {
 		db?:
 			| PgDatabase<any>
 			| MySqlDatabase<any, any>
+			| SingleStoreDatabase<any, any>
 			| BaseSQLiteDatabase<any, any>,
-		schema?: { [key: string]: PgTable | MySqlTable | SQLiteTable },
+		schema?: { [key: string]: PgTable | MySqlTable | SingleStoreTable | SQLiteTable },
 		options?: {
 			count?: number;
 			seed?: number;
@@ -1367,8 +1565,9 @@ export class SeedService {
 		db?:
 			| PgDatabase<any>
 			| MySqlDatabase<any, any>
+			| SingleStoreDatabase<any, any>
 			| BaseSQLiteDatabase<any, any>;
-		schema?: { [key: string]: PgTable | MySqlTable | SQLiteTable };
+		schema?: { [key: string]: PgTable | MySqlTable | SingleStoreTable | SQLiteTable };
 		tableName?: string;
 		count?: number;
 		preserveData?: boolean;
@@ -1422,6 +1621,8 @@ export class SeedService {
 				: this.postgresMaxParametersNumber;
 		} else if (is(db, MySqlDatabase<any, any>)) {
 			maxParametersNumber = this.mysqlMaxParametersNumber;
+		} else if (is(db, SingleStoreDatabase<any, any>)) {
+			maxParametersNumber = this.singlestoreMaxParametersNumber;
 		} else {
 			// is(db, BaseSQLiteDatabase<any, any>)
 			maxParametersNumber = this.sqliteMaxParametersNumber;
@@ -1546,9 +1747,10 @@ export class SeedService {
 		db:
 			| PgDatabase<any, any>
 			| MySqlDatabase<any, any>
+			| SingleStoreDatabase<any, any>
 			| BaseSQLiteDatabase<any, any>;
 		schema: {
-			[key: string]: PgTable | MySqlTable | SQLiteTable;
+			[key: string]: PgTable | MySqlTable | SingleStoreTable | SQLiteTable;
 		};
 		tableName: string;
 		override: boolean;
@@ -1562,6 +1764,10 @@ export class SeedService {
 		} else if (is(db, MySqlDatabase<any, any>)) {
 			await db
 				.insert((schema as { [key: string]: MySqlTable })[tableName]!)
+				.values(generatedValues);
+		} else if (is(db, SingleStoreDatabase<any, any>)) {
+			await db
+				.insert((schema as { [key: string]: SingleStoreTable })[tableName]!)
 				.values(generatedValues);
 		} else if (is(db, BaseSQLiteDatabase<any, any>)) {
 			await db
@@ -1583,9 +1789,10 @@ export class SeedService {
 		db:
 			| PgDatabase<any, any>
 			| MySqlDatabase<any, any>
+			| SingleStoreDatabase<any, any>
 			| BaseSQLiteDatabase<any, any>;
 		schema: {
-			[key: string]: PgTable | MySqlTable | SQLiteTable;
+			[key: string]: PgTable | MySqlTable | SingleStoreTable | SQLiteTable;
 		};
 		tableName: string;
 		uniqueNotNullColName: string;
@@ -1598,6 +1805,11 @@ export class SeedService {
 			);
 		} else if (is(db, MySqlDatabase<any, any>)) {
 			const table = (schema as { [key: string]: MySqlTableWithColumns<any> })[tableName]!;
+			await db.update(table).set(generatedValues[0]!).where(
+				eq(table[uniqueNotNullColName], generatedValues[0]![uniqueNotNullColName]),
+			);
+		} else if (is(db, SingleStoreDatabase<any, any>)) {
+			const table = (schema as { [key: string]: SingleStoreTableWithColumns<any> })[tableName]!;
 			await db.update(table).set(generatedValues[0]!).where(
 				eq(table[uniqueNotNullColName], generatedValues[0]![uniqueNotNullColName]),
 			);

@@ -15,6 +15,9 @@ import { getTableConfig as getMysqlTableConfig, MySqlDatabase, MySqlTable } from
 import type { PgArray, PgColumn, PgSchema } from 'drizzle-orm/pg-core';
 import { getTableConfig as getPgTableConfig, PgDatabase, PgTable } from 'drizzle-orm/pg-core';
 
+import type { SingleStoreColumn, SingleStoreSchema } from 'drizzle-orm/singlestore-core';
+import { getTableConfig as getSingleStoreTableConfig, SingleStoreDatabase, SingleStoreTable } from 'drizzle-orm/singlestore-core';
+
 import type { SQLiteColumn } from 'drizzle-orm/sqlite-core';
 import { BaseSQLiteDatabase, getTableConfig as getSqliteTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
 
@@ -29,9 +32,10 @@ type InferCallbackType<
 	DB extends
 		| PgDatabase<any, any>
 		| MySqlDatabase<any, any>
+		| SingleStoreDatabase<any, any>
 		| BaseSQLiteDatabase<any, any>,
 	SCHEMA extends {
-		[key: string]: PgTable | PgSchema | MySqlTable | MySqlSchema | SQLiteTable | Relations;
+		[key: string]: PgTable | PgSchema | MySqlTable | MySqlSchema | SingleStoreTable | SingleStoreSchema | SQLiteTable | Relations;
 	},
 > = DB extends PgDatabase<any, any> ? SCHEMA extends {
 		[key: string]:
@@ -39,6 +43,8 @@ type InferCallbackType<
 			| PgSchema
 			| MySqlTable
 			| MySqlSchema
+			| SingleStoreTable
+			| SingleStoreSchema
 			| SQLiteTable
 			| Relations;
 	} ? {
@@ -99,12 +105,49 @@ type InferCallbackType<
 				};
 			}
 		: {}
+	: DB extends SingleStoreDatabase<any, any> ? SCHEMA extends {
+			[key: string]:
+				| PgTable
+				| PgSchema
+				| MySqlTable
+				| MySqlSchema
+				| SingleStoreTable
+				| SingleStoreSchema
+				| SQLiteTable
+				| Relations;
+		} ? {
+				// iterates through schema fields. example -> schema: {"tableName": SingleStoreTable}
+				[
+					table in keyof SCHEMA as SCHEMA[table] extends SingleStoreTable ? table
+						: never
+				]?: {
+					count?: number;
+					columns?: {
+						// iterates through table fields. example -> table: {"columnName": SingleStoreColumn}
+						[
+							column in keyof SCHEMA[table] as SCHEMA[table][column] extends SingleStoreColumn ? column
+								: never
+						]?: AbstractGenerator<any>;
+					};
+					with?: {
+						[
+							refTable in keyof SCHEMA as SCHEMA[refTable] extends SingleStoreTable ? refTable
+								: never
+						]?:
+							| number
+							| { weight: number; count: number | number[] }[];
+					};
+				};
+			}
+		: {}
 	: DB extends BaseSQLiteDatabase<any, any> ? SCHEMA extends {
 			[key: string]:
 				| PgTable
 				| PgSchema
 				| MySqlTable
 				| MySqlSchema
+				| SingleStoreTable
+				| SingleStoreSchema
 				| SQLiteTable
 				| Relations;
 		} ? {
@@ -138,9 +181,10 @@ class SeedPromise<
 	DB extends
 		| PgDatabase<any, any>
 		| MySqlDatabase<any, any>
+		| SingleStoreDatabase<any, any>
 		| BaseSQLiteDatabase<any, any>,
 	SCHEMA extends {
-		[key: string]: PgTable | PgSchema | MySqlTable | MySqlSchema | SQLiteTable | Relations;
+		[key: string]: PgTable | PgSchema | MySqlTable | MySqlSchema | SingleStoreTable | SingleStoreSchema | SQLiteTable | Relations;
 	},
 	VERSION extends string | undefined,
 > implements Promise<void> {
@@ -347,6 +391,7 @@ export function seed<
 	DB extends
 		| PgDatabase<any, any>
 		| MySqlDatabase<any, any, any, any>
+		| SingleStoreDatabase<any, any>
 		| BaseSQLiteDatabase<any, any>,
 	SCHEMA extends {
 		[key: string]:
@@ -354,6 +399,8 @@ export function seed<
 			| PgSchema
 			| MySqlTable
 			| MySqlSchema
+			| SingleStoreTable
+			| SingleStoreSchema
 			| SQLiteTable
 			| Relations
 			| any;
@@ -364,13 +411,15 @@ export function seed<
 }
 
 const seedFunc = async (
-	db: PgDatabase<any, any> | MySqlDatabase<any, any> | BaseSQLiteDatabase<any, any>,
+	db: PgDatabase<any, any> | MySqlDatabase<any, any> | SingleStoreDatabase<any, any> | BaseSQLiteDatabase<any, any>,
 	schema: {
 		[key: string]:
 			| PgTable
 			| PgSchema
 			| MySqlTable
 			| MySqlSchema
+			| SingleStoreTable
+			| SingleStoreSchema
 			| SQLiteTable
 			| Relations
 			| any;
@@ -387,11 +436,13 @@ const seedFunc = async (
 		await seedPostgres(db, schema, { ...options, version }, refinements);
 	} else if (is(db, MySqlDatabase<any, any>)) {
 		await seedMySql(db, schema, { ...options, version }, refinements);
+	} else if (is(db, SingleStoreDatabase<any, any>)) {
+		await seedSingleStore(db, schema, { ...options, version }, refinements);
 	} else if (is(db, BaseSQLiteDatabase<any, any>)) {
 		await seedSqlite(db, schema, { ...options, version }, refinements);
 	} else {
 		throw new Error(
-			'The drizzle-seed package currently supports only PostgreSQL, MySQL, and SQLite databases. Please ensure your database is one of these supported types',
+			'The drizzle-seed package currently supports only PostgreSQL, MySQL, SingleStore, and SQLite databases. Please ensure your database is one of these supported types',
 		);
 	}
 
@@ -442,6 +493,7 @@ export async function reset<
 	DB extends
 		| PgDatabase<any, any>
 		| MySqlDatabase<any, any, any, any>
+		| SingleStoreDatabase<any, any>
 		| BaseSQLiteDatabase<any, any>,
 	SCHEMA extends {
 		[key: string]:
@@ -449,6 +501,8 @@ export async function reset<
 			| PgSchema
 			| MySqlTable
 			| MySqlSchema
+			| SingleStoreTable
+			| SingleStoreSchema
 			| SQLiteTable
 			| any;
 	},
@@ -465,6 +519,12 @@ export async function reset<
 		if (Object.entries(mysqlTables).length > 0) {
 			await resetMySql(db, mysqlTables);
 		}
+	} else if (is(db, SingleStoreDatabase<any, any>)) {
+		const { singlestoreTables } = filterSingleStoreTables(schema);
+
+		if (Object.entries(singlestoreTables).length > 0) {
+			await resetSingleStore(db, singlestoreTables);
+		}
 	} else if (is(db, BaseSQLiteDatabase<any, any>)) {
 		const { sqliteTables } = filterSqliteTables(schema);
 
@@ -473,7 +533,7 @@ export async function reset<
 		}
 	} else {
 		throw new Error(
-			'The drizzle-seed package currently supports only PostgreSQL, MySQL, and SQLite databases. Please ensure your database is one of these supported types',
+			'The drizzle-seed package currently supports only PostgreSQL, MySQL, SingleStore, and SQLite databases. Please ensure your database is one of these supported types',
 		);
 	}
 }
@@ -499,6 +559,8 @@ const filterPgSchema = (schema: {
 		| PgSchema
 		| MySqlTable
 		| MySqlSchema
+		| SingleStoreTable
+		| SingleStoreSchema
 		| SQLiteTable
 		| Relations
 		| any;
@@ -524,6 +586,8 @@ const seedPostgres = async (
 			| PgSchema
 			| MySqlTable
 			| MySqlSchema
+			| SingleStoreTable
+			| SingleStoreSchema
 			| SQLiteTable
 			| Relations
 			| any;
@@ -889,6 +953,8 @@ const filterMysqlTables = (schema: {
 		| PgSchema
 		| MySqlTable
 		| MySqlSchema
+		| SingleStoreTable
+		| SingleStoreSchema
 		| SQLiteTable
 		| any;
 }) => {
@@ -916,6 +982,8 @@ const seedMySql = async (
 			| PgSchema
 			| MySqlTable
 			| MySqlSchema
+			| SingleStoreTable
+			| SingleStoreSchema
 			| SQLiteTable
 			| Relations
 			| any;
@@ -1210,6 +1278,8 @@ const filterSqliteTables = (schema: {
 		| PgSchema
 		| MySqlTable
 		| MySqlSchema
+		| SingleStoreTable
+		| SingleStoreSchema
 		| SQLiteTable
 		| any;
 }) => {
@@ -1237,6 +1307,8 @@ const seedSqlite = async (
 			| PgSchema
 			| MySqlTable
 			| MySqlSchema
+			| SingleStoreTable
+			| SingleStoreSchema
 			| SQLiteTable
 			| Relations
 			| any;
@@ -1282,6 +1354,316 @@ const seedSqlite = async (
 	);
 };
 
+// SingleStore-------------------------------------------------------------------------------------------------------------------------
+const resetSingleStore = async (
+	db: SingleStoreDatabase<any, any>,
+	schema: { [key: string]: SingleStoreTable },
+) => {
+	const tablesToTruncate = Object.entries(schema).map(([_tsTableName, table]) => {
+		const dbTableName = getTableName(table);
+		return dbTableName;
+	});
+
+	await db.execute(sql.raw('SET FOREIGN_KEY_CHECKS = 0;'));
+
+	for (const tableName of tablesToTruncate) {
+		const sqlQuery = `truncate \`${tableName}\`;`;
+		await db.execute(sql.raw(sqlQuery));
+	}
+
+	await db.execute(sql.raw('SET FOREIGN_KEY_CHECKS = 1;'));
+};
+
+const filterSingleStoreTables = (schema: {
+	[key: string]:
+		| PgTable
+		| PgSchema
+		| MySqlTable
+		| MySqlSchema
+		| SingleStoreTable
+		| SingleStoreSchema
+		| SQLiteTable
+		| any;
+}) => {
+	const singlestoreSchema = Object.fromEntries(
+		Object.entries(schema).filter(
+			(keyValue): keyValue is [string, SingleStoreTable | Relations] =>
+				is(keyValue[1], SingleStoreTable) || is(keyValue[1], Relations),
+		),
+	);
+
+	const singlestoreTables = Object.fromEntries(
+		Object.entries(schema).filter(
+			(keyValue): keyValue is [string, SingleStoreTable] => is(keyValue[1], SingleStoreTable),
+		),
+	);
+
+	return { singlestoreSchema, singlestoreTables };
+};
+
+const seedSingleStore = async (
+	db: SingleStoreDatabase<any, any>,
+	schema: {
+		[key: string]:
+			| PgTable
+			| PgSchema
+			| MySqlTable
+			| MySqlSchema
+			| SingleStoreTable
+			| SingleStoreSchema
+			| SQLiteTable
+			| Relations
+			| any;
+	},
+	options: { count?: number; seed?: number; version?: number } = {},
+	refinements?: RefinementsType,
+) => {
+	const { singlestoreSchema, singlestoreTables } = filterSingleStoreTables(schema);
+	const { tables, relations } = getSingleStoreInfo(singlestoreSchema, singlestoreTables);
+
+	const seedService = new SeedService();
+
+	const generatedTablesGenerators = seedService.generatePossibleGenerators(
+		'singlestore',
+		tables,
+		relations,
+		refinements,
+		options,
+	);
+
+	const preserveCyclicTablesData = relations.some((rel) => rel.isCyclic === true);
+
+	const tablesValues = await seedService.generateTablesValues(
+		relations,
+		generatedTablesGenerators,
+		db,
+		singlestoreTables,
+		{ ...options, preserveCyclicTablesData },
+	);
+
+	const { filteredTablesGenerators, tablesUniqueNotNullColumn } = seedService.filterCyclicTables(
+		generatedTablesGenerators,
+	);
+	const updateDataInDb = filteredTablesGenerators.length === 0 ? false : true;
+
+	await seedService.generateTablesValues(
+		relations,
+		filteredTablesGenerators,
+		db,
+		singlestoreTables,
+		{ ...options, tablesValues, updateDataInDb, tablesUniqueNotNullColumn },
+	);
+};
+
+const getSingleStoreInfo = (
+	singlestoreSchema: { [key: string]: SingleStoreTable | Relations },
+	singlestoreTables: { [key: string]: SingleStoreTable },
+) => {
+	let tableConfig: ReturnType<typeof getSingleStoreTableConfig>;
+	let dbToTsColumnNamesMap: { [key: string]: string };
+
+	const dbToTsTableNamesMap: { [key: string]: string } = Object.fromEntries(
+		Object.entries(singlestoreTables).map(([key, value]) => [getTableName(value), key]),
+	);
+
+	const tables: Table[] = [];
+	const relations: RelationWithReferences[] = [];
+	const dbToTsColumnNamesMapGlobal: {
+		[tableName: string]: { [dbColumnName: string]: string };
+	} = {};
+	const tableRelations: { [tableName: string]: RelationWithReferences[] } = {};
+
+	const getDbToTsColumnNamesMap = (table: SingleStoreTable) => {
+		let dbToTsColumnNamesMap: { [dbColName: string]: string } = {};
+
+		const tableName = getTableName(table);
+		if (Object.hasOwn(dbToTsColumnNamesMapGlobal, tableName)) {
+			dbToTsColumnNamesMap = dbToTsColumnNamesMapGlobal[tableName]!;
+			return dbToTsColumnNamesMap;
+		}
+
+		const tableConfig = getSingleStoreTableConfig(table);
+		for (const [tsCol, col] of Object.entries(tableConfig.columns[0]!.table)) {
+			dbToTsColumnNamesMap[col.name] = tsCol;
+		}
+		dbToTsColumnNamesMapGlobal[tableName] = dbToTsColumnNamesMap;
+
+		return dbToTsColumnNamesMap;
+	};
+
+	const transformFromDrizzleRelation = (
+		schema: Record<string, SingleStoreTable | Relations>,
+		getDbToTsColumnNamesMap: (table: SingleStoreTable) => {
+			[dbColName: string]: string;
+		},
+		tableRelations: {
+			[tableName: string]: RelationWithReferences[];
+		},
+	) => {
+		const schemaConfig = extractTablesRelationalConfig(schema, createTableRelationsHelpers);
+		const relations: RelationWithReferences[] = [];
+		for (const table of Object.values(schemaConfig.tables)) {
+			if (table.relations === undefined) continue;
+
+			for (const drizzleRel of Object.values(table.relations)) {
+				if (!is(drizzleRel, One)) continue;
+
+				const tableConfig = getSingleStoreTableConfig(drizzleRel.sourceTable as SingleStoreTable);
+				const tableDbSchema = tableConfig.schema ?? 'public';
+				const tableDbName = tableConfig.name;
+				const tableTsName = schemaConfig.tableNamesMap[`${tableDbSchema}.${tableDbName}`] ?? tableDbName;
+
+				const dbToTsColumnNamesMap = getDbToTsColumnNamesMap(drizzleRel.sourceTable as SingleStoreTable);
+				const columns = drizzleRel.config?.fields.map((field) => dbToTsColumnNamesMap[field.name] as string)
+					?? [];
+
+				const refTableConfig = getSingleStoreTableConfig(drizzleRel.referencedTable as SingleStoreTable);
+				const refTableDbSchema = refTableConfig.schema ?? 'public';
+				const refTableDbName = refTableConfig.name;
+				const refTableTsName = schemaConfig.tableNamesMap[`${refTableDbSchema}.${refTableDbName}`]
+					?? refTableDbName;
+
+				const dbToTsColumnNamesMapForRefTable = getDbToTsColumnNamesMap(drizzleRel.referencedTable as SingleStoreTable);
+				const refColumns = drizzleRel.config?.references.map((ref) =>
+					dbToTsColumnNamesMapForRefTable[ref.name] as string
+				)
+					?? [];
+
+				if (tableRelations[refTableTsName] === undefined) {
+					tableRelations[refTableTsName] = [];
+				}
+
+				const relation: RelationWithReferences = {
+					table: tableTsName,
+					columns,
+					refTable: refTableTsName,
+					refColumns,
+					refTableRels: tableRelations[refTableTsName],
+					type: 'one',
+				};
+
+				// do not add duplicate relation
+				if (
+					tableRelations[tableTsName]?.some((rel) =>
+						rel.table === relation.table
+						&& rel.refTable === relation.refTable
+					)
+				) {
+					console.warn(
+						`You are providing a one-to-many relation between the '${relation.refTable}' and '${relation.table}' tables,\n`
+							+ `while the '${relation.table}' table object already has foreign key constraint in the schema referencing '${relation.refTable}' table.\n`
+							+ `In this case, the foreign key constraint will be used.\n`,
+					);
+					continue;
+				}
+
+				relations.push(relation);
+				tableRelations[tableTsName]!.push(relation);
+			}
+		}
+		return relations;
+	};
+
+	for (const table of Object.values(singlestoreTables)) {
+		tableConfig = getSingleStoreTableConfig(table);
+
+		dbToTsColumnNamesMap = {};
+		for (const [tsCol, col] of Object.entries(tableConfig.columns[0]!.table)) {
+			dbToTsColumnNamesMap[col.name] = tsCol;
+		}
+
+		// SingleStore doesn't support foreign keys
+		const newRelations: RelationWithReferences[] = [];
+		relations.push(...newRelations);
+
+		if (tableRelations[dbToTsTableNamesMap[tableConfig.name] as string] === undefined) {
+			tableRelations[dbToTsTableNamesMap[tableConfig.name] as string] = [];
+		}
+		tableRelations[dbToTsTableNamesMap[tableConfig.name] as string]!.push(...newRelations);
+
+		const getTypeParams = (sqlType: string) => {
+			// get type params and set only type
+			const typeParams: Column['typeParams'] = {};
+
+			// Handle vector column dimensions
+			if (sqlType.startsWith('vector')) {
+				const match = sqlType.match(/\((\d+)\)/);
+				if (match) {
+					typeParams['dimensions'] = Number(match[1]);
+				}
+			} else if (
+				sqlType.startsWith('decimal')
+				|| sqlType.startsWith('real')
+				|| sqlType.startsWith('double')
+				|| sqlType.startsWith('float')
+			) {
+				const match = sqlType.match(/\((\d+), *(\d+)\)/);
+				if (match) {
+					typeParams['precision'] = Number(match[1]);
+					typeParams['scale'] = Number(match[2]);
+				}
+			} else if (
+				sqlType.startsWith('char')
+				|| sqlType.startsWith('varchar')
+				|| sqlType.startsWith('binary')
+				|| sqlType.startsWith('varbinary')
+			) {
+				const match = sqlType.match(/\((\d+)\)/);
+				if (match) {
+					typeParams['length'] = Number(match[1]);
+				}
+			}
+
+			return typeParams;
+		};
+
+		tables.push({
+			name: dbToTsTableNamesMap[tableConfig.name] as string,
+			columns: tableConfig.columns.map((column) => ({
+				name: dbToTsColumnNamesMap[column.name] as string,
+				columnType: column.getSQLType(),
+				typeParams: getTypeParams(column.getSQLType()),
+				dataType: column.dataType,
+				hasDefault: column.hasDefault,
+				default: column.default,
+				enumValues: column.enumValues,
+				isUnique: column.isUnique,
+				notNull: column.notNull,
+				primary: column.primary,
+			})),
+			primaryKeys: tableConfig.columns
+				.filter((column) => column.primary)
+				.map((column) => dbToTsColumnNamesMap[column.name] as string),
+		});
+	}
+
+	const transformedDrizzleRelations = transformFromDrizzleRelation(
+		singlestoreSchema,
+		getDbToTsColumnNamesMap,
+		tableRelations,
+	);
+	relations.push(
+		...transformedDrizzleRelations,
+	);
+
+	const isCyclicRelations = relations.map(
+		(relI) => {
+			const tableRel = tableRelations[relI.table]?.find((relJ) => relJ.refTable === relI.refTable);
+			if (tableRel && isRelationCyclic(relI)) {
+				tableRel['isCyclic'] = true;
+				return { ...relI, isCyclic: true };
+			}
+			if (tableRel) {
+				tableRel['isCyclic'] = false;
+			}
+			return { ...relI, isCyclic: false };
+		},
+	);
+
+	return { tables, relations: isCyclicRelations, tableRelations };
+};
+
+// Sqlite------------------------------------------------------------------------------------------------------------------------
 const getSqliteInfo = (
 	sqliteSchema: { [key: string]: SQLiteTable | Relations },
 	sqliteTables: { [key: string]: SQLiteTable },
