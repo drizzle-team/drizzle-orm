@@ -16,6 +16,8 @@ import { MsSqlDatabase } from 'drizzle-orm/mssql-core';
 
 import type { CockroachColumn, CockroachSchema, CockroachTable } from 'drizzle-orm/cockroach-core';
 import { CockroachDatabase } from 'drizzle-orm/cockroach-core';
+import type { SingleStoreColumn, SingleStoreSchema, SingleStoreTable } from 'drizzle-orm/singlestore-core';
+import { SingleStoreDatabase } from 'drizzle-orm/singlestore-core';
 import { filterCockroachSchema, resetCockroach, seedCockroach } from './cockroach-core/index.ts';
 import { generatorsFuncs, generatorsFuncsV2 } from './generators/GeneratorFuncs.ts';
 import type { AbstractGenerator } from './generators/Generators.ts';
@@ -23,9 +25,10 @@ import { filterMsSqlTables, resetMsSql, seedMsSql } from './mssql-core/index.ts'
 import { filterMysqlTables, resetMySql, seedMySql } from './mysql-core/index.ts';
 import { filterPgSchema, resetPostgres, seedPostgres } from './pg-core/index.ts';
 import { SeedService } from './SeedService.ts';
+import { filterSingleStoreTables, resetSingleStore, seedSingleStore } from './singlestore-core/index.ts';
 import { filterSqliteTables, resetSqlite, seedSqlite } from './sqlite-core/index.ts';
 import type { DrizzleStudioObjectType, DrizzleStudioRelationType } from './types/drizzleStudio.ts';
-import type { RefinementsType } from './types/seedService.ts';
+import type { DbType, RefinementsType } from './types/seedService.ts';
 import type { Relation, Table } from './types/tables.ts';
 
 type SchemaValuesType =
@@ -38,15 +41,13 @@ type SchemaValuesType =
 	| MsSqlSchema
 	| CockroachTable
 	| CockroachSchema
-	| Relations;
+	| SingleStoreTable
+	| SingleStoreSchema
+	| Relations
+	| any;
 
 type InferCallbackType<
-	DB extends
-		| PgDatabase<any, any>
-		| MySqlDatabase<any, any>
-		| BaseSQLiteDatabase<any, any>
-		| MsSqlDatabase<any, any>
-		| CockroachDatabase<any, any>,
+	DB extends DbType,
 	SCHEMA extends {
 		[key: string]: SchemaValuesType;
 	},
@@ -185,15 +186,37 @@ type InferCallbackType<
 				};
 			}
 		: {}
+	: DB extends SingleStoreDatabase<any, any> ? SCHEMA extends {
+			[key: string]: SchemaValuesType;
+		} ? {
+				// iterates through schema fields. example -> schema: {"tableName": PgTable}
+				[
+					table in keyof SCHEMA as SCHEMA[table] extends SingleStoreTable ? table
+						: never
+				]?: {
+					count?: number;
+					columns?: {
+						// iterates through table fields. example -> table: {"columnName": PgColumn}
+						[
+							column in keyof SCHEMA[table] as SCHEMA[table][column] extends SingleStoreColumn ? column
+								: never
+						]?: AbstractGenerator<any>;
+					};
+					with?: {
+						[
+							refTable in keyof SCHEMA as SCHEMA[refTable] extends SingleStoreTable ? refTable
+								: never
+						]?:
+							| number
+							| { weight: number; count: number | number[] }[];
+					};
+				};
+			}
+		: {}
 	: {};
 
 class SeedPromise<
-	DB extends
-		| PgDatabase<any, any>
-		| MySqlDatabase<any, any>
-		| BaseSQLiteDatabase<any, any>
-		| MsSqlDatabase<any, any>
-		| CockroachDatabase<any, any>,
+	DB extends DbType,
 	SCHEMA extends {
 		[key: string]: SchemaValuesType;
 	},
@@ -270,7 +293,7 @@ export function getGeneratorsFunctions() {
 
 export async function seedForDrizzleStudio(
 	{ sqlDialect, drizzleStudioObject, drizzleStudioRelations, schemasRefinements, options }: {
-		sqlDialect: 'postgresql' | 'mysql' | 'sqlite';
+		sqlDialect: 'postgresql' | 'mysql' | 'sqlite' | 'mssql' | 'cockroach' | 'singlestore';
 		drizzleStudioObject: DrizzleStudioObjectType;
 		drizzleStudioRelations: DrizzleStudioRelationType[];
 		schemasRefinements?: { [schemaName: string]: RefinementsType };
@@ -345,7 +368,12 @@ export async function seedForDrizzleStudio(
 			undefined,
 			undefined,
 			{ ...options, preserveData: true, insertDataInDb: false },
-		);
+		) as {
+			tableName: string;
+			rows: {
+				[columnName: string]: string | number | boolean | undefined;
+			}[];
+		}[];
 
 		generatedSchemas[schemaName] = { tables: generatedTables };
 	}
@@ -399,23 +427,9 @@ export async function seedForDrizzleStudio(
  * ```
  */
 export function seed<
-	DB extends
-		| PgDatabase<any, any>
-		| MySqlDatabase<any, any, any, any>
-		| BaseSQLiteDatabase<any, any>
-		| MsSqlDatabase<any, any>
-		| CockroachDatabase<any, any>,
+	DB extends DbType,
 	SCHEMA extends {
-		[key: string]:
-			| PgTable
-			| PgSchema
-			| MySqlTable
-			| MySqlSchema
-			| SQLiteTable
-			| MsSqlTable
-			| MsSqlSchema
-			| Relations
-			| any;
+		[key: string]: SchemaValuesType;
 	},
 	VERSION extends '2' | '1' | undefined,
 >(db: DB, schema: SCHEMA, options?: { count?: number; seed?: number; version?: VERSION }) {
@@ -423,16 +437,9 @@ export function seed<
 }
 
 const seedFunc = async (
-	db:
-		| PgDatabase<any, any>
-		| MySqlDatabase<any, any>
-		| BaseSQLiteDatabase<any, any>
-		| MsSqlDatabase<any, any>
-		| CockroachDatabase<any, any>,
+	db: DbType,
 	schema: {
-		[key: string]:
-			| SchemaValuesType
-			| any;
+		[key: string]: SchemaValuesType;
 	},
 	options: { count?: number; seed?: number; version?: string } = {},
 	refinements?: RefinementsType,
@@ -452,9 +459,11 @@ const seedFunc = async (
 		await seedMsSql(db, schema, { ...options, version }, refinements);
 	} else if (is(db, CockroachDatabase<any, any>)) {
 		await seedCockroach(db, schema, { ...options, version }, refinements);
+	} else if (is(db, SingleStoreDatabase<any, any>)) {
+		await seedSingleStore(db, schema, { ...options, version }, refinements);
 	} else {
 		throw new Error(
-			'The drizzle-seed package currently supports only PostgreSQL, MySQL, and SQLite databases. Please ensure your database is one of these supported types',
+			'The drizzle-seed package currently supports only PostgreSQL, MySQL, SQLite, Ms Sql, CockroachDB and SingleStore databases. Please ensure your database is one of these supported types',
 		);
 	}
 
@@ -502,16 +511,9 @@ const seedFunc = async (
  * ```
  */
 export async function reset<
-	DB extends
-		| PgDatabase<any, any>
-		| MySqlDatabase<any, any, any, any>
-		| BaseSQLiteDatabase<any, any>
-		| MsSqlDatabase<any, any>
-		| CockroachDatabase<any, any>,
+	DB extends DbType,
 	SCHEMA extends {
-		[key: string]:
-			| SchemaValuesType
-			| any;
+		[key: string]: SchemaValuesType;
 	},
 >(db: DB, schema: SCHEMA) {
 	if (is(db, PgDatabase<any, any>)) {
@@ -544,9 +546,15 @@ export async function reset<
 		if (Object.entries(cockroachTables).length > 0) {
 			await resetCockroach(db, cockroachTables);
 		}
+	} else if (is(db, SingleStoreDatabase<any, any>)) {
+		const { singleStoreTables } = filterSingleStoreTables(schema);
+
+		if (Object.entries(singleStoreTables).length > 0) {
+			await resetSingleStore(db, singleStoreTables);
+		}
 	} else {
 		throw new Error(
-			'The drizzle-seed package currently supports only PostgreSQL, MySQL, and SQLite databases. Please ensure your database is one of these supported types',
+			'The drizzle-seed package currently supports only PostgreSQL, MySQL, SQLite, Ms Sql, CockroachDB and SingleStore databases. Please ensure your database is one of these supported types',
 		);
 	}
 }
