@@ -15,7 +15,7 @@ let client: mssql.ConnectionPool;
 let db: MsSqlDatabase<any, any>;
 
 beforeAll(async () => {
-	const { options, container } = await createDockerDB();
+	const { options, container } = await createDockerDB('all_data_types');
 	mssqlContainer = container;
 
 	const sleep = 1000;

@@ -1,35 +1,41 @@
 /* eslint-disable drizzle-internal/require-entity-kind */
 
-export const fastCartesianProduct = (
-	sets: ((number | string | boolean | object)[] | OrderedNumberRange)[],
+export const fastCartesianProduct = <
+	SetsT extends ((number | string | boolean | object)[] | OrderedNumberRange | OrderedBigintRange)[],
+>(
+	sets: SetsT,
 	index: number,
 ) => {
-	const resultList = [];
+	const resultList: SetsT[number][number][] = [];
 	let currSet: (typeof sets)[number];
 	let element: (typeof sets)[number][number];
 
 	for (let i = sets.length - 1; i >= 0; i--) {
 		currSet = sets[i]!;
-		element = currSet[index % currSet.length]!;
+		element = currSet[index % Number(currSet.length)]!;
 		resultList.unshift(element);
-		index = Math.floor(index / currSet.length);
+		index = Math.floor(index / Number(currSet.length));
 	}
 
 	return resultList;
 };
 
-export const fastCartesianProductForBigint = (
-	sets: ((number | string | boolean | object)[] | OrderedNumberRange)[],
+export const fastCartesianProductForBigint = <
+	SetsT extends ((number | string | boolean | object)[] | OrderedNumberRange | OrderedBigintRange)[],
+>(
+	sets: SetsT,
 	index: bigint,
 ) => {
-	const resultList = [];
+	const resultList: SetsT[number][number][] = [];
 	let currSet: (typeof sets)[number];
 	let element: (typeof sets)[number][number];
 
 	for (let i = sets.length - 1; i >= 0; i--) {
 		currSet = sets[i]!;
-		const remainder = Number(index % BigInt(currSet.length));
-		element = currSet[remainder]!;
+		const remainder = index % BigInt(currSet.length);
+
+		// remainder = remainder <= Number.MAX_SAFE_INTEGER ? Number(remainder) : remainder;
+		element = currSet[remainder as any]!;
 		resultList.unshift(element);
 		index = index / BigInt(currSet.length);
 	}
@@ -43,9 +49,9 @@ export class OrderedNumberRange<T extends number = number> {
 	public readonly length: number;
 
 	constructor(
-		private readonly min: number,
-		private readonly max: number,
-		private readonly step: number,
+		private readonly min: T,
+		private readonly max: T,
+		private readonly step: T,
 	) {
 		this.length = Math.floor((this.max - this.min) / this.step) + 1;
 
@@ -59,6 +65,38 @@ export class OrderedNumberRange<T extends number = number> {
 					const idx = Number(prop);
 					if (idx >= target.length) return undefined;
 					return (target.min + idx * target.step) as T;
+				}
+				// fallback to normal lookup (and TS knows this has the right signature)
+				return Reflect.get(target, prop, receiver);
+			},
+		};
+
+		return new Proxy(this, handler);
+	}
+}
+
+export class OrderedBigintRange<T extends bigint = bigint> {
+	// Tell TS “obj[n]” will be a T:
+	[index: number]: T;
+	public readonly length: bigint;
+
+	constructor(
+		private readonly min: T,
+		private readonly max: T,
+		private readonly step: T,
+	) {
+		this.length = BigInt((this.max - this.min) / this.step) + BigInt(1);
+
+		const handler: ProxyHandler<OrderedBigintRange<T>> = {
+			get(
+				target: OrderedBigintRange<T>,
+				prop: PropertyKey,
+				receiver: any,
+			): T | string | unknown {
+				if (typeof prop === 'string' && /^\d+$/.test(prop)) {
+					const idx = BigInt(prop);
+					if (idx >= target.length) return undefined;
+					return (target.min + idx * target.step).toString();
 				}
 				// fallback to normal lookup (and TS knows this has the right signature)
 				return Reflect.get(target, prop, receiver);
@@ -145,27 +183,27 @@ export const isObject = (value: any) => {
 
 // const main = () => {
 // 	console.time('range');
-// 	const range = new OrderedNumberRange(-10, 10, 0.01);
+// 	const range = new OrderedBigintRange(BigInt(-10), BigInt(10), BigInt(1));
 
 // 	console.log(range.length);
-// 	for (let i = 0; i < 2001 + 1; i++) {
+// 	for (let i = 0; i < Number(range.length) + 1; i++) {
 // 		console.log(range[i]);
 // 	}
 // 	console.timeEnd('range');
 
-// 	console.time('list');
 // 	const list = Array.from({ length: 2e6 + 1 }, (_, idx) => idx);
 
+// 	console.time('list');
 // 	console.log(list.length);
 // 	for (let i = 0; i < 2e6 + 1; i++) {
 // 		list[i];
 // 	}
 // 	console.timeEnd('list');
 
-// 	const n = 5;
-// 	for (let i = 0; i < n; i++) {
-// 		console.log(fastCartesianProduct([[1, 2], [1, 2]], i));
-// 	}
+// 	// const n = 5;
+// 	// for (let i = 0; i < n; i++) {
+// 	// 	console.log(fastCartesianProduct([[1, 2], [1, 2]], i));
+// 	// }
 // };
 
 // main();

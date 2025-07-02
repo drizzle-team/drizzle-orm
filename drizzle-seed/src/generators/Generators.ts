@@ -12,6 +12,7 @@ import loremIpsumSentences, { maxStringLength as maxLoremIpsumLength } from '../
 import phonesInfo from '../datasets/phonesInfo.ts';
 import states, { maxStringLength as maxStateLength } from '../datasets/states.ts';
 import streetSuffix, { maxStringLength as maxStreetSuffixLength } from '../datasets/streetSuffix.ts';
+import type { GeneratedValueType } from '../types/seedService.ts';
 import type { Column } from '../types/tables.ts';
 import {
 	fastCartesianProduct,
@@ -19,6 +20,7 @@ import {
 	fillTemplate,
 	getWeightedIndices,
 	isObject,
+	OrderedBigintRange,
 	OrderedNumberRange,
 } from './utils.ts';
 
@@ -205,8 +207,8 @@ export class GenerateDefault extends AbstractGenerator<{
 export class GenerateValuesFromArray extends AbstractGenerator<
 	{
 		values:
-			| (number | string | boolean | undefined)[]
-			| { weight: number; values: (number | string | boolean | undefined)[] }[];
+			| GeneratedValueType[]
+			| { weight: number; values: GeneratedValueType[] }[];
 		isUnique?: boolean;
 		arraySize?: number;
 	}
@@ -216,8 +218,8 @@ export class GenerateValuesFromArray extends AbstractGenerator<
 	private state: {
 		rng: prand.RandomGenerator;
 		values:
-			| (number | string | boolean | undefined)[]
-			| { weight: number; values: (number | string | boolean | undefined)[] }[];
+			| GeneratedValueType[]
+			| { weight: number; values: GeneratedValueType[] }[];
 		genIndicesObj: GenerateUniqueInt | undefined;
 		genIndicesObjList: GenerateUniqueInt[] | undefined;
 		valuesWeightedIndices: number[] | undefined;
@@ -419,13 +421,13 @@ export class GenerateValuesFromArray extends AbstractGenerator<
 	}
 }
 
-export class GenerateSelfRelationsValuesFromArray extends AbstractGenerator<{ values: (number | string | boolean)[] }> {
+export class GenerateSelfRelationsValuesFromArray extends AbstractGenerator<{ values: (number | string | bigint)[] }> {
 	static override readonly entityKind: string = 'GenerateSelfRelationsValuesFromArray';
 
 	private state: {
 		rng: prand.RandomGenerator;
 		firstValuesCount: number;
-		firstValues: (string | number | boolean)[];
+		firstValues: (string | number | bigint)[];
 	} | undefined;
 
 	override init({ count, seed }: { count: number; seed: number }) {
@@ -434,7 +436,7 @@ export class GenerateSelfRelationsValuesFromArray extends AbstractGenerator<{ va
 		// generate 15-40 % values with the same value as reference column
 		let percent = 30;
 		[percent, rng] = prand.uniformIntDistribution(20, 40, rng);
-		const firstValuesCount = Math.floor((percent / 100) * count), firstValues: (string | number | boolean)[] = [];
+		const firstValuesCount = Math.floor((percent / 100) * count), firstValues: (string | number | bigint)[] = [];
 
 		this.state = { rng, firstValuesCount, firstValues };
 	}
@@ -3555,8 +3557,8 @@ export class GenerateUniqueGeometry extends AbstractGenerator<
 export class GenerateVector extends AbstractGenerator<
 	{
 		dimensions?: number;
-		minValue?: number;
-		maxValue?: number;
+		minValue?: number | bigint;
+		maxValue?: number | bigint;
 		decimalPlaces?: number;
 		isUnique?: boolean;
 		arraySize?: number;
@@ -3565,8 +3567,8 @@ export class GenerateVector extends AbstractGenerator<
 	static override readonly entityKind: string = 'GenerateVector';
 	// property below should be overridden in init
 	dimensions: number = 3;
-	minValue: number = -1000;
-	maxValue: number = 1000;
+	minValue: number | bigint = -1000;
+	maxValue: number | bigint = 1000;
 	decimalPlaces: number = 2;
 
 	private state: {
@@ -3589,12 +3591,26 @@ export class GenerateVector extends AbstractGenerator<
 			);
 		}
 
+		if (typeof this.minValue !== typeof this.maxValue) {
+			throw new Error(`minValue and maxValue parameters should be of the same type.`);
+		}
+
+		if (typeof this.minValue === 'bigint' && this.decimalPlaces !== 0) {
+			throw new Error(`if minValue and maxValue are of type bigint, then decimalPlaces must be zero.`);
+		}
+
+		if (this.decimalPlaces < 0) {
+			throw new Error(`decimalPlaces value must be greater than or equal to zero.`);
+		}
+
 		// `numberGen` is initialized in the `init` method of `GenerateArray`
-		const numberGen = new GenerateNumber({
-			minValue: this.minValue,
-			maxValue: this.maxValue,
-			precision: 10 ** this.decimalPlaces,
-		});
+		const numberGen = typeof this.minValue === 'number'
+			? new GenerateNumber({
+				minValue: this.minValue,
+				maxValue: this.maxValue as number,
+				precision: 10 ** this.decimalPlaces,
+			})
+			: new GenerateInt({ minValue: this.minValue, maxValue: this.maxValue });
 		const vectorGen = new GenerateArray({ baseColumnGen: numberGen, size: this.dimensions });
 		vectorGen.init({ count, seed });
 
@@ -3605,15 +3621,17 @@ export class GenerateVector extends AbstractGenerator<
 			throw new Error('state is not defined.');
 		}
 
-		return this.state.vectorGen.generate();
+		const vectorVal = this.state.vectorGen.generate();
+		// console.log(vectorVal);
+		return vectorVal;
 	}
 }
 
 export class GenerateUniqueVector extends AbstractGenerator<
 	{
 		dimensions?: number;
-		minValue?: number;
-		maxValue?: number;
+		minValue?: number | bigint;
+		maxValue?: number | bigint;
 		decimalPlaces?: number;
 		isUnique?: boolean;
 		arraySize?: number;
@@ -3622,14 +3640,15 @@ export class GenerateUniqueVector extends AbstractGenerator<
 	static override readonly entityKind: string = 'GenerateUniqueVector';
 	// property below should be overridden in init
 	dimensions: number = 3;
-	minValue: number = -1000;
-	maxValue: number = 1000;
+	minValue: number | bigint = -1000;
+	maxValue: number | bigint = 1000;
 	decimalPlaces: number = 2;
 
 	private state: {
 		denominator: number;
 		indexGen: GenerateUniqueInt;
-		vectorSets: OrderedNumberRange[];
+		vectorSets: (OrderedNumberRange | OrderedBigintRange)[];
+		transformVector: (vector: number[], denominator: number) => void;
 	} | undefined;
 
 	public override isUnique = true;
@@ -3637,7 +3656,6 @@ export class GenerateUniqueVector extends AbstractGenerator<
 	override init({ count, seed }: { count: number; seed: number }) {
 		this.dimensions = this.params.dimensions ?? this.typeParams.length ?? this.dimensions;
 		this.decimalPlaces = this.params.decimalPlaces ?? this.decimalPlaces;
-		const denominator = 10 ** this.decimalPlaces;
 		this.minValue = this.params.minValue ?? this.minValue;
 		this.maxValue = this.params.maxValue ?? this.maxValue;
 		if (this.minValue > this.maxValue) {
@@ -3647,16 +3665,44 @@ export class GenerateUniqueVector extends AbstractGenerator<
 			);
 		}
 
-		const dimensionRange = new OrderedNumberRange(this.minValue * denominator, this.maxValue * denominator, 1);
-		const vectorSets = Array.from({ length: this.dimensions }).fill(dimensionRange) as OrderedNumberRange[];
+		if (typeof this.minValue !== typeof this.maxValue) {
+			throw new Error(`minValue and maxValue parameters should be of the same type.`);
+		}
+
+		if (typeof this.minValue === 'bigint' && this.decimalPlaces !== 0) {
+			throw new Error(`if minValue and maxValue are of type bigint, then decimalPlaces must be zero.`);
+		}
+
+		if (this.decimalPlaces < 0) {
+			throw new Error(`decimalPlaces value must be greater than or equal to zero.`);
+		}
+
+		const denominator = 10 ** this.decimalPlaces;
+		let vectorSets: (OrderedNumberRange | OrderedBigintRange)[];
+		if (typeof this.minValue === 'number' && typeof this.maxValue === 'number') {
+			const dimensionRange = new OrderedNumberRange(this.minValue * denominator, this.maxValue * denominator, 1);
+			vectorSets = Array.from({ length: this.dimensions }).fill(dimensionRange) as OrderedNumberRange[];
+		} else {
+			const dimensionRange = new OrderedBigintRange(this.minValue as bigint, this.maxValue as bigint, BigInt(1));
+			vectorSets = Array.from({ length: this.dimensions }).fill(dimensionRange) as OrderedBigintRange[];
+		}
 
 		const maxCombIdx = vectorSets.reduce((acc, curr) => acc * BigInt(curr.length), BigInt(1)) - BigInt(1);
-		const indexGen = maxCombIdx <= 2 ** 53
+		const indexGen = maxCombIdx < 2 ** 53
 			? new GenerateUniqueInt({ minValue: 0, maxValue: Number(maxCombIdx) })
 			: new GenerateUniqueInt({ minValue: BigInt(0), maxValue: maxCombIdx });
 		indexGen.init({ count, seed });
 
-		this.state = { indexGen, vectorSets, denominator };
+		const transformVector = denominator === 1
+			? (_vector: (number | bigint)[], _denominator: number) => ({})
+			: (vector: number[], denominator: number) => {
+				for (let i = 0; i < vector.length; i++) {
+					vector[i] = vector[i]! / denominator;
+				}
+				return;
+			};
+
+		this.state = { indexGen, vectorSets, denominator, transformVector };
 	}
 	generate() {
 		if (this.state === undefined) {
@@ -3665,13 +3711,11 @@ export class GenerateUniqueVector extends AbstractGenerator<
 
 		const idx = this.state.indexGen.generate();
 		const vector = typeof idx === 'number'
-			? fastCartesianProduct(this.state.vectorSets, idx) as number[]
+			? fastCartesianProduct(this.state.vectorSets, idx)
 			// typeof idx === 'bigint'
-			: fastCartesianProductForBigint(this.state.vectorSets, idx as bigint) as number[];
+			: fastCartesianProductForBigint(this.state.vectorSets, idx as bigint);
 
-		for (let i = 0; i < vector.length; i++) {
-			vector[i] = vector[i]! / this.state.denominator;
-		}
+		this.state.transformVector(vector as number[], this.state.denominator);
 
 		return vector;
 	}

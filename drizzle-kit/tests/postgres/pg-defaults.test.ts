@@ -616,6 +616,16 @@ test('text + text arrays', async () => {
 		text().array().array().default([['text\\'], ['text']]),
 		`'{{text\\},{text}}'::text[]`,
 	);
+	const res14 = await diffDefault(
+		_,
+		text().default(sql`(predict->'predictions'::text)`),
+		`(predict->'predictions'::text)`,
+	);
+	const res15 = await diffDefault(
+		_,
+		text().default(sql`'Test Model'::character varying`),
+		`'Test Model'::character varying`,
+	);
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
@@ -630,6 +640,8 @@ test('text + text arrays', async () => {
 	expect.soft(res11).toStrictEqual([]);
 	expect.soft(res12).toStrictEqual([]);
 	expect.soft(res13).toStrictEqual([]);
+	expect.soft(res14).toStrictEqual([]);
+	expect.soft(res15).toStrictEqual([]);
 });
 
 test('json + json arrays', async () => {
@@ -679,6 +691,11 @@ test('json + json arrays', async () => {
 		json().default(sql`jsonb_build_object('chunkIndex', NULL, 'totalChunks', NULL)`),
 		`jsonb_build_object('chunkIndex', NULL, 'totalChunks', NULL)`,
 	);
+	const res17 = await diffDefault(
+		_,
+		json().default(sql`'{"predictions":null}'::jsonb`),
+		`'{"predictions":null}'::jsonb`,
+	);
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
@@ -696,6 +713,7 @@ test('json + json arrays', async () => {
 	expect.soft(res14).toStrictEqual([]);
 	expect.soft(res15).toStrictEqual([]);
 	expect.soft(res16).toStrictEqual([]);
+	expect.soft(res17).toStrictEqual([]);
 });
 
 test('jsonb + jsonb arrays', async () => {
