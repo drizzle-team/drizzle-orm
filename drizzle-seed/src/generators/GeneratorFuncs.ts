@@ -768,7 +768,9 @@ export const generatorsFuncs = {
 	 *
 	 * @param isUnique - property that controls if generated values gonna be unique or not.
 	 * @param arraySize - number of elements in each one-dimensional array (If specified, arrays will be generated).
-	 * @param dimensions - desired length of each bit string (e.g., dimensions = 3 => '010').
+	 * @param dimensions - desired length of each bit string (e.g., `dimensions = 3` produces values like `'010'`).
+	 *
+	 * Defaults to the value of the database column `dimensions`.
 	 *
 	 * @example
 	 * ```ts
@@ -793,7 +795,11 @@ export const generatorsFuncs = {
 	 * @param isUnique - property that controls if generated values gonna be unique or not.
 	 * @param arraySize - number of elements in each one-dimensional array (If specified, arrays will be generated).
 	 * @param ipAddress - type of IP address to generate — either "ipv4" or "ipv6".
+	 *
+	 * Defaults to `'ipv4'`.
 	 * @param includeCidr - determines whether generated IPs include a CIDR suffix.
+	 *
+	 * Defaults to `true`.
 	 *
 	 * @example
 	 * ```ts
@@ -819,8 +825,14 @@ export const generatorsFuncs = {
 	 * @param isUnique - property that controls if generated values gonna be unique or not.
 	 * @param arraySize - number of elements in each one-dimensional array (If specified, arrays will be generated).
 	 * @param type - geometry type to generate; currently only `'point'` is supported.
-	 * @param srid - Spatial Reference System Identifier: determines what type of point will be generated - either '4326' or '3857'.
-	 * @param decimalPlaces - number of decimal places for points when `srid` is `4326` (e.g., decimalPlaces = 3 => 'point(30.723 46.482)').
+	 *
+	 * Defaults to `'point'`.
+	 * @param srid - Spatial Reference System Identifier: determines what type of point will be generated - either `4326` or `3857`.
+	 *
+	 * Defaults to `4326`.
+	 * @param decimalPlaces - number of decimal places for points when `srid` is `4326` (e.g., `decimalPlaces = 3` produces values like `'point(30.723 46.482)'`).
+	 *
+	 * Defaults to `6`.
 	 *
 	 * @example
 	 * ```ts
@@ -842,14 +854,22 @@ export const generatorsFuncs = {
 	geometry: createGenerator(GenerateGeometry),
 
 	/**
-	 * generates PgVector vectors based on the provided parameters.
+	 * generates vectors based on the provided parameters.
 	 *
 	 * @param isUnique - property that controls if generated values gonna be unique or not.
 	 * @param arraySize - number of elements in each one-dimensional array (If specified, arrays will be generated).
-	 * @param decimalPlaces - number of decimal places for each vector element (e.g., decimalPlaces = 3 => 1.123).
-	 * @param dimensions - number of elements in each generated vector (e.g., dimensions = `3` → `[1,2,3]`).
+	 * @param decimalPlaces - number of decimal places for each vector element (e.g., `decimalPlaces = 3` produces values like `1.123`).
+	 *
+	 * Defaults to `2`.
+	 * @param dimensions - number of elements in each generated vector (e.g., `dimensions = 3` produces values like `[1,2,3]`).
+	 *
+	 * Defaults to the value of the database column `dimensions`.
 	 * @param minValue - minimum allowed value for each vector element.
+	 *
+	 * Defaults to `-1000`.
 	 * @param maxValue - maximum allowed value for each vector element.
+	 *
+	 * Defaults to `1000`.
 	 *
 	 * @example
 	 * ```ts

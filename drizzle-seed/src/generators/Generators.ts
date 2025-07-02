@@ -15,12 +15,12 @@ import streetSuffix, { maxStringLength as maxStreetSuffixLength } from '../datas
 import type { GeneratedValueType } from '../types/seedService.ts';
 import type { Column } from '../types/tables.ts';
 import {
+	abs,
 	fastCartesianProduct,
 	fastCartesianProductForBigint,
 	fillTemplate,
 	getWeightedIndices,
 	isObject,
-	OrderedBigintRange,
 	OrderedNumberRange,
 } from './utils.ts';
 
@@ -498,6 +498,7 @@ export class GenerateNumber extends AbstractGenerator<
 	} | undefined;
 	override uniqueVersionOfGen = GenerateUniqueNumber;
 
+	// TODO rewrite precision to decimalPlaces
 	override init({ count, seed }: { seed: number; count: number }) {
 		super.init({ count, seed });
 
@@ -2963,6 +2964,7 @@ export class GenerateUniquePoint extends AbstractGenerator<{
 	public override isUnique = true;
 
 	override init({ count, seed }: { count: number; seed: number }) {
+		// TODO: rewrite the unique generator to use fastCartesianProduct for generating unique points.
 		const xCoordinateGen = new GenerateUniqueNumber({
 			minValue: this.params.minXValue,
 			maxValue: this.params.maxXValue,
@@ -3090,6 +3092,7 @@ export class GenerateUniqueLine extends AbstractGenerator<{
 	public override isUnique = true;
 
 	override init({ count, seed }: { count: number; seed: number }) {
+		// TODO: rewrite the unique generator to use fastCartesianProduct for generating unique triplets(liens).
 		const aCoefficientGen = new GenerateUniqueNumber({
 			minValue: this.params.minAValue,
 			maxValue: this.params.maxAValue,
@@ -3299,6 +3302,7 @@ export class GenerateInet extends AbstractGenerator<
 	}
 }
 
+// TODO: add defaults to js doc
 export class GenerateUniqueInet extends AbstractGenerator<
 	{ ipAddress?: 'ipv4' | 'ipv6'; includeCidr?: boolean; isUnique?: boolean; arraySize?: number }
 > {
@@ -3557,8 +3561,8 @@ export class GenerateUniqueGeometry extends AbstractGenerator<
 export class GenerateVector extends AbstractGenerator<
 	{
 		dimensions?: number;
-		minValue?: number | bigint;
-		maxValue?: number | bigint;
+		minValue?: number;
+		maxValue?: number;
 		decimalPlaces?: number;
 		isUnique?: boolean;
 		arraySize?: number;
@@ -3567,8 +3571,8 @@ export class GenerateVector extends AbstractGenerator<
 	static override readonly entityKind: string = 'GenerateVector';
 	// property below should be overridden in init
 	dimensions: number = 3;
-	minValue: number | bigint = -1000;
-	maxValue: number | bigint = 1000;
+	minValue: number = -1000;
+	maxValue: number = 1000;
 	decimalPlaces: number = 2;
 
 	private state: {
@@ -3591,26 +3595,26 @@ export class GenerateVector extends AbstractGenerator<
 			);
 		}
 
-		if (typeof this.minValue !== typeof this.maxValue) {
-			throw new Error(`minValue and maxValue parameters should be of the same type.`);
-		}
-
-		if (typeof this.minValue === 'bigint' && this.decimalPlaces !== 0) {
-			throw new Error(`if minValue and maxValue are of type bigint, then decimalPlaces must be zero.`);
-		}
-
 		if (this.decimalPlaces < 0) {
 			throw new Error(`decimalPlaces value must be greater than or equal to zero.`);
 		}
 
+		if (
+			abs(BigInt(this.minValue) * BigInt(10 ** this.decimalPlaces)) > Number.MAX_SAFE_INTEGER
+			|| abs(BigInt(this.maxValue) * BigInt(10 ** this.decimalPlaces)) > Number.MAX_SAFE_INTEGER
+		) {
+			console.warn(
+				`vector generator: minValue or maxValue multiplied by 10^decimalPlaces exceeds Number.MAX_SAFE_INTEGER (2^53 -1).\n`
+					+ `This overflow may result in less accurate values being generated.`,
+			);
+		}
+
 		// `numberGen` is initialized in the `init` method of `GenerateArray`
-		const numberGen = typeof this.minValue === 'number'
-			? new GenerateNumber({
-				minValue: this.minValue,
-				maxValue: this.maxValue as number,
-				precision: 10 ** this.decimalPlaces,
-			})
-			: new GenerateInt({ minValue: this.minValue, maxValue: this.maxValue });
+		const numberGen = new GenerateNumber({
+			minValue: this.minValue,
+			maxValue: this.maxValue as number,
+			precision: 10 ** this.decimalPlaces,
+		});
 		const vectorGen = new GenerateArray({ baseColumnGen: numberGen, size: this.dimensions });
 		vectorGen.init({ count, seed });
 
@@ -3622,7 +3626,6 @@ export class GenerateVector extends AbstractGenerator<
 		}
 
 		const vectorVal = this.state.vectorGen.generate();
-		// console.log(vectorVal);
 		return vectorVal;
 	}
 }
@@ -3630,8 +3633,8 @@ export class GenerateVector extends AbstractGenerator<
 export class GenerateUniqueVector extends AbstractGenerator<
 	{
 		dimensions?: number;
-		minValue?: number | bigint;
-		maxValue?: number | bigint;
+		minValue?: number;
+		maxValue?: number;
 		decimalPlaces?: number;
 		isUnique?: boolean;
 		arraySize?: number;
@@ -3640,14 +3643,14 @@ export class GenerateUniqueVector extends AbstractGenerator<
 	static override readonly entityKind: string = 'GenerateUniqueVector';
 	// property below should be overridden in init
 	dimensions: number = 3;
-	minValue: number | bigint = -1000;
-	maxValue: number | bigint = 1000;
+	minValue: number = -1000;
+	maxValue: number = 1000;
 	decimalPlaces: number = 2;
 
 	private state: {
 		denominator: number;
 		indexGen: GenerateUniqueInt;
-		vectorSets: (OrderedNumberRange | OrderedBigintRange)[];
+		vectorSets: OrderedNumberRange[];
 		transformVector: (vector: number[], denominator: number) => void;
 	} | undefined;
 
@@ -3656,8 +3659,10 @@ export class GenerateUniqueVector extends AbstractGenerator<
 	override init({ count, seed }: { count: number; seed: number }) {
 		this.dimensions = this.params.dimensions ?? this.typeParams.length ?? this.dimensions;
 		this.decimalPlaces = this.params.decimalPlaces ?? this.decimalPlaces;
+		const denominator = 10 ** this.decimalPlaces;
 		this.minValue = this.params.minValue ?? this.minValue;
 		this.maxValue = this.params.maxValue ?? this.maxValue;
+
 		if (this.minValue > this.maxValue) {
 			throw new Error(
 				`minValue ( ${this.minValue} ) cannot be greater than maxValue ( ${this.maxValue} ).\n`
@@ -3665,36 +3670,31 @@ export class GenerateUniqueVector extends AbstractGenerator<
 			);
 		}
 
-		if (typeof this.minValue !== typeof this.maxValue) {
-			throw new Error(`minValue and maxValue parameters should be of the same type.`);
-		}
-
-		if (typeof this.minValue === 'bigint' && this.decimalPlaces !== 0) {
-			throw new Error(`if minValue and maxValue are of type bigint, then decimalPlaces must be zero.`);
-		}
-
 		if (this.decimalPlaces < 0) {
 			throw new Error(`decimalPlaces value must be greater than or equal to zero.`);
 		}
 
-		const denominator = 10 ** this.decimalPlaces;
-		let vectorSets: (OrderedNumberRange | OrderedBigintRange)[];
-		if (typeof this.minValue === 'number' && typeof this.maxValue === 'number') {
-			const dimensionRange = new OrderedNumberRange(this.minValue * denominator, this.maxValue * denominator, 1);
-			vectorSets = Array.from({ length: this.dimensions }).fill(dimensionRange) as OrderedNumberRange[];
-		} else {
-			const dimensionRange = new OrderedBigintRange(this.minValue as bigint, this.maxValue as bigint, BigInt(1));
-			vectorSets = Array.from({ length: this.dimensions }).fill(dimensionRange) as OrderedBigintRange[];
+		if (
+			abs(BigInt(this.minValue) * BigInt(denominator)) > Number.MAX_SAFE_INTEGER
+			|| abs(BigInt(this.maxValue) * BigInt(denominator)) > Number.MAX_SAFE_INTEGER
+		) {
+			console.warn(
+				`vector generator: minValue or maxValue multiplied by 10^decimalPlaces exceeds Number.MAX_SAFE_INTEGER (2^53 -1).\n`
+					+ `This overflow may result in less accurate values being generated.`,
+			);
 		}
 
+		const dimensionRange = new OrderedNumberRange(this.minValue * denominator, this.maxValue * denominator, 1);
+		const vectorSets = Array.from({ length: this.dimensions }).fill(dimensionRange) as OrderedNumberRange[];
+
 		const maxCombIdx = vectorSets.reduce((acc, curr) => acc * BigInt(curr.length), BigInt(1)) - BigInt(1);
-		const indexGen = maxCombIdx < 2 ** 53
+		const indexGen = maxCombIdx <= Number.MAX_SAFE_INTEGER
 			? new GenerateUniqueInt({ minValue: 0, maxValue: Number(maxCombIdx) })
 			: new GenerateUniqueInt({ minValue: BigInt(0), maxValue: maxCombIdx });
 		indexGen.init({ count, seed });
 
 		const transformVector = denominator === 1
-			? (_vector: (number | bigint)[], _denominator: number) => ({})
+			? (_vector: (number)[], _denominator: number) => {}
 			: (vector: number[], denominator: number) => {
 				for (let i = 0; i < vector.length; i++) {
 					vector[i] = vector[i]! / denominator;
