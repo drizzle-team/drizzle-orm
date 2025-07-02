@@ -196,8 +196,8 @@ export const selectGeneratorForSingleStoreColumn = (
 
 		// vector
 		if (col.columnType.startsWith('vector')) {
-			let minValue: number | bigint | undefined,
-				maxValue: number | bigint | undefined,
+			let minValue: number | undefined,
+				maxValue: number | undefined,
 				decimalPlaces: number | undefined;
 			if (col.typeParams.vectorValueType === 'I8') {
 				minValue = -128;
