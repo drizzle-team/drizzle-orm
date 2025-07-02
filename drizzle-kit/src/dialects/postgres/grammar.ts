@@ -315,6 +315,13 @@ export const defaultNameForIndex = (table: string, columns: string[]) => {
 };
 
 export const trimDefaultValueSuffix = (value: string) => {
+	/*
+	  TODO: cmon, please make it right
+		Expected: "(predict -> 'predictions'::text)"
+		Received: "(predict -> 'predictions'"
+ 	*/
+	if (value.startsWith('(') && value.endsWith(')')) return value;
+
 	let res = value.endsWith('[]') ? value.slice(0, -2) : value;
 	res = res.replace(/::[\w\s()]+(?:\[\])*$/, '');
 	return res;
@@ -358,6 +365,9 @@ export const defaultForColumn = (
 	}
 
 	if (type === 'json' || type === 'jsonb') {
+		if (!value.startsWith("'") && !value.endsWith("'")) {
+			return { value, type: 'unknown' };
+		}
 		if (dimensions > 0) {
 			const res = stringifyArray(parseArray(value), 'sql', (it) => {
 				return `"${JSON.stringify(JSON.parse(it.replaceAll('\\"', '"'))).replaceAll('"', '\\"')}"`;
