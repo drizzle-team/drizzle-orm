@@ -1,4 +1,4 @@
-import { splitExpressions, trimDefaultValueSuffix } from 'src/dialects/postgres/grammar';
+import { parseViewDefinition, splitExpressions, trimDefaultValueSuffix } from 'src/dialects/postgres/grammar';
 import { expect, test } from 'vitest';
 
 test.each([
