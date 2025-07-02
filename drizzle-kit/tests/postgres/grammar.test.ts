@@ -1,4 +1,4 @@
-import { splitExpressions, trimDefaultValueSuffix } from 'src/dialects/postgres/grammar';
+import { parseViewDefinition, splitExpressions, trimDefaultValueSuffix } from 'src/dialects/postgres/grammar';
 import { expect, test } from 'vitest';
 
 test.each([
@@ -101,6 +101,7 @@ test.each([
 		`'{00:00:00:ff:fe:00:00:00,00:00:00:ff:fe:00:00:01}'`,
 	],
 	[`'{"1 day 01:00:00","1 day 02:00:00"}'::interval[]`, `'{"1 day 01:00:00","1 day 02:00:00"}'`],
+	[`(predict -> 'predictions'::text)`, `(predict -> 'predictions'::text)`],
 ])('trim default suffix %#: %s', (it, expected) => {
 	expect(trimDefaultValueSuffix(it)).toBe(expected);
 });
