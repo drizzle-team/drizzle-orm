@@ -61,7 +61,7 @@ test('real', async () => {
 	expect.soft(res1).toStrictEqual([]);
 });
 
-test.only('numeric', async () => {
+test('numeric', async () => {
 	const res1 = await diffDefault(_, numeric().default('10.123'), "'10.123'");
 	const res2 = await diffDefault(_, numeric({ mode: 'bigint' }).default(9223372036854775807n), "'9223372036854775807'");
 	const res3 = await diffDefault(_, numeric({ mode: 'number' }).default(9007199254740991), '9007199254740991');
