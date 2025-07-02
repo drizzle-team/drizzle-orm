@@ -118,8 +118,7 @@ export const fromDatabase = async (
 			const definition = parseViewSQL(it.sql);
 
 			if (!definition) {
-				console.log(`Could not process view ${it.name}:\n${it.sql}`);
-				process.exit(1);
+				throw new Error(`Could not process view ${it.name}:\n${it.sql}`);
 			}
 
 			return {
