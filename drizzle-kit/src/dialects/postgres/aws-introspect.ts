@@ -410,10 +410,36 @@ export const fromDatabase = async (
 		throw error;
 	});
 
-	const rolesQuery = db.query<
-		{ rolname: string; rolinherit: boolean; rolcreatedb: boolean; rolcreaterole: boolean }
+const rolesQuery = db.query<
+		{
+			rolname: string;
+			rolsuper: boolean;
+			rolinherit: boolean;
+			rolcreaterole: boolean;
+			rolcreatedb: boolean;
+			rolcanlogin: boolean;
+			rolreplication: boolean;
+			rolconnlimit: number;
+			rolpassword: string | null;
+			rolvaliduntil: string | null;
+			rolbypassrls: boolean;
+		}
 	>(
-		`SELECT rolname, rolinherit, rolcreatedb, rolcreaterole FROM pg_roles ORDER BY lower(rolname);`,
+		`SELECT
+			pg_roles.rolname,
+			pg_roles.rolsuper,
+			pg_roles.rolinherit,
+			pg_roles.rolcreaterole,
+			pg_roles.rolcreatedb,
+			pg_roles.rolcanlogin,
+			pg_roles.rolreplication,
+			pg_roles.rolconnlimit,
+			pg_authid.rolpassword,
+			pg_roles.rolvaliduntil,
+			pg_roles.rolbypassrls
+		FROM pg_roles
+		LEFT JOIN pg_authid ON pg_roles.oid = pg_authid.oid
+		ORDER BY lower(pg_roles.rolname);`,
 	).then((rows) => {
 		queryCallback('roles', rows, null);
 		return rows;
@@ -637,9 +663,16 @@ export const fromDatabase = async (
 		roles.push({
 			entityType: 'roles',
 			name: dbRole.rolname,
-			createDb: dbRole.rolcreatedb,
-			createRole: dbRole.rolcreatedb,
+			superuser: dbRole.rolsuper,
 			inherit: dbRole.rolinherit,
+			createRole: dbRole.rolcreatedb,
+			createDb: dbRole.rolcreatedb,
+			canLogin: dbRole.rolcanlogin,
+			replication: dbRole.rolreplication,
+			connLimit: dbRole.rolconnlimit,
+			password: dbRole.rolpassword,
+			validUntil: dbRole.rolvaliduntil,
+			bypassRls: dbRole.rolbypassrls,
 		});
 	}
 

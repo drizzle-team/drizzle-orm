@@ -717,9 +717,20 @@ export const fromDrizzleSchema = (
 		res.roles.push({
 			entityType: 'roles',
 			name: role.name,
-			createDb: role.createDb ?? false,
-			createRole: role.createRole ?? false,
+			superuser: role.superuser ?? false,
 			inherit: role.inherit ?? true,
+			createRole: role.createRole ?? false,
+			createDb: role.createDb ?? false,
+			canLogin: role.canLogin ?? false,
+			replication: role.replication ?? false,
+			bypassRls: role.bypassRls ?? false,
+			connLimit: role.connLimit ?? -1,
+			password: role.password ?? null,
+			validUntil: role.validUntil
+				? role.validUntil instanceof Date
+					? role.validUntil.toISOString()
+					: role.validUntil
+				: null,
 		});
 	}
 
