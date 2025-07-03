@@ -97,9 +97,16 @@ export const createDDL = () => {
 			cycle: 'boolean?',
 		},
 		roles: {
+			superuser: 'boolean?',
 			createDb: 'boolean?',
 			createRole: 'boolean?',
 			inherit: 'boolean?',
+			canLogin: 'boolean?',
+			replication: 'boolean?',
+			bypassRls: 'boolean?',
+			connLimit: 'number?',
+			password: 'string?',
+			validUntil: 'string?',
 		},
 		policies: {
 			schema: 'required',
