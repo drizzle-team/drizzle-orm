@@ -725,12 +725,7 @@ export const fromDrizzleSchema = (
 			replication: role.replication ?? false,
 			bypassRls: role.bypassRls ?? false,
 			connLimit: role.connLimit ?? -1,
-			password: role.password ?? null,
-			validUntil: role.validUntil
-				? role.validUntil instanceof Date
-					? role.validUntil.toISOString()
-					: role.validUntil
-				: null,
+			validUntil: role.validUntil ?? null,
 		});
 	}
 

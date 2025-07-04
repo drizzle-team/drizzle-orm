@@ -105,7 +105,6 @@ export const createDDL = () => {
 			replication: 'boolean?',
 			bypassRls: 'boolean?',
 			connLimit: 'number?',
-			password: 'string?',
 			validUntil: 'string?',
 		},
 		policies: {

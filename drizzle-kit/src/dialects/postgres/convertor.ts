@@ -769,17 +769,16 @@ const createRoleConvertor = convertor('create_role', (st) => {
 		replication,
 		bypassRls,
 		connLimit,
-		password,
 		validUntil,
 	} = st.role;
 	const withClause =
 		superuser || createDb || createRole || !inherit || canLogin || replication || bypassRls || validUntil
-			|| (typeof connLimit === 'number' && connLimit !== -1) || password
+			|| (typeof connLimit === 'number' && connLimit !== -1)
 			? ` WITH${superuser ? ' SUPERUSER' : ''}${createDb ? ' CREATEDB' : ''}${createRole ? ' CREATEROLE' : ''}${
 				inherit ? '' : ' NOINHERIT'
 			}${canLogin ? ' LOGIN' : ''}${replication ? ' REPLICATION' : ''}${bypassRls ? ' BYPASSRLS' : ''}${
 				typeof connLimit === 'number' && connLimit !== -1 ? ` CONNECTION LIMIT ${connLimit}` : ''
-			}${password ? ` PASSWORD '${escapeSingleQuotes(password)}'` : ''}${
+			}${
 				validUntil ? ` VALID UNTIL '${validUntil}'` : ''
 			}`
 			: '';
@@ -798,16 +797,6 @@ const renameRoleConvertor = convertor('rename_role', (st) => {
 const alterRoleConvertor = convertor('alter_role', ({ diff, role }) => {
 	const {
 		name,
-		superuser,
-		createDb,
-		createRole,
-		inherit,
-		canLogin,
-		replication,
-		bypassRls,
-		connLimit,
-		password,
-		validUntil,
 	} = role;
 	const st1 = diff.superuser
 		? diff.superuser.to
@@ -849,28 +838,13 @@ const alterRoleConvertor = convertor('alter_role', ({ diff, role }) => {
 			? ` CONNECTION LIMIT ${diff.connLimit.to}`
 			: ' CONNECTION LIMIT -1'
 		: '';
-	const st9 = diff.password
-		? diff.password.to
-			? ` PASSWORD '${escapeSingleQuotes(diff.password.to)}'`
-			: ' PASSWORD NULL'
-		: '';
-	const st10 = diff.validUntil
+	const st9 = diff.validUntil
 		? diff.validUntil.to
 			? ` VALID UNTIL '${diff.validUntil.to}'`
 			: ` VALID UNTIL 'infinity'`
 		: '';
 
-	return `ALTER ROLE "${name}" WITH${st1}${st2}${st3}${st4}${st5}${st6}${st7}${st8}${st9}${st10};`;
-
-	// return `ALTER ROLE "${name}"${` WITH${diff.superuser ? ' SUPERUSER' : ' NOSUPERUSER'}${
-	// 	createDb ? ' CREATEDB' : ' NOCREATEDB'
-	// }${createRole ? ' CREATEROLE' : ' NOCREATEROLE'}${inherit ? ' INHERIT' : ' NOINHERIT'}${
-	// 	canLogin ? ' LOGIN' : ' NOLOGIN'
-	// }${replication ? ' REPLICATION' : ' NOREPLICATION'}${bypassRls ? ' BYPASSRLS' : ' NOBYPASSRLS'}${
-	// 	typeof connLimit === 'number' ? ` CONNECTION LIMIT ${connLimit}` : ' CONNECTION LIMIT -1'
-	// }${password ? ` PASSWORD '${escapeSingleQuotes(password)}'` : ' PASSWORD NULL'}${
-	// 	validUntil ? ` VALID UNTIL '${validUntil}'` : ` VALID UNTIL 'infinity'`
-	// }`};`;
+	return `ALTER ROLE "${name}" WITH${st1}${st2}${st3}${st4}${st5}${st6}${st7}${st8}${st9}${st9};`;
 });
 
 const createPolicyConvertor = convertor('create_policy', (st) => {
