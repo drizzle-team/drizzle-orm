@@ -251,7 +251,7 @@ export const defaultFromColumn = (
 ): Column['default'] => {
 	const def = column.default;
 	if (typeof def === 'undefined') return null; // '', 0, false, etc.
-	if (is(def, SQL)) return { value: sqlToStr(def, casing), isExpression: true };
+	if (is(def, SQL)) return sqlToStr(def, casing);
 	if (is(column, SQLiteTimestamp)) return Int.defaultFromDrizzle(def, column.mode);
 	return typeFor(column.getSQLType()).defaultFromDrizzle(def);
 };

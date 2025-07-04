@@ -1,5 +1,6 @@
 import { assertUnreachable, trimChar } from '../../utils';
 import { Column, ForeignKey } from './ddl';
+import { Import } from './typescript';
 
 /*
 	TODO: revise handling of float/double in both orm and kit
@@ -18,6 +19,35 @@ import { Column, ForeignKey } from './ddl';
 	TODO:
 	Drizzle ORM allows real/double({ precision: 6 }) which is only allowed with scale
 */
+
+export interface SqlType<MODE = unknown> {
+	is(type: string): boolean;
+	drizzleImport(): Import;
+	defaultFromDrizzle(value: unknown, mode?: MODE): Column['default'];
+	defaultFromIntrospect(value: string): Column['default'];
+	defaultToSQL(value: Column['default']): string;
+	defaultToTS(value: Column['default']): string;
+}
+
+export const Int: SqlType = {
+	is: (type: string) => type === 'int',
+	drizzleImport: () => 'int',
+	defaultFromDrizzle: (value: unknown, mode?: unknown) => {
+		// if(typeof value === "number"){
+		// return {}
+		// }
+		throw new Error('Function not implemented.');
+	},
+	defaultFromIntrospect: function(value: string): Column['default'] {
+		throw new Error('Function not implemented.');
+	},
+	defaultToSQL: function(value: Column['default']): string {
+		throw new Error('Function not implemented.');
+	},
+	defaultToTS: function(value: Column['default']): string {
+		throw new Error('Function not implemented.');
+	},
+};
 
 type InvalidDefault = 'text_no_parentecies';
 export const checkDefault = (value: string, type: string): InvalidDefault | null => {

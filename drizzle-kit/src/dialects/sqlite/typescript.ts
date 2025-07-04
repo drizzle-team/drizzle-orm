@@ -194,9 +194,7 @@ const tryJson = (it: string) => {
 	}
 };
 
-const mapColumnDefault = (def: NonNullable<Column['default']>) => {
-	const it = def.value;
-
+const mapColumnDefault = (it: NonNullable<Column['default']>) => {
 	if (
 		typeof it === 'string'
 		&& it.startsWith('(')

@@ -47,12 +47,7 @@ const updateToV7 = (snapshot: SQLiteSchemaV6): SqliteSnapshot => {
 				type: column.type,
 				notNull: column.notNull,
 				primaryKey: column.primaryKey,
-				default: column.default
-					? {
-						value: column.default,
-						isExpression: false, // TODO: need to find out if it's expression
-					}
-					: null,
+				default: column.default ?? null,
 				autoincrement: column.autoincrement,
 				generated: column.generated ?? null,
 			});
