@@ -368,7 +368,7 @@ export const fromDatabase = async (
 		const type = sqlTypeFrom(column.columnType); // varchar(256)
 		const isPrimary = column.pk !== 0;
 
-		const columnDefault: Column['default'] = parseDefault(column.defaultValue);
+		const columnDefault: Column['default'] = parseDefault(column.columnType, column.defaultValue);
 		const autoincrement = isPrimary && dbTablesWithSequences.some((it) => it.name === column.table);
 		const pk = tableToPk[column.table];
 		const primaryKey = isPrimary && pk && pk.length === 1;
