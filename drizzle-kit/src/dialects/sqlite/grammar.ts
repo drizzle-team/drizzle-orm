@@ -1,5 +1,8 @@
+import { string } from 'drizzle-orm/cockroach-core';
+import { configIntrospectCliSchema } from 'src/cli/validations/common';
 import { trimChar } from 'src/utils';
-import { Column, ForeignKey } from './ddl';
+import type { Column, ForeignKey } from './ddl';
+import type { Import } from './typescript';
 
 const namedCheckPattern = /CONSTRAINT\s*["']?(\w+)["']?\s*CHECK\s*\((.*?)\)/gi;
 const unnamedCheckPattern = /CHECK\s*\((.*?)\)/gi;
@@ -8,21 +11,265 @@ const viewAsStatementRegex = new RegExp(`\\bAS\\b\\s+(SELECT.+)$`, 'i');
 export const nameForForeignKey = (fk: Pick<ForeignKey, 'table' | 'columns' | 'tableTo' | 'columnsTo'>) => {
 	return `fk_${fk.table}_${fk.columns.join('_')}_${fk.tableTo}_${fk.columnsTo.join('_')}_fk`;
 };
+
 export const nameForUnique = (table: string, columns: string[]) => {
 	return `${table}_${columns.join('_')}_unique`;
 };
 
+export interface SqlType<MODE = unknown> {
+	is(type: string): boolean;
+	drizzleImport(): Import;
+	defaultFromDrizzle(value: unknown, mode?: MODE): Column['default'];
+	defaultFromIntrospect(value: string): Column['default'];
+	defaultToSQL(value: Column['default']): string;
+	defaultToTS(value: Column['default']): string;
+}
+
 const intAffinities = [
-	'INT',
-	'INTEGER',
-	'TINYINT',
-	'SMALLINT',
-	'MEDIUMINT',
-	'BIGINT',
-	'UNSIGNED BIG INT',
-	'INT2',
-	'INT8',
+	'int',
+	'integer',
+	'tiniint',
+	'smallint',
+	'mediumint',
+	'bigint',
+	'unsigned big int',
+	'int2',
+	'int8',
 ];
+
+export const Int: SqlType<'timestamp' | 'timestamp_ms'> = {
+	is(type) {
+		return intAffinities.indexOf(type.toLowerCase()) >= 0;
+	},
+	drizzleImport: function(): Import {
+		return 'integer';
+	},
+	defaultFromDrizzle(value, mode) {
+		if (typeof value === 'boolean') {
+			return { value: value ? '1' : '0', isExpression: true };
+		}
+
+		if (typeof value === 'bigint') {
+			return { value: `'${value.toString()}'`, isExpression: true };
+		}
+
+		if (value instanceof Date) {
+			const v = mode === 'timestamp' ? value.getTime() / 1000 : value.getTime();
+			return { value: v.toFixed(0), isExpression: true };
+		}
+
+		return { value: String(value), isExpression: true };
+	},
+	defaultFromIntrospect: function(value: string): Column['default'] {
+		const it = trimChar(value, "'");
+		const check = Number(it);
+		if (Number.isNaN(check)) return { value, isExpression: true }; // unknown
+		if (check >= Number.MIN_SAFE_INTEGER && check <= Number.MAX_SAFE_INTEGER) return { value: it, isExpression: true };
+		return { value: it, isExpression: true }; // bigint
+	},
+	defaultToSQL: function(value: Column['default']): string {
+		return value ? value.value : ''; // as is?
+	},
+	defaultToTS: function(value: Column['default']): string {
+		if (!value) return '';
+		const check = Number(value.value);
+
+		if (Number.isNaN(check)) return `sql\`${value.value}\``; // unknown
+		if (check >= Number.MIN_SAFE_INTEGER && check <= Number.MAX_SAFE_INTEGER) return value.value;
+		return `${value.value}n`; // bigint
+	},
+};
+
+const realAffinities = [
+	'real',
+	'double',
+	'double precision',
+	'float',
+];
+
+export const Real: SqlType = {
+	is: function(type: string): boolean {
+		return realAffinities.indexOf(type.toLowerCase()) >= 0;
+	},
+	drizzleImport: function(): Import {
+		return 'real';
+	},
+	defaultFromDrizzle: function(value: unknown): Column['default'] {
+		return { value: String(value), isExpression: true };
+	},
+	defaultFromIntrospect: function(value: string): Column['default'] {
+		return { value, isExpression: true };
+	},
+	defaultToSQL: function(value: Column['default']): string {
+		return value?.value ?? '';
+	},
+	defaultToTS: function(value: Column['default']): string {
+		return value?.value ?? '';
+	},
+};
+
+const numericAffinities = [
+	'numeric',
+	'decimal',
+	'boolean',
+	'date',
+	'datetime',
+];
+export const Numeric: SqlType = {
+	is: function(type: string): boolean {
+		const lowered = type.toLowerCase();
+
+		return numericAffinities.indexOf(lowered) >= 0
+			|| lowered.startsWith('numeric(')
+			|| lowered.startsWith('decimal(');
+	},
+	drizzleImport: function(): Import {
+		return 'numeric';
+	},
+	defaultFromDrizzle: function(value: unknown, mode?: unknown): Column['default'] {
+		if (typeof value === 'string') return { value: `'${value}'`, isExpression: true };
+		if (typeof value === 'bigint') return { value: `'${value.toString()}'`, isExpression: true };
+		if (typeof value === 'number') return { value: `${value.toString()}`, isExpression: true };
+		throw new Error(`unexpected: ${value} ${typeof value}`);
+	},
+	defaultFromIntrospect: function(value: string): Column['default'] {
+		return { value, isExpression: true };
+	},
+	defaultToSQL: function(value: Column['default']): string {
+		return value?.value ?? '';
+	},
+	defaultToTS: function(value: Column['default']): string {
+		if (!value) return '';
+		const check = Number(value.value);
+
+		if (Number.isNaN(check)) return value.value; // unknown
+		if (check >= Number.MIN_SAFE_INTEGER && check <= Number.MAX_SAFE_INTEGER) return value.value;
+		return `${value.value}n`; // bigint
+	},
+};
+
+const textAffinities = [
+	'text',
+	'character',
+	'varchar',
+	'varying character',
+	'nchar',
+	'native character',
+	'nvarchar',
+	'clob',
+];
+
+export const Text: SqlType = {
+	is: function(type: string): boolean {
+		const lowered = type.toLowerCase();
+		return textAffinities.indexOf(lowered) >= 0
+			|| lowered.startsWith('character(')
+			|| lowered.startsWith('varchar(')
+			|| lowered.startsWith('varying character(')
+			|| lowered.startsWith('nchar(')
+			|| lowered.startsWith('native character(')
+			|| lowered.startsWith('nvarchar(');
+	},
+	drizzleImport: function(): Import {
+		return 'text';
+	},
+	defaultFromDrizzle: function(value: unknown, mode?: unknown): Column['default'] {
+		if (typeof value === 'string') return { value: value, isExpression: true };
+
+		if (typeof value === 'object' || Array.isArray(value)) {
+			const escaped = JSON.stringify(value, (key, value) => {
+				if (typeof value !== 'string') return value;
+				return value.replaceAll("'", "''");
+			});
+			return { value: `${escaped}`, isExpression: true };
+		}
+
+		throw new Error(`unexpected default: ${value}`);
+	},
+	defaultFromIntrospect: function(value: string): Column['default'] {
+		const unescaped = trimChar(value, "'").replaceAll("''", "'").replaceAll('\\\\', '\\');
+		return { value: unescaped, isExpression: true };
+	},
+	defaultToSQL: function(value: Column['default']): string {
+		if (value === null) return '';
+		const escaped = value.value.replaceAll('\\', '\\\\').replaceAll("'", "''");
+		return `'${escaped}'`;
+	},
+	defaultToTS: function(value: Column['default']): string {
+		if (value === null) return '';
+
+		const escaped = value.value.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
+		return `"${escaped}"`;
+	},
+};
+
+export const Blob: SqlType = {
+	is: function(type: string): boolean {
+		const lowered = type.toLowerCase();
+		return lowered === 'blob' || lowered.startsWith('blob');
+	},
+	drizzleImport: function(): Import {
+		return 'blob';
+	},
+	defaultFromDrizzle: function(value: unknown): Column['default'] {
+		if (typeof value === 'bigint') return { value: `'${value.toString()}'`, isExpression: true };
+		if (typeof Buffer !== 'undefined' && typeof Buffer.isBuffer === 'function' && Buffer.isBuffer(value)) {
+			return { value: `X'${value.toString('hex').toUpperCase()}'`, isExpression: true };
+		}
+		if (Array.isArray(value) || typeof value === 'object') {
+			const escaped = JSON.stringify(value, (key, value) => {
+				if (typeof value !== 'string') return value;
+				return value.replaceAll("'", "''");
+			});
+			return { value: `'${escaped}'`, isExpression: true };
+		}
+		throw new Error('unexpected');
+	},
+	defaultFromIntrospect: function(value: string): Column['default'] {
+		return { value, isExpression: true };
+	},
+	defaultToSQL: function(value: Column['default']): string {
+		return value ? value.value : '';
+	},
+	defaultToTS: function(it: Column['default']): string {
+		if (it === null) return '';
+
+		const { value } = it;
+		if (typeof Buffer !== 'undefined' && it.value.startsWith("X'")) {
+			const parsed = Buffer.from(value.slice(2, value.length - 1), 'hex').toString('utf-8');
+			const escaped = parsed.replaceAll('\\', '\\\\').replace('"', '\\"');
+			return `Buffer.from("${escaped}")`;
+		}
+
+		try {
+			const trimmed = trimChar(value, "'");
+			const num = Number(trimmed);
+			if (!Number.isNaN(num)) {
+				if (num >= Number.MIN_SAFE_INTEGER && num <= Number.MAX_SAFE_INTEGER) {
+					return String(num);
+				} else {
+					return `${trimmed}n`;
+				}
+			}
+
+			const json = JSON.parse(trimmed);
+			return JSON.stringify(json).replaceAll("''", "'");
+		} catch {}
+
+		const unescaped = value.replaceAll('\\', '\\\\');
+		return `sql\`${unescaped}\``;
+	},
+};
+
+export const typeFor = (sqlType: string): SqlType => {
+	if (Int.is(sqlType)) return Int;
+	if (Real.is(sqlType)) return Real;
+	if (Numeric.is(sqlType)) return Numeric;
+	if (Text.is(sqlType)) return Text;
+	if (Blob.is(sqlType)) return Blob;
+
+	throw new Error(`No grammar type for ${sqlType}`);
+};
 
 export function sqlTypeFrom(sqlType: string): string {
 	const lowered = sqlType.toLowerCase();
@@ -78,8 +325,11 @@ export function sqlTypeFrom(sqlType: string): string {
 	return 'numeric';
 }
 
-export const parseDefault = (it: string): Column['default'] => {
+export const parseDefault = (type: string, it: string): Column['default'] => {
 	if (it === null) return null;
+	const grammarType = typeFor(type);
+
+	if (grammarType) return grammarType.defaultFromIntrospect(it);
 
 	const trimmed = trimChar(it, "'");
 
@@ -92,18 +342,10 @@ export const parseDefault = (it: string): Column['default'] => {
 		return { value: `'${trimmed}'`, isExpression: true };
 	}
 
+	// TODO: handle where and need tests??
 	if (['CURRENT_TIME', 'CURRENT_DATE', 'CURRENT_TIMESTAMP'].includes(it)) {
 		return { value: `(${it})`, isExpression: true };
 	}
-
-	if (it === 'false' || it === 'true') {
-		return { value: it, isExpression: true };
-	}
-
-	if (it.startsWith("'") && it.endsWith("'")) {
-		return { value: trimmed.replaceAll("''", "'"), isExpression: false };
-	}
-
 	return { value: `(${it})`, isExpression: true };
 };
 
