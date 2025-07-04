@@ -665,6 +665,7 @@ const rolesQuery = db.query<
 			canLogin: dbRole.rolcanlogin,
 			replication: dbRole.rolreplication,
 			connLimit: dbRole.rolconnlimit,
+			password: null,
 			validUntil: dbRole.rolvaliduntil,
 			bypassRls: dbRole.rolbypassrls,
 		});
