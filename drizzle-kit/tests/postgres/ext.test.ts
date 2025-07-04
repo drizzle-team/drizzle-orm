@@ -41,6 +41,6 @@ test('ext:2', async () => {
       PRIMARY KEY (c1, c2)
     );`,
 	);
-  await db.query(`alter table "t" drop column c2;`);
+	await db.query(`alter table "t" drop column c2;`);
 	await introspect(db, [], () => true, undefined, new EmptyProgressView());
 });

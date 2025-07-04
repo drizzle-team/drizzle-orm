@@ -641,6 +641,9 @@ const mapDefault = (
 
 	if (lowered === 'json' || lowered === 'jsonb') {
 		if (!def.value) return '';
+		if (def.type === 'unknown') {
+			return `.default(sql\`${def.value}\`)`;
+		}
 		const res = stringifyArray(parsed, 'ts', (x) => {
 			return String(x);
 		});
