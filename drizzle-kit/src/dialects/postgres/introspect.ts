@@ -674,8 +674,6 @@ const rolesQuery = db.query<
 		});
 	}
 
-	console.log(`Found ${roles.length} roles`, roles);
-
 	for (const it of policiesList) {
 		policies.push({
 			entityType: 'policies',

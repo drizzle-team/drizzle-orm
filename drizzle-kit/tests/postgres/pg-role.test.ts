@@ -160,7 +160,18 @@ test('alter all role field', async (t) => {
 	};
 
 	const schema2 = {
-		manager: pgRole('manager', { createDb: true, createRole: true, inherit: false }),
+		manager: pgRole('manager', {
+			superuser: true,
+			createDb: true,
+			createRole: true,
+			inherit: false,
+			canLogin: true,
+			replication: true,
+			bypassRls: true,
+			connLimit: 1,
+			password: 'secret',
+			validUntil: new Date('1337-03-13T00:00:00.000Z'),
+		}),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema2, []);
@@ -169,7 +180,28 @@ test('alter all role field', async (t) => {
 	const { sqlStatements: pst } = await push({ db, to: schema2, entities: { roles: { include: ['manager'] } } });
 
 	const st0 = [
-		'ALTER ROLE "manager" WITH CREATEDB CREATEROLE NOINHERIT;',
+		`ALTER ROLE "manager" WITH SUPERUSER CREATEDB CREATEROLE NOINHERIT LOGIN REPLICATION BYPASSRLS CONNECTION LIMIT 1 PASSWORD 'secret' VALID UNTIL '1337-03-13T00:00:00.000Z';`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('alter superuser in role', async (t) => {
+	const schema1 = {
+		manager: pgRole('manager'),
+	};
+
+	const schema2 = {
+		manager: pgRole('manager', { superuser: true }),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2, entities: { roles: { include: ['manager'] } } });
+
+	const st0 = [
+		'ALTER ROLE "manager" WITH SUPERUSER;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -233,6 +265,134 @@ test('alter inherit in role', async (t) => {
 
 	const st0 = [
 		'ALTER ROLE "manager" WITH NOINHERIT;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('alter canLogin in role', async (t) => {
+	const schema1 = {
+		manager: pgRole('manager'),
+	};
+
+	const schema2 = {
+		manager: pgRole('manager', { canLogin: true }),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2, entities: { roles: { include: ['manager'] } } });
+
+	const st0 = [
+		'ALTER ROLE "manager" WITH LOGIN;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('alter replication in role', async (t) => {
+	const schema1 = {
+		manager: pgRole('manager'),
+	};
+
+	const schema2 = {
+		manager: pgRole('manager', { replication: true }),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2, entities: { roles: { include: ['manager'] } } });
+
+	const st0 = [
+		'ALTER ROLE "manager" WITH REPLICATION;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('alter bypassRls in role', async (t) => {
+	const schema1 = {
+		manager: pgRole('manager'),
+	};
+
+	const schema2 = {
+		manager: pgRole('manager', { bypassRls: true }),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2, entities: { roles: { include: ['manager'] } } });
+
+	const st0 = [
+		'ALTER ROLE "manager" WITH BYPASSRLS;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('alter connLimit in role', async (t) => {
+	const schema1 = {
+		manager: pgRole('manager'),
+	};
+
+	const schema2 = {
+		manager: pgRole('manager', { connLimit: 1 }),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2, entities: { roles: { include: ['manager'] } } });
+
+	const st0 = [
+		'ALTER ROLE "manager" WITH CONNECTION LIMIT 1;',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('alter password in role', async (t) => {
+	const schema1 = {
+		manager: pgRole('manager'),
+	};
+
+	const schema2 = {
+		manager: pgRole('manager', {
+			password: 'secret',
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2, entities: { roles: { include: ['manager'] } } });
+	
+	const st0 = [
+		`ALTER ROLE "manager" WITH PASSWORD 'secret';`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('alter validUntil in role', async (t) => {
+	const schema1 = {
+		manager: pgRole('manager'),
+	};
+
+	const schema2 = {
+		manager: pgRole('manager', {
+			validUntil: new Date('1337-03-13T00:00:00.000Z'),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+	await push({ db, to: schema1 });
+	const { sqlStatements: pst } = await push({ db, to: schema2, entities: { roles: { include: ['manager'] } } });
+
+	const st0 = [
+		`ALTER ROLE "manager" WITH VALID UNTIL '1337-03-13T00:00:00.000Z';`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
