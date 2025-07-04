@@ -46,37 +46,37 @@ export const Int: SqlType<'timestamp' | 'timestamp_ms'> = {
 	},
 	defaultFromDrizzle(value, mode) {
 		if (typeof value === 'boolean') {
-			return { value: value ? '1' : '0', isExpression: true };
+			return value ? '1' : '0';
 		}
 
 		if (typeof value === 'bigint') {
-			return { value: `'${value.toString()}'`, isExpression: true };
+			return `'${value.toString()}'`;
 		}
 
 		if (value instanceof Date) {
 			const v = mode === 'timestamp' ? value.getTime() / 1000 : value.getTime();
-			return { value: v.toFixed(0), isExpression: true };
+			return v.toFixed(0);
 		}
 
-		return { value: String(value), isExpression: true };
+		return String(value);
 	},
 	defaultFromIntrospect: function(value: string): Column['default'] {
 		const it = trimChar(value, "'");
 		const check = Number(it);
-		if (Number.isNaN(check)) return { value, isExpression: true }; // unknown
-		if (check >= Number.MIN_SAFE_INTEGER && check <= Number.MAX_SAFE_INTEGER) return { value: it, isExpression: true };
-		return { value: it, isExpression: true }; // bigint
+		if (Number.isNaN(check)) return value; // unknown
+		if (check >= Number.MIN_SAFE_INTEGER && check <= Number.MAX_SAFE_INTEGER) return it;
+		return it; // bigint
 	},
 	defaultToSQL: function(value: Column['default']): string {
-		return value ? value.value : ''; // as is?
+		return value ?? ''; // as is?
 	},
 	defaultToTS: function(value: Column['default']): string {
 		if (!value) return '';
-		const check = Number(value.value);
+		const check = Number(value);
 
-		if (Number.isNaN(check)) return `sql\`${value.value}\``; // unknown
-		if (check >= Number.MIN_SAFE_INTEGER && check <= Number.MAX_SAFE_INTEGER) return value.value;
-		return `${value.value}n`; // bigint
+		if (Number.isNaN(check)) return `sql\`${value}\``; // unknown
+		if (check >= Number.MIN_SAFE_INTEGER && check <= Number.MAX_SAFE_INTEGER) return value;
+		return `${value}n`; // bigint
 	},
 };
 
@@ -95,16 +95,16 @@ export const Real: SqlType = {
 		return 'real';
 	},
 	defaultFromDrizzle: function(value: unknown): Column['default'] {
-		return { value: String(value), isExpression: true };
+		return String(value);
 	},
 	defaultFromIntrospect: function(value: string): Column['default'] {
-		return { value, isExpression: true };
+		return value;
 	},
 	defaultToSQL: function(value: Column['default']): string {
-		return value?.value ?? '';
+		return value ?? '';
 	},
 	defaultToTS: function(value: Column['default']): string {
-		return value?.value ?? '';
+		return value ?? '';
 	},
 };
 
@@ -127,24 +127,24 @@ export const Numeric: SqlType = {
 		return 'numeric';
 	},
 	defaultFromDrizzle: function(value: unknown, mode?: unknown): Column['default'] {
-		if (typeof value === 'string') return { value: `'${value}'`, isExpression: true };
-		if (typeof value === 'bigint') return { value: `'${value.toString()}'`, isExpression: true };
-		if (typeof value === 'number') return { value: `${value.toString()}`, isExpression: true };
+		if (typeof value === 'string') return `'${value}'`;
+		if (typeof value === 'bigint') return `'${value.toString()}'`;
+		if (typeof value === 'number') return `${value.toString()}`;
 		throw new Error(`unexpected: ${value} ${typeof value}`);
 	},
 	defaultFromIntrospect: function(value: string): Column['default'] {
-		return { value, isExpression: true };
+		return value;
 	},
 	defaultToSQL: function(value: Column['default']): string {
-		return value?.value ?? '';
+		return value ?? '';
 	},
 	defaultToTS: function(value: Column['default']): string {
 		if (!value) return '';
-		const check = Number(value.value);
+		const check = Number(value);
 
-		if (Number.isNaN(check)) return value.value; // unknown
-		if (check >= Number.MIN_SAFE_INTEGER && check <= Number.MAX_SAFE_INTEGER) return value.value;
-		return `${value.value}n`; // bigint
+		if (Number.isNaN(check)) return value; // unknown
+		if (check >= Number.MIN_SAFE_INTEGER && check <= Number.MAX_SAFE_INTEGER) return value;
+		return `${value}n`; // bigint
 	},
 };
 
@@ -174,31 +174,30 @@ export const Text: SqlType = {
 		return 'text';
 	},
 	defaultFromDrizzle: function(value: unknown, mode?: unknown): Column['default'] {
-		if (typeof value === 'string') return { value: value, isExpression: true };
+		if (typeof value === 'string') return value;
 
 		if (typeof value === 'object' || Array.isArray(value)) {
 			const escaped = JSON.stringify(value, (key, value) => {
 				if (typeof value !== 'string') return value;
 				return value.replaceAll("'", "''");
 			});
-			return { value: `${escaped}`, isExpression: true };
+			return `${escaped}`;
 		}
 
 		throw new Error(`unexpected default: ${value}`);
 	},
 	defaultFromIntrospect: function(value: string): Column['default'] {
-		const unescaped = trimChar(value, "'").replaceAll("''", "'").replaceAll('\\\\', '\\');
-		return { value: unescaped, isExpression: true };
+		return trimChar(value, "'").replaceAll("''", "'").replaceAll('\\\\', '\\');
 	},
 	defaultToSQL: function(value: Column['default']): string {
 		if (value === null) return '';
-		const escaped = value.value.replaceAll('\\', '\\\\').replaceAll("'", "''");
+		const escaped = value.replaceAll('\\', '\\\\').replaceAll("'", "''");
 		return `'${escaped}'`;
 	},
 	defaultToTS: function(value: Column['default']): string {
 		if (value === null) return '';
 
-		const escaped = value.value.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
+		const escaped = value.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
 		return `"${escaped}"`;
 	},
 };
@@ -212,30 +211,29 @@ export const Blob: SqlType = {
 		return 'blob';
 	},
 	defaultFromDrizzle: function(value: unknown): Column['default'] {
-		if (typeof value === 'bigint') return { value: `'${value.toString()}'`, isExpression: true };
+		if (typeof value === 'bigint') return `'${value.toString()}'`;
 		if (typeof Buffer !== 'undefined' && typeof Buffer.isBuffer === 'function' && Buffer.isBuffer(value)) {
-			return { value: `X'${value.toString('hex').toUpperCase()}'`, isExpression: true };
+			return `X'${value.toString('hex').toUpperCase()}'`;
 		}
 		if (Array.isArray(value) || typeof value === 'object') {
 			const escaped = JSON.stringify(value, (key, value) => {
 				if (typeof value !== 'string') return value;
 				return value.replaceAll("'", "''");
 			});
-			return { value: `'${escaped}'`, isExpression: true };
+			return `'${escaped}'`;
 		}
 		throw new Error('unexpected');
 	},
 	defaultFromIntrospect: function(value: string): Column['default'] {
-		return { value, isExpression: true };
+		return value;
 	},
 	defaultToSQL: function(value: Column['default']): string {
-		return value ? value.value : '';
+		return value ?? '';
 	},
-	defaultToTS: function(it: Column['default']): string {
-		if (it === null) return '';
+	defaultToTS: function(value: Column['default']): string {
+		if (value === null) return '';
 
-		const { value } = it;
-		if (typeof Buffer !== 'undefined' && it.value.startsWith("X'")) {
+		if (typeof Buffer !== 'undefined' && value.startsWith("X'")) {
 			const parsed = Buffer.from(value.slice(2, value.length - 1), 'hex').toString('utf-8');
 			const escaped = parsed.replaceAll('\\', '\\\\').replace('"', '\\"');
 			return `Buffer.from("${escaped}")`;
@@ -337,16 +335,16 @@ export const parseDefault = (type: string, it: string): Column['default'] => {
 		const n = Number(it);
 
 		if (n >= Number.MIN_SAFE_INTEGER && n <= Number.MAX_SAFE_INTEGER) {
-			return { value: trimmed, isExpression: true };
+			return trimmed;
 		}
-		return { value: `'${trimmed}'`, isExpression: true };
+		return `'${trimmed}'`;
 	}
 
 	// TODO: handle where and need tests??
 	if (['CURRENT_TIME', 'CURRENT_DATE', 'CURRENT_TIMESTAMP'].includes(it)) {
-		return { value: `(${it})`, isExpression: true };
+		return `(${it})`;
 	}
-	return { value: `(${it})`, isExpression: true };
+	return `(${it})`;
 };
 
 export const parseTableSQL = (sql: string) => {

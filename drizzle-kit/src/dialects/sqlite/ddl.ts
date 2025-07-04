@@ -10,10 +10,7 @@ export const createDDL = () => {
 			primaryKey: 'boolean',
 			notNull: 'boolean',
 			autoincrement: 'boolean?',
-			default: {
-				value: 'string',
-				isExpression: 'boolean',
-			},
+			default: 'string?',
 			generated: {
 				type: ['stored', 'virtual'],
 				as: 'string',
