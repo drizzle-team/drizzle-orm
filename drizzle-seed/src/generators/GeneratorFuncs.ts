@@ -770,7 +770,7 @@ export const generatorsFuncs = {
 	 * @param arraySize - number of elements in each one-dimensional array (If specified, arrays will be generated).
 	 * @param dimensions - desired length of each bit string (e.g., `dimensions = 3` produces values like `'010'`).
 	 *
-	 * Defaults to the value of the database column `dimensions`.
+	 * Defaults to the value of the database column bit-length.
 	 *
 	 * @example
 	 * ```ts
@@ -863,7 +863,7 @@ export const generatorsFuncs = {
 	 * Defaults to `2`.
 	 * @param dimensions - number of elements in each generated vector (e.g., `dimensions = 3` produces values like `[1,2,3]`).
 	 *
-	 * Defaults to the value of the database column `dimensions`.
+	 * Defaults to the value of the database column’s dimensions.
 	 * @param minValue - minimum allowed value for each vector element.
 	 *
 	 * Defaults to `-1000`.

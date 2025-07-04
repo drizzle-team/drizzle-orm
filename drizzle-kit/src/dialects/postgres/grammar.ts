@@ -332,15 +332,8 @@ export const defaultNameForIndex = (table: string, columns: string[]) => {
 };
 
 export const trimDefaultValueSuffix = (value: string) => {
-	/*
-	  TODO: cmon, please make it right
-		Expected: "(predict -> 'predictions'::text)"
-		Received: "(predict -> 'predictions'"
- 	*/
-	if (value.startsWith('(') && value.endsWith(')')) return value;
-
 	let res = value.endsWith('[]') ? value.slice(0, -2) : value;
-	res = res.replace(/::[\w\s()]+(?:\[\])*$/, '');
+	res = res.replaceAll(/::[\w\s]+(\([^\)]*\))?(\[\])*/g, '');
 	return res;
 };
 
@@ -377,16 +370,12 @@ export const defaultForColumn = (
 	// numeric stores 99 as '99'::numeric
 	value = type === 'numeric' || type.startsWith('numeric(') ? trimChar(value, "'") : value;
 
-	if (dimensions > 0) {
-		value = trimChar(value, "'"); // '{10,20}' -> {10,20}
-	}
-
 	if (type === 'json' || type === 'jsonb') {
 		if (!value.startsWith("'") && !value.endsWith("'")) {
 			return { value, type: 'unknown' };
 		}
 		if (dimensions > 0) {
-			const res = stringifyArray(parseArray(value), 'sql', (it) => {
+			const res = stringifyArray(parseArray(value.slice(1, value.length - 1)), 'sql', (it) => {
 				return `"${JSON.stringify(JSON.parse(it.replaceAll('\\"', '"'))).replaceAll('"', '\\"')}"`;
 			}).replaceAll(`\\"}", "{\\"`, `\\"}","{\\"`); // {{key:val}, {key:val}} -> {{key:val},{key:val}}
 			return {
