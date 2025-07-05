@@ -10,9 +10,11 @@ import { embeddedMigrations } from './migrate';
 export const dropMigration = async ({
 	out,
 	bundle,
+	name,
 }: {
 	out: string;
 	bundle: boolean;
+	name?: string;
 }) => {
 	const metaFilePath = join(out, 'meta', '_journal.json');
 	const journal = JSON.parse(readFileSync(metaFilePath, 'utf-8')) as Journal;
@@ -24,20 +26,40 @@ export const dropMigration = async ({
 		return;
 	}
 
-	const result = await render(new DropMigrationView(journal.entries));
-	if (result.status === 'aborted') return;
+	const result = await (async () => {
+		if (name) {
+			const entry = journal.entries.find((item) => item.tag === name);
 
-	delete journal.entries[journal.entries.indexOf(result.data!)];
+			if (!entry) {
+				console.log(
+					`[${chalk.red('✗')}] migration ${name} not found`,
+				);
+				return;
+			}
+
+			return entry;
+		}
+
+		const renderResult = await render(new DropMigrationView(journal.entries));
+
+		if (renderResult.status === 'aborted') return;
+
+		return renderResult.data;
+	})();
+
+	if (!result) return;
+
+	delete journal.entries[journal.entries.indexOf(result)];
 
 	const resultJournal: Journal = {
 		...journal,
 		entries: journal.entries.filter(Boolean),
 	};
-	const sqlFilePath = join(out, `${result.data.tag}.sql`);
+	const sqlFilePath = join(out, `${result.tag}.sql`);
 	const snapshotFilePath = join(
 		out,
 		'meta',
-		`${result.data.tag.split('_')[0]}_snapshot.json`,
+		`${result.tag.split('_')[0]}_snapshot.json`,
 	);
 	rmSync(sqlFilePath);
 	rmSync(snapshotFilePath);
@@ -53,7 +75,7 @@ export const dropMigration = async ({
 	console.log(
 		`[${chalk.green('✓')}] ${
 			chalk.bold(
-				result.data.tag,
+				result.tag,
 			)
 		} migration successfully dropped`,
 	);
