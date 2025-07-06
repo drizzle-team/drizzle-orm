@@ -120,7 +120,7 @@ export const generateMySqlSnapshot = (
 								chalk.underline.blue(
 									tableName,
 								)
-							} table. 
+							} table.
           The unique constraint ${
 								chalk.underline.blue(
 									column.uniqueName,
@@ -399,7 +399,7 @@ export const generateMySqlSnapshot = (
 
 			checkConstraintObject[checkName] = {
 				name: checkName,
-				value: dialect.sqlToQuery(check.value).sql,
+				value: dialect.sqlToQuery(check.value.inlineParams()).sql,
 			};
 		});
 
@@ -787,7 +787,7 @@ export const fromDatabase = async (
 	}
 	try {
 		const fks = await db.query(
-			`SELECT 
+			`SELECT
       kcu.TABLE_SCHEMA,
       kcu.TABLE_NAME,
       kcu.CONSTRAINT_NAME,
@@ -797,12 +797,12 @@ export const fromDatabase = async (
       kcu.REFERENCED_COLUMN_NAME,
       rc.UPDATE_RULE,
       rc.DELETE_RULE
-  FROM 
+  FROM
       INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu
-  LEFT JOIN 
-      information_schema.referential_constraints rc 
+  LEFT JOIN
+      information_schema.referential_constraints rc
       ON kcu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME
-  WHERE kcu.TABLE_SCHEMA = '${inputSchema}' AND kcu.CONSTRAINT_NAME != 'PRIMARY' 
+  WHERE kcu.TABLE_SCHEMA = '${inputSchema}' AND kcu.CONSTRAINT_NAME != 'PRIMARY'
       AND kcu.REFERENCED_TABLE_NAME IS NOT NULL;`,
 		);
 
@@ -948,18 +948,18 @@ export const fromDatabase = async (
 	}
 
 	const checkConstraints = await db.query(
-		`SELECT 
-    tc.table_name, 
-    tc.constraint_name, 
+		`SELECT
+    tc.table_name,
+    tc.constraint_name,
     cc.check_clause
-FROM 
+FROM
     information_schema.table_constraints tc
-JOIN 
-    information_schema.check_constraints cc 
+JOIN
+    information_schema.check_constraints cc
     ON tc.constraint_name = cc.constraint_name
-WHERE 
+WHERE
     tc.constraint_schema = '${inputSchema}'
-AND 
+AND
     tc.constraint_type = 'CHECK';`,
 	);
 

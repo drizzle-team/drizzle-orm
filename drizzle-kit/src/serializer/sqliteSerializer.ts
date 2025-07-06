@@ -108,7 +108,7 @@ export const generateSqliteSnapshot = (
 								chalk.underline.blue(
 									tableName,
 								)
-							} table. 
+							} table.
           The unique constraint ${
 								chalk.underline.blue(
 									column.uniqueName,
@@ -309,7 +309,7 @@ export const generateSqliteSnapshot = (
 
 			checkConstraintObject[checkName] = {
 				name: checkName,
-				value: dialect.sqlToQuery(check.value).sql,
+				value: dialect.sqlToQuery(check.value.inlineParams()).sql,
 			};
 		});
 
@@ -530,7 +530,7 @@ export const fromDatabase = async (
 		hidden: number;
 		sql: string;
 		type: 'view' | 'table';
-	}>(`SELECT 
+	}>(`SELECT
 		  m.name as "tableName",
 		  p.name as "columnName",
 		  p.type as "columnType",
@@ -542,7 +542,7 @@ export const fromDatabase = async (
 		  m.type as type
 		FROM sqlite_master AS m
 		JOIN pragma_table_xinfo(m.name) AS p
-		WHERE (m.type = 'table' OR m.type = 'view') 
+		WHERE (m.type = 'table' OR m.type = 'view')
 		  AND ${filterIgnoredTablesByField('m.tbl_name')};`);
 
 	const tablesWithSeq: string[] = [];
@@ -769,18 +769,18 @@ export const fromDatabase = async (
 		columnName: string;
 		isUnique: number;
 		seq: string;
-	}>(`SELECT 
+	}>(`SELECT
     	  m.tbl_name as tableName,
     	  il.name as indexName,
     	  ii.name as columnName,
     	  il.[unique] as isUnique,
     	  il.seq as seq
-		FROM 
+		FROM
 		  sqlite_master AS m,
     	  pragma_index_list(m.name) AS il,
     	  pragma_index_info(il.name) AS ii
-		WHERE 
-		  m.type = 'table' 
+		WHERE
+		  m.type = 'table'
     	  AND il.name NOT LIKE 'sqlite\\_autoindex\\_%' ESCAPE '\\'
     	  AND ${filterIgnoredTablesByField('m.tbl_name')};`);
 
@@ -884,7 +884,7 @@ export const fromDatabase = async (
 	}>(`SELECT
 		  name as "tableName",
 		  sql as "sql"
-		FROM sqlite_master 
+		FROM sqlite_master
 		WHERE type = 'table'
 		  AND ${filterIgnoredTablesByField('tbl_name')};`);
 	for (const check of checks) {
