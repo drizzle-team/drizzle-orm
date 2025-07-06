@@ -433,7 +433,7 @@ const rolesQuery = db.query<
 			rolcanlogin,
 			rolreplication,
 			rolconnlimit,
-			rolvaliduntil,
+			rolvaliduntil::text,
 			rolbypassrls
 		FROM pg_roles
 		ORDER BY lower(rolname);`,
