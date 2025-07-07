@@ -465,7 +465,7 @@ const rolesQuery = db.query<
 			privilege_type AS "type",
 			CASE is_grantable WHEN 'YES' THEN true ELSE false END AS "isGrantable"
 		FROM information_schema.role_column_grants
-		WHERE table_schema IN (${filteredNamespacesIds.join(',')})
+		WHERE table_schema IN (${filteredNamespaces.map((ns) => `'${ns.name}'`).join(',')})
 		ORDER BY lower(table_schema), lower(table_name), lower(column_name), lower(grantee);
 	`).then((rows) => {
 		queryCallback('privileges', rows, null);
