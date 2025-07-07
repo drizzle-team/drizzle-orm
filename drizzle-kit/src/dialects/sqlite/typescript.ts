@@ -14,14 +14,13 @@ import type {
 	View,
 	ViewColumn,
 } from './ddl';
+import { typeFor } from './grammar';
 
-const sqliteImportsList = new Set([
+export const imports = ['integer', 'real', 'text', 'numeric', 'blob'] as const;
+export type Import = typeof imports[number];
+const sqliteImports = new Set([
 	'sqliteTable',
-	'integer',
-	'real',
-	'text',
-	'numeric',
-	'blob',
+	...imports,
 ]);
 
 const objToStatement2 = (json: any) => {
@@ -80,12 +79,13 @@ export const ddlToTypeScript = (
 
 	const imports = new Set<string>();
 
+	const columnTypes = new Set<string>([]);
 	for (const it of schema.entities.list()) {
 		if (it.entityType === 'indexes') imports.add(it.isUnique ? 'uniqueIndex' : 'index');
 		if (it.entityType === 'pks' && it.columns.length > 1) imports.add('primaryKey');
 		if (it.entityType === 'uniques' && it.columns.length > 1) imports.add('unique');
 		if (it.entityType === 'checks') imports.add('check');
-		if (it.entityType === 'columns' && sqliteImportsList.has(it.type)) imports.add(it.type);
+		if (it.entityType === 'columns') columnTypes.add(it.type);
 		if (it.entityType === 'views') imports.add('sqliteView');
 		if (it.entityType === 'tables') imports.add('sqliteTable');
 		if (it.entityType === 'fks') {
@@ -94,8 +94,12 @@ export const ddlToTypeScript = (
 		}
 	}
 
+	for (const it of Array.from(columnTypes.values())) {
+		imports.add(typeFor(it).drizzleImport());
+	}
+
 	for (const it of Object.values(viewColumns).flat()) {
-		if (sqliteImportsList.has(it.type)) imports.add(it.type);
+		if (sqliteImports.has(it.type)) imports.add(it.type);
 	}
 
 	const tableStatements = [] as string[];
@@ -181,9 +185,15 @@ const isSelf = (fk: ForeignKey) => {
 	return fk.table === fk.tableTo;
 };
 
-const mapColumnDefault = (def: NonNullable<Column['default']>) => {
-	const it = def.value;
+const tryJson = (it: string) => {
+	try {
+		return JSON.parse(it);
+	} catch {
+		return null;
+	}
+};
 
+const mapColumnDefault = (it: NonNullable<Column['default']>) => {
 	if (
 		typeof it === 'string'
 		&& it.startsWith('(')
@@ -197,6 +207,11 @@ const mapColumnDefault = (def: NonNullable<Column['default']>) => {
 	}
 
 	if (typeof it === 'string') {
+		const json = tryJson(it);
+		if (json) {
+			return objToStatement2(json);
+		}
+
 		return it.replaceAll('"', '\\"').replaceAll("''", "'");
 	}
 
@@ -210,25 +225,21 @@ const column = (
 	casing: Casing,
 ) => {
 	let lowered = type;
-	casing = casing!;
 
-	if (lowered === 'integer') {
-		let out = `${withCasing(name, casing)}: integer(${dbColumnName({ name, casing })})`;
-		// out += autoincrement ? `.autoincrement()` : "";
-		out += defaultValue ? `.default(${mapColumnDefault(defaultValue)})` : '';
-		return out;
+	const grammarType = typeFor(type);
+	if (grammarType) {
+		const drizzleType = grammarType.drizzleImport();
+		const res = grammarType.toTs(defaultValue);
+		const { def, options } = typeof res === 'string' ? { def: res } : res;
+		const defaultStatement = def ? `.default(${def})` : '';
+		const opts = options ? `${JSON.stringify(options)}` : '';
+		return `${withCasing(name, casing)}: ${drizzleType}(${dbColumnName({ name, casing })}${opts})${defaultStatement}`;
 	}
 
-	if (lowered === 'real') {
-		let out = `${withCasing(name, casing)}: real(${dbColumnName({ name, casing })})`;
-		out += defaultValue ? `.default(${mapColumnDefault(defaultValue)})` : '';
-		return out;
-	}
-
+	// TODO: ??
 	if (lowered.startsWith('text')) {
 		const match = lowered.match(/\d+/);
 		let out: string;
-
 		if (match) {
 			out = `${withCasing(name, casing)}: text(${dbColumnName({ name, casing, withMode: true })}{ length: ${
 				match[0]
@@ -241,19 +252,6 @@ const column = (
 		return out;
 	}
 
-	if (lowered === 'blob') {
-		let out = `${withCasing(name, casing)}: blob(${dbColumnName({ name, casing })})`;
-		out += defaultValue ? `.default(${mapColumnDefault(defaultValue)})` : '';
-		return out;
-	}
-
-	if (lowered === 'numeric') {
-		let out = `${withCasing(name, casing)}: numeric(${dbColumnName({ name, casing })})`;
-		out += defaultValue ? `.default(${mapColumnDefault(defaultValue)})` : '';
-		return out;
-	}
-
-	//   console.log("uknown", type);
 	return `// Warning: Can't parse ${type} from database\n\t// ${type}Type: ${type}("${name}")`;
 };
 

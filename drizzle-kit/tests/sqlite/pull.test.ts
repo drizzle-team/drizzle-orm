@@ -83,11 +83,15 @@ test('view #1', async () => {
 	const testView2 = sqliteView('some_view2', { id: int('id') }).as(
 		sql`SELECT\n*\nFROM\n${users}`,
 	);
+	const testView3 = sqliteView('some_view3', { id: int('id') }).as(
+		sql`WITH temp as (SELECT 1) SELECT\n*\nFROM\n${users}`,
+	);
 
 	const schema = {
 		users: users,
 		testView,
 		testView2,
+		testView3,
 	};
 
 	const { statements, sqlStatements } = await diffAfterPull(sqlite, schema, 'view-1');

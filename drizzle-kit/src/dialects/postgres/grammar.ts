@@ -4,6 +4,23 @@ import { parseArray } from '../../utils/parse-pgarray';
 import { hash } from '../common';
 import { Column, PostgresEntities } from './ddl';
 
+const columnUnknown = {
+	drizzleImport() {
+		return 'unknown';
+	},
+	canHandle(type: string) {
+		return true;
+	},
+
+	defaultFromDrizzle(it: any, dimensions: number): Column['default'] {
+		return { type: 'unknown', value: String(it).replaceAll("'", "''").replaceAll('\\', '\\\\') };
+	},
+
+	printToTypeScript(column: Column) {
+		return `unknown('${column.name}').default(sql\`${column.default?.value.replaceAll("''","'").replaceAll('\\\\','\\')}\`)`;
+	},
+};
+
 export const splitSqlType = (sqlType: string) => {
 	// timestamp(6) with time zone -> [timestamp, 6, with time zone]
 	const match = sqlType.match(/^(\w+(?:\s+\w+)*)\(([^)]*)\)(?:\s+with time zone)?$/i);
