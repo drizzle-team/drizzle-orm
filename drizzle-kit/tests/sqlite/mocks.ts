@@ -14,8 +14,11 @@ import { ddlDiff, ddlDiffDry } from 'src/dialects/sqlite/diff';
 import { defaultFromColumn, fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/sqlite/drizzle';
 import { fromDatabaseForDrizzle } from 'src/dialects/sqlite/introspect';
 import { ddlToTypeScript } from 'src/dialects/sqlite/typescript';
-import { DB, SQLiteDB } from 'src/utils';
+import { SQLiteDB } from 'src/utils';
 import { mockResolver } from 'src/utils/mocks';
+import { tsc } from 'tests/utils';
+import 'zx/globals';
+
 
 mkdirSync('tests/sqlite/tmp/', { recursive: true });
 
@@ -89,6 +92,7 @@ export const diffAfterPull = async (
 	const file = ddlToTypeScript(ddl2, 'camel', schema.viewsToColumns, 'sqlite');
 
 	writeFileSync(path, file.file);
+	await tsc(path);
 
 	const res = await prepareFromSchemaFiles([path]);
 	const { ddl: ddl1, errors: err2 } = interimToDDL(fromDrizzleSchema(res.tables, res.views, casing));
@@ -182,7 +186,7 @@ export const diffDefault = async <T extends SQLiteColumnBuilder>(
 	const column = sqliteTable('table', { column: builder }).column;
 	const type = column.getSQLType();
 	const columnDefault = defaultFromColumn(column, 'camelCase');
-	const defaultSql = defaultToSQL(columnDefault);
+	const defaultSql = defaultToSQL(type, columnDefault);
 
 	const res = [] as string[];
 	if (defaultSql !== expectedDefault) {
@@ -212,6 +216,7 @@ export const diffDefault = async <T extends SQLiteColumnBuilder>(
 
 	if (existsSync(path)) rmSync(path);
 	writeFileSync(path, file.file);
+	await tsc(path);
 
 	const response = await prepareFromSchemaFiles([path]);
 	const sch = fromDrizzleSchema(response.tables, response.views, 'camelCase');
