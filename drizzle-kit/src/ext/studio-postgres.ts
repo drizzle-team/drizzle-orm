@@ -12,6 +12,7 @@ import {
 	Policy,
 	PostgresEntities,
 	PrimaryKey,
+	Privilege,
 	Role,
 	Schema,
 	Sequence,
@@ -51,6 +52,7 @@ export type InterimStudioSchema = {
 	enums: Enum[];
 	sequences: Sequence[];
 	roles: Role[];
+	privileges: Privilege[];
 	policies: Policy[];
 };
 
@@ -60,6 +62,7 @@ const fromInterims = ({
 	enums,
 	policies,
 	roles,
+	privileges,
 	sequences,
 	views,
 }: InterimStudioSchema): InterimSchema => {
@@ -152,6 +155,7 @@ const fromInterims = ({
 		enums,
 		sequences,
 		roles,
+		privileges,
 		policies,
 	};
 };
@@ -165,6 +169,7 @@ export const diffPostgresql = async (from: InterimStudioSchema, to: InterimStudi
 	const { sqlStatements, groupedStatements, statements } = await ddlDiff(
 		ddl1,
 		ddl2,
+		mockResolver(renames),
 		mockResolver(renames),
 		mockResolver(renames),
 		mockResolver(renames),
