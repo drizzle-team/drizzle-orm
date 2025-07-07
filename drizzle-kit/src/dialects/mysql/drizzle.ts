@@ -15,12 +15,14 @@ import { CasingType } from 'src/cli/validations/common';
 import { safeRegister } from '../../utils/utils-node';
 import { getColumnCasing, sqlToStr } from '../drizzle';
 import { Column, InterimSchema } from './ddl';
+import { typeFor } from './grammar';
 
 export const defaultFromColumn = (
 	column: AnyMySqlColumn,
 	casing?: Casing,
 ): Column['default'] => {
 	if (typeof column.default === 'undefined') return null;
+	const value = column.default;
 
 	const sqlTypeLowered = column.getSQLType().toLowerCase();
 
@@ -30,16 +32,15 @@ export const defaultFromColumn = (
 		'(now())'; // value: (now()) type unknown
 		'now()'; // value: now() type: unknown
 		let str = sqlToStr(column.default, casing);
-
+		// if (str === 'null') return null; should probably not do this
 		return { value: str, type: 'unknown' };
 	}
 
+	const grammarType = typeFor(column.getSQLType().toLowerCase());
+	if (grammarType) return grammarType.defaultFromDrizzle(value);
+
 	if (sqlTypeLowered.startsWith('varbinary')) {
 		return { value: `(0x${Buffer.from(String(column.default)).toString('hex').toLowerCase()})`, type: 'unknown' };
-	}
-
-	if (sqlTypeLowered.startsWith('decima')) {
-		return { value: String(column.default), type: 'decimal' };
 	}
 
 	if (
@@ -64,10 +65,6 @@ export const defaultFromColumn = (
 		}
 
 		throw new Error(`unexpected default: ${column.default}`);
-	}
-
-	if (sqlTypeLowered.startsWith('numeric')) {
-		return { value: String(column.default), type: 'unknown' };
 	}
 
 	const type = typeof column.default;
@@ -122,7 +119,8 @@ export const fromDrizzleSchema = (
 		for (const column of columns) {
 			const name = getColumnCasing(column, casing);
 			const notNull: boolean = column.notNull;
-			const sqlType = column.getSQLType().replace(', ', ','); // real(6, 3)->real(6,3)
+
+			const sqlType = column.getSQLType().replace(', ', ','); // TODO: remove, should be redundant real(6, 3)->real(6,3)  
 
 			const autoIncrement = typeof (column as any).autoIncrement === 'undefined'
 				? false

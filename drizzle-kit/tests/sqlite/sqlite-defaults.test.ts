@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { blob, integer, numeric, real, text } from 'drizzle-orm/sqlite-core';
 import { DB } from 'src/utils';
 import { afterAll, beforeAll, expect, test } from 'vitest';
@@ -30,7 +31,11 @@ test('integer', async () => {
 	const date = new Date('2025-05-23T12:53:53.115Z');
 	const res8 = await diffDefault(_, integer({ mode: 'timestamp' }).default(date), `1748004833`);
 	const res9 = await diffDefault(_, integer({ mode: 'timestamp_ms' }).default(date), `${date.getTime()}`);
-	const res10 = await diffDefault(_, integer({ mode: 'timestamp_ms' }).defaultNow(), `(cast((julianday('now') - 2440587.5)*86400000 as integer))`);
+	const res10 = await diffDefault(
+		_,
+		integer({ mode: 'timestamp_ms' }).defaultNow(),
+		`(cast((julianday('now') - 2440587.5)*86400000 as integer))`,
+	);
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
@@ -49,11 +54,17 @@ test('text', async () => {
 	// raw default sql for the line below: ('text''\text"')
 	const res3 = await diffDefault(_, text().default('text\'\\text"'), `'text''\\\\text"'`);
 	const res4 = await diffDefault(_, text({ enum: ['one', 'two', 'three'] }).default('one'), `'one'`);
+	const res5 = await diffDefault(_, text().default(sql`CURRENT_TIME`), 'CURRENT_TIME');
+	const res6 = await diffDefault(_, text().default(sql`CURRENT_DATE`), 'CURRENT_DATE');
+	const res7 = await diffDefault(_, text().default(sql`CURRENT_TIMESTAMP`), 'CURRENT_TIMESTAMP');
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
 	expect.soft(res4).toStrictEqual([]);
+	expect.soft(res5).toStrictEqual([]);
+	expect.soft(res6).toStrictEqual([]);
+	expect.soft(res7).toStrictEqual([]);
 });
 
 test('real', async () => {
@@ -79,9 +90,17 @@ test('numeric', async () => {
 
 test('blob', async () => {
 	const res1 = await diffDefault(_, blob({ mode: 'buffer' }).default(Buffer.from('text')), `X'74657874'`);
-	const res2 = await diffDefault(_, blob({ mode: 'buffer' }).default(Buffer.from("text'text")), `X'746578742774657874'`);
+	const res2 = await diffDefault(
+		_,
+		blob({ mode: 'buffer' }).default(Buffer.from("text'text")),
+		`X'746578742774657874'`,
+	);
 	// raw default sql for the line below: ('text''\text"')
-	const res3 = await diffDefault(_, blob({ mode: 'buffer' }).default(Buffer.from('text\'\\text"')), `X'74657874275C7465787422'`);
+	const res3 = await diffDefault(
+		_,
+		blob({ mode: 'buffer' }).default(Buffer.from('text\'\\text"')),
+		`X'74657874275C7465787422'`,
+	);
 
 	const res4 = await diffDefault(_, blob({ mode: 'bigint' }).default(9223372036854775807n), "'9223372036854775807'");
 
