@@ -66,6 +66,7 @@ const pgImportsList = new Set([
 	'point',
 	'line',
 	'geometry',
+	'bit',
 ]);
 
 const objToStatement2 = (json: { [s: string]: unknown }) => {
@@ -640,6 +641,9 @@ const mapDefault = (
 
 	if (lowered === 'json' || lowered === 'jsonb') {
 		if (!def.value) return '';
+		if (def.type === 'unknown') {
+			return `.default(sql\`${def.value}\`)`;
+		}
 		const res = stringifyArray(parsed, 'ts', (x) => {
 			return String(x);
 		});
@@ -675,10 +679,10 @@ const mapDefault = (
 			|| lowered === 'macaddr'
 		? (x: string) => {
 			if (dimensions === 0) {
-				return `\`${x.replaceAll('`', '\\`').replaceAll("''", "'")}\``;
+				return `\`${x.replaceAll('`', '\\\`').replaceAll("''", "'")}\``;
 			}
 
-			return `\`${x.replaceAll('`', '\\`')}\``;
+			return `\`${x.replaceAll('`', '\\\`')}\``;
 		}
 		: lowered === 'bigint'
 				|| lowered === 'numeric'
@@ -970,6 +974,10 @@ const column = (
 		}
 
 		return out;
+	}
+
+	if (lowered.startsWith('bit')) {
+		return `${withCasing(name, casing)}: bit(${dbColumnName({ name, casing })}{ dimensions: ${options}})`;
 	}
 
 	let unknown = `// TODO: failed to parse database type '${type}'\n`;

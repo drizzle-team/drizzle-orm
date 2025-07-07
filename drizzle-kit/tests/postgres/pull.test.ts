@@ -317,6 +317,25 @@ test('generated column: link to another column', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
+test('generated column: link to another jsonb column', async () => {
+	const schema = {
+		users: pgTable('users', {
+			predict: jsonb('predict'),
+			predictions: jsonb('predictions')
+				.generatedAlwaysAs((): SQL => sql`predict -> 'predictions'`),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffIntrospect(
+		db,
+		schema,
+		'generated-link-jsonb-column',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
 test('introspect all column types', async () => {
 	const myEnum = pgEnum('my_enum', ['a', 'b', 'c']);
 	const schema = {

@@ -34,6 +34,7 @@ export const fastCartesianProductForBigint = <
 		currSet = sets[i]!;
 		const remainder = index % BigInt(currSet.length);
 
+		// TODO check how it works
 		// remainder = remainder <= Number.MAX_SAFE_INTEGER ? Number(remainder) : remainder;
 		element = currSet[remainder as any]!;
 		resultList.unshift(element);
@@ -106,6 +107,8 @@ export class OrderedBigintRange<T extends bigint = bigint> {
 		return new Proxy(this, handler);
 	}
 }
+
+export const abs = (n: number | bigint) => (n < 0n) ? -n : n;
 
 const sumArray = (weights: number[]) => {
 	const scale = 1e10;

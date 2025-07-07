@@ -6,10 +6,7 @@ import { assertUnreachable } from '../../utils';
 import { CheckConstraint, Column, ForeignKey, Index, MysqlDDL, PrimaryKey, ViewColumn } from './ddl';
 import { parseEnum } from './grammar';
 
-const mysqlImportsList = new Set([
-	'mysqlTable',
-	'mysqlEnum',
-	'bigint',
+export const imports = [
 	'binary',
 	'boolean',
 	'char',
@@ -18,23 +15,31 @@ const mysqlImportsList = new Set([
 	'decimal',
 	'double',
 	'float',
-	'int',
-	'json',
+	'tinyint',
+	'smallint',
 	'mediumint',
+	'int',
+	'bigint',
+	'json',
 	'real',
 	'serial',
-	'smallint',
 	'text',
 	'tinytext',
 	'mediumtext',
 	'longtext',
 	'time',
 	'timestamp',
-	'tinyint',
 	'varbinary',
 	'varchar',
 	'year',
 	'enum',
+] as const;
+export type Import = typeof imports[number];
+
+const mysqlImportsList = new Set([
+	'mysqlTable',
+	'mysqlEnum',
+	...imports,
 ]);
 
 const objToStatement2 = (json: any) => {

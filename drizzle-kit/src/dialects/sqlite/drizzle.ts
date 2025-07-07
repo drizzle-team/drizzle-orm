@@ -1,3 +1,4 @@
+import { Value } from '@aws-sdk/client-rds-data';
 import { getTableName, is, SQL } from 'drizzle-orm';
 import {
 	AnySQLiteColumn,
@@ -5,8 +6,10 @@ import {
 	getTableConfig,
 	getViewConfig,
 	SQLiteBaseInteger,
+	SQLiteInteger,
 	SQLiteSyncDialect,
 	SQLiteTable,
+	SQLiteTimestamp,
 	SQLiteView,
 } from 'drizzle-orm/sqlite-core';
 import { safeRegister } from 'src/utils/utils-node';
@@ -24,7 +27,7 @@ import type {
 	UniqueConstraint,
 	View,
 } from './ddl';
-import { nameForForeignKey, nameForUnique } from './grammar';
+import { Int, nameForForeignKey, nameForUnique, SqlType, sqlTypeFrom, typeFor } from './grammar';
 
 export const fromDrizzleSchema = (
 	dTables: AnySQLiteTable[],
@@ -242,29 +245,13 @@ export const prepareFromSchemaFiles = async (imports: string[]) => {
 	return { tables: Array.from(new Set(tables)), views };
 };
 
-export const defaultFromColumn = (column: AnySQLiteColumn, casing: CasingType | undefined) => {
+export const defaultFromColumn = (
+	column: AnySQLiteColumn,
+	casing: CasingType | undefined,
+): Column['default'] => {
 	const def = column.default;
 	if (typeof def === 'undefined') return null; // '', 0, false, etc.
-
-	if (is(def, SQL)) return { value: sqlToStr(def, casing), isExpression: true };
-
-	if (column.getSQLType() === 'numeric' && typeof def === 'string') {
-		return { value: `'${def}'`, isExpression: true };
-	}
-
-	if (def instanceof Date && column.getSQLType() === 'integer') {
-		return { value: (def.getTime() / 1000).toFixed(0), isExpression: true };
-	}
-
-	if (typeof def === 'object' || Array.isArray(def)) {
-		return { value: JSON.stringify(def), isExpression: false };
-	}
-
-	if (typeof def === 'bigint') {
-		return { value: `'${def.toString()}'`, isExpression: true };
-	}
-
-	if (typeof def === 'string') return { value: def, isExpression: false };
-
-	return { value: String(def), isExpression: true }; // integer boolean etc
+	if (is(def, SQL)) return sqlToStr(def, casing);
+	if (is(column, SQLiteTimestamp)) return Int.defaultFromDrizzle(def, column.mode);
+	return typeFor(column.getSQLType()).defaultFromDrizzle(def);
 };

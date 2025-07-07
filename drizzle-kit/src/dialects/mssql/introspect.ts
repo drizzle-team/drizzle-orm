@@ -641,8 +641,7 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 		const encryption = view.definition === null;
 		const definition = parseViewSQL(view.definition);
 		if (definition === null) {
-			console.log(`Could not process view ${view.name}:\n${view.definition}`);
-			process.exit(1);
+			throw new Error(`Could not process view ${view.name}:\n${view.definition}`);
 		}
 		const withMetadata = parseViewMetadataFlag(view.definition);
 		const checkOption = view.with_check_option;
