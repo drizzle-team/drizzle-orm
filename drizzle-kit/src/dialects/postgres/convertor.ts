@@ -863,6 +863,24 @@ const alterRoleConvertor = convertor('alter_role', ({ diff, role }) => {
 	// }`};`;
 });
 
+const grantPrivilegeConvertor = convertor('grant_privilege', (st) => {
+	const { schema, table } = st.privilege;
+	const privilege = st.privilege;
+
+	return `GRANT ${privilege.type}(${privilege.column}) ON ${
+		schema !== 'public' ? `"${schema}"."${table}"` : `"${table}"`
+	} TO ${privilege.grantee}${privilege.isGrantable ? ' WITH GRANT OPTION' : ''};`;
+});
+
+const revokePrivilegeConvertor = convertor('revoke_privilege', (st) => {
+	const { schema, table } = st.privilege;
+	const privilege = st.privilege;
+
+	return `REVOKE ${privilege.type}(${privilege.column}) ON ${
+		schema !== 'public' ? `"${schema}"."${table}"` : `"${table}"`
+	} FROM ${privilege.grantee};`;
+});
+
 const createPolicyConvertor = convertor('create_policy', (st) => {
 	const { schema, table } = st.policy;
 	const policy = st.policy;
@@ -990,6 +1008,8 @@ const convertors = [
 	dropRoleConvertor,
 	renameRoleConvertor,
 	alterRoleConvertor,
+	grantPrivilegeConvertor,
+	revokePrivilegeConvertor,
 	createPolicyConvertor,
 	dropPolicyConvertor,
 	renamePolicyConvertor,

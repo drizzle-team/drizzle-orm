@@ -339,6 +339,7 @@ export const fromDrizzleSchema = (
 		policies: [],
 		enums: [],
 		roles: [],
+		privileges: [],
 		schemas: [],
 		sequences: [],
 		tables: [],

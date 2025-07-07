@@ -108,6 +108,15 @@ export const createDDL = () => {
 			password: 'string?',
 			validUntil: 'string?',
 		},
+		privileges: {
+			grantor: 'string',
+			grantee: 'string',
+			schema: 'required',
+			table: 'required',
+			column: 'string',
+			type: ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'],
+			isGrantable: 'boolean',
+		},
 		policies: {
 			schema: 'required',
 			table: 'required',
@@ -167,6 +176,7 @@ export type Sequence = PostgresEntities['sequences'];
 export type Column = PostgresEntities['columns'];
 export type Identity = Column['identity'];
 export type Role = PostgresEntities['roles'];
+export type Privilege = PostgresEntities['privileges'];
 export type Index = PostgresEntities['indexes'];
 export type IndexColumn = Index['columns'][number];
 export type ForeignKey = PostgresEntities['fks'];
@@ -224,6 +234,7 @@ export interface InterimSchema {
 	checks: CheckConstraint[];
 	sequences: Sequence[];
 	roles: Role[];
+	privileges: Privilege[];
 	policies: Policy[];
 	views: View[];
 	viewColumns: ViewColumn[];

@@ -20,6 +20,7 @@ import {
 	PostgresEntities,
 	PrimaryKey,
 	Role,
+	Privilege,
 	Schema,
 	Sequence,
 	tableFromDDL,
@@ -47,6 +48,7 @@ export const ddlDiffDry = async (ddlFrom: PostgresDDL, ddlTo: PostgresDDL, mode:
 		mockResolver(mocks),
 		mockResolver(mocks),
 		mockResolver(mocks),
+		mockResolver(mocks),
 		mode,
 	);
 };
@@ -59,6 +61,7 @@ export const ddlDiff = async (
 	sequencesResolver: Resolver<Sequence>,
 	policyResolver: Resolver<Policy>,
 	roleResolver: Resolver<Role>,
+	privilegesResolver: Resolver<Privilege>,
 	tablesResolver: Resolver<PostgresEntities['tables']>,
 	columnsResolver: Resolver<Column>,
 	viewsResolver: Resolver<View>,
@@ -204,7 +207,6 @@ export const ddlDiff = async (
 	}
 
 	const rolesDiff = diff(ddl1, ddl2, 'roles');
-
 	const {
 		created: createdRoles,
 		deleted: deletedRoles,
@@ -223,6 +225,15 @@ export const ddlDiff = async (
 			},
 		});
 	}
+
+	const privilegesDiff = diff(ddl1, ddl2, 'privileges');
+	const {
+		created: createdPrivileges,
+		deleted: deletedPrivileges,
+	} = await privilegesResolver({
+		created: privilegesDiff.filter((it) => it.$diffType === 'create'),
+		deleted: privilegesDiff.filter((it) => it.$diffType === 'drop'),
+	});
 
 	const tablesDiff = diff(ddl1, ddl2, 'tables');
 	const {
@@ -1032,6 +1043,12 @@ export const ddlDiff = async (
 		prepareStatement('alter_role', { diff: it, role: it.$right })
 	);
 
+	const jsonGrantPrivileges = createdPrivileges.map((it) => prepareStatement('grant_privilege', { privilege: it }));
+	const jsonRevokePrivileges = deletedPrivileges.map((it) => prepareStatement('revoke_privilege', { privilege: it }));
+	const jsonAlterPrivileges = alters.filter((it) => it.entityType === 'privileges').map((it) =>
+		prepareStatement('grant_privilege', { privilege: it.$right })
+	);
+
 	const createSchemas = createdSchemas.map((it) => prepareStatement('create_schema', it));
 	const dropSchemas = deletedSchemas.map((it) => prepareStatement('drop_schema', it));
 	const renameSchemas = renamedSchemas.map((it) => prepareStatement('rename_schema', it));
@@ -1111,6 +1128,10 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonDropRoles);
 	jsonStatements.push(...jsonCreateRoles);
 	jsonStatements.push(...jsonAlterRoles);
+
+	jsonStatements.push(...jsonRevokePrivileges);
+	jsonStatements.push(...jsonGrantPrivileges);
+	jsonStatements.push(...jsonAlterPrivileges);
 
 	jsonStatements.push(...createTables);
 
