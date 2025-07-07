@@ -14,7 +14,7 @@ import { ddlDiff, ddlDiffDry } from 'src/dialects/sqlite/diff';
 import { defaultFromColumn, fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/sqlite/drizzle';
 import { fromDatabaseForDrizzle } from 'src/dialects/sqlite/introspect';
 import { ddlToTypeScript } from 'src/dialects/sqlite/typescript';
-import { DB, SQLiteDB } from 'src/utils';
+import { SQLiteDB } from 'src/utils';
 import { mockResolver } from 'src/utils/mocks';
 
 mkdirSync('tests/sqlite/tmp/', { recursive: true });
@@ -182,7 +182,7 @@ export const diffDefault = async <T extends SQLiteColumnBuilder>(
 	const column = sqliteTable('table', { column: builder }).column;
 	const type = column.getSQLType();
 	const columnDefault = defaultFromColumn(column, 'camelCase');
-	const defaultSql = defaultToSQL(columnDefault);
+	const defaultSql = defaultToSQL(type, columnDefault);
 
 	const res = [] as string[];
 	if (defaultSql !== expectedDefault) {
