@@ -14,6 +14,7 @@ import type {
 	PostgresEntities,
 	PrimaryKey,
 	Role,
+	Privilege,
 	Schema,
 	Sequence,
 	UniqueConstraint,
@@ -97,6 +98,7 @@ export const fromDatabase = async (
 	const checks: CheckConstraint[] = [];
 	const sequences: Sequence[] = [];
 	const roles: Role[] = [];
+	const privileges: Privilege[] = [];
 	const policies: Policy[] = [];
 	const views: View[] = [];
 	const viewColumns: ViewColumn[] = [];
@@ -445,6 +447,34 @@ const rolesQuery = db.query<
 		throw error;
 	});
 
+	const privilegesQuery = db.query<{
+		grantor: string;
+		grantee: string;
+		schema: string;
+		table: string;
+		column: string;
+		type: 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' | 'TRUNCATE' | 'REFERENCES' | 'TRIGGER';
+		isGrantable: boolean;
+	}>(`
+		SELECT
+			grantor,
+			grantee,
+			table_schema AS "schema",
+			table_name AS "table",
+			column_name AS "column",
+			privilege_type AS "type",
+			CASE is_grantable WHEN 'YES' THEN true ELSE false END AS "isGrantable"
+		FROM information_schema.role_column_grants
+		WHERE table_schema IN (${filteredNamespacesIds.join(',')})
+		ORDER BY lower(table_schema), lower(table_name), lower(column_name), lower(grantee);
+	`).then((rows) => {
+		queryCallback('privileges', rows, null);
+		return rows;
+	}).catch((error) => {
+		queryCallback('privileges', [], error);
+		throw error;
+	});
+
 	const constraintsQuery = db.query<{
 		oid: number;
 		schemaId: number;
@@ -566,7 +596,7 @@ const rolesQuery = db.query<
 		throw err;
 	});
 
-	const [dependList, enumsList, serialsList, sequencesList, policiesList, rolesList, constraintsList, columnsList] =
+	const [dependList, enumsList, serialsList, sequencesList, policiesList, rolesList, privilegesList, constraintsList, columnsList] =
 		await Promise
 			.all([
 				dependQuery,
@@ -575,6 +605,7 @@ const rolesQuery = db.query<
 				sequencesQuery,
 				policiesQuery,
 				rolesQuery,
+				privilegesQuery,
 				constraintsQuery,
 				columnsQuery,
 			]);
@@ -669,6 +700,21 @@ const rolesQuery = db.query<
 			validUntil: dbRole.rolvaliduntil,
 			bypassRls: dbRole.rolbypassrls,
 		});
+	}
+
+	for (const privilege of privilegesList) {
+		privileges.push({
+			entityType: 'privileges',
+			// TODO: remove name and implement custom pk
+			name: `${privilege.grantor}_${privilege.grantee}_${privilege.schema}_${privilege.table}_${privilege.type}`,
+			grantor: privilege.grantor,
+			grantee: privilege.grantee,
+			schema: privilege.schema,
+			table: privilege.table,
+			column: privilege.column,
+			type: privilege.type,
+			isGrantable: privilege.isGrantable,
+		})
 	}
 
 	for (const it of policiesList) {
@@ -1180,6 +1226,7 @@ const rolesQuery = db.query<
 		checks,
 		sequences,
 		roles,
+		privileges,
 		policies,
 		views,
 		viewColumns,
