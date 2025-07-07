@@ -22,7 +22,7 @@ export interface SqlType<MODE = unknown> {
 	defaultFromDrizzle(value: unknown, mode?: MODE): Column['default'];
 	defaultFromIntrospect(value: string): Column['default'];
 	defaultToSQL(value: Column['default']): string;
-	defaultToTS(value: Column['default']): string;
+	toTs(value: Column['default']): { def: string; options?: Record<string, string | number | boolean> } | string;
 }
 
 const intAffinities = [
@@ -41,10 +41,8 @@ export const Int: SqlType<'timestamp' | 'timestamp_ms'> = {
 	is(type) {
 		return intAffinities.indexOf(type.toLowerCase()) >= 0;
 	},
-	drizzleImport: function(): Import {
-		return 'integer';
-	},
-	defaultFromDrizzle(value, mode) {
+	drizzleImport: () => 'integer',
+	defaultFromDrizzle: (value, mode) => {
 		if (typeof value === 'boolean') {
 			return value ? '1' : '0';
 		}
@@ -60,17 +58,18 @@ export const Int: SqlType<'timestamp' | 'timestamp_ms'> = {
 
 		return String(value);
 	},
-	defaultFromIntrospect: function(value: string): Column['default'] {
+	defaultFromIntrospect: (value) => {
 		const it = trimChar(value, "'");
 		const check = Number(it);
 		if (Number.isNaN(check)) return value; // unknown
 		if (check >= Number.MIN_SAFE_INTEGER && check <= Number.MAX_SAFE_INTEGER) return it;
 		return it; // bigint
 	},
-	defaultToSQL: function(value: Column['default']): string {
+	defaultToSQL: (value) => {
 		return value ?? ''; // as is?
 	},
-	defaultToTS: function(value: Column['default']): string {
+
+	toTs: (value) => {
 		if (!value) return '';
 		const check = Number(value);
 
@@ -103,7 +102,7 @@ export const Real: SqlType = {
 	defaultToSQL: function(value: Column['default']): string {
 		return value ?? '';
 	},
-	defaultToTS: function(value: Column['default']): string {
+	toTs: function(value: Column['default']): string {
 		return value ?? '';
 	},
 };
@@ -138,13 +137,15 @@ export const Numeric: SqlType = {
 	defaultToSQL: function(value: Column['default']): string {
 		return value ?? '';
 	},
-	defaultToTS: function(value: Column['default']): string {
+	toTs: function(value: Column['default']) {
 		if (!value) return '';
 		const check = Number(value);
 
 		if (Number.isNaN(check)) return value; // unknown
-		if (check >= Number.MIN_SAFE_INTEGER && check <= Number.MAX_SAFE_INTEGER) return value;
-		return `${value}n`; // bigint
+		if (check >= Number.MIN_SAFE_INTEGER && check <= Number.MAX_SAFE_INTEGER) {
+			return { def: value, options: { mode: 'number' } };
+		}
+		return { def: `${value}n`, options: { mode: 'bigint' } }; // bigint
 	},
 };
 
@@ -194,7 +195,7 @@ export const Text: SqlType = {
 		const escaped = value.replaceAll('\\', '\\\\').replaceAll("'", "''");
 		return `'${escaped}'`;
 	},
-	defaultToTS: function(value: Column['default']): string {
+	toTs: function(value: Column['default']): string {
 		if (value === null) return '';
 
 		const escaped = value.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
@@ -230,7 +231,7 @@ export const Blob: SqlType = {
 	defaultToSQL: function(value: Column['default']): string {
 		return value ?? '';
 	},
-	defaultToTS: function(value: Column['default']): string {
+	toTs: function(value: Column['default']): string {
 		if (value === null) return '';
 
 		if (typeof Buffer !== 'undefined' && value.startsWith("X'")) {

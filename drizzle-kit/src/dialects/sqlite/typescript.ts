@@ -96,7 +96,6 @@ export const ddlToTypeScript = (
 
 	for (const it of Array.from(columnTypes.values())) {
 		imports.add(typeFor(it).drizzleImport());
-		if (sqliteImports.has(it)) imports.add(it);
 	}
 
 	for (const it of Object.values(viewColumns).flat()) {
@@ -230,11 +229,12 @@ const column = (
 	const grammarType = typeFor(type);
 	if (grammarType) {
 		const drizzleType = grammarType.drizzleImport();
-		const tsDefault = grammarType.defaultToTS(defaultValue);
-		const def = tsDefault ? `.default(${tsDefault})` : '';
-		return `${withCasing(name, casing)}: ${drizzleType}(${dbColumnName({ name, casing })})${def}`;
+		const res = grammarType.toTs(defaultValue);
+		const { def, options } = typeof res === 'string' ? { def: res } : res;
+		const defaultStatement = def ? `.default(${def})` : '';
+		const opts = options ? `${JSON.stringify(options)}` : '';
+		return `${withCasing(name, casing)}: ${drizzleType}(${dbColumnName({ name, casing })}${opts})${defaultStatement}`;
 	}
-
 
 	// TODO: ??
 	if (lowered.startsWith('text')) {

@@ -86,3 +86,15 @@ export const groupDiffs = <
 	}
 	return res;
 };
+
+export const escapeForSqlDefault = (input: string) => {
+	return input.replace(/\\/g, '\\\\').replace(/'/g, "''");
+};
+
+export const unescapeFromSqlDefault = (input: string) => {
+	return input.replace(/''/g, "'").replace(/\\\\/g, '\\');
+};
+
+export const escapeForTsLiteral = (input: string) => {
+	return input.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+};
