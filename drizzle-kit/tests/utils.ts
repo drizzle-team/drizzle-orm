@@ -11,3 +11,12 @@ export const measure = <T>(prom: Promise<T>, label: string): Promise<T> => {
 		}
 	});
 };
+
+export const tsc = async (path: string) => {
+	const typeCheckResult =
+		await $`pnpm exec tsc --noEmit --skipLibCheck --target ES2020 --module NodeNext --moduleResolution NodeNext ${path}`
+			.nothrow();
+	if (typeCheckResult.exitCode !== 0) {
+		throw new Error(typeCheckResult.stderr || typeCheckResult.stdout);
+	}
+};

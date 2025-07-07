@@ -4,22 +4,22 @@ import { Casing } from 'src/cli/validations/common';
 import { unescapeSingleQuotes } from 'src/utils';
 import { assertUnreachable } from '../../utils';
 import { CheckConstraint, Column, ForeignKey, Index, MysqlDDL, PrimaryKey, ViewColumn } from './ddl';
-import { parseEnum } from './grammar';
+import { parseEnum, typeFor } from './grammar';
 
 export const imports = [
-	'binary',
 	'boolean',
+	'tinyint',
+	'smallint',
+	'mediumint',
+	'int',
+	'bigint',
+	'binary',
 	'char',
 	'date',
 	'datetime',
 	'decimal',
 	'double',
 	'float',
-	'tinyint',
-	'smallint',
-	'mediumint',
-	'int',
-	'bigint',
 	'json',
 	'real',
 	'serial',
@@ -41,6 +41,26 @@ const mysqlImportsList = new Set([
 	'mysqlEnum',
 	...imports,
 ]);
+
+function inspect(it: any): string {
+	if (!it) return '';
+
+	const keys = Object.keys(it);
+	if (keys.length === 0) return '{}';
+
+	const pairs = keys.map((key) => {
+		const formattedKey = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(key)
+			? key
+			: `'${key}'`;
+
+		const value = it[key];
+		const formattedValue = typeof value === 'string' ? `'${value}'` : String(value);
+
+		return `${formattedKey}: ${formattedValue}`;
+	});
+
+	return `{ ${pairs.join(', ')} }`;
+}
 
 const objToStatement2 = (json: any) => {
 	json = Object.fromEntries(Object.entries(json).filter((it) => it[1]));
@@ -276,7 +296,7 @@ const isSelf = (fk: ForeignKey) => {
 	return fk.table === fk.tableTo;
 };
 
-const mapColumnDefault = (it: NonNullable<Column['default']>) => {
+const mapColumnDefault = (type: string, it: NonNullable<Column['default']>) => {
 	if (it.type === 'unknown') {
 		return `sql\`${it.value}\``;
 	}
@@ -306,6 +326,19 @@ const column = (
 ) => {
 	let lowered = type.startsWith('enum(') ? type : type.toLowerCase();
 
+	const grammarType = typeFor(lowered);
+	if (grammarType) {
+		const key = casing(name);
+		const columnName = dbColumnName({ name, casing: rawCasing });
+		const { default: def, options } = grammarType.toTs(lowered, defaultValue);
+		const drizzleType = grammarType.drizzleImport();
+
+		let res = `${key}: ${drizzleType}(${columnName}${inspect(options)})`;
+		res += autoincrement ? `.autoincrement()` : '';
+		res += def ? `.default(${def})` : '';
+		return res;
+	}
+
 	if (lowered === 'serial') {
 		return `${casing(name)}: serial(${dbColumnName({ name, casing: rawCasing })})`;
 	}
@@ -316,7 +349,7 @@ const column = (
 		let out = `${casing(name)}: int(${columnName}${isUnsigned ? '{ unsigned: true }' : ''})`;
 		out += autoincrement ? `.autoincrement()` : '';
 		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue)})`
+			? `.default(${mapColumnDefault(lowered, defaultValue)})`
 			: '';
 		return out;
 	}
@@ -327,7 +360,7 @@ const column = (
 		// let out = `${name.camelCase()}: tinyint("${name}")`;
 		let out: string = `${casing(name)}: tinyint(${columnName}${isUnsigned ? '{ unsigned: true }' : ''})`;
 		out += autoincrement ? `.autoincrement()` : '';
-		out += defaultValue ? `.default(${mapColumnDefault(defaultValue)})` : '';
+		out += defaultValue ? `.default(${mapColumnDefault(lowered, defaultValue)})` : '';
 		return out;
 	}
 
@@ -336,7 +369,7 @@ const column = (
 		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
 		let out = `${casing(name)}: smallint(${columnName}${isUnsigned ? '{ unsigned: true }' : ''})`;
 		out += autoincrement ? `.autoincrement()` : '';
-		out += defaultValue ? `.default(${mapColumnDefault(defaultValue)})` : '';
+		out += defaultValue ? `.default(${mapColumnDefault(lowered, defaultValue)})` : '';
 		return out;
 	}
 
@@ -345,7 +378,7 @@ const column = (
 		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
 		let out = `${casing(name)}: mediumint(${columnName}${isUnsigned ? '{ unsigned: true }' : ''})`;
 		out += autoincrement ? `.autoincrement()` : '';
-		out += defaultValue ? `.default(${mapColumnDefault(defaultValue)})` : '';
+		out += defaultValue ? `.default(${mapColumnDefault(lowered, defaultValue)})` : '';
 		return out;
 	}
 
@@ -355,13 +388,13 @@ const column = (
 			isUnsigned ? ', unsigned: true' : ''
 		} })`;
 		out += autoincrement ? `.autoincrement()` : '';
-		out += defaultValue ? `.default(${mapColumnDefault(defaultValue)})` : '';
+		out += defaultValue ? `.default(${mapColumnDefault(lowered, defaultValue)})` : '';
 		return out;
 	}
 
 	if (lowered === 'boolean' || lowered === 'tinyint(1)') {
 		let out = `${casing(name)}: boolean(${dbColumnName({ name, casing: rawCasing })})`;
-		out += defaultValue ? `.default(${mapColumnDefault(defaultValue)})` : '';
+		out += defaultValue ? `.default(${mapColumnDefault(lowered, defaultValue)})` : '';
 		return out;
 	}
 
@@ -391,7 +424,7 @@ const column = (
 
 		// let out = `${name.camelCase()}: double("${name}")`;
 		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue)})`
+			? `.default(${mapColumnDefault(lowered, defaultValue)})`
 			: '';
 		return out;
 	}
@@ -414,7 +447,7 @@ const column = (
 
 		let out = `${casing(name)}: float(${dbColumnName({ name, casing: rawCasing })}${params ? timeConfig(params) : ''})`;
 		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue)})`
+			? `.default(${mapColumnDefault(lowered, defaultValue)})`
 			: '';
 		return out;
 	}
@@ -422,7 +455,7 @@ const column = (
 	if (lowered === 'real') {
 		let out = `${casing(name)}: real(${dbColumnName({ name, casing: rawCasing })})`;
 		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue)})`
+			? `.default(${mapColumnDefault(lowered, defaultValue)})`
 			: '';
 		return out;
 	}
@@ -446,7 +479,7 @@ const column = (
 		out += defaultValue?.value === 'now()' || defaultValue?.value === '(CURRENT_TIMESTAMP)'
 			? '.defaultNow()'
 			: defaultValue
-			? `.default(${mapColumnDefault(defaultValue)})`
+			? `.default(${mapColumnDefault(lowered, defaultValue)})`
 			: '';
 
 		let onUpdateNow = onUpdate ? '.onUpdateNow()' : '';
@@ -471,7 +504,7 @@ const column = (
 		out += defaultValue?.value === 'now()'
 			? '.defaultNow()'
 			: defaultValue
-			? `.default(${mapColumnDefault(defaultValue)})`
+			? `.default(${mapColumnDefault(lowered, defaultValue)})`
 			: '';
 
 		return out;
@@ -487,7 +520,7 @@ const column = (
 		out += defaultValue?.value === 'now()'
 			? '.defaultNow()'
 			: defaultValue
-			? `.default(${mapColumnDefault(defaultValue)})`
+			? `.default(${mapColumnDefault(lowered, defaultValue)})`
 			: '';
 
 		return out;
@@ -497,7 +530,7 @@ const column = (
 	if (lowered === 'text') {
 		let out = `${casing(name)}: text(${dbColumnName({ name, casing: rawCasing })})`;
 		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue)})`
+			? `.default(${mapColumnDefault(lowered, defaultValue)})`
 			: '';
 		return out;
 	}
@@ -506,7 +539,7 @@ const column = (
 	if (lowered === 'tinytext') {
 		let out = `${casing(name)}: tinytext(${dbColumnName({ name, casing: rawCasing })})`;
 		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue)})`
+			? `.default(${mapColumnDefault(lowered, defaultValue)})`
 			: '';
 		return out;
 	}
@@ -515,7 +548,7 @@ const column = (
 	if (lowered === 'mediumtext') {
 		let out = `${casing(name)}: mediumtext(${dbColumnName({ name, casing: rawCasing })})`;
 		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue)})`
+			? `.default(${mapColumnDefault(lowered, defaultValue)})`
 			: '';
 		return out;
 	}
@@ -524,7 +557,7 @@ const column = (
 	if (lowered === 'longtext') {
 		let out = `${casing(name)}: longtext(${dbColumnName({ name, casing: rawCasing })})`;
 		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue)})`
+			? `.default(${mapColumnDefault(lowered, defaultValue)})`
 			: '';
 		return out;
 	}
@@ -532,7 +565,7 @@ const column = (
 	if (lowered === 'year') {
 		let out = `${casing(name)}: year(${dbColumnName({ name, casing: rawCasing })})`;
 		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue)})`
+			? `.default(${mapColumnDefault(lowered, defaultValue)})`
 			: '';
 		return out;
 	}
@@ -542,7 +575,7 @@ const column = (
 		let out = `${casing(name)}: json(${dbColumnName({ name, casing: rawCasing })})`;
 
 		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue)})`
+			? `.default(${mapColumnDefault(lowered, defaultValue)})`
 			: '';
 
 		return out;
@@ -579,7 +612,7 @@ const column = (
 		} })`;
 
 		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue)})`
+			? `.default(${mapColumnDefault(lowered, defaultValue)})`
 			: '';
 		return out;
 	}
@@ -607,7 +640,7 @@ const column = (
 		out += defaultValue?.value === 'now()'
 			? '.defaultNow()'
 			: defaultValue
-			? `.default(${mapColumnDefault(defaultValue)})`
+			? `.default(${mapColumnDefault(lowered, defaultValue)})`
 			: '';
 
 		defaultValue;
@@ -639,7 +672,7 @@ const column = (
 			: `${casing(name)}: decimal(${dbColumnName({ name, casing: rawCasing })})`;
 
 		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue)})`
+			? `.default(${mapColumnDefault(lowered, defaultValue)})`
 			: '';
 
 		return out;
@@ -659,7 +692,7 @@ const column = (
 			: `${casing(name)}: binary(${dbColumnName({ name, casing: rawCasing })})`;
 
 		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue)})`
+			? `.default(${mapColumnDefault(lowered, defaultValue)})`
 			: '';
 
 		return out;
@@ -690,7 +723,7 @@ const column = (
 			: `${casing(name)}: varbinary(${dbColumnName({ name, casing: rawCasing })})`;
 
 		out += defaultValue
-			? `.default(${mapColumnDefault(defaultValue)})`
+			? `.default(${mapColumnDefault(lowered, defaultValue)})`
 			: '';
 
 		return out;
