@@ -27,6 +27,7 @@ import { fromDatabaseForDrizzle } from 'src/dialects/mysql/introspect';
 import { ddlToTypeScript } from 'src/dialects/mysql/typescript';
 import { DB } from 'src/utils';
 import { mockResolver } from 'src/utils/mocks';
+import { tsc } from 'tests/utils';
 import { v4 as uuid } from 'uuid';
 import 'zx/globals';
 
@@ -81,12 +82,9 @@ export const diffIntrospect = async (
 
 	const filePath = `tests/mysql/tmp/${testName}.ts`;
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
+	
 	writeFileSync(filePath, file.file);
-
-	const typeCheckResult = await $`pnpm exec tsc --noEmit --skipLibCheck ${filePath}`.nothrow();
-	if (typeCheckResult.exitCode !== 0) {
-		throw new Error(`${typeCheckResult.stderr || typeCheckResult.stdout}: ${filePath}`);
-	}
+	await tsc(filePath)
 
 	// generate snapshot from ts file
 	const response = await prepareFromSchemaFiles([
@@ -179,6 +177,7 @@ export const diffDefault = async <T extends MySqlColumnBuilder>(
 	pre: MysqlSchema | null = null,
 	override?: {
 		type?: string;
+		default?: string;
 	},
 ) => {
 	await kit.clear();
@@ -189,7 +188,7 @@ export const diffDefault = async <T extends MySqlColumnBuilder>(
 	const type = override?.type ?? column.getSQLType().replace(', ', ','); // real(6, 3)->real(6,3)
 
 	const columnDefault = defaultFromColumn(column, 'camelCase');
-	const defaultSql = defaultToSQL(columnDefault);
+	const defaultSql = override?.default ?? defaultToSQL(column.getSQLType(), columnDefault);
 
 	const res = [] as string[];
 	if (defaultSql !== expectedDefault) {
@@ -219,6 +218,7 @@ export const diffDefault = async <T extends MySqlColumnBuilder>(
 
 	if (existsSync(path)) rmSync(path);
 	writeFileSync(path, file.file);
+	await tsc(path)
 
 	const response = await prepareFromSchemaFiles([path]);
 	const sch = fromDrizzleSchema(response.tables, response.views, 'camelCase');
@@ -227,7 +227,7 @@ export const diffDefault = async <T extends MySqlColumnBuilder>(
 	const { sqlStatements: afterFileSqlStatements } = await ddlDiffDry(ddl1, ddl2, 'push');
 	if (afterFileSqlStatements.length === 0) {
 		// TODO: tsc on temp files, it consumes them with TS errors now
-		rmSync(path);
+		// rmSync(path);
 	} else {
 		console.log(afterFileSqlStatements);
 		console.log(`./${path}`);

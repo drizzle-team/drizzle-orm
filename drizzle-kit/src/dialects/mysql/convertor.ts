@@ -32,7 +32,7 @@ const createTable = convertor('create_table', (st) => {
 		const isPK = pk && !pk.nameExplicit && pk.columns.length === 1 && pk.columns[0] === column.name;
 		const primaryKeyStatement = isPK ? ' PRIMARY KEY' : '';
 		const notNullStatement = column.notNull && !isPK ? ' NOT NULL' : '';
-		const def = defaultToSQL(column.default);
+		const def = defaultToSQL(column.type, column.default);
 		const defaultStatement = def ? ` DEFAULT ${def}` : '';
 
 		const onUpdateStatement = column.onUpdateNow
@@ -104,7 +104,7 @@ const addColumn = convertor('add_column', (st) => {
 		generated,
 	} = column;
 
-	const def = defaultToSQL(column.default);
+	const def = defaultToSQL(column.type, column.default);
 	const defaultStatement = def ? ` DEFAULT ${def}` : '';
 
 	const notNullStatement = `${notNull ? ' NOT NULL' : ''}`;
@@ -130,7 +130,7 @@ const renameColumn = convertor('rename_column', (st) => {
 const alterColumn = convertor('alter_column', (st) => {
 	const { diff, column, isPK } = st;
 
-	const def = defaultToSQL(column.default);
+	const def = defaultToSQL(column.type, column.default);
 	const defaultStatement = def ? ` DEFAULT ${def}` : '';
 
 	const notNullStatement = `${column.notNull ? ' NOT NULL' : ''}`;
