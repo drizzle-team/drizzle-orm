@@ -471,7 +471,7 @@ export const fromDrizzleSchema = (
 
 				const { baseColumn, dimensions, sqlType, baseType, options, typeSchema } = unwrapColumn(column);
 				const columnDefault = defaultFromColumn(baseColumn, column.default, dimensions, dialect);
-				console.log(columnDefault, column.default)
+				console.log(columnDefault, column.default);
 
 				return {
 					entityType: 'columns',
