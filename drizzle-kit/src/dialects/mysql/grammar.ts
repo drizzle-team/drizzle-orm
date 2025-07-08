@@ -320,7 +320,6 @@ export const LongText: SqlType = {
 	toTs: TinyText.toTs,
 };
 
-
 export const Binary: SqlType = {
 	is: (type) => /^(?:binary)(?:[\s(].*)?$/i.test(type),
 	drizzleImport: () => 'binary',
