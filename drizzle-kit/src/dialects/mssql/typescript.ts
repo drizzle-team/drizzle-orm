@@ -14,9 +14,9 @@ import {
 	UniqueConstraint,
 	ViewColumn,
 } from './ddl';
+import { typeFor } from './grammar';
 
-const mssqlImportsList = new Set([
-	'mssqlTable',
+const imports = [
 	'bigint',
 	'binary',
 	'bit',
@@ -41,7 +41,33 @@ const mssqlImportsList = new Set([
 	'tinyint',
 	'varbinary',
 	'tinyint',
+] as const;
+export type Import = (typeof imports)[number];
+
+const mssqlImportsList = new Set([
+	'mssqlTable',
+	...imports,
 ]);
+
+function inspect(it: any): string {
+	if (!it) return '';
+
+	const keys = Object.keys(it);
+	if (keys.length === 0) return '{}';
+
+	const pairs = keys.map((key) => {
+		const formattedKey = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(key)
+			? key
+			: `'${key}'`;
+
+		const value = it[key];
+		const formattedValue = typeof value === 'string' ? `'${value}'` : String(value);
+
+		return `${formattedKey}: ${formattedValue}`;
+	});
+
+	return `{ ${pairs.join(', ')} }`;
+}
 
 const objToStatement2 = (json: { [s: string]: unknown }, mode: 'string' | 'number' = 'string') => {
 	json = Object.fromEntries(Object.entries(json).filter((it) => it[1]));
@@ -361,9 +387,25 @@ const column = (
 	options: string | null,
 	name: string,
 	casing: Casing,
-	def?: DefaultConstraint['default'],
+	def: DefaultConstraint['default'],
 ) => {
-	const lowered = type.toLowerCase().replace('[]', '');
+	const lowered = type.toLowerCase();
+
+	const grammarType = typeFor(lowered);
+	if (grammarType) {
+		const key = withCasing(name, casing);
+		const columnName = dbColumnName({ name, casing });
+		const { default: defToSet, options: optionsToSet, raw } = grammarType.toTs(options, def);
+		const drizzleType = grammarType.drizzleImport();
+
+		let res = `${key}: ${drizzleType}(${columnName}${inspect(optionsToSet)})`;
+		res += defToSet
+			? raw
+				? defToSet
+				: `.default(${defToSet})`
+			: '';
+		return res;
+	}
 
 	if (lowered.startsWith('bigint')) {
 		const mode = def && def.type === 'bigint' ? 'bigint' : 'number';
@@ -668,7 +710,7 @@ const createTableColumns = (
 			it.options,
 			it.name,
 			casing,
-			def?.default,
+			def ? def.default : null,
 		);
 		const pk = primaryKey && primaryKey.columns.length === 1 && primaryKey.columns[0] === it.name
 			? primaryKey
@@ -676,7 +718,6 @@ const createTableColumns = (
 
 		statement += '\t';
 		statement += columnStatement;
-		statement += mapDefault(it.type, def ? def.default : null);
 		statement += it.notNull && !it.identity && !pk ? '.notNull()' : '';
 		statement += it.identity ? generateIdentityParams(it) : '';
 		statement += it.generated ? `.generatedAlwaysAs(sql\`${it.generated.as}\`)` : '';

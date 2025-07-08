@@ -79,13 +79,13 @@ test('bigint', async () => {
 	// 2^53
 	const res1 = await diffDefault(_, bigint({ mode: 'number' }).default(9007199254740991), '9007199254740991');
 	const res2 = await diffDefault(_, bigint({ mode: 'number' }).default(-9007199254740991), '-9007199254740991');
-	// 2^63 - 1
-	const res3 = await diffDefault(_, bigint({ mode: 'bigint' }).default(9223372036854775807n), "'9223372036854775807'");
+	// 2^63 - 1;
+	const res3 = await diffDefault(_, bigint({ mode: 'bigint' }).default(9223372036854775807n), '9223372036854775807');
 	// -2^63
 	const res4 = await diffDefault(
 		_,
 		bigint({ mode: 'bigint' }).default(-9223372036854775808n),
-		"'-9223372036854775808'",
+		'-9223372036854775808',
 	);
 
 	expect.soft(res1).toStrictEqual([]);
@@ -95,25 +95,25 @@ test('bigint', async () => {
 });
 
 test('numeric', async () => {
-	const res1 = await diffDefault(_, numeric().default('10.123'), "'10.123'");
+	const res1 = await diffDefault(_, numeric().default('10.123'), '10.123');
 
-	const res2 = await diffDefault(_, numeric({ mode: 'bigint' }).default(9223372036854775807n), "'9223372036854775807'");
+	const res2 = await diffDefault(_, numeric({ mode: 'bigint' }).default(9223372036854775807n), '9223372036854775807');
 	const res3 = await diffDefault(_, numeric({ mode: 'number' }).default(9007199254740991), '9007199254740991');
-	const res4 = await diffDefault(_, numeric({ mode: 'string' }).default('10.123'), "'10.123'");
+	const res4 = await diffDefault(_, numeric({ mode: 'string' }).default('10.123'), '10.123');
 
-	const res5 = await diffDefault(_, numeric({ precision: 6 }).default('10.123'), "'10.123'");
-	const res6 = await diffDefault(_, numeric({ precision: 6, scale: 2 }).default('10.123'), "'10.123'");
-	const res7 = await diffDefault(_, numeric({ precision: 6, scale: 3 }).default('10.12'), "'10.12'");
+	const res5 = await diffDefault(_, numeric({ precision: 6 }).default('10.123'), '10.123');
+	const res6 = await diffDefault(_, numeric({ precision: 6, scale: 2 }).default('10.123'), '10.123');
+	const res7 = await diffDefault(_, numeric({ precision: 6, scale: 3 }).default('10.12'), '10.12');
 
-	const res8 = await diffDefault(_, numeric({ mode: 'string', scale: 2 }).default('10.123'), "'10.123'");
-	const res9 = await diffDefault(_, numeric({ mode: 'string', precision: 6 }).default('10.123'), "'10.123'");
-	const res10 = await diffDefault(_, numeric({ mode: 'string', precision: 6, scale: 2 }).default('10.123'), "'10.123'");
-	const res11 = await diffDefault(_, numeric({ mode: 'string', precision: 6, scale: 3 }).default('10.12'), "'10.12'");
+	const res8 = await diffDefault(_, numeric({ mode: 'string', scale: 2 }).default('10.123'), '10.123');
+	const res9 = await diffDefault(_, numeric({ mode: 'string', precision: 6 }).default('10.123'), '10.123');
+	const res10 = await diffDefault(_, numeric({ mode: 'string', precision: 6, scale: 2 }).default('10.123'), '10.123');
+	const res11 = await diffDefault(_, numeric({ mode: 'string', precision: 6, scale: 3 }).default('10.12'), '10.12');
 
 	const res12 = await diffDefault(
 		_,
 		numeric({ mode: 'bigint', precision: 19 }).default(9223372036854775807n),
-		"'9223372036854775807'",
+		'9223372036854775807',
 	);
 	const res13 = await diffDefault(_, numeric({ mode: 'number', precision: 6, scale: 2 }).default(10.123), '10.123');
 	const res14 = await diffDefault(_, numeric({ mode: 'number', scale: 2 }).default(10.123), '10.123');
@@ -137,25 +137,25 @@ test('numeric', async () => {
 });
 
 test('decimal', async () => {
-	const res1 = await diffDefault(_, decimal().default('10.123'), "'10.123'");
+	const res1 = await diffDefault(_, decimal().default('10.123'), '10.123');
 
-	const res2 = await diffDefault(_, decimal({ mode: 'bigint' }).default(9223372036854775807n), "'9223372036854775807'");
+	const res2 = await diffDefault(_, decimal({ mode: 'bigint' }).default(9223372036854775807n), '9223372036854775807');
 	const res3 = await diffDefault(_, decimal({ mode: 'number' }).default(9007199254740991), '9007199254740991');
-	const res4 = await diffDefault(_, decimal({ mode: 'string' }).default('10.123'), "'10.123'");
+	const res4 = await diffDefault(_, decimal({ mode: 'string' }).default('10.123'), '10.123');
 
-	const res5 = await diffDefault(_, decimal({ precision: 6 }).default('10.123'), "'10.123'");
-	const res6 = await diffDefault(_, decimal({ precision: 6, scale: 2 }).default('10.123'), "'10.123'");
-	const res7 = await diffDefault(_, decimal({ precision: 6, scale: 3 }).default('10.12'), "'10.12'");
+	const res5 = await diffDefault(_, decimal({ precision: 6 }).default('10.123'), '10.123');
+	const res6 = await diffDefault(_, decimal({ precision: 6, scale: 2 }).default('10.123'), '10.123');
+	const res7 = await diffDefault(_, decimal({ precision: 6, scale: 3 }).default('10.12'), '10.12');
 
-	const res8 = await diffDefault(_, decimal({ mode: 'string', scale: 2 }).default('10.123'), "'10.123'");
-	const res9 = await diffDefault(_, decimal({ mode: 'string', precision: 6 }).default('10.123'), "'10.123'");
-	const res10 = await diffDefault(_, decimal({ mode: 'string', precision: 6, scale: 2 }).default('10.123'), "'10.123'");
-	const res11 = await diffDefault(_, decimal({ mode: 'string', precision: 6, scale: 3 }).default('10.12'), "'10.12'");
+	const res8 = await diffDefault(_, decimal({ mode: 'string', scale: 2 }).default('10.123'), '10.123');
+	const res9 = await diffDefault(_, decimal({ mode: 'string', precision: 6 }).default('10.123'), '10.123');
+	const res10 = await diffDefault(_, decimal({ mode: 'string', precision: 6, scale: 2 }).default('10.123'), '10.123');
+	const res11 = await diffDefault(_, decimal({ mode: 'string', precision: 6, scale: 3 }).default('10.12'), '10.12');
 
 	const res12 = await diffDefault(
 		_,
 		decimal({ mode: 'bigint', precision: 19 }).default(9223372036854775807n),
-		"'9223372036854775807'",
+		'9223372036854775807',
 	);
 	const res13 = await diffDefault(_, decimal({ mode: 'number', precision: 6, scale: 2 }).default(10.123), '10.123');
 	const res14 = await diffDefault(_, decimal({ mode: 'number', scale: 2 }).default(10.123), '10.123');
@@ -193,10 +193,15 @@ test('float', async () => {
 	const res2 = await diffDefault(_, float({ precision: 45 }).default(10000.123), '10000.123');
 	const res20 = await diffDefault(_, float({ precision: 45 }).default(10000), '10000');
 
+	const res3 = await diffDefault(_, float({ precision: 10 }).default(10000.123), '10000.123');
+	const res30 = await diffDefault(_, float({ precision: 10 }).default(10000), '10000');
+
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res10).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res20).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res30).toStrictEqual([]);
 });
 
 test('bit', async () => {
@@ -348,11 +353,19 @@ test('datetime', async () => {
 		datetime({ mode: 'string' }).default('2025-05-23T12:53:53.115Z'),
 		`'2025-05-23T12:53:53.115Z'`,
 	);
-	const res3 = await diffDefault(_, datetime().defaultGetDate(), `getdate()`);
+	const res3 = await diffDefault(
+		_,
+		datetime({ mode: 'string' }).default(sql`'2025-05-23T12:53:53.115Z'`),
+		`'2025-05-23T12:53:53.115Z'`,
+	);
+	const res4 = await diffDefault(_, datetime().defaultGetDate(), `getdate()`);
+	const res5 = await diffDefault(_, datetime().default(sql`getdate()`), `getdate()`);
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
+	expect.soft(res5).toStrictEqual([]);
 });
 
 test('datetime2', async () => {

@@ -823,7 +823,13 @@ export const ddlDiff = async (
 		.filter(
 			defaultsIdentityFilter('created'),
 		)
-		.map((defaultValue) => prepareStatement('create_default', { default: defaultValue }));
+		.map((defaultValue) =>
+			prepareStatement('create_default', {
+				default: defaultValue,
+				baseType:
+					ddl2.columns.one({ name: defaultValue.column, schema: defaultValue.schema, table: defaultValue.table })!.type,
+			})
+		);
 	const jsonDropDefaults = defaultsDeletes.filter(tablesFilter('deleted'))
 		.filter(defaultsIdentityFilter('deleted'))
 		.map((defaultValue) => prepareStatement('drop_default', { default: defaultValue }));
@@ -842,7 +848,12 @@ export const ddlDiff = async (
 		.filter(defaultsIdentityFilter('created'))
 		.filter(defaultsIdentityFilter('deleted'));
 	alteredDefaults.forEach((it) => {
-		jsonCreateDefaults.push(prepareStatement('create_default', { default: it.$right }));
+		jsonCreateDefaults.push(
+			prepareStatement('create_default', {
+				default: it.$right,
+				baseType: ddl2.columns.one({ name: it.$right.column, schema: it.$right.schema, table: it.$right.table })!.type,
+			}),
+		);
 		jsonDropDefaults.push(prepareStatement('drop_default', { default: it.$left }));
 	});
 

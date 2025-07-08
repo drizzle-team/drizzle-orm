@@ -558,6 +558,13 @@ test('text + text arrays', async () => {
 		`'{one}'::string[]`,
 	);
 
+	// TODO
+	const res15 = await diffDefault(
+		_,
+		text().default(sql`'Test Model'::character varying`),
+		`'Test Model'::character varying`,
+	);
+
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
@@ -568,6 +575,7 @@ test('text + text arrays', async () => {
 	expect.soft(res8).toStrictEqual([]);
 	expect.soft(res9).toStrictEqual([]);
 	expect.soft(res10).toStrictEqual([]);
+	// expect.soft(res15).toStrictEqual([]);
 });
 
 test('string + string arrays', async () => {
@@ -625,12 +633,20 @@ test('jsonb', async () => {
 
 	const res6 = await diffDefault(_, jsonb().default({ key: `mo''",\`}{od` }), `'{"key":"mo''''\\\",\`}{od"}'`);
 
+	// TODO
+	const res7 = await diffDefault(
+		_,
+		jsonb().default(sql`'{"predictions":null}'::jsonb`),
+		`'{"predictions":null}'::jsonb`,
+	);
+
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
 	expect.soft(res4).toStrictEqual([]);
 	expect.soft(res5).toStrictEqual([]);
 	expect.soft(res6).toStrictEqual([]);
+	expect.soft(res7).toStrictEqual([]);
 });
 
 test('timestamp + timestamp arrays', async () => {
