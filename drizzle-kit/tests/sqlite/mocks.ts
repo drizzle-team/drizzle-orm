@@ -19,7 +19,6 @@ import { mockResolver } from 'src/utils/mocks';
 import { tsc } from 'tests/utils';
 import 'zx/globals';
 
-
 mkdirSync('tests/sqlite/tmp/', { recursive: true });
 
 export type SqliteSchema = Record<string, SQLiteTable<any> | SQLiteView>;
