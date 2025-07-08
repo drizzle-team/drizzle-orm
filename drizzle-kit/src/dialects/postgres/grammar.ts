@@ -17,7 +17,9 @@ const columnUnknown = {
 	},
 
 	printToTypeScript(column: Column) {
-		return `unknown('${column.name}').default(sql\`${column.default?.value.replaceAll("''","'").replaceAll('\\\\','\\')}\`)`;
+		return `unknown('${column.name}').default(sql\`${
+			column.default?.value.replaceAll("''", "'").replaceAll('\\\\', '\\')
+		}\`)`;
 	},
 };
 
