@@ -111,6 +111,11 @@ export interface JsonRevokePrivilege {
 	privilege: Privilege;
 }
 
+export interface JsonRegrantPrivilege {
+	type: 'regrant_privilege';
+	privilege: Privilege;
+}
+
 export interface JsonDropValueFromEnum {
 	type: 'alter_type_drop_value';
 	deletedValues: string[];
@@ -458,6 +463,7 @@ export type JsonStatement =
 	| JsonAlterRole
 	| JsonGrantPrivilege
 	| JsonRevokePrivilege
+	| JsonRegrantPrivilege
 	| JsonCreateView
 	| JsonDropView
 	| JsonRenameView

@@ -113,8 +113,7 @@ export const createDDL = () => {
 			grantee: 'string',
 			schema: 'required',
 			table: 'required',
-			column: 'string',
-			type: ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'],
+			type: ['ALL', 'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'],
 			isGrantable: 'boolean',
 		},
 		policies: {
@@ -339,6 +338,11 @@ interface RoleDuplicate {
 	name: string;
 }
 
+interface PrivilegeDuplicate {
+	type: 'privilege_duplicate';
+	name: string;
+}
+
 export type SchemaError =
 	| SchemaDuplicate
 	| EnumDuplicate
@@ -351,7 +355,8 @@ export type SchemaError =
 	| IndexDuplicate
 	| PgVectorIndexNoOp
 	| RoleDuplicate
-	| PolicyDuplicate;
+	| PolicyDuplicate
+	| PrivilegeDuplicate;
 
 interface PolicyNotLinked {
 	type: 'policy_not_linked';
@@ -523,6 +528,17 @@ export const interimToDDL = (
 			errors.push({ type: 'role_duplicate', name: it.name });
 		}
 	}
+
+	for (const it of schema.privileges) {
+		const res = ddl.privileges.push(it);
+		if (res.status === 'CONFLICT') {
+			errors.push({
+				type: 'privilege_duplicate',
+				name: it.name,
+			});
+		}
+	}
+
 	for (const it of schema.policies) {
 		const res = ddl.policies.push(it);
 		if (res.status === 'CONFLICT') {

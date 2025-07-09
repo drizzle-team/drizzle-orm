@@ -867,18 +867,25 @@ const grantPrivilegeConvertor = convertor('grant_privilege', (st) => {
 	const { schema, table } = st.privilege;
 	const privilege = st.privilege;
 
-	return `GRANT ${privilege.type}(${privilege.column}) ON ${
+	return `GRANT ${privilege.type} ON ${
 		schema !== 'public' ? `"${schema}"."${table}"` : `"${table}"`
-	} TO ${privilege.grantee}${privilege.isGrantable ? ' WITH GRANT OPTION' : ''};`;
+	} TO ${privilege.grantee}${privilege.isGrantable ? ' WITH GRANT OPTION' : ''} GRANTED BY ${privilege.grantor};`;
 });
 
 const revokePrivilegeConvertor = convertor('revoke_privilege', (st) => {
 	const { schema, table } = st.privilege;
 	const privilege = st.privilege;
 
-	return `REVOKE ${privilege.type}(${privilege.column}) ON ${
+	return `REVOKE ${privilege.type} ON ${
 		schema !== 'public' ? `"${schema}"."${table}"` : `"${table}"`
 	} FROM ${privilege.grantee};`;
+});
+
+const regrantPrivilegeConvertor = convertor('regrant_privilege', (st) => {
+	const privilege = st.privilege;
+	const revokeStatement = revokePrivilegeConvertor.convert({ privilege }) as string;
+	const grantStatement = grantPrivilegeConvertor.convert({ privilege }) as string;
+	return [revokeStatement, grantStatement];
 });
 
 const createPolicyConvertor = convertor('create_policy', (st) => {
@@ -1010,6 +1017,7 @@ const convertors = [
 	alterRoleConvertor,
 	grantPrivilegeConvertor,
 	revokePrivilegeConvertor,
+	regrantPrivilegeConvertor,
 	createPolicyConvertor,
 	dropPolicyConvertor,
 	renamePolicyConvertor,
