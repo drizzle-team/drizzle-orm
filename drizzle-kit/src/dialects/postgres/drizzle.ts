@@ -339,6 +339,7 @@ export const fromDrizzleSchema = (
 		policies: [],
 		enums: [],
 		roles: [],
+		privileges: [],
 		schemas: [],
 		sequences: [],
 		tables: [],
@@ -471,7 +472,7 @@ export const fromDrizzleSchema = (
 
 				const { baseColumn, dimensions, sqlType, baseType, options, typeSchema } = unwrapColumn(column);
 				const columnDefault = defaultFromColumn(baseColumn, column.default, dimensions, dialect);
-				console.log(columnDefault, column.default)
+				console.log(columnDefault, column.default);
 
 				return {
 					entityType: 'columns',
@@ -719,9 +720,16 @@ export const fromDrizzleSchema = (
 		res.roles.push({
 			entityType: 'roles',
 			name: role.name,
-			createDb: role.createDb ?? false,
-			createRole: role.createRole ?? false,
+			superuser: role.superuser ?? false,
 			inherit: role.inherit ?? true,
+			createRole: role.createRole ?? false,
+			createDb: role.createDb ?? false,
+			canLogin: role.canLogin ?? false,
+			replication: role.replication ?? false,
+			bypassRls: role.bypassRls ?? false,
+			connLimit: role.connLimit ?? -1,
+			password: role.password ?? null,
+			validUntil: role.validUntil ?? null,
 		});
 	}
 

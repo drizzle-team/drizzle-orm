@@ -15,13 +15,12 @@ export default defineConfig({
 		// This one was excluded because we need to modify an API for SingleStore-generated columns.
 		// It’s in the backlog.
 		exclude: [
-			'tests/mssql/**/*.test.ts',
-			'tests/cockroach/**/*.test.ts',
+			// 'tests/mssql/**/*.test.ts',
+			// 'tests/cockroach/**/*.test.ts',
 			'tests/**/singlestore-generated.test.ts',
 			'tests/singlestore/**/*.test.ts',
 			'tests/gel/**/*.test.ts',
 			'tests/cockroach/',
-			'tests/mssql/',
 		],
 
 		typecheck: {

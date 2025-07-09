@@ -97,9 +97,24 @@ export const createDDL = () => {
 			cycle: 'boolean?',
 		},
 		roles: {
+			superuser: 'boolean?',
 			createDb: 'boolean?',
 			createRole: 'boolean?',
 			inherit: 'boolean?',
+			canLogin: 'boolean?',
+			replication: 'boolean?',
+			bypassRls: 'boolean?',
+			connLimit: 'number?',
+			password: 'string?',
+			validUntil: 'string?',
+		},
+		privileges: {
+			grantor: 'string',
+			grantee: 'string',
+			schema: 'required',
+			table: 'required',
+			type: ['ALL', 'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'],
+			isGrantable: 'boolean',
 		},
 		policies: {
 			schema: 'required',
@@ -160,6 +175,7 @@ export type Sequence = PostgresEntities['sequences'];
 export type Column = PostgresEntities['columns'];
 export type Identity = Column['identity'];
 export type Role = PostgresEntities['roles'];
+export type Privilege = PostgresEntities['privileges'];
 export type Index = PostgresEntities['indexes'];
 export type IndexColumn = Index['columns'][number];
 export type ForeignKey = PostgresEntities['fks'];
@@ -217,6 +233,7 @@ export interface InterimSchema {
 	checks: CheckConstraint[];
 	sequences: Sequence[];
 	roles: Role[];
+	privileges: Privilege[];
 	policies: Policy[];
 	views: View[];
 	viewColumns: ViewColumn[];
@@ -321,6 +338,11 @@ interface RoleDuplicate {
 	name: string;
 }
 
+interface PrivilegeDuplicate {
+	type: 'privilege_duplicate';
+	name: string;
+}
+
 export type SchemaError =
 	| SchemaDuplicate
 	| EnumDuplicate
@@ -333,7 +355,8 @@ export type SchemaError =
 	| IndexDuplicate
 	| PgVectorIndexNoOp
 	| RoleDuplicate
-	| PolicyDuplicate;
+	| PolicyDuplicate
+	| PrivilegeDuplicate;
 
 interface PolicyNotLinked {
 	type: 'policy_not_linked';
@@ -505,6 +528,17 @@ export const interimToDDL = (
 			errors.push({ type: 'role_duplicate', name: it.name });
 		}
 	}
+
+	for (const it of schema.privileges) {
+		const res = ddl.privileges.push(it);
+		if (res.status === 'CONFLICT') {
+			errors.push({
+				type: 'privilege_duplicate',
+				name: it.name,
+			});
+		}
+	}
+
 	for (const it of schema.policies) {
 		const res = ddl.policies.push(it);
 		if (res.status === 'CONFLICT') {

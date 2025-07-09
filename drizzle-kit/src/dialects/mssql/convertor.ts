@@ -43,7 +43,7 @@ const createTable = convertor('create_table', (st) => {
 		);
 		const defaultStatement = !hasDefault
 			? ''
-			: ` CONSTRAINT [${hasDefault.name}] DEFAULT ${defaultToSQL(hasDefault.default)}`;
+			: ` CONSTRAINT [${hasDefault.name}] DEFAULT ${defaultToSQL(column.type, hasDefault.default)}`;
 
 		const generatedType = column.generated?.type.toUpperCase() === 'VIRTUAL'
 			? ''
@@ -125,7 +125,7 @@ const addColumn = convertor('add_column', (st) => {
 	);
 	const defaultStatement = !hasDefault
 		? ''
-		: ` CONSTRAINT [${hasDefault.name}] DEFAULT ${defaultToSQL(hasDefault.default)}`;
+		: ` CONSTRAINT [${hasDefault.name}] DEFAULT ${defaultToSQL(column.type, hasDefault.default)}`;
 
 	const key = schema !== 'dbo' ? `[${schema}].[${table}]` : `[${table}]`;
 
@@ -491,13 +491,14 @@ const dropForeignKey = convertor('drop_fk', (st) => {
 
 const addDefault = convertor('create_default', (st) => {
 	const { schema, table, name, default: tableDefault, column } = st.default;
+	const baseType = st.baseType;
 
 	const tableNameWithSchema = schema !== 'dbo'
 		? `[${schema}].[${table}]`
 		: `[${table}]`;
 
 	return `ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT [${name}] DEFAULT ${
-		defaultToSQL(tableDefault)
+		defaultToSQL(baseType, tableDefault)
 	} FOR [${column}];`;
 });
 

@@ -82,9 +82,9 @@ export const diffIntrospect = async (
 
 	const filePath = `tests/mysql/tmp/${testName}.ts`;
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
-	
+
 	writeFileSync(filePath, file.file);
-	await tsc(filePath)
+	await tsc(filePath);
 
 	// generate snapshot from ts file
 	const response = await prepareFromSchemaFiles([
@@ -218,7 +218,7 @@ export const diffDefault = async <T extends MySqlColumnBuilder>(
 
 	if (existsSync(path)) rmSync(path);
 	writeFileSync(path, file.file);
-	await tsc(path)
+	await tsc(path);
 
 	const response = await prepareFromSchemaFiles([path]);
 	const sch = fromDrizzleSchema(response.tables, response.views, 'camelCase');
