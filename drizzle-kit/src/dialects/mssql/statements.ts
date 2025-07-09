@@ -226,6 +226,7 @@ export interface RenameUnique {
 export interface CreateDefault {
 	type: 'create_default';
 	default: DefaultConstraint;
+	baseType: string;
 }
 
 export interface DropDefault {

@@ -4,8 +4,8 @@ import { trimChar } from 'src/utils';
 import type { Column, ForeignKey } from './ddl';
 import type { Import } from './typescript';
 
-const namedCheckPattern = /CONSTRAINT\s*["']?(\w+)["']?\s*CHECK\s*\((.*?)\)/gi;
-const unnamedCheckPattern = /CHECK\s*\((.*?)\)/gi;
+const namedCheckPattern = /CONSTRAINT\s*["'`\[]?(\w+)["'`\]]?\s*CHECK\s*\((.*)\)/gi;
+const unnamedCheckPattern = /CHECK\s*\((.*)\)/gi;
 const viewAsStatementRegex = new RegExp(`\\bAS\\b\\s+(WITH.+|SELECT.+)$`, 'is'); // 'i' for case-insensitive, 's' for dotall mode
 
 export const nameForForeignKey = (fk: Pick<ForeignKey, 'table' | 'columns' | 'tableTo' | 'columnsTo'>) => {

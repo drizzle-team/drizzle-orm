@@ -22,6 +22,7 @@ import {
 	defaultNameForUnique,
 	splitSqlType,
 	trimChar,
+	typeFor,
 } from './grammar';
 
 export const upper = <T extends string>(value: T | undefined): Uppercase<T> | null => {
@@ -45,11 +46,13 @@ export const unwrapColumn = (column: AnyMsSqlColumn) => {
 };
 
 export const defaultFromColumn = (
-	baseType: string,
-	def: unknown,
+	column: AnyMsSqlColumn,
 	dialect: MsSqlDialect,
 ): DefaultConstraint['default'] | null => {
-	if (typeof def === 'undefined') return null;
+	if (typeof column.default === 'undefined') return null;
+	const def = column.default;
+
+	const sqlTypeLowered = column.getSQLType().toLowerCase();
 
 	if (is(def, SQL)) {
 		let sql = dialect.sqlToQuery(def).sql;
@@ -63,7 +66,9 @@ export const defaultFromColumn = (
 		};
 	}
 
-	const sqlTypeLowered = baseType.toLowerCase();
+	const grammarType = typeFor(sqlTypeLowered);
+	if (grammarType) return grammarType.defaultFromDrizzle(def);
+
 	if (sqlTypeLowered === 'bit') {
 		return { value: String(def) === 'true' ? '1' : '0', type: 'boolean' };
 	}
@@ -233,13 +238,23 @@ export const fromDrizzleSchema = (
 
 			const { baseType, options } = unwrapColumn(column);
 
+			// Mssql accepts float(53) and float(24).
+			// float(24) is synonim for real and db returns float(24) as real
+			// https://learn.microsoft.com/en-us/sql/t-sql/data-types/float-and-real-transact-sql?view=sql-server-ver16
+			let type = baseType;
+			let optionsToSet = options;
+			if (baseType === 'float' && options === '24') {
+				type = 'real';
+				optionsToSet = null;
+			}
+
 			result.columns.push({
 				schema,
 				entityType: 'columns',
 				table: tableName,
 				name: columnName,
-				type: baseType,
-				options,
+				type: type,
+				options: optionsToSet,
 				pkName: null,
 				notNull: notNull,
 				// @ts-expect-error
@@ -264,7 +279,7 @@ export const fromDrizzleSchema = (
 					schema,
 					column: columnName,
 					table: tableName,
-					default: defaultFromColumn(baseType, column.default, dialect),
+					default: defaultFromColumn(column, dialect),
 				});
 			}
 		}
