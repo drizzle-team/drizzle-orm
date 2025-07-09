@@ -45,15 +45,15 @@ export interface SqlType<MODE = unknown> {
 const IntOps: Pick<SqlType, 'defaultFromDrizzle' | 'defaultFromIntrospect' | 'defaultToSQL'> = {
 	defaultFromDrizzle: function(value: unknown, mode?: unknown): Column['default'] {
 		if (typeof value === 'number') {
-			return { value: String(value), type: 'unknown' };
+			return String(value);
 		}
-		return { value: String(value), type: 'unknown' };
+		return String(value);
 	},
 	defaultFromIntrospect: function(value: string): Column['default'] {
-		return { value, type: 'unknown' };
+		return value;
 	},
 	defaultToSQL: function(value: Column['default']): string {
-		return value ? value.value : '';
+		return value ?? '';
 	},
 };
 
@@ -61,90 +61,90 @@ export const Boolean: SqlType = {
 	is: (type) => type === 'tinyint(1)' || type === 'boolean',
 	drizzleImport: () => 'boolean',
 	defaultFromDrizzle: (value) => {
-		return { value: String(value), type: 'unknown' };
+		return String(value);
 	},
 	defaultFromIntrospect: (value) => {
-		return { value: value === '1' ? 'true' : 'false', type: 'unknown' };
+		return value === '1' || value === 'true' ? 'true' : 'false';
 	},
-	defaultToSQL: (value) => value ? value.value : '',
+	defaultToSQL: (value) => value ?? '',
 	toTs: (_, value) => {
-		return { default: value !== null ? value.value : '' };
+		return { default: value ?? '' };
 	},
 };
 
 export const TinyInt: SqlType = {
-	is: (type: string) => type === 'tinyint' || type === 'tinyint unsigned' || type.startsWith('tinyint'),
+	is: (type: string) => /^(?:tinyint)(?:[\s(].*)?$/i.test(type),
 	drizzleImport: () => 'tinyint',
 	defaultFromDrizzle: IntOps.defaultFromDrizzle,
 	defaultFromIntrospect: IntOps.defaultFromIntrospect,
 	defaultToSQL: IntOps.defaultToSQL,
 	toTs: (type, value) => {
 		const options = type.includes('unsigned') ? { unsigned: true } : undefined;
-		return { options, default: value ? value.value : '' };
+		return { options, default: value ?? '' };
 	},
 };
 
 export const SmallInt: SqlType = {
-	is: (type: string) => type === 'smallint' || type === 'smallint unsigned',
+	is: (type: string) => /^(?:smallint)(?:[\s(].*)?$/i.test(type),
 	drizzleImport: () => 'smallint',
 	defaultFromDrizzle: IntOps.defaultFromDrizzle,
 	defaultFromIntrospect: IntOps.defaultFromIntrospect,
 	defaultToSQL: IntOps.defaultToSQL,
 	toTs: (type, value) => {
 		const options = type.includes('unsigned') ? { unsigned: true } : undefined;
-		return { options, default: value ? value.value : '' };
+		return { options, default: value ?? '' };
 	},
 };
 
 export const MediumInt: SqlType = {
-	is: (type: string) => type === 'mediumint',
+	is: (type: string) => /^(?:mediumint)(?:[\s(].*)?$/i.test(type),
 	drizzleImport: () => 'mediumint',
 	defaultFromDrizzle: IntOps.defaultFromDrizzle,
 	defaultFromIntrospect: IntOps.defaultFromIntrospect,
 	defaultToSQL: IntOps.defaultToSQL,
 	toTs: (type, value) => {
 		const options = type.includes('unsigned') ? { unsigned: true } : undefined;
-		return { options, default: value ? value.value : '' };
+		return { options, default: value ?? '' };
 	},
 };
 
 export const Int: SqlType = {
-	is: (type: string) => type === 'int',
+	is: (type: string) => /^(?:int)(?:[\s(].*)?$/i.test(type),
 	drizzleImport: () => 'int',
 	defaultFromDrizzle: IntOps.defaultFromDrizzle,
 	defaultFromIntrospect: IntOps.defaultFromIntrospect,
 	defaultToSQL: IntOps.defaultToSQL,
 	toTs: (type, value) => {
 		const options = type.includes('unsigned') ? { unsigned: true } : undefined;
-		return { options, default: value ? value.value : '' };
+		return { options, default: value ?? '' };
 	},
 };
 
 export const BigInt: SqlType = {
-	is: (type: string) => type === 'bigint' || type === 'bigint unsigned',
+	is: (type: string) => /^(?:bigint)(?:[\s(].*)?$/i.test(type),
 	drizzleImport: () => 'bigint',
 	defaultFromDrizzle: (value) => {
 		if (typeof value === 'bigint') {
-			return { value: `${value}`, type: 'unknown' };
+			return `${value}`;
 		}
 		if (typeof value === 'number') {
-			return { value: value.toString(), type: 'unknown' };
+			return value.toString();
 		}
-		return { value: String(value), type: 'unknown' };
+		return String(value);
 	},
 	defaultFromIntrospect: (value) => {
-		return { value, type: 'unknown' };
+		return value;
 	},
 	defaultToSQL: (value) => {
-		return value ? value.value : '';
+		return value ?? '';
 	},
 	toTs: (type, value) => {
 		const options = type.includes('unsigned') ? { unsigned: true } : {};
 		if (value === null) return { options: { ...options, mode: 'number' }, default: '' };
 
-		const trimmed = trimChar(value.value, "'");
+		const trimmed = trimChar(value, "'");
 		const numType = checkNumber(trimmed);
-		if (numType === 'NaN') return { options: { ...options, mode: 'number' }, default: `sql\`${value.value}\`` };
+		if (numType === 'NaN') return { options: { ...options, mode: 'number' }, default: `sql\`${value}\`` };
 		if (numType === 'number') return { options: { ...options, mode: 'number' }, default: trimmed };
 		if (numType === 'bigint') return { options: { ...options, mode: 'bigint' }, default: `${trimmed}n` };
 		assertUnreachable(numType);
@@ -156,14 +156,14 @@ export const Decimal: SqlType = {
 	is: (type) => /^(?:numeric|decimal)(?:[\s(].*)?$/i.test(type),
 	drizzleImport: () => 'decimal',
 	defaultFromDrizzle: (value) => {
-		return { value: String(value), type: 'unknown' };
+		return String(value);
 	},
 	defaultFromIntrospect: (value) => {
 		const trimmed = trimChar(trimChar(trimChar(value, '('), ')'), "'");
-		return { value: trimmed, type: 'unknown' };
+		return trimmed;
 	},
 	defaultToSQL: (value) => {
-		return value ? `(${value.value})` : '';
+		return value ? `(${value})` : '';
 	},
 	toTs: (type, value) => {
 		const options: any = type.includes('unsigned') || type.includes('UNSIGNED') ? { unsigned: true } : {};
@@ -173,10 +173,10 @@ export const Decimal: SqlType = {
 
 		if (!value) return { options, default: '' };
 
-		const numType = checkNumber(value.value);
-		if (numType === 'NaN') return { options: options, default: `sql\`${value.value}\`` };
-		if (numType === 'number') return { options: { ...options, mode: 'number' }, default: value.value };
-		if (numType === 'bigint') return { options: { ...options, mode: 'bigint' }, default: `${value.value}n` };
+		const numType = checkNumber(value);
+		if (numType === 'NaN') return { options: options, default: `sql\`${value}\`` };
+		if (numType === 'number') return { options: { ...options, mode: 'number' }, default: value };
+		if (numType === 'bigint') return { options: { ...options, mode: 'bigint' }, default: `${value}n` };
 		assertUnreachable(numType);
 	},
 };
@@ -186,14 +186,14 @@ export const Real: SqlType = {
 	is: (type) => /^(?:real)(?:[\s(].*)?$/i.test(type),
 	drizzleImport: () => 'real',
 	defaultFromDrizzle: (value) => {
-		return { value: String(value), type: 'unknown' };
+		return String(value);
 	},
 	defaultFromIntrospect: (value) => {
 		const trimmed = trimChar(trimChar(trimChar(value, '('), ')'), "'");
-		return { value: trimmed, type: 'unknown' };
+		return trimmed;
 	},
 	defaultToSQL: (value) => {
-		return value ? `${value.value}` : '';
+		return value ?? '';
 	},
 	toTs: (type, value) => {
 		const options: any = type.includes('unsigned') || type.includes('UNSIGNED') ? { unsigned: true } : {};
@@ -203,10 +203,10 @@ export const Real: SqlType = {
 
 		if (!value) return { options, default: '' };
 
-		const numType = checkNumber(value.value);
-		if (numType === 'NaN') return { options, default: `sql\`${value.value}\`` };
-		if (numType === 'number') return { options, default: value.value };
-		if (numType === 'bigint') return { options, default: `${value.value}n` };
+		const numType = checkNumber(value);
+		if (numType === 'NaN') return { options, default: `sql\`${value}\`` };
+		if (numType === 'number') return { options, default: value };
+		if (numType === 'bigint') return { options, default: `${value}n` };
 		assertUnreachable(numType);
 	},
 };
@@ -235,22 +235,22 @@ export const Char: SqlType = {
 	is: (type) => /^(?:char)(?:[\s(].*)?$/i.test(type) || /^(?:character)(?:[\s(].*)?$/i.test(type),
 	drizzleImport: () => 'char',
 	defaultFromDrizzle: (value) => {
-		return { value: String(value), type: 'unknown' };
+		return String(value);
 	},
 	defaultFromIntrospect: (value) => {
-		return { value: unescapeFromSqlDefault(value), type: 'unknown' };
+		return unescapeFromSqlDefault(value);
 	},
 	defaultToSQL: (value) => {
 		if (!value) return '';
-		if (value.value.startsWith('(') && value.value.endsWith(')')) return value.value;
+		if (value.startsWith('(') && value.endsWith(')')) return value;
 
-		return value ? `'${escapeForSqlDefault(value.value)}'` : '';
+		return value ? `'${escapeForSqlDefault(value)}'` : '';
 	},
 	toTs: (type, value) => {
 		const options: any = {};
 		const [length] = parseParams(type);
 		if (length) options['length'] = Number(length);
-		const escaped = value ? `"${escapeForTsLiteral(value.value)}"` : '';
+		const escaped = value ? `"${escapeForTsLiteral(value)}"` : '';
 		return { options, default: escaped };
 	},
 };
@@ -272,23 +272,23 @@ export const TinyText: SqlType = {
 	is: (type) => /^\s*tinytext\s*$/i.test(type),
 	drizzleImport: () => 'tinytext',
 	defaultFromDrizzle: (value) => {
-		return { value: String(value), type: 'unknown' };
+		return String(value);
 	},
 	defaultFromIntrospect: (value) => {
-		if (value.startsWith('(') && value.endsWith(')')) return { value: value, type: 'unknown' };
-		return { value: unescapeFromSqlDefault(trimChar(value, "'")), type: 'unknown' };
+		if (value.startsWith('(') && value.endsWith(')')) return value;
+		return unescapeFromSqlDefault(trimChar(value, "'"));
 	},
 	defaultToSQL: (value) => {
 		if (!value) return '';
-		if (value.value.startsWith('(') && value.value.endsWith(')')) return value.value;
+		if (value.startsWith('(') && value.endsWith(')')) return value;
 
-		return value ? `('${escapeForSqlDefault(value.value)}')` : '';
+		return value ? `('${escapeForSqlDefault(value)}')` : '';
 	},
 	toTs: (type, value) => {
 		const options: any = {};
 		const [length] = parseParams(type);
 		if (length) options['length'] = Number(length);
-		const escaped = value ? `"${escapeForTsLiteral(value.value)}"` : '';
+		const escaped = value ? `"${escapeForTsLiteral(value)}"` : '';
 		return { options, default: escaped };
 	},
 };
@@ -320,7 +320,6 @@ export const LongText: SqlType = {
 	toTs: TinyText.toTs,
 };
 
-
 export const Binary: SqlType = {
 	is: (type) => /^(?:binary)(?:[\s(].*)?$/i.test(type),
 	drizzleImport: () => 'binary',
@@ -328,6 +327,194 @@ export const Binary: SqlType = {
 	defaultFromIntrospect: TinyText.defaultFromIntrospect,
 	defaultToSQL: TinyText.defaultToSQL,
 	toTs: TinyText.toTs,
+};
+
+export const Varbinary: SqlType = {
+	is: (type) => /^(?:varbinary)(?:[\s(].*)?$/i.test(type),
+	drizzleImport: () => 'varbinary',
+	defaultFromDrizzle: (value) => {
+		return String(value);
+	},
+	defaultFromIntrospect: (value) => {
+		const trimmed = trimChar(value, "'");
+		if (trimmed.startsWith('0x')) {
+			return Buffer.from(trimmed.slice(2), 'hex').toString('utf-8');
+		}
+		if (!value.startsWith('(')) return `(${value})`;
+		return value;
+	},
+	defaultToSQL: (it) => {
+		if (!it) return '';
+
+		if (it.startsWith('(')) return it;
+		return `(0x${Buffer.from(it).toString('hex').toLowerCase()})`;
+	},
+	toTs: TinyText.toTs,
+};
+
+export const Json: SqlType = {
+	is: (type) => /^\s*json\s*$/i.test(type),
+	drizzleImport: () => 'json',
+	defaultFromDrizzle: (value) => {
+		return JSON.stringify(value, (key, value) => {
+			if (typeof value !== 'string') return value;
+			return value.replaceAll("'", "''");
+		});
+	},
+	defaultFromIntrospect: (value) => {
+		return trimChar(value, "'");
+	},
+	defaultToSQL: (it) => {
+		if (!it) return '';
+		return `('${it}')`;
+	},
+	toTs: (_, def) => {
+		if (!def) return { default: '' };
+		const out = JSON.stringify(JSON.parse(def), (key, value) => {
+			if (typeof value !== 'string') return value;
+			return value.replaceAll("''", "'");
+		});
+		return { default: out };
+	},
+};
+
+export const Timestamp: SqlType = {
+	is: (type) => /^(?:timestamp)(?:[\s(].*)?$/i.test(type),
+	drizzleImport: () => 'timestamp',
+	defaultFromDrizzle: (value) => {
+		if (value instanceof Date) {
+			return value.toISOString().replace('T', ' ').slice(0, 23);
+		}
+		// TODO: we can handle fsp 6 here too
+		return String(value);
+	},
+	defaultFromIntrospect: (value) => {
+		return trimChar(value, "'");
+	},
+	defaultToSQL: (it) => {
+		if (!it) return '';
+		if (it.startsWith('(')) return it;
+
+		return `'${it}'`;
+	},
+	toTs: (type, def) => {
+		const options: any = {};
+		const [fsp] = parseParams(type);
+		if (fsp) options['fsp'] = Number(fsp);
+
+		if (!def) return { options, default: '' };
+		if (def === 'now()' || def === '(CURRENT_TIMESTAMP)') return { options, default: '.defaultNow()' };
+
+		// TODO: we can handle fsp 6 here too, using sql``
+		return { options, default: `new Date('${def}Z')` };
+	},
+};
+
+export const DateTime: SqlType = {
+	is: (type) => /^(?:datetime)(?:[\s(].*)?$/i.test(type),
+	drizzleImport: () => 'datetime',
+	defaultFromDrizzle: Timestamp.defaultFromDrizzle,
+	defaultFromIntrospect: Timestamp.defaultFromIntrospect,
+	defaultToSQL: Timestamp.defaultToSQL,
+	toTs: Timestamp.toTs,
+};
+
+export const Time: SqlType = {
+	is: (type) => /^(?:time)(?:[\s(].*)?$/i.test(type),
+	drizzleImport: () => 'time',
+	defaultFromDrizzle: (value) => {
+		return String(value);
+	},
+	defaultFromIntrospect: (value) => {
+		return trimChar(value, "'");
+	},
+	defaultToSQL: (it) => {
+		if (!it) return '';
+		if (it.startsWith('(')) return it;
+		return `'${it}'`;
+	},
+	toTs: (type, def) => {
+		const options: any = {};
+		const [fsp] = parseParams(type);
+		if (fsp) options['fsp'] = Number(fsp);
+
+		if (!def) return { options, default: '' };
+		return { options, default: `'${def}'` };
+	},
+};
+
+export const Date_: SqlType = {
+	is: (type) => /^\s*date\s*$/i.test(type),
+	drizzleImport: () => 'date',
+	defaultFromDrizzle: (value) => {
+		if (value instanceof Date) {
+			return value.toISOString().split('T')[0];
+		}
+		return String(value);
+	},
+	defaultFromIntrospect: (value) => {
+		return trimChar(value, "'");
+	},
+	defaultToSQL: (it) => {
+		if (!it) return '';
+		if (it.startsWith('(')) return it;
+
+		return `'${it}'`;
+	},
+	toTs: (type, def) => {
+		const options: any = {};
+		const [fsp] = parseParams(type);
+		if (fsp) options['fsp'] = Number(fsp);
+
+		if (!def) return { options, default: '' };
+		return { options, default: `new Date('${def}')` };
+	},
+};
+
+export const Year: SqlType = {
+	is: (type) => /^\s*year\s*$/i.test(type),
+	drizzleImport: () => 'year',
+	defaultFromDrizzle: (value) => {
+		return String(value);
+	},
+	defaultFromIntrospect: (value) => {
+		return value;
+	},
+	defaultToSQL: (it) => {
+		if (!it) return '';
+		if (it.startsWith('(')) return it;
+
+		return `${it}`;
+	},
+	toTs: (type, def) => {
+		const options: any = {};
+		const [fsp] = parseParams(type);
+		if (fsp) options['fsp'] = Number(fsp);
+
+		if (!def) return { options, default: '' };
+		return { options, default: `${def}` };
+	},
+};
+
+export const Enum: SqlType = {
+	is: (type) => /^(?:enum)(?:[\s(].*)?$/i.test(type),
+	drizzleImport: () => 'enum',
+	defaultFromDrizzle: (value) => {
+		return String(value);
+	},
+	defaultFromIntrospect: (value) => {
+		return unescapeFromSqlDefault(trimChar(value, "'"));
+	},
+	defaultToSQL: (it) => {
+		if (!it) return '';
+		if (it.startsWith('(')) return it;
+		return `'${escapeForSqlDefault(it)}'`;
+	},
+	toTs: (type, def) => {
+		if (!def) return { default: '' };
+		const unescaped = escapeForTsLiteral(def);
+		return { default: `"${unescaped}"` };
+	},
 };
 
 export const typeFor = (sqlType: string): SqlType | null => {
@@ -348,6 +535,14 @@ export const typeFor = (sqlType: string): SqlType | null => {
 	if (Text.is(sqlType)) return Text;
 	if (LongText.is(sqlType)) return LongText;
 	if (Binary.is(sqlType)) return Binary;
+	if (Varbinary.is(sqlType)) return Varbinary;
+	if (Json.is(sqlType)) return Json;
+	if (Timestamp.is(sqlType)) return Timestamp;
+	if (DateTime.is(sqlType)) return DateTime;
+	if (Date_.is(sqlType)) return Date_;
+	if (Time.is(sqlType)) return Time;
+	if (Year.is(sqlType)) return Year;
+	if (Enum.is(sqlType)) return Enum;
 	return null;
 };
 
@@ -399,38 +594,38 @@ export const parseDefaultValue = (
 	const grammarType = typeFor(columnType);
 	if (grammarType) return grammarType.defaultFromIntrospect(value);
 
-	if (
-		columnType.startsWith('binary') || columnType.startsWith('varbinary')
-		|| columnType === 'text' || columnType === 'tinytext' || columnType === 'longtext' || columnType === 'mediumtext'
-	) {
-		if (/^'(?:[^']|'')*'$/.test(value)) {
-			return { value: trimChar(value, "'").replaceAll("''", "'"), type: 'text' };
-		}
+	// if (
+	// 	columnType.startsWith('binary') || columnType.startsWith('varbinary')
+	// 	|| columnType === 'text' || columnType === 'tinytext' || columnType === 'longtext' || columnType === 'mediumtext'
+	// ) {
+	// 	if (/^'(?:[^']|'')*'$/.test(value)) {
+	// 		return { value: trimChar(value, "'").replaceAll("''", "'"), type: 'text' };
+	// 	}
 
-		const wrapped = value.startsWith('(') && value.endsWith(')') ? value : `(${value})`;
-		return { value: wrapped, type: 'unknown' };
-	}
+	// 	const wrapped = value.startsWith('(') && value.endsWith(')') ? value : `(${value})`;
+	// 	return { value: wrapped, type: 'unknown' };
+	// }
 
-	if (columnType.startsWith('enum') || columnType.startsWith('varchar') || columnType.startsWith('char')) {
-		return { value, type: 'string' };
-	}
+	// if (columnType.startsWith('enum') || columnType.startsWith('varchar') || columnType.startsWith('char')) {
+	// 	return { value, type: 'string' };
+	// }
 
-	if (columnType === 'json') {
-		return { value: trimChar(value, "'").replaceAll("''", "'"), type: 'json' };
-	}
+	// if (columnType === 'json') {
+	// 	return { value: trimChar(value, "'").replaceAll("''", "'"), type: 'json' };
+	// }
 
-	if (
-		columnType === 'date' || columnType.startsWith('datetime') || columnType.startsWith('timestamp')
-		|| columnType.startsWith('time')
-	) {
-		return { value: value, type: 'string' };
-	}
+	// if (
+	// 	columnType === 'date' || columnType.startsWith('datetime') || columnType.startsWith('timestamp')
+	// 	|| columnType.startsWith('time')
+	// ) {
+	// 	return { value: value, type: 'string' };
+	// }
 
-	if (/^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(value)) {
-		const num = Number(value);
-		const big = num > Number.MAX_SAFE_INTEGER || num < Number.MIN_SAFE_INTEGER;
-		return { value: value, type: big ? 'bigint' : 'number' };
-	}
+	// if (/^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(value)) {
+	// 	const num = Number(value);
+	// 	const big = num > Number.MAX_SAFE_INTEGER || num < Number.MIN_SAFE_INTEGER;
+	// 	return { value: value, type: big ? 'bigint' : 'number' };
+	// }
 
 	console.error(`unknown default: ${columnType} ${value}`);
 	return null;
@@ -475,24 +670,5 @@ export const defaultToSQL = (type: string, it: Column['default']) => {
 	const grammarType = typeFor(type);
 	if (grammarType) return grammarType.defaultToSQL(it);
 
-	if (it.type === 'bigint') {
-		return `'${it.value}'`;
-	}
-	if (it.type === 'decimal') {
-		return `('${it.value}')`;
-	}
-
-	if (it.type === 'boolean' || it.type === 'number' || it.type === 'unknown') {
-		return it.value;
-	}
-
-	if (it.type === 'string') {
-		return `'${it.value.replaceAll("'", "''")}'`;
-	}
-
-	if (it.type === 'text' || it.type === 'json') {
-		return `('${it.value.replaceAll("'", "''")}')`;
-	}
-
-	assertUnreachable(it.type);
+	throw new Error('unexpected default to sql: ' + it);
 };

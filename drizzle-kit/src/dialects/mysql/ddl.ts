@@ -8,10 +8,7 @@ export const createDDL = () => {
 			type: 'string',
 			notNull: 'boolean',
 			autoIncrement: 'boolean',
-			default: {
-				value: 'string',
-				type: ['string', 'number', 'boolean', 'bigint', 'decimal', 'json', 'text', 'unknown'],
-			},
+			default: 'string?',
 			onUpdateNow: 'boolean',
 			generated: {
 				type: ['stored', 'virtual'],

@@ -1,5 +1,3 @@
-import { string } from 'drizzle-orm/cockroach-core';
-import { configIntrospectCliSchema } from 'src/cli/validations/common';
 import { trimChar } from 'src/utils';
 import type { Column, ForeignKey } from './ddl';
 import type { Import } from './typescript';
