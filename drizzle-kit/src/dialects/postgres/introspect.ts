@@ -452,7 +452,6 @@ const rolesQuery = db.query<
 		grantee: string;
 		schema: string;
 		table: string;
-		column: string;
 		type: 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' | 'TRUNCATE' | 'REFERENCES' | 'TRIGGER';
 		isGrantable: boolean;
 	}>(`
@@ -461,12 +460,11 @@ const rolesQuery = db.query<
 			grantee,
 			table_schema AS "schema",
 			table_name AS "table",
-			column_name AS "column",
 			privilege_type AS "type",
 			CASE is_grantable WHEN 'YES' THEN true ELSE false END AS "isGrantable"
-		FROM information_schema.role_column_grants
+		FROM information_schema.role_table_grants
 		WHERE table_schema IN (${filteredNamespaces.map((ns) => `'${ns.name}'`).join(',')})
-		ORDER BY lower(table_schema), lower(table_name), lower(column_name), lower(grantee);
+		ORDER BY lower(table_schema), lower(table_name), lower(grantee);
 	`).then((rows) => {
 		queryCallback('privileges', rows, null);
 		return rows;
@@ -711,7 +709,6 @@ const rolesQuery = db.query<
 			grantee: privilege.grantee,
 			schema: privilege.schema,
 			table: privilege.table,
-			column: privilege.column,
 			type: privilege.type,
 			isGrantable: privilege.isGrantable,
 		})

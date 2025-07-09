@@ -1046,7 +1046,7 @@ export const ddlDiff = async (
 	const jsonGrantPrivileges = createdPrivileges.map((it) => prepareStatement('grant_privilege', { privilege: it }));
 	const jsonRevokePrivileges = deletedPrivileges.map((it) => prepareStatement('revoke_privilege', { privilege: it }));
 	const jsonAlterPrivileges = alters.filter((it) => it.entityType === 'privileges').map((it) =>
-		prepareStatement('grant_privilege', { privilege: it.$right })
+		prepareStatement('regrant_privilege', { privilege: it.$right })
 	);
 
 	const createSchemas = createdSchemas.map((it) => prepareStatement('create_schema', it));
