@@ -162,7 +162,7 @@ export const push = async (config: {
 	force?: boolean;
 	expectError?: boolean;
 }) => {
-	const { db, to, force, expectError } = config;
+	const { db, to, force, expectError, log } = config;
 	const casing = config.casing ?? 'camelCase';
 	const schemas = config.schemas ?? ((_: string) => true);
 
@@ -209,7 +209,7 @@ export const push = async (config: {
 
 	let error: Error | null = null;
 	for (const sql of sqlStatements) {
-		// if (log === 'statements') console.log(sql);
+		if (log === 'statements') console.log(sql);
 		try {
 			await db.query(sql);
 		} catch (e) {
@@ -288,8 +288,8 @@ export const diffDefault = async <T extends MsSqlColumnBuilder>(
 	const column = mssqlTable(tableName, { column: builder }).column;
 
 	const { baseType, options } = unwrapColumn(column);
-	const columnDefault = defaultFromColumn(baseType, column.default, new MsSqlDialect());
-	const defaultSql = defaultToSQL(columnDefault);
+	const columnDefault = defaultFromColumn(column, new MsSqlDialect());
+	const defaultSql = defaultToSQL(baseType, columnDefault);
 
 	const res = [] as string[];
 	if (defaultSql !== expectedDefault) {
@@ -306,11 +306,21 @@ export const diffDefault = async <T extends MsSqlColumnBuilder>(
 	const { sqlStatements: st1 } = await push({ db, to: init });
 	const { sqlStatements: st2 } = await push({ db, to: init });
 
+	// Mssql accepts float(53) and float(24).
+	// float(24) is synonim for real and db returns float(24) as real
+	// https://learn.microsoft.com/en-us/sql/t-sql/data-types/float-and-real-transact-sql?view=sql-server-ver16
+	let optionsToSet: string | null = options;
+	let baseTypeToSet: string = baseType;
+	if (baseType === 'float' && options === '24') {
+		baseTypeToSet = 'real';
+		optionsToSet = null;
+	}
+
 	let sqlType;
 	if (options === 'max') {
-		sqlType = `${baseType}(max)`;
+		sqlType = `${baseTypeToSet}(max)`;
 	} else {
-		sqlType = `${baseType}${options ? `(${options})` : ''}`;
+		sqlType = `${baseTypeToSet}${optionsToSet ? `(${optionsToSet})` : ''}`;
 	}
 
 	const expectedInit = `CREATE TABLE [${tableName}] (\n\t[${column.name}] ${sqlType} CONSTRAINT [${

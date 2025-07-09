@@ -2,9 +2,9 @@ import { trimChar } from 'src/utils';
 import type { Column, ForeignKey } from './ddl';
 import type { Import } from './typescript';
 
-const namedCheckPattern = /CONSTRAINT\s*["']?(\w+)["']?\s*CHECK\s*\((.*?)\)/gi;
-const unnamedCheckPattern = /CHECK\s*\((.*?)\)/gi;
-const viewAsStatementRegex = new RegExp(`\\bAS\\b\\s+(SELECT.+)$`, 'is'); // 'i' for case-insensitive, 's' for dotall mode
+const namedCheckPattern = /CONSTRAINT\s*["'`\[]?(\w+)["'`\]]?\s*CHECK\s*\((.*)\)/gi;
+const unnamedCheckPattern = /CHECK\s*\((.*)\)/gi;
+const viewAsStatementRegex = new RegExp(`\\bAS\\b\\s+(WITH.+|SELECT.+)$`, 'is'); // 'i' for case-insensitive, 's' for dotall mode
 
 export const nameForForeignKey = (fk: Pick<ForeignKey, 'table' | 'columns' | 'tableTo' | 'columnsTo'>) => {
 	return `fk_${fk.table}_${fk.columns.join('_')}_${fk.tableTo}_${fk.columnsTo.join('_')}_fk`;

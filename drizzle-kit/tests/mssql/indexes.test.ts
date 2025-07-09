@@ -63,7 +63,7 @@ test('indexes #0', async (t) => {
 	await push({ db, to: schema1, schemas: ['dbo'] });
 	const { sqlStatements: pst } = await push({ db, to: schema2, schemas: ['dbo'] });
 
-	const st0 = [
+	expect(st).toStrictEqual([
 		'DROP INDEX [changeName] ON [users];',
 		'DROP INDEX [removeColumn] ON [users];',
 		'DROP INDEX [addColumn] ON [users];',
@@ -74,10 +74,19 @@ test('indexes #0', async (t) => {
 		'CREATE INDEX [addColumn] ON [users] ([name],[id]);',
 		'CREATE INDEX [removeWhere] ON [users] ([name]);',
 		"CREATE INDEX [addWhere] ON [users] ([name]) WHERE [users].[name] != 'name';",
-	];
-
-	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+	]);
+	expect(pst).toStrictEqual([
+		'DROP INDEX [changeName] ON [users];',
+		'DROP INDEX [addColumn] ON [users];',
+		'DROP INDEX [addWhere] ON [users];',
+		'DROP INDEX [removeColumn] ON [users];',
+		'DROP INDEX [removeWhere] ON [users];',
+		'CREATE INDEX [newName] ON [users] ([name]);',
+		'CREATE INDEX [addColumn] ON [users] ([name],[id]);',
+		"CREATE INDEX [addWhere] ON [users] ([name]) WHERE [users].[name] != 'name';",
+		'CREATE INDEX [removeColumn] ON [users] ([name]);',
+		'CREATE INDEX [removeWhere] ON [users] ([name]);',
+	]);
 });
 
 test('adding basic indexes', async () => {

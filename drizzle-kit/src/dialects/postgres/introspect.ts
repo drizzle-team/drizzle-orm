@@ -14,6 +14,7 @@ import type {
 	PostgresEntities,
 	PrimaryKey,
 	Role,
+	Privilege,
 	Schema,
 	Sequence,
 	UniqueConstraint,
@@ -97,6 +98,7 @@ export const fromDatabase = async (
 	const checks: CheckConstraint[] = [];
 	const sequences: Sequence[] = [];
 	const roles: Role[] = [];
+	const privileges: Privilege[] = [];
 	const policies: Policy[] = [];
 	const views: View[] = [];
 	const viewColumns: ViewColumn[] = [];
@@ -410,16 +412,65 @@ export const fromDatabase = async (
 		throw err;
 	});
 
-	const rolesQuery = db.query<
-		{ rolname: string; rolinherit: boolean; rolcreatedb: boolean; rolcreaterole: boolean }
+const rolesQuery = db.query<
+		{
+			rolname: string;
+			rolsuper: boolean;
+			rolinherit: boolean;
+			rolcreaterole: boolean;
+			rolcreatedb: boolean;
+			rolcanlogin: boolean;
+			rolreplication: boolean;
+			rolconnlimit: number;
+			rolvaliduntil: string | null;
+			rolbypassrls: boolean;
+		}
 	>(
-		`SELECT rolname, rolinherit, rolcreatedb, rolcreaterole FROM pg_roles ORDER BY lower(rolname);`,
+		`SELECT
+			rolname,
+			rolsuper,
+			rolinherit,
+			rolcreaterole,
+			rolcreatedb,
+			rolcanlogin,
+			rolreplication,
+			rolconnlimit,
+			rolvaliduntil,
+			rolbypassrls
+		FROM pg_roles
+		ORDER BY lower(rolname);`,
 	).then((rows) => {
 		queryCallback('roles', rows, null);
 		return rows;
-	}).catch((err) => {
-		queryCallback('roles', [], err);
-		throw err;
+	}).catch((error) => {
+		queryCallback('roles', [], error);
+		throw error;
+	});
+
+	const privilegesQuery = db.query<{
+		grantor: string;
+		grantee: string;
+		schema: string;
+		table: string;
+		type: 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' | 'TRUNCATE' | 'REFERENCES' | 'TRIGGER';
+		isGrantable: boolean;
+	}>(`
+		SELECT
+			grantor,
+			grantee,
+			table_schema AS "schema",
+			table_name AS "table",
+			privilege_type AS "type",
+			CASE is_grantable WHEN 'YES' THEN true ELSE false END AS "isGrantable"
+		FROM information_schema.role_table_grants
+		WHERE table_schema IN (${filteredNamespaces.map((ns) => `'${ns.name}'`).join(',')})
+		ORDER BY lower(table_schema), lower(table_name), lower(grantee);
+	`).then((rows) => {
+		queryCallback('privileges', rows, null);
+		return rows;
+	}).catch((error) => {
+		queryCallback('privileges', [], error);
+		throw error;
 	});
 
 	const constraintsQuery = db.query<{
@@ -543,7 +594,7 @@ export const fromDatabase = async (
 		throw err;
 	});
 
-	const [dependList, enumsList, serialsList, sequencesList, policiesList, rolesList, constraintsList, columnsList] =
+	const [dependList, enumsList, serialsList, sequencesList, policiesList, rolesList, privilegesList, constraintsList, columnsList] =
 		await Promise
 			.all([
 				dependQuery,
@@ -552,6 +603,7 @@ export const fromDatabase = async (
 				sequencesQuery,
 				policiesQuery,
 				rolesQuery,
+				privilegesQuery,
 				constraintsQuery,
 				columnsQuery,
 			]);
@@ -635,10 +687,31 @@ export const fromDatabase = async (
 		roles.push({
 			entityType: 'roles',
 			name: dbRole.rolname,
-			createDb: dbRole.rolcreatedb,
-			createRole: dbRole.rolcreatedb,
+			superuser: dbRole.rolsuper,
 			inherit: dbRole.rolinherit,
+			createRole: dbRole.rolcreatedb,
+			createDb: dbRole.rolcreatedb,
+			canLogin: dbRole.rolcanlogin,
+			replication: dbRole.rolreplication,
+			connLimit: dbRole.rolconnlimit,
+			password: null,
+			validUntil: dbRole.rolvaliduntil,
+			bypassRls: dbRole.rolbypassrls,
 		});
+	}
+
+	for (const privilege of privilegesList) {
+		privileges.push({
+			entityType: 'privileges',
+			// TODO: remove name and implement custom pk
+			name: `${privilege.grantor}_${privilege.grantee}_${privilege.schema}_${privilege.table}_${privilege.type}`,
+			grantor: privilege.grantor,
+			grantee: privilege.grantee,
+			schema: privilege.schema,
+			table: privilege.table,
+			type: privilege.type,
+			isGrantable: privilege.isGrantable,
+		})
 	}
 
 	for (const it of policiesList) {
@@ -1150,6 +1223,7 @@ export const fromDatabase = async (
 		checks,
 		sequences,
 		roles,
+		privileges,
 		policies,
 		views,
 		viewColumns,

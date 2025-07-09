@@ -6,6 +6,7 @@ import type {
 	DiffEntities,
 	Enum,
 	ForeignKey,
+	Privilege,
 	Index,
 	Policy,
 	PrimaryKey,
@@ -98,6 +99,21 @@ export interface JsonAlterRole {
 	type: 'alter_role';
 	diff: DiffEntities['roles'];
 	role: Role;
+}
+
+export interface JsonGrantPrivilege {
+	type: 'grant_privilege';
+	privilege: Privilege;
+}
+
+export interface JsonRevokePrivilege {
+	type: 'revoke_privilege';
+	privilege: Privilege;
+}
+
+export interface JsonRegrantPrivilege {
+	type: 'regrant_privilege';
+	privilege: Privilege;
 }
 
 export interface JsonDropValueFromEnum {
@@ -445,6 +461,9 @@ export type JsonStatement =
 	| JsonCreateRole
 	| JsonDropRole
 	| JsonAlterRole
+	| JsonGrantPrivilege
+	| JsonRevokePrivilege
+	| JsonRegrantPrivilege
 	| JsonCreateView
 	| JsonDropView
 	| JsonRenameView

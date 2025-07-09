@@ -117,20 +117,20 @@ test('bigint', async () => {
 });
 
 test('decimal', async () => {
-	const res1 = await diffDefault(_, decimal().default('10.123'), "(10.123)");
+	const res1 = await diffDefault(_, decimal().default('10.123'), '(10.123)');
 
-	const res2 = await diffDefault(_, decimal({ precision: 6 }).default('10.123'), "(10.123)");
-	const res3 = await diffDefault(_, decimal({ precision: 6, scale: 2 }).default('10.123'), "(10.123)");
+	const res2 = await diffDefault(_, decimal({ precision: 6 }).default('10.123'), '(10.123)');
+	const res3 = await diffDefault(_, decimal({ precision: 6, scale: 2 }).default('10.123'), '(10.123)');
 
 	// string
-	const res4 = await diffDefault(_, decimal({ mode: 'string' }).default('10.123'), "(10.123)");
+	const res4 = await diffDefault(_, decimal({ mode: 'string' }).default('10.123'), '(10.123)');
 
-	const res5 = await diffDefault(_, decimal({ mode: 'string', scale: 2 }).default('10.123'), "(10.123)");
-	const res6 = await diffDefault(_, decimal({ mode: 'string', precision: 6 }).default('10.123'), "(10.123)");
+	const res5 = await diffDefault(_, decimal({ mode: 'string', scale: 2 }).default('10.123'), '(10.123)');
+	const res6 = await diffDefault(_, decimal({ mode: 'string', precision: 6 }).default('10.123'), '(10.123)');
 	const res7 = await diffDefault(
 		_,
 		decimal({ mode: 'string', precision: 6, scale: 2 }).default('10.123'),
-		"(10.123)",
+		'(10.123)',
 	);
 
 	// number
@@ -138,24 +138,24 @@ test('decimal', async () => {
 	const res9 = await diffDefault(
 		_,
 		decimal({ mode: 'number', precision: 16 }).default(9007199254740991),
-		"(9007199254740991)",
+		'(9007199254740991)',
 	);
 
-	const res10 = await diffDefault(_, decimal({ mode: 'number', precision: 6, scale: 2 }).default(10.123), "(10.123)");
-	const res11 = await diffDefault(_, decimal({ mode: 'number', scale: 2 }).default(10.123), "(10.123)");
-	const res12 = await diffDefault(_, decimal({ mode: 'number', precision: 6 }).default(10.123), "(10.123)");
+	const res10 = await diffDefault(_, decimal({ mode: 'number', precision: 6, scale: 2 }).default(10.123), '(10.123)');
+	const res11 = await diffDefault(_, decimal({ mode: 'number', scale: 2 }).default(10.123), '(10.123)');
+	const res12 = await diffDefault(_, decimal({ mode: 'number', precision: 6 }).default(10.123), '(10.123)');
 
 	// TODO revise: maybe bigint mode should set the precision to a value appropriate for bigint, since the default precision (10) is insufficient.
 	// the line below will fail
 	const res13 = await diffDefault(
 		_,
 		decimal({ mode: 'bigint' }).default(9223372036854775807n),
-		"(9223372036854775807)",
+		'(9223372036854775807)',
 	);
 	const res14 = await diffDefault(
 		_,
 		decimal({ mode: 'bigint', precision: 19 }).default(9223372036854775807n),
-		"(9223372036854775807)",
+		'(9223372036854775807)',
 	);
 
 	expect.soft(res1).toStrictEqual([]);
