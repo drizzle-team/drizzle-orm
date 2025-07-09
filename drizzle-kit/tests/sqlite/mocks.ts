@@ -19,7 +19,6 @@ import { mockResolver } from 'src/utils/mocks';
 import { tsc } from 'tests/utils';
 import 'zx/globals';
 
-
 mkdirSync('tests/sqlite/tmp/', { recursive: true });
 
 export type SqliteSchema = Record<string, SQLiteTable<any> | SQLiteView>;
@@ -60,7 +59,7 @@ export const diff = async (
 	return { sqlStatements, statements, err1, err2 };
 };
 
-const dbFrom = (client: Database) => {
+export const dbFrom = (client: Database) => {
 	return {
 		query: async <T>(sql: string, params: any[] = []) => {
 			return client.prepare(sql).bind(params).all() as T[];

@@ -3,7 +3,9 @@ import { SQL, sql } from 'drizzle-orm';
 import { check, int, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
 import * as fs from 'fs';
 import { expect, test } from 'vitest';
-import { diffAfterPull } from './mocks';
+import { diffAfterPull, push, dbFrom } from './mocks';
+import { fromDatabaseForDrizzle } from 'src/dialects/sqlite/introspect';
+import { interimToDDL } from 'src/dialects/sqlite/ddl';
 
 fs.mkdirSync('tests/sqlite/tmp', { recursive: true });
 
@@ -57,7 +59,7 @@ test('instrospect strings with single quotes', async () => {
 test('introspect checks', async () => {
 	const sqlite = new Database(':memory:');
 
-	const schema = {
+	const initSchema = {
 		users: sqliteTable(
 			'users',
 			{
@@ -65,13 +67,27 @@ test('introspect checks', async () => {
 				name: text('name'),
 				age: int('age'),
 			},
-			(table) => [check('some_check', sql`${table.age} > 21`)],
+			(
+				table,
+			) => [check('some_check1', sql`${table.age} > 21`), check('some_check2', sql`${table.age} IN (21, 22, 23)`)],
 		),
 	};
 
-	const { statements, sqlStatements } = await diffAfterPull(sqlite, schema, 'introspect-checks');
+	const db = dbFrom(sqlite);
+	await push({
+		db,
+		to: initSchema,
+	})
 
-	expect(sqlStatements).toStrictEqual([]);
+	const schema = await fromDatabaseForDrizzle(db);
+	const { ddl, errors } = interimToDDL(schema);
+
+	expect(errors.length).toBe(0);
+	expect(ddl.checks.list().length).toBe(2);
+	expect(ddl.checks.list()[0].name).toBe('some_check1');
+	expect(ddl.checks.list()[0].value).toBe('"age" > 21');
+	expect(ddl.checks.list()[1].name).toBe('some_check2');
+	expect(ddl.checks.list()[1].value).toBe('"age" IN (21, 22, 23)');
 });
 
 test('view #1', async () => {

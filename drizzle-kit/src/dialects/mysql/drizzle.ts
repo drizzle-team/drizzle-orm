@@ -120,7 +120,7 @@ export const fromDrizzleSchema = (
 			const name = getColumnCasing(column, casing);
 			const notNull: boolean = column.notNull;
 
-			const sqlType = column.getSQLType().replace(', ', ','); // TODO: remove, should be redundant real(6, 3)->real(6,3)  
+			const sqlType = column.getSQLType().replace(', ', ','); // TODO: remove, should be redundant real(6, 3)->real(6,3)
 
 			const autoIncrement = typeof (column as any).autoIncrement === 'undefined'
 				? false
