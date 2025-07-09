@@ -323,10 +323,10 @@ export const ddlDiff = async (
 
 			if (it.default) {
 				let deleteDefault =
-					!!(it.default.from && it.default.to && typesCommutative(it.default.from.value, it.default.to.value, mode));
-				deleteDefault ||= it.default.from?.value === it.default.to?.value;
-				deleteDefault ||= it.default.from?.value === `(${it.default.to?.value})`;
-
+					!!(it.default.from && it.default.to && typesCommutative(it.default.from, it.default.to, mode));
+				deleteDefault ||= it.default.from === it.default.to;
+				deleteDefault ||= it.default.from === `(${it.default.to})`;
+				deleteDefault ||= it.default.to === `(${it.default.from})`;
 				if (deleteDefault) {
 					delete it.default;
 				}

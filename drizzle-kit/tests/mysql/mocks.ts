@@ -226,8 +226,7 @@ export const diffDefault = async <T extends MySqlColumnBuilder>(
 
 	const { sqlStatements: afterFileSqlStatements } = await ddlDiffDry(ddl1, ddl2, 'push');
 	if (afterFileSqlStatements.length === 0) {
-		// TODO: tsc on temp files, it consumes them with TS errors now
-		// rmSync(path);
+		rmSync(path);
 	} else {
 		console.log(afterFileSqlStatements);
 		console.log(`./${path}`);

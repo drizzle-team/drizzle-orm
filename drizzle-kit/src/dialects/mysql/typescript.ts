@@ -4,7 +4,7 @@ import { Casing } from 'src/cli/validations/common';
 import { unescapeSingleQuotes } from 'src/utils';
 import { assertUnreachable } from '../../utils';
 import { CheckConstraint, Column, ForeignKey, Index, MysqlDDL, PrimaryKey, ViewColumn } from './ddl';
-import { parseEnum, typeFor } from './grammar';
+import { Enum, parseEnum, typeFor } from './grammar';
 
 export const imports = [
 	'boolean',
@@ -46,7 +46,7 @@ function inspect(it: any): string {
 	if (!it) return '';
 
 	const keys = Object.keys(it);
-	if (keys.length === 0) return '{}';
+	if (keys.length === 0) return '';
 
 	const pairs = keys.map((key) => {
 		const formattedKey = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(key)
@@ -296,25 +296,6 @@ const isSelf = (fk: ForeignKey) => {
 	return fk.table === fk.tableTo;
 };
 
-const mapColumnDefault = (type: string, it: NonNullable<Column['default']>) => {
-	if (it.type === 'unknown') {
-		return `sql\`${it.value}\``;
-	}
-
-	if (it.type === 'json') {
-		return it.value;
-	}
-
-	if (it.type === 'bigint') {
-		return `${it.value}n`;
-	}
-	if (it.type === 'number' || it.type === 'boolean') {
-		return it.value;
-	}
-
-	return `"${it.value.replace(/'/g, "\\'").replaceAll('"', '\\"')}"`;
-};
-
 const column = (
 	type: string,
 	name: string,
@@ -325,6 +306,18 @@ const column = (
 	onUpdate: boolean,
 ) => {
 	let lowered = type.startsWith('enum(') ? type : type.toLowerCase();
+	if (lowered.startsWith('enum')) {
+		const values = parseEnum(lowered).map((it) => `"${it.replaceAll("''", "'").replaceAll('"', '\\"')}"`).join(',');
+		let out = `${casing(name)}: mysqlEnum(${dbColumnName({ name, casing: rawCasing, withMode: true })}[${values}])`;
+
+		const { default: def } = Enum.toTs('', defaultValue);
+		out += def ? `.default(${def})` : '';
+		return out;
+	}
+
+	if (lowered === 'serial') {
+		return `${casing(name)}: serial(${dbColumnName({ name, casing: rawCasing })})`;
+	}
 
 	const grammarType = typeFor(lowered);
 	if (grammarType) {
@@ -332,401 +325,12 @@ const column = (
 		const columnName = dbColumnName({ name, casing: rawCasing });
 		const { default: def, options } = grammarType.toTs(lowered, defaultValue);
 		const drizzleType = grammarType.drizzleImport();
+		const defaultStatement = def ? def.startsWith('.') ? def : `.default(${def})` : '';
 
 		let res = `${key}: ${drizzleType}(${columnName}${inspect(options)})`;
 		res += autoincrement ? `.autoincrement()` : '';
-		res += def ? `.default(${def})` : '';
+		res += defaultStatement;
 		return res;
-	}
-
-	if (lowered === 'serial') {
-		return `${casing(name)}: serial(${dbColumnName({ name, casing: rawCasing })})`;
-	}
-
-	if (lowered.startsWith('int')) {
-		const isUnsigned = lowered.startsWith('int unsigned');
-		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
-		let out = `${casing(name)}: int(${columnName}${isUnsigned ? '{ unsigned: true }' : ''})`;
-		out += autoincrement ? `.autoincrement()` : '';
-		out += defaultValue
-			? `.default(${mapColumnDefault(lowered, defaultValue)})`
-			: '';
-		return out;
-	}
-
-	if (lowered.startsWith('tinyint') && lowered !== 'tinyint(1)') {
-		const isUnsigned = lowered.startsWith('tinyint unsigned');
-		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
-		// let out = `${name.camelCase()}: tinyint("${name}")`;
-		let out: string = `${casing(name)}: tinyint(${columnName}${isUnsigned ? '{ unsigned: true }' : ''})`;
-		out += autoincrement ? `.autoincrement()` : '';
-		out += defaultValue ? `.default(${mapColumnDefault(lowered, defaultValue)})` : '';
-		return out;
-	}
-
-	if (lowered.startsWith('smallint')) {
-		const isUnsigned = lowered.startsWith('smallint unsigned');
-		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
-		let out = `${casing(name)}: smallint(${columnName}${isUnsigned ? '{ unsigned: true }' : ''})`;
-		out += autoincrement ? `.autoincrement()` : '';
-		out += defaultValue ? `.default(${mapColumnDefault(lowered, defaultValue)})` : '';
-		return out;
-	}
-
-	if (lowered.startsWith('mediumint')) {
-		const isUnsigned = lowered.startsWith('mediumint unsigned');
-		const columnName = dbColumnName({ name, casing: rawCasing, withMode: isUnsigned });
-		let out = `${casing(name)}: mediumint(${columnName}${isUnsigned ? '{ unsigned: true }' : ''})`;
-		out += autoincrement ? `.autoincrement()` : '';
-		out += defaultValue ? `.default(${mapColumnDefault(lowered, defaultValue)})` : '';
-		return out;
-	}
-
-	if (lowered.startsWith('bigint')) {
-		const isUnsigned = lowered.startsWith('bigint unsigned');
-		let out = `${casing(name)}: bigint(${dbColumnName({ name, casing: rawCasing, withMode: true })}{ mode: "number"${
-			isUnsigned ? ', unsigned: true' : ''
-		} })`;
-		out += autoincrement ? `.autoincrement()` : '';
-		out += defaultValue ? `.default(${mapColumnDefault(lowered, defaultValue)})` : '';
-		return out;
-	}
-
-	if (lowered === 'boolean' || lowered === 'tinyint(1)') {
-		let out = `${casing(name)}: boolean(${dbColumnName({ name, casing: rawCasing })})`;
-		out += defaultValue ? `.default(${mapColumnDefault(lowered, defaultValue)})` : '';
-		return out;
-	}
-
-	if (lowered.startsWith('double')) {
-		let params:
-			| { precision?: string; scale?: string; unsigned?: boolean }
-			| undefined;
-
-		if (lowered.length > (lowered.includes('unsigned') ? 15 : 6)) {
-			const [precision, scale] = lowered
-				.slice(7, lowered.length - (1 + (lowered.includes('unsigned') ? 9 : 0)))
-				.split(',');
-			params = { precision, scale };
-		}
-
-		if (lowered.includes('unsigned')) {
-			params = { ...(params ?? {}), unsigned: true };
-		}
-
-		const timeConfigParams = params ? timeConfig(params) : undefined;
-
-		let out = params
-			? `${casing(name)}: double(${
-				dbColumnName({ name, casing: rawCasing, withMode: timeConfigParams !== undefined })
-			}${timeConfig(params)})`
-			: `${casing(name)}: double(${dbColumnName({ name, casing: rawCasing })})`;
-
-		// let out = `${name.camelCase()}: double("${name}")`;
-		out += defaultValue
-			? `.default(${mapColumnDefault(lowered, defaultValue)})`
-			: '';
-		return out;
-	}
-
-	if (lowered.startsWith('float')) {
-		let params:
-			| { precision?: string; scale?: string; unsigned?: boolean }
-			| undefined;
-
-		if (lowered.length > (lowered.includes('unsigned') ? 14 : 5)) {
-			const [precision, scale] = lowered
-				.slice(6, lowered.length - (1 + (lowered.includes('unsigned') ? 9 : 0)))
-				.split(',');
-			params = { precision, scale };
-		}
-
-		if (lowered.includes('unsigned')) {
-			params = { ...(params ?? {}), unsigned: true };
-		}
-
-		let out = `${casing(name)}: float(${dbColumnName({ name, casing: rawCasing })}${params ? timeConfig(params) : ''})`;
-		out += defaultValue
-			? `.default(${mapColumnDefault(lowered, defaultValue)})`
-			: '';
-		return out;
-	}
-
-	if (lowered === 'real') {
-		let out = `${casing(name)}: real(${dbColumnName({ name, casing: rawCasing })})`;
-		out += defaultValue
-			? `.default(${mapColumnDefault(lowered, defaultValue)})`
-			: '';
-		return out;
-	}
-
-	if (lowered.startsWith('timestamp')) {
-		const keyLength = 'timestamp'.length + 1;
-		let fsp = lowered.length > keyLength
-			? Number(lowered.substring(keyLength, lowered.length - 1))
-			: null;
-		fsp = fsp ? fsp : null;
-
-		const params = timeConfig({ fsp, mode: "'string'" });
-
-		let out = params
-			? `${casing(name)}: timestamp(${
-				dbColumnName({ name, casing: rawCasing, withMode: params !== undefined })
-			}${params})`
-			: `${casing(name)}: timestamp(${dbColumnName({ name, casing: rawCasing })})`;
-
-		// mysql has only CURRENT_TIMESTAMP, as I found from docs. But will leave now() for just a case
-		out += defaultValue?.value === 'now()' || defaultValue?.value === '(CURRENT_TIMESTAMP)'
-			? '.defaultNow()'
-			: defaultValue
-			? `.default(${mapColumnDefault(lowered, defaultValue)})`
-			: '';
-
-		let onUpdateNow = onUpdate ? '.onUpdateNow()' : '';
-		out += onUpdateNow;
-
-		return out;
-	}
-
-	if (lowered.startsWith('time')) {
-		const keyLength = 'time'.length + 1;
-		let fsp = lowered.length > keyLength
-			? Number(lowered.substring(keyLength, lowered.length - 1))
-			: null;
-		fsp = fsp ? fsp : null;
-
-		const params = timeConfig({ fsp });
-
-		let out = params
-			? `${casing(name)}: time(${dbColumnName({ name, casing: rawCasing, withMode: params !== undefined })}${params})`
-			: `${casing(name)}: time(${dbColumnName({ name, casing: rawCasing })})`;
-
-		out += defaultValue?.value === 'now()'
-			? '.defaultNow()'
-			: defaultValue
-			? `.default(${mapColumnDefault(lowered, defaultValue)})`
-			: '';
-
-		return out;
-	}
-
-	if (lowered === 'date') {
-		let out = `// you can use { mode: 'date' }, if you want to have Date as type for this column\n\t${
-			casing(
-				name,
-			)
-		}: date(${dbColumnName({ name, casing: rawCasing, withMode: true })}{ mode: 'string' })`;
-
-		out += defaultValue?.value === 'now()'
-			? '.defaultNow()'
-			: defaultValue
-			? `.default(${mapColumnDefault(lowered, defaultValue)})`
-			: '';
-
-		return out;
-	}
-
-	// in mysql text can't have default value. Will leave it in case smth ;)
-	if (lowered === 'text') {
-		let out = `${casing(name)}: text(${dbColumnName({ name, casing: rawCasing })})`;
-		out += defaultValue
-			? `.default(${mapColumnDefault(lowered, defaultValue)})`
-			: '';
-		return out;
-	}
-
-	// in mysql text can't have default value. Will leave it in case smth ;)
-	if (lowered === 'tinytext') {
-		let out = `${casing(name)}: tinytext(${dbColumnName({ name, casing: rawCasing })})`;
-		out += defaultValue
-			? `.default(${mapColumnDefault(lowered, defaultValue)})`
-			: '';
-		return out;
-	}
-
-	// in mysql text can't have default value. Will leave it in case smth ;)
-	if (lowered === 'mediumtext') {
-		let out = `${casing(name)}: mediumtext(${dbColumnName({ name, casing: rawCasing })})`;
-		out += defaultValue
-			? `.default(${mapColumnDefault(lowered, defaultValue)})`
-			: '';
-		return out;
-	}
-
-	// in mysql text can't have default value. Will leave it in case smth ;)
-	if (lowered === 'longtext') {
-		let out = `${casing(name)}: longtext(${dbColumnName({ name, casing: rawCasing })})`;
-		out += defaultValue
-			? `.default(${mapColumnDefault(lowered, defaultValue)})`
-			: '';
-		return out;
-	}
-
-	if (lowered === 'year') {
-		let out = `${casing(name)}: year(${dbColumnName({ name, casing: rawCasing })})`;
-		out += defaultValue
-			? `.default(${mapColumnDefault(lowered, defaultValue)})`
-			: '';
-		return out;
-	}
-
-	// in mysql json can't have default value. Will leave it in case smth ;)
-	if (lowered === 'json') {
-		let out = `${casing(name)}: json(${dbColumnName({ name, casing: rawCasing })})`;
-
-		out += defaultValue
-			? `.default(${mapColumnDefault(lowered, defaultValue)})`
-			: '';
-
-		return out;
-	}
-
-	if (lowered.startsWith('varchar')) {
-		let out: string = `${
-			casing(
-				name,
-			)
-		}: varchar(${dbColumnName({ name, casing: rawCasing, withMode: true })}{ length: ${
-			lowered.substring(
-				'varchar'.length + 1,
-				lowered.length - 1,
-			)
-		} })`;
-
-		out += defaultValue
-			? `.default('${unescapeSingleQuotes(defaultValue.value, true)}')`
-			: '';
-		return out;
-	}
-
-	if (lowered.startsWith('char')) {
-		let out: string = `${
-			casing(
-				name,
-			)
-		}: char(${dbColumnName({ name, casing: rawCasing, withMode: true })}{ length: ${
-			lowered.substring(
-				'char'.length + 1,
-				lowered.length - 1,
-			)
-		} })`;
-
-		out += defaultValue
-			? `.default(${mapColumnDefault(lowered, defaultValue)})`
-			: '';
-		return out;
-	}
-
-	if (lowered.startsWith('datetime')) {
-		let out = `// you can use { mode: 'date' }, if you want to have Date as type for this column\n\t`;
-
-		const fsp = lowered.startsWith('datetime(')
-			? lowered.substring('datetime'.length + 1, lowered.length - 1)
-			: undefined;
-
-		out = fsp
-			? `${
-				casing(
-					name,
-				)
-			}: datetime(${dbColumnName({ name, casing: rawCasing, withMode: true })}{ mode: 'string', fsp: ${
-				lowered.substring(
-					'datetime'.length + 1,
-					lowered.length - 1,
-				)
-			} })`
-			: `${casing(name)}: datetime(${dbColumnName({ name, casing: rawCasing, withMode: true })}{ mode: 'string'})`;
-
-		out += defaultValue?.value === 'now()'
-			? '.defaultNow()'
-			: defaultValue
-			? `.default(${mapColumnDefault(lowered, defaultValue)})`
-			: '';
-
-		defaultValue;
-		return out;
-	}
-
-	if (lowered.startsWith('decimal')) {
-		let params:
-			| { precision?: string; scale?: string; unsigned?: boolean }
-			| undefined;
-
-		if (lowered.length > (lowered.includes('unsigned') ? 16 : 7)) {
-			const [precision, scale] = lowered
-				.slice(8, lowered.length - (1 + (lowered.includes('unsigned') ? 9 : 0)))
-				.split(',');
-			params = { precision, scale };
-		}
-
-		if (lowered.includes('unsigned')) {
-			params = { ...(params ?? {}), unsigned: true };
-		}
-
-		const timeConfigParams = params ? timeConfig(params) : undefined;
-
-		let out = params
-			? `${casing(name)}: decimal(${
-				dbColumnName({ name, casing: rawCasing, withMode: timeConfigParams !== undefined })
-			}${timeConfigParams})`
-			: `${casing(name)}: decimal(${dbColumnName({ name, casing: rawCasing })})`;
-
-		out += defaultValue
-			? `.default(${mapColumnDefault(lowered, defaultValue)})`
-			: '';
-
-		return out;
-	}
-
-	if (lowered.startsWith('binary')) {
-		const keyLength = 'binary'.length + 1;
-		let length = lowered.length > keyLength
-			? Number(lowered.substring(keyLength, lowered.length - 1))
-			: null;
-		length = length ? length : null;
-
-		const params = binaryConfig({ length });
-
-		let out = params
-			? `${casing(name)}: binary(${dbColumnName({ name, casing: rawCasing, withMode: params !== undefined })}${params})`
-			: `${casing(name)}: binary(${dbColumnName({ name, casing: rawCasing })})`;
-
-		out += defaultValue
-			? `.default(${mapColumnDefault(lowered, defaultValue)})`
-			: '';
-
-		return out;
-	}
-
-	if (lowered.startsWith('enum')) {
-		const values = parseEnum(lowered).map((it) => `"${it.replaceAll("''", "'").replaceAll('"', '\\"')}"`).join(',');
-		let out = `${casing(name)}: mysqlEnum(${dbColumnName({ name, casing: rawCasing, withMode: true })}[${values}])`;
-		out += defaultValue
-			? `.default('${unescapeSingleQuotes(defaultValue.value, true)}')`
-			: '';
-		return out;
-	}
-
-	if (lowered.startsWith('varbinary')) {
-		const keyLength = 'varbinary'.length + 1;
-		let length = lowered.length > keyLength
-			? Number(lowered.substring(keyLength, lowered.length - 1))
-			: null;
-		length = length ? length : null;
-
-		const params = binaryConfig({ length });
-
-		let out = params
-			? `${casing(name)}: varbinary(${
-				dbColumnName({ name, casing: rawCasing, withMode: params !== undefined })
-			}${params})`
-			: `${casing(name)}: varbinary(${dbColumnName({ name, casing: rawCasing })})`;
-
-		out += defaultValue
-			? `.default(${mapColumnDefault(lowered, defaultValue)})`
-			: '';
-
-		return out;
 	}
 
 	console.log('uknown', type);

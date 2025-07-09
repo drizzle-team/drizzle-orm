@@ -242,7 +242,7 @@ test('boolean', async () => {
 	const res1 = await diffDefault(_, boolean().default(sql`null`), 'null');
 	const res2 = await diffDefault(_, boolean().default(true), 'true');
 	const res3 = await diffDefault(_, boolean().default(false), 'false');
-	const res4 = await diffDefault(_, boolean().default(sql`true`), 'true');
+	const res4 = await diffDefault(_, boolean().default(sql`true`), '(true)');
 
 	// null vs { value: "null", type: "unknown" }
 	expect.soft(res1.length).greaterThan(0);
@@ -251,7 +251,7 @@ test('boolean', async () => {
 	expect.soft(res4).toStrictEqual([]);
 });
 
-test.only('char', async () => {
+test('char', async () => {
 	const res1 = await diffDefault(_, char({ length: 10 }).default('10'), `'10'`);
 	const res2 = await diffDefault(_, char({ length: 10 }).default("text'text"), `'text''text'`);
 	const res3 = await diffDefault(_, char({ length: 10 }).default('text\'text"'), "'text''text\"'");
@@ -337,18 +337,22 @@ test('binary', async () => {
 	const res1 = await diffDefault(_, binary().default('binary'), `('binary')`);
 	const res2 = await diffDefault(_, binary({ length: 10 }).default('binary'), `('binary')`);
 	const res3 = await diffDefault(_, binary().default(sql`(lower('HELLO'))`), `(lower('HELLO'))`);
+	const res4 = await diffDefault(_, binary().default(sql`lower('HELLO')`), `(lower('HELLO'))`);
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
 });
 
 test('varbinary', async () => {
 	const res1 = await diffDefault(_, varbinary({ length: 10 }).default('binary'), `(0x62696e617279)`);
 	const res2 = await diffDefault(_, varbinary({ length: 16 }).default(sql`(lower('HELLO'))`), `(lower('HELLO'))`);
+	const res3 = await diffDefault(_, varbinary({ length: 16 }).default(sql`lower('HELLO')`), `(lower('HELLO'))`);
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
 });
 
 test('json', async () => {
@@ -370,7 +374,6 @@ test('json', async () => {
 test('timestamp', async () => {
 	const res1 = await diffDefault(_, timestamp({ mode: 'date' }).defaultNow(), `(now())`);
 	const res2 = await diffDefault(_, timestamp({ mode: 'string' }).defaultNow(), `(now())`);
-
 	const res3 = await diffDefault(
 		_,
 		timestamp({ mode: 'date' }).default(new Date('2025-05-23T12:53:53.115Z')),
@@ -467,10 +470,17 @@ test('time', async () => {
 		_,
 		time({ fsp: 3 }).default('15:50:33.123'),
 		`'15:50:33.123'`,
+	);	
+	
+	const res3 = await diffDefault(
+		_,
+		time({ fsp: 6 }).default('15:50:33.123456'),
+		`'15:50:33.123456'`,
 	);
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
 });
 
 test('date', async () => {
@@ -489,7 +499,7 @@ test('date', async () => {
 
 test('year', async () => {
 	const res1 = await diffDefault(_, year().default(2025), `2025`);
-	const res2 = await diffDefault(_, year().default(sql`2025`), `2025`);
+	const res2 = await diffDefault(_, year().default(sql`2025`), `(2025)`);
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);

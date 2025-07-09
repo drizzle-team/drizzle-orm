@@ -33,46 +33,16 @@ export const defaultFromColumn = (
 		'now()'; // value: now() type: unknown
 		let str = sqlToStr(column.default, casing);
 		// if (str === 'null') return null; should probably not do this
-		return { value: str, type: 'unknown' };
+
+		// we need to wrap unknown statements in () otherwise there's not enough info in Type.toSQL
+		if (!str.startsWith('(')) return `(${str})`;
+		return str;
 	}
 
 	const grammarType = typeFor(column.getSQLType().toLowerCase());
 	if (grammarType) return grammarType.defaultFromDrizzle(value);
 
-	if (sqlTypeLowered.startsWith('varbinary')) {
-		return { value: `(0x${Buffer.from(String(column.default)).toString('hex').toLowerCase()})`, type: 'unknown' };
-	}
-
-	if (
-		sqlTypeLowered.startsWith('binary') || sqlTypeLowered === 'text' || sqlTypeLowered === 'tinytext'
-		|| sqlTypeLowered === 'mediumtext'
-		|| sqlTypeLowered === 'longtext'
-	) {
-		return { value: String(column.default), type: 'text' };
-	}
-
-	if (sqlTypeLowered === 'json') {
-		return { value: JSON.stringify(column.default), type: 'json' };
-	}
-
-	if (column.default instanceof Date) {
-		if (sqlTypeLowered === 'date') {
-			return { value: column.default.toISOString().split('T')[0], type: 'string' };
-		}
-
-		if (sqlTypeLowered.startsWith('datetime') || sqlTypeLowered.startsWith('timestamp')) {
-			return { value: column.default.toISOString().replace('T', ' ').slice(0, 23), type: 'string' };
-		}
-
-		throw new Error(`unexpected default: ${column.default}`);
-	}
-
-	const type = typeof column.default;
-	if (type === 'string' || type === 'number' || type === 'bigint' || type === 'boolean') {
-		return { value: String(column.default), type: type };
-	}
-
-	throw new Error(`unexpected default: ${column.default}`);
+	throw new Error(`unexpected default: ${column.getSQLType().toLowerCase()} ${column.default}`);
 };
 
 export const upper = <T extends string>(value: T | undefined): Uppercase<T> | null => {
@@ -120,7 +90,7 @@ export const fromDrizzleSchema = (
 			const name = getColumnCasing(column, casing);
 			const notNull: boolean = column.notNull;
 
-			const sqlType = column.getSQLType().replace(', ', ','); // TODO: remove, should be redundant real(6, 3)->real(6,3)  
+			const sqlType = column.getSQLType().replace(', ', ','); // TODO: remove, should be redundant real(6, 3)->real(6,3)
 
 			const autoIncrement = typeof (column as any).autoIncrement === 'undefined'
 				? false
