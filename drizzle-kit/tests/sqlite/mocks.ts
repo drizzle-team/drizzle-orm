@@ -59,7 +59,7 @@ export const diff = async (
 	return { sqlStatements, statements, err1, err2 };
 };
 
-const dbFrom = (client: Database) => {
+export const dbFrom = (client: Database) => {
 	return {
 		query: async <T>(sql: string, params: any[] = []) => {
 			return client.prepare(sql).bind(params).all() as T[];
