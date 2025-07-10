@@ -65,7 +65,7 @@
 	"license": "Apache-2.0",
 	"peerDependencies": {
 		"drizzle-orm": ">=0.36.0",
-		"zod": "^3.25.1"
+		"zod": "^3.25.1 || ^4.0.0"
 	},
 	"devDependencies": {
 		"@rollup/plugin-typescript": "^11.1.0",
