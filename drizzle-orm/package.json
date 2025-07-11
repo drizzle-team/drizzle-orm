@@ -1,5 +1,5 @@
 {
-	"name": "drizzle-orm",
+	"name": "drizzle-orm-beta",
 	"version": "0.44.2",
 	"description": "Drizzle ORM package for SQL databases",
 	"type": "module",
@@ -21,7 +21,7 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/drizzle-team/drizzle-orm.git"
+		"url": "git+https://github.com/prometx11/drizzle-orm-beta.git"
 	},
 	"homepage": "https://orm.drizzle.team",
 	"keywords": [
@@ -76,7 +76,7 @@
 		"gel": ">=2",
 		"@upstash/redis": ">=1.34.7"
 	},
-	"peerDependenciesMeta": {
+"peerDependenciesMeta": {
 		"mysql2": {
 			"optional": true
 		},
