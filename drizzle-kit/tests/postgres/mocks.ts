@@ -54,6 +54,7 @@ import 'zx/globals';
 import { upToV8 } from 'src/cli/commands/up-postgres';
 import { serializePg } from 'src/legacy/postgres-v7/serializer';
 import { diff as legacyDiff } from 'src/legacy/postgres-v7/snapshotsDiffer';
+import { tsc } from 'tests/utils';
 
 mkdirSync(`tests/postgres/tmp/`, { recursive: true });
 
@@ -137,11 +138,12 @@ export const diff = async (
 		mockResolver(renames),
 		mockResolver(renames),
 		mockResolver(renames),
-		mockResolver(renames), // uniques
-		mockResolver(renames), // indexes
-		mockResolver(renames), // checks
-		mockResolver(renames), // pks
-		mockResolver(renames), // fks
+		mockResolver(renames),
+		mockResolver(renames),
+		mockResolver(renames),
+		mockResolver(renames),
+		mockResolver(renames),
+		mockResolver(renames),
 		'default',
 	);
 	return { sqlStatements, statements, groupedStatements, next: ddl2 };
@@ -203,12 +205,13 @@ export const push = async (config: {
 		mockResolver(renames),
 		mockResolver(renames),
 		mockResolver(renames),
-		mockResolver(renames), // views
-		mockResolver(renames), // uniques
-		mockResolver(renames), // indexes
-		mockResolver(renames), // checks
-		mockResolver(renames), // pks
-		mockResolver(renames), // fks
+		mockResolver(renames),
+		mockResolver(renames),
+		mockResolver(renames),
+		mockResolver(renames),
+		mockResolver(renames),
+		mockResolver(renames),
+		mockResolver(renames),
 		'push',
 	);
 
@@ -328,6 +331,7 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 
 	if (existsSync(path)) rmSync(path);
 	writeFileSync(path, file.file);
+	await tsc(path);
 
 	const response = await prepareFromSchemaFiles([path]);
 	const { schema: sch } = fromDrizzleSchema(response, 'camelCase');
@@ -335,7 +339,7 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 
 	const { sqlStatements: afterFileSqlStatements } = await ddlDiffDry(ddl1, ddl2, 'push');
 	if (afterFileSqlStatements.length === 0) {
-		rmSync(path);
+		// rmSync(path);
 	} else {
 		console.log(afterFileSqlStatements);
 		console.log(`./${path}`);

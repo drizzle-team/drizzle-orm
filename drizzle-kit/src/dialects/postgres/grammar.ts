@@ -1,26 +1,65 @@
-import { stringifyArray, stringifyTuplesArray, trimChar } from '../../utils';
+import { ArrayValue, stringifyArray, stringifyTuplesArray, trimChar } from '../../utils';
 import { assertUnreachable } from '../../utils';
 import { parseArray } from '../../utils/parse-pgarray';
 import { hash } from '../common';
-import { Column, PostgresEntities } from './ddl';
+import type { Column, PostgresEntities } from './ddl';
+import type { Import } from './typescript';
 
-const columnUnknown = {
-	drizzleImport() {
-		return 'unknown';
-	},
-	canHandle(type: string) {
-		return true;
-	},
+export interface SqlType {
+	is(type: string): boolean;
+	drizzleImport(): Import;
+	defaultFromDrizzle<MODE = unknown>(value: unknown, mode?: MODE): Column['default'];
+	defaultArrayFromDrizzle<MODE = unknown>(value: any[], mode?: MODE): Column['default'];
+	defaultFromIntrospect(value: string): Column['default'];
+	defaultArrayFromIntrospect(value: ArrayValue): Column['default'];
+	defaultToSQL(value: string): string;
+	defaultArrayToSQL(value: any[]): string;
+	toTs(type: string, value: string): { options?: Record<string, unknown>; default: string };
+	toArrayTs(type: string, value: any[]): { options?: Record<string, unknown>; default: string };
+}
 
-	defaultFromDrizzle(it: any, dimensions: number): Column['default'] {
-		return { type: 'unknown', value: String(it).replaceAll("'", "''").replaceAll('\\', '\\\\') };
+export const SmallInt: SqlType = {
+	is: (type: string) => /^\s*smallint(?:\s*\[\s*\])*\s*$/i.test(type),
+	drizzleImport: () => 'smallint',
+	defaultFromDrizzle: (value) => {
+		return { value: String(value), type: 'unknown' };
 	},
+	defaultArrayFromDrizzle: (value) => {
+		return { value: JSON.stringify(value), type: 'unknown' };
+	},
+	defaultFromIntrospect: (value) => {
+		return { value: trimChar(value, "'"), type: 'unknown' }; // 10, but '-10'
+	},
+	defaultArrayFromIntrospect: (value) => {
+		const stringified = JSON.stringify(value, (_, v) => typeof v === 'string' ? Number(v) : v);
+		return { value: stringified, type: 'unknown' };
+	},
+	defaultToSQL: (value) => value,
+	defaultArrayToSQL: (value) => {
+		return `'${stringifyArray(value, 'sql', (v) => String(v))}'`;
+	},
+	toTs: (_, value) => ({ default: value }),
+	toArrayTs: (_, value) => ({ default: JSON.stringify(value) }),
+};
 
-	printToTypeScript(column: Column) {
-		return `unknown('${column.name}').default(sql\`${
-			column.default?.value.replaceAll("''", "'").replaceAll('\\\\', '\\')
-		}\`)`;
-	},
+export const Int: SqlType = {
+	is: (type: string) => /^\s*integer(?:\s*\[\s*\])*\s*$/i.test(type),
+	drizzleImport: () => 'integer',
+	defaultFromDrizzle: SmallInt.defaultFromDrizzle,
+	defaultArrayFromDrizzle: SmallInt.defaultArrayFromDrizzle,
+	defaultFromIntrospect: SmallInt.defaultFromIntrospect,
+	defaultArrayFromIntrospect: SmallInt.defaultArrayFromIntrospect,
+	defaultToSQL: SmallInt.defaultToSQL,
+	defaultArrayToSQL: SmallInt.defaultArrayToSQL,
+	toTs: SmallInt.toTs,
+	toArrayTs: SmallInt.toArrayTs,
+};
+
+export const typeFor = (type: string): SqlType | null => {
+	if (SmallInt.is(type)) return SmallInt;
+	if (Int.is(type)) return Int;
+	console.log('nosqltype');
+	return null;
 };
 
 export const splitSqlType = (sqlType: string) => {
@@ -362,8 +401,24 @@ export const defaultForColumn = (
 		return { type: 'number', value: String(def) };
 	}
 
-	// trim ::type and []
 	let value = trimDefaultValueSuffix(def);
+
+	const grammarType = typeFor(type);
+	if (grammarType) {
+		if (dimensions > 0) {
+			try {
+				let trimmed = value.startsWith('(') ? value.slice(1, value.length - 1) : value;
+				trimmed = trimChar(trimmed, "'");
+				const res = parseArray(trimmed);
+				return grammarType.defaultArrayFromIntrospect(res);
+			} catch {
+				return { value, type: 'unknown' };
+			}
+		}
+		return grammarType.defaultFromIntrospect(String(value));
+	}
+
+	// trim ::type and []
 
 	if (type.startsWith('vector')) {
 		return { value: value, type: 'unknown' };
@@ -438,6 +493,21 @@ export const defaultToSQL = (
 	}
 
 	const suffix = arrsuffix ? `::${columnType}${arrsuffix}` : '';
+
+	const grammarType = typeFor(it.type);
+	if (grammarType) {
+		if (dimensions > 0) {
+			try {
+				const parsed = JSON.parse(it.default.value) as any[];
+				if (parsed.flat(5).length === 0) return `'{}'${suffix}`;
+				return `${grammarType.defaultArrayToSQL(parsed)}${suffix}`;
+			} catch {
+				return it.default;
+			}
+		}
+		const value = grammarType.defaultToSQL(it.default.value);
+		return `${value}${suffix}`;
+	}
 
 	if (type === 'string') {
 		return `'${value}'${suffix}`;

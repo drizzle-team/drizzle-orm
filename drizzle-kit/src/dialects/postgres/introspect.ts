@@ -13,8 +13,8 @@ import type {
 	Policy,
 	PostgresEntities,
 	PrimaryKey,
-	Role,
 	Privilege,
+	Role,
 	Schema,
 	Sequence,
 	UniqueConstraint,
@@ -412,7 +412,7 @@ export const fromDatabase = async (
 		throw err;
 	});
 
-const rolesQuery = db.query<
+	const rolesQuery = db.query<
 		{
 			rolname: string;
 			rolsuper: boolean;
@@ -594,19 +594,28 @@ const rolesQuery = db.query<
 		throw err;
 	});
 
-	const [dependList, enumsList, serialsList, sequencesList, policiesList, rolesList, privilegesList, constraintsList, columnsList] =
-		await Promise
-			.all([
-				dependQuery,
-				enumsQuery,
-				serialsQuery,
-				sequencesQuery,
-				policiesQuery,
-				rolesQuery,
-				privilegesQuery,
-				constraintsQuery,
-				columnsQuery,
-			]);
+	const [
+		dependList,
+		enumsList,
+		serialsList,
+		sequencesList,
+		policiesList,
+		rolesList,
+		privilegesList,
+		constraintsList,
+		columnsList,
+	] = await Promise
+		.all([
+			dependQuery,
+			enumsQuery,
+			serialsQuery,
+			sequencesQuery,
+			policiesQuery,
+			rolesQuery,
+			privilegesQuery,
+			constraintsQuery,
+			columnsQuery,
+		]);
 
 	const groupedEnums = enumsList.reduce((acc, it) => {
 		if (!(it.oid in acc)) {
@@ -711,7 +720,7 @@ const rolesQuery = db.query<
 			table: privilege.table,
 			type: privilege.type,
 			isGrantable: privilege.isGrantable,
-		})
+		});
 	}
 
 	for (const it of policiesList) {
@@ -1244,6 +1253,7 @@ export const fromDatabaseForDrizzle = async (
 	const res = await fromDatabase(db, tableFilter, schemaFilters, entities, progressCallback);
 	res.schemas = res.schemas.filter((it) => it.name !== 'public');
 	res.indexes = res.indexes.filter((it) => !it.forPK && !it.forUnique);
+	res.privileges = [];
 
 	return res;
 };

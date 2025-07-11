@@ -498,7 +498,7 @@ export const Year: SqlType = {
 
 export const Enum: SqlType = {
 	is: (type) => /^(?:enum)(?:[\s(].*)?$/i.test(type),
-	drizzleImport: () => 'enum',
+	drizzleImport: () => 'mysqlEnum',
 	defaultFromDrizzle: (value) => {
 		return String(value);
 	},
@@ -510,7 +510,7 @@ export const Enum: SqlType = {
 		if (it.startsWith('(')) return it;
 		return `'${escapeForSqlDefault(it)}'`;
 	},
-	toTs: (type, def) => {
+	toTs: (_, def) => {
 		if (!def) return { default: '' };
 		const unescaped = escapeForTsLiteral(def);
 		return { default: `"${unescaped}"` };
