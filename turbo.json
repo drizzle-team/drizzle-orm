@@ -1,19 +1,7 @@
 {
 	"$schema": "https://turbo.build/schema.json",
 	"tasks": {
-		"//#lint": {
-			"dependsOn": [
-				"^test:types",
-				"drizzle-orm#build"
-			],
-			"inputs": [
-				"**/*.ts",
-				"!**/node_modules",
-				"!**/dist",
-				"!**/dist-dts"
-			],
-			"outputLogs": "new-only"
-		},
+ 
 		"test:types": {
 			"dependsOn": [
 				"^test:types",
