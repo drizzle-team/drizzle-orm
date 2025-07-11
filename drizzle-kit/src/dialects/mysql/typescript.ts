@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { toCamelCase } from 'drizzle-orm/casing';
 import { Casing } from 'src/cli/validations/common';
-import { unescapeSingleQuotes } from 'src/utils';
 import { assertUnreachable } from '../../utils';
 import { CheckConstraint, Column, ForeignKey, Index, MysqlDDL, PrimaryKey, ViewColumn } from './ddl';
 import { Enum, parseEnum, typeFor } from './grammar';
@@ -32,13 +31,12 @@ export const imports = [
 	'varbinary',
 	'varchar',
 	'year',
-	'enum',
+	'mysqlEnum',
 ] as const;
 export type Import = typeof imports[number];
 
 const mysqlImportsList = new Set([
 	'mysqlTable',
-	'mysqlEnum',
 	...imports,
 ]);
 
@@ -64,7 +62,6 @@ function inspect(it: any): string {
 
 const objToStatement2 = (json: any) => {
 	json = Object.fromEntries(Object.entries(json).filter((it) => it[1]));
-
 	const keys = Object.keys(json);
 	if (keys.length === 0) return;
 
@@ -73,35 +70,6 @@ const objToStatement2 = (json: any) => {
 	statement += ' }';
 	return statement;
 };
-
-const timeConfig = (json: any) => {
-	json = Object.fromEntries(Object.entries(json).filter((it) => it[1]));
-
-	const keys = Object.keys(json);
-	if (keys.length === 0) return;
-
-	let statement = '{ ';
-	statement += keys.map((it) => `${it}: ${json[it]}`).join(', ');
-	statement += ' }';
-	return statement;
-};
-
-const binaryConfig = (json: any) => {
-	json = Object.fromEntries(Object.entries(json).filter((it) => it[1]));
-
-	const keys = Object.keys(json);
-	if (keys.length === 0) return;
-
-	let statement = '{ ';
-	statement += keys.map((it) => `${it}: ${json[it]}`).join(', ');
-	statement += ' }';
-	return statement;
-};
-
-const importsPatch = {
-	'double precision': 'doublePrecision',
-	'timestamp without time zone': 'timestamp',
-} as Record<string, string>;
 
 const relations = new Set<string>();
 
@@ -158,6 +126,7 @@ export const ddlToTypeScript = (
 			...it,
 		} as const;
 	});
+
 	for (const it of [...ddl.entities.list(), ...viewEntities]) {
 		if (it.entityType === 'indexes') imports.add(it.isUnique ? 'uniqueIndex' : 'index');
 		if (it.entityType === 'fks') imports.add('foreignKey');
@@ -166,31 +135,9 @@ export const ddlToTypeScript = (
 		if (it.entityType === 'views') imports.add('mysqlView');
 
 		if (it.entityType === 'columns' || it.entityType === 'viewColumn') {
-			let patched = it.type;
-			patched = patched.startsWith('varchar(') ? 'varchar' : patched;
-			patched = patched.startsWith('char(') ? 'char' : patched;
-			patched = patched.startsWith('binary(') ? 'binary' : patched;
-			patched = patched.startsWith('decimal(') ? 'decimal' : patched;
-			patched = patched.startsWith('smallint(') ? 'smallint' : patched;
-			patched = patched.startsWith('enum(') ? 'mysqlEnum' : patched;
-			patched = patched.startsWith('datetime(') ? 'datetime' : patched;
-			patched = patched.startsWith('varbinary(') ? 'varbinary' : patched;
-			patched = patched.startsWith('int(') ? 'int' : patched;
-			patched = patched.startsWith('double(') ? 'double' : patched;
-			patched = patched.startsWith('double unsigned') ? 'double' : patched;
-			patched = patched.startsWith('float(') ? 'float' : patched;
-			patched = patched.startsWith('float unsigned') ? 'float' : patched;
-			patched = patched.startsWith('int unsigned') ? 'int' : patched;
-			patched = patched === 'tinyint(1)' ? 'boolean' : patched;
-			patched = patched.startsWith('tinyint(') ? 'tinyint' : patched;
-			patched = patched.startsWith('tinyint unsigned') ? 'tinyint' : patched;
-			patched = patched.startsWith('smallint unsigned') ? 'smallint' : patched;
-			patched = patched.startsWith('mediumint unsigned') ? 'mediumint' : patched;
-			patched = patched.startsWith('bigint unsigned') ? 'bigint' : patched;
-			patched = patched.startsWith('time(') ? 'time' : patched;
-			patched = patched.startsWith('timestamp(') ? 'timestamp' : patched;
-
-			if (mysqlImportsList.has(patched)) imports.add(patched);
+			const grammarType=typeFor(it.type);
+			if(grammarType)imports.add(grammarType.drizzleImport());
+			if (mysqlImportsList.has(it.type)) imports.add(it.type);
 		}
 	}
 
