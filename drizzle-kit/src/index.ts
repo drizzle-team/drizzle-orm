@@ -53,7 +53,7 @@ type Verify<T, U extends T> = U;
  *
  * ---
  *
- * `migrations` - param lets you specify custom table and schema(PostgreSQL only) for migrations.
+ * `migrations` - param let’s use specify custom table and schema(PostgreSQL only) for migrations.
  * By default, all information about executed migrations will be stored in the database inside
  * the `__drizzle_migrations` table, and for PostgreSQL, inside the drizzle schema.
  * However, you can configure where to store those records.
