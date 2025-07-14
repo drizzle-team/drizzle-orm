@@ -15,7 +15,7 @@ import type {
 import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import type { Placeholder, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
-import { Table } from '~/table.ts';
+import { type InferInsertModel, Table } from '~/table.ts';
 import { mapUpdateSet, type UpdateSet, type ValueOrArray } from '~/utils.ts';
 import type { SingleStoreColumn } from '../columns/common.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
@@ -30,9 +30,12 @@ export interface SingleStoreUpdateConfig {
 	withList?: Subquery[];
 }
 
-export type SingleStoreUpdateSetSource<TTable extends SingleStoreTable> =
+export type SingleStoreUpdateSetSource<
+	TTable extends SingleStoreTable,
+	TModel extends InferInsertModel<TTable> = InferInsertModel<TTable>,
+> =
 	& {
-		[Key in keyof TTable['$inferInsert']]?:
+		[Key in keyof TModel & string]?:
 			| GetColumnData<TTable['_']['columns'][Key], 'query'>
 			| SQL
 			| undefined;

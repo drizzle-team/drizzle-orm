@@ -88,10 +88,14 @@ export abstract class Column<
 
 	protected config: ColumnRuntimeConfig<T['data'], TRuntimeConfig>;
 
+	/** @internal */
+	readonly table: Table;
+
 	constructor(
-		readonly table: Table,
+		table: Table,
 		config: ColumnRuntimeConfig<T['data'], TRuntimeConfig>,
 	) {
+		this.table = table;
 		this.config = config;
 		this.name = config.name;
 		this.keyAsName = config.keyAsName;

@@ -46,8 +46,11 @@ export type PgInsertValue<TTable extends PgTable<TableConfig>, OverrideT extends
 	}
 	& {};
 
-export type PgInsertSelectQueryBuilder<TTable extends PgTable> = TypedQueryBuilder<
-	{ [K in keyof TTable['$inferInsert']]: AnyPgColumn | SQL | SQL.Aliased | TTable['$inferInsert'][K] }
+export type PgInsertSelectQueryBuilder<
+	TTable extends PgTable,
+	TModel extends InferInsertModel<TTable> = InferInsertModel<TTable>,
+> = TypedQueryBuilder<
+	{ [K in keyof TModel]: AnyPgColumn | SQL | SQL.Aliased | TModel[K] }
 >;
 
 export class PgInsertBuilder<

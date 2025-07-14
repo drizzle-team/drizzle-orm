@@ -140,14 +140,18 @@ export abstract class PgColumn<
 > extends Column<T, TRuntimeConfig, TTypeConfig & { dialect: 'pg' }> {
 	static override readonly [entityKind]: string = 'PgColumn';
 
+	/** @internal */
+	override readonly table: PgTable;
+
 	constructor(
-		override readonly table: PgTable,
+		table: PgTable,
 		config: ColumnBuilderRuntimeConfig<T['data'], TRuntimeConfig>,
 	) {
 		if (!config.uniqueName) {
 			config.uniqueName = uniqueKeyName(table, [config.name]);
 		}
 		super(table, config);
+		this.table = table;
 	}
 }
 

@@ -1,6 +1,11 @@
 import type { BuildColumns, BuildExtraConfigColumns } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
-import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
+import {
+	type InferTableColumnsModels,
+	Table,
+	type TableConfig as TableConfigBase,
+	type UpdateTableConfig,
+} from '~/table.ts';
 import type { CheckBuilder } from './checks.ts';
 import { getSQLiteColumnBuilders, type SQLiteColumnBuilders } from './columns/all.ts';
 import type { SQLiteColumn, SQLiteColumnBuilder, SQLiteColumnBuilderBase } from './columns/common.ts';
@@ -52,9 +57,8 @@ export type AnySQLiteTable<TPartial extends Partial<TableConfig> = {}> = SQLiteT
 
 export type SQLiteTableWithColumns<T extends TableConfig> =
 	& SQLiteTable<T>
-	& {
-		[Key in keyof T['columns']]: T['columns'][Key];
-	};
+	& T['columns']
+	& InferTableColumnsModels<T['columns']>;
 
 export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
 	<
@@ -213,7 +217,7 @@ function sqliteTableBase<
 		) => SQLiteTableExtraConfig;
 	}
 
-	return table;
+	return table as any;
 }
 
 export const sqliteTable: SQLiteTableFn = (name, columns, extraConfig) => {

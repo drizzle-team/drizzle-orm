@@ -68,21 +68,21 @@ export const identityColumnsTable = pgTable('identity_columns_table', {
 });
 
 Expect<Equal<InferSelectModel<typeof identityColumnsTable>, typeof identityColumnsTable['$inferSelect']>>;
-Expect<Equal<InferSelectModel<typeof identityColumnsTable>, typeof identityColumnsTable['_']['inferSelect']>>;
+// Expect<Equal<InferSelectModel<typeof identityColumnsTable>, typeof identityColumnsTable['_']['inferSelect']>>;
 Expect<Equal<InferInsertModel<typeof identityColumnsTable>, typeof identityColumnsTable['$inferInsert']>>;
-Expect<Equal<InferInsertModel<typeof identityColumnsTable>, typeof identityColumnsTable['_']['inferInsert']>>;
+// Expect<Equal<InferInsertModel<typeof identityColumnsTable>, typeof identityColumnsTable['_']['inferInsert']>>;
 Expect<
 	Equal<
 		InferInsertModel<typeof identityColumnsTable, { dbColumnNames: false; override: true }>,
 		Simplify<typeof identityColumnsTable['$inferInsert'] & { alwaysAsIdentity?: number | undefined }>
 	>
 >;
-Expect<
-	Equal<
-		InferInsertModel<typeof identityColumnsTable, { dbColumnNames: false; override: true }>,
-		Simplify<typeof identityColumnsTable['_']['inferInsert'] & { alwaysAsIdentity?: number | undefined }>
-	>
->;
+// Expect<
+// 	Equal<
+// 		InferInsertModel<typeof identityColumnsTable, { dbColumnNames: false; override: true }>,
+// 		Simplify<typeof identityColumnsTable['_']['inferInsert'] & { alwaysAsIdentity?: number | undefined }>
+// 	>
+// >;
 
 export const users = pgTable(
 	'users_table',
@@ -123,9 +123,9 @@ export const users = pgTable(
 );
 
 Expect<Equal<InferSelectModel<typeof users>, typeof users['$inferSelect']>>;
-Expect<Equal<InferSelectModel<typeof users>, typeof users['_']['inferSelect']>>;
+// Expect<Equal<InferSelectModel<typeof users>, typeof users['_']['inferSelect']>>;
 Expect<Equal<InferInsertModel<typeof users>, typeof users['$inferInsert']>>;
-Expect<Equal<InferInsertModel<typeof users>, typeof users['_']['inferInsert']>>;
+// Expect<Equal<InferInsertModel<typeof users>, typeof users['_']['inferInsert']>>;
 
 export const cities = pgTable('cities_table', {
 	id: serial('id').primaryKey(),

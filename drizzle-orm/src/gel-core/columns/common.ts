@@ -139,14 +139,18 @@ export abstract class GelColumn<
 > extends Column<T, TRuntimeConfig, TTypeConfig & { dialect: 'gel' }> {
 	static override readonly [entityKind]: string = 'GelColumn';
 
+	/** @internal */
+	override readonly table: GelTable;
+
 	constructor(
-		override readonly table: GelTable,
+		table: GelTable,
 		config: ColumnBuilderRuntimeConfig<T['data'], TRuntimeConfig>,
 	) {
 		if (!config.uniqueName) {
 			config.uniqueName = uniqueKeyName(table, [config.name]);
 		}
 		super(table, config);
+		this.table = table;
 	}
 }
 

@@ -1,6 +1,11 @@
 import type { BuildColumns, BuildExtraConfigColumns } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
-import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
+import {
+	type InferTableColumnsModels,
+	Table,
+	type TableConfig as TableConfigBase,
+	type UpdateTableConfig,
+} from '~/table.ts';
 import type { CheckBuilder } from './checks.ts';
 import { getMySqlColumnBuilders, type MySqlColumnBuilders } from './columns/all.ts';
 import type { MySqlColumn, MySqlColumnBuilder, MySqlColumnBuilderBase } from './columns/common.ts';
@@ -54,9 +59,8 @@ export type AnyMySqlTable<TPartial extends Partial<TableConfig> = {}> = MySqlTab
 
 export type MySqlTableWithColumns<T extends TableConfig> =
 	& MySqlTable<T>
-	& {
-		[Key in keyof T['columns']]: T['columns'][Key];
-	};
+	& T['columns']
+	& InferTableColumnsModels<T['columns']>;
 
 export function mysqlTableWithSchema<
 	TTableName extends string,
@@ -112,7 +116,7 @@ export function mysqlTableWithSchema<
 		) => MySqlTableExtraConfig;
 	}
 
-	return table;
+	return table as any;
 }
 
 export interface MySqlTableFn<TSchemaName extends string | undefined = undefined> {

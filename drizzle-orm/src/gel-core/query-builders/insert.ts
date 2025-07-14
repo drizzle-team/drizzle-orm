@@ -44,8 +44,11 @@ export type GelInsertValue<TTable extends GelTable<TableConfig>, OverrideT exten
 	}
 	& {};
 
-export type GelInsertSelectQueryBuilder<TTable extends GelTable> = TypedQueryBuilder<
-	{ [K in keyof TTable['$inferInsert']]: AnyGelColumn | SQL | SQL.Aliased | TTable['$inferInsert'][K] }
+export type GelInsertSelectQueryBuilder<
+	TTable extends GelTable,
+	TModel extends InferInsertModel<TTable> = InferInsertModel<TTable>,
+> = TypedQueryBuilder<
+	{ [K in keyof TModel]: AnyGelColumn | SQL | SQL.Aliased | TModel[K] }
 >;
 
 export class GelInsertBuilder<

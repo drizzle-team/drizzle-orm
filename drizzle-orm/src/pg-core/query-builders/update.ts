@@ -9,7 +9,7 @@ import type {
 	PreparedQueryConfig,
 } from '~/pg-core/session.ts';
 import { PgTable } from '~/pg-core/table.ts';
-import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type {
 	AppendToNullabilityMap,
 	AppendToResult,
@@ -25,16 +25,16 @@ import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type Query, SQL, type SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
-import { getTableName, Table } from '~/table.ts';
+import { getTableName, type InferInsertModel, Table } from '~/table.ts';
 import {
 	type Assume,
-	DrizzleTypeError,
-	Equal,
+	type DrizzleTypeError,
+	type Equal,
 	getTableLikeName,
 	mapUpdateSet,
 	type NeonAuthToken,
 	orderSelectedFields,
-	Simplify,
+	type Simplify,
 	type UpdateSet,
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
@@ -58,9 +58,12 @@ export interface PgUpdateConfig {
 	withList?: Subquery[];
 }
 
-export type PgUpdateSetSource<TTable extends PgTable> =
+export type PgUpdateSetSource<
+	TTable extends PgTable,
+	TModel extends InferInsertModel<TTable> = InferInsertModel<TTable>,
+> =
 	& {
-		[Key in keyof TTable['$inferInsert']]?:
+		[Key in keyof TModel & string]?:
 			| GetColumnData<TTable['_']['columns'][Key]>
 			| SQL
 			| PgColumn
@@ -340,6 +343,7 @@ export class PgUpdateBase<
 	TTable extends PgTable,
 	TQueryResult extends PgQueryResultHKT,
 	TFrom extends PgTable | Subquery | PgViewBase | SQL | undefined = undefined,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TSelectedFields extends ColumnsSelection | undefined = undefined,
 	TReturning extends Record<string, unknown> | undefined = undefined,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars

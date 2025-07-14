@@ -201,7 +201,7 @@ const jsonTestTable = pgTable('jsontest', {
 	jsonb: jsonb('jsonb').$type<{ string: string; number: number }>(),
 });
 
-let pgContainer: Docker.Container;
+let pgContainer: Docker.Container | undefined;
 
 afterAll(async () => {
 	await pgContainer?.stop().catch(console.error);

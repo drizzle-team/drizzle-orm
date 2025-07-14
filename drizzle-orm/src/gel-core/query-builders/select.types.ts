@@ -37,7 +37,7 @@ export interface GelSelectJoinConfig {
 
 export type BuildAliasTable<TTable extends GelTable | View, TAlias extends string> = TTable extends Table
 	? GelTableWithColumns<
-		UpdateTableConfig<TTable['_']['config'], {
+		UpdateTableConfig<TTable['_'], {
 			name: TAlias;
 			columns: MapColumnsToTableAlias<TTable['_']['columns'], TAlias, 'gel'>;
 		}>
