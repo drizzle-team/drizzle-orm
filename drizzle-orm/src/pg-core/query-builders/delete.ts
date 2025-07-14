@@ -8,7 +8,7 @@ import type {
 	PreparedQueryConfig,
 } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
-import { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
@@ -221,7 +221,7 @@ export class PgDeleteBase<
 	): PgDeleteReturning<this, TDynamic, TSelectedFields>;
 	returning(
 		fields: SelectedFieldsFlat = this.config.table[Table.Symbol.Columns],
-	): PgDeleteReturning<this, TDynamic, any> {
+	): PgDeleteReturning<this, TDynamic, any> | PgDeleteReturningAll<this, TDynamic> {
 		this.config.returningFields = fields;
 		this.config.returning = orderSelectedFields<PgColumn>(fields);
 		return this as any;

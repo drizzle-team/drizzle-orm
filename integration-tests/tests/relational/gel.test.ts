@@ -35,7 +35,7 @@ declare module 'vitest' {
 	}
 }
 
-let globalDocker: Docker;
+let globalDocker: Docker | undefined;
 let gelContainer: Docker.Container;
 let client: Client;
 let db: GelJsDatabase<never, typeof relations>;
@@ -213,7 +213,7 @@ afterAll(async () => {
 beforeEach(async (ctx) => {
 	ctx.geljsDb = db;
 	ctx.gelClient = client;
-	ctx.docker = globalDocker;
+	ctx.docker = globalDocker!;
 	ctx.gelContainer = gelContainer;
 
 	await $`gel query "SELECT sequence_reset(introspect default::users_id);" --tls-security=${tlsSecurity} --dsn=${dsn}`;

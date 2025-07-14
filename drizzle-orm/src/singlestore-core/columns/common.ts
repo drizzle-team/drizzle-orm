@@ -69,14 +69,18 @@ export abstract class SingleStoreColumn<
 > extends Column<T, TRuntimeConfig, TTypeConfig & { dialect: 'singlestore' }> {
 	static override readonly [entityKind]: string = 'SingleStoreColumn';
 
+	/** @internal */
+	override readonly table: SingleStoreTable;
+
 	constructor(
-		override readonly table: SingleStoreTable,
+		table: SingleStoreTable,
 		config: ColumnBuilderRuntimeConfig<T['data'], TRuntimeConfig>,
 	) {
 		if (!config.uniqueName) {
 			config.uniqueName = uniqueKeyName(table, [config.name]);
 		}
 		super(table, config);
+		this.table = table;
 	}
 }
 

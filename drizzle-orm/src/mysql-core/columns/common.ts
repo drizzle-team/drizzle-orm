@@ -106,14 +106,18 @@ export abstract class MySqlColumn<
 > extends Column<T, TRuntimeConfig, TTypeConfig & { dialect: 'mysql' }> {
 	static override readonly [entityKind]: string = 'MySqlColumn';
 
+	/** @internal */
+	override readonly table: MySqlTable;
+
 	constructor(
-		override readonly table: MySqlTable,
+		table: MySqlTable,
 		config: ColumnBuilderRuntimeConfig<T['data'], TRuntimeConfig>,
 	) {
 		if (!config.uniqueName) {
 			config.uniqueName = uniqueKeyName(table, [config.name]);
 		}
 		super(table, config);
+		this.table = table;
 	}
 }
 

@@ -10,7 +10,7 @@ import type { IndexColumn } from '~/sqlite-core/indexes.ts';
 import type { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import type { Subquery } from '~/subquery.ts';
-import { Columns, Table } from '~/table.ts';
+import { Columns, type InferInsertModel, Table } from '~/table.ts';
 import { type DrizzleTypeError, haveSameKeys, mapUpdateSet, orderSelectedFields, type Simplify } from '~/utils.ts';
 import type { AnySQLiteColumn, SQLiteColumn } from '../columns/common.ts';
 import { QueryBuilder } from './query-builder.ts';
@@ -26,14 +26,20 @@ export interface SQLiteInsertConfig<TTable extends SQLiteTable = SQLiteTable> {
 	select?: boolean;
 }
 
-export type SQLiteInsertValue<TTable extends SQLiteTable> = Simplify<
+export type SQLiteInsertValue<
+	TTable extends SQLiteTable,
+	TModel extends InferInsertModel<TTable> = InferInsertModel<TTable>,
+> = Simplify<
 	{
-		[Key in keyof TTable['$inferInsert']]: TTable['$inferInsert'][Key] | SQL | Placeholder;
+		[Key in keyof TModel]: TModel[Key] | SQL | Placeholder;
 	}
 >;
 
-export type SQLiteInsertSelectQueryBuilder<TTable extends SQLiteTable> = TypedQueryBuilder<
-	{ [K in keyof TTable['$inferInsert']]: AnySQLiteColumn | SQL | SQL.Aliased | TTable['$inferInsert'][K] }
+export type SQLiteInsertSelectQueryBuilder<
+	TTable extends SQLiteTable,
+	TModel extends InferInsertModel<TTable> = InferInsertModel<TTable>,
+> = TypedQueryBuilder<
+	{ [K in keyof TModel]: AnySQLiteColumn | SQL | SQL.Aliased | TModel[K] }
 >;
 
 export class SQLiteInsertBuilder<

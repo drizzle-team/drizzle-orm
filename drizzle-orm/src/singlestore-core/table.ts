@@ -1,6 +1,11 @@
 import type { BuildColumns, BuildExtraConfigColumns } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
-import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
+import {
+	type InferTableColumnsModels,
+	Table,
+	type TableConfig as TableConfigBase,
+	type UpdateTableConfig,
+} from '~/table.ts';
 import { getSingleStoreColumnBuilders, type SingleStoreColumnBuilders } from './columns/all.ts';
 import type { SingleStoreColumn, SingleStoreColumnBuilder, SingleStoreColumnBuilderBase } from './columns/common.ts';
 import type { AnyIndexBuilder } from './indexes.ts';
@@ -42,9 +47,8 @@ export type AnySingleStoreTable<TPartial extends Partial<TableConfig> = {}> = Si
 
 export type SingleStoreTableWithColumns<T extends TableConfig> =
 	& SingleStoreTable<T>
-	& {
-		[Key in keyof T['columns']]: T['columns'][Key];
-	};
+	& T['columns']
+	& InferTableColumnsModels<T['columns']>;
 
 export function singlestoreTableWithSchema<
 	TTableName extends string,
@@ -99,7 +103,7 @@ export function singlestoreTableWithSchema<
 		) => SingleStoreTableExtraConfig;
 	}
 
-	return table;
+	return table as any;
 }
 
 export interface SingleStoreTableFn<TSchemaName extends string | undefined = undefined> {

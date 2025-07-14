@@ -107,14 +107,18 @@ export abstract class SQLiteColumn<
 > extends Column<T, TRuntimeConfig, TTypeConfig & { dialect: 'sqlite' }> {
 	static override readonly [entityKind]: string = 'SQLiteColumn';
 
+	/** @internal */
+	override readonly table: SQLiteTable;
+
 	constructor(
-		override readonly table: SQLiteTable,
+		table: SQLiteTable,
 		config: ColumnBuilderRuntimeConfig<T['data'], TRuntimeConfig>,
 	) {
 		if (!config.uniqueName) {
 			config.uniqueName = uniqueKeyName(table, [config.name]);
 		}
 		super(table, config);
+		this.table = table;
 	}
 }
 

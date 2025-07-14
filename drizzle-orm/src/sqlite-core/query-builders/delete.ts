@@ -246,7 +246,7 @@ export class SQLiteDeleteBase<
 	): SQLiteDeleteReturning<this, TDynamic, TSelectedFields>;
 	returning(
 		fields: SelectedFieldsFlat = this.table[SQLiteTable.Symbol.Columns],
-	): SQLiteDeleteReturning<this, TDynamic, any> {
+	): SQLiteDeleteReturning<this, TDynamic, any> | SQLiteDeleteReturningAll<this, TDynamic> {
 		this.config.returning = orderSelectedFields<SQLiteColumn>(fields);
 		return this as any;
 	}

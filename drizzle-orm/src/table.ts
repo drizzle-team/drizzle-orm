@@ -1,7 +1,7 @@
 import type { Column, GetColumnData } from './column.ts';
 import { entityKind } from './entity.ts';
 import type { OptionalKeyOnly, RequiredKeyOnly } from './operations.ts';
-import type { SQLWrapper, View } from './sql/sql.ts';
+import type { SQL, SQLWrapper, View } from './sql/sql.ts';
 import { TableName } from './table.utils.ts';
 import type { Simplify, Update } from './utils.ts';
 
@@ -39,28 +39,18 @@ export const ExtraConfigBuilder = Symbol.for('drizzle:ExtraConfigBuilder');
 
 const IsDrizzleTable = Symbol.for('drizzle:IsDrizzleTable');
 
-export interface Table<
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	T extends TableConfig = TableConfig,
-> extends SQLWrapper {
-	// SQLWrapper runtime implementation is defined in 'sql/sql.ts'
+export interface TableTypeConfig<T extends TableConfig> {
+	readonly brand: 'Table';
+	readonly name: T['name'];
+	readonly schema: T['schema'];
+	readonly columns: T['columns'];
+	readonly dialect: T['dialect'];
 }
 
 export class Table<T extends TableConfig = TableConfig> implements SQLWrapper {
 	static readonly [entityKind]: string = 'Table';
 
-	declare readonly _: {
-		readonly brand: 'Table';
-		readonly config: T;
-		readonly name: T['name'];
-		readonly schema: T['schema'];
-		readonly columns: T['columns'];
-		readonly inferSelect: InferSelectModel<Table<T>>;
-		readonly inferInsert: InferInsertModel<Table<T>>;
-	};
-
-	declare readonly $inferSelect: InferSelectModel<Table<T>>;
-	declare readonly $inferInsert: InferInsertModel<Table<T>>;
+	declare readonly _: TableTypeConfig<T>;
 
 	/** @internal */
 	static readonly Symbol = {
@@ -115,6 +105,8 @@ export class Table<T extends TableConfig = TableConfig> implements SQLWrapper {
 		this[Schema] = schema;
 		this[BaseName] = baseName;
 	}
+
+	getSQL = undefined as unknown as (() => SQL);
 }
 
 export function isTable(table: unknown): table is Table {
@@ -214,3 +206,8 @@ export type InferInsertModel<
 
 export type InferEnum<T> = T extends { enumValues: readonly (infer U)[] } ? U
 	: never;
+
+export interface InferTableColumnsModels<TColumns extends Record<string, Column>> {
+	readonly $inferSelect: InferModelFromColumns<TColumns, 'select', { dbColumnNames: false }>;
+	readonly $inferInsert: InferModelFromColumns<TColumns, 'insert', { dbColumnNames: false; override: false }>;
+}

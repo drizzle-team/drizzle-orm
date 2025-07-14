@@ -42,7 +42,7 @@ export interface MySqlSelectJoinConfig {
 
 export type BuildAliasTable<TTable extends MySqlTable | View, TAlias extends string> = TTable extends Table
 	? MySqlTableWithColumns<
-		UpdateTableConfig<TTable['_']['config'], {
+		UpdateTableConfig<TTable['_'], {
 			name: TAlias;
 			columns: MapColumnsToTableAlias<TTable['_']['columns'], TAlias, 'mysql'>;
 		}>
