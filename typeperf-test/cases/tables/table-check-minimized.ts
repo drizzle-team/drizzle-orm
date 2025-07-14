@@ -22,7 +22,7 @@ interface MinimalColumn<TName extends string = string, TTableName extends string
 	mapToDriverValue(value: any): any;
 }
 
-interface MinimalTable<TName extends string = string, TSchema extends string | undefined = string | undefined>// extends SQLWrapper
+interface MinimalTable<TName extends string = string, TSchema extends string | undefined = string | undefined> // extends SQLWrapper
 {
 	_: {
 		brand: 'Table';
