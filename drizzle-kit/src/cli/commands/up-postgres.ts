@@ -229,6 +229,13 @@ export const upToV8 = (it: Record<string, any>): { snapshot: PostgresSnapshot; h
 			createRole: role.createRole,
 			createDb: role.createDb,
 			inherit: role.inherit,
+			bypassRls: null,
+			canLogin: null,
+			connLimit: null,
+			password: null,
+			replication: null,
+			superuser: null,
+			validUntil: null,
 		});
 	}
 
