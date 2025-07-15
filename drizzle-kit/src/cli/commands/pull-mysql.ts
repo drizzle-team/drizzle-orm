@@ -41,7 +41,7 @@ export const handle = async (
 	});
 	const { ddl } = interimToDDL(schema);
 
-	const ts = ddlToTypeScript(ddl, schema.viewColumns, casing);
+	const ts = ddlToTypeScript(ddl, schema.viewColumns, casing, 'mysql');
 	const relations = relationsToTypeScript(ddl.fks.list(), casing);
 
 	const schemaFile = join(out, 'schema.ts');
