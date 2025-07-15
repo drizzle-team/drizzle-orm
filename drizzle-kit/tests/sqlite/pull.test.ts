@@ -2,10 +2,10 @@ import Database from 'better-sqlite3';
 import { SQL, sql } from 'drizzle-orm';
 import { check, int, sqliteTable, sqliteView, text } from 'drizzle-orm/sqlite-core';
 import * as fs from 'fs';
-import { expect, test } from 'vitest';
-import { diffAfterPull, push, dbFrom } from './mocks';
-import { fromDatabaseForDrizzle } from 'src/dialects/sqlite/introspect';
 import { interimToDDL } from 'src/dialects/sqlite/ddl';
+import { fromDatabaseForDrizzle } from 'src/dialects/sqlite/introspect';
+import { expect, test } from 'vitest';
+import { dbFrom, diffAfterPull, push } from './mocks';
 
 fs.mkdirSync('tests/sqlite/tmp', { recursive: true });
 
@@ -77,7 +77,7 @@ test('introspect checks', async () => {
 	await push({
 		db,
 		to: initSchema,
-	})
+	});
 
 	const schema = await fromDatabaseForDrizzle(db);
 	const { ddl, errors } = interimToDDL(schema);

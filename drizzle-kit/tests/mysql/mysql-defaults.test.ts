@@ -470,8 +470,8 @@ test('time', async () => {
 		_,
 		time({ fsp: 3 }).default('15:50:33.123'),
 		`'15:50:33.123'`,
-	);	
-	
+	);
+
 	const res3 = await diffDefault(
 		_,
 		time({ fsp: 6 }).default('15:50:33.123456'),

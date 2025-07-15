@@ -135,8 +135,8 @@ export const ddlToTypeScript = (
 		if (it.entityType === 'views') imports.add('mysqlView');
 
 		if (it.entityType === 'columns' || it.entityType === 'viewColumn') {
-			const grammarType=typeFor(it.type);
-			if(grammarType)imports.add(grammarType.drizzleImport());
+			const grammarType = typeFor(it.type);
+			if (grammarType) imports.add(grammarType.drizzleImport());
 			if (mysqlImportsList.has(it.type)) imports.add(it.type);
 		}
 	}
