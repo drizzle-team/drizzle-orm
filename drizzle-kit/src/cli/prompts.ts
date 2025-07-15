@@ -11,6 +11,7 @@ export const resolver = <T extends { name: string; schema?: string; table?: stri
 		| 'column'
 		| 'sequence'
 		| 'view'
+		| 'privilege'
 		| 'policy'
 		| 'role'
 		| 'check'
