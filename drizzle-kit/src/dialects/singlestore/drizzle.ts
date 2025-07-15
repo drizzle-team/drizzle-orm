@@ -12,6 +12,7 @@ import { escapeSingleQuotes } from 'src/utils';
 import { safeRegister } from '../../utils/utils-node';
 import { getColumnCasing, sqlToStr } from '../drizzle';
 import { Column, InterimSchema } from '../mysql/ddl';
+import { typeFor } from '../mysql/grammar';
 
 const handleEnumType = (type: string) => {
 	let str = type.split('(')[1];
@@ -23,37 +24,12 @@ const handleEnumType = (type: string) => {
 export const defaultFromColumn = (column: AnySingleStoreColumn, casing?: Casing): Column['default'] => {
 	if (typeof column.default === 'undefined') return null;
 
-	const sqlTypeLowered = column.getSQLType().toLowerCase();
 	if (is(column.default, SQL)) {
-		return { value: sqlToStr(column.default, casing), type: 'unknown' };
+		return sqlToStr(column.default, casing);
 	}
-	const sqlType = column.getSQLType();
-	if (sqlType.startsWith('binary') || sqlType === 'text') {
-		return { value: String(column.default), type: 'text' };
-	}
-
-	if (sqlTypeLowered === 'json') {
-		return { value: JSON.stringify(column.default), type: 'json' };
-	}
-
-	if (column.default instanceof Date) {
-		if (sqlTypeLowered === 'date') {
-			return { value: column.default.toISOString().split('T')[0], type: 'string' };
-		}
-
-		if (sqlTypeLowered.startsWith('datetime') || sqlTypeLowered.startsWith('timestamp')) {
-			return { value: column.default.toISOString().replace('T', ' ').slice(0, 23), type: 'string' };
-		}
-
-		throw new Error(`unexpected default: ${column.default}`);
-	}
-
-	const type = typeof column.default;
-	if (type === 'string' || type === 'number' || type === 'bigint' || type === 'boolean') {
-		return { value: String(column.default), type: type };
-	}
-
-	throw new Error(`unexpected default: ${column.default}`);
+	
+	const grammarType = typeFor(column.getSQLType().toLocaleLowerCase());
+	return grammarType.defaultFromDrizzle(column.default);
 };
 
 export const upper = <T extends string>(value: T | undefined): Uppercase<T> | null => {
