@@ -603,7 +603,7 @@ const mapDefault = (
 				const res = grammarType.toArrayTs(type, parsed);
 				return res.default ? `.default(${res.default})` : '';
 			} catch {
-				console.log("asdasd")
+				console.log('asdasd');
 				return `.default(sql\`${def.value}\`)`;
 			}
 		}
