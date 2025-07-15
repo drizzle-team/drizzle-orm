@@ -391,6 +391,7 @@ export class ResolveSelect<T extends EntityBase> extends Prompt<
 			| 'column'
 			| 'sequence'
 			| 'view'
+			| 'privilege'
 			| 'policy'
 			| 'role'
 			| 'check'
