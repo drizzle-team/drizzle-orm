@@ -316,7 +316,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 		if (chunk === null) {
 			return 'null';
 		}
-		if (typeof chunk === 'number' || typeof chunk === 'boolean') {
+		if (typeof chunk === 'number' || typeof chunk === 'boolean' || typeof chunk === 'bigint') {
 			return chunk.toString();
 		}
 		if (typeof chunk === 'string') {

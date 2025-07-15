@@ -53,7 +53,7 @@ function construct<
 	client: TClient,
 	config: DrizzleConfig<TSchema> = {},
 ): GelJsDatabase<TSchema> & {
-	$client: TClient;
+	$client: GelClient extends TClient ? Client : TClient;
 } {
 	const dialect = new GelDialect({ casing: config.casing });
 	let logger;
@@ -104,7 +104,7 @@ export function drizzle<
 			),
 		]
 ): GelJsDatabase<TSchema> & {
-	$client: TClient;
+	$client: GelClient extends TClient ? Client : TClient;
 } {
 	if (typeof params[0] === 'string') {
 		const instance = createClient({ dsn: params[0] });

@@ -53,7 +53,7 @@ function construct<
 	client: TClient,
 	config: DrizzleConfig<TSchema> = {},
 ): NodePgDatabase<TSchema> & {
-	$client: TClient;
+	$client: NodePgClient extends TClient ? Pool : TClient;
 } {
 	const dialect = new PgDialect({ casing: config.casing });
 	let logger;
@@ -101,17 +101,15 @@ export function drizzle<
 			DrizzleConfig<TSchema>,
 		]
 		| [
-			(
-				& DrizzleConfig<TSchema>
-				& ({
-					connection: string | PoolConfig;
-				} | {
-					client: TClient;
-				})
-			),
+			& DrizzleConfig<TSchema>
+			& ({
+				client: TClient;
+			} | {
+				connection: string | PoolConfig;
+			}),
 		]
 ): NodePgDatabase<TSchema> & {
-	$client: TClient;
+	$client: NodePgClient extends TClient ? Pool : TClient;
 } {
 	if (typeof params[0] === 'string') {
 		const instance = new pg.Pool({

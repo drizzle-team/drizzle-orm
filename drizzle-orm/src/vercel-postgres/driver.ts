@@ -102,7 +102,7 @@ export function drizzle<
 		),
 	]
 ): VercelPgDatabase<TSchema> & {
-	$client: TClient;
+	$client: VercelPgClient extends TClient ? typeof sql : TClient;
 } {
 	if (isConfig(params[0])) {
 		const { client, ...drizzleConfig } = params[0] as ({ client?: TClient } & DrizzleConfig<TSchema>);
