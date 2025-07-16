@@ -1925,6 +1925,7 @@ WHERE
 		sequences: sequencesToReturn,
 		roles: rolesToReturn,
 		policies,
+		functions: {}, // TODO(luca): read functions from db
 		views: views,
 		_meta: {
 			schemas: {},
