@@ -27,7 +27,7 @@ export const defaultFromColumn = (column: AnySingleStoreColumn, casing?: Casing)
 	if (is(column.default, SQL)) {
 		return sqlToStr(column.default, casing);
 	}
-	
+
 	const grammarType = typeFor(column.getSQLType().toLocaleLowerCase());
 	return grammarType.defaultFromDrizzle(column.default);
 };

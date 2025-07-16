@@ -38,7 +38,7 @@ export const handle = async (
 
 	const { ddl } = interimToDDL(res);
 
-	const ts = ddlToTypeScript(ddl, res.viewColumns, casing, "singlestore");
+	const ts = ddlToTypeScript(ddl, res.viewColumns, casing, 'singlestore');
 	const relations = relationsToTypeScript(ddl.fks.list(), casing);
 
 	const schemaFile = join(out, 'schema.ts');

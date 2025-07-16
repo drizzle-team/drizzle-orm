@@ -55,8 +55,8 @@ export class Table<T extends TableConfig = TableConfig> implements SQLWrapper {
 		readonly name: T['name'];
 		readonly schema: T['schema'];
 		readonly columns: T['columns'];
-		readonly inferSelect: InferModelFromColumns<T["columns"], "select">;
-		readonly inferInsert: InferModelFromColumns<T["columns"], "insert">;
+		readonly inferSelect: InferModelFromColumns<T['columns'], 'select'>;
+		readonly inferInsert: InferModelFromColumns<T['columns'], 'insert'>;
 	};
 
 	declare readonly $inferSelect: InferSelectModel<this>;
