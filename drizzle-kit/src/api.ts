@@ -11,7 +11,7 @@ import {
 	tablesResolver,
 	viewsResolver,
 } from './cli/commands/migrate';
-import { pgSuggestions } from './cli/commands/pgPushUtils';
+import { pgSuggestions, SelectResolverInput, SelectResolverOutput } from './cli/commands/pgPushUtils';
 import { PostgresCredentials } from './cli/validations/postgres';
 import { originUUID } from './global';
 import { MySqlSchema as MySQLSchemaKit } from './serializer/mysqlSchema';
@@ -191,4 +191,4 @@ export {
 	tablesResolver,
 	viewsResolver,
 };
-export type { Role, View };
+export type { Role, SelectResolverInput, SelectResolverOutput, View };
