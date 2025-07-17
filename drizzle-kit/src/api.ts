@@ -11,7 +11,7 @@ import {
 	tablesResolver,
 	viewsResolver,
 } from './cli/commands/migrate';
-import { pgSuggestions, SelectResolverInput, SelectResolverOutput } from './cli/commands/pgPushUtils';
+import { pgSuggestions } from './cli/commands/pgPushUtils';
 import { PostgresCredentials } from './cli/validations/postgres';
 import { originUUID } from './global';
 import { MySqlSchema as MySQLSchemaKit } from './serializer/mysqlSchema';
@@ -166,6 +166,7 @@ export const getPgClientPool = async (
 	return pool;
 };
 
+export type { SelectResolverInput, SelectResolverOutput } from './cli/commands/pgPushUtils';
 export { applyPgSnapshotsDiff } from './snapshotsDiffer';
 export type {
 	ColumnsResolverInput,
@@ -191,4 +192,4 @@ export {
 	tablesResolver,
 	viewsResolver,
 };
-export type { Role, SelectResolverInput, SelectResolverOutput, View };
+export type { Role, View };
