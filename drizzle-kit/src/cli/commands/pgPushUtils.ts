@@ -56,7 +56,21 @@ function tableNameWithSchemaFrom(
 	return concatSchemaAndTableName(newSchemaName, newTableName);
 }
 
-export const pgSuggestions = async (db: DB, statements: JsonStatement[]) => {
+type SelectResolverOutput = {
+	data: {
+		index: number;
+		value: string;
+	};
+	status: 'submitted';
+};
+
+export const pgSuggestions = async (
+	db: DB,
+	statements: JsonStatement[],
+	selectResolver?: (
+		items: string[],
+	) => Promise<SelectResolverOutput>,
+) => {
 	let shouldAskForApprove = false;
 	const statementsToExecute: string[] = [];
 	const infoToPrint: string[] = [];
@@ -236,8 +250,14 @@ export const pgSuggestions = async (db: DB, statements: JsonStatement[]) => {
 						)
 					} table?\n`,
 				);
-				const { status, data } = await render(
-					new Select(['No, add the constraint without truncating the table', `Yes, truncate the table`]),
+
+				const items = [
+					'No, add the constraint without truncating the table',
+					`Yes, truncate the table`,
+				];
+
+				const { status, data } = selectResolver ? await selectResolver(items) : await render(
+					new Select(items),
 				);
 				if (data?.index === 1) {
 					tablesToTruncate.push(statement.tableName);

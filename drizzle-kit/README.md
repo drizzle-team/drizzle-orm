@@ -13,7 +13,13 @@ Make any changes you require to the `drizzle-kit/api` file ([see here](./drizzle
 ```bash
 pnpm build
 ```
-This will build a `dist` file that you can import into `repl-it-web` using the `file:` protocol in `package.json` like so:
+This will build a `dist` file that you can import into `repl-it-web` using the `file:` by running:
+```bash
+cd pkg/pid2/
+
+pnpm add @drizzle-team/drizzle-kit@file:../../../drizzle-orm/drizzle-kit/dist
+```
+Which should add the following to `pkg/pid2/package.json`:
 ```
 "@drizzle-team/drizzle-kit": "file:../drizzle-orm/drizzle-kit/dist",
 ```
