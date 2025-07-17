@@ -66,7 +66,6 @@ export type SelectResolverOutput = {
 		index: number;
 		value: string;
 	};
-	status: 'submitted';
 };
 
 export const pgSuggestions = async (
@@ -262,7 +261,7 @@ export const pgSuggestions = async (
 					`Yes, truncate the table`,
 				];
 
-				const { status, data } = selectResolver ? await selectResolver({question, items}) : await render(
+				const { data } = selectResolver ? await selectResolver({question, items}) : await render(
 					new Select(items),
 				);
 				if (data?.index === 1) {
