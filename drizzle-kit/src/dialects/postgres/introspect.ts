@@ -132,7 +132,7 @@ export const fromDatabase = async (
 	const tablespacesQuery = db.query<{
 		oid: number;
 		name: string;
-	}>('SELECT oid, spcname as "name" FROM pg_tablespace ORDER BY lower(spcname)').then((rows) => {
+	}>(`SELECT oid, spcname as "name" FROM pg_tablespace WHERE has_tablespace_privilege(spcname, 'CREATE') ORDER BY lower(spcname)`).then((rows) => {
 		queryCallback('tablespaces', rows, null);
 		return rows;
 	}).catch((err) => {
@@ -140,7 +140,7 @@ export const fromDatabase = async (
 		throw err;
 	});
 
-	const namespacesQuery = db.query<Namespace>('SELECT oid, nspname as name FROM pg_namespace ORDER BY lower(nspname)')
+	const namespacesQuery = db.query<Namespace>("SELECT oid, nspname as name FROM pg_namespace WHERE has_schema_privilege(nspname, 'USAGE') ORDER BY lower(nspname)")
 		.then((rows) => {
 			queryCallback('namespaces', rows, null);
 			return rows;
