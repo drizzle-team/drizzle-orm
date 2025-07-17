@@ -11,6 +11,7 @@ import {
 	PgDialect,
 	PgEnum,
 	PgEnumColumn,
+	type PgFunction,
 	PgMaterializedView,
 	PgPolicy,
 	PgRole,
@@ -28,6 +29,7 @@ import type {
 	Column,
 	Enum,
 	ForeignKey,
+	Function,
 	Index,
 	IndexColumnType,
 	PgKitInternals,
@@ -107,6 +109,7 @@ export const generatePgSnapshot = (
 	policies: PgPolicy[],
 	views: PgView[],
 	matViews: PgMaterializedView[],
+	functions: PgFunction[],
 	casing: CasingType | undefined,
 	schemaFilter?: string[],
 ): PgSchemaInternal => {
@@ -115,6 +118,7 @@ export const generatePgSnapshot = (
 	const resultViews: Record<string, View> = {};
 	const sequencesToReturn: Record<string, Sequence> = {};
 	const rolesToReturn: Record<string, Role> = {};
+	const functionsToReturn: Record<string, Function> = {};
 	// this policies are a separate objects that were linked to a table outside of it
 	const policiesToReturn: Record<string, Policy> = {};
 
@@ -703,6 +707,23 @@ export const generatePgSnapshot = (
 			};
 		}
 	}
+
+	for (const fn of functions) {
+		// Postgres functions can be overloaded, and they are identified by their args (technically only the types, but it's not a problem here)
+		const key = `${fn.schema}.${fn.name}.${fn.args}`;
+		functionsToReturn[key] = {
+			name: fn.name,
+			schema: fn.schema ?? 'public',
+			language: fn.language,
+			args: fn.args,
+			returns: fn.returns,
+			stability: fn.stability,
+			security: fn.security,
+			params: fn.params,
+			body: fn.body,
+		};
+	}
+
 	const combinedViews = [...views, ...matViews];
 	for (const view of combinedViews) {
 		let viewName;
@@ -904,6 +925,7 @@ export const generatePgSnapshot = (
 		roles: rolesToReturn,
 		policies: policiesToReturn,
 		views: resultViews,
+		functions: functionsToReturn,
 		_meta: {
 			schemas: {},
 			tables: {},
@@ -1914,6 +1936,27 @@ WHERE
 		progressCallback('views', viewsCount, 'done');
 	}
 
+	// Functions
+
+	const functionsToReturn: Record<string, Function> = {};
+
+	const allFunctions = await getFunctionsInfoQuery({ schemas: schemaFilters, db });
+
+	for (const dbFunction of allFunctions) {
+		const functionId = `${dbFunction.schema}.${dbFunction.name}.${dbFunction.args}`;
+		functionsToReturn[functionId] = {
+			name: dbFunction.name,
+			schema: dbFunction.schema,
+			language: dbFunction.language,
+			args: dbFunction.args,
+			returns: dbFunction.returns,
+			stability: dbFunction.stability,
+			security: dbFunction.security,
+			params: dbFunction.params,
+			body: dbFunction.body,
+		};
+	}
+
 	const schemasObject = Object.fromEntries([...schemas].map((it) => [it, it]));
 
 	return {
@@ -1925,7 +1968,7 @@ WHERE
 		sequences: sequencesToReturn,
 		roles: rolesToReturn,
 		policies,
-		functions: {}, // TODO(luca): read functions from db
+		functions: functionsToReturn,
 		views: views,
 		_meta: {
 			schemas: {},
@@ -2094,4 +2137,73 @@ WHERE
 ORDER BY 
     a.attnum;  -- Order by column number`,
 	);
+};
+
+const getFunctionsInfoQuery = async ({ schemas, db }: { schemas: string[]; db: DB }) => {
+	const r = await db.query<{
+		schema: string;
+		name: string;
+		language: 'sql' | 'plpgsql';
+		args: string;
+		returns: string;
+		body: string;
+		stability: 'immutable' | 'stable' | 'volatile';
+		security: 'definer' | 'invoker';
+		params: Record<string, string> | undefined;
+	}>(
+		`SELECT
+    n.nspname AS schema,
+    p.proname AS name,
+    l.lanname AS language,
+    pg_get_function_arguments(p.oid) AS args,
+    pg_get_function_result(p.oid) AS returns,
+    p.prosrc AS body,
+    -- Stability of the function (immutable, stable, or volatile)
+    CASE p.provolatile
+        WHEN 'i' THEN 'immutable'
+        WHEN 's' THEN 'stable'
+        WHEN 'v' THEN 'volatile'
+    END AS stability,
+    -- Security context (definer or invoker)
+    CASE
+        WHEN p.prosecdef THEN 'definer'
+        ELSE 'invoker'
+    END AS security,
+    -- Build a JSON object from all settings in proconfig
+    (SELECT
+        json_object_agg(
+            split_part(setting, '=', 1),
+            trim(split_part(setting, '=', 2))
+        )
+     FROM unnest(p.proconfig) AS setting
+    ) AS params
+FROM
+    pg_catalog.pg_proc p
+LEFT JOIN
+    pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+LEFT JOIN
+    pg_catalog.pg_language l ON l.oid = p.prolang
+LEFT JOIN
+    pg_catalog.pg_roles u ON u.oid = p.proowner
+WHERE
+    n.nspname NOT IN ('pg_catalog', 'information_schema') -- Exclude system schemas
+		AND n.nspname IN (${schemas.map((it) => `'${it}'`).join(',')}) -- Filter by schema
+    AND p.prokind = 'f' -- Ensure we are only fetching functions
+    AND p.probin IS NULL; -- Exclude functions based on compiled code
+`,
+	);
+
+	return r.map(o => {
+		return {
+			schema: o.schema,
+			name: o.name,
+			language: o.language,
+			args: o.args,
+			returns: o.returns,
+			stability: o.stability,
+			security: o.security,
+			...o.params && { params: o.params },
+			body: o.body,
+		}
+	})
 };
