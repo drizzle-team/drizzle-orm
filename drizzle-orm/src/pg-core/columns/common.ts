@@ -30,8 +30,7 @@ export interface ReferenceConfig {
 export abstract class PgColumnBuilder<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = object,
-	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
-> extends ColumnBuilder<T, TRuntimeConfig, TExtraConfig> {
+> extends ColumnBuilder<T, TRuntimeConfig, ColumnBuilderExtraConfig> {
 	private foreignKeyConfigs: ReferenceConfig[] = [];
 
 	static override readonly [entityKind]: string = 'PgColumnBuilder';
@@ -257,7 +256,7 @@ export class PgArrayBuilder<
 				TBase extends { baseBuilder: infer TBaseBuilder extends ColumnBuilderBaseConfig<any, any> } ? TBaseBuilder
 					: never
 			>
-			: PgColumnBuilder<TBase, {}, Simplify<Omit<TBase, keyof ColumnBuilderBaseConfig<any, any>>>>;
+			: PgColumnBuilder<TBase, {}>;
 		size: T['size'];
 	},
 	{
@@ -266,10 +265,9 @@ export class PgArrayBuilder<
 				TBase extends { baseBuilder: infer TBaseBuilder extends ColumnBuilderBaseConfig<any, any> } ? TBaseBuilder
 					: never
 			>
-			: PgColumnBuilder<TBase, {}, Simplify<Omit<TBase, keyof ColumnBuilderBaseConfig<any, any>>>>;
+			: PgColumnBuilder<TBase, {}>;
 		size: T['size'];
-	},
-	{}
+	}
 > {
 	static override readonly [entityKind] = 'PgArrayBuilder';
 

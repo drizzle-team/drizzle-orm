@@ -1122,7 +1122,7 @@ export class RelationsHelperStatic<TTables extends Record<string, unknown>> {
 	};
 }
 
-export type RelationsBuilder<TSchema extends Record<string, unknown>> =
+export type RelationsBuilder<TSchema extends Record<string, unknown>> = Simplify<
 	& {
 		[TTableName in keyof TSchema & string]: TSchema[TTableName] extends Table | View<string, boolean, FieldSelection>
 			? (
@@ -1144,32 +1144,29 @@ export type RelationsBuilder<TSchema extends Record<string, unknown>> =
 			)
 			: DrizzleTypeError<'Views with nested selections are not supported by the relational query builder'>;
 	}
-	& RelationsHelperStatic<TSchema>;
+	& RelationsHelperStatic<TSchema>
+	>;
 
 export type RelationsBuilderConfig<TTables extends Record<string, unknown>> = {
-	[TTableName in keyof TTables & string]?: Record<
-		string,
-		RelationsBuilderEntry<TTables, TTableName>
-	>;
+	[TTableName in keyof TTables & string]?: Record<string, unknown>;
 };
 
-export type AnyRelationsBuilderConfig = Record<string, Record<string, RelationsBuilderEntry> | undefined>;
+export type AnyRelationsBuilderConfig = Record<string, Record<string, unknown> | undefined>;
 
 export type RelationsBuilderEntry<
 	TTables extends Record<string, unknown> = Record<string, unknown>,
 	TSourceTableName extends string = string,
 > = Relation<TSourceTableName, keyof TTables & string>;
 
-export type ExtractTablesFromSchema<TSchema extends Record<string, unknown>> = Simplify<
+export type ExtractTablesFromSchema<TSchema extends Record<string, unknown>> =
 	{
 		[K in keyof TSchema & string as TSchema[K] extends Table | View ? K : never]: TSchema[K] extends Table | View
 			? TSchema[K]
 			: never;
 	}
->;
+;
 
 // This one is 79k heavier on it's own, but ~0.5k less instantiations when relations are defined
-// export type ExtractTablesFromSchema<TSchema extends Record<string, unknown>> = Assume<
 // 	{
 // 		[K in keyof TSchema as TSchema[K] extends Table | View ? K : never]: TSchema[K];
 // 	},
