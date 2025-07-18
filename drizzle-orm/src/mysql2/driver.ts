@@ -64,7 +64,7 @@ function construct<
 	client: TClient,
 	config: MySql2DrizzleConfig<TSchema> = {},
 ): MySql2Database<TSchema> & {
-	$client: TClient;
+	$client: AnyMySql2Connection extends TClient ? CallbackPool : TClient;
 } {
 	const dialect = new MySqlDialect({ casing: config.casing });
 	let logger;
@@ -140,7 +140,7 @@ export function drizzle<
 		),
 	]
 ): MySql2Database<TSchema> & {
-	$client: TClient;
+	$client: AnyMySql2Connection extends TClient ? CallbackPool : TClient;
 } {
 	if (typeof params[0] === 'string') {
 		const connectionString = params[0]!;
