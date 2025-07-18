@@ -104,44 +104,67 @@ export interface ColumnBuilderExtraConfig {
 export type NotNull<T extends ColumnBuilderBase> = T & {
 	_: {
 		notNull: true;
-	};
+	};	
+	// typeConfig: {
+	// 	notNull: true;
+	// };
+
 };
 
 export type HasDefault<T extends ColumnBuilderBase> = T & {
 	_: {
 		hasDefault: true;
-	};
+	};	
+	// typeConfig: {
+	// 	hasDefault: true;
+	// };
 };
 
 export type IsPrimaryKey<T extends ColumnBuilderBase> = T & {
 	_: {
 		isPrimaryKey: true;
 	};
+	// typeConfig: {
+	// 	isPrimaryKey: true;
+	// };
 };
 
 export type IsAutoincrement<T extends ColumnBuilderBase> = T & {
 	_: {
 		isAutoincrement: true;
-	};
+	};	
+	// typeConfig: {
+	// 	isAutoincrement: true;
+	// };
 };
 
 export type HasRuntimeDefault<T extends ColumnBuilderBase> = T & {
 	_: {
 		hasRuntimeDefault: true;
-	};
+	};	
+	// typeConfig: {
+	// 	hasRuntimeDefault: true;
+	// };
 };
 
 export type $Type<T extends ColumnBuilderBase, TType> = T & {
 	_: {
 		$type: TType;
-	};
+	};	
+	// typeConfig: {
+	// 	$type: TType;
+	// };
 };
 
 export type HasGenerated<T extends ColumnBuilderBase, TGenerated extends {} = {}> = T & {
 	_: {
 		hasDefault: true;
 		generated: TGenerated;
-	};
+	};	
+	// typeConfig: {
+	// 	hasDefault: true;
+	// 	generated: TGenerated;
+	// };
 };
 
 export type IsIdentity<
@@ -152,7 +175,12 @@ export type IsIdentity<
 		notNull: true;
 		hasDefault: true;
 		identity: TType;
-	};
+	};	
+	// typeConfig: {
+	// 	notNull: true;
+	// 	hasDefault: true;
+	// 	identity: TType;
+	// };
 };
 export interface ColumnBuilderBase<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
@@ -303,12 +331,16 @@ export type BuildColumn<
 	TBuilder extends ColumnBuilderBase,
 	TDialect extends Dialect,
 	TKey extends string,
-	TConfig extends ColumnBuilderBaseConfig<ColumnDataType, string>= TBuilder["_"] & TBuilder["typeConfig"],
-	TMakedConfig extends ColumnBaseConfig<ColumnDataType, string> = MakeColumnConfig<TConfig, TTableName, TKey>
+	/* for some reason basebuilder is in typeconfig and should be in _ */
+	TConfig extends ColumnBuilderBaseConfig<ColumnDataType, string> = TBuilder["_"] & 
+		(TBuilder["typeConfig"] extends {baseBuilder: any } ? { baseBuilder: TBuilder["typeConfig"]["baseBuilder"] }: {}), 	
+	TMakedConfig extends ColumnBaseConfig<ColumnDataType, string> = MakeColumnConfig<TConfig, TTableName, TKey>,
+	/*  */
+	TTypeConfig extends {} = Omit<TConfig,  keyof TMakedConfig | 'brand'| 'dialect'>,
 > = TDialect extends 'pg' ? PgColumn<
 		TMakedConfig,
 		{},
-		Simplify<Omit<TConfig,  keyof TMakedConfig | 'brand'| 'dialect'>>
+		TTypeConfig
 	>
 	: TDialect extends 'mysql' ? MySqlColumn<
 			TMakedConfig,
