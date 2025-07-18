@@ -1,4 +1,4 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
@@ -31,7 +31,7 @@ export class MySqlEnumColumnBuilder<T extends ColumnBuilderBaseConfig<'string', 
 	): MySqlEnumColumn<MakeColumnConfig<T, TTableName> & { enumValues: T['enumValues'] }> {
 		return new MySqlEnumColumn<MakeColumnConfig<T, TTableName> & { enumValues: T['enumValues'] }>(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
@@ -76,7 +76,7 @@ export class MySqlEnumObjectColumnBuilder<T extends ColumnBuilderBaseConfig<'str
 	): MySqlEnumObjectColumn<MakeColumnConfig<T, TTableName> & { enumValues: T['enumValues'] }> {
 		return new MySqlEnumObjectColumn<MakeColumnConfig<T, TTableName> & { enumValues: T['enumValues'] }>(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }

@@ -1,6 +1,5 @@
 import type {
 	ColumnBuilderBaseConfig,
-	ColumnBuilderRuntimeConfig,
 	HasDefault,
 	MakeColumnConfig,
 	NotNull,
@@ -41,7 +40,7 @@ export class PgBigSerial53Builder<T extends ColumnBuilderBaseConfig<'number', 'P
 	): PgBigSerial53<MakeColumnConfig<T, TTableName>> {
 		return new PgBigSerial53<MakeColumnConfig<T, TTableName>>(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
@@ -90,7 +89,7 @@ export class PgBigSerial64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'P
 	): PgBigSerial64<MakeColumnConfig<T, TTableName>> {
 		return new PgBigSerial64<MakeColumnConfig<T, TTableName>>(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }

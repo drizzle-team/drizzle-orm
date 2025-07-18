@@ -29,11 +29,6 @@ export interface ColumnTypeConfig<T extends ColumnBaseConfig<ColumnDataType, str
 	identity: undefined | 'always' | 'byDefault';
 }
 
-export type ColumnRuntimeConfig<TData, TRuntimeConfig extends object> = ColumnBuilderRuntimeConfig<
-	TData,
-	TRuntimeConfig
->;
-
 export interface Column<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -74,17 +69,22 @@ export abstract class Column<
 	readonly generated: GeneratedColumnConfig<T['data']> | undefined = undefined;
 	readonly generatedIdentity: GeneratedIdentityConfig | undefined = undefined;
 
-	protected config: ColumnRuntimeConfig<T['data'], TRuntimeConfig>;
+	protected config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig;
 
 	/** @internal */
 	readonly table: Table;
 
+	/** @internal */
+	protected onInit(): void {}
+
 	constructor(
 		table: Table,
-		config: ColumnRuntimeConfig<T['data'], TRuntimeConfig>,
+		config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig,
 	) {
-		this.table = table;
 		this.config = config;
+		this.onInit();
+		this.table = table;
+
 		this.name = config.name;
 		this.keyAsName = config.keyAsName;
 		this.notNull = config.notNull;

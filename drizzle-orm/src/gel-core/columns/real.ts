@@ -1,4 +1,4 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyGelTable } from '~/gel-core/table.ts';
@@ -28,7 +28,7 @@ export class GelRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'GelReal
 	override build<TTableName extends string>(
 		table: AnyGelTable<{ name: TTableName }>,
 	): GelReal<MakeColumnConfig<T, TTableName>> {
-		return new GelReal<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		return new GelReal<MakeColumnConfig<T, TTableName>>(table, this.config as any);
 	}
 }
 

@@ -1,4 +1,4 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyGelTable } from '~/gel-core/table.ts';
@@ -26,7 +26,7 @@ export class GelJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'GelJson'>
 	override build<TTableName extends string>(
 		table: AnyGelTable<{ name: TTableName }>,
 	): GelJson<MakeColumnConfig<T, TTableName>> {
-		return new GelJson<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		return new GelJson<MakeColumnConfig<T, TTableName>>(table, this.config as any);
 	}
 }
 

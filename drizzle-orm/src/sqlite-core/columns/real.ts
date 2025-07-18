@@ -1,4 +1,4 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySQLiteTable } from '../table.ts';
@@ -26,7 +26,7 @@ export class SQLiteRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'SQLi
 	override build<TTableName extends string>(
 		table: AnySQLiteTable<{ name: TTableName }>,
 	): SQLiteReal<MakeColumnConfig<T, TTableName>> {
-		return new SQLiteReal<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		return new SQLiteReal<MakeColumnConfig<T, TTableName>>(table, this.config as any);
 	}
 }
 

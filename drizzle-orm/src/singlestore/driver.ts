@@ -148,21 +148,17 @@ export function drizzle<
 		if (client) return construct(client, drizzleConfig) as any;
 
 		let opts: PoolOptions = {};
-		if (typeof connection === 'string') {
-			opts = {
+		opts = typeof connection === 'string' ? {
 				uri: connection,
 				supportBigNumbers: true,
 				connectAttributes: CONNECTION_ATTRS,
-			};
-		} else {
-			opts = {
+			} : {
 				...connection,
 				connectAttributes: {
 					...connection!.connectAttributes,
 					...CONNECTION_ATTRS,
 				},
 			};
-		}
 
 		const instance = createPool(opts);
 		const db = construct(instance, drizzleConfig);

@@ -163,7 +163,7 @@ export abstract class PgColumn<
 
 	constructor(
 		table: PgTable,
-		config: ColumnBuilderRuntimeConfig<T['data'], TRuntimeConfig>,
+		config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig,
 	) {
 		if (!config.uniqueName) {
 			config.uniqueName = uniqueKeyName(table, [config.name]);
@@ -322,7 +322,7 @@ export class PgArrayBuilder<
 		const baseColumn = this.config.baseBuilder.build(table);
 		return new PgArray<MakeColumnConfig<T, TTableName> & { size: T['size']; baseBuilder: T['baseBuilder'] }, TBase>(
 			table as AnyPgTable<{ name: MakeColumnConfig<T, TTableName>['tableName'] }>,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 			baseColumn,
 		);
 	}

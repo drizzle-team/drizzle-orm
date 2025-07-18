@@ -1,6 +1,5 @@
 import type {
 	ColumnBuilderBaseConfig,
-	ColumnBuilderRuntimeConfig,
 	HasDefault,
 	IsAutoincrement,
 	IsPrimaryKey,
@@ -47,7 +46,7 @@ export class SingleStoreSerialBuilder<T extends ColumnBuilderBaseConfig<'number'
 	): SingleStoreSerial<MakeColumnConfig<T, TTableName>> {
 		return new SingleStoreSerial<MakeColumnConfig<T, TTableName>>(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }

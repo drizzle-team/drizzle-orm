@@ -1,4 +1,4 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '../table.ts';
@@ -24,7 +24,7 @@ export class PgCidrBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgCidr'>
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): PgCidr<MakeColumnConfig<T, TTableName>> {
-		return new PgCidr<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		return new PgCidr<MakeColumnConfig<T, TTableName>>(table, this.config as any);
 	}
 }
 

@@ -1,6 +1,5 @@
 import type {
 	ColumnBuilderBaseConfig,
-	ColumnBuilderRuntimeConfig,
 	HasDefault,
 	IsAutoincrement,
 	IsPrimaryKey,
@@ -44,7 +43,7 @@ export class MySqlSerialBuilder<T extends ColumnBuilderBaseConfig<'number', 'MyS
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
 	): MySqlSerial<MakeColumnConfig<T, TTableName>> {
-		return new MySqlSerial<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		return new MySqlSerial<MakeColumnConfig<T, TTableName>>(table, this.config as any);
 	}
 }
 

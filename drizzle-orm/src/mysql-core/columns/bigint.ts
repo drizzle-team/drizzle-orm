@@ -1,4 +1,4 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
@@ -30,7 +30,7 @@ export class MySqlBigInt53Builder<T extends ColumnBuilderBaseConfig<'number', 'M
 	): MySqlBigInt53<MakeColumnConfig<T, TTableName>> {
 		return new MySqlBigInt53<MakeColumnConfig<T, TTableName>>(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
@@ -77,7 +77,7 @@ export class MySqlBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'M
 	): MySqlBigInt64<MakeColumnConfig<T, TTableName>> {
 		return new MySqlBigInt64<MakeColumnConfig<T, TTableName>>(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }

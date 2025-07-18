@@ -95,7 +95,7 @@ export type ColumnBuilderTypeConfig<
 	generated: T extends { generated: infer G } ? G extends undefined ? unknown : G : unknown;
 } & {};
 
-export type ColumnBuilderRuntimeConfig<TData, TRuntimeConfig extends object = object> = {
+export interface ColumnBuilderRuntimeConfig<TData> {
 	name: string;
 	keyAsName: boolean;
 	notNull: boolean;
@@ -111,7 +111,7 @@ export type ColumnBuilderRuntimeConfig<TData, TRuntimeConfig extends object = ob
 	columnType: string;
 	generated: GeneratedColumnConfig<TData> | undefined;
 	generatedIdentity: GeneratedIdentityConfig | undefined;
-} & TRuntimeConfig;
+}
 
 export interface ColumnBuilderExtraConfig {
 	primaryKeyHasDefault?: boolean;
@@ -188,7 +188,7 @@ export abstract class ColumnBuilder<
 
 	declare _: ColumnBuilderTypeConfig<T> & TTypeConfig;
 
-	protected config: ColumnBuilderRuntimeConfig<T['data'], TRuntimeConfig>;
+	protected config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig;
 
 	constructor(name: T['name'], dataType: T['dataType'], columnType: T['columnType']) {
 		this.config = {
@@ -204,7 +204,7 @@ export abstract class ColumnBuilder<
 			dataType,
 			columnType,
 			generated: undefined,
-		} as ColumnBuilderRuntimeConfig<T['data'], TRuntimeConfig>;
+		} as ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig;
 	}
 
 	/**

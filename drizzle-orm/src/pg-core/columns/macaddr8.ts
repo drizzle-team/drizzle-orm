@@ -1,4 +1,4 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '../table.ts';
@@ -24,7 +24,7 @@ export class PgMacaddr8Builder<T extends ColumnBuilderBaseConfig<'string', 'PgMa
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): PgMacaddr8<MakeColumnConfig<T, TTableName>> {
-		return new PgMacaddr8<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		return new PgMacaddr8<MakeColumnConfig<T, TTableName>>(table, this.config as any);
 	}
 }
 

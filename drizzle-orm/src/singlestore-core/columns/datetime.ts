@@ -1,6 +1,5 @@
 import type {
 	ColumnBuilderBaseConfig,
-	ColumnBuilderRuntimeConfig,
 	GeneratedColumnConfig,
 	HasGenerated,
 	MakeColumnConfig,
@@ -45,7 +44,7 @@ export class SingleStoreDateTimeBuilder<T extends ColumnBuilderBaseConfig<'date'
 	): SingleStoreDateTime<MakeColumnConfig<T, TTableName>> {
 		return new SingleStoreDateTime<MakeColumnConfig<T, TTableName>>(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
@@ -108,7 +107,7 @@ export class SingleStoreDateTimeStringBuilder<T extends ColumnBuilderBaseConfig<
 	): SingleStoreDateTimeString<MakeColumnConfig<T, TTableName>> {
 		return new SingleStoreDateTimeString<MakeColumnConfig<T, TTableName>>(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }

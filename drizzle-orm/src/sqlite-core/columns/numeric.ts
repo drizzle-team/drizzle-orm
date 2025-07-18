@@ -1,4 +1,4 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySQLiteTable } from '~/sqlite-core/table.ts';
@@ -29,7 +29,7 @@ export class SQLiteNumericBuilder<T extends ColumnBuilderBaseConfig<'string', 'S
 	): SQLiteNumeric<MakeColumnConfig<T, TTableName>> {
 		return new SQLiteNumeric<MakeColumnConfig<T, TTableName>>(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
@@ -72,7 +72,7 @@ export class SQLiteNumericNumberBuilder<T extends ColumnBuilderBaseConfig<'numbe
 	): SQLiteNumericNumber<MakeColumnConfig<T, TTableName>> {
 		return new SQLiteNumericNumber<MakeColumnConfig<T, TTableName>>(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
@@ -117,7 +117,7 @@ export class SQLiteNumericBigIntBuilder<T extends ColumnBuilderBaseConfig<'bigin
 	): SQLiteNumericBigInt<MakeColumnConfig<T, TTableName>> {
 		return new SQLiteNumericBigInt<MakeColumnConfig<T, TTableName>>(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }

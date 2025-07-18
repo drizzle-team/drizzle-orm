@@ -1,4 +1,4 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
@@ -32,7 +32,7 @@ export class MySqlDecimalBuilder<
 	): MySqlDecimal<MakeColumnConfig<T, TTableName>> {
 		return new MySqlDecimal<MakeColumnConfig<T, TTableName>>(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
@@ -93,7 +93,7 @@ export class MySqlDecimalNumberBuilder<
 	): MySqlDecimalNumber<MakeColumnConfig<T, TTableName>> {
 		return new MySqlDecimalNumber<MakeColumnConfig<T, TTableName>>(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
@@ -156,7 +156,7 @@ export class MySqlDecimalBigIntBuilder<
 	): MySqlDecimalBigInt<MakeColumnConfig<T, TTableName>> {
 		return new MySqlDecimalBigInt<MakeColumnConfig<T, TTableName>>(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }

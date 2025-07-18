@@ -1,5 +1,5 @@
 import type { DateDuration } from 'gel';
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyGelTable } from '~/gel-core/table.ts';
@@ -31,7 +31,7 @@ export class GelDateDurationBuilder<T extends ColumnBuilderBaseConfig<'dateDurat
 	): GelDateDuration<MakeColumnConfig<T, TTableName>> {
 		return new GelDateDuration<MakeColumnConfig<T, TTableName>>(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }

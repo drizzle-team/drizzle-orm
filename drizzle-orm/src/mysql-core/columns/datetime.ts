@@ -1,4 +1,4 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
@@ -30,7 +30,7 @@ export class MySqlDateTimeBuilder<T extends ColumnBuilderBaseConfig<'date', 'MyS
 	): MySqlDateTime<MakeColumnConfig<T, TTableName>> {
 		return new MySqlDateTime<MakeColumnConfig<T, TTableName>>(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
@@ -87,7 +87,7 @@ export class MySqlDateTimeStringBuilder<T extends ColumnBuilderBaseConfig<'strin
 	): MySqlDateTimeString<MakeColumnConfig<T, TTableName>> {
 		return new MySqlDateTimeString<MakeColumnConfig<T, TTableName>>(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }

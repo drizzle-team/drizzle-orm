@@ -74,7 +74,7 @@ export abstract class SingleStoreColumn<
 
 	constructor(
 		table: SingleStoreTable,
-		config: ColumnBuilderRuntimeConfig<T['data'], TRuntimeConfig>,
+		config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig,
 	) {
 		if (!config.uniqueName) {
 			config.uniqueName = uniqueKeyName(table, [config.name]);
