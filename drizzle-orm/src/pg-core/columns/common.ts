@@ -253,8 +253,7 @@ export class PgArrayBuilder<
 	T extends PgArrayColumnBuilderBaseConfig,
 	TBase extends ColumnBuilderBaseConfig<ColumnDataType, string> | PgArrayColumnBuilderBaseConfig,
 > extends PgColumnBuilder<
-	T,
-	{
+	T & {
 		baseBuilder: TBase extends PgArrayColumnBuilderBaseConfig ? PgArrayBuilder<
 				TBase,
 				TBase extends { baseBuilder: infer TBaseBuilder extends ColumnBuilderBaseConfig<any, any> } ? TBaseBuilder
@@ -271,7 +270,8 @@ export class PgArrayBuilder<
 			>
 			: PgColumnBuilder<TBase, {}, Simplify<Omit<TBase, keyof ColumnBuilderBaseConfig<any, any>>>>;
 		size: T['size'];
-	}
+	},
+	{}
 > {
 	static override readonly [entityKind] = 'PgArrayBuilder';
 
