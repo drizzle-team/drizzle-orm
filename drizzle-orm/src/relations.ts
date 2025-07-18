@@ -1,12 +1,4 @@
-import {
-	type AnyTable,
-	getTableUniqueName,
-	type InferSelectModel,
-	IsAlias,
-	OriginalName,
-	Schema,
-	Table,
-} from '~/table.ts';
+import { type AnyTable, getTableUniqueName, IsAlias, OriginalName, Schema, Table } from '~/table.ts';
 import { Columns } from '~/table.ts';
 import { aliasedTable } from './alias.ts';
 import type { CasingCache } from './casing.ts';
@@ -44,6 +36,10 @@ import {
 import { Placeholder, SQL, sql, type SQLWrapper, View } from './sql/sql.ts';
 import type { Assume, DrizzleTypeError, Equal, Simplify, ValueOrArray } from './utils.ts';
 
+export type GetTableViewColumns<T extends Table | View> = T extends View ? T['_']['selectedFields']
+	: T extends Table ? T['_']['columns']
+	: never;
+
 export type FieldValue =
 	| Column
 	| SQLWrapper
@@ -53,7 +49,8 @@ export type FieldValue =
 export type FieldSelection = Record<string, FieldValue>;
 
 export class Relations<
-	TSchema extends Record<string, unknown> = Record<string, unknown>,
+	TSchema extends Record<string, unknown> = Record<string, any>,
+	TTables extends Record<string, Table | View> = Record<string, any>,
 	TConfig extends AnyRelationsBuilderConfig = AnyRelationsBuilderConfig,
 > {
 	static readonly [entityKind]: string = 'RelationsV2';
@@ -61,7 +58,7 @@ export class Relations<
 	/** table DB name -> schema table key */
 	readonly tableNamesMap: Record<string, string> = {};
 	readonly tablesConfig: TablesRelationalConfig = {};
-	readonly tables: ExtractTablesFromSchema<TSchema> = {} as any;
+	readonly tables: TTables = {} as any;
 
 	constructor(
 		readonly schema: TSchema,
@@ -566,17 +563,17 @@ type NonUndefinedRecord<TRecord extends Record<string, any>> = {
 
 export type ExtractTablesWithRelations<
 	TRelations extends Relations,
-	TTables = TRelations['tables'],
+	TTables extends Record<string, Table | View> = TRelations['tables'],
 > = {
-	[K in keyof TTables]: {
+	[K in keyof TTables & string]: {
 		table: TTables[K];
-		tsName: K & string;
-		dbName: Assume<TTables[K], { _: { name: string } }>['_']['name'];
+		tsName: K;
+		dbName: GetTableViewColumns<TTables[K]>;
 		columns: TTables[K] extends Table ? TTables[K]['_']['columns'] : Assume<TTables[K], View>['_']['selectedFields'];
 		relations: K extends keyof TRelations['config']
 			? TRelations['config'][K] extends Record<string, any> ? NonUndefinedRecord<TRelations['config'][K]>
-			: Record<string, never>
-			: Record<string, never>;
+			: {}
+			: {};
 		// Views don't have schema on type-level, TBD
 		schema: TTables[K] extends Table ? TTables[K]['_']['schema'] : string | undefined;
 	};
@@ -610,68 +607,56 @@ export type BuildRelationResult<
 		: never;
 };
 
-export type NonUndefinedKeysOnly<T> =
-	& ExtractObjectValues<
-		{
-			[K in keyof T as T[K] extends undefined ? never : K]: K;
-		}
-	>
-	& keyof T;
+export type NonUndefinedKeysOnly<T> = {
+	[K in keyof T]: T[K] extends undefined ? never : K;
+}[keyof T];
 
-export type TruthyKeysOnly<T> =
-	& ExtractObjectValues<
-		{
-			[K in keyof T as T[K] extends undefined | false ? never : K]: K;
-		}
-	>
-	& keyof T;
+export type TruthyKeysOnly<T> = {
+	[K in keyof T]: T[K] extends undefined | false ? never : K;
+}[keyof T];
 
 export type InferRelationalQueryTableResult<
-	TTable extends Table | View,
 	TRawSelection extends Record<string, unknown>,
 	TSelectedFields extends Record<string, unknown> | 'Full' = 'Full',
-	TFilteredSelection extends Record<string, unknown> = TSelectedFields extends 'Full' ? TRawSelection : {
-		[
-			K in Equal<
-				Exclude<
-					TSelectedFields[
-						& keyof TSelectedFields
-						& keyof TRawSelection
-					],
-					undefined
-				>,
-				false
-			> extends true ? Exclude<
-					keyof TRawSelection,
-					NonUndefinedKeysOnly<TSelectedFields>
-				>
-				:
-					& {
-						[K in keyof TSelectedFields]: Equal<
-							TSelectedFields[K],
-							true
-						> extends true ? K
-							: never;
-					}[keyof TSelectedFields]
+> = TSelectedFields extends 'Full' ? TRawSelection : {
+	[
+		K in Equal<
+			Exclude<
+				TSelectedFields[
+					& keyof TSelectedFields
 					& keyof TRawSelection
-		]: TRawSelection[K];
-	},
-	TModel extends Record<string, unknown> = TTable extends Table ? InferSelectModel<TTable>
-		: Assume<TTable, View>['$inferSelect'],
-> = {
-	[K in keyof TFilteredSelection & string]: TModel[K];
+				],
+				undefined
+			>,
+			false
+		> extends true ? Exclude<
+				keyof TRawSelection,
+				NonUndefinedKeysOnly<TSelectedFields>
+			>
+			:
+				& {
+					[K in keyof TSelectedFields]: Equal<
+						TSelectedFields[K],
+						true
+					> extends true ? K
+						: never;
+				}[keyof TSelectedFields]
+				& keyof TRawSelection
+	]: TRawSelection[K];
 };
 
 export type BuildQueryResult<
 	TSchema extends TablesRelationalConfig,
 	TTableConfig extends TableRelationalConfig,
 	TFullSelection extends true | Record<string, unknown>,
-> = Equal<TFullSelection, true> extends true
-	? Simplify<InferRelationalQueryTableResult<TTableConfig['table'], TTableConfig['columns']>>
+> = Equal<TFullSelection, true> extends true ? Simplify<
+		InferRelationalQueryTableResult<
+			Assume<TTableConfig['table'], { $inferSelect: Record<string, unknown> }>['$inferSelect']
+		>
+	>
 	: TFullSelection extends Record<string, unknown> ? Simplify<
 			& (InferRelationalQueryTableResult<
-				TTableConfig['table'],
-				TTableConfig['columns'],
+				Assume<TTableConfig['table'], { $inferSelect: Record<string, unknown> }>['$inferSelect'],
 				TFullSelection['columns'] extends Record<string, unknown> ? TFullSelection['columns'] : 'Full'
 			>)
 			& (TFullSelection['extras'] extends Record<string, SQLWrapper | ((...args: any[]) => SQLWrapper)> ? {
@@ -681,7 +666,7 @@ export type BuildQueryResult<
 						>
 					]: ReturnType<
 						Assume<
-							ReturnTypeOrValue<TFullSelection['extras'][K]>,
+							ReturnTypeOrValue<TFullSelection['extras'][K & string]>,
 							SQLWrapper
 						>['getSQL']
 					>['_']['type'];
@@ -1175,11 +1160,13 @@ export type RelationsBuilderEntry<
 	TSourceTableName extends string = string,
 > = Relation<TSourceTableName, keyof TTables & string>;
 
-export type ExtractTablesFromSchema<TSchema extends Record<string, unknown>> = {
-	[K in keyof TSchema & string as TSchema[K] extends Table | View ? K : never]: TSchema[K] extends Table | View
-		? TSchema[K]
-		: never;
-};
+export type ExtractTablesFromSchema<TSchema extends Record<string, unknown>> = Simplify<
+	{
+		[K in keyof TSchema & string as TSchema[K] extends Table | View ? K : never]: TSchema[K] extends Table | View
+			? TSchema[K]
+			: never;
+	}
+>;
 
 // This one is 79k heavier on it's own, but ~0.5k less instantiations when relations are defined
 // export type ExtractTablesFromSchema<TSchema extends Record<string, unknown>> = Assume<
@@ -1219,17 +1206,18 @@ export function createRelationsHelper<
 
 export function defineRelations<
 	TSchema extends Record<string, unknown>,
-	TConfig extends RelationsBuilderConfig<ExtractTablesFromSchema<TSchema>>,
+	TConfig extends RelationsBuilderConfig<TTables>,
+	TTables extends Record<string, Table | View> = ExtractTablesFromSchema<TSchema>,
 >(
 	schema: TSchema,
 	relations?: (helpers: RelationsBuilder<ExtractTablesFromSchema<TSchema>>) => TConfig,
-): Relations<TSchema, TConfig> {
+): Relations<TSchema, TTables, TConfig> {
 	return new Relations(
 		schema,
 		relations
 			? relations(createRelationsHelper(schema) as RelationsBuilder<ExtractTablesFromSchema<TSchema>>)
 			: {},
-	) as Relations<TSchema, TConfig>;
+	) as Relations<TSchema, TTables, TConfig>;
 }
 
 export interface WithContainer {
