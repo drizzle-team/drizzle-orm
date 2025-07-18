@@ -1,4 +1,4 @@
-import type { BuildExtraConfigColumns } from '~/column-builder.ts';
+import type { BuildExtraConfigColumns, ColumnBuilderBase } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import {
 	type InferTableColumnsModels,
@@ -13,7 +13,6 @@ import type {
 	ExtraConfigColumn,
 	PgColumn,
 	PgColumnBuilder,
-	PgColumnBuilderBase,
 } from './columns/common.ts';
 import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
 import type { AnyIndexBuilder } from './indexes.ts';
@@ -83,7 +82,7 @@ export type PgTableWithColumns<
 export function pgTableWithSchema<
 	TTableName extends string,
 	TSchemaName extends string | undefined,
-	TColumnsMap extends Record<string, PgColumnBuilderBase>,
+	TColumnsMap extends Record<string, ColumnBuilderBase>,
 >(
 	name: TTableName,
 	columns: TColumnsMap | ((columnTypes: PgColumnsBuilders) => TColumnsMap),
@@ -151,7 +150,7 @@ export function pgTableWithSchema<
 export interface PgTableFn<TSchema extends string | undefined = undefined> {
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, PgColumnBuilderBase>,
+		TColumnsMap extends Record<string, ColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: TColumnsMap,
@@ -167,7 +166,7 @@ export interface PgTableFn<TSchema extends string | undefined = undefined> {
 
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, PgColumnBuilderBase>,
+		TColumnsMap extends Record<string, ColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: (columnTypes: PgColumnsBuilders) => TColumnsMap,
@@ -202,7 +201,7 @@ export interface PgTableFn<TSchema extends string | undefined = undefined> {
 	 */
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, PgColumnBuilderBase>,
+		TColumnsMap extends Record<string, ColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: TColumnsMap,
@@ -240,7 +239,7 @@ export interface PgTableFn<TSchema extends string | undefined = undefined> {
 	 */
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, PgColumnBuilderBase>,
+		TColumnsMap extends Record<string, ColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: (columnTypes: PgColumnsBuilders) => TColumnsMap,

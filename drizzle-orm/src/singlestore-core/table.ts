@@ -1,4 +1,4 @@
-import type { BuildColumns, BuildExtraConfigColumns } from '~/column-builder.ts';
+import type { BuildColumns, BuildExtraConfigColumns, ColumnBuilderBase } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import {
 	type InferTableColumnsModels,
@@ -7,7 +7,7 @@ import {
 	type UpdateTableConfig,
 } from '~/table.ts';
 import { getSingleStoreColumnBuilders, type SingleStoreColumnBuilders } from './columns/all.ts';
-import type { SingleStoreColumn, SingleStoreColumnBuilder, SingleStoreColumnBuilderBase } from './columns/common.ts';
+import type { SingleStoreColumn, SingleStoreColumnBuilder } from './columns/common.ts';
 import type { AnyIndexBuilder } from './indexes.ts';
 import type { PrimaryKeyBuilder } from './primary-keys.ts';
 import type { UniqueConstraintBuilder } from './unique-constraint.ts';
@@ -53,7 +53,7 @@ export type SingleStoreTableWithColumns<T extends TableConfig> =
 export function singlestoreTableWithSchema<
 	TTableName extends string,
 	TSchemaName extends string | undefined,
-	TColumnsMap extends Record<string, SingleStoreColumnBuilderBase>,
+	TColumnsMap extends Record<string, ColumnBuilderBase>,
 >(
 	name: TTableName,
 	columns: TColumnsMap | ((columnTypes: SingleStoreColumnBuilders) => TColumnsMap),
@@ -109,7 +109,7 @@ export function singlestoreTableWithSchema<
 export interface SingleStoreTableFn<TSchemaName extends string | undefined = undefined> {
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, SingleStoreColumnBuilderBase>,
+		TColumnsMap extends Record<string, ColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: TColumnsMap,
@@ -125,7 +125,7 @@ export interface SingleStoreTableFn<TSchemaName extends string | undefined = und
 
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, SingleStoreColumnBuilderBase>,
+		TColumnsMap extends Record<string, ColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: (columnTypes: SingleStoreColumnBuilders) => TColumnsMap,
@@ -160,7 +160,7 @@ export interface SingleStoreTableFn<TSchemaName extends string | undefined = und
 	 */
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, SingleStoreColumnBuilderBase>,
+		TColumnsMap extends Record<string, ColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: TColumnsMap,
@@ -196,7 +196,7 @@ export interface SingleStoreTableFn<TSchemaName extends string | undefined = und
 	 */
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, SingleStoreColumnBuilderBase>,
+		TColumnsMap extends Record<string, ColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: (columnTypes: SingleStoreColumnBuilders) => TColumnsMap,

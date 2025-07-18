@@ -1,4 +1,4 @@
-import type { BuildColumns } from '~/column-builder.ts';
+import type { BuildColumns, ColumnBuilderBase } from '~/column-builder.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AddAliasToSelection } from '~/query-builders/select.types.ts';
@@ -6,7 +6,7 @@ import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import { getTableColumns } from '~/utils.ts';
 import type { RequireAtLeastOne } from '~/utils.ts';
-import type { PgColumn, PgColumnBuilderBase } from './columns/common.ts';
+import type { PgColumn } from './columns/common.ts';
 import { QueryBuilder } from './query-builders/query-builder.ts';
 import { pgTable } from './table.ts';
 import { PgViewBase } from './view-base.ts';
@@ -74,7 +74,7 @@ export class ViewBuilder<TName extends string = string> extends DefaultViewBuild
 
 export class ManualViewBuilder<
 	TName extends string = string,
-	TColumns extends Record<string, PgColumnBuilderBase> = Record<string, PgColumnBuilderBase>,
+	TColumns extends Record<string, ColumnBuilderBase> = Record<string, ColumnBuilderBase>,
 > extends DefaultViewBuilderCore<{ name: TName; columns: TColumns }> {
 	static override readonly [entityKind]: string = 'PgManualViewBuilder';
 
@@ -232,7 +232,7 @@ export class MaterializedViewBuilder<TName extends string = string>
 
 export class ManualMaterializedViewBuilder<
 	TName extends string = string,
-	TColumns extends Record<string, PgColumnBuilderBase> = Record<string, PgColumnBuilderBase>,
+	TColumns extends Record<string, ColumnBuilderBase> = Record<string, ColumnBuilderBase>,
 > extends MaterializedViewBuilderCore<{ name: TName; columns: TColumns }> {
 	static override readonly [entityKind]: string = 'PgManualMaterializedViewBuilder';
 
@@ -384,7 +384,7 @@ export type PgMaterializedViewWithSelection<
 /** @internal */
 export function pgViewWithSchema(
 	name: string,
-	selection: Record<string, PgColumnBuilderBase> | undefined,
+	selection: Record<string, ColumnBuilderBase> | undefined,
 	schema: string | undefined,
 ): ViewBuilder | ManualViewBuilder {
 	if (selection) {
@@ -396,7 +396,7 @@ export function pgViewWithSchema(
 /** @internal */
 export function pgMaterializedViewWithSchema(
 	name: string,
-	selection: Record<string, PgColumnBuilderBase> | undefined,
+	selection: Record<string, ColumnBuilderBase> | undefined,
 	schema: string | undefined,
 ): MaterializedViewBuilder | ManualMaterializedViewBuilder {
 	if (selection) {
@@ -406,22 +406,22 @@ export function pgMaterializedViewWithSchema(
 }
 
 export function pgView<TName extends string>(name: TName): ViewBuilder<TName>;
-export function pgView<TName extends string, TColumns extends Record<string, PgColumnBuilderBase>>(
+export function pgView<TName extends string, TColumns extends Record<string, ColumnBuilderBase>>(
 	name: TName,
 	columns: TColumns,
 ): ManualViewBuilder<TName, TColumns>;
-export function pgView(name: string, columns?: Record<string, PgColumnBuilderBase>): ViewBuilder | ManualViewBuilder {
+export function pgView(name: string, columns?: Record<string, ColumnBuilderBase>): ViewBuilder | ManualViewBuilder {
 	return pgViewWithSchema(name, columns, undefined);
 }
 
 export function pgMaterializedView<TName extends string>(name: TName): MaterializedViewBuilder<TName>;
-export function pgMaterializedView<TName extends string, TColumns extends Record<string, PgColumnBuilderBase>>(
+export function pgMaterializedView<TName extends string, TColumns extends Record<string, ColumnBuilderBase>>(
 	name: TName,
 	columns: TColumns,
 ): ManualMaterializedViewBuilder<TName, TColumns>;
 export function pgMaterializedView(
 	name: string,
-	columns?: Record<string, PgColumnBuilderBase>,
+	columns?: Record<string, ColumnBuilderBase>,
 ): MaterializedViewBuilder | ManualMaterializedViewBuilder {
 	return pgMaterializedViewWithSchema(name, columns, undefined);
 }

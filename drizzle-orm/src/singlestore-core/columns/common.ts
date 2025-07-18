@@ -1,5 +1,4 @@
 import type {
-	ColumnBuilderBase,
 	ColumnBuilderBaseConfig,
 	ColumnBuilderExtraConfig,
 	ColumnBuilderRuntimeConfig,
@@ -17,11 +16,6 @@ import type { SQL } from '~/sql/sql.ts';
 import type { Update } from '~/utils.ts';
 import { uniqueKeyName } from '../unique-constraint.ts';
 
-export interface SingleStoreColumnBuilderBase<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
-	TTypeConfig extends object = object,
-> extends ColumnBuilderBase<T, TTypeConfig & { dialect: 'singlestore' }> {}
-
 export interface SingleStoreGeneratedColumnConfig {
 	mode?: 'virtual' | 'stored';
 }
@@ -33,9 +27,7 @@ export abstract class SingleStoreColumnBuilder<
 	TRuntimeConfig extends object = object,
 	TTypeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
-> extends ColumnBuilder<T, TRuntimeConfig, TTypeConfig & { dialect: 'singlestore' }, TExtraConfig>
-	implements SingleStoreColumnBuilderBase<T, TTypeConfig>
-{
+> extends ColumnBuilder<T, TRuntimeConfig, TTypeConfig & { dialect: 'singlestore' }, TExtraConfig> {
 	static override readonly [entityKind]: string = 'SingleStoreColumnBuilder';
 
 	unique(name?: string): this {

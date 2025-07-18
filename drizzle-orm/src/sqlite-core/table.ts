@@ -1,4 +1,4 @@
-import type { BuildColumns, BuildExtraConfigColumns } from '~/column-builder.ts';
+import type { BuildColumns, BuildExtraConfigColumns, ColumnBuilderBase } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import {
 	type InferTableColumnsModels,
@@ -8,7 +8,7 @@ import {
 } from '~/table.ts';
 import type { CheckBuilder } from './checks.ts';
 import { getSQLiteColumnBuilders, type SQLiteColumnBuilders } from './columns/all.ts';
-import type { SQLiteColumn, SQLiteColumnBuilder, SQLiteColumnBuilderBase } from './columns/common.ts';
+import type { SQLiteColumn, SQLiteColumnBuilder } from './columns/common.ts';
 import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
 import type { IndexBuilder } from './indexes.ts';
 import type { PrimaryKeyBuilder } from './primary-keys.ts';
@@ -63,7 +63,7 @@ export type SQLiteTableWithColumns<T extends TableConfig> =
 export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, SQLiteColumnBuilderBase>,
+		TColumnsMap extends Record<string, ColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: TColumnsMap,
@@ -79,7 +79,7 @@ export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
 
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, SQLiteColumnBuilderBase>,
+		TColumnsMap extends Record<string, ColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: (columnTypes: SQLiteColumnBuilders) => TColumnsMap,
@@ -114,7 +114,7 @@ export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
 	 */
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, SQLiteColumnBuilderBase>,
+		TColumnsMap extends Record<string, ColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: TColumnsMap,
@@ -150,7 +150,7 @@ export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
 	 */
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, SQLiteColumnBuilderBase>,
+		TColumnsMap extends Record<string, ColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: (columnTypes: SQLiteColumnBuilders) => TColumnsMap,
@@ -165,7 +165,7 @@ export interface SQLiteTableFn<TSchema extends string | undefined = undefined> {
 
 function sqliteTableBase<
 	TTableName extends string,
-	TColumnsMap extends Record<string, SQLiteColumnBuilderBase>,
+	TColumnsMap extends Record<string, ColumnBuilderBase>,
 	TSchema extends string | undefined,
 >(
 	name: TTableName,

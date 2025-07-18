@@ -48,19 +48,12 @@ export interface ReferenceConfig {
 	};
 }
 
-export interface PgColumnBuilderBase<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
-	TTypeConfig extends object = object,
-> extends ColumnBuilderBase<T, TTypeConfig & { dialect: 'pg' }> {}
-
 export abstract class PgColumnBuilder<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = object,
 	TTypeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
-> extends ColumnBuilder<T, TRuntimeConfig, TTypeConfig & { dialect: 'pg' }, TExtraConfig>
-	implements PgColumnBuilderBase<T, TTypeConfig>
-{
+> extends ColumnBuilder<T, TRuntimeConfig, TTypeConfig & { dialect: 'pg' }, TExtraConfig> {
 	private foreignKeyConfigs: ReferenceConfig[] = [];
 
 	static override readonly [entityKind]: string = 'PgColumnBuilder';

@@ -1,5 +1,4 @@
 import type {
-	ColumnBuilderBase,
 	ColumnBuilderBaseConfig,
 	ColumnBuilderExtraConfig,
 	ColumnBuilderRuntimeConfig,
@@ -26,11 +25,6 @@ export interface ReferenceConfig {
 	};
 }
 
-export interface SQLiteColumnBuilderBase<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
-	TTypeConfig extends object = object,
-> extends ColumnBuilderBase<T, TTypeConfig & { dialect: 'sqlite' }> {}
-
 export interface SQLiteGeneratedColumnConfig {
 	mode?: 'virtual' | 'stored';
 }
@@ -40,9 +34,7 @@ export abstract class SQLiteColumnBuilder<
 	TRuntimeConfig extends object = object,
 	TTypeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = object,
-> extends ColumnBuilder<T, TRuntimeConfig, TTypeConfig & { dialect: 'sqlite' }, TExtraConfig>
-	implements SQLiteColumnBuilderBase<T, TTypeConfig>
-{
+> extends ColumnBuilder<T, TRuntimeConfig, TTypeConfig & { dialect: 'sqlite' }, TExtraConfig> {
 	static override readonly [entityKind]: string = 'SQLiteColumnBuilder';
 
 	private foreignKeyConfigs: ReferenceConfig[] = [];
