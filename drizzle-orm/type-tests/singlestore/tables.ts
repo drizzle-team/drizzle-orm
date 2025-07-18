@@ -101,7 +101,6 @@ Expect<
 					identity: undefined;
 					generated: undefined;
 				},
-				{},
 				{}
 			>;
 			name: SingleStoreColumn<
@@ -122,7 +121,6 @@ Expect<
 					identity: undefined;
 					generated: undefined;
 				},
-				{},
 				{}
 			>;
 			population: SingleStoreColumn<
@@ -143,7 +141,6 @@ Expect<
 					identity: undefined;
 					generated: undefined;
 				},
-				{},
 				{}
 			>;
 		},

@@ -110,7 +110,6 @@ Expect<
 					isAutoincrement: true;
 					hasRuntimeDefault: false;
 				},
-				{},
 				{}
 			>;
 			name: MySqlColumn<
@@ -131,7 +130,6 @@ Expect<
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
 				},
-				{},
 				{}
 			>;
 			population: MySqlColumn<
@@ -152,7 +150,6 @@ Expect<
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
 				},
-				{},
 				{}
 			>;
 		},
