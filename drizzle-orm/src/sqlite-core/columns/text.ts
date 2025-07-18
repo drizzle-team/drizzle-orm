@@ -23,8 +23,7 @@ export class SQLiteTextBuilder<
 	T extends ColumnBuilderBaseConfig<'string', 'SQLiteText'> & { length?: number | undefined },
 > extends SQLiteColumnBuilder<
 	T,
-	{ length: T['length']; enumValues: T['enumValues'] },
-	{ length: T['length'] }
+	{ length: T['length']; enumValues: T['enumValues'] }
 > {
 	static override readonly [entityKind]: string = 'SQLiteTextBuilder';
 

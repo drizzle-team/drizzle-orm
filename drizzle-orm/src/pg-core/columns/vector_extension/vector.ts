@@ -18,7 +18,6 @@ export type PgVectorBuilderInitial<TName extends string, TDimensions extends num
 export class PgVectorBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgVector'> & { dimensions: number }>
 	extends PgColumnBuilder<
 		T,
-		{ dimensions: T['dimensions'] },
 		{ dimensions: T['dimensions'] }
 	>
 {

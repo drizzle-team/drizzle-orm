@@ -18,7 +18,6 @@ export type PgHalfVectorBuilderInitial<TName extends string, TDimensions extends
 export class PgHalfVectorBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgHalfVector'> & { dimensions: number }>
 	extends PgColumnBuilder<
 		T,
-		{ dimensions: T['dimensions'] },
 		{ dimensions: T['dimensions'] }
 	>
 {

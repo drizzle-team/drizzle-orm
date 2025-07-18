@@ -11,6 +11,7 @@
 	},
 	"include": [
 		"src",
-		"scripts"
+		"scripts",
+		"types-bench.ts"
 	]
 }

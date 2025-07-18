@@ -28,9 +28,6 @@ export class PgCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom', '
 		{
 			fieldConfig: CustomTypeValues['config'];
 			customTypeParams: CustomTypeParams<any>;
-		},
-		{
-			pgColumnBuilderBrand: 'PgCustomColumnBuilderBrand';
 		}
 	>
 {

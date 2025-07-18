@@ -30,9 +30,8 @@ export interface ReferenceConfig {
 export abstract class GelColumnBuilder<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = object,
-	TTypeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
-> extends ColumnBuilder<T, TRuntimeConfig, TTypeConfig & { dialect: 'gel' }, TExtraConfig> {
+> extends ColumnBuilder<T, TRuntimeConfig, TExtraConfig> {
 	private foreignKeyConfigs: ReferenceConfig[] = [];
 
 	static override readonly [entityKind]: string = 'GelColumnBuilder';

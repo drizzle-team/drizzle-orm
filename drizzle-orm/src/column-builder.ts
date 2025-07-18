@@ -57,7 +57,7 @@ export type MakeColumnConfig<
 	TKey extends string,
 	TData = T extends { $type: infer U } ? U : T['data'],
 > = {
-	name: T['name'] extends ""?TKey:T["name"];
+	name: T['name'] extends "" ? TKey : T["name"];
 	tableName: TTableName;
 	dataType: T['dataType'];
 	columnType: T['columnType'];
@@ -164,13 +164,11 @@ export interface ColumnBuilderBase<
 export abstract class ColumnBuilder<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = object,
-	TTypeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
 > implements ColumnBuilderBase<T> {
 	static readonly [entityKind]: string = 'ColumnBuilder';
 
 	declare _: T;
-	declare typeConfig: TTypeConfig
 
 	protected config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig;
 

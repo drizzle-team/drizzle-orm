@@ -28,9 +28,6 @@ export class MySqlCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom'
 		{
 			fieldConfig: CustomTypeValues['config'];
 			customTypeParams: CustomTypeParams<any>;
-		},
-		{
-			mysqlColumnBuilderBrand: 'MySqlCustomColumnBuilderBrand';
 		}
 	>
 {
