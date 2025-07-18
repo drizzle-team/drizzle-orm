@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import type { MySqlTable } from '~/mysql-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
@@ -26,10 +26,8 @@ export class MySqlBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', 'MyS
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlBinary<MakeColumnConfig<T, TTableName>> {
-		return new MySqlBinary<MakeColumnConfig<T, TTableName>>(table, this.config as any);
+	override build(table: MySqlTable) {
+		return new MySqlBinary(table, this.config as any);
 	}
 }
 

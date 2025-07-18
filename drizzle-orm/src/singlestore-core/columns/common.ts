@@ -5,13 +5,12 @@ import type {
 	ColumnDataType,
 	HasDefault,
 	IsAutoincrement,
-	MakeColumnConfig,
 } from '~/column-builder.ts';
 import { ColumnBuilder } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { Column } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnySingleStoreTable, SingleStoreTable } from '~/singlestore-core/table.ts';
+import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import type { SQL } from '~/sql/sql.ts';
 import type { Update } from '~/utils.ts';
 import { uniqueKeyName } from '../unique-constraint.ts';
@@ -48,9 +47,7 @@ export abstract class SingleStoreColumnBuilder<
 	}
 
 	/** @internal */
-	abstract build<TTableName extends string>(
-		table: AnySingleStoreTable<{ name: TTableName }>,
-	): SingleStoreColumn<MakeColumnConfig<T, TTableName>>;
+	abstract build(table: SingleStoreTable): SingleStoreColumn;
 }
 
 // To understand how to use `SingleStoreColumn` and `AnySingleStoreColumn`, see `Column` and `AnyColumn` documentation.

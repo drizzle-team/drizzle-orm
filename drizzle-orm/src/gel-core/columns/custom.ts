@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyGelTable } from '~/gel-core/table.ts';
+import type { AnyGelTable, GelTable } from '~/gel-core/table.ts';
 import type { SQL, SQLGenerator } from '~/sql/sql.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { GelColumn, GelColumnBuilder } from './common.ts';
@@ -47,10 +47,8 @@ export class GelCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom', 
 	}
 
 	/** @internal */
-	build<TTableName extends string>(
-		table: AnyGelTable<{ name: TTableName }>,
-	): GelCustomColumn<MakeColumnConfig<T, TTableName>> {
-		return new GelCustomColumn<MakeColumnConfig<T, TTableName>>(
+	override build(table: GelTable) {
+		return new GelCustomColumn(
 			table,
 			this.config as any,
 		);

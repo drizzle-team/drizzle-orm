@@ -1,8 +1,8 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { SQL, SQLGenerator } from '~/sql/sql.ts';
-import type { AnySQLiteTable } from '~/sqlite-core/table.ts';
+import type { AnySQLiteTable, SQLiteTable } from '~/sqlite-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
@@ -47,10 +47,8 @@ export class SQLiteCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom
 	}
 
 	/** @internal */
-	build<TTableName extends string>(
-		table: AnySQLiteTable<{ name: TTableName }>,
-	): SQLiteCustomColumn<MakeColumnConfig<T, TTableName>> {
-		return new SQLiteCustomColumn<MakeColumnConfig<T, TTableName>>(
+	override build(table: SQLiteTable) {
+		return new SQLiteCustomColumn(
 			table,
 			this.config as any,
 		);

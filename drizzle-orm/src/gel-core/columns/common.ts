@@ -4,7 +4,6 @@ import type {
 	ColumnBuilderRuntimeConfig,
 	ColumnDataType,
 	HasGenerated,
-	MakeColumnConfig,
 } from '~/column-builder.ts';
 import { ColumnBuilder } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
@@ -111,9 +110,7 @@ export abstract class GelColumnBuilder<
 	}
 
 	/** @internal */
-	abstract build<TTableName extends string>(
-		table: AnyGelTable<{ name: TTableName }>,
-	): GelColumn<MakeColumnConfig<T, TTableName>>;
+	abstract build(table: GelTable): GelColumn<any>;
 
 	/** @internal */
 	buildExtraConfigColumn<TTableName extends string>(
@@ -289,12 +286,10 @@ export class GelArrayBuilder<
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyGelTable<{ name: TTableName }>,
-	): GelArray<MakeColumnConfig<T, TTableName> & { size: T['size']; baseBuilder: T['baseBuilder'] }, TBase> {
-		const baseColumn = this.config.baseBuilder.build(table);
-		return new GelArray<MakeColumnConfig<T, TTableName> & { size: T['size']; baseBuilder: T['baseBuilder'] }, TBase>(
-			table as AnyGelTable<{ name: MakeColumnConfig<T, TTableName>['tableName'] }>,
+	override build(table: GelTable) {
+		const baseColumn: any = this.config.baseBuilder.build(table);
+		return new GelArray(
+			table,
 			this.config as any,
 			baseColumn,
 		);

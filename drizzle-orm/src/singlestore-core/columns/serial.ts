@@ -3,12 +3,11 @@ import type {
 	HasDefault,
 	IsAutoincrement,
 	IsPrimaryKey,
-	MakeColumnConfig,
 	NotNull,
 } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
+import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoIncrement } from './common.ts';
 
 export type SingleStoreSerialBuilderInitial<TName extends string> = IsAutoincrement<
@@ -41,10 +40,8 @@ export class SingleStoreSerialBuilder<T extends ColumnBuilderBaseConfig<'number'
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnySingleStoreTable<{ name: TTableName }>,
-	): SingleStoreSerial<MakeColumnConfig<T, TTableName>> {
-		return new SingleStoreSerial<MakeColumnConfig<T, TTableName>>(
+	override build(table: SingleStoreTable) {
+		return new SingleStoreSerial(
 			table,
 			this.config as any,
 		);

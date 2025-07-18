@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
+import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
 export type SingleStoreBooleanBuilderInitial<TName extends string> = SingleStoreBooleanBuilder<{
@@ -24,10 +24,8 @@ export class SingleStoreBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolea
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnySingleStoreTable<{ name: TTableName }>,
-	): SingleStoreBoolean<MakeColumnConfig<T, TTableName>> {
-		return new SingleStoreBoolean<MakeColumnConfig<T, TTableName>>(
+	override build(table: SingleStoreTable) {
+		return new SingleStoreBoolean(
 			table,
 			this.config as any,
 		);

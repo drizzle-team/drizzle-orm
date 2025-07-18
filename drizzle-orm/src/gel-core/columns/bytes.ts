@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyGelTable } from '~/gel-core/table.ts';
+import type { GelTable } from '~/gel-core/table.ts';
 import { GelColumn, GelColumnBuilder } from './common.ts';
 
 export type GelBytesBuilderInitial<TName extends string> = GelBytesBuilder<{
@@ -21,10 +21,8 @@ export class GelBytesBuilder<T extends ColumnBuilderBaseConfig<'buffer', 'GelByt
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyGelTable<{ name: TTableName }>,
-	): GelBytes<MakeColumnConfig<T, TTableName>> {
-		return new GelBytes<MakeColumnConfig<T, TTableName>>(
+	override build(table: GelTable) {
+		return new GelBytes(
 			table,
 			this.config as any,
 		);

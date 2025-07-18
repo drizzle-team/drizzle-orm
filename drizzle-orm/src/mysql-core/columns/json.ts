@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import type { MySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export type MySqlJsonBuilderInitial<TName extends string> = MySqlJsonBuilder<{
@@ -21,10 +21,8 @@ export class MySqlJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'MySqlJs
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlJson<MakeColumnConfig<T, TTableName>> {
-		return new MySqlJson<MakeColumnConfig<T, TTableName>>(table, this.config as any);
+	override build(table: MySqlTable) {
+		return new MySqlJson(table, this.config as any);
 	}
 }
 

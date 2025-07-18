@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyGelTable } from '~/gel-core/table.ts';
+import type { AnyGelTable, GelTable } from '~/gel-core/table.ts';
 import { GelColumn } from './common.ts';
 import { GelLocalDateColumnBaseBuilder } from './date.common.ts';
 
@@ -28,10 +28,8 @@ export class GelTimestampTzBuilder<T extends ColumnBuilderBaseConfig<'date', 'Ge
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyGelTable<{ name: TTableName }>,
-	): GelTimestampTz<MakeColumnConfig<T, TTableName>> {
-		return new GelTimestampTz<MakeColumnConfig<T, TTableName>>(
+	override build(table: GelTable) {
+		return new GelTimestampTz(
 			table,
 			this.config as any,
 		);

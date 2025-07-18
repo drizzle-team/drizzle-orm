@@ -3,7 +3,6 @@ import type {
 	ColumnDataType,
 	HasDefault,
 	IsPrimaryKey,
-	MakeColumnConfig,
 	NotNull,
 } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
@@ -11,7 +10,7 @@ import { entityKind } from '~/entity.ts';
 import { sql } from '~/sql/sql.ts';
 import type { OnConflict } from '~/sqlite-core/utils.ts';
 import { type Equal, getColumnNameAndConfig, type Or } from '~/utils.ts';
-import type { AnySQLiteTable } from '../table.ts';
+import type { SQLiteTable } from '../table.ts';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
 export interface PrimaryKeyConfig {
@@ -42,11 +41,6 @@ export abstract class SQLiteBaseIntegerBuilder<
 		this.config.hasDefault = true;
 		return super.primaryKey() as IsPrimaryKey<HasDefault<NotNull<this>>>;
 	}
-
-	/** @internal */
-	abstract override build<TTableName extends string>(
-		table: AnySQLiteTable<{ name: TTableName }>,
-	): SQLiteBaseInteger<MakeColumnConfig<T, TTableName>>;
 }
 
 export abstract class SQLiteBaseInteger<
@@ -80,10 +74,8 @@ export class SQLiteIntegerBuilder<T extends ColumnBuilderBaseConfig<'number', 'S
 		super(name, 'number', 'SQLiteInteger');
 	}
 
-	build<TTableName extends string>(
-		table: AnySQLiteTable<{ name: TTableName }>,
-	): SQLiteInteger<MakeColumnConfig<T, TTableName>> {
-		return new SQLiteInteger<MakeColumnConfig<T, TTableName>>(
+	override build(table: SQLiteTable) {
+		return new SQLiteInteger(
 			table,
 			this.config as any,
 		);
@@ -122,10 +114,8 @@ export class SQLiteTimestampBuilder<T extends ColumnBuilderBaseConfig<'date', 'S
 		return this.default(sql`(cast((julianday('now') - 2440587.5)*86400000 as integer))`) as any;
 	}
 
-	build<TTableName extends string>(
-		table: AnySQLiteTable<{ name: TTableName }>,
-	): SQLiteTimestamp<MakeColumnConfig<T, TTableName>> {
-		return new SQLiteTimestamp<MakeColumnConfig<T, TTableName>>(
+	override build(table: SQLiteTable) {
+		return new SQLiteTimestamp(
 			table,
 			this.config as any,
 		);
@@ -174,10 +164,8 @@ export class SQLiteBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean', '
 		this.config.mode = mode;
 	}
 
-	build<TTableName extends string>(
-		table: AnySQLiteTable<{ name: TTableName }>,
-	): SQLiteBoolean<MakeColumnConfig<T, TTableName>> {
-		return new SQLiteBoolean<MakeColumnConfig<T, TTableName>>(
+	override build(table: SQLiteTable) {
+		return new SQLiteBoolean(
 			table,
 			this.config as any,
 		);

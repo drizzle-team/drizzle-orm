@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import type { AnyMySqlTable, MySqlTable } from '~/mysql-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
@@ -22,10 +22,8 @@ export class MySqlDateBuilder<T extends ColumnBuilderBaseConfig<'date', 'MySqlDa
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlDate<MakeColumnConfig<T, TTableName>> {
-		return new MySqlDate<MakeColumnConfig<T, TTableName>>(table, this.config as any);
+	override build(table: MySqlTable) {
+		return new MySqlDate(table, this.config as any);
 	}
 }
 
@@ -67,10 +65,8 @@ export class MySqlDateStringBuilder<T extends ColumnBuilderBaseConfig<'string', 
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlDateString<MakeColumnConfig<T, TTableName>> {
-		return new MySqlDateString<MakeColumnConfig<T, TTableName>>(
+	override build(table: MySqlTable) {
+		return new MySqlDateString(
 			table,
 			this.config as any,
 		);

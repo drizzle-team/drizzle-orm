@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import type { AnyMySqlTable, MySqlTable } from '~/mysql-core/table.ts';
 import type { SQL, SQLGenerator } from '~/sql/sql.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
@@ -47,10 +47,8 @@ export class MySqlCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom'
 	}
 
 	/** @internal */
-	build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlCustomColumn<MakeColumnConfig<T, TTableName>> {
-		return new MySqlCustomColumn<MakeColumnConfig<T, TTableName>>(
+	override build(table: MySqlTable) {
+		return new MySqlCustomColumn(
 			table,
 			this.config as any,
 		);

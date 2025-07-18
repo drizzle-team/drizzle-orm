@@ -1,8 +1,8 @@
 import type { LocalTime } from 'gel';
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyGelTable } from '~/gel-core/table.ts';
+import type { GelTable } from '~/gel-core/table.ts';
 import { GelColumn } from './common.ts';
 import { GelLocalDateColumnBaseBuilder } from './date.common.ts';
 
@@ -25,10 +25,8 @@ export class GelLocalTimeBuilder<T extends ColumnBuilderBaseConfig<'localTime', 
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyGelTable<{ name: TTableName }>,
-	): GelLocalTime<MakeColumnConfig<T, TTableName>> {
-		return new GelLocalTime<MakeColumnConfig<T, TTableName>>(
+	override build(table: GelTable) {
+		return new GelLocalTime(
 			table,
 			this.config as any,
 		);

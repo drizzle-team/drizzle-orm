@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
+import type { AnySingleStoreTable, SingleStoreTable } from '~/singlestore-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
@@ -25,10 +25,8 @@ export class SingleStoreDateBuilder<T extends ColumnBuilderBaseConfig<'date', 'S
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnySingleStoreTable<{ name: TTableName }>,
-	): SingleStoreDate<MakeColumnConfig<T, TTableName>> {
-		return new SingleStoreDate<MakeColumnConfig<T, TTableName>>(
+	override build(table: SingleStoreTable) {
+		return new SingleStoreDate(
 			table,
 			this.config as any,
 		);
@@ -74,10 +72,8 @@ export class SingleStoreDateStringBuilder<T extends ColumnBuilderBaseConfig<'str
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnySingleStoreTable<{ name: TTableName }>,
-	): SingleStoreDateString<MakeColumnConfig<T, TTableName>> {
-		return new SingleStoreDateString<MakeColumnConfig<T, TTableName>>(
+	override build(table: SingleStoreTable) {
+		return new SingleStoreDateString(
 			table,
 			this.config as any,
 		);
