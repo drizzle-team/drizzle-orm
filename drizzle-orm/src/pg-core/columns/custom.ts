@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '~/pg-core/table.ts';
+import type { AnyPgTable, PgTable } from '~/pg-core/table.ts';
 import type { SQL, SQLGenerator } from '~/sql/sql.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
@@ -47,10 +47,8 @@ export class PgCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom', '
 	}
 
 	/** @internal */
-	build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgCustomColumn<MakeColumnConfig<T, TTableName>> {
-		return new PgCustomColumn<MakeColumnConfig<T, TTableName>>(
+	override build(table: PgTable) {
+		return new PgCustomColumn(
 			table,
 			this.config as any,
 		);

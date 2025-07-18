@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '~/pg-core/table.ts';
+import type { AnyPgTable, PgTable } from '~/pg-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn } from './common.ts';
 import { PgDateColumnBaseBuilder } from './date.common.ts';
@@ -34,10 +34,8 @@ export class PgTimestampBuilder<T extends ColumnBuilderBaseConfig<'date', 'PgTim
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgTimestamp<MakeColumnConfig<T, TTableName>> {
-		return new PgTimestamp<MakeColumnConfig<T, TTableName>>(table, this.config as any);
+	override build(table: PgTable) {
+		return new PgTimestamp(table, this.config as any);
 	}
 }
 
@@ -95,10 +93,8 @@ export class PgTimestampStringBuilder<T extends ColumnBuilderBaseConfig<'string'
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgTimestampString<MakeColumnConfig<T, TTableName>> {
-		return new PgTimestampString<MakeColumnConfig<T, TTableName>>(
+	override build(table: PgTable) {
+		return new PgTimestampString(
 			table,
 			this.config as any,
 		);

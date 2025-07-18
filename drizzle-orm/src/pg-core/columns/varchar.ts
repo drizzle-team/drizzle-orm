@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '~/pg-core/table.ts';
+import type { PgTable } from '~/pg-core/table.ts';
 import { getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
@@ -35,10 +35,8 @@ export class PgVarcharBuilder<
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgVarchar<MakeColumnConfig<T, TTableName> & { length: T['length'] }> {
-		return new PgVarchar<MakeColumnConfig<T, TTableName> & { length: T['length'] }>(
+	override build(table: PgTable) {
+		return new PgVarchar(
 			table,
 			this.config as any,
 		);

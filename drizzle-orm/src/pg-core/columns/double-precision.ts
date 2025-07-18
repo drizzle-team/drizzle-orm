@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '~/pg-core/table.ts';
+import type {  PgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export type PgDoublePrecisionBuilderInitial<TName extends string> = PgDoublePrecisionBuilder<{
@@ -23,12 +23,10 @@ export class PgDoublePrecisionBuilder<T extends ColumnBuilderBaseConfig<'number'
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgDoublePrecision<MakeColumnConfig<T, TTableName>> {
-		return new PgDoublePrecision<MakeColumnConfig<T, TTableName>>(
+	override build(table: PgTable) {
+		return new PgDoublePrecision(
 			table,
-			this.config as any,
+			this.config,
 		);
 	}
 }

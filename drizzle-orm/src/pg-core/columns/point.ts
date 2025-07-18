@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '~/pg-core/table.ts';
+import type { PgTable } from '~/pg-core/table.ts';
 
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
@@ -25,10 +25,8 @@ export class PgPointTupleBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgP
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgPointTuple<MakeColumnConfig<T, TTableName>> {
-		return new PgPointTuple<MakeColumnConfig<T, TTableName>>(
+	override build(table: PgTable) {
+		return new PgPointTuple(
 			table,
 			this.config as any,
 		);
@@ -74,10 +72,8 @@ export class PgPointObjectBuilder<T extends ColumnBuilderBaseConfig<'json', 'PgP
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgPointObject<MakeColumnConfig<T, TTableName>> {
-		return new PgPointObject<MakeColumnConfig<T, TTableName>>(
+	override build(table: PgTable) {
+		return new PgPointObject(
 			table,
 			this.config as any,
 		);

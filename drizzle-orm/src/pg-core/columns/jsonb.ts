@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '~/pg-core/table.ts';
+import type { AnyPgTable, PgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export type PgJsonbBuilderInitial<TName extends string> = PgJsonbBuilder<{
@@ -21,10 +21,8 @@ export class PgJsonbBuilder<T extends ColumnBuilderBaseConfig<'json', 'PgJsonb'>
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgJsonb<MakeColumnConfig<T, TTableName>> {
-		return new PgJsonb<MakeColumnConfig<T, TTableName>>(table, this.config as any);
+	override build(table: PgTable) {
+		return new PgJsonb(table, this.config as any);
 	}
 }
 

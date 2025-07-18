@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '../table.ts';
+import type {  PgTable } from '../table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export type PgByteaBuilderInitial<TName extends string> = PgByteaBuilder<{
@@ -21,10 +21,8 @@ export class PgByteaBuilder<T extends ColumnBuilderBaseConfig<'buffer', 'PgBytea
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgBytea<MakeColumnConfig<T, TTableName>> {
-		return new PgBytea<MakeColumnConfig<T, TTableName>>(table, this.config as any);
+	override build(table: PgTable) {
+		return new PgBytea(table, this.config as any);
 	}
 }
 

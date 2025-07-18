@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '../table.ts';
+import type { PgTable } from '../table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export type PgInetBuilderInitial<TName extends string> = PgInetBuilder<{
@@ -21,10 +21,8 @@ export class PgInetBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgInet'>
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgInet<MakeColumnConfig<T, TTableName>> {
-		return new PgInet<MakeColumnConfig<T, TTableName>>(table, this.config as any);
+	override build(table: PgTable) {
+		return new PgInet(table, this.config as any);
 	}
 }
 

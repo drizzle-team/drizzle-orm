@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '~/pg-core/table.ts';
+import type { PgTable } from '~/pg-core/table.ts';
 
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from '../common.ts';
@@ -24,10 +24,8 @@ export class PgGeometryBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgGeo
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgGeometry<MakeColumnConfig<T, TTableName>> {
-		return new PgGeometry<MakeColumnConfig<T, TTableName>>(
+	override build(table: PgTable) {
+		return new PgGeometry(
 			table,
 			this.config as any,
 		);
@@ -71,10 +69,8 @@ export class PgGeometryObjectBuilder<T extends ColumnBuilderBaseConfig<'json', '
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgGeometryObject<MakeColumnConfig<T, TTableName>> {
-		return new PgGeometryObject<MakeColumnConfig<T, TTableName>>(
+	override build(table: PgTable) {
+		return new PgGeometryObject(
 			table,
 			this.config as any,
 		);
