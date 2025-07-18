@@ -91,7 +91,7 @@ export abstract class MySqlColumnBuilder<
 export abstract class MySqlColumn<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = {},
-> extends Column<T, TRuntimeConfig, { dialect: 'mysql' }> {
+> extends Column<T, TRuntimeConfig, 'mysql'> {
 	static override readonly [entityKind]: string = 'MySqlColumn';
 
 	/** @internal */

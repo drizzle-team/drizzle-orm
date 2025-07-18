@@ -27,7 +27,6 @@ import { integer, pgTable } from '~/pg-core/index.ts';
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
 				},
-				{},
 				{}
 			>,
 			typeof table['a']['_']['baseColumn']

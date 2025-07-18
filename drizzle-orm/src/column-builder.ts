@@ -6,7 +6,6 @@ import type { ExtraConfigColumn, PgColumn, PgSequenceOptions } from './pg-core/i
 import type { SingleStoreColumn } from './singlestore-core/index.ts';
 import type { SQL } from './sql/sql.ts';
 import type { SQLiteColumn } from './sqlite-core/index.ts';
-import type { Simplify } from './utils.ts';
 
 export type ColumnDataType =
 	| 'string'
@@ -326,7 +325,6 @@ export type BuildColumn<
 		>
 	: TDialect extends 'common' ? Column<
 			TMakedConfig,
-			{},
 			{}
 		>
 	: TDialect extends 'singlestore' ? SingleStoreColumn<
