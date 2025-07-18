@@ -1,13 +1,12 @@
 import type {
 	ColumnBuilderBaseConfig,
 	HasDefault,
-	MakeColumnConfig,
 	NotNull,
 } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
-import type { AnyPgTable } from '../table.ts';
+import type {  PgTable } from '../table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export type PgBigSerial53BuilderInitial<TName extends string> = NotNull<
@@ -35,10 +34,8 @@ export class PgBigSerial53Builder<T extends ColumnBuilderBaseConfig<'number', 'P
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgBigSerial53<MakeColumnConfig<T, TTableName>> {
-		return new PgBigSerial53<MakeColumnConfig<T, TTableName>>(
+	override build(table: PgTable) {
+		return new PgBigSerial53(
 			table,
 			this.config as any,
 		);
@@ -84,10 +81,8 @@ export class PgBigSerial64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'P
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgBigSerial64<MakeColumnConfig<T, TTableName>> {
-		return new PgBigSerial64<MakeColumnConfig<T, TTableName>>(
+	override build(table: PgTable) {
+		return new PgBigSerial64(
 			table,
 			this.config as any,
 		);

@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '~/pg-core/table.ts';
+import type { PgTable } from '~/pg-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 import type { Precision } from './timestamp.ts';
@@ -29,10 +29,8 @@ export class PgIntervalBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgIn
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgInterval<MakeColumnConfig<T, TTableName>> {
-		return new PgInterval<MakeColumnConfig<T, TTableName>>(table, this.config as any);
+	override build(table: PgTable) {
+		return new PgInterval(table, this.config as any);
 	}
 }
 

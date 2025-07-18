@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '~/pg-core/table.ts';
+import type { PgTable } from '~/pg-core/table.ts';
 import { sql } from '~/sql/sql.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
@@ -29,10 +29,8 @@ export class PgUUIDBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgUUID'>
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgUUID<MakeColumnConfig<T, TTableName>> {
-		return new PgUUID<MakeColumnConfig<T, TTableName>>(table, this.config as any);
+	override build(table: PgTable) {
+		return new PgUUID(table, this.config as any);
 	}
 }
 

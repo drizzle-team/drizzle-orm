@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '~/pg-core/table.ts';
+import type { AnyPgTable, PgTable } from '~/pg-core/table.ts';
 import type { NonArray, Writable } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
@@ -39,10 +39,8 @@ export class PgEnumObjectColumnBuilder<
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgEnumObjectColumn<MakeColumnConfig<T, TTableName>> {
-		return new PgEnumObjectColumn<MakeColumnConfig<T, TTableName>>(
+	override build(table: PgTable) {
+		return new PgEnumObjectColumn(
 			table,
 			this.config as any,
 		);
@@ -110,10 +108,8 @@ export class PgEnumColumnBuilder<
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgEnumColumn<MakeColumnConfig<T, TTableName>> {
-		return new PgEnumColumn<MakeColumnConfig<T, TTableName>>(
+	override build(table: PgTable) {
+		return new PgEnumColumn(
 			table,
 			this.config as any,
 		);

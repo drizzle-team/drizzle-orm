@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '~/pg-core/table.ts';
+import type { AnyPgTable, PgTable } from '~/pg-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
@@ -30,10 +30,8 @@ export class PgNumericBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgNum
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgNumeric<MakeColumnConfig<T, TTableName>> {
-		return new PgNumeric<MakeColumnConfig<T, TTableName>>(table, this.config as any);
+	override build(table: PgTable) {
+		return new PgNumeric(table, this.config as any);
 	}
 }
 
@@ -93,10 +91,8 @@ export class PgNumericNumberBuilder<T extends ColumnBuilderBaseConfig<'number', 
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgNumericNumber<MakeColumnConfig<T, TTableName>> {
-		return new PgNumericNumber<MakeColumnConfig<T, TTableName>>(
+	override build(table: PgTable) {
+		return new PgNumericNumber(
 			table,
 			this.config as any,
 		);
@@ -161,10 +157,8 @@ export class PgNumericBigIntBuilder<T extends ColumnBuilderBaseConfig<'bigint', 
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgNumericBigInt<MakeColumnConfig<T, TTableName>> {
-		return new PgNumericBigInt<MakeColumnConfig<T, TTableName>>(
+	override build(table: PgTable) {
+		return new PgNumericBigInt(
 			table,
 			this.config as any,
 		);

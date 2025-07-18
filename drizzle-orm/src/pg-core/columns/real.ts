@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '~/pg-core/table.ts';
+import type { AnyPgTable, PgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export type PgRealBuilderInitial<TName extends string> = PgRealBuilder<{
@@ -25,10 +25,8 @@ export class PgRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgReal'>
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgReal<MakeColumnConfig<T, TTableName>> {
-		return new PgReal<MakeColumnConfig<T, TTableName>>(table, this.config as any);
+	override build(table: PgTable) {
+		return new PgReal(table, this.config as any);
 	}
 }
 

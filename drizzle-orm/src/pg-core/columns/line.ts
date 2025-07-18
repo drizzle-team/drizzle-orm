@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '~/pg-core/table.ts';
+import type { PgTable } from '~/pg-core/table.ts';
 
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
@@ -23,10 +23,8 @@ export class PgLineBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgLine'>>
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgLineTuple<MakeColumnConfig<T, TTableName>> {
-		return new PgLineTuple<MakeColumnConfig<T, TTableName>>(
+	override build(table: PgTable) {
+		return new PgLineTuple(
 			table,
 			this.config as any,
 		);
@@ -67,10 +65,8 @@ export class PgLineABCBuilder<T extends ColumnBuilderBaseConfig<'json', 'PgLineA
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgLineABC<MakeColumnConfig<T, TTableName>> {
-		return new PgLineABC<MakeColumnConfig<T, TTableName>>(
+	override build(table: PgTable) {
+		return new PgLineABC(
 			table,
 			this.config as any,
 		);

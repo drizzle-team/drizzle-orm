@@ -1,12 +1,11 @@
 import type {
 	ColumnBuilderBaseConfig,
 	HasDefault,
-	MakeColumnConfig,
 	NotNull,
 } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '~/pg-core/table.ts';
+import type { PgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export type PgSmallSerialBuilderInitial<TName extends string> = NotNull<
@@ -34,10 +33,8 @@ export class PgSmallSerialBuilder<T extends ColumnBuilderBaseConfig<'number', 'P
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgSmallSerial<MakeColumnConfig<T, TTableName>> {
-		return new PgSmallSerial<MakeColumnConfig<T, TTableName>>(
+	override build(table: PgTable) {
+		return new PgSmallSerial(
 			table,
 			this.config as any,
 		);

@@ -131,9 +131,7 @@ export abstract class PgColumnBuilder<
 	}
 
 	/** @internal */
-	abstract build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgColumn<MakeColumnConfig<T, TTableName>>;
+	abstract build(table: PgTable): PgColumn<any>;
 
 	/** @internal */
 	buildExtraConfigColumn<TTableName extends string>(
@@ -309,12 +307,10 @@ export class PgArrayBuilder<
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgArray<MakeColumnConfig<T, TTableName> & { size: T['size']; baseBuilder: T['baseBuilder'] }, TBase> {
-		const baseColumn = this.config.baseBuilder.build(table);
-		return new PgArray<MakeColumnConfig<T, TTableName> & { size: T['size']; baseBuilder: T['baseBuilder'] }, TBase>(
-			table as AnyPgTable<{ name: MakeColumnConfig<T, TTableName>['tableName'] }>,
+	override build(table: PgTable) {
+		const baseColumn: any = this.config.baseBuilder.build(table);
+		return new PgArray(
+			table,
 			this.config as any,
 			baseColumn,
 		);
