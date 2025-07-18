@@ -57,7 +57,12 @@ function tableNameWithSchemaFrom(
 }
 
 export type SelectResolverInput = {
-	name: string;
+	entity: {
+		type: 'createUniqueConstraint';
+		name: string;
+		count: number;
+		tableName: string;
+	};
 	items: string[];
 };
 
@@ -255,15 +260,19 @@ export const pgSuggestions = async (
 					} table?\n`,
 				);
 
-				const name =
-					`You're about to add ${unsquashedUnique.name} unique constraint to the table, which contains ${count} items. If this statement fails, you will receive an error from the database. Do you want to truncate ${statement.tableName} table?`;
-				const items = [
-					'No, add the constraint without truncating the table',
-					`Yes, truncate the table`,
-				];
+				const entity = {
+					type: 'createUniqueConstraint' as const,
+					name: unsquashedUnique.name,
+					count,
+					tableName: statement.tableName,
+				};
+				const items = ['no', 'yes'];
 
-				const { data } = selectResolver ? await selectResolver({ name, items }) : await render(
-					new Select(items),
+				const { data } = selectResolver ? await selectResolver({ entity, items }) : await render(
+					new Select([
+						'No, add the constraint without truncating the table',
+						`Yes, truncate the table`,
+					]),
 				);
 				if (data?.index === 1) {
 					tablesToTruncate.push(statement.tableName);
