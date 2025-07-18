@@ -649,14 +649,14 @@ export type BuildQueryResult<
 	TSchema extends TablesRelationalConfig,
 	TTableConfig extends TableRelationalConfig,
 	TFullSelection extends true | Record<string, unknown>,
-> = Equal<TFullSelection, true> extends true ? Simplify<
-		InferRelationalQueryTableResult<
-			Assume<TTableConfig['table'], { $inferSelect: Record<string, unknown> }>['$inferSelect']
-		>
-	>
+	TModel extends Record<string, unknown> = Assume<
+		TTableConfig['table'],
+		{ $inferSelect: Record<string, unknown> }
+	>['$inferSelect'],
+> = Equal<TFullSelection, true> extends true ? Simplify<InferRelationalQueryTableResult<TModel>>
 	: TFullSelection extends Record<string, unknown> ? Simplify<
 			& (InferRelationalQueryTableResult<
-				Assume<TTableConfig['table'], { $inferSelect: Record<string, unknown> }>['$inferSelect'],
+				TModel,
 				TFullSelection['columns'] extends Record<string, unknown> ? TFullSelection['columns'] : 'Full'
 			>)
 			& (TFullSelection['extras'] extends Record<string, SQLWrapper | ((...args: any[]) => SQLWrapper)> ? {

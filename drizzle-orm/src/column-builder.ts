@@ -31,17 +31,17 @@ export type GeneratedStorageMode = 'virtual' | 'stored';
 
 export type GeneratedType = 'always' | 'byDefault';
 
-export type GeneratedColumnConfig<TDataType> = {
+export interface GeneratedColumnConfig<TDataType> {
 	as: TDataType | SQL | (() => SQL);
 	type?: GeneratedType;
 	mode?: GeneratedStorageMode;
-};
+}
 
-export type GeneratedIdentityConfig = {
+export interface GeneratedIdentityConfig {
 	sequenceName?: string;
 	sequenceOptions?: PgSequenceOptions;
 	type: 'always' | 'byDefault';
-};
+}
 
 export interface ColumnBuilderBaseConfig<TDataType extends ColumnDataType, TColumnType extends string> {
 	name: string;
@@ -81,23 +81,19 @@ export type MakeColumnConfig<
 export type ColumnBuilderTypeConfig<
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string>,
-	TTypeConfig extends object = object,
-> = Simplify<
-	& {
-		brand: 'ColumnBuilder';
-		name: T['name'];
-		dataType: T['dataType'];
-		columnType: T['columnType'];
-		data: T['data'];
-		driverParam: T['driverParam'];
-		notNull: T extends { notNull: infer U } ? U : boolean;
-		hasDefault: T extends { hasDefault: infer U } ? U : boolean;
-		enumValues: T['enumValues'];
-		identity: T extends { identity: infer U } ? U : unknown;
-		generated: T extends { generated: infer G } ? G extends undefined ? unknown : G : unknown;
-	}
-	& TTypeConfig
->;
+> = {
+	brand: 'ColumnBuilder';
+	name: T['name'];
+	dataType: T['dataType'];
+	columnType: T['columnType'];
+	data: T['data'];
+	driverParam: T['driverParam'];
+	notNull: T extends { notNull: infer U } ? U : boolean;
+	hasDefault: T extends { hasDefault: infer U } ? U : boolean;
+	enumValues: T['enumValues'];
+	identity: T extends { identity: infer U } ? U : unknown;
+	generated: T extends { generated: infer G } ? G extends undefined ? unknown : G : unknown;
+} & {};
 
 export type ColumnBuilderRuntimeConfig<TData, TRuntimeConfig extends object = object> = {
 	name: string;
@@ -178,7 +174,7 @@ export interface ColumnBuilderBase<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
 	TTypeConfig extends object = object,
 > {
-	_: ColumnBuilderTypeConfig<T, TTypeConfig>;
+	_: ColumnBuilderTypeConfig<T> & TTypeConfig;
 }
 
 // To understand how to use `ColumnBuilder` and `AnyColumnBuilder`, see `Column` and `AnyColumn` documentation.
@@ -190,7 +186,7 @@ export abstract class ColumnBuilder<
 > implements ColumnBuilderBase<T, TTypeConfig> {
 	static readonly [entityKind]: string = 'ColumnBuilder';
 
-	declare _: ColumnBuilderTypeConfig<T, TTypeConfig>;
+	declare _: ColumnBuilderTypeConfig<T> & TTypeConfig;
 
 	protected config: ColumnBuilderRuntimeConfig<T['data'], TRuntimeConfig>;
 
@@ -382,6 +378,15 @@ export type BuildIndexColumn<
 // optional after everything will be working as expected
 // also try to leave only needed methods for extraConfig
 // make an error if I pass .asc() to fk and so on
+
+export type WithName<
+	B,
+	N extends string,
+> =
+	& {
+		[K in keyof B]: K extends 'name' ? B[K] extends '' ? N : B[K] : B[K];
+	}
+	& {};
 
 export type BuildColumns<
 	TTableName extends string,
