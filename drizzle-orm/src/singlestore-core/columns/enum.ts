@@ -2,11 +2,10 @@ import type {
 	ColumnBuilderBaseConfig,
 	GeneratedColumnConfig,
 	HasGenerated,
-	MakeColumnConfig,
 } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
+import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import type { SQL } from '~/sql/index.ts';
 import { getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
@@ -40,10 +39,8 @@ export class SingleStoreEnumColumnBuilder<T extends ColumnBuilderBaseConfig<'str
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnySingleStoreTable<{ name: TTableName }>,
-	): SingleStoreEnumColumn<MakeColumnConfig<T, TTableName> & { enumValues: T['enumValues'] }> {
-		return new SingleStoreEnumColumn<MakeColumnConfig<T, TTableName> & { enumValues: T['enumValues'] }>(
+	override build(table: SingleStoreTable) {
+		return new SingleStoreEnumColumn(
 			table,
 			this.config as any,
 		);

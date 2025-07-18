@@ -4,7 +4,6 @@ import type {
 	ColumnBuilderRuntimeConfig,
 	ColumnDataType,
 	HasGenerated,
-	MakeColumnConfig,
 } from '~/column-builder.ts';
 import { ColumnBuilder } from '~/column-builder.ts';
 import { Column } from '~/column.ts';
@@ -13,7 +12,7 @@ import { entityKind } from '~/entity.ts';
 import type { SQL } from '~/sql/sql.ts';
 import type { ForeignKey, UpdateDeleteAction } from '~/sqlite-core/foreign-keys.ts';
 import { ForeignKeyBuilder } from '~/sqlite-core/foreign-keys.ts';
-import type { AnySQLiteTable, SQLiteTable } from '~/sqlite-core/table.ts';
+import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import type { Update } from '~/utils.ts';
 import { uniqueKeyName } from '../unique-constraint.ts';
 
@@ -86,9 +85,7 @@ export abstract class SQLiteColumnBuilder<
 	}
 
 	/** @internal */
-	abstract build<TTableName extends string>(
-		table: AnySQLiteTable<{ name: TTableName }>,
-	): SQLiteColumn<MakeColumnConfig<T, TTableName>>;
+	abstract build(table: SQLiteTable): SQLiteColumn;
 }
 
 // To understand how to use `SQLiteColumn` and `AnySQLiteColumn`, see `Column` and `AnyColumn` documentation.

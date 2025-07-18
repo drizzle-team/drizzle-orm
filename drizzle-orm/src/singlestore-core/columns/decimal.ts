@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
+import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoIncrement } from './common.ts';
 
@@ -28,10 +28,8 @@ export class SingleStoreDecimalBuilder<
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnySingleStoreTable<{ name: TTableName }>,
-	): SingleStoreDecimal<MakeColumnConfig<T, TTableName>> {
-		return new SingleStoreDecimal<MakeColumnConfig<T, TTableName>>(
+	override build(table: SingleStoreTable) {
+		return new SingleStoreDecimal(
 			table,
 			this.config as any,
 		);
@@ -91,10 +89,8 @@ export class SingleStoreDecimalNumberBuilder<
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnySingleStoreTable<{ name: TTableName }>,
-	): SingleStoreDecimalNumber<MakeColumnConfig<T, TTableName>> {
-		return new SingleStoreDecimalNumber<MakeColumnConfig<T, TTableName>>(
+	override build(table: SingleStoreTable) {
+		return new SingleStoreDecimalNumber(
 			table,
 			this.config as any,
 		);
@@ -155,10 +151,8 @@ export class SingleStoreDecimalBigIntBuilder<
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnySingleStoreTable<{ name: TTableName }>,
-	): SingleStoreDecimalBigInt<MakeColumnConfig<T, TTableName>> {
-		return new SingleStoreDecimalBigInt<MakeColumnConfig<T, TTableName>>(
+	override build(table: SingleStoreTable) {
+		return new SingleStoreDecimalBigInt(
 			table,
 			this.config as any,
 		);

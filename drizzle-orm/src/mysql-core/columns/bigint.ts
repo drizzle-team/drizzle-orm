@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import type { MySqlTable } from '~/mysql-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 
@@ -25,10 +25,8 @@ export class MySqlBigInt53Builder<T extends ColumnBuilderBaseConfig<'number', 'M
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlBigInt53<MakeColumnConfig<T, TTableName>> {
-		return new MySqlBigInt53<MakeColumnConfig<T, TTableName>>(
+	override build(table: MySqlTable) {
+		return new MySqlBigInt53(
 			table,
 			this.config as any,
 		);
@@ -72,10 +70,8 @@ export class MySqlBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'M
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlBigInt64<MakeColumnConfig<T, TTableName>> {
-		return new MySqlBigInt64<MakeColumnConfig<T, TTableName>>(
+	override build(table: MySqlTable) {
+		return new MySqlBigInt64(
 			table,
 			this.config as any,
 		);

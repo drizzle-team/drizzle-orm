@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import type { MySqlTable } from '~/mysql-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 import type { MySqlIntConfig } from './int.ts';
@@ -26,10 +26,8 @@ export class MySqlTinyIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'My
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlTinyInt<MakeColumnConfig<T, TTableName>> {
-		return new MySqlTinyInt<MakeColumnConfig<T, TTableName>>(
+	override build(table: MySqlTable) {
+		return new MySqlTinyInt(
 			table,
 			this.config as any,
 		);

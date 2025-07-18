@@ -1,8 +1,8 @@
 import type { DateDuration } from 'gel';
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyGelTable } from '~/gel-core/table.ts';
+import type { GelTable } from '~/gel-core/table.ts';
 import { GelColumn, GelColumnBuilder } from './common.ts';
 
 export type GelDateDurationBuilderInitial<TName extends string> = GelDateDurationBuilder<{
@@ -26,10 +26,8 @@ export class GelDateDurationBuilder<T extends ColumnBuilderBaseConfig<'dateDurat
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyGelTable<{ name: TTableName }>,
-	): GelDateDuration<MakeColumnConfig<T, TTableName>> {
-		return new GelDateDuration<MakeColumnConfig<T, TTableName>>(
+	override build(table: GelTable) {
+		return new GelDateDuration(
 			table,
 			this.config as any,
 		);

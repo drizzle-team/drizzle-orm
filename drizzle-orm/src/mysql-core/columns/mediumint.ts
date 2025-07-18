@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import type { MySqlTable } from '~/mysql-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 import type { MySqlIntConfig } from './int.ts';
@@ -26,10 +26,8 @@ export class MySqlMediumIntBuilder<T extends ColumnBuilderBaseConfig<'number', '
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlMediumInt<MakeColumnConfig<T, TTableName>> {
-		return new MySqlMediumInt<MakeColumnConfig<T, TTableName>>(
+	override build(table: MySqlTable) {
+		return new MySqlMediumInt(
 			table,
 			this.config as any,
 		);

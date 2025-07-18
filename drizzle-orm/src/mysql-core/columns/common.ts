@@ -7,14 +7,13 @@ import type {
 	HasDefault,
 	HasGenerated,
 	IsAutoincrement,
-	MakeColumnConfig,
 } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { Column } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { ForeignKey, UpdateDeleteAction } from '~/mysql-core/foreign-keys.ts';
 import { ForeignKeyBuilder } from '~/mysql-core/foreign-keys.ts';
-import type { AnyMySqlTable, MySqlTable } from '~/mysql-core/table.ts';
+import type { MySqlTable } from '~/mysql-core/table.ts';
 import type { SQL } from '~/sql/sql.ts';
 import type { Update } from '~/utils.ts';
 import { uniqueKeyName } from '../unique-constraint.ts';
@@ -85,9 +84,7 @@ export abstract class MySqlColumnBuilder<
 	}
 
 	/** @internal */
-	abstract build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlColumn<MakeColumnConfig<T, TTableName>>;
+	abstract build(table: MySqlTable): MySqlColumn;
 }
 
 // To understand how to use `MySqlColumn` and `AnyMySqlColumn`, see `Column` and `AnyColumn` documentation.

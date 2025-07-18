@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyGelTable } from '~/gel-core/table.ts';
+import type { GelTable } from '~/gel-core/table.ts';
 import { GelColumn } from './common.ts';
 import { GelIntColumnBaseBuilder } from './int.common.ts';
 
@@ -24,10 +24,8 @@ export class GelInt53Builder<T extends ColumnBuilderBaseConfig<'number', 'GelInt
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyGelTable<{ name: TTableName }>,
-	): GelInt53<MakeColumnConfig<T, TTableName>> {
-		return new GelInt53<MakeColumnConfig<T, TTableName>>(table, this.config as any);
+	override build(table: GelTable) {
+		return new GelInt53(table, this.config as any);
 	}
 }
 

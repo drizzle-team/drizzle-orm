@@ -3,12 +3,11 @@ import type {
 	HasDefault,
 	IsAutoincrement,
 	IsPrimaryKey,
-	MakeColumnConfig,
 	NotNull,
 } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import type { MySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 
 export type MySqlSerialBuilderInitial<TName extends string> = IsAutoincrement<
@@ -40,10 +39,8 @@ export class MySqlSerialBuilder<T extends ColumnBuilderBaseConfig<'number', 'MyS
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlSerial<MakeColumnConfig<T, TTableName>> {
-		return new MySqlSerial<MakeColumnConfig<T, TTableName>>(table, this.config as any);
+	override build(table: MySqlTable) {
+		return new MySqlSerial(table, this.config as any);
 	}
 }
 

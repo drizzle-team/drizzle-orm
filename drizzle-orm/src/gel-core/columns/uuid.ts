@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyGelTable } from '~/gel-core/table.ts';
+import type { GelTable } from '~/gel-core/table.ts';
 import { GelColumn, GelColumnBuilder } from './common.ts';
 
 export type GelUUIDBuilderInitial<TName extends string> = GelUUIDBuilder<{
@@ -21,10 +21,8 @@ export class GelUUIDBuilder<T extends ColumnBuilderBaseConfig<'string', 'GelUUID
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyGelTable<{ name: TTableName }>,
-	): GelUUID<MakeColumnConfig<T, TTableName>> {
-		return new GelUUID<MakeColumnConfig<T, TTableName>>(table, this.config as any);
+	override build(table: GelTable) {
+		return new GelUUID(table, this.config as any);
 	}
 }
 

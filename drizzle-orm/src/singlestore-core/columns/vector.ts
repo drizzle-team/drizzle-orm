@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
+import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import type { SQL } from '~/sql/index.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import type { SingleStoreGeneratedColumnConfig } from './common.ts';
@@ -28,10 +28,8 @@ export class SingleStoreVectorBuilder<T extends ColumnBuilderBaseConfig<'array',
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnySingleStoreTable<{ name: TTableName }>,
-	): SingleStoreVector<MakeColumnConfig<T, TTableName>> {
-		return new SingleStoreVector<MakeColumnConfig<T, TTableName>>(
+	override build(table: SingleStoreTable) {
+		return new SingleStoreVector(
 			table,
 			this.config as any,
 		);

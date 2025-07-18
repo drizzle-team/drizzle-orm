@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyGelTable } from '~/gel-core/table.ts';
+import type { AnyGelTable, GelTable } from '~/gel-core/table.ts';
 import { GelColumn, GelColumnBuilder } from './common.ts';
 
 export type GelDecimalBuilderInitial<TName extends string> = GelDecimalBuilder<{
@@ -23,10 +23,8 @@ export class GelDecimalBuilder<T extends ColumnBuilderBaseConfig<'string', 'GelD
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyGelTable<{ name: TTableName }>,
-	): GelDecimal<MakeColumnConfig<T, TTableName>> {
-		return new GelDecimal<MakeColumnConfig<T, TTableName>>(table, this.config as any);
+	override build(table: GelTable) {
+		return new GelDecimal(table, this.config as any);
 	}
 }
 

@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
+import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
 export type SingleStoreJsonBuilderInitial<TName extends string> = SingleStoreJsonBuilder<{
@@ -24,10 +24,8 @@ export class SingleStoreJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'S
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnySingleStoreTable<{ name: TTableName }>,
-	): SingleStoreJson<MakeColumnConfig<T, TTableName>> {
-		return new SingleStoreJson<MakeColumnConfig<T, TTableName>>(
+	override build(table: SingleStoreTable) {
+		return new SingleStoreJson(
 			table,
 			this.config as any,
 		);

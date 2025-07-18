@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
+import type { AnySingleStoreTable, SingleStoreTable } from '~/singlestore-core/table.ts';
 import type { SQL, SQLGenerator } from '~/sql/sql.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
@@ -48,10 +48,8 @@ export class SingleStoreCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'c
 	}
 
 	/** @internal */
-	build<TTableName extends string>(
-		table: AnySingleStoreTable<{ name: TTableName }>,
-	): SingleStoreCustomColumn<MakeColumnConfig<T, TTableName>> {
-		return new SingleStoreCustomColumn<MakeColumnConfig<T, TTableName>>(
+	override build(table: SingleStoreTable) {
+		return new SingleStoreCustomColumn(
 			table,
 			this.config as any,
 		);

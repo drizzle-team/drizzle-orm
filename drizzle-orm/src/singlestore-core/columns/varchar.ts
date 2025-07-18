@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
+import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import { getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
@@ -35,12 +35,8 @@ export class SingleStoreVarCharBuilder<
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnySingleStoreTable<{ name: TTableName }>,
-	): SingleStoreVarChar<MakeColumnConfig<T, TTableName> & { length: T['length']; enumValues: T['enumValues'] }> {
-		return new SingleStoreVarChar<
-			MakeColumnConfig<T, TTableName> & { length: T['length']; enumValues: T['enumValues'] }
-		>(
+	override build(table: SingleStoreTable) {
+		return new SingleStoreVarChar(
 			table,
 			this.config as any,
 		);

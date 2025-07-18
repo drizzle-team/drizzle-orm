@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnySQLiteTable } from '~/sqlite-core/table.ts';
+import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
@@ -26,10 +26,8 @@ export class SQLiteBigIntBuilder<T extends ColumnBuilderBaseConfig<'bigint', 'SQ
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnySQLiteTable<{ name: TTableName }>,
-	): SQLiteBigInt<MakeColumnConfig<T, TTableName>> {
-		return new SQLiteBigInt<MakeColumnConfig<T, TTableName>>(table, this.config as any);
+	override build(table: SQLiteTable) {
+		return new SQLiteBigInt(table, this.config as any);
 	}
 }
 
@@ -84,10 +82,8 @@ export class SQLiteBlobJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'SQ
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnySQLiteTable<{ name: TTableName }>,
-	): SQLiteBlobJson<MakeColumnConfig<T, TTableName>> {
-		return new SQLiteBlobJson<MakeColumnConfig<T, TTableName>>(
+	override build(table: SQLiteTable) {
+		return new SQLiteBlobJson(
 			table,
 			this.config as any,
 		);
@@ -145,10 +141,8 @@ export class SQLiteBlobBufferBuilder<T extends ColumnBuilderBaseConfig<'buffer',
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnySQLiteTable<{ name: TTableName }>,
-	): SQLiteBlobBuffer<MakeColumnConfig<T, TTableName>> {
-		return new SQLiteBlobBuffer<MakeColumnConfig<T, TTableName>>(table, this.config as any);
+	override build(table: SQLiteTable) {
+		return new SQLiteBlobBuffer(table, this.config as any);
 	}
 }
 

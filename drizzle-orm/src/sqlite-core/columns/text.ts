@@ -1,7 +1,7 @@
-import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnySQLiteTable } from '~/sqlite-core/table.ts';
+import type { AnySQLiteTable, SQLiteTable } from '~/sqlite-core/table.ts';
 import { type Equal, getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
@@ -35,10 +35,8 @@ export class SQLiteTextBuilder<
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnySQLiteTable<{ name: TTableName }>,
-	): SQLiteText<MakeColumnConfig<T, TTableName> & { length: T['length'] }> {
-		return new SQLiteText<MakeColumnConfig<T, TTableName> & { length: T['length'] }>(
+	override build(table: SQLiteTable) {
+		return new SQLiteText(
 			table,
 			this.config as any,
 		);
@@ -86,10 +84,8 @@ export class SQLiteTextJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'SQ
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnySQLiteTable<{ name: TTableName }>,
-	): SQLiteTextJson<MakeColumnConfig<T, TTableName>> {
-		return new SQLiteTextJson<MakeColumnConfig<T, TTableName>>(
+	override build(table: SQLiteTable) {
+		return new SQLiteTextJson(
 			table,
 			this.config as any,
 		);
