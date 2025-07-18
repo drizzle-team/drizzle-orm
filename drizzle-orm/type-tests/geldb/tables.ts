@@ -737,8 +737,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
 				},
-				{},
-				{ $type: 'admin' | 'user' }
+				{}
 			>;
 			population: GelColumn<{
 				tableName: 'cities_table';

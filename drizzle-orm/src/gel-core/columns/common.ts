@@ -124,8 +124,7 @@ export abstract class GelColumnBuilder<
 export abstract class GelColumn<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = {},
-	TTypeConfig extends object = {},
-> extends Column<T, TRuntimeConfig, TTypeConfig & { dialect: 'gel' }> {
+> extends Column<T, TRuntimeConfig, { dialect: 'gel' }> {
 	static override readonly [entityKind]: string = 'GelColumn';
 
 	/** @internal */
@@ -302,7 +301,7 @@ export class GelArray<
 		baseBuilder: ColumnBuilderBaseConfig<ColumnDataType, string>;
 	},
 	TBase extends ColumnBuilderBaseConfig<ColumnDataType, string>,
-> extends GelColumn<T, {}, { size: T['size']; baseBuilder: T['baseBuilder'] }> {
+> extends GelColumn<T, {}> {
 	readonly size: T['size'];
 
 	static override readonly [entityKind]: string = 'GelArray';

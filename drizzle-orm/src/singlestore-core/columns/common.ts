@@ -54,8 +54,7 @@ export abstract class SingleStoreColumnBuilder<
 export abstract class SingleStoreColumn<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = {},
-	TTypeConfig extends object = {},
-> extends Column<T, TRuntimeConfig, TTypeConfig & { dialect: 'singlestore' }> {
+> extends Column<T, TRuntimeConfig, { dialect: 'singlestore' }> {
 	static override readonly [entityKind]: string = 'SingleStoreColumn';
 
 	/** @internal */

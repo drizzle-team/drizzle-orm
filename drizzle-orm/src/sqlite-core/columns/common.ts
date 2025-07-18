@@ -92,8 +92,7 @@ export abstract class SQLiteColumnBuilder<
 export abstract class SQLiteColumn<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = {},
-	TTypeConfig extends object = {},
-> extends Column<T, TRuntimeConfig, TTypeConfig & { dialect: 'sqlite' }> {
+> extends Column<T, TRuntimeConfig, { dialect: 'sqlite' }> {
 	static override readonly [entityKind]: string = 'SQLiteColumn';
 
 	/** @internal */

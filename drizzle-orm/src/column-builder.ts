@@ -318,46 +318,24 @@ export type BuildColumn<
 	>
 	: TDialect extends 'mysql' ? MySqlColumn<
 			TMakedConfig,
-			{},
-			Simplify<
-				Omit<
-					TConfig,
-					| keyof TMakedConfig
-					| 'brand'
-					| 'dialect'
-					| 'primaryKeyHasDefault'
-					| 'mysqlColumnBuilderBrand'
-				>
-			>
+			{}
 		>
 	: TDialect extends 'sqlite' ? SQLiteColumn<
 			TMakedConfig,
-			{},
-			Simplify<Omit<TConfig, keyof TMakedConfig | 'brand' | 'dialect'>>
+			{}
 		>
 	: TDialect extends 'common' ? Column<
 			TMakedConfig,
 			{},
-			Simplify<Omit<TConfig, keyof TMakedConfig | 'brand' | 'dialect'>>
+			{}
 		>
 	: TDialect extends 'singlestore' ? SingleStoreColumn<
 			TMakedConfig,
-			{},
-			Simplify<
-				Omit<
-					TConfig,
-					| keyof TMakedConfig
-					| 'brand'
-					| 'dialect'
-					| 'primaryKeyHasDefault'
-					| 'singlestoreColumnBuilderBrand'
-				>
-			>
+			{}
 		>
 	: TDialect extends 'gel' ? GelColumn<
 			TMakedConfig,
-			{},
-			Simplify<Omit<TConfig, keyof TMakedConfig | 'brand' | 'dialect'>>
+			{}
 		>
 	: never;
 
@@ -373,15 +351,6 @@ export type BuildIndexColumn<
 // optional after everything will be working as expected
 // also try to leave only needed methods for extraConfig
 // make an error if I pass .asc() to fk and so on
-
-export type WithName<
-	B,
-	N extends string,
-> =
-	& {
-		[K in keyof B]: K extends 'name' ? B[K] extends '' ? N : B[K] : B[K];
-	}
-	& {};
 
 export type BuildColumns<
 	TTableName extends string,

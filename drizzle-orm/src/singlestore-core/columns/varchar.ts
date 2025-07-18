@@ -45,7 +45,7 @@ export class SingleStoreVarCharBuilder<
 
 export class SingleStoreVarChar<
 	T extends ColumnBaseConfig<'string', 'SingleStoreVarChar'> & { length?: number | undefined },
-> extends SingleStoreColumn<T, SingleStoreVarCharConfig<T['enumValues'], T['length']>, { length: T['length'] }> {
+> extends SingleStoreColumn<T, SingleStoreVarCharConfig<T['enumValues'], T['length']>> {
 	static override readonly [entityKind]: string = 'SingleStoreVarChar';
 
 	readonly length: T['length'] = this.config.length;
