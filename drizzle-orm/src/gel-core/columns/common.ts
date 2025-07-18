@@ -253,8 +253,7 @@ export class GelArrayBuilder<
 	T extends GelArrayColumnBuilderBaseConfig,
 	TBase extends ColumnBuilderBaseConfig<ColumnDataType, string> | GelArrayColumnBuilderBaseConfig,
 > extends GelColumnBuilder<
-	T,
-	{
+	T & {
 		baseBuilder: TBase extends GelArrayColumnBuilderBaseConfig ? GelArrayBuilder<
 				TBase,
 				TBase extends { baseBuilder: infer TBaseBuilder extends ColumnBuilderBaseConfig<any, any> } ? TBaseBuilder
@@ -271,7 +270,8 @@ export class GelArrayBuilder<
 			>
 			: GelColumnBuilder<TBase, {}, Simplify<Omit<TBase, keyof ColumnBuilderBaseConfig<any, any>>>>;
 		size: T['size'];
-	}
+	},
+	{}
 > {
 	static override readonly [entityKind] = 'GelArrayBuilder';
 

@@ -44,7 +44,7 @@ export class PgCharBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgChar'>
 }
 
 export class PgChar<T extends ColumnBaseConfig<'string', 'PgChar'> & { length?: number | undefined }>
-	extends PgColumn<T, { length: T['length']; enumValues: T['enumValues'] }, { length: T['length'] }>
+	extends PgColumn<T, { length: T['length']; enumValues: T['enumValues'] }>
 {
 	static override readonly [entityKind]: string = 'PgChar';
 

@@ -39,7 +39,7 @@ export class PgVectorBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgVecto
 }
 
 export class PgVector<T extends ColumnBaseConfig<'array', 'PgVector'> & { dimensions: number | undefined }>
-	extends PgColumn<T, { dimensions: T['dimensions'] }, { dimensions: T['dimensions'] }>
+	extends PgColumn<T, { dimensions: T['dimensions'] }>
 {
 	static override readonly [entityKind]: string = 'PgVector';
 

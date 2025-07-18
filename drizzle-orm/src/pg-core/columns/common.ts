@@ -124,8 +124,7 @@ export abstract class PgColumnBuilder<
 export abstract class PgColumn<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = {},
-	TTypeConfig extends object = {},
-> extends Column<T, TRuntimeConfig, TTypeConfig & { dialect: 'pg' }> {
+> extends Column<T, TRuntimeConfig, { dialect: 'pg' }> {
 	static override readonly [entityKind]: string = 'PgColumn';
 
 	/** @internal */
@@ -302,7 +301,7 @@ export class PgArray<
 		baseBuilder: ColumnBuilderBaseConfig<ColumnDataType, string>;
 	},
 	TBase extends ColumnBuilderBaseConfig<ColumnDataType, string>,
-> extends PgColumn<T, {}, { size: T['size']; baseBuilder: T['baseBuilder'] }> {
+> extends PgColumn<T, {}> {
 	readonly size: T['size'];
 
 	static override readonly [entityKind]: string = 'PgArray';
