@@ -535,7 +535,7 @@ Expect<
 				brand: 'Column';
 				dialect: 'singlestore';
 			},
-			Simplify<BuildColumn<'table', typeof t, 'singlestore'>['_']>
+			Simplify<BuildColumn<'table', typeof t["_"] & typeof t["typeConfig"], 'singlestore', "name">['_']>
 		>
 	>;
 }

@@ -1,12 +1,9 @@
 import type {
-	ColumnBuilderBase,
 	ColumnBuilderBaseConfig,
 	ColumnBuilderExtraConfig,
 	ColumnBuilderRuntimeConfig,
 	ColumnDataType,
 	HasGenerated,
-	MakeColumnConfig,
-	WithName,
 } from '~/column-builder.ts';
 import { ColumnBuilder } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
@@ -21,24 +18,6 @@ import type { Simplify, Update } from '~/utils.ts';
 import type { PgIndexOpClass } from '../indexes.ts';
 import { uniqueKeyName } from '../unique-constraint.ts';
 import { makePgArray, parsePgArray } from '../utils/array.ts';
-
-export type BuildPgColumn<
-	TTableName extends string,
-	TBuilder extends ColumnBuilderBase,
-	TKey extends string,
-	TWithName extends WithName<TBuilder['_'], TKey> = WithName<TBuilder['_'], TKey>,
-> = PgColumn<
-	MakeColumnConfig<TWithName, TTableName>,
-	{},
-	Omit<TWithName, keyof MakeColumnConfig<TWithName, TTableName> | 'brand' | 'dialect'>
->;
-
-export type BuildPgColumns<
-	TTableName extends string,
-	TConfigMap extends Record<string, ColumnBuilderBase>,
-> = {
-	[Key in keyof TConfigMap]: BuildPgColumn<TTableName, TConfigMap[Key], Key & string>;
-};
 
 export interface ReferenceConfig {
 	ref: () => PgColumn;

@@ -1,4 +1,4 @@
-import type { BuildExtraConfigColumns, ColumnBuilderBase } from '~/column-builder.ts';
+import type { BuildColumns, BuildExtraConfigColumns, ColumnBuilderBase } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import {
 	type InferTableColumnsModels,
@@ -9,7 +9,6 @@ import {
 import type { CheckBuilder } from './checks.ts';
 import { getPgColumnBuilders, type PgColumnsBuilders } from './columns/all.ts';
 import type {
-	BuildPgColumns,
 	ExtraConfigColumn,
 	PgColumn,
 	PgColumnBuilder,
@@ -94,13 +93,13 @@ export function pgTableWithSchema<
 ): PgTableWithColumns<{
 	name: TTableName;
 	schema: TSchemaName;
-	columns: BuildPgColumns<TTableName, TColumnsMap>;
+	columns: BuildColumns<TTableName, TColumnsMap, "pg">;
 	dialect: 'pg';
 }> {
 	const rawTable = new PgTable<{
 		name: TTableName;
 		schema: TSchemaName;
-		columns: BuildPgColumns<TTableName, TColumnsMap>;
+		columns: BuildColumns<TTableName, TColumnsMap, "pg">;
 		dialect: 'pg';
 	}>(name, schema, baseName);
 
@@ -114,7 +113,7 @@ export function pgTableWithSchema<
 			rawTable[InlineForeignKeys].push(...colBuilder.buildForeignKeys(column, rawTable));
 			return [name, column];
 		}),
-	) as unknown as BuildPgColumns<TTableName, TColumnsMap>;
+	) as unknown as BuildColumns<TTableName, TColumnsMap, "pg">;
 
 	const builtColumnsForExtraConfig = Object.fromEntries(
 		Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
@@ -140,7 +139,7 @@ export function pgTableWithSchema<
 			return table as PgTableWithColumns<{
 				name: TTableName;
 				schema: TSchemaName;
-				columns: BuildPgColumns<TTableName, TColumnsMap>;
+				columns: BuildColumns<TTableName, TColumnsMap, "pg">;
 				dialect: 'pg';
 			}>;
 		},
@@ -160,7 +159,7 @@ export interface PgTableFn<TSchema extends string | undefined = undefined> {
 	): PgTableWithColumns<{
 		name: TTableName;
 		schema: TSchema;
-		columns: BuildPgColumns<TTableName, TColumnsMap>;
+		columns: BuildColumns<TTableName, TColumnsMap, "pg">;
 		dialect: 'pg';
 	}>;
 
@@ -174,7 +173,7 @@ export interface PgTableFn<TSchema extends string | undefined = undefined> {
 	): PgTableWithColumns<{
 		name: TTableName;
 		schema: TSchema;
-		columns: BuildPgColumns<TTableName, TColumnsMap>;
+		columns: BuildColumns<TTableName, TColumnsMap, "pg">;
 		dialect: 'pg';
 	}>;
 	/**
@@ -211,7 +210,7 @@ export interface PgTableFn<TSchema extends string | undefined = undefined> {
 	): PgTableWithColumns<{
 		name: TTableName;
 		schema: TSchema;
-		columns: BuildPgColumns<TTableName, TColumnsMap>;
+		columns: BuildColumns<TTableName, TColumnsMap, "pg">;
 		dialect: 'pg';
 	}>;
 
@@ -247,7 +246,7 @@ export interface PgTableFn<TSchema extends string | undefined = undefined> {
 	): PgTableWithColumns<{
 		name: TTableName;
 		schema: TSchema;
-		columns: BuildPgColumns<TTableName, TColumnsMap>;
+		columns: BuildColumns<TTableName, TColumnsMap, "pg">;
 		dialect: 'pg';
 	}>;
 }

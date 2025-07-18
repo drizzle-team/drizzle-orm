@@ -1,11 +1,15 @@
 import { type Equal, Expect } from 'type-tests/utils.ts';
 import type { Column } from '~/column.ts';
 import { integer, pgTable } from '~/pg-core/index.ts';
+import type { Simplify } from '~/utils';
 
 {
 	const table = pgTable('table', {
 		a: integer('a').array().notNull(),
 	});
+
+	type a =Simplify<typeof table['a']['_']['baseColumn']>
+
 	Expect<
 		Equal<
 			Column<
