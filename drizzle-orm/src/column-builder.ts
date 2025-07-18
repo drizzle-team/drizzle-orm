@@ -331,11 +331,9 @@ export type BuildColumn<
 	TBuilder extends ColumnBuilderBase,
 	TDialect extends Dialect,
 	TKey extends string,
-	/* for some reason basebuilder is in typeconfig and should be in _ */
-	TConfig extends ColumnBuilderBaseConfig<ColumnDataType, string> = TBuilder["_"] & 
-		(TBuilder["typeConfig"] extends {baseBuilder: any } ? { baseBuilder: TBuilder["typeConfig"]["baseBuilder"] }: {}), 	
+	TConfig extends ColumnBuilderBaseConfig<ColumnDataType, string> = TBuilder["_"], 	
 	TMakedConfig extends ColumnBaseConfig<ColumnDataType, string> = MakeColumnConfig<TConfig, TTableName, TKey>,
-	/*  */
+	/* last piece */
 	TTypeConfig extends {} = Omit<TConfig,  keyof TMakedConfig | 'brand'| 'dialect'>,
 > = TDialect extends 'pg' ? PgColumn<
 		TMakedConfig,
