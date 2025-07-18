@@ -22,24 +22,12 @@ export interface ColumnBaseConfig<
 	hasRuntimeDefault: boolean;
 }
 
-export type ColumnTypeConfig<T extends ColumnBaseConfig<ColumnDataType, string>, TTypeConfig extends object> = T & {
+export interface ColumnTypeConfig<T extends ColumnBaseConfig<ColumnDataType, string>> {
 	brand: 'Column';
-	tableName: T['tableName'];
-	name: T['name'];
-	dataType: T['dataType'];
-	columnType: T['columnType'];
-	data: T['data'];
-	driverParam: T['driverParam'];
-	notNull: T['notNull'];
-	hasDefault: T['hasDefault'];
-	isPrimaryKey: T['isPrimaryKey'];
-	isAutoincrement: T['isAutoincrement'];
-	hasRuntimeDefault: T['hasRuntimeDefault'];
-	enumValues: T['enumValues'];
 	baseColumn: T extends { baseColumn: infer U } ? U : unknown;
 	generated: GeneratedColumnConfig<T['data']> | undefined;
 	identity: undefined | 'always' | 'byDefault';
-} & TTypeConfig;
+}
 
 export type ColumnRuntimeConfig<TData, TRuntimeConfig extends object> = ColumnBuilderRuntimeConfig<
 	TData,
@@ -67,7 +55,7 @@ export abstract class Column<
 > implements DriverValueMapper<T['data'], T['driverParam']>, SQLWrapper {
 	static readonly [entityKind]: string = 'Column';
 
-	declare readonly _: ColumnTypeConfig<T, TTypeConfig>;
+	declare readonly _: T & ColumnTypeConfig<T> & TTypeConfig;
 
 	readonly name: string;
 	readonly keyAsName: boolean;

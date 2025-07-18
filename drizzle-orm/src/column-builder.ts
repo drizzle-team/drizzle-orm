@@ -389,11 +389,16 @@ export type BuildColumns<
 	TDialect extends Dialect,
 > =
 	& {
-		[Key in keyof TConfigMap]: BuildColumn<TTableName, {
-			_:
-				& Omit<TConfigMap[Key]['_'], 'name'>
-				& { name: TConfigMap[Key]['_']['name'] extends '' ? Assume<Key, string> : TConfigMap[Key]['_']['name'] };
-		}, TDialect>;
+		[Key in keyof TConfigMap]: BuildColumn<
+			TTableName,
+			TConfigMap[Key]['_']['name'] extends '' ? {
+					_:
+						& Omit<TConfigMap[Key]['_'], 'name'>
+						& { name: Assume<Key, string> };
+				}
+				: TConfigMap[Key],
+			TDialect
+		>;
 	}
 	& {};
 

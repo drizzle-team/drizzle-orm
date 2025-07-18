@@ -252,20 +252,21 @@ export abstract class Relation<
 	alias: string | undefined;
 	where: AnyTableFilter | undefined;
 	sourceTable!: Table | View;
+	targetTable: Table | View;
 	through?: {
 		source: RelationsBuilderColumnBase[];
 		target: RelationsBuilderColumnBase[];
 	};
 	throughTable?: Table | View;
 	isReversed?: boolean;
-	/** Type-level only field */
+
 	declare readonly sourceTableName: TSourceTableName;
-	/** Type-level only field */
 	declare readonly targetTableName: TTargetTableName;
 
 	constructor(
-		readonly targetTable: AnyTable<{ name: TTargetTableName }> | View<TTargetTableName>,
+		targetTable: Table | View,
 	) {
+		this.targetTable = targetTable as any as Table | View;
 	}
 }
 
@@ -284,7 +285,7 @@ export class One<
 	constructor(
 		/** Required type - `Record<string, Table | View>` - simplified due to performance issues */
 		tables: Record<string, unknown>,
-		targetTable: AnyTable<{ name: TTargetTableName }> | View<TTargetTableName>,
+		targetTable: Table | View,
 		config: AnyOneConfig | undefined,
 	) {
 		super(targetTable);
@@ -333,7 +334,7 @@ export class Many<
 	constructor(
 		/** Required type - `Record<string, Table | View>` - simplified due to performance issues */
 		tables: Record<string, unknown>,
-		targetTable: AnyTable<{ name: TTargetTableName }> | View<TTargetTableName>,
+		targetTable: Table | View,
 		readonly config: AnyManyConfig | undefined,
 	) {
 		super(targetTable);
@@ -452,15 +453,8 @@ export function getOrderByOperators(): OrderByOperators {
 
 export type FindTableInRelationalConfig<
 	TSchema extends TablesRelationalConfig,
-	TTargetTable extends Table | View,
-	TTableName extends string = TTargetTable['_']['name'],
-> = ExtractObjectValues<
-	{
-		[
-			K in keyof TSchema as TSchema[K]['tsName'] extends TTableName ? K : never
-		]: TSchema[K];
-	}
->;
+	TTableName extends string,
+> = TSchema[TTableName];
 
 export interface SQLOperator {
 	sql: Operators['sql'];
@@ -500,7 +494,7 @@ export type DBQueryConfigWith<TSchema extends TablesRelationalConfig, TRelations
 			TSchema,
 			FindTableInRelationalConfig<
 				TSchema,
-				TRelations[K]['targetTable']
+				TRelations[K]['targetTableName']
 			>,
 			true
 		>)
@@ -602,7 +596,7 @@ export type BuildRelationResult<
 			& keyof TRelations
 	]: TRelations[K] extends infer TRel extends Relation ? BuildQueryResult<
 			TConfig,
-			FindTableInRelationalConfig<TConfig, TRel['targetTable']>,
+			FindTableInRelationalConfig<TConfig, TRel['targetTableName']>,
 			Assume<TInclude[K], true | Record<string, unknown>>
 		> extends infer TResult ? TRel extends One<string, string> ?
 					| TResult
@@ -947,7 +941,7 @@ export type RelationsFilter<
 		& {
 			[K in keyof TRelations]?:
 				| boolean
-				| RelationsFilter<FindTableInRelationalConfig<TSchema, TRelations[K]['targetTable']>, TSchema>
+				| RelationsFilter<FindTableInRelationalConfig<TSchema, TRelations[K]['targetTableName']>, TSchema>
 				| undefined;
 		}
 		& RelationsFilterCommons<TTable, TSchema>;
