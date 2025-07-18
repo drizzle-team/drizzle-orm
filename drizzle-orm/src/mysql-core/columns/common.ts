@@ -1,6 +1,5 @@
 import { ColumnBuilder } from '~/column-builder.ts';
 import type {
-	ColumnBuilderBase,
 	ColumnBuilderBaseConfig,
 	ColumnBuilderExtraConfig,
 	ColumnBuilderRuntimeConfig,
@@ -28,11 +27,6 @@ export interface ReferenceConfig {
 	};
 }
 
-export interface MySqlColumnBuilderBase<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
-	TTypeConfig extends object = object,
-> extends ColumnBuilderBase<T, TTypeConfig & { dialect: 'mysql' }> {}
-
 export interface MySqlGeneratedColumnConfig {
 	mode?: 'virtual' | 'stored';
 }
@@ -44,9 +38,7 @@ export abstract class MySqlColumnBuilder<
 	TRuntimeConfig extends object = object,
 	TTypeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
-> extends ColumnBuilder<T, TRuntimeConfig, TTypeConfig & { dialect: 'mysql' }, TExtraConfig>
-	implements MySqlColumnBuilderBase<T, TTypeConfig>
-{
+> extends ColumnBuilder<T, TRuntimeConfig, TTypeConfig & { dialect: 'mysql' }, TExtraConfig> {
 	static override readonly [entityKind]: string = 'MySqlColumnBuilder';
 
 	private foreignKeyConfigs: ReferenceConfig[] = [];
