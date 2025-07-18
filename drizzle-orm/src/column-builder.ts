@@ -1,5 +1,5 @@
 import { entityKind } from '~/entity.ts';
-import type { Column } from './column.ts';
+import type { Column, ColumnBaseConfig } from './column.ts';
 import type { GelColumn, GelExtraConfigColumn } from './gel-core/index.ts';
 import type { MySqlColumn } from './mysql-core/index.ts';
 import type { ExtraConfigColumn, PgColumn, PgSequenceOptions } from './pg-core/index.ts';
@@ -303,18 +303,19 @@ export type BuildColumn<
 	TBuilder extends ColumnBuilderBaseConfig<ColumnDataType, string>,
 	TDialect extends Dialect,
 	TKey extends string,
+	TMakedConfig extends ColumnBaseConfig<ColumnDataType, string> = MakeColumnConfig<TBuilder, TTableName, TKey>
 > = TDialect extends 'pg' ? PgColumn<
-		MakeColumnConfig<TBuilder, TTableName, TKey>,
+		TMakedConfig,
 		{},
-		Simplify<Omit<MakeColumnConfig<TBuilder, TTableName, TKey>, keyof MakeColumnConfig<TBuilder, TTableName, TKey> | 'brand' | 'dialect'>>
+		Simplify<Omit<TMakedConfig, keyof TMakedConfig | 'brand' | 'dialect'>>
 	>
 	: TDialect extends 'mysql' ? MySqlColumn<
-			MakeColumnConfig<TBuilder, TTableName, TKey>,
+			TMakedConfig,
 			{},
 			Simplify<
 				Omit<
 					TBuilder,
-					| keyof MakeColumnConfig<TBuilder, TTableName, TKey>
+					| keyof TMakedConfig
 					| 'brand'
 					| 'dialect'
 					| 'primaryKeyHasDefault'
@@ -323,22 +324,22 @@ export type BuildColumn<
 			>
 		>
 	: TDialect extends 'sqlite' ? SQLiteColumn<
-			MakeColumnConfig<TBuilder, TTableName, TKey>,
+			TMakedConfig,
 			{},
-			Simplify<Omit<TBuilder, keyof MakeColumnConfig<TBuilder, TTableName, TKey> | 'brand' | 'dialect'>>
+			Simplify<Omit<TBuilder, keyof TMakedConfig | 'brand' | 'dialect'>>
 		>
 	: TDialect extends 'common' ? Column<
-			MakeColumnConfig<TBuilder, TTableName, TKey>,
+			TMakedConfig,
 			{},
-			Simplify<Omit<TBuilder, keyof MakeColumnConfig<TBuilder, TTableName, TKey> | 'brand' | 'dialect'>>
+			Simplify<Omit<TBuilder, keyof TMakedConfig | 'brand' | 'dialect'>>
 		>
 	: TDialect extends 'singlestore' ? SingleStoreColumn<
-			MakeColumnConfig<TBuilder, TTableName, TKey>,
+			TMakedConfig,
 			{},
 			Simplify<
 				Omit<
 					TBuilder,
-					| keyof MakeColumnConfig<TBuilder, TTableName, TKey>
+					| keyof TMakedConfig
 					| 'brand'
 					| 'dialect'
 					| 'primaryKeyHasDefault'
@@ -347,9 +348,9 @@ export type BuildColumn<
 			>
 		>
 	: TDialect extends 'gel' ? GelColumn<
-			MakeColumnConfig<TBuilder, TTableName, TKey>,
+			TMakedConfig,
 			{},
-			Simplify<Omit<TBuilder, keyof MakeColumnConfig<TBuilder, TTableName, TKey> | 'brand' | 'dialect'>>
+			Simplify<Omit<TBuilder, keyof TMakedConfig | 'brand' | 'dialect'>>
 		>
 	: never;
 
