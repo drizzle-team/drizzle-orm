@@ -22,19 +22,12 @@ export interface ColumnBaseConfig<
 	hasRuntimeDefault: boolean;
 }
 
-export interface ColumnTypeConfig<T extends ColumnBaseConfig<ColumnDataType, string>> {
-	brand: 'Column';
-	baseColumn: T extends { baseColumn: infer U } ? U : unknown;
-	generated: GeneratedColumnConfig<T['data']> | undefined;
-	identity: undefined | 'always' | 'byDefault';
-}
-
 export interface Column<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TRuntimeConfig extends object = object,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	TTypeConfig extends object = object,
+	Dialect extends string = string,
 > extends DriverValueMapper<T['data'], T['driverParam']>, SQLWrapper {
 	// SQLWrapper runtime implementation is defined in 'sql/sql.ts'
 }
@@ -46,11 +39,15 @@ export interface Column<
 export abstract class Column<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = object,
-	TTypeConfig extends object = object,
+	Dialect extends string = string
 > implements DriverValueMapper<T['data'], T['driverParam']>, SQLWrapper {
 	static readonly [entityKind]: string = 'Column';
 
-	declare readonly _: T & ColumnTypeConfig<T> & TTypeConfig;
+	declare readonly _: T & { 
+		dialect: Dialect, 
+		brand: 'Column';
+		identity: undefined | 'always' | 'byDefault'; 
+	};
 
 	readonly name: string;
 	readonly keyAsName: boolean;

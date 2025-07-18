@@ -124,7 +124,7 @@ export abstract class PgColumnBuilder<
 export abstract class PgColumn<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = {},
-> extends Column<T, TRuntimeConfig, { dialect: 'pg' }> {
+> extends Column<T, TRuntimeConfig, 'pg'> {
 	static override readonly [entityKind]: string = 'PgColumn';
 
 	/** @internal */

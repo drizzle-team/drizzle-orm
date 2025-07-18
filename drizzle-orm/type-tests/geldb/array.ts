@@ -26,7 +26,6 @@ import { gelTable, integer } from '~/gel-core/index.ts';
 					isAutoincrement: false;
 					hasRuntimeDefault: false;
 				},
-				{},
 				{}
 			>,
 			typeof table['a']['_']['baseColumn']
