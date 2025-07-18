@@ -56,7 +56,30 @@ function tableNameWithSchemaFrom(
 	return concatSchemaAndTableName(newSchemaName, newTableName);
 }
 
-export const pgSuggestions = async (db: DB, statements: JsonStatement[]) => {
+export type SelectResolverInput = {
+	entity: {
+		type: 'createUniqueConstraint';
+		name: string;
+		count: number;
+		tableName: string;
+	};
+	items: string[];
+};
+
+export type SelectResolverOutput = {
+	data: {
+		index: number;
+		value: string;
+	};
+};
+
+export const pgSuggestions = async (
+	db: DB,
+	statements: JsonStatement[],
+	selectResolver?: (
+		input: SelectResolverInput,
+	) => Promise<SelectResolverOutput>,
+) => {
 	let shouldAskForApprove = false;
 	const statementsToExecute: string[] = [];
 	const infoToPrint: string[] = [];
@@ -236,8 +259,20 @@ export const pgSuggestions = async (db: DB, statements: JsonStatement[]) => {
 						)
 					} table?\n`,
 				);
-				const { status, data } = await render(
-					new Select(['No, add the constraint without truncating the table', `Yes, truncate the table`]),
+
+				const entity = {
+					type: 'createUniqueConstraint' as const,
+					name: unsquashedUnique.name,
+					count,
+					tableName: statement.tableName,
+				};
+				const items = ['no', 'yes'];
+
+				const { data } = selectResolver ? await selectResolver({ entity, items }) : await render(
+					new Select([
+						'No, add the constraint without truncating the table',
+						`Yes, truncate the table`,
+					]),
 				);
 				if (data?.index === 1) {
 					tablesToTruncate.push(statement.tableName);

@@ -248,11 +248,7 @@ export const policyResolver = async (
 export const indPolicyResolver = async (
 	input: PolicyResolverInput<Policy>,
 ): Promise<PolicyResolverOutput<Policy>> => {
-	const result = await promptNamedConflict(
-		input.created,
-		input.deleted,
-		'policy',
-	);
+	const result = await promptNamedConflict(input.created, input.deleted, 'policy');
 	return {
 		created: result.created,
 		deleted: result.deleted,

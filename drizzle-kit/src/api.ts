@@ -166,6 +166,7 @@ export const getPgClientPool = async (
 	return pool;
 };
 
+export type { SelectResolverInput, SelectResolverOutput } from './cli/commands/pgPushUtils';
 export { applyPgSnapshotsDiff } from './snapshotsDiffer';
 export type {
 	ColumnsResolverInput,
