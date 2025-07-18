@@ -1,6 +1,5 @@
 import type {
 	ColumnBuilderBaseConfig,
-	ColumnBuilderRuntimeConfig,
 	GeneratedColumnConfig,
 	HasGenerated,
 	MakeColumnConfig,
@@ -46,7 +45,7 @@ export class SingleStoreEnumColumnBuilder<T extends ColumnBuilderBaseConfig<'str
 	): SingleStoreEnumColumn<MakeColumnConfig<T, TTableName> & { enumValues: T['enumValues'] }> {
 		return new SingleStoreEnumColumn<MakeColumnConfig<T, TTableName> & { enumValues: T['enumValues'] }>(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }

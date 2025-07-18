@@ -1,4 +1,4 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable } from '~/mysql-core/table.ts';
@@ -32,7 +32,7 @@ export class MySqlTextBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySql
 	override build<TTableName extends string>(
 		table: AnyMySqlTable<{ name: TTableName }>,
 	): MySqlText<MakeColumnConfig<T, TTableName>> {
-		return new MySqlText<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		return new MySqlText<MakeColumnConfig<T, TTableName>>(table, this.config as any);
 	}
 }
 

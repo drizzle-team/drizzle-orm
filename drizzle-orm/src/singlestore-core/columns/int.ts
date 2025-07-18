@@ -1,4 +1,4 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
@@ -31,7 +31,7 @@ export class SingleStoreIntBuilder<T extends ColumnBuilderBaseConfig<'number', '
 	): SingleStoreInt<MakeColumnConfig<T, TTableName>> {
 		return new SingleStoreInt<MakeColumnConfig<T, TTableName>>(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }

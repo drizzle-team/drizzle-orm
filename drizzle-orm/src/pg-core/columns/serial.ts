@@ -1,6 +1,5 @@
 import type {
 	ColumnBuilderBaseConfig,
-	ColumnBuilderRuntimeConfig,
 	HasDefault,
 	MakeColumnConfig,
 	NotNull,
@@ -36,7 +35,7 @@ export class PgSerialBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgSeri
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): PgSerial<MakeColumnConfig<T, TTableName>> {
-		return new PgSerial<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		return new PgSerial<MakeColumnConfig<T, TTableName>>(table, this.config as any);
 	}
 }
 

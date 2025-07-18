@@ -1,4 +1,4 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
@@ -36,7 +36,7 @@ export class PgTimeBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgTime'>
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): PgTime<MakeColumnConfig<T, TTableName>> {
-		return new PgTime<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		return new PgTime<MakeColumnConfig<T, TTableName>>(table, this.config as any);
 	}
 }
 

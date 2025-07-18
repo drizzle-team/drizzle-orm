@@ -1,6 +1,5 @@
 import type {
 	ColumnBuilderBaseConfig,
-	ColumnBuilderRuntimeConfig,
 	ColumnDataType,
 	HasDefault,
 	IsPrimaryKey,
@@ -86,7 +85,7 @@ export class SQLiteIntegerBuilder<T extends ColumnBuilderBaseConfig<'number', 'S
 	): SQLiteInteger<MakeColumnConfig<T, TTableName>> {
 		return new SQLiteInteger<MakeColumnConfig<T, TTableName>>(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
@@ -128,7 +127,7 @@ export class SQLiteTimestampBuilder<T extends ColumnBuilderBaseConfig<'date', 'S
 	): SQLiteTimestamp<MakeColumnConfig<T, TTableName>> {
 		return new SQLiteTimestamp<MakeColumnConfig<T, TTableName>>(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
@@ -180,7 +179,7 @@ export class SQLiteBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean', '
 	): SQLiteBoolean<MakeColumnConfig<T, TTableName>> {
 		return new SQLiteBoolean<MakeColumnConfig<T, TTableName>>(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }

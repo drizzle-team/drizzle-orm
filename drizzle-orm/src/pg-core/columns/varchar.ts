@@ -1,4 +1,4 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
@@ -40,7 +40,7 @@ export class PgVarcharBuilder<
 	): PgVarchar<MakeColumnConfig<T, TTableName> & { length: T['length'] }> {
 		return new PgVarchar<MakeColumnConfig<T, TTableName> & { length: T['length'] }>(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }

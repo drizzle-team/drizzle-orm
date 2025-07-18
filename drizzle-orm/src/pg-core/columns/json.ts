@@ -1,4 +1,4 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyPgTable } from '~/pg-core/table.ts';
@@ -26,7 +26,7 @@ export class PgJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'PgJson'>> 
 	override build<TTableName extends string>(
 		table: AnyPgTable<{ name: TTableName }>,
 	): PgJson<MakeColumnConfig<T, TTableName>> {
-		return new PgJson<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+		return new PgJson<MakeColumnConfig<T, TTableName>>(table, this.config as any);
 	}
 }
 

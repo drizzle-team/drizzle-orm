@@ -1,4 +1,4 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
@@ -33,7 +33,7 @@ export class SingleStoreDecimalBuilder<
 	): SingleStoreDecimal<MakeColumnConfig<T, TTableName>> {
 		return new SingleStoreDecimal<MakeColumnConfig<T, TTableName>>(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
@@ -96,7 +96,7 @@ export class SingleStoreDecimalNumberBuilder<
 	): SingleStoreDecimalNumber<MakeColumnConfig<T, TTableName>> {
 		return new SingleStoreDecimalNumber<MakeColumnConfig<T, TTableName>>(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
@@ -160,7 +160,7 @@ export class SingleStoreDecimalBigIntBuilder<
 	): SingleStoreDecimalBigInt<MakeColumnConfig<T, TTableName>> {
 		return new SingleStoreDecimalBigInt<MakeColumnConfig<T, TTableName>>(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }

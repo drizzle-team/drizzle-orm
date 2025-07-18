@@ -112,7 +112,7 @@ export abstract class SQLiteColumn<
 
 	constructor(
 		table: SQLiteTable,
-		config: ColumnBuilderRuntimeConfig<T['data'], TRuntimeConfig>,
+		config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig,
 	) {
 		if (!config.uniqueName) {
 			config.uniqueName = uniqueKeyName(table, [config.name]);

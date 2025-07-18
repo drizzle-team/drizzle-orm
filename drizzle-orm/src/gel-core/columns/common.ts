@@ -144,7 +144,7 @@ export abstract class GelColumn<
 
 	constructor(
 		table: GelTable,
-		config: ColumnBuilderRuntimeConfig<T['data'], TRuntimeConfig>,
+		config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig,
 	) {
 		if (!config.uniqueName) {
 			config.uniqueName = uniqueKeyName(table, [config.name]);
@@ -303,7 +303,7 @@ export class GelArrayBuilder<
 		const baseColumn = this.config.baseBuilder.build(table);
 		return new GelArray<MakeColumnConfig<T, TTableName> & { size: T['size']; baseBuilder: T['baseBuilder'] }, TBase>(
 			table as AnyGelTable<{ name: MakeColumnConfig<T, TTableName>['tableName'] }>,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 			baseColumn,
 		);
 	}
