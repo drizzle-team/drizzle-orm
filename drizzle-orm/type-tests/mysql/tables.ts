@@ -555,7 +555,7 @@ Expect<
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
 			},
-			Simplify<BuildColumn<'table', (typeof t)["_"] & (typeof t)["typeConfig"], 'mysql', "name">['_']>
+			Simplify<BuildColumn<'table', typeof t, 'mysql', "name">['_']>
 		>
 	>;
 }

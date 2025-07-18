@@ -70,7 +70,7 @@ export type MakeColumnConfig<
 	isAutoincrement: T extends { isAutoincrement: true } ? true : false;
 	hasRuntimeDefault: T extends { hasRuntimeDefault: true } ? true : false;
 	enumValues: T['enumValues'];
-	baseColumn: T extends { baseBuilder: infer U extends ColumnBuilderBase } ? BuildColumn<TTableName, U["_"]&U["typeConfig"], 'common', T['name'] extends ""?TKey:T["name"]>
+	baseColumn: T extends { baseBuilder: infer U extends ColumnBuilderBase } ? BuildColumn<TTableName, U, 'common', T['name'] extends ""?TKey:T["name"]>
 		: never;
 	identity: T extends { identity: 'always' } ? 'always' : T extends { identity: 'byDefault' } ? 'byDefault' : undefined;
 	generated: T extends { generated: infer G } ? unknown extends G ? undefined
@@ -300,21 +300,22 @@ export abstract class ColumnBuilder<
 
 export type BuildColumn<
 	TTableName extends string,
-	TBuilder extends ColumnBuilderBaseConfig<ColumnDataType, string>,
+	TBuilder extends ColumnBuilderBase,
 	TDialect extends Dialect,
 	TKey extends string,
-	TMakedConfig extends ColumnBaseConfig<ColumnDataType, string> = MakeColumnConfig<TBuilder, TTableName, TKey>
+	TConfig extends ColumnBuilderBaseConfig<ColumnDataType, string>= TBuilder["_"] & TBuilder["typeConfig"],
+	TMakedConfig extends ColumnBaseConfig<ColumnDataType, string> = MakeColumnConfig<TConfig, TTableName, TKey>
 > = TDialect extends 'pg' ? PgColumn<
 		TMakedConfig,
 		{},
-		Simplify<Omit<TMakedConfig, keyof TMakedConfig | 'brand' | 'dialect'>>
+		Simplify<Omit<TConfig,  keyof TMakedConfig | 'brand'| 'dialect'>>
 	>
 	: TDialect extends 'mysql' ? MySqlColumn<
 			TMakedConfig,
 			{},
 			Simplify<
 				Omit<
-					TBuilder,
+					TConfig,
 					| keyof TMakedConfig
 					| 'brand'
 					| 'dialect'
@@ -326,19 +327,19 @@ export type BuildColumn<
 	: TDialect extends 'sqlite' ? SQLiteColumn<
 			TMakedConfig,
 			{},
-			Simplify<Omit<TBuilder, keyof TMakedConfig | 'brand' | 'dialect'>>
+			Simplify<Omit<TConfig, keyof TMakedConfig | 'brand' | 'dialect'>>
 		>
 	: TDialect extends 'common' ? Column<
 			TMakedConfig,
 			{},
-			Simplify<Omit<TBuilder, keyof TMakedConfig | 'brand' | 'dialect'>>
+			Simplify<Omit<TConfig, keyof TMakedConfig | 'brand' | 'dialect'>>
 		>
 	: TDialect extends 'singlestore' ? SingleStoreColumn<
 			TMakedConfig,
 			{},
 			Simplify<
 				Omit<
-					TBuilder,
+					TConfig,
 					| keyof TMakedConfig
 					| 'brand'
 					| 'dialect'
@@ -350,7 +351,7 @@ export type BuildColumn<
 	: TDialect extends 'gel' ? GelColumn<
 			TMakedConfig,
 			{},
-			Simplify<Omit<TBuilder, keyof TMakedConfig | 'brand' | 'dialect'>>
+			Simplify<Omit<TConfig, keyof TMakedConfig | 'brand' | 'dialect'>>
 		>
 	: never;
 
@@ -384,7 +385,7 @@ export type BuildColumns<
 	& {
 		[Key in keyof TConfigMap]: BuildColumn<
 			TTableName,
-			TConfigMap[Key]["_"] & TConfigMap[Key]["typeConfig"],
+			TConfigMap[Key],
 			TDialect,
 			Key & string
 		>;
