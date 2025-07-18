@@ -29,9 +29,6 @@ export class SingleStoreCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'c
 		{
 			fieldConfig: CustomTypeValues['config'];
 			customTypeParams: CustomTypeParams<any>;
-		},
-		{
-			singlestoreColumnBuilderBrand: 'SingleStoreCustomColumnBuilderBrand';
 		}
 	>
 {

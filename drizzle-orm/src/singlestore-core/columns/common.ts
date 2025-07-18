@@ -24,9 +24,8 @@ export abstract class SingleStoreColumnBuilder<
 		data: any;
 	},
 	TRuntimeConfig extends object = object,
-	TTypeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
-> extends ColumnBuilder<T, TRuntimeConfig, TTypeConfig & { dialect: 'singlestore' }, TExtraConfig> {
+> extends ColumnBuilder<T, TRuntimeConfig, TExtraConfig> {
 	static override readonly [entityKind]: string = 'SingleStoreColumnBuilder';
 
 	unique(name?: string): this {

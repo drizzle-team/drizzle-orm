@@ -31,9 +31,8 @@ export interface SQLiteGeneratedColumnConfig {
 export abstract class SQLiteColumnBuilder<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = object,
-	TTypeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = object,
-> extends ColumnBuilder<T, TRuntimeConfig, TTypeConfig & { dialect: 'sqlite' }, TExtraConfig> {
+> extends ColumnBuilder<T, TRuntimeConfig, TExtraConfig> {
 	static override readonly [entityKind]: string = 'SQLiteColumnBuilder';
 
 	private foreignKeyConfigs: ReferenceConfig[] = [];

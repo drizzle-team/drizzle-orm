@@ -23,8 +23,7 @@ export class MySqlCharBuilder<
 	T extends ColumnBuilderBaseConfig<'string', 'MySqlChar'> & { length?: number | undefined },
 > extends MySqlColumnBuilder<
 	T,
-	MySqlCharConfig<T['enumValues'], T['length']>,
-	{ length: T['length'] }
+	MySqlCharConfig<T['enumValues'], T['length']>
 > {
 	static override readonly [entityKind]: string = 'MySqlCharBuilder';
 

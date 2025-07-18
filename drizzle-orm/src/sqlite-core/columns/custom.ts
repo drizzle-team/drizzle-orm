@@ -28,9 +28,6 @@ export class SQLiteCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom
 		{
 			fieldConfig: CustomTypeValues['config'];
 			customTypeParams: CustomTypeParams<any>;
-		},
-		{
-			sqliteColumnBuilderBrand: 'SQLiteCustomColumnBuilderBrand';
 		}
 	>
 {

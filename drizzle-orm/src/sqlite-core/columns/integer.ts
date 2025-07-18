@@ -24,7 +24,6 @@ export abstract class SQLiteBaseIntegerBuilder<
 > extends SQLiteColumnBuilder<
 	T,
 	TRuntimeConfig & { autoIncrement: boolean },
-	{},
 	{ primaryKeyHasDefault: true }
 > {
 	static override readonly [entityKind]: string = 'SQLiteBaseIntegerBuilder';

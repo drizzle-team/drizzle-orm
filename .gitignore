@@ -13,6 +13,7 @@ rollup.config-*.mjs
 *.log
 .DS_Store
 drizzle-seed/src/dev
+drizzle-orm/tmp
 typeperf-test/tmp.tsconfig.json
 typeperf-test/trace
 typeperf-test/lib/big-schema.ts

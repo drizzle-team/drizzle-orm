@@ -28,9 +28,6 @@ export class GelCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom', 
 		{
 			fieldConfig: CustomTypeValues['config'];
 			customTypeParams: CustomTypeParams<any>;
-		},
-		{
-			gelColumnBuilderBrand: 'GelCustomColumnBuilderBrand';
 		}
 	>
 {

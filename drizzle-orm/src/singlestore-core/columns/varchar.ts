@@ -24,7 +24,7 @@ export type SingleStoreVarCharBuilderInitial<
 
 export class SingleStoreVarCharBuilder<
 	T extends ColumnBuilderBaseConfig<'string', 'SingleStoreVarChar'> & { length?: number | undefined },
-> extends SingleStoreColumnBuilder<T, SingleStoreVarCharConfig<T['enumValues'], T['length']>, { length: T['length'] }> {
+> extends SingleStoreColumnBuilder<T, SingleStoreVarCharConfig<T['enumValues'], T['length']>> {
 	static override readonly [entityKind]: string = 'SingleStoreVarCharBuilder';
 
 	/** @internal */
