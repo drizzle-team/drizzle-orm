@@ -100,53 +100,50 @@ export interface ColumnBuilderExtraConfig {
 	primaryKeyHasDefault?: boolean;
 }
 
-export type NotNull<T extends ColumnBuilderBase> = T & {
+export type NotNull<T> = T & {
 	_: {
 		notNull: true;
 	};	
 };
 
-export type HasDefault<T extends ColumnBuilderBase> = T & {
+export type HasDefault<T> = T & {
 	_: {
 		hasDefault: true;
 	};	
 };
 
-export type IsPrimaryKey<T extends ColumnBuilderBase> = T & {
+export type IsPrimaryKey<T> = T & {
 	_: {
 		isPrimaryKey: true;
 	};
 };
 
-export type IsAutoincrement<T extends ColumnBuilderBase> = T & {
+export type IsAutoincrement<T> = T & {
 	_: {
 		isAutoincrement: true;
 	};	
 };
 
-export type HasRuntimeDefault<T extends ColumnBuilderBase> = T & {
+export type HasRuntimeDefault<T> = T & {
 	_: {
 		hasRuntimeDefault: true;
 	};	
 };
 
-export type $Type<T extends ColumnBuilderBase, TType> = T & {
+export type $Type<T, TType> = T & {
 	_: {
 		$type: TType;
 	};	
 };
 
-export type HasGenerated<T extends ColumnBuilderBase, TGenerated extends {} = {}> = T & {
+export type HasGenerated<T, TGenerated> = T & {
 	_: {
 		hasDefault: true;
 		generated: TGenerated;
 	};	
 };
 
-export type IsIdentity<
-	T extends ColumnBuilderBase,
-	TType extends 'always' | 'byDefault',
-> = T & {
+export type IsIdentity<T,TType extends 'always' | 'byDefault',> = T & {
 	_: {
 		notNull: true;
 		hasDefault: true;
@@ -157,19 +154,22 @@ export type IsIdentity<
 export interface ColumnBuilderBase<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
 > {
+	// TODO: @Sukairo-02, it is now accessed only in that file
 	_: T;
 }
 
 // To understand how to use `ColumnBuilder` and `AnyColumnBuilder`, see `Column` and `AnyColumn` documentation.
 export abstract class ColumnBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
+	T extends ColumnBuilderBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
 > implements ColumnBuilderBase<T> {
 	static readonly [entityKind]: string = 'ColumnBuilder';
 
+	// TODO: @Sukairo-02, it is now accessed only in that file
 	declare _: T;
 
+	/** @internal */
 	protected config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig;
 
 	constructor(name: T['name'], dataType: T['dataType'], columnType: T['columnType']) {
@@ -186,7 +186,7 @@ export abstract class ColumnBuilder<
 			dataType,
 			columnType,
 			generated: undefined,
-		} as ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig;
+		} as ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig; // TODO: ??
 	}
 
 	/**
@@ -294,45 +294,18 @@ export abstract class ColumnBuilder<
 	}
 }
 
-// const column = text({enum: ["one", "two"]}).default('one').notNull();
-// type expected = {
-//   	
-// }
-
-// type a = Simplify<BuildColumn<"users", (typeof column), "pg", "char">["_"]>
-
-
 export type BuildColumn<
 	TTableName extends string,
 	TBuilder extends ColumnBuilderBase,
 	TDialect extends Dialect,
 	TKey extends string,
-	TConfig extends ColumnBuilderBaseConfig<ColumnDataType, string> = TBuilder["_"], 	
-	TMakedConfig extends ColumnBaseConfig<ColumnDataType, string> = MakeColumnConfig<TConfig, TTableName, TKey>,
-> = TDialect extends 'pg' ? PgColumn<
-		TMakedConfig,
-		{}
-	>
-	: TDialect extends 'mysql' ? MySqlColumn<
-			TMakedConfig,
-			{}
-		>
-	: TDialect extends 'sqlite' ? SQLiteColumn<
-			TMakedConfig,
-			{}
-		>
-	: TDialect extends 'common' ? Column<
-			TMakedConfig,
-			{}
-		>
-	: TDialect extends 'singlestore' ? SingleStoreColumn<
-			TMakedConfig,
-			{}
-		>
-	: TDialect extends 'gel' ? GelColumn<
-			TMakedConfig,
-			{}
-		>
+	TMakedConfig extends ColumnBaseConfig<ColumnDataType, string> = MakeColumnConfig<TBuilder["_"], TTableName, TKey>,
+> = TDialect extends 'pg' ? PgColumn<TMakedConfig,{}>
+	: TDialect extends 'mysql' ? MySqlColumn<TMakedConfig,{}>
+	: TDialect extends 'sqlite' ? SQLiteColumn<TMakedConfig,{}>
+	: TDialect extends 'common' ? Column<TMakedConfig,{}>
+	: TDialect extends 'singlestore' ? SingleStoreColumn<TMakedConfig,{}>
+	: TDialect extends 'gel' ? GelColumn<TMakedConfig,{}>
 	: never;
 
 export type BuildIndexColumn<

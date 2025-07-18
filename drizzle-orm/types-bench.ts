@@ -7,7 +7,7 @@ setup({
   skipTypes: true,
 });
 
-bench("test", () => {
+bench("relations", () => {
   defineRelations(schema, (r) => ({
     user: {
       workspacesViaApiWebhook: r.many.workspace({
@@ -1023,5 +1023,5 @@ bench("test", () => {
       }),
     },
   }));
-}).types([138174, "instantiations"]);
+}).types([137642, "instantiations"]);
 // .mark({ mean: [3.44, "ns"], median: [3.33, "ns"] })
