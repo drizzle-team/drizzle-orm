@@ -75,7 +75,6 @@ export class PgDatabase<
 		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 	) {
 		const rel = relations ?? {} as EmptyRelations;
-
 		this._ = schema
 			? {
 				schema: schema.schema,
@@ -119,7 +118,7 @@ export class PgDatabase<
 					relations.tables,
 					relations.tablesConfig,
 					relations.tableNamesMap,
-					relation.table as PgTable,
+					relations.tables[relation.tsName] as PgTable,
 					relation,
 					dialect,
 					session,
