@@ -69,6 +69,7 @@ export abstract class Column<
 	readonly generated: GeneratedColumnConfig<T['data']> | undefined = undefined;
 	readonly generatedIdentity: GeneratedIdentityConfig | undefined = undefined;
 
+	/** @internal */
 	protected config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig;
 
 	/** @internal */

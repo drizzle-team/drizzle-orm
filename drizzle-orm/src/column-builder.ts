@@ -105,55 +105,36 @@ export type NotNull<T extends ColumnBuilderBase> = T & {
 	_: {
 		notNull: true;
 	};	
-	// typeConfig: {
-	// 	notNull: true;
-	// };
-
 };
 
 export type HasDefault<T extends ColumnBuilderBase> = T & {
 	_: {
 		hasDefault: true;
 	};	
-	// typeConfig: {
-	// 	hasDefault: true;
-	// };
 };
 
 export type IsPrimaryKey<T extends ColumnBuilderBase> = T & {
 	_: {
 		isPrimaryKey: true;
 	};
-	// typeConfig: {
-	// 	isPrimaryKey: true;
-	// };
 };
 
 export type IsAutoincrement<T extends ColumnBuilderBase> = T & {
 	_: {
 		isAutoincrement: true;
 	};	
-	// typeConfig: {
-	// 	isAutoincrement: true;
-	// };
 };
 
 export type HasRuntimeDefault<T extends ColumnBuilderBase> = T & {
 	_: {
 		hasRuntimeDefault: true;
 	};	
-	// typeConfig: {
-	// 	hasRuntimeDefault: true;
-	// };
 };
 
 export type $Type<T extends ColumnBuilderBase, TType> = T & {
 	_: {
 		$type: TType;
 	};	
-	// typeConfig: {
-	// 	$type: TType;
-	// };
 };
 
 export type HasGenerated<T extends ColumnBuilderBase, TGenerated extends {} = {}> = T & {
@@ -161,10 +142,6 @@ export type HasGenerated<T extends ColumnBuilderBase, TGenerated extends {} = {}
 		hasDefault: true;
 		generated: TGenerated;
 	};	
-	// typeConfig: {
-	// 	hasDefault: true;
-	// 	generated: TGenerated;
-	// };
 };
 
 export type IsIdentity<
@@ -176,18 +153,12 @@ export type IsIdentity<
 		hasDefault: true;
 		identity: TType;
 	};	
-	// typeConfig: {
-	// 	notNull: true;
-	// 	hasDefault: true;
-	// 	identity: TType;
-	// };
 };
+
 export interface ColumnBuilderBase<
 	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
-	TTypeConfig extends object = object,
 > {
 	_: T;
-	typeConfig: TTypeConfig
 }
 
 // To understand how to use `ColumnBuilder` and `AnyColumnBuilder`, see `Column` and `AnyColumn` documentation.
@@ -196,7 +167,7 @@ export abstract class ColumnBuilder<
 	TRuntimeConfig extends object = object,
 	TTypeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
-> implements ColumnBuilderBase<T, TTypeConfig> {
+> implements ColumnBuilderBase<T> {
 	static readonly [entityKind]: string = 'ColumnBuilder';
 
 	declare _: T;
@@ -326,6 +297,14 @@ export abstract class ColumnBuilder<
 	}
 }
 
+// const column = text({enum: ["one", "two"]}).default('one').notNull();
+// type expected = {
+//   	
+// }
+
+// type a = Simplify<BuildColumn<"users", (typeof column), "pg", "char">["_"]>
+
+
 export type BuildColumn<
 	TTableName extends string,
 	TBuilder extends ColumnBuilderBase,
@@ -333,12 +312,9 @@ export type BuildColumn<
 	TKey extends string,
 	TConfig extends ColumnBuilderBaseConfig<ColumnDataType, string> = TBuilder["_"], 	
 	TMakedConfig extends ColumnBaseConfig<ColumnDataType, string> = MakeColumnConfig<TConfig, TTableName, TKey>,
-	/* last piece */
-	TTypeConfig extends {} = Omit<TConfig,  keyof TMakedConfig | 'brand'| 'dialect'>,
 > = TDialect extends 'pg' ? PgColumn<
 		TMakedConfig,
-		{},
-		TTypeConfig
+		{}
 	>
 	: TDialect extends 'mysql' ? MySqlColumn<
 			TMakedConfig,

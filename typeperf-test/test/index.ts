@@ -7,9 +7,9 @@ const tsVer = (['latest', 'next'].includes(process.argv[3] ?? '') ? process.argv
 const beta: Record<string, string> = {};
 const current: Record<string, string> = {};
 
-for (const { data, name } of bench(folder, 'beta', tsVer)) {
-	beta[name.split('-').map((e) => capitalize(e)).join(' ')] = `${data.instantiations}`;
-}
+// for (const { data, name } of bench(folder, 'beta', tsVer)) {
+// 	beta[name.split('-').map((e) => capitalize(e)).join(' ')] = `${data.instantiations}`;
+// }
 
 for (const { data, name } of bench(folder, 'current', tsVer)) {
 	current[name.split('-').map((e) => capitalize(e)).join(' ')] = `${data.instantiations}`;

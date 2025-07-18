@@ -38,7 +38,7 @@ export class PgBinaryVectorBuilder<
 }
 
 export class PgBinaryVector<T extends ColumnBaseConfig<'string', 'PgBinaryVector'> & { dimensions: number }>
-	extends PgColumn<T, { dimensions: T['dimensions'] }, { dimensions: T['dimensions'] }>
+	extends PgColumn<T, { dimensions: T['dimensions'] }>
 {
 	static override readonly [entityKind]: string = 'PgBinaryVector';
 

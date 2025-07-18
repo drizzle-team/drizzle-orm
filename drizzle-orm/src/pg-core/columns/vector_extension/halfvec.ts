@@ -39,7 +39,7 @@ export class PgHalfVectorBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgH
 }
 
 export class PgHalfVector<T extends ColumnBaseConfig<'array', 'PgHalfVector'> & { dimensions: number }>
-	extends PgColumn<T, { dimensions: T['dimensions'] }, { dimensions: T['dimensions'] }>
+	extends PgColumn<T, { dimensions: T['dimensions'] }>
 {
 	static override readonly [entityKind]: string = 'PgHalfVector';
 
