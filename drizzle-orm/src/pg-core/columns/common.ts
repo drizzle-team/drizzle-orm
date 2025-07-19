@@ -14,7 +14,7 @@ import { ForeignKeyBuilder } from '~/pg-core/foreign-keys.ts';
 import type { AnyPgTable, PgTable } from '~/pg-core/table.ts';
 import type { SQL } from '~/sql/sql.ts';
 import { iife } from '~/tracing-utils.ts';
-import type { Simplify, Update } from '~/utils.ts';
+import type { Update } from '~/utils.ts';
 import type { PgIndexOpClass } from '../indexes.ts';
 import { uniqueKeyName } from '../unique-constraint.ts';
 import { makePgArray, parsePgArray } from '../utils/array.ts';
