@@ -14,7 +14,7 @@ export type MySqlBinaryBuilderInitial<TName extends string> = MySqlBinaryBuilder
 	enumValues: undefined;
 }>;
 
-export class MySqlBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlBinary'>> extends MySqlColumnBuilder<
+export class MySqlBinaryBuilder<T extends ColumnBuilderBaseConfig<'string'>> extends MySqlColumnBuilder<
 	T,
 	MySqlBinaryConfig
 > {
@@ -31,7 +31,7 @@ export class MySqlBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', 'MyS
 	}
 }
 
-export class MySqlBinary<T extends ColumnBaseConfig<'string', 'MySqlBinary'>> extends MySqlColumn<
+export class MySqlBinary<T extends ColumnBaseConfig<'string'>> extends MySqlColumn<
 	T,
 	MySqlBinaryConfig
 > {

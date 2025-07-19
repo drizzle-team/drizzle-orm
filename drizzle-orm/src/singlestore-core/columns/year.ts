@@ -14,7 +14,7 @@ export type SingleStoreYearBuilderInitial<TName extends string> = SingleStoreYea
 	generated: undefined;
 }>;
 
-export class SingleStoreYearBuilder<T extends ColumnBuilderBaseConfig<'number', 'SingleStoreYear'>>
+export class SingleStoreYearBuilder<T extends ColumnBuilderBaseConfig<'number'>>
 	extends SingleStoreColumnBuilder<T>
 {
 	static override readonly [entityKind]: string = 'SingleStoreYearBuilder';
@@ -33,7 +33,7 @@ export class SingleStoreYearBuilder<T extends ColumnBuilderBaseConfig<'number', 
 }
 
 export class SingleStoreYear<
-	T extends ColumnBaseConfig<'number', 'SingleStoreYear'>,
+	T extends ColumnBaseConfig<'number'>,
 > extends SingleStoreColumn<T> {
 	static override readonly [entityKind]: string = 'SingleStoreYear';
 

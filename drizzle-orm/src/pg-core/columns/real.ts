@@ -13,7 +13,7 @@ export type PgRealBuilderInitial<TName extends string> = PgRealBuilder<{
 	enumValues: undefined;
 }>;
 
-export class PgRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgReal'>> extends PgColumnBuilder<
+export class PgRealBuilder<T extends ColumnBuilderBaseConfig<'number'>> extends PgColumnBuilder<
 	T,
 	{ length: number | undefined }
 > {
@@ -30,7 +30,7 @@ export class PgRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgReal'>
 	}
 }
 
-export class PgReal<T extends ColumnBaseConfig<'number', 'PgReal'>> extends PgColumn<T> {
+export class PgReal<T extends ColumnBaseConfig<'number'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgReal';
 
 	constructor(table: AnyPgTable<{ name: T['tableName'] }>, config: PgRealBuilder<T>['config']) {

@@ -22,7 +22,7 @@ export interface GelCustomColumnInnerConfig {
 	customTypeValues: CustomTypeValues;
 }
 
-export class GelCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom', 'GelCustomColumn'>>
+export class GelCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom'>>
 	extends GelColumnBuilder<
 		T,
 		{
@@ -52,7 +52,7 @@ export class GelCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom', 
 	}
 }
 
-export class GelCustomColumn<T extends ColumnBaseConfig<'custom', 'GelCustomColumn'>> extends GelColumn<T> {
+export class GelCustomColumn<T extends ColumnBaseConfig<'custom'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelCustomColumn';
 
 	private sqlName: string;

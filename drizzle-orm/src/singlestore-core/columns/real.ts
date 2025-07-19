@@ -15,7 +15,7 @@ export type SingleStoreRealBuilderInitial<TName extends string> = SingleStoreRea
 	generated: undefined;
 }>;
 
-export class SingleStoreRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'SingleStoreReal'>>
+export class SingleStoreRealBuilder<T extends ColumnBuilderBaseConfig<'number'>>
 	extends SingleStoreColumnBuilderWithAutoIncrement<
 		T,
 		SingleStoreRealConfig
@@ -38,7 +38,7 @@ export class SingleStoreRealBuilder<T extends ColumnBuilderBaseConfig<'number', 
 	}
 }
 
-export class SingleStoreReal<T extends ColumnBaseConfig<'number', 'SingleStoreReal'>>
+export class SingleStoreReal<T extends ColumnBaseConfig<'number'>>
 	extends SingleStoreColumnWithAutoIncrement<
 		T,
 		SingleStoreRealConfig

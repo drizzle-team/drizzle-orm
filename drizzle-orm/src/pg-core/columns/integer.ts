@@ -14,7 +14,7 @@ export type PgIntegerBuilderInitial<TName extends string> = PgIntegerBuilder<{
 	enumValues: undefined;
 }>;
 
-export class PgIntegerBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgInteger'>>
+export class PgIntegerBuilder<T extends ColumnBuilderBaseConfig<'number'>>
 	extends PgIntColumnBaseBuilder<T>
 {
 	static override readonly [entityKind]: string = 'PgIntegerBuilder';
@@ -29,7 +29,7 @@ export class PgIntegerBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgInt
 	}
 }
 
-export class PgInteger<T extends ColumnBaseConfig<'number', 'PgInteger'>> extends PgColumn<T> {
+export class PgInteger<T extends ColumnBaseConfig<'number'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgInteger';
 
 	getSQLType(): string {

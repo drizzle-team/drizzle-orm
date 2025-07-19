@@ -18,7 +18,7 @@ export type SingleStoreTextBuilderInitial<TName extends string, TEnum extends [s
 		generated: undefined;
 	}>;
 
-export class SingleStoreTextBuilder<T extends ColumnBuilderBaseConfig<'string', 'SingleStoreText'>>
+export class SingleStoreTextBuilder<T extends ColumnBuilderBaseConfig<'string'>>
 	extends SingleStoreColumnBuilder<
 		T,
 		{ textType: SingleStoreTextColumnType; enumValues: T['enumValues'] }
@@ -41,7 +41,7 @@ export class SingleStoreTextBuilder<T extends ColumnBuilderBaseConfig<'string', 
 	}
 }
 
-export class SingleStoreText<T extends ColumnBaseConfig<'string', 'SingleStoreText'>>
+export class SingleStoreText<T extends ColumnBaseConfig<'string'>>
 	extends SingleStoreColumn<T, { textType: SingleStoreTextColumnType; enumValues: T['enumValues'] }>
 {
 	static override readonly [entityKind]: string = 'SingleStoreText';

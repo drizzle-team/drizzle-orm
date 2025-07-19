@@ -20,7 +20,7 @@ export type MySqlCharBuilderInitial<
 }>;
 
 export class MySqlCharBuilder<
-	T extends ColumnBuilderBaseConfig<'string', 'MySqlChar'> & { length?: number | undefined },
+	T extends ColumnBuilderBaseConfig<'string'> & { length?: number | undefined },
 > extends MySqlColumnBuilder<
 	T,
 	MySqlCharConfig<T['enumValues'], T['length']>
@@ -42,7 +42,7 @@ export class MySqlCharBuilder<
 	}
 }
 
-export class MySqlChar<T extends ColumnBaseConfig<'string', 'MySqlChar'> & { length?: number | undefined }>
+export class MySqlChar<T extends ColumnBaseConfig<'string'> & { length?: number | undefined }>
 	extends MySqlColumn<T, MySqlCharConfig<T['enumValues'], T['length']>>
 {
 	static override readonly [entityKind]: string = 'MySqlChar';

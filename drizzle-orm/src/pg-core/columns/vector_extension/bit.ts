@@ -16,7 +16,7 @@ export type PgBinaryVectorBuilderInitial<TName extends string, TDimensions exten
 }>;
 
 export class PgBinaryVectorBuilder<
-	T extends ColumnBuilderBaseConfig<'string', 'PgBinaryVector'> & { dimensions: number },
+	T extends ColumnBuilderBaseConfig<'string'> & { dimensions: number },
 > extends PgColumnBuilder<
 	T,
 	{ dimensions: T['dimensions'] }
@@ -37,7 +37,7 @@ export class PgBinaryVectorBuilder<
 	}
 }
 
-export class PgBinaryVector<T extends ColumnBaseConfig<'string', 'PgBinaryVector'> & { dimensions: number }>
+export class PgBinaryVector<T extends ColumnBaseConfig<'string'> & { dimensions: number }>
 	extends PgColumn<T, { dimensions: T['dimensions'] }>
 {
 	static override readonly [entityKind]: string = 'PgBinaryVector';

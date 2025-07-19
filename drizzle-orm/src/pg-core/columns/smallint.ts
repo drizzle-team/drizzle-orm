@@ -14,7 +14,7 @@ export type PgSmallIntBuilderInitial<TName extends string> = PgSmallIntBuilder<{
 	enumValues: undefined;
 }>;
 
-export class PgSmallIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgSmallInt'>>
+export class PgSmallIntBuilder<T extends ColumnBuilderBaseConfig<'number'>>
 	extends PgIntColumnBaseBuilder<T>
 {
 	static override readonly [entityKind]: string = 'PgSmallIntBuilder';
@@ -29,7 +29,7 @@ export class PgSmallIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgSm
 	}
 }
 
-export class PgSmallInt<T extends ColumnBaseConfig<'number', 'PgSmallInt'>> extends PgColumn<T> {
+export class PgSmallInt<T extends ColumnBaseConfig<'number'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgSmallInt';
 
 	getSQLType(): string {

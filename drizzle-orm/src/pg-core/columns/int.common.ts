@@ -4,7 +4,7 @@ import type { PgSequenceOptions } from '../sequence.ts';
 import { PgColumnBuilder } from './common.ts';
 
 export abstract class PgIntColumnBaseBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string>,
+	T extends ColumnBuilderBaseConfig<ColumnDataType>,
 > extends PgColumnBuilder<
 	T,
 	{ generatedIdentity: GeneratedIdentityConfig }

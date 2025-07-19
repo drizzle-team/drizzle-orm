@@ -15,7 +15,7 @@ export type MySqlMediumIntBuilderInitial<TName extends string> = MySqlMediumIntB
 	enumValues: undefined;
 }>;
 
-export class MySqlMediumIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlMediumInt'>>
+export class MySqlMediumIntBuilder<T extends ColumnBuilderBaseConfig<'number'>>
 	extends MySqlColumnBuilderWithAutoIncrement<T, MySqlIntConfig>
 {
 	static override readonly [entityKind]: string = 'MySqlMediumIntBuilder';
@@ -34,7 +34,7 @@ export class MySqlMediumIntBuilder<T extends ColumnBuilderBaseConfig<'number', '
 	}
 }
 
-export class MySqlMediumInt<T extends ColumnBaseConfig<'number', 'MySqlMediumInt'>>
+export class MySqlMediumInt<T extends ColumnBaseConfig<'number'>>
 	extends MySqlColumnWithAutoIncrement<T, MySqlIntConfig>
 {
 	static override readonly [entityKind]: string = 'MySqlMediumInt';

@@ -15,7 +15,7 @@ export type SingleStoreIntBuilderInitial<TName extends string> = SingleStoreIntB
 	generated: undefined;
 }>;
 
-export class SingleStoreIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'SingleStoreInt'>>
+export class SingleStoreIntBuilder<T extends ColumnBuilderBaseConfig<'number'>>
 	extends SingleStoreColumnBuilderWithAutoIncrement<T, SingleStoreIntConfig>
 {
 	static override readonly [entityKind]: string = 'SingleStoreIntBuilder';
@@ -34,7 +34,7 @@ export class SingleStoreIntBuilder<T extends ColumnBuilderBaseConfig<'number', '
 	}
 }
 
-export class SingleStoreInt<T extends ColumnBaseConfig<'number', 'SingleStoreInt'>>
+export class SingleStoreInt<T extends ColumnBaseConfig<'number'>>
 	extends SingleStoreColumnWithAutoIncrement<T, SingleStoreIntConfig>
 {
 	static override readonly [entityKind]: string = 'SingleStoreInt';

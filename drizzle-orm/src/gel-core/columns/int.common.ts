@@ -4,7 +4,7 @@ import type { GelSequenceOptions } from '../sequence.ts';
 import { GelColumnBuilder } from './common.ts';
 
 export abstract class GelIntColumnBaseBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string>,
+	T extends ColumnBuilderBaseConfig<ColumnDataType>,
 > extends GelColumnBuilder<
 	T,
 	{ generatedIdentity: GeneratedIdentityConfig }

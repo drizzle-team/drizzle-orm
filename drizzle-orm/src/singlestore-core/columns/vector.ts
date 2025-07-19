@@ -16,7 +16,7 @@ export type SingleStoreVectorBuilderInitial<TName extends string> = SingleStoreV
 	enumValues: undefined;
 }>;
 
-export class SingleStoreVectorBuilder<T extends ColumnBuilderBaseConfig<'array', 'SingleStoreVector'>>
+export class SingleStoreVectorBuilder<T extends ColumnBuilderBaseConfig<'array'>>
 	extends SingleStoreColumnBuilder<T, SingleStoreVectorConfig>
 {
 	static override readonly [entityKind]: string = 'SingleStoreVectorBuilder';
@@ -41,7 +41,7 @@ export class SingleStoreVectorBuilder<T extends ColumnBuilderBaseConfig<'array',
 	}
 }
 
-export class SingleStoreVector<T extends ColumnBaseConfig<'array', 'SingleStoreVector'>>
+export class SingleStoreVector<T extends ColumnBaseConfig<'array'>>
 	extends SingleStoreColumn<T, SingleStoreVectorConfig>
 {
 	static override readonly [entityKind]: string = 'SingleStoreVector';

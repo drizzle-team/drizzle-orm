@@ -13,7 +13,6 @@ import { gelTable, integer } from '~/gel-core/index.ts';
 					name: 'a';
 					tableName: 'table';
 					dataType: 'number';
-					columnType: 'GelInteger';
 					data: number;
 					driverParam: number;
 					notNull: false;

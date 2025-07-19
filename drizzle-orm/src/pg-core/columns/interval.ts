@@ -15,7 +15,7 @@ export type PgIntervalBuilderInitial<TName extends string> = PgIntervalBuilder<{
 	enumValues: undefined;
 }>;
 
-export class PgIntervalBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgInterval'>>
+export class PgIntervalBuilder<T extends ColumnBuilderBaseConfig<'string'>>
 	extends PgColumnBuilder<T, { intervalConfig: IntervalConfig }>
 {
 	static override readonly [entityKind]: string = 'PgIntervalBuilder';
@@ -34,7 +34,7 @@ export class PgIntervalBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgIn
 	}
 }
 
-export class PgInterval<T extends ColumnBaseConfig<'string', 'PgInterval'>>
+export class PgInterval<T extends ColumnBaseConfig<'string'>>
 	extends PgColumn<T, { intervalConfig: IntervalConfig }>
 {
 	static override readonly [entityKind]: string = 'PgInterval';

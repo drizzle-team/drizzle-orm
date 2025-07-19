@@ -13,7 +13,7 @@ export type GelDecimalBuilderInitial<TName extends string> = GelDecimalBuilder<{
 	enumValues: undefined;
 }>;
 
-export class GelDecimalBuilder<T extends ColumnBuilderBaseConfig<'string', 'GelDecimal'>> extends GelColumnBuilder<
+export class GelDecimalBuilder<T extends ColumnBuilderBaseConfig<'string'>> extends GelColumnBuilder<
 	T
 > {
 	static override readonly [entityKind]: string = 'GelDecimalBuilder';
@@ -28,7 +28,7 @@ export class GelDecimalBuilder<T extends ColumnBuilderBaseConfig<'string', 'GelD
 	}
 }
 
-export class GelDecimal<T extends ColumnBaseConfig<'string', 'GelDecimal'>> extends GelColumn<T> {
+export class GelDecimal<T extends ColumnBaseConfig<'string'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelDecimal';
 
 	constructor(table: AnyGelTable<{ name: T['tableName'] }>, config: GelDecimalBuilder<T>['config']) {

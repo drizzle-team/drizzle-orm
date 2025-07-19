@@ -16,7 +16,7 @@ export type MySqlTextBuilderInitial<TName extends string, TEnum extends [string,
 	enumValues: TEnum;
 }>;
 
-export class MySqlTextBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlText'>> extends MySqlColumnBuilder<
+export class MySqlTextBuilder<T extends ColumnBuilderBaseConfig<'string'>> extends MySqlColumnBuilder<
 	T,
 	{ textType: MySqlTextColumnType; enumValues: T['enumValues'] }
 > {
@@ -34,7 +34,7 @@ export class MySqlTextBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySql
 	}
 }
 
-export class MySqlText<T extends ColumnBaseConfig<'string', 'MySqlText'>>
+export class MySqlText<T extends ColumnBaseConfig<'string'>>
 	extends MySqlColumn<T, { textType: MySqlTextColumnType; enumValues: T['enumValues'] }>
 {
 	static override readonly [entityKind]: string = 'MySqlText';

@@ -16,7 +16,7 @@ export type SingleStoreTinyIntBuilderInitial<TName extends string> = SingleStore
 	generated: undefined;
 }>;
 
-export class SingleStoreTinyIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'SingleStoreTinyInt'>>
+export class SingleStoreTinyIntBuilder<T extends ColumnBuilderBaseConfig<'number'>>
 	extends SingleStoreColumnBuilderWithAutoIncrement<T, SingleStoreIntConfig>
 {
 	static override readonly [entityKind]: string = 'SingleStoreTinyIntBuilder';
@@ -35,7 +35,7 @@ export class SingleStoreTinyIntBuilder<T extends ColumnBuilderBaseConfig<'number
 	}
 }
 
-export class SingleStoreTinyInt<T extends ColumnBaseConfig<'number', 'SingleStoreTinyInt'>>
+export class SingleStoreTinyInt<T extends ColumnBaseConfig<'number'>>
 	extends SingleStoreColumnWithAutoIncrement<T, SingleStoreIntConfig>
 {
 	static override readonly [entityKind]: string = 'SingleStoreTinyInt';

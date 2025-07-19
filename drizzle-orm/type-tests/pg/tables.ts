@@ -222,7 +222,6 @@ Expect<
 				tableName: 'new_yorkers';
 				name: 'id';
 				dataType: 'number';
-				columnType: 'PgSerial';
 				data: number;
 				driverParam: number;
 				notNull: true;
@@ -239,7 +238,6 @@ Expect<
 				tableName: 'new_yorkers';
 				name: 'id';
 				dataType: 'number';
-				columnType: 'PgSerial';
 				data: number;
 				driverParam: number;
 				notNull: false;
@@ -283,7 +281,6 @@ Expect<
 					tableName: 'new_yorkers';
 					name: 'id';
 					dataType: 'number';
-					columnType: 'PgSerial';
 					data: number;
 					driverParam: number;
 					notNull: true;
@@ -300,7 +297,6 @@ Expect<
 					tableName: 'new_yorkers';
 					name: 'id';
 					dataType: 'number';
-					columnType: 'PgSerial';
 					data: number;
 					driverParam: number;
 					notNull: false;
@@ -342,7 +338,6 @@ Expect<
 					tableName: 'new_yorkers';
 					name: 'user_id';
 					dataType: 'number';
-					columnType: 'PgInteger';
 					data: number;
 					driverParam: string | number;
 					hasDefault: false;
@@ -359,7 +354,6 @@ Expect<
 					tableName: 'new_yorkers';
 					name: 'city_id';
 					dataType: 'number';
-					columnType: 'PgInteger';
 					notNull: false;
 					hasDefault: false;
 					data: number;
@@ -401,7 +395,6 @@ Expect<
 					tableName: 'new_yorkers';
 					name: 'user_id';
 					dataType: 'number';
-					columnType: 'PgInteger';
 					data: number;
 					driverParam: string | number;
 					hasDefault: false;
@@ -418,7 +411,6 @@ Expect<
 					tableName: 'new_yorkers';
 					name: 'city_id';
 					dataType: 'number';
-					columnType: 'PgInteger';
 					notNull: false;
 					hasDefault: false;
 					data: number;
@@ -450,7 +442,6 @@ Expect<
 					tableName: 'new_yorkers';
 					name: 'user_id';
 					dataType: 'number';
-					columnType: 'PgInteger';
 					data: number;
 					driverParam: string | number;
 					hasDefault: false;
@@ -467,7 +458,6 @@ Expect<
 					tableName: 'new_yorkers';
 					name: 'city_id';
 					dataType: 'number';
-					columnType: 'PgInteger';
 					notNull: false;
 					hasDefault: false;
 					data: number;
@@ -499,7 +489,6 @@ Expect<
 					tableName: 'new_yorkers';
 					name: 'user_id';
 					dataType: 'number';
-					columnType: 'PgInteger';
 					data: number;
 					driverParam: string | number;
 					hasDefault: false;
@@ -516,7 +505,6 @@ Expect<
 					tableName: 'new_yorkers';
 					name: 'city_id';
 					dataType: 'number';
-					columnType: 'PgInteger';
 					notNull: false;
 					hasDefault: false;
 					data: number;
@@ -563,7 +551,6 @@ Expect<
 				tableName: 'new_yorkers';
 				name: 'id';
 				dataType: 'number';
-				columnType: 'PgSerial';
 				data: number;
 				driverParam: number;
 				notNull: true;
@@ -580,7 +567,6 @@ Expect<
 				tableName: 'new_yorkers';
 				name: 'id';
 				dataType: 'number';
-				columnType: 'PgSerial';
 				data: number;
 				driverParam: number;
 				notNull: false;
@@ -627,7 +613,6 @@ Expect<
 					tableName: 'new_yorkers';
 					name: 'id';
 					dataType: 'number';
-					columnType: 'PgSerial';
 					data: number;
 					driverParam: number;
 					notNull: true;
@@ -644,7 +629,6 @@ Expect<
 					tableName: 'new_yorkers';
 					name: 'id';
 					dataType: 'number';
-					columnType: 'PgSerial';
 					data: number;
 					driverParam: number;
 					notNull: false;
@@ -689,7 +673,6 @@ Expect<
 					tableName: 'new_yorkers';
 					name: 'user_id';
 					dataType: 'number';
-					columnType: 'PgInteger';
 					data: number;
 					driverParam: string | number;
 					hasDefault: false;
@@ -706,7 +689,6 @@ Expect<
 					tableName: 'new_yorkers';
 					name: 'city_id';
 					dataType: 'number';
-					columnType: 'PgInteger';
 					notNull: false;
 					hasDefault: false;
 					data: number;
@@ -751,7 +733,6 @@ Expect<
 					tableName: 'new_yorkers';
 					name: 'user_id';
 					dataType: 'number';
-					columnType: 'PgInteger';
 					data: number;
 					driverParam: string | number;
 					hasDefault: false;
@@ -768,7 +749,6 @@ Expect<
 					tableName: 'new_yorkers';
 					name: 'city_id';
 					dataType: 'number';
-					columnType: 'PgInteger';
 					notNull: false;
 					hasDefault: false;
 					data: number;
@@ -800,7 +780,6 @@ Expect<
 					tableName: 'new_yorkers';
 					name: 'user_id';
 					dataType: 'number';
-					columnType: 'PgInteger';
 					data: number;
 					driverParam: string | number;
 					hasDefault: false;
@@ -817,7 +796,6 @@ Expect<
 					tableName: 'new_yorkers';
 					name: 'city_id';
 					dataType: 'number';
-					columnType: 'PgInteger';
 					notNull: false;
 					hasDefault: false;
 					data: number;
@@ -849,7 +827,6 @@ Expect<
 					tableName: 'new_yorkers';
 					name: 'user_id';
 					dataType: 'number';
-					columnType: 'PgInteger';
 					data: number;
 					driverParam: string | number;
 					hasDefault: false;
@@ -866,7 +843,6 @@ Expect<
 					tableName: 'new_yorkers';
 					name: 'city_id';
 					dataType: 'number';
-					columnType: 'PgInteger';
 					notNull: false;
 					hasDefault: false;
 					data: number;
@@ -982,7 +958,6 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 				tableName: 'cities_table';
 				name: 'id';
 				dataType: 'number';
-				columnType: 'PgSerial';
 				data: number;
 				driverParam: number;
 				hasDefault: true;
@@ -999,7 +974,6 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 				tableName: 'cities_table';
 				name: 'name';
 				dataType: 'string';
-				columnType: 'PgText';
 				data: string;
 				driverParam: string;
 				hasDefault: false;
@@ -1016,7 +990,6 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 				tableName: 'cities_table';
 				name: 'role';
 				dataType: 'string';
-				columnType: 'PgText';
 				data: 'admin' | 'user';
 				driverParam: string;
 				hasDefault: true;
@@ -1033,7 +1006,6 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 				tableName: 'cities_table';
 				name: 'population';
 				dataType: 'number';
-				columnType: 'PgInteger';
 				data: number;
 				driverParam: string | number;
 				notNull: false;

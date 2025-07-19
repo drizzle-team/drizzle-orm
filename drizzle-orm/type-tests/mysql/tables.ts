@@ -97,7 +97,6 @@ Expect<
 					name: 'id';
 					tableName: 'cities_table';
 					dataType: 'number';
-					columnType: 'MySqlSerial';
 					data: number;
 					driverParam: number;
 					notNull: true;
@@ -117,7 +116,6 @@ Expect<
 					name: 'name_db';
 					tableName: 'cities_table';
 					dataType: 'string';
-					columnType: 'MySqlText';
 					data: string;
 					driverParam: string;
 					notNull: true;
@@ -137,7 +135,6 @@ Expect<
 					name: 'population';
 					tableName: 'cities_table';
 					dataType: 'number';
-					columnType: 'MySqlInt';
 					data: number;
 					driverParam: string | number;
 					notNull: false;
@@ -218,7 +215,6 @@ Expect<
 			userId: MySqlColumn<{
 				name: 'id';
 				dataType: 'number';
-				columnType: 'MySqlSerial';
 				data: number;
 				driverParam: number;
 				notNull: true;
@@ -235,7 +231,6 @@ Expect<
 			cityId: MySqlColumn<{
 				name: 'id';
 				dataType: 'number';
-				columnType: 'MySqlSerial';
 				data: number;
 				driverParam: number;
 				notNull: false;
@@ -276,7 +271,6 @@ Expect<
 				userId: MySqlColumn<{
 					name: 'id';
 					dataType: 'number';
-					columnType: 'MySqlSerial';
 					data: number;
 					driverParam: number;
 					notNull: true;
@@ -293,7 +287,6 @@ Expect<
 				cityId: MySqlColumn<{
 					name: 'id';
 					dataType: 'number';
-					columnType: 'MySqlSerial';
 					data: number;
 					driverParam: number;
 					notNull: false;
@@ -332,7 +325,6 @@ Expect<
 				userId: MySqlColumn<{
 					name: 'user_id';
 					dataType: 'number';
-					columnType: 'MySqlInt';
 					data: number;
 					driverParam: string | number;
 					hasDefault: false;
@@ -351,7 +343,6 @@ Expect<
 					notNull: false;
 					hasDefault: false;
 					dataType: 'number';
-					columnType: 'MySqlInt';
 					data: number;
 					driverParam: string | number;
 					tableName: 'new_yorkers';
@@ -388,7 +379,6 @@ Expect<
 				userId: MySqlColumn<{
 					name: 'user_id';
 					dataType: 'number';
-					columnType: 'MySqlInt';
 					data: number;
 					driverParam: string | number;
 					hasDefault: false;
@@ -407,7 +397,6 @@ Expect<
 					notNull: false;
 					hasDefault: false;
 					dataType: 'number';
-					columnType: 'MySqlInt';
 					data: number;
 					driverParam: string | number;
 					tableName: 'new_yorkers';
@@ -437,7 +426,6 @@ Expect<
 				userId: MySqlColumn<{
 					name: 'user_id';
 					dataType: 'number';
-					columnType: 'MySqlInt';
 					data: number;
 					driverParam: string | number;
 					hasDefault: false;
@@ -456,7 +444,6 @@ Expect<
 					notNull: false;
 					hasDefault: false;
 					dataType: 'number';
-					columnType: 'MySqlInt';
 					data: number;
 					driverParam: string | number;
 					tableName: 'new_yorkers';
@@ -486,7 +473,6 @@ Expect<
 				userId: MySqlColumn<{
 					name: 'user_id';
 					dataType: 'number';
-					columnType: 'MySqlInt';
 					data: number;
 					driverParam: string | number;
 					hasDefault: false;
@@ -505,7 +491,6 @@ Expect<
 					notNull: false;
 					hasDefault: false;
 					dataType: 'number';
-					columnType: 'MySqlInt';
 					data: number;
 					driverParam: string | number;
 					tableName: 'new_yorkers';
@@ -534,18 +519,15 @@ Expect<
 	Expect<
 		Equal<
 			{
-				brand: 'Column';
 				name: 'name';
 				tableName: 'table';
 				dataType: 'custom';
-				columnType: 'MySqlCustomColumn';
 				data: string;
 				driverParam: unknown;
 				notNull: true;
 				hasDefault: false;
 				enumValues: undefined;
 				baseColumn: never;
-				// dialect: 'mysql';
 				generated: undefined;
 				identity: undefined;
 				isPrimaryKey: false;

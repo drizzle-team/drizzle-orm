@@ -15,7 +15,7 @@ export type MySqlTinyIntBuilderInitial<TName extends string> = MySqlTinyIntBuild
 	enumValues: undefined;
 }>;
 
-export class MySqlTinyIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlTinyInt'>>
+export class MySqlTinyIntBuilder<T extends ColumnBuilderBaseConfig<'number'>>
 	extends MySqlColumnBuilderWithAutoIncrement<T, MySqlIntConfig>
 {
 	static override readonly [entityKind]: string = 'MySqlTinyIntBuilder';
@@ -34,7 +34,7 @@ export class MySqlTinyIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'My
 	}
 }
 
-export class MySqlTinyInt<T extends ColumnBaseConfig<'number', 'MySqlTinyInt'>>
+export class MySqlTinyInt<T extends ColumnBaseConfig<'number'>>
 	extends MySqlColumnWithAutoIncrement<T, MySqlIntConfig>
 {
 	static override readonly [entityKind]: string = 'MySqlTinyInt';

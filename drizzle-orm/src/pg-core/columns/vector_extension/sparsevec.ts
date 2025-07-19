@@ -14,7 +14,7 @@ export type PgSparseVectorBuilderInitial<TName extends string> = PgSparseVectorB
 	enumValues: undefined;
 }>;
 
-export class PgSparseVectorBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgSparseVector'>>
+export class PgSparseVectorBuilder<T extends ColumnBuilderBaseConfig<'string'>>
 	extends PgColumnBuilder<
 		T,
 		{ dimensions: number | undefined }
@@ -36,7 +36,7 @@ export class PgSparseVectorBuilder<T extends ColumnBuilderBaseConfig<'string', '
 	}
 }
 
-export class PgSparseVector<T extends ColumnBaseConfig<'string', 'PgSparseVector'>>
+export class PgSparseVector<T extends ColumnBaseConfig<'string'>>
 	extends PgColumn<T, { dimensions: number | undefined }>
 {
 	static override readonly [entityKind]: string = 'PgSparseVector';

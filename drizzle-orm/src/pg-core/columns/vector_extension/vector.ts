@@ -15,7 +15,7 @@ export type PgVectorBuilderInitial<TName extends string, TDimensions extends num
 	dimensions: TDimensions;
 }>;
 
-export class PgVectorBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgVector'> & { dimensions: number }>
+export class PgVectorBuilder<T extends ColumnBuilderBaseConfig<'array'> & { dimensions: number }>
 	extends PgColumnBuilder<
 		T,
 		{ dimensions: T['dimensions'] }
@@ -37,7 +37,7 @@ export class PgVectorBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgVecto
 	}
 }
 
-export class PgVector<T extends ColumnBaseConfig<'array', 'PgVector'> & { dimensions: number | undefined }>
+export class PgVector<T extends ColumnBaseConfig<'array'> & { dimensions: number | undefined }>
 	extends PgColumn<T, { dimensions: T['dimensions'] }>
 {
 	static override readonly [entityKind]: string = 'PgVector';

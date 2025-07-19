@@ -21,7 +21,7 @@ export type ApplyNullabilityToColumn<TColumn extends Column, TNullability extend
 				UpdateColConfig<TColumn['_'], {
 					notNull: TNullability extends 'nullable' ? false : TColumn['_']['notNull'];
 				}>,
-				ColumnBaseConfig<ColumnDataType, string>
+				ColumnBaseConfig<ColumnDataType>
 			>
 		>;
 

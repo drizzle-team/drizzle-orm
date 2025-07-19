@@ -13,7 +13,7 @@ export type PgDoublePrecisionBuilderInitial<TName extends string> = PgDoublePrec
 	enumValues: undefined;
 }>;
 
-export class PgDoublePrecisionBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgDoublePrecision'>>
+export class PgDoublePrecisionBuilder<T extends ColumnBuilderBaseConfig<'number'>>
 	extends PgColumnBuilder<T>
 {
 	static override readonly [entityKind]: string = 'PgDoublePrecisionBuilder';
@@ -31,7 +31,7 @@ export class PgDoublePrecisionBuilder<T extends ColumnBuilderBaseConfig<'number'
 	}
 }
 
-export class PgDoublePrecision<T extends ColumnBaseConfig<'number', 'PgDoublePrecision'>> extends PgColumn<T> {
+export class PgDoublePrecision<T extends ColumnBaseConfig<'number'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgDoublePrecision';
 
 	getSQLType(): string {

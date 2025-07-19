@@ -14,7 +14,7 @@ export interface MySqlDateColumnBaseConfig {
 }
 
 export abstract class MySqlDateColumnBaseBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string>,
+	T extends ColumnBuilderBaseConfig<ColumnDataType>,
 	TRuntimeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
 > extends MySqlColumnBuilder<T, TRuntimeConfig & MySqlDateColumnBaseConfig, TExtraConfig> {
@@ -33,7 +33,7 @@ export abstract class MySqlDateColumnBaseBuilder<
 }
 
 export abstract class MySqlDateBaseColumn<
-	T extends ColumnBaseConfig<ColumnDataType, string>,
+	T extends ColumnBaseConfig<ColumnDataType>,
 	TRuntimeConfig extends object = object,
 > extends MySqlColumn<T, MySqlDateColumnBaseConfig & TRuntimeConfig> {
 	static override readonly [entityKind]: string = 'MySqlDateColumn';

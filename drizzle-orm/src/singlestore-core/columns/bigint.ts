@@ -14,7 +14,7 @@ export type SingleStoreBigInt53BuilderInitial<TName extends string> = SingleStor
 	enumValues: undefined;
 }>;
 
-export class SingleStoreBigInt53Builder<T extends ColumnBuilderBaseConfig<'number', 'SingleStoreBigInt53'>>
+export class SingleStoreBigInt53Builder<T extends ColumnBuilderBaseConfig<'number'>>
 	extends SingleStoreColumnBuilderWithAutoIncrement<T, { unsigned: boolean }>
 {
 	static override readonly [entityKind]: string = 'SingleStoreBigInt53Builder';
@@ -33,7 +33,7 @@ export class SingleStoreBigInt53Builder<T extends ColumnBuilderBaseConfig<'numbe
 	}
 }
 
-export class SingleStoreBigInt53<T extends ColumnBaseConfig<'number', 'SingleStoreBigInt53'>>
+export class SingleStoreBigInt53<T extends ColumnBaseConfig<'number'>>
 	extends SingleStoreColumnWithAutoIncrement<T, { unsigned: boolean }>
 {
 	static override readonly [entityKind]: string = 'SingleStoreBigInt53';
@@ -60,7 +60,7 @@ export type SingleStoreBigInt64BuilderInitial<TName extends string> = SingleStor
 	generated: undefined;
 }>;
 
-export class SingleStoreBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'SingleStoreBigInt64'>>
+export class SingleStoreBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint'>>
 	extends SingleStoreColumnBuilderWithAutoIncrement<T, { unsigned: boolean }>
 {
 	static override readonly [entityKind]: string = 'SingleStoreBigInt64Builder';
@@ -79,7 +79,7 @@ export class SingleStoreBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigin
 	}
 }
 
-export class SingleStoreBigInt64<T extends ColumnBaseConfig<'bigint', 'SingleStoreBigInt64'>>
+export class SingleStoreBigInt64<T extends ColumnBaseConfig<'bigint'>>
 	extends SingleStoreColumnWithAutoIncrement<T, { unsigned: boolean }>
 {
 	static override readonly [entityKind]: string = 'SingleStoreBigInt64';

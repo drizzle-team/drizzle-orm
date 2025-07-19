@@ -13,7 +13,7 @@ export type PgByteaBuilderInitial<TName extends string> = PgByteaBuilder<{
 	enumValues: undefined;
 }>;
 
-export class PgByteaBuilder<T extends ColumnBuilderBaseConfig<'buffer', 'PgBytea'>> extends PgColumnBuilder<T> {
+export class PgByteaBuilder<T extends ColumnBuilderBaseConfig<'buffer'>> extends PgColumnBuilder<T> {
 	static override readonly [entityKind]: string = 'PgByteaBuilder';
 
 	constructor(name: T['name']) {
@@ -26,7 +26,7 @@ export class PgByteaBuilder<T extends ColumnBuilderBaseConfig<'buffer', 'PgBytea
 	}
 }
 
-export class PgBytea<T extends ColumnBaseConfig<'buffer', 'PgBytea'>> extends PgColumn<T> {
+export class PgBytea<T extends ColumnBaseConfig<'buffer'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgBytea';
 
 	override mapFromDriverValue(value: Buffer | Uint8Array | string): Buffer {

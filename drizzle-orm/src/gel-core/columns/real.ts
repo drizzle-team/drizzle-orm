@@ -13,7 +13,7 @@ export type GelRealBuilderInitial<TName extends string> = GelRealBuilder<{
 	enumValues: undefined;
 }>;
 
-export class GelRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'GelReal'>> extends GelColumnBuilder<
+export class GelRealBuilder<T extends ColumnBuilderBaseConfig<'number'>> extends GelColumnBuilder<
 	T,
 	{ length: number | undefined }
 > {
@@ -30,7 +30,7 @@ export class GelRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'GelReal
 	}
 }
 
-export class GelReal<T extends ColumnBaseConfig<'number', 'GelReal'>> extends GelColumn<T> {
+export class GelReal<T extends ColumnBaseConfig<'number'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelReal';
 
 	constructor(table: AnyGelTable<{ name: T['tableName'] }>, config: GelRealBuilder<T>['config']) {

@@ -14,7 +14,7 @@ export type GelSmallIntBuilderInitial<TName extends string> = GelSmallIntBuilder
 	enumValues: undefined;
 }>;
 
-export class GelSmallIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'GelSmallInt'>>
+export class GelSmallIntBuilder<T extends ColumnBuilderBaseConfig<'number'>>
 	extends GelIntColumnBaseBuilder<T>
 {
 	static override readonly [entityKind]: string = 'GelSmallIntBuilder';
@@ -29,7 +29,7 @@ export class GelSmallIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'Gel
 	}
 }
 
-export class GelSmallInt<T extends ColumnBaseConfig<'number', 'GelSmallInt'>> extends GelColumn<T> {
+export class GelSmallInt<T extends ColumnBaseConfig<'number'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelSmallInt';
 
 	getSQLType(): string {

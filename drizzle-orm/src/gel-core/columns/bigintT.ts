@@ -14,7 +14,7 @@ export type GelBigInt64BuilderInitial<TName extends string> = GelBigInt64Builder
 	enumValues: undefined;
 }>;
 
-export class GelBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'GelBigInt64'>>
+export class GelBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint'>>
 	extends GelIntColumnBaseBuilder<T>
 {
 	static override readonly [entityKind]: string = 'GelBigInt64Builder';
@@ -32,7 +32,7 @@ export class GelBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'Gel
 	}
 }
 
-export class GelBigInt64<T extends ColumnBaseConfig<'bigint', 'GelBigInt64'>> extends GelColumn<T> {
+export class GelBigInt64<T extends ColumnBaseConfig<'bigint'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelBigInt64';
 
 	getSQLType(): string {

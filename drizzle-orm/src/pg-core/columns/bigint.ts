@@ -15,7 +15,7 @@ export type PgBigInt53BuilderInitial<TName extends string> = PgBigInt53Builder<{
 	enumValues: undefined;
 }>;
 
-export class PgBigInt53Builder<T extends ColumnBuilderBaseConfig<'number', 'PgBigInt53'>>
+export class PgBigInt53Builder<T extends ColumnBuilderBaseConfig<'number'>>
 	extends PgIntColumnBaseBuilder<T>
 {
 	static override readonly [entityKind]: string = 'PgBigInt53Builder';
@@ -30,7 +30,7 @@ export class PgBigInt53Builder<T extends ColumnBuilderBaseConfig<'number', 'PgBi
 	}
 }
 
-export class PgBigInt53<T extends ColumnBaseConfig<'number', 'PgBigInt53'>> extends PgColumn<T> {
+export class PgBigInt53<T extends ColumnBaseConfig<'number'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgBigInt53';
 
 	getSQLType(): string {
@@ -54,7 +54,7 @@ export type PgBigInt64BuilderInitial<TName extends string> = PgBigInt64Builder<{
 	enumValues: undefined;
 }>;
 
-export class PgBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'PgBigInt64'>>
+export class PgBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint'>>
 	extends PgIntColumnBaseBuilder<T>
 {
 	static override readonly [entityKind]: string = 'PgBigInt64Builder';
@@ -69,7 +69,7 @@ export class PgBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'PgBi
 	}
 }
 
-export class PgBigInt64<T extends ColumnBaseConfig<'bigint', 'PgBigInt64'>> extends PgColumn<T> {
+export class PgBigInt64<T extends ColumnBaseConfig<'bigint'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgBigInt64';
 
 	getSQLType(): string {

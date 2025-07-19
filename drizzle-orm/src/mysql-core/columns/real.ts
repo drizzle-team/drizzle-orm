@@ -14,7 +14,7 @@ export type MySqlRealBuilderInitial<TName extends string> = MySqlRealBuilder<{
 	enumValues: undefined;
 }>;
 
-export class MySqlRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlReal'>>
+export class MySqlRealBuilder<T extends ColumnBuilderBaseConfig<'number'>>
 	extends MySqlColumnBuilderWithAutoIncrement<
 		T,
 		MySqlRealConfig
@@ -34,7 +34,7 @@ export class MySqlRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySql
 	}
 }
 
-export class MySqlReal<T extends ColumnBaseConfig<'number', 'MySqlReal'>> extends MySqlColumnWithAutoIncrement<
+export class MySqlReal<T extends ColumnBaseConfig<'number'>> extends MySqlColumnWithAutoIncrement<
 	T,
 	MySqlRealConfig
 > {

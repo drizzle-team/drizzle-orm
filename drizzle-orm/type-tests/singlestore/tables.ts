@@ -88,7 +88,6 @@ Expect<
 					name: 'id';
 					tableName: 'cities_table';
 					dataType: 'number';
-					columnType: 'SingleStoreSerial';
 					data: number;
 					driverParam: number;
 					notNull: true;
@@ -108,7 +107,6 @@ Expect<
 					name: 'name_db';
 					tableName: 'cities_table';
 					dataType: 'string';
-					columnType: 'SingleStoreText';
 					data: string;
 					driverParam: string;
 					notNull: true;
@@ -128,7 +126,6 @@ Expect<
 					name: 'population';
 					tableName: 'cities_table';
 					dataType: 'number';
-					columnType: 'SingleStoreInt';
 					data: number;
 					driverParam: string | number;
 					notNull: false;
@@ -517,7 +514,6 @@ Expect<
 				name: 'name';
 				tableName: 'table';
 				dataType: 'custom';
-				columnType: 'SingleStoreCustomColumn';
 				data: string;
 				driverParam: unknown;
 				notNull: true;
@@ -529,8 +525,6 @@ Expect<
 				baseColumn: never;
 				identity: undefined;
 				generated: undefined;
-				brand: 'Column';
-				// dialect: 'singlestore';
 			},
 			Simplify<BuildColumn<'table', typeof t, 'singlestore', "name">['_']>
 		>

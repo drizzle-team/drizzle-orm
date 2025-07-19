@@ -23,7 +23,7 @@ export interface SingleStoreCustomColumnInnerConfig {
 	customTypeValues: CustomTypeValues;
 }
 
-export class SingleStoreCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom', 'SingleStoreCustomColumn'>>
+export class SingleStoreCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom'>>
 	extends SingleStoreColumnBuilder<
 		T,
 		{
@@ -53,7 +53,7 @@ export class SingleStoreCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'c
 	}
 }
 
-export class SingleStoreCustomColumn<T extends ColumnBaseConfig<'custom', 'SingleStoreCustomColumn'>>
+export class SingleStoreCustomColumn<T extends ColumnBaseConfig<'custom'>>
 	extends SingleStoreColumn<T>
 {
 	static override readonly [entityKind]: string = 'SingleStoreCustomColumn';

@@ -21,7 +21,7 @@ export type SingleStoreEnumColumnBuilderInitial<TName extends string, TEnum exte
 		generated: undefined;
 	}>;
 
-export class SingleStoreEnumColumnBuilder<T extends ColumnBuilderBaseConfig<'string', 'SingleStoreEnumColumn'>>
+export class SingleStoreEnumColumnBuilder<T extends ColumnBuilderBaseConfig<'string'>>
 	extends SingleStoreColumnBuilder<T, { enumValues: T['enumValues'] }>
 {
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -47,7 +47,7 @@ export class SingleStoreEnumColumnBuilder<T extends ColumnBuilderBaseConfig<'str
 	}
 }
 
-export class SingleStoreEnumColumn<T extends ColumnBaseConfig<'string', 'SingleStoreEnumColumn'>>
+export class SingleStoreEnumColumn<T extends ColumnBaseConfig<'string'>>
 	extends SingleStoreColumn<T, { enumValues: T['enumValues'] }>
 {
 	static override readonly [entityKind]: string = 'SingleStoreEnumColumn';

@@ -14,7 +14,7 @@ export type MySqlIntBuilderInitial<TName extends string> = MySqlIntBuilder<{
 	enumValues: undefined;
 }>;
 
-export class MySqlIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlInt'>>
+export class MySqlIntBuilder<T extends ColumnBuilderBaseConfig<'number'>>
 	extends MySqlColumnBuilderWithAutoIncrement<T, MySqlIntConfig>
 {
 	static override readonly [entityKind]: string = 'MySqlIntBuilder';
@@ -30,7 +30,7 @@ export class MySqlIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlI
 	}
 }
 
-export class MySqlInt<T extends ColumnBaseConfig<'number', 'MySqlInt'>>
+export class MySqlInt<T extends ColumnBaseConfig<'number'>>
 	extends MySqlColumnWithAutoIncrement<T, MySqlIntConfig>
 {
 	static override readonly [entityKind]: string = 'MySqlInt';

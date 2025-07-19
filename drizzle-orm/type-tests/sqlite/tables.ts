@@ -163,7 +163,6 @@ Expect<
 			userId: SQLiteColumn<{
 				name: 'id';
 				dataType: 'number';
-				columnType: 'SQLiteInteger';
 				data: number;
 				driverParam: number;
 				notNull: true;
@@ -180,7 +179,6 @@ Expect<
 			cityId: SQLiteColumn<{
 				name: 'id';
 				dataType: 'number';
-				columnType: 'SQLiteInteger';
 				data: number;
 				driverParam: number;
 				notNull: false;
@@ -216,7 +214,6 @@ Expect<
 				userId: SQLiteColumn<{
 					name: 'user_id';
 					dataType: 'number';
-					columnType: 'SQLiteInteger';
 					data: number;
 					driverParam: number;
 					hasDefault: false;
@@ -235,7 +232,6 @@ Expect<
 					notNull: false;
 					hasDefault: false;
 					dataType: 'number';
-					columnType: 'SQLiteInteger';
 					data: number;
 					driverParam: number;
 					tableName: 'new_yorkers';
@@ -265,7 +261,6 @@ Expect<
 				userId: SQLiteColumn<{
 					name: 'user_id';
 					dataType: 'number';
-					columnType: 'SQLiteInteger';
 					data: number;
 					driverParam: number;
 					hasDefault: false;
@@ -284,7 +279,6 @@ Expect<
 					notNull: false;
 					hasDefault: false;
 					dataType: 'number';
-					columnType: 'SQLiteInteger';
 					data: number;
 					driverParam: number;
 					tableName: 'new_yorkers';

@@ -13,7 +13,7 @@ export type PgBooleanBuilderInitial<TName extends string> = PgBooleanBuilder<{
 	enumValues: undefined;
 }>;
 
-export class PgBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean', 'PgBoolean'>> extends PgColumnBuilder<T> {
+export class PgBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean'>> extends PgColumnBuilder<T> {
 	static override readonly [entityKind]: string = 'PgBooleanBuilder';
 
 	constructor(name: T['name']) {
@@ -26,7 +26,7 @@ export class PgBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean', 'PgBo
 	}
 }
 
-export class PgBoolean<T extends ColumnBaseConfig<'boolean', 'PgBoolean'>> extends PgColumn<T> {
+export class PgBoolean<T extends ColumnBaseConfig<'boolean'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgBoolean';
 
 	getSQLType(): string {

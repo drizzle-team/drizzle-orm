@@ -1023,5 +1023,5 @@ bench("relations", () => {
       }),
     },
   }));
-}).types([137642, "instantiations"]);
+}).types([121366, "instantiations"]);
 // .mark({ mean: [3.44, "ns"], median: [3.33, "ns"] })

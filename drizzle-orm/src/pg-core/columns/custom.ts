@@ -22,7 +22,7 @@ export interface PgCustomColumnInnerConfig {
 	customTypeValues: CustomTypeValues;
 }
 
-export class PgCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom', 'PgCustomColumn'>>
+export class PgCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom'>>
 	extends PgColumnBuilder<
 		T,
 		{
@@ -52,7 +52,7 @@ export class PgCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom', '
 	}
 }
 
-export class PgCustomColumn<T extends ColumnBaseConfig<'custom', 'PgCustomColumn'>> extends PgColumn<T> {
+export class PgCustomColumn<T extends ColumnBaseConfig<'custom'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgCustomColumn';
 
 	private sqlName: string;

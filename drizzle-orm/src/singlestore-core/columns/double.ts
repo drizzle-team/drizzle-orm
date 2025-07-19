@@ -15,7 +15,7 @@ export type SingleStoreDoubleBuilderInitial<TName extends string> = SingleStoreD
 	generated: undefined;
 }>;
 
-export class SingleStoreDoubleBuilder<T extends ColumnBuilderBaseConfig<'number', 'SingleStoreDouble'>>
+export class SingleStoreDoubleBuilder<T extends ColumnBuilderBaseConfig<'number'>>
 	extends SingleStoreColumnBuilderWithAutoIncrement<T, SingleStoreDoubleConfig>
 {
 	static override readonly [entityKind]: string = 'SingleStoreDoubleBuilder';
@@ -36,7 +36,7 @@ export class SingleStoreDoubleBuilder<T extends ColumnBuilderBaseConfig<'number'
 	}
 }
 
-export class SingleStoreDouble<T extends ColumnBaseConfig<'number', 'SingleStoreDouble'>>
+export class SingleStoreDouble<T extends ColumnBaseConfig<'number'>>
 	extends SingleStoreColumnWithAutoIncrement<T, SingleStoreDoubleConfig>
 {
 	static override readonly [entityKind]: string = 'SingleStoreDouble';

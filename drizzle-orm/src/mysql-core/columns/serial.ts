@@ -27,7 +27,7 @@ export type MySqlSerialBuilderInitial<TName extends string> = IsAutoincrement<
 	>
 >;
 
-export class MySqlSerialBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlSerial'>>
+export class MySqlSerialBuilder<T extends ColumnBuilderBaseConfig<'number'>>
 	extends MySqlColumnBuilderWithAutoIncrement<T>
 {
 	static override readonly [entityKind]: string = 'MySqlSerialBuilder';
@@ -45,7 +45,7 @@ export class MySqlSerialBuilder<T extends ColumnBuilderBaseConfig<'number', 'MyS
 }
 
 export class MySqlSerial<
-	T extends ColumnBaseConfig<'number', 'MySqlSerial'>,
+	T extends ColumnBaseConfig<'number'>,
 > extends MySqlColumnWithAutoIncrement<T> {
 	static override readonly [entityKind]: string = 'MySqlSerial';
 

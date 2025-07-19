@@ -14,7 +14,7 @@ export type SingleStoreTimeBuilderInitial<TName extends string> = SingleStoreTim
 	generated: undefined;
 }>;
 
-export class SingleStoreTimeBuilder<T extends ColumnBuilderBaseConfig<'string', 'SingleStoreTime'>>
+export class SingleStoreTimeBuilder<T extends ColumnBuilderBaseConfig<'string'>>
 	extends SingleStoreColumnBuilder<
 		T
 	>
@@ -37,7 +37,7 @@ export class SingleStoreTimeBuilder<T extends ColumnBuilderBaseConfig<'string', 
 }
 
 export class SingleStoreTime<
-	T extends ColumnBaseConfig<'string', 'SingleStoreTime'>,
+	T extends ColumnBaseConfig<'string'>,
 > extends SingleStoreColumn<T> {
 	static override readonly [entityKind]: string = 'SingleStoreTime';
 
