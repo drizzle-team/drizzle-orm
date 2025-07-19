@@ -7,7 +7,6 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 export type PgByteaBuilderInitial<TName extends string> = PgByteaBuilder<{
 	name: TName;
 	dataType: 'buffer';
-	columnType: 'PgBytea';
 	data: Buffer;
 	driverParam: Buffer;
 	enumValues: undefined;

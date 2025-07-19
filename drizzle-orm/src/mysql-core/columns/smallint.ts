@@ -9,7 +9,6 @@ import type { MySqlIntConfig } from './int.ts';
 export type MySqlSmallIntBuilderInitial<TName extends string> = MySqlSmallIntBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'MySqlSmallInt';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;

@@ -9,7 +9,6 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 export type PgPointTupleBuilderInitial<TName extends string> = PgPointTupleBuilder<{
 	name: TName;
 	dataType: 'array';
-	columnType: 'PgPointTuple';
 	data: [number, number];
 	driverParam: number | string;
 	enumValues: undefined;
@@ -56,7 +55,6 @@ export class PgPointTuple<T extends ColumnBaseConfig<'array'>> extends PgColumn<
 export type PgPointObjectBuilderInitial<TName extends string> = PgPointObjectBuilder<{
 	name: TName;
 	dataType: 'json';
-	columnType: 'PgPointObject';
 	data: { x: number; y: number };
 	driverParam: string;
 	enumValues: undefined;

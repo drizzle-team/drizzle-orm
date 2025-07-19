@@ -8,7 +8,6 @@ import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } fro
 export type MySqlDecimalBuilderInitial<TName extends string> = MySqlDecimalBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'MySqlDecimal';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
@@ -67,7 +66,6 @@ export class MySqlDecimal<T extends ColumnBaseConfig<'string'>>
 export type MySqlDecimalNumberBuilderInitial<TName extends string> = MySqlDecimalNumberBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'MySqlDecimalNumber';
 	data: number;
 	driverParam: string;
 	enumValues: undefined;
@@ -128,7 +126,6 @@ export class MySqlDecimalNumber<T extends ColumnBaseConfig<'number'>>
 export type MySqlDecimalBigIntBuilderInitial<TName extends string> = MySqlDecimalBigIntBuilder<{
 	name: TName;
 	dataType: 'bigint';
-	columnType: 'MySqlDecimalBigInt';
 	data: bigint;
 	driverParam: string;
 	enumValues: undefined;

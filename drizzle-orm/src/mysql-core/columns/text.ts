@@ -10,7 +10,6 @@ export type MySqlTextColumnType = 'tinytext' | 'text' | 'mediumtext' | 'longtext
 export type MySqlTextBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> = MySqlTextBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'MySqlText';
 	data: TEnum[number];
 	driverParam: string;
 	enumValues: TEnum;

@@ -12,7 +12,6 @@ export type MySqlCharBuilderInitial<
 > = MySqlCharBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'MySqlChar';
 	data: TEnum[number];
 	driverParam: number | string;
 	enumValues: TEnum;

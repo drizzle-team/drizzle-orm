@@ -7,7 +7,6 @@ import { GelColumn, GelColumnBuilder } from './common.ts';
 type GelTextBuilderInitial<TName extends string> = GelTextBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'GelText';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;

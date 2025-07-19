@@ -8,7 +8,6 @@ import { GelIntColumnBaseBuilder } from './int.common.ts';
 export type GelIntegerBuilderInitial<TName extends string> = GelIntegerBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'GelInteger';
 	data: number;
 	driverParam: number;
 	enumValues: undefined;

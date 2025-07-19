@@ -1,5 +1,4 @@
 import type {
-	ColumnBuilderBaseConfig,
 	ColumnBuilderRuntimeConfig,
 	ColumnDataType,
 	GeneratedColumnConfig,
@@ -10,15 +9,18 @@ import type { DriverValueMapper, SQL, SQLWrapper } from './sql/sql.ts';
 import type { Table } from './table.ts';
 import type { Update } from './utils.ts';
 
-export interface ColumnBaseConfig<
-	TDataType extends ColumnDataType
-> extends ColumnBuilderBaseConfig<TDataType> {
+export interface ColumnBaseConfig<TDataType extends ColumnDataType>  {
+	name: string;
+	dataType: TDataType;
 	tableName: string;
 	notNull: boolean;
 	hasDefault: boolean;
 	isPrimaryKey: boolean;
 	isAutoincrement: boolean;
 	hasRuntimeDefault: boolean;
+	data: unknown;
+	driverParam: unknown;
+	enumValues: string[] | undefined;
 }
 
 export interface Column<

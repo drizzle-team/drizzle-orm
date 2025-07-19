@@ -8,7 +8,6 @@ import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 export type MySqlDateTimeBuilderInitial<TName extends string> = MySqlDateTimeBuilder<{
 	name: TName;
 	dataType: 'date';
-	columnType: 'MySqlDateTime';
 	data: Date;
 	driverParam: string | number;
 	enumValues: undefined;
@@ -63,7 +62,6 @@ export class MySqlDateTime<T extends ColumnBaseConfig<'date'>> extends MySqlColu
 export type MySqlDateTimeStringBuilderInitial<TName extends string> = MySqlDateTimeStringBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'MySqlDateTimeString';
 	data: string;
 	driverParam: string | number;
 	enumValues: undefined;

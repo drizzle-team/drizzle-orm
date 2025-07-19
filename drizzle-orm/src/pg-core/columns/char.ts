@@ -12,7 +12,6 @@ export type PgCharBuilderInitial<
 > = PgCharBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'PgChar';
 	data: TEnum[number];
 	enumValues: TEnum;
 	driverParam: string;

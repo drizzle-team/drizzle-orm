@@ -8,7 +8,6 @@ import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 export type SingleStoreVarBinaryBuilderInitial<TName extends string> = SingleStoreVarBinaryBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'SingleStoreVarBinary';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;

@@ -8,7 +8,6 @@ import { PgColumn, PgColumnBuilder } from '../common.ts';
 export type PgBinaryVectorBuilderInitial<TName extends string, TDimensions extends number> = PgBinaryVectorBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'PgBinaryVector';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;

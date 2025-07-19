@@ -9,7 +9,6 @@ import type { SingleStoreIntConfig } from './int.ts';
 export type SingleStoreMediumIntBuilderInitial<TName extends string> = SingleStoreMediumIntBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'SingleStoreMediumInt';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;

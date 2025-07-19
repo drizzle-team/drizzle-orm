@@ -12,7 +12,6 @@ export type PgVarcharBuilderInitial<
 > = PgVarcharBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'PgVarchar';
 	data: TEnum[number];
 	driverParam: string;
 	enumValues: TEnum;

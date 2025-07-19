@@ -10,7 +10,6 @@ import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 export type SingleStoreVectorBuilderInitial<TName extends string> = SingleStoreVectorBuilder<{
 	name: TName;
 	dataType: 'array';
-	columnType: 'SingleStoreVector';
 	data: Array<number>;
 	driverParam: string;
 	enumValues: undefined;

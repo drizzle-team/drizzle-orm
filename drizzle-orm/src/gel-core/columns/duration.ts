@@ -8,7 +8,6 @@ import { GelColumn, GelColumnBuilder } from './common.ts';
 export type GelDurationBuilderInitial<TName extends string> = GelDurationBuilder<{
 	name: TName;
 	dataType: 'duration';
-	columnType: 'GelDuration';
 	data: Duration;
 	driverParam: Duration;
 	enumValues: undefined;

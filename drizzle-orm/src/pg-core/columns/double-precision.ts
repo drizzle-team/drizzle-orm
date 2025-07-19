@@ -7,7 +7,6 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 export type PgDoublePrecisionBuilderInitial<TName extends string> = PgDoublePrecisionBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'PgDoublePrecision';
 	data: number;
 	driverParam: string | number;
 	enumValues: undefined;

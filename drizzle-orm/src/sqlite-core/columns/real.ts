@@ -7,7 +7,6 @@ import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 export type SQLiteRealBuilderInitial<TName extends string> = SQLiteRealBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'SQLiteReal';
 	data: number;
 	driverParam: number;
 	enumValues: undefined;

@@ -8,7 +8,6 @@ import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } fro
 export type MySqlDoubleBuilderInitial<TName extends string> = MySqlDoubleBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'MySqlDouble';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;

@@ -10,7 +10,6 @@ type BlobMode = 'buffer' | 'json' | 'bigint';
 export type SQLiteBigIntBuilderInitial<TName extends string> = SQLiteBigIntBuilder<{
 	name: TName;
 	dataType: 'bigint';
-	columnType: 'SQLiteBigInt';
 	data: bigint;
 	driverParam: Buffer;
 	enumValues: undefined;
@@ -66,7 +65,6 @@ export class SQLiteBigInt<T extends ColumnBaseConfig<'bigint'>> extends SQLiteCo
 export type SQLiteBlobJsonBuilderInitial<TName extends string> = SQLiteBlobJsonBuilder<{
 	name: TName;
 	dataType: 'json';
-	columnType: 'SQLiteBlobJson';
 	data: unknown;
 	driverParam: Buffer;
 	enumValues: undefined;
@@ -125,7 +123,6 @@ export class SQLiteBlobJson<T extends ColumnBaseConfig<'json'>> extends SQLiteCo
 export type SQLiteBlobBufferBuilderInitial<TName extends string> = SQLiteBlobBufferBuilder<{
 	name: TName;
 	dataType: 'buffer';
-	columnType: 'SQLiteBlobBuffer';
 	data: Buffer;
 	driverParam: Buffer;
 	enumValues: undefined;

@@ -10,7 +10,6 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 export type PgEnumObjectColumnBuilderInitial<TName extends string, TValues extends object> = PgEnumObjectColumnBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'PgEnumObjectColumn';
 	data: TValues[keyof TValues];
 	enumValues: string[];
 	driverParam: string;
@@ -74,7 +73,6 @@ export type PgEnumColumnBuilderInitial<TName extends string, TValues extends [st
 	PgEnumColumnBuilder<{
 		name: TName;
 		dataType: 'string';
-		columnType: 'PgEnumColumn';
 		data: TValues[number];
 		enumValues: TValues;
 		driverParam: string;

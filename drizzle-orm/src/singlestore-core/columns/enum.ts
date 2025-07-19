@@ -14,7 +14,6 @@ export type SingleStoreEnumColumnBuilderInitial<TName extends string, TEnum exte
 	SingleStoreEnumColumnBuilder<{
 		name: TName;
 		dataType: 'string';
-		columnType: 'SingleStoreEnumColumn';
 		data: TEnum[number];
 		driverParam: string;
 		enumValues: TEnum;

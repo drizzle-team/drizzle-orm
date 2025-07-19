@@ -9,7 +9,6 @@ import { GelLocalDateColumnBaseBuilder } from './date.common.ts';
 export type GelLocalTimeBuilderInitial<TName extends string> = GelLocalTimeBuilder<{
 	name: TName;
 	dataType: 'localTime';
-	columnType: 'GelLocalTime';
 	data: LocalTime;
 	driverParam: LocalTime;
 	enumValues: undefined;

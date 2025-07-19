@@ -13,7 +13,6 @@ export type SingleStoreVarCharBuilderInitial<
 	{
 		name: TName;
 		dataType: 'string';
-		columnType: 'SingleStoreVarChar';
 		data: TEnum[number];
 		driverParam: number | string;
 		enumValues: TEnum;

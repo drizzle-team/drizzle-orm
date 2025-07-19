@@ -7,7 +7,6 @@ import { GelColumn, GelColumnBuilder } from './common.ts';
 export type GelBytesBuilderInitial<TName extends string> = GelBytesBuilder<{
 	name: TName;
 	dataType: 'buffer';
-	columnType: 'GelBytes';
 	data: Uint8Array;
 	driverParam: Uint8Array | Buffer;
 	enumValues: undefined;

@@ -9,7 +9,6 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 export type PgLineBuilderInitial<TName extends string> = PgLineBuilder<{
 	name: TName;
 	dataType: 'array';
-	columnType: 'PgLine';
 	data: [number, number, number];
 	driverParam: number | string;
 	enumValues: undefined;
@@ -51,7 +50,6 @@ export class PgLineTuple<T extends ColumnBaseConfig<'array'>> extends PgColumn<T
 export type PgLineABCBuilderInitial<TName extends string> = PgLineABCBuilder<{
 	name: TName;
 	dataType: 'json';
-	columnType: 'PgLineABC';
 	data: { a: number; b: number; c: number };
 	driverParam: string;
 	enumValues: undefined;

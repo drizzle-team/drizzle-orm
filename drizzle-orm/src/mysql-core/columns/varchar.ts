@@ -13,7 +13,6 @@ export type MySqlVarCharBuilderInitial<
 	{
 		name: TName;
 		dataType: 'string';
-		columnType: 'MySqlVarChar';
 		data: TEnum[number];
 		driverParam: number | string;
 		enumValues: TEnum;

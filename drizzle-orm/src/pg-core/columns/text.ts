@@ -8,7 +8,6 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 export type PgTextBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> = PgTextBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'PgText';
 	data: TEnum[number];
 	enumValues: TEnum;
 	driverParam: string;

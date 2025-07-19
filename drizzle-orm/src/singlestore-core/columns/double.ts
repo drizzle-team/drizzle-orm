@@ -8,7 +8,6 @@ import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoInc
 export type SingleStoreDoubleBuilderInitial<TName extends string> = SingleStoreDoubleBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'SingleStoreDouble';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;

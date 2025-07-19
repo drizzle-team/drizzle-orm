@@ -8,7 +8,6 @@ import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 export type MySqlBinaryBuilderInitial<TName extends string> = MySqlBinaryBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'MySqlBinary';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;

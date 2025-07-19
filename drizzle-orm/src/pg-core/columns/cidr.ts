@@ -7,7 +7,6 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 export type PgCidrBuilderInitial<TName extends string> = PgCidrBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'PgCidr';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;

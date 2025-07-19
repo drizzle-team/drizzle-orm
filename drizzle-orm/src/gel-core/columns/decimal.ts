@@ -7,7 +7,6 @@ import { GelColumn, GelColumnBuilder } from './common.ts';
 export type GelDecimalBuilderInitial<TName extends string> = GelDecimalBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'GelDecimal';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;

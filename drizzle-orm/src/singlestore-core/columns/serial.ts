@@ -17,7 +17,6 @@ export type SingleStoreSerialBuilderInitial<TName extends string> = IsAutoincrem
 				SingleStoreSerialBuilder<{
 					name: TName;
 					dataType: 'number';
-					columnType: 'SingleStoreSerial';
 					data: number;
 					driverParam: number;
 					enumValues: undefined;

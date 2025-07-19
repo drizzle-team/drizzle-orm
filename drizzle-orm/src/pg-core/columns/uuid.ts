@@ -8,7 +8,6 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 export type PgUUIDBuilderInitial<TName extends string> = PgUUIDBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'PgUUID';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;

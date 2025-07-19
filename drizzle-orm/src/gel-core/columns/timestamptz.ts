@@ -8,7 +8,6 @@ import { GelLocalDateColumnBaseBuilder } from './date.common.ts';
 export type GelTimestampTzBuilderInitial<TName extends string> = GelTimestampTzBuilder<{
 	name: TName;
 	dataType: 'date';
-	columnType: 'GelTimestampTz';
 	data: Date;
 	driverParam: Date;
 	enumValues: undefined;

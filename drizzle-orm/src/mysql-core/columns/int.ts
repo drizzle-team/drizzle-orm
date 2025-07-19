@@ -8,7 +8,6 @@ import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } fro
 export type MySqlIntBuilderInitial<TName extends string> = MySqlIntBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'MySqlInt';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;

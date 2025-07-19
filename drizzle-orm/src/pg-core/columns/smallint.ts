@@ -8,7 +8,6 @@ import { PgIntColumnBaseBuilder } from './int.common.ts';
 export type PgSmallIntBuilderInitial<TName extends string> = PgSmallIntBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'PgSmallInt';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;

@@ -7,7 +7,6 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 export type PgJsonBuilderInitial<TName extends string> = PgJsonBuilder<{
 	name: TName;
 	dataType: 'json';
-	columnType: 'PgJson';
 	data: unknown;
 	driverParam: unknown;
 	enumValues: undefined;

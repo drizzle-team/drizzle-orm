@@ -10,7 +10,6 @@ import type { Precision } from './timestamp.ts';
 export type PgTimeBuilderInitial<TName extends string> = PgTimeBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'PgTime';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;

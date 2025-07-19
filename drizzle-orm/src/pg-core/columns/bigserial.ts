@@ -14,7 +14,6 @@ export type PgBigSerial53BuilderInitial<TName extends string> = NotNull<
 		PgBigSerial53Builder<{
 			name: TName;
 			dataType: 'number';
-			columnType: 'PgBigSerial53';
 			data: number;
 			driverParam: number;
 			enumValues: undefined;
@@ -62,7 +61,6 @@ export type PgBigSerial64BuilderInitial<TName extends string> = NotNull<
 		PgBigSerial64Builder<{
 			name: TName;
 			dataType: 'bigint';
-			columnType: 'PgBigSerial64';
 			data: bigint;
 			driverParam: string;
 			enumValues: undefined;

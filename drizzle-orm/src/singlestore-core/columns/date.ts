@@ -8,7 +8,6 @@ import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 export type SingleStoreDateBuilderInitial<TName extends string> = SingleStoreDateBuilder<{
 	name: TName;
 	dataType: 'date';
-	columnType: 'SingleStoreDate';
 	data: Date;
 	driverParam: string | number;
 	enumValues: undefined;
@@ -55,7 +54,6 @@ export class SingleStoreDate<T extends ColumnBaseConfig<'date'>> extends SingleS
 export type SingleStoreDateStringBuilderInitial<TName extends string> = SingleStoreDateStringBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'SingleStoreDateString';
 	data: string;
 	driverParam: string | number;
 	enumValues: undefined;

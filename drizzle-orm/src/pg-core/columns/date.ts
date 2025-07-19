@@ -9,7 +9,6 @@ import { PgDateColumnBaseBuilder } from './date.common.ts';
 export type PgDateBuilderInitial<TName extends string> = PgDateBuilder<{
 	name: TName;
 	dataType: 'date';
-	columnType: 'PgDate';
 	data: Date;
 	driverParam: string;
 	enumValues: undefined;
@@ -47,7 +46,6 @@ export class PgDate<T extends ColumnBaseConfig<'date'>> extends PgColumn<T> {
 export type PgDateStringBuilderInitial<TName extends string> = PgDateStringBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'PgDateString';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;

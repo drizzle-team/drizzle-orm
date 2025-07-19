@@ -8,7 +8,6 @@ import { GelIntColumnBaseBuilder } from './int.common.ts';
 export type GelBigInt64BuilderInitial<TName extends string> = GelBigInt64Builder<{
 	name: TName;
 	dataType: 'bigint';
-	columnType: 'GelBigInt64';
 	data: bigint;
 	driverParam: bigint;
 	enumValues: undefined;

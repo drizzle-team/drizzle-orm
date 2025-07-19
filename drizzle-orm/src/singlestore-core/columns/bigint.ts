@@ -8,7 +8,6 @@ import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoInc
 export type SingleStoreBigInt53BuilderInitial<TName extends string> = SingleStoreBigInt53Builder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'SingleStoreBigInt53';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
@@ -53,7 +52,6 @@ export class SingleStoreBigInt53<T extends ColumnBaseConfig<'number'>>
 export type SingleStoreBigInt64BuilderInitial<TName extends string> = SingleStoreBigInt64Builder<{
 	name: TName;
 	dataType: 'bigint';
-	columnType: 'SingleStoreBigInt64';
 	data: bigint;
 	driverParam: string;
 	enumValues: undefined;

@@ -13,7 +13,6 @@ export type PgSerialBuilderInitial<TName extends string> = NotNull<
 		PgSerialBuilder<{
 			name: TName;
 			dataType: 'number';
-			columnType: 'PgSerial';
 			data: number;
 			driverParam: number;
 			enumValues: undefined;

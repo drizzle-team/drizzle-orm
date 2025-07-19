@@ -7,7 +7,6 @@ import { GelColumn, GelColumnBuilder } from './common.ts';
 export type GelRealBuilderInitial<TName extends string> = GelRealBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'GelReal';
 	data: number;
 	driverParam: number;
 	enumValues: undefined;
