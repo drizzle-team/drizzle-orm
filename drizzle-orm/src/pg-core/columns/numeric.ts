@@ -14,7 +14,7 @@ export type PgNumericBuilderInitial<TName extends string> = PgNumericBuilder<{
 	enumValues: undefined;
 }>;
 
-export class PgNumericBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgNumeric'>> extends PgColumnBuilder<
+export class PgNumericBuilder<T extends ColumnBuilderBaseConfig<'string'>> extends PgColumnBuilder<
 	T,
 	{
 		precision: number | undefined;
@@ -35,7 +35,7 @@ export class PgNumericBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgNum
 	}
 }
 
-export class PgNumeric<T extends ColumnBaseConfig<'string', 'PgNumeric'>> extends PgColumn<T> {
+export class PgNumeric<T extends ColumnBaseConfig<'string'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgNumeric';
 
 	readonly precision: number | undefined;
@@ -73,7 +73,7 @@ export type PgNumericNumberBuilderInitial<TName extends string> = PgNumericNumbe
 	enumValues: undefined;
 }>;
 
-export class PgNumericNumberBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgNumericNumber'>>
+export class PgNumericNumberBuilder<T extends ColumnBuilderBaseConfig<'number'>>
 	extends PgColumnBuilder<
 		T,
 		{
@@ -99,7 +99,7 @@ export class PgNumericNumberBuilder<T extends ColumnBuilderBaseConfig<'number', 
 	}
 }
 
-export class PgNumericNumber<T extends ColumnBaseConfig<'number', 'PgNumericNumber'>> extends PgColumn<T> {
+export class PgNumericNumber<T extends ColumnBaseConfig<'number'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgNumericNumber';
 
 	readonly precision: number | undefined;
@@ -139,7 +139,7 @@ export type PgNumericBigIntBuilderInitial<TName extends string> = PgNumericBigIn
 	enumValues: undefined;
 }>;
 
-export class PgNumericBigIntBuilder<T extends ColumnBuilderBaseConfig<'bigint', 'PgNumericBigInt'>>
+export class PgNumericBigIntBuilder<T extends ColumnBuilderBaseConfig<'bigint'>>
 	extends PgColumnBuilder<
 		T,
 		{
@@ -165,7 +165,7 @@ export class PgNumericBigIntBuilder<T extends ColumnBuilderBaseConfig<'bigint', 
 	}
 }
 
-export class PgNumericBigInt<T extends ColumnBaseConfig<'bigint', 'PgNumericBigInt'>> extends PgColumn<T> {
+export class PgNumericBigInt<T extends ColumnBaseConfig<'bigint'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgNumericBigInt';
 
 	readonly precision: number | undefined;

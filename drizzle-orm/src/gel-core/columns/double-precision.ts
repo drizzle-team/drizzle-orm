@@ -13,7 +13,7 @@ export type GelDoublePrecisionBuilderInitial<TName extends string> = GelDoublePr
 	enumValues: undefined;
 }>;
 
-export class GelDoublePrecisionBuilder<T extends ColumnBuilderBaseConfig<'number', 'GelDoublePrecision'>>
+export class GelDoublePrecisionBuilder<T extends ColumnBuilderBaseConfig<'number'>>
 	extends GelColumnBuilder<T>
 {
 	static override readonly [entityKind]: string = 'GelDoublePrecisionBuilder';
@@ -31,7 +31,7 @@ export class GelDoublePrecisionBuilder<T extends ColumnBuilderBaseConfig<'number
 	}
 }
 
-export class GelDoublePrecision<T extends ColumnBaseConfig<'number', 'GelDoublePrecision'>> extends GelColumn<T> {
+export class GelDoublePrecision<T extends ColumnBaseConfig<'number'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelDoublePrecision';
 
 	getSQLType(): string {

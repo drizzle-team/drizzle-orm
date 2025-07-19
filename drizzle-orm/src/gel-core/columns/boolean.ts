@@ -13,7 +13,7 @@ export type GelBooleanBuilderInitial<TName extends string> = GelBooleanBuilder<{
 	enumValues: undefined;
 }>;
 
-export class GelBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean', 'GelBoolean'>> extends GelColumnBuilder<T> {
+export class GelBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean'>> extends GelColumnBuilder<T> {
 	static override readonly [entityKind]: string = 'GelBooleanBuilder';
 
 	constructor(name: T['name']) {
@@ -26,7 +26,7 @@ export class GelBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean', 'Gel
 	}
 }
 
-export class GelBoolean<T extends ColumnBaseConfig<'boolean', 'GelBoolean'>> extends GelColumn<T> {
+export class GelBoolean<T extends ColumnBaseConfig<'boolean'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelBoolean';
 
 	getSQLType(): string {

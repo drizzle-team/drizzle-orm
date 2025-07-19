@@ -13,7 +13,7 @@ export type MySqlJsonBuilderInitial<TName extends string> = MySqlJsonBuilder<{
 	enumValues: undefined;
 }>;
 
-export class MySqlJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'MySqlJson'>> extends MySqlColumnBuilder<T> {
+export class MySqlJsonBuilder<T extends ColumnBuilderBaseConfig<'json'>> extends MySqlColumnBuilder<T> {
 	static override readonly [entityKind]: string = 'MySqlJsonBuilder';
 
 	constructor(name: T['name']) {
@@ -26,7 +26,7 @@ export class MySqlJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'MySqlJs
 	}
 }
 
-export class MySqlJson<T extends ColumnBaseConfig<'json', 'MySqlJson'>> extends MySqlColumn<T> {
+export class MySqlJson<T extends ColumnBaseConfig<'json'>> extends MySqlColumn<T> {
 	static override readonly [entityKind]: string = 'MySqlJson';
 
 	getSQLType(): string {

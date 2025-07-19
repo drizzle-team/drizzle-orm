@@ -13,7 +13,7 @@ export type PgCidrBuilderInitial<TName extends string> = PgCidrBuilder<{
 	enumValues: undefined;
 }>;
 
-export class PgCidrBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgCidr'>> extends PgColumnBuilder<T> {
+export class PgCidrBuilder<T extends ColumnBuilderBaseConfig<'string'>> extends PgColumnBuilder<T> {
 	static override readonly [entityKind]: string = 'PgCidrBuilder';
 
 	constructor(name: T['name']) {
@@ -26,7 +26,7 @@ export class PgCidrBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgCidr'>
 	}
 }
 
-export class PgCidr<T extends ColumnBaseConfig<'string', 'PgCidr'>> extends PgColumn<T> {
+export class PgCidr<T extends ColumnBaseConfig<'string'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgCidr';
 
 	getSQLType(): string {

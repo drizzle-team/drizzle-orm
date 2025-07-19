@@ -13,7 +13,7 @@ export type GelUUIDBuilderInitial<TName extends string> = GelUUIDBuilder<{
 	enumValues: undefined;
 }>;
 
-export class GelUUIDBuilder<T extends ColumnBuilderBaseConfig<'string', 'GelUUID'>> extends GelColumnBuilder<T> {
+export class GelUUIDBuilder<T extends ColumnBuilderBaseConfig<'string'>> extends GelColumnBuilder<T> {
 	static override readonly [entityKind]: string = 'GelUUIDBuilder';
 
 	constructor(name: T['name']) {
@@ -26,7 +26,7 @@ export class GelUUIDBuilder<T extends ColumnBuilderBaseConfig<'string', 'GelUUID
 	}
 }
 
-export class GelUUID<T extends ColumnBaseConfig<'string', 'GelUUID'>> extends GelColumn<T> {
+export class GelUUID<T extends ColumnBaseConfig<'string'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelUUID';
 
 	getSQLType(): string {

@@ -15,7 +15,7 @@ export type PgDateBuilderInitial<TName extends string> = PgDateBuilder<{
 	enumValues: undefined;
 }>;
 
-export class PgDateBuilder<T extends ColumnBuilderBaseConfig<'date', 'PgDate'>> extends PgDateColumnBaseBuilder<T> {
+export class PgDateBuilder<T extends ColumnBuilderBaseConfig<'date'>> extends PgDateColumnBaseBuilder<T> {
 	static override readonly [entityKind]: string = 'PgDateBuilder';
 
 	constructor(name: T['name']) {
@@ -28,7 +28,7 @@ export class PgDateBuilder<T extends ColumnBuilderBaseConfig<'date', 'PgDate'>> 
 	}
 }
 
-export class PgDate<T extends ColumnBaseConfig<'date', 'PgDate'>> extends PgColumn<T> {
+export class PgDate<T extends ColumnBaseConfig<'date'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgDate';
 
 	getSQLType(): string {
@@ -53,7 +53,7 @@ export type PgDateStringBuilderInitial<TName extends string> = PgDateStringBuild
 	enumValues: undefined;
 }>;
 
-export class PgDateStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgDateString'>>
+export class PgDateStringBuilder<T extends ColumnBuilderBaseConfig<'string'>>
 	extends PgDateColumnBaseBuilder<T>
 {
 	static override readonly [entityKind]: string = 'PgDateStringBuilder';
@@ -71,7 +71,7 @@ export class PgDateStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'Pg
 	}
 }
 
-export class PgDateString<T extends ColumnBaseConfig<'string', 'PgDateString'>> extends PgColumn<T> {
+export class PgDateString<T extends ColumnBaseConfig<'string'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgDateString';
 
 	getSQLType(): string {

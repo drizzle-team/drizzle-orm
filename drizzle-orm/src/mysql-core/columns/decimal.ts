@@ -15,7 +15,7 @@ export type MySqlDecimalBuilderInitial<TName extends string> = MySqlDecimalBuild
 }>;
 
 export class MySqlDecimalBuilder<
-	T extends ColumnBuilderBaseConfig<'string', 'MySqlDecimal'>,
+	T extends ColumnBuilderBaseConfig<'string'>,
 > extends MySqlColumnBuilderWithAutoIncrement<T, MySqlDecimalConfig> {
 	static override readonly [entityKind]: string = 'MySqlDecimalBuilder';
 
@@ -35,7 +35,7 @@ export class MySqlDecimalBuilder<
 	}
 }
 
-export class MySqlDecimal<T extends ColumnBaseConfig<'string', 'MySqlDecimal'>>
+export class MySqlDecimal<T extends ColumnBaseConfig<'string'>>
 	extends MySqlColumnWithAutoIncrement<T, MySqlDecimalConfig>
 {
 	static override readonly [entityKind]: string = 'MySqlDecimal';
@@ -74,7 +74,7 @@ export type MySqlDecimalNumberBuilderInitial<TName extends string> = MySqlDecima
 }>;
 
 export class MySqlDecimalNumberBuilder<
-	T extends ColumnBuilderBaseConfig<'number', 'MySqlDecimalNumber'>,
+	T extends ColumnBuilderBaseConfig<'number'>,
 > extends MySqlColumnBuilderWithAutoIncrement<T, MySqlDecimalConfig> {
 	static override readonly [entityKind]: string = 'MySqlDecimalNumberBuilder';
 
@@ -94,7 +94,7 @@ export class MySqlDecimalNumberBuilder<
 	}
 }
 
-export class MySqlDecimalNumber<T extends ColumnBaseConfig<'number', 'MySqlDecimalNumber'>>
+export class MySqlDecimalNumber<T extends ColumnBaseConfig<'number'>>
 	extends MySqlColumnWithAutoIncrement<T, MySqlDecimalConfig>
 {
 	static override readonly [entityKind]: string = 'MySqlDecimalNumber';
@@ -135,7 +135,7 @@ export type MySqlDecimalBigIntBuilderInitial<TName extends string> = MySqlDecima
 }>;
 
 export class MySqlDecimalBigIntBuilder<
-	T extends ColumnBuilderBaseConfig<'bigint', 'MySqlDecimalBigInt'>,
+	T extends ColumnBuilderBaseConfig<'bigint'>,
 > extends MySqlColumnBuilderWithAutoIncrement<T, MySqlDecimalConfig> {
 	static override readonly [entityKind]: string = 'MySqlDecimalBigIntBuilder';
 
@@ -155,7 +155,7 @@ export class MySqlDecimalBigIntBuilder<
 	}
 }
 
-export class MySqlDecimalBigInt<T extends ColumnBaseConfig<'bigint', 'MySqlDecimalBigInt'>>
+export class MySqlDecimalBigInt<T extends ColumnBaseConfig<'bigint'>>
 	extends MySqlColumnWithAutoIncrement<T, MySqlDecimalConfig>
 {
 	static override readonly [entityKind]: string = 'MySqlDecimalBigInt';

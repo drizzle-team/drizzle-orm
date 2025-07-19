@@ -14,7 +14,7 @@ export type MySqlBigInt53BuilderInitial<TName extends string> = MySqlBigInt53Bui
 	enumValues: undefined;
 }>;
 
-export class MySqlBigInt53Builder<T extends ColumnBuilderBaseConfig<'number', 'MySqlBigInt53'>>
+export class MySqlBigInt53Builder<T extends ColumnBuilderBaseConfig<'number'>>
 	extends MySqlColumnBuilderWithAutoIncrement<T, { unsigned: boolean }>
 {
 	static override readonly [entityKind]: string = 'MySqlBigInt53Builder';
@@ -33,7 +33,7 @@ export class MySqlBigInt53Builder<T extends ColumnBuilderBaseConfig<'number', 'M
 	}
 }
 
-export class MySqlBigInt53<T extends ColumnBaseConfig<'number', 'MySqlBigInt53'>>
+export class MySqlBigInt53<T extends ColumnBaseConfig<'number'>>
 	extends MySqlColumnWithAutoIncrement<T, { unsigned: boolean }>
 {
 	static override readonly [entityKind]: string = 'MySqlBigInt53';
@@ -59,7 +59,7 @@ export type MySqlBigInt64BuilderInitial<TName extends string> = MySqlBigInt64Bui
 	enumValues: undefined;
 }>;
 
-export class MySqlBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'MySqlBigInt64'>>
+export class MySqlBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint'>>
 	extends MySqlColumnBuilderWithAutoIncrement<T, { unsigned: boolean }>
 {
 	static override readonly [entityKind]: string = 'MySqlBigInt64Builder';
@@ -78,7 +78,7 @@ export class MySqlBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'M
 	}
 }
 
-export class MySqlBigInt64<T extends ColumnBaseConfig<'bigint', 'MySqlBigInt64'>>
+export class MySqlBigInt64<T extends ColumnBaseConfig<'bigint'>>
 	extends MySqlColumnWithAutoIncrement<T, { unsigned: boolean }>
 {
 	static override readonly [entityKind]: string = 'MySqlBigInt64';

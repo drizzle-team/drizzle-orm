@@ -15,7 +15,7 @@ export type SingleStoreVarBinaryBuilderInitial<TName extends string> = SingleSto
 	generated: undefined;
 }>;
 
-export class SingleStoreVarBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', 'SingleStoreVarBinary'>>
+export class SingleStoreVarBinaryBuilder<T extends ColumnBuilderBaseConfig<'string'>>
 	extends SingleStoreColumnBuilder<T, SingleStoreVarbinaryOptions>
 {
 	static override readonly [entityKind]: string = 'SingleStoreVarBinaryBuilder';
@@ -36,7 +36,7 @@ export class SingleStoreVarBinaryBuilder<T extends ColumnBuilderBaseConfig<'stri
 }
 
 export class SingleStoreVarBinary<
-	T extends ColumnBaseConfig<'string', 'SingleStoreVarBinary'>,
+	T extends ColumnBaseConfig<'string'>,
 > extends SingleStoreColumn<T, SingleStoreVarbinaryOptions> {
 	static override readonly [entityKind]: string = 'SingleStoreVarBinary';
 

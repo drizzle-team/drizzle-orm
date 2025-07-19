@@ -14,7 +14,7 @@ export type MySqlFloatBuilderInitial<TName extends string> = MySqlFloatBuilder<{
 	enumValues: undefined;
 }>;
 
-export class MySqlFloatBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlFloat'>>
+export class MySqlFloatBuilder<T extends ColumnBuilderBaseConfig<'number'>>
 	extends MySqlColumnBuilderWithAutoIncrement<T, MySqlFloatConfig>
 {
 	static override readonly [entityKind]: string = 'MySqlFloatBuilder';
@@ -32,7 +32,7 @@ export class MySqlFloatBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySq
 	}
 }
 
-export class MySqlFloat<T extends ColumnBaseConfig<'number', 'MySqlFloat'>>
+export class MySqlFloat<T extends ColumnBaseConfig<'number'>>
 	extends MySqlColumnWithAutoIncrement<T, MySqlFloatConfig>
 {
 	static override readonly [entityKind]: string = 'MySqlFloat';

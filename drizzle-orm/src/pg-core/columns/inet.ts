@@ -13,7 +13,7 @@ export type PgInetBuilderInitial<TName extends string> = PgInetBuilder<{
 	enumValues: undefined;
 }>;
 
-export class PgInetBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgInet'>> extends PgColumnBuilder<T> {
+export class PgInetBuilder<T extends ColumnBuilderBaseConfig<'string'>> extends PgColumnBuilder<T> {
 	static override readonly [entityKind]: string = 'PgInetBuilder';
 
 	constructor(name: T['name']) {
@@ -26,7 +26,7 @@ export class PgInetBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgInet'>
 	}
 }
 
-export class PgInet<T extends ColumnBaseConfig<'string', 'PgInet'>> extends PgColumn<T> {
+export class PgInet<T extends ColumnBaseConfig<'string'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgInet';
 
 	getSQLType(): string {

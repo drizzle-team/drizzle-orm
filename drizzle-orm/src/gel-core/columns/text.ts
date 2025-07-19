@@ -14,7 +14,7 @@ type GelTextBuilderInitial<TName extends string> = GelTextBuilder<{
 }>;
 
 export class GelTextBuilder<
-	T extends ColumnBuilderBaseConfig<'string', 'GelText'>,
+	T extends ColumnBuilderBaseConfig<'string'>,
 > extends GelColumnBuilder<T> {
 	static override readonly [entityKind]: string = 'GelTextBuilder';
 
@@ -30,7 +30,7 @@ export class GelTextBuilder<
 	}
 }
 
-export class GelText<T extends ColumnBaseConfig<'string', 'GelText'>>
+export class GelText<T extends ColumnBaseConfig<'string'>>
 	extends GelColumn<T, { enumValues: T['enumValues'] }>
 {
 	static override readonly [entityKind]: string = 'GelText';

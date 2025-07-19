@@ -19,7 +19,7 @@ export type PgCharBuilderInitial<
 	length: TLength;
 }>;
 
-export class PgCharBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgChar'> & { length?: number | undefined }>
+export class PgCharBuilder<T extends ColumnBuilderBaseConfig<'string'> & { length?: number | undefined }>
 	extends PgColumnBuilder<
 		T,
 		{ length: T['length']; enumValues: T['enumValues'] }
@@ -42,7 +42,7 @@ export class PgCharBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgChar'>
 	}
 }
 
-export class PgChar<T extends ColumnBaseConfig<'string', 'PgChar'> & { length?: number | undefined }>
+export class PgChar<T extends ColumnBaseConfig<'string'> & { length?: number | undefined }>
 	extends PgColumn<T, { length: T['length']; enumValues: T['enumValues'] }>
 {
 	static override readonly [entityKind]: string = 'PgChar';

@@ -14,7 +14,7 @@ export type SingleStoreJsonBuilderInitial<TName extends string> = SingleStoreJso
 	generated: undefined;
 }>;
 
-export class SingleStoreJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'SingleStoreJson'>>
+export class SingleStoreJsonBuilder<T extends ColumnBuilderBaseConfig<'json'>>
 	extends SingleStoreColumnBuilder<T>
 {
 	static override readonly [entityKind]: string = 'SingleStoreJsonBuilder';
@@ -32,7 +32,7 @@ export class SingleStoreJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'S
 	}
 }
 
-export class SingleStoreJson<T extends ColumnBaseConfig<'json', 'SingleStoreJson'>> extends SingleStoreColumn<T> {
+export class SingleStoreJson<T extends ColumnBaseConfig<'json'>> extends SingleStoreColumn<T> {
 	static override readonly [entityKind]: string = 'SingleStoreJson';
 
 	getSQLType(): string {

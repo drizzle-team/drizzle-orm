@@ -15,7 +15,7 @@ export type MySqlEnumColumnBuilderInitial<TName extends string, TEnum extends st
 	enumValues: TEnum;
 }>;
 
-export class MySqlEnumColumnBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlEnumColumn'>>
+export class MySqlEnumColumnBuilder<T extends ColumnBuilderBaseConfig<'string'>>
 	extends MySqlColumnBuilder<T, { enumValues: T['enumValues'] }>
 {
 	static override readonly [entityKind]: string = 'MySqlEnumColumnBuilder';
@@ -34,7 +34,7 @@ export class MySqlEnumColumnBuilder<T extends ColumnBuilderBaseConfig<'string', 
 	}
 }
 
-export class MySqlEnumColumn<T extends ColumnBaseConfig<'string', 'MySqlEnumColumn'>>
+export class MySqlEnumColumn<T extends ColumnBaseConfig<'string'>>
 	extends MySqlColumn<T, { enumValues: T['enumValues'] }>
 {
 	static override readonly [entityKind]: string = 'MySqlEnumColumn';
@@ -58,7 +58,7 @@ export type MySqlEnumObjectColumnBuilderInitial<TName extends string, TEnum exte
 		enumValues: string[];
 	}>;
 
-export class MySqlEnumObjectColumnBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlEnumObjectColumn'>>
+export class MySqlEnumObjectColumnBuilder<T extends ColumnBuilderBaseConfig<'string'>>
 	extends MySqlColumnBuilder<T, { enumValues: T['enumValues'] }>
 {
 	static override readonly [entityKind]: string = 'MySqlEnumObjectColumnBuilder';
@@ -77,7 +77,7 @@ export class MySqlEnumObjectColumnBuilder<T extends ColumnBuilderBaseConfig<'str
 	}
 }
 
-export class MySqlEnumObjectColumn<T extends ColumnBaseConfig<'string', 'MySqlEnumObjectColumn'>>
+export class MySqlEnumObjectColumn<T extends ColumnBaseConfig<'string'>>
 	extends MySqlColumn<T, { enumValues: T['enumValues'] }>
 {
 	static override readonly [entityKind]: string = 'MySqlEnumObjectColumn';

@@ -13,7 +13,7 @@ export type SQLiteRealBuilderInitial<TName extends string> = SQLiteRealBuilder<{
 	enumValues: undefined;
 }>;
 
-export class SQLiteRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'SQLiteReal'>>
+export class SQLiteRealBuilder<T extends ColumnBuilderBaseConfig<'number'>>
 	extends SQLiteColumnBuilder<T>
 {
 	static override readonly [entityKind]: string = 'SQLiteRealBuilder';
@@ -28,7 +28,7 @@ export class SQLiteRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'SQLi
 	}
 }
 
-export class SQLiteReal<T extends ColumnBaseConfig<'number', 'SQLiteReal'>> extends SQLiteColumn<T> {
+export class SQLiteReal<T extends ColumnBaseConfig<'number'>> extends SQLiteColumn<T> {
 	static override readonly [entityKind]: string = 'SQLiteReal';
 
 	getSQLType(): string {

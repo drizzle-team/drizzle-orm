@@ -13,7 +13,7 @@ export type PgMacaddrBuilderInitial<TName extends string> = PgMacaddrBuilder<{
 	enumValues: undefined;
 }>;
 
-export class PgMacaddrBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgMacaddr'>> extends PgColumnBuilder<T> {
+export class PgMacaddrBuilder<T extends ColumnBuilderBaseConfig<'string'>> extends PgColumnBuilder<T> {
 	static override readonly [entityKind]: string = 'PgMacaddrBuilder';
 
 	constructor(name: T['name']) {
@@ -26,7 +26,7 @@ export class PgMacaddrBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgMac
 	}
 }
 
-export class PgMacaddr<T extends ColumnBaseConfig<'string', 'PgMacaddr'>> extends PgColumn<T> {
+export class PgMacaddr<T extends ColumnBaseConfig<'string'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgMacaddr';
 
 	getSQLType(): string {

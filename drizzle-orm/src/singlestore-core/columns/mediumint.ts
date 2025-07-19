@@ -16,7 +16,7 @@ export type SingleStoreMediumIntBuilderInitial<TName extends string> = SingleSto
 	generated: undefined;
 }>;
 
-export class SingleStoreMediumIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'SingleStoreMediumInt'>>
+export class SingleStoreMediumIntBuilder<T extends ColumnBuilderBaseConfig<'number'>>
 	extends SingleStoreColumnBuilderWithAutoIncrement<T, SingleStoreIntConfig>
 {
 	static override readonly [entityKind]: string = 'SingleStoreMediumIntBuilder';
@@ -35,7 +35,7 @@ export class SingleStoreMediumIntBuilder<T extends ColumnBuilderBaseConfig<'numb
 	}
 }
 
-export class SingleStoreMediumInt<T extends ColumnBaseConfig<'number', 'SingleStoreMediumInt'>>
+export class SingleStoreMediumInt<T extends ColumnBaseConfig<'number'>>
 	extends SingleStoreColumnWithAutoIncrement<T, SingleStoreIntConfig>
 {
 	static override readonly [entityKind]: string = 'SingleStoreMediumInt';

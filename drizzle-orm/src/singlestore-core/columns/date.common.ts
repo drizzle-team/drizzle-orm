@@ -14,7 +14,7 @@ export interface SingleStoreDateColumnBaseConfig {
 }
 
 export abstract class SingleStoreDateColumnBaseBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string>,
+	T extends ColumnBuilderBaseConfig<ColumnDataType>,
 	TRuntimeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
 > extends SingleStoreColumnBuilder<T, TRuntimeConfig & SingleStoreDateColumnBaseConfig, TExtraConfig> {
@@ -32,7 +32,7 @@ export abstract class SingleStoreDateColumnBaseBuilder<
 }
 
 export abstract class SingleStoreDateBaseColumn<
-	T extends ColumnBaseConfig<ColumnDataType, string>,
+	T extends ColumnBaseConfig<ColumnDataType>,
 	TRuntimeConfig extends object = object,
 > extends SingleStoreColumn<T, SingleStoreDateColumnBaseConfig & TRuntimeConfig> {
 	static override readonly [entityKind]: string = 'SingleStoreDateColumn';

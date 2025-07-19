@@ -22,7 +22,7 @@ export interface MySqlCustomColumnInnerConfig {
 	customTypeValues: CustomTypeValues;
 }
 
-export class MySqlCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom', 'MySqlCustomColumn'>>
+export class MySqlCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom'>>
 	extends MySqlColumnBuilder<
 		T,
 		{
@@ -52,7 +52,7 @@ export class MySqlCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom'
 	}
 }
 
-export class MySqlCustomColumn<T extends ColumnBaseConfig<'custom', 'MySqlCustomColumn'>> extends MySqlColumn<T> {
+export class MySqlCustomColumn<T extends ColumnBaseConfig<'custom'>> extends MySqlColumn<T> {
 	static override readonly [entityKind]: string = 'MySqlCustomColumn';
 
 	private sqlName: string;

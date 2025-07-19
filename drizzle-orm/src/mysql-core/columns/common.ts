@@ -31,7 +31,7 @@ export interface MySqlGeneratedColumnConfig {
 }
 
 export abstract class MySqlColumnBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string> & {
+	T extends ColumnBuilderBaseConfig<ColumnDataType> = ColumnBuilderBaseConfig<ColumnDataType> & {
 		data: any;
 	},
 	TRuntimeConfig extends object = object,
@@ -88,7 +88,7 @@ export abstract class MySqlColumnBuilder<
 
 // To understand how to use `MySqlColumn` and `AnyMySqlColumn`, see `Column` and `AnyColumn` documentation.
 export abstract class MySqlColumn<
-	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
+	T extends ColumnBaseConfig<ColumnDataType> = ColumnBaseConfig<ColumnDataType>,
 	TRuntimeConfig extends object = {},
 > extends Column<T, TRuntimeConfig> {
 	static override readonly [entityKind]: string = 'MySqlColumn';
@@ -108,8 +108,8 @@ export abstract class MySqlColumn<
 	}
 }
 
-export type AnyMySqlColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType, string>> = {}> = MySqlColumn<
-	Required<Update<ColumnBaseConfig<ColumnDataType, string>, TPartial>>
+export type AnyMySqlColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType>> = {}> = MySqlColumn<
+	Required<Update<ColumnBaseConfig<ColumnDataType>, TPartial>>
 >;
 
 export interface MySqlColumnWithAutoIncrementConfig {
@@ -117,13 +117,13 @@ export interface MySqlColumnWithAutoIncrementConfig {
 }
 
 export abstract class MySqlColumnBuilderWithAutoIncrement<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
+	T extends ColumnBuilderBaseConfig<ColumnDataType> = ColumnBuilderBaseConfig<ColumnDataType>,
 	TRuntimeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
 > extends MySqlColumnBuilder<T, TRuntimeConfig & MySqlColumnWithAutoIncrementConfig, TExtraConfig> {
 	static override readonly [entityKind]: string = 'MySqlColumnBuilderWithAutoIncrement';
 
-	constructor(name: NonNullable<T['name']>, dataType: T['dataType'], columnType: T['columnType']) {
+	constructor(name: NonNullable<T['name']>, dataType: T['dataType'], columnType: string) {
 		super(name, dataType, columnType);
 		this.config.autoIncrement = false;
 	}
@@ -136,7 +136,7 @@ export abstract class MySqlColumnBuilderWithAutoIncrement<
 }
 
 export abstract class MySqlColumnWithAutoIncrement<
-	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
+	T extends ColumnBaseConfig<ColumnDataType> = ColumnBaseConfig<ColumnDataType>,
 	TRuntimeConfig extends object = object,
 > extends MySqlColumn<T, MySqlColumnWithAutoIncrementConfig & TRuntimeConfig> {
 	static override readonly [entityKind]: string = 'MySqlColumnWithAutoIncrement';

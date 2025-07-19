@@ -16,7 +16,7 @@ export type SQLiteBigIntBuilderInitial<TName extends string> = SQLiteBigIntBuild
 	enumValues: undefined;
 }>;
 
-export class SQLiteBigIntBuilder<T extends ColumnBuilderBaseConfig<'bigint', 'SQLiteBigInt'>>
+export class SQLiteBigIntBuilder<T extends ColumnBuilderBaseConfig<'bigint'>>
 	extends SQLiteColumnBuilder<T>
 {
 	static override readonly [entityKind]: string = 'SQLiteBigIntBuilder';
@@ -31,7 +31,7 @@ export class SQLiteBigIntBuilder<T extends ColumnBuilderBaseConfig<'bigint', 'SQ
 	}
 }
 
-export class SQLiteBigInt<T extends ColumnBaseConfig<'bigint', 'SQLiteBigInt'>> extends SQLiteColumn<T> {
+export class SQLiteBigInt<T extends ColumnBaseConfig<'bigint'>> extends SQLiteColumn<T> {
 	static override readonly [entityKind]: string = 'SQLiteBigInt';
 
 	getSQLType(): string {
@@ -72,7 +72,7 @@ export type SQLiteBlobJsonBuilderInitial<TName extends string> = SQLiteBlobJsonB
 	enumValues: undefined;
 }>;
 
-export class SQLiteBlobJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'SQLiteBlobJson'>>
+export class SQLiteBlobJsonBuilder<T extends ColumnBuilderBaseConfig<'json'>>
 	extends SQLiteColumnBuilder<T>
 {
 	static override readonly [entityKind]: string = 'SQLiteBlobJsonBuilder';
@@ -90,7 +90,7 @@ export class SQLiteBlobJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'SQ
 	}
 }
 
-export class SQLiteBlobJson<T extends ColumnBaseConfig<'json', 'SQLiteBlobJson'>> extends SQLiteColumn<T> {
+export class SQLiteBlobJson<T extends ColumnBaseConfig<'json'>> extends SQLiteColumn<T> {
 	static override readonly [entityKind]: string = 'SQLiteBlobJson';
 
 	getSQLType(): string {
@@ -131,7 +131,7 @@ export type SQLiteBlobBufferBuilderInitial<TName extends string> = SQLiteBlobBuf
 	enumValues: undefined;
 }>;
 
-export class SQLiteBlobBufferBuilder<T extends ColumnBuilderBaseConfig<'buffer', 'SQLiteBlobBuffer'>>
+export class SQLiteBlobBufferBuilder<T extends ColumnBuilderBaseConfig<'buffer'>>
 	extends SQLiteColumnBuilder<T>
 {
 	static override readonly [entityKind]: string = 'SQLiteBlobBufferBuilder';
@@ -146,7 +146,7 @@ export class SQLiteBlobBufferBuilder<T extends ColumnBuilderBaseConfig<'buffer',
 	}
 }
 
-export class SQLiteBlobBuffer<T extends ColumnBaseConfig<'buffer', 'SQLiteBlobBuffer'>> extends SQLiteColumn<T> {
+export class SQLiteBlobBuffer<T extends ColumnBaseConfig<'buffer'>> extends SQLiteColumn<T> {
 	static override readonly [entityKind]: string = 'SQLiteBlobBuffer';
 
 	override mapFromDriverValue(value: Buffer | Uint8Array | ArrayBuffer): T['data'] {

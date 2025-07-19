@@ -28,7 +28,7 @@ export interface ReferenceConfig {
 }
 
 export abstract class PgColumnBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
+	T extends ColumnBuilderBaseConfig<ColumnDataType> = ColumnBuilderBaseConfig<ColumnDataType>,
 	TRuntimeConfig extends object = object,
 > extends ColumnBuilder<T, TRuntimeConfig, ColumnBuilderExtraConfig> {
 	private foreignKeyConfigs: ReferenceConfig[] = [];
@@ -120,7 +120,7 @@ export abstract class PgColumnBuilder<
 
 // To understand how to use `PgColumn` and `PgColumn`, see `Column` and `AnyColumn` documentation.
 export abstract class PgColumn<
-	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
+	T extends ColumnBaseConfig<ColumnDataType> = ColumnBaseConfig<ColumnDataType>,
 	TRuntimeConfig extends object = {},
 > extends Column<T, TRuntimeConfig> {
 	static override readonly [entityKind]: string = 'PgColumn';
@@ -143,7 +143,7 @@ export abstract class PgColumn<
 export type IndexedExtraConfigType = { order?: 'asc' | 'desc'; nulls?: 'first' | 'last'; opClass?: string };
 
 export class ExtraConfigColumn<
-	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
+	T extends ColumnBaseConfig<ColumnDataType> = ColumnBaseConfig<ColumnDataType>,
 > extends PgColumn<T, IndexedExtraConfigType> {
 	static override readonly [entityKind]: string = 'ExtraConfigColumn';
 
@@ -237,23 +237,23 @@ export class IndexedColumn {
 	indexConfig: IndexedExtraConfigType;
 }
 
-export type AnyPgColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType, string>> = {}> = PgColumn<
-	Required<Update<ColumnBaseConfig<ColumnDataType, string>, TPartial>>
+export type AnyPgColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType>> = {}> = PgColumn<
+	Required<Update<ColumnBaseConfig<ColumnDataType>, TPartial>>
 >;
 
-export type PgArrayColumnBuilderBaseConfig = ColumnBuilderBaseConfig<'array', 'PgArray'> & {
+export type PgArrayColumnBuilderBaseConfig = ColumnBuilderBaseConfig<'array'> & {
 	size: number | undefined;
-	baseBuilder: ColumnBuilderBaseConfig<ColumnDataType, string>;
+	baseBuilder: ColumnBuilderBaseConfig<ColumnDataType>;
 };
 
 export class PgArrayBuilder<
 	T extends PgArrayColumnBuilderBaseConfig,
-	TBase extends ColumnBuilderBaseConfig<ColumnDataType, string> | PgArrayColumnBuilderBaseConfig,
+	TBase extends ColumnBuilderBaseConfig<ColumnDataType> | PgArrayColumnBuilderBaseConfig,
 > extends PgColumnBuilder<
 	T & {
 		baseBuilder: TBase extends PgArrayColumnBuilderBaseConfig ? PgArrayBuilder<
 				TBase,
-				TBase extends { baseBuilder: infer TBaseBuilder extends ColumnBuilderBaseConfig<any, any> } ? TBaseBuilder
+				TBase extends { baseBuilder: infer TBaseBuilder extends ColumnBuilderBaseConfig<any> } ? TBaseBuilder
 					: never
 			>
 			: PgColumnBuilder<TBase, {}>;
@@ -262,7 +262,7 @@ export class PgArrayBuilder<
 	{
 		baseBuilder: TBase extends PgArrayColumnBuilderBaseConfig ? PgArrayBuilder<
 				TBase,
-				TBase extends { baseBuilder: infer TBaseBuilder extends ColumnBuilderBaseConfig<any, any> } ? TBaseBuilder
+				TBase extends { baseBuilder: infer TBaseBuilder extends ColumnBuilderBaseConfig<any> } ? TBaseBuilder
 					: never
 			>
 			: PgColumnBuilder<TBase, {}>;
@@ -293,11 +293,11 @@ export class PgArrayBuilder<
 }
 
 export class PgArray<
-	T extends ColumnBaseConfig<'array', 'PgArray'> & {
+	T extends ColumnBaseConfig<'array'> & {
 		size: number | undefined;
-		baseBuilder: ColumnBuilderBaseConfig<ColumnDataType, string>;
+		baseBuilder: ColumnBuilderBaseConfig<ColumnDataType>;
 	},
-	TBase extends ColumnBuilderBaseConfig<ColumnDataType, string>,
+	TBase extends ColumnBuilderBaseConfig<ColumnDataType>,
 > extends PgColumn<T, {}> {
 	readonly size: T['size'];
 

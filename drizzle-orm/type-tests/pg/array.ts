@@ -14,7 +14,6 @@ import { integer, pgTable } from '~/pg-core/index.ts';
 					name: 'a';
 					tableName: 'table';
 					dataType: 'number';
-					columnType: 'PgInteger';
 					data: number;
 					driverParam: string | number;
 					notNull: false;

@@ -20,7 +20,7 @@ export type SingleStoreDateTimeBuilderInitial<TName extends string> = SingleStor
 	generated: undefined;
 }>;
 
-export class SingleStoreDateTimeBuilder<T extends ColumnBuilderBaseConfig<'date', 'SingleStoreDateTime'>>
+export class SingleStoreDateTimeBuilder<T extends ColumnBuilderBaseConfig<'date'>>
 	extends SingleStoreColumnBuilder<T, SingleStoreDatetimeConfig>
 {
 	/** @internal */
@@ -46,7 +46,7 @@ export class SingleStoreDateTimeBuilder<T extends ColumnBuilderBaseConfig<'date'
 	}
 }
 
-export class SingleStoreDateTime<T extends ColumnBaseConfig<'date', 'SingleStoreDateTime'>>
+export class SingleStoreDateTime<T extends ColumnBaseConfig<'date'>>
 	extends SingleStoreColumn<T>
 {
 	static override readonly [entityKind]: string = 'SingleStoreDateTime';
@@ -81,7 +81,7 @@ export type SingleStoreDateTimeStringBuilderInitial<TName extends string> = Sing
 	generated: undefined;
 }>;
 
-export class SingleStoreDateTimeStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'SingleStoreDateTimeString'>>
+export class SingleStoreDateTimeStringBuilder<T extends ColumnBuilderBaseConfig<'string'>>
 	extends SingleStoreColumnBuilder<T, SingleStoreDatetimeConfig>
 {
 	/** @internal */
@@ -107,7 +107,7 @@ export class SingleStoreDateTimeStringBuilder<T extends ColumnBuilderBaseConfig<
 	}
 }
 
-export class SingleStoreDateTimeString<T extends ColumnBaseConfig<'string', 'SingleStoreDateTimeString'>>
+export class SingleStoreDateTimeString<T extends ColumnBaseConfig<'string'>>
 	extends SingleStoreColumn<T>
 {
 	static override readonly [entityKind]: string = 'SingleStoreDateTimeString';

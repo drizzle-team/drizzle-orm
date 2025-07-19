@@ -13,7 +13,7 @@ export type GelJsonBuilderInitial<TName extends string> = GelJsonBuilder<{
 	enumValues: undefined;
 }>;
 
-export class GelJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'GelJson'>> extends GelColumnBuilder<
+export class GelJsonBuilder<T extends ColumnBuilderBaseConfig<'json'>> extends GelColumnBuilder<
 	T
 > {
 	static override readonly [entityKind]: string = 'GelJsonBuilder';
@@ -28,7 +28,7 @@ export class GelJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'GelJson'>
 	}
 }
 
-export class GelJson<T extends ColumnBaseConfig<'json', 'GelJson'>> extends GelColumn<T> {
+export class GelJson<T extends ColumnBaseConfig<'json'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelJson';
 
 	constructor(table: AnyGelTable<{ name: T['tableName'] }>, config: GelJsonBuilder<T>['config']) {

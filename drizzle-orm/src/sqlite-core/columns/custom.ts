@@ -22,7 +22,7 @@ export interface SQLiteCustomColumnInnerConfig {
 	customTypeValues: CustomTypeValues;
 }
 
-export class SQLiteCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom', 'SQLiteCustomColumn'>>
+export class SQLiteCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom'>>
 	extends SQLiteColumnBuilder<
 		T,
 		{
@@ -52,7 +52,7 @@ export class SQLiteCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom
 	}
 }
 
-export class SQLiteCustomColumn<T extends ColumnBaseConfig<'custom', 'SQLiteCustomColumn'>> extends SQLiteColumn<T> {
+export class SQLiteCustomColumn<T extends ColumnBaseConfig<'custom'>> extends SQLiteColumn<T> {
 	static override readonly [entityKind]: string = 'SQLiteCustomColumn';
 
 	private sqlName: string;

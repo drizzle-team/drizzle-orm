@@ -15,7 +15,7 @@ export type PgTextBuilderInitial<TName extends string, TEnum extends [string, ..
 }>;
 
 export class PgTextBuilder<
-	T extends ColumnBuilderBaseConfig<'string', 'PgText'>,
+	T extends ColumnBuilderBaseConfig<'string'>,
 > extends PgColumnBuilder<T, { enumValues: T['enumValues'] }> {
 	static override readonly [entityKind]: string = 'PgTextBuilder';
 
@@ -33,7 +33,7 @@ export class PgTextBuilder<
 	}
 }
 
-export class PgText<T extends ColumnBaseConfig<'string', 'PgText'>>
+export class PgText<T extends ColumnBaseConfig<'string'>>
 	extends PgColumn<T, { enumValues: T['enumValues'] }>
 {
 	static override readonly [entityKind]: string = 'PgText';

@@ -15,7 +15,7 @@ export type SingleStoreBinaryBuilderInitial<TName extends string> = SingleStoreB
 	generated: undefined;
 }>;
 
-export class SingleStoreBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', 'SingleStoreBinary'>>
+export class SingleStoreBinaryBuilder<T extends ColumnBuilderBaseConfig<'string'>>
 	extends SingleStoreColumnBuilder<
 		T,
 		SingleStoreBinaryConfig
@@ -37,7 +37,7 @@ export class SingleStoreBinaryBuilder<T extends ColumnBuilderBaseConfig<'string'
 	}
 }
 
-export class SingleStoreBinary<T extends ColumnBaseConfig<'string', 'SingleStoreBinary'>> extends SingleStoreColumn<
+export class SingleStoreBinary<T extends ColumnBaseConfig<'string'>> extends SingleStoreColumn<
 	T,
 	SingleStoreBinaryConfig
 > {

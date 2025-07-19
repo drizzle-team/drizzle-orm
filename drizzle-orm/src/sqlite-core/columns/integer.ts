@@ -19,7 +19,7 @@ export interface PrimaryKeyConfig {
 }
 
 export abstract class SQLiteBaseIntegerBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string>,
+	T extends ColumnBuilderBaseConfig<ColumnDataType>,
 	TRuntimeConfig extends object = object,
 > extends SQLiteColumnBuilder<
 	T,
@@ -28,7 +28,7 @@ export abstract class SQLiteBaseIntegerBuilder<
 > {
 	static override readonly [entityKind]: string = 'SQLiteBaseIntegerBuilder';
 
-	constructor(name: T['name'], dataType: T['dataType'], columnType: T['columnType']) {
+	constructor(name: T['name'], dataType: T['dataType'], columnType: string) {
 		super(name, dataType, columnType);
 		this.config.autoIncrement = false;
 	}
@@ -43,7 +43,7 @@ export abstract class SQLiteBaseIntegerBuilder<
 }
 
 export abstract class SQLiteBaseInteger<
-	T extends ColumnBaseConfig<ColumnDataType, string>,
+	T extends ColumnBaseConfig<ColumnDataType>,
 	TRuntimeConfig extends object = object,
 > extends SQLiteColumn<T, TRuntimeConfig & { autoIncrement: boolean }> {
 	static override readonly [entityKind]: string = 'SQLiteBaseInteger';
@@ -64,7 +64,7 @@ export type SQLiteIntegerBuilderInitial<TName extends string> = SQLiteIntegerBui
 	enumValues: undefined;
 }>;
 
-export class SQLiteIntegerBuilder<T extends ColumnBuilderBaseConfig<'number', 'SQLiteInteger'>>
+export class SQLiteIntegerBuilder<T extends ColumnBuilderBaseConfig<'number'>>
 	extends SQLiteBaseIntegerBuilder<T>
 {
 	static override readonly [entityKind]: string = 'SQLiteIntegerBuilder';
@@ -81,7 +81,7 @@ export class SQLiteIntegerBuilder<T extends ColumnBuilderBaseConfig<'number', 'S
 	}
 }
 
-export class SQLiteInteger<T extends ColumnBaseConfig<'number', 'SQLiteInteger'>> extends SQLiteBaseInteger<T> {
+export class SQLiteInteger<T extends ColumnBaseConfig<'number'>> extends SQLiteBaseInteger<T> {
 	static override readonly [entityKind]: string = 'SQLiteInteger';
 }
 
@@ -94,7 +94,7 @@ export type SQLiteTimestampBuilderInitial<TName extends string> = SQLiteTimestam
 	enumValues: undefined;
 }>;
 
-export class SQLiteTimestampBuilder<T extends ColumnBuilderBaseConfig<'date', 'SQLiteTimestamp'>>
+export class SQLiteTimestampBuilder<T extends ColumnBuilderBaseConfig<'date'>>
 	extends SQLiteBaseIntegerBuilder<T, { mode: 'timestamp' | 'timestamp_ms' }>
 {
 	static override readonly [entityKind]: string = 'SQLiteTimestampBuilder';
@@ -121,7 +121,7 @@ export class SQLiteTimestampBuilder<T extends ColumnBuilderBaseConfig<'date', 'S
 	}
 }
 
-export class SQLiteTimestamp<T extends ColumnBaseConfig<'date', 'SQLiteTimestamp'>>
+export class SQLiteTimestamp<T extends ColumnBaseConfig<'date'>>
 	extends SQLiteBaseInteger<T, { mode: 'timestamp' | 'timestamp_ms' }>
 {
 	static override readonly [entityKind]: string = 'SQLiteTimestamp';
@@ -153,7 +153,7 @@ export type SQLiteBooleanBuilderInitial<TName extends string> = SQLiteBooleanBui
 	enumValues: undefined;
 }>;
 
-export class SQLiteBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean', 'SQLiteBoolean'>>
+export class SQLiteBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean'>>
 	extends SQLiteBaseIntegerBuilder<T, { mode: 'boolean' }>
 {
 	static override readonly [entityKind]: string = 'SQLiteBooleanBuilder';
@@ -171,7 +171,7 @@ export class SQLiteBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean', '
 	}
 }
 
-export class SQLiteBoolean<T extends ColumnBaseConfig<'boolean', 'SQLiteBoolean'>>
+export class SQLiteBoolean<T extends ColumnBaseConfig<'boolean'>>
 	extends SQLiteBaseInteger<T, { mode: 'boolean' }>
 {
 	static override readonly [entityKind]: string = 'SQLiteBoolean';

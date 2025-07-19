@@ -13,7 +13,7 @@ export type MySqlYearBuilderInitial<TName extends string> = MySqlYearBuilder<{
 	enumValues: undefined;
 }>;
 
-export class MySqlYearBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlYear'>> extends MySqlColumnBuilder<T> {
+export class MySqlYearBuilder<T extends ColumnBuilderBaseConfig<'number'>> extends MySqlColumnBuilder<T> {
 	static override readonly [entityKind]: string = 'MySqlYearBuilder';
 
 	constructor(name: T['name']) {
@@ -27,7 +27,7 @@ export class MySqlYearBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySql
 }
 
 export class MySqlYear<
-	T extends ColumnBaseConfig<'number', 'MySqlYear'>,
+	T extends ColumnBaseConfig<'number'>,
 > extends MySqlColumn<T> {
 	static override readonly [entityKind]: string = 'MySqlYear';
 

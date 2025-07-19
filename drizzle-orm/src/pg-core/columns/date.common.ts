@@ -4,7 +4,7 @@ import { sql } from '~/sql/sql.ts';
 import { PgColumnBuilder } from './common.ts';
 
 export abstract class PgDateColumnBaseBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string>,
+	T extends ColumnBuilderBaseConfig<ColumnDataType>,
 	TRuntimeConfig extends object = object,
 > extends PgColumnBuilder<T, TRuntimeConfig> {
 	static override readonly [entityKind]: string = 'PgDateColumnBaseBuilder';

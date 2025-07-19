@@ -14,7 +14,7 @@ export type GelRelDurationBuilderInitial<TName extends string> = GelRelDurationB
 	enumValues: undefined;
 }>;
 
-export class GelRelDurationBuilder<T extends ColumnBuilderBaseConfig<'relDuration', 'GelRelDuration'>>
+export class GelRelDurationBuilder<T extends ColumnBuilderBaseConfig<'relDuration'>>
 	extends GelColumnBuilder<T>
 {
 	static override readonly [entityKind]: string = 'GelRelDurationBuilder';
@@ -34,7 +34,7 @@ export class GelRelDurationBuilder<T extends ColumnBuilderBaseConfig<'relDuratio
 	}
 }
 
-export class GelRelDuration<T extends ColumnBaseConfig<'relDuration', 'GelRelDuration'>> extends GelColumn<T> {
+export class GelRelDuration<T extends ColumnBaseConfig<'relDuration'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelRelDuration';
 
 	getSQLType(): string {

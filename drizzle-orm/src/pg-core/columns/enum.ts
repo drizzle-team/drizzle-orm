@@ -29,7 +29,7 @@ export interface PgEnumObject<TValues extends object> {
 }
 
 export class PgEnumObjectColumnBuilder<
-	T extends ColumnBuilderBaseConfig<'string', 'PgEnumObjectColumn'> & { enumValues: string[] },
+	T extends ColumnBuilderBaseConfig<'string'> & { enumValues: string[] },
 > extends PgColumnBuilder<T, { enum: PgEnumObject<any> }> {
 	static override readonly [entityKind]: string = 'PgEnumObjectColumnBuilder';
 
@@ -47,7 +47,7 @@ export class PgEnumObjectColumnBuilder<
 	}
 }
 
-export class PgEnumObjectColumn<T extends ColumnBaseConfig<'string', 'PgEnumObjectColumn'> & { enumValues: object }>
+export class PgEnumObjectColumn<T extends ColumnBaseConfig<'string'> & { enumValues: object }>
 	extends PgColumn<T, { enum: PgEnumObject<object> }>
 {
 	static override readonly [entityKind]: string = 'PgEnumObjectColumn';
@@ -98,7 +98,7 @@ export function isPgEnum(obj: unknown): obj is PgEnum<[string, ...string[]]> {
 }
 
 export class PgEnumColumnBuilder<
-	T extends ColumnBuilderBaseConfig<'string', 'PgEnumColumn'> & { enumValues: [string, ...string[]] },
+	T extends ColumnBuilderBaseConfig<'string'> & { enumValues: [string, ...string[]] },
 > extends PgColumnBuilder<T, { enum: PgEnum<T['enumValues']> }> {
 	static override readonly [entityKind]: string = 'PgEnumColumnBuilder';
 
@@ -116,7 +116,7 @@ export class PgEnumColumnBuilder<
 	}
 }
 
-export class PgEnumColumn<T extends ColumnBaseConfig<'string', 'PgEnumColumn'> & { enumValues: [string, ...string[]] }>
+export class PgEnumColumn<T extends ColumnBaseConfig<'string'> & { enumValues: [string, ...string[]] }>
 	extends PgColumn<T, { enum: PgEnum<T['enumValues']> }>
 {
 	static override readonly [entityKind]: string = 'PgEnumColumn';

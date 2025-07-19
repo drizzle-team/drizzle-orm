@@ -14,7 +14,7 @@ export type MySqlDoubleBuilderInitial<TName extends string> = MySqlDoubleBuilder
 	enumValues: undefined;
 }>;
 
-export class MySqlDoubleBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlDouble'>>
+export class MySqlDoubleBuilder<T extends ColumnBuilderBaseConfig<'number'>>
 	extends MySqlColumnBuilderWithAutoIncrement<T, MySqlDoubleConfig>
 {
 	static override readonly [entityKind]: string = 'MySqlDoubleBuilder';
@@ -32,7 +32,7 @@ export class MySqlDoubleBuilder<T extends ColumnBuilderBaseConfig<'number', 'MyS
 	}
 }
 
-export class MySqlDouble<T extends ColumnBaseConfig<'number', 'MySqlDouble'>>
+export class MySqlDouble<T extends ColumnBaseConfig<'number'>>
 	extends MySqlColumnWithAutoIncrement<T, MySqlDoubleConfig>
 {
 	static override readonly [entityKind]: string = 'MySqlDouble';

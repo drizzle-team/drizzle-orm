@@ -13,7 +13,7 @@ export type GelBytesBuilderInitial<TName extends string> = GelBytesBuilder<{
 	enumValues: undefined;
 }>;
 
-export class GelBytesBuilder<T extends ColumnBuilderBaseConfig<'buffer', 'GelBytes'>> extends GelColumnBuilder<T> {
+export class GelBytesBuilder<T extends ColumnBuilderBaseConfig<'buffer'>> extends GelColumnBuilder<T> {
 	static override readonly [entityKind]: string = 'GelBytesBuilder';
 
 	constructor(name: T['name']) {
@@ -29,7 +29,7 @@ export class GelBytesBuilder<T extends ColumnBuilderBaseConfig<'buffer', 'GelByt
 	}
 }
 
-export class GelBytes<T extends ColumnBaseConfig<'buffer', 'GelBytes'>> extends GelColumn<T> {
+export class GelBytes<T extends ColumnBaseConfig<'buffer'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelBytes';
 
 	getSQLType(): string {

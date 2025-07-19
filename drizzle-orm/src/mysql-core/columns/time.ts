@@ -14,7 +14,7 @@ export type MySqlTimeBuilderInitial<TName extends string> = MySqlTimeBuilder<{
 	enumValues: undefined;
 }>;
 
-export class MySqlTimeBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlTime'>> extends MySqlColumnBuilder<
+export class MySqlTimeBuilder<T extends ColumnBuilderBaseConfig<'string'>> extends MySqlColumnBuilder<
 	T,
 	TimeConfig
 > {
@@ -35,7 +35,7 @@ export class MySqlTimeBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySql
 }
 
 export class MySqlTime<
-	T extends ColumnBaseConfig<'string', 'MySqlTime'>,
+	T extends ColumnBaseConfig<'string'>,
 > extends MySqlColumn<T, TimeConfig> {
 	static override readonly [entityKind]: string = 'MySqlTime';
 

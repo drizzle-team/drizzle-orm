@@ -11,9 +11,8 @@ import type { Table } from './table.ts';
 import type { Update } from './utils.ts';
 
 export interface ColumnBaseConfig<
-	TDataType extends ColumnDataType,
-	TColumnType extends string,
-> extends ColumnBuilderBaseConfig<TDataType, TColumnType> {
+	TDataType extends ColumnDataType
+> extends ColumnBuilderBaseConfig<TDataType> {
 	tableName: string;
 	notNull: boolean;
 	hasDefault: boolean;
@@ -23,7 +22,7 @@ export interface ColumnBaseConfig<
 }
 
 export interface Column<
-	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
+	T extends ColumnBaseConfig<ColumnDataType> = ColumnBaseConfig<ColumnDataType>,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TRuntimeConfig extends object = object,
 > extends DriverValueMapper<T['data'], T['driverParam']>, SQLWrapper {
@@ -35,14 +34,12 @@ export interface Column<
 	See `GetColumnData` for example usage of inferring.
 */
 export abstract class Column<
-	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
+	T extends ColumnBaseConfig<ColumnDataType> = ColumnBaseConfig<ColumnDataType>,
 	TRuntimeConfig extends object = object
 > implements DriverValueMapper<T['data'], T['driverParam']>, SQLWrapper {
 	static readonly [entityKind]: string = 'Column';
 
 	declare readonly _: T & { 
-		// dialect: Dialect, 
-		brand: 'Column';
 		identity: undefined | 'always' | 'byDefault'; 
 	};
 
@@ -58,7 +55,7 @@ export abstract class Column<
 	readonly uniqueName: string | undefined;
 	readonly uniqueType: string | undefined;
 	readonly dataType: T['dataType'];
-	readonly columnType: T['columnType'];
+	readonly columnType: string;
 	readonly enumValues: T['enumValues'] = undefined;
 	readonly generated: GeneratedColumnConfig<T['data']> | undefined = undefined;
 	readonly generatedIdentity: GeneratedIdentityConfig | undefined = undefined;
@@ -114,12 +111,12 @@ export abstract class Column<
 }
 
 export type UpdateColConfig<
-	T extends ColumnBaseConfig<ColumnDataType, string>,
-	TUpdate extends Partial<ColumnBaseConfig<ColumnDataType, string>>,
+	T extends ColumnBaseConfig<ColumnDataType>,
+	TUpdate extends Partial<ColumnBaseConfig<ColumnDataType>>,
 > = Update<T, TUpdate>;
 
-export type AnyColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType, string>> = {}> = Column<
-	Required<Update<ColumnBaseConfig<ColumnDataType, string>, TPartial>>
+export type AnyColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType>> = {}> = Column<
+	Required<Update<ColumnBaseConfig<ColumnDataType>, TPartial>>
 >;
 
 export type GetColumnData<TColumn extends Column, TInferMode extends 'query' | 'raw' = 'query'> =

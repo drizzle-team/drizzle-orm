@@ -15,7 +15,7 @@ export type GelTimestampBuilderInitial<TName extends string> = GelTimestampBuild
 	enumValues: undefined;
 }>;
 
-export class GelTimestampBuilder<T extends ColumnBuilderBaseConfig<'localDateTime', 'GelTimestamp'>>
+export class GelTimestampBuilder<T extends ColumnBuilderBaseConfig<'localDateTime'>>
 	extends GelLocalDateColumnBaseBuilder<
 		T
 	>
@@ -37,7 +37,7 @@ export class GelTimestampBuilder<T extends ColumnBuilderBaseConfig<'localDateTim
 	}
 }
 
-export class GelTimestamp<T extends ColumnBaseConfig<'localDateTime', 'GelTimestamp'>> extends GelColumn<T> {
+export class GelTimestamp<T extends ColumnBaseConfig<'localDateTime'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelTimestamp';
 
 	constructor(table: AnyGelTable<{ name: T['tableName'] }>, config: GelTimestampBuilder<T>['config']) {

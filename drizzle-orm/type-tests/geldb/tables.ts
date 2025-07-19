@@ -689,7 +689,6 @@ export const citiesCustom = customSchema.table('cities_table', {
 				tableName: 'cities_table';
 				name: 'id';
 				dataType: 'number';
-				columnType: 'GelInteger';
 				data: number;
 				driverParam: number;
 				hasDefault: false;
@@ -706,7 +705,6 @@ export const citiesCustom = customSchema.table('cities_table', {
 				tableName: 'cities_table';
 				name: 'name';
 				dataType: 'string';
-				columnType: 'GelText';
 				data: string;
 				driverParam: string;
 				hasDefault: false;
@@ -724,7 +722,6 @@ export const citiesCustom = customSchema.table('cities_table', {
 					tableName: 'cities_table';
 					name: 'role';
 					dataType: 'string';
-					columnType: 'GelText';
 					data: 'admin' | 'user';
 					driverParam: string;
 					hasDefault: true;
@@ -743,7 +740,6 @@ export const citiesCustom = customSchema.table('cities_table', {
 				tableName: 'cities_table';
 				name: 'population';
 				dataType: 'number';
-				columnType: 'GelInteger';
 				data: number;
 				driverParam: number;
 				notNull: false;

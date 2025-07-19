@@ -14,7 +14,7 @@ export type GelInt53BuilderInitial<TName extends string> = GelInt53Builder<{
 	enumValues: undefined;
 }>;
 
-export class GelInt53Builder<T extends ColumnBuilderBaseConfig<'number', 'GelInt53'>>
+export class GelInt53Builder<T extends ColumnBuilderBaseConfig<'number'>>
 	extends GelIntColumnBaseBuilder<T>
 {
 	static override readonly [entityKind]: string = 'GelInt53Builder';
@@ -29,7 +29,7 @@ export class GelInt53Builder<T extends ColumnBuilderBaseConfig<'number', 'GelInt
 	}
 }
 
-export class GelInt53<T extends ColumnBaseConfig<'number', 'GelInt53'>> extends GelColumn<T> {
+export class GelInt53<T extends ColumnBaseConfig<'number'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelInt53';
 
 	getSQLType(): string {

@@ -20,7 +20,7 @@ export interface SingleStoreGeneratedColumnConfig {
 }
 
 export abstract class SingleStoreColumnBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string> & {
+	T extends ColumnBuilderBaseConfig<ColumnDataType> = ColumnBuilderBaseConfig<ColumnDataType> & {
 		data: any;
 	},
 	TRuntimeConfig extends object = object,
@@ -51,7 +51,7 @@ export abstract class SingleStoreColumnBuilder<
 
 // To understand how to use `SingleStoreColumn` and `AnySingleStoreColumn`, see `Column` and `AnyColumn` documentation.
 export abstract class SingleStoreColumn<
-	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
+	T extends ColumnBaseConfig<ColumnDataType> = ColumnBaseConfig<ColumnDataType>,
 	TRuntimeConfig extends object = {},
 > extends Column<T, TRuntimeConfig> {
 	static override readonly [entityKind]: string = 'SingleStoreColumn';
@@ -71,9 +71,9 @@ export abstract class SingleStoreColumn<
 	}
 }
 
-export type AnySingleStoreColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType, string>> = {}> =
+export type AnySingleStoreColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType>> = {}> =
 	SingleStoreColumn<
-		Required<Update<ColumnBaseConfig<ColumnDataType, string>, TPartial>>
+		Required<Update<ColumnBaseConfig<ColumnDataType>, TPartial>>
 	>;
 
 export interface SingleStoreColumnWithAutoIncrementConfig {
@@ -81,13 +81,13 @@ export interface SingleStoreColumnWithAutoIncrementConfig {
 }
 
 export abstract class SingleStoreColumnBuilderWithAutoIncrement<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
+	T extends ColumnBuilderBaseConfig<ColumnDataType> = ColumnBuilderBaseConfig<ColumnDataType>,
 	TRuntimeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
 > extends SingleStoreColumnBuilder<T, TRuntimeConfig & SingleStoreColumnWithAutoIncrementConfig, TExtraConfig> {
 	static override readonly [entityKind]: string = 'SingleStoreColumnBuilderWithAutoIncrement';
 
-	constructor(name: NonNullable<T['name']>, dataType: T['dataType'], columnType: T['columnType']) {
+	constructor(name: NonNullable<T['name']>, dataType: T['dataType'], columnType: string) {
 		super(name, dataType, columnType);
 		this.config.autoIncrement = false;
 	}
@@ -100,7 +100,7 @@ export abstract class SingleStoreColumnBuilderWithAutoIncrement<
 }
 
 export abstract class SingleStoreColumnWithAutoIncrement<
-	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
+	T extends ColumnBaseConfig<ColumnDataType> = ColumnBaseConfig<ColumnDataType>,
 	TRuntimeConfig extends object = object,
 > extends SingleStoreColumn<T, SingleStoreColumnWithAutoIncrementConfig & TRuntimeConfig> {
 	static override readonly [entityKind]: string = 'SingleStoreColumnWithAutoIncrement';

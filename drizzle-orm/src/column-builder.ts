@@ -42,17 +42,16 @@ export interface GeneratedIdentityConfig {
 	type: 'always' | 'byDefault';
 }
 
-export interface ColumnBuilderBaseConfig<TDataType extends ColumnDataType, TColumnType extends string> {
+export interface ColumnBuilderBaseConfig<TDataType extends ColumnDataType> {
 	name: string;
 	dataType: TDataType;
-	columnType: TColumnType;
 	data: unknown;
 	driverParam: unknown;
 	enumValues: string[] | undefined;
 }
 
 export type MakeColumnConfig<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string>,
+	T extends ColumnBuilderBaseConfig<ColumnDataType>,
 	TTableName extends string,
 	TKey extends string,
 	TData = T extends { $type: infer U } ? U : T['data'],
@@ -60,7 +59,6 @@ export type MakeColumnConfig<
 	name: T['name'] extends '' ? TKey : T['name'];
 	tableName: TTableName;
 	dataType: T['dataType'];
-	columnType: T['columnType'];
 	data: TData;
 	driverParam: T['driverParam'];
 	notNull: T extends { notNull: true } ? true : false;
@@ -154,7 +152,7 @@ export type IsIdentity<T, TType extends 'always' | 'byDefault'> = T & {
 };
 
 export interface ColumnBuilderBase<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
+	T extends ColumnBuilderBaseConfig<ColumnDataType> = ColumnBuilderBaseConfig<ColumnDataType>,
 > {
 	// TODO: @Sukairo-02, it is now accessed only in that file
 	_: T;
@@ -162,7 +160,7 @@ export interface ColumnBuilderBase<
 
 // To understand how to use `ColumnBuilder` and `AnyColumnBuilder`, see `Column` and `AnyColumn` documentation.
 export abstract class ColumnBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string>,
+	T extends ColumnBuilderBaseConfig<ColumnDataType>,
 	TRuntimeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
 > implements ColumnBuilderBase<T> {
@@ -174,7 +172,7 @@ export abstract class ColumnBuilder<
 	/** @internal */
 	protected config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig;
 
-	constructor(name: T['name'], dataType: T['dataType'], columnType: T['columnType']) {
+	constructor(name: T['name'], dataType: T['dataType'], columnType: string) {
 		this.config = {
 			name,
 			keyAsName: name === '',
@@ -301,7 +299,7 @@ export type BuildColumn<
 	TBuilder extends ColumnBuilderBase,
 	TDialect extends Dialect,
 	TKey extends string,
-	TMakedConfig extends ColumnBaseConfig<ColumnDataType, string> = MakeColumnConfig<TBuilder['_'], TTableName, TKey>,
+	TMakedConfig extends ColumnBaseConfig<ColumnDataType> = MakeColumnConfig<TBuilder['_'], TTableName, TKey>,
 > = TDialect extends 'pg' ? PgColumn<TMakedConfig, {}>
 	: TDialect extends 'mysql' ? MySqlColumn<TMakedConfig, {}>
 	: TDialect extends 'sqlite' ? SQLiteColumn<TMakedConfig, {}>

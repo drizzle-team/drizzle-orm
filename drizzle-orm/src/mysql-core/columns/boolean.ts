@@ -13,7 +13,7 @@ export type MySqlBooleanBuilderInitial<TName extends string> = MySqlBooleanBuild
 	enumValues: undefined;
 }>;
 
-export class MySqlBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean', 'MySqlBoolean'>>
+export class MySqlBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean'>>
 	extends MySqlColumnBuilder<T>
 {
 	static override readonly [entityKind]: string = 'MySqlBooleanBuilder';
@@ -31,7 +31,7 @@ export class MySqlBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean', 'M
 	}
 }
 
-export class MySqlBoolean<T extends ColumnBaseConfig<'boolean', 'MySqlBoolean'>> extends MySqlColumn<T> {
+export class MySqlBoolean<T extends ColumnBaseConfig<'boolean'>> extends MySqlColumn<T> {
 	static override readonly [entityKind]: string = 'MySqlBoolean';
 
 	getSQLType(): string {

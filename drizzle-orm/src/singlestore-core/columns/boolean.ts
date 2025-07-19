@@ -14,7 +14,7 @@ export type SingleStoreBooleanBuilderInitial<TName extends string> = SingleStore
 	generated: undefined;
 }>;
 
-export class SingleStoreBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean', 'SingleStoreBoolean'>>
+export class SingleStoreBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean'>>
 	extends SingleStoreColumnBuilder<T>
 {
 	static override readonly [entityKind]: string = 'SingleStoreBooleanBuilder';
@@ -32,7 +32,7 @@ export class SingleStoreBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolea
 	}
 }
 
-export class SingleStoreBoolean<T extends ColumnBaseConfig<'boolean', 'SingleStoreBoolean'>>
+export class SingleStoreBoolean<T extends ColumnBaseConfig<'boolean'>>
 	extends SingleStoreColumn<T>
 {
 	static override readonly [entityKind]: string = 'SingleStoreBoolean';

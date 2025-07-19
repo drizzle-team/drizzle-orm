@@ -20,7 +20,7 @@ export type PgVarcharBuilderInitial<
 }>;
 
 export class PgVarcharBuilder<
-	T extends ColumnBuilderBaseConfig<'string', 'PgVarchar'> & { length?: number | undefined },
+	T extends ColumnBuilderBaseConfig<'string'> & { length?: number | undefined },
 > extends PgColumnBuilder<
 	T,
 	{ length: T['length']; enumValues: T['enumValues'] }
@@ -42,7 +42,7 @@ export class PgVarcharBuilder<
 	}
 }
 
-export class PgVarchar<T extends ColumnBaseConfig<'string', 'PgVarchar'> & { length?: number | undefined }>
+export class PgVarchar<T extends ColumnBaseConfig<'string'> & { length?: number | undefined }>
 	extends PgColumn<T, { length: T['length']; enumValues: T['enumValues'] }>
 {
 	static override readonly [entityKind]: string = 'PgVarchar';

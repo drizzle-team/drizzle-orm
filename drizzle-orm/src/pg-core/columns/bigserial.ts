@@ -22,7 +22,7 @@ export type PgBigSerial53BuilderInitial<TName extends string> = NotNull<
 	>
 >;
 
-export class PgBigSerial53Builder<T extends ColumnBuilderBaseConfig<'number', 'PgBigSerial53'>>
+export class PgBigSerial53Builder<T extends ColumnBuilderBaseConfig<'number'>>
 	extends PgColumnBuilder<T>
 {
 	static override readonly [entityKind]: string = 'PgBigSerial53Builder';
@@ -42,7 +42,7 @@ export class PgBigSerial53Builder<T extends ColumnBuilderBaseConfig<'number', 'P
 	}
 }
 
-export class PgBigSerial53<T extends ColumnBaseConfig<'number', 'PgBigSerial53'>> extends PgColumn<T> {
+export class PgBigSerial53<T extends ColumnBaseConfig<'number'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgBigSerial53';
 
 	getSQLType(): string {
@@ -70,7 +70,7 @@ export type PgBigSerial64BuilderInitial<TName extends string> = NotNull<
 	>
 >;
 
-export class PgBigSerial64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'PgBigSerial64'>>
+export class PgBigSerial64Builder<T extends ColumnBuilderBaseConfig<'bigint'>>
 	extends PgColumnBuilder<T>
 {
 	static override readonly [entityKind]: string = 'PgBigSerial64Builder';
@@ -89,7 +89,7 @@ export class PgBigSerial64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'P
 	}
 }
 
-export class PgBigSerial64<T extends ColumnBaseConfig<'bigint', 'PgBigSerial64'>> extends PgColumn<T> {
+export class PgBigSerial64<T extends ColumnBaseConfig<'bigint'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgBigSerial64';
 
 	getSQLType(): string {

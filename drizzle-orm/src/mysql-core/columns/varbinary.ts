@@ -14,7 +14,7 @@ export type MySqlVarBinaryBuilderInitial<TName extends string> = MySqlVarBinaryB
 	enumValues: undefined;
 }>;
 
-export class MySqlVarBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlVarBinary'>>
+export class MySqlVarBinaryBuilder<T extends ColumnBuilderBaseConfig<'string'>>
 	extends MySqlColumnBuilder<T, MySqlVarbinaryOptions>
 {
 	static override readonly [entityKind]: string = 'MySqlVarBinaryBuilder';
@@ -35,7 +35,7 @@ export class MySqlVarBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', '
 }
 
 export class MySqlVarBinary<
-	T extends ColumnBaseConfig<'string', 'MySqlVarBinary'>,
+	T extends ColumnBaseConfig<'string'>,
 > extends MySqlColumn<T, MySqlVarbinaryOptions> {
 	static override readonly [entityKind]: string = 'MySqlVarBinary';
 

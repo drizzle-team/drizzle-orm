@@ -16,7 +16,7 @@ export type SingleStoreDecimalBuilderInitial<TName extends string> = SingleStore
 }>;
 
 export class SingleStoreDecimalBuilder<
-	T extends ColumnBuilderBaseConfig<'string', 'SingleStoreDecimal'>,
+	T extends ColumnBuilderBaseConfig<'string'>,
 > extends SingleStoreColumnBuilderWithAutoIncrement<T, SingleStoreDecimalConfig> {
 	static override readonly [entityKind]: string = 'SingleStoreDecimalBuilder';
 
@@ -36,7 +36,7 @@ export class SingleStoreDecimalBuilder<
 	}
 }
 
-export class SingleStoreDecimal<T extends ColumnBaseConfig<'string', 'SingleStoreDecimal'>>
+export class SingleStoreDecimal<T extends ColumnBaseConfig<'string'>>
 	extends SingleStoreColumnWithAutoIncrement<T, SingleStoreDecimalConfig>
 {
 	static override readonly [entityKind]: string = 'SingleStoreDecimal';
@@ -77,7 +77,7 @@ export type SingleStoreDecimalNumberBuilderInitial<TName extends string> = Singl
 }>;
 
 export class SingleStoreDecimalNumberBuilder<
-	T extends ColumnBuilderBaseConfig<'number', 'SingleStoreDecimalNumber'>,
+	T extends ColumnBuilderBaseConfig<'number'>,
 > extends SingleStoreColumnBuilderWithAutoIncrement<T, SingleStoreDecimalConfig> {
 	static override readonly [entityKind]: string = 'SingleStoreDecimalNumberBuilder';
 
@@ -97,7 +97,7 @@ export class SingleStoreDecimalNumberBuilder<
 	}
 }
 
-export class SingleStoreDecimalNumber<T extends ColumnBaseConfig<'number', 'SingleStoreDecimalNumber'>>
+export class SingleStoreDecimalNumber<T extends ColumnBaseConfig<'number'>>
 	extends SingleStoreColumnWithAutoIncrement<T, SingleStoreDecimalConfig>
 {
 	static override readonly [entityKind]: string = 'SingleStoreDecimalNumber';
@@ -139,7 +139,7 @@ export type SingleStoreDecimalBigIntBuilderInitial<TName extends string> = Singl
 }>;
 
 export class SingleStoreDecimalBigIntBuilder<
-	T extends ColumnBuilderBaseConfig<'bigint', 'SingleStoreDecimalBigInt'>,
+	T extends ColumnBuilderBaseConfig<'bigint'>,
 > extends SingleStoreColumnBuilderWithAutoIncrement<T, SingleStoreDecimalConfig> {
 	static override readonly [entityKind]: string = 'SingleStoreDecimalBigIntBuilder';
 
@@ -159,7 +159,7 @@ export class SingleStoreDecimalBigIntBuilder<
 	}
 }
 
-export class SingleStoreDecimalBigInt<T extends ColumnBaseConfig<'bigint', 'SingleStoreDecimalBigInt'>>
+export class SingleStoreDecimalBigInt<T extends ColumnBaseConfig<'bigint'>>
 	extends SingleStoreColumnWithAutoIncrement<T, SingleStoreDecimalConfig>
 {
 	static override readonly [entityKind]: string = 'SingleStoreDecimalBigInt';

@@ -14,7 +14,7 @@ export type MySqlTimestampBuilderInitial<TName extends string> = MySqlTimestampB
 	enumValues: undefined;
 }>;
 
-export class MySqlTimestampBuilder<T extends ColumnBuilderBaseConfig<'date', 'MySqlTimestamp'>>
+export class MySqlTimestampBuilder<T extends ColumnBuilderBaseConfig<'date'>>
 	extends MySqlDateColumnBaseBuilder<T, MySqlTimestampConfig>
 {
 	static override readonly [entityKind]: string = 'MySqlTimestampBuilder';
@@ -33,7 +33,7 @@ export class MySqlTimestampBuilder<T extends ColumnBuilderBaseConfig<'date', 'My
 	}
 }
 
-export class MySqlTimestamp<T extends ColumnBaseConfig<'date', 'MySqlTimestamp'>>
+export class MySqlTimestamp<T extends ColumnBaseConfig<'date'>>
 	extends MySqlDateBaseColumn<T, MySqlTimestampConfig>
 {
 	static override readonly [entityKind]: string = 'MySqlTimestamp';
@@ -63,7 +63,7 @@ export type MySqlTimestampStringBuilderInitial<TName extends string> = MySqlTime
 	enumValues: undefined;
 }>;
 
-export class MySqlTimestampStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlTimestampString'>>
+export class MySqlTimestampStringBuilder<T extends ColumnBuilderBaseConfig<'string'>>
 	extends MySqlDateColumnBaseBuilder<T, MySqlTimestampConfig>
 {
 	static override readonly [entityKind]: string = 'MySqlTimestampStringBuilder';
@@ -82,7 +82,7 @@ export class MySqlTimestampStringBuilder<T extends ColumnBuilderBaseConfig<'stri
 	}
 }
 
-export class MySqlTimestampString<T extends ColumnBaseConfig<'string', 'MySqlTimestampString'>>
+export class MySqlTimestampString<T extends ColumnBaseConfig<'string'>>
 	extends MySqlDateBaseColumn<T, MySqlTimestampConfig>
 {
 	static override readonly [entityKind]: string = 'MySqlTimestampString';

@@ -15,7 +15,7 @@ export type PgHalfVectorBuilderInitial<TName extends string, TDimensions extends
 	dimensions: TDimensions;
 }>;
 
-export class PgHalfVectorBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgHalfVector'> & { dimensions: number }>
+export class PgHalfVectorBuilder<T extends ColumnBuilderBaseConfig<'array'> & { dimensions: number }>
 	extends PgColumnBuilder<
 		T,
 		{ dimensions: T['dimensions'] }
@@ -37,7 +37,7 @@ export class PgHalfVectorBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgH
 	}
 }
 
-export class PgHalfVector<T extends ColumnBaseConfig<'array', 'PgHalfVector'> & { dimensions: number }>
+export class PgHalfVector<T extends ColumnBaseConfig<'array'> & { dimensions: number }>
 	extends PgColumn<T, { dimensions: T['dimensions'] }>
 {
 	static override readonly [entityKind]: string = 'PgHalfVector';

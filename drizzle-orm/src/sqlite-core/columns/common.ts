@@ -29,7 +29,7 @@ export interface SQLiteGeneratedColumnConfig {
 }
 
 export abstract class SQLiteColumnBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
+	T extends ColumnBuilderBaseConfig<ColumnDataType> = ColumnBuilderBaseConfig<ColumnDataType>,
 	TRuntimeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = object,
 > extends ColumnBuilder<T, TRuntimeConfig, TExtraConfig> {
@@ -89,7 +89,7 @@ export abstract class SQLiteColumnBuilder<
 
 // To understand how to use `SQLiteColumn` and `AnySQLiteColumn`, see `Column` and `AnyColumn` documentation.
 export abstract class SQLiteColumn<
-	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
+	T extends ColumnBaseConfig<ColumnDataType> = ColumnBaseConfig<ColumnDataType>,
 	TRuntimeConfig extends object = {},
 > extends Column<T, TRuntimeConfig> {
 	static override readonly [entityKind]: string = 'SQLiteColumn';
@@ -109,6 +109,6 @@ export abstract class SQLiteColumn<
 	}
 }
 
-export type AnySQLiteColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType, string>> = {}> = SQLiteColumn<
-	Required<Update<ColumnBaseConfig<ColumnDataType, string>, TPartial>>
+export type AnySQLiteColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType>> = {}> = SQLiteColumn<
+	Required<Update<ColumnBaseConfig<ColumnDataType>, TPartial>>
 >;

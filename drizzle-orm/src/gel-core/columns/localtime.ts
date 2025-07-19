@@ -15,7 +15,7 @@ export type GelLocalTimeBuilderInitial<TName extends string> = GelLocalTimeBuild
 	enumValues: undefined;
 }>;
 
-export class GelLocalTimeBuilder<T extends ColumnBuilderBaseConfig<'localTime', 'GelLocalTime'>>
+export class GelLocalTimeBuilder<T extends ColumnBuilderBaseConfig<'localTime'>>
 	extends GelLocalDateColumnBaseBuilder<T>
 {
 	static override readonly [entityKind]: string = 'GelLocalTimeBuilder';
@@ -33,7 +33,7 @@ export class GelLocalTimeBuilder<T extends ColumnBuilderBaseConfig<'localTime', 
 	}
 }
 
-export class GelLocalTime<T extends ColumnBaseConfig<'localTime', 'GelLocalTime'>> extends GelColumn<T> {
+export class GelLocalTime<T extends ColumnBaseConfig<'localTime'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelLocalTime';
 
 	getSQLType(): string {

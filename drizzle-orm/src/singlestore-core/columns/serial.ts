@@ -28,7 +28,7 @@ export type SingleStoreSerialBuilderInitial<TName extends string> = IsAutoincrem
 	>
 >;
 
-export class SingleStoreSerialBuilder<T extends ColumnBuilderBaseConfig<'number', 'SingleStoreSerial'>>
+export class SingleStoreSerialBuilder<T extends ColumnBuilderBaseConfig<'number'>>
 	extends SingleStoreColumnBuilderWithAutoIncrement<T>
 {
 	static override readonly [entityKind]: string = 'SingleStoreSerialBuilder';
@@ -49,7 +49,7 @@ export class SingleStoreSerialBuilder<T extends ColumnBuilderBaseConfig<'number'
 }
 
 export class SingleStoreSerial<
-	T extends ColumnBaseConfig<'number', 'SingleStoreSerial'>,
+	T extends ColumnBaseConfig<'number'>,
 > extends SingleStoreColumnWithAutoIncrement<T> {
 	static override readonly [entityKind]: string = 'SingleStoreSerial';
 

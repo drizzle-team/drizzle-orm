@@ -16,7 +16,7 @@ export type PgTimeBuilderInitial<TName extends string> = PgTimeBuilder<{
 	enumValues: undefined;
 }>;
 
-export class PgTimeBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgTime'>> extends PgDateColumnBaseBuilder<
+export class PgTimeBuilder<T extends ColumnBuilderBaseConfig<'string'>> extends PgDateColumnBaseBuilder<
 	T,
 	{ withTimezone: boolean; precision: number | undefined }
 > {
@@ -38,7 +38,7 @@ export class PgTimeBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgTime'>
 	}
 }
 
-export class PgTime<T extends ColumnBaseConfig<'string', 'PgTime'>> extends PgColumn<T> {
+export class PgTime<T extends ColumnBaseConfig<'string'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgTime';
 
 	readonly withTimezone: boolean;
