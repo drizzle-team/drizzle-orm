@@ -545,7 +545,7 @@ Expect<
 				hasDefault: false;
 				enumValues: undefined;
 				baseColumn: never;
-				dialect: 'mysql';
+				// dialect: 'mysql';
 				generated: undefined;
 				identity: undefined;
 				isPrimaryKey: false;
