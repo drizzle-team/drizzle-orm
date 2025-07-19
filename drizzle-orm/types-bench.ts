@@ -1,6 +1,7 @@
 import { bench, setup } from "@arktype/attest";
 import * as schema from "./tmp/big-schema.js";
-import { defineRelations } from "./src/relations.js";
+import { defineRelations as defy } from "./src/relations.js";
+// import { defy } from "./src/relations2.js";
 // import * as schema from "./big-schema";
 
 setup({
@@ -8,7 +9,7 @@ setup({
 });
 
 bench("relations", () => {
-  defineRelations(schema, (r) => ({
+  defy(schema, (r) => ({
     user: {
       workspacesViaApiWebhook: r.many.workspace({
         from: r.user.id.through(r.apiWebhook.createdByUserId),
@@ -1023,5 +1024,5 @@ bench("relations", () => {
       }),
     },
   }));
-}).types([121366, "instantiations"]);
+}).types([103199, "instantiations"]);
 // .mark({ mean: [3.44, "ns"], median: [3.33, "ns"] })

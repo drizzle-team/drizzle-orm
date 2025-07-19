@@ -1,11 +1,11 @@
-import type { AnyColumn, Column } from './column.ts';
+import type { Column } from './column.ts';
 import type { SQL } from './sql/sql.ts';
 import type { Table } from './table.ts';
 
-export type RequiredKeyOnly<TKey extends string, T extends Column> = T extends AnyColumn<{
+export type RequiredKeyOnly<TKey extends string, T extends Column> = T["_"] extends {
 	notNull: true;
 	hasDefault: false;
-}> ? TKey
+} ? TKey
 	: never;
 
 export type OptionalKeyOnly<TKey extends string, T extends Column, OverrideT extends boolean | undefined = false> =

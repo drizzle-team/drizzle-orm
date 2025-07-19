@@ -48,6 +48,8 @@ export interface ColumnBuilderBaseConfig<TDataType extends ColumnDataType> {
 	data: unknown;
 	driverParam: unknown;
 	enumValues: string[] | undefined;
+	notNull?: boolean;
+	hasDefault?: boolean;
 }
 
 export type MakeColumnConfig<
@@ -61,8 +63,8 @@ export type MakeColumnConfig<
 	dataType: T['dataType'];
 	data: TData;
 	driverParam: T['driverParam'];
-	notNull: T extends { notNull: true } ? true : false;
-	hasDefault: T extends { hasDefault: true } ? true : false;
+	notNull: T["notNull"] extends true ? true : false;
+	hasDefault: T["hasDefault"] extends true ? true : false;
 	isPrimaryKey: T extends { isPrimaryKey: true } ? true : false;
 	isAutoincrement: T extends { isAutoincrement: true } ? true : false;
 	hasRuntimeDefault: T extends { hasRuntimeDefault: true } ? true : false;
@@ -172,7 +174,7 @@ export abstract class ColumnBuilder<
 	/** @internal */
 	protected config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig;
 
-	constructor(name: T['name'], dataType: T['dataType'], columnType: string) {
+	constructor(name: string, dataType: ColumnDataType, columnType: string) {
 		this.config = {
 			name,
 			keyAsName: name === '',

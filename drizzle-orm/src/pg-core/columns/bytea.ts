@@ -1,21 +1,18 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type {  PgTable } from '../table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export type PgByteaBuilderInitial<TName extends string> = PgByteaBuilder<{
+export class PgByteaBuilder<TName extends string> extends PgColumnBuilder<{
 	name: TName;
 	dataType: 'buffer';
 	data: Buffer;
 	driverParam: Buffer;
 	enumValues: undefined;
-}>;
-
-export class PgByteaBuilder<T extends ColumnBuilderBaseConfig<'buffer'>> extends PgColumnBuilder<T> {
+}> {
 	static override readonly [entityKind]: string = 'PgByteaBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'buffer', 'PgBytea');
 	}
 
@@ -25,7 +22,7 @@ export class PgByteaBuilder<T extends ColumnBuilderBaseConfig<'buffer'>> extends
 	}
 }
 
-export class PgBytea<T extends ColumnBaseConfig<'buffer'>> extends PgColumn<T> {
+export class PgBytea extends PgColumn<ColumnBaseConfig<'buffer'>> {
 	static override readonly [entityKind]: string = 'PgBytea';
 
 	override mapFromDriverValue(value: Buffer | Uint8Array | string): Buffer {
@@ -45,8 +42,8 @@ export class PgBytea<T extends ColumnBaseConfig<'buffer'>> extends PgColumn<T> {
 	}
 }
 
-export function bytea(): PgByteaBuilderInitial<''>;
-export function bytea<TName extends string>(name: TName): PgByteaBuilderInitial<TName>;
+export function bytea(): PgByteaBuilder<''>;
+export function bytea<TName extends string>(name: TName): PgByteaBuilder<TName>;
 export function bytea(name?: string) {
 	return new PgByteaBuilder(name ?? '');
 }

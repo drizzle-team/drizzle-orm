@@ -1,24 +1,20 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { GelTable } from '~/gel-core/table.ts';
 import { GelColumn } from './common.ts';
 import { GelIntColumnBaseBuilder } from './int.common.ts';
 
-export type GelInt53BuilderInitial<TName extends string> = GelInt53Builder<{
+
+export class GelInt53Builder<TName extends string> extends GelIntColumnBaseBuilder<{
 	name: TName;
 	dataType: 'number';
 	data: number;
 	driverParam: number;
 	enumValues: undefined;
-}>;
-
-export class GelInt53Builder<T extends ColumnBuilderBaseConfig<'number'>>
-	extends GelIntColumnBaseBuilder<T>
-{
+}> {
 	static override readonly [entityKind]: string = 'GelInt53Builder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'number', 'GelInt53');
 	}
 
@@ -28,7 +24,7 @@ export class GelInt53Builder<T extends ColumnBuilderBaseConfig<'number'>>
 	}
 }
 
-export class GelInt53<T extends ColumnBaseConfig<'number'>> extends GelColumn<T> {
+export class GelInt53 extends GelColumn<ColumnBaseConfig<'number'>> {
 	static override readonly [entityKind]: string = 'GelInt53';
 
 	getSQLType(): string {
@@ -36,8 +32,8 @@ export class GelInt53<T extends ColumnBaseConfig<'number'>> extends GelColumn<T>
 	}
 }
 
-export function bigint(): GelInt53BuilderInitial<''>;
-export function bigint<TName extends string>(name: TName): GelInt53BuilderInitial<TName>;
+export function bigint(): GelInt53Builder<''>;
+export function bigint<TName extends string>(name: TName): GelInt53Builder<TName>;
 export function bigint(name?: string) {
 	return new GelInt53Builder(name ?? '');
 }

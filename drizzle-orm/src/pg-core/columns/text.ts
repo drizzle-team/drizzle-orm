@@ -49,7 +49,7 @@ export class PgText extends PgColumn<ColumnBaseConfig<'string'>> {
 }
 
 export interface PgTextConfig<
-	TEnum extends readonly string[] | string[] | undefined = readonly string[] | string[] | undefined,
+	TEnum extends readonly string[] | undefined = readonly string[] | undefined,
 > {
 	enum?: TEnum;
 }

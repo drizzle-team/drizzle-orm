@@ -196,7 +196,7 @@ function numberColumnToSchema(
 	} else if (
 		isColumnType<
 			| PgBigInt53<any>
-			| PgBigSerial53<any>
+			| PgBigSerial53
 			| MySqlBigInt53<any>
 			| MySqlSerial<any>
 			| SingleStoreBigInt53<any>
@@ -251,7 +251,7 @@ function stringColumnToSchema(
 	z: typeof zod,
 	coerce: CreateSchemaFactoryOptions['coerce'],
 ): z.ZodTypeAny {
-	if (isColumnType<PgUUID<ColumnBaseConfig<'string', 'PgUUID'>>>(column, ['PgUUID'])) {
+	if (isColumnType<PgUUID>(column, ['PgUUID'])) {
 		return z.string().uuid();
 	}
 

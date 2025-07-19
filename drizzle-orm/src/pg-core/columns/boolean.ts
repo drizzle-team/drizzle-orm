@@ -1,21 +1,18 @@
-import type { ColumnBuilderBaseConfig} from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type {  PgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export type PgBooleanBuilderInitial<TName extends string> = PgBooleanBuilder<{
+export class PgBooleanBuilder<TName extends string> extends PgColumnBuilder<{
 	name: TName;
 	dataType: 'boolean';
 	data: boolean;
 	driverParam: boolean;
 	enumValues: undefined;
-}>;
-
-export class PgBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean'>> extends PgColumnBuilder<T> {
+}> {
 	static override readonly [entityKind]: string = 'PgBooleanBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'boolean', 'PgBoolean');
 	}
 
@@ -25,7 +22,7 @@ export class PgBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean'>> exte
 	}
 }
 
-export class PgBoolean<T extends ColumnBaseConfig<'boolean'>> extends PgColumn<T> {
+export class PgBoolean extends PgColumn<ColumnBaseConfig<'boolean'>> {
 	static override readonly [entityKind]: string = 'PgBoolean';
 
 	getSQLType(): string {
@@ -33,8 +30,8 @@ export class PgBoolean<T extends ColumnBaseConfig<'boolean'>> extends PgColumn<T
 	}
 }
 
-export function boolean(): PgBooleanBuilderInitial<''>;
-export function boolean<TName extends string>(name: TName): PgBooleanBuilderInitial<TName>;
+export function boolean(): PgBooleanBuilder<''>;
+export function boolean<TName extends string>(name: TName): PgBooleanBuilder<TName>;
 export function boolean(name?: string) {
 	return new PgBooleanBuilder(name ?? '');
 }
