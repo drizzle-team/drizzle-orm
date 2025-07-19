@@ -1,29 +1,18 @@
-import type {
-	ColumnBuilderBaseConfig,
-	HasDefault,
-	NotNull,
-} from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import type {  PgTable } from '../table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export type PgBigSerial53BuilderInitial<TName extends string> = NotNull<
-	HasDefault<
-		PgBigSerial53Builder<{
+export class PgBigSerial53Builder<TName extends string> extends PgColumnBuilder<{
 			name: TName;
 			dataType: 'number';
 			data: number;
 			driverParam: number;
 			enumValues: undefined;
-		}>
-	>
->;
-
-export class PgBigSerial53Builder<T extends ColumnBuilderBaseConfig<'number'>>
-	extends PgColumnBuilder<T>
-{
+			notNull: true,
+			hasDefault: true,
+}> {
 	static override readonly [entityKind]: string = 'PgBigSerial53Builder';
 
 	constructor(name: string) {
@@ -41,7 +30,7 @@ export class PgBigSerial53Builder<T extends ColumnBuilderBaseConfig<'number'>>
 	}
 }
 
-export class PgBigSerial53<T extends ColumnBaseConfig<'number'>> extends PgColumn<T> {
+export class PgBigSerial53 extends PgColumn<ColumnBaseConfig<'number'>> {
 	static override readonly [entityKind]: string = 'PgBigSerial53';
 
 	getSQLType(): string {
@@ -56,20 +45,17 @@ export class PgBigSerial53<T extends ColumnBaseConfig<'number'>> extends PgColum
 	}
 }
 
-export type PgBigSerial64BuilderInitial<TName extends string> = NotNull<
-	HasDefault<
-		PgBigSerial64Builder<{
+
+export class PgBigSerial64Builder<TName extends string>
+	extends PgColumnBuilder<{
 			name: TName;
 			dataType: 'bigint';
 			data: bigint;
 			driverParam: string;
 			enumValues: undefined;
+			notNull: true,
+			hasDefault: true,
 		}>
-	>
->;
-
-export class PgBigSerial64Builder<T extends ColumnBuilderBaseConfig<'bigint'>>
-	extends PgColumnBuilder<T>
 {
 	static override readonly [entityKind]: string = 'PgBigSerial64Builder';
 
@@ -106,11 +92,11 @@ export interface PgBigSerialConfig<T extends 'number' | 'bigint' = 'number' | 'b
 
 export function bigserial<TMode extends PgBigSerialConfig['mode']>(
 	config: PgBigSerialConfig<TMode>,
-): TMode extends 'number' ? PgBigSerial53BuilderInitial<''> : PgBigSerial64BuilderInitial<''>;
+): TMode extends 'number' ? PgBigSerial53Builder<''> : PgBigSerial64Builder<''>;
 export function bigserial<TName extends string, TMode extends PgBigSerialConfig['mode']>(
 	name: TName,
 	config: PgBigSerialConfig<TMode>,
-): TMode extends 'number' ? PgBigSerial53BuilderInitial<TName> : PgBigSerial64BuilderInitial<TName>;
+): TMode extends 'number' ? PgBigSerial53Builder<TName> : PgBigSerial64Builder<TName>;
 export function bigserial(a: string | PgBigSerialConfig, b?: PgBigSerialConfig) {
 	const { name, config } = getColumnNameAndConfig<PgBigSerialConfig>(a, b);
 	if (config.mode === 'number') {
