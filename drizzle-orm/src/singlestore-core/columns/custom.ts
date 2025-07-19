@@ -10,7 +10,6 @@ export type ConvertCustomConfig<TName extends string, T extends Partial<CustomTy
 	& {
 		name: TName;
 		dataType: 'custom';
-		columnType: 'SingleStoreCustomColumn';
 		data: T['data'];
 		driverParam: T['driverData'];
 		enumValues: undefined;

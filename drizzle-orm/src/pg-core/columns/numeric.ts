@@ -8,7 +8,6 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 export type PgNumericBuilderInitial<TName extends string> = PgNumericBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'PgNumeric';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
@@ -67,7 +66,6 @@ export class PgNumeric<T extends ColumnBaseConfig<'string'>> extends PgColumn<T>
 export type PgNumericNumberBuilderInitial<TName extends string> = PgNumericNumberBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'PgNumericNumber';
 	data: number;
 	driverParam: string;
 	enumValues: undefined;
@@ -133,7 +131,6 @@ export class PgNumericNumber<T extends ColumnBaseConfig<'number'>> extends PgCol
 export type PgNumericBigIntBuilderInitial<TName extends string> = PgNumericBigIntBuilder<{
 	name: TName;
 	dataType: 'bigint';
-	columnType: 'PgNumericBigInt';
 	data: bigint;
 	driverParam: string;
 	enumValues: undefined;

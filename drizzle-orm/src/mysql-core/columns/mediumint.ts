@@ -9,7 +9,6 @@ import type { MySqlIntConfig } from './int.ts';
 export type MySqlMediumIntBuilderInitial<TName extends string> = MySqlMediumIntBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'MySqlMediumInt';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;

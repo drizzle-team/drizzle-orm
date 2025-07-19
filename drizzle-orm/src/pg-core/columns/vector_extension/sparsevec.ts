@@ -8,7 +8,6 @@ import { PgColumn, PgColumnBuilder } from '../common.ts';
 export type PgSparseVectorBuilderInitial<TName extends string> = PgSparseVectorBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'PgSparseVector';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;

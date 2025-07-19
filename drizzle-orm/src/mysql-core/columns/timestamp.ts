@@ -8,7 +8,6 @@ import { MySqlDateBaseColumn, MySqlDateColumnBaseBuilder } from './date.common.t
 export type MySqlTimestampBuilderInitial<TName extends string> = MySqlTimestampBuilder<{
 	name: TName;
 	dataType: 'date';
-	columnType: 'MySqlTimestamp';
 	data: Date;
 	driverParam: string | number;
 	enumValues: undefined;
@@ -57,7 +56,6 @@ export class MySqlTimestamp<T extends ColumnBaseConfig<'date'>>
 export type MySqlTimestampStringBuilderInitial<TName extends string> = MySqlTimestampStringBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'MySqlTimestampString';
 	data: string;
 	driverParam: string | number;
 	enumValues: undefined;

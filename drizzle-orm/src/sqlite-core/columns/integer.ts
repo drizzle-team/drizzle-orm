@@ -58,7 +58,6 @@ export abstract class SQLiteBaseInteger<
 export type SQLiteIntegerBuilderInitial<TName extends string> = SQLiteIntegerBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'SQLiteInteger';
 	data: number;
 	driverParam: number;
 	enumValues: undefined;
@@ -88,7 +87,6 @@ export class SQLiteInteger<T extends ColumnBaseConfig<'number'>> extends SQLiteB
 export type SQLiteTimestampBuilderInitial<TName extends string> = SQLiteTimestampBuilder<{
 	name: TName;
 	dataType: 'date';
-	columnType: 'SQLiteTimestamp';
 	data: Date;
 	driverParam: number;
 	enumValues: undefined;
@@ -147,7 +145,6 @@ export class SQLiteTimestamp<T extends ColumnBaseConfig<'date'>>
 export type SQLiteBooleanBuilderInitial<TName extends string> = SQLiteBooleanBuilder<{
 	name: TName;
 	dataType: 'boolean';
-	columnType: 'SQLiteBoolean';
 	data: boolean;
 	driverParam: number;
 	enumValues: undefined;

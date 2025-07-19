@@ -9,7 +9,6 @@ import type { SingleStoreIntConfig } from './int.ts';
 export type SingleStoreSmallIntBuilderInitial<TName extends string> = SingleStoreSmallIntBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'SingleStoreSmallInt';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;

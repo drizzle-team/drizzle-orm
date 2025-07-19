@@ -7,7 +7,6 @@ import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 export type SingleStoreBooleanBuilderInitial<TName extends string> = SingleStoreBooleanBuilder<{
 	name: TName;
 	dataType: 'boolean';
-	columnType: 'SingleStoreBoolean';
 	data: boolean;
 	driverParam: number | boolean;
 	enumValues: undefined;

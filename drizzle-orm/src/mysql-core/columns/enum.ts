@@ -9,7 +9,6 @@ import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 export type MySqlEnumColumnBuilderInitial<TName extends string, TEnum extends string[]> = MySqlEnumColumnBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'MySqlEnumColumn';
 	data: TEnum[number];
 	driverParam: string;
 	enumValues: TEnum;
@@ -52,7 +51,6 @@ export type MySqlEnumObjectColumnBuilderInitial<TName extends string, TEnum exte
 	MySqlEnumObjectColumnBuilder<{
 		name: TName;
 		dataType: 'string';
-		columnType: 'MySqlEnumObjectColumn';
 		data: TEnum[keyof TEnum];
 		driverParam: string;
 		enumValues: string[];

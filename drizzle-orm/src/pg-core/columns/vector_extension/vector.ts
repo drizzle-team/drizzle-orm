@@ -8,7 +8,6 @@ import { PgColumn, PgColumnBuilder } from '../common.ts';
 export type PgVectorBuilderInitial<TName extends string, TDimensions extends number> = PgVectorBuilder<{
 	name: TName;
 	dataType: 'array';
-	columnType: 'PgVector';
 	data: number[];
 	driverParam: string;
 	enumValues: undefined;

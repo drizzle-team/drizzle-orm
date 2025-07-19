@@ -8,7 +8,6 @@ import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } fro
 export type MySqlFloatBuilderInitial<TName extends string> = MySqlFloatBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'MySqlFloat';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;

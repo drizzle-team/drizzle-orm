@@ -40,7 +40,6 @@ export abstract class GelColumnBuilder<
 		& {
 			name: T['name'];
 			dataType: 'array';
-			columnType: 'GelArray';
 			data: T['data'][];
 			driverParam: T['driverParam'][] | string;
 			enumValues: T['enumValues'];

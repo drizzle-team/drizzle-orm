@@ -7,7 +7,6 @@ import { GelColumn, GelColumnBuilder } from './common.ts';
 export type GelDoublePrecisionBuilderInitial<TName extends string> = GelDoublePrecisionBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'GelDoublePrecision';
 	data: number;
 	driverParam: number;
 	enumValues: undefined;

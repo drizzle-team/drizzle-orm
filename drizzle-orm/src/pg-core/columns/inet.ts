@@ -7,7 +7,6 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 export type PgInetBuilderInitial<TName extends string> = PgInetBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'PgInet';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;

@@ -7,7 +7,6 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 export type PgMacaddr8BuilderInitial<TName extends string> = PgMacaddr8Builder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'PgMacaddr8';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;

@@ -8,7 +8,6 @@ import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoInc
 export type SingleStoreFloatBuilderInitial<TName extends string> = SingleStoreFloatBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'SingleStoreFloat';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;

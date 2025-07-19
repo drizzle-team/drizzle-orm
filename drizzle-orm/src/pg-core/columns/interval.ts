@@ -9,7 +9,6 @@ import type { Precision } from './timestamp.ts';
 export type PgIntervalBuilderInitial<TName extends string> = PgIntervalBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'PgInterval';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;

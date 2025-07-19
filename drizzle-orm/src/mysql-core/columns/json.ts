@@ -7,7 +7,6 @@ import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 export type MySqlJsonBuilderInitial<TName extends string> = MySqlJsonBuilder<{
 	name: TName;
 	dataType: 'json';
-	columnType: 'MySqlJson';
 	data: unknown;
 	driverParam: string;
 	enumValues: undefined;

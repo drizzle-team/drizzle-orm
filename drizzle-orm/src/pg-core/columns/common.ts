@@ -39,7 +39,6 @@ export abstract class PgColumnBuilder<
 		& {
 			name: T['name'];
 			dataType: 'array';
-			columnType: 'PgArray';
 			data: T['data'][];
 			driverParam: T['driverParam'][] | string;
 			enumValues: T['enumValues'];

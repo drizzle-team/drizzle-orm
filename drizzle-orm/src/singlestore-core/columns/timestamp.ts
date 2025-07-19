@@ -9,7 +9,6 @@ import { SingleStoreDateBaseColumn, SingleStoreDateColumnBaseBuilder } from './d
 export type SingleStoreTimestampBuilderInitial<TName extends string> = SingleStoreTimestampBuilder<{
 	name: TName;
 	dataType: 'date';
-	columnType: 'SingleStoreTimestamp';
 	data: Date;
 	driverParam: string | number;
 	enumValues: undefined;
@@ -59,7 +58,6 @@ export class SingleStoreTimestamp<T extends ColumnBaseConfig<'date'>>
 export type SingleStoreTimestampStringBuilderInitial<TName extends string> = SingleStoreTimestampStringBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'SingleStoreTimestampString';
 	data: string;
 	driverParam: string | number;
 	enumValues: undefined;

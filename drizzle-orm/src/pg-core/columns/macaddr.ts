@@ -7,7 +7,6 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 export type PgMacaddrBuilderInitial<TName extends string> = PgMacaddrBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'PgMacaddr';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;

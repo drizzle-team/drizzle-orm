@@ -10,7 +10,6 @@ import { parseEWKB } from './utils.ts';
 export type PgGeometryBuilderInitial<TName extends string> = PgGeometryBuilder<{
 	name: TName;
 	dataType: 'array';
-	columnType: 'PgGeometry';
 	data: [number, number];
 	driverParam: string;
 	enumValues: undefined;
@@ -53,7 +52,6 @@ export class PgGeometry<T extends ColumnBaseConfig<'array'>> extends PgColumn<T>
 export type PgGeometryObjectBuilderInitial<TName extends string> = PgGeometryObjectBuilder<{
 	name: TName;
 	dataType: 'json';
-	columnType: 'PgGeometryObject';
 	data: { x: number; y: number };
 	driverParam: string;
 	enumValues: undefined;

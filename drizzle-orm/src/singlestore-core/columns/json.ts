@@ -7,7 +7,6 @@ import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 export type SingleStoreJsonBuilderInitial<TName extends string> = SingleStoreJsonBuilder<{
 	name: TName;
 	dataType: 'json';
-	columnType: 'SingleStoreJson';
 	data: unknown;
 	driverParam: string;
 	enumValues: undefined;

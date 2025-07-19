@@ -8,7 +8,6 @@ import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } fro
 export type MySqlBigInt53BuilderInitial<TName extends string> = MySqlBigInt53Builder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'MySqlBigInt53';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
@@ -53,7 +52,6 @@ export class MySqlBigInt53<T extends ColumnBaseConfig<'number'>>
 export type MySqlBigInt64BuilderInitial<TName extends string> = MySqlBigInt64Builder<{
 	name: TName;
 	dataType: 'bigint';
-	columnType: 'MySqlBigInt64';
 	data: bigint;
 	driverParam: string;
 	enumValues: undefined;

@@ -7,7 +7,6 @@ import { GelColumn, GelColumnBuilder } from './common.ts';
 export type GelUUIDBuilderInitial<TName extends string> = GelUUIDBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'GelUUID';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;

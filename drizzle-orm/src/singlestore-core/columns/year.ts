@@ -7,7 +7,6 @@ import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 export type SingleStoreYearBuilderInitial<TName extends string> = SingleStoreYearBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'SingleStoreYear';
 	data: number;
 	driverParam: number;
 	enumValues: undefined;

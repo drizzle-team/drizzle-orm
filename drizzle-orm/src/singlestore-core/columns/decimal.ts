@@ -8,7 +8,6 @@ import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoInc
 export type SingleStoreDecimalBuilderInitial<TName extends string> = SingleStoreDecimalBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'SingleStoreDecimal';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
@@ -69,7 +68,6 @@ export class SingleStoreDecimal<T extends ColumnBaseConfig<'string'>>
 export type SingleStoreDecimalNumberBuilderInitial<TName extends string> = SingleStoreDecimalNumberBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'SingleStoreDecimalNumber';
 	data: number;
 	driverParam: string;
 	enumValues: undefined;
@@ -131,7 +129,6 @@ export class SingleStoreDecimalNumber<T extends ColumnBaseConfig<'number'>>
 export type SingleStoreDecimalBigIntBuilderInitial<TName extends string> = SingleStoreDecimalBigIntBuilder<{
 	name: TName;
 	dataType: 'bigint';
-	columnType: 'SingleStoreDecimalBigInt';
 	data: bigint;
 	driverParam: string;
 	enumValues: undefined;

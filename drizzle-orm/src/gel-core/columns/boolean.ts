@@ -7,7 +7,6 @@ import { GelColumn, GelColumnBuilder } from './common.ts';
 export type GelBooleanBuilderInitial<TName extends string> = GelBooleanBuilder<{
 	name: TName;
 	dataType: 'boolean';
-	columnType: 'GelBoolean';
 	data: boolean;
 	driverParam: boolean;
 	enumValues: undefined;

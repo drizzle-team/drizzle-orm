@@ -8,7 +8,6 @@ import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 export type SQLiteNumericBuilderInitial<TName extends string> = SQLiteNumericBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'SQLiteNumeric';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
@@ -49,7 +48,6 @@ export class SQLiteNumeric<T extends ColumnBaseConfig<'string'>> extends SQLiteC
 export type SQLiteNumericNumberBuilderInitial<TName extends string> = SQLiteNumericNumberBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'SQLiteNumericNumber';
 	data: number;
 	driverParam: string;
 	enumValues: undefined;
@@ -92,7 +90,6 @@ export class SQLiteNumericNumber<T extends ColumnBaseConfig<'number'>> extends S
 export type SQLiteNumericBigIntBuilderInitial<TName extends string> = SQLiteNumericBigIntBuilder<{
 	name: TName;
 	dataType: 'bigint';
-	columnType: 'SQLiteNumericBigInt';
 	data: bigint;
 	driverParam: string;
 	enumValues: undefined;

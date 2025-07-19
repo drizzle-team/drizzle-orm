@@ -7,7 +7,6 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 export type PgRealBuilderInitial<TName extends string> = PgRealBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'PgReal';
 	data: number;
 	driverParam: string | number;
 	enumValues: undefined;

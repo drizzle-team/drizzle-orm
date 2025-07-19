@@ -8,7 +8,6 @@ import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 export type MySqlTimeBuilderInitial<TName extends string> = MySqlTimeBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'MySqlTime';
 	data: string;
 	driverParam: string | number;
 	enumValues: undefined;

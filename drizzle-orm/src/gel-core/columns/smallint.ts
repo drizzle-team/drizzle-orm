@@ -8,7 +8,6 @@ import { GelIntColumnBaseBuilder } from './int.common.ts';
 export type GelSmallIntBuilderInitial<TName extends string> = GelSmallIntBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'GelSmallInt';
 	data: number;
 	driverParam: number;
 	enumValues: undefined;

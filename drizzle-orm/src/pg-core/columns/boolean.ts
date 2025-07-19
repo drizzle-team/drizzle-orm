@@ -7,7 +7,6 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 export type PgBooleanBuilderInitial<TName extends string> = PgBooleanBuilder<{
 	name: TName;
 	dataType: 'boolean';
-	columnType: 'PgBoolean';
 	data: boolean;
 	driverParam: boolean;
 	enumValues: undefined;

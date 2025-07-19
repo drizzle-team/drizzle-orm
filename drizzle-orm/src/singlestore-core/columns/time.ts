@@ -7,7 +7,6 @@ import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 export type SingleStoreTimeBuilderInitial<TName extends string> = SingleStoreTimeBuilder<{
 	name: TName;
 	dataType: 'string';
-	columnType: 'SingleStoreTime';
 	data: string;
 	driverParam: string | number;
 	enumValues: undefined;

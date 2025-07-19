@@ -7,7 +7,6 @@ import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 export type MySqlBooleanBuilderInitial<TName extends string> = MySqlBooleanBuilder<{
 	name: TName;
 	dataType: 'boolean';
-	columnType: 'MySqlBoolean';
 	data: boolean;
 	driverParam: number | boolean;
 	enumValues: undefined;

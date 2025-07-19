@@ -7,7 +7,6 @@ import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 export type MySqlYearBuilderInitial<TName extends string> = MySqlYearBuilder<{
 	name: TName;
 	dataType: 'number';
-	columnType: 'MySqlYear';
 	data: number;
 	driverParam: number;
 	enumValues: undefined;
