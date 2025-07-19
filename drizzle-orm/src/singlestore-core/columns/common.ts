@@ -53,7 +53,7 @@ export abstract class SingleStoreColumnBuilder<
 export abstract class SingleStoreColumn<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
 	TRuntimeConfig extends object = {},
-> extends Column<T, TRuntimeConfig, 'singlestore'> {
+> extends Column<T, TRuntimeConfig> {
 	static override readonly [entityKind]: string = 'SingleStoreColumn';
 
 	/** @internal */

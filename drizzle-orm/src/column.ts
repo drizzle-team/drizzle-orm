@@ -26,8 +26,6 @@ export interface Column<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	TRuntimeConfig extends object = object,
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	Dialect extends string = string,
 > extends DriverValueMapper<T['data'], T['driverParam']>, SQLWrapper {
 	// SQLWrapper runtime implementation is defined in 'sql/sql.ts'
 }
@@ -38,13 +36,12 @@ export interface Column<
 */
 export abstract class Column<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
-	TRuntimeConfig extends object = object,
-	Dialect extends string = string
+	TRuntimeConfig extends object = object
 > implements DriverValueMapper<T['data'], T['driverParam']>, SQLWrapper {
 	static readonly [entityKind]: string = 'Column';
 
 	declare readonly _: T & { 
-		dialect: Dialect, 
+		// dialect: Dialect, 
 		brand: 'Column';
 		identity: undefined | 'always' | 'byDefault'; 
 	};

@@ -530,7 +530,7 @@ Expect<
 				identity: undefined;
 				generated: undefined;
 				brand: 'Column';
-				dialect: 'singlestore';
+				// dialect: 'singlestore';
 			},
 			Simplify<BuildColumn<'table', typeof t, 'singlestore', "name">['_']>
 		>
