@@ -57,7 +57,7 @@ export type MakeColumnConfig<
 	TKey extends string,
 	TData = T extends { $type: infer U } ? U : T['data'],
 > = {
-	name: T['name'] extends "" ? TKey : T["name"];
+	name: T['name'] extends '' ? TKey : T['name'];
 	tableName: TTableName;
 	dataType: T['dataType'];
 	columnType: T['columnType'];
@@ -69,7 +69,8 @@ export type MakeColumnConfig<
 	isAutoincrement: T extends { isAutoincrement: true } ? true : false;
 	hasRuntimeDefault: T extends { hasRuntimeDefault: true } ? true : false;
 	enumValues: T['enumValues'];
-	baseColumn: T extends { baseBuilder: infer U extends ColumnBuilderBase } ? BuildColumn<TTableName, U, 'common', T['name'] extends ""?TKey:T["name"]>
+	baseColumn: T extends { baseBuilder: infer U extends ColumnBuilderBase }
+		? BuildColumn<TTableName, U, 'common', T['name'] extends '' ? TKey : T['name']>
 		: never;
 	identity: T extends { identity: 'always' } ? 'always' : T extends { identity: 'byDefault' } ? 'byDefault' : undefined;
 	generated: T extends { generated: infer G } ? unknown extends G ? undefined
@@ -103,52 +104,53 @@ export interface ColumnBuilderExtraConfig {
 export type NotNull<T> = T & {
 	_: {
 		notNull: true;
-	};	
+	};
 };
 
 export type HasDefault<T> = T & {
 	_: {
 		hasDefault: true;
-	};	
+	};
 };
 
 export type IsPrimaryKey<T> = T & {
 	_: {
 		isPrimaryKey: true;
+		notNull: true;
 	};
 };
 
 export type IsAutoincrement<T> = T & {
 	_: {
 		isAutoincrement: true;
-	};	
+	};
 };
 
 export type HasRuntimeDefault<T> = T & {
 	_: {
 		hasRuntimeDefault: true;
-	};	
+	};
 };
 
 export type $Type<T, TType> = T & {
 	_: {
 		$type: TType;
-	};	
+	};
 };
 
 export type HasGenerated<T, TGenerated> = T & {
 	_: {
 		hasDefault: true;
 		generated: TGenerated;
-	};	
+	};
 };
 
-export type IsIdentity<T,TType extends 'always' | 'byDefault',> = T & {
+export type IsIdentity<T, TType extends 'always' | 'byDefault'> = T & {
 	_: {
 		notNull: true;
 		hasDefault: true;
 		identity: TType;
-	};	
+	};
 };
 
 export interface ColumnBuilderBase<
@@ -271,13 +273,13 @@ export abstract class ColumnBuilder<
 	 *
 	 * In SQLite, `integer primary key` implicitly makes the column auto-incrementing.
 	 */
-	primaryKey(): TExtraConfig['primaryKeyHasDefault'] extends true ? IsPrimaryKey<HasDefault<NotNull<this>>>
-		: IsPrimaryKey<NotNull<this>>
+	primaryKey(): TExtraConfig['primaryKeyHasDefault'] extends true ? IsPrimaryKey<HasDefault<this>>
+		: IsPrimaryKey<this>
 	{
 		this.config.primaryKey = true;
 		this.config.notNull = true;
-		return this as TExtraConfig['primaryKeyHasDefault'] extends true ? IsPrimaryKey<HasDefault<NotNull<this>>>
-			: IsPrimaryKey<NotNull<this>>;
+		return this as TExtraConfig['primaryKeyHasDefault'] extends true ? IsPrimaryKey<HasDefault<this>>
+			: IsPrimaryKey<this>;
 	}
 
 	abstract generatedAlwaysAs(
@@ -299,13 +301,13 @@ export type BuildColumn<
 	TBuilder extends ColumnBuilderBase,
 	TDialect extends Dialect,
 	TKey extends string,
-	TMakedConfig extends ColumnBaseConfig<ColumnDataType, string> = MakeColumnConfig<TBuilder["_"], TTableName, TKey>,
-> = TDialect extends 'pg' ? PgColumn<TMakedConfig,{}>
-	: TDialect extends 'mysql' ? MySqlColumn<TMakedConfig,{}>
-	: TDialect extends 'sqlite' ? SQLiteColumn<TMakedConfig,{}>
-	: TDialect extends 'common' ? Column<TMakedConfig,{}>
-	: TDialect extends 'singlestore' ? SingleStoreColumn<TMakedConfig,{}>
-	: TDialect extends 'gel' ? GelColumn<TMakedConfig,{}>
+	TMakedConfig extends ColumnBaseConfig<ColumnDataType, string> = MakeColumnConfig<TBuilder['_'], TTableName, TKey>,
+> = TDialect extends 'pg' ? PgColumn<TMakedConfig, {}>
+	: TDialect extends 'mysql' ? MySqlColumn<TMakedConfig, {}>
+	: TDialect extends 'sqlite' ? SQLiteColumn<TMakedConfig, {}>
+	: TDialect extends 'common' ? Column<TMakedConfig, {}>
+	: TDialect extends 'singlestore' ? SingleStoreColumn<TMakedConfig, {}>
+	: TDialect extends 'gel' ? GelColumn<TMakedConfig, {}>
 	: never;
 
 export type BuildIndexColumn<
@@ -346,10 +348,14 @@ export type BuildExtraConfigColumns<
 	}
 	& {};
 
-export type ChangeColumnTableName<TColumn extends Column, TAlias extends string, TDialect extends Dialect, TKey extends string> =
-	TDialect extends 'pg' ? PgColumn<MakeColumnConfig<TColumn['_'], TAlias, TKey>>
-		: TDialect extends 'mysql' ? MySqlColumn<MakeColumnConfig<TColumn['_'], TAlias, TKey>>
-		: TDialect extends 'singlestore' ? SingleStoreColumn<MakeColumnConfig<TColumn['_'], TAlias, TKey>>
-		: TDialect extends 'sqlite' ? SQLiteColumn<MakeColumnConfig<TColumn['_'], TAlias, TKey>>
-		: TDialect extends 'gel' ? GelColumn<MakeColumnConfig<TColumn['_'], TAlias, TKey>>
-		: never;
+export type ChangeColumnTableName<
+	TColumn extends Column,
+	TAlias extends string,
+	TDialect extends Dialect,
+	TKey extends string,
+> = TDialect extends 'pg' ? PgColumn<MakeColumnConfig<TColumn['_'], TAlias, TKey>>
+	: TDialect extends 'mysql' ? MySqlColumn<MakeColumnConfig<TColumn['_'], TAlias, TKey>>
+	: TDialect extends 'singlestore' ? SingleStoreColumn<MakeColumnConfig<TColumn['_'], TAlias, TKey>>
+	: TDialect extends 'sqlite' ? SQLiteColumn<MakeColumnConfig<TColumn['_'], TAlias, TKey>>
+	: TDialect extends 'gel' ? GelColumn<MakeColumnConfig<TColumn['_'], TAlias, TKey>>
+	: never;
