@@ -17,7 +17,7 @@ import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Param, SQL } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { InferInsertModel } from '~/table.ts';
-import { Columns, Table } from '~/table.ts';
+import { Table, TableColumns } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
 import { haveSameKeys, type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
 import type { AnyGelColumn, GelColumn } from '../columns/common.ts';
@@ -122,7 +122,7 @@ export class GelInsertBuilder<
 
 		if (
 			!is(select, SQL)
-			&& !haveSameKeys(this.table[Columns], select._.selectedFields)
+			&& !haveSameKeys(this.table[TableColumns], select._.selectedFields)
 		) {
 			throw new Error(
 				'Insert select error: selected fields are not the same or are in a different order compared to the table definition',

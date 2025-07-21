@@ -55,7 +55,7 @@ import {
 	type SQLChunk,
 } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
-import { Columns, getTableName, getTableUniqueName, Table } from '~/table.ts';
+import { getTableName, getTableUniqueName, Table, TableColumns } from '~/table.ts';
 import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgSession } from './session.ts';
@@ -936,7 +936,11 @@ export class PgDialect {
 				}
 				case 'PgCustomColumn': {
 					return sql`${
-						(<PgCustomColumn<any>> col).jsonSelectIdentifier(name, sql, dimensionCnt > 0 ? dimensionCnt : undefined)
+						(<PgCustomColumn<any>> col).jsonSelectIdentifier(
+							name,
+							sql,
+							dimensionCnt > 0 ? dimensionCnt : undefined,
+						)
 					} as ${sql.identifier(key)}`;
 				}
 				default: {
@@ -956,7 +960,7 @@ export class PgDialect {
 
 	private unwrapAllColumns = (table: Table | View, selection: BuildRelationalQueryResult['selection']) => {
 		return sql.join(
-			Object.entries(table[Columns]).map(([k, v]) => {
+			Object.entries(table[TableColumns]).map(([k, v]) => {
 				selection.push({
 					key: k,
 					field: v as Column | SQL | SQLWrapper | SQL.Aliased,
@@ -976,7 +980,7 @@ export class PgDialect {
 		config?.columns
 			? (() => {
 				const entries = Object.entries(config.columns);
-				const columnContainer: Record<string, unknown> = table[Columns];
+				const columnContainer: Record<string, unknown> = table[TableColumns];
 
 				const columnIdentifiers: SQL[] = [];
 				let colSelectionMode: boolean | undefined;
@@ -1151,7 +1155,7 @@ export class PgDialect {
 		if (extras?.sql) selectionArr.push(extras.sql);
 		if (!selectionArr.length) {
 			throw new DrizzleError({
-				message: `No fields selected for table "${tableConfig.tsName}"${currentPath ? ` ("${currentPath}")` : ''}`,
+				message: `No fields selected for table "${tableConfig.name}"${currentPath ? ` ("${currentPath}")` : ''}`,
 			});
 		}
 		const selectionSet = sql.join(selectionArr.filter((e) => e !== undefined), sql`, `);

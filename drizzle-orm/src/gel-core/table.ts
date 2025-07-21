@@ -8,7 +8,7 @@ import {
 } from '~/table.ts';
 import type { CheckBuilder } from './checks.ts';
 import { type GelColumnsBuilders, getGelColumnBuilders } from './columns/all.ts';
-import type { GelColumn, GelColumnBuilder, GelExtraConfigColumn } from './columns/common.ts';
+import type { GelColumn, GelColumnBuilder, GelColumns, GelExtraConfigColumn } from './columns/common.ts';
 import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
 import type { AnyIndexBuilder } from './indexes.ts';
 import type { GelPolicy } from './policies.ts';
@@ -28,7 +28,7 @@ export type GelTableExtraConfig = Record<
 	GelTableExtraConfigValue
 >;
 
-export type TableConfig = TableConfigBase<GelColumn>;
+export type TableConfig = TableConfigBase<GelColumns>;
 
 /** @internal */
 export const InlineForeignKeys = Symbol.for('drizzle:GelInlineForeignKeys');

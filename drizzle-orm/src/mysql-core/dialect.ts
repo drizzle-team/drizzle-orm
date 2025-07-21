@@ -27,7 +27,7 @@ import { and, eq } from '~/sql/expressions/index.ts';
 import { isSQLWrapper, Param, SQL, sql, View } from '~/sql/sql.ts';
 import type { Name, Placeholder, QueryWithTypings, SQLChunk, SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
-import { Columns, getTableName, getTableUniqueName, Table } from '~/table.ts';
+import { getTableName, getTableUniqueName, Table, TableColumns } from '~/table.ts';
 import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { MySqlColumn } from './columns/common.ts';
@@ -1205,7 +1205,7 @@ export class MySqlDialect {
 
 	private unwrapAllColumns = (table: Table | View, selection: BuildRelationalQueryResult['selection']) => {
 		return sql.join(
-			Object.entries(table[Columns]).map(([k, v]) => {
+			Object.entries(table[TableColumns]).map(([k, v]) => {
 				selection.push({
 					key: k,
 					field: v as Column | SQL | SQLWrapper | SQL.Aliased,
@@ -1219,7 +1219,7 @@ export class MySqlDialect {
 
 	private getSelectedTableColumns = (table: Table | View, columns: Record<string, boolean | undefined>) => {
 		const selectedColumns: ColumnWithTSName[] = [];
-		const columnContainer = table[Columns];
+		const columnContainer = table[TableColumns];
 		const entries = Object.entries(columns);
 
 		let colSelectionMode: boolean | undefined;
@@ -1421,7 +1421,7 @@ export class MySqlDialect {
 		if (extras?.sql) selectionArr.push(extras.sql);
 		if (!selectionArr.length) {
 			throw new DrizzleError({
-				message: `No fields selected for table "${tableConfig.tsName}"${currentPath ? ` ("${currentPath}")` : ''}`,
+				message: `No fields selected for table "${tableConfig.name}"${currentPath ? ` ("${currentPath}")` : ''}`,
 			});
 		}
 		// json_arrayagg() ignores order by clause otherwise

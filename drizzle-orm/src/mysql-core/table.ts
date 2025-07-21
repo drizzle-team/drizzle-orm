@@ -8,7 +8,7 @@ import {
 } from '~/table.ts';
 import type { CheckBuilder } from './checks.ts';
 import { getMySqlColumnBuilders, type MySqlColumnBuilders } from './columns/all.ts';
-import type { MySqlColumn, MySqlColumnBuilder } from './columns/common.ts';
+import type { MySqlColumn, MySqlColumnBuilder, MySqlColumns } from './columns/common.ts';
 import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
 import type { AnyIndexBuilder } from './indexes.ts';
 import type { PrimaryKeyBuilder } from './primary-keys.ts';
@@ -26,7 +26,7 @@ export type MySqlTableExtraConfig = Record<
 	MySqlTableExtraConfigValue
 >;
 
-export type TableConfig = TableConfigBase<MySqlColumn>;
+export type TableConfig = TableConfigBase<MySqlColumns>;
 
 /** @internal */
 export const InlineForeignKeys = Symbol.for('drizzle:MySqlInlineForeignKeys');

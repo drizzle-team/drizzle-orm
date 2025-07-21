@@ -19,6 +19,8 @@ import type { PgIndexOpClass } from '../indexes.ts';
 import { uniqueKeyName } from '../unique-constraint.ts';
 import { makePgArray, parsePgArray } from '../utils/array.ts';
 
+export type PgColumns = Record<string, PgColumn<any>>;
+
 export interface ReferenceConfig {
 	ref: () => PgColumn;
 	actions: {

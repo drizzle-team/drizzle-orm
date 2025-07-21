@@ -227,7 +227,7 @@ Expect<
 				notNull: true;
 				hasDefault: true;
 				enumValues: undefined;
-				
+				baseColumn: never;
 				generated: undefined;
 				identity: undefined;
 				isPrimaryKey: true;
@@ -243,7 +243,7 @@ Expect<
 				notNull: false;
 				hasDefault: true;
 				enumValues: undefined;
-				
+				baseColumn: never;
 				generated: undefined;
 				identity: undefined;
 				isPrimaryKey: true;
@@ -286,7 +286,7 @@ Expect<
 					notNull: true;
 					hasDefault: true;
 					enumValues: undefined;
-					
+					baseColumn: never;
 					generated: undefined;
 					identity: undefined;
 					isPrimaryKey: true;
@@ -302,7 +302,7 @@ Expect<
 					notNull: false;
 					hasDefault: true;
 					enumValues: undefined;
-					
+					baseColumn: never;
 					generated: undefined;
 					identity: undefined;
 					isPrimaryKey: true;
@@ -343,7 +343,7 @@ Expect<
 					hasDefault: false;
 					notNull: true;
 					enumValues: undefined;
-					
+					baseColumn: never;
 					generated: undefined;
 					identity: undefined;
 					isPrimaryKey: false;
@@ -359,7 +359,7 @@ Expect<
 					data: number;
 					driverParam: string | number;
 					enumValues: undefined;
-					
+					baseColumn: never;
 					generated: undefined;
 					identity: undefined;
 					isPrimaryKey: false;
@@ -400,7 +400,7 @@ Expect<
 					hasDefault: false;
 					notNull: true;
 					enumValues: undefined;
-					
+					baseColumn: never;
 					generated: undefined;
 					identity: undefined;
 					isPrimaryKey: false;
@@ -416,7 +416,7 @@ Expect<
 					data: number;
 					driverParam: string | number;
 					enumValues: undefined;
-					
+					baseColumn: never;
 					generated: undefined;
 					identity: undefined;
 					isPrimaryKey: false;
@@ -447,7 +447,7 @@ Expect<
 					hasDefault: false;
 					notNull: true;
 					enumValues: undefined;
-					
+					baseColumn: never;
 					generated: undefined;
 					identity: undefined;
 					isPrimaryKey: false;
@@ -463,7 +463,7 @@ Expect<
 					data: number;
 					driverParam: string | number;
 					enumValues: undefined;
-					
+					baseColumn: never;
 					generated: undefined;
 					identity: undefined;
 					isPrimaryKey: false;
@@ -494,7 +494,7 @@ Expect<
 					hasDefault: false;
 					notNull: true;
 					enumValues: undefined;
-					
+					baseColumn: never;
 					generated: undefined;
 					identity: undefined;
 					isPrimaryKey: false;
@@ -510,7 +510,7 @@ Expect<
 					data: number;
 					driverParam: string | number;
 					enumValues: undefined;
-					
+					baseColumn: never;
 					generated: undefined;
 					identity: undefined;
 					isPrimaryKey: false;
@@ -556,7 +556,7 @@ Expect<
 				notNull: true;
 				hasDefault: true;
 				enumValues: undefined;
-				
+				baseColumn: never;
 				generated: undefined;
 				identity: undefined;
 				isPrimaryKey: true;
@@ -572,7 +572,7 @@ Expect<
 				notNull: false;
 				hasDefault: true;
 				enumValues: undefined;
-				
+				baseColumn: never;
 				generated: undefined;
 				identity: undefined;
 				isPrimaryKey: true;
@@ -618,7 +618,7 @@ Expect<
 					notNull: true;
 					hasDefault: true;
 					enumValues: undefined;
-					
+					baseColumn: never;
 					generated: undefined;
 					identity: undefined;
 					isPrimaryKey: true;
@@ -634,7 +634,7 @@ Expect<
 					notNull: false;
 					hasDefault: true;
 					enumValues: undefined;
-					
+					baseColumn: never;
 					generated: undefined;
 					identity: undefined;
 					isPrimaryKey: true;
@@ -678,7 +678,7 @@ Expect<
 					hasDefault: false;
 					notNull: true;
 					enumValues: undefined;
-					
+					baseColumn: never;
 					generated: undefined;
 					identity: undefined;
 					isPrimaryKey: false;
@@ -694,7 +694,7 @@ Expect<
 					data: number;
 					driverParam: string | number;
 					enumValues: undefined;
-					
+					baseColumn: never;
 					generated: undefined;
 					identity: undefined;
 					isPrimaryKey: false;
@@ -738,7 +738,7 @@ Expect<
 					hasDefault: false;
 					notNull: true;
 					enumValues: undefined;
-					
+					baseColumn: never;
 					generated: undefined;
 					identity: undefined;
 					isPrimaryKey: false;
@@ -754,7 +754,7 @@ Expect<
 					data: number;
 					driverParam: string | number;
 					enumValues: undefined;
-					
+					baseColumn: never;
 					generated: undefined;
 					identity: undefined;
 					isPrimaryKey: false;
@@ -785,7 +785,7 @@ Expect<
 					hasDefault: false;
 					notNull: true;
 					enumValues: undefined;
-					
+					baseColumn: never;
 					generated: undefined;
 					identity: undefined;
 					isPrimaryKey: false;
@@ -801,7 +801,7 @@ Expect<
 					data: number;
 					driverParam: string | number;
 					enumValues: undefined;
-					
+					baseColumn: never;
 					generated: undefined;
 					identity: undefined;
 					isPrimaryKey: false;
@@ -832,7 +832,7 @@ Expect<
 					hasDefault: false;
 					notNull: true;
 					enumValues: undefined;
-					
+					baseColumn: never;
 					generated: undefined;
 					identity: undefined;
 					isPrimaryKey: false;
@@ -848,7 +848,7 @@ Expect<
 					data: number;
 					driverParam: string | number;
 					enumValues: undefined;
-					
+					baseColumn: never;
 					generated: undefined;
 					identity: undefined;
 					isPrimaryKey: false;
@@ -963,7 +963,7 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 				hasDefault: true;
 				notNull: true;
 				enumValues: undefined;
-				
+				baseColumn: never;
 				generated: undefined;
 				identity: undefined;
 				isPrimaryKey: true;
@@ -979,7 +979,7 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 				hasDefault: false;
 				enumValues: [string, ...string[]];
 				notNull: true;
-				
+				baseColumn: never;
 				generated: undefined;
 				identity: undefined;
 				isPrimaryKey: true;
@@ -995,7 +995,7 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 				hasDefault: true;
 				enumValues: ['admin', 'user'];
 				notNull: true;
-				
+				baseColumn: never;
 				generated: undefined;
 				identity: undefined;
 				isPrimaryKey: false;
@@ -1011,7 +1011,7 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 				notNull: false;
 				hasDefault: true;
 				enumValues: undefined;
-				
+				baseColumn: never;
 				generated: undefined;
 				identity: undefined;
 				isPrimaryKey: false;

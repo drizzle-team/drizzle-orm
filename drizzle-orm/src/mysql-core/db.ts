@@ -121,7 +121,7 @@ export class MySqlDatabase<
 					relations.tables,
 					relations.tablesConfig,
 					relations.tableNamesMap,
-					relations.tables[relation.tsName] as MySqlTable,
+					relations.tables[relation.name] as MySqlTable,
 					relation,
 					dialect,
 					session,

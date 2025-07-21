@@ -15,6 +15,8 @@ import type { SQL } from '~/sql/sql.ts';
 import type { Update } from '~/utils.ts';
 import { uniqueKeyName } from '../unique-constraint.ts';
 
+export type SingleStoreColumns = Record<string, SingleStoreColumn<any>>;
+
 export interface SingleStoreGeneratedColumnConfig {
 	mode?: 'virtual' | 'stored';
 }
@@ -71,10 +73,9 @@ export abstract class SingleStoreColumn<
 	}
 }
 
-export type AnySingleStoreColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType>> = {}> =
-	SingleStoreColumn<
-		Required<Update<ColumnBaseConfig<ColumnDataType>, TPartial>>
-	>;
+export type AnySingleStoreColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType>> = {}> = SingleStoreColumn<
+	Required<Update<ColumnBaseConfig<ColumnDataType>, TPartial>>
+>;
 
 export interface SingleStoreColumnWithAutoIncrementConfig {
 	autoIncrement: boolean;

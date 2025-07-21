@@ -21,7 +21,6 @@ import {
 } from '~/sqlite-core/index.ts';
 import { sqliteView, type SQLiteViewWithSelection } from '~/sqlite-core/view.ts';
 import { db } from './db.ts';
-import { ColumnInsert } from '~/column-builder.ts';
 
 export const users = sqliteTable(
 	'users_table',
@@ -39,7 +38,28 @@ export const users = sqliteTable(
 		age1: integer('age1').notNull(),
 		createdAt: integer('created_at', { mode: 'timestamp' }).notNull().defaultNow(),
 		enumCol: text('enum_col', { enum: ['a', 'b', 'c'] }).notNull(),
-	}
+	},
+	(users) => ({
+		usersAge1Idx: uniqueIndex('usersAge1Idx').on(users.class),
+		usersAge2Idx: index('usersAge2Idx').on(users.class),
+		uniqueClass: uniqueIndex('uniqueClass')
+			.on(users.class, users.subClass)
+			.where(
+				sql`${users.class} is not null`,
+			),
+		uniqueClassEvenBetterThanPrisma: uniqueIndex('uniqueClass')
+			.on(users.class, users.subClass)
+			.where(
+				sql`${users.class} is not null`,
+			),
+		legalAge: check('legalAge', sql`${users.age1} > 18`),
+		usersClassFK: foreignKey(() => ({ columns: [users.subClass], foreignColumns: [classes.subClass] })),
+		usersClassComplexFK: foreignKey(() => ({
+			columns: [users.class, users.subClass],
+			foreignColumns: [classes.class, classes.subClass],
+		})),
+		pk: primaryKey(users.age1, users.class),
+	}),
 );
 
 export type User = typeof users.$inferSelect;
@@ -149,6 +169,7 @@ Expect<
 				hasDefault: true;
 				tableName: 'new_yorkers';
 				enumValues: undefined;
+				baseColumn: never;
 				generated: undefined;
 				identity: undefined;
 				isAutoincrement: false;
@@ -164,7 +185,7 @@ Expect<
 				hasDefault: true;
 				tableName: 'new_yorkers';
 				enumValues: undefined;
-				
+				baseColumn: never;
 				generated: undefined;
 				identity: undefined;
 				isAutoincrement: false;
@@ -199,7 +220,7 @@ Expect<
 					notNull: true;
 					tableName: 'new_yorkers';
 					enumValues: undefined;
-					
+					baseColumn: never;
 					generated: undefined;
 					identity: undefined;
 					isAutoincrement: false;
@@ -215,7 +236,7 @@ Expect<
 					driverParam: number;
 					tableName: 'new_yorkers';
 					enumValues: undefined;
-					
+					baseColumn: never;
 					generated: undefined;
 					identity: undefined;
 					isAutoincrement: false;
@@ -246,6 +267,7 @@ Expect<
 					notNull: true;
 					tableName: 'new_yorkers';
 					enumValues: undefined;
+					baseColumn: never;
 					generated: undefined;
 					identity: undefined;
 					isAutoincrement: false;
@@ -261,6 +283,7 @@ Expect<
 					driverParam: number;
 					tableName: 'new_yorkers';
 					enumValues: undefined;
+					baseColumn: never;
 					generated: undefined;
 					identity: undefined;
 					isAutoincrement: false;

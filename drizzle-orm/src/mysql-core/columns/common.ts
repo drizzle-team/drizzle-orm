@@ -18,6 +18,8 @@ import type { SQL } from '~/sql/sql.ts';
 import type { Update } from '~/utils.ts';
 import { uniqueKeyName } from '../unique-constraint.ts';
 
+export type MySqlColumns = Record<string, MySqlColumn<any>>;
+
 export interface ReferenceConfig {
 	ref: () => MySqlColumn;
 	actions: {

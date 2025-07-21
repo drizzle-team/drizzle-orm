@@ -40,7 +40,7 @@ import {
 	type SQLChunk,
 } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
-import { Columns, getTableName, getTableUniqueName, Table } from '~/table.ts';
+import { getTableName, getTableUniqueName, Table, TableColumns } from '~/table.ts';
 import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { GelTimestamp } from './columns/timestamp.ts';
@@ -920,7 +920,11 @@ export class GelDialect {
 
 				case 'GelCustomColumn': {
 					return sql`${
-						(<GelCustomColumn<any>> col).jsonSelectIdentifier(name, sql, dimensionCnt > 0 ? dimensionCnt : undefined)
+						(<GelCustomColumn<any>> col).jsonSelectIdentifier(
+							name,
+							sql,
+							dimensionCnt > 0 ? dimensionCnt : undefined,
+						)
 					} as ${sql.identifier(key)}`;
 				}
 
@@ -941,7 +945,7 @@ export class GelDialect {
 
 	private unwrapAllColumns = (table: Table | View, selection: BuildRelationalQueryResult['selection']) => {
 		return sql.join(
-			Object.entries(table[Columns]).map(([k, v]) => {
+			Object.entries(table[TableColumns]).map(([k, v]) => {
 				selection.push({
 					key: k,
 					field: v as Column | SQL | SQLWrapper | SQL.Aliased,
@@ -961,7 +965,7 @@ export class GelDialect {
 		config?.columns
 			? (() => {
 				const entries = Object.entries(config.columns);
-				const columnContainer: Record<string, unknown> = table[Columns];
+				const columnContainer: Record<string, unknown> = table[TableColumns];
 
 				const columnIdentifiers: SQL[] = [];
 				let colSelectionMode: boolean | undefined;
@@ -1136,7 +1140,7 @@ export class GelDialect {
 		if (extras?.sql) selectionArr.push(extras.sql);
 		if (!selectionArr.length) {
 			throw new DrizzleError({
-				message: `No fields selected for table "${tableConfig.tsName}"${currentPath ? ` ("${currentPath}")` : ''}`,
+				message: `No fields selected for table "${tableConfig.name}"${currentPath ? ` ("${currentPath}")` : ''}`,
 			});
 		}
 		const selectionSet = sql.join(selectionArr.filter((e) => e !== undefined), sql`, `);

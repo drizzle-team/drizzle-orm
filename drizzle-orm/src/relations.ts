@@ -1,4 +1,4 @@
-import { Columns, getTableUniqueName, IsAlias, OriginalName, Schema, Table } from '~/table.ts';
+import { getTableUniqueName, IsAlias, OriginalName, Table, TableColumns, TableSchema } from '~/table.ts';
 import { aliasedTable } from './alias.ts';
 import type { CasingCache } from './casing.ts';
 import { type AnyColumn, Column } from './column.ts';
@@ -35,17 +35,23 @@ import {
 import { Placeholder, SQL, sql, type SQLWrapper, View } from './sql/sql.ts';
 import type { Assume, DrizzleTypeError, Equal, Simplify, ValueOrArray } from './utils.ts';
 
-export type GetTableViewColumns<T extends Table | View> = T extends View ? T['_']['selectedFields']
-	: T extends Table ? T['_']['columns']
+export type FilteredSchemaEntry = Table<any> | View<string, boolean, FieldSelection>;
+
+export type SchemaEntry = Table<any> | View<string, boolean, any>;
+
+export type RelSchema = Record<string, SchemaEntry>;
+
+export type GetTableViewColumns<T extends SchemaEntry> = T extends View<string, boolean, any> ? T['_']['selectedFields']
+	: T extends Table<any> ? T['_']['columns']
 	: never;
 
-export type GetTableViewFieldSelection<T extends Table | View> = T extends View<string, boolean, FieldSelection>
+export type GetTableViewFieldSelection<T extends SchemaEntry> = T extends View<string, boolean, FieldSelection>
 	? T['_']['selectedFields']
-	: T extends Table ? T['_']['columns']
+	: T extends Table<any> ? T['_']['columns']
 	: never;
 
 export type FieldValue =
-	| Column
+	| Column<any>
 	| SQLWrapper
 	| SQL.Aliased
 	| SQL;
@@ -54,7 +60,7 @@ export type FieldSelection = Record<string, FieldValue>;
 
 export class Relations<
 	TSchema extends Record<string, unknown> = Record<string, any>,
-	TTables extends Record<string, Table | View> = Record<string, any>,
+	TTables extends RelSchema = RelSchema,
 	TConfig extends AnyRelationsBuilderConfig = AnyRelationsBuilderConfig,
 > {
 	static readonly [entityKind]: string = 'RelationsV2';
@@ -74,16 +80,13 @@ export class Relations<
 
 			if (!(isTable || isView)) continue;
 
-			(this.tables as any as Record<string, Table | View>)[tsName] = table;
+			(this.tables as any as RelSchema)[tsName] = table;
 
 			this.tableNamesMap[getTableUniqueName(table)] = tsName as any;
 
 			this.tablesConfig[tsName] = {
 				table,
-				tsName,
-				dbName: table[Table.Symbol.Name],
-				schema: table[Table.Symbol.Schema],
-				columns: table[Table.Symbol.Columns] as FieldSelection,
+				name: tsName,
 				relations: (config[tsName] || {}) as Record<string, RelationsBuilderEntry>,
 			};
 		}
@@ -105,7 +108,7 @@ export class Relations<
 					continue;
 				}
 
-				const relationPrintName = `relations -> ${tableConfig.tsName}: { ${relationFieldName}: r.${
+				const relationPrintName = `relations -> ${tableConfig.name}: { ${relationFieldName}: r.${
 					is(relation, One) ? 'one' : 'many'
 				}.${this.tableNamesMap[getTableUniqueName(relation.targetTable)]}(...) }`;
 
@@ -248,26 +251,26 @@ export abstract class Relation<
 	declare public readonly relationType: 'many' | 'one';
 
 	fieldName!: string;
-	sourceColumns!: Column[];
-	targetColumns!: Column[];
+	sourceColumns!: Column<any>[];
+	targetColumns!: Column<any>[];
 	alias: string | undefined;
 	where: AnyTableFilter | undefined;
-	sourceTable!: Table | View;
-	targetTable: Table | View;
+	sourceTable!: SchemaEntry;
+	targetTable: SchemaEntry;
 	through?: {
 		source: RelationsBuilderColumnBase[];
 		target: RelationsBuilderColumnBase[];
 	};
-	throughTable?: Table | View;
+	throughTable?: SchemaEntry;
 	isReversed?: boolean;
 
 	declare readonly sourceTableName: TSourceTableName;
 	declare readonly targetTableName: TTargetTableName;
 
 	constructor(
-		targetTable: Table | View,
+		targetTable: SchemaEntry,
 	) {
-		this.targetTable = targetTable as any as Table | View;
+		this.targetTable = targetTable as any as SchemaEntry;
 	}
 }
 
@@ -284,9 +287,8 @@ export class One<
 	readonly optional: TOptional;
 
 	constructor(
-		/** Required type - `Record<string, Table | View>` - simplified due to performance issues */
-		tables: Record<string, unknown>,
-		targetTable: Table | View,
+		tables: RelSchema,
+		targetTable: SchemaEntry,
 		config: AnyOneConfig | undefined,
 	) {
 		super(targetTable);
@@ -296,7 +298,7 @@ export class One<
 			this.sourceColumns = ((Array.isArray(config.from)
 				? config.from
 				: [config.from]) as RelationsBuilderColumnBase[]).map((it: RelationsBuilderColumnBase) => {
-					this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as Table | View : undefined;
+					this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as SchemaEntry : undefined;
 
 					return it._.column as AnyColumn<{ tableName: TSourceTableName }>;
 				});
@@ -305,7 +307,7 @@ export class One<
 			this.targetColumns = (Array.isArray(config.to)
 				? config.to
 				: [config.to]).map((it: RelationsBuilderColumnBase) => {
-					this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as Table | View : undefined;
+					this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as SchemaEntry : undefined;
 
 					return it._.column as AnyColumn<{ tableName: TTargetTableName }>;
 				});
@@ -333,9 +335,8 @@ export class Many<
 	public override readonly relationType = 'many' as const;
 
 	constructor(
-		/** Required type - `Record<string, Table | View>` - simplified due to performance issues */
-		tables: Record<string, unknown>,
-		targetTable: Table | View,
+		tables: RelSchema,
+		targetTable: SchemaEntry,
 		readonly config: AnyManyConfig | undefined,
 	) {
 		super(targetTable);
@@ -345,7 +346,7 @@ export class Many<
 			this.sourceColumns = ((Array.isArray(config.from)
 				? config.from
 				: [config.from]) as RelationsBuilderColumnBase[]).map((it: RelationsBuilderColumnBase) => {
-					this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as Table | View : undefined;
+					this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as SchemaEntry : undefined;
 
 					return it._.column as AnyColumn<{ tableName: TSourceTableName }>;
 				});
@@ -354,7 +355,7 @@ export class Many<
 			this.targetColumns = (Array.isArray(config.to)
 				? config.to
 				: [config.to]).map((it: RelationsBuilderColumnBase) => {
-					this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as Table | View : undefined;
+					this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as SchemaEntry : undefined;
 
 					return it._.column as AnyColumn<{ tableName: TTargetTableName }>;
 				});
@@ -379,9 +380,9 @@ export abstract class AggregatedField<T = unknown> implements SQLWrapper<T> {
 		readonly data: T;
 	};
 
-	protected table: Table | View | undefined;
+	protected table: SchemaEntry | undefined;
 
-	onTable(table: Table | View) {
+	onTable(table: SchemaEntry) {
 		this.table = table;
 
 		return this;
@@ -465,7 +466,7 @@ export type DBQueryConfigColumns<TColumns extends FieldSelection> = {
 	[K in keyof TColumns]?: boolean | undefined;
 };
 
-export type DBQueryConfigExtras<TTable extends Table | View> = Record<
+export type DBQueryConfigExtras<TTable extends SchemaEntry> = Record<
 	string,
 	| SQLWrapper
 	| ((
@@ -474,7 +475,7 @@ export type DBQueryConfigExtras<TTable extends Table | View> = Record<
 	) => SQLWrapper)
 >;
 
-export type DBQueryConfigOrderByCallback<TTable extends Table | View> = (
+export type DBQueryConfigOrderByCallback<TTable extends SchemaEntry> = (
 	table: TTable,
 	operators: OrderByOperators,
 ) => ValueOrArray<AnyColumn | SQL>;
@@ -483,7 +484,7 @@ export type DBQueryConfigOrderByObject<TColumns extends FieldSelection> = {
 	[K in keyof TColumns]?: 'asc' | 'desc' | undefined;
 };
 
-export type DBQueryConfigOrderBy<TTable extends Table | View, TColumns extends FieldSelection> =
+export type DBQueryConfigOrderBy<TTable extends SchemaEntry, TColumns extends FieldSelection> =
 	| DBQueryConfigOrderByCallback<TTable>
 	| DBQueryConfigOrderByObject<TColumns>;
 
@@ -515,7 +516,7 @@ export type DBQueryConfig<
 				| undefined;
 		})
 	& {
-		columns?: DBQueryConfigColumns<TTableConfig['columns']> | undefined;
+		columns?: DBQueryConfigColumns<GetTableViewFieldSelection<TTableConfig['table']>> | undefined;
 		where?: RelationsFilter<TTableConfig, TSchema> | undefined;
 		extras?:
 			| DBQueryConfigExtras<TTableConfig['table']>
@@ -523,7 +524,7 @@ export type DBQueryConfig<
 	}
 	& (`${TRelationType}_${TIsNested}` extends 'one_true' ? {} : {
 		orderBy?:
-			| DBQueryConfigOrderBy<TTableConfig['table'], TTableConfig['columns']>
+			| DBQueryConfigOrderBy<TTableConfig['table'], GetTableViewFieldSelection<TTableConfig['table']>>
 			| undefined;
 		offset?: number | Placeholder | undefined;
 	})
@@ -534,7 +535,7 @@ export type DBQueryConfig<
 
 export type AnyDBQueryConfig = {
 	columns?:
-		| DBQueryConfigColumns<TableRelationalConfig['columns']>
+		| DBQueryConfigColumns<GetTableViewFieldSelection<TableRelationalConfig['table']>>
 		| undefined;
 	where?: RelationsFilter<TableRelationalConfig, TablesRelationalConfig> | undefined;
 	extras?:
@@ -544,18 +545,15 @@ export type AnyDBQueryConfig = {
 		| Record<string, AnyDBQueryConfig>
 		| undefined;
 	orderBy?:
-		| DBQueryConfigOrderBy<TableRelationalConfig['table'], TableRelationalConfig['columns']>
+		| DBQueryConfigOrderBy<TableRelationalConfig['table'], GetTableViewFieldSelection<TableRelationalConfig['table']>>
 		| undefined;
 	offset?: number | Placeholder | undefined;
 	limit?: number | Placeholder | undefined;
 };
 
 export interface TableRelationalConfig {
-	table: Table | View;
-	tsName: string;
-	dbName: string;
-	schema: string | undefined;
-	columns: FieldSelection;
+	table: SchemaEntry;
+	name: string;
 	relations: Record<string, RelationsBuilderEntry>;
 }
 
@@ -567,19 +565,15 @@ type NonUndefinedRecord<TRecord extends Record<string, any>> = {
 
 export type ExtractTablesWithRelations<
 	TRelations extends Relations,
-	TTables extends Record<string, Table | View> = TRelations['tables'],
+	TTables extends RelSchema = TRelations['tables'],
 > = {
 	[K in keyof TTables & string]: {
 		table: TTables[K];
-		tsName: K;
-		dbName: GetTableViewColumns<TTables[K]>;
-		columns: TTables[K] extends Table ? TTables[K]['_']['columns'] : Assume<TTables[K], View>['_']['selectedFields'];
+		name: K;
 		relations: K extends keyof TRelations['config']
 			? TRelations['config'][K] extends Record<string, any> ? NonUndefinedRecord<TRelations['config'][K]>
 			: {}
 			: {};
-		// Views don't have schema on type-level, TBD
-		schema: TTables[K] extends Table ? TTables[K]['_']['schema'] : string | undefined;
 	};
 };
 
@@ -685,15 +679,10 @@ export type BuildQueryResult<
 		>
 	: never;
 
-export interface NormalizedRelation {
-	fields: AnyColumn[];
-	references: AnyColumn[];
-}
-
 export interface BuildRelationalQueryResult {
 	selection: {
 		key: string;
-		field: Column | Table | SQL | SQL.Aliased | SQLWrapper | AggregatedField;
+		field: Column<any> | Table | SQL | SQL.Aliased | SQLWrapper | AggregatedField;
 		isArray?: boolean;
 		selection?: BuildRelationalQueryResult['selection'];
 		isOptional?: boolean;
@@ -772,10 +761,10 @@ export class RelationsBuilderTable<TTableName extends string = string> {
 
 	readonly _: {
 		readonly name: TTableName;
-		readonly table: Table | View;
+		readonly table: SchemaEntry;
 	};
 
-	constructor(table: Table | View, name: TTableName) {
+	constructor(table: SchemaEntry, name: TTableName) {
 		this._ = {
 			name,
 			table,
@@ -937,7 +926,7 @@ export type RelationsFilterRelations<
 export type RelationsFilter<
 	TTable extends TableRelationalConfig,
 	TSchema extends TablesRelationalConfig,
-	TColumns extends FieldSelection = TTable['columns'],
+	TColumns extends FieldSelection = GetTableViewFieldSelection<TTable['table']>,
 > = TTable['relations'] extends Record<string, never> ? TableFilter<TTable['table']>
 	:
 		& RelationsFilterColumns<TColumns>
@@ -945,7 +934,7 @@ export type RelationsFilter<
 		& RelationsFilterCommons<TTable, TSchema>;
 
 export interface TableFilterCommons<
-	TTable extends Table | View = Table | View,
+	TTable extends SchemaEntry = SchemaEntry,
 	TColumns extends Record<string, unknown> = GetTableViewColumns<TTable>,
 > {
 	OR?: TableFilter<TTable, TColumns>[] | undefined;
@@ -970,7 +959,7 @@ export type TableFilterColumns<
 };
 
 export type TableFilter<
-	TTable extends Table | View = Table | View,
+	TTable extends SchemaEntry = SchemaEntry,
 	TColumns extends Record<string, unknown> = GetTableViewColumns<TTable>,
 > =
 	& TableFilterColumns<TColumns>
@@ -983,12 +972,12 @@ export type AnyRelationsFilter = RelationsFilter<
 >;
 
 export type AnyTableFilter = TableFilter<
-	Table | View,
+	SchemaEntry,
 	FieldSelection
 >;
 
 export interface OneConfig<
-	TSchema extends Record<string, Table | View>,
+	TSchema extends RelSchema,
 	TSourceColumns extends
 		| Readonly<[RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]]>
 		| Readonly<RelationsBuilderColumnBase>,
@@ -1013,14 +1002,14 @@ export interface OneConfig<
 }
 
 export type AnyOneConfig = OneConfig<
-	Record<string, Table | View>,
+	RelSchema,
 	Readonly<[RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]] | RelationsBuilderColumnBase<string, unknown>>,
 	string,
 	boolean
 >;
 
 export interface ManyConfig<
-	TSchema extends Record<string, Table | View>,
+	TSchema extends RelSchema,
 	TSourceColumns extends
 		| Readonly<[RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]]>
 		| Readonly<RelationsBuilderColumnBase>,
@@ -1043,13 +1032,13 @@ export interface ManyConfig<
 }
 
 export type AnyManyConfig = ManyConfig<
-	Record<string, Table | View>,
+	RelSchema,
 	Readonly<[RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]]> | Readonly<RelationsBuilderColumnBase>,
 	string
 >;
 
 export interface OneFn<
-	TTables extends Record<string, Table | View>,
+	TTables extends RelSchema,
 	TTargetTableName extends string,
 > {
 	<
@@ -1070,7 +1059,7 @@ export interface OneFn<
 }
 
 export interface ManyFn<
-	TTables extends Record<string, Table | View>,
+	TTables extends RelSchema,
 	TTargetTableName extends string,
 > {
 	<
@@ -1088,7 +1077,7 @@ export interface ManyFn<
 	>;
 }
 
-export class RelationsHelperStatic<TTables extends Record<string, Table | View>> {
+export class RelationsHelperStatic<TTables extends RelSchema> {
 	static readonly [entityKind]: string = 'RelationsHelperStatic';
 	// declare readonly $brand: 'RelationsHelperStatic';
 
@@ -1106,11 +1095,11 @@ export class RelationsHelperStatic<TTables extends Record<string, Table | View>>
 
 		for (const [tableName, table] of Object.entries(tables)) {
 			one[tableName] = (config) => {
-				return new One(tables as Record<string, Table | View>, table as Table | View, config as AnyOneConfig);
+				return new One(tables as RelSchema, table as SchemaEntry, config as AnyOneConfig);
 			};
 
 			many[tableName] = (config) => {
-				return new Many(tables as Record<string, Table | View>, table as Table | View, config as AnyManyConfig);
+				return new Many(tables as RelSchema, table as SchemaEntry, config as AnyManyConfig);
 			};
 		}
 
@@ -1119,12 +1108,12 @@ export class RelationsHelperStatic<TTables extends Record<string, Table | View>>
 	}
 
 	one: {
-		[K in keyof TTables]: TTables[K] extends Table | View<string, boolean, FieldSelection> ? OneFn<TTables, K & string>
+		[K in keyof TTables]: TTables[K] extends FilteredSchemaEntry ? OneFn<TTables, K & string>
 			: DrizzleTypeError<'Views with nested selections are not supported by the relational query builder'>;
 	};
 
 	many: {
-		[K in keyof TTables]: TTables[K] extends Table | View<string, boolean, FieldSelection> ? ManyFn<TTables, K & string>
+		[K in keyof TTables]: TTables[K] extends FilteredSchemaEntry ? ManyFn<TTables, K & string>
 			: DrizzleTypeError<'Views with nested selections are not supported by the relational query builder'>;
 	};
 
@@ -1136,7 +1125,7 @@ export class RelationsHelperStatic<TTables extends Record<string, Table | View>>
 	};
 }
 
-export type RelationsBuilderColumns<TTable extends Table | View, TTableName extends string> = {
+export type RelationsBuilderColumns<TTable extends SchemaEntry, TTableName extends string> = {
 	[
 		TColumnName in keyof GetTableViewColumns<TTable>
 	]: RelationsBuilderColumn<
@@ -1147,15 +1136,15 @@ export type RelationsBuilderColumns<TTable extends Table | View, TTableName exte
 	>;
 };
 
-export type RelationsBuilderTables<TSchema extends Record<string, Table | View>> = {
-	[TTableName in keyof TSchema & string]: TSchema[TTableName] extends Table | View<string, boolean, FieldSelection> ? (
+export type RelationsBuilderTables<TSchema extends RelSchema> = {
+	[TTableName in keyof TSchema & string]: TSchema[TTableName] extends FilteredSchemaEntry ? (
 			& RelationsBuilderColumns<TSchema[TTableName], TTableName>
 			& RelationsBuilderTable<TTableName>
 		)
 		: DrizzleTypeError<'Views with nested selections are not supported by the relational query builder'>;
 };
 
-export type RelationsBuilder<TSchema extends Record<string, Table | View>> = Simplify<
+export type RelationsBuilder<TSchema extends RelSchema> = Simplify<
 	& RelationsBuilderTables<TSchema>
 	& RelationsHelperStatic<TSchema>
 >;
@@ -1172,29 +1161,29 @@ export type RelationsBuilderEntry<
 > = Relation<TSourceTableName, keyof TTables & string>;
 
 export type ExtractTablesFromSchema<TSchema extends Record<string, unknown>> = {
-	[K in keyof TSchema & string as TSchema[K] extends Table | View ? K : never]: TSchema[K] extends Table | View
+	[K in keyof TSchema & string as TSchema[K] extends SchemaEntry ? K : never]: TSchema[K] extends SchemaEntry
 		? TSchema[K]
 		: never;
 };
 
 // This one is 79k heavier on it's own, but ~0.5k less instantiations when relations are defined
 // 	{
-// 		[K in keyof TSchema as TSchema[K] extends Table | View ? K : never]: TSchema[K];
+// 		[K in keyof TSchema as TSchema[K] extends SchemaEntry ? K : never]: TSchema[K];
 // 	},
-// 	Record<string, Table | View>
+// 	Schema
 // >;
 
 export function createRelationsHelper<
-	TSchema extends Record<string, Table | View>,
+	TSchema extends RelSchema,
 >(schema: TSchema): RelationsBuilder<TSchema> {
 	const schemaTables = Object.fromEntries(
-		Object.entries(schema).filter((e): e is [typeof e[0], Table | View] => is(e[1], Table) || is(e[1], View)),
+		Object.entries(schema).filter((e): e is [typeof e[0], SchemaEntry] => is(e[1], Table) || is(e[1], View)),
 	);
 	const helperStatic = new RelationsHelperStatic(schemaTables);
 	const tables = Object.entries(schema).reduce<Record<string, RelationsBuilderTable>>((acc, [tKey, value]) => {
 		if (is(value, Table) || is(value, View)) {
 			const rTable = new RelationsBuilderTable(value, tKey);
-			const columns = Object.entries(value[Columns]).reduce<
+			const columns = Object.entries(value[TableColumns]).reduce<
 				Record<string, RelationsBuilderColumnBase>
 			>(
 				(acc, [cKey, column]) => {
@@ -1215,7 +1204,7 @@ export function createRelationsHelper<
 export function defineRelations<
 	TSchema extends Record<string, unknown>,
 	TConfig extends RelationsBuilderConfig<TTables>,
-	TTables extends Record<string, Table | View> = ExtractTablesFromSchema<TSchema>,
+	TTables extends RelSchema = ExtractTablesFromSchema<TSchema>,
 >(
 	schema: TSchema,
 	relations?: (helpers: RelationsBuilder<TTables>) => TConfig,
@@ -1235,7 +1224,7 @@ export interface WithContainer {
 }
 
 export interface ColumnWithTSName {
-	column: Column | SQL | SQLWrapper | SQL.Aliased;
+	column: Column<any> | SQL | SQLWrapper | SQL.Aliased;
 	tsName: string;
 }
 
@@ -1248,8 +1237,8 @@ export type OrderBy = Exclude<AnyDBQueryConfig['orderBy'], undefined>;
 export type Extras = Exclude<AnyDBQueryConfig['extras'], undefined>;
 
 /** @internal */
-export function fieldSelectionToSQL(table: Table | View, target: string) {
-	const field = table[Columns][target];
+export function fieldSelectionToSQL(table: SchemaEntry, target: string) {
+	const field = table[TableColumns][target];
 
 	return field
 		? is(field, Column)
@@ -1344,11 +1333,11 @@ function relationsFieldFilterToSQL(column: SQLWrapper, filter: RelationsFieldFil
 }
 
 export function relationsFilterToSQL(
-	table: Table | View,
+	table: SchemaEntry,
 	filter: AnyRelationsFilter | AnyTableFilter,
 ): SQL | undefined;
 export function relationsFilterToSQL(
-	table: Table | View,
+	table: SchemaEntry,
 	filter: AnyRelationsFilter | AnyTableFilter,
 	tableRelations: Record<string, Relation>,
 	tablesRelations: TablesRelationalConfig,
@@ -1357,7 +1346,7 @@ export function relationsFilterToSQL(
 	depth?: number,
 ): SQL | undefined;
 export function relationsFilterToSQL(
-	table: Table | View,
+	table: SchemaEntry,
 	filter: AnyRelationsFilter | AnyTableFilter,
 	tableRelations: Record<string, Relation> = {},
 	tablesRelations: TablesRelationalConfig = {},
@@ -1427,7 +1416,7 @@ export function relationsFilterToSQL(
 				continue;
 			}
 			default: {
-				if (table[Columns][target]) {
+				if (table[TableColumns][target]) {
 					const column = fieldSelectionToSQL(table, target);
 
 					const colFilter = relationsFieldFilterToSQL(
@@ -1483,7 +1472,7 @@ export function relationsFilterToSQL(
 }
 
 export function relationsOrderToSQL(
-	table: Table | View,
+	table: SchemaEntry,
 	orders: OrderBy,
 ): SQL | undefined {
 	if (typeof orders === 'function') {
@@ -1510,7 +1499,7 @@ export function relationsOrderToSQL(
 }
 
 export function relationExtrasToSQL(
-	table: Table | View,
+	table: SchemaEntry,
 	extras: Extras,
 ) {
 	const subqueries: SQL[] = [];
@@ -1547,9 +1536,9 @@ export interface BuiltRelationFilters {
 export function relationToSQL(
 	casing: CasingCache,
 	relation: Relation,
-	sourceTable: Table | View,
-	targetTable: Table | View,
-	throughTable?: Table | View,
+	sourceTable: SchemaEntry,
+	targetTable: SchemaEntry,
+	throughTable?: SchemaEntry,
 ): BuiltRelationFilters {
 	if (relation.through) {
 		const outerColumnWhere = relation.sourceColumns.map((s, i) => {
@@ -1600,10 +1589,10 @@ export function relationToSQL(
 	return { filter: fullWhere };
 }
 
-export function getTableAsAliasSQL(table: Table | View) {
+export function getTableAsAliasSQL(table: SchemaEntry) {
 	return sql`${
 		table[IsAlias]
-			? sql`${sql`${sql.identifier(table[Schema] ?? '')}.`.if(table[Schema])}${
+			? sql`${sql`${sql.identifier(table[TableSchema] ?? '')}.`.if(table[TableSchema])}${
 				sql.identifier(table[OriginalName])
 			} as ${table}`
 			: table

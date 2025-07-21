@@ -9,7 +9,7 @@ import type { Assume, Equal } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { AnyColumn } from '../column.ts';
 import { Column } from '../column.ts';
-import { Columns, IsAlias, OriginalName, Schema, Table } from '../table.ts';
+import { IsAlias, OriginalName, Table, TableColumns, TableSchema } from '../table.ts';
 
 /**
  * This class is used to indicate a primitive param value that is used in `sql` tag.
@@ -658,7 +658,7 @@ export abstract class View<
 	}
 
 	/** @internal */
-	public get [Schema]() {
+	public get [TableSchema]() {
 		return this[ViewBaseConfig].schema;
 	}
 
@@ -673,7 +673,7 @@ export abstract class View<
 	}
 
 	/** @internal */
-	public get [Columns]() {
+	public get [TableColumns]() {
 		return (this[ViewBaseConfig].selectedFields) as any as Record<string, unknown>;
 	}
 

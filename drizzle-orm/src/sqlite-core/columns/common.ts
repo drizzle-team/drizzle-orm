@@ -16,6 +16,8 @@ import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import type { Update } from '~/utils.ts';
 import { uniqueKeyName } from '../unique-constraint.ts';
 
+export type SQLiteColumns = Record<string, SQLiteColumn<any>>;
+
 export interface ReferenceConfig {
 	ref: () => SQLiteColumn;
 	actions: {

@@ -19,6 +19,8 @@ import { iife } from '~/tracing-utils.ts';
 import type { GelIndexOpClass } from '../indexes.ts';
 import { uniqueKeyName } from '../unique-constraint.ts';
 
+export type GelColumns = Record<string, GelColumn<any>>;
+
 export interface ReferenceConfig {
 	ref: () => GelColumn;
 	actions: {

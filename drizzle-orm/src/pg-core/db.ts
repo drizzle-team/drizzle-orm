@@ -118,7 +118,7 @@ export class PgDatabase<
 					relations.tables,
 					relations.tablesConfig,
 					relations.tableNamesMap,
-					relations.tables[relation.tsName] as PgTable,
+					relations.tables[relation.name] as PgTable,
 					relation,
 					dialect,
 					session,

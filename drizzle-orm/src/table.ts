@@ -1,14 +1,14 @@
-import type { Column, GetColumnData } from './column.ts';
+import type { Column, Columns, GetColumnData } from './column.ts';
 import { entityKind } from './entity.ts';
 import type { OptionalKeyOnly, RequiredKeyOnly } from './operations.ts';
 import type { SQL, SQLWrapper, View } from './sql/sql.ts';
 import { TableName } from './table.utils.ts';
 import type { Simplify, Update } from './utils.ts';
 
-export interface TableConfig<TColumn extends Column = Column<any>> {
+export interface TableConfig<TColumns extends Columns = Columns> {
 	name: string;
 	schema: string | undefined;
-	columns: Record<string, TColumn>;
+	columns: TColumns;
 	dialect: string;
 }
 
@@ -17,10 +17,10 @@ export type UpdateTableConfig<T extends TableConfig, TUpdate extends Partial<Tab
 >;
 
 /** @internal */
-export const Schema = Symbol.for('drizzle:Schema');
+export const TableSchema = Symbol.for('drizzle:Schema');
 
 /** @internal */
-export const Columns = Symbol.for('drizzle:Columns');
+export const TableColumns = Symbol.for('drizzle:Columns');
 
 /** @internal */
 export const ExtraConfigColumns = Symbol.for('drizzle:ExtraConfigColumns');
@@ -55,9 +55,9 @@ export class Table<T extends TableConfig = TableConfig> implements SQLWrapper {
 	/** @internal */
 	static readonly Symbol = {
 		Name: TableName as typeof TableName,
-		Schema: Schema as typeof Schema,
+		Schema: TableSchema as typeof TableSchema,
 		OriginalName: OriginalName as typeof OriginalName,
-		Columns: Columns as typeof Columns,
+		Columns: TableColumns as typeof TableColumns,
 		ExtraConfigColumns: ExtraConfigColumns as typeof ExtraConfigColumns,
 		BaseName: BaseName as typeof BaseName,
 		IsAlias: IsAlias as typeof IsAlias,
@@ -77,10 +77,10 @@ export class Table<T extends TableConfig = TableConfig> implements SQLWrapper {
 	[OriginalName]: string;
 
 	/** @internal */
-	[Schema]: string | undefined;
+	[TableSchema]: string | undefined;
 
 	/** @internal */
-	[Columns]!: T['columns'];
+	[TableColumns]!: T['columns'];
 
 	/** @internal */
 	[ExtraConfigColumns]!: Record<string, unknown>;
@@ -102,7 +102,7 @@ export class Table<T extends TableConfig = TableConfig> implements SQLWrapper {
 
 	constructor(name: string, schema: string | undefined, baseName: string) {
 		this[TableName] = this[OriginalName] = name;
-		this[Schema] = schema;
+		this[TableSchema] = schema;
 		this[BaseName] = baseName;
 	}
 
@@ -145,7 +145,7 @@ export function getTableUniqueName<
 >(
 	table: T,
 ): TResult {
-	return `${table[Schema] ?? 'public'}.${table[TableName]}` as TResult;
+	return `${table[TableSchema] ?? 'public'}.${table[TableName]}` as TResult;
 }
 
 export type MapColumnName<TName extends string, TColumn extends Column, TDBColumNames extends boolean> =
@@ -153,7 +153,7 @@ export type MapColumnName<TName extends string, TColumn extends Column, TDBColum
 		: TName;
 
 export type InferModelFromColumns<
-	TColumns extends Record<string, Column>,
+	TColumns extends Columns,
 	TInferMode extends 'select' | 'insert' = 'select',
 	TConfig extends { dbColumnNames: boolean; override?: boolean } = { dbColumnNames: false; override: false },
 > = Simplify<
@@ -207,7 +207,7 @@ export type InferInsertModel<
 export type InferEnum<T> = T extends { enumValues: readonly (infer U)[] } ? U
 	: never;
 
-export interface InferTableColumnsModels<TColumns extends Record<string, Column>> {
+export interface InferTableColumnsModels<TColumns extends Columns> {
 	readonly $inferSelect: InferModelFromColumns<TColumns, 'select', { dbColumnNames: false }>;
 	readonly $inferInsert: InferModelFromColumns<TColumns, 'insert', { dbColumnNames: false; override: false }>;
 }

@@ -7,7 +7,7 @@ import {
 	type UpdateTableConfig,
 } from '~/table.ts';
 import { getSingleStoreColumnBuilders, type SingleStoreColumnBuilders } from './columns/all.ts';
-import type { SingleStoreColumn, SingleStoreColumnBuilder } from './columns/common.ts';
+import type { SingleStoreColumn, SingleStoreColumnBuilder, SingleStoreColumns } from './columns/common.ts';
 import type { AnyIndexBuilder } from './indexes.ts';
 import type { PrimaryKeyBuilder } from './primary-keys.ts';
 import type { UniqueConstraintBuilder } from './unique-constraint.ts';
@@ -22,7 +22,7 @@ export type SingleStoreTableExtraConfig = Record<
 	SingleStoreTableExtraConfigValue
 >;
 
-export type TableConfig = TableConfigBase<SingleStoreColumn>;
+export type TableConfig = TableConfigBase<SingleStoreColumns>;
 
 export class SingleStoreTable<T extends TableConfig = TableConfig> extends Table<T> {
 	static override readonly [entityKind]: string = 'SingleStoreTable';
