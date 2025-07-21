@@ -13,8 +13,8 @@ import type {
 	Policy,
 	PostgresEntities,
 	PrimaryKey,
-	Role,
 	Privilege,
+	Role,
 	Schema,
 	Sequence,
 	UniqueConstraint,
@@ -132,7 +132,7 @@ export const fromDatabase = async (
 	const tablespacesQuery = db.query<{
 		oid: number;
 		name: string;
-	}>('SELECT oid, spcname as "name" FROM pg_tablespace ORDER BY lower(spcname)').then((rows) => {
+	}>(`SELECT oid, spcname as "name" FROM pg_tablespace WHERE has_tablespace_privilege(spcname, 'CREATE') ORDER BY lower(spcname)`).then((rows) => {
 		queryCallback('tablespaces', rows, null);
 		return rows;
 	}).catch((err) => {
@@ -140,7 +140,7 @@ export const fromDatabase = async (
 		throw err;
 	});
 
-	const namespacesQuery = db.query<Namespace>('SELECT oid, nspname as name FROM pg_namespace ORDER BY lower(nspname)')
+	const namespacesQuery = db.query<Namespace>("SELECT oid, nspname as name FROM pg_namespace WHERE has_schema_privilege(nspname, 'USAGE') ORDER BY lower(nspname)")
 		.then((rows) => {
 			queryCallback('namespaces', rows, null);
 			return rows;
@@ -412,7 +412,7 @@ export const fromDatabase = async (
 		throw err;
 	});
 
-const rolesQuery = db.query<
+	const rolesQuery = db.query<
 		{
 			rolname: string;
 			rolsuper: boolean;
@@ -594,19 +594,28 @@ const rolesQuery = db.query<
 		throw err;
 	});
 
-	const [dependList, enumsList, serialsList, sequencesList, policiesList, rolesList, privilegesList, constraintsList, columnsList] =
-		await Promise
-			.all([
-				dependQuery,
-				enumsQuery,
-				serialsQuery,
-				sequencesQuery,
-				policiesQuery,
-				rolesQuery,
-				privilegesQuery,
-				constraintsQuery,
-				columnsQuery,
-			]);
+	const [
+		dependList,
+		enumsList,
+		serialsList,
+		sequencesList,
+		policiesList,
+		rolesList,
+		privilegesList,
+		constraintsList,
+		columnsList,
+	] = await Promise
+		.all([
+			dependQuery,
+			enumsQuery,
+			serialsQuery,
+			sequencesQuery,
+			policiesQuery,
+			rolesQuery,
+			privilegesQuery,
+			constraintsQuery,
+			columnsQuery,
+		]);
 
 	const groupedEnums = enumsList.reduce((acc, it) => {
 		if (!(it.oid in acc)) {
@@ -711,7 +720,7 @@ const rolesQuery = db.query<
 			table: privilege.table,
 			type: privilege.type,
 			isGrantable: privilege.isGrantable,
-		})
+		});
 	}
 
 	for (const it of policiesList) {
@@ -1244,6 +1253,7 @@ export const fromDatabaseForDrizzle = async (
 	const res = await fromDatabase(db, tableFilter, schemaFilters, entities, progressCallback);
 	res.schemas = res.schemas.filter((it) => it.name !== 'public');
 	res.indexes = res.indexes.filter((it) => !it.forPK && !it.forUnique);
+	res.privileges = [];
 
 	return res;
 };

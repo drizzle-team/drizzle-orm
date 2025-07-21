@@ -127,7 +127,7 @@ export function stringifyArray(
 	const res = value.map((e) => {
 		if (Array.isArray(e)) return stringifyArray(e, mode, mapCallback);
 		return mapCallback(e, depth);
-	}).join(', ');
+	}).join(',');
 	return mode === 'ts' ? `[${res}]` : `{${res}}`;
 }
 

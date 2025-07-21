@@ -35,7 +35,7 @@ export const parseParams = (type: string) => {
 
 export interface SqlType<MODE = unknown> {
 	is(type: string): boolean;
-	drizzleImport(): Import;
+	drizzleImport(vendor?: 'singlestore' | 'mysql'): Import;
 	defaultFromDrizzle(value: unknown, mode?: MODE): Column['default'];
 	defaultFromIntrospect(value: string): Column['default'];
 	defaultToSQL(value: Column['default']): string;
@@ -498,7 +498,7 @@ export const Year: SqlType = {
 
 export const Enum: SqlType = {
 	is: (type) => /^(?:enum)(?:[\s(].*)?$/i.test(type),
-	drizzleImport: () => 'enum',
+	drizzleImport: (vendor) => vendor === 'mysql' ? 'mysqlEnum' : 'singlestoreEnum',
 	defaultFromDrizzle: (value) => {
 		return String(value);
 	},
@@ -510,14 +510,14 @@ export const Enum: SqlType = {
 		if (it.startsWith('(')) return it;
 		return `'${escapeForSqlDefault(it)}'`;
 	},
-	toTs: (type, def) => {
+	toTs: (_, def) => {
 		if (!def) return { default: '' };
 		const unescaped = escapeForTsLiteral(def);
 		return { default: `"${unescaped}"` };
 	},
 };
 
-export const typeFor = (sqlType: string): SqlType | null => {
+export const typeFor = (sqlType: string): SqlType => {
 	if (Boolean.is(sqlType)) return Boolean;
 	if (TinyInt.is(sqlType)) return TinyInt;
 	if (SmallInt.is(sqlType)) return SmallInt;
@@ -543,7 +543,7 @@ export const typeFor = (sqlType: string): SqlType | null => {
 	if (Time.is(sqlType)) return Time;
 	if (Year.is(sqlType)) return Year;
 	if (Enum.is(sqlType)) return Enum;
-	return null;
+	throw new Error(`unknown sql type: ${sqlType}`);
 };
 
 type InvalidDefault = 'text_no_parentecies';
