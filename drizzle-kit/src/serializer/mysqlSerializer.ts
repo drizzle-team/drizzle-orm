@@ -917,6 +917,9 @@ export const fromDatabase = async (
 	}
 	for await (const view of views) {
 		const viewName = view['TABLE_NAME'];
+		if (!result[viewName]) {
+			continue;
+		}
 		const definition = view['VIEW_DEFINITION'];
 
 		const withCheckOption = view['CHECK_OPTION'] === 'NONE' ? undefined : view['CHECK_OPTION'].toLowerCase();
