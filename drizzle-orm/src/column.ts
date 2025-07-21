@@ -9,7 +9,9 @@ import type { DriverValueMapper, SQL, SQLWrapper } from './sql/sql.ts';
 import type { Table } from './table.ts';
 import type { Update } from './utils.ts';
 
-export interface ColumnBaseConfig<TDataType extends ColumnDataType>  {
+export type Columns = Record<string, Column<any>>;
+
+export interface ColumnBaseConfig<TDataType extends ColumnDataType> {
 	name: string;
 	dataType: TDataType;
 	tableName: string;
@@ -37,12 +39,12 @@ export interface Column<
 */
 export abstract class Column<
 	T extends ColumnBaseConfig<ColumnDataType> = ColumnBaseConfig<ColumnDataType>,
-	TRuntimeConfig extends object = object
+	TRuntimeConfig extends object = object,
 > implements DriverValueMapper<T['data'], T['driverParam']>, SQLWrapper {
 	static readonly [entityKind]: string = 'Column';
 
-	declare readonly _: T & { 
-		identity: undefined | 'always' | 'byDefault'; 
+	declare readonly _: T & {
+		identity: undefined | 'always' | 'byDefault';
 	};
 
 	readonly name: string;

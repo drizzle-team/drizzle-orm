@@ -35,7 +35,12 @@ export class SingleStoreVectorBuilder<T extends ColumnBuilderBaseConfig<'array'>
 	}
 
 	/** @internal */
-	override generatedAlwaysAs(as: SQL<unknown> | (() => SQL) | T['data'], config?: SingleStoreGeneratedColumnConfig) {
+	override generatedAlwaysAs(
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
+		as: SQL<unknown> | (() => SQL) | T['data'],
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
+		config?: SingleStoreGeneratedColumnConfig,
+	) {
 		throw new Error('not implemented');
 	}
 }

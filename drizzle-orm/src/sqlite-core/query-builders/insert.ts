@@ -10,7 +10,7 @@ import type { IndexColumn } from '~/sqlite-core/indexes.ts';
 import type { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import type { Subquery } from '~/subquery.ts';
-import { Columns, type InferInsertModel, Table } from '~/table.ts';
+import { type InferInsertModel, Table, TableColumns } from '~/table.ts';
 import { type DrizzleTypeError, haveSameKeys, mapUpdateSet, orderSelectedFields, type Simplify } from '~/utils.ts';
 import type { AnySQLiteColumn, SQLiteColumn } from '../columns/common.ts';
 import { QueryBuilder } from './query-builder.ts';
@@ -100,7 +100,7 @@ export class SQLiteInsertBuilder<
 
 		if (
 			!is(select, SQL)
-			&& !haveSameKeys(this.table[Columns], select._.selectedFields)
+			&& !haveSameKeys(this.table[TableColumns], select._.selectedFields)
 		) {
 			throw new Error(
 				'Insert select error: selected fields are not the same or are in a different order compared to the table definition',

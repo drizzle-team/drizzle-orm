@@ -123,7 +123,7 @@ export class BaseSQLiteDatabase<
 					relations.tables,
 					relations.tablesConfig,
 					relations.tableNamesMap,
-					relations.tables[relation.tsName] as SQLiteTable,
+					relations.tables[relation.name] as SQLiteTable,
 					relation,
 					dialect,
 					session as SQLiteSession<any, any, any, any, any>,

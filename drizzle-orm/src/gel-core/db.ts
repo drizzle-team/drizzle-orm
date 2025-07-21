@@ -109,7 +109,7 @@ export class GelDatabase<
 					relations.tables,
 					relations.tablesConfig,
 					relations.tableNamesMap,
-					relations.tables[relation.tsName] as GelTable,
+					relations.tables[relation.name] as GelTable,
 					relation,
 					dialect,
 					session,

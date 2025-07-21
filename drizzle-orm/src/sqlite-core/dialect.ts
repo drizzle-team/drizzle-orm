@@ -35,7 +35,7 @@ import type {
 } from '~/sqlite-core/query-builders/index.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import { Subquery } from '~/subquery.ts';
-import { Columns, getTableName, getTableUniqueName, Table } from '~/table.ts';
+import { getTableName, getTableUniqueName, Table, TableColumns } from '~/table.ts';
 import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type {
@@ -863,7 +863,7 @@ export abstract class SQLiteDialect {
 
 	private unwrapAllColumns = (table: Table | View, selection: BuildRelationalQueryResult['selection']) => {
 		return sql.join(
-			Object.entries(table[Columns]).map(([k, v]) => {
+			Object.entries(table[TableColumns]).map(([k, v]) => {
 				selection.push({
 					key: k,
 					field: v as Column | SQL | SQLWrapper | SQL.Aliased,
@@ -877,7 +877,7 @@ export abstract class SQLiteDialect {
 
 	private getSelectedTableColumns = (table: Table | View, columns: Record<string, boolean | undefined>) => {
 		const selectedColumns: ColumnWithTSName[] = [];
-		const columnContainer = table[Columns];
+		const columnContainer = table[TableColumns];
 		const entries = Object.entries(columns);
 
 		let colSelectionMode: boolean | undefined;
@@ -1085,7 +1085,7 @@ export abstract class SQLiteDialect {
 		const selectionArr = [columns, extras?.sql, joins].filter((e) => e !== undefined);
 		if (!selectionArr.length) {
 			throw new DrizzleError({
-				message: `No fields selected for table "${tableConfig.tsName}"${currentPath ? ` ("${currentPath}")` : ''}`,
+				message: `No fields selected for table "${tableConfig.name}"${currentPath ? ` ("${currentPath}")` : ''}`,
 			});
 		}
 		const selectionSet = sql.join(selectionArr, sql`, `);

@@ -8,7 +8,7 @@ import {
 } from '~/table.ts';
 import type { CheckBuilder } from './checks.ts';
 import { getSQLiteColumnBuilders, type SQLiteColumnBuilders } from './columns/all.ts';
-import type { SQLiteColumn, SQLiteColumnBuilder } from './columns/common.ts';
+import type { SQLiteColumn, SQLiteColumnBuilder, SQLiteColumns } from './columns/common.ts';
 import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
 import type { IndexBuilder } from './indexes.ts';
 import type { PrimaryKeyBuilder } from './primary-keys.ts';
@@ -26,7 +26,7 @@ export type SQLiteTableExtraConfig = Record<
 	SQLiteTableExtraConfigValue
 >;
 
-export type TableConfig = TableConfigBase<SQLiteColumn<any>>;
+export type TableConfig = TableConfigBase<SQLiteColumns>;
 
 /** @internal */
 export const InlineForeignKeys = Symbol.for('drizzle:SQLiteInlineForeignKeys');

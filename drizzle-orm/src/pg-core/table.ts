@@ -8,11 +8,7 @@ import {
 } from '~/table.ts';
 import type { CheckBuilder } from './checks.ts';
 import { getPgColumnBuilders, type PgColumnsBuilders } from './columns/all.ts';
-import type {
-	ExtraConfigColumn,
-	PgColumn,
-	PgColumnBuilder,
-} from './columns/common.ts';
+import type { ExtraConfigColumn, PgColumn, PgColumnBuilder, PgColumns } from './columns/common.ts';
 import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
 import type { AnyIndexBuilder } from './indexes.ts';
 import type { PgPolicy } from './policies.ts';
@@ -32,7 +28,7 @@ export type PgTableExtraConfig = Record<
 	PgTableExtraConfigValue
 >;
 
-export type TableConfig = TableConfigBase<PgColumn>;
+export type TableConfig = TableConfigBase<PgColumns>;
 
 /** @internal */
 export const InlineForeignKeys = Symbol.for('drizzle:PgInlineForeignKeys');
@@ -93,13 +89,13 @@ export function pgTableWithSchema<
 ): PgTableWithColumns<{
 	name: TTableName;
 	schema: TSchemaName;
-	columns: BuildColumns<TTableName, TColumnsMap, "pg">;
+	columns: BuildColumns<TTableName, TColumnsMap, 'pg'>;
 	dialect: 'pg';
 }> {
 	const rawTable = new PgTable<{
 		name: TTableName;
 		schema: TSchemaName;
-		columns: BuildColumns<TTableName, TColumnsMap, "pg">;
+		columns: BuildColumns<TTableName, TColumnsMap, 'pg'>;
 		dialect: 'pg';
 	}>(name, schema, baseName);
 
@@ -109,12 +105,11 @@ export function pgTableWithSchema<
 		Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
 			const colBuilder = colBuilderBase as PgColumnBuilder;
 			colBuilder.setName(name);
-			// TODO: assign unique name if not present here, rather than in PgColumnConstructor
 			const column = colBuilder.build(rawTable);
 			rawTable[InlineForeignKeys].push(...colBuilder.buildForeignKeys(column, rawTable));
 			return [name, column];
 		}),
-	) as unknown as BuildColumns<TTableName, TColumnsMap, "pg">;
+	) as unknown as BuildColumns<TTableName, TColumnsMap, 'pg'>;
 
 	const builtColumnsForExtraConfig = Object.fromEntries(
 		Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
@@ -140,7 +135,7 @@ export function pgTableWithSchema<
 			return table as PgTableWithColumns<{
 				name: TTableName;
 				schema: TSchemaName;
-				columns: BuildColumns<TTableName, TColumnsMap, "pg">;
+				columns: BuildColumns<TTableName, TColumnsMap, 'pg'>;
 				dialect: 'pg';
 			}>;
 		},
@@ -160,7 +155,7 @@ export interface PgTableFn<TSchema extends string | undefined = undefined> {
 	): PgTableWithColumns<{
 		name: TTableName;
 		schema: TSchema;
-		columns: BuildColumns<TTableName, TColumnsMap, "pg">;
+		columns: BuildColumns<TTableName, TColumnsMap, 'pg'>;
 		dialect: 'pg';
 	}>;
 
@@ -174,7 +169,7 @@ export interface PgTableFn<TSchema extends string | undefined = undefined> {
 	): PgTableWithColumns<{
 		name: TTableName;
 		schema: TSchema;
-		columns: BuildColumns<TTableName, TColumnsMap, "pg">;
+		columns: BuildColumns<TTableName, TColumnsMap, 'pg'>;
 		dialect: 'pg';
 	}>;
 	/**
@@ -211,7 +206,7 @@ export interface PgTableFn<TSchema extends string | undefined = undefined> {
 	): PgTableWithColumns<{
 		name: TTableName;
 		schema: TSchema;
-		columns: BuildColumns<TTableName, TColumnsMap, "pg">;
+		columns: BuildColumns<TTableName, TColumnsMap, 'pg'>;
 		dialect: 'pg';
 	}>;
 
@@ -247,7 +242,7 @@ export interface PgTableFn<TSchema extends string | undefined = undefined> {
 	): PgTableWithColumns<{
 		name: TTableName;
 		schema: TSchema;
-		columns: BuildColumns<TTableName, TColumnsMap, "pg">;
+		columns: BuildColumns<TTableName, TColumnsMap, 'pg'>;
 		dialect: 'pg';
 	}>;
 }

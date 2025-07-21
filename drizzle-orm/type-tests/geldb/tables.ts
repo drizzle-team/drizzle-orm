@@ -162,7 +162,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 // 					hasDefault: false;
 // 					notNull: true;
 // 					enumValues: undefined;
-// 					
+// 					baseColumn: never;
 // 					generated: undefined;
 // 					identity: undefined;
 // 					isPrimaryKey: false;
@@ -179,7 +179,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 // 					data: number;
 // 					driverParam: string | number;
 // 					enumValues: undefined;
-// 					
+// 					baseColumn: never;
 // 					generated: undefined;
 // 					identity: undefined;
 // 					isPrimaryKey: false;
@@ -211,7 +211,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 // 					hasDefault: false;
 // 					notNull: true;
 // 					enumValues: undefined;
-// 					
+// 					baseColumn: never;
 // 					generated: undefined;
 // 					identity: undefined;
 // 					isPrimaryKey: false;
@@ -228,7 +228,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 // 					data: number;
 // 					driverParam:  number;
 // 					enumValues: undefined;
-// 					
+// 					baseColumn: never;
 // 					generated: undefined;
 // 					identity: undefined;
 // 					isPrimaryKey: false;
@@ -275,7 +275,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 // 				notNull: true;
 // 				hasDefault: true;
 // 				enumValues: undefined;
-// 				
+// 				baseColumn: never;
 // 				generated: undefined;
 // 				identity: undefined;
 // 				isPrimaryKey: true;
@@ -292,7 +292,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 // 				notNull: false;
 // 				hasDefault: true;
 // 				enumValues: undefined;
-// 				
+// 				baseColumn: never;
 // 				generated: undefined;
 // 				identity: undefined;
 // 				isPrimaryKey: true;
@@ -339,7 +339,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 // 					notNull: true;
 // 					hasDefault: true;
 // 					enumValues: undefined;
-// 					
+// 					baseColumn: never;
 // 					generated: undefined;
 // 					identity: undefined;
 // 					isPrimaryKey: true;
@@ -356,7 +356,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 // 					notNull: false;
 // 					hasDefault: true;
 // 					enumValues: undefined;
-// 					
+// 					baseColumn: never;
 // 					generated: undefined;
 // 					identity: undefined;
 // 					isPrimaryKey: true;
@@ -401,7 +401,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 // 					hasDefault: false;
 // 					notNull: true;
 // 					enumValues: undefined;
-// 					
+// 					baseColumn: never;
 // 					generated: undefined;
 // 					identity: undefined;
 // 					isPrimaryKey: false;
@@ -418,7 +418,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 // 					data: number;
 // 					driverParam: string | number;
 // 					enumValues: undefined;
-// 					
+// 					baseColumn: never;
 // 					generated: undefined;
 // 					identity: undefined;
 // 					isPrimaryKey: false;
@@ -463,7 +463,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 // 					hasDefault: false;
 // 					notNull: true;
 // 					enumValues: undefined;
-// 					
+// 					baseColumn: never;
 // 					generated: undefined;
 // 					identity: undefined;
 // 					isPrimaryKey: false;
@@ -480,7 +480,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 // 					data: number;
 // 					driverParam: string | number;
 // 					enumValues: undefined;
-// 					
+// 					baseColumn: never;
 // 					generated: undefined;
 // 					identity: undefined;
 // 					isPrimaryKey: false;
@@ -512,7 +512,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 // 					hasDefault: false;
 // 					notNull: true;
 // 					enumValues: undefined;
-// 					
+// 					baseColumn: never;
 // 					generated: undefined;
 // 					identity: undefined;
 // 					isPrimaryKey: false;
@@ -529,7 +529,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 // 					data: number;
 // 					driverParam: string | number;
 // 					enumValues: undefined;
-// 					
+// 					baseColumn: never;
 // 					generated: undefined;
 // 					identity: undefined;
 // 					isPrimaryKey: false;
@@ -561,7 +561,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 // 					hasDefault: false;
 // 					notNull: true;
 // 					enumValues: undefined;
-// 					
+// 					baseColumn: never;
 // 					generated: undefined;
 // 					identity: undefined;
 // 					isPrimaryKey: false;
@@ -578,7 +578,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 // 					data: number;
 // 					driverParam: string | number;
 // 					enumValues: undefined;
-// 					
+// 					baseColumn: never;
 // 					generated: undefined;
 // 					identity: undefined;
 // 					isPrimaryKey: false;
@@ -694,7 +694,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 				hasDefault: false;
 				notNull: true;
 				enumValues: undefined;
-				
+				baseColumn: never;
 				generated: undefined;
 				identity: undefined;
 				isPrimaryKey: true;
@@ -710,7 +710,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 				hasDefault: false;
 				enumValues: undefined;
 				notNull: true;
-				
+				baseColumn: never;
 				generated: undefined;
 				identity: undefined;
 				isPrimaryKey: true;
@@ -727,7 +727,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 					hasDefault: true;
 					enumValues: undefined;
 					notNull: true;
-					
+					baseColumn: never;
 					generated: undefined;
 					identity: undefined;
 					isPrimaryKey: false;
@@ -745,7 +745,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 				notNull: false;
 				hasDefault: true;
 				enumValues: undefined;
-				
+				baseColumn: never;
 				generated: undefined;
 				identity: undefined;
 				isPrimaryKey: false;
