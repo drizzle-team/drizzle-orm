@@ -58,8 +58,9 @@ export type MakeColumnConfig<
 	TKey extends string,
 	TData = T extends { $type: infer U } ? U : T['data'],
 > = {
+	// Remove all T["name"] from root columns and remove here
 	name: T['name'] extends '' ? TKey : T['name'];
-	tableName: TTableName;
+	tableName: TTableName; // TODO: where is it used in types, should never be
 	dataType: T['dataType'];
 	data: TData;
 	driverParam: T['driverParam'];

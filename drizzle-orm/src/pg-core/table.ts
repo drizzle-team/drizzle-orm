@@ -109,6 +109,7 @@ export function pgTableWithSchema<
 		Object.entries(parsedColumns).map(([name, colBuilderBase]) => {
 			const colBuilder = colBuilderBase as PgColumnBuilder;
 			colBuilder.setName(name);
+			// TODO: assign unique name if not present here, rather than in PgColumnConstructor
 			const column = colBuilder.build(rawTable);
 			rawTable[InlineForeignKeys].push(...colBuilder.buildForeignKeys(column, rawTable));
 			return [name, column];

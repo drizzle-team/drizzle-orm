@@ -103,7 +103,7 @@ Expect<
 					hasDefault: true;
 					isPrimaryKey: true;
 					enumValues: undefined;
-					baseColumn: never;
+					
 					generated: undefined;
 					identity: undefined;
 					isAutoincrement: true;
@@ -122,7 +122,7 @@ Expect<
 					hasDefault: false;
 					isPrimaryKey: false;
 					enumValues: [string, ...string[]];
-					baseColumn: never;
+					
 					generated: undefined;
 					identity: undefined;
 					isAutoincrement: false;
@@ -141,7 +141,7 @@ Expect<
 					hasDefault: true;
 					isPrimaryKey: false;
 					enumValues: undefined;
-					baseColumn: never;
+					
 					generated: undefined;
 					identity: undefined;
 					isAutoincrement: false;
@@ -221,7 +221,7 @@ Expect<
 				hasDefault: true;
 				tableName: 'new_yorkers';
 				enumValues: undefined;
-				baseColumn: never;
+				
 				generated: undefined;
 				identity: undefined;
 				isPrimaryKey: true;
@@ -237,7 +237,7 @@ Expect<
 				hasDefault: true;
 				tableName: 'new_yorkers';
 				enumValues: undefined;
-				baseColumn: never;
+				
 				generated: undefined;
 				identity: undefined;
 				isPrimaryKey: true;
@@ -277,7 +277,7 @@ Expect<
 					hasDefault: true;
 					tableName: 'new_yorkers';
 					enumValues: undefined;
-					baseColumn: never;
+					
 					generated: undefined;
 					identity: undefined;
 					isPrimaryKey: true;
@@ -293,7 +293,7 @@ Expect<
 					hasDefault: true;
 					tableName: 'new_yorkers';
 					enumValues: undefined;
-					baseColumn: never;
+					
 					generated: undefined;
 					identity: undefined;
 					isPrimaryKey: true;
@@ -331,7 +331,7 @@ Expect<
 					notNull: true;
 					tableName: 'new_yorkers';
 					enumValues: undefined;
-					baseColumn: never;
+					
 					generated: undefined;
 					identity: undefined;
 					isPrimaryKey: false;
@@ -347,7 +347,7 @@ Expect<
 					driverParam: string | number;
 					tableName: 'new_yorkers';
 					enumValues: undefined;
-					baseColumn: never;
+					
 					generated: undefined;
 					identity: undefined;
 					isPrimaryKey: false;
@@ -385,7 +385,7 @@ Expect<
 					notNull: true;
 					tableName: 'new_yorkers';
 					enumValues: undefined;
-					baseColumn: never;
+					
 					generated: undefined;
 					identity: undefined;
 					isPrimaryKey: false;
@@ -401,7 +401,7 @@ Expect<
 					driverParam: string | number;
 					tableName: 'new_yorkers';
 					enumValues: undefined;
-					baseColumn: never;
+					
 					generated: undefined;
 					identity: undefined;
 					isPrimaryKey: false;
@@ -432,7 +432,7 @@ Expect<
 					notNull: true;
 					tableName: 'new_yorkers';
 					enumValues: undefined;
-					baseColumn: never;
+					
 					generated: undefined;
 					identity: undefined;
 					isPrimaryKey: false;
@@ -448,7 +448,7 @@ Expect<
 					driverParam: string | number;
 					tableName: 'new_yorkers';
 					enumValues: undefined;
-					baseColumn: never;
+					
 					generated: undefined;
 					identity: undefined;
 					isPrimaryKey: false;
@@ -479,7 +479,7 @@ Expect<
 					notNull: true;
 					tableName: 'new_yorkers';
 					enumValues: undefined;
-					baseColumn: never;
+					
 					generated: undefined;
 					identity: undefined;
 					isPrimaryKey: false;
@@ -495,7 +495,7 @@ Expect<
 					driverParam: string | number;
 					tableName: 'new_yorkers';
 					enumValues: undefined;
-					baseColumn: never;
+					
 					generated: undefined;
 					identity: undefined;
 					isPrimaryKey: false;
@@ -527,7 +527,7 @@ Expect<
 				notNull: true;
 				hasDefault: false;
 				enumValues: undefined;
-				baseColumn: never;
+				
 				generated: undefined;
 				identity: undefined;
 				isPrimaryKey: false;
