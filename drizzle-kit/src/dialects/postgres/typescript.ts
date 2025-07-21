@@ -11,10 +11,8 @@ import {
 import '../../@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
 import { parseArray } from 'src/utils/parse-pgarray';
-import { unknown } from 'zod';
 import { Casing } from '../../cli/validations/common';
-import { ArrayValue, assertUnreachable, stringifyArray, stringifyTuplesArray, trimChar } from '../../utils';
-import { unescapeSingleQuotes } from '../../utils';
+import { ArrayValue, assertUnreachable, stringifyArray, trimChar } from '../../utils';
 import {
 	CheckConstraint,
 	Column,
@@ -27,15 +25,10 @@ import {
 	UniqueConstraint,
 	ViewColumn,
 } from './ddl';
-import { defaultNameForIdentitySequence, defaults, indexName, trimDefaultValueSuffix } from './grammar';
+import { defaultNameForIdentitySequence, defaults, trimDefaultValueSuffix, typeFor } from './grammar';
 
 // TODO: omit defaults opclass... improvement
-
-const pgImportsList = new Set([
-	'pgTable',
-	'gelTable',
-	'pgEnum',
-	'gelEnum',
+const imports = [
 	'smallint',
 	'integer',
 	'bigint',
@@ -67,6 +60,15 @@ const pgImportsList = new Set([
 	'line',
 	'geometry',
 	'bit',
+	'pgEnum',
+	'gelEnum',
+] as const;
+export type Import = typeof imports[number];
+
+const pgImportsList = new Set([
+	'pgTable',
+	'gelTable',
+	...imports,
 ]);
 
 const objToStatement2 = (json: { [s: string]: unknown }) => {
@@ -591,6 +593,24 @@ const mapDefault = (
 	def: Column['default'],
 ) => {
 	if (!def) return '';
+
+	const grammarType = typeFor(type);
+	if (grammarType) {
+		console.log(def.value, dimensions);
+		if (dimensions > 0) {
+			try {
+				const parsed = JSON.parse(def.value);
+				const res = grammarType.toArrayTs(type, parsed);
+				return res.default ? `.default(${res.default})` : '';
+			} catch {
+				console.log('asdasd');
+				return `.default(sql\`${def.value}\`)`;
+			}
+		}
+
+		const res = grammarType.toTs(type, def.value);
+		return res.default ? `.default(${res.default})` : '';
+	}
 
 	const lowered = type.toLowerCase().replace('[]', '');
 	if (enumTypes.has(`${typeSchema}.${type.replace('[]', '')}`)) {

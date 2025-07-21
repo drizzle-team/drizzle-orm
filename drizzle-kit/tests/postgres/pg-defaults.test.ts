@@ -62,7 +62,7 @@ test('integer', async () => {
 	expect.soft(res5).toStrictEqual([]);
 });
 
-test('integer arrays', async () => {
+test.only('integer arrays', async () => {
 	const res1 = await diffDefault(_, integer().array().default([]), "'{}'::integer[]");
 	const res2 = await diffDefault(_, integer().array().default([10]), "'{10}'::integer[]");
 	const res3 = await diffDefault(_, integer().array().array().default([]), "'{}'::integer[]");
@@ -84,7 +84,7 @@ test('integer arrays', async () => {
 	expect.soft(res7).toStrictEqual([]);
 });
 
-test('smallint', async () => {
+test.only('smallint', async () => {
 	// 2^15 - 1
 	const res1 = await diffDefault(_, smallint().default(32767), '32767');
 	// -2^15

@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { toCamelCase } from 'drizzle-orm/casing';
 import { Casing } from 'src/cli/validations/common';
-import { unescapeSingleQuotes } from 'src/utils';
 import { assertUnreachable } from '../../utils';
 import { CheckConstraint, Column, ForeignKey, Index, MysqlDDL, PrimaryKey, ViewColumn } from './ddl';
 import { Enum, parseEnum, typeFor } from './grammar';
@@ -32,13 +31,20 @@ export const imports = [
 	'varbinary',
 	'varchar',
 	'year',
-	'enum',
+	'mysqlEnum',
+	'singlestoreEnum',
+	// TODO: add new type BSON
+	// TODO: add new type Blob
+	// TODO: add new type UUID
+	// TODO: add new type GUID
+	// TODO: add new type Vector
+	// TODO: add new type GeoPoint
 ] as const;
 export type Import = typeof imports[number];
 
 const mysqlImportsList = new Set([
 	'mysqlTable',
-	'mysqlEnum',
+	'singlestoreTable',
 	...imports,
 ]);
 
@@ -64,7 +70,6 @@ function inspect(it: any): string {
 
 const objToStatement2 = (json: any) => {
 	json = Object.fromEntries(Object.entries(json).filter((it) => it[1]));
-
 	const keys = Object.keys(json);
 	if (keys.length === 0) return;
 
@@ -73,35 +78,6 @@ const objToStatement2 = (json: any) => {
 	statement += ' }';
 	return statement;
 };
-
-const timeConfig = (json: any) => {
-	json = Object.fromEntries(Object.entries(json).filter((it) => it[1]));
-
-	const keys = Object.keys(json);
-	if (keys.length === 0) return;
-
-	let statement = '{ ';
-	statement += keys.map((it) => `${it}: ${json[it]}`).join(', ');
-	statement += ' }';
-	return statement;
-};
-
-const binaryConfig = (json: any) => {
-	json = Object.fromEntries(Object.entries(json).filter((it) => it[1]));
-
-	const keys = Object.keys(json);
-	if (keys.length === 0) return;
-
-	let statement = '{ ';
-	statement += keys.map((it) => `${it}: ${json[it]}`).join(', ');
-	statement += ' }';
-	return statement;
-};
-
-const importsPatch = {
-	'double precision': 'doublePrecision',
-	'timestamp without time zone': 'timestamp',
-} as Record<string, string>;
 
 const relations = new Set<string>();
 
@@ -138,6 +114,7 @@ export const ddlToTypeScript = (
 	ddl: MysqlDDL,
 	viewColumns: ViewColumn[],
 	casing: Casing,
+	vendor: 'mysql' | 'singlestore',
 ) => {
 	const withCasing = prepareCasing(casing);
 
@@ -147,9 +124,9 @@ export const ddlToTypeScript = (
 	}
 
 	const imports = new Set<string>([
-		'mysqlTable',
-		'mysqlSchema',
-		'AnyMySqlColumn',
+		vendor === 'mysql' ? 'mysqlTable' : 'signlestoreTable',
+		vendor === 'mysql' ? 'mysqlSchema' : 'singlestoreSchema',
+		vendor === 'mysql' ? 'AnyMySqlColumn' : 'AnySinsgleStoreColumn',
 	]);
 
 	const viewEntities = viewColumns.map((it) => {
@@ -158,51 +135,31 @@ export const ddlToTypeScript = (
 			...it,
 		} as const;
 	});
+
 	for (const it of [...ddl.entities.list(), ...viewEntities]) {
 		if (it.entityType === 'indexes') imports.add(it.isUnique ? 'uniqueIndex' : 'index');
 		if (it.entityType === 'fks') imports.add('foreignKey');
 		if (it.entityType === 'pks' && (it.columns.length > 1 || it.nameExplicit)) imports.add('primaryKey');
 		if (it.entityType === 'checks') imports.add('check');
-		if (it.entityType === 'views') imports.add('mysqlView');
+		if (it.entityType === 'views') imports.add(vendor === 'mysql' ? 'mysqlView' : 'singlestoreView');
 
 		if (it.entityType === 'columns' || it.entityType === 'viewColumn') {
-			let patched = it.type;
-			patched = patched.startsWith('varchar(') ? 'varchar' : patched;
-			patched = patched.startsWith('char(') ? 'char' : patched;
-			patched = patched.startsWith('binary(') ? 'binary' : patched;
-			patched = patched.startsWith('decimal(') ? 'decimal' : patched;
-			patched = patched.startsWith('smallint(') ? 'smallint' : patched;
-			patched = patched.startsWith('enum(') ? 'mysqlEnum' : patched;
-			patched = patched.startsWith('datetime(') ? 'datetime' : patched;
-			patched = patched.startsWith('varbinary(') ? 'varbinary' : patched;
-			patched = patched.startsWith('int(') ? 'int' : patched;
-			patched = patched.startsWith('double(') ? 'double' : patched;
-			patched = patched.startsWith('double unsigned') ? 'double' : patched;
-			patched = patched.startsWith('float(') ? 'float' : patched;
-			patched = patched.startsWith('float unsigned') ? 'float' : patched;
-			patched = patched.startsWith('int unsigned') ? 'int' : patched;
-			patched = patched === 'tinyint(1)' ? 'boolean' : patched;
-			patched = patched.startsWith('tinyint(') ? 'tinyint' : patched;
-			patched = patched.startsWith('tinyint unsigned') ? 'tinyint' : patched;
-			patched = patched.startsWith('smallint unsigned') ? 'smallint' : patched;
-			patched = patched.startsWith('mediumint unsigned') ? 'mediumint' : patched;
-			patched = patched.startsWith('bigint unsigned') ? 'bigint' : patched;
-			patched = patched.startsWith('time(') ? 'time' : patched;
-			patched = patched.startsWith('timestamp(') ? 'timestamp' : patched;
-
-			if (mysqlImportsList.has(patched)) imports.add(patched);
+			const grammarType = typeFor(it.type);
+			if (grammarType) imports.add(grammarType.drizzleImport(vendor));
+			if (mysqlImportsList.has(it.type)) imports.add(it.type);
 		}
 	}
 
 	const tableStatements = [] as string[];
 	for (const table of ddl.tables.list()) {
-		let statement = `export const ${withCasing(table.name)} = mysqlTable("${table.name}", {\n`;
+		let statement = `export const ${withCasing(table.name)} = ${vendor}Table("${table.name}", {\n`;
 		statement += createTableColumns(
 			ddl.columns.list({ table: table.name }),
 			ddl.pks.one({ table: table.name }),
 			ddl.fks.list({ table: table.name }),
 			withCasing,
 			casing,
+			vendor,
 		);
 		statement += '}';
 
@@ -243,8 +200,8 @@ export const ddlToTypeScript = (
 		const columns = viewColumns.filter((x) => x.view === view.name);
 
 		let statement = '';
-		statement += `export const ${withCasing(name)} = mysqlView("${name}", {\n`;
-		statement += createViewColumns(columns, withCasing, casing);
+		statement += `export const ${withCasing(name)} = ${vendor}View("${name}", {\n`;
+		statement += createViewColumns(columns, withCasing, casing, vendor);
 		statement += '})';
 
 		statement += algorithm ? `.algorithm("${algorithm}")` : '';
@@ -259,7 +216,7 @@ export const ddlToTypeScript = (
 		[...imports].join(
 			', ',
 		)
-	} } from "drizzle-orm/mysql-core"\nimport { sql } from "drizzle-orm"\n\n`;
+	} } from "drizzle-orm/${vendor}-core"\nimport { sql } from "drizzle-orm"\n\n`;
 
 	let decalrations = '';
 	decalrations += tableStatements.join('\n\n');
@@ -303,12 +260,12 @@ const column = (
 	rawCasing: Casing,
 	defaultValue: Column['default'],
 	autoincrement: boolean,
-	onUpdate: boolean,
+	vendor: 'mysql' | 'singlestore',
 ) => {
 	let lowered = type.startsWith('enum(') ? type : type.toLowerCase();
 	if (lowered.startsWith('enum')) {
 		const values = parseEnum(lowered).map((it) => `"${it.replaceAll("''", "'").replaceAll('"', '\\"')}"`).join(',');
-		let out = `${casing(name)}: mysqlEnum(${dbColumnName({ name, casing: rawCasing, withMode: true })}[${values}])`;
+		let out = `${casing(name)}: ${vendor}Enum(${dbColumnName({ name, casing: rawCasing, withMode: true })}[${values}])`;
 
 		const { default: def } = Enum.toTs('', defaultValue);
 		out += def ? `.default(${def})` : '';
@@ -343,6 +300,7 @@ const createTableColumns = (
 	fks: ForeignKey[],
 	casing: (val: string) => string,
 	rawCasing: Casing,
+	vendor: 'mysql' | 'singlestore',
 ): string => {
 	let statement = '';
 
@@ -350,7 +308,7 @@ const createTableColumns = (
 		const isPK = pk && pk.columns.length === 1 && pk.columns[0] === it.name;
 
 		statement += '\t';
-		statement += column(it.type, it.name, casing, rawCasing, it.default, it.autoIncrement, it.onUpdateNow);
+		statement += column(it.type, it.name, casing, rawCasing, it.default, it.autoIncrement, vendor);
 
 		statement += isPK ? '.primaryKey()' : '';
 		statement += it.notNull && !isPK ? '.notNull()' : '';
@@ -370,7 +328,7 @@ const createTableColumns = (
 			const onUpdate = fk.onUpdate !== 'NO ACTION' ? fk.onUpdate : null;
 			const params = { onDelete, onUpdate };
 
-			const typeSuffix = isCyclic(fk) ? ': AnyMySqlColumn' : '';
+			const typeSuffix = isCyclic(fk) ? vendor === 'mysql' ? ': AnyMySqlColumn' : ': AnySinsgleStoreColumn' : '';
 
 			const paramsStr = objToStatement2(params);
 			if (paramsStr) {
@@ -393,12 +351,17 @@ const createTableColumns = (
 	return statement;
 };
 
-const createViewColumns = (columns: ViewColumn[], casing: (value: string) => string, rawCasing: Casing) => {
+const createViewColumns = (
+	columns: ViewColumn[],
+	casing: (value: string) => string,
+	rawCasing: Casing,
+	vendor: 'mysql' | 'singlestore',
+) => {
 	let statement = '';
 
 	for (const it of columns) {
 		statement += '\n';
-		statement += column(it.type, it.name, casing, rawCasing, null, false, false);
+		statement += column(it.type, it.name, casing, rawCasing, null, false, vendor);
 		statement += it.notNull ? '.notNull()' : '';
 		statement += ',\n';
 	}

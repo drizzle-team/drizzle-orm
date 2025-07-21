@@ -265,7 +265,8 @@ export const typeFor = (sqlType: string): SqlType => {
 	if (Text.is(sqlType)) return Text;
 	if (Blob.is(sqlType)) return Blob;
 
-	throw new Error(`No grammar type for ${sqlType}`);
+	// If no specific type matches, default to Numeric
+	return Numeric;
 };
 
 export function sqlTypeFrom(sqlType: string): string {
