@@ -23,6 +23,7 @@ import { mapResultRow } from '~/utils.ts';
 export interface SQLiteD1SessionOptions {
 	logger?: Logger;
 	cache?: Cache;
+	withSession?: D1SessionBookmark | D1SessionConstraint | 'disabled';
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -35,6 +36,8 @@ export class SQLiteD1Session<
 
 	private logger: Logger;
 	private cache: Cache;
+	private bookmark: D1SessionBookmark | D1SessionConstraint | null;
+	private replicationSessionInstance: D1DatabaseSession | D1Database;
 
 	constructor(
 		private client: D1Database,
@@ -45,6 +48,21 @@ export class SQLiteD1Session<
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
 		this.cache = options.cache ?? new NoopCache();
+
+		// D1 Sessions are disabled by default as of 2025-07-22:
+		// https://developers.cloudflare.com/d1/best-practices/read-replication/#enable-read-replication
+		// So if a user doesn't specify it, we need to use the default client.
+		if (options.withSession == 'disabled') {
+			this.bookmark = null;
+			this.replicationSessionInstance = this.client;
+		} else {
+			this.bookmark = options.withSession as string;
+			this.replicationSessionInstance = this.client.withSession(this.bookmark);
+		}
+	}
+
+	getBookmark(): D1SessionBookmark | D1SessionConstraint | null {
+		return this.bookmark;
 	}
 
 	prepareQuery(
@@ -59,7 +77,8 @@ export class SQLiteD1Session<
 		},
 		cacheConfig?: WithCacheConfig,
 	): D1PreparedQuery {
-		const stmt = this.client.prepare(query.sql);
+		const stmt = this.replicationSessionInstance.prepare(query.sql);
+
 		return new D1PreparedQuery(
 			stmt,
 			query,
@@ -87,12 +106,15 @@ export class SQLiteD1Session<
 			} else {
 				const builtQuery = preparedQuery.getQuery();
 				builtQueries.push(
-					this.client.prepare(builtQuery.sql).bind(...builtQuery.params),
+					this.replicationSessionInstance.prepare(builtQuery.sql).bind(...builtQuery.params),
 				);
 			}
 		}
 
-		const batchResults = await this.client.batch<any>(builtQueries);
+		const batchResults = await this.replicationSessionInstance.batch<any>(builtQueries);
+		if (this.bookmark !== null) {
+			this.bookmark = (this.replicationSessionInstance as D1DatabaseSession).getBookmark();
+		}
 		return batchResults.map((result, i) => preparedQueries[i]!.mapResult(result, true));
 	}
 
@@ -117,6 +139,9 @@ export class SQLiteD1Session<
 		try {
 			const result = await transaction(tx);
 			await this.run(sql`commit`);
+			if (this.bookmark !== null) {
+				this.bookmark = (this.replicationSessionInstance as D1DatabaseSession).getBookmark();
+			}
 			return result;
 		} catch (err) {
 			await this.run(sql`rollback`);
