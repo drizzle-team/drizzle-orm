@@ -38,6 +38,7 @@ export class SQLiteD1Session<
 	private cache: Cache;
 	private bookmark: D1SessionBookmark | D1SessionConstraint | null;
 	private replicationSessionInstance: D1DatabaseSession | D1Database;
+	private meta: D1Meta | null;
 
 	constructor(
 		private client: D1Database,
@@ -52,17 +53,25 @@ export class SQLiteD1Session<
 		// D1 Sessions are disabled by default as of 2025-07-22:
 		// https://developers.cloudflare.com/d1/best-practices/read-replication/#enable-read-replication
 		// So if a user doesn't specify it, we need to use the default client.
+
 		if (options.withSession == 'disabled') {
+			console.log("D1 Session is disabled at session");
 			this.bookmark = null;
 			this.replicationSessionInstance = this.client;
 		} else {
+			console.log("D1 Session is enabled at session");
 			this.bookmark = options.withSession as string;
 			this.replicationSessionInstance = this.client.withSession(this.bookmark);
 		}
+		this.meta = null;
 	}
 
 	getBookmark(): D1SessionBookmark | D1SessionConstraint | null {
 		return this.bookmark;
+	}
+
+	getMeta(): D1Meta | null {
+		return this.meta;
 	}
 
 	prepareQuery(
@@ -113,7 +122,11 @@ export class SQLiteD1Session<
 
 		const batchResults = await this.replicationSessionInstance.batch<any>(builtQueries);
 		if (this.bookmark !== null) {
+			console.log("D1 Session batchResults is populating the bookmark and meta.");
 			this.bookmark = (this.replicationSessionInstance as D1DatabaseSession).getBookmark();
+			console.log("Bookmark is currently: ", this.bookmark);
+			this.meta = batchResults[0]?.meta ?? null;
+			console.log("meta is currently: ", this.meta);
 		}
 		return batchResults.map((result, i) => preparedQueries[i]!.mapResult(result, true));
 	}
@@ -138,9 +151,13 @@ export class SQLiteD1Session<
 		await this.run(sql.raw(`begin${config?.behavior ? ' ' + config.behavior : ''}`));
 		try {
 			const result = await transaction(tx);
-			await this.run(sql`commit`);
+			const runResult = await this.run(sql`commit`);
 			if (this.bookmark !== null) {
+				console.log("D1 Transaction is populating the bookmark and meta.");
 				this.bookmark = (this.replicationSessionInstance as D1DatabaseSession).getBookmark();
+				this.meta = runResult.meta ?? null;
+				console.log("Bookmark is currently: ", this.bookmark);
+				console.log("meta is currently: ", this.meta);
 			}
 			return result;
 		} catch (err) {

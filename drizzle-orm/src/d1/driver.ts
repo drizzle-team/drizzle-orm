@@ -26,14 +26,20 @@ export class DrizzleD1Database<
 > extends BaseSQLiteDatabase<'async', D1Result, TSchema> {
 	static override readonly [entityKind]: string = 'D1Database';
 	private bookmark: D1SessionBookmark | D1SessionConstraint | null;
+	private meta: D1Meta | null;
 
 	constructor(...args: ConstructorParameters<typeof BaseSQLiteDatabase<'async', D1Result, TSchema>>) {
 		super(...args);
 		this.bookmark = null;
+		this.meta = null;
 	}
 
 	getBookmark(): D1SessionBookmark | D1SessionConstraint | null {
 		return this.bookmark ?? null;
+	}
+
+	getMeta(): D1Meta | null {
+		return this.meta ?? null;
 	}
 
 	/** @internal */
@@ -43,7 +49,9 @@ export class DrizzleD1Database<
 		batch: T,
 	): Promise<BatchResponse<T>> {
 		const result = await this.session.batch(batch) as BatchResponse<T>;
+		console.log('Batch results!');
 		this.bookmark = this.session.getBookmark();
+		this.meta = this.session.getMeta();
 		return result;
 	}
 }
@@ -54,7 +62,7 @@ export function drizzle<
 >(
 	client: TClient,
 	config: DrizzleConfig<TSchema> = {},
-	withD1Session: D1SessionBookmark | D1SessionConstraint | null = null,
+	withSession: D1SessionBookmark | D1SessionConstraint | null = null,
 ): DrizzleD1Database<TSchema> & {
 	$client: TClient;
 } {
@@ -79,14 +87,15 @@ export function drizzle<
 		};
 	}
 
-	if (withD1Session === null) {
-		withD1Session = 'disabled';
+	if (withSession === null) {
+		withSession = 'disabled';
+		console.log("D1 Session is disabled at driver");
 	}
 
 	const session = new SQLiteD1Session(client as D1Database, dialect, schema, {
 		logger,
 		cache: config.cache,
-		withSession: withD1Session,
+		withSession: withSession,
 	});
 
 	const db = new DrizzleD1Database('async', dialect, session, schema) as DrizzleD1Database<TSchema>;
