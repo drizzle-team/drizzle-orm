@@ -39,7 +39,7 @@ export type FilteredSchemaEntry = Table<any> | View<string, boolean, FieldSelect
 
 export type SchemaEntry = Table<any> | View<string, boolean, any>;
 
-export type RelSchema = Record<string, SchemaEntry>;
+export type Schema = Record<string, SchemaEntry>;
 
 export type GetTableViewColumns<T extends SchemaEntry> = T extends View<string, boolean, any> ? T['_']['selectedFields']
 	: T extends Table<any> ? T['_']['columns']
@@ -60,7 +60,7 @@ export type FieldSelection = Record<string, FieldValue>;
 
 export class Relations<
 	TSchema extends Record<string, unknown> = Record<string, any>,
-	TTables extends RelSchema = RelSchema,
+	TTables extends Schema = Schema,
 	TConfig extends AnyRelationsBuilderConfig = AnyRelationsBuilderConfig,
 > {
 	static readonly [entityKind]: string = 'RelationsV2';
@@ -80,7 +80,7 @@ export class Relations<
 
 			if (!(isTable || isView)) continue;
 
-			(this.tables as any as RelSchema)[tsName] = table;
+			(this.tables as any as Schema)[tsName] = table;
 
 			this.tableNamesMap[getTableUniqueName(table)] = tsName as any;
 
@@ -287,7 +287,7 @@ export class One<
 	readonly optional: TOptional;
 
 	constructor(
-		tables: RelSchema,
+		tables: Schema,
 		targetTable: SchemaEntry,
 		config: AnyOneConfig | undefined,
 	) {
@@ -335,7 +335,7 @@ export class Many<
 	public override readonly relationType = 'many' as const;
 
 	constructor(
-		tables: RelSchema,
+		tables: Schema,
 		targetTable: SchemaEntry,
 		readonly config: AnyManyConfig | undefined,
 	) {
@@ -565,7 +565,7 @@ type NonUndefinedRecord<TRecord extends Record<string, any>> = {
 
 export type ExtractTablesWithRelations<
 	TRelations extends Relations,
-	TTables extends RelSchema = TRelations['tables'],
+	TTables extends Schema = TRelations['tables'],
 > = {
 	[K in keyof TTables & string]: {
 		table: TTables[K];
@@ -759,7 +759,7 @@ export function mapRelationalRow(
 export class RelationsBuilderTable<TTableName extends string = string> {
 	static readonly [entityKind]: string = 'RelationsBuilderTable';
 
-	readonly _: {
+	protected readonly _: {
 		readonly name: TTableName;
 		readonly table: SchemaEntry;
 	};
@@ -977,7 +977,7 @@ export type AnyTableFilter = TableFilter<
 >;
 
 export interface OneConfig<
-	TSchema extends RelSchema,
+	TSchema extends Schema,
 	TSourceColumns extends
 		| Readonly<[RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]]>
 		| Readonly<RelationsBuilderColumnBase>,
@@ -1002,14 +1002,14 @@ export interface OneConfig<
 }
 
 export type AnyOneConfig = OneConfig<
-	RelSchema,
+	Schema,
 	Readonly<[RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]] | RelationsBuilderColumnBase<string, unknown>>,
 	string,
 	boolean
 >;
 
 export interface ManyConfig<
-	TSchema extends RelSchema,
+	TSchema extends Schema,
 	TSourceColumns extends
 		| Readonly<[RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]]>
 		| Readonly<RelationsBuilderColumnBase>,
@@ -1032,13 +1032,13 @@ export interface ManyConfig<
 }
 
 export type AnyManyConfig = ManyConfig<
-	RelSchema,
+	Schema,
 	Readonly<[RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]]> | Readonly<RelationsBuilderColumnBase>,
 	string
 >;
 
 export interface OneFn<
-	TTables extends RelSchema,
+	TTables extends Schema,
 	TTargetTableName extends string,
 > {
 	<
@@ -1059,7 +1059,7 @@ export interface OneFn<
 }
 
 export interface ManyFn<
-	TTables extends RelSchema,
+	TTables extends Schema,
 	TTargetTableName extends string,
 > {
 	<
@@ -1077,7 +1077,7 @@ export interface ManyFn<
 	>;
 }
 
-export class RelationsHelperStatic<TTables extends RelSchema> {
+export class RelationsHelperStatic<TTables extends Schema> {
 	static readonly [entityKind]: string = 'RelationsHelperStatic';
 	// declare readonly $brand: 'RelationsHelperStatic';
 
@@ -1095,11 +1095,11 @@ export class RelationsHelperStatic<TTables extends RelSchema> {
 
 		for (const [tableName, table] of Object.entries(tables)) {
 			one[tableName] = (config) => {
-				return new One(tables as RelSchema, table as SchemaEntry, config as AnyOneConfig);
+				return new One(tables as Schema, table as SchemaEntry, config as AnyOneConfig);
 			};
 
 			many[tableName] = (config) => {
-				return new Many(tables as RelSchema, table as SchemaEntry, config as AnyManyConfig);
+				return new Many(tables as Schema, table as SchemaEntry, config as AnyManyConfig);
 			};
 		}
 
@@ -1136,21 +1136,21 @@ export type RelationsBuilderColumns<TTable extends SchemaEntry, TTableName exten
 	>;
 };
 
-export type RelationsBuilderTables<TSchema extends RelSchema> = {
-	[TTableName in keyof TSchema & string]: TSchema[TTableName] extends FilteredSchemaEntry ? (
-			& RelationsBuilderColumns<TSchema[TTableName], TTableName>
-			& RelationsBuilderTable<TTableName>
+export type RelationsBuilderTables<TSchema extends Schema> = {
+	[TTableName in keyof TSchema]: TSchema[TTableName] extends FilteredSchemaEntry ? (
+			& RelationsBuilderColumns<TSchema[TTableName], TTableName & string>
+			& RelationsBuilderTable<TTableName & string>
 		)
 		: DrizzleTypeError<'Views with nested selections are not supported by the relational query builder'>;
 };
 
-export type RelationsBuilder<TSchema extends RelSchema> = Simplify<
+export type RelationsBuilder<TSchema extends Schema> = Simplify<
 	& RelationsBuilderTables<TSchema>
 	& RelationsHelperStatic<TSchema>
 >;
 
 export type RelationsBuilderConfig<TTables extends Record<string, unknown>> = {
-	[TTableName in keyof TTables & string]?: Record<string, unknown>;
+	[TTableName in keyof TTables]?: Record<string, unknown>;
 };
 
 export type AnyRelationsBuilderConfig = Record<string, Record<string, unknown> | undefined>;
@@ -1160,21 +1160,17 @@ export type RelationsBuilderEntry<
 	TSourceTableName extends string = string,
 > = Relation<TSourceTableName, keyof TTables & string>;
 
-export type ExtractTablesFromSchema<TSchema extends Record<string, unknown>> = {
-	[K in keyof TSchema & string as TSchema[K] extends SchemaEntry ? K : never]: TSchema[K] extends SchemaEntry
-		? TSchema[K]
-		: never;
-};
-
-// This one is 79k heavier on it's own, but ~0.5k less instantiations when relations are defined
-// 	{
-// 		[K in keyof TSchema as TSchema[K] extends SchemaEntry ? K : never]: TSchema[K];
-// 	},
-// 	Schema
-// >;
+export type ExtractTablesFromSchema<TSchema extends Record<string, unknown>> = Simplify<
+	Assume<
+		{
+			[K in keyof TSchema as TSchema[K] extends SchemaEntry ? K : never]: TSchema[K];
+		},
+		Schema
+	>
+>;
 
 export function createRelationsHelper<
-	TSchema extends RelSchema,
+	TSchema extends Schema,
 >(schema: TSchema): RelationsBuilder<TSchema> {
 	const schemaTables = Object.fromEntries(
 		Object.entries(schema).filter((e): e is [typeof e[0], SchemaEntry] => is(e[1], Table) || is(e[1], View)),
@@ -1204,7 +1200,7 @@ export function createRelationsHelper<
 export function defineRelations<
 	TSchema extends Record<string, unknown>,
 	TConfig extends RelationsBuilderConfig<TTables>,
-	TTables extends RelSchema = ExtractTablesFromSchema<TSchema>,
+	TTables extends Schema = ExtractTablesFromSchema<TSchema>,
 >(
 	schema: TSchema,
 	relations?: (helpers: RelationsBuilder<TTables>) => TConfig,
