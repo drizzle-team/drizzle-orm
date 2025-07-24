@@ -299,6 +299,9 @@ export class SQL<T = unknown> implements SQLWrapper<T> {
 			return escapeString(chunk);
 		}
 		if (typeof chunk === 'object') {
+			if (chunk instanceof Date) {
+				return escapeString(chunk.toISOString());
+			}
 			const mappedValueAsString = chunk.toString();
 			if (mappedValueAsString === '[object Object]') {
 				return escapeString(JSON.stringify(chunk));
