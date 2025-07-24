@@ -1163,7 +1163,7 @@ export type RelationsBuilderEntry<
 export type ExtractTablesFromSchema<TSchema extends Record<string, unknown>> = Simplify<
 	Assume<
 		{
-			[K in keyof TSchema as TSchema[K] extends SchemaEntry ? K : never]: TSchema[K];
+			[K in keyof TSchema as TSchema[K] extends SchemaEntry ? K extends string ? K : never : never]: TSchema[K];
 		},
 		Schema
 	>
