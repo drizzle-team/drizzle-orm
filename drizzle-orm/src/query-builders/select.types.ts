@@ -155,7 +155,8 @@ export type GetSelectTableName<TTable extends TableLike> = TTable extends Table 
 
 export type GetSelectTableSelection<TTable extends TableLike> = TTable extends Table ? TTable['_']['columns']
 	: TTable extends Subquery | View ? Assume<TTable['_']['selectedFields'], ColumnsSelection>
-	: TTable extends SQL ? {}
+	: TTable extends SQL<infer T> ? T extends ColumnsSelection ? T
+		: {}
 	: never;
 
 export type SelectResultField<T, TDeep extends boolean = true> = T extends DrizzleTypeError<any> ? T
