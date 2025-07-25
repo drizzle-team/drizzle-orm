@@ -1961,27 +1961,130 @@ const defaultForColumn = (column: any, internals: PgKitInternals, tableName: str
 	const columnDefaultAsString: string = column.column_default.toString();
 
 	if (isArray) {
-		return `'{${
-			columnDefaultAsString
-				.slice(2, -2)
-				.split(/\s*,\s*/g)
-				.map((value) => {
-					if (['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(column.data_type.slice(0, -2))) {
-						return value;
-					} else if (column.data_type.startsWith('timestamp')) {
-						return `${value}`;
-					} else if (column.data_type.slice(0, -2) === 'interval') {
-						return value.replaceAll('"', `\"`);
-					} else if (column.data_type.slice(0, -2) === 'boolean') {
-						return value === 't' ? 'true' : 'false';
-					} else if (['json', 'jsonb'].includes(column.data_type.slice(0, -2))) {
-						return JSON.stringify(JSON.stringify(JSON.parse(JSON.parse(value)), null, 0));
+		// Handle empty array cases FIRST to avoid processing them incorrectly
+		if (columnDefaultAsString === '{}' || columnDefaultAsString === "'{}'") {
+			return "'{}'";
+		} else if (columnDefaultAsString === '{""}' || columnDefaultAsString === "'{\"\"}'") {
+			return "'{\"\"}'";
+		}
+		
+		// Handle ARRAY constructor syntax: ARRAY['value1', 'value2'] or ARRAY['value'::text]
+		else if (columnDefaultAsString.startsWith('ARRAY[') && columnDefaultAsString.endsWith(']')) {
+			// Extract content between ARRAY[ and ]
+			const arrayContent = columnDefaultAsString.slice(6, -1); // Remove 'ARRAY[' and ']'
+			
+			// Parse individual array elements, handling quoted strings and type casts
+			const elements = [];
+			let current = '';
+			let inQuotes = false;
+			let quoteChar = '';
+			let depth = 0;
+			
+			for (let i = 0; i < arrayContent.length; i++) {
+				const char = arrayContent[i];
+				const nextChar = arrayContent[i + 1];
+				
+				if (!inQuotes && (char === "'" || char === '"')) {
+					inQuotes = true;
+					quoteChar = char;
+					current += char;
+				} else if (inQuotes && char === quoteChar) {
+					// Check if this is an escaped quote
+					if (nextChar === quoteChar) {
+						current += char + nextChar;
+						i++; // Skip next char
 					} else {
-						return `\"${value}\"`;
+						inQuotes = false;
+						current += char;
 					}
-				})
-				.join(',')
-		}}'`;
+				} else if (!inQuotes && char === '[') {
+					depth++;
+					current += char;
+				} else if (!inQuotes && char === ']') {
+					depth--;
+					current += char;
+				} else if (!inQuotes && char === ',' && depth === 0) {
+					// Found element separator
+					const trimmed = current.trim();
+					if (trimmed) {
+						// Remove type casting (::text, ::varchar, etc.) from individual elements
+						const withoutTypeCast = trimmed.replace(/::\w+$/, '');
+						elements.push(withoutTypeCast);
+					}
+					current = '';
+				} else {
+					current += char;
+				}
+			}
+			
+			// Add the last element
+			const trimmed = current.trim();
+			if (trimmed) {
+				const withoutTypeCast = trimmed.replace(/::\w+$/, '');
+				elements.push(withoutTypeCast);
+			}
+			
+			// Format elements according to data type
+			const formattedElements = elements.map((element) => {
+				// Remove outer quotes if present
+				let value = element.trim();
+				if ((value.startsWith("'") && value.endsWith("'")) || (value.startsWith('"') && value.endsWith('"'))) {
+					value = value.slice(1, -1);
+				}
+				
+				if (['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(column.data_type.slice(0, -2))) {
+					return value;
+				} else if (column.data_type.startsWith('timestamp')) {
+					return `${value}`;
+				} else if (column.data_type.slice(0, -2) === 'interval') {
+					return value.replaceAll('"', `\"`);
+				} else if (column.data_type.slice(0, -2) === 'boolean') {
+					return value === 't' || value === 'true' ? 'true' : 'false';
+				} else if (['json', 'jsonb'].includes(column.data_type.slice(0, -2))) {
+					return JSON.stringify(JSON.stringify(JSON.parse(JSON.parse(value)), null, 0));
+				} else {
+					return `\"${value}\"`;
+				}
+			});
+			
+			return `'{${formattedElements.join(',')}}'`;
+		}
+		
+		// Handle existing bracket notation: '{"value1", "value2"}' (but NOT empty arrays)
+		else if (columnDefaultAsString.startsWith("'{") && columnDefaultAsString.endsWith("}'") && columnDefaultAsString.length > 4) {
+			return `'{${
+				columnDefaultAsString
+					.slice(2, -2)
+					.split(/\s*,\s*/g)
+					.map((value) => {
+						if (['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(column.data_type.slice(0, -2))) {
+							return value;
+						} else if (column.data_type.startsWith('timestamp')) {
+							return `${value}`;
+						} else if (column.data_type.slice(0, -2) === 'interval') {
+							return value.replaceAll('"', `\"`);
+						} else if (column.data_type.slice(0, -2) === 'boolean') {
+							return value === 't' ? 'true' : 'false';
+						} else if (['json', 'jsonb'].includes(column.data_type.slice(0, -2))) {
+							return JSON.stringify(JSON.stringify(JSON.parse(JSON.parse(value)), null, 0));
+						} else {
+							return `\"${value}\"`;
+						}
+					})
+					.join(',')
+			}}'`;
+		}
+		
+		// Handle bracket notation without outer quotes: {"value1", "value2"} (but NOT empty arrays)
+		else if (columnDefaultAsString.startsWith("{") && columnDefaultAsString.endsWith("}") && columnDefaultAsString.length > 2) {
+			return `'${columnDefaultAsString}'`;
+		}
+		
+		// Fallback: try to parse as if it's already in correct format but missing outer quotes
+		else {
+			// For cases where we might have an unrecognized array format
+			return `'{${columnDefaultAsString}}'`;
+		}
 	}
 
 	if (['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(column.data_type)) {
