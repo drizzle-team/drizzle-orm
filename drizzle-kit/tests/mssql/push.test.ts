@@ -954,7 +954,7 @@ test('hints + losses: add column with not null with default', async (t) => {
 	const { sqlStatements: pst1, hints, losses, error } = await push({ db, to: to });
 
 	const st_01 = [
-		`ALTER TABLE [users] ADD [age] int NOT NULL CONSTRAINT [users_age_default] DEFAULT 1;`,
+		`ALTER TABLE [users] ADD [age] int NOT NULL CONSTRAINT [users_age_default] DEFAULT ((1));`,
 	];
 
 	expect(pst1).toStrictEqual(st_01);
@@ -1000,6 +1000,8 @@ test('hints + losses: alter column add not null without default', async (t) => {
 // TODO
 // this should definitely fail
 // MSSQL does not support altering column for adding default
+//                                                                  not possible
+// <ALTER TABLE [users] ALTER COLUMN [name] varchar(200) NOT NULL> !CONSTRAINT DEFAULT ...!;
 //
 // Even if to try change data type + add default + add not null
 // MSSQL will not update existing NULLS to defaults, so this will not work
@@ -1026,7 +1028,7 @@ test('hints + losses: alter column add not null with default', async (t) => {
 
 	const st_01 = [
 		`ALTER TABLE [users] ALTER COLUMN [name] varchar(200) NOT NULL;`,
-		`ALTER TABLE [users] ADD CONSTRAINT [users_name_default] DEFAULT '1' FOR [name];`,
+		`ALTER TABLE [users] ADD CONSTRAINT [users_name_default] DEFAULT ('1') FOR [name];`,
 	];
 
 	expect(pst1).toStrictEqual(st_01);
