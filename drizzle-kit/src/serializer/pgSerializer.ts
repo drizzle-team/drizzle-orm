@@ -1992,49 +1992,40 @@ export const defaultForColumn = (column: any, internals: PgKitInternals, tableNa
 	const columnDefaultAsString: string = column.column_default.toString();
 
 	if (isArray) {
-		try {
-			// Convert ARRAY constructor syntax to PostgreSQL bracket notation that postgres-array can parse
-			let normalizedArrayString = columnDefaultAsString;
-			
-			if (columnDefaultAsString.startsWith('ARRAY[') && columnDefaultAsString.endsWith(']')) {
-				// Convert ARRAY['a'::text, 'b', 'c'::varchar] -> {'a', 'b', 'c'}
-				const content = columnDefaultAsString.slice(6, -1); // Remove 'ARRAY[' and ']'
-				
-				// Remove type casting from individual elements (::text, ::varchar, etc.)
-				const cleanContent = content.replace(/::\w+/g, '');
-				normalizedArrayString = `{${cleanContent}}`;
-			}
-			
-			// Handle various bracket notation formats to ensure compatibility with postgres-array
-			if (normalizedArrayString.startsWith("'{") && normalizedArrayString.endsWith("}'")) {
-				normalizedArrayString = normalizedArrayString.slice(1, -1); // Remove outer quotes
-			} else if (!normalizedArrayString.startsWith("{") && !normalizedArrayString.startsWith("'") && normalizedArrayString !== '{}') {
-				// Handle cases where array string doesn't have proper brackets
-				normalizedArrayString = `{${normalizedArrayString}}`;
-			}
-
-			// Use postgres-array library to parse the normalized string
-			const parsedArray = [...parsePostgresArray(normalizedArrayString)];
-			
-			// Format elements according to data type
-			const formattedElements = parsedArray.map((element) => formatArrayElement(element, column.data_type));
-			
-			return `'{${formattedElements.join(',')}}'`;
-			
-		} catch (error) {
-			// Fallback to a safe default if postgres-array parsing fails
-			console.warn(`Failed to parse array default value: ${columnDefaultAsString}`, error);
-			
-			// Handle common simple cases as fallback
-			if (columnDefaultAsString === '{}' || columnDefaultAsString === "'{}'") {
-				return "'{}'";
-			} else if (columnDefaultAsString === '{""}' || columnDefaultAsString === "'{\"\"}'") {
-				return "'{\"\"}'";
-			}
-			
-			// Last resort fallback
-			return `'{${columnDefaultAsString}}'`;
+		// Handle common simple cases
+		if (columnDefaultAsString === '{}' || columnDefaultAsString === "'{}'") {
+			return "'{}'";
+		} else if (columnDefaultAsString === '{""}' || columnDefaultAsString === "'{\"\"}'") {
+			return "'{\"\"}'";
 		}
+
+		// Convert ARRAY constructor syntax to PostgreSQL bracket notation that postgres-array can parse
+		let normalizedArrayString = columnDefaultAsString;
+		
+		if (columnDefaultAsString.startsWith('ARRAY[') && columnDefaultAsString.endsWith(']')) {
+			// Convert ARRAY['a'::text, 'b', 'c'::varchar] -> {'a', 'b', 'c'}
+			const content = columnDefaultAsString.slice(6, -1); // Remove 'ARRAY[' and ']'
+			
+			// Remove type casting from individual elements (::text, ::varchar, etc.)
+			const cleanContent = content.replace(/::\w+/g, '');
+			normalizedArrayString = `{${cleanContent}}`;
+		}
+		
+		// Handle various bracket notation formats to ensure compatibility with postgres-array
+		if (normalizedArrayString.startsWith("'{") && normalizedArrayString.endsWith("}'")) {
+			normalizedArrayString = normalizedArrayString.slice(1, -1); // Remove outer quotes
+		} else if (!normalizedArrayString.startsWith("{") && !normalizedArrayString.startsWith("'") && normalizedArrayString !== '{}') {
+			// Handle cases where array string doesn't have proper brackets
+			normalizedArrayString = `{${normalizedArrayString}}`;
+		}
+
+		// Use postgres-array library to parse the normalized string
+		const parsedArray = [...parsePostgresArray(normalizedArrayString)];
+		
+		// Format elements according to data type
+		const formattedElements = parsedArray.map((element) => formatArrayElement(element, column.data_type));
+		
+		return `'{${formattedElements.join(',')}}'`;
 	}
 
 	if (['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(column.data_type)) {
