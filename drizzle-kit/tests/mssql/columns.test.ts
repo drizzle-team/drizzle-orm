@@ -386,7 +386,7 @@ test('rename column #2. Part of unique constraint', async (t) => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test.todo('rename column #3. Part of check constraint', async (t) => {
+test('rename column #3. Part of check constraint', async (t) => {
 	const newSchema = mssqlSchema('new_schema');
 	const schema1 = {
 		newSchema,
@@ -407,12 +407,13 @@ test.todo('rename column #3. Part of check constraint', async (t) => {
 	]);
 
 	await push({ db, to: schema1 });
-	const { sqlStatements: pst } = await push({
+	const { sqlStatements: pst, hints: phints } = await push({
 		db,
 		to: schema2,
 		renames: [
 			'new_schema.users.id->new_schema.users.id1',
 		],
+		expectError: true,
 	});
 
 	const st0 = [
@@ -421,7 +422,14 @@ test.todo('rename column #3. Part of check constraint', async (t) => {
 		`ALTER TABLE [new_schema].[users] ADD CONSTRAINT [hey] CHECK ([users].[id1] != 2);`,
 	];
 	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
+	// error expected
+	// since there will be changes in defintion
+	// push will skip alter definition and tries to rename column
+	// expect(pst).toStrictEqual(st0);
+	expect(phints).toStrictEqual([
+		`· You are trying to rename column from id to id1, but it is not possible to rename a column if it is used in a check constraint on the table. 
+To rename the column, first drop the check constraint, then rename the column, and finally recreate the check constraint`,
+	]);
 });
 
 test('drop column #1. Part of check constraint', async (t) => {
@@ -2325,7 +2333,7 @@ test('alter column change data type', async (t) => {
 		to: schema2,
 	});
 
-	const st0 = [`ALTER TABLE [users] ALTER COLUMN [name] varchar(1);`];
+	const st0 = [`ALTER TABLE [users] ALTER COLUMN [name] varchar;`];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
@@ -2352,7 +2360,7 @@ test('alter column change data type + add not null', async (t) => {
 		to: schema2,
 	});
 
-	const st0 = [`ALTER TABLE [users] ALTER COLUMN [name] varchar(1) NOT NULL;`];
+	const st0 = [`ALTER TABLE [users] ALTER COLUMN [name] varchar NOT NULL;`];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
@@ -2380,7 +2388,7 @@ test('alter column change data type + drop not null', async (t) => {
 		to: schema2,
 	});
 
-	const st0 = [`ALTER TABLE [users] ALTER COLUMN [name] varchar(1);`];
+	const st0 = [`ALTER TABLE [users] ALTER COLUMN [name] varchar;`];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });

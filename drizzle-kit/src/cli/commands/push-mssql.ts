@@ -188,6 +188,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			continue;
 		}
 
+		// add column with not null without default
 		if (
 			statement.type === 'add_column' && statement.column.notNull
 			&& !ddl2.defaults.one({
@@ -211,6 +212,7 @@ export const suggestions = async (db: DB, jsonStatements: JsonStatement[], ddl2:
 			continue;
 		}
 
+		// add not null without default
 		if (
 			statement.type === 'alter_column' && statement.diff.$right.notNull
 			&& !ddl2.defaults.one({
@@ -295,6 +297,22 @@ You should create new schema and transfer everything to it`,
 
 			continue;
 		}
+
+		// TODO add this in future for corner cases
+		// Probably we should add `isDrizzleSql` field to grammar.ts types
+		// This will help us to validate that if drizzle sql changed to other drizzle sql
+		// Then we should hint user that database can store this in different format and that probably can be same, but diff will be found anyway
+		// ex: drizzleSql: 10 + 10 + 10 => db: ((10) + (10)) + (10)
+		// if (statement.type === 'recreate_default' && statement.from.default && statement.to.default && statement.baseType) {
+		// 	hints.push(
+		// 		`· You are about to drop and recreate a DEFAULT constraint.
+		// Your current value: ${statement.to.default}
+		// Value returned from the database: ${statement.from.default}
+
+		// If both values are the same for you, it's recommended to replace your SQL with the value returned from the database to avoid unnecessary changes`,
+		// 	);
+		// 	continue;
+		// }
 	}
 
 	return {

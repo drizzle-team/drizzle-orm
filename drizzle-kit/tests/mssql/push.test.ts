@@ -65,6 +65,28 @@ test('create table: identity - no params', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+test('view encryption', async () => {
+	const users = mssqlTable('users', {
+		id: int('id').primaryKey().notNull(),
+	});
+
+	const schema = {
+		users,
+		view: mssqlView('some_view').with({ encryption: true })
+			.as((
+				qb,
+			) => qb.select().from(users)),
+	};
+
+	const { sqlStatements: st } = await diff(schema, schema, []);
+
+	await push({ db, to: schema });
+	const { sqlStatements: pst } = await push({ db, to: schema });
+
+	expect(st).toStrictEqual([]);
+	expect(pst).toStrictEqual([]);
+});
+
 test('create table: identity always/by default - with params', async () => {
 	const schema1 = {};
 
@@ -428,8 +450,7 @@ test('alter view definition', async () => {
 	});
 
 	expect(st).toStrictEqual([
-		`DROP VIEW [view];`,
-		`CREATE VIEW [view] AS (select distinct [id] from [test] where [test].[id] = 1);`,
+		`ALTER VIEW [view] AS (select distinct [id] from [test] where [test].[id] = 1);`,
 	]);
 	expect(pst).toStrictEqual([]);
 });
@@ -489,8 +510,8 @@ test('fk multistep #1', async (t) => {
 	const { sqlStatements: st1 } = await push({ db, to: sch1, schemas: ['dbo'] });
 
 	const st01 = [
-		'CREATE TABLE [ref] (\n\t[id] int IDENTITY(1, 1),\n\t[name] varchar(1),\n\tCONSTRAINT [ref_name_key] UNIQUE([name])\n);\n',
-		'CREATE TABLE [users] (\n\t[name] varchar(1),\n\tCONSTRAINT [users_name_key] UNIQUE([name])\n);\n',
+		'CREATE TABLE [ref] (\n\t[id] int IDENTITY(1, 1),\n\t[name] varchar,\n\tCONSTRAINT [ref_name_key] UNIQUE([name])\n);\n',
+		'CREATE TABLE [users] (\n\t[name] varchar,\n\tCONSTRAINT [users_name_key] UNIQUE([name])\n);\n',
 		'ALTER TABLE [users] ADD CONSTRAINT [users_name_ref_name_fk] FOREIGN KEY ([name]) REFERENCES [ref]([name]);',
 	];
 
@@ -560,8 +581,8 @@ test('fk multistep #2', async (t) => {
 	const { sqlStatements: st1 } = await push({ db, to: sch1, schemas: ['dbo'] });
 
 	const st01 = [
-		'CREATE TABLE [ref] (\n\t[id] int IDENTITY(1, 1),\n\t[name] varchar(1),\n\tCONSTRAINT [ref_name_key] UNIQUE([name])\n);\n',
-		'CREATE TABLE [users] (\n\t[name] varchar(1),\n\tCONSTRAINT [users_name_key] UNIQUE([name])\n);\n',
+		'CREATE TABLE [ref] (\n\t[id] int IDENTITY(1, 1),\n\t[name] varchar,\n\tCONSTRAINT [ref_name_key] UNIQUE([name])\n);\n',
+		'CREATE TABLE [users] (\n\t[name] varchar,\n\tCONSTRAINT [users_name_key] UNIQUE([name])\n);\n',
 		'ALTER TABLE [users] ADD CONSTRAINT [users_name_ref_name_fk] FOREIGN KEY ([name]) REFERENCES [ref]([name]);',
 	];
 
@@ -636,8 +657,8 @@ test('rename fk', async (t) => {
 	const { sqlStatements: st1 } = await push({ db, to: sch1, schemas: ['dbo'] });
 
 	const st01 = [
-		'CREATE TABLE [ref] (\n\t[id] int IDENTITY(1, 1),\n\t[name] varchar(1),\n\tCONSTRAINT [ref_name_key] UNIQUE([name])\n);\n',
-		'CREATE TABLE [users] (\n\t[name] varchar(1),\n\tCONSTRAINT [users_name_key] UNIQUE([name])\n);\n',
+		'CREATE TABLE [ref] (\n\t[id] int IDENTITY(1, 1),\n\t[name] varchar,\n\tCONSTRAINT [ref_name_key] UNIQUE([name])\n);\n',
+		'CREATE TABLE [users] (\n\t[name] varchar,\n\tCONSTRAINT [users_name_key] UNIQUE([name])\n);\n',
 		'ALTER TABLE [users] ADD CONSTRAINT [some] FOREIGN KEY ([name]) REFERENCES [ref]([name]);',
 	];
 

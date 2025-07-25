@@ -1,6 +1,5 @@
 import { Simplify } from '../../utils';
 import { DefaultConstraint } from './ddl';
-import { defaultNameForPK, defaultToSQL, typeToSql } from './grammar';
 import { DropColumn, JsonStatement, RenameColumn } from './statements';
 
 export const convertor = <
@@ -36,14 +35,12 @@ const createTable = convertor('create_table', (st) => {
 		const identityStatement = identity ? ` IDENTITY(${identity.seed}, ${identity.increment})` : '';
 		const notNullStatement = isPK ? '' : column.notNull && !column.identity && !column.generated ? ' NOT NULL' : '';
 
-		const type = typeToSql(column);
-
 		const hasDefault = defaults.find((it) =>
 			it.table === column.table && it.column === column.name && it.schema === column.schema
 		);
 		const defaultStatement = !hasDefault
 			? ''
-			: ` CONSTRAINT [${hasDefault.name}] DEFAULT ${defaultToSQL(column.type, hasDefault.default)}`;
+			: ` CONSTRAINT [${hasDefault.name}] DEFAULT ${hasDefault.default}`;
 
 		const generatedType = column.generated?.type.toUpperCase() === 'VIRTUAL'
 			? ''
@@ -54,7 +51,7 @@ const createTable = convertor('create_table', (st) => {
 
 		statement += '\t'
 			+ `[${column.name}] ${
-				generatedStatement ? '' : type
+				generatedStatement ? '' : column.type
 			}${identityStatement}${generatedStatement}${notNullStatement}${defaultStatement}`;
 		statement += i === columns.length - 1 ? '' : ',\n';
 	}
@@ -108,8 +105,6 @@ const addColumn = convertor('add_column', (st) => {
 		schema,
 	} = column;
 
-	const type = typeToSql(column);
-
 	const notNullStatement = `${notNull && !column.generated && !column.identity ? ' NOT NULL' : ''}`;
 	const identityStatement = identity ? ` IDENTITY(${identity.seed}, ${identity.increment})` : '';
 
@@ -125,12 +120,12 @@ const addColumn = convertor('add_column', (st) => {
 	);
 	const defaultStatement = !hasDefault
 		? ''
-		: ` CONSTRAINT [${hasDefault.name}] DEFAULT ${defaultToSQL(column.type, hasDefault.default)}`;
+		: ` CONSTRAINT [${hasDefault.name}] DEFAULT ${hasDefault.default}`;
 
 	const key = schema !== 'dbo' ? `[${schema}].[${table}]` : `[${table}]`;
 
 	let statement = `ALTER TABLE ${key} ADD [${name}]`;
-	if (!generated) statement += ` ${type}`;
+	if (!generated) statement += ` ${column.type}`;
 	statement += `${identityStatement}${generatedStatement}${notNullStatement}${defaultStatement};`;
 
 	return statement;
@@ -158,23 +153,9 @@ const alterColumn = convertor('alter_column', (st) => {
 	const column = diff.$right;
 	const notNullStatement = `${column.notNull ? ' NOT NULL' : ''}`;
 
-	const type = typeToSql(column);
-
 	const key = column.schema !== 'dbo' ? `[${column.schema}].[${column.table}]` : `[${column.table}]`;
 
-	// TODO not needed
-	// this is corner case when it is needed to add not null with default to column
-	// since mssql treats defaults as separate constraints - it is not possible to add default in alter column
-	// that is why this workaround was made
-	// if (hasDefault && !diff.$left.notNull && diff.$right.notNull) {
-	// 	return [
-	// 		`ALTER TABLE ${key} ALTER COLUMN [${column.name}] ${type}`,
-	// 		addDefault.convert({ default: hasDefault }) as string,
-	// 		`ALTER TABLE ${key} ALTER COLUMN [${column.name}] ${type}${notNullStatement}`,
-	// 	];
-	// }
-
-	return `ALTER TABLE ${key} ALTER COLUMN [${column.name}] ${type}${notNullStatement};`;
+	return `ALTER TABLE ${key} ALTER COLUMN [${column.name}] ${column.type}${notNullStatement};`;
 });
 
 const recreateColumn = convertor('recreate_column', (st) => {
@@ -445,12 +426,6 @@ const dropPK = convertor('drop_pk', (st) => {
 	return `ALTER TABLE ${key} DROP CONSTRAINT [${pk.name}];`;
 });
 
-const recreateView = convertor('recreate_view', (st) => {
-	const drop = dropView.convert({ view: st.from }) as string;
-	const create = createView.convert({ view: st.to }) as string;
-	return [drop, create];
-});
-
 const addCheck = convertor('add_check', (st) => {
 	const { check } = st;
 	const tableNameWithSchema = check.schema !== 'dbo'
@@ -491,15 +466,12 @@ const dropForeignKey = convertor('drop_fk', (st) => {
 
 const addDefault = convertor('create_default', (st) => {
 	const { schema, table, name, default: tableDefault, column } = st.default;
-	const baseType = st.baseType;
 
 	const tableNameWithSchema = schema !== 'dbo'
 		? `[${schema}].[${table}]`
 		: `[${table}]`;
 
-	return `ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT [${name}] DEFAULT ${
-		defaultToSQL(baseType, tableDefault)
-	} FOR [${column}];`;
+	return `ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT [${name}] DEFAULT ${tableDefault} FOR [${column}];`;
 });
 
 const dropDefault = convertor('drop_default', (st) => {
@@ -512,12 +484,10 @@ const dropDefault = convertor('drop_default', (st) => {
 	return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT [${name}];`;
 });
 
-const renameDefault = convertor('rename_default', (st) => {
-	const { name: nameFrom, schema: schemaFrom } = st.from;
-	const { name: nameTo } = st.to;
+const renameDefault = convertor('recreate_default', (st) => {
+	const { from, to } = st;
 
-	const key = schemaFrom !== 'dbo' ? `${schemaFrom}.${nameFrom}` : `${nameFrom}`;
-	return `EXEC sp_rename '${key}', [${nameTo}], 'OBJECT';`;
+	return [dropDefault.convert({ default: from }) as string, addDefault.convert({ default: to }) as string];
 });
 
 const convertors = [
@@ -545,7 +515,6 @@ const convertors = [
 	dropSchema,
 	moveTable,
 	moveView,
-	recreateView,
 	addCheck,
 	dropCheck,
 	renameSchema,
