@@ -2023,7 +2023,7 @@ test('default #1', async () => {
 	});
 
 	const st0 = [
-		`ALTER TABLE [users] ADD CONSTRAINT [users_name_default] DEFAULT 'hey' FOR [name];`,
+		`ALTER TABLE [users] ADD CONSTRAINT [users_name_default] DEFAULT ('hey') FOR [name];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -2079,7 +2079,7 @@ test('default #3', async () => {
 
 	const st0 = [
 		'ALTER TABLE [users] DROP CONSTRAINT [users_name_default];',
-		"ALTER TABLE [users] ADD CONSTRAINT [users_name_default] DEFAULT 'hey1' FOR [name];",
+		"ALTER TABLE [users] ADD CONSTRAINT [users_name_default] DEFAULT ('hey1') FOR [name];",
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -2168,7 +2168,7 @@ test('default multistep #1', async () => {
 	const { sqlStatements: pst1 } = await push({ db, to: sch1, schemas: ['dbo'] });
 
 	const e1 = [
-		"CREATE TABLE [users] (\n\t[name] varchar(255) CONSTRAINT [users_name_default] DEFAULT 'hey'\n);\n",
+		"CREATE TABLE [users] (\n\t[name] varchar(255) CONSTRAINT [users_name_default] DEFAULT ('hey')\n);\n",
 	];
 	expect(st1).toStrictEqual(e1);
 	expect(pst1).toStrictEqual(e1);
@@ -2222,10 +2222,10 @@ test('default multistep #2', async () => {
 	const { sqlStatements: pst1 } = await push({ db, to: sch1, schemas: ['dbo'] });
 
 	expect(st1).toStrictEqual([
-		"CREATE TABLE [users] (\n\t[name] varchar(255) CONSTRAINT [users_name_default] DEFAULT 'hey'\n);\n",
+		"CREATE TABLE [users] (\n\t[name] varchar(255) CONSTRAINT [users_name_default] DEFAULT ('hey')\n);\n",
 	]);
 	expect(pst1).toStrictEqual([
-		"CREATE TABLE [users] (\n\t[name] varchar(255) CONSTRAINT [users_name_default] DEFAULT 'hey'\n);\n",
+		"CREATE TABLE [users] (\n\t[name] varchar(255) CONSTRAINT [users_name_default] DEFAULT ('hey')\n);\n",
 	]);
 
 	const sch2 = {
@@ -2262,7 +2262,7 @@ test('default multistep #2', async () => {
 
 	const e4 = [
 		'ALTER TABLE [users2] DROP CONSTRAINT [users_name_default];',
-		"ALTER TABLE [users2] ADD CONSTRAINT [users2_name2_default] DEFAULT 'hey1' FOR [name2];",
+		"ALTER TABLE [users2] ADD CONSTRAINT [users2_name2_default] DEFAULT ('hey1') FOR [name2];",
 	];
 	expect(st4).toStrictEqual(e4);
 	expect(pst4).toStrictEqual(e4);

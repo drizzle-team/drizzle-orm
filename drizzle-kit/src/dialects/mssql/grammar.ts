@@ -340,13 +340,13 @@ export const Char: SqlType = {
 		return value;
 	},
 	toTs: (type, value) => {
-		if (!value) return { default: '' };
-
 		// for text compatibility
 		let optionsToSet: { length: number | 'max' } | undefined = undefined;
 
 		const param = parseParams(type)[0];
 		if (param) optionsToSet = { length: param === 'max' ? 'max' : Number(param) };
+
+		if (!value) return { default: '', options: optionsToSet };
 
 		// ('text')
 		// remove outer ( and )
@@ -382,9 +382,7 @@ export const NChar: SqlType = {
 	toTs: Char.toTs,
 };
 export const Varchar: SqlType = {
-	is: (type) => {
-		return /^(?:varchar)(?:[\s(].*)?$/i.test(type);
-	},
+	is: (type) => type === 'varchar' || type.startsWith('varchar('),
 	drizzleImport: () => 'varchar',
 	defaultFromDrizzle: Char.defaultFromDrizzle,
 	defaultFromIntrospect: Char.defaultFromIntrospect,
@@ -477,10 +475,10 @@ export const Float: SqlType = {
 		return value;
 	},
 	toTs: (type, value) => {
-		if (!value) return { default: '' };
-
 		const param = parseParams(type)[0];
 		const optionsToSet = { precision: param };
+
+		if (!value) return { default: '', options: optionsToSet };
 
 		// cases:
 		// [column] float DEFAULT '6.32' --> ('6.32') -> edge case
@@ -544,23 +542,21 @@ export const Datetime: SqlType = {
 		return value;
 	},
 	toTs: (_type, value) => {
-		if (!value) return { default: '' };
-
-		let def = value;
-
 		const options: { mode: string } = { mode: 'string' };
 
-		if (def === '(getdate())') return { default: '.defaultGetDate()', options };
+		if (!value) return { default: '', options };
+
+		if (value === '(getdate())') return { default: '.defaultGetDate()', options };
 
 		// remove ( and )
 		// ('2024-12-42 12:00:00')
-		def = def.substring(1, def.length - 1);
+		value = value.substring(1, value.length - 1);
 		// check for valid date
-		if (isNaN(Date.parse(def.substring(1, def.length - 1)))) {
-			return { default: `sql\`${def}\``, options };
+		if (isNaN(Date.parse(value.substring(1, value.length - 1)))) {
+			return { default: `sql\`${value}\``, options };
 		}
 
-		return { default: def, options };
+		return { default: value, options };
 	},
 };
 export const DateType: SqlType = {
@@ -582,10 +578,6 @@ export const Datetime2: SqlType = {
 	defaultFromDrizzle: Datetime.defaultFromDrizzle,
 	defaultFromIntrospect: Datetime.defaultFromIntrospect,
 	toTs: (type, value) => {
-		if (!value) return { default: '' };
-
-		let def = value;
-
 		const options: { mode: string; precision: number } = {
 			mode: 'string',
 			precision: defaults.options.datetime2.precision,
@@ -594,15 +586,17 @@ export const Datetime2: SqlType = {
 		const param = parseParams(type)[0];
 		if (param) options['precision'] = Number(param);
 
+		if (!value) return { default: '', options };
+
 		// remove ( and )
 		// ('2024-12-42 12:00:00')
-		def = def.substring(1, def.length - 1);
+		value = value.substring(1, value.length - 1);
 		// check for valid date
-		if (isNaN(Date.parse(def.substring(1, def.length - 1)))) {
-			return { default: `sql\`${def}\``, options };
+		if (isNaN(Date.parse(value.substring(1, value.length - 1)))) {
+			return { default: `sql\`${value}\``, options };
 		}
 
-		return { default: def, options };
+		return { default: value, options };
 	},
 };
 export const Datetimeoffset: SqlType = {
@@ -617,10 +611,6 @@ export const Datetimeoffset: SqlType = {
 	},
 	defaultFromIntrospect: Datetime.defaultFromIntrospect,
 	toTs: (type, value) => {
-		if (!value) return { default: '' };
-
-		let def = value;
-
 		const options: { mode: string; precision: number } = {
 			mode: 'string',
 			precision: defaults.options.datetimeoffset.precision,
@@ -629,17 +619,19 @@ export const Datetimeoffset: SqlType = {
 		const param = parseParams(type)[0];
 		if (param) options['precision'] = Number(param);
 
-		if (def === '(getdate())') return { default: '.defaultGetDate()', options };
+		if (!value) return { default: '', options };
+
+		if (value === '(getdate())') return { default: '.defaultGetDate()', options };
 
 		// remove ( and )
 		// ('2024-12-42 12:00:00')
-		def = def.substring(1, def.length - 1);
+		value = value.substring(1, value.length - 1);
 		// check for valid date
-		if (isNaN(Date.parse(def.substring(1, def.length - 1)))) {
-			return { default: `sql\`${def}\``, options };
+		if (isNaN(Date.parse(value.substring(1, value.length - 1)))) {
+			return { default: `sql\`${value}\``, options };
 		}
 
-		return { default: def, options };
+		return { default: value, options };
 	},
 };
 export const Time: SqlType = {
@@ -654,10 +646,6 @@ export const Time: SqlType = {
 	},
 	defaultFromIntrospect: Datetime.defaultFromIntrospect,
 	toTs: (type, value) => {
-		if (!value) return { default: '' };
-
-		let def = value;
-
 		const options: { mode: string; precision: number } = {
 			mode: 'string',
 			precision: defaults.options.time.precision,
@@ -666,15 +654,17 @@ export const Time: SqlType = {
 		const param = parseParams(type)[0];
 		if (param) options['precision'] = Number(param);
 
+		if (!value) return { default: '', options };
+
 		// remove ( and )
 		// ('2024-12-42 12:00:00')
-		def = def.substring(1, def.length - 1);
+		value = value.substring(1, value.length - 1);
 		// check for valid date
-		if (isNaN(Date.parse(def.substring(1, def.length - 1)))) {
-			return { default: `sql\`${def}\``, options };
+		if (isNaN(Date.parse(value.substring(1, value.length - 1)))) {
+			return { default: `sql\`${value}\``, options };
 		}
 
-		return { default: def, options };
+		return { default: value, options };
 	},
 };
 
@@ -696,6 +686,7 @@ export const Binary: SqlType = {
 		const param = parseParams(type)[0];
 		if (param) optionsToSet['length'] = param === 'max' ? 'max' : Number(param);
 
+		// (0x...)
 		const def = value ? `sql\`${value.substring(1, value.length - 1)}\`` : '';
 		return { options: optionsToSet, default: def };
 	},
