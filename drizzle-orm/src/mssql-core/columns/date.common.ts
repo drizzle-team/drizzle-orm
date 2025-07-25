@@ -11,7 +11,7 @@ export abstract class MsSqlDateColumnBaseBuilder<
 	static override readonly [entityKind]: string = 'MsSqlDateColumnBuilder';
 
 	defaultGetDate() {
-		return this.default(sql`getdate()`);
+		return this.default(sql`(getdate())`);
 	}
 }
 
