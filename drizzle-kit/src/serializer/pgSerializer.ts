@@ -40,6 +40,7 @@ import type {
 	UniqueConstraint,
 	View,
 } from '../serializer/pgSchema';
+import { parse as parsePostgresArray } from 'postgres-array';
 import { type DB, escapeSingleQuotes, isPgArrayType } from '../utils';
 import { getColumnCasing, sqlToStr } from './utils';
 
@@ -1934,7 +1935,37 @@ WHERE
 	};
 };
 
-const defaultForColumn = (column: any, internals: PgKitInternals, tableName: string) => {
+/**
+ * Formats a single array element based on the PostgreSQL column data type.
+ * Handles cleaning up quotes and spaces from postgres-array parsed elements,
+ * and applies appropriate formatting for different data types.
+ */
+const formatArrayElement = (element: any, dataType: string): string | null => {
+	if (element === null) return element;
+	
+	// Remove outer quotes from postgres-array parsed elements if present
+	// First trim spaces since postgres-array includes leading spaces in array elements
+	let cleanElement = typeof element === 'string' ? element.trim() : element;
+	if (typeof cleanElement === 'string' && ((cleanElement.startsWith("'") && cleanElement.endsWith("'")) || (cleanElement.startsWith('"') && cleanElement.endsWith('"')))) {
+		cleanElement = cleanElement.slice(1, -1);
+	}
+	
+	if (['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(dataType.slice(0, -2))) {
+		return cleanElement;
+	} else if (dataType.startsWith('timestamp')) {
+		return cleanElement;
+	} else if (dataType.slice(0, -2) === 'interval') {
+		return cleanElement.replaceAll('"', `\"`);
+	} else if (dataType.slice(0, -2) === 'boolean') {
+		return cleanElement === 't' || cleanElement === 'true' ? 'true' : 'false';
+	} else if (['json', 'jsonb'].includes(dataType.slice(0, -2))) {
+		return JSON.stringify(JSON.stringify(JSON.parse(JSON.parse(cleanElement)), null, 0));
+	} else {
+		return `"${cleanElement}"`;
+	}
+};
+
+export const defaultForColumn = (column: any, internals: PgKitInternals, tableName: string) => {
 	const columnName = column.column_name;
 	const isArray = internals?.tables[tableName]?.columns[columnName]?.isArray ?? false;
 
@@ -1961,128 +1992,47 @@ const defaultForColumn = (column: any, internals: PgKitInternals, tableName: str
 	const columnDefaultAsString: string = column.column_default.toString();
 
 	if (isArray) {
-		// Handle empty array cases FIRST to avoid processing them incorrectly
-		if (columnDefaultAsString === '{}' || columnDefaultAsString === "'{}'") {
-			return "'{}'";
-		} else if (columnDefaultAsString === '{""}' || columnDefaultAsString === "'{\"\"}'") {
-			return "'{\"\"}'";
-		}
-		
-		// Handle ARRAY constructor syntax: ARRAY['value1', 'value2'] or ARRAY['value'::text]
-		else if (columnDefaultAsString.startsWith('ARRAY[') && columnDefaultAsString.endsWith(']')) {
-			// Extract content between ARRAY[ and ]
-			const arrayContent = columnDefaultAsString.slice(6, -1); // Remove 'ARRAY[' and ']'
+		try {
+			// Convert ARRAY constructor syntax to PostgreSQL bracket notation that postgres-array can parse
+			let normalizedArrayString = columnDefaultAsString;
 			
-			// Parse individual array elements, handling quoted strings and type casts
-			const elements = [];
-			let current = '';
-			let inQuotes = false;
-			let quoteChar = '';
-			let depth = 0;
-			
-			for (let i = 0; i < arrayContent.length; i++) {
-				const char = arrayContent[i];
-				const nextChar = arrayContent[i + 1];
+			if (columnDefaultAsString.startsWith('ARRAY[') && columnDefaultAsString.endsWith(']')) {
+				// Convert ARRAY['a'::text, 'b', 'c'::varchar] -> {'a', 'b', 'c'}
+				const content = columnDefaultAsString.slice(6, -1); // Remove 'ARRAY[' and ']'
 				
-				if (!inQuotes && (char === "'" || char === '"')) {
-					inQuotes = true;
-					quoteChar = char;
-					current += char;
-				} else if (inQuotes && char === quoteChar) {
-					// Check if this is an escaped quote
-					if (nextChar === quoteChar) {
-						current += char + nextChar;
-						i++; // Skip next char
-					} else {
-						inQuotes = false;
-						current += char;
-					}
-				} else if (!inQuotes && char === '[') {
-					depth++;
-					current += char;
-				} else if (!inQuotes && char === ']') {
-					depth--;
-					current += char;
-				} else if (!inQuotes && char === ',' && depth === 0) {
-					// Found element separator
-					const trimmed = current.trim();
-					if (trimmed) {
-						// Remove type casting (::text, ::varchar, etc.) from individual elements
-						const withoutTypeCast = trimmed.replace(/::\w+$/, '');
-						elements.push(withoutTypeCast);
-					}
-					current = '';
-				} else {
-					current += char;
-				}
+				// Remove type casting from individual elements (::text, ::varchar, etc.)
+				const cleanContent = content.replace(/::\w+/g, '');
+				normalizedArrayString = `{${cleanContent}}`;
 			}
 			
-			// Add the last element
-			const trimmed = current.trim();
-			if (trimmed) {
-				const withoutTypeCast = trimmed.replace(/::\w+$/, '');
-				elements.push(withoutTypeCast);
+			// Handle various bracket notation formats to ensure compatibility with postgres-array
+			if (normalizedArrayString.startsWith("'{") && normalizedArrayString.endsWith("}'")) {
+				normalizedArrayString = normalizedArrayString.slice(1, -1); // Remove outer quotes
+			} else if (!normalizedArrayString.startsWith("{") && !normalizedArrayString.startsWith("'") && normalizedArrayString !== '{}') {
+				// Handle cases where array string doesn't have proper brackets
+				normalizedArrayString = `{${normalizedArrayString}}`;
 			}
+
+			// Use postgres-array library to parse the normalized string
+			const parsedArray = [...parsePostgresArray(normalizedArrayString)];
 			
 			// Format elements according to data type
-			const formattedElements = elements.map((element) => {
-				// Remove outer quotes if present
-				let value = element.trim();
-				if ((value.startsWith("'") && value.endsWith("'")) || (value.startsWith('"') && value.endsWith('"'))) {
-					value = value.slice(1, -1);
-				}
-				
-				if (['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(column.data_type.slice(0, -2))) {
-					return value;
-				} else if (column.data_type.startsWith('timestamp')) {
-					return `${value}`;
-				} else if (column.data_type.slice(0, -2) === 'interval') {
-					return value.replaceAll('"', `\"`);
-				} else if (column.data_type.slice(0, -2) === 'boolean') {
-					return value === 't' || value === 'true' ? 'true' : 'false';
-				} else if (['json', 'jsonb'].includes(column.data_type.slice(0, -2))) {
-					return JSON.stringify(JSON.stringify(JSON.parse(JSON.parse(value)), null, 0));
-				} else {
-					return `\"${value}\"`;
-				}
-			});
+			const formattedElements = parsedArray.map((element) => formatArrayElement(element, column.data_type));
 			
 			return `'{${formattedElements.join(',')}}'`;
-		}
-		
-		// Handle existing bracket notation: '{"value1", "value2"}' (but NOT empty arrays)
-		else if (columnDefaultAsString.startsWith("'{") && columnDefaultAsString.endsWith("}'") && columnDefaultAsString.length > 4) {
-			return `'{${
-				columnDefaultAsString
-					.slice(2, -2)
-					.split(/\s*,\s*/g)
-					.map((value) => {
-						if (['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(column.data_type.slice(0, -2))) {
-							return value;
-						} else if (column.data_type.startsWith('timestamp')) {
-							return `${value}`;
-						} else if (column.data_type.slice(0, -2) === 'interval') {
-							return value.replaceAll('"', `\"`);
-						} else if (column.data_type.slice(0, -2) === 'boolean') {
-							return value === 't' ? 'true' : 'false';
-						} else if (['json', 'jsonb'].includes(column.data_type.slice(0, -2))) {
-							return JSON.stringify(JSON.stringify(JSON.parse(JSON.parse(value)), null, 0));
-						} else {
-							return `\"${value}\"`;
-						}
-					})
-					.join(',')
-			}}'`;
-		}
-		
-		// Handle bracket notation without outer quotes: {"value1", "value2"} (but NOT empty arrays)
-		else if (columnDefaultAsString.startsWith("{") && columnDefaultAsString.endsWith("}") && columnDefaultAsString.length > 2) {
-			return `'${columnDefaultAsString}'`;
-		}
-		
-		// Fallback: try to parse as if it's already in correct format but missing outer quotes
-		else {
-			// For cases where we might have an unrecognized array format
+			
+		} catch (error) {
+			// Fallback to a safe default if postgres-array parsing fails
+			console.warn(`Failed to parse array default value: ${columnDefaultAsString}`, error);
+			
+			// Handle common simple cases as fallback
+			if (columnDefaultAsString === '{}' || columnDefaultAsString === "'{}'") {
+				return "'{}'";
+			} else if (columnDefaultAsString === '{""}' || columnDefaultAsString === "'{\"\"}'") {
+				return "'{\"\"}'";
+			}
+			
+			// Last resort fallback
 			return `'{${columnDefaultAsString}}'`;
 		}
 	}
