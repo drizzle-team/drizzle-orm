@@ -18,6 +18,9 @@ const driversPackages = [
 	'@libsql/client',
 	'better-sqlite3',
 	'bun:sqlite',
+	// duckdb drivers
+	'duckdb',
+	'@duckdb/node-api',
 ];
 
 esbuild.buildSync({
@@ -44,7 +47,7 @@ const main = async () => {
 	await tsup.build({
 		entryPoints: ['./src/index.ts'],
 		outDir: './dist',
-		external: ['bun:sqlite'],
+		external: driversPackages,
 		splitting: false,
 		dts: true,
 		format: ['cjs', 'esm'],
@@ -65,7 +68,7 @@ const main = async () => {
 	await tsup.build({
 		entryPoints: ['./src/ext/api-postgres.ts'],
 		outDir: './dist',
-		external: ['bun:sqlite'],
+		external: driversPackages,
 		splitting: false,
 		dts: true,
 		format: ['cjs', 'esm'],

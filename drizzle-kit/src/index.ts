@@ -291,6 +291,11 @@ export type Config =
 				| {
 					url: string;
 				};
+		} | {
+			dialect: Verify<Dialect, 'duckdb'>;
+			dbCredentials: {
+				url: string;
+			};
 		}
 	);
 

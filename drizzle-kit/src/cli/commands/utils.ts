@@ -20,6 +20,8 @@ import {
 	Prefix,
 	wrapParam,
 } from '../validations/common';
+import { duckdbCredentials } from '../validations/duckdb';
+import { printConfigConnectionIssues as printIssuesDuckDb } from '../validations/duckdb';
 import { GelCredentials, gelCredentials } from '../validations/gel';
 import { printConfigConnectionIssues as printIssuesGel } from '../validations/gel';
 import {
@@ -467,6 +469,15 @@ export const preparePushConfig = async (
 		};
 	}
 
+	if (config.dialect === 'duckdb') {
+		console.log(
+			error(
+				`You can't use 'push' command with DuckDb dialect`,
+			),
+		);
+		process.exit(1);
+	}
+
 	assertUnreachable(config.dialect);
 };
 
@@ -720,6 +731,15 @@ export const preparePullConfig = async (
 		};
 	}
 
+	if (dialect === 'duckdb') {
+		console.log(
+			error(
+				`You can't use 'pull' command with DuckDb dialect`,
+			),
+		);
+		process.exit(1);
+	}
+
 	assertUnreachable(dialect);
 };
 
@@ -844,6 +864,22 @@ export const prepareStudioConfig = async (options: Record<string, unknown>) => {
 		const parsed = cockroachCredentials.safeParse(flattened);
 		if (!parsed.success) {
 			printCockroachIssues(flattened as Record<string, unknown>);
+			process.exit(1);
+		}
+		const credentials = parsed.data;
+		return {
+			dialect,
+			schema,
+			host,
+			port,
+			credentials,
+		};
+	}
+
+	if (dialect === 'duckdb') {
+		const parsed = duckdbCredentials.safeParse(flattened);
+		if (!parsed.success) {
+			printIssuesDuckDb(flattened as Record<string, unknown>);
 			process.exit(1);
 		}
 		const credentials = parsed.data;
@@ -996,6 +1032,15 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 			schema,
 			table,
 		};
+	}
+
+	if (dialect === 'duckdb') {
+		console.log(
+			error(
+				`You can't use 'migrate' command with DuckDb dialect`,
+			),
+		);
+		process.exit(1);
 	}
 
 	assertUnreachable(dialect);

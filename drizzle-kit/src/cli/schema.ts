@@ -9,7 +9,7 @@ import { assertUnreachable } from '../utils';
 import { assertV1OutFolder } from '../utils/utils-node';
 import { checkHandler } from './commands/check';
 import { dropMigration } from './commands/drop';
-import { type Setup } from './commands/studio';
+import { drizzleForDuckDb, type Setup } from './commands/studio';
 import { upCockroachHandler } from './commands/up-cockroach';
 import { upMysqlHandler } from './commands/up-mysql';
 import { upPgHandler } from './commands/up-postgres';
@@ -33,7 +33,7 @@ import { error, grey, MigrateProgress } from './views';
 const optionDialect = string('dialect')
 	.enum(...dialects)
 	.desc(
-		`Database dialect: 'gel', 'postgresql', 'mysql', 'sqlite', 'turso', 'singlestore' or 'mssql'`,
+		`Database dialect: 'gel', 'postgresql', 'mysql', 'sqlite', 'turso', 'singlestore', 'duckdb' or 'mssql'`,
 	);
 const optionOut = string().desc("Output folder, 'drizzle' by default");
 const optionConfig = string().desc('Path to drizzle config file');
@@ -109,6 +109,13 @@ export const generate = command({
 		} else if (dialect === 'cockroach') {
 			const { handle } = await import('./commands/generate-cockroach');
 			await handle(opts);
+		} else if (dialect === 'duckdb') {
+			console.log(
+				error(
+					`You can't use 'generate' command with DuckDb dialect`,
+				),
+			);
+			process.exit(1);
 		} else {
 			assertUnreachable(dialect);
 		}
@@ -437,6 +444,12 @@ export const push = command({
 						`You can't use 'push' command with Gel dialect`,
 					),
 				);
+			} else if (dialect === 'duckdb') {
+				console.log(
+					error(
+						`You can't use 'push' command with DuckDb dialect`,
+					),
+				);
 			} else {
 				assertUnreachable(dialect);
 			}
@@ -662,6 +675,13 @@ export const pull = command({
 					prefix,
 					entities,
 				);
+			} else if (dialect === 'duckdb') {
+				console.log(
+					error(
+						`You can't use 'pull' command with DuckDb dialect`,
+					),
+				);
+				process.exit(1);
 			} else {
 				assertUnreachable(dialect);
 			}
@@ -782,6 +802,8 @@ export const studio = command({
 					relations,
 					files,
 				);
+			} else if (dialect === 'duckdb') {
+				setup = await drizzleForDuckDb(credentials);
 			} else if (dialect === 'cockroach') {
 				console.log(
 					error(
@@ -907,6 +929,13 @@ export const exportRaw = command({
 		} else if (dialect === 'cockroach') {
 			const { handleExport } = await import('./commands/generate-cockroach');
 			await handleExport(opts);
+		} else if (dialect === 'duckdb') {
+			console.log(
+				error(
+					`You can't use 'export' command with DuckDb dialect`,
+				),
+			);
+			process.exit(1);
 		} else {
 			assertUnreachable(dialect);
 		}

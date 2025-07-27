@@ -26,10 +26,12 @@ import { compress } from 'hono/compress';
 import { cors } from 'hono/cors';
 import { createServer } from 'node:https';
 import { LibSQLCredentials } from 'src/cli/validations/libsql';
+import { JSONB } from 'when-json-met-bigint';
 import { z } from 'zod';
 import { assertUnreachable, Proxy, TransactionProxy } from '../../utils';
 import { safeRegister } from '../../utils/utils-node';
 import { prepareFilenames } from '../../utils/utils-node';
+import { DuckDbCredentials } from '../validations/duckdb';
 import type { MysqlCredentials } from '../validations/mysql';
 import type { PostgresCredentials } from '../validations/postgres';
 import type { SingleStoreCredentials } from '../validations/singlestore';
@@ -49,7 +51,7 @@ type SchemaFile = {
 
 export type Setup = {
 	dbHash: string;
-	dialect: 'postgresql' | 'mysql' | 'sqlite' | 'singlestore';
+	dialect: 'postgresql' | 'mysql' | 'sqlite' | 'singlestore' | 'duckdb';
 	packageName:
 		| '@aws-sdk/client-rds-data'
 		| 'pglite'
@@ -62,7 +64,9 @@ export type Setup = {
 		| '@planetscale/database'
 		| 'd1-http'
 		| '@libsql/client'
-		| 'better-sqlite3';
+		| 'better-sqlite3'
+		| 'duckdb'
+		| '@duckdb/node-api';
 	driver?: 'aws-data-api' | 'd1-http' | 'turso' | 'pglite';
 	databaseName?: string; // for planetscale (driver remove database name from connection string)
 	proxy: Proxy;
@@ -341,6 +345,29 @@ export const drizzleForPostgres = async (
 		schema: pgSchema,
 		relations,
 		schemaFiles,
+	};
+};
+
+export const drizzleForDuckDb = async (
+	credentials: DuckDbCredentials,
+): Promise<Setup> => {
+	const { prepareDuckDb } = await import('../connections');
+	const db = await prepareDuckDb(credentials);
+
+	const dbUrl = `duckdb://${credentials.url}`;
+
+	const dbHash = createHash('sha256').update(dbUrl).digest('hex');
+
+	return {
+		dbHash,
+		dialect: 'duckdb',
+		driver: undefined,
+		packageName: db.packageName,
+		proxy: db.proxy,
+		transactionProxy: db.transactionProxy,
+		customDefaults: [],
+		schema: {},
+		relations: {},
 	};
 };
 
@@ -635,17 +662,12 @@ const defaultsSchema = z.object({
 const schema = z.union([init, proxySchema, transactionProxySchema, defaultsSchema]);
 
 const jsonStringify = (data: any) => {
-	return JSON.stringify(data, (_key, value) => {
+	return JSONB.stringify(data, (_key, value) => {
 		// Convert Error to object
 		if (value instanceof Error) {
 			return {
 				error: value.message,
 			};
-		}
-
-		// Convert BigInt to string
-		if (typeof value === 'bigint') {
-			return value.toString();
 		}
 
 		// Convert Buffer and ArrayBuffer to base64
@@ -764,12 +786,30 @@ export const prepareServer = async (
 				...body.data,
 				params: body.data.params || [],
 			});
-			return c.json(JSON.parse(jsonStringify(result)));
+			const res = jsonStringify(result)!;
+
+			return c.body(
+				res,
+				{
+					headers: {
+						'Content-Type': 'application/json',
+					},
+				},
+			);
 		}
 
 		if (type === 'tproxy') {
 			const result = await transactionProxy(body.data);
-			return c.json(JSON.parse(jsonStringify(result)));
+			const res = jsonStringify(result)!;
+
+			return c.body(
+				res,
+				{
+					headers: {
+						'Content-Type': 'application/json',
+					},
+				},
+			);
 		}
 
 		if (type === 'defaults') {
@@ -792,7 +832,16 @@ export const prepareServer = async (
 				};
 			});
 
-			return c.json(JSON.parse(jsonStringify(result)));
+			const res = jsonStringify(result)!;
+
+			return c.body(
+				res,
+				{
+					headers: {
+						'Content-Type': 'application/json',
+					},
+				},
+			);
 		}
 
 		throw new Error(`Unknown type: ${type}`);
