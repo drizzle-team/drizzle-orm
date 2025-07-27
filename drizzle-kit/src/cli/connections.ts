@@ -16,6 +16,7 @@ import { withStyle } from './validations/outputs';
 import type { PostgresCredentials } from './validations/postgres';
 import { SingleStoreCredentials } from './validations/singlestore';
 import type { SqliteCredentials } from './validations/sqlite';
+import { JSONB } from 'when-json-met-bigint';
 
 const normalisePGliteUrl = (it: string) => {
 	if (it.startsWith('file:')) {
@@ -209,6 +210,9 @@ export const preparePostgresDB = async (
 				}
 				if (typeId === pg.types.builtins.INTERVAL) {
 					return (val: any) => val;
+				}
+				if (typeId === pg.types.builtins.JSON || typeId === pg.types.builtins.JSONB) {
+					return (val: any) => JSONB.parse(val);
 				}
 				// @ts-ignore
 				return pg.types.getTypeParser(typeId, format);
