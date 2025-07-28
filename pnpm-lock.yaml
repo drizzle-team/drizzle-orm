@@ -140,6 +140,9 @@ importers:
       esbuild-register:
         specifier: ^3.5.0
         version: 3.6.0(esbuild@0.25.5)
+      postgres-array:
+        specifier: ^3.0.4
+        version: 3.0.4
     devDependencies:
       '@arethetypeswrong/cli':
         specifier: ^0.15.3
