@@ -1,30 +1,27 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable, PgTable } from '~/pg-core/table.ts';
+import type { PgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export type PgRealBuilderInitial<TName extends string> = PgRealBuilder<{
-	name: TName;
-	dataType: 'number';
-	data: number;
-	driverParam: string | number;
-	enumValues: undefined;
-}>;
-
-export class PgRealBuilder<T extends ColumnBuilderBaseConfig<'number'>> extends PgColumnBuilder<
-	T,
+export class PgRealBuilder extends PgColumnBuilder<
+	{
+		name: string;
+		dataType: 'number';
+		data: number;
+		driverParam: string | number;
+		enumValues: undefined;
+	},
 	{ length: number | undefined }
 > {
 	static override readonly [entityKind]: string = 'PgRealBuilder';
 
-	constructor(name: T['name'], length?: number) {
+	constructor(name: string, length?: number) {
 		super(name, 'number', 'PgReal');
 		this.config.length = length;
 	}
 
 	/** @internal */
-	override build(table: PgTable) {
+	override build(table: PgTable<any>) {
 		return new PgReal(table, this.config as any);
 	}
 }
@@ -32,7 +29,7 @@ export class PgRealBuilder<T extends ColumnBuilderBaseConfig<'number'>> extends 
 export class PgReal<T extends ColumnBaseConfig<'number'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgReal';
 
-	constructor(table: AnyPgTable<{ name: T['tableName'] }>, config: PgRealBuilder<T>['config']) {
+	constructor(table: PgTable<any>, config: PgRealBuilder['config']) {
 		super(table, config);
 	}
 
@@ -48,8 +45,6 @@ export class PgReal<T extends ColumnBaseConfig<'number'>> extends PgColumn<T> {
 	};
 }
 
-export function real(): PgRealBuilderInitial<''>;
-export function real<TName extends string>(name: TName): PgRealBuilderInitial<TName>;
-export function real(name?: string) {
+export function real(name?: string): PgRealBuilder {
 	return new PgRealBuilder(name ?? '');
 }

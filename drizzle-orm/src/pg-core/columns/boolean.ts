@@ -1,10 +1,10 @@
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type {  PgTable } from '~/pg-core/table.ts';
+import type { PgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export class PgBooleanBuilder<TName extends string> extends PgColumnBuilder<{
-	name: TName;
+export class PgBooleanBuilder extends PgColumnBuilder<{
+	name: string;
 	dataType: 'boolean';
 	data: boolean;
 	driverParam: boolean;
@@ -17,7 +17,7 @@ export class PgBooleanBuilder<TName extends string> extends PgColumnBuilder<{
 	}
 
 	/** @internal */
-	override build(table: PgTable) {
+	override build(table: PgTable<any>) {
 		return new PgBoolean(table, this.config as any);
 	}
 }
@@ -30,8 +30,6 @@ export class PgBoolean extends PgColumn<ColumnBaseConfig<'boolean'>> {
 	}
 }
 
-export function boolean(): PgBooleanBuilder<''>;
-export function boolean<TName extends string>(name: TName): PgBooleanBuilder<TName>;
-export function boolean(name?: string) {
+export function boolean(name?: string): PgBooleanBuilder {
 	return new PgBooleanBuilder(name ?? '');
 }

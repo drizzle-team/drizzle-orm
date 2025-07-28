@@ -4,9 +4,8 @@ import type { GelTable } from '~/gel-core/table.ts';
 import { GelColumn } from './common.ts';
 import { GelIntColumnBaseBuilder } from './int.common.ts';
 
-
-export class GelInt53Builder<TName extends string> extends GelIntColumnBaseBuilder<{
-	name: TName;
+export class GelInt53Builder extends GelIntColumnBaseBuilder<{
+	name: string;
 	dataType: 'number';
 	data: number;
 	driverParam: number;
@@ -32,8 +31,6 @@ export class GelInt53 extends GelColumn<ColumnBaseConfig<'number'>> {
 	}
 }
 
-export function bigint(): GelInt53Builder<''>;
-export function bigint<TName extends string>(name: TName): GelInt53Builder<TName>;
-export function bigint(name?: string) {
+export function bigint(name?: string): GelInt53Builder {
 	return new GelInt53Builder(name ?? '');
 }

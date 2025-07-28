@@ -1,37 +1,22 @@
-import type {
-	ColumnBuilderBaseConfig,
-	HasDefault,
-	IsAutoincrement,
-	IsPrimaryKey,
-	NotNull,
-} from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 
-export type MySqlSerialBuilderInitial<TName extends string> = IsAutoincrement<
-	IsPrimaryKey<
-		NotNull<
-			HasDefault<
-				MySqlSerialBuilder<{
-					name: TName;
-					dataType: 'number';
-					data: number;
-					driverParam: number;
-					enumValues: undefined;
-				}>
-			>
-		>
-	>
->;
-
-export class MySqlSerialBuilder<T extends ColumnBuilderBaseConfig<'number'>>
-	extends MySqlColumnBuilderWithAutoIncrement<T>
-{
+export class MySqlSerialBuilder extends MySqlColumnBuilderWithAutoIncrement<{
+	name: string;
+	dataType: 'number';
+	data: number;
+	driverParam: number;
+	enumValues: undefined;
+	hasDefault: true;
+	notNull: true;
+	isPrimaryKey: true;
+	isAutoincrement: true;
+}> {
 	static override readonly [entityKind]: string = 'MySqlSerialBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'number', 'MySqlSerial');
 		this.config.hasDefault = true;
 		this.config.autoIncrement = true;
@@ -60,8 +45,6 @@ export class MySqlSerial<
 	}
 }
 
-export function serial(): MySqlSerialBuilderInitial<''>;
-export function serial<TName extends string>(name: TName): MySqlSerialBuilderInitial<TName>;
-export function serial(name?: string) {
+export function serial(name?: string): MySqlSerialBuilder {
 	return new MySqlSerialBuilder(name ?? '');
 }

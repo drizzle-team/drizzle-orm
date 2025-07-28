@@ -1,34 +1,29 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from '../common.ts';
 
-export type PgBinaryVectorBuilderInitial<TName extends string, TDimensions extends number> = PgBinaryVectorBuilder<{
-	name: TName;
-	dataType: 'string';
-	data: string;
-	driverParam: string;
-	enumValues: undefined;
-	dimensions: TDimensions;
-}>;
-
-export class PgBinaryVectorBuilder<
-	T extends ColumnBuilderBaseConfig<'string'> & { dimensions: number },
-> extends PgColumnBuilder<
-	T,
-	{ dimensions: T['dimensions'] }
+export class PgBinaryVectorBuilder<TDimensions extends number> extends PgColumnBuilder<
+	{
+		name: string;
+		dataType: 'string';
+		data: string;
+		driverParam: string;
+		enumValues: undefined;
+		dimensions: TDimensions;
+	},
+	{ dimensions: TDimensions }
 > {
 	static override readonly [entityKind]: string = 'PgBinaryVectorBuilder';
 
-	constructor(name: string, config: PgBinaryVectorConfig<T['dimensions']>) {
+	constructor(name: string, config: PgBinaryVectorConfig<TDimensions>) {
 		super(name, 'string', 'PgBinaryVector');
 		this.config.dimensions = config.dimensions;
 	}
 
 	/** @internal */
-	override build(table: PgTable) {
+	override build(table: PgTable<any>) {
 		return new PgBinaryVector(
 			table,
 			this.config as any,
@@ -54,11 +49,11 @@ export interface PgBinaryVectorConfig<TDimensions extends number = number> {
 
 export function bit<D extends number>(
 	config: PgBinaryVectorConfig<D>,
-): PgBinaryVectorBuilderInitial<'', D>;
-export function bit<TName extends string, D extends number>(
-	name: TName,
+): PgBinaryVectorBuilder<D>;
+export function bit<D extends number>(
+	name: string,
 	config: PgBinaryVectorConfig<D>,
-): PgBinaryVectorBuilderInitial<TName, D>;
+): PgBinaryVectorBuilder<D>;
 export function bit(a: string | PgBinaryVectorConfig, b?: PgBinaryVectorConfig) {
 	const { name, config } = getColumnNameAndConfig<PgBinaryVectorConfig>(a, b);
 	return new PgBinaryVectorBuilder(name, config);

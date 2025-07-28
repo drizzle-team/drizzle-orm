@@ -1,39 +1,33 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export type PgVarcharBuilderInitial<
-	TName extends string,
+export class PgVarcharBuilder<
 	TEnum extends [string, ...string[]],
 	TLength extends number | undefined,
-> = PgVarcharBuilder<{
-	name: TName;
-	dataType: 'string';
-	data: TEnum[number];
-	driverParam: string;
-	enumValues: TEnum;
-	length: TLength;
-}>;
-
-export class PgVarcharBuilder<
-	T extends ColumnBuilderBaseConfig<'string'> & { length?: number | undefined },
 > extends PgColumnBuilder<
-	T,
-	{ length: T['length']; enumValues: T['enumValues'] }
+	{
+		name: string;
+		dataType: 'string';
+		data: TEnum[number];
+		driverParam: string;
+		enumValues: TEnum;
+		length: TLength;
+	},
+	{ length: TLength; enumValues: TEnum }
 > {
 	static override readonly [entityKind]: string = 'PgVarcharBuilder';
 
-	constructor(name: T['name'], config: PgVarcharConfig<T['enumValues'], T['length']>) {
+	constructor(name: string, config: PgVarcharConfig<TEnum, TLength>) {
 		super(name, 'string', 'PgVarchar');
-		this.config.length = config.length;
-		this.config.enumValues = config.enum;
+		this.config.length = config.length!;
+		this.config.enumValues = config.enum!;
 	}
 
 	/** @internal */
-	override build(table: PgTable) {
+	override build(table: PgTable<any>) {
 		return new PgVarchar(
 			table,
 			this.config as any,
@@ -62,23 +56,22 @@ export interface PgVarcharConfig<
 	length?: TLength;
 }
 
-export function varchar(): PgVarcharBuilderInitial<'', [string, ...string[]], undefined>;
+export function varchar(): PgVarcharBuilder<[string, ...string[]], undefined>;
 export function varchar<
 	U extends string,
 	T extends Readonly<[U, ...U[]]>,
 	L extends number | undefined,
 >(
 	config?: PgVarcharConfig<T | Writable<T>, L>,
-): PgVarcharBuilderInitial<'', Writable<T>, L>;
+): PgVarcharBuilder<Writable<T>, L>;
 export function varchar<
-	TName extends string,
 	U extends string,
 	T extends Readonly<[U, ...U[]]>,
 	L extends number | undefined,
 >(
-	name: TName,
+	name: string,
 	config?: PgVarcharConfig<T | Writable<T>, L>,
-): PgVarcharBuilderInitial<TName, Writable<T>, L>;
+): PgVarcharBuilder<Writable<T>, L>;
 export function varchar(a?: string | PgVarcharConfig, b: PgVarcharConfig = {}): any {
 	const { name, config } = getColumnNameAndConfig<PgVarcharConfig>(a, b);
 	return new PgVarcharBuilder(name, config as any);

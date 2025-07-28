@@ -1,25 +1,20 @@
 import type { LocalDate } from 'gel';
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { GelTable } from '~/gel-core/table.ts';
 import { GelColumn } from './common.ts';
 import { GelLocalDateColumnBaseBuilder } from './date.common.ts';
 
-export type GelLocalDateStringBuilderInitial<TName extends string> = GelLocalDateStringBuilder<{
-	name: TName;
+export class GelLocalDateStringBuilder extends GelLocalDateColumnBaseBuilder<{
+	name: string;
 	dataType: 'localDate';
 	data: LocalDate;
 	driverParam: LocalDate;
 	enumValues: undefined;
-}>;
-
-export class GelLocalDateStringBuilder<T extends ColumnBuilderBaseConfig<'localDate'>>
-	extends GelLocalDateColumnBaseBuilder<T>
-{
+}> {
 	static override readonly [entityKind]: string = 'GelLocalDateStringBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'localDate', 'GelLocalDateString');
 	}
 
@@ -40,8 +35,6 @@ export class GelLocalDateString<T extends ColumnBaseConfig<'localDate'>> extends
 	}
 }
 
-export function localDate(): GelLocalDateStringBuilderInitial<''>;
-export function localDate<TName extends string>(name: TName): GelLocalDateStringBuilderInitial<TName>;
-export function localDate(name?: string) {
+export function localDate(name?: string): GelLocalDateStringBuilder {
 	return new GelLocalDateStringBuilder(name ?? '');
 }

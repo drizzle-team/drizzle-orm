@@ -1,19 +1,16 @@
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type {  PgTable } from '~/pg-core/table.ts';
+import type { PgTable } from '~/pg-core/table.ts';
 import { getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export class PgCharBuilder<TName extends string, TEnum extends [string, ...string[]]> extends PgColumnBuilder<{
-			name: TName;
-			dataType: 'string';
-			data: TEnum[number];
-			enumValues: TEnum;
-			driverParam: string;
-		},
-		{ length?: number; enumValues?: TEnum }
-	>
-{
+export class PgCharBuilder<TEnum extends [string, ...string[]]> extends PgColumnBuilder<{
+	name: string;
+	dataType: 'string';
+	data: TEnum[number];
+	enumValues: TEnum;
+	driverParam: string;
+}, { length?: number; enumValues?: TEnum }> {
 	static override readonly [entityKind]: string = 'PgCharBuilder';
 
 	constructor(name: string, config: PgCharConfig<TEnum>) {
@@ -23,7 +20,7 @@ export class PgCharBuilder<TName extends string, TEnum extends [string, ...strin
 	}
 
 	/** @internal */
-	override build(table: PgTable) {
+	override build(table: PgTable<any>) {
 		return new PgChar(
 			table,
 			this.config as any,
@@ -51,18 +48,16 @@ export interface PgCharConfig<
 	length?: number;
 }
 
-export function char(): PgCharBuilder<'', [string, ...string[]]>;
 export function char<U extends string, T extends Readonly<[U, ...U[]]>>(
 	config?: PgCharConfig<T | Writable<T>>,
-): PgCharBuilder<'', Writable<T>>;
+): PgCharBuilder<Writable<T>>;
 export function char<
-	TName extends string,
 	U extends string,
-	T extends Readonly<[U, ...U[]]>
+	T extends Readonly<[U, ...U[]]>,
 >(
-	name: TName,
+	name: string,
 	config?: PgCharConfig<T | Writable<T>>,
-): PgCharBuilder<TName, Writable<T>>;
+): PgCharBuilder<Writable<T>>;
 export function char(a?: string | PgCharConfig, b: PgCharConfig = {}): any {
 	const { name, config } = getColumnNameAndConfig<PgCharConfig>(a, b);
 	return new PgCharBuilder(name, config as any);

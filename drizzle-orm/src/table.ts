@@ -155,13 +155,13 @@ export type MapColumnName<TName extends string, TColumn extends Column, TDBColum
 export type InferModelFromColumns<
 	TColumns extends Columns,
 	TInferMode extends 'select' | 'insert' = 'select',
-	TConfig extends { dbColumnNames: boolean; override?: boolean } = { dbColumnNames: false; override: false },
+	TConfig extends { override?: boolean } = { dbColumnNames: false; override: false },
 > = Simplify<
 	TInferMode extends 'insert' ?
 			& {
 				[
 					Key in keyof TColumns & string as RequiredKeyOnly<
-						MapColumnName<Key, TColumns[Key], TConfig['dbColumnNames']>,
+						Key,
 						TColumns[Key]
 					>
 				]: GetColumnData<TColumns[Key], 'query'>;
@@ -169,7 +169,7 @@ export type InferModelFromColumns<
 			& {
 				[
 					Key in keyof TColumns & string as OptionalKeyOnly<
-						MapColumnName<Key, TColumns[Key], TConfig['dbColumnNames']>,
+						Key,
 						TColumns[Key],
 						TConfig['override']
 					>
@@ -177,11 +177,7 @@ export type InferModelFromColumns<
 			}
 		: {
 			[
-				Key in keyof TColumns & string as MapColumnName<
-					Key,
-					TColumns[Key],
-					TConfig['dbColumnNames']
-				>
+				Key in keyof TColumns & string
 			]: GetColumnData<TColumns[Key], 'query'>;
 		}
 >;
@@ -191,23 +187,21 @@ export type InferModelFromColumns<
 export type InferModel<
 	TTable extends Table,
 	TInferMode extends 'select' | 'insert' = 'select',
-	TConfig extends { dbColumnNames: boolean } = { dbColumnNames: false },
-> = InferModelFromColumns<TTable['_']['columns'], TInferMode, TConfig>;
+> = InferModelFromColumns<TTable['_']['columns'], TInferMode>;
 
 export type InferSelectModel<
 	TTable extends Table,
-	TConfig extends { dbColumnNames: boolean } = { dbColumnNames: false },
-> = InferModelFromColumns<TTable['_']['columns'], 'select', TConfig>;
+> = InferModelFromColumns<TTable['_']['columns'], 'select'>;
 
 export type InferInsertModel<
 	TTable extends Table,
-	TConfig extends { dbColumnNames: boolean; override?: boolean } = { dbColumnNames: false; override: false },
-> = InferModelFromColumns<TTable['_']['columns'], 'insert', TConfig>;
+	TOverride extends { override?: boolean } = { override: false },
+> = InferModelFromColumns<TTable['_']['columns'], 'insert', TOverride>;
 
 export type InferEnum<T> = T extends { enumValues: readonly (infer U)[] } ? U
 	: never;
 
 export interface InferTableColumnsModels<TColumns extends Columns> {
-	readonly $inferSelect: InferModelFromColumns<TColumns, 'select', { dbColumnNames: false }>;
-	readonly $inferInsert: InferModelFromColumns<TColumns, 'insert', { dbColumnNames: false; override: false }>;
+	readonly $inferSelect: InferModelFromColumns<TColumns, 'select'>;
+	readonly $inferInsert: InferModelFromColumns<TColumns, 'insert', { override: false }>;
 }

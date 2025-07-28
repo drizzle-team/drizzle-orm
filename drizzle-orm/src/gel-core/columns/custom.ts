@@ -6,9 +6,9 @@ import type { SQL, SQLGenerator } from '~/sql/sql.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { GelColumn, GelColumnBuilder } from './common.ts';
 
-export type ConvertCustomConfig<TName extends string, T extends Partial<CustomTypeValues>> =
+export type ConvertCustomConfig<T extends Partial<CustomTypeValues>> =
 	& {
-		name: TName;
+		name: string;
 		dataType: 'custom';
 		data: T['data'];
 		driverParam: T['driverData'];
@@ -21,19 +21,17 @@ export interface GelCustomColumnInnerConfig {
 	customTypeValues: CustomTypeValues;
 }
 
-export class GelCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom'>>
-	extends GelColumnBuilder<
-		T,
-		{
-			fieldConfig: CustomTypeValues['config'];
-			customTypeParams: CustomTypeParams<any>;
-		}
-	>
-{
+export class GelCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom'>> extends GelColumnBuilder<
+	T,
+	{
+		fieldConfig: CustomTypeValues['config'];
+		customTypeParams: CustomTypeParams<any>;
+	}
+> {
 	static override readonly [entityKind]: string = 'GelCustomColumnBuilder';
 
 	constructor(
-		name: T['name'],
+		name: string,
 		fieldConfig: CustomTypeValues['config'],
 		customTypeParams: CustomTypeParams<any>,
 	) {
@@ -324,28 +322,28 @@ export function customType<T extends CustomTypeValues = CustomTypeValues>(
 ): Equal<T['configRequired'], true> extends true ? {
 		<TConfig extends Record<string, any> & T['config']>(
 			fieldConfig: TConfig,
-		): GelCustomColumnBuilder<ConvertCustomConfig<'', T>>;
-		<TName extends string>(
-			dbName: TName,
+		): GelCustomColumnBuilder<ConvertCustomConfig<T>>;
+		(
+			dbname: string,
 			fieldConfig: T['config'],
-		): GelCustomColumnBuilder<ConvertCustomConfig<TName, T>>;
+		): GelCustomColumnBuilder<ConvertCustomConfig<T>>;
 	}
 	: {
-		(): GelCustomColumnBuilder<ConvertCustomConfig<'', T>>;
+		(): GelCustomColumnBuilder<ConvertCustomConfig<T>>;
 		<TConfig extends Record<string, any> & T['config']>(
 			fieldConfig?: TConfig,
-		): GelCustomColumnBuilder<ConvertCustomConfig<'', T>>;
-		<TName extends string>(
-			dbName: TName,
+		): GelCustomColumnBuilder<ConvertCustomConfig<T>>;
+		(
+			dbname: string,
 			fieldConfig?: T['config'],
-		): GelCustomColumnBuilder<ConvertCustomConfig<TName, T>>;
+		): GelCustomColumnBuilder<ConvertCustomConfig<T>>;
 	}
 {
-	return <TName extends string>(
-		a?: TName | T['config'],
+	return (
+		a?: string | T['config'],
 		b?: T['config'],
-	): GelCustomColumnBuilder<ConvertCustomConfig<TName, T>> => {
+	): GelCustomColumnBuilder<ConvertCustomConfig<T>> => {
 		const { name, config } = getColumnNameAndConfig<T['config']>(a, b);
-		return new GelCustomColumnBuilder(name as ConvertCustomConfig<TName, T>['name'], config, customTypeParams);
+		return new GelCustomColumnBuilder(name as ConvertCustomConfig<T>['name'], config, customTypeParams);
 	};
 }

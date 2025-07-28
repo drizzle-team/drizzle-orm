@@ -1,32 +1,24 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import { getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
-export type MySqlVarCharBuilderInitial<
-	TName extends string,
+export class MySqlVarCharBuilder<
 	TEnum extends [string, ...string[]],
 	TLength extends number | undefined,
-> = MySqlVarCharBuilder<
-	{
-		name: TName;
-		dataType: 'string';
-		data: TEnum[number];
-		driverParam: number | string;
-		enumValues: TEnum;
-		length: TLength;
-	}
->;
-
-export class MySqlVarCharBuilder<
-	T extends ColumnBuilderBaseConfig<'string'> & { length?: number | undefined },
-> extends MySqlColumnBuilder<T, MySqlVarCharConfig<T['enumValues'], T['length']>> {
+> extends MySqlColumnBuilder<{
+	name: string;
+	dataType: 'string';
+	data: TEnum[number];
+	driverParam: number | string;
+	enumValues: TEnum;
+	length: TLength;
+}, MySqlVarCharConfig<TEnum, TLength>> {
 	static override readonly [entityKind]: string = 'MySqlVarCharBuilder';
 
 	/** @internal */
-	constructor(name: T['name'], config: MySqlVarCharConfig<T['enumValues'], T['length']>) {
+	constructor(name: string, config: MySqlVarCharConfig<TEnum, TLength>) {
 		super(name, 'string', 'MySqlVarChar');
 		this.config.length = config.length;
 		this.config.enum = config.enum;
@@ -65,16 +57,15 @@ export interface MySqlVarCharConfig<
 
 export function varchar<U extends string, T extends Readonly<[U, ...U[]]>, L extends number | undefined>(
 	config: MySqlVarCharConfig<T | Writable<T>, L>,
-): MySqlVarCharBuilderInitial<'', Writable<T>, L>;
+): MySqlVarCharBuilder<Writable<T>, L>;
 export function varchar<
-	TName extends string,
 	U extends string,
 	T extends Readonly<[U, ...U[]]>,
 	L extends number | undefined,
 >(
-	name: TName,
+	name: string,
 	config: MySqlVarCharConfig<T | Writable<T>, L>,
-): MySqlVarCharBuilderInitial<TName, Writable<T>, L>;
+): MySqlVarCharBuilder<Writable<T>, L>;
 export function varchar(a?: string | MySqlVarCharConfig, b?: MySqlVarCharConfig): any {
 	const { name, config } = getColumnNameAndConfig<MySqlVarCharConfig>(a, b);
 	return new MySqlVarCharBuilder(name, config as any);

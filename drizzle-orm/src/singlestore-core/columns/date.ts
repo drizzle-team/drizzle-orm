@@ -1,25 +1,20 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySingleStoreTable, SingleStoreTable } from '~/singlestore-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
-export type SingleStoreDateBuilderInitial<TName extends string> = SingleStoreDateBuilder<{
-	name: TName;
+export class SingleStoreDateBuilder extends SingleStoreColumnBuilder<{
+	name: string;
 	dataType: 'date';
 	data: Date;
 	driverParam: string | number;
 	enumValues: undefined;
 	generated: undefined;
-}>;
-
-export class SingleStoreDateBuilder<T extends ColumnBuilderBaseConfig<'date'>>
-	extends SingleStoreColumnBuilder<T>
-{
+}> {
 	static override readonly [entityKind]: string = 'SingleStoreDateBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'date', 'SingleStoreDate');
 	}
 
@@ -37,7 +32,7 @@ export class SingleStoreDate<T extends ColumnBaseConfig<'date'>> extends SingleS
 
 	constructor(
 		table: AnySingleStoreTable<{ name: T['tableName'] }>,
-		config: SingleStoreDateBuilder<T>['config'],
+		config: SingleStoreDateBuilder['config'],
 	) {
 		super(table, config);
 	}
@@ -51,21 +46,17 @@ export class SingleStoreDate<T extends ColumnBaseConfig<'date'>> extends SingleS
 	}
 }
 
-export type SingleStoreDateStringBuilderInitial<TName extends string> = SingleStoreDateStringBuilder<{
-	name: TName;
+export class SingleStoreDateStringBuilder extends SingleStoreColumnBuilder<{
+	name: string;
 	dataType: 'string';
 	data: string;
 	driverParam: string | number;
 	enumValues: undefined;
 	generated: undefined;
-}>;
-
-export class SingleStoreDateStringBuilder<T extends ColumnBuilderBaseConfig<'string'>>
-	extends SingleStoreColumnBuilder<T>
-{
+}> {
 	static override readonly [entityKind]: string = 'SingleStoreDateStringBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'string', 'SingleStoreDateString');
 	}
 
@@ -78,14 +69,12 @@ export class SingleStoreDateStringBuilder<T extends ColumnBuilderBaseConfig<'str
 	}
 }
 
-export class SingleStoreDateString<T extends ColumnBaseConfig<'string'>>
-	extends SingleStoreColumn<T>
-{
+export class SingleStoreDateString<T extends ColumnBaseConfig<'string'>> extends SingleStoreColumn<T> {
 	static override readonly [entityKind]: string = 'SingleStoreDateString';
 
 	constructor(
 		table: AnySingleStoreTable<{ name: T['tableName'] }>,
-		config: SingleStoreDateStringBuilder<T>['config'],
+		config: SingleStoreDateStringBuilder['config'],
 	) {
 		super(table, config);
 	}
@@ -99,15 +88,14 @@ export interface SingleStoreDateConfig<TMode extends 'date' | 'string' = 'date' 
 	mode?: TMode;
 }
 
-export function date(): SingleStoreDateBuilderInitial<''>;
 export function date<TMode extends SingleStoreDateConfig['mode'] & {}>(
 	config?: SingleStoreDateConfig<TMode>,
-): Equal<TMode, 'string'> extends true ? SingleStoreDateStringBuilderInitial<''> : SingleStoreDateBuilderInitial<''>;
-export function date<TName extends string, TMode extends SingleStoreDateConfig['mode'] & {}>(
-	name: TName,
+): Equal<TMode, 'string'> extends true ? SingleStoreDateStringBuilder : SingleStoreDateBuilder;
+export function date<TMode extends SingleStoreDateConfig['mode'] & {}>(
+	name: string,
 	config?: SingleStoreDateConfig<TMode>,
-): Equal<TMode, 'string'> extends true ? SingleStoreDateStringBuilderInitial<TName>
-	: SingleStoreDateBuilderInitial<TName>;
+): Equal<TMode, 'string'> extends true ? SingleStoreDateStringBuilder
+	: SingleStoreDateBuilder;
 export function date(a?: string | SingleStoreDateConfig, b?: SingleStoreDateConfig) {
 	const { name, config } = getColumnNameAndConfig<SingleStoreDateConfig | undefined>(a, b);
 	if (config?.mode === 'string') {

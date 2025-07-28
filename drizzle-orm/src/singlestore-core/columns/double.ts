@@ -1,25 +1,20 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoIncrement } from './common.ts';
 
-export type SingleStoreDoubleBuilderInitial<TName extends string> = SingleStoreDoubleBuilder<{
-	name: TName;
+export class SingleStoreDoubleBuilder extends SingleStoreColumnBuilderWithAutoIncrement<{
+	name: string;
 	dataType: 'number';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
 	generated: undefined;
-}>;
-
-export class SingleStoreDoubleBuilder<T extends ColumnBuilderBaseConfig<'number'>>
-	extends SingleStoreColumnBuilderWithAutoIncrement<T, SingleStoreDoubleConfig>
-{
+}, SingleStoreDoubleConfig> {
 	static override readonly [entityKind]: string = 'SingleStoreDoubleBuilder';
 
-	constructor(name: T['name'], config: SingleStoreDoubleConfig | undefined) {
+	constructor(name: string, config: SingleStoreDoubleConfig | undefined) {
 		super(name, 'number', 'SingleStoreDouble');
 		this.config.precision = config?.precision;
 		this.config.scale = config?.scale;
@@ -63,14 +58,13 @@ export interface SingleStoreDoubleConfig {
 	unsigned?: boolean;
 }
 
-export function double(): SingleStoreDoubleBuilderInitial<''>;
 export function double(
 	config?: SingleStoreDoubleConfig,
-): SingleStoreDoubleBuilderInitial<''>;
-export function double<TName extends string>(
-	name: TName,
+): SingleStoreDoubleBuilder;
+export function double(
+	name: string,
 	config?: SingleStoreDoubleConfig,
-): SingleStoreDoubleBuilderInitial<TName>;
+): SingleStoreDoubleBuilder;
 export function double(a?: string | SingleStoreDoubleConfig, b?: SingleStoreDoubleConfig) {
 	const { name, config } = getColumnNameAndConfig<SingleStoreDoubleConfig>(a, b);
 	return new SingleStoreDoubleBuilder(name, config);

@@ -1,24 +1,19 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 
-export type MySqlDoubleBuilderInitial<TName extends string> = MySqlDoubleBuilder<{
-	name: TName;
+export class MySqlDoubleBuilder extends MySqlColumnBuilderWithAutoIncrement<{
+	name: string;
 	dataType: 'number';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
-}>;
-
-export class MySqlDoubleBuilder<T extends ColumnBuilderBaseConfig<'number'>>
-	extends MySqlColumnBuilderWithAutoIncrement<T, MySqlDoubleConfig>
-{
+}, MySqlDoubleConfig> {
 	static override readonly [entityKind]: string = 'MySqlDoubleBuilder';
 
-	constructor(name: T['name'], config: MySqlDoubleConfig | undefined) {
+	constructor(name: string, config: MySqlDoubleConfig | undefined) {
 		super(name, 'number', 'MySqlDouble');
 		this.config.precision = config?.precision;
 		this.config.scale = config?.scale;
@@ -59,14 +54,13 @@ export interface MySqlDoubleConfig {
 	unsigned?: boolean;
 }
 
-export function double(): MySqlDoubleBuilderInitial<''>;
 export function double(
 	config?: MySqlDoubleConfig,
-): MySqlDoubleBuilderInitial<''>;
-export function double<TName extends string>(
-	name: TName,
+): MySqlDoubleBuilder;
+export function double(
+	name: string,
 	config?: MySqlDoubleConfig,
-): MySqlDoubleBuilderInitial<TName>;
+): MySqlDoubleBuilder;
 export function double(a?: string | MySqlDoubleConfig, b?: MySqlDoubleConfig) {
 	const { name, config } = getColumnNameAndConfig<MySqlDoubleConfig>(a, b);
 	return new MySqlDoubleBuilder(name, config);

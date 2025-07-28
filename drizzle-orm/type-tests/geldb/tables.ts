@@ -687,7 +687,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 		columns: {
 			id: GelColumn<{
 				tableName: 'cities_table';
-				name: 'id';
+				name: string;
 				dataType: 'number';
 				data: number;
 				driverParam: number;
@@ -703,7 +703,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 			}>;
 			name: GelColumn<{
 				tableName: 'cities_table';
-				name: 'name';
+				name: string;
 				dataType: 'string';
 				data: string;
 				driverParam: string;
@@ -720,7 +720,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 			role: GelColumn<
 				{
 					tableName: 'cities_table';
-					name: 'role';
+					name: string;
 					dataType: 'string';
 					data: 'admin' | 'user';
 					driverParam: string;
@@ -738,7 +738,7 @@ export const citiesCustom = customSchema.table('cities_table', {
 			>;
 			population: GelColumn<{
 				tableName: 'cities_table';
-				name: 'population';
+				name: string;
 				dataType: 'number';
 				data: number;
 				driverParam: number;
@@ -898,8 +898,8 @@ export const citiesCustom = customSchema.table('cities_table', {
 		name: text(),
 	});
 
-	Expect<Equal<typeof keysAsColumnNames['id']['_']['name'], 'id'>>;
-	Expect<Equal<typeof keysAsColumnNames['name']['_']['name'], 'name'>>;
+	Expect<Equal<typeof keysAsColumnNames['id']['_']['name'], string>>;
+	Expect<Equal<typeof keysAsColumnNames['name']['_']['name'], string>>;
 }
 
 {

@@ -1,24 +1,19 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
-export type SingleStoreJsonBuilderInitial<TName extends string> = SingleStoreJsonBuilder<{
-	name: TName;
+export class SingleStoreJsonBuilder extends SingleStoreColumnBuilder<{
+	name: string;
 	dataType: 'json';
 	data: unknown;
 	driverParam: string;
 	enumValues: undefined;
 	generated: undefined;
-}>;
-
-export class SingleStoreJsonBuilder<T extends ColumnBuilderBaseConfig<'json'>>
-	extends SingleStoreColumnBuilder<T>
-{
+}> {
 	static override readonly [entityKind]: string = 'SingleStoreJsonBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'json', 'SingleStoreJson');
 	}
 
@@ -43,8 +38,6 @@ export class SingleStoreJson<T extends ColumnBaseConfig<'json'>> extends SingleS
 	}
 }
 
-export function json(): SingleStoreJsonBuilderInitial<''>;
-export function json<TName extends string>(name: TName): SingleStoreJsonBuilderInitial<TName>;
-export function json(name?: string) {
+export function json(name?: string): SingleStoreJsonBuilder {
 	return new SingleStoreJsonBuilder(name ?? '');
 }

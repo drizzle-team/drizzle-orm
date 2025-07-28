@@ -85,7 +85,7 @@ Expect<
 		{
 			id: SingleStoreColumn<
 				{
-					name: 'id';
+					name: string;
 					tableName: 'cities_table';
 					dataType: 'number';
 					data: number;
@@ -104,7 +104,7 @@ Expect<
 			>;
 			name: SingleStoreColumn<
 				{
-					name: 'name_db';
+					name: string;
 					tableName: 'cities_table';
 					dataType: 'string';
 					data: string;
@@ -123,7 +123,7 @@ Expect<
 			>;
 			population: SingleStoreColumn<
 				{
-					name: 'population';
+					name: string;
 					tableName: 'cities_table';
 					dataType: 'number';
 					data: number;
@@ -148,9 +148,9 @@ Expect<
 Expect<
 	Equal<{
 		id: number;
-		name_db: string;
+		name: string;
 		population: number | null;
-	}, InferSelectModel<typeof cities, { dbColumnNames: true }>>
+	}, InferSelectModel<typeof cities>>
 >;
 
 Expect<
@@ -205,7 +205,7 @@ Expect<
 	Equal<
 		SingleStoreViewWithSelection<'new_yorkers', false, {
 			userId: SingleStoreColumn<{
-				name: 'id';
+				name: string;
 				dataType: 'number';
 				columnType: 'SingleStoreSerial';
 				data: number;
@@ -221,7 +221,7 @@ Expect<
 				hasRuntimeDefault: false;
 			}>;
 			cityId: SingleStoreColumn<{
-				name: 'id';
+				name: string;
 				dataType: 'number';
 				columnType: 'SingleStoreSerial';
 				data: number;
@@ -261,7 +261,7 @@ Expect<
 		Equal<
 			SingleStoreViewWithSelection<'new_yorkers', false, {
 				userId: SingleStoreColumn<{
-					name: 'id';
+					name: string;
 					dataType: 'number';
 					columnType: 'SingleStoreSerial';
 					data: number;
@@ -277,7 +277,7 @@ Expect<
 					hasRuntimeDefault: false;
 				}>;
 				cityId: SingleStoreColumn<{
-					name: 'id';
+					name: string;
 					dataType: 'number';
 					columnType: 'SingleStoreSerial';
 					data: number;
@@ -511,7 +511,7 @@ Expect<
 	Expect<
 		Equal<
 			{
-				name: 'name';
+				name: string;
 				tableName: 'table';
 				dataType: 'custom';
 				data: string;
@@ -526,7 +526,7 @@ Expect<
 				identity: undefined;
 				generated: undefined;
 			},
-			Simplify<BuildColumn<'table', typeof t, 'singlestore', "name">['_']>
+			Simplify<BuildColumn<'table', typeof t, 'singlestore'>['_']>
 		>
 	>;
 }
@@ -923,8 +923,8 @@ Expect<
 		name: text(),
 	});
 
-	Expect<Equal<typeof keysAsColumnNames['id']['_']['name'], 'id'>>;
-	Expect<Equal<typeof keysAsColumnNames['name']['_']['name'], 'name'>>;
+	Expect<Equal<typeof keysAsColumnNames['id']['_']['name'], string>>;
+	Expect<Equal<typeof keysAsColumnNames['name']['_']['name'], string>>;
 }
 
 {

@@ -1,21 +1,18 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { GelTable } from '~/gel-core/table.ts';
 import { GelColumn, GelColumnBuilder } from './common.ts';
 
-export type GelUUIDBuilderInitial<TName extends string> = GelUUIDBuilder<{
-	name: TName;
+export class GelUUIDBuilder extends GelColumnBuilder<{
+	name: string;
 	dataType: 'string';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
-}>;
-
-export class GelUUIDBuilder<T extends ColumnBuilderBaseConfig<'string'>> extends GelColumnBuilder<T> {
+}> {
 	static override readonly [entityKind]: string = 'GelUUIDBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'string', 'GelUUID');
 	}
 
@@ -33,8 +30,6 @@ export class GelUUID<T extends ColumnBaseConfig<'string'>> extends GelColumn<T> 
 	}
 }
 
-export function uuid(): GelUUIDBuilderInitial<''>;
-export function uuid<TName extends string>(name: TName): GelUUIDBuilderInitial<TName>;
-export function uuid(name?: string) {
+export function uuid(name?: string): GelUUIDBuilder {
 	return new GelUUIDBuilder(name ?? '');
 }

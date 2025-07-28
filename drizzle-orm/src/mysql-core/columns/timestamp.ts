@@ -1,24 +1,19 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlDateBaseColumn, MySqlDateColumnBaseBuilder } from './date.common.ts';
 
-export type MySqlTimestampBuilderInitial<TName extends string> = MySqlTimestampBuilder<{
-	name: TName;
+export class MySqlTimestampBuilder extends MySqlDateColumnBaseBuilder<{
+	name: string;
 	dataType: 'date';
 	data: Date;
 	driverParam: string | number;
 	enumValues: undefined;
-}>;
-
-export class MySqlTimestampBuilder<T extends ColumnBuilderBaseConfig<'date'>>
-	extends MySqlDateColumnBaseBuilder<T, MySqlTimestampConfig>
-{
+}, MySqlTimestampConfig> {
 	static override readonly [entityKind]: string = 'MySqlTimestampBuilder';
 
-	constructor(name: T['name'], config: MySqlTimestampConfig | undefined) {
+	constructor(name: string, config: MySqlTimestampConfig | undefined) {
 		super(name, 'date', 'MySqlTimestamp');
 		this.config.fsp = config?.fsp;
 	}
@@ -32,9 +27,7 @@ export class MySqlTimestampBuilder<T extends ColumnBuilderBaseConfig<'date'>>
 	}
 }
 
-export class MySqlTimestamp<T extends ColumnBaseConfig<'date'>>
-	extends MySqlDateBaseColumn<T, MySqlTimestampConfig>
-{
+export class MySqlTimestamp<T extends ColumnBaseConfig<'date'>> extends MySqlDateBaseColumn<T, MySqlTimestampConfig> {
 	static override readonly [entityKind]: string = 'MySqlTimestamp';
 
 	readonly fsp: number | undefined = this.config.fsp;
@@ -53,20 +46,16 @@ export class MySqlTimestamp<T extends ColumnBaseConfig<'date'>>
 	}
 }
 
-export type MySqlTimestampStringBuilderInitial<TName extends string> = MySqlTimestampStringBuilder<{
-	name: TName;
+export class MySqlTimestampStringBuilder extends MySqlDateColumnBaseBuilder<{
+	name: string;
 	dataType: 'string';
 	data: string;
 	driverParam: string | number;
 	enumValues: undefined;
-}>;
-
-export class MySqlTimestampStringBuilder<T extends ColumnBuilderBaseConfig<'string'>>
-	extends MySqlDateColumnBaseBuilder<T, MySqlTimestampConfig>
-{
+}, MySqlTimestampConfig> {
 	static override readonly [entityKind]: string = 'MySqlTimestampStringBuilder';
 
-	constructor(name: T['name'], config: MySqlTimestampConfig | undefined) {
+	constructor(name: string, config: MySqlTimestampConfig | undefined) {
 		super(name, 'string', 'MySqlTimestampString');
 		this.config.fsp = config?.fsp;
 	}
@@ -100,16 +89,15 @@ export interface MySqlTimestampConfig<TMode extends 'string' | 'date' = 'string'
 	fsp?: TimestampFsp;
 }
 
-export function timestamp(): MySqlTimestampBuilderInitial<''>;
 export function timestamp<TMode extends MySqlTimestampConfig['mode'] & {}>(
 	config?: MySqlTimestampConfig<TMode>,
-): Equal<TMode, 'string'> extends true ? MySqlTimestampStringBuilderInitial<''>
-	: MySqlTimestampBuilderInitial<''>;
-export function timestamp<TName extends string, TMode extends MySqlTimestampConfig['mode'] & {}>(
-	name: TName,
+): Equal<TMode, 'string'> extends true ? MySqlTimestampStringBuilder
+	: MySqlTimestampBuilder;
+export function timestamp<TMode extends MySqlTimestampConfig['mode'] & {}>(
+	name: string,
 	config?: MySqlTimestampConfig<TMode>,
-): Equal<TMode, 'string'> extends true ? MySqlTimestampStringBuilderInitial<TName>
-	: MySqlTimestampBuilderInitial<TName>;
+): Equal<TMode, 'string'> extends true ? MySqlTimestampStringBuilder
+	: MySqlTimestampBuilder;
 export function timestamp(a?: string | MySqlTimestampConfig, b: MySqlTimestampConfig = {}) {
 	const { name, config } = getColumnNameAndConfig<MySqlTimestampConfig | undefined>(a, b);
 	if (config?.mode === 'string') {

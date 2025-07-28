@@ -1,24 +1,19 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 
-export type MySqlDecimalBuilderInitial<TName extends string> = MySqlDecimalBuilder<{
-	name: TName;
+export class MySqlDecimalBuilder extends MySqlColumnBuilderWithAutoIncrement<{
+	name: string;
 	dataType: 'string';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
-}>;
-
-export class MySqlDecimalBuilder<
-	T extends ColumnBuilderBaseConfig<'string'>,
-> extends MySqlColumnBuilderWithAutoIncrement<T, MySqlDecimalConfig> {
+}, MySqlDecimalConfig> {
 	static override readonly [entityKind]: string = 'MySqlDecimalBuilder';
 
-	constructor(name: T['name'], config: MySqlDecimalConfig | undefined) {
+	constructor(name: string, config: MySqlDecimalConfig | undefined) {
 		super(name, 'string', 'MySqlDecimal');
 		this.config.precision = config?.precision;
 		this.config.scale = config?.scale;
@@ -63,20 +58,16 @@ export class MySqlDecimal<T extends ColumnBaseConfig<'string'>>
 	}
 }
 
-export type MySqlDecimalNumberBuilderInitial<TName extends string> = MySqlDecimalNumberBuilder<{
-	name: TName;
+export class MySqlDecimalNumberBuilder extends MySqlColumnBuilderWithAutoIncrement<{
+	name: string;
 	dataType: 'number';
 	data: number;
 	driverParam: string;
 	enumValues: undefined;
-}>;
-
-export class MySqlDecimalNumberBuilder<
-	T extends ColumnBuilderBaseConfig<'number'>,
-> extends MySqlColumnBuilderWithAutoIncrement<T, MySqlDecimalConfig> {
+}, MySqlDecimalConfig> {
 	static override readonly [entityKind]: string = 'MySqlDecimalNumberBuilder';
 
-	constructor(name: T['name'], config: MySqlDecimalConfig | undefined) {
+	constructor(name: string, config: MySqlDecimalConfig | undefined) {
 		super(name, 'number', 'MySqlDecimalNumber');
 		this.config.precision = config?.precision;
 		this.config.scale = config?.scale;
@@ -122,21 +113,16 @@ export class MySqlDecimalNumber<T extends ColumnBaseConfig<'number'>>
 		return this.unsigned ? `${type} unsigned` : type;
 	}
 }
-
-export type MySqlDecimalBigIntBuilderInitial<TName extends string> = MySqlDecimalBigIntBuilder<{
-	name: TName;
+export class MySqlDecimalBigIntBuilder extends MySqlColumnBuilderWithAutoIncrement<{
+	name: string;
 	dataType: 'bigint';
 	data: bigint;
 	driverParam: string;
 	enumValues: undefined;
-}>;
-
-export class MySqlDecimalBigIntBuilder<
-	T extends ColumnBuilderBaseConfig<'bigint'>,
-> extends MySqlColumnBuilderWithAutoIncrement<T, MySqlDecimalConfig> {
+}, MySqlDecimalConfig> {
 	static override readonly [entityKind]: string = 'MySqlDecimalBigIntBuilder';
 
-	constructor(name: T['name'], config: MySqlDecimalConfig | undefined) {
+	constructor(name: string, config: MySqlDecimalConfig | undefined) {
 		super(name, 'bigint', 'MySqlDecimalBigInt');
 		this.config.precision = config?.precision;
 		this.config.scale = config?.scale;
@@ -186,18 +172,17 @@ export interface MySqlDecimalConfig<T extends 'string' | 'number' | 'bigint' = '
 	mode?: T;
 }
 
-export function decimal(): MySqlDecimalBuilderInitial<''>;
 export function decimal<TMode extends 'string' | 'number' | 'bigint'>(
-	config: MySqlDecimalConfig<TMode>,
-): Equal<TMode, 'number'> extends true ? MySqlDecimalNumberBuilderInitial<''>
-	: Equal<TMode, 'bigint'> extends true ? MySqlDecimalBigIntBuilderInitial<''>
-	: MySqlDecimalBuilderInitial<''>;
-export function decimal<TName extends string, TMode extends 'string' | 'number' | 'bigint'>(
-	name: TName,
 	config?: MySqlDecimalConfig<TMode>,
-): Equal<TMode, 'number'> extends true ? MySqlDecimalNumberBuilderInitial<TName>
-	: Equal<TMode, 'bigint'> extends true ? MySqlDecimalBigIntBuilderInitial<TName>
-	: MySqlDecimalBuilderInitial<TName>;
+): Equal<TMode, 'number'> extends true ? MySqlDecimalNumberBuilder
+	: Equal<TMode, 'bigint'> extends true ? MySqlDecimalBigIntBuilder
+	: MySqlDecimalBuilder;
+export function decimal<TMode extends 'string' | 'number' | 'bigint'>(
+	name: string,
+	config?: MySqlDecimalConfig<TMode>,
+): Equal<TMode, 'number'> extends true ? MySqlDecimalNumberBuilder
+	: Equal<TMode, 'bigint'> extends true ? MySqlDecimalBigIntBuilder
+	: MySqlDecimalBuilder;
 export function decimal(a?: string | MySqlDecimalConfig, b: MySqlDecimalConfig = {}) {
 	const { name, config } = getColumnNameAndConfig<MySqlDecimalConfig>(a, b);
 	const mode = config?.mode;

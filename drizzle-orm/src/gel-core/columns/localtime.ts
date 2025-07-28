@@ -1,25 +1,20 @@
 import type { LocalTime } from 'gel';
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { GelTable } from '~/gel-core/table.ts';
 import { GelColumn } from './common.ts';
 import { GelLocalDateColumnBaseBuilder } from './date.common.ts';
 
-export type GelLocalTimeBuilderInitial<TName extends string> = GelLocalTimeBuilder<{
-	name: TName;
+export class GelLocalTimeBuilder extends GelLocalDateColumnBaseBuilder<{
+	name: string;
 	dataType: 'localTime';
 	data: LocalTime;
 	driverParam: LocalTime;
 	enumValues: undefined;
-}>;
-
-export class GelLocalTimeBuilder<T extends ColumnBuilderBaseConfig<'localTime'>>
-	extends GelLocalDateColumnBaseBuilder<T>
-{
+}> {
 	static override readonly [entityKind]: string = 'GelLocalTimeBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'localTime', 'GelLocalTime');
 	}
 
@@ -40,8 +35,6 @@ export class GelLocalTime<T extends ColumnBaseConfig<'localTime'>> extends GelCo
 	}
 }
 
-export function localTime(): GelLocalTimeBuilderInitial<''>;
-export function localTime<TName extends string>(name: TName): GelLocalTimeBuilderInitial<TName>;
-export function localTime(name?: string) {
+export function localTime(name?: string): GelLocalTimeBuilder {
 	return new GelLocalTimeBuilder(name ?? '');
 }

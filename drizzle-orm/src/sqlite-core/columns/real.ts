@@ -1,23 +1,18 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { SQLiteTable } from '../table.ts';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
-export type SQLiteRealBuilderInitial<TName extends string> = SQLiteRealBuilder<{
-	name: TName;
+export class SQLiteRealBuilder extends SQLiteColumnBuilder<{
+	name: string;
 	dataType: 'number';
 	data: number;
 	driverParam: number;
 	enumValues: undefined;
-}>;
-
-export class SQLiteRealBuilder<T extends ColumnBuilderBaseConfig<'number'>>
-	extends SQLiteColumnBuilder<T>
-{
+}> {
 	static override readonly [entityKind]: string = 'SQLiteRealBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'number', 'SQLiteReal');
 	}
 
@@ -35,8 +30,6 @@ export class SQLiteReal<T extends ColumnBaseConfig<'number'>> extends SQLiteColu
 	}
 }
 
-export function real(): SQLiteRealBuilderInitial<''>;
-export function real<TName extends string>(name: TName): SQLiteRealBuilderInitial<TName>;
-export function real(name?: string) {
+export function real(name?: string): SQLiteRealBuilder {
 	return new SQLiteRealBuilder(name ?? '');
 }

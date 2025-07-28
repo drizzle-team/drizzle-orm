@@ -1,34 +1,29 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from '../common.ts';
 
-export type PgVectorBuilderInitial<TName extends string, TDimensions extends number> = PgVectorBuilder<{
-	name: TName;
-	dataType: 'array';
-	data: number[];
-	driverParam: string;
-	enumValues: undefined;
-	dimensions: TDimensions;
-}>;
-
-export class PgVectorBuilder<T extends ColumnBuilderBaseConfig<'array'> & { dimensions: number }>
-	extends PgColumnBuilder<
-		T,
-		{ dimensions: T['dimensions'] }
-	>
-{
+export class PgVectorBuilder<TDimensions extends number> extends PgColumnBuilder<
+	{
+		name: string;
+		dataType: 'array';
+		data: number[];
+		driverParam: string;
+		enumValues: undefined;
+		dimensions: TDimensions;
+	},
+	{ dimensions: TDimensions }
+> {
 	static override readonly [entityKind]: string = 'PgVectorBuilder';
 
-	constructor(name: string, config: PgVectorConfig<T['dimensions']>) {
+	constructor(name: string, config: PgVectorConfig<TDimensions>) {
 		super(name, 'array', 'PgVector');
 		this.config.dimensions = config.dimensions;
 	}
 
 	/** @internal */
-	override build(table: PgTable) {
+	override build(table: PgTable<any>) {
 		return new PgVector(
 			table,
 			this.config as any,
@@ -65,11 +60,11 @@ export interface PgVectorConfig<TDimensions extends number = number> {
 
 export function vector<D extends number>(
 	config: PgVectorConfig<D>,
-): PgVectorBuilderInitial<'', D>;
-export function vector<TName extends string, D extends number>(
-	name: TName,
+): PgVectorBuilder<D>;
+export function vector<D extends number>(
+	name: string,
 	config: PgVectorConfig<D>,
-): PgVectorBuilderInitial<TName, D>;
+): PgVectorBuilder<D>;
 export function vector(a: string | PgVectorConfig, b?: PgVectorConfig) {
 	const { name, config } = getColumnNameAndConfig<PgVectorConfig>(a, b);
 	return new PgVectorBuilder(name, config);

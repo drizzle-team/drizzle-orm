@@ -1,4 +1,4 @@
-import type { ColumnBuilderBaseConfig, GeneratedColumnConfig, HasGenerated } from '~/column-builder.ts';
+import type { GeneratedColumnConfig, HasGenerated } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { SingleStoreTable } from '~/singlestore-core/table.ts';
@@ -6,22 +6,17 @@ import type { SQL } from '~/sql/index.ts';
 import { getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
-export type SingleStoreEnumColumnBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> =
-	SingleStoreEnumColumnBuilder<{
-		name: TName;
-		dataType: 'string';
-		data: TEnum[number];
-		driverParam: string;
-		enumValues: TEnum;
-		generated: undefined;
-	}>;
-
-export class SingleStoreEnumColumnBuilder<T extends ColumnBuilderBaseConfig<'string'>>
-	extends SingleStoreColumnBuilder<T, { enumValues: T['enumValues'] }>
-{
+export class SingleStoreEnumColumnBuilder<TEnum extends [string, ...string[]]> extends SingleStoreColumnBuilder<{
+	name: string;
+	dataType: 'string';
+	data: TEnum[number];
+	driverParam: string;
+	enumValues: TEnum;
+	generated: undefined;
+}, { enumValues: TEnum }> {
 	override generatedAlwaysAs(
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
-		as: SQL<unknown> | (() => SQL) | T['data'],
+		as: SQL<unknown> | (() => SQL) | TEnum[number],
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		config?: Partial<GeneratedColumnConfig<unknown>>,
 	): HasGenerated<this, {}> {
@@ -29,7 +24,7 @@ export class SingleStoreEnumColumnBuilder<T extends ColumnBuilderBaseConfig<'str
 	}
 	static override readonly [entityKind]: string = 'SingleStoreEnumColumnBuilder';
 
-	constructor(name: T['name'], values: T['enumValues']) {
+	constructor(name: string, values: TEnum) {
 		super(name, 'string', 'SingleStoreEnumColumn');
 		this.config.enumValues = values;
 	}
@@ -57,11 +52,11 @@ export class SingleStoreEnumColumn<T extends ColumnBaseConfig<'string'>>
 
 export function singlestoreEnum<U extends string, T extends Readonly<[U, ...U[]]>>(
 	values: T | Writable<T>,
-): SingleStoreEnumColumnBuilderInitial<'', Writable<T>>;
-export function singlestoreEnum<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
-	name: TName,
+): SingleStoreEnumColumnBuilder<Writable<T>>;
+export function singlestoreEnum<U extends string, T extends Readonly<[U, ...U[]]>>(
+	name: string,
 	values: T | Writable<T>,
-): SingleStoreEnumColumnBuilderInitial<TName, Writable<T>>;
+): SingleStoreEnumColumnBuilder<Writable<T>>;
 export function singlestoreEnum(
 	a?: string | readonly [string, ...string[]] | [string, ...string[]],
 	b?: readonly [string, ...string[]] | [string, ...string[]],

@@ -10,7 +10,7 @@ import { gelTable, integer } from '~/gel-core/index.ts';
 		Equal<
 			Column<
 				{
-					name: 'a';
+					name: string;
 					tableName: 'table';
 					dataType: 'number';
 					data: number;

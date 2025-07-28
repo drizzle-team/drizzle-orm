@@ -1,24 +1,19 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { GelTable } from '~/gel-core/table.ts';
 import { GelColumn, GelColumnBuilder } from './common.ts';
 
-type GelTextBuilderInitial<TName extends string> = GelTextBuilder<{
-	name: TName;
+export class GelTextBuilder extends GelColumnBuilder<{
+	name: string;
 	dataType: 'string';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
-}>;
-
-export class GelTextBuilder<
-	T extends ColumnBuilderBaseConfig<'string'>,
-> extends GelColumnBuilder<T> {
+}> {
 	static override readonly [entityKind]: string = 'GelTextBuilder';
 
 	constructor(
-		name: T['name'],
+		name: string,
 	) {
 		super(name, 'string', 'GelText');
 	}
@@ -29,9 +24,7 @@ export class GelTextBuilder<
 	}
 }
 
-export class GelText<T extends ColumnBaseConfig<'string'>>
-	extends GelColumn<T, { enumValues: T['enumValues'] }>
-{
+export class GelText<T extends ColumnBaseConfig<'string'>> extends GelColumn<T, { enumValues: T['enumValues'] }> {
 	static override readonly [entityKind]: string = 'GelText';
 
 	override readonly enumValues = this.config.enumValues;
@@ -41,8 +34,6 @@ export class GelText<T extends ColumnBaseConfig<'string'>>
 	}
 }
 
-export function text(): GelTextBuilderInitial<''>;
-export function text<TName extends string>(name: TName): GelTextBuilderInitial<TName>;
-export function text(name?: string): any {
+export function text(name?: string): GelTextBuilder {
 	return new GelTextBuilder(name ?? '');
 }

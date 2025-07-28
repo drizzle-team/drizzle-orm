@@ -1,4 +1,3 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { SingleStoreTable } from '~/singlestore-core/table.ts';
@@ -6,21 +5,17 @@ import { getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoIncrement } from './common.ts';
 import type { SingleStoreIntConfig } from './int.ts';
 
-export type SingleStoreMediumIntBuilderInitial<TName extends string> = SingleStoreMediumIntBuilder<{
-	name: TName;
+export class SingleStoreMediumIntBuilder extends SingleStoreColumnBuilderWithAutoIncrement<{
+	name: string;
 	dataType: 'number';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
 	generated: undefined;
-}>;
-
-export class SingleStoreMediumIntBuilder<T extends ColumnBuilderBaseConfig<'number'>>
-	extends SingleStoreColumnBuilderWithAutoIncrement<T, SingleStoreIntConfig>
-{
+}, SingleStoreIntConfig> {
 	static override readonly [entityKind]: string = 'SingleStoreMediumIntBuilder';
 
-	constructor(name: T['name'], config?: SingleStoreIntConfig) {
+	constructor(name: string, config?: SingleStoreIntConfig) {
 		super(name, 'number', 'SingleStoreMediumInt');
 		this.config.unsigned = config ? config.unsigned : false;
 	}
@@ -51,14 +46,13 @@ export class SingleStoreMediumInt<T extends ColumnBaseConfig<'number'>>
 	}
 }
 
-export function mediumint(): SingleStoreMediumIntBuilderInitial<''>;
 export function mediumint(
 	config?: SingleStoreIntConfig,
-): SingleStoreMediumIntBuilderInitial<''>;
-export function mediumint<TName extends string>(
-	name: TName,
+): SingleStoreMediumIntBuilder;
+export function mediumint(
+	name: string,
 	config?: SingleStoreIntConfig,
-): SingleStoreMediumIntBuilderInitial<TName>;
+): SingleStoreMediumIntBuilder;
 export function mediumint(a?: string | SingleStoreIntConfig, b?: SingleStoreIntConfig) {
 	const { name, config } = getColumnNameAndConfig<SingleStoreIntConfig>(a, b);
 	return new SingleStoreMediumIntBuilder(name, config);

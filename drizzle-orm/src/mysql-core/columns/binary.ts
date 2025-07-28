@@ -1,25 +1,22 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
-export type MySqlBinaryBuilderInitial<TName extends string> = MySqlBinaryBuilder<{
-	name: TName;
-	dataType: 'string';
-	data: string;
-	driverParam: string;
-	enumValues: undefined;
-}>;
-
-export class MySqlBinaryBuilder<T extends ColumnBuilderBaseConfig<'string'>> extends MySqlColumnBuilder<
-	T,
+export class MySqlBinaryBuilder extends MySqlColumnBuilder<
+	{
+		name: string;
+		dataType: 'string';
+		data: string;
+		driverParam: string;
+		enumValues: undefined;
+	},
 	MySqlBinaryConfig
 > {
 	static override readonly [entityKind]: string = 'MySqlBinaryBuilder';
 
-	constructor(name: T['name'], length: number | undefined) {
+	constructor(name: string, length: number | undefined) {
 		super(name, 'string', 'MySqlBinary');
 		this.config.length = length;
 	}
@@ -59,14 +56,13 @@ export interface MySqlBinaryConfig {
 	length?: number;
 }
 
-export function binary(): MySqlBinaryBuilderInitial<''>;
 export function binary(
 	config?: MySqlBinaryConfig,
-): MySqlBinaryBuilderInitial<''>;
-export function binary<TName extends string>(
-	name: TName,
+): MySqlBinaryBuilder;
+export function binary(
+	name: string,
 	config?: MySqlBinaryConfig,
-): MySqlBinaryBuilderInitial<TName>;
+): MySqlBinaryBuilder;
 export function binary(a?: string | MySqlBinaryConfig, b: MySqlBinaryConfig = {}) {
 	const { name, config } = getColumnNameAndConfig<MySqlBinaryConfig>(a, b);
 	return new MySqlBinaryBuilder(name, config.length);

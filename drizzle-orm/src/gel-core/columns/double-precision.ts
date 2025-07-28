@@ -1,23 +1,18 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { GelTable } from '~/gel-core/table.ts';
 import { GelColumn, GelColumnBuilder } from './common.ts';
 
-export type GelDoublePrecisionBuilderInitial<TName extends string> = GelDoublePrecisionBuilder<{
-	name: TName;
+export class GelDoublePrecisionBuilder extends GelColumnBuilder<{
+	name: string;
 	dataType: 'number';
 	data: number;
 	driverParam: number;
 	enumValues: undefined;
-}>;
-
-export class GelDoublePrecisionBuilder<T extends ColumnBuilderBaseConfig<'number'>>
-	extends GelColumnBuilder<T>
-{
+}> {
 	static override readonly [entityKind]: string = 'GelDoublePrecisionBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'number', 'GelDoublePrecision');
 	}
 
@@ -45,8 +40,6 @@ export class GelDoublePrecision<T extends ColumnBaseConfig<'number'>> extends Ge
 	}
 }
 
-export function doublePrecision(): GelDoublePrecisionBuilderInitial<''>;
-export function doublePrecision<TName extends string>(name: TName): GelDoublePrecisionBuilderInitial<TName>;
-export function doublePrecision(name?: string) {
+export function doublePrecision(name?: string): GelDoublePrecisionBuilder {
 	return new GelDoublePrecisionBuilder(name ?? '');
 }
