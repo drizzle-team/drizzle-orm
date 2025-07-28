@@ -1972,7 +1972,7 @@ const formatArrayElement = (element: any, dataType: string): string | null => {
 		// First, try to parse it to validate it's valid JSON
 		const parsed = JSON.parse(cleanElement);
 		// Then stringify it back to ensure consistent formatting
-		return `"${JSON.stringify(parsed)}"`;
+		return `"${JSON.stringify(parsed).replaceAll('"', '\\"')}"`;
 	} else {
 		return `"${cleanElement}"`;
 	}
