@@ -16,7 +16,7 @@ import { withStyle } from './validations/outputs';
 import type { PostgresCredentials } from './validations/postgres';
 import { SingleStoreCredentials } from './validations/singlestore';
 import type { SqliteCredentials } from './validations/sqlite';
-import { JSONB } from 'when-json-met-bigint';
+import { JSONB } from '../utils/when-json-met-bigint';
 
 const normalisePGliteUrl = (it: string) => {
 	if (it.startsWith('file:')) {
