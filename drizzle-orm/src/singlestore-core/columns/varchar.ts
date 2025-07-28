@@ -1,33 +1,25 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import { getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
-export type SingleStoreVarCharBuilderInitial<
-	TName extends string,
+export class SingleStoreVarCharBuilder<
 	TEnum extends [string, ...string[]],
 	TLength extends number | undefined,
-> = SingleStoreVarCharBuilder<
-	{
-		name: TName;
-		dataType: 'string';
-		data: TEnum[number];
-		driverParam: number | string;
-		enumValues: TEnum;
-		generated: undefined;
-		length: TLength;
-	}
->;
-
-export class SingleStoreVarCharBuilder<
-	T extends ColumnBuilderBaseConfig<'string'> & { length?: number | undefined },
-> extends SingleStoreColumnBuilder<T, SingleStoreVarCharConfig<T['enumValues'], T['length']>> {
+> extends SingleStoreColumnBuilder<{
+	name: string;
+	dataType: 'string';
+	data: TEnum[number];
+	driverParam: number | string;
+	enumValues: TEnum;
+	generated: undefined;
+	length: TLength;
+}, SingleStoreVarCharConfig<TEnum, TLength>> {
 	static override readonly [entityKind]: string = 'SingleStoreVarCharBuilder';
 
 	/** @internal */
-	constructor(name: T['name'], config: SingleStoreVarCharConfig<T['enumValues'], T['length']>) {
+	constructor(name: string, config: SingleStoreVarCharConfig<TEnum, TLength>) {
 		super(name, 'string', 'SingleStoreVarChar');
 		this.config.length = config.length;
 		this.config.enum = config.enum;
@@ -65,16 +57,15 @@ export interface SingleStoreVarCharConfig<
 
 export function varchar<U extends string, T extends Readonly<[U, ...U[]]>, L extends number | undefined>(
 	config: SingleStoreVarCharConfig<T | Writable<T>, L>,
-): SingleStoreVarCharBuilderInitial<'', Writable<T>, L>;
+): SingleStoreVarCharBuilder<Writable<T>, L>;
 export function varchar<
-	TName extends string,
 	U extends string,
 	T extends Readonly<[U, ...U[]]>,
 	L extends number | undefined,
 >(
-	name: TName,
+	name: string,
 	config: SingleStoreVarCharConfig<T | Writable<T>, L>,
-): SingleStoreVarCharBuilderInitial<TName, Writable<T>, L>;
+): SingleStoreVarCharBuilder<Writable<T>, L>;
 export function varchar(a?: string | SingleStoreVarCharConfig, b?: SingleStoreVarCharConfig): any {
 	const { name, config } = getColumnNameAndConfig<SingleStoreVarCharConfig>(a, b);
 	return new SingleStoreVarCharBuilder(name, config as any);

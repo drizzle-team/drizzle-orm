@@ -1,21 +1,18 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { GelTable } from '~/gel-core/table.ts';
 import { GelColumn, GelColumnBuilder } from './common.ts';
 
-export type GelBooleanBuilderInitial<TName extends string> = GelBooleanBuilder<{
-	name: TName;
+export class GelBooleanBuilder extends GelColumnBuilder<{
+	name: string;
 	dataType: 'boolean';
 	data: boolean;
 	driverParam: boolean;
 	enumValues: undefined;
-}>;
-
-export class GelBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean'>> extends GelColumnBuilder<T> {
+}> {
 	static override readonly [entityKind]: string = 'GelBooleanBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'boolean', 'GelBoolean');
 	}
 
@@ -33,8 +30,6 @@ export class GelBoolean<T extends ColumnBaseConfig<'boolean'>> extends GelColumn
 	}
 }
 
-export function boolean(): GelBooleanBuilderInitial<''>;
-export function boolean<TName extends string>(name: TName): GelBooleanBuilderInitial<TName>;
-export function boolean(name?: string) {
+export function boolean(name?: string): GelBooleanBuilder {
 	return new GelBooleanBuilder(name ?? '');
 }

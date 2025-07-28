@@ -1,27 +1,22 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
-export type SingleStoreTimeBuilderInitial<TName extends string> = SingleStoreTimeBuilder<{
-	name: TName;
-	dataType: 'string';
-	data: string;
-	driverParam: string | number;
-	enumValues: undefined;
-	generated: undefined;
-}>;
-
-export class SingleStoreTimeBuilder<T extends ColumnBuilderBaseConfig<'string'>>
-	extends SingleStoreColumnBuilder<
-		T
-	>
-{
+export class SingleStoreTimeBuilder extends SingleStoreColumnBuilder<
+	{
+		name: string;
+		dataType: 'string';
+		data: string;
+		driverParam: string | number;
+		enumValues: undefined;
+		generated: undefined;
+	}
+> {
 	static override readonly [entityKind]: string = 'SingleStoreTimeBuilder';
 
 	constructor(
-		name: T['name'],
+		name: string,
 	) {
 		super(name, 'string', 'SingleStoreTime');
 	}
@@ -45,8 +40,6 @@ export class SingleStoreTime<
 	}
 }
 
-export function time(): SingleStoreTimeBuilderInitial<''>;
-export function time<TName extends string>(name: TName): SingleStoreTimeBuilderInitial<TName>;
-export function time(name?: string) {
+export function time(name?: string): SingleStoreTimeBuilder {
 	return new SingleStoreTimeBuilder(name ?? '');
 }

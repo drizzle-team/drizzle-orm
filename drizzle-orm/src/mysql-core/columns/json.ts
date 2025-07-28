@@ -1,21 +1,18 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
-export type MySqlJsonBuilderInitial<TName extends string> = MySqlJsonBuilder<{
-	name: TName;
+export class MySqlJsonBuilder extends MySqlColumnBuilder<{
+	name: string;
 	dataType: 'json';
 	data: unknown;
 	driverParam: string;
 	enumValues: undefined;
-}>;
-
-export class MySqlJsonBuilder<T extends ColumnBuilderBaseConfig<'json'>> extends MySqlColumnBuilder<T> {
+}> {
 	static override readonly [entityKind]: string = 'MySqlJsonBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'json', 'MySqlJson');
 	}
 
@@ -37,8 +34,6 @@ export class MySqlJson<T extends ColumnBaseConfig<'json'>> extends MySqlColumn<T
 	}
 }
 
-export function json(): MySqlJsonBuilderInitial<''>;
-export function json<TName extends string>(name: TName): MySqlJsonBuilderInitial<TName>;
-export function json(name?: string) {
+export function json(name?: string): MySqlJsonBuilder {
 	return new MySqlJsonBuilder(name ?? '');
 }

@@ -1,29 +1,24 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '../table.ts';
 import { PgColumn } from './common.ts';
 import { PgIntColumnBaseBuilder } from './int.common.ts';
 
-export type PgIntegerBuilderInitial<TName extends string> = PgIntegerBuilder<{
-	name: TName;
+export class PgIntegerBuilder extends PgIntColumnBaseBuilder<{
+	name: string;
 	dataType: 'number';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
-}>;
-
-export class PgIntegerBuilder<T extends ColumnBuilderBaseConfig<'number'>>
-	extends PgIntColumnBaseBuilder<T>
-{
+}> {
 	static override readonly [entityKind]: string = 'PgIntegerBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'number', 'PgInteger');
 	}
 
 	/** @internal */
-	override build(table: PgTable) {
+	override build(table: PgTable<any>) {
 		return new PgInteger(table, this.config as any);
 	}
 }
@@ -42,9 +37,6 @@ export class PgInteger<T extends ColumnBaseConfig<'number'>> extends PgColumn<T>
 		return value;
 	}
 }
-
-export function integer(): PgIntegerBuilderInitial<''>;
-export function integer<TName extends string>(name: TName): PgIntegerBuilderInitial<TName>;
-export function integer(name?: string) {
+export function integer(name?: string): PgIntegerBuilder {
 	return new PgIntegerBuilder(name ?? '');
 }

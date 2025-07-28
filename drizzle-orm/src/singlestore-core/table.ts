@@ -27,8 +27,6 @@ export type TableConfig = TableConfigBase<SingleStoreColumns>;
 export class SingleStoreTable<T extends TableConfig = TableConfig> extends Table<T> {
 	static override readonly [entityKind]: string = 'SingleStoreTable';
 
-	declare protected $columns: T['columns'];
-
 	/** @internal */
 	static override readonly Symbol = Object.assign({}, Table.Symbol, {});
 

@@ -6,9 +6,9 @@ import type { SQL, SQLGenerator } from '~/sql/sql.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
-export type ConvertCustomConfig<TName extends string, T extends Partial<CustomTypeValues>> =
+export type ConvertCustomConfig<T extends Partial<CustomTypeValues>> =
 	& {
-		name: TName;
+		name: string;
 		dataType: 'custom';
 		data: T['data'];
 		driverParam: T['driverData'];
@@ -21,19 +21,17 @@ export interface MySqlCustomColumnInnerConfig {
 	customTypeValues: CustomTypeValues;
 }
 
-export class MySqlCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom'>>
-	extends MySqlColumnBuilder<
-		T,
-		{
-			fieldConfig: CustomTypeValues['config'];
-			customTypeParams: CustomTypeParams<any>;
-		}
-	>
-{
+export class MySqlCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom'>> extends MySqlColumnBuilder<
+	T,
+	{
+		fieldConfig: CustomTypeValues['config'];
+		customTypeParams: CustomTypeParams<any>;
+	}
+> {
 	static override readonly [entityKind]: string = 'MySqlCustomColumnBuilder';
 
 	constructor(
-		name: T['name'],
+		name: string,
 		fieldConfig: CustomTypeValues['config'],
 		customTypeParams: CustomTypeParams<any>,
 	) {
@@ -343,28 +341,27 @@ export function customType<T extends CustomTypeValues = CustomTypeValues>(
 ): Equal<T['configRequired'], true> extends true ? {
 		<TConfig extends Record<string, any> & T['config']>(
 			fieldConfig: TConfig,
-		): MySqlCustomColumnBuilder<ConvertCustomConfig<'', T>>;
-		<TName extends string>(
-			dbName: TName,
+		): MySqlCustomColumnBuilder<ConvertCustomConfig<T>>;
+		(
+			dbName: string,
 			fieldConfig: T['config'],
-		): MySqlCustomColumnBuilder<ConvertCustomConfig<TName, T>>;
+		): MySqlCustomColumnBuilder<ConvertCustomConfig<T>>;
 	}
 	: {
-		(): MySqlCustomColumnBuilder<ConvertCustomConfig<'', T>>;
 		<TConfig extends Record<string, any> & T['config']>(
 			fieldConfig?: TConfig,
-		): MySqlCustomColumnBuilder<ConvertCustomConfig<'', T>>;
-		<TName extends string>(
-			dbName: TName,
+		): MySqlCustomColumnBuilder<ConvertCustomConfig<T>>;
+		(
+			dbName: string,
 			fieldConfig?: T['config'],
-		): MySqlCustomColumnBuilder<ConvertCustomConfig<TName, T>>;
+		): MySqlCustomColumnBuilder<ConvertCustomConfig<T>>;
 	}
 {
-	return <TName extends string>(
-		a?: TName | T['config'],
+	return (
+		a?: string | T['config'],
 		b?: T['config'],
-	): MySqlCustomColumnBuilder<ConvertCustomConfig<TName, T>> => {
+	): MySqlCustomColumnBuilder<ConvertCustomConfig<T>> => {
 		const { name, config } = getColumnNameAndConfig<T['config']>(a, b);
-		return new MySqlCustomColumnBuilder(name as ConvertCustomConfig<TName, T>['name'], config, customTypeParams);
+		return new MySqlCustomColumnBuilder(name as ConvertCustomConfig<T>['name'], config, customTypeParams);
 	};
 }

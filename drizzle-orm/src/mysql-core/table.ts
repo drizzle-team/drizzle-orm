@@ -34,8 +34,6 @@ export const InlineForeignKeys = Symbol.for('drizzle:MySqlInlineForeignKeys');
 export class MySqlTable<T extends TableConfig = TableConfig> extends Table<T> {
 	static override readonly [entityKind]: string = 'MySqlTable';
 
-	declare protected $columns: T['columns'];
-
 	/** @internal */
 	static override readonly Symbol = Object.assign({}, Table.Symbol, {
 		InlineForeignKeys: InlineForeignKeys as typeof InlineForeignKeys,

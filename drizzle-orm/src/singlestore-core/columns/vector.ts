@@ -1,4 +1,3 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { SingleStoreTable } from '~/singlestore-core/table.ts';
@@ -7,20 +6,16 @@ import { getColumnNameAndConfig } from '~/utils.ts';
 import type { SingleStoreGeneratedColumnConfig } from './common.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
-export type SingleStoreVectorBuilderInitial<TName extends string> = SingleStoreVectorBuilder<{
-	name: TName;
+export class SingleStoreVectorBuilder extends SingleStoreColumnBuilder<{
+	name: string;
 	dataType: 'array';
 	data: Array<number>;
 	driverParam: string;
 	enumValues: undefined;
-}>;
-
-export class SingleStoreVectorBuilder<T extends ColumnBuilderBaseConfig<'array'>>
-	extends SingleStoreColumnBuilder<T, SingleStoreVectorConfig>
-{
+}, SingleStoreVectorConfig> {
 	static override readonly [entityKind]: string = 'SingleStoreVectorBuilder';
 
-	constructor(name: T['name'], config: SingleStoreVectorConfig) {
+	constructor(name: string, config: SingleStoreVectorConfig) {
 		super(name, 'array', 'SingleStoreVector');
 		this.config.dimensions = config.dimensions;
 		this.config.elementType = config.elementType;
@@ -37,7 +32,7 @@ export class SingleStoreVectorBuilder<T extends ColumnBuilderBaseConfig<'array'>
 	/** @internal */
 	override generatedAlwaysAs(
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
-		as: SQL<unknown> | (() => SQL) | T['data'],
+		as: SQL<unknown> | (() => SQL) | Array<number>,
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		config?: SingleStoreGeneratedColumnConfig,
 	) {
@@ -75,11 +70,11 @@ export interface SingleStoreVectorConfig {
 
 export function vector(
 	config: SingleStoreVectorConfig,
-): SingleStoreVectorBuilderInitial<''>;
-export function vector<TName extends string>(
-	name: TName,
+): SingleStoreVectorBuilder;
+export function vector(
+	name: string,
 	config: SingleStoreVectorConfig,
-): SingleStoreVectorBuilderInitial<TName>;
+): SingleStoreVectorBuilder;
 export function vector(a: string | SingleStoreVectorConfig, b?: SingleStoreVectorConfig) {
 	const { name, config } = getColumnNameAndConfig<SingleStoreVectorConfig>(a, b);
 	return new SingleStoreVectorBuilder(name, config);

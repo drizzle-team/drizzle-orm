@@ -1,28 +1,23 @@
 import type { LocalDateTime } from 'gel';
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyGelTable, GelTable } from '~/gel-core/table.ts';
 import { GelColumn } from './common.ts';
 import { GelLocalDateColumnBaseBuilder } from './date.common.ts';
 
-export type GelTimestampBuilderInitial<TName extends string> = GelTimestampBuilder<{
-	name: TName;
-	dataType: 'localDateTime';
-	data: LocalDateTime;
-	driverParam: LocalDateTime;
-	enumValues: undefined;
-}>;
-
-export class GelTimestampBuilder<T extends ColumnBuilderBaseConfig<'localDateTime'>>
-	extends GelLocalDateColumnBaseBuilder<
-		T
-	>
-{
+export class GelTimestampBuilder extends GelLocalDateColumnBaseBuilder<
+	{
+		name: string;
+		dataType: 'localDateTime';
+		data: LocalDateTime;
+		driverParam: LocalDateTime;
+		enumValues: undefined;
+	}
+> {
 	static override readonly [entityKind]: string = 'GelTimestampBuilder';
 
 	constructor(
-		name: T['name'],
+		name: string,
 	) {
 		super(name, 'localDateTime', 'GelTimestamp');
 	}
@@ -39,7 +34,7 @@ export class GelTimestampBuilder<T extends ColumnBuilderBaseConfig<'localDateTim
 export class GelTimestamp<T extends ColumnBaseConfig<'localDateTime'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelTimestamp';
 
-	constructor(table: AnyGelTable<{ name: T['tableName'] }>, config: GelTimestampBuilder<T>['config']) {
+	constructor(table: AnyGelTable<{ name: T['tableName'] }>, config: GelTimestampBuilder['config']) {
 		super(table, config);
 	}
 
@@ -48,10 +43,6 @@ export class GelTimestamp<T extends ColumnBaseConfig<'localDateTime'>> extends G
 	}
 }
 
-export function timestamp(): GelTimestampBuilderInitial<''>;
-export function timestamp<TName extends string>(
-	name: TName,
-): GelTimestampBuilderInitial<TName>;
-export function timestamp(name?: string) {
+export function timestamp(name?: string): GelTimestampBuilder {
 	return new GelTimestampBuilder(name ?? '');
 }

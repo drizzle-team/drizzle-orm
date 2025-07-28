@@ -1,23 +1,20 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyGelTable, GelTable } from '~/gel-core/table.ts';
 import { GelColumn, GelColumnBuilder } from './common.ts';
 
-export type GelJsonBuilderInitial<TName extends string> = GelJsonBuilder<{
-	name: TName;
-	dataType: 'json';
-	data: unknown;
-	driverParam: unknown;
-	enumValues: undefined;
-}>;
-
-export class GelJsonBuilder<T extends ColumnBuilderBaseConfig<'json'>> extends GelColumnBuilder<
-	T
+export class GelJsonBuilder extends GelColumnBuilder<
+	{
+		name: string;
+		dataType: 'json';
+		data: unknown;
+		driverParam: unknown;
+		enumValues: undefined;
+	}
 > {
 	static override readonly [entityKind]: string = 'GelJsonBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'json', 'GelJson');
 	}
 
@@ -30,7 +27,7 @@ export class GelJsonBuilder<T extends ColumnBuilderBaseConfig<'json'>> extends G
 export class GelJson<T extends ColumnBaseConfig<'json'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelJson';
 
-	constructor(table: AnyGelTable<{ name: T['tableName'] }>, config: GelJsonBuilder<T>['config']) {
+	constructor(table: AnyGelTable<{ name: T['tableName'] }>, config: GelJsonBuilder['config']) {
 		super(table, config);
 	}
 
@@ -39,8 +36,6 @@ export class GelJson<T extends ColumnBaseConfig<'json'>> extends GelColumn<T> {
 	}
 }
 
-export function json(): GelJsonBuilderInitial<''>;
-export function json<TName extends string>(name: TName): GelJsonBuilderInitial<TName>;
-export function json(name?: string) {
+export function json(name?: string): GelJsonBuilder {
 	return new GelJsonBuilder(name ?? '');
 }

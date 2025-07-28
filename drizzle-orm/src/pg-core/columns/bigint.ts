@@ -1,4 +1,3 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
@@ -6,25 +5,21 @@ import { getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn } from './common.ts';
 import { PgIntColumnBaseBuilder } from './int.common.ts';
 
-export type PgBigInt53BuilderInitial<TName extends string> = PgBigInt53Builder<{
-	name: TName;
+export class PgBigInt53Builder extends PgIntColumnBaseBuilder<{
+	name: string;
 	dataType: 'number';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
-}>;
-
-export class PgBigInt53Builder<T extends ColumnBuilderBaseConfig<'number'>>
-	extends PgIntColumnBaseBuilder<T>
-{
+}> {
 	static override readonly [entityKind]: string = 'PgBigInt53Builder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'number', 'PgBigInt53');
 	}
 
 	/** @internal */
-	override build(table: PgTable) {
+	override build(table: PgTable<any>) {
 		return new PgBigInt53(table, this.config as any);
 	}
 }
@@ -44,26 +39,22 @@ export class PgBigInt53<T extends ColumnBaseConfig<'number'>> extends PgColumn<T
 	}
 }
 
-export type PgBigInt64BuilderInitial<TName extends string> = PgBigInt64Builder<{
-	name: TName;
+export class PgBigInt64Builder extends PgIntColumnBaseBuilder<{
+	name: string;
 	dataType: 'bigint';
 	data: bigint;
 	driverParam: string;
 	enumValues: undefined;
-}>;
-
-export class PgBigInt64Builder<T extends ColumnBuilderBaseConfig<'bigint'>>
-	extends PgIntColumnBaseBuilder<T>
-{
+}> {
 	static override readonly [entityKind]: string = 'PgBigInt64Builder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'bigint', 'PgBigInt64');
 	}
 
 	/** @internal */
-	override build(table: PgTable) {
-		return new PgBigInt64(table,this.config as any);
+	override build(table: PgTable<any>) {
+		return new PgBigInt64(table, this.config as any);
 	}
 }
 
@@ -86,11 +77,11 @@ export interface PgBigIntConfig<T extends 'number' | 'bigint' = 'number' | 'bigi
 
 export function bigint<TMode extends PgBigIntConfig['mode']>(
 	config: PgBigIntConfig<TMode>,
-): TMode extends 'number' ? PgBigInt53BuilderInitial<''> : PgBigInt64BuilderInitial<''>;
-export function bigint<TName extends string, TMode extends PgBigIntConfig['mode']>(
-	name: TName,
+): TMode extends 'number' ? PgBigInt53Builder : PgBigInt64Builder;
+export function bigint<TMode extends PgBigIntConfig['mode']>(
+	name: string,
 	config: PgBigIntConfig<TMode>,
-): TMode extends 'number' ? PgBigInt53BuilderInitial<TName> : PgBigInt64BuilderInitial<TName>;
+): TMode extends 'number' ? PgBigInt53Builder : PgBigInt64Builder;
 export function bigint(a: string | PgBigIntConfig, b?: PgBigIntConfig) {
 	const { name, config } = getColumnNameAndConfig<PgBigIntConfig>(a, b);
 	if (config.mode === 'number') {

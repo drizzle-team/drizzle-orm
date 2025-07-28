@@ -1,21 +1,18 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { GelTable } from '~/gel-core/table.ts';
 import { GelColumn, GelColumnBuilder } from './common.ts';
 
-export type GelBytesBuilderInitial<TName extends string> = GelBytesBuilder<{
-	name: TName;
+export class GelBytesBuilder extends GelColumnBuilder<{
+	name: string;
 	dataType: 'buffer';
 	data: Uint8Array;
 	driverParam: Uint8Array | Buffer;
 	enumValues: undefined;
-}>;
-
-export class GelBytesBuilder<T extends ColumnBuilderBaseConfig<'buffer'>> extends GelColumnBuilder<T> {
+}> {
 	static override readonly [entityKind]: string = 'GelBytesBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'buffer', 'GelBytes');
 	}
 
@@ -36,8 +33,6 @@ export class GelBytes<T extends ColumnBaseConfig<'buffer'>> extends GelColumn<T>
 	}
 }
 
-export function bytes(): GelBytesBuilderInitial<''>;
-export function bytes<TName extends string>(name: TName): GelBytesBuilderInitial<TName>;
-export function bytes(name?: string) {
+export function bytes(name?: string): GelBytesBuilder {
 	return new GelBytesBuilder(name ?? '');
 }

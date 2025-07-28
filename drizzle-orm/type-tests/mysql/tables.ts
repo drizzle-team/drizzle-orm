@@ -94,7 +94,7 @@ Expect<
 		{
 			id: MySqlColumn<
 				{
-					name: 'id';
+					name: string;
 					tableName: 'cities_table';
 					dataType: 'number';
 					data: number;
@@ -113,7 +113,7 @@ Expect<
 			>;
 			name: MySqlColumn<
 				{
-					name: 'name_db';
+					name: string;
 					tableName: 'cities_table';
 					dataType: 'string';
 					data: string;
@@ -132,7 +132,7 @@ Expect<
 			>;
 			population: MySqlColumn<
 				{
-					name: 'population';
+					name: string;
 					tableName: 'cities_table';
 					dataType: 'number';
 					data: number;
@@ -157,9 +157,9 @@ Expect<
 Expect<
 	Equal<{
 		id: number;
-		name_db: string;
+		name: string;
 		population: number | null;
-	}, InferSelectModel<typeof cities, { dbColumnNames: true }>>
+	}, InferSelectModel<typeof cities>>
 >;
 
 Expect<
@@ -213,7 +213,7 @@ Expect<
 	Equal<
 		MySqlViewWithSelection<'new_yorkers', false, {
 			userId: MySqlColumn<{
-				name: 'id';
+				name: string;
 				dataType: 'number';
 				data: number;
 				driverParam: number;
@@ -229,7 +229,7 @@ Expect<
 				hasRuntimeDefault: false;
 			}>;
 			cityId: MySqlColumn<{
-				name: 'id';
+				name: string;
 				dataType: 'number';
 				data: number;
 				driverParam: number;
@@ -269,7 +269,7 @@ Expect<
 		Equal<
 			MySqlViewWithSelection<'new_yorkers', false, {
 				userId: MySqlColumn<{
-					name: 'id';
+					name: string;
 					dataType: 'number';
 					data: number;
 					driverParam: number;
@@ -285,7 +285,7 @@ Expect<
 					hasRuntimeDefault: false;
 				}>;
 				cityId: MySqlColumn<{
-					name: 'id';
+					name: string;
 					dataType: 'number';
 					data: number;
 					driverParam: number;
@@ -323,7 +323,7 @@ Expect<
 		Equal<
 			MySqlViewWithSelection<'new_yorkers', false, {
 				userId: MySqlColumn<{
-					name: 'user_id';
+					name: string;
 					dataType: 'number';
 					data: number;
 					driverParam: string | number;
@@ -339,7 +339,7 @@ Expect<
 					hasRuntimeDefault: false;
 				}>;
 				cityId: MySqlColumn<{
-					name: 'city_id';
+					name: string;
 					notNull: false;
 					hasDefault: false;
 					dataType: 'number';
@@ -377,7 +377,7 @@ Expect<
 		Equal<
 			MySqlViewWithSelection<'new_yorkers', false, {
 				userId: MySqlColumn<{
-					name: 'user_id';
+					name: string;
 					dataType: 'number';
 					data: number;
 					driverParam: string | number;
@@ -393,7 +393,7 @@ Expect<
 					hasRuntimeDefault: false;
 				}>;
 				cityId: MySqlColumn<{
-					name: 'city_id';
+					name: string;
 					notNull: false;
 					hasDefault: false;
 					dataType: 'number';
@@ -424,7 +424,7 @@ Expect<
 		Equal<
 			MySqlViewWithSelection<'new_yorkers', true, {
 				userId: MySqlColumn<{
-					name: 'user_id';
+					name: string;
 					dataType: 'number';
 					data: number;
 					driverParam: string | number;
@@ -440,7 +440,7 @@ Expect<
 					hasRuntimeDefault: false;
 				}>;
 				cityId: MySqlColumn<{
-					name: 'city_id';
+					name: string;
 					notNull: false;
 					hasDefault: false;
 					dataType: 'number';
@@ -471,7 +471,7 @@ Expect<
 		Equal<
 			MySqlViewWithSelection<'new_yorkers', true, {
 				userId: MySqlColumn<{
-					name: 'user_id';
+					name: string;
 					dataType: 'number';
 					data: number;
 					driverParam: string | number;
@@ -487,7 +487,7 @@ Expect<
 					hasRuntimeDefault: false;
 				}>;
 				cityId: MySqlColumn<{
-					name: 'city_id';
+					name: string;
 					notNull: false;
 					hasDefault: false;
 					dataType: 'number';
@@ -519,7 +519,7 @@ Expect<
 	Expect<
 		Equal<
 			{
-				name: 'name';
+				name: string;
 				tableName: 'table';
 				dataType: 'custom';
 				data: string;
@@ -534,7 +534,7 @@ Expect<
 				isAutoincrement: false;
 				hasRuntimeDefault: false;
 			},
-			Simplify<BuildColumn<'table', typeof t, 'mysql', "name">['_']>
+			Simplify<BuildColumn<'table', typeof t, 'mysql'>['_']>
 		>
 	>;
 }
@@ -933,8 +933,8 @@ Expect<
 		name: text(),
 	});
 
-	Expect<Equal<typeof keysAsColumnNames['id']['_']['name'], 'id'>>;
-	Expect<Equal<typeof keysAsColumnNames['name']['_']['name'], 'name'>>;
+	Expect<Equal<typeof keysAsColumnNames['id']['_']['name'], string>>;
+	Expect<Equal<typeof keysAsColumnNames['name']['_']['name'], string>>;
 }
 
 {

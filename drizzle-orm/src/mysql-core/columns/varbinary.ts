@@ -1,25 +1,20 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
-export type MySqlVarBinaryBuilderInitial<TName extends string> = MySqlVarBinaryBuilder<{
-	name: TName;
+export class MySqlVarBinaryBuilder extends MySqlColumnBuilder<{
+	name: string;
 	dataType: 'string';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
-}>;
-
-export class MySqlVarBinaryBuilder<T extends ColumnBuilderBaseConfig<'string'>>
-	extends MySqlColumnBuilder<T, MySqlVarbinaryOptions>
-{
+}, MySqlVarbinaryOptions> {
 	static override readonly [entityKind]: string = 'MySqlVarBinaryBuilder';
 
 	/** @internal */
-	constructor(name: T['name'], config: MySqlVarbinaryOptions) {
+	constructor(name: string, config: MySqlVarbinaryOptions) {
 		super(name, 'string', 'MySqlVarBinary');
 		this.config.length = config?.length;
 	}
@@ -63,11 +58,11 @@ export interface MySqlVarbinaryOptions {
 
 export function varbinary(
 	config: MySqlVarbinaryOptions,
-): MySqlVarBinaryBuilderInitial<''>;
-export function varbinary<TName extends string>(
-	name: TName,
+): MySqlVarBinaryBuilder;
+export function varbinary(
+	name: string,
 	config: MySqlVarbinaryOptions,
-): MySqlVarBinaryBuilderInitial<TName>;
+): MySqlVarBinaryBuilder;
 export function varbinary(a?: string | MySqlVarbinaryOptions, b?: MySqlVarbinaryOptions) {
 	const { name, config } = getColumnNameAndConfig<MySqlVarbinaryOptions>(a, b);
 	return new MySqlVarBinaryBuilder(name, config);

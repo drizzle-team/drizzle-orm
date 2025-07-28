@@ -1,4 +1,3 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { SingleStoreTable } from '~/singlestore-core/table.ts';
@@ -7,28 +6,23 @@ import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
 export type SingleStoreTextColumnType = 'tinytext' | 'text' | 'mediumtext' | 'longtext';
 
-export type SingleStoreTextBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> =
-	SingleStoreTextBuilder<{
-		name: TName;
+export class SingleStoreTextBuilder<TEnum extends [string, ...string[]]> extends SingleStoreColumnBuilder<
+	{
+		name: string;
 		dataType: 'string';
 		data: TEnum[number];
 		driverParam: string;
 		enumValues: TEnum;
 		generated: undefined;
-	}>;
-
-export class SingleStoreTextBuilder<T extends ColumnBuilderBaseConfig<'string'>>
-	extends SingleStoreColumnBuilder<
-		T,
-		{ textType: SingleStoreTextColumnType; enumValues: T['enumValues'] }
-	>
-{
+	},
+	{ textType: SingleStoreTextColumnType; enumValues: TEnum }
+> {
 	static override readonly [entityKind]: string = 'SingleStoreTextBuilder';
 
-	constructor(name: T['name'], textType: SingleStoreTextColumnType, config: SingleStoreTextConfig<T['enumValues']>) {
+	constructor(name: string, textType: SingleStoreTextColumnType, config: SingleStoreTextConfig<TEnum>) {
 		super(name, 'string', 'SingleStoreText');
 		this.config.textType = textType;
-		this.config.enumValues = config.enum;
+		this.config.enumValues = config.enum!;
 	}
 
 	/** @internal */
@@ -60,53 +54,49 @@ export interface SingleStoreTextConfig<
 	enum?: TEnum;
 }
 
-export function text(): SingleStoreTextBuilderInitial<'', [string, ...string[]]>;
 export function text<U extends string, T extends Readonly<[U, ...U[]]>>(
 	config?: SingleStoreTextConfig<T | Writable<T>>,
-): SingleStoreTextBuilderInitial<'', Writable<T>>;
-export function text<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
-	name: TName,
+): SingleStoreTextBuilder<Writable<T>>;
+export function text<U extends string, T extends Readonly<[U, ...U[]]>>(
+	name: string,
 	config?: SingleStoreTextConfig<T | Writable<T>>,
-): SingleStoreTextBuilderInitial<TName, Writable<T>>;
+): SingleStoreTextBuilder<Writable<T>>;
 export function text(a?: string | SingleStoreTextConfig, b: SingleStoreTextConfig = {}): any {
 	const { name, config } = getColumnNameAndConfig<SingleStoreTextConfig>(a, b);
 	return new SingleStoreTextBuilder(name, 'text', config as any);
 }
 
-export function tinytext(): SingleStoreTextBuilderInitial<'', [string, ...string[]]>;
 export function tinytext<U extends string, T extends Readonly<[U, ...U[]]>>(
 	config?: SingleStoreTextConfig<T | Writable<T>>,
-): SingleStoreTextBuilderInitial<'', Writable<T>>;
-export function tinytext<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
-	name: TName,
+): SingleStoreTextBuilder<Writable<T>>;
+export function tinytext<U extends string, T extends Readonly<[U, ...U[]]>>(
+	name: string,
 	config?: SingleStoreTextConfig<T | Writable<T>>,
-): SingleStoreTextBuilderInitial<TName, Writable<T>>;
+): SingleStoreTextBuilder<Writable<T>>;
 export function tinytext(a?: string | SingleStoreTextConfig, b: SingleStoreTextConfig = {}): any {
 	const { name, config } = getColumnNameAndConfig<SingleStoreTextConfig>(a, b);
 	return new SingleStoreTextBuilder(name, 'tinytext', config as any);
 }
 
-export function mediumtext(): SingleStoreTextBuilderInitial<'', [string, ...string[]]>;
 export function mediumtext<U extends string, T extends Readonly<[U, ...U[]]>>(
 	config?: SingleStoreTextConfig<T | Writable<T>>,
-): SingleStoreTextBuilderInitial<'', Writable<T>>;
-export function mediumtext<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
-	name: TName,
+): SingleStoreTextBuilder<Writable<T>>;
+export function mediumtext<U extends string, T extends Readonly<[U, ...U[]]>>(
+	name: string,
 	config?: SingleStoreTextConfig<T | Writable<T>>,
-): SingleStoreTextBuilderInitial<TName, Writable<T>>;
+): SingleStoreTextBuilder<Writable<T>>;
 export function mediumtext(a?: string | SingleStoreTextConfig, b: SingleStoreTextConfig = {}): any {
 	const { name, config } = getColumnNameAndConfig<SingleStoreTextConfig>(a, b);
 	return new SingleStoreTextBuilder(name, 'mediumtext', config as any);
 }
 
-export function longtext(): SingleStoreTextBuilderInitial<'', [string, ...string[]]>;
 export function longtext<U extends string, T extends Readonly<[U, ...U[]]>>(
 	config?: SingleStoreTextConfig<T | Writable<T>>,
-): SingleStoreTextBuilderInitial<'', Writable<T>>;
-export function longtext<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
-	name: TName,
+): SingleStoreTextBuilder<Writable<T>>;
+export function longtext<U extends string, T extends Readonly<[U, ...U[]]>>(
+	name: string,
 	config?: SingleStoreTextConfig<T | Writable<T>>,
-): SingleStoreTextBuilderInitial<TName, Writable<T>>;
+): SingleStoreTextBuilder<Writable<T>>;
 export function longtext(a?: string | SingleStoreTextConfig, b: SingleStoreTextConfig = {}): any {
 	const { name, config } = getColumnNameAndConfig<SingleStoreTextConfig>(a, b);
 	return new SingleStoreTextBuilder(name, 'longtext', config as any);

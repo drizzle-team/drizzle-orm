@@ -1,24 +1,21 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyGelTable, GelTable } from '~/gel-core/table.ts';
 import { GelColumn, GelColumnBuilder } from './common.ts';
 
-export type GelRealBuilderInitial<TName extends string> = GelRealBuilder<{
-	name: TName;
-	dataType: 'number';
-	data: number;
-	driverParam: number;
-	enumValues: undefined;
-}>;
-
-export class GelRealBuilder<T extends ColumnBuilderBaseConfig<'number'>> extends GelColumnBuilder<
-	T,
+export class GelRealBuilder extends GelColumnBuilder<
+	{
+		name: string;
+		dataType: 'number';
+		data: number;
+		driverParam: number;
+		enumValues: undefined;
+	},
 	{ length: number | undefined }
 > {
 	static override readonly [entityKind]: string = 'GelRealBuilder';
 
-	constructor(name: T['name'], length?: number) {
+	constructor(name: string, length?: number) {
 		super(name, 'number', 'GelReal');
 		this.config.length = length;
 	}
@@ -32,7 +29,7 @@ export class GelRealBuilder<T extends ColumnBuilderBaseConfig<'number'>> extends
 export class GelReal<T extends ColumnBaseConfig<'number'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelReal';
 
-	constructor(table: AnyGelTable<{ name: T['tableName'] }>, config: GelRealBuilder<T>['config']) {
+	constructor(table: AnyGelTable<{ name: T['tableName'] }>, config: GelRealBuilder['config']) {
 		super(table, config);
 	}
 
@@ -41,8 +38,6 @@ export class GelReal<T extends ColumnBaseConfig<'number'>> extends GelColumn<T> 
 	}
 }
 
-export function real(): GelRealBuilderInitial<''>;
-export function real<TName extends string>(name: TName): GelRealBuilderInitial<TName>;
-export function real(name?: string) {
+export function real(name?: string): GelRealBuilder {
 	return new GelRealBuilder(name ?? '');
 }

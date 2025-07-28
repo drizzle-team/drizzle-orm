@@ -1,24 +1,19 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { GelTable } from '../table.ts';
 import { GelColumn } from './common.ts';
 import { GelIntColumnBaseBuilder } from './int.common.ts';
 
-export type GelIntegerBuilderInitial<TName extends string> = GelIntegerBuilder<{
-	name: TName;
+export class GelIntegerBuilder extends GelIntColumnBaseBuilder<{
+	name: string;
 	dataType: 'number';
 	data: number;
 	driverParam: number;
 	enumValues: undefined;
-}>;
-
-export class GelIntegerBuilder<T extends ColumnBuilderBaseConfig<'number'>>
-	extends GelIntColumnBaseBuilder<T>
-{
+}> {
 	static override readonly [entityKind]: string = 'GelIntegerBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'number', 'GelInteger');
 	}
 
@@ -36,8 +31,6 @@ export class GelInteger<T extends ColumnBaseConfig<'number'>> extends GelColumn<
 	}
 }
 
-export function integer(): GelIntegerBuilderInitial<''>;
-export function integer<TName extends string>(name: TName): GelIntegerBuilderInitial<TName>;
-export function integer(name?: string) {
+export function integer(name?: string): GelIntegerBuilder {
 	return new GelIntegerBuilder(name ?? '');
 }

@@ -1,26 +1,21 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
-export type SingleStoreVarBinaryBuilderInitial<TName extends string> = SingleStoreVarBinaryBuilder<{
-	name: TName;
+export class SingleStoreVarBinaryBuilder extends SingleStoreColumnBuilder<{
+	name: string;
 	dataType: 'string';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
 	generated: undefined;
-}>;
-
-export class SingleStoreVarBinaryBuilder<T extends ColumnBuilderBaseConfig<'string'>>
-	extends SingleStoreColumnBuilder<T, SingleStoreVarbinaryOptions>
-{
+}, SingleStoreVarbinaryOptions> {
 	static override readonly [entityKind]: string = 'SingleStoreVarBinaryBuilder';
 
 	/** @internal */
-	constructor(name: T['name'], config: SingleStoreVarbinaryOptions) {
+	constructor(name: string, config: SingleStoreVarbinaryOptions) {
 		super(name, 'string', 'SingleStoreVarBinary');
 		this.config.length = config?.length;
 	}
@@ -64,11 +59,11 @@ export interface SingleStoreVarbinaryOptions {
 
 export function varbinary(
 	config: SingleStoreVarbinaryOptions,
-): SingleStoreVarBinaryBuilderInitial<''>;
-export function varbinary<TName extends string>(
-	name: TName,
+): SingleStoreVarBinaryBuilder;
+export function varbinary(
+	name: string,
 	config: SingleStoreVarbinaryOptions,
-): SingleStoreVarBinaryBuilderInitial<TName>;
+): SingleStoreVarBinaryBuilder;
 export function varbinary(a?: string | SingleStoreVarbinaryOptions, b?: SingleStoreVarbinaryOptions) {
 	const { name, config } = getColumnNameAndConfig<SingleStoreVarbinaryOptions>(a, b);
 	return new SingleStoreVarBinaryBuilder(name, config);

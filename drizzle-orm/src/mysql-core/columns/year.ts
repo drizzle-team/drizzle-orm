@@ -1,21 +1,18 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
-export type MySqlYearBuilderInitial<TName extends string> = MySqlYearBuilder<{
-	name: TName;
+export class MySqlYearBuilder extends MySqlColumnBuilder<{
+	name: string;
 	dataType: 'number';
 	data: number;
 	driverParam: number;
 	enumValues: undefined;
-}>;
-
-export class MySqlYearBuilder<T extends ColumnBuilderBaseConfig<'number'>> extends MySqlColumnBuilder<T> {
+}> {
 	static override readonly [entityKind]: string = 'MySqlYearBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'number', 'MySqlYear');
 	}
 
@@ -35,8 +32,6 @@ export class MySqlYear<
 	}
 }
 
-export function year(): MySqlYearBuilderInitial<''>;
-export function year<TName extends string>(name: TName): MySqlYearBuilderInitial<TName>;
-export function year(name?: string) {
+export function year(name?: string): MySqlYearBuilder {
 	return new MySqlYearBuilder(name ?? '');
 }

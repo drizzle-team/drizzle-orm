@@ -161,7 +161,7 @@ Expect<
 	Equal<
 		SQLiteViewWithSelection<'new_yorkers', false, {
 			userId: SQLiteColumn<{
-				name: 'id';
+				name: string;
 				dataType: 'number';
 				data: number;
 				driverParam: number;
@@ -177,7 +177,7 @@ Expect<
 				isPrimaryKey: true;
 			}>;
 			cityId: SQLiteColumn<{
-				name: 'id';
+				name: string;
 				dataType: 'number';
 				data: number;
 				driverParam: number;
@@ -212,7 +212,7 @@ Expect<
 		Equal<
 			SQLiteViewWithSelection<'new_yorkers', false, {
 				userId: SQLiteColumn<{
-					name: 'user_id';
+					name: string;
 					dataType: 'number';
 					data: number;
 					driverParam: number;
@@ -228,7 +228,7 @@ Expect<
 					isPrimaryKey: false;
 				}>;
 				cityId: SQLiteColumn<{
-					name: 'city_id';
+					name: string;
 					notNull: false;
 					hasDefault: false;
 					dataType: 'number';
@@ -259,7 +259,7 @@ Expect<
 		Equal<
 			SQLiteViewWithSelection<'new_yorkers', true, {
 				userId: SQLiteColumn<{
-					name: 'user_id';
+					name: string;
 					dataType: 'number';
 					data: number;
 					driverParam: number;
@@ -275,7 +275,7 @@ Expect<
 					isPrimaryKey: false;
 				}>;
 				cityId: SQLiteColumn<{
-					name: 'city_id';
+					name: string;
 					notNull: false;
 					hasDefault: false;
 					dataType: 'number';
@@ -552,8 +552,8 @@ Expect<
 		name: text(),
 	});
 
-	Expect<Equal<typeof keysAsColumnNames['id']['_']['name'], 'id'>>;
-	Expect<Equal<typeof keysAsColumnNames['name']['_']['name'], 'name'>>;
+	Expect<Equal<typeof keysAsColumnNames['id']['_']['name'], string>>;
+	Expect<Equal<typeof keysAsColumnNames['name']['_']['name'], string>>;
 }
 
 {

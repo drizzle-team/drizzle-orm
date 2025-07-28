@@ -1,25 +1,20 @@
 import type { DateDuration } from 'gel';
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { GelTable } from '~/gel-core/table.ts';
 import { GelColumn, GelColumnBuilder } from './common.ts';
 
-export type GelDateDurationBuilderInitial<TName extends string> = GelDateDurationBuilder<{
-	name: TName;
+export class GelDateDurationBuilder extends GelColumnBuilder<{
+	name: string;
 	dataType: 'dateDuration';
 	data: DateDuration;
 	driverParam: DateDuration;
 	enumValues: undefined;
-}>;
-
-export class GelDateDurationBuilder<T extends ColumnBuilderBaseConfig<'dateDuration'>>
-	extends GelColumnBuilder<T>
-{
+}> {
 	static override readonly [entityKind]: string = 'GelDateDurationBuilder';
 
 	constructor(
-		name: T['name'],
+		name: string,
 	) {
 		super(name, 'dateDuration', 'GelDateDuration');
 	}
@@ -41,8 +36,6 @@ export class GelDateDuration<T extends ColumnBaseConfig<'dateDuration'>> extends
 	}
 }
 
-export function dateDuration(): GelDateDurationBuilderInitial<''>;
-export function dateDuration<TName extends string>(name: TName): GelDateDurationBuilderInitial<TName>;
-export function dateDuration(name?: string) {
+export function dateDuration(name?: string): GelDateDurationBuilder {
 	return new GelDateDurationBuilder(name ?? '');
 }

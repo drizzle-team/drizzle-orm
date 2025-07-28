@@ -39,7 +39,7 @@ export abstract class PgColumnBuilder<
 
 	array<TSize extends number | undefined = undefined>(size?: TSize): PgArrayBuilder<
 		& {
-			name: T['name'];
+			name: string;
 			dataType: 'array';
 			data: T['data'][];
 			driverParam: T['driverParam'][] | string;

@@ -1,29 +1,24 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable, PgTable } from '~/pg-core/table.ts';
+import type { PgTable } from '~/pg-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn } from './common.ts';
 import { PgDateColumnBaseBuilder } from './date.common.ts';
 
-export type PgTimestampBuilderInitial<TName extends string> = PgTimestampBuilder<{
-	name: TName;
-	dataType: 'date';
-	data: Date;
-	driverParam: string;
-	enumValues: undefined;
-}>;
-
-export class PgTimestampBuilder<T extends ColumnBuilderBaseConfig<'date'>>
-	extends PgDateColumnBaseBuilder<
-		T,
-		{ withTimezone: boolean; precision: number | undefined }
-	>
-{
+export class PgTimestampBuilder extends PgDateColumnBaseBuilder<
+	{
+		name: string;
+		dataType: 'date';
+		data: Date;
+		driverParam: string;
+		enumValues: undefined;
+	},
+	{ withTimezone: boolean; precision: number | undefined }
+> {
 	static override readonly [entityKind]: string = 'PgTimestampBuilder';
 
 	constructor(
-		name: T['name'],
+		name: string,
 		withTimezone: boolean,
 		precision: number | undefined,
 	) {
@@ -33,7 +28,7 @@ export class PgTimestampBuilder<T extends ColumnBuilderBaseConfig<'date'>>
 	}
 
 	/** @internal */
-	override build(table: PgTable) {
+	override build(table: PgTable<any>) {
 		return new PgTimestamp(table, this.config as any);
 	}
 }
@@ -44,7 +39,7 @@ export class PgTimestamp<T extends ColumnBaseConfig<'date'>> extends PgColumn<T>
 	readonly withTimezone: boolean;
 	readonly precision: number | undefined;
 
-	constructor(table: AnyPgTable<{ name: T['tableName'] }>, config: PgTimestampBuilder<T>['config']) {
+	constructor(table: PgTable<any>, config: PgTimestampBuilder['config']) {
 		super(table, config);
 		this.withTimezone = config.withTimezone;
 		this.precision = config.precision;
@@ -64,24 +59,20 @@ export class PgTimestamp<T extends ColumnBaseConfig<'date'>> extends PgColumn<T>
 	};
 }
 
-export type PgTimestampStringBuilderInitial<TName extends string> = PgTimestampStringBuilder<{
-	name: TName;
-	dataType: 'string';
-	data: string;
-	driverParam: string;
-	enumValues: undefined;
-}>;
-
-export class PgTimestampStringBuilder<T extends ColumnBuilderBaseConfig<'string'>>
-	extends PgDateColumnBaseBuilder<
-		T,
-		{ withTimezone: boolean; precision: number | undefined }
-	>
-{
+export class PgTimestampStringBuilder extends PgDateColumnBaseBuilder<
+	{
+		name: string;
+		dataType: 'string';
+		data: string;
+		driverParam: string;
+		enumValues: undefined;
+	},
+	{ withTimezone: boolean; precision: number | undefined }
+> {
 	static override readonly [entityKind]: string = 'PgTimestampStringBuilder';
 
 	constructor(
-		name: T['name'],
+		name: string,
 		withTimezone: boolean,
 		precision: number | undefined,
 	) {
@@ -91,7 +82,7 @@ export class PgTimestampStringBuilder<T extends ColumnBuilderBaseConfig<'string'
 	}
 
 	/** @internal */
-	override build(table: PgTable) {
+	override build(table: PgTable<any>) {
 		return new PgTimestampString(
 			table,
 			this.config as any,
@@ -105,7 +96,7 @@ export class PgTimestampString<T extends ColumnBaseConfig<'string'>> extends PgC
 	readonly withTimezone: boolean;
 	readonly precision: number | undefined;
 
-	constructor(table: AnyPgTable<{ name: T['tableName'] }>, config: PgTimestampStringBuilder<T>['config']) {
+	constructor(table: PgTable<any>, config: PgTimestampStringBuilder['config']) {
 		super(table, config);
 		this.withTimezone = config.withTimezone;
 		this.precision = config.precision;
@@ -125,14 +116,13 @@ export interface PgTimestampConfig<TMode extends 'date' | 'string' = 'date' | 's
 	withTimezone?: boolean;
 }
 
-export function timestamp(): PgTimestampBuilderInitial<''>;
 export function timestamp<TMode extends PgTimestampConfig['mode'] & {}>(
 	config?: PgTimestampConfig<TMode>,
-): Equal<TMode, 'string'> extends true ? PgTimestampStringBuilderInitial<''> : PgTimestampBuilderInitial<''>;
-export function timestamp<TName extends string, TMode extends PgTimestampConfig['mode'] & {}>(
-	name: TName,
+): Equal<TMode, 'string'> extends true ? PgTimestampStringBuilder : PgTimestampBuilder;
+export function timestamp<TMode extends PgTimestampConfig['mode'] & {}>(
+	name: string,
 	config?: PgTimestampConfig<TMode>,
-): Equal<TMode, 'string'> extends true ? PgTimestampStringBuilderInitial<TName> : PgTimestampBuilderInitial<TName>;
+): Equal<TMode, 'string'> extends true ? PgTimestampStringBuilder : PgTimestampBuilder;
 export function timestamp(a?: string | PgTimestampConfig, b: PgTimestampConfig = {}) {
 	const { name, config } = getColumnNameAndConfig<PgTimestampConfig | undefined>(a, b);
 	if (config?.mode === 'string') {

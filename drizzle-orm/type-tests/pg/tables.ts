@@ -220,7 +220,7 @@ Expect<
 		PgViewWithSelection<'new_yorkers', false, {
 			userId: PgColumn<{
 				tableName: 'new_yorkers';
-				name: 'id';
+				name: string;
 				dataType: 'number';
 				data: number;
 				driverParam: number;
@@ -236,7 +236,7 @@ Expect<
 			}>;
 			cityId: PgColumn<{
 				tableName: 'new_yorkers';
-				name: 'id';
+				name: string;
 				dataType: 'number';
 				data: number;
 				driverParam: number;
@@ -279,7 +279,7 @@ Expect<
 			PgViewWithSelection<'new_yorkers', false, {
 				userId: PgColumn<{
 					tableName: 'new_yorkers';
-					name: 'id';
+					name: string;
 					dataType: 'number';
 					data: number;
 					driverParam: number;
@@ -295,7 +295,7 @@ Expect<
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
-					name: 'id';
+					name: string;
 					dataType: 'number';
 					data: number;
 					driverParam: number;
@@ -336,7 +336,7 @@ Expect<
 			PgViewWithSelection<'new_yorkers', false, {
 				userId: PgColumn<{
 					tableName: 'new_yorkers';
-					name: 'user_id';
+					name: string;
 					dataType: 'number';
 					data: number;
 					driverParam: string | number;
@@ -352,7 +352,7 @@ Expect<
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
-					name: 'city_id';
+					name: string;
 					dataType: 'number';
 					notNull: false;
 					hasDefault: false;
@@ -393,7 +393,7 @@ Expect<
 			PgViewWithSelection<'new_yorkers', false, {
 				userId: PgColumn<{
 					tableName: 'new_yorkers';
-					name: 'user_id';
+					name: string;
 					dataType: 'number';
 					data: number;
 					driverParam: string | number;
@@ -409,7 +409,7 @@ Expect<
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
-					name: 'city_id';
+					name: string;
 					dataType: 'number';
 					notNull: false;
 					hasDefault: false;
@@ -440,7 +440,7 @@ Expect<
 			PgViewWithSelection<'new_yorkers', true, {
 				userId: PgColumn<{
 					tableName: 'new_yorkers';
-					name: 'user_id';
+					name: string;
 					dataType: 'number';
 					data: number;
 					driverParam: string | number;
@@ -456,7 +456,7 @@ Expect<
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
-					name: 'city_id';
+					name: string;
 					dataType: 'number';
 					notNull: false;
 					hasDefault: false;
@@ -487,7 +487,7 @@ Expect<
 			PgViewWithSelection<'new_yorkers', true, {
 				userId: PgColumn<{
 					tableName: 'new_yorkers';
-					name: 'user_id';
+					name: string;
 					dataType: 'number';
 					data: number;
 					driverParam: string | number;
@@ -503,7 +503,7 @@ Expect<
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
-					name: 'city_id';
+					name: string;
 					dataType: 'number';
 					notNull: false;
 					hasDefault: false;
@@ -549,7 +549,7 @@ Expect<
 		PgMaterializedViewWithSelection<'new_yorkers', false, {
 			userId: PgColumn<{
 				tableName: 'new_yorkers';
-				name: 'id';
+				name: string;
 				dataType: 'number';
 				data: number;
 				driverParam: number;
@@ -565,7 +565,7 @@ Expect<
 			}>;
 			cityId: PgColumn<{
 				tableName: 'new_yorkers';
-				name: 'id';
+				name: string;
 				dataType: 'number';
 				data: number;
 				driverParam: number;
@@ -611,7 +611,7 @@ Expect<
 			PgMaterializedViewWithSelection<'new_yorkers', false, {
 				userId: PgColumn<{
 					tableName: 'new_yorkers';
-					name: 'id';
+					name: string;
 					dataType: 'number';
 					data: number;
 					driverParam: number;
@@ -627,7 +627,7 @@ Expect<
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
-					name: 'id';
+					name: string;
 					dataType: 'number';
 					data: number;
 					driverParam: number;
@@ -671,7 +671,7 @@ Expect<
 			PgMaterializedViewWithSelection<'new_yorkers', false, {
 				userId: PgColumn<{
 					tableName: 'new_yorkers';
-					name: 'user_id';
+					name: string;
 					dataType: 'number';
 					data: number;
 					driverParam: string | number;
@@ -687,7 +687,7 @@ Expect<
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
-					name: 'city_id';
+					name: string;
 					dataType: 'number';
 					notNull: false;
 					hasDefault: false;
@@ -731,7 +731,7 @@ Expect<
 			PgMaterializedViewWithSelection<'new_yorkers', false, {
 				userId: PgColumn<{
 					tableName: 'new_yorkers';
-					name: 'user_id';
+					name: string;
 					dataType: 'number';
 					data: number;
 					driverParam: string | number;
@@ -747,7 +747,7 @@ Expect<
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
-					name: 'city_id';
+					name: string;
 					dataType: 'number';
 					notNull: false;
 					hasDefault: false;
@@ -778,7 +778,7 @@ Expect<
 			PgMaterializedViewWithSelection<'new_yorkers', true, {
 				userId: PgColumn<{
 					tableName: 'new_yorkers';
-					name: 'user_id';
+					name: string;
 					dataType: 'number';
 					data: number;
 					driverParam: string | number;
@@ -794,7 +794,7 @@ Expect<
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
-					name: 'city_id';
+					name: string;
 					dataType: 'number';
 					notNull: false;
 					hasDefault: false;
@@ -825,7 +825,7 @@ Expect<
 			PgMaterializedViewWithSelection<'new_yorkers', true, {
 				userId: PgColumn<{
 					tableName: 'new_yorkers';
-					name: 'user_id';
+					name: string;
 					dataType: 'number';
 					data: number;
 					driverParam: string | number;
@@ -841,7 +841,7 @@ Expect<
 				}>;
 				cityId: PgColumn<{
 					tableName: 'new_yorkers';
-					name: 'city_id';
+					name: string;
 					dataType: 'number';
 					notNull: false;
 					hasDefault: false;
@@ -956,7 +956,7 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 		columns: {
 			id: PgColumn<{
 				tableName: 'cities_table';
-				name: 'id';
+				name: string;
 				dataType: 'number';
 				data: number;
 				driverParam: number;
@@ -972,7 +972,7 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 			}>;
 			name: PgColumn<{
 				tableName: 'cities_table';
-				name: 'name';
+				name: string;
 				dataType: 'string';
 				data: string;
 				driverParam: string;
@@ -988,7 +988,7 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 			}>;
 			role: PgColumn<{
 				tableName: 'cities_table';
-				name: 'role';
+				name: string;
 				dataType: 'string';
 				data: 'admin' | 'user';
 				driverParam: string;
@@ -1004,7 +1004,7 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 			}>;
 			population: PgColumn<{
 				tableName: 'cities_table';
-				name: 'population';
+				name: string;
 				dataType: 'number';
 				data: number;
 				driverParam: string | number;
@@ -1313,8 +1313,8 @@ await db.refreshMaterializedView(newYorkers2).withNoData().concurrently();
 		name: text(),
 	});
 
-	Expect<Equal<typeof keysAsColumnNames['id']['_']['name'], 'id'>>;
-	Expect<Equal<typeof keysAsColumnNames['name']['_']['name'], 'name'>>;
+	Expect<Equal<typeof keysAsColumnNames['id']['_']['name'], string>>;
+	Expect<Equal<typeof keysAsColumnNames['name']['_']['name'], string>>;
 }
 
 {

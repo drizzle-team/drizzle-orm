@@ -1,22 +1,19 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMySqlTable, MySqlTable } from '~/mysql-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
-export type MySqlDateBuilderInitial<TName extends string> = MySqlDateBuilder<{
-	name: TName;
+export class MySqlDateBuilder extends MySqlColumnBuilder<{
+	name: string;
 	dataType: 'date';
 	data: Date;
 	driverParam: string | number;
 	enumValues: undefined;
-}>;
-
-export class MySqlDateBuilder<T extends ColumnBuilderBaseConfig<'date'>> extends MySqlColumnBuilder<T> {
+}> {
 	static override readonly [entityKind]: string = 'MySqlDateBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'date', 'MySqlDate');
 	}
 
@@ -31,7 +28,7 @@ export class MySqlDate<T extends ColumnBaseConfig<'date'>> extends MySqlColumn<T
 
 	constructor(
 		table: AnyMySqlTable<{ name: T['tableName'] }>,
-		config: MySqlDateBuilder<T>['config'],
+		config: MySqlDateBuilder['config'],
 	) {
 		super(table, config);
 	}
@@ -45,20 +42,16 @@ export class MySqlDate<T extends ColumnBaseConfig<'date'>> extends MySqlColumn<T
 	}
 }
 
-export type MySqlDateStringBuilderInitial<TName extends string> = MySqlDateStringBuilder<{
-	name: TName;
+export class MySqlDateStringBuilder extends MySqlColumnBuilder<{
+	name: string;
 	dataType: 'string';
 	data: string;
 	driverParam: string | number;
 	enumValues: undefined;
-}>;
-
-export class MySqlDateStringBuilder<T extends ColumnBuilderBaseConfig<'string'>>
-	extends MySqlColumnBuilder<T>
-{
+}> {
 	static override readonly [entityKind]: string = 'MySqlDateStringBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'string', 'MySqlDateString');
 	}
 
@@ -76,7 +69,7 @@ export class MySqlDateString<T extends ColumnBaseConfig<'string'>> extends MySql
 
 	constructor(
 		table: AnyMySqlTable<{ name: T['tableName'] }>,
-		config: MySqlDateStringBuilder<T>['config'],
+		config: MySqlDateStringBuilder['config'],
 	) {
 		super(table, config);
 	}
@@ -90,14 +83,13 @@ export interface MySqlDateConfig<TMode extends 'date' | 'string' = 'date' | 'str
 	mode?: TMode;
 }
 
-export function date(): MySqlDateBuilderInitial<''>;
 export function date<TMode extends MySqlDateConfig['mode'] & {}>(
 	config?: MySqlDateConfig<TMode>,
-): Equal<TMode, 'string'> extends true ? MySqlDateStringBuilderInitial<''> : MySqlDateBuilderInitial<''>;
-export function date<TName extends string, TMode extends MySqlDateConfig['mode'] & {}>(
-	name: TName,
+): Equal<TMode, 'string'> extends true ? MySqlDateStringBuilder : MySqlDateBuilder;
+export function date<TMode extends MySqlDateConfig['mode'] & {}>(
+	name: string,
 	config?: MySqlDateConfig<TMode>,
-): Equal<TMode, 'string'> extends true ? MySqlDateStringBuilderInitial<TName> : MySqlDateBuilderInitial<TName>;
+): Equal<TMode, 'string'> extends true ? MySqlDateStringBuilder : MySqlDateBuilder;
 export function date(a?: string | MySqlDateConfig, b?: MySqlDateConfig) {
 	const { name, config } = getColumnNameAndConfig<MySqlDateConfig | undefined>(a, b);
 	if (config?.mode === 'string') {

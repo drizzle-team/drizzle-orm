@@ -1,10 +1,10 @@
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type {  PgTable } from '../table.ts';
+import type { PgTable } from '../table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export class PgByteaBuilder<TName extends string> extends PgColumnBuilder<{
-	name: TName;
+export class PgByteaBuilder extends PgColumnBuilder<{
+	name: string;
 	dataType: 'buffer';
 	data: Buffer;
 	driverParam: Buffer;
@@ -17,7 +17,7 @@ export class PgByteaBuilder<TName extends string> extends PgColumnBuilder<{
 	}
 
 	/** @internal */
-	override build(table: PgTable) {
+	override build(table: PgTable<any>) {
 		return new PgBytea(table, this.config as any);
 	}
 }
@@ -42,8 +42,6 @@ export class PgBytea extends PgColumn<ColumnBaseConfig<'buffer'>> {
 	}
 }
 
-export function bytea(): PgByteaBuilder<''>;
-export function bytea<TName extends string>(name: TName): PgByteaBuilder<TName>;
-export function bytea(name?: string) {
+export function bytea(name?: string): PgByteaBuilder {
 	return new PgByteaBuilder(name ?? '');
 }

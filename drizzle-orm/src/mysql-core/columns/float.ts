@@ -1,24 +1,19 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 
-export type MySqlFloatBuilderInitial<TName extends string> = MySqlFloatBuilder<{
-	name: TName;
+export class MySqlFloatBuilder extends MySqlColumnBuilderWithAutoIncrement<{
+	name: string;
 	dataType: 'number';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
-}>;
-
-export class MySqlFloatBuilder<T extends ColumnBuilderBaseConfig<'number'>>
-	extends MySqlColumnBuilderWithAutoIncrement<T, MySqlFloatConfig>
-{
+}, MySqlFloatConfig> {
 	static override readonly [entityKind]: string = 'MySqlFloatBuilder';
 
-	constructor(name: T['name'], config: MySqlFloatConfig | undefined) {
+	constructor(name: string, config: MySqlFloatConfig | undefined) {
 		super(name, 'number', 'MySqlFloat');
 		this.config.precision = config?.precision;
 		this.config.scale = config?.scale;
@@ -68,14 +63,13 @@ export interface MySqlFloatConfig {
 	unsigned?: boolean;
 }
 
-export function float(): MySqlFloatBuilderInitial<''>;
 export function float(
 	config?: MySqlFloatConfig,
-): MySqlFloatBuilderInitial<''>;
-export function float<TName extends string>(
-	name: TName,
+): MySqlFloatBuilder;
+export function float(
+	name: string,
 	config?: MySqlFloatConfig,
-): MySqlFloatBuilderInitial<TName>;
+): MySqlFloatBuilder;
 export function float(a?: string | MySqlFloatConfig, b?: MySqlFloatConfig) {
 	const { name, config } = getColumnNameAndConfig<MySqlFloatConfig>(a, b);
 	return new MySqlFloatBuilder(name, config);

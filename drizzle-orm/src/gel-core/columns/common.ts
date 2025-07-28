@@ -40,7 +40,7 @@ export abstract class GelColumnBuilder<
 
 	array<TSize extends number | undefined = undefined>(size?: TSize): GelArrayBuilder<
 		& {
-			name: T['name'];
+			name: string;
 			dataType: 'array';
 			data: T['data'][];
 			driverParam: T['driverParam'][] | string;

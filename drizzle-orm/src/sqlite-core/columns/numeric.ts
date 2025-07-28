@@ -1,24 +1,19 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
-export type SQLiteNumericBuilderInitial<TName extends string> = SQLiteNumericBuilder<{
-	name: TName;
+export class SQLiteNumericBuilder extends SQLiteColumnBuilder<{
+	name: string;
 	dataType: 'string';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
-}>;
-
-export class SQLiteNumericBuilder<T extends ColumnBuilderBaseConfig<'string'>>
-	extends SQLiteColumnBuilder<T>
-{
+}> {
 	static override readonly [entityKind]: string = 'SQLiteNumericBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'string', 'SQLiteNumeric');
 	}
 
@@ -44,21 +39,16 @@ export class SQLiteNumeric<T extends ColumnBaseConfig<'string'>> extends SQLiteC
 		return 'numeric';
 	}
 }
-
-export type SQLiteNumericNumberBuilderInitial<TName extends string> = SQLiteNumericNumberBuilder<{
-	name: TName;
+export class SQLiteNumericNumberBuilder extends SQLiteColumnBuilder<{
+	name: string;
 	dataType: 'number';
 	data: number;
 	driverParam: string;
 	enumValues: undefined;
-}>;
-
-export class SQLiteNumericNumberBuilder<T extends ColumnBuilderBaseConfig<'number'>>
-	extends SQLiteColumnBuilder<T>
-{
+}> {
 	static override readonly [entityKind]: string = 'SQLiteNumericNumberBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'number', 'SQLiteNumericNumber');
 	}
 
@@ -87,20 +77,16 @@ export class SQLiteNumericNumber<T extends ColumnBaseConfig<'number'>> extends S
 	}
 }
 
-export type SQLiteNumericBigIntBuilderInitial<TName extends string> = SQLiteNumericBigIntBuilder<{
-	name: TName;
+export class SQLiteNumericBigIntBuilder extends SQLiteColumnBuilder<{
+	name: string;
 	dataType: 'bigint';
 	data: bigint;
 	driverParam: string;
 	enumValues: undefined;
-}>;
-
-export class SQLiteNumericBigIntBuilder<T extends ColumnBuilderBaseConfig<'bigint'>>
-	extends SQLiteColumnBuilder<T>
-{
+}> {
 	static override readonly [entityKind]: string = 'SQLiteNumericBigIntBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'bigint', 'SQLiteNumericBigInt');
 	}
 
@@ -131,15 +117,15 @@ export type SQLiteNumericConfig<T extends 'string' | 'number' | 'bigint' = 'stri
 
 export function numeric<TMode extends SQLiteNumericConfig['mode']>(
 	config?: SQLiteNumericConfig<TMode>,
-): Equal<TMode, 'number'> extends true ? SQLiteNumericNumberBuilderInitial<''>
-	: Equal<TMode, 'bigint'> extends true ? SQLiteNumericBigIntBuilderInitial<''>
-	: SQLiteNumericBuilderInitial<''>;
-export function numeric<TName extends string, TMode extends SQLiteNumericConfig['mode']>(
-	name: TName,
+): Equal<TMode, 'number'> extends true ? SQLiteNumericNumberBuilder
+	: Equal<TMode, 'bigint'> extends true ? SQLiteNumericBigIntBuilder
+	: SQLiteNumericBuilder;
+export function numeric<TMode extends SQLiteNumericConfig['mode']>(
+	name: string,
 	config?: SQLiteNumericConfig<TMode>,
-): Equal<TMode, 'number'> extends true ? SQLiteNumericNumberBuilderInitial<TName>
-	: Equal<TMode, 'bigint'> extends true ? SQLiteNumericBigIntBuilderInitial<TName>
-	: SQLiteNumericBuilderInitial<TName>;
+): Equal<TMode, 'number'> extends true ? SQLiteNumericNumberBuilder
+	: Equal<TMode, 'bigint'> extends true ? SQLiteNumericBigIntBuilder
+	: SQLiteNumericBuilder;
 export function numeric(a?: string | SQLiteNumericConfig, b?: SQLiteNumericConfig) {
 	const { name, config } = getColumnNameAndConfig<SQLiteNumericConfig>(a, b);
 	const mode = config?.mode;

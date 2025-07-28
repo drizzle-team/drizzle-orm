@@ -24,7 +24,7 @@ export abstract class MySqlDateColumnBaseBuilder<
 		return this.default(sql`(now())`);
 	}
 
-	// "on update now" also adds an implicit default value to the column - https://dev.mysql.com/doc/refman/8.0/en/timestamp-initialization.html
+	// "on update now" also adds an implicit default value to the column - https://dev.mysql.com/doc/refman/8.0/en/timestamp-ization.html
 	onUpdateNow(): HasDefault<this> {
 		this.config.hasOnUpdateNow = true;
 		this.config.hasDefault = true;

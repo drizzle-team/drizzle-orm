@@ -1,5 +1,4 @@
 import Docker from 'dockerode';
-import type { InferSelectModel } from 'drizzle-orm';
 import { eq, sql } from 'drizzle-orm';
 import { relations } from 'drizzle-orm/_relations';
 import type { NeonHttpQueryResult } from 'drizzle-orm/neon-http';
@@ -593,8 +592,18 @@ export function tests() {
 
 			await db.insert(usersTable).values([{ id: 1, name: 'John' }, { id: 2, name: 'Dan' }]);
 			const batchResponse = await db.batch([
-				db.execute<InferSelectModel<typeof usersTable, { dbColumnNames: true }>>(sql`select * from users`),
-				db.execute<InferSelectModel<typeof usersTable, { dbColumnNames: true }>>(sql`select * from users where id = 1`),
+				db.execute<{
+					id: number;
+					name: string;
+					verified: number;
+					invited_by: number | null;
+				}>(sql`select * from users`),
+				db.execute<{
+					id: number;
+					name: string;
+					verified: number;
+					invited_by: number | null;
+				}>(sql`select * from users where id = 1`),
 			]);
 
 			expectTypeOf(batchResponse).toEqualTypeOf<[

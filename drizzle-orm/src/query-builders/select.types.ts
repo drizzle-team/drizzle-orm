@@ -79,7 +79,7 @@ export type MapColumnsToTableAlias<
 > =
 	& {
 		[Key in keyof TColumns]: TColumns[Key] extends Column
-			? ChangeColumnTableName<Assume<TColumns[Key], Column>, TAlias, TDialect, Key & string>
+			? ChangeColumnTableName<Assume<TColumns[Key], Column>, TAlias, TDialect>
 			: TColumns[Key];
 	}
 	& {};
@@ -92,7 +92,7 @@ export type AddAliasToSelection<
 	IsAny<TSelection> extends true ? any
 		: {
 			[Key in keyof TSelection]: TSelection[Key] extends Column
-				? ChangeColumnTableName<TSelection[Key], TAlias, TDialect, Key & string>
+				? ChangeColumnTableName<TSelection[Key], TAlias, TDialect>
 				: TSelection[Key] extends Table ? AddAliasToSelection<TSelection[Key]['_']['columns'], TAlias, TDialect>
 				: TSelection[Key] extends SQL | SQL.Aliased ? TSelection[Key]
 				: TSelection[Key] extends ColumnsSelection ? MapColumnsToTableAlias<TSelection[Key], TAlias, TDialect>

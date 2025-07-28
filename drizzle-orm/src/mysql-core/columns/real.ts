@@ -1,27 +1,22 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 
-export type MySqlRealBuilderInitial<TName extends string> = MySqlRealBuilder<{
-	name: TName;
-	dataType: 'number';
-	data: number;
-	driverParam: number | string;
-	enumValues: undefined;
-}>;
-
-export class MySqlRealBuilder<T extends ColumnBuilderBaseConfig<'number'>>
-	extends MySqlColumnBuilderWithAutoIncrement<
-		T,
-		MySqlRealConfig
-	>
-{
+export class MySqlRealBuilder extends MySqlColumnBuilderWithAutoIncrement<
+	{
+		name: string;
+		dataType: 'number';
+		data: number;
+		driverParam: number | string;
+		enumValues: undefined;
+	},
+	MySqlRealConfig
+> {
 	static override readonly [entityKind]: string = 'MySqlRealBuilder';
 
-	constructor(name: T['name'], config: MySqlRealConfig | undefined) {
+	constructor(name: string, config: MySqlRealConfig | undefined) {
 		super(name, 'number', 'MySqlReal');
 		this.config.precision = config?.precision;
 		this.config.scale = config?.scale;
@@ -58,14 +53,13 @@ export interface MySqlRealConfig {
 	scale?: number;
 }
 
-export function real(): MySqlRealBuilderInitial<''>;
 export function real(
 	config?: MySqlRealConfig,
-): MySqlRealBuilderInitial<''>;
-export function real<TName extends string>(
-	name: TName,
+): MySqlRealBuilder;
+export function real(
+	name: string,
 	config?: MySqlRealConfig,
-): MySqlRealBuilderInitial<TName>;
+): MySqlRealBuilder;
 export function real(a?: string | MySqlRealConfig, b: MySqlRealConfig = {}) {
 	const { name, config } = getColumnNameAndConfig<MySqlRealConfig>(a, b);
 	return new MySqlRealBuilder(name, config);

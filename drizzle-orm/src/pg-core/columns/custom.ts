@@ -1,14 +1,14 @@
 import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable, PgTable } from '~/pg-core/table.ts';
+import type { PgTable } from '~/pg-core/table.ts';
 import type { SQL, SQLGenerator } from '~/sql/sql.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export type ConvertCustomConfig<TName extends string, T extends Partial<CustomTypeValues>> =
+export type ConvertCustomConfig<T extends Partial<CustomTypeValues>> =
 	& {
-		name: TName;
+		name: string;
 		dataType: 'custom';
 		data: T['data'];
 		driverParam: T['driverData'];
@@ -21,19 +21,17 @@ export interface PgCustomColumnInnerConfig {
 	customTypeValues: CustomTypeValues;
 }
 
-export class PgCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom'>>
-	extends PgColumnBuilder<
-		T,
-		{
-			fieldConfig: CustomTypeValues['config'];
-			customTypeParams: CustomTypeParams<any>;
-		}
-	>
-{
+export class PgCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom'>> extends PgColumnBuilder<
+	T,
+	{
+		fieldConfig: CustomTypeValues['config'];
+		customTypeParams: CustomTypeParams<any>;
+	}
+> {
 	static override readonly [entityKind]: string = 'PgCustomColumnBuilder';
 
 	constructor(
-		name: T['name'],
+		name: string,
 		fieldConfig: CustomTypeValues['config'],
 		customTypeParams: CustomTypeParams<any>,
 	) {
@@ -43,7 +41,7 @@ export class PgCustomColumnBuilder<T extends ColumnBuilderBaseConfig<'custom'>>
 	}
 
 	/** @internal */
-	override build(table: PgTable) {
+	override build(table: PgTable<any>) {
 		return new PgCustomColumn(
 			table,
 			this.config as any,
@@ -61,7 +59,7 @@ export class PgCustomColumn<T extends ColumnBaseConfig<'custom'>> extends PgColu
 	private forJsonSelect?: (identifier: SQL, sql: SQLGenerator, arrayDimensions?: number) => SQL;
 
 	constructor(
-		table: AnyPgTable<{ name: T['tableName'] }>,
+		table: PgTable<any>,
 		config: PgCustomColumnBuilder<T>['config'],
 	) {
 		super(table, config);
@@ -343,28 +341,27 @@ export function customType<T extends CustomTypeValues = CustomTypeValues>(
 ): Equal<T['configRequired'], true> extends true ? {
 		<TConfig extends Record<string, any> & T['config']>(
 			fieldConfig: TConfig,
-		): PgCustomColumnBuilder<ConvertCustomConfig<'', T>>;
-		<TName extends string>(
-			dbName: TName,
+		): PgCustomColumnBuilder<ConvertCustomConfig<T>>;
+		(
+			dbName: string,
 			fieldConfig: T['config'],
-		): PgCustomColumnBuilder<ConvertCustomConfig<TName, T>>;
+		): PgCustomColumnBuilder<ConvertCustomConfig<T>>;
 	}
 	: {
-		(): PgCustomColumnBuilder<ConvertCustomConfig<'', T>>;
 		<TConfig extends Record<string, any> & T['config']>(
 			fieldConfig?: TConfig,
-		): PgCustomColumnBuilder<ConvertCustomConfig<'', T>>;
-		<TName extends string>(
-			dbName: TName,
+		): PgCustomColumnBuilder<ConvertCustomConfig<T>>;
+		(
+			dbName: string,
 			fieldConfig?: T['config'],
-		): PgCustomColumnBuilder<ConvertCustomConfig<TName, T>>;
+		): PgCustomColumnBuilder<ConvertCustomConfig<T>>;
 	}
 {
-	return <TName extends string>(
-		a?: TName | T['config'],
+	return (
+		a?: string | T['config'],
 		b?: T['config'],
-	): PgCustomColumnBuilder<ConvertCustomConfig<TName, T>> => {
+	): PgCustomColumnBuilder<ConvertCustomConfig<T>> => {
 		const { name, config } = getColumnNameAndConfig<T['config']>(a, b);
-		return new PgCustomColumnBuilder(name as ConvertCustomConfig<TName, T>['name'], config, customTypeParams);
+		return new PgCustomColumnBuilder(name as ConvertCustomConfig<T>['name'], config, customTypeParams);
 	};
 }

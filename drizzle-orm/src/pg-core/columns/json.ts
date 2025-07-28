@@ -1,28 +1,25 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable, PgTable } from '~/pg-core/table.ts';
+import type { PgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export type PgJsonBuilderInitial<TName extends string> = PgJsonBuilder<{
-	name: TName;
-	dataType: 'json';
-	data: unknown;
-	driverParam: unknown;
-	enumValues: undefined;
-}>;
-
-export class PgJsonBuilder<T extends ColumnBuilderBaseConfig<'json'>> extends PgColumnBuilder<
-	T
+export class PgJsonBuilder extends PgColumnBuilder<
+	{
+		name: string;
+		dataType: 'json';
+		data: unknown;
+		driverParam: unknown;
+		enumValues: undefined;
+	}
 > {
 	static override readonly [entityKind]: string = 'PgJsonBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'json', 'PgJson');
 	}
 
 	/** @internal */
-	override build(table: PgTable) {
+	override build(table: PgTable<any>) {
 		return new PgJson(table, this.config as any);
 	}
 }
@@ -30,7 +27,7 @@ export class PgJsonBuilder<T extends ColumnBuilderBaseConfig<'json'>> extends Pg
 export class PgJson<T extends ColumnBaseConfig<'json'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgJson';
 
-	constructor(table: AnyPgTable<{ name: T['tableName'] }>, config: PgJsonBuilder<T>['config']) {
+	constructor(table: PgTable<any>, config: PgJsonBuilder['config']) {
 		super(table, config);
 	}
 
@@ -54,8 +51,6 @@ export class PgJson<T extends ColumnBaseConfig<'json'>> extends PgColumn<T> {
 	}
 }
 
-export function json(): PgJsonBuilderInitial<''>;
-export function json<TName extends string>(name: TName): PgJsonBuilderInitial<TName>;
-export function json(name?: string) {
+export function json(name?: string): PgJsonBuilder {
 	return new PgJsonBuilder(name ?? '');
 }

@@ -1,25 +1,20 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoIncrement } from './common.ts';
 
-export type SingleStoreFloatBuilderInitial<TName extends string> = SingleStoreFloatBuilder<{
-	name: TName;
+export class SingleStoreFloatBuilder extends SingleStoreColumnBuilderWithAutoIncrement<{
+	name: string;
 	dataType: 'number';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
 	generated: undefined;
-}>;
-
-export class SingleStoreFloatBuilder<T extends ColumnBuilderBaseConfig<'number'>>
-	extends SingleStoreColumnBuilderWithAutoIncrement<T, SingleStoreFloatConfig>
-{
+}, SingleStoreFloatConfig> {
 	static override readonly [entityKind]: string = 'SingleStoreFloatBuilder';
 
-	constructor(name: T['name'], config: SingleStoreFloatConfig | undefined) {
+	constructor(name: string, config: SingleStoreFloatConfig | undefined) {
 		super(name, 'number', 'SingleStoreFloat');
 		this.config.precision = config?.precision;
 		this.config.scale = config?.scale;
@@ -63,14 +58,13 @@ export interface SingleStoreFloatConfig {
 	unsigned?: boolean;
 }
 
-export function float(): SingleStoreFloatBuilderInitial<''>;
 export function float(
 	config?: SingleStoreFloatConfig,
-): SingleStoreFloatBuilderInitial<''>;
-export function float<TName extends string>(
-	name: TName,
+): SingleStoreFloatBuilder;
+export function float(
+	name: string,
 	config?: SingleStoreFloatConfig,
-): SingleStoreFloatBuilderInitial<TName>;
+): SingleStoreFloatBuilder;
 export function float(a?: string | SingleStoreFloatConfig, b?: SingleStoreFloatConfig) {
 	const { name, config } = getColumnNameAndConfig<SingleStoreFloatConfig>(a, b);
 	return new SingleStoreFloatBuilder(name, config);

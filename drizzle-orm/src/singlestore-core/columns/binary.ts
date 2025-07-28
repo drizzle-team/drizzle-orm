@@ -1,28 +1,23 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
-export type SingleStoreBinaryBuilderInitial<TName extends string> = SingleStoreBinaryBuilder<{
-	name: TName;
-	dataType: 'string';
-	data: string;
-	driverParam: string;
-	enumValues: undefined;
-	generated: undefined;
-}>;
-
-export class SingleStoreBinaryBuilder<T extends ColumnBuilderBaseConfig<'string'>>
-	extends SingleStoreColumnBuilder<
-		T,
-		SingleStoreBinaryConfig
-	>
-{
+export class SingleStoreBinaryBuilder extends SingleStoreColumnBuilder<
+	{
+		name: string;
+		dataType: 'string';
+		data: string;
+		driverParam: string;
+		enumValues: undefined;
+		generated: undefined;
+	},
+	SingleStoreBinaryConfig
+> {
 	static override readonly [entityKind]: string = 'SingleStoreBinaryBuilder';
 
-	constructor(name: T['name'], length: number | undefined) {
+	constructor(name: string, length: number | undefined) {
 		super(name, 'string', 'SingleStoreBinary');
 		this.config.length = length;
 	}
@@ -65,14 +60,13 @@ export interface SingleStoreBinaryConfig {
 	length?: number;
 }
 
-export function binary(): SingleStoreBinaryBuilderInitial<''>;
 export function binary(
 	config?: SingleStoreBinaryConfig,
-): SingleStoreBinaryBuilderInitial<''>;
-export function binary<TName extends string>(
-	name: TName,
+): SingleStoreBinaryBuilder;
+export function binary(
+	name: string,
 	config?: SingleStoreBinaryConfig,
-): SingleStoreBinaryBuilderInitial<TName>;
+): SingleStoreBinaryBuilder;
 export function binary(a?: string | SingleStoreBinaryConfig, b: SingleStoreBinaryConfig = {}) {
 	const { name, config } = getColumnNameAndConfig<SingleStoreBinaryConfig>(a, b);
 	return new SingleStoreBinaryBuilder(name, config.length);

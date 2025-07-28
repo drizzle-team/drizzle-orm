@@ -1,23 +1,18 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
-export type MySqlBooleanBuilderInitial<TName extends string> = MySqlBooleanBuilder<{
-	name: TName;
+export class MySqlBooleanBuilder extends MySqlColumnBuilder<{
+	name: string;
 	dataType: 'boolean';
 	data: boolean;
 	driverParam: number | boolean;
 	enumValues: undefined;
-}>;
-
-export class MySqlBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean'>>
-	extends MySqlColumnBuilder<T>
-{
+}> {
 	static override readonly [entityKind]: string = 'MySqlBooleanBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'boolean', 'MySqlBoolean');
 	}
 
@@ -45,8 +40,6 @@ export class MySqlBoolean<T extends ColumnBaseConfig<'boolean'>> extends MySqlCo
 	}
 }
 
-export function boolean(): MySqlBooleanBuilderInitial<''>;
-export function boolean<TName extends string>(name: TName): MySqlBooleanBuilderInitial<TName>;
-export function boolean(name?: string) {
+export function boolean(name?: string): MySqlBooleanBuilder {
 	return new MySqlBooleanBuilder(name ?? '');
 }

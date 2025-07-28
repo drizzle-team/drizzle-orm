@@ -1,4 +1,3 @@
-import type { ColumnBuilderBaseConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
@@ -6,23 +5,21 @@ import type { PgTable } from '~/pg-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export type PgLineBuilderInitial<TName extends string> = PgLineBuilder<{
-	name: TName;
+export class PgLineBuilder extends PgColumnBuilder<{
+	name: string;
 	dataType: 'array';
 	data: [number, number, number];
 	driverParam: number | string;
 	enumValues: undefined;
-}>;
-
-export class PgLineBuilder<T extends ColumnBuilderBaseConfig<'array'>> extends PgColumnBuilder<T> {
+}> {
 	static override readonly [entityKind]: string = 'PgLineBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'array', 'PgLine');
 	}
 
 	/** @internal */
-	override build(table: PgTable) {
+	override build(table: PgTable<any>) {
 		return new PgLineTuple(
 			table,
 			this.config as any,
@@ -47,23 +44,21 @@ export class PgLineTuple<T extends ColumnBaseConfig<'array'>> extends PgColumn<T
 	}
 }
 
-export type PgLineABCBuilderInitial<TName extends string> = PgLineABCBuilder<{
-	name: TName;
+export class PgLineABCBuilder extends PgColumnBuilder<{
+	name: string;
 	dataType: 'json';
 	data: { a: number; b: number; c: number };
 	driverParam: string;
 	enumValues: undefined;
-}>;
-
-export class PgLineABCBuilder<T extends ColumnBuilderBaseConfig<'json'>> extends PgColumnBuilder<T> {
+}> {
 	static override readonly [entityKind]: string = 'PgLineABCBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'json', 'PgLineABC');
 	}
 
 	/** @internal */
-	override build(table: PgTable) {
+	override build(table: PgTable<any>) {
 		return new PgLineABC(
 			table,
 			this.config as any,
@@ -92,16 +87,15 @@ export interface PgLineTypeConfig<T extends 'tuple' | 'abc' = 'tuple' | 'abc'> {
 	mode?: T;
 }
 
-export function line(): PgLineBuilderInitial<''>;
 export function line<TMode extends PgLineTypeConfig['mode'] & {}>(
 	config?: PgLineTypeConfig<TMode>,
-): Equal<TMode, 'abc'> extends true ? PgLineABCBuilderInitial<''>
-	: PgLineBuilderInitial<''>;
-export function line<TName extends string, TMode extends PgLineTypeConfig['mode'] & {}>(
-	name: TName,
+): Equal<TMode, 'abc'> extends true ? PgLineABCBuilder
+	: PgLineBuilder;
+export function line<TMode extends PgLineTypeConfig['mode'] & {}>(
+	name: string,
 	config?: PgLineTypeConfig<TMode>,
-): Equal<TMode, 'abc'> extends true ? PgLineABCBuilderInitial<TName>
-	: PgLineBuilderInitial<TName>;
+): Equal<TMode, 'abc'> extends true ? PgLineABCBuilder
+	: PgLineBuilder;
 export function line(a?: string | PgLineTypeConfig, b?: PgLineTypeConfig) {
 	const { name, config } = getColumnNameAndConfig<PgLineTypeConfig>(a, b);
 	if (!config?.mode || config.mode === 'tuple') {

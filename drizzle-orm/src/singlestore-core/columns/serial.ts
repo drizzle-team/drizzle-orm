@@ -1,38 +1,23 @@
-import type {
-	ColumnBuilderBaseConfig,
-	HasDefault,
-	IsAutoincrement,
-	IsPrimaryKey,
-	NotNull,
-} from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoIncrement } from './common.ts';
 
-export type SingleStoreSerialBuilderInitial<TName extends string> = IsAutoincrement<
-	IsPrimaryKey<
-		NotNull<
-			HasDefault<
-				SingleStoreSerialBuilder<{
-					name: TName;
-					dataType: 'number';
-					data: number;
-					driverParam: number;
-					enumValues: undefined;
-					generated: undefined;
-				}>
-			>
-		>
-	>
->;
-
-export class SingleStoreSerialBuilder<T extends ColumnBuilderBaseConfig<'number'>>
-	extends SingleStoreColumnBuilderWithAutoIncrement<T>
-{
+export class SingleStoreSerialBuilder extends SingleStoreColumnBuilderWithAutoIncrement<{
+	name: string;
+	dataType: 'number';
+	data: number;
+	driverParam: number;
+	enumValues: undefined;
+	generated: undefined;
+	isPrimaryKey: true;
+	hasDefault: true;
+	notNull: true;
+	isAutoincrement: true;
+}> {
 	static override readonly [entityKind]: string = 'SingleStoreSerialBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'number', 'SingleStoreSerial');
 		this.config.hasDefault = true;
 		this.config.autoIncrement = true;
@@ -64,8 +49,6 @@ export class SingleStoreSerial<
 	}
 }
 
-export function serial(): SingleStoreSerialBuilderInitial<''>;
-export function serial<TName extends string>(name: TName): SingleStoreSerialBuilderInitial<TName>;
-export function serial(name?: string) {
+export function serial(name?: string): SingleStoreSerialBuilder {
 	return new SingleStoreSerialBuilder(name ?? '');
 }
