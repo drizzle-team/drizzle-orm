@@ -1,9 +1,7 @@
 import chalk from 'chalk';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
-import { renderWithTask } from 'hanji';
 import { createInterface } from 'readline';
 import { dialects } from 'src/schemaValidator';
-import { Select } from '../selector-ui';
 
 interface InitConfig {
 	dialect: string;
@@ -30,12 +28,40 @@ class SimpleInput {
 	}
 }
 
+class SimpleSelect {
+	constructor(private options: string[]) {}
+	
+	async prompt(question: string): Promise<string> {
+		const rl = createInterface({
+			input: process.stdin,
+			output: process.stdout
+		});
+		
+		console.log(question);
+		this.options.forEach((option, index) => {
+			console.log(`  ${index + 1}. ${option}`);
+		});
+		
+		return new Promise((resolve) => {
+			rl.question('\nSelect an option (1-' + this.options.length + '): ', (answer) => {
+				rl.close();
+				const index = parseInt(answer.trim()) - 1;
+				if (index >= 0 && index < this.options.length) {
+					resolve(this.options[index]!);
+				} else {
+					resolve(this.options[0]!); // Default to first option
+				}
+			});
+		});
+	}
+}
+
 export async function initHandler(): Promise<void> {
 	console.log(chalk.green('🚀 Welcome to Drizzle Kit!'));
 	console.log(chalk.gray('Let\'s set up your project with Drizzle ORM.\n'));
 
 	// Ask for dialect
-	const dialectPrompt = new Select([
+	const dialectPrompt = new SimpleSelect([
 		'postgresql',
 		'mysql', 
 		'sqlite',
@@ -43,9 +69,7 @@ export async function initHandler(): Promise<void> {
 		'singlestore'
 	]);
 	
-	console.log(chalk.bold('Which database dialect are you using?'));
-	const { index: dialectIndex } = await renderWithTask(dialectPrompt);
-	const dialect = ['postgresql', 'mysql', 'sqlite', 'turso', 'singlestore'][dialectIndex]!;
+	const dialect = await dialectPrompt.prompt(chalk.bold('Which database dialect are you using?'));
 
 	// Ask for migrations folder
 	const migrationsInput = new SimpleInput('drizzle');
@@ -93,7 +117,7 @@ async function generateConfigFile(config: InitConfig): Promise<void> {
 	console.log(chalk.green(`\n📝 Created ${configPath}`));
 }
 
-function generateConfigContent(config: InitConfig): string {
+export function generateConfigContent(config: InitConfig): string {
 	const { dialect, out, schema, useDotenv } = config;
 	
 	let imports = `import { defineConfig } from 'drizzle-kit';\n`;
@@ -122,6 +146,7 @@ function generateConfigContent(config: InitConfig): string {
 			? `  url: process.env.DATABASE_URL!,`
 			: `  url: 'mysql://username:password@localhost:3306/dbname',`;
 	}
+	// For unknown dialects, leave connectionConfig empty
 
 	return `${imports}
 export default defineConfig({
@@ -135,8 +160,7 @@ ${connectionConfig}
 `;
 }
 
-async function updatePackageJson(): Promise<void> {
-	const packageJsonPath = 'package.json';
+export async function updatePackageJson(packageJsonPath: string = 'package.json'): Promise<void> {
 	
 	if (!existsSync(packageJsonPath)) {
 		console.log(chalk.yellow('⚠️  No package.json found. You may need to run npm init first.'));
