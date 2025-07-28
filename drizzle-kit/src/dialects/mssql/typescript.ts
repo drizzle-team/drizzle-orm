@@ -158,35 +158,17 @@ export const ddlToTypeScript = (
 			else imports.add('index');
 		}
 
-		if (x.entityType === 'fks') {
-			imports.add('foreignKey');
+		if (x.entityType === 'fks') imports.add('foreignKey');
 
-			// if (isCyclic(x) && !isSelf(x)) imports.add('type AnyMssqlColumn');
-		}
 		if (x.entityType === 'pks') imports.add('primaryKey');
 		if (x.entityType === 'uniques') imports.add('unique');
 		if (x.entityType === 'checks') imports.add('check');
-		if (x.entityType === 'views' && x.schema === 'dbo') {
-			imports.add('mssqlView');
-		}
+		if (x.entityType === 'views' && x.schema === 'dbo') imports.add('mssqlView');
 
 		if (x.entityType === 'columns' || x.entityType === 'viewColumns') {
-			let patched = x.type.replace('[]', '');
-
-			patched = patched.startsWith('nvarchar(') ? 'nvarchar' : patched;
-			patched = patched.startsWith('varchar(') ? 'varchar' : patched;
-			patched = patched.startsWith('nchar(') ? 'nchar' : patched;
-			patched = patched.startsWith('char(') ? 'char' : patched;
-			patched = patched.startsWith('varbinary(') ? 'varbinary' : patched;
-			patched = patched.startsWith('binary(') ? 'binary' : patched;
-			patched = patched.startsWith('float(') ? 'float' : patched;
-			patched = patched.startsWith('datetimeoffset(') ? 'datetimeOffset' : patched;
-			patched = patched.startsWith('datetime2(') ? 'datetime2' : patched;
-			patched = patched.startsWith('time(') ? 'time' : patched;
-			patched = patched.startsWith('decimal(') ? 'decimal' : patched;
-			patched = patched.startsWith('numeric(') ? 'numeric' : patched;
-
-			if (mssqlImportsList.has(patched)) imports.add(patched);
+			const grammarType = typeFor(x.type);
+			if (grammarType) imports.add(grammarType.drizzleImport());
+			if (mssqlImportsList.has(x.type)) imports.add(x.type);
 		}
 	}
 
@@ -314,77 +296,8 @@ const isSelf = (fk: ForeignKey) => {
 	return fk.table === fk.tableTo;
 };
 
-const mapDefault = (
-	type: string,
-	def: DefaultConstraint['default'],
-) => {
-	if (!def) return '';
-
-	const lowered = type.toLowerCase();
-
-	if (lowered === 'datetime' || lowered === 'datetime2') {
-		return def.value === 'getdate()'
-			? '.defaultGetDate()'
-			: `.default('${def.value}')`;
-	}
-
-	if (lowered.startsWith('time')) {
-		return def.value === 'getdate()'
-			? '.defaultGetDate()'
-			: /^\d{2}:\d{2}(:\d{2})?(\.\d+)?$/.test(def.value) // Matches HH:MI, HH:MI:SS and HH:MI:SS.FFFFFF
-			? `.default('${def.value}')`
-			: `.default(sql\`${def.value}\`)`;
-	}
-
-	if (lowered === 'datetimeoffset') {
-		return def.value === 'getdate()'
-			? '.defaultGetDate()'
-			: `.default('${def.value}')`;
-	}
-
-	if (lowered === 'date') {
-		return def.value === 'getdate()'
-			? '.defaultGetDate()'
-			: /^\d{4}-\d{2}-\d{2}$/.test(def.value) // Matches YYYY-MM-DD
-			? `.default('${def.value}')`
-			: `.default(sql\`${def.value}\`)`;
-	}
-
-	if (lowered === 'binary' || lowered === 'varbinary') {
-		return `.default(sql\`${def.value}\`)`;
-	}
-
-	const mapper = lowered === 'char'
-			|| lowered === 'nchar'
-			|| lowered === 'varchar'
-			|| lowered === 'nvarchar'
-			|| lowered === 'text'
-			|| lowered === 'ntext'
-		? (x: string) => {
-			return `\`${x.replaceAll('`', '\\`').replaceAll("''", "'")}\``;
-		}
-		: lowered === 'bigint'
-		? (x: string) => {
-			const value = Number(x);
-			return value > Number.MAX_SAFE_INTEGER || value < Number.MIN_SAFE_INTEGER ? `${x}n` : `${x}`;
-		}
-		: lowered.startsWith('decimal') || lowered.startsWith('numeric')
-		? (x: string) => {
-			const value = Number(x);
-			return value > Number.MAX_SAFE_INTEGER || value < Number.MIN_SAFE_INTEGER ? `${x}n` : `${x}`;
-		}
-		: lowered === 'bit'
-		? (x: string) => {
-			return x === '1' ? 'true' : 'false';
-		}
-		: (x: string) => `${x}`;
-
-	return `.default(${mapper(def.value)})`;
-};
-
 const column = (
 	type: string,
-	options: string | null,
 	name: string,
 	casing: Casing,
 	def: DefaultConstraint['default'],
@@ -394,265 +307,17 @@ const column = (
 	const grammarType = typeFor(lowered);
 	if (grammarType) {
 		const key = withCasing(name, casing);
-		const columnName = dbColumnName({ name, casing });
-		const { default: defToSet, options: optionsToSet, raw } = grammarType.toTs(options, def);
+		const { default: defToSet, options: optionsToSet } = grammarType.toTs(type, def);
+		const columnName = dbColumnName({ name, casing, withMode: Boolean(optionsToSet) });
 		const drizzleType = grammarType.drizzleImport();
 
 		let res = `${key}: ${drizzleType}(${columnName}${inspect(optionsToSet)})`;
-		res += defToSet
-			? raw
-				? defToSet
-				: `.default(${defToSet})`
-			: '';
+		res += defToSet ? defToSet.startsWith('.') ? defToSet : `.default(${defToSet})` : '';
 		return res;
 	}
 
-	if (lowered.startsWith('bigint')) {
-		const mode = def && def.type === 'bigint' ? 'bigint' : 'number';
-		return `${withCasing(name, casing)}: bigint(${dbColumnName({ name, casing, withMode: true })}{ mode: "${mode}" })`;
-	}
-
-	if (lowered === 'binary') {
-		let out: string;
-		if (options) {
-			out = `${withCasing(name, casing)}: binary(${
-				dbColumnName({ name, casing, withMode: true })
-			}{ length: ${options} })`;
-		} else {
-			out = `${withCasing(name, casing)}: binary(${dbColumnName({ name, casing })})`;
-		}
-
-		return out;
-	}
-
-	if (lowered.startsWith('bit')) {
-		return `${withCasing(name, casing)}: bit(${dbColumnName({ name, casing })})`;
-	}
-
-	if (lowered === 'char') {
-		let out: string;
-		if (options) {
-			out = `${withCasing(name, casing)}: char(${
-				dbColumnName({ name, casing, withMode: true })
-			}{ length: ${options} })`;
-		} else {
-			out = `${withCasing(name, casing)}: char(${dbColumnName({ name, casing })})`;
-		}
-
-		return out;
-	}
-
-	if (lowered === 'nchar') {
-		let out: string;
-		if (options) {
-			out = `${withCasing(name, casing)}: nchar(${
-				dbColumnName({ name, casing, withMode: true })
-			}{ length: ${options} })`;
-		} else {
-			out = `${withCasing(name, casing)}: nchar(${dbColumnName({ name, casing })})`;
-		}
-
-		return out;
-	}
-
-	if (lowered === 'varchar') {
-		let out: string;
-		if (options) {
-			out = `${withCasing(name, casing)}: varchar(${
-				dbColumnName({ name, casing, withMode: true })
-			}{ length: ${options} })`;
-		} else {
-			out = `${withCasing(name, casing)}: varchar(${dbColumnName({ name, casing })})`;
-		}
-
-		return out;
-	}
-
-	if (lowered === 'nvarchar') {
-		let out: string;
-		if (options) {
-			out = `${withCasing(name, casing)}: nvarchar(${
-				dbColumnName({ name, casing, withMode: true })
-			}{ length: ${options} })`;
-		} else {
-			out = `${withCasing(name, casing)}: nvarchar(${dbColumnName({ name, casing })})`;
-		}
-
-		return out;
-	}
-
-	if (lowered === 'datetime2') {
-		const mode = JSON.stringify({ mode: 'string' });
-
-		let out: string;
-		if (options) {
-			out = `${withCasing(name, casing)}: datetime2(${
-				dbColumnName({ name, casing, withMode: true })
-			}{ precision: ${options}, mode: "string" })`;
-		} else {
-			out = `${withCasing(name, casing)}: datetime2(${dbColumnName({ name, casing, withMode: true })}${mode})`;
-		}
-
-		return out;
-	}
-
-	if (lowered === 'datetimeoffset') {
-		const mode = JSON.stringify({ mode: 'string' });
-
-		let out: string;
-		if (options) {
-			out = `${withCasing(name, casing)}: datetimeoffset(${
-				dbColumnName({ name, casing, withMode: true })
-			}{ precision: ${options}, mode: "string" })`;
-		} else {
-			out = `${withCasing(name, casing)}: datetimeoffset(${dbColumnName({ name, casing, withMode: true })}${mode})`;
-		}
-
-		return out;
-	}
-
-	if (lowered === 'datetime') {
-		const mode = JSON.stringify({ mode: 'string' });
-		return `${withCasing(name, casing)}: datetime(${dbColumnName({ name, casing, withMode: true })}${mode})`;
-	}
-
-	if (lowered === 'date') {
-		const mode = JSON.stringify({ mode: 'string' });
-		let out = `${withCasing(name, casing)}: date(${dbColumnName({ name, casing, withMode: true })}${mode})`;
-		return out;
-	}
-
-	if (lowered === 'float') {
-		let params: { precision?: number } = {};
-
-		if (options) {
-			params['precision'] = Number(options);
-		}
-
-		let out = Object.keys(params).length > 0
-			? `${withCasing(name, casing)}: float(${dbColumnName({ name, casing, withMode: true })}${JSON.stringify(params)})`
-			: `${withCasing(name, casing)}: float(${dbColumnName({ name, casing })})`;
-
-		return out;
-	}
-
-	if (lowered === 'int') {
-		let out = `${withCasing(name, casing)}: int(${dbColumnName({ name, casing })})`;
-
-		return out;
-	}
-
-	if (lowered.startsWith('decimal')) {
-		let params: { precision?: number; scale?: number; mode?: any } = {};
-
-		if (options) {
-			const [p, s] = options.split(',');
-			if (p) params['precision'] = Number(p);
-			if (s) params['scale'] = Number(s);
-		}
-
-		let mode = def && def.type === 'bigint'
-			? 'bigint'
-			: def && def.type === 'string'
-			? 'string'
-			: 'number';
-
-		if (mode) params['mode'] = mode;
-
-		let out = `// You can use { mode: "bigint" } if numbers are exceeding js number limitations\n\t`;
-		out += Object.keys(params).length > 0
-			? `${withCasing(name, casing)}: decimal(${dbColumnName({ name, casing, withMode: true })}${
-				JSON.stringify(params)
-			})`
-			: `${withCasing(name, casing)}: decimal(${dbColumnName({ name, casing })})`;
-
-		return out;
-	}
-
-	if (lowered.startsWith('numeric')) {
-		let params: { precision?: number; scale?: number; mode?: any } = {};
-
-		if (options) {
-			const [p, s] = options.split(',');
-			if (p) params['precision'] = Number(p);
-			if (s) params['scale'] = Number(s);
-		}
-
-		let mode = def && def.type === 'bigint'
-			? 'bigint'
-			: def && def.type === 'string'
-			? 'string'
-			: 'number';
-
-		if (mode) params['mode'] = mode;
-
-		let out = `// You can use { mode: "bigint" } if numbers are exceeding js number limitations\n\t`;
-		out += Object.keys(params).length > 0
-			? `${withCasing(name, casing)}: numeric(${dbColumnName({ name, casing, withMode: true })}${
-				JSON.stringify(params)
-			})`
-			: `${withCasing(name, casing)}: numeric(${dbColumnName({ name, casing })})`;
-
-		return out;
-	}
-
-	if (lowered.startsWith('real')) {
-		let out = `${withCasing(name, casing)}: real(${dbColumnName({ name, casing })})`;
-		return out;
-	}
-
-	if (lowered.startsWith('smallint')) {
-		let out = `${withCasing(name, casing)}: smallint(${dbColumnName({ name, casing })})`;
-		return out;
-	}
-
-	if (lowered === 'text') {
-		let out = `${withCasing(name, casing)}: text(${dbColumnName({ name, casing })})`;
-		return out;
-	}
-
-	if (lowered === 'ntext') {
-		let out = `${withCasing(name, casing)}: ntext(${dbColumnName({ name, casing })})`;
-		return out;
-	}
-
-	if (lowered === 'time') {
-		let params: { precision?: number; mode?: any } = {};
-
-		if (options) {
-			params['precision'] = Number(options);
-		}
-
-		params['mode'] = 'string';
-
-		let out = Object.keys(params).length > 0
-			? `${withCasing(name, casing)}: time(${dbColumnName({ name, casing, withMode: true })}${JSON.stringify(params)})`
-			: `${withCasing(name, casing)}: time(${dbColumnName({ name, casing })})`;
-
-		return out;
-	}
-
-	if (lowered === 'tinyint') {
-		let out = `${withCasing(name, casing)}: tinyint(${dbColumnName({ name, casing })})`;
-		return out;
-	}
-
-	if (lowered === 'varbinary') {
-		let out: string;
-		if (options) {
-			out = `${withCasing(name, casing)}: varbinary(${dbColumnName({ name, casing, withMode: true })}{ length: ${
-				options === 'max' ? "'max'" : options
-			} })`;
-		} else {
-			out = `${withCasing(name, casing)}: varbinary(${dbColumnName({ name, casing })})`;
-		}
-
-		return out;
-	}
-
-	let unknown = `// TODO: failed to parse database type '${type}'\n`;
-	unknown += `\t${withCasing(name, casing)}: unknown("${name}")`;
-	return unknown;
+	console.log('uknown', type);
+	return `// Warning: Can't parse ${type} from database\n\t// ${type}Type: ${type}("${name}")`;
 };
 
 const createViewColumns = (
@@ -664,7 +329,6 @@ const createViewColumns = (
 	columns.forEach((it) => {
 		const columnStatement = column(
 			it.type,
-			null,
 			it.name,
 			casing,
 			null,
@@ -707,7 +371,6 @@ const createTableColumns = (
 
 		const columnStatement = column(
 			it.type,
-			it.options,
 			it.name,
 			casing,
 			def ? def.default : null,

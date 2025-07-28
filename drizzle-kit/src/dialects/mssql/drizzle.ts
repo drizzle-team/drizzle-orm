@@ -1,4 +1,4 @@
-import { getTableName, is, SQL } from 'drizzle-orm';
+import { Casing, getTableName, is, SQL } from 'drizzle-orm';
 import {
 	AnyMsSqlColumn,
 	AnyMsSqlTable,
@@ -12,42 +12,18 @@ import {
 } from 'drizzle-orm/mssql-core';
 import { CasingType } from 'src/cli/validations/common';
 import { safeRegister } from 'src/utils/utils-node';
-import { getColumnCasing } from '../drizzle';
+import { getColumnCasing, sqlToStr } from '../drizzle';
 import { DefaultConstraint, InterimSchema, MssqlEntities, Schema, SchemaError } from './ddl';
-import {
-	bufferToBinary,
-	defaultNameForDefault,
-	defaultNameForFK,
-	defaultNameForPK,
-	defaultNameForUnique,
-	splitSqlType,
-	trimChar,
-	typeFor,
-} from './grammar';
+import { defaultNameForDefault, defaultNameForFK, defaultNameForPK, defaultNameForUnique, typeFor } from './grammar';
 
 export const upper = <T extends string>(value: T | undefined): Uppercase<T> | null => {
 	if (!value) return null;
 	return value.toUpperCase() as Uppercase<T>;
 };
 
-export const unwrapColumn = (column: AnyMsSqlColumn) => {
-	const baseColumn = column;
-
-	const sqlType = baseColumn.getSQLType();
-
-	const { type, options } = splitSqlType(sqlType);
-
-	return {
-		baseColumn,
-		sqlType,
-		baseType: type,
-		options,
-	};
-};
-
 export const defaultFromColumn = (
 	column: AnyMsSqlColumn,
-	dialect: MsSqlDialect,
+	casing?: Casing,
 ): DefaultConstraint['default'] | null => {
 	if (typeof column.default === 'undefined') return null;
 	const def = column.default;
@@ -55,71 +31,17 @@ export const defaultFromColumn = (
 	const sqlTypeLowered = column.getSQLType().toLowerCase();
 
 	if (is(def, SQL)) {
-		let sql = dialect.sqlToQuery(def).sql;
+		// extra wrapping
+		const str = sqlToStr(def, casing);
+		if (!str.startsWith('(')) return `(${str})`;
 
-		const isText = /^'(?:[^']|'')*'$/.test(sql);
-		sql = isText ? trimChar(sql, "'") : sql;
-
-		return {
-			value: sql,
-			type: isText ? 'string' : 'unknown',
-		};
+		return str;
 	}
 
 	const grammarType = typeFor(sqlTypeLowered);
 	if (grammarType) return grammarType.defaultFromDrizzle(def);
 
-	if (sqlTypeLowered === 'bit') {
-		return { value: String(def) === 'true' ? '1' : '0', type: 'boolean' };
-	}
-
-	if (typeof def === 'string') {
-		const value = def.replaceAll("'", "''");
-
-		return {
-			value: value,
-			type: 'string',
-		};
-	}
-
-	if ((sqlTypeLowered === 'binary' || sqlTypeLowered === 'varbinary') && Buffer.isBuffer(def)) {
-		return { value: bufferToBinary(def), type: 'binary' };
-	}
-
-	const type = typeof def;
-	if (type === 'string' || type === 'number' || type === 'bigint' || type === 'boolean') {
-		return { value: String(def), type: type };
-	}
-
-	if (def instanceof Date) {
-		if (sqlTypeLowered === 'date') {
-			return {
-				value: def.toISOString().split('T')[0],
-				type: 'string',
-			};
-		}
-
-		if (sqlTypeLowered === 'datetime' || sqlTypeLowered === 'datetime2') {
-			return {
-				value: def.toISOString().replace('T', ' ').replace('Z', ''),
-				type: 'string',
-			};
-		}
-
-		if (sqlTypeLowered === 'time') {
-			return {
-				value: def.toISOString().split('T')[1].replace('Z', ''),
-				type: 'string',
-			};
-		}
-
-		return {
-			value: def.toISOString(),
-			type: 'string',
-		};
-	}
-
-	throw new Error(`unexpected default: ${def}`);
+	throw new Error(`unexpected default: ${column.getSQLType().toLowerCase()} ${column.default}`);
 };
 
 export const fromDrizzleSchema = (
@@ -236,25 +158,12 @@ export const fromDrizzleSchema = (
 				}
 				: null;
 
-			const { baseType, options } = unwrapColumn(column);
-
-			// Mssql accepts float(53) and float(24).
-			// float(24) is synonim for real and db returns float(24) as real
-			// https://learn.microsoft.com/en-us/sql/t-sql/data-types/float-and-real-transact-sql?view=sql-server-ver16
-			let type = baseType;
-			let optionsToSet = options;
-			if (baseType === 'float' && options === '24') {
-				type = 'real';
-				optionsToSet = null;
-			}
-
 			result.columns.push({
 				schema,
 				entityType: 'columns',
 				table: tableName,
 				name: columnName,
-				type: type,
-				options: optionsToSet,
+				type: column.getSQLType(),
 				pkName: null,
 				notNull: notNull,
 				// @ts-expect-error
@@ -279,7 +188,7 @@ export const fromDrizzleSchema = (
 					schema,
 					column: columnName,
 					table: tableName,
-					default: defaultFromColumn(column, dialect),
+					default: defaultFromColumn(column, casing),
 				});
 			}
 		}

@@ -20,6 +20,7 @@ import {
 	UniqueConstraint,
 	View,
 } from './ddl';
+import { typesCommutative } from './grammar';
 import { JsonStatement, prepareStatement } from './statements';
 
 export const ddlDiffDry = async (ddlFrom: MssqlDDL, ddlTo: MssqlDDL, mode: 'default' | 'push') => {
@@ -560,6 +561,10 @@ export const ddlDiff = async (
 			delete it.notNull;
 		}
 
+		if (it.type && typesCommutative(it.type.from, it.type.to, mode)) {
+			delete it.type;
+		}
+
 		const pkIn2 = ddl2.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } });
 		// When adding primary key to column it is needed to add not null first
 		// if (it.notNull && pkIn2) {
@@ -826,8 +831,6 @@ export const ddlDiff = async (
 		.map((defaultValue) =>
 			prepareStatement('create_default', {
 				default: defaultValue,
-				baseType:
-					ddl2.columns.one({ name: defaultValue.column, schema: defaultValue.schema, table: defaultValue.table })!.type,
 			})
 		);
 	const jsonDropDefaults = defaultsDeletes.filter(tablesFilter('deleted'))
@@ -839,23 +842,42 @@ export const ddlDiff = async (
 				delete it.nameExplicit;
 			}
 
-			if (it.default && it.default.from?.value === it.default.to?.value) {
-				delete it.default;
+			if (it.default) {
+				let deleteDefault = false;
+				deleteDefault ||= it.default.from === it.default.to;
+
+				const column = ddl2.columns.one({ name: it.column?.to, schema: it.schema, table: it.table })!;
+				const numbers = ['bigint', 'decimal', 'numeric', 'real', 'float'];
+
+				// When user defined value in drizzle sql that is bigger than `max mssql integer` it will be stored with dot
+				// 1. === 1 (same values for mssql)
+				// For commutativity replace all this
+				// For .default this will be added automatically, but this is for drizzlesql cases
+				if (numbers.find((it) => column.type.startsWith(it)) && it.default.from && it.default.to) {
+					it.default.from = it.default.from.replace('.)', ')').replace(".'", "'");
+					it.default.to = it.default.to.replace('.)', ')').replace(".'", "'");
+				}
+
+				// any literal number from drizzle sql is parsed as (<number>), not ((<number>)) as from .default
+				// this will cause diff, but still (10) === ((10))
+				deleteDefault ||= it.default.from === `(${it.default.to})`; // for drizzle sql numbers: (<number>) === ((<number>))
+				deleteDefault ||= it.default.to === `(${it.default.from})`; // for drizzle sql numbers: (<number>) === ((<number>))
+
+				if (deleteDefault) {
+					delete it.default;
+				}
 			}
 
 			return ddl2.defaults.hasDiff(it);
 		})
 		.filter(defaultsIdentityFilter('created'))
 		.filter(defaultsIdentityFilter('deleted'));
-	alteredDefaults.forEach((it) => {
-		jsonCreateDefaults.push(
-			prepareStatement('create_default', {
-				default: it.$right,
-				baseType: ddl2.columns.one({ name: it.$right.column, schema: it.$right.schema, table: it.$right.table })!.type,
-			}),
-		);
-		jsonDropDefaults.push(prepareStatement('drop_default', { default: it.$left }));
-	});
+	const jsonRecreatedDefaults = alteredDefaults.map((it) =>
+		prepareStatement('recreate_default', {
+			from: it.$left,
+			to: it.$right,
+		})
+	);
 
 	// filter identity
 	const fksIdentityFilter = (type: 'created' | 'deleted') => {
@@ -952,41 +974,17 @@ export const ddlDiff = async (
 	const filteredViewAlters = alters.filter((it): it is DiffEntities['views'] => {
 		if (it.entityType !== 'views') return false;
 
-		if (it.definition && mode === 'push') {
+		if (it.definition && mode === 'push' && !it.schemaBinding) {
 			delete it.definition;
 		}
 
 		return ddl2.views.hasDiff(it);
 	});
-
-	const viewsAlters = filteredViewAlters.map((it) => {
-		const view = ddl2.views.one({ schema: it.schema, name: it.name })!;
-		return { diff: it, view };
-	});
-
-	const jsonAlterViews = viewsAlters.filter((it) => !it.diff.definition).map((it) => {
+	const jsonAlterViews = filteredViewAlters.map((it) => {
 		return prepareStatement('alter_view', {
-			diff: it.diff,
-			view: it.view,
+			diff: it,
+			view: ddl2.views.one({ schema: it.schema, name: it.name })!,
 		});
-	});
-
-	const jsonRecreateViews = viewsAlters.filter((it) => it.diff.definition).map((entry) => {
-		const it = entry.view;
-		const schemaRename = renamedSchemas.find((r) => r.to.name === it.schema);
-		const schema = schemaRename ? schemaRename.from.name : it.schema;
-		const viewRename = renamedViews.find((r) => r.to.schema === it.schema && r.to.name === it.name);
-		const name = viewRename ? viewRename.from.name : it.name;
-		const from = ddl1Copy.views.one({ schema, name });
-
-		if (!from) {
-			throw new Error(`
-				Missing view in original ddl:
-				${it.schema}:${it.name}
-				${schema}:${name}
-				`);
-		}
-		return prepareStatement('recreate_view', { from, to: it });
 	});
 
 	jsonStatements.push(...createSchemas);
@@ -997,8 +995,8 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonDropViews);
 	jsonStatements.push(...jsonRenameViews);
 	jsonStatements.push(...jsonMoveViews);
-	jsonStatements.push(...jsonRecreateViews);
 	jsonStatements.push(...jsonAlterViews);
+	jsonStatements.push(...jsonRecreatedDefaults);
 
 	jsonStatements.push(...jsonDropTables);
 	jsonStatements.push(...jsonRenameTables);

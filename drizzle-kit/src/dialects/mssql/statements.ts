@@ -143,12 +143,6 @@ export interface AlterView {
 	view: View;
 }
 
-export interface RecreateView {
-	type: 'recreate_view';
-	from: View;
-	to: View;
-}
-
 export interface CreateCheck {
 	type: 'create_check';
 	check: CheckConstraint;
@@ -226,7 +220,6 @@ export interface RenameUnique {
 export interface CreateDefault {
 	type: 'create_default';
 	default: DefaultConstraint;
-	baseType: string;
 }
 
 export interface DropDefault {
@@ -234,8 +227,8 @@ export interface DropDefault {
 	default: DefaultConstraint;
 }
 
-export interface RenameDefault {
-	type: 'rename_default';
+export interface RecreateDefault {
+	type: 'recreate_default';
 	from: DefaultConstraint;
 	to: DefaultConstraint;
 }
@@ -244,7 +237,6 @@ export type JsonStatement =
 	| CreateSchema
 	| DropSchema
 	| RenameSchema
-	| RecreateView
 	| MoveView
 	| AddCheck
 	| DropCheck
@@ -281,7 +273,7 @@ export type JsonStatement =
 	| RenameUnique
 	| CreateDefault
 	| DropDefault
-	| RenameDefault;
+	| RecreateDefault;
 
 export const prepareStatement = <
 	TType extends JsonStatement['type'],
