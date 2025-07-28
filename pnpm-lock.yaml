@@ -143,9 +143,6 @@ importers:
       esbuild-register:
         specifier: ^3.5.0
         version: 3.6.0(esbuild@0.25.5)
-      when-json-met-bigint:
-        specifier: ^0.27.0
-        version: 0.27.0
     devDependencies:
       '@arethetypeswrong/cli':
         specifier: ^0.15.3
@@ -5913,7 +5910,6 @@ packages:
 
   libsql@0.4.7:
     resolution: {integrity: sha512-T9eIRCs6b0J1SHKYIvD8+KCJMcWZ900iZyxdnSCdqxN12Z1ijzT+jY5nrk72Jw4B0HGzms2NgpryArlJqvc3Lw==}
-    cpu: [x64, arm64, wasm32]
     os: [darwin, linux, win32]
 
   lighthouse-logger@1.4.2:
@@ -8315,9 +8311,6 @@ packages:
 
   whatwg-url@7.1.0:
     resolution: {integrity: sha512-WUu7Rg1DroM7oQvGWfOiAK21n74Gg+T4elXEQYkOhtyLeWiJFoOGLXPKI/9gzIie9CtwVLm8wtw6YJdKyxSjeg==}
-
-  when-json-met-bigint@0.27.0:
-    resolution: {integrity: sha512-0YsgwxDNDD0WHZvCm4MCCZtO42584C3onB2YY6ujdP4inaJm3vh7ZZnXIb2hQeDinq+sEfDsVL75Lf1CpxsBow==}
 
   which-boxed-primitive@1.1.1:
     resolution: {integrity: sha512-TbX3mj8n0odCBFVlY8AxkqcHASw3L60jIuF8jFP78az3C2YhmGvqbHBpAjTRH2/xqYunrJ9g1jSyjCjpoWzIAA==}
@@ -17626,8 +17619,6 @@ snapshots:
       lodash.sortby: 4.7.0
       tr46: 1.0.1
       webidl-conversions: 4.0.2
-
-  when-json-met-bigint@0.27.0: {}
 
   which-boxed-primitive@1.1.1:
     dependencies:

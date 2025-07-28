@@ -26,7 +26,7 @@ import { compress } from 'hono/compress';
 import { cors } from 'hono/cors';
 import { createServer } from 'node:https';
 import { LibSQLCredentials } from 'src/cli/validations/libsql';
-import { JSONB } from 'when-json-met-bigint';
+import { JSONB } from '../../utils/when-json-met-bigint';
 import { z } from 'zod';
 import { assertUnreachable, Proxy, TransactionProxy } from '../../utils';
 import { safeRegister } from '../../utils/utils-node';

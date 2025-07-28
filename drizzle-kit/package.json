@@ -49,8 +49,7 @@
 		"@esbuild-kit/esm-loader": "^2.5.5",
 		"@js-temporal/polyfill": "^0.5.1",
 		"esbuild": "^0.25.4",
-		"esbuild-register": "^3.5.0",
-		"when-json-met-bigint": "^0.27.0"
+		"esbuild-register": "^3.5.0"
 	},
 	"devDependencies": {
 		"@arethetypeswrong/cli": "^0.15.3",
