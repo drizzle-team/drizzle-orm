@@ -1,5 +1,4 @@
-import type { Entities } from '../../cli/validations/cli';
-import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
+import { type IntrospectStage, type IntrospectStatus, warning } from '../../cli/views';
 import type { DB } from '../../utils';
 import type {
 	CheckConstraint,
@@ -15,7 +14,7 @@ import type {
 	View,
 	ViewColumn,
 } from './ddl';
-import { defaultForColumn, parseFkAction, parseViewMetadataFlag, parseViewSQL } from './grammar';
+import { parseDefault, parseFkAction, parseViewMetadataFlag, parseViewSQL } from './grammar';
 
 export const fromDatabase = async (
 	db: DB,
@@ -390,6 +389,8 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 		};
 		const options = parseOptions(column.type);
 
+		const columnType = column.type + (options ? `(${options})` : '');
+
 		const unique = pksUniquesAndIdxsList.filter((it) => it.is_unique_constraint).find((it) => {
 			return it.table_id === table.object_id && it.column_id === column.column_id;
 		}) ?? null;
@@ -403,8 +404,7 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 			schema: schema.schema_name,
 			table: table.name,
 			name: column.name,
-			options,
-			type: column.type,
+			type: columnType,
 			isUnique: unique ? true : false,
 			uniqueName: unique ? unique.name : null,
 			pkName: pk ? pk.name : null,
@@ -617,7 +617,7 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 			entityType: 'defaults',
 			schema: schema.schema_name,
 			table: table.name,
-			default: defaultForColumn(column.type, defaultConstraint.definition),
+			default: parseDefault(column.type, defaultConstraint.definition),
 			nameExplicit: true,
 			column: column.name,
 			name: defaultConstraint.name,
@@ -702,7 +702,5 @@ export const fromDatabaseForDrizzle = async (
 		status: IntrospectStatus,
 	) => void = () => {},
 ) => {
-	const res = await fromDatabase(db, tableFilter, schemaFilters, progressCallback);
-
-	return res;
+	return await fromDatabase(db, tableFilter, schemaFilters, progressCallback);
 };

@@ -9,9 +9,9 @@ import {
 	MsSqlView,
 } from 'drizzle-orm/mssql-core';
 import { CasingType } from 'src/cli/validations/common';
-import { Column, interimToDDL, MssqlDDL, SchemaError } from 'src/dialects/mssql/ddl';
+import { interimToDDL, MssqlDDL, SchemaError } from 'src/dialects/mssql/ddl';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/mssql/diff';
-import { defaultFromColumn, fromDrizzleSchema, prepareFromSchemaFiles, unwrapColumn } from 'src/dialects/mssql/drizzle';
+import { defaultFromColumn, fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/mssql/drizzle';
 import { mockResolver } from 'src/utils/mocks';
 import '../../src/@types/utils';
 import Docker from 'dockerode';
@@ -22,7 +22,7 @@ import { introspect } from 'src/cli/commands/pull-mssql';
 import { Entities } from 'src/cli/validations/cli';
 import { EmptyProgressView } from 'src/cli/views';
 import { createDDL } from 'src/dialects/mssql/ddl';
-import { defaultNameForDefault, defaultToSQL } from 'src/dialects/mssql/grammar';
+import { defaultNameForDefault } from 'src/dialects/mssql/grammar';
 import { fromDatabaseForDrizzle } from 'src/dialects/mssql/introspect';
 import { ddlToTypeScript } from 'src/dialects/mssql/typescript';
 import { hash } from 'src/dialects/mssql/utils';
@@ -286,14 +286,13 @@ export const diffDefault = async <T extends MsSqlColumnBuilder>(
 	const def = config['default'];
 	const tableName = 'table';
 	const column = mssqlTable(tableName, { column: builder }).column;
+	const sqlType = column.getSQLType();
 
-	const { baseType, options } = unwrapColumn(column);
-	const columnDefault = defaultFromColumn(column, new MsSqlDialect());
-	const defaultSql = defaultToSQL(baseType, columnDefault);
+	const columnDefault = defaultFromColumn(column, 'camelCase');
 
 	const res = [] as string[];
-	if (defaultSql !== expectedDefault) {
-		res.push(`Unexpected sql: \n${defaultSql}\n${expectedDefault}`);
+	if (columnDefault !== expectedDefault) {
+		res.push(`Unexpected sql: \n${columnDefault}\n${expectedDefault}`);
 	}
 
 	const init = {
@@ -305,23 +304,6 @@ export const diffDefault = async <T extends MsSqlColumnBuilder>(
 	if (pre) await push({ db, to: pre });
 	const { sqlStatements: st1 } = await push({ db, to: init });
 	const { sqlStatements: st2 } = await push({ db, to: init });
-
-	// Mssql accepts float(53) and float(24).
-	// float(24) is synonim for real and db returns float(24) as real
-	// https://learn.microsoft.com/en-us/sql/t-sql/data-types/float-and-real-transact-sql?view=sql-server-ver16
-	let optionsToSet: string | null = options;
-	let baseTypeToSet: string = baseType;
-	if (baseType === 'float' && options === '24') {
-		baseTypeToSet = 'real';
-		optionsToSet = null;
-	}
-
-	let sqlType;
-	if (options === 'max') {
-		sqlType = `${baseTypeToSet}(max)`;
-	} else {
-		sqlType = `${baseTypeToSet}${optionsToSet ? `(${optionsToSet})` : ''}`;
-	}
 
 	const expectedInit = `CREATE TABLE [${tableName}] (\n\t[${column.name}] ${sqlType} CONSTRAINT [${
 		defaultNameForDefault(tableName, column.name)

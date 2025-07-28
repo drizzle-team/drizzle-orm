@@ -183,13 +183,13 @@ test('add table #9', async () => {
 
 	expect(st).toStrictEqual([
 		'CREATE TABLE [users] (\n'
-		+ '\t[name] varchar(1),\n'
+		+ '\t[name] varchar,\n'
 		+ '\tCONSTRAINT [users_name_key] UNIQUE([name])\n'
 		+ ');\n',
 	]);
 	expect(pst).toStrictEqual([
 		'CREATE TABLE [users] (\n'
-		+ '\t[name] varchar(1),\n'
+		+ '\t[name] varchar,\n'
 		+ '\tCONSTRAINT [users_name_key] UNIQUE([name])\n'
 		+ ');\n',
 	]);
@@ -208,10 +208,10 @@ test('add table #10', async () => {
 	const { sqlStatements: pst } = await push({ db, to: to });
 
 	expect(st).toStrictEqual([
-		`CREATE TABLE [users] (\n\t[name] varchar(1),\n\tCONSTRAINT [name_unique] UNIQUE([name])\n);\n`,
+		`CREATE TABLE [users] (\n\t[name] varchar,\n\tCONSTRAINT [name_unique] UNIQUE([name])\n);\n`,
 	]);
 	expect(pst).toStrictEqual([
-		`CREATE TABLE [users] (\n\t[name] varchar(1),\n\tCONSTRAINT [name_unique] UNIQUE([name])\n);\n`,
+		`CREATE TABLE [users] (\n\t[name] varchar,\n\tCONSTRAINT [name_unique] UNIQUE([name])\n);\n`,
 	]);
 });
 
@@ -227,10 +227,10 @@ test('add table #13', async () => {
 	const { sqlStatements: pst } = await push({ db, to: to });
 
 	expect(st).toStrictEqual([
-		`CREATE TABLE [users] (\n\t[name] varchar(1),\n\tCONSTRAINT [users_name_key] UNIQUE([name])\n);\n`,
+		`CREATE TABLE [users] (\n\t[name] varchar,\n\tCONSTRAINT [users_name_key] UNIQUE([name])\n);\n`,
 	]);
 	expect(pst).toStrictEqual([
-		`CREATE TABLE [users] (\n\t[name] varchar(1),\n\tCONSTRAINT [users_name_key] UNIQUE([name])\n);\n`,
+		`CREATE TABLE [users] (\n\t[name] varchar,\n\tCONSTRAINT [users_name_key] UNIQUE([name])\n);\n`,
 	]);
 });
 
@@ -626,7 +626,7 @@ test('composite primary key', async () => {
 	const { sqlStatements: pst } = await push({ db, to: to });
 
 	const st0 = [
-		'CREATE TABLE [works_to_creators] (\n\t[work_id] int,\n\t[creator_id] int,\n\t[classification] varchar(1),\n\tCONSTRAINT [works_to_creators_pkey] PRIMARY KEY([work_id],[creator_id],[classification])\n);\n',
+		'CREATE TABLE [works_to_creators] (\n\t[work_id] int,\n\t[creator_id] int,\n\t[classification] varchar,\n\tCONSTRAINT [works_to_creators_pkey] PRIMARY KEY([work_id],[creator_id],[classification])\n);\n',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);

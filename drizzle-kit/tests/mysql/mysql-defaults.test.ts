@@ -85,11 +85,15 @@ test('int', async () => {
 	const res4 = await diffDefault(_, int().default(1e4), '10000');
 	const res5 = await diffDefault(_, int().default(-1e4), '-10000');
 
+	// expressions
+	const res6 = await diffDefault(_, int().default(sql`(1 + 1)`), '(1 + 1)');
+
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
 	expect.soft(res4).toStrictEqual([]);
 	expect.soft(res5).toStrictEqual([]);
+	expect.soft(res6).toStrictEqual([]);
 });
 
 test('bigint', async () => {
@@ -108,12 +112,16 @@ test('bigint', async () => {
 		'18446744073709551615', // 2^64 max in Mysql
 	);
 
+	// expressions
+	const res7 = await diffDefault(_, bigint({ mode: 'number' }).default(sql`(1 + 1)`), '(1 + 1)');
+
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
 	expect.soft(res4).toStrictEqual([]);
 	expect.soft(res5).toStrictEqual([]);
 	expect.soft(res6).toStrictEqual([]);
+	expect.soft(res7).toStrictEqual([]);
 });
 
 test('decimal', async () => {
@@ -158,6 +166,9 @@ test('decimal', async () => {
 		'(9223372036854775807)',
 	);
 
+	// expressions
+	const res15 = await diffDefault(_, decimal().default(sql`(1.10 + 1.20)`), '(1.10 + 1.20)');
+
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
@@ -172,6 +183,7 @@ test('decimal', async () => {
 	expect.soft(res12).toStrictEqual([]);
 	expect.soft(res13).toStrictEqual([]);
 	expect.soft(res14).toStrictEqual([]);
+	expect.soft(res15).toStrictEqual([]);
 });
 
 test('real', async () => {
@@ -182,6 +194,9 @@ test('real', async () => {
 	const res3 = await diffDefault(_, real({ precision: 6, scale: 3 }).default(10.123), '10.123');
 	const res4 = await diffDefault(_, real({ precision: 6, scale: 2 }).default(10.123), '10.123');
 
+	// expressions
+	const res5 = await diffDefault(_, decimal().default(sql`(1.10 + 1.20)`), '(1.10 + 1.20)');
+
 	expect.soft(res1).toStrictEqual([]);
 	// expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
@@ -189,6 +204,7 @@ test('real', async () => {
 		'Unexpected subsequent init:\n'
 		+ 'ALTER TABLE `table` MODIFY COLUMN `column` real(6,2) DEFAULT 10.123;', // expected due to scale 2
 	]);
+	expect.soft(res5).toStrictEqual([]);
 });
 
 test('double', async () => {
@@ -199,6 +215,9 @@ test('double', async () => {
 	const res3 = await diffDefault(_, double({ precision: 6, scale: 2 }).default(10.123), '10.123');
 	const res4 = await diffDefault(_, double({ unsigned: true }).default(10.123), '10.123');
 	const res5 = await diffDefault(_, double({ unsigned: true, precision: 6, scale: 2 }).default(10.123), '10.123');
+
+	// expressions
+	const res6 = await diffDefault(_, decimal({ precision: 6, scale: 2 }).default(sql`(1.10 + 1.20)`), '(1.10 + 1.20)');
 
 	expect.soft(res1).toStrictEqual([]);
 	// expect.soft(res2).toStrictEqual([]);
@@ -213,6 +232,7 @@ test('double', async () => {
 		'Unexpected subsequent init:\n'
 		+ 'ALTER TABLE `table` MODIFY COLUMN `column` double(6,2) unsigned DEFAULT 10.123;',
 	]);
+	expect.soft(res6).toStrictEqual([]);
 });
 
 test('float', async () => {
@@ -225,6 +245,9 @@ test('float', async () => {
 	const res5 = await diffDefault(_, float({ unsigned: true, precision: 6, scale: 3 }).default(10.123), '10.123');
 	const res6 = await diffDefault(_, float({ unsigned: true, precision: 6, scale: 2 }).default(10.123), '10.123');
 
+	// expressions
+	const res7 = await diffDefault(_, decimal({ precision: 6, scale: 2 }).default(sql`(1.10 + 1.20)`), '(1.10 + 1.20)');
+
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
@@ -234,6 +257,7 @@ test('float', async () => {
 		'Unexpected subsequent init:\n'
 		+ 'ALTER TABLE `table` MODIFY COLUMN `column` float(6,2) unsigned DEFAULT 10.123;',
 	]);
+	expect.soft(res7).toStrictEqual([]);
 });
 
 test('boolean', async () => {
@@ -256,9 +280,14 @@ test('char', async () => {
 	const res2 = await diffDefault(_, char({ length: 10 }).default("text'text"), `'text''text'`);
 	const res3 = await diffDefault(_, char({ length: 10 }).default('text\'text"'), "'text''text\"'");
 
+	const res4 = await diffDefault(_, char({ length: 100 }).default(sql`('hello' + ' world')`), "('hello' + ' world')");
+	const res5 = await diffDefault(_, char({ length: 100 }).default(sql`'hey'`), "('hey')");
+
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
+	expect.soft(res5).toStrictEqual([]);
 });
 
 test('varchar', async () => {
@@ -266,9 +295,17 @@ test('varchar', async () => {
 	const res2 = await diffDefault(_, varchar({ length: 10 }).default("text'text"), `'text''text'`);
 	const res3 = await diffDefault(_, varchar({ length: 10 }).default('text\'text"'), "'text''text\"'");
 
+	// expressions
+	const res4 = await diffDefault(
+		_,
+		varchar({ length: 100 }).default(sql`('hello' + ' world')`),
+		"('hello' + ' world')",
+	);
+
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
 });
 
 test('tinytext', async () => {
@@ -276,9 +313,13 @@ test('tinytext', async () => {
 	const res2 = await diffDefault(_, tinytext().default("text'text"), `('text''text')`);
 	const res3 = await diffDefault(_, tinytext().default('text\'text"'), `('text''text"')`);
 
+	// expressions
+	const res4 = await diffDefault(_, tinytext().default(sql`('hello' + ' world')`), "('hello' + ' world')");
+
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
 });
 
 test('mediumtext', async () => {
@@ -286,9 +327,13 @@ test('mediumtext', async () => {
 	const res2 = await diffDefault(_, mediumtext().default("text'text"), `('text''text')`);
 	const res3 = await diffDefault(_, mediumtext().default('text\'text"'), `('text''text"')`);
 
+	// expressions
+	const res4 = await diffDefault(_, mediumtext().default(sql`('hello' + ' world')`), "('hello' + ' world')");
+
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
 });
 
 test('text', async () => {
@@ -296,9 +341,13 @@ test('text', async () => {
 	const res2 = await diffDefault(_, text().default("text'text"), `('text''text')`);
 	const res3 = await diffDefault(_, text().default('text\'text"'), `('text''text"')`);
 
+	// expressions
+	const res4 = await diffDefault(_, text().default(sql`('hello' + ' world')`), "('hello' + ' world')");
+
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
 });
 
 test('longtext', async () => {
@@ -306,9 +355,13 @@ test('longtext', async () => {
 	const res2 = await diffDefault(_, longtext().default("text'text"), `('text''text')`);
 	const res3 = await diffDefault(_, longtext().default('text\'text"'), `('text''text"')`);
 
+	// expressions
+	const res4 = await diffDefault(_, longtext().default(sql`('hello' + ' world')`), "('hello' + ' world')");
+
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
 });
 
 test('enum', async () => {
