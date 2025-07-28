@@ -55,9 +55,40 @@ export const Int: SqlType = {
 	toArrayTs: SmallInt.toArrayTs,
 };
 
+export const BigInt: SqlType = {
+	is: (type: string) => /^\s*bigint(?:\s*\[\s*\])*\s*$/i.test(type),
+	drizzleImport: () => 'bigint',
+	defaultFromDrizzle: (value) => {
+		return { value: String(value), type: 'unknown' };
+	},
+	defaultArrayFromDrizzle: (value) => {
+		console.log(stringifyArray(value, "sql", String))
+		return {
+			value: stringifyArray(value, "sql", String),
+			type: 'unknown',
+		};
+	},
+	defaultFromIntrospect: (value) => {
+		console.log(value)
+		return { value: trimChar(value, "'"), type: 'unknown' }; // 10, but '-10'
+	},
+	defaultArrayFromIntrospect: (value) => {
+		const stringified = JSON.stringify(value, (_, v) => typeof v === 'string' ? Number(v) : v);
+		return { value: stringified, type: 'unknown' };
+	},
+	defaultToSQL: (value) => value,
+	defaultArrayToSQL: (value) => {
+		return `'${stringifyArray(value, 'sql', (v) => String(v))}'`;
+	},
+	toTs: (_, value) => ({ default: value }),
+	toArrayTs: (_, value) => ({ default: JSON.stringify(value) }),
+};
+
 export const typeFor = (type: string): SqlType | null => {
 	if (SmallInt.is(type)) return SmallInt;
 	if (Int.is(type)) return Int;
+	if (BigInt.is(type)) return BigInt;
+
 	console.log('nosqltype');
 	return null;
 };

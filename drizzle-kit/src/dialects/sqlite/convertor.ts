@@ -1,12 +1,6 @@
 import type { Simplify } from '../../utils';
 import { Column } from './ddl';
-import { typeFor } from './grammar';
 import type { JsonStatement } from './statements';
-
-export const defaultToSQL = (type: string, value: Column['default']) => {
-	if (!value) return '';
-	return typeFor(type).defaultToSQL(value);
-};
 
 export const convertor = <
 	TType extends JsonStatement['type'],
@@ -61,7 +55,7 @@ const createTable = convertor('create_table', (st) => {
 
 		// in SQLite we escape single quote by doubling it, `'`->`''`, but we don't do it here
 		// because it is handled by drizzle orm serialization or on drizzle studio side
-		const defaultStatement = column.default ? ` DEFAULT ${defaultToSQL(column.type, column.default)}` : '';
+		const defaultStatement = column.default ? ` DEFAULT ${column.default ?? ''}` : '';
 
 		const autoincrementStatement = column.autoincrement ? ' AUTOINCREMENT' : '';
 
@@ -145,7 +139,7 @@ const alterTableAddColumn = convertor('add_column', (st) => {
 	const { fk, column } = st;
 	const { table: tableName, name, type, notNull, primaryKey, generated } = st.column;
 
-	const defaultStatement = column.default !== null ? ` DEFAULT ${defaultToSQL(column.type, column.default)}` : '';
+	const defaultStatement = column.default !== null ? ` DEFAULT ${column.default ?? ''}` : '';
 
 	const notNullStatement = `${notNull ? ' NOT NULL' : ''}`;
 	const primaryKeyStatement = `${primaryKey ? ' PRIMARY KEY' : ''}`;

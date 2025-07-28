@@ -57,7 +57,8 @@ type Stringified<V> = V extends symbol | Function
 type Stringify = <V>(
   value: V,
   replacer?: (number | Number | string | String)[] | ReplacerFn | null,
-  space?: Parameters<typeof JSON.stringify>[2] | Number | String
+  space?: Parameters<typeof JSON.stringify>[2] | Number | String,
+  n?: boolean,
 ) => Stringified<V>;
 // Closure for internal state variables.
 // Serializer's internal state variables are prefixed with s_, methods are prefixed with s.
@@ -67,15 +68,16 @@ export const stringify = ((): Stringify => {
 
   // Original spec use stack, but stack is slow and not necessary in this case
   // use Set instead
-  const s_stack = new Set();
-  let s_indent: string, // current indentation
-    s_gap: string, // JSON indentation string
-    sReplacer: ReplacerFn | null | undefined;
+  const stack = new Set();
+  let indent: string; // current indentation
+  let gap: string; // JSON indentation string
+  let sReplacer: ReplacerFn | null | undefined;
   const s_replacer = new Set<string>();
 
   const sStringify = <T extends Record<string, unknown> | unknown[]>(
     object_or_array: T,
-    key_or_index: T extends Record<string, unknown> ? keyof T : number
+    key_or_index: T extends Record<string, unknown> ? keyof T : number,
+    n?: boolean
   ): string | undefined => {
     // Produce a string from object_or_array[key_or_index].
 
@@ -102,7 +104,7 @@ export const stringify = ((): Stringify => {
         return Number.isFinite(value) ? value.toString() : `null`;
       case `boolean`:
       case `bigint`:
-        return value.toString();
+        return n ? `${value.toString()}n` : value.toString();
       case `object`: {
         // If the type is 'object', we might be dealing with an object
         // or an array or null.
@@ -113,17 +115,17 @@ export const stringify = ((): Stringify => {
           return `null`;
         }
 
-        if (s_stack.has(value)) throw new TypeError(`cyclic object value`);
-        s_stack.add(value);
-        const last_gap = s_indent; // stepback
-        s_indent += s_gap;
+        if (stack.has(value)) throw new TypeError(`cyclic object value`);
+        stack.add(value);
+        const last_gap = indent; // stepback
+        indent += gap;
 
         if (Array.isArray(value)) {
           // Make an array to hold the partial results of stringifying this object value.
           // The value is an array. Stringify every element. Use null as a placeholder
           // for non-JSON values.
           const partial = value.map(
-            (_v_, i) => sStringify(value as unknown[], i) || `null`
+            (_v_, i) => sStringify(value as unknown[], i, n) || `null`
           );
 
           // Join all of the elements together, separated with commas, and wrap them in
@@ -131,25 +133,25 @@ export const stringify = ((): Stringify => {
           const result =
             partial.length === 0
               ? `[]`
-              : s_indent
+              : indent
                 ? `[\n` +
-                  s_indent +
-                  partial.join(`,\n` + s_indent) +
+                  indent +
+                  partial.join(`,\n` + indent) +
                   `\n` +
                   last_gap +
                   `]`
                 : `[` + partial.join(`,`) + `]`;
-          s_stack.delete(value);
-          s_indent = last_gap;
+          stack.delete(value);
+          indent = last_gap;
           return result;
         }
 
         const partial: string[] = [];
         (s_replacer.size > 0 ? s_replacer : Object.keys(value)).forEach(
           (key) => {
-            const v = sStringify(value as Record<string, unknown>, key);
+            const v = sStringify(value as Record<string, unknown>, key, n);
             if (v) {
-              partial.push(quote(key) + (s_gap ? `: ` : `:`) + v);
+              partial.push(quote(key) + (gap ? `: ` : `:`) + v);
             }
           }
         );
@@ -159,33 +161,33 @@ export const stringify = ((): Stringify => {
         const result =
           partial.length === 0
             ? `{}`
-            : s_indent
+            : indent
               ? `{\n` +
-                s_indent +
-                partial.join(`,\n` + s_indent) +
+                indent +
+                partial.join(`,\n` + indent) +
                 `\n` +
                 last_gap +
                 `}`
               : `{` + partial.join(`,`) + `}`;
-        s_stack.delete(value);
-        s_indent = last_gap;
+        stack.delete(value);
+        indent = last_gap;
         return result;
       }
     }
   };
 
   // Return the stringify function.
-  return (value, replacer, space) => {
+  return (value, replacer, space, n) => {
     value = toPrimitive(value) as typeof value;
     // Reset state.
-    s_stack.clear();
+    stack.clear();
 
-    s_indent = ``;
+    indent = ``;
     // If the space parameter is a number, make an indent string containing that
     // many spaces.
     // If the space parameter is a string, it will be used as the indent string.
     const primitive_space = toPrimitive(space);
-    s_gap =
+    gap =
       typeof primitive_space === `number` && primitive_space > 0
         ? new Array(primitive_space + 1).join(` `)
         : typeof primitive_space !== `string`
@@ -211,6 +213,6 @@ export const stringify = ((): Stringify => {
     // Return the result of stringifying the value.
     // Cheating here, JSON.stringify can return undefined but overloaded types
     // are not seen here so we cast to string to satisfy tsc
-    return sStringify({ '': value }, ``) as Stringified<typeof value>;
+    return sStringify({ '': value }, ``, n) as Stringified<typeof value>;
   };
 })();
