@@ -88,8 +88,7 @@ export const typeFor = (type: string): SqlType | null => {
 	if (SmallInt.is(type)) return SmallInt;
 	if (Int.is(type)) return Int;
 	if (BigInt.is(type)) return BigInt;
-
-	console.log('nosqltype');
+	// no sql type
 	return null;
 };
 
