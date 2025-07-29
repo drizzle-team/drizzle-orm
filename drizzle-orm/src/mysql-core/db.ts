@@ -1,5 +1,6 @@
 import type { ResultSetHeader } from 'mysql2/promise';
 import type * as V1 from '~/_relations.ts';
+import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AnyRelations, EmptyRelations, ExtractTablesWithRelations, TablesRelationalConfig } from '~/relations.ts';
@@ -128,6 +129,31 @@ export class MySqlDatabase<
 				);
 			}
 		}
+		this.query = {} as typeof this['query'];
+		if (relations) {
+			for (const [tableName, relation] of Object.entries(relations.tablesConfig)) {
+				(this.query as MySqlDatabase<
+					TQueryResult,
+					TPreparedQueryHKT,
+					TSchema,
+					AnyRelations,
+					TablesRelationalConfig,
+					V1.TablesRelationalConfig
+				>['query'])[
+					tableName
+				] = new RelationalQueryBuilder(
+					relations.tables,
+					relations.tablesConfig,
+					relations.tableNamesMap,
+					relation.table as MySqlTable,
+					relation,
+					dialect,
+					session,
+				);
+			}
+		}
+
+		this.$cache = { invalidate: async (_params: any) => {} };
 	}
 
 	/**
@@ -193,6 +219,8 @@ export class MySqlDatabase<
 	) {
 		return new MySqlCountBuilder({ source, filters, session: this.session });
 	}
+
+	$cache: { invalidate: Cache['onMutate'] };
 
 	/**
 	 * Incorporates a previously defined CTE (using `$with`) into the main query.

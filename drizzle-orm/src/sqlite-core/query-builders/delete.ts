@@ -11,6 +11,7 @@ import type { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import { type DrizzleTypeError, orderSelectedFields, type ValueOrArray } from '~/utils.ts';
 import type { SQLiteColumn } from '../columns/common.ts';
+import { extractUsedTable } from '../utils.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 
 export type SQLiteDeleteWithout<
@@ -268,6 +269,11 @@ export class SQLiteDeleteBase<
 			this.config.returning,
 			this.config.returning ? 'all' : 'run',
 			true,
+			undefined,
+			{
+				type: 'delete',
+				tables: extractUsedTable(this.config.table),
+			},
 		) as SQLiteDeletePrepare<this>;
 	}
 

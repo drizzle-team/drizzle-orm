@@ -1,5 +1,6 @@
 import { type Client, type ConnectOptions, createClient } from 'gel';
 import * as V1 from '~/_relations.ts';
+import type { Cache } from '~/cache/core/index.ts';
 import { entityKind } from '~/entity.ts';
 import { GelDatabase } from '~/gel-core/db.ts';
 import { GelDialect } from '~/gel-core/dialect.ts';
@@ -13,6 +14,7 @@ import { GelDbSession } from './session.ts';
 
 export interface GelDriverOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class GelDriver {
@@ -28,7 +30,10 @@ export class GelDriver {
 		relations: AnyRelations | undefined,
 		schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined,
 	): GelDbSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig, V1.TablesRelationalConfig> {
-		return new GelDbSession(this.client, this.dialect, relations, schema, { logger: this.options.logger });
+		return new GelDbSession(this.client, this.dialect, relations, schema, {
+			logger: this.options.logger,
+			cache: this.options.cache,
+		});
 	}
 }
 
@@ -47,7 +52,7 @@ function construct<
 	client: TClient,
 	config: DrizzleConfig<TSchema, TRelations> = {},
 ): GelJsDatabase<TSchema, TRelations> & {
-	$client: TClient;
+	$client: GelClient extends TClient ? Client : TClient;
 } {
 	const dialect = new GelDialect({ casing: config.casing });
 	let logger;
@@ -68,10 +73,14 @@ function construct<
 	}
 
 	const relations = config.relations;
-	const driver = new GelDriver(client, dialect, { logger });
+	const driver = new GelDriver(client, dialect, { logger, cache: config.cache });
 	const session = driver.createSession(relations, schema);
 	const db = new GelJsDatabase(dialect, session, relations, schema as any) as GelJsDatabase<TSchema>;
 	(<any> db).$client = client;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
 
 	return db as any;
 }
@@ -96,7 +105,7 @@ export function drizzle<
 			),
 		]
 ): GelJsDatabase<TSchema, TRelations> & {
-	$client: TClient;
+	$client: GelClient extends TClient ? Client : TClient;
 } {
 	if (typeof params[0] === 'string') {
 		const instance = createClient({ dsn: params[0] });

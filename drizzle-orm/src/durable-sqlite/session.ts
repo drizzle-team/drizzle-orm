@@ -163,7 +163,8 @@ export class SQLiteDOPreparedQuery<
 		) => unknown,
 		private isRqbV2Query?: TIsRqbV2,
 	) {
-		super('sync', executeMethod, query);
+		// 3-6 params are for cache. As long as we don't support sync cache - it will be skipped here
+		super('sync', executeMethod, query, undefined, undefined, undefined);
 	}
 
 	run(placeholderValues?: Record<string, unknown>): void {

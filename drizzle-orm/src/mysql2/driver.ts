@@ -1,6 +1,7 @@
 import { type Connection as CallbackConnection, createPool, type Pool as CallbackPool, type PoolOptions } from 'mysql2';
 import type { Connection, Pool } from 'mysql2/promise';
 import * as V1 from '~/_relations.ts';
+import type { Cache } from '~/cache/core/index.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -15,6 +16,7 @@ import { MySql2Session } from './session.ts';
 
 export interface MySqlDriverOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class MySql2Driver {
@@ -32,7 +34,11 @@ export class MySql2Driver {
 		schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined,
 		mode: Mode,
 	): MySql2Session<Record<string, unknown>, AnyRelations, TablesRelationalConfig, V1.TablesRelationalConfig> {
-		return new MySql2Session(this.client, this.dialect, relations, schema, { logger: this.options.logger, mode });
+		return new MySql2Session(this.client, this.dialect, relations, schema, {
+			logger: this.options.logger,
+			mode,
+			cache: this.options.cache,
+		});
 	}
 }
 
@@ -60,7 +66,7 @@ function construct<
 	client: TClient,
 	config: MySql2DrizzleConfig<TSchema, TRelations> = {},
 ): MySql2Database<TSchema, TRelations> & {
-	$client: TClient;
+	$client: AnyMySql2Connection extends TClient ? CallbackPool : TClient;
 } {
 	const dialect = new MySqlDialect({ casing: config.casing });
 	let logger;
@@ -95,7 +101,7 @@ function construct<
 	const mode = config.mode ?? 'default';
 
 	const relations = config.relations;
-	const driver = new MySql2Driver(clientForInstance as MySql2Client, dialect, { logger });
+	const driver = new MySql2Driver(clientForInstance as MySql2Client, dialect, { logger, cache: config.cache });
 	const session = driver.createSession(relations, schema, mode);
 	const db = new MySql2Database(
 		dialect,
@@ -105,6 +111,10 @@ function construct<
 		mode,
 	) as MySql2Database<TSchema, TRelations>;
 	(<any> db).$client = client;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
 
 	return db as any;
 }
@@ -140,7 +150,7 @@ export function drizzle<
 		),
 	]
 ): MySql2Database<TSchema, TRelations> & {
-	$client: TClient;
+	$client: AnyMySql2Connection extends TClient ? CallbackPool : TClient;
 } {
 	if (typeof params[0] === 'string') {
 		const connectionString = params[0]!;

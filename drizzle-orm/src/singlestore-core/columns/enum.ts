@@ -26,9 +26,10 @@ export type SingleStoreEnumColumnBuilderInitial<TName extends string, TEnum exte
 export class SingleStoreEnumColumnBuilder<T extends ColumnBuilderBaseConfig<'string', 'SingleStoreEnumColumn'>>
 	extends SingleStoreColumnBuilder<T, { enumValues: T['enumValues'] }>
 {
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	override generatedAlwaysAs(
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		as: SQL<unknown> | (() => SQL) | T['data'],
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		config?: Partial<GeneratedColumnConfig<unknown>>,
 	): HasGenerated<this, {}> {
 		throw new Error('Method not implemented.');

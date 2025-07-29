@@ -50,9 +50,13 @@ function construct<
 	}
 
 	const relations = config.relations;
-	const session = new BunSQLSession(client, dialect, relations, schema, { logger });
+	const session = new BunSQLSession(client, dialect, relations, schema, { logger, cache: config.cache });
 	const db = new BunSQLDatabase(dialect, session, relations, schema as any) as BunSQLDatabase<TSchema, TRelations>;
 	(<any> db).$client = client;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
 
 	return db as any;
 }

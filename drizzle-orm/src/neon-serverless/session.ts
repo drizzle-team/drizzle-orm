@@ -9,6 +9,8 @@ import {
 	types,
 } from '@neondatabase/serverless';
 import type * as V1 from '~/_relations.ts';
+import { type Cache, NoopCache } from '~/cache/core/cache.ts';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -36,6 +38,12 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 		queryString: string,
 		private params: unknown[],
 		private logger: Logger,
+		cache: Cache,
+		queryMetadata: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		} | undefined,
+		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		private _isResponseInArrayMode: boolean,
@@ -44,7 +52,7 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 		) => T['execute'],
 		private isRqbV2Query?: TIsRqbV2,
 	) {
-		super({ sql: queryString, params });
+		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
 		this.rawQueryConfig = {
 			name,
 			text: queryString,
@@ -144,10 +152,14 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 		const { fields, client, rawQueryConfig: rawQuery, queryConfig: query, joinsNotNullableMap, customResultMapper } =
 			this;
 		if (!fields && !customResultMapper) {
-			return client.query(rawQuery, params);
+			return await this.queryWithCache(rawQuery.text, params, async () => {
+				return await client.query(rawQuery, params);
+			});
 		}
 
-		const result = await client.query(query, params);
+		const result = await this.queryWithCache(query.text, params, async () => {
+			return await client.query(query, params);
+		});
 
 		return customResultMapper
 			? (customResultMapper as (rows: unknown[][]) => T['execute'])(result.rows)
@@ -169,13 +181,17 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 		this.logger.logQuery(this.rawQueryConfig.text, params);
-		return this.client.query(this.rawQueryConfig, params).then((result) => result.rows);
+		return this.queryWithCache(this.rawQueryConfig.text, params, async () => {
+			return await this.client.query(this.rawQueryConfig, params);
+		}).then((result) => result.rows);
 	}
 
 	values(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['values']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 		this.logger.logQuery(this.rawQueryConfig.text, params);
-		return this.client.query(this.queryConfig, params).then((result) => result.rows);
+		return this.queryWithCache(this.queryConfig.text, params, async () => {
+			return await this.client.query(this.queryConfig, params);
+		}).then((result) => result.rows);
 	}
 
 	/** @internal */
@@ -186,6 +202,7 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 extends b
 
 export interface NeonSessionOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class NeonSession<
@@ -197,6 +214,7 @@ export class NeonSession<
 	static override readonly [entityKind]: string = 'NeonSession';
 
 	private logger: Logger;
+	private cache: Cache;
 
 	constructor(
 		private client: NeonClient,
@@ -207,6 +225,7 @@ export class NeonSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
+		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -215,12 +234,20 @@ export class NeonSession<
 		name: string | undefined,
 		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
 	): PgPreparedQuery<T> {
 		return new NeonPreparedQuery(
 			this.client,
 			query.sql,
 			query.params,
 			this.logger,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
 			fields,
 			name,
 			isResponseInArrayMode,
@@ -239,6 +266,9 @@ export class NeonSession<
 			query.sql,
 			query.params,
 			this.logger,
+			this.cache,
+			undefined,
+			undefined,
 			fields,
 			name,
 			false,

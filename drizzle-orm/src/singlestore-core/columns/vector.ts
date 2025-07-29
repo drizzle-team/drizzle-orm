@@ -2,9 +2,10 @@ import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnCon
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
-import { SQL } from '~/sql/index.ts';
+import type { SQL } from '~/sql/index.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
-import { SingleStoreColumn, SingleStoreColumnBuilder, SingleStoreGeneratedColumnConfig } from './common.ts';
+import type { SingleStoreGeneratedColumnConfig } from './common.ts';
+import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
 export type SingleStoreVectorBuilderInitial<TName extends string> = SingleStoreVectorBuilder<{
 	name: TName;
@@ -37,7 +38,12 @@ export class SingleStoreVectorBuilder<T extends ColumnBuilderBaseConfig<'array',
 	}
 
 	/** @internal */
-	override generatedAlwaysAs(as: SQL<unknown> | (() => SQL) | T['data'], config?: SingleStoreGeneratedColumnConfig) {
+	override generatedAlwaysAs(
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
+		as: SQL<unknown> | (() => SQL) | T['data'],
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
+		config?: SingleStoreGeneratedColumnConfig,
+	) {
 		throw new Error('not implemented');
 	}
 }

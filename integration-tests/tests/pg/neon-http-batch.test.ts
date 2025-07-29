@@ -16,6 +16,7 @@ import {
 	usersToGroupsConfig,
 	usersToGroupsTable,
 } from './neon-http-batch';
+import { TestCache, TestGlobalCache } from './pg-common-cache';
 
 const ENABLE_LOGGING = false;
 
@@ -37,6 +38,8 @@ export const neonRelations = defineRelations(schema, () => ({}));
 
 let db: NeonHttpDatabase<typeof schema, typeof neonRelations>;
 let client: NeonQueryFunction<false, true>;
+let dbGlobalCached: NeonHttpDatabase;
+let cachedDb: NeonHttpDatabase;
 
 beforeAll(async () => {
 	const connectionString = process.env['NEON_HTTP_CONNECTION_STRING'];
@@ -45,11 +48,23 @@ beforeAll(async () => {
 	}
 	client = neon(connectionString);
 	db = drizzle(client, { schema, logger: ENABLE_LOGGING, relations: neonRelations });
+	cachedDb = drizzle(client, {
+		logger: ENABLE_LOGGING,
+		cache: new TestCache(),
+	});
+	dbGlobalCached = drizzle(client, {
+		logger: ENABLE_LOGGING,
+		cache: new TestGlobalCache(),
+	});
 });
 
 beforeEach((ctx) => {
 	ctx.neonPg = {
 		db,
+	};
+	ctx.cachedPg = {
+		db: cachedDb,
+		dbGlobalCached,
 	};
 });
 

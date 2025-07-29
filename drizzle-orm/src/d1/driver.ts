@@ -69,7 +69,10 @@ export function drizzle<
 	}
 
 	const relations = config.relations;
-	const session = new SQLiteD1Session(client as D1Database, dialect, relations, schema, { logger });
+	const session = new SQLiteD1Session(client as D1Database, dialect, relations, schema, {
+		logger,
+		cache: config.cache,
+	});
 	const db = new DrizzleD1Database(
 		'async',
 		dialect,
@@ -88,6 +91,10 @@ export function drizzle<
 		TRelations
 	>;
 	(<any> db).$client = client;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
 
 	return db as any;
 }

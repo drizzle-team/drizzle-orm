@@ -51,11 +51,17 @@ export function drizzle<
 	}
 
 	const relations = config.relations;
-	const session = new PgRemoteSession(callback, dialect, relations, schema, { logger });
-	return new PgRemoteDatabase(
+	const session = new PgRemoteSession(callback, dialect, relations, schema, { logger, cache: config.cache });
+	const db = new PgRemoteDatabase(
 		dialect,
 		session,
 		relations,
 		schema as V1.RelationalSchemaConfig<any>,
 	) as PgRemoteDatabase<TSchema, TRelations>;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
+
+	return db;
 }

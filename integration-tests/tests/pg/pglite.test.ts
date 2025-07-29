@@ -5,16 +5,27 @@ import { migrate } from 'drizzle-orm/pglite/migrator';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
 import { tests, usersMigratorTable, usersTable } from './pg-common';
+import { TestCache, TestGlobalCache, tests as cacheTests } from './pg-common-cache';
 import relations from './relations';
 
 const ENABLE_LOGGING = false;
 
 let db: PgliteDatabase<never, typeof relations>;
+let dbGlobalCached: PgliteDatabase;
+let cachedDb: PgliteDatabase;
 let client: PGlite;
 
 beforeAll(async () => {
 	client = new PGlite();
 	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
+	cachedDb = drizzle(client, {
+		logger: ENABLE_LOGGING,
+		cache: new TestCache(),
+	});
+	dbGlobalCached = drizzle(client, {
+		logger: ENABLE_LOGGING,
+		cache: new TestGlobalCache(),
+	});
 });
 
 afterAll(async () => {
@@ -25,11 +36,17 @@ beforeEach((ctx) => {
 	ctx.pg = {
 		db,
 	};
+	ctx.cachedPg = {
+		db: cachedDb,
+		dbGlobalCached,
+	};
 });
 
 test('migrator : default migration strategy', async () => {
 	await db.execute(sql`drop table if exists all_columns`);
-	await db.execute(sql`drop table if exists users12`);
+	await db.execute(
+		sql`drop table if exists users12`,
+	);
 	await db.execute(sql`drop table if exists "drizzle"."__drizzle_migrations"`);
 
 	await migrate(db, { migrationsFolder: './drizzle2/pg' });
@@ -92,7 +109,9 @@ skipTests([
 	'select with group by as column + sql',
 	'mySchema :: select with group by as column + sql',
 ]);
+
 tests();
+cacheTests();
 
 beforeEach(async () => {
 	await db.execute(sql`drop schema if exists public cascade`);
@@ -102,7 +121,7 @@ beforeEach(async () => {
 			create table users (
 				id serial primary key,
 				name text not null,
-				verified boolean not null default false, 
+				verified boolean not null default false,
 				jsonb jsonb,
 				created_at timestamptz not null default now()
 			)

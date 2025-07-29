@@ -17,6 +17,7 @@ import { AwsDataApiSession } from './session.ts';
 
 export interface PgDriverOptions {
 	logger?: Logger;
+	cache?: Cache;
 	database: string;
 	resourceArn: string;
 	secretArn: string;
@@ -123,9 +124,14 @@ function construct<
 	const session = new AwsDataApiSession(client, dialect, relations, schema, {
 		...config,
 		logger,
+		cache: config.cache,
 	}, undefined);
 	const db = new AwsDataApiPgDatabase(dialect, session, relations, schema as V1.RelationalSchemaConfig<any>);
 	(<any> db).$client = client;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
 
 	return db as any;
 }

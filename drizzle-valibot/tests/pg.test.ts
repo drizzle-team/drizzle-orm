@@ -222,7 +222,7 @@ test('nullability - update', (t) => {
 		c4: v.optional(integerSchema),
 		c7: v.optional(integerSchema),
 	});
-	table.c5.generated?.type;
+
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });

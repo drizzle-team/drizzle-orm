@@ -1,6 +1,6 @@
 import type { Column, SelectedFieldsFlat, Table, View } from 'drizzle-orm';
 import type { PgEnum } from 'drizzle-orm/pg-core';
-import type { z } from 'zod';
+import type { z } from 'zod/v4';
 import type { literalSchema } from './column.ts';
 
 export function isColumnType<T extends Column>(column: Column, columnTypes: string[]): column is T {
@@ -18,22 +18,15 @@ export type Json = Literal | { [key: string]: any } | any[];
 
 export type IsNever<T> = [T] extends [never] ? true : false;
 
-export type ArrayHasAtLeastOneValue<TEnum extends [any, ...any[]] | undefined> = TEnum extends [infer TString, ...any[]]
-	? TString extends `${infer TLiteral}` ? TLiteral extends any ? true
-		: false
-	: false
-	: false;
-
-export type ColumnIsGeneratedAlwaysAs<TColumn extends Column> = TColumn['_']['identity'] extends 'always' ? true
-	: TColumn['_']['generated'] extends undefined ? false
-	: TColumn['_']['generated'] extends infer TGenerated extends { type: string }
-		? TGenerated['type'] extends 'byDefault' ? false
-		: true
+export type IsEnumDefined<TEnum extends string[] | undefined> = [string, ...string[]] extends TEnum ? false
+	: undefined extends TEnum ? false
 	: true;
 
-export type RemoveNever<T> = {
-	[K in keyof T as T[K] extends never ? never : K]: T[K];
-};
+export type ColumnIsGeneratedAlwaysAs<TColumn> = TColumn extends Column
+	? TColumn['_']['identity'] extends 'always' ? true
+	: TColumn['_']['generated'] extends { type: 'byDefault' } | undefined ? false
+	: true
+	: false;
 
 export type GetSelection<T extends SelectedFieldsFlat<Column> | Table | View> = T extends Table ? T['_']['columns']
 	: T extends View ? T['_']['selectedFields']

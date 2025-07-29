@@ -2,6 +2,7 @@ import type { HTTPQueryOptions, HTTPTransactionOptions, NeonQueryFunction } from
 import { neon, types } from '@neondatabase/serverless';
 import * as V1 from '~/_relations.ts';
 import type { BatchItem, BatchResponse } from '~/batch.ts';
+import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -19,6 +20,7 @@ import { type NeonHttpClient, type NeonHttpQueryResultHKT, NeonHttpSession } fro
 
 export interface NeonDriverOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class NeonHttpDriver {
@@ -38,6 +40,7 @@ export class NeonHttpDriver {
 	): NeonHttpSession<Record<string, unknown>, EmptyRelations, TablesRelationalConfig, V1.TablesRelationalConfig> {
 		return new NeonHttpSession(this.client, this.dialect, relations ?? {} as EmptyRelations, schema, {
 			logger: this.options.logger,
+			cache: this.options.cache,
 		});
 	}
 
@@ -165,7 +168,7 @@ function construct<
 
 	const relations = config.relations;
 
-	const driver = new NeonHttpDriver(client, dialect, { logger });
+	const driver = new NeonHttpDriver(client, dialect, { logger, cache: config.cache });
 	const session = driver.createSession(relations, schema);
 
 	const db = new NeonHttpDatabase(
@@ -175,6 +178,10 @@ function construct<
 		schema as V1.RelationalSchemaConfig<V1.ExtractTablesWithRelations<TSchema>> | undefined,
 	);
 	(<any> db).$client = client;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
 
 	return db as any;
 }
