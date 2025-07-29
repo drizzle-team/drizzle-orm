@@ -219,7 +219,7 @@ export const schemaToTypeScript = (schema: GelSchemaInternal, casing: Casing) =>
 
 	const schemas = Object.fromEntries(
 		Object.entries(schema.schemas).map((it) => {
-			return [it[0], withCasing(it[1], casing)];
+			return [it[0], withCasing(it[1].replace('::', ''), casing)];
 		}),
 	);
 
@@ -366,7 +366,7 @@ export const schemaToTypeScript = (schema: GelSchemaInternal, casing: Casing) =>
 	const schemaStatements = Object.entries(schemas)
 		.filter((it) => it[0] !== 'public')
 		.map((it) => {
-			return `export const ${it[1]} = gelSchema("${it[0]}");\n`;
+			return `export const ${it[1].replace('::', '').camelCase()} = gelSchema("${it[0]}");\n`;
 		})
 		.join('');
 

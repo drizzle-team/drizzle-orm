@@ -8,10 +8,13 @@ import { skipTests } from '~/common';
 import { randomString } from '~/utils';
 import relations from './relations';
 import { anotherUsersMigratorTable, tests, usersMigratorTable } from './sqlite-common';
+import { TestCache, TestGlobalCache, tests as cacheTests } from './sqlite-common-cache';
 
 const ENABLE_LOGGING = false;
 
 let db: LibSQLDatabase<never, typeof relations>;
+let dbGlobalCached: LibSQLDatabase;
+let cachedDb: LibSQLDatabase;
 let client: Client;
 
 beforeAll(async () => {
@@ -34,6 +37,8 @@ beforeAll(async () => {
 		},
 	});
 	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
+	cachedDb = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestCache() });
+	dbGlobalCached = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 });
 
 afterAll(async () => {
@@ -43,6 +48,10 @@ afterAll(async () => {
 beforeEach((ctx) => {
 	ctx.sqlite = {
 		db,
+	};
+	ctx.cachedSqlite = {
+		db: cachedDb,
+		dbGlobalCached,
 	};
 });
 
@@ -94,4 +103,5 @@ skipTests([
 	'update with limit and order by',
 ]);
 
+cacheTests();
 tests();

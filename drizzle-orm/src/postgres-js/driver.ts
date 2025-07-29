@@ -57,9 +57,13 @@ function construct<
 	}
 
 	const relations = config.relations;
-	const session = new PostgresJsSession(client, dialect, relations, schema, { logger });
+	const session = new PostgresJsSession(client, dialect, relations, schema, { logger, cache: config.cache });
 	const db = new PostgresJsDatabase(dialect, session, relations, schema as V1.RelationalSchemaConfig<any>);
 	(<any> db).$client = client;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
 
 	return db as any;
 }
