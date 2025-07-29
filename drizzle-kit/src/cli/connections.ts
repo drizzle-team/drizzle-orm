@@ -660,7 +660,7 @@ export const prepareDuckDb = async (
 			const preparedStm = await client.prepare(sql);
 			preparedStm.bind(params);
 			const result = await preparedStm.run();
-			const rows = await result.getRowObjects();
+			const rows = await result.getRowObjectsJson();
 			return rows as any[];
 		};
 
@@ -668,7 +668,7 @@ export const prepareDuckDb = async (
 			const preparedStm = await client.prepare(params.sql);
 			preparedStm.bind(params.params || []);
 			const result = await preparedStm.run();
-			return params.mode === 'array' ? await result.getRows() : await result.getRowObjects();
+			return params.mode === 'array' ? await result.getRowsJson() : await result.getRowObjectsJson();
 		};
 
 		const transactionProxy: TransactionProxy = async (queries) => {
@@ -678,7 +678,7 @@ export const prepareDuckDb = async (
 				for (const query of queries) {
 					const stmt = await client.prepare(query.sql);
 					const result = await stmt.run();
-					results.push(await result.getRowObjects());
+					results.push(await result.getRowObjectsJson());
 				}
 				await client.run('COMMIT');
 			} catch (error) {
