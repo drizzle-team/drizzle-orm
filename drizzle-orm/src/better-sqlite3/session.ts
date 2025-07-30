@@ -1,5 +1,7 @@
 import type { Database, RunResult, Statement } from 'better-sqlite3';
 import type * as V1 from '~/_relations.ts';
+import { type Cache, NoopCache } from '~/cache/core/index.ts';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -19,6 +21,7 @@ import { mapResultRow } from '~/utils.ts';
 
 export interface BetterSQLiteSessionOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
@@ -32,6 +35,7 @@ export class BetterSQLiteSession<
 	static override readonly [entityKind]: string = 'BetterSQLiteSession';
 
 	private logger: Logger;
+	private cache: Cache;
 
 	constructor(
 		private client: Database,
@@ -42,6 +46,7 @@ export class BetterSQLiteSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
+		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
@@ -50,12 +55,20 @@ export class BetterSQLiteSession<
 		executeMethod: SQLiteExecuteMethod,
 		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => unknown,
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
 	): PreparedQuery<T> {
 		const stmt = this.client.prepare(query.sql);
 		return new PreparedQuery(
 			stmt,
 			query,
 			this.logger,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
 			fields,
 			executeMethod,
 			isResponseInArrayMode,
@@ -74,6 +87,9 @@ export class BetterSQLiteSession<
 			stmt,
 			query,
 			this.logger,
+			this.cache,
+			undefined,
+			undefined,
 			fields,
 			executeMethod,
 			false,
@@ -135,6 +151,12 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 		private stmt: Statement,
 		query: Query,
 		private logger: Logger,
+		cache: Cache,
+		queryMetadata: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		} | undefined,
+		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		private _isResponseInArrayMode: boolean,
@@ -143,7 +165,7 @@ export class PreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig, 
 		) => unknown,
 		private isRqbV2Query?: TIsRqbV2,
 	) {
-		super('sync', executeMethod, query);
+		super('sync', executeMethod, query, cache, queryMetadata, cacheConfig);
 	}
 
 	run(placeholderValues?: Record<string, unknown>): RunResult {

@@ -1,4 +1,5 @@
 import * as V1 from '~/_relations.ts';
+import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -11,6 +12,7 @@ import { XataHttpSession } from './session.ts';
 
 export interface XataDriverOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class XataHttpDriver {
@@ -30,6 +32,7 @@ export class XataHttpDriver {
 	): XataHttpSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig, V1.TablesRelationalConfig> {
 		return new XataHttpSession(this.client, this.dialect, relations, schema, {
 			logger: this.options.logger,
+			cache: this.options.cache,
 		});
 	}
 
@@ -81,7 +84,7 @@ export function drizzle<
 	}
 
 	const relations = config.relations;
-	const driver = new XataHttpDriver(client, dialect, { logger });
+	const driver = new XataHttpDriver(client, dialect, { logger, cache: config.cache });
 	const session = driver.createSession(relations, schema);
 
 	const db = new XataHttpDatabase(
@@ -91,6 +94,10 @@ export function drizzle<
 		schema as V1.RelationalSchemaConfig<V1.ExtractTablesWithRelations<TSchema>> | undefined,
 	);
 	(<any> db).$client = client;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
 
 	return db as any;
 }

@@ -1,3 +1,4 @@
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import type { GetColumnData } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { MySqlDialect } from '~/mysql-core/dialect.ts';
@@ -18,6 +19,7 @@ import type { Subquery } from '~/subquery.ts';
 import { type InferInsertModel, Table } from '~/table.ts';
 import { mapUpdateSet, type UpdateSet, type ValueOrArray } from '~/utils.ts';
 import type { MySqlColumn } from '../columns/common.ts';
+import { extractUsedTable } from '../utils.ts';
 import type { SelectedFieldsOrdered } from './select.types.ts';
 
 export interface MySqlUpdateConfig {
@@ -132,6 +134,7 @@ export class MySqlUpdateBase<
 	static override readonly [entityKind]: string = 'MySqlUpdate';
 
 	private config: MySqlUpdateConfig;
+	protected cacheConfig?: WithCacheConfig;
 
 	constructor(
 		table: TTable,
@@ -226,7 +229,15 @@ export class MySqlUpdateBase<
 	prepare(): MySqlUpdatePrepare<this> {
 		return this.session.prepareQuery(
 			this.dialect.sqlToQuery(this.getSQL()),
+			undefined,
+			undefined,
+			undefined,
 			this.config.returning,
+			{
+				type: 'insert',
+				tables: extractUsedTable(this.config.table),
+			},
+			this.cacheConfig,
 		) as MySqlUpdatePrepare<this>;
 	}
 

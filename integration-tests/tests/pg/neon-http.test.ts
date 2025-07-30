@@ -7,11 +7,14 @@ import { beforeAll, beforeEach, describe, expect, expectTypeOf, test, vi } from 
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
 import { allTypesTable, tests, usersMigratorTable, usersTable } from './pg-common';
+import { TestCache, TestGlobalCache, tests as cacheTests } from './pg-common-cache';
 import relations from './relations';
 
 const ENABLE_LOGGING = false;
 
 let db: NeonHttpDatabase<never, typeof relations>;
+let dbGlobalCached: NeonHttpDatabase;
+let cachedDb: NeonHttpDatabase;
 
 beforeAll(async () => {
 	const connectionString = process.env['NEON_HTTP_CONNECTION_STRING'];
@@ -23,12 +26,25 @@ beforeAll(async () => {
 		const [protocol, port] = host === 'db.localtest.me' ? ['http', 4444] : ['https', 443];
 		return `${protocol}://${host}:${port}/sql`;
 	};
-	db = drizzle(neon(connectionString), { logger: ENABLE_LOGGING, relations });
+	const client = neon(connectionString);
+	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
+	cachedDb = drizzle(client, {
+		logger: ENABLE_LOGGING,
+		cache: new TestCache(),
+	});
+	dbGlobalCached = drizzle(client, {
+		logger: ENABLE_LOGGING,
+		cache: new TestGlobalCache(),
+	});
 });
 
 beforeEach((ctx) => {
 	ctx.pg = {
 		db,
+	};
+	ctx.cachedPg = {
+		db: cachedDb,
+		dbGlobalCached,
 	};
 });
 
@@ -427,6 +443,7 @@ skipTests([
 	'all types',
 ]);
 tests();
+cacheTests();
 
 beforeEach(async () => {
 	await db.execute(sql`drop schema if exists public cascade`);

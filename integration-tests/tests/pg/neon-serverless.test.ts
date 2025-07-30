@@ -8,11 +8,14 @@ import ws from 'ws';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
 import { mySchema, tests, usersMigratorTable, usersMySchemaTable, usersTable } from './pg-common';
+import { TestCache, TestGlobalCache, tests as cacheTests } from './pg-common-cache';
 import relations from './relations';
 
 const ENABLE_LOGGING = false;
 
 let db: NeonDatabase<never, typeof relations>;
+let dbGlobalCached: NeonDatabase;
+let cachedDb: NeonDatabase;
 let client: Pool;
 
 neonConfig.wsProxy = (host) => `${host}:5446/v1`;
@@ -29,6 +32,14 @@ beforeAll(async () => {
 
 	client = new Pool({ connectionString });
 	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
+	cachedDb = drizzle(client, {
+		logger: ENABLE_LOGGING,
+		cache: new TestCache(),
+	});
+	dbGlobalCached = drizzle(client, {
+		logger: ENABLE_LOGGING,
+		cache: new TestGlobalCache(),
+	});
 });
 
 afterAll(async () => {
@@ -38,6 +49,10 @@ afterAll(async () => {
 beforeEach((ctx) => {
 	ctx.pg = {
 		db,
+	};
+	ctx.cachedPg = {
+		db: cachedDb,
+		dbGlobalCached,
 	};
 });
 
@@ -504,6 +519,7 @@ skipTests([
 	'mySchema :: delete with returning all fields',
 ]);
 tests();
+cacheTests();
 
 beforeEach(async () => {
 	await db.execute(sql`drop schema if exists public cascade`);

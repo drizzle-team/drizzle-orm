@@ -1,5 +1,0 @@
-name = "neon-cf-demo"
-main = "src/index.ts"
-compatibility_date = "2022-12-09"
-usage_model = "unbound"
-node_compat = true

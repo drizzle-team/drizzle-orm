@@ -6,12 +6,15 @@ import { migrate } from 'drizzle-orm/vercel-postgres/migrator';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
-import { createDockerDB, tests, usersMigratorTable, usersTable } from './pg-common';
+import { createDockerDB, tests, tests as cacheTests, usersMigratorTable, usersTable } from './pg-common';
+import { TestCache, TestGlobalCache } from './pg-common-cache';
 import relations from './relations';
 
 const ENABLE_LOGGING = false;
 
 let db: VercelPgDatabase<never, typeof relations>;
+let dbGlobalCached: VercelPgDatabase;
+let cachedDb: VercelPgDatabase;
 let client: VercelClient;
 
 beforeAll(async () => {
@@ -47,6 +50,8 @@ beforeAll(async () => {
 		throw lastError;
 	}
 	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
+	cachedDb = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestCache() });
+	dbGlobalCached = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 });
 
 afterAll(async () => {
@@ -56,6 +61,10 @@ afterAll(async () => {
 beforeEach((ctx) => {
 	ctx.pg = {
 		db,
+	};
+	ctx.cachedPg = {
+		db: cachedDb,
+		dbGlobalCached,
 	};
 });
 
@@ -441,6 +450,7 @@ skipTests([
 	'select from tables with same name from different schema using alias', //
 ]);
 tests();
+cacheTests();
 
 beforeEach(async () => {
 	await db.execute(sql`drop schema if exists public cascade`);

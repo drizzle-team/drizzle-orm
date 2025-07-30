@@ -13,6 +13,7 @@ import { PlanetscaleSession } from './session.ts';
 
 export interface PlanetscaleSDriverOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class PlanetScaleDatabase<
@@ -71,7 +72,10 @@ const db = drizzle(client);
 	}
 
 	const relations = config.relations;
-	const session = new PlanetscaleSession(client, dialect, undefined, relations, schema, { logger });
+	const session = new PlanetscaleSession(client, dialect, undefined, relations, schema, {
+		logger,
+		cache: config.cache,
+	});
 	const db = new PlanetScaleDatabase(
 		dialect,
 		session,
@@ -80,6 +84,10 @@ const db = drizzle(client);
 		'planetscale',
 	) as PlanetScaleDatabase<TSchema, TRelations>;
 	(<any> db).$client = client;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
 
 	return db as any;
 }

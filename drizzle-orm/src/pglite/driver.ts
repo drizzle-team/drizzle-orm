@@ -1,5 +1,6 @@
 import { PGlite, type PGliteOptions } from '@electric-sql/pglite';
 import * as V1 from '~/_relations.ts';
+import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -12,6 +13,7 @@ import { PgliteSession } from './session.ts';
 
 export interface PgDriverOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class PgliteDriver {
@@ -28,7 +30,10 @@ export class PgliteDriver {
 		relations: AnyRelations | undefined,
 		schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined,
 	): PgliteSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig, V1.TablesRelationalConfig> {
-		return new PgliteSession(this.client, this.dialect, relations, schema, { logger: this.options.logger });
+		return new PgliteSession(this.client, this.dialect, relations, schema, {
+			logger: this.options.logger,
+			cache: this.options.cache,
+		});
 	}
 }
 
@@ -70,7 +75,7 @@ function construct<
 	}
 
 	const relations = config.relations;
-	const driver = new PgliteDriver(client, dialect, { logger });
+	const driver = new PgliteDriver(client, dialect, { logger, cache: config.cache });
 	const session = driver.createSession(relations, schema);
 	const db = new PgliteDatabase(
 		dialect,
@@ -79,6 +84,20 @@ function construct<
 		schema as V1.RelationalSchemaConfig<any>,
 	) as PgliteDatabase<TSchema>;
 	(<any> db).$client = client;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
+	// (<any> db).$cache = { invalidate: (<any> config).cache?.onMutate };
+	// if (config.cache) {
+	// 	for (
+	// 		const key of Object.getOwnPropertyNames(Object.getPrototypeOf(config.cache)).filter((key) =>
+	// 			key !== 'constructor'
+	// 		)
+	// 	) {
+	// 		(<any> db).$cache[key as keyof typeof config.cache] = (<any> config).cache[key];
+	// 	}
+	// }
 
 	return db as any;
 }

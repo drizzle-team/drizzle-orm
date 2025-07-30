@@ -111,19 +111,24 @@ export type SingleStoreJoinFn<
 	TDynamic extends boolean,
 	TJoinType extends JoinType,
 	TIsLateral extends boolean,
-> = 'cross' extends TJoinType ? <
-		TJoinedTable extends (TIsLateral extends true ? Subquery | SQL
-			: SingleStoreTable | Subquery | SQL /* | SingleStoreViewBase */),
-		TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
-	>(table: TJoinedTable) => SingleStoreJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>
-	: <
-		TJoinedTable extends (TIsLateral extends true ? Subquery | SQL
-			: SingleStoreTable | Subquery | SQL /* | SingleStoreViewBase */),
-		TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
-	>(
-		table: TJoinedTable,
-		on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
-	) => SingleStoreJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
+> = <
+	TJoinedTable extends (TIsLateral extends true ? Subquery | SQL
+		: SingleStoreTable | Subquery | SQL /* | SingleStoreViewBase */),
+	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
+>(
+	table: TJoinedTable,
+	on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
+) => SingleStoreJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
+
+export type SingleStoreCrossJoinFn<
+	T extends AnySingleStoreSelectQueryBuilder,
+	TDynamic extends boolean,
+	TIsLateral extends boolean,
+> = <
+	TJoinedTable extends (TIsLateral extends true ? Subquery | SQL
+		: SingleStoreTable | Subquery | SQL /* | SingleStoreViewBase */),
+	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
+>(table: TJoinedTable) => SingleStoreJoin<T, TDynamic, 'cross', TJoinedTable, TJoinedName>;
 
 export type SelectedFieldsFlat = SelectedFieldsFlatBase<SingleStoreColumn>;
 

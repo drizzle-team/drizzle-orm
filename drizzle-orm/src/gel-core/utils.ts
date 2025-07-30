@@ -1,4 +1,6 @@
 import { is } from '~/entity.ts';
+import { SQL } from '~/sql/sql.ts';
+import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import { type Check, CheckBuilder } from './checks.ts';
@@ -10,6 +12,7 @@ import { GelPolicy } from './policies.ts';
 import { type PrimaryKey, PrimaryKeyBuilder } from './primary-keys.ts';
 import { GelTable } from './table.ts';
 import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint.ts';
+import type { GelViewBase } from './view-base.ts';
 import { GelViewConfig } from './view-common.ts';
 import { type GelMaterializedView, GelMaterializedViewConfig, type GelView } from './view.ts';
 
@@ -59,6 +62,19 @@ export function getTableConfig<TTable extends GelTable>(table: TTable) {
 		policies,
 		enableRLS,
 	};
+}
+
+export function extractUsedTable(table: GelTable | Subquery | GelViewBase | SQL): string[] {
+	if (is(table, GelTable)) {
+		return [`${table[Table.Symbol.BaseName]}`];
+	}
+	if (is(table, Subquery)) {
+		return table._.usedTables ?? [];
+	}
+	if (is(table, SQL)) {
+		return table.usedTables ?? [];
+	}
+	return [];
 }
 
 export function getViewConfig<

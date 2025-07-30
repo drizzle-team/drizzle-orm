@@ -1,5 +1,6 @@
 import { neonConfig, Pool, type PoolConfig } from '@neondatabase/serverless';
 import * as V1 from '~/_relations.ts';
+import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -12,6 +13,7 @@ import { NeonSession } from './session.ts';
 
 export interface NeonDriverOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class NeonDriver {
@@ -28,7 +30,10 @@ export class NeonDriver {
 		relations: AnyRelations | undefined,
 		schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined,
 	): NeonSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig, V1.TablesRelationalConfig> {
-		return new NeonSession(this.client, this.dialect, relations, schema, { logger: this.options.logger });
+		return new NeonSession(this.client, this.dialect, relations, schema, {
+			logger: this.options.logger,
+			cache: this.options.cache,
+		});
 	}
 }
 
@@ -47,7 +52,7 @@ function construct<
 	client: TClient,
 	config: DrizzleConfig<TSchema, TRelations> = {},
 ): NeonDatabase<TSchema, TRelations> & {
-	$client: TClient;
+	$client: NeonClient extends TClient ? Pool : TClient;
 } {
 	const dialect = new PgDialect({ casing: config.casing });
 	let logger;
@@ -71,12 +76,16 @@ function construct<
 	}
 
 	const relations = config.relations;
-	const driver = new NeonDriver(client, dialect, { logger });
+	const driver = new NeonDriver(client, dialect, { logger, cache: config.cache });
 	const session = driver.createSession(relations, schema);
 	const db = new NeonDatabase(dialect, session, relations, schema as V1.RelationalSchemaConfig<any>) as NeonDatabase<
 		TSchema
 	>;
 	(<any> db).$client = client;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
 
 	return db as any;
 }
@@ -105,7 +114,7 @@ export function drizzle<
 		),
 	]
 ): NeonDatabase<TSchema, TRelations> & {
-	$client: TClient;
+	$client: NeonClient extends TClient ? Pool : TClient;
 } {
 	if (typeof params[0] === 'string') {
 		const instance = new Pool({
