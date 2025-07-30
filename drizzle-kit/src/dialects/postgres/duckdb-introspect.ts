@@ -1,4 +1,3 @@
-import camelcase from 'camelcase';
 import type { Entities } from '../../cli/validations/cli';
 import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
 import { type DB, trimChar } from '../../utils';
@@ -38,6 +37,7 @@ import {
 // TODO: since we by default only introspect public
 export const fromDatabase = async (
 	db: DB,
+	database: string,
 	tablesFilter: (schema: string, table: string) => boolean = () => true,
 	schemaFilter: (schema: string) => boolean = () => true,
 	entities?: Entities,
@@ -85,7 +85,7 @@ export const fromDatabase = async (
 	// SELECT current_setting('default_table_access_method') AS default_am;
 
 	const namespacesQuery = db.query<Namespace>(
-		'SELECT oid, schema_name as name FROM duckdb_schemas() WHERE internal = false ORDER BY lower(schema_name)',
+		`SELECT oid, schema_name as name FROM duckdb_schemas() WHERE database_name = ${database} ORDER BY pg_catalog.lower(schema_name)`,
 	)
 		.then((rows) => {
 			queryCallback('namespaces', rows, null);
@@ -153,7 +153,7 @@ export const fromDatabase = async (
                 'table' AS "type"
             FROM
                 duckdb_tables()
-            WHERE internal = false
+            WHERE database_name = ${database}
                 AND schema_oid IN (${filteredNamespacesIds.join(', ')})
 
             UNION ALL
@@ -166,9 +166,9 @@ export const fromDatabase = async (
                 'view' AS "type"
             FROM
                 duckdb_views()
-            WHERE internal = false
+            WHERE database_name = ${database}
                 AND schema_oid IN (${filteredNamespacesIds.join(', ')})
-            ORDER BY schema_name, name
+            ORDER BY pg_catalog.lower(schema_name), pg_catalog.lower(name)
         `).then((rows) => {
 			queryCallback('tables', rows, null);
 			return rows;
@@ -201,127 +201,127 @@ export const fromDatabase = async (
 		});
 	}
 
-	const dependQuery = db.query<{
-		oid: number;
-		tableId: number;
-		ordinality: number;
+	// const dependQuery = db.query<{
+	// 	oid: number;
+	// 	tableId: number;
+	// 	ordinality: number;
 
-		/*
-            a - An “auto” dependency means the dependent object can be dropped separately,
-                    and will be automatically removed if the referenced object is dropped—regardless of CASCADE or RESTRICT.
-                    Example: A named constraint on a table is auto-dependent on the table, so it vanishes when the table is dropped
+	// 	/*
+	//         a - An “auto” dependency means the dependent object can be dropped separately,
+	//                 and will be automatically removed if the referenced object is dropped—regardless of CASCADE or RESTRICT.
+	//                 Example: A named constraint on a table is auto-dependent on the table, so it vanishes when the table is dropped
 
-                    i - An “internal” dependency marks objects that were created as part of building another object.
-                    Directly dropping the dependent is disallowed—you must drop the referenced object instead.
-                    Dropping the referenced object always cascades to the dependent
-                    Example: A trigger enforcing a foreign-key constraint is internally dependent on its pg_constraint entry
-         */
-		deptype: 'a' | 'i';
-	}>(
-		`SELECT
-            -- sequence id
-            objid as oid,
-            refobjid as "tableId",
-            refobjsubid as "ordinality",
-            
-            -- a = auto
-            deptype
-        FROM
-            duckdb_dependencies()
-        where ${filterByTableIds ? ` refobjid in ${filterByTableIds}` : 'false'}`,
-	).then((rows) => {
-		queryCallback('depend', rows, null);
-		return rows;
-	}).catch((err) => {
-		queryCallback('depend', [], err);
-		throw err;
-	});
+	//                 i - An “internal” dependency marks objects that were created as part of building another object.
+	//                 Directly dropping the dependent is disallowed—you must drop the referenced object instead.
+	//                 Dropping the referenced object always cascades to the dependent
+	//                 Example: A trigger enforcing a foreign-key constraint is internally dependent on its pg_constraint entry
+	//      */
+	// 	deptype: 'a' | 'i';
+	// }>(
+	// 	`SELECT
+	//         -- sequence id
+	//         objid as oid,
+	//         refobjid as "tableId",
+	//         refobjsubid as "ordinality",
 
-	const enumsQuery = db
-		.query<{
-			oid: number;
-			name: string;
-			schemaId: number;
-			arrayTypeId: number;
-			ordinality: number;
-			value: string;
-		}>(`SELECT
-                pg_type.oid as "oid",
-                typname as "name",
-                typnamespace as "schemaId",
-                pg_type.typarray as "arrayTypeId",
-                pg_enum.enumsortorder AS "ordinality",
-                pg_enum.enumlabel AS "value"
-            FROM
-                pg_type
-            JOIN pg_enum on pg_enum.enumtypid=pg_type.oid
-            WHERE
-                pg_type.typtype = 'e'
-                AND typnamespace IN (${filteredNamespacesIds.join(',')})
-            ORDER BY pg_type.oid, pg_enum.enumsortorder
-        `).then((rows) => {
-			queryCallback('enums', rows, null);
-			return rows;
-		}).catch((err) => {
-			queryCallback('enums', [], err);
-			throw err;
-		});
+	//         -- a = auto
+	//         deptype
+	//     FROM
+	//         duckdb_dependencies()
+	//     where ${filterByTableIds ? ` refobjid in ${filterByTableIds}` : 'false'}`,
+	// ).then((rows) => {
+	// 	queryCallback('depend', rows, null);
+	// 	return rows;
+	// }).catch((err) => {
+	// 	queryCallback('depend', [], err);
+	// 	throw err;
+	// });
+
+	// const enumsQuery = db
+	// 	.query<{
+	// 		oid: number;
+	// 		name: string;
+	// 		schemaId: number;
+	// 		arrayTypeId: number;
+	// 		ordinality: number;
+	// 		value: string;
+	// 	}>(`SELECT
+	//             pg_type.oid as "oid",
+	//             typname as "name",
+	//             typnamespace as "schemaId",
+	//             pg_type.typarray as "arrayTypeId",
+	//             pg_enum.enumsortorder AS "ordinality",
+	//             pg_enum.enumlabel AS "value"
+	//         FROM
+	//             pg_type
+	//         JOIN pg_enum on pg_enum.enumtypid=pg_type.oid
+	//         WHERE
+	//             pg_type.typtype = 'e'
+	//             AND typnamespace IN (${filteredNamespacesIds.join(',')})
+	//         ORDER BY pg_type.oid, pg_enum.enumsortorder
+	//     `).then((rows) => {
+	// 		queryCallback('enums', rows, null);
+	// 		return rows;
+	// 	}).catch((err) => {
+	// 		queryCallback('enums', [], err);
+	// 		throw err;
+	// 	});
 
 	// fetch for serials, adrelid = tableid
-	const serialsQuery = db
-		.query<{
-			oid: number;
-			tableId: number;
-			ordinality: number;
-			expression: string;
-		}>(`SELECT
-                oid,
-                adrelid as "tableId",
-                adnum as "ordinality",
-                pg_get_expr(adbin, adrelid) as "expression"
-            FROM
-                pg_attrdef
-            WHERE ${filterByTableIds ? ` adrelid in ${filterByTableIds}` : 'false'}
-        `).then((rows) => {
-			queryCallback('serials', rows, null);
-			return rows;
-		}).catch((err) => {
-			queryCallback('serials', [], err);
-			throw err;
-		});
+	// const serialsQuery = db
+	// 	.query<{
+	// 		oid: number;
+	// 		tableId: number;
+	// 		ordinality: number;
+	// 		expression: string;
+	// 	}>(`SELECT
+	//             oid,
+	//             adrelid as "tableId",
+	//             adnum as "ordinality",
+	//             pg_get_expr(adbin, adrelid) as "expression"
+	//         FROM
+	//             pg_attrdef
+	//         WHERE ${filterByTableIds ? ` adrelid in ${filterByTableIds}` : 'false'}
+	//     `).then((rows) => {
+	// 		queryCallback('serials', rows, null);
+	// 		return rows;
+	// 	}).catch((err) => {
+	// 		queryCallback('serials', [], err);
+	// 		throw err;
+	// 	});
 
-	const sequencesQuery = db.query<{
-		schema: string;
-		oid: number;
-		name: string;
-		startWith: string;
-		minValue: string;
-		maxValue: string;
-		incrementBy: string;
-		cycle: boolean;
-		cacheSize: number;
-	}>(`SELECT 
-            n.nspname as "schema",
-            c.relname as "name",
-            seqrelid as "oid",
-            seqstart as "startWith", 
-            seqmin as "minValue", 
-            seqmax as "maxValue", 
-            seqincrement as "incrementBy", 
-            seqcycle as "cycle", 
-            seqcache as "cacheSize" 
-        FROM pg_sequence
-        LEFT JOIN pg_class c ON pg_sequence.seqrelid=c.oid
-        LEFT JOIN pg_namespace n ON c.relnamespace=n.oid
-        WHERE relnamespace IN (${filteredNamespacesIds.join(',')})
-        ORDER BY relnamespace, lower(relname);
-    `).then((rows) => {
-		queryCallback('sequences', rows, null);
-		return rows;
-	}).catch((err) => {
-		queryCallback('sequences', [], err);
-		throw err;
-	});
+	// const sequencesQuery = db.query<{
+	// 	schema: string;
+	// 	oid: number;
+	// 	name: string;
+	// 	startWith: string;
+	// 	minValue: string;
+	// 	maxValue: string;
+	// 	incrementBy: string;
+	// 	cycle: boolean;
+	// 	cacheSize: number;
+	// }>(`SELECT
+	//         n.nspname as "schema",
+	//         c.relname as "name",
+	//         seqrelid as "oid",
+	//         seqstart as "startWith",
+	//         seqmin as "minValue",
+	//         seqmax as "maxValue",
+	//         seqincrement as "incrementBy",
+	//         seqcycle as "cycle",
+	//         seqcache as "cacheSize"
+	//     FROM pg_sequence
+	//     LEFT JOIN pg_class c ON pg_sequence.seqrelid=c.oid
+	//     LEFT JOIN pg_namespace n ON c.relnamespace=n.oid
+	//     WHERE relnamespace IN (${filteredNamespacesIds.join(',')})
+	//     ORDER BY relnamespace, lower(relname);
+	// `).then((rows) => {
+	// 	queryCallback('sequences', rows, null);
+	// 	return rows;
+	// }).catch((err) => {
+	// 	queryCallback('sequences', [], err);
+	// 	throw err;
+	// });
 
 	const constraintsQuery = db.query<{
 		schemaId: number;
@@ -330,8 +330,8 @@ export const fromDatabase = async (
 		type: 'PRIMARY KEY' | 'UNIQUE' | 'FOREIGN KEY' | 'CHECK'; // p - primary key, u - unique, f - foreign key, c - check
 		definition: string;
 		tableToName: string;
-		columnsNames: { items: string[] };
-		columnsToNames: { items: string[] };
+		columnsNames: string[];
+		columnsToNames: string[];
 	}>(`
         SELECT
             schema_oid AS "schemaId",
@@ -344,8 +344,9 @@ export const fromDatabase = async (
             referenced_column_names AS "columnsToNames"
         FROM
             duckdb_constraints()
-        WHERE ${filterByTableIds ? ` table_oid in ${filterByTableIds}` : 'false'}
-        ORDER BY constraint_type, lower(constraint_name);
+        WHERE database_name = ${database}
+			${filterByTableIds ? ` table_oid in ${filterByTableIds}` : 'false'}
+        ORDER BY constraint_type, pg_catalog.lower(constraint_name);
   `).then((rows) => {
 		queryCallback('constraints', rows, null);
 		return rows;
@@ -369,13 +370,13 @@ export const fromDatabase = async (
             column_index AS "ordinality",
             is_nullable = false AS "notNull",
             data_type_id AS "typeId",
-            lower(data_type) AS "type",
+            pg_catalog.lower(data_type) AS "type",
             column_default AS "default"
         FROM
             duckdb_columns()
         WHERE
         ${filterByTableAndViewIds ? ` table_oid in ${filterByTableAndViewIds}` : 'false'}
-            AND internal = FALSE
+            AND database_name = ${database}
         ORDER BY column_index;
     `).then((rows) => {
 		queryCallback('columns', rows, null);
@@ -386,60 +387,60 @@ export const fromDatabase = async (
 	});
 
 	const [
-		dependList,
-		enumsList,
-		serialsList,
-		sequencesList,
+		// dependList,
+		// enumsList,
+		// serialsList,
+		// sequencesList,
 		constraintsList,
 		columnsList,
 	] = await Promise
 		.all([
-			dependQuery,
-			enumsQuery,
-			serialsQuery,
-			sequencesQuery,
+			// dependQuery,
+			// enumsQuery,
+			// serialsQuery,
+			// sequencesQuery,
 			constraintsQuery,
 			columnsQuery,
 		]);
 
-	const groupedEnums = enumsList.reduce((acc, it) => {
-		if (!(it.oid in acc)) {
-			const schemaName = filteredNamespaces.find((sch) => sch.oid === it.schemaId)!.name;
-			acc[it.oid] = {
-				oid: it.oid,
-				schema: schemaName,
-				name: it.name,
-				values: [it.value],
-			};
-		} else {
-			acc[it.oid].values.push(it.value);
-		}
-		return acc;
-	}, {} as Record<number, { oid: number; schema: string; name: string; values: string[] }>);
+	// const groupedEnums = enumsList.reduce((acc, it) => {
+	// 	if (!(it.oid in acc)) {
+	// 		const schemaName = filteredNamespaces.find((sch) => sch.oid === it.schemaId)!.name;
+	// 		acc[it.oid] = {
+	// 			oid: it.oid,
+	// 			schema: schemaName,
+	// 			name: it.name,
+	// 			values: [it.value],
+	// 		};
+	// 	} else {
+	// 		acc[it.oid].values.push(it.value);
+	// 	}
+	// 	return acc;
+	// }, {} as Record<number, { oid: number; schema: string; name: string; values: string[] }>);
 
-	const groupedArrEnums = enumsList.reduce((acc, it) => {
-		if (!(it.arrayTypeId in acc)) {
-			const schemaName = filteredNamespaces.find((sch) => sch.oid === it.schemaId)!.name;
-			acc[it.arrayTypeId] = {
-				oid: it.oid,
-				schema: schemaName,
-				name: it.name,
-				values: [it.value],
-			};
-		} else {
-			acc[it.arrayTypeId].values.push(it.value);
-		}
-		return acc;
-	}, {} as Record<number, { oid: number; schema: string; name: string; values: string[] }>);
+	// const groupedArrEnums = enumsList.reduce((acc, it) => {
+	// 	if (!(it.arrayTypeId in acc)) {
+	// 		const schemaName = filteredNamespaces.find((sch) => sch.oid === it.schemaId)!.name;
+	// 		acc[it.arrayTypeId] = {
+	// 			oid: it.oid,
+	// 			schema: schemaName,
+	// 			name: it.name,
+	// 			values: [it.value],
+	// 		};
+	// 	} else {
+	// 		acc[it.arrayTypeId].values.push(it.value);
+	// 	}
+	// 	return acc;
+	// }, {} as Record<number, { oid: number; schema: string; name: string; values: string[] }>);
 
-	for (const it of Object.values(groupedEnums)) {
-		enums.push({
-			entityType: 'enums',
-			schema: it.schema,
-			name: it.name,
-			values: it.values,
-		});
-	}
+	// for (const it of Object.values(groupedEnums)) {
+	// 	enums.push({
+	// 		entityType: 'enums',
+	// 		schema: it.schema,
+	// 		name: it.name,
+	// 		values: it.values,
+	// 	});
+	// }
 
 	let columnsCount = 0;
 	let indexesCount = 0;
@@ -448,30 +449,30 @@ export const fromDatabase = async (
 	let checksCount = 0;
 	let viewsCount = 0;
 
-	for (const seq of sequencesList) {
-		const depend = dependList.find((it) => it.oid === seq.oid);
+	// for (const seq of sequencesList) {
+	// 	const depend = dependList.find((it) => it.oid === seq.oid);
 
-		if (depend && (depend.deptype === 'a' || depend.deptype === 'i')) {
-			// TODO: add type field to sequence in DDL
-			// skip fo sequences or identity columns
-			// console.log('skip for auto created', seq.name);
-			continue;
-		}
+	// 	if (depend && (depend.deptype === 'a' || depend.deptype === 'i')) {
+	// 		// TODO: add type field to sequence in DDL
+	// 		// skip fo sequences or identity columns
+	// 		// console.log('skip for auto created', seq.name);
+	// 		continue;
+	// 	}
 
-		sequences.push({
-			entityType: 'sequences',
-			schema: seq.schema,
-			name: seq.name,
-			startWith: parseIdentityProperty(seq.startWith),
-			minValue: parseIdentityProperty(seq.minValue),
-			maxValue: parseIdentityProperty(seq.maxValue),
-			incrementBy: parseIdentityProperty(seq.incrementBy),
-			cycle: seq.cycle,
-			cacheSize: Number(parseIdentityProperty(seq.cacheSize) ?? 1),
-		});
-	}
+	// 	sequences.push({
+	// 		entityType: 'sequences',
+	// 		schema: seq.schema,
+	// 		name: seq.name,
+	// 		startWith: parseIdentityProperty(seq.startWith),
+	// 		minValue: parseIdentityProperty(seq.minValue),
+	// 		maxValue: parseIdentityProperty(seq.maxValue),
+	// 		incrementBy: parseIdentityProperty(seq.incrementBy),
+	// 		cycle: seq.cycle,
+	// 		cacheSize: Number(parseIdentityProperty(seq.cacheSize) ?? 1),
+	// 	});
+	// }
 
-	progressCallback('enums', Object.keys(groupedEnums).length, 'done');
+	// progressCallback('enums', Object.keys(groupedEnums).length, 'done');
 
 	type DBColumn = (typeof columnsList)[number];
 
@@ -488,29 +489,38 @@ export const fromDatabase = async (
 			continue;
 		}
 
-		const expr = serialsList.find(
-			(it) => it.tableId === column.tableId && it.ordinality === column.ordinality,
-		);
+		// const expr = serialsList.find(
+		// 	(it) => it.tableId === column.tableId && it.ordinality === column.ordinality,
+		// );
 
-		if (expr) {
-			const table = tablesList.find((it) => it.oid === column.tableId)!;
+		// if (expr) {
+		// 	const table = tablesList.find((it) => it.oid === column.tableId)!;
 
-			const isSerial = isSerialExpression(expr.expression, table.schema);
-			column.type = isSerial ? type === 'bigint' ? 'bigserial' : type === 'integer' ? 'serial' : 'smallserial' : type;
-		}
+		// 	const isSerial = isSerialExpression(expr.expression, table.schema);
+		// 	column.type = isSerial ? type === 'bigint' ? 'bigserial' : type === 'integer' ? 'serial' : 'smallserial' : type;
+		// }
 	}
 
 	for (const column of tableColumns) {
 		const table = tablesList.find((it) => it.oid === column.tableId)!;
 
 		// supply enums
-		const enumType = column.typeId in groupedEnums
-			? groupedEnums[column.typeId]
-			: column.typeId in groupedArrEnums
-			? groupedArrEnums[column.typeId]
-			: null;
+		// const enumType = column.typeId in groupedEnums
+		// 	? groupedEnums[column.typeId]
+		// 	: column.typeId in groupedArrEnums
+		// 	? groupedArrEnums[column.typeId]
+		// 	: null;
 
-		let columnTypeMapped = enumType ? enumType.name : column.type.replace('[]', '');
+		// let columnTypeMapped = enumType ? enumType.name : column.type.replace('[]', '');
+		let columnTypeMapped = column.type;
+		let dimensions = 0;
+
+		// check if column is array
+		const arrayRegex = /\[(\d+)?\]$/;
+		if (arrayRegex.test(columnTypeMapped)) {
+			columnTypeMapped = columnTypeMapped.replace(arrayRegex, '');
+			dimensions = 1;
+		}
 
 		if (columnTypeMapped.startsWith('numeric(')) {
 			columnTypeMapped = columnTypeMapped.replace(',', ', ');
@@ -536,13 +546,13 @@ export const fromDatabase = async (
 		);
 
 		const unique = constraintsList.find((it) => {
-			return it.type === 'UNIQUE' && it.tableId === column.tableId && it.columnsNames.items.length === 1
-				&& it.columnsNames.items.includes(column.name);
+			return it.type === 'UNIQUE' && it.tableId === column.tableId && it.columnsNames.length === 1
+				&& it.columnsNames.includes(column.name);
 		}) ?? null;
 
 		const pk = constraintsList.find((it) => {
-			return it.type === 'PRIMARY KEY' && it.tableId === column.tableId && it.columnsNames.items.length === 1
-				&& it.columnsNames.items.includes(column.name);
+			return it.type === 'PRIMARY KEY' && it.tableId === column.tableId && it.columnsNames.length === 1
+				&& it.columnsNames.includes(column.name);
 		}) ?? null;
 
 		columns.push({
@@ -552,8 +562,9 @@ export const fromDatabase = async (
 			name: column.name,
 			type,
 			options,
-			typeSchema: enumType ? enumType.schema ?? 'public' : null,
-			dimensions: 0,
+			// typeSchema: enumType ? enumType.schema ?? 'public' : null,
+			typeSchema: null,
+			dimensions,
 			default: defaultValue,
 			unique: !!unique,
 			uniqueName: unique ? unique.name : null,
@@ -570,7 +581,7 @@ export const fromDatabase = async (
 		const table = tablesList.find((it) => it.oid === unique.tableId)!;
 		const schema = namespaces.find((it) => it.oid === unique.schemaId)!;
 
-		const columns = unique.columnsNames.items.map((it) => {
+		const columns = unique.columnsNames.map((it) => {
 			const column = columnsList.find((column) => column.tableId == unique.tableId && column.name === it)!;
 			return column.name;
 		});
@@ -590,7 +601,7 @@ export const fromDatabase = async (
 		const table = tablesList.find((it) => it.oid === pk.tableId)!;
 		const schema = namespaces.find((it) => it.oid === pk.schemaId)!;
 
-		const columns = pk.columnsNames.items.map((it) => {
+		const columns = pk.columnsNames.map((it) => {
 			const column = columnsList.find((column) => column.tableId == pk.tableId && column.name === it)!;
 			return column.name;
 		});
@@ -610,12 +621,12 @@ export const fromDatabase = async (
 		const schema = namespaces.find((it) => it.oid === fk.schemaId)!;
 		const tableTo = tablesList.find((it) => it.schema === schema.name && it.name === fk.tableToName)!;
 
-		const columns = fk.columnsNames.items.map((it) => {
+		const columns = fk.columnsNames.map((it) => {
 			const column = columnsList.find((column) => column.tableId == fk.tableId && column.name === it)!;
 			return column.name;
 		});
 
-		const columnsTo = fk.columnsToNames.items.map((it) => {
+		const columnsTo = fk.columnsToNames.map((it) => {
 			const column = columnsList.find((column) => column.tableId == tableTo.oid && column.name === it)!;
 			return column.name;
 		});
@@ -648,149 +659,149 @@ export const fromDatabase = async (
 		});
 	}
 
-	const idxs = await db.query<{
-		oid: number;
-		schema: string;
-		name: string;
-		accessMethod: string;
-		with?: string[];
-		metadata: {
-			tableId: number;
-			expression: string | null;
-			where: string;
-			columnOrdinals: number[];
-			options: number[];
-			isUnique: boolean;
-			isPrimary: boolean;
-		};
-	}>(`
-      SELECT
-        pg_class.oid,
-        n.nspname as "schema",
-        relname AS "name",
-        am.amname AS "accessMethod",
-        reloptions AS "with",
-        row_to_json(metadata) as "metadata"
-      FROM
-        pg_class
-      JOIN pg_am am ON am.oid = pg_class.relam
-      JOIN pg_namespace n ON relnamespace = n.oid
-      LEFT JOIN LATERAL (
-        SELECT
-          pg_get_expr(indexprs, indrelid) AS "expression",
-          pg_get_expr(indpred, indrelid) AS "where",
-          indrelid::int AS "tableId",
-          indkey::int[] as "columnOrdinals",
-          indoption::int[] as "options",
-          indisunique as "isUnique",
-          indisprimary as "isPrimary"
-        FROM
-          pg_index
-        WHERE
-          pg_index.indexrelid = pg_class.oid
-      ) metadata ON TRUE
-      WHERE
-        relkind = 'i' and ${filterByTableIds ? `metadata."tableId" in ${filterByTableIds}` : 'false'}
-      ORDER BY relnamespace, lower(relname);
-    `).then((rows) => {
-		queryCallback('indexes', rows, null);
-		return rows;
-	}).catch((err) => {
-		queryCallback('indexes', [], err);
-		throw err;
-	});
+	// const idxs = await db.query<{
+	// 	oid: number;
+	// 	schema: string;
+	// 	name: string;
+	// 	accessMethod: string;
+	// 	with?: string[];
+	// 	metadata: {
+	// 		tableId: number;
+	// 		expression: string | null;
+	// 		where: string;
+	// 		columnOrdinals: number[];
+	// 		options: number[];
+	// 		isUnique: boolean;
+	// 		isPrimary: boolean;
+	// 	};
+	// }>(`
+	//   SELECT
+	//     pg_class.oid,
+	//     n.nspname as "schema",
+	//     relname AS "name",
+	//     am.amname AS "accessMethod",
+	//     reloptions AS "with",
+	//     row_to_json(metadata) as "metadata"
+	//   FROM
+	//     pg_class
+	//   JOIN pg_am am ON am.oid = pg_class.relam
+	//   JOIN pg_namespace n ON relnamespace = n.oid
+	//   LEFT JOIN LATERAL (
+	//     SELECT
+	//       pg_get_expr(indexprs, indrelid) AS "expression",
+	//       pg_get_expr(indpred, indrelid) AS "where",
+	//       indrelid::int AS "tableId",
+	//       indkey::int[] as "columnOrdinals",
+	//       indoption::int[] as "options",
+	//       indisunique as "isUnique",
+	//       indisprimary as "isPrimary"
+	//     FROM
+	//       pg_index
+	//     WHERE
+	//       pg_index.indexrelid = pg_class.oid
+	//   ) metadata ON TRUE
+	//   WHERE
+	//     relkind = 'i' and ${filterByTableIds ? `metadata."tableId" in ${filterByTableIds}` : 'false'}
+	//   ORDER BY relnamespace, lower(relname);
+	// `).then((rows) => {
+	// 	queryCallback('indexes', rows, null);
+	// 	return rows;
+	// }).catch((err) => {
+	// 	queryCallback('indexes', [], err);
+	// 	throw err;
+	// });
 
-	for (const idx of idxs) {
-		const { metadata } = idx;
+	// for (const idx of idxs) {
+	// 	const { metadata } = idx;
 
-		const expr = splitExpressions(metadata.expression);
+	// 	const expr = splitExpressions(metadata.expression);
 
-		const table = tablesList.find((it) => it.oid === idx.metadata.tableId)!;
+	// 	const table = tablesList.find((it) => it.oid === idx.metadata.tableId)!;
 
-		const nonColumnsCount = metadata.columnOrdinals.reduce((acc, it) => {
-			if (it === 0) acc += 1;
-			return acc;
-		}, 0);
+	// 	const nonColumnsCount = metadata.columnOrdinals.reduce((acc, it) => {
+	// 		if (it === 0) acc += 1;
+	// 		return acc;
+	// 	}, 0);
 
-		if (expr.length !== nonColumnsCount) {
-			throw new Error(
-				`expression split doesn't match non-columns count: [${
-					metadata.columnOrdinals.join(
-						', ',
-					)
-				}] '${metadata.expression}':${expr.length}:${nonColumnsCount}`,
-			);
-		}
+	// 	if (expr.length !== nonColumnsCount) {
+	// 		throw new Error(
+	// 			`expression split doesn't match non-columns count: [${
+	// 				metadata.columnOrdinals.join(
+	// 					', ',
+	// 				)
+	// 			}] '${metadata.expression}':${expr.length}:${nonColumnsCount}`,
+	// 		);
+	// 	}
 
-		const opts = metadata.options.map((it) => {
-			return {
-				descending: (it & 1) === 1,
-				nullsFirst: (it & 2) === 2,
-			};
-		});
+	// 	const opts = metadata.options.map((it) => {
+	// 		return {
+	// 			descending: (it & 1) === 1,
+	// 			nullsFirst: (it & 2) === 2,
+	// 		};
+	// 	});
 
-		const res = [] as (
-			& (
-				| { type: 'expression'; value: string }
-				| { type: 'column'; value: DBColumn }
-			)
-			& { options: (typeof opts)[number] }
-		)[];
+	// 	const res = [] as (
+	// 		& (
+	// 			| { type: 'expression'; value: string }
+	// 			| { type: 'column'; value: DBColumn }
+	// 		)
+	// 		& { options: (typeof opts)[number] }
+	// 	)[];
 
-		let k = 0;
-		for (let i = 0; i < metadata.columnOrdinals.length; i++) {
-			const ordinal = metadata.columnOrdinals[i];
-			if (ordinal === 0) {
-				res.push({
-					type: 'expression',
-					value: expr[k],
-					options: opts[i],
-				});
-				k += 1;
-			} else {
-				const column = columnsList.find((column) => {
-					return column.tableId == metadata.tableId && column.ordinality === ordinal;
-				});
-				if (!column) throw new Error(`missing column: ${metadata.tableId}:${ordinal}`);
+	// 	let k = 0;
+	// 	for (let i = 0; i < metadata.columnOrdinals.length; i++) {
+	// 		const ordinal = metadata.columnOrdinals[i];
+	// 		if (ordinal === 0) {
+	// 			res.push({
+	// 				type: 'expression',
+	// 				value: expr[k],
+	// 				options: opts[i],
+	// 			});
+	// 			k += 1;
+	// 		} else {
+	// 			const column = columnsList.find((column) => {
+	// 				return column.tableId == metadata.tableId && column.ordinality === ordinal;
+	// 			});
+	// 			if (!column) throw new Error(`missing column: ${metadata.tableId}:${ordinal}`);
 
-				// ! options and opclass can be undefined when index have "INCLUDE" columns (columns from "INCLUDE" don't have options and opclass)
-				const options = opts[i] as typeof opts[number] | undefined;
-				if (options) {
-					res.push({
-						type: 'column',
-						value: column,
-						options: opts[i],
-					});
-				}
-			}
-		}
+	// 			// ! options and opclass can be undefined when index have "INCLUDE" columns (columns from "INCLUDE" don't have options and opclass)
+	// 			const options = opts[i] as typeof opts[number] | undefined;
+	// 			if (options) {
+	// 				res.push({
+	// 					type: 'column',
+	// 					value: column,
+	// 					options: opts[i],
+	// 				});
+	// 			}
+	// 		}
+	// 	}
 
-		const columns = res.map((it) => {
-			return {
-				asc: !it.options.descending,
-				nullsFirst: it.options.nullsFirst,
-				opclass: null,
-				isExpression: it.type === 'expression',
-				value: it.type === 'expression' ? it.value : it.value.name, // column name
-			} satisfies Index['columns'][number];
-		});
+	// 	const columns = res.map((it) => {
+	// 		return {
+	// 			asc: !it.options.descending,
+	// 			nullsFirst: it.options.nullsFirst,
+	// 			opclass: null,
+	// 			isExpression: it.type === 'expression',
+	// 			value: it.type === 'expression' ? it.value : it.value.name, // column name
+	// 		} satisfies Index['columns'][number];
+	// 	});
 
-		indexes.push({
-			entityType: 'indexes',
-			schema: idx.schema,
-			table: table.name,
-			name: idx.name,
-			nameExplicit: true,
-			method: idx.accessMethod,
-			isUnique: metadata.isUnique,
-			with: idx.with?.join(', ') ?? '',
-			where: idx.metadata.where,
-			columns: columns,
-			concurrently: false,
-			forUnique: false,
-			forPK: false,
-		});
-	}
+	// 	indexes.push({
+	// 		entityType: 'indexes',
+	// 		schema: idx.schema,
+	// 		table: table.name,
+	// 		name: idx.name,
+	// 		nameExplicit: true,
+	// 		method: idx.accessMethod,
+	// 		isUnique: metadata.isUnique,
+	// 		with: idx.with?.join(', ') ?? '',
+	// 		where: idx.metadata.where,
+	// 		columns: columns,
+	// 		concurrently: false,
+	// 		forUnique: false,
+	// 		forPK: false,
+	// 	});
+	// }
 
 	progressCallback('columns', columnsCount, 'fetching');
 	progressCallback('checks', checksCount, 'fetching');
@@ -805,13 +816,14 @@ export const fromDatabase = async (
 	) {
 		const view = viewsList.find((x) => x.oid === it.tableId)!;
 
-		const enumType = it.typeId in groupedEnums
-			? groupedEnums[it.typeId]
-			: it.typeId in groupedArrEnums
-			? groupedArrEnums[it.typeId]
-			: null;
+		// const enumType = it.typeId in groupedEnums
+		// 	? groupedEnums[it.typeId]
+		// 	: it.typeId in groupedArrEnums
+		// 	? groupedArrEnums[it.typeId]
+		// 	: null;
 
-		let columnTypeMapped = enumType ? enumType.name : it.type.replace('[]', '');
+		// let columnTypeMapped = enumType ? enumType.name : it.type.replace('[]', '');
+		let columnTypeMapped = it.type.replace('[]', '');
 		columnTypeMapped = trimChar(columnTypeMapped, '"');
 		if (columnTypeMapped.startsWith('numeric(')) {
 			columnTypeMapped = columnTypeMapped.replace(',', ', ');
@@ -830,7 +842,8 @@ export const fromDatabase = async (
 			type: columnTypeMapped,
 			notNull: it.notNull,
 			dimensions: 0,
-			typeSchema: enumType ? enumType.schema : null,
+			// typeSchema: enumType ? enumType.schema : null,
+			typeSchema: null,
 		});
 	}
 
@@ -877,23 +890,4 @@ export const fromDatabase = async (
 		views,
 		viewColumns,
 	} satisfies InterimSchema;
-};
-
-export const fromDatabaseForDrizzle = async (
-	db: DB,
-	tableFilter: (it: string) => boolean = () => true,
-	schemaFilters: (it: string) => boolean = () => true,
-	entities?: Entities,
-	progressCallback: (
-		stage: IntrospectStage,
-		count: number,
-		status: IntrospectStatus,
-	) => void = () => {},
-) => {
-	const res = await fromDatabase(db, tableFilter, schemaFilters, entities, progressCallback);
-	res.schemas = res.schemas.filter((it) => it.name !== 'public');
-	res.indexes = res.indexes.filter((it) => !it.forPK && !it.forUnique);
-	res.privileges = [];
-
-	return res;
 };
