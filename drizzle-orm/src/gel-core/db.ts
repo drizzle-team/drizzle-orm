@@ -1,4 +1,5 @@
 import type * as V1 from '~/_relations.ts';
+import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { GelDialect } from '~/gel-core/dialect.ts';
 import {
@@ -116,6 +117,8 @@ export class GelDatabase<
 				);
 			}
 		}
+
+		this.$cache = { invalidate: async (_params: any) => {} };
 	}
 
 	/**
@@ -535,6 +538,8 @@ export class GelDatabase<
 			distinct: { on },
 		});
 	}
+
+	$cache: { invalidate: Cache['onMutate'] };
 
 	/**
 	 * Creates an update query.

@@ -12,7 +12,7 @@ import {
 	normaliseSQLiteUrl,
 	type Proxy,
 	type SQLiteDB,
-	type SqliteProxy,
+	type TransactionProxy,
 } from '../utils';
 import { assertPackages, checkPackage } from './utils';
 import { GelCredentials } from './validations/gel';
@@ -27,7 +27,15 @@ export const preparePostgresDB = async (
 	credentials: PostgresCredentials,
 ): Promise<
 	DB & {
+		packageName:
+			| '@aws-sdk/client-rds-data'
+			| 'pglite'
+			| 'pg'
+			| 'postgres'
+			| '@vercel/postgres'
+			| '@neondatabase/serverless';
 		proxy: Proxy;
+		transactionProxy: TransactionProxy;
 		migrate: (config: string | MigrationConfig) => Promise<void>;
 	}
 > => {
@@ -97,10 +105,15 @@ export const preparePostgresDB = async (
 				const result = await prepared.execute();
 				return result.rows;
 			};
+			const transactionProxy: TransactionProxy = async (queries) => {
+				throw new Error('Transaction not supported');
+			};
 
 			return {
+				packageName: '@aws-sdk/client-rds-data',
 				query,
 				proxy,
+				transactionProxy,
 				migrate: migrateFn,
 			};
 		}
@@ -133,7 +146,7 @@ export const preparePostgresDB = async (
 			};
 
 			const proxy = async (params: ProxyParams) => {
-				const preparedParams = preparePGliteParams(params.params);
+				const preparedParams = preparePGliteParams(params.params || []);
 				const result = await pglite.query(params.sql, preparedParams, {
 					rowMode: params.mode,
 					parsers,
@@ -141,7 +154,24 @@ export const preparePostgresDB = async (
 				return result.rows;
 			};
 
-			return { query, proxy, migrate: migrateFn };
+			const transactionProxy: TransactionProxy = async (queries) => {
+				const results: any[] = [];
+				try {
+					await pglite.transaction(async (tx) => {
+						for (const query of queries) {
+							const result = await tx.query(query.sql, undefined, {
+								parsers,
+							});
+							results.push(result.rows);
+						}
+					});
+				} catch (error) {
+					results.push(error as Error);
+				}
+				return results;
+			};
+
+			return { packageName: 'pglite', query, proxy, transactionProxy, migrate: migrateFn };
 		}
 
 		assertUnreachable(driver);
@@ -202,7 +232,7 @@ export const preparePostgresDB = async (
 			return result.rows;
 		};
 
-		const proxy: Proxy = async (params: ProxyParams) => {
+		const proxy: Proxy = async (params) => {
 			const result = await client.query({
 				text: params.sql,
 				values: params.params,
@@ -212,7 +242,29 @@ export const preparePostgresDB = async (
 			return result.rows;
 		};
 
-		return { query, proxy, migrate: migrateFn };
+		const transactionProxy: TransactionProxy = async (queries) => {
+			const results: any[] = [];
+			const tx = await client.connect();
+			try {
+				await tx.query('BEGIN');
+				for (const query of queries) {
+					const result = await tx.query({
+						text: query.sql,
+						types,
+					});
+					results.push(result.rows);
+				}
+				await tx.query('COMMIT');
+			} catch (error) {
+				await tx.query('ROLLBACK');
+				results.push(error as Error);
+			} finally {
+				tx.release();
+			}
+			return results;
+		};
+
+		return { packageName: 'pg', query, proxy, transactionProxy, migrate: migrateFn };
 	}
 
 	if (await checkPackage('postgres')) {
@@ -248,14 +300,29 @@ export const preparePostgresDB = async (
 			return result as any[];
 		};
 
-		const proxy = async (params: ProxyParams) => {
-			if (params.mode === 'object') {
-				return await client.unsafe(params.sql, params.params);
+		const proxy: Proxy = async (params) => {
+			if (params.mode === 'array') {
+				return await client.unsafe(params.sql, params.params).values();
 			}
-			return await client.unsafe(params.sql, params.params).values();
+			return await client.unsafe(params.sql, params.params);
 		};
 
-		return { query, proxy, migrate: migrateFn };
+		const transactionProxy: TransactionProxy = async (queries) => {
+			const results: any[] = [];
+			try {
+				await client.begin(async (sql) => {
+					for (const query of queries) {
+						const result = await sql.unsafe(query.sql);
+						results.push(result);
+					}
+				});
+			} catch (error) {
+				results.push(error as Error);
+			}
+			return results;
+		};
+
+		return { packageName: 'postgres', query, proxy, transactionProxy, migrate: migrateFn };
 	}
 
 	if (await checkPackage('@vercel/postgres')) {
@@ -321,7 +388,7 @@ export const preparePostgresDB = async (
 			return result.rows;
 		};
 
-		const proxy: Proxy = async (params: ProxyParams) => {
+		const proxy: Proxy = async (params) => {
 			const result = await client.query({
 				text: params.sql,
 				values: params.params,
@@ -331,7 +398,29 @@ export const preparePostgresDB = async (
 			return result.rows;
 		};
 
-		return { query, proxy, migrate: migrateFn };
+		const transactionProxy: TransactionProxy = async (queries) => {
+			const results: any[] = [];
+			const tx = await client.connect();
+			try {
+				await tx.query('BEGIN');
+				for (const query of queries) {
+					const result = await tx.query({
+						text: query.sql,
+						types,
+					});
+					results.push(result.rows);
+				}
+				await tx.query('COMMIT');
+			} catch (error) {
+				await tx.query('ROLLBACK');
+				results.push(error as Error);
+			} finally {
+				tx.release();
+			}
+			return results;
+		};
+
+		return { packageName: '@vercel/postgres', query, proxy, transactionProxy, migrate: migrateFn };
 	}
 
 	if (await checkPackage('@neondatabase/serverless')) {
@@ -409,7 +498,29 @@ export const preparePostgresDB = async (
 			return result.rows;
 		};
 
-		return { query, proxy, migrate: migrateFn };
+		const transactionProxy: TransactionProxy = async (queries) => {
+			const results: any[] = [];
+			const tx = await client.connect();
+			try {
+				await tx.query('BEGIN');
+				for (const query of queries) {
+					const result = await tx.query({
+						text: query.sql,
+						types,
+					});
+					results.push(result.rows);
+				}
+				await tx.query('COMMIT');
+			} catch (error) {
+				await tx.query('ROLLBACK');
+				results.push(error as Error);
+			} finally {
+				tx.release();
+			}
+			return results;
+		};
+
+		return { packageName: '@neondatabase/serverless', query, proxy, transactionProxy, migrate: migrateFn };
 	}
 
 	console.error(
@@ -422,13 +533,15 @@ export const prepareGelDB = async (
 	credentials?: GelCredentials,
 ): Promise<
 	DB & {
+		packageName: 'gel';
 		proxy: Proxy;
+		transactionProxy: TransactionProxy;
 	}
 > => {
 	if (await checkPackage('gel')) {
 		const gel = await import('gel');
 
-		let client: any;
+		let client: ReturnType<typeof gel.createClient>;
 		if (!credentials) {
 			client = gel.createClient();
 			try {
@@ -463,19 +576,34 @@ To link your project, please refer https://docs.geldata.com/reference/cli/gel_in
 			let result: any[];
 			switch (mode) {
 				case 'array':
-					result = sqlParams.length
+					result = sqlParams?.length
 						? await client.withSQLRowMode('array').querySQL(sql, sqlParams)
-						: await client.querySQL(sql);
+						: await client.withSQLRowMode('array').querySQL(sql);
 					break;
 				case 'object':
-					result = sqlParams.length ? await client.querySQL(sql, sqlParams) : await client.querySQL(sql);
+					result = sqlParams?.length ? await client.querySQL(sql, sqlParams) : await client.querySQL(sql);
 					break;
 			}
 
 			return result;
 		};
 
-		return { query, proxy };
+		const transactionProxy: TransactionProxy = async (queries) => {
+			const result: any[] = [];
+			try {
+				await client.transaction(async (tx) => {
+					for (const query of queries) {
+						const res = await tx.querySQL(query.sql);
+						result.push(res);
+					}
+				});
+			} catch (error) {
+				result.push(error as Error);
+			}
+			return result;
+		};
+
+		return { packageName: 'gel', query, proxy, transactionProxy };
 	}
 
 	console.error(
@@ -511,7 +639,9 @@ export const connectToSingleStore = async (
 	it: SingleStoreCredentials,
 ): Promise<{
 	db: DB;
+	packageName: 'mysql2';
 	proxy: Proxy;
+	transactionProxy: TransactionProxy;
 	database: string;
 	migrate: (config: MigrationConfig) => Promise<void>;
 }> => {
@@ -549,16 +679,34 @@ export const connectToSingleStore = async (
 			return result[0] as any[];
 		};
 
+		const transactionProxy: TransactionProxy = async (queries) => {
+			const results: any[] = [];
+			try {
+				await connection.beginTransaction();
+				for (const query of queries) {
+					const res = await connection.query(query.sql);
+					results.push(res[0]);
+				}
+				await connection.commit();
+			} catch (error) {
+				await connection.rollback();
+				results.push(error as Error);
+			}
+			return results;
+		};
+
 		return {
 			db: { query },
+			packageName: 'mysql2',
 			proxy,
+			transactionProxy,
 			database: result.database,
 			migrate: migrateFn,
 		};
 	}
 
 	console.error(
-		"To connect to SingleStore database - please install 'singlestore' driver",
+		"To connect to SingleStore database - please install 'mysql2' driver",
 	);
 	process.exit(1);
 };
@@ -590,7 +738,9 @@ export const connectToMySQL = async (
 	it: MysqlCredentials,
 ): Promise<{
 	db: DB;
+	packageName: 'mysql2' | '@planetscale/database';
 	proxy: Proxy;
+	transactionProxy: TransactionProxy;
 	database: string;
 	migrate: (config: MigrationConfig) => Promise<void>;
 }> => {
@@ -640,9 +790,27 @@ export const connectToMySQL = async (
 			return result[0] as any[];
 		};
 
+		const transactionProxy: TransactionProxy = async (queries) => {
+			const results: any[] = [];
+			try {
+				await connection.beginTransaction();
+				for (const query of queries) {
+					const res = await connection.query(query.sql);
+					results.push(res[0]);
+				}
+				await connection.commit();
+			} catch (error) {
+				await connection.rollback();
+				results.push(error as Error);
+			}
+			return results;
+		};
+
 		return {
 			db: { query },
+			packageName: 'mysql2',
 			proxy,
+			transactionProxy,
 			database: result.database,
 			migrate: migrateFn,
 		};
@@ -667,17 +835,34 @@ export const connectToMySQL = async (
 			return res.rows as T[];
 		};
 		const proxy: Proxy = async (params: ProxyParams) => {
-			const result = params.mode === 'object'
-				? await connection.execute(params.sql, params.params)
-				: await connection.execute(params.sql, params.params, {
-					as: 'array',
-				});
+			const result = await connection.execute(
+				params.sql,
+				params.params,
+				params.mode === 'array' ? { as: 'array' } : undefined,
+			);
 			return result.rows;
+		};
+
+		const transactionProxy: TransactionProxy = async (queries) => {
+			const results: any[] = [];
+			try {
+				await connection.transaction(async (tx) => {
+					for (const query of queries) {
+						const res = await tx.execute(query.sql);
+						results.push(res.rows);
+					}
+				});
+			} catch (error) {
+				results.push(error as Error);
+			}
+			return results;
 		};
 
 		return {
 			db: { query },
+			packageName: '@planetscale/database',
 			proxy,
+			transactionProxy,
 			database: result.database,
 			migrate: migrateFn,
 		};
@@ -735,14 +920,35 @@ export const connectToSQLite = async (
 	credentials: SqliteCredentials,
 ): Promise<
 	& SQLiteDB
-	& SqliteProxy
-	& { migrate: (config: MigrationConfig) => Promise<void> }
+	& {
+		packageName: 'd1-http' | '@libsql/client' | 'better-sqlite3';
+		migrate: (config: MigrationConfig) => Promise<void>;
+		proxy: Proxy;
+		transactionProxy: TransactionProxy;
+	}
 > => {
 	if ('driver' in credentials) {
 		const { driver } = credentials;
 		if (driver === 'd1-http') {
 			const { drizzle } = await import('drizzle-orm/sqlite-proxy');
 			const { migrate } = await import('drizzle-orm/sqlite-proxy/migrator');
+
+			type D1Response =
+				| {
+					success: true;
+					result: {
+						results:
+							| any[]
+							| {
+								columns: string[];
+								rows: any[][];
+							};
+					}[];
+				}
+				| {
+					success: false;
+					errors: { code: number; message: string }[];
+				};
 
 			const remoteCallback: Parameters<typeof drizzle>[0] = async (
 				sql,
@@ -763,22 +969,7 @@ export const connectToSQLite = async (
 					},
 				);
 
-				const data = (await res.json()) as
-					| {
-						success: true;
-						result: {
-							results:
-								| any[]
-								| {
-									columns: string[];
-									rows: any[][];
-								};
-						}[];
-					}
-					| {
-						success: false;
-						errors: { code: number; message: string }[];
-					};
+				const data = (await res.json()) as D1Response;
 
 				if (!data.success) {
 					throw new Error(
@@ -788,6 +979,42 @@ export const connectToSQLite = async (
 
 				const result = data.result[0].results;
 				const rows = Array.isArray(result) ? result : result.rows;
+
+				return {
+					rows,
+				};
+			};
+
+			const remoteBatchCallback = async (
+				queries: {
+					sql: string;
+				}[],
+			) => {
+				const sql = queries.map((q) => q.sql).join('; ');
+				const res = await fetch(
+					`https://api.cloudflare.com/client/v4/accounts/${credentials.accountId}/d1/database/${credentials.databaseId}/query`,
+					{
+						method: 'POST',
+						body: JSON.stringify({ sql }),
+						headers: {
+							'Content-Type': 'application/json',
+							Authorization: `Bearer ${credentials.token}`,
+						},
+					},
+				);
+
+				const data = (await res.json()) as D1Response;
+
+				if (!data.success) {
+					throw new Error(
+						data.errors.map((it) => `${it.code}: ${it.message}`).join('\n'),
+					);
+				}
+
+				const rows = data.result.map((result) => {
+					const res = result.results;
+					return Array.isArray(res) ? res : res.rows;
+				});
 
 				return {
 					rows,
@@ -816,19 +1043,21 @@ export const connectToSQLite = async (
 					await remoteCallback(query, [], 'run');
 				},
 			};
-			const proxy: SqliteProxy = {
-				proxy: async (params: ProxyParams) => {
-					const preparedParams = prepareSqliteParams(params.params, 'd1-http');
-					const result = await remoteCallback(
-						params.sql,
-						preparedParams,
-						params.mode === 'array' ? 'values' : 'all',
-					);
+			const proxy: Proxy = async (params) => {
+				const preparedParams = prepareSqliteParams(params.params || [], 'd1-http');
+				const result = await remoteCallback(
+					params.sql,
+					preparedParams,
+					params.mode === 'array' ? 'values' : 'all',
+				);
 
-					return result.rows;
-				},
+				return result.rows;
 			};
-			return { ...db, ...proxy, migrate: migrateFn };
+			const transactionProxy: TransactionProxy = async (queries) => {
+				const result = await remoteBatchCallback(queries);
+				return result.rows;
+			};
+			return { ...db, packageName: 'd1-http', proxy, transactionProxy, migrate: migrateFn };
 		} else {
 			assertUnreachable(driver);
 		}
@@ -857,23 +1086,42 @@ export const connectToSQLite = async (
 			},
 		};
 
-		const proxy: SqliteProxy = {
-			proxy: async (params: ProxyParams) => {
-				const preparedParams = prepareSqliteParams(params.params);
-				const result = await client.execute({
-					sql: params.sql,
-					args: preparedParams,
-				});
+		type Transaction = Awaited<ReturnType<typeof client.transaction>>;
 
-				if (params.mode === 'array') {
-					return result.rows.map((row) => Object.values(row));
-				} else {
-					return result.rows;
-				}
-			},
+		const proxy = async (params: ProxyParams) => {
+			const preparedParams = prepareSqliteParams(params.params || []);
+			const result = await client.execute({
+				sql: params.sql,
+				args: preparedParams,
+			});
+
+			if (params.mode === 'array') {
+				return result.rows.map((row) => Object.values(row));
+			} else {
+				return result.rows;
+			}
 		};
 
-		return { ...db, ...proxy, migrate: migrateFn };
+		const transactionProxy: TransactionProxy = async (queries) => {
+			const results: (any[] | Error)[] = [];
+			let transaction: Transaction | null = null;
+			try {
+				transaction = await client.transaction();
+				for (const query of queries) {
+					const result = await transaction.execute(query.sql);
+					results.push(result.rows);
+				}
+				await transaction.commit();
+			} catch (error) {
+				results.push(error as Error);
+				await transaction?.rollback();
+			} finally {
+				transaction?.close();
+			}
+			return results;
+		};
+
+		return { ...db, packageName: '@libsql/client', proxy, transactionProxy, migrate: migrateFn };
 	}
 
 	if (await checkPackage('better-sqlite3')) {
@@ -898,24 +1146,51 @@ export const connectToSQLite = async (
 			},
 		};
 
-		const proxy: SqliteProxy = {
-			proxy: async (params: ProxyParams) => {
-				const preparedParams = prepareSqliteParams(params.params);
-				if (
-					params.method === 'values'
-					|| params.method === 'get'
-					|| params.method === 'all'
-				) {
-					return sqlite
-						.prepare(params.sql)
-						.raw(params.mode === 'array')
-						.all(preparedParams);
-				}
+		const proxy: Proxy = async (params) => {
+			const preparedParams = prepareSqliteParams(params.params || []);
+			if (
+				params.method === 'values'
+				|| params.method === 'get'
+				|| params.method === 'all'
+			) {
+				return sqlite
+					.prepare(params.sql)
+					.raw(params.mode === 'array')
+					.all(preparedParams);
+			}
 
-				return sqlite.prepare(params.sql).run(preparedParams);
-			},
+			sqlite.prepare(params.sql).run(preparedParams);
+
+			return [];
 		};
-		return { ...db, ...proxy, migrate: migrateFn };
+
+		const transactionProxy: TransactionProxy = async (queries) => {
+			const results: (any[] | Error)[] = [];
+
+			const tx = sqlite.transaction((queries: Parameters<TransactionProxy>[0]) => {
+				for (const query of queries) {
+					let result: any[] = [];
+					if (query.method === 'values' || query.method === 'get' || query.method === 'all') {
+						result = sqlite
+							.prepare(query.sql)
+							.all();
+					} else {
+						sqlite.prepare(query.sql).run();
+					}
+					results.push(result);
+				}
+			});
+
+			try {
+				tx(queries);
+			} catch (error) {
+				results.push(error as Error);
+			}
+
+			return results;
+		};
+
+		return { ...db, packageName: 'better-sqlite3', proxy, transactionProxy, migrate: migrateFn };
 	}
 
 	console.log(
@@ -926,8 +1201,12 @@ export const connectToSQLite = async (
 
 export const connectToLibSQL = async (credentials: LibSQLCredentials): Promise<
 	& LibSQLDB
-	& SqliteProxy
-	& { migrate: (config: MigrationConfig) => Promise<void> }
+	& {
+		packageName: '@libsql/client';
+		migrate: (config: MigrationConfig) => Promise<void>;
+		proxy: Proxy;
+		transactionProxy: TransactionProxy;
+	}
 > => {
 	if (await checkPackage('@libsql/client')) {
 		const { createClient } = await import('@libsql/client');
@@ -956,23 +1235,42 @@ export const connectToLibSQL = async (credentials: LibSQLCredentials): Promise<
 			},
 		};
 
-		const proxy: SqliteProxy = {
-			proxy: async (params: ProxyParams) => {
-				const preparedParams = prepareSqliteParams(params.params);
-				const result = await client.execute({
-					sql: params.sql,
-					args: preparedParams,
-				});
+		type Transaction = Awaited<ReturnType<typeof client.transaction>>;
 
-				if (params.mode === 'array') {
-					return result.rows.map((row) => Object.values(row));
-				} else {
-					return result.rows;
-				}
-			},
+		const proxy = async (params: ProxyParams) => {
+			const preparedParams = prepareSqliteParams(params.params || []);
+			const result = await client.execute({
+				sql: params.sql,
+				args: preparedParams,
+			});
+
+			if (params.mode === 'array') {
+				return result.rows.map((row) => Object.values(row));
+			} else {
+				return result.rows;
+			}
 		};
 
-		return { ...db, ...proxy, migrate: migrateFn };
+		const transactionProxy: TransactionProxy = async (queries) => {
+			const results: (any[] | Error)[] = [];
+			let transaction: Transaction | null = null;
+			try {
+				transaction = await client.transaction();
+				for (const query of queries) {
+					const result = await transaction.execute(query.sql);
+					results.push(result.rows);
+				}
+				await transaction.commit();
+			} catch (error) {
+				results.push(error as Error);
+				await transaction?.rollback();
+			} finally {
+				transaction?.close();
+			}
+			return results;
+		};
+
+		return { ...db, packageName: '@libsql/client', proxy, transactionProxy, migrate: migrateFn };
 	}
 
 	console.log(

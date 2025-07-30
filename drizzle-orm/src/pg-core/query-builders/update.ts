@@ -1,3 +1,4 @@
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import type { GetColumnData } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { PgDialect } from '~/pg-core/dialect.ts';
@@ -39,6 +40,7 @@ import {
 } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgColumn } from '../columns/common.ts';
+import { extractUsedTable } from '../utils.ts';
 import type { PgViewBase } from '../view-base.ts';
 import type {
 	PgSelectJoinConfig,
@@ -364,6 +366,7 @@ export class PgUpdateBase<
 	private config: PgUpdateConfig;
 	private tableName: string | undefined;
 	private joinsNotNullableMap: Record<string, boolean>;
+	protected cacheConfig?: WithCacheConfig;
 
 	constructor(
 		table: TTable,
@@ -580,7 +583,10 @@ export class PgUpdateBase<
 	_prepare(name?: string): PgUpdatePrepare<this> {
 		const query = this.session.prepareQuery<
 			PreparedQueryConfig & { execute: TReturning[] }
-		>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true);
+		>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true, undefined, {
+			type: 'insert',
+			tables: extractUsedTable(this.config.table),
+		}, this.cacheConfig);
 		query.joinsNotNullableMap = this.joinsNotNullableMap;
 		return query;
 	}

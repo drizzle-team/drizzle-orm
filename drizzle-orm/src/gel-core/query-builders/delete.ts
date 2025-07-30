@@ -17,6 +17,7 @@ import { Table } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
 import { orderSelectedFields } from '~/utils.ts';
 import type { GelColumn } from '../columns/common.ts';
+import { extractUsedTable } from '../utils.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
 
 export type GelDeleteWithout<
@@ -224,7 +225,10 @@ export class GelDeleteBase<
 				PreparedQueryConfig & {
 					execute: TReturning extends undefined ? GelQueryResultKind<TQueryResult, never> : TReturning[];
 				}
-			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true);
+			>(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, name, true, undefined, {
+				type: 'delete',
+				tables: extractUsedTable(this.config.table),
+			});
 		});
 	}
 

@@ -59,7 +59,7 @@ export function construct<
 	}
 
 	const relations = config.relations;
-	const session = new LibSQLSession(client, dialect, relations, schema, { logger }, undefined);
+	const session = new LibSQLSession(client, dialect, relations, schema, { logger, cache: config.cache }, undefined);
 	const db = new LibSQLDatabase(
 		'async',
 		dialect,
@@ -73,6 +73,9 @@ export function construct<
 		schema as V1.RelationalSchemaConfig<any>,
 	) as LibSQLDatabase<TSchema, TRelations>;
 	(<any> db).$client = client;
-
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
 	return db as any;
 }

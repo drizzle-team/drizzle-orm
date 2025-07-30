@@ -29,7 +29,7 @@ function construct<
 	TRelations extends AnyRelations = EmptyRelations,
 >(
 	client: Database,
-	config: DrizzleConfig<TSchema, TRelations> = {},
+	config: Omit<DrizzleConfig<TSchema, TRelations>, 'cache'> = {},
 ): BetterSQLite3Database<TSchema, TRelations> & {
 	$client: Database;
 } {
@@ -69,6 +69,10 @@ function construct<
 		schema as V1.RelationalSchemaConfig<any>,
 	);
 	(<any> db).$client = client;
+	// (<any> db).$cache = config.cache;
+	// if ((<any> db).$cache) {
+	// 	(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	// }
 
 	return db as any;
 }

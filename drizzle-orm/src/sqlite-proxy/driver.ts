@@ -72,6 +72,7 @@ export function drizzle<
 ): SqliteRemoteDatabase<TSchema, TRelations> {
 	const dialect = new SQLiteAsyncDialect({ casing: config?.casing });
 	let logger;
+	let cache;
 	let _batchCallback: AsyncBatchRemoteCallback | undefined;
 	let _config: DrizzleConfig<TSchema, TRelations> = {};
 
@@ -88,6 +89,7 @@ export function drizzle<
 			logger = new DefaultLogger();
 		} else if (_config.logger !== false) {
 			logger = _config.logger;
+			cache = _config.cache;
 		}
 	}
 
@@ -105,8 +107,8 @@ export function drizzle<
 	}
 
 	const relations = _config.relations;
-	const session = new SQLiteRemoteSession(callback, dialect, relations, schema, _batchCallback, { logger });
-	return new SqliteRemoteDatabase(
+	const session = new SQLiteRemoteSession(callback, dialect, relations, schema, _batchCallback, { logger, cache });
+	const db = new SqliteRemoteDatabase(
 		'async',
 		dialect,
 		session as SqliteRemoteDatabase<TSchema, TRelations>['session'],
@@ -117,4 +119,9 @@ export function drizzle<
 		TSchema,
 		TRelations
 	>;
+	(<any> db).$cache = cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = cache?.onMutate;
+	}
+	return db;
 }

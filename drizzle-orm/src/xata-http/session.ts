@@ -1,5 +1,8 @@
 import type { SQLPluginResult, SQLQueryResult } from '@xata.io/client';
 import type * as V1 from '~/_relations.ts';
+import type { Cache } from '~/cache/core/index.ts';
+import { NoopCache } from '~/cache/core/index.ts';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -31,6 +34,12 @@ export class XataHttpPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 		private client: XataHttpClient,
 		query: Query,
 		private logger: Logger,
+		cache: Cache,
+		queryMetadata: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		} | undefined,
+		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (
@@ -38,7 +47,7 @@ export class XataHttpPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 		) => T['execute'],
 		private isRqbV2Query?: TIsRqbV2,
 	) {
-		super(query);
+		super(query, cache, queryMetadata, cacheConfig);
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
@@ -51,11 +60,15 @@ export class XataHttpPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 		const { fields, client, query, customResultMapper, joinsNotNullableMap } = this;
 
 		if (!fields && !customResultMapper) {
-			return await client.sql<Record<string, any>>({ statement: query.sql, params });
-			// return { rowCount: result.records.length, rows: result.records, rowAsArray: false };
+			return this.queryWithCache(query.sql, params, async () => {
+				return await client.sql<Record<string, any>>({ statement: query.sql, params });
+			});
 		}
 
-		const { rows, warning } = await client.sql({ statement: query.sql, params, responseType: 'array' });
+		const { rows, warning } = await this.queryWithCache(query.sql, params, async () => {
+			return await client.sql({ statement: query.sql, params, responseType: 'array' });
+		});
+
 		if (warning) console.warn(warning);
 
 		return customResultMapper
@@ -83,13 +96,17 @@ export class XataHttpPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
 		const params = fillPlaceholders(this.query.params, placeholderValues);
 		this.logger.logQuery(this.query.sql, params);
-		return this.client.sql({ statement: this.query.sql, params, responseType: 'array' }).then((result) => result.rows);
+		return this.queryWithCache(this.query.sql, params, async () => {
+			return this.client.sql({ statement: this.query.sql, params, responseType: 'array' });
+		}).then((result) => result.rows);
 	}
 
 	values(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['values']> {
 		const params = fillPlaceholders(this.query.params, placeholderValues);
 		this.logger.logQuery(this.query.sql, params);
-		return this.client.sql({ statement: this.query.sql, params }).then((result) => result.records);
+		return this.queryWithCache(this.query.sql, params, async () => {
+			return this.client.sql({ statement: this.query.sql, params });
+		}).then((result) => result.records);
 	}
 
 	/** @internal */
@@ -100,6 +117,7 @@ export class XataHttpPreparedQuery<T extends PreparedQueryConfig, TIsRqbV2 exten
 
 export interface XataHttpSessionOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class XataHttpSession<
@@ -117,6 +135,7 @@ export class XataHttpSession<
 	static override readonly [entityKind]: string = 'XataHttpSession';
 
 	private logger: Logger;
+	private cache: Cache;
 
 	constructor(
 		private client: XataHttpClient,
@@ -127,6 +146,7 @@ export class XataHttpSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
+		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -135,11 +155,19 @@ export class XataHttpSession<
 		name: string | undefined,
 		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
 	): PgPreparedQuery<T> {
 		return new XataHttpPreparedQuery(
 			this.client,
 			query,
 			this.logger,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
 			fields,
 			isResponseInArrayMode,
 			customResultMapper,
@@ -156,6 +184,9 @@ export class XataHttpSession<
 			this.client,
 			query,
 			this.logger,
+			this.cache,
+			undefined,
+			undefined,
 			fields,
 			false,
 			customResultMapper,

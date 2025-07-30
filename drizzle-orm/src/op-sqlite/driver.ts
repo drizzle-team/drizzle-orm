@@ -46,7 +46,7 @@ export function drizzle<
 	}
 
 	const relations = config.relations;
-	const session = new OPSQLiteSession(client, dialect, relations, schema, { logger });
+	const session = new OPSQLiteSession(client, dialect, relations, schema, { logger, cache: config.cache });
 	const db = new OPSQLiteDatabase(
 		'async',
 		dialect,
@@ -58,6 +58,10 @@ export function drizzle<
 		TRelations
 	>;
 	(<any> db).$client = client;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
 
 	return db as any;
 }

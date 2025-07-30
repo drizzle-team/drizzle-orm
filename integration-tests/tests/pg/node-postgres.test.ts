@@ -9,12 +9,15 @@ import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
 import { createDockerDB, tests, usersMigratorTable, usersTable } from './pg-common';
+import { TestCache, TestGlobalCache, tests as cacheTests } from './pg-common-cache';
 import relations from './relations';
 
 const ENABLE_LOGGING = false;
 
 let db: NodePgDatabase<never, typeof relations>;
 let client: Client;
+let dbGlobalCached: NodePgDatabase;
+let cachedDb: NodePgDatabase;
 
 beforeAll(async () => {
 	let connectionString;
@@ -39,6 +42,8 @@ beforeAll(async () => {
 		},
 	});
 	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
+	cachedDb = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestCache() });
+	dbGlobalCached = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 });
 
 afterAll(async () => {
@@ -48,6 +53,10 @@ afterAll(async () => {
 beforeEach((ctx) => {
 	ctx.pg = {
 		db,
+	};
+	ctx.cachedPg = {
+		db: cachedDb,
+		dbGlobalCached,
 	};
 });
 
@@ -433,6 +442,7 @@ skipTests([
 	'test mode string for timestamp with timezone in different timezone',
 ]);
 tests();
+cacheTests();
 
 beforeEach(async () => {
 	await db.execute(sql`drop schema if exists public cascade`);
