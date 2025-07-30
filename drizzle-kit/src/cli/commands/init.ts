@@ -60,7 +60,6 @@ export async function initHandler(): Promise<void> {
 	console.log(chalk.green('🚀 Welcome to Drizzle Kit!'));
 	console.log(chalk.gray("Let's set up your project with Drizzle ORM.\n"));
 
-	// Ask for dialect
 	const dialectPrompt = new SimpleSelect([
 		'postgresql',
 		'mysql',
@@ -71,19 +70,16 @@ export async function initHandler(): Promise<void> {
 
 	const dialect = await dialectPrompt.prompt(chalk.bold('Which database dialect are you using?'));
 
-	// Ask for migrations folder
 	const migrationsInput = new SimpleInput('drizzle');
 	console.log(chalk.bold('\nWhere would you like to store your migrations?'));
 	console.log(chalk.gray('(default: drizzle)'));
 	const out = await migrationsInput.prompt('> ');
 
-	// Ask for schema location
 	const schemaInput = new SimpleInput('./src/db/schema.ts');
 	console.log(chalk.bold('\nWhere is your schema file located?'));
 	console.log(chalk.gray('(default: ./src/db/schema.ts)'));
 	const schema = await schemaInput.prompt('> ');
 
-	// Ask about dotenv
 	const dotenvPrompt = new SimpleSelect(['Yes', 'No']);
 	console.log(chalk.bold('\nDo you want to use environment variables (.env)?'));
 	const dotenvChoice = await dotenvPrompt.prompt('> ');
@@ -96,10 +92,8 @@ export async function initHandler(): Promise<void> {
 		useDotenv,
 	};
 
-	// Generate config file
 	await generateConfigFile(config);
 
-	// Update package.json
 	await updatePackageJson();
 
 	console.log('\n' + chalk.green('✅ Drizzle configuration created successfully!'));
@@ -151,7 +145,6 @@ export function generateConfigContent(config: InitConfig): string {
 			? `  url: process.env.DATABASE_URL!,`
 			: `  url: 'mysql://username:password@localhost:3306/dbname',`;
 	}
-	// For unknown dialects, leave connectionConfig empty
 
 	return `${imports}
 export default defineConfig({
@@ -174,20 +167,17 @@ export async function updatePackageJson(packageJsonPath: string = 'package.json'
 	try {
 		const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
 
-		// Check if dependencies exist
 		const dependencies = packageJson.dependencies || {};
 		const devDependencies = packageJson.devDependencies || {};
 
 		let needsUpdate = false;
 		const toAdd: { [key: string]: string } = {};
 
-		// Check for drizzle-orm
 		if (!dependencies['drizzle-orm'] && !devDependencies['drizzle-orm']) {
 			toAdd['drizzle-orm'] = '^0.44.0';
 			needsUpdate = true;
 		}
 
-		// Check for drizzle-kit
 		if (!dependencies['drizzle-kit'] && !devDependencies['drizzle-kit']) {
 			toAdd['drizzle-kit'] = '^0.31.0';
 			needsUpdate = true;
