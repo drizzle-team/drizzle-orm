@@ -12,22 +12,14 @@ vi.mock('readline', () => ({
 			// Return default values for test scenarios
 			if (question === '> ') {
 				callback(''); // Use defaults
+			} else if (question.includes('Select an option')) {
+				callback('1'); // Select first option
+			} else {
+				callback(''); // Use defaults for other prompts
 			}
 		}),
 		close: vi.fn(),
 	})),
-}));
-
-// Mock renderWithTask to avoid interactive UI in tests
-vi.mock('hanji', () => ({
-	renderWithTask: vi.fn((prompt) => {
-		// Mock different responses based on prompt type
-		if (prompt.constructor.name === 'Select') {
-			// Return first option (index 0) for Select prompts
-			return Promise.resolve({ index: 0 });
-		}
-		return Promise.resolve('');
-	}),
 }));
 
 // Test config generation functionality directly
@@ -166,7 +158,7 @@ test('package.json management - missing dependencies', async () => {
 	// Create a temporary directory for testing
 	const testDir = join(tmpdir(), 'drizzle-init-test-' + Date.now());
 	mkdirSync(testDir, { recursive: true });
-	
+
 	// Create a basic package.json
 	const packageJson = {
 		name: 'test-project',
@@ -174,25 +166,25 @@ test('package.json management - missing dependencies', async () => {
 		dependencies: {},
 		devDependencies: {},
 	};
-	
+
 	const packageJsonPath = join(testDir, 'package.json');
 	writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
-	
+
 	// Mock console.log to capture output
 	const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-	
+
 	// Import and call the function
 	const { updatePackageJson } = await import('../src/cli/commands/init');
 	await updatePackageJson(packageJsonPath);
-	
+
 	// Verify dependencies were added
 	const updatedContent = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
 	expect(updatedContent.devDependencies['drizzle-orm']).toBeDefined();
 	expect(updatedContent.devDependencies['drizzle-kit']).toBeDefined();
-	
+
 	// Verify console output
 	expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Updated package.json'));
-	
+
 	// Cleanup
 	rmSync(testDir, { recursive: true });
 	consoleSpy.mockRestore();
@@ -201,7 +193,7 @@ test('package.json management - missing dependencies', async () => {
 test('package.json management - existing dependencies', async () => {
 	const testDir = join(tmpdir(), 'drizzle-init-test-' + Date.now());
 	mkdirSync(testDir, { recursive: true });
-	
+
 	// Create a package.json with existing drizzle dependencies
 	const packageJson = {
 		name: 'test-project',
@@ -213,24 +205,24 @@ test('package.json management - existing dependencies', async () => {
 			'drizzle-kit': '^0.30.0',
 		},
 	};
-	
+
 	const packageJsonPath = join(testDir, 'package.json');
 	writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
-	
+
 	const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-	
+
 	// Import and call the function
 	const { updatePackageJson } = await import('../src/cli/commands/init');
 	await updatePackageJson(packageJsonPath);
-	
+
 	// Verify dependencies weren't duplicated
 	const content = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
 	expect(content.dependencies['drizzle-orm']).toBe('^0.40.0');
 	expect(content.devDependencies['drizzle-kit']).toBe('^0.30.0');
-	
+
 	// Verify console output indicates no changes needed
 	expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('already present'));
-	
+
 	// Cleanup
 	rmSync(testDir, { recursive: true });
 	consoleSpy.mockRestore();
@@ -239,18 +231,18 @@ test('package.json management - existing dependencies', async () => {
 test('package.json management - missing file', async () => {
 	const testDir = join(tmpdir(), 'drizzle-init-test-' + Date.now());
 	mkdirSync(testDir, { recursive: true });
-	
+
 	const packageJsonPath = join(testDir, 'package.json');
-	
+
 	const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-	
+
 	// Import and call the function with non-existent file
 	const { updatePackageJson } = await import('../src/cli/commands/init');
 	await updatePackageJson(packageJsonPath);
-	
+
 	// Verify warning message
 	expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('No package.json found'));
-	
+
 	// Cleanup
 	rmSync(testDir, { recursive: true });
 	consoleSpy.mockRestore();
@@ -259,19 +251,19 @@ test('package.json management - missing file', async () => {
 test('package.json management - malformed file', async () => {
 	const testDir = join(tmpdir(), 'drizzle-init-test-' + Date.now());
 	mkdirSync(testDir, { recursive: true });
-	
+
 	const packageJsonPath = join(testDir, 'package.json');
 	writeFileSync(packageJsonPath, 'invalid json content');
-	
+
 	const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-	
+
 	// Import and call the function
 	const { updatePackageJson } = await import('../src/cli/commands/init');
 	await updatePackageJson(packageJsonPath);
-	
+
 	// Verify error handling
 	expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Could not update package.json'));
-	
+
 	// Cleanup
 	rmSync(testDir, { recursive: true });
 	consoleSpy.mockRestore();
@@ -280,10 +272,10 @@ test('package.json management - malformed file', async () => {
 // Test CLI command parsing (following the pattern from cli-generate.test.ts)
 test('init command - should exist', async () => {
 	const res = await brotest(init, '');
-	
+
 	// The init command doesn't take any arguments, so it should always call the handler
 	if (res.type !== 'handler') assert.fail(`Expected handler, got ${res.type}`);
-	
+
 	// Since it's a handler type, it means the command structure is valid
 	expect(res.type).toBe('handler');
 });
@@ -297,9 +289,9 @@ test('config generation - invalid dialect', async () => {
 		useDotenv: false,
 	};
 
-	const { generateConfigContent } = require('../src/cli/commands/init');
+	const { generateConfigContent } = await import('../src/cli/commands/init');
 	const result = generateConfigContent(config);
-	
+
 	// Should handle unknown dialects gracefully
 	expect(result).toContain("dialect: 'invalid-dialect'");
 	expect(result).toContain('dbCredentials: {\n\n  }'); // Empty credentials
@@ -313,9 +305,9 @@ test('config generation - empty paths', async () => {
 		useDotenv: false,
 	};
 
-	const { generateConfigContent } = require('../src/cli/commands/init');
+	const { generateConfigContent } = await import('../src/cli/commands/init');
 	const result = generateConfigContent(config);
-	
+
 	expect(result).toContain("out: ''");
 	expect(result).toContain("schema: ''");
 });

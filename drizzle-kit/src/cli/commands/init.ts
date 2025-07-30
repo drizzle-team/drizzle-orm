@@ -12,13 +12,13 @@ interface InitConfig {
 
 class SimpleInput {
 	constructor(private defaultValue: string = '') {}
-	
+
 	async prompt(question: string): Promise<string> {
 		const rl = createInterface({
 			input: process.stdin,
-			output: process.stdout
+			output: process.stdout,
 		});
-		
+
 		return new Promise((resolve) => {
 			rl.question(question, (answer) => {
 				rl.close();
@@ -30,18 +30,18 @@ class SimpleInput {
 
 class SimpleSelect {
 	constructor(private options: string[]) {}
-	
+
 	async prompt(question: string): Promise<string> {
 		const rl = createInterface({
 			input: process.stdin,
-			output: process.stdout
+			output: process.stdout,
 		});
-		
+
 		console.log(question);
 		this.options.forEach((option, index) => {
 			console.log(`  ${index + 1}. ${option}`);
 		});
-		
+
 		return new Promise((resolve) => {
 			rl.question('\nSelect an option (1-' + this.options.length + '): ', (answer) => {
 				rl.close();
@@ -58,17 +58,17 @@ class SimpleSelect {
 
 export async function initHandler(): Promise<void> {
 	console.log(chalk.green('🚀 Welcome to Drizzle Kit!'));
-	console.log(chalk.gray('Let\'s set up your project with Drizzle ORM.\n'));
+	console.log(chalk.gray("Let's set up your project with Drizzle ORM.\n"));
 
 	// Ask for dialect
 	const dialectPrompt = new SimpleSelect([
 		'postgresql',
-		'mysql', 
+		'mysql',
 		'sqlite',
 		'turso',
-		'singlestore'
+		'singlestore',
 	]);
-	
+
 	const dialect = await dialectPrompt.prompt(chalk.bold('Which database dialect are you using?'));
 
 	// Ask for migrations folder
@@ -84,21 +84,21 @@ export async function initHandler(): Promise<void> {
 	const schema = await schemaInput.prompt('> ');
 
 	// Ask about dotenv
-	const dotenvPrompt = new Select(['Yes', 'No']);
+	const dotenvPrompt = new SimpleSelect(['Yes', 'No']);
 	console.log(chalk.bold('\nDo you want to use environment variables (.env)?'));
-	const { index: dotenvIndex } = await renderWithTask(dotenvPrompt);
-	const useDotenv = dotenvIndex === 0;
+	const dotenvChoice = await dotenvPrompt.prompt('> ');
+	const useDotenv = dotenvChoice === 'Yes';
 
 	const config: InitConfig = {
 		dialect,
 		out,
 		schema,
-		useDotenv
+		useDotenv,
 	};
 
 	// Generate config file
 	await generateConfigFile(config);
-	
+
 	// Update package.json
 	await updatePackageJson();
 
@@ -112,23 +112,28 @@ export async function initHandler(): Promise<void> {
 async function generateConfigFile(config: InitConfig): Promise<void> {
 	const configContent = generateConfigContent(config);
 	const configPath = 'drizzle.config.ts';
-	
-	writeFileSync(configPath, configContent);
-	console.log(chalk.green(`\n📝 Created ${configPath}`));
+
+	try {
+		writeFileSync(configPath, configContent);
+		console.log(chalk.green(`\n📝 Created ${configPath}`));
+	} catch (error) {
+		console.log(chalk.red(`❌ Error creating ${configPath}: ${error}`));
+		throw error;
+	}
 }
 
 export function generateConfigContent(config: InitConfig): string {
 	const { dialect, out, schema, useDotenv } = config;
-	
+
 	let imports = `import { defineConfig } from 'drizzle-kit';\n`;
 	if (useDotenv) {
 		imports += `import 'dotenv/config';\n`;
 	}
 
 	let connectionConfig = '';
-	
+
 	if (dialect === 'postgresql') {
-		connectionConfig = useDotenv 
+		connectionConfig = useDotenv
 			? `  url: process.env.DATABASE_URL!,`
 			: `  url: 'postgresql://username:password@localhost:5432/dbname',`;
 	} else if (dialect === 'mysql') {
@@ -161,7 +166,6 @@ ${connectionConfig}
 }
 
 export async function updatePackageJson(packageJsonPath: string = 'package.json'): Promise<void> {
-	
 	if (!existsSync(packageJsonPath)) {
 		console.log(chalk.yellow('⚠️  No package.json found. You may need to run npm init first.'));
 		return;
@@ -169,33 +173,33 @@ export async function updatePackageJson(packageJsonPath: string = 'package.json'
 
 	try {
 		const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-		
+
 		// Check if dependencies exist
 		const dependencies = packageJson.dependencies || {};
 		const devDependencies = packageJson.devDependencies || {};
-		
+
 		let needsUpdate = false;
 		const toAdd: { [key: string]: string } = {};
-		
+
 		// Check for drizzle-orm
 		if (!dependencies['drizzle-orm'] && !devDependencies['drizzle-orm']) {
 			toAdd['drizzle-orm'] = '^0.44.0';
 			needsUpdate = true;
 		}
-		
-		// Check for drizzle-kit  
+
+		// Check for drizzle-kit
 		if (!dependencies['drizzle-kit'] && !devDependencies['drizzle-kit']) {
 			toAdd['drizzle-kit'] = '^0.31.0';
 			needsUpdate = true;
 		}
-		
+
 		if (needsUpdate) {
 			if (!packageJson.devDependencies) {
 				packageJson.devDependencies = {};
 			}
-			
+
 			Object.assign(packageJson.devDependencies, toAdd);
-			
+
 			writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
 			console.log(chalk.green('📦 Updated package.json with Drizzle dependencies'));
 			console.log(chalk.gray('Run npm install to install the new dependencies'));
