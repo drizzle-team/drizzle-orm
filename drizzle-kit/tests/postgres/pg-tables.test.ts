@@ -1153,3 +1153,23 @@ test('rename table with composite primary key', async () => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
+
+test('rename table and enable rls', async () => {
+	const schema1 = {
+		table: pgTable('table1', {
+			id: text().primaryKey(),
+		}),
+	};
+	const schema2 = {
+		table: pgTable('table2', {
+			id: text().primaryKey(),
+		}).enableRLS(),
+	};
+
+	const renames = ['public.table1->public.table2'];
+	const { sqlStatements: st } = await diff(schema1, schema2, renames);
+
+	const st0: string[] = ['ALTER TABLE "table1" RENAME TO "table2";', 'ALTER TABLE "table2" ENABLE ROW LEVEL SECURITY;'];
+
+	expect(st).toStrictEqual(st0);
+});

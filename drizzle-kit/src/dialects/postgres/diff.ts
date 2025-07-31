@@ -1144,7 +1144,6 @@ export const ddlDiff = async (
 
 	jsonStatements.push(...createTables);
 
-	jsonStatements.push(...jsonAlterRlsStatements);
 	jsonStatements.push(...jsonDropViews);
 	jsonStatements.push(...jsonRenameViews);
 	jsonStatements.push(...jsonMoveViews);
@@ -1154,6 +1153,7 @@ export const ddlDiff = async (
 	jsonStatements.push(...jsonDropPoliciesStatements); // before drop tables
 	jsonStatements.push(...jsonDropTables);
 	jsonStatements.push(...jsonRenameTables);
+	jsonStatements.push(...jsonAlterRlsStatements);
 	jsonStatements.push(...jsonSetTableSchemas);
 	jsonStatements.push(...jsonRenameColumnsStatements);
 
