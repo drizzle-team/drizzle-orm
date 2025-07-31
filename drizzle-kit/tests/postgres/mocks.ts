@@ -112,14 +112,16 @@ export const drizzleToDDL = (
 // 2 schemas -> 2 ddls -> diff
 export const diff = async (
 	left: PostgresSchema | PostgresDDL,
-	right: PostgresSchema,
+	right: PostgresSchema | PostgresDDL,
 	renamesArr: string[],
 	casing?: CasingType | undefined,
 ) => {
 	const { ddl: ddl1, errors: err1 } = 'entities' in left && '_' in left
 		? { ddl: left as PostgresDDL, errors: [] }
 		: drizzleToDDL(left, casing);
-	const { ddl: ddl2, errors: err2 } = drizzleToDDL(right, casing);
+	const { ddl: ddl2, errors: err2 } = 'entities' in right && '_' in right
+		? { ddl: right as PostgresDDL, errors: [] }
+		: drizzleToDDL(right, casing);
 
 	if (err1.length > 0 || err2.length > 0) {
 		throw new MockError([...err1, ...err2]);
@@ -418,12 +420,12 @@ export const diffSnapshotV7 = async (db: DB, schema: PostgresSchema) => {
 
 export type TestDatabase<TClient = any> = {
 	db: DB & { batch: (sql: string[]) => Promise<void> };
-	client:TClient,
+	client: TClient;
 	close: () => Promise<void>;
 	clear: () => Promise<void>;
 };
 
-const client = new PGlite({ extensions: { vector, pg_trgm },  });
+const client = new PGlite({ extensions: { vector, pg_trgm } });
 
 export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatabase<PGlite>> => {
 	await client.query(`CREATE ACCESS METHOD drizzle_heap TYPE TABLE HANDLER heap_tableam_handler;`);
