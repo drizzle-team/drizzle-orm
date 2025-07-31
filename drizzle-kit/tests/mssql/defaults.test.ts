@@ -535,6 +535,28 @@ test('nvarchar', async () => {
 
 	const res10 = await diffDefault(_, nvarchar().default(sql`'text'+'text'`), `('text'+'text')`);
 
+	const res11 = await diffDefault(_, nvarchar({ mode: 'json' }).default({ key: 'value' }), `('{"key":"value"}')`);
+	const res12 = await diffDefault(
+		_,
+		nvarchar({ mode: 'json' }).default({ key: 9223372036854775807n }),
+		`('{"key":9223372036854775807}')`,
+	);
+	const res13 = await diffDefault(
+		_,
+		nvarchar({ mode: 'json' }).default(sql`'{"key":9223372036854775807}'`),
+		`('{"key":9223372036854775807}')`,
+	);
+	const res14 = await diffDefault(
+		_,
+		nvarchar({ mode: 'json' }).default([9223372036854775807n, 9223372036854775806n]),
+		`('[9223372036854775807,9223372036854775806]')`,
+	);
+	const res15 = await diffDefault(
+		_,
+		nvarchar({ mode: 'json' }).default({ key: 'value\\\'"' }),
+		`('{"key":"value\\\\''\\""}')`,
+	);
+
 	expect.soft(res0).toStrictEqual([]);
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
@@ -546,6 +568,11 @@ test('nvarchar', async () => {
 	expect.soft(res8).toStrictEqual([]);
 	expect.soft(res9).toStrictEqual([]);
 	expect.soft(res10).toStrictEqual([]);
+	expect.soft(res11).toStrictEqual([]);
+	expect.soft(res12).toStrictEqual([]);
+	expect.soft(res13).toStrictEqual([]);
+	expect.soft(res14).toStrictEqual([]);
+	expect.soft(res15).toStrictEqual([]);
 });
 
 test('ntext', async () => {
