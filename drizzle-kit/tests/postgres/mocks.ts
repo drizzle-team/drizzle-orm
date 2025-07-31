@@ -416,7 +416,7 @@ export const diffSnapshotV7 = async (db: DB, schema: PostgresSchema) => {
 	};
 };
 
-export type TestDatabase<TClient> = {
+export type TestDatabase<TClient = any> = {
 	db: DB & { batch: (sql: string[]) => Promise<void> };
 	client:TClient,
 	close: () => Promise<void>;
