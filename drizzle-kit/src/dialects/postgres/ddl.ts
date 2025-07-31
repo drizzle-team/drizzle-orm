@@ -488,7 +488,7 @@ export const interimToDDL = (
 
 	for (const column of schema.columns.filter((it) => it.unique)) {
 		const name = column.uniqueName !== null ? column.uniqueName : defaultNameForUnique(column.table, column.name);
-		const exists = ddl.uniques.one({ schema: column.schema, table: column.table, name: name }) !== null;
+		const exists = ddl.uniques.one({ schema: column.schema, table: column.table, columns: [column.name] }) !== null;
 		if (exists) continue;
 
 		ddl.uniques.push({
