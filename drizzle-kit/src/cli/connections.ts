@@ -657,17 +657,13 @@ export const prepareDuckDb = async (
 		const client = await instance.connect();
 
 		const query = async (sql: string, params: any[] = []) => {
-			const preparedStm = await client.prepare(sql);
-			preparedStm.bind(params);
-			const result = await preparedStm.run();
+			const result = await client.run(sql, params);
 			const rows = await result.getRowObjectsJson();
 			return rows as any[];
 		};
 
 		const proxy: Proxy = async (params) => {
-			const preparedStm = await client.prepare(params.sql);
-			preparedStm.bind(params.params || []);
-			const result = await preparedStm.run();
+			const result = await client.run(params.sql, params.params);
 			return params.mode === 'array' ? await result.getRowsJson() : await result.getRowObjectsJson();
 		};
 
@@ -676,8 +672,7 @@ export const prepareDuckDb = async (
 			try {
 				await client.run('BEGIN');
 				for (const query of queries) {
-					const stmt = await client.prepare(query.sql);
-					const result = await stmt.run();
+					const result = await client.run(query.sql);
 					results.push(await result.getRowObjectsJson());
 				}
 				await client.run('COMMIT');
