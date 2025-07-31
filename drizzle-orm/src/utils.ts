@@ -327,6 +327,3 @@ export function isConfig(data: any): boolean {
 }
 
 export type NeonAuthToken = string | (() => string | Promise<string>);
-
-export type LazyContainer<T> = () => T;
-export type ExtractLazyContainer<T> = T extends () => infer R ? R : T;

@@ -134,3 +134,7 @@ export type GetColumnData<TColumn extends Column, TInferMode extends 'query' | '
 export type InferColumnsDataTypes<TColumns extends Record<string, Column>> = {
 	[Key in keyof TColumns]: GetColumnData<TColumns[Key], 'query'>;
 };
+
+export function getColumnTable<TTable extends Table<any> = Table<any>>(column: Column<any>): TTable {
+	return column.table as TTable;
+}
