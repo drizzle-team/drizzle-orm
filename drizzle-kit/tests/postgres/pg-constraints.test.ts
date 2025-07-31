@@ -11,7 +11,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { DB } from 'src/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
+import { diff, drizzleToDDL, prepareTestDatabase, push, TestDatabase } from './mocks';
 
 // @vitest-environment-options {"max-concurrency":1}
 let _: TestDatabase;
@@ -1233,6 +1233,50 @@ test('pk multistep #3', async () => {
 	expect(pst5).toStrictEqual(['ALTER TABLE "users2" DROP CONSTRAINT "users2_pk";']);
 });
 
+test('pk multistep #3', async () => {
+	const sch1 = {
+		users: pgTable('users', {
+			name: text().primaryKey(),
+		}, (t) => [
+			primaryKey({ name: 'users_pk', columns: [t.name] }),
+		]),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, sch1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: sch1 });
+
+	expect(st1).toStrictEqual([
+		'CREATE TABLE "users" (\n\t"name" text,\n\tCONSTRAINT "users_pk" PRIMARY KEY("name")\n);\n',
+	]);
+	expect(pst1).toStrictEqual([
+		'CREATE TABLE "users" (\n\t"name" text,\n\tCONSTRAINT "users_pk" PRIMARY KEY("name")\n);\n',
+	]);
+
+	const sch2 = {
+		users: pgTable('users2', {
+			name: text().primaryKey(),
+		}, (t) => [
+			primaryKey({ name: 'users_pk', columns: [t.name] }),
+		]),
+	};
+
+	const renames = ['public.users->public.users2'];
+	const { sqlStatements: st2, next: n2 } = await diff(n1, sch2, renames);
+	const { sqlStatements: pst2 } = await push({ db, to: sch2, renames });
+
+	const e2 = [
+		'ALTER TABLE "users" RENAME TO "users2";',
+	];
+	expect(st2).toStrictEqual(e2);
+	expect(pst2).toStrictEqual(e2);
+
+	const { sqlStatements: st3, next: n3 } = await diff(n2, sch2, []);
+	const { sqlStatements: pst3 } = await push({ db, to: sch2 });
+
+	expect(st3).toStrictEqual([]);
+	expect(pst3).toStrictEqual([]);
+});
+
 test('fk #1', async () => {
 	const users = pgTable('users', {
 		id: serial().primaryKey(),
@@ -1593,4 +1637,23 @@ test('fk multistep #2', async () => {
 
 	expect(st3).toStrictEqual([]);
 	expect(pst3).toStrictEqual([]);
+});
+
+test('fk multistep #3', async () => {
+	const users = pgTable('users', {
+		id: serial().primaryKey(),
+		id2: integer(),
+	}, (t) => [
+		foreignKey({ name: 'users_id2_id1_fkey', columns: [t.id2], foreignColumns: [t.id] }),
+	]);
+
+	const { ddl: ddl1 } = drizzleToDDL({ users });
+	const { ddl: ddl2 } = drizzleToDDL({ users });
+	ddl2.tables.update({
+		set: { name: 'users2' },
+		where: { name: 'users' },
+	});
+
+	const { sqlStatements: st1 } = await diff(ddl1, ddl2, ['public.users->public.users2']);
+	expect(st1).toStrictEqual(['ALTER TABLE "users" RENAME TO "users2";']);
 });

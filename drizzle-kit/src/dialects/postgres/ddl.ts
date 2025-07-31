@@ -409,6 +409,8 @@ export const interimToDDL = (
 
 	for (const column of schema.columns) {
 		const { pk, pkName, unique, uniqueName, uniqueNullsNotDistinct, ...rest } = column;
+		rest.notNull = pk ? false : rest.notNull;
+
 		const res = ddl.columns.push(rest);
 		if (res.status === 'CONFLICT') {
 			errors.push({
@@ -460,7 +462,7 @@ export const interimToDDL = (
 
 	for (const column of schema.columns.filter((it) => it.pk)) {
 		const name = column.pkName !== null ? column.pkName : defaultNameForPK(column.table);
-		const exists = ddl.pks.one({ schema: column.schema, table: column.table, name: name }) !== null;
+		const exists = ddl.pks.one({ schema: column.schema, table: column.table }) !== null;
 		if (exists) continue;
 
 		ddl.pks.push({
@@ -486,7 +488,7 @@ export const interimToDDL = (
 
 	for (const column of schema.columns.filter((it) => it.unique)) {
 		const name = column.uniqueName !== null ? column.uniqueName : defaultNameForUnique(column.table, column.name);
-		const exists = ddl.uniques.one({ schema: column.schema, table: column.table, name: name }) !== null;
+		const exists = ddl.uniques.one({ schema: column.schema, table: column.table, columns: [column.name] }) !== null;
 		if (exists) continue;
 
 		ddl.uniques.push({
