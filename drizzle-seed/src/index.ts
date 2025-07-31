@@ -1,5 +1,5 @@
 /* eslint-disable drizzle-internal/require-entity-kind */
-import { getTableName, is, sql } from 'drizzle-orm';
+import { getColumnTable, getTableName, is, sql } from 'drizzle-orm';
 import { createTableRelationsHelpers, extractTablesRelationalConfig, One, Relations } from 'drizzle-orm/_relations';
 
 import type { MySqlColumn, MySqlSchema } from 'drizzle-orm/mysql-core';
@@ -20,13 +20,13 @@ import type { Column, Relation, RelationWithReferences, Table } from './types/ta
 
 type InferCallbackType<
 	DB extends
-		| PgDatabase<any, any, any, any, any>
-		| MySqlDatabase<any, any, any, any, any, any>
-		| BaseSQLiteDatabase<any, any, any, any, any, any>,
+		| PgDatabase<any, any, any, any>
+		| MySqlDatabase<any, any, any, any, any>
+		| BaseSQLiteDatabase<any, any, any, any, any>,
 	SCHEMA extends {
 		[key: string]: PgTable | PgSchema | MySqlTable | MySqlSchema | SQLiteTable | Relations;
 	},
-> = DB extends PgDatabase<any, any, any, any, any> ? SCHEMA extends {
+> = DB extends PgDatabase<any, any, any, any> ? SCHEMA extends {
 		[key: string]:
 			| PgTable
 			| PgSchema
@@ -59,7 +59,7 @@ type InferCallbackType<
 			};
 		}
 	: {}
-	: DB extends MySqlDatabase<any, any, any, any, any, any> ? SCHEMA extends {
+	: DB extends MySqlDatabase<any, any, any, any, any> ? SCHEMA extends {
 			[key: string]:
 				| PgTable
 				| PgSchema
@@ -92,7 +92,7 @@ type InferCallbackType<
 				};
 			}
 		: {}
-	: DB extends BaseSQLiteDatabase<any, any, any, any, any, any> ? SCHEMA extends {
+	: DB extends BaseSQLiteDatabase<any, any, any, any, any> ? SCHEMA extends {
 			[key: string]:
 				| PgTable
 				| PgSchema
@@ -129,9 +129,9 @@ type InferCallbackType<
 
 class SeedPromise<
 	DB extends
-		| PgDatabase<any, any, any, any, any>
-		| MySqlDatabase<any, any, any, any, any, any>
-		| BaseSQLiteDatabase<any, any, any, any, any, any>,
+		| PgDatabase<any, any, any, any>
+		| MySqlDatabase<any, any, any, any, any>
+		| BaseSQLiteDatabase<any, any, any, any, any>,
 	SCHEMA extends {
 		[key: string]: PgTable | PgSchema | MySqlTable | MySqlSchema | SQLiteTable | Relations;
 	},
@@ -338,9 +338,9 @@ export async function seedForDrizzleStudio(
  */
 export function seed<
 	DB extends
-		| PgDatabase<any, any, any, any, any>
-		| MySqlDatabase<any, any, any, any, any, any>
-		| BaseSQLiteDatabase<any, any, any, any, any, any>,
+		| PgDatabase<any, any, any, any>
+		| MySqlDatabase<any, any, any, any, any>
+		| BaseSQLiteDatabase<any, any, any, any, any>,
 	SCHEMA extends {
 		[key: string]:
 			| PgTable
@@ -358,9 +358,9 @@ export function seed<
 
 const seedFunc = async (
 	db:
-		| PgDatabase<any, any, any, any, any>
-		| MySqlDatabase<any, any, any, any, any, any>
-		| BaseSQLiteDatabase<any, any, any, any, any, any>,
+		| PgDatabase<any, any, any, any>
+		| MySqlDatabase<any, any, any, any, any>
+		| BaseSQLiteDatabase<any, any, any, any, any>,
 	schema: {
 		[key: string]:
 			| PgTable
@@ -379,11 +379,11 @@ const seedFunc = async (
 		version = Number(options?.version);
 	}
 
-	if (is(db, PgDatabase<any, any, any, any, any>)) {
+	if (is(db, PgDatabase<any, any, any, any>)) {
 		await seedPostgres(db, schema, { ...options, version }, refinements);
-	} else if (is(db, MySqlDatabase<any, any, any, any, any, any>)) {
+	} else if (is(db, MySqlDatabase<any, any, any, any, any>)) {
 		await seedMySql(db, schema, { ...options, version }, refinements);
-	} else if (is(db, BaseSQLiteDatabase<any, any, any, any, any, any>)) {
+	} else if (is(db, BaseSQLiteDatabase<any, any, any, any, any>)) {
 		await seedSqlite(db, schema, { ...options, version }, refinements);
 	} else {
 		throw new Error(
@@ -436,9 +436,9 @@ const seedFunc = async (
  */
 export async function reset<
 	DB extends
-		| PgDatabase<any, any, any, any, any>
-		| MySqlDatabase<any, any, any, any, any, any>
-		| BaseSQLiteDatabase<any, any, any, any, any, any>,
+		| PgDatabase<any, any, any, any>
+		| MySqlDatabase<any, any, any, any, any>
+		| BaseSQLiteDatabase<any, any, any, any, any>,
 	SCHEMA extends {
 		[key: string]:
 			| PgTable
@@ -449,19 +449,19 @@ export async function reset<
 			| any;
 	},
 >(db: DB, schema: SCHEMA) {
-	if (is(db, PgDatabase<any, any, any, any, any>)) {
+	if (is(db, PgDatabase<any, any, any, any>)) {
 		const { pgTables } = filterPgSchema(schema);
 
 		if (Object.entries(pgTables).length > 0) {
 			await resetPostgres(db, pgTables);
 		}
-	} else if (is(db, MySqlDatabase<any, any, any, any, any, any>)) {
+	} else if (is(db, MySqlDatabase<any, any, any, any, any>)) {
 		const { mysqlTables } = filterMysqlTables(schema);
 
 		if (Object.entries(mysqlTables).length > 0) {
 			await resetMySql(db, mysqlTables);
 		}
-	} else if (is(db, BaseSQLiteDatabase<any, any, any, any, any, any>)) {
+	} else if (is(db, BaseSQLiteDatabase<any, any, any, any, any>)) {
 		const { sqliteTables } = filterSqliteTables(schema);
 
 		if (Object.entries(sqliteTables).length > 0) {
@@ -476,7 +476,7 @@ export async function reset<
 
 // Postgres-----------------------------------------------------------------------------------------------------------
 const resetPostgres = async (
-	db: PgDatabase<any, any, any, any, any>,
+	db: PgDatabase<any, any, any, any>,
 	pgTables: { [key: string]: PgTable },
 ) => {
 	const tablesToTruncate = Object.entries(pgTables).map(([_, table]) => {
@@ -513,7 +513,7 @@ const filterPgSchema = (schema: {
 };
 
 const seedPostgres = async (
-	db: PgDatabase<any, any, any, any, any>,
+	db: PgDatabase<any, any, any, any>,
 	schema: {
 		[key: string]:
 			| PgTable
@@ -591,7 +591,7 @@ const getPostgresInfo = (
 		}
 
 		const tableConfig = getPgTableConfig(table);
-		for (const [tsCol, col] of Object.entries(tableConfig.columns[0]!.table)) {
+		for (const [tsCol, col] of Object.entries(getColumnTable(tableConfig.columns[0]!))) {
 			dbToTsColumnNamesMap[col.name] = tsCol;
 		}
 		dbToTsColumnNamesMapGlobal[tableName] = dbToTsColumnNamesMap;
@@ -676,7 +676,7 @@ const getPostgresInfo = (
 		tableConfig = getPgTableConfig(table);
 
 		dbToTsColumnNamesMap = {};
-		for (const [tsCol, col] of Object.entries(tableConfig.columns[0]!.table)) {
+		for (const [tsCol, col] of Object.entries(getColumnTable(tableConfig.columns[0]!))) {
 			dbToTsColumnNamesMap[col.name] = tsCol;
 		}
 
@@ -861,7 +861,7 @@ const isRelationCyclic = (
 
 // MySql-----------------------------------------------------------------------------------------------------
 const resetMySql = async (
-	db: MySqlDatabase<any, any, any, any, any, any>,
+	db: MySqlDatabase<any, any, any, any, any>,
 	schema: { [key: string]: MySqlTable },
 ) => {
 	const tablesToTruncate = Object.entries(schema).map(([_tsTableName, table]) => {
@@ -905,7 +905,7 @@ const filterMysqlTables = (schema: {
 };
 
 const seedMySql = async (
-	db: MySqlDatabase<any, any, any, any, any, any>,
+	db: MySqlDatabase<any, any, any, any, any>,
 	schema: {
 		[key: string]:
 			| PgTable
@@ -984,7 +984,7 @@ const getMySqlInfo = (
 		}
 
 		const tableConfig = getMysqlTableConfig(table);
-		for (const [tsCol, col] of Object.entries(tableConfig.columns[0]!.table)) {
+		for (const [tsCol, col] of Object.entries(getColumnTable(tableConfig.columns[0]!))) {
 			dbToTsColumnNamesMap[col.name] = tsCol;
 		}
 		dbToTsColumnNamesMapGlobal[tableName] = dbToTsColumnNamesMap;
@@ -1069,7 +1069,7 @@ const getMySqlInfo = (
 		tableConfig = getMysqlTableConfig(table);
 
 		dbToTsColumnNamesMap = {};
-		for (const [tsCol, col] of Object.entries(tableConfig.columns[0]!.table)) {
+		for (const [tsCol, col] of Object.entries(getColumnTable(tableConfig.columns[0]!))) {
 			dbToTsColumnNamesMap[col.name] = tsCol;
 		}
 
@@ -1182,7 +1182,7 @@ const getMySqlInfo = (
 
 // Sqlite------------------------------------------------------------------------------------------------------------------------
 const resetSqlite = async (
-	db: BaseSQLiteDatabase<any, any, any, any, any, any>,
+	db: BaseSQLiteDatabase<any, any, any, any, any>,
 	schema: { [key: string]: SQLiteTable },
 ) => {
 	const tablesToTruncate = Object.entries(schema).map(([_tsTableName, table]) => {
@@ -1226,7 +1226,7 @@ const filterSqliteTables = (schema: {
 };
 
 const seedSqlite = async (
-	db: BaseSQLiteDatabase<any, any, any, any, any, any>,
+	db: BaseSQLiteDatabase<any, any, any, any, any>,
 	schema: {
 		[key: string]:
 			| PgTable
@@ -1305,7 +1305,7 @@ const getSqliteInfo = (
 		}
 
 		const tableConfig = getSqliteTableConfig(table);
-		for (const [tsCol, col] of Object.entries(tableConfig.columns[0]!.table)) {
+		for (const [tsCol, col] of Object.entries(getColumnTable(tableConfig.columns[0]!))) {
 			dbToTsColumnNamesMap[col.name] = tsCol;
 		}
 		dbToTsColumnNamesMapGlobal[tableName] = dbToTsColumnNamesMap;
@@ -1389,7 +1389,7 @@ const getSqliteInfo = (
 		tableConfig = getSqliteTableConfig(table);
 
 		dbToTsColumnNamesMap = {};
-		for (const [tsCol, col] of Object.entries(tableConfig.columns[0]!.table)) {
+		for (const [tsCol, col] of Object.entries(getColumnTable(tableConfig.columns[0]!))) {
 			dbToTsColumnNamesMap[col.name] = tsCol;
 		}
 

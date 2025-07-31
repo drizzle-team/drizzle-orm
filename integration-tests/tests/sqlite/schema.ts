@@ -18,7 +18,7 @@ export const rqbPost = sqliteTable('post_rqb_test', {
 	}).notNull(),
 });
 
-export const init = async (db: BaseSQLiteDatabase<any, any, any, any, any, any>) => {
+export const init = async (db: BaseSQLiteDatabase<any, any, any, any, any>) => {
 	await db.run(sql`
 		CREATE TABLE ${rqbUser} (
 		        "id" INT PRIMARY KEY NOT NULL,
@@ -36,7 +36,7 @@ export const init = async (db: BaseSQLiteDatabase<any, any, any, any, any, any>)
 	`);
 };
 
-export const clear = async (db: BaseSQLiteDatabase<any, any, any, any, any, any>) => {
+export const clear = async (db: BaseSQLiteDatabase<any, any, any, any, any>) => {
 	try {
 		await db.run(sql`DROP TABLE IF EXISTS ${rqbUser};`);
 	} catch {

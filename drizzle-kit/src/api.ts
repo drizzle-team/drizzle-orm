@@ -108,7 +108,7 @@ export const generateMigration = async (
 
 export const pushSchema = async (
 	imports: Record<string, unknown>,
-	drizzleInstance: PgDatabase<any, any, any, any, any>,
+	drizzleInstance: PgDatabase<any, any, any, any>,
 	schemaFilters?: string[],
 	tablesFilter?: string[],
 	extensionsFilters?: Config['extensionsFilters'],

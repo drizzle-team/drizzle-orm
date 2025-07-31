@@ -371,7 +371,7 @@ export function tests(driver?: string) {
 			}
 		});
 
-		async function setupReturningFunctionsTest(db: MySqlDatabase<any, any, any, any, any, any>) {
+		async function setupReturningFunctionsTest(db: MySqlDatabase<any, any, any, any, any>) {
 			await db.execute(sql`drop table if exists \`users_default_fn\``);
 			await db.execute(
 				sql`

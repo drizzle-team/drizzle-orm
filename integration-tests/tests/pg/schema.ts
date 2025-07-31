@@ -20,7 +20,7 @@ export const rqbPost = pgTable('post_rqb_test', {
 	}).notNull(),
 });
 
-export const init = async (db: PgDatabase<PgQueryResultHKT, any, any, any, any>) => {
+export const init = async (db: PgDatabase<PgQueryResultHKT, any, any, any>) => {
 	await db.execute(sql`
 		CREATE TABLE ${rqbUser} (
 		        "id" SERIAL PRIMARY KEY NOT NULL,
@@ -38,7 +38,7 @@ export const init = async (db: PgDatabase<PgQueryResultHKT, any, any, any, any>)
 	`);
 };
 
-export const clear = async (db: PgDatabase<PgQueryResultHKT, any, any, any, any>) => {
+export const clear = async (db: PgDatabase<PgQueryResultHKT, any, any, any>) => {
 	await db.execute(sql`DROP TABLE IF EXISTS ${rqbUser} CASCADE;`).catch(() => null);
 	await db.execute(sql`DROP TABLE IF EXISTS ${rqbPost} CASCADE;`).catch(() => null);
 };
