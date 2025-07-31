@@ -8,7 +8,6 @@ import { suggestions } from 'src/cli/commands/push-sqlite';
 import { CasingType } from 'src/cli/validations/common';
 import { EmptyProgressView } from 'src/cli/views';
 import { hash } from 'src/dialects/common';
-import { defaultToSQL } from 'src/dialects/sqlite/convertor';
 import { createDDL, interimToDDL, SQLiteDDL } from 'src/dialects/sqlite/ddl';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/sqlite/diff';
 import { defaultFromColumn, fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/sqlite/drizzle';
@@ -185,7 +184,7 @@ export const diffDefault = async <T extends SQLiteColumnBuilder>(
 	const column = sqliteTable('table', { column: builder }).column;
 	const type = column.getSQLType();
 	const columnDefault = defaultFromColumn(column, 'camelCase');
-	const defaultSql = defaultToSQL(type, columnDefault);
+	const defaultSql = columnDefault ?? '';
 
 	const res = [] as string[];
 	if (defaultSql !== expectedDefault) {
