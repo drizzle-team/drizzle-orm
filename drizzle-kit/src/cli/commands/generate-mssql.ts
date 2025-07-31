@@ -102,7 +102,12 @@ export const handleExport = async (config: ExportConfig) => {
 		process.exit(1);
 	}
 
-	const { ddl } = interimToDDL(schema);
+	const { ddl, errors: errors2 } = interimToDDL(schema);
+	if (errors2.length > 0) {
+		console.log(errors.map((it) => mssqlSchemaError(it)).join('\n'));
+		process.exit(1);
+	}
+
 	const { sqlStatements } = await ddlDiffDry(createDDL(), ddl, 'default');
 	console.log(sqlStatements.join('\n'));
 };
