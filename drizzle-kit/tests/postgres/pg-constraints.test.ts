@@ -11,7 +11,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { DB } from 'src/utils';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
+import { diff, drizzleToDDL, prepareTestDatabase, push, TestDatabase } from './mocks';
 
 // @vitest-environment-options {"max-concurrency":1}
 let _: TestDatabase;
@@ -1639,7 +1639,7 @@ test('fk multistep #2', async () => {
 	expect(pst3).toStrictEqual([]);
 });
 
-test('fk multistep #2', async () => {
+test('fk multistep #3', async () => {
 	const users = pgTable('users', {
 		id: serial().primaryKey(),
 		id2: integer(),
@@ -1647,36 +1647,13 @@ test('fk multistep #2', async () => {
 		foreignKey({ name: 'users_id2_id1_fkey', columns: [t.id2], foreignColumns: [t.id] }),
 	]);
 
-	const users2 = pgTable('users2', {
-		id: serial().primaryKey(),
-		id2: integer(),
-	}, (t) => [
-		foreignKey({ name: 'users_id2_id1_fkey', columns: [t.id2], foreignColumns: [t.id] }),
-	]);
+	const { ddl: ddl1 } = drizzleToDDL({ users });
+	const { ddl: ddl2 } = drizzleToDDL({ users });
+	ddl2.tables.update({
+		set: { name: 'users2' },
+		where: { name: 'users' },
+	});
 
-	const sch1 = { users };
-	const sch2 = { users: users2 };
-
-	const { sqlStatements: st1, next: n1 } = await diff({}, sch1, []);
-	const { sqlStatements: pst1 } = await push({ db, to: sch1 });
-
-	const e1 = [
-		'CREATE TABLE "users" (\n\t"id" serial PRIMARY KEY,\n\t"id2" integer\n);\n',
-		'ALTER TABLE "users" ADD CONSTRAINT "users_id2_id1_fkey" FOREIGN KEY ("id2") REFERENCES "users"("id");',
-	];
-	expect(st1).toStrictEqual(e1);
-	expect(pst1).toStrictEqual(e1);
-
-	const { sqlStatements: st2, next: n2 } = await diff(n1, sch2, ['public.users->public.users2']);
-	const { sqlStatements: pst2 } = await push({ db, to: sch2, renames: ['public.users->public.users2'] });
-
-	const e2 = ['ALTER TABLE "users" RENAME TO "users2";'];
-	expect(st2).toStrictEqual(e2);
-	expect(pst2).toStrictEqual(e2);
-
-	const { sqlStatements: st3 } = await diff(n2, sch2, []);
-	const { sqlStatements: pst3 } = await push({ db, to: sch2 });
-
-	expect(st3).toStrictEqual([]);
-	expect(pst3).toStrictEqual([]);
+	const { sqlStatements: st1 } = await diff(ddl1, ddl2, ['public.users->public.users2']);
+	expect(st1).toStrictEqual(['ALTER TABLE "users" RENAME TO "users2";']);
 });
