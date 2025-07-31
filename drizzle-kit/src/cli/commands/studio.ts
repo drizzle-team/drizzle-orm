@@ -26,6 +26,7 @@ import { compress } from 'hono/compress';
 import { cors } from 'hono/cors';
 import { createServer } from 'node:https';
 import { LibSQLCredentials } from 'src/cli/validations/libsql';
+import { JSONB } from '../../utils/when-json-met-bigint';
 import { z } from 'zod';
 import { assertUnreachable, Proxy, TransactionProxy } from '../../utils';
 import { safeRegister } from '../../utils/utils-node';
@@ -635,17 +636,12 @@ const defaultsSchema = z.object({
 const schema = z.union([init, proxySchema, transactionProxySchema, defaultsSchema]);
 
 const jsonStringify = (data: any) => {
-	return JSON.stringify(data, (_key, value) => {
+	return JSONB.stringify(data, (_key, value) => {
 		// Convert Error to object
 		if (value instanceof Error) {
 			return {
 				error: value.message,
 			};
-		}
-
-		// Convert BigInt to string
-		if (typeof value === 'bigint') {
-			return value.toString();
 		}
 
 		// Convert Buffer and ArrayBuffer to base64
@@ -764,12 +760,28 @@ export const prepareServer = async (
 				...body.data,
 				params: body.data.params || [],
 			});
-			return c.json(JSON.parse(jsonStringify(result)));
+			const res = jsonStringify(result)!;
+			return c.body(
+				res,
+				{
+					headers: {
+						'Content-Type': 'application/json',
+					},
+				},
+			);
 		}
 
 		if (type === 'tproxy') {
 			const result = await transactionProxy(body.data);
-			return c.json(JSON.parse(jsonStringify(result)));
+			const res = jsonStringify(result)!;
+			return c.body(
+				res,
+				{
+					headers: {
+						'Content-Type': 'application/json',
+					},
+				},
+			);
 		}
 
 		if (type === 'defaults') {
@@ -791,8 +803,15 @@ export const prepareServer = async (
 					value,
 				};
 			});
-
-			return c.json(JSON.parse(jsonStringify(result)));
+			const res = jsonStringify(result)!;
+			return c.body(
+				res,
+				{
+					headers: {
+						'Content-Type': 'application/json',
+					},
+				},
+			);
 		}
 
 		throw new Error(`Unknown type: ${type}`);

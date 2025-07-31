@@ -278,7 +278,7 @@ export const diffIntrospect = async (
 };
 
 export const diffDefault = async <T extends PgColumnBuilder>(
-	kit: TestDatabase,
+	kit: TestDatabase<any>,
 	builder: T,
 	expectedDefault: string,
 	pre: PostgresSchema | null = null,
@@ -416,15 +416,16 @@ export const diffSnapshotV7 = async (db: DB, schema: PostgresSchema) => {
 	};
 };
 
-export type TestDatabase = {
+export type TestDatabase<TClient> = {
 	db: DB & { batch: (sql: string[]) => Promise<void> };
+	client:TClient,
 	close: () => Promise<void>;
 	clear: () => Promise<void>;
 };
 
-const client = new PGlite({ extensions: { vector, pg_trgm } });
+const client = new PGlite({ extensions: { vector, pg_trgm },  });
 
-export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatabase> => {
+export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatabase<PGlite>> => {
 	await client.query(`CREATE ACCESS METHOD drizzle_heap TYPE TABLE HANDLER heap_tableam_handler;`);
 	await client.query(`CREATE EXTENSION vector;`);
 	await client.query(`CREATE EXTENSION pg_trgm;`);
@@ -463,7 +464,7 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 		await client.query(`CREATE EXTENSION pg_trgm;`);
 	};
 
-	const db: TestDatabase['db'] = {
+	const db: TestDatabase<any>['db'] = {
 		query: async (sql, params) => {
 			return client.query(sql, params).then((it) => it.rows as any[]).catch((e: Error) => {
 				const error = new Error(`query error: ${sql}\n\n${e.message}`);
@@ -476,7 +477,7 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 			}
 		},
 	};
-	return { db, close: async () => {}, clear };
+	return { db, close: async () => {}, clear, client };
 };
 
 export const createDockerPostgis = async () => {
@@ -510,7 +511,7 @@ export const createDockerPostgis = async () => {
 	};
 };
 
-export const preparePostgisTestDatabase = async (tx: boolean = true): Promise<TestDatabase> => {
+export const preparePostgisTestDatabase = async (tx: boolean = true): Promise<TestDatabase<any>> => {
 	const envURL = process.env.POSTGIS_URL;
 	const { url, container } = envURL ? { url: envURL, container: null } : await createDockerPostgis();
 	const sleep = 1000;
@@ -593,5 +594,5 @@ export const preparePostgisTestDatabase = async (tx: boolean = true): Promise<Te
 			}
 		},
 	};
-	return { db, close, clear };
+	return { db, close, clear, client };
 };

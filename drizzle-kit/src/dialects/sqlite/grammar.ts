@@ -1,4 +1,5 @@
 import { trimChar } from 'src/utils';
+import { parse, stringify } from '../../utils/when-json-met-bigint';
 import type { Column, ForeignKey } from './ddl';
 import type { Import } from './typescript';
 
@@ -19,7 +20,6 @@ export interface SqlType<MODE = unknown> {
 	drizzleImport(): Import;
 	defaultFromDrizzle(value: unknown, mode?: MODE): Column['default'];
 	defaultFromIntrospect(value: string): Column['default'];
-	defaultToSQL(value: Column['default']): string;
 	toTs(value: Column['default']): { def: string; options?: Record<string, string | number | boolean> } | string;
 }
 
@@ -63,10 +63,6 @@ export const Int: SqlType<'timestamp' | 'timestamp_ms'> = {
 		if (check >= Number.MIN_SAFE_INTEGER && check <= Number.MAX_SAFE_INTEGER) return it;
 		return it; // bigint
 	},
-	defaultToSQL: (value) => {
-		return value ?? ''; // as is?
-	},
-
 	toTs: (value) => {
 		if (!value) return '';
 		const check = Number(value);
@@ -96,9 +92,6 @@ export const Real: SqlType = {
 	},
 	defaultFromIntrospect: function(value: string): Column['default'] {
 		return value;
-	},
-	defaultToSQL: function(value: Column['default']): string {
-		return value ?? '';
 	},
 	toTs: function(value: Column['default']): string {
 		return value ?? '';
@@ -131,9 +124,6 @@ export const Numeric: SqlType = {
 	},
 	defaultFromIntrospect: function(value: string): Column['default'] {
 		return value;
-	},
-	defaultToSQL: function(value: Column['default']): string {
-		return value ?? '';
 	},
 	toTs: function(value: Column['default']) {
 		if (!value) return '';
@@ -173,30 +163,40 @@ export const Text: SqlType = {
 		return 'text';
 	},
 	defaultFromDrizzle: function(value: unknown, mode?: unknown): Column['default'] {
-		if (typeof value === 'string') return value;
-
-		if (typeof value === 'object' || Array.isArray(value)) {
-			const escaped = JSON.stringify(value, (key, value) => {
+		let result: string;
+		if (typeof value === 'string') result = value.replaceAll('\\', '\\\\').replaceAll("'", "''");
+		else if (typeof value === 'object' || Array.isArray(value)) {
+			result = stringify(value, (_, value) => {
 				if (typeof value !== 'string') return value;
 				return value.replaceAll("'", "''");
 			});
-			return `${escaped}`;
+		} else {
+			throw new Error(`unexpected default: ${value}`);
 		}
-
-		throw new Error(`unexpected default: ${value}`);
+		return `'${result}'`;
 	},
 	defaultFromIntrospect: function(value: string): Column['default'] {
-		return trimChar(value, "'").replaceAll("''", "'").replaceAll('\\\\', '\\');
+		return value;
 	},
-	defaultToSQL: function(value: Column['default']): string {
+	toTs: function(value: Column['default']) {
 		if (value === null) return '';
-		const escaped = value.replaceAll('\\', '\\\\').replaceAll("'", "''");
-		return `'${escaped}'`;
-	},
-	toTs: function(value: Column['default']): string {
-		if (value === null) return '';
+		if (!value.startsWith("'")) return `sql\`${value}\``; // CURRENT_TIMESTAMP
 
-		const escaped = value.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
+		try {
+			const parsed = parse(trimChar(value, "'"), (_, v) => {
+				if (typeof v === 'string') {
+					return v.replaceAll("''", "'");
+				}
+				return v;
+			});
+
+			return {
+				def: stringify(parsed, undefined,undefined, true)!,
+				options: { mode: 'json' },
+			};
+		} catch {}
+
+		const escaped = trimChar(value, "'").replaceAll("''", "'").replaceAll('"', '\\"');
 		return `"${escaped}"`;
 	},
 };
@@ -215,21 +215,14 @@ export const Blob: SqlType = {
 			return `X'${value.toString('hex').toUpperCase()}'`;
 		}
 		if (Array.isArray(value) || typeof value === 'object') {
-			const escaped = JSON.stringify(value, (key, value) => {
-				if (typeof value !== 'string') return value;
-				return value.replaceAll("'", "''");
-			});
-			return `'${escaped}'`;
+			return Text.defaultFromDrizzle(value);
 		}
 		throw new Error('unexpected');
 	},
-	defaultFromIntrospect: function(value: string): Column['default'] {
+	defaultFromIntrospect: function(value: string) {
 		return value;
 	},
-	defaultToSQL: function(value: Column['default']): string {
-		return value ?? '';
-	},
-	toTs: function(value: Column['default']): string {
+	toTs: function(value) {
 		if (value === null) return '';
 
 		if (typeof Buffer !== 'undefined' && value.startsWith("X'")) {
@@ -248,13 +241,9 @@ export const Blob: SqlType = {
 					return `${trimmed}n`;
 				}
 			}
-
-			const json = JSON.parse(trimmed);
-			return JSON.stringify(json).replaceAll("''", "'");
 		} catch {}
 
-		const unescaped = value.replaceAll('\\', '\\\\');
-		return `sql\`${unescaped}\``;
+		return Text.toTs(value);
 	},
 };
 
