@@ -12,7 +12,7 @@ import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
-import type { AnyRelations, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
@@ -147,9 +147,8 @@ export class BunSQLSession<
 	TSQL extends SQL,
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
-> extends PgSession<BunSQLQueryResultHKT, TFullSchema, TRelations, TTablesConfig, TSchema> {
+> extends PgSession<BunSQLQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'BunSQLSession';
 
 	logger: Logger;
@@ -228,11 +227,11 @@ export class BunSQLSession<
 	}
 
 	override transaction<T>(
-		transaction: (tx: BunSQLTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
+		transaction: (tx: BunSQLTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig,
 	): Promise<T> {
 		return this.client.begin(async (client) => {
-			const session = new BunSQLSession<TransactionSQL, TFullSchema, TRelations, TTablesConfig, TSchema>(
+			const session = new BunSQLSession<TransactionSQL, TFullSchema, TRelations, TSchema>(
 				client,
 				this.dialect,
 				this.relations,
@@ -251,9 +250,8 @@ export class BunSQLSession<
 export class BunSQLTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
-> extends PgTransaction<BunSQLQueryResultHKT, TFullSchema, TRelations, TTablesConfig, TSchema> {
+> extends PgTransaction<BunSQLQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'BunSQLTransaction';
 
 	constructor(
@@ -263,7 +261,6 @@ export class BunSQLTransaction<
 			TransactionSQL | SavepointSQL,
 			TFullSchema,
 			TRelations,
-			TTablesConfig,
 			TSchema
 		>,
 		relations: AnyRelations | undefined,
@@ -274,17 +271,17 @@ export class BunSQLTransaction<
 	}
 
 	override transaction<T>(
-		transaction: (tx: BunSQLTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
+		transaction: (tx: BunSQLTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 	): Promise<T> {
 		return (this.session.client as TransactionSQL).savepoint((client) => {
-			const session = new BunSQLSession<SavepointSQL, TFullSchema, TRelations, TTablesConfig, TSchema>(
+			const session = new BunSQLSession<SavepointSQL, TFullSchema, TRelations, TSchema>(
 				client,
 				this.dialect,
 				this.relations,
 				this.schema,
 				this.session.options,
 			);
-			const tx = new BunSQLTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>(
+			const tx = new BunSQLTransaction<TFullSchema, TRelations, TSchema>(
 				this.dialect,
 				session,
 				this.relations,

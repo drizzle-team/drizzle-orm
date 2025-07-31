@@ -5,7 +5,7 @@ import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import type { AnyRelations, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
 import { SQLiteTransaction } from '~/sqlite-core/index.ts';
@@ -29,9 +29,8 @@ type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 export class OPSQLiteSession<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
-> extends SQLiteSession<'async', QueryResult, TFullSchema, TRelations, TTablesConfig, TSchema> {
+> extends SQLiteSession<'async', QueryResult, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'OPSQLiteSession';
 
 	private logger: Logger;
@@ -97,7 +96,7 @@ export class OPSQLiteSession<
 	}
 
 	override transaction<T>(
-		transaction: (tx: OPSQLiteTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => T,
+		transaction: (tx: OPSQLiteTransaction<TFullSchema, TRelations, TSchema>) => T,
 		config: SQLiteTransactionConfig = {},
 	): T {
 		const tx = new OPSQLiteTransaction('async', this.dialect, this, this.relations, this.schema);
@@ -116,13 +115,12 @@ export class OPSQLiteSession<
 export class OPSQLiteTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
-> extends SQLiteTransaction<'async', QueryResult, TFullSchema, TRelations, TTablesConfig, TSchema> {
+> extends SQLiteTransaction<'async', QueryResult, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'OPSQLiteTransaction';
 
 	override transaction<T>(
-		transaction: (tx: OPSQLiteTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => T,
+		transaction: (tx: OPSQLiteTransaction<TFullSchema, TRelations, TSchema>) => T,
 	): T {
 		const savepointName = `sp${this.nestedIndex}`;
 		const tx = new OPSQLiteTransaction(

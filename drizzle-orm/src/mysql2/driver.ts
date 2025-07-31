@@ -8,7 +8,7 @@ import { DefaultLogger } from '~/logger.ts';
 import { MySqlDatabase } from '~/mysql-core/db.ts';
 import { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { Mode } from '~/mysql-core/session.ts';
-import type { AnyRelations, EmptyRelations, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { type DrizzleConfig, isConfig } from '~/utils.ts';
 import { DrizzleError } from '../errors.ts';
 import type { MySql2Client, MySql2PreparedQueryHKT, MySql2QueryResultHKT } from './session.ts';
@@ -33,7 +33,7 @@ export class MySql2Driver {
 		relations: AnyRelations | undefined,
 		schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined,
 		mode: Mode,
-	): MySql2Session<Record<string, unknown>, AnyRelations, TablesRelationalConfig, V1.TablesRelationalConfig> {
+	): MySql2Session<Record<string, unknown>, AnyRelations, V1.TablesRelationalConfig> {
 		return new MySql2Session(this.client, this.dialect, relations, schema, {
 			logger: this.options.logger,
 			mode,

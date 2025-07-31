@@ -7,7 +7,7 @@ import { GelDialect } from '~/gel-core/dialect.ts';
 import type { GelQueryResultHKT } from '~/gel-core/session.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
-import type { AnyRelations, EmptyRelations, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { type DrizzleConfig, isConfig } from '~/utils.ts';
 import type { GelClient } from './session.ts';
 import { GelDbSession } from './session.ts';
@@ -29,7 +29,7 @@ export class GelDriver {
 	createSession(
 		relations: AnyRelations | undefined,
 		schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined,
-	): GelDbSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig, V1.TablesRelationalConfig> {
+	): GelDbSession<Record<string, unknown>, AnyRelations, V1.TablesRelationalConfig> {
 		return new GelDbSession(this.client, this.dialect, relations, schema, {
 			logger: this.options.logger,
 			cache: this.options.cache,

@@ -21,7 +21,7 @@ import {
 	type PreparedQueryConfig,
 } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
-import type { AnyRelations, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type QueryTypingsValue, type QueryWithTypings, type SQL, sql } from '~/sql/sql.ts';
 import { mapResultRow } from '~/utils.ts';
 import { getValueFromDataApi, toValueParam } from '../common/index.ts';
@@ -208,9 +208,8 @@ interface AwsDataApiQueryBase {
 export class AwsDataApiSession<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
-> extends PgSession<AwsDataApiPgQueryResultHKT, TFullSchema, TRelations, TTablesConfig, TSchema> {
+> extends PgSession<AwsDataApiPgQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'AwsDataApiSession';
 
 	/** @internal */
@@ -306,7 +305,7 @@ export class AwsDataApiSession<
 	}
 
 	override async transaction<T>(
-		transaction: (tx: AwsDataApiTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
+		transaction: (tx: AwsDataApiTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig | undefined,
 	): Promise<T> {
 		const { transactionId } = await this.client.send(new BeginTransactionCommand(this.rawQuery));
@@ -318,7 +317,7 @@ export class AwsDataApiSession<
 			this.options,
 			transactionId,
 		);
-		const tx = new AwsDataApiTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>(
+		const tx = new AwsDataApiTransaction<TFullSchema, TRelations, TSchema>(
 			this.dialect,
 			session,
 			this.relations,
@@ -341,16 +340,15 @@ export class AwsDataApiSession<
 export class AwsDataApiTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
-> extends PgTransaction<AwsDataApiPgQueryResultHKT, TFullSchema, TRelations, TTablesConfig, TSchema> {
+> extends PgTransaction<AwsDataApiPgQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'AwsDataApiTransaction';
 
 	override async transaction<T>(
-		transaction: (tx: AwsDataApiTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
+		transaction: (tx: AwsDataApiTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new AwsDataApiTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>(
+		const tx = new AwsDataApiTransaction<TFullSchema, TRelations, TSchema>(
 			this.dialect,
 			this.session,
 			this.relations,

@@ -34,7 +34,7 @@ export class RelationalQueryBuilder<
 		private table: SQLiteTable,
 		private tableConfig: TableRelationalConfig,
 		private dialect: SQLiteDialect,
-		private session: SQLiteSession<any, any, any, any, any, any>,
+		private session: SQLiteSession<any, any, any, any, any>,
 		private rowMode?: boolean,
 		private forbidJsonb?: boolean,
 	) {
@@ -128,7 +128,7 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 		table: SQLiteTable,
 		private tableConfig: TableRelationalConfig,
 		private dialect: SQLiteDialect,
-		private session: SQLiteSession<TType, any, any, any, any, any>,
+		private session: SQLiteSession<TType, any, any, any, any>,
 		private config: DBQueryConfig<'many' | 'one'> | true,
 		mode: 'many' | 'first',
 		private rowMode?: boolean,

@@ -2,7 +2,7 @@ import type * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import type { AnyRelations, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query } from '~/sql/sql.ts';
 import { type SQLiteSyncDialect, SQLiteTransaction } from '~/sqlite-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types.ts';
@@ -24,14 +24,12 @@ type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 export class SQLiteDOSession<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
 > extends SQLiteSession<
 	'sync',
 	SqlStorageCursor<Record<string, SqlStorageValue>>,
 	TFullSchema,
 	TRelations,
-	TTablesConfig,
 	TSchema
 > {
 	static override readonly [entityKind]: string = 'SQLiteDOSession';
@@ -92,7 +90,6 @@ export class SQLiteDOSession<
 				SqlStorageCursor<Record<string, SqlStorageValue>>,
 				TFullSchema,
 				TRelations,
-				TTablesConfig,
 				TSchema
 			>,
 		) => T,
@@ -109,20 +106,18 @@ export class SQLiteDOSession<
 export class SQLiteDOTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
 > extends SQLiteTransaction<
 	'sync',
 	SqlStorageCursor<Record<string, SqlStorageValue>>,
 	TFullSchema,
 	TRelations,
-	TTablesConfig,
 	TSchema
 > {
 	static override readonly [entityKind]: string = 'SQLiteDOTransaction';
 
 	override transaction<T>(
-		transaction: (tx: SQLiteDOTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => T,
+		transaction: (tx: SQLiteDOTransaction<TFullSchema, TRelations, TSchema>) => T,
 	): T {
 		const tx = new SQLiteDOTransaction(
 			'sync',

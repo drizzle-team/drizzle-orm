@@ -59,37 +59,32 @@ export type FieldValue =
 export type FieldSelection = Record<string, FieldValue>;
 
 export class Relations<
-	TSchema extends Record<string, unknown> = Record<string, any>,
 	TTables extends Schema = Schema,
 	TConfig extends AnyRelationsBuilderConfig = AnyRelationsBuilderConfig,
+	TRelationalConfig extends TablesRelationalConfig = ExtractTablesWithRelations<TConfig, TTables>,
 > {
 	static readonly [entityKind]: string = 'RelationsV2';
 	declare readonly $brand: 'RelationsV2';
 	/** table DB name -> schema table key */
 	readonly tableNamesMap: Record<string, string> = {};
-	readonly tablesConfig: TablesRelationalConfig = {};
-	readonly tables: TTables = {} as any;
+	readonly tablesConfig: TRelationalConfig;
 
 	constructor(
-		readonly schema: TSchema,
+		readonly tables: TTables,
 		readonly config: TConfig,
 	) {
-		for (const [tsName, table] of Object.entries(schema)) {
-			const isTable = is(table, Table);
-			const isView = is(table, View);
-
-			if (!(isTable || isView)) continue;
-
-			(this.tables as any as Schema)[tsName] = table;
-
+		const rawConfig: TablesRelationalConfig = {};
+		for (const [tsName, table] of Object.entries(tables)) {
 			this.tableNamesMap[getTableUniqueName(table)] = tsName as any;
 
-			this.tablesConfig[tsName] = {
+			rawConfig[tsName] = {
 				table,
 				name: tsName,
 				relations: (config[tsName] || {}) as Record<string, RelationsBuilderEntry>,
 			};
 		}
+
+		this.tablesConfig = rawConfig as TRelationalConfig;
 
 		for (const tableConfig of Object.values(this.tablesConfig)) {
 			for (const [relationFieldName, relation] of Object.entries(tableConfig.relations)) {
@@ -239,8 +234,8 @@ export class Relations<
 	}
 }
 
-export type EmptyRelations = Relations<Record<string, never>, Record<string, never>>;
-export type AnyRelations = Relations<Record<string, any>, Record<string, any>>;
+export type EmptyRelations = Relations<Record<string, never>, Record<string, never>, Record<string, never>>;
+export type AnyRelations = Relations<Record<string, any>, Record<string, any>, Record<string, any>>;
 
 export abstract class Relation<
 	TSourceTableName extends string = string,
@@ -560,18 +555,17 @@ export interface TableRelationalConfig {
 export type TablesRelationalConfig = Record<string, TableRelationalConfig>;
 
 type NonUndefinedRecord<TRecord extends Record<string, any>> = {
-	[K in keyof TRecord as K extends undefined ? never : K]: TRecord[K];
+	[K in keyof TRecord as TRecord[K] extends undefined ? never : K]: TRecord[K];
 };
 
 export type ExtractTablesWithRelations<
-	TRelations extends Relations,
-	TTables extends Schema = TRelations['tables'],
+	TConfig extends AnyRelationsBuilderConfig,
+	TTables extends Schema,
 > = {
-	[K in keyof TTables & string]: {
+	[K in keyof TTables]: {
 		table: TTables[K];
-		name: K;
-		relations: K extends keyof TRelations['config']
-			? TRelations['config'][K] extends Record<string, any> ? NonUndefinedRecord<TRelations['config'][K]>
+		name: K & string;
+		relations: K extends keyof TConfig ? TConfig[K] extends Record<string, any> ? NonUndefinedRecord<TConfig[K]>
 			: {}
 			: {};
 	};
@@ -1170,31 +1164,28 @@ export type ExtractTablesFromSchema<TSchema extends Record<string, unknown>> = S
 >;
 
 export function createRelationsHelper<
-	TSchema extends Schema,
->(schema: TSchema): RelationsBuilder<TSchema> {
-	const schemaTables = Object.fromEntries(
-		Object.entries(schema).filter((e): e is [typeof e[0], SchemaEntry] => is(e[1], Table) || is(e[1], View)),
-	);
-	const helperStatic = new RelationsHelperStatic(schemaTables);
-	const tables = Object.entries(schema).reduce<Record<string, RelationsBuilderTable>>((acc, [tKey, value]) => {
-		if (is(value, Table) || is(value, View)) {
-			const rTable = new RelationsBuilderTable(value, tKey);
-			const columns = Object.entries(value[TableColumns]).reduce<
-				Record<string, RelationsBuilderColumnBase>
-			>(
-				(acc, [cKey, column]) => {
-					const rbColumn = new RelationsBuilderColumn(column as Column, tKey, cKey);
-					acc[cKey] = rbColumn;
-					return acc;
-				},
-				{},
-			);
-			acc[tKey] = Object.assign(rTable, columns);
-		}
+	TTables extends Schema,
+>(tables: TTables): RelationsBuilder<TTables> {
+	const helperStatic = new RelationsHelperStatic(tables);
+	const relationsTables = Object.entries(tables).reduce<Record<string, RelationsBuilderTable>>((acc, [tKey, value]) => {
+		const rTable = new RelationsBuilderTable(value, tKey);
+		const columns = Object.entries(value[TableColumns]).reduce<
+			Record<string, RelationsBuilderColumnBase>
+		>(
+			(acc, [cKey, column]) => {
+				const rbColumn = new RelationsBuilderColumn(column as FieldValue, tKey, cKey);
+				acc[cKey] = rbColumn;
+				return acc;
+			},
+			{},
+		);
+
+		acc[tKey] = Object.assign(rTable, columns);
+
 		return acc;
 	}, {});
 
-	return Object.assign(helperStatic, tables) as any;
+	return Object.assign(helperStatic, relationsTables) as any;
 }
 
 export function defineRelations<
@@ -1204,15 +1195,99 @@ export function defineRelations<
 >(
 	schema: TSchema,
 	relations?: (helpers: RelationsBuilder<TTables>) => TConfig,
-): Relations<TSchema, TTables, TConfig> {
+): Relations<TTables, TConfig> {
+	const tables = Object.fromEntries(Object.entries(schema).filter(([_, e]) => is(e, Table) || is(e, View))) as TTables;
+
 	return new Relations(
-		schema,
+		tables,
 		relations
 			? relations(
-				createRelationsHelper(schema as unknown as TTables) as RelationsBuilder<TTables>,
+				createRelationsHelper(tables) as RelationsBuilder<TTables>,
 			)
-			: {},
-	) as Relations<TSchema, TTables, TConfig>;
+			: {} as TConfig,
+	) as Relations<TTables, TConfig>;
+}
+
+// Shall replace ^
+export function defineRelationsPart<
+	TSchema extends Record<string, unknown>,
+	TConfig extends RelationsBuilderConfig<TTables>,
+	TTables extends Schema = ExtractTablesFromSchema<TSchema>,
+>(
+	schema: TSchema,
+	relations?: (helpers: RelationsBuilder<TTables>) => TConfig,
+): RelationalConfigShard<TTables, TConfig> {
+	const tables = Object.fromEntries(Object.entries(schema).filter(([_, e]) => is(e, Table) || is(e, View))) as TTables;
+
+	return {
+		schema: tables as TTables,
+		config: relations
+			? relations(
+				createRelationsHelper(tables) as RelationsBuilder<TTables>,
+			)
+			: {} as TConfig,
+	};
+}
+
+export interface RelationalConfigShard<
+	TSchema extends Schema = Schema,
+	TConfig extends RelationsBuilderConfig<TSchema> = RelationsBuilderConfig<TSchema>,
+> {
+	schema: TSchema;
+	config: TConfig;
+}
+
+// type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends (k: infer I) => void ? I : never;
+
+// type IntersectArray<T extends object[]> = UnionToIntersection<T[number]>;
+
+// Likely less instantiations - to be tested
+// export type MergeRelationalConfigs<TConfigs extends RelationalConfigShard[]> = IntersectArray<TConfigs>;
+
+export type MergeRelationalConfigs<TConfigs extends RelationalConfigShard[]> = TConfigs extends
+	[infer C extends RelationalConfigShard, ...infer Tail extends RelationalConfigShard[]]
+	? MergeRelationalConfigs<Tail> & C
+	: TConfigs extends [infer C extends RelationalConfigShard] ? C
+	: {};
+
+// Shall be used internally
+export function mergeRelations<
+	TConfigs extends [RelationalConfigShard, ...RelationalConfigShard[]],
+	TMerged extends RelationalConfigShard = MergeRelationalConfigs<TConfigs>,
+>(configs: TConfigs): Relations<TMerged['schema'], TMerged['config']> {
+	const buildSchema = {} as RelationalConfigShard['schema'];
+	const buildConfig = {} as RelationalConfigShard['config'];
+
+	for (const { schema, config } of configs) {
+		for (const [name, table] of Object.entries(schema)) {
+			if (name in buildSchema && table !== buildSchema[name]) {
+				throw new Error(
+					`Unable to merge relations: table "${name}" exists in multiple instances of relations, but points to different entities.`,
+				);
+			}
+
+			buildSchema[name] = table;
+		}
+
+		for (const [name, relations] of Object.entries(config)) {
+			if (!relations) continue;
+
+			if (!buildConfig[name]) {
+				buildConfig[name] = relations;
+				continue;
+			}
+
+			for (const relName of Object.keys(relations)) {
+				if (buildConfig[name][relName]) {
+					throw new Error(`Unable to merge relations: duplicate relation definition "${name}"."${relName}"`);
+				}
+
+				buildConfig[name][relName] = relations[relName];
+			}
+		}
+	}
+
+	return new Relations(buildSchema, buildConfig);
 }
 
 export interface WithContainer {

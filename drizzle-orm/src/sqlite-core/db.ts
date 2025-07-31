@@ -2,7 +2,7 @@ import type * as V1 from '~/_relations.ts';
 import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
-import type { AnyRelations, EmptyRelations, ExtractTablesWithRelations, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import type { SQLiteAsyncDialect, SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
@@ -36,7 +36,6 @@ export class BaseSQLiteDatabase<
 	TRunResult,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-	TTablesConfig extends TablesRelationalConfig = ExtractTablesWithRelations<TRelations>,
 	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
 > {
 	static readonly [entityKind]: string = 'BaseSQLiteDatabase';
@@ -59,8 +58,8 @@ export class BaseSQLiteDatabase<
 	query: {
 		[K in keyof TRelations['tables']]: RelationalQueryBuilder<
 			TResultKind,
-			TTablesConfig,
-			TTablesConfig[K]
+			TRelations['tablesConfig'],
+			TRelations['tablesConfig'][K]
 		>;
 	};
 
@@ -69,7 +68,7 @@ export class BaseSQLiteDatabase<
 		/** @internal */
 		readonly dialect: { sync: SQLiteSyncDialect; async: SQLiteAsyncDialect }[TResultKind],
 		/** @internal */
-		readonly session: SQLiteSession<TResultKind, TRunResult, TFullSchema, TRelations, TTablesConfig, TSchema>,
+		readonly session: SQLiteSession<TResultKind, TRunResult, TFullSchema, TRelations, TSchema>,
 		relations: AnyRelations | undefined,
 		_schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		readonly rowModeRQB?: boolean,
@@ -117,7 +116,6 @@ export class BaseSQLiteDatabase<
 					TRunResult,
 					TSchema,
 					AnyRelations,
-					TablesRelationalConfig,
 					V1.TablesRelationalConfig
 				>['query'])[tableName] = new RelationalQueryBuilder(
 					resultKind,
@@ -635,7 +633,7 @@ export class BaseSQLiteDatabase<
 
 	transaction<T>(
 		transaction: (
-			tx: SQLiteTransaction<TResultKind, TRunResult, TFullSchema, TRelations, TTablesConfig, TSchema>,
+			tx: SQLiteTransaction<TResultKind, TRunResult, TFullSchema, TRelations, TSchema>,
 		) => Result<TResultKind, T>,
 		config?: SQLiteTransactionConfig,
 	): Result<TResultKind, T> {
@@ -650,14 +648,12 @@ export const withReplicas = <
 	TRunResult,
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
 	Q extends BaseSQLiteDatabase<
 		TResultKind,
 		TRunResult,
 		TFullSchema,
 		TRelations,
-		TTablesConfig,
 		TSchema extends Record<string, unknown> ? V1.ExtractTablesWithRelations<TFullSchema> : TSchema
 	>,
 >(

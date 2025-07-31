@@ -11,7 +11,7 @@ import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
-import type { AnyRelations, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query } from '~/sql/sql.ts';
 import { mapResultRow } from '~/utils.ts';
 
@@ -123,13 +123,11 @@ export interface XataHttpSessionOptions {
 export class XataHttpSession<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
 > extends PgSession<
 	XataHttpQueryResultHKT,
 	TFullSchema,
 	TRelations,
-	TTablesConfig,
 	TSchema
 > {
 	static override readonly [entityKind]: string = 'XataHttpSession';
@@ -216,7 +214,7 @@ export class XataHttpSession<
 	}
 
 	override async transaction<T>(
-		_transaction: (tx: XataTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
+		_transaction: (tx: XataTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		_config: PgTransactionConfig = {},
 	): Promise<T> {
@@ -227,19 +225,17 @@ export class XataHttpSession<
 export class XataTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
 > extends PgTransaction<
 	XataHttpQueryResultHKT,
 	TFullSchema,
 	TRelations,
-	TTablesConfig,
 	TSchema
 > {
 	static override readonly [entityKind]: string = 'XataHttpTransaction';
 
 	override async transaction<T>(
-		_transaction: (tx: XataTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
+		_transaction: (tx: XataTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 	): Promise<T> {
 		throw new Error('No transactions support in Xata Http driver');
 	}

@@ -3,7 +3,7 @@ import type * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import type { AnyRelations, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import type { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import { SQLiteTransaction } from '~/sqlite-core/index.ts';
@@ -25,9 +25,8 @@ type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 export class SQLJsSession<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
-> extends SQLiteSession<'sync', void, TFullSchema, TRelations, TTablesConfig, TSchema> {
+> extends SQLiteSession<'sync', void, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'SQLJsSession';
 
 	private logger: Logger;
@@ -71,7 +70,7 @@ export class SQLJsSession<
 	}
 
 	override transaction<T>(
-		transaction: (tx: SQLJsTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => T,
+		transaction: (tx: SQLJsTransaction<TFullSchema, TRelations, TSchema>) => T,
 		config: SQLiteTransactionConfig = {},
 	): T {
 		const tx = new SQLJsTransaction('sync', this.dialect, this, this.relations, this.schema);
@@ -90,13 +89,12 @@ export class SQLJsSession<
 export class SQLJsTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
-> extends SQLiteTransaction<'sync', void, TFullSchema, TRelations, TTablesConfig, TSchema> {
+> extends SQLiteTransaction<'sync', void, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'SQLJsTransaction';
 
 	override transaction<T>(
-		transaction: (tx: SQLJsTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => T,
+		transaction: (tx: SQLJsTransaction<TFullSchema, TRelations, TSchema>) => T,
 	): T {
 		const savepointName = `sp${this.nestedIndex + 1}`;
 		const tx = new SQLJsTransaction(

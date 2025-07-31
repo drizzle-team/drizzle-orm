@@ -3,7 +3,7 @@ import type * as V1 from '~/_relations.ts';
 import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
-import type { AnyRelations, EmptyRelations, ExtractTablesWithRelations, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
@@ -38,7 +38,6 @@ export class MySqlDatabase<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-	TTablesConfig extends TablesRelationalConfig = ExtractTablesWithRelations<TRelations>,
 	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
 > {
 	static readonly [entityKind]: string = 'MySqlDatabase';
@@ -61,8 +60,8 @@ export class MySqlDatabase<
 	query: {
 		[K in keyof TRelations['tables']]: RelationalQueryBuilder<
 			TPreparedQueryHKT,
-			TTablesConfig,
-			TTablesConfig[K]
+			TRelations['tablesConfig'],
+			TRelations['tablesConfig'][K]
 		>;
 	};
 
@@ -70,7 +69,7 @@ export class MySqlDatabase<
 		/** @internal */
 		readonly dialect: MySqlDialect,
 		/** @internal */
-		readonly session: MySqlSession<any, any, any, any, any, any>,
+		readonly session: MySqlSession<any, any, any, any, any>,
 		relations: AnyRelations | undefined,
 		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		protected readonly mode: Mode,
@@ -114,7 +113,6 @@ export class MySqlDatabase<
 					TPreparedQueryHKT,
 					TSchema,
 					AnyRelations,
-					TablesRelationalConfig,
 					V1.TablesRelationalConfig
 				>['query'])[
 					tableName
@@ -137,7 +135,6 @@ export class MySqlDatabase<
 					TPreparedQueryHKT,
 					TSchema,
 					AnyRelations,
-					TablesRelationalConfig,
 					V1.TablesRelationalConfig
 				>['query'])[
 					tableName
@@ -546,7 +543,7 @@ export class MySqlDatabase<
 
 	transaction<T>(
 		transaction: (
-			tx: MySqlTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TRelations, TTablesConfig, TSchema>,
+			tx: MySqlTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TRelations, TSchema>,
 			config?: MySqlTransactionConfig,
 		) => Promise<T>,
 		config?: MySqlTransactionConfig,
@@ -562,14 +559,12 @@ export const withReplicas = <
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
 	Q extends MySqlDatabase<
 		HKT,
 		TPreparedQueryHKT,
 		TFullSchema,
 		TRelations,
-		TTablesConfig,
 		TSchema extends Record<string, unknown> ? V1.ExtractTablesWithRelations<TFullSchema> : TSchema
 	>,
 >(

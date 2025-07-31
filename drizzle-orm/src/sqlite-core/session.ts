@@ -4,7 +4,7 @@ import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError, DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
 import { QueryPromise } from '~/query-promise.ts';
-import type { AnyRelations, EmptyRelations, ExtractTablesWithRelations, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import type { SQLiteAsyncDialect, SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
@@ -215,7 +215,6 @@ export abstract class SQLiteSession<
 	TRunResult,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-	TTablesConfig extends TablesRelationalConfig = ExtractTablesWithRelations<TRelations>,
 	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
 > {
 	static readonly [entityKind]: string = 'SQLiteSession';
@@ -279,7 +278,7 @@ export abstract class SQLiteSession<
 
 	abstract transaction<T>(
 		transaction: (
-			tx: SQLiteTransaction<TResultKind, TRunResult, TFullSchema, TRelations, TTablesConfig, TSchema>,
+			tx: SQLiteTransaction<TResultKind, TRunResult, TFullSchema, TRelations, TSchema>,
 		) => Result<TResultKind, T>,
 		config?: SQLiteTransactionConfig,
 	): Result<TResultKind, T>;
@@ -352,15 +351,14 @@ export abstract class SQLiteTransaction<
 	TRunResult,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-	TTablesConfig extends TablesRelationalConfig = ExtractTablesWithRelations<TRelations>,
 	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
-> extends BaseSQLiteDatabase<TResultType, TRunResult, TFullSchema, TRelations, TTablesConfig, TSchema> {
+> extends BaseSQLiteDatabase<TResultType, TRunResult, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'SQLiteTransaction';
 
 	constructor(
 		resultType: TResultType,
 		dialect: { sync: SQLiteSyncDialect; async: SQLiteAsyncDialect }[TResultType],
-		session: SQLiteSession<TResultType, TRunResult, TFullSchema, TRelations, TTablesConfig, TSchema>,
+		session: SQLiteSession<TResultType, TRunResult, TFullSchema, TRelations, TSchema>,
 		protected relations: AnyRelations | undefined,
 		protected schema: {
 			fullSchema: Record<string, unknown>;

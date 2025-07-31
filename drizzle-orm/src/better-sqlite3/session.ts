@@ -5,7 +5,7 @@ import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import type { AnyRelations, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import type { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import { SQLiteTransaction } from '~/sqlite-core/index.ts';
@@ -29,9 +29,8 @@ type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 export class BetterSQLiteSession<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
-> extends SQLiteSession<'sync', RunResult, TFullSchema, TRelations, TTablesConfig, TSchema> {
+> extends SQLiteSession<'sync', RunResult, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'BetterSQLiteSession';
 
 	private logger: Logger;
@@ -99,7 +98,7 @@ export class BetterSQLiteSession<
 	}
 
 	override transaction<T>(
-		transaction: (tx: BetterSQLiteTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => T,
+		transaction: (tx: BetterSQLiteTransaction<TFullSchema, TRelations, TSchema>) => T,
 		config: SQLiteTransactionConfig = {},
 	): T {
 		const tx = new BetterSQLiteTransaction('sync', this.dialect, this, this.relations, this.schema);
@@ -111,13 +110,12 @@ export class BetterSQLiteSession<
 export class BetterSQLiteTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
-> extends SQLiteTransaction<'sync', RunResult, TFullSchema, TRelations, TTablesConfig, TSchema> {
+> extends SQLiteTransaction<'sync', RunResult, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'BetterSQLiteTransaction';
 
 	override transaction<T>(
-		transaction: (tx: BetterSQLiteTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => T,
+		transaction: (tx: BetterSQLiteTransaction<TFullSchema, TRelations, TSchema>) => T,
 	): T {
 		const savepointName = `sp${this.nestedIndex}`;
 		const tx = new BetterSQLiteTransaction(
