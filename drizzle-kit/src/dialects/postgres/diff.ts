@@ -270,8 +270,28 @@ export const ddlDiff = async (
 				tableTo: rename.from.name,
 			},
 		});
+		ddl2.fks.update({
+			set: {
+				schemaTo: rename.to.schema,
+				tableTo: rename.to.name,
+			},
+			where: {
+				schemaTo: rename.from.schema,
+				tableTo: rename.from.name,
+			},
+		});
 
 		ddl1.fks.update({
+			set: {
+				schema: rename.to.schema,
+				table: rename.to.name,
+			},
+			where: {
+				schema: rename.from.schema,
+				table: rename.from.name,
+			},
+		});
+		ddl2.fks.update({
 			set: {
 				schema: rename.to.schema,
 				table: rename.to.name,
