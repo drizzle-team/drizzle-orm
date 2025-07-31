@@ -1,3 +1,4 @@
+import { parse, stringify } from 'src/utils/when-json-met-bigint';
 import { assertUnreachable } from '../../utils';
 import { escapeForSqlDefault, escapeForTsLiteral, unescapeFromSqlDefault } from '../utils';
 import { DefaultConstraint, MssqlEntities } from './ddl';
@@ -391,9 +392,72 @@ export const Varchar: SqlType = {
 export const NVarchar: SqlType = {
 	is: (type: string) => type === 'nvarchar' || type.startsWith('nvarchar('),
 	drizzleImport: () => 'nvarchar',
-	defaultFromDrizzle: Char.defaultFromDrizzle,
+	defaultFromDrizzle: (value: unknown) => {
+		let result: string;
+
+		if (typeof value === 'string') result = escapeForSqlDefault(value);
+		else if (typeof value === 'object' || Array.isArray(value)) {
+			result = stringify(value, (_, value) => {
+				if (typeof value !== 'string') return value;
+				return value.replaceAll("'", "''");
+			});
+		} else {
+			throw new Error(`unexpected default: ${value}`);
+		}
+
+		return `('${result}')`;
+	},
 	defaultFromIntrospect: Char.defaultFromIntrospect,
-	toTs: Char.toTs,
+	toTs: (type, value) => {
+		// for text compatibility
+		let optionsToSet: { length: number | 'max' } | undefined = undefined;
+
+		const param = parseParams(type)[0];
+		if (param) optionsToSet = { length: param === 'max' ? 'max' : Number(param) };
+
+		if (!value) return { default: '', options: optionsToSet };
+
+		// ('text')
+		// remove outer ( and )
+		value = value.substring(1, value.length - 1);
+		const isTSQLStringLiteral = (str: string) => {
+			// Trim and check if string starts and ends with a single quote
+			if (!/^'.*'$/.test(str.trim())) return false;
+
+			// Remove the surrounding quotes
+			const inner = str.trim().slice(1, -1);
+
+			// Check for valid internal quote escaping: only doubled single quotes are allowed
+			// 'text'+'text' - not pass
+			// 'text''text' - pass
+			return !/[^']'[^']/.test(inner); // there should be no unescaped (lonely) single quotes
+		};
+
+		if (!isTSQLStringLiteral(value)) {
+			return { options: optionsToSet, default: `sql\`${value}\`` };
+		}
+
+		try {
+			const parsed = parse(trimChar(value, "'"), (_, v) => {
+				if (typeof v === 'string') {
+					return unescapeFromSqlDefault(v);
+				}
+				return v;
+			});
+
+			return {
+				default: stringify(parsed, undefined, undefined, true)!,
+				options: { mode: 'json' },
+			};
+		} catch {}
+
+		// remove extra ' and '
+		value = value.substring(1, value.length - 1);
+		const unescaped = unescapeFromSqlDefault(value);
+		const escaped = `"${escapeForTsLiteral(unescaped)}"`;
+
+		return { options: optionsToSet, default: escaped };
+	},
 };
 export const Text: SqlType = {
 	is: (type: string) => type === 'text' || type.startsWith('text('),
