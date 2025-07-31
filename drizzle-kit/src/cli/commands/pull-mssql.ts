@@ -26,7 +26,7 @@ import { type DB, originUUID } from '../../utils';
 import { resolver } from '../prompts';
 import type { Casing, Prefix } from '../validations/common';
 import type { MssqlCredentials } from '../validations/mssql';
-import { IntrospectProgress } from '../views';
+import { IntrospectProgress, mssqlSchemaError } from '../views';
 import { writeResult } from './generate-common';
 import { prepareTablesFilter } from './pull-common';
 
@@ -60,11 +60,10 @@ export const handle = async (
 
 	const { ddl: ddl2, errors } = interimToDDL(res);
 
-	// if (errors.length > 0) {
-	// 	// TODO: print errors
-	// 	console.error(errors);
-	// 	process.exit(1);
-	// }
+	if (errors.length > 0) {
+		console.log(errors.map((it) => mssqlSchemaError(it)).join('\n'));
+		process.exit(1);
+	}
 
 	const ts = ddlToTypeScript(ddl2, res.viewColumns, casing);
 	// const relationsTs = relationsToTypeScript(ddl2.fks.list(), casing);
