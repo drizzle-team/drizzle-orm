@@ -8,7 +8,7 @@ import type { GelDialect } from '~/gel-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/gel-core/query-builders/select.types.ts';
 import { GelPreparedQuery, GelSession, GelTransaction, type PreparedQueryConfig } from '~/gel-core/session.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
-import type { AnyRelations, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import { mapResultRow } from '~/utils.ts';
@@ -142,9 +142,8 @@ export interface GelSessionOptions {
 export class GelDbSession<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
-> extends GelSession<GelQueryResultHKT, TFullSchema, TRelations, TTablesConfig, TSchema> {
+> extends GelSession<GelQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'GelDbSession';
 
 	private logger: Logger;
@@ -211,11 +210,11 @@ export class GelDbSession<
 	}
 
 	override async transaction<T>(
-		transaction: (tx: GelTransaction<GelQueryResultHKT, TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
+		transaction: (tx: GelTransaction<GelQueryResultHKT, TFullSchema, TRelations, TSchema>) => Promise<T>,
 	): Promise<T> {
 		return await (this.client as Client).transaction(async (clientTx) => {
 			const session = new GelDbSession(clientTx, this.dialect, this.relations, this.schema, this.options);
-			const tx = new GelDbTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>(
+			const tx = new GelDbTransaction<TFullSchema, TRelations, TSchema>(
 				this.dialect,
 				session,
 				this.relations,
@@ -234,15 +233,14 @@ export class GelDbSession<
 export class GelDbTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
-> extends GelTransaction<GelQueryResultHKT, TFullSchema, TRelations, TTablesConfig, TSchema> {
+> extends GelTransaction<GelQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'GelDbTransaction';
 
 	override async transaction<T>(
-		transaction: (tx: GelDbTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
+		transaction: (tx: GelDbTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 	): Promise<T> {
-		const tx = new GelDbTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>(
+		const tx = new GelDbTransaction<TFullSchema, TRelations, TSchema>(
 			this.dialect,
 			this.session,
 			this.relations,

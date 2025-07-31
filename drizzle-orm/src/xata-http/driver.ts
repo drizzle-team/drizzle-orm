@@ -5,7 +5,7 @@ import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
-import type { AnyRelations, EmptyRelations, ExtractTablesWithRelations, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import type { XataHttpClient, XataHttpQueryResultHKT } from './session.ts';
 import { XataHttpSession } from './session.ts';
@@ -29,7 +29,7 @@ export class XataHttpDriver {
 	createSession(
 		relations: AnyRelations | undefined,
 		schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined,
-	): XataHttpSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig, V1.TablesRelationalConfig> {
+	): XataHttpSession<Record<string, unknown>, AnyRelations, V1.TablesRelationalConfig> {
 		return new XataHttpSession(this.client, this.dialect, relations, schema, {
 			logger: this.options.logger,
 			cache: this.options.cache,
@@ -51,7 +51,6 @@ export class XataHttpDatabase<
 	declare readonly session: XataHttpSession<
 		TSchema,
 		TRelations,
-		ExtractTablesWithRelations<TRelations>,
 		V1.ExtractTablesWithRelations<TSchema>
 	>;
 }

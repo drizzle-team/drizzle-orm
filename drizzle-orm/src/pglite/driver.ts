@@ -6,7 +6,7 @@ import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
-import type { AnyRelations, EmptyRelations, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { type DrizzleConfig, isConfig } from '~/utils.ts';
 import type { PgliteClient, PgliteQueryResultHKT } from './session.ts';
 import { PgliteSession } from './session.ts';
@@ -29,7 +29,7 @@ export class PgliteDriver {
 	createSession(
 		relations: AnyRelations | undefined,
 		schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined,
-	): PgliteSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig, V1.TablesRelationalConfig> {
+	): PgliteSession<Record<string, unknown>, AnyRelations, V1.TablesRelationalConfig> {
 		return new PgliteSession(this.client, this.dialect, relations, schema, {
 			logger: this.options.logger,
 			cache: this.options.cache,

@@ -11,7 +11,7 @@ import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { PgPreparedQuery as PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
-import type { AnyRelations, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import { fillPlaceholders, type Query, type SQL } from '~/sql/sql.ts';
 import { mapResultRow, type NeonAuthToken } from '~/utils.ts';
@@ -184,9 +184,8 @@ export interface NeonHttpSessionOptions {
 export class NeonHttpSession<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
-> extends PgSession<NeonHttpQueryResultHKT, TFullSchema, TRelations, TTablesConfig, TSchema> {
+> extends PgSession<NeonHttpQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'NeonHttpSession';
 
 	private clientQuery: (sql: string, params: any[], opts: Record<string, any>) => NeonQueryPromise<any, any>;
@@ -304,7 +303,7 @@ export class NeonHttpSession<
 	}
 
 	override async transaction<T>(
-		_transaction: (tx: NeonTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
+		_transaction: (tx: NeonTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		_config: PgTransactionConfig = {},
 	): Promise<T> {
@@ -315,13 +314,12 @@ export class NeonHttpSession<
 export class NeonTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
-> extends PgTransaction<NeonHttpQueryResultHKT, TFullSchema, TRelations, TTablesConfig, TSchema> {
+> extends PgTransaction<NeonHttpQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'NeonHttpTransaction';
 
 	override async transaction<T>(
-		_transaction: (tx: NeonTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
+		_transaction: (tx: NeonTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 	): Promise<T> {
 		throw new Error('No transactions support in neon-http driver');
 		// const savepointName = `sp${this.nestedIndex + 1}`;

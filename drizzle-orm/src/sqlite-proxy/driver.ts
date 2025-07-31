@@ -2,7 +2,7 @@ import * as V1 from '~/_relations.ts';
 import type { BatchItem, BatchResponse } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
-import type { AnyRelations, EmptyRelations, ExtractTablesWithRelations } from '~/relations.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleConfig } from '~/utils.ts';
@@ -22,7 +22,6 @@ export class SqliteRemoteDatabase<
 	declare readonly session: SQLiteRemoteSession<
 		TSchema,
 		TRelations,
-		ExtractTablesWithRelations<TRelations>,
 		V1.ExtractTablesWithRelations<TSchema>
 	>;
 

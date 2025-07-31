@@ -17,7 +17,7 @@ import type {
 	PreparedQueryKind,
 } from '~/mysql-core/session.ts';
 import { MySqlPreparedQuery as PreparedQueryBase, MySqlSession } from '~/mysql-core/session.ts';
-import type { AnyRelations, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
@@ -33,14 +33,12 @@ export interface MySqlRemoteSessionOptions {
 export class MySqlRemoteSession<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
 > extends MySqlSession<
 	MySqlRemoteQueryResultHKT,
 	MySqlRemotePreparedQueryHKT,
 	TFullSchema,
 	TRelations,
-	TTablesConfig,
 	TSchema
 > {
 	static override readonly [entityKind]: string = 'MySqlRemoteSession';
@@ -117,7 +115,7 @@ export class MySqlRemoteSession<
 	}
 
 	override async transaction<T>(
-		_transaction: (tx: MySqlProxyTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
+		_transaction: (tx: MySqlProxyTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 		_config?: MySqlTransactionConfig,
 	): Promise<T> {
 		throw new Error('Transactions are not supported by the MySql Proxy driver');
@@ -127,20 +125,18 @@ export class MySqlRemoteSession<
 export class MySqlProxyTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
 > extends MySqlTransaction<
 	MySqlRemoteQueryResultHKT,
 	MySqlRemotePreparedQueryHKT,
 	TFullSchema,
 	TRelations,
-	TTablesConfig,
 	TSchema
 > {
 	static override readonly [entityKind]: string = 'MySqlProxyTransaction';
 
 	override async transaction<T>(
-		_transaction: (tx: MySqlProxyTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
+		_transaction: (tx: MySqlProxyTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 	): Promise<T> {
 		throw new Error('Transactions are not supported by the MySql Proxy driver');
 	}

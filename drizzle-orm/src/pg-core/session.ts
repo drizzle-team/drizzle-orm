@@ -3,7 +3,7 @@ import { type Cache, hashQuery, NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
-import type { AnyRelations, EmptyRelations, ExtractTablesWithRelations, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import { type Query, type SQL, sql } from '~/sql/index.ts';
 import { tracer } from '~/tracing.ts';
@@ -170,7 +170,6 @@ export abstract class PgSession<
 	TQueryResult extends PgQueryResultHKT = PgQueryResultHKT,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-	TTablesConfig extends TablesRelationalConfig = ExtractTablesWithRelations<TRelations>,
 	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
 > {
 	static readonly [entityKind]: string = 'PgSession';
@@ -241,7 +240,7 @@ export abstract class PgSession<
 	}
 
 	abstract transaction<T>(
-		transaction: (tx: PgTransaction<TQueryResult, TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
+		transaction: (tx: PgTransaction<TQueryResult, TFullSchema, TRelations, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig,
 	): Promise<T>;
 }
@@ -250,14 +249,13 @@ export abstract class PgTransaction<
 	TQueryResult extends PgQueryResultHKT,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-	TTablesConfig extends TablesRelationalConfig = ExtractTablesWithRelations<TRelations>,
 	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
-> extends PgDatabase<TQueryResult, TFullSchema, TRelations, TTablesConfig, TSchema> {
+> extends PgDatabase<TQueryResult, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'PgTransaction';
 
 	constructor(
 		dialect: PgDialect,
-		session: PgSession<any, any, any, any, any>,
+		session: PgSession<any, any, any, any>,
 		protected relations: AnyRelations | undefined,
 		protected schema: {
 			fullSchema: Record<string, unknown>;
@@ -293,7 +291,7 @@ export abstract class PgTransaction<
 	}
 
 	abstract override transaction<T>(
-		transaction: (tx: PgTransaction<TQueryResult, TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
+		transaction: (tx: PgTransaction<TQueryResult, TFullSchema, TRelations, TSchema>) => Promise<T>,
 	): Promise<T>;
 }
 

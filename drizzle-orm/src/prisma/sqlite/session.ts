@@ -2,7 +2,7 @@ import type { PrismaClient } from '@prisma/client/extension';
 
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
-import type { EmptyRelations, ExtractTablesWithRelations } from '~/relations.ts';
+import type { EmptyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
 import type {
@@ -65,7 +65,6 @@ export class PrismaSQLiteSession extends SQLiteSession<
 	unknown,
 	Record<string, never>,
 	EmptyRelations,
-	ExtractTablesWithRelations<EmptyRelations>,
 	Record<string, never>
 > {
 	static override readonly [entityKind]: string = 'PrismaSQLiteSession';
@@ -105,7 +104,6 @@ export class PrismaSQLiteSession extends SQLiteSession<
 				unknown,
 				Record<string, never>,
 				EmptyRelations,
-				ExtractTablesWithRelations<EmptyRelations>,
 				Record<string, never>
 			>,
 		) => Promise<T>,

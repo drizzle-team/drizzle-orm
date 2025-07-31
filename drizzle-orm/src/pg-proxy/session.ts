@@ -9,7 +9,7 @@ import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { PgPreparedQuery as PreparedQueryBase, PgSession } from '~/pg-core/session.ts';
-import type { AnyRelations, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations } from '~/relations.ts';
 import type { QueryWithTypings } from '~/sql/sql.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
@@ -24,9 +24,8 @@ export interface PgRemoteSessionOptions {
 export class PgRemoteSession<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
-> extends PgSession<PgRemoteQueryResultHKT, TFullSchema, TRelations, TTablesConfig, TSchema> {
+> extends PgSession<PgRemoteQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'PgRemoteSession';
 
 	private logger: Logger;
@@ -94,7 +93,7 @@ export class PgRemoteSession<
 	}
 
 	override async transaction<T>(
-		_transaction: (tx: PgProxyTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
+		_transaction: (tx: PgProxyTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 		_config?: PgTransactionConfig,
 	): Promise<T> {
 		throw new Error('Transactions are not supported by the Postgres Proxy driver');
@@ -104,13 +103,12 @@ export class PgRemoteSession<
 export class PgProxyTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
-> extends PgTransaction<PgRemoteQueryResultHKT, TFullSchema, TRelations, TTablesConfig, TSchema> {
+> extends PgTransaction<PgRemoteQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'PgProxyTransaction';
 
 	override async transaction<T>(
-		_transaction: (tx: PgProxyTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
+		_transaction: (tx: PgProxyTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 	): Promise<T> {
 		throw new Error('Transactions are not supported by the Postgres Proxy driver');
 	}

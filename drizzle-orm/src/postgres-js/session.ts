@@ -10,7 +10,7 @@ import { PgTransaction } from '~/pg-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import type { PgQueryResultHKT, PgTransactionConfig, PreparedQueryConfig } from '~/pg-core/session.ts';
 import { PgPreparedQuery, PgSession } from '~/pg-core/session.ts';
-import type { AnyRelations, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
@@ -145,9 +145,8 @@ export class PostgresJsSession<
 	TSQL extends Sql,
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
-> extends PgSession<PostgresJsQueryResultHKT, TFullSchema, TRelations, TTablesConfig, TSchema> {
+> extends PgSession<PostgresJsQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'PostgresJsSession';
 
 	logger: Logger;
@@ -226,11 +225,11 @@ export class PostgresJsSession<
 	}
 
 	override transaction<T>(
-		transaction: (tx: PostgresJsTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
+		transaction: (tx: PostgresJsTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig,
 	): Promise<T> {
 		return this.client.begin(async (client) => {
-			const session = new PostgresJsSession<TransactionSql, TFullSchema, TRelations, TTablesConfig, TSchema>(
+			const session = new PostgresJsSession<TransactionSql, TFullSchema, TRelations, TSchema>(
 				client,
 				this.dialect,
 				this.relations,
@@ -249,15 +248,14 @@ export class PostgresJsSession<
 export class PostgresJsTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
-> extends PgTransaction<PostgresJsQueryResultHKT, TFullSchema, TRelations, TTablesConfig, TSchema> {
+> extends PgTransaction<PostgresJsQueryResultHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'PostgresJsTransaction';
 
 	constructor(
 		dialect: PgDialect,
 		/** @internal */
-		override readonly session: PostgresJsSession<TransactionSql, TFullSchema, TRelations, TTablesConfig, TSchema>,
+		override readonly session: PostgresJsSession<TransactionSql, TFullSchema, TRelations, TSchema>,
 		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		relations: AnyRelations | undefined,
 		nestedIndex = 0,
@@ -266,17 +264,17 @@ export class PostgresJsTransaction<
 	}
 
 	override transaction<T>(
-		transaction: (tx: PostgresJsTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
+		transaction: (tx: PostgresJsTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 	): Promise<T> {
 		return this.session.client.savepoint((client) => {
-			const session = new PostgresJsSession<TransactionSql, TFullSchema, TRelations, TTablesConfig, TSchema>(
+			const session = new PostgresJsSession<TransactionSql, TFullSchema, TRelations, TSchema>(
 				client,
 				this.dialect,
 				this.relations,
 				this.schema,
 				this.session.options,
 			);
-			const tx = new PostgresJsTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>(
+			const tx = new PostgresJsTransaction<TFullSchema, TRelations, TSchema>(
 				this.dialect,
 				session,
 				this.schema,

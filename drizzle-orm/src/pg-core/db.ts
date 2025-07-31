@@ -19,7 +19,7 @@ import type {
 } from '~/pg-core/session.ts';
 import type { PgTable } from '~/pg-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
-import type { AnyRelations, EmptyRelations, ExtractTablesWithRelations, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
@@ -39,7 +39,6 @@ export class PgDatabase<
 	TQueryResult extends PgQueryResultHKT,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
-	TTablesConfig extends TablesRelationalConfig = ExtractTablesWithRelations<TRelations>,
 	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
 > {
 	static readonly [entityKind]: string = 'PgDatabase';
@@ -49,7 +48,7 @@ export class PgDatabase<
 		readonly fullSchema: TFullSchema;
 		readonly tableNamesMap: Record<string, string>;
 		readonly relations: TRelations;
-		readonly session: PgSession<TQueryResult, TFullSchema, TRelations, TTablesConfig, TSchema>;
+		readonly session: PgSession<TQueryResult, TFullSchema, TRelations, TSchema>;
 	};
 
 	/** @deprecated */
@@ -62,8 +61,8 @@ export class PgDatabase<
 	// TO-DO: Figure out how to pass DrizzleTypeError without breaking withReplicas
 	query: {
 		[K in keyof TRelations['tables']]: RelationalQueryBuilder<
-			TTablesConfig,
-			TTablesConfig[K]
+			TRelations['tablesConfig'],
+			TRelations['tablesConfig'][K]
 		>;
 	};
 
@@ -71,7 +70,7 @@ export class PgDatabase<
 		/** @internal */
 		readonly dialect: PgDialect,
 		/** @internal */
-		readonly session: PgSession<any, any, any, any, any>,
+		readonly session: PgSession<any, any, any, any>,
 		relations: AnyRelations | undefined,
 		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 	) {
@@ -113,7 +112,6 @@ export class PgDatabase<
 					TQueryResult,
 					TSchema,
 					AnyRelations,
-					TablesRelationalConfig,
 					V1.TablesRelationalConfig
 				>['query'])[tableName] = new RelationalQueryBuilder(
 					relations.tables,
@@ -673,7 +671,7 @@ export class PgDatabase<
 	}
 
 	transaction<T>(
-		transaction: (tx: PgTransaction<TQueryResult, TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
+		transaction: (tx: PgTransaction<TQueryResult, TFullSchema, TRelations, TSchema>) => Promise<T>,
 		config?: PgTransactionConfig,
 	): Promise<T> {
 		return this.session.transaction(
@@ -689,13 +687,11 @@ export const withReplicas = <
 	HKT extends PgQueryResultHKT,
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
 	Q extends PgDatabase<
 		HKT,
 		TFullSchema,
 		TRelations,
-		TTablesConfig,
 		TSchema extends Record<string, unknown> ? V1.ExtractTablesWithRelations<TFullSchema> : TSchema
 	>,
 >(

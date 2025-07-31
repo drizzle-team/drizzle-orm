@@ -2,7 +2,7 @@
 import * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
-import type { AnyRelations, EmptyRelations, ExtractTablesWithRelations } from '~/relations.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleConfig } from '~/utils.ts';
@@ -18,7 +18,6 @@ export class DrizzleSqliteDODatabase<
 	declare readonly session: SQLiteDOSession<
 		TSchema,
 		TRelations,
-		ExtractTablesWithRelations<TRelations>,
 		V1.ExtractTablesWithRelations<TSchema>
 	>;
 }
@@ -56,7 +55,13 @@ export function drizzle<
 
 	const relations = config.relations;
 	const session = new SQLiteDOSession(client as DurableObjectStorage, dialect, relations, schema, { logger });
-	const db = new DrizzleSqliteDODatabase('sync', dialect, session, relations, schema) as DrizzleSqliteDODatabase<
+	const db = new DrizzleSqliteDODatabase(
+		'sync',
+		dialect,
+		session,
+		relations,
+		schema as V1.RelationalSchemaConfig<any>,
+	) as DrizzleSqliteDODatabase<
 		TSchema,
 		TRelations
 	>;

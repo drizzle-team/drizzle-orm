@@ -16,7 +16,7 @@ import {
 	MySqlSession,
 	MySqlTransaction,
 } from '~/mysql-core/session.ts';
-import type { AnyRelations, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 
@@ -145,14 +145,12 @@ export interface PlanetscaleSessionOptions {
 export class PlanetscaleSession<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
 > extends MySqlSession<
 	MySqlQueryResultHKT,
 	PlanetScalePreparedQueryHKT,
 	TFullSchema,
 	TRelations,
-	TTablesConfig,
 	TSchema
 > {
 	static override readonly [entityKind]: string = 'PlanetscaleSession';
@@ -256,7 +254,7 @@ export class PlanetscaleSession<
 	}
 
 	override transaction<T>(
-		transaction: (tx: PlanetScaleTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
+		transaction: (tx: PlanetScaleTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 	): Promise<T> {
 		return this.baseClient.transaction((pstx) => {
 			const session = new PlanetscaleSession(
@@ -267,9 +265,9 @@ export class PlanetscaleSession<
 				this.schema,
 				this.options,
 			);
-			const tx = new PlanetScaleTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>(
+			const tx = new PlanetScaleTransaction<TFullSchema, TRelations, TSchema>(
 				this.dialect,
-				session as MySqlSession<any, any, any, any, any, any>,
+				session as MySqlSession<any, any, any, any, any>,
 				this.relations,
 				this.schema,
 			);
@@ -281,14 +279,12 @@ export class PlanetscaleSession<
 export class PlanetScaleTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
 > extends MySqlTransaction<
 	PlanetscaleQueryResultHKT,
 	PlanetScalePreparedQueryHKT,
 	TFullSchema,
 	TRelations,
-	TTablesConfig,
 	TSchema
 > {
 	static override readonly [entityKind]: string = 'PlanetScaleTransaction';
@@ -304,10 +300,10 @@ export class PlanetScaleTransaction<
 	}
 
 	override async transaction<T>(
-		transaction: (tx: PlanetScaleTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
+		transaction: (tx: PlanetScaleTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new PlanetScaleTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>(
+		const tx = new PlanetScaleTransaction<TFullSchema, TRelations, TSchema>(
 			this.dialect,
 			this.session,
 			this.relations,

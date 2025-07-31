@@ -28,7 +28,7 @@ export class _RelationalQueryBuilder<
 		protected table: SQLiteTable,
 		protected tableConfig: V1.TableRelationalConfig,
 		protected dialect: SQLiteDialect,
-		protected session: SQLiteSession<'async', unknown, TFullSchema, any, any, TSchema>,
+		protected session: SQLiteSession<'async', unknown, TFullSchema, any, TSchema>,
 	) {}
 
 	findMany<TConfig extends V1.DBQueryConfig<'many', true, TSchema, TFields>>(
@@ -114,7 +114,6 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 			'sync' | 'async',
 			unknown,
 			Record<string, unknown>,
-			any,
 			any,
 			V1.TablesRelationalConfig
 		>,

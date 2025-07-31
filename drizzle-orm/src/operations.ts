@@ -2,7 +2,7 @@ import type { Column } from './column.ts';
 import type { SQL } from './sql/sql.ts';
 import type { Table } from './table.ts';
 
-export type RequiredKeyOnly<TKey extends string, T extends Column> = T["_"] extends {
+export type RequiredKeyOnly<TKey extends string, T extends Column> = T['_'] extends {
 	notNull: true;
 	hasDefault: false;
 } ? TKey

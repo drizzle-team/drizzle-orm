@@ -6,7 +6,7 @@ import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/index.ts';
-import type { AnyRelations, EmptyRelations, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { type DrizzleConfig, isConfig } from '~/utils.ts';
 import { type VercelPgClient, type VercelPgQueryResultHKT, VercelPgSession } from './session.ts';
 
@@ -28,7 +28,7 @@ export class VercelPgDriver {
 	createSession(
 		relations: AnyRelations | undefined,
 		schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined,
-	): VercelPgSession<Record<string, unknown>, AnyRelations, TablesRelationalConfig, V1.TablesRelationalConfig> {
+	): VercelPgSession<Record<string, unknown>, AnyRelations, V1.TablesRelationalConfig> {
 		return new VercelPgSession(this.client, this.dialect, relations, schema, {
 			logger: this.options.logger,
 			cache: this.options.cache,

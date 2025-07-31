@@ -1113,7 +1113,6 @@ export class SQLiteSyncDialect extends SQLiteDialect {
 			unknown,
 			Record<string, unknown>,
 			AnyRelations,
-			TablesRelationalConfig,
 			V1.TablesRelationalConfig
 		>,
 		config?: string | MigrationConfig,
@@ -1172,7 +1171,6 @@ export class SQLiteAsyncDialect extends SQLiteDialect {
 			unknown,
 			Record<string, unknown>,
 			AnyRelations,
-			TablesRelationalConfig,
 			V1.TablesRelationalConfig
 		>,
 		config?: string | MigrationConfig,

@@ -30,7 +30,7 @@ import {
 	type MySqlTransactionConfig,
 	type PreparedQueryKind,
 } from '~/mysql-core/session.ts';
-import type { AnyRelations, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, sql } from '~/sql/sql.ts';
 import type { Query, SQL } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
@@ -225,9 +225,8 @@ export interface MySql2SessionOptions {
 export class MySql2Session<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
-> extends MySqlSession<MySqlQueryResultHKT, MySql2PreparedQueryHKT, TFullSchema, TRelations, TTablesConfig, TSchema> {
+> extends MySqlSession<MySqlQueryResultHKT, MySql2PreparedQueryHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'MySql2Session';
 
 	private logger: Logger;
@@ -328,7 +327,7 @@ export class MySql2Session<
 	}
 
 	override async transaction<T>(
-		transaction: (tx: MySql2Transaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
+		transaction: (tx: MySql2Transaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 		config?: MySqlTransactionConfig,
 	): Promise<T> {
 		const session = isPool(this.client)
@@ -340,9 +339,9 @@ export class MySql2Session<
 				this.options,
 			)
 			: this;
-		const tx = new MySql2Transaction<TFullSchema, TRelations, TTablesConfig, TSchema>(
+		const tx = new MySql2Transaction<TFullSchema, TRelations, TSchema>(
 			this.dialect,
-			session as MySqlSession<any, any, any, any, any, any>,
+			session as MySqlSession<any, any, any, any, any>,
 			this.relations,
 			this.schema,
 			0,
@@ -376,23 +375,21 @@ export class MySql2Session<
 export class MySql2Transaction<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
 > extends MySqlTransaction<
 	MySql2QueryResultHKT,
 	MySql2PreparedQueryHKT,
 	TFullSchema,
 	TRelations,
-	TTablesConfig,
 	TSchema
 > {
 	static override readonly [entityKind]: string = 'MySql2Transaction';
 
 	override async transaction<T>(
-		transaction: (tx: MySql2Transaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
+		transaction: (tx: MySql2Transaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new MySql2Transaction<TFullSchema, TRelations, TTablesConfig, TSchema>(
+		const tx = new MySql2Transaction<TFullSchema, TRelations, TSchema>(
 			this.dialect,
 			this.session,
 			this.relations,

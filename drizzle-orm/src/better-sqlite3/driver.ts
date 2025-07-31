@@ -2,7 +2,7 @@ import Client, { type Database, type Options, type RunResult } from 'better-sqli
 import * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
-import type { AnyRelations, EmptyRelations, ExtractTablesWithRelations } from '~/relations.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import { type DrizzleConfig, isConfig } from '~/utils.ts';
@@ -58,7 +58,6 @@ function construct<
 	const session = new BetterSQLiteSession<
 		TSchema,
 		TRelations,
-		ExtractTablesWithRelations<TRelations>,
 		V1.ExtractTablesWithRelations<TSchema>
 	>(client, dialect, relations, schema as V1.RelationalSchemaConfig<any>, { logger });
 	const db = new BetterSQLite3Database(

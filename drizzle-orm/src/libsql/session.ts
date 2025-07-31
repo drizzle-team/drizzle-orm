@@ -6,7 +6,7 @@ import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import type { AnyRelations, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
@@ -30,9 +30,8 @@ type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 export class LibSQLSession<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
-> extends SQLiteSession<'async', ResultSet, TFullSchema, TRelations, TTablesConfig, TSchema> {
+> extends SQLiteSession<'async', ResultSet, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'LibSQLSession';
 
 	private logger: Logger;
@@ -131,12 +130,12 @@ export class LibSQLSession<
 	}
 
 	override async transaction<T>(
-		transaction: (db: LibSQLTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => T | Promise<T>,
+		transaction: (db: LibSQLTransaction<TFullSchema, TRelations, TSchema>) => T | Promise<T>,
 		_config?: SQLiteTransactionConfig,
 	): Promise<T> {
 		// TODO: support transaction behavior
 		const libsqlTx = await this.client.transaction();
-		const session = new LibSQLSession<TFullSchema, TRelations, TTablesConfig, TSchema>(
+		const session = new LibSQLSession<TFullSchema, TRelations, TSchema>(
 			this.client,
 			this.dialect,
 			this.relations,
@@ -144,7 +143,7 @@ export class LibSQLSession<
 			this.options,
 			libsqlTx,
 		);
-		const tx = new LibSQLTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>(
+		const tx = new LibSQLTransaction<TFullSchema, TRelations, TSchema>(
 			'async',
 			this.dialect,
 			session,
@@ -177,13 +176,12 @@ export class LibSQLSession<
 export class LibSQLTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
-> extends SQLiteTransaction<'async', ResultSet, TFullSchema, TRelations, TTablesConfig, TSchema> {
+> extends SQLiteTransaction<'async', ResultSet, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'LibSQLTransaction';
 
 	override async transaction<T>(
-		transaction: (tx: LibSQLTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
+		transaction: (tx: LibSQLTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex}`;
 		const tx = new LibSQLTransaction(

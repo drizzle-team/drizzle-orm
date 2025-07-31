@@ -8,13 +8,7 @@ import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
-import type {
-	AnyRelations,
-	EmptyRelations,
-	ExtractTablesWithRelations,
-	Relations,
-	TablesRelationalConfig,
-} from '~/relations.ts';
+import type { AnyRelations, EmptyRelations, Relations } from '~/relations.ts';
 import { type DrizzleConfig, isConfig } from '~/utils.ts';
 import { type NeonHttpClient, type NeonHttpQueryResultHKT, NeonHttpSession } from './session.ts';
 
@@ -37,7 +31,7 @@ export class NeonHttpDriver {
 	createSession(
 		relations: Relations | undefined,
 		schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined,
-	): NeonHttpSession<Record<string, unknown>, EmptyRelations, TablesRelationalConfig, V1.TablesRelationalConfig> {
+	): NeonHttpSession<Record<string, unknown>, EmptyRelations, V1.TablesRelationalConfig> {
 		return new NeonHttpSession(this.client, this.dialect, relations ?? {} as EmptyRelations, schema, {
 			logger: this.options.logger,
 			cache: this.options.cache,
@@ -124,7 +118,6 @@ export class NeonHttpDatabase<
 	declare readonly session: NeonHttpSession<
 		TSchema,
 		TRelations,
-		ExtractTablesWithRelations<TRelations>,
 		V1.ExtractTablesWithRelations<TSchema>
 	>;
 

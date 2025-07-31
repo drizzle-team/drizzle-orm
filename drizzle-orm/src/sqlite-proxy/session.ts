@@ -5,7 +5,7 @@ import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import type { AnyRelations, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
@@ -30,9 +30,8 @@ export type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'r
 export class SQLiteRemoteSession<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
-> extends SQLiteSession<'async', SqliteRemoteResult, TFullSchema, TRelations, TTablesConfig, TSchema> {
+> extends SQLiteSession<'async', SqliteRemoteResult, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'SQLiteRemoteSession';
 
 	private logger: Logger;
@@ -114,7 +113,7 @@ export class SQLiteRemoteSession<
 	}
 
 	override async transaction<T>(
-		transaction: (tx: SQLiteProxyTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
+		transaction: (tx: SQLiteProxyTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 		config?: SQLiteTransactionConfig,
 	): Promise<T> {
 		const tx = new SQLiteProxyTransaction('async', this.dialect, this, this.relations, this.schema, undefined, true);
@@ -145,13 +144,12 @@ export class SQLiteRemoteSession<
 export class SQLiteProxyTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
-> extends SQLiteTransaction<'async', SqliteRemoteResult, TFullSchema, TRelations, TTablesConfig, TSchema> {
+> extends SQLiteTransaction<'async', SqliteRemoteResult, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'SQLiteProxyTransaction';
 
 	override async transaction<T>(
-		transaction: (tx: SQLiteProxyTransaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
+		transaction: (tx: SQLiteProxyTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex}`;
 		const tx = new SQLiteProxyTransaction(

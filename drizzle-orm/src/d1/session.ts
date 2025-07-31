@@ -7,7 +7,7 @@ import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import type { AnyRelations, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
 import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
@@ -31,9 +31,8 @@ type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 export class SQLiteD1Session<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
-> extends SQLiteSession<'async', D1Result, TFullSchema, TRelations, TTablesConfig, TSchema> {
+> extends SQLiteSession<'async', D1Result, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'SQLiteD1Session';
 
 	private logger: Logger;
@@ -135,7 +134,7 @@ export class SQLiteD1Session<
 	}
 
 	override async transaction<T>(
-		transaction: (tx: D1Transaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => T | Promise<T>,
+		transaction: (tx: D1Transaction<TFullSchema, TRelations, TSchema>) => T | Promise<T>,
 		config?: SQLiteTransactionConfig,
 	): Promise<T> {
 		const tx = new D1Transaction('async', this.dialect, this, this.relations, this.schema, undefined, undefined, true);
@@ -154,13 +153,12 @@ export class SQLiteD1Session<
 export class D1Transaction<
 	TFullSchema extends Record<string, unknown>,
 	TRelations extends AnyRelations,
-	TTablesConfig extends TablesRelationalConfig,
 	TSchema extends V1.TablesRelationalConfig,
-> extends SQLiteTransaction<'async', D1Result, TFullSchema, TRelations, TTablesConfig, TSchema> {
+> extends SQLiteTransaction<'async', D1Result, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'D1Transaction';
 
 	override async transaction<T>(
-		transaction: (tx: D1Transaction<TFullSchema, TRelations, TTablesConfig, TSchema>) => Promise<T>,
+		transaction: (tx: D1Transaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex}`;
 		const tx = new D1Transaction(
