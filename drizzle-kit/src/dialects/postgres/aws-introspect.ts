@@ -114,13 +114,15 @@ export const fromDatabase = async (
 		name: string;
 	};
 
+	// ! Use `pg_catalog` for system functions
+
 	// TODO: potential improvements
 	// --- default access method
 	// SHOW default_table_access_method;
 	// SELECT current_setting('default_table_access_method') AS default_am;
 
 	const accessMethodsQuery = db.query<{ oid: string; name: string }>(
-		`SELECT oid, amname as name FROM pg_am WHERE amtype = 't' ORDER BY lower(amname);`,
+		`SELECT oid, amname as name FROM pg_am WHERE amtype = 't' ORDER BY pg_catalog.lower(amname);`,
 	).then((rows) => {
 		queryCallback('accessMethods', rows, null);
 		return rows;
@@ -132,7 +134,7 @@ export const fromDatabase = async (
 	const tablespacesQuery = db.query<{
 		oid: string;
 		name: string;
-	}>(`SELECT oid, spcname as "name" FROM pg_tablespace WHERE has_tablespace_privilege(spcname, 'CREATE') ORDER BY lower(spcname)`).then((rows) => {
+	}>(`SELECT oid, spcname as "name" FROM pg_tablespace WHERE pg_catalog.has_tablespace_privilege(spcname, 'CREATE') ORDER BY pg_catalog.lower(spcname)`).then((rows) => {
 		queryCallback('tablespaces', rows, null);
 		return rows;
 	}).catch((error) => {
@@ -140,7 +142,7 @@ export const fromDatabase = async (
 		throw error;
 	});
 
-	const namespacesQuery = db.query<Namespace>("SELECT oid, nspname as name FROM pg_namespace WHERE has_schema_privilege(nspname, 'USAGE') ORDER BY lower(nspname)")
+	const namespacesQuery = db.query<Namespace>("SELECT oid, nspname as name FROM pg_namespace WHERE pg_catalog.has_schema_privilege(nspname, 'USAGE') ORDER BY pg_catalog.lower(nspname)")
 		.then((rows) => {
 			queryCallback('namespaces', rows, null);
 			return rows;
@@ -157,7 +159,7 @@ export const fromDatabase = async (
         SELECT
             adrelid AS "tableId",
             adnum AS "ordinality",
-            pg_get_expr(adbin, adrelid) AS "expression"
+            pg_catalog.pg_get_expr(adbin, adrelid) AS "expression"
         FROM
             pg_attrdef;
     `).then((rows) => {
@@ -217,7 +219,7 @@ export const fromDatabase = async (
                     relrowsecurity AS "rlsEnabled",
                     case 
                         when relkind = 'v' or relkind = 'm'
-                            then pg_get_viewdef(oid, true)
+                            then pg_catalog.pg_get_viewdef(oid, true)
                         else null 
                     end as "definition"
                 FROM
@@ -225,7 +227,7 @@ export const fromDatabase = async (
                 WHERE
                     relkind IN ('r', 'v', 'm')
                     AND relnamespace IN (${filteredNamespacesIds.join(', ')})
-                ORDER BY relnamespace, lower(relname);
+                ORDER BY relnamespace, pg_catalog.lower(relname);
 	`).then((rows) => {
 			queryCallback('tables', rows, null);
 			return rows;
@@ -335,7 +337,7 @@ export const fromDatabase = async (
                 oid,
                 adrelid as "tableId",
                 adnum as "ordinality",
-                pg_get_expr(adbin, adrelid) as "expression"
+                pg_catalog.pg_get_expr(adbin, adrelid) as "expression"
             FROM
                 pg_attrdef
             WHERE ${filterByTableIds ? ` adrelid in ${filterByTableIds}` : 'false'}
@@ -370,7 +372,7 @@ export const fromDatabase = async (
         FROM pg_sequence
         LEFT JOIN pg_class ON pg_sequence.seqrelid=pg_class.oid
         WHERE relnamespace IN (${filteredNamespacesIds.join(',')})
-        ORDER BY relnamespace, lower(relname);
+        ORDER BY relnamespace, pg_catalog.lower(relname);
 	`).then((rows) => {
 		queryCallback('sequences', rows, null);
 		return rows;
@@ -403,7 +405,10 @@ export const fromDatabase = async (
             qual as "using", 
             with_check as "withCheck" 
         FROM pg_policies
-        ORDER BY lower(schemaname), lower(tablename);
+        ORDER BY
+			pg_catalog.lower(schemaname),
+			pg_catalog.lower(tablename),
+			pg_catalog.lower(policyname);
 	`).then((rows) => {
 		queryCallback('policies', rows, null);
 		return rows;
@@ -438,7 +443,7 @@ export const fromDatabase = async (
 			rolvaliduntil::text,
 			rolbypassrls
 		FROM pg_roles
-		ORDER BY lower(rolname);`,
+		ORDER BY pg_catalog.lower(rolname);`,
 	).then((rows) => {
 		queryCallback('roles', rows, null);
 		return rows;
@@ -464,7 +469,10 @@ export const fromDatabase = async (
 			CASE is_grantable WHEN 'YES' THEN true ELSE false END AS "isGrantable"
 		FROM information_schema.role_table_grants
 		WHERE table_schema IN (${filteredNamespaces.map((ns) => `'${ns.name}'`).join(',')})
-		ORDER BY lower(table_schema), lower(table_name), lower(grantee);
+		ORDER BY
+			pg_catalog.lower(table_schema),
+			pg_catalog.lower(table_name),
+			pg_catalog.lower(grantee);
 	`).then((rows) => {
 		queryCallback('privileges', rows, null);
 		return rows;
@@ -493,7 +501,7 @@ export const fromDatabase = async (
       conrelid AS "tableId",
       conname AS "name",
       contype::text AS "type", 
-      pg_get_constraintdef(oid) AS "definition",
+      pg_catalog.pg_get_constraintdef(oid) AS "definition",
       conindid AS "indexId",
       conkey AS "columnsOrdinals",
       confrelid AS "tableToId",
@@ -503,7 +511,7 @@ export const fromDatabase = async (
     FROM
       pg_constraint
     WHERE ${filterByTableIds ? ` conrelid in ${filterByTableIds}` : 'false'}
-    ORDER BY conrelid, contype, lower(conname);
+    ORDER BY conrelid, contype, pg_catalog.lower(conname);
   `).then((rows) => {
 		queryCallback('constraints', rows, null);
 		return rows;
@@ -552,15 +560,15 @@ export const fromDatabase = async (
                 atttypid as "typeId",
                 attgenerated::text as "generatedType", 
                 attidentity::text as "identityType",
-                format_type(atttypid, atttypmod) as "type",
+                pg_catalog.format_type(atttypid, atttypmod) as "type",
                 CASE
                     WHEN attidentity in ('a', 'd') or attgenerated = 's' THEN (
                         SELECT
-                            row_to_json(c.*)
+                            pg_catalog.row_to_json(c.*)
                         FROM
                             (
                                 SELECT
-                                    pg_get_serial_sequence('"' || "table_schema" || '"."' || "table_name" || '"', "attname")::regclass::oid as "seqId",
+                                    pg_catalog.pg_get_serial_sequence('"' || "table_schema" || '"."' || "table_name" || '"', "attname")::regclass::oid as "seqId",
                                     "identity_generation" AS generation,
                                     "identity_start" AS "start",
                                     "identity_increment" AS "increment",
@@ -968,14 +976,14 @@ export const fromDatabase = async (
         relname AS "name",
         am.amname AS "accessMethod",
         reloptions AS "with",
-        row_to_json(metadata.*) as "metadata"
+        pg_catalog.row_to_json(metadata.*) as "metadata"
       FROM
         pg_class
       JOIN pg_am am ON am.oid = pg_class.relam
       LEFT JOIN LATERAL (
         SELECT
-          pg_get_expr(indexprs, indrelid) AS "expression",
-          pg_get_expr(indpred, indrelid) AS "where",
+          pg_catalog.pg_get_expr(indexprs, indrelid) AS "expression",
+          pg_catalog.pg_get_expr(indpred, indrelid) AS "where",
           indrelid::int AS "tableId",
           indkey::int[] as "columnOrdinals",
           indoption::int[] as "options",
@@ -983,13 +991,13 @@ export const fromDatabase = async (
           indisprimary as "isPrimary",
 		  array(
 			SELECT
-			  json_build_object(
+			  pg_catalog.json_build_object(
 				'oid', opclass.oid,
 				'name', pg_am.amname,
 				'default', pg_opclass.opcdefault
 			  )
 			FROM
-			  unnest(indclass) WITH ORDINALITY AS opclass(oid, ordinality)
+			  pg_catalog.unnest(indclass) WITH ORDINALITY AS opclass(oid, ordinality)
 			JOIN pg_opclass ON opclass.oid = pg_opclass.oid
 			JOIN pg_am ON pg_opclass.opcmethod = pg_am.oid
 			ORDER BY opclass.ordinality
@@ -1001,7 +1009,7 @@ export const fromDatabase = async (
       ) metadata ON TRUE
       WHERE
         relkind = 'i' and ${filterByTableIds ? `metadata."tableId" in ${filterByTableIds}` : 'false'}
-	  ORDER BY relnamespace, lower(relname);
+	  ORDER BY relnamespace, pg_catalog.lower(relname);
     `).then((rows) => {
 		queryCallback('indexes', rows, null);
 		return rows;
