@@ -1006,7 +1006,8 @@ JOIN
     pg_catalog.pg_namespace n ON n.oid = c.relnamespace
 WHERE 
 	c.relkind IN ('r', 'v', 'm') 
-    ${where === '' ? '' : ` AND ${where}`};`,
+    ${where === '' ? '' : ` AND ${where}`}
+		ORDER BY n.nspname, c.relname;`,
 	);
 
 	const schemas = new Set(allTables.map((it) => it.table_schema));
@@ -1042,7 +1043,8 @@ WHERE
 	const allSequences = await db.query(
 		`select schemaname, sequencename, start_value, min_value, max_value, increment_by, cycle, cache_size from pg_sequences as seq${
 			seqWhere === '' ? '' : ` WHERE ${seqWhere}`
-		};`,
+		}
+		order by schemaname, sequencename;`,
 	);
 
 	for (const dbSeq of allSequences) {
@@ -1107,7 +1109,7 @@ WHERE
 	const allRoles = await db.query<
 		{ rolname: string; rolinherit: boolean; rolcreatedb: boolean; rolcreaterole: boolean }
 	>(
-		`SELECT rolname, rolinherit, rolcreatedb, rolcreaterole FROM pg_roles;`,
+		`SELECT rolname, rolinherit, rolcreatedb, rolcreaterole FROM pg_roles order by rolname, rolinherit, rolcreatedb, rolcreaterole;`,
 	);
 
 	const rolesToReturn: Record<string, Role> = {};
@@ -1166,7 +1168,8 @@ WHERE
 		}
 	>(`SELECT schemaname, tablename, policyname as name, permissive as "as", roles as to, cmd as for, qual as using, with_check as "withCheck" FROM pg_policies${
 		wherePolicies === '' ? '' : ` WHERE ${wherePolicies}`
-	};`);
+	}
+	order by schemaname, tablename, policyname;`);
 
 	for (const dbPolicy of allPolicies) {
 		const { tablename, schemaname, to, withCheck, using, ...rest } = dbPolicy;
@@ -1233,7 +1236,8 @@ WHERE
       JOIN information_schema.constraint_column_usage AS ccu USING (constraint_schema, constraint_name)
       JOIN information_schema.columns AS c ON c.table_schema = tc.constraint_schema
         AND tc.table_name = c.table_name AND ccu.column_name = c.column_name
-      WHERE tc.table_name = '${tableName}' and constraint_schema = '${tableSchema}';`,
+      WHERE tc.table_name = '${tableName}' and constraint_schema = '${tableSchema}'
+			ORDER BY  tc.table_schema, tc.table_name, c.column_name, c.data_type, constraint_type, constraint_name, constraint_schema;`,
 					);
 
 					const tableChecks = await db.query(`SELECT 
@@ -1257,7 +1261,8 @@ WHERE
 					WHERE 
 						tc.table_name = '${tableName}'
 						AND tc.constraint_schema = '${tableSchema}'
-						AND tc.constraint_type = 'CHECK';`);
+						AND tc.constraint_type = 'CHECK'
+						ORDER BY tc.constraint_name, tc.constraint_type;`);
 
 					columnsCount += tableResponse.length;
 					if (progressCallback) {
@@ -1301,7 +1306,8 @@ WHERE
           WHERE
             nsp.nspname = '${tableSchema}'
             AND rel.relname = '${tableName}'
-            AND con.contype IN ('f');`,
+            AND con.contype IN ('f')
+						ORDER BY constraint_type, constraint_schema, constraint_name, table_name, column_name, foreign_table_schema, foreign_table_name, foreign_column_name, update_rule, delete_rule;`,
 					);
 
 					foreignKeysCount += tableForeignKeys.length;
@@ -1581,7 +1587,8 @@ WHERE
         LEFT JOIN
           pg_constraint con ON con.conindid = idx.indexrelid
         WHERE idx.relname = '${tableName}' and schemaname = '${tableSchema}'
-        group by index_name, table_name,schemaname, generated_by_constraint;`,
+        group by index_name, table_name,schemaname, generated_by_constraint
+				ORDER BY  index_name, table_name,schemaname, generated_by_constraint;`,
 					);
 
 					const idxsInConsteraint = dbIndexFromConstraint.filter((it) => it.generated_by_constraint === 1).map((it) =>
@@ -1854,7 +1861,9 @@ LEFT JOIN
 WHERE
     (c.relkind = 'm' OR c.relkind = 'v')
     AND n.nspname = '${viewSchema}'
-    AND c.relname = '${viewName}';`);
+    AND c.relname = '${viewName}'
+					ORDER BY schema_name, view_name
+					;`);
 
 					const resultWith: { [key: string]: string | boolean | number } = {};
 					if (viewInfo.options) {
@@ -2091,6 +2100,6 @@ WHERE
     AND ns.nspname = '${schema}'  -- Filter by schema
     AND cls.relname = '${table}'  -- Filter by table name
 ORDER BY 
-    a.attnum;  -- Order by column number`,
+    ns.nspname, table_name, column_name;  -- Order by column number`,
 	);
 };
