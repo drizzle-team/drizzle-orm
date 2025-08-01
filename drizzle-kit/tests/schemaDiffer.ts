@@ -2307,6 +2307,7 @@ export const introspectPgToFile = async (
 	schemas: string[] = ['public'],
 	entities?: Entities,
 	casing?: CasingType | undefined,
+	returnFile?: boolean | undefined,
 ) => {
 	// put in db
 	const { sqlStatements } = await applyPgDiffs(initSchema, casing);
@@ -2399,6 +2400,7 @@ export const introspectPgToFile = async (
 	return {
 		sqlStatements: afterFileSqlStatements,
 		statements: afterFileStatements,
+		...(returnFile ? { file } : undefined),
 	};
 };
 

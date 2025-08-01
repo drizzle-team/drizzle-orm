@@ -926,3 +926,113 @@ test('multiple policies with roles from schema', async () => {
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
 });
+
+test('verify table declarations are in alphabetical order', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		f: pgTable('f', { id: integer('id').notNull() }),
+		e: pgTable('e', { id: integer('id').notNull() }),
+		d: pgTable('d', { id: integer('id').notNull() }),
+		c: pgTable('b', { id: integer('id').notNull() }),
+		b: pgTable('c', { id: integer('id').notNull() }),
+		a: pgTable('a', { id: integer('id').notNull() }),
+	};
+
+	const { statements, sqlStatements, file } = await introspectPgToFile(
+		client,
+		schema,
+		'alphabetical-table-order-test',
+		['public'],
+		undefined,
+		undefined,
+		true,
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+	if (!file) {
+		throw new Error('File is missing');
+	}
+
+	// Extract table variable names from the declarations string
+	const declarations = file.declarations;
+	const exportPattern = /export const (\w+) = pgTable/g;
+	const tableNames: string[] = [];
+	let match;
+
+	while ((match = exportPattern.exec(declarations)) !== null) {
+		tableNames.push(match[1]);
+	}
+	expect(tableNames.length).toBe(6);
+
+	// Verify tables are declared in alphabetical order
+	const sortedTableNames = [...tableNames].sort();
+	expect(tableNames).toEqual(sortedTableNames);
+
+	// Additional assertion with descriptive message
+	if (JSON.stringify(tableNames) !== JSON.stringify(sortedTableNames)) {
+		throw new Error(
+			`Tables are not in alphabetical order. Found: [${tableNames.join(', ')}], Expected: [${
+				sortedTableNames.join(', ')
+			}]`,
+		);
+	}
+});
+test('verify column declarations are in alphabetical order', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		z: pgTable('z', {
+			f: integer('f').notNull(),
+			e: integer('e').notNull(),
+		}),
+		y: pgTable('y', {
+			b: integer('b').notNull(),
+			d: integer('d').notNull(),
+			c: integer('c').notNull(),
+			a: integer('a').notNull(),
+		}),
+	};
+
+	const { statements, sqlStatements, file } = await introspectPgToFile(
+		client,
+		schema,
+		'alphabetical-column-order-test',
+		['public'],
+		undefined,
+		undefined,
+		true,
+	);
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements.length).toBe(0);
+	if (!file) {
+		throw new Error('File is missing');
+	}
+
+	// Extract column variable names from the declarations string
+	const declarations = file.declarations;
+	console.log(declarations);
+	const exportPattern = /(\w+):\s+integer/g;
+	const columnNames: string[] = [];
+	let match;
+
+	while ((match = exportPattern.exec(declarations)) !== null) {
+		columnNames.push(match[1]);
+	}
+	expect(columnNames.length).toBe(6);
+
+	// Verify columns are declared in alphabetical order
+	const sortedColumnNames = [...columnNames].sort();
+	expect(columnNames).toEqual(sortedColumnNames);
+
+	// Additional assertion with descriptive message
+	if (JSON.stringify(columnNames) !== JSON.stringify(sortedColumnNames)) {
+		throw new Error(
+			`Columns are not in alphabetical order. Found: [${columnNames.join(', ')}], Expected: [${
+				sortedColumnNames.join(', ')
+			}]`,
+		);
+	}
+});
