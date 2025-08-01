@@ -553,7 +553,7 @@ const generateGelSnapshot = (
 
 		// 	checksObject[checkName] = {
 		// 		name: checkName,
-		// 		value: dialect.sqlToQuery(check.value).sql,
+		// 		value: dialect.sqlToQuery(check.value.inlineParams()).sql,
 		// 	};
 		// });
 
