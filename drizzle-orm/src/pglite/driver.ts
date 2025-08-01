@@ -6,7 +6,13 @@ import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
-import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	type BuildRelations,
+	buildRelations,
+	type EmptyRelations,
+	type RelationalConfigs,
+} from '~/relations.ts';
 import { type DrizzleConfig, isConfig } from '~/utils.ts';
 import type { PgliteClient, PgliteQueryResultHKT } from './session.ts';
 import { PgliteSession } from './session.ts';
@@ -27,7 +33,7 @@ export class PgliteDriver {
 	}
 
 	createSession(
-		relations: AnyRelations | undefined,
+		relations: AnyRelations,
 		schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined,
 	): PgliteSession<Record<string, unknown>, AnyRelations, V1.TablesRelationalConfig> {
 		return new PgliteSession(this.client, this.dialect, relations, schema, {
@@ -46,11 +52,11 @@ export class PgliteDatabase<
 
 function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends AnyRelations = EmptyRelations,
+	TRelations extends RelationalConfigs = undefined,
 >(
 	client: PgliteClient,
 	config: DrizzleConfig<TSchema, TRelations> = {},
-): PgliteDatabase<TSchema, TRelations> & {
+): PgliteDatabase<TSchema, BuildRelations<TRelations>> & {
 	$client: PgliteClient;
 } {
 	const dialect = new PgDialect({ casing: config.casing });
@@ -74,7 +80,7 @@ function construct<
 		};
 	}
 
-	const relations = config.relations;
+	const relations = buildRelations(config.relations);
 	const driver = new PgliteDriver(client, dialect, { logger, cache: config.cache });
 	const session = driver.createSession(relations, schema);
 	const db = new PgliteDatabase(
@@ -104,7 +110,7 @@ function construct<
 
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends AnyRelations = EmptyRelations,
+	TRelations extends RelationalConfigs = undefined,
 	TClient extends PGlite = PGlite,
 >(
 	...params:
@@ -126,7 +132,7 @@ export function drizzle<
 				})
 			),
 		]
-): PgliteDatabase<TSchema, TRelations> & {
+): PgliteDatabase<TSchema, BuildRelations<TRelations>> & {
 	$client: TClient;
 } {
 	if (params[0] === undefined || typeof params[0] === 'string') {
@@ -161,10 +167,10 @@ export function drizzle<
 export namespace drizzle {
 	export function mock<
 		TSchema extends Record<string, unknown> = Record<string, never>,
-		TRelations extends AnyRelations = EmptyRelations,
+		TRelations extends RelationalConfigs = undefined,
 	>(
 		config?: DrizzleConfig<TSchema, TRelations>,
-	): PgliteDatabase<TSchema, TRelations> & {
+	): PgliteDatabase<TSchema, BuildRelations<TRelations>> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
 		return construct({} as any, config) as any;

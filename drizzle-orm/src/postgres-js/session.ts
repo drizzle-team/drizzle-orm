@@ -155,7 +155,7 @@ export class PostgresJsSession<
 	constructor(
 		public client: TSQL,
 		dialect: PgDialect,
-		private relations: AnyRelations | undefined,
+		private relations: TRelations,
 		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		/** @internal */
 		readonly options: PostgresJsSessionOptions = {},
@@ -257,7 +257,7 @@ export class PostgresJsTransaction<
 		/** @internal */
 		override readonly session: PostgresJsSession<TransactionSql, TFullSchema, TRelations, TSchema>,
 		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
-		relations: AnyRelations | undefined,
+		relations: TRelations,
 		nestedIndex = 0,
 	) {
 		super(dialect, session, relations, schema, nestedIndex);

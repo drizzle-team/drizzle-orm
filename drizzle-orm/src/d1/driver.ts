@@ -4,7 +4,13 @@ import * as V1 from '~/_relations.ts';
 import type { BatchItem, BatchResponse } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
-import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	type BuildRelations,
+	buildRelations,
+	type EmptyRelations,
+	type RelationalConfigs,
+} from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleConfig, IfNotImported } from '~/utils.ts';
@@ -38,12 +44,12 @@ export class DrizzleD1Database<
 
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends AnyRelations = EmptyRelations,
+	TRelations extends RelationalConfigs = undefined,
 	TClient extends AnyD1Database = AnyD1Database,
 >(
 	client: TClient,
 	config: DrizzleConfig<TSchema, TRelations> = {},
-): DrizzleD1Database<TSchema, TRelations> & {
+): DrizzleD1Database<TSchema, BuildRelations<TRelations>> & {
 	$client: TClient;
 } {
 	const dialect = new SQLiteAsyncDialect({ casing: config.casing });
@@ -67,7 +73,7 @@ export function drizzle<
 		};
 	}
 
-	const relations = config.relations;
+	const relations = buildRelations(config.relations);
 	const session = new SQLiteD1Session(client as D1Database, dialect, relations, schema, {
 		logger,
 		cache: config.cache,
@@ -77,7 +83,7 @@ export function drizzle<
 		dialect,
 		session as SQLiteD1Session<
 			TSchema,
-			TRelations,
+			BuildRelations<TRelations>,
 			V1.ExtractTablesWithRelations<TSchema>
 		>,
 		relations,
@@ -86,7 +92,7 @@ export function drizzle<
 		true,
 	) as DrizzleD1Database<
 		TSchema,
-		TRelations
+		BuildRelations<TRelations>
 	>;
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;

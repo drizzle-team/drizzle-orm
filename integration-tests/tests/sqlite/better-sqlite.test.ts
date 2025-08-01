@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { sql } from 'drizzle-orm';
+import { type BuildRelations, sql } from 'drizzle-orm';
 import { type BetterSQLite3Database, drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
@@ -9,7 +9,7 @@ import { anotherUsersMigratorTable, tests, usersMigratorTable } from './sqlite-c
 
 const ENABLE_LOGGING = false;
 
-let db: BetterSQLite3Database<never, typeof relations>;
+let db: BetterSQLite3Database<never, BuildRelations<typeof relations>>;
 let client: Database.Database;
 
 beforeAll(async () => {

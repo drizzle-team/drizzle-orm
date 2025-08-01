@@ -1,4 +1,5 @@
 import { Client } from '@planetscale/database';
+import type { BuildRelations } from 'drizzle-orm';
 import type { PlanetScaleDatabase } from 'drizzle-orm/planetscale-serverless';
 import { drizzle } from 'drizzle-orm/planetscale-serverless';
 import { beforeAll, beforeEach } from 'vitest';
@@ -9,7 +10,7 @@ import relations from './relations';
 
 const ENABLE_LOGGING = false;
 
-let db: PlanetScaleDatabase<never, typeof relations>;
+let db: PlanetScaleDatabase<never, BuildRelations<typeof relations>>;
 let dbGlobalCached: PlanetScaleDatabase;
 let cachedDb: PlanetScaleDatabase;
 

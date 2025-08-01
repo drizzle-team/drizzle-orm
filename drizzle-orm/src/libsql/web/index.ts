@@ -1,11 +1,11 @@
 import { type Client, type Config, createClient } from '@libsql/client/web';
-import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import type { BuildRelations, RelationalConfigs } from '~/relations.ts';
 import { type DrizzleConfig, isConfig } from '~/utils.ts';
 import { construct, type LibSQLDatabase } from '../driver-core.ts';
 
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends AnyRelations = EmptyRelations,
+	TRelations extends RelationalConfigs = undefined,
 	TClient extends Client = Client,
 >(
 	...params: [
@@ -23,7 +23,7 @@ export function drizzle<
 			})
 		),
 	]
-): LibSQLDatabase<TSchema, TRelations> & {
+): LibSQLDatabase<TSchema, BuildRelations<TRelations>> & {
 	$client: TClient;
 } {
 	if (typeof params[0] === 'string') {
@@ -52,10 +52,10 @@ export function drizzle<
 export namespace drizzle {
 	export function mock<
 		TSchema extends Record<string, unknown> = Record<string, never>,
-		TRelations extends AnyRelations = EmptyRelations,
+		TRelations extends RelationalConfigs = undefined,
 	>(
 		config?: DrizzleConfig<TSchema, TRelations>,
-	): LibSQLDatabase<TSchema, TRelations> & {
+	): LibSQLDatabase<TSchema, BuildRelations<TRelations>> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
 		return construct({} as any, config) as any;

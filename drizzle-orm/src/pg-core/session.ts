@@ -256,7 +256,7 @@ export abstract class PgTransaction<
 	constructor(
 		dialect: PgDialect,
 		session: PgSession<any, any, any, any>,
-		protected relations: AnyRelations | undefined,
+		protected relations: TRelations,
 		protected schema: {
 			fullSchema: Record<string, unknown>;
 			schema: TSchema;

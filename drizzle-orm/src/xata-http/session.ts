@@ -138,7 +138,7 @@ export class XataHttpSession<
 	constructor(
 		private client: XataHttpClient,
 		dialect: PgDialect,
-		private relations: AnyRelations | undefined,
+		private relations: TRelations,
 		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private options: XataHttpSessionOptions = {},
 	) {

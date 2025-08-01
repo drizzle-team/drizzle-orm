@@ -1,6 +1,6 @@
 import { D1Database, D1DatabaseAPI } from '@miniflare/d1';
 import { createSQLiteDB } from '@miniflare/shared';
-import { sql } from 'drizzle-orm';
+import { type BuildRelations, sql } from 'drizzle-orm';
 import type { DrizzleD1Database } from 'drizzle-orm/d1';
 import { drizzle } from 'drizzle-orm/d1';
 import { migrate } from 'drizzle-orm/d1/migrator';
@@ -13,7 +13,7 @@ import { TestCache, TestGlobalCache, tests as cacheTests } from './sqlite-common
 
 const ENABLE_LOGGING = false;
 
-let db: DrizzleD1Database<never, typeof relations>;
+let db: DrizzleD1Database<never, BuildRelations<typeof relations>>;
 let dbGlobalCached: DrizzleD1Database;
 let cachedDb: DrizzleD1Database;
 

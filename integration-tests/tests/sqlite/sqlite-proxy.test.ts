@@ -1,7 +1,7 @@
 /* eslint-disable drizzle-internal/require-entity-kind */
 import type BetterSqlite3 from 'better-sqlite3';
 import Database from 'better-sqlite3';
-import { Name, sql } from 'drizzle-orm';
+import { type BuildRelations, Name, sql } from 'drizzle-orm';
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy';
 import { drizzle as proxyDrizzle } from 'drizzle-orm/sqlite-proxy';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
@@ -57,7 +57,7 @@ class ServerSimulator {
 	}
 }
 
-let db: SqliteRemoteDatabase<never, typeof relations>;
+let db: SqliteRemoteDatabase<never, BuildRelations<typeof relations>>;
 let dbGlobalCached: SqliteRemoteDatabase;
 let cachedDb: SqliteRemoteDatabase;
 let client: Database.Database;

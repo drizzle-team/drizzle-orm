@@ -8,6 +8,7 @@ import {
 	asc,
 	avg,
 	avgDistinct,
+	type BuildRelations,
 	count,
 	countDistinct,
 	eq,
@@ -103,10 +104,10 @@ import { clear, init, rqbPost, rqbUser } from './schema';
 declare module 'vitest' {
 	interface TestContext {
 		pg: {
-			db: PgDatabase<PgQueryResultHKT, never, typeof relations>;
+			db: PgDatabase<PgQueryResultHKT, never, BuildRelations<typeof relations>>;
 		};
 		neonPg: {
-			db: NeonHttpDatabase<typeof schema, typeof neonRelations>;
+			db: NeonHttpDatabase<typeof schema, BuildRelations<typeof neonRelations>>;
 		};
 	}
 }
@@ -544,7 +545,9 @@ export function tests() {
 			await db.execute(sql`drop schema if exists custom_migrations cascade`);
 		});
 
-		async function setupSetOperationTest(db: PgDatabase<PgQueryResultHKT, never, typeof relations>) {
+		async function setupSetOperationTest(
+			db: PgDatabase<PgQueryResultHKT, never, BuildRelations<typeof relations>>,
+		) {
 			await db.execute(sql`drop table if exists users2`);
 			await db.execute(sql`drop table if exists cities`);
 			await db.execute(
@@ -583,7 +586,9 @@ export function tests() {
 			]);
 		}
 
-		async function setupAggregateFunctionsTest(db: PgDatabase<PgQueryResultHKT, never, typeof relations>) {
+		async function setupAggregateFunctionsTest(
+			db: PgDatabase<PgQueryResultHKT, never, BuildRelations<typeof relations>>,
+		) {
 			await db.execute(sql`drop table if exists "aggregate_table"`);
 			await db.execute(
 				sql`

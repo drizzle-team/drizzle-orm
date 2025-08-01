@@ -1188,7 +1188,7 @@ export function createRelationsHelper<
 	return Object.assign(helperStatic, relationsTables) as any;
 }
 
-export function defineRelations<
+export function defineRelationsOld<
 	TSchema extends Record<string, unknown>,
 	TConfig extends RelationsBuilderConfig<TTables>,
 	TTables extends Schema = ExtractTablesFromSchema<TSchema>,
@@ -1209,14 +1209,14 @@ export function defineRelations<
 }
 
 // Shall replace ^
-export function defineRelationsPart<
+export function defineRelations<
 	TSchema extends Record<string, unknown>,
 	TConfig extends RelationsBuilderConfig<TTables>,
 	TTables extends Schema = ExtractTablesFromSchema<TSchema>,
 >(
 	schema: TSchema,
 	relations?: (helpers: RelationsBuilder<TTables>) => TConfig,
-): RelationalConfigShard<TTables, TConfig> {
+): RelationalConfig<TTables, TConfig> {
 	const tables = Object.fromEntries(Object.entries(schema).filter(([_, e]) => is(e, Table) || is(e, View))) as TTables;
 
 	return {
@@ -1229,7 +1229,7 @@ export function defineRelationsPart<
 	};
 }
 
-export interface RelationalConfigShard<
+export interface RelationalConfig<
 	TSchema extends Schema = Schema,
 	TConfig extends RelationsBuilderConfig<TSchema> = RelationsBuilderConfig<TSchema>,
 > {
@@ -1242,23 +1242,36 @@ export interface RelationalConfigShard<
 // type IntersectArray<T extends object[]> = UnionToIntersection<T[number]>;
 
 // Likely less instantiations - to be tested
-// export type MergeRelationalConfigs<TConfigs extends RelationalConfigShard[]> = IntersectArray<TConfigs>;
+// export type MergeRelationalConfigsLoop<TConfigs extends RelationalConfig[]> = IntersectArray<TConfigs>;
 
-export type MergeRelationalConfigs<TConfigs extends RelationalConfigShard[]> = TConfigs extends
-	[infer C extends RelationalConfigShard, ...infer Tail extends RelationalConfigShard[]]
-	? MergeRelationalConfigs<Tail> & C
-	: TConfigs extends [infer C extends RelationalConfigShard] ? C
-	: {};
+export type RelationalConfigs = RelationalConfig[] | RelationalConfig | undefined;
 
-// Shall be used internally
-export function mergeRelations<
-	TConfigs extends [RelationalConfigShard, ...RelationalConfigShard[]],
-	TMerged extends RelationalConfigShard = MergeRelationalConfigs<TConfigs>,
->(configs: TConfigs): Relations<TMerged['schema'], TMerged['config']> {
-	const buildSchema = {} as RelationalConfigShard['schema'];
-	const buildConfig = {} as RelationalConfigShard['config'];
+export type MergeRelationalConfigsIter<TConfigs extends RelationalConfig[]> = TConfigs extends
+	[infer C extends RelationalConfig, ...infer Tail extends RelationalConfig[]] ? MergeRelationalConfigs<Tail> & C
+	: TConfigs[number];
 
-	for (const { schema, config } of configs) {
+export type MergeRelationalConfigs<TConfigs extends RelationalConfigs> = TConfigs extends undefined ? {
+		schema: {};
+		config: {};
+	}
+	: TConfigs extends RelationalConfig[] ? MergeRelationalConfigsIter<TConfigs>
+	: TConfigs;
+
+export type BuildRelations<
+	TConfigs extends RelationalConfigs,
+	TMerged extends RelationalConfig = MergeRelationalConfigs<TConfigs>,
+> = Relations<TMerged['schema'], TMerged['config']>;
+
+export function buildRelations<
+	TConfigs extends RelationalConfigs,
+>(configs: TConfigs): BuildRelations<TConfigs> {
+	if (!configs) return new Relations({}, {}) as BuildRelations<TConfigs>;
+	if (!Array.isArray(configs)) return new Relations(configs.schema, configs.config) as BuildRelations<TConfigs>;
+
+	const buildSchema = {} as RelationalConfig['schema'];
+	const buildConfig = {} as RelationalConfig['config'];
+
+	for (const { schema, config } of configs as RelationalConfig[]) {
 		for (const [name, table] of Object.entries(schema)) {
 			if (name in buildSchema && table !== buildSchema[name]) {
 				throw new Error(
@@ -1287,7 +1300,7 @@ export function mergeRelations<
 		}
 	}
 
-	return new Relations(buildSchema, buildConfig);
+	return new Relations(buildSchema, buildConfig) as BuildRelations<TConfigs>;
 }
 
 export interface WithContainer {

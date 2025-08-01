@@ -1,7 +1,7 @@
 import 'dotenv/config';
 
 import { Client } from '@planetscale/database';
-import { DrizzleError, sql, TransactionRollbackError } from 'drizzle-orm';
+import { type BuildRelations, DrizzleError, sql, TransactionRollbackError } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/mysql-core';
 import { drizzle, type PlanetScaleDatabase } from 'drizzle-orm/planetscale-serverless';
 import { beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
@@ -18,7 +18,7 @@ import {
 
 const ENABLE_LOGGING = false;
 
-let db: PlanetScaleDatabase<never, typeof relations>;
+let db: PlanetScaleDatabase<never, BuildRelations<typeof relations>>;
 
 beforeAll(async () => {
 	db = drizzle(

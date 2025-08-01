@@ -152,7 +152,7 @@ export class GelDbSession<
 	constructor(
 		private client: GelClient,
 		dialect: GelDialect,
-		private relations: AnyRelations | undefined,
+		private relations: TRelations,
 		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private options: GelSessionOptions = {},
 	) {

@@ -7,7 +7,13 @@ import { GelDialect } from '~/gel-core/dialect.ts';
 import type { GelQueryResultHKT } from '~/gel-core/session.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
-import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	type BuildRelations,
+	buildRelations,
+	type EmptyRelations,
+	type RelationalConfigs,
+} from '~/relations.ts';
 import { type DrizzleConfig, isConfig } from '~/utils.ts';
 import type { GelClient } from './session.ts';
 import { GelDbSession } from './session.ts';
@@ -27,7 +33,7 @@ export class GelDriver {
 	) {}
 
 	createSession(
-		relations: AnyRelations | undefined,
+		relations: AnyRelations,
 		schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined,
 	): GelDbSession<Record<string, unknown>, AnyRelations, V1.TablesRelationalConfig> {
 		return new GelDbSession(this.client, this.dialect, relations, schema, {
@@ -46,12 +52,12 @@ export class GelJsDatabase<
 
 function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends AnyRelations = EmptyRelations,
+	TRelations extends RelationalConfigs = undefined,
 	TClient extends GelClient = GelClient,
 >(
 	client: TClient,
 	config: DrizzleConfig<TSchema, TRelations> = {},
-): GelJsDatabase<TSchema, TRelations> & {
+): GelJsDatabase<TSchema, BuildRelations<TRelations>> & {
 	$client: GelClient extends TClient ? Client : TClient;
 } {
 	const dialect = new GelDialect({ casing: config.casing });
@@ -72,7 +78,7 @@ function construct<
 		};
 	}
 
-	const relations = config.relations;
+	const relations = buildRelations(config.relations);
 	const driver = new GelDriver(client, dialect, { logger, cache: config.cache });
 	const session = driver.createSession(relations, schema);
 	const db = new GelJsDatabase(dialect, session, relations, schema as any) as GelJsDatabase<TSchema>;
@@ -87,7 +93,7 @@ function construct<
 
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends AnyRelations = EmptyRelations,
+	TRelations extends RelationalConfigs = undefined,
 	TClient extends GelClient = Client,
 >(
 	...params:
@@ -104,7 +110,7 @@ export function drizzle<
 				}
 			),
 		]
-): GelJsDatabase<TSchema, TRelations> & {
+): GelJsDatabase<TSchema, BuildRelations<TRelations>> & {
 	$client: GelClient extends TClient ? Client : TClient;
 } {
 	if (typeof params[0] === 'string') {
@@ -132,10 +138,10 @@ export function drizzle<
 export namespace drizzle {
 	export function mock<
 		TSchema extends Record<string, unknown> = Record<string, never>,
-		TRelations extends AnyRelations = EmptyRelations,
+		TRelations extends RelationalConfigs = undefined,
 	>(
 		config?: DrizzleConfig<TSchema, TRelations>,
-	): GelJsDatabase<TSchema, TRelations> & {
+	): GelJsDatabase<TSchema, BuildRelations<TRelations>> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
 		return construct({} as any, config) as any;

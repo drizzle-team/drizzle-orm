@@ -261,7 +261,7 @@ export abstract class MySqlTransaction<
 	constructor(
 		dialect: MySqlDialect,
 		session: MySqlSession,
-		protected relations: AnyRelations | undefined,
+		protected relations: TRelations,
 		protected schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		protected readonly nestedIndex: number,
 		mode: Mode,

@@ -1,4 +1,5 @@
 import retry from 'async-retry';
+import type { BuildRelations } from 'drizzle-orm';
 import type { MySqlRemoteDatabase } from 'drizzle-orm/mysql-proxy';
 import { drizzle as proxyDrizzle } from 'drizzle-orm/mysql-proxy';
 import * as mysql from 'mysql2/promise';
@@ -70,7 +71,7 @@ class ServerSimulator {
 	}
 }
 
-let db: MySqlRemoteDatabase<never, typeof relations>;
+let db: MySqlRemoteDatabase<never, BuildRelations<typeof relations>>;
 let client: mysql.Connection;
 let serverSimulator: ServerSimulator;
 

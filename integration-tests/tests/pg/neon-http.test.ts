@@ -1,5 +1,5 @@
 import { neon, neonConfig, type NeonQueryFunction } from '@neondatabase/serverless';
-import { defineRelations, eq, sql } from 'drizzle-orm';
+import { type BuildRelations, defineRelations, eq, sql } from 'drizzle-orm';
 import { drizzle, type NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import { migrate } from 'drizzle-orm/neon-http/migrator';
 import { pgMaterializedView, pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
@@ -12,7 +12,7 @@ import relations from './relations';
 
 const ENABLE_LOGGING = false;
 
-let db: NeonHttpDatabase<never, typeof relations>;
+let db: NeonHttpDatabase<never, BuildRelations<typeof relations>>;
 let dbGlobalCached: NeonHttpDatabase;
 let cachedDb: NeonHttpDatabase;
 

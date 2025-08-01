@@ -37,7 +37,7 @@ export class SQLiteBunSession<
 	constructor(
 		private client: Database,
 		dialect: SQLiteSyncDialect,
-		private relations: AnyRelations | undefined,
+		private relations: TRelations,
 		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		options: SQLiteBunSessionOptions = {},
 	) {

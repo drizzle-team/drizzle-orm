@@ -157,7 +157,7 @@ export class BunSQLSession<
 	constructor(
 		public client: TSQL,
 		dialect: PgDialect,
-		private relations: AnyRelations | undefined,
+		private relations: TRelations,
 		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		/** @internal */
 		readonly options: BunSQLSessionOptions = {},
@@ -263,7 +263,7 @@ export class BunSQLTransaction<
 			TRelations,
 			TSchema
 		>,
-		relations: AnyRelations | undefined,
+		relations: TRelations,
 		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		nestedIndex = 0,
 	) {

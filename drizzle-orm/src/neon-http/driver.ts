@@ -8,7 +8,14 @@ import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
-import type { AnyRelations, EmptyRelations, Relations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	type BuildRelations,
+	buildRelations,
+	type EmptyRelations,
+	type RelationalConfigs,
+	type Relations,
+} from '~/relations.ts';
 import { type DrizzleConfig, isConfig } from '~/utils.ts';
 import { type NeonHttpClient, type NeonHttpQueryResultHKT, NeonHttpSession } from './session.ts';
 
@@ -130,12 +137,12 @@ export class NeonHttpDatabase<
 
 function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends AnyRelations = EmptyRelations,
+	TRelations extends RelationalConfigs = undefined,
 	TClient extends NeonQueryFunction<any, any> = NeonQueryFunction<any, any>,
 >(
 	client: TClient,
 	config: DrizzleConfig<TSchema, TRelations> = {},
-): NeonHttpDatabase<TSchema, TRelations> & {
+): NeonHttpDatabase<TSchema, BuildRelations<TRelations>> & {
 	$client: TClient;
 } {
 	const dialect = new PgDialect({ casing: config.casing });
@@ -159,7 +166,7 @@ function construct<
 		};
 	}
 
-	const relations = config.relations;
+	const relations = buildRelations(config.relations);
 
 	const driver = new NeonHttpDriver(client, dialect, { logger, cache: config.cache });
 	const session = driver.createSession(relations, schema);
@@ -181,7 +188,7 @@ function construct<
 
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends AnyRelations = EmptyRelations,
+	TRelations extends RelationalConfigs = undefined,
 	TClient extends NeonQueryFunction<any, any> = NeonQueryFunction<false, false>,
 >(
 	...params: [
@@ -199,7 +206,7 @@ export function drizzle<
 			})
 		),
 	]
-): NeonHttpDatabase<TSchema, TRelations> & {
+): NeonHttpDatabase<TSchema, BuildRelations<TRelations>> & {
 	$client: TClient;
 } {
 	if (typeof params[0] === 'string') {
@@ -240,10 +247,10 @@ export function drizzle<
 export namespace drizzle {
 	export function mock<
 		TSchema extends Record<string, unknown> = Record<string, never>,
-		TRelations extends AnyRelations = EmptyRelations,
+		TRelations extends RelationalConfigs = undefined,
 	>(
 		config?: DrizzleConfig<TSchema, TRelations>,
-	): NeonHttpDatabase<TSchema, TRelations> & {
+	): NeonHttpDatabase<TSchema, BuildRelations<TRelations>> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
 		return construct({} as any, config) as any;

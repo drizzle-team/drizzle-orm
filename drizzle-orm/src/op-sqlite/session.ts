@@ -39,7 +39,7 @@ export class OPSQLiteSession<
 	constructor(
 		private client: OPSQLiteConnection,
 		dialect: SQLiteAsyncDialect,
-		private relations: AnyRelations | undefined,
+		private relations: TRelations,
 		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		options: OPSQLiteSessionOptions = {},
 	) {

@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import Docker from 'dockerode';
-import { DrizzleError, sql, TransactionRollbackError } from 'drizzle-orm';
+import { type BuildRelations, DrizzleError, sql, TransactionRollbackError } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import getPort from 'get-port';
@@ -33,14 +33,14 @@ declare module 'vitest' {
 	export interface TestContext {
 		docker: Docker;
 		pgContainer: Docker.Container;
-		pgjsDbV2: PostgresJsDatabase<never, typeof relations>;
+		pgjsDbV2: PostgresJsDatabase<never, BuildRelations<typeof relations>>;
 		pgjsClient: postgres.Sql<{}>;
 	}
 }
 
 let globalDocker: Docker;
 let pgContainer: Docker.Container;
-let db: PostgresJsDatabase<never, typeof relations>;
+let db: PostgresJsDatabase<never, BuildRelations<typeof relations>>;
 let client: postgres.Sql<{}>;
 
 async function createDockerDB(): Promise<string> {

@@ -1,6 +1,6 @@
 import retry from 'async-retry';
 import type Docker from 'dockerode';
-import { asc, eq, Name, sql } from 'drizzle-orm';
+import { asc, type BuildRelations, eq, Name, sql } from 'drizzle-orm';
 import {
 	alias,
 	binary,
@@ -28,7 +28,7 @@ import relations from './relations';
 
 const ENABLE_LOGGING = false;
 
-let db: MySql2Database<never, typeof relations>;
+let db: MySql2Database<never, BuildRelations<typeof relations>>;
 let client: mysql.Connection;
 let container: Docker.Container | undefined;
 

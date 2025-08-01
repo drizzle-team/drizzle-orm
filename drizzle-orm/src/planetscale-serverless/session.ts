@@ -163,7 +163,7 @@ export class PlanetscaleSession<
 		private baseClient: Client | Connection,
 		dialect: MySqlDialect,
 		tx: Transaction | undefined,
-		private relations: AnyRelations | undefined,
+		private relations: TRelations,
 		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private options: PlanetscaleSessionOptions = {},
 	) {
@@ -292,7 +292,7 @@ export class PlanetScaleTransaction<
 	constructor(
 		dialect: MySqlDialect,
 		session: MySqlSession,
-		relations: AnyRelations | undefined,
+		relations: TRelations,
 		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		nestedIndex = 0,
 	) {

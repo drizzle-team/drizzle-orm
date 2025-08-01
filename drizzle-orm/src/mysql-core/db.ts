@@ -70,24 +70,22 @@ export class MySqlDatabase<
 		readonly dialect: MySqlDialect,
 		/** @internal */
 		readonly session: MySqlSession<any, any, any, any, any>,
-		relations: AnyRelations | undefined,
+		relations: TRelations,
 		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		protected readonly mode: Mode,
 	) {
-		const rel = relations ?? {} as EmptyRelations;
-
 		this._ = schema
 			? {
 				schema: schema.schema,
 				fullSchema: schema.fullSchema as TFullSchema,
 				tableNamesMap: schema.tableNamesMap,
-				relations: rel as TRelations,
+				relations: relations,
 			}
 			: {
 				schema: undefined,
 				fullSchema: {} as TFullSchema,
 				tableNamesMap: {},
-				relations: rel as TRelations,
+				relations: relations,
 			};
 		this._query = {} as typeof this['_query'];
 		if (this._.schema) {
@@ -106,48 +104,24 @@ export class MySqlDatabase<
 			}
 		}
 		this.query = {} as typeof this['query'];
-		if (relations) {
-			for (const [tableName, relation] of Object.entries(relations.tablesConfig)) {
-				(this.query as MySqlDatabase<
-					TQueryResult,
-					TPreparedQueryHKT,
-					TSchema,
-					AnyRelations,
-					V1.TablesRelationalConfig
-				>['query'])[
-					tableName
-				] = new RelationalQueryBuilder(
-					relations.tables,
-					relations.tablesConfig,
-					relations.tableNamesMap,
-					relations.tables[relation.name] as MySqlTable,
-					relation,
-					dialect,
-					session,
-				);
-			}
-		}
-		this.query = {} as typeof this['query'];
-		if (relations) {
-			for (const [tableName, relation] of Object.entries(relations.tablesConfig)) {
-				(this.query as MySqlDatabase<
-					TQueryResult,
-					TPreparedQueryHKT,
-					TSchema,
-					AnyRelations,
-					V1.TablesRelationalConfig
-				>['query'])[
-					tableName
-				] = new RelationalQueryBuilder(
-					relations.tables,
-					relations.tablesConfig,
-					relations.tableNamesMap,
-					relation.table as MySqlTable,
-					relation,
-					dialect,
-					session,
-				);
-			}
+		for (const [tableName, relation] of Object.entries(relations.tablesConfig)) {
+			(this.query as MySqlDatabase<
+				TQueryResult,
+				TPreparedQueryHKT,
+				TSchema,
+				AnyRelations,
+				V1.TablesRelationalConfig
+			>['query'])[
+				tableName
+			] = new RelationalQueryBuilder(
+				relations.tables,
+				relations.tablesConfig,
+				relations.tableNamesMap,
+				relation.table as MySqlTable,
+				relation,
+				dialect,
+				session,
+			);
 		}
 
 		this.$cache = { invalidate: async (_params: any) => {} };

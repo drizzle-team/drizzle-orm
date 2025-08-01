@@ -1,6 +1,7 @@
 import 'dotenv/config';
 
 import { connect } from '@tidbcloud/serverless';
+import type { BuildRelations } from 'drizzle-orm';
 import type { TiDBServerlessDatabase } from 'drizzle-orm/tidb-serverless';
 import { drizzle } from 'drizzle-orm/tidb-serverless';
 import { beforeAll, beforeEach } from 'vitest';
@@ -10,7 +11,7 @@ import relations from './relations.ts';
 
 const ENABLE_LOGGING = false;
 
-let db: TiDBServerlessDatabase<never, typeof relations>;
+let db: TiDBServerlessDatabase<never, BuildRelations<typeof relations>>;
 
 beforeAll(async () => {
 	const connectionString = process.env['TIDB_CONNECTION_STRING'];
