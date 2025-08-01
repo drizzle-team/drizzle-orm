@@ -41,7 +41,7 @@ export class SQLiteD1Session<
 	constructor(
 		private client: D1Database,
 		dialect: SQLiteAsyncDialect,
-		private relations: AnyRelations | undefined,
+		private relations: TRelations,
 		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private options: SQLiteD1SessionOptions = {},
 	) {

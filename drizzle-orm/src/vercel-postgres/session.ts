@@ -218,7 +218,7 @@ export class VercelPgSession<
 	constructor(
 		private client: VercelPgClient,
 		dialect: PgDialect,
-		private relations: AnyRelations | undefined,
+		private relations: TRelations,
 		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private options: VercelPgSessionOptions = {},
 	) {

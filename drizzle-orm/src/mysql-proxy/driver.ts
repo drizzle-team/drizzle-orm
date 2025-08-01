@@ -3,7 +3,13 @@ import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { MySqlDatabase } from '~/mysql-core/db.ts';
 import { MySqlDialect } from '~/mysql-core/dialect.ts';
-import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	type BuildRelations,
+	buildRelations,
+	type EmptyRelations,
+	type RelationalConfigs,
+} from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import { type MySqlRemotePreparedQueryHKT, type MySqlRemoteQueryResultHKT, MySqlRemoteSession } from './session.ts';
 
@@ -22,11 +28,11 @@ export type RemoteCallback = (
 
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends AnyRelations = EmptyRelations,
+	TRelations extends RelationalConfigs = undefined,
 >(
 	callback: RemoteCallback,
 	config: DrizzleConfig<TSchema, TRelations> = {},
-): MySqlRemoteDatabase<TSchema, TRelations> {
+): MySqlRemoteDatabase<TSchema, BuildRelations<TRelations>> {
 	const dialect = new MySqlDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
@@ -48,7 +54,7 @@ export function drizzle<
 		};
 	}
 
-	const relations = config.relations;
+	const relations = buildRelations(config.relations);
 	const session = new MySqlRemoteSession(callback, dialect, relations, schema, { logger });
 	return new MySqlRemoteDatabase(
 		dialect,
@@ -56,5 +62,5 @@ export function drizzle<
 		relations,
 		schema as V1.RelationalSchemaConfig<any>,
 		'default',
-	) as MySqlRemoteDatabase<TSchema, TRelations>;
+	) as MySqlRemoteDatabase<TSchema, BuildRelations<TRelations>>;
 }

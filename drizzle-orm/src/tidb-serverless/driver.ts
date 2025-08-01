@@ -5,7 +5,13 @@ import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { MySqlDatabase } from '~/mysql-core/db.ts';
 import { MySqlDialect } from '~/mysql-core/dialect.ts';
-import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	type BuildRelations,
+	buildRelations,
+	type EmptyRelations,
+	type RelationalConfigs,
+} from '~/relations.ts';
 import { type DrizzleConfig, isConfig } from '~/utils.ts';
 import type { TiDBServerlessPreparedQueryHKT, TiDBServerlessQueryResultHKT } from './session.ts';
 import { TiDBServerlessSession } from './session.ts';
@@ -24,11 +30,11 @@ export class TiDBServerlessDatabase<
 
 function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends AnyRelations = EmptyRelations,
+	TRelations extends RelationalConfigs = undefined,
 >(
 	client: Connection,
 	config: DrizzleConfig<TSchema, TRelations> = {},
-): TiDBServerlessDatabase<TSchema, TRelations> & {
+): TiDBServerlessDatabase<TSchema, BuildRelations<TRelations>> & {
 	$client: Connection;
 } {
 	const dialect = new MySqlDialect({ casing: config.casing });
@@ -52,7 +58,7 @@ function construct<
 		};
 	}
 
-	const relations = config.relations;
+	const relations = buildRelations(config.relations);
 	const session = new TiDBServerlessSession(client, dialect, undefined, relations, schema, {
 		logger,
 		cache: config.cache,
@@ -63,7 +69,7 @@ function construct<
 		relations,
 		schema as V1.RelationalSchemaConfig<any>,
 		'default',
-	) as TiDBServerlessDatabase<TSchema, TRelations>;
+	) as TiDBServerlessDatabase<TSchema, BuildRelations<TRelations>>;
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;
 	if ((<any> db).$cache) {
@@ -75,7 +81,7 @@ function construct<
 
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends AnyRelations = EmptyRelations,
+	TRelations extends RelationalConfigs = undefined,
 	TClient extends Connection = Connection,
 >(
 	...params: [
@@ -91,7 +97,7 @@ export function drizzle<
 		})
 		& DrizzleConfig<TSchema, TRelations>,
 	]
-): TiDBServerlessDatabase<TSchema, TRelations> & {
+): TiDBServerlessDatabase<TSchema, BuildRelations<TRelations>> & {
 	$client: TClient;
 } {
 	if (typeof params[0] === 'string') {
@@ -124,10 +130,10 @@ export function drizzle<
 export namespace drizzle {
 	export function mock<
 		TSchema extends Record<string, unknown> = Record<string, never>,
-		TRelations extends AnyRelations = EmptyRelations,
+		TRelations extends RelationalConfigs = undefined,
 	>(
 		config?: DrizzleConfig<TSchema, TRelations>,
-	): TiDBServerlessDatabase<TSchema, TRelations> & {
+	): TiDBServerlessDatabase<TSchema, BuildRelations<TRelations>> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
 		return construct({} as any, config) as any;

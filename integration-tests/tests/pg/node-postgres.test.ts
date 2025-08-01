@@ -1,5 +1,5 @@
 import retry from 'async-retry';
-import { sql } from 'drizzle-orm';
+import { type BuildRelations, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
@@ -14,7 +14,7 @@ import relations from './relations';
 
 const ENABLE_LOGGING = false;
 
-let db: NodePgDatabase<never, typeof relations>;
+let db: NodePgDatabase<never, BuildRelations<typeof relations>>;
 let client: Client;
 let dbGlobalCached: NodePgDatabase;
 let cachedDb: NodePgDatabase;

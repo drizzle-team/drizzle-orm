@@ -3,6 +3,7 @@ import {
 	asc,
 	avg,
 	avgDistinct,
+	type BuildRelations,
 	count,
 	countDistinct,
 	eq,
@@ -54,7 +55,7 @@ import { clear, init, rqbPost, rqbUser } from './schema';
 declare module 'vitest' {
 	interface TestContext {
 		sqlite: {
-			db: BaseSQLiteDatabase<'async' | 'sync', any, Record<string, never>, typeof relations>;
+			db: BaseSQLiteDatabase<'async' | 'sync', any, Record<string, never>, BuildRelations<typeof relations>>;
 		};
 	}
 }

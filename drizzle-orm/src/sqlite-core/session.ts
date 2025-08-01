@@ -359,7 +359,7 @@ export abstract class SQLiteTransaction<
 		resultType: TResultType,
 		dialect: { sync: SQLiteSyncDialect; async: SQLiteAsyncDialect }[TResultType],
 		session: SQLiteSession<TResultType, TRunResult, TFullSchema, TRelations, TSchema>,
-		protected relations: AnyRelations | undefined,
+		protected relations: TRelations,
 		protected schema: {
 			fullSchema: Record<string, unknown>;
 			schema: TSchema;

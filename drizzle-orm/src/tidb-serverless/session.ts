@@ -174,7 +174,7 @@ export class TiDBServerlessSession<
 		private baseClient: Connection,
 		dialect: MySqlDialect,
 		tx: Tx | undefined,
-		private relations: AnyRelations | undefined,
+		private relations: TRelations,
 		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private options: TiDBServerlessSessionOptions = {},
 	) {
@@ -293,7 +293,7 @@ export class TiDBServerlessTransaction<
 	constructor(
 		dialect: MySqlDialect,
 		session: MySqlSession,
-		relations: AnyRelations | undefined,
+		relations: TRelations,
 		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		nestedIndex = 0,
 	) {

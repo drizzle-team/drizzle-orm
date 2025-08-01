@@ -69,25 +69,23 @@ export class BaseSQLiteDatabase<
 		readonly dialect: { sync: SQLiteSyncDialect; async: SQLiteAsyncDialect }[TResultKind],
 		/** @internal */
 		readonly session: SQLiteSession<TResultKind, TRunResult, TFullSchema, TRelations, TSchema>,
-		relations: AnyRelations | undefined,
+		relations: TRelations,
 		_schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		readonly rowModeRQB?: boolean,
 		readonly forbidJsonb?: boolean,
 	) {
-		const rel = relations ?? {} as EmptyRelations;
-
 		this._ = _schema
 			? {
 				schema: _schema.schema,
 				fullSchema: _schema.fullSchema as TFullSchema,
 				tableNamesMap: _schema.tableNamesMap,
-				relations: rel as TRelations,
+				relations,
 			}
 			: {
 				schema: undefined,
 				fullSchema: {} as TFullSchema,
 				tableNamesMap: {},
-				relations: rel as TRelations,
+				relations,
 			};
 
 		this._query = {} as typeof this['_query'];
@@ -109,27 +107,25 @@ export class BaseSQLiteDatabase<
 			}
 		}
 		this.query = {} as typeof this['query'];
-		if (relations) {
-			for (const [tableName, relation] of Object.entries(relations.tablesConfig)) {
-				(this.query as BaseSQLiteDatabase<
-					TResultKind,
-					TRunResult,
-					TSchema,
-					AnyRelations,
-					V1.TablesRelationalConfig
-				>['query'])[tableName] = new RelationalQueryBuilder(
-					resultKind,
-					relations.tables,
-					relations.tablesConfig,
-					relations.tableNamesMap,
-					relations.tables[relation.name] as SQLiteTable,
-					relation,
-					dialect,
-					session as SQLiteSession<any, any, any, any, any>,
-					rowModeRQB,
-					forbidJsonb,
-				);
-			}
+		for (const [tableName, relation] of Object.entries(relations.tablesConfig)) {
+			(this.query as BaseSQLiteDatabase<
+				TResultKind,
+				TRunResult,
+				TSchema,
+				AnyRelations,
+				V1.TablesRelationalConfig
+			>['query'])[tableName] = new RelationalQueryBuilder(
+				resultKind,
+				relations.tables,
+				relations.tablesConfig,
+				relations.tableNamesMap,
+				relations.tables[relation.name] as SQLiteTable,
+				relation,
+				dialect,
+				session as SQLiteSession<any, any, any, any, any>,
+				rowModeRQB,
+				forbidJsonb,
+			);
 		}
 		this.$cache = { invalidate: async (_params: any) => {} };
 	}

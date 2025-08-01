@@ -231,7 +231,7 @@ export abstract class GelTransaction<
 	constructor(
 		dialect: GelDialect,
 		session: GelSession<any, any, any, any>,
-		protected relations: AnyRelations | undefined,
+		protected relations: TRelations,
 		protected schema: {
 			fullSchema: Record<string, unknown>;
 			schema: TSchema;

@@ -62,23 +62,22 @@ export class GelDatabase<
 		readonly dialect: GelDialect,
 		/** @internal */
 		readonly session: GelSession<any, any, any, any>,
-		relations: AnyRelations | undefined,
+		relations: TRelations,
 		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 	) {
-		const rel = relations ?? {} as EmptyRelations;
 		this._ = schema
 			? {
 				schema: schema.schema,
 				fullSchema: schema.fullSchema as TFullSchema,
 				tableNamesMap: schema.tableNamesMap,
-				relations: rel as TRelations,
+				relations: relations,
 				session,
 			}
 			: {
 				schema: undefined,
 				fullSchema: {} as TFullSchema,
 				tableNamesMap: {},
-				relations: rel as TRelations,
+				relations: relations,
 				session,
 			};
 		this._query = {} as typeof this['_query'];
@@ -97,23 +96,21 @@ export class GelDatabase<
 			}
 		}
 		this.query = {} as typeof this['query'];
-		if (relations) {
-			for (const [tableName, relation] of Object.entries(relations.tablesConfig)) {
-				(this.query as GelDatabase<
-					TQueryResult,
-					TSchema,
-					AnyRelations,
-					V1.TablesRelationalConfig
-				>['query'])[tableName] = new RelationalQueryBuilder(
-					relations.tables,
-					relations.tablesConfig,
-					relations.tableNamesMap,
-					relations.tables[relation.name] as GelTable,
-					relation,
-					dialect,
-					session,
-				);
-			}
+		for (const [tableName, relation] of Object.entries(relations.tablesConfig)) {
+			(this.query as GelDatabase<
+				TQueryResult,
+				TSchema,
+				AnyRelations,
+				V1.TablesRelationalConfig
+			>['query'])[tableName] = new RelationalQueryBuilder(
+				relations.tables,
+				relations.tablesConfig,
+				relations.tableNamesMap,
+				relations.tables[relation.name] as GelTable,
+				relation,
+				dialect,
+				session,
+			);
 		}
 
 		this.$cache = { invalidate: async (_params: any) => {} };

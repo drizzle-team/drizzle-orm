@@ -1,7 +1,13 @@
 import type { Database } from 'sql.js';
 import * as V1 from '~/_relations.ts';
 import { DefaultLogger } from '~/logger.ts';
-import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	type BuildRelations,
+	buildRelations,
+	type EmptyRelations,
+	type RelationalConfigs,
+} from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleConfig } from '~/utils.ts';
@@ -14,11 +20,11 @@ export type SQLJsDatabase<
 
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends AnyRelations = EmptyRelations,
+	TRelations extends RelationalConfigs = undefined,
 >(
 	client: Database,
 	config: DrizzleConfig<TSchema, TRelations> = {},
-): SQLJsDatabase<TSchema, TRelations> {
+): SQLJsDatabase<TSchema, BuildRelations<TRelations>> {
 	const dialect = new SQLiteSyncDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
@@ -40,7 +46,10 @@ export function drizzle<
 		};
 	}
 
-	const relations = config.relations;
+	const relations = buildRelations(config.relations);
 	const session = new SQLJsSession(client, dialect, relations, schema, { logger });
-	return new BaseSQLiteDatabase('sync', dialect, session, relations, schema) as SQLJsDatabase<TSchema, TRelations>;
+	return new BaseSQLiteDatabase('sync', dialect, session, relations, schema) as SQLJsDatabase<
+		TSchema,
+		BuildRelations<TRelations>
+	>;
 }

@@ -6,6 +6,7 @@ import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase, PgDialect } from '~/pg-core/index.ts';
+import { buildRelations } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import type { PrismaPgQueryResultHKT } from './session.ts';
 import { PrismaPgSession } from './session.ts';
@@ -15,7 +16,7 @@ export class PrismaPgDatabase extends PgDatabase<PrismaPgQueryResultHKT, Record<
 
 	constructor(client: PrismaClient, logger: Logger | undefined) {
 		const dialect = new PgDialect();
-		super(dialect, new PrismaPgSession(dialect, client, { logger }), undefined, undefined);
+		super(dialect, new PrismaPgSession(dialect, client, { logger }), buildRelations(undefined), undefined);
 	}
 }
 

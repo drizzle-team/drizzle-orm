@@ -6,7 +6,13 @@ import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
-import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	type BuildRelations,
+	buildRelations,
+	type EmptyRelations,
+	type RelationalConfigs,
+} from '~/relations.ts';
 import { type DrizzleConfig, isConfig } from '~/utils.ts';
 import type { NeonClient, NeonQueryResultHKT } from './session.ts';
 import { NeonSession } from './session.ts';
@@ -27,7 +33,7 @@ export class NeonDriver {
 	}
 
 	createSession(
-		relations: AnyRelations | undefined,
+		relations: AnyRelations,
 		schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined,
 	): NeonSession<Record<string, unknown>, AnyRelations, V1.TablesRelationalConfig> {
 		return new NeonSession(this.client, this.dialect, relations, schema, {
@@ -46,12 +52,12 @@ export class NeonDatabase<
 
 function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends AnyRelations = EmptyRelations,
+	TRelations extends RelationalConfigs = undefined,
 	TClient extends NeonClient = NeonClient,
 >(
 	client: TClient,
 	config: DrizzleConfig<TSchema, TRelations> = {},
-): NeonDatabase<TSchema, TRelations> & {
+): NeonDatabase<TSchema, BuildRelations<TRelations>> & {
 	$client: NeonClient extends TClient ? Pool : TClient;
 } {
 	const dialect = new PgDialect({ casing: config.casing });
@@ -75,7 +81,7 @@ function construct<
 		};
 	}
 
-	const relations = config.relations;
+	const relations = buildRelations(config.relations);
 	const driver = new NeonDriver(client, dialect, { logger, cache: config.cache });
 	const session = driver.createSession(relations, schema);
 	const db = new NeonDatabase(dialect, session, relations, schema as V1.RelationalSchemaConfig<any>) as NeonDatabase<
@@ -92,7 +98,7 @@ function construct<
 
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends AnyRelations = EmptyRelations,
+	TRelations extends RelationalConfigs = undefined,
 	TClient extends NeonClient = Pool,
 >(
 	...params: [
@@ -113,7 +119,7 @@ export function drizzle<
 			}
 		),
 	]
-): NeonDatabase<TSchema, TRelations> & {
+): NeonDatabase<TSchema, BuildRelations<TRelations>> & {
 	$client: NeonClient extends TClient ? Pool : TClient;
 } {
 	if (typeof params[0] === 'string') {
@@ -152,7 +158,7 @@ export function drizzle<
 export namespace drizzle {
 	export function mock<
 		TSchema extends Record<string, unknown> = Record<string, never>,
-		TRelations extends AnyRelations = EmptyRelations,
+		TRelations extends RelationalConfigs = undefined,
 	>(
 		config?: DrizzleConfig<TSchema, TRelations>,
 	): NeonDatabase<TSchema> & {

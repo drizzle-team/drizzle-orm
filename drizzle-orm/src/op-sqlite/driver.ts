@@ -2,7 +2,13 @@ import type { OPSQLiteConnection, QueryResult } from '@op-engineering/op-sqlite'
 import * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
-import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	type BuildRelations,
+	buildRelations,
+	type EmptyRelations,
+	type RelationalConfigs,
+} from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleConfig } from '~/utils.ts';
@@ -17,11 +23,11 @@ export class OPSQLiteDatabase<
 
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends AnyRelations = EmptyRelations,
+	TRelations extends RelationalConfigs = undefined,
 >(
 	client: OPSQLiteConnection,
 	config: DrizzleConfig<TSchema, TRelations> = {},
-): OPSQLiteDatabase<TSchema, TRelations> & {
+): OPSQLiteDatabase<TSchema, BuildRelations<TRelations>> & {
 	$client: OPSQLiteConnection;
 } {
 	const dialect = new SQLiteAsyncDialect({ casing: config.casing });
@@ -45,7 +51,7 @@ export function drizzle<
 		};
 	}
 
-	const relations = config.relations;
+	const relations = buildRelations(config.relations);
 	const session = new OPSQLiteSession(client, dialect, relations, schema, { logger, cache: config.cache });
 	const db = new OPSQLiteDatabase(
 		'async',
@@ -55,7 +61,7 @@ export function drizzle<
 		schema as V1.RelationalSchemaConfig<any>,
 	) as OPSQLiteDatabase<
 		TSchema,
-		TRelations
+		BuildRelations<TRelations>
 	>;
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;

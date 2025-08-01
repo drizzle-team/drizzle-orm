@@ -236,7 +236,7 @@ export class MySql2Session<
 	constructor(
 		private client: MySql2Client,
 		dialect: MySqlDialect,
-		private relations: AnyRelations | undefined,
+		private relations: TRelations,
 		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private options: MySql2SessionOptions,
 	) {

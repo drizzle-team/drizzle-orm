@@ -153,7 +153,7 @@ export class PgliteSession<
 	constructor(
 		private client: PgliteClient | Transaction,
 		dialect: PgDialect,
-		private relations: AnyRelations | undefined,
+		private relations: TRelations,
 		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private options: PgliteSessionOptions = {},
 	) {

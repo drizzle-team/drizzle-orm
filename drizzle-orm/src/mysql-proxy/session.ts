@@ -49,7 +49,7 @@ export class MySqlRemoteSession<
 	constructor(
 		private client: RemoteCallback,
 		dialect: MySqlDialect,
-		private relations: AnyRelations | undefined,
+		private relations: TRelations,
 		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		options: MySqlRemoteSessionOptions,
 	) {

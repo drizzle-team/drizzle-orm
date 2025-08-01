@@ -1,4 +1,4 @@
-import { eq, getTableName, is, sql, Table } from 'drizzle-orm';
+import { type BuildRelations, eq, getTableName, is, sql, Table } from 'drizzle-orm';
 import type { MutationOption } from 'drizzle-orm/cache/core';
 import { Cache } from 'drizzle-orm/cache/core';
 import type { CacheConfig } from 'drizzle-orm/cache/core/types';
@@ -82,7 +82,7 @@ declare module 'vitest' {
 			dbGlobalCached: BaseSQLiteDatabase<any, any>;
 		};
 		sqlite: {
-			db: BaseSQLiteDatabase<'async' | 'sync', any, Record<string, never>, typeof relations>;
+			db: BaseSQLiteDatabase<'async' | 'sync', any, Record<string, never>, BuildRelations<typeof relations>>;
 		};
 	}
 }

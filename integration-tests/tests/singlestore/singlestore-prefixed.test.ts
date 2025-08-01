@@ -1,7 +1,16 @@
 import retry from 'async-retry';
 import type Docker from 'dockerode';
-import type { Equal } from 'drizzle-orm';
-import { asc, eq, getTableName, gt, inArray, Name, sql, TransactionRollbackError } from 'drizzle-orm';
+import {
+	asc,
+	eq,
+	getTableName,
+	gt,
+	inArray,
+	Name,
+	sql,
+	TransactionRollbackError} from 'drizzle-orm';
+import type { Equal 
+} from 'drizzle-orm';
 import type { SingleStoreDriverDatabase } from 'drizzle-orm/singlestore';
 import { drizzle } from 'drizzle-orm/singlestore';
 import {

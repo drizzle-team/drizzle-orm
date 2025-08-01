@@ -1,7 +1,7 @@
 import { createClient } from '@libsql/client';
 import type { Client, ResultSet } from '@libsql/client';
 import retry from 'async-retry';
-import { defineRelations, eq, sql } from 'drizzle-orm';
+import { type BuildRelations, defineRelations, eq, sql } from 'drizzle-orm';
 import { relations } from 'drizzle-orm/_relations';
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql';
 import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
@@ -137,7 +137,7 @@ const schema = {
 
 const relationsV2 = defineRelations(schema, () => ({}));
 
-let db: LibSQLDatabase<typeof schema, typeof relationsV2>;
+let db: LibSQLDatabase<typeof schema, BuildRelations<typeof relationsV2>>;
 let client: Client;
 
 beforeAll(async () => {

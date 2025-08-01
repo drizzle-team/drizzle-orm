@@ -3,7 +3,13 @@ import * as V1 from '~/_relations.ts';
 import type { BatchItem, BatchResponse } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
-import type { AnyRelations, EmptyRelations } from '~/relations.ts';
+import {
+	type AnyRelations,
+	type BuildRelations,
+	buildRelations,
+	type EmptyRelations,
+	type RelationalConfigs,
+} from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleConfig } from '~/utils.ts';
@@ -32,8 +38,11 @@ export class LibSQLDatabase<
 /** @internal */
 export function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends AnyRelations = EmptyRelations,
->(client: Client, config: DrizzleConfig<TSchema, TRelations> = {}): LibSQLDatabase<TSchema, TRelations> & {
+	TRelations extends RelationalConfigs = undefined,
+>(
+	client: Client,
+	config: DrizzleConfig<TSchema, TRelations> = {},
+): LibSQLDatabase<TSchema, BuildRelations<TRelations>> & {
 	$client: Client;
 } {
 	const dialect = new SQLiteAsyncDialect({ casing: config.casing });
@@ -57,19 +66,19 @@ export function construct<
 		};
 	}
 
-	const relations = config.relations;
+	const relations = buildRelations(config.relations);
 	const session = new LibSQLSession(client, dialect, relations, schema, { logger, cache: config.cache }, undefined);
 	const db = new LibSQLDatabase(
 		'async',
 		dialect,
 		session as LibSQLSession<
 			TSchema,
-			TRelations,
+			BuildRelations<TRelations>,
 			V1.ExtractTablesWithRelations<TSchema>
 		>,
 		relations,
 		schema as V1.RelationalSchemaConfig<any>,
-	) as LibSQLDatabase<TSchema, TRelations>;
+	) as LibSQLDatabase<TSchema, BuildRelations<TRelations>>;
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;
 	if ((<any> db).$cache) {

@@ -1,5 +1,5 @@
 import { neon, type NeonQueryFunction } from '@neondatabase/serverless';
-import { defineRelations } from 'drizzle-orm';
+import { type BuildRelations, defineRelations } from 'drizzle-orm';
 import { drizzle, type NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import { beforeAll, beforeEach } from 'vitest';
 import {
@@ -36,7 +36,7 @@ export const schema = {
 
 export const neonRelations = defineRelations(schema, () => ({}));
 
-let db: NeonHttpDatabase<typeof schema, typeof neonRelations>;
+let db: NeonHttpDatabase<typeof schema, BuildRelations<typeof neonRelations>>;
 let client: NeonQueryFunction<false, true>;
 let dbGlobalCached: NeonHttpDatabase;
 let cachedDb: NeonHttpDatabase;
