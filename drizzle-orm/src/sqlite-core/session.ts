@@ -348,7 +348,10 @@ export abstract class SQLiteTransaction<
 		super(resultType, dialect, session, schema);
 	}
 
-	rollback(): never {
+	rollback(error?: Error): never {
+		if (error) {
+			throw error;
+		}
 		throw new TransactionRollbackError();
 	}
 }
