@@ -1,5 +1,5 @@
 import type { Assume, Column } from 'drizzle-orm';
-import type { z } from 'zod/v4';
+import type { z } from 'zod';
 import type { IsEnumDefined, IsNever, Json } from './utils.ts';
 
 type HasBaseColumn<TColumn> = TColumn extends { _: { baseColumn: Column | undefined } }
