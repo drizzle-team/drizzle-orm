@@ -1,5 +1,5 @@
 import type { Assume, Column, DrizzleTypeError, SelectedFieldsFlat, Simplify, Table, View } from 'drizzle-orm';
-import type { z } from 'zod/v4';
+import type { z } from 'zod';
 import type { GetZodType, HandleColumn } from './column.types.ts';
 import type { ColumnIsGeneratedAlwaysAs, GetSelection } from './utils.ts';
 
