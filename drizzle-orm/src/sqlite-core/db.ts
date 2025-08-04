@@ -116,9 +116,7 @@ export class BaseSQLiteDatabase<
 				V1.TablesRelationalConfig
 			>['query'])[tableName] = new RelationalQueryBuilder(
 				resultKind,
-				relations.tables,
 				relations.tablesConfig,
-				relations.tableNamesMap,
 				relations.tables[relation.name] as SQLiteTable,
 				relation,
 				dialect,

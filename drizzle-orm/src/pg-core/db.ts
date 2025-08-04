@@ -112,9 +112,7 @@ export class PgDatabase<
 				AnyRelations,
 				V1.TablesRelationalConfig
 			>['query'])[tableName] = new RelationalQueryBuilder(
-				relations.tables,
 				relations.tablesConfig,
-				relations.tableNamesMap,
 				relations.tables[relation.name] as PgTable,
 				relation,
 				dialect,

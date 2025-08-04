@@ -66,7 +66,6 @@ export class Relations<
 	static readonly [entityKind]: string = 'RelationsV2';
 	declare readonly $brand: 'RelationsV2';
 	/** table DB name -> schema table key */
-	readonly tableNamesMap: Record<string, string> = {};
 	readonly tablesConfig: TRelationalConfig;
 
 	constructor(
@@ -75,8 +74,6 @@ export class Relations<
 	) {
 		const rawConfig: TablesRelationalConfig = {};
 		for (const [tsName, table] of Object.entries(tables)) {
-			this.tableNamesMap[getTableUniqueName(table)] = tsName as any;
-
 			rawConfig[tsName] = {
 				table,
 				name: tsName,
@@ -97,7 +94,7 @@ export class Relations<
 			}
 		}
 
-		for (const tableConfig of Object.values(this.tablesConfig)) {
+		for (const [sourceTableName, tableConfig] of Object.entries(this.tablesConfig)) {
 			for (const [relationFieldName, relation] of Object.entries(tableConfig.relations)) {
 				if (!is(relation, Relation)) {
 					continue;
@@ -105,7 +102,7 @@ export class Relations<
 
 				const relationPrintName = `relations -> ${tableConfig.name}: { ${relationFieldName}: r.${
 					is(relation, One) ? 'one' : 'many'
-				}.${this.tableNamesMap[getTableUniqueName(relation.targetTable)]}(...) }`;
+				}.${relation.targetTableName}(...) }`;
 
 				if (typeof relation.alias === 'string' && !relation.alias) {
 					throw new Error(`${relationPrintName}: "alias" cannot be an empty string - omit it if you don't need it`);
@@ -163,7 +160,7 @@ export class Relations<
 				}
 
 				let reverseRelation: Relation | undefined;
-				const targetTableTsName = this.tableNamesMap[getTableUniqueName(relation.targetTable)];
+				const targetTableTsName = relation.targetTableName;
 				if (!targetTableTsName) {
 					throw new Error(
 						`Table "${getTableUniqueName(relation.targetTable)}" not found in provided TS schema`,
@@ -198,17 +195,13 @@ export class Relations<
 					);
 					if (reverseRelations.length > 1) {
 						throw new Error(
-							`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and multiple relations between "${targetTableTsName}" and "${
-								this.tableNamesMap[getTableUniqueName(relation.sourceTable)] ?? getTableUniqueName(relation.sourceTable)
-							}" were found.\nHint: you can specify "alias" on both sides of the relation with the same value`,
+							`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and multiple relations between "${targetTableTsName}" and "${sourceTableName}" were found.\nHint: you can specify "alias" on both sides of the relation with the same value`,
 						);
 					}
 					reverseRelation = reverseRelations[0];
 					if (!reverseRelation) {
 						throw new Error(
-							`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and no reverse relation of table "${targetTableTsName}" with target table "${
-								this.tableNamesMap[getTableUniqueName(relation.sourceTable)] ?? getTableUniqueName(relation.sourceTable)
-							}" was found`,
+							`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and no reverse relation of table "${targetTableTsName}" with target table "${sourceTableName}" was found`,
 						);
 					}
 				}
@@ -259,11 +252,12 @@ export abstract class Relation<
 	throughTable?: SchemaEntry;
 	isReversed?: boolean;
 
+	/** Type-level only field */
 	declare readonly sourceTableName: TSourceTableName;
-	declare readonly targetTableName: TTargetTableName;
 
 	constructor(
 		targetTable: SchemaEntry,
+		readonly targetTableName: TTargetTableName,
 	) {
 		this.targetTable = targetTable as any as SchemaEntry;
 	}
@@ -284,9 +278,10 @@ export class One<
 	constructor(
 		tables: Schema,
 		targetTable: SchemaEntry,
+		targetTableName: TTargetTableName,
 		config: AnyOneConfig | undefined,
 	) {
-		super(targetTable);
+		super(targetTable, targetTableName);
 		this.alias = config?.alias;
 		this.where = config?.where;
 		if (config?.from) {
@@ -332,9 +327,10 @@ export class Many<
 	constructor(
 		tables: Schema,
 		targetTable: SchemaEntry,
+		targetTableName: TTargetTableName,
 		readonly config: AnyManyConfig | undefined,
 	) {
-		super(targetTable);
+		super(targetTable, targetTableName);
 		this.alias = config?.alias;
 		this.where = config?.where;
 		if (config?.from) {
@@ -1089,11 +1085,11 @@ export class RelationsHelperStatic<TTables extends Schema> {
 
 		for (const [tableName, table] of Object.entries(tables)) {
 			one[tableName] = (config) => {
-				return new One(tables as Schema, table as SchemaEntry, config as AnyOneConfig);
+				return new One(tables, table, tableName, config as AnyOneConfig);
 			};
 
 			many[tableName] = (config) => {
-				return new Many(tables as Schema, table as SchemaEntry, config as AnyManyConfig);
+				return new Many(tables, table, tableName, config as AnyManyConfig);
 			};
 		}
 
@@ -1188,6 +1184,14 @@ export function createRelationsHelper<
 	return Object.assign(helperStatic, relationsTables) as any;
 }
 
+export function extractTablesFromSchema<TSchema extends Record<string, unknown>>(
+	schema: TSchema,
+): ExtractTablesFromSchema<TSchema> {
+	return Object.fromEntries(
+		Object.entries(schema).filter(([_, e]) => is(e, Table) || is(e, View)),
+	) as ExtractTablesFromSchema<TSchema>;
+}
+
 export function defineRelationsOld<
 	TSchema extends Record<string, unknown>,
 	TConfig extends RelationsBuilderConfig<TTables>,
@@ -1196,7 +1200,7 @@ export function defineRelationsOld<
 	schema: TSchema,
 	relations?: (helpers: RelationsBuilder<TTables>) => TConfig,
 ): Relations<TTables, TConfig> {
-	const tables = Object.fromEntries(Object.entries(schema).filter(([_, e]) => is(e, Table) || is(e, View))) as TTables;
+	const tables = extractTablesFromSchema(schema) as unknown as TTables;
 
 	return new Relations(
 		tables,
@@ -1237,18 +1241,17 @@ export interface RelationalConfig<
 	config: TConfig;
 }
 
-// type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends (k: infer I) => void ? I : never;
+export type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends (k: infer I) => void ? I : never;
 
-// type IntersectArray<T extends object[]> = UnionToIntersection<T[number]>;
+export type IntersectArray<T extends object[]> = UnionToIntersection<T[number]>;
 
-// Likely less instantiations - to be tested
-// export type MergeRelationalConfigsLoop<TConfigs extends RelationalConfig[]> = IntersectArray<TConfigs>;
+export type MergeRelationalConfigsIter<TConfigs extends RelationalConfig[]> = IntersectArray<TConfigs>;
 
 export type RelationalConfigs = RelationalConfig[] | RelationalConfig | undefined;
 
-export type MergeRelationalConfigsIter<TConfigs extends RelationalConfig[]> = TConfigs extends
-	[infer C extends RelationalConfig, ...infer Tail extends RelationalConfig[]] ? MergeRelationalConfigs<Tail> & C
-	: TConfigs[number];
+// export type MergeRelationalConfigsIter<TConfigs extends RelationalConfig[]> = TConfigs extends
+// 	[infer C extends RelationalConfig, ...infer Tail extends RelationalConfig[]] ? MergeRelationalConfigs<Tail> & C
+// 	: TConfigs[number];
 
 export type MergeRelationalConfigs<TConfigs extends RelationalConfigs> = TConfigs extends undefined ? {
 		schema: {};
@@ -1425,7 +1428,6 @@ export function relationsFilterToSQL(
 	filter: AnyRelationsFilter | AnyTableFilter,
 	tableRelations: Record<string, Relation>,
 	tablesRelations: TablesRelationalConfig,
-	tableNamesMap: Record<string, string>,
 	casing: CasingCache,
 	depth?: number,
 ): SQL | undefined;
@@ -1434,7 +1436,6 @@ export function relationsFilterToSQL(
 	filter: AnyRelationsFilter | AnyTableFilter,
 	tableRelations: Record<string, Relation> = {},
 	tablesRelations: TablesRelationalConfig = {},
-	tableNamesMap: Record<string, string> = {},
 	casing?: CasingCache,
 	depth: number = 0,
 ): SQL | undefined {
@@ -1461,7 +1462,7 @@ export function relationsFilterToSQL(
 				parts.push(
 					or(
 						...(value as AnyRelationsFilter[]).map((subFilter) =>
-							relationsFilterToSQL(table, subFilter, tableRelations, tablesRelations, tableNamesMap, casing!, depth)
+							relationsFilterToSQL(table, subFilter, tableRelations, tablesRelations, casing!, depth)
 						),
 					)!,
 				);
@@ -1474,7 +1475,7 @@ export function relationsFilterToSQL(
 				parts.push(
 					and(
 						...(value as AnyRelationsFilter[]).map((subFilter) =>
-							relationsFilterToSQL(table, subFilter, tableRelations, tablesRelations, tableNamesMap, casing!, depth)
+							relationsFilterToSQL(table, subFilter, tableRelations, tablesRelations, casing!, depth)
 						),
 					)!,
 				);
@@ -1489,7 +1490,6 @@ export function relationsFilterToSQL(
 					value as AnyRelationsFilter,
 					tableRelations,
 					tablesRelations,
-					tableNamesMap,
 					casing!,
 					depth,
 				);
@@ -1522,7 +1522,7 @@ export function relationsFilterToSQL(
 
 				const targetTable = aliasedTable(relation.targetTable, `f${depth}`);
 				const throughTable = relation.throughTable ? aliasedTable(relation.throughTable, `ft${depth}`) : undefined;
-				const targetConfig = tablesRelations[tableNamesMap[getTableUniqueName(relation.targetTable)]!]!;
+				const targetConfig = tablesRelations[relation.targetTableName]!;
 
 				const {
 					filter: relationFilter,
@@ -1533,7 +1533,6 @@ export function relationsFilterToSQL(
 					value as AnyRelationsFilter,
 					targetConfig.relations,
 					tablesRelations,
-					tableNamesMap,
 					casing!,
 					depth + 1,
 				);

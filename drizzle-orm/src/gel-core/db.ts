@@ -103,9 +103,7 @@ export class GelDatabase<
 				AnyRelations,
 				V1.TablesRelationalConfig
 			>['query'])[tableName] = new RelationalQueryBuilder(
-				relations.tables,
 				relations.tablesConfig,
-				relations.tableNamesMap,
 				relations.tables[relation.name] as GelTable,
 				relation,
 				dialect,

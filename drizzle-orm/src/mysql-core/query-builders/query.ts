@@ -22,9 +22,7 @@ export class RelationalQueryBuilder<
 	static readonly [entityKind]: string = 'MySqlRelationalQueryBuilderV2';
 
 	constructor(
-		private tables: Record<string, MySqlTable>,
 		private schema: TSchema,
-		private tableNamesMap: Record<string, string>,
 		private table: MySqlTable,
 		private tableConfig: TableRelationalConfig,
 		private dialect: MySqlDialect,
@@ -35,9 +33,7 @@ export class RelationalQueryBuilder<
 		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>>,
 	): MySqlRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TConfig>[]> {
 		return new MySqlRelationalQuery(
-			this.tables,
 			this.schema,
-			this.tableNamesMap,
 			this.table,
 			this.tableConfig,
 			this.dialect,
@@ -51,9 +47,7 @@ export class RelationalQueryBuilder<
 		config?: KnownKeysOnly<TSelection, DBQueryConfig<'one', TSchema, TFields>>,
 	): MySqlRelationalQuery<TPreparedQueryHKT, BuildQueryResult<TSchema, TFields, TSelection> | undefined> {
 		return new MySqlRelationalQuery(
-			this.tables,
 			this.schema,
-			this.tableNamesMap,
 			this.table,
 			this.tableConfig,
 			this.dialect,
@@ -73,9 +67,7 @@ export class MySqlRelationalQuery<
 	declare protected $brand: 'MySqlRelationalQuery';
 
 	constructor(
-		private tables: Record<string, MySqlTable>,
 		private schema: TablesRelationalConfig,
-		private tableNamesMap: Record<string, string>,
 		private table: MySqlTable,
 		private tableConfig: TableRelationalConfig,
 		private dialect: MySqlDialect,
@@ -104,11 +96,9 @@ export class MySqlRelationalQuery<
 	private _getQuery() {
 		return this.dialect.buildRelationalQuery({
 			schema: this.schema,
-			tableNamesMap: this.tableNamesMap,
 			table: this.table,
 			tableConfig: this.tableConfig,
 			queryConfig: this.config,
-			tables: this.tables,
 			mode: this.mode,
 		});
 	}
