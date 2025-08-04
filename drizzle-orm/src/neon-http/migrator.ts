@@ -25,7 +25,9 @@ export async function migrate<TSchema extends Record<string, unknown>>(
 			created_at bigint
 		)
 	`;
-	await db.session.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
+	if (migrationsSchema !== 'public') {
+		await db.session.execute(sql`CREATE SCHEMA IF NOT EXISTS ${sql.identifier(migrationsSchema)}`);
+	}
 	await db.session.execute(migrationTableCreate);
 
 	const dbMigrations = await db.session.all<{ id: number; hash: string; created_at: string }>(
