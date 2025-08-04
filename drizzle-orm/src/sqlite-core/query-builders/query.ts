@@ -28,9 +28,7 @@ export class RelationalQueryBuilder<
 
 	constructor(
 		private mode: TMode,
-		private tables: Record<string, SQLiteTable>,
 		private schema: TSchema,
-		private tableNamesMap: Record<string, string>,
 		private table: SQLiteTable,
 		private tableConfig: TableRelationalConfig,
 		private dialect: SQLiteDialect,
@@ -45,9 +43,7 @@ export class RelationalQueryBuilder<
 	): SQLiteRelationalQueryKind<TMode, BuildQueryResult<TSchema, TFields, TConfig>[]> {
 		return this.mode === 'sync'
 			? new SQLiteSyncRelationalQuery(
-				this.tables,
 				this.schema,
-				this.tableNamesMap,
 				this.table,
 				this.tableConfig,
 				this.dialect,
@@ -58,9 +54,7 @@ export class RelationalQueryBuilder<
 				this.forbidJsonb,
 			) as SQLiteRelationalQueryKind<TMode, BuildQueryResult<TSchema, TFields, TConfig>[]>
 			: new SQLiteRelationalQuery(
-				this.tables,
 				this.schema,
-				this.tableNamesMap,
 				this.table,
 				this.tableConfig,
 				this.dialect,
@@ -77,9 +71,7 @@ export class RelationalQueryBuilder<
 	): SQLiteRelationalQueryKind<TMode, BuildQueryResult<TSchema, TFields, TConfig> | undefined> {
 		return this.mode === 'sync'
 			? new SQLiteSyncRelationalQuery(
-				this.tables,
 				this.schema,
-				this.tableNamesMap,
 				this.table,
 				this.tableConfig,
 				this.dialect,
@@ -90,9 +82,7 @@ export class RelationalQueryBuilder<
 				this.forbidJsonb,
 			) as SQLiteRelationalQueryKind<TMode, BuildQueryResult<TSchema, TFields, TConfig> | undefined>
 			: new SQLiteRelationalQuery(
-				this.tables,
 				this.schema,
-				this.tableNamesMap,
 				this.table,
 				this.tableConfig,
 				this.dialect,
@@ -122,9 +112,7 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 	table: SQLiteTable;
 
 	constructor(
-		private tables: Record<string, SQLiteTable>,
 		private schema: TablesRelationalConfig,
-		private tableNamesMap: Record<string, string>,
 		table: SQLiteTable,
 		private tableConfig: TableRelationalConfig,
 		private dialect: SQLiteDialect,
@@ -143,11 +131,9 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 	getSQL(): SQL {
 		const query = this.dialect.buildRelationalQuery({
 			schema: this.schema,
-			tableNamesMap: this.tableNamesMap,
 			table: this.table,
 			tableConfig: this.tableConfig,
 			queryConfig: this.config,
-			tables: this.tables,
 			mode: this.mode,
 			jsonb: this.forbidJsonb ? sql`json` : sql`jsonb`,
 		});
@@ -184,11 +170,9 @@ export class SQLiteRelationalQuery<TType extends 'sync' | 'async', TResult> exte
 
 		const query = this.dialect.buildRelationalQuery({
 			schema: this.schema,
-			tableNamesMap: this.tableNamesMap,
 			table: this.table,
 			tableConfig: this.tableConfig,
 			queryConfig: this.config,
-			tables: this.tables,
 			mode: this.mode,
 			isNested: this.rowMode,
 			jsonb,

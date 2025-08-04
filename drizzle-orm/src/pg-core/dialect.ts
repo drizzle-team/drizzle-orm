@@ -1020,9 +1020,7 @@ export class PgDialect {
 			: this.unwrapAllColumns(table, selection);
 
 	buildRelationalQuery({
-		tables,
 		schema,
-		tableNamesMap,
 		table,
 		tableConfig,
 		queryConfig: config,
@@ -1032,9 +1030,7 @@ export class PgDialect {
 		depth,
 		throughJoin,
 	}: {
-		tables: Record<string, PgTable | PgView>;
 		schema: TablesRelationalConfig;
-		tableNamesMap: Record<string, string>;
 		table: PgTable | PgView;
 		tableConfig: TableRelationalConfig;
 		queryConfig?: DBQueryConfig<'many'> | true;
@@ -1056,11 +1052,11 @@ export class PgDialect {
 
 		const where: SQL | undefined = (params?.where && relationWhere)
 			? and(
-				relationsFilterToSQL(table, params.where, tableConfig.relations, schema, tableNamesMap, this.casing),
+				relationsFilterToSQL(table, params.where, tableConfig.relations, schema, this.casing),
 				relationWhere,
 			)
 			: params?.where
-			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema, tableNamesMap, this.casing)
+			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema, this.casing)
 			: relationWhere;
 
 		const order = params?.orderBy ? relationsOrderToSQL(table, params.orderBy) : undefined;
@@ -1121,9 +1117,7 @@ export class PgDialect {
 							mode: isSingle ? 'first' : 'many',
 							schema,
 							queryConfig: join as DBQueryConfig,
-							tableConfig: schema[tableNamesMap[getTableUniqueName(relation.targetTable)]!]!,
-							tableNamesMap,
-							tables,
+							tableConfig: schema[relation.targetTableName]!,
 							relationWhere: filter,
 							errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
 							depth: currentDepth + 1,

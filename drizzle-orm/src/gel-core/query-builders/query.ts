@@ -23,9 +23,7 @@ export class RelationalQueryBuilder<
 	static readonly [entityKind]: string = 'GelRelationalQueryBuilderV2';
 
 	constructor(
-		private tables: Record<string, GelTable>,
 		private schema: TSchema,
-		private tableNamesMap: Record<string, string>,
 		private table: GelTable,
 		private tableConfig: TableRelationalConfig,
 		private dialect: GelDialect,
@@ -36,9 +34,7 @@ export class RelationalQueryBuilder<
 		config?: KnownKeysOnly<TConfig, DBQueryConfig<'many', TSchema, TFields>>,
 	): PgRelationalQuery<BuildQueryResult<TSchema, TFields, TConfig>[]> {
 		return new PgRelationalQuery(
-			this.tables,
 			this.schema,
-			this.tableNamesMap,
 			this.table,
 			this.tableConfig,
 			this.dialect,
@@ -52,9 +48,7 @@ export class RelationalQueryBuilder<
 		config?: KnownKeysOnly<TConfig, DBQueryConfig<'one', TSchema, TFields>>,
 	): PgRelationalQuery<BuildQueryResult<TSchema, TFields, TConfig> | undefined> {
 		return new PgRelationalQuery(
-			this.tables,
 			this.schema,
-			this.tableNamesMap,
 			this.table,
 			this.tableConfig,
 			this.dialect,
@@ -76,9 +70,7 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
 	};
 
 	constructor(
-		private tables: Record<string, GelTable>,
 		private schema: TablesRelationalConfig,
-		private tableNamesMap: Record<string, string>,
 		private table: GelTable,
 		private tableConfig: TableRelationalConfig,
 		private dialect: GelDialect,
@@ -116,11 +108,9 @@ export class PgRelationalQuery<TResult> extends QueryPromise<TResult>
 	private _getQuery() {
 		return this.dialect.buildRelationalQuery({
 			schema: this.schema,
-			tableNamesMap: this.tableNamesMap,
 			table: this.table,
 			tableConfig: this.tableConfig,
 			queryConfig: this.config,
-			tables: this.tables,
 			mode: this.mode,
 		});
 	}

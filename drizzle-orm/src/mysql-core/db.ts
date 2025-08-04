@@ -114,9 +114,7 @@ export class MySqlDatabase<
 			>['query'])[
 				tableName
 			] = new RelationalQueryBuilder(
-				relations.tables,
 				relations.tablesConfig,
-				relations.tableNamesMap,
 				relation.table as MySqlTable,
 				relation,
 				dialect,

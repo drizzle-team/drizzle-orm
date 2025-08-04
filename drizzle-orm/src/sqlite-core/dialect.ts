@@ -936,9 +936,7 @@ export abstract class SQLiteDialect {
 
 	buildRelationalQuery(
 		{
-			tables,
 			schema,
-			tableNamesMap,
 			table,
 			tableConfig,
 			queryConfig: config,
@@ -950,9 +948,7 @@ export abstract class SQLiteDialect {
 			throughJoin,
 			jsonb,
 		}: {
-			tables: Record<string, SQLiteTable | SQLiteView>;
 			schema: TablesRelationalConfig;
-			tableNamesMap: Record<string, string>;
 			table: SQLiteTable | SQLiteView;
 			tableConfig: TableRelationalConfig;
 			queryConfig?: DBQueryConfig<'many'> | true;
@@ -979,11 +975,11 @@ export abstract class SQLiteDialect {
 
 		const where: SQL | undefined = (params?.where && relationWhere)
 			? and(
-				relationsFilterToSQL(table, params.where, tableConfig.relations, schema, tableNamesMap, this.casing),
+				relationsFilterToSQL(table, params.where, tableConfig.relations, schema, this.casing),
 				relationWhere,
 			)
 			: params?.where
-			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema, tableNamesMap, this.casing)
+			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema, this.casing)
 			: relationWhere;
 		const order = params?.orderBy ? relationsOrderToSQL(table, params.orderBy) : undefined;
 		const extras = params?.extras ? relationExtrasToSQL(table, params.extras) : undefined;
@@ -1036,9 +1032,7 @@ export abstract class SQLiteDialect {
 							mode: isSingle ? 'first' : 'many',
 							schema,
 							queryConfig: join as DBQueryConfig,
-							tableConfig: schema[tableNamesMap[getTableUniqueName(relation.targetTable)]!]!,
-							tableNamesMap,
-							tables,
+							tableConfig: schema[relation.targetTableName]!,
 							relationWhere: filter,
 							isNested: true,
 							errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,

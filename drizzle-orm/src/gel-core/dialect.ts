@@ -1005,9 +1005,7 @@ export class GelDialect {
 			: this.unwrapAllColumns(table, selection);
 
 	buildRelationalQuery({
-		tables,
 		schema,
-		tableNamesMap,
 		table,
 		tableConfig,
 		queryConfig: config,
@@ -1017,9 +1015,7 @@ export class GelDialect {
 		depth,
 		throughJoin,
 	}: {
-		tables: Record<string, GelTable | GelView>;
 		schema: TablesRelationalConfig;
-		tableNamesMap: Record<string, string>;
 		table: GelTable | GelView;
 		tableConfig: TableRelationalConfig;
 		queryConfig?: DBQueryConfig<'many'> | true;
@@ -1041,11 +1037,11 @@ export class GelDialect {
 
 		const where: SQL | undefined = (params?.where && relationWhere)
 			? and(
-				relationsFilterToSQL(table, params.where, tableConfig.relations, schema, tableNamesMap, this.casing),
+				relationsFilterToSQL(table, params.where, tableConfig.relations, schema, this.casing),
 				relationWhere,
 			)
 			: params?.where
-			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema, tableNamesMap, this.casing)
+			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema, this.casing)
 			: relationWhere;
 
 		const order = params?.orderBy ? relationsOrderToSQL(table, params.orderBy) : undefined;
@@ -1106,9 +1102,7 @@ export class GelDialect {
 							mode: isSingle ? 'first' : 'many',
 							schema,
 							queryConfig: join as DBQueryConfig,
-							tableConfig: schema[tableNamesMap[getTableUniqueName(relation.targetTable)]!]!,
-							tableNamesMap,
-							tables,
+							tableConfig: schema[relation.targetTableName]!,
 							relationWhere: filter,
 							errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
 							depth: currentDepth + 1,

@@ -1279,9 +1279,7 @@ export class MySqlDialect {
 
 	buildRelationalQuery(
 		{
-			tables,
 			schema,
-			tableNamesMap,
 			table,
 			tableConfig,
 			queryConfig: config,
@@ -1292,9 +1290,7 @@ export class MySqlDialect {
 			isNested,
 			throughJoin,
 		}: {
-			tables: Record<string, MySqlTable | MySqlView>;
 			schema: TablesRelationalConfig;
-			tableNamesMap: Record<string, string>;
 			table: MySqlTable | MySqlView;
 			tableConfig: TableRelationalConfig;
 			queryConfig?: DBQueryConfig<'many'> | true;
@@ -1320,11 +1316,11 @@ export class MySqlDialect {
 
 		const where: SQL | undefined = (params?.where && relationWhere)
 			? and(
-				relationsFilterToSQL(table, params.where, tableConfig.relations, schema, tableNamesMap, this.casing),
+				relationsFilterToSQL(table, params.where, tableConfig.relations, schema, this.casing),
 				relationWhere,
 			)
 			: params?.where
-			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema, tableNamesMap, this.casing)
+			? relationsFilterToSQL(table, params.where, tableConfig.relations, schema, this.casing)
 			: relationWhere;
 		const order = params?.orderBy ? relationsOrderToSQL(table, params.orderBy) : undefined;
 		const extras = params?.extras ? relationExtrasToSQL(table, params.extras) : undefined;
@@ -1380,9 +1376,7 @@ export class MySqlDialect {
 							mode: isSingle ? 'first' : 'many',
 							schema,
 							queryConfig: join as DBQueryConfig,
-							tableConfig: schema[tableNamesMap[getTableUniqueName(relation.targetTable)]!]!,
-							tableNamesMap,
-							tables,
+							tableConfig: schema[relation.targetTableName]!,
 							relationWhere: filter,
 							errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
 							depth: currentDepth + 1,
