@@ -34,7 +34,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { CasingType } from 'src/cli/validations/common';
 import { safeRegister } from 'src/utils/utils-node';
-import { assertUnreachable, stringifyArray, stringifyTuplesArray, trimChar } from '../../utils';
+import { assertUnreachable, stringifyArray, stringifyTuplesArray } from '../../utils';
 import { getColumnCasing } from '../drizzle';
 import { getOrNull } from '../utils';
 import type {
