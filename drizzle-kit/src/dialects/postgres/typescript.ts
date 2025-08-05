@@ -26,6 +26,7 @@ import {
 	ViewColumn,
 } from './ddl';
 import { defaultNameForIdentitySequence, defaults, trimDefaultValueSuffix, typeFor } from './grammar';
+import { inspect } from '../utils';
 
 // TODO: omit defaults opclass... improvement
 const imports = [
@@ -445,19 +446,15 @@ export const ddlToTypeScript = (
 	const rolesStatements = ddl.roles.list().map((it) => {
 		const identifier = withCasing(it.name, casing);
 		rolesNameToTsKey[it.name] = identifier;
+		const params = {
+			...(it.createDb ? { createDb: true } : {}),
+			...(it.createRole ? { createRole: true } : {}),
+			...(it.inherit ? {} : { inherit: false }),
+		};
+		const paramsString = inspect(params);
+		const comma = paramsString ? ', ' : '';
 
-		const params = !it.createDb && !it.createRole && it.inherit
-			? ''
-			: `${
-				trimChar(
-					`, { ${it.createDb ? `createDb: true,` : ''}${it.createRole ? ` createRole: true,` : ''}${
-						!it.inherit ? ` inherit: false ` : ''
-					}`,
-					',',
-				)
-			}	}`;
-
-		return `export const ${identifier} = pgRole("${it.name}", ${params});\n`;
+		return `export const ${identifier} = pgRole("${it.name}"${comma}${paramsString});\n`;
 	})
 		.join('');
 
