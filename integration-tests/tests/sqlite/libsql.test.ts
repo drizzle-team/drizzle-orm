@@ -1,6 +1,6 @@
 import { type Client, createClient } from '@libsql/client';
 import retry from 'async-retry';
-import { type BuildRelations, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql';
 import { migrate } from 'drizzle-orm/libsql/migrator';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
@@ -12,7 +12,7 @@ import { TestCache, TestGlobalCache, tests as cacheTests } from './sqlite-common
 
 const ENABLE_LOGGING = false;
 
-let db: LibSQLDatabase<never, BuildRelations<typeof relations>>;
+let db: LibSQLDatabase<never, typeof relations>;
 let dbGlobalCached: LibSQLDatabase;
 let cachedDb: LibSQLDatabase;
 let client: Client;

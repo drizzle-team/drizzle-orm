@@ -1,6 +1,6 @@
 import { type Client, createClient } from '@libsql/client/http';
 import retry from 'async-retry';
-import { asc, type BuildRelations, eq, getTableColumns, sql } from 'drizzle-orm';
+import { asc, eq, getTableColumns, sql } from 'drizzle-orm';
 import type { LibSQLDatabase } from 'drizzle-orm/libsql';
 import { drizzle } from 'drizzle-orm/libsql/http';
 import { migrate } from 'drizzle-orm/libsql/migrator';
@@ -12,7 +12,7 @@ import { anotherUsersMigratorTable, tests, usersMigratorTable, usersOnUpdate } f
 
 const ENABLE_LOGGING = false;
 
-let db: LibSQLDatabase<never, BuildRelations<typeof relations>>;
+let db: LibSQLDatabase<never, typeof relations>;
 let client: Client;
 
 beforeAll(async () => {

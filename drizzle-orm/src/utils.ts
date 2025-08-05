@@ -5,7 +5,7 @@ import { is } from './entity.ts';
 import type { Logger } from './logger.ts';
 import type { SelectedFieldsOrdered } from './operations.ts';
 import type { TableLike } from './query-builders/select.types.ts';
-import type { RelationalConfigs } from './relations.ts';
+import type { AnyRelations, EmptyRelations } from './relations.ts';
 import { Param, SQL, View } from './sql/sql.ts';
 import type { DriverValueDecoder } from './sql/sql.ts';
 import { Subquery } from './subquery.ts';
@@ -219,7 +219,7 @@ export type Casing = 'snake_case' | 'camelCase';
 
 export interface DrizzleConfig<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelationConfigs extends RelationalConfigs = undefined,
+	TRelationConfigs extends AnyRelations = EmptyRelations,
 > {
 	logger?: boolean | Logger;
 	schema?: TSchema;
@@ -264,7 +264,7 @@ type ExpectedConfigShape = {
 		logQuery(query: string, params: unknown[]): void;
 	};
 	schema?: Record<string, never>;
-	relations?: RelationalConfigs;
+	relations?: AnyRelations;
 	casing?: 'snake_case' | 'camelCase';
 };
 

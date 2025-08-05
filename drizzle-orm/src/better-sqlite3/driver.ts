@@ -2,13 +2,7 @@ import Client, { type Database, type Options, type RunResult } from 'better-sqli
 import * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
-import {
-	type AnyRelations,
-	type BuildRelations,
-	buildRelations,
-	type EmptyRelations,
-	type RelationalConfigs,
-} from '~/relations.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import { type DrizzleConfig, isConfig } from '~/utils.ts';
@@ -32,11 +26,11 @@ export class BetterSQLite3Database<
 
 function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends RelationalConfigs = undefined,
+	TRelations extends AnyRelations = EmptyRelations,
 >(
 	client: Database,
 	config: Omit<DrizzleConfig<TSchema, TRelations>, 'cache'> = {},
-): BetterSQLite3Database<TSchema, BuildRelations<TRelations>> & {
+): BetterSQLite3Database<TSchema, TRelations> & {
 	$client: Database;
 } {
 	const dialect = new SQLiteSyncDialect({ casing: config.casing });
@@ -60,10 +54,10 @@ function construct<
 		};
 	}
 
-	const relations = buildRelations(config.relations);
+	const relations = config.relations ?? {} as TRelations;
 	const session = new BetterSQLiteSession<
 		TSchema,
-		BuildRelations<TRelations>,
+		TRelations,
 		V1.ExtractTablesWithRelations<TSchema>
 	>(client, dialect, relations, schema as V1.RelationalSchemaConfig<any>, { logger });
 	const db = new BetterSQLite3Database(
@@ -84,7 +78,7 @@ function construct<
 
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends RelationalConfigs = undefined,
+	TRelations extends AnyRelations = EmptyRelations,
 >(
 	...params:
 		| []
@@ -105,7 +99,7 @@ export function drizzle<
 				})
 			),
 		]
-): BetterSQLite3Database<TSchema, BuildRelations<TRelations>> & {
+): BetterSQLite3Database<TSchema, TRelations> & {
 	$client: Database;
 } {
 	if (params[0] === undefined || typeof params[0] === 'string') {
@@ -143,10 +137,10 @@ export function drizzle<
 export namespace drizzle {
 	export function mock<
 		TSchema extends Record<string, unknown> = Record<string, never>,
-		TRelations extends RelationalConfigs = undefined,
+		TRelations extends AnyRelations = EmptyRelations,
 	>(
 		config?: DrizzleConfig<TSchema, TRelations>,
-	): BetterSQLite3Database<TSchema, BuildRelations<TRelations>> & {
+	): BetterSQLite3Database<TSchema, TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
 		return construct({} as any, config) as any;

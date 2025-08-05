@@ -2,7 +2,7 @@ import 'dotenv/config';
 
 import { RDSDataClient } from '@aws-sdk/client-rds-data';
 import * as dotenv from 'dotenv';
-import { asc, type BuildRelations, eq, inArray, notInArray, sql, TransactionRollbackError } from 'drizzle-orm';
+import { asc, eq, inArray, notInArray, sql, TransactionRollbackError } from 'drizzle-orm';
 import { relations } from 'drizzle-orm/_relations';
 import type { AwsDataApiPgDatabase } from 'drizzle-orm/aws-data-api/pg';
 import { drizzle } from 'drizzle-orm/aws-data-api/pg';
@@ -97,7 +97,7 @@ const schema = {
 	todoToGroupRelations,
 };
 
-let db: AwsDataApiPgDatabase<typeof schema, BuildRelations<typeof relationsV2>>;
+let db: AwsDataApiPgDatabase<typeof schema, typeof relationsV2>;
 
 beforeAll(async () => {
 	const rdsClient = new RDSDataClient();

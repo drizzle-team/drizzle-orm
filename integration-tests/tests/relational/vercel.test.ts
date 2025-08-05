@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { createClient, type VercelClient } from '@vercel/postgres';
 import Docker from 'dockerode';
-import { type BuildRelations, DrizzleError, sql, TransactionRollbackError } from 'drizzle-orm';
+import { DrizzleError, sql, TransactionRollbackError } from 'drizzle-orm';
 import { drizzle, type VercelPgDatabase } from 'drizzle-orm/vercel-postgres';
 import getPort from 'get-port';
 import { v4 as uuid } from 'uuid';
@@ -15,14 +15,14 @@ declare module 'vitest' {
 	export interface TestContext {
 		docker: Docker;
 		vpgContainer: Docker.Container;
-		vpgDbV2: VercelPgDatabase<never, BuildRelations<typeof relations>>;
+		vpgDbV2: VercelPgDatabase<never, typeof relations>;
 		vpgClient: VercelClient;
 	}
 }
 
 let globalDocker: Docker;
 let pgContainer: Docker.Container;
-let db: VercelPgDatabase<never, BuildRelations<typeof relations>>;
+let db: VercelPgDatabase<never, typeof relations>;
 let client: VercelClient;
 
 async function createDockerDB(): Promise<string> {

@@ -1,7 +1,7 @@
 /* eslint-disable drizzle-internal/require-entity-kind */
 import type BetterSqlite3 from 'better-sqlite3';
 import Database from 'better-sqlite3';
-import { type BuildRelations, defineRelations, eq, sql } from 'drizzle-orm';
+import { defineRelations, eq, sql } from 'drizzle-orm';
 import { relations } from 'drizzle-orm/_relations';
 import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
 import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
@@ -214,7 +214,7 @@ class ServerSimulator {
 	}
 }
 
-let db: SqliteRemoteDatabase<typeof schema, BuildRelations<typeof relationsV2>>;
+let db: SqliteRemoteDatabase<typeof schema, typeof relationsV2>;
 let client: Database.Database;
 let serverSimulator: ServerSimulator;
 

@@ -1,5 +1,5 @@
 import retry from 'async-retry';
-import { type BuildRelations, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
 import type { PgRemoteDatabase } from 'drizzle-orm/pg-proxy';
 import { drizzle as proxyDrizzle } from 'drizzle-orm/pg-proxy';
@@ -74,7 +74,7 @@ class ServerSimulator {
 
 const ENABLE_LOGGING = false;
 
-let db: PgRemoteDatabase<never, BuildRelations<typeof relations>>;
+let db: PgRemoteDatabase<never, typeof relations>;
 let dbGlobalCached: PgRemoteDatabase;
 let cachedDb: PgRemoteDatabase;
 let client: pg.Client;

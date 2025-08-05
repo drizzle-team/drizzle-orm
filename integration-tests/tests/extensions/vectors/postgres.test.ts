@@ -1,14 +1,5 @@
 import Docker from 'dockerode';
-import {
-	type BuildRelations,
-	defineRelations,
-	eq,
-	hammingDistance,
-	jaccardDistance,
-	l2Distance,
-	not,
-	sql,
-} from 'drizzle-orm';
+import { defineRelations, eq, hammingDistance, jaccardDistance, l2Distance, not, sql } from 'drizzle-orm';
 import { bigserial, bit, halfvec, pgTable, sparsevec, vector } from 'drizzle-orm/pg-core';
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import getPort from 'get-port';
@@ -21,7 +12,7 @@ const ENABLE_LOGGING = false;
 let pgContainer: Docker.Container;
 let docker: Docker;
 let client: Sql;
-let db: PostgresJsDatabase<never, BuildRelations<typeof relations>>;
+let db: PostgresJsDatabase<never, typeof relations>;
 
 const items = pgTable('items', {
 	id: bigserial('id', { mode: 'number' }).primaryKey(),

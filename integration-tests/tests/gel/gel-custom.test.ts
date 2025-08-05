@@ -1,6 +1,6 @@
 import retry from 'async-retry';
 import type Docker from 'dockerode';
-import { asc, type BuildRelations, eq, sql } from 'drizzle-orm';
+import { asc, eq, sql } from 'drizzle-orm';
 import { drizzle, type GelJsDatabase } from 'drizzle-orm/gel';
 import { alias, customType, gelTable, gelTableCreator } from 'drizzle-orm/gel-core';
 import * as gel from 'gel';
@@ -13,7 +13,7 @@ $.quiet = true;
 
 const ENABLE_LOGGING = false;
 
-let db: GelJsDatabase<never, BuildRelations<typeof relations>>;
+let db: GelJsDatabase<never, typeof relations>;
 let client: gel.Client;
 let container: Docker.Container | undefined;
 

@@ -1,5 +1,4 @@
 import retry from 'async-retry';
-import type { BuildRelations } from 'drizzle-orm';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
 import { drizzle } from 'drizzle-orm/mysql2';
 import * as mysql from 'mysql2/promise';
@@ -10,7 +9,7 @@ import relations from './relations';
 
 const ENABLE_LOGGING = false;
 
-let db: MySql2Database<never, BuildRelations<typeof relations>>;
+let db: MySql2Database<never, typeof relations>;
 let dbGlobalCached: MySql2Database;
 let cachedDb: MySql2Database;
 let client: mysql.Connection;

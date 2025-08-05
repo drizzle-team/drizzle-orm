@@ -6,13 +6,7 @@ import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/index.ts';
-import {
-	type AnyRelations,
-	type BuildRelations,
-	buildRelations,
-	type EmptyRelations,
-	type RelationalConfigs,
-} from '~/relations.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { type DrizzleConfig, isConfig } from '~/utils.ts';
 import { type VercelPgClient, type VercelPgQueryResultHKT, VercelPgSession } from './session.ts';
 
@@ -51,11 +45,11 @@ export class VercelPgDatabase<
 
 function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends RelationalConfigs = undefined,
+	TRelations extends AnyRelations = EmptyRelations,
 >(
 	client: VercelPgClient,
 	config: DrizzleConfig<TSchema, TRelations> = {},
-): VercelPgDatabase<TSchema, BuildRelations<TRelations>> & {
+): VercelPgDatabase<TSchema, TRelations> & {
 	$client: VercelPgClient;
 } {
 	const dialect = new PgDialect({ casing: config.casing });
@@ -79,7 +73,7 @@ function construct<
 		};
 	}
 
-	const relations = buildRelations(config.relations);
+	const relations = config.relations ?? {} as TRelations;
 	const driver = new VercelPgDriver(client, dialect, { logger, cache: config.cache });
 	const session = driver.createSession(relations, schema);
 	const db = new VercelPgDatabase(
@@ -99,7 +93,7 @@ function construct<
 
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends RelationalConfigs = undefined,
+	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends VercelPgClient = typeof sql,
 >(
 	...params: [] | [
@@ -115,7 +109,7 @@ export function drizzle<
 			})
 		),
 	]
-): VercelPgDatabase<TSchema, BuildRelations<TRelations>> & {
+): VercelPgDatabase<TSchema, TRelations> & {
 	$client: VercelPgClient extends TClient ? typeof sql : TClient;
 } {
 	if (isConfig(params[0])) {
@@ -129,10 +123,10 @@ export function drizzle<
 export namespace drizzle {
 	export function mock<
 		TSchema extends Record<string, unknown> = Record<string, never>,
-		TRelations extends RelationalConfigs = undefined,
+		TRelations extends AnyRelations = EmptyRelations,
 	>(
 		config?: DrizzleConfig<TSchema, TRelations>,
-	): VercelPgDatabase<TSchema, BuildRelations<TRelations>> & {
+	): VercelPgDatabase<TSchema, TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
 		return construct({} as any, config) as any;

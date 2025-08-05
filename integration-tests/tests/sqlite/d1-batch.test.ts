@@ -2,7 +2,7 @@
 import 'dotenv/config';
 import { D1Database, D1DatabaseAPI } from '@miniflare/d1';
 import { createSQLiteDB } from '@miniflare/shared';
-import { type BuildRelations, defineRelations, eq, sql } from 'drizzle-orm';
+import { defineRelations, eq, sql } from 'drizzle-orm';
 import { relations } from 'drizzle-orm/_relations';
 import type { DrizzleD1Database } from 'drizzle-orm/d1';
 import { drizzle } from 'drizzle-orm/d1';
@@ -138,7 +138,7 @@ const schema = {
 
 const relationsV2 = defineRelations(schema, () => ({}));
 
-let db: DrizzleD1Database<typeof schema, BuildRelations<typeof relationsV2>>;
+let db: DrizzleD1Database<typeof schema, typeof relationsV2>;
 
 beforeAll(async () => {
 	const sqliteDb = await createSQLiteDB(':memory:');

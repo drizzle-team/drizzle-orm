@@ -1,4 +1,4 @@
-import { type BuildRelations, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import type { SQLJsDatabase } from 'drizzle-orm/sql-js';
 import { drizzle } from 'drizzle-orm/sql-js';
 import { migrate } from 'drizzle-orm/sql-js/migrator';
@@ -11,7 +11,7 @@ import { anotherUsersMigratorTable, tests, usersMigratorTable } from './sqlite-c
 
 const ENABLE_LOGGING = false;
 
-let db: SQLJsDatabase<never, BuildRelations<typeof relations>>;
+let db: SQLJsDatabase<never, typeof relations>;
 let client: Database;
 
 beforeAll(async () => {

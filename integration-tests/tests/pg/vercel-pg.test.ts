@@ -1,5 +1,5 @@
 import { createClient, type VercelClient } from '@vercel/postgres';
-import { type BuildRelations, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
 import { drizzle, type VercelPgDatabase } from 'drizzle-orm/vercel-postgres';
 import { migrate } from 'drizzle-orm/vercel-postgres/migrator';
@@ -12,7 +12,7 @@ import relations from './relations';
 
 const ENABLE_LOGGING = false;
 
-let db: VercelPgDatabase<never, BuildRelations<typeof relations>>;
+let db: VercelPgDatabase<never, typeof relations>;
 let dbGlobalCached: VercelPgDatabase;
 let cachedDb: VercelPgDatabase;
 let client: VercelClient;

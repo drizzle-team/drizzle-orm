@@ -60,9 +60,9 @@ export class PgDatabase<
 
 	// TO-DO: Figure out how to pass DrizzleTypeError without breaking withReplicas
 	query: {
-		[K in keyof TRelations['tables']]: RelationalQueryBuilder<
-			TRelations['tablesConfig'],
-			TRelations['tablesConfig'][K]
+		[K in keyof TRelations]: RelationalQueryBuilder<
+			TRelations,
+			TRelations[K]
 		>;
 	};
 
@@ -105,15 +105,15 @@ export class PgDatabase<
 			}
 		}
 		this.query = {} as typeof this['query'];
-		for (const [tableName, relation] of Object.entries(relations.tablesConfig)) {
+		for (const [tableName, relation] of Object.entries(relations)) {
 			(this.query as PgDatabase<
 				TQueryResult,
 				TSchema,
 				AnyRelations,
 				V1.TablesRelationalConfig
 			>['query'])[tableName] = new RelationalQueryBuilder(
-				relations.tablesConfig,
-				relations.tables[relation.name] as PgTable,
+				relations,
+				relations[relation.name]!.table as PgTable,
 				relation,
 				dialect,
 				session,

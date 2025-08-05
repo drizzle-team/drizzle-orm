@@ -58,10 +58,10 @@ export class MySqlDatabase<
 
 	// TO-DO: Figure out how to pass DrizzleTypeError without breaking withReplicas
 	query: {
-		[K in keyof TRelations['tables']]: RelationalQueryBuilder<
+		[K in keyof TRelations]: RelationalQueryBuilder<
 			TPreparedQueryHKT,
-			TRelations['tablesConfig'],
-			TRelations['tablesConfig'][K]
+			TRelations,
+			TRelations[K]
 		>;
 	};
 
@@ -104,7 +104,7 @@ export class MySqlDatabase<
 			}
 		}
 		this.query = {} as typeof this['query'];
-		for (const [tableName, relation] of Object.entries(relations.tablesConfig)) {
+		for (const [tableName, relation] of Object.entries(relations)) {
 			(this.query as MySqlDatabase<
 				TQueryResult,
 				TPreparedQueryHKT,
@@ -114,8 +114,8 @@ export class MySqlDatabase<
 			>['query'])[
 				tableName
 			] = new RelationalQueryBuilder(
-				relations.tablesConfig,
-				relation.table as MySqlTable,
+				relations,
+				relations[relation.name]!.table as MySqlTable,
 				relation,
 				dialect,
 				session,
