@@ -9,6 +9,7 @@ export * from './schema.ts';
 export * from './session.ts';
 export * from './subquery.ts';
 export * from './table.ts';
+export * from './temp-table.ts';
 export * from './unique-constraint.ts';
 export * from './utils.ts';
 /* export * from './view-common.ts';

@@ -34,6 +34,7 @@ import type {
 import type { SingleStoreUpdateConfig } from './query-builders/update.ts';
 import type { SingleStoreSession } from './session.ts';
 import { SingleStoreTable } from './table.ts';
+import { SingleStoreTempTable } from './temp-table.ts';
 /* import { SingleStoreViewBase } from './view-base.ts'; */
 
 export interface SingleStoreDialectConfig {
@@ -300,6 +301,10 @@ export class SingleStoreDialect {
 				return sql`${sql`${sql.identifier(table[Table.Symbol.Schema] ?? '')}.`.if(table[Table.Symbol.Schema])}${
 					sql.identifier(table[Table.Symbol.OriginalName])
 				} ${sql.identifier(table[Table.Symbol.Name])}`;
+			}
+
+			if (is(table, SingleStoreTempTable)) {
+				return sql`${sql.identifier(table.tableName)}`;
 			}
 
 			return table;

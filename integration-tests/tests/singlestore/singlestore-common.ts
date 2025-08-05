@@ -3923,4 +3923,163 @@ export function tests(driver?: string) {
 			expect(rawRes).toStrictEqual(expectedRes);
 		});
 	});
+
+	describe('Temporary Tables', () => {
+		test('db.temp().as() API - create temporary table from query', async (ctx) => {
+			const { db } = ctx.singlestore;
+
+			const usersTable = singlestoreTable('test_users_for_temp', {
+				id: int().primaryKey(),
+				name: varchar({ length: 255 }).notNull(),
+				email: varchar({ length: 255 }),
+				active: boolean().default(true),
+			});
+
+			await db.execute(sql`
+				CREATE TABLE IF NOT EXISTS test_users_for_temp (
+								id INT PRIMARY KEY,
+								name VARCHAR(255) NOT NULL,
+								email VARCHAR(255),
+								active BOOLEAN DEFAULT TRUE
+							)
+			`);
+
+			await db.execute(sql`
+				INSERT INTO test_users_for_temp VALUES 
+								(1, 'John Doe', 'john@example.com', TRUE),
+								(2, 'Jane Smith', 'jane@example.com', TRUE),
+								(3, 'Bob Johnson', 'bob@example.com', FALSE)
+			`);
+
+			const myTemporaryTable = await db
+				.temp('my_temporary_table')
+				.as(
+					db
+						.select()
+						.from(usersTable)
+						.where(eq(usersTable.active, true)),
+				);
+
+			expectTypeOf(myTemporaryTable).toHaveProperty('id');
+			expectTypeOf(myTemporaryTable).toHaveProperty('name');
+			expectTypeOf(myTemporaryTable).toHaveProperty('email');
+			expectTypeOf(myTemporaryTable).toHaveProperty('active');
+			expectTypeOf(myTemporaryTable).toHaveProperty('drop');
+			expectTypeOf(myTemporaryTable.drop).toEqualTypeOf<() => Promise<void>>();
+
+			const rows = await db.select().from(myTemporaryTable);
+
+			expectTypeOf(rows).toEqualTypeOf<
+				Array<{
+					id: number;
+					name: string;
+					email: string | null;
+					active: boolean | null;
+				}>
+			>();
+
+			expect(rows).toHaveLength(2);
+
+			if (rows.length > 0) {
+				const firstRow = rows[0]!;
+				expectTypeOf(firstRow.id).toEqualTypeOf<number>();
+				expectTypeOf(firstRow.name).toEqualTypeOf<string>();
+				expectTypeOf(firstRow.email).toEqualTypeOf<string | null>();
+				expectTypeOf(firstRow.active).toEqualTypeOf<boolean | null>();
+			}
+
+			await myTemporaryTable.drop();
+			await db.execute(sql`DROP TABLE test_users_for_temp`);
+		});
+
+		test('Complex query with joins and aggregations', async (ctx) => {
+			const { db } = ctx.singlestore;
+
+			const ordersTable = singlestoreTable('temp_orders', {
+				id: int().primaryKey(),
+				userId: int().notNull(),
+				amount: decimal({ precision: 10, scale: 2 }).notNull(),
+				status: varchar({ length: 50 }).notNull(),
+			});
+
+			const customersTable = singlestoreTable('temp_customers', {
+				id: int().primaryKey(),
+				name: varchar({ length: 255 }).notNull(),
+			});
+
+			await db.execute(sql`
+				CREATE TABLE IF NOT EXISTS temp_orders (
+							id INT PRIMARY KEY,
+							userId INT NOT NULL,
+							amount DECIMAL(10,2) NOT NULL,
+							status VARCHAR(50) NOT NULL
+						)
+			`);
+
+			await db.execute(sql`
+				CREATE TABLE IF NOT EXISTS temp_customers (
+							id INT PRIMARY KEY,
+							name VARCHAR(255) NOT NULL
+						)
+			`);
+
+			await db.execute(sql`
+				INSERT INTO temp_customers VALUES 
+							(1, 'Alice Johnson'),
+							(2, 'Bob Smith')
+			`);
+
+			await db.execute(sql`
+				INSERT INTO temp_orders VALUES 
+							(1, 1, 100.50, 'completed'),
+							(2, 1, 75.25, 'completed'),
+							(3, 2, 200.00, 'pending'),
+							(4, 2, 150.75, 'completed')
+			`);
+
+			const customerSummary = await db
+				.temp('customer_order_summary')
+				.as(
+					db
+						.select({
+							customerId: customersTable.id,
+							customerName: customersTable.name,
+							totalAmount: sum(ordersTable.amount).as('totalAmount'),
+							orderCount: count(ordersTable.id).as('orderCount'),
+						})
+						.from(customersTable)
+						.innerJoin(ordersTable, eq(customersTable.id, ordersTable.userId))
+						.where(eq(ordersTable.status, 'completed'))
+						.groupBy(customersTable.id, customersTable.name),
+				);
+
+			expectTypeOf(customerSummary).toHaveProperty('customerId');
+			expectTypeOf(customerSummary).toHaveProperty('customerName');
+			expectTypeOf(customerSummary).toHaveProperty('totalAmount');
+			expectTypeOf(customerSummary).toHaveProperty('orderCount');
+			expectTypeOf(customerSummary).toHaveProperty('drop');
+			expectTypeOf(customerSummary.drop).toEqualTypeOf<() => Promise<void>>();
+
+			const summary = await db.select({
+				id: customerSummary.customerId,
+			}).from(customerSummary).where(eq(customerSummary.customerId, 1));
+
+			expectTypeOf(summary).toEqualTypeOf<Array<{ id: number }>>();
+			expect(summary).toHaveLength(1);
+
+			const fullSummary = await db.select().from(customerSummary);
+			expectTypeOf(fullSummary).toEqualTypeOf<
+				Array<{
+					customerId: number;
+					customerName: string;
+					totalAmount: string | null;
+					orderCount: number;
+				}>
+			>();
+
+			await customerSummary.drop();
+			await db.execute(sql`DROP TABLE temp_orders`);
+			await db.execute(sql`DROP TABLE temp_customers`);
+		});
+	});
 }
