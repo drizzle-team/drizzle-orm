@@ -1120,7 +1120,7 @@ export type RelationsBuilder<TSchema extends Schema> = Simplify<
 	& RelationsHelperStatic<TSchema>
 >;
 
-export type RelationsBuilderConfigValue = Record<string, unknown> | true | undefined;
+export type RelationsBuilderConfigValue = Record<string, Relation> | true | undefined;
 
 export type RelationsBuilderConfig<TTables extends Schema> = {
 	[TTableName in keyof TTables]?: RelationsBuilderConfigValue;
