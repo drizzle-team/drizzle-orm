@@ -114,7 +114,7 @@ export const fromDatabase = async (
 		name: string;
 	};
 
-	// ! Use `pg_catalog` for system functions
+	// ! Use `pg_catalog` for system tables, functions and operators (Prevent security vulnerabilities)
 
 	// TODO: potential improvements
 	// --- default access method
@@ -122,7 +122,7 @@ export const fromDatabase = async (
 	// SELECT current_setting('default_table_access_method') AS default_am;
 
 	const accessMethodsQuery = db.query<{ oid: number; name: string }>(
-		`SELECT oid, amname as name FROM pg_am WHERE amtype = 't' ORDER BY pg_catalog.lower(amname);`,
+		`SELECT oid, amname as name FROM pg_catalog.pg_am WHERE amtype OPERATOR(pg_catalog.=) 't' ORDER BY pg_catalog.lower(amname);`,
 	).then((rows) => {
 		queryCallback('accessMethods', rows, null);
 		return rows;
@@ -134,7 +134,7 @@ export const fromDatabase = async (
 	const tablespacesQuery = db.query<{
 		oid: number;
 		name: string;
-	}>(`SELECT oid, spcname as "name" FROM pg_tablespace WHERE pg_catalog.has_tablespace_privilege(spcname, 'CREATE') ORDER BY pg_catalog.lower(spcname)`).then((rows) => {
+	}>(`SELECT oid, spcname as "name" FROM pg_catalog.pg_tablespace WHERE pg_catalog.has_tablespace_privilege(spcname, 'CREATE') ORDER BY pg_catalog.lower(spcname)`).then((rows) => {
 		queryCallback('tablespaces', rows, null);
 		return rows;
 	}).catch((err) => {
@@ -142,7 +142,7 @@ export const fromDatabase = async (
 		throw err;
 	});
 
-	const namespacesQuery = db.query<Namespace>("SELECT oid, nspname as name FROM pg_namespace WHERE pg_catalog.has_schema_privilege(nspname, 'USAGE') ORDER BY pg_catalog.lower(nspname)")
+	const namespacesQuery = db.query<Namespace>("SELECT oid, nspname as name FROM pg_catalog.pg_namespace WHERE pg_catalog.has_schema_privilege(nspname, 'USAGE') ORDER BY pg_catalog.lower(nspname)")
 		.then((rows) => {
 			queryCallback('namespaces', rows, null);
 			return rows;
@@ -161,7 +161,7 @@ export const fromDatabase = async (
 			adnum AS "ordinality",
 			pg_catalog.pg_get_expr(adbin, adrelid) AS "expression"
 		FROM
-			pg_attrdef;
+			pg_catalog.pg_attrdef;
 	`).then((rows) => {
 		queryCallback('defaults', rows, null);
 		return rows;
@@ -217,13 +217,13 @@ export const fromDatabase = async (
 				reloptions::text[] as "options",
 				reltablespace as "tablespaceid",
 				relrowsecurity AS "rlsEnabled",
-				case 
-					when relkind = 'v' or relkind = 'm'
-						then pg_catalog.pg_get_viewdef(oid, true)
-					else null 
-				end as "definition"
+				CASE
+					WHEN relkind OPERATOR(pg_catalog.=) 'v' OR relkind OPERATOR(pg_catalog.=) 'm'
+						THEN pg_catalog.pg_get_viewdef(oid, true)
+					ELSE null
+				END as "definition"
 			FROM
-				pg_class
+				pg_catalog.pg_class
 			WHERE
 				relkind IN ('r', 'v', 'm')
 				AND relnamespace IN (${filteredNamespacesIds.join(', ')})
@@ -278,16 +278,13 @@ export const fromDatabase = async (
 		deptype: 'a' | 'i';
 	}>(
 		`SELECT
-			-- sequence id
 			objid as oid,
 			refobjid as "tableId",
 			refobjsubid as "ordinality",
-			
-			-- a = auto
 			deptype
 		FROM
-			pg_depend
-		where ${filterByTableIds ? ` refobjid in ${filterByTableIds}` : 'false'};`,
+			pg_catalog.pg_depend
+		WHERE ${filterByTableIds ? ` refobjid IN ${filterByTableIds}` : 'false'};`,
 	).then((rows) => {
 		queryCallback('depend', rows, null);
 		return rows;
@@ -312,10 +309,10 @@ export const fromDatabase = async (
 				pg_enum.enumsortorder AS "ordinality",
 				pg_enum.enumlabel AS "value"
 			FROM
-				pg_type
-			JOIN pg_enum on pg_enum.enumtypid=pg_type.oid
+				pg_catalog.pg_type
+			JOIN pg_catalog.pg_enum ON pg_enum.enumtypid OPERATOR(pg_catalog.=) pg_type.oid
 			WHERE
-				pg_type.typtype = 'e'
+				pg_type.typtype OPERATOR(pg_catalog.=) 'e'
 				AND typnamespace IN (${filteredNamespacesIds.join(',')})
 			ORDER BY pg_type.oid, pg_enum.enumsortorder
 		`).then((rows) => {
@@ -339,8 +336,8 @@ export const fromDatabase = async (
 				adnum as "ordinality",
 				pg_catalog.pg_get_expr(adbin, adrelid) as "expression"
 			FROM
-				pg_attrdef
-			WHERE ${filterByTableIds ? ` adrelid in ${filterByTableIds}` : 'false'}
+				pg_catalog.pg_attrdef
+			WHERE ${filterByTableIds ? ` adrelid IN ${filterByTableIds}` : 'false'}
 		`).then((rows) => {
 			queryCallback('serials', rows, null);
 			return rows;
@@ -369,8 +366,8 @@ export const fromDatabase = async (
 			seqincrement as "incrementBy", 
 			seqcycle as "cycle", 
 			seqcache as "cacheSize" 
-		FROM pg_sequence
-		LEFT JOIN pg_class ON pg_sequence.seqrelid=pg_class.oid
+		FROM pg_catalog.pg_sequence
+		LEFT JOIN pg_catalog.pg_class ON pg_sequence.seqrelid OPERATOR(pg_catalog.=) pg_class.oid
 		WHERE relnamespace IN (${filteredNamespacesIds.join(',')})
 		ORDER BY relnamespace, pg_catalog.lower(relname);
 	`).then((rows) => {
@@ -404,7 +401,7 @@ export const fromDatabase = async (
 			cmd as "for", 
 			qual as "using", 
 			with_check as "withCheck" 
-		FROM pg_policies
+		FROM pg_catalog.pg_policies
 		ORDER BY
 			pg_catalog.lower(schemaname),
 			pg_catalog.lower(tablename),
@@ -442,7 +439,7 @@ export const fromDatabase = async (
 			rolconnlimit,
 			rolvaliduntil,
 			rolbypassrls
-		FROM pg_roles
+		FROM pg_catalog.pg_roles
 		ORDER BY pg_catalog.lower(rolname);`,
 	).then((rows) => {
 		queryCallback('roles', rows, null);
@@ -509,8 +506,8 @@ export const fromDatabase = async (
 			confupdtype AS "onUpdate",
 			confdeltype AS "onDelete"
 		FROM
-			pg_constraint
-		WHERE ${filterByTableIds ? ` conrelid in ${filterByTableIds}` : 'false'}
+			pg_catalog.pg_constraint
+		WHERE ${filterByTableIds ? ` conrelid IN ${filterByTableIds}` : 'false'}
 		ORDER BY conrelid, contype, pg_catalog.lower(conname);
   `).then((rows) => {
 		queryCallback('constraints', rows, null);
@@ -560,13 +557,13 @@ export const fromDatabase = async (
 			attidentity as "identityType",
 			pg_catalog.format_type(atttypid, atttypmod) as "type",
 			CASE
-				WHEN attidentity in ('a', 'd') or attgenerated = 's' THEN (
+				WHEN attidentity IN ('a', 'd') or attgenerated OPERATOR(pg_catalog.=) 's' THEN (
 					SELECT
 						pg_catalog.row_to_json(c.*)
 					FROM
 						(
 							SELECT
-								pg_catalog.pg_get_serial_sequence('"' || "table_schema" || '"."' || "table_name" || '"', "attname")::regclass::oid as "seqId",
+								pg_catalog.pg_get_serial_sequence('"' OPERATOR(pg_catalog.||) "table_schema" OPERATOR(pg_catalog.||) '"."' OPERATOR(pg_catalog.||) "table_name" OPERATOR(pg_catalog.||) '"', "attname")::regclass::oid as "seqId",
 								"identity_generation" AS generation,
 								"identity_start" AS "start",
 								"identity_increment" AS "increment",
@@ -577,22 +574,20 @@ export const fromDatabase = async (
 							FROM
 								information_schema.columns c
 							WHERE
-								c.column_name = attname
-								-- relnamespace is schemaId, regnamescape::text converts to schemaname
-								AND c.table_schema = cls.relnamespace::regnamespace::text
-								-- attrelid is tableId, regclass::text converts to table name
-								AND c.table_name = cls.relname
+								c.column_name OPERATOR(pg_catalog.=) attname
+								AND c.table_schema OPERATOR(pg_catalog.=) cls.relnamespace::regnamespace::text
+								AND c.table_name OPERATOR(pg_catalog.=) cls.relname
 						) c
 					)
 				ELSE NULL
 			END AS "metadata"
 		FROM
-			pg_attribute attr
-			LEFT JOIN pg_class cls ON cls.oid = attr.attrelid
+			pg_catalog.pg_attribute attr
+			LEFT JOIN pg_catalog.pg_class cls ON cls.oid OPERATOR(pg_catalog.=) attr.attrelid
 		WHERE
-		${filterByTableAndViewIds ? ` attrelid in ${filterByTableAndViewIds}` : 'false'}
-			AND attnum > 0
-			AND attisdropped = FALSE
+		${filterByTableAndViewIds ? ` attrelid IN ${filterByTableAndViewIds}` : 'false'}
+			AND attnum OPERATOR(pg_catalog.>) 0
+			AND attisdropped OPERATOR(pg_catalog.=) FALSE
 		ORDER BY attnum;
 	`).then((rows) => {
 		queryCallback('columns', rows, null);
@@ -974,8 +969,8 @@ export const fromDatabase = async (
         reloptions AS "with",
         pg_catalog.row_to_json(metadata.*) as "metadata"
       FROM
-        pg_class
-      JOIN pg_am am ON am.oid = pg_class.relam
+        pg_catalog.pg_class
+      JOIN pg_catalog.pg_am am ON am.oid OPERATOR(pg_catalog.=) pg_class.relam
       LEFT JOIN LATERAL (
         SELECT
           pg_catalog.pg_get_expr(indexprs, indrelid) AS "expression",
@@ -994,17 +989,18 @@ export const fromDatabase = async (
 			  )
 			FROM
 			  pg_catalog.unnest(indclass) WITH ORDINALITY AS opclass(oid, ordinality)
-			JOIN pg_opclass ON opclass.oid = pg_opclass.oid
-			JOIN pg_am ON pg_opclass.opcmethod = pg_am.oid
+			JOIN pg_catalog.pg_opclass ON opclass.oid OPERATOR(pg_catalog.=) pg_opclass.oid
+			JOIN pg_catalog.pg_am ON pg_opclass.opcmethod OPERATOR(pg_catalog.=) pg_am.oid
 			ORDER BY opclass.ordinality
 		  ) as "opclasses"
         FROM
-          pg_index
+          pg_catalog.pg_index
         WHERE
-          pg_index.indexrelid = pg_class.oid
+          pg_index.indexrelid OPERATOR(pg_catalog.=) pg_class.oid
       ) metadata ON TRUE
       WHERE
-        relkind = 'i' and ${filterByTableIds ? `metadata."tableId" in ${filterByTableIds}` : 'false'}
+        relkind OPERATOR(pg_catalog.=) 'i'
+		AND ${filterByTableIds ? `metadata."tableId" IN ${filterByTableIds}` : 'false'}
 	  ORDER BY relnamespace, pg_catalog.lower(relname);
     `).then((rows) => {
 		queryCallback('indexes', rows, null);
