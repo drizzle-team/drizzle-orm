@@ -95,8 +95,8 @@ test('drop policy + disable rls', async (t) => {
 	});
 
 	const st0 = [
-		'ALTER TABLE "users" DISABLE ROW LEVEL SECURITY;',
 		'DROP POLICY "test" ON "users";',
+		'ALTER TABLE "users" DISABLE ROW LEVEL SECURITY;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -744,8 +744,8 @@ test('unlink table', async (t) => {
 	});
 
 	const st0 = [
-		'ALTER TABLE "users" DISABLE ROW LEVEL SECURITY;',
 		'DROP POLICY "test" ON "users";',
+		'ALTER TABLE "users" DISABLE ROW LEVEL SECURITY;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -774,8 +774,8 @@ test('drop policy with link', async (t) => {
 	});
 
 	const st0 = [
-		'ALTER TABLE "users" DISABLE ROW LEVEL SECURITY;',
 		'DROP POLICY "test" ON "users";',
+		'ALTER TABLE "users" DISABLE ROW LEVEL SECURITY;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -865,8 +865,8 @@ test('unlink non-schema table', async (t) => {
 	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
 	const st0 = [
-		'ALTER TABLE "users" DISABLE ROW LEVEL SECURITY;',
 		'DROP POLICY "test" ON "users";',
+		'ALTER TABLE "users" DISABLE ROW LEVEL SECURITY;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
