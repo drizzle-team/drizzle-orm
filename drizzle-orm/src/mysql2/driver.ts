@@ -8,13 +8,7 @@ import { DefaultLogger } from '~/logger.ts';
 import { MySqlDatabase } from '~/mysql-core/db.ts';
 import { MySqlDialect } from '~/mysql-core/dialect.ts';
 import type { Mode } from '~/mysql-core/session.ts';
-import {
-	type AnyRelations,
-	type BuildRelations,
-	buildRelations,
-	type EmptyRelations,
-	type RelationalConfigs,
-} from '~/relations.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { type DrizzleConfig, isConfig } from '~/utils.ts';
 import { DrizzleError } from '../errors.ts';
 import type { MySql2Client, MySql2PreparedQueryHKT, MySql2QueryResultHKT } from './session.ts';
@@ -59,19 +53,19 @@ export class MySql2Database<
 
 export type MySql2DrizzleConfig<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends RelationalConfigs = undefined,
+	TRelations extends AnyRelations = EmptyRelations,
 > =
 	& Omit<DrizzleConfig<TSchema, TRelations>, 'schema'>
 	& ({ schema: TSchema; mode: Mode } | { schema?: undefined; mode?: Mode });
 
 function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends RelationalConfigs = undefined,
+	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends Pool | Connection | CallbackPool | CallbackConnection = CallbackPool,
 >(
 	client: TClient,
 	config: MySql2DrizzleConfig<TSchema, TRelations> = {},
-): MySql2Database<TSchema, BuildRelations<TRelations>> & {
+): MySql2Database<TSchema, TRelations> & {
 	$client: AnyMySql2Connection extends TClient ? CallbackPool : TClient;
 } {
 	const dialect = new MySqlDialect({ casing: config.casing });
@@ -106,7 +100,7 @@ function construct<
 
 	const mode = config.mode ?? 'default';
 
-	const relations = buildRelations(config.relations);
+	const relations = config.relations ?? {} as TRelations;
 	const driver = new MySql2Driver(clientForInstance as MySql2Client, dialect, { logger, cache: config.cache });
 	const session = driver.createSession(relations, schema, mode);
 	const db = new MySql2Database(
@@ -115,7 +109,7 @@ function construct<
 		relations,
 		schema as V1.RelationalSchemaConfig<any>,
 		mode,
-	) as MySql2Database<TSchema, BuildRelations<TRelations>>;
+	) as MySql2Database<TSchema, TRelations>;
 	(<any> db).$client = client;
 	(<any> db).$cache = config.cache;
 	if ((<any> db).$cache) {
@@ -137,7 +131,7 @@ export type AnyMySql2Connection = Pool | Connection | CallbackPool | CallbackCon
 
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends RelationalConfigs = undefined,
+	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends AnyMySql2Connection = CallbackPool,
 >(
 	...params: [
@@ -155,7 +149,7 @@ export function drizzle<
 			})
 		),
 	]
-): MySql2Database<TSchema, BuildRelations<TRelations>> & {
+): MySql2Database<TSchema, TRelations> & {
 	$client: AnyMySql2Connection extends TClient ? CallbackPool : TClient;
 } {
 	if (typeof params[0] === 'string') {
@@ -191,10 +185,10 @@ export function drizzle<
 export namespace drizzle {
 	export function mock<
 		TSchema extends Record<string, unknown> = Record<string, never>,
-		TRelations extends RelationalConfigs = undefined,
+		TRelations extends AnyRelations = EmptyRelations,
 	>(
 		config?: MySql2DrizzleConfig<TSchema, TRelations>,
-	): MySql2Database<TSchema, BuildRelations<TRelations>> & {
+	): MySql2Database<TSchema, TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
 		return construct({} as any, config) as any;

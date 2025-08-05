@@ -6,7 +6,6 @@ import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { MySqlDatabase, MySqlDialect } from '~/mysql-core/index.ts';
-import { buildRelations } from '~/relations.ts';
 import type { DrizzleConfig } from '~/utils.ts';
 import type { PrismaMySqlPreparedQueryHKT, PrismaMySqlQueryResultHKT } from './session.ts';
 import { PrismaMySqlSession } from './session.ts';
@@ -21,7 +20,7 @@ export class PrismaMySqlDatabase
 		super(
 			dialect,
 			new PrismaMySqlSession(dialect, client, { logger }),
-			buildRelations(undefined),
+			{},
 			undefined,
 			'default',
 		);

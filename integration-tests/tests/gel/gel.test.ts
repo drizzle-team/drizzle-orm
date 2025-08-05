@@ -8,7 +8,6 @@ import {
 	asc,
 	avg,
 	avgDistinct,
-	type BuildRelations,
 	count,
 	countDistinct,
 	eq,
@@ -91,7 +90,7 @@ $.quiet = true;
 const ENABLE_LOGGING = false;
 
 let client: Client;
-let db: GelJsDatabase<never, BuildRelations<typeof relations>>;
+let db: GelJsDatabase<never, typeof relations>;
 let dbGlobalCached: GelJsDatabase;
 let cachedDb: GelJsDatabase;
 const tlsSecurity: string = 'insecure';
@@ -105,7 +104,7 @@ function sleep(ms: number) {
 declare module 'vitest' {
 	interface TestContext {
 		gel: {
-			db: GelJsDatabase<never, BuildRelations<typeof relations>>;
+			db: GelJsDatabase<never, typeof relations>;
 		};
 		cachedGel: {
 			db: GelJsDatabase;

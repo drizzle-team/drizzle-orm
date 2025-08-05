@@ -6,13 +6,7 @@ import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { PgDatabase } from '~/pg-core/db.ts';
 import { PgDialect } from '~/pg-core/dialect.ts';
-import {
-	type AnyRelations,
-	type BuildRelations,
-	buildRelations,
-	type EmptyRelations,
-	type RelationalConfigs,
-} from '~/relations.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { type DrizzleConfig, isConfig } from '~/utils.ts';
 import type { PgliteClient, PgliteQueryResultHKT } from './session.ts';
 import { PgliteSession } from './session.ts';
@@ -52,11 +46,11 @@ export class PgliteDatabase<
 
 function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends RelationalConfigs = undefined,
+	TRelations extends AnyRelations = EmptyRelations,
 >(
 	client: PgliteClient,
 	config: DrizzleConfig<TSchema, TRelations> = {},
-): PgliteDatabase<TSchema, BuildRelations<TRelations>> & {
+): PgliteDatabase<TSchema, TRelations> & {
 	$client: PgliteClient;
 } {
 	const dialect = new PgDialect({ casing: config.casing });
@@ -80,7 +74,7 @@ function construct<
 		};
 	}
 
-	const relations = buildRelations(config.relations);
+	const relations = config.relations ?? {} as TRelations;
 	const driver = new PgliteDriver(client, dialect, { logger, cache: config.cache });
 	const session = driver.createSession(relations, schema);
 	const db = new PgliteDatabase(
@@ -110,7 +104,7 @@ function construct<
 
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends RelationalConfigs = undefined,
+	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends PGlite = PGlite,
 >(
 	...params:
@@ -132,7 +126,7 @@ export function drizzle<
 				})
 			),
 		]
-): PgliteDatabase<TSchema, BuildRelations<TRelations>> & {
+): PgliteDatabase<TSchema, TRelations> & {
 	$client: TClient;
 } {
 	if (params[0] === undefined || typeof params[0] === 'string') {
@@ -167,10 +161,10 @@ export function drizzle<
 export namespace drizzle {
 	export function mock<
 		TSchema extends Record<string, unknown> = Record<string, never>,
-		TRelations extends RelationalConfigs = undefined,
+		TRelations extends AnyRelations = EmptyRelations,
 	>(
 		config?: DrizzleConfig<TSchema, TRelations>,
-	): PgliteDatabase<TSchema, BuildRelations<TRelations>> & {
+	): PgliteDatabase<TSchema, TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
 		return construct({} as any, config) as any;

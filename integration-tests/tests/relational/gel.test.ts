@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import type Docker from 'dockerode';
-import { type BuildRelations, DrizzleError, sql, TransactionRollbackError } from 'drizzle-orm';
+import { DrizzleError, sql, TransactionRollbackError } from 'drizzle-orm';
 import { drizzle, type GelJsDatabase } from 'drizzle-orm/gel';
 import { alias } from 'drizzle-orm/gel-core';
 import createClient, { type Client } from 'gel';
@@ -30,7 +30,7 @@ declare module 'vitest' {
 	export interface TestContext {
 		docker: Docker;
 		gelContainer: Docker.Container;
-		geljsDb: GelJsDatabase<never, BuildRelations<typeof relations>>;
+		geljsDb: GelJsDatabase<never, typeof relations>;
 		gelClient: Client;
 	}
 }
@@ -38,7 +38,7 @@ declare module 'vitest' {
 let globalDocker: Docker | undefined;
 let gelContainer: Docker.Container;
 let client: Client;
-let db: GelJsDatabase<never, BuildRelations<typeof relations>>;
+let db: GelJsDatabase<never, typeof relations>;
 const tlsSecurity: string = 'insecure';
 let dsn: string;
 

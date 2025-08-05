@@ -2,13 +2,7 @@ import * as V1 from '~/_relations.ts';
 import type { BatchItem, BatchResponse } from '~/batch.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
-import {
-	type AnyRelations,
-	type BuildRelations,
-	buildRelations,
-	type EmptyRelations,
-	type RelationalConfigs,
-} from '~/relations.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleConfig } from '~/utils.ts';
@@ -54,27 +48,27 @@ export type RemoteCallback = AsyncRemoteCallback;
 
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends RelationalConfigs = undefined,
+	TRelations extends AnyRelations = EmptyRelations,
 >(
 	callback: RemoteCallback,
 	config?: DrizzleConfig<TSchema, TRelations>,
-): SqliteRemoteDatabase<TSchema, BuildRelations<TRelations>>;
+): SqliteRemoteDatabase<TSchema, TRelations>;
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends RelationalConfigs = undefined,
+	TRelations extends AnyRelations = EmptyRelations,
 >(
 	callback: RemoteCallback,
 	batchCallback?: AsyncBatchRemoteCallback,
 	config?: DrizzleConfig<TSchema, TRelations>,
-): SqliteRemoteDatabase<TSchema, BuildRelations<TRelations>>;
+): SqliteRemoteDatabase<TSchema, TRelations>;
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends RelationalConfigs = undefined,
+	TRelations extends AnyRelations = EmptyRelations,
 >(
 	callback: RemoteCallback,
 	batchCallback?: AsyncBatchRemoteCallback | DrizzleConfig<TSchema, TRelations>,
 	config?: DrizzleConfig<TSchema, TRelations>,
-): SqliteRemoteDatabase<TSchema, BuildRelations<TRelations>> {
+): SqliteRemoteDatabase<TSchema, TRelations> {
 	const dialect = new SQLiteAsyncDialect({ casing: config?.casing });
 	let logger;
 	let cache;
@@ -111,18 +105,18 @@ export function drizzle<
 		};
 	}
 
-	const relations = buildRelations(_config.relations);
+	const relations = _config.relations ?? {} as TRelations;
 	const session = new SQLiteRemoteSession(callback, dialect, relations, schema, _batchCallback, { logger, cache });
 	const db = new SqliteRemoteDatabase(
 		'async',
 		dialect,
-		session as SqliteRemoteDatabase<TSchema, BuildRelations<TRelations>>['session'],
+		session as SqliteRemoteDatabase<TSchema, TRelations>['session'],
 		relations,
 		schema as V1.RelationalSchemaConfig<any>,
 		true,
 	) as SqliteRemoteDatabase<
 		TSchema,
-		BuildRelations<TRelations>
+		TRelations
 	>;
 	(<any> db).$cache = cache;
 	if ((<any> db).$cache) {

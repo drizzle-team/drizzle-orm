@@ -1,5 +1,5 @@
 import Docker from 'dockerode';
-import { type BuildRelations, defineRelations, sql } from 'drizzle-orm';
+import { defineRelations, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { bigserial, geometry, line, pgTable, point } from 'drizzle-orm/pg-core';
@@ -15,7 +15,7 @@ const ENABLE_LOGGING = false;
 let pgContainer: Docker.Container;
 let docker: Docker;
 let client: pg.Client;
-let db: NodePgDatabase<never, BuildRelations<typeof relations>>;
+let db: NodePgDatabase<never, typeof relations>;
 
 const items = pgTable('items', {
 	id: bigserial('id', { mode: 'number' }).primaryKey(),

@@ -1,5 +1,5 @@
 import { neonConfig, Pool } from '@neondatabase/serverless';
-import { type BuildRelations, eq, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { drizzle, type NeonDatabase } from 'drizzle-orm/neon-serverless';
 import { migrate } from 'drizzle-orm/neon-serverless/migrator';
 import { pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
@@ -13,7 +13,7 @@ import relations from './relations';
 
 const ENABLE_LOGGING = false;
 
-let db: NeonDatabase<never, BuildRelations<typeof relations>>;
+let db: NeonDatabase<never, typeof relations>;
 let dbGlobalCached: NeonDatabase;
 let cachedDb: NeonDatabase;
 let client: Pool;

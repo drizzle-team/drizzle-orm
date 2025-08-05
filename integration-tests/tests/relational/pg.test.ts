@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import Docker from 'dockerode';
-import { type BuildRelations, DrizzleError, eq, sql, TransactionRollbackError } from 'drizzle-orm';
+import { DrizzleError, eq, sql, TransactionRollbackError } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { alias } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
@@ -33,14 +33,14 @@ declare module 'vitest' {
 	export interface TestContext {
 		docker: Docker;
 		pgContainer: Docker.Container;
-		pgDbV2: NodePgDatabase<never, BuildRelations<typeof relations>>;
+		pgDbV2: NodePgDatabase<never, typeof relations>;
 		pgClient: pg.Client;
 	}
 }
 
 let globalDocker: Docker;
 let pgContainer: Docker.Container;
-let db: NodePgDatabase<never, BuildRelations<typeof relations>>;
+let db: NodePgDatabase<never, typeof relations>;
 let client: pg.Client;
 
 async function createDockerDB(): Promise<string> {

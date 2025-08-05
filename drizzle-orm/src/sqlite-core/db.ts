@@ -56,10 +56,10 @@ export class BaseSQLiteDatabase<
 
 	// TO-DO: Figure out how to pass DrizzleTypeError without breaking withReplicas
 	query: {
-		[K in keyof TRelations['tables']]: RelationalQueryBuilder<
+		[K in keyof TRelations]: RelationalQueryBuilder<
 			TResultKind,
-			TRelations['tablesConfig'],
-			TRelations['tablesConfig'][K]
+			TRelations,
+			TRelations[K]
 		>;
 	};
 
@@ -107,7 +107,7 @@ export class BaseSQLiteDatabase<
 			}
 		}
 		this.query = {} as typeof this['query'];
-		for (const [tableName, relation] of Object.entries(relations.tablesConfig)) {
+		for (const [tableName, relation] of Object.entries(relations)) {
 			(this.query as BaseSQLiteDatabase<
 				TResultKind,
 				TRunResult,
@@ -116,8 +116,8 @@ export class BaseSQLiteDatabase<
 				V1.TablesRelationalConfig
 			>['query'])[tableName] = new RelationalQueryBuilder(
 				resultKind,
-				relations.tablesConfig,
-				relations.tables[relation.name] as SQLiteTable,
+				relations,
+				relations[relation.name]!.table as SQLiteTable,
 				relation,
 				dialect,
 				session as SQLiteSession<any, any, any, any, any>,

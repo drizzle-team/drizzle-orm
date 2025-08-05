@@ -1,5 +1,5 @@
 import retry from 'async-retry';
-import { type BuildRelations, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
 import { drizzle } from 'drizzle-orm/xata-http';
 import type { XataHttpClient, XataHttpDatabase } from 'drizzle-orm/xata-http';
@@ -14,7 +14,7 @@ import relations from './relations.ts';
 
 const ENABLE_LOGGING = false;
 
-let db: XataHttpDatabase<never, BuildRelations<typeof relations>>;
+let db: XataHttpDatabase<never, typeof relations>;
 let dbGlobalCached: XataHttpDatabase;
 let cachedDb: XataHttpDatabase;
 let client: XataHttpClient;

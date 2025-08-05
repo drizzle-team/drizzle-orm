@@ -2,13 +2,7 @@
 import * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { DefaultLogger } from '~/logger.ts';
-import {
-	type AnyRelations,
-	type BuildRelations,
-	buildRelations,
-	type EmptyRelations,
-	type RelationalConfigs,
-} from '~/relations.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleConfig } from '~/utils.ts';
@@ -30,12 +24,12 @@ export class DrizzleSqliteDODatabase<
 
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends RelationalConfigs = undefined,
+	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends DurableObjectStorage = DurableObjectStorage,
 >(
 	client: TClient,
 	config: DrizzleConfig<TSchema, TRelations> = {},
-): DrizzleSqliteDODatabase<TSchema, BuildRelations<TRelations>> & {
+): DrizzleSqliteDODatabase<TSchema, TRelations> & {
 	$client: TClient;
 } {
 	const dialect = new SQLiteSyncDialect({ casing: config.casing });
@@ -59,7 +53,7 @@ export function drizzle<
 		};
 	}
 
-	const relations = buildRelations(config.relations);
+	const relations = config.relations ?? {} as TRelations;
 	const session = new SQLiteDOSession(client as DurableObjectStorage, dialect, relations, schema, { logger });
 	const db = new DrizzleSqliteDODatabase(
 		'sync',
@@ -69,7 +63,7 @@ export function drizzle<
 		schema as V1.RelationalSchemaConfig<any>,
 	) as DrizzleSqliteDODatabase<
 		TSchema,
-		BuildRelations<TRelations>
+		TRelations
 	>;
 	(<any> db).$client = client;
 

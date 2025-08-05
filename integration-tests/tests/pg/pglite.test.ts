@@ -1,5 +1,5 @@
 import { PGlite } from '@electric-sql/pglite';
-import { type BuildRelations, Name, sql } from 'drizzle-orm';
+import { Name, sql } from 'drizzle-orm';
 import { drizzle, type PgliteDatabase } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
@@ -10,7 +10,7 @@ import relations from './relations';
 
 const ENABLE_LOGGING = false;
 
-let db: PgliteDatabase<never, BuildRelations<typeof relations>>;
+let db: PgliteDatabase<never, typeof relations>;
 let dbGlobalCached: PgliteDatabase;
 let cachedDb: PgliteDatabase;
 let client: PGlite;

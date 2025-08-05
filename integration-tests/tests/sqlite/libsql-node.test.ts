@@ -1,6 +1,6 @@
 import { type Client, createClient } from '@libsql/client/node';
 import retry from 'async-retry';
-import { type BuildRelations, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import type { LibSQLDatabase } from 'drizzle-orm/libsql';
 import { migrate } from 'drizzle-orm/libsql/migrator';
 import { drizzle } from 'drizzle-orm/libsql/node';
@@ -12,7 +12,7 @@ import { anotherUsersMigratorTable, tests, usersMigratorTable } from './sqlite-c
 
 const ENABLE_LOGGING = false;
 
-let db: LibSQLDatabase<never, BuildRelations<typeof relations>>;
+let db: LibSQLDatabase<never, typeof relations>;
 let client: Client;
 
 beforeAll(async () => {

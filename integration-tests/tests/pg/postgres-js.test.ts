@@ -4,7 +4,7 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres, { type Sql } from 'postgres';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 
-import { type BuildRelations, Name, sql } from 'drizzle-orm';
+import { Name, sql } from 'drizzle-orm';
 import { pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import { skipTests } from '~/common';
@@ -15,7 +15,7 @@ import relations from './relations';
 
 const ENABLE_LOGGING = false;
 
-let db: PostgresJsDatabase<never, BuildRelations<typeof relations>>;
+let db: PostgresJsDatabase<never, typeof relations>;
 let dbGlobalCached: PostgresJsDatabase;
 let cachedDb: PostgresJsDatabase;
 let client: Sql;

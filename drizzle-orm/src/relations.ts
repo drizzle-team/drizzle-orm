@@ -1,4 +1,4 @@
-import { getTableUniqueName, IsAlias, OriginalName, Table, TableColumns, TableSchema } from '~/table.ts';
+import { IsAlias, OriginalName, Table, TableColumns, TableSchema } from '~/table.ts';
 import { aliasedTable } from './alias.ts';
 import type { CasingCache } from './casing.ts';
 import { type AnyColumn, Column } from './column.ts';
@@ -58,177 +58,163 @@ export type FieldValue =
 
 export type FieldSelection = Record<string, FieldValue>;
 
-export class Relations<
-	TTables extends Schema = Schema,
-	TConfig extends AnyRelationsBuilderConfig = AnyRelationsBuilderConfig,
-	TRelationalConfig extends TablesRelationalConfig = ExtractTablesWithRelations<TConfig, TTables>,
-> {
-	static readonly [entityKind]: string = 'RelationsV2';
-	declare readonly $brand: 'RelationsV2';
-	/** table DB name -> schema table key */
-	readonly tablesConfig: TRelationalConfig;
+export function buildRelations<TTables extends Schema, TConfig extends AnyRelationsBuilderConfig>(
+	tables: TTables,
+	config: TConfig,
+): ExtractTablesWithRelations<TConfig, TTables> {
+	const tablesConfig = {} as TablesRelationalConfig;
 
-	constructor(
-		readonly tables: TTables,
-		readonly config: TConfig,
-	) {
-		const rawConfig: TablesRelationalConfig = {};
-		for (const [tsName, table] of Object.entries(tables)) {
-			rawConfig[tsName] = {
-				table,
-				name: tsName,
-				relations: (config[tsName] || {}) as Record<string, RelationsBuilderEntry>,
-			};
-		}
+	for (const [tsName, table] of Object.entries(tables)) {
+		tablesConfig[tsName] = {
+			table,
+			name: tsName,
+			relations: (config[tsName] || {}) as Record<string, RelationsBuilderEntry>,
+		};
+	}
 
-		this.tablesConfig = rawConfig as TRelationalConfig;
-
-		for (const tableConfig of Object.values(this.tablesConfig)) {
-			for (const [relationFieldName, relation] of Object.entries(tableConfig.relations)) {
-				if (!is(relation, Relation)) {
-					continue;
-				}
-
-				relation.sourceTable = tableConfig.table;
-				relation.fieldName = relationFieldName;
+	for (const tableConfig of Object.values(tablesConfig)) {
+		for (const [relationFieldName, relation] of Object.entries(tableConfig.relations)) {
+			if (!is(relation, Relation)) {
+				continue;
 			}
-		}
 
-		for (const [sourceTableName, tableConfig] of Object.entries(this.tablesConfig)) {
-			for (const [relationFieldName, relation] of Object.entries(tableConfig.relations)) {
-				if (!is(relation, Relation)) {
-					continue;
-				}
-
-				const relationPrintName = `relations -> ${tableConfig.name}: { ${relationFieldName}: r.${
-					is(relation, One) ? 'one' : 'many'
-				}.${relation.targetTableName}(...) }`;
-
-				if (typeof relation.alias === 'string' && !relation.alias) {
-					throw new Error(`${relationPrintName}: "alias" cannot be an empty string - omit it if you don't need it`);
-				}
-
-				if (relation.sourceColumns?.length === 0) {
-					throw new Error(`${relationPrintName}: "from" cannot be an empty array`);
-				}
-
-				if (relation.targetColumns?.length === 0) {
-					throw new Error(`${relationPrintName}: "to" cannot be an empty array`);
-				}
-
-				if (relation.sourceColumns && relation.targetColumns) {
-					if (relation.sourceColumns.length !== relation.targetColumns.length && !relation.throughTable) {
-						throw new Error(
-							`${relationPrintName}: "from" and "to" fields without "through" must have the same length`,
-						);
-					}
-
-					if (relation.through) {
-						if (
-							relation.through.source.length !== relation.sourceColumns.length
-							|| relation.through.target.length !== relation.targetColumns.length
-						) {
-							throw new Error(
-								`${relationPrintName}: ".through(column)" must be used either on all columns in "from" and "to" or not defined on any of them`,
-							);
-						}
-
-						for (const column of relation.through.source) {
-							if ((this.tables as any as Record<string, Table>)[column._.tableName] !== relation.throughTable) {
-								throw new Error(
-									`${relationPrintName}: ".through(column)" must be used on the same table by all columns of the relation`,
-								);
-							}
-						}
-
-						for (const column of relation.through.target) {
-							if ((this.tables as any as Record<string, Table>)[column._.tableName] !== relation.throughTable) {
-								throw new Error(
-									`${relationPrintName}: ".through(column)" must be used on the same table by all columns of the relation`,
-								);
-							}
-						}
-					}
-
-					continue;
-				}
-
-				if (relation.sourceColumns || relation.targetColumns) {
-					throw new Error(
-						`${relationPrintName}: relation must have either both "from" and "to" defined, or none of them`,
-					);
-				}
-
-				let reverseRelation: Relation | undefined;
-				const targetTableTsName = relation.targetTableName;
-				if (!targetTableTsName) {
-					throw new Error(
-						`Table "${getTableUniqueName(relation.targetTable)}" not found in provided TS schema`,
-					);
-				}
-				const reverseTableConfig = this.tablesConfig[targetTableTsName];
-				if (!reverseTableConfig) {
-					throw new Error(
-						`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and no reverse relations of table "${targetTableTsName}" were found"`,
-					);
-				}
-				if (relation.alias) {
-					const reverseRelations = Object.values(reverseTableConfig.relations).filter((it): it is Relation =>
-						is(it, Relation) && it.alias === relation.alias && it !== relation
-					);
-					if (reverseRelations.length > 1) {
-						throw new Error(
-							`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and multiple relations with alias "${relation.alias}" found in table "${targetTableTsName}": ${
-								reverseRelations.map((it) => `"${it.fieldName}"`).join(', ')
-							}`,
-						);
-					}
-					reverseRelation = reverseRelations[0];
-					if (!reverseRelation) {
-						throw new Error(
-							`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and there is no reverse relation of table "${targetTableTsName}" with alias "${relation.alias}"`,
-						);
-					}
-				} else {
-					const reverseRelations = Object.values(reverseTableConfig.relations).filter((it): it is Relation =>
-						is(it, Relation) && it.targetTable === relation.sourceTable && !it.alias && it !== relation
-					);
-					if (reverseRelations.length > 1) {
-						throw new Error(
-							`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and multiple relations between "${targetTableTsName}" and "${sourceTableName}" were found.\nHint: you can specify "alias" on both sides of the relation with the same value`,
-						);
-					}
-					reverseRelation = reverseRelations[0];
-					if (!reverseRelation) {
-						throw new Error(
-							`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and no reverse relation of table "${targetTableTsName}" with target table "${sourceTableName}" was found`,
-						);
-					}
-				}
-				if (!reverseRelation.sourceColumns || !reverseRelation.targetColumns) {
-					throw new Error(
-						`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and reverse relation "${targetTableTsName}.${reverseRelation.fieldName}" does not have "from"/"to" defined`,
-					);
-				}
-
-				relation.sourceColumns = reverseRelation.targetColumns;
-				relation.targetColumns = reverseRelation.sourceColumns;
-				relation.through = reverseRelation.through
-					? {
-						source: reverseRelation.through.target,
-						target: reverseRelation.through.source,
-					}
-					: undefined;
-				relation.throughTable = reverseRelation.throughTable;
-				relation.isReversed = !relation.where;
-				relation.where = relation.where ?? reverseRelation.where;
-			}
+			relation.sourceTable = tableConfig.table;
+			relation.fieldName = relationFieldName;
 		}
 	}
+
+	for (const [sourceTableName, tableConfig] of Object.entries(tablesConfig)) {
+		for (const [relationFieldName, relation] of Object.entries(tableConfig.relations)) {
+			if (!is(relation, Relation)) {
+				continue;
+			}
+
+			const relationPrintName = `relations -> ${tableConfig.name}: { ${relationFieldName}: r.${
+				is(relation, One) ? 'one' : 'many'
+			}.${relation.targetTableName}(...) }`;
+
+			if (typeof relation.alias === 'string' && !relation.alias) {
+				throw new Error(`${relationPrintName}: "alias" cannot be an empty string - omit it if you don't need it`);
+			}
+
+			if (relation.sourceColumns?.length === 0) {
+				throw new Error(`${relationPrintName}: "from" cannot be an empty array`);
+			}
+
+			if (relation.targetColumns?.length === 0) {
+				throw new Error(`${relationPrintName}: "to" cannot be an empty array`);
+			}
+
+			if (relation.sourceColumns && relation.targetColumns) {
+				if (relation.sourceColumns.length !== relation.targetColumns.length && !relation.throughTable) {
+					throw new Error(
+						`${relationPrintName}: "from" and "to" fields without "through" must have the same length`,
+					);
+				}
+
+				if (relation.through) {
+					if (
+						relation.through.source.length !== relation.sourceColumns.length
+						|| relation.through.target.length !== relation.targetColumns.length
+					) {
+						throw new Error(
+							`${relationPrintName}: ".through(column)" must be used either on all columns in "from" and "to" or not defined on any of them`,
+						);
+					}
+
+					for (const column of relation.through.source) {
+						if ((tables as any as Record<string, Table>)[column._.tableName] !== relation.throughTable) {
+							throw new Error(
+								`${relationPrintName}: ".through(column)" must be used on the same table by all columns of the relation`,
+							);
+						}
+					}
+
+					for (const column of relation.through.target) {
+						if ((tables as any as Record<string, Table>)[column._.tableName] !== relation.throughTable) {
+							throw new Error(
+								`${relationPrintName}: ".through(column)" must be used on the same table by all columns of the relation`,
+							);
+						}
+					}
+				}
+
+				continue;
+			}
+
+			if (relation.sourceColumns || relation.targetColumns) {
+				throw new Error(
+					`${relationPrintName}: relation must have either both "from" and "to" defined, or none of them`,
+				);
+			}
+
+			let reverseRelation: Relation | undefined;
+			const targetTableTsName = relation.targetTableName;
+
+			const reverseTableConfig = tablesConfig[targetTableTsName];
+			if (!reverseTableConfig) {
+				throw new Error(
+					`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and no reverse relations of table "${targetTableTsName}" were found"`,
+				);
+			}
+			if (relation.alias) {
+				const reverseRelations = Object.values(reverseTableConfig.relations).filter((it): it is Relation =>
+					is(it, Relation) && it.alias === relation.alias && it !== relation
+				);
+				if (reverseRelations.length > 1) {
+					throw new Error(
+						`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and multiple relations with alias "${relation.alias}" found in table "${targetTableTsName}": ${
+							reverseRelations.map((it) => `"${it.fieldName}"`).join(', ')
+						}`,
+					);
+				}
+				reverseRelation = reverseRelations[0];
+				if (!reverseRelation) {
+					throw new Error(
+						`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and there is no reverse relation of table "${targetTableTsName}" with alias "${relation.alias}"`,
+					);
+				}
+			} else {
+				const reverseRelations = Object.values(reverseTableConfig.relations).filter((it): it is Relation =>
+					is(it, Relation) && it.targetTable === relation.sourceTable && !it.alias && it !== relation
+				);
+				if (reverseRelations.length > 1) {
+					throw new Error(
+						`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and multiple relations between "${targetTableTsName}" and "${sourceTableName}" were found.\nHint: you can specify "alias" on both sides of the relation with the same value`,
+					);
+				}
+				reverseRelation = reverseRelations[0];
+				if (!reverseRelation) {
+					throw new Error(
+						`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and no reverse relation of table "${targetTableTsName}" with target table "${sourceTableName}" was found`,
+					);
+				}
+			}
+			if (!reverseRelation.sourceColumns || !reverseRelation.targetColumns) {
+				throw new Error(
+					`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and reverse relation "${targetTableTsName}.${reverseRelation.fieldName}" does not have "from"/"to" defined`,
+				);
+			}
+
+			relation.sourceColumns = reverseRelation.targetColumns;
+			relation.targetColumns = reverseRelation.sourceColumns;
+			relation.through = reverseRelation.through
+				? {
+					source: reverseRelation.through.target,
+					target: reverseRelation.through.source,
+				}
+				: undefined;
+			relation.throughTable = reverseRelation.throughTable;
+			relation.isReversed = !relation.where;
+			relation.where = relation.where ?? reverseRelation.where;
+		}
+	}
+
+	return tablesConfig as any;
 }
 
-export type EmptyRelations = Relations<Record<string, never>, Record<string, never>, Record<string, never>>;
-export type AnyRelations = Relations<Record<string, any>, Record<string, any>, Record<string, any>>;
+export type EmptyRelations = {};
+export type AnyRelations = TablesRelationalConfig;
 
 export abstract class Relation<
 	TSourceTableName extends string = string,
@@ -1192,27 +1178,6 @@ export function extractTablesFromSchema<TSchema extends Record<string, unknown>>
 	) as ExtractTablesFromSchema<TSchema>;
 }
 
-export function defineRelationsOld<
-	TSchema extends Record<string, unknown>,
-	TConfig extends RelationsBuilderConfig<TTables>,
-	TTables extends Schema = ExtractTablesFromSchema<TSchema>,
->(
-	schema: TSchema,
-	relations?: (helpers: RelationsBuilder<TTables>) => TConfig,
-): Relations<TTables, TConfig> {
-	const tables = extractTablesFromSchema(schema) as unknown as TTables;
-
-	return new Relations(
-		tables,
-		relations
-			? relations(
-				createRelationsHelper(tables) as RelationsBuilder<TTables>,
-			)
-			: {} as TConfig,
-	) as Relations<TTables, TConfig>;
-}
-
-// Shall replace ^
 export function defineRelations<
 	TSchema extends Record<string, unknown>,
 	TConfig extends RelationsBuilderConfig<TTables>,
@@ -1220,90 +1185,16 @@ export function defineRelations<
 >(
 	schema: TSchema,
 	relations?: (helpers: RelationsBuilder<TTables>) => TConfig,
-): RelationalConfig<TTables, TConfig> {
+): ExtractTablesWithRelations<TConfig, TTables> {
 	const tables = Object.fromEntries(Object.entries(schema).filter(([_, e]) => is(e, Table) || is(e, View))) as TTables;
 
-	return {
-		schema: tables as TTables,
-		config: relations
-			? relations(
-				createRelationsHelper(tables) as RelationsBuilder<TTables>,
-			)
-			: {} as TConfig,
-	};
-}
+	const config = relations
+		? relations(
+			createRelationsHelper(tables) as RelationsBuilder<TTables>,
+		)
+		: {} as TConfig;
 
-export interface RelationalConfig<
-	TSchema extends Schema = Schema,
-	TConfig extends RelationsBuilderConfig<TSchema> = RelationsBuilderConfig<TSchema>,
-> {
-	schema: TSchema;
-	config: TConfig;
-}
-
-export type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends (k: infer I) => void ? I : never;
-
-export type IntersectArray<T extends object[]> = UnionToIntersection<T[number]>;
-
-export type MergeRelationalConfigsIter<TConfigs extends RelationalConfig[]> = IntersectArray<TConfigs>;
-
-export type RelationalConfigs = RelationalConfig[] | RelationalConfig | undefined;
-
-// export type MergeRelationalConfigsIter<TConfigs extends RelationalConfig[]> = TConfigs extends
-// 	[infer C extends RelationalConfig, ...infer Tail extends RelationalConfig[]] ? MergeRelationalConfigs<Tail> & C
-// 	: TConfigs[number];
-
-export type MergeRelationalConfigs<TConfigs extends RelationalConfigs> = TConfigs extends undefined ? {
-		schema: {};
-		config: {};
-	}
-	: TConfigs extends RelationalConfig[] ? MergeRelationalConfigsIter<TConfigs>
-	: TConfigs;
-
-export type BuildRelations<
-	TConfigs extends RelationalConfigs,
-	TMerged extends RelationalConfig = MergeRelationalConfigs<TConfigs>,
-> = Relations<TMerged['schema'], TMerged['config']>;
-
-export function buildRelations<
-	TConfigs extends RelationalConfigs,
->(configs: TConfigs): BuildRelations<TConfigs> {
-	if (!configs) return new Relations({}, {}) as BuildRelations<TConfigs>;
-	if (!Array.isArray(configs)) return new Relations(configs.schema, configs.config) as BuildRelations<TConfigs>;
-
-	const buildSchema = {} as RelationalConfig['schema'];
-	const buildConfig = {} as RelationalConfig['config'];
-
-	for (const { schema, config } of configs as RelationalConfig[]) {
-		for (const [name, table] of Object.entries(schema)) {
-			if (name in buildSchema && table !== buildSchema[name]) {
-				throw new Error(
-					`Unable to merge relations: table "${name}" exists in multiple instances of relations, but points to different entities.`,
-				);
-			}
-
-			buildSchema[name] = table;
-		}
-
-		for (const [name, relations] of Object.entries(config)) {
-			if (!relations) continue;
-
-			if (!buildConfig[name]) {
-				buildConfig[name] = relations;
-				continue;
-			}
-
-			for (const relName of Object.keys(relations)) {
-				if (buildConfig[name][relName]) {
-					throw new Error(`Unable to merge relations: duplicate relation definition "${name}"."${relName}"`);
-				}
-
-				buildConfig[name][relName] = relations[relName];
-			}
-		}
-	}
-
-	return new Relations(buildSchema, buildConfig) as BuildRelations<TConfigs>;
+	return buildRelations(tables, config);
 }
 
 export interface WithContainer {

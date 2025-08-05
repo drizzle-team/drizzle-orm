@@ -6,7 +6,6 @@ import {
 	asc,
 	avg,
 	avgDistinct,
-	type BuildRelations,
 	count,
 	countDistinct,
 	eq,
@@ -82,7 +81,7 @@ import type { Equal } from '~/utils.ts';
 import type relations from './relations';
 import { clear, init, rqbPost, rqbUser } from './schema';
 
-type TestMySQLDB = MySqlDatabase<any, any, never, BuildRelations<typeof relations>>;
+type TestMySQLDB = MySqlDatabase<any, any, never, typeof relations>;
 
 declare module 'vitest' {
 	interface TestContext {

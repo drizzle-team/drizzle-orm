@@ -8,13 +8,7 @@ import { PgDialect } from '~/pg-core/dialect.ts';
 import type { PgColumn, PgInsertConfig, PgTable, TableConfig } from '~/pg-core/index.ts';
 import { PgArray } from '~/pg-core/index.ts';
 import type { PgRaw } from '~/pg-core/query-builders/raw.ts';
-import {
-	type AnyRelations,
-	type BuildRelations,
-	buildRelations,
-	type EmptyRelations,
-	type RelationalConfigs,
-} from '~/relations.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { Param, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { Table } from '~/table.ts';
 import type { DrizzleConfig, UpdateSet } from '~/utils.ts';
@@ -31,7 +25,7 @@ export interface PgDriverOptions {
 
 export interface DrizzleAwsDataApiPgConfig<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends RelationalConfigs = undefined,
+	TRelations extends AnyRelations = EmptyRelations,
 > extends DrizzleConfig<TSchema, TRelations> {
 	database: string;
 	resourceArn: string;
@@ -98,11 +92,11 @@ export class AwsPgDialect extends PgDialect {
 
 function construct<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends RelationalConfigs = undefined,
+	TRelations extends AnyRelations = EmptyRelations,
 >(
 	client: AwsDataApiClient,
 	config: DrizzleAwsDataApiPgConfig<TSchema, TRelations>,
-): AwsDataApiPgDatabase<TSchema, BuildRelations<TRelations>> & {
+): AwsDataApiPgDatabase<TSchema, TRelations> & {
 	$client: AwsDataApiClient;
 } {
 	const dialect = new AwsPgDialect({ casing: config.casing });
@@ -126,7 +120,7 @@ function construct<
 		};
 	}
 
-	const relations = buildRelations(config.relations);
+	const relations = config.relations ?? {} as TRelations;
 	const session = new AwsDataApiSession(client, dialect, relations, schema, {
 		...config,
 		logger,
@@ -144,7 +138,7 @@ function construct<
 
 export function drizzle<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-	TRelations extends RelationalConfigs = undefined,
+	TRelations extends AnyRelations = EmptyRelations,
 	TClient extends AwsDataApiClient = RDSDataClient,
 >(
 	...params: [
@@ -166,7 +160,7 @@ export function drizzle<
 			)
 		),
 	]
-): AwsDataApiPgDatabase<TSchema, BuildRelations<TRelations>> & {
+): AwsDataApiPgDatabase<TSchema, TRelations> & {
 	$client: TClient;
 } {
 	// eslint-disable-next-line no-instanceof/no-instanceof
@@ -194,10 +188,10 @@ export function drizzle<
 export namespace drizzle {
 	export function mock<
 		TSchema extends Record<string, unknown> = Record<string, never>,
-		TRelations extends RelationalConfigs = undefined,
+		TRelations extends AnyRelations = EmptyRelations,
 	>(
 		config: DrizzleAwsDataApiPgConfig<TSchema, TRelations>,
-	): AwsDataApiPgDatabase<TSchema, BuildRelations<TRelations>> & {
+	): AwsDataApiPgDatabase<TSchema, TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
 		return construct({} as any, config) as any;

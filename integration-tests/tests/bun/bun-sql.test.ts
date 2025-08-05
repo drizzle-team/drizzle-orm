@@ -11,7 +11,6 @@ import {
 	asc,
 	avg,
 	avgDistinct,
-	type BuildRelations,
 	count,
 	countDistinct,
 	eq,
@@ -208,7 +207,7 @@ afterAll(async () => {
 	await pgContainer?.stop().catch(console.error);
 });
 
-let db: BunSQLDatabase<never, BuildRelations<typeof relations>>;
+let db: BunSQLDatabase<never, typeof relations>;
 let client: BunSQL;
 
 beforeAll(async () => {

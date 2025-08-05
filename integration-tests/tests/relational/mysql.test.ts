@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import Docker from 'dockerode';
-import { type BuildRelations, DrizzleError, sql, TransactionRollbackError } from 'drizzle-orm';
+import { DrizzleError, sql, TransactionRollbackError } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/mysql-core';
 import { drizzle, type MySql2Database } from 'drizzle-orm/mysql2';
 import getPort from 'get-port';
@@ -31,14 +31,14 @@ declare module 'vitest' {
 	export interface TestContext {
 		docker: Docker;
 		mysqlContainer: Docker.Container;
-		mysqlDbV2: MySql2Database<never, BuildRelations<typeof relations>>;
+		mysqlDbV2: MySql2Database<never, typeof relations>;
 		mysqlClient: mysql.Connection;
 	}
 }
 
 let globalDocker: Docker;
 let mysqlContainer: Docker.Container;
-let db: MySql2Database<never, BuildRelations<typeof relations>>;
+let db: MySql2Database<never, typeof relations>;
 let client: mysql.Connection;
 
 async function createDockerDB(): Promise<string> {

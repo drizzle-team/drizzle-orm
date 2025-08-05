@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import Database from 'better-sqlite3';
-import { type BuildRelations, defineRelations, DrizzleError, eq, sql, TransactionRollbackError } from 'drizzle-orm';
+import { defineRelations, DrizzleError, eq, sql, TransactionRollbackError } from 'drizzle-orm';
 import { type BetterSQLite3Database, drizzle } from 'drizzle-orm/better-sqlite3';
 import { alias } from 'drizzle-orm/sqlite-core';
 import { beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
@@ -20,7 +20,7 @@ import {
 
 const ENABLE_LOGGING = false;
 
-let db: BetterSQLite3Database<never, BuildRelations<typeof relations>>;
+let db: BetterSQLite3Database<never, typeof relations>;
 
 beforeAll(() => {
 	const dbPath = process.env['SQLITE_DB_PATH'] ?? ':memory:';
