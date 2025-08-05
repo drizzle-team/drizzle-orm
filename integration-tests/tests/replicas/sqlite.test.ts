@@ -802,9 +802,9 @@ describe('[findMany] read replicas sqlite', () => {
 
 describe('[v2 findFirst] read replicas sqlite', () => {
 	it('primary v2 findFirst', () => {
-		const primaryDb = drizzle.mock({ relations: defineRelations({ usersTable }, () => ({})) });
-		const read1 = drizzle.mock({ relations: defineRelations({ usersTable }, () => ({})) });
-		const read2 = drizzle.mock({ relations: defineRelations({ usersTable }, () => ({})) });
+		const primaryDb = drizzle.mock({ relations: defineRelations({ usersTable }) });
+		const read1 = drizzle.mock({ relations: defineRelations({ usersTable }) });
+		const read2 = drizzle.mock({ relations: defineRelations({ usersTable }) });
 
 		const db = withReplicas(primaryDb, [read1, read2]);
 
@@ -822,9 +822,9 @@ describe('[v2 findFirst] read replicas sqlite', () => {
 	});
 
 	it('random replica v2 findFirst', () => {
-		const primaryDb = drizzle.mock({ relations: defineRelations({ usersTable }, () => ({})) });
-		const read1 = drizzle.mock({ relations: defineRelations({ usersTable }, () => ({})) });
-		const read2 = drizzle.mock({ relations: defineRelations({ usersTable }, () => ({})) });
+		const primaryDb = drizzle.mock({ relations: defineRelations({ usersTable }) });
+		const read1 = drizzle.mock({ relations: defineRelations({ usersTable }) });
+		const read2 = drizzle.mock({ relations: defineRelations({ usersTable }) });
 
 		const randomMockReplica = vi.fn().mockReturnValueOnce(read1).mockReturnValueOnce(read2);
 
@@ -853,8 +853,8 @@ describe('[v2 findFirst] read replicas sqlite', () => {
 	});
 
 	it('single read replica v2 findFirst', () => {
-		const primaryDb = drizzle.mock({ relations: defineRelations({ usersTable }, () => ({})) });
-		const read1 = drizzle.mock({ relations: defineRelations({ usersTable }, () => ({})) });
+		const primaryDb = drizzle.mock({ relations: defineRelations({ usersTable }) });
+		const read1 = drizzle.mock({ relations: defineRelations({ usersTable }) });
 
 		const db = withReplicas(primaryDb, [read1]);
 
@@ -871,8 +871,8 @@ describe('[v2 findFirst] read replicas sqlite', () => {
 	});
 
 	it('single read replica v2 findFirst + primary v2 findFirst', () => {
-		const primaryDb = drizzle.mock({ relations: defineRelations({ usersTable }, () => ({})) });
-		const read1 = drizzle.mock({ relations: defineRelations({ usersTable }, () => ({})) });
+		const primaryDb = drizzle.mock({ relations: defineRelations({ usersTable }) });
+		const read1 = drizzle.mock({ relations: defineRelations({ usersTable }) });
 
 		const db = withReplicas(primaryDb, [read1]);
 
@@ -890,9 +890,9 @@ describe('[v2 findFirst] read replicas sqlite', () => {
 	});
 
 	it('always first read v2 findFirst', () => {
-		const primaryDb = drizzle.mock({ relations: defineRelations({ usersTable }, () => ({})) });
-		const read1 = drizzle.mock({ relations: defineRelations({ usersTable }, () => ({})) });
-		const read2 = drizzle.mock({ relations: defineRelations({ usersTable }, () => ({})) });
+		const primaryDb = drizzle.mock({ relations: defineRelations({ usersTable }) });
+		const read1 = drizzle.mock({ relations: defineRelations({ usersTable }) });
+		const read2 = drizzle.mock({ relations: defineRelations({ usersTable }) });
 
 		const db = withReplicas(primaryDb, [read1, read2], (replicas) => {
 			return replicas[0]!;
@@ -916,9 +916,9 @@ describe('[v2 findFirst] read replicas sqlite', () => {
 
 describe('[v2 findMany] read replicas sqlite', () => {
 	it('primary v2 findMany', () => {
-		const primaryDb = drizzle.mock({ relations: defineRelations({ usersTable }, () => ({})) });
-		const read1 = drizzle.mock({ relations: defineRelations({ usersTable }, () => ({})) });
-		const read2 = drizzle.mock({ relations: defineRelations({ usersTable }, () => ({})) });
+		const primaryDb = drizzle.mock({ relations: defineRelations({ usersTable }) });
+		const read1 = drizzle.mock({ relations: defineRelations({ usersTable }) });
+		const read2 = drizzle.mock({ relations: defineRelations({ usersTable }) });
 
 		const db = withReplicas(primaryDb, [read1, read2]);
 
@@ -939,9 +939,9 @@ describe('[v2 findMany] read replicas sqlite', () => {
 	});
 
 	it('random replica v2 findMany', () => {
-		const primaryDb = drizzle.mock({ relations: defineRelations({ usersTable }, () => ({})) });
-		const read1 = drizzle.mock({ relations: defineRelations({ usersTable }, () => ({})) });
-		const read2 = drizzle.mock({ relations: defineRelations({ usersTable }, () => ({})) });
+		const primaryDb = drizzle.mock({ relations: defineRelations({ usersTable }) });
+		const read1 = drizzle.mock({ relations: defineRelations({ usersTable }) });
+		const read2 = drizzle.mock({ relations: defineRelations({ usersTable }) });
 
 		const randomMockReplica = vi.fn().mockReturnValueOnce(read1).mockReturnValueOnce(read2);
 
@@ -976,8 +976,8 @@ describe('[v2 findMany] read replicas sqlite', () => {
 	});
 
 	it('single read replica v2 findMany', () => {
-		const primaryDb = drizzle.mock({ relations: defineRelations({ usersTable }, () => ({})) });
-		const read1 = drizzle.mock({ relations: defineRelations({ usersTable }, () => ({})) });
+		const primaryDb = drizzle.mock({ relations: defineRelations({ usersTable }) });
+		const read1 = drizzle.mock({ relations: defineRelations({ usersTable }) });
 
 		const db = withReplicas(primaryDb, [read1]);
 
@@ -1004,8 +1004,8 @@ describe('[v2 findMany] read replicas sqlite', () => {
 	});
 
 	it('single read replica v2 findMany + primary v2 findMany', () => {
-		const primaryDb = drizzle.mock({ relations: defineRelations({ usersTable }, () => ({})) });
-		const read1 = drizzle.mock({ relations: defineRelations({ usersTable }, () => ({})) });
+		const primaryDb = drizzle.mock({ relations: defineRelations({ usersTable }) });
+		const read1 = drizzle.mock({ relations: defineRelations({ usersTable }) });
 
 		const db = withReplicas(primaryDb, [read1]);
 
@@ -1034,9 +1034,9 @@ describe('[v2 findMany] read replicas sqlite', () => {
 	});
 
 	it('always first read v2 findMany', () => {
-		const primaryDb = drizzle.mock({ relations: defineRelations({ usersTable }, () => ({})) });
-		const read1 = drizzle.mock({ relations: defineRelations({ usersTable }, () => ({})) });
-		const read2 = drizzle.mock({ relations: defineRelations({ usersTable }, () => ({})) });
+		const primaryDb = drizzle.mock({ relations: defineRelations({ usersTable }) });
+		const read1 = drizzle.mock({ relations: defineRelations({ usersTable }) });
+		const read2 = drizzle.mock({ relations: defineRelations({ usersTable }) });
 
 		const db = withReplicas(primaryDb, [read1, read2], (replicas) => {
 			return replicas[0]!;

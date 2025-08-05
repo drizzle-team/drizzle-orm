@@ -134,7 +134,7 @@ const schema = {
 	usersConfig,
 };
 
-const relationsV2 = defineRelations(schema, () => ({}));
+const relationsV2 = defineRelations(schema);
 
 class ServerSimulator {
 	constructor(private db: BetterSqlite3.Database) {}

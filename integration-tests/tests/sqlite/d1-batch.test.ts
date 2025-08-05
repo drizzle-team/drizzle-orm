@@ -136,7 +136,7 @@ const schema = {
 	usersConfig,
 };
 
-const relationsV2 = defineRelations(schema, () => ({}));
+const relationsV2 = defineRelations(schema);
 
 let db: DrizzleD1Database<typeof schema, typeof relationsV2>;
 
