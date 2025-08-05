@@ -56,7 +56,15 @@ export function drizzle<
 
 	const relations = config.relations;
 	const session = new SQLiteDOSession(client as DurableObjectStorage, dialect, relations, schema, { logger });
-	const db = new DrizzleSqliteDODatabase('sync', dialect, session, relations, schema) as DrizzleSqliteDODatabase<
+	const db = new DrizzleSqliteDODatabase(
+		'sync',
+		dialect,
+		session,
+		relations,
+		schema,
+		false,
+		true,
+	) as DrizzleSqliteDODatabase<
 		TSchema,
 		TRelations
 	>;
