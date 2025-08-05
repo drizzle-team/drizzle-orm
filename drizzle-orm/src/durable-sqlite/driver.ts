@@ -61,6 +61,8 @@ export function drizzle<
 		session,
 		relations,
 		schema as V1.RelationalSchemaConfig<any>,
+		false,
+		true,
 	) as DrizzleSqliteDODatabase<
 		TSchema,
 		TRelations
