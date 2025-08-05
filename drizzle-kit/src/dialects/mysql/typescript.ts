@@ -267,7 +267,7 @@ const column = (
 		const values = parseEnum(lowered).map((it) => `"${it.replaceAll("''", "'").replaceAll('"', '\\"')}"`).join(',');
 		let out = `${casing(name)}: ${vendor}Enum(${dbColumnName({ name, casing: rawCasing, withMode: true })}[${values}])`;
 
-		const { default: def } = Enum.toTs('', defaultValue);
+		const { default: def } = Enum.toTs('', defaultValue) as any;
 		out += def ? `.default(${def})` : '';
 		return out;
 	}
@@ -280,7 +280,9 @@ const column = (
 	if (grammarType) {
 		const key = casing(name);
 		const columnName = dbColumnName({ name, casing: rawCasing });
-		const { default: def, options } = grammarType.toTs(lowered, defaultValue);
+		const ts = grammarType.toTs(lowered, defaultValue);
+		const { default: def, options } = typeof ts === 'string' ? { default: ts, options: {} } : ts;
+		
 		const drizzleType = grammarType.drizzleImport();
 		const defaultStatement = def ? def.startsWith('.') ? def : `.default(${def})` : '';
 

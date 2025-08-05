@@ -12,7 +12,7 @@ import '../../@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
 import { parseArray } from 'src/utils/parse-pgarray';
 import { Casing } from '../../cli/validations/common';
-import { assertUnreachable, stringifyArray } from '../../utils';
+import { assertUnreachable, stringifyArray, trimChar } from '../../utils';
 import {
 	CheckConstraint,
 	CockroachDDL,
@@ -24,7 +24,7 @@ import {
 	tableFromDDL,
 	ViewColumn,
 } from './ddl';
-import { defaults, trimChar } from './grammar';
+import { defaults } from './grammar';
 
 // TODO: omit defaults opclass...
 const cockroachImportsList = new Set([
