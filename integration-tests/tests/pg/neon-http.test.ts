@@ -851,7 +851,7 @@ describe('$withAuth tests', (it) => {
 		schema: {
 			usersTable,
 		},
-		relations: defineRelations({ usersTable }, () => ({})),
+		relations: defineRelations({ usersTable }),
 	});
 
 	it('$count', async () => {
@@ -962,7 +962,7 @@ describe('$withAuth callback tests', (it) => {
 		schema: {
 			usersTable,
 		},
-		relations: defineRelations({ usersTable }, () => ({})),
+		relations: defineRelations({ usersTable }),
 	});
 	const auth = (token: string) => () => token;
 
@@ -1064,7 +1064,7 @@ describe('$withAuth async callback tests', (it) => {
 		schema: {
 			usersTable,
 		},
-		relations: defineRelations({ usersTable }, () => ({})),
+		relations: defineRelations({ usersTable }),
 	});
 	const auth = (token: string) => async () => token;
 

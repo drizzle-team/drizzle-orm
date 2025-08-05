@@ -34,7 +34,7 @@ export const schema = {
 	usersConfig,
 };
 
-export const neonRelations = defineRelations(schema, () => ({}));
+export const neonRelations = defineRelations(schema);
 
 let db: NeonHttpDatabase<typeof schema, typeof neonRelations>;
 let client: NeonQueryFunction<false, true>;

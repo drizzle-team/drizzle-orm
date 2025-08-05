@@ -160,4 +160,5 @@ export default defineRelations(schema, (r) => ({
 			to: r.customTypesTable.id,
 		}),
 	},
+	allTypesTable: true,
 }));

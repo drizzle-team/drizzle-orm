@@ -135,7 +135,7 @@ const schema = {
 	usersConfig,
 };
 
-const relationsV2 = defineRelations(schema, () => ({}));
+const relationsV2 = defineRelations(schema);
 
 let db: LibSQLDatabase<typeof schema, typeof relationsV2>;
 let client: Client;
