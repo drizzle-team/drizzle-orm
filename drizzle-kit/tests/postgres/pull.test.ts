@@ -961,3 +961,16 @@ test('case sensitive schema name + identity column', async () => {
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
 });
+
+test('introspect without any schema', async () => {
+	await db.query(`DROP SCHEMA "public" cascade`);
+	const schema = {};
+	const { statements, sqlStatements } = await diffIntrospect(
+		db,
+		schema,
+		'introspect-without-schema',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
