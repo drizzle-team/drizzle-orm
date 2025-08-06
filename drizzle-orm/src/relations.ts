@@ -211,7 +211,7 @@ export function buildRelations<TTables extends Schema, TConfig extends AnyRelati
 		tablesConfig[tsName] = {
 			table,
 			name: tsName,
-			relations: (config[tsName] || {}) as Record<string, RelationsBuilderEntry>,
+			relations: config[tsName] ?? {},
 		};
 	}
 
@@ -230,7 +230,7 @@ export function buildRelationsParts<TTables extends Schema, TConfig extends AnyR
 		tablesConfig[tsName] = {
 			table: tables[tsName],
 			name: tsName,
-			relations: relations === true ? {} : relations as Record<string, RelationsBuilderEntry>,
+			relations,
 		};
 	}
 
@@ -1154,7 +1154,9 @@ export type RelationsBuilder<TSchema extends Schema> = Simplify<
 	& RelationsHelperStatic<TSchema>
 >;
 
-export type RelationsBuilderConfigValue = Record<string, Relation> | true | undefined;
+export type RelationsBuilderConfigValue<TSourceTableName extends string = string> =
+	| Record<string, Relation<TSourceTableName>>
+	| undefined;
 
 export type RelationsBuilderConfig<TTables extends Schema> = {
 	[TTableName in keyof TTables]?: RelationsBuilderConfigValue;
@@ -1209,7 +1211,7 @@ export function extractTablesFromSchema<TSchema extends Record<string, unknown>>
 	) as ExtractTablesFromSchema<TSchema>;
 }
 
-export type IncludeEveryTable<TTables extends Schema> = { [K in keyof TTables]: true };
+export type IncludeEveryTable<TTables extends Schema> = { [K in keyof TTables]: {} };
 
 /** Builds relational config for every table in schema */
 export function defineRelations<
