@@ -30,27 +30,10 @@ export class SingleStoreTempTableBuilder {
 			querySQL = query;
 		}
 
-		const builtQuery = this.dialect.sqlToQuery(querySQL);
-
-		// Remove parentheses from the beginning and end if they exist
-		let cleanSQL = builtQuery.sql.trim();
-		if (cleanSQL.startsWith('(') && cleanSQL.endsWith(')')) {
-			cleanSQL = cleanSQL.slice(1, -1);
-		}
-
-		const finalSQL = `CREATE TEMPORARY TABLE \`${this.name}\` AS ${cleanSQL}`;
-		const createSQL = sql.raw(finalSQL);
-
-		if (builtQuery.params && builtQuery.params.length > 0) {
-			let paramIndex = 0;
-			const parameterizedSQL = finalSQL.replace(/\?/g, () => {
-				const param = builtQuery.params[paramIndex++];
-				return typeof param === 'string' ? `'${param.replace(/'/g, "''")}'` : String(param);
-			});
-			await this.executeQuery(sql.raw(parameterizedSQL));
-		} else {
-			await this.executeQuery(createSQL);
-		}
+		// Build the CREATE TEMPORARY TABLE statement using SQL template
+		// This preserves parameterization and prevents SQL injection
+		const createTempTableSQL = sql`CREATE TEMPORARY TABLE ${sql.identifier(this.name)} AS ${querySQL}`;
+		await this.executeQuery(createTempTableSQL);
 
 		const selectedFields = 'getSelectedFields' in query
 			? query.getSelectedFields()

@@ -3992,6 +3992,75 @@ export function tests(driver?: string) {
 			await db.execute(sql`DROP TABLE test_users_for_temp`);
 		});
 
+		test('SQL injection protection in temp table queries', async (ctx) => {
+			const { db } = ctx.singlestore;
+
+			const companiesTable = singlestoreTable('test_companies_injection', {
+				id: int().primaryKey(),
+				companyId: int().notNull(),
+				domain: varchar({ length: 255 }).notNull(),
+				name: varchar({ length: 255 }).notNull(),
+			});
+
+			// Create test table
+			await db.execute(sql`
+				CREATE TABLE IF NOT EXISTS test_companies_injection (
+					id INT PRIMARY KEY,
+					companyId INT NOT NULL,
+					domain VARCHAR(255) NOT NULL,
+					name VARCHAR(255) NOT NULL
+				)
+			`);
+
+			// Insert test data
+			await db.execute(sql`
+				INSERT INTO test_companies_injection VALUES
+					(1, 100, 'safe.com', 'Safe Corp'),
+					(2, 200, 'test.com', 'Test Inc'),
+					(3, 300, 'other.com', 'Other LLC')
+			`);
+
+			// Test with SQL injection attempt in parameter
+			const maliciousDomains = ["safe.com'; DROP TABLE test_companies_injection; --", 'test.com'];
+			
+			// This should safely create temp table with parameterized query
+			const tempTable = await db
+				.temp('safe_temp_table')
+				.as(
+					db
+						.select({ companyId: companiesTable.companyId })
+						.from(companiesTable)
+						.where(inArray(companiesTable.domain, maliciousDomains))
+				);
+
+			// Verify the table still exists and injection was prevented
+			const tableExists = await db.execute(sql`
+				SELECT COUNT(*) as count FROM test_companies_injection
+			`);
+			expect(tableExists.rows[0].count).toBeGreaterThan(0);
+
+			// Verify temp table has correct filtered results
+			const results = await db.select().from(tempTable);
+			expect(results).toHaveLength(1); // Only 'test.com' should match
+			expect(results[0]?.companyId).toBe(200);
+
+			// Test SQL injection in join operations
+			const joinResult = await db
+				.select({
+					id: companiesTable.id,
+					name: companiesTable.name,
+				})
+				.from(companiesTable)
+				.innerJoin(tempTable, eq(companiesTable.companyId, tempTable.companyId));
+
+			expect(joinResult).toHaveLength(1);
+			expect(joinResult[0]?.name).toBe('Test Inc');
+
+			// Clean up
+			await tempTable.drop();
+			await db.execute(sql`DROP TABLE test_companies_injection`);
+		});
+
 		test('Complex query with joins and aggregations', async (ctx) => {
 			const { db } = ctx.singlestore;
 
