@@ -58,21 +58,7 @@ export type FieldValue =
 
 export type FieldSelection = Record<string, FieldValue>;
 
-export function buildRelations<TTables extends Schema, TConfig extends AnyRelationsBuilderConfig>(
-	tables: TTables,
-	config: TConfig,
-): ExtractTablesWithRelations<TConfig, TTables> {
-	const tablesConfig = {} as TablesRelationalConfig;
-
-	for (const [tsName, relations] of Object.entries(config)) {
-		if (!relations || !tables[tsName]) continue;
-		tablesConfig[tsName] = {
-			table: tables[tsName],
-			name: tsName,
-			relations: relations === true ? {} : relations as Record<string, RelationsBuilderEntry>,
-		};
-	}
-
+export function processRelations(tablesConfig: TablesRelationalConfig, tables: Schema) {
 	for (const tableConfig of Object.values(tablesConfig)) {
 		for (const [relationFieldName, relation] of Object.entries(tableConfig.relations)) {
 			if (!is(relation, Relation)) {
@@ -211,7 +197,44 @@ export function buildRelations<TTables extends Schema, TConfig extends AnyRelati
 		}
 	}
 
-	return tablesConfig as any;
+	return tablesConfig;
+}
+
+/** Builds relational config for every table in schema */
+export function buildRelations<TTables extends Schema, TConfig extends AnyRelationsBuilderConfig>(
+	tables: TTables,
+	config: TConfig,
+): ExtractTablesWithRelations<TConfig, TTables> {
+	const tablesConfig = {} as TablesRelationalConfig;
+
+	for (const [tsName, table] of Object.entries(tables)) {
+		tablesConfig[tsName] = {
+			table,
+			name: tsName,
+			relations: (config[tsName] || {}) as Record<string, RelationsBuilderEntry>,
+		};
+	}
+
+	return processRelations(tablesConfig, tables) as any;
+}
+
+/** Builds relational config only for tables present in relational config */
+export function buildRelationsParts<TTables extends Schema, TConfig extends AnyRelationsBuilderConfig>(
+	tables: TTables,
+	config: TConfig,
+): ExtractTablesWithRelationsParts<TConfig, TTables> {
+	const tablesConfig = {} as TablesRelationalConfig;
+
+	for (const [tsName, relations] of Object.entries(config)) {
+		if (!relations || !tables[tsName]) continue;
+		tablesConfig[tsName] = {
+			table: tables[tsName],
+			name: tsName,
+			relations: relations === true ? {} : relations as Record<string, RelationsBuilderEntry>,
+		};
+	}
+
+	return processRelations(tablesConfig, tables) as any;
 }
 
 export type EmptyRelations = {};
@@ -538,6 +561,17 @@ export interface TableRelationalConfig {
 export type TablesRelationalConfig = Record<string, TableRelationalConfig>;
 
 export type ExtractTablesWithRelations<
+	TConfig extends AnyRelationsBuilderConfig,
+	TTables extends Schema,
+> = {
+	[K in keyof TTables]: {
+		table: TTables[K];
+		name: K & string;
+		relations: TConfig extends { [CK in K]: Record<string, any> } ? TConfig[K] : {};
+	};
+};
+
+export type ExtractTablesWithRelationsParts<
 	TConfig extends AnyRelationsBuilderConfig,
 	TTables extends Schema,
 > = {
@@ -1177,12 +1211,14 @@ export function extractTablesFromSchema<TSchema extends Record<string, unknown>>
 
 export type IncludeEveryTable<TTables extends Schema> = { [K in keyof TTables]: true };
 
+/** Builds relational config for every table in schema */
 export function defineRelations<
 	TSchema extends Record<string, unknown>,
 	TTables extends Schema = ExtractTablesFromSchema<TSchema>,
 >(
 	schema: TSchema,
-): ExtractTablesWithRelations<IncludeEveryTable<TTables>, TTables>;
+): ExtractTablesWithRelations<{}, TTables>;
+/** Builds relational config for every table in schema */
 export function defineRelations<
 	TSchema extends Record<string, unknown>,
 	TConfig extends RelationsBuilderConfig<TTables>,
@@ -1195,14 +1231,44 @@ export function defineRelations(
 	schema: Record<string, unknown>,
 	relations?: (helpers: RelationsBuilder<Schema>) => AnyRelationsBuilderConfig,
 ): TablesRelationalConfig {
-	const tables = Object.fromEntries(Object.entries(schema).filter(([_, e]) => is(e, Table) || is(e, View))) as Schema;
+	const tables = extractTablesFromSchema(schema);
+	const config = relations
+		? relations(
+			createRelationsHelper(tables) as RelationsBuilder<Schema>,
+		)
+		: {};
+
+	return buildRelations(tables, config);
+}
+
+/** Builds relational config for every table in schema */
+export function defineRelationsPart<
+	TSchema extends Record<string, unknown>,
+	TTables extends Schema = ExtractTablesFromSchema<TSchema>,
+>(
+	schema: TSchema,
+): ExtractTablesWithRelationsParts<IncludeEveryTable<TTables>, TTables>;
+/** Builds relational config only for tables present in relational config */
+export function defineRelationsPart<
+	TSchema extends Record<string, unknown>,
+	TConfig extends RelationsBuilderConfig<TTables>,
+	TTables extends Schema = ExtractTablesFromSchema<TSchema>,
+>(
+	schema: TSchema,
+	relations: (helpers: RelationsBuilder<TTables>) => TConfig,
+): ExtractTablesWithRelationsParts<TConfig, TTables>;
+export function defineRelationsPart(
+	schema: Record<string, unknown>,
+	relations?: (helpers: RelationsBuilder<Schema>) => AnyRelationsBuilderConfig,
+): TablesRelationalConfig {
+	const tables = extractTablesFromSchema(schema);
 	const config = relations
 		? relations(
 			createRelationsHelper(tables) as RelationsBuilder<Schema>,
 		)
 		: Object.fromEntries(Object.keys(tables).map((k) => [k, {}])) as AnyRelationsBuilderConfig;
 
-	return buildRelations(tables, config);
+	return buildRelationsParts(tables, config);
 }
 
 export interface WithContainer {

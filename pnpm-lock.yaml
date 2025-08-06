@@ -88,10 +88,10 @@ importers:
     devDependencies:
       '@ark/attest':
         specifier: ^0.45.8
-        version: 0.45.11(typescript@5.9.0-dev.20250618)
+        version: 0.45.11(typescript@6.0.0-dev.20250806)
       '@rollup/plugin-typescript':
         specifier: ^11.1.0
-        version: 11.1.6(rollup@3.29.5)(tslib@2.8.1)(typescript@5.9.0-dev.20250618)
+        version: 11.1.6(rollup@3.29.5)(tslib@2.8.1)(typescript@6.0.0-dev.20250806)
       '@types/node':
         specifier: ^18.15.10
         version: 18.19.33
@@ -118,7 +118,7 @@ importers:
         version: 4.20.3
       vite-tsconfig-paths:
         specifier: ^4.3.2
-        version: 4.3.2(typescript@5.9.0-dev.20250618)(vite@5.3.3(@types/node@18.19.33)(lightningcss@1.25.1)(terser@5.39.0))
+        version: 4.3.2(typescript@6.0.0-dev.20250806)(vite@5.3.3(@types/node@18.19.33)(lightningcss@1.25.1)(terser@5.39.0))
       vitest:
         specifier: ^3.1.3
         version: 3.2.4(@types/node@18.19.33)(lightningcss@1.25.1)(terser@5.39.0)
@@ -344,7 +344,7 @@ importers:
     devDependencies:
       '@arktype/attest':
         specifier: ^0.46.0
-        version: 0.46.0(typescript@5.9.0-dev.20250618)
+        version: 0.46.0(typescript@6.0.0-dev.20250806)
       '@aws-sdk/client-rds-data':
         specifier: ^3.549.0
         version: 3.583.0
@@ -407,7 +407,7 @@ importers:
         version: 0.8.0
       '@xata.io/client':
         specifier: ^0.29.3
-        version: 0.29.4(typescript@5.9.0-dev.20250618)
+        version: 0.29.4(typescript@6.0.0-dev.20250806)
       better-sqlite3:
         specifier: ^11.9.1
         version: 11.9.1
@@ -458,7 +458,7 @@ importers:
         version: 3.14.0
       vite-tsconfig-paths:
         specifier: ^4.3.2
-        version: 4.3.2(typescript@5.9.0-dev.20250618)(vite@5.3.3(@types/node@20.12.12)(lightningcss@1.25.1)(terser@5.39.0))
+        version: 4.3.2(typescript@6.0.0-dev.20250806)(vite@5.3.3(@types/node@20.12.12)(lightningcss@1.25.1)(terser@5.39.0))
       vitest:
         specifier: ^3.1.3
         version: 3.2.4(@types/node@20.12.12)(@vitest/ui@1.6.0)(lightningcss@1.25.1)(terser@5.39.0)
@@ -486,7 +486,7 @@ importers:
         version: 0.4.4(rollup@3.29.5)
       '@rollup/plugin-typescript':
         specifier: ^11.1.6
-        version: 11.1.6(rollup@3.29.5)(tslib@2.8.1)(typescript@5.9.0-dev.20250618)
+        version: 11.1.6(rollup@3.29.5)(tslib@2.8.1)(typescript@6.0.0-dev.20250806)
       '@types/better-sqlite3':
         specifier: ^7.6.11
         version: 7.6.12
@@ -531,7 +531,7 @@ importers:
         version: 8.13.1
       resolve-tspaths:
         specifier: ^0.8.19
-        version: 0.8.22(typescript@5.9.0-dev.20250618)
+        version: 0.8.22(typescript@6.0.0-dev.20250806)
       rollup:
         specifier: ^3.29.5
         version: 3.29.5
@@ -555,7 +555,7 @@ importers:
     devDependencies:
       '@rollup/plugin-typescript':
         specifier: ^11.1.0
-        version: 11.1.1(rollup@3.29.5)(tslib@2.8.1)(typescript@5.9.0-dev.20250618)
+        version: 11.1.1(rollup@3.29.5)(tslib@2.8.1)(typescript@6.0.0-dev.20250806)
       '@sinclair/typebox':
         specifier: ^0.34.8
         version: 0.34.10
@@ -579,7 +579,7 @@ importers:
         version: 3.29.5
       vite-tsconfig-paths:
         specifier: ^4.3.2
-        version: 4.3.2(typescript@5.9.0-dev.20250618)(vite@5.3.3(@types/node@18.15.10)(lightningcss@1.25.1)(terser@5.39.0))
+        version: 4.3.2(typescript@6.0.0-dev.20250806)(vite@5.3.3(@types/node@18.15.10)(lightningcss@1.25.1)(terser@5.39.0))
       vitest:
         specifier: ^3.1.3
         version: 3.2.4(@types/node@18.15.10)(lightningcss@1.25.1)(terser@5.39.0)
@@ -591,7 +591,7 @@ importers:
     devDependencies:
       '@rollup/plugin-typescript':
         specifier: ^11.1.0
-        version: 11.1.1(rollup@3.29.5)(tslib@2.8.1)(typescript@5.9.0-dev.20250618)
+        version: 11.1.1(rollup@3.29.5)(tslib@2.8.1)(typescript@6.0.0-dev.20250806)
       '@types/node':
         specifier: ^18.15.10
         version: 18.15.10
@@ -612,10 +612,10 @@ importers:
         version: 3.29.5
       valibot:
         specifier: 1.0.0-beta.7
-        version: 1.0.0-beta.7(typescript@5.9.0-dev.20250618)
+        version: 1.0.0-beta.7(typescript@6.0.0-dev.20250806)
       vite-tsconfig-paths:
         specifier: ^4.3.2
-        version: 4.3.2(typescript@5.9.0-dev.20250618)(vite@5.3.3(@types/node@18.15.10)(lightningcss@1.25.1)(terser@5.39.0))
+        version: 4.3.2(typescript@6.0.0-dev.20250806)(vite@5.3.3(@types/node@18.15.10)(lightningcss@1.25.1)(terser@5.39.0))
       vitest:
         specifier: ^3.1.3
         version: 3.2.4(@types/node@18.15.10)(lightningcss@1.25.1)(terser@5.39.0)
@@ -627,7 +627,7 @@ importers:
     devDependencies:
       '@rollup/plugin-typescript':
         specifier: ^11.1.0
-        version: 11.1.0(rollup@3.29.5)(tslib@2.8.1)(typescript@5.9.0-dev.20250618)
+        version: 11.1.0(rollup@3.29.5)(tslib@2.8.1)(typescript@6.0.0-dev.20250806)
       '@types/node':
         specifier: ^18.15.10
         version: 18.15.10
@@ -648,7 +648,7 @@ importers:
         version: 3.29.5
       vite-tsconfig-paths:
         specifier: ^4.3.2
-        version: 4.3.2(typescript@5.9.0-dev.20250618)(vite@5.3.3(@types/node@18.15.10)(lightningcss@1.25.1)(terser@5.39.0))
+        version: 4.3.2(typescript@6.0.0-dev.20250806)(vite@5.3.3(@types/node@18.15.10)(lightningcss@1.25.1)(terser@5.39.0))
       vitest:
         specifier: ^3.1.3
         version: 3.2.4(@types/node@18.15.10)(lightningcss@1.25.1)(terser@5.39.0)
@@ -723,7 +723,7 @@ importers:
         version: 0.8.0
       '@xata.io/client':
         specifier: ^0.29.3
-        version: 0.29.4(typescript@5.9.0-dev.20250618)
+        version: 0.29.4(typescript@6.0.0-dev.20250806)
       async-retry:
         specifier: ^1.3.3
         version: 1.3.3
@@ -853,13 +853,13 @@ importers:
         version: 5.4.0
       ts-node:
         specifier: ^10.9.2
-        version: 10.9.2(@types/node@20.12.12)(typescript@5.9.0-dev.20250618)
+        version: 10.9.2(@types/node@20.12.12)(typescript@6.0.0-dev.20250806)
       tsx:
         specifier: ^4.14.0
         version: 4.16.2
       vite-tsconfig-paths:
         specifier: ^4.3.2
-        version: 4.3.2(typescript@5.9.0-dev.20250618)(vite@5.3.3(@types/node@20.12.12)(lightningcss@1.25.1)(terser@5.39.0))
+        version: 4.3.2(typescript@6.0.0-dev.20250806)(vite@5.3.3(@types/node@20.12.12)(lightningcss@1.25.1)(terser@5.39.0))
       zx:
         specifier: ^8.3.2
         version: 8.3.2
@@ -868,7 +868,7 @@ importers:
     dependencies:
       drizzle-beta:
         specifier: npm:drizzle-orm@1.0.0-beta.1-c0277c0
-        version: drizzle-orm@1.0.0-beta.1-c0277c0(@aws-sdk/client-rds-data@3.583.0)(@cloudflare/workers-types@4.20241112.0)(@electric-sql/pglite@0.2.12)(@libsql/client-wasm@0.10.0)(@libsql/client@0.10.0)(@neondatabase/serverless@0.10.4)(@op-engineering/op-sqlite@2.0.22)(@opentelemetry/api@1.8.0)(@planetscale/database@1.18.0)(@prisma/client@5.14.0)(@tidbcloud/serverless@0.1.1)(@types/better-sqlite3@7.6.13)(@types/pg@8.11.6)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.4(typescript@5.9.0-dev.20250618))(better-sqlite3@11.9.1)(bun-types@1.2.2)(expo-sqlite@14.0.6)(gel@2.0.0)(knex@2.5.1(better-sqlite3@11.9.1)(mysql2@3.14.1)(pg@8.13.1)(sqlite3@5.1.7))(kysely@0.25.0)(mysql2@3.14.1)(pg@8.13.1)(postgres@3.4.4)(sql.js@1.10.3)(sqlite3@5.1.7)
+        version: drizzle-orm@1.0.0-beta.1-c0277c0(@aws-sdk/client-rds-data@3.583.0)(@cloudflare/workers-types@4.20241112.0)(@electric-sql/pglite@0.2.12)(@libsql/client-wasm@0.10.0)(@libsql/client@0.10.0)(@neondatabase/serverless@0.10.4)(@op-engineering/op-sqlite@2.0.22)(@opentelemetry/api@1.8.0)(@planetscale/database@1.18.0)(@prisma/client@5.14.0)(@tidbcloud/serverless@0.1.1)(@types/better-sqlite3@7.6.13)(@types/pg@8.11.6)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.4(typescript@6.0.0-dev.20250806))(better-sqlite3@11.9.1)(bun-types@1.2.2)(expo-sqlite@14.0.6)(gel@2.0.0)(knex@2.5.1(better-sqlite3@11.9.1)(mysql2@3.14.1)(pg@8.13.1)(sqlite3@5.1.7))(kysely@0.25.0)(mysql2@3.14.1)(pg@8.13.1)(postgres@3.4.4)(sql.js@1.10.3)(sqlite3@5.1.7)
       drizzle-seed:
         specifier: workspace:../drizzle-seed/dist
         version: link:../drizzle-seed/dist
@@ -883,11 +883,11 @@ importers:
         version: link:../drizzle-zod/dist
     devDependencies:
       tslatest:
-        specifier: npm:typescript@latest
-        version: typescript@5.8.3
+        specifier: npm:typescript@^5.9.2
+        version: typescript@5.9.2
       tsnext:
-        specifier: npm:typescript@next
-        version: typescript@5.9.0-dev.20250618
+        specifier: npm:typescript@6.0.0-dev.20250806
+        version: typescript@6.0.0-dev.20250806
 
 packages:
 
@@ -10222,13 +10222,13 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@5.8.3:
-    resolution: {integrity: sha512-p1diW6TqL9L07nNxvRMM7hMMw4c5XOo/1ibL4aAIGmSAt9slTE1Xgw5KWuof2uTOvCg9BY7ZRi+GaF+7sfgPeQ==}
+  typescript@5.9.2:
+    resolution: {integrity: sha512-CWBzXQrc/qOkhidw1OzBTQuYRbfyxDXJMVJ1XNwUHGROVmuaeiEm3OslpZ1RV96d7SKKjZKrSJu3+t/xlw3R9A==}
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@5.9.0-dev.20250618:
-    resolution: {integrity: sha512-HZlqRlevG0h8fkuhVeR9rCZaPVjE8c39YdLDdLgWX3wGFSM57Ijl69IXH9i/oiSOFg9zlawSLYxNNgPbNVva5Q==}
+  typescript@6.0.0-dev.20250806:
+    resolution: {integrity: sha512-inDvi8ujsZXA/dSgj8QiSjHSi7fYDnkRck9vvnd400VBY5RSzNl6G3zZXjFZTawwYfETOakld5vQ6a36JuNOBQ==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -10799,16 +10799,16 @@ snapshots:
       typescript: 5.6.1-rc
       validate-npm-package-name: 5.0.0
 
-  '@ark/attest@0.45.11(typescript@5.9.0-dev.20250618)':
+  '@ark/attest@0.45.11(typescript@6.0.0-dev.20250806)':
     dependencies:
       '@ark/fs': 0.45.10
       '@ark/util': 0.45.10
       '@prettier/sync': 0.5.5(prettier@3.5.3)
       '@typescript/analyze-trace': 0.10.1
-      '@typescript/vfs': 1.6.1(typescript@5.9.0-dev.20250618)
+      '@typescript/vfs': 1.6.1(typescript@6.0.0-dev.20250806)
       arktype: 2.1.19
       prettier: 3.5.3
-      typescript: 5.9.0-dev.20250618
+      typescript: 6.0.0-dev.20250806
     transitivePeerDependencies:
       - supports-color
 
@@ -10830,16 +10830,16 @@ snapshots:
 
   '@ark/util@0.46.0': {}
 
-  '@arktype/attest@0.46.0(typescript@5.9.0-dev.20250618)':
+  '@arktype/attest@0.46.0(typescript@6.0.0-dev.20250806)':
     dependencies:
       '@ark/fs': 0.46.0
       '@ark/util': 0.46.0
       '@prettier/sync': 0.5.5(prettier@3.5.3)
       '@typescript/analyze-trace': 0.10.1
-      '@typescript/vfs': 1.6.1(typescript@5.9.0-dev.20250618)
+      '@typescript/vfs': 1.6.1(typescript@6.0.0-dev.20250806)
       arktype: 2.1.20
       prettier: 3.5.3
-      typescript: 5.9.0-dev.20250618
+      typescript: 6.0.0-dev.20250806
     transitivePeerDependencies:
       - supports-color
 
@@ -10930,7 +10930,7 @@ snapshots:
     dependencies:
       '@aws-crypto/sha256-browser': 3.0.0
       '@aws-crypto/sha256-js': 3.0.0
-      '@aws-sdk/client-sso-oidc': 3.583.0(@aws-sdk/client-sts@3.583.0)
+      '@aws-sdk/client-sso-oidc': 3.583.0
       '@aws-sdk/client-sts': 3.583.0
       '@aws-sdk/core': 3.582.0
       '@aws-sdk/credential-provider-node': 3.583.0(@aws-sdk/client-sso-oidc@3.583.0)(@aws-sdk/client-sts@3.583.0)
@@ -11017,13 +11017,58 @@ snapshots:
     transitivePeerDependencies:
       - aws-crt
 
-  '@aws-sdk/client-sso-oidc@3.583.0(@aws-sdk/client-sts@3.583.0)':
+  '@aws-sdk/client-sso-oidc@3.583.0':
     dependencies:
       '@aws-crypto/sha256-browser': 3.0.0
       '@aws-crypto/sha256-js': 3.0.0
       '@aws-sdk/client-sts': 3.583.0
       '@aws-sdk/core': 3.582.0
       '@aws-sdk/credential-provider-node': 3.583.0(@aws-sdk/client-sso-oidc@3.583.0)(@aws-sdk/client-sts@3.583.0)
+      '@aws-sdk/middleware-host-header': 3.577.0
+      '@aws-sdk/middleware-logger': 3.577.0
+      '@aws-sdk/middleware-recursion-detection': 3.577.0
+      '@aws-sdk/middleware-user-agent': 3.583.0
+      '@aws-sdk/region-config-resolver': 3.577.0
+      '@aws-sdk/types': 3.577.0
+      '@aws-sdk/util-endpoints': 3.583.0
+      '@aws-sdk/util-user-agent-browser': 3.577.0
+      '@aws-sdk/util-user-agent-node': 3.577.0
+      '@smithy/config-resolver': 3.0.0
+      '@smithy/core': 2.0.1
+      '@smithy/fetch-http-handler': 3.0.1
+      '@smithy/hash-node': 3.0.0
+      '@smithy/invalid-dependency': 3.0.0
+      '@smithy/middleware-content-length': 3.0.0
+      '@smithy/middleware-endpoint': 3.0.0
+      '@smithy/middleware-retry': 3.0.1
+      '@smithy/middleware-serde': 3.0.0
+      '@smithy/middleware-stack': 3.0.0
+      '@smithy/node-config-provider': 3.0.0
+      '@smithy/node-http-handler': 3.0.0
+      '@smithy/protocol-http': 4.0.0
+      '@smithy/smithy-client': 3.0.1
+      '@smithy/types': 3.0.0
+      '@smithy/url-parser': 3.0.0
+      '@smithy/util-base64': 3.0.0
+      '@smithy/util-body-length-browser': 3.0.0
+      '@smithy/util-body-length-node': 3.0.0
+      '@smithy/util-defaults-mode-browser': 3.0.1
+      '@smithy/util-defaults-mode-node': 3.0.1
+      '@smithy/util-endpoints': 2.0.0
+      '@smithy/util-middleware': 3.0.0
+      '@smithy/util-retry': 3.0.0
+      '@smithy/util-utf8': 3.0.0
+      tslib: 2.8.1
+    transitivePeerDependencies:
+      - aws-crt
+
+  '@aws-sdk/client-sso-oidc@3.583.0(@aws-sdk/client-sts@3.583.0)':
+    dependencies:
+      '@aws-crypto/sha256-browser': 3.0.0
+      '@aws-crypto/sha256-js': 3.0.0
+      '@aws-sdk/client-sts': 3.583.0
+      '@aws-sdk/core': 3.582.0
+      '@aws-sdk/credential-provider-node': 3.583.0(@aws-sdk/client-sso-oidc@3.583.0(@aws-sdk/client-sts@3.583.0))(@aws-sdk/client-sts@3.583.0)
       '@aws-sdk/middleware-host-header': 3.577.0
       '@aws-sdk/middleware-logger': 3.577.0
       '@aws-sdk/middleware-recursion-detection': 3.577.0
@@ -11246,7 +11291,7 @@ snapshots:
       '@aws-crypto/sha256-js': 3.0.0
       '@aws-sdk/client-sso-oidc': 3.583.0(@aws-sdk/client-sts@3.583.0)
       '@aws-sdk/core': 3.582.0
-      '@aws-sdk/credential-provider-node': 3.583.0(@aws-sdk/client-sso-oidc@3.583.0)(@aws-sdk/client-sts@3.583.0)
+      '@aws-sdk/credential-provider-node': 3.583.0(@aws-sdk/client-sso-oidc@3.583.0(@aws-sdk/client-sts@3.583.0))(@aws-sdk/client-sts@3.583.0)
       '@aws-sdk/middleware-host-header': 3.577.0
       '@aws-sdk/middleware-logger': 3.577.0
       '@aws-sdk/middleware-recursion-detection': 3.577.0
@@ -11404,6 +11449,23 @@ snapshots:
       - '@aws-sdk/client-sso-oidc'
       - aws-crt
 
+  '@aws-sdk/credential-provider-ini@3.583.0(@aws-sdk/client-sso-oidc@3.583.0(@aws-sdk/client-sts@3.583.0))(@aws-sdk/client-sts@3.583.0)':
+    dependencies:
+      '@aws-sdk/client-sts': 3.583.0
+      '@aws-sdk/credential-provider-env': 3.577.0
+      '@aws-sdk/credential-provider-process': 3.577.0
+      '@aws-sdk/credential-provider-sso': 3.583.0(@aws-sdk/client-sso-oidc@3.583.0(@aws-sdk/client-sts@3.583.0))
+      '@aws-sdk/credential-provider-web-identity': 3.577.0(@aws-sdk/client-sts@3.583.0)
+      '@aws-sdk/types': 3.577.0
+      '@smithy/credential-provider-imds': 3.0.0
+      '@smithy/property-provider': 3.0.0
+      '@smithy/shared-ini-file-loader': 3.0.0
+      '@smithy/types': 3.0.0
+      tslib: 2.8.1
+    transitivePeerDependencies:
+      - '@aws-sdk/client-sso-oidc'
+      - aws-crt
+
   '@aws-sdk/credential-provider-ini@3.583.0(@aws-sdk/client-sso-oidc@3.583.0)(@aws-sdk/client-sts@3.583.0)':
     dependencies:
       '@aws-sdk/client-sts': 3.583.0
@@ -11478,6 +11540,25 @@ snapshots:
       - '@aws-sdk/client-sts'
       - aws-crt
 
+  '@aws-sdk/credential-provider-node@3.583.0(@aws-sdk/client-sso-oidc@3.583.0(@aws-sdk/client-sts@3.583.0))(@aws-sdk/client-sts@3.583.0)':
+    dependencies:
+      '@aws-sdk/credential-provider-env': 3.577.0
+      '@aws-sdk/credential-provider-http': 3.582.0
+      '@aws-sdk/credential-provider-ini': 3.583.0(@aws-sdk/client-sso-oidc@3.583.0(@aws-sdk/client-sts@3.583.0))(@aws-sdk/client-sts@3.583.0)
+      '@aws-sdk/credential-provider-process': 3.577.0
+      '@aws-sdk/credential-provider-sso': 3.583.0(@aws-sdk/client-sso-oidc@3.583.0(@aws-sdk/client-sts@3.583.0))
+      '@aws-sdk/credential-provider-web-identity': 3.577.0(@aws-sdk/client-sts@3.583.0)
+      '@aws-sdk/types': 3.577.0
+      '@smithy/credential-provider-imds': 3.0.0
+      '@smithy/property-provider': 3.0.0
+      '@smithy/shared-ini-file-loader': 3.0.0
+      '@smithy/types': 3.0.0
+      tslib: 2.8.1
+    transitivePeerDependencies:
+      - '@aws-sdk/client-sso-oidc'
+      - '@aws-sdk/client-sts'
+      - aws-crt
+
   '@aws-sdk/credential-provider-node@3.583.0(@aws-sdk/client-sso-oidc@3.583.0)(@aws-sdk/client-sts@3.583.0)':
     dependencies:
       '@aws-sdk/credential-provider-env': 3.577.0
@@ -11534,6 +11615,19 @@ snapshots:
       '@smithy/property-provider': 2.2.0
       '@smithy/shared-ini-file-loader': 2.4.0
       '@smithy/types': 2.12.0
+      tslib: 2.8.1
+    transitivePeerDependencies:
+      - '@aws-sdk/client-sso-oidc'
+      - aws-crt
+
+  '@aws-sdk/credential-provider-sso@3.583.0(@aws-sdk/client-sso-oidc@3.583.0(@aws-sdk/client-sts@3.583.0))':
+    dependencies:
+      '@aws-sdk/client-sso': 3.583.0
+      '@aws-sdk/token-providers': 3.577.0(@aws-sdk/client-sso-oidc@3.583.0(@aws-sdk/client-sts@3.583.0))
+      '@aws-sdk/types': 3.577.0
+      '@smithy/property-provider': 3.0.0
+      '@smithy/shared-ini-file-loader': 3.0.0
+      '@smithy/types': 3.0.0
       tslib: 2.8.1
     transitivePeerDependencies:
       - '@aws-sdk/client-sso-oidc'
@@ -11683,16 +11777,25 @@ snapshots:
 
   '@aws-sdk/token-providers@3.568.0(@aws-sdk/client-sso-oidc@3.583.0)':
     dependencies:
-      '@aws-sdk/client-sso-oidc': 3.583.0(@aws-sdk/client-sts@3.583.0)
+      '@aws-sdk/client-sso-oidc': 3.583.0
       '@aws-sdk/types': 3.567.0
       '@smithy/property-provider': 2.2.0
       '@smithy/shared-ini-file-loader': 2.4.0
       '@smithy/types': 2.12.0
       tslib: 2.8.1
 
-  '@aws-sdk/token-providers@3.577.0(@aws-sdk/client-sso-oidc@3.583.0)':
+  '@aws-sdk/token-providers@3.577.0(@aws-sdk/client-sso-oidc@3.583.0(@aws-sdk/client-sts@3.583.0))':
     dependencies:
       '@aws-sdk/client-sso-oidc': 3.583.0(@aws-sdk/client-sts@3.583.0)
+      '@aws-sdk/types': 3.577.0
+      '@smithy/property-provider': 3.0.0
+      '@smithy/shared-ini-file-loader': 3.0.0
+      '@smithy/types': 3.0.0
+      tslib: 2.8.1
+
+  '@aws-sdk/token-providers@3.577.0(@aws-sdk/client-sso-oidc@3.583.0)':
+    dependencies:
+      '@aws-sdk/client-sso-oidc': 3.583.0
       '@aws-sdk/types': 3.577.0
       '@smithy/property-provider': 3.0.0
       '@smithy/shared-ini-file-loader': 3.0.0
@@ -14334,29 +14437,29 @@ snapshots:
     optionalDependencies:
       rollup: 3.29.5
 
-  '@rollup/plugin-typescript@11.1.0(rollup@3.29.5)(tslib@2.8.1)(typescript@5.9.0-dev.20250618)':
+  '@rollup/plugin-typescript@11.1.0(rollup@3.29.5)(tslib@2.8.1)(typescript@6.0.0-dev.20250806)':
     dependencies:
       '@rollup/pluginutils': 5.0.2(rollup@3.29.5)
       resolve: 1.22.1
-      typescript: 5.9.0-dev.20250618
+      typescript: 6.0.0-dev.20250806
     optionalDependencies:
       rollup: 3.29.5
       tslib: 2.8.1
 
-  '@rollup/plugin-typescript@11.1.1(rollup@3.29.5)(tslib@2.8.1)(typescript@5.9.0-dev.20250618)':
+  '@rollup/plugin-typescript@11.1.1(rollup@3.29.5)(tslib@2.8.1)(typescript@6.0.0-dev.20250806)':
     dependencies:
       '@rollup/pluginutils': 5.0.2(rollup@3.29.5)
       resolve: 1.22.2
-      typescript: 5.9.0-dev.20250618
+      typescript: 6.0.0-dev.20250806
     optionalDependencies:
       rollup: 3.29.5
       tslib: 2.8.1
 
-  '@rollup/plugin-typescript@11.1.6(rollup@3.29.5)(tslib@2.8.1)(typescript@5.9.0-dev.20250618)':
+  '@rollup/plugin-typescript@11.1.6(rollup@3.29.5)(tslib@2.8.1)(typescript@6.0.0-dev.20250806)':
     dependencies:
       '@rollup/pluginutils': 5.1.3(rollup@3.29.5)
       resolve: 1.22.8
-      typescript: 5.9.0-dev.20250618
+      typescript: 6.0.0-dev.20250806
     optionalDependencies:
       rollup: 3.29.5
       tslib: 2.8.1
@@ -15516,10 +15619,10 @@ snapshots:
       treeify: 1.1.0
       yargs: 16.2.0
 
-  '@typescript/vfs@1.6.1(typescript@5.9.0-dev.20250618)':
+  '@typescript/vfs@1.6.1(typescript@6.0.0-dev.20250806)':
     dependencies:
       debug: 4.3.7
-      typescript: 5.9.0-dev.20250618
+      typescript: 6.0.0-dev.20250806
     transitivePeerDependencies:
       - supports-color
 
@@ -15640,9 +15743,9 @@ snapshots:
       loupe: 3.2.0
       tinyrainbow: 2.0.0
 
-  '@xata.io/client@0.29.4(typescript@5.9.0-dev.20250618)':
+  '@xata.io/client@0.29.4(typescript@6.0.0-dev.20250806)':
     dependencies:
-      typescript: 5.9.0-dev.20250618
+      typescript: 6.0.0-dev.20250806
 
   '@xmldom/xmldom@0.7.13': {}
 
@@ -16883,7 +16986,7 @@ snapshots:
       sql.js: 1.10.3
       sqlite3: 5.1.7
 
-  drizzle-orm@1.0.0-beta.1-c0277c0(@aws-sdk/client-rds-data@3.583.0)(@cloudflare/workers-types@4.20241112.0)(@electric-sql/pglite@0.2.12)(@libsql/client-wasm@0.10.0)(@libsql/client@0.10.0)(@neondatabase/serverless@0.10.4)(@op-engineering/op-sqlite@2.0.22)(@opentelemetry/api@1.8.0)(@planetscale/database@1.18.0)(@prisma/client@5.14.0)(@tidbcloud/serverless@0.1.1)(@types/better-sqlite3@7.6.13)(@types/pg@8.11.6)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.4(typescript@5.9.0-dev.20250618))(better-sqlite3@11.9.1)(bun-types@1.2.2)(expo-sqlite@14.0.6)(gel@2.0.0)(knex@2.5.1(better-sqlite3@11.9.1)(mysql2@3.14.1)(pg@8.13.1)(sqlite3@5.1.7))(kysely@0.25.0)(mysql2@3.14.1)(pg@8.13.1)(postgres@3.4.4)(sql.js@1.10.3)(sqlite3@5.1.7):
+  drizzle-orm@1.0.0-beta.1-c0277c0(@aws-sdk/client-rds-data@3.583.0)(@cloudflare/workers-types@4.20241112.0)(@electric-sql/pglite@0.2.12)(@libsql/client-wasm@0.10.0)(@libsql/client@0.10.0)(@neondatabase/serverless@0.10.4)(@op-engineering/op-sqlite@2.0.22)(@opentelemetry/api@1.8.0)(@planetscale/database@1.18.0)(@prisma/client@5.14.0)(@tidbcloud/serverless@0.1.1)(@types/better-sqlite3@7.6.13)(@types/pg@8.11.6)(@types/sql.js@1.4.9)(@vercel/postgres@0.8.0)(@xata.io/client@0.29.4(typescript@6.0.0-dev.20250806))(better-sqlite3@11.9.1)(bun-types@1.2.2)(expo-sqlite@14.0.6)(gel@2.0.0)(knex@2.5.1(better-sqlite3@11.9.1)(mysql2@3.14.1)(pg@8.13.1)(sqlite3@5.1.7))(kysely@0.25.0)(mysql2@3.14.1)(pg@8.13.1)(postgres@3.4.4)(sql.js@1.10.3)(sqlite3@5.1.7):
     optionalDependencies:
       '@aws-sdk/client-rds-data': 3.583.0
       '@cloudflare/workers-types': 4.20241112.0
@@ -16900,7 +17003,7 @@ snapshots:
       '@types/pg': 8.11.6
       '@types/sql.js': 1.4.9
       '@vercel/postgres': 0.8.0
-      '@xata.io/client': 0.29.4(typescript@5.9.0-dev.20250618)
+      '@xata.io/client': 0.29.4(typescript@6.0.0-dev.20250806)
       better-sqlite3: 11.9.1
       bun-types: 1.2.2
       expo-sqlite: 14.0.6(expo@51.0.8(@babel/core@7.24.6)(@babel/preset-env@7.24.6(@babel/core@7.24.6))(bufferutil@4.0.8)(encoding@0.1.13))
@@ -20717,12 +20820,12 @@ snapshots:
       fast-glob: 3.3.1
       typescript: 5.6.3
 
-  resolve-tspaths@0.8.22(typescript@5.9.0-dev.20250618):
+  resolve-tspaths@0.8.22(typescript@6.0.0-dev.20250806):
     dependencies:
       ansi-colors: 4.1.3
       commander: 12.1.0
       fast-glob: 3.3.2
-      typescript: 5.9.0-dev.20250618
+      typescript: 6.0.0-dev.20250806
 
   resolve.exports@2.0.2: {}
 
@@ -21635,7 +21738,7 @@ snapshots:
       '@ts-morph/common': 0.26.1
       code-block-writer: 13.0.3
 
-  ts-node@10.9.2(@types/node@20.12.12)(typescript@5.9.0-dev.20250618):
+  ts-node@10.9.2(@types/node@20.12.12)(typescript@6.0.0-dev.20250806):
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
       '@tsconfig/node10': 1.0.11
@@ -21649,7 +21752,7 @@ snapshots:
       create-require: 1.1.1
       diff: 4.0.2
       make-error: 1.3.6
-      typescript: 5.9.0-dev.20250618
+      typescript: 6.0.0-dev.20250806
       v8-compile-cache-lib: 3.0.1
       yn: 3.1.1
 
@@ -21657,9 +21760,9 @@ snapshots:
     optionalDependencies:
       typescript: 5.6.3
 
-  tsconfck@3.0.3(typescript@5.9.0-dev.20250618):
+  tsconfck@3.0.3(typescript@6.0.0-dev.20250806):
     optionalDependencies:
-      typescript: 5.9.0-dev.20250618
+      typescript: 6.0.0-dev.20250806
 
   tsconfig-paths@3.14.2:
     dependencies:
@@ -21914,9 +22017,9 @@ snapshots:
 
   typescript@5.6.3: {}
 
-  typescript@5.8.3: {}
+  typescript@5.9.2: {}
 
-  typescript@5.9.0-dev.20250618: {}
+  typescript@6.0.0-dev.20250806: {}
 
   ua-parser-js@1.0.38: {}
 
@@ -22044,9 +22147,9 @@ snapshots:
 
   v8-compile-cache-lib@3.0.1: {}
 
-  valibot@1.0.0-beta.7(typescript@5.9.0-dev.20250618):
+  valibot@1.0.0-beta.7(typescript@6.0.0-dev.20250806):
     optionalDependencies:
-      typescript: 5.9.0-dev.20250618
+      typescript: 6.0.0-dev.20250806
 
   valid-url@1.0.9: {}
 
@@ -22165,33 +22268,33 @@ snapshots:
       - supports-color
       - typescript
 
-  vite-tsconfig-paths@4.3.2(typescript@5.9.0-dev.20250618)(vite@5.3.3(@types/node@18.15.10)(lightningcss@1.25.1)(terser@5.39.0)):
+  vite-tsconfig-paths@4.3.2(typescript@6.0.0-dev.20250806)(vite@5.3.3(@types/node@18.15.10)(lightningcss@1.25.1)(terser@5.39.0)):
     dependencies:
       debug: 4.3.4
       globrex: 0.1.2
-      tsconfck: 3.0.3(typescript@5.9.0-dev.20250618)
+      tsconfck: 3.0.3(typescript@6.0.0-dev.20250806)
     optionalDependencies:
       vite: 5.3.3(@types/node@18.15.10)(lightningcss@1.25.1)(terser@5.39.0)
     transitivePeerDependencies:
       - supports-color
       - typescript
 
-  vite-tsconfig-paths@4.3.2(typescript@5.9.0-dev.20250618)(vite@5.3.3(@types/node@18.19.33)(lightningcss@1.25.1)(terser@5.39.0)):
+  vite-tsconfig-paths@4.3.2(typescript@6.0.0-dev.20250806)(vite@5.3.3(@types/node@18.19.33)(lightningcss@1.25.1)(terser@5.39.0)):
     dependencies:
       debug: 4.3.4
       globrex: 0.1.2
-      tsconfck: 3.0.3(typescript@5.9.0-dev.20250618)
+      tsconfck: 3.0.3(typescript@6.0.0-dev.20250806)
     optionalDependencies:
       vite: 5.3.3(@types/node@18.19.33)(lightningcss@1.25.1)(terser@5.39.0)
     transitivePeerDependencies:
       - supports-color
       - typescript
 
-  vite-tsconfig-paths@4.3.2(typescript@5.9.0-dev.20250618)(vite@5.3.3(@types/node@20.12.12)(lightningcss@1.25.1)(terser@5.39.0)):
+  vite-tsconfig-paths@4.3.2(typescript@6.0.0-dev.20250806)(vite@5.3.3(@types/node@20.12.12)(lightningcss@1.25.1)(terser@5.39.0)):
     dependencies:
       debug: 4.3.4
       globrex: 0.1.2
-      tsconfck: 3.0.3(typescript@5.9.0-dev.20250618)
+      tsconfck: 3.0.3(typescript@6.0.0-dev.20250806)
     optionalDependencies:
       vite: 5.3.3(@types/node@20.12.12)(lightningcss@1.25.1)(terser@5.39.0)
     transitivePeerDependencies:
