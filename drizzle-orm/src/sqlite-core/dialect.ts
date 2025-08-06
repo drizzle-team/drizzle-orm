@@ -1032,7 +1032,11 @@ export abstract class SQLiteDialect {
 							mode: isSingle ? 'first' : 'many',
 							schema,
 							queryConfig: join as DBQueryConfig,
-							tableConfig: schema[relation.targetTableName]!,
+							tableConfig: schema[relation.targetTableName] ?? {
+								name: relation.targetTableName,
+								table: relation.targetTable,
+								relations: {},
+							},
 							relationWhere: filter,
 							isNested: true,
 							errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
