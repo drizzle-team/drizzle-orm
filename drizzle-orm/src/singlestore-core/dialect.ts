@@ -341,6 +341,15 @@ export class SingleStoreDialect {
 							viewSchema ? sql`${sql.identifier(viewSchema)}.` : undefined
 						}${sql.identifier(origViewName)}${alias && sql` ${sql.identifier(alias)}`}${onSql}`,
 					);
+				} else if (is(table, SingleStoreTempTable)) {
+					// Handle temp tables - they should not be wrapped in parentheses
+					// Only add alias if it's different from the table name
+					const alias = joinMeta.alias !== table.tableName ? joinMeta.alias : undefined;
+					joinsArray.push(
+						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${sql.identifier(table.tableName)}${
+							alias && sql` ${sql.identifier(alias)}`
+						}${onSql}`,
+					);
 				} else {
 					joinsArray.push(
 						sql`${sql.raw(joinMeta.joinType)} join${lateralSql} ${table}${onSql}`,
