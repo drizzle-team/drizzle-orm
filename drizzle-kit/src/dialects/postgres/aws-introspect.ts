@@ -117,6 +117,7 @@ export const fromDatabase = async (
 	// ! Use `pg_catalog` for system functions
 
 	// TODO: potential improvements
+	// use pg_catalog.has_table_privilege(pg_class.oid, 'SELECT') for tables
 	// --- default access method
 	// SHOW default_table_access_method;
 	// SELECT current_setting('default_table_access_method') AS default_am;
@@ -134,7 +135,9 @@ export const fromDatabase = async (
 	const tablespacesQuery = db.query<{
 		oid: string;
 		name: string;
-	}>(`SELECT oid, spcname as "name" FROM pg_catalog.pg_tablespace WHERE pg_catalog.has_tablespace_privilege(spcname, 'CREATE') ORDER BY pg_catalog.lower(spcname)`).then((rows) => {
+	}>(
+		`SELECT oid, spcname as "name" FROM pg_catalog.pg_tablespace WHERE pg_catalog.has_tablespace_privilege(oid, 'CREATE') ORDER BY pg_catalog.lower(spcname)`,
+	).then((rows) => {
 		queryCallback('tablespaces', rows, null);
 		return rows;
 	}).catch((error) => {
@@ -142,7 +145,9 @@ export const fromDatabase = async (
 		throw error;
 	});
 
-	const namespacesQuery = db.query<Namespace>("SELECT oid, nspname as name FROM pg_catalog.pg_namespace WHERE pg_catalog.has_schema_privilege(nspname, 'USAGE') ORDER BY pg_catalog.lower(nspname)")
+	const namespacesQuery = db.query<Namespace>(
+		"SELECT oid, nspname as name FROM pg_catalog.pg_namespace WHERE pg_catalog.has_schema_privilege(oid, 'USAGE') ORDER BY pg_catalog.lower(nspname)",
+	)
 		.then((rows) => {
 			queryCallback('namespaces', rows, null);
 			return rows;
@@ -190,24 +195,25 @@ export const fromDatabase = async (
 	);
 
 	const filteredNamespaces = other.filter((it) => schemaFilter(it.name));
-	const filteredNamespacesIds = filteredNamespaces.map((it) => it.oid);
+	const filteredNamespacesStringForSQL = filteredNamespaces.map((ns) => `'${ns.name}'`).join(',');
 
 	schemas.push(...filteredNamespaces.map<Schema>((it) => ({ entityType: 'schemas', name: it.name })));
 
-	const tablesList = await db
-		.query<{
-			oid: string;
-			schema: string;
-			name: string;
-
-			/* r - table, v - view, m - materialized view */
-			kind: 'r' | 'v' | 'm';
-			accessMethod: string;
-			options: string[] | null;
-			rlsEnabled: boolean;
-			tablespaceid: string;
-			definition: string | null;
-		}>(`
+	type TableListItem = {
+		oid: string;
+		schema: string;
+		name: string;
+		/* r - table, v - view, m - materialized view */
+		kind: 'r' | 'v' | 'm';
+		accessMethod: string;
+		options: string[] | null;
+		rlsEnabled: boolean;
+		tablespaceid: string;
+		definition: string | null;
+	};
+	const tablesList = filteredNamespacesStringForSQL
+		? await db
+			.query<TableListItem>(`
                 SELECT
                     pg_class.oid,
                     nspname as "schema",
@@ -227,15 +233,16 @@ export const fromDatabase = async (
 				JOIN pg_catalog.pg_namespace ON pg_namespace.oid OPERATOR(pg_catalog.=) relnamespace
                 WHERE
                     relkind IN ('r', 'v', 'm')
-                    AND relnamespace IN (${filteredNamespacesIds.join(', ')})
+                    AND nspname IN (${filteredNamespacesStringForSQL})
                 ORDER BY pg_catalog.lower(nspname), pg_catalog.lower(relname);
 	`).then((rows) => {
-			queryCallback('tables', rows, null);
-			return rows;
-		}).catch((error) => {
-			queryCallback('tables', [], error);
-			throw error;
-		});
+				queryCallback('tables', rows, null);
+				return rows;
+			}).catch((error) => {
+				queryCallback('tables', [], error);
+				throw error;
+			})
+		: [] as TableListItem[];
 
 	const viewsList = tablesList.filter((it) => it.kind === 'v' || it.kind === 'm');
 
@@ -294,35 +301,39 @@ export const fromDatabase = async (
 		throw error;
 	});
 
-	const enumsQuery = db
-		.query<{
-			oid: string;
-			name: string;
-			schemaId: string;
-			arrayTypeId: number;
-			ordinality: number;
-			value: string;
-		}>(`SELECT
+	type EnumListItem = {
+		oid: string;
+		name: string;
+		schema: string;
+		arrayTypeId: number;
+		ordinality: number;
+		value: string;
+	};
+	const enumsQuery = filteredNamespacesStringForSQL
+		? db
+			.query<EnumListItem>(`SELECT
                     pg_type.oid as "oid",
                     typname as "name",
-                    typnamespace as "schemaId",
+                    nspname as "schema",
                     pg_type.typarray as "arrayTypeId",
                     pg_enum.enumsortorder AS "ordinality",
                     pg_enum.enumlabel AS "value"
                 FROM
                     pg_catalog.pg_type
                 JOIN pg_catalog.pg_enum ON pg_enum.enumtypid OPERATOR(pg_catalog.=) pg_type.oid
+				JOIN pg_catalog.pg_namespace ON pg_namespace.oid OPERATOR(pg_catalog.=) pg_type.typnamespace
                 WHERE
                     pg_type.typtype OPERATOR(pg_catalog.=) 'e'
-                    AND typnamespace IN (${filteredNamespacesIds.join(',')})
+                    AND nspname IN (${filteredNamespacesStringForSQL})
                 ORDER BY pg_type.oid, pg_enum.enumsortorder
 		`).then((rows) => {
-			queryCallback('enums', rows, null);
-			return rows;
-		}).catch((error) => {
-			queryCallback('enums', [], error);
-			throw error;
-		});
+				queryCallback('enums', rows, null);
+				return rows;
+			}).catch((error) => {
+				queryCallback('enums', [], error);
+				throw error;
+			})
+		: [] as EnumListItem[];
 
 	// fetch for serials, adrelid = tableid
 	const serialsQuery = db
@@ -347,7 +358,7 @@ export const fromDatabase = async (
 			throw error;
 		});
 
-	const sequencesQuery = db.query<{
+	type SequenceListItem = {
 		schema: string;
 		oid: string;
 		name: string;
@@ -357,7 +368,9 @@ export const fromDatabase = async (
 		incrementBy: string;
 		cycle: boolean;
 		cacheSize: number;
-	}>(`SELECT 
+	};
+	const sequencesQuery = filteredNamespacesStringForSQL
+		? db.query<SequenceListItem>(`SELECT 
             nspname as "schema",
             relname as "name",
             seqrelid as "oid",
@@ -370,15 +383,16 @@ export const fromDatabase = async (
         FROM pg_catalog.pg_sequence
         JOIN pg_catalog.pg_class ON pg_sequence.seqrelid OPERATOR(pg_catalog.=) pg_class.oid
 		JOIN pg_catalog.pg_namespace ON pg_namespace.oid OPERATOR(pg_catalog.=) pg_class.relnamespace
-        WHERE relnamespace IN (${filteredNamespacesIds.join(',')})
+        WHERE nspname IN (${filteredNamespacesStringForSQL})
         ORDER BY pg_catalog.lower(nspname), pg_catalog.lower(relname);
 	`).then((rows) => {
-		queryCallback('sequences', rows, null);
-		return rows;
-	}).catch((error) => {
-		queryCallback('sequences', [], error);
-		throw error;
-	});
+				queryCallback('sequences', rows, null);
+				return rows;
+			}).catch((error) => {
+				queryCallback('sequences', [], error);
+				throw error;
+			})
+		: [] as SequenceListItem[];
 
 	// I'm not yet aware of how we handle policies down the pipeline for push,
 	// and since postgres does not have any default policies, we can safely fetch all of them for now
@@ -451,14 +465,16 @@ export const fromDatabase = async (
 		throw error;
 	});
 
-	const privilegesQuery = db.query<{
+	type PrivilegeListItem = {
 		grantor: string;
 		grantee: string;
 		schema: string;
 		table: string;
 		type: 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' | 'TRUNCATE' | 'REFERENCES' | 'TRIGGER';
 		isGrantable: boolean;
-	}>(`
+	};
+	const privilegesQuery = filteredNamespacesStringForSQL
+		? db.query<PrivilegeListItem>(`
 		SELECT
 			grantor,
 			grantee,
@@ -467,18 +483,19 @@ export const fromDatabase = async (
 			privilege_type AS "type",
 			CASE is_grantable WHEN 'YES' THEN true ELSE false END AS "isGrantable"
 		FROM information_schema.role_table_grants
-		WHERE table_schema IN (${filteredNamespaces.map((ns) => `'${ns.name}'`).join(',')})
+		WHERE table_schema IN (${filteredNamespacesStringForSQL})
 		ORDER BY
 			pg_catalog.lower(table_schema),
 			pg_catalog.lower(table_name),
 			pg_catalog.lower(grantee);
 	`).then((rows) => {
-		queryCallback('privileges', rows, null);
-		return rows;
-	}).catch((error) => {
-		queryCallback('privileges', [], error);
-		throw error;
-	});
+				queryCallback('privileges', rows, null);
+				return rows;
+			}).catch((error) => {
+				queryCallback('privileges', [], error);
+				throw error;
+			})
+		: [] as PrivilegeListItem[];
 
 	const constraintsQuery = db.query<{
 		oid: string;
@@ -627,10 +644,9 @@ export const fromDatabase = async (
 
 	const groupedEnums = enumsList.reduce((acc, it) => {
 		if (!(it.oid in acc)) {
-			const schemaName = filteredNamespaces.find((sch) => sch.oid === it.schemaId)!.name;
 			acc[it.oid] = {
 				oid: it.oid,
-				schema: schemaName,
+				schema: it.schema,
 				name: it.name,
 				values: [it.value],
 			};
@@ -642,10 +658,9 @@ export const fromDatabase = async (
 
 	const groupedArrEnums = enumsList.reduce((acc, it) => {
 		if (!(it.arrayTypeId in acc)) {
-			const schemaName = filteredNamespaces.find((sch) => sch.oid === it.schemaId)!.name;
 			acc[it.arrayTypeId] = {
 				oid: it.oid,
-				schema: schemaName,
+				schema: it.schema,
 				name: it.name,
 				values: [it.value],
 			};
