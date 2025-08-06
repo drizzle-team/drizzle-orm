@@ -98,3 +98,23 @@ export const unescapeFromSqlDefault = (input: string) => {
 export const escapeForTsLiteral = (input: string) => {
 	return input.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 };
+
+export function inspect(it: any): string {
+	if (!it) return '';
+
+	const keys = Object.keys(it);
+	if (keys.length === 0) return '';
+
+	const pairs = keys.map((key) => {
+		const formattedKey = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(key)
+			? key
+			: `'${key}'`;
+
+		const value = it[key];
+		const formattedValue = typeof value === 'string' ? `'${value}'` : String(value);
+
+		return `${formattedKey}: ${formattedValue}`;
+	});
+
+	return `{ ${pairs.join(', ')} }`;
+}

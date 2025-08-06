@@ -940,3 +940,24 @@ test('multiple policies with roles from schema', async () => {
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
 });
+
+test('case sensitive schema name + identity column', async () => {
+	const mySchema = pgSchema('CaseSensitiveSchema');
+	const schema = {
+		mySchema,
+		users: mySchema.table('users', {
+			id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+			name: text('name'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffIntrospect(
+		db,
+		schema,
+		'case-sensitive-schema-name',
+		['CaseSensitiveSchema'],
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});

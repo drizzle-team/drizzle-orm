@@ -4,6 +4,7 @@ import { Casing } from 'src/cli/validations/common';
 import { assertUnreachable } from '../../utils';
 import { CheckConstraint, Column, ForeignKey, Index, MysqlDDL, PrimaryKey, ViewColumn } from './ddl';
 import { Enum, parseEnum, typeFor } from './grammar';
+import { inspect } from '../utils';
 
 export const imports = [
 	'boolean',
@@ -47,26 +48,6 @@ const mysqlImportsList = new Set([
 	'singlestoreTable',
 	...imports,
 ]);
-
-function inspect(it: any): string {
-	if (!it) return '';
-
-	const keys = Object.keys(it);
-	if (keys.length === 0) return '';
-
-	const pairs = keys.map((key) => {
-		const formattedKey = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(key)
-			? key
-			: `'${key}'`;
-
-		const value = it[key];
-		const formattedValue = typeof value === 'string' ? `'${value}'` : String(value);
-
-		return `${formattedKey}: ${formattedValue}`;
-	});
-
-	return `{ ${pairs.join(', ')} }`;
-}
 
 const objToStatement2 = (json: any) => {
 	json = Object.fromEntries(Object.entries(json).filter((it) => it[1]));
@@ -285,8 +266,10 @@ const column = (
 		
 		const drizzleType = grammarType.drizzleImport();
 		const defaultStatement = def ? def.startsWith('.') ? def : `.default(${def})` : '';
+		const paramsString = inspect(options);
+		const comma = columnName && paramsString ? ', ' : '';
 
-		let res = `${key}: ${drizzleType}(${columnName}${inspect(options)})`;
+		let res = `${key}: ${drizzleType}(${columnName}${comma}${paramsString})`;
 		res += autoincrement ? `.autoincrement()` : '';
 		res += defaultStatement;
 		return res;

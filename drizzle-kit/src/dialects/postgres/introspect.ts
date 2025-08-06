@@ -114,7 +114,8 @@ export const fromDatabase = async (
 		name: string;
 	};
 
-	// ! Use `pg_catalog` for system tables, functions and operators (Prevent security vulnerabilities)
+	// ! Use `pg_catalog` for system tables, functions and operators (Prevent security vulnerabilities - overwriting system tables, functions and operators)
+	// ! Do not use `::regnamespace::text` to get schema name, because it does not work with schemas that have uppercase letters (e.g. MySchema -> "MySchema")
 
 	// TODO: potential improvements
 	// --- default access method
@@ -209,8 +210,8 @@ export const fromDatabase = async (
 			definition: string | null;
 		}>(`
 			SELECT
-				oid,
-				relnamespace::regnamespace::text as "schema",
+				pg_class.oid,
+				nspname as "schema",
 				relname AS "name",
 				relkind AS "kind",
 				relam as "accessMethod",
@@ -219,15 +220,16 @@ export const fromDatabase = async (
 				relrowsecurity AS "rlsEnabled",
 				CASE
 					WHEN relkind OPERATOR(pg_catalog.=) 'v' OR relkind OPERATOR(pg_catalog.=) 'm'
-						THEN pg_catalog.pg_get_viewdef(oid, true)
+						THEN pg_catalog.pg_get_viewdef(pg_class.oid, true)
 					ELSE null
 				END as "definition"
 			FROM
 				pg_catalog.pg_class
+			JOIN pg_catalog.pg_namespace ON pg_namespace.oid OPERATOR(pg_catalog.=) relnamespace
 			WHERE
 				relkind IN ('r', 'v', 'm')
 				AND relnamespace IN (${filteredNamespacesIds.join(', ')})
-			ORDER BY relnamespace, pg_catalog.lower(relname);
+			ORDER BY pg_catalog.lower(nspname), pg_catalog.lower(relname);
 		`).then((rows) => {
 			queryCallback('tables', rows, null);
 			return rows;
@@ -357,7 +359,7 @@ export const fromDatabase = async (
 		cycle: boolean;
 		cacheSize: number;
 	}>(`SELECT 
-			relnamespace::regnamespace::text as "schema",
+			nspname as "schema",
 			relname as "name",
 			seqrelid as "oid",
 			seqstart as "startWith", 
@@ -367,9 +369,10 @@ export const fromDatabase = async (
 			seqcycle as "cycle", 
 			seqcache as "cacheSize" 
 		FROM pg_catalog.pg_sequence
-		LEFT JOIN pg_catalog.pg_class ON pg_sequence.seqrelid OPERATOR(pg_catalog.=) pg_class.oid
+		JOIN pg_catalog.pg_class ON pg_sequence.seqrelid OPERATOR(pg_catalog.=) pg_class.oid
+		JOIN pg_catalog.pg_namespace ON pg_namespace.oid OPERATOR(pg_catalog.=) pg_class.relnamespace
 		WHERE relnamespace IN (${filteredNamespacesIds.join(',')})
-		ORDER BY relnamespace, pg_catalog.lower(relname);
+		ORDER BY pg_catalog.lower(nspname), pg_catalog.lower(relname);
 	`).then((rows) => {
 		queryCallback('sequences', rows, null);
 		return rows;
@@ -575,7 +578,7 @@ export const fromDatabase = async (
 								information_schema.columns c
 							WHERE
 								c.column_name OPERATOR(pg_catalog.=) attname
-								AND c.table_schema OPERATOR(pg_catalog.=) cls.relnamespace::regnamespace::text
+								AND c.table_schema OPERATOR(pg_catalog.=) nspname
 								AND c.table_name OPERATOR(pg_catalog.=) cls.relname
 						) c
 					)
@@ -583,7 +586,8 @@ export const fromDatabase = async (
 			END AS "metadata"
 		FROM
 			pg_catalog.pg_attribute attr
-			LEFT JOIN pg_catalog.pg_class cls ON cls.oid OPERATOR(pg_catalog.=) attr.attrelid
+			JOIN pg_catalog.pg_class cls ON cls.oid OPERATOR(pg_catalog.=) attr.attrelid
+			JOIN pg_catalog.pg_namespace nsp ON nsp.oid OPERATOR(pg_catalog.=) cls.relnamespace
 		WHERE
 		${filterByTableAndViewIds ? ` attrelid IN ${filterByTableAndViewIds}` : 'false'}
 			AND attnum OPERATOR(pg_catalog.>) 0
@@ -963,7 +967,7 @@ export const fromDatabase = async (
 	}>(`
       SELECT
         pg_class.oid,
-        relnamespace::regnamespace::text as "schema",
+        nspname as "schema",
         relname AS "name",
         am.amname AS "accessMethod",
         reloptions AS "with",
@@ -971,7 +975,8 @@ export const fromDatabase = async (
       FROM
         pg_catalog.pg_class
       JOIN pg_catalog.pg_am am ON am.oid OPERATOR(pg_catalog.=) pg_class.relam
-      LEFT JOIN LATERAL (
+	  JOIN pg_catalog.pg_namespace nsp ON nsp.oid OPERATOR(pg_catalog.=) pg_class.relnamespace
+      JOIN LATERAL (
         SELECT
           pg_catalog.pg_get_expr(indexprs, indrelid) AS "expression",
           pg_catalog.pg_get_expr(indpred, indrelid) AS "where",
@@ -1001,7 +1006,7 @@ export const fromDatabase = async (
       WHERE
         relkind OPERATOR(pg_catalog.=) 'i'
 		AND ${filterByTableIds ? `metadata."tableId" IN ${filterByTableIds}` : 'false'}
-	  ORDER BY relnamespace, pg_catalog.lower(relname);
+	  ORDER BY pg_catalog.lower(nspname), pg_catalog.lower(relname);
     `).then((rows) => {
 		queryCallback('indexes', rows, null);
 		return rows;
