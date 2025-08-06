@@ -98,7 +98,7 @@ export class SQLiteDOSession<
 		) => T,
 		_config?: SQLiteTransactionConfig,
 	): T {
-		const tx = new SQLiteDOTransaction('sync', this.dialect, this, this.relations, this.schema);
+		const tx = new SQLiteDOTransaction('sync', this.dialect, this, this.relations, this.schema, undefined, false, true);
 		this.client.transactionSync(() => {
 			transaction(tx);
 		});
@@ -131,6 +131,8 @@ export class SQLiteDOTransaction<
 			this.relations,
 			this.schema,
 			this.nestedIndex + 1,
+			false,
+			true,
 		);
 		this.session.transaction(() => transaction(tx));
 
