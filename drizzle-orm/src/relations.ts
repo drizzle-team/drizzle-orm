@@ -244,7 +244,6 @@ export type AnyRelations = TablesRelationalConfig;
 export abstract class Relation<
 	TSourceTableName extends string = string,
 	TTargetTableName extends string = string,
-	TTargetTable extends SchemaEntry = SchemaEntry,
 > {
 	static readonly [entityKind]: string = 'RelationV2';
 	declare readonly $brand: 'RelationV2';
@@ -256,7 +255,7 @@ export abstract class Relation<
 	alias: string | undefined;
 	where: AnyTableFilter | undefined;
 	sourceTable!: SchemaEntry;
-	targetTable: TTargetTable;
+	targetTable: SchemaEntry;
 	through?: {
 		source: RelationsBuilderColumnBase[];
 		target: RelationsBuilderColumnBase[];
@@ -268,21 +267,20 @@ export abstract class Relation<
 	declare readonly sourceTableName: TSourceTableName;
 
 	constructor(
-		targetTable: TTargetTable,
+		targetTable: SchemaEntry,
 		readonly targetTableName: TTargetTableName,
 	) {
 		this.targetTable = targetTable;
 	}
 }
 
-export type AnyRelation = Relation<string, string, any>;
+export type AnyRelation = Relation<string, string>;
 
 export class One<
 	TSourceTableName extends string,
 	TTargetTableName extends string,
-	TTargetTable extends SchemaEntry,
 	TOptional extends boolean = boolean,
-> extends Relation<TSourceTableName, TTargetTableName, TTargetTable> {
+> extends Relation<TSourceTableName, TTargetTableName> {
 	static override readonly [entityKind]: string = 'OneV2';
 	declare protected $relationBrand: 'OneV2';
 
@@ -292,7 +290,7 @@ export class One<
 
 	constructor(
 		tables: Schema,
-		targetTable: TTargetTable,
+		targetTable: SchemaEntry,
 		targetTableName: TTargetTableName,
 		config: AnyOneConfig | undefined,
 	) {
@@ -330,13 +328,12 @@ export class One<
 	}
 }
 
-export type AnyOne = One<string, string, any, boolean>;
+export type AnyOne = One<string, string, boolean>;
 
 export class Many<
 	TSourceTableName extends string,
 	TTargetTableName extends string,
-	TTargetTable extends SchemaEntry,
-> extends Relation<TSourceTableName, TTargetTableName, TTargetTable> {
+> extends Relation<TSourceTableName, TTargetTableName> {
 	static override readonly [entityKind]: string = 'ManyV2';
 	declare protected $relationBrand: 'ManyV2';
 
@@ -344,7 +341,7 @@ export class Many<
 
 	constructor(
 		tables: Schema,
-		targetTable: TTargetTable,
+		targetTable: SchemaEntry,
 		targetTableName: TTargetTableName,
 		readonly config: AnyManyConfig | undefined,
 	) {
@@ -380,7 +377,7 @@ export class Many<
 	}
 }
 
-export type AnyMany = Many<string, string, any>;
+export type AnyMany = Many<string, string>;
 
 export abstract class AggregatedField<T = unknown> implements SQLWrapper<T> {
 	static readonly [entityKind]: string = 'AggregatedField';
@@ -467,11 +464,7 @@ export function getOrderByOperators(): OrderByOperators {
 export type FindTargetTableInRelationalConfig<
 	TConfig extends TablesRelationalConfig,
 	TRelation extends AnyRelation,
-> = TRelation['targetTableName'] extends keyof TConfig ? TConfig[TRelation['targetTableName']] : {
-	name: TRelation['targetTableName'];
-	table: TRelation['targetTable'];
-	relations: {};
-};
+> = TConfig[TRelation['targetTableName']];
 
 export interface SQLOperator {
 	sql: Operators['sql'];
@@ -1067,7 +1060,6 @@ export interface OneFn<
 			? TSourceColumns[number]['_']['tableName']
 			: Assume<TSourceColumns, RelationsBuilderColumnBase>['_']['tableName'],
 		TTargetTableName,
-		TTables[TTargetTableName],
 		TOptional
 	>;
 }
@@ -1087,8 +1079,7 @@ export interface ManyFn<
 		TSourceColumns extends [RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]]
 			? TSourceColumns[number]['_']['tableName']
 			: Assume<TSourceColumns, RelationsBuilderColumnBase>['_']['tableName'],
-		TTargetTableName,
-		TTables[TTargetTableName]
+		TTargetTableName
 	>;
 }
 

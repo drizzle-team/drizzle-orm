@@ -1103,11 +1103,7 @@ export class GelDialect {
 							mode: isSingle ? 'first' : 'many',
 							schema,
 							queryConfig: join as DBQueryConfig,
-							tableConfig: schema[relation.targetTableName] ?? {
-								name: relation.targetTableName,
-								table: relation.targetTable,
-								relations: {},
-							},
+							tableConfig: schema[relation.targetTableName]!,
 							relationWhere: filter,
 							errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
 							depth: currentDepth + 1,
