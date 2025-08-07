@@ -29,6 +29,7 @@ import type {
 import type { PgSelectConfig, SelectedFieldsOrdered } from '~/pg-core/query-builders/select.types.ts';
 import { PgTable } from '~/pg-core/table.ts';
 import {
+	type AnyOne,
 	// AggregatedField,
 	type BuildRelationalQueryResult,
 	type DBQueryConfig,
@@ -1133,7 +1134,7 @@ export class PgDialect {
 							key: k,
 							selection: innerQuery.selection,
 							isArray: !isSingle,
-							isOptional: ((relation as One<any, any, any>).optional ?? false)
+							isOptional: ((relation as AnyOne).optional ?? false)
 								|| (join !== true && !!(join as Exclude<typeof join, boolean | undefined>).where),
 						});
 

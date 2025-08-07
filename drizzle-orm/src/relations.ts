@@ -237,6 +237,7 @@ export function buildRelationsParts<TTables extends Schema, TConfig extends AnyR
 	return processRelations(tablesConfig, tables) as any;
 }
 
+export type RelationsRecord = Record<string, AnyRelation>;
 export type EmptyRelations = {};
 export type AnyRelations = TablesRelationalConfig;
 
@@ -273,6 +274,8 @@ export abstract class Relation<
 		this.targetTable = targetTable;
 	}
 }
+
+export type AnyRelation = Relation<string, string, any>;
 
 export class One<
 	TSourceTableName extends string,
@@ -327,6 +330,8 @@ export class One<
 	}
 }
 
+export type AnyOne = One<string, string, any, boolean>;
+
 export class Many<
 	TSourceTableName extends string,
 	TTargetTableName extends string,
@@ -374,6 +379,8 @@ export class Many<
 		}
 	}
 }
+
+export type AnyMany = Many<string, string, any>;
 
 export abstract class AggregatedField<T = unknown> implements SQLWrapper<T> {
 	static readonly [entityKind]: string = 'AggregatedField';
@@ -459,7 +466,7 @@ export function getOrderByOperators(): OrderByOperators {
 
 export type FindTargetTableInRelationalConfig<
 	TConfig extends TablesRelationalConfig,
-	TRelation extends Relation,
+	TRelation extends AnyRelation,
 > = TRelation['targetTableName'] extends keyof TConfig ? TConfig[TRelation['targetTableName']] : {
 	name: TRelation['targetTableName'];
 	table: TRelation['targetTable'];
@@ -496,7 +503,7 @@ export type DBQueryConfigOrderBy<TTable extends SchemaEntry, TColumns extends Fi
 	| DBQueryConfigOrderByCallback<TTable>
 	| DBQueryConfigOrderByObject<TColumns>;
 
-export type DBQueryConfigWith<TSchema extends TablesRelationalConfig, TRelations extends Record<string, Relation>> = {
+export type DBQueryConfigWith<TSchema extends TablesRelationalConfig, TRelations extends RelationsRecord> = {
 	[K in keyof TRelations]?:
 		| boolean
 		| (DBQueryConfig<
@@ -559,7 +566,7 @@ export type AnyDBQueryConfig = {
 export interface TableRelationalConfig {
 	table: SchemaEntry;
 	name: string;
-	relations: Record<string, RelationsBuilderEntry>;
+	relations: RelationsRecord;
 }
 
 export type TablesRelationalConfig = Record<string, TableRelationalConfig>;
@@ -589,27 +596,33 @@ export type ExtractTablesWithRelationsParts<
 export type ReturnTypeOrValue<T> = T extends (...args: any[]) => infer R ? R
 	: T;
 
+export type RelationResultKind<TResult, TInclude, TRelation extends AnyRelation> = TRelation extends AnyOne ? (
+		| TResult
+		| (Equal<TRelation['optional'], true> extends true ? null
+			: TInclude extends Record<string, unknown> ? TInclude['where'] extends Record<string, any> ? null
+				: never
+			: never)
+	)
+	: TResult[];
+
 export type BuildRelationResult<
 	TConfig extends TablesRelationalConfig,
 	TInclude,
-	TRelations extends Record<string, RelationsBuilderEntry>,
+	TRelations extends RelationsRecord,
 > = {
 	[
 		K in
 			& TruthyKeysOnly<TInclude>
 			& keyof TRelations
-	]: TRelations[K] extends infer TRel extends Relation ? BuildQueryResult<
-			TConfig,
-			FindTargetTableInRelationalConfig<TConfig, TRel>,
-			Assume<TInclude[K], true | Record<string, unknown>>
-		> extends infer TResult ? TRel extends One<string, string, any> ?
-					| TResult
-					| (Equal<TRel['optional'], true> extends true ? null
-						: TInclude[K] extends Record<string, unknown> ? TInclude[K]['where'] extends Record<string, any> ? null
-							: never
-						: never)
-			: TResult[]
-		: never
+	]: TRelations[K] extends infer TRel extends AnyRelation ? RelationResultKind<
+			BuildQueryResult<
+				TConfig,
+				FindTargetTableInRelationalConfig<TConfig, TRel>,
+				Assume<TInclude[K], true | Record<string, unknown>>
+			>,
+			TInclude[K],
+			TRel
+		>
 		: TRelations[K] extends AggregatedField<infer TData> ? TData
 		: never;
 };
@@ -783,10 +796,8 @@ export class RelationsBuilderTable<TTableName extends string = string> {
 
 export interface RelationsBuilderColumnConfig<
 	TTableName extends string = string,
-	TData = unknown,
 > {
 	readonly tableName: TTableName;
-	readonly data: TData;
 	readonly column: FieldValue;
 	readonly through?: RelationsBuilderColumnBase;
 	readonly key: string;
@@ -794,20 +805,17 @@ export interface RelationsBuilderColumnConfig<
 
 export interface RelationsBuilderColumnBase<
 	TTableName extends string = string,
-	TData = unknown,
 > {
-	_: RelationsBuilderColumnConfig<TTableName, TData>;
+	_: RelationsBuilderColumnConfig<TTableName>;
 }
 
 export class RelationsBuilderColumn<
 	TTableName extends string = string,
-	TData = unknown,
-> implements RelationsBuilderColumnBase<TTableName, TData> {
+> implements RelationsBuilderColumnBase<TTableName> {
 	static readonly [entityKind]: string = 'RelationsBuilderColumn';
 
 	readonly _: {
 		readonly tableName: TTableName;
-		readonly data: TData;
 		readonly column: FieldValue;
 		readonly key: string;
 	};
@@ -819,13 +827,12 @@ export class RelationsBuilderColumn<
 	) {
 		this._ = {
 			tableName: tableName,
-			data: undefined as TData,
 			column,
 			key,
 		};
 	}
 
-	through(column: RelationsBuilderColumn): RelationsBuilderJunctionColumn<TTableName, TData> {
+	through(column: RelationsBuilderColumn): RelationsBuilderJunctionColumn<TTableName> {
 		return new RelationsBuilderJunctionColumn(
 			this._.column,
 			this._.tableName,
@@ -837,13 +844,11 @@ export class RelationsBuilderColumn<
 
 export class RelationsBuilderJunctionColumn<
 	TTableName extends string = string,
-	TData = unknown,
-> implements RelationsBuilderColumnBase<TTableName, TData> {
+> implements RelationsBuilderColumnBase<TTableName> {
 	static readonly [entityKind]: string = 'RelationsBuilderColumn';
 
 	readonly _: {
 		readonly tableName: TTableName;
-		readonly data: TData;
 		readonly column: FieldValue;
 		readonly through: RelationsBuilderColumnBase;
 		readonly key: string;
@@ -857,7 +862,6 @@ export class RelationsBuilderJunctionColumn<
 	) {
 		this._ = {
 			tableName: tableName,
-			data: undefined as TData,
 			column,
 			through,
 			key,
@@ -924,7 +928,7 @@ export type RelationsFilterColumns<
 export type RelationsFilterRelations<
 	TTable extends TableRelationalConfig,
 	TSchema extends TablesRelationalConfig,
-	TRelations extends Record<string, Relation> = TTable['relations'],
+	TRelations extends RelationsRecord = TTable['relations'],
 > = {
 	[K in keyof TRelations]?:
 		| boolean
@@ -1012,7 +1016,7 @@ export interface OneConfig<
 
 export type AnyOneConfig = OneConfig<
 	Schema,
-	Readonly<[RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]] | RelationsBuilderColumnBase<string, unknown>>,
+	Readonly<[RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]] | RelationsBuilderColumnBase>,
 	string,
 	boolean
 >;
@@ -1042,7 +1046,7 @@ export interface ManyConfig<
 
 export type AnyManyConfig = ManyConfig<
 	Schema,
-	Readonly<[RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]]> | Readonly<RelationsBuilderColumnBase>,
+	Readonly<[RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]] | RelationsBuilderColumnBase>,
 	string
 >;
 
@@ -1140,10 +1144,7 @@ export type RelationsBuilderColumns<TTable extends SchemaEntry, TTableName exten
 	[
 		TColumnName in keyof GetTableViewColumns<TTable>
 	]: RelationsBuilderColumn<
-		TTableName,
-		GetTableViewColumns<TTable>[TColumnName] extends
-			{ _: { data: infer Data } } | SQLWrapper<infer Data> | SQL<infer Data> | SQL.Aliased<infer Data> ? Data
-			: never
+		TTableName
 	>;
 };
 
@@ -1160,8 +1161,8 @@ export type RelationsBuilder<TSchema extends Schema> = Simplify<
 	& RelationsHelperStatic<TSchema>
 >;
 
-export type RelationsBuilderConfigValue<TSourceTableName extends string = string> =
-	| Record<string, Relation<TSourceTableName>>
+export type RelationsBuilderConfigValue =
+	| RelationsRecord
 	| undefined;
 
 export type RelationsBuilderConfig<TTables extends Schema> = {
@@ -1169,11 +1170,6 @@ export type RelationsBuilderConfig<TTables extends Schema> = {
 };
 
 export type AnyRelationsBuilderConfig = Record<string, RelationsBuilderConfigValue>;
-
-export type RelationsBuilderEntry<
-	TTables extends Record<string, unknown> = Record<string, unknown>,
-	TSourceTableName extends string = string,
-> = Relation<TSourceTableName, keyof TTables & string>;
 
 export type ExtractTablesFromSchema<TSchema extends Record<string, unknown>> = Simplify<
 	Assume<
@@ -1399,7 +1395,7 @@ export function relationsFilterToSQL(
 export function relationsFilterToSQL(
 	table: SchemaEntry,
 	filter: AnyRelationsFilter | AnyTableFilter,
-	tableRelations: Record<string, Relation>,
+	tableRelations: RelationsRecord,
 	tablesRelations: TablesRelationalConfig,
 	casing: CasingCache,
 	depth?: number,
@@ -1407,7 +1403,7 @@ export function relationsFilterToSQL(
 export function relationsFilterToSQL(
 	table: SchemaEntry,
 	filter: AnyRelationsFilter | AnyTableFilter,
-	tableRelations: Record<string, Relation> = {},
+	tableRelations: RelationsRecord = {},
 	tablesRelations: TablesRelationalConfig = {},
 	casing?: CasingCache,
 	depth: number = 0,

@@ -15,6 +15,7 @@ import type {
 import type { GelSelectConfig, SelectedFieldsOrdered } from '~/gel-core/query-builders/select.types.ts';
 import { GelTable } from '~/gel-core/table.ts';
 import {
+	type AnyOne,
 	type BuildRelationalQueryResult,
 	type DBQueryConfig,
 	getTableAsAliasSQL,
@@ -1118,7 +1119,7 @@ export class GelDialect {
 							key: k,
 							selection: innerQuery.selection,
 							isArray: !isSingle,
-							isOptional: ((relation as One<any, any, any>).optional ?? false)
+							isOptional: ((relation as AnyOne).optional ?? false)
 								|| (join !== true && !!(join as Exclude<typeof join, boolean | undefined>).where),
 						});
 
