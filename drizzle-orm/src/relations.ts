@@ -243,6 +243,7 @@ export type AnyRelations = TablesRelationalConfig;
 export abstract class Relation<
 	TSourceTableName extends string = string,
 	TTargetTableName extends string = string,
+	TTargetTable extends SchemaEntry = SchemaEntry,
 > {
 	static readonly [entityKind]: string = 'RelationV2';
 	declare readonly $brand: 'RelationV2';
@@ -254,7 +255,7 @@ export abstract class Relation<
 	alias: string | undefined;
 	where: AnyTableFilter | undefined;
 	sourceTable!: SchemaEntry;
-	targetTable: SchemaEntry;
+	targetTable: TTargetTable;
 	through?: {
 		source: RelationsBuilderColumnBase[];
 		target: RelationsBuilderColumnBase[];
@@ -266,18 +267,19 @@ export abstract class Relation<
 	declare readonly sourceTableName: TSourceTableName;
 
 	constructor(
-		targetTable: SchemaEntry,
+		targetTable: TTargetTable,
 		readonly targetTableName: TTargetTableName,
 	) {
-		this.targetTable = targetTable as any as SchemaEntry;
+		this.targetTable = targetTable;
 	}
 }
 
 export class One<
 	TSourceTableName extends string,
 	TTargetTableName extends string,
+	TTargetTable extends SchemaEntry,
 	TOptional extends boolean = boolean,
-> extends Relation<TSourceTableName, TTargetTableName> {
+> extends Relation<TSourceTableName, TTargetTableName, TTargetTable> {
 	static override readonly [entityKind]: string = 'OneV2';
 	declare protected $relationBrand: 'OneV2';
 
@@ -287,7 +289,7 @@ export class One<
 
 	constructor(
 		tables: Schema,
-		targetTable: SchemaEntry,
+		targetTable: TTargetTable,
 		targetTableName: TTargetTableName,
 		config: AnyOneConfig | undefined,
 	) {
@@ -328,7 +330,8 @@ export class One<
 export class Many<
 	TSourceTableName extends string,
 	TTargetTableName extends string,
-> extends Relation<TSourceTableName, TTargetTableName> {
+	TTargetTable extends SchemaEntry,
+> extends Relation<TSourceTableName, TTargetTableName, TTargetTable> {
 	static override readonly [entityKind]: string = 'ManyV2';
 	declare protected $relationBrand: 'ManyV2';
 
@@ -336,7 +339,7 @@ export class Many<
 
 	constructor(
 		tables: Schema,
-		targetTable: SchemaEntry,
+		targetTable: TTargetTable,
 		targetTableName: TTargetTableName,
 		readonly config: AnyManyConfig | undefined,
 	) {
@@ -454,10 +457,14 @@ export function getOrderByOperators(): OrderByOperators {
 	return orderByOperators;
 }
 
-export type FindTableInRelationalConfig<
-	TSchema extends TablesRelationalConfig,
-	TTableName extends string,
-> = TSchema[TTableName];
+export type FindTargetTableInRelationalConfig<
+	TConfig extends TablesRelationalConfig,
+	TRelation extends Relation,
+> = TRelation['targetTableName'] extends keyof TConfig ? TConfig[TRelation['targetTableName']] : {
+	name: TRelation['targetTableName'];
+	table: TRelation['targetTable'];
+	relations: {};
+};
 
 export interface SQLOperator {
 	sql: Operators['sql'];
@@ -495,10 +502,7 @@ export type DBQueryConfigWith<TSchema extends TablesRelationalConfig, TRelations
 		| (DBQueryConfig<
 			TRelations[K]['relationType'],
 			TSchema,
-			FindTableInRelationalConfig<
-				TSchema,
-				TRelations[K]['targetTableName']
-			>,
+			FindTargetTableInRelationalConfig<TSchema, TRelations[K]>,
 			true
 		>)
 		| undefined;
@@ -596,9 +600,9 @@ export type BuildRelationResult<
 			& keyof TRelations
 	]: TRelations[K] extends infer TRel extends Relation ? BuildQueryResult<
 			TConfig,
-			FindTableInRelationalConfig<TConfig, TRel['targetTableName']>,
+			FindTargetTableInRelationalConfig<TConfig, TRel>,
 			Assume<TInclude[K], true | Record<string, unknown>>
-		> extends infer TResult ? TRel extends One<string, string> ?
+		> extends infer TResult ? TRel extends One<string, string, any> ?
 					| TResult
 					| (Equal<TRel['optional'], true> extends true ? null
 						: TInclude[K] extends Record<string, unknown> ? TInclude[K]['where'] extends Record<string, any> ? null
@@ -924,7 +928,7 @@ export type RelationsFilterRelations<
 > = {
 	[K in keyof TRelations]?:
 		| boolean
-		| RelationsFilter<FindTableInRelationalConfig<TSchema, TRelations[K]['targetTableName']>, TSchema>
+		| RelationsFilter<FindTargetTableInRelationalConfig<TSchema, TRelations[K]>, TSchema>
 		| undefined;
 };
 
@@ -1059,6 +1063,7 @@ export interface OneFn<
 			? TSourceColumns[number]['_']['tableName']
 			: Assume<TSourceColumns, RelationsBuilderColumnBase>['_']['tableName'],
 		TTargetTableName,
+		TTables[TTargetTableName],
 		TOptional
 	>;
 }
@@ -1078,7 +1083,8 @@ export interface ManyFn<
 		TSourceColumns extends [RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]]
 			? TSourceColumns[number]['_']['tableName']
 			: Assume<TSourceColumns, RelationsBuilderColumnBase>['_']['tableName'],
-		TTargetTableName
+		TTargetTableName,
+		TTables[TTargetTableName]
 	>;
 }
 
@@ -1100,11 +1106,11 @@ export class RelationsHelperStatic<TTables extends Schema> {
 
 		for (const [tableName, table] of Object.entries(tables)) {
 			one[tableName] = (config) => {
-				return new One(tables, table, tableName, config as AnyOneConfig);
+				return new One(tables, table as any, tableName, config as AnyOneConfig);
 			};
 
 			many[tableName] = (config) => {
-				return new Many(tables, table, tableName, config as AnyManyConfig);
+				return new Many(tables, table as any, tableName, config as AnyManyConfig);
 			};
 		}
 
