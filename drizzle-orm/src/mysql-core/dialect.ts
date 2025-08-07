@@ -1393,7 +1393,7 @@ export class MySqlDialect {
 							key: k,
 							selection: innerQuery.selection,
 							isArray: !isSingle,
-							isOptional: ((relation as One<any, any>).optional ?? false)
+							isOptional: ((relation as One<any, any, any>).optional ?? false)
 								|| (join !== true && !!(join as Exclude<typeof join, boolean | undefined>).where),
 						});
 
