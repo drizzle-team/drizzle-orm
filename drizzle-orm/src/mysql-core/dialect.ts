@@ -6,6 +6,7 @@ import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
 import type {
+	AnyOne,
 	BuildRelationalQueryResult,
 	ColumnWithTSName,
 	DBQueryConfig,
@@ -1393,7 +1394,7 @@ export class MySqlDialect {
 							key: k,
 							selection: innerQuery.selection,
 							isArray: !isSingle,
-							isOptional: ((relation as One<any, any, any>).optional ?? false)
+							isOptional: ((relation as AnyOne).optional ?? false)
 								|| (join !== true && !!(join as Exclude<typeof join, boolean | undefined>).where),
 						});
 
