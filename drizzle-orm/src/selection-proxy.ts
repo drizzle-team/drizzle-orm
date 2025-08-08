@@ -74,6 +74,11 @@ export class SelectionProxyHandler<T extends Subquery | Record<string, unknown> 
 			: is(subquery, View)
 			? subquery[ViewBaseConfig].selectedFields
 			: subquery;
+
+		if (!columns.hasOwnProperty(prop)) {
+			return subquery[prop as keyof typeof subquery];
+		}
+
 		const value: unknown = columns[prop as keyof typeof columns];
 
 		if (is(value, SQL.Aliased)) {
