@@ -943,7 +943,7 @@ export const fromDatabase = async (
 			nameExplicit: true,
 			columns,
 			tableTo: tableTo.name,
-			schemaTo: schema.name,
+			schemaTo: tableTo.schema,
 			columnsTo,
 			onUpdate: parseOnType(fk.onUpdate),
 			onDelete: parseOnType(fk.onDelete),
