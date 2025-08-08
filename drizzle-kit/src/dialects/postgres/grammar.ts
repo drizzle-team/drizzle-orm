@@ -62,14 +62,12 @@ export const BigInt: SqlType = {
 		return { value: String(value), type: 'unknown' };
 	},
 	defaultArrayFromDrizzle: (value) => {
-		console.log(stringifyArray(value, "sql", String))
 		return {
 			value: stringifyArray(value, "sql", String),
 			type: 'unknown',
 		};
 	},
 	defaultFromIntrospect: (value) => {
-		console.log(value)
 		return { value: trimChar(value, "'"), type: 'unknown' }; // 10, but '-10'
 	},
 	defaultArrayFromIntrospect: (value) => {
