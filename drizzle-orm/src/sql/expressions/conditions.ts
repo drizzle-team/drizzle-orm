@@ -176,8 +176,8 @@ export function or(
  */
 
 export function not(condition?: SQLWrapper): SQL | undefined {
-  if (!condition) return undefined;
-  return sql`not ${condition}`;
+	if (!condition) return undefined;
+	return sql`not ${condition}`;
 }
 
 /**
