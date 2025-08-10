@@ -183,8 +183,8 @@ export const defaultFromColumn = (
 		};
 	}
 
-	const sqlTypeLowered = base.getSQLType().toLowerCase();
-	const grammarType = typeFor(base.getSQLType());
+	const {type} = splitSqlType(base.getSQLType())
+	const grammarType = typeFor(type);
 	if (grammarType) {
 		// if (dimensions > 0 && !Array.isArray(def)) return { value: String(def), type: 'unknown' };
 		if (dimensions > 0 && Array.isArray(def)) {
@@ -193,6 +193,11 @@ export const defaultFromColumn = (
 		}
 		return grammarType.defaultFromDrizzle(def);
 	}
+
+	const sqlTypeLowered = base.getSQLType().toLowerCase();
+
+
+	throw new Error()
 
 	if (is(base, PgLineABC)) {
 		return {

@@ -589,7 +589,7 @@ test('text + text arrays', async () => {
 	const res2 = await diffDefault(_, text().default("text'text"), `'text''text'`);
 	const res3 = await diffDefault(_, text().default('text\'text"'), "'text''text\"'");
 	// raw default sql for the line below: 'mo''''",\`}{od';
-	const res4 = await diffDefault(_, text().default(`mo''",\\\`}{od`), `'mo''''",\\\`}{od'`);
+	const res4 = await diffDefault(_, text().default(`mo''",\\\`}{od`), `'mo''''",\\\\\`}{od'`);
 	const res5 = await diffDefault(_, text({ enum: ['one', 'two', 'three'] }).default('one'), "'one'");
 	// raw default sql for the line below: 'mo''''",\`}{od';
 	const res6 = await diffDefault(
@@ -597,7 +597,7 @@ test('text + text arrays', async () => {
 		text({ enum: ['one', 'two', 'three', `no,''"\`rm`, `mo''",\\\`}{od`, 'mo,\`od'] }).default(
 			`mo''",\\\`}{od`,
 		),
-		`'mo''''",\\\`}{od'`,
+		`'mo''''",\\\\\`}{od'`,
 	);
 
 	const res7 = await diffDefault(_, text().array().default([]), `'{}'::text[]`);
@@ -606,7 +606,7 @@ test('text + text arrays', async () => {
 	const res9 = await diffDefault(
 		_,
 		text().array().default(["text'\\text"]),
-		`'{text''\\text}'::text[]`,
+		`'{"text''\\\\text"}'::text[]`,
 	);
 	const res10 = await diffDefault(
 		_,
@@ -624,7 +624,7 @@ test('text + text arrays', async () => {
 	const res13 = await diffDefault(
 		_,
 		text().array().array().default([['text\\'], ['text']]),
-		`'{{text\\},{text}}'::text[]`,
+		`'{{"text\\\\"},{text}}'::text[]`,
 	);
 
 	expect.soft(res1).toStrictEqual([]);
