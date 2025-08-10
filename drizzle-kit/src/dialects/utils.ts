@@ -98,8 +98,10 @@ export const parseParams = (type: string) => {
 	return type.match(/\(([0-9,\s]+)\)/)?.[1].split(',').map((x) => x.trim()) ?? [];
 };
 
-export const escapeForSqlDefault = (input: string) => {
-	return input.replace(/\\/g, '\\\\').replace(/'/g, "''");
+export const escapeForSqlDefault = (input: string, mode: 'default' | 'pg-arr' = 'default') => {
+	let value = input.replace(/\\/g, '\\\\').replace(/'/g, "''");
+	if (mode === 'pg-arr') value = value.replaceAll('"', '\\"');
+	return value;
 };
 
 export const unescapeFromSqlDefault = (input: string) => {

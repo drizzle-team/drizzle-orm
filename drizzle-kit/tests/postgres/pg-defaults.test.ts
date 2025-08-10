@@ -439,7 +439,7 @@ test('char + char arrays', async () => {
 	const res2 = await diffDefault(_, char({ length: 15 }).default("text'text"), `'text''text'`);
 	const res3 = await diffDefault(_, char({ length: 15 }).default('text\'text"'), "'text''text\"'");
 	// raw default sql for the line below: 'mo''''",\`}{od';
-	const res4 = await diffDefault(_, text().default(`mo''",\\\`}{od`), `'mo''''",\\\`}{od'`);
+	const res4 = await diffDefault(_, char({ length: 15 }).default(`mo''",\\\`}{od`), `'mo''''",\\\\\`}{od'`);
 	const res5 = await diffDefault(_, char({ length: 15, enum: ['one', 'two', 'three'] }).default('one'), "'one'");
 	// raw default sql for the line below: 'mo''''",\`}{od';
 	const res6 = await diffDefault(
@@ -447,41 +447,41 @@ test('char + char arrays', async () => {
 		char({ length: 15, enum: ['one', 'two', 'three', `no,''"\`rm`, `mo''",\\\`}{od`, 'mo,\`od'] }).default(
 			`mo''",\\\`}{od`,
 		),
-		`'mo''''\",\\\`}{od'`,
+		`'mo''''\",\\\\\`}{od'`,
 	);
 
-	const res7 = await diffDefault(_, char({ length: 15 }).array().default([]), `'{}'::char(15)[]`);
-	const res8 = await diffDefault(_, char({ length: 15 }).array().default(['text']), `'{text}'::char(15)[]`);
+	const res7 = await diffDefault(_, char({ length: 15 }).array().default([]), `'{}'::char[]`);
+	const res8 = await diffDefault(_, char({ length: 15 }).array().default(['text']), `'{text}'::char[]`);
 	// raw default sql for the line below: '{text''\\text}'::char(15)[];
 	const res9 = await diffDefault(
 		_,
-		char({ length: 15 }).array().default(["text'\\text"]),
-		`'{text''\\text}'::char(15)[]`,
+		char({ length: 15 }).array().default(["\\"]),
+		`'{"\\\\"}'::char[]`,
 	);
 	const res10 = await diffDefault(
 		_,
-		char({ length: 15 }).array().default(['text\'text"']),
-		`'{"text''text\\\""}'::char(15)[]`,
+		char({ length: 15 }).array().default(["'"]),
+		`'{''}'::char[]`,
 	);
 	const res11 = await diffDefault(
 		_,
 		char({ length: 15, enum: ['one', 'two', 'three'] }).array().default(['one']),
-		`'{one}'::char(15)[]`,
+		`'{one}'::char[]`,
 	);
 	const res12 = await diffDefault(
 		_,
 		char({ length: 15, enum: ['one', 'two', 'three', `no,''"\`rm`, `mo''",\`}{od`, 'mo,\`od'] }).array().default(
 			[`mo''",\`}{od`],
 		),
-		`'{"mo''''\\\",\`\}\{od"}'::char(15)[]`,
+		`'{"mo''''\\\",\`\}\{od"}'::char[]`,
 	);
 
-	const res13 = await diffDefault(_, char({ length: 15 }).array().array().default([]), `'{}'::char(15)[]`);
+	const res13 = await diffDefault(_, char({ length: 15 }).array().array().default([]), `'{}'::char[]`);
 	// raw default sql for the line below: '{{text\\},{text}}'::text[]
 	const res14 = await diffDefault(
 		_,
 		char({ length: 15 }).array().array().default([['text\\'], ['text']]),
-		`'{{text\\},{text}}'::char(15)[]`,
+		`'{{"text\\\\"},{text}}'::char[]`,
 	);
 	const res15 = await diffDefault(
 		_,
@@ -489,7 +489,7 @@ test('char + char arrays', async () => {
 			.default(
 				[[`mo''",\`}{od`], [`mo''",\`}{od`]],
 			),
-		`'{{"mo''''\\\",\`\}\{od"},{"mo''''\\\",\`\}\{od"}}'::char(15)[]`,
+		`'{{"mo''''\\\",\`\}\{od"},{"mo''''\\\",\`\}\{od"}}'::char[]`,
 	);
 
 	expect.soft(res1).toStrictEqual([]);
@@ -514,7 +514,7 @@ test('varchar + varchar arrays', async () => {
 	const res2 = await diffDefault(_, varchar({ length: 256 }).default("text'text"), `'text''text'`);
 	const res3 = await diffDefault(_, varchar({ length: 256 }).default('text\'text"'), "'text''text\"'");
 	// raw default sql for the line below: 'mo''''",\`}{od';
-	const res4 = await diffDefault(_, varchar({ length: 256 }).default(`mo''",\\\`}{od`), `'mo''''",\\\`}{od'`);
+	const res4 = await diffDefault(_, varchar({ length: 256 }).default(`mo''",\\\`}{od`), `'mo''''",\\\\\`}{od'`);
 	const res5 = await diffDefault(_, varchar({ length: 256, enum: ['one', 'two', 'three'] }).default('one'), "'one'");
 	// raw default sql for the line below: 'mo''''",\`}{od';
 	const res6 = await diffDefault(
@@ -522,7 +522,7 @@ test('varchar + varchar arrays', async () => {
 		varchar({ length: 256, enum: ['one', 'two', 'three', `no,''"\`rm`, `mo''",\\\`}{od`, 'mo,\`od'] }).default(
 			`mo''",\\\`}{od`,
 		),
-		`'mo''''",\\\`}{od'`,
+		`'mo''''",\\\\\`}{od'`,
 	);
 
 	const res7 = await diffDefault(_, varchar({ length: 256 }).array().default([]), `'{}'::varchar[]`);
@@ -531,7 +531,7 @@ test('varchar + varchar arrays', async () => {
 	const res9 = await diffDefault(
 		_,
 		varchar({ length: 256 }).array().default(["text'\\text"]),
-		`'{text''\\text}'::varchar[]`,
+		`'{"text''\\\\text"}'::varchar[]`,
 	);
 	const res10 = await diffDefault(
 		_,
@@ -556,7 +556,7 @@ test('varchar + varchar arrays', async () => {
 	const res14 = await diffDefault(
 		_,
 		varchar({ length: 256 }).array().array().default([['text\\'], ['text']]),
-		`'{{text\\},{text}}'::varchar[]`,
+		`'{{"text\\\\"},{text}}'::varchar[]`,
 	);
 	const res15 = await diffDefault(
 		_,
