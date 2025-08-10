@@ -183,21 +183,20 @@ export const defaultFromColumn = (
 		};
 	}
 
-	const {type} = splitSqlType(base.getSQLType())
+	const { type } = splitSqlType(base.getSQLType());
 	const grammarType = typeFor(type);
 	if (grammarType) {
 		// if (dimensions > 0 && !Array.isArray(def)) return { value: String(def), type: 'unknown' };
 		if (dimensions > 0 && Array.isArray(def)) {
 			if (def.flat(5).length === 0) return { value: "'{}'", type: 'unknown' };
-			return grammarType.defaultArrayFromDrizzle(def);
+			return grammarType.defaultArrayFromDrizzle(def, dimensions);
 		}
 		return grammarType.defaultFromDrizzle(def);
 	}
 
 	const sqlTypeLowered = base.getSQLType().toLowerCase();
 
-
-	throw new Error()
+	throw new Error();
 
 	if (is(base, PgLineABC)) {
 		return {
@@ -491,7 +490,7 @@ export const fromDrizzleSchema = (
 
 				const { baseColumn, dimensions, typeSchema, sqlType } = unwrapColumn(column);
 				const columnDefault = defaultFromColumn(baseColumn, column.default, dimensions, dialect);
-				
+
 				return {
 					entityType: 'columns',
 					schema: schema,

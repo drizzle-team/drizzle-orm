@@ -1,3 +1,4 @@
+import { parse, stringify } from 'src/utils/when-json-met-bigint';
 import { stringifyArray, stringifyTuplesArray, trimChar } from '../../utils';
 import { assertUnreachable } from '../../utils';
 import { parseArray } from '../../utils/parse-pgarray';
@@ -10,7 +11,7 @@ export interface SqlType {
 	is(type: string): boolean;
 	drizzleImport(): Import;
 	defaultFromDrizzle<MODE = unknown>(value: unknown, mode?: MODE): Column['default'];
-	defaultArrayFromDrizzle<MODE = unknown>(value: any[], mode?: MODE): Column['default'];
+	defaultArrayFromDrizzle<MODE = unknown>(value: any[], dimensions: number, mode?: MODE): Column['default'];
 	defaultFromIntrospect(value: string): Column['default'];
 	defaultArrayFromIntrospect(value: string): Column['default']; // todo: remove?
 	toTs(type: string, value: string | null): { options?: Record<string, unknown>; default: string };
@@ -302,7 +303,7 @@ export const Varchar: SqlType = {
 	defaultArrayFromIntrospect: Char.defaultArrayFromIntrospect,
 	toTs: Char.toTs,
 	toArrayTs: Char.toArrayTs,
-}
+};
 
 export const Text: SqlType = {
 	is: (type: string) => /^\s*text\s*$/i.test(type),
@@ -313,8 +314,99 @@ export const Text: SqlType = {
 	defaultArrayFromIntrospect: Char.defaultArrayFromIntrospect,
 	toTs: Char.toTs,
 	toArrayTs: Char.toArrayTs,
-}
+};
 
+export const toDefaultArray = (
+	value: any[],
+	dimensions: number,
+	cb: (it: unknown) => string,
+	depth: number = 0,
+): string => {
+	if (depth === dimensions) {
+		const res = cb(value);
+		if (res.includes('"')) return `"${res.replaceAll('"', '\\"')}"`;
+		return res;
+	}
+
+	if (Array.isArray(value)) {
+		const inner = value.map((v) => {
+			return toDefaultArray(v, dimensions, cb, depth + 1);
+		}).join(',');
+		if (depth === 0) return `{${inner}}`;
+		return `${inner}`;
+	}
+
+	return cb(value);
+};
+
+export const Json: SqlType = {
+	is: (type: string) => /^\s*json\s*$/i.test(type),
+	drizzleImport: () => 'json',
+	defaultFromDrizzle: (value) => {
+		const stringified = stringify(value, (_, value) => {
+			if (typeof value !== 'string') return value;
+			return value.replaceAll("'", "''");
+		});
+		return { type: 'unknown', value: `'${stringified}'` };
+	},
+	defaultArrayFromDrizzle: (def, dimensions) => {
+		const value = toDefaultArray(def, dimensions, (it) =>
+			stringify(it, (_, value) => {
+				if (typeof value !== 'string') return value;
+				return value.replaceAll("'", "''");
+			}));
+		return { type: 'unknown', value: `'${value}'` };
+	},
+	defaultFromIntrospect: (value) => ({ type: 'unknown', value}),
+	defaultArrayFromIntrospect: (value) => {
+		return { type: 'unknown', value: value };
+	},
+	toTs: (_, value) => {
+		if (!value) return { default: '' };
+
+		const trimmed = trimChar(value, "'");
+		try {
+			const parsed = parse(trimmed);
+			const stringified = stringify(
+				parsed,
+				(_, value) => {
+					if (typeof value !== 'string') return value;
+					return value.replaceAll("''", "'");
+				},
+				undefined,
+				true,
+			)!;
+			return { default: stringified };
+		} catch {}
+		return { default: `sql\`${value}\`` };
+	},
+	toArrayTs: (_, def) => {
+		if (!def) return { default: '' };
+		return { default: `sql\`${def.replaceAll('\\"', '\\\\"')}\`` };
+	},
+};
+
+export const Jsonb: SqlType = {
+	is: (type: string) => /^\s*jsonb\s*$/i.test(type),
+	drizzleImport: () => 'jsonb',
+	defaultFromDrizzle: (value) => {
+		const stringified = stringify(value, (_, value) => {
+			if (typeof value !== 'string') return value;
+			return value.replaceAll("'", "''");
+		}, undefined, undefined, ", ");
+		return { type: 'unknown', value: `'${stringified}'` };
+	},
+	defaultArrayFromDrizzle: Json.defaultArrayFromDrizzle,
+	/*
+		TODO: make less hacky,
+		from: { type: 'unknown', value: `'{"key": "value"}'` },
+		to:   { type: 'unknown', value: `'{"key":"value"}'` }
+	 */
+	defaultFromIntrospect: (value) => ({ type: 'unknown', value: value.replaceAll(`": "`, `":"`) }),
+	defaultArrayFromIntrospect: Json.defaultArrayFromIntrospect,
+	toTs: Json.toTs,
+	toArrayTs: Json.toArrayTs,
+};
 
 export const typeFor = (type: string): SqlType | null => {
 	if (SmallInt.is(type)) return SmallInt;
@@ -327,6 +419,8 @@ export const typeFor = (type: string): SqlType | null => {
 	if (Char.is(type)) return Char;
 	if (Varchar.is(type)) return Varchar;
 	if (Text.is(type)) return Text;
+	if (Json.is(type)) return Json;
+	if (Jsonb.is(type)) return Jsonb;
 	// no sql type
 	return null;
 };
@@ -760,7 +854,6 @@ export const defaultToSQL = (
 		const value = it.default.value ?? '';
 		return `${value}${suffix}`;
 	}
-
 
 	if (type === 'string') {
 		return `'${value}'${suffix}`;

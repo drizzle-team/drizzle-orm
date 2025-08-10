@@ -2,6 +2,7 @@ import {
 	parseViewDefinition,
 	splitExpressions,
 	splitSqlType,
+	toDefaultArray,
 	trimDefaultValueSuffix,
 } from 'src/dialects/postgres/grammar';
 import { expect, test } from 'vitest';
@@ -126,4 +127,11 @@ test('split sql type', () => {
 	expect.soft(splitSqlType('numeric(10)[][]')).toStrictEqual({ type: 'numeric', options: '10' });
 	expect.soft(splitSqlType('numeric(10,0)[][]')).toStrictEqual({ type: 'numeric', options: '10,0' });
 	expect.soft(splitSqlType('numeric(10,2)[][]')).toStrictEqual({ type: 'numeric', options: '10,2' });
+});
+
+test('to default array', () => {
+	expect.soft(toDefaultArray([['one'], ['two']], 1, (it) => JSON.stringify(it))).toBe(`{["one"],["two"]}`);
+	expect.soft(toDefaultArray([{ key: 'one' }, { key: 'two' }], 1, (it) => JSON.stringify(it))).toBe(
+		`{{"key":"one"},{"key":"two"}}`,
+	);
 });
