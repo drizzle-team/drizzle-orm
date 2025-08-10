@@ -2,7 +2,7 @@ import { stringifyArray, stringifyTuplesArray, trimChar } from '../../utils';
 import { assertUnreachable } from '../../utils';
 import { parseArray } from '../../utils/parse-pgarray';
 import { hash } from '../common';
-import { numberForTs, parseParams } from '../utils';
+import { escapeForSqlDefault, escapeForTsLiteral, numberForTs, parseParams, unescapeFromSqlDefault } from '../utils';
 import type { Column, PostgresEntities } from './ddl';
 import type { Import } from './typescript';
 
@@ -12,7 +12,7 @@ export interface SqlType {
 	defaultFromDrizzle<MODE = unknown>(value: unknown, mode?: MODE): Column['default'];
 	defaultArrayFromDrizzle<MODE = unknown>(value: any[], mode?: MODE): Column['default'];
 	defaultFromIntrospect(value: string): Column['default'];
-	defaultArrayFromIntrospect(value: string): Column['default'];
+	defaultArrayFromIntrospect(value: string): Column['default']; // todo: remove?
 	toTs(type: string, value: string | null): { options?: Record<string, unknown>; default: string };
 	toArrayTs(type: string, value: string | null): { options?: Record<string, unknown>; default: string };
 }
@@ -157,11 +157,164 @@ export const Numeric: SqlType = {
 	},
 };
 
+export const Real: SqlType = {
+	is: (type: string) => /^\s*real(?:\s*\[\s*\])*\s*$/i.test(type),
+	drizzleImport: () => 'real',
+	defaultFromDrizzle: (value) => {
+		return { value: String(value), type: 'unknown' };
+	},
+	defaultArrayFromDrizzle: (value) => {
+		return { value: `'${stringifyArray(value, 'sql', (v) => String(v))}'`, type: 'unknown' };
+	},
+	defaultFromIntrospect: (value) => {
+		return { value: trimChar(value, "'"), type: 'unknown' }; // 10, but '-10'
+	},
+	defaultArrayFromIntrospect: (value) => {
+		return { value: value as string, type: 'unknown' };
+	},
+	toTs: (_, value) => ({ default: value ?? '' }),
+	toArrayTs: (_, value) => {
+		if (!value) return { default: '' };
+
+		try {
+			const trimmed = trimChar(trimChar(value, ['(', ')']), "'");
+			const res = parseArray(trimmed);
+
+			return {
+				default: stringifyArray(res, 'ts', (v) => {
+					return `${v}`;
+				}),
+			};
+		} catch {
+			return { default: `sql\`${value}\`` };
+		}
+	},
+};
+
+export const Double: SqlType = {
+	is: (type: string) => /^\s*(?:double|double precision)(?:\s*\[\s*\])*\s*$/i.test(type),
+	drizzleImport: () => 'doublePrecision',
+	defaultFromDrizzle: Real.defaultFromDrizzle,
+	defaultArrayFromDrizzle: Real.defaultArrayFromDrizzle,
+	defaultFromIntrospect: Real.defaultFromIntrospect,
+	defaultArrayFromIntrospect: Real.defaultArrayFromIntrospect,
+	toTs: Real.toTs,
+	toArrayTs: Real.toArrayTs,
+};
+
+export const Boolean: SqlType = {
+	is: (type: string) => /^\s*boolean\s*$/i.test(type),
+	drizzleImport: () => 'boolean',
+	defaultFromDrizzle: (value) => {
+		return { value: String(value), type: 'unknown' };
+	},
+	defaultArrayFromDrizzle: (value) => {
+		return { value: `'${stringifyArray(value, 'sql', (v) => v === true ? 't' : 'f')}'`, type: 'unknown' };
+	},
+	defaultFromIntrospect: (value) => {
+		return { value: trimChar(value, "'"), type: 'unknown' };
+	},
+	defaultArrayFromIntrospect: (value) => {
+		return { value: value as string, type: 'unknown' };
+	},
+	toTs: (_, value) => ({ default: value ?? '' }),
+	toArrayTs: (_, value) => {
+		if (!value) return { default: '' };
+
+		try {
+			const trimmed = trimChar(trimChar(value, ['(', ')']), "'");
+			const res = parseArray(trimmed);
+
+			return {
+				default: stringifyArray(res, 'ts', (v) => {
+					return v === 't' ? 'true' : 'false';
+				}),
+			};
+		} catch {
+			return { default: `sql\`${value}\`` };
+		}
+	},
+};
+
+export const Char: SqlType = {
+	is: (type: string) => /^\s*(?:char|character)(?:[\s(].*)*\s*$/i.test(type),
+	drizzleImport: () => 'char',
+	defaultFromDrizzle: (value) => {
+		const escaped = escapeForSqlDefault(value as string);
+		return { value: `'${escaped}'`, type: 'unknown' };
+	},
+	defaultArrayFromDrizzle: (value) => {
+		const v = stringifyArray(
+			value,
+			'sql',
+			(v) => {
+				if (typeof v !== 'string') throw new Error();
+				const escaped = v.replaceAll("'", "''").replaceAll('\\', '\\\\').replaceAll('"', '\\"');
+				if (v.includes('\\') || v.includes('"') || v.includes(',')) return `"${escaped}"`;
+				return escaped;
+			},
+		);
+		return { value: `'${v}'`, type: 'unknown' };
+	},
+	defaultFromIntrospect: (value) => {
+		return { value: value, type: 'unknown' };
+	},
+	defaultArrayFromIntrospect: (value) => {
+		return { value: value as string, type: 'unknown' };
+	},
+	toTs: (type, value) => {
+		const options: any = {};
+		const [length] = parseParams(type);
+		if (length) options['length'] = Number(length);
+		if (!value) return { options, default: '' };
+		const escaped = escapeForTsLiteral(unescapeFromSqlDefault(trimChar(value, "'")));
+		return { options, default: `"${escaped}"` };
+	},
+	toArrayTs: (type, value) => {
+		const options: any = {};
+		const [length] = parseParams(type);
+		if (length) options['length'] = Number(length);
+		if (!value) return { options, default: '' };
+
+		try {
+			const trimmed = trimChar(trimChar(value, ['(', ')']), "'");
+			const res = parseArray(trimmed);
+
+			return {
+				options,
+				default: stringifyArray(res, 'ts', (v) => {
+					const escaped = escapeForTsLiteral(unescapeFromSqlDefault(trimChar(v, "'")));
+					return `"${escaped}"`;
+				}),
+			};
+		} catch {
+			return { options, default: `sql\`${value}\`` };
+		}
+	},
+};
+
+export const Varchar: SqlType = {
+	is: (type: string) => /^\s*(?:varchar|character varying)(?:[\s(].*)*\s*$/i.test(type),
+	drizzleImport: () => 'varchar',
+	defaultFromDrizzle: Char.defaultFromDrizzle,
+	defaultArrayFromDrizzle: Char.defaultArrayFromDrizzle,
+	defaultFromIntrospect: Char.defaultFromIntrospect,
+	defaultArrayFromIntrospect: Char.defaultArrayFromIntrospect,
+	toTs: Char.toTs,
+	toArrayTs: Char.toArrayTs,
+}
+
+
 export const typeFor = (type: string): SqlType | null => {
 	if (SmallInt.is(type)) return SmallInt;
 	if (Int.is(type)) return Int;
 	if (BigInt.is(type)) return BigInt;
 	if (Numeric.is(type)) return Numeric;
+	if (Real.is(type)) return Real;
+	if (Double.is(type)) return Double;
+	if (Boolean.is(type)) return Boolean;
+	if (Char.is(type)) return Char;
+	if (Varchar.is(type)) return Varchar;
 	// no sql type
 	return null;
 };
