@@ -632,7 +632,7 @@ export const defaultNameForIndex = (table: string, columns: string[]) => {
 
 export const trimDefaultValueSuffix = (value: string) => {
 	let res = value.endsWith('[]') ? value.slice(0, -2) : value;
-	res = res.replaceAll(/::[\w\s]+(\([^\)]*\))?(\[\])*/g, '');
+	res = res.replace(/::[\w\s]+(\([^\)]*\))?(\[\])*$/g, '');
 	return res;
 };
 
