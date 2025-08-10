@@ -294,6 +294,7 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 
 	const { dimensions, baseType, options, typeSchema, sqlType: type } = unwrapColumn(column);
 	const columnDefault = defaultFromColumn(column, column.default, dimensions, new PgDialect());
+
 	const defaultSql = defaultToSQL({
 		default: columnDefault,
 		type,

@@ -244,7 +244,7 @@ export const Char: SqlType = {
 		return { value: `'${escaped}'`, type: 'unknown' };
 	},
 	defaultArrayFromDrizzle: (value) => {
-		const v = stringifyArray(
+		const res = stringifyArray(
 			value,
 			'sql',
 			(v) => {
@@ -254,7 +254,7 @@ export const Char: SqlType = {
 				return escaped;
 			},
 		);
-		return { value: `'${v}'`, type: 'unknown' };
+		return { value: `'${res}'`, type: 'unknown' };
 	},
 	defaultFromIntrospect: (value) => {
 		return { value: value, type: 'unknown' };
@@ -304,6 +304,17 @@ export const Varchar: SqlType = {
 	toArrayTs: Char.toArrayTs,
 }
 
+export const Text: SqlType = {
+	is: (type: string) => /^\s*text\s*$/i.test(type),
+	drizzleImport: () => 'text',
+	defaultFromDrizzle: Char.defaultFromDrizzle,
+	defaultArrayFromDrizzle: Char.defaultArrayFromDrizzle,
+	defaultFromIntrospect: Char.defaultFromIntrospect,
+	defaultArrayFromIntrospect: Char.defaultArrayFromIntrospect,
+	toTs: Char.toTs,
+	toArrayTs: Char.toArrayTs,
+}
+
 
 export const typeFor = (type: string): SqlType | null => {
 	if (SmallInt.is(type)) return SmallInt;
@@ -315,6 +326,7 @@ export const typeFor = (type: string): SqlType | null => {
 	if (Boolean.is(type)) return Boolean;
 	if (Char.is(type)) return Char;
 	if (Varchar.is(type)) return Varchar;
+	if (Text.is(type)) return Text;
 	// no sql type
 	return null;
 };
@@ -743,11 +755,12 @@ export const defaultToSQL = (
 	const { type: rawType } = splitSqlType(columnType);
 	const suffix = dimensions > 0 ? `::${rawType}[]` : '';
 
-	const grammarType = typeFor(it.type);
+	const grammarType = typeFor(rawType);
 	if (grammarType) {
 		const value = it.default.value ?? '';
 		return `${value}${suffix}`;
 	}
+
 
 	if (type === 'string') {
 		return `'${value}'${suffix}`;
