@@ -1,7 +1,8 @@
-import { ArrayValue, stringifyArray, stringifyTuplesArray, trimChar } from '../../utils';
+import { stringifyArray, stringifyTuplesArray, trimChar } from '../../utils';
 import { assertUnreachable } from '../../utils';
 import { parseArray } from '../../utils/parse-pgarray';
 import { hash } from '../common';
+import { numberForTs, parseParams } from '../utils';
 import type { Column, PostgresEntities } from './ddl';
 import type { Import } from './typescript';
 
@@ -11,11 +12,9 @@ export interface SqlType {
 	defaultFromDrizzle<MODE = unknown>(value: unknown, mode?: MODE): Column['default'];
 	defaultArrayFromDrizzle<MODE = unknown>(value: any[], mode?: MODE): Column['default'];
 	defaultFromIntrospect(value: string): Column['default'];
-	defaultArrayFromIntrospect(value: ArrayValue): Column['default'];
-	defaultToSQL(value: string): string;
-	defaultArrayToSQL(value: any[]): string;
-	toTs(type: string, value: string): { options?: Record<string, unknown>; default: string };
-	toArrayTs(type: string, value: any[]): { options?: Record<string, unknown>; default: string };
+	defaultArrayFromIntrospect(value: string): Column['default'];
+	toTs(type: string, value: string | null): { options?: Record<string, unknown>; default: string };
+	toArrayTs(type: string, value: string | null): { options?: Record<string, unknown>; default: string };
 }
 
 export const SmallInt: SqlType = {
@@ -25,21 +24,31 @@ export const SmallInt: SqlType = {
 		return { value: String(value), type: 'unknown' };
 	},
 	defaultArrayFromDrizzle: (value) => {
-		return { value: JSON.stringify(value), type: 'unknown' };
+		return { value: `'${stringifyArray(value, 'sql', (v) => String(v))}'`, type: 'unknown' };
 	},
 	defaultFromIntrospect: (value) => {
 		return { value: trimChar(value, "'"), type: 'unknown' }; // 10, but '-10'
 	},
 	defaultArrayFromIntrospect: (value) => {
-		const stringified = JSON.stringify(value, (_, v) => typeof v === 'string' ? Number(v) : v);
-		return { value: stringified, type: 'unknown' };
+		return { value: value as string, type: 'unknown' };
 	},
-	defaultToSQL: (value) => value,
-	defaultArrayToSQL: (value) => {
-		return `'${stringifyArray(value, 'sql', (v) => String(v))}'`;
+	toTs: (_, value) => ({ default: value ?? '' }),
+	toArrayTs: (_, value) => {
+		if (!value) return { default: '' };
+
+		try {
+			const trimmed = trimChar(trimChar(value, ['(', ')']), "'");
+			const res = parseArray(trimmed);
+
+			return {
+				default: stringifyArray(res, 'ts', (v) => {
+					return `${v}`;
+				}),
+			};
+		} catch {
+			return { default: `sql\`${value}\`` };
+		}
 	},
-	toTs: (_, value) => ({ default: value }),
-	toArrayTs: (_, value) => ({ default: JSON.stringify(value) }),
 };
 
 export const Int: SqlType = {
@@ -49,8 +58,6 @@ export const Int: SqlType = {
 	defaultArrayFromDrizzle: SmallInt.defaultArrayFromDrizzle,
 	defaultFromIntrospect: SmallInt.defaultFromIntrospect,
 	defaultArrayFromIntrospect: SmallInt.defaultArrayFromIntrospect,
-	defaultToSQL: SmallInt.defaultToSQL,
-	defaultArrayToSQL: SmallInt.defaultArrayToSQL,
 	toTs: SmallInt.toTs,
 	toArrayTs: SmallInt.toArrayTs,
 };
@@ -62,45 +69,113 @@ export const BigInt: SqlType = {
 		return { value: String(value), type: 'unknown' };
 	},
 	defaultArrayFromDrizzle: (value) => {
-		console.log(stringifyArray(value, "sql", String))
 		return {
-			value: stringifyArray(value, "sql", String),
+			value: `'${stringifyArray(value, 'sql', (v) => String(v))}'`,
 			type: 'unknown',
 		};
 	},
 	defaultFromIntrospect: (value) => {
-		console.log(value)
 		return { value: trimChar(value, "'"), type: 'unknown' }; // 10, but '-10'
 	},
 	defaultArrayFromIntrospect: (value) => {
-		const stringified = JSON.stringify(value, (_, v) => typeof v === 'string' ? Number(v) : v);
-		return { value: stringified, type: 'unknown' };
+		return { value, type: 'unknown' };
 	},
-	defaultToSQL: (value) => value,
-	defaultArrayToSQL: (value) => {
-		return `'${stringifyArray(value, 'sql', (v) => String(v))}'`;
+	toTs: (_, value) => {
+		if (!value) return { options: { mode: 'number' }, default: '' };
+		const { mode, value: def } = numberForTs(value);
+		return { options: { mode }, default: def };
 	},
-	toTs: (_, value) => ({ default: value }),
-	toArrayTs: (_, value) => ({ default: JSON.stringify(value) }),
+	toArrayTs: (_, value) => {
+		if (!value) return { options: { mode: 'number' }, default: '' };
+		try {
+			const trimmed = trimChar(trimChar(value, ['(', ')']), "'");
+			const res = parseArray(trimmed);
+			return { options: { mode: 'bigint' }, default: stringifyArray(res, 'ts', (v) => `${v}n`) };
+		} catch {
+			return { options: { mode: 'bigint' }, default: `sql\`${value}\`` };
+		}
+	},
+};
+
+export const Numeric: SqlType = {
+	is: (type: string) => /^\s*numeric(?:[\s(].*)*\s*$/i.test(type),
+	drizzleImport: () => 'numeric',
+	defaultFromDrizzle: (value) => {
+		return { value: `'${value}'`, type: 'unknown' };
+	},
+	defaultArrayFromDrizzle: (value) => {
+		return {
+			value: `'${stringifyArray(value, 'sql', (v) => String(v))}'`,
+			type: 'unknown',
+		};
+	},
+	defaultFromIntrospect: (value) => {
+		// 10.123, but '9223372036854775807'
+		return { value: `'${trimChar(value, "'")}'`, type: 'unknown' };
+	},
+	defaultArrayFromIntrospect: (value) => {
+		return { value, type: 'unknown' };
+	},
+	toTs: (type, value) => {
+		const [precision, scale] = parseParams(type);
+		const options = {} as any;
+		if (precision) options['precision'] = Number(precision);
+		if (scale) options['scale'] = Number(scale);
+
+		if (!value) return { options, default: '' };
+
+		const trimmed = trimChar(value, "'");
+
+		const { mode, value: def } = numberForTs(trimmed);
+		return { options: { mode, ...options }, default: def };
+	},
+	toArrayTs: (type, value) => {
+		const [precision, scale] = parseParams(type);
+		const options = {} as any;
+		if (precision) options['precision'] = Number(precision);
+		if (scale) options['scale'] = Number(scale);
+
+		if (!value) return { options, default: '' };
+		/*
+			If we'd want it to be smart - we need to check if numeric array has
+			any bigints recuresively, it's waaaaay easier to just do sql``
+		 */
+		// try {
+		// 	const trimmed = trimChar(trimChar(value, ['(', ')']), "'");
+		// 	const res = parseArray(trimmed);
+
+		// 	return {
+		// 		options: { mode: 'bigint', ...options },
+		// 		default: stringifyArray(res, 'ts', (v) => {
+
+		// 			return `${v}`;
+		// 		}),
+		// 	};
+		// } catch {
+		return { options, default: `sql\`${value}\`` };
+		// }
+	},
 };
 
 export const typeFor = (type: string): SqlType | null => {
 	if (SmallInt.is(type)) return SmallInt;
 	if (Int.is(type)) return Int;
 	if (BigInt.is(type)) return BigInt;
+	if (Numeric.is(type)) return Numeric;
 	// no sql type
 	return null;
 };
 
 export const splitSqlType = (sqlType: string) => {
 	// timestamp(6) with time zone -> [timestamp, 6, with time zone]
-	const match = sqlType.match(/^(\w+(?:\s+\w+)*)\(([^)]*)\)(?:\s+with time zone)?$/i);
-	let type = match ? (match[1] + (match[3] ?? '')) : sqlType;
+	const toMatch = sqlType.replaceAll('[]', '');
+	const match = toMatch.match(/^(\w+(?:\s+\w+)*)\(([^)]*)\)(?:\s+with time zone)?$/i);
+	let type = match ? (match[1] + (match[3] ?? '')) : toMatch;
 	let options = match ? match[2].replaceAll(', ', ',') : null;
 
-	if (options && type === 'numeric') {
-		options = options.replace(',0', ''); // trim numeric (4,0)->(4), compatibility with Drizzle
-	}
+	// if (options && type === 'numeric') {
+	// 	options = options.replace(',0', ''); // trim numeric (4,0)->(4), compatibility with Drizzle
+	// }
 	return { type, options };
 };
 
@@ -435,16 +510,7 @@ export const defaultForColumn = (
 
 	const grammarType = typeFor(type);
 	if (grammarType) {
-		if (dimensions > 0) {
-			try {
-				let trimmed = value.startsWith('(') ? value.slice(1, value.length - 1) : value;
-				trimmed = trimChar(trimmed, "'");
-				const res = parseArray(trimmed);
-				return grammarType.defaultArrayFromIntrospect(res);
-			} catch {
-				return { value, type: 'unknown' };
-			}
-		}
+		if (dimensions > 0) return grammarType.defaultArrayFromIntrospect(value);
 		return grammarType.defaultFromIntrospect(String(value));
 	}
 
@@ -515,27 +581,18 @@ export const defaultToSQL = (
 
 	const { type: columnType, dimensions, typeSchema } = it;
 	const { type, value } = it.default;
-	const arrsuffix = dimensions > 0 ? '[]' : '';
 
 	if (typeSchema) {
 		const schemaPrefix = typeSchema && typeSchema !== 'public' ? `"${typeSchema}".` : '';
-		return `'${value}'::${schemaPrefix}"${columnType}"${arrsuffix}`;
+		return `'${value}'::${schemaPrefix}"${columnType}"`;
 	}
 
-	const suffix = arrsuffix ? `::${columnType}${arrsuffix}` : '';
+	const { type: rawType } = splitSqlType(columnType);
+	const suffix = dimensions > 0 ? `::${rawType}[]` : '';
 
 	const grammarType = typeFor(it.type);
 	if (grammarType) {
-		if (dimensions > 0) {
-			try {
-				const parsed = JSON.parse(it.default.value) as any[];
-				if (parsed.flat(5).length === 0) return `'{}'${suffix}`;
-				return `${grammarType.defaultArrayToSQL(parsed)}${suffix}`;
-			} catch {
-				return it.default;
-			}
-		}
-		const value = grammarType.defaultToSQL(it.default.value);
+		const value = it.default.value ?? '';
 		return `${value}${suffix}`;
 	}
 

@@ -11,7 +11,6 @@ import {
 	integer,
 	interval,
 	json,
-	jsonb,
 	line,
 	numeric,
 	pgEnum,
@@ -62,7 +61,7 @@ test('integer', async () => {
 	expect.soft(res5).toStrictEqual([]);
 });
 
-test.only('integer arrays', async () => {
+test('integer arrays', async () => {
 	const res1 = await diffDefault(_, integer().array().default([]), "'{}'::integer[]");
 	const res2 = await diffDefault(_, integer().array().default([10]), "'{10}'::integer[]");
 	const res3 = await diffDefault(_, integer().array().array().default([]), "'{}'::integer[]");
@@ -84,7 +83,7 @@ test.only('integer arrays', async () => {
 	expect.soft(res7).toStrictEqual([]);
 });
 
-test.only('smallint', async () => {
+test('smallint', async () => {
 	// 2^15 - 1
 	const res1 = await diffDefault(_, smallint().default(32767), '32767');
 	// -2^15
@@ -125,12 +124,12 @@ test('bigint', async () => {
 	const res1 = await diffDefault(_, bigint({ mode: 'number' }).default(9007199254740991), '9007199254740991');
 	const res2 = await diffDefault(_, bigint({ mode: 'number' }).default(-9007199254740991), '-9007199254740991');
 	// 2^63 - 1
-	const res3 = await diffDefault(_, bigint({ mode: 'bigint' }).default(9223372036854775807n), "'9223372036854775807'");
+	const res3 = await diffDefault(_, bigint({ mode: 'bigint' }).default(9223372036854775807n), '9223372036854775807');
 	// -2^63
 	const res4 = await diffDefault(
 		_,
 		bigint({ mode: 'bigint' }).default(-9223372036854775808n),
-		"'-9223372036854775808'",
+		'-9223372036854775808',
 	);
 
 	expect.soft(res1).toStrictEqual([]);
@@ -182,6 +181,14 @@ test('bigint arrays', async () => {
 		"'{{{1,2}},{{1,2}}}'::bigint[]",
 	);
 
+	const res13 = await diffDefault(_, bigint({ mode: 'bigint' }).array().default(sql`'{}'`), "'{}'::bigint[]");
+	const res14 = await diffDefault(_, bigint({ mode: 'bigint' }).array().default(sql`'{}'::bigint[]`), "'{}'::bigint[]");
+	const res15 = await diffDefault(
+		_,
+		bigint({ mode: 'bigint' }).array().default(sql`'{9223372036854775807}'::bigint[]`),
+		"'{9223372036854775807}'::bigint[]",
+	);
+
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
@@ -194,6 +201,9 @@ test('bigint arrays', async () => {
 	expect.soft(res10).toStrictEqual([]);
 	expect.soft(res11).toStrictEqual([]);
 	expect.soft(res12).toStrictEqual([]);
+	expect.soft(res13).toStrictEqual([]);
+	expect.soft(res14).toStrictEqual([]);
+	expect.soft(res15).toStrictEqual([]);
 });
 
 test('numeric', async () => {
@@ -201,7 +211,7 @@ test('numeric', async () => {
 
 	const res4 = await diffDefault(_, numeric({ mode: 'string' }).default('10.123'), "'10.123'");
 	const res2 = await diffDefault(_, numeric({ mode: 'bigint' }).default(9223372036854775807n), "'9223372036854775807'");
-	const res3 = await diffDefault(_, numeric({ mode: 'number' }).default(9007199254740991), '9007199254740991');
+	const res3 = await diffDefault(_, numeric({ mode: 'number' }).default(9007199254740991), "'9007199254740991'");
 
 	const res5 = await diffDefault(_, numeric({ precision: 6 }).default('10.123'), "'10.123'");
 	const res6 = await diffDefault(_, numeric({ precision: 6, scale: 2 }).default('10.123'), "'10.123'");
@@ -215,9 +225,9 @@ test('numeric', async () => {
 		numeric({ mode: 'bigint', precision: 19 }).default(9223372036854775807n),
 		"'9223372036854775807'",
 	);
-	const res11 = await diffDefault(_, numeric({ mode: 'number', precision: 6, scale: 2 }).default(10.123), '10.123');
-	const res12 = await diffDefault(_, numeric({ mode: 'number', scale: 2 }).default(10.123), '10.123');
-	const res13 = await diffDefault(_, numeric({ mode: 'number', precision: 6 }).default(10.123), '10.123');
+	const res11 = await diffDefault(_, numeric({ mode: 'number', precision: 6, scale: 2 }).default(10.123), "'10.123'");
+	const res12 = await diffDefault(_, numeric({ mode: 'number', scale: 2 }).default(10.123), "'10.123'");
+	const res13 = await diffDefault(_, numeric({ mode: 'number', precision: 6 }).default(10.123), "'10.123'");
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);

@@ -13,7 +13,6 @@ export const createDDL = () => {
 			schema: 'required',
 			table: 'required',
 			type: 'string',
-			options: 'string?',
 			typeSchema: 'string?',
 			notNull: 'boolean',
 			dimensions: 'number',

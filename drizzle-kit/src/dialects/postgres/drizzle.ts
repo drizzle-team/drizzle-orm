@@ -64,6 +64,7 @@ import {
 	minRangeForIdentityBasedOn,
 	splitSqlType,
 	stringFromIdentityProperty,
+	trimDefaultValueSuffix,
 	typeFor,
 } from './grammar';
 
@@ -116,13 +117,14 @@ export const unwrapColumn = (column: AnyPgColumn) => {
 		: null;
 
 	let sqlBaseType = baseColumn.getSQLType();
+	// numeric(6, 2) -> numeric(6,2)
+	sqlBaseType = sqlBaseType.replace(', ', ',');
 
 	/* legacy, for not to patch orm and don't up snapshot */
 	sqlBaseType = sqlBaseType.startsWith('timestamp (') ? sqlBaseType.replace('timestamp (', 'timestamp(') : sqlBaseType;
 
 	const { type, options } = splitSqlType(sqlBaseType);
 	const sqlType = dimensions > 0 ? `${sqlBaseType}${'[]'.repeat(dimensions)}` : sqlBaseType;
-
 	return {
 		baseColumn,
 		dimensions,
@@ -168,6 +170,7 @@ export const defaultFromColumn = (
 
 	if (is(def, SQL)) {
 		let sql = dialect.sqlToQuery(def).sql;
+		sql = trimDefaultValueSuffix(sql);
 
 		// TODO: check if needed
 
@@ -185,7 +188,7 @@ export const defaultFromColumn = (
 	if (grammarType) {
 		// if (dimensions > 0 && !Array.isArray(def)) return { value: String(def), type: 'unknown' };
 		if (dimensions > 0 && Array.isArray(def)) {
-			if (def.flat(5).length === 0) return { value: '[]', type: 'unknown' };
+			if (def.flat(5).length === 0) return { value: "'{}'", type: 'unknown' };
 			return grammarType.defaultArrayFromDrizzle(def);
 		}
 		return grammarType.defaultFromDrizzle(def);
@@ -481,16 +484,15 @@ export const fromDrizzleSchema = (
 					}
 					: null;
 
-				const { baseColumn, dimensions, sqlType, baseType, options, typeSchema } = unwrapColumn(column);
+				const { baseColumn, dimensions, typeSchema, sqlType } = unwrapColumn(column);
 				const columnDefault = defaultFromColumn(baseColumn, column.default, dimensions, dialect);
-
+				
 				return {
 					entityType: 'columns',
 					schema: schema,
 					table: tableName,
 					name,
-					type: baseType,
-					options,
+					type: sqlType,
 					typeSchema: typeSchema ?? null,
 					dimensions: dimensions,
 					pk: column.primary,
