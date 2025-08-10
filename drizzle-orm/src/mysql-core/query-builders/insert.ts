@@ -18,7 +18,7 @@ import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Param, SQL, sql } from '~/sql/sql.ts';
 import type { InferModelFromColumns } from '~/table.ts';
 import { Columns, Table } from '~/table.ts';
-import { haveSameKeys, mapUpdateSet } from '~/utils.ts';
+import { haveSameKeys, isIterable, mapUpdateSet } from '~/utils.ts';
 import type { AnyMySqlColumn } from '../columns/common.ts';
 import { extractUsedTable } from '../utils.ts';
 import { QueryBuilder } from './query-builder.ts';
@@ -69,9 +69,9 @@ export class MySqlInsertBuilder<
 	values(value: MySqlInsertValue<TTable>): MySqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
 	values(values: MySqlInsertValue<TTable>[]): MySqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT>;
 	values(
-		values: MySqlInsertValue<TTable> | MySqlInsertValue<TTable>[],
+		rawValues: MySqlInsertValue<TTable> | MySqlInsertValue<TTable>[],
 	): MySqlInsertBase<TTable, TQueryResult, TPreparedQueryHKT> {
-		values = Array.isArray(values) ? values : [values];
+		const values = isIterable(rawValues) ? [...rawValues] : [rawValues];
 		if (values.length === 0) {
 			throw new Error('values() must be called with at least one value');
 		}
