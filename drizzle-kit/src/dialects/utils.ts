@@ -87,6 +87,17 @@ export const groupDiffs = <
 	return res;
 };
 
+export const numberForTs = (value: string) => {
+	const check = Number(value);
+
+	if (check >= Number.MIN_SAFE_INTEGER && check <= Number.MAX_SAFE_INTEGER) return { mode: 'number', value: value };
+	return { mode: 'bigint', value: `${value}n` };
+};
+
+export const parseParams = (type: string) => {
+	return type.match(/\(([0-9,\s]+)\)/)?.[1].split(',').map((x) => x.trim()) ?? [];
+};
+
 export const escapeForSqlDefault = (input: string) => {
 	return input.replace(/\\/g, '\\\\').replace(/'/g, "''");
 };

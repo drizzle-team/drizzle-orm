@@ -135,7 +135,9 @@ export const fromDatabase = async (
 	const tablespacesQuery = db.query<{
 		oid: number;
 		name: string;
-	}>(`SELECT oid, spcname as "name" FROM pg_catalog.pg_tablespace WHERE pg_catalog.has_tablespace_privilege(spcname, 'CREATE') ORDER BY pg_catalog.lower(spcname)`).then((rows) => {
+	}>(
+		`SELECT oid, spcname as "name" FROM pg_catalog.pg_tablespace WHERE pg_catalog.has_tablespace_privilege(spcname, 'CREATE') ORDER BY pg_catalog.lower(spcname)`,
+	).then((rows) => {
 		queryCallback('tablespaces', rows, null);
 		return rows;
 	}).catch((err) => {
@@ -143,7 +145,9 @@ export const fromDatabase = async (
 		throw err;
 	});
 
-	const namespacesQuery = db.query<Namespace>("SELECT oid, nspname as name FROM pg_catalog.pg_namespace WHERE pg_catalog.has_schema_privilege(nspname, 'USAGE') ORDER BY pg_catalog.lower(nspname)")
+	const namespacesQuery = db.query<Namespace>(
+		"SELECT oid, nspname as name FROM pg_catalog.pg_namespace WHERE pg_catalog.has_schema_privilege(nspname, 'USAGE') ORDER BY pg_catalog.lower(nspname)",
+	)
 		.then((rows) => {
 			queryCallback('namespaces', rows, null);
 			return rows;
@@ -778,11 +782,7 @@ export const fromDatabase = async (
 			? groupedArrEnums[column.typeId]
 			: null;
 
-		let columnTypeMapped = enumType ? enumType.name : column.type.replace('[]', '');
-
-		if (columnTypeMapped.startsWith('numeric(')) {
-			columnTypeMapped = columnTypeMapped.replace(',', ', ');
-		}
+		let columnTypeMapped = enumType ? enumType.name : column.type.replaceAll('[]', '');
 
 		columnTypeMapped = columnTypeMapped
 			.replace('character varying', 'varchar')
@@ -793,14 +793,12 @@ export const fromDatabase = async (
 
 		columnTypeMapped = trimChar(columnTypeMapped, '"');
 
-		const { type, options } = splitSqlType(columnTypeMapped);
-
 		const columnDefault = defaultsList.find(
 			(it) => it.tableId === column.tableId && it.ordinality === column.ordinality,
 		);
 
 		const defaultValue = defaultForColumn(
-			type,
+			columnTypeMapped,
 			columnDefault?.expression,
 			column.dimensions,
 		);
@@ -834,13 +832,14 @@ export const fromDatabase = async (
 
 		const sequence = metadata?.seqId ? sequencesList.find((it) => it.oid === Number(metadata.seqId)) ?? null : null;
 
+		columnTypeMapped += '[]'.repeat(column.dimensions)
+		
 		columns.push({
 			entityType: 'columns',
 			schema: table.schema,
 			table: table.name,
 			name: column.name,
-			type,
-			options,
+			type: columnTypeMapped,
 			typeSchema: enumType ? enumType.schema ?? 'public' : null,
 			dimensions: column.dimensions,
 			default: column.generatedType === 's' ? null : defaultValue,
@@ -1136,15 +1135,14 @@ export const fromDatabase = async (
 		if (columnTypeMapped.startsWith('numeric(')) {
 			columnTypeMapped = columnTypeMapped.replace(',', ', ');
 		}
-		for (let i = 0; i < it.dimensions; i++) {
-			columnTypeMapped += '[]';
-		}
 
 		columnTypeMapped = columnTypeMapped
 			.replace('character varying', 'varchar')
 			.replace(' without time zone', '')
 			// .replace("timestamp without time zone", "timestamp")
 			.replace('character', 'char');
+
+		columnTypeMapped += '[]'.repeat(it.dimensions);
 
 		viewColumns.push({
 			schema: view.schema,

@@ -731,6 +731,7 @@ export const ddlDiff = async (
 			isPK: ddl2.pks.one({ schema: it.schema, table: it.table, columns: [it.name] }) !== null,
 		})
 	);
+
 	const columnAlters = alters.filter((it) => it.entityType === 'columns').filter((it) => {
 		/*
 			from: { value: '2023-02-28 16:18:31.18', type: 'string' },
@@ -757,6 +758,12 @@ export const ddlDiff = async (
 		if (it.default && it.default.from?.value === it.default.to?.value) {
 			delete it.default;
 		}
+
+		// numeric(19) === numeric(19,0)
+		if (it.type && it.type.from.replace(',0)', ')') === it.type.to) {
+			delete it.type;
+		}
+
 		return ddl2.columns.hasDiff(it);
 	});
 

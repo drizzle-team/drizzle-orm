@@ -1662,7 +1662,7 @@ test('fk multistep #3', async () => {
 	expect(st1).toStrictEqual(['ALTER TABLE "users" RENAME TO "users2";']);
 });
 
-test.only('unique multistep #3', async () => {
+test('unique multistep #3', async () => {
 	await db.query(`CREATE TABLE "users" ("id" integer CONSTRAINT "id_uniq" UNIQUE);`);
 	const interim = await fromDatabase(db);
 	const { ddl: ddl1 } = interimToDDL(interim);

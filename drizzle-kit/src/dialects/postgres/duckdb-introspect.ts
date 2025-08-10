@@ -535,12 +535,10 @@ export const fromDatabase = async (
 
 		columnTypeMapped = trimChar(columnTypeMapped, '"');
 
-		const { type, options } = splitSqlType(columnTypeMapped);
-
 		const columnDefault = column.default;
 
 		const defaultValue = defaultForColumn(
-			type,
+			columnTypeMapped,
 			columnDefault,
 			0,
 		);
@@ -560,8 +558,7 @@ export const fromDatabase = async (
 			schema: table.schema,
 			table: table.name,
 			name: column.name,
-			type,
-			options,
+			type: columnTypeMapped,
 			// typeSchema: enumType ? enumType.schema ?? 'public' : null,
 			typeSchema: null,
 			dimensions,

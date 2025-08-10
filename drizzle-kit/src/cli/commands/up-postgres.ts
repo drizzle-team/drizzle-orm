@@ -78,15 +78,13 @@ export const upToV8 = (it: Record<string, any>): { snapshot: PostgresSnapshot; h
 			}
 
 			const [baseType, dimensions] = extractBaseTypeAndDimensions(column.type);
-			const { type, options } = splitSqlType(baseType);
 
 			const def = defaultForColumn(baseType, column.default, dimensions);
 			ddl.columns.push({
 				schema,
 				table: table.name,
 				name: column.name,
-				type: type,
-				options: options, // TODO: check
+				type: baseType,
 				notNull: column.notNull,
 				typeSchema: column.typeSchema ?? null, // TODO: if public - empty or missing?
 				dimensions,

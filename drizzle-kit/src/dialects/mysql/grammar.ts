@@ -1,6 +1,6 @@
 import { assertUnreachable, trimChar } from '../../utils';
 import { parse, stringify } from '../../utils/when-json-met-bigint';
-import { escapeForSqlDefault, escapeForTsLiteral, unescapeFromSqlDefault } from '../utils';
+import { escapeForSqlDefault, escapeForTsLiteral, parseParams, unescapeFromSqlDefault } from '../utils';
 import { Column, ForeignKey } from './ddl';
 import { Import } from './typescript';
 
@@ -28,10 +28,6 @@ const checkNumber = (it: string) => {
 	if (Number.isNaN(check)) return 'NaN';
 	if (check >= Number.MIN_SAFE_INTEGER && check <= Number.MAX_SAFE_INTEGER) return 'number';
 	return 'bigint';
-};
-
-export const parseParams = (type: string) => {
-	return type.match(/\(([0-9,\s]+)\)/)?.[1].split(',').map((x) => x.trim()) ?? [];
 };
 
 export interface SqlType<MODE = unknown> {

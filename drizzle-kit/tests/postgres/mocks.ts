@@ -291,11 +291,11 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	const def = config['default'];
 	const column = pgTable('table', { column: builder }).column;
 
-	const { baseColumn, dimensions, baseType, options, typeSchema } = unwrapColumn(column);
-	const columnDefault = defaultFromColumn(baseColumn, column.default, dimensions, new PgDialect());
+	const { dimensions, baseType, options, typeSchema, sqlType: type } = unwrapColumn(column);
+	const columnDefault = defaultFromColumn(column, column.default, dimensions, new PgDialect());
 	const defaultSql = defaultToSQL({
 		default: columnDefault,
-		type: baseType,
+		type,
 		dimensions,
 		typeSchema: typeSchema,
 	});

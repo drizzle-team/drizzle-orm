@@ -1,6 +1,6 @@
 import { parse, stringify } from 'src/utils/when-json-met-bigint';
 import { assertUnreachable, trimChar } from '../../utils';
-import { escapeForSqlDefault, escapeForTsLiteral, unescapeFromSqlDefault } from '../utils';
+import { escapeForSqlDefault, escapeForTsLiteral, parseParams, unescapeFromSqlDefault } from '../utils';
 import { DefaultConstraint, MssqlEntities } from './ddl';
 import { Import } from './typescript';
 import { hash } from './utils';
@@ -57,10 +57,6 @@ export const defaults = {
 	max_int_value: 2147483647,
 	min_int_value: -2147483648,
 } as const;
-
-export const parseParams = (type: string): string[] => {
-	return type.match(/\(([0-9,\s,max]+)\)/)?.[1].split(',').map((x) => x.trim()) ?? [];
-};
 
 export const defaultNameForPK = (table: string) => {
 	const desired = `${table}_pkey`;
