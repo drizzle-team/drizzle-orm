@@ -149,13 +149,10 @@ export function stringifyTuplesArray(
 	return mode === 'ts' ? `[${res}]` : `{${res}}`;
 }
 
-export const trimChar = (str: string, char: string) => {
-	let start = 0;
-	let end = str.length;
+export const trimChar = (str: string, char: string | [string, string]) => {
+	if (str.length < 2) return str;
+	if (typeof char === 'string' && str.startsWith(char) && str.endsWith(char)) return str.substring(1, str.length - 1);
+	if (Array.isArray(char) && str.startsWith(char[0]) && str.endsWith(char[1])) return str.substring(1, str.length - 1);
 
-	while (start < end && str[start] === char) ++start;
-	while (end > start && str[end - 1] === char) --end;
-
-	const res = start > 0 || end < str.length ? str.substring(start, end) : str;
-	return res;
+	return str;
 };

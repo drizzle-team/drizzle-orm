@@ -114,15 +114,17 @@ export const fromDatabase = async (
 		name: string;
 	};
 
-	// ! Use `pg_catalog` for system functions
+	// ! Use `pg_catalog` for system tables, functions and operators (Prevent security vulnerabilities - overwriting system tables, functions and operators)
+	// ! Do not use `::regnamespace::text` to get schema name, because it does not work with schemas that have uppercase letters (e.g. MySchema -> "MySchema")
 
 	// TODO: potential improvements
+	// use pg_catalog.has_table_privilege(pg_class.oid, 'SELECT') for tables
 	// --- default access method
 	// SHOW default_table_access_method;
 	// SELECT current_setting('default_table_access_method') AS default_am;
 
 	const accessMethodsQuery = db.query<{ oid: number; name: string }>(
-		`SELECT oid, amname as name FROM pg_am WHERE amtype = 't' ORDER BY pg_catalog.lower(amname);`,
+		`SELECT oid, amname as name FROM pg_catalog.pg_am WHERE amtype OPERATOR(pg_catalog.=) 't' ORDER BY pg_catalog.lower(amname);`,
 	).then((rows) => {
 		queryCallback('accessMethods', rows, null);
 		return rows;
@@ -134,7 +136,9 @@ export const fromDatabase = async (
 	const tablespacesQuery = db.query<{
 		oid: number;
 		name: string;
-	}>(`SELECT oid, spcname as "name" FROM pg_tablespace WHERE pg_catalog.has_tablespace_privilege(spcname, 'CREATE') ORDER BY pg_catalog.lower(spcname)`).then((rows) => {
+	}>(
+		`SELECT oid, spcname as "name" FROM pg_catalog.pg_tablespace WHERE pg_catalog.has_tablespace_privilege(oid, 'CREATE') ORDER BY pg_catalog.lower(spcname)`,
+	).then((rows) => {
 		queryCallback('tablespaces', rows, null);
 		return rows;
 	}).catch((err) => {
@@ -142,7 +146,9 @@ export const fromDatabase = async (
 		throw err;
 	});
 
-	const namespacesQuery = db.query<Namespace>("SELECT oid, nspname as name FROM pg_namespace WHERE pg_catalog.has_schema_privilege(nspname, 'USAGE') ORDER BY pg_catalog.lower(nspname)")
+	const namespacesQuery = db.query<Namespace>(
+		"SELECT oid, nspname as name FROM pg_catalog.pg_namespace WHERE pg_catalog.has_schema_privilege(oid, 'USAGE') ORDER BY pg_catalog.lower(nspname)",
+	)
 		.then((rows) => {
 			queryCallback('namespaces', rows, null);
 			return rows;
@@ -161,7 +167,7 @@ export const fromDatabase = async (
 			adnum AS "ordinality",
 			pg_catalog.pg_get_expr(adbin, adrelid) AS "expression"
 		FROM
-			pg_attrdef;
+			pg_catalog.pg_attrdef;
 	`).then((rows) => {
 		queryCallback('defaults', rows, null);
 		return rows;
@@ -190,51 +196,54 @@ export const fromDatabase = async (
 	);
 
 	const filteredNamespaces = other.filter((it) => schemaFilter(it.name));
-	const filteredNamespacesIds = filteredNamespaces.map((it) => it.oid);
+	const filteredNamespacesStringForSQL = filteredNamespaces.map((ns) => `'${ns.name}'`).join(',');
 
 	schemas.push(...filteredNamespaces.map<Schema>((it) => ({ entityType: 'schemas', name: it.name })));
 
-	const tablesList = await db
-		.query<{
-			oid: number;
-			schema: string;
-			name: string;
-
-			/* r - table, v - view, m - materialized view */
-			kind: 'r' | 'v' | 'm';
-			accessMethod: number;
-			options: string[] | null;
-			rlsEnabled: boolean;
-			tablespaceid: number;
-			definition: string | null;
-		}>(`
+	type TableListItem = {
+		oid: number;
+		schema: string;
+		name: string;
+		/* r - table, v - view, m - materialized view */
+		kind: 'r' | 'v' | 'm';
+		accessMethod: number;
+		options: string[] | null;
+		rlsEnabled: boolean;
+		tablespaceid: number;
+		definition: string | null;
+	};
+	const tablesList = filteredNamespacesStringForSQL
+		? await db
+			.query<TableListItem>(`
 			SELECT
-				oid,
-				relnamespace::regnamespace::text as "schema",
+				pg_class.oid,
+				nspname as "schema",
 				relname AS "name",
 				relkind AS "kind",
 				relam as "accessMethod",
 				reloptions::text[] as "options",
 				reltablespace as "tablespaceid",
 				relrowsecurity AS "rlsEnabled",
-				case 
-					when relkind = 'v' or relkind = 'm'
-						then pg_catalog.pg_get_viewdef(oid, true)
-					else null 
-				end as "definition"
+				CASE
+					WHEN relkind OPERATOR(pg_catalog.=) 'v' OR relkind OPERATOR(pg_catalog.=) 'm'
+						THEN pg_catalog.pg_get_viewdef(pg_class.oid, true)
+					ELSE null
+				END as "definition"
 			FROM
-				pg_class
+				pg_catalog.pg_class
+			JOIN pg_catalog.pg_namespace ON pg_namespace.oid OPERATOR(pg_catalog.=) relnamespace
 			WHERE
 				relkind IN ('r', 'v', 'm')
-				AND relnamespace IN (${filteredNamespacesIds.join(', ')})
-			ORDER BY relnamespace, pg_catalog.lower(relname);
+				AND nspname IN (${filteredNamespacesStringForSQL})
+			ORDER BY pg_catalog.lower(nspname), pg_catalog.lower(relname);
 		`).then((rows) => {
-			queryCallback('tables', rows, null);
-			return rows;
-		}).catch((err) => {
-			queryCallback('tables', [], err);
-			throw err;
-		});
+				queryCallback('tables', rows, null);
+				return rows;
+			}).catch((err) => {
+				queryCallback('tables', [], err);
+				throw err;
+			})
+		: [] as TableListItem[];
 
 	const viewsList = tablesList.filter((it) => it.kind === 'v' || it.kind === 'm');
 
@@ -278,16 +287,13 @@ export const fromDatabase = async (
 		deptype: 'a' | 'i';
 	}>(
 		`SELECT
-			-- sequence id
 			objid as oid,
 			refobjid as "tableId",
 			refobjsubid as "ordinality",
-			
-			-- a = auto
 			deptype
 		FROM
-			pg_depend
-		where ${filterByTableIds ? ` refobjid in ${filterByTableIds}` : 'false'};`,
+			pg_catalog.pg_depend
+		WHERE ${filterByTableIds ? ` refobjid IN ${filterByTableIds}` : 'false'};`,
 	).then((rows) => {
 		queryCallback('depend', rows, null);
 		return rows;
@@ -296,35 +302,39 @@ export const fromDatabase = async (
 		throw err;
 	});
 
-	const enumsQuery = db
-		.query<{
-			oid: number;
-			name: string;
-			schemaId: number;
-			arrayTypeId: number;
-			ordinality: number;
-			value: string;
-		}>(`SELECT
+	type EnumListItem = {
+		oid: number;
+		name: string;
+		schema: string;
+		arrayTypeId: number;
+		ordinality: number;
+		value: string;
+	};
+	const enumsQuery = filteredNamespacesStringForSQL
+		? db
+			.query<EnumListItem>(`SELECT
 				pg_type.oid as "oid",
 				typname as "name",
-				typnamespace as "schemaId",
+				nspname as "schema",
 				pg_type.typarray as "arrayTypeId",
 				pg_enum.enumsortorder AS "ordinality",
 				pg_enum.enumlabel AS "value"
 			FROM
-				pg_type
-			JOIN pg_enum on pg_enum.enumtypid=pg_type.oid
+				pg_catalog.pg_type
+			JOIN pg_catalog.pg_enum ON pg_enum.enumtypid OPERATOR(pg_catalog.=) pg_type.oid
+			JOIN pg_catalog.pg_namespace ON pg_namespace.oid OPERATOR(pg_catalog.=) pg_type.typnamespace
 			WHERE
-				pg_type.typtype = 'e'
-				AND typnamespace IN (${filteredNamespacesIds.join(',')})
+				pg_type.typtype OPERATOR(pg_catalog.=) 'e'
+				AND nspname IN (${filteredNamespacesStringForSQL})
 			ORDER BY pg_type.oid, pg_enum.enumsortorder
 		`).then((rows) => {
-			queryCallback('enums', rows, null);
-			return rows;
-		}).catch((err) => {
-			queryCallback('enums', [], err);
-			throw err;
-		});
+				queryCallback('enums', rows, null);
+				return rows;
+			}).catch((err) => {
+				queryCallback('enums', [], err);
+				throw err;
+			})
+		: [] as EnumListItem[];
 
 	// fetch for serials, adrelid = tableid
 	const serialsQuery = db
@@ -339,8 +349,8 @@ export const fromDatabase = async (
 				adnum as "ordinality",
 				pg_catalog.pg_get_expr(adbin, adrelid) as "expression"
 			FROM
-				pg_attrdef
-			WHERE ${filterByTableIds ? ` adrelid in ${filterByTableIds}` : 'false'}
+				pg_catalog.pg_attrdef
+			WHERE ${filterByTableIds ? ` adrelid IN ${filterByTableIds}` : 'false'}
 		`).then((rows) => {
 			queryCallback('serials', rows, null);
 			return rows;
@@ -349,7 +359,7 @@ export const fromDatabase = async (
 			throw err;
 		});
 
-	const sequencesQuery = db.query<{
+	type SequenceListItem = {
 		schema: string;
 		oid: number;
 		name: string;
@@ -359,8 +369,10 @@ export const fromDatabase = async (
 		incrementBy: string;
 		cycle: boolean;
 		cacheSize: number;
-	}>(`SELECT 
-			relnamespace::regnamespace::text as "schema",
+	};
+	const sequencesQuery = filteredNamespacesStringForSQL
+		? db.query<SequenceListItem>(`SELECT 
+			nspname as "schema",
 			relname as "name",
 			seqrelid as "oid",
 			seqstart as "startWith", 
@@ -369,17 +381,19 @@ export const fromDatabase = async (
 			seqincrement as "incrementBy", 
 			seqcycle as "cycle", 
 			seqcache as "cacheSize" 
-		FROM pg_sequence
-		LEFT JOIN pg_class ON pg_sequence.seqrelid=pg_class.oid
-		WHERE relnamespace IN (${filteredNamespacesIds.join(',')})
-		ORDER BY relnamespace, pg_catalog.lower(relname);
+		FROM pg_catalog.pg_sequence
+		JOIN pg_catalog.pg_class ON pg_sequence.seqrelid OPERATOR(pg_catalog.=) pg_class.oid
+		JOIN pg_catalog.pg_namespace ON pg_namespace.oid OPERATOR(pg_catalog.=) pg_class.relnamespace
+		WHERE nspname IN (${filteredNamespacesStringForSQL})
+		ORDER BY pg_catalog.lower(nspname), pg_catalog.lower(relname);
 	`).then((rows) => {
-		queryCallback('sequences', rows, null);
-		return rows;
-	}).catch((err) => {
-		queryCallback('sequences', [], err);
-		throw err;
-	});
+				queryCallback('sequences', rows, null);
+				return rows;
+			}).catch((err) => {
+				queryCallback('sequences', [], err);
+				throw err;
+			})
+		: [] as SequenceListItem[];
 
 	// I'm not yet aware of how we handle policies down the pipeline for push,
 	// and since postgres does not have any default policies, we can safely fetch all of them for now
@@ -404,7 +418,7 @@ export const fromDatabase = async (
 			cmd as "for", 
 			qual as "using", 
 			with_check as "withCheck" 
-		FROM pg_policies
+		FROM pg_catalog.pg_policies
 		ORDER BY
 			pg_catalog.lower(schemaname),
 			pg_catalog.lower(tablename),
@@ -442,7 +456,7 @@ export const fromDatabase = async (
 			rolconnlimit,
 			rolvaliduntil,
 			rolbypassrls
-		FROM pg_roles
+		FROM pg_catalog.pg_roles
 		ORDER BY pg_catalog.lower(rolname);`,
 	).then((rows) => {
 		queryCallback('roles', rows, null);
@@ -452,14 +466,16 @@ export const fromDatabase = async (
 		throw error;
 	});
 
-	const privilegesQuery = db.query<{
+	type PrivilegeListItem = {
 		grantor: string;
 		grantee: string;
 		schema: string;
 		table: string;
 		type: 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' | 'TRUNCATE' | 'REFERENCES' | 'TRIGGER';
 		isGrantable: boolean;
-	}>(`
+	};
+	const privilegesQuery = filteredNamespacesStringForSQL
+		? db.query<PrivilegeListItem>(`
 		SELECT
 			grantor,
 			grantee,
@@ -468,18 +484,19 @@ export const fromDatabase = async (
 			privilege_type AS "type",
 			CASE is_grantable WHEN 'YES' THEN true ELSE false END AS "isGrantable"
 		FROM information_schema.role_table_grants
-		WHERE table_schema IN (${filteredNamespaces.map((ns) => `'${ns.name}'`).join(',')})
+		WHERE table_schema IN (${filteredNamespacesStringForSQL})
 		ORDER BY
 			pg_catalog.lower(table_schema),
 			pg_catalog.lower(table_name),
 			pg_catalog.lower(grantee);
 	`).then((rows) => {
-		queryCallback('privileges', rows, null);
-		return rows;
-	}).catch((error) => {
-		queryCallback('privileges', [], error);
-		throw error;
-	});
+				queryCallback('privileges', rows, null);
+				return rows;
+			}).catch((error) => {
+				queryCallback('privileges', [], error);
+				throw error;
+			})
+		: [] as PrivilegeListItem[];
 
 	const constraintsQuery = db.query<{
 		oid: number;
@@ -509,8 +526,8 @@ export const fromDatabase = async (
 			confupdtype AS "onUpdate",
 			confdeltype AS "onDelete"
 		FROM
-			pg_constraint
-		WHERE ${filterByTableIds ? ` conrelid in ${filterByTableIds}` : 'false'}
+			pg_catalog.pg_constraint
+		WHERE ${filterByTableIds ? ` conrelid IN ${filterByTableIds}` : 'false'}
 		ORDER BY conrelid, contype, pg_catalog.lower(conname);
   `).then((rows) => {
 		queryCallback('constraints', rows, null);
@@ -560,13 +577,13 @@ export const fromDatabase = async (
 			attidentity as "identityType",
 			pg_catalog.format_type(atttypid, atttypmod) as "type",
 			CASE
-				WHEN attidentity in ('a', 'd') or attgenerated = 's' THEN (
+				WHEN attidentity IN ('a', 'd') or attgenerated OPERATOR(pg_catalog.=) 's' THEN (
 					SELECT
 						pg_catalog.row_to_json(c.*)
 					FROM
 						(
 							SELECT
-								pg_catalog.pg_get_serial_sequence('"' || "table_schema" || '"."' || "table_name" || '"', "attname")::regclass::oid as "seqId",
+								pg_catalog.pg_get_serial_sequence('"' OPERATOR(pg_catalog.||) "table_schema" OPERATOR(pg_catalog.||) '"."' OPERATOR(pg_catalog.||) "table_name" OPERATOR(pg_catalog.||) '"', "attname")::regclass::oid as "seqId",
 								"identity_generation" AS generation,
 								"identity_start" AS "start",
 								"identity_increment" AS "increment",
@@ -577,22 +594,21 @@ export const fromDatabase = async (
 							FROM
 								information_schema.columns c
 							WHERE
-								c.column_name = attname
-								-- relnamespace is schemaId, regnamescape::text converts to schemaname
-								AND c.table_schema = cls.relnamespace::regnamespace::text
-								-- attrelid is tableId, regclass::text converts to table name
-								AND c.table_name = cls.relname
+								c.column_name OPERATOR(pg_catalog.=) attname
+								AND c.table_schema OPERATOR(pg_catalog.=) nspname
+								AND c.table_name OPERATOR(pg_catalog.=) cls.relname
 						) c
 					)
 				ELSE NULL
 			END AS "metadata"
 		FROM
-			pg_attribute attr
-			LEFT JOIN pg_class cls ON cls.oid = attr.attrelid
+			pg_catalog.pg_attribute attr
+			JOIN pg_catalog.pg_class cls ON cls.oid OPERATOR(pg_catalog.=) attr.attrelid
+			JOIN pg_catalog.pg_namespace nsp ON nsp.oid OPERATOR(pg_catalog.=) cls.relnamespace
 		WHERE
-		${filterByTableAndViewIds ? ` attrelid in ${filterByTableAndViewIds}` : 'false'}
-			AND attnum > 0
-			AND attisdropped = FALSE
+		${filterByTableAndViewIds ? ` attrelid IN ${filterByTableAndViewIds}` : 'false'}
+			AND attnum OPERATOR(pg_catalog.>) 0
+			AND attisdropped OPERATOR(pg_catalog.=) FALSE
 		ORDER BY attnum;
 	`).then((rows) => {
 		queryCallback('columns', rows, null);
@@ -627,10 +643,9 @@ export const fromDatabase = async (
 
 	const groupedEnums = enumsList.reduce((acc, it) => {
 		if (!(it.oid in acc)) {
-			const schemaName = filteredNamespaces.find((sch) => sch.oid === it.schemaId)!.name;
 			acc[it.oid] = {
 				oid: it.oid,
-				schema: schemaName,
+				schema: it.schema,
 				name: it.name,
 				values: [it.value],
 			};
@@ -642,10 +657,9 @@ export const fromDatabase = async (
 
 	const groupedArrEnums = enumsList.reduce((acc, it) => {
 		if (!(it.arrayTypeId in acc)) {
-			const schemaName = filteredNamespaces.find((sch) => sch.oid === it.schemaId)!.name;
 			acc[it.arrayTypeId] = {
 				oid: it.oid,
-				schema: schemaName,
+				schema: it.schema,
 				name: it.name,
 				values: [it.value],
 			};
@@ -779,11 +793,7 @@ export const fromDatabase = async (
 			? groupedArrEnums[column.typeId]
 			: null;
 
-		let columnTypeMapped = enumType ? enumType.name : column.type.replace('[]', '');
-
-		if (columnTypeMapped.startsWith('numeric(')) {
-			columnTypeMapped = columnTypeMapped.replace(',', ', ');
-		}
+		let columnTypeMapped = enumType ? enumType.name : column.type.replaceAll('[]', '');
 
 		columnTypeMapped = columnTypeMapped
 			.replace('character varying', 'varchar')
@@ -794,14 +804,12 @@ export const fromDatabase = async (
 
 		columnTypeMapped = trimChar(columnTypeMapped, '"');
 
-		const { type, options } = splitSqlType(columnTypeMapped);
-
 		const columnDefault = defaultsList.find(
 			(it) => it.tableId === column.tableId && it.ordinality === column.ordinality,
 		);
 
 		const defaultValue = defaultForColumn(
-			type,
+			columnTypeMapped,
 			columnDefault?.expression,
 			column.dimensions,
 		);
@@ -835,13 +843,14 @@ export const fromDatabase = async (
 
 		const sequence = metadata?.seqId ? sequencesList.find((it) => it.oid === Number(metadata.seqId)) ?? null : null;
 
+		columnTypeMapped += '[]'.repeat(column.dimensions)
+		
 		columns.push({
 			entityType: 'columns',
 			schema: table.schema,
 			table: table.name,
 			name: column.name,
-			type,
-			options,
+			type: columnTypeMapped,
 			typeSchema: enumType ? enumType.schema ?? 'public' : null,
 			dimensions: column.dimensions,
 			default: column.generatedType === 's' ? null : defaultValue,
@@ -929,7 +938,7 @@ export const fromDatabase = async (
 			nameExplicit: true,
 			columns,
 			tableTo: tableTo.name,
-			schemaTo: schema.name,
+			schemaTo: tableTo.schema,
 			columnsTo,
 			onUpdate: parseOnType(fk.onUpdate),
 			onDelete: parseOnType(fk.onDelete),
@@ -968,15 +977,16 @@ export const fromDatabase = async (
 	}>(`
       SELECT
         pg_class.oid,
-        relnamespace::regnamespace::text as "schema",
+        nspname as "schema",
         relname AS "name",
         am.amname AS "accessMethod",
         reloptions AS "with",
         pg_catalog.row_to_json(metadata.*) as "metadata"
       FROM
-        pg_class
-      JOIN pg_am am ON am.oid = pg_class.relam
-      LEFT JOIN LATERAL (
+        pg_catalog.pg_class
+      JOIN pg_catalog.pg_am am ON am.oid OPERATOR(pg_catalog.=) pg_class.relam
+	  JOIN pg_catalog.pg_namespace nsp ON nsp.oid OPERATOR(pg_catalog.=) pg_class.relnamespace
+      JOIN LATERAL (
         SELECT
           pg_catalog.pg_get_expr(indexprs, indrelid) AS "expression",
           pg_catalog.pg_get_expr(indpred, indrelid) AS "where",
@@ -994,18 +1004,19 @@ export const fromDatabase = async (
 			  )
 			FROM
 			  pg_catalog.unnest(indclass) WITH ORDINALITY AS opclass(oid, ordinality)
-			JOIN pg_opclass ON opclass.oid = pg_opclass.oid
-			JOIN pg_am ON pg_opclass.opcmethod = pg_am.oid
+			JOIN pg_catalog.pg_opclass ON opclass.oid OPERATOR(pg_catalog.=) pg_opclass.oid
+			JOIN pg_catalog.pg_am ON pg_opclass.opcmethod OPERATOR(pg_catalog.=) pg_am.oid
 			ORDER BY opclass.ordinality
 		  ) as "opclasses"
         FROM
-          pg_index
+          pg_catalog.pg_index
         WHERE
-          pg_index.indexrelid = pg_class.oid
+          pg_index.indexrelid OPERATOR(pg_catalog.=) pg_class.oid
       ) metadata ON TRUE
       WHERE
-        relkind = 'i' and ${filterByTableIds ? `metadata."tableId" in ${filterByTableIds}` : 'false'}
-	  ORDER BY relnamespace, pg_catalog.lower(relname);
+        relkind OPERATOR(pg_catalog.=) 'i'
+		AND ${filterByTableIds ? `metadata."tableId" IN ${filterByTableIds}` : 'false'}
+	  ORDER BY pg_catalog.lower(nspname), pg_catalog.lower(relname);
     `).then((rows) => {
 		queryCallback('indexes', rows, null);
 		return rows;
@@ -1135,15 +1146,14 @@ export const fromDatabase = async (
 		if (columnTypeMapped.startsWith('numeric(')) {
 			columnTypeMapped = columnTypeMapped.replace(',', ', ');
 		}
-		for (let i = 0; i < it.dimensions; i++) {
-			columnTypeMapped += '[]';
-		}
 
 		columnTypeMapped = columnTypeMapped
 			.replace('character varying', 'varchar')
 			.replace(' without time zone', '')
 			// .replace("timestamp without time zone", "timestamp")
 			.replace('character', 'char');
+
+		columnTypeMapped += '[]'.repeat(it.dimensions);
 
 		viewColumns.push({
 			schema: view.schema,

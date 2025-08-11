@@ -1,18 +1,7 @@
 import { Temporal } from '@js-temporal/polyfill';
-import { assertUnreachable } from '../../utils';
+import { assertUnreachable, trimChar } from '../../utils';
 import { hash } from '../common';
 import { CockroachEntities, Column, DiffEntities } from './ddl';
-
-export const trimChar = (str: string, char: string) => {
-	let start = 0;
-	let end = str.length;
-
-	while (start < end && str[start] === char) ++start;
-	while (end > start && str[end - 1] === char) --end;
-
-	const res = start > 0 || end < str.length ? str.substring(start, end) : str;
-	return res;
-};
 
 export const splitSqlType = (sqlType: string) => {
 	// timestamp(6) with time zone -> [timestamp, 6, with time zone]

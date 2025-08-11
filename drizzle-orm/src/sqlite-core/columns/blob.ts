@@ -108,6 +108,7 @@ export class SQLiteBlobJson<T extends ColumnBaseConfig<'json', 'SQLiteBlobJson'>
 			return JSON.parse(decoder.decode(value));
 		}
 
+		// TODO: replace with new TextDecoder()
 		return JSON.parse(String.fromCodePoint(...value));
 	}
 

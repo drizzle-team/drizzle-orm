@@ -25,7 +25,7 @@ import {
 } from 'drizzle-orm/cockroach-core';
 import { CasingType } from 'src/cli/validations/common';
 import { safeRegister } from 'src/utils/utils-node';
-import { assertUnreachable } from '../../utils';
+import { assertUnreachable, trimChar } from '../../utils';
 import { getColumnCasing } from '../drizzle';
 import type {
 	CheckConstraint,
@@ -56,7 +56,6 @@ import {
 	minRangeForIdentityBasedOn,
 	splitSqlType,
 	stringFromIdentityProperty,
-	trimChar,
 } from './grammar';
 
 export const policyFrom = (policy: CockroachPolicy, dialect: CockroachDialect) => {

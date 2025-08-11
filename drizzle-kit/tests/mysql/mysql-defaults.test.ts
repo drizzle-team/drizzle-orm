@@ -16,6 +16,7 @@ import {
 	mediumtext,
 	mysqlEnum,
 	real,
+	serial,
 	smallint,
 	text,
 	time,
@@ -277,17 +278,19 @@ test('boolean', async () => {
 
 test('char', async () => {
 	const res1 = await diffDefault(_, char({ length: 10 }).default('10'), `'10'`);
-	const res2 = await diffDefault(_, char({ length: 10 }).default("text'text"), `'text''text'`);
-	const res3 = await diffDefault(_, char({ length: 10 }).default('text\'text"'), "'text''text\"'");
+	const res2 = await diffDefault(_, char({ length: 10 }).default("'"), `''''`);
+	const res3 = await diffDefault(_, char({ length: 10 }).default('"'), `'"'`);
+	const res4 = await diffDefault(_, char({ length: 10 }).default('text\'text"'), "'text''text\"'");
 
-	const res4 = await diffDefault(_, char({ length: 100 }).default(sql`('hello' + ' world')`), "('hello' + ' world')");
-	const res5 = await diffDefault(_, char({ length: 100 }).default(sql`'hey'`), "('hey')");
+	const res5 = await diffDefault(_, char({ length: 100 }).default(sql`('hello' + ' world')`), "('hello' + ' world')");
+	const res6 = await diffDefault(_, char({ length: 100 }).default(sql`'hey'`), "('hey')");
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
 	expect.soft(res4).toStrictEqual([]);
 	expect.soft(res5).toStrictEqual([]);
+	expect.soft(res6).toStrictEqual([]);
 });
 
 test('varchar', async () => {
@@ -310,16 +313,20 @@ test('varchar', async () => {
 
 test('tinytext', async () => {
 	const res1 = await diffDefault(_, tinytext().default('text'), `('text')`);
-	const res2 = await diffDefault(_, tinytext().default("text'text"), `('text''text')`);
-	const res3 = await diffDefault(_, tinytext().default('text\'text"'), `('text''text"')`);
+	const res2 = await diffDefault(_, tinytext().default("'"), `('''')`);
+	const res3 = await diffDefault(_, tinytext().default('"'), `('"')`);
+	const res4 = await diffDefault(_, tinytext().default("text'text"), `('text''text')`);
+	const res5 = await diffDefault(_, tinytext().default('text\'text"'), `('text''text"')`);
 
 	// expressions
-	const res4 = await diffDefault(_, tinytext().default(sql`('hello' + ' world')`), "('hello' + ' world')");
+	const res6 = await diffDefault(_, tinytext().default(sql`('hello' + ' world')`), "('hello' + ' world')");
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
 	expect.soft(res4).toStrictEqual([]);
+	expect.soft(res5).toStrictEqual([]);
+	expect.soft(res6).toStrictEqual([]);
 });
 
 test('mediumtext', async () => {
@@ -367,23 +374,19 @@ test('longtext', async () => {
 test('enum', async () => {
 	const res1 = await diffDefault(
 		_,
-		mysqlEnum(['sad', 'ok', 'happy', `text'text"`, `no,'"\`rm`, `mo''",\`}{od`, 'mo,\`od']).default('ok'),
+		mysqlEnum(['sad', 'ok', 'happy']).default('ok'),
 		`'ok'`,
 		null,
 		{
-			type: `enum('sad','ok','happy','text''text\"','no,''\"\`rm','mo''''\",\`}{od','mo,\`od')`,
+			type: `enum('sad','ok','happy')`,
 		},
 	);
-	const res2 = await diffDefault(
-		_,
-		mysqlEnum(['sad', 'ok', 'happy', `text'text"`, `no,'"\`rm`, `mo''",\`}{od`, 'mo,\`od']).default(`no,'"\`rm`),
-		`'no,''"\`rm'`,
-		null,
-		{ type: `enum('sad','ok','happy','text''text\"','no,''\"\`rm','mo''''\",\`}{od','mo,\`od')` },
-	);
+	const res2 = await diffDefault(_, mysqlEnum(["'"]).default("'"), `''''`, null, { type: `enum('''')` });
+	const res3 = await diffDefault(_, mysqlEnum(['"']).default('"'), `'"'`, null, { type: `enum('"')` });
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
 });
 
 test('binary', async () => {
@@ -416,12 +419,27 @@ test('json', async () => {
 	const res5 = await diffDefault(_, json().default({ key: "val'ue" }), `('{"key":"val''ue"}')`);
 	const res7 = await diffDefault(_, json().default({ key1: { key2: 'value' } }), `('{"key1":{"key2":"value"}}')`);
 
+	const res8 = await diffDefault(_, json().default({ key: 9223372036854775807n }), `('{"key":9223372036854775807}')`);
+	const res9 = await diffDefault(
+		_,
+		json().default(sql`'{"key":9223372036854775807}'`),
+		`('{"key":9223372036854775807}')`,
+	);
+	const res10 = await diffDefault(
+		_,
+		json().default([9223372036854775807n, 9223372036854775806n]),
+		`('[9223372036854775807,9223372036854775806]')`,
+	);
+
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
 	expect.soft(res4).toStrictEqual([]);
 	expect.soft(res5).toStrictEqual([]);
 	expect.soft(res7).toStrictEqual([]);
+	expect.soft(res8).toStrictEqual([]);
+	expect.soft(res9).toStrictEqual([]);
+	expect.soft(res10).toStrictEqual([]);
 });
 
 test('timestamp', async () => {

@@ -87,8 +87,21 @@ export const groupDiffs = <
 	return res;
 };
 
-export const escapeForSqlDefault = (input: string) => {
-	return input.replace(/\\/g, '\\\\').replace(/'/g, "''");
+export const numberForTs = (value: string) => {
+	const check = Number(value);
+
+	if (check >= Number.MIN_SAFE_INTEGER && check <= Number.MAX_SAFE_INTEGER) return { mode: 'number', value: value };
+	return { mode: 'bigint', value: `${value}n` };
+};
+
+export const parseParams = (type: string) => {
+	return type.match(/\(([0-9,\s]+)\)/)?.[1].split(',').map((x) => x.trim()) ?? [];
+};
+
+export const escapeForSqlDefault = (input: string, mode: 'default' | 'pg-arr' = 'default') => {
+	let value = input.replace(/\\/g, '\\\\').replace(/'/g, "''");
+	if (mode === 'pg-arr') value = value.replaceAll('"', '\\"');
+	return value;
 };
 
 export const unescapeFromSqlDefault = (input: string) => {
@@ -98,3 +111,23 @@ export const unescapeFromSqlDefault = (input: string) => {
 export const escapeForTsLiteral = (input: string) => {
 	return input.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 };
+
+export function inspect(it: any): string {
+	if (!it) return '';
+
+	const keys = Object.keys(it);
+	if (keys.length === 0) return '';
+
+	const pairs = keys.map((key) => {
+		const formattedKey = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(key)
+			? key
+			: `'${key}'`;
+
+		const value = it[key];
+		const formattedValue = typeof value === 'string' ? `'${value}'` : String(value);
+
+		return `${formattedKey}: ${formattedValue}`;
+	});
+
+	return `{ ${pairs.join(', ')} }`;
+}

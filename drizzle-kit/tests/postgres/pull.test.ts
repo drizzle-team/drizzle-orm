@@ -940,3 +940,70 @@ test('multiple policies with roles from schema', async () => {
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
 });
+
+test('case sensitive schema name + identity column', async () => {
+	const mySchema = pgSchema('CaseSensitiveSchema');
+	const schema = {
+		mySchema,
+		users: mySchema.table('users', {
+			id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+			name: text('name'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffIntrospect(
+		db,
+		schema,
+		'case-sensitive-schema-name',
+		['CaseSensitiveSchema'],
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('introspect without any schema', async () => {
+	await db.query(`DROP SCHEMA "public" cascade`);
+	const schema = {};
+	const { statements, sqlStatements } = await diffIntrospect(
+		db,
+		schema,
+		'introspect-without-any-schema',
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('introspect foreign keys', async () => {
+	const mySchema = pgSchema('my_schema');
+	const users = pgTable('users', {
+			id: integer('id').primaryKey(),
+			name: text('name'),
+		})
+	const schema = {
+		mySchema,
+		users,
+		posts: mySchema.table('posts', {
+			id: integer('id').primaryKey(),
+			userId: integer('user_id').references(() => users.id),
+		}),
+	};
+	const { statements, sqlStatements, ddlAfterPull } = await diffIntrospect(
+		db,
+		schema,
+		'introspect-foreign-keys',
+		['my_schema', 'public'],
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+	expect(ddlAfterPull.fks.one({
+		schema: 'my_schema',
+		table: 'posts',
+		columns: ['user_id'],
+		schemaTo: 'public',
+		tableTo: 'users',
+		columnsTo: ['id'],
+	})).not.toBeNull();
+});
