@@ -24,8 +24,6 @@ export const defaultFromColumn = (
 	if (typeof column.default === 'undefined') return null;
 	const value = column.default;
 
-	const sqlTypeLowered = column.getSQLType().toLowerCase();
-
 	if (is(column.default, SQL)) {
 		'CURRENT_TIMESTAMP';
 		'now()'; //

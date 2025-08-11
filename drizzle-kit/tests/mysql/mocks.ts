@@ -22,7 +22,6 @@ import { createDDL, interimToDDL } from 'src/dialects/mysql/ddl';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/mysql/diff';
 import { defaultFromColumn } from 'src/dialects/mysql/drizzle';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/mysql/drizzle';
-import { defaultToSQL } from 'src/dialects/mysql/grammar';
 import { fromDatabaseForDrizzle } from 'src/dialects/mysql/introspect';
 import { ddlToTypeScript } from 'src/dialects/mysql/typescript';
 import { DB } from 'src/utils';
@@ -81,7 +80,7 @@ export const diffIntrospect = async (
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
 	const filePath = `tests/mysql/tmp/${testName}.ts`;
-	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
+	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel', 'mysql');
 
 	writeFileSync(filePath, file.file);
 	await tsc(filePath);
@@ -188,7 +187,7 @@ export const diffDefault = async <T extends MySqlColumnBuilder>(
 	const type = override?.type ?? column.getSQLType().replace(', ', ','); // real(6, 3)->real(6,3)
 
 	const columnDefault = defaultFromColumn(column, 'camelCase');
-	const defaultSql = override?.default ?? defaultToSQL(column.getSQLType(), columnDefault);
+	const defaultSql = override?.default ?? columnDefault;
 
 	const res = [] as string[];
 	if (defaultSql !== expectedDefault) {
@@ -213,7 +212,7 @@ export const diffDefault = async <T extends MySqlColumnBuilder>(
 	const schema = await fromDatabaseForDrizzle(db, 'drizzle');
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
-	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
+	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel', 'mysql');
 	const path = `tests/mysql/tmp/temp-${hash(String(Math.random()))}.ts`;
 
 	if (existsSync(path)) rmSync(path);

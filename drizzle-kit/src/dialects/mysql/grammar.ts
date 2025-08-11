@@ -1,5 +1,6 @@
 import { assertUnreachable, trimChar } from '../../utils';
-import { escapeForSqlDefault, escapeForTsLiteral, unescapeFromSqlDefault } from '../utils';
+import { parse, stringify } from '../../utils/when-json-met-bigint';
+import { escapeForSqlDefault, escapeForTsLiteral, parseParams, unescapeFromSqlDefault } from '../utils';
 import { Column, ForeignKey } from './ddl';
 import { Import } from './typescript';
 
@@ -29,21 +30,16 @@ const checkNumber = (it: string) => {
 	return 'bigint';
 };
 
-export const parseParams = (type: string) => {
-	return type.match(/\(([0-9,\s]+)\)/)?.[1].split(',').map((x) => x.trim()) ?? [];
-};
-
 export interface SqlType<MODE = unknown> {
 	is(type: string): boolean;
 	drizzleImport(vendor?: 'singlestore' | 'mysql'): Import;
 	defaultFromDrizzle(value: unknown, mode?: MODE): Column['default'];
 	defaultFromIntrospect(value: string): Column['default'];
-	defaultToSQL(value: Column['default']): string;
-	toTs(type: string, value: Column['default']): { options?: Record<string, unknown>; default: string };
+	toTs(type: string, value: Column['default']): { options?: Record<string, unknown>; default: string } | string;
 }
 
-const IntOps: Pick<SqlType, 'defaultFromDrizzle' | 'defaultFromIntrospect' | 'defaultToSQL'> = {
-	defaultFromDrizzle: function(value: unknown, mode?: unknown): Column['default'] {
+const IntOps: Pick<SqlType, 'defaultFromDrizzle' | 'defaultFromIntrospect'> = {
+	defaultFromDrizzle: function(value: unknown): Column['default'] {
 		if (typeof value === 'number') {
 			return String(value);
 		}
@@ -52,8 +48,18 @@ const IntOps: Pick<SqlType, 'defaultFromDrizzle' | 'defaultFromIntrospect' | 'de
 	defaultFromIntrospect: function(value: string): Column['default'] {
 		return value;
 	},
-	defaultToSQL: function(value: Column['default']): string {
-		return value ?? '';
+};
+
+export const Int: SqlType = {
+	is: (type: string) => /^(?:int)(?:[\s(].*)?$/i.test(type),
+	drizzleImport: () => 'int',
+	defaultFromDrizzle: IntOps.defaultFromDrizzle,
+	defaultFromIntrospect: IntOps.defaultFromIntrospect,
+	toTs: (type, value) => {
+		const options = type.includes('unsigned') ? { unsigned: true } : undefined;
+		const check = Number(value);
+		if (Number.isNaN(check)) return { options, default: `sql\`${value}\`` };
+		return { options, default: value ?? '' };
 	},
 };
 
@@ -66,9 +72,8 @@ export const Boolean: SqlType = {
 	defaultFromIntrospect: (value) => {
 		return value === '1' || value === 'true' ? 'true' : 'false';
 	},
-	defaultToSQL: (value) => value ?? '',
 	toTs: (_, value) => {
-		return { default: value ?? '' };
+		return value ?? '';
 	},
 };
 
@@ -77,11 +82,7 @@ export const TinyInt: SqlType = {
 	drizzleImport: () => 'tinyint',
 	defaultFromDrizzle: IntOps.defaultFromDrizzle,
 	defaultFromIntrospect: IntOps.defaultFromIntrospect,
-	defaultToSQL: IntOps.defaultToSQL,
-	toTs: (type, value) => {
-		const options = type.includes('unsigned') ? { unsigned: true } : undefined;
-		return { options, default: value ?? '' };
-	},
+	toTs: Int.toTs,
 };
 
 export const SmallInt: SqlType = {
@@ -89,11 +90,7 @@ export const SmallInt: SqlType = {
 	drizzleImport: () => 'smallint',
 	defaultFromDrizzle: IntOps.defaultFromDrizzle,
 	defaultFromIntrospect: IntOps.defaultFromIntrospect,
-	defaultToSQL: IntOps.defaultToSQL,
-	toTs: (type, value) => {
-		const options = type.includes('unsigned') ? { unsigned: true } : undefined;
-		return { options, default: value ?? '' };
-	},
+	toTs: Int.toTs,
 };
 
 export const MediumInt: SqlType = {
@@ -101,23 +98,7 @@ export const MediumInt: SqlType = {
 	drizzleImport: () => 'mediumint',
 	defaultFromDrizzle: IntOps.defaultFromDrizzle,
 	defaultFromIntrospect: IntOps.defaultFromIntrospect,
-	defaultToSQL: IntOps.defaultToSQL,
-	toTs: (type, value) => {
-		const options = type.includes('unsigned') ? { unsigned: true } : undefined;
-		return { options, default: value ?? '' };
-	},
-};
-
-export const Int: SqlType = {
-	is: (type: string) => /^(?:int)(?:[\s(].*)?$/i.test(type),
-	drizzleImport: () => 'int',
-	defaultFromDrizzle: IntOps.defaultFromDrizzle,
-	defaultFromIntrospect: IntOps.defaultFromIntrospect,
-	defaultToSQL: IntOps.defaultToSQL,
-	toTs: (type, value) => {
-		const options = type.includes('unsigned') ? { unsigned: true } : undefined;
-		return { options, default: value ?? '' };
-	},
+	toTs: Int.toTs,
 };
 
 export const BigInt: SqlType = {
@@ -135,9 +116,6 @@ export const BigInt: SqlType = {
 	defaultFromIntrospect: (value) => {
 		return value;
 	},
-	defaultToSQL: (value) => {
-		return value ?? '';
-	},
 	toTs: (type, value) => {
 		const options = type.includes('unsigned') ? { unsigned: true } : {};
 		if (value === null) return { options: { ...options, mode: 'number' }, default: '' };
@@ -151,20 +129,26 @@ export const BigInt: SqlType = {
 	},
 };
 
+export const Serial: SqlType = {
+	is: (type: string) => /^(?:serial)(?:[\s(].*)?$/i.test(type),
+	drizzleImport: () => 'serial',
+	defaultFromDrizzle: (value) => {
+		throw new Error(`Unexpected default for serial type: ${value}`);
+	},
+	defaultFromIntrospect: (value) => value,
+	toTs: (type, value) => {
+		return { default: '' };
+	},
+};
+
 export const Decimal: SqlType = {
 	// NUMERIC|DECIMAL[(1,1)] [UNSIGNED] [ZEROFILL]
 	is: (type) => /^(?:numeric|decimal)(?:[\s(].*)?$/i.test(type),
 	drizzleImport: () => 'decimal',
 	defaultFromDrizzle: (value) => {
-		return String(value);
+		return `(${String(value)})`;
 	},
-	defaultFromIntrospect: (value) => {
-		const trimmed = trimChar(trimChar(trimChar(value, '('), ')'), "'");
-		return trimmed;
-	},
-	defaultToSQL: (value) => {
-		return value ? `(${value})` : '';
-	},
+	defaultFromIntrospect: (value) => value,
 	toTs: (type, value) => {
 		const options: any = type.includes('unsigned') || type.includes('UNSIGNED') ? { unsigned: true } : {};
 		const [precision, scale] = parseParams(type);
@@ -192,9 +176,6 @@ export const Real: SqlType = {
 		const trimmed = trimChar(trimChar(trimChar(value, '('), ')'), "'");
 		return trimmed;
 	},
-	defaultToSQL: (value) => {
-		return value ?? '';
-	},
 	toTs: (type, value) => {
 		const options: any = type.includes('unsigned') || type.includes('UNSIGNED') ? { unsigned: true } : {};
 		const [precision, scale] = parseParams(type);
@@ -217,7 +198,6 @@ export const Double: SqlType = {
 	drizzleImport: () => 'double',
 	defaultFromDrizzle: Real.defaultFromDrizzle,
 	defaultFromIntrospect: Real.defaultFromIntrospect,
-	defaultToSQL: Real.defaultToSQL,
 	toTs: Real.toTs,
 };
 
@@ -227,7 +207,6 @@ export const Float: SqlType = {
 	drizzleImport: () => 'float',
 	defaultFromDrizzle: Real.defaultFromDrizzle,
 	defaultFromIntrospect: Real.defaultFromIntrospect,
-	defaultToSQL: Real.defaultToSQL,
 	toTs: Real.toTs,
 };
 
@@ -235,22 +214,23 @@ export const Char: SqlType = {
 	is: (type) => /^(?:char)(?:[\s(].*)?$/i.test(type) || /^(?:character)(?:[\s(].*)?$/i.test(type),
 	drizzleImport: () => 'char',
 	defaultFromDrizzle: (value) => {
-		return String(value);
+		return `'${escapeForSqlDefault(String(value))}'`;
 	},
+	// 'text''text' -> text'text, we need to make match on introspect
 	defaultFromIntrospect: (value) => {
-		return unescapeFromSqlDefault(value);
-	},
-	defaultToSQL: (value) => {
-		if (!value) return '';
-		if (value.startsWith('(') && value.endsWith(')')) return value;
+		if (value.startsWith('(')) return value;
 
-		return value ? `'${escapeForSqlDefault(value)}'` : '';
+		const trimmed = trimChar(value, "'");
+		return `'${escapeForSqlDefault(trimmed)}'`;
 	},
 	toTs: (type, value) => {
 		const options: any = {};
 		const [length] = parseParams(type);
 		if (length) options['length'] = Number(length);
-		const escaped = value ? `"${escapeForTsLiteral(value)}"` : '';
+		if (!value) return { options, default: '' };
+		if (value.startsWith('(')) return { options, default: `sql\`${value}\`` };
+
+		const escaped = `"${escapeForTsLiteral(unescapeFromSqlDefault(trimChar(value, "'")))}"`;
 		return { options, default: escaped };
 	},
 };
@@ -264,7 +244,6 @@ export const Varchar: SqlType = {
 	drizzleImport: () => 'varchar',
 	defaultFromDrizzle: Char.defaultFromDrizzle,
 	defaultFromIntrospect: Char.defaultFromIntrospect,
-	defaultToSQL: Char.defaultToSQL,
 	toTs: Char.toTs,
 };
 
@@ -272,23 +251,20 @@ export const TinyText: SqlType = {
 	is: (type) => /^\s*tinytext\s*$/i.test(type),
 	drizzleImport: () => 'tinytext',
 	defaultFromDrizzle: (value) => {
-		return String(value);
+		return `('${escapeForSqlDefault(value as string)}')`;
 	},
 	defaultFromIntrospect: (value) => {
-		if (value.startsWith('(') && value.endsWith(')')) return value;
-		return unescapeFromSqlDefault(trimChar(value, "'"));
-	},
-	defaultToSQL: (value) => {
-		if (!value) return '';
-		if (value.startsWith('(') && value.endsWith(')')) return value;
-
-		return value ? `('${escapeForSqlDefault(value)}')` : '';
+		return value;
 	},
 	toTs: (type, value) => {
 		const options: any = {};
 		const [length] = parseParams(type);
 		if (length) options['length'] = Number(length);
-		const escaped = value ? `"${escapeForTsLiteral(value)}"` : '';
+		if (!value) return { options, default: '' };
+		if (value.startsWith('(') || !value.startsWith("'")) return { options, default: `sql\`${value}\`` };
+
+		const trimmed = trimChar(value, "'");
+		const escaped = value ? `"${escapeForTsLiteral(unescapeFromSqlDefault(trimmed))}"` : '';
 		return { options, default: escaped };
 	},
 };
@@ -298,7 +274,6 @@ export const MediumText: SqlType = {
 	drizzleImport: () => 'mediumtext',
 	defaultFromDrizzle: TinyText.defaultFromDrizzle,
 	defaultFromIntrospect: TinyText.defaultFromIntrospect,
-	defaultToSQL: TinyText.defaultToSQL,
 	toTs: TinyText.toTs,
 };
 
@@ -307,7 +282,6 @@ export const Text: SqlType = {
 	drizzleImport: () => 'text',
 	defaultFromDrizzle: TinyText.defaultFromDrizzle,
 	defaultFromIntrospect: TinyText.defaultFromIntrospect,
-	defaultToSQL: TinyText.defaultToSQL,
 	toTs: TinyText.toTs,
 };
 
@@ -316,7 +290,6 @@ export const LongText: SqlType = {
 	drizzleImport: () => 'longtext',
 	defaultFromDrizzle: TinyText.defaultFromDrizzle,
 	defaultFromIntrospect: TinyText.defaultFromIntrospect,
-	defaultToSQL: TinyText.defaultToSQL,
 	toTs: TinyText.toTs,
 };
 
@@ -325,7 +298,6 @@ export const Binary: SqlType = {
 	drizzleImport: () => 'binary',
 	defaultFromDrizzle: TinyText.defaultFromDrizzle,
 	defaultFromIntrospect: TinyText.defaultFromIntrospect,
-	defaultToSQL: TinyText.defaultToSQL,
 	toTs: TinyText.toTs,
 };
 
@@ -333,48 +305,55 @@ export const Varbinary: SqlType = {
 	is: (type) => /^(?:varbinary)(?:[\s(].*)?$/i.test(type),
 	drizzleImport: () => 'varbinary',
 	defaultFromDrizzle: (value) => {
-		return String(value);
+		return `(0x${Buffer.from(value as string).toString('hex').toLowerCase()})`;
 	},
-	defaultFromIntrospect: (value) => {
-		const trimmed = trimChar(value, "'");
-		if (trimmed.startsWith('0x')) {
-			return Buffer.from(trimmed.slice(2), 'hex').toString('utf-8');
-		}
-		if (!value.startsWith('(')) return `(${value})`;
-		return value;
-	},
-	defaultToSQL: (it) => {
-		if (!it) return '';
+	defaultFromIntrospect: (value) => value,
+	toTs: (type, value) => {
+		if (!value) return '';
 
-		if (it.startsWith('(')) return it;
-		return `(0x${Buffer.from(it).toString('hex').toLowerCase()})`;
+		const options: any = {};
+		const [length] = parseParams(type);
+		if (length) options['length'] = Number(length);
+
+		let trimmed = value.startsWith('(') ? value.substring(1, value.length - 1) : value;
+		trimmed = trimChar(value, "'");
+		if (trimmed.startsWith('0x')) {
+			trimmed = Buffer.from(trimmed.slice(2), 'hex').toString('utf-8');
+			return { options, default: `"${trimmed.replaceAll('"', '\\"')}"` };
+		} else {
+			return { options, default: `sql\`${value}\`` };
+		}
 	},
-	toTs: TinyText.toTs,
 };
 
 export const Json: SqlType = {
 	is: (type) => /^\s*json\s*$/i.test(type),
 	drizzleImport: () => 'json',
 	defaultFromDrizzle: (value) => {
-		return JSON.stringify(value, (key, value) => {
+		const stringified = stringify(value, (key, value) => {
 			if (typeof value !== 'string') return value;
 			return value.replaceAll("'", "''");
 		});
+		return `('${stringified}')`;
 	},
-	defaultFromIntrospect: (value) => {
-		return trimChar(value, "'");
-	},
-	defaultToSQL: (it) => {
-		if (!it) return '';
-		return `('${it}')`;
-	},
+	defaultFromIntrospect: (value) => value,
 	toTs: (_, def) => {
 		if (!def) return { default: '' };
-		const out = JSON.stringify(JSON.parse(def), (key, value) => {
-			if (typeof value !== 'string') return value;
-			return value.replaceAll("''", "'");
-		});
-		return { default: out };
+		const trimmed = trimChar(def, "'");
+		try {
+			const parsed = parse(trimmed);
+			const stringified = stringify(
+				parsed,
+				(_, value) => {
+					if (typeof value !== 'string') return value;
+					return value.replaceAll("''", "'");
+				},
+				undefined,
+				true,
+			)!;
+			return { default: stringified };
+		} catch {}
+		return { default: `sql\`${def}\`` };
 	},
 };
 
@@ -383,19 +362,17 @@ export const Timestamp: SqlType = {
 	drizzleImport: () => 'timestamp',
 	defaultFromDrizzle: (value) => {
 		if (value instanceof Date) {
-			return value.toISOString().replace('T', ' ').slice(0, 23);
+			const converted = value.toISOString().replace('T', ' ').slice(0, 23);
+			return `'${converted}'`;
 		}
 		// TODO: we can handle fsp 6 here too
-		return String(value);
+		return `'${value}'`;
 	},
 	defaultFromIntrospect: (value) => {
-		return trimChar(value, "'");
-	},
-	defaultToSQL: (it) => {
-		if (!it) return '';
-		if (it.startsWith('(')) return it;
-
-		return `'${it}'`;
+		if (!isNaN(Date.parse(value))) {
+			return `'${value}'`;
+		}
+		return value;
 	},
 	toTs: (type, def) => {
 		const options: any = {};
@@ -403,10 +380,14 @@ export const Timestamp: SqlType = {
 		if (fsp) options['fsp'] = Number(fsp);
 
 		if (!def) return { options, default: '' };
-		if (def === 'now()' || def === '(CURRENT_TIMESTAMP)') return { options, default: '.defaultNow()' };
+		const trimmed = trimChar(def, "'");
+		if (trimmed === 'now()' || trimmed === '(now())' || trimmed === '(CURRENT_TIMESTAMP)') {
+			return { options, default: '.defaultNow()' };
+		}
 
+		if (fsp && Number(fsp) > 3) return { options, default: `sql\`'${trimmed}'\`` };
 		// TODO: we can handle fsp 6 here too, using sql``
-		return { options, default: `new Date('${def}Z')` };
+		return { options, default: `new Date("${trimmed}Z")` };
 	},
 };
 
@@ -415,7 +396,6 @@ export const DateTime: SqlType = {
 	drizzleImport: () => 'datetime',
 	defaultFromDrizzle: Timestamp.defaultFromDrizzle,
 	defaultFromIntrospect: Timestamp.defaultFromIntrospect,
-	defaultToSQL: Timestamp.defaultToSQL,
 	toTs: Timestamp.toTs,
 };
 
@@ -423,15 +403,11 @@ export const Time: SqlType = {
 	is: (type) => /^(?:time)(?:[\s(].*)?$/i.test(type),
 	drizzleImport: () => 'time',
 	defaultFromDrizzle: (value) => {
-		return String(value);
+		return `'${String(value)}'`;
 	},
 	defaultFromIntrospect: (value) => {
-		return trimChar(value, "'");
-	},
-	defaultToSQL: (it) => {
-		if (!it) return '';
-		if (it.startsWith('(')) return it;
-		return `'${it}'`;
+		if (!value.startsWith("'")) return `'${value}'`;
+		return value;
 	},
 	toTs: (type, def) => {
 		const options: any = {};
@@ -439,7 +415,9 @@ export const Time: SqlType = {
 		if (fsp) options['fsp'] = Number(fsp);
 
 		if (!def) return { options, default: '' };
-		return { options, default: `'${def}'` };
+
+		const trimmed = trimChar(def, "'");
+		return { options, default: `"${trimmed}"` };
 	},
 };
 
@@ -448,26 +426,21 @@ export const Date_: SqlType = {
 	drizzleImport: () => 'date',
 	defaultFromDrizzle: (value) => {
 		if (value instanceof Date) {
-			return value.toISOString().split('T')[0];
+			const converted = value.toISOString().split('T')[0];
+			return `'${converted}'`;
 		}
-		return String(value);
+		return `'${value}'`;
 	},
 	defaultFromIntrospect: (value) => {
-		return trimChar(value, "'");
-	},
-	defaultToSQL: (it) => {
-		if (!it) return '';
-		if (it.startsWith('(')) return it;
-
-		return `'${it}'`;
+		if (!value.startsWith("'")) return `'${value}'`;
+		return value;
 	},
 	toTs: (type, def) => {
 		const options: any = {};
 		const [fsp] = parseParams(type);
 		if (fsp) options['fsp'] = Number(fsp);
-
 		if (!def) return { options, default: '' };
-		return { options, default: `new Date('${def}')` };
+		return { options, default: `new Date("${trimChar(def, "'")}")` };
 	},
 };
 
@@ -479,12 +452,6 @@ export const Year: SqlType = {
 	},
 	defaultFromIntrospect: (value) => {
 		return value;
-	},
-	defaultToSQL: (it) => {
-		if (!it) return '';
-		if (it.startsWith('(')) return it;
-
-		return `${it}`;
 	},
 	toTs: (type, def) => {
 		const options: any = {};
@@ -500,19 +467,14 @@ export const Enum: SqlType = {
 	is: (type) => /^(?:enum)(?:[\s(].*)?$/i.test(type),
 	drizzleImport: (vendor) => vendor === 'mysql' ? 'mysqlEnum' : 'singlestoreEnum',
 	defaultFromDrizzle: (value) => {
-		return String(value);
+		return `'${escapeForSqlDefault(value as string)}'`;
 	},
 	defaultFromIntrospect: (value) => {
-		return unescapeFromSqlDefault(trimChar(value, "'"));
-	},
-	defaultToSQL: (it) => {
-		if (!it) return '';
-		if (it.startsWith('(')) return it;
-		return `'${escapeForSqlDefault(it)}'`;
+		return `'${escapeForSqlDefault(value)}'`;
 	},
 	toTs: (_, def) => {
 		if (!def) return { default: '' };
-		const unescaped = escapeForTsLiteral(def);
+		const unescaped = escapeForTsLiteral(unescapeFromSqlDefault(trimChar(def, "'")));
 		return { default: `"${unescaped}"` };
 	},
 };
@@ -524,6 +486,7 @@ export const typeFor = (sqlType: string): SqlType => {
 	if (MediumInt.is(sqlType)) return MediumInt;
 	if (Int.is(sqlType)) return Int;
 	if (BigInt.is(sqlType)) return BigInt;
+	if (Serial.is(sqlType)) return Serial;
 	if (Decimal.is(sqlType)) return Decimal;
 	if (Real.is(sqlType)) return Real;
 	if (Double.is(sqlType)) return Double;
@@ -663,12 +626,4 @@ export const typesCommutative = (left: string, right: string, mode: 'push' | 'de
 		return true; // column type is float regardless of float(M,D), always stored as 7 digits precision
 	}
 	return false;
-};
-
-export const defaultToSQL = (type: string, it: Column['default']) => {
-	if (!it) return null;
-	const grammarType = typeFor(type);
-	if (grammarType) return grammarType.defaultToSQL(it);
-
-	throw new Error('unexpected default to sql: ' + it);
 };

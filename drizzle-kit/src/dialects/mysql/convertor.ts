@@ -1,5 +1,4 @@
 import { Simplify } from '../../utils';
-import { defaultToSQL } from './grammar';
 import { JsonStatement } from './statements';
 
 export const convertor = <
@@ -32,8 +31,7 @@ const createTable = convertor('create_table', (st) => {
 		const isPK = pk && !pk.nameExplicit && pk.columns.length === 1 && pk.columns[0] === column.name;
 		const primaryKeyStatement = isPK ? ' PRIMARY KEY' : '';
 		const notNullStatement = column.notNull && !isPK ? ' NOT NULL' : '';
-		const def = defaultToSQL(column.type, column.default);
-		const defaultStatement = def ? ` DEFAULT ${def}` : '';
+		const defaultStatement = column.default !== null ? ` DEFAULT ${column.default}` : '';
 
 		const onUpdateStatement = column.onUpdateNow
 			? ` ON UPDATE CURRENT_TIMESTAMP`
@@ -104,8 +102,7 @@ const addColumn = convertor('add_column', (st) => {
 		generated,
 	} = column;
 
-	const def = defaultToSQL(column.type, column.default);
-	const defaultStatement = def ? ` DEFAULT ${def}` : '';
+	const defaultStatement = column.default !== null ? ` DEFAULT ${column.default}` : '';
 
 	const notNullStatement = `${notNull ? ' NOT NULL' : ''}`;
 	const primaryKeyStatement = `${isPK ? ' PRIMARY KEY' : ''}`;
@@ -130,8 +127,7 @@ const renameColumn = convertor('rename_column', (st) => {
 const alterColumn = convertor('alter_column', (st) => {
 	const { diff, column, isPK } = st;
 
-	const def = defaultToSQL(column.type, column.default);
-	const defaultStatement = def ? ` DEFAULT ${def}` : '';
+	const defaultStatement = column.default !== null ? ` DEFAULT ${column.default}` : '';
 
 	const notNullStatement = `${column.notNull ? ' NOT NULL' : ''}`;
 	const primaryKeyStatement = `${isPK ? ' PRIMARY KEY' : ''}`;
