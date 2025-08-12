@@ -1170,23 +1170,21 @@ WHERE
 		wherePolicies === '' ? '' : ` WHERE ${wherePolicies}`
 	}
 	order by schemaname, tablename, policyname;`);
-
 	for (const dbPolicy of allPolicies) {
 		const { tablename, schemaname, to, withCheck, using, ...rest } = dbPolicy;
-		const tableForPolicy = policiesByTable[`${schemaname}.${tablename}`];
 
 		const parsedTo = typeof to === 'string' ? to.slice(1, -1).split(',') : to;
 
 		const parsedWithCheck = withCheck === null ? undefined : withCheck;
 		const parsedUsing = using === null ? undefined : using;
 
-		if (tableForPolicy) {
-			tableForPolicy[dbPolicy.name] = { ...rest, to: parsedTo } as Policy;
-		} else {
-			policiesByTable[`${schemaname}.${tablename}`] = {
-				[dbPolicy.name]: { ...rest, to: parsedTo, withCheck: parsedWithCheck, using: parsedUsing } as Policy,
-			};
-		}
+		policiesByTable[`${schemaname}.${tablename}`] ??= {};
+		policiesByTable[`${schemaname}.${tablename}`][dbPolicy.name] = {
+			...rest,
+			to: parsedTo,
+			withCheck: parsedWithCheck,
+			using: parsedUsing,
+		} as Policy;
 
 		if (tsSchema?.policies[dbPolicy.name]) {
 			policies[dbPolicy.name] = {
