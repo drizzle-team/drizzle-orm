@@ -1013,7 +1013,6 @@ test('verify column declarations are in alphabetical order', async () => {
 
 	// Extract column variable names from the declarations string
 	const declarations = file.declarations;
-	console.log(declarations);
 	const exportPattern = /(\w+):\s+integer/g;
 	const columnNames: string[] = [];
 	let match;
@@ -1035,4 +1034,79 @@ test('verify column declarations are in alphabetical order', async () => {
 			}]`,
 		);
 	}
+});
+
+test('verify policy declarations are in alphabetical order', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		z: pgTable('z', {
+			f: integer('f').notNull(),
+			e: integer('e').notNull(),
+		}, () => ({
+			rls: pgPolicy('test_B', {
+				as: 'permissive',
+				for: 'update',
+				to: 'public',
+				using: sql`1 + 2 = 3`,
+				withCheck: sql`4 + 5 = 9`,
+			}),
+			rls2: pgPolicy('test_A', { as: 'permissive', for: 'select', to: 'public', using: sql`6 + 7 = 13` }),
+		})),
+		y: pgTable('y', {
+			b: integer('b').notNull(),
+			d: integer('d').notNull(),
+			c: integer('c').notNull(),
+			a: integer('a').notNull(),
+		}, () => ({
+			rls: pgPolicy('test_R', { as: 'permissive', for: 'delete', to: 'public', using: sql`11 + 21 = 32` }),
+			rls2: pgPolicy('test_M', {
+				as: 'permissive',
+				for: 'update',
+				to: 'public',
+				using: sql`67 + 72 = 143`,
+				withCheck: sql`48 + 49 = 147`,
+			}),
+		})),
+	};
+
+	const { statements, sqlStatements, file } = await introspectPgToFile(
+		client,
+		schema,
+		'alphabetical-policy-order-test',
+		['public'],
+		undefined,
+		undefined,
+		true,
+	);
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements.length).toBe(0);
+	if (!file) {
+		throw new Error('File is missing');
+	}
+
+	const declarations = file.declarations.replace(/^[\t ]+/mg, '').replace(/ {2}/g, ' ').trim();
+	const expectedCode = `export const y = pgTable("y", {
+a: integer().notNull(),
+b: integer().notNull(),
+c: integer().notNull(),
+d: integer().notNull(),
+}, (table) => [
+pgPolicy("test_M", { as: "permissive", for: "update", to: ["public"], using: sql\`((67 + 72) = 143)\`, withCheck: sql\`((48 + 49) = 147)\`  }),
+pgPolicy("test_R", { as: "permissive", for: "delete", to: ["public"], using: sql\`((11 + 21) = 32)\` }),
+]);
+
+export const z = pgTable("z", {
+e: integer().notNull(),
+f: integer().notNull(),
+}, (table) => [
+pgPolicy("test_A", { as: "permissive", for: "select", to: ["public"], using: sql\`((6 + 7) = 13)\` }),
+pgPolicy("test_B", { as: "permissive", for: "update", to: ["public"], using: sql\`((1 + 2) = 3)\`, withCheck: sql\`((4 + 5) = 9)\`  }),
+]);`.replace(/ {2}/g, ' ').trim();
+
+	// This is a crude comparison, but it provides all the assertions needed for the test. The tables, columns and policies are alphabetized
+	// and importantly the policies' full `using` and `withCheck` properties are populated. In an attempt to prevent this from failing if there are
+	// whitespace changes in the generator, both strings have all double spaces removed and are trimmed. The generated code has leading whitespace removed.
+	expect(declarations).toEqual(expectedCode);
 });
