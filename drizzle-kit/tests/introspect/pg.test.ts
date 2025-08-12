@@ -942,7 +942,7 @@ test('verify table declarations are in alphabetical order', async () => {
 		a: pgTable('a', { id: integer('id').notNull() }),
 	};
 
-	const { statements, sqlStatements, file } = await introspectPgToFile(
+	const { statements, sqlStatements, schemaTypescriptFile } = await introspectPgToFile(
 		client,
 		schema,
 		'alphabetical-table-order-test',
@@ -954,12 +954,12 @@ test('verify table declarations are in alphabetical order', async () => {
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
-	if (!file) {
+	if (!schemaTypescriptFile) {
 		throw new Error('File is missing');
 	}
 
 	// Extract table variable names from the declarations string
-	const declarations = file.declarations;
+	const declarations = schemaTypescriptFile.declarations;
 	const exportPattern = /export const (\w+) = pgTable/g;
 	const tableNames: string[] = [];
 	let match;
@@ -998,7 +998,7 @@ test('verify column declarations are in alphabetical order', async () => {
 		}),
 	};
 
-	const { statements, sqlStatements, file } = await introspectPgToFile(
+	const { statements, sqlStatements, schemaTypescriptFile } = await introspectPgToFile(
 		client,
 		schema,
 		'alphabetical-column-order-test',
@@ -1010,12 +1010,12 @@ test('verify column declarations are in alphabetical order', async () => {
 
 	expect(statements).toStrictEqual([]);
 	expect(sqlStatements.length).toBe(0);
-	if (!file) {
+	if (!schemaTypescriptFile) {
 		throw new Error('File is missing');
 	}
 
 	// Extract column variable names from the declarations string
-	const declarations = file.declarations;
+	const declarations = schemaTypescriptFile.declarations;
 	const exportPattern = /(\w+):\s+integer/g;
 	const columnNames: string[] = [];
 	let match;
@@ -1073,7 +1073,7 @@ test('verify policy declarations are in alphabetical order', async () => {
 		})),
 	};
 
-	const { statements, sqlStatements, file } = await introspectPgToFile(
+	const { statements, sqlStatements, schemaTypescriptFile } = await introspectPgToFile(
 		client,
 		schema,
 		'alphabetical-policy-order-test',
@@ -1085,11 +1085,11 @@ test('verify policy declarations are in alphabetical order', async () => {
 
 	expect(statements).toStrictEqual([]);
 	expect(sqlStatements.length).toBe(0);
-	if (!file) {
+	if (!schemaTypescriptFile) {
 		throw new Error('File is missing');
 	}
 
-	const declarations = file.declarations.replace(/^[\t ]+/mg, '').replace(/ {2}/g, ' ').trim();
+	const declarations = schemaTypescriptFile.declarations.replace(/^[\t ]+/mg, '').replace(/ {2}/g, ' ').trim();
 	const expectedCode = `export const y = pgTable("y", {
 a: integer().notNull(),
 b: integer().notNull(),
@@ -1160,7 +1160,7 @@ test('verify that keys are generated in alphabetical order by name but columns a
 	]);
 	const schema = { child, parent1, parent2 };
 
-	const { statements, sqlStatements, file } = await introspectPgToFile(
+	const { statements, sqlStatements, schemaTypescriptFile, relationsTypescriptFile } = await introspectPgToFile(
 		client,
 		schema,
 		'alphabetical-key-order-test',

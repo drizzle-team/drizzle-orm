@@ -87,6 +87,7 @@ import {
 	TablePolicyResolverInput,
 	TablePolicyResolverOutput,
 } from 'src/snapshotsDiffer';
+import { relationsToTypeScript } from '../src/cli/commands/introspect';
 
 export type PostgresSchema = Record<
 	string,
@@ -2307,7 +2308,7 @@ export const introspectPgToFile = async (
 	schemas: string[] = ['public'],
 	entities?: Entities,
 	casing?: CasingType | undefined,
-	returnFile?: boolean | undefined,
+	returnFiles?: boolean | undefined,
 ) => {
 	// put in db
 	const { sqlStatements } = await applyPgDiffs(initSchema, casing);
@@ -2342,9 +2343,10 @@ export const introspectPgToFile = async (
 	const validatedCur = pgSchema.parse(initSch);
 
 	// write to ts file
-	const file = schemaToTypeScript(introspectedSchema, 'camel');
-
-	fs.writeFileSync(`tests/introspect/postgres/${testName}.ts`, file.file);
+	const schemaTypescriptFile = schemaToTypeScript(introspectedSchema, 'camel');
+	fs.writeFileSync(`tests/introspect/postgres/${testName}.ts`, schemaTypescriptFile.file);
+	const relationsTypescriptFile = relationsToTypeScript(introspectedSchema, 'camel');
+	fs.writeFileSync(`tests/introspect/postgres/${testName}Relations.ts`, relationsTypescriptFile.file);
 
 	// generate snapshot from ts file
 	const response = await prepareFromPgImports([
@@ -2396,11 +2398,12 @@ export const introspectPgToFile = async (
 	);
 
 	fs.rmSync(`tests/introspect/postgres/${testName}.ts`);
+	fs.rmSync(`tests/introspect/postgres/${testName}Relations.ts`);
 
 	return {
 		sqlStatements: afterFileSqlStatements,
 		statements: afterFileStatements,
-		...(returnFile ? { file } : undefined),
+		...(returnFiles ? { schemaTypescriptFile, relationsTypescriptFile } : undefined),
 	};
 };
 
