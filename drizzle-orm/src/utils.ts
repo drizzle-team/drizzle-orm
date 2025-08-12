@@ -327,3 +327,19 @@ export function isConfig(data: any): boolean {
 }
 
 export type NeonAuthToken = string | (() => string | Promise<string>);
+
+/**
+ * An extremely weak hash function used to compress a string into fewer characters.
+ */
+export function hashString(value: string, length: number = 6): string {
+	let buffer = 0;
+
+	for (let index = 0; index < value.length; index++) {
+		const character = value.codePointAt(index) ?? 0;
+		buffer += character;
+		buffer *= 0x5555;
+		buffer &= 0x7fffffff;
+	}
+
+	return buffer.toString(36).slice(-length).padStart(length, '0');
+}

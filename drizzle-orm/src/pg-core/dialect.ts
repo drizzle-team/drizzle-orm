@@ -56,7 +56,7 @@ import {
 } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Columns, getTableName, getTableUniqueName, Table } from '~/table.ts';
-import { type Casing, orderSelectedFields, type UpdateSet } from '~/utils.ts';
+import { type Casing, hashString, orderSelectedFields, type UpdateSet } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { PgSession } from './session.ts';
 import { PgViewBase } from './view-base.ts';
@@ -127,6 +127,19 @@ export class PgDialect {
 
 	escapeString(str: string): string {
 		return `'${str.replace(/'/g, "''")}'`;
+	}
+
+	private shortenTableAlias(alias: string): string {
+		const maxTableNameLength = 63;
+		const hashLength = 4;
+		const cutoffIndex = maxTableNameLength - hashLength - 1;
+
+		if (alias.length <= maxTableNameLength) return alias;
+
+		const prefix = alias.slice(0, alias.length - cutoffIndex - 1);
+		const remainder = alias.slice(alias.length - cutoffIndex);
+
+		return `${hashString(prefix, hashLength)}_${remainder}`;
 	}
 
 	private buildWithCTE(queries: Subquery[] | undefined): SQL | undefined {
@@ -760,7 +773,7 @@ export class PgDialect {
 				const normalizedRelation = V1.normalizeRelation(schema, tableNamesMap, relation);
 				const relationTableName = getTableUniqueName(relation.referencedTable);
 				const relationTableTsName = tableNamesMap[relationTableName]!;
-				const relationTableAlias = `${tableAlias}_${selectedRelationTsKey}`;
+				const relationTableAlias = this.shortenTableAlias(`${tableAlias}_${selectedRelationTsKey}`);
 				const joinOn = and(
 					...normalizedRelation.fields.map((field, i) =>
 						eq(
@@ -816,7 +829,7 @@ export class PgDialect {
 				sql.join(
 					selection.map(({ field, tsKey, isJson }) =>
 						isJson
-							? sql`${sql.identifier(`${tableAlias}_${tsKey}`)}.${sql.identifier('data')}`
+							? sql`${sql.identifier(this.shortenTableAlias(`${tableAlias}_${tsKey}`))}.${sql.identifier('data')}`
 							: is(field, SQL.Aliased)
 							? field.sql
 							: field
