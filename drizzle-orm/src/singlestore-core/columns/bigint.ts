@@ -6,7 +6,7 @@ import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoInc
 
 export class SingleStoreBigInt53Builder extends SingleStoreColumnBuilderWithAutoIncrement<{
 	name: string;
-	dataType: 'number';
+	dataType: 'number integer';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
@@ -14,7 +14,7 @@ export class SingleStoreBigInt53Builder extends SingleStoreColumnBuilderWithAuto
 	static override readonly [entityKind]: string = 'SingleStoreBigInt53Builder';
 
 	constructor(name: string, unsigned: boolean = false) {
-		super(name, 'number', 'SingleStoreBigInt53');
+		super(name, 'number integer', 'SingleStoreBigInt53');
 		this.config.unsigned = unsigned;
 	}
 
@@ -27,7 +27,7 @@ export class SingleStoreBigInt53Builder extends SingleStoreColumnBuilderWithAuto
 	}
 }
 
-export class SingleStoreBigInt53<T extends ColumnBaseConfig<'number'>>
+export class SingleStoreBigInt53<T extends ColumnBaseConfig<'number integer'>>
 	extends SingleStoreColumnWithAutoIncrement<T, { unsigned: boolean }>
 {
 	static override readonly [entityKind]: string = 'SingleStoreBigInt53';
@@ -50,7 +50,6 @@ export class SingleStoreBigInt64Builder extends SingleStoreColumnBuilderWithAuto
 	data: bigint;
 	driverParam: string;
 	enumValues: undefined;
-	generated: undefined;
 }, { unsigned: boolean }> {
 	static override readonly [entityKind]: string = 'SingleStoreBigInt64Builder';
 

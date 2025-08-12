@@ -6,16 +6,15 @@ import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoInc
 
 export class SingleStoreDoubleBuilder extends SingleStoreColumnBuilderWithAutoIncrement<{
 	name: string;
-	dataType: 'number';
+	dataType: 'number double';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
-	generated: undefined;
 }, SingleStoreDoubleConfig> {
 	static override readonly [entityKind]: string = 'SingleStoreDoubleBuilder';
 
 	constructor(name: string, config: SingleStoreDoubleConfig | undefined) {
-		super(name, 'number', 'SingleStoreDouble');
+		super(name, 'number double', 'SingleStoreDouble');
 		this.config.precision = config?.precision;
 		this.config.scale = config?.scale;
 		this.config.unsigned = config?.unsigned;
@@ -30,7 +29,7 @@ export class SingleStoreDoubleBuilder extends SingleStoreColumnBuilderWithAutoIn
 	}
 }
 
-export class SingleStoreDouble<T extends ColumnBaseConfig<'number'>>
+export class SingleStoreDouble<T extends ColumnBaseConfig<'number double'>>
 	extends SingleStoreColumnWithAutoIncrement<T, SingleStoreDoubleConfig>
 {
 	static override readonly [entityKind]: string = 'SingleStoreDouble';

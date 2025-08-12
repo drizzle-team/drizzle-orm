@@ -6,7 +6,7 @@ import { PgIntColumnBaseBuilder } from './int.common.ts';
 
 export class PgIntegerBuilder extends PgIntColumnBaseBuilder<{
 	name: string;
-	dataType: 'number';
+	dataType: 'number integer';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
@@ -14,7 +14,7 @@ export class PgIntegerBuilder extends PgIntColumnBaseBuilder<{
 	static override readonly [entityKind]: string = 'PgIntegerBuilder';
 
 	constructor(name: string) {
-		super(name, 'number', 'PgInteger');
+		super(name, 'number integer', 'PgInteger');
 	}
 
 	/** @internal */
@@ -23,7 +23,7 @@ export class PgIntegerBuilder extends PgIntColumnBaseBuilder<{
 	}
 }
 
-export class PgInteger<T extends ColumnBaseConfig<'number'>> extends PgColumn<T> {
+export class PgInteger<T extends ColumnBaseConfig<'number integer'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgInteger';
 
 	getSQLType(): string {

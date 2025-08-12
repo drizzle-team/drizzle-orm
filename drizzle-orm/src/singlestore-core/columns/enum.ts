@@ -1,31 +1,30 @@
-import type { GeneratedColumnConfig, HasGenerated } from '~/column-builder.ts';
+import type { HasGenerated } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import type { SQL } from '~/sql/index.ts';
 import { getColumnNameAndConfig, type Writable } from '~/utils.ts';
-import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
+import { SingleStoreColumn, SingleStoreColumnBuilder, type SingleStoreGeneratedColumnConfig } from './common.ts';
 
 export class SingleStoreEnumColumnBuilder<TEnum extends [string, ...string[]]> extends SingleStoreColumnBuilder<{
 	name: string;
-	dataType: 'string';
+	dataType: 'enum';
 	data: TEnum[number];
 	driverParam: string;
 	enumValues: TEnum;
-	generated: undefined;
 }, { enumValues: TEnum }> {
 	override generatedAlwaysAs(
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		as: SQL<unknown> | (() => SQL) | TEnum[number],
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
-		config?: Partial<GeneratedColumnConfig<unknown>>,
-	): HasGenerated<this, {}> {
+		config?: SingleStoreGeneratedColumnConfig,
+	): HasGenerated<this, { type: 'always' }> {
 		throw new Error('Method not implemented.');
 	}
 	static override readonly [entityKind]: string = 'SingleStoreEnumColumnBuilder';
 
 	constructor(name: string, values: TEnum) {
-		super(name, 'string', 'SingleStoreEnumColumn');
+		super(name, 'enum', 'SingleStoreEnumColumn');
 		this.config.enumValues = values;
 	}
 
@@ -38,7 +37,7 @@ export class SingleStoreEnumColumnBuilder<TEnum extends [string, ...string[]]> e
 	}
 }
 
-export class SingleStoreEnumColumn<T extends ColumnBaseConfig<'string'>>
+export class SingleStoreEnumColumn<T extends ColumnBaseConfig<'enum'>>
 	extends SingleStoreColumn<T, { enumValues: T['enumValues'] }>
 {
 	static override readonly [entityKind]: string = 'SingleStoreEnumColumn';

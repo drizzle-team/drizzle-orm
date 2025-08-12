@@ -1,7 +1,7 @@
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
-import { getColumnNameAndConfig, type Writable } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export class MySqlVarCharBuilder<
@@ -9,7 +9,7 @@ export class MySqlVarCharBuilder<
 	TLength extends number | undefined,
 > extends MySqlColumnBuilder<{
 	name: string;
-	dataType: 'string';
+	dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'enum';
 	data: TEnum[number];
 	driverParam: number | string;
 	enumValues: TEnum;
@@ -19,7 +19,7 @@ export class MySqlVarCharBuilder<
 
 	/** @internal */
 	constructor(name: string, config: MySqlVarCharConfig<TEnum, TLength>) {
-		super(name, 'string', 'MySqlVarChar');
+		super(name, config.enum?.length ? 'enum' : 'string', 'MySqlVarChar');
 		this.config.length = config.length;
 		this.config.enum = config.enum;
 	}
@@ -33,7 +33,7 @@ export class MySqlVarCharBuilder<
 	}
 }
 
-export class MySqlVarChar<T extends ColumnBaseConfig<'string'> & { length?: number | undefined }>
+export class MySqlVarChar<T extends ColumnBaseConfig<'string' | 'enum'> & { length?: number | undefined }>
 	extends MySqlColumn<T, MySqlVarCharConfig<T['enumValues'], T['length']>>
 {
 	static override readonly [entityKind]: string = 'MySqlVarChar';

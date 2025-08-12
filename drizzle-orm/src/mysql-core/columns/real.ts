@@ -7,7 +7,7 @@ import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } fro
 export class MySqlRealBuilder extends MySqlColumnBuilderWithAutoIncrement<
 	{
 		name: string;
-		dataType: 'number';
+		dataType: 'number real';
 		data: number;
 		driverParam: number | string;
 		enumValues: undefined;
@@ -17,7 +17,7 @@ export class MySqlRealBuilder extends MySqlColumnBuilderWithAutoIncrement<
 	static override readonly [entityKind]: string = 'MySqlRealBuilder';
 
 	constructor(name: string, config: MySqlRealConfig | undefined) {
-		super(name, 'number', 'MySqlReal');
+		super(name, 'number real', 'MySqlReal');
 		this.config.precision = config?.precision;
 		this.config.scale = config?.scale;
 	}
@@ -28,7 +28,7 @@ export class MySqlRealBuilder extends MySqlColumnBuilderWithAutoIncrement<
 	}
 }
 
-export class MySqlReal<T extends ColumnBaseConfig<'number'>> extends MySqlColumnWithAutoIncrement<
+export class MySqlReal<T extends ColumnBaseConfig<'number real'>> extends MySqlColumnWithAutoIncrement<
 	T,
 	MySqlRealConfig
 > {

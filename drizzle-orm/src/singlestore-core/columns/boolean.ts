@@ -9,7 +9,6 @@ export class SingleStoreBooleanBuilder extends SingleStoreColumnBuilder<{
 	data: boolean;
 	driverParam: number | boolean;
 	enumValues: undefined;
-	generated: undefined;
 }> {
 	static override readonly [entityKind]: string = 'SingleStoreBooleanBuilder';
 

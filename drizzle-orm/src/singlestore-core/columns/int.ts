@@ -6,16 +6,15 @@ import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoInc
 
 export class SingleStoreIntBuilder extends SingleStoreColumnBuilderWithAutoIncrement<{
 	name: string;
-	dataType: 'number';
+	dataType: 'number integer';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
-	generated: undefined;
 }, SingleStoreIntConfig> {
 	static override readonly [entityKind]: string = 'SingleStoreIntBuilder';
 
 	constructor(name: string, config?: SingleStoreIntConfig) {
-		super(name, 'number', 'SingleStoreInt');
+		super(name, 'number integer', 'SingleStoreInt');
 		this.config.unsigned = config ? config.unsigned : false;
 	}
 
@@ -28,7 +27,7 @@ export class SingleStoreIntBuilder extends SingleStoreColumnBuilderWithAutoIncre
 	}
 }
 
-export class SingleStoreInt<T extends ColumnBaseConfig<'number'>>
+export class SingleStoreInt<T extends ColumnBaseConfig<'number integer'>>
 	extends SingleStoreColumnWithAutoIncrement<T, SingleStoreIntConfig>
 {
 	static override readonly [entityKind]: string = 'SingleStoreInt';

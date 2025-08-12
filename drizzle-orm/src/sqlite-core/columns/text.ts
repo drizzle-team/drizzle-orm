@@ -10,7 +10,7 @@ export class SQLiteTextBuilder<
 > extends SQLiteColumnBuilder<
 	{
 		name: string;
-		dataType: 'string';
+		dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'enum';
 		data: TEnum[number];
 		driverParam: string;
 		enumValues: TEnum;
@@ -21,7 +21,7 @@ export class SQLiteTextBuilder<
 	static override readonly [entityKind]: string = 'SQLiteTextBuilder';
 
 	constructor(name: string, config: SQLiteTextConfig<'text', TEnum, TLength>) {
-		super(name, 'string', 'SQLiteText');
+		super(name, config.enum?.length ? 'enum' : 'string', 'SQLiteText');
 		this.config.enumValues = config.enum!;
 		this.config.length = config.length!;
 	}
@@ -35,7 +35,7 @@ export class SQLiteTextBuilder<
 	}
 }
 
-export class SQLiteText<T extends ColumnBaseConfig<'string'> & { length?: number | undefined }>
+export class SQLiteText<T extends ColumnBaseConfig<'string' | 'enum'> & { length?: number | undefined }>
 	extends SQLiteColumn<T, { length: T['length']; enumValues: T['enumValues'] }>
 {
 	static override readonly [entityKind]: string = 'SQLiteText';

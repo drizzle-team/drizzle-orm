@@ -6,7 +6,7 @@ import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
 export class SQLiteNumericBuilder extends SQLiteColumnBuilder<{
 	name: string;
-	dataType: 'string';
+	dataType: 'string numeric';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
@@ -14,7 +14,7 @@ export class SQLiteNumericBuilder extends SQLiteColumnBuilder<{
 	static override readonly [entityKind]: string = 'SQLiteNumericBuilder';
 
 	constructor(name: string) {
-		super(name, 'string', 'SQLiteNumeric');
+		super(name, 'string numeric', 'SQLiteNumeric');
 	}
 
 	/** @internal */
@@ -26,7 +26,7 @@ export class SQLiteNumericBuilder extends SQLiteColumnBuilder<{
 	}
 }
 
-export class SQLiteNumeric<T extends ColumnBaseConfig<'string'>> extends SQLiteColumn<T> {
+export class SQLiteNumeric<T extends ColumnBaseConfig<'string numeric'>> extends SQLiteColumn<T> {
 	static override readonly [entityKind]: string = 'SQLiteNumeric';
 
 	override mapFromDriverValue(value: unknown): string {

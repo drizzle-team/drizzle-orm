@@ -1,7 +1,7 @@
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { SingleStoreTable } from '~/singlestore-core/table.ts';
-import { getColumnNameAndConfig, type Writable } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
 export type SingleStoreTextColumnType = 'tinytext' | 'text' | 'mediumtext' | 'longtext';
@@ -9,18 +9,17 @@ export type SingleStoreTextColumnType = 'tinytext' | 'text' | 'mediumtext' | 'lo
 export class SingleStoreTextBuilder<TEnum extends [string, ...string[]]> extends SingleStoreColumnBuilder<
 	{
 		name: string;
-		dataType: 'string';
+		dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'enum';
 		data: TEnum[number];
 		driverParam: string;
 		enumValues: TEnum;
-		generated: undefined;
 	},
 	{ textType: SingleStoreTextColumnType; enumValues: TEnum }
 > {
 	static override readonly [entityKind]: string = 'SingleStoreTextBuilder';
 
 	constructor(name: string, textType: SingleStoreTextColumnType, config: SingleStoreTextConfig<TEnum>) {
-		super(name, 'string', 'SingleStoreText');
+		super(name, config.enum?.length ? 'enum' : 'string', 'SingleStoreText');
 		this.config.textType = textType;
 		this.config.enumValues = config.enum!;
 	}
@@ -34,7 +33,7 @@ export class SingleStoreTextBuilder<TEnum extends [string, ...string[]]> extends
 	}
 }
 
-export class SingleStoreText<T extends ColumnBaseConfig<'string'>>
+export class SingleStoreText<T extends ColumnBaseConfig<'string' | 'enum'>>
 	extends SingleStoreColumn<T, { textType: SingleStoreTextColumnType; enumValues: T['enumValues'] }>
 {
 	static override readonly [entityKind]: string = 'SingleStoreText';

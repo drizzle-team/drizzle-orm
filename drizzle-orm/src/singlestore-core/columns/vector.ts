@@ -1,14 +1,14 @@
+import type { HasGenerated } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { SingleStoreTable } from '~/singlestore-core/table.ts';
-import type { SQL } from '~/sql/index.ts';
+import type { SQL } from '~/sql/sql.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
-import type { SingleStoreGeneratedColumnConfig } from './common.ts';
-import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
+import { SingleStoreColumn, SingleStoreColumnBuilder, type SingleStoreGeneratedColumnConfig } from './common.ts';
 
 export class SingleStoreVectorBuilder extends SingleStoreColumnBuilder<{
 	name: string;
-	dataType: 'array';
+	dataType: 'vector';
 	data: Array<number>;
 	driverParam: string;
 	enumValues: undefined;
@@ -16,7 +16,7 @@ export class SingleStoreVectorBuilder extends SingleStoreColumnBuilder<{
 	static override readonly [entityKind]: string = 'SingleStoreVectorBuilder';
 
 	constructor(name: string, config: SingleStoreVectorConfig) {
-		super(name, 'array', 'SingleStoreVector');
+		super(name, 'vector', 'SingleStoreVector');
 		this.config.dimensions = config.dimensions;
 		this.config.elementType = config.elementType;
 	}
@@ -32,15 +32,15 @@ export class SingleStoreVectorBuilder extends SingleStoreColumnBuilder<{
 	/** @internal */
 	override generatedAlwaysAs(
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
-		as: SQL<unknown> | (() => SQL) | Array<number>,
+		as: SQL | (() => SQL) | this['_']['data'],
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
-		config?: SingleStoreGeneratedColumnConfig,
-	) {
-		throw new Error('not implemented');
+		config?: Partial<SingleStoreGeneratedColumnConfig>,
+	): HasGenerated<this, { type: 'always' }> {
+		throw new Error('Method not implemented.');
 	}
 }
 
-export class SingleStoreVector<T extends ColumnBaseConfig<'array'>>
+export class SingleStoreVector<T extends ColumnBaseConfig<'vector'>>
 	extends SingleStoreColumn<T, SingleStoreVectorConfig>
 {
 	static override readonly [entityKind]: string = 'SingleStoreVector';

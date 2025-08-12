@@ -2,9 +2,9 @@ import type { GeneratedColumnConfig, HasGenerated } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnySingleStoreTable, SingleStoreTable } from '~/singlestore-core/table.ts';
-import type { SQL } from '~/sql/index.ts';
+import type { SQL } from '~/sql/sql.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
-import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
+import { SingleStoreColumn, SingleStoreColumnBuilder, type SingleStoreGeneratedColumnConfig } from './common.ts';
 
 export class SingleStoreDateTimeBuilder extends SingleStoreColumnBuilder<{
 	name: string;
@@ -12,14 +12,14 @@ export class SingleStoreDateTimeBuilder extends SingleStoreColumnBuilder<{
 	data: Date;
 	driverParam: string | number;
 	enumValues: undefined;
-	generated: undefined;
 }, SingleStoreDatetimeConfig> {
-	/** @internal */
 	// TODO: we need to add a proper support for SingleStore
 	override generatedAlwaysAs(
-		_as: SQL<unknown> | (() => SQL) | Date,
-		_config?: Partial<GeneratedColumnConfig<unknown>>,
-	): HasGenerated<this, {}> {
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
+		as: SQL | (() => SQL) | this['_']['data'],
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
+		config?: SingleStoreGeneratedColumnConfig,
+	): HasGenerated<this, { type: 'always' }> {
 		throw new Error('Method not implemented.');
 	}
 	static override readonly [entityKind]: string = 'SingleStoreDateTimeBuilder';
@@ -62,24 +62,22 @@ export class SingleStoreDateTime<T extends ColumnBaseConfig<'date'>> extends Sin
 
 export class SingleStoreDateTimeStringBuilder extends SingleStoreColumnBuilder<{
 	name: string;
-	dataType: 'string';
+	dataType: 'string datetime';
 	data: string;
 	driverParam: string | number;
 	enumValues: undefined;
-	generated: undefined;
 }, SingleStoreDatetimeConfig> {
-	/** @internal */
 	// TODO: we need to add a proper support for SingleStore
 	override generatedAlwaysAs(
-		_as: SQL<unknown> | (() => SQL) | string,
+		_as: SQL | (() => SQL) | this['_']['data'],
 		_config?: Partial<GeneratedColumnConfig<unknown>>,
-	): HasGenerated<this, {}> {
+	): HasGenerated<this, { type: 'always' }> {
 		throw new Error('Method not implemented.');
 	}
 	static override readonly [entityKind]: string = 'SingleStoreDateTimeStringBuilder';
 
 	constructor(name: string) {
-		super(name, 'string', 'SingleStoreDateTimeString');
+		super(name, 'string datetime', 'SingleStoreDateTimeString');
 	}
 
 	/** @internal */
@@ -91,7 +89,7 @@ export class SingleStoreDateTimeStringBuilder extends SingleStoreColumnBuilder<{
 	}
 }
 
-export class SingleStoreDateTimeString<T extends ColumnBaseConfig<'string'>> extends SingleStoreColumn<T> {
+export class SingleStoreDateTimeString<T extends ColumnBaseConfig<'string datetime'>> extends SingleStoreColumn<T> {
 	static override readonly [entityKind]: string = 'SingleStoreDateTimeString';
 
 	constructor(

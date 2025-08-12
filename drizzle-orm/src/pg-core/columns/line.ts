@@ -7,7 +7,7 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export class PgLineBuilder extends PgColumnBuilder<{
 	name: string;
-	dataType: 'array';
+	dataType: 'lineTuple';
 	data: [number, number, number];
 	driverParam: number | string;
 	enumValues: undefined;
@@ -15,7 +15,7 @@ export class PgLineBuilder extends PgColumnBuilder<{
 	static override readonly [entityKind]: string = 'PgLineBuilder';
 
 	constructor(name: string) {
-		super(name, 'array', 'PgLine');
+		super(name, 'lineTuple', 'PgLine');
 	}
 
 	/** @internal */
@@ -27,7 +27,7 @@ export class PgLineBuilder extends PgColumnBuilder<{
 	}
 }
 
-export class PgLineTuple<T extends ColumnBaseConfig<'array'>> extends PgColumn<T> {
+export class PgLineTuple<T extends ColumnBaseConfig<'lineTuple'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgLine';
 
 	getSQLType(): string {
@@ -46,7 +46,7 @@ export class PgLineTuple<T extends ColumnBaseConfig<'array'>> extends PgColumn<T
 
 export class PgLineABCBuilder extends PgColumnBuilder<{
 	name: string;
-	dataType: 'json';
+	dataType: 'lineABC';
 	data: { a: number; b: number; c: number };
 	driverParam: string;
 	enumValues: undefined;
@@ -54,7 +54,7 @@ export class PgLineABCBuilder extends PgColumnBuilder<{
 	static override readonly [entityKind]: string = 'PgLineABCBuilder';
 
 	constructor(name: string) {
-		super(name, 'json', 'PgLineABC');
+		super(name, 'lineABC', 'PgLineABC');
 	}
 
 	/** @internal */
@@ -66,7 +66,7 @@ export class PgLineABCBuilder extends PgColumnBuilder<{
 	}
 }
 
-export class PgLineABC<T extends ColumnBaseConfig<'json'>> extends PgColumn<T> {
+export class PgLineABC<T extends ColumnBaseConfig<'lineABC'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgLineABC';
 
 	getSQLType(): string {

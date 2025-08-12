@@ -5,7 +5,7 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export class PgCidrBuilder extends PgColumnBuilder<{
 	name: string;
-	dataType: 'string';
+	dataType: 'string cidr';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
@@ -13,7 +13,7 @@ export class PgCidrBuilder extends PgColumnBuilder<{
 	static override readonly [entityKind]: string = 'PgCidrBuilder';
 
 	constructor(name: string) {
-		super(name, 'string', 'PgCidr');
+		super(name, 'string cidr', 'PgCidr');
 	}
 
 	/** @internal */
@@ -22,7 +22,7 @@ export class PgCidrBuilder extends PgColumnBuilder<{
 	}
 }
 
-export class PgCidr<T extends ColumnBaseConfig<'string'>> extends PgColumn<T> {
+export class PgCidr<T extends ColumnBaseConfig<'string cidr'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgCidr';
 
 	getSQLType(): string {

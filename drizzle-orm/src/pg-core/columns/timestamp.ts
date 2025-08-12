@@ -62,7 +62,7 @@ export class PgTimestamp<T extends ColumnBaseConfig<'date'>> extends PgColumn<T>
 export class PgTimestampStringBuilder extends PgDateColumnBaseBuilder<
 	{
 		name: string;
-		dataType: 'string';
+		dataType: 'string timestamp';
 		data: string;
 		driverParam: string;
 		enumValues: undefined;
@@ -76,7 +76,7 @@ export class PgTimestampStringBuilder extends PgDateColumnBaseBuilder<
 		withTimezone: boolean,
 		precision: number | undefined,
 	) {
-		super(name, 'string', 'PgTimestampString');
+		super(name, 'string timestamp', 'PgTimestampString');
 		this.config.withTimezone = withTimezone;
 		this.config.precision = precision;
 	}
@@ -90,7 +90,7 @@ export class PgTimestampStringBuilder extends PgDateColumnBaseBuilder<
 	}
 }
 
-export class PgTimestampString<T extends ColumnBaseConfig<'string'>> extends PgColumn<T> {
+export class PgTimestampString<T extends ColumnBaseConfig<'string timestamp'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgTimestampString';
 
 	readonly withTimezone: boolean;

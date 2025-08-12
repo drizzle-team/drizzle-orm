@@ -44,7 +44,7 @@ export class MySqlDate<T extends ColumnBaseConfig<'date'>> extends MySqlColumn<T
 
 export class MySqlDateStringBuilder extends MySqlColumnBuilder<{
 	name: string;
-	dataType: 'string';
+	dataType: 'string date';
 	data: string;
 	driverParam: string | number;
 	enumValues: undefined;
@@ -52,7 +52,7 @@ export class MySqlDateStringBuilder extends MySqlColumnBuilder<{
 	static override readonly [entityKind]: string = 'MySqlDateStringBuilder';
 
 	constructor(name: string) {
-		super(name, 'string', 'MySqlDateString');
+		super(name, 'string date', 'MySqlDateString');
 	}
 
 	/** @internal */
@@ -64,7 +64,7 @@ export class MySqlDateStringBuilder extends MySqlColumnBuilder<{
 	}
 }
 
-export class MySqlDateString<T extends ColumnBaseConfig<'string'>> extends MySqlColumn<T> {
+export class MySqlDateString<T extends ColumnBaseConfig<'string date'>> extends MySqlColumn<T> {
 	static override readonly [entityKind]: string = 'MySqlDateString';
 
 	constructor(

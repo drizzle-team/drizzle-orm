@@ -6,7 +6,7 @@ import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } fro
 
 export class MySqlFloatBuilder extends MySqlColumnBuilderWithAutoIncrement<{
 	name: string;
-	dataType: 'number';
+	dataType: 'number float';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
@@ -14,7 +14,7 @@ export class MySqlFloatBuilder extends MySqlColumnBuilderWithAutoIncrement<{
 	static override readonly [entityKind]: string = 'MySqlFloatBuilder';
 
 	constructor(name: string, config: MySqlFloatConfig | undefined) {
-		super(name, 'number', 'MySqlFloat');
+		super(name, 'number float', 'MySqlFloat');
 		this.config.precision = config?.precision;
 		this.config.scale = config?.scale;
 		this.config.unsigned = config?.unsigned;
@@ -26,7 +26,7 @@ export class MySqlFloatBuilder extends MySqlColumnBuilderWithAutoIncrement<{
 	}
 }
 
-export class MySqlFloat<T extends ColumnBaseConfig<'number'>>
+export class MySqlFloat<T extends ColumnBaseConfig<'number float'>>
 	extends MySqlColumnWithAutoIncrement<T, MySqlFloatConfig>
 {
 	static override readonly [entityKind]: string = 'MySqlFloat';

@@ -11,7 +11,6 @@ export class SingleStoreTimestampBuilder extends SingleStoreDateColumnBaseBuilde
 	data: Date;
 	driverParam: string | number;
 	enumValues: undefined;
-	generated: undefined;
 }, SingleStoreTimestampConfig> {
 	static override readonly [entityKind]: string = 'SingleStoreTimestampBuilder';
 
@@ -52,16 +51,15 @@ export class SingleStoreTimestamp<T extends ColumnBaseConfig<'date'>>
 
 export class SingleStoreTimestampStringBuilder extends SingleStoreDateColumnBaseBuilder<{
 	name: string;
-	dataType: 'string';
+	dataType: 'string timestamp';
 	data: string;
 	driverParam: string | number;
 	enumValues: undefined;
-	generated: undefined;
 }, SingleStoreTimestampConfig> {
 	static override readonly [entityKind]: string = 'SingleStoreTimestampStringBuilder';
 
 	constructor(name: string) {
-		super(name, 'string', 'SingleStoreTimestampString');
+		super(name, 'string timestamp', 'SingleStoreTimestampString');
 	}
 
 	/** @internal */
@@ -77,7 +75,7 @@ export class SingleStoreTimestampStringBuilder extends SingleStoreDateColumnBase
 	}
 }
 
-export class SingleStoreTimestampString<T extends ColumnBaseConfig<'string'>>
+export class SingleStoreTimestampString<T extends ColumnBaseConfig<'string timestamp'>>
 	extends SingleStoreDateBaseColumn<T, SingleStoreTimestampConfig>
 {
 	static override readonly [entityKind]: string = 'SingleStoreTimestampString';

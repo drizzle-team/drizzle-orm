@@ -6,7 +6,7 @@ import { GelColumn, GelColumnBuilder } from './common.ts';
 export class GelDecimalBuilder extends GelColumnBuilder<
 	{
 		name: string;
-		dataType: 'string';
+		dataType: 'string numeric';
 		data: string;
 		driverParam: string;
 		enumValues: undefined;
@@ -15,7 +15,7 @@ export class GelDecimalBuilder extends GelColumnBuilder<
 	static override readonly [entityKind]: string = 'GelDecimalBuilder';
 
 	constructor(name: string) {
-		super(name, 'string', 'GelDecimal');
+		super(name, 'string numeric', 'GelDecimal');
 	}
 
 	/** @internal */
@@ -24,7 +24,7 @@ export class GelDecimalBuilder extends GelColumnBuilder<
 	}
 }
 
-export class GelDecimal<T extends ColumnBaseConfig<'string'>> extends GelColumn<T> {
+export class GelDecimal<T extends ColumnBaseConfig<'string numeric'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelDecimal';
 
 	constructor(table: AnyGelTable<{ name: T['tableName'] }>, config: GelDecimalBuilder['config']) {

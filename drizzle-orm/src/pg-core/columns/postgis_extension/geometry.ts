@@ -8,7 +8,7 @@ import { parseEWKB } from './utils.ts';
 
 export class PgGeometryBuilder extends PgColumnBuilder<{
 	name: string;
-	dataType: 'array';
+	dataType: 'geoTuple';
 	data: [number, number];
 	driverParam: string;
 	enumValues: undefined;
@@ -16,7 +16,7 @@ export class PgGeometryBuilder extends PgColumnBuilder<{
 	static override readonly [entityKind]: string = 'PgGeometryBuilder';
 
 	constructor(name: string) {
-		super(name, 'array', 'PgGeometry');
+		super(name, 'geoTuple', 'PgGeometry');
 	}
 
 	/** @internal */
@@ -28,7 +28,7 @@ export class PgGeometryBuilder extends PgColumnBuilder<{
 	}
 }
 
-export class PgGeometry<T extends ColumnBaseConfig<'array'>> extends PgColumn<T> {
+export class PgGeometry<T extends ColumnBaseConfig<'geoTuple'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgGeometry';
 
 	getSQLType(): string {
@@ -48,7 +48,7 @@ export class PgGeometry<T extends ColumnBaseConfig<'array'>> extends PgColumn<T>
 
 export class PgGeometryObjectBuilder extends PgColumnBuilder<{
 	name: string;
-	dataType: 'json';
+	dataType: 'geoObject';
 	data: { x: number; y: number };
 	driverParam: string;
 	enumValues: undefined;
@@ -56,7 +56,7 @@ export class PgGeometryObjectBuilder extends PgColumnBuilder<{
 	static override readonly [entityKind]: string = 'PgGeometryObjectBuilder';
 
 	constructor(name: string) {
-		super(name, 'json', 'PgGeometryObject');
+		super(name, 'geoObject', 'PgGeometryObject');
 	}
 
 	/** @internal */
@@ -68,7 +68,7 @@ export class PgGeometryObjectBuilder extends PgColumnBuilder<{
 	}
 }
 
-export class PgGeometryObject<T extends ColumnBaseConfig<'json'>> extends PgColumn<T> {
+export class PgGeometryObject<T extends ColumnBaseConfig<'geoObject'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgGeometryObject';
 
 	getSQLType(): string {

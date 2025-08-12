@@ -6,23 +6,113 @@ import type { ExtraConfigColumn, PgColumn, PgSequenceOptions } from './pg-core/i
 import type { SingleStoreColumn } from './singlestore-core/index.ts';
 import type { SQL } from './sql/sql.ts';
 import type { SQLiteColumn } from './sqlite-core/index.ts';
+import type { Assume } from './utils.ts';
 
 export type ColumnDataType =
+	// Primitives
 	| 'string'
+	| 'enum'
 	| 'number'
 	| 'boolean'
-	| 'array'
-	| 'json'
-	| 'date'
 	| 'bigint'
-	| 'custom'
+	// Classes
 	| 'buffer'
-	| 'dateDuration'
-	| 'duration'
+	| 'date'
+	// Objects
+	| 'json'
+	| 'geoObject'
+	| 'geoTuple'
+	| 'pointTuple'
+	| 'pointObject'
+	| 'lineTuple'
+	| 'lineABC'
+	| 'vector'
+	// External classes
 	| 'relDuration'
+	| 'dateDuration'
 	| 'localTime'
 	| 'localDate'
-	| 'localDateTime';
+	| 'localDateTime'
+	| 'duration'
+	// Special cases
+	| 'array'
+	| 'custom';
+
+export type ColumnDataConstraint =
+	// number
+	| 'integer'
+	| 'tinyint'
+	| 'smallint'
+	| 'mediumint'
+	| 'real'
+	| 'float'
+	| 'double'
+	| 'uint'
+	| 'year'
+	// string
+	| 'numeric'
+	| 'cidr'
+	| 'inet'
+	| 'interval'
+	| 'macaddr'
+	| 'macaddr8'
+	| 'numeric'
+	| 'uuid'
+	| 'binary'
+	| 'date'
+	| 'datetime'
+	| 'sparsevec'
+	| 'timestamp'
+	| 'time'
+	// vector
+	| 'halfvec';
+
+export type ColumnType =
+	| ColumnDataType
+	| 'number double'
+	| 'number float'
+	| 'number integer'
+	| 'number mediumint'
+	| 'number real'
+	| 'number smallint'
+	| 'number tinyint'
+	| 'number uint'
+	| 'number year'
+	| 'string binary'
+	| 'string cidr'
+	| 'string date'
+	| 'string datetime'
+	| 'string inet'
+	| 'string interval'
+	| 'string macaddr'
+	| 'string macaddr8'
+	| 'string numeric'
+	| 'string sparsevec'
+	| 'string time'
+	| 'string timestamp'
+	| 'string uuid'
+	| 'vector halfvec';
+
+export interface ColumnTypeData<
+	TType extends ColumnDataType = ColumnDataType,
+	TConstraint extends ColumnDataConstraint | undefined = ColumnDataConstraint | undefined,
+> {
+	type: TType;
+	constraint: TConstraint;
+}
+
+export type ExtractColumnTypeData<T extends ColumnType> = T extends
+	`${infer Type extends ColumnDataType} ${infer Constraint extends ColumnDataConstraint}`
+	? ColumnTypeData<Type, Constraint>
+	: ColumnTypeData<Assume<T, ColumnDataType>, undefined>;
+
+export function extractExtendedColumnType<TColumn extends Column>(
+	column: TColumn,
+): ExtractColumnTypeData<TColumn['_']['dataType']> {
+	const [type, constraint] = column.dataType.split(' ');
+
+	return { type, constraint } as any;
+}
 
 export type Dialect = 'pg' | 'mysql' | 'sqlite' | 'singlestore' | 'common' | 'gel';
 
@@ -42,7 +132,7 @@ export interface GeneratedIdentityConfig {
 	type: 'always' | 'byDefault';
 }
 
-export interface ColumnBuilderBaseConfig<TDataType extends ColumnDataType> {
+export interface ColumnBuilderBaseConfig<TDataType extends ColumnType> {
 	name: string;
 	dataType: TDataType;
 	data: unknown;
@@ -53,7 +143,7 @@ export interface ColumnBuilderBaseConfig<TDataType extends ColumnDataType> {
 }
 
 export type MakeColumnConfig<
-	T extends ColumnBuilderBaseConfig<ColumnDataType>,
+	T extends ColumnBuilderBaseConfig<ColumnType>,
 	TTableName extends string,
 	TData = T extends { $type: infer U } ? U : T['data'],
 > = {
@@ -152,14 +242,14 @@ export type IsIdentity<T, TType extends 'always' | 'byDefault'> = T & {
 };
 
 export interface ColumnBuilderBase<
-	T extends ColumnBuilderBaseConfig<ColumnDataType> = ColumnBuilderBaseConfig<ColumnDataType>,
+	T extends ColumnBuilderBaseConfig<ColumnType> = ColumnBuilderBaseConfig<ColumnType>,
 > {
 	_: T;
 }
 
 // To understand how to use `ColumnBuilder` and `AnyColumnBuilder`, see `Column` and `AnyColumn` documentation.
 export abstract class ColumnBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnDataType>,
+	T extends ColumnBuilderBaseConfig<ColumnType>,
 	TRuntimeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
 > implements ColumnBuilderBase<T> {
@@ -170,7 +260,7 @@ export abstract class ColumnBuilder<
 	/** @internal */
 	protected config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig;
 
-	constructor(name: string, dataType: ColumnDataType, columnType: string) {
+	constructor(name: string, dataType: ColumnType, columnType: string) {
 		this.config = {
 			name,
 			keyAsName: name === '',
@@ -296,13 +386,13 @@ export type BuildColumn<
 	TTableName extends string,
 	TBuilder extends ColumnBuilderBase,
 	TDialect extends Dialect,
-	TMakedConfig extends ColumnBaseConfig<ColumnDataType> = MakeColumnConfig<TBuilder['_'], TTableName>,
-> = TDialect extends 'pg' ? PgColumn<TMakedConfig, {}>
-	: TDialect extends 'mysql' ? MySqlColumn<TMakedConfig, {}>
-	: TDialect extends 'sqlite' ? SQLiteColumn<TMakedConfig, {}>
-	: TDialect extends 'common' ? Column<TMakedConfig, {}>
-	: TDialect extends 'singlestore' ? SingleStoreColumn<TMakedConfig, {}>
-	: TDialect extends 'gel' ? GelColumn<TMakedConfig, {}>
+	TBuiltConfig extends ColumnBaseConfig<ColumnType> = MakeColumnConfig<TBuilder['_'], TTableName>,
+> = TDialect extends 'pg' ? PgColumn<TBuiltConfig, {}>
+	: TDialect extends 'mysql' ? MySqlColumn<TBuiltConfig, {}>
+	: TDialect extends 'sqlite' ? SQLiteColumn<TBuiltConfig, {}>
+	: TDialect extends 'common' ? Column<TBuiltConfig, {}>
+	: TDialect extends 'singlestore' ? SingleStoreColumn<TBuiltConfig, {}>
+	: TDialect extends 'gel' ? GelColumn<TBuiltConfig, {}>
 	: never;
 
 export type BuildIndexColumn<

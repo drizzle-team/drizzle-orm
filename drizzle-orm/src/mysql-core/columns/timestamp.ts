@@ -48,7 +48,7 @@ export class MySqlTimestamp<T extends ColumnBaseConfig<'date'>> extends MySqlDat
 
 export class MySqlTimestampStringBuilder extends MySqlDateColumnBaseBuilder<{
 	name: string;
-	dataType: 'string';
+	dataType: 'string timestamp';
 	data: string;
 	driverParam: string | number;
 	enumValues: undefined;
@@ -56,7 +56,7 @@ export class MySqlTimestampStringBuilder extends MySqlDateColumnBaseBuilder<{
 	static override readonly [entityKind]: string = 'MySqlTimestampStringBuilder';
 
 	constructor(name: string, config: MySqlTimestampConfig | undefined) {
-		super(name, 'string', 'MySqlTimestampString');
+		super(name, 'string timestamp', 'MySqlTimestampString');
 		this.config.fsp = config?.fsp;
 	}
 
@@ -69,7 +69,7 @@ export class MySqlTimestampStringBuilder extends MySqlDateColumnBaseBuilder<{
 	}
 }
 
-export class MySqlTimestampString<T extends ColumnBaseConfig<'string'>>
+export class MySqlTimestampString<T extends ColumnBaseConfig<'string timestamp'>>
 	extends MySqlDateBaseColumn<T, MySqlTimestampConfig>
 {
 	static override readonly [entityKind]: string = 'MySqlTimestampString';

@@ -6,7 +6,7 @@ import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } fro
 
 export class MySqlDoubleBuilder extends MySqlColumnBuilderWithAutoIncrement<{
 	name: string;
-	dataType: 'number';
+	dataType: 'number double';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
@@ -14,7 +14,7 @@ export class MySqlDoubleBuilder extends MySqlColumnBuilderWithAutoIncrement<{
 	static override readonly [entityKind]: string = 'MySqlDoubleBuilder';
 
 	constructor(name: string, config: MySqlDoubleConfig | undefined) {
-		super(name, 'number', 'MySqlDouble');
+		super(name, 'number double', 'MySqlDouble');
 		this.config.precision = config?.precision;
 		this.config.scale = config?.scale;
 		this.config.unsigned = config?.unsigned;
@@ -26,7 +26,7 @@ export class MySqlDoubleBuilder extends MySqlColumnBuilderWithAutoIncrement<{
 	}
 }
 
-export class MySqlDouble<T extends ColumnBaseConfig<'number'>>
+export class MySqlDouble<T extends ColumnBaseConfig<'number double'>>
 	extends MySqlColumnWithAutoIncrement<T, MySqlDoubleConfig>
 {
 	static override readonly [entityKind]: string = 'MySqlDouble';

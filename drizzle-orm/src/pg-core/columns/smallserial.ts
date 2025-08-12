@@ -5,7 +5,7 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export class PgSmallSerialBuilder extends PgColumnBuilder<{
 	name: string;
-	dataType: 'number';
+	dataType: 'number smallint';
 	data: number;
 	driverParam: number;
 	enumValues: undefined;
@@ -15,7 +15,7 @@ export class PgSmallSerialBuilder extends PgColumnBuilder<{
 	static override readonly [entityKind]: string = 'PgSmallSerialBuilder';
 
 	constructor(name: string) {
-		super(name, 'number', 'PgSmallSerial');
+		super(name, 'number smallint', 'PgSmallSerial');
 		this.config.hasDefault = true;
 		this.config.notNull = true;
 	}
@@ -29,7 +29,7 @@ export class PgSmallSerialBuilder extends PgColumnBuilder<{
 	}
 }
 
-export class PgSmallSerial<T extends ColumnBaseConfig<'number'>> extends PgColumn<T> {
+export class PgSmallSerial<T extends ColumnBaseConfig<'number smallint'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgSmallSerial';
 
 	getSQLType(): string {

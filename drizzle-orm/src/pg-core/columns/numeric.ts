@@ -7,7 +7,7 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 export class PgNumericBuilder extends PgColumnBuilder<
 	{
 		name: string;
-		dataType: 'string';
+		dataType: 'string numeric';
 		data: string;
 		driverParam: string;
 		enumValues: undefined;
@@ -20,7 +20,7 @@ export class PgNumericBuilder extends PgColumnBuilder<
 	static override readonly [entityKind]: string = 'PgNumericBuilder';
 
 	constructor(name: string, precision?: number, scale?: number) {
-		super(name, 'string', 'PgNumeric');
+		super(name, 'string numeric', 'PgNumeric');
 		this.config.precision = precision;
 		this.config.scale = scale;
 	}
@@ -31,7 +31,7 @@ export class PgNumericBuilder extends PgColumnBuilder<
 	}
 }
 
-export class PgNumeric<T extends ColumnBaseConfig<'string'>> extends PgColumn<T> {
+export class PgNumeric<T extends ColumnBaseConfig<'string numeric'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgNumeric';
 
 	readonly precision: number | undefined;

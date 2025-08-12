@@ -1,9 +1,4 @@
-import type {
-	ColumnBuilderBaseConfig,
-	ColumnBuilderExtraConfig,
-	ColumnDataType,
-	HasDefault,
-} from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, ColumnBuilderExtraConfig, ColumnType, HasDefault } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { sql } from '~/sql/sql.ts';
@@ -14,7 +9,7 @@ export interface MySqlDateColumnBaseConfig {
 }
 
 export abstract class MySqlDateColumnBaseBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnDataType>,
+	T extends ColumnBuilderBaseConfig<ColumnType>,
 	TRuntimeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
 > extends MySqlColumnBuilder<T, TRuntimeConfig & MySqlDateColumnBaseConfig, TExtraConfig> {
@@ -33,7 +28,7 @@ export abstract class MySqlDateColumnBaseBuilder<
 }
 
 export abstract class MySqlDateBaseColumn<
-	T extends ColumnBaseConfig<ColumnDataType>,
+	T extends ColumnBaseConfig<ColumnType>,
 	TRuntimeConfig extends object = object,
 > extends MySqlColumn<T, MySqlDateColumnBaseConfig & TRuntimeConfig> {
 	static override readonly [entityKind]: string = 'MySqlDateColumn';

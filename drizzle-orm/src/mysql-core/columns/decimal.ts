@@ -6,7 +6,7 @@ import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } fro
 
 export class MySqlDecimalBuilder extends MySqlColumnBuilderWithAutoIncrement<{
 	name: string;
-	dataType: 'string';
+	dataType: 'string numeric';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
@@ -14,7 +14,7 @@ export class MySqlDecimalBuilder extends MySqlColumnBuilderWithAutoIncrement<{
 	static override readonly [entityKind]: string = 'MySqlDecimalBuilder';
 
 	constructor(name: string, config: MySqlDecimalConfig | undefined) {
-		super(name, 'string', 'MySqlDecimal');
+		super(name, 'string numeric', 'MySqlDecimal');
 		this.config.precision = config?.precision;
 		this.config.scale = config?.scale;
 		this.config.unsigned = config?.unsigned;
@@ -29,7 +29,7 @@ export class MySqlDecimalBuilder extends MySqlColumnBuilderWithAutoIncrement<{
 	}
 }
 
-export class MySqlDecimal<T extends ColumnBaseConfig<'string'>>
+export class MySqlDecimal<T extends ColumnBaseConfig<'string numeric'>>
 	extends MySqlColumnWithAutoIncrement<T, MySqlDecimalConfig>
 {
 	static override readonly [entityKind]: string = 'MySqlDecimal';

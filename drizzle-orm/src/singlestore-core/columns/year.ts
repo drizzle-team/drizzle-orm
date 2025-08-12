@@ -5,16 +5,15 @@ import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
 export class SingleStoreYearBuilder extends SingleStoreColumnBuilder<{
 	name: string;
-	dataType: 'number';
+	dataType: 'number year';
 	data: number;
 	driverParam: number;
 	enumValues: undefined;
-	generated: undefined;
 }> {
 	static override readonly [entityKind]: string = 'SingleStoreYearBuilder';
 
 	constructor(name: string) {
-		super(name, 'number', 'SingleStoreYear');
+		super(name, 'number year', 'SingleStoreYear');
 	}
 
 	/** @internal */
@@ -27,7 +26,7 @@ export class SingleStoreYearBuilder extends SingleStoreColumnBuilder<{
 }
 
 export class SingleStoreYear<
-	T extends ColumnBaseConfig<'number'>,
+	T extends ColumnBaseConfig<'number year'>,
 > extends SingleStoreColumn<T> {
 	static override readonly [entityKind]: string = 'SingleStoreYear';
 
