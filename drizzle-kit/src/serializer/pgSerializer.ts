@@ -983,8 +983,11 @@ export const fromDatabase = async (
 	) => void,
 	tsSchema?: PgSchemaInternal,
 ): Promise<PgSchemaInternal> => {
-	const result: Record<string, Table> = {};
-	const views: Record<string, View> = {};
+	// To maintain the order of the result(tables) and views variables, the keys are initialized with an undefined
+	// value prior to the main processing loop. If there are any undefined records at the end of the process an
+	// error will throw with details.
+	const result: Record<string, Table | undefined> = {};
+	const views: Record<string, View | undefined> = {};
 	const policies: Record<string, Policy> = {};
 	const internals: PgKitInternals = { tables: {} };
 
@@ -1108,7 +1111,7 @@ WHERE
 	const allRoles = await db.query<
 		{ rolname: string; rolinherit: boolean; rolcreatedb: boolean; rolcreaterole: boolean }
 	>(
-		`SELECT rolname, rolinherit, rolcreatedb, rolcreaterole FROM pg_roles order by rolname, rolinherit, rolcreatedb, rolcreaterole;`,
+		`SELECT rolname, rolinherit, rolcreatedb, rolcreaterole FROM pg_roles order by rolname;`,
 	);
 
 	const rolesToReturn: Record<string, Role> = {};
@@ -1177,6 +1180,7 @@ WHERE
 		const parsedWithCheck = withCheck === null ? undefined : withCheck;
 		const parsedUsing = using === null ? undefined : using;
 
+		// policiesByTable is added to the result variable, which is returned from this function on the `tables` property
 		policiesByTable[`${schemaname}.${tablename}`] ??= {};
 		policiesByTable[`${schemaname}.${tablename}`][dbPolicy.name] = {
 			...rest,
@@ -1186,6 +1190,8 @@ WHERE
 		} as Policy;
 
 		if (tsSchema?.policies[dbPolicy.name]) {
+			// policies is returned from this function in the `policies` property. It seems to be copy of the
+			// policiesByTable object with an additional `on` property taken from the passed in schema.
 			policies[dbPolicy.name] = {
 				...rest,
 				to: parsedTo,
@@ -1211,6 +1217,9 @@ WHERE
 	const all = allTables
 		.filter((it) => it.type === 'table')
 		.map((row) => {
+			// initialise before the starting async processing so that the order the properties are initialized in is deterministic.
+			// ES6 will iterate in the order the keys were defined. https://exploringjs.com/es6/ch_oop-besides-classes.html#_traversal-order-of-properties
+			result[`${row.table_schema}.${row.table_name}`] = undefined;
 			return new Promise(async (res, rej) => {
 				const tableName = row.table_name as string;
 				if (!tablesFilter(tableName)) return res('');
@@ -1724,6 +1733,9 @@ WHERE
 	const allViews = allTables
 		.filter((it) => it.type === 'view' || it.type === 'materialized_view')
 		.map((row) => {
+			// initialise before the starting async processing so that the order the properties are initialized in is deterministic.
+			// ES6 will iterate in the order the keys were defined. https://exploringjs.com/es6/ch_oop-besides-classes.html#_traversal-order-of-properties
+			views[`${row.table_schema}.${row.table_name}`] = undefined;
 			return new Promise(async (res, rej) => {
 				const viewName = row.table_name as string;
 				if (!tablesFilter(viewName)) return res('');
@@ -1962,7 +1974,10 @@ WHERE
 	}
 
 	const schemasObject = Object.fromEntries([...schemas].map((it) => [it, it]));
-
+	// Use a type guard to ensure that there are no undefined values, which would presumably be an error
+	// and reshape the object to fit the return type.
+	assertNoUndefinedValues(result);
+	assertNoUndefinedValues(views);
 	return {
 		version: '7',
 		dialect: 'postgresql',
@@ -2141,3 +2156,34 @@ ORDER BY
     ns.nspname, table_name, column_name;  -- Order by column number`,
 	);
 };
+
+/**
+ * Asserts that an object has no undefined property values.
+ * Collects all keys with undefined values and throws a single
+ * Error if any are found.
+ *
+ * Narrows the object's type to exclude undefined from its property values.
+ *
+ * @param obj The object to check.
+ */
+function assertNoUndefinedValues<T>(
+	obj: Record<string, T | undefined>,
+): asserts obj is Record<string, T> {
+	const undefinedKeys: string[] = [];
+
+	for (const key in obj) {
+		// We only check the object's own properties
+		if (Object.prototype.hasOwnProperty.call(obj, key)) {
+			if (obj[key] === undefined) {
+				undefinedKeys.push(key);
+			}
+		}
+	}
+
+	// If we found any keys with undefined values, throw an error.
+	if (undefinedKeys.length > 0) {
+		throw new Error(
+			`Object contains undefined values for the following keys: ${undefinedKeys.join(', ')}`,
+		);
+	}
+}
