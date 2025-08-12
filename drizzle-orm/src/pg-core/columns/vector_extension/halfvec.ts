@@ -7,7 +7,7 @@ import { PgColumn, PgColumnBuilder } from '../common.ts';
 export class PgHalfVectorBuilder<TDimensions extends number> extends PgColumnBuilder<
 	{
 		name: string;
-		dataType: 'array';
+		dataType: 'vector halfvec';
 		data: number[];
 		driverParam: string;
 		enumValues: undefined;
@@ -18,7 +18,7 @@ export class PgHalfVectorBuilder<TDimensions extends number> extends PgColumnBui
 	static override readonly [entityKind]: string = 'PgHalfVectorBuilder';
 
 	constructor(name: string, config: PgHalfVectorConfig<TDimensions>) {
-		super(name, 'array', 'PgHalfVector');
+		super(name, 'vector halfvec', 'PgHalfVector');
 		this.config.dimensions = config.dimensions;
 	}
 
@@ -31,7 +31,7 @@ export class PgHalfVectorBuilder<TDimensions extends number> extends PgColumnBui
 	}
 }
 
-export class PgHalfVector<T extends ColumnBaseConfig<'array'> & { dimensions: number }>
+export class PgHalfVector<T extends ColumnBaseConfig<'vector halfvec'> & { dimensions: number }>
 	extends PgColumn<T, { dimensions: T['dimensions'] }>
 {
 	static override readonly [entityKind]: string = 'PgHalfVector';

@@ -7,7 +7,7 @@ import { PgColumn, PgColumnBuilder } from '../common.ts';
 export class PgSparseVectorBuilder extends PgColumnBuilder<
 	{
 		name: string;
-		dataType: 'string';
+		dataType: 'string sparsevec';
 		data: string;
 		driverParam: string;
 		enumValues: undefined;
@@ -17,7 +17,7 @@ export class PgSparseVectorBuilder extends PgColumnBuilder<
 	static override readonly [entityKind]: string = 'PgSparseVectorBuilder';
 
 	constructor(name: string, config: PgSparseVectorConfig) {
-		super(name, 'string', 'PgSparseVector');
+		super(name, 'string sparsevec', 'PgSparseVector');
 		this.config.dimensions = config.dimensions;
 	}
 
@@ -30,7 +30,7 @@ export class PgSparseVectorBuilder extends PgColumnBuilder<
 	}
 }
 
-export class PgSparseVector<T extends ColumnBaseConfig<'string'>>
+export class PgSparseVector<T extends ColumnBaseConfig<'string sparsevec'>>
 	extends PgColumn<T, { dimensions: number | undefined }>
 {
 	static override readonly [entityKind]: string = 'PgSparseVector';

@@ -5,11 +5,11 @@ import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoInc
 
 export class SingleStoreSerialBuilder extends SingleStoreColumnBuilderWithAutoIncrement<{
 	name: string;
-	dataType: 'number';
+	dataType: 'number uint';
 	data: number;
 	driverParam: number;
 	enumValues: undefined;
-	generated: undefined;
+
 	isPrimaryKey: true;
 	hasDefault: true;
 	notNull: true;
@@ -18,7 +18,7 @@ export class SingleStoreSerialBuilder extends SingleStoreColumnBuilderWithAutoIn
 	static override readonly [entityKind]: string = 'SingleStoreSerialBuilder';
 
 	constructor(name: string) {
-		super(name, 'number', 'SingleStoreSerial');
+		super(name, 'number uint', 'SingleStoreSerial');
 		this.config.hasDefault = true;
 		this.config.autoIncrement = true;
 	}
@@ -33,7 +33,7 @@ export class SingleStoreSerialBuilder extends SingleStoreColumnBuilderWithAutoIn
 }
 
 export class SingleStoreSerial<
-	T extends ColumnBaseConfig<'number'>,
+	T extends ColumnBaseConfig<'number uint'>,
 > extends SingleStoreColumnWithAutoIncrement<T> {
 	static override readonly [entityKind]: string = 'SingleStoreSerial';
 

@@ -7,7 +7,7 @@ import type { MySqlIntConfig } from './int.ts';
 
 export class MySqlMediumIntBuilder extends MySqlColumnBuilderWithAutoIncrement<{
 	name: string;
-	dataType: 'number';
+	dataType: 'number mediumint';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
@@ -15,7 +15,7 @@ export class MySqlMediumIntBuilder extends MySqlColumnBuilderWithAutoIncrement<{
 	static override readonly [entityKind]: string = 'MySqlMediumIntBuilder';
 
 	constructor(name: string, config?: MySqlIntConfig) {
-		super(name, 'number', 'MySqlMediumInt');
+		super(name, 'number mediumint', 'MySqlMediumInt');
 		this.config.unsigned = config ? config.unsigned : false;
 	}
 
@@ -28,7 +28,7 @@ export class MySqlMediumIntBuilder extends MySqlColumnBuilderWithAutoIncrement<{
 	}
 }
 
-export class MySqlMediumInt<T extends ColumnBaseConfig<'number'>>
+export class MySqlMediumInt<T extends ColumnBaseConfig<'number mediumint'>>
 	extends MySqlColumnWithAutoIncrement<T, MySqlIntConfig>
 {
 	static override readonly [entityKind]: string = 'MySqlMediumInt';

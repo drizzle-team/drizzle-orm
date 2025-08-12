@@ -5,7 +5,7 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export class PgMacaddr8Builder extends PgColumnBuilder<{
 	name: string;
-	dataType: 'string';
+	dataType: 'string macaddr8';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
@@ -13,7 +13,7 @@ export class PgMacaddr8Builder extends PgColumnBuilder<{
 	static override readonly [entityKind]: string = 'PgMacaddr8Builder';
 
 	constructor(name: string) {
-		super(name, 'string', 'PgMacaddr8');
+		super(name, 'string macaddr8', 'PgMacaddr8');
 	}
 
 	/** @internal */
@@ -22,7 +22,7 @@ export class PgMacaddr8Builder extends PgColumnBuilder<{
 	}
 }
 
-export class PgMacaddr8<T extends ColumnBaseConfig<'string'>> extends PgColumn<T> {
+export class PgMacaddr8<T extends ColumnBaseConfig<'string macaddr8'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgMacaddr8';
 
 	getSQLType(): string {

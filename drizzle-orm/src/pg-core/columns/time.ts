@@ -9,7 +9,7 @@ import type { Precision } from './timestamp.ts';
 export class PgTimeBuilder extends PgDateColumnBaseBuilder<
 	{
 		name: string;
-		dataType: 'string';
+		dataType: 'string time';
 		data: string;
 		driverParam: string;
 		enumValues: undefined;
@@ -23,7 +23,7 @@ export class PgTimeBuilder extends PgDateColumnBaseBuilder<
 		readonly withTimezone: boolean,
 		readonly precision: number | undefined,
 	) {
-		super(name, 'string', 'PgTime');
+		super(name, 'string time', 'PgTime');
 		this.config.withTimezone = withTimezone;
 		this.config.precision = precision;
 	}
@@ -34,7 +34,7 @@ export class PgTimeBuilder extends PgDateColumnBaseBuilder<
 	}
 }
 
-export class PgTime<T extends ColumnBaseConfig<'string'>> extends PgColumn<T> {
+export class PgTime<T extends ColumnBaseConfig<'string time'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgTime';
 
 	readonly withTimezone: boolean;

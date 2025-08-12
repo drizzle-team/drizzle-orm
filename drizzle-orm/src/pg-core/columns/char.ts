@@ -1,12 +1,12 @@
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
-import { getColumnNameAndConfig, type Writable } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export class PgCharBuilder<TEnum extends [string, ...string[]]> extends PgColumnBuilder<{
 	name: string;
-	dataType: 'string';
+	dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'enum';
 	data: TEnum[number];
 	enumValues: TEnum;
 	driverParam: string;
@@ -14,7 +14,7 @@ export class PgCharBuilder<TEnum extends [string, ...string[]]> extends PgColumn
 	static override readonly [entityKind]: string = 'PgCharBuilder';
 
 	constructor(name: string, config: PgCharConfig<TEnum>) {
-		super(name, 'string', 'PgChar');
+		super(name, config.enum?.length ? 'enum' : 'string', 'PgChar');
 		this.config.length = config.length;
 		this.config.enumValues = config.enum;
 	}
@@ -28,7 +28,7 @@ export class PgCharBuilder<TEnum extends [string, ...string[]]> extends PgColumn
 	}
 }
 
-export class PgChar<T extends ColumnBaseConfig<'string'> & { length?: number | undefined }>
+export class PgChar<T extends ColumnBaseConfig<'string' | 'enum'> & { length?: number | undefined }>
 	extends PgColumn<T, { length: T['length']; enumValues: T['enumValues'] }>
 {
 	static override readonly [entityKind]: string = 'PgChar';

@@ -1,7 +1,7 @@
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { SingleStoreTable } from '~/singlestore-core/table.ts';
-import { getColumnNameAndConfig, type Writable } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
 export class SingleStoreVarCharBuilder<
@@ -9,18 +9,18 @@ export class SingleStoreVarCharBuilder<
 	TLength extends number | undefined,
 > extends SingleStoreColumnBuilder<{
 	name: string;
-	dataType: 'string';
+	dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'enum';
 	data: TEnum[number];
 	driverParam: number | string;
 	enumValues: TEnum;
-	generated: undefined;
+
 	length: TLength;
 }, SingleStoreVarCharConfig<TEnum, TLength>> {
 	static override readonly [entityKind]: string = 'SingleStoreVarCharBuilder';
 
 	/** @internal */
 	constructor(name: string, config: SingleStoreVarCharConfig<TEnum, TLength>) {
-		super(name, 'string', 'SingleStoreVarChar');
+		super(name, config.enum?.length ? 'enum' : 'string', 'SingleStoreVarChar');
 		this.config.length = config.length;
 		this.config.enum = config.enum;
 	}
@@ -35,7 +35,7 @@ export class SingleStoreVarCharBuilder<
 }
 
 export class SingleStoreVarChar<
-	T extends ColumnBaseConfig<'string'> & { length?: number | undefined },
+	T extends ColumnBaseConfig<'string' | 'enum'> & { length?: number | undefined },
 > extends SingleStoreColumn<T, SingleStoreVarCharConfig<T['enumValues'], T['length']>> {
 	static override readonly [entityKind]: string = 'SingleStoreVarChar';
 

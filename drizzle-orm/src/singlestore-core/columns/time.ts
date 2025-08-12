@@ -6,11 +6,10 @@ import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 export class SingleStoreTimeBuilder extends SingleStoreColumnBuilder<
 	{
 		name: string;
-		dataType: 'string';
+		dataType: 'string time';
 		data: string;
 		driverParam: string | number;
 		enumValues: undefined;
-		generated: undefined;
 	}
 > {
 	static override readonly [entityKind]: string = 'SingleStoreTimeBuilder';
@@ -18,7 +17,7 @@ export class SingleStoreTimeBuilder extends SingleStoreColumnBuilder<
 	constructor(
 		name: string,
 	) {
-		super(name, 'string', 'SingleStoreTime');
+		super(name, 'string time', 'SingleStoreTime');
 	}
 
 	/** @internal */
@@ -31,7 +30,7 @@ export class SingleStoreTimeBuilder extends SingleStoreColumnBuilder<
 }
 
 export class SingleStoreTime<
-	T extends ColumnBaseConfig<'string'>,
+	T extends ColumnBaseConfig<'string time'>,
 > extends SingleStoreColumn<T> {
 	static override readonly [entityKind]: string = 'SingleStoreTime';
 

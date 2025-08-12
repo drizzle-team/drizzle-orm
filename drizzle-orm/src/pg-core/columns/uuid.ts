@@ -6,7 +6,7 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export class PgUUIDBuilder extends PgColumnBuilder<{
 	name: string;
-	dataType: 'string';
+	dataType: 'string uuid';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
@@ -14,7 +14,7 @@ export class PgUUIDBuilder extends PgColumnBuilder<{
 	static override readonly [entityKind]: string = 'PgUUIDBuilder';
 
 	constructor(name: string) {
-		super(name, 'string', 'PgUUID');
+		super(name, 'string uuid', 'PgUUID');
 	}
 
 	/**
@@ -30,7 +30,7 @@ export class PgUUIDBuilder extends PgColumnBuilder<{
 	}
 }
 
-export class PgUUID<T extends ColumnBaseConfig<'string'>> extends PgColumn<T> {
+export class PgUUID<T extends ColumnBaseConfig<'string uuid'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgUUID';
 
 	getSQLType(): string {

@@ -5,7 +5,7 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export class PgDoublePrecisionBuilder extends PgColumnBuilder<{
 	name: string;
-	dataType: 'number';
+	dataType: 'number double';
 	data: number;
 	driverParam: string | number;
 	enumValues: undefined;
@@ -13,7 +13,7 @@ export class PgDoublePrecisionBuilder extends PgColumnBuilder<{
 	static override readonly [entityKind]: string = 'PgDoublePrecisionBuilder';
 
 	constructor(name: string) {
-		super(name, 'number', 'PgDoublePrecision');
+		super(name, 'number double', 'PgDoublePrecision');
 	}
 
 	/** @internal */
@@ -25,7 +25,7 @@ export class PgDoublePrecisionBuilder extends PgColumnBuilder<{
 	}
 }
 
-export class PgDoublePrecision<T extends ColumnBaseConfig<'number'>> extends PgColumn<T> {
+export class PgDoublePrecision<T extends ColumnBaseConfig<'number double'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgDoublePrecision';
 
 	getSQLType(): string {

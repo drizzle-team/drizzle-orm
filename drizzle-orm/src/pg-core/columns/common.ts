@@ -2,7 +2,7 @@ import type {
 	ColumnBuilderBaseConfig,
 	ColumnBuilderExtraConfig,
 	ColumnBuilderRuntimeConfig,
-	ColumnDataType,
+	ColumnType,
 	HasGenerated,
 } from '~/column-builder.ts';
 import { ColumnBuilder } from '~/column-builder.ts';
@@ -30,7 +30,7 @@ export interface ReferenceConfig {
 }
 
 export abstract class PgColumnBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnDataType> = ColumnBuilderBaseConfig<ColumnDataType>,
+	T extends ColumnBuilderBaseConfig<ColumnType> = ColumnBuilderBaseConfig<ColumnType>,
 	TRuntimeConfig extends object = object,
 > extends ColumnBuilder<T, TRuntimeConfig, ColumnBuilderExtraConfig> {
 	private foreignKeyConfigs: ReferenceConfig[] = [];
@@ -121,10 +121,12 @@ export abstract class PgColumnBuilder<
 
 // To understand how to use `PgColumn` and `PgColumn`, see `Column` and `AnyColumn` documentation.
 export abstract class PgColumn<
-	T extends ColumnBaseConfig<ColumnDataType> = ColumnBaseConfig<ColumnDataType>,
+	T extends ColumnBaseConfig<ColumnType> = ColumnBaseConfig<ColumnType>,
 	TRuntimeConfig extends object = {},
 > extends Column<T, TRuntimeConfig> {
 	static override readonly [entityKind]: string = 'PgColumn';
+
+	override readonly dialect = 'pg';
 
 	/** @internal */
 	override readonly table: PgTable;
@@ -144,7 +146,7 @@ export abstract class PgColumn<
 export type IndexedExtraConfigType = { order?: 'asc' | 'desc'; nulls?: 'first' | 'last'; opClass?: string };
 
 export class ExtraConfigColumn<
-	T extends ColumnBaseConfig<ColumnDataType> = ColumnBaseConfig<ColumnDataType>,
+	T extends ColumnBaseConfig<ColumnType> = ColumnBaseConfig<ColumnType>,
 > extends PgColumn<T, IndexedExtraConfigType> {
 	static override readonly [entityKind]: string = 'ExtraConfigColumn';
 
@@ -238,18 +240,18 @@ export class IndexedColumn {
 	indexConfig: IndexedExtraConfigType;
 }
 
-export type AnyPgColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType>> = {}> = PgColumn<
-	Required<Update<ColumnBaseConfig<ColumnDataType>, TPartial>>
+export type AnyPgColumn<TPartial extends Partial<ColumnBaseConfig<ColumnType>> = {}> = PgColumn<
+	Required<Update<ColumnBaseConfig<ColumnType>, TPartial>>
 >;
 
 export type PgArrayColumnBuilderBaseConfig = ColumnBuilderBaseConfig<'array'> & {
 	size: number | undefined;
-	baseBuilder: ColumnBuilderBaseConfig<ColumnDataType>;
+	baseBuilder: ColumnBuilderBaseConfig<ColumnType>;
 };
 
 export class PgArrayBuilder<
 	T extends PgArrayColumnBuilderBaseConfig,
-	TBase extends ColumnBuilderBaseConfig<ColumnDataType> | PgArrayColumnBuilderBaseConfig,
+	TBase extends ColumnBuilderBaseConfig<ColumnType> | PgArrayColumnBuilderBaseConfig,
 > extends PgColumnBuilder<
 	T & {
 		baseBuilder: TBase extends PgArrayColumnBuilderBaseConfig ? PgArrayBuilder<
@@ -296,9 +298,9 @@ export class PgArrayBuilder<
 export class PgArray<
 	T extends ColumnBaseConfig<'array'> & {
 		size: number | undefined;
-		baseBuilder: ColumnBuilderBaseConfig<ColumnDataType>;
+		baseBuilder: ColumnBuilderBaseConfig<ColumnType>;
 	},
-	TBase extends ColumnBuilderBaseConfig<ColumnDataType>,
+	TBase extends ColumnBuilderBaseConfig<ColumnType>,
 > extends PgColumn<T, {}> {
 	readonly size: T['size'];
 

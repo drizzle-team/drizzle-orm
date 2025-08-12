@@ -5,7 +5,7 @@ import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export class MySqlYearBuilder extends MySqlColumnBuilder<{
 	name: string;
-	dataType: 'number';
+	dataType: 'number year';
 	data: number;
 	driverParam: number;
 	enumValues: undefined;
@@ -13,7 +13,7 @@ export class MySqlYearBuilder extends MySqlColumnBuilder<{
 	static override readonly [entityKind]: string = 'MySqlYearBuilder';
 
 	constructor(name: string) {
-		super(name, 'number', 'MySqlYear');
+		super(name, 'number year', 'MySqlYear');
 	}
 
 	/** @internal */
@@ -23,7 +23,7 @@ export class MySqlYearBuilder extends MySqlColumnBuilder<{
 }
 
 export class MySqlYear<
-	T extends ColumnBaseConfig<'number'>,
+	T extends ColumnBaseConfig<'number year'>,
 > extends MySqlColumn<T> {
 	static override readonly [entityKind]: string = 'MySqlYear';
 

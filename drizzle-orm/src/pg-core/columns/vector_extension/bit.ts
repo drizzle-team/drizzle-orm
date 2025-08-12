@@ -7,7 +7,7 @@ import { PgColumn, PgColumnBuilder } from '../common.ts';
 export class PgBinaryVectorBuilder<TDimensions extends number> extends PgColumnBuilder<
 	{
 		name: string;
-		dataType: 'string';
+		dataType: 'string binary';
 		data: string;
 		driverParam: string;
 		enumValues: undefined;
@@ -18,7 +18,7 @@ export class PgBinaryVectorBuilder<TDimensions extends number> extends PgColumnB
 	static override readonly [entityKind]: string = 'PgBinaryVectorBuilder';
 
 	constructor(name: string, config: PgBinaryVectorConfig<TDimensions>) {
-		super(name, 'string', 'PgBinaryVector');
+		super(name, 'string binary', 'PgBinaryVector');
 		this.config.dimensions = config.dimensions;
 	}
 
@@ -31,7 +31,7 @@ export class PgBinaryVectorBuilder<TDimensions extends number> extends PgColumnB
 	}
 }
 
-export class PgBinaryVector<T extends ColumnBaseConfig<'string'> & { dimensions: number }>
+export class PgBinaryVector<T extends ColumnBaseConfig<'string binary'> & { dimensions: number }>
 	extends PgColumn<T, { dimensions: T['dimensions'] }>
 {
 	static override readonly [entityKind]: string = 'PgBinaryVector';

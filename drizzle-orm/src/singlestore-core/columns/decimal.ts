@@ -6,16 +6,15 @@ import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoInc
 
 export class SingleStoreDecimalBuilder extends SingleStoreColumnBuilderWithAutoIncrement<{
 	name: string;
-	dataType: 'string';
+	dataType: 'string numeric';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
-	generated: undefined;
 }, SingleStoreDecimalConfig> {
 	static override readonly [entityKind]: string = 'SingleStoreDecimalBuilder';
 
 	constructor(name: string, config: SingleStoreDecimalConfig | undefined) {
-		super(name, 'string', 'SingleStoreDecimal');
+		super(name, 'string numeric', 'SingleStoreDecimal');
 		this.config.precision = config?.precision;
 		this.config.scale = config?.scale;
 		this.config.unsigned = config?.unsigned;
@@ -30,7 +29,7 @@ export class SingleStoreDecimalBuilder extends SingleStoreColumnBuilderWithAutoI
 	}
 }
 
-export class SingleStoreDecimal<T extends ColumnBaseConfig<'string'>>
+export class SingleStoreDecimal<T extends ColumnBaseConfig<'string numeric'>>
 	extends SingleStoreColumnWithAutoIncrement<T, SingleStoreDecimalConfig>
 {
 	static override readonly [entityKind]: string = 'SingleStoreDecimal';
@@ -66,7 +65,6 @@ export class SingleStoreDecimalNumberBuilder extends SingleStoreColumnBuilderWit
 	data: number;
 	driverParam: string;
 	enumValues: undefined;
-	generated: undefined;
 }, SingleStoreDecimalConfig> {
 	static override readonly [entityKind]: string = 'SingleStoreDecimalNumberBuilder';
 
@@ -123,7 +121,6 @@ export class SingleStoreDecimalBigIntBuilder extends SingleStoreColumnBuilderWit
 	data: bigint;
 	driverParam: string;
 	enumValues: undefined;
-	generated: undefined;
 }, SingleStoreDecimalConfig> {
 	static override readonly [entityKind]: string = 'SingleStoreDecimalBigIntBuilder';
 

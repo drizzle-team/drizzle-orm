@@ -2,8 +2,9 @@ import type {
 	ColumnBuilderBaseConfig,
 	ColumnBuilderExtraConfig,
 	ColumnBuilderRuntimeConfig,
-	ColumnDataType,
+	ColumnType,
 	HasDefault,
+	HasGenerated,
 	IsAutoincrement,
 } from '~/column-builder.ts';
 import { ColumnBuilder } from '~/column-builder.ts';
@@ -22,7 +23,7 @@ export interface SingleStoreGeneratedColumnConfig {
 }
 
 export abstract class SingleStoreColumnBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnDataType> = ColumnBuilderBaseConfig<ColumnDataType> & {
+	T extends ColumnBuilderBaseConfig<ColumnType> = ColumnBuilderBaseConfig<ColumnType> & {
 		data: any;
 	},
 	TRuntimeConfig extends object = object,
@@ -37,8 +38,10 @@ export abstract class SingleStoreColumnBuilder<
 	}
 
 	// TODO: Implement generated columns for SingleStore (https://docs.singlestore.com/cloud/create-a-database/using-persistent-computed-columns/)
-	/** @internal */
-	generatedAlwaysAs(as: SQL | T['data'] | (() => SQL), config?: SingleStoreGeneratedColumnConfig) {
+	generatedAlwaysAs(
+		as: SQL | (() => SQL) | this['_']['data'],
+		config?: SingleStoreGeneratedColumnConfig,
+	): HasGenerated<this, { type: 'always' }> {
 		this.config.generated = {
 			as,
 			type: 'always',
@@ -53,10 +56,12 @@ export abstract class SingleStoreColumnBuilder<
 
 // To understand how to use `SingleStoreColumn` and `AnySingleStoreColumn`, see `Column` and `AnyColumn` documentation.
 export abstract class SingleStoreColumn<
-	T extends ColumnBaseConfig<ColumnDataType> = ColumnBaseConfig<ColumnDataType>,
+	T extends ColumnBaseConfig<ColumnType> = ColumnBaseConfig<ColumnType>,
 	TRuntimeConfig extends object = {},
 > extends Column<T, TRuntimeConfig> {
 	static override readonly [entityKind]: string = 'SingleStoreColumn';
+
+	override readonly dialect = 'singlestore';
 
 	/** @internal */
 	override readonly table: SingleStoreTable;
@@ -73,8 +78,8 @@ export abstract class SingleStoreColumn<
 	}
 }
 
-export type AnySingleStoreColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType>> = {}> = SingleStoreColumn<
-	Required<Update<ColumnBaseConfig<ColumnDataType>, TPartial>>
+export type AnySingleStoreColumn<TPartial extends Partial<ColumnBaseConfig<ColumnType>> = {}> = SingleStoreColumn<
+	Required<Update<ColumnBaseConfig<ColumnType>, TPartial>>
 >;
 
 export interface SingleStoreColumnWithAutoIncrementConfig {
@@ -82,7 +87,7 @@ export interface SingleStoreColumnWithAutoIncrementConfig {
 }
 
 export abstract class SingleStoreColumnBuilderWithAutoIncrement<
-	T extends ColumnBuilderBaseConfig<ColumnDataType> = ColumnBuilderBaseConfig<ColumnDataType>,
+	T extends ColumnBuilderBaseConfig<ColumnType> = ColumnBuilderBaseConfig<ColumnType>,
 	TRuntimeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
 > extends SingleStoreColumnBuilder<T, TRuntimeConfig & SingleStoreColumnWithAutoIncrementConfig, TExtraConfig> {
@@ -101,7 +106,7 @@ export abstract class SingleStoreColumnBuilderWithAutoIncrement<
 }
 
 export abstract class SingleStoreColumnWithAutoIncrement<
-	T extends ColumnBaseConfig<ColumnDataType> = ColumnBaseConfig<ColumnDataType>,
+	T extends ColumnBaseConfig<ColumnType> = ColumnBaseConfig<ColumnType>,
 	TRuntimeConfig extends object = object,
 > extends SingleStoreColumn<T, SingleStoreColumnWithAutoIncrementConfig & TRuntimeConfig> {
 	static override readonly [entityKind]: string = 'SingleStoreColumnWithAutoIncrement';

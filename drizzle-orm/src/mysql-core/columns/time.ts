@@ -7,7 +7,7 @@ import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 export class MySqlTimeBuilder extends MySqlColumnBuilder<
 	{
 		name: string;
-		dataType: 'string';
+		dataType: 'string time';
 		data: string;
 		driverParam: string | number;
 		enumValues: undefined;
@@ -20,7 +20,7 @@ export class MySqlTimeBuilder extends MySqlColumnBuilder<
 		name: string,
 		config: TimeConfig | undefined,
 	) {
-		super(name, 'string', 'MySqlTime');
+		super(name, 'string time', 'MySqlTime');
 		this.config.fsp = config?.fsp;
 	}
 
@@ -31,7 +31,7 @@ export class MySqlTimeBuilder extends MySqlColumnBuilder<
 }
 
 export class MySqlTime<
-	T extends ColumnBaseConfig<'string'>,
+	T extends ColumnBaseConfig<'string time'>,
 > extends MySqlColumn<T, TimeConfig> {
 	static override readonly [entityKind]: string = 'MySqlTime';
 

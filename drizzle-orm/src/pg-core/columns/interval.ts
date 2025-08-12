@@ -7,7 +7,7 @@ import type { Precision } from './timestamp.ts';
 
 export class PgIntervalBuilder extends PgColumnBuilder<{
 	name: string;
-	dataType: 'string';
+	dataType: 'string interval';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
@@ -18,7 +18,7 @@ export class PgIntervalBuilder extends PgColumnBuilder<{
 		name: string,
 		intervalConfig: IntervalConfig,
 	) {
-		super(name, 'string', 'PgInterval');
+		super(name, 'string interval', 'PgInterval');
 		this.config.intervalConfig = intervalConfig;
 	}
 
@@ -28,7 +28,9 @@ export class PgIntervalBuilder extends PgColumnBuilder<{
 	}
 }
 
-export class PgInterval<T extends ColumnBaseConfig<'string'>> extends PgColumn<T, { intervalConfig: IntervalConfig }> {
+export class PgInterval<T extends ColumnBaseConfig<'string interval'>>
+	extends PgColumn<T, { intervalConfig: IntervalConfig }>
+{
 	static override readonly [entityKind]: string = 'PgInterval';
 
 	readonly fields: IntervalConfig['fields'] = this.config.intervalConfig.fields;

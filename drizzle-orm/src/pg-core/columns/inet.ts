@@ -5,7 +5,7 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export class PgInetBuilder extends PgColumnBuilder<{
 	name: string;
-	dataType: 'string';
+	dataType: 'string inet';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
@@ -13,7 +13,7 @@ export class PgInetBuilder extends PgColumnBuilder<{
 	static override readonly [entityKind]: string = 'PgInetBuilder';
 
 	constructor(name: string) {
-		super(name, 'string', 'PgInet');
+		super(name, 'string inet', 'PgInet');
 	}
 
 	/** @internal */
@@ -22,7 +22,7 @@ export class PgInetBuilder extends PgColumnBuilder<{
 	}
 }
 
-export class PgInet<T extends ColumnBaseConfig<'string'>> extends PgColumn<T> {
+export class PgInet<T extends ColumnBaseConfig<'string inet'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgInet';
 
 	getSQLType(): string {

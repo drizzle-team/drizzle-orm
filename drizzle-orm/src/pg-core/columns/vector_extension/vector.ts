@@ -7,7 +7,7 @@ import { PgColumn, PgColumnBuilder } from '../common.ts';
 export class PgVectorBuilder<TDimensions extends number> extends PgColumnBuilder<
 	{
 		name: string;
-		dataType: 'array';
+		dataType: 'vector';
 		data: number[];
 		driverParam: string;
 		enumValues: undefined;
@@ -18,7 +18,7 @@ export class PgVectorBuilder<TDimensions extends number> extends PgColumnBuilder
 	static override readonly [entityKind]: string = 'PgVectorBuilder';
 
 	constructor(name: string, config: PgVectorConfig<TDimensions>) {
-		super(name, 'array', 'PgVector');
+		super(name, 'vector', 'PgVector');
 		this.config.dimensions = config.dimensions;
 	}
 
@@ -31,7 +31,7 @@ export class PgVectorBuilder<TDimensions extends number> extends PgColumnBuilder
 	}
 }
 
-export class PgVector<T extends ColumnBaseConfig<'array'> & { dimensions: number | undefined }>
+export class PgVector<T extends ColumnBaseConfig<'vector'> & { dimensions: number | undefined }>
 	extends PgColumn<T, { dimensions: T['dimensions'] }>
 {
 	static override readonly [entityKind]: string = 'PgVector';

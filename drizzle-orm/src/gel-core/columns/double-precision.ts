@@ -5,7 +5,7 @@ import { GelColumn, GelColumnBuilder } from './common.ts';
 
 export class GelDoublePrecisionBuilder extends GelColumnBuilder<{
 	name: string;
-	dataType: 'number';
+	dataType: 'number double';
 	data: number;
 	driverParam: number;
 	enumValues: undefined;
@@ -13,7 +13,7 @@ export class GelDoublePrecisionBuilder extends GelColumnBuilder<{
 	static override readonly [entityKind]: string = 'GelDoublePrecisionBuilder';
 
 	constructor(name: string) {
-		super(name, 'number', 'GelDoublePrecision');
+		super(name, 'number double', 'GelDoublePrecision');
 	}
 
 	/** @internal */
@@ -25,7 +25,7 @@ export class GelDoublePrecisionBuilder extends GelColumnBuilder<{
 	}
 }
 
-export class GelDoublePrecision<T extends ColumnBaseConfig<'number'>> extends GelColumn<T> {
+export class GelDoublePrecision<T extends ColumnBaseConfig<'number double'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelDoublePrecision';
 
 	getSQLType(): string {

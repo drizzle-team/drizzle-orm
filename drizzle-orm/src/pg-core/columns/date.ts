@@ -42,7 +42,7 @@ export class PgDate<T extends ColumnBaseConfig<'date'>> extends PgColumn<T> {
 
 export class PgDateStringBuilder extends PgDateColumnBaseBuilder<{
 	name: string;
-	dataType: 'string';
+	dataType: 'string date';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
@@ -50,7 +50,7 @@ export class PgDateStringBuilder extends PgDateColumnBaseBuilder<{
 	static override readonly [entityKind]: string = 'PgDateStringBuilder';
 
 	constructor(name: string) {
-		super(name, 'string', 'PgDateString');
+		super(name, 'string date', 'PgDateString');
 	}
 
 	/** @internal */
@@ -62,7 +62,7 @@ export class PgDateStringBuilder extends PgDateColumnBaseBuilder<{
 	}
 }
 
-export class PgDateString<T extends ColumnBaseConfig<'string'>> extends PgColumn<T> {
+export class PgDateString<T extends ColumnBaseConfig<'string date'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgDateString';
 
 	getSQLType(): string {

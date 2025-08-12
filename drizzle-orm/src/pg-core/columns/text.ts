@@ -1,12 +1,12 @@
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { PgTable } from '~/pg-core/table.ts';
-import { getColumnNameAndConfig, type Writable } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export class PgTextBuilder<TEnum extends [string, ...string[]] = [string, ...string[]]> extends PgColumnBuilder<{
 	name: string;
-	dataType: 'string';
+	dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'enum';
 	data: TEnum[number];
 	enumValues: TEnum;
 	driverParam: string;
@@ -17,17 +17,17 @@ export class PgTextBuilder<TEnum extends [string, ...string[]] = [string, ...str
 		name: string,
 		config: PgTextConfig<TEnum>,
 	) {
-		super(name, 'string', 'PgText');
+		super(name, config.enum?.length ? 'enum' : 'string', 'PgText');
 		this.config.enumValues = config.enum;
 	}
 
 	/** @internal */
 	override build(table: PgTable<any>) {
-		return new PgText(table, this.config as any);
+		return new PgText(table, this.config as any, this.config.enumValues);
 	}
 }
 
-export class PgText extends PgColumn<ColumnBaseConfig<'string'>> {
+export class PgText extends PgColumn<ColumnBaseConfig<'string' | 'enum'>> {
 	static override readonly [entityKind]: string = 'PgText';
 	override readonly enumValues;
 

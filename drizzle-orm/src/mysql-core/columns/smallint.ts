@@ -7,7 +7,7 @@ import type { MySqlIntConfig } from './int.ts';
 
 export class MySqlSmallIntBuilder extends MySqlColumnBuilderWithAutoIncrement<{
 	name: string;
-	dataType: 'number';
+	dataType: 'number smallint';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
@@ -15,7 +15,7 @@ export class MySqlSmallIntBuilder extends MySqlColumnBuilderWithAutoIncrement<{
 	static override readonly [entityKind]: string = 'MySqlSmallIntBuilder';
 
 	constructor(name: string, config?: MySqlIntConfig) {
-		super(name, 'number', 'MySqlSmallInt');
+		super(name, 'number smallint', 'MySqlSmallInt');
 		this.config.unsigned = config ? config.unsigned : false;
 	}
 
@@ -28,7 +28,7 @@ export class MySqlSmallIntBuilder extends MySqlColumnBuilderWithAutoIncrement<{
 	}
 }
 
-export class MySqlSmallInt<T extends ColumnBaseConfig<'number'>>
+export class MySqlSmallInt<T extends ColumnBaseConfig<'number smallint'>>
 	extends MySqlColumnWithAutoIncrement<T, MySqlIntConfig>
 {
 	static override readonly [entityKind]: string = 'MySqlSmallInt';

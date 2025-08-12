@@ -5,7 +5,7 @@ import { GelColumn, GelColumnBuilder } from './common.ts';
 
 export class GelUUIDBuilder extends GelColumnBuilder<{
 	name: string;
-	dataType: 'string';
+	dataType: 'string uuid';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
@@ -13,7 +13,7 @@ export class GelUUIDBuilder extends GelColumnBuilder<{
 	static override readonly [entityKind]: string = 'GelUUIDBuilder';
 
 	constructor(name: string) {
-		super(name, 'string', 'GelUUID');
+		super(name, 'string uuid', 'GelUUID');
 	}
 
 	/** @internal */
@@ -22,7 +22,7 @@ export class GelUUIDBuilder extends GelColumnBuilder<{
 	}
 }
 
-export class GelUUID<T extends ColumnBaseConfig<'string'>> extends GelColumn<T> {
+export class GelUUID<T extends ColumnBaseConfig<'string uuid'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelUUID';
 
 	getSQLType(): string {

@@ -1,4 +1,4 @@
-import type { ColumnBuilderBaseConfig, ColumnDataType, HasDefault, IsPrimaryKey, NotNull } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, ColumnType, HasDefault, IsPrimaryKey, NotNull } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { sql } from '~/sql/sql.ts';
@@ -13,7 +13,7 @@ export interface PrimaryKeyConfig {
 }
 
 export abstract class SQLiteBaseIntegerBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnDataType>,
+	T extends ColumnBuilderBaseConfig<ColumnType>,
 	TRuntimeConfig extends object = object,
 > extends SQLiteColumnBuilder<
 	T,
@@ -37,7 +37,7 @@ export abstract class SQLiteBaseIntegerBuilder<
 }
 
 export abstract class SQLiteBaseInteger<
-	T extends ColumnBaseConfig<ColumnDataType>,
+	T extends ColumnBaseConfig<ColumnType>,
 	TRuntimeConfig extends object = object,
 > extends SQLiteColumn<T, TRuntimeConfig & { autoIncrement: boolean }> {
 	static override readonly [entityKind]: string = 'SQLiteBaseInteger';
@@ -51,7 +51,7 @@ export abstract class SQLiteBaseInteger<
 
 export class SQLiteIntegerBuilder extends SQLiteBaseIntegerBuilder<{
 	name: string;
-	dataType: 'number';
+	dataType: 'number integer';
 	data: number;
 	driverParam: number;
 	enumValues: undefined;
@@ -59,7 +59,7 @@ export class SQLiteIntegerBuilder extends SQLiteBaseIntegerBuilder<{
 	static override readonly [entityKind]: string = 'SQLiteIntegerBuilder';
 
 	constructor(name: string) {
-		super(name, 'number', 'SQLiteInteger');
+		super(name, 'number integer', 'SQLiteInteger');
 	}
 
 	override build(table: SQLiteTable) {
@@ -70,7 +70,7 @@ export class SQLiteIntegerBuilder extends SQLiteBaseIntegerBuilder<{
 	}
 }
 
-export class SQLiteInteger<T extends ColumnBaseConfig<'number'>> extends SQLiteBaseInteger<T> {
+export class SQLiteInteger<T extends ColumnBaseConfig<'number integer'>> extends SQLiteBaseInteger<T> {
 	static override readonly [entityKind]: string = 'SQLiteInteger';
 }
 

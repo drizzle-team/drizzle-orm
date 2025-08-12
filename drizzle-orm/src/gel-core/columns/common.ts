@@ -2,7 +2,7 @@ import type {
 	ColumnBuilderBaseConfig,
 	ColumnBuilderExtraConfig,
 	ColumnBuilderRuntimeConfig,
-	ColumnDataType,
+	ColumnType,
 	HasGenerated,
 } from '~/column-builder.ts';
 import { ColumnBuilder } from '~/column-builder.ts';
@@ -30,7 +30,7 @@ export interface ReferenceConfig {
 }
 
 export abstract class GelColumnBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnDataType> = ColumnBuilderBaseConfig<ColumnDataType>,
+	T extends ColumnBuilderBaseConfig<ColumnType> = ColumnBuilderBaseConfig<ColumnType>,
 	TRuntimeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
 > extends ColumnBuilder<T, TRuntimeConfig, TExtraConfig> {
@@ -122,10 +122,12 @@ export abstract class GelColumnBuilder<
 
 // To understand how to use `GelColumn` and `GelColumn`, see `Column` and `AnyColumn` documentation.
 export abstract class GelColumn<
-	T extends ColumnBaseConfig<ColumnDataType> = ColumnBaseConfig<ColumnDataType>,
+	T extends ColumnBaseConfig<ColumnType> = ColumnBaseConfig<ColumnType>,
 	TRuntimeConfig extends object = {},
 > extends Column<T, TRuntimeConfig> {
 	static override readonly [entityKind]: string = 'GelColumn';
+
+	override readonly dialect = 'gel';
 
 	/** @internal */
 	override readonly table: GelTable;
@@ -145,7 +147,7 @@ export abstract class GelColumn<
 export type IndexedExtraConfigType = { order?: 'asc' | 'desc'; nulls?: 'first' | 'last'; opClass?: string };
 
 export class GelExtraConfigColumn<
-	T extends ColumnBaseConfig<ColumnDataType> = ColumnBaseConfig<ColumnDataType>,
+	T extends ColumnBaseConfig<ColumnType> = ColumnBaseConfig<ColumnType>,
 > extends GelColumn<T, IndexedExtraConfigType> {
 	static override readonly [entityKind]: string = 'GelExtraConfigColumn';
 
@@ -239,18 +241,18 @@ export class IndexedColumn {
 	indexConfig: IndexedExtraConfigType;
 }
 
-export type AnyGelColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType>> = {}> = GelColumn<
-	Required<Update<ColumnBaseConfig<ColumnDataType>, TPartial>>
+export type AnyGelColumn<TPartial extends Partial<ColumnBaseConfig<ColumnType>> = {}> = GelColumn<
+	Required<Update<ColumnBaseConfig<ColumnType>, TPartial>>
 >;
 
 export type GelArrayColumnBuilderBaseConfig = ColumnBuilderBaseConfig<'array'> & {
 	size: number | undefined;
-	baseBuilder: ColumnBuilderBaseConfig<ColumnDataType>;
+	baseBuilder: ColumnBuilderBaseConfig<ColumnType>;
 };
 
 export class GelArrayBuilder<
 	T extends GelArrayColumnBuilderBaseConfig,
-	TBase extends ColumnBuilderBaseConfig<ColumnDataType> | GelArrayColumnBuilderBaseConfig,
+	TBase extends ColumnBuilderBaseConfig<ColumnType> | GelArrayColumnBuilderBaseConfig,
 > extends GelColumnBuilder<
 	T & {
 		baseBuilder: TBase extends GelArrayColumnBuilderBaseConfig ? GelArrayBuilder<
@@ -298,9 +300,9 @@ export class GelArrayBuilder<
 export class GelArray<
 	T extends ColumnBaseConfig<'array'> & {
 		size: number | undefined;
-		baseBuilder: ColumnBuilderBaseConfig<ColumnDataType>;
+		baseBuilder: ColumnBuilderBaseConfig<ColumnType>;
 	},
-	TBase extends ColumnBuilderBaseConfig<ColumnDataType>,
+	TBase extends ColumnBuilderBaseConfig<ColumnType>,
 > extends GelColumn<T, {}> {
 	readonly size: T['size'];
 

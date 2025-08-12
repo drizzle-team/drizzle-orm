@@ -5,7 +5,7 @@ import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } fro
 
 export class MySqlSerialBuilder extends MySqlColumnBuilderWithAutoIncrement<{
 	name: string;
-	dataType: 'number';
+	dataType: 'number uint';
 	data: number;
 	driverParam: number;
 	enumValues: undefined;
@@ -17,7 +17,7 @@ export class MySqlSerialBuilder extends MySqlColumnBuilderWithAutoIncrement<{
 	static override readonly [entityKind]: string = 'MySqlSerialBuilder';
 
 	constructor(name: string) {
-		super(name, 'number', 'MySqlSerial');
+		super(name, 'number uint', 'MySqlSerial');
 		this.config.hasDefault = true;
 		this.config.autoIncrement = true;
 	}
@@ -29,7 +29,7 @@ export class MySqlSerialBuilder extends MySqlColumnBuilderWithAutoIncrement<{
 }
 
 export class MySqlSerial<
-	T extends ColumnBaseConfig<'number'>,
+	T extends ColumnBaseConfig<'number uint'>,
 > extends MySqlColumnWithAutoIncrement<T> {
 	static override readonly [entityKind]: string = 'MySqlSerial';
 
