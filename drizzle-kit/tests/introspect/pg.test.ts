@@ -1172,12 +1172,14 @@ test('verify that keys are generated in alphabetical order by name but columns a
 
 	expect(statements).toStrictEqual([]);
 	expect(sqlStatements.length).toBe(0);
-	if (!file) {
-		throw new Error('File is missing');
+	if (!schemaTypescriptFile || !relationsTypescriptFile) {
+		throw new Error(
+			`File is missing. relationsTypescriptFile: ${relationsTypescriptFile}, schemaTypescriptFile: ${schemaTypescriptFile}`,
+		);
 	}
 
-	const declarations = file.declarations.replace(/^[\t ]+/mg, '').replace(/ {2}/g, ' ').trim();
-	const expectedCode = `export const child = pgTable("child", {
+	const schemaDeclarations = schemaTypescriptFile.declarations.replace(/^[\t ]+/mg, '').replace(/ {2}/g, ' ').trim();
+	const expectedSchemaDeclarations = `export const child = pgTable("child", {
 key1: integer().notNull(),
 key2: integer().notNull(),
 keyA: integer().notNull(),
@@ -1216,5 +1218,35 @@ primaryKey({ columns: [table.key5, table.key6], name: "parent2_pkey"}),
 	// This is a crude comparison, but it provides all the assertions needed for the test. The tables, columns and policies are alphabetized
 	// and importantly the policies' full `using` and `withCheck` properties are populated. In an attempt to prevent this from failing if there are
 	// whitespace changes in the generator, both strings have all double spaces removed and are trimmed. The generated code has leading whitespace removed.
-	expect(declarations).toEqual(expectedCode);
+	expect(schemaDeclarations).toEqual(expectedSchemaDeclarations);
+
+	// And then do similar with the relations
+	const relationsDeclarations = relationsTypescriptFile.file.replace(/^[\t ]+/mg, '').replace(/ {2}/g, ' ')
+		.trim();
+	const expectedRelationsDeclarations = `import { relations } from "drizzle-orm/relations";
+import { child, parent1, parent2 } from "./schema";
+
+export const childRelations = relations(child, ({one}) => ({
+parent1: one(parent1, {
+fields: [child.key2, child.key1],
+references: [parent1.key4, parent1.key3]
+}),
+parent2: one(parent2, {
+fields: [child.key2, child.key1],
+references: [parent2.key5, parent2.key6]
+}),
+}));
+
+export const parent1Relations = relations(parent1, ({many}) => ({
+children: many(child),
+}));
+
+export const parent2Relations = relations(parent2, ({many}) => ({
+children: many(child),
+}));`.replace(/ {2}/g, ' ').trim();
+
+	// This is a crude comparison, but it provides all the assertions needed for the test. The tables, columns and policies are alphabetized
+	// and importantly the policies' full `using` and `withCheck` properties are populated. In an attempt to prevent this from failing if there are
+	// whitespace changes in the generator, both strings have all double spaces removed and are trimmed. The generated code has leading whitespace removed.
+	expect(relationsDeclarations).toEqual(expectedRelationsDeclarations);
 });
