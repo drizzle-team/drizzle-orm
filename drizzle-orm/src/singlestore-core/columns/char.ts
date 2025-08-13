@@ -10,7 +10,7 @@ export class SingleStoreCharBuilder<
 > extends SingleStoreColumnBuilder<
 	{
 		name: string;
-		dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'enum';
+		dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string char' : 'enum';
 		data: TEnum[number];
 		driverParam: number | string;
 		enumValues: TEnum;
@@ -22,7 +22,7 @@ export class SingleStoreCharBuilder<
 	static override readonly [entityKind]: string = 'SingleStoreCharBuilder';
 
 	constructor(name: string, config: SingleStoreCharConfig<TEnum, TLength>) {
-		super(name, config.enum?.length ? 'enum' : 'string', 'SingleStoreChar');
+		super(name, config.enum?.length ? 'enum' : 'string char', 'SingleStoreChar');
 		this.config.length = config.length;
 		this.config.enum = config.enum;
 	}
@@ -36,7 +36,7 @@ export class SingleStoreCharBuilder<
 	}
 }
 
-export class SingleStoreChar<T extends ColumnBaseConfig<'string' | 'enum'> & { length?: number | undefined }>
+export class SingleStoreChar<T extends ColumnBaseConfig<'string char' | 'enum'> & { length?: number | undefined }>
 	extends SingleStoreColumn<T, SingleStoreCharConfig<T['enumValues'], T['length']>>
 {
 	static override readonly [entityKind]: string = 'SingleStoreChar';

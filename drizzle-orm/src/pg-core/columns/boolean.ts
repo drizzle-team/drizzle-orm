@@ -22,7 +22,7 @@ export class PgBooleanBuilder extends PgColumnBuilder<{
 	}
 }
 
-export class PgBoolean extends PgColumn<ColumnBaseConfig<'boolean'>> {
+export class PgBoolean<T extends ColumnBaseConfig<'boolean'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgBoolean';
 
 	getSQLType(): string {

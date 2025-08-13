@@ -10,60 +10,63 @@ import type { Assume } from './utils.ts';
 
 export type ColumnDataType =
 	// Primitives
-	| 'string'
+	| 'bigint'
+	| 'boolean'
 	| 'enum'
 	| 'number'
-	| 'boolean'
-	| 'bigint'
+	| 'string'
 	// Classes
 	| 'buffer'
 	| 'date'
 	// Objects
-	| 'json'
 	| 'geoObject'
 	| 'geoTuple'
-	| 'pointTuple'
-	| 'pointObject'
-	| 'lineTuple'
+	| 'json'
 	| 'lineABC'
+	| 'lineTuple'
+	| 'pointObject'
+	| 'pointTuple'
 	| 'vector'
 	// External classes
-	| 'relDuration'
 	| 'dateDuration'
-	| 'localTime'
+	| 'duration'
 	| 'localDate'
 	| 'localDateTime'
-	| 'duration'
+	| 'localTime'
+	| 'relDuration'
 	// Special cases
 	| 'array'
 	| 'custom';
 
 export type ColumnDataConstraint =
 	// number
+	| 'double'
+	| 'float'
 	| 'integer'
-	| 'tinyint'
-	| 'smallint'
 	| 'mediumint'
 	| 'real'
-	| 'float'
-	| 'double'
+	| 'smallint'
+	| 'tinyint'
 	| 'uint'
 	| 'year'
 	// string
-	| 'numeric'
+	| 'binary'
+	| 'char'
 	| 'cidr'
+	| 'date'
+	| 'datetime'
 	| 'inet'
 	| 'interval'
 	| 'macaddr'
 	| 'macaddr8'
 	| 'numeric'
-	| 'uuid'
-	| 'binary'
-	| 'date'
-	| 'datetime'
+	| 'numeric'
 	| 'sparsevec'
-	| 'timestamp'
+	| 'text'
 	| 'time'
+	| 'timestamp'
+	| 'uuid'
+	| 'varchar'
 	// vector
 	| 'halfvec';
 
@@ -79,6 +82,7 @@ export type ColumnType =
 	| 'number uint'
 	| 'number year'
 	| 'string binary'
+	| 'string char'
 	| 'string cidr'
 	| 'string date'
 	| 'string datetime'
@@ -88,9 +92,11 @@ export type ColumnType =
 	| 'string macaddr8'
 	| 'string numeric'
 	| 'string sparsevec'
+	| 'string text'
 	| 'string time'
 	| 'string timestamp'
 	| 'string uuid'
+	| 'string varchar'
 	| 'vector halfvec';
 
 export interface ColumnTypeData<

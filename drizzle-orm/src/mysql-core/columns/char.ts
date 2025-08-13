@@ -10,7 +10,7 @@ export class MySqlCharBuilder<
 > extends MySqlColumnBuilder<
 	{
 		name: string;
-		dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'enum';
+		dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string char' : 'enum';
 		data: TEnum[number];
 		driverParam: number | string;
 		enumValues: TEnum;
@@ -21,7 +21,7 @@ export class MySqlCharBuilder<
 	static override readonly [entityKind]: string = 'MySqlCharBuilder';
 
 	constructor(name: string, config: MySqlCharConfig<TEnum, TLength>) {
-		super(name, config.enum?.length ? 'enum' : 'string', 'MySqlChar');
+		super(name, config.enum?.length ? 'enum' : 'string char', 'MySqlChar');
 		this.config.length = config.length;
 		this.config.enum = config.enum;
 	}
@@ -35,7 +35,7 @@ export class MySqlCharBuilder<
 	}
 }
 
-export class MySqlChar<T extends ColumnBaseConfig<'string' | 'enum'> & { length?: number | undefined }>
+export class MySqlChar<T extends ColumnBaseConfig<'string char' | 'enum'> & { length?: number | undefined }>
 	extends MySqlColumn<T, MySqlCharConfig<T['enumValues'], T['length']>>
 {
 	static override readonly [entityKind]: string = 'MySqlChar';
