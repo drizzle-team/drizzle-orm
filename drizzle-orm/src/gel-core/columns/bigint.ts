@@ -23,7 +23,7 @@ export class GelInt53Builder extends GelIntColumnBaseBuilder<{
 	}
 }
 
-export class GelInt53 extends GelColumn<ColumnBaseConfig<'number integer'>> {
+export class GelInt53<T extends ColumnBaseConfig<'number integer'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelInt53';
 
 	getSQLType(): string {

@@ -22,7 +22,7 @@ export class PgByteaBuilder extends PgColumnBuilder<{
 	}
 }
 
-export class PgBytea extends PgColumn<ColumnBaseConfig<'buffer'>> {
+export class PgBytea<T extends ColumnBaseConfig<'buffer'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgBytea';
 
 	override mapFromDriverValue(value: Buffer | Uint8Array | string): Buffer {

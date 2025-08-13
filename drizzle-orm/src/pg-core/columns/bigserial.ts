@@ -30,7 +30,7 @@ export class PgBigSerial53Builder extends PgColumnBuilder<{
 	}
 }
 
-export class PgBigSerial53 extends PgColumn<ColumnBaseConfig<'number integer'>> {
+export class PgBigSerial53<T extends ColumnBaseConfig<'number integer'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgBigSerial53';
 
 	getSQLType(): string {
