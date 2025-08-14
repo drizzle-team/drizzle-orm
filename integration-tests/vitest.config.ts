@@ -66,6 +66,7 @@ export default defineConfig({
 			'js-tests/driver-init/module/planetscale.test.mjs',
 			'js-tests/driver-init/module/planetscale.test.cjs',
 			'js-tests/driver-init/commonjs/planetscale.test.cjs',
+			'tests/seeder',
 		],
 		typecheck: {
 			tsconfig: 'tsconfig.json',
