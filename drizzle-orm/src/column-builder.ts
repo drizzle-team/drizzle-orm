@@ -163,6 +163,9 @@ export type MakeColumnConfig<
 	isPrimaryKey: T extends { isPrimaryKey: true } ? true : false;
 	isAutoincrement: T extends { isAutoincrement: true } ? true : false;
 	hasRuntimeDefault: T extends { hasRuntimeDefault: true } ? true : false;
+	length: T extends { length: number } ? T['length'] : undefined;
+	size: T extends { size: number } ? T['size'] : undefined;
+	dimensions: T extends { dimensions: number } ? T['dimensions'] : undefined;
 	enumValues: T['enumValues'];
 	baseColumn: T extends { baseBuilder: infer U extends ColumnBuilderBase } ? BuildColumn<TTableName, U, 'common'>
 		: never;

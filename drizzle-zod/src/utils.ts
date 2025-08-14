@@ -3,10 +3,6 @@ import type { PgEnum } from 'drizzle-orm/pg-core';
 import type { z } from 'zod/v4';
 import type { literalSchema } from './column.ts';
 
-export function isColumnType<T extends Column<any>>(column: Column<any>, columnTypes: string[]): column is T {
-	return columnTypes.includes(column.columnType);
-}
-
 export function isWithEnum(column: Column<any>): column is typeof column & { enumValues: [string, ...string[]] } {
 	return 'enumValues' in column && Array.isArray(column.enumValues) && column.enumValues.length > 0;
 }
@@ -15,12 +11,6 @@ export const isPgEnum: (entity: any) => entity is PgEnum<[string, ...string[]]> 
 
 type Literal = z.infer<typeof literalSchema>;
 export type Json = Literal | { [key: string]: any } | any[];
-
-export type IsNever<T> = [T] extends [never] ? true : false;
-
-export type IsEnumDefined<TEnum extends string[] | undefined> = [string, ...string[]] extends TEnum ? false
-	: undefined extends TEnum ? false
-	: true;
 
 export type ColumnIsGeneratedAlwaysAs<TColumn> = TColumn extends Column<any>
 	? TColumn['_']['identity'] extends 'always' ? true
