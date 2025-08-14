@@ -249,14 +249,14 @@ export const relationsToTypeScriptForStudio = (
 					relation.config?.fields.map(
 						(c) =>
 							`${relationsConfig.tableNamesMap[getTableName(relation.sourceTable)].split('.')[1]}.${
-								findColumnKey(relation.sourceTable, c.name)
+								findColumnKey(relation.sourceTable as AnyPgTable, c.name)
 							}`,
 					)
 				}], references: [${
 					relation.config?.references.map(
 						(c) =>
 							`${relationsConfig.tableNamesMap[getTableName(relation.referencedTable)].split('.')[1]}.${
-								findColumnKey(relation.referencedTable, c.name)
+								findColumnKey(relation.referencedTable as AnyPgTable, c.name)
 							}`,
 					)
 				}]${typeof relation.relationName !== 'undefined' ? `, relationName: "${relation.relationName}"` : ''}}),`;

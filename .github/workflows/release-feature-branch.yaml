@@ -23,11 +23,11 @@ jobs:
           - neon-serverless
           - drizzle-orm
           - drizzle-kit
-          # - drizzle-zod
-          # - drizzle-seed
-          # - drizzle-typebox
-          # - drizzle-valibot
-          # - drizzle-arktype
+          - drizzle-zod
+          - drizzle-seed
+          - drizzle-typebox
+          - drizzle-valibot
+          - drizzle-arktype
           - other
     runs-on: ubuntu-22.04
     services:
@@ -225,11 +225,11 @@ jobs:
         package:
           - drizzle-orm
           - drizzle-kit
-          # - drizzle-zod
-          # - drizzle-seed
-          # - drizzle-typebox
-          # - drizzle-valibot
-          # - drizzle-arktype
+          - drizzle-zod
+          - drizzle-seed
+          - drizzle-typebox
+          - drizzle-valibot
+          - drizzle-arktype
           - eslint-plugin-drizzle
     runs-on: ubuntu-22.04
     steps:
@@ -319,11 +319,11 @@ jobs:
         package:
           - drizzle-orm
           - drizzle-kit
-          # - drizzle-zod
-          # - drizzle-seed
-          # - drizzle-typebox
-          # - drizzle-valibot
-          # - drizzle-arktype
+          - drizzle-zod
+          - drizzle-seed
+          - drizzle-typebox
+          - drizzle-valibot
+          - drizzle-arktype
           - eslint-plugin-drizzle
     runs-on: ubuntu-22.04
     permissions:

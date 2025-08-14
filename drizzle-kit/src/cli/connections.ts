@@ -61,7 +61,7 @@ export const preparePostgresDB = async (
 			const session = new AwsDataApiSession(
 				rdsClient,
 				new PgDialect(),
-				undefined,
+				{},
 				undefined,
 				config,
 				undefined,
