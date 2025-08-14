@@ -5,14 +5,9 @@ import {
 	getColumnTable,
 	getTableName,
 } from 'drizzle-orm';
-import type { MySqlChar, MySqlText, MySqlVarChar } from 'drizzle-orm/mysql-core';
-import type { PgBinaryVector, PgChar, PgVarchar } from 'drizzle-orm/pg-core';
-import type { SingleStoreChar, SingleStoreText, SingleStoreVarChar } from 'drizzle-orm/singlestore-core';
-import type { SQLiteText } from 'drizzle-orm/sqlite-core';
 import { z as zod } from 'zod/v4';
 import { CONSTANTS } from './constants.ts';
 import type { CreateSchemaFactoryOptions } from './schema.types.ts';
-import { isColumnType } from './utils.ts';
 import type { Json } from './utils.ts';
 
 export const literalSchema = zod.union([zod.string(), zod.number(), zod.boolean(), zod.null()]);
@@ -234,43 +229,34 @@ function stringColumnToSchema(
 	>['coerce'],
 ): zod.ZodType {
 	if (constraint === 'uuid') return z.uuid();
+	const { dialect } = column;
 
 	let max: number | undefined;
 	let regex: RegExp | undefined;
 	let fixed = false;
 
-	if (isColumnType<PgVarchar<any> | SQLiteText<any>>(column, ['PgVarchar', 'SQLiteText'])) {
-		max = column.length;
-	} else if (
-		isColumnType<MySqlVarChar<any> | SingleStoreVarChar<any>>(column, ['MySqlVarChar', 'SingleStoreVarChar'])
-	) {
-		max = column.length ?? CONSTANTS.INT16_UNSIGNED_MAX;
-	} else if (isColumnType<MySqlText<any> | SingleStoreText<any>>(column, ['MySqlText', 'SingleStoreText'])) {
-		if (column.textType === 'longtext') {
+	if ((dialect === 'pg' && constraint === 'varchar') || (dialect === 'sqlite' && constraint === 'text')) {
+		max = (<{ length?: number }> column).length;
+	} else if ((dialect === 'singlestore' || dialect === 'mysql') && constraint === 'varchar') {
+		max = (<{ length?: number }> column).length ?? CONSTANTS.INT16_UNSIGNED_MAX;
+	} else if ((dialect === 'singlestore' || dialect === 'mysql') && constraint === 'text') {
+		const textType = (<{ textType?: 'text' | 'tinytext' | 'mediumtext' | 'longtext' }> column).textType!;
+
+		if (textType === 'longtext') {
 			max = CONSTANTS.INT32_UNSIGNED_MAX;
-		} else if (column.textType === 'mediumtext') {
+		} else if (textType === 'mediumtext') {
 			max = CONSTANTS.INT24_UNSIGNED_MAX;
-		} else if (column.textType === 'text') {
+		} else if (textType === 'text') {
 			max = CONSTANTS.INT16_UNSIGNED_MAX;
 		} else {
 			max = CONSTANTS.INT8_UNSIGNED_MAX;
 		}
-	}
-
-	if (
-		isColumnType<PgChar<any> | MySqlChar<any> | SingleStoreChar<any>>(column, [
-			'PgChar',
-			'MySqlChar',
-			'SingleStoreChar',
-		])
-	) {
-		max = column.length;
+	} else if (constraint === 'char') {
+		max = (<{ length?: number }> column).length;
 		fixed = true;
-	}
-
-	if (isColumnType<PgBinaryVector<any>>(column, ['PgBinaryVector'])) {
-		regex = /^[01]+$/;
-		max = column.dimensions;
+	} else if (constraint === 'binary') {
+		regex = dialect === 'pg' ? /^[01]+$/ : /^[01]*$/;
+		max = (<{ dimensions?: number }> column).dimensions ?? (<{ length?: number }> column).length;
 	}
 
 	let schema = coerce === true || coerce?.string ? z.coerce.string() : z.string();

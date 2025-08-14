@@ -23,13 +23,15 @@ export type GetZodType<
 	: TType['type'] extends 'vector' ? z.ZodArray<z.ZodNumber>
 	: TType['type'] extends 'pointObject' | 'geoObject' ? z.ZodObject<{ x: z.ZodNumber; y: z.ZodNumber }, z.core.$strip>
 	: TType['type'] extends 'lineABC' ? z.ZodObject<{ a: z.ZodNumber; b: z.ZodNumber; c: z.ZodNumber }, z.core.$strip>
-	: TType['type'] extends 'json'
-		? z.ZodType<TColumn['_']['data'] extends Record<string, any> ? TColumn['_']['data'] : Json>
-	: TColumn['_']['data'] extends Record<string, any> ? z.ZodObject<
-			{ [K in keyof TColumn['_']['data']]: GetZodTypeFromType<TColumn['_']['data'][K], TCoerce> },
+	: TColumn['_']['data'] extends Record<string, any> ? z.ZodType<
+			TColumn['_']['data'],
 			z.core.$strip
 		>
-	: TType['type'] extends 'custom' ? GetZodTypeFromType<TColumn['_']['data'], TCoerce>
+	: TType['type'] extends 'json' ? z.ZodType<Json>
+	: TType['type'] extends 'custom' ? z.ZodType<
+			TColumn['_']['data'],
+			z.core.$strip
+		>
 	: GetZodPrimitiveType<TType['type'], TType['constraint'], TCoerce>;
 
 type CanCoerce<
@@ -51,16 +53,6 @@ type GetZodPrimitiveType<
 	: TColumnType extends 'boolean' ? TCanCoerce extends true ? z.coerce.ZodCoercedBoolean : z.ZodBoolean
 	: TColumnType extends 'string'
 		? TConstraint extends 'uuid' ? z.ZodUUID : TCanCoerce extends true ? z.coerce.ZodCoercedString
-		: z.ZodString
-	: z.ZodType;
-
-type GetZodTypeFromType<
-	TType,
-	TCoerce extends Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined,
-> = TType extends number ? CanCoerce<TCoerce, 'number'> extends true ? z.coerce.ZodCoercedNumber : z.ZodNumber
-	: TType extends bigint ? CanCoerce<TCoerce, 'bigint'> extends true ? z.coerce.ZodCoercedBigInt : z.ZodBigInt
-	: TType extends boolean ? CanCoerce<TCoerce, 'boolean'> extends true ? z.coerce.ZodCoercedBoolean : z.ZodBoolean
-	: TType extends string ? CanCoerce<TCoerce, 'string'> extends true ? z.coerce.ZodCoercedString
 		: z.ZodString
 	: z.ZodType;
 
