@@ -212,7 +212,7 @@ export class SQLiteDOPreparedQuery<
 
 		const { fields, client, joinsNotNullableMap, customResultMapper, query } = this;
 		if (!fields && !customResultMapper) {
-			return params.length > 0 ? client.sql.exec(query.sql, ...params).one() : client.sql.exec(query.sql).one();
+			return (params.length > 0 ? client.sql.exec(query.sql, ...params) : client.sql.exec(query.sql)).next().value;
 		}
 
 		const rows = this.values(placeholderValues) as unknown[][];
@@ -235,7 +235,7 @@ export class SQLiteDOPreparedQuery<
 
 		const { client, customResultMapper, query } = this;
 
-		const row = params.length > 0 ? client.sql.exec(query.sql, ...params).one() : client.sql.exec(query.sql).one();
+		const row = (params.length > 0 ? client.sql.exec(query.sql, ...params) : client.sql.exec(query.sql)).next().value;
 
 		if (!row) {
 			return undefined;
