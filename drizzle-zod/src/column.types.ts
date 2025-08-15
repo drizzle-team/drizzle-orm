@@ -1,11 +1,4 @@
-import type {
-	Assume,
-	Column,
-	ColumnDataConstraint,
-	ColumnDataType,
-	ColumnTypeData,
-	ExtractColumnTypeData,
-} from 'drizzle-orm';
+import type { Assume, Column, ColumnDataType, ColumnTypeData, ExtractColumnTypeData } from 'drizzle-orm';
 import type { z } from 'zod/v4';
 import type { Json } from './utils.ts';
 
@@ -13,6 +6,7 @@ export type GetZodType<
 	TColumn extends Column<any>,
 	TCoerce extends Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined,
 	TType extends ColumnTypeData = ExtractColumnTypeData<TColumn['_']['dataType']>,
+	TCanCoerce extends boolean = CanCoerce<TCoerce, TType['type']>,
 > = TType['type'] extends 'enum' ? z.ZodEnum<{ [K in Assume<TColumn['_']['enumValues'], string[]>[number]]: K }>
 	: TType['type'] extends 'geoTuple' | 'pointTuple' ? z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>
 	: TType['type'] extends 'lineTuple' ? z.ZodTuple<[z.ZodNumber, z.ZodNumber, z.ZodNumber], null>
@@ -23,16 +17,21 @@ export type GetZodType<
 	: TType['type'] extends 'vector' ? z.ZodArray<z.ZodNumber>
 	: TType['type'] extends 'pointObject' | 'geoObject' ? z.ZodObject<{ x: z.ZodNumber; y: z.ZodNumber }, z.core.$strip>
 	: TType['type'] extends 'lineABC' ? z.ZodObject<{ a: z.ZodNumber; b: z.ZodNumber; c: z.ZodNumber }, z.core.$strip>
-	: TColumn['_']['data'] extends Record<string, any> ? z.ZodType<
-			TColumn['_']['data'],
-			z.core.$strip
-		>
-	: TType['type'] extends 'json' ? z.ZodType<Json>
-	: TType['type'] extends 'custom' ? z.ZodType<
-			TColumn['_']['data'],
-			z.core.$strip
-		>
-	: GetZodPrimitiveType<TType['type'], TType['constraint'], TCoerce>;
+	: TType['type'] extends 'json' ? TColumn['_']['data'] extends Record<string, any> ? z.ZodType<
+				TColumn['_']['data'],
+				z.core.$strip
+			>
+		: z.ZodType<Json>
+	: TType['type'] extends 'custom' ? z.ZodType
+	: TType['type'] extends 'number' ? TCanCoerce extends true ? z.coerce.ZodCoercedNumber
+		: (TType['constraint'] extends 'integer' | 'tinyint' | 'smallint' | 'mediumint' | 'uint' | 'year' ? z.ZodInt
+			: z.ZodNumber)
+	: TType['type'] extends 'bigint' ? TCanCoerce extends true ? z.coerce.ZodCoercedBigInt : z.ZodBigInt
+	: TType['type'] extends 'boolean' ? TCanCoerce extends true ? z.coerce.ZodCoercedBoolean : z.ZodBoolean
+	: TType['type'] extends 'string'
+		? TType['constraint'] extends 'uuid' ? z.ZodUUID : TCanCoerce extends true ? z.coerce.ZodCoercedString
+		: z.ZodString
+	: z.ZodType;
 
 type CanCoerce<
 	TCoerce extends Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined,
@@ -41,20 +40,6 @@ type CanCoerce<
 	: TCoerce extends Record<string, any> ? TCoerce[TTo] extends true ? true
 		: false
 	: false;
-
-type GetZodPrimitiveType<
-	TColumnType extends ColumnDataType,
-	TConstraint extends ColumnDataConstraint | undefined,
-	TCoerce extends Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined,
-	TCanCoerce extends boolean = CanCoerce<TCoerce, TColumnType>,
-> = TColumnType extends 'number' ? TCanCoerce extends true ? z.coerce.ZodCoercedNumber
-	: (TConstraint extends 'integer' | 'tinyint' | 'smallint' | 'mediumint' | 'uint' | 'year' ? z.ZodInt : z.ZodNumber)
-	: TColumnType extends 'bigint' ? TCanCoerce extends true ? z.coerce.ZodCoercedBigInt : z.ZodBigInt
-	: TColumnType extends 'boolean' ? TCanCoerce extends true ? z.coerce.ZodCoercedBoolean : z.ZodBoolean
-	: TColumnType extends 'string'
-		? TConstraint extends 'uuid' ? z.ZodUUID : TCanCoerce extends true ? z.coerce.ZodCoercedString
-		: z.ZodString
-	: z.ZodType;
 
 type HandleSelectColumn<
 	TSchema extends z.ZodType,

@@ -1,4 +1,4 @@
-import { type Equal } from 'drizzle-orm';
+import type { Equal } from 'drizzle-orm';
 import { customType, int, json, serial, singlestoreSchema, singlestoreTable, text } from 'drizzle-orm/singlestore-core';
 import type { TopLevelCondition } from 'json-rules-engine';
 import * as v from 'valibot';
@@ -420,7 +420,7 @@ test('all data types', (t) => {
 		bigint2: v.pipe(v.bigint(), v.minValue(CONSTANTS.INT64_MIN), v.maxValue(CONSTANTS.INT64_MAX)),
 		bigint3: v.pipe(v.number(), v.minValue(0 as number), v.maxValue(Number.MAX_SAFE_INTEGER), v.integer()),
 		bigint4: v.pipe(v.bigint(), v.minValue(0n as bigint), v.maxValue(CONSTANTS.INT64_UNSIGNED_MAX)),
-		binary: v.string(),
+		binary: v.pipe(v.string(), v.regex(/^[01]*$/), v.maxLength(10 as number)),
 		boolean: v.boolean(),
 		char1: v.pipe(v.string(), v.length(10 as number)),
 		char2: v.enum({ a: 'a', b: 'b', c: 'c' }),
@@ -453,7 +453,7 @@ test('all data types', (t) => {
 		tinyint2: v.pipe(v.number(), v.minValue(0 as number), v.maxValue(CONSTANTS.INT8_UNSIGNED_MAX), v.integer()),
 		varchar1: v.pipe(v.string(), v.maxLength(10 as number)),
 		varchar2: v.enum({ a: 'a', b: 'b', c: 'c' }),
-		varbinary: v.string(),
+		varbinary: v.pipe(v.string(), v.regex(/^[01]*$/), v.maxLength(10 as number)),
 		year: v.pipe(v.number(), v.minValue(1901 as number), v.maxValue(2155 as number), v.integer()),
 		longtext1: v.pipe(v.string(), v.maxLength(CONSTANTS.INT32_UNSIGNED_MAX)),
 		longtext2: v.enum({ a: 'a', b: 'b', c: 'c' }),

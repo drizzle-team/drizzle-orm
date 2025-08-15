@@ -1,4 +1,4 @@
-import type { Table, View } from 'drizzle-orm';
+import type { InferInsertModel, InferSelectModel, Table, View } from 'drizzle-orm';
 import type { PgEnum } from 'drizzle-orm/pg-core';
 import type * as v from 'valibot';
 import type { EnumValuesToEnum } from './column.types.ts';
@@ -11,7 +11,7 @@ export interface CreateSelectSchema {
 		TRefine extends BuildRefine<TTable['_']['columns']>,
 	>(
 		table: TTable,
-		refine?: NoUnknownKeys<TRefine, TTable['$inferSelect']>,
+		refine?: NoUnknownKeys<TRefine, InferSelectModel<TTable>>,
 	): BuildSchema<'select', TTable['_']['columns'], TRefine>;
 
 	<TView extends View>(view: TView): BuildSchema<'select', TView['_']['selectedFields'], undefined>;
@@ -30,10 +30,10 @@ export interface CreateInsertSchema {
 	<TTable extends Table>(table: TTable): BuildSchema<'insert', TTable['_']['columns'], undefined>;
 	<
 		TTable extends Table,
-		TRefine extends BuildRefine<Pick<TTable['_']['columns'], keyof TTable['$inferInsert']>>,
+		TRefine extends BuildRefine<Pick<TTable['_']['columns'], keyof InferInsertModel<TTable>>>,
 	>(
 		table: TTable,
-		refine?: NoUnknownKeys<TRefine, TTable['$inferInsert']>,
+		refine?: NoUnknownKeys<TRefine, InferInsertModel<TTable>>,
 	): BuildSchema<'insert', TTable['_']['columns'], TRefine>;
 }
 
@@ -41,7 +41,7 @@ export interface CreateUpdateSchema {
 	<TTable extends Table>(table: TTable): BuildSchema<'update', TTable['_']['columns'], undefined>;
 	<
 		TTable extends Table,
-		TRefine extends BuildRefine<Pick<TTable['_']['columns'], keyof TTable['$inferInsert']>>,
+		TRefine extends BuildRefine<Pick<TTable['_']['columns'], keyof InferInsertModel<TTable>>>,
 	>(
 		table: TTable,
 		refine?: TRefine,
