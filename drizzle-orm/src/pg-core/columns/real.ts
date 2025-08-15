@@ -6,7 +6,7 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 export class PgRealBuilder extends PgColumnBuilder<
 	{
 		name: string;
-		dataType: 'number real';
+		dataType: 'number real24';
 		data: number;
 		driverParam: string | number;
 		enumValues: undefined;
@@ -16,7 +16,7 @@ export class PgRealBuilder extends PgColumnBuilder<
 	static override readonly [entityKind]: string = 'PgRealBuilder';
 
 	constructor(name: string, length?: number) {
-		super(name, 'number real', 'PgReal');
+		super(name, 'number real24', 'PgReal');
 		this.config.length = length;
 	}
 
@@ -26,7 +26,7 @@ export class PgRealBuilder extends PgColumnBuilder<
 	}
 }
 
-export class PgReal<T extends ColumnBaseConfig<'number real'>> extends PgColumn<T> {
+export class PgReal<T extends ColumnBaseConfig<'number real24'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgReal';
 
 	constructor(table: PgTable<any>, config: PgRealBuilder['config']) {

@@ -7,7 +7,7 @@ import type { SingleStoreIntConfig } from './int.ts';
 
 export class SingleStoreSmallIntBuilder extends SingleStoreColumnBuilderWithAutoIncrement<{
 	name: string;
-	dataType: 'number smallint';
+	dataType: 'number int16';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
@@ -15,7 +15,7 @@ export class SingleStoreSmallIntBuilder extends SingleStoreColumnBuilderWithAuto
 	static override readonly [entityKind]: string = 'SingleStoreSmallIntBuilder';
 
 	constructor(name: string, config?: SingleStoreIntConfig) {
-		super(name, 'number smallint', 'SingleStoreSmallInt');
+		super(name, 'number int16', 'SingleStoreSmallInt');
 		this.config.unsigned = config ? config.unsigned : false;
 	}
 
@@ -28,7 +28,7 @@ export class SingleStoreSmallIntBuilder extends SingleStoreColumnBuilderWithAuto
 	}
 }
 
-export class SingleStoreSmallInt<T extends ColumnBaseConfig<'number smallint'>>
+export class SingleStoreSmallInt<T extends ColumnBaseConfig<'number int16'>>
 	extends SingleStoreColumnWithAutoIncrement<T, SingleStoreIntConfig>
 {
 	static override readonly [entityKind]: string = 'SingleStoreSmallInt';

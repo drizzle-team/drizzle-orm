@@ -6,7 +6,7 @@ import { GelIntColumnBaseBuilder } from './int.common.ts';
 
 export class GelIntegerBuilder extends GelIntColumnBaseBuilder<{
 	name: string;
-	dataType: 'number integer';
+	dataType: 'number int32';
 	data: number;
 	driverParam: number;
 	enumValues: undefined;
@@ -14,7 +14,7 @@ export class GelIntegerBuilder extends GelIntColumnBaseBuilder<{
 	static override readonly [entityKind]: string = 'GelIntegerBuilder';
 
 	constructor(name: string) {
-		super(name, 'number integer', 'GelInteger');
+		super(name, 'number int32', 'GelInteger');
 	}
 
 	/** @internal */
@@ -23,7 +23,7 @@ export class GelIntegerBuilder extends GelIntColumnBaseBuilder<{
 	}
 }
 
-export class GelInteger<T extends ColumnBaseConfig<'number integer'>> extends GelColumn<T> {
+export class GelInteger<T extends ColumnBaseConfig<'number int32'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelInteger';
 
 	getSQLType(): string {

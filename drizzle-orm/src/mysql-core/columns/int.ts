@@ -6,7 +6,7 @@ import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } fro
 
 export class MySqlIntBuilder extends MySqlColumnBuilderWithAutoIncrement<{
 	name: string;
-	dataType: 'number integer';
+	dataType: 'number int32';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
@@ -14,7 +14,7 @@ export class MySqlIntBuilder extends MySqlColumnBuilderWithAutoIncrement<{
 	static override readonly [entityKind]: string = 'MySqlIntBuilder';
 
 	constructor(name: string, config?: MySqlIntConfig) {
-		super(name, 'number integer', 'MySqlInt');
+		super(name, 'number int32', 'MySqlInt');
 		this.config.unsigned = config ? config.unsigned : false;
 	}
 
@@ -24,7 +24,7 @@ export class MySqlIntBuilder extends MySqlColumnBuilderWithAutoIncrement<{
 	}
 }
 
-export class MySqlInt<T extends ColumnBaseConfig<'number integer'>>
+export class MySqlInt<T extends ColumnBaseConfig<'number int32'>>
 	extends MySqlColumnWithAutoIncrement<T, MySqlIntConfig>
 {
 	static override readonly [entityKind]: string = 'MySqlInt';

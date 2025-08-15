@@ -6,7 +6,7 @@ import { PgIntColumnBaseBuilder } from './int.common.ts';
 
 export class PgSmallIntBuilder extends PgIntColumnBaseBuilder<{
 	name: string;
-	dataType: 'number smallint';
+	dataType: 'number int16';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
@@ -14,7 +14,7 @@ export class PgSmallIntBuilder extends PgIntColumnBaseBuilder<{
 	static override readonly [entityKind]: string = 'PgSmallIntBuilder';
 
 	constructor(name: string) {
-		super(name, 'number smallint', 'PgSmallInt');
+		super(name, 'number int16', 'PgSmallInt');
 	}
 
 	/** @internal */
@@ -23,7 +23,7 @@ export class PgSmallIntBuilder extends PgIntColumnBaseBuilder<{
 	}
 }
 
-export class PgSmallInt<T extends ColumnBaseConfig<'number smallint'>> extends PgColumn<T> {
+export class PgSmallInt<T extends ColumnBaseConfig<'number int16'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgSmallInt';
 
 	getSQLType(): string {

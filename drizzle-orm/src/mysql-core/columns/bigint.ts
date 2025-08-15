@@ -6,7 +6,7 @@ import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } fro
 
 export class MySqlBigInt53Builder extends MySqlColumnBuilderWithAutoIncrement<{
 	name: string;
-	dataType: 'number integer';
+	dataType: 'number int53';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
@@ -14,7 +14,7 @@ export class MySqlBigInt53Builder extends MySqlColumnBuilderWithAutoIncrement<{
 	static override readonly [entityKind]: string = 'MySqlBigInt53Builder';
 
 	constructor(name: string, unsigned: boolean = false) {
-		super(name, 'number integer', 'MySqlBigInt53');
+		super(name, 'number int53', 'MySqlBigInt53');
 		this.config.unsigned = unsigned;
 	}
 
@@ -27,7 +27,7 @@ export class MySqlBigInt53Builder extends MySqlColumnBuilderWithAutoIncrement<{
 	}
 }
 
-export class MySqlBigInt53<T extends ColumnBaseConfig<'number integer'>>
+export class MySqlBigInt53<T extends ColumnBaseConfig<'number int53'>>
 	extends MySqlColumnWithAutoIncrement<T, { unsigned: boolean }>
 {
 	static override readonly [entityKind]: string = 'MySqlBigInt53';

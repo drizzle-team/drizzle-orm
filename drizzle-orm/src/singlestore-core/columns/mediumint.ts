@@ -7,7 +7,7 @@ import type { SingleStoreIntConfig } from './int.ts';
 
 export class SingleStoreMediumIntBuilder extends SingleStoreColumnBuilderWithAutoIncrement<{
 	name: string;
-	dataType: 'number mediumint';
+	dataType: 'number int24';
 	data: number;
 	driverParam: number | string;
 	enumValues: undefined;
@@ -15,7 +15,7 @@ export class SingleStoreMediumIntBuilder extends SingleStoreColumnBuilderWithAut
 	static override readonly [entityKind]: string = 'SingleStoreMediumIntBuilder';
 
 	constructor(name: string, config?: SingleStoreIntConfig) {
-		super(name, 'number mediumint', 'SingleStoreMediumInt');
+		super(name, 'number int24', 'SingleStoreMediumInt');
 		this.config.unsigned = config ? config.unsigned : false;
 	}
 
@@ -28,7 +28,7 @@ export class SingleStoreMediumIntBuilder extends SingleStoreColumnBuilderWithAut
 	}
 }
 
-export class SingleStoreMediumInt<T extends ColumnBaseConfig<'number mediumint'>>
+export class SingleStoreMediumInt<T extends ColumnBaseConfig<'number int24'>>
 	extends SingleStoreColumnWithAutoIncrement<T, SingleStoreIntConfig>
 {
 	static override readonly [entityKind]: string = 'SingleStoreMediumInt';

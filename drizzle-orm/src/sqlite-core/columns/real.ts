@@ -5,7 +5,7 @@ import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
 export class SQLiteRealBuilder extends SQLiteColumnBuilder<{
 	name: string;
-	dataType: 'number real';
+	dataType: 'number real48';
 	data: number;
 	driverParam: number;
 	enumValues: undefined;
@@ -13,7 +13,7 @@ export class SQLiteRealBuilder extends SQLiteColumnBuilder<{
 	static override readonly [entityKind]: string = 'SQLiteRealBuilder';
 
 	constructor(name: string) {
-		super(name, 'number real', 'SQLiteReal');
+		super(name, 'number real48', 'SQLiteReal');
 	}
 
 	/** @internal */
@@ -22,7 +22,7 @@ export class SQLiteRealBuilder extends SQLiteColumnBuilder<{
 	}
 }
 
-export class SQLiteReal<T extends ColumnBaseConfig<'number real'>> extends SQLiteColumn<T> {
+export class SQLiteReal<T extends ColumnBaseConfig<'number real48'>> extends SQLiteColumn<T> {
 	static override readonly [entityKind]: string = 'SQLiteReal';
 
 	getSQLType(): string {
