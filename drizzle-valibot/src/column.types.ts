@@ -113,7 +113,7 @@ export type GetValibotType<
 				v.NumberSchema<undefined>,
 				v.MinValueAction<number, number, undefined>,
 				v.MaxValueAction<number, number, undefined>,
-				TConstraint extends 'integer' | 'tinyint' | 'smallint' | 'mediumint' | 'uint' | 'year'
+				TConstraint extends 'int8' | 'int16' | 'int24' | 'int32' | 'int53' | 'uint53' | 'year'
 					? v.IntegerAction<number, undefined>
 					: never,
 			]>

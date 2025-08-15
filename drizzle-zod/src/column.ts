@@ -72,9 +72,12 @@ export function columnToSchema(
 			break;
 		}
 		case 'array': {
+			const size = (<{ size?: number }> column).size;
 			schema = (<{ baseColumn?: Column }> column).baseColumn
 				? z.array(columnToSchema((<{ baseColumn?: Column }> column).baseColumn!, factory))
 				: z.array(z.any());
+			if (size) schema = (<zod.ZodArray> schema).length(size);
+
 			break;
 		}
 		case 'number': {
@@ -125,61 +128,66 @@ function numberColumnToSchema(
 		Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined
 	>['coerce'],
 ): zod.ZodType {
-	const unsigned = constraint === 'uint' || column.getSQLType().includes('unsigned');
+	const unsigned = constraint === 'uint53' || column.getSQLType().includes('unsigned');
 	let min!: number;
 	let max!: number;
 	let integer = false;
 
 	switch (constraint) {
-		case 'integer': {
-			min = unsigned ? 0 : Number.MIN_SAFE_INTEGER;
-			max = Number.MAX_SAFE_INTEGER;
-			integer = true;
-			break;
-		}
-		case 'tinyint': {
-			min = unsigned ? 0 : CONSTANTS.INT8_MIN;
+		case 'int8': {
+			min = CONSTANTS.INT8_MIN;
 			max = unsigned ? CONSTANTS.INT8_UNSIGNED_MAX : CONSTANTS.INT8_MAX;
 			integer = true;
 			break;
 		}
-		case 'smallint': {
-			min = unsigned ? 0 : CONSTANTS.INT16_MIN;
+		case 'int16': {
+			min = CONSTANTS.INT16_MIN;
 			max = unsigned ? CONSTANTS.INT16_UNSIGNED_MAX : CONSTANTS.INT16_MAX;
 			integer = true;
 			break;
 		}
-		case 'mediumint': {
-			min = unsigned ? 0 : CONSTANTS.INT24_MIN;
+		case 'int24': {
+			min = CONSTANTS.INT24_MIN;
 			max = unsigned ? CONSTANTS.INT24_UNSIGNED_MAX : CONSTANTS.INT24_MAX;
+			integer = true;
+			break;
+		}
+		case 'int32': {
+			min = CONSTANTS.INT32_MIN;
+			max = unsigned ? CONSTANTS.INT32_UNSIGNED_MAX : CONSTANTS.INT32_MAX;
+			integer = true;
+			break;
+		}
+		case 'int53': {
+			min = Number.MIN_SAFE_INTEGER;
+			max = Number.MAX_SAFE_INTEGER;
+			integer = true;
+			break;
+		}
+		case 'uint53': {
+			min = 0;
+			max = Number.MAX_SAFE_INTEGER;
 			integer = true;
 			break;
 		}
 		case 'float': {
-			min = unsigned ? 0 : CONSTANTS.INT24_MIN;
+			min = CONSTANTS.INT24_MIN;
 			max = unsigned ? CONSTANTS.INT24_UNSIGNED_MAX : CONSTANTS.INT24_MAX;
 			break;
 		}
-		case 'real': {
-			if (column.dialect === 'pg') {
-				min = unsigned ? 0 : CONSTANTS.INT24_MIN;
-				max = unsigned ? CONSTANTS.INT24_UNSIGNED_MAX : CONSTANTS.INT24_MAX;
-				break;
-			}
-
-			min = unsigned ? 0 : CONSTANTS.INT48_MIN;
+		case 'real24': {
+			min = CONSTANTS.INT24_MIN;
+			max = unsigned ? CONSTANTS.INT24_UNSIGNED_MAX : CONSTANTS.INT24_MAX;
+			break;
+		}
+		case 'real48': {
+			min = CONSTANTS.INT48_MIN;
 			max = unsigned ? CONSTANTS.INT48_UNSIGNED_MAX : CONSTANTS.INT48_MAX;
 			break;
 		}
 		case 'double': {
-			min = unsigned ? 0 : CONSTANTS.INT48_MIN;
+			min = CONSTANTS.INT48_MIN;
 			max = unsigned ? CONSTANTS.INT48_UNSIGNED_MAX : CONSTANTS.INT48_MAX;
-			break;
-		}
-		case 'uint': {
-			min = 0;
-			max = Number.MAX_SAFE_INTEGER;
-			integer = true;
 			break;
 		}
 		case 'year': {
@@ -194,6 +202,8 @@ function numberColumnToSchema(
 			break;
 		}
 	}
+
+	min = unsigned ? 0 : min;
 
 	let schema = coerce === true || coerce?.number
 		? integer ? z.coerce.number().int() : z.coerce.number()

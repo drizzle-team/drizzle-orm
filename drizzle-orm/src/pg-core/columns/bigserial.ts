@@ -6,7 +6,7 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export class PgBigSerial53Builder extends PgColumnBuilder<{
 	name: string;
-	dataType: 'number integer';
+	dataType: 'number int53';
 	data: number;
 	driverParam: number;
 	enumValues: undefined;
@@ -16,7 +16,7 @@ export class PgBigSerial53Builder extends PgColumnBuilder<{
 	static override readonly [entityKind]: string = 'PgBigSerial53Builder';
 
 	constructor(name: string) {
-		super(name, 'number integer', 'PgBigSerial53');
+		super(name, 'number int53', 'PgBigSerial53');
 		this.config.hasDefault = true;
 		this.config.notNull = true;
 	}
@@ -30,7 +30,7 @@ export class PgBigSerial53Builder extends PgColumnBuilder<{
 	}
 }
 
-export class PgBigSerial53<T extends ColumnBaseConfig<'number integer'>> extends PgColumn<T> {
+export class PgBigSerial53<T extends ColumnBaseConfig<'number int53'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgBigSerial53';
 
 	getSQLType(): string {

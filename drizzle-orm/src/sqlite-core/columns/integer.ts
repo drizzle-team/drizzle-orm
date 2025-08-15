@@ -51,7 +51,7 @@ export abstract class SQLiteBaseInteger<
 
 export class SQLiteIntegerBuilder extends SQLiteBaseIntegerBuilder<{
 	name: string;
-	dataType: 'number integer';
+	dataType: 'number int53';
 	data: number;
 	driverParam: number;
 	enumValues: undefined;
@@ -59,7 +59,7 @@ export class SQLiteIntegerBuilder extends SQLiteBaseIntegerBuilder<{
 	static override readonly [entityKind]: string = 'SQLiteIntegerBuilder';
 
 	constructor(name: string) {
-		super(name, 'number integer', 'SQLiteInteger');
+		super(name, 'number int53', 'SQLiteInteger');
 	}
 
 	override build(table: SQLiteTable) {
@@ -70,7 +70,7 @@ export class SQLiteIntegerBuilder extends SQLiteBaseIntegerBuilder<{
 	}
 }
 
-export class SQLiteInteger<T extends ColumnBaseConfig<'number integer'>> extends SQLiteBaseInteger<T> {
+export class SQLiteInteger<T extends ColumnBaseConfig<'number int53'>> extends SQLiteBaseInteger<T> {
 	static override readonly [entityKind]: string = 'SQLiteInteger';
 }
 
