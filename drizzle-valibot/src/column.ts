@@ -241,7 +241,7 @@ function bigintColumnToSchema(column: Column): v.GenericSchema {
 }
 
 function stringColumnToSchema(column: Column): v.GenericSchema {
-	if (isColumnType<PgUUID<ColumnBaseConfig<'string', 'PgUUID'>>>(column, ['PgUUID'])) {
+	if (isColumnType<PgUUID<ColumnBaseConfig<'string uuid'>>>(column, ['PgUUID'])) {
 		return v.pipe(v.string(), v.uuid());
 	}
 

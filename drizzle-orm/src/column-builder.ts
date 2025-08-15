@@ -151,6 +151,7 @@ export interface ColumnBuilderBaseConfig<TDataType extends ColumnType> {
 export type MakeColumnConfig<
 	T extends ColumnBuilderBaseConfig<ColumnType>,
 	TTableName extends string,
+	TDialect extends Dialect = 'common',
 	TData = T extends { $type: infer U } ? U : T['data'],
 > = {
 	name: string;
@@ -167,7 +168,7 @@ export type MakeColumnConfig<
 	size: T extends { size: number } ? T['size'] : undefined;
 	dimensions: T extends { dimensions: number } ? T['dimensions'] : undefined;
 	enumValues: T['enumValues'];
-	baseColumn: T extends { baseBuilder: infer U extends ColumnBuilderBase } ? BuildColumn<TTableName, U, 'common'>
+	baseColumn: T extends { baseBuilder: infer U extends ColumnBuilderBase } ? BuildColumn<TTableName, U, TDialect>
 		: never;
 	identity: T extends { identity: 'always' } ? 'always' : T extends { identity: 'byDefault' } ? 'byDefault' : undefined;
 	generated: T extends { generated: infer G } ? unknown extends G ? undefined
@@ -395,7 +396,7 @@ export type BuildColumn<
 	TTableName extends string,
 	TBuilder extends ColumnBuilderBase,
 	TDialect extends Dialect,
-	TBuiltConfig extends ColumnBaseConfig<ColumnType> = MakeColumnConfig<TBuilder['_'], TTableName>,
+	TBuiltConfig extends ColumnBaseConfig<ColumnType> = MakeColumnConfig<TBuilder['_'], TTableName, TDialect>,
 > = TDialect extends 'pg' ? PgColumn<TBuiltConfig, {}>
 	: TDialect extends 'mysql' ? MySqlColumn<TBuiltConfig, {}>
 	: TDialect extends 'sqlite' ? SQLiteColumn<TBuiltConfig, {}>
