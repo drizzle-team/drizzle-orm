@@ -9,7 +9,7 @@ pnpm install && pnpm build
 ```
 
 #### Development
-Make any changes you require to the `drizzle-kit/api` file ([see here](./drizzle-kit/src/api.ts)), then run:
+Make any changes you require to the `drizzle-kit/api` file ([see here](./drizzle-kit/src/api.ts)), then run (from `drizzle-kit`):
 ```bash
 pnpm build
 ```

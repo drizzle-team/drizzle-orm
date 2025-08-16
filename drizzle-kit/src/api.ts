@@ -84,24 +84,14 @@ export const introspectPgDB = async (
 };
 
 export const preparePgDB = async (
-	credentials: DrizzlePostgresCredentials,
+	pool: import('pg').Pool | import('pg').PoolClient,
 ): Promise<
 	DrizzlePgDB
 > => {
-	console.log(`Using 'pg' driver for database querying`);
 	const { default: pg } = await import('pg');
+
 	const { drizzle } = await import('drizzle-orm/node-postgres');
 	const { migrate } = await import('drizzle-orm/node-postgres/migrator');
-
-	const ssl = 'ssl' in credentials
-		? credentials.ssl === 'prefer'
-				|| credentials.ssl === 'require'
-				|| credentials.ssl === 'allow'
-			? { rejectUnauthorized: false }
-			: credentials.ssl === 'verify-full'
-			? {}
-			: credentials.ssl
-		: {};
 
 	// Override pg default date parsers
 	const types: { getTypeParser: typeof pg.types.getTypeParser } = {
@@ -124,17 +114,13 @@ export const preparePgDB = async (
 		},
 	};
 
-	const client = 'url' in credentials
-		? new pg.Pool({ connectionString: credentials.url, max: 1 })
-		: new pg.Pool({ ...credentials, ssl, max: 1 });
-
-	const db = drizzle(client);
+	const db = drizzle(pool);
 	const migrateFn = async (config: MigrationConfig) => {
 		return migrate(db, config);
 	};
 
 	const query = async (sql: string, params?: any[]) => {
-		const result = await client.query({
+		const result = await pool.query({
 			text: sql,
 			values: params ?? [],
 			types,
@@ -143,7 +129,7 @@ export const preparePgDB = async (
 	};
 
 	const proxy: Proxy = async (params: ProxyParams) => {
-		const result = await client.query({
+		const result = await pool.query({
 			text: params.sql,
 			values: params.params,
 			...(params.mode === 'array' && { rowMode: 'array' }),
@@ -153,17 +139,6 @@ export const preparePgDB = async (
 	};
 
 	return { query, proxy, migrate: migrateFn };
-};
-
-export const getPgClientPool = async (
-	targetCredentials: DrizzlePostgresCredentials,
-) => {
-	const { default: pg } = await import('pg');
-	const pool = 'url' in targetCredentials
-		? new pg.Pool({ connectionString: targetCredentials.url, max: 1 })
-		: new pg.Pool({ ...targetCredentials, ssl: undefined, max: 1 });
-
-	return pool;
 };
 
 export type { SelectResolverInput, SelectResolverOutput } from './cli/commands/pgPushUtils';
