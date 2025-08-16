@@ -19,6 +19,7 @@ import {
 	PgView,
 	uniqueKeyName,
 } from 'drizzle-orm/pg-core';
+import { parse as parsePostgresArray } from 'postgres-array';
 import { CasingType } from 'src/cli/validations/common';
 import { vectorOps } from 'src/extensions/vector';
 import { withStyle } from '../cli/validations/outputs';
@@ -40,7 +41,6 @@ import type {
 	UniqueConstraint,
 	View,
 } from '../serializer/pgSchema';
-import { parse as parsePostgresArray } from 'postgres-array';
 import { type DB, escapeSingleQuotes, isPgArrayType } from '../utils';
 import { getColumnCasing, sqlToStr } from './utils';
 
@@ -1942,21 +1942,25 @@ WHERE
  */
 const formatArrayElement = (element: any, dataType: string): string | null => {
 	if (element === null) return element;
-	
+
 	// Remove outer quotes from postgres-array parsed elements if present
 	// First trim spaces since postgres-array includes leading spaces in array elements
 	let cleanElement = typeof element === 'string' ? element.trim() : element;
-	if (typeof cleanElement === 'string' && ((cleanElement.startsWith("'") && cleanElement.endsWith("'")) || (cleanElement.startsWith('"') && cleanElement.endsWith('"')))) {
+	if (
+		typeof cleanElement === 'string'
+		&& ((cleanElement.startsWith("'") && cleanElement.endsWith("'"))
+			|| (cleanElement.startsWith('"') && cleanElement.endsWith('"')))
+	) {
 		cleanElement = cleanElement.slice(1, -1);
 	}
 
 	// remove [] from dataType if it exists
-	if (!dataType.endsWith("[]")) {
+	if (!dataType.endsWith('[]')) {
 		throw new Error(`array dataType ${dataType} does not end with '[]'`);
 	}
 
-	const baseDataType = dataType.slice(0, -"[]".length);
-	
+	const baseDataType = dataType.slice(0, -'[]'.length);
+
 	if (['integer', 'smallint', 'bigint', 'double precision', 'real'].includes(baseDataType)) {
 		return cleanElement;
 	} else if (dataType.startsWith('timestamp')) {
@@ -1968,7 +1972,7 @@ const formatArrayElement = (element: any, dataType: string): string | null => {
 	} else if (['json', 'jsonb'].includes(baseDataType)) {
 		// For JSON/JSONB arrays, cleanElement is already a JSON string
 		// We just need to ensure it's properly quoted
-		
+
 		// First, try to parse it to validate it's valid JSON
 		const parsed = JSON.parse(cleanElement);
 		// Then stringify it back to ensure consistent formatting
@@ -1986,36 +1990,38 @@ const handleArrayDefault = (columnDefaultAsString: string, dataType: string): st
 	// Handle common simple cases
 	if (columnDefaultAsString === '{}' || columnDefaultAsString === "'{}'") {
 		return "'{}'";
-	} else if (columnDefaultAsString === '{""}' || columnDefaultAsString === "'{\"\"}'") {
-		return "'{\"\"}'";
+	} else if (columnDefaultAsString === '{""}' || columnDefaultAsString === '\'{""}\'') {
+		return '\'{""}\'';
 	}
 
 	// Convert ARRAY constructor syntax to PostgreSQL bracket notation that postgres-array can parse
 	let normalizedArrayString = columnDefaultAsString;
-	
+
 	if (columnDefaultAsString.startsWith('ARRAY[') && columnDefaultAsString.endsWith(']')) {
 		// Convert ARRAY['a'::text, 'b', 'c'::varchar] -> {'a', 'b', 'c'}
 		const content = columnDefaultAsString.slice(6, -1); // Remove 'ARRAY[' and ']'
-		
+
 		// Remove type casting from individual elements (::text, ::varchar, etc.)
 		const cleanContent = content.replace(/::\w+/g, '');
 		normalizedArrayString = `{${cleanContent}}`;
 	}
-	
+
 	// Handle various bracket notation formats to ensure compatibility with postgres-array
 	if (normalizedArrayString.startsWith("'{") && normalizedArrayString.endsWith("}'")) {
 		normalizedArrayString = normalizedArrayString.slice(1, -1); // Remove outer quotes
-	} else if (!normalizedArrayString.startsWith("{") && !normalizedArrayString.startsWith("'") && normalizedArrayString !== '{}') {
+	} else if (
+		!normalizedArrayString.startsWith('{') && !normalizedArrayString.startsWith("'") && normalizedArrayString !== '{}'
+	) {
 		// Handle cases where array string doesn't have proper brackets
 		normalizedArrayString = `{${normalizedArrayString}}`;
 	}
 
 	// Use postgres-array library to parse the normalized string
 	const parsedArray = [...parsePostgresArray(normalizedArrayString)];
-	
+
 	// Format elements according to data type
 	const formattedElements = parsedArray.map((element) => formatArrayElement(element, dataType));
-	
+
 	return `'{${formattedElements.join(',')}}'`;
 };
 

@@ -84,7 +84,7 @@ export const introspectPgDB = async (
 };
 
 export const preparePgDB = async (
-  pool: import('pg').Pool | import('pg').PoolClient,
+	pool: import('pg').Pool | import('pg').PoolClient,
 ): Promise<
 	DrizzlePgDB
 > => {
@@ -92,7 +92,6 @@ export const preparePgDB = async (
 
 	const { drizzle } = await import('drizzle-orm/node-postgres');
 	const { migrate } = await import('drizzle-orm/node-postgres/migrator');
-
 
 	// Override pg default date parsers
 	const types: { getTypeParser: typeof pg.types.getTypeParser } = {
