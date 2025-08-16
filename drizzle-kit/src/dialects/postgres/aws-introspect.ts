@@ -136,7 +136,7 @@ export const fromDatabase = async (
 		oid: string;
 		name: string;
 	}>(
-		`SELECT oid, spcname as "name" FROM pg_catalog.pg_tablespace WHERE pg_catalog.has_tablespace_privilege(oid, 'CREATE') ORDER BY pg_catalog.lower(spcname)`,
+		`SELECT oid, spcname as "name" FROM pg_catalog.pg_tablespace ORDER BY pg_catalog.lower(spcname)`,
 	).then((rows) => {
 		queryCallback('tablespaces', rows, null);
 		return rows;
@@ -146,7 +146,7 @@ export const fromDatabase = async (
 	});
 
 	const namespacesQuery = db.query<Namespace>(
-		"SELECT oid, nspname as name FROM pg_catalog.pg_namespace WHERE pg_catalog.has_schema_privilege(oid, 'USAGE') ORDER BY pg_catalog.lower(nspname)",
+		"SELECT oid, nspname as name FROM pg_catalog.pg_namespace ORDER BY pg_catalog.lower(nspname)",
 	)
 		.then((rows) => {
 			queryCallback('namespaces', rows, null);
