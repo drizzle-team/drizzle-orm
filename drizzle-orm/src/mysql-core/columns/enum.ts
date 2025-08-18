@@ -6,7 +6,7 @@ import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export class MySqlEnumColumnBuilder<TEnum extends [string, ...string[]]> extends MySqlColumnBuilder<{
 	name: string;
-	dataType: 'enum';
+	dataType: 'string enum';
 	data: TEnum[number];
 	driverParam: string;
 	enumValues: TEnum;
@@ -14,7 +14,7 @@ export class MySqlEnumColumnBuilder<TEnum extends [string, ...string[]]> extends
 	static override readonly [entityKind]: string = 'MySqlEnumColumnBuilder';
 
 	constructor(name: string, values: TEnum) {
-		super(name, 'enum', 'MySqlEnumColumn');
+		super(name, 'string enum', 'MySqlEnumColumn');
 		this.config.enumValues = values;
 	}
 
@@ -27,7 +27,7 @@ export class MySqlEnumColumnBuilder<TEnum extends [string, ...string[]]> extends
 	}
 }
 
-export class MySqlEnumColumn<T extends ColumnBaseConfig<'enum'>>
+export class MySqlEnumColumn<T extends ColumnBaseConfig<'string enum'>>
 	extends MySqlColumn<T, { enumValues: T['enumValues'] }>
 {
 	static override readonly [entityKind]: string = 'MySqlEnumColumn';
@@ -42,7 +42,7 @@ export class MySqlEnumColumn<T extends ColumnBaseConfig<'enum'>>
 // enum as ts enum
 export class MySqlEnumObjectColumnBuilder<TEnum extends object> extends MySqlColumnBuilder<{
 	name: string;
-	dataType: 'enum';
+	dataType: 'string enum';
 	data: TEnum[keyof TEnum];
 	driverParam: string;
 	enumValues: string[];
@@ -50,7 +50,7 @@ export class MySqlEnumObjectColumnBuilder<TEnum extends object> extends MySqlCol
 	static override readonly [entityKind]: string = 'MySqlEnumObjectColumnBuilder';
 
 	constructor(name: string, values: TEnum) {
-		super(name, 'enum', 'MySqlEnumObjectColumn');
+		super(name, 'string enum', 'MySqlEnumObjectColumn');
 		this.config.enumValues = values;
 	}
 
@@ -63,7 +63,7 @@ export class MySqlEnumObjectColumnBuilder<TEnum extends object> extends MySqlCol
 	}
 }
 
-export class MySqlEnumObjectColumn<T extends ColumnBaseConfig<'enum'>>
+export class MySqlEnumObjectColumn<T extends ColumnBaseConfig<'string enum'>>
 	extends MySqlColumn<T, { enumValues: T['enumValues'] }>
 {
 	static override readonly [entityKind]: string = 'MySqlEnumObjectColumn';

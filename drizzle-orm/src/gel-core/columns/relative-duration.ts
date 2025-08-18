@@ -6,7 +6,7 @@ import { GelColumn, GelColumnBuilder } from './common.ts';
 
 export class GelRelDurationBuilder extends GelColumnBuilder<{
 	name: string;
-	dataType: 'relDuration';
+	dataType: 'object relDuration';
 	data: RelativeDuration;
 	driverParam: RelativeDuration;
 	enumValues: undefined;
@@ -16,7 +16,7 @@ export class GelRelDurationBuilder extends GelColumnBuilder<{
 	constructor(
 		name: string,
 	) {
-		super(name, 'relDuration', 'GelRelDuration');
+		super(name, 'object relDuration', 'GelRelDuration');
 	}
 
 	/** @internal */
@@ -28,7 +28,7 @@ export class GelRelDurationBuilder extends GelColumnBuilder<{
 	}
 }
 
-export class GelRelDuration<T extends ColumnBaseConfig<'relDuration'>> extends GelColumn<T> {
+export class GelRelDuration<T extends ColumnBaseConfig<'object relDuration'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelRelDuration';
 
 	getSQLType(): string {

@@ -76,7 +76,7 @@ export class SQLiteInteger<T extends ColumnBaseConfig<'number int53'>> extends S
 
 export class SQLiteTimestampBuilder extends SQLiteBaseIntegerBuilder<{
 	name: string;
-	dataType: 'date';
+	dataType: 'object date';
 	data: Date;
 	driverParam: number;
 	enumValues: undefined;
@@ -84,7 +84,7 @@ export class SQLiteTimestampBuilder extends SQLiteBaseIntegerBuilder<{
 	static override readonly [entityKind]: string = 'SQLiteTimestampBuilder';
 
 	constructor(name: string, mode: 'timestamp' | 'timestamp_ms') {
-		super(name, 'date', 'SQLiteTimestamp');
+		super(name, 'object date', 'SQLiteTimestamp');
 		this.config.mode = mode;
 	}
 
@@ -105,7 +105,7 @@ export class SQLiteTimestampBuilder extends SQLiteBaseIntegerBuilder<{
 	}
 }
 
-export class SQLiteTimestamp<T extends ColumnBaseConfig<'date'>>
+export class SQLiteTimestamp<T extends ColumnBaseConfig<'object date'>>
 	extends SQLiteBaseInteger<T, { mode: 'timestamp' | 'timestamp_ms' }>
 {
 	static override readonly [entityKind]: string = 'SQLiteTimestamp';

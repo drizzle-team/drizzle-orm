@@ -1,13 +1,16 @@
 import {
 	type Column,
-	type ColumnDataConstraint,
+	type ColumnDataArrayConstraint,
+	type ColumnDataNumberConstraint,
+	type ColumnDataObjectConstraint,
+	type ColumnDataStringConstraint,
 	extractExtendedColumnType,
 	getColumnTable,
 	getTableName,
 } from 'drizzle-orm';
 import { z as zod } from 'zod/v4';
 import { CONSTANTS } from './constants.ts';
-import type { CreateSchemaFactoryOptions } from './schema.types.ts';
+import type { CoerceOptions, FactoryOptions } from './schema.types.ts';
 import type { Json } from './utils.ts';
 
 export const literalSchema = zod.union([zod.string(), zod.number(), zod.boolean(), zod.null()]);
@@ -21,9 +24,7 @@ export const bufferSchema: zod.ZodType<Buffer> = zod.custom<Buffer>((v) => v ins
 export function columnToSchema(
 	column: Column,
 	factory:
-		| CreateSchemaFactoryOptions<
-			Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined
-		>
+		| FactoryOptions
 		| undefined,
 ): zod.ZodType {
 	const z: typeof zod = factory?.zodInstance ?? zod;
@@ -32,52 +33,12 @@ export function columnToSchema(
 	const { type, constraint } = extractExtendedColumnType(column);
 
 	switch (type) {
-		case 'enum': {
-			const enumValues = (<{ enumValues?: string[] }> column).enumValues;
-			if (!enumValues) {
-				throw new Error(
-					`Column "${getTableName(getColumnTable(column))}"."${column.name}" is of 'enum' type, but lacks enum values`,
-				);
-			}
-			schema = z.enum(enumValues);
-			break;
-		}
-		case 'pointTuple':
-		case 'geoTuple': {
-			schema = z.tuple([z.number(), z.number()]);
-			break;
-		}
-		case 'geoObject':
-		case 'pointObject': {
-			schema = z.object({ x: z.number(), y: z.number() });
-			break;
-		}
-		case 'vector': {
-			const dimensions = (<{ dimensions?: number }> column).dimensions;
-			schema = dimensions
-				? z.array(z.number()).length(dimensions)
-				: z.array(z.number());
-			break;
-		}
-		case 'lineTuple': {
-			schema = z.tuple([z.number(), z.number(), z.number()]);
-			break;
-		}
-		case 'lineABC': {
-			schema = z.object({
-				a: z.number(),
-				b: z.number(),
-				c: z.number(),
-			});
-			break;
-		}
 		case 'array': {
-			const size = (<{ size?: number }> column).size;
-			schema = (<{ baseColumn?: Column }> column).baseColumn
-				? z.array(columnToSchema((<{ baseColumn?: Column }> column).baseColumn!, factory))
-				: z.array(z.any());
-			if (size) schema = (<zod.ZodArray> schema).length(size);
-
+			schema = arrayColumnToSchema(column, constraint, z, coerce);
+			break;
+		}
+		case 'object': {
+			schema = objectColumnToSchema(column, constraint, z, coerce);
 			break;
 		}
 		case 'number': {
@@ -85,31 +46,19 @@ export function columnToSchema(
 			break;
 		}
 		case 'bigint': {
-			schema = bigintColumnToSchema(column, constraint, z, coerce);
+			schema = bigintColumnToSchema(column, z, coerce);
 			break;
 		}
 		case 'boolean': {
 			schema = coerce === true || coerce.boolean ? z.coerce.boolean() : z.boolean();
 			break;
 		}
-		case 'date': {
-			schema = coerce === true || coerce.date ? z.coerce.date() : z.date();
-			break;
-		}
 		case 'string': {
 			schema = stringColumnToSchema(column, constraint, z, coerce);
 			break;
 		}
-		case 'json': {
-			schema = jsonSchema;
-			break;
-		}
 		case 'custom': {
 			schema = z.any();
-			break;
-		}
-		case 'buffer': {
-			schema = bufferSchema;
 			break;
 		}
 		default: {
@@ -122,11 +71,9 @@ export function columnToSchema(
 
 function numberColumnToSchema(
 	column: Column,
-	constraint: ColumnDataConstraint | undefined,
+	constraint: ColumnDataNumberConstraint | undefined,
 	z: typeof zod,
-	coerce: CreateSchemaFactoryOptions<
-		Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined
-	>['coerce'],
+	coerce: CoerceOptions,
 ): zod.ZodType {
 	const unsigned = constraint === 'uint53' || column.getSQLType().includes('unsigned');
 	let min!: number;
@@ -216,11 +163,8 @@ function numberColumnToSchema(
 
 function bigintColumnToSchema(
 	column: Column,
-	constraint: ColumnDataConstraint | undefined,
 	z: typeof zod,
-	coerce: CreateSchemaFactoryOptions<
-		Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined
-	>['coerce'],
+	coerce: CoerceOptions,
 ): zod.ZodType {
 	const unsigned = column.getSQLType().includes('unsigned');
 	const min = unsigned ? 0n : CONSTANTS.INT64_MIN;
@@ -230,16 +174,88 @@ function bigintColumnToSchema(
 	return schema.gte(min).lte(max);
 }
 
+function arrayColumnToSchema(
+	column: Column,
+	constraint: ColumnDataArrayConstraint | undefined,
+	z: typeof zod,
+	coerce: CoerceOptions,
+): zod.ZodType {
+	switch (constraint) {
+		case 'geometry':
+		case 'point': {
+			return z.tuple([z.number(), z.number()]);
+		}
+		case 'line': {
+			return z.tuple([z.number(), z.number(), z.number()]);
+		}
+		case 'vector':
+		case 'halfvector': {
+			const dimensions = (<{ dimensions?: number }> column).dimensions;
+			return dimensions
+				? z.array(z.number()).length(dimensions)
+				: z.array(z.number());
+		}
+		case 'basecolumn': {
+			const size = (<{ size?: number }> column).size;
+			const schema = (<{ baseColumn?: Column }> column).baseColumn
+				? z.array(columnToSchema((<{ baseColumn?: Column }> column).baseColumn!, {
+					zodInstance: z,
+					coerce,
+				}))
+				: z.array(z.any());
+			if (size) return schema.length(size);
+			return schema;
+		}
+		default: {
+			return z.array(z.any());
+		}
+	}
+}
+
+function objectColumnToSchema(
+	column: Column,
+	constraint: ColumnDataObjectConstraint | undefined,
+	z: typeof zod,
+	coerce: CoerceOptions,
+): zod.ZodType {
+	switch (constraint) {
+		case 'buffer': {
+			return bufferSchema;
+		}
+		case 'date': {
+			return coerce === true || coerce?.date ? z.coerce.date() : z.date();
+		}
+		case 'geometry':
+		case 'point': {
+			return z.object({
+				x: z.number(),
+				y: z.number(),
+			});
+		}
+		case 'json': {
+			return jsonSchema;
+		}
+		case 'line': {
+			return z.object({
+				a: z.number(),
+				b: z.number(),
+				c: z.number(),
+			});
+		}
+		default: {
+			return z.looseObject({});
+		}
+	}
+}
+
 function stringColumnToSchema(
 	column: Column<any>,
-	constraint: ColumnDataConstraint | undefined,
+	constraint: ColumnDataStringConstraint | undefined,
 	z: typeof zod,
-	coerce: CreateSchemaFactoryOptions<
-		Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined
-	>['coerce'],
+	coerce: CoerceOptions,
 ): zod.ZodType {
 	if (constraint === 'uuid') return z.uuid();
-	const { dialect } = column;
+	const { dialect, name: columnName } = column;
 
 	let max: number | undefined;
 	let regex: RegExp | undefined;
@@ -271,6 +287,16 @@ function stringColumnToSchema(
 	} else if (constraint === 'varbinary') {
 		regex = /^[01]*$/;
 		max = (<{ dimensions?: number }> column).dimensions ?? (<{ length?: number }> column).length;
+	} else if (
+		constraint === 'enum'
+	) {
+		const enumValues = (<{ enumValues?: string[] }> column).enumValues;
+		if (!enumValues) {
+			throw new Error(
+				`Column "${getTableName(getColumnTable(column))}"."${columnName}" is of 'enum' type, but lacks enum values`,
+			);
+		}
+		return z.enum(enumValues);
 	}
 
 	let schema = coerce === true || coerce?.string ? z.coerce.string() : z.string();

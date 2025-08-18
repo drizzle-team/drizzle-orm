@@ -8,7 +8,7 @@ import { SingleStoreColumn, SingleStoreColumnBuilder, type SingleStoreGeneratedC
 
 export class SingleStoreVectorBuilder extends SingleStoreColumnBuilder<{
 	name: string;
-	dataType: 'vector';
+	dataType: 'array vector';
 	data: Array<number>;
 	driverParam: string;
 	enumValues: undefined;
@@ -16,7 +16,7 @@ export class SingleStoreVectorBuilder extends SingleStoreColumnBuilder<{
 	static override readonly [entityKind]: string = 'SingleStoreVectorBuilder';
 
 	constructor(name: string, config: SingleStoreVectorConfig) {
-		super(name, 'vector', 'SingleStoreVector');
+		super(name, 'array vector', 'SingleStoreVector');
 		this.config.dimensions = config.dimensions;
 		this.config.elementType = config.elementType;
 	}
@@ -40,7 +40,7 @@ export class SingleStoreVectorBuilder extends SingleStoreColumnBuilder<{
 	}
 }
 
-export class SingleStoreVector<T extends ColumnBaseConfig<'vector'>>
+export class SingleStoreVector<T extends ColumnBaseConfig<'array vector'>>
 	extends SingleStoreColumn<T, SingleStoreVectorConfig>
 {
 	static override readonly [entityKind]: string = 'SingleStoreVector';

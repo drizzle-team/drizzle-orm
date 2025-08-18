@@ -5,7 +5,7 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export class PgByteaBuilder extends PgColumnBuilder<{
 	name: string;
-	dataType: 'buffer';
+	dataType: 'object buffer';
 	data: Buffer;
 	driverParam: Buffer;
 	enumValues: undefined;
@@ -13,7 +13,7 @@ export class PgByteaBuilder extends PgColumnBuilder<{
 	static override readonly [entityKind]: string = 'PgByteaBuilder';
 
 	constructor(name: string) {
-		super(name, 'buffer', 'PgBytea');
+		super(name, 'object buffer', 'PgBytea');
 	}
 
 	/** @internal */
@@ -22,7 +22,7 @@ export class PgByteaBuilder extends PgColumnBuilder<{
 	}
 }
 
-export class PgBytea<T extends ColumnBaseConfig<'buffer'>> extends PgColumn<T> {
+export class PgBytea<T extends ColumnBaseConfig<'object buffer'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgBytea';
 
 	override mapFromDriverValue(value: Buffer | Uint8Array | string): Buffer {

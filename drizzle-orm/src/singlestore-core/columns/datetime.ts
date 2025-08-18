@@ -8,7 +8,7 @@ import { SingleStoreColumn, SingleStoreColumnBuilder, type SingleStoreGeneratedC
 
 export class SingleStoreDateTimeBuilder extends SingleStoreColumnBuilder<{
 	name: string;
-	dataType: 'date';
+	dataType: 'object date';
 	data: Date;
 	driverParam: string | number;
 	enumValues: undefined;
@@ -25,7 +25,7 @@ export class SingleStoreDateTimeBuilder extends SingleStoreColumnBuilder<{
 	static override readonly [entityKind]: string = 'SingleStoreDateTimeBuilder';
 
 	constructor(name: string) {
-		super(name, 'date', 'SingleStoreDateTime');
+		super(name, 'object date', 'SingleStoreDateTime');
 	}
 
 	/** @internal */
@@ -37,7 +37,7 @@ export class SingleStoreDateTimeBuilder extends SingleStoreColumnBuilder<{
 	}
 }
 
-export class SingleStoreDateTime<T extends ColumnBaseConfig<'date'>> extends SingleStoreColumn<T> {
+export class SingleStoreDateTime<T extends ColumnBaseConfig<'object date'>> extends SingleStoreColumn<T> {
 	static override readonly [entityKind]: string = 'SingleStoreDateTime';
 
 	constructor(

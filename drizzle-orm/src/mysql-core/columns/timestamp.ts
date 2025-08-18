@@ -6,7 +6,7 @@ import { MySqlDateBaseColumn, MySqlDateColumnBaseBuilder } from './date.common.t
 
 export class MySqlTimestampBuilder extends MySqlDateColumnBaseBuilder<{
 	name: string;
-	dataType: 'date';
+	dataType: 'object date';
 	data: Date;
 	driverParam: string | number;
 	enumValues: undefined;
@@ -14,7 +14,7 @@ export class MySqlTimestampBuilder extends MySqlDateColumnBaseBuilder<{
 	static override readonly [entityKind]: string = 'MySqlTimestampBuilder';
 
 	constructor(name: string, config: MySqlTimestampConfig | undefined) {
-		super(name, 'date', 'MySqlTimestamp');
+		super(name, 'object date', 'MySqlTimestamp');
 		this.config.fsp = config?.fsp;
 	}
 
@@ -27,7 +27,9 @@ export class MySqlTimestampBuilder extends MySqlDateColumnBaseBuilder<{
 	}
 }
 
-export class MySqlTimestamp<T extends ColumnBaseConfig<'date'>> extends MySqlDateBaseColumn<T, MySqlTimestampConfig> {
+export class MySqlTimestamp<T extends ColumnBaseConfig<'object date'>>
+	extends MySqlDateBaseColumn<T, MySqlTimestampConfig>
+{
 	static override readonly [entityKind]: string = 'MySqlTimestamp';
 
 	readonly fsp: number | undefined = this.config.fsp;

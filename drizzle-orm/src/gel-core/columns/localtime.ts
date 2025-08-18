@@ -7,7 +7,7 @@ import { GelLocalDateColumnBaseBuilder } from './date.common.ts';
 
 export class GelLocalTimeBuilder extends GelLocalDateColumnBaseBuilder<{
 	name: string;
-	dataType: 'localTime';
+	dataType: 'object localTime';
 	data: LocalTime;
 	driverParam: LocalTime;
 	enumValues: undefined;
@@ -15,7 +15,7 @@ export class GelLocalTimeBuilder extends GelLocalDateColumnBaseBuilder<{
 	static override readonly [entityKind]: string = 'GelLocalTimeBuilder';
 
 	constructor(name: string) {
-		super(name, 'localTime', 'GelLocalTime');
+		super(name, 'object localTime', 'GelLocalTime');
 	}
 
 	/** @internal */
@@ -27,7 +27,7 @@ export class GelLocalTimeBuilder extends GelLocalDateColumnBaseBuilder<{
 	}
 }
 
-export class GelLocalTime<T extends ColumnBaseConfig<'localTime'>> extends GelColumn<T> {
+export class GelLocalTime<T extends ColumnBaseConfig<'object localTime'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelLocalTime';
 
 	getSQLType(): string {

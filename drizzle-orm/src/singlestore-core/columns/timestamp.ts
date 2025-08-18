@@ -7,7 +7,7 @@ import { SingleStoreDateBaseColumn, SingleStoreDateColumnBaseBuilder } from './d
 
 export class SingleStoreTimestampBuilder extends SingleStoreDateColumnBaseBuilder<{
 	name: string;
-	dataType: 'date';
+	dataType: 'object date';
 	data: Date;
 	driverParam: string | number;
 	enumValues: undefined;
@@ -15,7 +15,7 @@ export class SingleStoreTimestampBuilder extends SingleStoreDateColumnBaseBuilde
 	static override readonly [entityKind]: string = 'SingleStoreTimestampBuilder';
 
 	constructor(name: string) {
-		super(name, 'date', 'SingleStoreTimestamp');
+		super(name, 'object date', 'SingleStoreTimestamp');
 	}
 
 	/** @internal */
@@ -31,7 +31,7 @@ export class SingleStoreTimestampBuilder extends SingleStoreDateColumnBaseBuilde
 	}
 }
 
-export class SingleStoreTimestamp<T extends ColumnBaseConfig<'date'>>
+export class SingleStoreTimestamp<T extends ColumnBaseConfig<'object date'>>
 	extends SingleStoreDateBaseColumn<T, SingleStoreTimestampConfig>
 {
 	static override readonly [entityKind]: string = 'SingleStoreTimestamp';

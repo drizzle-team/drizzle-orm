@@ -9,37 +9,23 @@ import type { SQLiteColumn } from './sqlite-core/index.ts';
 import type { Assume } from './utils.ts';
 
 export type ColumnDataType =
-	// Primitives
+	| 'array'
 	| 'bigint'
 	| 'boolean'
-	| 'enum'
+	| 'custom'
 	| 'number'
-	| 'string'
-	// Classes
-	| 'buffer'
-	| 'date'
-	// Objects
-	| 'geoObject'
-	| 'geoTuple'
-	| 'json'
-	| 'lineABC'
-	| 'lineTuple'
-	| 'pointObject'
-	| 'pointTuple'
-	| 'vector'
-	// External classes
-	| 'dateDuration'
-	| 'duration'
-	| 'localDate'
-	| 'localDateTime'
-	| 'localTime'
-	| 'relDuration'
-	// Special cases
-	| 'array'
-	| 'custom';
+	| 'object'
+	| 'string';
 
-export type ColumnDataConstraint =
-	// number
+export type ColumnDataArrayConstraint =
+	| 'vector'
+	| 'halfvector'
+	| 'basecolumn'
+	| 'point'
+	| 'geometry'
+	| 'line';
+
+export type ColumnDataNumberConstraint =
 	| 'double'
 	| 'float'
 	| 'int8'
@@ -50,13 +36,29 @@ export type ColumnDataConstraint =
 	| 'uint53'
 	| 'real24'
 	| 'real48'
-	| 'year'
-	// string
+	| 'year';
+
+export type ColumnDataObjectConstraint =
+	| 'buffer'
+	| 'date'
+	| 'geometry'
+	| 'json'
+	| 'line'
+	| 'point'
+	| 'dateDuration'
+	| 'duration'
+	| 'localDate'
+	| 'localDateTime'
+	| 'localTime'
+	| 'relDuration';
+
+export type ColumnDataStringConstraint =
 	| 'binary'
 	| 'char'
 	| 'cidr'
 	| 'date'
 	| 'datetime'
+	| 'enum'
 	| 'inet'
 	| 'interval'
 	| 'macaddr'
@@ -69,41 +71,20 @@ export type ColumnDataConstraint =
 	| 'timestamp'
 	| 'uuid'
 	| 'varbinary'
-	| 'varchar'
-	// vector
-	| 'halfvec';
+	| 'varchar';
+
+export type ColumnDataConstraint =
+	| ColumnDataArrayConstraint
+	| ColumnDataNumberConstraint
+	| ColumnDataObjectConstraint
+	| ColumnDataStringConstraint;
 
 export type ColumnType =
 	| ColumnDataType
-	| 'number double'
-	| 'number float'
-	| 'number real24'
-	| 'number real48'
-	| 'number int8'
-	| 'number int16'
-	| 'number int24'
-	| 'number int32'
-	| 'number int53'
-	| 'number uint53'
-	| 'number year'
-	| 'string binary'
-	| 'string varbinary'
-	| 'string char'
-	| 'string cidr'
-	| 'string date'
-	| 'string datetime'
-	| 'string inet'
-	| 'string interval'
-	| 'string macaddr'
-	| 'string macaddr8'
-	| 'string numeric'
-	| 'string sparsevec'
-	| 'string text'
-	| 'string time'
-	| 'string timestamp'
-	| 'string uuid'
-	| 'string varchar'
-	| 'vector halfvec';
+	| `array ${ColumnDataArrayConstraint}`
+	| `number ${ColumnDataNumberConstraint}`
+	| `object ${ColumnDataObjectConstraint}`
+	| `string ${ColumnDataStringConstraint}`;
 
 export interface ColumnTypeData<
 	TType extends ColumnDataType = ColumnDataType,

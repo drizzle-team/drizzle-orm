@@ -9,7 +9,7 @@ export class MySqlVarCharBuilder<
 	TLength extends number | undefined,
 > extends MySqlColumnBuilder<{
 	name: string;
-	dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string varchar' : 'enum';
+	dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string varchar' : 'string enum';
 	data: TEnum[number];
 	driverParam: number | string;
 	enumValues: TEnum;
@@ -19,7 +19,7 @@ export class MySqlVarCharBuilder<
 
 	/** @internal */
 	constructor(name: string, config: MySqlVarCharConfig<TEnum, TLength>) {
-		super(name, config.enum?.length ? 'enum' : 'string varchar', 'MySqlVarChar');
+		super(name, config.enum?.length ? 'string enum' : 'string varchar', 'MySqlVarChar');
 		this.config.length = config.length;
 		this.config.enum = config.enum;
 	}
@@ -33,9 +33,9 @@ export class MySqlVarCharBuilder<
 	}
 }
 
-export class MySqlVarChar<T extends ColumnBaseConfig<'string varchar' | 'enum'> & { length?: number | undefined }>
-	extends MySqlColumn<T, MySqlVarCharConfig<T['enumValues'], T['length']>>
-{
+export class MySqlVarChar<
+	T extends ColumnBaseConfig<'string varchar' | 'string enum'> & { length?: number | undefined },
+> extends MySqlColumn<T, MySqlVarCharConfig<T['enumValues'], T['length']>> {
 	static override readonly [entityKind]: string = 'MySqlVarChar';
 
 	readonly length: number | undefined = this.config.length;

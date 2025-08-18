@@ -10,7 +10,7 @@ export class PgVarcharBuilder<
 > extends PgColumnBuilder<
 	{
 		name: string;
-		dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string varchar' : 'enum';
+		dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string varchar' : 'string enum';
 		data: TEnum[number];
 		driverParam: string;
 		enumValues: TEnum;
@@ -21,7 +21,7 @@ export class PgVarcharBuilder<
 	static override readonly [entityKind]: string = 'PgVarcharBuilder';
 
 	constructor(name: string, config: PgVarcharConfig<TEnum, TLength>) {
-		super(name, config.enum?.length ? 'enum' : 'string varchar', 'PgVarchar');
+		super(name, config.enum?.length ? 'string enum' : 'string varchar', 'PgVarchar');
 		this.config.length = config.length!;
 		this.config.enumValues = config.enum!;
 	}
@@ -35,7 +35,7 @@ export class PgVarcharBuilder<
 	}
 }
 
-export class PgVarchar<T extends ColumnBaseConfig<'string varchar' | 'enum'> & { length?: number | undefined }>
+export class PgVarchar<T extends ColumnBaseConfig<'string varchar' | 'string enum'> & { length?: number | undefined }>
 	extends PgColumn<T, { length: T['length']; enumValues: T['enumValues'] }>
 {
 	static override readonly [entityKind]: string = 'PgVarchar';

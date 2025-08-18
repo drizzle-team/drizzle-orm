@@ -59,7 +59,7 @@ export class SQLiteBigInt<T extends ColumnBaseConfig<'bigint'>> extends SQLiteCo
 
 export class SQLiteBlobJsonBuilder extends SQLiteColumnBuilder<{
 	name: string;
-	dataType: 'json';
+	dataType: 'object json';
 	data: unknown;
 	driverParam: Buffer;
 	enumValues: undefined;
@@ -67,7 +67,7 @@ export class SQLiteBlobJsonBuilder extends SQLiteColumnBuilder<{
 	static override readonly [entityKind]: string = 'SQLiteBlobJsonBuilder';
 
 	constructor(name: string) {
-		super(name, 'json', 'SQLiteBlobJson');
+		super(name, 'object json', 'SQLiteBlobJson');
 	}
 
 	/** @internal */
@@ -79,7 +79,7 @@ export class SQLiteBlobJsonBuilder extends SQLiteColumnBuilder<{
 	}
 }
 
-export class SQLiteBlobJson<T extends ColumnBaseConfig<'json'>> extends SQLiteColumn<T> {
+export class SQLiteBlobJson<T extends ColumnBaseConfig<'object json'>> extends SQLiteColumn<T> {
 	static override readonly [entityKind]: string = 'SQLiteBlobJson';
 
 	getSQLType(): string {
@@ -113,7 +113,7 @@ export class SQLiteBlobJson<T extends ColumnBaseConfig<'json'>> extends SQLiteCo
 
 export class SQLiteBlobBufferBuilder extends SQLiteColumnBuilder<{
 	name: string;
-	dataType: 'buffer';
+	dataType: 'object buffer';
 	data: Buffer;
 	driverParam: Buffer;
 	enumValues: undefined;
@@ -121,7 +121,7 @@ export class SQLiteBlobBufferBuilder extends SQLiteColumnBuilder<{
 	static override readonly [entityKind]: string = 'SQLiteBlobBufferBuilder';
 
 	constructor(name: string) {
-		super(name, 'buffer', 'SQLiteBlobBuffer');
+		super(name, 'object buffer', 'SQLiteBlobBuffer');
 	}
 
 	/** @internal */
@@ -130,7 +130,7 @@ export class SQLiteBlobBufferBuilder extends SQLiteColumnBuilder<{
 	}
 }
 
-export class SQLiteBlobBuffer<T extends ColumnBaseConfig<'buffer'>> extends SQLiteColumn<T> {
+export class SQLiteBlobBuffer<T extends ColumnBaseConfig<'object buffer'>> extends SQLiteColumn<T> {
 	static override readonly [entityKind]: string = 'SQLiteBlobBuffer';
 
 	override mapFromDriverValue(value: Buffer | Uint8Array | ArrayBuffer): T['data'] {

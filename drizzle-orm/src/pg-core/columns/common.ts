@@ -40,7 +40,7 @@ export abstract class PgColumnBuilder<
 	array<TSize extends number | undefined = undefined>(size?: TSize): PgArrayBuilder<
 		& {
 			name: string;
-			dataType: 'array';
+			dataType: 'array basecolumn';
 			data: T['data'][];
 			driverParam: T['driverParam'][] | string;
 			enumValues: T['enumValues'];
@@ -244,7 +244,7 @@ export type AnyPgColumn<TPartial extends Partial<ColumnBaseConfig<ColumnType>> =
 	Required<Update<ColumnBaseConfig<ColumnType>, TPartial>>
 >;
 
-export type PgArrayColumnBuilderBaseConfig = ColumnBuilderBaseConfig<'array'> & {
+export type PgArrayColumnBuilderBaseConfig = ColumnBuilderBaseConfig<'array basecolumn'> & {
 	size: number | undefined;
 	baseBuilder: ColumnBuilderBaseConfig<ColumnType>;
 };
@@ -279,7 +279,7 @@ export class PgArrayBuilder<
 		baseBuilder: PgArrayBuilder<T, TBase>['config']['baseBuilder'],
 		size: T['size'],
 	) {
-		super(name, 'array', 'PgArray');
+		super(name, 'array basecolumn', 'PgArray');
 		this.config.baseBuilder = baseBuilder;
 		this.config.size = size;
 	}
@@ -296,7 +296,7 @@ export class PgArrayBuilder<
 }
 
 export class PgArray<
-	T extends ColumnBaseConfig<'array'> & {
+	T extends ColumnBaseConfig<'array basecolumn'> & {
 		size: number | undefined;
 		baseBuilder: ColumnBuilderBaseConfig<ColumnType>;
 	},

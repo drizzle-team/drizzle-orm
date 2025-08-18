@@ -5,7 +5,7 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export class PgJsonbBuilder extends PgColumnBuilder<{
 	name: string;
-	dataType: 'json';
+	dataType: 'object json';
 	data: unknown;
 	driverParam: unknown;
 	enumValues: undefined;
@@ -13,7 +13,7 @@ export class PgJsonbBuilder extends PgColumnBuilder<{
 	static override readonly [entityKind]: string = 'PgJsonbBuilder';
 
 	constructor(name: string) {
-		super(name, 'json', 'PgJsonb');
+		super(name, 'object json', 'PgJsonb');
 	}
 
 	/** @internal */
@@ -22,7 +22,7 @@ export class PgJsonbBuilder extends PgColumnBuilder<{
 	}
 }
 
-export class PgJsonb<T extends ColumnBaseConfig<'json'>> extends PgColumn<T> {
+export class PgJsonb<T extends ColumnBaseConfig<'object json'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgJsonb';
 
 	constructor(table: PgTable<any>, config: PgJsonbBuilder['config']) {

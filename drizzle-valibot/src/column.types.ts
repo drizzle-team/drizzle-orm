@@ -31,13 +31,14 @@ export type ExtractAdditionalProperties<
 		: TConstraint extends 'binary' ? TColumn['_'] extends { dimensions: number } ? TColumn['_']['dimensions'] : number
 		: TConstraint extends 'varbinary'
 			? TColumn['_'] extends { dimensions: number } ? TColumn['_']['dimensions'] : number
-		: TColumnType extends 'vector'
-			? TColumn['_'] extends { dimensions: number } ? Assume<TColumn['_'], { dimensions: number }>['dimensions']
-			: undefined
 		: TColumnType extends 'array'
-			? TColumn['_'] extends { size: number } ? Assume<TColumn['_'], { size: number }>['size'] : undefined
+			? TConstraint extends 'vector' | 'halfvector'
+				? TColumn['_'] extends { dimensions: number } ? Assume<TColumn['_'], { dimensions: number }>['dimensions']
+				: undefined
+			: TColumn['_'] extends { size: number } ? Assume<TColumn['_'], { size: number }>['size']
+			: undefined
 		: undefined;
-	fixedLength: TColumnType extends 'vector' | 'array' ? true : TConstraint extends 'char' | 'binary' ? true : false;
+	fixedLength: TColumnType extends 'array' ? true : TConstraint extends 'char' | 'binary' ? true : false;
 };
 
 type GetLengthAction<T extends Record<string, any>, TType extends string | ArrayLike<unknown>> =
@@ -63,52 +64,49 @@ export type GetValibotType<
 	TEnum extends string[] | undefined,
 	TBaseColumn extends Column | undefined,
 	TAdditionalProperties extends Record<string, any>,
-> = TColumnType extends 'vector' ? TAdditionalProperties['max'] extends number ? v.SchemaWithPipe<
-			[v.ArraySchema<v.NumberSchema<undefined>, undefined>, GetLengthAction<TAdditionalProperties, number[]>]
-		>
-	: v.ArraySchema<v.NumberSchema<undefined>, undefined>
-	: TBaseColumn extends Column // Equivalent to TColumnType extends 'array', but doesn't cause instantiation overload
-		? GetArraySchema<TBaseColumn> extends infer ArrInternals extends v.BaseSchema<any, any, v.BaseIssue<any>>
-			? (TAdditionalProperties['max'] extends number ? v.SchemaWithPipe<
-					[
-						v.ArraySchema<ArrInternals, undefined>,
-						GetLengthAction<
-							TAdditionalProperties,
-							Assume<TData, string | ArrayLike<unknown>>
-						>,
-					]
-				>
-				: v.ArraySchema<ArrInternals, undefined>)
-		: v.AnySchema
-	: TColumnType extends 'enum' ? v.EnumSchema<
-			{ readonly [K in Assume<TEnum, string[]>[number]]: K },
-			undefined
-		>
-	: TColumnType extends 'geoTuple' | 'pointTuple'
+> = TColumnType extends 'array'
+	? TConstraint extends 'vector' | 'halfvector' ? TAdditionalProperties['max'] extends number ? v.SchemaWithPipe<
+				[v.ArraySchema<v.NumberSchema<undefined>, undefined>, GetLengthAction<TAdditionalProperties, number[]>]
+			>
+		: v.ArraySchema<v.NumberSchema<undefined>, undefined>
+	: TConstraint extends 'geometry' | 'point'
 		? v.TupleSchema<[v.NumberSchema<undefined>, v.NumberSchema<undefined>], undefined>
-	: TColumnType extends 'geoObject' | 'pointObject' ? v.ObjectSchema<
-			{ readonly x: v.NumberSchema<undefined>; readonly y: v.NumberSchema<undefined> },
-			undefined
-		>
-	: TColumnType extends 'lineTuple'
+	: TConstraint extends 'line'
 		? v.TupleSchema<[v.NumberSchema<undefined>, v.NumberSchema<undefined>, v.NumberSchema<undefined>], undefined>
-	: TColumnType extends 'lineABC' ? v.ObjectSchema<
-			{
-				readonly a: v.NumberSchema<undefined>;
-				readonly b: v.NumberSchema<undefined>;
-				readonly c: v.NumberSchema<undefined>;
-			},
-			undefined
-		>
-	: TColumnType extends 'date' ? v.DateSchema<undefined>
-	: TColumnType extends 'buffer' ? v.GenericSchema<Buffer>
-	: TColumnType extends 'vector' ? v.ArraySchema<
-			v.NumberSchema<undefined>,
-			undefined
-		>
-	: TColumnType extends 'json' ? v.GenericSchema<
-			TData extends Record<string, any> ? TData : Json
-		>
+	: TConstraint extends 'basecolumn'
+		? TBaseColumn extends Column
+			? (GetArraySchema<TBaseColumn> extends infer ArrInternals extends v.BaseSchema<any, any, v.BaseIssue<any>>
+				? TAdditionalProperties['max'] extends number ? v.SchemaWithPipe<
+						[
+							v.ArraySchema<ArrInternals, undefined>,
+							GetLengthAction<
+								TAdditionalProperties,
+								Assume<TData, string | ArrayLike<unknown>>
+							>,
+						]
+					>
+				: v.ArraySchema<ArrInternals, undefined>
+				: v.AnySchema)
+		: v.ArraySchema<v.AnySchema, undefined>
+	: v.ArraySchema<v.AnySchema, undefined>
+	: TColumnType extends 'object' ? TConstraint extends 'geometry' | 'point' ? v.ObjectSchema<
+				{ readonly x: v.NumberSchema<undefined>; readonly y: v.NumberSchema<undefined> },
+				undefined
+			>
+		: TConstraint extends 'line' ? v.ObjectSchema<
+				{
+					readonly a: v.NumberSchema<undefined>;
+					readonly b: v.NumberSchema<undefined>;
+					readonly c: v.NumberSchema<undefined>;
+				},
+				undefined
+			>
+		: TConstraint extends 'date' ? v.DateSchema<undefined>
+		: TConstraint extends 'buffer' ? v.GenericSchema<Buffer>
+		: TConstraint extends 'json' ? v.GenericSchema<
+				TData extends Record<string, any> ? TData : Json
+			>
+		: v.LooseObjectSchema<{}, undefined>
 	: TColumnType extends 'custom' ? v.AnySchema
 	: TColumnType extends 'number' ? v.SchemaWithPipe<
 			RemoveNeverElements<[
@@ -128,6 +126,10 @@ export type GetValibotType<
 	: TColumnType extends 'boolean' ? v.BooleanSchema<undefined>
 	: TColumnType extends 'string'
 		? TConstraint extends 'uuid' ? v.SchemaWithPipe<[v.StringSchema<undefined>, v.UuidAction<string, undefined>]>
+		: TConstraint extends 'enum' ? v.EnumSchema<
+				{ readonly [K in Assume<TEnum, string[]>[number]]: K },
+				undefined
+			>
 		: TConstraint extends 'binary' ? v.SchemaWithPipe<
 				RemoveNeverElements<[
 					v.StringSchema<undefined>,

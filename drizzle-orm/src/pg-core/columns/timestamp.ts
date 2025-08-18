@@ -8,7 +8,7 @@ import { PgDateColumnBaseBuilder } from './date.common.ts';
 export class PgTimestampBuilder extends PgDateColumnBaseBuilder<
 	{
 		name: string;
-		dataType: 'date';
+		dataType: 'object date';
 		data: Date;
 		driverParam: string;
 		enumValues: undefined;
@@ -22,7 +22,7 @@ export class PgTimestampBuilder extends PgDateColumnBaseBuilder<
 		withTimezone: boolean,
 		precision: number | undefined,
 	) {
-		super(name, 'date', 'PgTimestamp');
+		super(name, 'object date', 'PgTimestamp');
 		this.config.withTimezone = withTimezone;
 		this.config.precision = precision;
 	}
@@ -33,7 +33,7 @@ export class PgTimestampBuilder extends PgDateColumnBaseBuilder<
 	}
 }
 
-export class PgTimestamp<T extends ColumnBaseConfig<'date'>> extends PgColumn<T> {
+export class PgTimestamp<T extends ColumnBaseConfig<'object date'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgTimestamp';
 
 	readonly withTimezone: boolean;

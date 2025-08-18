@@ -8,7 +8,7 @@ import { SingleStoreColumn, SingleStoreColumnBuilder, type SingleStoreGeneratedC
 
 export class SingleStoreEnumColumnBuilder<TEnum extends [string, ...string[]]> extends SingleStoreColumnBuilder<{
 	name: string;
-	dataType: 'enum';
+	dataType: 'string enum';
 	data: TEnum[number];
 	driverParam: string;
 	enumValues: TEnum;
@@ -24,7 +24,7 @@ export class SingleStoreEnumColumnBuilder<TEnum extends [string, ...string[]]> e
 	static override readonly [entityKind]: string = 'SingleStoreEnumColumnBuilder';
 
 	constructor(name: string, values: TEnum) {
-		super(name, 'enum', 'SingleStoreEnumColumn');
+		super(name, 'string enum', 'SingleStoreEnumColumn');
 		this.config.enumValues = values;
 	}
 
@@ -37,7 +37,7 @@ export class SingleStoreEnumColumnBuilder<TEnum extends [string, ...string[]]> e
 	}
 }
 
-export class SingleStoreEnumColumn<T extends ColumnBaseConfig<'enum'>>
+export class SingleStoreEnumColumn<T extends ColumnBaseConfig<'string enum'>>
 	extends SingleStoreColumn<T, { enumValues: T['enumValues'] }>
 {
 	static override readonly [entityKind]: string = 'SingleStoreEnumColumn';

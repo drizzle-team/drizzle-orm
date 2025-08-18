@@ -6,7 +6,7 @@ import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export class MySqlDateTimeBuilder extends MySqlColumnBuilder<{
 	name: string;
-	dataType: 'date';
+	dataType: 'object date';
 	data: Date;
 	driverParam: string | number;
 	enumValues: undefined;
@@ -14,7 +14,7 @@ export class MySqlDateTimeBuilder extends MySqlColumnBuilder<{
 	static override readonly [entityKind]: string = 'MySqlDateTimeBuilder';
 
 	constructor(name: string, config: MySqlDatetimeConfig | undefined) {
-		super(name, 'date', 'MySqlDateTime');
+		super(name, 'object date', 'MySqlDateTime');
 		this.config.fsp = config?.fsp;
 	}
 
@@ -27,7 +27,7 @@ export class MySqlDateTimeBuilder extends MySqlColumnBuilder<{
 	}
 }
 
-export class MySqlDateTime<T extends ColumnBaseConfig<'date'>> extends MySqlColumn<T> {
+export class MySqlDateTime<T extends ColumnBaseConfig<'object date'>> extends MySqlColumn<T> {
 	static override readonly [entityKind]: string = 'MySqlDateTime';
 
 	readonly fsp: number | undefined;

@@ -1,7 +1,10 @@
 import { type Type, type } from 'arktype';
 import {
 	type Column,
-	type ColumnDataConstraint,
+	type ColumnDataArrayConstraint,
+	type ColumnDataNumberConstraint,
+	type ColumnDataObjectConstraint,
+	type ColumnDataStringConstraint,
 	extractExtendedColumnType,
 	getColumnTable,
 	getTableName,
@@ -19,54 +22,12 @@ export function columnToSchema(column: Column): Type {
 	const { type: columnType, constraint } = extractExtendedColumnType(column);
 
 	switch (columnType) {
-		case 'enum': {
-			const enumValues = (<{ enumValues?: string[] }> column).enumValues;
-			if (!enumValues) {
-				throw new Error(
-					`Column "${getTableName(getColumnTable(column))}"."${column.name}" is of 'enum' type, but lacks enum values`,
-				);
-			}
-			schema = type.enumerated(...enumValues);
-			break;
-		}
-		case 'pointTuple':
-		case 'geoTuple': {
-			schema = type([type.number, type.number]);
-			break;
-		}
-		case 'geoObject':
-		case 'pointObject': {
-			schema = type({
-				x: type.number,
-				y: type.number,
-			});
-			break;
-		}
-		case 'vector': {
-			const dimensions = (<{ dimensions?: number }> column).dimensions;
-			schema = dimensions
-				? type.number.array().exactlyLength(dimensions)
-				: type.number.array();
-			break;
-		}
-		case 'lineTuple': {
-			schema = type([type.number, type.number, type.number]);
-			break;
-		}
-		case 'lineABC': {
-			schema = type({
-				a: type.number,
-				b: type.number,
-				c: type.number,
-			});
-			break;
-		}
 		case 'array': {
-			const size = (<{ size?: number }> column).size;
-			schema = (<{ baseColumn?: Column }> column).baseColumn
-				? columnToSchema((<{ baseColumn?: Column }> column).baseColumn!).array()
-				: type.unknown.array();
-			if (size) schema = (<Type<unknown[]>> schema).exactlyLength(size);
+			schema = arrayColumnToSchema(column, constraint);
+			break;
+		}
+		case 'object': {
+			schema = objectColumnToSchema(column, constraint);
 			break;
 		}
 		case 'number': {
@@ -81,24 +42,12 @@ export function columnToSchema(column: Column): Type {
 			schema = type.boolean;
 			break;
 		}
-		case 'date': {
-			schema = type.Date;
-			break;
-		}
 		case 'string': {
 			schema = stringColumnToSchema(column, constraint);
 			break;
 		}
-		case 'json': {
-			schema = jsonSchema;
-			break;
-		}
 		case 'custom': {
 			schema = type.unknown;
-			break;
-		}
-		case 'buffer': {
-			schema = bufferSchema;
 			break;
 		}
 		default: {
@@ -109,7 +58,7 @@ export function columnToSchema(column: Column): Type {
 	return schema;
 }
 
-function numberColumnToSchema(column: Column, constraint: ColumnDataConstraint | undefined): Type<number, any> {
+function numberColumnToSchema(column: Column, constraint: ColumnDataNumberConstraint | undefined): Type<number, any> {
 	const unsigned = constraint === 'uint53' || column.getSQLType().includes('unsigned');
 	let min!: number;
 	let max!: number;
@@ -190,6 +139,71 @@ function numberColumnToSchema(column: Column, constraint: ColumnDataConstraint |
 	return (integer ? type.keywords.number.integer : type.number).atLeast(min).atMost(max);
 }
 
+function arrayColumnToSchema(
+	column: Column,
+	constraint: ColumnDataArrayConstraint | undefined,
+): Type {
+	switch (constraint) {
+		case 'geometry':
+		case 'point': {
+			return type([type.number, type.number]);
+		}
+		case 'line': {
+			return type([type.number, type.number, type.number]);
+		}
+		case 'vector':
+		case 'halfvector': {
+			const dimensions = (<{ dimensions?: number }> column).dimensions;
+			return dimensions ? type.number.array().exactlyLength(dimensions) : type.number.array();
+		}
+		case 'basecolumn': {
+			const size = (<{ size?: number }> column).size;
+			const schema = (<{ baseColumn?: Column }> column).baseColumn
+				? columnToSchema((<{ baseColumn?: Column }> column).baseColumn!).array()
+				: type.unknown.array();
+			if (size) return schema.exactlyLength(size);
+			return schema;
+		}
+		default: {
+			return type.unknown.array();
+		}
+	}
+}
+
+function objectColumnToSchema(
+	column: Column,
+	constraint: ColumnDataObjectConstraint | undefined,
+): Type {
+	switch (constraint) {
+		case 'buffer': {
+			return bufferSchema;
+		}
+		case 'date': {
+			return type.Date;
+		}
+		case 'geometry':
+		case 'point': {
+			return type({
+				x: type.number,
+				y: type.number,
+			});
+		}
+		case 'json': {
+			return jsonSchema;
+		}
+		case 'line': {
+			return type({
+				a: type.number,
+				b: type.number,
+				c: type.number,
+			});
+		}
+		default: {
+			return type({});
+		}
+	}
+}
+
 /** @internal */
 export const unsignedBigintNarrow = (v: bigint, ctx: { mustBe: (expected: string) => false }) =>
 	v < 0n ? ctx.mustBe('greater than') : v > CONSTANTS.INT64_UNSIGNED_MAX ? ctx.mustBe('less than') : true;
@@ -203,12 +217,8 @@ function bigintColumnToSchema(column: Column): Type {
 	return type.bigint.narrow(unsigned ? unsignedBigintNarrow : bigintNarrow);
 }
 
-function stringColumnToSchema(column: Column, constraint: ColumnDataConstraint | undefined): Type {
-	if (constraint === 'uuid') {
-		return type(/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/iu).describe('a RFC-4122-compliant UUID');
-	}
-
-	const { dialect } = column;
+function stringColumnToSchema(column: Column, constraint: ColumnDataStringConstraint | undefined): Type {
+	const { dialect, name: columnName } = column;
 
 	let max: number | undefined;
 	let fixed = false;
@@ -240,6 +250,16 @@ function stringColumnToSchema(column: Column, constraint: ColumnDataConstraint |
 		const length = (<{ dimensions?: number }> column).dimensions ?? (<{ length?: number }> column).length;
 		return type(`/^[01]${length ? `{0,${length}}` : '*'}$/`)
 			.describe(`a string containing ones or zeros${length ? ` while being up to ${length} characters long` : ''}`);
+	} else if (constraint === 'uuid') {
+		return type(/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/iu).describe('a RFC-4122-compliant UUID');
+	} else if (constraint === 'enum') {
+		const enumValues = (<{ enumValues?: string[] }> column).enumValues;
+		if (!enumValues) {
+			throw new Error(
+				`Column "${getTableName(getColumnTable(column))}"."${columnName}" is of 'enum' type, but lacks enum values`,
+			);
+		}
+		return type.enumerated(...enumValues);
 	}
 
 	return max && fixed ? type.string.exactlyLength(max) : max ? type.string.atMostLength(max) : type.string;
