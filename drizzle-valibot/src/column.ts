@@ -207,7 +207,6 @@ function bigintColumnToSchema(column: Column): v.GenericSchema {
 }
 
 function stringColumnToSchema(column: Column, constraint: ColumnDataConstraint | undefined): v.GenericSchema {
-	if (constraint === 'uuid') return v.pipe(v.string(), v.uuid());
 	const { dialect } = column;
 
 	let max: number | undefined;
@@ -234,9 +233,13 @@ function stringColumnToSchema(column: Column, constraint: ColumnDataConstraint |
 		max = (<{ length?: number }> column).length;
 		fixed = true;
 	} else if (constraint === 'binary') {
-		regex = dialect === 'pg' ? /^[01]+$/ : /^[01]*$/;
+		regex = /^[01]*$/;
 		max = (<{ dimensions?: number }> column).dimensions ?? (<{ length?: number }> column).length;
-	}
+		fixed = true;
+	} else if (constraint === 'varbinary') {
+		regex = /^[01]*$/;
+		max = (<{ dimensions?: number }> column).dimensions ?? (<{ length?: number }> column).length;
+	} else if (constraint === 'uuid') return v.pipe(v.string(), v.uuid());
 
 	const actions: any[] = [];
 	if (regex) {

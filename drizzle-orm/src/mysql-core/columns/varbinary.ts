@@ -6,7 +6,7 @@ import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export class MySqlVarBinaryBuilder extends MySqlColumnBuilder<{
 	name: string;
-	dataType: 'string binary';
+	dataType: 'string varbinary';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
@@ -15,7 +15,7 @@ export class MySqlVarBinaryBuilder extends MySqlColumnBuilder<{
 
 	/** @internal */
 	constructor(name: string, config: MySqlVarbinaryOptions) {
-		super(name, 'string binary', 'MySqlVarBinary');
+		super(name, 'string varbinary', 'MySqlVarBinary');
 		this.config.length = config?.length;
 	}
 
@@ -29,7 +29,7 @@ export class MySqlVarBinaryBuilder extends MySqlColumnBuilder<{
 }
 
 export class MySqlVarBinary<
-	T extends ColumnBaseConfig<'string binary'>,
+	T extends ColumnBaseConfig<'string varbinary'>,
 > extends MySqlColumn<T, MySqlVarbinaryOptions> {
 	static override readonly [entityKind]: string = 'MySqlVarBinary';
 

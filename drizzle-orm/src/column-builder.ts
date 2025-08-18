@@ -68,6 +68,7 @@ export type ColumnDataConstraint =
 	| 'time'
 	| 'timestamp'
 	| 'uuid'
+	| 'varbinary'
 	| 'varchar'
 	// vector
 	| 'halfvec';
@@ -86,6 +87,7 @@ export type ColumnType =
 	| 'number uint53'
 	| 'number year'
 	| 'string binary'
+	| 'string varbinary'
 	| 'string char'
 	| 'string cidr'
 	| 'string date'

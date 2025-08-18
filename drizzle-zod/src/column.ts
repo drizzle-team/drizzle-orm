@@ -265,7 +265,11 @@ function stringColumnToSchema(
 		max = (<{ length?: number }> column).length;
 		fixed = true;
 	} else if (constraint === 'binary') {
-		regex = dialect === 'pg' ? /^[01]+$/ : /^[01]*$/;
+		regex = /^[01]*$/;
+		max = (<{ dimensions?: number }> column).dimensions ?? (<{ length?: number }> column).length;
+		fixed = true;
+	} else if (constraint === 'varbinary') {
+		regex = /^[01]*$/;
 		max = (<{ dimensions?: number }> column).dimensions ?? (<{ length?: number }> column).length;
 	}
 
