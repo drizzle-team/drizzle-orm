@@ -28,7 +28,7 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 	const transparentParser = (val: any) => val;
 
 	// Override postgres.js default date parsers: https://github.com/porsager/postgres/discussions/761
-	for (const type of ['1184', '1082', '1083', '1114']) {
+	for (const type of ['1184', '1082', '1083', '1114', '1182', '1185', '1115', '1231']) {
 		client.options.parsers[type as any] = transparentParser;
 		client.options.serializers[type as any] = transparentParser;
 	}
@@ -56,9 +56,13 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 		};
 	}
 
-	const session = new PostgresJsSession(client, dialect, schema, { logger });
+	const session = new PostgresJsSession(client, dialect, schema, { logger, cache: config.cache });
 	const db = new PostgresJsDatabase(dialect, session, schema as any) as PostgresJsDatabase<TSchema>;
 	(<any> db).$client = client;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
 
 	return db as any;
 }
@@ -119,6 +123,11 @@ export namespace drizzle {
 	): PostgresJsDatabase<TSchema> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
-		return construct({} as any, config) as any;
+		return construct({
+			options: {
+				parsers: {},
+				serializers: {},
+			},
+		} as any, config) as any;
 	}
 }

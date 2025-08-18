@@ -45,7 +45,7 @@ test('create table and view #1', async () => {
 	});
 
 	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toBe(`CREATE TABLE IF NOT EXISTS "users" (
+	expect(sqlStatements[0]).toBe(`CREATE TABLE "users" (
 \t"id" integer PRIMARY KEY NOT NULL
 );\n`);
 	expect(sqlStatements[1]).toBe(`CREATE VIEW "public"."some_view" AS (select "id" from "users");`);
@@ -93,7 +93,7 @@ test('create table and view #2', async () => {
 	});
 
 	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toBe(`CREATE TABLE IF NOT EXISTS "users" (
+	expect(sqlStatements[0]).toBe(`CREATE TABLE "users" (
 \t"id" integer PRIMARY KEY NOT NULL
 );\n`);
 	expect(sqlStatements[1]).toBe(`CREATE VIEW "public"."some_view" AS (SELECT * FROM "users");`);
@@ -169,7 +169,7 @@ test('create table and view #3', async () => {
 	});
 
 	expect(sqlStatements.length).toBe(3);
-	expect(sqlStatements[0]).toBe(`CREATE TABLE IF NOT EXISTS "users" (
+	expect(sqlStatements[0]).toBe(`CREATE TABLE "users" (
 \t"id" integer PRIMARY KEY NOT NULL
 );\n`);
 	expect(sqlStatements[1]).toBe(
@@ -258,7 +258,7 @@ test('create table and view #4', async () => {
 
 	expect(sqlStatements.length).toBe(4);
 	expect(sqlStatements[0]).toBe(`CREATE SCHEMA "new_schema";\n`);
-	expect(sqlStatements[1]).toBe(`CREATE TABLE IF NOT EXISTS "new_schema"."users" (
+	expect(sqlStatements[1]).toBe(`CREATE TABLE "new_schema"."users" (
 \t"id" integer PRIMARY KEY NOT NULL
 );\n`);
 	expect(sqlStatements[2]).toBe(
@@ -328,7 +328,7 @@ test('create table and view #6', async () => {
 	});
 
 	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toBe(`CREATE TABLE IF NOT EXISTS "users" (
+	expect(sqlStatements[0]).toBe(`CREATE TABLE "users" (
 \t"id" integer PRIMARY KEY NOT NULL
 );\n`);
 	expect(sqlStatements[1]).toBe(
@@ -398,7 +398,7 @@ test('create table and materialized view #1', async () => {
 	});
 
 	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toBe(`CREATE TABLE IF NOT EXISTS "users" (
+	expect(sqlStatements[0]).toBe(`CREATE TABLE "users" (
 \t"id" integer PRIMARY KEY NOT NULL
 );\n`);
 	expect(sqlStatements[1]).toBe(`CREATE MATERIALIZED VIEW "public"."some_view" AS (select "id" from "users");`);
@@ -446,7 +446,7 @@ test('create table and materialized view #2', async () => {
 	});
 
 	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toBe(`CREATE TABLE IF NOT EXISTS "users" (
+	expect(sqlStatements[0]).toBe(`CREATE TABLE "users" (
 \t"id" integer PRIMARY KEY NOT NULL
 );\n`);
 	expect(sqlStatements[1]).toBe(`CREATE MATERIALIZED VIEW "public"."some_view" AS (SELECT * FROM "users");`);
@@ -544,7 +544,7 @@ test('create table and materialized view #3', async () => {
 	});
 
 	expect(sqlStatements.length).toBe(3);
-	expect(sqlStatements[0]).toBe(`CREATE TABLE IF NOT EXISTS "users" (
+	expect(sqlStatements[0]).toBe(`CREATE TABLE "users" (
 \t"id" integer PRIMARY KEY NOT NULL
 );\n`);
 	expect(sqlStatements[1]).toBe(
@@ -617,7 +617,7 @@ test('create table and materialized view #5', async () => {
 	});
 
 	expect(sqlStatements.length).toBe(2);
-	expect(sqlStatements[0]).toBe(`CREATE TABLE IF NOT EXISTS "users" (
+	expect(sqlStatements[0]).toBe(`CREATE TABLE "users" (
 \t"id" integer PRIMARY KEY NOT NULL
 );\n`);
 	expect(sqlStatements[1]).toBe(

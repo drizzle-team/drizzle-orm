@@ -1,4 +1,6 @@
 import type { Client, Connection, ExecutedQuery, Transaction } from '@planetscale/database';
+import { type Cache, NoopCache } from '~/cache/core/index.ts';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
@@ -28,6 +30,12 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig> extend
 		private queryString: string,
 		private params: unknown[],
 		private logger: Logger,
+		cache: Cache,
+		queryMetadata: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		} | undefined,
+		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 		// Keys that were used in $default and the value that was generated for them
@@ -35,7 +43,7 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig> extend
 		// Keys that should be returned, it has the column with all properries + key from object
 		private returningIds?: SelectedFieldsOrdered,
 	) {
-		super();
+		super(cache, queryMetadata, cacheConfig);
 	}
 
 	async execute(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['execute']> {
@@ -55,7 +63,9 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig> extend
 			generatedIds,
 		} = this;
 		if (!fields && !customResultMapper) {
-			const res = await client.execute(queryString, params, rawQuery);
+			const res = await this.queryWithCache(queryString, params, async () => {
+				return await client.execute(queryString, params, rawQuery);
+			});
 
 			const insertId = Number.parseFloat(res.insertId);
 			const affectedRows = res.rowsAffected;
@@ -84,7 +94,9 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig> extend
 			}
 			return res;
 		}
-		const { rows } = await client.execute(queryString, params, query);
+		const { rows } = await this.queryWithCache(queryString, params, async () => {
+			return await client.execute(queryString, params, query);
+		});
 
 		if (customResultMapper) {
 			return customResultMapper(rows as unknown[][]);
@@ -100,6 +112,7 @@ export class PlanetScalePreparedQuery<T extends MySqlPreparedQueryConfig> extend
 
 export interface PlanetscaleSessionOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class PlanetscaleSession<
@@ -110,6 +123,7 @@ export class PlanetscaleSession<
 
 	private logger: Logger;
 	private client: Client | Transaction | Connection;
+	private cache: Cache;
 
 	constructor(
 		private baseClient: Client | Connection,
@@ -121,6 +135,7 @@ export class PlanetscaleSession<
 		super(dialect);
 		this.client = tx ?? baseClient;
 		this.logger = options.logger ?? new NoopLogger();
+		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends MySqlPreparedQueryConfig = MySqlPreparedQueryConfig>(
@@ -129,12 +144,20 @@ export class PlanetscaleSession<
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
 		generatedIds?: Record<string, unknown>[],
 		returningIds?: SelectedFieldsOrdered,
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
 	): MySqlPreparedQuery<T> {
 		return new PlanetScalePreparedQuery(
 			this.client,
 			query.sql,
 			query.params,
 			this.logger,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
 			fields,
 			customResultMapper,
 			generatedIds,
@@ -159,9 +182,9 @@ export class PlanetscaleSession<
 		const querySql = this.dialect.sqlToQuery(query);
 		this.logger.logQuery(querySql.sql, querySql.params);
 
-		return this.client.execute(querySql.sql, querySql.params, { as: 'object' }).then((
+		return this.client.execute<T>(querySql.sql, querySql.params, { as: 'object' }).then((
 			eQuery,
-		) => eQuery.rows as T[]);
+		) => eQuery.rows);
 	}
 
 	override async count(sql: SQL): Promise<number> {

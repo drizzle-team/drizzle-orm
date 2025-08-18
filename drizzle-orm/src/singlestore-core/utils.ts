@@ -1,4 +1,6 @@
 import { is } from '~/entity.ts';
+import { SQL } from '~/sql/sql.ts';
+import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import type { Index } from './indexes.ts';
 import { IndexBuilder } from './indexes.ts';
@@ -8,6 +10,19 @@ import { SingleStoreTable } from './table.ts';
 import { type UniqueConstraint, UniqueConstraintBuilder } from './unique-constraint.ts';
 /* import { SingleStoreViewConfig } from './view-common.ts';
 import type { SingleStoreView } from './view.ts'; */
+
+export function extractUsedTable(table: SingleStoreTable | Subquery | SQL): string[] {
+	if (is(table, SingleStoreTable)) {
+		return [`${table[Table.Symbol.BaseName]}`];
+	}
+	if (is(table, Subquery)) {
+		return table._.usedTables ?? [];
+	}
+	if (is(table, SQL)) {
+		return table.usedTables ?? [];
+	}
+	return [];
+}
 
 export function getTableConfig(table: SingleStoreTable) {
 	const columns = Object.values(table[SingleStoreTable.Symbol.Columns]);
@@ -22,7 +37,8 @@ export function getTableConfig(table: SingleStoreTable) {
 
 	if (extraConfigBuilder !== undefined) {
 		const extraConfig = extraConfigBuilder(table[SingleStoreTable.Symbol.Columns]);
-		for (const builder of Object.values(extraConfig)) {
+		const extraValues = Array.isArray(extraConfig) ? extraConfig.flat(1) as any[] : Object.values(extraConfig);
+		for (const builder of Object.values(extraValues)) {
 			if (is(builder, IndexBuilder)) {
 				indexes.push(builder.build(table));
 			} else if (is(builder, UniqueConstraintBuilder)) {

@@ -50,3 +50,5 @@ export default [
 	'Wisconsin',
 	'Wyoming',
 ];
+
+export const maxStringLength = 14;

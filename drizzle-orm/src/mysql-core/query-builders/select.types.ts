@@ -25,14 +25,19 @@ import type { Assume, ValidateShape } from '~/utils.ts';
 import type { MySqlPreparedQueryConfig, PreparedQueryHKTBase, PreparedQueryKind } from '../session.ts';
 import type { MySqlViewBase } from '../view-base.ts';
 import type { MySqlViewWithSelection } from '../view.ts';
-import type { MySqlSelectBase, MySqlSelectQueryBuilderBase } from './select.ts';
+import type { IndexConfig, MySqlSelectBase, MySqlSelectQueryBuilderBase } from './select.ts';
+
+export type MySqlJoinType = Exclude<JoinType, 'full'>;
 
 export interface MySqlSelectJoinConfig {
 	on: SQL | undefined;
 	table: MySqlTable | Subquery | MySqlViewBase | SQL;
 	alias: string | undefined;
-	joinType: JoinType;
+	joinType: MySqlJoinType;
 	lateral?: boolean;
+	useIndex?: string[];
+	forceIndex?: string[];
+	ignoreIndex?: string[];
 }
 
 export type BuildAliasTable<TTable extends MySqlTable | View, TAlias extends string> = TTable extends Table
@@ -74,12 +79,15 @@ export interface MySqlSelectConfig {
 		limit?: number | Placeholder;
 		offset?: number | Placeholder;
 	}[];
+	useIndex?: string[];
+	forceIndex?: string[];
+	ignoreIndex?: string[];
 }
 
 export type MySqlJoin<
 	T extends AnyMySqlSelectQueryBuilder,
 	TDynamic extends boolean,
-	TJoinType extends JoinType,
+	TJoinType extends MySqlJoinType,
 	TJoinedTable extends MySqlTable | Subquery | MySqlViewBase | SQL,
 	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
 > = T extends any ? MySqlSelectWithout<
@@ -91,7 +99,7 @@ export type MySqlJoin<
 				T['_']['selection'],
 				TJoinedName,
 				TJoinedTable extends MySqlTable ? TJoinedTable['_']['columns']
-					: TJoinedTable extends Subquery ? Assume<TJoinedTable['_']['selectedFields'], SelectedFields>
+					: TJoinedTable extends Subquery | View ? Assume<TJoinedTable['_']['selectedFields'], SelectedFields>
 					: never,
 				T['_']['selectMode']
 			>,
@@ -109,14 +117,34 @@ export type MySqlJoin<
 export type MySqlJoinFn<
 	T extends AnyMySqlSelectQueryBuilder,
 	TDynamic extends boolean,
-	TJoinType extends JoinType,
+	TJoinType extends MySqlJoinType,
+	TIsLateral extends boolean,
 > = <
-	TJoinedTable extends MySqlTable | Subquery | MySqlViewBase | SQL,
+	TJoinedTable extends (TIsLateral extends true ? Subquery | SQL : MySqlTable | Subquery | MySqlViewBase | SQL),
 	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
 >(
 	table: TJoinedTable,
 	on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
+	onIndex?:
+		| (TJoinedTable extends MySqlTable ? IndexConfig
+			: 'Index hint configuration is allowed only for MySqlTable and not for subqueries or views')
+		| undefined,
 ) => MySqlJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
+
+export type MySqlCrossJoinFn<
+	T extends AnyMySqlSelectQueryBuilder,
+	TDynamic extends boolean,
+	TIsLateral extends boolean,
+> = <
+	TJoinedTable extends (TIsLateral extends true ? Subquery | SQL : MySqlTable | Subquery | MySqlViewBase | SQL),
+	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
+>(
+	table: TJoinedTable,
+	onIndex?:
+		| (TJoinedTable extends MySqlTable ? IndexConfig
+			: 'Index hint configuration is allowed only for MySqlTable and not for subqueries or views')
+		| undefined,
+) => MySqlJoin<T, TDynamic, 'cross', TJoinedTable, TJoinedName>;
 
 export type SelectedFieldsFlat = SelectedFieldsFlatBase<MySqlColumn>;
 
@@ -210,7 +238,6 @@ export type MySqlSetOperatorExcludedMethods =
 	| 'leftJoin'
 	| 'rightJoin'
 	| 'innerJoin'
-	| 'fullJoin'
 	| 'for';
 
 export type MySqlSelectWithout<

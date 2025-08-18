@@ -208,22 +208,8 @@ export const singlestorePush = async (
 				db,
 				filteredStatements,
 				statements.validatedCur,
+				statements.validatedPrev,
 			);
-
-			const filteredSqlStatements = fromJson(filteredStatements, 'singlestore');
-
-			const uniqueSqlStatementsToExecute: string[] = [];
-			statementsToExecute.forEach((ss) => {
-				if (!uniqueSqlStatementsToExecute.includes(ss)) {
-					uniqueSqlStatementsToExecute.push(ss);
-				}
-			});
-			const uniqueFilteredSqlStatements: string[] = [];
-			filteredSqlStatements.forEach((ss) => {
-				if (!uniqueFilteredSqlStatements.includes(ss)) {
-					uniqueFilteredSqlStatements.push(ss);
-				}
-			});
 
 			if (verbose) {
 				console.log();
@@ -231,11 +217,7 @@ export const singlestorePush = async (
 					withStyle.warning('You are about to execute current statements:'),
 				);
 				console.log();
-				console.log(
-					[...uniqueSqlStatementsToExecute, ...uniqueFilteredSqlStatements]
-						.map((s) => chalk.blue(s))
-						.join('\n'),
-				);
+				console.log(statementsToExecute.map((s) => chalk.blue(s)).join('\n'));
 				console.log();
 			}
 
@@ -289,13 +271,10 @@ export const singlestorePush = async (
 				}
 			}
 
-			for (const dStmnt of uniqueSqlStatementsToExecute) {
+			for (const dStmnt of statementsToExecute) {
 				await db.query(dStmnt);
 			}
 
-			for (const statement of uniqueFilteredSqlStatements) {
-				await db.query(statement);
-			}
 			if (filteredStatements.length > 0) {
 				render(`[${chalk.green('✓')}] Changes applied`);
 			} else {
@@ -532,18 +511,20 @@ export const sqlitePush = async (
 		if (statementsToExecute.length === 0) {
 			render(`\n[${chalk.blue('i')}] No changes detected`);
 		} else {
-			if (!('driver' in credentials)) {
-				await db.run('begin');
-				try {
-					for (const dStmnt of statementsToExecute) {
-						await db.run(dStmnt);
-					}
-					await db.run('commit');
-				} catch (e) {
-					console.error(e);
-					await db.run('rollback');
-					process.exit(1);
+			// D1-HTTP does not support transactions
+			// there might a be a better way to fix this
+			// in the db connection itself
+			const isNotD1 = !('driver' in credentials && credentials.driver === 'd1-http');
+			isNotD1 ?? await db.run('begin');
+			try {
+				for (const dStmnt of statementsToExecute) {
+					await db.run(dStmnt);
 				}
+				isNotD1 ?? await db.run('commit');
+			} catch (e) {
+				console.error(e);
+				isNotD1 ?? await db.run('rollback');
+				process.exit(1);
 			}
 			render(`[${chalk.green('✓')}] Changes applied`);
 		}

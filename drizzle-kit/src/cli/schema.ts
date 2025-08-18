@@ -18,6 +18,7 @@ import { upSqliteHandler } from './commands/sqliteUp';
 import {
 	prepareCheckParams,
 	prepareDropParams,
+	prepareExportConfig,
 	prepareGenerateConfig,
 	prepareMigrateConfig,
 	preparePullConfig,
@@ -27,12 +28,12 @@ import {
 import { assertOrmCoreVersion, assertPackages, assertStudioNodeVersion, ormVersionGt } from './utils';
 import { assertCollisions, drivers, prefixes } from './validations/common';
 import { withStyle } from './validations/outputs';
-import { grey, MigrateProgress } from './views';
+import { error, grey, MigrateProgress } from './views';
 
 const optionDialect = string('dialect')
 	.enum(...dialects)
 	.desc(
-		`Database dialect: 'postgresql', 'mysql', 'sqlite', 'turso' or 'singlestore'`,
+		`Database dialect: 'gel', 'postgresql', 'mysql', 'sqlite', 'turso' or 'singlestore'`,
 	);
 const optionOut = string().desc("Output folder, 'drizzle' by default");
 const optionConfig = string().desc('Path to drizzle config file');
@@ -98,6 +99,13 @@ export const generate = command({
 			await prepareAndMigrateLibSQL(opts);
 		} else if (dialect === 'singlestore') {
 			await prepareAndMigrateSingleStore(opts);
+		} else if (dialect === 'gel') {
+			console.log(
+				error(
+					`You can't use 'generate' command with Gel dialect`,
+				),
+			);
+			process.exit(1);
 		} else {
 			assertUnreachable(dialect);
 		}
@@ -198,6 +206,13 @@ export const migrate = command({
 						migrationsSchema: schema,
 					}),
 				);
+			} else if (dialect === 'gel') {
+				console.log(
+					error(
+						`You can't use 'migrate' command with Gel dialect`,
+					),
+				);
+				process.exit(1);
 			} else {
 				assertUnreachable(dialect);
 			}
@@ -228,6 +243,8 @@ const optionsDatabaseCredentials = {
 	ssl: string().desc('ssl mode'),
 	// Turso
 	authToken: string('auth-token').desc('Database auth token [Turso]'),
+	// gel
+	tlsSecurity: string('tlsSecurity').desc('tls security mode'),
 	// specific cases
 	driver: optionDriver,
 } as const;
@@ -272,6 +289,7 @@ export const push = command({
 				'extensionsFilters',
 				'tablesFilter',
 				'casing',
+				'tlsSecurity',
 			],
 		);
 
@@ -373,6 +391,13 @@ export const push = command({
 					force,
 					casing,
 				);
+			} else if (dialect === 'gel') {
+				console.log(
+					error(
+						`You can't use 'push' command with Gel dialect`,
+					),
+				);
+				process.exit(1);
 			} else {
 				assertUnreachable(dialect);
 			}
@@ -435,6 +460,15 @@ export const up = command({
 		if (dialect === 'singlestore') {
 			upSinglestoreHandler(out);
 		}
+
+		if (dialect === 'gel') {
+			console.log(
+				error(
+					`You can't use 'up' command with Gel dialect`,
+				),
+			);
+			process.exit(1);
+		}
 	},
 });
 
@@ -472,6 +506,7 @@ export const pull = command({
 				'tablesFilter',
 				'schemaFilters',
 				'extensionsFilters',
+				'tlsSecurity',
 			],
 		);
 		return preparePullConfig(opts, from);
@@ -577,6 +612,18 @@ export const pull = command({
 					credentials,
 					tablesFilter,
 					prefix,
+				);
+			} else if (dialect === 'gel') {
+				const { introspectGel } = await import('./commands/introspect');
+				await introspectGel(
+					casing,
+					out,
+					breakpoints,
+					credentials,
+					tablesFilter,
+					schemasFilter,
+					prefix,
+					entities,
 				);
 			} else {
 				assertUnreachable(dialect);
@@ -696,6 +743,13 @@ export const studio = command({
 					relations,
 					files,
 				);
+			} else if (dialect === 'gel') {
+				console.log(
+					error(
+						`You can't use 'studio' command with Gel dialect`,
+					),
+				);
+				process.exit(1);
 			} else {
 				assertUnreachable(dialect);
 			}
@@ -749,6 +803,57 @@ export const studio = command({
 		} catch (e) {
 			console.error(e);
 			process.exit(0);
+		}
+	},
+});
+
+export const exportRaw = command({
+	name: 'export',
+	desc: 'Generate diff between current state and empty state in specified formats: sql',
+	options: {
+		sql: boolean('sql').default(true).desc('Generate as sql'),
+		config: optionConfig,
+		dialect: optionDialect,
+		schema: string().desc('Path to a schema file or folder'),
+	},
+	transform: async (opts) => {
+		const from = assertCollisions('export', opts, ['sql'], ['dialect', 'schema']);
+		return prepareExportConfig(opts, from);
+	},
+	handler: async (opts) => {
+		await assertOrmCoreVersion();
+		await assertPackages('drizzle-orm');
+
+		const {
+			prepareAndExportPg,
+			prepareAndExportMysql,
+			prepareAndExportSqlite,
+			prepareAndExportLibSQL,
+			prepareAndExportSinglestore,
+		} = await import(
+			'./commands/migrate'
+		);
+
+		const dialect = opts.dialect;
+		if (dialect === 'postgresql') {
+			await prepareAndExportPg(opts);
+		} else if (dialect === 'mysql') {
+			await prepareAndExportMysql(opts);
+		} else if (dialect === 'sqlite') {
+			await prepareAndExportSqlite(opts);
+		} else if (dialect === 'turso') {
+			await prepareAndExportLibSQL(opts);
+		} else if (dialect === 'singlestore') {
+			await prepareAndExportSinglestore(opts);
+		} else if (dialect === 'gel') {
+			console.log(
+				error(
+					`You can't use 'export' command with Gel dialect`,
+				),
+			);
+			process.exit(1);
+		} else {
+			assertUnreachable(dialect);
 		}
 	},
 });

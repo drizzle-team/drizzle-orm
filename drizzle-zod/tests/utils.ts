@@ -1,19 +1,23 @@
 import { expect, type TaskContext } from 'vitest';
-import type { z } from 'zod';
+import type { z } from 'zod/v4';
 
-export function expectSchemaShape<T extends z.ZodRawShape>(t: TaskContext, expected: z.ZodObject<T>) {
+export function expectSchemaShape<T extends z.ZodObject<z.ZodRawShape>>(t: TaskContext, expected: T) {
 	return {
-		from(actual: z.ZodObject<T>) {
+		from(actual: T) {
 			expect(Object.keys(actual.shape)).toStrictEqual(Object.keys(expected.shape));
-
-			for (const key of Object.keys(actual.shape)) {
-				expect(actual.shape[key]!._def.typeName).toStrictEqual(expected.shape[key]?._def.typeName);
-				if (actual.shape[key]?._def.typeName === 'ZodOptional') {
-					expect(actual.shape[key]!._def.innerType._def.typeName).toStrictEqual(
-						actual.shape[key]!._def.innerType._def.typeName,
-					);
-				}
+			for (const key in Object.keys(actual.shape)) {
+				expect(actual.shape[key]?._zod.def).toStrictEqual(expected.shape[key]?._zod.def);
 			}
 		},
 	};
 }
+
+export function expectEnumValues<T extends z.ZodEnum<any>>(t: TaskContext, expected: T) {
+	return {
+		from(actual: T) {
+			expect(actual.def).toStrictEqual(expected.def);
+		},
+	};
+}
+
+export function Expect<_ extends true>() {}

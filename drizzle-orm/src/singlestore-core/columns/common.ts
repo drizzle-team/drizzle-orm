@@ -64,8 +64,9 @@ export abstract class SingleStoreColumnBuilder<
 // To understand how to use `SingleStoreColumn` and `AnySingleStoreColumn`, see `Column` and `AnyColumn` documentation.
 export abstract class SingleStoreColumn<
 	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
-	TRuntimeConfig extends object = object,
-> extends Column<T, TRuntimeConfig, { dialect: 'singlestore' }> {
+	TRuntimeConfig extends object = {},
+	TTypeConfig extends object = {},
+> extends Column<T, TRuntimeConfig, TTypeConfig & { dialect: 'singlestore' }> {
 	static override readonly [entityKind]: string = 'SingleStoreColumn';
 
 	constructor(
