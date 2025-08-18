@@ -29,11 +29,15 @@ import type { SingleStoreDatabase } from 'drizzle-orm/singlestore-core';
 import {
 	alias,
 	bigint,
+	binary,
 	boolean,
+	char,
 	date,
 	datetime,
 	decimal,
+	double,
 	except,
+	float,
 	getTableConfig,
 	index,
 	int,
@@ -41,6 +45,7 @@ import {
 	json,
 	mediumint,
 	primaryKey,
+	real,
 	serial,
 	singlestoreEnum,
 	singlestoreSchema,
@@ -57,6 +62,7 @@ import {
 	unique,
 	uniqueIndex,
 	uniqueKeyName,
+	varbinary,
 	varchar,
 	vector,
 	year,
@@ -80,6 +86,64 @@ declare module 'vitest' {
 }
 
 const ENABLE_LOGGING = false;
+
+const allTypesTable = singlestoreTable('all_types', {
+	serial: serial('scol'),
+	bigint53: bigint('bigint53', {
+		mode: 'number',
+	}),
+	bigint64: bigint('bigint64', {
+		mode: 'bigint',
+	}),
+	binary: binary('binary'),
+	boolean: boolean('boolean'),
+	char: char('char'),
+	date: date('date', {
+		mode: 'date',
+	}),
+	dateStr: date('date_str', {
+		mode: 'string',
+	}),
+	datetime: datetime('datetime', {
+		mode: 'date',
+	}),
+	datetimeStr: datetime('datetime_str', {
+		mode: 'string',
+	}),
+	decimal: decimal('decimal'),
+	decimalNum: decimal('decimal_num', {
+		scale: 30,
+		mode: 'number',
+	}),
+	decimalBig: decimal('decimal_big', {
+		scale: 30,
+		mode: 'bigint',
+	}),
+	double: double('double'),
+	float: float('float'),
+	int: int('int'),
+	json: json('json'),
+	medInt: mediumint('med_int'),
+	smallInt: smallint('small_int'),
+	real: real('real'),
+	text: text('text'),
+	time: time('time'),
+	timestamp: timestamp('timestamp', {
+		mode: 'date',
+	}),
+	timestampStr: timestamp('timestamp_str', {
+		mode: 'string',
+	}),
+	tinyInt: tinyint('tiny_int'),
+	varbin: varbinary('varbin', {
+		length: 16,
+	}),
+	varchar: varchar('varchar', {
+		length: 255,
+	}),
+	year: year('year'),
+	enum: singlestoreEnum('enum', ['enV1', 'enV2']),
+});
 
 const usersTable = singlestoreTable('userstest', {
 	id: serial('id').primaryKey(),
@@ -229,6 +293,7 @@ export function tests(driver?: string) {
 			await db.execute(sql`drop table if exists userstest`);
 			await db.execute(sql`drop table if exists users2`);
 			await db.execute(sql`drop table if exists cities`);
+			await db.execute(sql`drop table if exists ${allTypesTable}`);
 
 			await db.execute(sql`drop schema if exists \`mySchema\``);
 			await db.execute(sql`create schema if not exists \`mySchema\``);
@@ -1814,7 +1879,7 @@ export function tests(driver?: string) {
 			}
 			{
 				const query = db.select().from(users2Table).for('update', { noWait: true }).toSQL();
-				expect(query.sql).toMatch(/ for update no wait$/);
+				expect(query.sql).toMatch(/ for update nowait$/);
 			}
 		});
 
@@ -2699,7 +2764,7 @@ export function tests(driver?: string) {
 
 			await setupSetOperationTest(db);
 
-			const sq = await except(
+			const sq = except(
 				db
 					.select({ id: citiesTable.id, name: citiesTable.name })
 					.from(citiesTable),
@@ -2715,10 +2780,8 @@ export function tests(driver?: string) {
 
 			expect(result).toHaveLength(2);
 
-			expect(result).toEqual([
-				{ id: 2, name: 'London' },
-				{ id: 3, name: 'Tampa' },
-			]);
+			expect(result).toContainEqual({ id: 2, name: 'London' });
+			expect(result).toContainEqual({ id: 3, name: 'Tampa' });
 
 			await expect((async () => {
 				except(
@@ -3058,7 +3121,7 @@ export function tests(driver?: string) {
 
 			expect(initialRecord?.updatedAt?.valueOf()).not.toBe(updatedRecord?.updatedAt?.valueOf());
 
-			const msDelay = 1000;
+			const msDelay = 2000;
 
 			for (const eachUser of justDates) {
 				expect(eachUser.updatedAt!.valueOf()).toBeGreaterThan(Date.now() - msDelay);
@@ -3554,6 +3617,310 @@ export function tests(driver?: string) {
 
 			expect(result1).toEqual([{ userId: 1, data: { name: 'John' } }]);
 			expect(result2).toEqual([{ userId: 2, data: { name: 'Jane' } }]);
+		});
+
+		test('cross join', async (ctx) => {
+			const { db } = ctx.singlestore;
+
+			await db
+				.insert(usersTable)
+				.values([
+					{ name: 'John' },
+					{ name: 'Jane' },
+				]);
+
+			await db
+				.insert(citiesTable)
+				.values([
+					{ name: 'Seattle' },
+					{ name: 'New York City' },
+				]);
+
+			const result = await db
+				.select({
+					user: usersTable.name,
+					city: citiesTable.name,
+				})
+				.from(usersTable)
+				.crossJoin(citiesTable)
+				.orderBy(usersTable.name, citiesTable.name);
+
+			expect(result).toStrictEqual([
+				{ city: 'New York City', user: 'Jane' },
+				{ city: 'Seattle', user: 'Jane' },
+				{ city: 'New York City', user: 'John' },
+				{ city: 'Seattle', user: 'John' },
+			]);
+		});
+
+		test('left join (lateral)', async (ctx) => {
+			const { db } = ctx.singlestore;
+
+			await db
+				.insert(citiesTable)
+				.values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }]);
+
+			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+			const sq = db
+				.select({
+					userId: users2Table.id,
+					userName: users2Table.name,
+					cityId: users2Table.cityId,
+				})
+				.from(users2Table)
+				.where(eq(users2Table.cityId, citiesTable.id))
+				.as('sq');
+
+			const res = await db
+				.select({
+					cityId: citiesTable.id,
+					cityName: citiesTable.name,
+					userId: sq.userId,
+					userName: sq.userName,
+				})
+				.from(citiesTable)
+				.leftJoinLateral(sq, sql`true`)
+				.orderBy(citiesTable.id);
+
+			expect(res).toStrictEqual([
+				{ cityId: 1, cityName: 'Paris', userId: 1, userName: 'John' },
+				{ cityId: 2, cityName: 'London', userId: null, userName: null },
+			]);
+		});
+
+		test('inner join (lateral)', async (ctx) => {
+			const { db } = ctx.singlestore;
+
+			await db
+				.insert(citiesTable)
+				.values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }]);
+
+			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane' }]);
+
+			const sq = db
+				.select({
+					userId: users2Table.id,
+					userName: users2Table.name,
+					cityId: users2Table.cityId,
+				})
+				.from(users2Table)
+				.where(eq(users2Table.cityId, citiesTable.id))
+				.as('sq');
+
+			const res = await db
+				.select({
+					cityId: citiesTable.id,
+					cityName: citiesTable.name,
+					userId: sq.userId,
+					userName: sq.userName,
+				})
+				.from(citiesTable)
+				.innerJoinLateral(sq, sql`true`);
+
+			expect(res).toStrictEqual([
+				{ cityId: 1, cityName: 'Paris', userId: 1, userName: 'John' },
+			]);
+		});
+
+		test('cross join (lateral)', async (ctx) => {
+			const { db } = ctx.singlestore;
+
+			await db
+				.insert(citiesTable)
+				.values([{ id: 1, name: 'Paris' }, { id: 2, name: 'London' }]);
+
+			await db.insert(users2Table).values([{ name: 'John', cityId: 1 }, { name: 'Jane', cityId: 2 }, {
+				name: 'Patrick',
+				cityId: 2,
+			}]);
+
+			const sq = db
+				.select({
+					userId: users2Table.id,
+					userName: users2Table.name,
+					cityId: users2Table.cityId,
+				})
+				.from(users2Table)
+				.where(eq(users2Table.cityId, citiesTable.id))
+				.as('sq');
+
+			const res = await db
+				.select({
+					cityId: citiesTable.id,
+					cityName: citiesTable.name,
+					userId: sq.userId,
+					userName: sq.userName,
+				})
+				.from(citiesTable)
+				.crossJoinLateral(sq)
+				.orderBy(sq.userId, citiesTable.id);
+
+			expect(res).toStrictEqual([
+				{
+					cityId: 1,
+					cityName: 'Paris',
+					userId: 1,
+					userName: 'John',
+				},
+				{
+					cityId: 2,
+					cityName: 'London',
+					userId: 2,
+					userName: 'Jane',
+				},
+				{
+					cityId: 2,
+					cityName: 'London',
+					userId: 3,
+					userName: 'Patrick',
+				},
+			]);
+		});
+
+		test('all types', async (ctx) => {
+			const { db } = ctx.singlestore;
+
+			await db.execute(sql`
+				CREATE TABLE \`all_types\` (
+						\`scol\` serial,
+						\`bigint53\` bigint,
+						\`bigint64\` bigint,
+						\`binary\` binary,
+						\`boolean\` boolean,
+						\`char\` char,
+						\`date\` date,
+						\`date_str\` date,
+						\`datetime\` datetime,
+						\`datetime_str\` datetime,
+						\`decimal\` decimal,
+						\`decimal_num\` decimal(30),
+						\`decimal_big\` decimal(30),
+						\`double\` double,
+						\`float\` float,
+						\`int\` int,
+						\`json\` json,
+						\`med_int\` mediumint,
+						\`small_int\` smallint,
+						\`real\` real,
+						\`text\` text,
+						\`time\` time,
+						\`timestamp\` timestamp,
+						\`timestamp_str\` timestamp,
+						\`tiny_int\` tinyint,
+						\`varbin\` varbinary(16),
+						\`varchar\` varchar(255),
+						\`year\` year,
+						\`enum\` enum('enV1','enV2'),
+						shard key(\`scol\`)
+					);
+			`);
+
+			await db.insert(allTypesTable).values({
+				serial: 1,
+				bigint53: 9007199254740991,
+				bigint64: 5044565289845416380n,
+				binary: '1',
+				boolean: true,
+				char: 'c',
+				date: new Date(1741743161623),
+				dateStr: new Date(1741743161623).toISOString().slice(0, 19).replace('T', ' '),
+				datetime: new Date(1741743161623),
+				datetimeStr: new Date(1741743161623).toISOString().slice(0, 19).replace('T', ' '),
+				decimal: '47521',
+				decimalNum: 9007199254740991,
+				decimalBig: 5044565289845416380n,
+				double: 15.35325689124218,
+				enum: 'enV1',
+				float: 1.048596,
+				real: 1.048596,
+				text: 'C4-',
+				int: 621,
+				json: {
+					str: 'strval',
+					arr: ['str', 10],
+				},
+				medInt: 560,
+				smallInt: 14,
+				time: '04:13:22',
+				timestamp: new Date(1741743161623),
+				timestampStr: new Date(1741743161623).toISOString().slice(0, 19).replace('T', ' '),
+				tinyInt: 7,
+				varbin: '1010110101001101',
+				varchar: 'VCHAR',
+				year: 2025,
+			});
+
+			const rawRes = await db.select().from(allTypesTable);
+
+			type ExpectedType = {
+				serial: number;
+				bigint53: number | null;
+				bigint64: bigint | null;
+				binary: string | null;
+				boolean: boolean | null;
+				char: string | null;
+				date: Date | null;
+				dateStr: string | null;
+				datetime: Date | null;
+				datetimeStr: string | null;
+				decimal: string | null;
+				decimalNum: number | null;
+				decimalBig: bigint | null;
+				double: number | null;
+				float: number | null;
+				int: number | null;
+				json: unknown;
+				medInt: number | null;
+				smallInt: number | null;
+				real: number | null;
+				text: string | null;
+				time: string | null;
+				timestamp: Date | null;
+				timestampStr: string | null;
+				tinyInt: number | null;
+				varbin: string | null;
+				varchar: string | null;
+				year: number | null;
+				enum: 'enV1' | 'enV2' | null;
+			}[];
+
+			const expectedRes: ExpectedType = [
+				{
+					serial: 1,
+					bigint53: 9007199254740991,
+					bigint64: 5044565289845416380n,
+					binary: '1',
+					boolean: true,
+					char: 'c',
+					date: new Date('2025-03-12T00:00:00.000Z'),
+					dateStr: '2025-03-12',
+					datetime: new Date('2025-03-12T01:32:41.000Z'),
+					datetimeStr: '2025-03-12 01:32:41',
+					decimal: '47521',
+					decimalNum: 9007199254740991,
+					decimalBig: 5044565289845416380n,
+					double: 15.35325689124218,
+					float: 1.0486,
+					int: 621,
+					json: { arr: ['str', 10], str: 'strval' },
+					medInt: 560,
+					smallInt: 14,
+					real: 1.048596,
+					text: 'C4-',
+					time: '04:13:22',
+					timestamp: new Date('2025-03-12T01:32:41.000Z'),
+					timestampStr: '2025-03-12 01:32:41',
+					tinyInt: 7,
+					varbin: '1010110101001101',
+					varchar: 'VCHAR',
+					year: 2025,
+					enum: 'enV1',
+				},
+			];
+
+			expectTypeOf(rawRes).toEqualTypeOf<ExpectedType>();
+			expect(rawRes).toStrictEqual(expectedRes);
 		});
 	});
 }

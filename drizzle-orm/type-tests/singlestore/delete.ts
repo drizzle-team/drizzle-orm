@@ -1,8 +1,8 @@
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
-import { eq } from '~/expressions.ts';
 import type { SingleStoreDelete } from '~/singlestore-core/index.ts';
 import type { SingleStoreRawQueryResult } from '~/singlestore/index.ts';
+import { eq } from '~/sql/expressions/index.ts';
 import { sql } from '~/sql/sql.ts';
 import { db } from './db.ts';
 import { users } from './tables.ts';

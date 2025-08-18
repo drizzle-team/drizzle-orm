@@ -11,6 +11,7 @@ import {
 	JsonAlterColumnDropNotNullStatement,
 	JsonAlterColumnDropOnUpdateStatement,
 	JsonAlterColumnDropPrimaryKeyStatement,
+	JsonAlterColumnPgTypeStatement,
 	JsonAlterColumnSetAutoincrementStatement,
 	JsonAlterColumnSetDefaultStatement,
 	JsonAlterColumnSetGeneratedStatement,
@@ -135,6 +136,9 @@ const parseType = (schemaPrefix: string, type: string) => {
 		'char',
 		'vector',
 		'geometry',
+		'halfvec',
+		'sparsevec',
+		'bit',
 	];
 	const arrayDefinitionRegex = /\[\d*(?:\[\d*\])*\]/g;
 	const arrayDefinition = (type.match(arrayDefinitionRegex) ?? []).join('');
@@ -1456,33 +1460,53 @@ class AlterRenameTypeConvertor extends Convertor {
 }
 
 class AlterTypeDropValueConvertor extends Convertor {
-	can(statement: JsonStatement): boolean {
+	can(statement: JsonDropValueFromEnumStatement): boolean {
 		return statement.type === 'alter_type_drop_value';
 	}
 
 	convert(st: JsonDropValueFromEnumStatement) {
-		const { columnsWithEnum, name, newValues, schema } = st;
+		const { columnsWithEnum, name, newValues, enumSchema } = st;
 
 		const statements: string[] = [];
 
 		for (const withEnum of columnsWithEnum) {
+			const tableNameWithSchema = withEnum.tableSchema
+				? `"${withEnum.tableSchema}"."${withEnum.table}"`
+				: `"${withEnum.table}"`;
+
 			statements.push(
-				`ALTER TABLE "${withEnum.schema}"."${withEnum.table}" ALTER COLUMN "${withEnum.column}" SET DATA TYPE text;`,
+				`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${withEnum.column}" SET DATA TYPE text;`,
 			);
+			if (withEnum.default) {
+				statements.push(
+					`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${withEnum.column}" SET DEFAULT ${withEnum.default}::text;`,
+				);
+			}
 		}
 
-		statements.push(new DropTypeEnumConvertor().convert({ name: name, schema, type: 'drop_type_enum' }));
+		statements.push(new DropTypeEnumConvertor().convert({ name: name, schema: enumSchema, type: 'drop_type_enum' }));
 
 		statements.push(new CreateTypeEnumConvertor().convert({
 			name: name,
-			schema: schema,
+			schema: enumSchema,
 			values: newValues,
 			type: 'create_type_enum',
 		}));
 
 		for (const withEnum of columnsWithEnum) {
+			const tableNameWithSchema = withEnum.tableSchema
+				? `"${withEnum.tableSchema}"."${withEnum.table}"`
+				: `"${withEnum.table}"`;
+
+			const parsedType = parseType(`"${enumSchema}".`, withEnum.columnType);
+			if (withEnum.default) {
+				statements.push(
+					`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${withEnum.column}" SET DEFAULT ${withEnum.default}::${parsedType};`,
+				);
+			}
+
 			statements.push(
-				`ALTER TABLE "${withEnum.schema}"."${withEnum.table}" ALTER COLUMN "${withEnum.column}" SET DATA TYPE "${schema}"."${name}" USING "${withEnum.column}"::"${schema}"."${name}";`,
+				`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${withEnum.column}" SET DATA TYPE ${parsedType} USING "${withEnum.column}"::${parsedType};`,
 			);
 		}
 
@@ -1871,19 +1895,71 @@ export class SQLiteAlterTableAddColumnConvertor extends Convertor {
 class PgAlterTableAlterColumnSetTypeConvertor extends Convertor {
 	can(statement: JsonStatement, dialect: Dialect): boolean {
 		return (
-			statement.type === 'alter_table_alter_column_set_type'
+			statement.type === 'pg_alter_table_alter_column_set_type'
 			&& dialect === 'postgresql'
 		);
 	}
 
-	convert(statement: JsonAlterColumnTypeStatement) {
-		const { tableName, columnName, newDataType, schema } = statement;
+	convert(statement: JsonAlterColumnPgTypeStatement) {
+		const { tableName, columnName, newDataType, schema, oldDataType, columnDefault, typeSchema } = statement;
 
 		const tableNameWithSchema = schema
 			? `"${schema}"."${tableName}"`
 			: `"${tableName}"`;
 
-		return `ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" SET DATA TYPE ${newDataType};`;
+		const statements: string[] = [];
+
+		const type = parseType(`"${typeSchema}".`, newDataType.name);
+
+		if (!oldDataType.isEnum && !newDataType.isEnum) {
+			statements.push(
+				`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" SET DATA TYPE ${type};`,
+			);
+			if (columnDefault) {
+				statements.push(
+					`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" SET DEFAULT ${columnDefault};`,
+				);
+			}
+		}
+
+		if (oldDataType.isEnum && !newDataType.isEnum) {
+			statements.push(
+				`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" SET DATA TYPE ${type};`,
+			);
+			if (columnDefault) {
+				statements.push(
+					`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" SET DEFAULT ${columnDefault};`,
+				);
+			}
+		}
+
+		if (!oldDataType.isEnum && newDataType.isEnum) {
+			if (columnDefault) {
+				statements.push(
+					`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" SET DEFAULT ${columnDefault}::${type};`,
+				);
+			}
+			statements.push(
+				`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" SET DATA TYPE ${type} USING "${columnName}"::${type};`,
+			);
+		}
+
+		if (oldDataType.isEnum && newDataType.isEnum) {
+			const alterType =
+				`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" SET DATA TYPE ${type} USING "${columnName}"::text::${type};`;
+
+			if (newDataType.name !== oldDataType.name && columnDefault) {
+				statements.push(
+					`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" DROP DEFAULT;`,
+					alterType,
+					`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${columnName}" SET DEFAULT ${columnDefault};`,
+				);
+			} else {
+				statements.push(alterType);
+			}
+		}
+
+		return statements;
 	}
 }
 

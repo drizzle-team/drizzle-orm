@@ -82,7 +82,10 @@ beforeAll(async () => {
 		connectionString = conStr;
 	}
 	client = await retry(async () => {
-		client = await mysql.createConnection(connectionString);
+		client = await mysql.createConnection({
+			uri: connectionString,
+			supportBigNumbers: true,
+		});
 		await client.connect();
 		return client;
 	}, {
