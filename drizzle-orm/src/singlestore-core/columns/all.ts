@@ -15,12 +15,13 @@ import { mediumint } from './mediumint.ts';
 import { real } from './real.ts';
 import { serial } from './serial.ts';
 import { smallint } from './smallint.ts';
-import { text } from './text.ts';
+import { longtext, mediumtext, text, tinytext } from './text.ts';
 import { time } from './time.ts';
 import { timestamp } from './timestamp.ts';
 import { tinyint } from './tinyint.ts';
 import { varbinary } from './varbinary.ts';
 import { varchar } from './varchar.ts';
+import { vector } from './vector.ts';
 import { year } from './year.ts';
 
 export function getSingleStoreColumnBuilders() {
@@ -42,12 +43,16 @@ export function getSingleStoreColumnBuilders() {
 		real,
 		serial,
 		smallint,
+		longtext,
+		mediumtext,
 		text,
+		tinytext,
 		time,
 		timestamp,
 		tinyint,
 		varbinary,
 		varchar,
+		vector,
 		year,
 	};
 }

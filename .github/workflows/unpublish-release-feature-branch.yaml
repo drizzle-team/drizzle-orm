@@ -13,14 +13,15 @@ jobs:
           - drizzle-zod
           - drizzle-typebox
           - drizzle-valibot
+          - drizzle-arktype
           - eslint-plugin-drizzle
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '18.18'
+          node-version: '22'
           registry-url: 'https://registry.npmjs.org'
 
       - name: Unpublish

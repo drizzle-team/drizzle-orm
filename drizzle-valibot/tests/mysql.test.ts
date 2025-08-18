@@ -1,5 +1,6 @@
 import { type Equal, sql } from 'drizzle-orm';
-import { int, mysqlSchema, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
+import { customType, int, json, mysqlSchema, mysqlTable, mysqlView, serial, text } from 'drizzle-orm/mysql-core';
+import type { TopLevelCondition } from 'json-rules-engine';
 import * as v from 'valibot';
 import { test } from 'vitest';
 import { jsonSchema } from '~/column.ts';
@@ -206,6 +207,32 @@ test('refine table - select', (t) => {
 		c2: v.pipe(intSchema, v.maxValue(1000)),
 		c3: v.pipe(v.string(), v.transform(Number)),
 	});
+	expectSchemaShape(t, expected).from(result);
+	Expect<Equal<typeof result, typeof expected>>();
+});
+
+test('refine table - select with custom data type', (t) => {
+	const customText = customType({ dataType: () => 'text' });
+	const table = mysqlTable('test', {
+		c1: int(),
+		c2: int().notNull(),
+		c3: int().notNull(),
+		c4: customText(),
+	});
+
+	const customTextSchema = v.pipe(v.string(), v.minLength(1), v.maxLength(100));
+	const result = createSelectSchema(table, {
+		c2: (schema) => v.pipe(schema, v.maxValue(1000)),
+		c3: v.pipe(v.string(), v.transform(Number)),
+		c4: customTextSchema,
+	});
+	const expected = v.object({
+		c1: v.nullable(intSchema),
+		c2: v.pipe(intSchema, v.maxValue(1000)),
+		c3: v.pipe(v.string(), v.transform(Number)),
+		c4: customTextSchema,
+	});
+
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -436,6 +463,18 @@ test('all data types', (t) => {
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
+
+/* Infinitely recursive type */ {
+	const TopLevelCondition: v.GenericSchema<TopLevelCondition> = v.custom<TopLevelCondition>(() => true);
+	const table = mysqlTable('test', {
+		json: json().$type<TopLevelCondition>(),
+	});
+	const result = createSelectSchema(table);
+	const expected = v.object({
+		json: v.nullable(TopLevelCondition),
+	});
+	Expect<Equal<v.InferOutput<typeof result>, v.InferOutput<typeof expected>>>();
+}
 
 /* Disallow unknown keys in table refinement - select */ {
 	const table = mysqlTable('test', { id: int() });

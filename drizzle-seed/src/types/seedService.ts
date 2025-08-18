@@ -1,4 +1,4 @@
-import type { AbstractGenerator } from '../services/GeneratorsWrappers.ts';
+import type { AbstractGenerator } from '../services/Generators.ts';
 import type { Prettify } from './tables.ts';
 
 export type TableGeneratorsType = {

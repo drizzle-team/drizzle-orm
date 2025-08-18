@@ -150,3 +150,5 @@ export default [
 	'Legal secretary',
 	'Market analyst',
 ];
+
+export const maxStringLength = 35;
