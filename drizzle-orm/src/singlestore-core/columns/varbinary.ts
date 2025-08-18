@@ -6,7 +6,7 @@ import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
 export class SingleStoreVarBinaryBuilder extends SingleStoreColumnBuilder<{
 	name: string;
-	dataType: 'string binary';
+	dataType: 'string varbinary';
 	data: string;
 	driverParam: string;
 	enumValues: undefined;
@@ -15,7 +15,7 @@ export class SingleStoreVarBinaryBuilder extends SingleStoreColumnBuilder<{
 
 	/** @internal */
 	constructor(name: string, config: SingleStoreVarbinaryOptions) {
-		super(name, 'string binary', 'SingleStoreVarBinary');
+		super(name, 'string varbinary', 'SingleStoreVarBinary');
 		this.config.length = config?.length;
 	}
 
@@ -29,7 +29,7 @@ export class SingleStoreVarBinaryBuilder extends SingleStoreColumnBuilder<{
 }
 
 export class SingleStoreVarBinary<
-	T extends ColumnBaseConfig<'string binary'>,
+	T extends ColumnBaseConfig<'string varbinary'>,
 > extends SingleStoreColumn<T, SingleStoreVarbinaryOptions> {
 	static override readonly [entityKind]: string = 'SingleStoreVarBinary';
 

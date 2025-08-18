@@ -210,12 +210,6 @@ function stringColumnToSchema(column: Column, constraint: ColumnDataConstraint |
 
 	const { dialect } = column;
 
-	if (constraint === 'binary') {
-		const length = (<{ dimensions?: number }> column).dimensions ?? (<{ length?: number }> column).length;
-		return type(`/^[01]${length ? `{${length}}` : dialect === 'pg' ? '+' : '*'}$/`)
-			.describe(`a string containing ones or zeros${length ? ` while being ${length} characters long` : ''}`);
-	}
-
 	let max: number | undefined;
 	let fixed = false;
 
@@ -238,6 +232,14 @@ function stringColumnToSchema(column: Column, constraint: ColumnDataConstraint |
 	} else if (constraint === 'char') {
 		max = (<{ length?: number }> column).length;
 		fixed = true;
+	} else if (constraint === 'binary') {
+		const length = (<{ dimensions?: number }> column).dimensions ?? (<{ length?: number }> column).length;
+		return type(`/^[01]${length ? `{${length}}` : dialect === 'pg' ? '+' : '*'}$/`)
+			.describe(`a string containing ones or zeros${length ? ` while being ${length} characters long` : ''}`);
+	} else if (constraint === 'varbinary') {
+		const length = (<{ dimensions?: number }> column).dimensions ?? (<{ length?: number }> column).length;
+		return type(`/^[01]${length ? `{0,${length}}` : '*'}$/`)
+			.describe(`a string containing ones or zeros${length ? ` while being up to ${length} characters long` : ''}`);
 	}
 
 	return max && fixed ? type.string.exactlyLength(max) : max ? type.string.atMostLength(max) : type.string;

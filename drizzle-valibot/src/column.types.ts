@@ -29,13 +29,15 @@ export type ExtractAdditionalProperties<
 		? Assume<TColumn['_'], { length: number | undefined }>['length']
 		: TDialectConstraint extends `${'mysql' | 'singlestore'} ${'text' | 'varchar'}` ? number
 		: TConstraint extends 'binary' ? TColumn['_'] extends { dimensions: number } ? TColumn['_']['dimensions'] : number
+		: TConstraint extends 'varbinary'
+			? TColumn['_'] extends { dimensions: number } ? TColumn['_']['dimensions'] : number
 		: TColumnType extends 'vector'
 			? TColumn['_'] extends { dimensions: number } ? Assume<TColumn['_'], { dimensions: number }>['dimensions']
 			: undefined
 		: TColumnType extends 'array'
 			? TColumn['_'] extends { size: number } ? Assume<TColumn['_'], { size: number }>['size'] : undefined
 		: undefined;
-	fixedLength: TColumnType extends 'vector' | 'array' ? true : TConstraint extends 'char' ? true : false;
+	fixedLength: TColumnType extends 'vector' | 'array' ? true : TConstraint extends 'char' | 'binary' ? true : false;
 };
 
 type GetLengthAction<T extends Record<string, any>, TType extends string | ArrayLike<unknown>> =
@@ -127,6 +129,13 @@ export type GetValibotType<
 	: TColumnType extends 'string'
 		? TConstraint extends 'uuid' ? v.SchemaWithPipe<[v.StringSchema<undefined>, v.UuidAction<string, undefined>]>
 		: TConstraint extends 'binary' ? v.SchemaWithPipe<
+				RemoveNeverElements<[
+					v.StringSchema<undefined>,
+					v.RegexAction<string, undefined>,
+					TAdditionalProperties['max'] extends number ? GetLengthAction<TAdditionalProperties, string> : never,
+				]>
+			>
+		: TConstraint extends 'varbinary' ? v.SchemaWithPipe<
 				RemoveNeverElements<[
 					v.StringSchema<undefined>,
 					v.RegexAction<string, undefined>,

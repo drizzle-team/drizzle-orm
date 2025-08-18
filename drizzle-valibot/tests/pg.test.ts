@@ -463,7 +463,7 @@ test('all data types', (t) => {
 			v.integer(),
 		),
 		bigserial2: v.pipe(v.bigint(), v.minValue(CONSTANTS.INT64_MIN), v.maxValue(CONSTANTS.INT64_MAX)),
-		bit: v.pipe(v.string(), v.regex(/^[01]+$/), v.maxLength(5 as number)),
+		bit: v.pipe(v.string(), v.regex(/^[01]*$/), v.length(5 as number)),
 		boolean: v.boolean(),
 		date1: v.date(),
 		date2: v.string(),

@@ -443,7 +443,9 @@ test('all data types', (t) => {
 		tinyint2: type.keywords.number.integer.atLeast(0).atMost(CONSTANTS.INT8_UNSIGNED_MAX),
 		varchar1: type.string.atMostLength(10),
 		varchar2: type.enumerated('a', 'b', 'c'),
-		varbinary: type(`/^[01]{10}$/`).describe(`a string containing ones or zeros while being 10 characters long`),
+		varbinary: type(`/^[01]{0,10}$/`).describe(
+			`a string containing ones or zeros while being up to 10 characters long`,
+		),
 		year: type.keywords.number.integer.atLeast(1901).atMost(2155),
 		longtext1: type.string.atMostLength(CONSTANTS.INT32_UNSIGNED_MAX),
 		longtext2: type.enumerated('a', 'b', 'c'),
