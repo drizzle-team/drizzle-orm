@@ -21,6 +21,7 @@ import { AwsDataApiSession } from './session.ts';
 
 export interface PgDriverOptions {
 	logger?: Logger;
+	cache?: Cache;
 	database: string;
 	resourceArn: string;
 	secretArn: string;
@@ -118,9 +119,13 @@ function construct<TSchema extends Record<string, unknown> = Record<string, neve
 		};
 	}
 
-	const session = new AwsDataApiSession(client, dialect, schema, { ...config, logger }, undefined);
+	const session = new AwsDataApiSession(client, dialect, schema, { ...config, logger, cache: config.cache }, undefined);
 	const db = new AwsDataApiPgDatabase(dialect, session, schema as any);
 	(<any> db).$client = client;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
 
 	return db as any;
 }
@@ -152,7 +157,7 @@ export function drizzle<
 	$client: TClient;
 } {
 	// eslint-disable-next-line no-instanceof/no-instanceof
-	if (params[0] instanceof RDSDataClient) {
+	if (params[0] instanceof RDSDataClient || params[0].constructor.name !== 'Object') {
 		return construct(params[0] as TClient, params[1] as DrizzleAwsDataApiPgConfig<TSchema>) as any;
 	}
 

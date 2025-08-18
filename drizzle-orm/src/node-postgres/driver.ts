@@ -1,4 +1,5 @@
 import pg, { type Pool, type PoolConfig } from 'pg';
+import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
@@ -16,6 +17,7 @@ import { NodePgSession } from './session.ts';
 
 export interface PgDriverOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class NodePgDriver {
@@ -31,7 +33,10 @@ export class NodePgDriver {
 	createSession(
 		schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined,
 	): NodePgSession<Record<string, unknown>, TablesRelationalConfig> {
-		return new NodePgSession(this.client, this.dialect, schema, { logger: this.options.logger });
+		return new NodePgSession(this.client, this.dialect, schema, {
+			logger: this.options.logger,
+			cache: this.options.cache,
+		});
 	}
 }
 
@@ -48,7 +53,7 @@ function construct<
 	client: TClient,
 	config: DrizzleConfig<TSchema> = {},
 ): NodePgDatabase<TSchema> & {
-	$client: TClient;
+	$client: NodePgClient extends TClient ? Pool : TClient;
 } {
 	const dialect = new PgDialect({ casing: config.casing });
 	let logger;
@@ -71,10 +76,14 @@ function construct<
 		};
 	}
 
-	const driver = new NodePgDriver(client, dialect, { logger });
+	const driver = new NodePgDriver(client, dialect, { logger, cache: config.cache });
 	const session = driver.createSession(schema);
 	const db = new NodePgDatabase(dialect, session, schema as any) as NodePgDatabase<TSchema>;
 	(<any> db).$client = client;
+	(<any> db).$cache = config.cache;
+	if ((<any> db).$cache) {
+		(<any> db).$cache['invalidate'] = config.cache?.onMutate;
+	}
 
 	return db as any;
 }
@@ -92,17 +101,15 @@ export function drizzle<
 			DrizzleConfig<TSchema>,
 		]
 		| [
-			(
-				& DrizzleConfig<TSchema>
-				& ({
-					connection: string | PoolConfig;
-				} | {
-					client: TClient;
-				})
-			),
+			& DrizzleConfig<TSchema>
+			& ({
+				client: TClient;
+			} | {
+				connection: string | PoolConfig;
+			}),
 		]
 ): NodePgDatabase<TSchema> & {
-	$client: TClient;
+	$client: NodePgClient extends TClient ? Pool : TClient;
 } {
 	if (typeof params[0] === 'string') {
 		const instance = new pg.Pool({

@@ -8,6 +8,8 @@ import {
 	type QueryResultRow,
 	types,
 } from '@neondatabase/serverless';
+import { type Cache, NoopCache } from '~/cache/core/cache.ts';
+import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -33,12 +35,18 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig> extends PgPrepared
 		queryString: string,
 		private params: unknown[],
 		private logger: Logger,
+		cache: Cache,
+		queryMetadata: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		} | undefined,
+		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
 		name: string | undefined,
 		private _isResponseInArrayMode: boolean,
 		private customResultMapper?: (rows: unknown[][]) => T['execute'],
 	) {
-		super({ sql: queryString, params });
+		super({ sql: queryString, params }, cache, queryMetadata, cacheConfig);
 		this.rawQueryConfig = {
 			name,
 			text: queryString,
@@ -56,6 +64,26 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig> extends PgPrepared
 					}
 					if (typeId === types.builtins.INTERVAL) {
 						return (val: any) => val;
+					}
+					// numeric[]
+					if (typeId === 1231) {
+						return (val: any) => val;
+					}
+					// timestamp[]
+					if (typeId === 1115) {
+						return (val) => val;
+					}
+					// timestamp with timezone[]
+					if (typeId === 1185) {
+						return (val) => val;
+					}
+					// interval[]
+					if (typeId === 1187) {
+						return (val) => val;
+					}
+					// date[]
+					if (typeId === 1182) {
+						return (val) => val;
 					}
 					// @ts-ignore
 					return types.getTypeParser(typeId, format);
@@ -81,6 +109,26 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig> extends PgPrepared
 					if (typeId === types.builtins.INTERVAL) {
 						return (val: any) => val;
 					}
+					// numeric[]
+					if (typeId === 1231) {
+						return (val: any) => val;
+					}
+					// timestamp[]
+					if (typeId === 1115) {
+						return (val) => val;
+					}
+					// timestamp with timezone[]
+					if (typeId === 1185) {
+						return (val) => val;
+					}
+					// interval[]
+					if (typeId === 1187) {
+						return (val) => val;
+					}
+					// date[]
+					if (typeId === 1182) {
+						return (val) => val;
+					}
 					// @ts-ignore
 					return types.getTypeParser(typeId, format);
 				},
@@ -96,10 +144,14 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig> extends PgPrepared
 		const { fields, client, rawQueryConfig: rawQuery, queryConfig: query, joinsNotNullableMap, customResultMapper } =
 			this;
 		if (!fields && !customResultMapper) {
-			return client.query(rawQuery, params);
+			return await this.queryWithCache(rawQuery.text, params, async () => {
+				return await client.query(rawQuery, params);
+			});
 		}
 
-		const result = await client.query(query, params);
+		const result = await this.queryWithCache(query.text, params, async () => {
+			return await client.query(query, params);
+		});
 
 		return customResultMapper
 			? customResultMapper(result.rows)
@@ -109,13 +161,17 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig> extends PgPrepared
 	all(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['all']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 		this.logger.logQuery(this.rawQueryConfig.text, params);
-		return this.client.query(this.rawQueryConfig, params).then((result) => result.rows);
+		return this.queryWithCache(this.rawQueryConfig.text, params, async () => {
+			return await this.client.query(this.rawQueryConfig, params);
+		}).then((result) => result.rows);
 	}
 
 	values(placeholderValues: Record<string, unknown> | undefined = {}): Promise<T['values']> {
 		const params = fillPlaceholders(this.params, placeholderValues);
 		this.logger.logQuery(this.rawQueryConfig.text, params);
-		return this.client.query(this.queryConfig, params).then((result) => result.rows);
+		return this.queryWithCache(this.queryConfig.text, params, async () => {
+			return await this.client.query(this.queryConfig, params);
+		}).then((result) => result.rows);
 	}
 
 	/** @internal */
@@ -126,6 +182,7 @@ export class NeonPreparedQuery<T extends PreparedQueryConfig> extends PgPrepared
 
 export interface NeonSessionOptions {
 	logger?: Logger;
+	cache?: Cache;
 }
 
 export class NeonSession<
@@ -135,6 +192,7 @@ export class NeonSession<
 	static override readonly [entityKind]: string = 'NeonSession';
 
 	private logger: Logger;
+	private cache: Cache;
 
 	constructor(
 		private client: NeonClient,
@@ -144,6 +202,7 @@ export class NeonSession<
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
+		this.cache = options.cache ?? new NoopCache();
 	}
 
 	prepareQuery<T extends PreparedQueryConfig = PreparedQueryConfig>(
@@ -152,12 +211,20 @@ export class NeonSession<
 		name: string | undefined,
 		isResponseInArrayMode: boolean,
 		customResultMapper?: (rows: unknown[][]) => T['execute'],
+		queryMetadata?: {
+			type: 'select' | 'update' | 'delete' | 'insert';
+			tables: string[];
+		},
+		cacheConfig?: WithCacheConfig,
 	): PgPreparedQuery<T> {
 		return new NeonPreparedQuery(
 			this.client,
 			query.sql,
 			query.params,
 			this.logger,
+			this.cache,
+			queryMetadata,
+			cacheConfig,
 			fields,
 			name,
 			isResponseInArrayMode,

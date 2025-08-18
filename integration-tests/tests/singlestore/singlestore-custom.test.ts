@@ -41,7 +41,7 @@ beforeAll(async () => {
 		container = contrainerObj;
 	}
 	client = await retry(async () => {
-		client = await mysql2.createConnection(connectionString);
+		client = await mysql2.createConnection({ uri: connectionString, supportBigNumbers: true });
 		await client.connect();
 		return client;
 	}, {
@@ -821,7 +821,7 @@ test('custom binary', async (ctx) => {
 
 	expect(res).toEqual([{
 		id,
-		sqlId: Buffer.from(id, 'hex'),
+		sqlId: Buffer.from(id, 'hex').toString(),
 		rawId: id,
 	}]);
 });

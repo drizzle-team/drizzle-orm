@@ -5,15 +5,12 @@ import {
 	binary,
 	char,
 	date,
-	datetime,
 	decimal,
 	double,
 	float,
 	int,
-	json,
 	mediumint,
 	primaryKey,
-	serial,
 	singlestoreEnum,
 	singlestoreTable,
 	smallint,
@@ -23,6 +20,7 @@ import {
 	tinyint,
 	varbinary,
 	varchar,
+	vector,
 	year,
 } from 'drizzle-orm/singlestore-core';
 import getPort from 'get-port';
@@ -249,6 +247,13 @@ const singlestoreSuite: DialectSuite = {
 				columnNotNull: binary('column_not_null', { length: 1 }).notNull(),
 				columnDefault: binary('column_default', { length: 12 }),
 			}),
+
+			allVectors: singlestoreTable('all_vectors', {
+				vectorSimple: vector('vector_simple', { dimensions: 1 }),
+				vectorElementType: vector('vector_element_type', { dimensions: 1, elementType: 'I8' }),
+				vectorNotNull: vector('vector_not_null', { dimensions: 1 }).notNull(),
+				vectorDefault: vector('vector_default', { dimensions: 1 }).default([1]),
+			}),
 		};
 
 		const { statements } = await diffTestSchemasPushSingleStore(
@@ -392,7 +397,7 @@ const singlestoreSuite: DialectSuite = {
 
 		// It's not possible to create/alter/drop primary keys in SingleStore
 		expect(sqlStatements).toStrictEqual([
-			'RENAME TABLE `products_categories` TO `products_to_categories`;',
+			'ALTER TABLE `products_categories` RENAME TO `products_to_categories`;',
 		]);
 
 		await context.client.query(`DROP TABLE \`products_categories\``);

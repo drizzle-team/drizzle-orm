@@ -169,3 +169,5 @@ export default [
 	'Yemen',
 	'Zambia',
 ];
+
+export const maxStringLength = 30;

@@ -3,11 +3,14 @@ import { drizzle } from 'drizzle-orm/singlestore';
 import type { SingleStoreDriverDatabase } from 'drizzle-orm/singlestore';
 import * as mysql2 from 'mysql2/promise';
 import { afterAll, beforeAll, beforeEach } from 'vitest';
+import { TestCache, TestGlobalCache, tests as cacheTests } from './singlestore-cache';
 import { createDockerDB, tests } from './singlestore-common';
 
 const ENABLE_LOGGING = false;
 
 let db: SingleStoreDriverDatabase;
+let dbGlobalCached: SingleStoreDriverDatabase;
+let cachedDb: SingleStoreDriverDatabase;
 let client: mysql2.Connection;
 
 beforeAll(async () => {
@@ -19,7 +22,7 @@ beforeAll(async () => {
 		connectionString = conStr;
 	}
 	client = await retry(async () => {
-		client = await mysql2.createConnection(connectionString);
+		client = await mysql2.createConnection({ uri: connectionString, supportBigNumbers: true });
 		await client.connect();
 		return client;
 	}, {
@@ -36,6 +39,8 @@ beforeAll(async () => {
 	await client.query(`CREATE DATABASE IF NOT EXISTS drizzle;`);
 	await client.changeUser({ database: 'drizzle' });
 	db = drizzle(client, { logger: ENABLE_LOGGING });
+	cachedDb = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestCache() });
+	dbGlobalCached = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 });
 
 afterAll(async () => {
@@ -46,6 +51,11 @@ beforeEach((ctx) => {
 	ctx.singlestore = {
 		db,
 	};
+	ctx.cachedSingleStore = {
+		db: cachedDb,
+		dbGlobalCached,
+	};
 });
 
+cacheTests();
 tests();
