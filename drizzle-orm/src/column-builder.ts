@@ -64,7 +64,6 @@ export type ColumnDataStringConstraint =
 	| 'macaddr'
 	| 'macaddr8'
 	| 'numeric'
-	| 'numeric'
 	| 'sparsevec'
 	| 'text'
 	| 'time'
