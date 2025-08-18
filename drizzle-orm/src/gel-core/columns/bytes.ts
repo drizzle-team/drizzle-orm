@@ -5,7 +5,7 @@ import { GelColumn, GelColumnBuilder } from './common.ts';
 
 export class GelBytesBuilder extends GelColumnBuilder<{
 	name: string;
-	dataType: 'buffer';
+	dataType: 'object buffer';
 	data: Uint8Array;
 	driverParam: Uint8Array | Buffer;
 	enumValues: undefined;
@@ -13,7 +13,7 @@ export class GelBytesBuilder extends GelColumnBuilder<{
 	static override readonly [entityKind]: string = 'GelBytesBuilder';
 
 	constructor(name: string) {
-		super(name, 'buffer', 'GelBytes');
+		super(name, 'object buffer', 'GelBytes');
 	}
 
 	/** @internal */
@@ -25,7 +25,7 @@ export class GelBytesBuilder extends GelColumnBuilder<{
 	}
 }
 
-export class GelBytes<T extends ColumnBaseConfig<'buffer'>> extends GelColumn<T> {
+export class GelBytes<T extends ColumnBaseConfig<'object buffer'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelBytes';
 
 	getSQLType(): string {

@@ -5,7 +5,7 @@ import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export class MySqlJsonBuilder extends MySqlColumnBuilder<{
 	name: string;
-	dataType: 'json';
+	dataType: 'object json';
 	data: unknown;
 	driverParam: string;
 	enumValues: undefined;
@@ -13,7 +13,7 @@ export class MySqlJsonBuilder extends MySqlColumnBuilder<{
 	static override readonly [entityKind]: string = 'MySqlJsonBuilder';
 
 	constructor(name: string) {
-		super(name, 'json', 'MySqlJson');
+		super(name, 'object json', 'MySqlJson');
 	}
 
 	/** @internal */
@@ -22,7 +22,7 @@ export class MySqlJsonBuilder extends MySqlColumnBuilder<{
 	}
 }
 
-export class MySqlJson<T extends ColumnBaseConfig<'json'>> extends MySqlColumn<T> {
+export class MySqlJson<T extends ColumnBaseConfig<'object json'>> extends MySqlColumn<T> {
 	static override readonly [entityKind]: string = 'MySqlJson';
 
 	getSQLType(): string {

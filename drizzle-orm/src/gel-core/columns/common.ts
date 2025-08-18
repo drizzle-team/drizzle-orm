@@ -41,7 +41,7 @@ export abstract class GelColumnBuilder<
 	array<TSize extends number | undefined = undefined>(size?: TSize): GelArrayBuilder<
 		& {
 			name: string;
-			dataType: 'array';
+			dataType: 'array basecolumn';
 			data: T['data'][];
 			driverParam: T['driverParam'][] | string;
 			enumValues: T['enumValues'];
@@ -245,7 +245,7 @@ export type AnyGelColumn<TPartial extends Partial<ColumnBaseConfig<ColumnType>> 
 	Required<Update<ColumnBaseConfig<ColumnType>, TPartial>>
 >;
 
-export type GelArrayColumnBuilderBaseConfig = ColumnBuilderBaseConfig<'array'> & {
+export type GelArrayColumnBuilderBaseConfig = ColumnBuilderBaseConfig<'array basecolumn'> & {
 	size: number | undefined;
 	baseBuilder: ColumnBuilderBaseConfig<ColumnType>;
 };
@@ -281,7 +281,7 @@ export class GelArrayBuilder<
 		baseBuilder: GelArrayBuilder<T, TBase>['config']['baseBuilder'],
 		size: T['size'],
 	) {
-		super(name, 'array', 'GelArray');
+		super(name, 'array basecolumn', 'GelArray');
 		this.config.baseBuilder = baseBuilder;
 		this.config.size = size;
 	}
@@ -298,7 +298,7 @@ export class GelArrayBuilder<
 }
 
 export class GelArray<
-	T extends ColumnBaseConfig<'array'> & {
+	T extends ColumnBaseConfig<'array basecolumn'> & {
 		size: number | undefined;
 		baseBuilder: ColumnBuilderBaseConfig<ColumnType>;
 	},

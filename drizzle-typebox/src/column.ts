@@ -2,7 +2,10 @@ import { Kind, Type as t, TypeRegistry } from '@sinclair/typebox';
 import type { StringOptions, TSchema, Type as typebox } from '@sinclair/typebox';
 import {
 	type Column,
-	type ColumnDataConstraint,
+	type ColumnDataArrayConstraint,
+	type ColumnDataNumberConstraint,
+	type ColumnDataObjectConstraint,
+	type ColumnDataStringConstraint,
 	extractExtendedColumnType,
 	getColumnTable,
 	getTableName,
@@ -25,68 +28,12 @@ export function columnToSchema(column: Column, t: typeof typebox): TSchema {
 	const { type, constraint } = extractExtendedColumnType(column);
 
 	switch (type) {
-		case 'enum': {
-			const enumValues = (<{ enumValues?: string[] }> column).enumValues;
-			if (!enumValues) {
-				throw new Error(
-					`Column "${getTableName(getColumnTable(column))}"."${column.name}" is of 'enum' type, but lacks enum values`,
-				);
-			}
-			schema = t.Enum(mapEnumValues(enumValues));
-			break;
-		}
-		case 'pointTuple':
-		case 'geoTuple': {
-			schema = t.Tuple([t.Number(), t.Number()]);
-			break;
-		}
-		case 'geoObject':
-		case 'pointObject': {
-			schema = t.Object({ x: t.Number(), y: t.Number() });
-			break;
-		}
-		case 'vector': {
-			const dimensions = (<{ dimensions?: number }> column).dimensions;
-			const sizeParam = dimensions
-				? {
-					minItems: dimensions,
-					maxItems: dimensions,
-				}
-				: undefined;
-			schema = t.Array(t.Number(), sizeParam);
-
-			break;
-		}
-		case 'lineTuple': {
-			schema = t.Tuple([t.Number(), t.Number(), t.Number()]);
-			break;
-		}
-		case 'lineABC': {
-			schema = t.Object({
-				a: t.Number(),
-				b: t.Number(),
-				c: t.Number(),
-			});
-			break;
-		}
 		case 'array': {
-			const size = (<{ size?: number }> column).size;
-			const sizeParam = size
-				? {
-					minItems: size,
-					maxItems: size,
-				}
-				: undefined;
-			schema = (<{ baseColumn?: Column }> column).baseColumn
-				? t.Array(
-					columnToSchema((<{ baseColumn?: Column }> column).baseColumn!, t),
-					sizeParam,
-				)
-				: t.Array(
-					t.Any(),
-					sizeParam,
-				);
-
+			schema = arrayColumnToSchema(column, constraint, t);
+			break;
+		}
+		case 'object': {
+			schema = objectColumnToSchema(column, constraint, t);
 			break;
 		}
 		case 'number': {
@@ -101,24 +48,12 @@ export function columnToSchema(column: Column, t: typeof typebox): TSchema {
 			schema = t.Boolean();
 			break;
 		}
-		case 'date': {
-			schema = t.Date();
-			break;
-		}
 		case 'string': {
 			schema = stringColumnToSchema(column, constraint, t);
 			break;
 		}
-		case 'json': {
-			schema = jsonSchema;
-			break;
-		}
 		case 'custom': {
 			schema = t.Any();
-			break;
-		}
-		case 'buffer': {
-			schema = bufferSchema;
 			break;
 		}
 		default: {
@@ -131,7 +66,7 @@ export function columnToSchema(column: Column, t: typeof typebox): TSchema {
 
 function numberColumnToSchema(
 	column: Column,
-	constraint: ColumnDataConstraint | undefined,
+	constraint: ColumnDataNumberConstraint | undefined,
 	t: typeof typebox,
 ): TSchema {
 	const unsigned = constraint === 'uint53' || column.getSQLType().includes('unsigned');
@@ -218,6 +153,89 @@ function numberColumnToSchema(
 	});
 }
 
+function arrayColumnToSchema(
+	column: Column,
+	constraint: ColumnDataArrayConstraint | undefined,
+	t: typeof typebox,
+): TSchema {
+	switch (constraint) {
+		case 'geometry':
+		case 'point': {
+			return t.Tuple([t.Number(), t.Number()]);
+		}
+		case 'line': {
+			return t.Tuple([t.Number(), t.Number(), t.Number()]);
+		}
+		case 'vector':
+		case 'halfvector': {
+			const dimensions = (<{ dimensions?: number }> column).dimensions;
+			const sizeParam = dimensions
+				? {
+					minItems: dimensions,
+					maxItems: dimensions,
+				}
+				: undefined;
+			return t.Array(t.Number(), sizeParam);
+		}
+		case 'basecolumn': {
+			const size = (<{ size?: number }> column).size;
+			const sizeParam = size
+				? {
+					minItems: size,
+					maxItems: size,
+				}
+				: undefined;
+			return (<{ baseColumn?: Column }> column).baseColumn
+				? t.Array(
+					columnToSchema((<{ baseColumn?: Column }> column).baseColumn!, t),
+					sizeParam,
+				)
+				: t.Array(
+					t.Any(),
+					sizeParam,
+				);
+		}
+		default: {
+			return t.Array(t.Any());
+		}
+	}
+}
+
+function objectColumnToSchema(
+	column: Column,
+	constraint: ColumnDataObjectConstraint | undefined,
+	t: typeof typebox,
+): TSchema {
+	switch (constraint) {
+		case 'buffer': {
+			return bufferSchema;
+		}
+		case 'date': {
+			return t.Date();
+		}
+		case 'geometry':
+		case 'point': {
+			return t.Object({
+				x: t.Number(),
+				y: t.Number(),
+			});
+		}
+		case 'json': {
+			return jsonSchema;
+		}
+		case 'line': {
+			return t.Object({
+				a: t.Number(),
+				b: t.Number(),
+				c: t.Number(),
+			});
+		}
+		default: {
+			return t.Object({});
+		}
+	}
+}
+
 function bigintColumnToSchema(column: Column, t: typeof typebox): TSchema {
 	const unsigned = column.getSQLType().includes('unsigned');
 	const min = unsigned ? 0n : CONSTANTS.INT64_MIN;
@@ -231,10 +249,10 @@ function bigintColumnToSchema(column: Column, t: typeof typebox): TSchema {
 
 function stringColumnToSchema(
 	column: Column,
-	constraint: ColumnDataConstraint | undefined,
+	constraint: ColumnDataStringConstraint | undefined,
 	t: typeof typebox,
 ): TSchema {
-	const { dialect } = column;
+	const { dialect, name: columnName } = column;
 
 	let max: number | undefined;
 	let fixed = false;
@@ -266,6 +284,16 @@ function stringColumnToSchema(
 		return t.RegExp(/^[01]*$/, length ? { maxLength: length } : undefined);
 	} else if (constraint === 'uuid') {
 		return t.String({ format: 'uuid' });
+	} else if (
+		constraint === 'enum'
+	) {
+		const enumValues = (<{ enumValues?: string[] }> column).enumValues;
+		if (!enumValues) {
+			throw new Error(
+				`Column "${getTableName(getColumnTable(column))}"."${columnName}" is of 'enum' type, but lacks enum values`,
+			);
+		}
+		return t.Enum(mapEnumValues(enumValues));
 	}
 
 	const options: Partial<StringOptions> = {};

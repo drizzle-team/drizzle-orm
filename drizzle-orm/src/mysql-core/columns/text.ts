@@ -9,7 +9,7 @@ export type MySqlTextColumnType = 'tinytext' | 'text' | 'mediumtext' | 'longtext
 export class MySqlTextBuilder<TEnum extends [string, ...string[]]> extends MySqlColumnBuilder<
 	{
 		name: string;
-		dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string text' : 'enum';
+		dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string text' : 'string enum';
 		data: TEnum[number];
 		driverParam: string;
 		enumValues: TEnum;
@@ -19,7 +19,7 @@ export class MySqlTextBuilder<TEnum extends [string, ...string[]]> extends MySql
 	static override readonly [entityKind]: string = 'MySqlTextBuilder';
 
 	constructor(name: string, textType: MySqlTextColumnType, config: MySqlTextConfig<TEnum>) {
-		super(name, config.enum?.length ? 'enum' : 'string text', 'MySqlText');
+		super(name, config.enum?.length ? 'string enum' : 'string text', 'MySqlText');
 		this.config.textType = textType;
 		this.config.enumValues = config.enum!;
 	}
@@ -30,7 +30,7 @@ export class MySqlTextBuilder<TEnum extends [string, ...string[]]> extends MySql
 	}
 }
 
-export class MySqlText<T extends ColumnBaseConfig<'string text' | 'enum'>>
+export class MySqlText<T extends ColumnBaseConfig<'string text' | 'string enum'>>
 	extends MySqlColumn<T, { textType: MySqlTextColumnType; enumValues: T['enumValues'] }>
 {
 	static override readonly [entityKind]: string = 'MySqlText';

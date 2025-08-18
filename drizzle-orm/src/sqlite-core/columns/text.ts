@@ -10,7 +10,7 @@ export class SQLiteTextBuilder<
 > extends SQLiteColumnBuilder<
 	{
 		name: string;
-		dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string text' : 'enum';
+		dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string text' : 'string enum';
 		data: TEnum[number];
 		driverParam: string;
 		enumValues: TEnum;
@@ -21,7 +21,7 @@ export class SQLiteTextBuilder<
 	static override readonly [entityKind]: string = 'SQLiteTextBuilder';
 
 	constructor(name: string, config: SQLiteTextConfig<'text', TEnum, TLength>) {
-		super(name, config.enum?.length ? 'enum' : 'string text', 'SQLiteText');
+		super(name, config.enum?.length ? 'string enum' : 'string text', 'SQLiteText');
 		this.config.enumValues = config.enum!;
 		this.config.length = config.length!;
 	}
@@ -35,7 +35,7 @@ export class SQLiteTextBuilder<
 	}
 }
 
-export class SQLiteText<T extends ColumnBaseConfig<'string text' | 'enum'> & { length?: number | undefined }>
+export class SQLiteText<T extends ColumnBaseConfig<'string text' | 'string enum'> & { length?: number | undefined }>
 	extends SQLiteColumn<T, { length: T['length']; enumValues: T['enumValues'] }>
 {
 	static override readonly [entityKind]: string = 'SQLiteText';
@@ -58,7 +58,7 @@ export class SQLiteText<T extends ColumnBaseConfig<'string text' | 'enum'> & { l
 
 export class SQLiteTextJsonBuilder extends SQLiteColumnBuilder<{
 	name: string;
-	dataType: 'json';
+	dataType: 'object json';
 	data: unknown;
 	driverParam: string;
 	enumValues: undefined;
@@ -67,7 +67,7 @@ export class SQLiteTextJsonBuilder extends SQLiteColumnBuilder<{
 	static override readonly [entityKind]: string = 'SQLiteTextJsonBuilder';
 
 	constructor(name: string) {
-		super(name, 'json', 'SQLiteTextJson');
+		super(name, 'object json', 'SQLiteTextJson');
 	}
 
 	/** @internal */
@@ -79,7 +79,7 @@ export class SQLiteTextJsonBuilder extends SQLiteColumnBuilder<{
 	}
 }
 
-export class SQLiteTextJson<T extends ColumnBaseConfig<'json'>>
+export class SQLiteTextJson<T extends ColumnBaseConfig<'object json'>>
 	extends SQLiteColumn<T, { length: number | undefined; enumValues: T['enumValues'] }>
 {
 	static override readonly [entityKind]: string = 'SQLiteTextJson';

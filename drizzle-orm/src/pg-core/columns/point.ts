@@ -7,7 +7,7 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export class PgPointTupleBuilder extends PgColumnBuilder<{
 	name: string;
-	dataType: 'pointTuple';
+	dataType: 'array point';
 	data: [number, number];
 	driverParam: number | string;
 	enumValues: undefined;
@@ -15,7 +15,7 @@ export class PgPointTupleBuilder extends PgColumnBuilder<{
 	static override readonly [entityKind]: string = 'PgPointTupleBuilder';
 
 	constructor(name: string) {
-		super(name, 'pointTuple', 'PgPointTuple');
+		super(name, 'array point', 'PgPointTuple');
 	}
 
 	/** @internal */
@@ -27,7 +27,7 @@ export class PgPointTupleBuilder extends PgColumnBuilder<{
 	}
 }
 
-export class PgPointTuple<T extends ColumnBaseConfig<'pointTuple'>> extends PgColumn<T> {
+export class PgPointTuple<T extends ColumnBaseConfig<'array point'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgPointTuple';
 
 	getSQLType(): string {
@@ -49,7 +49,7 @@ export class PgPointTuple<T extends ColumnBaseConfig<'pointTuple'>> extends PgCo
 
 export class PgPointObjectBuilder extends PgColumnBuilder<{
 	name: string;
-	dataType: 'pointObject';
+	dataType: 'object point';
 	data: { x: number; y: number };
 	driverParam: string;
 	enumValues: undefined;
@@ -57,7 +57,7 @@ export class PgPointObjectBuilder extends PgColumnBuilder<{
 	static override readonly [entityKind]: string = 'PgPointObjectBuilder';
 
 	constructor(name: string) {
-		super(name, 'pointObject', 'PgPointObject');
+		super(name, 'object point', 'PgPointObject');
 	}
 
 	/** @internal */
@@ -69,7 +69,7 @@ export class PgPointObjectBuilder extends PgColumnBuilder<{
 	}
 }
 
-export class PgPointObject<T extends ColumnBaseConfig<'pointObject'>> extends PgColumn<T> {
+export class PgPointObject<T extends ColumnBaseConfig<'object point'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgPointObject';
 
 	getSQLType(): string {

@@ -4,7 +4,7 @@ import type { z } from 'zod/v4';
 import type { BuildRefine, BuildSchema, NoUnknownKeys } from './schema.types.internal.ts';
 
 export interface CreateSelectSchema<
-	TCoerce extends Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined,
+	TCoerce extends CoerceOptions,
 > {
 	<TTable extends Table>(table: TTable): BuildSchema<'select', TTable['_']['columns'], undefined, TCoerce>;
 	<
@@ -28,7 +28,7 @@ export interface CreateSelectSchema<
 }
 
 export interface CreateInsertSchema<
-	TCoerce extends Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined,
+	TCoerce extends CoerceOptions,
 > {
 	<TTable extends Table>(table: TTable): BuildSchema<'insert', TTable['_']['columns'], undefined, TCoerce>;
 	<
@@ -41,7 +41,7 @@ export interface CreateInsertSchema<
 }
 
 export interface CreateUpdateSchema<
-	TCoerce extends Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined,
+	TCoerce extends CoerceOptions,
 > {
 	<TTable extends Table>(table: TTable): BuildSchema<'update', TTable['_']['columns'], undefined, TCoerce>;
 	<
@@ -54,8 +54,15 @@ export interface CreateUpdateSchema<
 }
 
 export interface CreateSchemaFactoryOptions<
-	TCoerce extends Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined,
+	TCoerce extends CoerceOptions,
 > {
 	zodInstance?: any;
 	coerce?: TCoerce;
 }
+
+export type CoerceOptions =
+	| Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>>
+	| true
+	| undefined;
+
+export type FactoryOptions = CreateSchemaFactoryOptions<CoerceOptions>;

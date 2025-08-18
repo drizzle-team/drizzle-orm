@@ -11,19 +11,21 @@ export interface GenericSchema<T> extends t.TSchema {
 export type GetTypeboxType<
 	TColumn extends Column,
 	TType extends ColumnTypeData = ExtractColumnTypeData<TColumn['_']['dataType']>,
-> = TType['type'] extends 'array' ? t.TArray<
-		GetTypeboxType<Assume<TColumn['_'], { baseColumn: Column }>['baseColumn']>
-	>
-	: TType['type'] extends 'enum' ? t.TEnum<{ [K in Assume<TColumn['_']['enumValues'], string[]>[number]]: K }>
-	: TType['type'] extends 'geoTuple' | 'pointTuple' ? t.TTuple<[t.TNumber, t.TNumber]>
-	: TType['type'] extends 'geoObject' | 'pointObject' ? t.TObject<{ x: t.TNumber; y: t.TNumber }>
-	: TType['type'] extends 'lineTuple' ? t.TTuple<[t.TNumber, t.TNumber, t.TNumber]>
-	: TType['type'] extends 'lineABC' ? t.TObject<{ a: t.TNumber; b: t.TNumber; c: t.TNumber }>
-	: TType['type'] extends 'date' ? t.TDate
-	: TType['type'] extends 'buffer' ? BufferSchema
-	: TType['type'] extends 'vector' ? t.TArray<t.TNumber>
-	: TType['type'] extends 'json'
-		? TColumn['_']['data'] extends Record<string, any> ? GenericSchema<TColumn['_']['data']> : JsonSchema
+> = TType['type'] extends 'array' ? TType['constraint'] extends 'basecolumn' ? t.TArray<
+			GetTypeboxType<Assume<TColumn['_'], { baseColumn: Column }>['baseColumn']>
+		>
+	: TType['constraint'] extends 'geometry' | 'point' ? t.TTuple<[t.TNumber, t.TNumber]>
+	: TType['constraint'] extends 'line' ? t.TTuple<[t.TNumber, t.TNumber, t.TNumber]>
+	: TType['constraint'] extends 'vector' | 'halfvector' ? t.TArray<t.TNumber>
+	: t.TArray<t.TAny>
+	: TType['type'] extends 'object'
+		? TType['constraint'] extends 'geometry' | 'point' ? t.TObject<{ x: t.TNumber; y: t.TNumber }>
+		: TType['constraint'] extends 'line' ? t.TObject<{ a: t.TNumber; b: t.TNumber; c: t.TNumber }>
+		: TType['constraint'] extends 'date' ? t.TDate
+		: TType['constraint'] extends 'buffer' ? BufferSchema
+		: TType['constraint'] extends 'json'
+			? TColumn['_']['data'] extends Record<string, any> ? GenericSchema<TColumn['_']['data']> : JsonSchema
+		: t.TObject
 	: TType['type'] extends 'custom' ? t.TAny
 	: TType['type'] extends 'number'
 		? TType['constraint'] extends 'int8' | 'int16' | 'int24' | 'int32' | 'int53' | 'uint53' | 'year' ? t.TInteger
@@ -31,6 +33,7 @@ export type GetTypeboxType<
 	: TType['type'] extends 'bigint' ? t.TBigInt
 	: TType['type'] extends 'boolean' ? t.TBoolean
 	: TType['type'] extends 'string' ? TType['constraint'] extends 'binary' | 'varbinary' ? t.TRegExp
+		: TType['constraint'] extends 'enum' ? t.TEnum<{ [K in Assume<TColumn['_']['enumValues'], string[]>[number]]: K }>
 		: t.TString
 	: t.TAny;
 

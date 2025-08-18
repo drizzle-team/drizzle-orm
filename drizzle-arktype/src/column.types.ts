@@ -9,7 +9,7 @@ export type ArktypeOptional<TSchema> = [Type<type.infer<TSchema>>, '?'];
 export type GetArktypeType<
 	TColumn extends Column,
 	TType extends ColumnTypeData = ExtractColumnTypeData<TColumn['_']['dataType']>,
-> = TType['type'] extends 'json' ? unknown extends TColumn['_']['data'] ? Type<Json> : Type<TColumn['_']['data']>
+> = TType['constraint'] extends 'json' ? unknown extends TColumn['_']['data'] ? Type<Json> : Type<TColumn['_']['data']>
 	: TType['type'] extends 'custom' ? Type<any>
 	: Type<TColumn['_']['data']>;
 

@@ -7,7 +7,7 @@ import { GelLocalDateColumnBaseBuilder } from './date.common.ts';
 export class GelTimestampTzBuilder extends GelLocalDateColumnBaseBuilder<
 	{
 		name: string;
-		dataType: 'date';
+		dataType: 'object date';
 		data: Date;
 		driverParam: Date;
 		enumValues: undefined;
@@ -18,7 +18,7 @@ export class GelTimestampTzBuilder extends GelLocalDateColumnBaseBuilder<
 	constructor(
 		name: string,
 	) {
-		super(name, 'date', 'GelTimestampTz');
+		super(name, 'object date', 'GelTimestampTz');
 	}
 
 	/** @internal */
@@ -30,7 +30,7 @@ export class GelTimestampTzBuilder extends GelLocalDateColumnBaseBuilder<
 	}
 }
 
-export class GelTimestampTz<T extends ColumnBaseConfig<'date'>> extends GelColumn<T> {
+export class GelTimestampTz<T extends ColumnBaseConfig<'object date'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelTimestampTz';
 
 	constructor(table: AnyGelTable<{ name: T['tableName'] }>, config: GelTimestampTzBuilder['config']) {

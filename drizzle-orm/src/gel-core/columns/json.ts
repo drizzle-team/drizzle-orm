@@ -6,7 +6,7 @@ import { GelColumn, GelColumnBuilder } from './common.ts';
 export class GelJsonBuilder extends GelColumnBuilder<
 	{
 		name: string;
-		dataType: 'json';
+		dataType: 'object json';
 		data: unknown;
 		driverParam: unknown;
 		enumValues: undefined;
@@ -15,7 +15,7 @@ export class GelJsonBuilder extends GelColumnBuilder<
 	static override readonly [entityKind]: string = 'GelJsonBuilder';
 
 	constructor(name: string) {
-		super(name, 'json', 'GelJson');
+		super(name, 'object json', 'GelJson');
 	}
 
 	/** @internal */
@@ -24,7 +24,7 @@ export class GelJsonBuilder extends GelColumnBuilder<
 	}
 }
 
-export class GelJson<T extends ColumnBaseConfig<'json'>> extends GelColumn<T> {
+export class GelJson<T extends ColumnBaseConfig<'object json'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelJson';
 
 	constructor(table: AnyGelTable<{ name: T['tableName'] }>, config: GelJsonBuilder['config']) {

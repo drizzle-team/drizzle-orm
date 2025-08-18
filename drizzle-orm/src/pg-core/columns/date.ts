@@ -7,7 +7,7 @@ import { PgDateColumnBaseBuilder } from './date.common.ts';
 
 export class PgDateBuilder extends PgDateColumnBaseBuilder<{
 	name: string;
-	dataType: 'date';
+	dataType: 'object date';
 	data: Date;
 	driverParam: string;
 	enumValues: undefined;
@@ -15,7 +15,7 @@ export class PgDateBuilder extends PgDateColumnBaseBuilder<{
 	static override readonly [entityKind]: string = 'PgDateBuilder';
 
 	constructor(name: string) {
-		super(name, 'date', 'PgDate');
+		super(name, 'object date', 'PgDate');
 	}
 
 	/** @internal */
@@ -24,7 +24,7 @@ export class PgDateBuilder extends PgDateColumnBaseBuilder<{
 	}
 }
 
-export class PgDate<T extends ColumnBaseConfig<'date'>> extends PgColumn<T> {
+export class PgDate<T extends ColumnBaseConfig<'object date'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgDate';
 
 	getSQLType(): string {

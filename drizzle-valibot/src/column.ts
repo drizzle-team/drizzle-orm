@@ -1,6 +1,9 @@
 import {
 	type Column,
-	type ColumnDataConstraint,
+	type ColumnDataArrayConstraint,
+	type ColumnDataNumberConstraint,
+	type ColumnDataObjectConstraint,
+	type ColumnDataStringConstraint,
 	extractExtendedColumnType,
 	getColumnTable,
 	getTableName,
@@ -26,51 +29,12 @@ export function columnToSchema(column: Column): v.GenericSchema {
 	const { type, constraint } = extractExtendedColumnType(column);
 
 	switch (type) {
-		case 'enum': {
-			const enumValues = (<{ enumValues?: string[] }> column).enumValues;
-			if (!enumValues) {
-				throw new Error(
-					`Column "${getTableName(getColumnTable(column))}"."${column.name}" is of 'enum' type, but lacks enum values`,
-				);
-			}
-			schema = v.enum(mapEnumValues(enumValues));
-			break;
-		}
-		case 'pointTuple':
-		case 'geoTuple': {
-			schema = v.tuple([v.number(), v.number()]);
-			break;
-		}
-		case 'geoObject':
-		case 'pointObject': {
-			schema = v.object({ x: v.number(), y: v.number() });
-			break;
-		}
-		case 'vector': {
-			const dimensions = (<{ dimensions?: number }> column).dimensions;
-			schema = dimensions
-				? v.pipe(v.array(v.number()), v.length(dimensions))
-				: v.array(v.number());
-			break;
-		}
-		case 'lineTuple': {
-			schema = v.tuple([v.number(), v.number(), v.number()]);
-			break;
-		}
-		case 'lineABC': {
-			schema = v.object({
-				a: v.number(),
-				b: v.number(),
-				c: v.number(),
-			});
-			break;
-		}
 		case 'array': {
-			const size = (<{ size?: number }> column).size;
-			schema = (<{ baseColumn?: Column }> column).baseColumn
-				? v.array(columnToSchema((<{ baseColumn?: Column }> column).baseColumn!))
-				: v.array(v.any());
-			if (size) schema = v.pipe(schema as v.ArraySchema<any, any>, v.length(size));
+			schema = arrayColumnToSchema(column, constraint);
+			break;
+		}
+		case 'object': {
+			schema = objectColumnToSchema(column, constraint);
 			break;
 		}
 		case 'number': {
@@ -85,24 +49,12 @@ export function columnToSchema(column: Column): v.GenericSchema {
 			schema = v.boolean();
 			break;
 		}
-		case 'date': {
-			schema = v.date();
-			break;
-		}
 		case 'string': {
 			schema = stringColumnToSchema(column, constraint);
 			break;
 		}
-		case 'json': {
-			schema = jsonSchema;
-			break;
-		}
 		case 'custom': {
 			schema = v.any();
-			break;
-		}
-		case 'buffer': {
-			schema = bufferSchema;
 			break;
 		}
 		default: {
@@ -113,7 +65,7 @@ export function columnToSchema(column: Column): v.GenericSchema {
 	return schema;
 }
 
-function numberColumnToSchema(column: Column, constraint: ColumnDataConstraint | undefined): v.GenericSchema {
+function numberColumnToSchema(column: Column, constraint: ColumnDataNumberConstraint | undefined): v.GenericSchema {
 	const unsigned = constraint === 'uint53' || column.getSQLType().includes('unsigned');
 	let min!: number;
 	let max!: number;
@@ -206,8 +158,69 @@ function bigintColumnToSchema(column: Column): v.GenericSchema {
 	return v.pipe(v.bigint(), v.minValue(min), v.maxValue(max));
 }
 
-function stringColumnToSchema(column: Column, constraint: ColumnDataConstraint | undefined): v.GenericSchema {
-	const { dialect } = column;
+function arrayColumnToSchema(column: Column, constraint: ColumnDataArrayConstraint | undefined): v.GenericSchema {
+	switch (constraint) {
+		case 'geometry':
+		case 'point': {
+			return v.tuple([v.number(), v.number()]);
+		}
+		case 'line': {
+			return v.tuple([v.number(), v.number(), v.number()]);
+		}
+		case 'vector':
+		case 'halfvector': {
+			const dimensions = (<{ dimensions?: number }> column).dimensions;
+			return dimensions
+				? v.pipe(v.array(v.number()), v.length(dimensions))
+				: v.array(v.number());
+		}
+		case 'basecolumn': {
+			const size = (<{ size?: number }> column).size;
+			const schema = (<{ baseColumn?: Column }> column).baseColumn
+				? v.array(columnToSchema((<{ baseColumn?: Column }> column).baseColumn!))
+				: v.array(v.any());
+			if (size) return v.pipe(schema, v.length(size));
+			return schema;
+		}
+		default: {
+			return v.array(v.any());
+		}
+	}
+}
+
+function objectColumnToSchema(column: Column, constraint: ColumnDataObjectConstraint | undefined): v.GenericSchema {
+	switch (constraint) {
+		case 'buffer': {
+			return bufferSchema;
+		}
+		case 'date': {
+			return v.date();
+		}
+		case 'geometry':
+		case 'point': {
+			return v.object({
+				x: v.number(),
+				y: v.number(),
+			});
+		}
+		case 'json': {
+			return jsonSchema;
+		}
+		case 'line': {
+			return v.object({
+				a: v.number(),
+				b: v.number(),
+				c: v.number(),
+			});
+		}
+		default: {
+			return v.looseObject({});
+		}
+	}
+}
+
+function stringColumnToSchema(column: Column, constraint: ColumnDataStringConstraint | undefined): v.GenericSchema {
+	const { dialect, name: columnName } = column;
 
 	let max: number | undefined;
 	let regex: RegExp | undefined;
@@ -240,6 +253,17 @@ function stringColumnToSchema(column: Column, constraint: ColumnDataConstraint |
 		regex = /^[01]*$/;
 		max = (<{ dimensions?: number }> column).dimensions ?? (<{ length?: number }> column).length;
 	} else if (constraint === 'uuid') return v.pipe(v.string(), v.uuid());
+	else if (
+		constraint === 'enum'
+	) {
+		const enumValues = (<{ enumValues?: string[] }> column).enumValues;
+		if (!enumValues) {
+			throw new Error(
+				`Column "${getTableName(getColumnTable(column))}"."${columnName}" is of 'enum' type, but lacks enum values`,
+			);
+		}
+		return v.enum(mapEnumValues(enumValues));
+	}
 
 	const actions: any[] = [];
 	if (regex) {
