@@ -94,8 +94,9 @@ export const numberForTs = (value: string): { mode: 'number' | 'bigint'; value: 
 	return { mode: 'bigint', value: `${value}n` };
 };
 
+// numeric precision can be bigger than 9 as it was before here
 export const parseParams = (type: string) => {
-	return type.match(/\(([0-9,\s]+)\)/)?.[1].split(',').map((x) => x.trim()) ?? [];
+	return type.match(/\(((?:\d+(?:\s*,\s*\d+)*)|max)\)/i)?.[1].split(',').map((x) => x.trim()) ?? [];
 };
 
 export const escapeForSqlDefault = (input: string, mode: 'default' | 'pg-arr' = 'default') => {
