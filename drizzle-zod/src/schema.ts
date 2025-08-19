@@ -59,8 +59,8 @@ function handleColumns(
 			}
 		}
 	}
-
-	return z.object(columnSchemas) as any;
+	const zod: typeof z = factory?.zodInstance ?? z;
+	return zod.object(columnSchemas) as any;
 }
 
 function handleEnum(
