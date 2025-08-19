@@ -357,11 +357,7 @@ test('bit', async () => {
 	const res6 = await diffDefault(_, bit().default(sql`'2'`), "('2')");
 	const res7 = await diffDefault(_, bit().default(sql`2`), '(2)');
 
-	const res8 = await diffDefault(
-		_,
-		bit().default(sql`TRY_CAST('true' AS [bit])`),
-		"(TRY_CAST('true' AS [bit]))",
-	);
+	const res8 = await diffDefault(_, bit().default(sql`TRY_CAST('true' AS [bit])`), "(TRY_CAST('true' AS [bit]))");
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
@@ -452,9 +448,7 @@ test('text', async () => {
 	const res4 = await diffDefault(_, text({ enum: ['one', 'two', 'three'] }).default('one'), "('one')");
 	const res5 = await diffDefault(
 		_,
-		text({ enum: ['one', 'two', 'three', `no,''"\`rm`, `mo''",\`}{od`, 'mo,\`od'] }).default(
-			`mo''",\`}{od`,
-		),
+		text({ enum: ['one', 'two', 'three', `no,''"\`rm`, `mo''",\`}{od`, 'mo,\`od'] }).default(`mo''",\`}{od`),
 		`('mo''''",\`}{od')`,
 	);
 
@@ -582,9 +576,7 @@ test('ntext', async () => {
 	const res4 = await diffDefault(_, ntext({ enum: ['one', 'two', 'three'] }).default('one'), "('one')");
 	const res5 = await diffDefault(
 		_,
-		ntext({ enum: ['one', 'two', 'three', `no,''"\`rm`, `mo''",\`}{od`, 'mo,\`od'] }).default(
-			`mo''",\`}{od`,
-		),
+		ntext({ enum: ['one', 'two', 'three', `no,''"\`rm`, `mo''",\`}{od`, 'mo,\`od'] }).default(`mo''",\`}{od`),
 		`('mo''''",\`}{od')`,
 	);
 
@@ -812,7 +804,7 @@ test('date', async () => {
 });
 
 function toBinary(str: string) {
-	return '(' + '0x' + (Buffer.from(str, 'utf8').toString('hex')).toUpperCase() + ')';
+	return '(' + '0x' + Buffer.from(str, 'utf8').toString('hex').toUpperCase() + ')';
 }
 test('binary + varbinary', async () => {
 	const res1 = await diffDefault(_, binary().default(Buffer.from('hello world')), toBinary('hello world'));
@@ -902,22 +894,10 @@ test.skip('corner cases', async () => {
 	);
 	const res11 = await diffDefault(_, bigint({ mode: 'number' }).default(sql`9007199254740991.`), '(9007199254740991.)');
 
-	const res12 = await diffDefault(_, numeric({ mode: 'number', precision: 6 }).default(10.), '10.');
-	const res13 = await diffDefault(
-		_,
-		numeric({ mode: 'number' }).default(sql`'6.73' + '4.2'`),
-		"'6.73' + '4.2'",
-	);
-	const res14 = await diffDefault(
-		_,
-		numeric({ mode: 'number' }).default(sql`(6.73 + 4.)`),
-		'6.73 + 4.',
-	);
-	const res15 = await diffDefault(
-		_,
-		numeric({ mode: 'number' }).default(sql`'6.73' + '4.2'`),
-		"'6.73' + '4.2'",
-	);
+	const res12 = await diffDefault(_, numeric({ mode: 'number', precision: 6 }).default(10), '10.');
+	const res13 = await diffDefault(_, numeric({ mode: 'number' }).default(sql`'6.73' + '4.2'`), "'6.73' + '4.2'");
+	const res14 = await diffDefault(_, numeric({ mode: 'number' }).default(sql`(6.73 + 4.)`), '6.73 + 4.');
+	const res15 = await diffDefault(_, numeric({ mode: 'number' }).default(sql`'6.73' + '4.2'`), "'6.73' + '4.2'");
 
 	const res16 = await diffDefault(_, real().default(sql`('10.')`), "('10.')");
 	const res17 = await diffDefault(_, real().default(sql`(10.)`), '(10.)');
@@ -929,11 +909,7 @@ test.skip('corner cases', async () => {
 	const res22 = await diffDefault(_, float({ precision: 45 }).default(sql`10000.`), '(10000.)');
 	const res23 = await diffDefault(_, float({ precision: 10 }).default(sql`(10000.)`), '(10000.)');
 
-	const res24 = await diffDefault(
-		_,
-		bit().default(sql`TRY_CAST('true' AS [bit])`),
-		"(TRY_CAST('true' AS [bit]))",
-	);
+	const res24 = await diffDefault(_, bit().default(sql`TRY_CAST('true' AS [bit])`), "(TRY_CAST('true' AS [bit]))");
 	const res25 = await diffDefault(
 		_,
 		bit().default(sql`CASE WHEN 1 + 1 - 1 + 1= 2 THEN 1 ELSE 0 END`),

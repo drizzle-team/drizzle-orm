@@ -1,17 +1,22 @@
 import { Temporal } from '@js-temporal/polyfill';
-import { assertUnreachable, trimChar } from '../../utils';
+import { parseArray } from 'src/utils/parse-pgarray';
+import { parse, stringify } from 'src/utils/when-json-met-bigint';
+import { stringifyArray, trimChar } from '../../utils';
 import { hash } from '../common';
+import { numberForTs, parseParams } from '../utils';
 import { CockroachEntities, Column, DiffEntities } from './ddl';
+import { Import } from './typescript';
 
 export const splitSqlType = (sqlType: string) => {
 	// timestamp(6) with time zone -> [timestamp, 6, with time zone]
-	const match = sqlType.match(/^(\w+(?:\s+\w+)*)\(([^)]*)\)(\s+with time zone)?$/i);
-	let type = match ? (match[1] + (match[3] ?? '')) : sqlType;
+	const toMatch = sqlType.replaceAll('[]', '');
+	const match = toMatch.match(/^(\w+(?:\s+\w+)*)\(([^)]*)\)?$/i);
+	let type = match ? match[1] : toMatch;
 	let options = match ? match[2].replaceAll(', ', ',') : null;
 
-	if (options && type === 'decimal') {
-		options = options.replace(',0', ''); // trim decimal (4,0)->(4), compatibility with Drizzle
-	}
+	// if (options && type === 'decimal') {
+	// 	options = options.replace(',0', ''); // trim decimal (4,0)->(4), compatibility with Drizzle
+	// }
 	return { type, options };
 };
 
@@ -25,56 +30,6 @@ export const vectorOps = [
 	'halfvec_l2_ops',
 	'sparsevec_l2_ops',
 ];
-
-const NativeTypes = [
-	'uuid',
-	'int2',
-	'int4',
-	'int8',
-	'boolean',
-	'text',
-	'varchar',
-	'decimal',
-	'numeric',
-	'real',
-	'json',
-	'jsonb',
-	'time',
-	'time with time zone',
-	'time without time zone',
-	'time',
-	'timestamp',
-	'timestamp with time zone',
-	'timestamp without time zone',
-	'date',
-	'interval',
-	'double precision',
-	'interval year',
-	'interval month',
-	'interval day',
-	'interval hour',
-	'interval minute',
-	'interval second',
-	'interval year to month',
-	'interval day to hour',
-	'interval day to minute',
-	'interval day to second',
-	'interval hour to minute',
-	'interval hour to second',
-	'interval minute to second',
-	'char',
-	'vector',
-	'geometry',
-];
-
-export const parseType = (schemaPrefix: string, type: string) => {
-	const arrayDefinitionRegex = /\[\d*(?:\[\d*\])*\]/g;
-	const arrayDefinition = (type.match(arrayDefinitionRegex) ?? []).join('');
-	const withoutArrayDefinition = type.replace(arrayDefinitionRegex, '');
-	return NativeTypes.some((it) => type.startsWith(it))
-		? `${withoutArrayDefinition}${arrayDefinition}`
-		: `${schemaPrefix}"${withoutArrayDefinition}"${arrayDefinition}`;
-};
 
 export const indexName = (tableName: string, columns: string[]) => {
 	return `${tableName}_${columns.join('_')}_index`;
@@ -92,14 +47,6 @@ export function minRangeForIdentityBasedOn(columnType: string) {
 	return columnType === 'int4' ? '-2147483648' : columnType === 'int8' ? '-9223372036854775808' : '-32768';
 }
 
-/*
-	Cockroach db does not have serial by its nature
-	Cockroach understands 'serial' and under the hood parses this as int8 + default as unique_rowid()
- */
-export const isSerialExpression = (expr: string) => {
-	return expr === 'unique_rowid()';
-};
-
 export function stringFromDatabaseIdentityProperty(field: any): string | null {
 	return typeof field === 'string'
 		? (field as string)
@@ -108,103 +55,6 @@ export function stringFromDatabaseIdentityProperty(field: any): string | null {
 		: typeof field === 'bigint'
 		? field.toString()
 		: String(field);
-}
-
-// CockroachDb trims and pads defaults under the hood
-export function fixDecimal(value: string, options: string | null) {
-	const [integerPart, decimalPart] = value.split('.');
-
-	let scale: number | undefined;
-
-	// if precision exists and scale not -> scale = 0
-	// if scale exists -> scale = scale
-	// if options does not exists (p,s are not present) -> scale is undefined
-	if (options) {
-		// if option exists we have 2 possible variants
-		// 1. p exists
-		// 2. p and s exists
-		const [_, s] = options.split(',');
-
-		// if scale exists - use scale
-		// else use 0 (cause p exists)
-		scale = s !== undefined ? Number(s) : 0;
-	}
-
-	if (typeof scale === 'undefined') return value;
-	if (!decimalPart) return value;
-	if (scale === 0) return integerPart;
-	if (scale === decimalPart.length) return value;
-
-	const fixedDecimal = scale > decimalPart.length
-		? decimalPart.padEnd(scale, '0')
-		: decimalPart.slice(0, scale);
-
-	return `${integerPart}.${fixedDecimal}`;
-}
-
-export function buildArrayString(array: any[], sqlType: string, options: string | null): string {
-	// we check if array consists only of empty arrays down to 5th dimension
-	if (array.flat(5).length === 0) {
-		return '{}';
-	}
-
-	const values = array
-		.map((value) => {
-			if (sqlType.startsWith('decimal')) {
-				return fixDecimal(String(value), options);
-			}
-
-			if (sqlType.startsWith('timestamp') && sqlType.includes('with time zone')) {
-				return `"${formatTimestampWithTZ(value, options ? Number(options) : undefined)}"`;
-			}
-
-			if (sqlType.startsWith('time') && sqlType.includes('with time zone')) {
-				return `${value.replace('Z', '+00').replace('z', '+00')}`;
-			}
-
-			if (typeof value === 'number' || typeof value === 'bigint') {
-				return value.toString();
-			}
-
-			if (typeof value === 'boolean') {
-				return value ? 'true' : 'false';
-			}
-
-			if (Array.isArray(value)) {
-				return buildArrayString(value, sqlType, options);
-			}
-
-			if (value instanceof Date) {
-				if (sqlType === 'date') {
-					return `${value.toISOString().split('T')[0]}`;
-				} else if (sqlType.startsWith('timestamp')) {
-					let res;
-					if (sqlType.includes('with time zone')) {
-						res = formatTimestampWithTZ(value, options ? Number(options) : undefined);
-					} else {
-						res = value.toISOString().replace('T', ' ').replace('Z', ' ').slice(0, 23);
-					}
-
-					return `"${res}"`;
-				} else {
-					return `"${value.toISOString()}"`;
-				}
-			}
-
-			if (typeof value === 'object') {
-				return `"${JSON.stringify(value).replaceAll('"', '\\"')}"`;
-			}
-
-			if (typeof value === 'string') {
-				if (/^[a-zA-Z0-9./_':-]+$/.test(value)) return value.replaceAll("'", "''");
-				return `"${value.replaceAll('\\', '\\\\').replaceAll("'", "''").replaceAll('"', '\\"')}"`;
-			}
-
-			return `"${value}"`;
-		})
-		.join(',');
-
-	return `{${values}}`;
 }
 
 export type OnAction = CockroachEntities['fks']['onUpdate'];
@@ -289,49 +139,6 @@ export const splitExpressions = (input: string | null): string[] => {
 	return expressions.filter((s) => s.length > 0);
 };
 
-export const wrapRecord = (it: Record<string, string>) => {
-	return {
-		bool: (key: string) => {
-			if (key in it) {
-				if (it[key] === 'true') {
-					return true;
-				}
-				if (it[key] === 'false') {
-					return false;
-				}
-
-				throw new Error(`Invalid options boolean value for ${key}: ${it[key]}`);
-			}
-			return null;
-		},
-		num: (key: string) => {
-			if (key in it) {
-				const value = Number(it[key]);
-				if (isNaN(value)) {
-					throw new Error(`Invalid options number value for ${key}: ${it[key]}`);
-				}
-				return value;
-			}
-			return null;
-		},
-		str: (key: string) => {
-			if (key in it) {
-				return it[key];
-			}
-			return null;
-		},
-		literal: <T extends string>(key: string, allowed: T[]): T | null => {
-			if (!(key in it)) return null;
-			const value = it[key];
-
-			if (allowed.includes(value as T)) {
-				return value as T;
-			}
-			throw new Error(`Invalid options literal value for ${key}: ${it[key]}`);
-		},
-	};
-};
-
 /*
 	CHECK (((email)::text <> 'test@gmail.com'::text))
 	Where (email) is column in table
@@ -384,214 +191,200 @@ export const defaultForColumn = (
 	dimensions: number,
 	isEnum: boolean,
 ): Column['default'] => {
-	if (
-		def === null
-		|| def === undefined
-	) {
+	if (def === null || def === undefined) {
 		return null;
 	}
 
-	if (type.startsWith('bit')) {
-		def = String(def).replace("B'", "'");
-	}
-
-	if (typeof def === 'boolean') {
-		return { type: 'boolean', value: String(def) };
-	}
-
-	if (typeof def === 'number') {
-		return { type: 'number', value: String(def) };
-	}
-
 	// trim ::type and []
-	let value = trimDefaultValueSuffix(def);
+	let value = trimDefaultValueSuffix(String(def));
 
-	// numeric stores 99 as '99'::numeric
-	value = type === 'decimal' || type.startsWith('decimal(') ? trimChar(value, "'") : value;
-
-	if (dimensions > 0) {
-		value = trimChar(value, "'"); // '{10,20}' -> {10,20}
+	const grammarType = typeFor(type);
+	if (grammarType) {
+		if (dimensions > 0) return grammarType.defaultArrayFromIntrospect(value);
+		return grammarType.defaultFromIntrospect(String(value));
 	}
 
-	if (type === 'jsonb') {
-		const removedEscape = value.startsWith("e'")
-			? value.replace("e'", "'").replaceAll("\\'", "''").replaceAll('\\"', '"').replaceAll('\\\\', '\\')
-			: value;
-		const res = JSON.stringify(JSON.parse(removedEscape.slice(1, removedEscape.length - 1).replaceAll("''", "'")));
-		return {
-			value: res,
-			type: 'json',
-		};
-	}
-
-	const trimmed = trimChar(value, "'"); // '{10,20}' -> {10,20}
-
-	if (/^true$|^false$/.test(trimmed)) {
-		return { value: trimmed, type: 'boolean' };
-	}
-
-	// null or NULL
-	if (/^NULL$/i.test(trimmed)) {
-		return { value: trimmed.toUpperCase(), type: 'null' };
-	}
-
-	// previous /^-?[\d.]+(?:e-?\d+)?$/
-	if (/^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(trimmed) && !type.startsWith('bit')) {
-		let value = trimmed;
-		if (type === 'float' || type === 'double precision' || type === 'real') {
-			value = value.replace('.0', '');
-		}
-
-		const num = Number(value);
-		const big = num > Number.MAX_SAFE_INTEGER || num < Number.MIN_SAFE_INTEGER;
-		return { value: value, type: big ? 'bigint' : 'number' };
-	}
-
-	// e'text\'text' and 'text'
-	if (/^e'|'(?:[^']|'')*'$/.test(value)) {
-		let removedEscape = value.startsWith("e'") ? value.replace("e'", "'") : value;
-		removedEscape = removedEscape.replaceAll("\\'", "''").replaceAll('\\"', '"').replaceAll('\\\\', '\\');
-
-		const res = removedEscape.substring(1, removedEscape.length - 1);
-
-		if (type === 'jsonb') {
-			return { value: JSON.stringify(JSON.parse(res.replaceAll("''", "'"))), type: 'json' };
-		}
-
-		return { value: res, type: 'string' };
-	}
-
-	// CREATE TYPE myEnum1 AS ENUM ('hey', 'te''text');
-	// CREATE TABLE "table22" (
-	//    "column" myEnum1[] DEFAULT '{hey, te''text}'::myEnum1[]
-	// );
-	// '{hey,"e''te\\''text''"}' -> '{hey,"'te\\''text'"}' - this will replace e'<VALUE>' to <VALUE>
-	if (isEnum && dimensions > 0 && value.includes("e'")) {
-		value = value.replace(/"\be''((?:["']|[^'])*)''"/g, '"$1"').replaceAll("\\\\'", "'"); // .replaceAll('"', '\\"');
-	}
-
-	return { value: value, type: 'unknown' };
+	throw Error();
 };
 
-export const defaultToSQL = (
-	it: Column,
-	isEnum: boolean = false,
-) => {
+export const defaultToSQL = (it: Pick<Column, 'default' | 'dimensions' | 'type' | 'typeSchema'>) => {
 	if (!it.default) return '';
 
 	const { type: columnType, dimensions, typeSchema } = it;
-	const { type: defaultType, value } = it.default;
+	const { type, value } = it.default;
 
-	const arrsuffix = dimensions > 0 ? '[]' : '';
+	//   const arrsuffix = dimensions > 0 ? "[]" : "";
 	if (typeSchema) {
 		const schemaPrefix = typeSchema && typeSchema !== 'public' ? `"${typeSchema}".` : '';
-		return `'${value}'::${schemaPrefix}"${columnType}"${arrsuffix}`;
+		return `'${value}'::${schemaPrefix}"${columnType}"`;
 	}
 
-	const suffix = arrsuffix ? `::${typeToSql(it)}` : '';
-	if (defaultType === 'string') {
-		return `'${value}'${suffix}`;
+	//   const { type: rawType } = splitSqlType(columnType);
+	const suffix = dimensions > 0 ? `::${columnType}` : '';
+
+	const grammarType = typeFor(columnType);
+
+	if (grammarType) {
+		const value = it.default.value ?? '';
+		return `${value}${suffix}`;
 	}
 
-	if (defaultType === 'json') {
-		return `'${value.replaceAll("'", "''")}'${suffix}`;
-	}
+	throw Error();
 
-	if (defaultType === 'bigint' || defaultType === 'jsonb') {
-		return `'${value}'`;
-	}
-
-	if (
-		defaultType === 'boolean' || defaultType === 'null' || defaultType === 'number' || defaultType === 'func'
-		|| defaultType === 'unknown'
-	) {
-		return value;
-	}
-
-	assertUnreachable(defaultType);
+	// assertUnreachable(defaultType);
 };
 
-export const typeToSql = (
-	column: Column,
-	diff?: DiffEntities['columns'],
-	wasEnum = false,
-	isEnum = false,
-): string => {
-	const {
-		type: columnType,
-		typeSchema: columnTypeSchema,
-		dimensions,
-		options,
-		name: columnName,
-	} = column;
-
-	const schemaPrefix = columnTypeSchema && columnTypeSchema !== 'public'
-		? `"${columnTypeSchema}".`
-		: '';
-
-	// enum1::text::enum2
-	const textProxy = wasEnum && isEnum ? 'text::' : '';
-	const arraySuffix = dimensions > 0 ? '[]'.repeat(dimensions) : '';
-	const optionSuffix = options ? `(${options})` : '';
-
-	const isTimeWithTZ = columnType === 'timestamp with time zone' || columnType === 'time with time zone';
-
-	let finalType: string;
-
-	if (diff?.type) {
-		const newType = diff.type.to;
-		const newSchema = diff.typeSchema?.to;
-
-		const newSchemaPrefix = newSchema && newSchema !== 'public' ? `"${newSchema}".` : '';
-
-		finalType = isEnum
-			? `"${newType}"`
-			: `${newSchemaPrefix}${newType}`;
-	} else {
-		if (optionSuffix && isTimeWithTZ) {
-			const [baseType, ...rest] = columnType.split(' ');
-			const base = columnTypeSchema ? `"${baseType}"` : baseType;
-			finalType = `${schemaPrefix}${base}${optionSuffix} ${rest.join(' ')}`;
-		} else {
-			const base = columnTypeSchema ? `"${columnType}"` : columnType;
-			finalType = `${schemaPrefix}${base}${optionSuffix}`;
-		}
-	}
-
-	finalType += arraySuffix;
-
-	finalType += isEnum
-		? ` USING "${columnName}"::${textProxy}${finalType}`
-		: '';
-
-	return finalType;
-};
-
+const dateTimeRegex =
+	/^(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}(?::?\d{2})?)?|\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}(?::?\d{2})?)?)$/;
+const timeTzRegex = /\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}(?::?\d{2})?)?/;
+const dateRegex =
+	/^(\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}(?::?\d{2})?)?)?|\d{4}-\d{2}-\d{2})$/;
+const dateExtractRegex = /^\d{4}-\d{2}-\d{2}/;
+const timezoneSuffixRegexp = /([+-]\d{2}(:?\d{2})?|Z)$/i;
 function hasTimeZoneSuffix(s: string): boolean {
-	return /([+-]\d{2}(:?\d{2})?|Z)$/.test(s);
+	return timezoneSuffixRegexp.test(s);
 }
-export function formatTimestampWithTZ(date: Date | string, precision: number = 3) {
-	// Convert to Temporal.Instant
-	let instant;
+// TODO write descriptions for all functions
+// why that was made, etc.
+export function formatTimestamp(date: string, precision: number = 3) {
+	if (!dateTimeRegex.test(date)) return date;
 
-	if (date instanceof Date) {
-		instant = Temporal.Instant.from(date.toISOString());
-	} else {
-		instant = hasTimeZoneSuffix(date) ? Temporal.Instant.from(date) : Temporal.Instant.from(date + 'Z');
-	}
+	// Convert to Temporal.Instant
+	const instant = hasTimeZoneSuffix(date) ? Temporal.Instant.from(date) : Temporal.Instant.from(date + 'Z');
 
 	const iso = instant.toString();
 
-	const fractionalDigits = iso.split('.')[1]!.replace('Z', '').length;
+	const fractionalDigits = iso.split('.')[1]!.length;
 
 	// decide whether to limit precision
-	const formatted = fractionalDigits > precision
+	const formattedPrecision = fractionalDigits > precision
 		// @ts-expect-error
 		? instant.toString({ fractionalSecondDigits: precision })
 		: iso;
 
-	return formatted.replace('T', ' ').replace('Z', '+00');
+	return formattedPrecision.replace('T', ' ');
 }
+export function formatTime(date: string, precision: number = 3) {
+	if (!dateTimeRegex.test(date)) return date; // invalid format
+	const match = date.match(timeTzRegex);
+	if (!match) return date;
+
+	const time: string = match[0];
+
+	const timestampInstant = hasTimeZoneSuffix(time)
+		? Temporal.Instant.from(`1970-01-01T${time}`)
+		: Temporal.Instant.from(`1970-01-01T${time}` + 'Z');
+	const iso = timestampInstant.toString({ timeZone: 'UTC' });
+
+	// 2024-05-23T14:20:33.123+00:00
+	// 2024-05-23T14:20:33.123-00:00
+	const fractionalDigits = iso.split('T')[1]!.split('+')[0].split('-')[0].length;
+
+	// decide whether to limit precision
+	const formattedPrecision = fractionalDigits > precision
+		// @ts-expect-error
+		? timestampInstant.toString({ fractionalSecondDigits: precision })
+		: iso;
+
+	return formattedPrecision;
+}
+export function formatDate(date: string) {
+	if (!dateRegex.test(date)) return date; // invalid format
+	const match = date.match(dateExtractRegex);
+	if (!match) return date;
+
+	const extractedDate: string = match[0];
+
+	return extractedDate;
+}
+// CockroachDb trims and pads defaults under the hood
+export function formatDecimal(type: string, value: string) {
+	const { options } = splitSqlType(type);
+	const [integerPart, dp] = value.split('.');
+	const decimalPart = dp ?? '';
+
+	let scale: number | undefined;
+
+	// if precision exists and scale not -> scale = 0
+	// if scale exists -> scale = scale
+	// if options does not exists (p,s are not present) -> scale is undefined
+	if (options) {
+		// if option exists we have 2 possible variants
+		// 1. p exists
+		// 2. p and s exists
+		const [_, s] = options.split(',');
+
+		// if scale exists - use scale
+		// else use 0 (cause p exists)
+		scale = s !== undefined ? Number(s) : 0;
+	}
+
+	if (typeof scale === 'undefined') return value;
+	if (scale === 0) return integerPart;
+	if (scale === decimalPart.length) return value;
+
+	const fixedDecimal = scale > decimalPart.length ? decimalPart.padEnd(scale, '0') : decimalPart.slice(0, scale);
+
+	return `${integerPart}.${fixedDecimal}`;
+}
+export function formatBit(type: string, value?: string | null, trimToOneLength: boolean = false) {
+	if (!value) return value;
+
+	const { options } = splitSqlType(type);
+
+	const length = !options ? (trimToOneLength ? 1 : Number(options)) : Number(options);
+	if (value.length > length) return value.substring(0, length);
+	return value.padEnd(length, '0');
+}
+export function formatString(type: string, value: string) {
+	if (!value) return value;
+
+	// for arrays
+	// values can be wrapped in ""
+	value = trimChar(value, '"');
+
+	const { options } = splitSqlType(type);
+
+	if (!options) return value;
+	const length = Number(options);
+
+	if (value.length <= length) return value;
+	value = value.substring(0, length);
+
+	return value;
+}
+
+export const escapeForSqlDefault = (input: string, mode: 'default' | 'arr' = 'default') => {
+	let value = input.replace(/\\/g, '\\\\');
+	if (mode === 'arr') value = value.replace(/'/g, "''").replaceAll('"', '\\"');
+	else value = value.replace(/'/g, "\\'");
+
+	return value;
+};
+// export const escapeJsonbForSqlDefault = (input: string) => {
+// 	let value = input.replace(/\\/g, '\\\\');
+// 	if (mode === 'arr') value = value.replace(/'/g, "''").replaceAll('"', '\\"');
+// 	else value = value.replace(/'/g, "\\'");
+
+// 	return value;
+// };
+
+export const unescapeFromSqlDefault = (input: string, mode: 'default' | 'arr' = 'default') => {
+	// starts with e' and ends with '
+	input = /^e'.*'$/s.test(input) ? input.replace(/e'/g, "'") : input;
+
+	// array default can be wrapped in "", but not always
+	const trimmed = mode === 'arr' ? trimChar(input, '"') : trimChar(input, "'");
+
+	let res = trimmed.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+
+	if (mode === 'arr') return res;
+	return res.replace(/\\'/g, "'");
+};
+
+export const escapeForTsLiteral = (input: string) => {
+	return input.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+};
 
 export const isDefaultAction = (action: string) => {
 	return action.toLowerCase() === 'no action';
@@ -610,8 +403,1052 @@ export const defaults = {
 		},
 		cache: 1,
 	},
-
 	index: {
 		method: 'btree',
 	},
 } as const;
+
+export const defaultsCommutative = (diffDef: DiffEntities['columns']['default'], type: string): boolean => {
+	if (!diffDef) return false;
+
+	if (diffDef.from?.value === diffDef.to?.value) return true;
+
+	let from = diffDef.from?.value;
+	let to = diffDef.to?.value;
+
+	if (from === to) return true;
+
+	if (type.startsWith('bit')) {
+		if (formatBit(type, diffDef.from?.value, true) === formatBit(type, diffDef?.to?.value, true)) return true;
+
+		try {
+			const from = stringifyArray(parseArray(trimChar(diffDef.from?.value!, "'")), 'sql', (v) => {
+				return `${formatBit(type, v, true)}`;
+			});
+			const to = stringifyArray(parseArray(trimChar(diffDef.to?.value!, "'")), 'sql', (v) => {
+				return `${formatBit(type, v, true)}`;
+			});
+			if (from === to) return true;
+		} catch {}
+
+		return false;
+	}
+
+	if (type.startsWith('bit')) {
+		if (formatBit(type, diffDef.from?.value) === formatBit(type, diffDef?.to?.value)) return true;
+
+		try {
+			const from = stringifyArray(parseArray(trimChar(diffDef.from?.value!, "'")), 'sql', (v) => {
+				return `${formatBit(type, v)}`;
+			});
+			const to = stringifyArray(parseArray(trimChar(diffDef.to?.value!, "'")), 'sql', (v) => {
+				return `${formatBit(type, v)}`;
+			});
+			if (from === to) return true;
+		} catch {}
+
+		return false;
+	}
+
+	// only if array
+	if (type.startsWith('decimal') && type.endsWith('[]')) {
+		try {
+			const from = stringifyArray(parseArray(trimChar(diffDef.from?.value!, "'")), 'sql', (v) => {
+				return `${formatDecimal(type, v)}`;
+			});
+			const to = stringifyArray(parseArray(trimChar(diffDef.to?.value!, "'")), 'sql', (v) => {
+				return `${formatDecimal(type, v)}`;
+			});
+			if (from === to) return true;
+		} catch {}
+		return false;
+	}
+
+	if (type.startsWith('timestamp')) {
+		from = from?.replace('Z', '+00');
+		to = to?.replace('Z', '+00');
+
+		if (from === to) return true;
+
+		const { options } = splitSqlType(type);
+		const precision = options ? Number(options) : 3; // def precision
+
+		if (from && to) {
+			from = trimChar(from, "'");
+			to = trimChar(to, "'");
+
+			if (type.endsWith('[]')) {
+				try {
+					const fromArray = stringifyArray(parseArray(from), 'sql', (v) => {
+						v = trimChar(v, '"');
+						if (!type.includes('tz')) v = v.replace(timezoneSuffixRegexp, '');
+
+						return `"${formatTimestamp(v, precision)}"`;
+					});
+					const toArray = stringifyArray(parseArray(to), 'sql', (v) => {
+						v = trimChar(v, '"');
+						if (!type.includes('tz')) v = v.replace(timezoneSuffixRegexp, '');
+
+						return `"${formatTimestamp(v, precision)}"`;
+					});
+					if (fromArray === toArray) return true;
+				} catch {
+				}
+
+				return false;
+			}
+
+			if (!type.includes('tz')) {
+				from = from.replace(timezoneSuffixRegexp, '');
+				to = to.replace(timezoneSuffixRegexp, '');
+			}
+
+			if (
+				formatTimestamp(from, precision) === formatTimestamp(to, precision)
+			) return true;
+		}
+
+		return false;
+	}
+
+	if (type.startsWith('time')) {
+		from = from?.replace('Z', '+00');
+		to = to?.replace('Z', '+00');
+
+		if (from === to) return true;
+
+		const { options } = splitSqlType(type);
+		const precision = options ? Number(options) : 3; // def precision
+
+		if (from && to) {
+			from = trimChar(from, "'");
+			to = trimChar(to, "'");
+
+			if (type.endsWith('[]')) {
+				try {
+					const fromArray = stringifyArray(parseArray(from), 'sql', (v) => {
+						if (!type.includes('tz')) v = v.replace(timezoneSuffixRegexp, '');
+
+						return formatTime(v, precision);
+					});
+					const toArray = stringifyArray(parseArray(to), 'sql', (v) => {
+						if (!type.includes('tz')) v = v.replace(timezoneSuffixRegexp, '');
+
+						return formatTime(v, precision);
+					});
+					if (fromArray === toArray) return true;
+				} catch {
+				}
+
+				return false;
+			}
+
+			if (!type.includes('tz')) {
+				from = from.replace(timezoneSuffixRegexp, '');
+				to = to.replace(timezoneSuffixRegexp, '');
+			}
+
+			if (
+				formatTime(from, precision) === formatTime(to, precision)
+			) return true;
+		}
+
+		return false;
+	}
+
+	if (type.startsWith('date')) {
+		if (from && to) {
+			from = trimChar(from, "'");
+			to = trimChar(to, "'");
+
+			if (type.endsWith('[]')) {
+				try {
+					const fromArray = stringifyArray(parseArray(from), 'sql', (v) => formatDate(v));
+					const toArray = stringifyArray(parseArray(to), 'sql', (v) => formatDate(v));
+					if (fromArray === toArray) return true;
+				} catch {
+				}
+
+				return false;
+			}
+
+			if (formatDate(from) === formatDate(to)) return true;
+		}
+
+		return false;
+	}
+
+	if (type.startsWith('char') || type.startsWith('varchar') || type.startsWith('text') || type.startsWith('string')) {
+		if (from && to) {
+			from = trimChar(from, "'");
+			to = trimChar(to, "'");
+
+			if (type.endsWith('[]')) {
+				try {
+					const fromArray = stringifyArray(parseArray(from), 'sql', (v) => formatString(type, v));
+					const toArray = stringifyArray(parseArray(to), 'sql', (v) => formatString(type, v));
+					if (fromArray === toArray) return true;
+				} catch {
+				}
+
+				return false;
+			}
+
+			if (formatDate(from) === formatDate(to)) return true;
+		}
+		return false;
+	}
+
+	const timeCommutatives = [['now', 'now()', 'current_timestamp', 'current_timestamp()']];
+	if (type.startsWith('timestamp')) {
+		for (const it of timeCommutatives) {
+			const leftIn = it.some((x) => x === diffDef.from?.value);
+			const rightIn = it.some((x) => x === diffDef.to?.value);
+
+			if (leftIn && rightIn) return true;
+		}
+	}
+
+	// real and float adds .0 to the end for the numbers
+	// 100 === 100.0
+	const dataTypesWithExtraZero = ['real', 'float'];
+	if (
+		dataTypesWithExtraZero.find((dataType) => type.startsWith(dataType))
+		&& diffDef.from?.value.replace('.0', '') === diffDef.to?.value.replace('.0', '')
+	) {
+		return true;
+	}
+
+	return false;
+};
+
+export interface SqlType {
+	is(type: string): boolean;
+	drizzleImport(): Import;
+	defaultFromDrizzle(value: unknown, type: string): Column['default'];
+	defaultArrayFromDrizzle(value: any[], type: string): Column['default'];
+	defaultFromIntrospect(value: string): Column['default'];
+	defaultArrayFromIntrospect(value: string): Column['default']; // todo: remove?
+	toTs(type: string, value: string | null): { options?: Record<string, unknown>; default: string };
+	toArrayTs(type: string, value: string | null): { options?: Record<string, unknown>; default: string };
+}
+
+export const Int2: SqlType = {
+	is: (type: string) => /^\s*int2(?:\s*\[\s*\])*\s*$/i.test(type),
+	drizzleImport: () => 'int2',
+	defaultFromDrizzle: (value) => {
+		return { value: String(value), type: 'unknown' };
+	},
+	defaultArrayFromDrizzle: (value) => {
+		return { value: `'${stringifyArray(value, 'sql', (v) => String(v))}'`, type: 'unknown' };
+	},
+	defaultFromIntrospect: (value) => {
+		return { value: value, type: 'unknown' }; // 10, but '-10'
+	},
+	defaultArrayFromIntrospect: (value) => {
+		return { value: value as string, type: 'unknown' };
+	},
+	toTs: (_, value) => ({ default: value ?? '' }),
+	toArrayTs: (_, value) => {
+		if (!value) return { default: '' };
+
+		try {
+			const trimmed = trimChar(trimChar(value, ['(', ')']), "'");
+			const res = parseArray(trimmed);
+
+			return {
+				default: stringifyArray(res, 'ts', (v) => {
+					return `${v}`;
+				}),
+			};
+		} catch {
+			return { default: `sql\`${value}\`` };
+		}
+	},
+};
+
+export const Int4: SqlType = {
+	is: (type: string) => /^\s*int4(?:\s*\[\s*\])*\s*$/i.test(type),
+	drizzleImport: () => 'int4',
+	defaultFromDrizzle: Int2.defaultFromDrizzle,
+	defaultArrayFromDrizzle: Int2.defaultArrayFromDrizzle,
+	defaultFromIntrospect: Int2.defaultFromIntrospect,
+	defaultArrayFromIntrospect: Int2.defaultArrayFromIntrospect,
+	toTs: Int2.toTs,
+	toArrayTs: Int2.toArrayTs,
+};
+
+export const Int8: SqlType = {
+	is: (type: string) => /^\s*int8(?:\s*\[\s*\])*\s*$/i.test(type),
+	drizzleImport: () => 'int8',
+	defaultFromDrizzle: (value) => {
+		return { value: String(value), type: 'unknown' };
+	},
+	defaultArrayFromDrizzle: (value) => {
+		return {
+			value: `'${stringifyArray(value, 'sql', (v) => String(v))}'`,
+			type: 'unknown',
+		};
+	},
+	defaultFromIntrospect: (value) => {
+		return { value: value, type: 'unknown' }; // 10, but '-10'
+	},
+	defaultArrayFromIntrospect: (value) => {
+		return { value, type: 'unknown' };
+	},
+	toTs: (_, value) => {
+		if (!value) return { options: { mode: 'number' }, default: '' };
+		const { mode, value: def } = numberForTs(value);
+		return { options: { mode }, default: def };
+	},
+	toArrayTs: (_, value) => {
+		if (!value) return { options: { mode: 'number' }, default: '' };
+		try {
+			const trimmed = trimChar(trimChar(value, ['(', ')']), "'");
+			const res = parseArray(trimmed);
+			return { options: { mode: 'bigint' }, default: stringifyArray(res, 'ts', (v) => `${v}n`) };
+		} catch {
+			return { options: { mode: 'bigint' }, default: `sql\`${value}\`` };
+		}
+	},
+};
+
+export const Bool: SqlType = {
+	is: (type: string) => /^\s*bool(?:\s*\[\s*\])*\s*$/i.test(type),
+	drizzleImport: () => 'bool',
+	defaultFromDrizzle: (value) => {
+		return { value: String(value), type: 'unknown' };
+	},
+	defaultArrayFromDrizzle: (value) => {
+		return { value: `'${stringifyArray(value, 'sql', (v) => (v === true ? 'true' : 'false'))}'`, type: 'unknown' };
+	},
+	defaultFromIntrospect: (value) => {
+		return { value: trimChar(value, "'"), type: 'unknown' };
+	},
+	defaultArrayFromIntrospect: (value) => {
+		return { value: value as string, type: 'unknown' };
+	},
+	toTs: (_, value) => ({ default: value ?? '' }),
+	toArrayTs: (_, value) => {
+		if (!value) return { default: '' };
+
+		try {
+			const trimmed = trimChar(trimChar(value, ['(', ')']), "'");
+			const res = parseArray(trimmed);
+
+			return {
+				default: stringifyArray(res, 'ts', (v) => {
+					return v === 'true' ? 'true' : 'false';
+				}),
+			};
+		} catch {
+			return { default: `sql\`${value}\`` };
+		}
+	},
+};
+
+export const Uuid: SqlType = {
+	is: (type: string) => /^\s*uuid(?:\s*\[\s*\])*\s*$/i.test(type),
+	drizzleImport: () => 'uuid',
+	defaultFromDrizzle: (value) => {
+		return { value: `'${value}'`, type: 'unknown' };
+	},
+	defaultArrayFromDrizzle: (value) => {
+		const res = stringifyArray(value, 'sql', (v) => {
+			if (typeof v !== 'string') throw new Error();
+			return v;
+		});
+		return { value: `'${res}'`, type: 'unknown' };
+	},
+	defaultFromIntrospect: (value) => {
+		return { value: value, type: 'unknown' };
+	},
+	defaultArrayFromIntrospect: (value) => {
+		return { value: value as string, type: 'unknown' };
+	},
+	toTs: (type, value) => {
+		const options: any = {};
+		if (!value) return { options, default: '' };
+
+		value = trimChar(value, "'");
+		if (value === 'gen_random_uuid()') return { options, default: '.defaultRandom()' };
+		return { options, default: `"${trimChar(value, "'")}"` };
+	},
+	toArrayTs: (type, value) => {
+		const options: any = {};
+		if (!value) return { options, default: '' };
+
+		try {
+			const trimmed = trimChar(trimChar(value, ['(', ')']), "'");
+			const res = parseArray(trimmed);
+
+			return {
+				options,
+				default: stringifyArray(res, 'ts', (v) => {
+					return `"${v}"`;
+				}),
+			};
+		} catch {
+			return { options, default: `sql\`${value}\`` };
+		}
+	},
+};
+
+export const Real: SqlType = {
+	is: (type: string) => /^\s*real(?:\s*\[\s*\])*\s*$/i.test(type),
+	drizzleImport: () => 'real',
+	defaultFromDrizzle: (value) => {
+		return { value: String(value), type: 'unknown' };
+	},
+	defaultArrayFromDrizzle: (value) => {
+		return { value: `'${stringifyArray(value, 'sql', (v) => String(v))}'`, type: 'unknown' };
+	},
+	defaultFromIntrospect: (value) => {
+		// 100 will be stored as 100.0
+		return { value: value, type: 'unknown' };
+	},
+	defaultArrayFromIntrospect: (value) => {
+		return { value: value as string, type: 'unknown' };
+	},
+	toTs: (_, value) => ({ default: value ?? '' }),
+	toArrayTs: (_, value) => {
+		if (!value) return { default: '' };
+
+		try {
+			const trimmed = trimChar(trimChar(value, ['(', ')']), "'");
+			const res = parseArray(trimmed);
+
+			return {
+				default: stringifyArray(res, 'ts', (v) => {
+					return `${v}`;
+				}),
+			};
+		} catch {
+			return { default: `sql\`${value}\`` };
+		}
+	},
+};
+
+export const Float: SqlType = {
+	is: (type: string) => /^\s*float(?:\s*\[\s*\])*\s*$/i.test(type),
+	drizzleImport: () => 'float',
+	defaultFromDrizzle: Real.defaultFromDrizzle,
+	defaultArrayFromDrizzle: Real.defaultArrayFromDrizzle,
+	defaultFromIntrospect: Real.defaultFromIntrospect,
+	defaultArrayFromIntrospect: Real.defaultArrayFromIntrospect,
+	toTs: Real.toTs,
+	toArrayTs: Real.toArrayTs,
+};
+
+export const Decimal: SqlType = {
+	// decimal OR decimal(1)[] OR decimal(2,1)[]
+	is: (type: string) => /^\s*decimal(?:\(\d+(?:,\d+)?\))?(?:\s*\[\s*\])*\s*$/i.test(type),
+	drizzleImport: () => 'decimal',
+	defaultFromDrizzle: (value) => {
+		return { value: String(value), type: 'unknown' };
+	},
+	defaultArrayFromDrizzle: (value, type) => {
+		return {
+			value: `'${stringifyArray(value, 'sql', (v) => String(v))}'`,
+			type: 'unknown',
+		};
+	},
+	defaultFromIntrospect: (value) => {
+		return { value: value, type: 'unknown' };
+	},
+	defaultArrayFromIntrospect: (value) => {
+		return { value, type: 'unknown' };
+	},
+	toTs: (type, value) => {
+		const [precision, scale] = parseParams(type);
+		const options = {} as any;
+		if (precision) options['precision'] = Number(precision);
+		if (scale) options['scale'] = Number(scale);
+
+		if (!value) return { options, default: '' };
+
+		const { mode, value: def } = numberForTs(value);
+
+		if (mode === 'number') return { options, default: `"${def}"` };
+
+		return { default: def, options: { mode, ...options } };
+	},
+	toArrayTs: (type, value) => {
+		const [precision, scale] = parseParams(type);
+		const options = {} as any;
+		if (precision) options['precision'] = Number(precision);
+		if (scale) options['scale'] = Number(scale);
+
+		if (!value) return { options, default: '' };
+		/*
+			If we'd want it to be smart - we need to check if decimal array has
+			any bigints recuresively, it's waaaaay easier to just do sql``
+		 */
+		// try {
+		// 	const trimmed = trimChar(trimChar(value, ['(', ')']), "'");
+		// 	const res = parseArray(trimmed);
+
+		// 	return {
+		// 		options: { mode: 'bigint', ...options },
+		// 		default: stringifyArray(res, 'ts', (v) => {
+
+		// 			return `${v}`;
+		// 		}),
+		// 	};
+		// } catch {
+		return { options, default: `sql\`${value}\`` };
+		// }
+	},
+};
+
+export const Bit: SqlType = {
+	is: (type: string) => /^\s*bit(?:\(\d+(?:,\d+)?\))?(?:\s*\[\s*\])*\s*$/i.test(type),
+	drizzleImport: () => 'bit',
+	defaultFromDrizzle: (value, _) => {
+		return { type: 'unknown', value: `B'${value}'` };
+	},
+	defaultArrayFromDrizzle: (value, type) => {
+		return { value: `'${stringifyArray(value, 'sql', (v) => String(v))}'`, type: 'unknown' };
+	},
+	defaultFromIntrospect: (value) => {
+		// it is stored as B'<value>'
+		return { value: value.replace("B'", "'"), type: 'unknown' };
+	},
+	defaultArrayFromIntrospect: (value) => {
+		return { value: value as string, type: 'unknown' };
+	},
+	toTs: (type, value) => {
+		const [length] = parseParams(type);
+		const options = length ? { length: Number(length) } : {};
+
+		return { options, default: value ?? '' };
+	},
+	toArrayTs: (type, value) => {
+		if (!value) return { default: '' };
+
+		const [length] = parseParams(type);
+		const options = length ? { length: Number(length) } : {};
+
+		try {
+			const trimmed = trimChar(trimChar(value, ['(', ')']), "'");
+			const res = parseArray(trimmed);
+
+			return {
+				options,
+				default: stringifyArray(res, 'ts', (v) => `"${v}"`),
+			};
+		} catch {
+			return { options, default: `sql\`${value}\`` };
+		}
+	},
+};
+
+export const VarBit: SqlType = {
+	is: (type: string) => /^\s*varbit(?:\(\d+(?:,\d+)?\))?(?:\s*\[\s*\])*\s*$/i.test(type),
+	drizzleImport: () => 'varbit',
+	defaultFromDrizzle: Bit.defaultFromDrizzle,
+	defaultArrayFromDrizzle: Bit.defaultArrayFromDrizzle,
+	defaultFromIntrospect: Bit.defaultFromIntrospect,
+	defaultArrayFromIntrospect: Bit.defaultArrayFromIntrospect,
+	toTs: Bit.toTs,
+	toArrayTs: Bit.toArrayTs,
+};
+
+export const Timestamp: SqlType = {
+	is: (type) => /^\s*timestamp(?:\(\d+(?:,\d+)?\))?(?:\s*\[\s*\])*\s*$/i.test(type),
+	drizzleImport: () => 'timestamp',
+	defaultFromDrizzle: (value: unknown) => {
+		if (value instanceof Date) {
+			return { type: 'unknown', value: `'${value.toISOString().replace('T', ' ').replace('Z', '')}'` };
+		}
+
+		return { type: 'unknown', value: `'${String(value)}'` };
+	},
+	defaultArrayFromDrizzle(value, type) {
+		return {
+			value: `'${
+				stringifyArray(value, 'sql', (v) => {
+					if (v instanceof Date) {
+						return `"${v.toISOString().replace('T', ' ').replace('Z', '')}"`;
+					}
+
+					return `"${String(v)}"`;
+				})
+			}'`,
+			type: 'unknown',
+		};
+	},
+	defaultFromIntrospect: (value: string) => {
+		return { value: value, type: 'unknown' };
+	},
+	defaultArrayFromIntrospect: (value) => {
+		return { value, type: 'unknown' };
+	},
+	toTs: (type, value) => {
+		const options: { mode: string; precision?: number } = { mode: 'string' };
+
+		const [precision] = parseParams(type);
+		if (precision) options.precision = Number(precision);
+
+		if (!value) return { default: '', options };
+
+		if (value === 'now()' || value === 'current_timestamp()') return { default: '.defaultNow()', options };
+
+		// check for valid date
+		if (isNaN(Date.parse(value.substring(1, value.length - 1)))) {
+			return { default: `sql\`${value}\``, options };
+		}
+
+		return { default: value, options };
+	},
+	toArrayTs: (type, value) => {
+		const options: { mode: string; precision?: number } = { mode: 'string' };
+
+		const [precision] = parseParams(type);
+		if (precision) options.precision = Number(precision);
+
+		if (!value) return { default: '', options };
+
+		try {
+			const trimmed = trimChar(trimChar(value, ['(', ')']), "'");
+			const res = parseArray(trimmed);
+
+			return {
+				options,
+				default: stringifyArray(res, 'ts', (v) => `"${v}"`),
+			};
+		} catch {
+			return { options, default: `sql\`${value}\`` };
+		}
+	},
+};
+export const TimestampTZ: SqlType = {
+	is: (type) => /^\s*timestamptz(?:\(\d+(?:,\d+)?\))?(?:\s*\[\s*\])*\s*$/i.test(type),
+	drizzleImport: () => 'timestamp',
+	defaultFromDrizzle: (value: unknown) => {
+		if (value instanceof Date) {
+			return { type: 'unknown', value: `'${value.toISOString().replace('T', ' ').replace('Z', '+00')}'` };
+		}
+
+		return { type: 'unknown', value: `'${String(value)}'` };
+	},
+	defaultArrayFromDrizzle(value, type) {
+		return {
+			value: `'${
+				stringifyArray(value, 'sql', (v) => {
+					if (v instanceof Date) {
+						return `"${v.toISOString().replace('T', ' ').replace('Z', '+00')}"`;
+					}
+
+					return `"${String(v)}"`;
+				})
+			}'`,
+			type: 'unknown',
+		};
+	},
+	defaultFromIntrospect: (value: string) => {
+		return { value: value, type: 'unknown' };
+	},
+	defaultArrayFromIntrospect: (value) => {
+		return { value, type: 'unknown' };
+	},
+	toTs: (type, value) => {
+		const options: { mode: string; withTimezone: boolean; precision?: number } = { mode: 'string', withTimezone: true };
+
+		const [precision] = parseParams(type);
+		if (precision) options.precision = Number(precision);
+
+		if (!value) return { default: '', options };
+
+		if (value === 'now()' || value === 'current_timestamp()') return { default: '.defaultNow()', options };
+
+		// check for valid date
+		if (isNaN(Date.parse(value.substring(1, value.length - 1)))) {
+			return { default: `sql\`${value}\``, options };
+		}
+
+		return { default: value, options };
+	},
+	toArrayTs: (type, value) => {
+		const options: { mode: string; withTimezone: boolean; precision?: number } = { withTimezone: true, mode: 'string' };
+
+		const [precision] = parseParams(type);
+		if (precision) options.precision = Number(precision);
+
+		if (!value) return { default: '', options };
+
+		try {
+			const trimmed = trimChar(trimChar(value, ['(', ')']), "'");
+			const res = parseArray(trimmed);
+
+			return {
+				options,
+				default: stringifyArray(res, 'ts', (v) => `"${v}"`),
+			};
+		} catch {
+			return { options, default: `sql\`${value}\`` };
+		}
+	},
+};
+
+export const Time: SqlType = {
+	is: (type) => /^\s*time(?:\(\d+(?:,\d+)?\))?(?:\s*\[\s*\])*\s*$/i.test(type),
+	drizzleImport: () => 'time',
+	defaultFromDrizzle: (value: unknown) => {
+		return { type: 'unknown', value: `'${String(value)}'` };
+	},
+	defaultArrayFromDrizzle(value, type) {
+		return {
+			value: `'${stringifyArray(value, 'sql', (v) => String(v))}'`,
+			type: 'unknown',
+		};
+	},
+	defaultFromIntrospect: (value: string) => {
+		return { value: value, type: 'unknown' };
+	},
+	defaultArrayFromIntrospect: (value) => {
+		return { value, type: 'unknown' };
+	},
+	toTs: (type, value) => {
+		const options: { precision?: number } = {};
+
+		const [precision] = parseParams(type);
+		if (precision) options.precision = Number(precision);
+
+		if (!value) return { default: '', options };
+
+		if (value === 'now()' || value === 'current_timestamp()') return { default: '.defaultNow()', options };
+
+		// check for valid date
+		try {
+			Temporal.PlainTime.from(value.substring(1, value.length - 1));
+			return { default: value, options };
+		} catch {
+			return { default: `sql\`${value}\``, options };
+		}
+	},
+	toArrayTs: (type, value) => {
+		const options: { precision?: number } = {};
+
+		const [precision] = parseParams(type);
+		if (precision) options.precision = Number(precision);
+
+		if (!value) return { default: '', options };
+
+		try {
+			const trimmed = trimChar(trimChar(value, ['(', ')']), "'");
+			const res = parseArray(trimmed);
+
+			return {
+				options,
+				default: stringifyArray(res, 'ts', (v) => `"${v}"`),
+			};
+		} catch {
+			return { options, default: `sql\`${value}\`` };
+		}
+	},
+};
+export const TimeTz: SqlType = {
+	is: (type) => /^\s*timetz(?:\(\d+(?:,\d+)?\))?(?:\s*\[\s*\])*\s*$/i.test(type),
+	drizzleImport: () => 'time',
+	defaultFromDrizzle: Time.defaultFromDrizzle,
+	defaultArrayFromDrizzle: Time.defaultArrayFromDrizzle,
+	defaultFromIntrospect: Time.defaultFromIntrospect,
+	defaultArrayFromIntrospect: Time.defaultArrayFromIntrospect,
+	toTs: (type, value) => {
+		const options: { withTimezone: boolean; precision?: number } = { withTimezone: true };
+
+		const [precision] = parseParams(type);
+		if (precision) options.precision = Number(precision);
+
+		if (!value) return { default: '', options };
+
+		if (value === 'now()' || value === 'current_timestamp()') return { default: '.defaultNow()', options };
+
+		// check for valid date
+		try {
+			Temporal.PlainTime.from(value.substring(1, value.length - 1));
+			return { default: value, options };
+		} catch {
+			return { default: `sql\`${value}\``, options };
+		}
+	},
+	toArrayTs: (type, value) => {
+		const options: { withTimezone: boolean; precision?: number } = { withTimezone: true };
+
+		const [precision] = parseParams(type);
+		if (precision) options.precision = Number(precision);
+
+		if (!value) return { default: '', options };
+
+		try {
+			const trimmed = trimChar(trimChar(value, ['(', ')']), "'");
+			const res = parseArray(trimmed);
+
+			return {
+				options,
+				default: stringifyArray(res, 'ts', (v) => `"${v}"`),
+			};
+		} catch {
+			return { options, default: `sql\`${value}\`` };
+		}
+	},
+};
+
+export const DateType: SqlType = {
+	is: (type) => /^\s*date(?:\(\d+(?:,\d+)?\))?(?:\s*\[\s*\])*\s*$/i.test(type),
+	drizzleImport: () => 'date',
+	defaultFromDrizzle: (value: unknown) => {
+		if (value instanceof Date) {
+			return { type: 'unknown', value: `'${value.toISOString().split('T')[0]}'` };
+		}
+
+		return { type: 'unknown', value: `'${String(value)}'` };
+	},
+	defaultArrayFromDrizzle(value, type) {
+		return {
+			value: `'${
+				stringifyArray(value, 'sql', (v) => {
+					if (v instanceof Date) {
+						return v.toISOString().split('T')[0];
+					}
+
+					return String(v);
+				})
+			}'`,
+			type: 'unknown',
+		};
+	},
+	defaultFromIntrospect: (value: string) => {
+		return { value: value, type: 'unknown' };
+	},
+	defaultArrayFromIntrospect: (value) => {
+		return { value, type: 'unknown' };
+	},
+	toTs: (_, value) => {
+		const options: { mode: string } = { mode: 'string' };
+
+		if (!value) return { default: '', options };
+
+		if (value === 'now()' || value === 'current_timestamp()') return { default: '.defaultNow()', options };
+
+		// check for valid date
+		try {
+			Temporal.PlainDate.from(value.substring(1, value.length - 1));
+			return { default: value, options };
+		} catch {
+			return { default: `sql\`${value}\``, options };
+		}
+	},
+	toArrayTs: (type, value) => {
+		const options: { mode: string; precision?: number } = { mode: 'string' };
+
+		const [precision] = parseParams(type);
+		if (precision) options.precision = Number(precision);
+
+		if (!value) return { default: '', options };
+
+		try {
+			const trimmed = trimChar(trimChar(value, ['(', ')']), "'");
+			const res = parseArray(trimmed);
+
+			return {
+				options,
+				default: stringifyArray(res, 'ts', (v) => `"${v}"`),
+			};
+		} catch {
+			return { options, default: `sql\`${value}\`` };
+		}
+	},
+};
+
+export const Char: SqlType = {
+	is: (type: string) => /^\s*char|character(?:\(\d+(?:,\d+)?\))?(?:\s*\[\s*\])*\s*$/i.test(type),
+	drizzleImport: () => 'char',
+	defaultFromDrizzle: (value) => {
+		const escaped = escapeForSqlDefault(String(value));
+		const result = String(value).includes('\\') || String(value).includes("'") ? `e'${escaped}'` : `'${escaped}'`;
+
+		return { value: result, type: 'unknown' };
+	},
+	defaultArrayFromDrizzle: (value) => {
+		const res = stringifyArray(
+			value,
+			'sql',
+			(v) => {
+				if (typeof v !== 'string') throw new Error();
+				const escaped = escapeForSqlDefault(v, 'arr');
+				if (v.includes('\\') || v.includes('"') || v.includes(',')) return `"${escaped}"`;
+
+				return escaped;
+			},
+		);
+
+		return { value: `'${res}'`, type: 'unknown' };
+	},
+	defaultFromIntrospect: (value) => {
+		return { value: value, type: 'unknown' };
+	},
+	defaultArrayFromIntrospect: (value) => {
+		return { value: value as string, type: 'unknown' };
+	},
+	toTs: (type, value) => {
+		const options: any = {};
+		const [length] = parseParams(type);
+		if (length) options['length'] = Number(length);
+		if (!value) return { options, default: '' };
+		const escaped = escapeForTsLiteral(unescapeFromSqlDefault(value));
+		return { options, default: `"${escaped}"` };
+	},
+	toArrayTs: (type, value) => {
+		const options: any = {};
+		const [length] = parseParams(type);
+		if (length) options['length'] = Number(length);
+		if (!value) return { options, default: '' };
+
+		try {
+			const trimmed = trimChar(trimChar(value, ['(', ')']), "'");
+			const res = parseArray(trimmed);
+
+			return {
+				options,
+				default: stringifyArray(res, 'ts', (v) => {
+					const escaped = escapeForTsLiteral(unescapeFromSqlDefault(v, 'arr'));
+					return `"${escaped}"`;
+				}),
+			};
+		} catch {
+			return { options, default: `sql\`${value}\`` };
+		}
+	},
+};
+export const Varchar: SqlType = {
+	is: (type: string) => /^\s*varchar|character varying(?:\(\d+(?:,\d+)?\))?(?:\s*\[\s*\])*\s*$/i.test(type),
+	drizzleImport: () => 'varchar',
+	defaultFromDrizzle: Char.defaultFromDrizzle,
+	defaultArrayFromDrizzle: Char.defaultArrayFromDrizzle,
+	defaultFromIntrospect: Char.defaultFromIntrospect,
+	defaultArrayFromIntrospect: Char.defaultArrayFromIntrospect,
+	toTs: Char.toTs,
+	toArrayTs: Char.toArrayTs,
+};
+// export const Text: SqlType = {
+// 	is: (type: string) => /^\s*(?:text)(?:[\s(].*)*\s*$/i.test(type),
+// 	drizzleImport: () => 'text',
+// 	defaultFromDrizzle: Char.defaultFromDrizzle,
+// 	defaultArrayFromDrizzle: Char.defaultArrayFromDrizzle,
+// 	defaultFromIntrospect: Char.defaultFromIntrospect,
+// 	defaultArrayFromIntrospect: Char.defaultArrayFromIntrospect,
+// 	toTs: Char.toTs,
+// 	toArrayTs: Char.toArrayTs,
+// };
+export const StringType: SqlType = {
+	is: (type: string) => /^\s*string(?:\(\d+(?:,\d+)?\))?(?:\s*\[\s*\])*\s*$/i.test(type),
+	drizzleImport: () => 'string',
+	defaultFromDrizzle: Char.defaultFromDrizzle,
+	defaultArrayFromDrizzle: Char.defaultArrayFromDrizzle,
+	defaultFromIntrospect: Char.defaultFromIntrospect,
+	defaultArrayFromIntrospect: Char.defaultArrayFromIntrospect,
+	toTs: Char.toTs,
+	toArrayTs: Char.toArrayTs,
+};
+
+export const Jsonb: SqlType = {
+	is: (type: string) => /^\s*jsonb\s*$/i.test(type),
+	drizzleImport: () => 'jsonb',
+	defaultFromDrizzle: (value) => {
+		// const escaped = escapeForSqlDefault(String(value));
+		// const result = String(value).includes('\\') || String(value).includes("'") ? `e'${escaped}'` : `'${escaped}'`;
+
+		let shouldEscape = false;
+		const stringified = stringify(
+			value,
+			(_, value) => {
+				if (typeof value !== 'string') return value;
+				if (value.includes("'") || value.includes('"') || value.includes('\\')) shouldEscape = true;
+				return value;
+			},
+			undefined,
+			undefined,
+			', ',
+		);
+		return {
+			type: 'unknown',
+			// cockroach escapes " inside of jsonb as \\"
+			value: shouldEscape ? `e'${stringified.replaceAll("'", "\\'").replaceAll('\\"', '\\\\"')}'` : `'${stringified}'`,
+		};
+	},
+	// not supported
+	defaultArrayFromDrizzle: () => {
+		return {
+			value: `'[]'`,
+			type: 'unknown',
+		};
+	},
+	/*
+		TODO: make less hacky,
+		from: { type: 'unknown', value: `'{"key": "value"}'` },
+		to:   { type: 'unknown', value: `'{"key":"value"}'` }
+	 */
+	defaultFromIntrospect: (value) => ({ type: 'unknown', value: value.replaceAll(`": "`, `":"`) }),
+	// not supported
+	defaultArrayFromIntrospect: () => {
+		return {
+			value: `'[]'`,
+			type: 'unknown',
+		};
+	},
+	toTs: (_, value) => {
+		if (!value) return { default: '' };
+
+		const trimmed = trimChar(unescapeFromSqlDefault(value), "'");
+
+		try {
+			const parsed = parse(trimmed);
+			const stringified = stringify(
+				parsed,
+				(_, value) => {
+					return value;
+				},
+				undefined,
+				true,
+			)!;
+			return { default: stringified };
+		} catch (e: any) {
+			// console.log('error: ', e);
+		}
+		return { default: `sql\`${value}\`` };
+	},
+	// not supported
+	toArrayTs: () => {
+		return {
+			default: '',
+			options: {},
+		};
+	},
+};
+
+export const typeFor = (type: string): SqlType | null => {
+	if (Int2.is(type)) return Int2;
+	if (Int4.is(type)) return Int4;
+	if (Int8.is(type)) return Int8;
+	if (Bool.is(type)) return Bool;
+	if (Uuid.is(type)) return Uuid;
+	if (Real.is(type)) return Real;
+	if (Float.is(type)) return Float;
+	if (Decimal.is(type)) return Decimal;
+	if (Bit.is(type)) return Bit;
+	if (VarBit.is(type)) return VarBit;
+	if (Timestamp.is(type)) return Timestamp;
+	if (TimestampTZ.is(type)) return TimestampTZ;
+	if (Time.is(type)) return Time;
+	if (TimeTz.is(type)) return TimeTz;
+	if (DateType.is(type)) return DateType;
+	if (Char.is(type)) return Char;
+	if (Varchar.is(type)) return Varchar;
+	// if (Text.is(type)) return Text;
+	if (StringType.is(type)) return StringType;
+	if (Jsonb.is(type)) return Jsonb;
+	// no sql type
+	return null;
+};

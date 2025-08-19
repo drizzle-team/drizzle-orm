@@ -62,7 +62,7 @@ export class CockroachDecimal<T extends ColumnBaseConfig<'string', 'CockroachDec
 
 	getSQLType(): string {
 		if (this.precision !== undefined && this.scale !== undefined) {
-			return `decimal(${this.precision}, ${this.scale})`;
+			return `decimal(${this.precision},${this.scale})`;
 		} else if (this.precision === undefined) {
 			return 'decimal';
 		} else {
@@ -135,7 +135,7 @@ export class CockroachDecimalNumber<T extends ColumnBaseConfig<'number', 'Cockro
 
 	getSQLType(): string {
 		if (this.precision !== undefined && this.scale !== undefined) {
-			return `decimal(${this.precision}, ${this.scale})`;
+			return `decimal(${this.precision},${this.scale})`;
 		} else if (this.precision === undefined) {
 			return 'decimal';
 		} else {
@@ -204,7 +204,7 @@ export class CockroachDecimalBigInt<T extends ColumnBaseConfig<'bigint', 'Cockro
 
 	getSQLType(): string {
 		if (this.precision !== undefined && this.scale !== undefined) {
-			return `decimal(${this.precision}, ${this.scale})`;
+			return `decimal(${this.precision},${this.scale})`;
 		} else if (this.precision === undefined) {
 			return 'decimal';
 		} else {

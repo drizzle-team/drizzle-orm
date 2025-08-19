@@ -73,7 +73,11 @@ test('text', async () => {
 		text({ mode: 'json' }).default([9223372036854775807n, 9223372036854775806n]),
 		`'[9223372036854775807,9223372036854775806]'`,
 	);
-	const res12 = await diffDefault(_, text({ mode: 'json' }).default({ key: 'value\\\'"' }), `'{"key":"value\\\\''\\""}'`);
+	const res12 = await diffDefault(
+		_,
+		text({ mode: 'json' }).default({ key: 'value\\\'"' }),
+		`'{"key":"value\\\\''\\""}'`,
+	);
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
@@ -149,7 +153,11 @@ test('blob', async () => {
 		blob({ mode: 'json' }).default([9223372036854775807n, 9223372036854775806n]),
 		`'[9223372036854775807,9223372036854775806]'`,
 	);
-	const res14 = await diffDefault(_, blob({ mode: 'json' }).default({ key: 'value\\\'"' }), `'{"key":"value\\\\''\\""}'`);
+	const res14 = await diffDefault(
+		_,
+		blob({ mode: 'json' }).default({ key: 'value\\\'"' }),
+		`'{"key":"value\\\\''\\""}'`,
+	);
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);

@@ -843,8 +843,8 @@ export const fromDatabase = async (
 
 		const sequence = metadata?.seqId ? sequencesList.find((it) => it.oid === Number(metadata.seqId)) ?? null : null;
 
-		columnTypeMapped += '[]'.repeat(column.dimensions)
-		
+		columnTypeMapped += '[]'.repeat(column.dimensions);
+
 		columns.push({
 			entityType: 'columns',
 			schema: table.schema,

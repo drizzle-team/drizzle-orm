@@ -23,6 +23,7 @@ import {
 	tableFromDDL,
 	View,
 } from './ddl';
+import { defaultsCommutative } from './grammar';
 import { JsonStatement, prepareStatement } from './statements';
 
 export const ddlDiffDry = async (ddlFrom: CockroachDDL, ddlTo: CockroachDDL, mode: 'default' | 'push') => {
@@ -626,17 +627,25 @@ export const ddlDiff = async (
 			isPK: ddl2.pks.one({ schema: it.schema, table: it.table, columns: [it.name] }) !== null,
 		})
 	);
-	const columnAlters = alters.filter((it) => it.entityType === 'columns').filter((it) => {
-		if (it.default && it.default.from?.value === it.default.to?.value) {
-			delete it.default;
-		}
-		return ddl2.columns.hasDiff(it);
-	});
+	const columnAlters = alters
+		.filter((it) => it.entityType === 'columns')
+		.filter((it) => {
+			// decimal(19) === decimal(19,0)
+			if (it.type && it.type.from.replace(',0)', ')') === it.type.to) {
+				delete it.type;
+			}
 
-	const columnsToRecreate = columnAlters.filter((it) => it.generated).filter((it) => {
-		// if push and definition changed
-		return !(it.generated?.to && it.generated.from && mode === 'push');
-	});
+			if (!it.type && it.default && defaultsCommutative(it.default, it.$right.type)) delete it.default;
+
+			return ddl2.columns.hasDiff(it);
+		});
+
+	const columnsToRecreate = columnAlters
+		.filter((it) => it.generated)
+		.filter((it) => {
+			// if push and definition changed
+			return !(it.generated?.to && it.generated.from && mode === 'push');
+		});
 
 	const jsonRecreateColumns = columnsToRecreate.map((it) =>
 		prepareStatement('recreate_column', {
@@ -672,21 +681,20 @@ export const ddlDiff = async (
 	const alteredChecks = alters.filter((it) => it.entityType === 'checks');
 
 	// group by tables?
-	const alteredPKs = alters.filter((it) => it.entityType === 'pks').filter((it) => {
-		return !!it.columns; // ignore explicit name change
-	});
+	const alteredPKs = alters
+		.filter((it) => it.entityType === 'pks')
+		.filter((it) => {
+			return !!it.columns; // ignore explicit name change
+		});
 	const jsonAlteredPKs = alteredPKs.map((it) => prepareStatement('alter_pk', { diff: it, pk: it.$right }));
 
-	const jsonRecreatePk = pksCreates
-		.flatMap((created) => {
-			const matchingDeleted = pksDeletes.find(
-				(deleted) => created.schema === deleted.schema && created.table === deleted.table,
-			);
+	const jsonRecreatePk = pksCreates.flatMap((created) => {
+		const matchingDeleted = pksDeletes.find((deleted) =>
+			created.schema === deleted.schema && created.table === deleted.table
+		);
 
-			return matchingDeleted
-				? [prepareStatement('recreate_pk', { left: matchingDeleted, right: created })]
-				: [];
-		});
+		return matchingDeleted ? [prepareStatement('recreate_pk', { left: matchingDeleted, right: created })] : [];
+	});
 
 	const pksRecreatedFilter = () => {
 		return (it: { schema: string; table: string }) => {
@@ -696,30 +704,37 @@ export const ddlDiff = async (
 			);
 		};
 	};
-	const jsonAddPrimaryKeys = pksCreates.filter(tablesFilter('created')).filter(pksRecreatedFilter()).map((it) =>
-		prepareStatement('add_pk', { pk: it })
-	);
-	const jsonDropPrimaryKeys = pksDeletes.filter(tablesFilter('deleted')).filter(pksRecreatedFilter()).map((it) =>
-		prepareStatement('drop_pk', { pk: it })
-	);
+	const jsonAddPrimaryKeys = pksCreates
+		.filter(tablesFilter('created'))
+		.filter(pksRecreatedFilter())
+		.map((it) => prepareStatement('add_pk', { pk: it }));
+	const jsonDropPrimaryKeys = pksDeletes
+		.filter(tablesFilter('deleted'))
+		.filter(pksRecreatedFilter())
+		.map((it) => prepareStatement('drop_pk', { pk: it }));
 
-	const jsonRecreateFKs = alters.filter((it) => it.entityType === 'fks').filter((x) => {
-		if (
-			x.nameExplicit
-			&& ((mode === 'push' && x.nameExplicit.from && !x.nameExplicit.to)
-				|| x.nameExplicit.to && !x.nameExplicit.from)
-		) {
-			delete x.nameExplicit;
-		}
+	const jsonRecreateFKs = alters
+		.filter((it) => it.entityType === 'fks')
+		.filter((x) => {
+			if (
+				x.nameExplicit
+				&& ((mode === 'push' && x.nameExplicit.from && !x.nameExplicit.to)
+					|| (x.nameExplicit.to && !x.nameExplicit.from))
+			) {
+				delete x.nameExplicit;
+			}
 
-		return ddl2.fks.hasDiff(x);
-	}).map((it) => prepareStatement('recreate_fk', { fk: it.$right }));
+			return ddl2.fks.hasDiff(x);
+		})
+		.map((it) => prepareStatement('recreate_fk', { fk: it.$right }));
 
 	const jsonCreateFKs = fksCreates.map((it) => prepareStatement('create_fk', { fk: it }));
 
-	const jsonDropReferences = fksDeletes.filter((fk) => {
-		return !deletedTables.some((x) => x.schema === fk.schema && x.name === fk.table);
-	}).map((it) => prepareStatement('drop_fk', { fk: it }));
+	const jsonDropReferences = fksDeletes
+		.filter((fk) => {
+			return !deletedTables.some((x) => x.schema === fk.schema && x.name === fk.table);
+		})
+		.map((it) => prepareStatement('drop_fk', { fk: it }));
 
 	const jsonRenameReferences = fksRenames.map((it) =>
 		prepareStatement('rename_constraint', {
@@ -739,10 +754,11 @@ export const ddlDiff = async (
 
 	// using/withcheck in policy is a SQL expression which can be formatted by database in a different way,
 	// thus triggering recreations/alternations on push
-	const jsonAlterOrRecreatePoliciesStatements = alteredPolicies.filter((it) => {
-		return it.as || it.for || it.roles || !((it.using || it.withCheck) && mode === 'push');
-	}).map(
-		(it) => {
+	const jsonAlterOrRecreatePoliciesStatements = alteredPolicies
+		.filter((it) => {
+			return it.as || it.for || it.roles || !((it.using || it.withCheck) && mode === 'push');
+		})
+		.map((it) => {
 			const to = ddl2.policies.one({
 				schema: it.schema,
 				table: it.table,
@@ -758,8 +774,7 @@ export const ddlDiff = async (
 					policy: to,
 				});
 			}
-		},
-	);
+		});
 
 	// explicit rls alters
 	const rlsAlters = alters.filter((it) => it.entityType === 'tables').filter((it) => it.isRlsEnabled);
@@ -784,14 +799,19 @@ export const ddlDiff = async (
 		// I don't want dedup here, not a valuable optimisation
 		if (
 			table !== null // not external table
-			&& (had > 0 && has === 0 && prevTable && prevTable.isRlsEnabled === false)
+			&& had > 0
+			&& has === 0
+			&& prevTable
+			&& prevTable.isRlsEnabled === false
 			&& !jsonAlterRlsStatements.some((st) => st.schema === it.schema && st.name === it.table)
 		) {
-			jsonAlterRlsStatements.push(prepareStatement('alter_rls', {
-				schema: it.schema,
-				name: it.table,
-				isRlsEnabled: false,
-			}));
+			jsonAlterRlsStatements.push(
+				prepareStatement('alter_rls', {
+					schema: it.schema,
+					name: it.table,
+					isRlsEnabled: false,
+				}),
+			);
 		}
 	}
 
@@ -807,13 +827,17 @@ export const ddlDiff = async (
 
 		if (
 			table !== null // not external table
-			&& (had === 0 && has > 0 && !table.isRlsEnabled)
+			&& had === 0
+			&& has > 0
+			&& !table.isRlsEnabled
 		) {
-			jsonAlterRlsStatements.push(prepareStatement('alter_rls', {
-				schema: it.schema,
-				name: it.table,
-				isRlsEnabled: true,
-			}));
+			jsonAlterRlsStatements.push(
+				prepareStatement('alter_rls', {
+					schema: it.schema,
+					name: it.table,
+					isRlsEnabled: true,
+				}),
+			);
 		}
 	}
 
@@ -848,19 +872,19 @@ export const ddlDiff = async (
 
 		if (res.some((it) => it.type === 'removed')) {
 			// recreate enum
-			const columns = ddl1.columns.list({ typeSchema: alter.schema, type: alter.name })
-				.map((it) => {
-					const c2 = ddl2.columns.one({ schema: it.schema, table: it.table, name: it.name })!;
-					it.default = c2.default;
-					return it;
-				});
+			const columns = ddl1.columns.list({ typeSchema: alter.schema, type: alter.name }).map((it) => {
+				const c2 = ddl2.columns.one({ schema: it.schema, table: it.table, name: it.name })!;
+				it.default = c2.default;
+				return it;
+			});
 			recreateEnums.push(prepareStatement('recreate_enum', { to: e, columns }));
 		} else {
 			jsonAlterEnums.push(prepareStatement('alter_enum', { diff: res, enum: e }));
 		}
 	}
 
-	const jsonAlterColumns = columnAlters.filter((it) => !(it.generated))
+	const jsonAlterColumns = columnAlters
+		.filter((it) => !it.generated)
 		.filter((it) => {
 			// if column is of type enum we're about to recreate - we will reset default anyway
 			if (
@@ -959,12 +983,10 @@ export const ddlDiff = async (
 		return prepareStatement('recreate_view', { from, to: it });
 	});
 
-	const recreatedTargets = new Set(
-		jsonRecreateViews.map((stmt) => `${stmt.to.schema}:${stmt.to.name}`),
-	);
-	const jsonRenameViews = renamedViews
-		.filter(({ to }) => !recreatedTargets.has(`${to.schema}:${to.name}`))
-		.map((rename) => prepareStatement('rename_view', rename));
+	const recreatedTargets = new Set(jsonRecreateViews.map((stmt) => `${stmt.to.schema}:${stmt.to.name}`));
+	const jsonRenameViews = renamedViews.filter(({ to }) => !recreatedTargets.has(`${to.schema}:${to.name}`)).map((
+		rename,
+	) => prepareStatement('rename_view', rename));
 
 	jsonStatements.push(...createSchemas);
 	jsonStatements.push(...renameSchemas);

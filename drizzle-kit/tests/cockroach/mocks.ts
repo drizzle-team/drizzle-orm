@@ -68,10 +68,7 @@ class MockError extends Error {
 	}
 }
 
-export const drizzleToDDL = (
-	schema: CockroachDBSchema,
-	casing?: CasingType | undefined,
-) => {
+export const drizzleToDDL = (schema: CockroachDBSchema, casing?: CasingType | undefined) => {
 	const tables = Object.values(schema).filter((it) => is(it, CockroachTable)) as CockroachTable[];
 	const schemas = Object.values(schema).filter((it) => is(it, CockroachSchema)) as CockroachSchema[];
 	const enums = Object.values(schema).filter((it) => isCockroachEnum(it)) as CockroachEnum<any>[];
@@ -83,14 +80,16 @@ export const drizzleToDDL = (
 		isCockroachMaterializedView(it)
 	) as CockroachMaterializedView[];
 
-	const {
-		schema: res,
-		errors,
-		warnings,
-	} = fromDrizzleSchema(
-		{ schemas, tables, enums, sequences, roles, policies, views, matViews: materializedViews },
-		casing,
-	);
+	const { schema: res, errors, warnings } = fromDrizzleSchema({
+		schemas,
+		tables,
+		enums,
+		sequences,
+		roles,
+		policies,
+		views,
+		matViews: materializedViews,
+	}, casing);
 
 	if (errors.length > 0) {
 		throw new Error();
@@ -148,15 +147,17 @@ export const pushM = async (config: {
 	return measure(push(config), 'push');
 };
 // init schema flush to db -> introspect db to ddl -> compare ddl with destination schema
-export const push = async (config: {
-	db: DB;
-	to: CockroachDBSchema | CockroachDDL;
-	renames?: string[];
-	schemas?: string[];
-	casing?: CasingType;
-	log?: 'statements' | 'none';
-	entities?: Entities;
-}) => {
+export const push = async (
+	config: {
+		db: DB;
+		to: CockroachDBSchema | CockroachDDL;
+		renames?: string[];
+		schemas?: string[];
+		casing?: CasingType;
+		log?: 'statements' | 'none';
+		entities?: Entities;
+	},
+) => {
 	const { db, to } = config;
 	const log = config.log ?? 'none';
 	const casing = config.casing ?? 'camelCase';
@@ -273,10 +274,7 @@ export const diffPush = async (config: {
 		'push',
 	);
 
-	const { hints, losses } = await suggestions(
-		db,
-		statements,
-	);
+	const { hints, losses } = await suggestions(db, statements);
 	return { sqlStatements, statements, hints, losses };
 };
 
@@ -295,7 +293,12 @@ export const diffIntrospect = async (
 	for (const st of init) await db.query(st);
 
 	// introspect to schema
-	const schema = await fromDatabaseForDrizzle(db, (_) => true, (it) => schemas.indexOf(it) >= 0, entities);
+	const schema = await fromDatabaseForDrizzle(
+		db,
+		(_) => true,
+		(it) => schemas.indexOf(it) >= 0,
+		entities,
+	);
 
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
@@ -310,21 +313,16 @@ export const diffIntrospect = async (
 	}
 
 	// generate snapshot from ts file
-	const response = await prepareFromSchemaFiles([
-		filePath,
-	]);
+	const response = await prepareFromSchemaFiles([filePath]);
 
-	const {
-		schema: schema2,
-		errors: e2,
-		warnings,
-	} = fromDrizzleSchema(response, casing);
+	const { schema: schema2, errors: e2, warnings } = fromDrizzleSchema(response, casing);
 	const { ddl: ddl2, errors: e3 } = interimToDDL(schema2);
 
-	const {
-		sqlStatements: afterFileSqlStatements,
-		statements: afterFileStatements,
-	} = await ddlDiffDry(ddl1, ddl2, 'push');
+	const { sqlStatements: afterFileSqlStatements, statements: afterFileStatements } = await ddlDiffDry(
+		ddl1,
+		ddl2,
+		'push',
+	);
 
 	rmSync(`tests/cockroach/tmp/${testName}.ts`);
 
@@ -338,6 +336,7 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 	kit: TestDatabase,
 	builder: T,
 	expectedDefault: string,
+	expectError: boolean = false,
 	pre: CockroachDBSchema | null = null,
 ) => {
 	await kit.clear();
@@ -346,15 +345,15 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 	const def = config['default'];
 	const column = cockroachTable('table', { column: builder }).column;
 
-	const { baseColumn, dimensions, baseType, options, typeSchema } = unwrapColumn(column);
-	const columnDefault = defaultFromColumn(baseColumn, column.default, dimensions, new CockroachDialect(), options);
+	const { dimensions, baseType, options, typeSchema, sqlType: type } = unwrapColumn(column);
+	const columnDefault = defaultFromColumn(column, column.default, dimensions, new CockroachDialect());
+
 	const defaultSql = defaultToSQL({
 		default: columnDefault,
-		type: baseType,
+		type,
 		dimensions,
 		typeSchema: typeSchema,
-		options: options,
-	} as Column);
+	});
 
 	const res = [] as string[];
 	if (defaultSql !== expectedDefault) {
@@ -373,18 +372,16 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 
 	const typeSchemaPrefix = typeSchema && typeSchema !== 'public' ? `"${typeSchema}".` : '';
 	const typeValue = typeSchema ? `"${baseType}"` : baseType;
-	let sqlType;
-	if (baseType.includes('with time zone')) {
-		const [type, ...rest] = typeValue.split(' ');
-
-		sqlType = `${typeSchemaPrefix}${type}${options ? `(${options})` : ''} ${rest.join(' ')}${'[]'.repeat(dimensions)}`;
-	} else {
-		sqlType = `${typeSchemaPrefix}${typeValue}${options ? `(${options})` : ''}${'[]'.repeat(dimensions)}`;
-	}
-
+	const sqlType = `${typeSchemaPrefix}${typeValue}${options ? `(${options})` : ''}${'[]'.repeat(dimensions)}`;
 	const expectedInit = `CREATE TABLE "table" (\n\t"column" ${sqlType} DEFAULT ${expectedDefault}\n);\n`;
+
 	if (st1.length !== 1 || st1[0] !== expectedInit) res.push(`Unexpected init:\n${st1}\n\n${expectedInit}`);
 	if (st2.length > 0) res.push(`Unexpected subsequent init:\n${st2}`);
+
+	await db.query('INSERT INTO "table" ("column") VALUES (default);').catch(async (error) => {
+		if (!expectError) throw error;
+		res.push(`Insert default failed`);
+	});
 
 	// introspect to schema
 	// console.time();
@@ -403,12 +400,17 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 	const { ddl: ddl2, errors: e3 } = interimToDDL(sch);
 
 	const { sqlStatements: afterFileSqlStatements } = await ddlDiffDry(ddl1, ddl2, 'push');
+
 	if (afterFileSqlStatements.length === 0) {
-		rmSync(path);
+		// rmSync(path);
 	} else {
 		console.log(afterFileSqlStatements);
 		console.log(`./${path}`);
 		res.push(`Default type mismatch after diff:\n${`./${path}`}`);
+	}
+
+	if (ddl1.columns.list().find((it) => it.name === 'column')?.default?.value !== expectedDefault) {
+		res.push(`Default type mismatch after introspect:\n${`./${path}`}`);
 	}
 
 	// console.timeEnd();
@@ -504,7 +506,7 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 	let timeLeft = 20000;
 	do {
 		try {
-			client = await (new Pool({ connectionString: url })).connect();
+			client = await new Pool({ connectionString: url }).connect();
 
 			await client.query('DROP DATABASE defaultdb;');
 			await client.query('CREATE DATABASE defaultdb;');
@@ -537,10 +539,13 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 
 			const db: TestDatabase['db'] = {
 				query: async (sql, params) => {
-					return client.query(sql, params).then((it) => it.rows as any[]).catch((e: Error) => {
-						const error = new Error(`query error: ${sql}\n\n${e.message}`);
-						throw error;
-					});
+					return client
+						.query(sql, params)
+						.then((it) => it.rows as any[])
+						.catch((e: Error) => {
+							const error = new Error(`query error: ${sql}\n\n${e.message}`);
+							throw error;
+						});
 				},
 				batch: async (sqls) => {
 					for (const sql of sqls) {

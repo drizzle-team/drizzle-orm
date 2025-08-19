@@ -1,6 +1,6 @@
 import { bigint, int8 } from './bigint.ts';
 import { bit } from './bit.ts';
-import { boolean } from './boolean.ts';
+import { bool } from './bool.ts';
 import { char } from './char.ts';
 import { customType } from './custom.ts';
 import { date } from './date.ts';
@@ -17,13 +17,14 @@ import { string, text } from './string.ts';
 import { time } from './time.ts';
 import { timestamp } from './timestamp.ts';
 import { uuid } from './uuid.ts';
+import { varbit } from './varbit.ts';
 import { varchar } from './varchar.ts';
 import { vector } from './vector.ts';
 
 export function getCockroachColumnBuilders() {
 	return {
 		bigint,
-		boolean,
+		bool,
 		char,
 		customType,
 		date,
@@ -48,6 +49,7 @@ export function getCockroachColumnBuilders() {
 		vector,
 		float,
 		string,
+		varbit,
 	};
 }
 
