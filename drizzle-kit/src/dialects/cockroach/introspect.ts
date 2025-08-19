@@ -745,7 +745,7 @@ ORDER BY pg_class.relnamespace, lower(pg_class.relname)
 		columnTypeMapped = columnTypeMapped.replace('character', 'char').replace('float8', 'float').replace(
 			'float4',
 			'real',
-		).replace('bool', 'boolean');
+		);
 
 		columnTypeMapped = trimChar(columnTypeMapped, '"');
 

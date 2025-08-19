@@ -336,7 +336,7 @@ export function formatBit(type: string, value?: string | null, trimToOneLength: 
 	if (value.length > length) return value.substring(0, length);
 	return value.padEnd(length, '0');
 }
-export function formatString(type: string, value: string) {
+export function formatString(type: string, value: string, mode: 'default' | 'arr' = 'default') {
 	if (!value) return value;
 
 	// for arrays
@@ -345,8 +345,11 @@ export function formatString(type: string, value: string) {
 
 	const { options } = splitSqlType(type);
 
-	if (!options) return value;
-	const length = Number(options);
+	if (!options && mode === 'default') {
+		return value;
+	}
+
+	const length = !options ? 1 : Number(options);
 
 	if (value.length <= length) return value;
 	value = value.substring(0, length);
@@ -433,8 +436,7 @@ export const defaultsCommutative = (diffDef: DiffEntities['columns']['default'],
 
 		return false;
 	}
-
-	if (type.startsWith('bit')) {
+	if (type.startsWith('varbit')) {
 		if (formatBit(type, diffDef.from?.value) === formatBit(type, diffDef?.to?.value)) return true;
 
 		try {
@@ -585,8 +587,8 @@ export const defaultsCommutative = (diffDef: DiffEntities['columns']['default'],
 
 			if (type.endsWith('[]')) {
 				try {
-					const fromArray = stringifyArray(parseArray(from), 'sql', (v) => formatString(type, v));
-					const toArray = stringifyArray(parseArray(to), 'sql', (v) => formatString(type, v));
+					const fromArray = stringifyArray(parseArray(from), 'sql', (v) => formatString(type, v, 'arr'));
+					const toArray = stringifyArray(parseArray(to), 'sql', (v) => formatString(type, v, 'arr'));
 					if (fromArray === toArray) return true;
 				} catch {
 				}
@@ -607,6 +609,10 @@ export const defaultsCommutative = (diffDef: DiffEntities['columns']['default'],
 
 			if (leftIn && rightIn) return true;
 		}
+	}
+
+	if (type.startsWith('vector')) {
+		if (from?.replaceAll('.0', '') === to?.replaceAll('.0', '')) return true;
 	}
 
 	// real and float adds .0 to the end for the numbers
@@ -905,14 +911,14 @@ export const Bit: SqlType = {
 	is: (type: string) => /^\s*bit(?:\(\d+(?:,\d+)?\))?(?:\s*\[\s*\])*\s*$/i.test(type),
 	drizzleImport: () => 'bit',
 	defaultFromDrizzle: (value, _) => {
-		return { type: 'unknown', value: `B'${value}'` };
+		return { type: 'unknown', value: `'${value}'` };
 	},
 	defaultArrayFromDrizzle: (value, type) => {
 		return { value: `'${stringifyArray(value, 'sql', (v) => String(v))}'`, type: 'unknown' };
 	},
 	defaultFromIntrospect: (value) => {
 		// it is stored as B'<value>'
-		return { value: value.replace("B'", "'"), type: 'unknown' };
+		return { value: value.replace(/^B'/, "'"), type: 'unknown' };
 	},
 	defaultArrayFromIntrospect: (value) => {
 		return { value: value as string, type: 'unknown' };
@@ -942,7 +948,6 @@ export const Bit: SqlType = {
 		}
 	},
 };
-
 export const VarBit: SqlType = {
 	is: (type: string) => /^\s*varbit(?:\(\d+(?:,\d+)?\))?(?:\s*\[\s*\])*\s*$/i.test(type),
 	drizzleImport: () => 'varbit',
@@ -1428,6 +1433,140 @@ export const Jsonb: SqlType = {
 	},
 };
 
+const possibleIntervals = [
+	'year',
+	'month',
+	'day',
+	'hour',
+	'minute',
+	'second',
+	'year to month',
+	'day to hour',
+	'day to minute',
+	'day to second',
+	'hour to minute',
+	'hour to second',
+	'minute to second',
+];
+function parseIntervalFields(type: string): { fields?: typeof possibleIntervals[number]; precision?: number } {
+	const options: { precision?: number; fields?: typeof possibleIntervals[number] } = {};
+	// incoming: interval day to second(3)
+
+	// [interval, day, to, second(3)]
+	const splitted = type.split(' ');
+	if (splitted.length === 1) {
+		return options;
+	}
+
+	// [day, to, second(3)]
+	// day to second(3)
+	const rest = splitted.slice(1, splitted.length).join(' ');
+	if (possibleIntervals.includes(rest)) return { ...options, fields: rest };
+
+	// day to second(3)
+	for (const s of possibleIntervals) {
+		if (rest.startsWith(`${s}(`)) return { ...options, fields: s };
+	}
+
+	return options;
+}
+// This is not handled the way cockroach stores it
+// since user can pass `1 2:3:4` and it will be stored as `1 day 02:03:04`
+// so we just compare row values
+export const Interval: SqlType = {
+	is: (type: string) =>
+		/^interval(\s+(year|month|day|hour|minute|second)(\s+to\s+(month|day|hour|minute|second))?)?(?:\((\d+)\))?(\[\])?$/i
+			.test(type),
+	drizzleImport: () => 'interval',
+	defaultFromDrizzle: (value) => {
+		return { value: `'${value}'`, type: 'unknown' };
+	},
+	defaultArrayFromDrizzle: (value) => {
+		const res = stringifyArray(
+			value,
+			'sql',
+			(v) => {
+				if (typeof v !== 'string') throw new Error();
+				return `"${v}"`;
+			},
+		);
+
+		return { value: `'${res}'`, type: 'unknown' };
+	},
+	defaultFromIntrospect: (value) => {
+		return { value: value, type: 'unknown' };
+	},
+	defaultArrayFromIntrospect: (value) => {
+		return { value: value as string, type: 'unknown' };
+	},
+	toTs: (type, value) => {
+		const options: { precision?: number; fields?: typeof possibleIntervals[number] } = {};
+		const [precision] = parseParams(type);
+		if (precision) options['precision'] = Number(precision);
+		const fields = parseIntervalFields(type);
+		if (fields.fields) options['fields'] = fields.fields;
+
+		if (!value) return { options, default: '' };
+
+		return { options, default: `"${trimChar(value, "'")}"` };
+	},
+	toArrayTs: (type, value) => {
+		const options: any = {};
+		const [precision] = parseParams(type);
+		if (precision) options['precision'] = Number(precision);
+		const fields = parseIntervalFields(type);
+		if (fields.fields) options['fields'] = fields.fields;
+
+		if (!value) return { options, default: '' };
+
+		try {
+			const trimmed = trimChar(trimChar(value, ['(', ')']), "'");
+			const res = parseArray(trimmed);
+
+			return {
+				options,
+				default: stringifyArray(res, 'ts', (v) => {
+					return `"${v}"`;
+				}),
+			};
+		} catch {
+			return { options, default: `sql\`${value}\`` };
+		}
+	},
+};
+
+export const Vector: SqlType = {
+	is: (type: string) => /^\s*vector(?:\(\d+(?:,\d+)?\))?(?:\s*\[\s*\])*\s*$/i.test(type),
+	drizzleImport: () => 'vector',
+	defaultFromDrizzle: (value) => {
+		return { value: `'[${String(value).replaceAll(' ', '')}]'`, type: 'unknown' };
+	},
+	// not supported
+	defaultArrayFromDrizzle: () => {
+		return { value: '', type: 'unknown' };
+	},
+	defaultFromIntrospect: (value) => {
+		return { value: value, type: 'unknown' };
+	},
+	// not supported
+	defaultArrayFromIntrospect: () => {
+		return { value: '', type: 'unknown' };
+	},
+	toTs: (type, value) => {
+		const options: any = {};
+		const [dimensions] = parseParams(type);
+		if (dimensions) options['dimensions'] = Number(dimensions);
+
+		if (!value) return { options, default: '' };
+
+		return { options, default: trimChar(value, "'") };
+	},
+	// not supported
+	toArrayTs: () => {
+		return { default: '', options: {} };
+	},
+};
+
 export const typeFor = (type: string): SqlType | null => {
 	if (Int2.is(type)) return Int2;
 	if (Int4.is(type)) return Int4;
@@ -1449,6 +1588,8 @@ export const typeFor = (type: string): SqlType | null => {
 	// if (Text.is(type)) return Text;
 	if (StringType.is(type)) return StringType;
 	if (Jsonb.is(type)) return Jsonb;
+	if (Interval.is(type)) return Interval;
+	if (Vector.is(type)) return Vector;
 	// no sql type
 	return null;
 };

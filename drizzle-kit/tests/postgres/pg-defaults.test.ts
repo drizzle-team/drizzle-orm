@@ -1241,6 +1241,9 @@ test('vector + vector arrays', async () => {
 		`'{{"[0,-2.1234567,3.1234567]"},{"[1.1234567,2.1234567,3.1234567]"}}'::vector[]`,
 	);
 
+	const res9 = await diffDefault(_, vector({ dimensions: 2 }).default([0, -2]), `'[0,-2,0]'`);
+	const res10 = await diffDefault(_, vector({ dimensions: 5 }).default([0, -2, 0, 0, 0]), `'[0,-2,0,0,0]'`);
+
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
@@ -1249,6 +1252,8 @@ test('vector + vector arrays', async () => {
 	expect.soft(res6).toStrictEqual([]);
 	expect.soft(res7).toStrictEqual([]);
 	expect.soft(res8).toStrictEqual([]);
+	expect.soft(res9).toStrictEqual([]);
+	expect.soft(res10).toStrictEqual([]);
 });
 
 // postgis extension

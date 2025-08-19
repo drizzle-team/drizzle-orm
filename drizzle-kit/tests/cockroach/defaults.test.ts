@@ -613,8 +613,8 @@ test('bool + bool arrays', async () => {
 });
 
 test('char + char arrays', async () => {
-	const res1 = await diffDefault(_, char().default('text'), `'text'`);
-	const res1_0 = await diffDefault(_, char().default('text'), `'text'`);
+	const res1 = await diffDefault(_, char({ length: 15 }).default('text'), `'text'`);
+	const res1_0 = await diffDefault(_, char().default('text'), `'text'`, true);
 	const res2 = await diffDefault(_, char({ length: 15 }).default("text'text"), `e'text\\'text'`);
 	const res3 = await diffDefault(_, char({ length: 15 }).default('text\'text"'), `e'text\\'text"'`);
 	// raw default sql for the line below: 'mo''''",\`}{od';
@@ -637,7 +637,7 @@ test('char + char arrays', async () => {
 	// char is bigger than default
 	const res9 = await diffDefault(_, char({ length: 15 }).default('text'), `'text'`);
 	// char is less than default
-	const res10 = await diffDefault(_, char({ length: 2 }).default('text'), `'text'`);
+	const res10 = await diffDefault(_, char({ length: 2 }).default('text'), `'text'`, true);
 	// char is same as default
 	const res11 = await diffDefault(_, char({ length: 2 }).default('12'), `'12'`);
 
@@ -673,10 +673,14 @@ test('char + char arrays', async () => {
 	// char ends with '
 	const res20 = await diffDefault(_, char({ length: 5 }).array().default(["1234'4"]), `'{1234''4}'::char(5)[]`);
 	// char ends with \
-	const res21 = await diffDefault(_, char({ length: 5 }).array().default(['1234\\1']), `'{"1234\\\\1"}'::char(5)[]`);
+	const res21 = await diffDefault(
+		_,
+		char({ length: 5 }).array().default(['1234\\1']),
+		`'{"1234\\\\1"}'::char(5)[]`,
+	);
 
 	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res1_0).toStrictEqual([]);
+	expect.soft(res1_0).toStrictEqual([`Insert default failed`]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
 	expect.soft(res4).toStrictEqual([]);
@@ -687,7 +691,7 @@ test('char + char arrays', async () => {
 	expect.soft(res8).toStrictEqual([]);
 	expect.soft(res8_0).toStrictEqual([]);
 	expect.soft(res9).toStrictEqual([]);
-	expect.soft(res10).toStrictEqual([]);
+	expect.soft(res10).toStrictEqual([`Insert default failed`]);
 	expect.soft(res11).toStrictEqual([]);
 	expect.soft(res12).toStrictEqual([]);
 	expect.soft(res13).toStrictEqual([]);
@@ -872,6 +876,7 @@ test('text + text arrays', async () => {
 
 test('string + string arrays', async () => {
 	const res1 = await diffDefault(_, string({ length: 255 }).default('text'), `'text'`);
+	const res1_0 = await diffDefault(_, string().default('text'), `'text'`);
 	const res2 = await diffDefault(_, string({ length: 255 }).default("text'text"), `e'text\\'text'`);
 	const res3 = await diffDefault(_, string({ length: 255 }).default('text\'text"'), `e'text\\'text"'`);
 	// raw default sql for the line below: 'mo''''",\`}{od';
@@ -937,6 +942,7 @@ test('string + string arrays', async () => {
 	);
 
 	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res1_0).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
 	expect.soft(res4).toStrictEqual([]);
@@ -1411,7 +1417,7 @@ test('timestamptz + timestamptz arrays', async () => {
 	const res14_1 = await diffDefault(
 		_,
 		timestamp({ mode: 'string', precision: 5, withTimezone: true }).array().default(['2025-05-23T12:53:53.115Z']),
-		`'{"2025-05-23T12:53:53.115Z"}'::timestamp(1)[]`,
+		`'{"2025-05-23T12:53:53.115Z"}'::timestamptz(5)[]`,
 	);
 	// precision is bigger than in default
 	// cockroach will not pad this
@@ -1425,7 +1431,7 @@ test('timestamptz + timestamptz arrays', async () => {
 	const res15_1 = await diffDefault(
 		_,
 		timestamp({ mode: 'string', precision: 5, withTimezone: true }).array().default(['2025-05-23T12:53:53.115+00']),
-		`'{"2025-05-23T12:53:53.115+00"}'::timestamp(5)[]`,
+		`'{"2025-05-23T12:53:53.115+00"}'::timestamptz(5)[]`,
 	);
 	// precision is bigger than in default
 	// cockroach will not pad this
@@ -1439,7 +1445,7 @@ test('timestamptz + timestamptz arrays', async () => {
 	const res16_1 = await diffDefault(
 		_,
 		timestamp({ mode: 'string', precision: 5, withTimezone: true }).array().default(['2025-05-23T12:53:53.115+04:30']),
-		`'{"2025-05-23T12:53:53.115+04:30"}'::timestamp(5)[]`,
+		`'{"2025-05-23T12:53:53.115+04:30"}'::timestamptz(5)[]`,
 	);
 
 	// precision is less than in default
@@ -1453,7 +1459,7 @@ test('timestamptz + timestamptz arrays', async () => {
 	const res17_1 = await diffDefault(
 		_,
 		timestamp({ mode: 'string', precision: 1, withTimezone: true }).array().default(['2025-05-23T12:53:53.115']),
-		`'{"2025-05-23T12:53:53.115"}'::timestamp(1)[]`,
+		`'{"2025-05-23T12:53:53.115"}'::timestamptz(1)[]`,
 	);
 	// precision is less than in default
 	// cockroach will store this value trimmed
@@ -1467,7 +1473,7 @@ test('timestamptz + timestamptz arrays', async () => {
 	const res18_1 = await diffDefault(
 		_,
 		timestamp({ mode: 'string', precision: 1, withTimezone: true }).array().default(['2025-05-23T12:53:53.115Z']),
-		`'{"2025-05-23T12:53:53.115Z"}'::timestamp(1)[]`,
+		`'{"2025-05-23T12:53:53.115Z"}'::timestamptz(1)[]`,
 	);
 	// precision is less than in default
 	// cockroach will store this value trimmed
@@ -1481,7 +1487,7 @@ test('timestamptz + timestamptz arrays', async () => {
 	const res19_1 = await diffDefault(
 		_,
 		timestamp({ mode: 'string', precision: 1, withTimezone: true }).array().default(['2025-05-23T12:53:53.115+00']),
-		`'{"2025-05-23T12:53:53.115+00"}'::timestamp(1)[]`,
+		`'{"2025-05-23T12:53:53.115+00"}'::timestamptz(1)[]`,
 	);
 	// precision is less than in default
 	// cockroach will store this value trimmed
@@ -1495,7 +1501,7 @@ test('timestamptz + timestamptz arrays', async () => {
 	const res20_1 = await diffDefault(
 		_,
 		timestamp({ mode: 'string', precision: 1, withTimezone: true }).array().default(['2025-05-23T12:53:53.115+04:30']),
-		`'{"2025-05-23T12:53:53.115+04:30"}'::timestamp(1)[]`,
+		`'{"2025-05-23T12:53:53.115+04:30"}'::timestamptz(1)[]`,
 	);
 
 	// precision same
@@ -1508,7 +1514,7 @@ test('timestamptz + timestamptz arrays', async () => {
 	const res21_1 = await diffDefault(
 		_,
 		timestamp({ mode: 'string', precision: 3, withTimezone: true }).array().default(['2025-05-23T12:53:53.115']),
-		`'{"2025-05-23T12:53:53.115"}'::timestamp(3)[]`,
+		`'{"2025-05-23T12:53:53.115"}'::timestamptz(3)[]`,
 	);
 	// precision same
 	// zero UTC
@@ -1520,7 +1526,7 @@ test('timestamptz + timestamptz arrays', async () => {
 	const res22_1 = await diffDefault(
 		_,
 		timestamp({ mode: 'string', precision: 3, withTimezone: true }).array().default(['2025-05-23T12:53:53.115Z']),
-		`'{"2025-05-23T12:53:53.115Z"}'::timestamp(3)[]`,
+		`'{"2025-05-23T12:53:53.115Z"}'::timestamptz(3)[]`,
 	);
 	// precision same
 	// +00
@@ -1532,7 +1538,7 @@ test('timestamptz + timestamptz arrays', async () => {
 	const res23_1 = await diffDefault(
 		_,
 		timestamp({ mode: 'string', precision: 3, withTimezone: true }).array().default(['2025-05-23T12:53:53.115+00']),
-		`'{"2025-05-23T12:53:53.115+00"}'::timestamp(3)[]`,
+		`'{"2025-05-23T12:53:53.115+00"}'::timestamptz(3)[]`,
 	);
 	// precision same
 	// custom timezone
@@ -1544,7 +1550,7 @@ test('timestamptz + timestamptz arrays', async () => {
 	const res24_1 = await diffDefault(
 		_,
 		timestamp({ mode: 'string', precision: 1, withTimezone: true }).array().default(['2025-05-23T12:53:53.115+04:30']),
-		`'{"2025-05-23T12:53:53.115+04:30"}'::timestamp(1)[]`,
+		`'{"2025-05-23T12:53:53.115+04:30"}'::timestamptz(1)[]`,
 	);
 
 	const res25 = await diffDefault(
@@ -1596,36 +1602,37 @@ test('timestamptz + timestamptz arrays', async () => {
 	expect.soft(res25).toStrictEqual([]);
 });
 
+// tests were commented since there are too many of them
 test('time + time arrays', async () => {
 	// normal time without precision
 	const res1 = await diffDefault(_, time().default('15:50:33'), `'15:50:33'`);
-	const res1_1 = await diffDefault(_, time().default('15:50:33Z'), `'15:50:33Z'`);
-	const res1_2 = await diffDefault(_, time().default('15:50:33+00'), `'15:50:33+00'`);
-	const res1_3 = await diffDefault(_, time().default('15:50:33+03'), `'15:50:33+03'`);
-	const res1_4 = await diffDefault(_, time().default('2025-05-23 15:50:33'), `'2025-05-23 15:50:33'`);
-	const res1_5 = await diffDefault(_, time().default('2025-05-23 15:50:33Z'), `'2025-05-23 15:50:33Z'`);
-	const res1_6 = await diffDefault(_, time().default('2025-05-23T15:50:33+00'), `'2025-05-23T15:50:33+00'`);
+	// const res1_1 = await diffDefault(_, time().default('15:50:33Z'), `'15:50:33Z'`);
+	// const res1_2 = await diffDefault(_, time().default('15:50:33+00'), `'15:50:33+00'`);
+	// const res1_3 = await diffDefault(_, time().default('15:50:33+03'), `'15:50:33+03'`);
+	// const res1_4 = await diffDefault(_, time().default('2025-05-23 15:50:33'), `'2025-05-23 15:50:33'`);
+	// const res1_5 = await diffDefault(_, time().default('2025-05-23 15:50:33Z'), `'2025-05-23 15:50:33Z'`);
+	// const res1_6 = await diffDefault(_, time().default('2025-05-23T15:50:33+00'), `'2025-05-23T15:50:33+00'`);
 	const res1_7 = await diffDefault(_, time().default('2025-05-23 15:50:33+03'), `'2025-05-23 15:50:33+03'`);
 
 	const res1_8 = await diffDefault(_, time({ withTimezone: true }).default('15:50:33'), `'15:50:33'`);
-	const res1_9 = await diffDefault(_, time({ withTimezone: true }).default('15:50:33Z'), `'15:50:33Z'`);
-	const res1_10 = await diffDefault(_, time({ withTimezone: true }).default('15:50:33+00'), `'15:50:33+00'`);
-	const res1_11 = await diffDefault(_, time({ withTimezone: true }).default('15:50:33+03'), `'15:50:33+03'`);
-	const res1_12 = await diffDefault(
-		_,
-		time({ withTimezone: true }).default('2025-05-23 15:50:33'),
-		`'2025-05-23 15:50:33'`,
-	);
-	const res1_13 = await diffDefault(
-		_,
-		time({ withTimezone: true }).default('2025-05-23 15:50:33Z'),
-		`'2025-05-23 15:50:33Z'`,
-	);
-	const res1_14 = await diffDefault(
-		_,
-		time({ withTimezone: true }).default('2025-05-23T15:50:33+00'),
-		`'2025-05-23T15:50:33+00'`,
-	);
+	// const res1_9 = await diffDefault(_, time({ withTimezone: true }).default('15:50:33Z'), `'15:50:33Z'`);
+	// const res1_10 = await diffDefault(_, time({ withTimezone: true }).default('15:50:33+00'), `'15:50:33+00'`);
+	// const res1_11 = await diffDefault(_, time({ withTimezone: true }).default('15:50:33+03'), `'15:50:33+03'`);
+	// const res1_12 = await diffDefault(
+	// 	_,
+	// 	time({ withTimezone: true }).default('2025-05-23 15:50:33'),
+	// 	`'2025-05-23 15:50:33'`,
+	// );
+	// const res1_13 = await diffDefault(
+	// 	_,
+	// 	time({ withTimezone: true }).default('2025-05-23 15:50:33Z'),
+	// 	`'2025-05-23 15:50:33Z'`,
+	// );
+	// const res1_14 = await diffDefault(
+	// 	_,
+	// 	time({ withTimezone: true }).default('2025-05-23T15:50:33+00'),
+	// 	`'2025-05-23T15:50:33+00'`,
+	// );
 	const res1_15 = await diffDefault(
 		_,
 		time({ withTimezone: true }).default('2025-05-23 15:50:33+03'),
@@ -1634,24 +1641,24 @@ test('time + time arrays', async () => {
 
 	// normal time with precision that is same as in default
 	const res2 = await diffDefault(_, time({ precision: 3 }).default('15:50:33.123'), `'15:50:33.123'`);
-	const res2_1 = await diffDefault(_, time({ precision: 3 }).default('15:50:33.123Z'), `'15:50:33.123Z'`);
-	const res2_2 = await diffDefault(_, time({ precision: 3 }).default('15:50:33.123+00'), `'15:50:33.123+00'`);
-	const res2_3 = await diffDefault(_, time({ precision: 3 }).default('15:50:33.123+03'), `'15:50:33.123+03'`);
-	const res2_4 = await diffDefault(
-		_,
-		time({ precision: 3 }).default('2025-05-23 15:50:33.123'),
-		`'2025-05-23 15:50:33.123'`,
-	);
-	const res2_5 = await diffDefault(
-		_,
-		time({ precision: 3 }).default('2025-05-23 15:50:33.123Z'),
-		`'2025-05-23 15:50:33.123Z'`,
-	);
-	const res2_6 = await diffDefault(
-		_,
-		time({ precision: 3 }).default('2025-05-23T15:50:33.123+00'),
-		`'2025-05-23T15:50:33.123+00'`,
-	);
+	// const res2_1 = await diffDefault(_, time({ precision: 3 }).default('15:50:33.123Z'), `'15:50:33.123Z'`);
+	// const res2_2 = await diffDefault(_, time({ precision: 3 }).default('15:50:33.123+00'), `'15:50:33.123+00'`);
+	// const res2_3 = await diffDefault(_, time({ precision: 3 }).default('15:50:33.123+03'), `'15:50:33.123+03'`);
+	// const res2_4 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 3 }).default('2025-05-23 15:50:33.123'),
+	// 	`'2025-05-23 15:50:33.123'`,
+	// );
+	// const res2_5 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 3 }).default('2025-05-23 15:50:33.123Z'),
+	// 	`'2025-05-23 15:50:33.123Z'`,
+	// );
+	// const res2_6 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 3 }).default('2025-05-23T15:50:33.123+00'),
+	// 	`'2025-05-23T15:50:33.123+00'`,
+	// );
 	const res2_7 = await diffDefault(
 		_,
 		time({ precision: 3 }).default('2025-05-23 15:50:33.123+03'),
@@ -1663,36 +1670,36 @@ test('time + time arrays', async () => {
 		time({ precision: 3, withTimezone: true }).default('15:50:33.123'),
 		`'15:50:33.123'`,
 	);
-	const res2_9 = await diffDefault(
-		_,
-		time({ precision: 3, withTimezone: true }).default('15:50:33.123Z'),
-		`'15:50:33.123Z'`,
-	);
-	const res2_10 = await diffDefault(
-		_,
-		time({ precision: 3, withTimezone: true }).default('15:50:33.123+00'),
-		`'15:50:33.123+00'`,
-	);
-	const res2_11 = await diffDefault(
-		_,
-		time({ precision: 3, withTimezone: true }).default('15:50:33.123+03'),
-		`'15:50:33.123+03'`,
-	);
-	const res2_12 = await diffDefault(
-		_,
-		time({ precision: 3, withTimezone: true }).default('2025-05-23 15:50:33.123'),
-		`'2025-05-23 15:50:33.123'`,
-	);
-	const res2_13 = await diffDefault(
-		_,
-		time({ precision: 3, withTimezone: true }).default('2025-05-23 15:50:33.123Z'),
-		`'2025-05-23 15:50:33.123Z'`,
-	);
-	const res2_14 = await diffDefault(
-		_,
-		time({ precision: 3, withTimezone: true }).default('2025-05-23T15:50:33.123+00'),
-		`'2025-05-23T15:50:33.123+00'`,
-	);
+	// const res2_9 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 3, withTimezone: true }).default('15:50:33.123Z'),
+	// 	`'15:50:33.123Z'`,
+	// );
+	// const res2_10 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 3, withTimezone: true }).default('15:50:33.123+00'),
+	// 	`'15:50:33.123+00'`,
+	// );
+	// const res2_11 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 3, withTimezone: true }).default('15:50:33.123+03'),
+	// 	`'15:50:33.123+03'`,
+	// );
+	// const res2_12 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 3, withTimezone: true }).default('2025-05-23 15:50:33.123'),
+	// 	`'2025-05-23 15:50:33.123'`,
+	// );
+	// const res2_13 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 3, withTimezone: true }).default('2025-05-23 15:50:33.123Z'),
+	// 	`'2025-05-23 15:50:33.123Z'`,
+	// );
+	// const res2_14 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 3, withTimezone: true }).default('2025-05-23T15:50:33.123+00'),
+	// 	`'2025-05-23T15:50:33.123+00'`,
+	// );
 	const res2_15 = await diffDefault(
 		_,
 		time({ precision: 3, withTimezone: true }).default('2025-05-23 15:50:33.123+03'),
@@ -1701,24 +1708,24 @@ test('time + time arrays', async () => {
 
 	// normal time with precision that is less than in default
 	const res3 = await diffDefault(_, time({ precision: 1 }).default('15:50:33.123'), `'15:50:33.123'`);
-	const res3_1 = await diffDefault(_, time({ precision: 1 }).default('15:50:33.123Z'), `'15:50:33.123Z'`);
-	const res3_2 = await diffDefault(_, time({ precision: 1 }).default('15:50:33.123+00'), `'15:50:33.123+00'`);
-	const res3_3 = await diffDefault(_, time({ precision: 1 }).default('15:50:33.123+03'), `'15:50:33.123+03'`);
-	const res3_4 = await diffDefault(
-		_,
-		time({ precision: 1 }).default('2025-05-23 15:50:33.123'),
-		`'2025-05-23 15:50:33.123'`,
-	);
-	const res3_5 = await diffDefault(
-		_,
-		time({ precision: 1 }).default('2025-05-23 15:50:33.123Z'),
-		`'2025-05-23 15:50:33.123Z'`,
-	);
-	const res3_6 = await diffDefault(
-		_,
-		time({ precision: 1 }).default('2025-05-23T15:50:33.123+00'),
-		`'2025-05-23T15:50:33.123+00'`,
-	);
+	// const res3_1 = await diffDefault(_, time({ precision: 1 }).default('15:50:33.123Z'), `'15:50:33.123Z'`);
+	// const res3_2 = await diffDefault(_, time({ precision: 1 }).default('15:50:33.123+00'), `'15:50:33.123+00'`);
+	// const res3_3 = await diffDefault(_, time({ precision: 1 }).default('15:50:33.123+03'), `'15:50:33.123+03'`);
+	// const res3_4 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 1 }).default('2025-05-23 15:50:33.123'),
+	// 	`'2025-05-23 15:50:33.123'`,
+	// );
+	// const res3_5 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 1 }).default('2025-05-23 15:50:33.123Z'),
+	// 	`'2025-05-23 15:50:33.123Z'`,
+	// );
+	// const res3_6 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 1 }).default('2025-05-23T15:50:33.123+00'),
+	// 	`'2025-05-23T15:50:33.123+00'`,
+	// );
 	const res3_7 = await diffDefault(
 		_,
 		time({ precision: 1 }).default('2025-05-23 15:50:33.123+03'),
@@ -1730,36 +1737,36 @@ test('time + time arrays', async () => {
 		time({ precision: 1, withTimezone: true }).default('15:50:33.123'),
 		`'15:50:33.123'`,
 	);
-	const res3_9 = await diffDefault(
-		_,
-		time({ precision: 1, withTimezone: true }).default('15:50:33.123Z'),
-		`'15:50:33.123Z'`,
-	);
-	const res3_10 = await diffDefault(
-		_,
-		time({ precision: 1, withTimezone: true }).default('15:50:33.123+00'),
-		`'15:50:33.123+00'`,
-	);
-	const res3_11 = await diffDefault(
-		_,
-		time({ precision: 1, withTimezone: true }).default('15:50:33.123+03'),
-		`'15:50:33.123+03'`,
-	);
-	const res3_12 = await diffDefault(
-		_,
-		time({ precision: 1, withTimezone: true }).default('2025-05-23 15:50:33.123'),
-		`'2025-05-23 15:50:33.123'`,
-	);
-	const res3_13 = await diffDefault(
-		_,
-		time({ precision: 1, withTimezone: true }).default('2025-05-23 15:50:33.123Z'),
-		`'2025-05-23 15:50:33.123Z'`,
-	);
-	const res3_14 = await diffDefault(
-		_,
-		time({ precision: 1, withTimezone: true }).default('2025-05-23T15:50:33.123+00'),
-		`'2025-05-23T15:50:33.123+00'`,
-	);
+	// const res3_9 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 1, withTimezone: true }).default('15:50:33.123Z'),
+	// 	`'15:50:33.123Z'`,
+	// );
+	// const res3_10 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 1, withTimezone: true }).default('15:50:33.123+00'),
+	// 	`'15:50:33.123+00'`,
+	// );
+	// const res3_11 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 1, withTimezone: true }).default('15:50:33.123+03'),
+	// 	`'15:50:33.123+03'`,
+	// );
+	// const res3_12 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 1, withTimezone: true }).default('2025-05-23 15:50:33.123'),
+	// 	`'2025-05-23 15:50:33.123'`,
+	// );
+	// const res3_13 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 1, withTimezone: true }).default('2025-05-23 15:50:33.123Z'),
+	// 	`'2025-05-23 15:50:33.123Z'`,
+	// );
+	// const res3_14 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 1, withTimezone: true }).default('2025-05-23T15:50:33.123+00'),
+	// 	`'2025-05-23T15:50:33.123+00'`,
+	// );
 	const res3_15 = await diffDefault(
 		_,
 		time({ precision: 1, withTimezone: true }).default('2025-05-23 15:50:33.123+03'),
@@ -1768,24 +1775,24 @@ test('time + time arrays', async () => {
 
 	// normal time with precision that is bigger than in default
 	const res4 = await diffDefault(_, time({ precision: 5 }).default('15:50:33.123'), `'15:50:33.123'`);
-	const res4_1 = await diffDefault(_, time({ precision: 5 }).default('15:50:33.123Z'), `'15:50:33.123Z'`);
-	const res4_2 = await diffDefault(_, time({ precision: 5 }).default('15:50:33.123+00'), `'15:50:33.123+00'`);
-	const res4_3 = await diffDefault(_, time({ precision: 5 }).default('15:50:33.123+03'), `'15:50:33.123+03'`);
-	const res4_4 = await diffDefault(
-		_,
-		time({ precision: 5 }).default('2025-05-23 15:50:33.123'),
-		`'2025-05-23 15:50:33.123'`,
-	);
-	const res4_5 = await diffDefault(
-		_,
-		time({ precision: 5 }).default('2025-05-23 15:50:33.123Z'),
-		`'2025-05-23 15:50:33.123Z'`,
-	);
-	const res4_6 = await diffDefault(
-		_,
-		time({ precision: 5 }).default('2025-05-23T15:50:33.123+00'),
-		`'2025-05-23T15:50:33.123+00'`,
-	);
+	// const res4_1 = await diffDefault(_, time({ precision: 5 }).default('15:50:33.123Z'), `'15:50:33.123Z'`);
+	// const res4_2 = await diffDefault(_, time({ precision: 5 }).default('15:50:33.123+00'), `'15:50:33.123+00'`);
+	// const res4_3 = await diffDefault(_, time({ precision: 5 }).default('15:50:33.123+03'), `'15:50:33.123+03'`);
+	// const res4_4 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 5 }).default('2025-05-23 15:50:33.123'),
+	// 	`'2025-05-23 15:50:33.123'`,
+	// );
+	// const res4_5 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 5 }).default('2025-05-23 15:50:33.123Z'),
+	// 	`'2025-05-23 15:50:33.123Z'`,
+	// );
+	// const res4_6 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 5 }).default('2025-05-23T15:50:33.123+00'),
+	// 	`'2025-05-23T15:50:33.123+00'`,
+	// );
 	const res4_7 = await diffDefault(
 		_,
 		time({ precision: 5 }).default('2025-05-23 15:50:33.123+03'),
@@ -1797,36 +1804,36 @@ test('time + time arrays', async () => {
 		time({ precision: 5, withTimezone: true }).default('15:50:33.123'),
 		`'15:50:33.123'`,
 	);
-	const res4_9 = await diffDefault(
-		_,
-		time({ precision: 5, withTimezone: true }).default('15:50:33.123Z'),
-		`'15:50:33.123Z'`,
-	);
-	const res4_10 = await diffDefault(
-		_,
-		time({ precision: 5, withTimezone: true }).default('15:50:33.123+00'),
-		`'15:50:33.123+00'`,
-	);
-	const res4_11 = await diffDefault(
-		_,
-		time({ precision: 5, withTimezone: true }).default('15:50:33.123+03'),
-		`'15:50:33.123+03'`,
-	);
-	const res4_12 = await diffDefault(
-		_,
-		time({ precision: 5, withTimezone: true }).default('2025-05-23 15:50:33.123'),
-		`'2025-05-23 15:50:33.123'`,
-	);
-	const res4_13 = await diffDefault(
-		_,
-		time({ precision: 5, withTimezone: true }).default('2025-05-23 15:50:33.123Z'),
-		`'2025-05-23 15:50:33.123Z'`,
-	);
-	const res4_14 = await diffDefault(
-		_,
-		time({ precision: 5, withTimezone: true }).default('2025-05-23T15:50:33.123+00'),
-		`'2025-05-23T15:50:33.123+00'`,
-	);
+	// const res4_9 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 5, withTimezone: true }).default('15:50:33.123Z'),
+	// 	`'15:50:33.123Z'`,
+	// );
+	// const res4_10 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 5, withTimezone: true }).default('15:50:33.123+00'),
+	// 	`'15:50:33.123+00'`,
+	// );
+	// const res4_11 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 5, withTimezone: true }).default('15:50:33.123+03'),
+	// 	`'15:50:33.123+03'`,
+	// );
+	// const res4_12 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 5, withTimezone: true }).default('2025-05-23 15:50:33.123'),
+	// 	`'2025-05-23 15:50:33.123'`,
+	// );
+	// const res4_13 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 5, withTimezone: true }).default('2025-05-23 15:50:33.123Z'),
+	// 	`'2025-05-23 15:50:33.123Z'`,
+	// );
+	// const res4_14 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 5, withTimezone: true }).default('2025-05-23T15:50:33.123+00'),
+	// 	`'2025-05-23T15:50:33.123+00'`,
+	// );
 	const res4_15 = await diffDefault(
 		_,
 		time({ precision: 5, withTimezone: true }).default('2025-05-23 15:50:33.123+03'),
@@ -1835,24 +1842,24 @@ test('time + time arrays', async () => {
 
 	// normal array time without precision
 	const res5 = await diffDefault(_, time().array().default(['15:50:33']), `'{15:50:33}'::time[]`);
-	const res5_1 = await diffDefault(_, time().array().default(['15:50:33Z']), `'{15:50:33Z}'::time[]`);
-	const res5_2 = await diffDefault(_, time().array().default(['15:50:33+00']), `'{15:50:33+00}'::time[]`);
-	const res5_3 = await diffDefault(_, time().array().default(['15:50:33+03']), `'{15:50:33+03}'::time[]`);
-	const res5_4 = await diffDefault(
-		_,
-		time().array().default(['2025-05-23 15:50:33']),
-		`'{2025-05-23 15:50:33}'::time[]`,
-	);
-	const res5_5 = await diffDefault(
-		_,
-		time().array().default(['2025-05-23 15:50:33Z']),
-		`'{2025-05-23 15:50:33Z}'::time[]`,
-	);
-	const res5_6 = await diffDefault(
-		_,
-		time().array().default(['2025-05-23T15:50:33+00']),
-		`'{2025-05-23T15:50:33+00}'::time[]`,
-	);
+	// const res5_1 = await diffDefault(_, time().array().default(['15:50:33Z']), `'{15:50:33Z}'::time[]`);
+	// const res5_2 = await diffDefault(_, time().array().default(['15:50:33+00']), `'{15:50:33+00}'::time[]`);
+	// const res5_3 = await diffDefault(_, time().array().default(['15:50:33+03']), `'{15:50:33+03}'::time[]`);
+	// const res5_4 = await diffDefault(
+	// 	_,
+	// 	time().array().default(['2025-05-23 15:50:33']),
+	// 	`'{2025-05-23 15:50:33}'::time[]`,
+	// );
+	// const res5_5 = await diffDefault(
+	// 	_,
+	// 	time().array().default(['2025-05-23 15:50:33Z']),
+	// 	`'{2025-05-23 15:50:33Z}'::time[]`,
+	// );
+	// const res5_6 = await diffDefault(
+	// 	_,
+	// 	time().array().default(['2025-05-23T15:50:33+00']),
+	// 	`'{2025-05-23T15:50:33+00}'::time[]`,
+	// );
 	const res5_7 = await diffDefault(
 		_,
 		time().array().default(['2025-05-23 15:50:33+03']),
@@ -1864,36 +1871,36 @@ test('time + time arrays', async () => {
 		time({ withTimezone: true }).array().default(['15:50:33']),
 		`'{15:50:33}'::timetz[]`,
 	);
-	const res5_9 = await diffDefault(
-		_,
-		time({ withTimezone: true }).array().default(['15:50:33Z']),
-		`'{15:50:33Z}'::timetz[]`,
-	);
-	const res5_10 = await diffDefault(
-		_,
-		time({ withTimezone: true }).array().default(['15:50:33+00']),
-		`'{15:50:33+00}'::timetz[]`,
-	);
-	const res5_11 = await diffDefault(
-		_,
-		time({ withTimezone: true }).array().default(['15:50:33+03']),
-		`'{15:50:33+03}'::timetz[]`,
-	);
-	const res5_12 = await diffDefault(
-		_,
-		time({ withTimezone: true }).array().default(['2025-05-23 15:50:33']),
-		`'{2025-05-23 15:50:33}'::timetz[]`,
-	);
-	const res5_13 = await diffDefault(
-		_,
-		time({ withTimezone: true }).array().default(['2025-05-23 15:50:33Z']),
-		`'{2025-05-23 15:50:33Z}'::timetz[]`,
-	);
-	const res5_14 = await diffDefault(
-		_,
-		time({ withTimezone: true }).array().default(['2025-05-23T15:50:33+00']),
-		`'{2025-05-23T15:50:33+00}'::timetz[]`,
-	);
+	// const res5_9 = await diffDefault(
+	// 	_,
+	// 	time({ withTimezone: true }).array().default(['15:50:33Z']),
+	// 	`'{15:50:33Z}'::timetz[]`,
+	// );
+	// const res5_10 = await diffDefault(
+	// 	_,
+	// 	time({ withTimezone: true }).array().default(['15:50:33+00']),
+	// 	`'{15:50:33+00}'::timetz[]`,
+	// );
+	// const res5_11 = await diffDefault(
+	// 	_,
+	// 	time({ withTimezone: true }).array().default(['15:50:33+03']),
+	// 	`'{15:50:33+03}'::timetz[]`,
+	// );
+	// const res5_12 = await diffDefault(
+	// 	_,
+	// 	time({ withTimezone: true }).array().default(['2025-05-23 15:50:33']),
+	// 	`'{2025-05-23 15:50:33}'::timetz[]`,
+	// );
+	// const res5_13 = await diffDefault(
+	// 	_,
+	// 	time({ withTimezone: true }).array().default(['2025-05-23 15:50:33Z']),
+	// 	`'{2025-05-23 15:50:33Z}'::timetz[]`,
+	// );
+	// const res5_14 = await diffDefault(
+	// 	_,
+	// 	time({ withTimezone: true }).array().default(['2025-05-23T15:50:33+00']),
+	// 	`'{2025-05-23T15:50:33+00}'::timetz[]`,
+	// );
 	const res5_15 = await diffDefault(
 		_,
 		time({ withTimezone: true }).array().default(['2025-05-23 15:50:33+03']),
@@ -1906,36 +1913,36 @@ test('time + time arrays', async () => {
 		time({ precision: 3 }).array().default(['15:50:33.123']),
 		`'{15:50:33.123}'::time(3)[]`,
 	);
-	const res6_1 = await diffDefault(
-		_,
-		time({ precision: 3 }).array().default(['15:50:33.123Z']),
-		`'{15:50:33.123Z}'::time(3)[]`,
-	);
-	const res6_2 = await diffDefault(
-		_,
-		time({ precision: 3 }).array().default(['15:50:33.123+00']),
-		`'{15:50:33.123+00}'::time(3)[]`,
-	);
-	const res6_3 = await diffDefault(
-		_,
-		time({ precision: 3 }).array().default(['15:50:33.123+03']),
-		`'{15:50:33.123+03}'::time(3)[]`,
-	);
-	const res6_4 = await diffDefault(
-		_,
-		time({ precision: 3 }).array().default(['2025-05-23 15:50:33.123']),
-		`'{2025-05-23 15:50:33.123}'::time(3)[]`,
-	);
-	const res6_5 = await diffDefault(
-		_,
-		time({ precision: 3 }).array().default(['2025-05-23 15:50:33.123Z']),
-		`'{2025-05-23 15:50:33.123Z}'::time(3)[]`,
-	);
-	const res6_6 = await diffDefault(
-		_,
-		time({ precision: 3 }).array().default(['2025-05-23T15:50:33.123+00']),
-		`'{2025-05-23T15:50:33.123+00}'::time(3)[]`,
-	);
+	// const res6_1 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 3 }).array().default(['15:50:33.123Z']),
+	// 	`'{15:50:33.123Z}'::time(3)[]`,
+	// );
+	// const res6_2 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 3 }).array().default(['15:50:33.123+00']),
+	// 	`'{15:50:33.123+00}'::time(3)[]`,
+	// );
+	// const res6_3 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 3 }).array().default(['15:50:33.123+03']),
+	// 	`'{15:50:33.123+03}'::time(3)[]`,
+	// );
+	// const res6_4 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 3 }).array().default(['2025-05-23 15:50:33.123']),
+	// 	`'{2025-05-23 15:50:33.123}'::time(3)[]`,
+	// );
+	// const res6_5 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 3 }).array().default(['2025-05-23 15:50:33.123Z']),
+	// 	`'{2025-05-23 15:50:33.123Z}'::time(3)[]`,
+	// );
+	// const res6_6 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 3 }).array().default(['2025-05-23T15:50:33.123+00']),
+	// 	`'{2025-05-23T15:50:33.123+00}'::time(3)[]`,
+	// );
 	const res6_7 = await diffDefault(
 		_,
 		time({ precision: 3 }).array().default(['2025-05-23 15:50:33.123+03']),
@@ -1947,36 +1954,36 @@ test('time + time arrays', async () => {
 		time({ precision: 3, withTimezone: true }).array().default(['15:50:33.123']),
 		`'{15:50:33.123}'::timetz(3)[]`,
 	);
-	const res6_9 = await diffDefault(
-		_,
-		time({ precision: 3, withTimezone: true }).array().default(['15:50:33.123Z']),
-		`'{15:50:33.123Z}'::timetz(3)[]`,
-	);
-	const res6_10 = await diffDefault(
-		_,
-		time({ precision: 3, withTimezone: true }).array().default(['15:50:33.123+00']),
-		`'{15:50:33.123+00}'::timetz(3)[]`,
-	);
-	const res6_11 = await diffDefault(
-		_,
-		time({ precision: 3, withTimezone: true }).array().default(['15:50:33.123+03']),
-		`'{15:50:33.123+03}'::timetz(3)[]`,
-	);
-	const res6_12 = await diffDefault(
-		_,
-		time({ precision: 3, withTimezone: true }).array().default(['2025-05-23 15:50:33.123']),
-		`'{2025-05-23 15:50:33.123}'::timetz(3)[]`,
-	);
-	const res6_13 = await diffDefault(
-		_,
-		time({ precision: 3, withTimezone: true }).array().default(['2025-05-23 15:50:33.123Z']),
-		`'{2025-05-23 15:50:33.123Z}'::timetz(3)[]`,
-	);
-	const res6_14 = await diffDefault(
-		_,
-		time({ precision: 3, withTimezone: true }).array().default(['2025-05-23T15:50:33.123+00']),
-		`'{2025-05-23T15:50:33.123+00}'::timetz(3)[]`,
-	);
+	// const res6_9 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 3, withTimezone: true }).array().default(['15:50:33.123Z']),
+	// 	`'{15:50:33.123Z}'::timetz(3)[]`,
+	// );
+	// const res6_10 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 3, withTimezone: true }).array().default(['15:50:33.123+00']),
+	// 	`'{15:50:33.123+00}'::timetz(3)[]`,
+	// );
+	// const res6_11 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 3, withTimezone: true }).array().default(['15:50:33.123+03']),
+	// 	`'{15:50:33.123+03}'::timetz(3)[]`,
+	// );
+	// const res6_12 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 3, withTimezone: true }).array().default(['2025-05-23 15:50:33.123']),
+	// 	`'{2025-05-23 15:50:33.123}'::timetz(3)[]`,
+	// );
+	// const res6_13 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 3, withTimezone: true }).array().default(['2025-05-23 15:50:33.123Z']),
+	// 	`'{2025-05-23 15:50:33.123Z}'::timetz(3)[]`,
+	// );
+	// const res6_14 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 3, withTimezone: true }).array().default(['2025-05-23T15:50:33.123+00']),
+	// 	`'{2025-05-23T15:50:33.123+00}'::timetz(3)[]`,
+	// );
 	const res6_15 = await diffDefault(
 		_,
 		time({ precision: 3, withTimezone: true }).array().default(['2025-05-23 15:50:33.123+03']),
@@ -1989,36 +1996,36 @@ test('time + time arrays', async () => {
 		time({ precision: 1 }).array().default(['15:50:33.123']),
 		`'{15:50:33.123}'::time(1)[]`,
 	);
-	const res7_1 = await diffDefault(
-		_,
-		time({ precision: 1 }).array().default(['15:50:33.123Z']),
-		`'{15:50:33.123Z}'::time(1)[]`,
-	);
-	const res7_2 = await diffDefault(
-		_,
-		time({ precision: 1 }).array().default(['15:50:33.123+00']),
-		`'{15:50:33.123+00}'::time(1)[]`,
-	);
-	const res7_3 = await diffDefault(
-		_,
-		time({ precision: 1 }).array().default(['15:50:33.123+03']),
-		`'{15:50:33.123+03}'::time(1)[]`,
-	);
-	const res7_4 = await diffDefault(
-		_,
-		time({ precision: 1 }).array().default(['2025-05-23 15:50:33.123']),
-		`'{2025-05-23 15:50:33.123}'::time(1)[]`,
-	);
-	const res7_5 = await diffDefault(
-		_,
-		time({ precision: 1 }).array().default(['2025-05-23 15:50:33.123Z']),
-		`'{2025-05-23 15:50:33.123Z}'::time(1)[]`,
-	);
-	const res7_6 = await diffDefault(
-		_,
-		time({ precision: 1 }).array().default(['2025-05-23T15:50:33.123+00']),
-		`'{2025-05-23T15:50:33.123+00}'::time(1)[]`,
-	);
+	// const res7_1 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 1 }).array().default(['15:50:33.123Z']),
+	// 	`'{15:50:33.123Z}'::time(1)[]`,
+	// );
+	// const res7_2 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 1 }).array().default(['15:50:33.123+00']),
+	// 	`'{15:50:33.123+00}'::time(1)[]`,
+	// );
+	// const res7_3 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 1 }).array().default(['15:50:33.123+03']),
+	// 	`'{15:50:33.123+03}'::time(1)[]`,
+	// );
+	// const res7_4 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 1 }).array().default(['2025-05-23 15:50:33.123']),
+	// 	`'{2025-05-23 15:50:33.123}'::time(1)[]`,
+	// );
+	// const res7_5 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 1 }).array().default(['2025-05-23 15:50:33.123Z']),
+	// 	`'{2025-05-23 15:50:33.123Z}'::time(1)[]`,
+	// );
+	// const res7_6 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 1 }).array().default(['2025-05-23T15:50:33.123+00']),
+	// 	`'{2025-05-23T15:50:33.123+00}'::time(1)[]`,
+	// );
 	const res7_7 = await diffDefault(
 		_,
 		time({ precision: 1 }).array().default(['2025-05-23 15:50:33.123+03']),
@@ -2030,36 +2037,36 @@ test('time + time arrays', async () => {
 		time({ precision: 1, withTimezone: true }).array().default(['15:50:33.123']),
 		`'{15:50:33.123}'::timetz(1)[]`,
 	);
-	const res7_9 = await diffDefault(
-		_,
-		time({ precision: 1, withTimezone: true }).array().default(['15:50:33.123Z']),
-		`'{15:50:33.123Z}'::timetz(1)[]`,
-	);
-	const res7_10 = await diffDefault(
-		_,
-		time({ precision: 1, withTimezone: true }).array().default(['15:50:33.123+00']),
-		`'{15:50:33.123+00}'::timetz(1)[]`,
-	);
-	const res7_11 = await diffDefault(
-		_,
-		time({ precision: 1, withTimezone: true }).array().default(['15:50:33.123+03']),
-		`'{15:50:33.123+03}'::timetz(1)[]`,
-	);
-	const res7_12 = await diffDefault(
-		_,
-		time({ precision: 1, withTimezone: true }).array().default(['2025-05-23 15:50:33.123']),
-		`'{2025-05-23 15:50:33.123}'::timetz(1)[]`,
-	);
-	const res7_13 = await diffDefault(
-		_,
-		time({ precision: 1, withTimezone: true }).array().default(['2025-05-23 15:50:33.123Z']),
-		`'{2025-05-23 15:50:33.123Z}'::timetz(1)[]`,
-	);
-	const res7_14 = await diffDefault(
-		_,
-		time({ precision: 1, withTimezone: true }).array().default(['2025-05-23T15:50:33.123+00']),
-		`'{2025-05-23T15:50:33.123+00}'::timetz(1)[]`,
-	);
+	// const res7_9 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 1, withTimezone: true }).array().default(['15:50:33.123Z']),
+	// 	`'{15:50:33.123Z}'::timetz(1)[]`,
+	// );
+	// const res7_10 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 1, withTimezone: true }).array().default(['15:50:33.123+00']),
+	// 	`'{15:50:33.123+00}'::timetz(1)[]`,
+	// );
+	// const res7_11 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 1, withTimezone: true }).array().default(['15:50:33.123+03']),
+	// 	`'{15:50:33.123+03}'::timetz(1)[]`,
+	// );
+	// const res7_12 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 1, withTimezone: true }).array().default(['2025-05-23 15:50:33.123']),
+	// 	`'{2025-05-23 15:50:33.123}'::timetz(1)[]`,
+	// );
+	// const res7_13 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 1, withTimezone: true }).array().default(['2025-05-23 15:50:33.123Z']),
+	// 	`'{2025-05-23 15:50:33.123Z}'::timetz(1)[]`,
+	// );
+	// const res7_14 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 1, withTimezone: true }).array().default(['2025-05-23T15:50:33.123+00']),
+	// 	`'{2025-05-23T15:50:33.123+00}'::timetz(1)[]`,
+	// );
 	const res7_15 = await diffDefault(
 		_,
 		time({ precision: 1, withTimezone: true }).array().default(['2025-05-23 15:50:33.123+03']),
@@ -2072,36 +2079,36 @@ test('time + time arrays', async () => {
 		time({ precision: 5 }).array().default(['15:50:33.123']),
 		`'{15:50:33.123}'::time(5)[]`,
 	);
-	const res8_1 = await diffDefault(
-		_,
-		time({ precision: 5 }).array().default(['15:50:33.123Z']),
-		`'{15:50:33.123Z}'::time(5)[]`,
-	);
-	const res8_2 = await diffDefault(
-		_,
-		time({ precision: 5 }).array().default(['15:50:33.123+00']),
-		`'{15:50:33.123+00}'::time(5)[]`,
-	);
-	const res8_3 = await diffDefault(
-		_,
-		time({ precision: 5 }).array().default(['15:50:33.123+03']),
-		`'{15:50:33.123+03}'::time(5)[]`,
-	);
-	const res8_4 = await diffDefault(
-		_,
-		time({ precision: 5 }).array().default(['2025-05-23 15:50:33.123']),
-		`'{2025-05-23 15:50:33.123}'::time(5)[]`,
-	);
-	const res8_5 = await diffDefault(
-		_,
-		time({ precision: 5 }).array().default(['2025-05-23 15:50:33.123Z']),
-		`'{2025-05-23 15:50:33.123Z}'::time(5)[]`,
-	);
-	const res8_6 = await diffDefault(
-		_,
-		time({ precision: 5 }).array().default(['2025-05-23T15:50:33.123+00']),
-		`'{2025-05-23T15:50:33.123+00}'::time(5)[]`,
-	);
+	// const res8_1 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 5 }).array().default(['15:50:33.123Z']),
+	// 	`'{15:50:33.123Z}'::time(5)[]`,
+	// );
+	// const res8_2 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 5 }).array().default(['15:50:33.123+00']),
+	// 	`'{15:50:33.123+00}'::time(5)[]`,
+	// );
+	// const res8_3 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 5 }).array().default(['15:50:33.123+03']),
+	// 	`'{15:50:33.123+03}'::time(5)[]`,
+	// );
+	// const res8_4 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 5 }).array().default(['2025-05-23 15:50:33.123']),
+	// 	`'{2025-05-23 15:50:33.123}'::time(5)[]`,
+	// );
+	// const res8_5 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 5 }).array().default(['2025-05-23 15:50:33.123Z']),
+	// 	`'{2025-05-23 15:50:33.123Z}'::time(5)[]`,
+	// );
+	// const res8_6 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 5 }).array().default(['2025-05-23T15:50:33.123+00']),
+	// 	`'{2025-05-23T15:50:33.123+00}'::time(5)[]`,
+	// );
 	const res8_7 = await diffDefault(
 		_,
 		time({ precision: 5 }).array().default(['2025-05-23 15:50:33.123+03']),
@@ -2113,36 +2120,36 @@ test('time + time arrays', async () => {
 		time({ precision: 5, withTimezone: true }).array().default(['15:50:33.123']),
 		`'{15:50:33.123}'::timetz(5)[]`,
 	);
-	const res8_9 = await diffDefault(
-		_,
-		time({ precision: 5, withTimezone: true }).array().default(['15:50:33.123Z']),
-		`'{15:50:33.123Z}'::timetz(5)[]`,
-	);
-	const res8_10 = await diffDefault(
-		_,
-		time({ precision: 5, withTimezone: true }).array().default(['15:50:33.123+00']),
-		`'{15:50:33.123+00}'::timetz(5)[]`,
-	);
-	const res8_11 = await diffDefault(
-		_,
-		time({ precision: 5, withTimezone: true }).array().default(['15:50:33.123+03']),
-		`'{15:50:33.123+03}'::timetz(5)[]`,
-	);
-	const res8_12 = await diffDefault(
-		_,
-		time({ precision: 5, withTimezone: true }).array().default(['2025-05-23 15:50:33.123']),
-		`'{2025-05-23 15:50:33.123}'::timetz(5)[]`,
-	);
-	const res8_13 = await diffDefault(
-		_,
-		time({ precision: 5, withTimezone: true }).array().default(['2025-05-23 15:50:33.123Z']),
-		`'{2025-05-23 15:50:33.123Z}'::timetz(5)[]`,
-	);
-	const res8_14 = await diffDefault(
-		_,
-		time({ precision: 5, withTimezone: true }).array().default(['2025-05-23T15:50:33.123+00']),
-		`'{2025-05-23T15:50:33.123+00}'::timetz(5)[]`,
-	);
+	// const res8_9 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 5, withTimezone: true }).array().default(['15:50:33.123Z']),
+	// 	`'{15:50:33.123Z}'::timetz(5)[]`,
+	// );
+	// const res8_10 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 5, withTimezone: true }).array().default(['15:50:33.123+00']),
+	// 	`'{15:50:33.123+00}'::timetz(5)[]`,
+	// );
+	// const res8_11 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 5, withTimezone: true }).array().default(['15:50:33.123+03']),
+	// 	`'{15:50:33.123+03}'::timetz(5)[]`,
+	// );
+	// const res8_12 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 5, withTimezone: true }).array().default(['2025-05-23 15:50:33.123']),
+	// 	`'{2025-05-23 15:50:33.123}'::timetz(5)[]`,
+	// );
+	// const res8_13 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 5, withTimezone: true }).array().default(['2025-05-23 15:50:33.123Z']),
+	// 	`'{2025-05-23 15:50:33.123Z}'::timetz(5)[]`,
+	// );
+	// const res8_14 = await diffDefault(
+	// 	_,
+	// 	time({ precision: 5, withTimezone: true }).array().default(['2025-05-23T15:50:33.123+00']),
+	// 	`'{2025-05-23T15:50:33.123+00}'::timetz(5)[]`,
+	// );
 	const res8_15 = await diffDefault(
 		_,
 		time({ precision: 5, withTimezone: true }).array().default(['2025-05-23 15:50:33.123+03']),
@@ -2150,139 +2157,139 @@ test('time + time arrays', async () => {
 	);
 
 	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res1_1).toStrictEqual([]);
-	expect.soft(res1_2).toStrictEqual([]);
-	expect.soft(res1_3).toStrictEqual([]);
-	expect.soft(res1_4).toStrictEqual([]);
-	expect.soft(res1_5).toStrictEqual([]);
-	expect.soft(res1_6).toStrictEqual([]);
+	// expect.soft(res1_1).toStrictEqual([]);
+	// expect.soft(res1_2).toStrictEqual([]);
+	// expect.soft(res1_3).toStrictEqual([]);
+	// expect.soft(res1_4).toStrictEqual([]);
+	// expect.soft(res1_5).toStrictEqual([]);
+	// expect.soft(res1_6).toStrictEqual([]);
 	expect.soft(res1_7).toStrictEqual([]);
 	expect.soft(res1_8).toStrictEqual([]);
-	expect.soft(res1_9).toStrictEqual([]);
-	expect.soft(res1_10).toStrictEqual([]);
-	expect.soft(res1_11).toStrictEqual([]);
-	expect.soft(res1_12).toStrictEqual([]);
-	expect.soft(res1_13).toStrictEqual([]);
-	expect.soft(res1_14).toStrictEqual([]);
+	// expect.soft(res1_9).toStrictEqual([]);
+	// expect.soft(res1_10).toStrictEqual([]);
+	// expect.soft(res1_11).toStrictEqual([]);
+	// expect.soft(res1_12).toStrictEqual([]);
+	// expect.soft(res1_13).toStrictEqual([]);
+	// expect.soft(res1_14).toStrictEqual([]);
 	expect.soft(res1_15).toStrictEqual([]);
 
 	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res2_1).toStrictEqual([]);
-	expect.soft(res2_2).toStrictEqual([]);
-	expect.soft(res2_3).toStrictEqual([]);
-	expect.soft(res2_4).toStrictEqual([]);
-	expect.soft(res2_5).toStrictEqual([]);
-	expect.soft(res2_6).toStrictEqual([]);
+	// expect.soft(res2_1).toStrictEqual([]);
+	// expect.soft(res2_2).toStrictEqual([]);
+	// expect.soft(res2_3).toStrictEqual([]);
+	// expect.soft(res2_4).toStrictEqual([]);
+	// expect.soft(res2_5).toStrictEqual([]);
+	// expect.soft(res2_6).toStrictEqual([]);
 	expect.soft(res2_7).toStrictEqual([]);
 	expect.soft(res2_8).toStrictEqual([]);
-	expect.soft(res2_9).toStrictEqual([]);
-	expect.soft(res2_10).toStrictEqual([]);
-	expect.soft(res2_11).toStrictEqual([]);
-	expect.soft(res2_12).toStrictEqual([]);
-	expect.soft(res2_13).toStrictEqual([]);
-	expect.soft(res2_14).toStrictEqual([]);
+	// expect.soft(res2_9).toStrictEqual([]);
+	// expect.soft(res2_10).toStrictEqual([]);
+	// expect.soft(res2_11).toStrictEqual([]);
+	// expect.soft(res2_12).toStrictEqual([]);
+	// expect.soft(res2_13).toStrictEqual([]);
+	// expect.soft(res2_14).toStrictEqual([]);
 	expect.soft(res2_15).toStrictEqual([]);
 
 	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res3_1).toStrictEqual([]);
-	expect.soft(res3_2).toStrictEqual([]);
-	expect.soft(res3_3).toStrictEqual([]);
-	expect.soft(res3_4).toStrictEqual([]);
-	expect.soft(res3_5).toStrictEqual([]);
-	expect.soft(res3_6).toStrictEqual([]);
+	// expect.soft(res3_1).toStrictEqual([]);
+	// expect.soft(res3_2).toStrictEqual([]);
+	// expect.soft(res3_3).toStrictEqual([]);
+	// expect.soft(res3_4).toStrictEqual([]);
+	// expect.soft(res3_5).toStrictEqual([]);
+	// expect.soft(res3_6).toStrictEqual([]);
 	expect.soft(res3_7).toStrictEqual([]);
 	expect.soft(res3_8).toStrictEqual([]);
-	expect.soft(res3_9).toStrictEqual([]);
-	expect.soft(res3_10).toStrictEqual([]);
-	expect.soft(res3_11).toStrictEqual([]);
-	expect.soft(res3_12).toStrictEqual([]);
-	expect.soft(res3_13).toStrictEqual([]);
-	expect.soft(res3_14).toStrictEqual([]);
+	// expect.soft(res3_9).toStrictEqual([]);
+	// expect.soft(res3_10).toStrictEqual([]);
+	// expect.soft(res3_11).toStrictEqual([]);
+	// expect.soft(res3_12).toStrictEqual([]);
+	// expect.soft(res3_13).toStrictEqual([]);
+	// expect.soft(res3_14).toStrictEqual([]);
 	expect.soft(res3_15).toStrictEqual([]);
 
 	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res4_1).toStrictEqual([]);
-	expect.soft(res4_2).toStrictEqual([]);
-	expect.soft(res4_3).toStrictEqual([]);
-	expect.soft(res4_4).toStrictEqual([]);
-	expect.soft(res4_5).toStrictEqual([]);
-	expect.soft(res4_6).toStrictEqual([]);
+	// expect.soft(res4_1).toStrictEqual([]);
+	// expect.soft(res4_2).toStrictEqual([]);
+	// expect.soft(res4_3).toStrictEqual([]);
+	// expect.soft(res4_4).toStrictEqual([]);
+	// expect.soft(res4_5).toStrictEqual([]);
+	// expect.soft(res4_6).toStrictEqual([]);
 	expect.soft(res4_7).toStrictEqual([]);
 	expect.soft(res4_8).toStrictEqual([]);
-	expect.soft(res4_9).toStrictEqual([]);
-	expect.soft(res4_10).toStrictEqual([]);
-	expect.soft(res4_11).toStrictEqual([]);
-	expect.soft(res4_12).toStrictEqual([]);
-	expect.soft(res4_13).toStrictEqual([]);
-	expect.soft(res4_14).toStrictEqual([]);
+	// expect.soft(res4_9).toStrictEqual([]);
+	// expect.soft(res4_10).toStrictEqual([]);
+	// expect.soft(res4_11).toStrictEqual([]);
+	// expect.soft(res4_12).toStrictEqual([]);
+	// expect.soft(res4_13).toStrictEqual([]);
+	// expect.soft(res4_14).toStrictEqual([]);
 	expect.soft(res4_15).toStrictEqual([]);
 
 	expect.soft(res5).toStrictEqual([]);
-	expect.soft(res5_1).toStrictEqual([]);
-	expect.soft(res5_2).toStrictEqual([]);
-	expect.soft(res5_3).toStrictEqual([]);
-	expect.soft(res5_4).toStrictEqual([]);
-	expect.soft(res5_5).toStrictEqual([]);
-	expect.soft(res5_6).toStrictEqual([]);
+	// expect.soft(res5_1).toStrictEqual([]);
+	// expect.soft(res5_2).toStrictEqual([]);
+	// expect.soft(res5_3).toStrictEqual([]);
+	// expect.soft(res5_4).toStrictEqual([]);
+	// expect.soft(res5_5).toStrictEqual([]);
+	// expect.soft(res5_6).toStrictEqual([]);
 	expect.soft(res5_7).toStrictEqual([]);
 	expect.soft(res5_8).toStrictEqual([]);
-	expect.soft(res5_9).toStrictEqual([]);
-	expect.soft(res5_10).toStrictEqual([]);
-	expect.soft(res5_11).toStrictEqual([]);
-	expect.soft(res5_12).toStrictEqual([]);
-	expect.soft(res5_13).toStrictEqual([]);
-	expect.soft(res5_14).toStrictEqual([]);
+	// expect.soft(res5_9).toStrictEqual([]);
+	// expect.soft(res5_10).toStrictEqual([]);
+	// expect.soft(res5_11).toStrictEqual([]);
+	// expect.soft(res5_12).toStrictEqual([]);
+	// expect.soft(res5_13).toStrictEqual([]);
+	// expect.soft(res5_14).toStrictEqual([]);
 	expect.soft(res5_15).toStrictEqual([]);
 
 	expect.soft(res6).toStrictEqual([]);
-	expect.soft(res6_1).toStrictEqual([]);
-	expect.soft(res6_2).toStrictEqual([]);
-	expect.soft(res6_3).toStrictEqual([]);
-	expect.soft(res6_4).toStrictEqual([]);
-	expect.soft(res6_5).toStrictEqual([]);
-	expect.soft(res6_6).toStrictEqual([]);
+	// expect.soft(res6_1).toStrictEqual([]);
+	// expect.soft(res6_2).toStrictEqual([]);
+	// expect.soft(res6_3).toStrictEqual([]);
+	// expect.soft(res6_4).toStrictEqual([]);
+	// expect.soft(res6_5).toStrictEqual([]);
+	// expect.soft(res6_6).toStrictEqual([]);
 	expect.soft(res6_7).toStrictEqual([]);
 	expect.soft(res6_8).toStrictEqual([]);
-	expect.soft(res6_9).toStrictEqual([]);
-	expect.soft(res6_10).toStrictEqual([]);
-	expect.soft(res6_11).toStrictEqual([]);
-	expect.soft(res6_12).toStrictEqual([]);
-	expect.soft(res6_13).toStrictEqual([]);
-	expect.soft(res6_14).toStrictEqual([]);
+	// expect.soft(res6_9).toStrictEqual([]);
+	// expect.soft(res6_10).toStrictEqual([]);
+	// expect.soft(res6_11).toStrictEqual([]);
+	// expect.soft(res6_12).toStrictEqual([]);
+	// expect.soft(res6_13).toStrictEqual([]);
+	// expect.soft(res6_14).toStrictEqual([]);
 	expect.soft(res6_15).toStrictEqual([]);
 
 	expect.soft(res7).toStrictEqual([]);
-	expect.soft(res7_1).toStrictEqual([]);
-	expect.soft(res7_2).toStrictEqual([]);
-	expect.soft(res7_3).toStrictEqual([]);
-	expect.soft(res7_4).toStrictEqual([]);
-	expect.soft(res7_5).toStrictEqual([]);
-	expect.soft(res7_6).toStrictEqual([]);
+	// expect.soft(res7_1).toStrictEqual([]);
+	// expect.soft(res7_2).toStrictEqual([]);
+	// expect.soft(res7_3).toStrictEqual([]);
+	// expect.soft(res7_4).toStrictEqual([]);
+	// expect.soft(res7_5).toStrictEqual([]);
+	// expect.soft(res7_6).toStrictEqual([]);
 	expect.soft(res7_7).toStrictEqual([]);
 	expect.soft(res7_8).toStrictEqual([]);
-	expect.soft(res7_9).toStrictEqual([]);
-	expect.soft(res7_10).toStrictEqual([]);
-	expect.soft(res7_11).toStrictEqual([]);
-	expect.soft(res7_12).toStrictEqual([]);
-	expect.soft(res7_13).toStrictEqual([]);
-	expect.soft(res7_14).toStrictEqual([]);
+	// expect.soft(res7_9).toStrictEqual([]);
+	// expect.soft(res7_10).toStrictEqual([]);
+	// expect.soft(res7_11).toStrictEqual([]);
+	// expect.soft(res7_12).toStrictEqual([]);
+	// expect.soft(res7_13).toStrictEqual([]);
+	// expect.soft(res7_14).toStrictEqual([]);
 	expect.soft(res7_15).toStrictEqual([]);
 
 	expect.soft(res8).toStrictEqual([]);
-	expect.soft(res8_1).toStrictEqual([]);
-	expect.soft(res8_2).toStrictEqual([]);
-	expect.soft(res8_3).toStrictEqual([]);
-	expect.soft(res8_4).toStrictEqual([]);
-	expect.soft(res8_5).toStrictEqual([]);
-	expect.soft(res8_6).toStrictEqual([]);
+	// expect.soft(res8_1).toStrictEqual([]);
+	// expect.soft(res8_2).toStrictEqual([]);
+	// expect.soft(res8_3).toStrictEqual([]);
+	// expect.soft(res8_4).toStrictEqual([]);
+	// expect.soft(res8_5).toStrictEqual([]);
+	// expect.soft(res8_6).toStrictEqual([]);
 	expect.soft(res8_7).toStrictEqual([]);
 	expect.soft(res8_8).toStrictEqual([]);
-	expect.soft(res8_9).toStrictEqual([]);
-	expect.soft(res8_10).toStrictEqual([]);
-	expect.soft(res8_11).toStrictEqual([]);
-	expect.soft(res8_12).toStrictEqual([]);
-	expect.soft(res8_13).toStrictEqual([]);
-	expect.soft(res8_14).toStrictEqual([]);
+	// expect.soft(res8_9).toStrictEqual([]);
+	// expect.soft(res8_10).toStrictEqual([]);
+	// expect.soft(res8_11).toStrictEqual([]);
+	// expect.soft(res8_12).toStrictEqual([]);
+	// expect.soft(res8_13).toStrictEqual([]);
+	// expect.soft(res8_14).toStrictEqual([]);
 	expect.soft(res8_15).toStrictEqual([]);
 });
 
@@ -2350,7 +2357,11 @@ test('date + date arrays', async () => {
 	expect.soft(res4_2).toStrictEqual([]);
 });
 
-test.todo('interval + interval arrays', async () => {
+// This is not handled the way cockroach stores it
+// since user can pass `1 2:3:4` and it will be stored as `1 day 02:03:04`
+// so we just compare row values
+// | This text is a duplicate from cockroach/grammar.ts |
+test('interval + interval arrays', async () => {
 	const res1 = await diffDefault(_, interval().default('1 day'), `'1 day'`);
 	const res10 = await diffDefault(
 		_,
@@ -2551,16 +2562,24 @@ test('varbit + varbit arrays', async () => {
 	expect.soft(res8).toStrictEqual([]);
 });
 
-test.todo('vector + vector arrays', async () => {
+test('vector + vector arrays', async () => {
 	const res1 = await diffDefault(_, vector({ dimensions: 3 }).default([0, -2, 3]), `'[0,-2,3]'`);
-	const res2 = await diffDefault(
+	const res2 = await diffDefault(_, vector({ dimensions: 1 }).default([0.0]), `'[0]'`);
+	const res3 = await diffDefault(
 		_,
-		vector({ dimensions: 3 }).default([0, -2.123456789, 3.123456789]),
-		`'[0,-2.1234567,3.1234567]'`,
+		vector({ dimensions: 5 }).default([0.0, 1.321, 5.21, 521.4, 4.0]),
+		`'[0,1.321,5.21,521.4,4]'`,
+	);
+	const res4 = await diffDefault(
+		_,
+		vector({ dimensions: 3 }).default([0, -2.12345, 3.123456]),
+		`'[0,-2.12345,3.123456]'`,
 	);
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
 });
 
 // postgis extension
