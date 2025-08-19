@@ -6,7 +6,14 @@ import { bigserial, geometry, line, pgTable, point } from 'drizzle-orm/pg-core';
 import getPort from 'get-port';
 import pg from 'pg';
 import { v4 as uuid } from 'uuid';
-import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
+import {
+	afterAll,
+	beforeAll,
+	beforeEach,
+	expect,
+	expectTypeOf,
+	test,
+} from 'vitest';
 
 const { Client } = pg;
 
@@ -26,6 +33,13 @@ const items = pgTable('items', {
 	geo: geometry('geo', { type: 'point' }),
 	geoObj: geometry('geo_obj', { type: 'point', mode: 'xy' }),
 	geoSrid: geometry('geo_options', { type: 'point', mode: 'xy', srid: 4000 }),
+	geoMultiLineString: geometry('geo_multilinestring', {
+		type: 'multilinestring',
+	}),
+	geoMultiLineStringSrid: geometry('geo_multilinestring_srid', {
+		type: 'multilinestring',
+		srid: 4000,
+	}),
 });
 
 const relations = defineRelations({ items }, (r) => ({
@@ -44,12 +58,18 @@ async function createDockerDB(): Promise<string> {
 
 	const pullStream = await docker.pull(image);
 	await new Promise((resolve, reject) =>
-		inDocker.modem.followProgress(pullStream, (err) => (err ? reject(err) : resolve(err)))
+		inDocker.modem.followProgress(pullStream, (err) =>
+			err ? reject(err) : resolve(err)
+		)
 	);
 
 	pgContainer = await docker.createContainer({
 		Image: image,
-		Env: ['POSTGRES_PASSWORD=postgres', 'POSTGRES_USER=postgres', 'POSTGRES_DB=postgres'],
+		Env: [
+			'POSTGRES_PASSWORD=postgres',
+			'POSTGRES_USER=postgres',
+			'POSTGRES_DB=postgres',
+		],
 		name: `drizzle-integration-tests-${uuid()}`,
 		HostConfig: {
 			AutoRemove: true,
@@ -65,7 +85,8 @@ async function createDockerDB(): Promise<string> {
 }
 
 beforeAll(async () => {
-	const connectionString = process.env['PG_POSTGIS_CONNECTION_STRING'] ?? (await createDockerDB());
+	const connectionString =
+		process.env['PG_POSTGIS_CONNECTION_STRING'] ?? (await createDockerDB());
 
 	const sleep = 1000;
 	let timeLeft = 20000;
@@ -103,64 +124,140 @@ beforeEach(async () => {
 	await db.execute(sql`drop table if exists items cascade`);
 	await db.execute(sql`
 		CREATE TABLE items (
-		          id bigserial PRIMARY KEY, 
-		          "point" point,
-		          "point_xy" point,
-		          "line" line,
-		          "line_abc" line,
-				  "geo" geometry(point),
-				  "geo_obj" geometry(point),
-				  "geo_options" geometry(point,4000)
-		      );
+							id bigserial PRIMARY KEY, 
+							"point" point,
+							"point_xy" point,
+							"line" line,
+							"line_abc" line,
+					"geo" geometry(point),
+					"geo_obj" geometry(point),
+					"geo_options" geometry(point,4000),
+					"geo_multilinestring" geometry(multilinestring),
+					"geo_multilinestring_srid" geometry(multilinestring, 4000)
+					);
 	`);
 });
 
 test('insert + select', async () => {
-	const insertedValues = await db.insert(items).values([{
-		point: [1, 2],
-		pointObj: { x: 1, y: 2 },
-		line: [1, 2, 3],
-		lineObj: { a: 1, b: 2, c: 3 },
-		geo: [1, 2],
-		geoObj: { x: 1, y: 2 },
-		geoSrid: { x: 1, y: 2 },
-	}]).returning();
+	const insertedValues = await db
+		.insert(items)
+		.values([
+			{
+				point: [1, 2],
+				pointObj: { x: 1, y: 2 },
+				line: [1, 2, 3],
+				lineObj: { a: 1, b: 2, c: 3 },
+				geo: [1, 2],
+				geoObj: { x: 1, y: 2 },
+				geoSrid: { x: 1, y: 2 },
+				geoMultiLineString: [
+					[
+						[1, 2],
+						[3, 4],
+					],
+					[
+						[5, 6],
+						[7, 8],
+					],
+				],
+				geoMultiLineStringSrid: [
+					[
+						[1, 2],
+						[3, 4],
+					],
+					[
+						[5, 6],
+						[7, 8],
+					],
+				],
+			},
+		])
+		.returning();
 
 	const response = await db.select().from(items);
 
-	expect(insertedValues).toStrictEqual([{
-		id: 1,
-		point: [1, 2],
-		pointObj: { x: 1, y: 2 },
-		line: [1, 2, 3],
-		lineObj: { a: 1, b: 2, c: 3 },
-		geo: [1, 2],
-		geoObj: { x: 1, y: 2 },
-		geoSrid: { x: 1, y: 2 },
-	}]);
+	expect(insertedValues).toStrictEqual([
+		{
+			id: 1,
+			point: [1, 2],
+			pointObj: { x: 1, y: 2 },
+			line: [1, 2, 3],
+			lineObj: { a: 1, b: 2, c: 3 },
+			geo: [1, 2],
+			geoObj: { x: 1, y: 2 },
+			geoSrid: { x: 1, y: 2 },
+			geoMultiLineString: [
+				[
+					[1, 2],
+					[3, 4],
+				],
+				[
+					[5, 6],
+					[7, 8],
+				],
+			],
+			geoMultiLineStringSrid: [
+				[
+					[1, 2],
+					[3, 4],
+				],
+				[
+					[5, 6],
+					[7, 8],
+				],
+			],
+		},
+	]);
 
-	expect(response).toStrictEqual([{
-		id: 1,
-		point: [1, 2],
-		pointObj: { x: 1, y: 2 },
-		line: [1, 2, 3],
-		lineObj: { a: 1, b: 2, c: 3 },
-		geo: [1, 2],
-		geoObj: { x: 1, y: 2 },
-		geoSrid: { x: 1, y: 2 },
-	}]);
+	expect(response).toStrictEqual([
+		{
+			id: 1,
+			point: [1, 2],
+			pointObj: { x: 1, y: 2 },
+			line: [1, 2, 3],
+			lineObj: { a: 1, b: 2, c: 3 },
+			geo: [1, 2],
+			geoObj: { x: 1, y: 2 },
+			geoSrid: { x: 1, y: 2 },
+			geoMultiLineString: [
+				[
+					[1, 2],
+					[3, 4],
+				],
+				[
+					[5, 6],
+					[7, 8],
+				],
+			],
+			geoMultiLineStringSrid: [
+				[
+					[1, 2],
+					[3, 4],
+				],
+				[
+					[5, 6],
+					[7, 8],
+				],
+			],
+		},
+	]);
 });
 
 test('RQBv2', async () => {
-	await db.insert(items).values([{
-		point: [1, 2],
-		pointObj: { x: 1, y: 2 },
-		line: [1, 2, 3],
-		lineObj: { a: 1, b: 2, c: 3 },
-		geo: [1, 2],
-		geoObj: { x: 1, y: 2 },
-		geoSrid: { x: 1, y: 2 },
-	}]).returning();
+	await db
+		.insert(items)
+		.values([
+			{
+				point: [1, 2],
+				pointObj: { x: 1, y: 2 },
+				line: [1, 2, 3],
+				lineObj: { a: 1, b: 2, c: 3 },
+				geo: [1, 2],
+				geoObj: { x: 1, y: 2 },
+				geoSrid: { x: 1, y: 2 },
+			},
+		])
+		.returning();
 
 	const rawResponse = await db.select().from(items);
 	const rootRqbResponse = await db.query.items.findMany();

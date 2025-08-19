@@ -265,6 +265,25 @@ test('add table #8: geometry types', async () => {
 	]);
 });
 
+test('add table #9: geometry multilinestring types', async () => {
+	const from = {};
+
+	const to = {
+		users: pgTable('users', {
+			multiLineStringWithoutSRID: geometry('multilinestring_without_srid', { type: 'multilinestring' }).notNull(),
+			multiLineStringWithSRID: geometry('multilinestring_with_srid', { type: 'multilinestring', srid: 4326 }).notNull(),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(statements.length).toBe(1);
+
+	expect(sqlStatements).toStrictEqual([
+		`CREATE TABLE IF NOT EXISTS "users" (\n\t"multilinestring_without_srid" geometry(multilinestring) NOT NULL,\n\t"multilinestring_with_srid" geometry(multilinestring, 4326) NOT NULL\n);\n`,
+	]);
+});
+
 test('multiproject schema add table #1', async () => {
 	const table = pgTableCreator((name) => `prefix_${name}`);
 
