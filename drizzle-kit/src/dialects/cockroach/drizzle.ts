@@ -44,18 +44,17 @@ import type {
 	SchemaWarning,
 } from './ddl';
 import {
-	buildArrayString,
 	defaultNameForFK,
 	defaultNameForPK,
 	defaultNameForUnique,
 	defaults,
-	fixDecimal,
-	formatTimestampWithTZ,
 	indexName,
 	maxRangeForIdentityBasedOn,
 	minRangeForIdentityBasedOn,
 	splitSqlType,
 	stringFromIdentityProperty,
+	trimDefaultValueSuffix,
+	typeFor,
 } from './grammar';
 
 export const policyFrom = (policy: CockroachPolicy, dialect: CockroachDialect) => {
@@ -79,12 +78,8 @@ export const policyFrom = (policy: CockroachPolicy, dialect: CockroachDialect) =
 	const policyAs = (policy.as?.toUpperCase() as Policy['as']) ?? 'PERMISSIVE';
 	const policyFor = (policy.for?.toUpperCase() as Policy['for']) ?? 'ALL';
 	const policyTo = mappedTo.sort(); // TODO: ??
-	const policyUsing = is(policy.using, SQL)
-		? dialect.sqlToQuery(policy.using).sql
-		: null;
-	const withCheck = is(policy.withCheck, SQL)
-		? dialect.sqlToQuery(policy.withCheck).sql
-		: null;
+	const policyUsing = is(policy.using, SQL) ? dialect.sqlToQuery(policy.using).sql : null;
+	const withCheck = is(policy.withCheck, SQL) ? dialect.sqlToQuery(policy.withCheck).sql : null;
 
 	return {
 		name: policy.name,
@@ -102,9 +97,7 @@ export const unwrapColumn = (column: AnyCockroachColumn) => {
 		: { baseColumn: column, dimensions: 0 };
 
 	const isEnum = is(baseColumn, CockroachEnumColumn);
-	const typeSchema = isEnum
-		? baseColumn.enum.schema || 'public'
-		: null;
+	const typeSchema = isEnum ? baseColumn.enum.schema || 'public' : null;
 
 	/* TODO: legacy, for not to patch orm and don't up snapshot */
 	let sqlBaseType = baseColumn.getSQLType();
@@ -149,157 +142,38 @@ export const defaultFromColumn = (
 	def: unknown,
 	dimensions: number,
 	dialect: CockroachDialect,
-	options: string | null,
 ): Column['default'] => {
 	if (typeof def === 'undefined') return null;
 
 	if (is(def, SQL)) {
 		let sql = dialect.sqlToQuery(def).sql;
+		sql = trimDefaultValueSuffix(sql);
 
-		const isText = /^'(?:[^']|'')*'$/.test(sql);
-		sql = isText ? trimChar(sql, "'") : sql;
+		// TODO: check if needed
+
+		// const isText = /^'(?:[^']|'')*'$/.test(sql);
+		// sql = isText ? trimChar(sql, "'") : sql;
 
 		return {
 			value: sql,
-			type: isText ? 'string' : 'unknown',
+			type: 'unknown',
 		};
 	}
+	const baseType = base.getSQLType();
+	const { type } = splitSqlType(baseType);
 
-	const sqlTypeLowered = base.getSQLType().toLowerCase();
-	if (sqlTypeLowered === 'jsonb') {
-		const value = dimensions > 0 && Array.isArray(def)
-			? buildArrayString(def, sqlTypeLowered, options)
-			: JSON.stringify(def);
-		return {
-			value: value,
-			type: 'json',
-		};
-	}
+	const grammarType = typeFor(type);
 
-	if (sqlTypeLowered.startsWith('timestamp') && sqlTypeLowered.includes('with time zone') && typeof def === 'string') {
-		const value = dimensions > 0 && Array.isArray(def)
-			? buildArrayString(def, sqlTypeLowered, options)
-			: formatTimestampWithTZ(def, options ? Number(options) : undefined);
-
-		return {
-			value: value,
-			type: 'string',
-		};
-	}
-
-	if (sqlTypeLowered.startsWith('time') && sqlTypeLowered.includes('with time zone') && typeof def === 'string') {
-		const value = dimensions > 0 && Array.isArray(def)
-			? buildArrayString(def, sqlTypeLowered, options)
-			: def.replace('Z', '+00').replace('z', '+00');
-
-		return {
-			value: value,
-			type: 'string',
-		};
-	}
-
-	if (sqlTypeLowered.startsWith('decimal')) {
-		const value = dimensions > 0 && Array.isArray(def)
-			? buildArrayString(def, sqlTypeLowered, options)
-			: fixDecimal(String(def), options);
-
-		return {
-			value: value,
-			type: typeof def === 'number' ? 'number' : 'string',
-		};
-	}
-
-	if (typeof def === 'string') {
-		const value = dimensions > 0 && Array.isArray(def)
-			? buildArrayString(def, sqlTypeLowered, options)
-			: def.replaceAll("'", "''");
-
-		return {
-			value: value,
-			type: 'string',
-		};
-	}
-
-	if (typeof def === 'boolean') {
-		const value = dimensions > 0 && Array.isArray(def)
-			? buildArrayString(def, sqlTypeLowered, options)
-			: (def ? 'true' : 'false');
-		return {
-			value: value,
-			type: 'boolean',
-		};
-	}
-
-	if (typeof def === 'number') {
-		const value = dimensions > 0 && Array.isArray(def)
-			? buildArrayString(def, sqlTypeLowered, options)
-			: String(def);
-		return {
-			value: value,
-			type: 'number',
-		};
-	}
-
-	if (def instanceof Date) {
-		if (sqlTypeLowered === 'date') {
-			const value = dimensions > 0 && Array.isArray(def)
-				? buildArrayString(def, sqlTypeLowered, options)
-				: def.toISOString().split('T')[0];
-			return {
-				value: value,
-				type: 'string',
-			};
+	if (grammarType) {
+		// if (dimensions > 0 && !Array.isArray(def)) return { value: String(def), type: 'unknown' };
+		if (dimensions > 0 && Array.isArray(def)) {
+			if (def.flat(5).length === 0) return { value: "'{}'", type: 'unknown' };
+			return grammarType.defaultArrayFromDrizzle(def, baseType);
 		}
-		if (sqlTypeLowered.startsWith('timestamp')) {
-			let value;
-			if (dimensions > 0 && Array.isArray(def)) {
-				value = buildArrayString(def, sqlTypeLowered, options);
-			} else {
-				if (sqlTypeLowered.includes('with time zone')) {
-					value = formatTimestampWithTZ(def, options ? Number(options) : undefined);
-				} else {
-					value = def.toISOString().replace('T', ' ').replace('Z', ' ').slice(0, 23);
-				}
-			}
-
-			return {
-				value: value,
-				type: 'string',
-			};
-		}
-		const value = dimensions > 0 && Array.isArray(def)
-			? buildArrayString(def, sqlTypeLowered, options)
-			: def.toISOString().replace('T', ' ').replace('Z', '');
-		return {
-			value: value,
-			type: 'string',
-		};
+		return grammarType.defaultFromDrizzle(def, baseType);
 	}
 
-	if (sqlTypeLowered.startsWith('vector') && Array.isArray(def)) {
-		const value = JSON.stringify(def.map((it: number) => {
-			const str = String(it);
-			const [integerPart, decimal] = str.split('.');
-			if (!decimal || decimal.length <= 7) {
-				return it;
-			}
-			return Number(`${integerPart}.${decimal.slice(0, 7)}`);
-		}));
-
-		return {
-			value: value,
-			type: 'string',
-		};
-	}
-
-	const value = dimensions > 0 && Array.isArray(def)
-		? buildArrayString(def, sqlTypeLowered, options)
-		: String(def);
-
-	return {
-		value: value,
-		type: 'string',
-	};
+	throw new Error();
 };
 
 /*
@@ -367,10 +241,7 @@ export const fromDrizzleSchema = (
 	});
 
 	for (const policy of schema.policies) {
-		if (
-			!('_linkedTable' in policy)
-			|| typeof policy._linkedTable === 'undefined'
-		) {
+		if (!('_linkedTable' in policy) || typeof policy._linkedTable === 'undefined') {
 			warnings.push({ type: 'policy_not_linked', policy: policy.name });
 			continue;
 		}
@@ -433,16 +304,11 @@ export const fromDrizzleSchema = (
 				const generated = column.generated;
 				const identity = column.generatedIdentity;
 
-				const increment = stringFromIdentityProperty(identity?.sequenceOptions?.increment)
-					?? '1';
+				const increment = stringFromIdentityProperty(identity?.sequenceOptions?.increment) ?? '1';
 				const minValue = stringFromIdentityProperty(identity?.sequenceOptions?.minValue)
-					?? (parseFloat(increment) < 0
-						? minRangeForIdentityBasedOn(column.columnType)
-						: '1');
+					?? (parseFloat(increment) < 0 ? minRangeForIdentityBasedOn(column.columnType) : '1');
 				const maxValue = stringFromIdentityProperty(identity?.sequenceOptions?.maxValue)
-					?? (parseFloat(increment) < 0
-						? '-1'
-						: maxRangeForIdentityBasedOn(column.getSQLType()));
+					?? (parseFloat(increment) < 0 ? '-1' : maxRangeForIdentityBasedOn(column.getSQLType()));
 				const startWith = stringFromIdentityProperty(identity?.sequenceOptions?.startWith)
 					?? (parseFloat(increment) < 0 ? maxValue : minValue);
 				const cache = Number(stringFromIdentityProperty(identity?.sequenceOptions?.cache) ?? 1);
@@ -470,17 +336,16 @@ export const fromDrizzleSchema = (
 					}
 					: null;
 
-				const { baseColumn, dimensions, sqlType, baseType, options, typeSchema } = unwrapColumn(column);
+				const { dimensions, sqlType, typeSchema } = unwrapColumn(column);
 
-				const columnDefault = defaultFromColumn(baseColumn, column.default, dimensions, dialect, options);
+				const columnDefault = defaultFromColumn(column, column.default, dimensions, dialect);
 				const isPartOfPk = drizzlePKs.find((it) => it.columns.map((it) => it.name).includes(column.name));
 				return {
 					entityType: 'columns',
 					schema: schema,
 					table: tableName,
 					name,
-					type: baseType,
-					options,
+					type: sqlType,
 					typeSchema: typeSchema ?? null,
 					dimensions: dimensions,
 					pk: column.primary,
@@ -489,7 +354,7 @@ export const fromDrizzleSchema = (
 					default: columnDefault,
 					generated: generatedValue,
 					unique: column.isUnique,
-					uniqueName: column.uniqueNameExplicit ? column.uniqueName ?? null : null,
+					uniqueName: column.uniqueNameExplicit ? (column.uniqueName ?? null) : null,
 					identity: identityValue,
 				} satisfies InterimColumn;
 			}),
@@ -594,9 +459,7 @@ export const fromDrizzleSchema = (
 					return name;
 				});
 
-				const name = value.config.name
-					? value.config.name
-					: indexName(tableName, indexColumnNames);
+				const name = value.config.name ? value.config.name : indexName(tableName, indexColumnNames);
 				const nameExplicit = !!value.config.name;
 
 				let indexColumns = columns.map((it) => {
@@ -718,13 +581,7 @@ export const fromDrizzleSchema = (
 	for (const view of combinedViews) {
 		if (view.isExisting) continue;
 
-		const {
-			name: viewName,
-			schema,
-			query,
-			withNoData,
-			materialized,
-		} = view;
+		const { name: viewName, schema, query, withNoData, materialized } = view;
 
 		const viewSchema = schema ?? 'public';
 

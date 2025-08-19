@@ -58,7 +58,7 @@ export class CockroachTime<T extends ColumnBaseConfig<'string', 'CockroachTime'>
 
 	getSQLType(): string {
 		const precision = this.precision === undefined ? '' : `(${this.precision})`;
-		return `time${precision}${this.withTimezone ? ' with time zone' : ''}`;
+		return `time${this.withTimezone ? 'tz' : ''}${precision}`;
 	}
 }
 

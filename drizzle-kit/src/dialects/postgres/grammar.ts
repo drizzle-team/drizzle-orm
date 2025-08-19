@@ -357,7 +357,7 @@ export const Json: SqlType = {
 			}));
 		return { type: 'unknown', value: `'${value}'` };
 	},
-	defaultFromIntrospect: (value) => ({ type: 'unknown', value}),
+	defaultFromIntrospect: (value) => ({ type: 'unknown', value }),
 	defaultArrayFromIntrospect: (value) => {
 		return { type: 'unknown', value: value };
 	},
@@ -390,10 +390,16 @@ export const Jsonb: SqlType = {
 	is: (type: string) => /^\s*jsonb\s*$/i.test(type),
 	drizzleImport: () => 'jsonb',
 	defaultFromDrizzle: (value) => {
-		const stringified = stringify(value, (_, value) => {
-			if (typeof value !== 'string') return value;
-			return value.replaceAll("'", "''");
-		}, undefined, undefined, ", ");
+		const stringified = stringify(
+			value,
+			(_, value) => {
+				if (typeof value !== 'string') return value;
+				return value.replaceAll("'", "''");
+			},
+			undefined,
+			undefined,
+			', ',
+		);
 		return { type: 'unknown', value: `'${stringified}'` };
 	},
 	defaultArrayFromDrizzle: Json.defaultArrayFromDrizzle,

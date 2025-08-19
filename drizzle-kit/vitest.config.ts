@@ -20,7 +20,7 @@ export default defineConfig({
 			'tests/**/singlestore-generated.test.ts',
 			'tests/singlestore/**/*.test.ts',
 			'tests/gel/**/*.test.ts',
-			'tests/cockroach/',
+			// 'tests/cockroach/',
 		],
 
 		typecheck: {

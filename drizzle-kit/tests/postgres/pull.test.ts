@@ -978,9 +978,9 @@ test('introspect without any schema', async () => {
 test('introspect foreign keys', async () => {
 	const mySchema = pgSchema('my_schema');
 	const users = pgTable('users', {
-			id: integer('id').primaryKey(),
-			name: text('name'),
-		})
+		id: integer('id').primaryKey(),
+		name: text('name'),
+	});
 	const schema = {
 		mySchema,
 		users,

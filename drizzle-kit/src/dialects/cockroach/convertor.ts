@@ -1,5 +1,5 @@
 import { escapeSingleQuotes, type Simplify } from '../../utils';
-import { defaultNameForPK, defaults, defaultToSQL, isDefaultAction, typeToSql } from './grammar';
+import { defaultNameForPK, defaults, defaultToSQL, isDefaultAction } from './grammar';
 import type { JsonStatement } from './statements';
 
 export const convertor = <
@@ -86,9 +86,10 @@ const createTableConvertor = convertor('create_table', (st) => {
 
 		const primaryKeyStatement = isPK ? ' PRIMARY KEY' : '';
 		const notNullStatement = isPK ? '' : column.notNull && !column.identity ? ' NOT NULL' : '';
+
 		const defaultStatement = column.default ? ` DEFAULT ${defaultToSQL(column)}` : '';
 
-		const type = typeToSql(column);
+		const type = column.type;
 
 		const generated = column.generated;
 
@@ -96,22 +97,12 @@ const createTableConvertor = convertor('create_table', (st) => {
 
 		const identity = column.identity
 			? ` GENERATED ${column.identity.type === 'always' ? 'ALWAYS' : 'BY DEFAULT'} AS IDENTITY (${
-				column.identity.increment
-					? `INCREMENT BY ${column.identity.increment}`
-					: ''
-			}${
-				column.identity.minValue
-					? ` MINVALUE ${column.identity.minValue}`
-					: ''
-			}${
-				column.identity.maxValue
-					? ` MAXVALUE ${column.identity.maxValue}`
-					: ''
-			}${
-				column.identity.startWith
-					? ` START WITH ${column.identity.startWith}`
-					: ''
-			}${column.identity.cache ? ` CACHE ${column.identity.cache}` : ''})`
+				column.identity.increment ? `INCREMENT BY ${column.identity.increment}` : ''
+			}${column.identity.minValue ? ` MINVALUE ${column.identity.minValue}` : ''}${
+				column.identity.maxValue ? ` MAXVALUE ${column.identity.maxValue}` : ''
+			}${column.identity.startWith ? ` START WITH ${column.identity.startWith}` : ''}${
+				column.identity.cache ? ` CACHE ${column.identity.cache}` : ''
+			})`
 			: '';
 
 		statement += '\t'
@@ -121,9 +112,7 @@ const createTableConvertor = convertor('create_table', (st) => {
 
 	for (const unique of uniqueIndexes) {
 		statement += ',\n';
-		const uniqueString = unique.columns
-			.map((it) => it.isExpression ? `${it.value}` : `"${it.value}"`)
-			.join(',');
+		const uniqueString = unique.columns.map((it) => (it.isExpression ? `${it.value}` : `"${it.value}"`)).join(',');
 
 		statement += `\tCONSTRAINT "${unique.name}" UNIQUE(${uniqueString})`;
 	}
@@ -142,12 +131,14 @@ const createTableConvertor = convertor('create_table', (st) => {
 	statement += `\n`;
 	statements.push(statement);
 
-	if (policies && policies.length > 0 || isRlsEnabled) {
-		statements.push(toggleRlsConvertor.convert({
-			isRlsEnabled: true,
-			name: st.table.name,
-			schema: st.table.schema,
-		}) as string);
+	if ((policies && policies.length > 0) || isRlsEnabled) {
+		statements.push(
+			toggleRlsConvertor.convert({
+				isRlsEnabled: true,
+				name: st.table.name,
+				schema: st.table.schema,
+			}) as string,
+		);
 	}
 
 	return statements;
@@ -156,22 +147,15 @@ const createTableConvertor = convertor('create_table', (st) => {
 const dropTableConvertor = convertor('drop_table', (st) => {
 	const { name, schema, policies } = st.table;
 
-	const tableNameWithSchema = schema !== 'public'
-		? `"${schema}"."${name}"`
-		: `"${name}"`;
+	const tableNameWithSchema = schema !== 'public' ? `"${schema}"."${name}"` : `"${name}"`;
 
 	const droppedPolicies = policies.map((policy) => dropPolicyConvertor.convert({ policy }) as string);
 
-	return [
-		...droppedPolicies,
-		`DROP TABLE ${tableNameWithSchema};`,
-	];
+	return [...droppedPolicies, `DROP TABLE ${tableNameWithSchema};`];
 });
 
 const renameTableConvertor = convertor('rename_table', (st) => {
-	const schemaPrefix = st.schema !== 'public'
-		? `"${st.schema}".`
-		: '';
+	const schemaPrefix = st.schema !== 'public' ? `"${st.schema}".` : '';
 
 	return `ALTER TABLE ${schemaPrefix}"${st.from}" RENAME TO "${st.to}";`;
 });
@@ -188,34 +172,22 @@ const addColumnConvertor = convertor('add_column', (st) => {
 
 	const primaryKeyStatement = st.isPK ? ' PRIMARY KEY' : '';
 
-	const tableNameWithSchema = schema !== 'public'
-		? `"${schema}"."${table}"`
-		: `"${table}"`;
+	const tableNameWithSchema = schema !== 'public' ? `"${schema}"."${table}"` : `"${table}"`;
 
 	const defaultStatement = column.default ? ` DEFAULT ${defaultToSQL(column)}` : '';
 
-	const type = typeToSql(column);
+	const type = column.type;
 
 	const notNullStatement = column.notNull && !identity && !generated ? ' NOT NULL' : '';
 
 	const identityStatement = identity
 		? ` GENERATED ${identity.type === 'always' ? 'ALWAYS' : 'BY DEFAULT'} AS IDENTITY (${
-			identity.increment
-				? `INCREMENT BY ${identity.increment}`
-				: ''
-		}${
-			identity.minValue
-				? ` MINVALUE ${identity.minValue}`
-				: ''
-		}${
-			identity.maxValue
-				? ` MAXVALUE ${identity.maxValue}`
-				: ''
-		}${
-			identity.startWith
-				? ` START WITH ${identity.startWith}`
-				: ''
-		}${identity.cache ? ` CACHE ${identity.cache}` : ''})`
+			identity.increment ? `INCREMENT BY ${identity.increment}` : ''
+		}${identity.minValue ? ` MINVALUE ${identity.minValue}` : ''}${
+			identity.maxValue ? ` MAXVALUE ${identity.maxValue}` : ''
+		}${identity.startWith ? ` START WITH ${identity.startWith}` : ''}${
+			identity.cache ? ` CACHE ${identity.cache}` : ''
+		})`
 		: '';
 
 	const generatedStatement = column.generated ? ` GENERATED ALWAYS AS (${column.generated.as}) STORED` : '';
@@ -226,18 +198,14 @@ const addColumnConvertor = convertor('add_column', (st) => {
 const dropColumnConvertor = convertor('drop_column', (st) => {
 	const { schema, table, name } = st.column;
 
-	const tableNameWithSchema = schema !== 'public'
-		? `"${schema}"."${table}"`
-		: `"${table}"`;
+	const tableNameWithSchema = schema !== 'public' ? `"${schema}"."${table}"` : `"${table}"`;
 
 	return `ALTER TABLE ${tableNameWithSchema} DROP COLUMN "${name}";`;
 });
 
 const renameColumnConvertor = convertor('rename_column', (st) => {
 	const { table, schema } = st.from;
-	const tableNameWithSchema = schema !== 'public'
-		? `"${schema}"."${table}"`
-		: `"${table}"`;
+	const tableNameWithSchema = schema !== 'public' ? `"${schema}"."${table}"` : `"${table}"`;
 
 	return `ALTER TABLE ${tableNameWithSchema} RENAME COLUMN "${st.from.name}" TO "${st.to.name}";`;
 });
@@ -256,33 +224,27 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 	const { diff, to: column, isEnum, wasEnum } = st;
 	const statements = [] as string[];
 
-	const key = column.schema !== 'public'
-		? `"${column.schema}"."${column.table}"`
-		: `"${column.table}"`;
+	const key = column.schema !== 'public' ? `"${column.schema}"."${column.table}"` : `"${column.table}"`;
 
+	// TODO need to recheck this
 	const recreateDefault = diff.type && (isEnum || wasEnum) && (column.default || (diff.default && diff.default.from));
 	if (recreateDefault) {
 		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 	}
 
-	if (diff.type || diff.options) {
-		const type = typeToSql(column, diff, wasEnum, isEnum);
+	if (diff.type) {
+		const type = column.type;
 
 		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${type};`);
 
 		if (recreateDefault) {
-			const typeSuffix = isEnum && column.dimensions === 0 ? `::${type}` : '';
-			statements.push(
-				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(column, isEnum)};`,
-			);
+			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(column)};`);
 		}
 	}
 
 	if (diff.default && !recreateDefault) {
 		if (diff.default.to) {
-			statements.push(
-				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(diff.$right)};`,
-			);
+			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(diff.$right)};`);
 		} else {
 			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 		}
@@ -343,15 +305,7 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 });
 
 const createIndexConvertor = convertor('create_index', (st) => {
-	const {
-		schema,
-		table,
-		name,
-		columns,
-		isUnique,
-		method,
-		where,
-	} = st.index;
+	const { schema, table, name, columns, isUnique, method, where } = st.index;
 	const indexPart = isUnique ? 'UNIQUE INDEX' : 'INDEX';
 	const value = columns
 		.map((it) => {
@@ -361,11 +315,10 @@ const createIndexConvertor = convertor('create_index', (st) => {
 			const ord = it.asc ? '' : ' DESC';
 
 			return `${expr}${ord}`;
-		}).join(',');
+		})
+		.join(',');
 
-	const key = schema !== 'public'
-		? `"${schema}"."${table}"`
-		: `"${table}"`;
+	const key = schema !== 'public' ? `"${schema}"."${table}"` : `"${table}"`;
 
 	const whereClause = where ? ` WHERE ${where}` : '';
 	const using = method !== defaults.index.method ? method : null;
@@ -396,9 +349,7 @@ const renameIndexConvertor = convertor('rename_index', (st) => {
 
 const addPrimaryKeyConvertor = convertor('add_pk', (st) => {
 	const { pk } = st;
-	const key = pk.schema !== 'public'
-		? `"${pk.schema}"."${pk.table}"`
-		: `"${pk.table}"`;
+	const key = pk.schema !== 'public' ? `"${pk.schema}"."${pk.table}"` : `"${pk.table}"`;
 
 	if (!pk.nameExplicit) {
 		return `ALTER TABLE ${key} ADD PRIMARY KEY ("${pk.columns.join('","')}");`;
@@ -408,17 +359,13 @@ const addPrimaryKeyConvertor = convertor('add_pk', (st) => {
 
 const dropPrimaryKeyConvertor = convertor('drop_pk', (st) => {
 	const pk = st.pk;
-	const key = pk.schema !== 'public'
-		? `"${pk.schema}"."${pk.table}"`
-		: `"${pk.table}"`;
+	const key = pk.schema !== 'public' ? `"${pk.schema}"."${pk.table}"` : `"${pk.table}"`;
 
 	return `ALTER TABLE ${key} DROP CONSTRAINT "${pk.name}";`;
 });
 
 const alterPrimaryKeyConvertor = convertor('alter_pk', (it) => {
-	const key = it.pk.schema !== 'public'
-		? `"${it.pk.schema}"."${it.pk.table}"`
-		: `"${it.pk.table}"`;
+	const key = it.pk.schema !== 'public' ? `"${it.pk.schema}"."${it.pk.table}"` : `"${it.pk.table}"`;
 
 	return `ALTER TABLE ${key} DROP CONSTRAINT "${it.pk.name}", ADD CONSTRAINT "${it.pk.name}" PRIMARY KEY("${
 		it.pk.columns.join('","')
@@ -428,9 +375,7 @@ const alterPrimaryKeyConvertor = convertor('alter_pk', (it) => {
 const recreatePrimaryKeyConvertor = convertor('recreate_pk', (it) => {
 	const { left, right } = it;
 
-	const key = it.right.schema !== 'public'
-		? `"${right.schema}"."${right.table}"`
-		: `"${right.table}"`;
+	const key = it.right.schema !== 'public' ? `"${right.schema}"."${right.table}"` : `"${right.table}"`;
 
 	return `ALTER TABLE ${key} DROP CONSTRAINT "${left.name}", ADD CONSTRAINT "${right.name}" PRIMARY KEY("${
 		right.columns.join('","')
@@ -438,9 +383,7 @@ const recreatePrimaryKeyConvertor = convertor('recreate_pk', (it) => {
 });
 
 const renameConstraintConvertor = convertor('rename_constraint', (st) => {
-	const key = st.schema !== 'public'
-		? `"${st.schema}"."${st.table}"`
-		: `"${st.table}"`;
+	const key = st.schema !== 'public' ? `"${st.schema}"."${st.table}"` : `"${st.table}"`;
 
 	return `ALTER TABLE ${key} RENAME CONSTRAINT "${st.from}" TO "${st.to}";`;
 });
@@ -453,13 +396,9 @@ const createForeignKeyConvertor = convertor('create_fk', (st) => {
 	const fromColumnsString = columns.map((it) => `"${it}"`).join(',');
 	const toColumnsString = columnsTo.map((it) => `"${it}"`).join(',');
 
-	const tableNameWithSchema = schema !== 'public'
-		? `"${schema}"."${table}"`
-		: `"${table}"`;
+	const tableNameWithSchema = schema !== 'public' ? `"${schema}"."${table}"` : `"${table}"`;
 
-	const tableToNameWithSchema = schemaTo !== 'public'
-		? `"${schemaTo}"."${tableTo}"`
-		: `"${tableTo}"`;
+	const tableToNameWithSchema = schemaTo !== 'public' ? `"${schemaTo}"."${tableTo}"` : `"${tableTo}"`;
 
 	return `ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${name}" FOREIGN KEY (${fromColumnsString}) REFERENCES ${tableToNameWithSchema}(${toColumnsString})${onDeleteStatement}${onUpdateStatement};`;
 });
@@ -467,25 +406,15 @@ const createForeignKeyConvertor = convertor('create_fk', (st) => {
 const recreateFKConvertor = convertor('recreate_fk', (st) => {
 	const { fk } = st;
 
-	const key = fk.schema !== 'public'
-		? `"${fk.schema}"."${fk.table}"`
-		: `"${fk.table}"`;
+	const key = fk.schema !== 'public' ? `"${fk.schema}"."${fk.table}"` : `"${fk.table}"`;
 
-	const onDeleteStatement = fk.onDelete !== 'NO ACTION'
-		? ` ON DELETE ${fk.onDelete}`
-		: '';
-	const onUpdateStatement = fk.onUpdate !== 'NO ACTION'
-		? ` ON UPDATE ${fk.onUpdate}`
-		: '';
+	const onDeleteStatement = fk.onDelete !== 'NO ACTION' ? ` ON DELETE ${fk.onDelete}` : '';
+	const onUpdateStatement = fk.onUpdate !== 'NO ACTION' ? ` ON UPDATE ${fk.onUpdate}` : '';
 
-	const fromColumnsString = fk.columns
-		.map((it) => `"${it}"`)
-		.join(',');
+	const fromColumnsString = fk.columns.map((it) => `"${it}"`).join(',');
 	const toColumnsString = fk.columnsTo.map((it) => `"${it}"`).join(',');
 
-	const tableToNameWithSchema = fk.schemaTo !== 'public'
-		? `"${fk.schemaTo}"."${fk.tableTo}"`
-		: `"${fk.tableTo}"`;
+	const tableToNameWithSchema = fk.schemaTo !== 'public' ? `"${fk.schemaTo}"."${fk.tableTo}"` : `"${fk.tableTo}"`;
 
 	let sql = `ALTER TABLE ${key} DROP CONSTRAINT "${fk.name}", `;
 	sql += `ADD CONSTRAINT "${fk.name}" FOREIGN KEY (${fromColumnsString}) `;
@@ -497,35 +426,27 @@ const recreateFKConvertor = convertor('recreate_fk', (st) => {
 const dropForeignKeyConvertor = convertor('drop_fk', (st) => {
 	const { schema, table, name } = st.fk;
 
-	const tableNameWithSchema = schema !== 'public'
-		? `"${schema}"."${table}"`
-		: `"${table}"`;
+	const tableNameWithSchema = schema !== 'public' ? `"${schema}"."${table}"` : `"${table}"`;
 
 	return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${name}";`;
 });
 
 const addCheckConvertor = convertor('add_check', (st) => {
 	const { check } = st;
-	const tableNameWithSchema = check.schema !== 'public'
-		? `"${check.schema}"."${check.table}"`
-		: `"${check.table}"`;
+	const tableNameWithSchema = check.schema !== 'public' ? `"${check.schema}"."${check.table}"` : `"${check.table}"`;
 	return `ALTER TABLE ${tableNameWithSchema} ADD CONSTRAINT "${check.name}" CHECK (${check.value});`;
 });
 
 const dropCheckConvertor = convertor('drop_check', (st) => {
 	const { check } = st;
-	const tableNameWithSchema = check.schema !== 'public'
-		? `"${check.schema}"."${check.table}"`
-		: `"${check.table}"`;
+	const tableNameWithSchema = check.schema !== 'public' ? `"${check.schema}"."${check.table}"` : `"${check.table}"`;
 	return `ALTER TABLE ${tableNameWithSchema} DROP CONSTRAINT "${check.name}";`;
 });
 
 const recreateCheckConvertor = convertor('alter_check', (st) => {
 	const { check } = st;
 
-	const key = check.schema !== 'public'
-		? `"${check.schema}"."${check.table}"`
-		: `"${check.table}"`;
+	const key = check.schema !== 'public' ? `"${check.schema}"."${check.table}"` : `"${check.table}"`;
 
 	let sql = [`ALTER TABLE ${key} DROP CONSTRAINT "${check.name}";`];
 	sql.push(`ALTER TABLE ${key} ADD CONSTRAINT "${check.name}" CHECK (${check.value});`);
@@ -582,9 +503,7 @@ const recreateEnumConvertor = convertor('recreate_enum', (st) => {
 	const statements: string[] = [];
 	for (const column of columns) {
 		const key = column.schema !== 'public' ? `"${column.schema}"."${column.table}"` : `"${column.table}"`;
-		statements.push(
-			`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE text;`,
-		);
+		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE text;`);
 		if (column.default) statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 	}
 	statements.push(dropEnumConvertor.convert({ enum: to }) as string);
@@ -598,9 +517,7 @@ const recreateEnumConvertor = convertor('recreate_enum', (st) => {
 			`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${enumType} USING "${column.name}"::${enumType};`,
 		);
 		if (column.default) {
-			statements.push(
-				`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(column)};`,
-			);
+			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(column)};`);
 		}
 	}
 
@@ -633,9 +550,7 @@ const renameSequenceConvertor = convertor('rename_sequence', (st) => {
 
 const moveSequenceConvertor = convertor('move_sequence', (st) => {
 	const { from, to } = st;
-	const sequenceWithSchema = from.schema !== 'public'
-		? `"${from.schema}"."${from.name}"`
-		: `"${from.name}"`;
+	const sequenceWithSchema = from.schema !== 'public' ? `"${from.schema}"."${from.name}"` : `"${from.name}"`;
 	const seqSchemaTo = `"${to.schema}"`;
 	return `ALTER SEQUENCE ${sequenceWithSchema} SET SCHEMA ${seqSchemaTo};`;
 });
@@ -676,15 +591,13 @@ const createPolicyConvertor = convertor('create_policy', (st) => {
 	const { schema, table } = st.policy;
 	const policy = st.policy;
 
-	const tableNameWithSchema = schema !== 'public'
-		? `"${schema}"."${table}"`
-		: `"${table}"`;
+	const tableNameWithSchema = schema !== 'public' ? `"${schema}"."${table}"` : `"${table}"`;
 
 	const usingPart = policy.using ? ` USING (${policy.using})` : '';
 
 	const withCheckPart = policy.withCheck ? ` WITH CHECK (${policy.withCheck})` : '';
 
-	const policyToPart = policy.roles?.map((v) => ['current_user', 'session_user', 'public'].includes(v) ? v : `"${v}"`)
+	const policyToPart = policy.roles?.map((v) => (['current_user', 'session_user', 'public'].includes(v) ? v : `"${v}"`))
 		.join(', ');
 
 	return `CREATE POLICY "${policy.name}" ON ${tableNameWithSchema} AS ${policy.as?.toUpperCase()} FOR ${policy.for?.toUpperCase()} TO ${policyToPart}${usingPart}${withCheckPart};`;
@@ -693,9 +606,7 @@ const createPolicyConvertor = convertor('create_policy', (st) => {
 const dropPolicyConvertor = convertor('drop_policy', (st) => {
 	const policy = st.policy;
 
-	const tableNameWithSchema = policy.schema !== 'public'
-		? `"${policy.schema}"."${policy.table}"`
-		: `"${policy.table}"`;
+	const tableNameWithSchema = policy.schema !== 'public' ? `"${policy.schema}"."${policy.table}"` : `"${policy.table}"`;
 
 	return `DROP POLICY "${policy.name}" ON ${tableNameWithSchema};`;
 });
@@ -703,9 +614,7 @@ const dropPolicyConvertor = convertor('drop_policy', (st) => {
 const renamePolicyConvertor = convertor('rename_policy', (st) => {
 	const { from, to } = st;
 
-	const tableNameWithSchema = to.schema !== 'public'
-		? `"${to.schema}"."${to.table}"`
-		: `"${to.table}"`;
+	const tableNameWithSchema = to.schema !== 'public' ? `"${to.schema}"."${to.table}"` : `"${to.table}"`;
 
 	return `ALTER POLICY "${from.name}" ON ${tableNameWithSchema} RENAME TO "${to.name}";`;
 });
@@ -713,21 +622,15 @@ const renamePolicyConvertor = convertor('rename_policy', (st) => {
 const alterPolicyConvertor = convertor('alter_policy', (st) => {
 	const { policy } = st;
 
-	const tableNameWithSchema = policy.schema !== 'public'
-		? `"${policy.schema}"."${policy.table}"`
-		: `"${policy.table}"`;
+	const tableNameWithSchema = policy.schema !== 'public' ? `"${policy.schema}"."${policy.table}"` : `"${policy.table}"`;
 
-	const usingPart = policy.using
-		? ` USING (${policy.using})`
-		: '';
+	const usingPart = policy.using ? ` USING (${policy.using})` : '';
 
-	const withCheckPart = policy.withCheck
-		? ` WITH CHECK (${policy.withCheck})`
-		: '';
+	const withCheckPart = policy.withCheck ? ` WITH CHECK (${policy.withCheck})` : '';
 
-	const toClause = policy.roles?.map((v) =>
-		['current_user', 'current_role', 'session_user', 'public'].includes(v) ? v : `"${v}"`
-	).join(', ');
+	const toClause = policy.roles?.map((
+		v,
+	) => (['current_user', 'current_role', 'session_user', 'public'].includes(v) ? v : `"${v}"`)).join(', ');
 
 	return `ALTER POLICY "${policy.name}" ON ${tableNameWithSchema} TO ${toClause}${usingPart}${withCheckPart};`;
 });
@@ -742,9 +645,7 @@ const recreatePolicy = convertor('recreate_policy', (st) => {
 const toggleRlsConvertor = convertor('alter_rls', (st) => {
 	const { schema, name, isRlsEnabled } = st;
 
-	const tableNameWithSchema = schema !== 'public'
-		? `"${schema}"."${name}"`
-		: `"${name}"`;
+	const tableNameWithSchema = schema !== 'public' ? `"${schema}"."${name}"` : `"${name}"`;
 
 	return `ALTER TABLE ${tableNameWithSchema} ${isRlsEnabled ? 'ENABLE' : 'DISABLE'} ROW LEVEL SECURITY;`;
 });
@@ -803,9 +704,7 @@ const convertors = [
 	alterPrimaryKeyConvertor,
 ];
 
-export function fromJson(
-	statements: JsonStatement[],
-) {
+export function fromJson(statements: JsonStatement[]) {
 	const grouped = statements
 		.map((statement) => {
 			const filtered = convertors.filter((it) => {

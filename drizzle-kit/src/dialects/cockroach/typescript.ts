@@ -10,9 +10,9 @@ import {
 } from 'drizzle-orm/relations';
 import '../../@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
-import { parseArray } from 'src/utils/parse-pgarray';
 import { Casing } from '../../cli/validations/common';
 import { assertUnreachable, stringifyArray, trimChar } from '../../utils';
+import { inspect } from '../utils';
 import {
 	CheckConstraint,
 	CockroachDDL,
@@ -24,16 +24,15 @@ import {
 	tableFromDDL,
 	ViewColumn,
 } from './ddl';
-import { defaults } from './grammar';
+import { defaults, typeFor } from './grammar';
 
 // TODO: omit defaults opclass...
-const cockroachImportsList = new Set([
-	'cockroachTable',
+const imports = [
 	'cockroachEnum',
 	'int2',
 	'int4',
 	'int8',
-	'boolean',
+	'bool',
 	'varchar',
 	'char',
 	'decimal',
@@ -51,7 +50,12 @@ const cockroachImportsList = new Set([
 	'geometry',
 	'float',
 	'string',
-]);
+	'text',
+	'varbit',
+] as const;
+export type Import = (typeof imports)[number];
+
+const cockroachImportsList = new Set(['cockroachTable', ...imports]);
 
 const objToStatement2 = (json: { [s: string]: unknown }) => {
 	json = Object.fromEntries(Object.entries(json).filter((it) => it[1]));
@@ -304,20 +308,19 @@ export const paramNameFor = (name: string, schema: string | null) => {
 };
 
 // prev: schemaToTypeScript
-export const ddlToTypeScript = (
-	ddl: CockroachDDL,
-	columnsForViews: ViewColumn[],
-	casing: Casing,
-) => {
+export const ddlToTypeScript = (ddl: CockroachDDL, columnsForViews: ViewColumn[], casing: Casing) => {
 	const tableFn = `cockroachTable`;
 	for (const fk of ddl.fks.list()) {
 		relations.add(`${fk.table}-${fk.tableTo}`);
 	}
 
 	const schemas = Object.fromEntries(
-		ddl.schemas.list().filter((it) => it.name !== 'public').map((it) => {
-			return [it.name, withCasing(it.name, casing)];
-		}),
+		ddl.schemas
+			.list()
+			.filter((it) => it.name !== 'public')
+			.map((it) => {
+				return [it.name, withCasing(it.name, casing)];
+			}),
 	);
 
 	const enumTypes = new Set(ddl.enums.list().map((x) => `${x.schema}.${x.name}`));
@@ -349,19 +352,8 @@ export const ddlToTypeScript = (
 
 		if (x.entityType === 'columns' || x.entityType === 'viewColumns') {
 			let patched = x.type.replace('[]', '');
-			patched = importsPatch[patched] || patched;
-
-			patched = patched.startsWith('varchar(') ? 'varchar' : patched;
-			patched = patched.startsWith('character varying(') ? 'varchar' : patched;
-			patched = patched.startsWith('character(') ? 'char' : patched;
-			patched = patched.startsWith('char(') ? 'char' : patched;
-			patched = patched.startsWith('decimal(') ? 'decimal' : patched;
-			patched = patched.startsWith('time(') ? 'time' : patched;
-			patched = patched.startsWith('timestamp(') ? 'timestamp' : patched;
-			patched = patched.startsWith('vector(') ? 'vector' : patched;
-			patched = patched.startsWith('geometry(') ? 'geometry' : patched;
-			patched = patched.startsWith('interval') ? 'interval' : patched;
-
+			const grammarType = typeFor(x.type);
+			if (grammarType) imports.add(grammarType.drizzleImport());
 			if (cockroachImportsList.has(patched)) imports.add(patched);
 		}
 
@@ -371,61 +363,69 @@ export const ddlToTypeScript = (
 		if (x.entityType === 'roles') imports.add('cockroachRole');
 	}
 
-	const enumStatements = ddl.enums.list().map((it) => {
-		const enumSchema = schemas[it.schema];
-		// const func = schema || schema === "public" ? "cockroachTable" : schema;
-		const paramName = paramNameFor(it.name, enumSchema);
+	const enumStatements = ddl.enums
+		.list()
+		.map((it) => {
+			const enumSchema = schemas[it.schema];
+			// const func = schema || schema === "public" ? "cockroachTable" : schema;
+			const paramName = paramNameFor(it.name, enumSchema);
 
-		const func = enumSchema ? `${enumSchema}.enum` : 'cockroachEnum';
+			const func = enumSchema ? `${enumSchema}.enum` : 'cockroachEnum';
 
-		const values = Object.values(it.values)
-			.map((it) => {
-				return `\`${it.replaceAll('\\', '\\\\').replace('`', '\\`')}\``;
-			})
-			.join(', ');
-		return `export const ${withCasing(paramName, casing)} = ${func}("${it.name}", [${values}])\n`;
-	})
+			const values = Object.values(it.values)
+				.map((it) => {
+					return `\`${it.replaceAll('\\', '\\\\').replace('`', '\\`')}\``;
+				})
+				.join(', ');
+			return `export const ${withCasing(paramName, casing)} = ${func}("${it.name}", [${values}])\n`;
+		})
 		.join('')
 		.concat('\n');
 
-	const sequencesStatements = ddl.sequences.list().map((it) => {
-		const seqSchema = schemas[it.schema];
-		const paramName = paramNameFor(it.name, seqSchema);
+	const sequencesStatements = ddl.sequences
+		.list()
+		.map((it) => {
+			const seqSchema = schemas[it.schema];
+			const paramName = paramNameFor(it.name, seqSchema);
 
-		const func = seqSchema ? `${seqSchema}.sequence` : 'cockroachSequence';
+			const func = seqSchema ? `${seqSchema}.sequence` : 'cockroachSequence';
 
-		let params = '';
-		if (it.startWith) params += `, startWith: "${it.startWith}"`;
-		if (it.incrementBy) params += `, increment: "${it.incrementBy}"`;
-		if (it.minValue) params += `, minValue: "${it.minValue}"`;
-		if (it.maxValue) params += `, maxValue: "${it.maxValue}"`;
-		if (it.cacheSize) params += `, cache: "${it.cacheSize}"`;
-		else params += `, cycle: false`;
+			let params = '';
+			if (it.startWith) params += `, startWith: "${it.startWith}"`;
+			if (it.incrementBy) params += `, increment: "${it.incrementBy}"`;
+			if (it.minValue) params += `, minValue: "${it.minValue}"`;
+			if (it.maxValue) params += `, maxValue: "${it.maxValue}"`;
+			if (it.cacheSize) params += `, cache: "${it.cacheSize}"`;
+			else params += `, cycle: false`;
 
-		params = params ? `, { ${trimChar(params, ',')} }` : '';
+			params = params ? `, { ${trimChar(params, ',')} }` : '';
 
-		return `export const ${withCasing(paramName, casing)} = ${func}("${it.name}"${params})\n`;
-	})
+			return `export const ${withCasing(paramName, casing)} = ${func}("${it.name}"${params})\n`;
+		})
 		.join('')
 		.concat('');
 
-	const schemaStatements = Object.entries(schemas).map((it) => {
-		return `export const ${it[1]} = cockroachSchema("${it[0]}");\n`;
-	}).join('');
+	const schemaStatements = Object.entries(schemas)
+		.map((it) => {
+			return `export const ${it[1]} = cockroachSchema("${it[0]}");\n`;
+		})
+		.join('');
 
 	const rolesNameToTsKey: Record<string, string> = {};
-	const rolesStatements = ddl.roles.list().map((it) => {
-		const identifier = withCasing(it.name, casing);
-		rolesNameToTsKey[it.name] = identifier;
+	const rolesStatements = ddl.roles
+		.list()
+		.map((it) => {
+			const identifier = withCasing(it.name, casing);
+			rolesNameToTsKey[it.name] = identifier;
 
-		const params = !it.createDb && !it.createRole
-			? ''
-			: `${
-				trimChar(`, { ${it.createDb ? `createDb: true,` : ''}${it.createRole ? ` createRole: true,` : ''}`, ',')
-			}	}`;
+			const params = !it.createDb && !it.createRole
+				? ''
+				: `${
+					trimChar(`, { ${it.createDb ? `createDb: true,` : ''}${it.createRole ? ` createRole: true,` : ''}`, ',')
+				}	}`;
 
-		return `export const ${identifier} = cockroachRole("${it.name}", ${params});\n`;
-	})
+			return `export const ${identifier} = cockroachRole("${it.name}", ${params});\n`;
+		})
 		.join('');
 
 	const tableStatements = ddl.tables.list().map((it) => {
@@ -437,14 +437,7 @@ export const ddlToTypeScript = (
 
 		const func = tableSchema ? `${tableSchema}.table` : tableFn;
 		let statement = `export const ${withCasing(paramName, casing)} = ${func}("${table.name}", {\n`;
-		statement += createTableColumns(
-			columns,
-			table.pk,
-			fks,
-			enumTypes,
-			schemas,
-			casing,
-		);
+		statement += createTableColumns(columns, table.pk, fks, enumTypes, schemas, casing);
 		statement += '}';
 
 		// more than 2 fields or self reference or cyclic
@@ -453,11 +446,8 @@ export const ddlToTypeScript = (
 			return it.columns.length > 1 || isSelf(it);
 		});
 
-		const hasCallback = table.indexes.length > 0
-			|| filteredFKs.length > 0
-			|| table.policies.length > 0
-			|| (table.pk && table.pk.columns.length > 1)
-			|| table.checks.length > 0;
+		const hasCallback = table.indexes.length > 0 || filteredFKs.length > 0 || table.policies.length > 0
+			|| (table.pk && table.pk.columns.length > 1) || table.checks.length > 0;
 
 		if (hasCallback) {
 			statement += ', ';
@@ -490,11 +480,7 @@ export const ddlToTypeScript = (
 
 			const viewColumns = columnsForViews.filter((x) => x.schema === it.schema && x.view === it.name);
 
-			const columns = createViewColumns(
-				viewColumns,
-				enumTypes,
-				casing,
-			);
+			const columns = createViewColumns(viewColumns, enumTypes, casing);
 
 			let statement = `export const ${withCasing(paramName, casing)} = ${func}("${it.name}", {${columns}})`;
 			statement += `.as(${as});`;
@@ -505,11 +491,7 @@ export const ddlToTypeScript = (
 
 	const uniqueCockroachImports = [...imports];
 
-	const importsTs = `import { ${
-		uniqueCockroachImports.join(
-			', ',
-		)
-	} } from "drizzle-orm/cockroach-core"
+	const importsTs = `import { ${uniqueCockroachImports.join(', ')} } from "drizzle-orm/cockroach-core"
 import { sql } from "drizzle-orm"\n\n`;
 
 	let decalrations = schemaStatements;
@@ -547,402 +529,36 @@ const isSelf = (fk: ForeignKey) => {
 	return fk.table === fk.tableTo;
 };
 
-const mapDefault = (
-	type: string,
-	enumTypes: Set<string>,
-	typeSchema: string,
-	dimensions: number,
-	def: Column['default'],
-) => {
-	if (!def) return '';
+const column = (type: string, dimensions: number, name: string, casing: Casing, def: Column['default']) => {
+	const lowered = type.toLowerCase();
 
-	const lowered = type.toLowerCase().replace('[]', '');
+	const grammarType = typeFor(lowered);
 
-	if (enumTypes.has(`${typeSchema}.${type.replace('[]', '')}`)) {
-		if (dimensions > 0) {
-			const arr = parseArray(def.value);
-			if (arr.flat(5).length === 0) return `.default([])`;
-			const res = stringifyArray(arr, 'ts', (x) => `'${x.replaceAll("'", "\\'")}'`);
-			return `.default(${res})`;
-		}
-		return `.default(${mapColumnDefault(def)})`;
-	}
+	if (!grammarType) throw new Error(`Unsupported type: ${type}`);
 
-	const parsed = dimensions > 0 ? parseArray(def.value) : def.value;
-	if (lowered === 'uuid') {
-		if (def.value === 'gen_random_uuid()') return '.defaultRandom()';
-		const res = stringifyArray(parsed, 'ts', (x) => {
-			return `'${x}'`;
-		});
-		return `.default(${res})`;
-	}
+	const { options: optionsToSet, default: defToSet } = dimensions > 0
+		? grammarType.toArrayTs(type, def?.value ?? null)
+		: grammarType.toTs(type, def?.value ?? null);
 
-	if (lowered.startsWith('timestamp')) {
-		if (def.value === 'now()') return '.defaultNow()';
-		const res = stringifyArray(parsed, 'ts', (x) => {
-			// Matches YYYY-MM-DD HH:MI:SS, YYYY-MM-DD HH:MI:SS.FFFFFF, YYYY-MM-DD HH:MI:SS+TZ, YYYY-MM-DD HH:MI:SS.FFFFFF+TZ and YYYY-MM-DD HH:MI:SS+HH:MI
-			return /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d+)?([+-]\d{2}(:\d{2})?)?$/.test(x) ? `'${x}'` : `sql\`${x}\``;
-		});
+	const dbName = dbColumnName({ name, casing });
+	const opts = inspect(optionsToSet);
+	const comma = dbName && opts ? ', ' : '';
 
-		return `.default(${res})`;
-	}
+	let col = `${withCasing(name, casing)}: ${grammarType.drizzleImport()}(${dbName}${comma}${opts})`;
+	col += '.array()'.repeat(dimensions);
 
-	if (lowered.startsWith('time')) {
-		if (def.value === 'now()') return '.defaultNow()';
-		const res = stringifyArray(parsed, 'ts', (x) => {
-			return /^\d{2}:\d{2}(:\d{2})?(\.\d+)?$/.test(x) ? `'${x}'` : `sql\`${x}\``; // Matches HH:MI, HH:MI:SS and HH:MI:SS.FFFFFF
-		});
-
-		return `.default(${res})`;
-	}
-
-	if (lowered === 'date') {
-		if (def.value === 'now()') return '.defaultNow()';
-		const res = stringifyArray(parsed, 'ts', (x) => {
-			return /^\d{4}-\d{2}-\d{2}$/.test(x) ? `'${x}'` : `sql\`${x}\``; // Matches YYYY-MM-DD
-		});
-		return `.default(${res})`;
-	}
-
-	if (lowered === 'jsonb') {
-		if (!def.value) return '';
-		const res = stringifyArray(parsed, 'ts', (x) => {
-			return String(x);
-		});
-		return `.default(${res})`;
-	}
-
-	const mapper = lowered === 'char'
-			|| lowered === 'varchar'
-			|| lowered === 'string'
-			|| lowered === 'inet'
-		? (x: string) => {
-			x = x.replaceAll('\\', '\\\\');
-			if (dimensions === 0) {
-				return `\`${x.replaceAll('`', '\\`').replaceAll("''", "'")}\``;
-			}
-
-			return `\`${x.replaceAll('`', '\\`')}\``;
-		}
-		: lowered === 'int8'
-		? (x: string) => {
-			const value = Number(x);
-			return value > Number.MAX_SAFE_INTEGER || value < Number.MIN_SAFE_INTEGER ? `${x}n` : `${x}`;
-		}
-		: lowered.startsWith('decimal')
-		? (x: string) => {
-			const value = Number(x);
-			return value > Number.MAX_SAFE_INTEGER || value < Number.MIN_SAFE_INTEGER ? `${x}n` : `${x}`;
-		}
-		: lowered.startsWith('interval')
-		? (x: string) => `'${x}'`
-		: lowered.startsWith('boolean')
-		? (x: string) => x === 't' || x === 'true' ? 'true' : 'false'
-		: (x: string) => `${x}`;
-
-	if (dimensions > 0) {
-		const arr = parseArray(def.value);
-		if (arr.flat(5).length === 0) return `.default([])`;
-
-		const res = stringifyArray(arr, 'ts', (x) => {
-			const res = mapper(x);
-			return res;
-		});
-		return `.default(${res})`;
-	}
-
-	return `.default(${mapper(def.value)})`;
+	if (defToSet) col += defToSet.startsWith('.') ? defToSet : `.default(${defToSet})`;
+	return col;
 };
 
-const column = (
-	type: string,
-	options: string | null,
-	name: string,
-	enumTypes: Set<string>,
-	typeSchema: string,
-	casing: Casing,
-	def: Column['default'],
-) => {
-	const lowered = type.toLowerCase().replace('[]', '');
-
-	if (enumTypes.has(`${typeSchema}.${type.replace('[]', '')}`)) {
-		let out = `${withCasing(name, casing)}: ${withCasing(paramNameFor(type.replace('[]', ''), typeSchema), casing)}(${
-			dbColumnName({ name, casing })
-		})`;
-		return out;
-	}
-
-	if (lowered.startsWith('int4')) {
-		let out = `${withCasing(name, casing)}: int4(${dbColumnName({ name, casing })})`;
-		return out;
-	}
-
-	if (lowered.startsWith('int2')) {
-		let out = `${withCasing(name, casing)}: int2(${dbColumnName({ name, casing })})`;
-		return out;
-	}
-
-	if (lowered.startsWith('int8')) {
-		let out = `// You can use { mode: "bigint" } if numbers are exceeding js number limitations\n\t`;
-		const mode = def && def.type === 'bigint' ? 'bigint' : 'number';
-		out += `${withCasing(name, casing)}: int8(${dbColumnName({ name, casing, withMode: true })}{ mode: "${mode}" })`;
-		return out;
-	}
-
-	if (lowered.startsWith('boolean')) {
-		let out = `${withCasing(name, casing)}: boolean(${dbColumnName({ name, casing })})`;
-		return out;
-	}
-
-	if (lowered === 'float') {
-		let out = `${withCasing(name, casing)}: float(${dbColumnName({ name, casing })})`;
-		return out;
-	}
-
-	if (lowered.startsWith('real')) {
-		let out = `${withCasing(name, casing)}: real(${dbColumnName({ name, casing })})`;
-		return out;
-	}
-
-	if (lowered.startsWith('uuid')) {
-		let out = `${withCasing(name, casing)}: uuid(${dbColumnName({ name, casing })})`;
-
-		return out;
-	}
-
-	if (lowered === 'decimal') {
-		let params: { precision?: number; scale?: number; mode?: any } = {};
-
-		if (options) {
-			const [p, s] = options.split(',');
-			if (p) params['precision'] = Number(p);
-			if (s) params['scale'] = Number(s);
-		}
-
-		let mode = def !== null && def.type === 'bigint'
-			? 'bigint'
-			: def !== null && def.type === 'string'
-			? 'string'
-			: 'number';
-
-		if (mode) params['mode'] = mode;
-
-		let out = `// You can use { mode: "bigint" } if numbers are exceeding js number limitations\n\t`;
-		out += Object.keys(params).length > 0
-			? `${withCasing(name, casing)}: decimal(${dbColumnName({ name, casing, withMode: true })}${
-				JSON.stringify(params)
-			})`
-			: `${withCasing(name, casing)}: decimal(${dbColumnName({ name, casing })})`;
-
-		return out;
-	}
-
-	if (lowered.startsWith('timestamp')) {
-		const withTimezone = lowered.includes('with time zone');
-
-		const precision = options
-			? Number(options)
-			: null;
-
-		const params = timeConfig({
-			precision,
-			withTimezone,
-			mode: "'string'",
-		});
-
-		let out = params
-			? `${withCasing(name, casing)}: timestamp(${dbColumnName({ name, casing, withMode: true })}${params})`
-			: `${withCasing(name, casing)}: timestamp(${dbColumnName({ name, casing })})`;
-
-		return out;
-	}
-
-	if (lowered.startsWith('time')) {
-		const withTimezone = lowered.includes('with time zone');
-
-		let precision = options
-			? Number(options)
-			: null;
-
-		const params = timeConfig({ precision, withTimezone });
-
-		let out = params
-			? `${withCasing(name, casing)}: time(${dbColumnName({ name, casing, withMode: true })}${params})`
-			: `${withCasing(name, casing)}: time(${dbColumnName({ name, casing })})`;
-
-		return out;
-	}
-
-	if (lowered.startsWith('interval')) {
-		const suffix = options ? `(${options})` : '';
-		const params = intervalConfig(`${lowered}${suffix}`);
-		let out = options
-			? `${withCasing(name, casing)}: interval(${dbColumnName({ name, casing, withMode: true })}${params})`
-			: `${withCasing(name, casing)}: interval(${dbColumnName({ name, casing })})`;
-
-		return out;
-	}
-
-	if (lowered === 'date') {
-		let out = `${withCasing(name, casing)}: date(${dbColumnName({ name, casing })})`;
-
-		return out;
-	}
-
-	if (lowered.startsWith('string')) {
-		let out: string;
-		if (options) { // size
-			out = `${withCasing(name, casing)}: string(${
-				dbColumnName({ name, casing, withMode: true })
-			}{ length: ${options} })`;
-		} else {
-			out = `${withCasing(name, casing)}: string(${dbColumnName({ name, casing })})`;
-		}
-		return out;
-	}
-
-	if (lowered.startsWith('jsonb')) {
-		let out = `${withCasing(name, casing)}: jsonb(${dbColumnName({ name, casing })})`;
-		return out;
-	}
-
-	if (lowered.startsWith('json')) {
-		let out = `${withCasing(name, casing)}: json(${dbColumnName({ name, casing })})`;
-		return out;
-	}
-
-	if (lowered.startsWith('inet')) {
-		let out = `${withCasing(name, casing)}: inet(${dbColumnName({ name, casing })})`;
-		return out;
-	}
-
-	if (lowered.startsWith('cidr')) {
-		let out = `${withCasing(name, casing)}: cidr(${dbColumnName({ name, casing })})`;
-		return out;
-	}
-
-	if (lowered.startsWith('macaddr8')) {
-		let out = `${withCasing(name, casing)}: macaddr8(${dbColumnName({ name, casing })})`;
-		return out;
-	}
-
-	if (lowered.startsWith('macaddr')) {
-		let out = `${withCasing(name, casing)}: macaddr(${dbColumnName({ name, casing })})`;
-		return out;
-	}
-
-	if (lowered === 'varchar') {
-		let out: string;
-		if (options) { // size
-			out = `${withCasing(name, casing)}: varchar(${
-				dbColumnName({ name, casing, withMode: true })
-			}{ length: ${options} })`;
-		} else {
-			out = `${withCasing(name, casing)}: varchar(${dbColumnName({ name, casing })})`;
-		}
-
-		return out;
-	}
-
-	if (lowered === 'geometry') {
-		let out: string = '';
-
-		let isGeoUnknown = false;
-
-		if (lowered.length !== 8) {
-			const geometryOptions = options ? options.split(',') : [];
-			if (geometryOptions.length === 1 && geometryOptions[0] !== '') {
-				out = `${withCasing(name, casing)}: geometry(${dbColumnName({ name, casing, withMode: true })}{ type: "${
-					geometryOptions[0]
-				}" })`;
-			} else if (geometryOptions.length === 2) {
-				out = `${withCasing(name, casing)}: geometry(${dbColumnName({ name, casing, withMode: true })}{ type: "${
-					geometryOptions[0]
-				}", srid: ${geometryOptions[1]} })`;
-			} else {
-				isGeoUnknown = true;
-			}
-		} else {
-			out = `${withCasing(name, casing)}: geometry(${dbColumnName({ name, casing })})`;
-		}
-
-		if (isGeoUnknown) {
-			let unknown =
-				`// TODO: failed to parse geometry type because found more than 2 options inside geometry function '${type}'\n// Introspect is currently supporting only type and srid options\n`;
-			unknown += `\t${withCasing(name, casing)}: unknown("${name}")`;
-			return unknown;
-		}
-		return out;
-	}
-
-	if (lowered === 'vector') {
-		let out: string;
-		if (options) {
-			out = `${withCasing(name, casing)}: vector(${
-				dbColumnName({ name, casing, withMode: true })
-			}{ dimensions: ${options} })`;
-		} else {
-			out = `${withCasing(name, casing)}: vector(${dbColumnName({ name, casing })})`;
-		}
-
-		return out;
-	}
-
-	if (lowered === 'bit') {
-		let out: string;
-		if (options) {
-			out = `${withCasing(name, casing)}: bit(${
-				dbColumnName({ name, casing, withMode: true })
-			}{ dimensions: ${options} })`;
-		} else {
-			out = `${withCasing(name, casing)}: bit(${dbColumnName({ name, casing })})`;
-		}
-
-		return out;
-	}
-
-	if (lowered === 'char') {
-		let out: string;
-		if (options) {
-			out = `${withCasing(name, casing)}: char(${
-				dbColumnName({ name, casing, withMode: true })
-			}{ length: ${options} })`;
-		} else {
-			out = `${withCasing(name, casing)}: char(${dbColumnName({ name, casing })})`;
-		}
-
-		return out;
-	}
-
-	let unknown = `// TODO: failed to parse database type '${type}'\n`;
-	unknown += `\t${withCasing(name, casing)}: unknown("${name}")`;
-	return unknown;
-};
-const repeat = (it: string, times: number) => {
-	return Array(times + 1).join(it);
-};
-
-const createViewColumns = (
-	columns: ViewColumn[],
-	enumTypes: Set<string>,
-	casing: Casing,
-) => {
+const createViewColumns = (columns: ViewColumn[], enumTypes: Set<string>, casing: Casing) => {
 	let statement = '';
 
 	columns.forEach((it) => {
-		const columnStatement = column(
-			it.type,
-			null,
-			it.name,
-			enumTypes,
-			it.typeSchema ?? 'public',
-			casing,
-			null,
-		);
+		const columnStatement = column(it.type, it.dimensions, it.name, casing, null);
 		statement += '\t';
 		statement += columnStatement;
 		// Provide just this in column function
-		statement += repeat('.array()', it.dimensions);
 		statement += it.notNull ? '.notNull()' : '';
 		statement += ',\n';
 	});
@@ -966,32 +582,23 @@ const createTableColumns = (
 		})
 		.filter((it) => it.columns.length === 1);
 
-	const fkByColumnName = oneColumnsFKs.reduce((res, it) => {
-		const arr = res[it.columns[0]] || [];
-		arr.push(it);
-		res[it.columns[0]] = arr;
-		return res;
-	}, {} as Record<string, ForeignKey[]>);
+	const fkByColumnName = oneColumnsFKs.reduce(
+		(res, it) => {
+			const arr = res[it.columns[0]] || [];
+			arr.push(it);
+			res[it.columns[0]] = arr;
+			return res;
+		},
+		{} as Record<string, ForeignKey[]>,
+	);
 
 	columns.forEach((it) => {
-		const columnStatement = column(
-			it.type,
-			it.options,
-			it.name,
-			enumTypes,
-			it.typeSchema ?? 'public',
-			casing,
-			it.default,
-		);
-		const pk = primaryKey && primaryKey.columns.length === 1 && primaryKey.columns[0] === it.name
-			? primaryKey
-			: null;
+		const columnStatement = column(it.type, it.dimensions, it.name, casing, it.default);
+		const pk = primaryKey && primaryKey.columns.length === 1 && primaryKey.columns[0] === it.name ? primaryKey : null;
 
 		statement += '\t';
 		statement += columnStatement;
 		// Provide just this in column function
-		statement += repeat('.array()', it.dimensions);
-		statement += mapDefault(it.type, enumTypes, it.typeSchema ?? 'public', it.dimensions, it.default);
 		statement += pk ? '.primaryKey()' : '';
 		statement += it.notNull && !it.identity && !pk ? '.notNull()' : '';
 
@@ -1014,19 +621,13 @@ const createTableColumns = (
 					const tableSchema = schemas[it.schemaTo || ''];
 					const paramName = paramNameFor(it.tableTo, tableSchema);
 					if (paramsStr) {
-						return `.references(()${typeSuffix} => ${
-							withCasing(
-								paramName,
-								casing,
-							)
-						}.${withCasing(it.columnsTo[0], casing)}, ${paramsStr} )`;
+						return `.references(()${typeSuffix} => ${withCasing(paramName, casing)}.${
+							withCasing(it.columnsTo[0], casing)
+						}, ${paramsStr} )`;
 					}
-					return `.references(()${typeSuffix} => ${
-						withCasing(
-							paramName,
-							casing,
-						)
-					}.${withCasing(it.columnsTo[0], casing)})`;
+					return `.references(()${typeSuffix} => ${withCasing(paramName, casing)}.${
+						withCasing(it.columnsTo[0], casing)
+					})`;
 				})
 				.join('');
 			statement += fksStatement;
@@ -1108,10 +709,7 @@ const createTablePolicies = (
 		if (it.as === 'RESTRICTIVE') tuples.push(['as', `"${it.as.toLowerCase}"`]);
 		if (it.for !== 'ALL') tuples.push(['for', `"${it.for.toLowerCase()}"`]);
 		if (!(mappedItTo.length === 1 && mappedItTo[0] === '"public"')) {
-			tuples.push([
-				'to',
-				`[${mappedItTo.map((x) => `${x}`).join(', ')}]`,
-			]);
+			tuples.push(['to', `[${mappedItTo.map((x) => `${x}`).join(', ')}]`]);
 		}
 		if (it.using !== null) tuples.push(['using', `sql\`${it.using}\``]);
 		if (it.withCheck !== null) tuples.push(['withCheck', `sql\`${it.withCheck}\``]);
@@ -1122,10 +720,7 @@ const createTablePolicies = (
 	return statement;
 };
 
-const createTableChecks = (
-	checkConstraints: CheckConstraint[],
-	casing: Casing,
-) => {
+const createTableChecks = (checkConstraints: CheckConstraint[], casing: Casing) => {
 	let statement = '';
 
 	checkConstraints.forEach((it) => {

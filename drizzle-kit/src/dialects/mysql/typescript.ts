@@ -2,9 +2,9 @@
 import { toCamelCase } from 'drizzle-orm/casing';
 import { Casing } from 'src/cli/validations/common';
 import { assertUnreachable } from '../../utils';
+import { inspect } from '../utils';
 import { CheckConstraint, Column, ForeignKey, Index, MysqlDDL, PrimaryKey, ViewColumn } from './ddl';
 import { Enum, parseEnum, typeFor } from './grammar';
-import { inspect } from '../utils';
 
 export const imports = [
 	'boolean',
@@ -263,7 +263,7 @@ const column = (
 		const columnName = dbColumnName({ name, casing: rawCasing });
 		const ts = grammarType.toTs(lowered, defaultValue);
 		const { default: def, options } = typeof ts === 'string' ? { default: ts, options: {} } : ts;
-		
+
 		const drizzleType = grammarType.drizzleImport();
 		const defaultStatement = def ? def.startsWith('.') ? def : `.default(${def})` : '';
 		const paramsString = inspect(options);

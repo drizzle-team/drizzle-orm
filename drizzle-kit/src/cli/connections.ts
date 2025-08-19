@@ -6,6 +6,7 @@ import ws from 'ws';
 import { assertUnreachable, TransactionProxy } from '../utils';
 import { type DB, LibSQLDB, type Proxy, type SQLiteDB } from '../utils';
 import { normaliseSQLiteUrl } from '../utils/utils-node';
+import { JSONB } from '../utils/when-json-met-bigint';
 import type { ProxyParams } from './commands/studio';
 import { assertPackages, checkPackage } from './utils';
 import { GelCredentials } from './validations/gel';
@@ -16,7 +17,6 @@ import { withStyle } from './validations/outputs';
 import type { PostgresCredentials } from './validations/postgres';
 import { SingleStoreCredentials } from './validations/singlestore';
 import type { SqliteCredentials } from './validations/sqlite';
-import { JSONB } from '../utils/when-json-met-bigint';
 
 const normalisePGliteUrl = (it: string) => {
 	if (it.startsWith('file:')) {

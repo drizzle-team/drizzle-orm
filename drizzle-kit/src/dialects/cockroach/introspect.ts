@@ -1,7 +1,7 @@
 import camelcase from 'camelcase';
 import type { Entities } from '../../cli/validations/cli';
 import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
-import { trimChar, type DB } from '../../utils';
+import { type DB, trimChar } from '../../utils';
 import type {
 	CheckConstraint,
 	CockroachEntities,
@@ -30,18 +30,20 @@ import {
 } from './grammar';
 
 function prepareRoles(entities?: {
-	roles: boolean | {
-		provider?: string | undefined;
-		include?: string[] | undefined;
-		exclude?: string[] | undefined;
-	};
+	roles:
+		| boolean
+		| {
+			provider?: string | undefined;
+			include?: string[] | undefined;
+			exclude?: string[] | undefined;
+		};
 }) {
 	if (!entities || !entities.roles) return { useRoles: false, include: [], exclude: [] };
 
 	const roles = entities.roles;
 	const useRoles: boolean = typeof roles === 'boolean' ? roles : false;
-	const include: string[] = typeof roles === 'object' ? roles.include ?? [] : [];
-	const exclude: string[] = typeof roles === 'object' ? roles.exclude ?? [] : [];
+	const include: string[] = typeof roles === 'object' ? (roles.include ?? []) : [];
+	const exclude: string[] = typeof roles === 'object' ? (roles.exclude ?? []) : [];
 	const provider = typeof roles === 'object' ? roles.provider : undefined;
 
 	if (provider === 'supabase') {
@@ -71,16 +73,8 @@ export const fromDatabase = async (
 	tablesFilter: (table: string) => boolean = () => true,
 	schemaFilter: (schema: string) => boolean = () => true,
 	entities?: Entities,
-	progressCallback: (
-		stage: IntrospectStage,
-		count: number,
-		status: IntrospectStatus,
-	) => void = () => {},
-	queryCallback: (
-		id: string,
-		rows: Record<string, unknown>[],
-		error: Error | null,
-	) => void = () => {},
+	progressCallback: (stage: IntrospectStage, count: number, status: IntrospectStatus) => void = () => {},
+	queryCallback: (id: string, rows: Record<string, unknown>[], error: Error | null) => void = () => {},
 ): Promise<InterimSchema> => {
 	const schemas: Schema[] = [];
 	const enums: Enum[] = [];
@@ -106,60 +100,46 @@ export const fromDatabase = async (
 	// SHOW default_table_access_method;
 	// SELECT current_setting('default_table_access_method') AS default_am;
 
-	const accessMethodsQuery = db.query<{ oid: number; name: string }>(
-		`SELECT oid, amname as name FROM pg_am WHERE amtype = 't' ORDER BY amname;`,
-	).then((rows) => {
-		queryCallback('accessMethods', rows, null);
-		return rows;
-	}).catch((err) => {
-		queryCallback('accessMethods', [], err);
-		throw err;
-	});
+	const accessMethodsQuery = db
+		.query<{ oid: number; name: string }>(`SELECT oid, amname as name FROM pg_am WHERE amtype = 't' ORDER BY amname;`)
+		.then((rows) => {
+			queryCallback('accessMethods', rows, null);
+			return rows;
+		})
+		.catch((err) => {
+			queryCallback('accessMethods', [], err);
+			throw err;
+		});
 
-	const tablespacesQuery = db.query<{
-		oid: number;
-		name: string;
-	}>('SELECT oid, spcname as "name" FROM pg_tablespace ORDER BY lower(spcname);').then((rows) => {
-		queryCallback('tablespaces', rows, null);
-		return rows;
-	}).catch((err) => {
-		queryCallback('tablespaces', [], err);
-		throw err;
-	});
+	const tablespacesQuery = db
+		.query<{
+			oid: number;
+			name: string;
+		}>('SELECT oid, spcname as "name" FROM pg_tablespace ORDER BY lower(spcname);')
+		.then((rows) => {
+			queryCallback('tablespaces', rows, null);
+			return rows;
+		})
+		.catch((err) => {
+			queryCallback('tablespaces', [], err);
+			throw err;
+		});
 
-	const namespacesQuery = db.query<Namespace>('select oid, nspname as name from pg_namespace ORDER BY lower(nspname);')
+	const namespacesQuery = db
+		.query<Namespace>('select oid, nspname as name from pg_namespace ORDER BY lower(nspname);')
 		.then((rows) => {
 			queryCallback('namespaces', rows, null);
 			return rows;
-		}).catch((err) => {
+		})
+		.catch((err) => {
 			queryCallback('namespaces', [], err);
 			throw err;
 		});
 
-	const defaultsQuery = await db.query<{
-		tableId: number;
-		ordinality: number;
-		expression: string;
-	}>(`
-		SELECT
-			adrelid AS "tableId",
-			adnum AS "ordinality",
-			pg_get_expr(adbin, adrelid) AS "expression"
-		FROM
-			pg_attrdef;
-	`).then((rows) => {
-		queryCallback('defaults', rows, null);
-		return rows;
-	}).catch((err) => {
-		queryCallback('defaults', [], err);
-		throw err;
-	});
-
-	const [ams, tablespaces, namespaces, defaultsList] = await Promise.all([
+	const [ams, tablespaces, namespaces] = await Promise.all([
 		accessMethodsQuery,
 		tablespacesQuery,
 		namespacesQuery,
-		defaultsQuery,
 	]);
 
 	const { system, other } = namespaces.reduce<{ system: Namespace[]; other: Namespace[] }>(
@@ -192,7 +172,8 @@ export const fromDatabase = async (
 			rlsEnabled: boolean;
 			tablespaceid: number;
 			definition: string | null;
-		}>(`
+		}>(
+			`
 			SELECT
 				oid,
 				relnamespace AS "schemaId",
@@ -213,7 +194,9 @@ export const fromDatabase = async (
 				relkind IN ('r', 'v', 'm')
 				AND relnamespace IN (${filteredNamespacesIds.join(', ')})
 			ORDER BY relnamespace, lower(relname)
-		;`).then((rows) => {
+		;`,
+		)
+		.then((rows) => {
 			queryCallback('tables', rows, null);
 			return rows;
 		})
@@ -224,13 +207,15 @@ export const fromDatabase = async (
 
 	const viewsList = tablesList.filter((it) => it.kind === 'v' || it.kind === 'm');
 
-	const filteredTables = tablesList.filter((it) => it.kind === 'r' && tablesFilter(it.name)).map((it) => {
-		const schema = filteredNamespaces.find((ns) => ns.oid === it.schemaId)!;
-		return {
-			...it,
-			schema: trimChar(schema.name, '"'), // when camel case name e.x. mySchema -> it gets wrapped to "mySchema"
-		};
-	});
+	const filteredTables = tablesList
+		.filter((it) => it.kind === 'r' && tablesFilter(it.name))
+		.map((it) => {
+			const schema = filteredNamespaces.find((ns) => ns.oid === it.schemaId)!;
+			return {
+				...it,
+				schema: trimChar(schema.name, '"'), // when camel case name e.x. mySchema -> it gets wrapped to "mySchema"
+			};
+		});
 	const filteredTableIds = filteredTables.map((it) => it.oid);
 	const viewsIds = viewsList.map((it) => it.oid);
 	const filteredViewsAndTableIds = [...filteredTableIds, ...viewsIds];
@@ -247,12 +232,13 @@ export const fromDatabase = async (
 		});
 	}
 
-	const dependQuery = db.query<{
-		oid: number;
-		tableId: number;
-		ordinality: number;
+	const dependQuery = db
+		.query<{
+			oid: number;
+			tableId: number;
+			ordinality: number;
 
-		/*
+			/*
 			a - An “auto” dependency means the dependent object can be dropped separately,
 					and will be automatically removed if the referenced object is dropped—regardless of CASCADE or RESTRICT.
 					Example: A named constraint on a table is auto-dependent on the table, so it vanishes when the table is dropped
@@ -262,8 +248,9 @@ export const fromDatabase = async (
 					Dropping the referenced object always cascades to the dependent
 					Example: A trigger enforcing a foreign-key constraint is internally dependent on its pg_constraint entry
 		 */
-		deptype: 'a' | 'i';
-	}>(`
+			deptype: 'a' | 'i';
+		}>(
+			`
 		SELECT
 			-- sequence id
 			objid as oid,
@@ -275,13 +262,16 @@ export const fromDatabase = async (
 		FROM
 			pg_depend
 		where ${filterByTableIds ? ` refobjid in ${filterByTableIds}` : 'false'};
-	`).then((rows) => {
-		queryCallback('dependencies', rows, null);
-		return rows;
-	}).catch((err) => {
-		queryCallback('dependencies', [], err);
-		throw err;
-	});
+	`,
+		)
+		.then((rows) => {
+			queryCallback('dependencies', rows, null);
+			return rows;
+		})
+		.catch((err) => {
+			queryCallback('dependencies', [], err);
+			throw err;
+		});
 
 	const enumsQuery = db
 		.query<{
@@ -291,7 +281,8 @@ export const fromDatabase = async (
 			arrayTypeId: number;
 			ordinality: number;
 			value: string;
-		}>(`SELECT
+		}>(
+			`SELECT
 					pg_type.oid as "oid",
 					typname as "name",
 					typnamespace as "schemaId",
@@ -305,25 +296,30 @@ export const fromDatabase = async (
 					pg_type.typtype = 'e'
 					AND typnamespace IN (${filteredNamespacesIds.join(',')})
 				ORDER BY pg_type.oid, pg_enum.enumsortorder
-		`).then((rows) => {
+		`,
+		)
+		.then((rows) => {
 			queryCallback('enums', rows, null);
 			return rows;
-		}).catch((err) => {
+		})
+		.catch((err) => {
 			queryCallback('enums', [], err);
 			throw err;
 		});
 
-	const sequencesQuery = db.query<{
-		schemaId: number;
-		oid: number;
-		name: string;
-		startWith: string;
-		minValue: string;
-		maxValue: string;
-		incrementBy: string;
-		cycle: boolean;
-		cacheSize: string;
-	}>(`SELECT 
+	const sequencesQuery = db
+		.query<{
+			schemaId: number;
+			oid: number;
+			name: string;
+			startWith: string;
+			minValue: string;
+			maxValue: string;
+			incrementBy: string;
+			cycle: boolean;
+			cacheSize: string;
+		}>(
+			`SELECT 
     pg_class.relnamespace as "schemaId",
     pg_class.relname as "name",
     pg_sequence.seqrelid as "oid",
@@ -341,19 +337,22 @@ LEFT JOIN pg_sequences pgs ON (
 )
 WHERE relnamespace IN (${filteredNamespacesIds.join(',')})
 ORDER BY pg_class.relnamespace, lower(pg_class.relname)
-;`).then((rows) => {
-		queryCallback('sequences', rows, null);
-		return rows;
-	}).catch((err) => {
-		queryCallback('sequences', [], err);
-		throw err;
-	});
+;`,
+		)
+		.then((rows) => {
+			queryCallback('sequences', rows, null);
+			return rows;
+		})
+		.catch((err) => {
+			queryCallback('sequences', [], err);
+			throw err;
+		});
 
 	// I'm not yet aware of how we handle policies down the pipeline for push,
 	// and since postgres does not have any default policies, we can safely fetch all of them for now
 	// and filter them out in runtime, simplifying filterings
-	const policiesQuery = db.query<
-		{
+	const policiesQuery = db
+		.query<{
 			schema: string;
 			table: string;
 			name: string;
@@ -362,8 +361,8 @@ ORDER BY pg_class.relnamespace, lower(pg_class.relname)
 			for: Policy['for'];
 			using: string | undefined | null;
 			withCheck: string | undefined | null;
-		}
-	>(`SELECT 
+		}>(
+			`SELECT 
 			schemaname as "schema", 
 			tablename as "table", 
 			policyname as "name", 
@@ -374,40 +373,46 @@ ORDER BY pg_class.relnamespace, lower(pg_class.relname)
 			with_check as "withCheck" 
 		FROM pg_policies
 		ORDER BY lower(schemaname), lower(tablename), lower(policyname)
-		;`).then((rows) => {
-		queryCallback('policies', rows, null);
-		return rows;
-	}).catch((err) => {
-		queryCallback('policies', [], err);
-		throw err;
-	});
+		;`,
+		)
+		.then((rows) => {
+			queryCallback('policies', rows, null);
+			return rows;
+		})
+		.catch((err) => {
+			queryCallback('policies', [], err);
+			throw err;
+		});
 
-	const rolesQuery = db.query<
-		{ rolname: string; rolinherit: boolean; rolcreatedb: boolean; rolcreaterole: boolean }
-	>(
-		`SELECT rolname, rolinherit, rolcreatedb, rolcreaterole FROM pg_roles ORDER BY lower(rolname);`,
-	).then((rows) => {
-		queryCallback('roles', rows, null);
-		return rows;
-	}).catch((err) => {
-		queryCallback('roles', [], err);
-		throw err;
-	});
+	const rolesQuery = db
+		.query<{ rolname: string; rolinherit: boolean; rolcreatedb: boolean; rolcreaterole: boolean }>(
+			`SELECT rolname, rolinherit, rolcreatedb, rolcreaterole FROM pg_roles ORDER BY lower(rolname);`,
+		)
+		.then((rows) => {
+			queryCallback('roles', rows, null);
+			return rows;
+		})
+		.catch((err) => {
+			queryCallback('roles', [], err);
+			throw err;
+		});
 
-	const constraintsQuery = db.query<{
-		oid: number;
-		schemaId: number;
-		tableId: number;
-		name: string;
-		type: 'p' | 'u' | 'f' | 'c'; // p - primary key, u - unique, f - foreign key, c - check
-		definition: string;
-		indexId: number;
-		columnsOrdinals: number[];
-		tableToId: number;
-		columnsToOrdinals: number[];
-		onUpdate: 'a' | 'd' | 'r' | 'c' | 'n';
-		onDelete: 'a' | 'd' | 'r' | 'c' | 'n';
-	}>(`
+	const constraintsQuery = db
+		.query<{
+			oid: number;
+			schemaId: number;
+			tableId: number;
+			name: string;
+			type: 'p' | 'u' | 'f' | 'c'; // p - primary key, u - unique, f - foreign key, c - check
+			definition: string;
+			indexId: number;
+			columnsOrdinals: number[];
+			tableToId: number;
+			columnsToOrdinals: number[];
+			onUpdate: 'a' | 'd' | 'r' | 'c' | 'n';
+			onDelete: 'a' | 'd' | 'r' | 'c' | 'n';
+		}>(
+			`
     SELECT
       oid,
       connamespace AS "schemaId",
@@ -425,44 +430,74 @@ ORDER BY pg_class.relnamespace, lower(pg_class.relname)
       pg_constraint
     WHERE ${filterByTableIds ? ` conrelid in ${filterByTableIds}` : 'false'}
 	ORDER BY connamespace, conrelid, lower(conname)
-  `).then((rows) => {
-		queryCallback('constraints', rows, null);
-		return rows;
-	}).catch((err) => {
-		queryCallback('constraints', [], err);
-		throw err;
-	});
+  `,
+		)
+		.then((rows) => {
+			queryCallback('constraints', rows, null);
+			return rows;
+		})
+		.catch((err) => {
+			queryCallback('constraints', [], err);
+			throw err;
+		});
+
+	const defaultsQuery = db
+		.query<{
+			tableId: number;
+			ordinality: number;
+			expression: string;
+		}>(
+			`
+		SELECT
+			adrelid AS "tableId",
+			adnum AS "ordinality",
+			pg_get_expr(adbin, adrelid) AS "expression"
+		FROM
+			pg_attrdef
+      WHERE ${filterByTableAndViewIds ? `adrelid IN ${filterByTableAndViewIds}` : 'false'};
+	`,
+		)
+		.then((rows) => {
+			queryCallback('defaults', rows, null);
+			return rows;
+		})
+		.catch((err) => {
+			queryCallback('defaults', [], err);
+			throw err;
+		});
 
 	// for serials match with pg_attrdef via attrelid(tableid)+adnum(ordinal position), for enums with pg_enum above
-	const columnsQuery = db.query<{
-		tableId: number;
-		kind: 'r' | 'v' | 'm';
-		name: string;
-		ordinality: number;
-		notNull: boolean;
-		type: string;
-		typeId: number;
-		/* s - stored */
-		generatedType: 's' | '';
-		/*
+	const columnsQuery = db
+		.query<{
+			tableId: number;
+			kind: 'r' | 'v' | 'm';
+			name: string;
+			ordinality: number;
+			notNull: boolean;
+			type: string;
+			typeId: number;
+			/* s - stored */
+			generatedType: 's' | '';
+			/*
 		'a' for GENERATED ALWAYS
 		'd' for GENERATED BY DEFAULT
 		*/
-		identityType: 'a' | 'd' | '';
-		metadata: {
-			seqId: string | null;
-			generation: string | null;
-			start: string | null;
-			increment: string | null;
-			max: string | null;
-			min: string | null;
-			cycle: string;
-			generated: 'ALWAYS' | 'BY DEFAULT';
-			expression: string | null;
-		} | null;
-		isHidden: boolean;
-		dimensions: '0' | '1';
-	}>(`SELECT
+			identityType: 'a' | 'd' | '';
+			metadata: {
+				seqId: string | null;
+				generation: string | null;
+				start: string | null;
+				increment: string | null;
+				max: string | null;
+				min: string | null;
+				cycle: string;
+				generated: 'ALWAYS' | 'BY DEFAULT';
+				expression: string | null;
+			} | null;
+			isHidden: boolean;
+			dimensions: '0' | '1';
+		}>(
+			`SELECT
 				attrelid AS "tableId",
 				relkind AS "kind",
 				attname AS "name",
@@ -514,33 +549,41 @@ ORDER BY pg_class.relnamespace, lower(pg_class.relname)
 				AND attnum > 0
 				AND attisdropped = FALSE
 			ORDER BY attnum
-		;`).then((rows) => {
-		queryCallback('columns', rows, null);
-		return rows;
-	}).catch((err) => {
-		queryCallback('columns', [], err);
-		throw err;
-	});
+		;`,
+		)
+		.then((rows) => {
+			queryCallback('columns', rows, null);
+			return rows;
+		})
+		.catch((err) => {
+			queryCallback('columns', [], err);
+			throw err;
+		});
 
-	const extraColumnDataTypesQuery = db.query<{
-		table_schema: string;
-		table_name: string;
-		column_name: string;
-		data_type: string;
-	}>(`SELECT 
+	const extraColumnDataTypesQuery = db
+		.query<{
+			table_schema: string;
+			table_name: string;
+			column_name: string;
+			data_type: string;
+		}>(
+			`SELECT 
 			table_schema as table_schema, 
 			table_name as table_name, 
 			column_name as column_name, 
 			lower(crdb_sql_type) as data_type  
 		FROM information_schema.columns 
 		WHERE  ${tablesList.length ? `table_name in (${tablesList.map((it) => `'${it.name}'`).join(', ')})` : 'false'}
-	`).then((rows) => {
-		queryCallback('extraColumnDataTypes', rows, null);
-		return rows;
-	}).catch((err) => {
-		queryCallback('extraColumnDataTypes', [], err);
-		throw err;
-	});
+	`,
+		)
+		.then((rows) => {
+			queryCallback('extraColumnDataTypes', rows, null);
+			return rows;
+		})
+		.catch((err) => {
+			queryCallback('extraColumnDataTypes', [], err);
+			throw err;
+		});
 
 	const [
 		dependList,
@@ -551,47 +594,54 @@ ORDER BY pg_class.relnamespace, lower(pg_class.relname)
 		constraintsList,
 		columnsList,
 		extraColumnDataTypesList,
-	] = await Promise
-		.all([
-			dependQuery,
-			enumsQuery,
-			sequencesQuery,
-			policiesQuery,
-			rolesQuery,
-			constraintsQuery,
-			columnsQuery,
-			extraColumnDataTypesQuery,
-		]);
+		defaultsList,
+	] = await Promise.all([
+		dependQuery,
+		enumsQuery,
+		sequencesQuery,
+		policiesQuery,
+		rolesQuery,
+		constraintsQuery,
+		columnsQuery,
+		extraColumnDataTypesQuery,
+		defaultsQuery,
+	]);
 
-	const groupedEnums = enumsList.reduce((acc, it) => {
-		if (!(it.oid in acc)) {
-			const schemaName = filteredNamespaces.find((sch) => sch.oid === it.schemaId)!.name;
-			acc[it.oid] = {
-				oid: it.oid,
-				schema: schemaName,
-				name: it.name,
-				values: [it.value],
-			};
-		} else {
-			acc[it.oid].values.push(it.value);
-		}
-		return acc;
-	}, {} as Record<number, { oid: number; schema: string; name: string; values: string[] }>);
+	const groupedEnums = enumsList.reduce(
+		(acc, it) => {
+			if (!(it.oid in acc)) {
+				const schemaName = filteredNamespaces.find((sch) => sch.oid === it.schemaId)!.name;
+				acc[it.oid] = {
+					oid: it.oid,
+					schema: schemaName,
+					name: it.name,
+					values: [it.value],
+				};
+			} else {
+				acc[it.oid].values.push(it.value);
+			}
+			return acc;
+		},
+		{} as Record<number, { oid: number; schema: string; name: string; values: string[] }>,
+	);
 
-	const groupedArrEnums = enumsList.reduce((acc, it) => {
-		if (!(it.arrayTypeId in acc)) {
-			const schemaName = filteredNamespaces.find((sch) => sch.oid === it.schemaId)!.name;
-			acc[it.arrayTypeId] = {
-				oid: it.oid,
-				schema: schemaName,
-				name: it.name,
-				values: [it.value],
-			};
-		} else {
-			acc[it.arrayTypeId].values.push(it.value);
-		}
-		return acc;
-	}, {} as Record<number, { oid: number; schema: string; name: string; values: string[] }>);
+	const groupedArrEnums = enumsList.reduce(
+		(acc, it) => {
+			if (!(it.arrayTypeId in acc)) {
+				const schemaName = filteredNamespaces.find((sch) => sch.oid === it.schemaId)!.name;
+				acc[it.arrayTypeId] = {
+					oid: it.oid,
+					schema: schemaName,
+					name: it.name,
+					values: [it.value],
+				};
+			} else {
+				acc[it.arrayTypeId].values.push(it.value);
+			}
+			return acc;
+		},
+		{} as Record<number, { oid: number; schema: string; name: string; values: string[] }>,
+	);
 
 	for (const it of Object.values(groupedEnums)) {
 		enums.push({
@@ -679,29 +729,29 @@ ORDER BY pg_class.relnamespace, lower(pg_class.relname)
 			: null;
 
 		let columnTypeMapped;
-		const unintrospectedPrecisions = ['vector', 'interval', 'text'];
-		if (enumType) {
-			columnTypeMapped = enumType.name;
-		} else if (unintrospectedPrecisions.find((it) => extraColumnConfig.data_type.startsWith(it))) {
-			columnTypeMapped = extraColumnConfig.data_type;
-		} else if (column.type.startsWith('text')) {
-			// this is because if you create string(200), in pg system tables this will be stored as text(204)
-			columnTypeMapped = extraColumnConfig.data_type;
-		} else {
-			columnTypeMapped = column.type;
-		}
+		// // if you create string(200), in pg system tables this will be stored as text(204)
+		// const unintrospectedPrecisions = ["vector", "interval", "text"];
+		// if (enumType) {
+		//   columnTypeMapped = enumType.name;
+		// } else if (unintrospectedPrecisions.find((it) => extraColumnConfig.data_type.startsWith(it))) {
+		//   columnTypeMapped = extraColumnConfig.data_type;
+		// }  else {
+		//   columnTypeMapped = column.type;
+		// }
 
-		columnTypeMapped = columnTypeMapped.replace('[]', '');
-
-		if (columnTypeMapped.startsWith('numeric(')) {
-			columnTypeMapped = columnTypeMapped.replace(',', ', ');
-		}
-
-		const columnDefault = defaultsList.find(
-			(it) => it.tableId === column.tableId && it.ordinality === column.ordinality,
-		);
-
+		columnTypeMapped = extraColumnConfig.data_type;
 		const columnDimensions = Number(column.dimensions);
+
+		columnTypeMapped = columnTypeMapped.replace('character', 'char').replace('float8', 'float').replace(
+			'float4',
+			'real',
+		).replace('bool', 'boolean');
+
+		columnTypeMapped = trimChar(columnTypeMapped, '"');
+
+		const columnDefault = defaultsList.find((it) =>
+			it.tableId === column.tableId && it.ordinality === column.ordinality
+		);
 
 		const defaultValue = defaultForColumn(
 			columnTypeMapped,
@@ -709,21 +759,6 @@ ORDER BY pg_class.relnamespace, lower(pg_class.relname)
 			columnDimensions,
 			Boolean(enumType),
 		);
-
-		columnTypeMapped = columnTypeMapped
-			.replace('character varying', 'varchar')
-			.replace(' without time zone', '')
-			.replace('character', 'char')
-			.replace('integer', 'int4')
-			.replace('bigint', 'int8')
-			.replace('smallint', 'int2')
-			.replace('double precision', 'float')
-			.replace('text', 'string')
-			.replace('numeric', 'decimal');
-
-		columnTypeMapped = trimChar(columnTypeMapped, '"');
-
-		const { type, options } = splitSqlType(columnTypeMapped);
 
 		const unique = constraintsList.find((it) => {
 			return it.type === 'u' && it.tableId === column.tableId && it.columnsOrdinals.length === 1
@@ -752,15 +787,14 @@ ORDER BY pg_class.relnamespace, lower(pg_class.relname)
 			);
 		}
 
-		const sequence = metadata?.seqId ? sequencesList.find((it) => it.oid === Number(metadata.seqId)) ?? null : null;
+		const sequence = metadata?.seqId ? (sequencesList.find((it) => it.oid === Number(metadata.seqId)) ?? null) : null;
 
 		columns.push({
 			entityType: 'columns',
 			schema: schema.name,
 			table: table.name,
 			name: column.name,
-			type,
-			options,
+			type: columnTypeMapped,
 			typeSchema: enumType?.schema ?? null,
 			dimensions: columnDimensions,
 			default: column.generatedType === 's' || column.identityType ? null : defaultValue,
@@ -863,24 +897,26 @@ ORDER BY pg_class.relnamespace, lower(pg_class.relname)
 		});
 	}
 
-	const idxs = await db.query<{
-		oid: number;
-		schemaId: number;
-		name: string;
-		accessMethod: string;
-		with?: string[];
-		metadata: {
-			tableId: number;
-			expression: string | null;
-			where: string;
-			columnOrdinals: number[];
-			index_def: string;
-			opclassIds: number[];
-			options: number[];
-			isUnique: boolean;
-			isPrimary: boolean;
-		};
-	}>(`
+	const idxs = await db
+		.query<{
+			oid: number;
+			schemaId: number;
+			name: string;
+			accessMethod: string;
+			with?: string[];
+			metadata: {
+				tableId: number;
+				expression: string | null;
+				where: string;
+				columnOrdinals: number[];
+				index_def: string;
+				opclassIds: number[];
+				options: number[];
+				isUnique: boolean;
+				isPrimary: boolean;
+			};
+		}>(
+			`
       SELECT
         pg_class.oid,
         relnamespace AS "schemaId",
@@ -910,13 +946,16 @@ ORDER BY pg_class.relnamespace, lower(pg_class.relname)
       WHERE
         relkind = 'i' and ${filterByTableIds ? `metadata."tableId" in ${filterByTableIds}` : 'false'}
 	  ORDER BY relnamespace, lower(relname)
-    `).then((rows) => {
-		queryCallback('indexes', rows, null);
-		return rows;
-	}).catch((err) => {
-		queryCallback('indexes', [], err);
-		throw err;
-	});
+    `,
+		)
+		.then((rows) => {
+			queryCallback('indexes', rows, null);
+			return rows;
+		})
+		.catch((err) => {
+			queryCallback('indexes', [], err);
+			throw err;
+		});
 
 	for (const idx of idxs) {
 		const { metadata, accessMethod } = idx;
@@ -938,9 +977,7 @@ ORDER BY pg_class.relnamespace, lower(pg_class.relname)
 		if (expr.length !== nonColumnsCount) {
 			throw new Error(
 				`expression split doesn't match non-columns count: [${
-					metadata.columnOrdinals.join(
-						', ',
-					)
+					metadata.columnOrdinals.join(', ')
 				}] '${metadata.expression}':${expr.length}:${nonColumnsCount}`,
 			);
 		}
@@ -951,13 +988,9 @@ ORDER BY pg_class.relnamespace, lower(pg_class.relname)
 			};
 		});
 
-		const res = [] as (
-			& (
-				| { type: 'expression'; value: string }
-				| { type: 'column'; value: DBColumn }
-			)
-			& { options: (typeof opts)[number] }
-		)[];
+		const res = [] as (({ type: 'expression'; value: string } | { type: 'column'; value: DBColumn }) & {
+			options: (typeof opts)[number];
+		})[];
 
 		let k = 0;
 		for (let i = 0; i < metadata.columnOrdinals.length; i++) {
@@ -1048,9 +1081,6 @@ ORDER BY pg_class.relnamespace, lower(pg_class.relname)
 
 		let columnTypeMapped = enumType ? enumType.name : it.type.replace('[]', '');
 		columnTypeMapped = trimChar(columnTypeMapped, '"');
-		if (columnTypeMapped.startsWith('numeric(')) {
-			columnTypeMapped = columnTypeMapped.replace(',', ', ');
-		}
 		for (let i = 0; i < Number(it.dimensions); i++) {
 			columnTypeMapped += '[]';
 		}
@@ -1120,11 +1150,7 @@ export const fromDatabaseForDrizzle = async (
 	tableFilter: (it: string) => boolean = () => true,
 	schemaFilters: (it: string) => boolean = () => true,
 	entities?: Entities,
-	progressCallback: (
-		stage: IntrospectStage,
-		count: number,
-		status: IntrospectStatus,
-	) => void = () => {},
+	progressCallback: (stage: IntrospectStage, count: number, status: IntrospectStatus) => void = () => {},
 ) => {
 	const res = await fromDatabase(db, tableFilter, schemaFilters, entities, progressCallback);
 

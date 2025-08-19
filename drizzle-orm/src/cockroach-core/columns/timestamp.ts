@@ -23,11 +23,7 @@ export class CockroachTimestampBuilder<T extends ColumnBuilderBaseConfig<'date',
 {
 	static override readonly [entityKind]: string = 'CockroachTimestampBuilder';
 
-	constructor(
-		name: T['name'],
-		withTimezone: boolean,
-		precision: number | undefined,
-	) {
+	constructor(name: T['name'], withTimezone: boolean, precision: number | undefined) {
 		super(name, 'date', 'CockroachTimestamp');
 		this.config.withTimezone = withTimezone;
 		this.config.precision = precision;
@@ -57,8 +53,8 @@ export class CockroachTimestamp<T extends ColumnBaseConfig<'date', 'CockroachTim
 	}
 
 	getSQLType(): string {
-		const precision = this.precision === undefined ? '' : ` (${this.precision})`;
-		return `timestamp${precision}${this.withTimezone ? ' with time zone' : ''}`;
+		const precision = this.precision === undefined ? '' : `(${this.precision})`;
+		return `timestamp${this.withTimezone ? 'tz' : ''}${precision}`;
 	}
 
 	override mapFromDriverValue = (value: string): Date | null => {
@@ -79,19 +75,15 @@ export type CockroachTimestampStringBuilderInitial<TName extends string> = Cockr
 	enumValues: undefined;
 }>;
 
-export class CockroachTimestampStringBuilder<
-	T extends ColumnBuilderBaseConfig<'string', 'CockroachTimestampString'>,
-> extends CockroachDateColumnBaseBuilder<
-	T,
-	{ withTimezone: boolean; precision: number | undefined }
-> {
+export class CockroachTimestampStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'CockroachTimestampString'>>
+	extends CockroachDateColumnBaseBuilder<
+		T,
+		{ withTimezone: boolean; precision: number | undefined }
+	>
+{
 	static override readonly [entityKind]: string = 'CockroachTimestampStringBuilder';
 
-	constructor(
-		name: T['name'],
-		withTimezone: boolean,
-		precision: number | undefined,
-	) {
+	constructor(name: T['name'], withTimezone: boolean, precision: number | undefined) {
 		super(name, 'string', 'CockroachTimestampString');
 		this.config.withTimezone = withTimezone;
 		this.config.precision = precision;
@@ -127,7 +119,7 @@ export class CockroachTimestampString<T extends ColumnBaseConfig<'string', 'Cock
 
 	getSQLType(): string {
 		const precision = this.precision === undefined ? '' : `(${this.precision})`;
-		return `timestamp${precision}${this.withTimezone ? ' with time zone' : ''}`;
+		return `timestamp${this.withTimezone ? 'tz' : ''}${precision}`;
 	}
 }
 

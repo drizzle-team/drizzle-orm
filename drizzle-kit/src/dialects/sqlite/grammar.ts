@@ -191,7 +191,7 @@ export const Text: SqlType = {
 			});
 
 			return {
-				def: stringify(parsed, undefined,undefined, true)!,
+				def: stringify(parsed, undefined, undefined, true)!,
 				options: { mode: 'json' },
 			};
 		} catch {}
