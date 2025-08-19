@@ -136,7 +136,7 @@ export const fromDatabase = async (
 		oid: string;
 		name: string;
 	}>(
-		`SELECT oid, spcname as "name" FROM pg_catalog.pg_tablespace WHERE pg_catalog.has_tablespace_privilege(oid, 'CREATE') ORDER BY pg_catalog.lower(spcname)`,
+		`SELECT oid, spcname as "name" FROM pg_catalog.pg_tablespace ORDER BY pg_catalog.lower(spcname)`,
 	).then((rows) => {
 		queryCallback('tablespaces', rows, null);
 		return rows;
@@ -146,7 +146,7 @@ export const fromDatabase = async (
 	});
 
 	const namespacesQuery = db.query<Namespace>(
-		"SELECT oid, nspname as name FROM pg_catalog.pg_namespace WHERE pg_catalog.has_schema_privilege(oid, 'USAGE') ORDER BY pg_catalog.lower(nspname)",
+		"SELECT oid, nspname as name FROM pg_catalog.pg_namespace ORDER BY pg_catalog.lower(nspname)",
 	)
 		.then((rows) => {
 			queryCallback('namespaces', rows, null);
@@ -203,8 +203,8 @@ export const fromDatabase = async (
 		oid: string;
 		schema: string;
 		name: string;
-		/* r - table, v - view, m - materialized view */
-		kind: 'r' | 'v' | 'm';
+		/* r - table, p - partitioned table, v - view, m - materialized view */
+		kind: 'r' | 'p' | 'v' | 'm';
 		accessMethod: string;
 		options: string[] | null;
 		rlsEnabled: boolean;
@@ -232,7 +232,7 @@ export const fromDatabase = async (
                     pg_catalog.pg_class
 				JOIN pg_catalog.pg_namespace ON pg_namespace.oid OPERATOR(pg_catalog.=) relnamespace
                 WHERE
-                    relkind IN ('r', 'v', 'm')
+                    relkind IN ('r', 'p', 'v', 'm')
                     AND nspname IN (${filteredNamespacesStringForSQL})
                 ORDER BY pg_catalog.lower(nspname), pg_catalog.lower(relname);
 	`).then((rows) => {
@@ -247,7 +247,7 @@ export const fromDatabase = async (
 	const viewsList = tablesList.filter((it) => it.kind === 'v' || it.kind === 'm');
 
 	const filteredTables = tablesList.filter((it) => {
-		if (!(it.kind === 'r' && tablesFilter(it.schema, it.name))) return false;
+		if (!((it.kind === 'r' || it.kind === 'p') && tablesFilter(it.schema, it.name))) return false;
 		it.schema = trimChar(it.schema, '"'); // when camel case name e.x. mySchema -> it gets wrapped to "mySchema"
 		return true;
 	});
@@ -551,7 +551,7 @@ export const fromDatabase = async (
 	// for serials match with pg_attrdef via attrelid(tableid)+adnum(ordinal position), for enums with pg_enum above
 	const columnsQuery = db.query<{
 		tableId: string;
-		kind: 'r' | 'v' | 'm';
+		kind: 'r' | 'p' | 'v' | 'm';
 		name: string;
 		ordinality: number;
 		notNull: boolean;
@@ -765,7 +765,7 @@ export const fromDatabase = async (
 	type DBColumn = (typeof columnsList)[number];
 
 	// supply serials
-	for (const column of columnsList.filter((x) => x.kind === 'r')) {
+	for (const column of columnsList.filter((x) => x.kind === 'r' || x.kind === 'p')) {
 		const type = column.type;
 
 		if (!(type === 'smallint' || type === 'bigint' || type === 'integer')) {
@@ -784,7 +784,7 @@ export const fromDatabase = async (
 		}
 	}
 
-	for (const column of columnsList.filter((x) => x.kind === 'r')) {
+	for (const column of columnsList.filter((x) => x.kind === 'r' || x.kind === 'p')) {
 		const table = tablesList.find((it) => it.oid === column.tableId)!;
 
 		// supply enums
