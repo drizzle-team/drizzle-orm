@@ -856,6 +856,7 @@ export const ddlDiff = async (
 				if (numbers.find((it) => column.type.startsWith(it)) && it.default.from && it.default.to) {
 					it.default.from = it.default.from.replace('.)', ')').replace(".'", "'");
 					it.default.to = it.default.to.replace('.)', ')').replace(".'", "'");
+					deleteDefault ||= it.default.from === it.default.to;
 				}
 
 				// any literal number from drizzle sql is parsed as (<number>), not ((<number>)) as from .default

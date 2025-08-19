@@ -219,7 +219,7 @@ export const Int: SqlType = {
 	defaultFromDrizzle: (value: unknown) => {
 		const stringified = String(value);
 
-		// mssq wraps each number in extra ()
+		// mssql wraps each number in extra ()
 		return `((${stringified}))`;
 	},
 	defaultFromIntrospect: (value: string) => {
@@ -259,10 +259,10 @@ export const BigInt: SqlType = {
 	is: (type: string) => type === 'bigint',
 	drizzleImport: () => 'bigint',
 	defaultFromDrizzle: (value: unknown) => {
-		const res = Number(value);
+		// const res = Number(value);
 
 		// mssql stores values that are bigger than `int` with dots
-		if (res > defaults.max_int_value || res < defaults.min_int_value) return `((${String(value)}.))`;
+		// if (res > defaults.max_int_value || res < defaults.min_int_value) return `((${String(value)}.))`;
 		return `((${String(value)}))`;
 	},
 	defaultFromIntrospect: Int.defaultFromIntrospect,
@@ -463,9 +463,9 @@ export const Decimal: SqlType = {
 	is: (type: string) => type === 'decimal' || type.startsWith('decimal('),
 	drizzleImport: () => 'decimal',
 	defaultFromDrizzle: (value) => {
-		const res = Number(value);
+		// const res = Number(value);
 
-		if (res > defaults.max_int_value || res < defaults.min_int_value) return `((${String(value)}.))`;
+		// if (res > defaults.max_int_value || res < defaults.min_int_value) return `((${String(value)}.))`;
 		return `((${String(value)}))`;
 	},
 	defaultFromIntrospect: (value) => {
@@ -515,9 +515,9 @@ export const Float: SqlType = {
 	is: (type: string) => type === 'float' || type.startsWith('float('),
 	drizzleImport: () => 'float',
 	defaultFromDrizzle: (value) => {
-		const res = Number(value);
+		// const res = Number(value);
 
-		if (res > defaults.max_int_value || res < defaults.min_int_value) return `((${String(value)}.))`;
+		// if (res > defaults.max_int_value || res < defaults.min_int_value) return `((${String(value)}.))`;
 		return `((${String(value)}))`;
 	},
 	defaultFromIntrospect: (value) => {
