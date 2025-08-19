@@ -1537,7 +1537,7 @@ export class GenerateUUID extends AbstractGenerator<{
 		const strLength = 36;
 
 		// uuid v4
-		const uuidTemplate = '########-####-4###-####-############';
+		const uuidTemplate = '########-####-4###-9###-############';
 		currStr = '';
 		for (let i = 0; i < strLength; i++) {
 			[idx, this.state.rng] = prand.uniformIntDistribution(
