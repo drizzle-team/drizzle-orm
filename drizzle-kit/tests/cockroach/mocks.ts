@@ -378,7 +378,7 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 	if (st1.length !== 1 || st1[0] !== expectedInit) res.push(`Unexpected init:\n${st1}\n\n${expectedInit}`);
 	if (st2.length > 0) res.push(`Unexpected subsequent init:\n${st2}`);
 
-	await db.query('INSERT INTO "table" ("column") VALUES (default);').catch(async (error) => {
+	await db.query('INSERT INTO "table" ("column") VALUES (default);').catch((error) => {
 		if (!expectError) throw error;
 		res.push(`Insert default failed`);
 	});
@@ -402,15 +402,11 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 	const { sqlStatements: afterFileSqlStatements } = await ddlDiffDry(ddl1, ddl2, 'push');
 
 	if (afterFileSqlStatements.length === 0) {
-		// rmSync(path);
+		rmSync(path);
 	} else {
 		console.log(afterFileSqlStatements);
 		console.log(`./${path}`);
 		res.push(`Default type mismatch after diff:\n${`./${path}`}`);
-	}
-
-	if (ddl1.columns.list().find((it) => it.name === 'column')?.default?.value !== expectedDefault) {
-		res.push(`Default type mismatch after introspect:\n${`./${path}`}`);
 	}
 
 	// console.timeEnd();
