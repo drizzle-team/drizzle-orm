@@ -47,7 +47,9 @@ export class SQLiteBigInt<T extends ColumnBaseConfig<'bigint', 'SQLiteBigInt'>> 
 				// eslint-disable-next-line no-instanceof/no-instanceof
 				: value instanceof ArrayBuffer
 				? Buffer.from(value)
-				: Buffer.from(value.buffer, value.byteOffset, value.byteLength);
+				: value.buffer
+				? Buffer.from(value.buffer, value.byteOffset, value.byteLength)
+				: Buffer.from(value);
 			return BigInt(buf.toString('utf8'));
 		}
 
@@ -102,7 +104,9 @@ export class SQLiteBlobJson<T extends ColumnBaseConfig<'json', 'SQLiteBlobJson'>
 				// eslint-disable-next-line no-instanceof/no-instanceof
 				: value instanceof ArrayBuffer
 				? Buffer.from(value)
-				: Buffer.from(value.buffer, value.byteOffset, value.byteLength);
+				: value.buffer
+				? Buffer.from(value.buffer, value.byteOffset, value.byteLength)
+				: Buffer.from(value);
 			return JSON.parse(buf.toString('utf8'));
 		}
 
