@@ -669,9 +669,13 @@ const column = (
 		} })`;
 
 		const mappedDefaultValue = mapColumnDefault(defaultValue, isExpression);
-		out += defaultValue
-			? `.default(${isExpression ? mappedDefaultValue : unescapeSingleQuotes(mappedDefaultValue, true)})`
-			: '';
+        if (defaultValue === "''") {
+            out += ".default('')";
+        } else {
+            out += defaultValue
+                ? `.default(${isExpression ? mappedDefaultValue : unescapeSingleQuotes(mappedDefaultValue, true)})`
+                : '';
+        }
 		return out;
 	}
 
