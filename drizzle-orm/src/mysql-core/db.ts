@@ -488,7 +488,7 @@ export class MySqlDatabase<
 	}
 }
 
-export type MySQLWithReplicas<Q> = Q & { $primary: Q };
+export type MySQLWithReplicas<Q> = Q & { $primary: Q, $replicas: Q[] };
 
 export const withReplicas = <
 	HKT extends MySqlQueryResultHKT,
@@ -525,6 +525,7 @@ export const withReplicas = <
 		execute,
 		transaction,
 		$primary: primary,
+		$replicas: replicas,
 		select,
 		selectDistinct,
 		$count,
