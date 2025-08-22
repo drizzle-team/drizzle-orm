@@ -8,7 +8,6 @@ export class PgSmallSerialBuilder extends PgColumnBuilder<{
 	dataType: 'number int16';
 	data: number;
 	driverParam: number;
-	enumValues: undefined;
 	notNull: true;
 	hasDefault: true;
 }> {

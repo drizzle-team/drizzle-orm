@@ -2,6 +2,7 @@ import { type Type, type } from 'arktype';
 import {
 	type Column,
 	type ColumnDataArrayConstraint,
+	type ColumnDataBigIntConstraint,
 	type ColumnDataNumberConstraint,
 	type ColumnDataObjectConstraint,
 	type ColumnDataStringConstraint,
@@ -35,7 +36,7 @@ export function columnToSchema(column: Column): Type {
 			break;
 		}
 		case 'bigint': {
-			schema = bigintColumnToSchema(column);
+			schema = bigintColumnToSchema(column, constraint);
 			break;
 		}
 		case 'boolean': {
@@ -59,7 +60,6 @@ export function columnToSchema(column: Column): Type {
 }
 
 function numberColumnToSchema(column: Column, constraint: ColumnDataNumberConstraint | undefined): Type<number, any> {
-	const unsigned = constraint === 'uint53' || column.getSQLType().includes('unsigned');
 	let min!: number;
 	let max!: number;
 	let integer = false;
@@ -67,25 +67,49 @@ function numberColumnToSchema(column: Column, constraint: ColumnDataNumberConstr
 	switch (constraint) {
 		case 'int8': {
 			min = CONSTANTS.INT8_MIN;
-			max = unsigned ? CONSTANTS.INT8_UNSIGNED_MAX : CONSTANTS.INT8_MAX;
+			max = CONSTANTS.INT8_MAX;
+			integer = true;
+			break;
+		}
+		case 'uint8': {
+			min = 0;
+			max = CONSTANTS.INT8_UNSIGNED_MAX;
 			integer = true;
 			break;
 		}
 		case 'int16': {
 			min = CONSTANTS.INT16_MIN;
-			max = unsigned ? CONSTANTS.INT16_UNSIGNED_MAX : CONSTANTS.INT16_MAX;
+			max = CONSTANTS.INT16_MAX;
+			integer = true;
+			break;
+		}
+		case 'uint16': {
+			min = 0;
+			max = CONSTANTS.INT16_UNSIGNED_MAX;
 			integer = true;
 			break;
 		}
 		case 'int24': {
 			min = CONSTANTS.INT24_MIN;
-			max = unsigned ? CONSTANTS.INT24_UNSIGNED_MAX : CONSTANTS.INT24_MAX;
+			max = CONSTANTS.INT24_MAX;
+			integer = true;
+			break;
+		}
+		case 'uint24': {
+			min = 0;
+			max = CONSTANTS.INT24_UNSIGNED_MAX;
 			integer = true;
 			break;
 		}
 		case 'int32': {
 			min = CONSTANTS.INT32_MIN;
-			max = unsigned ? CONSTANTS.INT32_UNSIGNED_MAX : CONSTANTS.INT32_MAX;
+			max = CONSTANTS.INT32_MAX;
+			integer = true;
+			break;
+		}
+		case 'uint32': {
+			min = 0;
+			max = CONSTANTS.INT32_UNSIGNED_MAX;
 			integer = true;
 			break;
 		}
@@ -103,22 +127,22 @@ function numberColumnToSchema(column: Column, constraint: ColumnDataNumberConstr
 		}
 		case 'float': {
 			min = CONSTANTS.INT24_MIN;
-			max = unsigned ? CONSTANTS.INT24_UNSIGNED_MAX : CONSTANTS.INT24_MAX;
+			max = CONSTANTS.INT24_MAX;
 			break;
 		}
-		case 'real24': {
-			min = CONSTANTS.INT24_MIN;
-			max = unsigned ? CONSTANTS.INT24_UNSIGNED_MAX : CONSTANTS.INT24_MAX;
-			break;
-		}
-		case 'real48': {
-			min = CONSTANTS.INT48_MIN;
-			max = unsigned ? CONSTANTS.INT48_UNSIGNED_MAX : CONSTANTS.INT48_MAX;
+		case 'ufloat': {
+			min = 0;
+			max = CONSTANTS.INT24_UNSIGNED_MAX;
 			break;
 		}
 		case 'double': {
 			min = CONSTANTS.INT48_MIN;
-			max = unsigned ? CONSTANTS.INT48_UNSIGNED_MAX : CONSTANTS.INT48_MAX;
+			max = CONSTANTS.INT48_MAX;
+			break;
+		}
+		case 'udouble': {
+			min = 0;
+			max = CONSTANTS.INT48_UNSIGNED_MAX;
 			break;
 		}
 		case 'year': {
@@ -133,8 +157,6 @@ function numberColumnToSchema(column: Column, constraint: ColumnDataNumberConstr
 			break;
 		}
 	}
-
-	min = unsigned ? 0 : min;
 
 	return (integer ? type.keywords.number.integer : type.number).atLeast(min).atMost(max);
 }
@@ -153,15 +175,15 @@ function arrayColumnToSchema(
 		}
 		case 'vector':
 		case 'halfvector': {
-			const dimensions = (<{ dimensions?: number }> column).dimensions;
-			return dimensions ? type.number.array().exactlyLength(dimensions) : type.number.array();
+			const length = column.length;
+			return length ? type.number.array().exactlyLength(length) : type.number.array();
 		}
 		case 'basecolumn': {
-			const size = (<{ size?: number }> column).size;
+			const length = column.length;
 			const schema = (<{ baseColumn?: Column }> column).baseColumn
 				? columnToSchema((<{ baseColumn?: Column }> column).baseColumn!).array()
 				: type.unknown.array();
-			if (size) return schema.exactlyLength(size);
+			if (length) return schema.exactlyLength(length);
 			return schema;
 		}
 		default: {
@@ -212,48 +234,34 @@ export const unsignedBigintNarrow = (v: bigint, ctx: { mustBe: (expected: string
 export const bigintNarrow = (v: bigint, ctx: { mustBe: (expected: string) => false }) =>
 	v < CONSTANTS.INT64_MIN ? ctx.mustBe('greater than') : v > CONSTANTS.INT64_MAX ? ctx.mustBe('less than') : true;
 
-function bigintColumnToSchema(column: Column): Type {
-	const unsigned = column.getSQLType().includes('unsigned');
-	return type.bigint.narrow(unsigned ? unsignedBigintNarrow : bigintNarrow);
+function bigintColumnToSchema(column: Column, constraint?: ColumnDataBigIntConstraint | undefined): Type {
+	switch (constraint) {
+		case 'int64': {
+			return type.bigint.narrow(bigintNarrow);
+		}
+		case 'uint64': {
+			return type.bigint.narrow(unsignedBigintNarrow);
+		}
+	}
+
+	return type.bigint;
 }
 
 function stringColumnToSchema(column: Column, constraint: ColumnDataStringConstraint | undefined): Type {
-	const { dialect, name: columnName } = column;
-
-	let max: number | undefined;
-	let fixed = false;
-
-	if ((dialect === 'pg' && constraint === 'varchar') || (dialect === 'sqlite' && constraint === 'text')) {
-		max = (<{ length?: number }> column).length;
-	} else if ((dialect === 'singlestore' || dialect === 'mysql') && constraint === 'varchar') {
-		max = (<{ length?: number }> column).length ?? CONSTANTS.INT16_UNSIGNED_MAX;
-	} else if ((dialect === 'singlestore' || dialect === 'mysql') && constraint === 'text') {
-		const textType = (<{ textType?: 'text' | 'tinytext' | 'mediumtext' | 'longtext' }> column).textType!;
-
-		if (textType === 'longtext') {
-			max = CONSTANTS.INT32_UNSIGNED_MAX;
-		} else if (textType === 'mediumtext') {
-			max = CONSTANTS.INT24_UNSIGNED_MAX;
-		} else if (textType === 'text') {
-			max = CONSTANTS.INT16_UNSIGNED_MAX;
-		} else {
-			max = CONSTANTS.INT8_UNSIGNED_MAX;
-		}
-	} else if (constraint === 'char') {
-		max = (<{ length?: number }> column).length;
-		fixed = true;
-	} else if (constraint === 'binary') {
-		const length = (<{ dimensions?: number }> column).dimensions ?? (<{ length?: number }> column).length;
-		return type(`/^[01]${length ? `{${length}}` : dialect === 'pg' ? '+' : '*'}$/`)
-			.describe(`a string containing ones or zeros${length ? ` while being ${length} characters long` : ''}`);
-	} else if (constraint === 'varbinary') {
-		const length = (<{ dimensions?: number }> column).dimensions ?? (<{ length?: number }> column).length;
-		return type(`/^[01]${length ? `{0,${length}}` : '*'}$/`)
-			.describe(`a string containing ones or zeros${length ? ` while being up to ${length} characters long` : ''}`);
-	} else if (constraint === 'uuid') {
+	const { name: columnName, length, isLengthExact } = column;
+	if (constraint === 'binary') {
+		return type(`/^[01]${length ? `{${isLengthExact ? length : `0,${length}`}}` : '*'}$/`)
+			.describe(
+				`a string containing ones or zeros${
+					length ? ` while being ${isLengthExact ? '' : 'up to '}${length} characters long` : ''
+				}`,
+			);
+	}
+	if (constraint === 'uuid') {
 		return type(/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/iu).describe('a RFC-4122-compliant UUID');
-	} else if (constraint === 'enum') {
-		const enumValues = (<{ enumValues?: string[] }> column).enumValues;
+	}
+	if (constraint === 'enum') {
+		const enumValues = column.enumValues;
 		if (!enumValues) {
 			throw new Error(
 				`Column "${getTableName(getColumnTable(column))}"."${columnName}" is of 'enum' type, but lacks enum values`,
@@ -262,5 +270,9 @@ function stringColumnToSchema(column: Column, constraint: ColumnDataStringConstr
 		return type.enumerated(...enumValues);
 	}
 
-	return max && fixed ? type.string.exactlyLength(max) : max ? type.string.atMostLength(max) : type.string;
+	return length && isLengthExact
+		? type.string.exactlyLength(length)
+		: length
+		? type.string.atMostLength(length)
+		: type.string;
 }

@@ -1,21 +1,22 @@
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { SingleStoreTable } from '~/singlestore-core/table.ts';
-import { getColumnNameAndConfig } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoIncrement } from './common.ts';
 import type { SingleStoreIntConfig } from './int.ts';
 
-export class SingleStoreMediumIntBuilder extends SingleStoreColumnBuilderWithAutoIncrement<{
-	name: string;
-	dataType: 'number int24';
-	data: number;
-	driverParam: number | string;
-	enumValues: undefined;
-}, SingleStoreIntConfig> {
+export class SingleStoreMediumIntBuilder<TUnsigned extends boolean | undefined>
+	extends SingleStoreColumnBuilderWithAutoIncrement<{
+		name: string;
+		dataType: Equal<TUnsigned, true> extends true ? 'number uint24' : 'number int24';
+		data: number;
+		driverParam: number | string;
+	}, SingleStoreIntConfig>
+{
 	static override readonly [entityKind]: string = 'SingleStoreMediumIntBuilder';
 
 	constructor(name: string, config?: SingleStoreIntConfig) {
-		super(name, 'number int24', 'SingleStoreMediumInt');
+		super(name, config?.unsigned ? 'number uint24' : 'number int24' as any, 'SingleStoreMediumInt');
 		this.config.unsigned = config ? config.unsigned : false;
 	}
 
@@ -28,7 +29,7 @@ export class SingleStoreMediumIntBuilder extends SingleStoreColumnBuilderWithAut
 	}
 }
 
-export class SingleStoreMediumInt<T extends ColumnBaseConfig<'number int24'>>
+export class SingleStoreMediumInt<T extends ColumnBaseConfig<'number int24' | 'number uint24'>>
 	extends SingleStoreColumnWithAutoIncrement<T, SingleStoreIntConfig>
 {
 	static override readonly [entityKind]: string = 'SingleStoreMediumInt';
@@ -45,13 +46,13 @@ export class SingleStoreMediumInt<T extends ColumnBaseConfig<'number int24'>>
 	}
 }
 
-export function mediumint(
-	config?: SingleStoreIntConfig,
-): SingleStoreMediumIntBuilder;
-export function mediumint(
+export function mediumint<TUnsigned extends boolean | undefined>(
+	config?: SingleStoreIntConfig<TUnsigned>,
+): SingleStoreMediumIntBuilder<TUnsigned>;
+export function mediumint<TUnsigned extends boolean | undefined>(
 	name: string,
-	config?: SingleStoreIntConfig,
-): SingleStoreMediumIntBuilder;
+	config?: SingleStoreIntConfig<TUnsigned>,
+): SingleStoreMediumIntBuilder<TUnsigned>;
 export function mediumint(a?: string | SingleStoreIntConfig, b?: SingleStoreIntConfig) {
 	const { name, config } = getColumnNameAndConfig<SingleStoreIntConfig>(a, b);
 	return new SingleStoreMediumIntBuilder(name, config);

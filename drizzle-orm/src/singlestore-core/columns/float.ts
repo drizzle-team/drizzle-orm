@@ -1,20 +1,21 @@
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { SingleStoreTable } from '~/singlestore-core/table.ts';
-import { getColumnNameAndConfig } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoIncrement } from './common.ts';
 
-export class SingleStoreFloatBuilder extends SingleStoreColumnBuilderWithAutoIncrement<{
-	name: string;
-	dataType: 'number float';
-	data: number;
-	driverParam: number | string;
-	enumValues: undefined;
-}, SingleStoreFloatConfig> {
+export class SingleStoreFloatBuilder<TUnsigned extends boolean | undefined>
+	extends SingleStoreColumnBuilderWithAutoIncrement<{
+		name: string;
+		dataType: Equal<TUnsigned, true> extends true ? 'number ufloat' : 'number float';
+		data: number;
+		driverParam: number | string;
+	}, SingleStoreFloatConfig>
+{
 	static override readonly [entityKind]: string = 'SingleStoreFloatBuilder';
 
 	constructor(name: string, config: SingleStoreFloatConfig | undefined) {
-		super(name, 'number float', 'SingleStoreFloat');
+		super(name, config?.unsigned ? 'number ufloat' : 'number float' as any, 'SingleStoreFloat');
 		this.config.precision = config?.precision;
 		this.config.scale = config?.scale;
 		this.config.unsigned = config?.unsigned;
@@ -29,7 +30,7 @@ export class SingleStoreFloatBuilder extends SingleStoreColumnBuilderWithAutoInc
 	}
 }
 
-export class SingleStoreFloat<T extends ColumnBaseConfig<'number float'>>
+export class SingleStoreFloat<T extends ColumnBaseConfig<'number float' | 'number ufloat'>>
 	extends SingleStoreColumnWithAutoIncrement<T, SingleStoreFloatConfig>
 {
 	static override readonly [entityKind]: string = 'SingleStoreFloat';
@@ -51,19 +52,19 @@ export class SingleStoreFloat<T extends ColumnBaseConfig<'number float'>>
 	}
 }
 
-export interface SingleStoreFloatConfig {
+export interface SingleStoreFloatConfig<TUnsigned extends boolean | undefined = boolean | undefined> {
 	precision?: number;
 	scale?: number;
-	unsigned?: boolean;
+	unsigned?: TUnsigned;
 }
 
-export function float(
-	config?: SingleStoreFloatConfig,
-): SingleStoreFloatBuilder;
-export function float(
+export function float<TUnsigned extends boolean | undefined>(
+	config?: SingleStoreFloatConfig<TUnsigned>,
+): SingleStoreFloatBuilder<TUnsigned>;
+export function float<TUnsigned extends boolean | undefined>(
 	name: string,
-	config?: SingleStoreFloatConfig,
-): SingleStoreFloatBuilder;
+	config?: SingleStoreFloatConfig<TUnsigned>,
+): SingleStoreFloatBuilder<TUnsigned>;
 export function float(a?: string | SingleStoreFloatConfig, b?: SingleStoreFloatConfig) {
 	const { name, config } = getColumnNameAndConfig<SingleStoreFloatConfig>(a, b);
 	return new SingleStoreFloatBuilder(name, config);

@@ -1,20 +1,21 @@
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { SingleStoreTable } from '~/singlestore-core/table.ts';
-import { getColumnNameAndConfig } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoIncrement } from './common.ts';
 
-export class SingleStoreBigInt53Builder extends SingleStoreColumnBuilderWithAutoIncrement<{
-	name: string;
-	dataType: 'number int53';
-	data: number;
-	driverParam: number | string;
-	enumValues: undefined;
-}, { unsigned: boolean }> {
+export class SingleStoreBigInt53Builder<TUnsigned extends boolean | undefined>
+	extends SingleStoreColumnBuilderWithAutoIncrement<{
+		name: string;
+		dataType: Equal<TUnsigned, true> extends true ? 'number uint53' : 'number int53';
+		data: number;
+		driverParam: number | string;
+	}, { unsigned: boolean }>
+{
 	static override readonly [entityKind]: string = 'SingleStoreBigInt53Builder';
 
 	constructor(name: string, unsigned: boolean = false) {
-		super(name, 'number int53', 'SingleStoreBigInt53');
+		super(name, unsigned ? 'number uint53' : 'number int53' as any, 'SingleStoreBigInt53');
 		this.config.unsigned = unsigned;
 	}
 
@@ -27,7 +28,7 @@ export class SingleStoreBigInt53Builder extends SingleStoreColumnBuilderWithAuto
 	}
 }
 
-export class SingleStoreBigInt53<T extends ColumnBaseConfig<'number int53'>>
+export class SingleStoreBigInt53<T extends ColumnBaseConfig<'number int53' | 'number uint53'>>
 	extends SingleStoreColumnWithAutoIncrement<T, { unsigned: boolean }>
 {
 	static override readonly [entityKind]: string = 'SingleStoreBigInt53';
@@ -44,17 +45,18 @@ export class SingleStoreBigInt53<T extends ColumnBaseConfig<'number int53'>>
 	}
 }
 
-export class SingleStoreBigInt64Builder extends SingleStoreColumnBuilderWithAutoIncrement<{
-	name: string;
-	dataType: 'bigint';
-	data: bigint;
-	driverParam: string;
-	enumValues: undefined;
-}, { unsigned: boolean }> {
+export class SingleStoreBigInt64Builder<TUnsigned extends boolean | undefined>
+	extends SingleStoreColumnBuilderWithAutoIncrement<{
+		name: string;
+		dataType: Equal<TUnsigned, true> extends true ? 'bigint uint64' : 'bigint int64';
+		data: bigint;
+		driverParam: string;
+	}, { unsigned: boolean }>
+{
 	static override readonly [entityKind]: string = 'SingleStoreBigInt64Builder';
 
 	constructor(name: string, unsigned: boolean = false) {
-		super(name, 'bigint', 'SingleStoreBigInt64');
+		super(name, unsigned ? 'bigint uint64' : 'bigint int64' as any, 'SingleStoreBigInt64');
 		this.config.unsigned = unsigned;
 	}
 
@@ -67,7 +69,7 @@ export class SingleStoreBigInt64Builder extends SingleStoreColumnBuilderWithAuto
 	}
 }
 
-export class SingleStoreBigInt64<T extends ColumnBaseConfig<'bigint'>>
+export class SingleStoreBigInt64<T extends ColumnBaseConfig<'bigint int64' | 'bigint uint64'>>
 	extends SingleStoreColumnWithAutoIncrement<T, { unsigned: boolean }>
 {
 	static override readonly [entityKind]: string = 'SingleStoreBigInt64';
@@ -82,18 +84,21 @@ export class SingleStoreBigInt64<T extends ColumnBaseConfig<'bigint'>>
 	}
 }
 
-export interface SingleStoreBigIntConfig<T extends 'number' | 'bigint' = 'number' | 'bigint'> {
+export interface SingleStoreBigIntConfig<
+	T extends 'number' | 'bigint' = 'number' | 'bigint',
+	TUnsigned extends boolean | undefined = boolean | undefined,
+> {
 	mode: T;
-	unsigned?: boolean;
+	unsigned?: TUnsigned;
 }
 
-export function bigint<TMode extends SingleStoreBigIntConfig['mode']>(
-	config: SingleStoreBigIntConfig<TMode>,
-): TMode extends 'number' ? SingleStoreBigInt53Builder : SingleStoreBigInt64Builder;
-export function bigint<TMode extends SingleStoreBigIntConfig['mode']>(
+export function bigint<TMode extends SingleStoreBigIntConfig['mode'], TUnsigned extends boolean | undefined>(
+	config: SingleStoreBigIntConfig<TMode, TUnsigned>,
+): TMode extends 'number' ? SingleStoreBigInt53Builder<TUnsigned> : SingleStoreBigInt64Builder<TUnsigned>;
+export function bigint<TMode extends SingleStoreBigIntConfig['mode'], TUnsigned extends boolean | undefined>(
 	name: string,
-	config: SingleStoreBigIntConfig<TMode>,
-): TMode extends 'number' ? SingleStoreBigInt53Builder : SingleStoreBigInt64Builder;
+	config: SingleStoreBigIntConfig<TMode, TUnsigned>,
+): TMode extends 'number' ? SingleStoreBigInt53Builder<TUnsigned> : SingleStoreBigInt64Builder<TUnsigned>;
 export function bigint(a?: string | SingleStoreBigIntConfig, b?: SingleStoreBigIntConfig) {
 	const { name, config } = getColumnNameAndConfig<SingleStoreBigIntConfig>(a, b);
 	if (config.mode === 'number') {

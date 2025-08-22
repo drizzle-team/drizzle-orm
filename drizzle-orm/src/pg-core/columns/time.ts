@@ -12,7 +12,6 @@ export class PgTimeBuilder extends PgDateColumnBaseBuilder<
 		dataType: 'string time';
 		data: string;
 		driverParam: string;
-		enumValues: undefined;
 	},
 	{ withTimezone: boolean; precision: number | undefined }
 > {

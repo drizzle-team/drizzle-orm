@@ -38,21 +38,19 @@ export abstract class GelColumnBuilder<
 
 	static override readonly [entityKind]: string = 'GelColumnBuilder';
 
-	array<TSize extends number | undefined = undefined>(size?: TSize): GelArrayBuilder<
+	array(length?: number): GelArrayBuilder<
 		& {
 			name: string;
 			dataType: 'array basecolumn';
 			data: T['data'][];
 			driverParam: T['driverParam'][] | string;
-			enumValues: T['enumValues'];
-			size: TSize;
 			baseBuilder: T;
 		}
 		& (T extends { notNull: true } ? { notNull: true } : {})
 		& (T extends { hasDefault: true } ? { hasDefault: true } : {}),
 		T
 	> {
-		return new GelArrayBuilder(this.config.name, this as GelColumnBuilder<any, any>, size as any);
+		return new GelArrayBuilder(this.config.name, this as GelColumnBuilder<any, any>, length as any);
 	}
 
 	references(
@@ -126,8 +124,6 @@ export abstract class GelColumn<
 	TRuntimeConfig extends object = {},
 > extends Column<T, TRuntimeConfig> {
 	static override readonly [entityKind]: string = 'GelColumn';
-
-	override readonly dialect = 'gel';
 
 	/** @internal */
 	override readonly table: GelTable;
@@ -246,7 +242,6 @@ export type AnyGelColumn<TPartial extends Partial<ColumnBaseConfig<ColumnType>> 
 >;
 
 export type GelArrayColumnBuilderBaseConfig = ColumnBuilderBaseConfig<'array basecolumn'> & {
-	size: number | undefined;
 	baseBuilder: ColumnBuilderBaseConfig<ColumnType>;
 };
 
@@ -261,7 +256,6 @@ export class GelArrayBuilder<
 					: never
 			>
 			: GelColumnBuilder<TBase, {}, Simplify<Omit<TBase, keyof ColumnBuilderBaseConfig<any>>>>;
-		size: T['size'];
 	},
 	{
 		baseBuilder: TBase extends GelArrayColumnBuilderBaseConfig ? GelArrayBuilder<
@@ -270,7 +264,7 @@ export class GelArrayBuilder<
 					: never
 			>
 			: GelColumnBuilder<TBase, {}, Simplify<Omit<TBase, keyof ColumnBuilderBaseConfig<any>>>>;
-		size: T['size'];
+		length: number | undefined;
 	},
 	{}
 > {
@@ -279,11 +273,11 @@ export class GelArrayBuilder<
 	constructor(
 		name: string,
 		baseBuilder: GelArrayBuilder<T, TBase>['config']['baseBuilder'],
-		size: T['size'],
+		length: number | undefined,
 	) {
 		super(name, 'array basecolumn', 'GelArray');
 		this.config.baseBuilder = baseBuilder;
-		this.config.size = size;
+		this.config.length = length;
 	}
 
 	/** @internal */
@@ -299,13 +293,11 @@ export class GelArrayBuilder<
 
 export class GelArray<
 	T extends ColumnBaseConfig<'array basecolumn'> & {
-		size: number | undefined;
+		length: number | undefined;
 		baseBuilder: ColumnBuilderBaseConfig<ColumnType>;
 	},
 	TBase extends ColumnBuilderBaseConfig<ColumnType>,
 > extends GelColumn<T, {}> {
-	readonly size: T['size'];
-
 	static override readonly [entityKind]: string = 'GelArray';
 
 	constructor(
@@ -315,7 +307,6 @@ export class GelArray<
 		readonly range?: [number | undefined, number | undefined],
 	) {
 		super(table, config);
-		this.size = config.size;
 	}
 
 	override mapFromDriverValue(value: unknown[]): T['data'] {
@@ -332,6 +323,6 @@ export class GelArray<
 	}
 
 	getSQLType(): string {
-		return `${this.baseColumn.getSQLType()}[${typeof this.size === 'number' ? this.size : ''}]`;
+		return `${this.baseColumn.getSQLType()}[${typeof this.length === 'number' ? this.length : ''}]`;
 	}
 }

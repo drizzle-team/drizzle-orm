@@ -9,7 +9,6 @@ export class GelJsonBuilder extends GelColumnBuilder<
 		dataType: 'object json';
 		data: unknown;
 		driverParam: unknown;
-		enumValues: undefined;
 	}
 > {
 	static override readonly [entityKind]: string = 'GelJsonBuilder';

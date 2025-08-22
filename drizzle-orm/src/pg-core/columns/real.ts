@@ -6,17 +6,16 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 export class PgRealBuilder extends PgColumnBuilder<
 	{
 		name: string;
-		dataType: 'number real24';
+		dataType: 'number float';
 		data: number;
 		driverParam: string | number;
-		enumValues: undefined;
 	},
 	{ length: number | undefined }
 > {
 	static override readonly [entityKind]: string = 'PgRealBuilder';
 
 	constructor(name: string, length?: number) {
-		super(name, 'number real24', 'PgReal');
+		super(name, 'number float', 'PgReal');
 		this.config.length = length;
 	}
 
@@ -26,7 +25,7 @@ export class PgRealBuilder extends PgColumnBuilder<
 	}
 }
 
-export class PgReal<T extends ColumnBaseConfig<'number real24'>> extends PgColumn<T> {
+export class PgReal<T extends ColumnBaseConfig<'number float' | 'number ufloat'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgReal';
 
 	constructor(table: PgTable<any>, config: PgRealBuilder['config']) {

@@ -8,7 +8,6 @@ export class GelBooleanBuilder extends GelColumnBuilder<{
 	dataType: 'boolean';
 	data: boolean;
 	driverParam: boolean;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'GelBooleanBuilder';
 

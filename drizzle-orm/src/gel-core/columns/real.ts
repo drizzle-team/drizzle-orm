@@ -6,17 +6,16 @@ import { GelColumn, GelColumnBuilder } from './common.ts';
 export class GelRealBuilder extends GelColumnBuilder<
 	{
 		name: string;
-		dataType: 'number real24';
+		dataType: 'number float';
 		data: number;
 		driverParam: number;
-		enumValues: undefined;
 	},
 	{ length: number | undefined }
 > {
 	static override readonly [entityKind]: string = 'GelRealBuilder';
 
 	constructor(name: string, length?: number) {
-		super(name, 'number real24', 'GelReal');
+		super(name, 'number float', 'GelReal');
 		this.config.length = length;
 	}
 
@@ -26,7 +25,7 @@ export class GelRealBuilder extends GelColumnBuilder<
 	}
 }
 
-export class GelReal<T extends ColumnBaseConfig<'number real24'>> extends GelColumn<T> {
+export class GelReal<T extends ColumnBaseConfig<'number float' | 'number ufloat'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelReal';
 
 	constructor(table: AnyGelTable<{ name: T['tableName'] }>, config: GelRealBuilder['config']) {

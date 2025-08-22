@@ -6,7 +6,7 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export class PgTextBuilder<TEnum extends [string, ...string[]] = [string, ...string[]]> extends PgColumnBuilder<{
 	name: string;
-	dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string text' : 'string enum';
+	dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'string enum';
 	data: TEnum[number];
 	enumValues: TEnum;
 	driverParam: string;
@@ -17,7 +17,7 @@ export class PgTextBuilder<TEnum extends [string, ...string[]] = [string, ...str
 		name: string,
 		config: PgTextConfig<TEnum>,
 	) {
-		super(name, config.enum?.length ? 'string enum' : 'string text', 'PgText');
+		super(name, config.enum?.length ? 'string enum' : 'string', 'PgText');
 		this.config.enumValues = config.enum;
 	}
 
@@ -27,7 +27,7 @@ export class PgTextBuilder<TEnum extends [string, ...string[]] = [string, ...str
 	}
 }
 
-export class PgText<T extends ColumnBaseConfig<'string text' | 'string enum'>> extends PgColumn<T> {
+export class PgText<T extends ColumnBaseConfig<'string' | 'string enum'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgText';
 	override readonly enumValues;
 

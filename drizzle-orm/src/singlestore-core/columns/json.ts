@@ -8,7 +8,6 @@ export class SingleStoreJsonBuilder extends SingleStoreColumnBuilder<{
 	dataType: 'object json';
 	data: unknown;
 	driverParam: string;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'SingleStoreJsonBuilder';
 

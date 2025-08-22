@@ -8,15 +8,14 @@ type BlobMode = 'buffer' | 'json' | 'bigint';
 
 export class SQLiteBigIntBuilder extends SQLiteColumnBuilder<{
 	name: string;
-	dataType: 'bigint';
+	dataType: 'bigint int64';
 	data: bigint;
 	driverParam: Buffer;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'SQLiteBigIntBuilder';
 
 	constructor(name: string) {
-		super(name, 'bigint', 'SQLiteBigInt');
+		super(name, 'bigint int64', 'SQLiteBigInt');
 	}
 
 	/** @internal */
@@ -25,7 +24,7 @@ export class SQLiteBigIntBuilder extends SQLiteColumnBuilder<{
 	}
 }
 
-export class SQLiteBigInt<T extends ColumnBaseConfig<'bigint'>> extends SQLiteColumn<T> {
+export class SQLiteBigInt<T extends ColumnBaseConfig<'bigint int64'>> extends SQLiteColumn<T> {
 	static override readonly [entityKind]: string = 'SQLiteBigInt';
 
 	getSQLType(): string {
@@ -62,7 +61,6 @@ export class SQLiteBlobJsonBuilder extends SQLiteColumnBuilder<{
 	dataType: 'object json';
 	data: unknown;
 	driverParam: Buffer;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'SQLiteBlobJsonBuilder';
 
@@ -116,7 +114,6 @@ export class SQLiteBlobBufferBuilder extends SQLiteColumnBuilder<{
 	dataType: 'object buffer';
 	data: Buffer;
 	driverParam: Buffer;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'SQLiteBlobBufferBuilder';
 

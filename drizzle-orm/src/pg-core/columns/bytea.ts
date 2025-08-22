@@ -8,7 +8,6 @@ export class PgByteaBuilder extends PgColumnBuilder<{
 	dataType: 'object buffer';
 	data: Buffer;
 	driverParam: Buffer;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'PgByteaBuilder';
 

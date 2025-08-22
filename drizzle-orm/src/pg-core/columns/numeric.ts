@@ -10,7 +10,6 @@ export class PgNumericBuilder extends PgColumnBuilder<
 		dataType: 'string numeric';
 		data: string;
 		driverParam: string;
-		enumValues: undefined;
 	},
 	{
 		precision: number | undefined;
@@ -66,7 +65,6 @@ export class PgNumericNumberBuilder extends PgColumnBuilder<
 		dataType: 'number';
 		data: number;
 		driverParam: string;
-		enumValues: undefined;
 	},
 	{
 		precision: number | undefined;
@@ -124,10 +122,9 @@ export class PgNumericNumber<T extends ColumnBaseConfig<'number'>> extends PgCol
 export class PgNumericBigIntBuilder extends PgColumnBuilder<
 	{
 		name: string;
-		dataType: 'bigint';
+		dataType: 'bigint int64';
 		data: bigint;
 		driverParam: string;
-		enumValues: undefined;
 	},
 	{
 		precision: number | undefined;
@@ -137,7 +134,7 @@ export class PgNumericBigIntBuilder extends PgColumnBuilder<
 	static override readonly [entityKind]: string = 'PgNumericBigIntBuilder';
 
 	constructor(name: string, precision?: number, scale?: number) {
-		super(name, 'bigint', 'PgNumericBigInt');
+		super(name, 'bigint int64', 'PgNumericBigInt');
 		this.config.precision = precision;
 		this.config.scale = scale;
 	}
@@ -151,7 +148,7 @@ export class PgNumericBigIntBuilder extends PgColumnBuilder<
 	}
 }
 
-export class PgNumericBigInt<T extends ColumnBaseConfig<'bigint'>> extends PgColumn<T> {
+export class PgNumericBigInt<T extends ColumnBaseConfig<'bigint int64'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgNumericBigInt';
 
 	readonly precision: number | undefined;

@@ -11,7 +11,6 @@ export class PgGeometryBuilder extends PgColumnBuilder<{
 	dataType: 'array geometry';
 	data: [number, number];
 	driverParam: string;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'PgGeometryBuilder';
 
@@ -51,7 +50,6 @@ export class PgGeometryObjectBuilder extends PgColumnBuilder<{
 	dataType: 'object geometry';
 	data: { x: number; y: number };
 	driverParam: string;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'PgGeometryObjectBuilder';
 

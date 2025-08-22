@@ -61,8 +61,6 @@ export abstract class SingleStoreColumn<
 > extends Column<T, TRuntimeConfig> {
 	static override readonly [entityKind]: string = 'SingleStoreColumn';
 
-	override readonly dialect = 'singlestore';
-
 	/** @internal */
 	override readonly table: SingleStoreTable;
 

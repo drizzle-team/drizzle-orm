@@ -8,7 +8,6 @@ export class GelUUIDBuilder extends GelColumnBuilder<{
 	dataType: 'string uuid';
 	data: string;
 	driverParam: string;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'GelUUIDBuilder';
 

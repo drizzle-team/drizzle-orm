@@ -9,7 +9,6 @@ export class PgIntegerBuilder extends PgIntColumnBaseBuilder<{
 	dataType: 'number int32';
 	data: number;
 	driverParam: number | string;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'PgIntegerBuilder';
 

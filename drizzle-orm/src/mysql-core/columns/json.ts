@@ -8,7 +8,6 @@ export class MySqlJsonBuilder extends MySqlColumnBuilder<{
 	dataType: 'object json';
 	data: unknown;
 	driverParam: string;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'MySqlJsonBuilder';
 

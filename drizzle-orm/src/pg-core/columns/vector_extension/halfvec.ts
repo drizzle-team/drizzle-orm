@@ -4,22 +4,21 @@ import type { PgTable } from '~/pg-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from '../common.ts';
 
-export class PgHalfVectorBuilder<TDimensions extends number> extends PgColumnBuilder<
+export class PgHalfVectorBuilder extends PgColumnBuilder<
 	{
 		name: string;
 		dataType: 'array halfvector';
 		data: number[];
 		driverParam: string;
-		enumValues: undefined;
-		dimensions: TDimensions;
 	},
-	{ dimensions: TDimensions }
+	{ length: number; isLengthExact: true }
 > {
 	static override readonly [entityKind]: string = 'PgHalfVectorBuilder';
 
-	constructor(name: string, config: PgHalfVectorConfig<TDimensions>) {
+	constructor(name: string, config: PgHalfVectorConfig) {
 		super(name, 'array halfvector', 'PgHalfVector');
-		this.config.dimensions = config.dimensions;
+		this.config.length = config.dimensions;
+		this.config.isLengthExact = true;
 	}
 
 	/** @internal */
@@ -31,15 +30,11 @@ export class PgHalfVectorBuilder<TDimensions extends number> extends PgColumnBui
 	}
 }
 
-export class PgHalfVector<T extends ColumnBaseConfig<'array halfvector'> & { dimensions: number }>
-	extends PgColumn<T, { dimensions: T['dimensions'] }>
-{
+export class PgHalfVector<T extends ColumnBaseConfig<'array halfvector'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgHalfVector';
 
-	readonly dimensions: T['dimensions'] = this.config.dimensions;
-
 	getSQLType(): string {
-		return `halfvec(${this.dimensions})`;
+		return `halfvec(${this.length})`;
 	}
 
 	override mapToDriverValue(value: unknown): unknown {
@@ -54,17 +49,17 @@ export class PgHalfVector<T extends ColumnBaseConfig<'array halfvector'> & { dim
 	}
 }
 
-export interface PgHalfVectorConfig<TDimensions extends number = number> {
-	dimensions: TDimensions;
+export interface PgHalfVectorConfig {
+	dimensions: number;
 }
 
-export function halfvec<D extends number>(
-	config: PgHalfVectorConfig<D>,
-): PgHalfVectorBuilder<D>;
-export function halfvec<D extends number>(
+export function halfvec(
+	config: PgHalfVectorConfig,
+): PgHalfVectorBuilder;
+export function halfvec(
 	name: string,
 	config: PgHalfVectorConfig,
-): PgHalfVectorBuilder<D>;
+): PgHalfVectorBuilder;
 export function halfvec(a: string | PgHalfVectorConfig, b?: PgHalfVectorConfig) {
 	const { name, config } = getColumnNameAndConfig<PgHalfVectorConfig>(a, b);
 	return new PgHalfVectorBuilder(name, config);

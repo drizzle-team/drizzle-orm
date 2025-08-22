@@ -8,7 +8,6 @@ export class PgBooleanBuilder extends PgColumnBuilder<{
 	dataType: 'boolean';
 	data: boolean;
 	driverParam: boolean;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'PgBooleanBuilder';
 

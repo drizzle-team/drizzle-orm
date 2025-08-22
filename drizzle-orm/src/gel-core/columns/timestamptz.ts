@@ -10,7 +10,6 @@ export class GelTimestampTzBuilder extends GelLocalDateColumnBaseBuilder<
 		dataType: 'object date';
 		data: Date;
 		driverParam: Date;
-		enumValues: undefined;
 	}
 > {
 	static override readonly [entityKind]: string = 'GelTimestampTzBuilder';

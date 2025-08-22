@@ -1,20 +1,19 @@
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
-import { getColumnNameAndConfig } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 
-export class MySqlFloatBuilder extends MySqlColumnBuilderWithAutoIncrement<{
+export class MySqlFloatBuilder<TUnsigned extends boolean | undefined> extends MySqlColumnBuilderWithAutoIncrement<{
 	name: string;
-	dataType: 'number float';
+	dataType: Equal<TUnsigned, true> extends true ? 'number ufloat' : 'number float';
 	data: number;
 	driverParam: number | string;
-	enumValues: undefined;
 }, MySqlFloatConfig> {
 	static override readonly [entityKind]: string = 'MySqlFloatBuilder';
 
 	constructor(name: string, config: MySqlFloatConfig | undefined) {
-		super(name, 'number float', 'MySqlFloat');
+		super(name, config?.unsigned ? 'number ufloat' : 'number float' as any, 'MySqlFloat');
 		this.config.precision = config?.precision;
 		this.config.scale = config?.scale;
 		this.config.unsigned = config?.unsigned;
@@ -26,7 +25,7 @@ export class MySqlFloatBuilder extends MySqlColumnBuilderWithAutoIncrement<{
 	}
 }
 
-export class MySqlFloat<T extends ColumnBaseConfig<'number float'>>
+export class MySqlFloat<T extends ColumnBaseConfig<'number float' | 'number ufloat'>>
 	extends MySqlColumnWithAutoIncrement<T, MySqlFloatConfig>
 {
 	static override readonly [entityKind]: string = 'MySqlFloat';
@@ -57,19 +56,19 @@ export class MySqlFloat<T extends ColumnBaseConfig<'number float'>>
 	}
 }
 
-export interface MySqlFloatConfig {
+export interface MySqlFloatConfig<TUnsigned extends boolean | undefined = boolean | undefined> {
 	precision?: number;
 	scale?: number;
-	unsigned?: boolean;
+	unsigned?: TUnsigned;
 }
 
-export function float(
-	config?: MySqlFloatConfig,
-): MySqlFloatBuilder;
-export function float(
+export function float<TUnsigned extends boolean | undefined>(
+	config?: MySqlFloatConfig<TUnsigned>,
+): MySqlFloatBuilder<TUnsigned>;
+export function float<TUnsigned extends boolean | undefined>(
 	name: string,
-	config?: MySqlFloatConfig,
-): MySqlFloatBuilder;
+	config?: MySqlFloatConfig<TUnsigned>,
+): MySqlFloatBuilder<TUnsigned>;
 export function float(a?: string | MySqlFloatConfig, b?: MySqlFloatConfig) {
 	const { name, config } = getColumnNameAndConfig<MySqlFloatConfig>(a, b);
 	return new MySqlFloatBuilder(name, config);

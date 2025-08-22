@@ -9,7 +9,6 @@ export class PgUUIDBuilder extends PgColumnBuilder<{
 	dataType: 'string uuid';
 	data: string;
 	driverParam: string;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'PgUUIDBuilder';
 

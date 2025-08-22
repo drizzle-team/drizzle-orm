@@ -8,7 +8,6 @@ export class GelBytesBuilder extends GelColumnBuilder<{
 	dataType: 'object buffer';
 	data: Uint8Array;
 	driverParam: Uint8Array | Buffer;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'GelBytesBuilder';
 

@@ -9,19 +9,37 @@ export type SingleStoreTextColumnType = 'tinytext' | 'text' | 'mediumtext' | 'lo
 export class SingleStoreTextBuilder<TEnum extends [string, ...string[]]> extends SingleStoreColumnBuilder<
 	{
 		name: string;
-		dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string text' : 'string enum';
+		dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'string enum';
 		data: TEnum[number];
 		driverParam: string;
 		enumValues: TEnum;
 	},
-	{ textType: SingleStoreTextColumnType; enumValues: TEnum }
+	{ textType: SingleStoreTextColumnType; enumValues?: TEnum; length: number | undefined }
 > {
 	static override readonly [entityKind]: string = 'SingleStoreTextBuilder';
 
 	constructor(name: string, textType: SingleStoreTextColumnType, config: SingleStoreTextConfig<TEnum>) {
-		super(name, config.enum?.length ? 'string enum' : 'string text', 'SingleStoreText');
+		super(name, config.enum?.length ? 'string enum' : 'string', 'SingleStoreText');
 		this.config.textType = textType;
-		this.config.enumValues = config.enum!;
+		this.config.enumValues = config.enum;
+		switch (textType) {
+			case 'tinytext': {
+				this.config.length = 255;
+				break;
+			}
+			case 'text': {
+				this.config.length = 65535;
+				break;
+			}
+			case 'mediumtext': {
+				this.config.length = 16777215;
+				break;
+			}
+			case 'longtext': {
+				this.config.length = 4294967295;
+				break;
+			}
+		}
 	}
 
 	/** @internal */
@@ -33,7 +51,7 @@ export class SingleStoreTextBuilder<TEnum extends [string, ...string[]]> extends
 	}
 }
 
-export class SingleStoreText<T extends ColumnBaseConfig<'string text' | 'string enum'>>
+export class SingleStoreText<T extends ColumnBaseConfig<'string' | 'string enum'>>
 	extends SingleStoreColumn<T, { textType: SingleStoreTextColumnType; enumValues: T['enumValues'] }>
 {
 	static override readonly [entityKind]: string = 'SingleStoreText';

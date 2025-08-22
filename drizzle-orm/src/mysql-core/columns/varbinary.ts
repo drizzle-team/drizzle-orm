@@ -6,17 +6,16 @@ import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export class MySqlVarBinaryBuilder extends MySqlColumnBuilder<{
 	name: string;
-	dataType: 'string varbinary';
+	dataType: 'string binary';
 	data: string;
 	driverParam: string;
-	enumValues: undefined;
 }, MySqlVarbinaryOptions> {
 	static override readonly [entityKind]: string = 'MySqlVarBinaryBuilder';
 
 	/** @internal */
 	constructor(name: string, config: MySqlVarbinaryOptions) {
-		super(name, 'string varbinary', 'MySqlVarBinary');
-		this.config.length = config?.length;
+		super(name, 'string binary', 'MySqlVarBinary');
+		this.config.length = config.length;
 	}
 
 	/** @internal */
@@ -29,11 +28,9 @@ export class MySqlVarBinaryBuilder extends MySqlColumnBuilder<{
 }
 
 export class MySqlVarBinary<
-	T extends ColumnBaseConfig<'string varbinary'>,
+	T extends ColumnBaseConfig<'string binary'>,
 > extends MySqlColumn<T, MySqlVarbinaryOptions> {
 	static override readonly [entityKind]: string = 'MySqlVarBinary';
-
-	length: number | undefined = this.config.length;
 
 	override mapFromDriverValue(value: string | Buffer | Uint8Array): string {
 		if (typeof value === 'string') return value;

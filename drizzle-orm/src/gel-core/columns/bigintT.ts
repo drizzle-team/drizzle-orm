@@ -6,15 +6,14 @@ import { GelIntColumnBaseBuilder } from './int.common.ts';
 
 export class GelBigInt64Builder extends GelIntColumnBaseBuilder<{
 	name: string;
-	dataType: 'bigint';
+	dataType: 'bigint int64';
 	data: bigint;
 	driverParam: bigint;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'GelBigInt64Builder';
 
 	constructor(name: string) {
-		super(name, 'bigint', 'GelBigInt64');
+		super(name, 'bigint int64', 'GelBigInt64');
 	}
 
 	/** @internal */
@@ -26,7 +25,7 @@ export class GelBigInt64Builder extends GelIntColumnBaseBuilder<{
 	}
 }
 
-export class GelBigInt64<T extends ColumnBaseConfig<'bigint'>> extends GelColumn<T> {
+export class GelBigInt64<T extends ColumnBaseConfig<'bigint int64'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelBigInt64';
 
 	getSQLType(): string {

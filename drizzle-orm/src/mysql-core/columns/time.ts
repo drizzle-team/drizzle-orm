@@ -10,7 +10,6 @@ export class MySqlTimeBuilder extends MySqlColumnBuilder<
 		dataType: 'string time';
 		data: string;
 		driverParam: string | number;
-		enumValues: undefined;
 	},
 	TimeConfig
 > {

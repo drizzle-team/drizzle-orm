@@ -10,15 +10,16 @@ export class MySqlBinaryBuilder extends MySqlColumnBuilder<
 		dataType: 'string binary';
 		data: string;
 		driverParam: string;
-		enumValues: undefined;
 	},
-	MySqlBinaryConfig
+	MySqlBinaryConfig & { setLength: boolean; isLengthExact: true }
 > {
 	static override readonly [entityKind]: string = 'MySqlBinaryBuilder';
 
 	constructor(name: string, length: number | undefined) {
 		super(name, 'string binary', 'MySqlBinary');
-		this.config.length = length;
+		this.config.length = length ?? 1;
+		this.config.setLength = length !== undefined;
+		this.config.isLengthExact = true;
 	}
 
 	/** @internal */
@@ -29,11 +30,9 @@ export class MySqlBinaryBuilder extends MySqlColumnBuilder<
 
 export class MySqlBinary<T extends ColumnBaseConfig<'string binary'>> extends MySqlColumn<
 	T,
-	MySqlBinaryConfig
+	MySqlBinaryConfig & { setLength: boolean }
 > {
 	static override readonly [entityKind]: string = 'MySqlBinary';
-
-	length: number | undefined = this.config.length;
 
 	override mapFromDriverValue(value: string | Buffer | Uint8Array): string {
 		if (typeof value === 'string') return value;
@@ -48,7 +47,7 @@ export class MySqlBinary<T extends ColumnBaseConfig<'string binary'>> extends My
 	}
 
 	getSQLType(): string {
-		return this.length === undefined ? `binary` : `binary(${this.length})`;
+		return this.config.setLength ? `binary(${this.length})` : `binary`;
 	}
 }
 

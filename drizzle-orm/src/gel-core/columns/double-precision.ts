@@ -8,7 +8,6 @@ export class GelDoublePrecisionBuilder extends GelColumnBuilder<{
 	dataType: 'number double';
 	data: number;
 	driverParam: number;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'GelDoublePrecisionBuilder';
 

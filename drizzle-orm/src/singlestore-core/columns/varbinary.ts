@@ -6,17 +6,16 @@ import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
 export class SingleStoreVarBinaryBuilder extends SingleStoreColumnBuilder<{
 	name: string;
-	dataType: 'string varbinary';
+	dataType: 'string binary';
 	data: string;
 	driverParam: string;
-	enumValues: undefined;
 }, SingleStoreVarbinaryOptions> {
 	static override readonly [entityKind]: string = 'SingleStoreVarBinaryBuilder';
 
 	/** @internal */
 	constructor(name: string, config: SingleStoreVarbinaryOptions) {
-		super(name, 'string varbinary', 'SingleStoreVarBinary');
-		this.config.length = config?.length;
+		super(name, 'string binary', 'SingleStoreVarBinary');
+		this.config.length = config.length;
 	}
 
 	/** @internal */
@@ -29,11 +28,9 @@ export class SingleStoreVarBinaryBuilder extends SingleStoreColumnBuilder<{
 }
 
 export class SingleStoreVarBinary<
-	T extends ColumnBaseConfig<'string varbinary'>,
+	T extends ColumnBaseConfig<'string binary'>,
 > extends SingleStoreColumn<T, SingleStoreVarbinaryOptions> {
 	static override readonly [entityKind]: string = 'SingleStoreVarBinary';
-
-	length: number | undefined = this.config.length;
 
 	override mapFromDriverValue(value: string | Buffer | Uint8Array): string {
 		if (typeof value === 'string') return value;

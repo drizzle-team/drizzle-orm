@@ -10,7 +10,6 @@ export class PgSparseVectorBuilder extends PgColumnBuilder<
 		dataType: 'string sparsevec';
 		data: string;
 		driverParam: string;
-		enumValues: undefined;
 	},
 	{ dimensions: number | undefined }
 > {

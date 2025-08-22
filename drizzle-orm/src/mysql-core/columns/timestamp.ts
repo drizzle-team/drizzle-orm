@@ -9,7 +9,6 @@ export class MySqlTimestampBuilder extends MySqlDateColumnBaseBuilder<{
 	dataType: 'object date';
 	data: Date;
 	driverParam: string | number;
-	enumValues: undefined;
 }, MySqlTimestampConfig> {
 	static override readonly [entityKind]: string = 'MySqlTimestampBuilder';
 
@@ -53,7 +52,6 @@ export class MySqlTimestampStringBuilder extends MySqlDateColumnBaseBuilder<{
 	dataType: 'string timestamp';
 	data: string;
 	driverParam: string | number;
-	enumValues: undefined;
 }, MySqlTimestampConfig> {
 	static override readonly [entityKind]: string = 'MySqlTimestampStringBuilder';
 

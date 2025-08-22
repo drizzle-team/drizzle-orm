@@ -10,7 +10,6 @@ export class GelLocalTimeBuilder extends GelLocalDateColumnBaseBuilder<{
 	dataType: 'object localTime';
 	data: LocalTime;
 	driverParam: LocalTime;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'GelLocalTimeBuilder';
 

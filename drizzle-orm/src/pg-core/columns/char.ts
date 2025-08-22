@@ -4,22 +4,23 @@ import type { PgTable } from '~/pg-core/table.ts';
 import { type Equal, getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export class PgCharBuilder<TEnum extends [string, ...string[]], TLength extends number | undefined>
-	extends PgColumnBuilder<{
-		name: string;
-		dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string char' : 'string enum';
-		data: TEnum[number];
-		enumValues: TEnum;
-		driverParam: string;
-		length: TLength;
-	}, { length: TLength; enumValues: TEnum }>
-{
+export class PgCharBuilder<
+	TEnum extends [string, ...string[]],
+> extends PgColumnBuilder<{
+	name: string;
+	dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'string enum';
+	data: TEnum[number];
+	enumValues: TEnum;
+	driverParam: string;
+}, { enumValues?: TEnum; length: number; setLength: boolean; isLengthExact: true }> {
 	static override readonly [entityKind]: string = 'PgCharBuilder';
 
 	constructor(name: string, config: PgCharConfig<TEnum>) {
-		super(name, config.enum?.length ? 'string enum' : 'string char', 'PgChar');
-		this.config.length = config.length as TLength;
-		this.config.enumValues = config.enum as TEnum;
+		super(name, config.enum?.length ? 'string enum' : 'string', 'PgChar');
+		this.config.length = config.length ?? 1;
+		this.config.setLength = config.length !== undefined;
+		this.config.enumValues = config.enum;
+		this.config.isLengthExact = true;
 	}
 
 	/** @internal */
@@ -31,38 +32,35 @@ export class PgCharBuilder<TEnum extends [string, ...string[]], TLength extends 
 	}
 }
 
-export class PgChar<T extends ColumnBaseConfig<'string char' | 'string enum'> & { length?: number | undefined }>
-	extends PgColumn<T, { length: T['length']; enumValues: T['enumValues'] }>
+export class PgChar<T extends ColumnBaseConfig<'string' | 'string enum'>>
+	extends PgColumn<T, { enumValues?: T['enumValues']; length: number; setLength: boolean }>
 {
 	static override readonly [entityKind]: string = 'PgChar';
 
-	readonly length = this.config.length;
 	override readonly enumValues = this.config.enumValues;
 
 	getSQLType(): string {
-		return this.length === undefined ? `char` : `char(${this.length})`;
+		return this.config.setLength ? `char(${this.length})` : `char`;
 	}
 }
 
 export interface PgCharConfig<
 	TEnum extends readonly string[] | string[] | undefined = readonly string[] | string[] | undefined,
-	TLength extends number | undefined = number | undefined,
 > {
 	enum?: TEnum;
-	length?: TLength;
+	length?: number;
 }
 
-export function char<U extends string, T extends Readonly<[U, ...U[]]>, L extends number | undefined>(
-	config?: PgCharConfig<T | Writable<T>, L>,
-): PgCharBuilder<Writable<T>, L>;
+export function char<U extends string, T extends Readonly<[U, ...U[]]>>(
+	config?: PgCharConfig<T | Writable<T>>,
+): PgCharBuilder<Writable<T>>;
 export function char<
 	U extends string,
 	T extends Readonly<[U, ...U[]]>,
-	L extends number | undefined,
 >(
 	name: string,
-	config?: PgCharConfig<T | Writable<T>, L>,
-): PgCharBuilder<Writable<T>, L>;
+	config?: PgCharConfig<T | Writable<T>>,
+): PgCharBuilder<Writable<T>>;
 export function char(a?: string | PgCharConfig, b: PgCharConfig = {}): any {
 	const { name, config } = getColumnNameAndConfig<PgCharConfig>(a, b);
 	return new PgCharBuilder(name, config as any);

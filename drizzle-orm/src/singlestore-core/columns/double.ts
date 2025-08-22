@@ -1,20 +1,21 @@
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { SingleStoreTable } from '~/singlestore-core/table.ts';
-import { getColumnNameAndConfig } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoIncrement } from './common.ts';
 
-export class SingleStoreDoubleBuilder extends SingleStoreColumnBuilderWithAutoIncrement<{
-	name: string;
-	dataType: 'number double';
-	data: number;
-	driverParam: number | string;
-	enumValues: undefined;
-}, SingleStoreDoubleConfig> {
+export class SingleStoreDoubleBuilder<TUnsigned extends boolean | undefined>
+	extends SingleStoreColumnBuilderWithAutoIncrement<{
+		name: string;
+		dataType: Equal<TUnsigned, true> extends true ? 'number udouble' : 'number double';
+		data: number;
+		driverParam: number | string;
+	}, SingleStoreDoubleConfig>
+{
 	static override readonly [entityKind]: string = 'SingleStoreDoubleBuilder';
 
 	constructor(name: string, config: SingleStoreDoubleConfig | undefined) {
-		super(name, 'number double', 'SingleStoreDouble');
+		super(name, config?.unsigned ? 'number udouble' : 'number double' as any, 'SingleStoreDouble');
 		this.config.precision = config?.precision;
 		this.config.scale = config?.scale;
 		this.config.unsigned = config?.unsigned;
@@ -29,7 +30,7 @@ export class SingleStoreDoubleBuilder extends SingleStoreColumnBuilderWithAutoIn
 	}
 }
 
-export class SingleStoreDouble<T extends ColumnBaseConfig<'number double'>>
+export class SingleStoreDouble<T extends ColumnBaseConfig<'number double' | 'number udouble'>>
 	extends SingleStoreColumnWithAutoIncrement<T, SingleStoreDoubleConfig>
 {
 	static override readonly [entityKind]: string = 'SingleStoreDouble';
@@ -51,19 +52,19 @@ export class SingleStoreDouble<T extends ColumnBaseConfig<'number double'>>
 	}
 }
 
-export interface SingleStoreDoubleConfig {
+export interface SingleStoreDoubleConfig<TUnsigned extends boolean | undefined = boolean | undefined> {
 	precision?: number;
 	scale?: number;
-	unsigned?: boolean;
+	unsigned?: TUnsigned;
 }
 
-export function double(
-	config?: SingleStoreDoubleConfig,
-): SingleStoreDoubleBuilder;
-export function double(
+export function double<TUnsigned extends boolean | undefined>(
+	config?: SingleStoreDoubleConfig<TUnsigned>,
+): SingleStoreDoubleBuilder<TUnsigned>;
+export function double<TUnsigned extends boolean | undefined>(
 	name: string,
-	config?: SingleStoreDoubleConfig,
-): SingleStoreDoubleBuilder;
+	config?: SingleStoreDoubleConfig<TUnsigned>,
+): SingleStoreDoubleBuilder<TUnsigned>;
 export function double(a?: string | SingleStoreDoubleConfig, b?: SingleStoreDoubleConfig) {
 	const { name, config } = getColumnNameAndConfig<SingleStoreDoubleConfig>(a, b);
 	return new SingleStoreDoubleBuilder(name, config);

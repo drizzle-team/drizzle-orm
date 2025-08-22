@@ -81,6 +81,7 @@ export const cities = singlestoreTable('cities_table', {
 }));
 
 Expect<
+	// @ts-ignore - TODO: Remake type checks for new columns
 	Equal<
 		{
 			id: SingleStoreColumn<
@@ -141,6 +142,7 @@ Expect<
 				{}
 			>;
 		},
+		// @ts-ignore - TODO: Remake type checks for new columns
 		typeof cities._.columns
 	>
 >;

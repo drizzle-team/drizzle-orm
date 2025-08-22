@@ -9,7 +9,6 @@ export class SingleStoreTimeBuilder extends SingleStoreColumnBuilder<
 		dataType: 'string time';
 		data: string;
 		driverParam: string | number;
-		enumValues: undefined;
 	}
 > {
 	static override readonly [entityKind]: string = 'SingleStoreTimeBuilder';

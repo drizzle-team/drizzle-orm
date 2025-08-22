@@ -95,8 +95,6 @@ export abstract class MySqlColumn<
 > extends Column<T, TRuntimeConfig> {
 	static override readonly [entityKind]: string = 'MySqlColumn';
 
-	override readonly dialect = 'mysql';
-
 	/** @internal */
 	override readonly table: MySqlTable;
 

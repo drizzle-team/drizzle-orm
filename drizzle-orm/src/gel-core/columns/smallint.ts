@@ -9,7 +9,6 @@ export class GelSmallIntBuilder extends GelIntColumnBaseBuilder<{
 	dataType: 'number int16';
 	data: number;
 	driverParam: number;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'GelSmallIntBuilder';
 
@@ -23,7 +22,7 @@ export class GelSmallIntBuilder extends GelIntColumnBaseBuilder<{
 	}
 }
 
-export class GelSmallInt<T extends ColumnBaseConfig<'number int16'>> extends GelColumn<T> {
+export class GelSmallInt<T extends ColumnBaseConfig<'number int16' | 'number uint16'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelSmallInt';
 
 	getSQLType(): string {

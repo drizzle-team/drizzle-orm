@@ -11,7 +11,6 @@ export class SingleStoreDateTimeBuilder extends SingleStoreColumnBuilder<{
 	dataType: 'object date';
 	data: Date;
 	driverParam: string | number;
-	enumValues: undefined;
 }, SingleStoreDatetimeConfig> {
 	// TODO: we need to add a proper support for SingleStore
 	override generatedAlwaysAs(
@@ -65,7 +64,6 @@ export class SingleStoreDateTimeStringBuilder extends SingleStoreColumnBuilder<{
 	dataType: 'string datetime';
 	data: string;
 	driverParam: string | number;
-	enumValues: undefined;
 }, SingleStoreDatetimeConfig> {
 	// TODO: we need to add a proper support for SingleStore
 	override generatedAlwaysAs(

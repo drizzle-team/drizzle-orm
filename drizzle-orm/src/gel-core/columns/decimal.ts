@@ -9,7 +9,6 @@ export class GelDecimalBuilder extends GelColumnBuilder<
 		dataType: 'string numeric';
 		data: string;
 		driverParam: string;
-		enumValues: undefined;
 	}
 > {
 	static override readonly [entityKind]: string = 'GelDecimalBuilder';
