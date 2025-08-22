@@ -8,7 +8,6 @@ export class PgCidrBuilder extends PgColumnBuilder<{
 	dataType: 'string cidr';
 	data: string;
 	driverParam: string;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'PgCidrBuilder';
 

@@ -1,21 +1,20 @@
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
-import { getColumnNameAndConfig } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 import type { MySqlIntConfig } from './int.ts';
 
-export class MySqlTinyIntBuilder extends MySqlColumnBuilderWithAutoIncrement<{
+export class MySqlTinyIntBuilder<TUnsigned extends boolean | undefined> extends MySqlColumnBuilderWithAutoIncrement<{
 	name: string;
-	dataType: 'number int8';
+	dataType: Equal<TUnsigned, true> extends true ? 'number uint8' : 'number int8';
 	data: number;
 	driverParam: number | string;
-	enumValues: undefined;
 }, MySqlIntConfig> {
 	static override readonly [entityKind]: string = 'MySqlTinyIntBuilder';
 
 	constructor(name: string, config?: MySqlIntConfig) {
-		super(name, 'number int8', 'MySqlTinyInt');
+		super(name, config?.unsigned ? 'number uint8' : 'number int8' as any, 'MySqlTinyInt');
 		this.config.unsigned = config ? config.unsigned : false;
 	}
 
@@ -28,7 +27,7 @@ export class MySqlTinyIntBuilder extends MySqlColumnBuilderWithAutoIncrement<{
 	}
 }
 
-export class MySqlTinyInt<T extends ColumnBaseConfig<'number int8'>>
+export class MySqlTinyInt<T extends ColumnBaseConfig<'number int8' | 'number uint8'>>
 	extends MySqlColumnWithAutoIncrement<T, MySqlIntConfig>
 {
 	static override readonly [entityKind]: string = 'MySqlTinyInt';
@@ -45,13 +44,13 @@ export class MySqlTinyInt<T extends ColumnBaseConfig<'number int8'>>
 	}
 }
 
-export function tinyint(
-	config?: MySqlIntConfig,
-): MySqlTinyIntBuilder;
-export function tinyint(
+export function tinyint<TUnsigned extends boolean | undefined>(
+	config?: MySqlIntConfig<TUnsigned>,
+): MySqlTinyIntBuilder<TUnsigned>;
+export function tinyint<TUnsigned extends boolean | undefined>(
 	name: string,
-	config?: MySqlIntConfig,
-): MySqlTinyIntBuilder;
+	config?: MySqlIntConfig<TUnsigned>,
+): MySqlTinyIntBuilder<TUnsigned>;
 export function tinyint(a?: string | MySqlIntConfig, b?: MySqlIntConfig) {
 	const { name, config } = getColumnNameAndConfig<MySqlIntConfig>(a, b);
 	return new MySqlTinyIntBuilder(name, config);

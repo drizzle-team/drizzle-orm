@@ -9,7 +9,7 @@ export class PgBigSerial53Builder extends PgColumnBuilder<{
 	dataType: 'number int53';
 	data: number;
 	driverParam: number;
-	enumValues: undefined;
+
 	notNull: true;
 	hasDefault: true;
 }> {
@@ -47,17 +47,16 @@ export class PgBigSerial53<T extends ColumnBaseConfig<'number int53'>> extends P
 
 export class PgBigSerial64Builder extends PgColumnBuilder<{
 	name: string;
-	dataType: 'bigint';
+	dataType: 'bigint int64';
 	data: bigint;
 	driverParam: string;
-	enumValues: undefined;
 	notNull: true;
 	hasDefault: true;
 }> {
 	static override readonly [entityKind]: string = 'PgBigSerial64Builder';
 
 	constructor(name: string) {
-		super(name, 'bigint', 'PgBigSerial64');
+		super(name, 'bigint int64', 'PgBigSerial64');
 		this.config.hasDefault = true;
 	}
 
@@ -70,7 +69,7 @@ export class PgBigSerial64Builder extends PgColumnBuilder<{
 	}
 }
 
-export class PgBigSerial64<T extends ColumnBaseConfig<'bigint'>> extends PgColumn<T> {
+export class PgBigSerial64<T extends ColumnBaseConfig<'bigint int64'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgBigSerial64';
 
 	getSQLType(): string {

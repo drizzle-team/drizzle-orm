@@ -1,21 +1,20 @@
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
-import { getColumnNameAndConfig } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 
-export class MySqlBigInt53Builder extends MySqlColumnBuilderWithAutoIncrement<{
+export class MySqlBigInt53Builder<TUnsigned extends boolean | undefined> extends MySqlColumnBuilderWithAutoIncrement<{
 	name: string;
-	dataType: 'number int53';
+	dataType: Equal<TUnsigned, true> extends true ? 'number uint53' : 'number int53';
 	data: number;
 	driverParam: number | string;
-	enumValues: undefined;
-}, { unsigned: boolean }> {
+}, { unsigned?: boolean }> {
 	static override readonly [entityKind]: string = 'MySqlBigInt53Builder';
 
 	constructor(name: string, unsigned: boolean = false) {
-		super(name, 'number int53', 'MySqlBigInt53');
-		this.config.unsigned = unsigned;
+		super(name, (unsigned ? 'number uint53' : 'number int53') as any, 'MySqlBigInt53');
+		this.config.unsigned = unsigned as TUnsigned;
 	}
 
 	/** @internal */
@@ -27,7 +26,7 @@ export class MySqlBigInt53Builder extends MySqlColumnBuilderWithAutoIncrement<{
 	}
 }
 
-export class MySqlBigInt53<T extends ColumnBaseConfig<'number int53'>>
+export class MySqlBigInt53<T extends ColumnBaseConfig<'number int53' | 'number uint53'>>
 	extends MySqlColumnWithAutoIncrement<T, { unsigned: boolean }>
 {
 	static override readonly [entityKind]: string = 'MySqlBigInt53';
@@ -44,17 +43,16 @@ export class MySqlBigInt53<T extends ColumnBaseConfig<'number int53'>>
 	}
 }
 
-export class MySqlBigInt64Builder extends MySqlColumnBuilderWithAutoIncrement<{
+export class MySqlBigInt64Builder<TUnsigned extends boolean | undefined> extends MySqlColumnBuilderWithAutoIncrement<{
 	name: string;
-	dataType: 'bigint';
+	dataType: Equal<TUnsigned, true> extends true ? 'bigint uint64' : 'bigint int64';
 	data: bigint;
 	driverParam: string;
-	enumValues: undefined;
-}, { unsigned: boolean }> {
+}, { unsigned?: boolean }> {
 	static override readonly [entityKind]: string = 'MySqlBigInt64Builder';
 
 	constructor(name: string, unsigned: boolean = false) {
-		super(name, 'bigint', 'MySqlBigInt64');
+		super(name, (unsigned ? 'bigint uint64' : 'bigint int64') as any, 'MySqlBigInt64');
 		this.config.unsigned = unsigned;
 	}
 
@@ -67,7 +65,7 @@ export class MySqlBigInt64Builder extends MySqlColumnBuilderWithAutoIncrement<{
 	}
 }
 
-export class MySqlBigInt64<T extends ColumnBaseConfig<'bigint'>>
+export class MySqlBigInt64<T extends ColumnBaseConfig<'bigint int64' | 'bigint uint64'>>
 	extends MySqlColumnWithAutoIncrement<T, { unsigned: boolean }>
 {
 	static override readonly [entityKind]: string = 'MySqlBigInt64';
@@ -82,18 +80,21 @@ export class MySqlBigInt64<T extends ColumnBaseConfig<'bigint'>>
 	}
 }
 
-export interface MySqlBigIntConfig<T extends 'number' | 'bigint' = 'number' | 'bigint'> {
+export interface MySqlBigIntConfig<
+	T extends 'number' | 'bigint' = 'number' | 'bigint',
+	TUnsigned extends boolean | undefined = boolean | undefined,
+> {
 	mode: T;
-	unsigned?: boolean;
+	unsigned?: TUnsigned;
 }
 
-export function bigint<TMode extends MySqlBigIntConfig['mode']>(
-	config: MySqlBigIntConfig<TMode>,
-): TMode extends 'number' ? MySqlBigInt53Builder : MySqlBigInt64Builder;
-export function bigint<TMode extends MySqlBigIntConfig['mode']>(
+export function bigint<TMode extends MySqlBigIntConfig['mode'], TUnsigned extends boolean | undefined>(
+	config: MySqlBigIntConfig<TMode, TUnsigned>,
+): TMode extends 'number' ? MySqlBigInt53Builder<TUnsigned> : MySqlBigInt64Builder<TUnsigned>;
+export function bigint<TMode extends MySqlBigIntConfig['mode'], TUnsigned extends boolean | undefined>(
 	name: string,
-	config: MySqlBigIntConfig<TMode>,
-): TMode extends 'number' ? MySqlBigInt53Builder : MySqlBigInt64Builder;
+	config: MySqlBigIntConfig<TMode, TUnsigned>,
+): TMode extends 'number' ? MySqlBigInt53Builder<TUnsigned> : MySqlBigInt64Builder<TUnsigned>;
 export function bigint(a?: string | MySqlBigIntConfig, b?: MySqlBigIntConfig) {
 	const { name, config } = getColumnNameAndConfig<MySqlBigIntConfig>(a, b);
 	if (config.mode === 'number') {

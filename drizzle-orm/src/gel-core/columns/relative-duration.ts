@@ -9,7 +9,6 @@ export class GelRelDurationBuilder extends GelColumnBuilder<{
 	dataType: 'object relDuration';
 	data: RelativeDuration;
 	driverParam: RelativeDuration;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'GelRelDurationBuilder';
 

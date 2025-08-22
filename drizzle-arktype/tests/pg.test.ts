@@ -1,4 +1,4 @@
-import { Type, type } from 'arktype';
+import { type Type, type } from 'arktype';
 import { type Equal, sql } from 'drizzle-orm';
 import {
 	customType,

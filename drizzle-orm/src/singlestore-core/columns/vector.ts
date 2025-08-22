@@ -11,14 +11,15 @@ export class SingleStoreVectorBuilder extends SingleStoreColumnBuilder<{
 	dataType: 'array vector';
 	data: Array<number>;
 	driverParam: string;
-	enumValues: undefined;
-}, SingleStoreVectorConfig> {
+	isLengthExact: true;
+}, { length: number; isLengthExact: true; elementType?: ElementType }> {
 	static override readonly [entityKind]: string = 'SingleStoreVectorBuilder';
 
 	constructor(name: string, config: SingleStoreVectorConfig) {
 		super(name, 'array vector', 'SingleStoreVector');
-		this.config.dimensions = config.dimensions;
+		this.config.length = config.dimensions;
 		this.config.elementType = config.elementType;
+		this.config.isLengthExact = true;
 	}
 
 	/** @internal */
@@ -41,15 +42,14 @@ export class SingleStoreVectorBuilder extends SingleStoreColumnBuilder<{
 }
 
 export class SingleStoreVector<T extends ColumnBaseConfig<'array vector'>>
-	extends SingleStoreColumn<T, SingleStoreVectorConfig>
+	extends SingleStoreColumn<T, { length: number; elementType?: ElementType }>
 {
 	static override readonly [entityKind]: string = 'SingleStoreVector';
 
-	dimensions: number = this.config.dimensions;
-	elementType: ElementType | undefined = this.config.elementType;
+	readonly elementType: ElementType | undefined = this.config.elementType;
 
 	getSQLType(): string {
-		return `vector(${this.dimensions}, ${this.elementType || 'F32'})`;
+		return `vector(${this.config.length}, ${this.elementType || 'F32'})`;
 	}
 
 	override mapToDriverValue(value: Array<number>) {

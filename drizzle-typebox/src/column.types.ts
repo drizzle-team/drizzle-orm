@@ -28,7 +28,9 @@ export type GetTypeboxType<
 		: t.TObject
 	: TType['type'] extends 'custom' ? t.TAny
 	: TType['type'] extends 'number'
-		? TType['constraint'] extends 'int8' | 'int16' | 'int24' | 'int32' | 'int53' | 'uint53' | 'year' ? t.TInteger
+		? TType['constraint'] extends
+			'int8' | 'int16' | 'int24' | 'int32' | 'int53' | 'uint8' | 'uint16' | 'uint24' | 'uint32' | 'uint53' | 'year'
+			? t.TInteger
 		: t.TNumber
 	: TType['type'] extends 'bigint' ? t.TBigInt
 	: TType['type'] extends 'boolean' ? t.TBoolean

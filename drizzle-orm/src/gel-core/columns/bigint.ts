@@ -9,7 +9,6 @@ export class GelInt53Builder extends GelIntColumnBaseBuilder<{
 	dataType: 'number int53';
 	data: number;
 	driverParam: number;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'GelInt53Builder';
 

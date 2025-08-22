@@ -10,7 +10,6 @@ export class PgIntervalBuilder extends PgColumnBuilder<{
 	dataType: 'string interval';
 	data: string;
 	driverParam: string;
-	enumValues: undefined;
 }, { intervalConfig: IntervalConfig }> {
 	static override readonly [entityKind]: string = 'PgIntervalBuilder';
 

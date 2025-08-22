@@ -11,7 +11,6 @@ export class GelTimestampBuilder extends GelLocalDateColumnBaseBuilder<
 		dataType: 'object localDateTime';
 		data: LocalDateTime;
 		driverParam: LocalDateTime;
-		enumValues: undefined;
 	}
 > {
 	static override readonly [entityKind]: string = 'GelTimestampBuilder';

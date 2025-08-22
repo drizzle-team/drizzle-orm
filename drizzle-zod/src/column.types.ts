@@ -29,7 +29,9 @@ export type GetZodType<
 		: z.ZodObject<{}, z.core.$loose>
 	: TType['type'] extends 'custom' ? z.ZodType
 	: TType['type'] extends 'number' ? TCanCoerce extends true ? z.coerce.ZodCoercedNumber
-		: (TType['constraint'] extends 'int8' | 'int16' | 'int24' | 'int32' | 'int53' | 'uint53' | 'year' ? z.ZodInt
+		: (TType['constraint'] extends
+			'int8' | 'int16' | 'int24' | 'int32' | 'int53' | 'uint8' | 'uint16' | 'uint24' | 'uint32' | 'uint53' | 'year'
+			? z.ZodInt
 			: z.ZodNumber)
 	: TType['type'] extends 'bigint' ? TCanCoerce extends true ? z.coerce.ZodCoercedBigInt : z.ZodBigInt
 	: TType['type'] extends 'boolean' ? TCanCoerce extends true ? z.coerce.ZodCoercedBoolean : z.ZodBoolean

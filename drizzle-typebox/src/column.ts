@@ -1,8 +1,9 @@
 import { Kind, Type as t, TypeRegistry } from '@sinclair/typebox';
-import type { StringOptions, TSchema, Type as typebox } from '@sinclair/typebox';
+import type { BigIntOptions, StringOptions, TSchema, Type as typebox } from '@sinclair/typebox';
 import {
 	type Column,
 	type ColumnDataArrayConstraint,
+	type ColumnDataBigIntConstraint,
 	type ColumnDataNumberConstraint,
 	type ColumnDataObjectConstraint,
 	type ColumnDataStringConstraint,
@@ -41,7 +42,7 @@ export function columnToSchema(column: Column, t: typeof typebox): TSchema {
 			break;
 		}
 		case 'bigint': {
-			schema = bigintColumnToSchema(column, t);
+			schema = bigintColumnToSchema(column, constraint, t);
 			break;
 		}
 		case 'boolean': {
@@ -69,7 +70,6 @@ function numberColumnToSchema(
 	constraint: ColumnDataNumberConstraint | undefined,
 	t: typeof typebox,
 ): TSchema {
-	const unsigned = constraint === 'uint53' || column.getSQLType().includes('unsigned');
 	let min!: number;
 	let max!: number;
 	let integer = false;
@@ -77,25 +77,49 @@ function numberColumnToSchema(
 	switch (constraint) {
 		case 'int8': {
 			min = CONSTANTS.INT8_MIN;
-			max = unsigned ? CONSTANTS.INT8_UNSIGNED_MAX : CONSTANTS.INT8_MAX;
+			max = CONSTANTS.INT8_MAX;
+			integer = true;
+			break;
+		}
+		case 'uint8': {
+			min = 0;
+			max = CONSTANTS.INT8_UNSIGNED_MAX;
 			integer = true;
 			break;
 		}
 		case 'int16': {
 			min = CONSTANTS.INT16_MIN;
-			max = unsigned ? CONSTANTS.INT16_UNSIGNED_MAX : CONSTANTS.INT16_MAX;
+			max = CONSTANTS.INT16_MAX;
+			integer = true;
+			break;
+		}
+		case 'uint16': {
+			min = 0;
+			max = CONSTANTS.INT16_UNSIGNED_MAX;
 			integer = true;
 			break;
 		}
 		case 'int24': {
 			min = CONSTANTS.INT24_MIN;
-			max = unsigned ? CONSTANTS.INT24_UNSIGNED_MAX : CONSTANTS.INT24_MAX;
+			max = CONSTANTS.INT24_MAX;
+			integer = true;
+			break;
+		}
+		case 'uint24': {
+			min = 0;
+			max = CONSTANTS.INT24_UNSIGNED_MAX;
 			integer = true;
 			break;
 		}
 		case 'int32': {
 			min = CONSTANTS.INT32_MIN;
-			max = unsigned ? CONSTANTS.INT32_UNSIGNED_MAX : CONSTANTS.INT32_MAX;
+			max = CONSTANTS.INT32_MAX;
+			integer = true;
+			break;
+		}
+		case 'uint32': {
+			min = 0;
+			max = CONSTANTS.INT32_UNSIGNED_MAX;
 			integer = true;
 			break;
 		}
@@ -113,22 +137,22 @@ function numberColumnToSchema(
 		}
 		case 'float': {
 			min = CONSTANTS.INT24_MIN;
-			max = unsigned ? CONSTANTS.INT24_UNSIGNED_MAX : CONSTANTS.INT24_MAX;
+			max = CONSTANTS.INT24_MAX;
 			break;
 		}
-		case 'real24': {
-			min = CONSTANTS.INT24_MIN;
-			max = unsigned ? CONSTANTS.INT24_UNSIGNED_MAX : CONSTANTS.INT24_MAX;
-			break;
-		}
-		case 'real48': {
-			min = CONSTANTS.INT48_MIN;
-			max = unsigned ? CONSTANTS.INT48_UNSIGNED_MAX : CONSTANTS.INT48_MAX;
+		case 'ufloat': {
+			min = 0;
+			max = CONSTANTS.INT24_UNSIGNED_MAX;
 			break;
 		}
 		case 'double': {
 			min = CONSTANTS.INT48_MIN;
-			max = unsigned ? CONSTANTS.INT48_UNSIGNED_MAX : CONSTANTS.INT48_MAX;
+			max = CONSTANTS.INT48_MAX;
+			break;
+		}
+		case 'udouble': {
+			min = 0;
+			max = CONSTANTS.INT48_UNSIGNED_MAX;
 			break;
 		}
 		case 'year': {
@@ -143,8 +167,6 @@ function numberColumnToSchema(
 			break;
 		}
 	}
-
-	min = unsigned ? 0 : min;
 
 	const key = integer ? 'Integer' : 'Number';
 	return t[key]({
@@ -168,17 +190,17 @@ function arrayColumnToSchema(
 		}
 		case 'vector':
 		case 'halfvector': {
-			const dimensions = (<{ dimensions?: number }> column).dimensions;
-			const sizeParam = dimensions
+			const length = column.length;
+			const sizeParam = length
 				? {
-					minItems: dimensions,
-					maxItems: dimensions,
+					minItems: length,
+					maxItems: length,
 				}
 				: undefined;
 			return t.Array(t.Number(), sizeParam);
 		}
 		case 'basecolumn': {
-			const size = (<{ size?: number }> column).size;
+			const size = column.length;
 			const sizeParam = size
 				? {
 					minItems: size,
@@ -236,15 +258,37 @@ function objectColumnToSchema(
 	}
 }
 
-function bigintColumnToSchema(column: Column, t: typeof typebox): TSchema {
-	const unsigned = column.getSQLType().includes('unsigned');
-	const min = unsigned ? 0n : CONSTANTS.INT64_MIN;
-	const max = unsigned ? CONSTANTS.INT64_UNSIGNED_MAX : CONSTANTS.INT64_MAX;
+function bigintColumnToSchema(
+	column: Column,
+	constraint: ColumnDataBigIntConstraint | undefined,
+	t: typeof typebox,
+): TSchema {
+	let min!: bigint | undefined;
+	let max!: bigint | undefined;
 
-	return t.BigInt({
-		minimum: min,
-		maximum: max,
-	});
+	switch (constraint) {
+		case 'int64': {
+			min = CONSTANTS.INT64_MIN;
+			max = CONSTANTS.INT64_MAX;
+			break;
+		}
+		case 'uint64': {
+			min = 0n;
+			max = CONSTANTS.INT64_UNSIGNED_MAX;
+			break;
+		}
+	}
+
+	const options: Partial<BigIntOptions> = {};
+
+	if (min !== undefined) {
+		options.minimum = min;
+	}
+	if (max !== undefined) {
+		options.maximum = max;
+	}
+
+	return t.BigInt(Object.keys(options).length > 0 ? options : undefined);
 }
 
 function stringColumnToSchema(
@@ -252,42 +296,19 @@ function stringColumnToSchema(
 	constraint: ColumnDataStringConstraint | undefined,
 	t: typeof typebox,
 ): TSchema {
-	const { dialect, name: columnName } = column;
+	const { name: columnName, length, isLengthExact } = column;
+	let regex: RegExp | undefined;
 
-	let max: number | undefined;
-	let fixed = false;
-
-	if ((dialect === 'pg' && constraint === 'varchar') || (dialect === 'sqlite' && constraint === 'text')) {
-		max = (<{ length?: number }> column).length;
-	} else if ((dialect === 'singlestore' || dialect === 'mysql') && constraint === 'varchar') {
-		max = (<{ length?: number }> column).length ?? CONSTANTS.INT16_UNSIGNED_MAX;
-	} else if ((dialect === 'singlestore' || dialect === 'mysql') && constraint === 'text') {
-		const textType = (<{ textType?: 'text' | 'tinytext' | 'mediumtext' | 'longtext' }> column).textType!;
-
-		if (textType === 'longtext') {
-			max = CONSTANTS.INT32_UNSIGNED_MAX;
-		} else if (textType === 'mediumtext') {
-			max = CONSTANTS.INT24_UNSIGNED_MAX;
-		} else if (textType === 'text') {
-			max = CONSTANTS.INT16_UNSIGNED_MAX;
-		} else {
-			max = CONSTANTS.INT8_UNSIGNED_MAX;
-		}
-	} else if (constraint === 'char') {
-		max = (<{ length?: number }> column).length;
-		fixed = true;
-	} else if (constraint === 'binary') {
-		const length = (<{ dimensions?: number }> column).dimensions ?? (<{ length?: number }> column).length;
-		return t.RegExp(/^[01]*$/, length ? { maxLength: length, minLength: length } : undefined);
-	} else if (constraint === 'varbinary') {
-		const length = (<{ dimensions?: number }> column).dimensions ?? (<{ length?: number }> column).length;
-		return t.RegExp(/^[01]*$/, length ? { maxLength: length } : undefined);
-	} else if (constraint === 'uuid') {
-		return t.String({ format: 'uuid' });
-	} else if (
-		constraint === 'enum'
-	) {
-		const enumValues = (<{ enumValues?: string[] }> column).enumValues;
+	if (constraint === 'binary') {
+		regex = /^[01]*$/;
+	}
+	if (constraint === 'uuid') {
+		return t.String({
+			format: 'uuid',
+		});
+	}
+	if (constraint === 'enum') {
+		const enumValues = column.enumValues;
 		if (!enumValues) {
 			throw new Error(
 				`Column "${getTableName(getColumnTable(column))}"."${columnName}" is of 'enum' type, but lacks enum values`,
@@ -298,12 +319,14 @@ function stringColumnToSchema(
 
 	const options: Partial<StringOptions> = {};
 
-	if (max !== undefined && fixed) {
-		options.minLength = max;
-		options.maxLength = max;
-	} else if (max !== undefined) {
-		options.maxLength = max;
+	if (length !== undefined && isLengthExact) {
+		options.minLength = length;
+		options.maxLength = length;
+	} else if (length !== undefined) {
+		options.maxLength = length;
 	}
 
-	return t.String(Object.keys(options).length > 0 ? options : undefined);
+	return regex
+		? t.RegExp(regex, Object.keys(options).length > 0 ? options : undefined)
+		: t.String(Object.keys(options).length > 0 ? options : undefined);
 }

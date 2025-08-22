@@ -10,7 +10,6 @@ export class PgDateBuilder extends PgDateColumnBaseBuilder<{
 	dataType: 'object date';
 	data: Date;
 	driverParam: string;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'PgDateBuilder';
 
@@ -45,7 +44,6 @@ export class PgDateStringBuilder extends PgDateColumnBaseBuilder<{
 	dataType: 'string date';
 	data: string;
 	driverParam: string;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'PgDateStringBuilder';
 

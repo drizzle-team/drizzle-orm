@@ -10,15 +10,16 @@ export class SingleStoreBinaryBuilder extends SingleStoreColumnBuilder<
 		dataType: 'string binary';
 		data: string;
 		driverParam: string;
-		enumValues: undefined;
 	},
-	SingleStoreBinaryConfig
+	SingleStoreBinaryConfig & { setLength: boolean; isLengthExact: true }
 > {
 	static override readonly [entityKind]: string = 'SingleStoreBinaryBuilder';
 
 	constructor(name: string, length: number | undefined) {
 		super(name, 'string binary', 'SingleStoreBinary');
-		this.config.length = length;
+		this.config.length = length ?? 1;
+		this.config.setLength = length !== undefined;
+		this.config.isLengthExact = true;
 	}
 
 	/** @internal */
@@ -32,11 +33,9 @@ export class SingleStoreBinaryBuilder extends SingleStoreColumnBuilder<
 
 export class SingleStoreBinary<T extends ColumnBaseConfig<'string binary'>> extends SingleStoreColumn<
 	T,
-	SingleStoreBinaryConfig
+	SingleStoreBinaryConfig & { setLength: boolean }
 > {
 	static override readonly [entityKind]: string = 'SingleStoreBinary';
-
-	length: number | undefined = this.config.length;
 
 	override mapFromDriverValue(value: string | Buffer | Uint8Array): string {
 		if (typeof value === 'string') return value;
@@ -51,7 +50,7 @@ export class SingleStoreBinary<T extends ColumnBaseConfig<'string binary'>> exte
 	}
 
 	getSQLType(): string {
-		return this.length === undefined ? `binary` : `binary(${this.length})`;
+		return this.config.setLength ? `binary(${this.length})` : `binary`;
 	}
 }
 

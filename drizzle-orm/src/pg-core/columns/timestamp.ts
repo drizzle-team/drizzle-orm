@@ -11,7 +11,6 @@ export class PgTimestampBuilder extends PgDateColumnBaseBuilder<
 		dataType: 'object date';
 		data: Date;
 		driverParam: string;
-		enumValues: undefined;
 	},
 	{ withTimezone: boolean; precision: number | undefined }
 > {
@@ -65,7 +64,6 @@ export class PgTimestampStringBuilder extends PgDateColumnBaseBuilder<
 		dataType: 'string timestamp';
 		data: string;
 		driverParam: string;
-		enumValues: undefined;
 	},
 	{ withTimezone: boolean; precision: number | undefined }
 > {

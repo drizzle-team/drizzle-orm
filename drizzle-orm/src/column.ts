@@ -1,7 +1,6 @@
 import type {
 	ColumnBuilderRuntimeConfig,
 	ColumnType,
-	Dialect,
 	GeneratedColumnConfig,
 	GeneratedIdentityConfig,
 } from './column-builder.ts';
@@ -48,7 +47,6 @@ export abstract class Column<
 		identity: undefined | 'always' | 'byDefault';
 	};
 
-	abstract readonly dialect: Dialect;
 	readonly name: string;
 	readonly keyAsName: boolean;
 	readonly primary: boolean;
@@ -65,6 +63,8 @@ export abstract class Column<
 	readonly enumValues: T['enumValues'] = undefined;
 	readonly generated: GeneratedColumnConfig<T['data']> | undefined = undefined;
 	readonly generatedIdentity: GeneratedIdentityConfig | undefined = undefined;
+	readonly length: number | undefined;
+	readonly isLengthExact: boolean | undefined;
 
 	/** @internal */
 	protected config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig;
@@ -98,6 +98,8 @@ export abstract class Column<
 		this.columnType = config.columnType;
 		this.generated = config.generated;
 		this.generatedIdentity = config.generatedIdentity;
+		this.length = (<{ length?: number }> config)['length'];
+		this.isLengthExact = (<{ isLengthExact?: boolean }> config)['isLengthExact'];
 	}
 
 	abstract getSQLType(): string;

@@ -8,7 +8,6 @@ export class SingleStoreYearBuilder extends SingleStoreColumnBuilder<{
 	dataType: 'number year';
 	data: number;
 	driverParam: number;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'SingleStoreYearBuilder';
 

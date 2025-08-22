@@ -8,7 +8,6 @@ export class MySqlSerialBuilder extends MySqlColumnBuilderWithAutoIncrement<{
 	dataType: 'number uint53';
 	data: number;
 	driverParam: number;
-	enumValues: undefined;
 	hasDefault: true;
 	notNull: true;
 	isPrimaryKey: true;

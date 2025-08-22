@@ -9,7 +9,6 @@ export class SQLiteNumericBuilder extends SQLiteColumnBuilder<{
 	dataType: 'string numeric';
 	data: string;
 	driverParam: string;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'SQLiteNumericBuilder';
 
@@ -44,7 +43,6 @@ export class SQLiteNumericNumberBuilder extends SQLiteColumnBuilder<{
 	dataType: 'number';
 	data: number;
 	driverParam: string;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'SQLiteNumericNumberBuilder';
 
@@ -79,15 +77,14 @@ export class SQLiteNumericNumber<T extends ColumnBaseConfig<'number'>> extends S
 
 export class SQLiteNumericBigIntBuilder extends SQLiteColumnBuilder<{
 	name: string;
-	dataType: 'bigint';
+	dataType: 'bigint int64';
 	data: bigint;
 	driverParam: string;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'SQLiteNumericBigIntBuilder';
 
 	constructor(name: string) {
-		super(name, 'bigint', 'SQLiteNumericBigInt');
+		super(name, 'bigint int64', 'SQLiteNumericBigInt');
 	}
 
 	/** @internal */
@@ -99,7 +96,7 @@ export class SQLiteNumericBigIntBuilder extends SQLiteColumnBuilder<{
 	}
 }
 
-export class SQLiteNumericBigInt<T extends ColumnBaseConfig<'bigint'>> extends SQLiteColumn<T> {
+export class SQLiteNumericBigInt<T extends ColumnBaseConfig<'bigint int64'>> extends SQLiteColumn<T> {
 	static override readonly [entityKind]: string = 'SQLiteNumericBigInt';
 
 	override mapFromDriverValue = BigInt;

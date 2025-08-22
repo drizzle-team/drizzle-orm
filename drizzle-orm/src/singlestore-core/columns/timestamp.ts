@@ -10,7 +10,6 @@ export class SingleStoreTimestampBuilder extends SingleStoreDateColumnBaseBuilde
 	dataType: 'object date';
 	data: Date;
 	driverParam: string | number;
-	enumValues: undefined;
 }, SingleStoreTimestampConfig> {
 	static override readonly [entityKind]: string = 'SingleStoreTimestampBuilder';
 
@@ -54,7 +53,6 @@ export class SingleStoreTimestampStringBuilder extends SingleStoreDateColumnBase
 	dataType: 'string timestamp';
 	data: string;
 	driverParam: string | number;
-	enumValues: undefined;
 }, SingleStoreTimestampConfig> {
 	static override readonly [entityKind]: string = 'SingleStoreTimestampStringBuilder';
 

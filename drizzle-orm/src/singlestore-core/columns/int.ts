@@ -1,20 +1,21 @@
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { SingleStoreTable } from '~/singlestore-core/table.ts';
-import { getColumnNameAndConfig } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoIncrement } from './common.ts';
 
-export class SingleStoreIntBuilder extends SingleStoreColumnBuilderWithAutoIncrement<{
-	name: string;
-	dataType: 'number int32';
-	data: number;
-	driverParam: number | string;
-	enumValues: undefined;
-}, SingleStoreIntConfig> {
+export class SingleStoreIntBuilder<TUnsigned extends boolean | undefined>
+	extends SingleStoreColumnBuilderWithAutoIncrement<{
+		name: string;
+		dataType: Equal<TUnsigned, true> extends true ? 'number uint32' : 'number int32';
+		data: number;
+		driverParam: number | string;
+	}, SingleStoreIntConfig>
+{
 	static override readonly [entityKind]: string = 'SingleStoreIntBuilder';
 
 	constructor(name: string, config?: SingleStoreIntConfig) {
-		super(name, 'number int32', 'SingleStoreInt');
+		super(name, config?.unsigned ? 'number uint32' : 'number int32' as any, 'SingleStoreInt');
 		this.config.unsigned = config ? config.unsigned : false;
 	}
 
@@ -27,7 +28,7 @@ export class SingleStoreIntBuilder extends SingleStoreColumnBuilderWithAutoIncre
 	}
 }
 
-export class SingleStoreInt<T extends ColumnBaseConfig<'number int32'>>
+export class SingleStoreInt<T extends ColumnBaseConfig<'number int32' | 'number uint32'>>
 	extends SingleStoreColumnWithAutoIncrement<T, SingleStoreIntConfig>
 {
 	static override readonly [entityKind]: string = 'SingleStoreInt';
@@ -44,18 +45,17 @@ export class SingleStoreInt<T extends ColumnBaseConfig<'number int32'>>
 	}
 }
 
-export interface SingleStoreIntConfig {
-	unsigned?: boolean;
+export interface SingleStoreIntConfig<TUnsigned extends boolean | undefined = boolean | undefined> {
+	unsigned?: TUnsigned;
 }
 
-export function int(): SingleStoreIntBuilder;
-export function int(
-	config?: SingleStoreIntConfig,
-): SingleStoreIntBuilder;
-export function int(
+export function int<TUnsigned extends boolean | undefined>(
+	config?: SingleStoreIntConfig<TUnsigned>,
+): SingleStoreIntBuilder<TUnsigned>;
+export function int<TUnsigned extends boolean | undefined>(
 	name: string,
-	config?: SingleStoreIntConfig,
-): SingleStoreIntBuilder;
+	config?: SingleStoreIntConfig<TUnsigned>,
+): SingleStoreIntBuilder<TUnsigned>;
 export function int(a?: string | SingleStoreIntConfig, b?: SingleStoreIntConfig) {
 	const { name, config } = getColumnNameAndConfig<SingleStoreIntConfig>(a, b);
 	return new SingleStoreIntBuilder(name, config);

@@ -4,22 +4,21 @@ import type { PgTable } from '~/pg-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from '../common.ts';
 
-export class PgVectorBuilder<TDimensions extends number> extends PgColumnBuilder<
+export class PgVectorBuilder extends PgColumnBuilder<
 	{
 		name: string;
 		dataType: 'array vector';
 		data: number[];
 		driverParam: string;
-		enumValues: undefined;
-		dimensions: TDimensions;
 	},
-	{ dimensions: TDimensions }
+	{ length: number; isLengthExact: true }
 > {
 	static override readonly [entityKind]: string = 'PgVectorBuilder';
 
-	constructor(name: string, config: PgVectorConfig<TDimensions>) {
+	constructor(name: string, config: PgVectorConfig) {
 		super(name, 'array vector', 'PgVector');
-		this.config.dimensions = config.dimensions;
+		this.config.length = config.dimensions;
+		this.config.isLengthExact = true;
 	}
 
 	/** @internal */
@@ -31,15 +30,11 @@ export class PgVectorBuilder<TDimensions extends number> extends PgColumnBuilder
 	}
 }
 
-export class PgVector<T extends ColumnBaseConfig<'array vector'> & { dimensions: number | undefined }>
-	extends PgColumn<T, { dimensions: T['dimensions'] }>
-{
+export class PgVector<T extends ColumnBaseConfig<'array vector'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgVector';
 
-	readonly dimensions: T['dimensions'] = this.config.dimensions;
-
 	getSQLType(): string {
-		return `vector(${this.dimensions})`;
+		return `vector(${this.length})`;
 	}
 
 	override mapToDriverValue(value: unknown): unknown {
@@ -54,17 +49,17 @@ export class PgVector<T extends ColumnBaseConfig<'array vector'> & { dimensions:
 	}
 }
 
-export interface PgVectorConfig<TDimensions extends number = number> {
-	dimensions: TDimensions;
+export interface PgVectorConfig {
+	dimensions: number;
 }
 
-export function vector<D extends number>(
-	config: PgVectorConfig<D>,
-): PgVectorBuilder<D>;
-export function vector<D extends number>(
+export function vector(
+	config: PgVectorConfig,
+): PgVectorBuilder;
+export function vector(
 	name: string,
-	config: PgVectorConfig<D>,
-): PgVectorBuilder<D>;
+	config: PgVectorConfig,
+): PgVectorBuilder;
 export function vector(a: string | PgVectorConfig, b?: PgVectorConfig) {
 	const { name, config } = getColumnNameAndConfig<PgVectorConfig>(a, b);
 	return new PgVectorBuilder(name, config);

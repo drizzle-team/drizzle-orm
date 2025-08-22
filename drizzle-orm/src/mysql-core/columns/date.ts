@@ -9,7 +9,6 @@ export class MySqlDateBuilder extends MySqlColumnBuilder<{
 	dataType: 'object date';
 	data: Date;
 	driverParam: string | number;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'MySqlDateBuilder';
 
@@ -47,7 +46,6 @@ export class MySqlDateStringBuilder extends MySqlColumnBuilder<{
 	dataType: 'string date';
 	data: string;
 	driverParam: string | number;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'MySqlDateStringBuilder';
 

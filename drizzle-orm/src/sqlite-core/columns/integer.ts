@@ -54,7 +54,6 @@ export class SQLiteIntegerBuilder extends SQLiteBaseIntegerBuilder<{
 	dataType: 'number int53';
 	data: number;
 	driverParam: number;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'SQLiteIntegerBuilder';
 
@@ -79,7 +78,6 @@ export class SQLiteTimestampBuilder extends SQLiteBaseIntegerBuilder<{
 	dataType: 'object date';
 	data: Date;
 	driverParam: number;
-	enumValues: undefined;
 }, { mode: 'timestamp' | 'timestamp_ms' }> {
 	static override readonly [entityKind]: string = 'SQLiteTimestampBuilder';
 
@@ -133,7 +131,6 @@ export class SQLiteBooleanBuilder extends SQLiteBaseIntegerBuilder<{
 	dataType: 'boolean';
 	data: boolean;
 	driverParam: number;
-	enumValues: undefined;
 }, { mode: 'boolean' }> {
 	static override readonly [entityKind]: string = 'SQLiteBooleanBuilder';
 

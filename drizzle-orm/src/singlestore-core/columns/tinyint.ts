@@ -1,21 +1,22 @@
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { SingleStoreTable } from '~/singlestore-core/table.ts';
-import { getColumnNameAndConfig } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoIncrement } from './common.ts';
 import type { SingleStoreIntConfig } from './int.ts';
 
-export class SingleStoreTinyIntBuilder extends SingleStoreColumnBuilderWithAutoIncrement<{
-	name: string;
-	dataType: 'number int8';
-	data: number;
-	driverParam: number | string;
-	enumValues: undefined;
-}, SingleStoreIntConfig> {
+export class SingleStoreTinyIntBuilder<TUnsigned extends boolean | undefined>
+	extends SingleStoreColumnBuilderWithAutoIncrement<{
+		name: string;
+		dataType: Equal<TUnsigned, true> extends true ? 'number uint8' : 'number int8';
+		data: number;
+		driverParam: number | string;
+	}, SingleStoreIntConfig>
+{
 	static override readonly [entityKind]: string = 'SingleStoreTinyIntBuilder';
 
 	constructor(name: string, config?: SingleStoreIntConfig) {
-		super(name, 'number int8', 'SingleStoreTinyInt');
+		super(name, config?.unsigned ? 'number uint8' : 'number int8' as any, 'SingleStoreTinyInt');
 		this.config.unsigned = config ? config.unsigned : false;
 	}
 
@@ -28,7 +29,7 @@ export class SingleStoreTinyIntBuilder extends SingleStoreColumnBuilderWithAutoI
 	}
 }
 
-export class SingleStoreTinyInt<T extends ColumnBaseConfig<'number int8'>>
+export class SingleStoreTinyInt<T extends ColumnBaseConfig<'number int8' | 'number uint8'>>
 	extends SingleStoreColumnWithAutoIncrement<T, SingleStoreIntConfig>
 {
 	static override readonly [entityKind]: string = 'SingleStoreTinyInt';
@@ -45,13 +46,13 @@ export class SingleStoreTinyInt<T extends ColumnBaseConfig<'number int8'>>
 	}
 }
 
-export function tinyint(
-	config?: SingleStoreIntConfig,
-): SingleStoreTinyIntBuilder;
-export function tinyint(
+export function tinyint<TUnsigned extends boolean | undefined>(
+	config?: SingleStoreIntConfig<TUnsigned>,
+): SingleStoreTinyIntBuilder<TUnsigned>;
+export function tinyint<TUnsigned extends boolean | undefined>(
 	name: string,
-	config?: SingleStoreIntConfig,
-): SingleStoreTinyIntBuilder;
+	config?: SingleStoreIntConfig<TUnsigned>,
+): SingleStoreTinyIntBuilder<TUnsigned>;
 export function tinyint(a?: string | SingleStoreIntConfig, b?: SingleStoreIntConfig) {
 	const { name, config } = getColumnNameAndConfig<SingleStoreIntConfig>(a, b);
 	return new SingleStoreTinyIntBuilder(name, config);

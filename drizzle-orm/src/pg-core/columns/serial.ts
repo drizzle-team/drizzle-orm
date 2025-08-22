@@ -8,7 +8,7 @@ export class PgSerialBuilder extends PgColumnBuilder<{
 	dataType: 'number int32';
 	data: number;
 	driverParam: number;
-	enumValues: undefined;
+
 	notNull: true;
 	hasDefault: true;
 }> {

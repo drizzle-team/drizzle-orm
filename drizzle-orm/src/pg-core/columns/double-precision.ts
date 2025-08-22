@@ -8,7 +8,6 @@ export class PgDoublePrecisionBuilder extends PgColumnBuilder<{
 	dataType: 'number double';
 	data: number;
 	driverParam: string | number;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'PgDoublePrecisionBuilder';
 

@@ -8,7 +8,6 @@ export class PgMacaddr8Builder extends PgColumnBuilder<{
 	dataType: 'string macaddr8';
 	data: string;
 	driverParam: string;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'PgMacaddr8Builder';
 

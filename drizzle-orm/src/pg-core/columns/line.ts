@@ -10,7 +10,6 @@ export class PgLineBuilder extends PgColumnBuilder<{
 	dataType: 'array line';
 	data: [number, number, number];
 	driverParam: number | string;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'PgLineBuilder';
 
@@ -49,7 +48,6 @@ export class PgLineABCBuilder extends PgColumnBuilder<{
 	dataType: 'object line';
 	data: { a: number; b: number; c: number };
 	driverParam: string;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'PgLineABCBuilder';
 

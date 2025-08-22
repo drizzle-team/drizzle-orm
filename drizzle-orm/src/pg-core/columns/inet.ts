@@ -8,7 +8,6 @@ export class PgInetBuilder extends PgColumnBuilder<{
 	dataType: 'string inet';
 	data: string;
 	driverParam: string;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'PgInetBuilder';
 

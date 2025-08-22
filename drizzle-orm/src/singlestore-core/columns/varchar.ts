@@ -6,21 +6,18 @@ import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
 export class SingleStoreVarCharBuilder<
 	TEnum extends [string, ...string[]],
-	TLength extends number | undefined,
 > extends SingleStoreColumnBuilder<{
 	name: string;
-	dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string varchar' : 'string enum';
+	dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'string enum';
 	data: TEnum[number];
 	driverParam: number | string;
 	enumValues: TEnum;
-
-	length: TLength;
-}, SingleStoreVarCharConfig<TEnum, TLength>> {
+}, SingleStoreVarCharConfig<TEnum>> {
 	static override readonly [entityKind]: string = 'SingleStoreVarCharBuilder';
 
 	/** @internal */
-	constructor(name: string, config: SingleStoreVarCharConfig<TEnum, TLength>) {
-		super(name, config.enum?.length ? 'string enum' : 'string varchar', 'SingleStoreVarChar');
+	constructor(name: string, config: SingleStoreVarCharConfig<TEnum>) {
+		super(name, config.enum?.length ? 'string enum' : 'string', 'SingleStoreVarChar');
 		this.config.length = config.length;
 		this.config.enum = config.enum;
 	}
@@ -35,11 +32,10 @@ export class SingleStoreVarCharBuilder<
 }
 
 export class SingleStoreVarChar<
-	T extends ColumnBaseConfig<'string varchar' | 'string enum'> & { length?: number | undefined },
-> extends SingleStoreColumn<T, SingleStoreVarCharConfig<T['enumValues'], T['length']>> {
+	T extends ColumnBaseConfig<'string' | 'string enum'> & { length: number },
+> extends SingleStoreColumn<T, SingleStoreVarCharConfig<T['enumValues']>> {
 	static override readonly [entityKind]: string = 'SingleStoreVarChar';
 
-	readonly length: T['length'] = this.config.length;
 	override readonly enumValues = this.config.enum;
 
 	getSQLType(): string {
@@ -49,23 +45,21 @@ export class SingleStoreVarChar<
 
 export interface SingleStoreVarCharConfig<
 	TEnum extends string[] | readonly string[] | undefined = string[] | readonly string[] | undefined,
-	TLength extends number | undefined = number | undefined,
 > {
 	enum?: TEnum;
-	length: TLength;
+	length: number;
 }
 
-export function varchar<U extends string, T extends Readonly<[U, ...U[]]>, L extends number | undefined>(
-	config: SingleStoreVarCharConfig<T | Writable<T>, L>,
-): SingleStoreVarCharBuilder<Writable<T>, L>;
+export function varchar<U extends string, T extends Readonly<[U, ...U[]]>>(
+	config: SingleStoreVarCharConfig<T | Writable<T>>,
+): SingleStoreVarCharBuilder<Writable<T>>;
 export function varchar<
 	U extends string,
 	T extends Readonly<[U, ...U[]]>,
-	L extends number | undefined,
 >(
 	name: string,
-	config: SingleStoreVarCharConfig<T | Writable<T>, L>,
-): SingleStoreVarCharBuilder<Writable<T>, L>;
+	config: SingleStoreVarCharConfig<T | Writable<T>>,
+): SingleStoreVarCharBuilder<Writable<T>>;
 export function varchar(a?: string | SingleStoreVarCharConfig, b?: SingleStoreVarCharConfig): any {
 	const { name, config } = getColumnNameAndConfig<SingleStoreVarCharConfig>(a, b);
 	return new SingleStoreVarCharBuilder(name, config as any);

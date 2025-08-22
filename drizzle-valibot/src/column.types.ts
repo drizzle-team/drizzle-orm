@@ -4,7 +4,6 @@ import type {
 	ColumnDataConstraint,
 	ColumnDataType,
 	ColumnTypeData,
-	Dialect,
 	ExtractColumnTypeData,
 } from 'drizzle-orm';
 import type * as v from 'valibot';
@@ -19,26 +18,11 @@ export type EnumValuesToEnum<TEnumValues extends [string, ...string[]]> = { read
 
 export type ExtractAdditionalProperties<
 	TColumn extends Column,
-	TType extends ColumnTypeData = ExtractColumnTypeData<TColumn['_']['dataType']>,
-	TColumnType extends ColumnDataType = TType['type'],
-	TConstraint extends ColumnDataConstraint | undefined = TType['constraint'],
-	TDialect extends Dialect = TColumn['dialect'],
-	TDialectConstraint = `${TDialect} ${TConstraint}`,
 > = {
-	max: TDialectConstraint extends `${'pg' | 'mysql' | 'singlestore'} char` | 'pg varchar' | 'sqlite text'
-		? Assume<TColumn['_'], { length: number | undefined }>['length']
-		: TDialectConstraint extends `${'mysql' | 'singlestore'} ${'text' | 'varchar'}` ? number
-		: TConstraint extends 'binary' ? TColumn['_'] extends { dimensions: number } ? TColumn['_']['dimensions'] : number
-		: TConstraint extends 'varbinary'
-			? TColumn['_'] extends { dimensions: number } ? TColumn['_']['dimensions'] : number
-		: TColumnType extends 'array'
-			? TConstraint extends 'vector' | 'halfvector'
-				? TColumn['_'] extends { dimensions: number } ? Assume<TColumn['_'], { dimensions: number }>['dimensions']
-				: undefined
-			: TColumn['_'] extends { size: number } ? Assume<TColumn['_'], { size: number }>['size']
-			: undefined
-		: undefined;
-	fixedLength: TColumnType extends 'array' ? true : TConstraint extends 'char' | 'binary' ? true : false;
+	// Broken - type-level length was removed
+	max: TColumn['length'];
+	// Broken - type-level isLengthExact was removed
+	fixedLength: TColumn['isLengthExact'] extends true ? true : false;
 };
 
 type GetLengthAction<T extends Record<string, any>, TType extends string | ArrayLike<unknown>> =
@@ -113,16 +97,18 @@ export type GetValibotType<
 				v.NumberSchema<undefined>,
 				v.MinValueAction<number, number, undefined>,
 				v.MaxValueAction<number, number, undefined>,
-				TConstraint extends 'int8' | 'int16' | 'int24' | 'int32' | 'int53' | 'uint53' | 'year'
+				TConstraint extends
+					'int8' | 'int16' | 'int24' | 'int32' | 'int53' | 'uint8' | 'uint16' | 'uint24' | 'uint32' | 'uint53' | 'year'
 					? v.IntegerAction<number, undefined>
 					: never,
 			]>
 		>
-	: TColumnType extends 'bigint' ? v.SchemaWithPipe<[
-			v.BigintSchema<undefined>,
-			v.MinValueAction<bigint, bigint, undefined>,
-			v.MaxValueAction<bigint, bigint, undefined>,
-		]>
+	: TColumnType extends 'bigint' ? TConstraint extends 'int64' | 'uint64' ? v.SchemaWithPipe<[
+				v.BigintSchema<undefined>,
+				v.MinValueAction<bigint, bigint, undefined>,
+				v.MaxValueAction<bigint, bigint, undefined>,
+			]>
+		: v.BigintSchema<undefined>
 	: TColumnType extends 'boolean' ? v.BooleanSchema<undefined>
 	: TColumnType extends 'string'
 		? TConstraint extends 'uuid' ? v.SchemaWithPipe<[v.StringSchema<undefined>, v.UuidAction<string, undefined>]>
@@ -131,13 +117,6 @@ export type GetValibotType<
 				undefined
 			>
 		: TConstraint extends 'binary' ? v.SchemaWithPipe<
-				RemoveNeverElements<[
-					v.StringSchema<undefined>,
-					v.RegexAction<string, undefined>,
-					TAdditionalProperties['max'] extends number ? GetLengthAction<TAdditionalProperties, string> : never,
-				]>
-			>
-		: TConstraint extends 'varbinary' ? v.SchemaWithPipe<
 				RemoveNeverElements<[
 					v.StringSchema<undefined>,
 					v.RegexAction<string, undefined>,

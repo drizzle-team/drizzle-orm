@@ -10,7 +10,6 @@ export class PgPointTupleBuilder extends PgColumnBuilder<{
 	dataType: 'array point';
 	data: [number, number];
 	driverParam: number | string;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'PgPointTupleBuilder';
 
@@ -52,7 +51,6 @@ export class PgPointObjectBuilder extends PgColumnBuilder<{
 	dataType: 'object point';
 	data: { x: number; y: number };
 	driverParam: string;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'PgPointObjectBuilder';
 

@@ -9,7 +9,6 @@ export class PgSmallIntBuilder extends PgIntColumnBaseBuilder<{
 	dataType: 'number int16';
 	data: number;
 	driverParam: number | string;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'PgSmallIntBuilder';
 
@@ -23,7 +22,7 @@ export class PgSmallIntBuilder extends PgIntColumnBaseBuilder<{
 	}
 }
 
-export class PgSmallInt<T extends ColumnBaseConfig<'number int16'>> extends PgColumn<T> {
+export class PgSmallInt<T extends ColumnBaseConfig<'number int16' | 'number uint16'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgSmallInt';
 
 	getSQLType(): string {

@@ -25,6 +25,8 @@ export type ColumnDataArrayConstraint =
 	| 'geometry'
 	| 'line';
 
+export type ColumnDataBigIntConstraint = 'int64' | 'uint64';
+
 export type ColumnDataNumberConstraint =
 	| 'double'
 	| 'float'
@@ -33,9 +35,14 @@ export type ColumnDataNumberConstraint =
 	| 'int24'
 	| 'int32'
 	| 'int53'
+	| 'udouble'
+	| 'ufloat'
+	| 'uint8'
+	| 'uint16'
+	| 'uint24'
+	| 'uint32'
 	| 'uint53'
-	| 'real24'
-	| 'real48'
+	| 'unsigned'
 	| 'year';
 
 export type ColumnDataObjectConstraint =
@@ -45,6 +52,7 @@ export type ColumnDataObjectConstraint =
 	| 'json'
 	| 'line'
 	| 'point'
+	// Gel-specific
 	| 'dateDuration'
 	| 'duration'
 	| 'localDate'
@@ -53,8 +61,8 @@ export type ColumnDataObjectConstraint =
 	| 'relDuration';
 
 export type ColumnDataStringConstraint =
+	| 'text'
 	| 'binary'
-	| 'char'
 	| 'cidr'
 	| 'date'
 	| 'datetime'
@@ -65,15 +73,14 @@ export type ColumnDataStringConstraint =
 	| 'macaddr8'
 	| 'numeric'
 	| 'sparsevec'
-	| 'text'
 	| 'time'
 	| 'timestamp'
-	| 'uuid'
-	| 'varbinary'
-	| 'varchar';
+	| 'unumeric'
+	| 'uuid';
 
 export type ColumnDataConstraint =
 	| ColumnDataArrayConstraint
+	| ColumnDataBigIntConstraint
 	| ColumnDataNumberConstraint
 	| ColumnDataObjectConstraint
 	| ColumnDataStringConstraint;
@@ -81,6 +88,7 @@ export type ColumnDataConstraint =
 export type ColumnType =
 	| ColumnDataType
 	| `array ${ColumnDataArrayConstraint}`
+	| `bigint ${ColumnDataBigIntConstraint}`
 	| `number ${ColumnDataNumberConstraint}`
 	| `object ${ColumnDataObjectConstraint}`
 	| `string ${ColumnDataStringConstraint}`;
@@ -129,7 +137,6 @@ export interface ColumnBuilderBaseConfig<TDataType extends ColumnType> {
 	dataType: TDataType;
 	data: unknown;
 	driverParam: unknown;
-	enumValues: string[] | undefined;
 	notNull?: boolean;
 	hasDefault?: boolean;
 }
@@ -150,10 +157,7 @@ export type MakeColumnConfig<
 	isPrimaryKey: T extends { isPrimaryKey: true } ? true : false;
 	isAutoincrement: T extends { isAutoincrement: true } ? true : false;
 	hasRuntimeDefault: T extends { hasRuntimeDefault: true } ? true : false;
-	length: T extends { length: number } ? T['length'] : undefined;
-	size: T extends { size: number } ? T['size'] : undefined;
-	dimensions: T extends { dimensions: number } ? T['dimensions'] : undefined;
-	enumValues: T['enumValues'];
+	enumValues: T extends { enumValues: [string, ...string[]] } ? T['enumValues'] : undefined;
 	baseColumn: T extends { baseBuilder: infer U extends ColumnBuilderBase } ? BuildColumn<TTableName, U, TDialect>
 		: never;
 	identity: T extends { identity: 'always' } ? 'always' : T extends { identity: 'byDefault' } ? 'byDefault' : undefined;

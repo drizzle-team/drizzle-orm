@@ -96,8 +96,6 @@ export abstract class SQLiteColumn<
 > extends Column<T, TRuntimeConfig> {
 	static override readonly [entityKind]: string = 'SQLiteColumn';
 
-	override readonly dialect = 'sqlite';
-
 	/** @internal */
 	override readonly table: SQLiteTable;
 

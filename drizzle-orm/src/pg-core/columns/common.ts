@@ -37,21 +37,19 @@ export abstract class PgColumnBuilder<
 
 	static override readonly [entityKind]: string = 'PgColumnBuilder';
 
-	array<TSize extends number | undefined = undefined>(size?: TSize): PgArrayBuilder<
+	array(length?: number): PgArrayBuilder<
 		& {
 			name: string;
 			dataType: 'array basecolumn';
 			data: T['data'][];
 			driverParam: T['driverParam'][] | string;
-			enumValues: T['enumValues'];
-			size: TSize;
 			baseBuilder: T;
 		}
 		& (T extends { notNull: true } ? { notNull: true } : {})
 		& (T extends { hasDefault: true } ? { hasDefault: true } : {}),
 		T
 	> {
-		return new PgArrayBuilder(this.config.name, this as PgColumnBuilder<any, any>, size as any);
+		return new PgArrayBuilder(this.config.name, this as PgColumnBuilder<any, any>, length as any);
 	}
 
 	references(
@@ -125,8 +123,6 @@ export abstract class PgColumn<
 	TRuntimeConfig extends object = {},
 > extends Column<T, TRuntimeConfig> {
 	static override readonly [entityKind]: string = 'PgColumn';
-
-	override readonly dialect = 'pg';
 
 	/** @internal */
 	override readonly table: PgTable;
@@ -245,7 +241,6 @@ export type AnyPgColumn<TPartial extends Partial<ColumnBaseConfig<ColumnType>> =
 >;
 
 export type PgArrayColumnBuilderBaseConfig = ColumnBuilderBaseConfig<'array basecolumn'> & {
-	size: number | undefined;
 	baseBuilder: ColumnBuilderBaseConfig<ColumnType>;
 };
 
@@ -260,7 +255,6 @@ export class PgArrayBuilder<
 					: never
 			>
 			: PgColumnBuilder<TBase, {}>;
-		size: T['size'];
 	},
 	{
 		baseBuilder: TBase extends PgArrayColumnBuilderBaseConfig ? PgArrayBuilder<
@@ -269,7 +263,7 @@ export class PgArrayBuilder<
 					: never
 			>
 			: PgColumnBuilder<TBase, {}>;
-		size: T['size'];
+		length: number | undefined;
 	}
 > {
 	static override readonly [entityKind] = 'PgArrayBuilder';
@@ -277,11 +271,11 @@ export class PgArrayBuilder<
 	constructor(
 		name: string,
 		baseBuilder: PgArrayBuilder<T, TBase>['config']['baseBuilder'],
-		size: T['size'],
+		length: number | undefined,
 	) {
 		super(name, 'array basecolumn', 'PgArray');
 		this.config.baseBuilder = baseBuilder;
-		this.config.size = size;
+		this.config.length = length;
 	}
 
 	/** @internal */
@@ -297,13 +291,11 @@ export class PgArrayBuilder<
 
 export class PgArray<
 	T extends ColumnBaseConfig<'array basecolumn'> & {
-		size: number | undefined;
+		length: number | undefined;
 		baseBuilder: ColumnBuilderBaseConfig<ColumnType>;
 	},
 	TBase extends ColumnBuilderBaseConfig<ColumnType>,
 > extends PgColumn<T, {}> {
-	readonly size: T['size'];
-
 	static override readonly [entityKind]: string = 'PgArray';
 
 	constructor(
@@ -313,11 +305,10 @@ export class PgArray<
 		readonly range?: [number | undefined, number | undefined],
 	) {
 		super(table, config);
-		this.size = config.size;
 	}
 
 	getSQLType(): string {
-		return `${this.baseColumn.getSQLType()}[${typeof this.size === 'number' ? this.size : ''}]`;
+		return `${this.baseColumn.getSQLType()}[${typeof this.length === 'number' ? this.length : ''}]`;
 	}
 
 	override mapFromDriverValue(value: unknown[] | string): T['data'] {

@@ -5,17 +5,16 @@ import { GelColumn, GelColumnBuilder } from './common.ts';
 
 export class GelTextBuilder extends GelColumnBuilder<{
 	name: string;
-	dataType: 'string text';
+	dataType: 'string';
 	data: string;
 	driverParam: string;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'GelTextBuilder';
 
 	constructor(
 		name: string,
 	) {
-		super(name, 'string text', 'GelText');
+		super(name, 'string', 'GelText');
 	}
 
 	/** @internal */
@@ -24,7 +23,7 @@ export class GelTextBuilder extends GelColumnBuilder<{
 	}
 }
 
-export class GelText<T extends ColumnBaseConfig<'string text'>> extends GelColumn<T, { enumValues: T['enumValues'] }> {
+export class GelText<T extends ColumnBaseConfig<'string'>> extends GelColumn<T, { enumValues: T['enumValues'] }> {
 	static override readonly [entityKind]: string = 'GelText';
 
 	override readonly enumValues = this.config.enumValues;

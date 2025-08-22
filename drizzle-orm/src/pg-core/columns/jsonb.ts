@@ -8,7 +8,6 @@ export class PgJsonbBuilder extends PgColumnBuilder<{
 	dataType: 'object json';
 	data: unknown;
 	driverParam: unknown;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'PgJsonbBuilder';
 

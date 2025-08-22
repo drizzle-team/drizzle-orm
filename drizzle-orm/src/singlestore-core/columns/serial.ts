@@ -8,7 +8,6 @@ export class SingleStoreSerialBuilder extends SingleStoreColumnBuilderWithAutoIn
 	dataType: 'number uint53';
 	data: number;
 	driverParam: number;
-	enumValues: undefined;
 
 	isPrimaryKey: true;
 	hasDefault: true;

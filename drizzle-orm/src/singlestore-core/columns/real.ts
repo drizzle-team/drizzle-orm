@@ -7,17 +7,16 @@ import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoInc
 export class SingleStoreRealBuilder extends SingleStoreColumnBuilderWithAutoIncrement<
 	{
 		name: string;
-		dataType: 'number real48';
+		dataType: 'number double';
 		data: number;
 		driverParam: number | string;
-		enumValues: undefined;
 	},
 	SingleStoreRealConfig
 > {
 	static override readonly [entityKind]: string = 'SingleStoreRealBuilder';
 
 	constructor(name: string, config: SingleStoreRealConfig | undefined) {
-		super(name, 'number real48', 'SingleStoreReal');
+		super(name, 'number double', 'SingleStoreReal');
 		this.config.precision = config?.precision;
 		this.config.scale = config?.scale;
 	}
@@ -31,7 +30,7 @@ export class SingleStoreRealBuilder extends SingleStoreColumnBuilderWithAutoIncr
 	}
 }
 
-export class SingleStoreReal<T extends ColumnBaseConfig<'number real48'>> extends SingleStoreColumnWithAutoIncrement<
+export class SingleStoreReal<T extends ColumnBaseConfig<'number double'>> extends SingleStoreColumnWithAutoIncrement<
 	T,
 	SingleStoreRealConfig
 > {

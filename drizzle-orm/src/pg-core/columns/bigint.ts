@@ -10,7 +10,6 @@ export class PgBigInt53Builder extends PgIntColumnBaseBuilder<{
 	dataType: 'number int53';
 	data: number;
 	driverParam: number | string;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'PgBigInt53Builder';
 
@@ -41,15 +40,14 @@ export class PgBigInt53<T extends ColumnBaseConfig<'number int53'>> extends PgCo
 
 export class PgBigInt64Builder extends PgIntColumnBaseBuilder<{
 	name: string;
-	dataType: 'bigint';
+	dataType: 'bigint int64';
 	data: bigint;
 	driverParam: string;
-	enumValues: undefined;
 }> {
 	static override readonly [entityKind]: string = 'PgBigInt64Builder';
 
 	constructor(name: string) {
-		super(name, 'bigint', 'PgBigInt64');
+		super(name, 'bigint int64', 'PgBigInt64');
 	}
 
 	/** @internal */
@@ -58,7 +56,7 @@ export class PgBigInt64Builder extends PgIntColumnBaseBuilder<{
 	}
 }
 
-export class PgBigInt64<T extends ColumnBaseConfig<'bigint'>> extends PgColumn<T> {
+export class PgBigInt64<T extends ColumnBaseConfig<'bigint int64'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgBigInt64';
 
 	getSQLType(): string {

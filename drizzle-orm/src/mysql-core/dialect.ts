@@ -150,14 +150,14 @@ export class MySqlDialect {
 			set[colName] !== undefined || tableColumns[colName]?.onUpdateFn !== undefined
 		);
 
-		const setSize = columnNames.length;
+		const setLength = columnNames.length;
 		return sql.join(columnNames.flatMap((colName, i) => {
 			const col = tableColumns[colName]!;
 
 			const value = set[colName] ?? sql.param(col.onUpdateFn!(), col);
 			const res = sql`${sql.identifier(this.casing.getColumnCasing(col))} = ${value}`;
 
-			if (i < setSize - 1) {
+			if (i < setLength - 1) {
 				return [res, sql.raw(', ')];
 			}
 			return [res];

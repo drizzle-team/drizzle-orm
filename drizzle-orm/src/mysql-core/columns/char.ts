@@ -6,24 +6,24 @@ import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export class MySqlCharBuilder<
 	TEnum extends [string, ...string[]],
-	TLength extends number | undefined,
 > extends MySqlColumnBuilder<
 	{
 		name: string;
-		dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string char' : 'string enum';
+		dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'string enum';
 		data: TEnum[number];
 		driverParam: number | string;
 		enumValues: TEnum;
-		length: TLength;
 	},
-	MySqlCharConfig<TEnum, TLength>
+	{ enum?: TEnum; length: number; setLength: boolean; isLengthExact: true }
 > {
 	static override readonly [entityKind]: string = 'MySqlCharBuilder';
 
-	constructor(name: string, config: MySqlCharConfig<TEnum, TLength>) {
-		super(name, config.enum?.length ? 'string enum' : 'string char', 'MySqlChar');
-		this.config.length = config.length;
+	constructor(name: string, config: MySqlCharConfig<TEnum>) {
+		super(name, config.enum?.length ? 'string enum' : 'string', 'MySqlChar');
+		this.config.length = (config.length ?? 1) as number;
+		this.config.setLength = config.length !== undefined;
 		this.config.enum = config.enum;
+		this.config.isLengthExact = true;
 	}
 
 	/** @internal */
@@ -35,38 +35,35 @@ export class MySqlCharBuilder<
 	}
 }
 
-export class MySqlChar<T extends ColumnBaseConfig<'string char' | 'string enum'> & { length?: number | undefined }>
-	extends MySqlColumn<T, MySqlCharConfig<T['enumValues'], T['length']>>
+export class MySqlChar<T extends ColumnBaseConfig<'string' | 'string enum'>>
+	extends MySqlColumn<T, { enum?: T['enumValues']; length: number; setLength: boolean }>
 {
 	static override readonly [entityKind]: string = 'MySqlChar';
 
-	readonly length: T['length'] = this.config.length;
 	override readonly enumValues = this.config.enum;
 
 	getSQLType(): string {
-		return this.length === undefined ? `char` : `char(${this.length})`;
+		return this.config.setLength ? `char(${this.length})` : `char`;
 	}
 }
 
 export interface MySqlCharConfig<
 	TEnum extends readonly string[] | string[] | undefined = readonly string[] | string[] | undefined,
-	TLength extends number | undefined = number | undefined,
 > {
 	enum?: TEnum;
-	length?: TLength;
+	length?: number;
 }
 
-export function char<U extends string, T extends Readonly<[U, ...U[]]>, L extends number | undefined>(
-	config?: MySqlCharConfig<T | Writable<T>, L>,
-): MySqlCharBuilder<Writable<T>, L>;
+export function char<U extends string, T extends Readonly<[U, ...U[]]>>(
+	config?: MySqlCharConfig<T | Writable<T>>,
+): MySqlCharBuilder<Writable<T>>;
 export function char<
 	U extends string,
 	T extends Readonly<[U, ...U[]]>,
-	L extends number | undefined,
 >(
 	name: string,
-	config?: MySqlCharConfig<T | Writable<T>, L>,
-): MySqlCharBuilder<Writable<T>, L>;
+	config?: MySqlCharConfig<T | Writable<T>>,
+): MySqlCharBuilder<Writable<T>>;
 export function char(a?: string | MySqlCharConfig, b: MySqlCharConfig = {}): any {
 	const { name, config } = getColumnNameAndConfig<MySqlCharConfig>(a, b);
 	return new MySqlCharBuilder(name, config as any);
