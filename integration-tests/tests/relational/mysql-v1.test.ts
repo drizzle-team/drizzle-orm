@@ -1,16 +1,6 @@
 import 'dotenv/config';
 import Docker from 'dockerode';
-import {
-	desc,
-	DrizzleError,
-	eq,
-	gt,
-	gte,
-	or,
-	placeholder,
-	sql,
-	TransactionRollbackError,
-} from 'drizzle-orm';
+import { desc, DrizzleError, eq, gt, gte, or, placeholder, sql, TransactionRollbackError } from 'drizzle-orm';
 import { drizzle, type MySql2Database } from 'drizzle-orm/mysql2';
 import getPort from 'get-port';
 import * as mysql from 'mysql2/promise';
