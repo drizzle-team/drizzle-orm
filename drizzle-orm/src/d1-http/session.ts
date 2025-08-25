@@ -4,6 +4,20 @@ import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
+import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import type { PreparedQuery } from '~/session.ts';
+import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
+import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
+import { SQLiteTransaction } from '~/sqlite-core/index.ts';
+import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types.ts';
+import type {
+    PreparedQueryConfig as PreparedQueryConfigBase,
+    SQLiteExecuteMethod,
+    SQLiteTransactionConfig,
+} from '~/sqlite-core/session.ts';
+import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
+import { mapResultRow } from '~/utils.ts';
+import type { D1HttpCredentials, D1HttpResult } from './driver.ts';
 
 // Define fetch function type to avoid dependency on @cloudflare/workers-types
 type FetchFunction = (
@@ -20,20 +34,6 @@ type FetchFunction = (
 }>;
 
 const globalFetch = (globalThis as any).fetch as FetchFunction;
-import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
-import type { PreparedQuery } from '~/session.ts';
-import { fillPlaceholders, type Query, sql } from '~/sql/sql.ts';
-import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
-import { SQLiteTransaction } from '~/sqlite-core/index.ts';
-import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types.ts';
-import type {
-    PreparedQueryConfig as PreparedQueryConfigBase,
-    SQLiteExecuteMethod,
-    SQLiteTransactionConfig,
-} from '~/sqlite-core/session.ts';
-import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
-import { mapResultRow } from '~/utils.ts';
-import type { D1HttpCredentials, D1HttpResult } from './driver.ts';
 
 export interface D1HttpSessionOptions {
     logger?: Logger;
