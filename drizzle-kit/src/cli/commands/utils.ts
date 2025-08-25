@@ -775,7 +775,7 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 	}
 
 	const { dialect, out } = parsed.data;
-	const { schema, table } = parsed.data.migrations || {};
+	const { schema, table, tableIdType } = parsed.data.migrations || {};
 	const flattened = flattenDatabaseCredentials(config);
 
 	if (dialect === 'postgresql') {
@@ -791,6 +791,7 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 			credentials,
 			schema,
 			table,
+			tableIdType,
 		};
 	}
 
@@ -807,6 +808,7 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 			credentials,
 			schema,
 			table,
+			tableIdType,
 		};
 	}
 
@@ -823,6 +825,7 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 			credentials,
 			schema,
 			table,
+			tableIdType,
 		};
 	}
 
@@ -839,6 +842,7 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 			credentials,
 			schema,
 			table,
+			tableIdType,
 		};
 	}
 	if (dialect === 'turso') {
@@ -854,6 +858,7 @@ export const prepareMigrateConfig = async (configPath: string | undefined) => {
 			credentials,
 			schema,
 			table,
+			tableIdType,
 		};
 	}
 
@@ -905,6 +910,7 @@ export const drizzleConfigFromFile = async (
 	if (!isExport) console.log(chalk.grey(`Reading config file '${path}'`));
 
 	const { unregister } = await safeRegister();
+	console.log(`const required = require(${path});`)
 	const required = require(`${path}`);
 	const content = required.default ?? required;
 	unregister();
