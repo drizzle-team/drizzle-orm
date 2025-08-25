@@ -1,22 +1,19 @@
 import type { Prefix } from '../cli/validations/common';
 
 export const prepareMigrationMetadata = (
-	idx: number,
-	prefixMode: Prefix,
 	name?: string,
 ) => {
-	const prefix = prefixMode === 'index'
-		? idx.toFixed(0).padStart(4, '0')
-		: prefixMode === 'timestamp' || prefixMode === 'supabase'
-		? new Date()
-			.toISOString()
-			.replace('T', '')
-			.replaceAll('-', '')
-			.replaceAll(':', '')
-			.slice(0, 14)
-		: prefixMode === 'unix'
-		? Math.floor(Date.now() / 1000)
-		: '';
+	const pad = (n: any) => n.toString().padStart(2, '0');
+	const d = new Date();
+  
+	const yyyy = d.getFullYear();
+	const MM   = pad(d.getMonth() + 1);
+	const dd   = pad(d.getDate());
+	const HH   = pad(d.getHours());
+	const mm   = pad(d.getMinutes());
+	const ss   = pad(d.getSeconds());
+  
+	const prefix = `${yyyy}${MM}${dd}${HH}${mm}${ss}`;
 
 	const suffix = name || `${adjectives.random()}_${heroes.random()}`;
 	const tag = `${prefix}_${suffix}`;

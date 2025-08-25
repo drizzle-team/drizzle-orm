@@ -1,6 +1,30 @@
 import { Column, SchemaV4, SchemaV5, Table } from '../../dialects/mysql/snapshot';
+import { existsSync, writeFileSync, readFileSync, unlinkSync, rmSync } from 'fs';
+import { join } from 'path';
+import { Journal } from '../../utils';
 
-export const upMysqlHandler = (out: string) => {};
+export const upMysqlHandler = (out: string) => {
+	// if there is meta folder - and there is a journal - it's version <8
+	const metaPath = join(out, 'meta');
+	const journalPath = join(metaPath, '_journal.json');
+	if (existsSync(metaPath) && existsSync(journalPath)) {
+		const journal: Journal = JSON.parse(readFileSync(journalPath).toString());
+		if (Number(journal.version) < 8) {			
+			for (const entry of journal.entries) {
+				const snapshotPrefix = entry.tag.split('_')[0];
+				const oldSnapshot = readFileSync(join(metaPath, `${snapshotPrefix}_snapshot.json`));
+				const oldSql = readFileSync(join(out, `${entry.tag}.sql`));
+
+				writeFileSync(join(out, `${entry.tag}/snapshot.json`), oldSnapshot);
+				writeFileSync(join(out, `${entry.tag}/migration.sql`), oldSql);
+
+				unlinkSync(join(out, `${entry.tag}.sql`));
+			}
+
+			rmSync(metaPath);
+		}
+	}
+};
 
 export const upMySqlHandlerV4toV5 = (obj: SchemaV4): SchemaV5 => {
 	const mappedTables: Record<string, Table> = {};
