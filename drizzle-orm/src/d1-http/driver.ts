@@ -6,9 +6,9 @@ import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelation
 import { BaseSQLiteDatabase } from '~/sqlite-core/db.ts';
 import { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
 import type { DrizzleConfig } from '~/utils.ts';
-import { D1RestSession } from './session.ts';
+import { D1HttpSession } from './session.ts';
 
-export interface D1RestCredentials {
+export interface D1HttpCredentials {
 	/** The Cloudflare account ID where the D1 database is located */
 	accountId: string;
 	/** The D1 database ID */
@@ -17,17 +17,17 @@ export interface D1RestCredentials {
 	token: string;
 }
 
-export interface D1RestResult<T = unknown> {
+export interface D1HttpResult<T = unknown> {
 	rows?: T[];
 }
 
-export class D1RestDatabase<
+export class D1HttpDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> extends BaseSQLiteDatabase<'async', D1RestResult, TSchema> {
-	static override readonly [entityKind]: string = 'D1RestDatabase';
+> extends BaseSQLiteDatabase<'async', D1HttpResult, TSchema> {
+	static override readonly [entityKind]: string = 'D1HttpDatabase';
 
 	/** @internal */
-	declare readonly session: D1RestSession<TSchema, ExtractTablesWithRelations<TSchema>>;
+	declare readonly session: D1HttpSession<TSchema, ExtractTablesWithRelations<TSchema>>;
 
 	async batch<U extends BatchItem<'sqlite'>, T extends Readonly<[U, ...U[]]>>(
 		batch: T,
@@ -37,10 +37,10 @@ export class D1RestDatabase<
 }
 
 export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
-	credentials: D1RestCredentials,
+	credentials: D1HttpCredentials,
 	config: DrizzleConfig<TSchema> = {},
-): D1RestDatabase<TSchema> & {
-	$client: D1RestCredentials;
+): D1HttpDatabase<TSchema> & {
+	$client: D1HttpCredentials;
 } {
 	const dialect = new SQLiteAsyncDialect({ casing: config.casing });
 	let logger;
@@ -63,8 +63,8 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		};
 	}
 
-	const session = new D1RestSession(credentials, dialect, schema, { logger, cache: config.cache });
-	const db = new D1RestDatabase('async', dialect, session, schema) as D1RestDatabase<TSchema>;
+	const session = new D1HttpSession(credentials, dialect, schema, { logger, cache: config.cache });
+	const db = new D1HttpDatabase('async', dialect, session, schema) as D1HttpDatabase<TSchema>;
 	(db as any).$client = credentials;
 	(db as any).$cache = config.cache;
 	if ((db as any).$cache) {

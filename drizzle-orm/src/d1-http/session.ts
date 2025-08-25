@@ -33,9 +33,9 @@ import type {
 } from '~/sqlite-core/session.ts';
 import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
 import { mapResultRow } from '~/utils.ts';
-import type { D1RestCredentials, D1RestResult } from './driver.ts';
+import type { D1HttpCredentials, D1HttpResult } from './driver.ts';
 
-export interface D1RestSessionOptions {
+export interface D1HttpSessionOptions {
 	logger?: Logger;
 	cache?: Cache;
 }
@@ -74,20 +74,20 @@ type D1ApiResponse =
 		errors: Array<{ code: number; message: string }>;
 	};
 
-export class D1RestSession<
+export class D1HttpSession<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-> extends SQLiteSession<'async', D1RestResult, TFullSchema, TSchema> {
-	static override readonly [entityKind]: string = 'D1RestSession';
+> extends SQLiteSession<'async', D1HttpResult, TFullSchema, TSchema> {
+	static override readonly [entityKind]: string = 'D1HttpSession';
 
 	private logger: Logger;
 	private cache: Cache;
 
 	constructor(
-		private credentials: D1RestCredentials,
+		private credentials: D1HttpCredentials,
 		dialect: SQLiteAsyncDialect,
 		private schema: RelationalSchemaConfig<TSchema> | undefined,
-		private options: D1RestSessionOptions = {},
+		private options: D1HttpSessionOptions = {},
 	) {
 		super(dialect);
 		this.logger = options.logger ?? new NoopLogger();
@@ -105,8 +105,8 @@ export class D1RestSession<
 			tables: string[];
 		},
 		cacheConfig?: WithCacheConfig,
-	): D1RestPreparedQuery {
-		return new D1RestPreparedQuery(
+	): D1HttpPreparedQuery {
+		return new D1HttpPreparedQuery(
 			this,
 			query,
 			this.logger,
@@ -175,7 +175,7 @@ export class D1RestSession<
 		return batchResults.map((result, i) => preparedQueries[i]!.mapResult(result, true));
 	}
 
-	async executeQuery(sql: string, params: unknown[], method: 'run' | 'all' | 'values' | 'get'): Promise<D1RestResult> {
+	async executeQuery(sql: string, params: unknown[], method: 'run' | 'all' | 'values' | 'get'): Promise<D1HttpResult> {
 		const { accountId, databaseId, token } = this.credentials;
 		
 		const endpoint = method === 'values' ? 'raw' : 'query';
@@ -208,22 +208,22 @@ export class D1RestSession<
 	}
 
 	override extractRawAllValueFromBatchResult(result: unknown): unknown {
-		return (result as D1RestResult).rows;
+		return (result as D1HttpResult).rows;
 	}
 
 	override extractRawGetValueFromBatchResult(result: unknown): unknown {
-		return (result as D1RestResult).rows?.[0];
+		return (result as D1HttpResult).rows?.[0];
 	}
 
 	override extractRawValuesValueFromBatchResult(result: unknown): unknown {
-		return (result as D1RestResult).rows;
+		return (result as D1HttpResult).rows;
 	}
 
 	override async transaction<T>(
-		transaction: (tx: D1RestTransaction<TFullSchema, TSchema>) => T | Promise<T>,
+		transaction: (tx: D1HttpTransaction<TFullSchema, TSchema>) => T | Promise<T>,
 		config?: SQLiteTransactionConfig,
 	): Promise<T> {
-		const tx = new D1RestTransaction('async', this.dialect, this, this.schema);
+		const tx = new D1HttpTransaction('async', this.dialect, this, this.schema);
 		await this.run(sql.raw(`begin${config?.behavior ? ' ' + config.behavior : ''}`));
 		try {
 			const result = await transaction(tx);
@@ -236,15 +236,15 @@ export class D1RestSession<
 	}
 }
 
-export class D1RestTransaction<
+export class D1HttpTransaction<
 	TFullSchema extends Record<string, unknown>,
 	TSchema extends TablesRelationalConfig,
-> extends SQLiteTransaction<'async', D1RestResult, TFullSchema, TSchema> {
-	static override readonly [entityKind]: string = 'D1RestTransaction';
+> extends SQLiteTransaction<'async', D1HttpResult, TFullSchema, TSchema> {
+	static override readonly [entityKind]: string = 'D1HttpTransaction';
 
-	override async transaction<T>(transaction: (tx: D1RestTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
+	override async transaction<T>(transaction: (tx: D1HttpTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
 		const savepointName = `sp${this.nestedIndex}`;
-		const tx = new D1RestTransaction('async', this.dialect, this.session, this.schema, this.nestedIndex + 1);
+		const tx = new D1HttpTransaction('async', this.dialect, this.session, this.schema, this.nestedIndex + 1);
 		await this.session.run(sql.raw(`savepoint ${savepointName}`));
 		try {
 			const result = await transaction(tx);
@@ -257,10 +257,10 @@ export class D1RestTransaction<
 	}
 }
 
-export class D1RestPreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends SQLitePreparedQuery<
-	{ type: 'async'; run: D1RestResult; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
+export class D1HttpPreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends SQLitePreparedQuery<
+	{ type: 'async'; run: D1HttpResult; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
 > {
-	static override readonly [entityKind]: string = 'D1RestPreparedQuery';
+	static override readonly [entityKind]: string = 'D1HttpPreparedQuery';
 
 	/** @internal */
 	customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => unknown;
@@ -269,7 +269,7 @@ export class D1RestPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 	fields?: SelectedFieldsOrdered;
 
 	constructor(
-		private session: D1RestSession<any, any>,
+		private session: D1HttpSession<any, any>,
 		query: Query,
 		private logger: Logger,
 		cache: Cache,
@@ -288,7 +288,7 @@ export class D1RestPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 		this.fields = fields;
 	}
 
-	async run(placeholderValues?: Record<string, unknown>): Promise<D1RestResult> {
+	async run(placeholderValues?: Record<string, unknown>): Promise<D1HttpResult> {
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 		return await this.queryWithCache(this.query.sql, params, async () => {
@@ -313,7 +313,7 @@ export class D1RestPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 
 	override mapAllResult(rows: unknown, isFromBatch?: boolean): unknown {
 		if (isFromBatch) {
-			rows = (rows as D1RestResult).rows;
+			rows = (rows as D1HttpResult).rows;
 		}
 
 		if (!this.fields && !this.customResultMapper) {
@@ -353,7 +353,7 @@ export class D1RestPreparedQuery<T extends PreparedQueryConfig = PreparedQueryCo
 
 	override mapGetResult(result: unknown, isFromBatch?: boolean): unknown {
 		if (isFromBatch) {
-			result = (result as D1RestResult).rows?.[0];
+			result = (result as D1HttpResult).rows?.[0];
 		}
 
 		if (!this.fields && !this.customResultMapper) {

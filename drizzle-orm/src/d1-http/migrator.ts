@@ -1,10 +1,10 @@
 import type { MigrationConfig } from '~/migrator.ts';
 import { readMigrationFiles } from '~/migrator.ts';
 import { sql } from '~/sql/sql.ts';
-import type { D1RestDatabase } from './driver.ts';
+import type { D1HttpDatabase } from './driver.ts';
 
 export async function migrate<TSchema extends Record<string, unknown>>(
-	db: D1RestDatabase<TSchema>,
+	db: D1HttpDatabase<TSchema>,
 	config: MigrationConfig,
 ) {
 	const migrations = readMigrationFiles(config);
