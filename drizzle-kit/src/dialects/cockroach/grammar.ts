@@ -8,15 +8,11 @@ import { CockroachEntities, Column, DiffEntities } from './ddl';
 import { Import } from './typescript';
 
 export const splitSqlType = (sqlType: string) => {
-	// timestamp(6) with time zone -> [timestamp, 6, with time zone]
 	const toMatch = sqlType.replaceAll('[]', '');
 	const match = toMatch.match(/^(\w+(?:\s+\w+)*)\(([^)]*)\)?$/i);
 	let type = match ? match[1] : toMatch;
 	let options = match ? match[2].replaceAll(', ', ',') : null;
 
-	// if (options && type === 'decimal') {
-	// 	options = options.replace(',0', ''); // trim decimal (4,0)->(4), compatibility with Drizzle
-	// }
 	return { type, options };
 };
 
@@ -83,60 +79,6 @@ export const isSystemNamespace = (name: string) => {
 export const systemRoles = ['admin', 'root', 'node'];
 export const isSystemRole = (name: string) => {
 	return systemRoles.indexOf(name) >= 0;
-};
-
-export const splitExpressions = (input: string | null): string[] => {
-	if (!input) return [];
-
-	const expressions: string[] = [];
-	let parenDepth = 0;
-	let inSingleQuotes = false;
-	let inDoubleQuotes = false;
-	let currentExpressionStart = 0;
-
-	for (let i = 0; i < input.length; i++) {
-		const char = input[i];
-
-		if (char === "'" && input[i + 1] === "'") {
-			i++;
-			continue;
-		}
-
-		if (char === '"' && input[i + 1] === '"') {
-			i++;
-			continue;
-		}
-
-		if (char === "'") {
-			if (!inDoubleQuotes) {
-				inSingleQuotes = !inSingleQuotes;
-			}
-			continue;
-		}
-		if (char === '"') {
-			if (!inSingleQuotes) {
-				inDoubleQuotes = !inDoubleQuotes;
-			}
-			continue;
-		}
-
-		if (!inSingleQuotes && !inDoubleQuotes) {
-			if (char === '(') {
-				parenDepth++;
-			} else if (char === ')') {
-				parenDepth = Math.max(0, parenDepth - 1);
-			} else if (char === ',' && parenDepth === 0) {
-				expressions.push(input.substring(currentExpressionStart, i).trim());
-				currentExpressionStart = i + 1;
-			}
-		}
-	}
-
-	if (currentExpressionStart < input.length) {
-		expressions.push(input.substring(currentExpressionStart).trim());
-	}
-
-	return expressions.filter((s) => s.length > 0);
 };
 
 /*

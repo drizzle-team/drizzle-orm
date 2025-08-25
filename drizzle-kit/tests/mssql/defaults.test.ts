@@ -391,6 +391,9 @@ test('char', async () => {
 
 	const res11 = await diffDefault(_, char().default(sql`'text'+'text'`), `('text'+'text')`);
 
+	const res12 = await diffDefault(_, char().default("'"), `('''')`);
+	const res13 = await diffDefault(_, char().default('"'), `('"')`);
+
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
@@ -402,6 +405,8 @@ test('char', async () => {
 	expect.soft(res9).toStrictEqual([]);
 	expect.soft(res10).toStrictEqual([]);
 	expect.soft(res11).toStrictEqual([]);
+	expect.soft(res12).toStrictEqual([]);
+	expect.soft(res13).toStrictEqual([]);
 });
 
 test('varchar', async () => {
@@ -427,6 +432,9 @@ test('varchar', async () => {
 
 	const res10 = await diffDefault(_, varchar().default(sql`'text'+'text'`), `('text'+'text')`);
 
+	const res11 = await diffDefault(_, varchar().default("'"), `('''')`);
+	const res12 = await diffDefault(_, varchar().default('"'), `('"')`);
+
 	expect.soft(res0).toStrictEqual([]);
 	expect.soft(res01).toStrictEqual([]);
 	expect.soft(res1).toStrictEqual([]);
@@ -439,6 +447,8 @@ test('varchar', async () => {
 	expect.soft(res8).toStrictEqual([]);
 	expect.soft(res9).toStrictEqual([]);
 	expect.soft(res10).toStrictEqual([]);
+	expect.soft(res11).toStrictEqual([]);
+	expect.soft(res12).toStrictEqual([]);
 });
 
 test('text', async () => {
@@ -460,6 +470,9 @@ test('text', async () => {
 
 	const res10 = await diffDefault(_, text().default(sql`'text'+'text'`), `('text'+'text')`);
 
+	const res11 = await diffDefault(_, text().default("'"), `('''')`);
+	const res12 = await diffDefault(_, text().default('"'), `('"')`);
+
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
@@ -470,6 +483,8 @@ test('text', async () => {
 	expect.soft(res8).toStrictEqual([]);
 	expect.soft(res9).toStrictEqual([]);
 	expect.soft(res10).toStrictEqual([]);
+	expect.soft(res11).toStrictEqual([]);
+	expect.soft(res12).toStrictEqual([]);
 });
 
 test('nchar ', async () => {
@@ -494,6 +509,9 @@ test('nchar ', async () => {
 
 	const res10 = await diffDefault(_, nchar().default(sql`'text'+'text'`), `('text'+'text')`);
 
+	const res11 = await diffDefault(_, nchar().default("'"), `('''')`);
+	const res12 = await diffDefault(_, nchar().default('"'), `('"')`);
+
 	expect.soft(res0).toStrictEqual([]);
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
@@ -505,6 +523,8 @@ test('nchar ', async () => {
 	expect.soft(res8).toStrictEqual([]);
 	expect.soft(res9).toStrictEqual([]);
 	expect.soft(res10).toStrictEqual([]);
+	expect.soft(res11).toStrictEqual([]);
+	expect.soft(res12).toStrictEqual([]);
 });
 
 test('nvarchar', async () => {
@@ -551,6 +571,9 @@ test('nvarchar', async () => {
 		`('{"key":"value\\\\''\\""}')`,
 	);
 
+	const res16 = await diffDefault(_, nvarchar().default("'"), `('''')`);
+	const res17 = await diffDefault(_, nvarchar().default('"'), `('"')`);
+
 	expect.soft(res0).toStrictEqual([]);
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
@@ -567,6 +590,8 @@ test('nvarchar', async () => {
 	expect.soft(res13).toStrictEqual([]);
 	expect.soft(res14).toStrictEqual([]);
 	expect.soft(res15).toStrictEqual([]);
+	expect.soft(res16).toStrictEqual([]);
+	expect.soft(res17).toStrictEqual([]);
 });
 
 test('ntext', async () => {
@@ -588,6 +613,9 @@ test('ntext', async () => {
 
 	const res10 = await diffDefault(_, ntext().default(sql`'text'+'text'`), `('text'+'text')`);
 
+	const res11 = await diffDefault(_, ntext().default("'"), `('''')`);
+	const res12 = await diffDefault(_, ntext().default('"'), `('"')`);
+
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
@@ -598,6 +626,8 @@ test('ntext', async () => {
 	expect.soft(res8).toStrictEqual([]);
 	expect.soft(res9).toStrictEqual([]);
 	expect.soft(res10).toStrictEqual([]);
+	expect.soft(res11).toStrictEqual([]);
+	expect.soft(res12).toStrictEqual([]);
 });
 
 test('datetime', async () => {
