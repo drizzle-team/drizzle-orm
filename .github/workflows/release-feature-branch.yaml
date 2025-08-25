@@ -24,6 +24,7 @@ jobs:
           - drizzle-orm
           - drizzle-kit
           - drizzle-zod
+          - drizzle-seed
           - drizzle-typebox
           - drizzle-valibot
           - drizzle-arktype
@@ -195,7 +196,7 @@ jobs:
               docker compose -f docker-neon.yml down
             ;;
 
-            drizzle-orm|drizzle-kit|drizzle-zod|drizzle-typebox|drizzle-valibot|drizzle-arktype)
+            drizzle-orm|drizzle-kit|drizzle-zod|drizzle-seed|drizzle-typebox|drizzle-valibot|drizzle-arktype)
               (cd .. && pnpm test --filter ${{ matrix.shard }})
             ;;
 
@@ -225,6 +226,7 @@ jobs:
           - drizzle-orm
           - drizzle-kit
           - drizzle-zod
+          - drizzle-seed
           - drizzle-typebox
           - drizzle-valibot
           - drizzle-arktype
@@ -318,6 +320,7 @@ jobs:
           - drizzle-orm
           - drizzle-kit
           - drizzle-zod
+          - drizzle-seed
           - drizzle-typebox
           - drizzle-valibot
           - drizzle-arktype
