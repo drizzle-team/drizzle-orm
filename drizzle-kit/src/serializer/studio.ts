@@ -97,7 +97,7 @@ export const preparePgSchema = async (path: string | string[]) => {
 	for (let i = 0; i < imports.length; i++) {
 		const it = imports[i];
 
-		const i0: Record<string, unknown> = require(`${it}`);
+		const i0: Record<string, unknown> = await import(`${it}`);
 		const i0values = Object.entries(i0);
 
 		i0values.forEach(([k, t]) => {
@@ -135,7 +135,7 @@ export const prepareMySqlSchema = async (path: string | string[]) => {
 	for (let i = 0; i < imports.length; i++) {
 		const it = imports[i];
 
-		const i0: Record<string, unknown> = require(`${it}`);
+		const i0: Record<string, unknown> = await import(`${it}`);
 		const i0values = Object.entries(i0);
 
 		i0values.forEach(([k, t]) => {
@@ -172,7 +172,7 @@ export const prepareSQLiteSchema = async (path: string | string[]) => {
 	for (let i = 0; i < imports.length; i++) {
 		const it = imports[i];
 
-		const i0: Record<string, unknown> = require(`${it}`);
+		const i0: Record<string, unknown> = await import(`${it}`);
 		const i0values = Object.entries(i0);
 
 		i0values.forEach(([k, t]) => {
