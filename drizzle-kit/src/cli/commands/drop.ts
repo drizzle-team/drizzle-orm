@@ -7,6 +7,7 @@ import { Journal } from '../../utils';
 import { DropMigrationView } from '../views';
 import { embeddedMigrations } from './generate-common';
 
+// We don't need it anymore with a new structure
 export const dropMigration = async ({
 	out,
 	bundle,
@@ -46,7 +47,7 @@ export const dropMigration = async ({
 	if (bundle) {
 		fs.writeFileSync(
 			join(out, `migrations.js`),
-			embeddedMigrations(resultJournal),
+			embeddedMigrations([]),
 		);
 	}
 

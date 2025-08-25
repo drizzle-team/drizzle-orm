@@ -1,7 +1,8 @@
+import { detectNonCommutative } from 'src/utils/commutativity';
 import { Dialect } from '../../utils/schemaValidator';
 import { prepareOutFolder, validateWithReport } from '../../utils/utils-node';
 
-export const checkHandler = (out: string, dialect: Dialect) => {
+export const checkHandler = async (out: string, dialect: Dialect) => {
 	const { snapshots } = prepareOutFolder(out, dialect);
 	const report = validateWithReport(snapshots, dialect);
 
@@ -42,6 +43,22 @@ export const checkHandler = (out: string, dialect: Dialect) => {
 
 	if (message) {
 		console.log(message);
+	}
+
+	// Non-commutative detection for branching
+	try {
+		const nc = await detectNonCommutative(snapshots, dialect);
+		if (nc.conflicts.length > 0) {
+			console.log('\nNon-commutative migration branches detected:');
+			for (const c of nc.conflicts) {
+				console.log(`- Parent ${c.parentId}${c.parentPath ? ` (${c.parentPath})` : ''}`);
+				console.log(`  A: ${c.branchA.headId} (${c.branchA.path})`);
+				console.log(`  B: ${c.branchB.headId} (${c.branchB.path})`);
+				for (const r of c.reasons) console.log(`    • ${r}`);
+			}
+		}
+	} catch (e) {
+		
 	}
 
 	const abort = report.malformed.length!! || collisionEntries.length > 0;

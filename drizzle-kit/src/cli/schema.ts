@@ -463,7 +463,7 @@ export const check = command({
 		await assertOrmCoreVersion();
 
 		const { out, dialect } = config;
-		checkHandler(out, dialect);
+		await checkHandler(out, dialect);
 		console.log("Everything's fine 🐶🔥");
 	},
 });
