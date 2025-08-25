@@ -156,3 +156,57 @@ export const trimChar = (str: string, char: string | [string, string]) => {
 
 	return str;
 };
+
+export const splitExpressions = (input: string | null): string[] => {
+	if (!input) return [];
+
+	const expressions: string[] = [];
+	let parenDepth = 0;
+	let inSingleQuotes = false;
+	let inDoubleQuotes = false;
+	let currentExpressionStart = 0;
+
+	for (let i = 0; i < input.length; i++) {
+		const char = input[i];
+
+		if (char === "'" && input[i + 1] === "'") {
+			i++;
+			continue;
+		}
+
+		if (char === '"' && input[i + 1] === '"') {
+			i++;
+			continue;
+		}
+
+		if (char === "'") {
+			if (!inDoubleQuotes) {
+				inSingleQuotes = !inSingleQuotes;
+			}
+			continue;
+		}
+		if (char === '"') {
+			if (!inSingleQuotes) {
+				inDoubleQuotes = !inDoubleQuotes;
+			}
+			continue;
+		}
+
+		if (!inSingleQuotes && !inDoubleQuotes) {
+			if (char === '(') {
+				parenDepth++;
+			} else if (char === ')') {
+				parenDepth = Math.max(0, parenDepth - 1);
+			} else if (char === ',' && parenDepth === 0) {
+				expressions.push(input.substring(currentExpressionStart, i).trim());
+				currentExpressionStart = i + 1;
+			}
+		}
+	}
+
+	if (currentExpressionStart < input.length) {
+		expressions.push(input.substring(currentExpressionStart).trim());
+	}
+
+	return expressions.filter((s) => s.length > 0);
+};

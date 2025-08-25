@@ -1,7 +1,7 @@
 import { SQL, sql } from 'drizzle-orm';
 import {
 	bigint,
-	boolean,
+	bool,
 	char,
 	cockroachEnum,
 	cockroachSchema,
@@ -529,8 +529,8 @@ test('add columns with defaults', async () => {
 			int1: int4().default(10),
 			int2: int4().default(0),
 			int3: int4().default(-10),
-			bool1: boolean().default(true),
-			bool2: boolean().default(false),
+			bool1: bool().default(true),
+			bool2: bool().default(false),
 		}),
 	};
 
@@ -548,8 +548,8 @@ test('add columns with defaults', async () => {
 		'ALTER TABLE "table" ADD COLUMN "int1" int4 DEFAULT 10;',
 		'ALTER TABLE "table" ADD COLUMN "int2" int4 DEFAULT 0;',
 		'ALTER TABLE "table" ADD COLUMN "int3" int4 DEFAULT -10;',
-		'ALTER TABLE "table" ADD COLUMN "bool1" boolean DEFAULT true;',
-		'ALTER TABLE "table" ADD COLUMN "bool2" boolean DEFAULT false;',
+		'ALTER TABLE "table" ADD COLUMN "bool1" bool DEFAULT true;',
+		'ALTER TABLE "table" ADD COLUMN "bool2" bool DEFAULT false;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -935,8 +935,8 @@ test('no diffs for all database types', async () => {
 			},
 		),
 		allBools: customSchema.table('all_bools', {
-			columnAll: boolean('column_all').default(true).notNull(),
-			column: boolean('column'),
+			columnAll: bool('column_all').default(true).notNull(),
+			column: bool('column'),
 		}),
 
 		allVarchars: customSchema.table('all_varchars', {
