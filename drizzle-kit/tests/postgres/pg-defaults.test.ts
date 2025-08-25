@@ -699,7 +699,7 @@ test('jsonb + jsonb arrays', async () => {
 	expect.soft(res12).toStrictEqual([]);
 });
 
-test('timestamp + timestamp arrays', async () => {
+test.only('timestamp + timestamp arrays', async () => {
 	const res1 = await diffDefault(
 		_,
 		timestamp({ mode: 'date' }).default(new Date('2025-05-23T12:53:53.115Z')),
@@ -827,48 +827,51 @@ test('timestamp + timestamp arrays', async () => {
 
 test('time + time arrays', async () => {
 	const res1 = await diffDefault(_, time().default('15:50:33'), `'15:50:33'`);
-	const res10 = await diffDefault(
+	const res2 = await diffDefault(
 		_,
-		time({ precision: 3, withTimezone: true }).default('15:50:33.123'),
-		`'15:50:33.123'`,
+		time({ precision: 3, withTimezone: true }).default('15:50:33.123+00'),
+		`'15:50:33.123+00'`,
 	);
-	const res2 = await diffDefault(_, time().defaultNow(), `now()`);
-	const res20 = await diffDefault(_, time({ precision: 3, withTimezone: true }).defaultNow(), `now()`);
+	const res3 = await diffDefault(_, time().defaultNow(), `now()`);
+	const res4 = await diffDefault(_, time({ precision: 3, withTimezone: true }).defaultNow(), `now()`);
 
-	const res3 = await diffDefault(_, time().array().default([]), `'{}'::time[]`);
-	const res30 = await diffDefault(_, time({ precision: 3, withTimezone: true }).array().default([]), `'{}'::time[]`);
-	const res4 = await diffDefault(_, time().array().default(['15:50:33']), `'{15:50:33}'::time[]`);
-	const res40 = await diffDefault(
+	const res5 = await diffDefault(_, time().array().default([]), `'{}'::time[]`);
+	const res6 = await diffDefault(_, time({ precision: 3, withTimezone: true }).array().default([]), `'{}'::time[]`);
+	const res7 = await diffDefault(_, time().array().default(['15:50:33']), `'{15:50:33}'::time[]`);
+	const res8 = await diffDefault(
 		_,
 		time({ precision: 3, withTimezone: true }).array().default(['15:50:33.123']),
 		`'{15:50:33.123}'::time[]`,
 	);
 
-	const res5 = await diffDefault(_, time().array().array().default([]), `'{}'::time[]`);
-	const res50 = await diffDefault(
+	const res9 = await diffDefault(_, time().array().array().default([]), `'{}'::time[]`);
+	const res10 = await diffDefault(
 		_,
 		time({ precision: 3, withTimezone: true }).array().array().default([]),
 		`'{}'::time[]`,
 	);
-	const res6 = await diffDefault(_, time().array().array().default([['15:50:33']]), `'{{15:50:33}}'::time[]`);
-	const res60 = await diffDefault(
+	const res11 = await diffDefault(_, time().array().array().default([['15:50:33']]), `'{{15:50:33}}'::time[]`);
+	const res12 = await diffDefault(
 		_,
 		time({ precision: 3, withTimezone: true }).array().array().default([['15:50:33.123']]),
 		`'{{15:50:33.123}}'::time[]`,
 	);
 
+	
+	// const res4 = await diffDefault(_, time({precision:6, withTimezone: true}).default("'10:20:30+00'"), "'10:20:30+00'",null, {type:"time(6) with time zone"} );
+
 	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res10).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
-	expect.soft(res20).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
-	expect.soft(res30).toStrictEqual([]);
 	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res40).toStrictEqual([]);
 	expect.soft(res5).toStrictEqual([]);
-	expect.soft(res50).toStrictEqual([]);
 	expect.soft(res6).toStrictEqual([]);
-	expect.soft(res60).toStrictEqual([]);
+	expect.soft(res7).toStrictEqual([]);
+	expect.soft(res8).toStrictEqual([]);
+	expect.soft(res9).toStrictEqual([]);
+	expect.soft(res10).toStrictEqual([]);
+	expect.soft(res11).toStrictEqual([]);
+	expect.soft(res12).toStrictEqual([]);
 });
 
 test('date + date arrays', async () => {

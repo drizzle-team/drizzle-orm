@@ -156,3 +156,12 @@ export const trimChar = (str: string, char: string | [string, string]) => {
 
 	return str;
 };
+
+export const wrapWith = (it: string, char: string)=>{
+	if(!it.startsWith(char) || !it.endsWith(char))return `${char}${it}${char}`
+	return it
+}
+
+export const isTime = (it: string)=>{
+	return /^\d{2}:\d{2}:\d{2}.*$/.test(it)
+}
