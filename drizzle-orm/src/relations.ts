@@ -242,7 +242,6 @@ export type EmptyRelations = {};
 export type AnyRelations = TablesRelationalConfig;
 
 export abstract class Relation<
-	TSourceTableName extends string = string,
 	TTargetTableName extends string = string,
 > {
 	static readonly [entityKind]: string = 'RelationV2';
@@ -263,9 +262,6 @@ export abstract class Relation<
 	throughTable?: SchemaEntry;
 	isReversed?: boolean;
 
-	/** Type-level only field */
-	declare readonly sourceTableName: TSourceTableName;
-
 	constructor(
 		targetTable: SchemaEntry,
 		readonly targetTableName: TTargetTableName,
@@ -274,13 +270,12 @@ export abstract class Relation<
 	}
 }
 
-export type AnyRelation = Relation<string, string>;
+export type AnyRelation = Relation<string>;
 
 export class One<
-	TSourceTableName extends string,
 	TTargetTableName extends string,
 	TOptional extends boolean = boolean,
-> extends Relation<TSourceTableName, TTargetTableName> {
+> extends Relation<TTargetTableName> {
 	static override readonly [entityKind]: string = 'OneV2';
 	declare protected $relationBrand: 'OneV2';
 
@@ -303,7 +298,7 @@ export class One<
 				: [config.from]) as RelationsBuilderColumnBase[]).map((it: RelationsBuilderColumnBase) => {
 					this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as SchemaEntry : undefined;
 
-					return it._.column as AnyColumn<{ tableName: TSourceTableName }>;
+					return it._.column as Column;
 				});
 		}
 		if (config?.to) {
@@ -312,28 +307,25 @@ export class One<
 				: [config.to]).map((it: RelationsBuilderColumnBase) => {
 					this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as SchemaEntry : undefined;
 
-					return it._.column as AnyColumn<{ tableName: TTargetTableName }>;
+					return it._.column as Column;
 				});
 		}
 
 		if (this.throughTable) {
 			this.through = {
-				source: (Array.isArray(config?.from) ? config.from : [config!.from]).map((
+				source: (Array.isArray(config?.from) ? config.from : config?.from ? [config.from] : []).map((
 					c,
 				) => c._.through!),
-				target: (Array.isArray(config?.to) ? config.to : [config!.to]).map((c) => c._.through!),
+				target: (Array.isArray(config?.to) ? config.to : config?.to ? [config.to] : []).map((c) => c._.through!),
 			};
 		}
 		this.optional = (config?.optional ?? true) as TOptional;
 	}
 }
 
-export type AnyOne = One<string, string, boolean>;
+export type AnyOne = One<string, boolean>;
 
-export class Many<
-	TSourceTableName extends string,
-	TTargetTableName extends string,
-> extends Relation<TSourceTableName, TTargetTableName> {
+export class Many<TTargetTableName extends string> extends Relation<TTargetTableName> {
 	static override readonly [entityKind]: string = 'ManyV2';
 	declare protected $relationBrand: 'ManyV2';
 
@@ -354,7 +346,7 @@ export class Many<
 				: [config.from]) as RelationsBuilderColumnBase[]).map((it: RelationsBuilderColumnBase) => {
 					this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as SchemaEntry : undefined;
 
-					return it._.column as AnyColumn<{ tableName: TSourceTableName }>;
+					return it._.column as Column;
 				});
 		}
 		if (config?.to) {
@@ -363,21 +355,21 @@ export class Many<
 				: [config.to]).map((it: RelationsBuilderColumnBase) => {
 					this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as SchemaEntry : undefined;
 
-					return it._.column as AnyColumn<{ tableName: TTargetTableName }>;
+					return it._.column as Column;
 				});
 		}
 		if (this.throughTable) {
 			this.through = {
-				source: (Array.isArray(config?.from) ? config.from : [config!.from]).map((
+				source: (Array.isArray(config?.from) ? config.from : config?.from ? [config.from] : []).map((
 					c,
 				) => c._.through!),
-				target: (Array.isArray(config?.to) ? config.to : [config!.to]).map((c) => c._.through!),
+				target: (Array.isArray(config?.to) ? config.to : config?.to ? [config.to] : []).map((c) => c._.through!),
 			};
 		}
 	}
 }
 
-export type AnyMany = Many<string, string>;
+export type AnyMany = Many<string>;
 
 export abstract class AggregatedField<T = unknown> implements SQLWrapper<T> {
 	static readonly [entityKind]: string = 'AggregatedField';
@@ -982,105 +974,34 @@ export type AnyTableFilter = TableFilter<
 	FieldSelection
 >;
 
-export interface OneConfig<
-	TSchema extends Schema,
-	TSourceColumns extends
-		| Readonly<[RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]]>
-		| Readonly<RelationsBuilderColumnBase>,
-	TTargetTableName extends string,
-	TOptional extends boolean,
-> {
-	from?: TSourceColumns;
-	to?: TSourceColumns extends
-		RelationsBuilderJunctionColumn | [RelationsBuilderJunctionColumn, ...RelationsBuilderJunctionColumn[]]
-		? RelationsBuilderJunctionColumn<TTargetTableName> | [
-			RelationsBuilderJunctionColumn<TTargetTableName>,
-			...RelationsBuilderJunctionColumn<TTargetTableName>[],
-		]
-		: TSourceColumns extends [RelationsBuilderColumn]
-			? RelationsBuilderColumn<TTargetTableName> | [RelationsBuilderColumn<TTargetTableName>]
-		: TSourceColumns extends [RelationsBuilderColumn, ...RelationsBuilderColumn[]]
-			? { [K in keyof TSourceColumns]: RelationsBuilderColumn<TTargetTableName> }
-		: RelationsBuilderColumn<TTargetTableName>;
-	where?: TableFilter<TSchema[TTargetTableName]>;
+export interface OneConfig<TTargetTable extends SchemaEntry, TOptional extends boolean> {
+	from?: RelationsBuilderColumnBase | [RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]];
+	to?: RelationsBuilderColumnBase | [RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]];
+	where?: TableFilter<TTargetTable>;
 	optional?: TOptional;
 	alias?: string;
 }
 
 export type AnyOneConfig = OneConfig<
-	Schema,
-	Readonly<[RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]] | RelationsBuilderColumnBase>,
-	string,
+	SchemaEntry,
 	boolean
 >;
 
-export interface ManyConfig<
-	TSchema extends Schema,
-	TSourceColumns extends
-		| Readonly<[RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]]>
-		| Readonly<RelationsBuilderColumnBase>,
-	TTargetTableName extends string,
-> {
-	from?: TSourceColumns;
-	to?: TSourceColumns extends
-		RelationsBuilderJunctionColumn | [RelationsBuilderJunctionColumn, ...RelationsBuilderJunctionColumn[]]
-		? RelationsBuilderJunctionColumn<TTargetTableName> | [
-			RelationsBuilderJunctionColumn<TTargetTableName>,
-			...RelationsBuilderJunctionColumn<TTargetTableName>[],
-		]
-		: TSourceColumns extends [RelationsBuilderColumn]
-			? RelationsBuilderColumn<TTargetTableName> | [RelationsBuilderColumn<TTargetTableName>]
-		: TSourceColumns extends [RelationsBuilderColumn, ...RelationsBuilderColumn[]]
-			? { [K in keyof TSourceColumns]: RelationsBuilderColumn<TTargetTableName> }
-		: RelationsBuilderColumn<TTargetTableName>;
-	where?: TableFilter<TSchema[TTargetTableName]>;
+export interface ManyConfig<TTargetTable extends SchemaEntry> {
+	from?: RelationsBuilderColumnBase | [RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]];
+	to?: RelationsBuilderColumnBase | [RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]];
+	where?: TableFilter<TTargetTable>;
 	alias?: string;
 }
 
-export type AnyManyConfig = ManyConfig<
-	Schema,
-	Readonly<[RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]] | RelationsBuilderColumnBase>,
-	string
->;
+export type AnyManyConfig = ManyConfig<SchemaEntry>;
 
-export interface OneFn<
-	TTables extends Schema,
-	TTargetTableName extends string,
-> {
-	<
-		// "any" default value is required for cases where config is not provided, to satisfy the source table name constraint
-		TSourceColumns extends
-			| Readonly<[RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]]>
-			| RelationsBuilderColumnBase = any,
-		TOptional extends boolean = true,
-	>(
-		config?: OneConfig<TTables, TSourceColumns, TTargetTableName, TOptional>,
-	): One<
-		TSourceColumns extends [RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]]
-			? TSourceColumns[number]['_']['tableName']
-			: Assume<TSourceColumns, RelationsBuilderColumnBase>['_']['tableName'],
-		TTargetTableName,
-		TOptional
-	>;
+export interface OneFn<TTargetTable extends SchemaEntry, TTargetTableName extends string> {
+	<TOptional extends boolean = true>(config?: OneConfig<TTargetTable, TOptional>): One<TTargetTableName, TOptional>;
 }
 
-export interface ManyFn<
-	TTables extends Schema,
-	TTargetTableName extends string,
-> {
-	<
-		// "any" default value is required for cases where config is not provided, to satisfy the source table name constraint
-		TSourceColumns extends
-			| Readonly<[RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]]>
-			| RelationsBuilderColumnBase = any,
-	>(
-		config?: ManyConfig<TTables, TSourceColumns, TTargetTableName>,
-	): Many<
-		TSourceColumns extends [RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]]
-			? TSourceColumns[number]['_']['tableName']
-			: Assume<TSourceColumns, RelationsBuilderColumnBase>['_']['tableName'],
-		TTargetTableName
-	>;
+export interface ManyFn<TTargetTable extends SchemaEntry, TTargetTableName extends string> {
+	(config?: ManyConfig<TTargetTable>): Many<TTargetTableName>;
 }
 
 export class RelationsHelperStatic<TTables extends Schema> {
@@ -1096,12 +1017,12 @@ export class RelationsHelperStatic<TTables extends Schema> {
 			tables,
 		};
 
-		const one: Record<string, OneFn<TTables, string>> = {};
-		const many: Record<string, ManyFn<TTables, string>> = {};
+		const one: Record<string, OneFn<TTables[string], string>> = {};
+		const many: Record<string, ManyFn<TTables[string], string>> = {};
 
 		for (const [tableName, table] of Object.entries(tables)) {
 			one[tableName] = (config) => {
-				return new One(tables, table as any, tableName, config as AnyOneConfig);
+				return new One(tables, table as any, tableName, config as unknown as AnyOneConfig);
 			};
 
 			many[tableName] = (config) => {
@@ -1114,12 +1035,12 @@ export class RelationsHelperStatic<TTables extends Schema> {
 	}
 
 	one: {
-		[K in keyof TTables]: TTables[K] extends FilteredSchemaEntry ? OneFn<TTables, K & string>
+		[K in keyof TTables]: TTables[K] extends FilteredSchemaEntry ? OneFn<TTables[K], K & string>
 			: DrizzleTypeError<'Views with nested selections are not supported by the relational query builder'>;
 	};
 
 	many: {
-		[K in keyof TTables]: TTables[K] extends FilteredSchemaEntry ? ManyFn<TTables, K & string>
+		[K in keyof TTables]: TTables[K] extends FilteredSchemaEntry ? ManyFn<TTables[K], K & string>
 			: DrizzleTypeError<'Views with nested selections are not supported by the relational query builder'>;
 	};
 
