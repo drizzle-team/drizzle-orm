@@ -763,7 +763,6 @@ export const ddlDiff = async (
 		if (it.type && it.type.from.replace(',0)', ')') === it.type.to) {
 			delete it.type;
 		}
-
 		return ddl2.columns.hasDiff(it);
 	});
 
