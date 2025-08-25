@@ -121,6 +121,7 @@ export class D1HttpSession<
     }
 
     async batch<T extends BatchItem<'sqlite'>[] | readonly BatchItem<'sqlite'>[]>(queries: T) {
+        // D1 batch API requires all queries in single SQL string, so we manually substitute params
         const preparedQueries: PreparedQuery[] = [];
         const builtQueries: { sql: string }[] = [];
 
@@ -130,7 +131,7 @@ export class D1HttpSession<
             preparedQueries.push(preparedQuery);
 
             if (builtQuery.params.length > 0) {
-                // For parameterized queries, we need to substitute parameters manually
+                // Manually substitute parameters since D1 batch doesn't support separate params array
                 let sql = builtQuery.sql;
                 for (let i = 0; i < builtQuery.params.length; i++) {
                     const param = builtQuery.params[i];
@@ -143,6 +144,7 @@ export class D1HttpSession<
             }
         }
 
+        // Combine all SQL statements with semicolons for D1 batch execution
         const batchSql = builtQueries.map(q => q.sql).join('; ');
         const { accountId, databaseId, token } = this.credentials;
 
@@ -161,7 +163,9 @@ export class D1HttpSession<
         const data = (await response.json()) as D1ApiResponse;
 
         if (!data.success) {
-            throw new Error(data.errors.map(error => `${error.code}: ${error.message}`).join('\n'));
+            // Enhanced error reporting with SQL context for debugging
+            const errorMessage = data.errors.map(error => `${error.code}: ${error.message}`).join('\n');
+            throw new Error(`D1 Batch API Error: ${errorMessage}\nSQL: ${batchSql}`);
         }
 
         const batchResults = data.result.map(result => {
@@ -170,7 +174,16 @@ export class D1HttpSession<
             return { rows };
         });
 
-        return batchResults.map((result, i) => preparedQueries[i]!.mapResult(result, true));
+        // Map D1 results back to Drizzle prepared queries
+        // D1 may return more results than queries if SQL contains semicolon-separated statements
+        return preparedQueries.map((preparedQuery, i) => {
+            if (!preparedQuery) {
+                throw new Error(`Missing prepared query at index ${i}`);
+            }
+            // Use result at same index, fallback to empty if D1 returns fewer results
+            const result = batchResults[i] || { rows: [] };
+            return preparedQuery.mapResult(result, true);
+        });
     }
 
     async executeQuery(
@@ -180,6 +193,7 @@ export class D1HttpSession<
     ): Promise<D1HttpResult> {
         const { accountId, databaseId, token } = this.credentials;
 
+        // Use /raw endpoint for values() method (returns arrays), /query for others (returns objects)
         const endpoint = method === 'values' ? 'raw' : 'query';
         const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/d1/database/${databaseId}/${endpoint}`;
 
@@ -195,7 +209,9 @@ export class D1HttpSession<
         const data = (await response.json()) as D1ApiResponse;
 
         if (!data.success) {
-            throw new Error(data.errors.map(error => `${error.code}: ${error.message}`).join('\n'));
+            // Enhanced error reporting with SQL and params for debugging
+            const errorMessage = data.errors.map(error => `${error.code}: ${error.message}`).join('\n');
+            throw new Error(`D1 API Error: ${errorMessage}\nSQL: ${sql}\nParams: ${JSON.stringify(params)}`);
         }
 
         const result = data.result[0]?.results;
@@ -203,6 +219,7 @@ export class D1HttpSession<
             return { rows: [] };
         }
 
+        // Handle both /raw (arrays) and /query (objects with rows property) response formats
         const rows = Array.isArray(result) ? result : result.rows;
         return { rows };
     }
