@@ -1009,7 +1009,7 @@ export class SeedService {
 				return generator;
 			}
 
-			if ((col.columnType === 'integer' && col.dataType === 'date')) {
+			if ((col.columnType === 'integer' && col.dataType === 'object')) {
 				const generator = new generatorsMap.GenerateTimestamp[0]();
 				return generator;
 			}

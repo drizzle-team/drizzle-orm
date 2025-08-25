@@ -1,11 +1,11 @@
 /* eslint-disable drizzle-internal/require-entity-kind */
-import { getColumnTable, getTableName, is, sql } from 'drizzle-orm';
+import { Column as DrizzleOrmColumn, getColumnTable, getTableName, is, sql } from 'drizzle-orm';
 import { createTableRelationsHelpers, extractTablesRelationalConfig, One, Relations } from 'drizzle-orm/_relations';
 
 import type { MySqlColumn, MySqlSchema } from 'drizzle-orm/mysql-core';
 import { getTableConfig as getMysqlTableConfig, MySqlDatabase, MySqlTable } from 'drizzle-orm/mysql-core';
 
-import type { PgArray, PgColumn, PgSchema } from 'drizzle-orm/pg-core';
+import { PgArray, PgColumn, PgSchema } from 'drizzle-orm/pg-core';
 import { getTableConfig as getPgTableConfig, PgDatabase, PgTable } from 'drizzle-orm/pg-core';
 
 import type { SQLiteColumn } from 'drizzle-orm/sqlite-core';
@@ -592,7 +592,8 @@ const getPostgresInfo = (
 
 		const tableConfig = getPgTableConfig(table);
 		for (const [tsCol, col] of Object.entries(getColumnTable(tableConfig.columns[0]!))) {
-			dbToTsColumnNamesMap[col.name] = tsCol;
+			// dbToTsColumnNamesMap[col.name] = tsCol;
+			if (is(col, DrizzleOrmColumn)) dbToTsColumnNamesMap[col.name] = tsCol;
 		}
 		dbToTsColumnNamesMapGlobal[tableName] = dbToTsColumnNamesMap;
 
@@ -675,10 +676,7 @@ const getPostgresInfo = (
 	for (const table of Object.values(pgTables)) {
 		tableConfig = getPgTableConfig(table);
 
-		dbToTsColumnNamesMap = {};
-		for (const [tsCol, col] of Object.entries(getColumnTable(tableConfig.columns[0]!))) {
-			dbToTsColumnNamesMap[col.name] = tsCol;
-		}
+		dbToTsColumnNamesMap = getDbToTsColumnNamesMap(table);
 
 		// might be empty list
 		const newRelations = tableConfig.foreignKeys.map((fk) => {
@@ -723,8 +721,8 @@ const getPostgresInfo = (
 				name: baseColumn.name,
 				columnType: baseColumn.getSQLType(),
 				typeParams: getTypeParams(baseColumn.getSQLType()),
-				dataType: baseColumn.dataType,
-				size: (baseColumn as PgArray<any, any>).size,
+				dataType: baseColumn.dataType.split(' ')[0]!,
+				size: (baseColumn as PgArray<any, any>).length,
 				hasDefault: baseColumn.hasDefault,
 				enumValues: baseColumn.enumValues,
 				default: baseColumn.default,
@@ -785,8 +783,8 @@ const getPostgresInfo = (
 				name: dbToTsColumnNamesMap[column.name] as string,
 				columnType: column.getSQLType(),
 				typeParams: getTypeParams(column.getSQLType()),
-				dataType: column.dataType,
-				size: (column as PgArray<any, any>).size,
+				dataType: column.dataType.split(' ')[0]!,
+				size: (column as PgArray<any, any>).length,
 				hasDefault: column.hasDefault,
 				default: column.default,
 				enumValues: column.enumValues,
@@ -985,7 +983,7 @@ const getMySqlInfo = (
 
 		const tableConfig = getMysqlTableConfig(table);
 		for (const [tsCol, col] of Object.entries(getColumnTable(tableConfig.columns[0]!))) {
-			dbToTsColumnNamesMap[col.name] = tsCol;
+			if (is(col, DrizzleOrmColumn)) dbToTsColumnNamesMap[col.name] = tsCol;
 		}
 		dbToTsColumnNamesMapGlobal[tableName] = dbToTsColumnNamesMap;
 
@@ -1068,10 +1066,7 @@ const getMySqlInfo = (
 	for (const table of Object.values(mysqlTables)) {
 		tableConfig = getMysqlTableConfig(table);
 
-		dbToTsColumnNamesMap = {};
-		for (const [tsCol, col] of Object.entries(getColumnTable(tableConfig.columns[0]!))) {
-			dbToTsColumnNamesMap[col.name] = tsCol;
-		}
+		dbToTsColumnNamesMap = getDbToTsColumnNamesMap(table);
 
 		const newRelations = tableConfig.foreignKeys.map((fk) => {
 			const table = dbToTsTableNamesMap[tableConfig.name] as string;
@@ -1142,7 +1137,7 @@ const getMySqlInfo = (
 				name: dbToTsColumnNamesMap[column.name] as string,
 				columnType: column.getSQLType(),
 				typeParams: getTypeParams(column.getSQLType()),
-				dataType: column.dataType,
+				dataType: column.dataType.split(' ')[0]!,
 				hasDefault: column.hasDefault,
 				default: column.default,
 				enumValues: column.enumValues,
@@ -1306,7 +1301,7 @@ const getSqliteInfo = (
 
 		const tableConfig = getSqliteTableConfig(table);
 		for (const [tsCol, col] of Object.entries(getColumnTable(tableConfig.columns[0]!))) {
-			dbToTsColumnNamesMap[col.name] = tsCol;
+			if (is(col, DrizzleOrmColumn)) dbToTsColumnNamesMap[col.name] = tsCol;
 		}
 		dbToTsColumnNamesMapGlobal[tableName] = dbToTsColumnNamesMap;
 
@@ -1388,10 +1383,7 @@ const getSqliteInfo = (
 	for (const table of Object.values(sqliteTables)) {
 		tableConfig = getSqliteTableConfig(table);
 
-		dbToTsColumnNamesMap = {};
-		for (const [tsCol, col] of Object.entries(getColumnTable(tableConfig.columns[0]!))) {
-			dbToTsColumnNamesMap[col.name] = tsCol;
-		}
+		dbToTsColumnNamesMap = getDbToTsColumnNamesMap(table);
 
 		const newRelations = tableConfig.foreignKeys.map((fk) => {
 			const table = dbToTsTableNamesMap[tableConfig.name] as string;
@@ -1459,7 +1451,7 @@ const getSqliteInfo = (
 				name: dbToTsColumnNamesMap[column.name] as string,
 				columnType: column.getSQLType(),
 				typeParams: getTypeParams(column.getSQLType()),
-				dataType: column.dataType,
+				dataType: column.dataType.split(' ')[0]!,
 				hasDefault: column.hasDefault,
 				default: column.default,
 				enumValues: column.enumValues,

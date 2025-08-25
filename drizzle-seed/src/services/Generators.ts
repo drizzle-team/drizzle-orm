@@ -2914,7 +2914,7 @@ export class GeneratePoint extends AbstractGenerator<{
 		const x = this.state.xCoordinateGen.generate();
 		const y = this.state.yCoordinateGen.generate();
 
-		if (this.dataType === 'json') {
+		if (this.dataType === 'object') {
 			return { x, y };
 		} else if (this.dataType === 'string') {
 			return `[${x}, ${y}]`;
@@ -2966,7 +2966,7 @@ export class GenerateUniquePoint extends AbstractGenerator<{
 		const x = this.state.xCoordinateGen.generate();
 		const y = this.state.yCoordinateGen.generate();
 
-		if (this.dataType === 'json') {
+		if (this.dataType === 'object') {
 			return { x, y };
 		} else if (this.dataType === 'string') {
 			return `[${x}, ${y}]`;
@@ -3038,7 +3038,7 @@ export class GenerateLine extends AbstractGenerator<{
 
 		const c = this.state.cCoefficientGen.generate();
 
-		if (this.dataType === 'json') {
+		if (this.dataType === 'object') {
 			return { a, b, c };
 		} else if (this.dataType === 'string') {
 			return `[${a}, ${b}, ${c}]`;
@@ -3107,7 +3107,7 @@ export class GenerateUniqueLine extends AbstractGenerator<{
 
 		const c = this.state.cCoefficientGen.generate();
 
-		if (this.dataType === 'json') {
+		if (this.dataType === 'object') {
 			return { a, b, c };
 		} else if (this.dataType === 'string') {
 			return `[${a}, ${b}, ${c}]`;
