@@ -118,9 +118,10 @@ export const prepareDropParams = async (
 		out?: string;
 		driver?: Driver;
 		dialect?: Dialect;
+		name?: string;
 	},
 	from: 'cli' | 'config',
-): Promise<{ out: string; bundle: boolean }> => {
+): Promise<{ out: string; bundle: boolean; name?: string }> => {
 	const config = from === 'config'
 		? await drizzleConfigFromFile(options.config as string | undefined)
 		: options;
@@ -134,7 +135,7 @@ export const prepareDropParams = async (
 		process.exit(1);
 	}
 
-	return { out: config.out || 'drizzle', bundle: config.driver === 'expo' };
+	return { out: config.out || 'drizzle', bundle: config.driver === 'expo', name: options.name };
 };
 
 export type GenerateConfig = {
