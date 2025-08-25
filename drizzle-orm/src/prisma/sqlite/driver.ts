@@ -11,7 +11,7 @@ export type PrismaSQLiteDatabase = BaseSQLiteDatabase<'async', []>;
 export type PrismaSQLiteConfig = Omit<DrizzleConfig, 'schema'>;
 
 export function drizzle(config: PrismaSQLiteConfig = {}) {
-	const dialect = new SQLiteAsyncDialect();
+	const dialect = new SQLiteAsyncDialect({ safeMutations: config.safeMutations });
 	let logger: Logger | undefined;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
