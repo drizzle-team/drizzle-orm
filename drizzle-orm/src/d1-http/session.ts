@@ -7,16 +7,16 @@ import { NoopLogger } from '~/logger.ts';
 
 // Define fetch function type to avoid dependency on @cloudflare/workers-types
 type FetchFunction = (
-	input: string,
-	init?: {
-		method?: string;
-		headers?: Record<string, string>;
-		body?: string;
-	},
+    input: string,
+    init?: {
+        method?: string;
+        headers?: Record<string, string>;
+        body?: string;
+    }
 ) => Promise<{
-	json(): Promise<any>;
-	ok: boolean;
-	status: number;
+    json(): Promise<any>;
+    ok: boolean;
+    status: number;
 }>;
 
 const globalFetch = (globalThis as any).fetch as FetchFunction;
@@ -27,357 +27,366 @@ import type { SQLiteAsyncDialect } from '~/sqlite-core/dialect.ts';
 import { SQLiteTransaction } from '~/sqlite-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types.ts';
 import type {
-	PreparedQueryConfig as PreparedQueryConfigBase,
-	SQLiteExecuteMethod,
-	SQLiteTransactionConfig,
+    PreparedQueryConfig as PreparedQueryConfigBase,
+    SQLiteExecuteMethod,
+    SQLiteTransactionConfig,
 } from '~/sqlite-core/session.ts';
 import { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
 import { mapResultRow } from '~/utils.ts';
 import type { D1HttpCredentials, D1HttpResult } from './driver.ts';
 
 export interface D1HttpSessionOptions {
-	logger?: Logger;
-	cache?: Cache;
+    logger?: Logger;
+    cache?: Cache;
 }
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
 type D1ApiResponse =
-	| {
-		success: true;
-		result: Array<{
-			results:
-				| any[]
-				| {
-					columns: string[];
-					rows: any[][];
-				};
-			meta: {
-				changed_db: boolean;
-				changes: number;
-				duration: number;
-				last_row_id: number;
-				rows_read: number;
-				rows_written: number;
-				served_by_primary: boolean;
-				served_by_region: string;
-				size_after: number;
-				timings: {
-					sql_duration_ms: number;
-				};
-			};
-			success: boolean;
-		}>;
-	}
-	| {
-		success: false;
-		errors: Array<{ code: number; message: string }>;
-	};
+    | {
+          success: true;
+          result: Array<{
+              results:
+                  | any[]
+                  | {
+                        columns: string[];
+                        rows: any[][];
+                    };
+              meta: {
+                  changed_db: boolean;
+                  changes: number;
+                  duration: number;
+                  last_row_id: number;
+                  rows_read: number;
+                  rows_written: number;
+                  served_by_primary: boolean;
+                  served_by_region: string;
+                  size_after: number;
+                  timings: {
+                      sql_duration_ms: number;
+                  };
+              };
+              success: boolean;
+          }>;
+      }
+    | {
+          success: false;
+          errors: Array<{ code: number; message: string }>;
+      };
 
 export class D1HttpSession<
-	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
+    TFullSchema extends Record<string, unknown>,
+    TSchema extends TablesRelationalConfig,
 > extends SQLiteSession<'async', D1HttpResult, TFullSchema, TSchema> {
-	static override readonly [entityKind]: string = 'D1HttpSession';
+    static override readonly [entityKind]: string = 'D1HttpSession';
 
-	private logger: Logger;
-	private cache: Cache;
+    private logger: Logger;
+    private cache: Cache;
 
-	constructor(
-		private credentials: D1HttpCredentials,
-		dialect: SQLiteAsyncDialect,
-		private schema: RelationalSchemaConfig<TSchema> | undefined,
-		private options: D1HttpSessionOptions = {},
-	) {
-		super(dialect);
-		this.logger = options.logger ?? new NoopLogger();
-		this.cache = options.cache ?? new NoopCache();
-	}
+    constructor(
+        private credentials: D1HttpCredentials,
+        dialect: SQLiteAsyncDialect,
+        private schema: RelationalSchemaConfig<TSchema> | undefined,
+        private options: D1HttpSessionOptions = {}
+    ) {
+        super(dialect);
+        this.logger = options.logger ?? new NoopLogger();
+        this.cache = options.cache ?? new NoopCache();
+    }
 
-	prepareQuery(
-		query: Query,
-		fields: SelectedFieldsOrdered | undefined,
-		executeMethod: SQLiteExecuteMethod,
-		isResponseInArrayMode: boolean,
-		customResultMapper?: (rows: unknown[][]) => unknown,
-		queryMetadata?: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		},
-		cacheConfig?: WithCacheConfig,
-	): D1HttpPreparedQuery {
-		return new D1HttpPreparedQuery(
-			this,
-			query,
-			this.logger,
-			this.cache,
-			queryMetadata,
-			cacheConfig,
-			fields,
-			executeMethod,
-			isResponseInArrayMode,
-			customResultMapper,
-		);
-	}
+    prepareQuery(
+        query: Query,
+        fields: SelectedFieldsOrdered | undefined,
+        executeMethod: SQLiteExecuteMethod,
+        isResponseInArrayMode: boolean,
+        customResultMapper?: (rows: unknown[][]) => unknown,
+        queryMetadata?: {
+            type: 'select' | 'update' | 'delete' | 'insert';
+            tables: string[];
+        },
+        cacheConfig?: WithCacheConfig
+    ): D1HttpPreparedQuery {
+        return new D1HttpPreparedQuery(
+            this,
+            query,
+            this.logger,
+            this.cache,
+            queryMetadata,
+            cacheConfig,
+            fields,
+            executeMethod,
+            isResponseInArrayMode,
+            customResultMapper
+        );
+    }
 
-	async batch<T extends BatchItem<'sqlite'>[] | readonly BatchItem<'sqlite'>[]>(queries: T) {
-		const preparedQueries: PreparedQuery[] = [];
-		const builtQueries: { sql: string }[] = [];
+    async batch<T extends BatchItem<'sqlite'>[] | readonly BatchItem<'sqlite'>[]>(queries: T) {
+        const preparedQueries: PreparedQuery[] = [];
+        const builtQueries: { sql: string }[] = [];
 
-		for (const query of queries) {
-			const preparedQuery = query._prepare();
-			const builtQuery = preparedQuery.getQuery();
-			preparedQueries.push(preparedQuery);
-			
-			if (builtQuery.params.length > 0) {
-				// For parameterized queries, we need to substitute parameters manually
-				let sql = builtQuery.sql;
-				for (let i = 0; i < builtQuery.params.length; i++) {
-					const param = builtQuery.params[i];
-					const value = typeof param === 'string' ? `'${param.replace(/'/g, "''")}'` : String(param);
-					sql = sql.replace('?', value);
-				}
-				builtQueries.push({ sql });
-			} else {
-				builtQueries.push({ sql: builtQuery.sql });
-			}
-		}
+        for (const query of queries) {
+            const preparedQuery = query._prepare();
+            const builtQuery = preparedQuery.getQuery();
+            preparedQueries.push(preparedQuery);
 
-		const batchSql = builtQueries.map((q) => q.sql).join('; ');
-		const { accountId, databaseId, token } = this.credentials;
-		
-		const response = await globalFetch(
-			`https://api.cloudflare.com/client/v4/accounts/${accountId}/d1/database/${databaseId}/query`,
-			{
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					'Authorization': `Bearer ${token}`,
-				},
-				body: JSON.stringify({ sql: batchSql }),
-			},
-		);
+            if (builtQuery.params.length > 0) {
+                // For parameterized queries, we need to substitute parameters manually
+                let sql = builtQuery.sql;
+                for (let i = 0; i < builtQuery.params.length; i++) {
+                    const param = builtQuery.params[i];
+                    const value = typeof param === 'string' ? `'${param.replace(/'/g, "''")}'` : String(param);
+                    sql = sql.replace('?', value);
+                }
+                builtQueries.push({ sql });
+            } else {
+                builtQueries.push({ sql: builtQuery.sql });
+            }
+        }
 
-		const data = await response.json() as D1ApiResponse;
+        const batchSql = builtQueries.map(q => q.sql).join('; ');
+        const { accountId, databaseId, token } = this.credentials;
 
-		if (!data.success) {
-			throw new Error(
-				data.errors.map((error) => `${error.code}: ${error.message}`).join('\n'),
-			);
-		}
+        const response = await globalFetch(
+            `https://api.cloudflare.com/client/v4/accounts/${accountId}/d1/database/${databaseId}/query`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ sql: batchSql }),
+            }
+        );
 
-		const batchResults = data.result.map((result) => {
-			const res = result.results;
-			const rows = Array.isArray(res) ? res : res.rows;
-			return { rows };
-		});
+        const data = (await response.json()) as D1ApiResponse;
 
-		return batchResults.map((result, i) => preparedQueries[i]!.mapResult(result, true));
-	}
+        if (!data.success) {
+            throw new Error(data.errors.map(error => `${error.code}: ${error.message}`).join('\n'));
+        }
 
-	async executeQuery(sql: string, params: unknown[], method: 'run' | 'all' | 'values' | 'get'): Promise<D1HttpResult> {
-		const { accountId, databaseId, token } = this.credentials;
-		
-		const endpoint = method === 'values' ? 'raw' : 'query';
-		const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/d1/database/${databaseId}/${endpoint}`;
-		
-		const response = await globalFetch(url, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				'Authorization': `Bearer ${token}`,
-			},
-			body: JSON.stringify({ sql, params }),
-		});
+        const batchResults = data.result.map(result => {
+            const res = result.results;
+            const rows = Array.isArray(res) ? res : res.rows;
+            return { rows };
+        });
 
-		const data = await response.json() as D1ApiResponse;
+        return batchResults.map((result, i) => preparedQueries[i]!.mapResult(result, true));
+    }
 
-		if (!data.success) {
-			throw new Error(
-				data.errors.map((error) => `${error.code}: ${error.message}`).join('\n'),
-			);
-		}
+    async executeQuery(
+        sql: string,
+        params: unknown[],
+        method: 'run' | 'all' | 'values' | 'get'
+    ): Promise<D1HttpResult> {
+        const { accountId, databaseId, token } = this.credentials;
 
-		const result = data.result[0]?.results;
-		if (!result) {
-			return { rows: [] };
-		}
+        const endpoint = method === 'values' ? 'raw' : 'query';
+        const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/d1/database/${databaseId}/${endpoint}`;
 
-		const rows = Array.isArray(result) ? result : result.rows;
-		return { rows };
-	}
+        const response = await globalFetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ sql, params }),
+        });
 
-	override extractRawAllValueFromBatchResult(result: unknown): unknown {
-		return (result as D1HttpResult).rows;
-	}
+        const data = (await response.json()) as D1ApiResponse;
 
-	override extractRawGetValueFromBatchResult(result: unknown): unknown {
-		return (result as D1HttpResult).rows?.[0];
-	}
+        if (!data.success) {
+            throw new Error(data.errors.map(error => `${error.code}: ${error.message}`).join('\n'));
+        }
 
-	override extractRawValuesValueFromBatchResult(result: unknown): unknown {
-		return (result as D1HttpResult).rows;
-	}
+        const result = data.result[0]?.results;
+        if (!result) {
+            return { rows: [] };
+        }
 
-	override async transaction<T>(
-		transaction: (tx: D1HttpTransaction<TFullSchema, TSchema>) => T | Promise<T>,
-		config?: SQLiteTransactionConfig,
-	): Promise<T> {
-		const tx = new D1HttpTransaction('async', this.dialect, this, this.schema);
-		await this.run(sql.raw(`begin${config?.behavior ? ' ' + config.behavior : ''}`));
-		try {
-			const result = await transaction(tx);
-			await this.run(sql`commit`);
-			return result;
-		} catch (err) {
-			await this.run(sql`rollback`);
-			throw err;
-		}
-	}
+        const rows = Array.isArray(result) ? result : result.rows;
+        return { rows };
+    }
+
+    override extractRawAllValueFromBatchResult(result: unknown): unknown {
+        return (result as D1HttpResult).rows;
+    }
+
+    override extractRawGetValueFromBatchResult(result: unknown): unknown {
+        return (result as D1HttpResult).rows?.[0];
+    }
+
+    override extractRawValuesValueFromBatchResult(result: unknown): unknown {
+        return (result as D1HttpResult).rows;
+    }
+
+    override async transaction<T>(
+        transaction: (tx: D1HttpTransaction<TFullSchema, TSchema>) => T | Promise<T>,
+        config?: SQLiteTransactionConfig
+    ): Promise<T> {
+        const tx = new D1HttpTransaction('async', this.dialect, this, this.schema);
+        await this.run(sql.raw(`begin${config?.behavior ? ' ' + config.behavior : ''}`));
+        try {
+            const result = await transaction(tx);
+            await this.run(sql`commit`);
+            return result;
+        } catch (err) {
+            await this.run(sql`rollback`);
+            throw err;
+        }
+    }
 }
 
 export class D1HttpTransaction<
-	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
+    TFullSchema extends Record<string, unknown>,
+    TSchema extends TablesRelationalConfig,
 > extends SQLiteTransaction<'async', D1HttpResult, TFullSchema, TSchema> {
-	static override readonly [entityKind]: string = 'D1HttpTransaction';
+    static override readonly [entityKind]: string = 'D1HttpTransaction';
 
-	override async transaction<T>(transaction: (tx: D1HttpTransaction<TFullSchema, TSchema>) => Promise<T>): Promise<T> {
-		const savepointName = `sp${this.nestedIndex}`;
-		const tx = new D1HttpTransaction('async', this.dialect, this.session, this.schema, this.nestedIndex + 1);
-		await this.session.run(sql.raw(`savepoint ${savepointName}`));
-		try {
-			const result = await transaction(tx);
-			await this.session.run(sql.raw(`release savepoint ${savepointName}`));
-			return result;
-		} catch (err) {
-			await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
-			throw err;
-		}
-	}
+    override async transaction<T>(
+        transaction: (tx: D1HttpTransaction<TFullSchema, TSchema>) => Promise<T>
+    ): Promise<T> {
+        const savepointName = `sp${this.nestedIndex}`;
+        const tx = new D1HttpTransaction('async', this.dialect, this.session, this.schema, this.nestedIndex + 1);
+        await this.session.run(sql.raw(`savepoint ${savepointName}`));
+        try {
+            const result = await transaction(tx);
+            await this.session.run(sql.raw(`release savepoint ${savepointName}`));
+            return result;
+        } catch (err) {
+            await this.session.run(sql.raw(`rollback to savepoint ${savepointName}`));
+            throw err;
+        }
+    }
 }
 
-export class D1HttpPreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends SQLitePreparedQuery<
-	{ type: 'async'; run: D1HttpResult; all: T['all']; get: T['get']; values: T['values']; execute: T['execute'] }
-> {
-	static override readonly [entityKind]: string = 'D1HttpPreparedQuery';
+export class D1HttpPreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends SQLitePreparedQuery<{
+    type: 'async';
+    run: D1HttpResult;
+    all: T['all'];
+    get: T['get'];
+    values: T['values'];
+    execute: T['execute'];
+}> {
+    static override readonly [entityKind]: string = 'D1HttpPreparedQuery';
 
-	/** @internal */
-	customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => unknown;
+    /** @internal */
+    customResultMapper?: (rows: unknown[][], mapColumnValue?: (value: unknown) => unknown) => unknown;
 
-	/** @internal */
-	fields?: SelectedFieldsOrdered;
+    /** @internal */
+    fields?: SelectedFieldsOrdered;
 
-	constructor(
-		private session: D1HttpSession<any, any>,
-		query: Query,
-		private logger: Logger,
-		cache: Cache,
-		queryMetadata: {
-			type: 'select' | 'update' | 'delete' | 'insert';
-			tables: string[];
-		} | undefined,
-		cacheConfig: WithCacheConfig | undefined,
-		fields: SelectedFieldsOrdered | undefined,
-		executeMethod: SQLiteExecuteMethod,
-		private _isResponseInArrayMode: boolean,
-		customResultMapper?: (rows: unknown[][]) => unknown,
-	) {
-		super('async', executeMethod, query, cache, queryMetadata, cacheConfig);
-		this.customResultMapper = customResultMapper;
-		this.fields = fields;
-	}
+    constructor(
+        private session: D1HttpSession<any, any>,
+        query: Query,
+        private logger: Logger,
+        cache: Cache,
+        queryMetadata:
+            | {
+                  type: 'select' | 'update' | 'delete' | 'insert';
+                  tables: string[];
+              }
+            | undefined,
+        cacheConfig: WithCacheConfig | undefined,
+        fields: SelectedFieldsOrdered | undefined,
+        executeMethod: SQLiteExecuteMethod,
+        private _isResponseInArrayMode: boolean,
+        customResultMapper?: (rows: unknown[][]) => unknown
+    ) {
+        super('async', executeMethod, query, cache, queryMetadata, cacheConfig);
+        this.customResultMapper = customResultMapper;
+        this.fields = fields;
+    }
 
-	async run(placeholderValues?: Record<string, unknown>): Promise<D1HttpResult> {
-		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
-		this.logger.logQuery(this.query.sql, params);
-		return await this.queryWithCache(this.query.sql, params, async () => {
-			return this.session.executeQuery(this.query.sql, params, 'run');
-		});
-	}
+    async run(placeholderValues?: Record<string, unknown>): Promise<D1HttpResult> {
+        const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
+        this.logger.logQuery(this.query.sql, params);
+        return await this.queryWithCache(this.query.sql, params, async () => {
+            return this.session.executeQuery(this.query.sql, params, 'run');
+        });
+    }
 
-	async all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
-		const { fields, query, logger, customResultMapper } = this;
-		if (!fields && !customResultMapper) {
-			const params = fillPlaceholders(query.params, placeholderValues ?? {});
-			logger.logQuery(query.sql, params);
-			return await this.queryWithCache(query.sql, params, async () => {
-				const result = await this.session.executeQuery(query.sql, params, 'all');
-				return this.mapAllResult(result.rows!);
-			});
-		}
+    async all(placeholderValues?: Record<string, unknown>): Promise<T['all']> {
+        const { fields, query, logger, customResultMapper } = this;
+        if (!fields && !customResultMapper) {
+            const params = fillPlaceholders(query.params, placeholderValues ?? {});
+            logger.logQuery(query.sql, params);
+            return await this.queryWithCache(query.sql, params, async () => {
+                const result = await this.session.executeQuery(query.sql, params, 'all');
+                return this.mapAllResult(result.rows!);
+            });
+        }
 
-		const rows = await this.values(placeholderValues);
-		return this.mapAllResult(rows);
-	}
+        const rows = await this.values(placeholderValues);
+        return this.mapAllResult(rows);
+    }
 
-	override mapAllResult(rows: unknown, isFromBatch?: boolean): unknown {
-		if (isFromBatch) {
-			rows = (rows as D1HttpResult).rows;
-		}
+    override mapAllResult(rows: unknown, isFromBatch?: boolean): unknown {
+        if (isFromBatch) {
+            rows = (rows as D1HttpResult).rows;
+        }
 
-		if (!this.fields && !this.customResultMapper) {
-			return rows;
-		}
+        if (!this.fields && !this.customResultMapper) {
+            return rows;
+        }
 
-		if (this.customResultMapper) {
-			return this.customResultMapper(rows as unknown[][]);
-		}
+        if (this.customResultMapper) {
+            return this.customResultMapper(rows as unknown[][]);
+        }
 
-		return (rows as unknown[][]).map((row) => mapResultRow(this.fields!, row, this.joinsNotNullableMap));
-	}
+        return (rows as unknown[][]).map(row => mapResultRow(this.fields!, row, this.joinsNotNullableMap));
+    }
 
-	async get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
-		const { fields, joinsNotNullableMap, query, logger, customResultMapper } = this;
-		if (!fields && !customResultMapper) {
-			const params = fillPlaceholders(query.params, placeholderValues ?? {});
-			logger.logQuery(query.sql, params);
-			return await this.queryWithCache(query.sql, params, async () => {
-				const result = await this.session.executeQuery(query.sql, params, 'get');
-				return result.rows?.[0];
-			});
-		}
+    async get(placeholderValues?: Record<string, unknown>): Promise<T['get']> {
+        const { fields, joinsNotNullableMap, query, logger, customResultMapper } = this;
+        if (!fields && !customResultMapper) {
+            const params = fillPlaceholders(query.params, placeholderValues ?? {});
+            logger.logQuery(query.sql, params);
+            return await this.queryWithCache(query.sql, params, async () => {
+                const result = await this.session.executeQuery(query.sql, params, 'get');
+                return result.rows?.[0];
+            });
+        }
 
-		const rows = await this.values(placeholderValues);
+        const rows = await this.values(placeholderValues);
 
-		if (!rows[0]) {
-			return undefined;
-		}
+        if (!rows[0]) {
+            return undefined;
+        }
 
-		if (customResultMapper) {
-			return customResultMapper(rows) as T['all'];
-		}
+        if (customResultMapper) {
+            return customResultMapper(rows) as T['all'];
+        }
 
-		return mapResultRow(fields!, rows[0], joinsNotNullableMap);
-	}
+        return mapResultRow(fields!, rows[0], joinsNotNullableMap);
+    }
 
-	override mapGetResult(result: unknown, isFromBatch?: boolean): unknown {
-		if (isFromBatch) {
-			result = (result as D1HttpResult).rows?.[0];
-		}
+    override mapGetResult(result: unknown, isFromBatch?: boolean): unknown {
+        if (isFromBatch) {
+            result = (result as D1HttpResult).rows?.[0];
+        }
 
-		if (!this.fields && !this.customResultMapper) {
-			return result;
-		}
+        if (!this.fields && !this.customResultMapper) {
+            return result;
+        }
 
-		if (this.customResultMapper) {
-			return this.customResultMapper([result as unknown[]]) as T['all'];
-		}
+        if (this.customResultMapper) {
+            return this.customResultMapper([result as unknown[]]) as T['all'];
+        }
 
-		return mapResultRow(this.fields!, result as unknown[], this.joinsNotNullableMap);
-	}
+        return mapResultRow(this.fields!, result as unknown[], this.joinsNotNullableMap);
+    }
 
-	async values<T extends any[] = unknown[]>(placeholderValues?: Record<string, unknown>): Promise<T[]> {
-		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
-		this.logger.logQuery(this.query.sql, params);
-		return await this.queryWithCache(this.query.sql, params, async () => {
-			const result = await this.session.executeQuery(this.query.sql, params, 'values');
-			return result.rows as T[];
-		});
-	}
+    async values<T extends any[] = unknown[]>(placeholderValues?: Record<string, unknown>): Promise<T[]> {
+        const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
+        this.logger.logQuery(this.query.sql, params);
+        return await this.queryWithCache(this.query.sql, params, async () => {
+            const result = await this.session.executeQuery(this.query.sql, params, 'values');
+            return result.rows as T[];
+        });
+    }
 
-	/** @internal */
-	isResponseInArrayMode(): boolean {
-		return this._isResponseInArrayMode;
-	}
+    /** @internal */
+    isResponseInArrayMode(): boolean {
+        return this._isResponseInArrayMode;
+    }
 }
