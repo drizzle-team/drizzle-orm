@@ -285,14 +285,20 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	builder: T,
 	expectedDefault: string,
 	pre: PostgresSchema | null = null,
+	override?: {
+		type?: string;
+		default?: string;
+	},
 ) => {
 	await kit.clear();
 
 	const config = (builder as any).config;
 	const def = config['default'];
 	const column = pgTable('table', { column: builder }).column;
+	const { dimensions, typeSchema, sqlType:sqlt } = unwrapColumn(column);
 
-	const { dimensions, baseType, options, typeSchema, sqlType: type } = unwrapColumn(column);
+	const type = override?.type ?? sqlt.replace(', ', ','); // real(6, 3)->real(6,3)
+
 	const columnDefault = defaultFromColumn(column, column.default, dimensions, new PgDialect());
 
 	const defaultSql = defaultToSQL({
@@ -318,8 +324,8 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	const { sqlStatements: st2 } = await push({ db, to: init });
 
 	const typeSchemaPrefix = typeSchema && typeSchema !== 'public' ? `"${typeSchema}".` : '';
-	const typeValue = typeSchema ? `"${baseType}"` : baseType;
-	const sqlType = `${typeSchemaPrefix}${typeValue}${options ? `(${options})` : ''}${'[]'.repeat(dimensions)}`;
+	const typeValue = typeSchema ? `"${type}"` : type;
+	const sqlType = `${typeSchemaPrefix}${typeValue}`;
 	const expectedInit = `CREATE TABLE "table" (\n\t"column" ${sqlType} DEFAULT ${expectedDefault}\n);\n`;
 	if (st1.length !== 1 || st1[0] !== expectedInit) res.push(`Unexpected init:\n${st1}\n\n${expectedInit}`);
 	if (st2.length > 0) res.push(`Unexpected subsequent init:\n${st2}`);

@@ -1,4 +1,4 @@
-import { splitExpressions, trimChar } from 'src/utils';
+import { isTime, splitExpressions, trimChar, wrapWith } from 'src/utils';
 import { expect, test } from 'vitest';
 
 test('trim chars', () => {
@@ -54,4 +54,16 @@ test.each([
 	]],
 ])('split expression %#: %s', (it, expected) => {
 	expect(splitExpressions(it)).toStrictEqual(expected);
+});
+
+test('wrap chars', () => {
+	expect.soft(wrapWith('10:20:30', "'")).toBe("'10:20:30'");
+	expect.soft(wrapWith("10:20:30'", "'")).toBe("10:20:30'");
+	expect.soft(wrapWith("'10:20:30", "'")).toBe("'10:20:30");
+});
+
+test('is time', () => {
+	expect.soft(isTime('10:20:30')).toBe(true);
+	expect.soft(isTime('10:20:30+0000')).toBe(true);
+	expect.soft(isTime('now()')).toBe(false);
 });
