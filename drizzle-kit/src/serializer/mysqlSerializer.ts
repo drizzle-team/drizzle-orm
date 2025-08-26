@@ -399,7 +399,7 @@ export const generateMySqlSnapshot = (
 
 			checkConstraintObject[checkName] = {
 				name: checkName,
-				value: dialect.sqlToQuery(check.value).sql,
+				value: dialect.sqlToQuery(check.value.inlineParams()).sql,
 			};
 		});
 
