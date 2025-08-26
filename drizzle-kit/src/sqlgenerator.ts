@@ -38,6 +38,7 @@ import {
 	JsonCreateCheckConstraint,
 	JsonCreateCompositePK,
 	JsonCreateEnumStatement,
+	JsonCreateFunctionStatement,
 	JsonCreateIndexStatement,
 	JsonCreateIndPolicyStatement,
 	JsonCreateMySqlViewStatement,
@@ -57,6 +58,7 @@ import {
 	JsonDisableRLSStatement,
 	JsonDropColumnStatement,
 	JsonDropEnumStatement,
+	JsonDropFunctionStatement,
 	JsonDropIndexStatement,
 	JsonDropIndPolicyStatement,
 	JsonDropPolicyStatement,
@@ -379,6 +381,48 @@ class PgDisableRlsConvertor extends Convertor {
 			: `"${statement.tableName}"`;
 
 		return `ALTER TABLE ${tableNameWithSchema} DISABLE ROW LEVEL SECURITY;`;
+	}
+}
+
+class PgCreateFunctionConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'create_function' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonCreateFunctionStatement): string | string[] {
+		const functionNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.name}"`
+			: `"${statement.name}"`;
+
+		const args = statement.args || '';
+		const returns = statement.returns ? ` RETURNS ${statement.returns}` : '';
+		const language = statement.language ? ` LANGUAGE ${statement.language}` : '';
+		const stability = statement.stability ? ` ${statement.stability.toUpperCase()}` : '';
+		const security = statement.security ? ` SECURITY ${statement.security.toUpperCase()}` : '';
+
+		let paramsStr = '';
+		if (statement.params) {
+			const paramsList = Object.entries(statement.params)
+				.map(([key, value]) => `SET ${key} = ${value}`)
+				.join(' ');
+			paramsStr = paramsList ? ` ${paramsList}` : '';
+		}
+
+		const body = statement.body ? `\n$$\n${statement.body}\n$$` : '';
+
+		return `CREATE OR REPLACE FUNCTION ${functionNameWithSchema}(${args})${returns}${language}${stability}${security}${paramsStr} AS${body};`;
+	}
+}
+
+class PgDropFunctionConvertor extends Convertor {
+	override can(statement: JsonStatement, dialect: Dialect): boolean {
+		return statement.type === 'drop_function' && dialect === 'postgresql';
+	}
+	override convert(statement: JsonDropFunctionStatement): string | string[] {
+		const functionNameWithSchema = statement.schema
+			? `"${statement.schema}"."${statement.name}"`
+			: `"${statement.name}"`;
+
+		return `DROP FUNCTION IF EXISTS ${functionNameWithSchema}(${statement.args ?? ''});`;
 	}
 }
 
@@ -4064,6 +4108,9 @@ convertors.push(new PgDropRoleConvertor());
 convertors.push(new PgAlterRoleConvertor());
 convertors.push(new PgCreateRoleConvertor());
 convertors.push(new PgRenameRoleConvertor());
+
+convertors.push(new PgCreateFunctionConvertor());
+convertors.push(new PgDropFunctionConvertor());
 
 /// generated
 convertors.push(new PgAlterTableAlterColumnSetExpressionConvertor());

@@ -11,6 +11,7 @@ import {
 	isPgView,
 	PgEnum,
 	PgEnumObject,
+	PgFunction,
 	PgMaterializedView,
 	PgPolicy,
 	PgRole,
@@ -99,6 +100,7 @@ export type PostgresSchema = Record<
 	| PgMaterializedView
 	| PgRole
 	| PgPolicy
+	| PgFunction
 >;
 export type MysqlSchema = Record<
 	string,
@@ -1020,6 +1022,8 @@ export const diffTestSchemasPush = async (
 
 	const leftMaterializedViews = Object.values(right).filter((it) => isPgMaterializedView(it)) as PgMaterializedView[];
 
+	const leftFunctions = Object.values(right).filter((it) => is(it, PgFunction)) as PgFunction[];
+
 	const serialized2 = generatePgSnapshot(
 		leftTables,
 		leftEnums,
@@ -1029,6 +1033,7 @@ export const diffTestSchemasPush = async (
 		leftPolicies,
 		leftViews,
 		leftMaterializedViews,
+		leftFunctions,
 		casing,
 	);
 
@@ -1143,6 +1148,7 @@ export const applyPgDiffs = async (
 		sequences: {},
 		policies: {},
 		roles: {},
+		functions: {},
 		_meta: {
 			schemas: {},
 			tables: {},
@@ -1164,6 +1170,8 @@ export const applyPgDiffs = async (
 
 	const policies = Object.values(sn).filter((it) => is(it, PgPolicy)) as PgPolicy[];
 
+	const functions = Object.values(sn).filter((it) => is(it, PgFunction)) as PgFunction[];
+
 	const materializedViews = Object.values(sn).filter((it) => isPgMaterializedView(it)) as PgMaterializedView[];
 
 	const serialized1 = generatePgSnapshot(
@@ -1175,6 +1183,7 @@ export const applyPgDiffs = async (
 		policies,
 		views,
 		materializedViews,
+		functions,
 		casing,
 	);
 
@@ -1250,6 +1259,10 @@ export const diffTestSchemas = async (
 
 	const rightMaterializedViews = Object.values(right).filter((it) => isPgMaterializedView(it)) as PgMaterializedView[];
 
+	const leftFunctions = Object.values(left).filter((it) => is(it, PgFunction)) as PgFunction[];
+
+	const rightFunctions = Object.values(right).filter((it) => is(it, PgFunction)) as PgFunction[];
+
 	const serialized1 = generatePgSnapshot(
 		leftTables,
 		leftEnums,
@@ -1259,6 +1272,7 @@ export const diffTestSchemas = async (
 		leftPolicies,
 		leftViews,
 		leftMaterializedViews,
+		leftFunctions,
 		casing,
 	);
 	const serialized2 = generatePgSnapshot(
@@ -1270,6 +1284,7 @@ export const diffTestSchemas = async (
 		rightPolicies,
 		rightViews,
 		rightMaterializedViews,
+		rightFunctions,
 		casing,
 	);
 
@@ -2298,7 +2313,16 @@ export const diffTestSchemasLibSQL = async (
 	return { sqlStatements, statements };
 };
 
-// --- Introspect to file helpers ---
+/*
+--- Introspect to file helpers ---
+
+The helpers below test the schema conversion process.
+Process:
+- Apply an initial schema to a database
+- Introspect the schema in a temporary TypeScript file
+- Convert that file back into a schema
+- Compare the original schema with the newly created one to check for any differences, returning the SQL commands needed to synchronize them.
+*/
 
 export const introspectPgToFile = async (
 	client: PGlite,
@@ -2359,6 +2383,7 @@ export const introspectPgToFile = async (
 		response.policies,
 		response.views,
 		response.matViews,
+		response.functions,
 		casing,
 	);
 

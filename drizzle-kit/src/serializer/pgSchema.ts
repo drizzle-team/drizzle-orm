@@ -154,6 +154,21 @@ export const roleSchema = object({
 	inherit: boolean().optional(),
 }).strict();
 
+export const functionSchema = object({
+	name: string(),
+	schema: string(),
+	language: enumType(['sql', 'plpgsql']).optional(),
+	args: string().optional(),
+	returns: string().optional(),
+	stability: enumType(['immutable', 'volatile', 'stable']).optional(),
+	security: enumType(['invoker', 'definer']).optional(),
+	/**
+	 * Configuration parameters, e.g. search_path
+	 */
+	params: record(string(), string()).optional(),
+	body: string().optional(),
+});
+
 export const sequenceSquashed = object({
 	name: string(),
 	schema: string(),
@@ -444,6 +459,7 @@ export const pgSchemaInternal = object({
 	sequences: record(string(), sequenceSchema).default({}),
 	roles: record(string(), roleSchema).default({}),
 	policies: record(string(), policy).default({}),
+	functions: record(string(), functionSchema).default({}),
 	_meta: object({
 		schemas: record(string(), string()),
 		tables: record(string(), string()),
@@ -499,6 +515,7 @@ export const pgSchemaSquashed = object({
 	sequences: record(string(), sequenceSquashed),
 	roles: record(string(), roleSchema).default({}),
 	policies: record(string(), policySquashed).default({}),
+	functions: record(string(), functionSchema).default({}),
 }).strict();
 
 export const pgSchemaV3 = pgSchemaInternalV3.merge(schemaHash);
@@ -528,6 +545,7 @@ export type ForeignKey = TypeOf<typeof fk>;
 export type PrimaryKey = TypeOf<typeof compositePK>;
 export type UniqueConstraint = TypeOf<typeof uniqueConstraint>;
 export type Policy = TypeOf<typeof policy>;
+export type Function = TypeOf<typeof functionSchema>;
 export type View = TypeOf<typeof view>;
 export type MatViewWithOption = TypeOf<typeof matViewWithOption>;
 export type ViewWithOption = TypeOf<typeof viewWithOption>;
@@ -864,6 +882,7 @@ export const squashPgScheme = (
 		policies: mappedPolicies,
 		sequences: mappedSequences,
 		roles: json.roles,
+		functions: json.functions,
 	};
 };
 

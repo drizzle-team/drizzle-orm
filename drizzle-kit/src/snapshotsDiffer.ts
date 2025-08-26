@@ -12,7 +12,14 @@ import {
 	union,
 	ZodTypeAny,
 } from 'zod';
-import { applyJsonDiff, diffColumns, diffIndPolicies, diffPolicies, diffSchemasOrTables } from './jsonDiffer';
+import {
+	applyJsonDiff,
+	diffColumns,
+	diffFunctions,
+	diffIndPolicies,
+	diffPolicies,
+	diffSchemasOrTables,
+} from './jsonDiffer';
 import { fromJson } from './sqlgenerator';
 
 import {
@@ -105,9 +112,11 @@ import {
 	preparePgAlterViewAlterTablespaceJson,
 	preparePgAlterViewAlterUsingJson,
 	preparePgAlterViewDropWithOptionJson,
+	preparePgCreateFunctionJson,
 	preparePgCreateIndexesJson,
 	preparePgCreateTableJson,
 	preparePgCreateViewJson,
+	preparePgDropFunctionJson,
 	prepareRenameColumns,
 	prepareRenameEnumJson,
 	prepareRenameIndPolicyJsons,
@@ -1945,6 +1954,24 @@ export const applyPgSnapshotsDiff = async (
 		}
 	}
 
+	//////////// Functions
+
+	// Functions are stateless, so we can just drop & recreate them
+
+	const functionsDiff = diffFunctions(
+		schemasPatchedSnap1.functions,
+		json2.functions,
+	);
+
+	const createFunctions = functionsDiff.added.map((fd) => {
+		return preparePgCreateFunctionJson(fd);
+	});
+	const dropFunctions = functionsDiff.deleted.map((fd) => {
+		return preparePgDropFunctionJson(fd);
+	});
+
+	////////////
+
 	jsonStatements.push(...createSchemas);
 	jsonStatements.push(...renameSchemas);
 	jsonStatements.push(...createEnums);
@@ -2005,6 +2032,8 @@ export const applyPgSnapshotsDiff = async (
 
 	jsonStatements.push(...jsonAlteredUniqueConstraints);
 
+	jsonStatements.push(...dropFunctions);
+	jsonStatements.push(...createFunctions);
 	jsonStatements.push(...createViews);
 
 	jsonStatements.push(...jsonRenamePoliciesStatements);

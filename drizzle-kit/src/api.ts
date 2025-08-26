@@ -64,6 +64,7 @@ export const generateDrizzleJson = (
 		prepared.policies,
 		prepared.views,
 		prepared.matViews,
+		prepared.functions,
 		casing,
 		schemaFilters,
 	);
