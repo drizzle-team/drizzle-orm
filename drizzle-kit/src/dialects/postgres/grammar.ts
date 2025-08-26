@@ -1,5 +1,5 @@
 import { parse, stringify } from 'src/utils/when-json-met-bigint';
-import { stringifyArray, stringifyTuplesArray, trimChar } from '../../utils';
+import { isTime, stringifyArray, stringifyTuplesArray, trimChar, wrapWith } from '../../utils';
 import { assertUnreachable } from '../../utils';
 import { parseArray } from '../../utils/parse-pgarray';
 import { hash } from '../common';
@@ -99,7 +99,7 @@ export const BigInt: SqlType = {
 };
 
 export const Numeric: SqlType = {
-	is: (type: string) => /^\s*numeric(?:[\s(].*)*\s*$/i.test(type),
+	is: (type: string) => /^\s*(?:numeric|decimal)(?:[\s(].*)*\s*$/i.test(type),
 	drizzleImport: () => 'numeric',
 	defaultFromDrizzle: (value) => {
 		return { value: `'${value}'`, type: 'unknown' };
@@ -414,6 +414,126 @@ export const Jsonb: SqlType = {
 	toArrayTs: Json.toArrayTs,
 };
 
+export const Time: SqlType = {
+	is: (type: string) => /^\s*time(?:[\s(].*)*\s*$/i.test(type),
+	drizzleImport: () => 'time',
+	defaultFromDrizzle: (value) => {
+		return { value: wrapWith(String(value), "'"), type: 'unknown' };
+	},
+	defaultArrayFromDrizzle: (value) => {
+		return { value: wrapWith(stringifyArray(value, 'sql', (v) => String(v)), "'"), type: 'unknown' };
+	},
+	defaultFromIntrospect: (value) => {
+		return { value: value, type: 'unknown' };
+	},
+	defaultArrayFromIntrospect: (value) => {
+		return { value: value as string, type: 'unknown' };
+	},
+	toTs: (type, value) => {
+		const options: any = {};
+		const [precision] = parseParams(type);
+		if (precision) options['precision'] = Number(precision);
+		if(/with time zone/i.test(type)) options["withTimezone"] = true;
+
+		if (!value) return { options, default: '' };
+		const trimmed = trimChar(value, "'")
+		if(!isTime(trimmed)) return {options, default: `sql\`${value}\``}
+
+		return { options, default: value };
+	},
+	toArrayTs: (type, value) => {
+		const options: any = {};
+		const [precision] = parseParams(type);
+		if (precision) options['precision'] = Number(precision);
+		if(/with time zone/i.test(type)) options["withTimezone"] = true;
+
+		if (!value) return { options, default: '' };
+
+		try {
+			const trimmed = trimChar(trimChar(value, ['(', ')']), "'");
+			const res = parseArray(trimmed);
+			return {
+				options,
+				default: stringifyArray(res, 'ts', (v) => {
+					const trimmed= trimChar(v, "'");
+					const check = new Date(trimmed)
+					if(!isNaN(check.getTime()))	return `new Date("${check}")`;
+					return `sql\`${trimmed}\``
+				}),
+			};
+		} catch {
+			return { options, default: `sql\`${value}\`` };
+		}
+	},
+};
+
+export const Timestamp: SqlType = {
+	is: (type: string) => /^\s*timestamp(?:[\s(].*)*\s*$/i.test(type),
+	drizzleImport: () => 'timestamp',
+	defaultFromDrizzle: (value) => {
+		if(typeof value === 'string') return { value: wrapWith(value, "'"), type: 'unknown' };
+		if(!(value instanceof Date)) throw new Error('Timestamp default value must be instance of Date or String');
+		
+		const mapped = value.toISOString().replace('T', ' ').replace('Z', ' ').slice(0, 23) 
+		return { value: wrapWith(mapped, "'"), type: 'unknown' };
+	},
+	defaultArrayFromDrizzle: (value) => {
+		const res = stringifyArray(value, 'sql', (v) => {
+			if(typeof v === "string")return v;
+			if(v instanceof Date) return v.toISOString().replace('T', ' ').replace('Z', ' ').slice(0, 23)
+				throw new Error("Unexpected default value for Timestamp, must be String or Date")
+		});
+		return { value: wrapWith(res, "'"), type: 'unknown' };
+	},
+	defaultFromIntrospect: (value) => {
+
+		return { value: value, type: 'unknown' };
+	},
+	defaultArrayFromIntrospect: (value) => {
+		return { value: value as string, type: 'unknown' };
+	},
+	toTs: (type, value) => {
+		const options: any = {};
+		const [precision] = parseParams(type);
+		if (precision) options['precision'] = Number(precision);
+		if(/with time zone/i.test(type)) options["withTimezone"] = true;
+
+		if (!value) return { options, default: '' };
+		let patched = trimChar(value, "'")
+		patched = patched.includes('T') ? patched : patched.replace(' ', 'T') + "Z";
+
+		const test = new Date(patched);
+
+		if(isNaN(test.getTime())) return {options, default: `sql\`${value}\``}
+
+		return { options, default: `new Date('${patched}')` };
+	},
+	toArrayTs: (type, value) => {
+		const options: any = {};
+		const [precision] = parseParams(type);
+		if (precision) options['precision'] = Number(precision);
+		if(/with time zone/i.test(type)) options["withTimezone"] = true;
+
+		if (!value) return { options, default: '' };
+
+		try {
+			const trimmed = trimChar(trimChar(value, ['(', ')']), "'");
+			const res = parseArray(trimmed);
+			return {
+				options,
+				default: stringifyArray(res, 'ts', (v) => {
+					const trimmed= trimChar(v, "'");
+					const check = new Date(trimmed)
+					if(!isNaN(check.getTime()))	return `new Date("${check}")`;
+					return `sql\`${trimmed}\``
+				}),
+			};
+		} catch {
+			return { options, default: `sql\`${value}\`` };
+		}
+	},
+};
+
 export const typeFor = (type: string): SqlType | null => {
 	if (SmallInt.is(type)) return SmallInt;
 	if (Int.is(type)) return Int;
@@ -427,6 +547,8 @@ export const typeFor = (type: string): SqlType | null => {
 	if (Text.is(type)) return Text;
 	if (Json.is(type)) return Json;
 	if (Jsonb.is(type)) return Jsonb;
+	if (Time.is(type)) return Time;
+	if (Timestamp.is(type)) return Timestamp;
 	// no sql type
 	return null;
 };
@@ -779,6 +901,8 @@ export const defaultForColumn = (
 		return grammarType.defaultFromIntrospect(String(value));
 	}
 
+	throw new Error("unexpected type" + type)
+
 	// trim ::type and []
 
 	if (type.startsWith('vector')) {
@@ -788,25 +912,25 @@ export const defaultForColumn = (
 	// numeric stores 99 as '99'::numeric
 	value = type === 'numeric' || type.startsWith('numeric(') ? trimChar(value, "'") : value;
 
-	if (type === 'json' || type === 'jsonb') {
-		if (!value.startsWith("'") && !value.endsWith("'")) {
-			return { value, type: 'unknown' };
-		}
-		if (dimensions > 0) {
-			const res = stringifyArray(parseArray(value.slice(1, value.length - 1)), 'sql', (it) => {
-				return `"${JSON.stringify(JSON.parse(it.replaceAll('\\"', '"'))).replaceAll('"', '\\"')}"`;
-			}).replaceAll(`\\"}", "{\\"`, `\\"}","{\\"`); // {{key:val}, {key:val}} -> {{key:val},{key:val}}
-			return {
-				value: res,
-				type: 'json',
-			};
-		}
-		const res = JSON.stringify(JSON.parse(value.slice(1, value.length - 1).replaceAll("''", "'")));
-		return {
-			value: res,
-			type: 'json',
-		};
-	}
+	// if (type === 'json' || type === 'jsonb') {
+	// 	if (!value.startsWith("'") && !value.endsWith("'")) {
+	// 		return { value, type: 'unknown' };
+	// 	}
+	// 	if (dimensions > 0) {
+	// 		const res = stringifyArray(parseArray(value.slice(1, value.length - 1)), 'sql', (it) => {
+	// 			return `"${JSON.stringify(JSON.parse(it.replaceAll('\\"', '"'))).replaceAll('"', '\\"')}"`;
+	// 		}).replaceAll(`\\"}", "{\\"`, `\\"}","{\\"`); // {{key:val}, {key:val}} -> {{key:val},{key:val}}
+	// 		return {
+	// 			value: res,
+	// 			type: 'json',
+	// 		};
+	// 	}
+	// 	const res = JSON.stringify(JSON.parse(value.slice(1, value.length - 1).replaceAll("''", "'")));
+	// 	return {
+	// 		value: res,
+	// 		type: 'json',
+	// 	};
+	// }
 
 	const trimmed = trimChar(value, "'"); // '{10,20}' -> {10,20}
 
