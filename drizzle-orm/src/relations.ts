@@ -76,49 +76,78 @@ export function processRelations(tablesConfig: TablesRelationalConfig, tables: S
 				continue;
 			}
 
+			let reverseRelation: Relation | undefined;
+			const {
+				targetTableName,
+				alias,
+				sourceColumns,
+				targetColumns,
+				throughTable,
+				sourceTable,
+				through,
+				targetTable,
+				where,
+				sourceColumnTableNames,
+				targetColumnTableNames,
+			} = relation;
 			const relationPrintName = `relations -> ${tableConfig.name}: { ${relationFieldName}: r.${
 				is(relation, One) ? 'one' : 'many'
-			}.${relation.targetTableName}(...) }`;
+			}.${targetTableName}(...) }`;
 
-			if (typeof relation.alias === 'string' && !relation.alias) {
+			if (typeof alias === 'string' && !alias) {
 				throw new Error(`${relationPrintName}: "alias" cannot be an empty string - omit it if you don't need it`);
 			}
 
-			if (relation.sourceColumns?.length === 0) {
-				throw new Error(`${relationPrintName}: "from" cannot be an empty array`);
+			if (sourceColumns?.length === 0) {
+				throw new Error(`${relationPrintName}: "from" cannot be empty`);
 			}
 
-			if (relation.targetColumns?.length === 0) {
-				throw new Error(`${relationPrintName}: "to" cannot be an empty array`);
+			if (targetColumns?.length === 0) {
+				throw new Error(`${relationPrintName}: "to" cannot be empty`);
 			}
 
-			if (relation.sourceColumns && relation.targetColumns) {
-				if (relation.sourceColumns.length !== relation.targetColumns.length && !relation.throughTable) {
+			if (sourceColumns && targetColumns) {
+				if (sourceColumns.length !== targetColumns.length && !throughTable) {
 					throw new Error(
 						`${relationPrintName}: "from" and "to" fields without "through" must have the same length`,
 					);
 				}
 
-				if (relation.through) {
+				for (const sName of sourceColumnTableNames) {
+					if (sName !== sourceTableName) {
+						throw new Error(
+							`${relationPrintName}: all "from" columns must belong to table "${sourceTableName}", found column of table "${sName}"`,
+						);
+					}
+				}
+				for (const tName of targetColumnTableNames) {
+					if (tName !== targetTableName) {
+						throw new Error(
+							`${relationPrintName}: all "to" columns must belong to table "${targetTable}", found column of table "${tName}"`,
+						);
+					}
+				}
+
+				if (through) {
 					if (
-						relation.through.source.length !== relation.sourceColumns.length
-						|| relation.through.target.length !== relation.targetColumns.length
+						through.source.length !== sourceColumns.length
+						|| through.target.length !== targetColumns.length
 					) {
 						throw new Error(
 							`${relationPrintName}: ".through(column)" must be used either on all columns in "from" and "to" or not defined on any of them`,
 						);
 					}
 
-					for (const column of relation.through.source) {
-						if ((tables as any as Record<string, Table>)[column._.tableName] !== relation.throughTable) {
+					for (const column of through.source) {
+						if (tables[column._.tableName] !== throughTable) {
 							throw new Error(
 								`${relationPrintName}: ".through(column)" must be used on the same table by all columns of the relation`,
 							);
 						}
 					}
 
-					for (const column of relation.through.target) {
-						if ((tables as any as Record<string, Table>)[column._.tableName] !== relation.throughTable) {
+					for (const column of through.target) {
+						if (tables[column._.tableName] !== throughTable) {
 							throw new Error(
 								`${relationPrintName}: ".through(column)" must be used on the same table by all columns of the relation`,
 							);
@@ -129,28 +158,25 @@ export function processRelations(tablesConfig: TablesRelationalConfig, tables: S
 				continue;
 			}
 
-			if (relation.sourceColumns || relation.targetColumns) {
+			if (sourceColumns || targetColumns) {
 				throw new Error(
 					`${relationPrintName}: relation must have either both "from" and "to" defined, or none of them`,
 				);
 			}
 
-			let reverseRelation: Relation | undefined;
-			const targetTableTsName = relation.targetTableName;
-
-			const reverseTableConfig = tablesConfig[targetTableTsName];
+			const reverseTableConfig = tablesConfig[targetTableName];
 			if (!reverseTableConfig) {
 				throw new Error(
-					`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and no reverse relations of table "${targetTableTsName}" were found"`,
+					`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and no reverse relations of table "${targetTableName}" were found"`,
 				);
 			}
-			if (relation.alias) {
+			if (alias) {
 				const reverseRelations = Object.values(reverseTableConfig.relations).filter((it): it is Relation =>
-					is(it, Relation) && it.alias === relation.alias && it !== relation
+					is(it, Relation) && it.alias === alias && it !== relation
 				);
 				if (reverseRelations.length > 1) {
 					throw new Error(
-						`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and multiple relations with alias "${relation.alias}" found in table "${targetTableTsName}": ${
+						`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and multiple relations with alias "${alias}" found in table "${targetTableName}": ${
 							reverseRelations.map((it) => `"${it.fieldName}"`).join(', ')
 						}`,
 					);
@@ -158,28 +184,28 @@ export function processRelations(tablesConfig: TablesRelationalConfig, tables: S
 				reverseRelation = reverseRelations[0];
 				if (!reverseRelation) {
 					throw new Error(
-						`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and there is no reverse relation of table "${targetTableTsName}" with alias "${relation.alias}"`,
+						`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and there is no reverse relation of table "${targetTableName}" with alias "${alias}"`,
 					);
 				}
 			} else {
 				const reverseRelations = Object.values(reverseTableConfig.relations).filter((it): it is Relation =>
-					is(it, Relation) && it.targetTable === relation.sourceTable && !it.alias && it !== relation
+					is(it, Relation) && it.targetTable === sourceTable && !it.alias && it !== relation
 				);
 				if (reverseRelations.length > 1) {
 					throw new Error(
-						`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and multiple relations between "${targetTableTsName}" and "${sourceTableName}" were found.\nHint: you can specify "alias" on both sides of the relation with the same value`,
+						`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and multiple relations between "${targetTableName}" and "${sourceTableName}" were found.\nHint: you can specify "alias" on both sides of the relation with the same value`,
 					);
 				}
 				reverseRelation = reverseRelations[0];
 				if (!reverseRelation) {
 					throw new Error(
-						`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and no reverse relation of table "${targetTableTsName}" with target table "${sourceTableName}" was found`,
+						`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and no reverse relation of table "${targetTableName}" with target table "${sourceTableName}" was found`,
 					);
 				}
 			}
 			if (!reverseRelation.sourceColumns || !reverseRelation.targetColumns) {
 				throw new Error(
-					`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and reverse relation "${targetTableTsName}.${reverseRelation.fieldName}" does not have "from"/"to" defined`,
+					`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and reverse relation "${targetTableName}.${reverseRelation.fieldName}" does not have "from"/"to" defined`,
 				);
 			}
 
@@ -192,8 +218,8 @@ export function processRelations(tablesConfig: TablesRelationalConfig, tables: S
 				}
 				: undefined;
 			relation.throughTable = reverseRelation.throughTable;
-			relation.isReversed = !relation.where;
-			relation.where = relation.where ?? reverseRelation.where;
+			relation.isReversed = !where;
+			relation.where = where ?? reverseRelation.where;
 		}
 	}
 
@@ -262,6 +288,11 @@ export abstract class Relation<
 	throughTable?: SchemaEntry;
 	isReversed?: boolean;
 
+	/** @internal */
+	sourceColumnTableNames: string[] = [];
+	/** @internal */
+	targetColumnTableNames: string[] = [];
+
 	constructor(
 		targetTable: SchemaEntry,
 		readonly targetTableName: TTargetTableName,
@@ -297,7 +328,7 @@ export class One<
 				? config.from
 				: [config.from]) as RelationsBuilderColumnBase[]).map((it: RelationsBuilderColumnBase) => {
 					this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as SchemaEntry : undefined;
-
+					this.sourceColumnTableNames.push(it._.tableName);
 					return it._.column as Column;
 				});
 		}
@@ -306,7 +337,7 @@ export class One<
 				? config.to
 				: [config.to]).map((it: RelationsBuilderColumnBase) => {
 					this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as SchemaEntry : undefined;
-
+					this.targetColumnTableNames.push(it._.tableName);
 					return it._.column as Column;
 				});
 		}
@@ -345,7 +376,7 @@ export class Many<TTargetTableName extends string> extends Relation<TTargetTable
 				? config.from
 				: [config.from]) as RelationsBuilderColumnBase[]).map((it: RelationsBuilderColumnBase) => {
 					this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as SchemaEntry : undefined;
-
+					this.sourceColumnTableNames.push(it._.tableName);
 					return it._.column as Column;
 				});
 		}
@@ -354,7 +385,7 @@ export class Many<TTargetTableName extends string> extends Relation<TTargetTable
 				? config.to
 				: [config.to]).map((it: RelationsBuilderColumnBase) => {
 					this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as SchemaEntry : undefined;
-
+					this.targetColumnTableNames.push(it._.tableName);
 					return it._.column as Column;
 				});
 		}
@@ -1022,11 +1053,11 @@ export class RelationsHelperStatic<TTables extends Schema> {
 
 		for (const [tableName, table] of Object.entries(tables)) {
 			one[tableName] = (config) => {
-				return new One(tables, table as any, tableName, config as unknown as AnyOneConfig);
+				return new One(tables, table, tableName, config as unknown as AnyOneConfig);
 			};
 
 			many[tableName] = (config) => {
-				return new Many(tables, table as any, tableName, config as AnyManyConfig);
+				return new Many(tables, table, tableName, config as AnyManyConfig);
 			};
 		}
 
