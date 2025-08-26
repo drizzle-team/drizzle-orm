@@ -98,7 +98,9 @@ beforeAll(async () => {
 				\`timestamp_date\` timestamp,
 				\`timestamp_string\` timestamp,
 				\`json\` json,
-				\`popularity\` enum('unknown','known','popular')
+				\`popularity\` enum('unknown','known','popular'),
+				\`point\` point,
+				\`point_tuple\` point
 			);
 		`,
 	);

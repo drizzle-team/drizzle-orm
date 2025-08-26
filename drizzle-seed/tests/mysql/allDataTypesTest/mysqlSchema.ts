@@ -13,6 +13,7 @@ import {
 	mediumint,
 	mysqlEnum,
 	mysqlTable,
+	point,
 	real,
 	serial,
 	smallint,
@@ -53,4 +54,6 @@ export const allDataTypes = mysqlTable('all_data_types', {
 	timestampString: timestamp('timestamp_string', { mode: 'string' }),
 	json: json('json'),
 	mysqlEnum: mysqlEnum('popularity', ['unknown', 'known', 'popular']),
+	point: point('point', { mode: 'xy' }),
+	pointTuple: point('point_tuple', { mode: 'tuple' }),
 });
