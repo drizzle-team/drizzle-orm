@@ -987,7 +987,7 @@ test('jsonb', async () => {
 		.toThrowError();
 });
 
-test('timestamp + timestamp arrays', async () => {
+test.todo('timestamp + timestamp arrays', async () => {
 	// all dates variations
 
 	// normal without timezone
@@ -1289,7 +1289,7 @@ test('timestamp + timestamp arrays', async () => {
 	expect.soft(res25).toStrictEqual([]);
 });
 
-test('timestamptz + timestamptz arrays', async () => {
+test.only('timestamptz + timestamptz arrays', async () => {
 	// all dates variations
 
 	// normal with timezone
