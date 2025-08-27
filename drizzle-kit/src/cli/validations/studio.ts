@@ -16,6 +16,7 @@ export const studioCliParams = object({
 	port: coerce.number().optional().default(4983),
 	host: string().optional().default('127.0.0.1'),
 	config: string().optional(),
+	"env-file": string().optional(),
 });
 
 export const studioConfig = object({
