@@ -530,6 +530,7 @@ export const fromDatabase = async (
 			columnTypeMapped,
 			columnDefault,
 			0,
+			false, // TODO
 		);
 
 		const unique = constraintsList.find((it) => {

@@ -45,7 +45,7 @@ import { hash } from 'src/dialects/common';
 import { DB } from 'src/utils';
 import { v4 as uuidV4 } from 'uuid';
 import 'zx/globals';
-import { measure } from 'tests/utils';
+import { measure, tsc } from 'tests/utils';
 
 mkdirSync('tests/cockroach/tmp', { recursive: true });
 
@@ -396,6 +396,7 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 
 	if (existsSync(path)) rmSync(path);
 	writeFileSync(path, file.file);
+	await tsc(path);
 
 	const response = await prepareFromSchemaFiles([path]);
 	const { schema: sch } = fromDrizzleSchema(response, 'camelCase');

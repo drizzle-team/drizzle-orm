@@ -38,6 +38,8 @@ export class PgPointTupleBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgP
 export class PgPointTuple<T extends ColumnBaseConfig<'array', 'PgPointTuple'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgPointTuple';
 
+	readonly mode = 'tuple';
+
 	getSQLType(): string {
 		return 'point';
 	}
@@ -86,6 +88,8 @@ export class PgPointObjectBuilder<T extends ColumnBuilderBaseConfig<'json', 'PgP
 
 export class PgPointObject<T extends ColumnBaseConfig<'json', 'PgPointObject'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgPointObject';
+
+	readonly mode = 'xy';
 
 	getSQLType(): string {
 		return 'point';

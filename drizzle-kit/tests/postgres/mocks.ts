@@ -157,16 +157,18 @@ export const push = async (config: {
 	to: PostgresSchema | PostgresDDL;
 	renames?: string[];
 	schemas?: string[];
+	tables?: string[];
 	casing?: CasingType;
 	log?: 'statements' | 'none';
 	entities?: Entities;
 }) => {
-	const { db, to } = config;
+	const { db, to, tables } = config;
+
 	const log = config.log ?? 'none';
 	const casing = config.casing ?? 'camelCase';
 	const schemas = config.schemas ?? ((_: string) => true);
 
-	const { schema } = await introspect(db, [], schemas, config.entities, new EmptyProgressView());
+	const { schema } = await introspect(db, tables ?? [], schemas, config.entities, new EmptyProgressView());
 	const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
 	const { ddl: ddl2, errors: err2 } = 'entities' in to && '_' in to
 		? { ddl: to as PostgresDDL, errors: [] }
@@ -289,13 +291,21 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 		type?: string;
 		default?: string;
 	},
+	filter?: true,
 ) => {
 	await kit.clear();
+
+	let schemas: string[] | undefined;
+	let tables: string[] | undefined;
+	if (filter) {
+		schemas = ['public'];
+		tables = ['table'];
+	}
 
 	const config = (builder as any).config;
 	const def = config['default'];
 	const column = pgTable('table', { column: builder }).column;
-	const { dimensions, typeSchema, sqlType:sqlt } = unwrapColumn(column);
+	const { dimensions, typeSchema, sqlType: sqlt } = unwrapColumn(column);
 
 	const type = override?.type ?? sqlt.replace(', ', ','); // real(6, 3)->real(6,3)
 
@@ -320,11 +330,10 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 
 	const { db, clear } = kit;
 	if (pre) await push({ db, to: pre });
-	const { sqlStatements: st1 } = await push({ db, to: init });
-	const { sqlStatements: st2 } = await push({ db, to: init });
-
+	const { sqlStatements: st1 } = await push({ db, to: init, tables, schemas });
+	const { sqlStatements: st2 } = await push({ db, to: init, tables, schemas });
 	const typeSchemaPrefix = typeSchema && typeSchema !== 'public' ? `"${typeSchema}".` : '';
-	const typeValue = typeSchema ? `"${type}"` : type;
+	const typeValue = typeSchema ? `"${type.replaceAll('[]', '')}"${'[]'.repeat(dimensions)}` : type;
 	const sqlType = `${typeSchemaPrefix}${typeValue}`;
 	const expectedInit = `CREATE TABLE "table" (\n\t"column" ${sqlType} DEFAULT ${expectedDefault}\n);\n`;
 	if (st1.length !== 1 || st1[0] !== expectedInit) res.push(`Unexpected init:\n${st1}\n\n${expectedInit}`);
@@ -333,7 +342,11 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	await db.query('INSERT INTO "table" ("column") VALUES (default);');
 
 	// introspect to schema
-	const schema = await fromDatabaseForDrizzle(db);
+	const schema = await fromDatabaseForDrizzle(
+		db,
+		tables ? (it) => tables.indexOf(it) >= 0 : () => true,
+		schemas ? (it) => schemas.indexOf(it) >= 0 : () => true,
+	);
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel', 'pg');
@@ -349,7 +362,7 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 
 	const { sqlStatements: afterFileSqlStatements } = await ddlDiffDry(ddl1, ddl2, 'push');
 	if (afterFileSqlStatements.length === 0) {
-		// rmSync(path);
+		rmSync(path);
 	} else {
 		console.log(afterFileSqlStatements);
 		console.log(`./${path}`);
@@ -371,9 +384,9 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 		table: pgTable('table', { column: builder }),
 	};
 
-	if (pre) await push({ db, to: pre });
-	await push({ db, to: schema1 });
-	const { sqlStatements: st3 } = await push({ db, to: schema2 });
+	if (pre) await push({ db, to: pre, tables, schemas });
+	await push({ db, to: schema1, tables, schemas });
+	const { sqlStatements: st3 } = await push({ db, to: schema2, tables, schemas });
 	const expectedAlter = `ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT ${expectedDefault};`;
 	if (st3.length !== 1 || st3[0] !== expectedAlter) res.push(`Unexpected default alter:\n${st3}\n\n${expectedAlter}`);
 
@@ -389,9 +402,9 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 		table: pgTable('table', { id: serial(), column: builder }),
 	};
 
-	if (pre) await push({ db, to: pre });
-	await push({ db, to: schema3 });
-	const { sqlStatements: st4 } = await push({ db, to: schema4 });
+	if (pre) await push({ db, to: pre, tables, schemas });
+	await push({ db, to: schema3, tables, schemas });
+	const { sqlStatements: st4 } = await push({ db, to: schema4, tables, schemas });
 
 	const expectedAddColumn = `ALTER TABLE "table" ADD COLUMN "column" ${sqlType} DEFAULT ${expectedDefault};`;
 	if (st4.length !== 1 || st4[0] !== expectedAddColumn) {

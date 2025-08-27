@@ -15,6 +15,8 @@ import {
 	PgDialect,
 	PgEnum,
 	PgEnumColumn,
+	PgGeometry,
+	PgGeometryObject,
 	PgLineABC,
 	PgLineTuple,
 	PgMaterializedView,
@@ -59,9 +61,13 @@ import {
 	defaultForVector,
 	defaultNameForFK,
 	defaultNameForPK,
+	Enum as EnumType,
+	GeometryPoint,
 	indexName,
+	Line,
 	maxRangeForIdentityBasedOn,
 	minRangeForIdentityBasedOn,
+	Point,
 	splitSqlType,
 	stringFromIdentityProperty,
 	trimDefaultValueSuffix,
@@ -106,7 +112,7 @@ export const policyFrom = (policy: PgPolicy | GelPolicy, dialect: PgDialect | Ge
 	};
 };
 
-export const unwrapColumn = (column: AnyPgColumn) => {
+export const unwrapColumn = (column: AnyPgColumn | AnyGelColumn) => {
 	const { baseColumn, dimensions } = is(column, PgArray)
 		? unwrapArray(column)
 		: { baseColumn: column, dimensions: 0 };
@@ -183,18 +189,34 @@ export const defaultFromColumn = (
 		};
 	}
 
-	const { type } = splitSqlType(base.getSQLType());
-	const grammarType = typeFor(type);
+	const { baseColumn, isEnum } = unwrapColumn(base);
+	let grammarType = typeFor(base.getSQLType());
+	if (!grammarType && isEnum) grammarType = EnumType;
 	if (grammarType) {
 		// if (dimensions > 0 && !Array.isArray(def)) return { value: String(def), type: 'unknown' };
 		if (dimensions > 0 && Array.isArray(def)) {
 			if (def.flat(5).length === 0) return { value: "'{}'", type: 'unknown' };
+
+			if (is(baseColumn, PgPointTuple) || is(baseColumn, PgPointObject)) {
+				return Point.defaultArrayFromDrizzle(def, dimensions, baseColumn.mode);
+			}
+			if (is(baseColumn, PgLineABC) || is(baseColumn, PgLineTuple)) {
+				return Line.defaultArrayFromDrizzle(def, dimensions, baseColumn.mode);
+			}
+			if (is(baseColumn, PgGeometry) || is(baseColumn, PgGeometryObject)) {
+				return GeometryPoint.defaultArrayFromDrizzle(def, dimensions, baseColumn.mode, baseColumn.srid);
+			}
 			return grammarType.defaultArrayFromDrizzle(def, dimensions);
+		}
+		if (is(baseColumn, PgPointTuple) || is(baseColumn, PgPointObject)) {
+			return Point.defaultFromDrizzle(def, baseColumn.mode);
+		}
+		if (is(baseColumn, PgLineABC) || is(baseColumn, PgLineTuple)) return Line.defaultFromDrizzle(def, baseColumn.mode);
+		if (is(baseColumn, PgGeometry) || is(baseColumn, PgGeometryObject)) {
+			return GeometryPoint.defaultFromDrizzle(def, baseColumn.mode, baseColumn.srid);
 		}
 		return grammarType.defaultFromDrizzle(def);
 	}
-
-	const sqlTypeLowered = base.getSQLType().toLowerCase();
 
 	throw new Error();
 

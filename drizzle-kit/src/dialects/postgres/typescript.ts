@@ -12,7 +12,7 @@ import '../../@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
 import { Casing } from '../../cli/validations/common';
 import { assertUnreachable, trimChar } from '../../utils';
-import { inspect } from '../utils';
+import { escapeForTsLiteral, inspect } from '../utils';
 import {
 	CheckConstraint,
 	Column,
@@ -25,7 +25,7 @@ import {
 	UniqueConstraint,
 	ViewColumn,
 } from './ddl';
-import { defaultNameForIdentitySequence, defaults, typeFor } from './grammar';
+import { defaultNameForIdentitySequence, defaults, Enum, typeFor } from './grammar';
 
 // TODO: omit defaults opclass... improvement
 const imports = [
@@ -46,7 +46,7 @@ const imports = [
 	'serial',
 	'smallserial',
 	'bigserial',
-	
+
 	'time',
 	'timestamp',
 	'date',
@@ -58,6 +58,8 @@ const imports = [
 	'bigint',
 	'uuid',
 	'vector',
+	'halfvec',
+	'sparsevec',
 	'point',
 	'line',
 	'geometry',
@@ -84,96 +86,6 @@ const objToStatement2 = (json: { [s: string]: unknown }) => {
 	statement += ' }';
 	return statement;
 };
-
-const timeConfig = (json: { [s: string]: unknown }) => {
-	json = Object.fromEntries(Object.entries(json).filter((it) => it[1]));
-
-	const keys = Object.keys(json);
-	if (keys.length === 0) return;
-
-	let statement = '{ ';
-	statement += keys.map((it) => `${it}: ${json[it]}`).join(', ');
-	statement += ' }';
-	return statement;
-};
-
-const possibleIntervals = [
-	'year',
-	'month',
-	'day',
-	'hour',
-	'minute',
-	'second',
-	'year to month',
-	'day to hour',
-	'day to minute',
-	'day to second',
-	'hour to minute',
-	'hour to second',
-	'minute to second',
-];
-
-const intervalStrToObj = (str: string) => {
-	if (str.startsWith('interval(')) {
-		return {
-			precision: Number(str.substring('interval('.length, str.length - 1)),
-		};
-	}
-	const splitted = str.split(' ');
-	if (splitted.length === 1) {
-		return {};
-	}
-	const rest = splitted.slice(1, splitted.length).join(' ');
-	if (possibleIntervals.includes(rest)) {
-		return { fields: `"${rest}"` };
-	}
-
-	for (const s of possibleIntervals) {
-		if (rest.startsWith(`${s}(`)) {
-			return {
-				fields: `"${s}"`,
-				precision: Number(rest.substring(s.length + 1, rest.length - 1)),
-			};
-		}
-	}
-	return {};
-};
-
-const intervalConfig = (str: string) => {
-	const json = intervalStrToObj(str);
-	// json = Object.fromEntries(Object.entries(json).filter((it) => it[1]));
-
-	const keys = Object.keys(json);
-	if (keys.length === 0) return;
-
-	let statement = '{ ';
-	statement += keys.map((it: keyof typeof json) => `${it}: ${json[it]}`).join(', ');
-	statement += ' }';
-	return statement;
-};
-
-const mapColumnDefault = (def: Exclude<Column['default'], null>) => {
-	if (def.type === 'unknown' || def.type === 'func') {
-		return `sql\`${def.value}\``;
-	}
-	if (def.type === 'bigint') {
-		return `${def.value}n`;
-	}
-	if (def.type === 'string') {
-		return `"${def.value.replaceAll("''", "'").replaceAll('"', '\\"')}"`;
-	}
-
-	return def.value;
-};
-
-const importsPatch = {
-	'double precision': 'doublePrecision',
-	'timestamp without time zone': 'timestamp',
-	'timestamp with time zone': 'timestamp',
-	'time without time zone': 'time',
-	'time with time zone': 'time',
-	'character varying': 'varchar',
-} as Record<string, string>;
 
 const relations = new Set<string>();
 
@@ -375,21 +287,9 @@ export const ddlToTypeScript = (
 		}
 
 		if (x.entityType === 'columns' || x.entityType === 'viewColumns') {
-			let patched = x.type.replaceAll('[]', '');
-			patched = importsPatch[patched] || patched;
-
-			patched = patched === 'double precision' ? 'doublePrecision' : patched;
-			patched = patched.startsWith('varchar(') ? 'varchar' : patched;
-			patched = patched.startsWith('character varying(') ? 'varchar' : patched;
-			patched = patched.startsWith('character(') ? 'char' : patched;
-			patched = patched.startsWith('char(') ? 'char' : patched;
-			patched = patched.startsWith('numeric(') ? 'numeric' : patched;
-			patched = patched.startsWith('time(') ? 'time' : patched;
-			patched = patched.startsWith('timestamp(') ? 'timestamp' : patched;
-			patched = patched.startsWith('vector(') ? 'vector' : patched;
-			patched = patched.startsWith('geometry(') ? 'geometry' : patched;
-			patched = patched.startsWith('interval') ? 'interval' : patched;
-
+			let patched = x.type.replace('[]', '');
+			const grammarType = typeFor(patched);
+			if (grammarType) imports.add(grammarType.drizzleImport());
 			if (pgImportsList.has(patched)) imports.add(patched);
 		}
 
@@ -408,7 +308,7 @@ export const ddlToTypeScript = (
 
 		const values = Object.values(it.values)
 			.map((it) => {
-				return `\`${it.replace('`', '\\`')}\``;
+				return `"${escapeForTsLiteral(it)}"`;
 			})
 			.join(', ');
 		return `export const ${withCasing(paramName, casing)} = ${func}("${it.name}", [${values}])\n`;
@@ -472,7 +372,6 @@ export const ddlToTypeScript = (
 			columns,
 			table.pk,
 			fks,
-			enumTypes,
 			schemas,
 			casing,
 		);
@@ -905,7 +804,6 @@ const createTableColumns = (
 	columns: Column[],
 	primaryKey: PrimaryKey | null,
 	fks: ForeignKey[],
-	enumTypes: Set<string>,
 	schemas: Record<string, string>,
 	casing: Casing,
 ): string => {
@@ -926,9 +824,14 @@ const createTableColumns = (
 	}, {} as Record<string, ForeignKey[]>);
 
 	for (const it of columns) {
-		const { name, type, dimensions, default: def, identity, generated } = it;
+		const { name, type, dimensions, default: def, identity, generated, typeSchema } = it;
 		const stripped = type.replaceAll('[]', '');
-		const grammarType = typeFor(stripped);
+		let grammarType = typeFor(stripped);
+		const isEnum = Boolean(typeSchema);
+		if (isEnum) {
+			grammarType = Enum;
+		}
+
 		if (!grammarType) throw new Error(`Unsupported type: ${type}`);
 
 		const { options, default: defaultValue } = dimensions > 0
@@ -943,9 +846,11 @@ const createTableColumns = (
 			? primaryKey
 			: null;
 
-		let columnStatement = `${withCasing(name, casing)}: ${grammarType.drizzleImport()}(${dbName}${comma}${opts})`;
+		let columnStatement = `${withCasing(name, casing)}: ${
+			isEnum ? withCasing(type, casing) : grammarType.drizzleImport()
+		}(${dbName}${comma}${opts})`;
 		columnStatement += '.array()'.repeat(dimensions);
-		if (defaultValue) columnStatement += `.default(${defaultValue})`;
+		if (defaultValue) columnStatement += defaultValue.startsWith('.') ? defaultValue : `.default(${defaultValue})`;
 		if (pk) columnStatement += '.primaryKey()';
 		if (it.notNull && !it.identity && !pk) columnStatement += '.notNull()';
 		if (identity) columnStatement += generateIdentityParams(it);
