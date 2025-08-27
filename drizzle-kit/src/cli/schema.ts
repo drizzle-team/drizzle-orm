@@ -11,6 +11,7 @@ import { assertV1OutFolder } from '../utils';
 import { certs } from '../utils/certs';
 import { checkHandler } from './commands/check';
 import { dropMigration } from './commands/drop';
+import { initHandler } from './commands/init';
 import { upMysqlHandler } from './commands/mysqlUp';
 import { upPgHandler } from './commands/pgUp';
 import { upSinglestoreHandler } from './commands/singlestoreUp';
@@ -850,5 +851,13 @@ export const exportRaw = command({
 		} else {
 			assertUnreachable(dialect);
 		}
+	},
+});
+
+export const init = command({
+	name: 'init',
+	desc: 'Initialize a new Drizzle project with interactive setup',
+	handler: async () => {
+		await initHandler();
 	},
 });
