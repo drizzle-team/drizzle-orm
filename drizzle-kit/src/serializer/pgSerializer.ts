@@ -1962,6 +1962,10 @@ const defaultForColumn = (column: any, internals: PgKitInternals, tableName: str
 	const columnDefaultAsString: string = column.column_default.toString();
 
 	if (isArray) {
+		if (["'{}'", 'ARRAY[]'].includes(columnDefaultAsString)) {
+			return `'{}'`;
+		}
+
 		return `'{${
 			columnDefaultAsString
 				.slice(2, -2)
