@@ -131,7 +131,7 @@ const usersOnUpdate = gelTable('users_on_update', {
 	updateCounter: integer('update_counter')
 		.default(sql`1`)
 		.$onUpdateFn(() => sql`update_counter + 1`),
-	updatedAt: timestamptz('updated_at').$onUpdate(() => new Date()),
+	updatedAt: timestamptz('updated_at').$onUpdate(() => sql`now()`),
 	alwaysNull: text('always_null')
 		.$type<string | null>()
 		.$onUpdate(() => null),
@@ -462,7 +462,7 @@ describe('some', async () => {
     create property local_datetimeColumn -> cal::local_datetime;
     create property local_dateColumn -> cal::local_date;
     create property local_timeColumn -> cal::local_time;
-    
+
     create property durationColumn -> duration;
     create property relative_durationColumn -> cal::relative_duration;
     create property dateDurationColumn -> cal::date_duration;
@@ -3361,33 +3361,25 @@ describe('some', async () => {
 		await db.insert(usersOnUpdate).values([
 			{ id1: 1, name: 'John' },
 			{ id1: 2, name: 'Jane' },
-			{
-				id1: 3,
-				name: 'Jack',
-			},
+			{ id1: 3, name: 'Jack' },
 			{ id1: 4, name: 'Jill' },
 		]);
 
-		// const { updatedAt, ..._ } = getTableColumns(usersOnUpdate);
+		const { updatedAt, ...rest } = getTableColumns(usersOnUpdate);
 
-		// const justDates = await db.select({ updatedAt }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id1));
-
-		const response = await db.select(getTableColumns(usersOnUpdate)).from(usersOnUpdate).orderBy(
-			asc(usersOnUpdate.id1),
-		);
-
-		expect(response.map((it) => ({ ...it, updatedAt: undefined }))).toEqual([
-			{ name: 'John', id1: 1, updateCounter: 1, alwaysNull: null, updatedAt: undefined },
-			{ name: 'Jane', id1: 2, updateCounter: 1, alwaysNull: null, updatedAt: undefined },
-			{ name: 'Jack', id1: 3, updateCounter: 1, alwaysNull: null, updatedAt: undefined },
-			{ name: 'Jill', id1: 4, updateCounter: 1, alwaysNull: null, updatedAt: undefined },
+		expect(
+			await db.select(rest).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id1)),
+		).toEqual([
+			{ name: 'John', id1: 1, updateCounter: 1, alwaysNull: null },
+			{ name: 'Jane', id1: 2, updateCounter: 1, alwaysNull: null },
+			{ name: 'Jack', id1: 3, updateCounter: 1, alwaysNull: null },
+			{ name: 'Jill', id1: 4, updateCounter: 1, alwaysNull: null },
 		]);
 
-		// const msDelay = 250;
-
-		// for (const eachUser of justDates) {
-		// 	expect(eachUser.updatedAt!.valueOf()).toBeGreaterThan(Date.now() - msDelay);
-		// }
+		const msDelay = 15000;
+		for (const eachUser of await db.select({ updatedAt }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id1))) {
+			expect(eachUser.updatedAt!.valueOf()).toBeGreaterThan(Date.now() - msDelay);
+		}
 	});
 
 	test('test $onUpdateFn and $onUpdate works updating', async (ctx) => {
@@ -3401,30 +3393,30 @@ describe('some', async () => {
 		]);
 
 		const { updatedAt, ...rest } = getTableColumns(usersOnUpdate);
-		await db.select({ updatedAt }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id1));
+		const initials = await db.select({ updatedAt }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id1));
 
 		await db.update(usersOnUpdate).set({ name: 'Angel' }).where(eq(usersOnUpdate.id1, 1));
 		await db.update(usersOnUpdate).set({ updateCounter: null }).where(eq(usersOnUpdate.id1, 2));
 
-		// const justDates = await db.select({ updatedAt: usersOnUpdate.updatedAt }).from(usersOnUpdate).orderBy(
-		// 	asc(usersOnUpdate.id1),
-		// );
-
-		const response = await db.select({ ...rest }).from(usersOnUpdate).orderBy(
-			asc(usersOnUpdate.id1),
-		);
-
-		expect(response).toEqual([
+		expect(
+			await db.select({ ...rest }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id1)),
+		).toEqual([
 			{ name: 'Angel', id1: 1, updateCounter: 2, alwaysNull: null },
 			{ name: 'Jane', id1: 2, updateCounter: null, alwaysNull: null },
 			{ name: 'Jack', id1: 3, updateCounter: 1, alwaysNull: null },
 			{ name: 'Jill', id1: 4, updateCounter: 1, alwaysNull: null },
 		]);
-		// const msDelay = 500;
 
-		// for (const eachUser of justDates) {
-		// 	expect(eachUser.updatedAt!.valueOf()).toBeGreaterThan(Date.now() - msDelay);
-		// }
+		const finals = await db.select({ updatedAt }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id1));
+		for (const [index, final] of finals.entries()) {
+			const assertion = expect(final.updatedAt!.valueOf(), `Expectation n°${index}`);
+			const b = initials[index]!.updatedAt!.valueOf();
+			if (index <= 1) {
+				assertion.toBeGreaterThan(b);
+			} else {
+				assertion.toBe(b);
+			}
+		}
 	});
 
 	test('test if method with sql operators', async (ctx) => {

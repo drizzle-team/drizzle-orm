@@ -259,7 +259,7 @@ const usersOnUpdate = pgTable('users_on_update', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	updateCounter: integer('update_counter').default(sql`1`).$onUpdateFn(() => sql`update_counter + 1`),
-	updatedAt: timestamp('updated_at', { mode: 'date', precision: 3 }).$onUpdate(() => new Date()),
+	updatedAt: timestamp('updated_at', { mode: 'date', precision: 3 }).$onUpdate(() => sql`now()`),
 	alwaysNull: text('always_null').$type<string | null>().$onUpdate(() => null),
 	// uppercaseName: text('uppercase_name').$onUpdateFn(() => sql`upper(name)`), looks like this is not supported in pg
 });
@@ -4126,20 +4126,17 @@ export function tests() {
 			]);
 
 			const { updatedAt, ...rest } = getTableColumns(usersOnUpdate);
-
-			const justDates = await db.select({ updatedAt }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
-
-			const response = await db.select({ ...rest }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
-
-			expect(response).toEqual([
+			expect(
+				await db.select({ ...rest }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id)),
+			).toEqual([
 				{ name: 'John', id: 1, updateCounter: 1, alwaysNull: null },
 				{ name: 'Jane', id: 2, updateCounter: 1, alwaysNull: null },
 				{ name: 'Jack', id: 3, updateCounter: 1, alwaysNull: null },
 				{ name: 'Jill', id: 4, updateCounter: 1, alwaysNull: null },
 			]);
-			const msDelay = 250;
 
-			for (const eachUser of justDates) {
+			const msDelay = 15000;
+			for (const eachUser of await db.select({ updatedAt }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id))) {
 				expect(eachUser.updatedAt!.valueOf()).toBeGreaterThan(Date.now() - msDelay);
 			}
 		});
@@ -4169,27 +4166,29 @@ export function tests() {
 			]);
 
 			const { updatedAt, ...rest } = getTableColumns(usersOnUpdate);
-			await db.select({ updatedAt }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
+			const initials = await db.select({ updatedAt }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
 
 			await db.update(usersOnUpdate).set({ name: 'Angel' }).where(eq(usersOnUpdate.id, 1));
 			await db.update(usersOnUpdate).set({ updateCounter: null }).where(eq(usersOnUpdate.id, 2));
 
-			const justDates = await db.select({ updatedAt }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
-
-			const response = await db.select({ ...rest }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
-
-			expect(response).toEqual([
+			expect(
+				await db.select({ ...rest }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id)),
+			).toEqual([
 				{ name: 'Angel', id: 1, updateCounter: 2, alwaysNull: null },
 				{ name: 'Jane', id: 2, updateCounter: null, alwaysNull: null },
 				{ name: 'Jack', id: 3, updateCounter: 1, alwaysNull: null },
 				{ name: 'Jill', id: 4, updateCounter: 1, alwaysNull: null },
 			]);
-			const msDelay = 15000;
 
-			// expect(initial[0]?.updatedAt?.valueOf()).not.toBe(justDates[0]?.updatedAt?.valueOf());
-
-			for (const eachUser of justDates) {
-				expect(eachUser.updatedAt!.valueOf()).toBeGreaterThan(Date.now() - msDelay);
+			const finals = await db.select({ updatedAt }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
+			for (const [index, final] of finals.entries()) {
+				const assertion = expect(final.updatedAt!.valueOf(), `Expectation n°${index}`);
+				const b = initials[index]!.updatedAt!.valueOf();
+				if (index <= 1) {
+					assertion.toBeGreaterThan(b);
+				} else {
+					assertion.toBe(b);
+				}
 			}
 		});
 

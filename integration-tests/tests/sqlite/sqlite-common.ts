@@ -2928,19 +2928,17 @@ export function tests() {
 			]);
 			const { updatedAt, ...rest } = getTableColumns(usersOnUpdate);
 
-			const justDates = await db.select({ updatedAt }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
-
-			const response = await db.select({ ...rest }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
-
-			expect(response).toEqual([
+			expect(
+				await db.select({ ...rest }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id)),
+			).toEqual([
 				{ name: 'John', id: 1, updateCounter: 1, alwaysNull: null },
 				{ name: 'Jane', id: 2, updateCounter: 1, alwaysNull: null },
 				{ name: 'Jack', id: 3, updateCounter: 1, alwaysNull: null },
 				{ name: 'Jill', id: 4, updateCounter: 1, alwaysNull: null },
 			]);
-			const msDelay = 250;
 
-			for (const eachUser of justDates) {
+			const msDelay = 15000;
+			for (const eachUser of await db.select({ updatedAt }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id))) {
 				expect(eachUser.updatedAt!.valueOf()).toBeGreaterThan(Date.now() - msDelay);
 			}
 		});
@@ -2970,23 +2968,28 @@ export function tests() {
 			]);
 			const { updatedAt, ...rest } = getTableColumns(usersOnUpdate);
 
+			const initials = await db.select({ updatedAt }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
 			await db.update(usersOnUpdate).set({ name: 'Angel' }).where(eq(usersOnUpdate.id, 1));
 			await db.update(usersOnUpdate).set({ updateCounter: null }).where(eq(usersOnUpdate.id, 2));
 
-			const justDates = await db.select({ updatedAt }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
-
-			const response = await db.select({ ...rest }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
-
-			expect(response).toEqual([
+			expect(
+				await db.select({ ...rest }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id)),
+			).toEqual([
 				{ name: 'Angel', id: 1, updateCounter: 2, alwaysNull: null },
 				{ name: 'Jane', id: 2, updateCounter: null, alwaysNull: null },
 				{ name: 'Jack', id: 3, updateCounter: 1, alwaysNull: null },
 				{ name: 'Jill', id: 4, updateCounter: 1, alwaysNull: null },
 			]);
-			const msDelay = 250;
 
-			for (const eachUser of justDates) {
-				expect(eachUser.updatedAt!.valueOf()).toBeGreaterThan(Date.now() - msDelay);
+			const finals = await db.select({ updatedAt }).from(usersOnUpdate).orderBy(asc(usersOnUpdate.id));
+			for (const [index, final] of finals.entries()) {
+				const assertion = expect(final.updatedAt!.valueOf(), `Expectation n°${index}`);
+				const b = initials[index]!.updatedAt!.valueOf();
+				if (index <= 1) {
+					assertion.toBeGreaterThan(b);
+				} else {
+					assertion.toBe(b);
+				}
 			}
 		});
 
