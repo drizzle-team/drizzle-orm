@@ -2204,6 +2204,13 @@ export function tests(driver?: string) {
 				});
 			})()).rejects.toThrowError(TransactionRollbackError);
 
+			await expect((async () => {
+				await db.transaction(async (tx) => {
+					await tx.insert(users).values({ balance: 100 });
+					tx.rollback(new Error("my custom error"));
+				});
+			})()).rejects.toThrowError(new Error("my custom error"));
+
 			const result = await db.select().from(users);
 
 			expect(result).toEqual([]);
