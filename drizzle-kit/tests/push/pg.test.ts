@@ -2824,23 +2824,29 @@ test('drop enum values', async () => {
 		}],
 	});
 
-	expect(sqlStatements.length).toBe(6);
+	expect(sqlStatements.length).toBe(8);
 	expect(sqlStatements[0]).toBe(
-		`ALTER TABLE "enum_table" ALTER COLUMN "id" SET DATA TYPE text;`,
+		`ALTER TABLE "enum_table" ALTER COLUMN "id" DROP DEFAULT;`,
 	);
 	expect(sqlStatements[1]).toBe(
-		`ALTER TABLE "mySchema"."enum_table" ALTER COLUMN "id" SET DATA TYPE text;`,
+		`ALTER TABLE "enum_table" ALTER COLUMN "id" SET DATA TYPE text;`,
 	);
 	expect(sqlStatements[2]).toBe(
-		`DROP TYPE "public"."enum_users_customer_and_ship_to_settings_roles";`,
+		`ALTER TABLE "mySchema"."enum_table" ALTER COLUMN "id" DROP DEFAULT;`,
 	);
 	expect(sqlStatements[3]).toBe(
-		`CREATE TYPE "public"."enum_users_customer_and_ship_to_settings_roles" AS ENUM('addedToTop', 'custAll', 'custAdmin', 'custClerk', 'custInvoiceManager', 'custApprover', 'custOrderWriter', 'custBuyer');`,
+		`ALTER TABLE "mySchema"."enum_table" ALTER COLUMN "id" SET DATA TYPE text;`,
 	);
 	expect(sqlStatements[4]).toBe(
-		`ALTER TABLE "enum_table" ALTER COLUMN "id" SET DATA TYPE "public"."enum_users_customer_and_ship_to_settings_roles" USING "id"::"public"."enum_users_customer_and_ship_to_settings_roles";`,
+		`DROP TYPE "public"."enum_users_customer_and_ship_to_settings_roles";`,
 	);
 	expect(sqlStatements[5]).toBe(
+		`CREATE TYPE "public"."enum_users_customer_and_ship_to_settings_roles" AS ENUM('addedToTop', 'custAll', 'custAdmin', 'custClerk', 'custInvoiceManager', 'custApprover', 'custOrderWriter', 'custBuyer');`,
+	);
+	expect(sqlStatements[6]).toBe(
+		`ALTER TABLE "enum_table" ALTER COLUMN "id" SET DATA TYPE "public"."enum_users_customer_and_ship_to_settings_roles" USING "id"::"public"."enum_users_customer_and_ship_to_settings_roles";`,
+	);
+	expect(sqlStatements[7]).toBe(
 		`ALTER TABLE "mySchema"."enum_table" ALTER COLUMN "id" SET DATA TYPE "public"."enum_users_customer_and_ship_to_settings_roles" USING "id"::"public"."enum_users_customer_and_ship_to_settings_roles";`,
 	);
 });
@@ -2875,15 +2881,16 @@ test('column is enum type with default value. shuffle enum', async () => {
 		undefined,
 	);
 
-	expect(sqlStatements.length).toBe(6);
-	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
-	expect(sqlStatements[1]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2'::text;`);
-	expect(sqlStatements[2]).toBe(`DROP TYPE "public"."enum";`);
-	expect(sqlStatements[3]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value1', 'value3', 'value2');`);
-	expect(sqlStatements[4]).toBe(
+	expect(sqlStatements.length).toBe(7);
+	expect(sqlStatements[0]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;`);
+	expect(sqlStatements[1]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`);
+	expect(sqlStatements[2]).toBe(`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2'::text;`);
+	expect(sqlStatements[3]).toBe(`DROP TYPE "public"."enum";`);
+	expect(sqlStatements[4]).toBe(`CREATE TYPE "public"."enum" AS ENUM('value1', 'value3', 'value2');`);
+	expect(sqlStatements[5]).toBe(
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT 'value2'::"public"."enum";`,
 	);
-	expect(sqlStatements[5]).toBe(
+	expect(sqlStatements[6]).toBe(
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "public"."enum" USING "column"::"public"."enum";`,
 	);
 

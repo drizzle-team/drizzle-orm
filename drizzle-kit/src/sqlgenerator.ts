@@ -1475,6 +1475,10 @@ class AlterTypeDropValueConvertor extends Convertor {
 				: `"${withEnum.table}"`;
 
 			statements.push(
+				`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${withEnum.column}" DROP DEFAULT;`,
+			);
+
+			statements.push(
 				`ALTER TABLE ${tableNameWithSchema} ALTER COLUMN "${withEnum.column}" SET DATA TYPE text;`,
 			);
 			if (withEnum.default) {
