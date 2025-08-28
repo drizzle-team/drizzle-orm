@@ -1252,6 +1252,9 @@ test('[Find Many] Get only custom fields + where + limit', async () => {
 				extras: ({
 					lowerName: ({ content }) => sql<string>`lower(${content})`.as('content_lower'),
 				}),
+				orderBy: {
+					id: 'asc',
+				},
 			},
 		},
 		where: {
@@ -1884,7 +1887,13 @@ test('[Find Many] Get users with posts + prepared + limit + offset + where', asy
 					},
 				},
 				limit: sql.placeholder('pLimit'),
+				orderBy: {
+					id: 'asc',
+				},
 			},
+		},
+		orderBy: {
+			id: 'asc',
 		},
 	}).prepare();
 
