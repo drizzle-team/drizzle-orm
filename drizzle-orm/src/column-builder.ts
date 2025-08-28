@@ -19,6 +19,7 @@ export type ColumnDataType =
 
 export type ColumnDataArrayConstraint =
 	| 'vector'
+	| 'int64vector'
 	| 'halfvector'
 	| 'basecolumn'
 	| 'point'

@@ -3,12 +3,13 @@ import { drizzle } from 'drizzle-orm/singlestore';
 import type { SingleStoreDriverDatabase } from 'drizzle-orm/singlestore';
 import * as mysql2 from 'mysql2/promise';
 import { afterAll, beforeAll, beforeEach } from 'vitest';
+import relations from './relations';
 import { TestCache, TestGlobalCache, tests as cacheTests } from './singlestore-cache';
 import { createDockerDB, tests } from './singlestore-common';
 
 const ENABLE_LOGGING = false;
 
-let db: SingleStoreDriverDatabase;
+let db: SingleStoreDriverDatabase<never, typeof relations>;
 let dbGlobalCached: SingleStoreDriverDatabase;
 let cachedDb: SingleStoreDriverDatabase;
 let client: mysql2.Connection;
@@ -38,7 +39,7 @@ beforeAll(async () => {
 
 	await client.query(`CREATE DATABASE IF NOT EXISTS drizzle;`);
 	await client.changeUser({ database: 'drizzle' });
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
 	cachedDb = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestCache() });
 	dbGlobalCached = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 });

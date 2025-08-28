@@ -1288,7 +1288,7 @@ export class MySqlDialect {
 			mode,
 			errorPath,
 			depth,
-			isNested,
+			isNestedMany,
 			throughJoin,
 		}: {
 			schema: TablesRelationalConfig;
@@ -1299,7 +1299,7 @@ export class MySqlDialect {
 			mode: 'first' | 'many';
 			errorPath?: string;
 			depth?: number;
-			isNested?: boolean;
+			isNestedMany?: boolean;
 			throughJoin?: SQL;
 		},
 	): BuildRelationalQueryResult {
@@ -1381,7 +1381,7 @@ export class MySqlDialect {
 							relationWhere: filter,
 							errorPath: `${currentPath.length ? `${currentPath}.` : ''}${k}`,
 							depth: currentDepth + 1,
-							isNested: true,
+							isNestedMany: !isSingle,
 							throughJoin,
 						});
 
@@ -1420,7 +1420,7 @@ export class MySqlDialect {
 			});
 		}
 		// json_arrayagg() ignores order by clause otherwise
-		if (isNested && order) {
+		if (isNestedMany && order) {
 			selectionArr.push(sql`row_number() over (order by ${order})`);
 		}
 		const selectionSet = sql.join(selectionArr, sql`, `);

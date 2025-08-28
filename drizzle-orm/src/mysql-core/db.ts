@@ -32,6 +32,7 @@ import type {
 import type { WithBuilder } from './subquery.ts';
 import type { MySqlTable } from './table.ts';
 import type { MySqlViewBase } from './view-base.ts';
+import type { MySqlView } from './view.ts';
 
 export class MySqlDatabase<
 	TQueryResult extends MySqlQueryResultHKT,
@@ -79,13 +80,13 @@ export class MySqlDatabase<
 				schema: schema.schema,
 				fullSchema: schema.fullSchema as TFullSchema,
 				tableNamesMap: schema.tableNamesMap,
-				relations: relations,
+				relations,
 			}
 			: {
 				schema: undefined,
 				fullSchema: {} as TFullSchema,
 				tableNamesMap: {},
-				relations: relations,
+				relations,
 			};
 		this._query = {} as typeof this['_query'];
 		if (this._.schema) {
@@ -115,7 +116,7 @@ export class MySqlDatabase<
 				tableName
 			] = new RelationalQueryBuilder(
 				relations,
-				relations[relation.name]!.table as MySqlTable,
+				relations[relation.name]!.table as MySqlTable | MySqlView,
 				relation,
 				dialect,
 				session,
