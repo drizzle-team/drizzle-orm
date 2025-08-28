@@ -17,7 +17,7 @@ import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import type { AnyRelations } from '~/relations';
+import type { AnyRelations } from '~/relations.ts';
 import type { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/singlestore-core/query-builders/select.types.ts';
 import {
