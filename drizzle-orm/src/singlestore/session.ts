@@ -17,6 +17,7 @@ import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
+import type { AnyRelations } from '~/relations';
 import type { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
 import type { SelectedFieldsOrdered } from '~/singlestore-core/query-builders/select.types.ts';
 import {
@@ -41,7 +42,7 @@ export type SingleStoreQueryResult<
 	T = any,
 > = [T extends ResultSetHeader ? T : T[], FieldPacket[]];
 
-export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryConfig>
+export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryConfig, TIsRqbV2 extends boolean = false>
 	extends SingleStorePreparedQuery<T>
 {
 	static override readonly [entityKind]: string = 'SingleStoreDriverPreparedQuery';
@@ -61,11 +62,14 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 		} | undefined,
 		cacheConfig: WithCacheConfig | undefined,
 		private fields: SelectedFieldsOrdered | undefined,
-		private customResultMapper?: (rows: unknown[][]) => T['execute'],
+		private customResultMapper?: (
+			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
+		) => T['execute'],
 		// Keys that were used in $default and the value that was generated for them
 		private generatedIds?: Record<string, unknown>[],
 		// Keys that should be returned, it has the column with all properties + key from object
 		private returningIds?: SelectedFieldsOrdered,
+		private isRqbV2Query?: TIsRqbV2,
 	) {
 		super(cache, queryMetadata, cacheConfig);
 		this.rawQuery = {
@@ -91,6 +95,8 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 	}
 
 	async execute(placeholderValues: Record<string, unknown> = {}): Promise<T['execute']> {
+		if (this.isRqbV2Query) return this.executeRqbV2(placeholderValues);
+
 		const params = fillPlaceholders(this.params, placeholderValues);
 
 		this.logger.logQuery(this.rawQuery.sql, params);
@@ -101,6 +107,7 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 			const res = await this.queryWithCache(rawQuery.sql, params, async () => {
 				return await client.query<any>(rawQuery, params);
 			});
+
 			const insertId = res[0].insertId;
 			const affectedRows = res[0].affectedRows;
 			// for each row, I need to check keys from
@@ -132,6 +139,7 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 		const result = await this.queryWithCache(query.sql, params, async () => {
 			return await client.query<any[]>(query, params);
 		});
+
 		const rows = result[0];
 
 		if (customResultMapper) {
@@ -139,6 +147,19 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 		}
 
 		return rows.map((row) => mapResultRow<T['execute']>(fields!, row, joinsNotNullableMap));
+	}
+
+	private async executeRqbV2(placeholderValues: Record<string, unknown> = {}): Promise<T['execute']> {
+		const params = fillPlaceholders(this.params, placeholderValues);
+
+		this.logger.logQuery(this.rawQuery.sql, params);
+
+		const { client, rawQuery, customResultMapper } = this;
+		const res = await client.query<any>(rawQuery, params);
+
+		const rows = res[0];
+
+		return (customResultMapper as (rows: Record<string, unknown>[]) => T['execute'])(rows);
 	}
 
 	async *iterator(
@@ -175,7 +196,7 @@ export class SingleStoreDriverPreparedQuery<T extends SingleStorePreparedQueryCo
 				} else {
 					if (hasRowsMapper) {
 						if (customResultMapper) {
-							const mappedRow = customResultMapper([row as unknown[]]);
+							const mappedRow = (customResultMapper as (rows: unknown[][]) => T['execute'])([row as unknown[]]);
 							yield (Array.isArray(mappedRow) ? mappedRow[0] : mappedRow);
 						} else {
 							yield mapResultRow(fields!, row as unknown[], joinsNotNullableMap);
@@ -201,8 +222,15 @@ export interface SingleStoreDriverSessionOptions {
 
 export class SingleStoreDriverSession<
 	TFullSchema extends Record<string, unknown>,
+	TRelations extends AnyRelations,
 	TSchema extends V1.TablesRelationalConfig,
-> extends SingleStoreSession<SingleStoreQueryResultHKT, SingleStoreDriverPreparedQueryHKT, TFullSchema, TSchema> {
+> extends SingleStoreSession<
+	SingleStoreQueryResultHKT,
+	SingleStoreDriverPreparedQueryHKT,
+	TFullSchema,
+	TRelations,
+	TSchema
+> {
 	static override readonly [entityKind]: string = 'SingleStoreDriverSession';
 
 	private logger: Logger;
@@ -211,6 +239,7 @@ export class SingleStoreDriverSession<
 	constructor(
 		private client: SingleStoreDriverClient,
 		dialect: SingleStoreDialect,
+		private relations: TRelations,
 		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private options: SingleStoreDriverSessionOptions,
 	) {
@@ -248,6 +277,31 @@ export class SingleStoreDriverSession<
 		) as PreparedQueryKind<SingleStoreDriverPreparedQueryHKT, T>;
 	}
 
+	prepareRelationalQuery<T extends SingleStorePreparedQueryConfig>(
+		query: Query,
+		fields: SelectedFieldsOrdered | undefined,
+		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
+		generatedIds?: Record<string, unknown>[],
+		returningIds?: SelectedFieldsOrdered,
+	): PreparedQueryKind<SingleStorePreparedQueryHKT, T> {
+		// Add returningId fields
+		// Each driver gets them from response from database
+		return new SingleStoreDriverPreparedQuery(
+			this.client,
+			query.sql,
+			query.params,
+			this.logger,
+			this.cache,
+			undefined,
+			undefined,
+			fields,
+			customResultMapper,
+			generatedIds,
+			returningIds,
+			true,
+		) as any;
+	}
+
 	/**
 	 * @internal
 	 * What is its purpose?
@@ -275,20 +329,22 @@ export class SingleStoreDriverSession<
 	}
 
 	override async transaction<T>(
-		transaction: (tx: SingleStoreDriverTransaction<TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: SingleStoreDriverTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 		config?: SingleStoreTransactionConfig,
 	): Promise<T> {
 		const session = isPool(this.client)
 			? new SingleStoreDriverSession(
 				await this.client.getConnection(),
 				this.dialect,
+				this.relations,
 				this.schema,
 				this.options,
 			)
 			: this;
-		const tx = new SingleStoreDriverTransaction<TFullSchema, TSchema>(
+		const tx = new SingleStoreDriverTransaction<TFullSchema, TRelations, TSchema>(
 			this.dialect,
-			session as SingleStoreSession<any, any, any, any>,
+			session as SingleStoreSession<any, any, any, any, any>,
+			this.relations,
 			this.schema,
 			0,
 		);
@@ -319,22 +375,25 @@ export class SingleStoreDriverSession<
 
 export class SingleStoreDriverTransaction<
 	TFullSchema extends Record<string, unknown>,
+	TRelations extends AnyRelations,
 	TSchema extends V1.TablesRelationalConfig,
 > extends SingleStoreTransaction<
 	SingleStoreDriverQueryResultHKT,
 	SingleStoreDriverPreparedQueryHKT,
 	TFullSchema,
+	TRelations,
 	TSchema
 > {
 	static override readonly [entityKind]: string = 'SingleStoreDriverTransaction';
 
 	override async transaction<T>(
-		transaction: (tx: SingleStoreDriverTransaction<TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: SingleStoreDriverTransaction<TFullSchema, TRelations, TSchema>) => Promise<T>,
 	): Promise<T> {
 		const savepointName = `sp${this.nestedIndex + 1}`;
-		const tx = new SingleStoreDriverTransaction<TFullSchema, TSchema>(
+		const tx = new SingleStoreDriverTransaction<TFullSchema, TRelations, TSchema>(
 			this.dialect,
 			this.session,
+			this.relations,
 			this.schema,
 			this.nestedIndex + 1,
 		);

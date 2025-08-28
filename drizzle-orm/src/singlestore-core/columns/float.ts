@@ -50,6 +50,12 @@ export class SingleStoreFloat<T extends ColumnBaseConfig<'number float' | 'numbe
 		}
 		return this.unsigned ? `${type} unsigned` : type;
 	}
+
+	override mapFromDriverValue(value: unknown): number {
+		if (typeof value !== 'number') return Number(value);
+
+		return value;
+	}
 }
 
 export interface SingleStoreFloatConfig<TUnsigned extends boolean | undefined = boolean | undefined> {

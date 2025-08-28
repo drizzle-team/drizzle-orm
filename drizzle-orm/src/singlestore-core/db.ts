@@ -3,6 +3,7 @@ import type * as V1 from '~/_relations.ts';
 import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { SingleStoreDriverDatabase } from '~/singlestore/driver.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
@@ -16,6 +17,7 @@ import {
 	SingleStoreSelectBuilder,
 	SingleStoreUpdateBuilder,
 } from './query-builders/index.ts';
+import { RelationalQueryBuilder } from './query-builders/query.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
 import type {
 	PreparedQueryHKTBase,
@@ -32,6 +34,7 @@ export class SingleStoreDatabase<
 	TQueryResult extends SingleStoreQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TFullSchema extends Record<string, unknown> = {},
+	TRelations extends AnyRelations = EmptyRelations,
 	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
 > {
 	static readonly [entityKind]: string = 'SingleStoreDatabase';
@@ -39,18 +42,25 @@ export class SingleStoreDatabase<
 	declare readonly _: {
 		readonly schema: TSchema | undefined;
 		readonly fullSchema: TFullSchema;
+		readonly relations: TRelations;
 		readonly tableNamesMap: Record<string, string>;
 	};
 
-	// We are waiting for SingleStore support for `json_array` function
-	/**@inrernal */
-	query: unknown;
+	// TO-DO: Figure out how to pass DrizzleTypeError without breaking withReplicas
+	query: {
+		[K in keyof TRelations]: RelationalQueryBuilder<
+			TPreparedQueryHKT,
+			TRelations,
+			TRelations[K]
+		>;
+	};
 
 	constructor(
 		/** @internal */
 		readonly dialect: SingleStoreDialect,
 		/** @internal */
-		readonly session: SingleStoreSession<any, any, any, any>,
+		readonly session: SingleStoreSession<any, any, any, any, any>,
+		relations: TRelations,
 		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 	) {
 		this._ = schema
@@ -58,28 +68,33 @@ export class SingleStoreDatabase<
 				schema: schema.schema,
 				fullSchema: schema.fullSchema as TFullSchema,
 				tableNamesMap: schema.tableNamesMap,
+				relations,
 			}
 			: {
 				schema: undefined,
 				fullSchema: {} as TFullSchema,
 				tableNamesMap: {},
+				relations,
 			};
 		this.query = {} as typeof this['query'];
-		// this.queryNotSupported = true;
-		// if (this._.schema) {
-		// 	for (const [tableName, columns] of Object.entries(this._.schema)) {
-		// 		(this.query as SingleStoreDatabase<TQueryResult, TPreparedQueryHKT, Record<string, any>>['query'])[tableName] =
-		// 			new RelationalQueryBuilder(
-		// 				schema!.fullSchema,
-		// 				this._.schema,
-		// 				this._.tableNamesMap,
-		// 				schema!.fullSchema[tableName] as SingleStoreTable,
-		// 				columns,
-		// 				dialect,
-		// 				session,
-		// 			);
-		// 	}
-		// }
+		for (const [tableName, relation] of Object.entries(relations)) {
+			(this.query as SingleStoreDatabase<
+				TQueryResult,
+				TPreparedQueryHKT,
+				TSchema,
+				AnyRelations,
+				V1.TablesRelationalConfig
+			>['query'])[
+				tableName
+			] = new RelationalQueryBuilder(
+				relations,
+				relations[relation.name]!.table as SingleStoreTable,
+				relation,
+				dialect,
+				session,
+			);
+		}
+
 		this.$cache = { invalidate: async (_params: any) => {} };
 	}
 
@@ -481,7 +496,7 @@ export class SingleStoreDatabase<
 
 	transaction<T>(
 		transaction: (
-			tx: SingleStoreTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema>,
+			tx: SingleStoreTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TRelations, TSchema>,
 			config?: SingleStoreTransactionConfig,
 		) => Promise<T>,
 		config?: SingleStoreTransactionConfig,

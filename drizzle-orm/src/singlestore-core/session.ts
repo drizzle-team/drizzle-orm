@@ -3,6 +3,7 @@ import { type Cache, hashQuery, NoopCache } from '~/cache/core/cache.ts';
 import type { WithCacheConfig } from '~/cache/core/types.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleQueryError, TransactionRollbackError } from '~/errors.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { type Query, type SQL, sql } from '~/sql/sql.ts';
 import type { Assume, Equal } from '~/utils.ts';
 import { SingleStoreDatabase } from './db.ts';
@@ -169,6 +170,7 @@ export abstract class SingleStoreSession<
 	TQueryResult extends SingleStoreQueryResultHKT = SingleStoreQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
 	TSchema extends V1.TablesRelationalConfig = Record<string, never>,
 > {
 	static readonly [entityKind]: string = 'SingleStoreSession';
@@ -191,6 +193,17 @@ export abstract class SingleStoreSession<
 		cacheConfig?: WithCacheConfig,
 	): PreparedQueryKind<TPreparedQueryHKT, T>;
 
+	abstract prepareRelationalQuery<
+		T extends SingleStorePreparedQueryConfig,
+		TPreparedQueryHKT extends SingleStorePreparedQueryHKT,
+	>(
+		query: Query,
+		fields: SelectedFieldsOrdered | undefined,
+		customResultMapper: (rows: Record<string, unknown>[]) => T['execute'],
+		generatedIds?: Record<string, unknown>[],
+		returningIds?: SelectedFieldsOrdered,
+	): PreparedQueryKind<TPreparedQueryHKT, T>;
+
 	execute<T>(query: SQL): Promise<T> {
 		return this.prepareQuery<SingleStorePreparedQueryConfig & { execute: T }, PreparedQueryHKTBase>(
 			this.dialect.sqlToQuery(query),
@@ -209,7 +222,9 @@ export abstract class SingleStoreSession<
 	}
 
 	abstract transaction<T>(
-		transaction: (tx: SingleStoreTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema>) => Promise<T>,
+		transaction: (
+			tx: SingleStoreTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TRelations, TSchema>,
+		) => Promise<T>,
 		config?: SingleStoreTransactionConfig,
 	): Promise<T>;
 
@@ -242,17 +257,19 @@ export abstract class SingleStoreTransaction<
 	TQueryResult extends SingleStoreQueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
 	TSchema extends V1.TablesRelationalConfig = Record<string, never>,
-> extends SingleStoreDatabase<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema> {
+> extends SingleStoreDatabase<TQueryResult, TPreparedQueryHKT, TFullSchema, TRelations, TSchema> {
 	static override readonly [entityKind]: string = 'SingleStoreTransaction';
 
 	constructor(
 		dialect: SingleStoreDialect,
 		session: SingleStoreSession,
+		protected relations: TRelations,
 		protected schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		protected readonly nestedIndex: number,
 	) {
-		super(dialect, session, schema);
+		super(dialect, session, relations, schema);
 	}
 
 	rollback(): never {
@@ -261,7 +278,9 @@ export abstract class SingleStoreTransaction<
 
 	/** Nested transactions (aka savepoints) only work with InnoDB engine. */
 	abstract override transaction<T>(
-		transaction: (tx: SingleStoreTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema>) => Promise<T>,
+		transaction: (
+			tx: SingleStoreTransaction<TQueryResult, TPreparedQueryHKT, TFullSchema, TRelations, TSchema>,
+		) => Promise<T>,
 	): Promise<T>;
 }
 

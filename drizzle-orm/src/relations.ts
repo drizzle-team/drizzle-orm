@@ -525,8 +525,7 @@ export type DBQueryConfigWith<TSchema extends TablesRelationalConfig, TRelations
 		| (DBQueryConfig<
 			TRelations[K]['relationType'],
 			TSchema,
-			FindTargetTableInRelationalConfig<TSchema, TRelations[K]>,
-			true
+			FindTargetTableInRelationalConfig<TSchema, TRelations[K]>
 		>)
 		| undefined;
 };
@@ -535,7 +534,6 @@ export type DBQueryConfig<
 	TRelationType extends 'one' | 'many' = 'one' | 'many',
 	TSchema extends TablesRelationalConfig = TablesRelationalConfig,
 	TTableConfig extends TableRelationalConfig = TableRelationalConfig,
-	TIsNested extends boolean = false,
 > =
 	& (TTableConfig['relations'] extends Record<string, never> ? {}
 		: {
@@ -549,13 +547,11 @@ export type DBQueryConfig<
 		extras?:
 			| DBQueryConfigExtras<TTableConfig['table']>
 			| undefined;
-	}
-	& (`${TRelationType}_${TIsNested}` extends 'one_true' ? {} : {
 		orderBy?:
 			| DBQueryConfigOrderBy<TTableConfig['table'], GetTableViewFieldSelection<TTableConfig['table']>>
 			| undefined;
 		offset?: number | Placeholder | undefined;
-	})
+	}
 	& (TRelationType extends 'many' ? {
 			limit?: number | Placeholder | undefined;
 		}
@@ -734,6 +730,8 @@ export function mapRelationalRow(
 	mapColumnValue: (value: unknown) => unknown = (value) => value,
 	/** Needed for SQLite as it returns JSON values as strings */
 	parseJson: boolean = false,
+	/** Needed for SingleStore as it returns JSON arrays as strings */
+	parseJsonIfString: boolean = false,
 	path?: string,
 ): Record<string, unknown> {
 	for (
@@ -745,6 +743,9 @@ export function mapRelationalRow(
 			if (row[selectionItem.key] === null) continue;
 
 			if (parseJson) row[selectionItem.key] = JSON.parse(row[selectionItem.key] as string);
+			if (parseJsonIfString && typeof row[selectionItem.key] === 'string') {
+				row[selectionItem.key] = JSON.parse(row[selectionItem.key] as string);
+			}
 
 			if (selectionItem.isArray) {
 				for (const item of (row[selectionItem.key] as Array<Record<string, unknown>>)) {
@@ -753,6 +754,7 @@ export function mapRelationalRow(
 						selectionItem.selection!,
 						mapColumnValue,
 						false,
+						parseJsonIfString,
 						currentPath,
 					);
 				}
@@ -765,6 +767,7 @@ export function mapRelationalRow(
 				selectionItem.selection!,
 				mapColumnValue,
 				false,
+				parseJsonIfString,
 				currentPath,
 			);
 

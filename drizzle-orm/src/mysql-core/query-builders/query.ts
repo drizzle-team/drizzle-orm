@@ -13,6 +13,7 @@ import type { KnownKeysOnly } from '~/utils.ts';
 import type { MySqlDialect } from '../dialect.ts';
 import type { MySqlPreparedQueryConfig, MySqlSession, PreparedQueryHKTBase, PreparedQueryKind } from '../session.ts';
 import type { MySqlTable } from '../table.ts';
+import type { MySqlView } from '../view.ts';
 
 export class RelationalQueryBuilder<
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
@@ -23,7 +24,7 @@ export class RelationalQueryBuilder<
 
 	constructor(
 		private schema: TSchema,
-		private table: MySqlTable,
+		private table: MySqlTable | MySqlView,
 		private tableConfig: TableRelationalConfig,
 		private dialect: MySqlDialect,
 		private session: MySqlSession,
@@ -68,7 +69,7 @@ export class MySqlRelationalQuery<
 
 	constructor(
 		private schema: TablesRelationalConfig,
-		private table: MySqlTable,
+		private table: MySqlTable | MySqlView,
 		private tableConfig: TableRelationalConfig,
 		private dialect: MySqlDialect,
 		private session: MySqlSession,
