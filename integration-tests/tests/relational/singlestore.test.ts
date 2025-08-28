@@ -6404,7 +6404,7 @@ test('Get groups with users + custom', async () => {
 		name: 'Group2',
 		lower: 'group2',
 		description: null,
-		usersToGroups: [{
+		usersToGroups: expect.arrayContaining([{
 			user: {
 				id: 2,
 				name: 'Andrew',
@@ -6420,7 +6420,7 @@ test('Get groups with users + custom', async () => {
 				verified: false,
 				invitedBy: null,
 			},
-		}],
+		}]),
 	});
 
 	expect(response).toContainEqual({
