@@ -1,10 +1,20 @@
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
-import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig, textDecoder } from '~/utils.ts';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
 type BlobMode = 'buffer' | 'json' | 'bigint';
+
+function hexToText(hexString: string) {
+	let result = '';
+	for (let i = 0; i < hexString.length; i += 2) {
+		const hexPair = hexString.substring(i, i + 2);
+		const decimalValue = parseInt(hexPair, 16);
+		result += String.fromCharCode(decimalValue);
+	}
+	return result;
+}
 
 export class SQLiteBigIntBuilder extends SQLiteColumnBuilder<{
 	name: string;
@@ -32,23 +42,24 @@ export class SQLiteBigInt<T extends ColumnBaseConfig<'bigint int64'>> extends SQ
 	}
 
 	override mapFromDriverValue(value: Buffer | Uint8Array | ArrayBuffer | string): bigint {
-		if (Buffer.isBuffer(value)) {
-			return BigInt(value.toString());
-		}
-
 		// For RQBv2
 		if (typeof value === 'string') {
-			return BigInt(Buffer.from(value, 'hex').toString());
+			return BigInt(hexToText(value));
 		}
 
-		// for sqlite durable objects
-		// eslint-disable-next-line no-instanceof/no-instanceof
-		if (value instanceof ArrayBuffer) {
-			const decoder = new TextDecoder();
-			return BigInt(decoder.decode(value));
+		if (typeof Buffer !== 'undefined' && Buffer.from) {
+			const buf = Buffer.isBuffer(value)
+				? value
+				// eslint-disable-next-line no-instanceof/no-instanceof
+				: value instanceof ArrayBuffer
+				? Buffer.from(value)
+				: value.buffer
+				? Buffer.from(value.buffer, value.byteOffset, value.byteLength)
+				: Buffer.from(value);
+			return BigInt(buf.toString('utf8'));
 		}
 
-		return BigInt(String.fromCodePoint(...value));
+		return BigInt(textDecoder!.decode(value));
 	}
 
 	override mapToDriverValue(value: bigint): Buffer {
@@ -84,24 +95,25 @@ export class SQLiteBlobJson<T extends ColumnBaseConfig<'object json'>> extends S
 		return 'blob';
 	}
 
-	override mapFromDriverValue(value: Buffer | Uint8Array | ArrayBuffer): T['data'] {
-		if (Buffer.isBuffer(value)) {
-			return JSON.parse(value.toString());
-		}
-
+	override mapFromDriverValue(value: Buffer | Uint8Array | ArrayBuffer | string): T['data'] {
 		// For RQBv2
 		if (typeof value === 'string') {
-			return JSON.parse(Buffer.from(value, 'hex').toString());
+			return JSON.parse(hexToText(value));
 		}
 
-		// for sqlite durable objects
-		// eslint-disable-next-line no-instanceof/no-instanceof
-		if (value instanceof ArrayBuffer) {
-			const decoder = new TextDecoder();
-			return JSON.parse(decoder.decode(value));
+		if (typeof Buffer !== 'undefined' && Buffer.from) {
+			const buf = Buffer.isBuffer(value)
+				? value
+				// eslint-disable-next-line no-instanceof/no-instanceof
+				: value instanceof ArrayBuffer
+				? Buffer.from(value)
+				: value.buffer
+				? Buffer.from(value.buffer, value.byteOffset, value.byteLength)
+				: Buffer.from(value);
+			return JSON.parse(buf.toString('utf8'));
 		}
 
-		return JSON.parse(String.fromCodePoint(...value));
+		return JSON.parse(textDecoder!.decode(value));
 	}
 
 	override mapToDriverValue(value: T['data']): Buffer {
