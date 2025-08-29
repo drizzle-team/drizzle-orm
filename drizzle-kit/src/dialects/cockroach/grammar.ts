@@ -1,22 +1,30 @@
 import { Temporal } from '@js-temporal/polyfill';
 import { parseArray } from 'src/utils/parse-pgarray';
 import { parse, stringify } from 'src/utils/when-json-met-bigint';
-import { stringifyArray, trimChar } from '../../utils';
+import {
+	dateExtractRegex,
+	parseIntervalFields,
+	possibleIntervals,
+	stringifyArray,
+	timeTzRegex,
+	trimChar,
+} from '../../utils';
 import { hash } from '../common';
 import { numberForTs, parseParams } from '../utils';
 import { CockroachEntities, Column, DiffEntities } from './ddl';
 import { Import } from './typescript';
 
+const timezoneSuffixRegexp = /([+-]\d{2}(:?\d{2})?|Z)$/i;
+export function hasTimeZoneSuffix(s: string): boolean {
+	return timezoneSuffixRegexp.test(s);
+}
+
 export const splitSqlType = (sqlType: string) => {
-	// timestamp(6) with time zone -> [timestamp, 6, with time zone]
 	const toMatch = sqlType.replaceAll('[]', '');
 	const match = toMatch.match(/^(\w+(?:\s+\w+)*)\(([^)]*)\)?$/i);
 	let type = match ? match[1] : toMatch;
 	let options = match ? match[2].replaceAll(', ', ',') : null;
 
-	// if (options && type === 'decimal') {
-	// 	options = options.replace(',0', ''); // trim decimal (4,0)->(4), compatibility with Drizzle
-	// }
 	return { type, options };
 };
 
@@ -83,60 +91,6 @@ export const isSystemNamespace = (name: string) => {
 export const systemRoles = ['admin', 'root', 'node'];
 export const isSystemRole = (name: string) => {
 	return systemRoles.indexOf(name) >= 0;
-};
-
-export const splitExpressions = (input: string | null): string[] => {
-	if (!input) return [];
-
-	const expressions: string[] = [];
-	let parenDepth = 0;
-	let inSingleQuotes = false;
-	let inDoubleQuotes = false;
-	let currentExpressionStart = 0;
-
-	for (let i = 0; i < input.length; i++) {
-		const char = input[i];
-
-		if (char === "'" && input[i + 1] === "'") {
-			i++;
-			continue;
-		}
-
-		if (char === '"' && input[i + 1] === '"') {
-			i++;
-			continue;
-		}
-
-		if (char === "'") {
-			if (!inDoubleQuotes) {
-				inSingleQuotes = !inSingleQuotes;
-			}
-			continue;
-		}
-		if (char === '"') {
-			if (!inSingleQuotes) {
-				inDoubleQuotes = !inDoubleQuotes;
-			}
-			continue;
-		}
-
-		if (!inSingleQuotes && !inDoubleQuotes) {
-			if (char === '(') {
-				parenDepth++;
-			} else if (char === ')') {
-				parenDepth = Math.max(0, parenDepth - 1);
-			} else if (char === ',' && parenDepth === 0) {
-				expressions.push(input.substring(currentExpressionStart, i).trim());
-				currentExpressionStart = i + 1;
-			}
-		}
-	}
-
-	if (currentExpressionStart < input.length) {
-		expressions.push(input.substring(currentExpressionStart).trim());
-	}
-
-	return expressions.filter((s) => s.length > 0);
 };
 
 /*
@@ -236,14 +190,8 @@ export const defaultToSQL = (it: Pick<Column, 'default' | 'dimensions' | 'type' 
 
 const dateTimeRegex =
 	/^(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}(?::?\d{2})?)?|\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}(?::?\d{2})?)?)$/;
-const timeTzRegex = /\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}(?::?\d{2})?)?/;
 const dateRegex =
 	/^(\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}(?::?\d{2})?)?)?|\d{4}-\d{2}-\d{2})$/;
-const dateExtractRegex = /^\d{4}-\d{2}-\d{2}/;
-const timezoneSuffixRegexp = /([+-]\d{2}(:?\d{2})?|Z)$/i;
-function hasTimeZoneSuffix(s: string): boolean {
-	return timezoneSuffixRegexp.test(s);
-}
 // TODO write descriptions for all functions
 // why that was made, etc.
 export function formatTimestamp(date: string, precision: number = 3) {
@@ -421,47 +369,50 @@ export const defaultsCommutative = (diffDef: DiffEntities['columns']['default'],
 
 	if (from === to) return true;
 
-	if (type.startsWith('bit')) {
+	if (type.startsWith('bit') && from && to) {
 		if (formatBit(type, diffDef.from?.value, true) === formatBit(type, diffDef?.to?.value, true)) return true;
 
 		try {
-			const from = stringifyArray(parseArray(trimChar(diffDef.from?.value!, "'")), 'sql', (v) => {
+			const fromArray = stringifyArray(parseArray(trimChar(from, "'")), 'sql', (v) => {
 				return `${formatBit(type, v, true)}`;
 			});
-			const to = stringifyArray(parseArray(trimChar(diffDef.to?.value!, "'")), 'sql', (v) => {
+			const toArray = stringifyArray(parseArray(trimChar(to, "'")), 'sql', (v) => {
 				return `${formatBit(type, v, true)}`;
 			});
-			if (from === to) return true;
+			if (from === toArray) return true;
+			if (to === fromArray) return true;
 		} catch {}
 
 		return false;
 	}
-	if (type.startsWith('varbit')) {
+	if (type.startsWith('varbit') && from && to) {
 		if (formatBit(type, diffDef.from?.value) === formatBit(type, diffDef?.to?.value)) return true;
 
 		try {
-			const from = stringifyArray(parseArray(trimChar(diffDef.from?.value!, "'")), 'sql', (v) => {
+			const fromArray = stringifyArray(parseArray(trimChar(from, "'")), 'sql', (v) => {
 				return `${formatBit(type, v)}`;
 			});
-			const to = stringifyArray(parseArray(trimChar(diffDef.to?.value!, "'")), 'sql', (v) => {
+			const toArray = stringifyArray(parseArray(trimChar(to, "'")), 'sql', (v) => {
 				return `${formatBit(type, v)}`;
 			});
-			if (from === to) return true;
+			if (from === toArray) return true;
+			if (to === fromArray) return true;
 		} catch {}
 
 		return false;
 	}
 
 	// only if array
-	if (type.startsWith('decimal') && type.endsWith('[]')) {
+	if (type.startsWith('decimal') && type.endsWith('[]') && from && to) {
 		try {
-			const from = stringifyArray(parseArray(trimChar(diffDef.from?.value!, "'")), 'sql', (v) => {
+			const fromArray = stringifyArray(parseArray(trimChar(from, "'")), 'sql', (v) => {
 				return `${formatDecimal(type, v)}`;
 			});
-			const to = stringifyArray(parseArray(trimChar(diffDef.to?.value!, "'")), 'sql', (v) => {
+			const toArray = stringifyArray(parseArray(trimChar(to, "'")), 'sql', (v) => {
 				return `${formatDecimal(type, v)}`;
 			});
-			if (from === to) return true;
+			if (from === toArray) return true;
+			if (to === fromArray) return true;
 		} catch {}
 		return false;
 	}
@@ -493,7 +444,8 @@ export const defaultsCommutative = (diffDef: DiffEntities['columns']['default'],
 
 						return `"${formatTimestamp(v, precision)}"`;
 					});
-					if (fromArray === toArray) return true;
+					if (from === toArray) return true;
+					if (to === fromArray) return true;
 				} catch {
 				}
 
@@ -506,7 +458,8 @@ export const defaultsCommutative = (diffDef: DiffEntities['columns']['default'],
 			}
 
 			if (
-				formatTimestamp(from, precision) === formatTimestamp(to, precision)
+				from === formatTimestamp(to, precision)
+				|| to === formatTimestamp(from, precision)
 			) return true;
 		}
 
@@ -538,7 +491,9 @@ export const defaultsCommutative = (diffDef: DiffEntities['columns']['default'],
 
 						return formatTime(v, precision);
 					});
-					if (fromArray === toArray) return true;
+
+					if (from === toArray) return true;
+					if (to === fromArray) return true;
 				} catch {
 				}
 
@@ -551,7 +506,8 @@ export const defaultsCommutative = (diffDef: DiffEntities['columns']['default'],
 			}
 
 			if (
-				formatTime(from, precision) === formatTime(to, precision)
+				from === formatTime(to, precision)
+				|| to === formatTime(from, precision)
 			) return true;
 		}
 
@@ -567,14 +523,16 @@ export const defaultsCommutative = (diffDef: DiffEntities['columns']['default'],
 				try {
 					const fromArray = stringifyArray(parseArray(from), 'sql', (v) => formatDate(v));
 					const toArray = stringifyArray(parseArray(to), 'sql', (v) => formatDate(v));
-					if (fromArray === toArray) return true;
+					if (from === toArray) return true;
+					if (to === fromArray) return true;
 				} catch {
 				}
 
 				return false;
 			}
 
-			if (formatDate(from) === formatDate(to)) return true;
+			if (from === formatDate(to)) return true;
+			if (formatDate(from) === to) return true;
 		}
 
 		return false;
@@ -589,7 +547,8 @@ export const defaultsCommutative = (diffDef: DiffEntities['columns']['default'],
 				try {
 					const fromArray = stringifyArray(parseArray(from), 'sql', (v) => formatString(type, v, 'arr'));
 					const toArray = stringifyArray(parseArray(to), 'sql', (v) => formatString(type, v, 'arr'));
-					if (fromArray === toArray) return true;
+					if (from === toArray) return true;
+					if (to === fromArray) return true;
 				} catch {
 				}
 
@@ -927,21 +886,32 @@ export const Bit: SqlType = {
 		const [length] = parseParams(type);
 		const options = length ? { length: Number(length) } : {};
 
-		return { options, default: value ?? '' };
+		if (!value) return { options, default: '' };
+
+		if (/^'[01]+'$/.test(value)) {
+			return { options, default: value };
+		}
+
+		return { options, default: `sql\`${value}\`` };
 	},
 	toArrayTs: (type, value) => {
-		if (!value) return { default: '' };
-
 		const [length] = parseParams(type);
 		const options = length ? { length: Number(length) } : {};
 
+		if (!value) return { options, default: '' };
+		let isDrizzleSql: boolean = false;
 		try {
 			const trimmed = trimChar(trimChar(value, ['(', ')']), "'");
 			const res = parseArray(trimmed);
 
+			const def = stringifyArray(res, 'ts', (v) => {
+				if (!/^[01]+$/.test(v)) isDrizzleSql = true;
+				return `"${v}"`;
+			});
+
 			return {
 				options,
-				default: stringifyArray(res, 'ts', (v) => `"${v}"`),
+				default: isDrizzleSql ? `sql\`${value}\`` : def,
 			};
 		} catch {
 			return { options, default: `sql\`${value}\`` };
@@ -1433,43 +1403,6 @@ export const Jsonb: SqlType = {
 	},
 };
 
-const possibleIntervals = [
-	'year',
-	'month',
-	'day',
-	'hour',
-	'minute',
-	'second',
-	'year to month',
-	'day to hour',
-	'day to minute',
-	'day to second',
-	'hour to minute',
-	'hour to second',
-	'minute to second',
-];
-function parseIntervalFields(type: string): { fields?: typeof possibleIntervals[number]; precision?: number } {
-	const options: { precision?: number; fields?: typeof possibleIntervals[number] } = {};
-	// incoming: interval day to second(3)
-
-	// [interval, day, to, second(3)]
-	const splitted = type.split(' ');
-	if (splitted.length === 1) {
-		return options;
-	}
-
-	// [day, to, second(3)]
-	// day to second(3)
-	const rest = splitted.slice(1, splitted.length).join(' ');
-	if (possibleIntervals.includes(rest)) return { ...options, fields: rest };
-
-	// day to second(3)
-	for (const s of possibleIntervals) {
-		if (rest.startsWith(`${s}(`)) return { ...options, fields: s };
-	}
-
-	return options;
-}
 // This is not handled the way cockroach stores it
 // since user can pass `1 2:3:4` and it will be stored as `1 day 02:03:04`
 // so we just compare row values

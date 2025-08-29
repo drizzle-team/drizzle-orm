@@ -1,5 +1,5 @@
-import { escapeSingleQuotes, type Simplify } from '../../utils';
-import { defaultNameForPK, defaults, defaultToSQL, isDefaultAction } from './grammar';
+import { escapeSingleQuotes, type Simplify, wrapWith } from '../../utils';
+import { defaultNameForPK, defaults, defaultToSQL, isDefaultAction, splitSqlType } from './grammar';
 import type { JsonStatement } from './statements';
 
 export const convertor = <
@@ -149,7 +149,9 @@ const createTableConvertor = convertor('create_table', (st) => {
 			? `"${column.typeSchema}".`
 			: '';
 
-		const colType = column.typeSchema ? `"${column.type}"` : column.type;
+		const colType = column.typeSchema
+			? `"${column.type.replaceAll('[]', '')}"${'[]'.repeat(column.dimensions)}`
+			: column.type;
 		const type = `${schemaPrefix}${colType}`;
 
 		const generated = column.generated;
@@ -264,7 +266,9 @@ const addColumnConvertor = convertor('add_column', (st) => {
 		? `"${column.typeSchema}".`
 		: '';
 
-	const type = column.typeSchema ? `"${column.type}"` : column.type;
+	const type = column.typeSchema
+		? `"${column.type.replaceAll('[]', '')}"${'[]'.repeat(column.dimensions)}`
+		: column.type;
 	let fixedType = `${schemaPrefix}${type}`;
 
 	const notNullStatement = column.notNull && !identity && !generated ? ' NOT NULL' : '';
@@ -640,7 +644,7 @@ const createEnumConvertor = convertor('create_enum', (st) => {
 	const enumNameWithSchema = schema !== 'public' ? `"${schema}"."${name}"` : `"${name}"`;
 
 	let valuesStatement = '(';
-	valuesStatement += values.map((it) => `'${escapeSingleQuotes(it)}'`).join(', ');
+	valuesStatement += values.map((it) => wrapWith(it.replaceAll("'", "''"), "'")).join(', ');
 	valuesStatement += ')';
 
 	return `CREATE TYPE ${enumNameWithSchema} AS ENUM${valuesStatement};`;

@@ -45,7 +45,7 @@ import { hash } from 'src/dialects/common';
 import { DB } from 'src/utils';
 import { v4 as uuidV4 } from 'uuid';
 import 'zx/globals';
-import { measure } from 'tests/utils';
+import { measure, tsc } from 'tests/utils';
 
 mkdirSync('tests/cockroach/tmp', { recursive: true });
 
@@ -101,15 +101,17 @@ export const drizzleToDDL = (schema: CockroachDBSchema, casing?: CasingType | un
 // 2 schemas -> 2 ddls -> diff
 export const diff = async (
 	left: CockroachDBSchema | CockroachDDL,
-	right: CockroachDBSchema,
+	right: CockroachDBSchema | CockroachDDL,
 	renamesArr: string[],
 	casing?: CasingType | undefined,
 ) => {
 	const { ddl: ddl1, errors: err1 } = 'entities' in left && '_' in left
 		? { ddl: left as CockroachDDL, errors: [] }
 		: drizzleToDDL(left, casing);
+	const { ddl: ddl2, errors: err2 } = 'entities' in right && '_' in right
+		? { ddl: right as CockroachDDL, errors: [] }
+		: drizzleToDDL(right, casing);
 
-	const { ddl: ddl2, errors: err2 } = drizzleToDDL(right, casing);
 	if (err1.length > 0 || err2.length > 0) {
 		throw new MockError([...err1, ...err2]);
 	}
@@ -394,6 +396,7 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 
 	if (existsSync(path)) rmSync(path);
 	writeFileSync(path, file.file);
+	await tsc(path);
 
 	const response = await prepareFromSchemaFiles([path]);
 	const { schema: sch } = fromDrizzleSchema(response, 'camelCase');

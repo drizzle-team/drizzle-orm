@@ -1,7 +1,7 @@
 import { SQL, sql } from 'drizzle-orm';
 import {
 	bigint,
-	boolean,
+	bool,
 	char,
 	check,
 	cockroachEnum,
@@ -249,7 +249,7 @@ test('introspect all column types', async () => {
 		columns: cockroachTable('columns', {
 			bigint: bigint('bigint', { mode: 'number' }).default(100),
 			// bit
-			boolean: boolean('boolean').default(true),
+			bool: bool('bool').default(true),
 			char: char('char', { length: 3 }).default('abc'),
 			date1: date('date1').default('2024-01-01'),
 			date2: date('date2').defaultNow(),
@@ -301,7 +301,7 @@ test('introspect all column array types', async () => {
 		columns: cockroachTable('columns', {
 			bigint: bigint('bigint', { mode: 'number' }).default(100).array(),
 			// bit
-			boolean: boolean('boolean').default(true).array(),
+			bool: bool('bool').default(true).array(),
 			char: char('char', { length: 3 }).default('abc').array(),
 			date1: date('date1').default('2024-01-01').array(),
 			date2: date('date2').defaultNow().array(),
@@ -687,6 +687,27 @@ test('role with a few properties', async () => {
 		'roles-with-few-properties',
 		['public'],
 		{ roles: { include: ['user'] } },
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('case sensitive schema name + identity column', async () => {
+	const mySchema = cockroachSchema('CaseSensitiveSchema');
+	const schema = {
+		mySchema,
+		users: mySchema.table('users', {
+			id: int4('id').primaryKey().generatedAlwaysAsIdentity(),
+			name: text('name'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffIntrospect(
+		db,
+		schema,
+		'case-sensitive-schema-name',
+		['CaseSensitiveSchema'],
 	);
 
 	expect(statements.length).toBe(0);
