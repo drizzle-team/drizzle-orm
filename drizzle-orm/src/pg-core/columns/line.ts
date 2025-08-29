@@ -36,6 +36,8 @@ export class PgLineBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgLine'>>
 export class PgLineTuple<T extends ColumnBaseConfig<'array', 'PgLine'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgLine';
 
+	readonly mode = 'tuple';
+
 	getSQLType(): string {
 		return 'line';
 	}
@@ -79,6 +81,8 @@ export class PgLineABCBuilder<T extends ColumnBuilderBaseConfig<'json', 'PgLineA
 
 export class PgLineABC<T extends ColumnBaseConfig<'json', 'PgLineABC'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgLineABC';
+
+	readonly mode = 'abc';
 
 	getSQLType(): string {
 		return 'line';

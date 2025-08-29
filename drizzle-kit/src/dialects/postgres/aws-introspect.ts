@@ -1,7 +1,7 @@
 import camelcase from 'camelcase';
 import type { Entities } from '../../cli/validations/cli';
 import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
-import { type DB, trimChar } from '../../utils';
+import { type DB, splitExpressions, trimChar } from '../../utils';
 import type {
 	CheckConstraint,
 	Enum,
@@ -28,8 +28,6 @@ import {
 	isSystemNamespace,
 	parseOnType,
 	parseViewDefinition,
-	splitExpressions,
-	splitSqlType,
 	stringFromDatabaseIdentityProperty as parseIdentityProperty,
 	wrapRecord,
 } from './grammar';
@@ -146,7 +144,7 @@ export const fromDatabase = async (
 	});
 
 	const namespacesQuery = db.query<Namespace>(
-		"SELECT oid, nspname as name FROM pg_catalog.pg_namespace ORDER BY pg_catalog.lower(nspname)",
+		'SELECT oid, nspname as name FROM pg_catalog.pg_namespace ORDER BY pg_catalog.lower(nspname)',
 	)
 		.then((rows) => {
 			queryCallback('namespaces', rows, null);

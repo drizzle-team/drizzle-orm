@@ -763,6 +763,14 @@ export const ddlDiff = async (
 		if (it.type && it.type.from.replace(',0)', ')') === it.type.to) {
 			delete it.type;
 		}
+
+		// if define '[4.0]', psql will store it as '[4]'
+		if (!it.type && it.$right.type.startsWith('vector')) {
+			if (it.default?.from?.value.replaceAll('.0', '') === it.default?.to?.value) {
+				delete it.default;
+			}
+		}
+
 		return ddl2.columns.hasDiff(it);
 	});
 

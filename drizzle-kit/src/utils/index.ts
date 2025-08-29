@@ -117,23 +117,22 @@ export type ArrayValue = unknown | null | ArrayValue[];
 
 export function stringifyArray(
 	value: ArrayValue,
-	mode: 'sql' | 'ts',
+	mode: 'sql' | 'ts' | 'geometry-sql',
 	mapCallback: (v: any | null, depth: number) => string,
 	depth: number = 0,
 ): string {
 	if (!Array.isArray(value)) return mapCallback(value, depth);
 	depth += 1;
-
 	const res = value.map((e) => {
-		if (Array.isArray(e)) return stringifyArray(e, mode, mapCallback);
+		if (Array.isArray(e)) return stringifyArray(e, mode, mapCallback, depth);
 		return mapCallback(e, depth);
 	}).join(',');
-	return mode === 'ts' ? `[${res}]` : `{${res}}`;
+	return mode === 'ts' ? `[${res}]` : mode === 'geometry-sql' ? `ARRAY['${res}']` : `{${res}}`;
 }
 
 export function stringifyTuplesArray(
 	array: ArrayValue[],
-	mode: 'sql' | 'ts',
+	mode: 'sql' | 'ts' | 'geometry-sql',
 	mapCallback: (v: ArrayValue, depth: number) => string,
 	depth: number = 0,
 ): string {
@@ -146,7 +145,7 @@ export function stringifyTuplesArray(
 		}
 		return mapCallback(e, depth);
 	}).join(',');
-	return mode === 'ts' ? `[${res}]` : `{${res}}`;
+	return mode === 'ts' ? `[${res}]` : mode === 'geometry-sql' ? `ARRAY[${res}]` : `{${res}}`;
 }
 
 export const trimChar = (str: string, char: string | [string, string]) => {
@@ -157,11 +156,109 @@ export const trimChar = (str: string, char: string | [string, string]) => {
 	return str;
 };
 
-export const wrapWith = (it: string, char: string)=>{
-	if(!it.startsWith(char) || !it.endsWith(char))return `${char}${it}${char}`
-	return it
-}
+export const splitExpressions = (input: string | null): string[] => {
+	if (!input) return [];
 
-export const isTime = (it: string)=>{
-	return /^\d{2}:\d{2}:\d{2}.*$/.test(it)
+	const expressions: string[] = [];
+	let parenDepth = 0;
+	let inSingleQuotes = false;
+	let inDoubleQuotes = false;
+	let currentExpressionStart = 0;
+
+	for (let i = 0; i < input.length; i++) {
+		const char = input[i];
+
+		if (char === "'" && input[i + 1] === "'") {
+			i++;
+			continue;
+		}
+
+		if (char === '"' && input[i + 1] === '"') {
+			i++;
+			continue;
+		}
+
+		if (char === "'") {
+			if (!inDoubleQuotes) {
+				inSingleQuotes = !inSingleQuotes;
+			}
+			continue;
+		}
+		if (char === '"') {
+			if (!inSingleQuotes) {
+				inDoubleQuotes = !inDoubleQuotes;
+			}
+			continue;
+		}
+
+		if (!inSingleQuotes && !inDoubleQuotes) {
+			if (char === '(') {
+				parenDepth++;
+			} else if (char === ')') {
+				parenDepth = Math.max(0, parenDepth - 1);
+			} else if (char === ',' && parenDepth === 0) {
+				expressions.push(input.substring(currentExpressionStart, i).trim());
+				currentExpressionStart = i + 1;
+			}
+		}
+	}
+
+	if (currentExpressionStart < input.length) {
+		expressions.push(input.substring(currentExpressionStart).trim());
+	}
+
+	return expressions.filter((s) => s.length > 0);
+};
+
+export const wrapWith = (it: string, char: string) => {
+	if (!it.startsWith(char) || !it.endsWith(char)) return `${char}${it}${char}`;
+	return it;
+};
+
+export const timeTzRegex = /\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}(?::?\d{2})?)?/;
+export const isTime = (it: string) => {
+	return timeTzRegex.test(it);
+};
+
+export const dateExtractRegex = /^\d{4}-\d{2}-\d{2}/;
+export const isDate = (it: string) => {
+	return dateExtractRegex.test(it);
+};
+
+export const possibleIntervals = [
+	'year',
+	'month',
+	'day',
+	'hour',
+	'minute',
+	'second',
+	'year to month',
+	'day to hour',
+	'day to minute',
+	'day to second',
+	'hour to minute',
+	'hour to second',
+	'minute to second',
+];
+export function parseIntervalFields(type: string): { fields?: typeof possibleIntervals[number]; precision?: number } {
+	const options: { precision?: number; fields?: typeof possibleIntervals[number] } = {};
+	// incoming: interval day to second(3)
+
+	// [interval, day, to, second(3)]
+	const splitted = type.split(' ');
+	if (splitted.length === 1) {
+		return options;
+	}
+
+	// [day, to, second(3)]
+	// day to second(3)
+	const rest = splitted.slice(1, splitted.length).join(' ');
+	if (possibleIntervals.includes(rest)) return { ...options, fields: rest };
+
+	// day to second(3)
+	for (const s of possibleIntervals) {
+		if (rest.startsWith(`${s}(`)) return { ...options, fields: s };
+	}
+
+	return options;
 }
