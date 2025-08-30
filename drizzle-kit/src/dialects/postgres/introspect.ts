@@ -202,8 +202,8 @@ export const fromDatabase = async (
 		oid: number;
 		schema: string;
 		name: string;
-		/* r - table, p - partitioned table, v - view, m - materialized view */
-		kind: 'r' | 'p' | 'v' | 'm';
+		/* r - table, p - partitioned table, f - foreign table, v - view, m - materialized view */
+		kind: 'r' | 'p' | 'f' | 'v' | 'm';
 		accessMethod: number;
 		options: string[] | null;
 		rlsEnabled: boolean;
@@ -231,7 +231,7 @@ export const fromDatabase = async (
 				pg_catalog.pg_class
 			JOIN pg_catalog.pg_namespace ON pg_namespace.oid OPERATOR(pg_catalog.=) relnamespace
 			WHERE
-				relkind IN ('r', 'p', 'v', 'm')
+				relkind IN ('r', 'p', 'f', 'v', 'm')
 				AND nspname IN (${filteredNamespacesStringForSQL})
 			ORDER BY pg_catalog.lower(nspname), pg_catalog.lower(relname);
 		`).then((rows) => {
@@ -246,7 +246,7 @@ export const fromDatabase = async (
 	const viewsList = tablesList.filter((it) => it.kind === 'v' || it.kind === 'm');
 
 	const filteredTables = tablesList.filter((it) => {
-		if (!((it.kind === 'r' || it.kind === 'p') && tablesFilter(it.name))) return false;
+		if (!((it.kind === 'r' || it.kind === 'p' || it.kind === 'f') && tablesFilter(it.name))) return false;
 		it.schema = trimChar(it.schema, '"'); // when camel case name e.x. mySchema -> it gets wrapped to "mySchema"
 		return true;
 	});
@@ -538,7 +538,7 @@ export const fromDatabase = async (
 	// for serials match with pg_attrdef via attrelid(tableid)+adnum(ordinal position), for enums with pg_enum above
 	const columnsQuery = db.query<{
 		tableId: number;
-		kind: 'r' | 'p' | 'v' | 'm';
+		kind: 'r' | 'p' | 'f' | 'v' | 'm';
 		name: string;
 		ordinality: number;
 		notNull: boolean;
@@ -762,7 +762,7 @@ export const fromDatabase = async (
 	type DBColumn = (typeof columnsList)[number];
 
 	// supply serials
-	for (const column of columnsList.filter((x) => x.kind === 'r' || x.kind === 'p')) {
+	for (const column of columnsList.filter((x) => x.kind === 'r' || x.kind === 'p' || x.kind === 'f')) {
 		const type = column.type;
 
 		if (!(type === 'smallint' || type === 'bigint' || type === 'integer')) {
@@ -781,7 +781,7 @@ export const fromDatabase = async (
 		}
 	}
 
-	for (const column of columnsList.filter((x) => x.kind === 'r' || x.kind === 'p')) {
+	for (const column of columnsList.filter((x) => x.kind === 'r' || x.kind === 'p' || x.kind === 'f')) {
 		const table = tablesList.find((it) => it.oid === column.tableId)!;
 
 		// supply enums
