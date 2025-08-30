@@ -146,7 +146,7 @@ export class SQLiteDOPreparedQuery<T extends PreparedQueryConfig = PreparedQuery
 
 		const { fields, client, joinsNotNullableMap, customResultMapper, query } = this;
 		if (!fields && !customResultMapper) {
-			return params.length > 0 ? client.sql.exec(query.sql, ...params).one() : client.sql.exec(query.sql).one();
+			return (params.length > 0 ? client.sql.exec(query.sql, ...params) : client.sql.exec(query.sql)).next().value;
 		}
 
 		const rows = this.values(placeholderValues) as unknown[][];
