@@ -1909,7 +1909,9 @@ class PgAlterTableAlterColumnSetTypeConvertor extends Convertor {
 
 		const statements: string[] = [];
 
-		const type = parseType(`"${typeSchema}".`, newDataType.name);
+		const schemaPrefix = typeSchema ? `"${typeSchema}".` : '';
+
+		const type = parseType(schemaPrefix, newDataType.name);
 
 		if (!oldDataType.isEnum && !newDataType.isEnum) {
 			statements.push(
