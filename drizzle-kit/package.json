@@ -37,7 +37,9 @@
 		"cli": "tsx ./src/cli/index.ts",
 		"test": "pnpm tsc && TEST_CONFIG_PATH_PREFIX=./tests/cli/ vitest",
 		"build": "rm -rf ./dist && tsx build.ts && cp package.json dist/ && attw --pack dist",
+		"build:cli": "rm -rf ./dist && tsx build.cli.ts && cp package.json dist/ && attw --pack dist",
 		"build:dev": "rm -rf ./dist && tsx build.dev.ts && tsc -p tsconfig.cli-types.json && chmod +x ./dist/index.cjs",
+		"build:ext": "rm -rf ./dist && vitest run bin.test && vitest run ./tests/postgres/ && vitest run ./tests/sqlite && vitest run ./tests/mysql && tsx build.ext.ts",
 		"pack": "cp package.json README.md dist/ && (cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"tsc": "tsc -p tsconfig.build.json --noEmit",
 		"publish": "npm publish package.tgz"
@@ -45,6 +47,7 @@
 	"dependencies": {
 		"@drizzle-team/brocli": "^0.10.2",
 		"@esbuild-kit/esm-loader": "^2.5.5",
+		"@js-temporal/polyfill": "^0.5.1",
 		"esbuild": "^0.25.4",
 		"esbuild-register": "^3.5.0"
 	},
@@ -65,6 +68,7 @@
 		"@types/json-diff": "^1.0.3",
 		"@types/micromatch": "^4.0.9",
 		"@types/minimatch": "^5.1.2",
+		"@types/mssql": "^9.1.4",
 		"@types/node": "^18.11.15",
 		"@types/pg": "^8.10.7",
 		"@types/pluralize": "^0.0.33",
@@ -97,6 +101,7 @@
 		"json-diff": "1.0.6",
 		"micromatch": "^4.0.8",
 		"minimatch": "^7.4.3",
+		"mssql": "^11.0.1",
 		"mysql2": "3.14.1",
 		"node-fetch": "^3.3.2",
 		"ohm-js": "^17.1.0",
@@ -105,7 +110,6 @@
 		"postgres": "^3.4.4",
 		"prettier": "^3.5.3",
 		"semver": "^7.7.2",
-		"superjson": "^2.2.1",
 		"tsup": "^8.3.5",
 		"tsx": "^3.12.1",
 		"typescript": "^5.6.3",
@@ -129,17 +133,17 @@
 			"types": "./index.d.mts",
 			"default": "./index.mjs"
 		},
-		"./api": {
+		"./api-postgres": {
 			"import": {
-				"types": "./api.d.mts",
-				"default": "./api.mjs"
+				"types": "./api-postgres.d.mts",
+				"default": "./api-postgres.mjs"
 			},
 			"require": {
-				"types": "./api.d.ts",
-				"default": "./api.js"
+				"types": "./api-postgres.d.ts",
+				"default": "./api-postgres.js"
 			},
-			"types": "./api.d.mts",
-			"default": "./api.mjs"
+			"types": "./api-postgres.d.mts",
+			"default": "./api-postgres.mjs"
 		}
 	}
 }

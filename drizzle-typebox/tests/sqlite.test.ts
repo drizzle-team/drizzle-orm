@@ -9,7 +9,20 @@ import { createInsertSchema, createSelectSchema, createUpdateSchema, type Generi
 import { Expect, expectSchemaShape } from './utils.ts';
 
 const intSchema = t.Integer({ minimum: Number.MIN_SAFE_INTEGER, maximum: Number.MAX_SAFE_INTEGER });
+const intNullableSchema = t.Union([intSchema, t.Null()]);
+const intOptionalSchema = t.Optional(intSchema);
+const intNullableOptionalSchema = t.Optional(t.Union([intSchema, t.Null()]));
+
 const textSchema = t.String();
+const textOptionalSchema = t.Optional(textSchema);
+
+const anySchema = t.Any();
+
+const extendedSchema = t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 });
+const extendedNullableSchema = t.Union([extendedSchema, t.Null()]);
+const extendedOptionalSchema = t.Optional(extendedSchema);
+
+const customSchema = t.Integer({ minimum: 1, maximum: 10 });
 
 test('table - select', (tc) => {
 	const table = sqliteTable('test', {
@@ -32,9 +45,9 @@ test('table - insert', (tc) => {
 
 	const result = createInsertSchema(table);
 	const expected = t.Object({
-		id: t.Optional(intSchema),
+		id: intOptionalSchema,
 		name: textSchema,
-		age: t.Optional(t.Union([intSchema, t.Null()])),
+		age: intNullableOptionalSchema,
 	});
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -49,9 +62,9 @@ test('table - update', (tc) => {
 
 	const result = createUpdateSchema(table);
 	const expected = t.Object({
-		id: t.Optional(intSchema),
-		name: t.Optional(textSchema),
-		age: t.Optional(t.Union([intSchema, t.Null()])),
+		id: intOptionalSchema,
+		name: textOptionalSchema,
+		age: intNullableOptionalSchema,
 	});
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -65,7 +78,7 @@ test('view qb - select', (tc) => {
 	const view = sqliteView('test').as((qb) => qb.select({ id: table.id, age: sql``.as('age') }).from(table));
 
 	const result = createSelectSchema(view);
-	const expected = t.Object({ id: intSchema, age: t.Any() });
+	const expected = t.Object({ id: intSchema, age: anySchema });
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
 });
@@ -101,7 +114,7 @@ test('view with nested fields - select', (tc) => {
 	const result = createSelectSchema(view);
 	const expected = t.Object({
 		id: intSchema,
-		nested: t.Object({ name: textSchema, age: t.Any() }),
+		nested: t.Object({ name: textSchema, age: anySchema }),
 		table: t.Object({ id: intSchema, name: textSchema }),
 	});
 	expectSchemaShape(tc, expected).from(result);
@@ -118,9 +131,9 @@ test('nullability - select', (tc) => {
 
 	const result = createSelectSchema(table);
 	const expected = t.Object({
-		c1: t.Union([intSchema, t.Null()]),
+		c1: intNullableSchema,
 		c2: intSchema,
-		c3: t.Union([intSchema, t.Null()]),
+		c3: intNullableSchema,
 		c4: intSchema,
 	});
 	expectSchemaShape(tc, expected).from(result);
@@ -138,10 +151,10 @@ test('nullability - insert', (tc) => {
 
 	const result = createInsertSchema(table);
 	const expected = t.Object({
-		c1: t.Optional(t.Union([intSchema, t.Null()])),
+		c1: intNullableOptionalSchema,
 		c2: intSchema,
-		c3: t.Optional(t.Union([intSchema, t.Null()])),
-		c4: t.Optional(intSchema),
+		c3: intNullableOptionalSchema,
+		c4: intOptionalSchema,
 	});
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -158,10 +171,10 @@ test('nullability - update', (tc) => {
 
 	const result = createUpdateSchema(table);
 	const expected = t.Object({
-		c1: t.Optional(t.Union([intSchema, t.Null()])),
-		c2: t.Optional(intSchema),
-		c3: t.Optional(t.Union([intSchema, t.Null()])),
-		c4: t.Optional(intSchema),
+		c1: intNullableOptionalSchema,
+		c2: intOptionalSchema,
+		c3: intNullableOptionalSchema,
+		c4: intOptionalSchema,
 	});
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -175,13 +188,13 @@ test('refine table - select', (tc) => {
 	});
 
 	const result = createSelectSchema(table, {
-		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
+		c2: (schema) => t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 	});
 	const expected = t.Object({
-		c1: t.Union([intSchema, t.Null()]),
-		c2: t.Integer({ minimum: Number.MIN_SAFE_INTEGER, maximum: 1000 }),
-		c3: t.Integer({ minimum: 1, maximum: 10 }),
+		c1: intNullableSchema,
+		c2: extendedSchema,
+		c3: customSchema,
 	});
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -198,14 +211,14 @@ test('refine table - select with custom data type', (tc) => {
 
 	const customTextSchema = t.String({ minLength: 1, maxLength: 100 });
 	const result = createSelectSchema(table, {
-		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
+		c2: (schema) => t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 		c4: customTextSchema,
 	});
 	const expected = t.Object({
-		c1: t.Union([intSchema, t.Null()]),
-		c2: t.Integer({ minimum: Number.MIN_SAFE_INTEGER, maximum: 1000 }),
-		c3: t.Integer({ minimum: 1, maximum: 10 }),
+		c1: intNullableSchema,
+		c2: extendedSchema,
+		c3: customSchema,
 		c4: customTextSchema,
 	});
 
@@ -222,13 +235,13 @@ test('refine table - insert', (tc) => {
 	});
 
 	const result = createInsertSchema(table, {
-		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
+		c2: (schema) => t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 	});
 	const expected = t.Object({
-		c1: t.Optional(t.Union([intSchema, t.Null()])),
-		c2: t.Integer({ minimum: Number.MIN_SAFE_INTEGER, maximum: 1000 }),
-		c3: t.Integer({ minimum: 1, maximum: 10 }),
+		c1: intNullableOptionalSchema,
+		c2: extendedSchema,
+		c3: customSchema,
 	});
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -243,13 +256,13 @@ test('refine table - update', (tc) => {
 	});
 
 	const result = createUpdateSchema(table, {
-		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
+		c2: (schema) => t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 	});
 	const expected = t.Object({
-		c1: t.Optional(t.Union([intSchema, t.Null()])),
-		c2: t.Optional(t.Integer({ minimum: Number.MIN_SAFE_INTEGER, maximum: 1000 })),
-		c3: t.Integer({ minimum: 1, maximum: 10 }),
+		c1: intNullableOptionalSchema,
+		c2: extendedOptionalSchema,
+		c3: customSchema,
 	});
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();
@@ -279,33 +292,33 @@ test('refine view - select', (tc) => {
 	);
 
 	const result = createSelectSchema(view, {
-		c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
+		c2: (schema) => t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 		nested: {
-			c5: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
+			c5: (schema) => t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
 			c6: t.Integer({ minimum: 1, maximum: 10 }),
 		},
 		table: {
-			c2: (schema) => t.Integer({ minimum: schema.minimum, maximum: 1000 }),
+			c2: (schema) => t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
 			c3: t.Integer({ minimum: 1, maximum: 10 }),
 		},
 	});
 	const expected = t.Object({
-		c1: t.Union([intSchema, t.Null()]),
-		c2: t.Union([t.Integer({ minimum: Number.MIN_SAFE_INTEGER, maximum: 1000 }), t.Null()]),
-		c3: t.Integer({ minimum: 1, maximum: 10 }),
+		c1: intNullableSchema,
+		c2: extendedNullableSchema,
+		c3: customSchema,
 		nested: t.Object({
-			c4: t.Union([intSchema, t.Null()]),
-			c5: t.Union([t.Integer({ minimum: Number.MIN_SAFE_INTEGER, maximum: 1000 }), t.Null()]),
-			c6: t.Integer({ minimum: 1, maximum: 10 }),
+			c4: intNullableSchema,
+			c5: extendedNullableSchema,
+			c6: customSchema,
 		}),
 		table: t.Object({
-			c1: t.Union([intSchema, t.Null()]),
-			c2: t.Union([t.Integer({ minimum: Number.MIN_SAFE_INTEGER, maximum: 1000 }), t.Null()]),
-			c3: t.Integer({ minimum: 1, maximum: 10 }),
-			c4: t.Union([intSchema, t.Null()]),
-			c5: t.Union([intSchema, t.Null()]),
-			c6: t.Union([intSchema, t.Null()]),
+			c1: intNullableSchema,
+			c2: extendedNullableSchema,
+			c3: customSchema,
+			c4: intNullableSchema,
+			c5: intNullableSchema,
+			c6: intNullableSchema,
 		}),
 	});
 	expectSchemaShape(tc, expected).from(result);
@@ -327,7 +340,9 @@ test('all data types', (tc) => {
 		integer2: integer({ mode: 'boolean' }).notNull(),
 		integer3: integer({ mode: 'timestamp' }).notNull(),
 		integer4: integer({ mode: 'timestamp_ms' }).notNull(),
-		numeric: numeric().notNull(),
+		numeric1: numeric({ mode: 'number' }).notNull(),
+		numeric2: numeric({ mode: 'bigint' }).notNull(),
+		numeric3: numeric({ mode: 'string' }).notNull(),
 		real: real().notNull(),
 		text1: text({ mode: 'text' }).notNull(),
 		text2: text({ mode: 'text', length: 10 }).notNull(),
@@ -344,7 +359,9 @@ test('all data types', (tc) => {
 		integer2: t.Boolean(),
 		integer3: t.Date(),
 		integer4: t.Date(),
-		numeric: t.String(),
+		numeric1: t.Number({ minimum: Number.MIN_SAFE_INTEGER, maximum: Number.MAX_SAFE_INTEGER }),
+		numeric2: t.BigInt({ minimum: CONSTANTS.INT64_MIN, maximum: CONSTANTS.INT64_MAX }),
+		numeric3: t.String(),
 		real: t.Number({ minimum: CONSTANTS.INT48_MIN, maximum: CONSTANTS.INT48_MAX }),
 		text1: t.String(),
 		text2: t.String({ maxLength: 10 }),

@@ -9,6 +9,7 @@ export type Column = {
 		scale?: number;
 		length?: number;
 		dimensions?: number;
+		vectorValueType?: 'I8' | 'I16' | 'I32' | 'I64' | 'F32' | 'F64';
 	};
 	size?: number;
 	default?: any;
@@ -18,6 +19,7 @@ export type Column = {
 	notNull: boolean;
 	primary: boolean;
 	generatedIdentityType?: 'always' | 'byDefault' | undefined;
+	identity?: boolean;
 	baseColumn?: Omit<Column, 'generatedIdentityType'>;
 };
 

@@ -1,6 +1,5 @@
 /// <reference types="@cloudflare/workers-types" />
 
-import { expect } from 'chai';
 import { DurableObject } from 'cloudflare:workers';
 import {
 	and,
@@ -44,6 +43,7 @@ import {
 	union,
 	unionAll,
 } from 'drizzle-orm/sqlite-core';
+import { expect } from 'vitest';
 import { type Equal, Expect } from '~/utils';
 import migrations from './drizzle/migrations';
 
@@ -109,9 +109,7 @@ export const pkExampleTable = sqliteTable('pk_example', {
 	id: integer('id').notNull(),
 	name: text('name').notNull(),
 	email: text('email').notNull(),
-}, (table) => ({
-	compositePk: primaryKey({ columns: [table.id, table.name] }),
-}));
+}, (table) => [primaryKey({ columns: [table.id, table.name] })]);
 
 export const bigIntExample = sqliteTable('big_int_example', {
 	id: integer('id').primaryKey(),

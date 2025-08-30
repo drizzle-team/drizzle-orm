@@ -28,7 +28,7 @@ async function createDockerDB(): Promise<string> {
 	mysqlContainer = await docker.createContainer({
 		Image: image,
 		Env: ['MYSQL_ROOT_PASSWORD=mysql', 'MYSQL_DATABASE=drizzle'],
-		name: `drizzle-integration-tests-${uuid()}`,
+		name: `drizzle-seed-tests-${uuid()}`,
 		HostConfig: {
 			AutoRemove: true,
 			PortBindings: {

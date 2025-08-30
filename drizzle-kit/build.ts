@@ -21,46 +21,6 @@ const driversPackages = [
 ];
 
 esbuild.buildSync({
-	entryPoints: ['./src/utils.ts'],
-	bundle: true,
-	outfile: 'dist/utils.js',
-	format: 'cjs',
-	target: 'node16',
-	platform: 'node',
-	external: [
-		'commander',
-		'json-diff',
-		'glob',
-		'esbuild',
-		'drizzle-orm',
-		...driversPackages,
-	],
-	banner: {
-		js: `#!/usr/bin/env node`,
-	},
-});
-
-esbuild.buildSync({
-	entryPoints: ['./src/utils.ts'],
-	bundle: true,
-	outfile: 'dist/utils.mjs',
-	format: 'esm',
-	target: 'node16',
-	platform: 'node',
-	external: [
-		'commander',
-		'json-diff',
-		'glob',
-		'esbuild',
-		'drizzle-orm',
-		...driversPackages,
-	],
-	banner: {
-		js: `#!/usr/bin/env node`,
-	},
-});
-
-esbuild.buildSync({
 	entryPoints: ['./src/cli/index.ts'],
 	bundle: true,
 	outfile: 'dist/bin.cjs',
@@ -82,7 +42,7 @@ esbuild.buildSync({
 
 const main = async () => {
 	await tsup.build({
-		entryPoints: ['./src/index.ts', './src/api.ts'],
+		entryPoints: ['./src/index.ts'],
 		outDir: './dist',
 		external: ['bun:sqlite'],
 		splitting: false,
@@ -102,8 +62,29 @@ const main = async () => {
 		},
 	});
 
-	const apiCjs = readFileSync('./dist/api.js', 'utf8').replace(/await import\(/g, 'require(');
-	writeFileSync('./dist/api.js', apiCjs);
+	await tsup.build({
+		entryPoints: ['./src/ext/api-postgres.ts'],
+		outDir: './dist',
+		external: ['bun:sqlite'],
+		splitting: false,
+		dts: true,
+		format: ['cjs', 'esm'],
+		outExtension: (ctx) => {
+			if (ctx.format === 'cjs') {
+				return {
+					dts: '.d.ts',
+					js: '.js',
+				};
+			}
+			return {
+				dts: '.d.mts',
+				js: '.mjs',
+			};
+		},
+	});
+
+	const apiCjs = readFileSync('./dist/api-postgres.js', 'utf8').replace(/await import\(/g, 'require(');
+	writeFileSync('./dist/api-postgres.js', apiCjs);
 };
 
 main().catch((e) => {

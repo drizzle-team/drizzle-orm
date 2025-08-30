@@ -1,4 +1,5 @@
 import type { Table, View } from 'drizzle-orm';
+import type { CockroachEnum } from 'drizzle-orm/cockroach-core';
 import type { PgEnum } from 'drizzle-orm/pg-core';
 import type * as v from 'valibot';
 import type { EnumValuesToEnum } from './column.types.ts';
@@ -23,7 +24,9 @@ export interface CreateSelectSchema {
 		refine: NoUnknownKeys<TRefine, TView['$inferSelect']>,
 	): BuildSchema<'select', TView['_']['selectedFields'], TRefine>;
 
-	<TEnum extends PgEnum<any>>(enum_: TEnum): v.EnumSchema<EnumValuesToEnum<TEnum['enumValues']>, undefined>;
+	<TEnum extends PgEnum<any> | CockroachEnum<any>>(
+		enum_: TEnum,
+	): v.EnumSchema<EnumValuesToEnum<TEnum['enumValues']>, undefined>;
 }
 
 export interface CreateInsertSchema {

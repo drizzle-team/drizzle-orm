@@ -15,7 +15,7 @@ function bytesToFloat64(bytes: Uint8Array, offset: number): number {
 	return view.getFloat64(0, true);
 }
 
-export function parseEWKB(hex: string): [number, number] {
+export function parseEWKB(hex: string): { srid: number | undefined; point: [number, number] } {
 	const bytes = hexToBytes(hex);
 
 	let offset = 0;
@@ -28,9 +28,9 @@ export function parseEWKB(hex: string): [number, number] {
 	const geomType = view.getUint32(offset, byteOrder === 1);
 	offset += 4;
 
-	let _srid: number | undefined;
+	let srid: number | undefined;
 	if (geomType & 0x20000000) { // SRID flag
-		_srid = view.getUint32(offset, byteOrder === 1);
+		srid = view.getUint32(offset, byteOrder === 1);
 		offset += 4;
 	}
 
@@ -40,7 +40,7 @@ export function parseEWKB(hex: string): [number, number] {
 		const y = bytesToFloat64(bytes, offset);
 		offset += 8;
 
-		return [x, y];
+		return { srid, point: [x, y] };
 	}
 
 	throw new Error('Unsupported geometry type');

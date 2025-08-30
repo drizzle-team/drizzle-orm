@@ -47,17 +47,20 @@ export type BuildSchema<
 > = type.instantiate<
 	Simplify<
 		{
-			readonly [K in keyof TColumns as ColumnIsGeneratedAlwaysAs<TColumns[K]> extends true ? never : K]:
-				TColumns[K] extends infer TColumn extends Column
-					? IsRefinementDefined<TRefinements, K> extends true
-						? HandleRefinement<TType, TRefinements[K & keyof TRefinements], TColumn>
-					: HandleColumn<TType, TColumn>
-					: TColumns[K] extends infer TNested extends SelectedFieldsFlat<Column> | Table | View ? BuildSchema<
-							TType,
-							GetSelection<TNested>,
-							TRefinements extends object ? TRefinements[K & keyof TRefinements] : undefined
-						>
-					: any;
+			readonly [
+				K in keyof TColumns as ColumnIsGeneratedAlwaysAs<TColumns[K]> extends true ? TType extends 'select' ? K
+					: never
+					: K
+			]: TColumns[K] extends infer TColumn extends Column
+				? IsRefinementDefined<TRefinements, K> extends true
+					? HandleRefinement<TType, TRefinements[K & keyof TRefinements], TColumn>
+				: HandleColumn<TType, TColumn>
+				: TColumns[K] extends infer TNested extends SelectedFieldsFlat<Column> | Table | View ? BuildSchema<
+						TType,
+						GetSelection<TNested>,
+						TRefinements extends object ? TRefinements[K & keyof TRefinements] : undefined
+					>
+				: any;
 		}
 	>
 >;

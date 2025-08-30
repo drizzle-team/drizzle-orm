@@ -37,7 +37,7 @@ export interface BuildQueryConfig {
 	prepareTyping?: (encoder: DriverValueEncoder<unknown, unknown>) => QueryTypingsValue;
 	paramStartIndex?: { value: number };
 	inlineParams?: boolean;
-	invokeSource?: 'indexes' | undefined;
+	invokeSource?: 'indexes' | 'mssql-check' | 'mssql-view-with-schemabinding' | undefined;
 }
 
 export type QueryTypingsValue = 'json' | 'decimal' | 'time' | 'timestamp' | 'uuid' | 'date' | 'none';
@@ -158,6 +158,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 			prepareTyping,
 			inlineParams,
 			paramStartIndex,
+			invokeSource,
 		} = config;
 
 		return mergeQueries(chunks.map((chunk): QueryWithTypings => {
@@ -195,6 +196,15 @@ export class SQL<T = unknown> implements SQLWrapper {
 			if (is(chunk, Table)) {
 				const schemaName = chunk[Table.Symbol.Schema];
 				const tableName = chunk[Table.Symbol.Name];
+
+				if (invokeSource === 'mssql-view-with-schemabinding') {
+					return {
+						sql: (schemaName === undefined ? escapeName('dbo') : escapeName(schemaName)) + '.'
+							+ escapeName(tableName),
+						params: [],
+					};
+				}
+
 				return {
 					sql: schemaName === undefined || chunk[IsAlias]
 						? escapeName(tableName)
@@ -209,7 +219,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 					return { sql: escapeName(columnName), params: [] };
 				}
 
-				const schemaName = chunk.table[Table.Symbol.Schema];
+				const schemaName = invokeSource === 'mssql-check' ? undefined : chunk.table[Table.Symbol.Schema];
 				return {
 					sql: chunk.table[IsAlias] || schemaName === undefined
 						? escapeName(chunk.table[Table.Symbol.Name]) + '.' + escapeName(columnName)
@@ -306,7 +316,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 		if (chunk === null) {
 			return 'null';
 		}
-		if (typeof chunk === 'number' || typeof chunk === 'boolean') {
+		if (typeof chunk === 'number' || typeof chunk === 'boolean' || typeof chunk === 'bigint') {
 			return chunk.toString();
 		}
 		if (typeof chunk === 'string') {

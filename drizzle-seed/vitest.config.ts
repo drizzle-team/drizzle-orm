@@ -3,6 +3,9 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
 	test: {
 		include: [
+			'./tests/singlestore/**/*.test.ts',
+			'./tests/cockroach/**/*.test.ts',
+			'./tests/mssql/**/*.test.ts',
 			'./tests/pg/**/*.test.ts',
 			'./tests/mysql/**/*.test.ts',
 			'./tests/sqlite/**/*.test.ts',
