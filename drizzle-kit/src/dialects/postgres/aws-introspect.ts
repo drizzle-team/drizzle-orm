@@ -815,6 +815,7 @@ export const fromDatabase = async (
 			columnTypeMapped,
 			columnDefault?.expression,
 			column.dimensions,
+			Boolean(enumType),
 		);
 
 		const unique = constraintsList.find((it) => {

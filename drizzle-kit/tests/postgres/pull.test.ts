@@ -1007,3 +1007,51 @@ test('introspect foreign keys', async () => {
 		columnsTo: ['id'],
 	})).not.toBeNull();
 });
+
+test('introspect partitioned tables', async () => {
+	await db.query(`
+		CREATE TABLE measurement (
+			city_id         int not null,
+			logdate         date not null,
+			peaktemp        int,
+			unitsales       int
+		) PARTITION BY RANGE (logdate);
+	`);
+
+	const { tables } = await fromDatabase(db);
+
+	expect(tables).toStrictEqual([
+		{
+			name: 'measurement',
+			schema: 'public',
+			entityType: 'tables',
+			isRlsEnabled: false,
+		} satisfies typeof tables[number],
+	]);
+});
+
+// test('introspect foreign tables', async () => {
+// 	await db.query('CREATE EXTENSION postgres_fdw;');
+// 	await db.query("CREATE SERVER film_server FOREIGN DATA WRAPPER postgres_fdw OPTIONS (host 'foo', dbname 'foodb', port '5432');");
+// 	await db.query(`
+// 		CREATE FOREIGN TABLE films (
+// 			code        char(5) NOT NULL,
+// 			title       varchar(40) NOT NULL,
+// 			did         integer NOT NULL,
+// 			date_prod   date,
+// 			kind        varchar(10),
+// 			len         interval hour to minute
+// 		) SERVER film_server;
+// 	`);
+
+// 	const { tables } = await fromDatabase(db);
+
+// 	expect(tables).toStrictEqual([
+// 		{
+// 			name: 'films',
+// 			schema: 'public',
+// 			entityType: 'tables',
+// 			isRlsEnabled: false,
+// 		} satisfies typeof tables[number],
+// 	]);
+// });

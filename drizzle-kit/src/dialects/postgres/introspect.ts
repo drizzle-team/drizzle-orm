@@ -71,7 +71,7 @@ function prepareRoles(entities?: {
 // TODO: since we by default only introspect public
 export const fromDatabase = async (
 	db: DB,
-	tablesFilter: (table: string) => boolean = () => true,
+	tablesFilter: (schema: string, table: string) => boolean = () => true,
 	schemaFilter: (schema: string) => boolean = () => true,
 	entities?: Entities,
 	progressCallback: (
@@ -246,7 +246,7 @@ export const fromDatabase = async (
 	const viewsList = tablesList.filter((it) => it.kind === 'v' || it.kind === 'm');
 
 	const filteredTables = tablesList.filter((it) => {
-		if (!((it.kind === 'r' || it.kind === 'p') && tablesFilter(it.name))) return false;
+		if (!((it.kind === 'r' || it.kind === 'p') && tablesFilter(it.schema, it.name))) return false;
 		it.schema = trimChar(it.schema, '"'); // when camel case name e.x. mySchema -> it gets wrapped to "mySchema"
 		return true;
 	});
@@ -1168,7 +1168,7 @@ export const fromDatabase = async (
 	}
 
 	for (const view of viewsList) {
-		if (!tablesFilter(view.name)) continue;
+		if (!tablesFilter(view.schema, view.name)) continue;
 		tableCount += 1;
 
 		const accessMethod = view.accessMethod === 0 ? null : ams.find((it) => it.oid === view.accessMethod);
@@ -1260,7 +1260,7 @@ export const fromDatabase = async (
 
 export const fromDatabaseForDrizzle = async (
 	db: DB,
-	tableFilter: (it: string) => boolean = () => true,
+	tableFilter: (schema: string, table: string) => boolean = () => true,
 	schemaFilters: (it: string) => boolean = () => true,
 	entities?: Entities,
 	progressCallback: (
