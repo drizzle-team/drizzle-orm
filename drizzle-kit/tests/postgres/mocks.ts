@@ -297,6 +297,7 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 
 	let schemas: string[] | undefined;
 	let tables: string[] | undefined;
+
 	if (filter) {
 		schemas = ['public'];
 		tables = ['table'];
@@ -335,7 +336,8 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	const typeSchemaPrefix = typeSchema && typeSchema !== 'public' ? `"${typeSchema}".` : '';
 	const typeValue = typeSchema ? `"${type.replaceAll('[]', '')}"${'[]'.repeat(dimensions)}` : type;
 	const sqlType = `${typeSchemaPrefix}${typeValue}`;
-	const expectedInit = `CREATE TABLE "table" (\n\t"column" ${sqlType} DEFAULT ${expectedDefault}\n);\n`;
+	const defaultStatement = expectedDefault ? ` DEFAULT ${expectedDefault}` : ""
+	const expectedInit = `CREATE TABLE "table" (\n\t"column" ${sqlType}${defaultStatement}\n);\n`;
 	if (st1.length !== 1 || st1[0] !== expectedInit) res.push(`Unexpected init:\n${st1}\n\n${expectedInit}`);
 	if (st2.length > 0) res.push(`Unexpected subsequent init:\n${st2}`);
 
@@ -388,7 +390,7 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	await push({ db, to: schema1, tables, schemas });
 	const { sqlStatements: st3 } = await push({ db, to: schema2, tables, schemas });
 	const expectedAlter = `ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT ${expectedDefault};`;
-	if (st3.length !== 1 || st3[0] !== expectedAlter) res.push(`Unexpected default alter:\n${st3}\n\n${expectedAlter}`);
+	if ((st3.length !== 1 || st3[0] !== expectedAlter) && expectedDefault) res.push(`Unexpected default alter:\n${st3}\n\n${expectedAlter}`);
 
 	await clear();
 
@@ -406,7 +408,7 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	await push({ db, to: schema3, tables, schemas });
 	const { sqlStatements: st4 } = await push({ db, to: schema4, tables, schemas });
 
-	const expectedAddColumn = `ALTER TABLE "table" ADD COLUMN "column" ${sqlType} DEFAULT ${expectedDefault};`;
+	const expectedAddColumn = `ALTER TABLE "table" ADD COLUMN "column" ${sqlType}${defaultStatement};`;
 	if (st4.length !== 1 || st4[0] !== expectedAddColumn) {
 		res.push(`Unexpected add column:\n${st4[0]}\n\n${expectedAddColumn}`);
 	}

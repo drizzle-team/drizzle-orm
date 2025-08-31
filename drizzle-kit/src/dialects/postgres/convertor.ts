@@ -1,5 +1,5 @@
 import { escapeSingleQuotes, type Simplify, wrapWith } from '../../utils';
-import { defaultNameForPK, defaults, defaultToSQL, isDefaultAction, splitSqlType } from './grammar';
+import { defaultNameForPK, defaults, defaultToSQL, isDefaultAction, isSerialType, splitSqlType } from './grammar';
 import type { JsonStatement } from './statements';
 
 export const convertor = <
@@ -131,8 +131,10 @@ const createTableConvertor = convertor('create_table', (st) => {
 		const isPK = pk && pk.columns.length === 1 && pk.columns[0] === column.name
 			&& pk.name === defaultNameForPK(column.table);
 
+		const isSerial = isSerialType(column.type)
+		
 		const primaryKeyStatement = isPK ? ' PRIMARY KEY' : '';
-		const notNullStatement = isPK ? '' : column.notNull && !column.identity ? ' NOT NULL' : '';
+		const notNullStatement = isPK || isSerial? '' : column.notNull && !column.identity ? ' NOT NULL' : '';
 		const defaultStatement = column.default ? ` DEFAULT ${defaultToSQL(column)}` : '';
 
 		const unique = uniques.find((u) => u.columns.length === 1 && u.columns[0] === column.name);
@@ -271,7 +273,9 @@ const addColumnConvertor = convertor('add_column', (st) => {
 		: column.type;
 	let fixedType = `${schemaPrefix}${type}`;
 
-	const notNullStatement = column.notNull && !identity && !generated ? ' NOT NULL' : '';
+	const isSerial = isSerialType(column.type)
+
+	const notNullStatement = column.notNull && !identity && !generated && !isSerial ? ' NOT NULL' : '';
 
 	const identityWithSchema = schema !== 'public'
 		? `"${schema}"."${identity?.name}"`

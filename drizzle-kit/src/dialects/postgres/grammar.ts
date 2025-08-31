@@ -1250,9 +1250,9 @@ export const GeometryPoint: SqlType = {
 		let def: string;
 
 		try {
-			const { srid, point } = parseEWKB(trimChar(value, "'"));
+			const [srid, point] = parseEWKB(trimChar(value, "'"));
 			let sridPrefix = srid ? `SRID=${srid};` : '';
-			def = `'${sridPrefix}POINT(${point[0]} ${point[1]})'`;
+			def = `'${sridPrefix}POINT(${point} ${point})'`;
 		} catch (e) {
 			def = value;
 		}
@@ -1362,6 +1362,54 @@ export const Enum: SqlType = {
 	},
 };
 
+export const Serial: SqlType = {
+	is: (type: string) => /^(?:serial)(?:[\s(].*)?$/i.test(type),
+	drizzleImport: () => 'serial',
+	defaultFromDrizzle: (value) => {
+		throw new Error(`Unexpected default for serial type: ${value}`);
+	},
+	defaultArrayFromDrizzle: (v) => {
+		throw new Error(`Unexpected default for serial type: ${v}`);
+	},
+	defaultFromIntrospect: (value) => {
+		return { type: 'unknown', value };
+	},
+	defaultArrayFromIntrospect: function(value: string): Column['default'] {
+		return { type: 'unknown', value };
+	},
+	toTs: () => {
+		return { default: '' };
+	},
+	toArrayTs: () => {
+		return { default: '' };
+	},
+};
+
+export const BigSerial: SqlType = {
+	is: (type: string) => /^(?:bigserial)(?:[\s(].*)?$/i.test(type),
+	drizzleImport: () => 'bigserial',
+	defaultFromDrizzle: Serial.defaultFromDrizzle,
+	defaultArrayFromDrizzle: Serial.defaultArrayFromDrizzle,
+	defaultFromIntrospect: Serial.defaultFromIntrospect,
+	defaultArrayFromIntrospect: Serial.defaultArrayFromIntrospect,
+	toTs: () => {
+		return { options: { mode: 'number' }, default: '' };
+	},
+	toArrayTs: () => {
+		return { options: { mode: 'number' }, default: '' };
+	},
+};
+export const SmallSerial: SqlType = {
+	is: (type: string) => /^(?:smallserial)(?:[\s(].*)?$/i.test(type),
+	drizzleImport: () => 'smallserial',
+	defaultFromDrizzle: Serial.defaultFromDrizzle,
+	defaultArrayFromDrizzle: Serial.defaultArrayFromDrizzle,
+	defaultFromIntrospect: Serial.defaultFromIntrospect,
+	defaultArrayFromIntrospect: Serial.defaultArrayFromIntrospect,
+	toTs: Serial.toTs,
+	toArrayTs: Serial.toArrayTs,
+};
+
 export const typeFor = (type: string): SqlType | null => {
 	if (SmallInt.is(type)) return SmallInt;
 	if (Int.is(type)) return Int;
@@ -1391,6 +1439,9 @@ export const typeFor = (type: string): SqlType | null => {
 	if (Line.is(type)) return Line;
 	if (DateType.is(type)) return DateType;
 	if (GeometryPoint.is(type)) return GeometryPoint;
+	if (Serial.is(type)) return Serial;
+	if (SmallSerial.is(type)) return SmallSerial;
+	if (BigSerial.is(type)) return BigSerial;
 	// no sql type
 	return null;
 };
@@ -1797,6 +1848,10 @@ export const defaultToSQL = (
 
 export const isDefaultAction = (action: string) => {
 	return action.toLowerCase() === 'no action';
+};
+
+export const isSerialType = (type: string) => {
+	return /^(?:serial|bigserial|smallserial)$/i.test(type);
 };
 
 export const defaults = {
