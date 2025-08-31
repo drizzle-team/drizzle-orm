@@ -115,7 +115,7 @@ export const diffIntrospect = async (
 	for (const st of init) await db.query(st);
 
 	// introspect to schema
-	const schema = await fromDatabaseForDrizzle(db, (_) => true, (it) => schemas.indexOf(it) >= 0);
+	const schema = await fromDatabaseForDrizzle(db, undefined, (it) => schemas.indexOf(it) >= 0);
 
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
