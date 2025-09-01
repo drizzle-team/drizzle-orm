@@ -35,7 +35,7 @@ export interface SqlType<MODE = unknown> {
 	drizzleImport(vendor?: 'singlestore' | 'mysql'): Import;
 	defaultFromDrizzle(value: unknown, mode?: MODE): Column['default'];
 	defaultFromIntrospect(value: string): Column['default'];
-	toTs(type: string, value: Column['default']): { options?: Record<string, unknown>; default: string } | string;
+	toTs(type: string, value: Column['default']): { options?: Record<string, unknown>; default: string; customType?: string } | string; // customType for Custom
 }
 
 const IntOps: Pick<SqlType, 'defaultFromDrizzle' | 'defaultFromIntrospect'> = {
@@ -479,6 +479,24 @@ export const Enum: SqlType = {
 	},
 };
 
+export const Custom: SqlType = {
+	is: () => {
+		throw Error('Mocked');
+	},
+	drizzleImport: () => 'customType',
+	defaultFromDrizzle: (value) => {
+		return escapeForSqlDefault(value as string);
+	},
+	defaultFromIntrospect: (value) => {
+		return escapeForSqlDefault(value as string);
+	},
+	toTs: (type, def) => {
+		if (!def) return { default: '', customType: type };
+		const unescaped = escapeForTsLiteral(unescapeFromSqlDefault(trimChar(def, "'")));
+		return { default: `"${unescaped}"`, customType: type };
+	},
+};
+
 export const typeFor = (sqlType: string): SqlType => {
 	if (Boolean.is(sqlType)) return Boolean;
 	if (TinyInt.is(sqlType)) return TinyInt;
@@ -506,7 +524,7 @@ export const typeFor = (sqlType: string): SqlType => {
 	if (Time.is(sqlType)) return Time;
 	if (Year.is(sqlType)) return Year;
 	if (Enum.is(sqlType)) return Enum;
-	throw new Error(`unknown sql type: ${sqlType}`);
+	return Custom;
 };
 
 type InvalidDefault = 'text_no_parentecies';
