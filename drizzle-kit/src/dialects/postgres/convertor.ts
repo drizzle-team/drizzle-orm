@@ -368,7 +368,11 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 			type = `${typeSchema}${column.typeSchema ? `"${column.type}"` : column.type}`;
 		}
 
-		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${type}${"[]".repeat(column.dimensions)}${suffix};`);
+		statements.push(
+			`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${type}${
+				'[]'.repeat(column.dimensions)
+			}${suffix};`,
+		);
 
 		if (recreateDefault) {
 			statements.push(
@@ -694,7 +698,9 @@ const recreateEnumConvertor = convertor('recreate_enum', (st) => {
 	const statements: string[] = [];
 	for (const column of columns) {
 		const key = column.schema !== 'public' ? `"${column.schema}"."${column.table}"` : `"${column.table}"`;
-		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE text${'[]'.repeat(column.dimensions)};`);
+		statements.push(
+			`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE text${'[]'.repeat(column.dimensions)};`,
+		);
 		if (column.default) statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" DROP DEFAULT;`);
 	}
 	statements.push(dropEnumConvertor.convert({ enum: to }) as string);
@@ -704,7 +710,9 @@ const recreateEnumConvertor = convertor('recreate_enum', (st) => {
 		const key = column.schema !== 'public' ? `"${column.schema}"."${column.table}"` : `"${column.table}"`;
 		const enumType = to.schema !== 'public' ? `"${to.schema}"."${to.name}"` : `"${to.name}"`;
 		statements.push(
-			`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${enumType}${'[]'.repeat(column.dimensions)} USING "${column.name}"::${enumType}${'[]'.repeat(column.dimensions)};`,
+			`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${enumType}${
+				'[]'.repeat(column.dimensions)
+			} USING "${column.name}"::${enumType}${'[]'.repeat(column.dimensions)};`,
 		);
 		if (column.default) {
 			statements.push(

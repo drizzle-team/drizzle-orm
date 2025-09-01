@@ -1699,6 +1699,4 @@ test('constraints order', async () => {
 
 	const { sqlStatements: st } = await diff({}, to, []);
 	const { sqlStatements: pst } = await push({ db, to });
-
-	
 });
