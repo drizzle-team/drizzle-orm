@@ -135,9 +135,7 @@ export const bufferToBinary = (str: Buffer) => {
 
 export const parseDefault = (type: string, def: string) => {
 	const grammarType = typeFor(type);
-	if (grammarType) return grammarType.defaultFromIntrospect(def);
-
-	throw Error(`Unknown default ${type} ${def}`);
+	return grammarType.defaultFromIntrospect(def);
 };
 
 const commutativeTypes = [
@@ -210,7 +208,7 @@ export interface SqlType {
 	toTs(
 		type: string,
 		value: DefaultConstraint['default'],
-	): { options?: Record<string, unknown>; default: string };
+	): { options?: Record<string, unknown>; default: string; customType?: string };
 }
 
 export const Int: SqlType = {
@@ -748,7 +746,23 @@ export const Varbinary: SqlType = {
 	toTs: Binary.toTs,
 };
 
-export const typeFor = (sqlType: string): SqlType | null => {
+export const Custom: SqlType = {
+	is: () => {
+		throw Error('Mocked');
+	},
+	drizzleImport: () => 'customType',
+	defaultFromDrizzle: (value) => {
+		return `('${String(value)}')`;
+	},
+	defaultFromIntrospect: (value) => {
+		return value;
+	},
+	toTs: (type, value) => {
+		return { default: `sql\`${value}\``, customType: type };
+	},
+};
+
+export const typeFor = (sqlType: string): SqlType => {
 	if (Int.is(sqlType)) return Int;
 	if (TinyInt.is(sqlType)) return TinyInt;
 	if (SmallInt.is(sqlType)) return SmallInt;
@@ -771,5 +785,5 @@ export const typeFor = (sqlType: string): SqlType | null => {
 	if (Time.is(sqlType)) return Time;
 	if (Binary.is(sqlType)) return Binary;
 	if (Varbinary.is(sqlType)) return Varbinary;
-	return null;
+	return Custom;
 };

@@ -41,6 +41,7 @@ const imports = [
 	'tinyint',
 	'varbinary',
 	'tinyint',
+	'customType',
 ] as const;
 export type Import = (typeof imports)[number];
 
@@ -167,7 +168,7 @@ export const ddlToTypeScript = (
 
 		if (x.entityType === 'columns' || x.entityType === 'viewColumns') {
 			const grammarType = typeFor(x.type);
-			if (grammarType) imports.add(grammarType.drizzleImport());
+			imports.add(grammarType.drizzleImport());
 			if (mssqlImportsList.has(x.type)) imports.add(x.type);
 		}
 	}
@@ -305,19 +306,14 @@ const column = (
 	const lowered = type.toLowerCase();
 
 	const grammarType = typeFor(lowered);
-	if (grammarType) {
-		const key = withCasing(name, casing);
-		const { default: defToSet, options: optionsToSet } = grammarType.toTs(type, def);
-		const columnName = dbColumnName({ name, casing, withMode: Boolean(optionsToSet) });
-		const drizzleType = grammarType.drizzleImport();
+	const key = withCasing(name, casing);
+	const { default: defToSet, options: optionsToSet, customType } = grammarType.toTs(type, def);
+	const columnName = dbColumnName({ name, casing, withMode: Boolean(optionsToSet) });
+	const drizzleType = grammarType.drizzleImport();
 
-		let res = `${key}: ${drizzleType}(${columnName}${inspect(optionsToSet)})`;
-		res += defToSet ? defToSet.startsWith('.') ? defToSet : `.default(${defToSet})` : '';
-		return res;
-	}
-
-	console.log('uknown', type);
-	return `// Warning: Can't parse ${type} from database\n\t// ${type}Type: ${type}("${name}")`;
+	let res = `${key}: ${drizzleType}${customType ? `({ dataType: () => '${customType}' })` : ''}(${columnName}${inspect(optionsToSet)})`;
+	res += defToSet ? defToSet.startsWith('.') ? defToSet : `.default(${defToSet})` : '';
+	return res;
 };
 
 const createViewColumns = (
