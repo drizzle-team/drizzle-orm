@@ -34,6 +34,7 @@ export const imports = [
 	'year',
 	'mysqlEnum',
 	'singlestoreEnum',
+	'customType',
 	// TODO: add new type BSON
 	// TODO: add new type Blob
 	// TODO: add new type UUID
@@ -126,7 +127,7 @@ export const ddlToTypeScript = (
 
 		if (it.entityType === 'columns' || it.entityType === 'viewColumn') {
 			const grammarType = typeFor(it.type);
-			if (grammarType) imports.add(grammarType.drizzleImport(vendor));
+			imports.add(grammarType.drizzleImport(vendor));
 			if (mysqlImportsList.has(it.type)) imports.add(it.type);
 		}
 	}
@@ -258,25 +259,20 @@ const column = (
 	}
 
 	const grammarType = typeFor(lowered);
-	if (grammarType) {
-		const key = casing(name);
-		const columnName = dbColumnName({ name, casing: rawCasing });
-		const ts = grammarType.toTs(lowered, defaultValue);
-		const { default: def, options } = typeof ts === 'string' ? { default: ts, options: {} } : ts;
+	const key = casing(name);
+	const columnName = dbColumnName({ name, casing: rawCasing });
+	const ts = grammarType.toTs(lowered, defaultValue);
+	const { default: def, options, customType } = typeof ts === 'string' ? { default: ts, options: {} } : ts;
 
-		const drizzleType = grammarType.drizzleImport();
-		const defaultStatement = def ? def.startsWith('.') ? def : `.default(${def})` : '';
-		const paramsString = inspect(options);
-		const comma = columnName && paramsString ? ', ' : '';
+	const drizzleType = grammarType.drizzleImport();
+	const defaultStatement = def ? def.startsWith('.') ? def : `.default(${def})` : '';
+	const paramsString = inspect(options);
+	const comma = columnName && paramsString ? ', ' : '';
 
-		let res = `${key}: ${drizzleType}(${columnName}${comma}${paramsString})`;
-		res += autoincrement ? `.autoincrement()` : '';
-		res += defaultStatement;
-		return res;
-	}
-
-	console.log('uknown', type);
-	return `// Warning: Can't parse ${type} from database\n\t// ${type}Type: ${type}("${name}")`;
+	let res = `${key}: ${drizzleType}${customType ? `({ dataType: () => '${customType}' })` : ''}(${columnName}${comma}${paramsString})`;
+	res += autoincrement ? `.autoincrement()` : '';
+	res += defaultStatement;
+	return res;
 };
 
 const createTableColumns = (
