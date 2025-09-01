@@ -90,7 +90,7 @@ test('add table #3', async () => {
 
 	const st0 = [
 		'CREATE TABLE "users" (\n'
-		+ '\t"id" serial NOT NULL,\n'
+		+ '\t"id" serial,\n'
 		+ '\tCONSTRAINT "users_pk" PRIMARY KEY("id")\n'
 		+ ');\n',
 	];

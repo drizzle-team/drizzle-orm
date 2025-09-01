@@ -1010,7 +1010,7 @@ test('column is array enum type with default value. shuffle enum', async () => {
 	});
 
 	const st0 = [
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text[];`,
 		`ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;`,
 		`DROP TYPE "enum";`,
 		`CREATE TYPE "enum" AS ENUM('value1', 'value3', 'value2');`,
@@ -1049,7 +1049,7 @@ test('column is array enum with custom size type with default value. shuffle enu
 	});
 
 	const st0 = [
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text[];`,
 		`ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;`,
 		`DROP TYPE "enum";`,
 		`CREATE TYPE "enum" AS ENUM('value1', 'value3', 'value2');`,
@@ -1088,7 +1088,7 @@ test('column is array enum with custom size type. shuffle enum', async () => {
 	});
 
 	const st0 = [
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text[];`,
 		`DROP TYPE "enum";`,
 		`CREATE TYPE "enum" AS ENUM('value1', 'value3', 'value2');`,
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum"[] USING "column"::"enum"[];`,
@@ -1125,7 +1125,7 @@ test('column is array of enum with multiple dimenions with custom sizes type. sh
 	});
 
 	const st0 = [
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text[][];`,
 		`DROP TYPE "enum";`,
 		`CREATE TYPE "enum" AS ENUM('value1', 'value3', 'value2');`,
 		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE "enum"[][] USING "column"::"enum"[][];`,
@@ -1162,7 +1162,7 @@ test('column is array of enum with multiple dimenions type with custom size with
 	});
 
 	const st0 = [
-		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text;`,
+		`ALTER TABLE "table" ALTER COLUMN "column" SET DATA TYPE text[][];`,
 		`ALTER TABLE "table" ALTER COLUMN "column" DROP DEFAULT;`,
 		`DROP TYPE "enum";`,
 		`CREATE TYPE "enum" AS ENUM('value1', 'value3', 'value2');`,
@@ -1244,7 +1244,7 @@ test('column is array enum type with default value. custom schema. shuffle enum'
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0 = [
-		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE text;`,
+		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE text[];`,
 		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" DROP DEFAULT;`,
 		`DROP TYPE "new_schema"."enum";`,
 		`CREATE TYPE "new_schema"."enum" AS ENUM('value1', 'value3', 'value2');`,
@@ -1284,7 +1284,7 @@ test('column is array enum type with custom size with default value. custom sche
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0 = [
-		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE text;`,
+		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE text[];`,
 		'ALTER TABLE "new_schema"."table" ALTER COLUMN "column" DROP DEFAULT;',
 		`DROP TYPE "new_schema"."enum";`,
 		`CREATE TYPE "new_schema"."enum" AS ENUM('value1', 'value3', 'value2');`,
@@ -1324,7 +1324,7 @@ test('column is array enum type with custom size. custom schema. shuffle enum', 
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0 = [
-		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE text;`,
+		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE text[];`,
 		`DROP TYPE "new_schema"."enum";`,
 		`CREATE TYPE "new_schema"."enum" AS ENUM('value1', 'value3', 'value2');`,
 		`ALTER TABLE "new_schema"."table" ALTER COLUMN "column" SET DATA TYPE "new_schema"."enum"[] USING "column"::"new_schema"."enum"[];`,

@@ -828,6 +828,7 @@ const createTableColumns = (
 		const stripped = type.replaceAll('[]', '');
 		let grammarType = typeFor(stripped);
 		const isEnum = Boolean(typeSchema);
+
 		if (isEnum) {
 			grammarType = Enum;
 		}
@@ -847,7 +848,7 @@ const createTableColumns = (
 			: null;
 
 		let columnStatement = `${withCasing(name, casing)}: ${
-			isEnum ? withCasing(type, casing) : grammarType.drizzleImport()
+			isEnum ? withCasing(paramNameFor(type, typeSchema), casing) : grammarType.drizzleImport()
 		}(${dbName}${comma}${opts})`;
 		columnStatement += '.array()'.repeat(dimensions);
 		if (defaultValue) columnStatement += defaultValue.startsWith('.') ? defaultValue : `.default(${defaultValue})`;

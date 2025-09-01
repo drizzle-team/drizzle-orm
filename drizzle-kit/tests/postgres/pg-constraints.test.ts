@@ -1676,3 +1676,29 @@ test('unique multistep #3', async () => {
 	const { sqlStatements: st1 } = await diff(ddl1, ddl2, ['public.users->public.users2']);
 	expect(st1).toStrictEqual(['ALTER TABLE "users" RENAME TO "users2";']);
 });
+
+test('constraints order', async () => {
+	const users = pgTable('users', {
+		col1: text(),
+		col2: text(),
+	}, (t) => [
+		unique().on(t.col1, t.col2),
+	]);
+
+	const posts = pgTable('posts', {
+		col1: text(),
+		col2: text(),
+	}, (t) => [
+		foreignKey({ columns: [t.col1, t.col2], foreignColumns: [users.col1, users.col2] }),
+	]);
+
+	const to = {
+		users,
+		posts,
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	
+});

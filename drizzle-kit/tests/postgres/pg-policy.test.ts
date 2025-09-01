@@ -945,8 +945,8 @@ test('add policy + link non-schema table from auth schema', async (t) => {
 		'CREATE POLICY "test2" ON "users" AS PERMISSIVE FOR ALL TO public;',
 	]);
 	expect(pst).toStrictEqual([
-		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
 		'ALTER TABLE "auth"."cities" ENABLE ROW LEVEL SECURITY;',
+		'ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;',
 		'CREATE POLICY "test" ON "auth"."cities" AS PERMISSIVE FOR ALL TO public;',
 		'CREATE POLICY "test2" ON "users" AS PERMISSIVE FOR ALL TO public;',
 	]);

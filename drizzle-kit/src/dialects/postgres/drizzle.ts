@@ -190,7 +190,7 @@ export const defaultFromColumn = (
 	}
 
 	const { baseColumn, isEnum } = unwrapColumn(base);
-	let grammarType = typeFor(base.getSQLType());
+	let grammarType = typeFor(baseColumn.getSQLType());
 	if (!grammarType && isEnum) grammarType = EnumType;
 	if (grammarType) {
 		// if (dimensions > 0 && !Array.isArray(def)) return { value: String(def), type: 'unknown' };
@@ -218,7 +218,7 @@ export const defaultFromColumn = (
 		return grammarType.defaultFromDrizzle(def);
 	}
 
-	throw new Error();
+	throw new Error(`unexpected type ${baseColumn.getSQLType()}`);
 
 	if (is(base, PgLineABC)) {
 		return {
@@ -518,7 +518,7 @@ export const fromDrizzleSchema = (
 					schema: schema,
 					table: tableName,
 					name,
-					type: sqlType,
+					type: sqlType.replaceAll('[]', ''),
 					typeSchema: typeSchema ?? null,
 					dimensions: dimensions,
 					pk: column.primary,

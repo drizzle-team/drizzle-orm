@@ -1,5 +1,4 @@
 import { PGlite } from '@electric-sql/pglite';
-import chalk from 'chalk';
 import {
 	bigint,
 	bigserial,
@@ -217,19 +216,20 @@ const pgSuite: DialectSuite = {
 			}),
 		};
 
-		const { sqlStatements } = await diffTestSchemasPush(client, schema1, schema1, [], false, [
+		const { st1 } = await diffTestSchemasPush(client, schema1, schema1, [], false, [
 			'public',
 			'schemass',
 		]);
 
-		const { sqlStatements } = await diffTestSchemasPush({
+		const { st2 } = await diffTestSchemasPush({
 			client,
 			left: schema1,
 			right: schema1,
 			schemas: ['public', 'schemass'],
 		});
 
-		expect(sqlStatements.length).toBe(0);
+		expect(st1.length).toBe(0);
+		expect(st2.length).toBe(0);
 	},
 
 	async addBasicIndexes() {

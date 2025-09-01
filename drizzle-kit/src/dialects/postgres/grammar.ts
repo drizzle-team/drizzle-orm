@@ -340,7 +340,7 @@ export const toDefaultArray = (
 	if (depth === dimensions) {
 		const res = cb(value);
 		if (res.includes('"')) return `"${res.replaceAll('"', '\\"')}"`;
-		return res;
+		return `"${res}"`;
 	}
 
 	if (Array.isArray(value)) {
@@ -411,9 +411,6 @@ export const Jsonb: SqlType = {
 				if (typeof value !== 'string') return value;
 				return value.replaceAll("'", "''");
 			},
-			undefined,
-			undefined,
-			', ',
 		);
 		return { type: 'unknown', value: `'${stringified}'` };
 	},

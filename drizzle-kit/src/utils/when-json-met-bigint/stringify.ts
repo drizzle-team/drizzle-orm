@@ -57,7 +57,6 @@ type Stringify = <V>(
 	replacer?: (number | Number | string | String)[] | ReplacerFn | null,
 	space?: Parameters<typeof JSON.stringify>[2] | Number | String,
 	n?: boolean,
-	delim?: string,
 ) => Stringified<V>;
 // Closure for internal state variables.
 // Serializer's internal state variables are prefixed with s_, methods are prefixed with s.
@@ -175,9 +174,7 @@ export const stringify = ((): Stringify => {
 	};
 
 	// Return the stringify function.
-	return (value, replacer, space, n, delim) => {
-		delim = delim ?? ',';
-
+	return (value, replacer, space, n) => {
 		value = toPrimitive(value) as typeof value;
 		// Reset state.
 		stack.clear();
@@ -213,6 +210,6 @@ export const stringify = ((): Stringify => {
 		// Return the result of stringifying the value.
 		// Cheating here, JSON.stringify can return undefined but overloaded types
 		// are not seen here so we cast to string to satisfy tsc
-		return sStringify({ '': value }, ``, delim, n) as Stringified<typeof value>;
+		return sStringify({ '': value }, ``, ",", n) as Stringified<typeof value>;
 	};
 })();
