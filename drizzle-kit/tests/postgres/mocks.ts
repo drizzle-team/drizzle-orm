@@ -250,10 +250,7 @@ export const diffIntrospect = async (
 	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel', 'pg');
 	writeFileSync(filePath, file.file);
 
-	const typeCheckResult = await $`pnpm exec tsc --noEmit --skipLibCheck ${filePath}`.nothrow();
-	if (typeCheckResult.exitCode !== 0) {
-		throw new Error(typeCheckResult.stderr || typeCheckResult.stdout);
-	}
+	await tsc(filePath);
 
 	// generate snapshot from ts file
 	const response = await prepareFromSchemaFiles([

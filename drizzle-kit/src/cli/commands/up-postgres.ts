@@ -79,12 +79,12 @@ export const upToV8 = (it: Record<string, any>): { snapshot: PostgresSnapshot; h
 
 			const [baseType, dimensions] = extractBaseTypeAndDimensions(column.type);
 
-			const def = defaultForColumn(baseType, column.default, dimensions);
+			let fixedType = baseType.startsWith('numeric(') ? baseType.replace(', ', ',') : baseType;
 			ddl.columns.push({
 				schema,
 				table: table.name,
 				name: column.name,
-				type: baseType,
+				type: fixedType,
 				notNull: column.notNull,
 				typeSchema: column.typeSchema ?? null, // TODO: if public - empty or missing?
 				dimensions,
@@ -101,7 +101,7 @@ export const upToV8 = (it: Record<string, any>): { snapshot: PostgresSnapshot; h
 						cycle: column.identity.cycle ?? null,
 					}
 					: null,
-				default: def,
+				default: typeof column.default === 'undefined' ? null : { type: 'unknown', value: String(column.default) },
 			});
 		}
 
