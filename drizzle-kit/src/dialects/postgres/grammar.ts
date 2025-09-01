@@ -29,8 +29,11 @@ export interface SqlType {
 	): Column['default'];
 	defaultFromIntrospect(value: string): Column['default'];
 	defaultArrayFromIntrospect(value: string): Column['default']; // todo: remove?
-	toTs(type: string, value: string | null): { options?: Record<string, unknown>; default: string };
-	toArrayTs(type: string, value: string | null): { options?: Record<string, unknown>; default: string };
+	toTs(type: string, value: string | null): { options?: Record<string, unknown>; default: string; customType?: string }; // customType for Custom
+	toArrayTs(
+		type: string,
+		value: string | null,
+	): { options?: Record<string, unknown>; default: string; customType?: string };
 }
 
 export const SmallInt: SqlType = {
@@ -784,6 +787,54 @@ export const Interval: SqlType = {
 	},
 };
 
+export const Inet: SqlType = {
+	is: (type: string) =>
+		/^inet(?:\((\d+)\))?(\[\])?$/i
+			.test(type),
+	drizzleImport: () => 'inet',
+	defaultFromDrizzle: (value) => {
+		return { value: `'${value}'`, type: 'unknown' };
+	},
+	defaultArrayFromDrizzle: (value) => {
+		const res = stringifyArray(
+			value,
+			'sql',
+			(v) => {
+				if (typeof v !== 'string') throw new Error();
+				return v;
+			},
+		);
+
+		return { value: wrapWith(res, "'"), type: 'unknown' };
+	},
+	defaultFromIntrospect: (value) => {
+		return { value: value, type: 'unknown' };
+	},
+	defaultArrayFromIntrospect: (value) => {
+		return { value: value as string, type: 'unknown' };
+	},
+	toTs: (_, value) => {
+		if (!value) return { default: '' };
+		return { default: `"${trimChar(value, "'")}"` };
+	},
+	toArrayTs: (_, value) => {
+		if (!value) return { default: '' };
+
+		try {
+			const trimmed = trimChar(trimChar(value, ['(', ')']), "'");
+			const res = parseArray(trimmed);
+
+			return {
+				default: stringifyArray(res, 'ts', (v) => {
+					return `"${v}"`;
+				}),
+			};
+		} catch {
+			return { default: `sql\`${value}\`` };
+		}
+	},
+};
+
 export const Cidr: SqlType = {
 	is: (type: string) =>
 		/^cidr(?:\((\d+)\))?(\[\])?$/i
@@ -1250,7 +1301,7 @@ export const GeometryPoint: SqlType = {
 		let def: string;
 
 		try {
-			const [srid, point] = parseEWKB(trimChar(value, "'"));
+			const { srid, point } = parseEWKB(trimChar(value, "'"));
 			let sridPrefix = srid ? `SRID=${srid};` : '';
 			def = `'${sridPrefix}POINT(${point} ${point})'`;
 		} catch (e) {
@@ -1410,7 +1461,52 @@ export const SmallSerial: SqlType = {
 	toArrayTs: Serial.toArrayTs,
 };
 
-export const typeFor = (type: string): SqlType | null => {
+export const Custom: SqlType = {
+	is: (type: string) => {
+		throw Error('Mocked');
+	},
+	drizzleImport: () => 'customType',
+	defaultFromDrizzle: (value) => {
+		if (!value) return { value: '', type: 'unknown' };
+		return { value: String(value), type: 'unknown' };
+	},
+	defaultArrayFromDrizzle: (value) => {
+		return { value: String(value), type: 'unknown' };
+	},
+	defaultFromIntrospect: (value) => {
+		return { value: value, type: 'unknown' };
+	},
+	defaultArrayFromIntrospect: (value) => {
+		return { value: value as string, type: 'unknown' };
+	},
+	toTs: (type, value) => {
+		const options: any = {};
+		if (!value) return { options, default: '', customType: type };
+		const escaped = escapeForTsLiteral(value);
+		return { default: `"${escaped}"`, customType: type };
+	},
+	toArrayTs: (type, value) => {
+		if (!value) return { default: '', customType: type };
+
+		try {
+			const trimmed = trimChar(trimChar(value, ['(', ')']), "'");
+			const res = parseArray(trimmed);
+
+			return {
+				default: stringifyArray(res, 'ts', (v) => {
+					const escaped = escapeForTsLiteral(v);
+					return `"${escaped}"`;
+				}),
+				customType: type,
+			};
+		} catch {
+			return { default: `sql\`${value}\``, customType: type };
+		}
+	},
+};
+
+export const typeFor = (type: string, isEnum: boolean): SqlType => {
+	if (isEnum) return Enum;
 	if (SmallInt.is(type)) return SmallInt;
 	if (Int.is(type)) return Int;
 	if (BigInt.is(type)) return BigInt;
@@ -1428,6 +1524,7 @@ export const typeFor = (type: string): SqlType | null => {
 	if (TimestampTz.is(type)) return TimestampTz;
 	if (Uuid.is(type)) return Uuid;
 	if (Interval.is(type)) return Interval;
+	if (Inet.is(type)) return Inet;
 	if (Cidr.is(type)) return Cidr;
 	if (MacAddr.is(type)) return MacAddr;
 	if (MacAddr8.is(type)) return MacAddr8;
@@ -1442,8 +1539,7 @@ export const typeFor = (type: string): SqlType | null => {
 	if (Serial.is(type)) return Serial;
 	if (SmallSerial.is(type)) return SmallSerial;
 	if (BigSerial.is(type)) return BigSerial;
-	// no sql type
-	return null;
+	return Custom;
 };
 
 export const splitSqlType = (sqlType: string) => {
@@ -1731,77 +1827,9 @@ export const defaultForColumn = (
 	}
 
 	let value = trimDefaultValueSuffix(def);
-
-	const grammarType = typeFor(type);
-	if (grammarType) {
-		if (dimensions > 0) return grammarType.defaultArrayFromIntrospect(value);
-		return grammarType.defaultFromIntrospect(String(value));
-	}
-
-	if (isEnum) {
-		return Enum.defaultFromIntrospect(value);
-	}
-
-	throw new Error('unexpected type' + type);
-
-	// trim ::type and []
-
-	if (type.startsWith('vector')) {
-		return { value: value, type: 'unknown' };
-	}
-
-	// numeric stores 99 as '99'::numeric
-	value = type === 'numeric' || type.startsWith('numeric(') ? trimChar(value, "'") : value;
-
-	// if (type === 'json' || type === 'jsonb') {
-	// 	if (!value.startsWith("'") && !value.endsWith("'")) {
-	// 		return { value, type: 'unknown' };
-	// 	}
-	// 	if (dimensions > 0) {
-	// 		const res = stringifyArray(parseArray(value.slice(1, value.length - 1)), 'sql', (it) => {
-	// 			return `"${JSON.stringify(JSON.parse(it.replaceAll('\\"', '"'))).replaceAll('"', '\\"')}"`;
-	// 		}).replaceAll(`\\"}", "{\\"`, `\\"}","{\\"`); // {{key:val}, {key:val}} -> {{key:val},{key:val}}
-	// 		return {
-	// 			value: res,
-	// 			type: 'json',
-	// 		};
-	// 	}
-	// 	const res = JSON.stringify(JSON.parse(value.slice(1, value.length - 1).replaceAll("''", "'")));
-	// 	return {
-	// 		value: res,
-	// 		type: 'json',
-	// 	};
-	// }
-
-	const trimmed = trimChar(value, "'"); // '{10,20}' -> {10,20}
-
-	if (/^true$|^false$/.test(trimmed)) {
-		return { value: trimmed, type: 'boolean' };
-	}
-
-	// null or NULL
-	if (/^NULL$/i.test(trimmed)) {
-		return { value: trimmed.toUpperCase(), type: 'null' };
-	}
-
-	// previous /^-?[\d.]+(?:e-?\d+)?$/
-	if (/^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(trimmed)) {
-		const num = Number(trimmed);
-		const big = num > Number.MAX_SAFE_INTEGER || num < Number.MIN_SAFE_INTEGER;
-		return { value: trimmed, type: big ? 'bigint' : 'number' };
-	}
-
-	// 'text', potentially with escaped double quotes ''
-	if (/^'(?:[^']|'')*'$/.test(value)) {
-		const res = value.substring(1, value.length - 1);
-
-		if (type === 'json' || type === 'jsonb') {
-			return { value: JSON.stringify(JSON.parse(res.replaceAll("''", "'"))), type: 'json' };
-		}
-		return { value: res, type: 'string' };
-	}
-
-	return { value: value, type: 'unknown' };
+	const grammarType = typeFor(type, isEnum);
+	if (dimensions > 0) return grammarType.defaultArrayFromIntrospect(value);
+	return grammarType.defaultFromIntrospect(String(value));
 };
 
 export const defaultToSQL = (
@@ -1810,7 +1838,7 @@ export const defaultToSQL = (
 	if (!it.default) return '';
 
 	const { type: columnType, dimensions, typeSchema } = it;
-	const { type, value } = it.default;
+	const { value } = it.default;
 
 	if (typeSchema) {
 		const schemaPrefix = typeSchema && typeSchema !== 'public' ? `"${typeSchema}".` : '';
@@ -1819,31 +1847,8 @@ export const defaultToSQL = (
 
 	const suffix = dimensions > 0 ? `::${columnType.replaceAll('[]', '')}[]` : '';
 
-	const grammarType = typeFor(columnType);
-	if (grammarType) {
-		const value = it.default.value ?? '';
-		return `${value}${suffix}`;
-	}
-
-	throw new Error('unexpected def to sql type:' + type);
-
-	// if (type === 'string') {
-	// 	return `'${value}'${suffix}`;
-	// }
-
-	// if (type === 'json') {
-	// 	return `'${value.replaceAll("'", "''")}'${suffix}`;
-	// }
-
-	// if (type === 'bigint') {
-	// 	return `'${value}'${suffix}`;
-	// }
-
-	// if (type === 'boolean' || type === 'null' || type === 'number' || type === 'func' || type === 'unknown') {
-	// 	return `${value}${suffix}`;
-	// }
-
-	// assertUnreachable(type);
+	const defaultValue = it.default.value ?? '';
+	return `${defaultValue}${suffix}`;
 };
 
 export const isDefaultAction = (action: string) => {

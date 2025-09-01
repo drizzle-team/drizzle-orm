@@ -66,6 +66,7 @@ const imports = [
 	'bit',
 	'pgEnum',
 	'gelEnum',
+	'customType',
 ] as const;
 export type Import = typeof imports[number];
 
@@ -288,8 +289,9 @@ export const ddlToTypeScript = (
 
 		if (x.entityType === 'columns' || x.entityType === 'viewColumns') {
 			let patched = x.type.replace('[]', '');
-			const grammarType = typeFor(patched);
-			if (grammarType) imports.add(grammarType.drizzleImport());
+			const isEnum = Boolean(x.typeSchema);
+			const grammarType = typeFor(patched, isEnum);
+			imports.add(grammarType.drizzleImport());
 			if (pgImportsList.has(patched)) imports.add(patched);
 		}
 
@@ -487,12 +489,12 @@ const column = (
 	dimensions: number,
 	name: string,
 	enumTypes: Set<string>,
-	typeSchema: string,
+	typeSchema: string | null,
 	casing: Casing,
 	def: Column['default'],
 ) => {
-	const grammarType = typeFor(type);
-	if (!grammarType) throw new Error(`Unsupported type: ${type}`);
+	const isEnum = Boolean(typeSchema);
+	const grammarType = typeFor(type, isEnum);
 
 	const { options, default: defaultValue } = dimensions > 0
 		? grammarType.toArrayTs(type, def?.value ?? null)
@@ -786,7 +788,7 @@ const createViewColumns = (
 			it.dimensions,
 			it.name,
 			enumTypes,
-			it.typeSchema ?? 'public',
+			it.typeSchema,
 			casing,
 			null,
 		);
@@ -826,15 +828,10 @@ const createTableColumns = (
 	for (const it of columns) {
 		const { name, type, dimensions, default: def, identity, generated, typeSchema } = it;
 		const stripped = type.replaceAll('[]', '');
-		let grammarType = typeFor(stripped);
 		const isEnum = Boolean(typeSchema);
-		if (isEnum) {
-			grammarType = Enum;
-		}
+		const grammarType = typeFor(stripped, isEnum);
 
-		if (!grammarType) throw new Error(`Unsupported type: ${type}`);
-
-		const { options, default: defaultValue } = dimensions > 0
+		const { options, default: defaultValue, customType } = dimensions > 0
 			? grammarType.toArrayTs(type, def?.value ?? null)
 			: grammarType.toTs(type, def?.value ?? null);
 
@@ -847,8 +844,8 @@ const createTableColumns = (
 			: null;
 
 		let columnStatement = `${withCasing(name, casing)}: ${
-			isEnum ? withCasing(type, casing) : grammarType.drizzleImport()
-		}(${dbName}${comma}${opts})`;
+			isEnum ? withCasing(paramNameFor(type, typeSchema), casing) : grammarType.drizzleImport()
+		}${customType ? `({ dataType: () => '${customType}' })` : ''}(${dbName}${comma}${opts})`;
 		columnStatement += '.array()'.repeat(dimensions);
 		if (defaultValue) columnStatement += defaultValue.startsWith('.') ? defaultValue : `.default(${defaultValue})`;
 		if (pk) columnStatement += '.primaryKey()';
