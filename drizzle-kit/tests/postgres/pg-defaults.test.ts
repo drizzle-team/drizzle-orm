@@ -212,17 +212,17 @@ test('bigint arrays', async () => {
 	expect.soft(res15).toStrictEqual([]);
 });
 
-test("serials", async()=>{
-	const res1 = await diffDefault(_, serial(), "");
-	const res2 = await diffDefault(_, smallserial(), "");
-	const res3 = await diffDefault(_, bigserial({ mode: "number"}), "");
-	const res4 = await diffDefault(_, bigserial({ mode: "bigint"}), "");
+test('serials', async () => {
+	const res1 = await diffDefault(_, serial(), '');
+	const res2 = await diffDefault(_, smallserial(), '');
+	const res3 = await diffDefault(_, bigserial({ mode: 'number' }), '');
+	const res4 = await diffDefault(_, bigserial({ mode: 'bigint' }), '');
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
 	expect.soft(res4).toStrictEqual([]);
-})
+});
 
 test('numeric', async () => {
 	const res1 = await diffDefault(_, numeric().default('10.123'), "'10.123'");

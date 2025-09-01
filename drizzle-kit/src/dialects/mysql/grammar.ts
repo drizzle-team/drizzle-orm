@@ -35,7 +35,10 @@ export interface SqlType<MODE = unknown> {
 	drizzleImport(vendor?: 'singlestore' | 'mysql'): Import;
 	defaultFromDrizzle(value: unknown, mode?: MODE): Column['default'];
 	defaultFromIntrospect(value: string): Column['default'];
-	toTs(type: string, value: Column['default']): { options?: Record<string, unknown>; default: string; customType?: string } | string; // customType for Custom
+	toTs(
+		type: string,
+		value: Column['default'],
+	): { options?: Record<string, unknown>; default: string; customType?: string } | string; // customType for Custom
 }
 
 const IntOps: Pick<SqlType, 'defaultFromDrizzle' | 'defaultFromIntrospect'> = {
