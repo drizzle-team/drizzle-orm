@@ -1,5 +1,6 @@
 import { createHash } from 'crypto';
-import { prepareMigrationRenames } from '../../utils';
+import { parse, stringify } from 'src/utils/when-json-met-bigint';
+import { prepareMigrationRenames, trimChar } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
 import { diffStringArrays } from '../../utils/sequence-matcher';
 import type { Resolver } from '../common';
@@ -753,6 +754,20 @@ export const ddlDiff = async (
 			&& `'${it.default.to.value}'` === it.default.from.value
 		) {
 			delete it.default;
+		}
+
+		if (
+			it.default
+			&& ((it.$left.type === 'json' && it.$right.type === 'json')
+				|| (it.$left.type === 'jsonb' && it.$right.type === 'jsonb'))
+		) {
+			if (it.default.from !== null && it.default.to !== null) {
+				const left = stringify(parse(trimChar(it.default.from.value, "'")));
+				const right = stringify(parse(trimChar(it.default.from.value, "'")));
+				if (left === right) {
+					delete it.default;
+				}
+			}
 		}
 
 		if (it.default && it.default.from?.value === it.default.to?.value) {
