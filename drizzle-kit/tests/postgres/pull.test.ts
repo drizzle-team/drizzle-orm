@@ -390,8 +390,8 @@ test('introspect all column types', async () => {
 		'introspect-all-columns-types',
 	);
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('introspect all column array types', async () => {
