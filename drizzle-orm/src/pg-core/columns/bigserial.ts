@@ -82,6 +82,7 @@ export class PgBigSerial64Builder<T extends ColumnBuilderBaseConfig<'bigint', 'P
 	constructor(name: string) {
 		super(name, 'bigint', 'PgBigSerial64');
 		this.config.hasDefault = true;
+		this.config.notNull = true;
 	}
 
 	/** @internal */
