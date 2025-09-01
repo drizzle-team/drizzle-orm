@@ -897,9 +897,9 @@ export interface RelationFieldsFilterInternals<T> {
 	lte?: T | Placeholder | undefined;
 	in?: (T | Placeholder)[] | Placeholder | undefined;
 	notIn?: (T | Placeholder)[] | Placeholder | undefined;
-	arrayContains?: (T extends Array<infer E> ? (E | Placeholder)[] : T) | Placeholder | undefined;
-	arrayContained?: (T extends Array<infer E> ? (E | Placeholder)[] : T) | Placeholder | undefined;
-	arrayOverlaps?: (T extends Array<infer E> ? (E | Placeholder)[] : T) | Placeholder | undefined;
+	arrayContains?: (T extends Array<infer E> ? (E | Placeholder)[] : (T | Placeholder)[]) | Placeholder | undefined;
+	arrayContained?: (T extends Array<infer E> ? (E | Placeholder)[] : (T | Placeholder)[]) | Placeholder | undefined;
+	arrayOverlaps?: (T extends Array<infer E> ? (E | Placeholder)[] : (T | Placeholder)[]) | Placeholder | undefined;
 	like?: string | Placeholder | undefined;
 	ilike?: string | Placeholder | undefined;
 	notLike?: string | Placeholder | undefined;
