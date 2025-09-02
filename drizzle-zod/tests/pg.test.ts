@@ -14,7 +14,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
-import { z } from 'zod/v4';
+import { z } from 'zod';
 import { jsonSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
 import { createInsertSchema, createSchemaFactory, createSelectSchema, createUpdateSchema } from '../src';
