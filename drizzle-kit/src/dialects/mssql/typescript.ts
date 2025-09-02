@@ -311,7 +311,9 @@ const column = (
 	const columnName = dbColumnName({ name, casing, withMode: Boolean(optionsToSet) });
 	const drizzleType = grammarType.drizzleImport();
 
-	let res = `${key}: ${drizzleType}${customType ? `({ dataType: () => '${customType}' })` : ''}(${columnName}${inspect(optionsToSet)})`;
+	let res = `${key}: ${drizzleType}${customType ? `({ dataType: () => '${customType}' })` : ''}(${columnName}${
+		inspect(optionsToSet)
+	})`;
 	res += defToSet ? defToSet.startsWith('.') ? defToSet : `.default(${defToSet})` : '';
 	return res;
 };
