@@ -65,7 +65,7 @@
 		}
 	},
 	"peerDependencies": {
-		"drizzle-orm": ">=0.36.4"
+		"drizzle-orm": ">=1.0.0-beta.1"
 	},
 	"peerDependenciesMeta": {
 		"drizzle-orm": {
