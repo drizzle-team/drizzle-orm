@@ -269,7 +269,9 @@ const column = (
 	const paramsString = inspect(options);
 	const comma = columnName && paramsString ? ', ' : '';
 
-	let res = `${key}: ${drizzleType}${customType ? `({ dataType: () => '${customType}' })` : ''}(${columnName}${comma}${paramsString})`;
+	let res = `${key}: ${drizzleType}${
+		customType ? `({ dataType: () => '${customType}' })` : ''
+	}(${columnName}${comma}${paramsString})`;
 	res += autoincrement ? `.autoincrement()` : '';
 	res += defaultStatement;
 	return res;

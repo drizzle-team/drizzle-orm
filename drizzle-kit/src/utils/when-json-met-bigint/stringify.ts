@@ -210,6 +210,6 @@ export const stringify = ((): Stringify => {
 		// Return the result of stringifying the value.
 		// Cheating here, JSON.stringify can return undefined but overloaded types
 		// are not seen here so we cast to string to satisfy tsc
-		return sStringify({ '': value }, ``, ",", n) as Stringified<typeof value>;
+		return sStringify({ '': value }, ``, ',', n) as Stringified<typeof value>;
 	};
 })();
