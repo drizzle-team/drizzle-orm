@@ -9,8 +9,27 @@ const singlestoreUsers = singlestoreTable('users', {
 });
 
 {
-	const db = drizzle('');
+	const db0 = drizzle('', { schema: { users: singlestoreUsers } });
 
-	await seed(db, { users: singlestoreUsers });
-	await reset(db, { users: singlestoreUsers });
+	await seed(db0, { users: singlestoreUsers });
+	await seed(db0, { users: singlestoreUsers }).refine((funcs) => ({
+		users: {
+			columns: {
+				id: funcs.intPrimaryKey(),
+			},
+		},
+	}));
+	await reset(db0, { users: singlestoreUsers });
+
+	const db1 = drizzle('');
+
+	await seed(db1, { users: singlestoreUsers });
+	await seed(db1, { users: singlestoreUsers }).refine((funcs) => ({
+		users: {
+			columns: {
+				id: funcs.intPrimaryKey(),
+			},
+		},
+	}));
+	await reset(db1, { users: singlestoreUsers });
 }
