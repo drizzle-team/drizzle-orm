@@ -10,8 +10,27 @@ const cockroachUsers = cockroachTable('users', {
 });
 
 {
-	const db = drizzle('');
+	const db0 = drizzle('', { schema: { users: cockroachUsers } });
 
-	await seed(db, { users: cockroachUsers });
-	await reset(db, { users: cockroachUsers });
+	await seed(db0, { users: cockroachUsers });
+	await seed(db0, { users: cockroachUsers }).refine((funcs) => ({
+		users: {
+			columns: {
+				id: funcs.intPrimaryKey(),
+			},
+		},
+	}));
+	await reset(db0, { users: cockroachUsers });
+
+	const db1 = drizzle('');
+
+	await seed(db1, { users: cockroachUsers });
+	await seed(db1, { users: cockroachUsers }).refine((funcs) => ({
+		users: {
+			columns: {
+				id: funcs.intPrimaryKey(),
+			},
+		},
+	}));
+	await reset(db1, { users: cockroachUsers });
 }

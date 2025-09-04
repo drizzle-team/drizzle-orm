@@ -10,12 +10,12 @@ import type { Prettify } from './tables.ts';
 export type GeneratedValueType = number | bigint | string | Buffer | boolean | undefined;
 
 export type DbType =
-	| PgDatabase<any, any>
-	| MySqlDatabase<any, any>
-	| BaseSQLiteDatabase<any, any>
-	| MsSqlDatabase<any, any>
-	| CockroachDatabase<any, any>
-	| SingleStoreDatabase<any, any>;
+	| PgDatabase<any, any, any>
+	| MySqlDatabase<any, any, any, any>
+	| BaseSQLiteDatabase<any, any, any, any>
+	| MsSqlDatabase<any, any, any, any>
+	| CockroachDatabase<any, any, any>
+	| SingleStoreDatabase<any, any, any, any>;
 
 export type TableType = PgTable | MySqlTable | SQLiteTable | MsSqlTable | CockroachTable | SingleStoreTable;
 
