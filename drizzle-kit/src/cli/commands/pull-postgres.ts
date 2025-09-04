@@ -154,32 +154,7 @@ export const introspect = async (
 	entities: Entities,
 	progress: TaskView,
 ) => {
-	const matchers = filters.map((it) => {
-		return new Minimatch(it);
-	});
-
-	const filter = (_schemaName: string, tableName: string) => {
-		if (matchers.length === 0) return true;
-
-		let flags: boolean[] = [];
-
-		for (let matcher of matchers) {
-			if (matcher.negate) {
-				if (!matcher.match(tableName)) {
-					flags.push(false);
-				}
-			}
-
-			if (matcher.match(tableName)) {
-				flags.push(true);
-			}
-		}
-
-		if (flags.length > 0) {
-			return flags.every(Boolean);
-		}
-		return false;
-	};
+	const filter = prepareTablesFilter(filters);
 
 	const schemaFilter = typeof schemaFilters === 'function'
 		? schemaFilters

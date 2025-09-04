@@ -799,7 +799,7 @@ export const fromDatabase = async (
 			// .replace(' with time zone', '')
 			// .replace("timestamp without time zone", "timestamp")
 			.replace('character', 'char')
-			.replace('geometry(Point)', 'geometry(point)');
+			.replace('geometry(Point', 'geometry(point');
 
 		columnTypeMapped = trimChar(columnTypeMapped, '"');
 

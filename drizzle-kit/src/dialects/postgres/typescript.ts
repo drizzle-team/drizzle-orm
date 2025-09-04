@@ -496,7 +496,7 @@ const column = (
 	const isEnum = Boolean(typeSchema);
 	const grammarType = typeFor(type, isEnum);
 
-	const { options, default: defaultValue } = dimensions > 0
+	const { options, default: defaultValue, customType } = dimensions > 0
 		? grammarType.toArrayTs(type, def?.value ?? null)
 		: grammarType.toTs(type, def?.value ?? null);
 
@@ -504,11 +504,13 @@ const column = (
 	const opts = inspect(options);
 	const comma = (dbName && opts) ? ', ' : '';
 
-	let col = `${withCasing(name, casing)}: ${grammarType.drizzleImport()}(${dbName}${comma}${opts})`;
-	col += '.array()'.repeat(dimensions);
+	let columnStatement = `${withCasing(name, casing)}: ${
+		isEnum ? withCasing(paramNameFor(type, typeSchema), casing) : grammarType.drizzleImport()
+	}${customType ? `({ dataType: () => '${customType}' })` : ''}(${dbName}${comma}${opts})`;
+	columnStatement += '.array()'.repeat(dimensions);
 
-	if (defaultValue) col += `.default(${defaultValue})`;
-	return col;
+	if (defaultValue) columnStatement += `.default(${defaultValue})`;
+	return columnStatement;
 
 	if (enumTypes.has(`${typeSchema}.${type.replace('[]', '')}`)) {
 		let out = `${withCasing(name, casing)}: ${withCasing(paramNameFor(type.replace('[]', ''), typeSchema), casing)}(${

@@ -46,7 +46,7 @@ export class PgGeometry<T extends ColumnBaseConfig<'array', 'PgGeometry'>>
 	readonly mode = 'tuple';
 
 	getSQLType(): string {
-		return 'geometry(point)';
+		return `geometry(point${this.srid === undefined ? '' : `,${this.srid}`})`;
 	}
 
 	override mapFromDriverValue(value: string): [number, number] {
@@ -97,7 +97,7 @@ export class PgGeometryObject<T extends ColumnBaseConfig<'json', 'PgGeometryObje
 	readonly mode = 'object';
 
 	getSQLType(): string {
-		return 'geometry(point)';
+		return `geometry(point${this.srid === undefined ? '' : `,${this.srid}`})`;
 	}
 
 	override mapFromDriverValue(value: string): { x: number; y: number } {
