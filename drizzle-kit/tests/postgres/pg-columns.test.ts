@@ -874,6 +874,51 @@ test('geometry point with srid', async () => {
 	await postgisDb.close();
 });
 
+test('defaults: timestamptz with precision', async () => {
+	const schema1 = {
+		users: pgTable('users', {
+			time: timestamp('time', { withTimezone: true, precision: 6, mode: 'string' }).default(
+				'2023-12-12 13:00:00.123456',
+			),
+			time2: timestamp('time2', { withTimezone: true, precision: 6, mode: 'string' }).default(
+				'2023-12-12 13:00:00.123456',
+			),
+		}),
+	};
+	const schema2 = {
+		users: pgTable('users', {
+			time: timestamp('time', { withTimezone: true, precision: 6, mode: 'string' }).default(
+				'2023-12-12 13:00:00.123455',
+			),
+			time2: timestamp('time2', { withTimezone: true, precision: 6, mode: 'string' }).default(
+				'2023-12-12 13:00:00.123456',
+			),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({
+		db: db,
+		to: schema1,
+		tables: ['users'],
+		schemas: ['public'],
+	});
+	const { sqlStatements: pst } = await push({
+		db: db,
+		to: schema2,
+		tables: ['users'],
+		schemas: ['public'],
+	});
+
+	const st0: string[] = [
+		`ALTER TABLE "users" ALTER COLUMN "time" SET DEFAULT '2023-12-12 13:00:00.123455+00';`,
+	];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
 test('no diffs for all database types', async () => {
 	const customSchema = pgSchema('schemass');
 
