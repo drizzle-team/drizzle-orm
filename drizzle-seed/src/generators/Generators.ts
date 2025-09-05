@@ -1481,6 +1481,8 @@ export class GenerateString extends AbstractGenerator<{
 			);
 			currStr += stringChars[idx];
 		}
+
+		if (this.dataType === 'object') return Buffer.from(currStr);
 		return currStr;
 	}
 }
@@ -1525,7 +1527,10 @@ export class GenerateUniqueString extends AbstractGenerator<{ isUnique?: boolean
 			currStr += stringChars[idx];
 		}
 
-		return currStr.slice(0, 4) + uniqueStr + currStr.slice(4);
+		currStr = currStr.slice(0, 4) + uniqueStr + currStr.slice(4);
+
+		if (this.dataType === 'object') return Buffer.from(currStr);
+		return currStr;
 	}
 }
 
@@ -2937,7 +2942,7 @@ export class GeneratePoint extends AbstractGenerator<{
 		const x = this.state.xCoordinateGen.generate();
 		const y = this.state.yCoordinateGen.generate();
 
-		if (this.dataType === 'json') {
+		if (this.dataType === 'object') {
 			return { x, y };
 		} else if (this.dataType === 'string') {
 			return `[${x}, ${y}]`;
@@ -2990,7 +2995,7 @@ export class GenerateUniquePoint extends AbstractGenerator<{
 		const x = this.state.xCoordinateGen.generate();
 		const y = this.state.yCoordinateGen.generate();
 
-		if (this.dataType === 'json') {
+		if (this.dataType === 'object') {
 			return { x, y };
 		} else if (this.dataType === 'string') {
 			return `[${x}, ${y}]`;
@@ -3062,7 +3067,7 @@ export class GenerateLine extends AbstractGenerator<{
 
 		const c = this.state.cCoefficientGen.generate();
 
-		if (this.dataType === 'json') {
+		if (this.dataType === 'object') {
 			return { a, b, c };
 		} else if (this.dataType === 'string') {
 			return `[${a}, ${b}, ${c}]`;
@@ -3132,7 +3137,7 @@ export class GenerateUniqueLine extends AbstractGenerator<{
 
 		const c = this.state.cCoefficientGen.generate();
 
-		if (this.dataType === 'json') {
+		if (this.dataType === 'object') {
 			return { a, b, c };
 		} else if (this.dataType === 'string') {
 			return `[${a}, ${b}, ${c}]`;

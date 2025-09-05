@@ -1,4 +1,4 @@
-import { getColumnTable, getTableName, is } from 'drizzle-orm';
+import { Column as DrizzleColumn, getColumnTable, getTableName, is } from 'drizzle-orm';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
@@ -129,7 +129,7 @@ export const getSchemaInfo = (
 
 		const tableConfig = getTableConfig(table);
 		for (const [tsCol, col] of Object.entries(getColumnTable(tableConfig.columns[0]!))) {
-			dbToTsColumnNamesMap[col.name] = tsCol;
+			if (is(col, DrizzleColumn)) dbToTsColumnNamesMap[col.name] = tsCol;
 		}
 		dbToTsColumnNamesMapGlobal[tableName] = dbToTsColumnNamesMap;
 
@@ -139,10 +139,7 @@ export const getSchemaInfo = (
 	for (const table of Object.values(drizzleTables)) {
 		tableConfig = getTableConfig(table);
 
-		dbToTsColumnNamesMap = {};
-		for (const [tsCol, col] of Object.entries(getColumnTable(tableConfig.columns[0]!))) {
-			dbToTsColumnNamesMap[col.name] = tsCol;
-		}
+		dbToTsColumnNamesMap = getDbToTsColumnNamesMap(table);
 
 		// might be empty list
 		const newRelations = tableConfig.foreignKeys === undefined ? [] : tableConfig.foreignKeys.map((fk) => {
