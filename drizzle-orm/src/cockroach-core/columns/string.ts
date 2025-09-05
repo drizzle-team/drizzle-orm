@@ -11,13 +11,14 @@ export class CockroachStringBuilder<TEnum extends [string, ...string[]]> extends
 		enumValues: TEnum;
 		driverParam: string;
 	},
-	{ enumValues: TEnum | undefined }
+	{ enumValues: TEnum | undefined; length: number | undefined }
 > {
 	static override readonly [entityKind]: string = 'CockroachStringBuilder';
 
 	constructor(name: string, config: CockroachStringConfig<TEnum>) {
 		super(name, config.enum?.length ? 'string enum' : 'string', 'CockroachString');
 		this.config.enumValues = config.enum;
+		this.config.length = config.length;
 	}
 
 	/** @internal */

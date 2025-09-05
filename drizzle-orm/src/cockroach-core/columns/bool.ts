@@ -36,3 +36,5 @@ export class CockroachBoolean<T extends ColumnBaseConfig<'boolean'>> extends Coc
 export function bool(name?: string) {
 	return new CockroachBooleanBuilder(name ?? '');
 }
+
+export const boolean = bool;
