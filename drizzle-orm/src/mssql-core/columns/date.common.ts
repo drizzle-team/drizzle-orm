@@ -1,10 +1,10 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderExtraConfig, ColumnDataType } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, ColumnBuilderExtraConfig, ColumnType } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import { sql } from '~/sql/sql.ts';
 import { MsSqlColumnBuilder } from './common.ts';
 
 export abstract class MsSqlDateColumnBaseBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string>,
+	T extends ColumnBuilderBaseConfig<ColumnType>,
 	TRuntimeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
 > extends MsSqlColumnBuilder<T, TRuntimeConfig, TExtraConfig> {

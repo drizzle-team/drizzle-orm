@@ -9,10 +9,11 @@ import { Client } from 'pg';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { randomString } from '~/utils';
 import { createDockerDB } from './pg-common';
+import relations from './relations';
 
 const ENABLE_LOGGING = false;
 
-let db: NodePgDatabase;
+let db: NodePgDatabase<never, typeof relations>;
 let client: Client;
 let container: Docker.Container | undefined;
 
@@ -39,7 +40,7 @@ beforeAll(async () => {
 			client?.end();
 		},
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
 });
 
 afterAll(async () => {

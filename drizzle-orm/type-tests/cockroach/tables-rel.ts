@@ -1,5 +1,5 @@
+import { relations } from '~/_relations.ts';
 import { cockroachTable, foreignKey, int4, text, timestamp } from '~/cockroach-core/index.ts';
-import { relations } from '~/relations.ts';
 
 export const users = cockroachTable('users', {
 	id: int4('id').primaryKey(),

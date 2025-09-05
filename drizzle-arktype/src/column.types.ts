@@ -1,5 +1,5 @@
-import { Type, type } from 'arktype';
-import type { Column } from 'drizzle-orm';
+import type { Type, type } from 'arktype';
+import type { Column, ColumnTypeData, ExtractColumnTypeData } from 'drizzle-orm';
 import type { Json } from './utils.ts';
 
 export type ArktypeNullable<TSchema> = Type<type.infer<TSchema> | null>;
@@ -8,14 +8,9 @@ export type ArktypeOptional<TSchema> = [Type<type.infer<TSchema>>, '?'];
 
 export type GetArktypeType<
 	TColumn extends Column,
-> = TColumn['_']['columnType'] extends
-	| 'PgJson'
-	| 'PgJsonb'
-	| 'MySqlJson'
-	| 'SingleStoreJson'
-	| 'SQLiteTextJson'
-	| 'SQLiteBlobJson'
-	| 'CockroachJsonb' ? unknown extends TColumn['_']['data'] ? Type<Json> : Type<TColumn['_']['data']>
+	TType extends ColumnTypeData = ExtractColumnTypeData<TColumn['_']['dataType']>,
+> = TType['constraint'] extends 'json' ? unknown extends TColumn['_']['data'] ? Type<Json> : Type<TColumn['_']['data']>
+	: TType['type'] extends 'custom' ? Type<any>
 	: Type<TColumn['_']['data']>;
 
 type HandleSelectColumn<

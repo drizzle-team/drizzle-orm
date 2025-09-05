@@ -1,53 +1,42 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
+import type { AnyMsSqlTable, MsSqlTable } from '~/mssql-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { MsSqlColumn } from './common.ts';
 import type { MsSqlDatetimeConfig } from './date.common.ts';
 import { MsSqlDateColumnBaseBuilder } from './date.common.ts';
 
-export type MsSqlDateTime2BuilderInitial<TName extends string> = MsSqlDateTime2Builder<
-	{
-		name: TName;
-		dataType: 'date';
-		columnType: 'MsSqlDateTime2';
-		data: Date;
-		driverParam: string | Date;
-		enumValues: undefined;
-		generated: undefined;
-	}
->;
-
-export class MsSqlDateTime2Builder<T extends ColumnBuilderBaseConfig<'date', 'MsSqlDateTime2'>>
-	extends MsSqlDateColumnBaseBuilder<T, MsSqlDatetimeConfig>
-{
+export class MsSqlDateTime2Builder extends MsSqlDateColumnBaseBuilder<{
+	dataType: 'object date';
+	data: Date;
+	driverParam: string | Date;
+}, MsSqlDatetimeConfig> {
 	static override readonly [entityKind]: string = 'MsSqlDateTime2Builder';
 
-	constructor(name: T['name'], config: MsSqlDatetimeConfig | undefined) {
-		super(name, 'date', 'MsSqlDateTime2');
+	constructor(name: string, config: MsSqlDatetimeConfig | undefined) {
+		super(name, 'object date', 'MsSqlDateTime2');
 		this.config.precision = config?.precision;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMsSqlTable<{ name: TTableName }>,
-	): MsSqlDateTime2<MakeColumnConfig<T, TTableName>> {
-		return new MsSqlDateTime2<MakeColumnConfig<T, TTableName>>(
+	) {
+		return new MsSqlDateTime2(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config,
 		);
 	}
 }
 
-export class MsSqlDateTime2<T extends ColumnBaseConfig<'date', 'MsSqlDateTime2'>> extends MsSqlColumn<T> {
+export class MsSqlDateTime2<T extends ColumnBaseConfig<'object date'>> extends MsSqlColumn<T> {
 	static override readonly [entityKind]: string = 'MsSqlDateTime2';
 
 	readonly precision: number | undefined;
 
 	constructor(
-		table: AnyMsSqlTable<{ name: T['tableName'] }>,
-		config: MsSqlDateTime2Builder<T>['config'],
+		table: MsSqlTable<any>,
+		config: MsSqlDateTime2Builder['config'],
 	) {
 		super(table, config);
 		this.precision = config.precision;
@@ -59,47 +48,37 @@ export class MsSqlDateTime2<T extends ColumnBaseConfig<'date', 'MsSqlDateTime2'>
 	}
 }
 
-export type MsSqlDateTime2StringBuilderInitial<TName extends string> = MsSqlDateTime2StringBuilder<
-	{
-		name: TName;
-		dataType: 'string';
-		columnType: 'MsSqlDateTime2String';
-		data: string;
-		driverParam: string | Date;
-		enumValues: undefined;
-		generated: undefined;
-	}
->;
-
-export class MsSqlDateTime2StringBuilder<T extends ColumnBuilderBaseConfig<'string', 'MsSqlDateTime2String'>>
-	extends MsSqlDateColumnBaseBuilder<T, MsSqlDatetimeConfig>
-{
+export class MsSqlDateTime2StringBuilder extends MsSqlDateColumnBaseBuilder<{
+	dataType: 'string datetime';
+	data: string;
+	driverParam: string | Date;
+}, MsSqlDatetimeConfig> {
 	static override readonly [entityKind]: string = 'MsSqlDateTime2StringBuilder';
 
-	constructor(name: T['name'], config: MsSqlDatetimeConfig | undefined) {
-		super(name, 'string', 'MsSqlDateTime2String');
+	constructor(name: string, config: MsSqlDatetimeConfig | undefined) {
+		super(name, 'string datetime', 'MsSqlDateTime2String');
 		this.config.precision = config?.precision;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMsSqlTable<{ name: TTableName }>,
-	): MsSqlDateTime2String<MakeColumnConfig<T, TTableName>> {
-		return new MsSqlDateTime2String<MakeColumnConfig<T, TTableName>>(
+	) {
+		return new MsSqlDateTime2String(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config,
 		);
 	}
 }
 
-export class MsSqlDateTime2String<T extends ColumnBaseConfig<'string', 'MsSqlDateTime2String'>> extends MsSqlColumn<T> {
+export class MsSqlDateTime2String<T extends ColumnBaseConfig<'string datetime'>> extends MsSqlColumn<T> {
 	static override readonly [entityKind]: string = 'MsSqlDateTime2String';
 
 	readonly precision: number | undefined;
 
 	constructor(
-		table: AnyMsSqlTable<{ name: T['tableName'] }>,
-		config: MsSqlDateTime2StringBuilder<T>['config'],
+		table: MsSqlTable<any>,
+		config: MsSqlDateTime2StringBuilder['config'],
 	) {
 		super(table, config);
 		this.precision = config.precision;
@@ -114,16 +93,14 @@ export class MsSqlDateTime2String<T extends ColumnBaseConfig<'string', 'MsSqlDat
 		return typeof value === 'string' ? value : value?.toISOString() ?? null;
 	}
 }
-
-export function datetime2(): MsSqlDateTime2BuilderInitial<''>;
 export function datetime2<TMode extends MsSqlDatetimeConfig['mode'] & {}>(
 	config?: MsSqlDatetimeConfig<TMode>,
-): Equal<TMode, 'string'> extends true ? MsSqlDateTime2StringBuilderInitial<''> : MsSqlDateTime2BuilderInitial<''>;
-export function datetime2<TName extends string, TMode extends MsSqlDatetimeConfig['mode'] & {}>(
-	name: TName,
+): Equal<TMode, 'string'> extends true ? MsSqlDateTime2StringBuilder : MsSqlDateTime2Builder;
+export function datetime2<TMode extends MsSqlDatetimeConfig['mode'] & {}>(
+	name: string,
 	config?: MsSqlDatetimeConfig<TMode>,
-): Equal<TMode, 'string'> extends true ? MsSqlDateTime2StringBuilderInitial<TName>
-	: MsSqlDateTime2BuilderInitial<TName>;
+): Equal<TMode, 'string'> extends true ? MsSqlDateTime2StringBuilder
+	: MsSqlDateTime2Builder;
 export function datetime2(a?: string | MsSqlDatetimeConfig, b?: MsSqlDatetimeConfig) {
 	const { name, config } = getColumnNameAndConfig<MsSqlDatetimeConfig | undefined>(a, b);
 	if (config?.mode === 'string') {

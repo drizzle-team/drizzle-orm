@@ -1,4 +1,4 @@
-import type { ChangeColumnTableName, ColumnDataType, Dialect } from '~/column-builder.ts';
+import type { ChangeColumnTableName, ColumnType, Dialect } from '~/column-builder.ts';
 import type { AnyColumn, Column, ColumnBaseConfig, GetColumnData, UpdateColConfig } from '~/column.ts';
 import type { SelectedFields } from '~/operations.ts';
 import type { ColumnsSelection, SQL, View } from '~/sql/sql.ts';
@@ -21,7 +21,7 @@ export type ApplyNullabilityToColumn<TColumn extends Column, TNullability extend
 				UpdateColConfig<TColumn['_'], {
 					notNull: TNullability extends 'nullable' ? false : TColumn['_']['notNull'];
 				}>,
-				ColumnBaseConfig<ColumnDataType, string>
+				ColumnBaseConfig<ColumnType>
 			>
 		>;
 

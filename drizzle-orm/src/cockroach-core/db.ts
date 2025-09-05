@@ -1,3 +1,4 @@
+import type * as V1 from '~/_relations.ts';
 import type { CockroachDialect } from '~/cockroach-core/dialect.ts';
 import {
 	CockroachDeleteBase,
@@ -17,7 +18,6 @@ import type {
 import type { CockroachTable } from '~/cockroach-core/table.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
-import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
@@ -35,7 +35,7 @@ import type { CockroachMaterializedView } from './view.ts';
 export class CockroachDatabase<
 	TQueryResult extends CockroachQueryResultHKT,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
-	TSchema extends TablesRelationalConfig = ExtractTablesWithRelations<TFullSchema>,
+	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
 > {
 	static readonly [entityKind]: string = 'CockroachDatabase';
 
@@ -46,7 +46,7 @@ export class CockroachDatabase<
 		readonly session: CockroachSession<TQueryResult, TFullSchema, TSchema>;
 	};
 
-	query: TFullSchema extends Record<string, never>
+	_query: TFullSchema extends Record<string, never>
 		? DrizzleTypeError<'Seems like the schema generic is missing - did you forget to add it to your DB type?'>
 		: {
 			[K in keyof TSchema]: RelationalQueryBuilder<TSchema, TSchema[K]>;
@@ -57,7 +57,7 @@ export class CockroachDatabase<
 		readonly dialect: CockroachDialect,
 		/** @internal */
 		readonly session: CockroachSession<any, any, any>,
-		schema: RelationalSchemaConfig<TSchema> | undefined,
+		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 	) {
 		this._ = schema
 			? {
@@ -72,10 +72,10 @@ export class CockroachDatabase<
 				tableNamesMap: {},
 				session,
 			};
-		this.query = {} as typeof this['query'];
+		this._query = {} as typeof this['_query'];
 		if (this._.schema) {
 			for (const [tableName, columns] of Object.entries(this._.schema)) {
-				(this.query as CockroachDatabase<TQueryResult, Record<string, any>>['query'])[tableName] =
+				(this._query as CockroachDatabase<TQueryResult, Record<string, any>>['_query'])[tableName] =
 					new RelationalQueryBuilder(
 						schema!.fullSchema,
 						this._.schema,
@@ -651,11 +651,11 @@ export type CockroachWithReplicas<Q> = Q & { $primary: Q };
 export const withReplicas = <
 	HKT extends CockroachQueryResultHKT,
 	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
+	TSchema extends V1.TablesRelationalConfig,
 	Q extends CockroachDatabase<
 		HKT,
 		TFullSchema,
-		TSchema extends Record<string, unknown> ? ExtractTablesWithRelations<TFullSchema> : TSchema
+		TSchema extends Record<string, unknown> ? V1.ExtractTablesWithRelations<TFullSchema> : TSchema
 	>,
 >(
 	primary: Q,
@@ -692,8 +692,8 @@ export const withReplicas = <
 		$count,
 		$with,
 		with: _with,
-		get query() {
-			return getReplica(replicas).query;
+		get _query() {
+			return getReplica(replicas)._query;
 		},
 	};
 };

@@ -24,7 +24,7 @@ import type { Table, UpdateTableConfig } from '~/table.ts';
 import type { Assume, ValidateShape } from '~/utils.ts';
 import type { PreparedQueryConfig, PreparedQueryHKTBase, PreparedQueryKind } from '../session.ts';
 import type { MsSqlViewBase } from '../view-base.ts';
-import type { MsSqlViewWithSelection } from '../view.ts';
+import type { MsSqlView, MsSqlViewWithSelection } from '../view.ts';
 import type { MsSqlSelectBase, MsSqlSelectQueryBuilderBase } from './select.ts';
 
 export interface MsSqlSelectJoinConfig {
@@ -35,14 +35,14 @@ export interface MsSqlSelectJoinConfig {
 	lateral?: boolean;
 }
 
-export type BuildAliasTable<TTable extends MsSqlTable | View, TAlias extends string> = TTable extends Table
+export type BuildAliasTable<TTable extends MsSqlTable | MsSqlView, TAlias extends string> = TTable extends Table<any>
 	? MsSqlTableWithColumns<
-		UpdateTableConfig<TTable['_']['config'], {
+		UpdateTableConfig<TTable['_'], {
 			name: TAlias;
 			columns: MapColumnsToTableAlias<TTable['_']['columns'], TAlias, 'mssql'>;
 		}>
 	>
-	: TTable extends View ? MsSqlViewWithSelection<
+	: TTable extends View<any, any, any> ? MsSqlViewWithSelection<
 			TAlias,
 			TTable['_']['existing'],
 			MapColumnsToTableAlias<TTable['_']['selectedFields'], TAlias, 'mssql'>

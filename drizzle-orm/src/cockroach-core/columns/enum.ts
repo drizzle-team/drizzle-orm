@@ -1,26 +1,12 @@
-import type { AnyCockroachTable } from '~/cockroach-core/table.ts';
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { AnyCockroachTable, CockroachTable } from '~/cockroach-core/table.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { NonArray, Writable } from '~/utils.ts';
 import { CockroachColumn, CockroachColumnWithArrayBuilder } from './common.ts';
 
 // Enum as ts enum
-
-export type CockroachEnumObjectColumnBuilderInitial<TName extends string, TValues extends object> =
-	CockroachEnumObjectColumnBuilder<{
-		name: TName;
-		dataType: 'string';
-		columnType: 'CockroachEnumObjectColumn';
-		data: TValues[keyof TValues];
-		enumValues: string[];
-		driverParam: string;
-	}>;
-
 export interface CockroachEnumObject<TValues extends object> {
-	(): CockroachEnumObjectColumnBuilderInitial<'', TValues>;
-	<TName extends string>(name: TName): CockroachEnumObjectColumnBuilderInitial<TName, TValues>;
-	<TName extends string>(name?: TName): CockroachEnumObjectColumnBuilderInitial<TName, TValues>;
+	(name?: string): CockroachEnumObjectColumnBuilder<TValues>;
 
 	readonly enumName: string;
 	readonly enumValues: string[];
@@ -29,29 +15,35 @@ export interface CockroachEnumObject<TValues extends object> {
 	[isCockroachEnumSym]: true;
 }
 
-export class CockroachEnumObjectColumnBuilder<
-	T extends ColumnBuilderBaseConfig<'string', 'CockroachEnumObjectColumn'> & { enumValues: string[] },
-> extends CockroachColumnWithArrayBuilder<T, { enum: CockroachEnumObject<any> }> {
+export class CockroachEnumObjectColumnBuilder<TValues extends object> extends CockroachColumnWithArrayBuilder<
+	{
+		dataType: 'string enum';
+		data: TValues[keyof TValues];
+		enumValues: string[];
+		driverParam: string;
+	},
+	{ enum: CockroachEnumObject<any> }
+> {
 	static override readonly [entityKind]: string = 'CockroachEnumObjectColumnBuilder';
 
-	constructor(name: T['name'], enumInstance: CockroachEnumObject<any>) {
-		super(name, 'string', 'CockroachEnumObjectColumn');
+	constructor(name: string, enumInstance: CockroachEnumObject<any>) {
+		super(name, 'string enum', 'CockroachEnumObjectColumn');
 		this.config.enum = enumInstance;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyCockroachTable<{ name: TTableName }>,
-	): CockroachEnumObjectColumn<MakeColumnConfig<T, TTableName>> {
-		return new CockroachEnumObjectColumn<MakeColumnConfig<T, TTableName>>(
+	) {
+		return new CockroachEnumObjectColumn(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config,
 		);
 	}
 }
 
 export class CockroachEnumObjectColumn<
-	T extends ColumnBaseConfig<'string', 'CockroachEnumObjectColumn'> & { enumValues: object },
+	T extends ColumnBaseConfig<'string enum'> & { enumValues: object },
 > extends CockroachColumn<T, { enum: CockroachEnumObject<object> }> {
 	static override readonly [entityKind]: string = 'CockroachEnumObjectColumn';
 
@@ -59,7 +51,7 @@ export class CockroachEnumObjectColumn<
 	override readonly enumValues = this.config.enum.enumValues;
 
 	constructor(
-		table: AnyCockroachTable<{ name: T['tableName'] }>,
+		table: CockroachTable<any>,
 		config: CockroachEnumObjectColumnBuilder<T>['config'],
 	) {
 		super(table, config);
@@ -72,22 +64,9 @@ export class CockroachEnumObjectColumn<
 }
 
 // Enum as string union
-
-export type CockroachEnumColumnBuilderInitial<TName extends string, TValues extends [string, ...string[]]> =
-	CockroachEnumColumnBuilder<{
-		name: TName;
-		dataType: 'string';
-		columnType: 'CockroachEnumColumn';
-		data: TValues[number];
-		enumValues: TValues;
-		driverParam: string;
-	}>;
-
 const isCockroachEnumSym = Symbol.for('drizzle:isCockroachEnum');
 export interface CockroachEnum<TValues extends [string, ...string[]]> {
-	(): CockroachEnumColumnBuilderInitial<'', TValues>;
-	<TName extends string>(name: TName): CockroachEnumColumnBuilderInitial<TName, TValues>;
-	<TName extends string>(name?: TName): CockroachEnumColumnBuilderInitial<TName, TValues>;
+	(name?: string): CockroachEnumColumnBuilder<TValues>;
 
 	readonly enumName: string;
 	readonly enumValues: TValues;
@@ -100,29 +79,32 @@ export function isCockroachEnum(obj: unknown): obj is CockroachEnum<[string, ...
 	return !!obj && typeof obj === 'function' && isCockroachEnumSym in obj && obj[isCockroachEnumSym] === true;
 }
 
-export class CockroachEnumColumnBuilder<
-	T extends ColumnBuilderBaseConfig<'string', 'CockroachEnumColumn'> & { enumValues: [string, ...string[]] },
-> extends CockroachColumnWithArrayBuilder<T, { enum: CockroachEnum<T['enumValues']> }> {
+export class CockroachEnumColumnBuilder<TValues extends [string, ...string[]]> extends CockroachColumnWithArrayBuilder<{
+	dataType: 'string';
+	data: TValues[number];
+	enumValues: TValues;
+	driverParam: string;
+}, { enum: CockroachEnum<TValues> }> {
 	static override readonly [entityKind]: string = 'CockroachEnumColumnBuilder';
 
-	constructor(name: T['name'], enumInstance: CockroachEnum<T['enumValues']>) {
-		super(name, 'string', 'CockroachEnumColumn');
+	constructor(name: string, enumInstance: CockroachEnum<TValues>) {
+		super(name, 'string enum', 'CockroachEnumColumn');
 		this.config.enum = enumInstance;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyCockroachTable<{ name: TTableName }>,
-	): CockroachEnumColumn<MakeColumnConfig<T, TTableName>> {
-		return new CockroachEnumColumn<MakeColumnConfig<T, TTableName>>(
+	) {
+		return new CockroachEnumColumn(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config,
 		);
 	}
 }
 
 export class CockroachEnumColumn<
-	T extends ColumnBaseConfig<'string', 'CockroachEnumColumn'> & { enumValues: [string, ...string[]] },
+	T extends ColumnBaseConfig<'string enum'> & { enumValues: [string, ...string[]] },
 > extends CockroachColumn<T, { enum: CockroachEnum<T['enumValues']> }> {
 	static override readonly [entityKind]: string = 'CockroachEnumColumn';
 
@@ -130,8 +112,8 @@ export class CockroachEnumColumn<
 	override readonly enumValues = this.config.enum.enumValues;
 
 	constructor(
-		table: AnyCockroachTable<{ name: T['tableName'] }>,
-		config: CockroachEnumColumnBuilder<T>['config'],
+		table: CockroachTable<any>,
+		config: CockroachEnumColumnBuilder<T['enumValues']>['config'],
 	) {
 		super(table, config);
 		this.enum = config.enum;
@@ -168,8 +150,8 @@ export function cockroachEnumWithSchema<U extends string, T extends Readonly<[U,
 	schema?: string,
 ): CockroachEnum<Writable<T>> {
 	const enumInstance: CockroachEnum<Writable<T>> = Object.assign(
-		<TName extends string>(name?: TName): CockroachEnumColumnBuilderInitial<TName, Writable<T>> =>
-			new CockroachEnumColumnBuilder(name ?? '' as TName, enumInstance),
+		(name?: string): CockroachEnumColumnBuilder<Writable<T>> =>
+			new CockroachEnumColumnBuilder(name ?? '', enumInstance),
 		{
 			enumName,
 			enumValues: values,
@@ -188,8 +170,8 @@ export function cockroachEnumObjectWithSchema<T extends object>(
 	schema?: string,
 ): CockroachEnumObject<T> {
 	const enumInstance: CockroachEnumObject<T> = Object.assign(
-		<TName extends string>(name?: TName): CockroachEnumObjectColumnBuilderInitial<TName, T> =>
-			new CockroachEnumObjectColumnBuilder(name ?? '' as TName, enumInstance),
+		(name?: string): CockroachEnumObjectColumnBuilder<T> =>
+			new CockroachEnumObjectColumnBuilder(name ?? '', enumInstance),
 		{
 			enumName,
 			enumValues: Object.values(values),

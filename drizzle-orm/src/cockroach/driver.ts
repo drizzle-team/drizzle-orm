@@ -1,15 +1,10 @@
 import pg, { type Pool, type PoolConfig } from 'pg';
+import * as V1 from '~/_relations.ts';
 import { CockroachDatabase } from '~/cockroach-core/db.ts';
 import { CockroachDialect } from '~/cockroach-core/dialect.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
-import {
-	createTableRelationsHelpers,
-	extractTablesRelationalConfig,
-	type RelationalSchemaConfig,
-	type TablesRelationalConfig,
-} from '~/relations.ts';
 import { type DrizzleConfig, isConfig } from '~/utils.ts';
 import type { NodeCockroachClient, NodeCockroachQueryResultHKT } from './session.ts';
 import { NodeCockroachSession } from './session.ts';
@@ -29,8 +24,8 @@ export class NodeCockroachDriver {
 	}
 
 	createSession(
-		schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined,
-	): NodeCockroachSession<Record<string, unknown>, TablesRelationalConfig> {
+		schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined,
+	): NodeCockroachSession<Record<string, unknown>, V1.TablesRelationalConfig> {
 		return new NodeCockroachSession(this.client, this.dialect, schema, { logger: this.options.logger });
 	}
 }
@@ -58,11 +53,11 @@ function construct<
 		logger = config.logger;
 	}
 
-	let schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined;
+	let schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined;
 	if (config.schema) {
-		const tablesConfig = extractTablesRelationalConfig(
+		const tablesConfig = V1.extractTablesRelationalConfig(
 			config.schema,
-			createTableRelationsHelpers,
+			V1.createTableRelationsHelpers,
 		);
 		schema = {
 			fullSchema: config.schema,

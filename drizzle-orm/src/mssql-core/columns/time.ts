@@ -1,52 +1,39 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { MsSqlColumn, MsSqlColumnBuilder } from './common.ts';
 
-export type MsSqlTimeStringBuilderInitial<TName extends string> = MsSqlTimeStringBuilder<
+export class MsSqlTimeStringBuilder extends MsSqlColumnBuilder<
 	{
-		name: TName;
-		dataType: 'string';
-		columnType: 'MsSqlTime';
+		dataType: 'string time';
 		data: string;
 		driverParam: string | Date;
-		enumValues: undefined;
-		generated: undefined;
-	}
->;
-
-export class MsSqlTimeStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'MsSqlTime'>>
-	extends MsSqlColumnBuilder<
-		T,
-		TimeConfig
-	>
-{
+	},
+	TimeConfig
+> {
 	static override readonly [entityKind]: string = 'MsSqlTimeBuilder';
 
 	constructor(
-		name: T['name'],
+		name: string,
 		config: TimeConfig | undefined,
 	) {
-		super(name, 'string', 'MsSqlTime');
+		super(name, 'string time', 'MsSqlTime');
 		this.config.precision = config?.precision;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMsSqlTable<{ name: TTableName }>,
-	): MsSqlTimeString<MakeColumnConfig<T, TTableName>> {
-		return new MsSqlTimeString<MakeColumnConfig<T, TTableName>>(
+	) {
+		return new MsSqlTimeString(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config,
 		);
 	}
 }
 
-export class MsSqlTimeString<
-	T extends ColumnBaseConfig<'string', 'MsSqlTime'>,
-> extends MsSqlColumn<T, TimeConfig> {
+export class MsSqlTimeString<T extends ColumnBaseConfig<'string time'>> extends MsSqlColumn<T, TimeConfig> {
 	static override readonly [entityKind]: string = 'MsSqlTime';
 
 	readonly fsp: number | undefined = this.config.precision;
@@ -61,42 +48,34 @@ export class MsSqlTimeString<
 	}
 }
 
-export type MsSqlTimeBuilderInitial<TName extends string> = MsSqlTimeBuilder<
+export class MsSqlTimeBuilder extends MsSqlColumnBuilder<
 	{
-		name: TName;
-		dataType: 'date';
-		columnType: 'MsSqlTime';
+		dataType: 'object date';
 		data: Date;
 		driverParam: string | Date;
-		enumValues: undefined;
-		generated: undefined;
-	}
->;
-
-export class MsSqlTimeBuilder<T extends ColumnBuilderBaseConfig<'date', 'MsSqlTime'>> extends MsSqlColumnBuilder<
-	T,
+	},
 	TimeConfig
 > {
 	static override readonly [entityKind]: string = 'MsSqlTimeBuilder';
 
 	constructor(
-		name: T['name'],
+		name: string,
 		config: TimeConfig | undefined,
 	) {
-		super(name, 'date', 'MsSqlTime');
+		super(name, 'object date', 'MsSqlTime');
 		this.config.precision = config?.precision;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMsSqlTable<{ name: TTableName }>,
-	): MsSqlTime<MakeColumnConfig<T, TTableName>> {
-		return new MsSqlTime<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+	) {
+		return new MsSqlTime(table, this.config);
 	}
 }
 
 export class MsSqlTime<
-	T extends ColumnBaseConfig<'date', 'MsSqlTime'>,
+	T extends ColumnBaseConfig<'object date'>,
 > extends MsSqlColumn<T, TimeConfig> {
 	static override readonly [entityKind]: string = 'MsSqlTime';
 
@@ -112,15 +91,14 @@ export type TimeConfig<TMode extends 'date' | 'string' = 'date' | 'string'> = {
 	mode?: TMode;
 };
 
-export function time(): MsSqlTimeBuilderInitial<''>;
 export function time<TMode extends TimeConfig['mode'] & {}>(
 	config?: TimeConfig<TMode>,
-): Equal<TMode, 'string'> extends true ? MsSqlTimeStringBuilderInitial<''> : MsSqlTimeBuilderInitial<''>;
-export function time<TName extends string, TMode extends TimeConfig['mode'] & {}>(
-	name: TName,
+): Equal<TMode, 'string'> extends true ? MsSqlTimeStringBuilder : MsSqlTimeBuilder;
+export function time<TMode extends TimeConfig['mode'] & {}>(
+	name: string,
 	config?: TimeConfig<TMode>,
-): Equal<TMode, 'string'> extends true ? MsSqlTimeStringBuilderInitial<TName>
-	: MsSqlTimeBuilderInitial<TName>;
+): Equal<TMode, 'string'> extends true ? MsSqlTimeStringBuilder
+	: MsSqlTimeBuilder;
 export function time(a?: string | TimeConfig, b?: TimeConfig) {
 	const { name, config } = getColumnNameAndConfig<TimeConfig | undefined>(a, b);
 	if (config?.mode === 'string') {

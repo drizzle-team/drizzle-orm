@@ -1,46 +1,43 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '~/pg-core/table.ts';
-import { getColumnNameAndConfig, type Writable } from '~/utils.ts';
+import type { PgTable } from '~/pg-core/table.ts';
+import { type Equal, getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export type PgTextBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> = PgTextBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'PgText';
+export class PgTextBuilder<TEnum extends [string, ...string[]] = [string, ...string[]]> extends PgColumnBuilder<{
+	dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'string enum';
 	data: TEnum[number];
 	enumValues: TEnum;
 	driverParam: string;
-}>;
-
-export class PgTextBuilder<
-	T extends ColumnBuilderBaseConfig<'string', 'PgText'>,
-> extends PgColumnBuilder<T, { enumValues: T['enumValues'] }> {
+}, { enumValues: TEnum | undefined }> {
 	static override readonly [entityKind]: string = 'PgTextBuilder';
 
 	constructor(
-		name: T['name'],
-		config: PgTextConfig<T['enumValues']>,
+		name: string,
+		config: PgTextConfig<TEnum>,
 	) {
-		super(name, 'string', 'PgText');
+		super(name, config.enum?.length ? 'string enum' : 'string', 'PgText');
 		this.config.enumValues = config.enum;
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgText<MakeColumnConfig<T, TTableName>> {
-		return new PgText<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+	override build(table: PgTable<any>) {
+		return new PgText(table, this.config as any, this.config.enumValues);
 	}
 }
 
-export class PgText<T extends ColumnBaseConfig<'string', 'PgText'>>
-	extends PgColumn<T, { enumValues: T['enumValues'] }>
-{
+export class PgText<T extends ColumnBaseConfig<'string' | 'string enum'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgText';
+	override readonly enumValues;
 
-	override readonly enumValues = this.config.enumValues;
+	constructor(
+		table: PgTable<any>,
+		config: any,
+		enumValues?: string[],
+	) {
+		super(table, config);
+		this.enumValues = enumValues;
+	}
 
 	getSQLType(): string {
 		return 'text';
@@ -48,19 +45,18 @@ export class PgText<T extends ColumnBaseConfig<'string', 'PgText'>>
 }
 
 export interface PgTextConfig<
-	TEnum extends readonly string[] | string[] | undefined = readonly string[] | string[] | undefined,
+	TEnum extends readonly string[] | undefined = readonly string[] | undefined,
 > {
 	enum?: TEnum;
 }
 
-export function text(): PgTextBuilderInitial<'', [string, ...string[]]>;
 export function text<U extends string, T extends Readonly<[U, ...U[]]>>(
 	config?: PgTextConfig<T | Writable<T>>,
-): PgTextBuilderInitial<'', Writable<T>>;
-export function text<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
-	name: TName,
+): PgTextBuilder<Writable<T>>;
+export function text<U extends string, T extends Readonly<[U, ...U[]]>>(
+	name: string,
 	config?: PgTextConfig<T | Writable<T>>,
-): PgTextBuilderInitial<TName, Writable<T>>;
+): PgTextBuilder<Writable<T>>;
 export function text(a?: string | PgTextConfig, b: PgTextConfig = {}): any {
 	const { name, config } = getColumnNameAndConfig<PgTextConfig>(a, b);
 	return new PgTextBuilder(name, config as any);

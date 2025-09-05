@@ -1,7 +1,7 @@
 import type { QueryResult } from 'pg';
 import type { Equal } from 'type-tests/utils.ts';
 import { Expect } from 'type-tests/utils.ts';
-import { boolean, cockroachTable, int4, QueryBuilder, text } from '~/cockroach-core/index.ts';
+import { bool, cockroachTable, int4, QueryBuilder, text } from '~/cockroach-core/index.ts';
 import type { CockroachInsert } from '~/cockroach-core/query-builders/insert.ts';
 import { sql } from '~/sql/sql.ts';
 import { db } from './db.ts';
@@ -210,13 +210,13 @@ Expect<
 	const users1 = cockroachTable('users1', {
 		id: int4('id').primaryKey().generatedAlwaysAsIdentity(),
 		name: text('name').notNull(),
-		admin: boolean('admin').notNull().default(false),
+		admin: bool('admin').notNull().default(false),
 	});
 	const users2 = cockroachTable('users2', {
 		id: int4('id').primaryKey().generatedAlwaysAsIdentity(),
 		firstName: text('first_name').notNull(),
 		lastName: text('last_name').notNull(),
-		admin: boolean('admin').notNull().default(false),
+		admin: bool('admin').notNull().default(false),
 		phoneNumber: text('phone_number'),
 	});
 

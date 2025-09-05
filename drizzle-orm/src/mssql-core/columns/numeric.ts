@@ -1,26 +1,18 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { MsSqlColumnBuilderWithIdentity, MsSqlColumnWithIdentity } from './common.ts';
 
-export type MsSqlNumericBuilderInitial<TName extends string> = MsSqlNumericBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'MsSqlNumeric';
+export class MsSqlNumericBuilder extends MsSqlColumnBuilderWithIdentity<{
+	dataType: 'string numeric';
 	data: string;
 	driverParam: string;
-	enumValues: undefined;
-}>;
-
-export class MsSqlNumericBuilder<
-	T extends ColumnBuilderBaseConfig<'string', 'MsSqlNumeric'>,
-> extends MsSqlColumnBuilderWithIdentity<T, MsSqlNumericConfig> {
+}, MsSqlNumericConfig> {
 	static override readonly [entityKind]: string = 'MsSqlNumericBuilder';
 
-	constructor(name: T['name'], config: MsSqlNumericConfig | undefined) {
-		super(name, 'string', 'MsSqlNumeric');
+	constructor(name: string, config: MsSqlNumericConfig | undefined) {
+		super(name, 'string numeric', 'MsSqlNumeric');
 		this.config.precision = config?.precision;
 		this.config.scale = config?.scale;
 	}
@@ -28,15 +20,15 @@ export class MsSqlNumericBuilder<
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMsSqlTable<{ name: TTableName }>,
-	): MsSqlNumeric<MakeColumnConfig<T, TTableName>> {
-		return new MsSqlNumeric<MakeColumnConfig<T, TTableName>>(
+	) {
+		return new MsSqlNumeric(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config,
 		);
 	}
 }
 
-export class MsSqlNumeric<T extends ColumnBaseConfig<'string', 'MsSqlNumeric'>>
+export class MsSqlNumeric<T extends ColumnBaseConfig<'string numeric'>>
 	extends MsSqlColumnWithIdentity<T, MsSqlNumericConfig>
 {
 	static override readonly [entityKind]: string = 'MsSqlNumeric';
@@ -61,21 +53,14 @@ export class MsSqlNumeric<T extends ColumnBaseConfig<'string', 'MsSqlNumeric'>>
 	}
 }
 
-export type MsSqlNumericNumberBuilderInitial<TName extends string> = MsSqlNumericNumberBuilder<{
-	name: TName;
+export class MsSqlNumericNumberBuilder extends MsSqlColumnBuilderWithIdentity<{
 	dataType: 'number';
-	columnType: 'MsSqlNumericNumber';
 	data: number;
 	driverParam: string;
-	enumValues: undefined;
-}>;
-
-export class MsSqlNumericNumberBuilder<
-	T extends ColumnBuilderBaseConfig<'number', 'MsSqlNumericNumber'>,
-> extends MsSqlColumnBuilderWithIdentity<T, MsSqlNumericConfig> {
+}, MsSqlNumericConfig> {
 	static override readonly [entityKind]: string = 'MsSqlNumericNumberBuilder';
 
-	constructor(name: T['name'], config: MsSqlNumericConfig | undefined) {
+	constructor(name: string, config: MsSqlNumericConfig | undefined) {
 		super(name, 'number', 'MsSqlNumericNumber');
 		this.config.precision = config?.precision;
 		this.config.scale = config?.scale;
@@ -84,15 +69,15 @@ export class MsSqlNumericNumberBuilder<
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMsSqlTable<{ name: TTableName }>,
-	): MsSqlNumericNumber<MakeColumnConfig<T, TTableName>> {
-		return new MsSqlNumericNumber<MakeColumnConfig<T, TTableName>>(
+	) {
+		return new MsSqlNumericNumber(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config,
 		);
 	}
 }
 
-export class MsSqlNumericNumber<T extends ColumnBaseConfig<'number', 'MsSqlNumericNumber'>>
+export class MsSqlNumericNumber<T extends ColumnBaseConfig<'number'>>
 	extends MsSqlColumnWithIdentity<T, MsSqlNumericConfig>
 {
 	static override readonly [entityKind]: string = 'MsSqlNumericNumber';
@@ -119,22 +104,15 @@ export class MsSqlNumericNumber<T extends ColumnBaseConfig<'number', 'MsSqlNumer
 	}
 }
 
-export type MsSqlNumericBigIntBuilderInitial<TName extends string> = MsSqlNumericBigIntBuilder<{
-	name: TName;
-	dataType: 'bigint';
-	columnType: 'MsSqlNumericBigInt';
+export class MsSqlNumericBigIntBuilder extends MsSqlColumnBuilderWithIdentity<{
+	dataType: 'bigint int64';
 	data: bigint;
 	driverParam: string;
-	enumValues: undefined;
-}>;
-
-export class MsSqlNumericBigIntBuilder<
-	T extends ColumnBuilderBaseConfig<'bigint', 'MsSqlNumericBigInt'>,
-> extends MsSqlColumnBuilderWithIdentity<T, MsSqlNumericConfig> {
+}, MsSqlNumericConfig> {
 	static override readonly [entityKind]: string = 'MsSqlNumericBigIntBuilder';
 
-	constructor(name: T['name'], config: MsSqlNumericConfig | undefined) {
-		super(name, 'bigint', 'MsSqlNumericBigInt');
+	constructor(name: string, config: MsSqlNumericConfig | undefined) {
+		super(name, 'bigint int64', 'MsSqlNumericBigInt');
 		this.config.precision = config?.precision;
 		this.config.scale = config?.scale;
 	}
@@ -142,15 +120,15 @@ export class MsSqlNumericBigIntBuilder<
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMsSqlTable<{ name: TTableName }>,
-	): MsSqlNumericBigInt<MakeColumnConfig<T, TTableName>> {
-		return new MsSqlNumericBigInt<MakeColumnConfig<T, TTableName>>(
+	) {
+		return new MsSqlNumericBigInt(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config,
 		);
 	}
 }
 
-export class MsSqlNumericBigInt<T extends ColumnBaseConfig<'bigint', 'MsSqlNumericBigInt'>>
+export class MsSqlNumericBigInt<T extends ColumnBaseConfig<'bigint int64'>>
 	extends MsSqlColumnWithIdentity<T, MsSqlNumericConfig>
 {
 	static override readonly [entityKind]: string = 'MsSqlNumericBigInt';
@@ -173,24 +151,25 @@ export class MsSqlNumericBigInt<T extends ColumnBaseConfig<'bigint', 'MsSqlNumer
 	}
 }
 
-export interface MsSqlNumericConfig<T extends 'string' | 'number' | 'bigint' = 'string' | 'number' | 'bigint'> {
+export interface MsSqlNumericConfig<
+	T extends 'string' | 'number' | 'bigint' = 'string' | 'number' | 'bigint',
+> {
 	precision?: number;
 	scale?: number;
 	mode?: T;
 }
 
-export function numeric(): MsSqlNumericBuilderInitial<''>;
 export function numeric<TMode extends 'string' | 'number' | 'bigint'>(
-	config: MsSqlNumericConfig<TMode>,
-): Equal<TMode, 'number'> extends true ? MsSqlNumericNumberBuilderInitial<''>
-	: Equal<TMode, 'bigint'> extends true ? MsSqlNumericBigIntBuilderInitial<''>
-	: MsSqlNumericBuilderInitial<''>;
-export function numeric<TName extends string, TMode extends 'string' | 'number' | 'bigint'>(
-	name: TName,
 	config?: MsSqlNumericConfig<TMode>,
-): Equal<TMode, 'number'> extends true ? MsSqlNumericNumberBuilderInitial<TName>
-	: Equal<TMode, 'bigint'> extends true ? MsSqlNumericBigIntBuilderInitial<TName>
-	: MsSqlNumericBuilderInitial<TName>;
+): Equal<TMode, 'number'> extends true ? MsSqlNumericNumberBuilder
+	: Equal<TMode, 'bigint'> extends true ? MsSqlNumericBigIntBuilder
+	: MsSqlNumericBuilder;
+export function numeric<TMode extends 'string' | 'number' | 'bigint'>(
+	name: string,
+	config?: MsSqlNumericConfig<TMode>,
+): Equal<TMode, 'number'> extends true ? MsSqlNumericNumberBuilder
+	: Equal<TMode, 'bigint'> extends true ? MsSqlNumericBigIntBuilder
+	: MsSqlNumericBuilder;
 export function numeric(a?: string | MsSqlNumericConfig, b?: MsSqlNumericConfig) {
 	const { name, config } = getColumnNameAndConfig<MsSqlNumericConfig>(a, b);
 	const mode = config?.mode;

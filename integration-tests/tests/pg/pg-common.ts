@@ -41,6 +41,7 @@ import {
 	bigint,
 	bigserial,
 	boolean,
+	bytea,
 	char,
 	cidr,
 	date,
@@ -93,24 +94,26 @@ import getPort from 'get-port';
 import { v4 as uuidV4 } from 'uuid';
 import { afterAll, afterEach, beforeEach, describe, expect, expectTypeOf, test } from 'vitest';
 import { Expect } from '~/utils';
-import type { schema } from './neon-http-batch.test';
+import type { neonRelations, schema } from './neon-http-batch.test';
+import type relations from './relations';
+import { clear, init, rqbPost, rqbUser } from './schema';
 // eslint-disable-next-line @typescript-eslint/no-import-type-side-effects
 // import { type NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 declare module 'vitest' {
 	interface TestContext {
 		pg: {
-			db: PgDatabase<PgQueryResultHKT>;
+			db: PgDatabase<PgQueryResultHKT, never, typeof relations>;
 		};
 		neonPg: {
-			db: NeonHttpDatabase<typeof schema>;
+			db: NeonHttpDatabase<typeof schema, typeof neonRelations>;
 		};
 	}
 }
 
 const en = pgEnum('en', ['enVal1', 'enVal2']);
 
-const allTypesTable = pgTable('all_types', {
+export const allTypesTable = pgTable('all_types', {
 	serial: serial('serial'),
 	bigserial53: bigserial('bigserial53', {
 		mode: 'number',
@@ -126,6 +129,7 @@ const allTypesTable = pgTable('all_types', {
 		mode: 'bigint',
 	}),
 	bool: boolean('bool'),
+	bytea: bytea('bytea'),
 	char: char('char'),
 	cidr: cidr('cidr'),
 	date: date('date', {
@@ -190,6 +194,7 @@ const allTypesTable = pgTable('all_types', {
 		mode: 'bigint',
 	}).array(),
 	arrbool: boolean('arrbool').array(),
+	arrbytea: bytea('arrbytea').array(),
 	arrchar: char('arrchar').array(),
 	arrcidr: cidr('arrcidr').array(),
 	arrdate: date('arrdate', {
@@ -539,7 +544,9 @@ export function tests() {
 			await db.execute(sql`drop schema if exists custom_migrations cascade`);
 		});
 
-		async function setupSetOperationTest(db: PgDatabase<PgQueryResultHKT>) {
+		async function setupSetOperationTest(
+			db: PgDatabase<PgQueryResultHKT, never, typeof relations>,
+		) {
 			await db.execute(sql`drop table if exists users2`);
 			await db.execute(sql`drop table if exists cities`);
 			await db.execute(
@@ -578,7 +585,9 @@ export function tests() {
 			]);
 		}
 
-		async function setupAggregateFunctionsTest(db: PgDatabase<PgQueryResultHKT>) {
+		async function setupAggregateFunctionsTest(
+			db: PgDatabase<PgQueryResultHKT, never, typeof relations>,
+		) {
 			await db.execute(sql`drop table if exists "aggregate_table"`);
 			await db.execute(
 				sql`
@@ -6072,6 +6081,7 @@ export function tests() {
 					"bigint53" bigint,
 					"bigint64" bigint,
 					"bool" boolean,
+					"bytea" bytea,
 					"char" char,
 					"cidr" "cidr",
 					"date" date,
@@ -6106,6 +6116,7 @@ export function tests() {
 					"arrbigint53" bigint[],
 					"arrbigint64" bigint[],
 					"arrbool" boolean[],
+					"arrbytea" bytea[],
 					"arrchar" char[],
 					"arrcidr" "cidr"[],
 					"arrdate" date[],
@@ -6146,6 +6157,7 @@ export function tests() {
 				bigserial53: 9007199254740991,
 				bigserial64: 5044565289845416380n,
 				bool: true,
+				bytea: Buffer.from('BYTES'),
 				char: 'c',
 				cidr: '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128',
 				inet: '192.168.0.1/24',
@@ -6192,6 +6204,7 @@ export function tests() {
 				arrbigint53: [9007199254740991],
 				arrbigint64: [5044565289845416380n],
 				arrbool: [true],
+				arrbytea: [Buffer.from('BYTES')],
 				arrchar: ['c'],
 				arrcidr: ['2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128'],
 				arrinet: ['192.168.0.1/24'],
@@ -6247,6 +6260,7 @@ export function tests() {
 				bigint53: number | null;
 				bigint64: bigint | null;
 				bool: boolean | null;
+				bytea: Buffer | null;
 				char: string | null;
 				cidr: string | null;
 				date: Date | null;
@@ -6288,6 +6302,7 @@ export function tests() {
 				arrbigint53: number[] | null;
 				arrbigint64: bigint[] | null;
 				arrbool: boolean[] | null;
+				arrbytea: Buffer[] | null;
 				arrchar: string[] | null;
 				arrcidr: string[] | null;
 				arrdate: Date[] | null;
@@ -6332,6 +6347,7 @@ export function tests() {
 					bigint53: 9007199254740991,
 					bigint64: 5044565289845416380n,
 					bool: true,
+					bytea: Buffer.from('BYTES'),
 					char: 'c',
 					cidr: '2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128',
 					date: new Date('2025-03-12T00:00:00.000Z'),
@@ -6366,6 +6382,7 @@ export function tests() {
 					arrbigint53: [9007199254740991],
 					arrbigint64: [5044565289845416380n],
 					arrbool: [true],
+					arrbytea: [Buffer.from('BYTES')],
 					arrchar: ['c'],
 					arrcidr: ['2001:4f8:3:ba:2e0:81ff:fe22:d1f1/128'],
 					arrdate: [new Date('2025-03-12T00:00:00.000Z')],
@@ -6400,6 +6417,636 @@ export function tests() {
 
 			expectTypeOf(rawRes).toEqualTypeOf<ExpectedType>();
 			expect(rawRes).toStrictEqual(expectedRes);
+		});
+
+		test('RQB v2 simple find first - no rows', async (ctx) => {
+			const { db } = ctx.pg;
+			try {
+				await init(db);
+
+				const result = await db.query.rqbUser.findFirst();
+
+				expect(result).toStrictEqual(undefined);
+			} finally {
+				await clear(db);
+			}
+		});
+
+		test('RQB v2 simple find first - multiple rows', async (ctx) => {
+			const { db } = ctx.pg;
+			try {
+				await init(db);
+
+				const date = new Date(120000);
+
+				await db.insert(rqbUser).values([{
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				}, {
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				}]);
+
+				const result = await db.query.rqbUser.findFirst({
+					orderBy: {
+						id: 'desc',
+					},
+				});
+
+				expect(result).toStrictEqual({
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				});
+			} finally {
+				await clear(db);
+			}
+		});
+
+		test('RQB v2 simple find first - with relation', async (ctx) => {
+			const { db } = ctx.pg;
+			try {
+				await init(db);
+
+				const date = new Date(120000);
+
+				await db.insert(rqbUser).values([{
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				}, {
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				}]);
+
+				await db.insert(rqbPost).values([{
+					id: 1,
+					userId: 1,
+					createdAt: date,
+					content: null,
+				}, {
+					id: 2,
+					userId: 1,
+					createdAt: date,
+					content: 'Has message this time',
+				}]);
+
+				const result = await db.query.rqbUser.findFirst({
+					with: {
+						posts: {
+							orderBy: {
+								id: 'asc',
+							},
+						},
+					},
+					orderBy: {
+						id: 'asc',
+					},
+				});
+
+				expect(result).toStrictEqual({
+					id: 1,
+					createdAt: date,
+					name: 'First',
+					posts: [{
+						id: 1,
+						userId: 1,
+						createdAt: date,
+						content: null,
+					}, {
+						id: 2,
+						userId: 1,
+						createdAt: date,
+						content: 'Has message this time',
+					}],
+				});
+			} finally {
+				await clear(db);
+			}
+		});
+
+		test('RQB v2 simple find first - placeholders', async (ctx) => {
+			const { db } = ctx.pg;
+			try {
+				await init(db);
+
+				const date = new Date(120000);
+
+				await db.insert(rqbUser).values([{
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				}, {
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				}]);
+
+				const query = db.query.rqbUser.findFirst({
+					where: {
+						id: {
+							eq: sql.placeholder('filter'),
+						},
+					},
+					orderBy: {
+						id: 'asc',
+					},
+				}).prepare('rqb_v2_find_first_placeholders');
+
+				const result = await query.execute({
+					filter: 2,
+				});
+
+				expect(result).toStrictEqual({
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				});
+			} finally {
+				await clear(db);
+			}
+		});
+
+		test('RQB v2 simple find many - no rows', async (ctx) => {
+			const { db } = ctx.pg;
+			try {
+				await init(db);
+
+				const result = await db.query.rqbUser.findMany();
+
+				expect(result).toStrictEqual([]);
+			} finally {
+				await clear(db);
+			}
+		});
+
+		test('RQB v2 simple find many - multiple rows', async (ctx) => {
+			const { db } = ctx.pg;
+			try {
+				await init(db);
+
+				const date = new Date(120000);
+
+				await db.insert(rqbUser).values([{
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				}, {
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				}]);
+
+				const result = await db.query.rqbUser.findMany({
+					orderBy: {
+						id: 'desc',
+					},
+				});
+
+				expect(result).toStrictEqual([{
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				}, {
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				}]);
+			} finally {
+				await clear(db);
+			}
+		});
+
+		test('RQB v2 simple find many - with relation', async (ctx) => {
+			const { db } = ctx.pg;
+			try {
+				await init(db);
+
+				const date = new Date(120000);
+
+				await db.insert(rqbUser).values([{
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				}, {
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				}]);
+
+				await db.insert(rqbPost).values([{
+					id: 1,
+					userId: 1,
+					createdAt: date,
+					content: null,
+				}, {
+					id: 2,
+					userId: 1,
+					createdAt: date,
+					content: 'Has message this time',
+				}]);
+
+				const result = await db.query.rqbPost.findMany({
+					with: {
+						author: true,
+					},
+					orderBy: {
+						id: 'asc',
+					},
+				});
+
+				expect(result).toStrictEqual([{
+					id: 1,
+					userId: 1,
+					createdAt: date,
+					content: null,
+					author: {
+						id: 1,
+						createdAt: date,
+						name: 'First',
+					},
+				}, {
+					id: 2,
+					userId: 1,
+					createdAt: date,
+					content: 'Has message this time',
+					author: {
+						id: 1,
+						createdAt: date,
+						name: 'First',
+					},
+				}]);
+			} finally {
+				await clear(db);
+			}
+		});
+
+		test('RQB v2 simple find many - placeholders', async (ctx) => {
+			const { db } = ctx.pg;
+			try {
+				await init(db);
+
+				const date = new Date(120000);
+
+				await db.insert(rqbUser).values([{
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				}, {
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				}]);
+
+				const query = db.query.rqbUser.findMany({
+					where: {
+						id: {
+							eq: sql.placeholder('filter'),
+						},
+					},
+					orderBy: {
+						id: 'asc',
+					},
+				}).prepare('rqb_v2_find_many_placeholders');
+
+				const result = await query.execute({
+					filter: 2,
+				});
+
+				expect(result).toStrictEqual([{
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				}]);
+			} finally {
+				await clear(db);
+			}
+		});
+
+		test('RQB v2 transaction find first - no rows', async (ctx) => {
+			const { db } = ctx.pg;
+			try {
+				await init(db);
+
+				await db.transaction(async (db) => {
+					const result = await db.query.rqbUser.findFirst();
+
+					expect(result).toStrictEqual(undefined);
+				});
+			} finally {
+				await clear(db);
+			}
+		});
+
+		test('RQB v2 transaction find first - multiple rows', async (ctx) => {
+			const { db } = ctx.pg;
+			try {
+				await init(db);
+
+				const date = new Date(120000);
+
+				await db.insert(rqbUser).values([{
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				}, {
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				}]);
+
+				await db.transaction(async (db) => {
+					const result = await db.query.rqbUser.findFirst({
+						orderBy: {
+							id: 'desc',
+						},
+					});
+
+					expect(result).toStrictEqual({
+						id: 2,
+						createdAt: date,
+						name: 'Second',
+					});
+				});
+			} finally {
+				await clear(db);
+			}
+		});
+
+		test('RQB v2 transaction find first - with relation', async (ctx) => {
+			const { db } = ctx.pg;
+			try {
+				await init(db);
+
+				const date = new Date(120000);
+
+				await db.insert(rqbUser).values([{
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				}, {
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				}]);
+
+				await db.insert(rqbPost).values([{
+					id: 1,
+					userId: 1,
+					createdAt: date,
+					content: null,
+				}, {
+					id: 2,
+					userId: 1,
+					createdAt: date,
+					content: 'Has message this time',
+				}]);
+
+				await db.transaction(async (db) => {
+					const result = await db.query.rqbUser.findFirst({
+						with: {
+							posts: {
+								orderBy: {
+									id: 'asc',
+								},
+							},
+						},
+						orderBy: {
+							id: 'asc',
+						},
+					});
+
+					expect(result).toStrictEqual({
+						id: 1,
+						createdAt: date,
+						name: 'First',
+						posts: [{
+							id: 1,
+							userId: 1,
+							createdAt: date,
+							content: null,
+						}, {
+							id: 2,
+							userId: 1,
+							createdAt: date,
+							content: 'Has message this time',
+						}],
+					});
+				});
+			} finally {
+				await clear(db);
+			}
+		});
+
+		test('RQB v2 transaction find first - placeholders', async (ctx) => {
+			const { db } = ctx.pg;
+			try {
+				await init(db);
+
+				const date = new Date(120000);
+
+				await db.insert(rqbUser).values([{
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				}, {
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				}]);
+
+				await db.transaction(async (db) => {
+					const query = db.query.rqbUser.findFirst({
+						where: {
+							id: {
+								eq: sql.placeholder('filter'),
+							},
+						},
+						orderBy: {
+							id: 'asc',
+						},
+					}).prepare('rqb_v2_find_first_tx_placeholders');
+
+					const result = await query.execute({
+						filter: 2,
+					});
+
+					expect(result).toStrictEqual({
+						id: 2,
+						createdAt: date,
+						name: 'Second',
+					});
+				});
+			} finally {
+				await clear(db);
+			}
+		});
+
+		test('RQB v2 transaction find many - no rows', async (ctx) => {
+			const { db } = ctx.pg;
+			try {
+				await init(db);
+
+				await db.transaction(async (db) => {
+					const result = await db.query.rqbUser.findMany();
+
+					expect(result).toStrictEqual([]);
+				});
+			} finally {
+				await clear(db);
+			}
+		});
+
+		test('RQB v2 transaction find many - multiple rows', async (ctx) => {
+			const { db } = ctx.pg;
+			try {
+				await init(db);
+
+				const date = new Date(120000);
+
+				await db.insert(rqbUser).values([{
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				}, {
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				}]);
+
+				await db.transaction(async (db) => {
+					const result = await db.query.rqbUser.findMany({
+						orderBy: {
+							id: 'desc',
+						},
+					});
+
+					expect(result).toStrictEqual([{
+						id: 2,
+						createdAt: date,
+						name: 'Second',
+					}, {
+						id: 1,
+						createdAt: date,
+						name: 'First',
+					}]);
+				});
+			} finally {
+				await clear(db);
+			}
+		});
+
+		test('RQB v2 transaction find many - with relation', async (ctx) => {
+			const { db } = ctx.pg;
+			try {
+				await init(db);
+
+				const date = new Date(120000);
+
+				await db.insert(rqbUser).values([{
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				}, {
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				}]);
+
+				await db.insert(rqbPost).values([{
+					id: 1,
+					userId: 1,
+					createdAt: date,
+					content: null,
+				}, {
+					id: 2,
+					userId: 1,
+					createdAt: date,
+					content: 'Has message this time',
+				}]);
+
+				await db.transaction(async (db) => {
+					const result = await db.query.rqbPost.findMany({
+						with: {
+							author: true,
+						},
+						orderBy: {
+							id: 'asc',
+						},
+					});
+
+					expect(result).toStrictEqual([{
+						id: 1,
+						userId: 1,
+						createdAt: date,
+						content: null,
+						author: {
+							id: 1,
+							createdAt: date,
+							name: 'First',
+						},
+					}, {
+						id: 2,
+						userId: 1,
+						createdAt: date,
+						content: 'Has message this time',
+						author: {
+							id: 1,
+							createdAt: date,
+							name: 'First',
+						},
+					}]);
+				});
+			} finally {
+				await clear(db);
+			}
+		});
+
+		test('RQB v2 transaction find many - placeholders', async (ctx) => {
+			const { db } = ctx.pg;
+			try {
+				await init(db);
+
+				const date = new Date(120000);
+
+				await db.insert(rqbUser).values([{
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				}, {
+					id: 2,
+					createdAt: date,
+					name: 'Second',
+				}]);
+
+				await db.transaction(async (db) => {
+					const query = db.query.rqbUser.findMany({
+						where: {
+							id: {
+								eq: sql.placeholder('filter'),
+							},
+						},
+						orderBy: {
+							id: 'asc',
+						},
+					}).prepare('rqb_v2_find_many_placeholders');
+
+					const result = await query.execute({
+						filter: 2,
+					});
+
+					expect(result).toStrictEqual([{
+						id: 2,
+						createdAt: date,
+						name: 'Second',
+					}]);
+				});
+			} finally {
+				await clear(db);
+			}
 		});
 	});
 }

@@ -3,7 +3,7 @@ import { Expect } from 'type-tests/utils.ts';
 
 import { alias } from '~/cockroach-core/alias.ts';
 import {
-	boolean,
+	bool,
 	cockroachMaterializedView,
 	type CockroachSelect,
 	type CockroachSelectQueryBuilder,
@@ -1150,7 +1150,7 @@ await db
 
 {
 	const users = cockroachTable('users', {
-		developer: boolean('developer'),
+		developer: bool('developer'),
 		application: text('application', { enum: ['pending', 'approved'] }),
 	});
 

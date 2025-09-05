@@ -10,10 +10,11 @@ import { skipTests } from '~/common';
 import { randomString } from '~/utils';
 import { createDockerDB, tests, usersMigratorTable, usersTable } from './pg-common';
 import { TestCache, TestGlobalCache, tests as cacheTests } from './pg-common-cache';
+import relations from './relations';
 
 const ENABLE_LOGGING = false;
 
-let db: NodePgDatabase;
+let db: NodePgDatabase<never, typeof relations>;
 let client: Client;
 let dbGlobalCached: NodePgDatabase;
 let cachedDb: NodePgDatabase;
@@ -40,7 +41,7 @@ beforeAll(async () => {
 			client?.end();
 		},
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
 	cachedDb = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestCache() });
 	dbGlobalCached = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 });
@@ -384,7 +385,7 @@ test('test mode string for timestamp with timezone in different timezone', async
 	const timezone = await db.execute<{ TimeZone: string }>(sql`show timezone`);
 
 	// set timezone to HST (UTC - 10)
-	await db.execute(sql`set time zone 'HST'`);
+	await db.execute(sql`set time zone '-10'`);
 
 	const table = pgTable('all_columns', {
 		id: serial('id').primaryKey(),

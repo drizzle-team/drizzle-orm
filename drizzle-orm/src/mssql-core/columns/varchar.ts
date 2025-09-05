@@ -1,43 +1,22 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
 import { type Equal, getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { MsSqlColumn, MsSqlColumnBuilder } from './common.ts';
 
-export type MsSqlVarCharBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> = MsSqlVarCharBuilder<
-	{
-		name: TName;
-		dataType: 'string';
-		columnType: 'MsSqlVarChar';
-		data: TEnum[number];
-		driverParam: number | string;
-		enumValues: TEnum;
-		generated: undefined;
-	}
->;
-
-export type MsSqlVarCharJsonBuilderInitial<TName extends string> = MsSqlVarCharJsonBuilder<
-	{
-		name: TName;
-		dataType: 'json';
-		columnType: 'MsSqlNVarCharJson';
-		data: unknown;
-		driverParam: string;
-		enumValues: undefined;
-		generated: undefined;
-	}
->;
-
-export class MsSqlVarCharBuilder<T extends ColumnBuilderBaseConfig<'string', 'MsSqlVarChar'>>
-	extends MsSqlColumnBuilder<T, MsSqlVarCharConfig<'text', T['enumValues']>>
-{
+export class MsSqlVarCharBuilder<TEnum extends [string, ...string[]]> extends MsSqlColumnBuilder<{
+	dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'string enum';
+	data: TEnum[number];
+	driverParam: number | string;
+	enumValues: TEnum;
+}, MsSqlVarCharConfig<'text', TEnum> & { rawLength: number | 'max' | undefined }> {
 	static override readonly [entityKind]: string = 'MsSqlVarCharBuilder';
 
 	/** @internal */
-	constructor(name: T['name'], config: MsSqlVarCharConfig<'text', T['enumValues']>) {
-		super(name, 'string', 'MsSqlVarChar');
-		this.config.length = config.length;
+	constructor(name: string, config: MsSqlVarCharConfig<'text', TEnum>) {
+		super(name, config.enum?.length ? 'string enum' : 'string', 'MsSqlVarChar');
+		this.config.length = typeof config?.length === 'number' ? config.length : config?.length === 'max' ? 2147483647 : 1;
+		this.config.rawLength = config?.length;
 		this.config.enum = config.enum;
 		this.config.nonUnicode = config.nonUnicode;
 	}
@@ -45,68 +24,71 @@ export class MsSqlVarCharBuilder<T extends ColumnBuilderBaseConfig<'string', 'Ms
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMsSqlTable<{ name: TTableName }>,
-	): MsSqlVarChar<MakeColumnConfig<T, TTableName> & { enumValues: T['enumValues'] }> {
-		return new MsSqlVarChar<MakeColumnConfig<T, TTableName> & { enumValues: T['enumValues'] }>(
+	) {
+		return new MsSqlVarChar(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config,
 		);
 	}
 }
 
-export class MsSqlVarChar<T extends ColumnBaseConfig<'string', 'MsSqlVarChar'>>
-	extends MsSqlColumn<T, MsSqlVarCharConfig<'text', T['enumValues']>>
-{
+export class MsSqlVarChar<T extends ColumnBaseConfig<'string' | 'string enum'>> extends MsSqlColumn<
+	T,
+	MsSqlVarCharConfig<
+		'text',
+		T['enumValues']
+	> & { rawLength: number | 'max' | undefined }
+> {
 	static override readonly [entityKind]: string = 'MsSqlVarChar';
-
-	readonly length: number | 'max' | undefined = this.config.length;
 
 	override readonly enumValues = this.config.enum;
 
 	readonly nonUnicode: boolean = this.config.nonUnicode;
 
 	getSQLType(): string {
-		return this.length === undefined
+		return this.config.rawLength === undefined
 			? this.nonUnicode ? `nvarchar` : `varchar`
 			: this.nonUnicode
-			? `nvarchar(${this.length})`
-			: `varchar(${this.length})`;
+			? `nvarchar(${this.config.rawLength})`
+			: `varchar(${this.config.rawLength})`;
 	}
 }
 
-export class MsSqlVarCharJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'MsSqlNVarCharJson'>>
-	extends MsSqlColumnBuilder<T, { length: number | 'max' | undefined; nonUnicode: boolean }>
-{
+export class MsSqlVarCharJsonBuilder extends MsSqlColumnBuilder<{
+	dataType: 'object json';
+	data: unknown;
+	driverParam: string;
+}, { length: number; nonUnicode: boolean; rawLength: number | 'max' | undefined }> {
 	static override readonly [entityKind]: string = 'MsSqlVarCharJsonBuilder';
 
 	/** @internal */
-	constructor(name: T['name'], config: { length: number | 'max' | undefined }) {
-		super(name, 'json', 'MsSqlNVarCharJson');
-		this.config.length = config.length;
+	constructor(name: string, config: { length: number | 'max' | undefined }) {
+		super(name, 'object json', 'MsSqlNVarCharJson');
+		this.config.length = typeof config?.length === 'number' ? config.length : config?.length === 'max' ? 2147483647 : 1;
+		this.config.rawLength = config?.length;
 		this.config.nonUnicode = true;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMsSqlTable<{ name: TTableName }>,
-	): MsSqlVarCharJson<MakeColumnConfig<T, TTableName>> {
-		return new MsSqlVarCharJson<MakeColumnConfig<T, TTableName>>(
+	) {
+		return new MsSqlVarCharJson(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config,
 		);
 	}
 }
 
-export class MsSqlVarCharJson<T extends ColumnBaseConfig<'json', 'MsSqlNVarCharJson'>>
-	extends MsSqlColumn<T, { length: number | undefined; nonUnicode: boolean }>
+export class MsSqlVarCharJson<T extends ColumnBaseConfig<'object json'>>
+	extends MsSqlColumn<T, { length: number; nonUnicode: boolean; rawLength: number | 'max' | undefined }>
 {
 	static override readonly [entityKind]: string = 'MsSqlVarCharJson';
 
-	readonly length: number | 'max' | undefined = this.config.length;
-
 	getSQLType(): string {
-		return this.length === undefined
+		return this.config.rawLength === undefined
 			? `nvarchar`
-			: `nvarchar(${this.length})`;
+			: `nvarchar(${this.config.rawLength})`;
 	}
 
 	override mapFromDriverValue(value: string): T['data'] {
@@ -118,7 +100,10 @@ export class MsSqlVarCharJson<T extends ColumnBaseConfig<'json', 'MsSqlNVarCharJ
 	}
 }
 
-export type MsSqlVarCharConfig<TMode extends 'text' | 'json', TEnum extends string[] | readonly string[] | undefined> =
+export type MsSqlVarCharConfig<
+	TMode extends 'text' | 'json',
+	TEnum extends string[] | readonly string[] | undefined,
+> =
 	& MsSqlVarCharConfigInitial<TMode, TEnum>
 	& {
 		nonUnicode: boolean;
@@ -137,14 +122,14 @@ export type MsSqlVarCharConfigInitial<
 		length?: number | 'max';
 	};
 
-export function varchar(): MsSqlVarCharBuilderInitial<'', [string, ...string[]]>;
+export function varchar(): MsSqlVarCharBuilder<[string, ...string[]]>;
 export function varchar<U extends string, T extends Readonly<[U, ...U[]]>>(
 	config?: MsSqlVarCharConfigInitial<'text', T | Writable<T>>,
-): MsSqlVarCharBuilderInitial<'', Writable<T>>;
-export function varchar<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
-	name: TName,
+): MsSqlVarCharBuilder<Writable<T>>;
+export function varchar<U extends string, T extends Readonly<[U, ...U[]]>>(
+	name: string,
 	config?: MsSqlVarCharConfigInitial<'text', T | Writable<T>>,
-): MsSqlVarCharBuilderInitial<TName, Writable<T>>;
+): MsSqlVarCharBuilder<Writable<T>>;
 export function varchar(
 	a?: string | MsSqlVarCharConfigInitial<'text'>,
 	b?: MsSqlVarCharConfigInitial<'text'>,
@@ -158,25 +143,23 @@ export function varchar(
 	} as any);
 }
 
-export function nvarchar(): MsSqlVarCharBuilderInitial<'', [string, ...string[]]>;
 export function nvarchar<
 	U extends string,
 	T extends Readonly<[U, ...U[]]>,
 	TMode extends 'text' | 'json' = 'text' | 'json',
 >(
 	config?: MsSqlVarCharConfigInitial<TMode, T | Writable<T>>,
-): Equal<TMode, 'json'> extends true ? MsSqlVarCharJsonBuilderInitial<''>
-	: MsSqlVarCharBuilderInitial<'', Writable<T>>;
+): Equal<TMode, 'json'> extends true ? MsSqlVarCharJsonBuilder
+	: MsSqlVarCharBuilder<Writable<T>>;
 export function nvarchar<
-	TName extends string,
 	U extends string,
 	T extends Readonly<[U, ...U[]]>,
 	TMode extends 'text' | 'json' = 'text' | 'json',
 >(
-	name: TName,
+	name: string,
 	config?: MsSqlVarCharConfigInitial<TMode, T | Writable<T>>,
-): Equal<TMode, 'json'> extends true ? MsSqlVarCharJsonBuilderInitial<''>
-	: MsSqlVarCharBuilderInitial<'', Writable<T>>;
+): Equal<TMode, 'json'> extends true ? MsSqlVarCharJsonBuilder
+	: MsSqlVarCharBuilder<Writable<T>>;
 export function nvarchar(
 	a?: string | MsSqlVarCharConfigInitial,
 	b?: MsSqlVarCharConfigInitial,

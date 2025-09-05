@@ -37,7 +37,7 @@ import type { CockroachColumn, CockroachDatabase, CockroachQueryResultHKT } from
 import {
 	alias,
 	bigint,
-	boolean,
+	bool,
 	char,
 	CockroachDialect,
 	cockroachEnum,
@@ -86,7 +86,7 @@ import { Expect } from '~/utils';
 declare module 'vitest' {
 	interface TestContext {
 		cockroach: {
-			db: CockroachDatabase<CockroachQueryResultHKT>;
+			db: CockroachDatabase<any>;
 		};
 	}
 }
@@ -101,7 +101,7 @@ const allTypesTable = cockroachTable('all_types', {
 	bigint64: bigint('bigint64', {
 		mode: 'bigint',
 	}),
-	bool: boolean('bool'),
+	bool: bool('bool'),
 	char: char('char'),
 	string: string('string'),
 	date: date('date', {
@@ -150,7 +150,7 @@ const allTypesTable = cockroachTable('all_types', {
 	arrbigint64: bigint('arrbigint64', {
 		mode: 'bigint',
 	}).array(),
-	arrbool: boolean('arrbool').array(),
+	arrbool: bool('arrbool').array(),
 	arrchar: char('arrchar').array(),
 	arrstring: string('arrstring').array(),
 	arrdate: date('arrdate', {
@@ -196,7 +196,7 @@ const allTypesTable = cockroachTable('all_types', {
 export const usersTable = cockroachTable('users', {
 	id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
 	name: text('name').notNull(),
-	verified: boolean('verified').notNull().default(false),
+	verified: bool('verified').notNull().default(false),
 	jsonb: jsonb('jsonb').$type<string[]>(),
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -277,7 +277,7 @@ export const mySchema = cockroachSchema('mySchema');
 export const usersMySchemaTable = mySchema.table('users', {
 	id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
 	name: text('name').notNull(),
-	verified: boolean('verified').notNull().default(false),
+	verified: bool('verified').notNull().default(false),
 	jsonb: jsonb('jsonb').$type<string[]>(),
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -1838,7 +1838,7 @@ export function tests() {
 			const products = cockroachTable('products', {
 				id: int4('id').primaryKey().generatedAlwaysAsIdentity(),
 				price: numeric('price').notNull(),
-				cheap: boolean('cheap').notNull().default(false),
+				cheap: bool('cheap').notNull().default(false),
 			});
 
 			await db.execute(sql`drop table if exists ${products}`);
@@ -1891,7 +1891,7 @@ export function tests() {
 
 			const users = cockroachTable('users', {
 				username: text('username').notNull(),
-				admin: boolean('admin').notNull(),
+				admin: bool('admin').notNull(),
 			});
 
 			await db.execute(sql`drop table if exists ${users}`);
@@ -4803,7 +4803,7 @@ export function tests() {
 				id: bigint({ mode: 'number' }).primaryKey().generatedByDefaultAsIdentity(),
 				firstName: varchar(),
 				lastName: varchar({ length: 50 }),
-				admin: boolean(),
+				admin: bool(),
 			});
 
 			await db.execute(sql`drop table if exists users`);

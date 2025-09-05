@@ -1,11 +1,11 @@
-import type { BuildColumns } from '~/column-builder.ts';
+import type { BuildColumns, ColumnBuilderBase } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AddAliasToSelection } from '~/query-builders/select.types.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import { getTableColumns } from '~/utils.ts';
-import type { MsSqlColumn, MsSqlColumnBuilderBase } from './columns/index.ts';
+import type { MsSqlColumn } from './columns/index.ts';
 import { QueryBuilder } from './query-builders/query-builder.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
 import { mssqlTable } from './table.ts';
@@ -82,7 +82,7 @@ export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<
 
 export class ManualViewBuilder<
 	TName extends string = string,
-	TColumns extends Record<string, MsSqlColumnBuilderBase> = Record<string, MsSqlColumnBuilderBase>,
+	TColumns extends Record<string, ColumnBuilderBase> = Record<string, ColumnBuilderBase>,
 > extends ViewBuilderCore<{ name: TName; columns: TColumns }> {
 	static override readonly [entityKind]: string = 'MsSqlManualViewBuilder';
 
@@ -172,7 +172,7 @@ export type MsSqlViewWithSelection<
 /** @internal */
 export function mssqlViewWithSchema(
 	name: string,
-	selection: Record<string, MsSqlColumnBuilderBase> | undefined,
+	selection: Record<string, ColumnBuilderBase> | undefined,
 	schema: string | undefined,
 ): ViewBuilder | ManualViewBuilder {
 	if (selection) {
@@ -182,13 +182,13 @@ export function mssqlViewWithSchema(
 }
 
 export function mssqlView<TName extends string>(name: TName): ViewBuilder<TName>;
-export function mssqlView<TName extends string, TColumns extends Record<string, MsSqlColumnBuilderBase>>(
+export function mssqlView<TName extends string, TColumns extends Record<string, ColumnBuilderBase>>(
 	name: TName,
 	columns: TColumns,
 ): ManualViewBuilder<TName, TColumns>;
 export function mssqlView(
 	name: string,
-	selection?: Record<string, MsSqlColumnBuilderBase>,
+	selection?: Record<string, ColumnBuilderBase>,
 ): ViewBuilder | ManualViewBuilder {
 	return mssqlViewWithSchema(name, selection, undefined);
 }

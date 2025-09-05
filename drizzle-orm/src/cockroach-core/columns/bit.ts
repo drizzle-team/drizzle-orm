@@ -1,63 +1,53 @@
 import type { AnyCockroachTable } from '~/cockroach-core/table.ts';
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { CockroachColumn, CockroachColumnWithArrayBuilder } from './common.ts';
 
-export type CockroachBitBuilderInitial<TName extends string, TLength extends number | undefined> = CockroachBitBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'CockroachBit';
+export class CockroachBitBuilder extends CockroachColumnWithArrayBuilder<{
+	dataType: 'string binary';
 	data: string;
 	driverParam: string;
-	enumValues: undefined;
-	length: TLength;
-}>;
-
-export class CockroachBitBuilder<T extends ColumnBuilderBaseConfig<'string', 'CockroachBit'> & { length?: number }>
-	extends CockroachColumnWithArrayBuilder<T, { length: T['length'] }>
-{
+}, { length: number | undefined; setLength: boolean; isLengthExact: true }> {
 	static override readonly [entityKind]: string = 'CockroachBitBuilder';
 
-	constructor(name: string, config: CockroachBitConfig<T['length']>) {
-		super(name, 'string', 'CockroachBit');
-		this.config.length = config.length;
+	constructor(name: string, config: CockroachBitConfig) {
+		super(name, 'string binary', 'CockroachBit');
+		this.config.length = config.length ?? 1;
+		this.config.setLength = config.length !== undefined;
+		this.config.isLengthExact = true;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyCockroachTable<{ name: TTableName }>,
-	): CockroachBit<MakeColumnConfig<T, TTableName> & { length?: T['length'] }> {
-		return new CockroachBit<MakeColumnConfig<T, TTableName> & { length?: T['length'] }>(
+	) {
+		return new CockroachBit(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config,
 		);
 	}
 }
 
-export class CockroachBit<T extends ColumnBaseConfig<'string', 'CockroachBit'> & { length?: number }>
-	extends CockroachColumn<T, { length: T['length'] }>
+export class CockroachBit<T extends ColumnBaseConfig<'string binary'> & { length?: number }>
+	extends CockroachColumn<T, { length: T['length']; setLength: boolean }>
 {
 	static override readonly [entityKind]: string = 'CockroachBit';
 
-	readonly length = this.config.length;
-
 	getSQLType(): string {
-		return this.length ? `bit(${this.length})` : 'bit';
+		return this.config.setLength ? `bit(${this.length})` : 'bit';
 	}
 }
 
-export interface CockroachBitConfig<TLength extends number | undefined = number | undefined> {
-	length?: TLength;
+export interface CockroachBitConfig {
+	length?: number | undefined;
 }
 
-export function bit(): CockroachBitBuilderInitial<'', undefined>;
-export function bit<D extends number | undefined>(config?: CockroachBitConfig<D>): CockroachBitBuilderInitial<'', D>;
-export function bit<TName extends string, D extends number | undefined>(
-	name: TName,
-	config?: CockroachBitConfig<D>,
-): CockroachBitBuilderInitial<TName, D>;
+export function bit(config?: CockroachBitConfig): CockroachBitBuilder;
+export function bit(
+	name: string,
+	config?: CockroachBitConfig,
+): CockroachBitBuilder;
 export function bit(a?: string | CockroachBitConfig, b: CockroachBitConfig = {}) {
 	const { name, config } = getColumnNameAndConfig<CockroachBitConfig>(a, b);
 	return new CockroachBitBuilder(name, config);

@@ -5,10 +5,12 @@ import { z } from 'zod/v4';
 import { columnToSchema } from './column.ts';
 import type { Conditions } from './schema.types.internal.ts';
 import type {
+	CoerceOptions,
 	CreateInsertSchema,
 	CreateSchemaFactoryOptions,
 	CreateSelectSchema,
 	CreateUpdateSchema,
+	FactoryOptions,
 } from './schema.types.ts';
 import { isPgEnum } from './utils.ts';
 
@@ -20,9 +22,7 @@ function handleColumns(
 	columns: Record<string, any>,
 	refinements: Record<string, any>,
 	conditions: Conditions,
-	factory?: CreateSchemaFactoryOptions<
-		Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined
-	>,
+	factory?: FactoryOptions,
 ): z.ZodType {
 	const columnSchemas: Record<string, z.ZodType> = {};
 
@@ -65,9 +65,7 @@ function handleColumns(
 
 function handleEnum(
 	enum_: PgEnum<any>,
-	factory?: CreateSchemaFactoryOptions<
-		Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined
-	>,
+	factory?: FactoryOptions,
 ) {
 	const zod: typeof z = factory?.zodInstance ?? z;
 	return zod.enum(enum_.enumValues);
@@ -123,7 +121,7 @@ export const createUpdateSchema: CreateUpdateSchema<undefined> = (
 };
 
 export function createSchemaFactory<
-	TCoerce extends Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined,
+	TCoerce extends CoerceOptions,
 >(options?: CreateSchemaFactoryOptions<TCoerce>) {
 	const createSelectSchema: CreateSelectSchema<TCoerce> = (
 		entity: Table | View | PgEnum<[string, ...string[]]>,

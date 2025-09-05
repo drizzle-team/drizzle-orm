@@ -37,7 +37,7 @@ export interface SQLiteSelectJoinConfig {
 
 export type BuildAliasTable<TTable extends SQLiteTable | View, TAlias extends string> = TTable extends Table
 	? SQLiteTableWithColumns<
-		UpdateTableConfig<TTable['_']['config'], {
+		UpdateTableConfig<TTable['_'], {
 			name: TAlias;
 			columns: MapColumnsToTableAlias<TTable['_']['columns'], TAlias, 'sqlite'>;
 		}>

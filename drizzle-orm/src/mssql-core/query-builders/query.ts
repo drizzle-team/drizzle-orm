@@ -1,5 +1,3 @@
-import { entityKind } from '~/entity.ts';
-import { QueryPromise } from '~/query-promise.ts';
 import {
 	type BuildQueryResult,
 	type BuildRelationalQueryResult,
@@ -7,7 +5,9 @@ import {
 	mapRelationalRowFromObj,
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
-} from '~/relations.ts';
+} from '~/_relations.ts';
+import { entityKind } from '~/entity.ts';
+import { QueryPromise } from '~/query-promise.ts';
 import type { Query, QueryWithTypings, SQL } from '~/sql/sql.ts';
 import type { KnownKeysOnly } from '~/utils.ts';
 import type { MsSqlDialect } from '../dialect.ts';

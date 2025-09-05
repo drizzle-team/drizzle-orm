@@ -188,7 +188,7 @@ test('refine table - select', (tc) => {
 	});
 
 	const result = createSelectSchema(table, {
-		c2: (schema) => t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
+		c2: () => t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 	});
 	const expected = t.Object({
@@ -211,7 +211,7 @@ test('refine table - select with custom data type', (tc) => {
 
 	const customTextSchema = t.String({ minLength: 1, maxLength: 100 });
 	const result = createSelectSchema(table, {
-		c2: (schema) => t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
+		c2: () => t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 		c4: customTextSchema,
 	});
@@ -235,7 +235,7 @@ test('refine table - insert', (tc) => {
 	});
 
 	const result = createInsertSchema(table, {
-		c2: (schema) => t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
+		c2: () => t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 	});
 	const expected = t.Object({
@@ -256,7 +256,7 @@ test('refine table - update', (tc) => {
 	});
 
 	const result = createUpdateSchema(table, {
-		c2: (schema) => t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
+		c2: () => t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 	});
 	const expected = t.Object({
@@ -292,14 +292,14 @@ test('refine view - select', (tc) => {
 	);
 
 	const result = createSelectSchema(view, {
-		c2: (schema) => t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
+		c2: () => t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
 		c3: t.Integer({ minimum: 1, maximum: 10 }),
 		nested: {
-			c5: (schema) => t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
+			c5: () => t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
 			c6: t.Integer({ minimum: 1, maximum: 10 }),
 		},
 		table: {
-			c2: (schema) => t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
+			c2: () => t.Integer({ minimum: CONSTANTS.INT32_MIN, maximum: 1000 }),
 			c3: t.Integer({ minimum: 1, maximum: 10 }),
 		},
 	});

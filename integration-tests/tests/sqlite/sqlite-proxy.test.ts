@@ -6,7 +6,10 @@ import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy';
 import { drizzle as proxyDrizzle } from 'drizzle-orm/sqlite-proxy';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
+import relations from './relations';
 import { tests, usersTable } from './sqlite-common';
+
+const ENABLE_LOGGING = false;
 import { TestCache, TestGlobalCache, tests as cacheTests } from './sqlite-common-cache';
 
 class ServerSimulator {
@@ -54,7 +57,7 @@ class ServerSimulator {
 	}
 }
 
-let db: SqliteRemoteDatabase;
+let db: SqliteRemoteDatabase<never, typeof relations>;
 let dbGlobalCached: SqliteRemoteDatabase;
 let cachedDb: SqliteRemoteDatabase;
 let client: Database.Database;
@@ -79,7 +82,10 @@ beforeAll(async () => {
 			throw e;
 		}
 	};
-	db = proxyDrizzle(callback);
+	db = proxyDrizzle(callback, {
+		logger: ENABLE_LOGGING,
+		relations,
+	});
 	cachedDb = proxyDrizzle(callback, { cache: new TestCache() });
 	dbGlobalCached = proxyDrizzle(callback, { cache: new TestGlobalCache() });
 });

@@ -1,39 +1,28 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
 import { MsSqlColumnBuilderWithIdentity, MsSqlColumnWithIdentity } from './common.ts';
 
-export type MsSqlIntBuilderInitial<TName extends string> = MsSqlIntBuilder<
-	{
-		name: TName;
-		dataType: 'number';
-		columnType: 'MsSqlInt';
-		data: number;
-		driverParam: number;
-		enumValues: undefined;
-		generated: undefined;
-	}
->;
-
-export class MsSqlIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MsSqlInt'>>
-	extends MsSqlColumnBuilderWithIdentity<T>
-{
+export class MsSqlIntBuilder extends MsSqlColumnBuilderWithIdentity<{
+	dataType: 'number int32';
+	data: number;
+	driverParam: number;
+}> {
 	static override readonly [entityKind]: string = 'MsSqlIntBuilder';
 
-	constructor(name: T['name']) {
-		super(name, 'number', 'MsSqlInt');
+	constructor(name: string) {
+		super(name, 'number int32', 'MsSqlInt');
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMsSqlTable<{ name: TTableName }>,
-	): MsSqlInt<MakeColumnConfig<T, TTableName>> {
-		return new MsSqlInt<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+	) {
+		return new MsSqlInt(table, this.config);
 	}
 }
 
-export class MsSqlInt<T extends ColumnBaseConfig<'number', 'MsSqlInt'>> extends MsSqlColumnWithIdentity<T> {
+export class MsSqlInt<T extends ColumnBaseConfig<'number int32'>> extends MsSqlColumnWithIdentity<T> {
 	static override readonly [entityKind]: string = 'MsSqlInt';
 
 	getSQLType(): string {
@@ -41,8 +30,6 @@ export class MsSqlInt<T extends ColumnBaseConfig<'number', 'MsSqlInt'>> extends 
 	}
 }
 
-export function int(): MsSqlIntBuilderInitial<''>;
-export function int<TName extends string>(name: TName): MsSqlIntBuilderInitial<TName>;
 export function int(name?: string) {
 	return new MsSqlIntBuilder(name ?? '');
 }
