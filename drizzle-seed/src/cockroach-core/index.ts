@@ -1,19 +1,11 @@
-import {
-	createTableRelationsHelpers,
-	extractTablesRelationalConfig,
-	getTableName,
-	is,
-	One,
-	Relations,
-	sql,
-} from 'drizzle-orm';
+import { is, sql } from 'drizzle-orm';
+import { Relations } from 'drizzle-orm/_relations';
 import type { CockroachArray, CockroachDatabase, CockroachSchema } from 'drizzle-orm/cockroach-core';
 import { CockroachTable, getTableConfig } from 'drizzle-orm/cockroach-core';
 import { getSchemaInfo } from '../common.ts';
 import { SeedService } from '../SeedService.ts';
 import type { RefinementsType } from '../types/seedService.ts';
-import type { Column, RelationWithReferences, Table, TableConfigT } from '../types/tables.ts';
-import { isRelationCyclic } from '../utils.ts';
+import type { Column, Table, TableConfigT } from '../types/tables.ts';
 
 // Cockroach-----------------------------------------------------------------------------------------------------------
 export const resetCockroach = async (
@@ -112,7 +104,7 @@ export const mapCockroachTable = (
 			columnType: baseColumn.getSQLType(),
 			typeParams: getTypeParams(baseColumn.getSQLType()),
 			dataType: baseColumn.dataType,
-			size: (baseColumn as CockroachArray<any, any>).size,
+			size: (baseColumn as CockroachArray<any, any>).length,
 			hasDefault: baseColumn.hasDefault,
 			enumValues: baseColumn.enumValues,
 			default: baseColumn.default,
@@ -174,7 +166,7 @@ export const mapCockroachTable = (
 			columnType: column.getSQLType(),
 			typeParams: getTypeParams(column.getSQLType()),
 			dataType: column.dataType,
-			size: (column as CockroachArray<any, any>).size,
+			size: (column as CockroachArray<any, any>).length,
 			hasDefault: column.hasDefault,
 			default: column.default,
 			enumValues: column.enumValues,

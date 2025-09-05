@@ -1,19 +1,18 @@
+import { getColumnTable, getTableName, is } from 'drizzle-orm';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
-	getTableName,
-	is,
 	One,
-	Relations,
-} from 'drizzle-orm';
+	type Relations,
+} from 'drizzle-orm/_relations';
 import { CockroachTable, getTableConfig as getCockroachTableConfig } from 'drizzle-orm/cockroach-core';
 import { getTableConfig as getMsSqlTableConfig, MsSqlTable } from 'drizzle-orm/mssql-core';
 import { getTableConfig as getMySqlTableConfig, MySqlTable } from 'drizzle-orm/mysql-core';
 import { getTableConfig as getPgTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import { getTableConfig as getSingleStoreTableConfig } from 'drizzle-orm/singlestore-core';
 import { getTableConfig as getSQLiteTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
-import { DrizzleTable, RelationWithReferences, Table, TableConfigT } from './types/tables';
-import { isRelationCyclic } from './utils';
+import type { DrizzleTable, RelationWithReferences, Table, TableConfigT } from './types/tables.ts';
+import { isRelationCyclic } from './utils.ts';
 
 const getTableConfig = (
 	table: DrizzleTable,
@@ -129,7 +128,7 @@ export const getSchemaInfo = (
 		}
 
 		const tableConfig = getTableConfig(table);
-		for (const [tsCol, col] of Object.entries(tableConfig.columns[0]!.table)) {
+		for (const [tsCol, col] of Object.entries(getColumnTable(tableConfig.columns[0]!))) {
 			dbToTsColumnNamesMap[col.name] = tsCol;
 		}
 		dbToTsColumnNamesMapGlobal[tableName] = dbToTsColumnNamesMap;
@@ -141,7 +140,7 @@ export const getSchemaInfo = (
 		tableConfig = getTableConfig(table);
 
 		dbToTsColumnNamesMap = {};
-		for (const [tsCol, col] of Object.entries(tableConfig.columns[0]!.table)) {
+		for (const [tsCol, col] of Object.entries(getColumnTable(tableConfig.columns[0]!))) {
 			dbToTsColumnNamesMap[col.name] = tsCol;
 		}
 
