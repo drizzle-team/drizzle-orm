@@ -1,19 +1,11 @@
-import {
-	createTableRelationsHelpers,
-	extractTablesRelationalConfig,
-	getTableName,
-	is,
-	One,
-	Relations,
-	sql,
-} from 'drizzle-orm';
+import { getTableName, is, sql } from 'drizzle-orm';
+import { Relations } from 'drizzle-orm/_relations';
 import type { MySqlDatabase, MySqlSchema } from 'drizzle-orm/mysql-core';
-import { getTableConfig, MySqlTable } from 'drizzle-orm/mysql-core';
+import { MySqlTable } from 'drizzle-orm/mysql-core';
 import { getSchemaInfo } from '../common.ts';
 import { SeedService } from '../SeedService.ts';
 import type { RefinementsType } from '../types/seedService.ts';
-import type { Column, RelationWithReferences, Table, TableConfigT } from '../types/tables.ts';
-import { isRelationCyclic } from '../utils.ts';
+import type { Column, Table, TableConfigT } from '../types/tables.ts';
 
 // MySql-----------------------------------------------------------------------------------------------------
 export const resetMySql = async (
