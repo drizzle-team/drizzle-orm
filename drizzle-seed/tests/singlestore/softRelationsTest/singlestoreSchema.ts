@@ -1,4 +1,4 @@
-import { relations } from 'drizzle-orm';
+import { relations } from 'drizzle-orm/_relations';
 import { float, int, singlestoreTable, text, timestamp, varchar } from 'drizzle-orm/singlestore-core';
 
 export const customers = singlestoreTable('customer', {
