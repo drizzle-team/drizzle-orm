@@ -1,5 +1,5 @@
+import { relations } from '~/_relations.ts';
 import { datetime, foreignKey, int, mssqlTable, text } from '~/mssql-core/index.ts';
-import { relations } from '~/relations.ts';
 
 export const users = mssqlTable('users', {
 	id: int('id').identity().primaryKey(),

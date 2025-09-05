@@ -1,45 +1,34 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
+import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
-export type SingleStoreTimeBuilderInitial<TName extends string> = SingleStoreTimeBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'SingleStoreTime';
-	data: string;
-	driverParam: string | number;
-	enumValues: undefined;
-	generated: undefined;
-}>;
-
-export class SingleStoreTimeBuilder<T extends ColumnBuilderBaseConfig<'string', 'SingleStoreTime'>>
-	extends SingleStoreColumnBuilder<
-		T
-	>
-{
+export class SingleStoreTimeBuilder extends SingleStoreColumnBuilder<
+	{
+		dataType: 'string time';
+		data: string;
+		driverParam: string | number;
+	}
+> {
 	static override readonly [entityKind]: string = 'SingleStoreTimeBuilder';
 
 	constructor(
-		name: T['name'],
+		name: string,
 	) {
-		super(name, 'string', 'SingleStoreTime');
+		super(name, 'string time', 'SingleStoreTime');
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnySingleStoreTable<{ name: TTableName }>,
-	): SingleStoreTime<MakeColumnConfig<T, TTableName>> {
-		return new SingleStoreTime<MakeColumnConfig<T, TTableName>>(
+	override build(table: SingleStoreTable) {
+		return new SingleStoreTime(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
 
 export class SingleStoreTime<
-	T extends ColumnBaseConfig<'string', 'SingleStoreTime'>,
+	T extends ColumnBaseConfig<'string time'>,
 > extends SingleStoreColumn<T> {
 	static override readonly [entityKind]: string = 'SingleStoreTime';
 
@@ -48,8 +37,6 @@ export class SingleStoreTime<
 	}
 }
 
-export function time(): SingleStoreTimeBuilderInitial<''>;
-export function time<TName extends string>(name: TName): SingleStoreTimeBuilderInitial<TName>;
-export function time(name?: string) {
+export function time(name?: string): SingleStoreTimeBuilder {
 	return new SingleStoreTimeBuilder(name ?? '');
 }

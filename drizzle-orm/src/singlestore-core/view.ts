@@ -1,11 +1,11 @@
-import type { BuildColumns } from '~/column-builder.ts';
+import type { BuildColumns, ColumnBuilderBase } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AddAliasToSelection } from '~/query-builders/select.types.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import { getTableColumns } from '~/utils.ts';
-import type { SingleStoreColumn, SingleStoreColumnBuilderBase } from './columns/index.ts';
+import type { SingleStoreColumn } from './columns/index.ts';
 import { QueryBuilder } from './query-builders/query-builder.ts';
 import type { SelectedFields } from './query-builders/select.types.ts';
 import { singlestoreTable } from './table.ts';
@@ -96,7 +96,7 @@ export class ViewBuilder<TName extends string = string> extends ViewBuilderCore<
 
 export class ManualViewBuilder<
 	TName extends string = string,
-	TColumns extends Record<string, SingleStoreColumnBuilderBase> = Record<string, SingleStoreColumnBuilderBase>,
+	TColumns extends Record<string, ColumnBuilderBase> = Record<string, ColumnBuilderBase>,
 > extends ViewBuilderCore<{ name: TName; columns: TColumns }> {
 	static override readonly [entityKind]: string = 'SingleStoreManualViewBuilder';
 

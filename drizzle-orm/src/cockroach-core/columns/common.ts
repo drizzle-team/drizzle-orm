@@ -1,17 +1,14 @@
 import type {
-	ColumnBuilderBase,
 	ColumnBuilderBaseConfig,
-	ColumnBuilderExtraConfig,
 	ColumnBuilderRuntimeConfig,
-	ColumnDataType,
+	ColumnType,
 	HasGenerated,
-	MakeColumnConfig,
 } from '~/column-builder.ts';
 import { ColumnBuilder } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
-import type { Simplify, Update } from '~/utils.ts';
+import type { Update } from '~/utils.ts';
 
 import type { ForeignKey, UpdateDeleteAction } from '~/cockroach-core/foreign-keys.ts';
 import { ForeignKeyBuilder } from '~/cockroach-core/foreign-keys.ts';
@@ -19,6 +16,8 @@ import type { AnyCockroachTable, CockroachTable } from '~/cockroach-core/table.t
 import type { SQL } from '~/sql/sql.ts';
 import { iife } from '~/tracing-utils.ts';
 import { makeCockroachArray, parseCockroachArray } from '../utils/array.ts';
+
+export type CockroachColumns = Record<string, CockroachColumn<any>>;
 
 export interface ReferenceConfig {
 	ref: () => CockroachColumn;
@@ -28,20 +27,10 @@ export interface ReferenceConfig {
 		onDelete?: UpdateDeleteAction;
 	};
 }
-
-export interface CockroachColumnBuilderBase<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
-	TTypeConfig extends object = object,
-> extends ColumnBuilderBase<T, TTypeConfig & { dialect: 'cockroach' }> {}
-
 export abstract class CockroachColumnBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
+	T extends ColumnBuilderBaseConfig<ColumnType> = ColumnBuilderBaseConfig<ColumnType>,
 	TRuntimeConfig extends object = object,
-	TTypeConfig extends object = object,
-	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
-> extends ColumnBuilder<T, TRuntimeConfig, TTypeConfig & { dialect: 'cockroach' }, TExtraConfig>
-	implements CockroachColumnBuilderBase<T, TTypeConfig>
-{
+> extends ColumnBuilder<T, TRuntimeConfig> {
 	private foreignKeyConfigs: ReferenceConfig[] = [];
 
 	static override readonly [entityKind]: string = 'CockroachColumnBuilder';
@@ -100,9 +89,7 @@ export abstract class CockroachColumnBuilder<
 	}
 
 	/** @internal */
-	abstract build<TTableName extends string>(
-		table: AnyCockroachTable<{ name: TTableName }>,
-	): CockroachColumn<MakeColumnConfig<T, TTableName>>;
+	abstract build(table: CockroachTable): CockroachColumn<any>;
 
 	/** @internal */
 	buildExtraConfigColumn<TTableName extends string>(
@@ -113,22 +100,17 @@ export abstract class CockroachColumnBuilder<
 }
 
 export abstract class CockroachColumnWithArrayBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
+	T extends ColumnBuilderBaseConfig<ColumnType> = ColumnBuilderBaseConfig<ColumnType>,
 	TRuntimeConfig extends object = object,
-	TTypeConfig extends object = object,
-	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
-> extends CockroachColumnBuilder<T, TRuntimeConfig, TTypeConfig & { dialect: 'cockroach' }, TExtraConfig> {
+> extends CockroachColumnBuilder<T, TRuntimeConfig> {
 	static override readonly [entityKind]: string = 'CockroachColumnWithArrayBuilder';
 	array<TSize extends number | undefined = undefined>(size?: TSize): Omit<
 		CockroachArrayBuilder<
 			& {
-				name: T['name'];
-				dataType: 'array';
-				columnType: 'CockroachArray';
+				name: string;
+				dataType: 'array basecolumn';
 				data: T['data'][];
 				driverParam: T['driverParam'][] | string;
-				enumValues: T['enumValues'];
-				size: TSize;
 				baseBuilder: T;
 			}
 			& (T extends { notNull: true } ? { notNull: true } : {})
@@ -147,17 +129,20 @@ export abstract class CockroachColumnWithArrayBuilder<
 
 // To understand how to use `CockroachColumn` and `AnyCockroachColumn`, see `Column` and `AnyColumn` documentation.
 export abstract class CockroachColumn<
-	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
+	T extends ColumnBaseConfig<ColumnType> = ColumnBaseConfig<ColumnType>,
 	TRuntimeConfig extends object = {},
-	TTypeConfig extends object = {},
-> extends Column<T, TRuntimeConfig, TTypeConfig & { dialect: 'cockroach' }> {
+> extends Column<T, TRuntimeConfig> {
 	static override readonly [entityKind]: string = 'CockroachColumn';
 
+	/** @internal */
+	override readonly table: CockroachTable;
+
 	constructor(
-		override readonly table: CockroachTable,
-		config: ColumnBuilderRuntimeConfig<T['data'], TRuntimeConfig>,
+		table: CockroachTable,
+		config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig,
 	) {
 		super(table, config);
+		this.table = table;
 	}
 
 	/** @internal */
@@ -170,7 +155,7 @@ export abstract class CockroachColumn<
 export type IndexedExtraConfigType = { order?: 'asc' | 'desc' };
 
 export class ExtraConfigColumn<
-	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
+	T extends ColumnBaseConfig<ColumnType> = ColumnBaseConfig<ColumnType>,
 > extends CockroachColumn<T, IndexedExtraConfigType> {
 	static override readonly [entityKind]: string = 'ExtraConfigColumn';
 
@@ -216,38 +201,34 @@ export class IndexedColumn {
 	indexConfig: IndexedExtraConfigType;
 }
 
-export type AnyCockroachColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType, string>> = {}> =
-	CockroachColumn<
-		Required<Update<ColumnBaseConfig<ColumnDataType, string>, TPartial>>
-	>;
+export type AnyCockroachColumn<TPartial extends Partial<ColumnBaseConfig<ColumnType>> = {}> = CockroachColumn<
+	Required<Update<ColumnBaseConfig<ColumnType>, TPartial>>
+>;
 
-export type CockroachArrayColumnBuilderBaseConfig = ColumnBuilderBaseConfig<'array', 'CockroachArray'> & {
-	size: number | undefined;
-	baseBuilder: ColumnBuilderBaseConfig<ColumnDataType, string>;
+export type CockroachArrayColumnBuilderBaseConfig = ColumnBuilderBaseConfig<'array basecolumn'> & {
+	baseBuilder: ColumnBuilderBaseConfig<ColumnType>;
 };
 
 export class CockroachArrayBuilder<
 	T extends CockroachArrayColumnBuilderBaseConfig,
-	TBase extends ColumnBuilderBaseConfig<ColumnDataType, string> | CockroachArrayColumnBuilderBaseConfig,
+	TBase extends ColumnBuilderBaseConfig<ColumnType> | CockroachArrayColumnBuilderBaseConfig,
 > extends CockroachColumnWithArrayBuilder<
-	T,
-	{
+	T & {
 		baseBuilder: TBase extends CockroachArrayColumnBuilderBaseConfig ? CockroachArrayBuilder<
 				TBase,
-				TBase extends { baseBuilder: infer TBaseBuilder extends ColumnBuilderBaseConfig<any, any> } ? TBaseBuilder
+				TBase extends { baseBuilder: infer TBaseBuilder extends ColumnBuilderBaseConfig<any> } ? TBaseBuilder
 					: never
 			>
-			: CockroachColumnWithArrayBuilder<TBase, {}, Simplify<Omit<TBase, keyof ColumnBuilderBaseConfig<any, any>>>>;
-		size: T['size'];
+			: CockroachColumnWithArrayBuilder<TBase, {}>;
 	},
 	{
 		baseBuilder: TBase extends CockroachArrayColumnBuilderBaseConfig ? CockroachArrayBuilder<
 				TBase,
-				TBase extends { baseBuilder: infer TBaseBuilder extends ColumnBuilderBaseConfig<any, any> } ? TBaseBuilder
+				TBase extends { baseBuilder: infer TBaseBuilder extends ColumnBuilderBaseConfig<any> } ? TBaseBuilder
 					: never
 			>
-			: CockroachColumnWithArrayBuilder<TBase, {}, Simplify<Omit<TBase, keyof ColumnBuilderBaseConfig<any, any>>>>;
-		size: T['size'];
+			: CockroachColumnWithArrayBuilder<TBase, {}>;
+		length: number | undefined;
 	}
 > {
 	static override readonly [entityKind] = 'CockroachArrayBuilder';
@@ -255,60 +236,65 @@ export class CockroachArrayBuilder<
 	constructor(
 		name: string,
 		baseBuilder: CockroachArrayBuilder<T, TBase>['config']['baseBuilder'],
-		size: T['size'],
+		length: number | undefined,
 	) {
-		super(name, 'array', 'CockroachArray');
+		super(name, 'array basecolumn', 'CockroachArray');
 		this.config.baseBuilder = baseBuilder;
-		this.config.size = size;
+		this.config.length = length;
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyCockroachTable<{ name: TTableName }>,
-	): CockroachArray<MakeColumnConfig<T, TTableName> & { size: T['size']; baseBuilder: T['baseBuilder'] }, TBase> {
-		const baseColumn = this.config.baseBuilder.build(table);
-		return new CockroachArray<
-			MakeColumnConfig<T, TTableName> & { size: T['size']; baseBuilder: T['baseBuilder'] },
-			TBase
-		>(
-			table as AnyCockroachTable<{ name: MakeColumnConfig<T, TTableName>['tableName'] }>,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+	override build(table: CockroachTable) {
+		const baseColumn: any = this.config.baseBuilder.build(table);
+		return new CockroachArray(
+			table,
+			this.config as any,
 			baseColumn,
 		);
 	}
 }
 
 export class CockroachArray<
-	T extends ColumnBaseConfig<'array', 'CockroachArray'> & {
-		size: number | undefined;
-		baseBuilder: ColumnBuilderBaseConfig<ColumnDataType, string>;
+	T extends ColumnBaseConfig<'array basecolumn'> & {
+		length: number | undefined;
+		baseBuilder: ColumnBuilderBaseConfig<ColumnType>;
 	},
-	TBase extends ColumnBuilderBaseConfig<ColumnDataType, string>,
-> extends CockroachColumn<T, {}, { size: T['size']; baseBuilder: T['baseBuilder'] }> {
-	readonly size: T['size'];
-
+	TBase extends ColumnBuilderBaseConfig<ColumnType>,
+> extends CockroachColumn<T, {}> {
 	static override readonly [entityKind]: string = 'CockroachArray';
 
 	constructor(
-		table: AnyCockroachTable<{ name: T['tableName'] }>,
+		table: CockroachTable<any>,
 		config: CockroachArrayBuilder<T, TBase>['config'],
 		readonly baseColumn: CockroachColumn,
 		readonly range?: [number | undefined, number | undefined],
 	) {
 		super(table, config);
-		this.size = config.size;
 	}
 
 	getSQLType(): string {
-		return `${this.baseColumn.getSQLType()}[${typeof this.size === 'number' ? this.size : ''}]`;
+		return `${this.baseColumn.getSQLType()}[${typeof this.length === 'number' ? this.length : ''}]`;
 	}
 
 	override mapFromDriverValue(value: unknown[] | string): T['data'] {
 		if (typeof value === 'string') {
-			// Thank you node-postgres for not parsing enum arrays
 			value = parseCockroachArray(value);
 		}
 		return value.map((v) => this.baseColumn.mapFromDriverValue(v));
+	}
+
+	// Needed for arrays of custom types
+	mapFromJsonValue(value: unknown[] | string): T['data'] {
+		if (typeof value === 'string') {
+			// Thank you node-postgres for not parsing enum arrays
+			value = parseCockroachArray(value);
+		}
+
+		const base = this.baseColumn;
+
+		return 'mapFromJsonValue' in base
+			? value.map((v) => (<(value: unknown) => unknown> base.mapFromJsonValue)(v))
+			: value.map((v) => base.mapFromDriverValue(v));
 	}
 
 	override mapToDriverValue(value: unknown[], isNestedArray = false): unknown[] | string {

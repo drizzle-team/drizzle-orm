@@ -1,11 +1,16 @@
-import type { BuildColumns, BuildExtraConfigColumns } from '~/column-builder.ts';
+import type { BuildColumns, BuildExtraConfigColumns, ColumnBuilderBase } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
-import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
+import {
+	type InferTableColumnsModels,
+	Table,
+	type TableConfig as TableConfigBase,
+	type UpdateTableConfig,
+} from '~/table.ts';
 import type { CheckBuilder } from './checks.ts';
 import { type CockroachColumnsBuilders, getCockroachColumnBuilders } from './columns/all.ts';
 import type {
 	CockroachColumn,
-	CockroachColumnBuilderBase,
+	CockroachColumns,
 	CockroachColumnWithArrayBuilder,
 	ExtraConfigColumn,
 } from './columns/common.ts';
@@ -28,7 +33,7 @@ export type CockroachTableExtraConfig = Record<
 	CockroachTableExtraConfigValue
 >;
 
-export type TableConfig = TableConfigBase<CockroachColumn>;
+export type TableConfig = TableConfigBase<CockroachColumns>;
 
 /** @internal */
 export const InlineForeignKeys = Symbol.for('drizzle:CockroachInlineForeignKeys');
@@ -65,9 +70,8 @@ export type AnyCockroachTable<TPartial extends Partial<TableConfig> = {}> = Cock
 
 export type CockroachTableWithColumns<T extends TableConfig> =
 	& CockroachTable<T>
-	& {
-		[Key in keyof T['columns']]: T['columns'][Key];
-	}
+	& T['columns']
+	& InferTableColumnsModels<T['columns']>
 	& {
 		enableRLS: () => Omit<
 			CockroachTableWithColumns<T>,
@@ -79,7 +83,7 @@ export type CockroachTableWithColumns<T extends TableConfig> =
 export function cockroachTableWithSchema<
 	TTableName extends string,
 	TSchemaName extends string | undefined,
-	TColumnsMap extends Record<string, CockroachColumnBuilderBase>,
+	TColumnsMap extends Record<string, ColumnBuilderBase>,
 >(
 	name: TTableName,
 	columns: TColumnsMap | ((columnTypes: CockroachColumnsBuilders) => TColumnsMap),
@@ -143,13 +147,13 @@ export function cockroachTableWithSchema<
 				dialect: 'cockroach';
 			}>;
 		},
-	});
+	}) as any;
 }
 
 export interface CockroachTableFn<TSchema extends string | undefined = undefined> {
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, CockroachColumnBuilderBase>,
+		TColumnsMap extends Record<string, ColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: TColumnsMap,
@@ -165,7 +169,7 @@ export interface CockroachTableFn<TSchema extends string | undefined = undefined
 
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, CockroachColumnBuilderBase>,
+		TColumnsMap extends Record<string, ColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: (columnTypes: CockroachColumnsBuilders) => TColumnsMap,

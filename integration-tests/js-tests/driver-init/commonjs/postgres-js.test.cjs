@@ -22,7 +22,7 @@ describe('postgres-js', async (it) => {
 
 		await db.$client.unsafe('SELECT 1;');
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({connection: string, ...config})', async () => {
@@ -33,7 +33,7 @@ describe('postgres-js', async (it) => {
 
 		await db.$client.unsafe('SELECT 1;');
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({connection: params, ...config})', async () => {
@@ -46,7 +46,7 @@ describe('postgres-js', async (it) => {
 
 		await db.$client.unsafe('SELECT 1;');
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle(client)', async () => {
@@ -64,7 +64,7 @@ describe('postgres-js', async (it) => {
 
 		await db.$client.unsafe('SELECT 1;');
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({client, ...config})', async () => {
@@ -76,6 +76,6 @@ describe('postgres-js', async (it) => {
 
 		await db.$client.unsafe('SELECT 1;');
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 });

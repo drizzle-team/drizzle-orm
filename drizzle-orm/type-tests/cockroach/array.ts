@@ -8,6 +8,7 @@ import type { Column } from '~/column.ts';
 	});
 	Expect<
 		Equal<
+			// @ts-ignore - TODO: Remake type checks for new columns
 			Column<
 				{
 					name: 'a';

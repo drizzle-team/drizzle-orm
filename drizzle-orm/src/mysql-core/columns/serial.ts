@@ -1,55 +1,33 @@
-import type {
-	ColumnBuilderBaseConfig,
-	ColumnBuilderRuntimeConfig,
-	HasDefault,
-	IsAutoincrement,
-	IsPrimaryKey,
-	MakeColumnConfig,
-	NotNull,
-} from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import type { MySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 
-export type MySqlSerialBuilderInitial<TName extends string> = IsAutoincrement<
-	IsPrimaryKey<
-		NotNull<
-			HasDefault<
-				MySqlSerialBuilder<{
-					name: TName;
-					dataType: 'number';
-					columnType: 'MySqlSerial';
-					data: number;
-					driverParam: number;
-					enumValues: undefined;
-				}>
-			>
-		>
-	>
->;
-
-export class MySqlSerialBuilder<T extends ColumnBuilderBaseConfig<'number', 'MySqlSerial'>>
-	extends MySqlColumnBuilderWithAutoIncrement<T>
-{
+export class MySqlSerialBuilder extends MySqlColumnBuilderWithAutoIncrement<{
+	dataType: 'number uint53';
+	data: number;
+	driverParam: number;
+	hasDefault: true;
+	notNull: true;
+	isPrimaryKey: true;
+	isAutoincrement: true;
+}> {
 	static override readonly [entityKind]: string = 'MySqlSerialBuilder';
 
-	constructor(name: T['name']) {
-		super(name, 'number', 'MySqlSerial');
+	constructor(name: string) {
+		super(name, 'number uint53', 'MySqlSerial');
 		this.config.hasDefault = true;
 		this.config.autoIncrement = true;
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlSerial<MakeColumnConfig<T, TTableName>> {
-		return new MySqlSerial<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+	override build(table: MySqlTable) {
+		return new MySqlSerial(table, this.config as any);
 	}
 }
 
 export class MySqlSerial<
-	T extends ColumnBaseConfig<'number', 'MySqlSerial'>,
+	T extends ColumnBaseConfig<'number uint53'>,
 > extends MySqlColumnWithAutoIncrement<T> {
 	static override readonly [entityKind]: string = 'MySqlSerial';
 
@@ -65,8 +43,6 @@ export class MySqlSerial<
 	}
 }
 
-export function serial(): MySqlSerialBuilderInitial<''>;
-export function serial<TName extends string>(name: TName): MySqlSerialBuilderInitial<TName>;
-export function serial(name?: string) {
+export function serial(name?: string): MySqlSerialBuilder {
 	return new MySqlSerialBuilder(name ?? '');
 }

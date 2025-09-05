@@ -1,45 +1,38 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
+import type { AnyMsSqlTable, MsSqlTable } from '~/mssql-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { MsSqlColumnBuilderWithIdentity, MsSqlColumnWithIdentity } from './common.ts';
 
-export type MsSqlBigIntBuilderInitial<TName extends string, TMode extends 'number' | 'bigint' | 'string'> =
-	MsSqlBigIntBuilder<
-		{
-			name: TName;
-			dataType: 'bigint';
-			columnType: 'MsSqlBigInt';
-			data: TMode extends 'string' ? string : TMode extends 'number' ? number : bigint;
-			driverParam: string;
-			enumValues: undefined;
-			generated: undefined;
-		}
-	>;
-
-export class MsSqlBigIntBuilder<T extends ColumnBuilderBaseConfig<'bigint', 'MsSqlBigInt'>>
-	extends MsSqlColumnBuilderWithIdentity<T, MsSqlBigIntConfig>
-{
+export class MsSqlBigIntBuilder<TMode extends 'number' | 'bigint' | 'string'> extends MsSqlColumnBuilderWithIdentity<{
+	dataType: TMode extends 'string' ? 'string int64' : TMode extends 'number' ? 'number int53' : 'bigint int64';
+	data: TMode extends 'string' ? string : TMode extends 'number' ? number : bigint;
+	driverParam: string;
+}, MsSqlBigIntConfig> {
 	static override readonly [entityKind]: string = 'MsSqlBigIntBuilder';
 
-	constructor(name: T['name'], config: MsSqlBigIntConfig) {
-		super(name, 'bigint', 'MsSqlBigInt');
-		this.config.mode = config.mode;
+	constructor(name: string, config: MsSqlBigIntConfig) {
+		const { mode } = config;
+		super(
+			name,
+			mode === 'string' ? 'string int64' : mode === 'number' ? 'number int53' : 'bigint int64' as any,
+			mode === 'string' ? 'MsSqlBigIntString' : mode === 'number' ? 'MsSqlBigIntNumber' : 'MsSqlBigInt',
+		);
+		this.config.mode = mode;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMsSqlTable<{ name: TTableName }>,
-	): MsSqlBigInt<MakeColumnConfig<T, TTableName>> {
-		return new MsSqlBigInt<MakeColumnConfig<T, TTableName>>(
+	) {
+		return new MsSqlBigInt(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config,
 		);
 	}
 }
 
-export class MsSqlBigInt<T extends ColumnBaseConfig<'bigint', 'MsSqlBigInt'>>
+export class MsSqlBigInt<T extends ColumnBaseConfig<'bigint int64' | 'number int53' | 'string int64'>>
 	extends MsSqlColumnWithIdentity<T, MsSqlBigIntConfig>
 {
 	static override readonly [entityKind]: string = 'MsSqlBigInt';
@@ -50,7 +43,7 @@ export class MsSqlBigInt<T extends ColumnBaseConfig<'bigint', 'MsSqlBigInt'>>
 		return `bigint`;
 	}
 
-	constructor(table: AnyMsSqlTable<{ name: T['tableName'] }>, config: MsSqlBigIntBuilder<T>['config']) {
+	constructor(table: MsSqlTable<any>, config: MsSqlBigIntBuilder<'string' | 'number' | 'bigint'>['config']) {
 		super(table, config);
 		this.mode = config.mode;
 	}
@@ -64,13 +57,13 @@ interface MsSqlBigIntConfig<T extends 'number' | 'bigint' | 'string' = 'number' 
 	mode: T;
 }
 
-export function bigint<TMode extends MsSqlBigIntConfig['mode']>(
+export function bigint<TMode extends 'number' | 'bigint' | 'string'>(
 	config: MsSqlBigIntConfig<TMode>,
-): MsSqlBigIntBuilderInitial<'', TMode>;
-export function bigint<TName extends string, TMode extends MsSqlBigIntConfig['mode']>(
-	name: TName,
+): MsSqlBigIntBuilder<TMode>;
+export function bigint<TMode extends 'number' | 'bigint' | 'string'>(
+	name: string,
 	config: MsSqlBigIntConfig<TMode>,
-): MsSqlBigIntBuilderInitial<TName, TMode>;
+): MsSqlBigIntBuilder<TMode>;
 export function bigint(a: string | MsSqlBigIntConfig, b?: MsSqlBigIntConfig) {
 	const { name, config } = getColumnNameAndConfig<MsSqlBigIntConfig>(a, b);
 	return new MsSqlBigIntBuilder(name, config);

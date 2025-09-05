@@ -99,7 +99,7 @@ const postsTable = pgTable('posts', {
 	userId: integer('city_id').references(() => usersTable.id),
 });
 
-let pgContainer: Docker.Container;
+let pgContainer: Docker.Container | undefined;
 
 afterAll(async () => {
 	await pgContainer?.stop().catch(console.error);

@@ -26,7 +26,7 @@ import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type Query, SQL, type SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
-import { getTableName, Table } from '~/table.ts';
+import { getTableName, type InferInsertModel, Table } from '~/table.ts';
 import {
 	type Assume,
 	type DrizzleTypeError,
@@ -60,9 +60,12 @@ export interface PgUpdateConfig {
 	withList?: Subquery[];
 }
 
-export type PgUpdateSetSource<TTable extends PgTable> =
+export type PgUpdateSetSource<
+	TTable extends PgTable,
+	TModel extends Record<string, any> = InferInsertModel<TTable>,
+> =
 	& {
-		[Key in keyof TTable['$inferInsert']]?:
+		[Key in keyof TModel & string]?:
 			| GetColumnData<TTable['_']['columns'][Key]>
 			| SQL
 			| PgColumn

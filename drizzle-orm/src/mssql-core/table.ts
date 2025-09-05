@@ -1,9 +1,14 @@
-import type { BuildColumns, BuildExtraConfigColumns } from '~/column-builder.ts';
+import type { BuildColumns, BuildExtraConfigColumns, ColumnBuilderBase } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
-import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
+import {
+	type InferTableColumnsModels,
+	Table,
+	type TableConfig as TableConfigBase,
+	type UpdateTableConfig,
+} from '~/table.ts';
 import type { CheckBuilder } from './checks.ts';
 import { getMsSqlColumnBuilders, type MsSqlColumnBuilders } from './columns/all.ts';
-import type { MsSqlColumn, MsSqlColumnBuilder, MsSqlColumnBuilderBase } from './columns/common.ts';
+import type { MsSqlColumn, MsSqlColumnBuilder, MsSqlColumns } from './columns/common.ts';
 import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
 import type { AnyIndexBuilder } from './indexes.ts';
 import type { PrimaryKeyBuilder } from './primary-keys.ts';
@@ -21,15 +26,13 @@ export type MsSqlTableExtraConfig = Record<
 	MsSqlTableExtraConfigValue
 >;
 
-export type TableConfig = TableConfigBase<MsSqlColumn>;
+export type TableConfig = TableConfigBase<MsSqlColumns>;
 
 /** @internal */
 export const InlineForeignKeys = Symbol.for('drizzle:MsSqlInlineForeignKeys');
 
 export class MsSqlTable<T extends TableConfig = TableConfig> extends Table<T> {
 	static override readonly [entityKind]: string = 'MsSqlTable';
-
-	declare protected $columns: T['columns'];
 
 	/** @internal */
 	static override readonly Symbol = Object.assign({}, Table.Symbol, {
@@ -54,14 +57,13 @@ export type AnyMsSqlTable<TPartial extends Partial<TableConfig> = {}> = MsSqlTab
 
 export type MsSqlTableWithColumns<T extends TableConfig> =
 	& MsSqlTable<T>
-	& {
-		[Key in keyof T['columns']]: T['columns'][Key];
-	};
+	& T['columns']
+	& InferTableColumnsModels<T['columns']>;
 
 export function mssqlTableWithSchema<
 	TTableName extends string,
 	TSchemaName extends string | undefined,
-	TColumnsMap extends Record<string, MsSqlColumnBuilderBase>,
+	TColumnsMap extends Record<string, ColumnBuilderBase>,
 >(
 	name: TTableName,
 	columns: TColumnsMap | ((columnTypes: MsSqlColumnBuilders) => TColumnsMap),
@@ -112,13 +114,13 @@ export function mssqlTableWithSchema<
 		) => MsSqlTableExtraConfig;
 	}
 
-	return table;
+	return table as any;
 }
 
 export interface MsSqlTableFn<TSchema extends string | undefined = undefined> {
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, MsSqlColumnBuilderBase>,
+		TColumnsMap extends Record<string, ColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: TColumnsMap,
@@ -132,7 +134,7 @@ export interface MsSqlTableFn<TSchema extends string | undefined = undefined> {
 
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, MsSqlColumnBuilderBase>,
+		TColumnsMap extends Record<string, ColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: (columnTypes: MsSqlColumnBuilders) => TColumnsMap,

@@ -1,34 +1,26 @@
-import type { AnyCockroachTable } from '~/cockroach-core/table.ts';
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { AnyCockroachTable, CockroachTable } from '~/cockroach-core/table.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { CockroachColumn, CockroachColumnWithArrayBuilder } from './common.ts';
 import type { Precision } from './timestamp.ts';
 
-export type CockroachTimeBuilderInitial<TName extends string> = CockroachTimeBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'CockroachTime';
-	data: string;
-	driverParam: string;
-	enumValues: undefined;
-}>;
-
-export class CockroachTimeBuilder<T extends ColumnBuilderBaseConfig<'string', 'CockroachTime'>>
-	extends CockroachColumnWithArrayBuilder<
-		T,
-		{ withTimezone: boolean; precision: number | undefined }
-	>
-{
+export class CockroachTimeBuilder extends CockroachColumnWithArrayBuilder<
+	{
+		dataType: 'string time';
+		data: string;
+		driverParam: string;
+	},
+	{ withTimezone: boolean; precision: number | undefined }
+> {
 	static override readonly [entityKind]: string = 'CockroachTimeBuilder';
 
 	constructor(
-		name: T['name'],
+		name: string,
 		readonly withTimezone: boolean,
 		readonly precision: number | undefined,
 	) {
-		super(name, 'string', 'CockroachTime');
+		super(name, 'string time', 'CockroachTime');
 		this.config.withTimezone = withTimezone;
 		this.config.precision = precision;
 	}
@@ -36,21 +28,21 @@ export class CockroachTimeBuilder<T extends ColumnBuilderBaseConfig<'string', 'C
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyCockroachTable<{ name: TTableName }>,
-	): CockroachTime<MakeColumnConfig<T, TTableName>> {
-		return new CockroachTime<MakeColumnConfig<T, TTableName>>(
+	) {
+		return new CockroachTime(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config,
 		);
 	}
 }
 
-export class CockroachTime<T extends ColumnBaseConfig<'string', 'CockroachTime'>> extends CockroachColumn<T> {
+export class CockroachTime<T extends ColumnBaseConfig<'string time'>> extends CockroachColumn<T> {
 	static override readonly [entityKind]: string = 'CockroachTime';
 
 	readonly withTimezone: boolean;
 	readonly precision: number | undefined;
 
-	constructor(table: AnyCockroachTable<{ name: T['tableName'] }>, config: CockroachTimeBuilder<T>['config']) {
+	constructor(table: CockroachTable<any>, config: CockroachTimeBuilder['config']) {
 		super(table, config);
 		this.withTimezone = config.withTimezone;
 		this.precision = config.precision;
@@ -67,9 +59,8 @@ export interface TimeConfig {
 	withTimezone?: boolean;
 }
 
-export function time(): CockroachTimeBuilderInitial<''>;
-export function time(config?: TimeConfig): CockroachTimeBuilderInitial<''>;
-export function time<TName extends string>(name: TName, config?: TimeConfig): CockroachTimeBuilderInitial<TName>;
+export function time(config?: TimeConfig): CockroachTimeBuilder;
+export function time(name: string, config?: TimeConfig): CockroachTimeBuilder;
 export function time(a?: string | TimeConfig, b: TimeConfig = {}) {
 	const { name, config } = getColumnNameAndConfig<TimeConfig>(a, b);
 	return new CockroachTimeBuilder(name, config.withTimezone ?? false, config.precision);

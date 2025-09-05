@@ -1,6 +1,6 @@
 /* eslint-disable drizzle-internal/require-entity-kind */
-import type { Relations } from 'drizzle-orm';
 import { is } from 'drizzle-orm';
+import type { Relations } from 'drizzle-orm/_relations';
 
 import type { MySqlColumn, MySqlSchema, MySqlTable } from 'drizzle-orm/mysql-core';
 import { MySqlDatabase } from 'drizzle-orm/mysql-core';

@@ -2,6 +2,7 @@ import type { PrismaClient } from '@prisma/client/extension';
 
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
+import type { EmptyRelations } from '~/relations.ts';
 import type { Query } from '~/sql/sql.ts';
 import { fillPlaceholders } from '~/sql/sql.ts';
 import type {
@@ -59,7 +60,13 @@ export interface PrismaSQLiteSessionOptions {
 	logger?: Logger;
 }
 
-export class PrismaSQLiteSession extends SQLiteSession<'async', unknown, Record<string, never>, Record<string, never>> {
+export class PrismaSQLiteSession extends SQLiteSession<
+	'async',
+	unknown,
+	Record<string, never>,
+	EmptyRelations,
+	Record<string, never>
+> {
 	static override readonly [entityKind]: string = 'PrismaSQLiteSession';
 
 	private readonly logger: Logger;
@@ -81,8 +88,25 @@ export class PrismaSQLiteSession extends SQLiteSession<'async', unknown, Record<
 		return new PrismaSQLitePreparedQuery(this.prisma, query, this.logger, executeMethod);
 	}
 
+	override prepareRelationalQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
+		// query: Query,
+		// fields: SelectedFieldsOrdered | undefined,
+		// executeMethod: SQLiteExecuteMethod,
+	): PrismaSQLitePreparedQuery<T> {
+		throw new Error('Method not implemented.');
+		// return new PrismaSQLitePreparedQuery(this.prisma, query, this.logger, executeMethod);
+	}
+
 	override transaction<T>(
-		_transaction: (tx: SQLiteTransaction<'async', unknown, Record<string, never>, Record<string, never>>) => Promise<T>,
+		_transaction: (
+			tx: SQLiteTransaction<
+				'async',
+				unknown,
+				Record<string, never>,
+				EmptyRelations,
+				Record<string, never>
+			>,
+		) => Promise<T>,
 		_config?: SQLiteTransactionConfig,
 	): Promise<T> {
 		throw new Error('Method not implemented.');

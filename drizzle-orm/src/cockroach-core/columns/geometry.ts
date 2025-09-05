@@ -1,41 +1,33 @@
 import type { AnyCockroachTable } from '~/cockroach-core/table.ts';
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { CockroachColumn, CockroachColumnWithArrayBuilder } from './common.ts';
 import { parseEWKB } from './utils.ts';
 
-export type CockroachGeometryBuilderInitial<TName extends string> = CockroachGeometryBuilder<{
-	name: TName;
-	dataType: 'array';
-	columnType: 'CockroachGeometry';
+export class CockroachGeometryBuilder extends CockroachColumnWithArrayBuilder<{
+	dataType: 'array geometry';
 	data: [number, number];
 	driverParam: string;
-	enumValues: undefined;
-}>;
-
-export class CockroachGeometryBuilder<T extends ColumnBuilderBaseConfig<'array', 'CockroachGeometry'>>
-	extends CockroachColumnWithArrayBuilder<T>
-{
+}> {
 	static override readonly [entityKind]: string = 'CockroachGeometryBuilder';
 
-	constructor(name: T['name']) {
-		super(name, 'array', 'CockroachGeometry');
+	constructor(name: string) {
+		super(name, 'array geometry', 'CockroachGeometry');
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyCockroachTable<{ name: TTableName }>,
-	): CockroachGeometry<MakeColumnConfig<T, TTableName>> {
-		return new CockroachGeometry<MakeColumnConfig<T, TTableName>>(
+	) {
+		return new CockroachGeometry(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config,
 		);
 	}
 }
 
-export class CockroachGeometry<T extends ColumnBaseConfig<'array', 'CockroachGeometry'>> extends CockroachColumn<T> {
+export class CockroachGeometry<T extends ColumnBaseConfig<'array geometry'>> extends CockroachColumn<T> {
 	static override readonly [entityKind]: string = 'CockroachGeometry';
 
 	getSQLType(): string {
@@ -51,38 +43,29 @@ export class CockroachGeometry<T extends ColumnBaseConfig<'array', 'CockroachGeo
 	}
 }
 
-export type CockroachGeometryObjectBuilderInitial<TName extends string> = CockroachGeometryObjectBuilder<{
-	name: TName;
-	dataType: 'json';
-	columnType: 'CockroachGeometryObject';
+export class CockroachGeometryObjectBuilder extends CockroachColumnWithArrayBuilder<{
+	dataType: 'object geometry';
 	data: { x: number; y: number };
 	driverParam: string;
-	enumValues: undefined;
-}>;
-
-export class CockroachGeometryObjectBuilder<T extends ColumnBuilderBaseConfig<'json', 'CockroachGeometryObject'>>
-	extends CockroachColumnWithArrayBuilder<T>
-{
+}> {
 	static override readonly [entityKind]: string = 'CockroachGeometryObjectBuilder';
 
-	constructor(name: T['name']) {
-		super(name, 'json', 'CockroachGeometryObject');
+	constructor(name: string) {
+		super(name, 'object geometry', 'CockroachGeometryObject');
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyCockroachTable<{ name: TTableName }>,
-	): CockroachGeometryObject<MakeColumnConfig<T, TTableName>> {
-		return new CockroachGeometryObject<MakeColumnConfig<T, TTableName>>(
+	) {
+		return new CockroachGeometryObject(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config,
 		);
 	}
 }
 
-export class CockroachGeometryObject<T extends ColumnBaseConfig<'json', 'CockroachGeometryObject'>>
-	extends CockroachColumn<T>
-{
+export class CockroachGeometryObject<T extends ColumnBaseConfig<'object geometry'>> extends CockroachColumn<T> {
 	static override readonly [entityKind]: string = 'CockroachGeometryObject';
 
 	getSQLType(): string {
@@ -105,16 +88,15 @@ export interface CockroachGeometryConfig<T extends 'tuple' | 'xy' = 'tuple' | 'x
 	srid?: number;
 }
 
-export function geometry(): CockroachGeometryBuilderInitial<''>;
 export function geometry<TMode extends CockroachGeometryConfig['mode'] & {}>(
 	config?: CockroachGeometryConfig<TMode>,
-): Equal<TMode, 'xy'> extends true ? CockroachGeometryObjectBuilderInitial<''>
-	: CockroachGeometryBuilderInitial<''>;
-export function geometry<TName extends string, TMode extends CockroachGeometryConfig['mode'] & {}>(
-	name: TName,
+): Equal<TMode, 'xy'> extends true ? CockroachGeometryObjectBuilder
+	: CockroachGeometryBuilder;
+export function geometry<TMode extends CockroachGeometryConfig['mode'] & {}>(
+	name: string,
 	config?: CockroachGeometryConfig<TMode>,
-): Equal<TMode, 'xy'> extends true ? CockroachGeometryObjectBuilderInitial<TName>
-	: CockroachGeometryBuilderInitial<TName>;
+): Equal<TMode, 'xy'> extends true ? CockroachGeometryObjectBuilder
+	: CockroachGeometryBuilder;
 export function geometry(a?: string | CockroachGeometryConfig, b?: CockroachGeometryConfig) {
 	const { name, config } = getColumnNameAndConfig<CockroachGeometryConfig>(a, b);
 	if (!config?.mode || config.mode === 'tuple') {
