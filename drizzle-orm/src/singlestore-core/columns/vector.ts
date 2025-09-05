@@ -136,7 +136,7 @@ export class SingleStoreBigIntVector<T extends ColumnBaseConfig<'array int64vect
 	readonly elementType = 'I64';
 
 	getSQLType(): string {
-		return `vector(${this.config.length}, ${this.elementType}})`;
+		return `vector(${this.config.length}, ${this.elementType})`;
 	}
 
 	override mapToDriverValue(value: Array<bigint>): string {
