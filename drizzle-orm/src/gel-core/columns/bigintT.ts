@@ -5,7 +5,6 @@ import { GelColumn } from './common.ts';
 import { GelIntColumnBaseBuilder } from './int.common.ts';
 
 export class GelBigInt64Builder extends GelIntColumnBaseBuilder<{
-	name: string;
 	dataType: 'bigint int64';
 	data: bigint;
 	driverParam: bigint;

@@ -1,6 +1,8 @@
 import {
+	bit,
 	boolean,
 	date,
+	inet,
 	integer,
 	interval,
 	json,
@@ -13,6 +15,7 @@ import {
 	timestamp,
 	uuid,
 	varchar,
+	vector,
 } from 'drizzle-orm/pg-core';
 
 export const schema = pgSchema('seeder_lib_pg');
@@ -319,4 +322,34 @@ export const uuidTable = schema.table('uuid_table', {
 
 export const uuidArrayTable = schema.table('uuid_array_table', {
 	uuid: uuid('uuid').array(),
+});
+
+export const bitStringTable = schema.table('bit_string_table', {
+	bit: bit('bit', { dimensions: 12 }),
+});
+export const bitStringUniqueTable = schema.table('bit_string_unique_table', {
+	bit: bit('bit', { dimensions: 12 }).unique(),
+});
+export const bitStringArrayTable = schema.table('bit_string_array_table', {
+	bit: bit('bit', { dimensions: 12 }).array(),
+});
+
+export const inetTable = schema.table('inet_table', {
+	inet: inet('inet'),
+});
+export const inetUniqueTable = schema.table('inet_unique_table', {
+	inet: inet('inet').unique(),
+});
+export const inetArrayTable = schema.table('inet_array_table', {
+	inet: inet('inet').array(),
+});
+
+export const vectorTable = schema.table('vector_table', {
+	vector: vector('vector', { dimensions: 12 }),
+});
+export const vectorUniqueTable = schema.table('vector_unique_table', {
+	vector: vector('vector', { dimensions: 12 }).unique(),
+});
+export const vectorArrayTable = schema.table('vector_array_table', {
+	vector: vector('vector', { dimensions: 12 }).array(),
 });

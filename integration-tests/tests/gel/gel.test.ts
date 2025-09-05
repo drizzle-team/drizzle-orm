@@ -641,10 +641,7 @@ describe('some', async () => {
 				name: text('name').notNull(),
 				state: text('state'),
 			},
-			(t) => ({
-				f: unique('custom_name').on(t.name, t.state).nullsNotDistinct(),
-				f1: unique('custom_name1').on(t.name, t.state),
-			}),
+			(t) => [unique('custom_name').on(t.name, t.state).nullsNotDistinct(), unique('custom_name1').on(t.name, t.state)],
 		);
 
 		const tableConfig = getTableConfig(cities1Table);
@@ -693,9 +690,7 @@ describe('some', async () => {
 				name: text('name').notNull(),
 				state: text('state'),
 			},
-			(t) => ({
-				f: foreignKey({ foreignColumns: [t.id1], columns: [t.id1], name: 'custom_fk' }),
-			}),
+			(t) => [foreignKey({ foreignColumns: [t.id1], columns: [t.id1], name: 'custom_fk' })],
 		);
 
 		const tableConfig = getTableConfig(table);
@@ -712,9 +707,7 @@ describe('some', async () => {
 				name: text('name').notNull(),
 				state: text('state'),
 			},
-			(t) => ({
-				f: primaryKey({ columns: [t.id, t.name], name: 'custom_pk' }),
-			}),
+			(t) => [primaryKey({ columns: [t.id, t.name], name: 'custom_pk' })],
 		);
 
 		const tableConfig = getTableConfig(table);
@@ -4699,10 +4692,10 @@ describe('some', async () => {
 					id: integer('id').primaryKey(),
 					name: text('name').notNull(),
 				},
-				() => ({
+				() => [
 					p1,
 					p2,
-				}),
+				],
 			);
 			const config = getTableConfig(table);
 			expect(config.policies).toHaveLength(2);

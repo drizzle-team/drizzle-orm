@@ -5,7 +5,6 @@ import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SQLiteColumn, SQLiteColumnBuilder } from './common.ts';
 
 export class SQLiteNumericBuilder extends SQLiteColumnBuilder<{
-	name: string;
 	dataType: 'string numeric';
 	data: string;
 	driverParam: string;
@@ -39,7 +38,6 @@ export class SQLiteNumeric<T extends ColumnBaseConfig<'string numeric'>> extends
 	}
 }
 export class SQLiteNumericNumberBuilder extends SQLiteColumnBuilder<{
-	name: string;
 	dataType: 'number';
 	data: number;
 	driverParam: string;
@@ -76,7 +74,6 @@ export class SQLiteNumericNumber<T extends ColumnBaseConfig<'number'>> extends S
 }
 
 export class SQLiteNumericBigIntBuilder extends SQLiteColumnBuilder<{
-	name: string;
 	dataType: 'bigint int64';
 	data: bigint;
 	driverParam: string;

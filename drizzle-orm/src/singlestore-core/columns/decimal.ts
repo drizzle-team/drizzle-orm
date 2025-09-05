@@ -6,7 +6,6 @@ import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoInc
 
 export class SingleStoreDecimalBuilder<TUnsigned extends boolean | undefined>
 	extends SingleStoreColumnBuilderWithAutoIncrement<{
-		name: string;
 		dataType: Equal<TUnsigned, true> extends true ? 'string unumeric' : 'string numeric';
 		data: string;
 		driverParam: string;
@@ -62,7 +61,6 @@ export class SingleStoreDecimal<T extends ColumnBaseConfig<'string numeric' | 's
 
 export class SingleStoreDecimalNumberBuilder<TUnsigned extends boolean | undefined>
 	extends SingleStoreColumnBuilderWithAutoIncrement<{
-		name: string;
 		dataType: Equal<TUnsigned, true> extends true ? 'number unsigned' : 'number';
 		data: number;
 		driverParam: string;
@@ -119,7 +117,6 @@ export class SingleStoreDecimalNumber<T extends ColumnBaseConfig<'number' | 'num
 
 export class SingleStoreDecimalBigIntBuilder<TUnsigned extends boolean | undefined>
 	extends SingleStoreColumnBuilderWithAutoIncrement<{
-		name: string;
 		dataType: Equal<TUnsigned, true> extends true ? 'bigint uint64' : 'bigint int64';
 		data: bigint;
 		driverParam: string;

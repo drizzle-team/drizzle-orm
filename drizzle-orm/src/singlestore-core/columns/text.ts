@@ -8,7 +8,6 @@ export type SingleStoreTextColumnType = 'tinytext' | 'text' | 'mediumtext' | 'lo
 
 export class SingleStoreTextBuilder<TEnum extends [string, ...string[]]> extends SingleStoreColumnBuilder<
 	{
-		name: string;
 		dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'string enum';
 		data: TEnum[number];
 		driverParam: string;

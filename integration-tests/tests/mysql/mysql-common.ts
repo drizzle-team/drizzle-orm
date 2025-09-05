@@ -216,11 +216,7 @@ const usersMigratorTable = mysqlTable('users12', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	email: text('email').notNull(),
-}, (table) => {
-	return {
-		name: uniqueIndex('').on(table.name).using('btree'),
-	};
-});
+}, (table) => [uniqueIndex('').on(table.name).using('btree')]);
 
 // To test aggregate functions
 const aggregateTable = mysqlTable('aggregate_table', {
@@ -501,9 +497,7 @@ export function tests(driver?: string) {
 				id: serial('id').primaryKey(),
 				name: text('name').notNull(),
 				state: text('state'),
-			}, (t) => ({
-				f: foreignKey({ foreignColumns: [t.id], columns: [t.id], name: 'custom_fk' }),
-			}));
+			}, (t) => [foreignKey({ foreignColumns: [t.id], columns: [t.id], name: 'custom_fk' })]);
 
 			const tableConfig = getTableConfig(table);
 
@@ -516,9 +510,7 @@ export function tests(driver?: string) {
 				id: serial('id').primaryKey(),
 				name: text('name').notNull(),
 				state: text('state'),
-			}, (t) => ({
-				f: primaryKey({ columns: [t.id, t.name], name: 'custom_pk' }),
-			}));
+			}, (t) => [primaryKey({ columns: [t.id, t.name], name: 'custom_pk' })]);
 
 			const tableConfig = getTableConfig(table);
 
@@ -531,10 +523,7 @@ export function tests(driver?: string) {
 				id: serial('id').primaryKey(),
 				name: text('name').notNull(),
 				state: text('state'),
-			}, (t) => ({
-				f: unique('custom_name').on(t.name, t.state),
-				f1: unique('custom_name1').on(t.name, t.state),
-			}));
+			}, (t) => [unique('custom_name').on(t.name, t.state), unique('custom_name1').on(t.name, t.state)]);
 
 			const tableConfig = getTableConfig(cities1Table);
 
@@ -5089,9 +5078,7 @@ export function tests(driver?: string) {
 		const userNotications = mysqlTable('user_notifications', {
 			userId: int('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
 			notificationId: int('notification_id').notNull().references(() => notifications.id, { onDelete: 'cascade' }),
-		}, (t) => ({
-			pk: primaryKey({ columns: [t.userId, t.notificationId] }),
-		}));
+		}, (t) => [primaryKey({ columns: [t.userId, t.notificationId] })]);
 
 		await db.execute(sql`drop table if exists ${notifications}`);
 		await db.execute(sql`drop table if exists ${users}`);

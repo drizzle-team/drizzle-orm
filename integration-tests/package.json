@@ -6,7 +6,7 @@
 	"scripts": {
 		"test:types": "tsc && cd type-tests/join-nodenext && tsc",
 		"test": "pnpm test:vitest",
-		"test:vitest": "vitest run --pass-with-no-tests",
+		"test:vitest": "vitest run --printConsoleTrace=true --silent=false --pass-with-no-tests",
 		"test:esm": "node tests/imports.test.mjs && node tests/imports.test.cjs",
 		"test:data-api": "sst shell vitest run tests/pg/awsdatapi.test.ts"
 	},
@@ -27,6 +27,7 @@
 		"@types/pg": "^8.10.1",
 		"@types/sql.js": "^1.4.4",
 		"@types/uuid": "^9.0.1",
+		"@types/mssql": "^9.1.4",
 		"@types/ws": "^8.5.10",
 		"@upstash/redis": "^1.34.3",
 		"@vitest/ui": "^1.6.0",
@@ -77,6 +78,7 @@
 		"uvu": "^0.5.6",
 		"vitest": "^3.1.3",
 		"ws": "^8.18.2",
-		"zod": "^3.20.2"
+		"zod": "^3.20.2",
+		"mssql": "^11.0.1"
 	}
 }

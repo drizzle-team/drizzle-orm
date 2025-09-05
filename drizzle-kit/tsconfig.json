@@ -1,6 +1,8 @@
 {
 	"compilerOptions": {
-		"target": "es2021",
+		"target": "ESNext",
+		"module": "ES2020",
+		"moduleResolution": "node",
 		"lib": ["es2021"],
 		"types": ["node"],
 		"strictNullChecks": true,
@@ -12,8 +14,6 @@
 		"strict": true,
 		"noImplicitOverride": true,
 		"forceConsistentCasingInFileNames": true,
-		"module": "CommonJS",
-		"moduleResolution": "node",
 		"resolveJsonModule": true,
 		"noErrorTruncation": true,
 		"isolatedModules": true,

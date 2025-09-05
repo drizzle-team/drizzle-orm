@@ -4,7 +4,6 @@ import type { PgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export class PgBooleanBuilder extends PgColumnBuilder<{
-	name: string;
 	dataType: 'boolean';
 	data: boolean;
 	driverParam: boolean;

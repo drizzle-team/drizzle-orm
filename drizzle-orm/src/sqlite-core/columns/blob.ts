@@ -17,7 +17,6 @@ function hexToText(hexString: string) {
 }
 
 export class SQLiteBigIntBuilder extends SQLiteColumnBuilder<{
-	name: string;
 	dataType: 'bigint int64';
 	data: bigint;
 	driverParam: Buffer;
@@ -68,7 +67,6 @@ export class SQLiteBigInt<T extends ColumnBaseConfig<'bigint int64'>> extends SQ
 }
 
 export class SQLiteBlobJsonBuilder extends SQLiteColumnBuilder<{
-	name: string;
 	dataType: 'object json';
 	data: unknown;
 	driverParam: Buffer;
@@ -122,7 +120,6 @@ export class SQLiteBlobJson<T extends ColumnBaseConfig<'object json'>> extends S
 }
 
 export class SQLiteBlobBufferBuilder extends SQLiteColumnBuilder<{
-	name: string;
 	dataType: 'object buffer';
 	data: Buffer;
 	driverParam: Buffer;

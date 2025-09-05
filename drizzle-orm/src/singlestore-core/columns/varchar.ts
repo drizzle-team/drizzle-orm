@@ -7,7 +7,6 @@ import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 export class SingleStoreVarCharBuilder<
 	TEnum extends [string, ...string[]],
 > extends SingleStoreColumnBuilder<{
-	name: string;
 	dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'string enum';
 	data: TEnum[number];
 	driverParam: number | string;
