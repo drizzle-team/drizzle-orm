@@ -90,10 +90,10 @@ afterAll(async () => {
 test('basic seed test', async () => {
 	await seed(db, schema, { count: 1 });
 
-	// const allDataTypes = await db.select().from(schema.allDataTypes);
+	const allDataTypes = await db.select().from(schema.allDataTypes);
 
 	// every value in each 10 rows does not equal undefined.
-	const predicate = true; // allDataTypes.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	const predicate = allDataTypes.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
 
 	expect(predicate).toBe(true);
 });

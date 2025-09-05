@@ -134,7 +134,7 @@ export const mapSqliteTable = (
 			name: dbToTsColumnNamesMap[column.name] as string,
 			columnType: column.getSQLType(),
 			typeParams: getTypeParams(column.getSQLType()),
-			dataType: column.dataType,
+			dataType: column.dataType.split(' ')[0]!,
 			hasDefault: column.hasDefault,
 			default: column.default,
 			enumValues: column.enumValues,

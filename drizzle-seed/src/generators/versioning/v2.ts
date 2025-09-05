@@ -165,7 +165,7 @@ export class GenerateStringV2 extends AbstractGenerator<{
 			currStr += stringChars[idx];
 		}
 
-		if (this.dataType === 'buffer') return Buffer.from(currStr);
+		if (this.dataType === 'object') return Buffer.from(currStr);
 		return currStr;
 	}
 }
@@ -229,6 +229,7 @@ export class GenerateUniqueStringV2 extends AbstractGenerator<{ isUnique?: boole
 			currStr += stringChars[idx];
 		}
 
+		if (this.dataType === 'object') return Buffer.from(uniqueStr + currStr);
 		return uniqueStr + currStr;
 	}
 }
