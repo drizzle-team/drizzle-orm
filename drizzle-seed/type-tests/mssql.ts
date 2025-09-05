@@ -10,8 +10,27 @@ const mssqlUsers = mssqlTable('users', {
 });
 
 {
-	const db = drizzle('');
+	const db0 = drizzle('', { schema: { users: mssqlUsers } });
 
-	await seed(db, { users: mssqlUsers });
-	await reset(db, { users: mssqlUsers });
+	await seed(db0, { users: mssqlUsers });
+	await seed(db0, { users: mssqlUsers }).refine((funcs) => ({
+		users: {
+			columns: {
+				id: funcs.intPrimaryKey(),
+			},
+		},
+	}));
+	await reset(db0, { users: mssqlUsers });
+
+	const db1 = drizzle('');
+
+	await seed(db1, { users: mssqlUsers });
+	await seed(db1, { users: mssqlUsers }).refine((funcs) => ({
+		users: {
+			columns: {
+				id: funcs.intPrimaryKey(),
+			},
+		},
+	}));
+	await reset(db1, { users: mssqlUsers });
 }

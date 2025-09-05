@@ -18,7 +18,7 @@ import { parseDefault, parseFkAction, parseViewMetadataFlag, parseViewSQL } from
 
 export const fromDatabase = async (
 	db: DB,
-	tablesFilter: (table: string) => boolean = () => true,
+	tablesFilter: (schema: string, table: string) => boolean = () => true,
 	schemaFilter: (schema: string) => boolean = () => true,
 	progressCallback: (
 		stage: IntrospectStage,
@@ -121,7 +121,12 @@ ORDER BY lower(views.name);
 			throw error;
 		});
 
-	const filteredTables = tablesList.filter((it) => tablesFilter(it.name)).map((it) => {
+	const filteredTables = tablesList.filter((it) => {
+		const schema = filteredSchemas.find((schema) => schema.schema_id === it.schema_id)!;
+
+		if (!tablesFilter(schema.schema_name, it.name)) return false;
+		return true;
+	}).map((it) => {
 		const schema = filteredSchemas.find((schema) => schema.schema_id === it.schema_id)!;
 
 		return {
@@ -635,7 +640,7 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 		const viewSchema = filteredSchemas.find((it) => it.schema_id === view.schema_id);
 		if (!viewSchema) continue;
 
-		if (!tablesFilter(viewName)) continue;
+		if (!tablesFilter(viewSchema.schema_name, viewName)) continue;
 		tableCount += 1;
 
 		const encryption = view.definition === null;
@@ -694,7 +699,7 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 
 export const fromDatabaseForDrizzle = async (
 	db: DB,
-	tableFilter: (it: string) => boolean = () => true,
+	tableFilter: (schema: string, it: string) => boolean = () => true,
 	schemaFilters: (it: string) => boolean = () => true,
 	progressCallback: (
 		stage: IntrospectStage,

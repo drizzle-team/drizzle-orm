@@ -1,5 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+import { AnyColumn } from 'drizzle-orm';
+import { CockroachTable, ForeignKey as CockroachFK } from 'drizzle-orm/cockroach-core';
+import { ForeignKey as MsSqlFK, MsSqlTable } from 'drizzle-orm/mssql-core';
+import { ForeignKey as MySqlFK, MySqlTable } from 'drizzle-orm/mysql-core';
+import { ForeignKey as PgFK, PgTable } from 'drizzle-orm/pg-core';
+import { SingleStoreTable } from 'drizzle-orm/singlestore-core';
+import { ForeignKey as SQLiteFK, SQLiteTable } from 'drizzle-orm/sqlite-core';
+
 export type Column = {
 	name: string;
 	dataType: string;
@@ -47,3 +55,7 @@ export type Prettify<T> =
 		[K in keyof T]: T[K];
 	}
 	& {};
+
+export type DrizzleTable = PgTable | MySqlTable | SQLiteTable | CockroachTable | MsSqlTable | SingleStoreTable;
+export type DrizzleForeignKey = PgFK | MySqlFK | SQLiteFK | CockroachFK | MsSqlFK;
+export type TableConfigT = { name: string; schema?: string; columns: AnyColumn[]; foreignKeys?: DrizzleForeignKey[] };

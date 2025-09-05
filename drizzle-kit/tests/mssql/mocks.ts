@@ -311,6 +311,8 @@ export const diffDefault = async <T extends MsSqlColumnBuilder>(
 	if (st1.length !== 1 || st1[0] !== expectedInit) res.push(`Unexpected init:\n${st1}\n\n${expectedInit}`);
 	if (st2.length > 0) res.push(`Unexpected subsequent init:\n${st2}`);
 
+	await db.query('INSERT INTO [table] ([column]) VALUES (default);');
+
 	// introspect to schema
 	const schema = await fromDatabaseForDrizzle(db);
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);

@@ -23,7 +23,7 @@ export const prepareTablesFilter = (set: string[]) => {
 		return new Minimatch(it);
 	});
 
-	const filter = (tableName: string) => {
+	const filter = (_schema: string, tableName: string) => {
 		if (matchers.length === 0) return true;
 
 		let flags: boolean[] = [];

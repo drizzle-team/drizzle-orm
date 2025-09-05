@@ -1,9 +1,12 @@
 import { parseEWKB } from 'drizzle-orm/pg-core/columns/postgis_extension/utils';
 
+import { Temporal } from '@js-temporal/polyfill';
 import { parse, stringify } from 'src/utils/when-json-met-bigint';
 import {
+	hasTimeZoneSuffix,
 	isDate,
 	isTime,
+	isTimestamp,
 	parseIntervalFields,
 	possibleIntervals,
 	stringifyArray,
@@ -11,10 +14,10 @@ import {
 	trimChar,
 	wrapWith,
 } from '../../utils';
-import { parseArray } from '../../utils/parse-pgarray';
+import { parseArray, parseExpressionArray } from '../../utils/parse-pgarray';
 import { hash } from '../common';
 import { escapeForSqlDefault, escapeForTsLiteral, numberForTs, parseParams, unescapeFromSqlDefault } from '../utils';
-import type { Column, PostgresEntities } from './ddl';
+import type { Column, DiffEntities, PostgresEntities } from './ddl';
 import type { Import } from './typescript';
 
 export interface SqlType {
@@ -430,7 +433,7 @@ export const Jsonb: SqlType = {
 };
 
 export const Time: SqlType = {
-	is: (type: string) => /^\s*time(?:\(\d+\))?(?:\s*\[\s*\])*\s*$/i.test(type),
+	is: (type: string) => /^\s*time(?:\(\d+\))?(?:\[\])*?\s*$/i.test(type),
 	drizzleImport: () => 'time',
 	defaultFromDrizzle: (value) => {
 		return { value: wrapWith(String(value), "'"), type: 'unknown' };
@@ -448,7 +451,6 @@ export const Time: SqlType = {
 		const options: any = {};
 		const [precision] = parseParams(type);
 		if (precision) options['precision'] = Number(precision);
-		if (/with time zone/i.test(type)) options['withTimezone'] = true;
 
 		if (!value) return { options, default: '' };
 		const trimmed = trimChar(value, "'");
@@ -460,7 +462,6 @@ export const Time: SqlType = {
 		const options: any = {};
 		const [precision] = parseParams(type);
 		if (precision) options['precision'] = Number(precision);
-		if (/with time zone/i.test(type)) options['withTimezone'] = true;
 
 		if (!value) return { options, default: '' };
 
@@ -475,6 +476,71 @@ export const Time: SqlType = {
 					if (!isTime(trimmed)) return `sql\`${trimmed}\``;
 					return wrapWith(v, "'");
 				}),
+			};
+		} catch {
+			return { options, default: `sql\`${value}\`` };
+		}
+	},
+};
+export const TimeTz: SqlType = {
+	is: (type: string) => /^\s*time(?:\(\d+\))?\s+with time zone(?:\[\])*?\s*$/i.test(type),
+	drizzleImport: () => 'time',
+	defaultFromDrizzle: (value) => {
+		const v = String(value);
+		const def = hasTimeZoneSuffix(v) ? v : v + '+00';
+		return { value: wrapWith(def, "'"), type: 'unknown' };
+	},
+	defaultArrayFromDrizzle: (value) => {
+		return {
+			value: wrapWith(
+				stringifyArray(value, 'sql', (v) => {
+					return hasTimeZoneSuffix(v) ? v : v + '+00';
+				}),
+				"'",
+			),
+			type: 'unknown',
+		};
+	},
+	defaultFromIntrospect: (value) => {
+		return { value: value, type: 'unknown' };
+	},
+	defaultArrayFromIntrospect: (value) => {
+		return { value: value as string, type: 'unknown' };
+	},
+	toTs: (type, value) => {
+		const options: any = {};
+		const [precision] = parseParams(type);
+		if (precision) options['precision'] = Number(precision);
+		options['withTimezone'] = true;
+
+		if (!value) return { options, default: '' };
+		const trimmed = trimChar(value, "'");
+		if (!isTime(trimmed)) return { options, default: `sql\`${value}\`` };
+
+		return { options, default: value };
+	},
+	toArrayTs: (type, value) => {
+		const options: any = {};
+		const [precision] = parseParams(type);
+		if (precision) options['precision'] = Number(precision);
+		options['withTimezone'] = true;
+
+		if (!value) return { options, default: '' };
+
+		try {
+			const trimmed = trimChar(trimChar(value, ['(', ')']), "'");
+			const res = parseArray(trimmed);
+
+			let isDrizzleSql: boolean = false;
+			const def = stringifyArray(res, 'ts', (v) => {
+				const trimmed = trimChar(v, "'");
+
+				if (!isTime(trimmed)) isDrizzleSql = true;
+				return wrapWith(v, "'");
+			});
+			return {
+				options,
+				default: isDrizzleSql ? `sql\`${value}\`` : def,
 			};
 		} catch {
 			return { options, default: `sql\`${value}\`` };
@@ -541,7 +607,7 @@ export const Timestamp: SqlType = {
 	// TODO
 	// ORM returns precision with space before type, why?
 	// timestamp or timestamp[] or timestamp (3) or timestamp (3)[]
-	is: (type: string) => /^\s*timestamp(?:\s)?(?:\(\d+\))?(?:\[\])?\s*$/i.test(type),
+	is: (type: string) => /^\s*timestamp(?:\s)?(?:\(\d+\))?(?:\[\])*?\s*$/i.test(type),
 	drizzleImport: () => 'timestamp',
 	defaultFromDrizzle: (value, type) => {
 		if (typeof value === 'string') return { value: wrapWith(value, "'"), type: 'unknown' };
@@ -588,17 +654,20 @@ export const Timestamp: SqlType = {
 
 		if (!value) return { options, default: '' };
 
+		let isDrizzleSql: boolean = false;
 		try {
 			const trimmed = trimChar(trimChar(value, ['(', ')']), "'");
 			const res = parseArray(trimmed);
+
+			const def = stringifyArray(res, 'ts', (v) => {
+				const patched = v.includes('T') ? v : v.replace(' ', 'T') + 'Z';
+				const check = new Date(patched);
+				if (isNaN(check.getTime())) isDrizzleSql = true;
+				return `new Date("${patched}")`;
+			});
 			return {
 				options,
-				default: stringifyArray(res, 'ts', (v) => {
-					const trimmed = trimChar(v, "'");
-					const check = new Date(trimmed);
-					if (!isNaN(check.getTime())) return `new Date("${trimmed}")`;
-					return `sql\`${trimmed}\``;
-				}),
+				default: isDrizzleSql ? `sql\`${value}\`` : def,
 			};
 		} catch {
 			return { options, default: `sql\`${value}\`` };
@@ -609,23 +678,31 @@ export const TimestampTz: SqlType = {
 	// TODO
 	// ORM returns precision with space before type, why?
 	// timestamp with time zone or timestamp with time zone[] or timestamp (3) with time zone or timestamp (3) with time zone[]
-	is: (type: string) => /^\s*timestamp(?:\s)?(?:\(\d+\))?\s+with time zone(?:\[\])?\s*$/i.test(type),
+	is: (type: string) => /^\s*timestamp(?:\s)?(?:\(\d+\))?\s+with time zone(?:\[\])*?\s*$/i.test(type),
 	drizzleImport: () => 'timestamp',
 	defaultFromDrizzle: (value, type) => {
-		if (typeof value === 'string') return { value: wrapWith(value, "'"), type: 'unknown' };
+		if (typeof value === 'string') {
+			const mapped = hasTimeZoneSuffix(value) ? value : (value + '+00');
+			return { value: wrapWith(mapped, "'"), type: 'unknown' };
+		}
 		if (!(value instanceof Date)) throw new Error('Timestamp default value must be instance of Date or String');
 
-		const mapped = value.toISOString().replace('T', ' ').replace('Z', ' ').slice(0, 23) + '+00';
+		const mapped = value.toISOString().replace('T', ' ').replace('Z', '+00');
+
 		return { value: wrapWith(mapped, "'"), type: 'unknown' };
 	},
 	defaultArrayFromDrizzle: (value, type) => {
 		const res = stringifyArray(value, 'sql', (v) => {
-			if (typeof v === 'string') return v;
+			if (typeof v === 'string') {
+				const mapped = hasTimeZoneSuffix(v) ? v : (v + '+00');
+				return wrapWith(mapped, '"');
+			}
 			if (v instanceof Date) {
-				return wrapWith(v.toISOString().replace('T', ' ').replace('Z', ' ').slice(0, 23) + '+00', '"');
+				return wrapWith(v.toISOString().replace('T', ' ').replace('Z', '+00'), '"');
 			}
 			throw new Error('Unexpected default value for Timestamp, must be String or Date');
 		});
+
 		return { value: wrapWith(res, "'"), type: 'unknown' };
 	},
 	defaultFromIntrospect: (value) => {
@@ -660,14 +737,18 @@ export const TimestampTz: SqlType = {
 		try {
 			const trimmed = trimChar(trimChar(value, ['(', ')']), "'");
 			const res = parseArray(trimmed);
+
+			let isDrizzleSql: boolean = false;
+			const def = stringifyArray(res, 'ts', (v) => {
+				const trimmed = trimChar(v, "'");
+				const check = new Date(trimmed);
+
+				if (isNaN(check.getTime())) isDrizzleSql = true;
+				return `new Date("${trimmed}")`;
+			});
 			return {
 				options,
-				default: stringifyArray(res, 'ts', (v) => {
-					const trimmed = trimChar(v, "'");
-					const check = new Date(trimmed);
-					if (!isNaN(check.getTime())) return `new Date("${trimmed}")`;
-					return `sql\`${trimmed}\``;
-				}),
+				default: isDrizzleSql ? `sql\`${value}\`` : def,
 			};
 		} catch {
 			return { options, default: `sql\`${value}\`` };
@@ -1254,9 +1335,8 @@ export const Line: SqlType = {
 	},
 };
 
-// TODO WIP
 export const GeometryPoint: SqlType = {
-	is: (type: string) => /^\s*geometry\(point\)(?:\[\s*\])*\s*$/i.test(type),
+	is: (type: string) => /^\s*geometry\(point(?:,\d+)?\)(?:\[\s*\])*\s*$/i.test(type),
 	drizzleImport: () => 'geometry',
 	defaultFromDrizzle: (value, mode, config) => {
 		if (!value) return { type: 'unknown', value: '' };
@@ -1276,19 +1356,19 @@ export const GeometryPoint: SqlType = {
 		throw new Error('unknown geometry type');
 	},
 	defaultArrayFromDrizzle: function(value: any[], dimensions: number, mode, config): Column['default'] {
-		// Parse to ARRAY[ ::text]
+		// Parse to ARRAY[]
 		let res;
 		const srid: number | undefined = config ? Number(config) : undefined;
 		let sridPrefix = srid ? `SRID=${srid};` : '';
 		if (mode === 'tuple') {
 			res = stringifyTuplesArray(value, 'geometry-sql', (x: number[]) => {
-				const res = `${sridPrefix}POINT(${x[0]} ${x[1]})::text`;
-				return `'${res}'::text`;
+				const res = `${sridPrefix}POINT(${x[0]} ${x[1]})`;
+				return `'${res}'`;
 			});
 		} else if (mode === 'object') {
 			res = stringifyArray(value, 'geometry-sql', (x: { x: number; y: number }, depth: number) => {
 				const res = `${sridPrefix}POINT(${x.x} ${x.y})`;
-				return `'${res}'::text`;
+				return `'${res}'`;
 			});
 		} else throw new Error('unknown geometry type');
 
@@ -1300,7 +1380,7 @@ export const GeometryPoint: SqlType = {
 		try {
 			const { srid, point } = parseEWKB(trimChar(value, "'"));
 			let sridPrefix = srid ? `SRID=${srid};` : '';
-			def = `'${sridPrefix}POINT(${point} ${point})'`;
+			def = `'${sridPrefix}POINT(${point[0]} ${point[1]})'`;
 		} catch (e) {
 			def = value;
 		}
@@ -1308,20 +1388,46 @@ export const GeometryPoint: SqlType = {
 		return { value: def, type: 'unknown' };
 	},
 	defaultArrayFromIntrospect: function(value: string): Column['default'] {
-		// If {} array - parse to ARRAY[ ::text]
+		// If {} array - parse to ARRAY[]
 
+		/**
+		 * Potential values here are:
+		 * DEFAULT {'POINT(10 10)'} -> '{010100000000000000000024400000000000002440}'::geometry(Point,435)[]
+		 * DEFAULT ARRAY['POINT(10 10)'] -> ARRAY['POINT(10 10)'::text]
+		 * DEFAULT ARRAY['POINT(10 10)']::geometry(point) -> ARRAY['010100000000000000000024400000000000002440'::geometry(Point)]
+		 * DEFAULT ARRAY['POINT(10 10)'::text]::geometry(point) -> ARRAY[('POINT(10 10)'::text)::geometry(Point)]
+		 */
 		let def = value;
-		if (value.startsWith('{') && value.endsWith('}')) {
-			def = stringifyArray(value, 'geometry-sql', (v) => {
-				try {
-					const { srid, point } = parseEWKB(v);
-					let sridPrefix = srid ? `SRID=${srid};` : '';
-					return `${sridPrefix}POINT(${point[0]} ${point[1]})::text`;
-				} catch (e) {
-					return v;
-				}
-			});
-		}
+
+		if (def === "'{}'") return { type: 'unknown', value: def };
+
+		try {
+			if (value.startsWith("'{") && value.endsWith("}'")) {
+				const parsed = parseArray(trimChar(value, "'"));
+
+				def = stringifyArray(parsed, 'geometry-sql', (v) => {
+					try {
+						const { srid, point } = parseEWKB(v);
+						let sridPrefix = srid ? `SRID=${srid};` : '';
+						return `'${sridPrefix}POINT(${point[0]} ${point[1]})'`;
+					} catch (e) {
+						return v;
+					}
+				});
+			} else {
+				const parsed = parseExpressionArray(value);
+				def = stringifyArray(parsed, 'geometry-sql', (v) => {
+					v = trimDefaultValueSuffix(trimDefaultValueSuffix(v).replace(/^\((.*)\)$/, '$1'));
+					try {
+						const { srid, point } = parseEWKB(trimChar(v, "'"));
+						let sridPrefix = srid ? `SRID=${srid};` : '';
+						return `'${sridPrefix}POINT(${point[0]} ${point[1]})'`;
+					} catch (e) {
+						return v;
+					}
+				});
+			}
+		} catch {}
 
 		return { type: 'unknown', value: def };
 	},
@@ -1330,13 +1436,15 @@ export const GeometryPoint: SqlType = {
 
 		const options: { srid?: number; type: 'point' } = { type: 'point' };
 
-		value = trimChar(value, "'");
+		const sridOption = splitSqlType(type).options?.split(',')[1];
+		if (sridOption) options.srid = Number(sridOption);
 
-		// SRID=4326;POINT(30.5234 50.4501) OR '0101000020E6100000F5B9DA8AFD853E40FDF675E09C394940'
 		if (!value.includes('POINT(')) return { default: `sql\`${value}\``, options };
 
-		const srid: string | undefined = value.split('SRID=')[1]?.split(';')[0];
-		options.srid = srid ? Number(srid) : undefined;
+		const sridInDef = value.startsWith("'SRID=") ? Number(value.split('SRID=')[1].split(';')[0]) : undefined;
+		if (!sridOption && sridInDef) {
+			return { default: `sql\`${value}\``, options };
+		}
 
 		const [res1, res2] = value.split('POINT(')[1].split(')')[0].split(' ');
 
@@ -1346,11 +1454,39 @@ export const GeometryPoint: SqlType = {
 		if (!value) return { default: '' };
 
 		const options: { srid?: number; type: 'point' } = { type: 'point' };
+		const sridOption = splitSqlType(type).options?.split(',')[1];
+		if (sridOption) options.srid = Number(sridOption);
 
-		return {
-			default: `sql\`${value}\``,
-			options,
-		};
+		if (!value) return { default: '', options };
+
+		if (value === "'{}'") return { default: '[]', options };
+
+		let isDrizzleSql;
+		const srids: number[] = [];
+		try {
+			const trimmed = trimChar(trimChar(value, ['(', ')']), "'");
+			const res = parseExpressionArray(trimmed);
+
+			const def = stringifyArray(res, 'ts', (v) => {
+				if (v.includes('SRID=')) srids.push(Number(v.split('SRID=')[1].split(';')[0]));
+				const [res1, res2] = value.split('POINT(')[1].split(')')[0].split(' ');
+				if (!value.includes('POINT(')) isDrizzleSql = true;
+
+				return `[${res1}, ${res2}]`;
+			});
+
+			if (!isDrizzleSql) isDrizzleSql = srids.some((it) => it !== srids[0]);
+			// if there is no srid in type and user defines srids in default
+			// we need to return point with srids
+			if (!isDrizzleSql && !sridOption && srids.length > 0) isDrizzleSql = true;
+
+			return {
+				options,
+				default: isDrizzleSql ? `sql\`${value}\`` : def,
+			};
+		} catch {
+			return { options, default: `sql\`${value}\`` };
+		}
 	},
 };
 
@@ -1517,6 +1653,7 @@ export const typeFor = (type: string, isEnum: boolean): SqlType => {
 	if (Json.is(type)) return Json;
 	if (Jsonb.is(type)) return Jsonb;
 	if (Time.is(type)) return Time;
+	if (TimeTz.is(type)) return TimeTz;
 	if (Timestamp.is(type)) return Timestamp;
 	if (TimestampTz.is(type)) return TimestampTz;
 	if (Uuid.is(type)) return Uuid;
@@ -1856,6 +1993,117 @@ export const isSerialType = (type: string) => {
 	return /^(?:serial|bigserial|smallserial)$/i.test(type);
 };
 
+// map all to utc with saving precision
+function formatTimestampTz(date: string) {
+	if (!isTimestamp(date)) return date;
+
+	// Convert to Temporal.Instant
+	const instant = Temporal.Instant.from(date);
+
+	const iso = instant.toString({ timeZone: 'UTC' });
+
+	// const fractionalDigits = iso.split('.')[1]!.length;
+
+	// // decide whether to limit precision
+	// const formattedPrecision = fractionalDigits > precision
+	// 	// @ts-expect-error
+	// 	? instant.toString({ fractionalSecondDigits: precision })
+	// 	: iso;
+
+	return iso;
+}
+function formatTime(date: string) {
+	if (!isTime(date)) return date;
+
+	// Convert to Temporal.Instant
+	const instant = Temporal.Instant.from(`1970-01-01 ${date}`);
+
+	const iso = instant.toString({ timeZone: 'UTC' });
+
+	// const fractionalDigits = iso.split('.')[1]!.length;
+
+	// // decide whether to limit precision
+	// const formattedPrecision = fractionalDigits > precision
+	// 	// @ts-expect-error
+	// 	? instant.toString({ fractionalSecondDigits: precision })
+	// 	: iso;
+
+	return iso;
+}
+export const defaultsCommutative = (
+	diffDef: DiffEntities['columns']['default'],
+	type: string,
+	dimensions: number,
+): boolean => {
+	if (!diffDef) return false;
+
+	let from = diffDef.from?.value;
+	let to = diffDef.to?.value;
+
+	if (from === to) return true;
+
+	if (type.startsWith('timestamp') && type.includes('with time zone')) {
+		if (from && to) {
+			from = trimChar(from, "'");
+			to = trimChar(to, "'");
+
+			if (dimensions > 0) {
+				try {
+					const fromArray = stringifyArray(parseArray(from), 'sql', (v) => {
+						return `"${formatTimestampTz(v)}"`;
+					});
+					const toArray = stringifyArray(parseArray(to), 'sql', (v) => {
+						return `"${formatTimestampTz(v)}"`;
+					});
+
+					if (toArray === fromArray) return true;
+				} catch {
+				}
+
+				return false;
+			}
+
+			if (formatTimestampTz(to) === formatTimestampTz(from)) return true;
+		}
+
+		return false;
+	}
+
+	if (type.startsWith('time') && type.includes('with time zone')) {
+		if (from && to) {
+			from = trimChar(from, "'");
+			to = trimChar(to, "'");
+
+			if (dimensions > 0) {
+				try {
+					const fromArray = stringifyArray(parseArray(from), 'sql', (v) => {
+						return `"${formatTime(v)}"`;
+					});
+					const toArray = stringifyArray(parseArray(to), 'sql', (v) => {
+						return `"${formatTime(v)}"`;
+					});
+
+					if (toArray === fromArray) return true;
+				} catch {
+				}
+
+				return false;
+			}
+
+			if (formatTime(to) === formatTime(from)) return true;
+		}
+
+		return false;
+	}
+
+	// if define '[4.0]', psql will store it as '[4]'
+	if (type.startsWith('vector')) {
+		if (from?.replaceAll('.0', '') === to) return true;
+	}
+
+	return false;
+};
+
 export const defaults = {
 	/*
 			By default, PostgreSQL uses the cluster’s default tablespace (which is named 'pg_default')
@@ -1912,5 +2160,11 @@ export const defaults = {
 
 	index: {
 		method: 'btree',
+	},
+
+	types: {
+		geometry: {
+			defSrid: 0,
+		},
 	},
 } as const;
