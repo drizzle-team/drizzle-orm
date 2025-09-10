@@ -4022,7 +4022,7 @@ export function tests(driver?: string) {
 
 			// Test with SQL injection attempt in parameter
 			const maliciousDomains = ["safe.com'; DROP TABLE test_companies_injection; --", 'test.com'];
-			
+
 			// This should safely create temp table with parameterized query
 			const tempTable = await db
 				.temp('safe_temp_table')
@@ -4030,7 +4030,7 @@ export function tests(driver?: string) {
 					db
 						.select({ companyId: companiesTable.companyId })
 						.from(companiesTable)
-						.where(inArray(companiesTable.domain, maliciousDomains))
+						.where(inArray(companiesTable.domain, maliciousDomains)),
 				);
 
 			// Verify the table still exists and injection was prevented
