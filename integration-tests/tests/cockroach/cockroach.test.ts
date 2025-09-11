@@ -56,6 +56,9 @@ test('migrator : default migration strategy', async () => {
 
 	await migrate(db, { migrationsFolder: './drizzle2/cockroach' });
 
+	console.log(
+		db.insert(usersMigratorTable).values({ name: 'John', email: 'email' }).toSQL(),
+	);
 	await db.insert(usersMigratorTable).values({ name: 'John', email: 'email' });
 
 	const result = await db.select().from(usersMigratorTable);

@@ -1,7 +1,7 @@
 {
   "version": "1",
-  "dialect": "cockroachdb",
-  "id": "daee116b-0a00-433c-81a3-62baf215cef5",
+  "dialect": "cockroach",
+  "id": "cd7bca85-fda1-4129-a13c-4c08c82c0ec4",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "ddl": [
     {
@@ -12,14 +12,13 @@
     },
     {
       "type": "int4",
-      "options": null,
       "typeSchema": null,
       "notNull": true,
       "dimensions": 0,
       "default": null,
       "generated": null,
       "identity": {
-        "type": "byDefault",
+        "type": "always",
         "increment": "1",
         "startWith": "1",
         "minValue": "1",
@@ -33,9 +32,8 @@
     },
     {
       "type": "string",
-      "options": null,
       "typeSchema": null,
-      "notNull": true,
+      "notNull": false,
       "dimensions": 0,
       "default": null,
       "generated": null,
@@ -47,7 +45,6 @@
     },
     {
       "type": "string",
-      "options": null,
       "typeSchema": null,
       "notNull": true,
       "dimensions": 0,
@@ -58,16 +55,6 @@
       "entityType": "columns",
       "schema": "public",
       "table": "users12"
-    },
-    {
-      "columns": [
-        "id"
-      ],
-      "nameExplicit": false,
-      "name": "users12_pkey",
-      "schema": "public",
-      "table": "users12",
-      "entityType": "pks"
     }
   ],
   "renames": []
