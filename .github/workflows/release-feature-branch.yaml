@@ -22,7 +22,7 @@ jobs:
           - neon-http
           - neon-serverless
           - drizzle-orm
-          # - drizzle-kit 
+          - drizzle-kit 
           - drizzle-zod
           - drizzle-seed
           - drizzle-typebox
