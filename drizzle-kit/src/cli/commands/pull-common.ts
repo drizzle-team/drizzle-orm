@@ -48,6 +48,36 @@ export const prepareTablesFilter = (set: string[]) => {
 
 	return filter;
 };
+export const prepareTablesFilterWithoutSchema = (set: string[]) => {
+	const matchers = set.map((it) => {
+		return new Minimatch(it);
+	});
+
+	const filter = (tableName: string) => {
+		if (matchers.length === 0) return true;
+
+		let flags: boolean[] = [];
+
+		for (let matcher of matchers) {
+			if (matcher.negate) {
+				if (!matcher.match(tableName)) {
+					flags.push(false);
+				}
+			}
+
+			if (matcher.match(tableName)) {
+				flags.push(true);
+			}
+		}
+
+		if (flags.length > 0) {
+			return flags.every(Boolean);
+		}
+		return false;
+	};
+
+	return filter;
+};
 
 // TODO: take from beta
 export const relationsToTypeScript = (
