@@ -515,7 +515,10 @@ ORDER BY pg_class.relnamespace, lower(pg_class.relname)
 						FROM
 							(
 								SELECT
-									pg_get_serial_sequence("table_schema" || '.' || "table_name", "attname")::regclass::oid as "seqId",
+									pg_get_serial_sequence(
+										quote_ident("table_schema") || '.' || quote_ident("table_name"), 
+										"attname"
+									)::regclass::oid as "seqId",
 									"identity_generation" AS generation,
 									"identity_start" AS "start",
 									"identity_increment" AS "increment",
@@ -726,23 +729,14 @@ ORDER BY pg_class.relnamespace, lower(pg_class.relname)
 			: null;
 
 		let columnTypeMapped;
-		// // if you create string(200), in pg system tables this will be stored as text(204)
-		// const unintrospectedPrecisions = ["vector", "interval", "text"];
-		// if (enumType) {
-		//   columnTypeMapped = enumType.name;
-		// } else if (unintrospectedPrecisions.find((it) => extraColumnConfig.data_type.startsWith(it))) {
-		//   columnTypeMapped = extraColumnConfig.data_type;
-		// }  else {
-		//   columnTypeMapped = column.type;
-		// }
 
-		columnTypeMapped = extraColumnConfig.data_type;
+		columnTypeMapped = enumType
+			? enumType.name
+			: extraColumnConfig.data_type.replace('character', 'char').replace('float8', 'float').replace(
+				'float4',
+				'real',
+			).replaceAll('[]', '');
 		const columnDimensions = Number(column.dimensions);
-
-		columnTypeMapped = columnTypeMapped.replace('character', 'char').replace('float8', 'float').replace(
-			'float4',
-			'real',
-		);
 
 		columnTypeMapped = trimChar(columnTypeMapped, '"');
 
@@ -792,7 +786,7 @@ ORDER BY pg_class.relnamespace, lower(pg_class.relname)
 			table: table.name,
 			name: column.name,
 			type: columnTypeMapped,
-			typeSchema: enumType?.schema ?? null,
+			typeSchema: enumType ? enumType.schema ?? 'public' : null,
 			dimensions: columnDimensions,
 			default: column.generatedType === 's' || column.identityType ? null : defaultValue,
 			unique: !!unique,
