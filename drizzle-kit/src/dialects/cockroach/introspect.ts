@@ -325,10 +325,14 @@ export const fromDatabase = async (
 			seqmax as "maxValue", 
 			seqincrement as "incrementBy", 
 			seqcycle as "cycle", 
-			seqcache as "cacheSize" 
+			COALESCE(pgs.cache_size, pg_sequence.seqcache) as "cacheSize"
 		FROM pg_catalog.pg_sequence
 		JOIN pg_catalog.pg_class ON pg_sequence.seqrelid OPERATOR(pg_catalog.=) pg_class.oid
 		JOIN pg_catalog.pg_namespace ON pg_namespace.oid OPERATOR(pg_catalog.=) pg_class.relnamespace
+		LEFT JOIN pg_sequences pgs ON (
+		    pgs.sequencename = pg_class.relname 
+    		AND pgs.schemaname = pg_class.relnamespace::regnamespace::text
+		)
 		WHERE nspname IN (${filteredNamespacesStringForSQL})
 		ORDER BY pg_catalog.lower(nspname), pg_catalog.lower(relname);
 ;`,
