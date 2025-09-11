@@ -117,7 +117,7 @@ test('array #4: boolean array default', async (t) => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0 = [
-		`ALTER TABLE \"test\" ADD COLUMN \"values\" boolean[] DEFAULT '{true,false,true}'::boolean[];`,
+		`ALTER TABLE \"test\" ADD COLUMN \"values\" bool[] DEFAULT '{true,false,true}'::bool[];`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);

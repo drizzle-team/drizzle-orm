@@ -5899,7 +5899,7 @@ export function tests() {
 			]);
 		});
 
-		test.only('all types', async (ctx) => {
+		test('all types', async (ctx) => {
 			const { db } = ctx.cockroach;
 
 			await db.execute(sql`CREATE TYPE "public"."en" AS ENUM('enVal1', 'enVal2');`);

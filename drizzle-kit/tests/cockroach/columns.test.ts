@@ -510,8 +510,8 @@ test('varchar and text default values escape single quotes', async () => {
 	});
 
 	const st0 = [
-		`ALTER TABLE "table" ADD COLUMN "text" string DEFAULT 'escape''s quotes';`,
-		`ALTER TABLE "table" ADD COLUMN "varchar" varchar DEFAULT 'escape''s quotes';`,
+		`ALTER TABLE "table" ADD COLUMN "text" string DEFAULT e'escape\\'s quotes';`,
+		`ALTER TABLE "table" ADD COLUMN "varchar" varchar DEFAULT e'escape\\'s quotes';`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -961,8 +961,8 @@ test('no diffs for all database types', async () => {
 		allChars: customSchema.table('all_chars', {
 			columnAll: char('column_all', { length: 1 }).default('text').notNull(),
 			column: char('column', { length: 1 }),
+			columnArr: char('column_arr', { length: 1 }).array(),
 		}),
-
 		allDoublePrecision: customSchema.table('all_double_precision', {
 			columnAll: doublePrecision('column_all').default(33.2).notNull(),
 			column: doublePrecision('column'),

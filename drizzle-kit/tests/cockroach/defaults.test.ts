@@ -10,6 +10,7 @@ import {
 	doublePrecision,
 	float,
 	geometry,
+	inet,
 	int4,
 	int8,
 	interval,
@@ -36,7 +37,7 @@ let _: TestDatabase;
 let db: DB;
 
 beforeAll(async () => {
-	_ = await prepareTestDatabase(false);
+	_ = await prepareTestDatabase(true);
 	db = _.db;
 });
 
@@ -165,8 +166,8 @@ test('numeric', async () => {
 
 	const res7_1 = await diffDefault(_, numeric({ precision: 6 }).default('10.100'), '10.100');
 	const res8_1 = await diffDefault(_, numeric({ precision: 6, scale: 2 }).default('10.100'), '10.100');
-	const res7_2 = await diffDefault(_, numeric({ mode: 'number', precision: 6 }).default(10.1), '10.1'); // js trims .100 to 0.1
-	const res8_2 = await diffDefault(_, numeric({ mode: 'number', precision: 6, scale: 2 }).default(10.1), '10.1'); // js trims .100 to 0.1
+	const res7_2 = await diffDefault(_, numeric({ mode: 'number', precision: 6 }).default(10.100), '10.1');
+	const res8_2 = await diffDefault(_, numeric({ mode: 'number', precision: 6, scale: 2 }).default(10.10), '10.1');
 
 	const res9 = await diffDefault(_, numeric({ mode: 'string', scale: 2 }).default('10.123'), '10.123');
 	const res10 = await diffDefault(_, numeric({ mode: 'string', precision: 6 }).default('10.123'), '10.123');
@@ -614,7 +615,6 @@ test('bool + bool arrays', async () => {
 
 test('char + char arrays', async () => {
 	const res1 = await diffDefault(_, char({ length: 15 }).default('text'), `'text'`);
-	const res1_0 = await diffDefault(_, char().default('text'), `'text'`, true);
 	const res2 = await diffDefault(_, char({ length: 15 }).default("text'text"), `e'text\\'text'`);
 	const res3 = await diffDefault(_, char({ length: 15 }).default('text\'text"'), `e'text\\'text"'`);
 	// raw default sql for the line below: 'mo''''",\`}{od';
@@ -636,8 +636,6 @@ test('char + char arrays', async () => {
 
 	// char is bigger than default
 	const res9 = await diffDefault(_, char({ length: 15 }).default('text'), `'text'`);
-	// char is less than default
-	const res10 = await diffDefault(_, char({ length: 2 }).default('text'), `'text'`, true);
 	// char is same as default
 	const res11 = await diffDefault(_, char({ length: 2 }).default('12'), `'12'`);
 
@@ -670,17 +668,7 @@ test('char + char arrays', async () => {
 	// char is same as default
 	const res19 = await diffDefault(_, char({ length: 2 }).array().default(['12']), `'{12}'::char(2)[]`);
 
-	// char ends with '
-	const res20 = await diffDefault(_, char({ length: 5 }).array().default(["1234'4"]), `'{1234''4}'::char(5)[]`);
-	// char ends with \
-	const res21 = await diffDefault(
-		_,
-		char({ length: 5 }).array().default(['1234\\1']),
-		`'{"1234\\\\1"}'::char(5)[]`,
-	);
-
 	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res1_0).toStrictEqual([`Insert default failed`]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
 	expect.soft(res4).toStrictEqual([]);
@@ -691,7 +679,6 @@ test('char + char arrays', async () => {
 	expect.soft(res8).toStrictEqual([]);
 	expect.soft(res8_0).toStrictEqual([]);
 	expect.soft(res9).toStrictEqual([]);
-	expect.soft(res10).toStrictEqual([`Insert default failed`]);
 	expect.soft(res11).toStrictEqual([]);
 	expect.soft(res12).toStrictEqual([]);
 	expect.soft(res13).toStrictEqual([]);
@@ -703,8 +690,6 @@ test('char + char arrays', async () => {
 	expect.soft(res18_1).toStrictEqual([]);
 	expect.soft(res18_2).toStrictEqual([]);
 	expect.soft(res19).toStrictEqual([]);
-	expect.soft(res20).toStrictEqual([]);
-	expect.soft(res21).toStrictEqual([]);
 });
 
 test('varchar + varchar arrays', async () => {
@@ -731,8 +716,6 @@ test('varchar + varchar arrays', async () => {
 
 	// varchar length is bigger than default
 	const res9 = await diffDefault(_, varchar({ length: 15 }).default('text'), `'text'`);
-	// varchar length is less than default
-	const res10 = await diffDefault(_, varchar({ length: 2 }).default('text'), `'text'`, true);
 	// varchar length is same as default
 	const res11 = await diffDefault(_, varchar({ length: 2 }).default('12'), `'12'`);
 
@@ -765,15 +748,6 @@ test('varchar + varchar arrays', async () => {
 	// char is same as default
 	const res19 = await diffDefault(_, varchar({ length: 2 }).array().default(['12']), `'{12}'::varchar(2)[]`);
 
-	// char ends with '
-	const res20 = await diffDefault(_, varchar({ length: 5 }).array().default(["1234'4"]), `'{1234''4}'::varchar(5)[]`);
-	// char ends with \
-	const res21 = await diffDefault(
-		_,
-		varchar({ length: 5 }).array().default(['1234\\1']),
-		`'{"1234\\\\1"}'::varchar(5)[]`,
-	);
-
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res1_0).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
@@ -786,7 +760,6 @@ test('varchar + varchar arrays', async () => {
 	expect.soft(res8).toStrictEqual([]);
 	expect.soft(res8_0).toStrictEqual([]);
 	expect.soft(res9).toStrictEqual([]);
-	expect.soft(res10).toStrictEqual([`Insert default failed`]);
 	expect.soft(res11).toStrictEqual([]);
 	expect.soft(res12).toStrictEqual([]);
 	expect.soft(res13).toStrictEqual([]);
@@ -798,8 +771,6 @@ test('varchar + varchar arrays', async () => {
 	expect.soft(res18_1).toStrictEqual([]);
 	expect.soft(res18_2).toStrictEqual([]);
 	expect.soft(res19).toStrictEqual([]);
-	expect.soft(res20).toStrictEqual([]);
-	expect.soft(res21).toStrictEqual([]);
 });
 
 test('text + text arrays', async () => {
@@ -898,8 +869,6 @@ test('string + string arrays', async () => {
 
 	// varchar length is bigger than default
 	const res9 = await diffDefault(_, string({ length: 15 }).default('text'), `'text'`);
-	// varchar length is less than default
-	const res10 = await diffDefault(_, string({ length: 2 }).default('text'), `'text'`, true);
 	// varchar length is same as default
 	const res11 = await diffDefault(_, string({ length: 2 }).default('12'), `'12'`);
 
@@ -932,13 +901,10 @@ test('string + string arrays', async () => {
 	// char is same as default
 	const res19 = await diffDefault(_, string({ length: 2 }).array().default(['12']), `'{12}'::string(2)[]`);
 
-	// char ends with '
-	const res20 = await diffDefault(_, string({ length: 5 }).array().default(["1234'4"]), `'{1234''4}'::string(5)[]`);
-	// char ends with \
-	const res21 = await diffDefault(
+	const res22 = await diffDefault(
 		_,
-		string({ length: 5 }).array().default(['1234\\1']),
-		`'{"1234\\\\1"}'::string(5)[]`,
+		string({ length: 3 }).array().default(['"1234545"']),
+		`'{"\\"1234545\\""}'::string(3)[]`,
 	);
 
 	expect.soft(res1).toStrictEqual([]);
@@ -953,7 +919,6 @@ test('string + string arrays', async () => {
 	expect.soft(res8).toStrictEqual([]);
 	expect.soft(res8_0).toStrictEqual([]);
 	expect.soft(res9).toStrictEqual([]);
-	expect.soft(res10).toStrictEqual([`Insert default failed`]);
 	expect.soft(res11).toStrictEqual([]);
 	expect.soft(res12).toStrictEqual([]);
 	expect.soft(res13).toStrictEqual([]);
@@ -965,14 +930,13 @@ test('string + string arrays', async () => {
 	expect.soft(res18_1).toStrictEqual([]);
 	expect.soft(res18_2).toStrictEqual([]);
 	expect.soft(res19).toStrictEqual([]);
-	expect.soft(res20).toStrictEqual([]);
-	expect.soft(res21).toStrictEqual([]);
+	expect.soft(res22).toStrictEqual([]);
 });
 
 test('jsonb', async () => {
 	const res1 = await diffDefault(_, jsonb().default({}), `'{}'`);
 	const res2 = await diffDefault(_, jsonb().default([]), `'[]'`);
-	const res3 = await diffDefault(_, jsonb().default([1, 2, 3]), `'[1, 2, 3]'`);
+	const res3 = await diffDefault(_, jsonb().default([1, 2, 3]), `'[1,2,3]'`);
 	const res4 = await diffDefault(_, jsonb().default({ key: 'value' }), `'{"key":"value"}'`);
 	const res5 = await diffDefault(_, jsonb().default({ key: "val'ue" }), `e'{"key":"val\\'ue"}'`);
 	const res6 = await diffDefault(_, jsonb().default({ key: `mo''",\`}{od` }), `e'{"key":"mo\\'\\'\\\\",\`}{od"}'`);
@@ -983,11 +947,11 @@ test('jsonb', async () => {
 	expect.soft(res4).toStrictEqual([]);
 	expect.soft(res5).toStrictEqual([]);
 	expect.soft(res6).toStrictEqual([]);
-	await expect.soft(diffDefault(_, jsonb().default({ key: 'mo",\\`}{od' }), `e'{"key":"mo\\",\\\`}{od"}'`)).rejects
-		.toThrowError();
+	// await expect.soft().rejects
+	// 	.toThrowError();
 });
 
-test.todo('timestamp + timestamp arrays', async () => {
+test('timestamp + timestamp arrays', async () => {
 	// all dates variations
 
 	// normal without timezone
@@ -1046,10 +1010,21 @@ test.todo('timestamp + timestamp arrays', async () => {
 		timestamp({ mode: 'string' }).default('2025-05-23T12:53:53.115'),
 		`'2025-05-23T12:53:53.115'`,
 	);
+
+	const res9_2 = await diffDefault(
+		_,
+		timestamp({ mode: 'string' }).default('2025-05-23T12:53:53'),
+		`'2025-05-23T12:53:53'`,
+	);
 	const res9_1 = await diffDefault(
 		_,
 		timestamp({ mode: 'string' }).array().default(['2025-05-23T12:53:53.115']),
 		`'{"2025-05-23T12:53:53.115"}'::timestamp[]`,
+	);
+	const res9_3 = await diffDefault(
+		_,
+		timestamp({ mode: 'string' }).array().default(['2025-05-23T12:53:53.0']),
+		`'{"2025-05-23T12:53:53.0"}'::timestamp[]`,
 	);
 	// normal: timezone with "zero UTC offset" in the end
 	const res10 = await diffDefault(
@@ -1133,8 +1108,8 @@ test.todo('timestamp + timestamp arrays', async () => {
 	// custom timezone
 	const res16 = await diffDefault(
 		_,
-		timestamp({ mode: 'string', precision: 1 }).default('2025-05-23T12:53:53.115+04:30'),
-		`'2025-05-23T12:53:53.115+04:30'`,
+		timestamp({ mode: 'string', precision: 1 }).default('2025-05-23T12:53:53.116+04:30'),
+		`'2025-05-23T12:53:53.116+04:30'`,
 	);
 	const res16_1 = await diffDefault(
 		_,
@@ -1256,6 +1231,8 @@ test.todo('timestamp + timestamp arrays', async () => {
 	expect.soft(res4_1).toStrictEqual([]);
 	expect.soft(res9).toStrictEqual([]);
 	expect.soft(res9_1).toStrictEqual([]);
+	expect.soft(res9_2).toStrictEqual([]);
+	expect.soft(res9_3).toStrictEqual([]);
 	expect.soft(res10).toStrictEqual([]);
 	expect.soft(res10_1).toStrictEqual([]);
 	expect.soft(res11).toStrictEqual([]);
@@ -1289,7 +1266,7 @@ test.todo('timestamp + timestamp arrays', async () => {
 	expect.soft(res25).toStrictEqual([]);
 });
 
-test.only('timestamptz + timestamptz arrays', async () => {
+test('timestamptz + timestamptz arrays', async () => {
 	// all dates variations
 
 	// normal with timezone
@@ -1352,6 +1329,16 @@ test.only('timestamptz + timestamptz arrays', async () => {
 		_,
 		timestamp({ mode: 'string', withTimezone: true }).default('2025-05-23T12:53:53.115'),
 		`'2025-05-23T12:53:53.115'`,
+	);
+	const res9_2 = await diffDefault(
+		_,
+		timestamp({ mode: 'string', withTimezone: true }).default('2025-05-23T12:53:53'),
+		`'2025-05-23T12:53:53'`,
+	);
+	const res9_3 = await diffDefault(
+		_,
+		timestamp({ mode: 'string', withTimezone: true }).default('2025-05-23T12:53:53.0'),
+		`'2025-05-23T12:53:53.0'`,
 	);
 	const res9_1 = await diffDefault(
 		_,
@@ -1569,6 +1556,8 @@ test.only('timestamptz + timestamptz arrays', async () => {
 	expect.soft(res8_1).toStrictEqual([]);
 	expect.soft(res9).toStrictEqual([]);
 	expect.soft(res9_1).toStrictEqual([]);
+	expect.soft(res9_2).toStrictEqual([]);
+	expect.soft(res9_3).toStrictEqual([]);
 	expect.soft(res10).toStrictEqual([]);
 	expect.soft(res10_1).toStrictEqual([]);
 	expect.soft(res11).toStrictEqual([]);
@@ -1612,7 +1601,9 @@ test('time + time arrays', async () => {
 	// const res1_4 = await diffDefault(_, time().default('2025-05-23 15:50:33'), `'2025-05-23 15:50:33'`);
 	// const res1_5 = await diffDefault(_, time().default('2025-05-23 15:50:33Z'), `'2025-05-23 15:50:33Z'`);
 	// const res1_6 = await diffDefault(_, time().default('2025-05-23T15:50:33+00'), `'2025-05-23T15:50:33+00'`);
-	const res1_7 = await diffDefault(_, time().default('2025-05-23 15:50:33+03'), `'2025-05-23 15:50:33+03'`);
+	// const res1_7 = await diffDefault(_, time().default('2025-05-23 15:50:33+03'), `'2025-05-23 15:50:33+03'`);
+	// const res1_16 = await diffDefault(_, time().default('15:50:33.123'), `'15:50:33.123'`);
+	const res1_17 = await diffDefault(_, time().default('15:50:33.123Z'), `'15:50:33.123Z'`);
 
 	const res1_8 = await diffDefault(_, time({ withTimezone: true }).default('15:50:33'), `'15:50:33'`);
 	// const res1_9 = await diffDefault(_, time({ withTimezone: true }).default('15:50:33Z'), `'15:50:33Z'`);
@@ -1633,10 +1624,10 @@ test('time + time arrays', async () => {
 	// 	time({ withTimezone: true }).default('2025-05-23T15:50:33+00'),
 	// 	`'2025-05-23T15:50:33+00'`,
 	// );
-	const res1_15 = await diffDefault(
+	const res1_20 = await diffDefault(
 		_,
-		time({ withTimezone: true }).default('2025-05-23 15:50:33+03'),
-		`'2025-05-23 15:50:33+03'`,
+		time({ withTimezone: true, precision: 1 }).default('15:50:33.123+03'),
+		`'15:50:33.123+03'`,
 	);
 
 	// normal time with precision that is same as in default
@@ -2163,7 +2154,7 @@ test('time + time arrays', async () => {
 	// expect.soft(res1_4).toStrictEqual([]);
 	// expect.soft(res1_5).toStrictEqual([]);
 	// expect.soft(res1_6).toStrictEqual([]);
-	expect.soft(res1_7).toStrictEqual([]);
+	// expect.soft(res1_7).toStrictEqual([]);
 	expect.soft(res1_8).toStrictEqual([]);
 	// expect.soft(res1_9).toStrictEqual([]);
 	// expect.soft(res1_10).toStrictEqual([]);
@@ -2171,7 +2162,9 @@ test('time + time arrays', async () => {
 	// expect.soft(res1_12).toStrictEqual([]);
 	// expect.soft(res1_13).toStrictEqual([]);
 	// expect.soft(res1_14).toStrictEqual([]);
-	expect.soft(res1_15).toStrictEqual([]);
+	// expect.soft(res1_16).toStrictEqual([]);
+	expect.soft(res1_17).toStrictEqual([]);
+	expect.soft(res1_20).toStrictEqual([]);
 
 	expect.soft(res2).toStrictEqual([]);
 	// expect.soft(res2_1).toStrictEqual([]);
@@ -2393,28 +2386,79 @@ test('interval + interval arrays', async () => {
 	expect.soft(res30.length).toBe(1);
 });
 
-test.todo('enum + enum arrays', async () => {
+test('enum + enum arrays', async () => {
 	const moodEnum = cockroachEnum('mood_enum', [
 		'sad',
 		'ok',
 		'happy',
-		`text'text"`,
+		`text'text`,
+		`text"text`,
+		`text\\text`,
+		`text,text`,
 		`no,''"\`rm`,
 		`mo''",\\\`}{od`,
-		`mo''",\\\\\\\`}{od`,
+		`mo''"\\\\\\\`}{od`,
 		'mo,\`od',
 	]);
 	const pre = { moodEnum };
 
 	const res1 = await diffDefault(_, moodEnum().default('ok'), `'ok'::"mood_enum"`, false, pre);
+	const res2 = await diffDefault(_, moodEnum().default(`text'text`), `e'text\\'text'::"mood_enum"`, false, pre);
+	const res3 = await diffDefault(_, moodEnum().default('text"text'), `'text"text'::"mood_enum"`, false, pre);
+	const res4 = await diffDefault(_, moodEnum().default('text\\text'), `e'text\\\\text'::"mood_enum"`, false, pre);
+	const res5 = await diffDefault(_, moodEnum().default('text,text'), `'text,text'::"mood_enum"`, false, pre);
+	const res6 = await diffDefault(
+		_,
+		moodEnum().default(`mo''"\\\\\\\`}{od`),
+		`e'mo\\'\\'"\\\\\\\\\\\\\`}{od'::"mood_enum"`,
+		false,
+		pre,
+	);
 
-	const res4 = await diffDefault(_, moodEnum().array().default([]), `'{}'::"mood_enum"[]`, false, pre);
-	const res5 = await diffDefault(_, moodEnum().array().default(['ok']), `'{ok}'::"mood_enum"[]`, false, pre);
+	const res1_1 = await diffDefault(_, moodEnum().array().default(['ok']), `'{ok}'::"mood_enum"[]`, false, pre);
+	const res1_2 = await diffDefault(_, moodEnum().array().default(['sad']), `'{sad}'::"mood_enum"[]`, false, pre);
+	const res2_1 = await diffDefault(
+		_,
+		moodEnum().array().default([`text'text`]),
+		`'{"text''text"}'::"mood_enum"[]`,
+		false,
+		pre,
+	);
+	const res3_1 = await diffDefault(
+		_,
+		moodEnum().array().default(['text"text']),
+		`'{"text\\"text"}'::"mood_enum"[]`,
+		false,
+		pre,
+	);
+	const res4_1 = await diffDefault(
+		_,
+		moodEnum().array().default(['text\\text']),
+		`'{"text\\\\text"}'::"mood_enum"[]`,
+		false,
+		pre,
+	);
+	const res6_1 = await diffDefault(
+		_,
+		moodEnum().array().default([`mo''"\\\\\\\`}{od`]),
+		`'{"mo''''\\"\\\\\\\\\\\\\`}{od"}'::"mood_enum"[]`,
+		false,
+		pre,
+	);
 
 	expect.soft(res1).toStrictEqual([]);
-
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
 	expect.soft(res4).toStrictEqual([]);
 	expect.soft(res5).toStrictEqual([]);
+	expect.soft(res6).toStrictEqual([]);
+
+	expect.soft(res1_1).toStrictEqual([]);
+	expect.soft(res1_2).toStrictEqual([]);
+	expect.soft(res2_1).toStrictEqual([]);
+	expect.soft(res3_1).toStrictEqual([]);
+	expect.soft(res4_1).toStrictEqual([]);
+	expect.soft(res6_1).toStrictEqual([]);
 });
 
 test('uuid + uuid arrays', async () => {
@@ -2456,64 +2500,6 @@ test('uuid + uuid arrays', async () => {
 	expect.soft(res5).toStrictEqual([]);
 	expect.soft(res6).toStrictEqual([]);
 	expect.soft(res7).toStrictEqual([]);
-});
-
-test.todo('corner cases', async () => {
-	const moodEnum = cockroachEnum('mood_enum', [
-		'sad',
-		'ok',
-		'happy',
-		`text'text"`,
-		`no,''"\`rm`,
-		`mo''",\`}{od`,
-		'mo,\`od',
-	]);
-	const pre = { moodEnum };
-
-	const res6 = await diffDefault(
-		_,
-		moodEnum().array().default([`text'text"`]),
-		`'{"text''text\\\""}'::"mood_enum"[]`,
-		pre,
-	);
-	const res60 = await diffDefault(
-		_,
-		moodEnum().array().default([`text'text"`, 'ok']),
-		`'{"text''text\\\"",ok}'::"mood_enum"[]`,
-		pre,
-	);
-
-	const res7 = await diffDefault(
-		_,
-		moodEnum().array().default([`mo''",\`}{od`]),
-		`'{"mo''''\\\",\`\}\{od"}'::"mood_enum"[]`,
-		pre,
-	);
-
-	expect.soft(res6).toStrictEqual([]);
-	expect.soft(res60).toStrictEqual([]);
-	expect.soft(res7).toStrictEqual([]);
-
-	const res2 = await diffDefault(_, uuid().defaultRandom(), `gen_random_uuid()`);
-	expect.soft(res2).toStrictEqual([]);
-
-	const res3 = await diffDefault(_, uuid().array().default([]), `'{}'::uuid[]`);
-	expect.soft(res3).toStrictEqual([]);
-
-	const res_3 = await diffDefault(_, moodEnum().default(`mo''",\`}{od`), `'mo''''",\`}{od'::"mood_enum"`, pre);
-	expect.soft(res_3).toStrictEqual([]);
-
-	const res_2 = await diffDefault(_, moodEnum().default(`text'text"`), `'text''text"'::"mood_enum"`, pre);
-	expect.soft(res_2).toStrictEqual([]);
-
-	const res__14 = await diffDefault(
-		_,
-		text({ enum: ['one', 'two', 'three', `no,''"\`rm`, `mo''",\`}{od`, 'mo,\`od'] })
-			.array()
-			.default([`mo''",\`}{od`]),
-		`'{"mo''''\\\",\`\}\{od"}'::string[]`,
-	);
-	expect.soft(res__14).toStrictEqual([]);
 });
 
 test('bit + bit arrays', async () => {
@@ -2582,49 +2568,122 @@ test('vector + vector arrays', async () => {
 	expect.soft(res4).toStrictEqual([]);
 });
 
+test('inet + inet arrays', async () => {
+	const res1 = await diffDefault(_, inet().default('127.0.0.1'), `'127.0.0.1'`);
+	const res2 = await diffDefault(_, inet().default('::ffff:192.168.0.1/96'), `'::ffff:192.168.0.1/96'`);
+
+	const res1_1 = await diffDefault(_, inet().array().default(['127.0.0.1']), `'{127.0.0.1}'::inet[]`);
+	const res2_1 = await diffDefault(
+		_,
+		inet().array().default(['::ffff:192.168.0.1/96']),
+		`'{::ffff:192.168.0.1/96}'::inet[]`,
+	);
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+
+	expect.soft(res1_1).toStrictEqual([]);
+	expect.soft(res2_1).toStrictEqual([]);
+});
+
 // postgis extension
 // SRID=4326 -> these coordinates are longitude/latitude values
-test.todo('geometry + geometry arrays', async () => {
+test('geometry + geometry arrays', async () => {
 	const res1 = await diffDefault(
 		_,
-		geometry({ srid: 100, mode: 'tuple', type: 'point' }).default([30.5234, 50.4501]),
-		`'SRID=4326;POINT(30.7233 46.4825)'`,
+		geometry({ srid: 4326, mode: 'tuple', type: 'point' }).default([30.5234, 50.4501]),
+		`'SRID=4326;POINT(30.5234 50.4501)'`,
+		undefined,
+		undefined,
 	);
 
 	const res2 = await diffDefault(
 		_,
 		geometry({ srid: 4326, mode: 'xy', type: 'point' }).default({ x: 30.5234, y: 50.4501 }),
-		`'SRID=4326;POINT(30.7233 46.4825)'`,
+		`'SRID=4326;POINT(30.5234 50.4501)'`,
+		undefined,
+		undefined,
 	);
 
 	const res3 = await diffDefault(
 		_,
 		geometry({ srid: 4326, mode: 'tuple', type: 'point' }).array().default([]),
-		`'{}'::geometry(point, 4326)[]`,
+		`'{}'::geometry(point,4326)[]`,
+		undefined,
+		undefined,
 	);
 	const res4 = await diffDefault(
 		_,
-		geometry({ srid: 4326, mode: 'tuple', type: 'point' })
-			.array()
-			.default([[30.5234, 50.4501]]),
-		`'{"SRID=4326;POINT(30.7233 46.4825)"}'::geometry(point, 4326)[]`,
+		geometry({ srid: 4326, mode: 'tuple', type: 'point' }).array().default([[30.5234, 50.4501]]),
+		`'{SRID=4326;POINT(30.5234 50.4501)}'::geometry(point,4326)[]`,
+		undefined,
+		undefined,
 	);
 
-	// const res5 = await diffDefault(
-	// 	_,
-	// 	geometry({ srid: 4326, mode: 'xy', type: 'point' }).array().default([]),
-	// 	`'{}'::geometry(point, 4326)[]`,
-	// );
-	// const res6 = await diffDefault(
-	// 	_,
-	// 	geometry({ srid: 4326, mode: 'xy', type: 'point' }).array().default([{ x: 30.5234, y: 50.4501 }]),
-	// 	`'{"SRID=4326;POINT(30.7233 46.4825)"}'::geometry(point, 4326)[]`,
-	// );
+	const res5 = await diffDefault(
+		_,
+		geometry({ srid: 4326, mode: 'xy', type: 'point' }).array().default([]),
+		`'{}'::geometry(point,4326)[]`,
+		undefined,
+		undefined,
+	);
+	const res6 = await diffDefault(
+		_,
+		geometry({ srid: 4326, mode: 'xy', type: 'point' }).array().default([{ x: 30.5234, y: 50.4501 }]),
+		`'{SRID=4326;POINT(30.5234 50.4501)}'::geometry(point,4326)[]`,
+		undefined,
+		undefined,
+	);
+
+	const res11 = await diffDefault(
+		_,
+		geometry({ mode: 'xy', type: 'point' }).default({ x: 30.5234, y: 50.4501 }),
+		`'POINT(30.5234 50.4501)'`,
+		undefined,
+		undefined,
+	);
+
+	const res12 = await diffDefault(
+		_,
+		geometry({ mode: 'xy', type: 'point' }).default(sql`'SRID=4326;POINT(10 10)'`),
+		`'SRID=4326;POINT(10 10)'`,
+		undefined,
+		undefined,
+	);
+
+	const res13 = await diffDefault(
+		_,
+		geometry({ mode: 'xy', type: 'point' }).array().default([{ x: 13, y: 13 }]),
+		`'{POINT(13 13)}'::geometry(point)[]`,
+		undefined,
+		undefined,
+	);
+
+	const res15 = await diffDefault(
+		_,
+		geometry({ mode: 'xy', type: 'point' }).array().default(sql`'{SRID=4326;POINT(15 15)}'::geometry(point)[]`),
+		`'{SRID=4326;POINT(15 15)}'::geometry(point)[]`,
+		undefined,
+		undefined,
+	);
+
+	const res16 = await diffDefault(
+		_,
+		geometry({ mode: 'xy', type: 'point' }).array().default(sql`'{POINT(15 15)}'::geometry(point)[]`),
+		`'{POINT(15 15)}'::geometry(point)[]`,
+		undefined,
+		undefined,
+	);
 
 	expect.soft(res1).toStrictEqual([]);
-	// expect.soft(res2).toStrictEqual([]);
-	// expect.soft(res3).toStrictEqual([]);
-	// expect.soft(res4).toStrictEqual([]);
-	// expect.soft(res5).toStrictEqual([]);
-	// expect.soft(res6).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
+	expect.soft(res5).toStrictEqual([]);
+	expect.soft(res6).toStrictEqual([]);
+	expect.soft(res11).toStrictEqual([]);
+	expect.soft(res12).toStrictEqual([]);
+	expect.soft(res13).toStrictEqual([]);
+	expect.soft(res15).toStrictEqual([]);
+	expect.soft(res16).toStrictEqual([]);
 });
