@@ -17,7 +17,7 @@ import {
 import { hash } from '../common';
 import { numberForTs, parseParams } from '../utils';
 import { CockroachEntities, Column, DiffEntities } from './ddl';
-import { Import } from './typescript';
+import type { Import } from './typescript';
 
 export const splitSqlType = (sqlType: string) => {
 	const toMatch = sqlType.replaceAll('[]', '');
