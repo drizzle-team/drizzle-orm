@@ -1,10 +1,10 @@
-import type { ColumnBuilderBaseConfig, ColumnDataType, GeneratedIdentityConfig, IsIdentity } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, ColumnType, GeneratedIdentityConfig, IsIdentity } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import type { CockroachSequenceOptions } from '../sequence.ts';
 import { CockroachColumnWithArrayBuilder } from './common.ts';
 
 export abstract class CockroachIntColumnBaseBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string>,
+	T extends ColumnBuilderBaseConfig<ColumnType>,
 > extends CockroachColumnWithArrayBuilder<
 	T,
 	{ generatedIdentity: GeneratedIdentityConfig }

@@ -1,36 +1,28 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '~/pg-core/table.ts';
+import type { PgTable } from '~/pg-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn } from './common.ts';
 import { PgDateColumnBaseBuilder } from './date.common.ts';
 
-export type PgDateBuilderInitial<TName extends string> = PgDateBuilder<{
-	name: TName;
-	dataType: 'date';
-	columnType: 'PgDate';
+export class PgDateBuilder extends PgDateColumnBaseBuilder<{
+	dataType: 'object date';
 	data: Date;
 	driverParam: string;
-	enumValues: undefined;
-}>;
-
-export class PgDateBuilder<T extends ColumnBuilderBaseConfig<'date', 'PgDate'>> extends PgDateColumnBaseBuilder<T> {
+}> {
 	static override readonly [entityKind]: string = 'PgDateBuilder';
 
-	constructor(name: T['name']) {
-		super(name, 'date', 'PgDate');
+	constructor(name: string) {
+		super(name, 'object date', 'PgDate');
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgDate<MakeColumnConfig<T, TTableName>> {
-		return new PgDate<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+	override build(table: PgTable<any>) {
+		return new PgDate(table, this.config as any);
 	}
 }
 
-export class PgDate<T extends ColumnBaseConfig<'date', 'PgDate'>> extends PgColumn<T> {
+export class PgDate<T extends ColumnBaseConfig<'object date'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgDate';
 
 	getSQLType(): string {
@@ -46,36 +38,27 @@ export class PgDate<T extends ColumnBaseConfig<'date', 'PgDate'>> extends PgColu
 	}
 }
 
-export type PgDateStringBuilderInitial<TName extends string> = PgDateStringBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'PgDateString';
+export class PgDateStringBuilder extends PgDateColumnBaseBuilder<{
+	dataType: 'string date';
 	data: string;
 	driverParam: string;
-	enumValues: undefined;
-}>;
-
-export class PgDateStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgDateString'>>
-	extends PgDateColumnBaseBuilder<T>
-{
+}> {
 	static override readonly [entityKind]: string = 'PgDateStringBuilder';
 
-	constructor(name: T['name']) {
-		super(name, 'string', 'PgDateString');
+	constructor(name: string) {
+		super(name, 'string date', 'PgDateString');
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgDateString<MakeColumnConfig<T, TTableName>> {
-		return new PgDateString<MakeColumnConfig<T, TTableName>>(
+	override build(table: PgTable<any>) {
+		return new PgDateString(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
 
-export class PgDateString<T extends ColumnBaseConfig<'string', 'PgDateString'>> extends PgColumn<T> {
+export class PgDateString<T extends ColumnBaseConfig<'string date'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgDateString';
 
 	getSQLType(): string {
@@ -87,14 +70,13 @@ export interface PgDateConfig<T extends 'date' | 'string' = 'date' | 'string'> {
 	mode: T;
 }
 
-export function date(): PgDateStringBuilderInitial<''>;
 export function date<TMode extends PgDateConfig['mode'] & {}>(
 	config?: PgDateConfig<TMode>,
-): Equal<TMode, 'date'> extends true ? PgDateBuilderInitial<''> : PgDateStringBuilderInitial<''>;
-export function date<TName extends string, TMode extends PgDateConfig['mode'] & {}>(
-	name: TName,
+): Equal<TMode, 'date'> extends true ? PgDateBuilder : PgDateStringBuilder;
+export function date<TMode extends PgDateConfig['mode'] & {}>(
+	name: string,
 	config?: PgDateConfig<TMode>,
-): Equal<TMode, 'date'> extends true ? PgDateBuilderInitial<TName> : PgDateStringBuilderInitial<TName>;
+): Equal<TMode, 'date'> extends true ? PgDateBuilder : PgDateStringBuilder;
 export function date(a?: string | PgDateConfig, b?: PgDateConfig) {
 	const { name, config } = getColumnNameAndConfig<PgDateConfig>(a, b);
 	if (config?.mode === 'date') {

@@ -1,26 +1,18 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { MsSqlColumnBuilderWithIdentity, MsSqlColumnWithIdentity } from './common.ts';
 
-export type MsSqlDecimalBuilderInitial<TName extends string> = MsSqlDecimalBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'MsSqlDecimal';
+export class MsSqlDecimalBuilder extends MsSqlColumnBuilderWithIdentity<{
+	dataType: 'string numeric';
 	data: string;
 	driverParam: string;
-	enumValues: undefined;
-}>;
-
-export class MsSqlDecimalBuilder<
-	T extends ColumnBuilderBaseConfig<'string', 'MsSqlDecimal'>,
-> extends MsSqlColumnBuilderWithIdentity<T, MsSqlDecimalConfig> {
+}, MsSqlDecimalConfig> {
 	static override readonly [entityKind]: string = 'MsSqlDecimalBuilder';
 
-	constructor(name: T['name'], config: MsSqlDecimalConfig | undefined) {
-		super(name, 'string', 'MsSqlDecimal');
+	constructor(name: string, config: MsSqlDecimalConfig | undefined) {
+		super(name, 'string numeric', 'MsSqlDecimal');
 		this.config.precision = config?.precision;
 		this.config.scale = config?.scale;
 	}
@@ -28,15 +20,15 @@ export class MsSqlDecimalBuilder<
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMsSqlTable<{ name: TTableName }>,
-	): MsSqlDecimal<MakeColumnConfig<T, TTableName>> {
-		return new MsSqlDecimal<MakeColumnConfig<T, TTableName>>(
+	) {
+		return new MsSqlDecimal(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config,
 		);
 	}
 }
 
-export class MsSqlDecimal<T extends ColumnBaseConfig<'string', 'MsSqlDecimal'>>
+export class MsSqlDecimal<T extends ColumnBaseConfig<'string numeric'>>
 	extends MsSqlColumnWithIdentity<T, MsSqlDecimalConfig>
 {
 	static override readonly [entityKind]: string = 'MsSqlDecimal';
@@ -61,21 +53,14 @@ export class MsSqlDecimal<T extends ColumnBaseConfig<'string', 'MsSqlDecimal'>>
 	}
 }
 
-export type MsSqlDecimalNumberBuilderInitial<TName extends string> = MsSqlDecimalNumberBuilder<{
-	name: TName;
+export class MsSqlDecimalNumberBuilder extends MsSqlColumnBuilderWithIdentity<{
 	dataType: 'number';
-	columnType: 'MsSqlDecimalNumber';
 	data: number;
 	driverParam: string;
-	enumValues: undefined;
-}>;
-
-export class MsSqlDecimalNumberBuilder<
-	T extends ColumnBuilderBaseConfig<'number', 'MsSqlDecimalNumber'>,
-> extends MsSqlColumnBuilderWithIdentity<T, MsSqlDecimalConfig> {
+}, MsSqlDecimalConfig> {
 	static override readonly [entityKind]: string = 'MsSqlDecimalNumberBuilder';
 
-	constructor(name: T['name'], config: MsSqlDecimalConfig | undefined) {
+	constructor(name: string, config: MsSqlDecimalConfig | undefined) {
 		super(name, 'number', 'MsSqlDecimalNumber');
 		this.config.precision = config?.precision;
 		this.config.scale = config?.scale;
@@ -84,15 +69,15 @@ export class MsSqlDecimalNumberBuilder<
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMsSqlTable<{ name: TTableName }>,
-	): MsSqlDecimalNumber<MakeColumnConfig<T, TTableName>> {
-		return new MsSqlDecimalNumber<MakeColumnConfig<T, TTableName>>(
+	) {
+		return new MsSqlDecimalNumber(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config,
 		);
 	}
 }
 
-export class MsSqlDecimalNumber<T extends ColumnBaseConfig<'number', 'MsSqlDecimalNumber'>>
+export class MsSqlDecimalNumber<T extends ColumnBaseConfig<'number'>>
 	extends MsSqlColumnWithIdentity<T, MsSqlDecimalConfig>
 {
 	static override readonly [entityKind]: string = 'MsSqlDecimalNumber';
@@ -119,22 +104,18 @@ export class MsSqlDecimalNumber<T extends ColumnBaseConfig<'number', 'MsSqlDecim
 	}
 }
 
-export type MsSqlDecimalBigIntBuilderInitial<TName extends string> = MsSqlDecimalBigIntBuilder<{
-	name: TName;
-	dataType: 'bigint';
-	columnType: 'MsSqlDecimalBigInt';
-	data: bigint;
-	driverParam: string;
-	enumValues: undefined;
-}>;
-
-export class MsSqlDecimalBigIntBuilder<
-	T extends ColumnBuilderBaseConfig<'bigint', 'MsSqlDecimalBigInt'>,
-> extends MsSqlColumnBuilderWithIdentity<T, MsSqlDecimalConfig> {
+export class MsSqlDecimalBigIntBuilder extends MsSqlColumnBuilderWithIdentity<
+	{
+		dataType: 'bigint int64';
+		data: bigint;
+		driverParam: string;
+	},
+	MsSqlDecimalConfig
+> {
 	static override readonly [entityKind]: string = 'MsSqlDecimalBigIntBuilder';
 
-	constructor(name: T['name'], config: MsSqlDecimalConfig | undefined) {
-		super(name, 'bigint', 'MsSqlDecimalBigInt');
+	constructor(name: string, config: MsSqlDecimalConfig | undefined) {
+		super(name, 'bigint int64', 'MsSqlDecimalBigInt');
 		this.config.precision = config?.precision ?? 18;
 		this.config.scale = config?.scale ?? 0;
 	}
@@ -142,15 +123,15 @@ export class MsSqlDecimalBigIntBuilder<
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMsSqlTable<{ name: TTableName }>,
-	): MsSqlDecimalBigInt<MakeColumnConfig<T, TTableName>> {
-		return new MsSqlDecimalBigInt<MakeColumnConfig<T, TTableName>>(
+	) {
+		return new MsSqlDecimalBigInt(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config,
 		);
 	}
 }
 
-export class MsSqlDecimalBigInt<T extends ColumnBaseConfig<'bigint', 'MsSqlDecimalBigInt'>>
+export class MsSqlDecimalBigInt<T extends ColumnBaseConfig<'bigint int64'>>
 	extends MsSqlColumnWithIdentity<T, MsSqlDecimalConfig>
 {
 	static override readonly [entityKind]: string = 'MsSqlDecimalBigInt';
@@ -173,24 +154,25 @@ export class MsSqlDecimalBigInt<T extends ColumnBaseConfig<'bigint', 'MsSqlDecim
 	}
 }
 
-export interface MsSqlDecimalConfig<T extends 'string' | 'number' | 'bigint' = 'string' | 'number' | 'bigint'> {
+export interface MsSqlDecimalConfig<
+	T extends 'string' | 'number' | 'bigint' = 'string' | 'number' | 'bigint',
+> {
 	precision?: number;
 	scale?: number;
 	mode?: T;
 }
 
-export function decimal(): MsSqlDecimalBuilderInitial<''>;
 export function decimal<TMode extends 'string' | 'number' | 'bigint'>(
-	config: MsSqlDecimalConfig<TMode>,
-): Equal<TMode, 'number'> extends true ? MsSqlDecimalNumberBuilderInitial<''>
-	: Equal<TMode, 'bigint'> extends true ? MsSqlDecimalBigIntBuilderInitial<''>
-	: MsSqlDecimalBuilderInitial<''>;
-export function decimal<TName extends string, TMode extends 'string' | 'number' | 'bigint'>(
-	name: TName,
 	config?: MsSqlDecimalConfig<TMode>,
-): Equal<TMode, 'number'> extends true ? MsSqlDecimalNumberBuilderInitial<TName>
-	: Equal<TMode, 'bigint'> extends true ? MsSqlDecimalBigIntBuilderInitial<TName>
-	: MsSqlDecimalBuilderInitial<TName>;
+): Equal<TMode, 'number'> extends true ? MsSqlDecimalNumberBuilder
+	: Equal<TMode, 'bigint'> extends true ? MsSqlDecimalBigIntBuilder
+	: MsSqlDecimalBuilder;
+export function decimal<TMode extends 'string' | 'number' | 'bigint'>(
+	name: string,
+	config?: MsSqlDecimalConfig<TMode>,
+): Equal<TMode, 'number'> extends true ? MsSqlDecimalNumberBuilder
+	: Equal<TMode, 'bigint'> extends true ? MsSqlDecimalBigIntBuilder
+	: MsSqlDecimalBuilder;
 export function decimal(a?: string | MsSqlDecimalConfig, b?: MsSqlDecimalConfig) {
 	const { name, config } = getColumnNameAndConfig<MsSqlDecimalConfig>(a, b);
 	const mode = config?.mode;

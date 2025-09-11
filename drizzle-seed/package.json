@@ -4,7 +4,7 @@
 	"main": "index.js",
 	"type": "module",
 	"scripts": {
-		"build": "tsx scripts/build.ts",
+		"build": "tsc -p ./tsconfig.json && tsx scripts/build.ts",
 		"pack": "(cd dist && npm pack --pack-destination ..) && rm -f package.tgz && mv *.tgz package.tgz",
 		"test": "vitest --config ./vitest.config.ts",
 		"test:types": "cd type-tests && tsc -p ./../tsconfig.json",
@@ -65,7 +65,7 @@
 		}
 	},
 	"peerDependencies": {
-		"drizzle-orm": ">=0.36.4"
+		"drizzle-orm": ">=1.0.0-beta.1"
 	},
 	"peerDependenciesMeta": {
 		"drizzle-orm": {

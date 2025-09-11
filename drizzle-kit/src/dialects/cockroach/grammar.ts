@@ -3,21 +3,18 @@ import { parseArray } from 'src/utils/parse-pgarray';
 import { parse, stringify } from 'src/utils/when-json-met-bigint';
 import {
 	dateExtractRegex,
+	hasTimeZoneSuffix,
 	parseIntervalFields,
 	possibleIntervals,
 	stringifyArray,
 	timeTzRegex,
+	timezoneSuffixRegexp,
 	trimChar,
 } from '../../utils';
 import { hash } from '../common';
 import { numberForTs, parseParams } from '../utils';
 import { CockroachEntities, Column, DiffEntities } from './ddl';
 import { Import } from './typescript';
-
-const timezoneSuffixRegexp = /([+-]\d{2}(:?\d{2})?|Z)$/i;
-export function hasTimeZoneSuffix(s: string): boolean {
-	return timezoneSuffixRegexp.test(s);
-}
 
 export const splitSqlType = (sqlType: string) => {
 	const toMatch = sqlType.replaceAll('[]', '');
@@ -571,7 +568,8 @@ export const defaultsCommutative = (diffDef: DiffEntities['columns']['default'],
 	}
 
 	if (type.startsWith('vector')) {
-		if (from?.replaceAll('.0', '') === to?.replaceAll('.0', '')) return true;
+		if (from?.replaceAll('.0', '') === to) return true;
+		if (to?.replaceAll('.0', '') === from) return true;
 	}
 
 	// real and float adds .0 to the end for the numbers
@@ -579,7 +577,7 @@ export const defaultsCommutative = (diffDef: DiffEntities['columns']['default'],
 	const dataTypesWithExtraZero = ['real', 'float'];
 	if (
 		dataTypesWithExtraZero.find((dataType) => type.startsWith(dataType))
-		&& diffDef.from?.value.replace('.0', '') === diffDef.to?.value.replace('.0', '')
+		&& (from?.replace('.0', '') === to || to === from?.replace('.0', ''))
 	) {
 		return true;
 	}

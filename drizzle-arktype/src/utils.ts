@@ -18,7 +18,8 @@ export type Json = Literal | Record<string, any> | any[];
 
 export type ColumnIsGeneratedAlwaysAs<TColumn> = TColumn extends Column
 	? TColumn['_']['identity'] extends 'always' ? true
-	: TColumn['_']['generated'] extends { type: 'byDefault' } | undefined ? false
+	: TColumn['_'] extends { generated: undefined } ? false
+	: TColumn['_'] extends { generated: { type: 'byDefault' } } ? false
 	: true
 	: false;
 

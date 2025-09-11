@@ -25,7 +25,7 @@ import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type Query, SQL, type SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
-import { getTableName, Table } from '~/table.ts';
+import { getTableName, type InferInsertModel, Table } from '~/table.ts';
 import {
 	type Assume,
 	type DrizzleTypeError,
@@ -60,7 +60,7 @@ export interface CockroachUpdateConfig {
 
 export type CockroachUpdateSetSource<TTable extends CockroachTable> =
 	& {
-		[Key in keyof TTable['$inferInsert']]?:
+		[Key in keyof InferInsertModel<TTable>]?:
 			| GetColumnData<TTable['_']['columns'][Key]>
 			| SQL
 			| CockroachColumn

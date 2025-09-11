@@ -1,11 +1,12 @@
-import { entityKind } from '~/entity.ts';
-import { DefaultLogger } from '~/logger.ts';
 import {
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
 	type RelationalSchemaConfig,
 	type TablesRelationalConfig,
-} from '~/relations.ts';
+} from '~/_relations.ts';
+import { entityKind } from '~/entity.ts';
+import { DefaultLogger } from '~/logger.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SingleStoreDatabase } from '~/singlestore-core/db.ts';
 import { SingleStoreDialect } from '~/singlestore-core/dialect.ts';
 import type { DrizzleConfig } from '~/utils.ts';
@@ -17,7 +18,8 @@ import {
 
 export class SingleStoreRemoteDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
-> extends SingleStoreDatabase<SingleStoreRemoteQueryResultHKT, SingleStoreRemotePreparedQueryHKT, TSchema> {
+	TRelations extends AnyRelations = EmptyRelations,
+> extends SingleStoreDatabase<SingleStoreRemoteQueryResultHKT, SingleStoreRemotePreparedQueryHKT, TSchema, TRelations> {
 	static override readonly [entityKind]: string = 'SingleStoreRemoteDatabase';
 }
 
@@ -27,10 +29,13 @@ export type RemoteCallback = (
 	method: 'all' | 'execute',
 ) => Promise<{ rows: any[]; insertId?: number; affectedRows?: number }>;
 
-export function drizzle<TSchema extends Record<string, unknown> = Record<string, never>>(
+export function drizzle<
+	TSchema extends Record<string, unknown> = Record<string, never>,
+	TRelations extends AnyRelations = EmptyRelations,
+>(
 	callback: RemoteCallback,
-	config: DrizzleConfig<TSchema> = {},
-): SingleStoreRemoteDatabase<TSchema> {
+	config: DrizzleConfig<TSchema, TRelations> = {},
+): SingleStoreRemoteDatabase<TSchema, TRelations> {
 	const dialect = new SingleStoreDialect({ casing: config.casing });
 	let logger;
 	if (config.logger === true) {
@@ -52,8 +57,10 @@ export function drizzle<TSchema extends Record<string, unknown> = Record<string,
 		};
 	}
 
-	const session = new SingleStoreRemoteSession(callback, dialect, schema, { logger });
-	return new SingleStoreRemoteDatabase(dialect, session, schema as any) as SingleStoreRemoteDatabase<
-		TSchema
+	const relations = config.relations ?? {} as TRelations;
+	const session = new SingleStoreRemoteSession(callback, dialect, relations, schema, { logger });
+	return new SingleStoreRemoteDatabase(dialect, session, relations, schema as any) as SingleStoreRemoteDatabase<
+		TSchema,
+		TRelations
 	>;
 }

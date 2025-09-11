@@ -428,6 +428,10 @@ test('all data types', (t) => {
 			dimensions: 3,
 			elementType: 'F32',
 		}).notNull(),
+		vector2: vector({
+			dimensions: 2,
+			elementType: 'I64',
+		}).notNull(),
 	}));
 
 	const result = createSelectSchema(table);
@@ -436,7 +440,7 @@ test('all data types', (t) => {
 		bigint2: z.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
 		bigint3: z.int().gte(0).lte(Number.MAX_SAFE_INTEGER),
 		bigint4: z.bigint().gte(0n).lte(CONSTANTS.INT64_UNSIGNED_MAX),
-		binary: z.string(),
+		binary: z.string().regex(/^[01]*$/).max(10),
 		boolean: z.boolean(),
 		char1: z.string().max(10),
 		char2: z.enum(['a', 'b', 'c']),
@@ -473,7 +477,7 @@ test('all data types', (t) => {
 		tinyint2: z.int().gte(0).lte(CONSTANTS.INT8_UNSIGNED_MAX),
 		varchar1: z.string().max(10),
 		varchar2: z.enum(['a', 'b', 'c']),
-		varbinary: z.string(),
+		varbinary: z.string().regex(/^[01]*$/).max(10),
 		year: z.int().gte(1901).lte(2155),
 		longtext1: z.string().max(CONSTANTS.INT32_UNSIGNED_MAX),
 		longtext2: z.enum(['a', 'b', 'c']),
@@ -482,6 +486,7 @@ test('all data types', (t) => {
 		tinytext1: z.string().max(CONSTANTS.INT8_UNSIGNED_MAX),
 		tinytext2: z.enum(['a', 'b', 'c']),
 		vector: z.array(z.number()).length(3),
+		vector2: z.array(z.bigint().min(CONSTANTS.INT64_MIN).max(CONSTANTS.INT64_MAX)).length(2),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();

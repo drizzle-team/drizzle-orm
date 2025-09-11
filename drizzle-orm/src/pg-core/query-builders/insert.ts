@@ -19,7 +19,7 @@ import type { ColumnsSelection, Placeholder, Query, SQLWrapper } from '~/sql/sql
 import { Param, SQL, sql } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { InferInsertModel } from '~/table.ts';
-import { Columns, getTableName, Table } from '~/table.ts';
+import { getTableName, Table, TableColumns } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
 import { haveSameKeys, mapUpdateSet, type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
 import type { AnyPgColumn, PgColumn } from '../columns/common.ts';
@@ -39,17 +39,24 @@ export interface PgInsertConfig<TTable extends PgTable = PgTable> {
 	overridingSystemValue_?: boolean;
 }
 
-export type PgInsertValue<TTable extends PgTable<TableConfig>, OverrideT extends boolean = false> =
+export type PgInsertValue<
+	TTable extends PgTable<TableConfig>,
+	OverrideT extends boolean = false,
+	TModel extends Record<string, any> = InferInsertModel<TTable, { dbColumnNames: false; override: OverrideT }>,
+> =
 	& {
-		[Key in keyof InferInsertModel<TTable, { dbColumnNames: false; override: OverrideT }>]:
-			| InferInsertModel<TTable, { dbColumnNames: false; override: OverrideT }>[Key]
+		[Key in keyof TModel]:
+			| TModel[Key]
 			| SQL
 			| Placeholder;
 	}
 	& {};
 
-export type PgInsertSelectQueryBuilder<TTable extends PgTable> = TypedQueryBuilder<
-	{ [K in keyof TTable['$inferInsert']]: AnyPgColumn | SQL | SQL.Aliased | TTable['$inferInsert'][K] }
+export type PgInsertSelectQueryBuilder<
+	TTable extends PgTable,
+	TModel extends Record<string, any> = InferInsertModel<TTable>,
+> = TypedQueryBuilder<
+	{ [K in keyof TModel]: AnyPgColumn | SQL | SQL.Aliased | TModel[K] }
 >;
 
 export class PgInsertBuilder<
@@ -123,7 +130,7 @@ export class PgInsertBuilder<
 
 		if (
 			!is(select, SQL)
-			&& !haveSameKeys(this.table[Columns], select._.selectedFields)
+			&& !haveSameKeys(this.table[TableColumns], select._.selectedFields)
 		) {
 			throw new Error(
 				'Insert select error: selected fields are not the same or are in a different order compared to the table definition',

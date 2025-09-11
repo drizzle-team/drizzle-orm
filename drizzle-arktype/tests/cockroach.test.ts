@@ -1,4 +1,4 @@
-import { Type, type } from 'arktype';
+import { type Type, type } from 'arktype';
 import { type Equal, sql } from 'drizzle-orm';
 import {
 	cockroachEnum,
@@ -389,7 +389,7 @@ test('all data types', (t) => {
 	const table = cockroachTable('test', ({
 		bigint,
 		bit,
-		boolean,
+		bool,
 		char,
 		date,
 		decimal,
@@ -415,8 +415,8 @@ test('all data types', (t) => {
 	}) => ({
 		bigint1: bigint({ mode: 'number' }).notNull(),
 		bigint2: bigint({ mode: 'bigint' }).notNull(),
-		bit: bit({ dimensions: 5 }).notNull(),
-		boolean: boolean().notNull(),
+		bit: bit({ length: 5 }).notNull(),
+		boolean: bool().notNull(),
 		char1: char({ length: 10 }).notNull(),
 		char2: char({ length: 1, enum: ['a', 'b', 'c'] }).notNull(),
 		date1: date({ mode: 'date' }).notNull(),

@@ -389,7 +389,7 @@ test('all data types', (t) => {
 	const table = cockroachTable('test', ({
 		bigint,
 		bit,
-		boolean,
+		bool,
 		char,
 		date,
 		decimal,
@@ -415,8 +415,8 @@ test('all data types', (t) => {
 	}) => ({
 		bigint1: bigint({ mode: 'number' }).notNull(),
 		bigint2: bigint({ mode: 'bigint' }).notNull(),
-		bit: bit({ dimensions: 5 }).notNull(),
-		boolean: boolean().notNull(),
+		bit: bit({ length: 5 }).notNull(),
+		bool: bool().notNull(),
 		char1: char({ length: 10 }).notNull(),
 		char2: char({ length: 1, enum: ['a', 'b', 'c'] }).notNull(),
 		date1: date({ mode: 'date' }).notNull(),
@@ -458,8 +458,8 @@ test('all data types', (t) => {
 	const expected = z.object({
 		bigint1: z.int().gte(Number.MIN_SAFE_INTEGER).lte(Number.MAX_SAFE_INTEGER),
 		bigint2: z.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
-		bit: z.string().regex(/^[01]+$/).max(5),
-		boolean: z.boolean(),
+		bit: z.string().regex(/^[01]*$/).length(5),
+		bool: z.boolean(),
 		char1: z.string().max(10),
 		char2: z.enum(['a', 'b', 'c']),
 		date1: z.date(),
@@ -504,13 +504,13 @@ test('all data types', (t) => {
 test('type coercion - all', (t) => {
 	const table = cockroachTable('test', ({
 		bigint,
-		boolean,
+		bool,
 		timestamp,
 		int4,
 		text,
 	}) => ({
 		bigint: bigint({ mode: 'bigint' }).notNull(),
-		boolean: boolean().notNull(),
+		bool: bool().notNull(),
 		timestamp: timestamp().notNull(),
 		int4: int4().notNull(),
 		text: text().notNull(),
@@ -522,7 +522,7 @@ test('type coercion - all', (t) => {
 	const result = createSelectSchema(table);
 	const expected = z.object({
 		bigint: z.coerce.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
-		boolean: z.coerce.boolean(),
+		bool: z.coerce.boolean(),
 		timestamp: z.coerce.date(),
 		int4: z.coerce.number().int().gte(CONSTANTS.INT32_MIN).lte(CONSTANTS.INT32_MAX),
 		text: z.coerce.string(),

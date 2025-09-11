@@ -716,7 +716,7 @@ test('jsonb + jsonb arrays', async () => {
 	expect.soft(res12).toStrictEqual([]);
 });
 
-test.todo('timestamp + timestamp arrays', async () => {
+test('timestamp + timestamp arrays', async () => {
 	const res1 = await diffDefault(
 		_,
 		timestamp({ mode: 'date' }).default(new Date('2025-05-23T12:53:53.115Z')),
@@ -735,7 +735,7 @@ test.todo('timestamp + timestamp arrays', async () => {
 	const res4 = await diffDefault(
 		_,
 		timestamp({ mode: 'string', precision: 3, withTimezone: true }).default('2025-05-23 12:53:53.115'),
-		`'2025-05-23 12:53:53.115'`,
+		`'2025-05-23 12:53:53.115+00'`,
 	);
 	const res5 = await diffDefault(_, timestamp().defaultNow(), `now()`);
 	const res6 = await diffDefault(
@@ -776,8 +776,13 @@ test.todo('timestamp + timestamp arrays', async () => {
 	);
 	const res14 = await diffDefault(
 		_,
-		timestamp({ mode: 'string', precision: 3, withTimezone: true }).array().default(['2025-05-23 12:53:53.115+03:00']),
-		`'{"2025-05-23 12:53:53.115+03:00"}'::timestamp(3) with time zone[]`,
+		timestamp({ mode: 'string', precision: 4, withTimezone: true }).array().default(['2025-05-23 12:53:53.115+03:00']),
+		`'{"2025-05-23 12:53:53.115+03:00"}'::timestamp(4) with time zone[]`,
+	);
+	const res14_1 = await diffDefault(
+		_,
+		timestamp({ mode: 'string', precision: 4, withTimezone: true }).default('2025-05-23 12:53:53.115+03:00'),
+		`'2025-05-23 12:53:53.115+03:00'`,
 	);
 
 	const res15 = await diffDefault(_, timestamp({ mode: 'date' }).array().array().default([]), `'{}'::timestamp[]`);
@@ -815,7 +820,7 @@ test.todo('timestamp + timestamp arrays', async () => {
 		timestamp({ mode: 'string', precision: 3, withTimezone: true }).array().array().default([[
 			'2025-05-23 12:53:53.115',
 		]]),
-		`'{{"2025-05-23 12:53:53.115"}}'::timestamp(3) with time zone[]`,
+		`'{{"2025-05-23 12:53:53.115+00"}}'::timestamp(3) with time zone[]`,
 	);
 
 	expect.soft(res1).toStrictEqual([]);
@@ -832,6 +837,7 @@ test.todo('timestamp + timestamp arrays', async () => {
 	expect.soft(res12).toStrictEqual([]);
 	expect.soft(res13).toStrictEqual([]);
 	expect.soft(res14).toStrictEqual([]);
+	expect.soft(res14_1).toStrictEqual([]);
 	expect.soft(res15).toStrictEqual([]);
 	expect.soft(res16).toStrictEqual([]);
 	expect.soft(res17).toStrictEqual([]);
@@ -842,40 +848,50 @@ test.todo('timestamp + timestamp arrays', async () => {
 	expect.soft(res22).toStrictEqual([]);
 });
 
-test.todo('time + time arrays', async () => {
+test('time + time arrays', async () => {
 	const res1 = await diffDefault(_, time().default('15:50:33'), `'15:50:33'`);
 	const res2 = await diffDefault(
 		_,
 		time({ precision: 3, withTimezone: true }).default('15:50:33.123+00'),
 		`'15:50:33.123+00'`,
 	);
-	const res3 = await diffDefault(_, time().defaultNow(), `now()`);
-	const res4 = await diffDefault(_, time({ precision: 3, withTimezone: true }).defaultNow(), `now()`);
+	const res3 = await diffDefault(
+		_,
+		time({ precision: 3, withTimezone: true }).default('15:50:33.123'),
+		`'15:50:33.123+00'`,
+	);
+	const res4 = await diffDefault(
+		_,
+		time({ precision: 3, withTimezone: true }).default('15:50:33.123+03'),
+		`'15:50:33.123+03'`,
+	);
+	const res5 = await diffDefault(_, time().defaultNow(), `now()`);
+	const res6 = await diffDefault(_, time({ precision: 3, withTimezone: true }).defaultNow(), `now()`);
 
-	const res5 = await diffDefault(_, time().array().default([]), `'{}'::time[]`);
-	const res6 = await diffDefault(
+	const res7 = await diffDefault(_, time().array().default([]), `'{}'::time[]`);
+	const res8 = await diffDefault(
 		_,
 		time({ precision: 3, withTimezone: true }).array().default([]),
 		`'{}'::time(3) with time zone[]`,
 	);
-	const res7 = await diffDefault(_, time({ precision: 3 }).array().default(['15:50:33']), `'{15:50:33}'::time(3)[]`);
-	const res8 = await diffDefault(
+	const res9 = await diffDefault(_, time({ precision: 3 }).array().default(['15:50:33']), `'{15:50:33}'::time(3)[]`);
+	const res10 = await diffDefault(
 		_,
 		time({ precision: 3, withTimezone: true }).array().default(['15:50:33.123']),
-		`'{15:50:33.123}'::time(3) with time zone[]`,
+		`'{15:50:33.123+00}'::time(3) with time zone[]`,
 	);
 
-	const res9 = await diffDefault(_, time().array().array().default([]), `'{}'::time[]`);
-	const res10 = await diffDefault(
+	const res11 = await diffDefault(_, time().array().array().default([]), `'{}'::time[]`);
+	const res12 = await diffDefault(
 		_,
 		time({ precision: 3, withTimezone: true }).array().array().default([]),
 		`'{}'::time(3) with time zone[]`,
 	);
-	const res11 = await diffDefault(_, time().array().array().default([['15:50:33']]), `'{{15:50:33}}'::time[]`);
-	const res12 = await diffDefault(
+	const res13 = await diffDefault(_, time().array().array().default([['15:50:33']]), `'{{15:50:33}}'::time[]`);
+	const res14 = await diffDefault(
 		_,
 		time({ precision: 3, withTimezone: true }).array().array().default([['15:50:33.123']]),
-		`'{{15:50:33.123}}'::time(3) with time zone[]`,
+		`'{{15:50:33.123+00}}'::time(3) with time zone[]`,
 	);
 
 	expect.soft(res1).toStrictEqual([]);
@@ -890,6 +906,8 @@ test.todo('time + time arrays', async () => {
 	expect.soft(res10).toStrictEqual([]);
 	expect.soft(res11).toStrictEqual([]);
 	expect.soft(res12).toStrictEqual([]);
+	expect.soft(res13).toStrictEqual([]);
+	expect.soft(res14).toStrictEqual([]);
 });
 
 test('date + date arrays', async () => {
@@ -1359,7 +1377,8 @@ test('vector + vector arrays', async () => {
 
 // postgis extension
 // SRID=4326 -> these coordinates are longitude/latitude values
-test.todo('geometry + geometry arrays', async () => {
+// Default is 0 or undefined
+test('geometry + geometry arrays', async () => {
 	const postgisDb = await preparePostgisTestDatabase();
 
 	try {
@@ -1369,7 +1388,8 @@ test.todo('geometry + geometry arrays', async () => {
 			`'SRID=4326;POINT(30.5234 50.4501)'`,
 			undefined,
 			undefined,
-			true,
+			['table'],
+			['public'],
 		);
 
 		const res2 = await diffDefault(
@@ -1378,50 +1398,56 @@ test.todo('geometry + geometry arrays', async () => {
 			`'SRID=4326;POINT(30.5234 50.4501)'`,
 			undefined,
 			undefined,
-			true,
+			['table'],
+			['public'],
 		);
 
 		const res3 = await diffDefault(
 			postgisDb,
 			geometry({ srid: 4326, mode: 'tuple', type: 'point' }).array().default([]),
-			`'{}'::geometry(point)[]`,
+			`'{}'::geometry(point,4326)[]`,
 			undefined,
 			undefined,
-			true,
+			['table'],
+			['public'],
 		);
 		const res4 = await diffDefault(
 			postgisDb,
 			geometry({ srid: 4326, mode: 'tuple', type: 'point' }).array().default([[30.5234, 50.4501]]),
-			`'{"SRID=4326;POINT(30.5234 46.4501)"}'::geometry(point, 4326)[]`,
+			`ARRAY['SRID=4326;POINT(30.5234 50.4501)']::geometry(point,4326)[]`,
 			undefined,
 			undefined,
-			true,
+			['table'],
+			['public'],
 		);
 
 		const res5 = await diffDefault(
 			postgisDb,
 			geometry({ srid: 4326, mode: 'xy', type: 'point' }).array().default([]),
-			`'{}'::geometry(point, 4326)[]`,
+			`'{}'::geometry(point,4326)[]`,
 			undefined,
 			undefined,
-			true,
+			['table'],
+			['public'],
 		);
 		const res6 = await diffDefault(
 			postgisDb,
 			geometry({ srid: 4326, mode: 'xy', type: 'point' }).array().default([{ x: 30.5234, y: 50.4501 }]),
-			`'{"SRID=4326;POINT(30.4234 46.4501)"}'::geometry(point, 4326)[]`,
+			`ARRAY['SRID=4326;POINT(30.5234 50.4501)']::geometry(point,4326)[]`,
 			undefined,
 			undefined,
-			true,
+			['table'],
+			['public'],
 		);
 
 		const res7 = await diffDefault(
 			postgisDb,
 			geometry({ srid: 4326, mode: 'tuple', type: 'point' }).array().array().default([]),
-			`'{}'::geometry(point, 4326)[]`,
+			`'{}'::geometry(point,4326)[]`,
 			undefined,
 			undefined,
-			true,
+			['table'],
+			['public'],
 		);
 		const res8 = await diffDefault(
 			postgisDb,
@@ -1429,30 +1455,103 @@ test.todo('geometry + geometry arrays', async () => {
 				30.5234,
 				50.4501,
 			]]]),
-			`ARRAY[ARRAY['SRID=4326;POINT(30.5234 50.4501)'],ARRAY['SRID=4326;POINT(30.5234 50.4501)']]::geometry(Point,4326)[]`,
+			`ARRAY[ARRAY['SRID=4326;POINT(30.5234 50.4501)'],ARRAY['SRID=4326;POINT(30.5234 50.4501)']]::geometry(point,4326)[]`,
 			undefined,
 			undefined,
-			true,
+			['table'],
+			['public'],
 		);
 
 		const res9 = await diffDefault(
 			postgisDb,
 			geometry({ srid: 4326, mode: 'xy', type: 'point' }).array().array().default([]),
-			`'{}'::geometry(point, 4326)[]`,
+			`'{}'::geometry(point,4326)[]`,
 			undefined,
 			undefined,
-			true,
+			['table'],
+			['public'],
 		);
+
 		const res10 = await diffDefault(
 			postgisDb,
 			geometry({ srid: 4326, mode: 'xy', type: 'point' }).array().array().default([[{ x: 30.5234, y: 50.4501 }], [{
 				x: 30.5234,
 				y: 50.4501,
 			}]]),
-			`ARRAY[ARRAY['SRID=4326;POINT(30.5234 50.4501)'],ARRAY['SRID=4326;POINT(30.5234 50.4501)']]::geometry(Point,4326)[]`,
+			`ARRAY[ARRAY['SRID=4326;POINT(30.5234 50.4501)'],ARRAY['SRID=4326;POINT(30.5234 50.4501)']]::geometry(point,4326)[]`,
 			undefined,
 			undefined,
-			true,
+			['table'],
+			['public'],
+		);
+
+		const res11 = await diffDefault(
+			postgisDb,
+			geometry({ mode: 'xy', type: 'point' }).default({ x: 30.5234, y: 50.4501 }),
+			`'POINT(30.5234 50.4501)'`,
+			undefined,
+			undefined,
+			['table'],
+			['public'],
+		);
+
+		const res12 = await diffDefault(
+			postgisDb,
+			geometry({ mode: 'xy', type: 'point' }).default(sql`'SRID=4326;POINT(10 10)'`),
+			`'SRID=4326;POINT(10 10)'`,
+			undefined,
+			undefined,
+			['table'],
+			['public'],
+		);
+		// const res12_1 = await diffDefault(
+		// 	postgisDb,
+		// 	geometry().default(sql`'SRID=0;POINT(12.1 12.1)'`),
+		// 	`'SRID=0;POINT(12.1 12.1)'`,
+		// 	undefined,
+		// 	undefined,
+		// 	true,
+		// );
+
+		const res13 = await diffDefault(
+			postgisDb,
+			geometry({ mode: 'xy', type: 'point' }).array().default([{ x: 13, y: 13 }]),
+			`ARRAY['POINT(13 13)']::geometry(point)[]`,
+			undefined,
+			undefined,
+			['table'],
+			['public'],
+		);
+
+		// this will result diffs on push only
+		// i believe we should not handle this since will be log in console for user about diff and this is sql``
+		// const res14 = await diffDefault(
+		// 	postgisDb,
+		// 	geometry({ mode: 'xy', type: 'point' }).array().default(sql`'{SRID=4326;POINT(14 14)}'::geometry(point)[]`),
+		// 	`'{SRID=4326;POINT(14 14)}'::geometry(point)[]`,
+		// 	undefined,
+		// 	undefined,
+		// 	true,
+		// );
+
+		const res15 = await diffDefault(
+			postgisDb,
+			geometry({ mode: 'xy', type: 'point' }).array().default(sql`ARRAY['SRID=4326;POINT(15 15)']::geometry(point)[]`),
+			`ARRAY['SRID=4326;POINT(15 15)']::geometry(point)[]`,
+			undefined,
+			undefined,
+			['table'],
+			['public'],
+		);
+
+		const res16 = await diffDefault(
+			postgisDb,
+			geometry({ mode: 'xy', type: 'point' }).array().default(sql`ARRAY['POINT(16 16)']::geometry(point)[]`),
+			`ARRAY['POINT(16 16)']::geometry(point)[]`,
+			undefined,
+			undefined,
+			['table'],
+			['public'],
 		);
 
 		expect.soft(res1).toStrictEqual([]);
@@ -1465,6 +1564,13 @@ test.todo('geometry + geometry arrays', async () => {
 		expect.soft(res8).toStrictEqual([]);
 		expect.soft(res9).toStrictEqual([]);
 		expect.soft(res10).toStrictEqual([]);
+		expect.soft(res11).toStrictEqual([]);
+		expect.soft(res12).toStrictEqual([]);
+		// expect.soft(res12_1).toStrictEqual([]);
+		expect.soft(res13).toStrictEqual([]);
+		// expect.soft(res14).toStrictEqual([]);
+		expect.soft(res15).toStrictEqual([]);
+		expect.soft(res16).toStrictEqual([]);
 	} catch (error) {
 		await postgisDb.clear();
 		await postgisDb.close();

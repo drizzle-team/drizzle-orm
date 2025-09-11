@@ -6,12 +6,13 @@ import { migrate } from 'drizzle-orm/libsql/migrator';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
 import { randomString } from '~/utils';
+import relations from './relations';
 import { anotherUsersMigratorTable, tests, usersMigratorTable } from './sqlite-common';
 import { TestCache, TestGlobalCache, tests as cacheTests } from './sqlite-common-cache';
 
 const ENABLE_LOGGING = false;
 
-let db: LibSQLDatabase;
+let db: LibSQLDatabase<never, typeof relations>;
 let dbGlobalCached: LibSQLDatabase;
 let cachedDb: LibSQLDatabase;
 let client: Client;
@@ -35,7 +36,7 @@ beforeAll(async () => {
 			client?.close();
 		},
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
 	cachedDb = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestCache() });
 	dbGlobalCached = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 });

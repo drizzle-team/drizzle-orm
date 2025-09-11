@@ -1,4 +1,4 @@
-import { splitSqlType, toDefaultArray, trimDefaultValueSuffix } from 'src/dialects/postgres/grammar';
+import { splitSqlType, trimDefaultValueSuffix } from 'src/dialects/postgres/grammar';
 import { expect, test } from 'vitest';
 
 test.each([

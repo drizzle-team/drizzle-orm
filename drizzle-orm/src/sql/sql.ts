@@ -3,12 +3,13 @@ import { entityKind, is } from '~/entity.ts';
 import { isPgEnum } from '~/pg-core/columns/enum.ts';
 import type { SelectResult } from '~/query-builders/select.types.ts';
 import { Subquery } from '~/subquery.ts';
+import { TableName } from '~/table.utils.ts';
 import { tracer } from '~/tracing.ts';
 import type { Assume, Equal } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
 import type { AnyColumn } from '../column.ts';
 import { Column } from '../column.ts';
-import { IsAlias, Table } from '../table.ts';
+import { IsAlias, OriginalName, Table, TableColumns, TableSchema } from '../table.ts';
 
 /**
  * This class is used to indicate a primitive param value that is used in `sql` tag.
@@ -62,8 +63,8 @@ export interface QueryWithTypings extends Query {
  * - `Placeholder`
  * - `Param`
  */
-export interface SQLWrapper {
-	getSQL(): SQL;
+export interface SQLWrapper<T = unknown> {
+	getSQL(): SQL<T>;
 	shouldOmitSQLParens?(): boolean;
 }
 
@@ -100,7 +101,7 @@ export class StringChunk implements SQLWrapper {
 	}
 }
 
-export class SQL<T = unknown> implements SQLWrapper {
+export class SQL<T = unknown> implements SQLWrapper<T> {
 	static readonly [entityKind]: string = 'SQL';
 
 	declare _: {
@@ -332,7 +333,7 @@ export class SQL<T = unknown> implements SQLWrapper {
 		throw new Error('Unexpected param value: ' + chunk);
 	}
 
-	getSQL(): SQL {
+	getSQL(): SQL<T> {
 		return this;
 	}
 
@@ -485,6 +486,8 @@ export type SQLChunk =
 	| FakePrimitiveParam
 	| Placeholder;
 
+export type SQLGenerator<T = unknown> = typeof sql<T>;
+
 export function sql<T>(strings: TemplateStringsArray, ...params: any[]): SQL<T>;
 /*
 	The type of `params` is specified as `SQLChunk[]`, but that's slightly incorrect -
@@ -575,7 +578,7 @@ export namespace sql {
 }
 
 export namespace SQL {
-	export class Aliased<T = unknown> implements SQLWrapper {
+	export class Aliased<T = unknown> implements SQLWrapper<T> {
 		static readonly [entityKind]: string = 'SQL.Aliased';
 
 		declare _: {
@@ -587,17 +590,17 @@ export namespace SQL {
 		isSelectionField = false;
 
 		constructor(
-			readonly sql: SQL,
+			readonly sql: SQL<T>,
 			readonly fieldAlias: string,
 		) {}
 
-		getSQL(): SQL {
-			return this.sql;
+		getSQL(): SQL<T> {
+			return this.sql as SQL<T>;
 		}
 
 		/** @internal */
 		clone() {
-			return new Aliased(this.sql, this.fieldAlias);
+			return new Aliased<T>(this.sql, this.fieldAlias);
 		}
 	}
 }
@@ -673,6 +676,31 @@ export abstract class View<
 
 	/** @internal */
 	[IsDrizzleView] = true;
+
+	/** @internal */
+	public get [TableName]() {
+		return this[ViewBaseConfig].name;
+	}
+
+	/** @internal */
+	public get [TableSchema]() {
+		return this[ViewBaseConfig].schema;
+	}
+
+	/** @internal */
+	public get [IsAlias]() {
+		return this[ViewBaseConfig].isAlias;
+	}
+
+	/** @internal */
+	public get [OriginalName]() {
+		return this[ViewBaseConfig].originalName;
+	}
+
+	/** @internal */
+	public get [TableColumns]() {
+		return (this[ViewBaseConfig].selectedFields) as any as Record<string, unknown>;
+	}
 
 	declare readonly $inferSelect: InferSelectViewModel<View<Assume<TName, string>, TExisting, TSelection>>;
 

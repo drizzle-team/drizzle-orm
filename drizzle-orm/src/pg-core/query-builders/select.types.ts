@@ -37,7 +37,7 @@ export interface PgSelectJoinConfig {
 
 export type BuildAliasTable<TTable extends PgTable | View, TAlias extends string> = TTable extends Table
 	? PgTableWithColumns<
-		UpdateTableConfig<TTable['_']['config'], {
+		UpdateTableConfig<TTable['_'], {
 			name: TAlias;
 			columns: MapColumnsToTableAlias<TTable['_']['columns'], TAlias, 'pg'>;
 		}>

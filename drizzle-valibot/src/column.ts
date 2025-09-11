@@ -1,90 +1,16 @@
-import type { Column, ColumnBaseConfig } from 'drizzle-orm';
-import type {
-	CockroachArray,
-	CockroachBigInt53,
-	CockroachBinaryVector,
-	CockroachChar,
-	CockroachFloat,
-	CockroachGeometry,
-	CockroachGeometryObject,
-	CockroachInteger,
-	CockroachReal,
-	CockroachSmallInt,
-	CockroachString,
-	CockroachUUID,
-	CockroachVarchar,
-	CockroachVector,
-} from 'drizzle-orm/cockroach-core';
-import type {
-	MsSqlBigInt,
-	MsSqlChar,
-	MsSqlFloat,
-	MsSqlInt,
-	MsSqlReal,
-	MsSqlSmallInt,
-	MsSqlTinyInt,
-	MsSqlVarChar,
-} from 'drizzle-orm/mssql-core';
-import type {
-	MySqlBigInt53,
-	MySqlChar,
-	MySqlDecimalNumber,
-	MySqlDouble,
-	MySqlFloat,
-	MySqlInt,
-	MySqlMediumInt,
-	MySqlReal,
-	MySqlSerial,
-	MySqlSmallInt,
-	MySqlText,
-	MySqlTinyInt,
-	MySqlVarChar,
-	MySqlYear,
-} from 'drizzle-orm/mysql-core';
-import type {
-	PgArray,
-	PgBigInt53,
-	PgBigSerial53,
-	PgBinaryVector,
-	PgChar,
-	PgDoublePrecision,
-	PgGeometry,
-	PgGeometryObject,
-	PgHalfVector,
-	PgInteger,
-	PgLineABC,
-	PgLineTuple,
-	PgPointObject,
-	PgPointTuple,
-	PgReal,
-	PgSerial,
-	PgSmallInt,
-	PgSmallSerial,
-	PgUUID,
-	PgVarchar,
-	PgVector,
-} from 'drizzle-orm/pg-core';
-import type {
-	SingleStoreBigInt53,
-	SingleStoreChar,
-	SingleStoreDecimalNumber,
-	SingleStoreDouble,
-	SingleStoreFloat,
-	SingleStoreInt,
-	SingleStoreMediumInt,
-	SingleStoreReal,
-	SingleStoreSerial,
-	SingleStoreSmallInt,
-	SingleStoreText,
-	SingleStoreTinyInt,
-	SingleStoreVarChar,
-	SingleStoreVector,
-	SingleStoreYear,
-} from 'drizzle-orm/singlestore-core';
-import type { SQLiteInteger, SQLiteReal, SQLiteText } from 'drizzle-orm/sqlite-core';
+import {
+	type Column,
+	type ColumnDataArrayConstraint,
+	type ColumnDataBigIntConstraint,
+	type ColumnDataNumberConstraint,
+	type ColumnDataObjectConstraint,
+	type ColumnDataStringConstraint,
+	extractExtendedColumnType,
+	getColumnTable,
+	getTableName,
+} from 'drizzle-orm';
 import * as v from 'valibot';
 import { CONSTANTS } from './constants.ts';
-import { isColumnType, isWithEnum } from './utils.ts';
 import type { Json } from './utils.ts';
 
 export const literalSchema = v.union([v.string(), v.number(), v.boolean(), v.null()]);
@@ -101,212 +27,147 @@ export function mapEnumValues(values: string[]) {
 
 export function columnToSchema(column: Column): v.GenericSchema {
 	let schema!: v.GenericSchema;
+	const { type, constraint } = extractExtendedColumnType(column);
 
-	if (isWithEnum(column)) {
-		schema = column.enumValues.length ? v.enum(mapEnumValues(column.enumValues)) : v.string();
-	}
-
-	if (!schema) {
-		// Handle specific types
-		if (
-			isColumnType<PgGeometry<any> | PgPointTuple<any> | CockroachGeometry<any>>(column, [
-				'PgGeometry',
-				'PgPointTuple',
-				'CockroachGeometry',
-			])
-		) {
-			schema = v.tuple([v.number(), v.number()]);
-		} else if (
-			isColumnType<PgPointObject<any> | PgGeometryObject<any> | CockroachGeometryObject<any>>(column, [
-				'PgGeometryObject',
-				'PgPointObject',
-				'CockroachGeometryObject',
-			])
-		) {
-			schema = v.object({ x: v.number(), y: v.number() });
-		} else if (
-			isColumnType<PgHalfVector<any> | PgVector<any> | SingleStoreVector<any> | CockroachVector<any>>(column, [
-				'PgHalfVector',
-				'PgVector',
-				'SingleStoreVector',
-				'CockroachVector',
-			])
-		) {
-			schema = v.array(v.number());
-			schema = column.dimensions ? v.pipe(schema as v.ArraySchema<any, any>, v.length(column.dimensions)) : schema;
-		} else if (isColumnType<PgLineTuple<any>>(column, ['PgLine'])) {
-			schema = v.tuple([v.number(), v.number(), v.number()]);
-			v.array(v.array(v.number()));
-		} else if (isColumnType<PgLineABC<any>>(column, ['PgLineABC'])) {
-			schema = v.object({ a: v.number(), b: v.number(), c: v.number() });
-		} // Handle other types
-		else if (isColumnType<PgArray<any, any> | CockroachArray<any, any>>(column, ['PgArray', 'CockroachArray'])) {
-			schema = v.array(columnToSchema(column.baseColumn));
-			schema = column.size ? v.pipe(schema as v.ArraySchema<any, any>, v.length(column.size)) : schema;
-		} else if (column.dataType === 'array') {
-			schema = v.array(v.any());
-		} else if (column.dataType === 'number') {
-			schema = numberColumnToSchema(column);
-		} else if (column.dataType === 'bigint') {
-			schema = bigintColumnToSchema(column);
-		} else if (column.dataType === 'boolean') {
-			schema = v.boolean();
-		} else if (column.dataType === 'date') {
-			schema = v.date();
-		} else if (column.dataType === 'string') {
-			schema = stringColumnToSchema(column);
-		} else if (column.dataType === 'json') {
-			schema = jsonSchema;
-		} else if (column.dataType === 'custom') {
-			schema = v.any();
-		} else if (column.dataType === 'buffer') {
-			schema = bufferSchema;
+	switch (type) {
+		case 'array': {
+			schema = arrayColumnToSchema(column, constraint);
+			break;
 		}
-	}
-
-	if (!schema) {
-		schema = v.any();
+		case 'object': {
+			schema = objectColumnToSchema(column, constraint);
+			break;
+		}
+		case 'number': {
+			schema = numberColumnToSchema(column, constraint);
+			break;
+		}
+		case 'bigint': {
+			schema = bigintColumnToSchema(column, constraint);
+			break;
+		}
+		case 'boolean': {
+			schema = v.boolean();
+			break;
+		}
+		case 'string': {
+			schema = stringColumnToSchema(column, constraint);
+			break;
+		}
+		case 'custom': {
+			schema = v.any();
+			break;
+		}
+		default: {
+			schema = v.any();
+		}
 	}
 
 	return schema;
 }
 
-function numberColumnToSchema(column: Column): v.GenericSchema {
-	let unsigned = column.getSQLType().includes('unsigned') || isColumnType(column, ['MsSqlTinyInt']);
+function numberColumnToSchema(column: Column, constraint: ColumnDataNumberConstraint | undefined): v.GenericSchema {
 	let min!: number;
 	let max!: number;
 	let integer = false;
 
-	if (
-		isColumnType<MySqlTinyInt<any> | SingleStoreTinyInt<any> | MsSqlTinyInt<any>>(column, [
-			'MySqlTinyInt',
-			'SingleStoreTinyInt',
-			'MsSqlTinyInt',
-		])
-	) {
-		min = unsigned ? 0 : CONSTANTS.INT8_MIN;
-		max = unsigned ? CONSTANTS.INT8_UNSIGNED_MAX : CONSTANTS.INT8_MAX;
-		integer = true;
-	} else if (
-		isColumnType<
-			| PgSmallInt<any>
-			| PgSmallSerial<any>
-			| MySqlSmallInt<any>
-			| SingleStoreSmallInt<any>
-			| MsSqlSmallInt<any>
-			| CockroachSmallInt<any>
-		>(column, [
-			'PgSmallInt',
-			'PgSmallSerial',
-			'MySqlSmallInt',
-			'SingleStoreSmallInt',
-			'MsSqlSmallInt',
-			'CockroachSmallInt',
-		])
-	) {
-		min = unsigned ? 0 : CONSTANTS.INT16_MIN;
-		max = unsigned ? CONSTANTS.INT16_UNSIGNED_MAX : CONSTANTS.INT16_MAX;
-		integer = true;
-	} else if (
-		isColumnType<
-			| PgReal<any>
-			| MySqlFloat<any>
-			| MySqlMediumInt<any>
-			| SingleStoreFloat<any>
-			| SingleStoreMediumInt<any>
-			| MsSqlReal<any>
-			| CockroachReal<any>
-		>(column, [
-			'PgReal',
-			'MySqlFloat',
-			'MySqlMediumInt',
-			'SingleStoreFloat',
-			'SingleStoreMediumInt',
-			'MsSqlReal',
-			'CockroachReal',
-		])
-	) {
-		min = unsigned ? 0 : CONSTANTS.INT24_MIN;
-		max = unsigned ? CONSTANTS.INT24_UNSIGNED_MAX : CONSTANTS.INT24_MAX;
-		integer = isColumnType(column, ['MySqlMediumInt', 'SingleStoreMediumInt']);
-	} else if (
-		isColumnType<
-			PgInteger<any> | PgSerial<any> | MySqlInt<any> | SingleStoreInt<any> | MsSqlInt<any> | CockroachInteger<any>
-		>(column, [
-			'PgInteger',
-			'PgSerial',
-			'MySqlInt',
-			'SingleStoreInt',
-			'MsSqlInt',
-			'CockroachInteger',
-		])
-	) {
-		min = unsigned ? 0 : CONSTANTS.INT32_MIN;
-		max = unsigned ? CONSTANTS.INT32_UNSIGNED_MAX : CONSTANTS.INT32_MAX;
-		integer = true;
-	} else if (
-		isColumnType<
-			| PgDoublePrecision<any>
-			| MySqlReal<any>
-			| MySqlDouble<any>
-			| SingleStoreReal<any>
-			| SingleStoreDouble<any>
-			| SQLiteReal<any>
-			| MsSqlFloat<any>
-			| CockroachFloat<any>
-		>(column, [
-			'PgDoublePrecision',
-			'MySqlReal',
-			'MySqlDouble',
-			'SingleStoreReal',
-			'SingleStoreDouble',
-			'SQLiteReal',
-			'MsSqlFloat',
-			'CockroachFloat',
-		])
-	) {
-		min = unsigned ? 0 : CONSTANTS.INT48_MIN;
-		max = unsigned ? CONSTANTS.INT48_UNSIGNED_MAX : CONSTANTS.INT48_MAX;
-	} else if (
-		isColumnType<
-			| PgBigInt53<any>
-			| PgBigSerial53<any>
-			| MySqlBigInt53<any>
-			| MySqlSerial<any>
-			| MySqlDecimalNumber<any>
-			| SingleStoreBigInt53<any>
-			| SingleStoreSerial<any>
-			| SingleStoreDecimalNumber<any>
-			| SQLiteInteger<any>
-			| CockroachBigInt53<any>
-		>(
-			column,
-			[
-				'PgBigInt53',
-				'PgBigSerial53',
-				'MySqlBigInt53',
-				'MySqlSerial',
-				'MySqlDecimalNumber',
-				'SingleStoreBigInt53',
-				'SingleStoreSerial',
-				'SingleStoreDecimalNumber',
-				'SQLiteInteger',
-				'CockroachBigInt53',
-			],
-		)
-		|| (isColumnType<MsSqlBigInt<any>>(column, ['MsSqlBigInt']) && (column as MsSqlBigInt<any>).mode === 'number')
-	) {
-		unsigned = unsigned || isColumnType(column, ['MySqlSerial', 'SingleStoreSerial']);
-		min = unsigned ? 0 : Number.MIN_SAFE_INTEGER;
-		max = Number.MAX_SAFE_INTEGER;
-		integer = !isColumnType(column, ['MySqlDecimalNumber', 'SingleStoreDecimalNumber']);
-	} else if (isColumnType<MySqlYear<any> | SingleStoreYear<any>>(column, ['MySqlYear', 'SingleStoreYear'])) {
-		min = 1901;
-		max = 2155;
-		integer = true;
-	} else {
-		min = Number.MIN_SAFE_INTEGER;
-		max = Number.MAX_SAFE_INTEGER;
+	switch (constraint) {
+		case 'int8': {
+			min = CONSTANTS.INT8_MIN;
+			max = CONSTANTS.INT8_MAX;
+			integer = true;
+			break;
+		}
+		case 'uint8': {
+			min = 0;
+			max = CONSTANTS.INT8_UNSIGNED_MAX;
+			integer = true;
+			break;
+		}
+		case 'int16': {
+			min = CONSTANTS.INT16_MIN;
+			max = CONSTANTS.INT16_MAX;
+			integer = true;
+			break;
+		}
+		case 'uint16': {
+			min = 0;
+			max = CONSTANTS.INT16_UNSIGNED_MAX;
+			integer = true;
+			break;
+		}
+		case 'int24': {
+			min = CONSTANTS.INT24_MIN;
+			max = CONSTANTS.INT24_MAX;
+			integer = true;
+			break;
+		}
+		case 'uint24': {
+			min = 0;
+			max = CONSTANTS.INT24_UNSIGNED_MAX;
+			integer = true;
+			break;
+		}
+		case 'int32': {
+			min = CONSTANTS.INT32_MIN;
+			max = CONSTANTS.INT32_MAX;
+			integer = true;
+			break;
+		}
+		case 'uint32': {
+			min = 0;
+			max = CONSTANTS.INT32_UNSIGNED_MAX;
+			integer = true;
+			break;
+		}
+		case 'int53': {
+			min = Number.MIN_SAFE_INTEGER;
+			max = Number.MAX_SAFE_INTEGER;
+			integer = true;
+			break;
+		}
+		case 'uint53': {
+			min = 0;
+			max = Number.MAX_SAFE_INTEGER;
+			integer = true;
+			break;
+		}
+		case 'float': {
+			min = CONSTANTS.INT24_MIN;
+			max = CONSTANTS.INT24_MAX;
+			break;
+		}
+		case 'ufloat': {
+			min = 0;
+			max = CONSTANTS.INT24_UNSIGNED_MAX;
+			break;
+		}
+		case 'double': {
+			min = CONSTANTS.INT48_MIN;
+			max = CONSTANTS.INT48_MAX;
+			break;
+		}
+		case 'udouble': {
+			min = 0;
+			max = CONSTANTS.INT48_UNSIGNED_MAX;
+			break;
+		}
+		case 'year': {
+			min = 1901;
+			max = 2155;
+			integer = true;
+			break;
+		}
+		case 'unsigned': {
+			min = 0;
+			max = Number.MAX_SAFE_INTEGER;
+			break;
+		}
+		default: {
+			min = Number.MIN_SAFE_INTEGER;
+			max = Number.MAX_SAFE_INTEGER;
+			break;
+		}
 	}
 
 	const actions: any[] = [v.minValue(min), v.maxValue(max)];
@@ -320,99 +181,136 @@ function numberColumnToSchema(column: Column): v.GenericSchema {
 export const bigintStringModeSchema = v.pipe(
 	v.string(),
 	v.regex(/^-?\d+$/),
+	// eslint-disable-next-line unicorn/prefer-native-coercion-functions
 	v.transform((v) => BigInt(v)),
 	v.minValue(CONSTANTS.INT64_MIN),
 	v.maxValue(CONSTANTS.INT64_MAX),
 	v.transform((v) => v.toString()),
 );
 
-function bigintColumnToSchema(column: Column): v.GenericSchema {
-	if (isColumnType<MsSqlBigInt<any>>(column, ['MsSqlBigInt'])) {
-		if (column.mode === 'string') {
-			return bigintStringModeSchema;
-		} else if (column.mode === 'number') {
-			return numberColumnToSchema(column);
+function bigintColumnToSchema(column: Column, constraint: ColumnDataBigIntConstraint | undefined): v.GenericSchema {
+	let min!: bigint | undefined;
+	let max!: bigint | undefined;
+
+	switch (constraint) {
+		case 'int64': {
+			min = CONSTANTS.INT64_MIN;
+			max = CONSTANTS.INT64_MAX;
+			break;
+		}
+		case 'uint64': {
+			min = 0n;
+			max = CONSTANTS.INT64_UNSIGNED_MAX;
+			break;
 		}
 	}
 
-	const unsigned = column.getSQLType().includes('unsigned');
-	const min = unsigned ? 0n : CONSTANTS.INT64_MIN;
-	const max = unsigned ? CONSTANTS.INT64_UNSIGNED_MAX : CONSTANTS.INT64_MAX;
+	const actions: any[] = [];
+	if (min !== undefined) actions.push(v.minValue(min));
+	if (max !== undefined) actions.push(v.maxValue(max));
 
-	return v.pipe(v.bigint(), v.minValue(min), v.maxValue(max));
+	return actions.length > 0 ? v.pipe(v.bigint(), ...actions) : v.bigint();
 }
 
-function stringColumnToSchema(column: Column): v.GenericSchema {
-	if (
-		isColumnType<
-			PgUUID<ColumnBaseConfig<'string', 'PgUUID'>> | CockroachUUID<ColumnBaseConfig<'string', 'CockroachUUID'>>
-		>(column, ['PgUUID', 'CockroachUUID'])
-	) {
-		return v.pipe(v.string(), v.uuid());
-	}
-
-	let max: number | undefined;
-	let regex: RegExp | undefined;
-	let fixed = false;
-
-	// Char columns are padded to a fixed length. The input can be equal or less than the set length
-	if (
-		isColumnType<
-			| PgVarchar<any>
-			| SQLiteText<any>
-			| PgChar<any>
-			| MySqlChar<any>
-			| SingleStoreChar<any>
-			| MsSqlChar<any>
-			| MsSqlVarChar<any>
-			| CockroachChar<any>
-			| CockroachVarchar<any>
-			| CockroachString<any>
-		>(column, [
-			'PgVarchar',
-			'SQLiteText',
-			'PgChar',
-			'MySqlChar',
-			'SingleStoreChar',
-			'MsSqlChar',
-			'MsSqlVarChar',
-			'CockroachChar',
-			'CockroachVarchar',
-			'CockroachString',
-		])
-	) {
-		max = column.length;
-	} else if (
-		isColumnType<MySqlVarChar<any> | SingleStoreVarChar<any>>(column, ['MySqlVarChar', 'SingleStoreVarChar'])
-	) {
-		max = column.length ?? CONSTANTS.INT16_UNSIGNED_MAX;
-	} else if (isColumnType<MySqlText<any> | SingleStoreText<any>>(column, ['MySqlText', 'SingleStoreText'])) {
-		if (column.textType === 'longtext') {
-			max = CONSTANTS.INT32_UNSIGNED_MAX;
-		} else if (column.textType === 'mediumtext') {
-			max = CONSTANTS.INT24_UNSIGNED_MAX;
-		} else if (column.textType === 'text') {
-			max = CONSTANTS.INT16_UNSIGNED_MAX;
-		} else {
-			max = CONSTANTS.INT8_UNSIGNED_MAX;
+function arrayColumnToSchema(column: Column, constraint: ColumnDataArrayConstraint | undefined): v.GenericSchema {
+	switch (constraint) {
+		case 'geometry':
+		case 'point': {
+			return v.tuple([v.number(), v.number()]);
+		}
+		case 'line': {
+			return v.tuple([v.number(), v.number(), v.number()]);
+		}
+		case 'vector':
+		case 'halfvector': {
+			const { length } = column;
+			return length
+				? v.pipe(v.array(v.number()), v.length(length))
+				: v.array(v.number());
+		}
+		case 'int64vector': {
+			const length = column.length;
+			return length
+				? v.pipe(
+					v.array(v.pipe(v.bigint(), v.minValue(CONSTANTS.INT64_MIN), v.maxValue(CONSTANTS.INT64_MAX))),
+					v.length(length),
+				)
+				: v.array(v.pipe(v.bigint(), v.minValue(CONSTANTS.INT64_MIN), v.maxValue(CONSTANTS.INT64_MAX)));
+		}
+		case 'basecolumn': {
+			const { length } = column;
+			const schema = (<{ baseColumn?: Column }> column).baseColumn
+				? v.array(columnToSchema((<{ baseColumn?: Column }> column).baseColumn!))
+				: v.array(v.any());
+			if (length) return v.pipe(schema, v.length(length));
+			return schema;
+		}
+		default: {
+			return v.array(v.any());
 		}
 	}
+}
 
-	if (
-		isColumnType<PgBinaryVector<any> | CockroachBinaryVector<any>>(column, ['PgBinaryVector', 'CockroachBinaryVector'])
-	) {
-		regex = /^[01]+$/;
-		max = column.dimensions;
+function objectColumnToSchema(column: Column, constraint: ColumnDataObjectConstraint | undefined): v.GenericSchema {
+	switch (constraint) {
+		case 'buffer': {
+			return bufferSchema;
+		}
+		case 'date': {
+			return v.date();
+		}
+		case 'geometry':
+		case 'point': {
+			return v.object({
+				x: v.number(),
+				y: v.number(),
+			});
+		}
+		case 'json': {
+			return jsonSchema;
+		}
+		case 'line': {
+			return v.object({
+				a: v.number(),
+				b: v.number(),
+				c: v.number(),
+			});
+		}
+		default: {
+			return v.looseObject({});
+		}
+	}
+}
+
+function stringColumnToSchema(column: Column, constraint: ColumnDataStringConstraint | undefined): v.GenericSchema {
+	const { name: columnName, length, isLengthExact } = column;
+	let regex: RegExp | undefined;
+
+	if (constraint === 'binary') {
+		regex = /^[01]*$/;
+	}
+	if (constraint === 'uuid') return v.pipe(v.string(), v.uuid());
+	if (constraint === 'enum') {
+		const enumValues = column.enumValues;
+		if (!enumValues) {
+			throw new Error(
+				`Column "${getTableName(getColumnTable(column))}"."${columnName}" is of 'enum' type, but lacks enum values`,
+			);
+		}
+		return v.enum(mapEnumValues(enumValues));
+	}
+	if (constraint === 'int64') {
+		return bigintStringModeSchema;
 	}
 
 	const actions: any[] = [];
 	if (regex) {
 		actions.push(v.regex(regex));
 	}
-	if (max && fixed) {
-		actions.push(v.length(max));
-	} else if (max) {
-		actions.push(v.maxLength(max));
+	if (length && isLengthExact) {
+		actions.push(v.length(length));
+	} else if (length) {
+		actions.push(v.maxLength(length));
 	}
 	return actions.length > 0 ? v.pipe(v.string(), ...actions) : v.string();
 }

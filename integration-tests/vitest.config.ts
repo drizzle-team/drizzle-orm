@@ -28,6 +28,7 @@ export default defineConfig({
 			...(process.env.SKIP_EXTERNAL_DB_TESTS
 				? [
 					'tests/relational/mysql.planetscale.test.ts',
+					'tests/relational/mysql.planetscale-v1.test.ts',
 					'tests/pg/neon-serverless.test.ts',
 					'tests/mysql/tidb-serverless.test.ts',
 					'tests/mysql/mysql-planetscale.test.ts',
@@ -52,9 +53,9 @@ export default defineConfig({
 			'tests/awsdatapi.alltypes.test.ts',
 			'tests/pg/vercel-pg.test.ts',
 			'tests/relational/vercel.test.ts',
+			'tests/relational/vercel-v1.test.ts',
 			// Have a strange "invalid SQL: ERROR: must be owner of schema public" error. Will need to check with xata team
 			'tests/pg/xata-http.test.ts',
-			'tests/pg/neon-http-batch.ts',
 			// todo: remove
 			'js-tests/driver-init/module/vercel.test.mjs',
 			'js-tests/driver-init/commonjs/vercel.test.cjs',
@@ -62,8 +63,6 @@ export default defineConfig({
 			'tests/sqlite/libsql-ws.test.ts',
 			'tests/sqlite/libsql-http.test.ts',
 			'tests/mysql/tidb-serverless.test.ts',
-			// waiting for json_array from singlestore team
-			'tests/relational/singlestore.test.ts',
 			'js-tests/driver-init/module/planetscale.test.mjs',
 			'js-tests/driver-init/module/planetscale.test.cjs',
 			'js-tests/driver-init/commonjs/planetscale.test.cjs',

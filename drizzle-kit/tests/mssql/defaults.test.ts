@@ -85,7 +85,7 @@ test('smallint', async () => {
 
 test('tinyint', async () => {
 	const res1 = await diffDefault(_, tinyint().default(123), '((123))');
-	const res2 = await diffDefault(_, tinyint().default(-432), '((-432))');
+	const res2 = await diffDefault(_, tinyint().default(0), '((0))');
 	const res3 = await diffDefault(_, tinyint().default(1), '((1))');
 	const res4 = await diffDefault(_, tinyint().default(sql`10`), '(10)');
 	const res5 = await diffDefault(_, tinyint().default(sql`(10)`), '(10)');
@@ -143,7 +143,7 @@ test('numeric', async () => {
 
 	const res2 = await diffDefault(
 		_,
-		numeric({ mode: 'bigint' }).default(9223372036854775807n),
+		numeric({ mode: 'bigint', precision: 19 }).default(9223372036854775807n),
 		'((9223372036854775807))',
 	);
 	const res3 = await diffDefault(_, numeric({ mode: 'number' }).default(9007199254740991), '((9007199254740991))');
@@ -206,7 +206,7 @@ test('decimal', async () => {
 
 	const res2 = await diffDefault(
 		_,
-		decimal({ mode: 'bigint' }).default(9223372036854775807n),
+		decimal({ mode: 'bigint', precision: 19 }).default(9223372036854775807n),
 		'((9223372036854775807))',
 	);
 	const res3 = await diffDefault(_, decimal({ mode: 'number' }).default(9007199254740991), '((9007199254740991))');
@@ -382,17 +382,17 @@ test('char', async () => {
 		`('mo''''\",\`}{od')`,
 	);
 
-	const res6 = await diffDefault(_, char().default(sql`'text'`), `('text')`);
-	const res7 = await diffDefault(_, char().default(sql`('text')`), `('text')`);
+	const res6 = await diffDefault(_, char({ length: 10 }).default(sql`'text'`), `('text')`);
+	const res7 = await diffDefault(_, char({ length: 10 }).default(sql`('text')`), `('text')`);
 
-	const res8 = await diffDefault(_, char().default(''), `('')`);
-	const res9 = await diffDefault(_, char().default('""'), `('""')`);
-	const res10 = await diffDefault(_, char().default(sql`''`), `('')`);
+	const res8 = await diffDefault(_, char({ length: 10 }).default(''), `('')`);
+	const res9 = await diffDefault(_, char({ length: 10 }).default('""'), `('""')`);
+	const res10 = await diffDefault(_, char({ length: 10 }).default(sql`''`), `('')`);
 
-	const res11 = await diffDefault(_, char().default(sql`'text'+'text'`), `('text'+'text')`);
+	const res11 = await diffDefault(_, char({ length: 10 }).default(sql`'text'+'text'`), `('text'+'text')`);
 
-	const res12 = await diffDefault(_, char().default("'"), `('''')`);
-	const res13 = await diffDefault(_, char().default('"'), `('"')`);
+	const res12 = await diffDefault(_, char({ length: 10 }).default("'"), `('''')`);
+	const res13 = await diffDefault(_, char({ length: 10 }).default('"'), `('"')`);
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
@@ -410,7 +410,7 @@ test('char', async () => {
 });
 
 test('varchar', async () => {
-	const res0 = await diffDefault(_, varchar().default('text'), `('text')`);
+	const res0 = await diffDefault(_, varchar({ length: 100 }).default('text'), `('text')`);
 	const res01 = await diffDefault(_, varchar({ length: 'max' }).default('text'), `('text')`);
 	const res1 = await diffDefault(_, varchar({ length: 256 }).default('text'), `('text')`);
 	const res2 = await diffDefault(_, varchar({ length: 256 }).default("text'text"), `('text''text')`);
@@ -424,16 +424,16 @@ test('varchar', async () => {
 		`('mo''''",\`}{od')`,
 	);
 
-	const res6 = await diffDefault(_, varchar().default(sql`'text'`), `('text')`);
-	const res7 = await diffDefault(_, varchar().default(sql`('text')`), `('text')`);
+	const res6 = await diffDefault(_, varchar({ length: 10 }).default(sql`'text'`), `('text')`);
+	const res7 = await diffDefault(_, varchar({ length: 10 }).default(sql`('text')`), `('text')`);
 
-	const res8 = await diffDefault(_, varchar().default(''), `('')`);
-	const res9 = await diffDefault(_, varchar().default(sql`''`), `('')`);
+	const res8 = await diffDefault(_, varchar({ length: 10 }).default(''), `('')`);
+	const res9 = await diffDefault(_, varchar({ length: 10 }).default(sql`''`), `('')`);
 
-	const res10 = await diffDefault(_, varchar().default(sql`'text'+'text'`), `('text'+'text')`);
+	const res10 = await diffDefault(_, varchar({ length: 10 }).default(sql`'text'+'text'`), `('text'+'text')`);
 
-	const res11 = await diffDefault(_, varchar().default("'"), `('''')`);
-	const res12 = await diffDefault(_, varchar().default('"'), `('"')`);
+	const res11 = await diffDefault(_, varchar({ length: 10 }).default("'"), `('''')`);
+	const res12 = await diffDefault(_, varchar({ length: 10 }).default('"'), `('"')`);
 
 	expect.soft(res0).toStrictEqual([]);
 	expect.soft(res01).toStrictEqual([]);
@@ -488,7 +488,7 @@ test('text', async () => {
 });
 
 test('nchar ', async () => {
-	const res0 = await diffDefault(_, nchar().default('text'), `('text')`);
+	const res0 = await diffDefault(_, nchar({ length: 10 }).default('text'), `('text')`);
 	const res1 = await diffDefault(_, nchar({ length: 256 }).default('text'), `('text')`);
 	const res2 = await diffDefault(_, nchar({ length: 256 }).default("text'text"), `('text''text')`);
 	const res3 = await diffDefault(_, nchar({ length: 256 }).default('text\'text"'), "('text''text\"')");
@@ -501,16 +501,16 @@ test('nchar ', async () => {
 		`('mo''''\",\`}{od')`,
 	);
 
-	const res6 = await diffDefault(_, nchar().default(sql`'text'`), `('text')`);
-	const res7 = await diffDefault(_, nchar().default(sql`('text')`), `('text')`);
+	const res6 = await diffDefault(_, nchar({ length: 10 }).default(sql`'text'`), `('text')`);
+	const res7 = await diffDefault(_, nchar({ length: 10 }).default(sql`('text')`), `('text')`);
 
-	const res8 = await diffDefault(_, nchar().default(''), `('')`);
-	const res9 = await diffDefault(_, nchar().default(sql`''`), `('')`);
+	const res8 = await diffDefault(_, nchar({ length: 10 }).default(''), `('')`);
+	const res9 = await diffDefault(_, nchar({ length: 10 }).default(sql`''`), `('')`);
 
-	const res10 = await diffDefault(_, nchar().default(sql`'text'+'text'`), `('text'+'text')`);
+	const res10 = await diffDefault(_, nchar({ length: 10 }).default(sql`'text'+'text'`), `('text'+'text')`);
 
-	const res11 = await diffDefault(_, nchar().default("'"), `('''')`);
-	const res12 = await diffDefault(_, nchar().default('"'), `('"')`);
+	const res11 = await diffDefault(_, nchar({ length: 10 }).default("'"), `('''')`);
+	const res12 = await diffDefault(_, nchar({ length: 10 }).default('"'), `('"')`);
 
 	expect.soft(res0).toStrictEqual([]);
 	expect.soft(res1).toStrictEqual([]);
@@ -528,7 +528,7 @@ test('nchar ', async () => {
 });
 
 test('nvarchar', async () => {
-	const res0 = await diffDefault(_, nvarchar().default('text'), `('text')`);
+	const res0 = await diffDefault(_, nvarchar({ length: 10 }).default('text'), `('text')`);
 	const res1 = await diffDefault(_, nvarchar({ length: 256 }).default('text'), `('text')`);
 	const res2 = await diffDefault(_, nvarchar({ length: 256 }).default("text'text"), `('text''text')`);
 	const res3 = await diffDefault(_, nvarchar({ length: 256 }).default('text\'text"'), "('text''text\"')");
@@ -541,38 +541,42 @@ test('nvarchar', async () => {
 		`('mo''''",\`}{od')`,
 	);
 
-	const res6 = await diffDefault(_, nvarchar().default(sql`'text'`), `('text')`);
-	const res7 = await diffDefault(_, nvarchar().default(sql`('text')`), `('text')`);
+	const res6 = await diffDefault(_, nvarchar({ length: 10 }).default(sql`'text'`), `('text')`);
+	const res7 = await diffDefault(_, nvarchar({ length: 10 }).default(sql`('text')`), `('text')`);
 
-	const res8 = await diffDefault(_, nvarchar().default(''), `('')`);
-	const res9 = await diffDefault(_, nvarchar().default(sql`''`), `('')`);
+	const res8 = await diffDefault(_, nvarchar({ length: 10 }).default(''), `('')`);
+	const res9 = await diffDefault(_, nvarchar({ length: 10 }).default(sql`''`), `('')`);
 
-	const res10 = await diffDefault(_, nvarchar().default(sql`'text'+'text'`), `('text'+'text')`);
+	const res10 = await diffDefault(_, nvarchar({ length: 10 }).default(sql`'text'+'text'`), `('text'+'text')`);
 
-	const res11 = await diffDefault(_, nvarchar({ mode: 'json' }).default({ key: 'value' }), `('{"key":"value"}')`);
+	const res11 = await diffDefault(
+		_,
+		nvarchar({ mode: 'json', length: 'max' }).default({ key: 'value' }),
+		`('{"key":"value"}')`,
+	);
 	const res12 = await diffDefault(
 		_,
-		nvarchar({ mode: 'json' }).default({ key: 9223372036854775807n }),
+		nvarchar({ mode: 'json', length: 'max' }).default({ key: 9223372036854775807n }),
 		`('{"key":9223372036854775807}')`,
 	);
 	const res13 = await diffDefault(
 		_,
-		nvarchar({ mode: 'json' }).default(sql`'{"key":9223372036854775807}'`),
+		nvarchar({ mode: 'json', length: 'max' }).default(sql`'{"key":9223372036854775807}'`),
 		`('{"key":9223372036854775807}')`,
 	);
 	const res14 = await diffDefault(
 		_,
-		nvarchar({ mode: 'json' }).default([9223372036854775807n, 9223372036854775806n]),
+		nvarchar({ mode: 'json', length: 'max' }).default([9223372036854775807n, 9223372036854775806n]),
 		`('[9223372036854775807,9223372036854775806]')`,
 	);
 	const res15 = await diffDefault(
 		_,
-		nvarchar({ mode: 'json' }).default({ key: 'value\\\'"' }),
+		nvarchar({ mode: 'json', length: 'max' }).default({ key: 'value\\\'"' }),
 		`('{"key":"value\\\\''\\""}')`,
 	);
 
-	const res16 = await diffDefault(_, nvarchar().default("'"), `('''')`);
-	const res17 = await diffDefault(_, nvarchar().default('"'), `('"')`);
+	const res16 = await diffDefault(_, nvarchar({ length: 10 }).default("'"), `('''')`);
+	const res17 = await diffDefault(_, nvarchar({ length: 10 }).default('"'), `('"')`);
 
 	expect.soft(res0).toStrictEqual([]);
 	expect.soft(res1).toStrictEqual([]);
@@ -693,10 +697,15 @@ test('datetime2', async () => {
 		datetime2({ mode: 'string' }).default('2025-05-23T12:53:53.115Z'),
 		`('2025-05-23T12:53:53.115Z')`,
 	);
-	const res20 = await diffDefault(
+	const res2_0 = await diffDefault(
 		_,
 		datetime2({ mode: 'string', precision: 4 }).default('2025-05-23T12:53:53.115Z'),
 		`('2025-05-23T12:53:53.115Z')`,
+	);
+	const res2_1 = await diffDefault(
+		_,
+		datetime2({ mode: 'string', precision: 4 }).default('2025-05-23 12:53:53.115'),
+		`('2025-05-23 12:53:53.115')`,
 	);
 	const res3 = await diffDefault(
 		_,
@@ -722,7 +731,8 @@ test('datetime2', async () => {
 	expect.soft(res6).toStrictEqual([]);
 
 	expect.soft(res10).toStrictEqual([]);
-	expect.soft(res20).toStrictEqual([]);
+	expect.soft(res2_0).toStrictEqual([]);
+	expect.soft(res2_1).toStrictEqual([]);
 	expect.soft(res40).toStrictEqual([]);
 	expect.soft(res50).toStrictEqual([]);
 });
@@ -851,20 +861,28 @@ function toBinary(str: string) {
 	return '(' + '0x' + Buffer.from(str, 'utf8').toString('hex').toUpperCase() + ')';
 }
 test('binary + varbinary', async () => {
-	const res1 = await diffDefault(_, binary().default(Buffer.from('hello world')), toBinary('hello world'));
-	const res1_1 = await diffDefault(_, varbinary().default(Buffer.from('hello world')), toBinary('hello world'));
+	const res1 = await diffDefault(
+		_,
+		binary({ length: 100 }).default(Buffer.from('hello world')),
+		toBinary('hello world'),
+	);
+	const res1_1 = await diffDefault(
+		_,
+		varbinary({ length: 100 }).default(Buffer.from('hello world')),
+		toBinary('hello world'),
+	);
 	const res1_2 = await diffDefault(
 		_,
-		binary().default(sql`hashbytes('SHA1','password')`),
+		binary({ length: 100 }).default(sql`hashbytes('SHA1','password')`),
 		"(hashbytes('SHA1','password'))",
 	);
-	const res1_3 = await diffDefault(_, binary().default(sql`0xFF`), '(0xFF)');
+	const res1_3 = await diffDefault(_, binary({ length: 100 }).default(sql`0xFF`), '(0xFF)');
 	const res1_4 = await diffDefault(
 		_,
-		varbinary().default(sql`hashbytes('SHA1','password')`),
+		varbinary({ length: 100 }).default(sql`hashbytes('SHA1','password')`),
 		"(hashbytes('SHA1','password'))",
 	);
-	const res1_5 = await diffDefault(_, varbinary().default(sql`0xFF`), '(0xFF)');
+	const res1_5 = await diffDefault(_, varbinary({ length: 100 }).default(sql`0xFF`), '(0xFF)');
 
 	const res2 = await diffDefault(
 		_,

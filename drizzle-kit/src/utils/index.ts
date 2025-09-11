@@ -127,7 +127,7 @@ export function stringifyArray(
 		if (Array.isArray(e)) return stringifyArray(e, mode, mapCallback, depth);
 		return mapCallback(e, depth);
 	}).join(',');
-	return mode === 'ts' ? `[${res}]` : mode === 'geometry-sql' ? `ARRAY['${res}']` : `{${res}}`;
+	return mode === 'ts' ? `[${res}]` : mode === 'geometry-sql' ? `ARRAY[${res}]` : `{${res}}`;
 }
 
 export function stringifyTuplesArray(
@@ -224,6 +224,17 @@ export const dateExtractRegex = /^\d{4}-\d{2}-\d{2}/;
 export const isDate = (it: string) => {
 	return dateExtractRegex.test(it);
 };
+
+const timestampRegexp =
+	/^(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}(?::?\d{2})?)?|\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}(?::?\d{2})?)?)$/;
+export const isTimestamp = (it: string) => {
+	return timestampRegexp.test(it);
+};
+
+export const timezoneSuffixRegexp = /([+-]\d{2}(:?\d{2})?)$/i;
+export function hasTimeZoneSuffix(s: string): boolean {
+	return timezoneSuffixRegexp.test(s);
+}
 
 export const possibleIntervals = [
 	'year',

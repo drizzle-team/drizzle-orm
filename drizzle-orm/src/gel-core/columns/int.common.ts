@@ -1,10 +1,10 @@
-import type { ColumnBuilderBaseConfig, ColumnDataType, GeneratedIdentityConfig, IsIdentity } from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, ColumnType, GeneratedIdentityConfig, IsIdentity } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
 import type { GelSequenceOptions } from '../sequence.ts';
 import { GelColumnBuilder } from './common.ts';
 
 export abstract class GelIntColumnBaseBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string>,
+	T extends ColumnBuilderBaseConfig<ColumnType>,
 > extends GelColumnBuilder<
 	T,
 	{ generatedIdentity: GeneratedIdentityConfig }

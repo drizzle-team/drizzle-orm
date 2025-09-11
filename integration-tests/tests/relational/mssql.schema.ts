@@ -1,6 +1,7 @@
 import { type AnyMsSqlColumn, bit, datetime, int, mssqlTable, primaryKey, varchar } from 'drizzle-orm/mssql-core';
 
-import { relations, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
+import { relations } from 'drizzle-orm/_relations';
 
 export const usersTable = mssqlTable('users', {
 	id: int('id').primaryKey().notNull(),

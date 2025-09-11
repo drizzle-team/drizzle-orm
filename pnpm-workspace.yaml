@@ -7,6 +7,7 @@ packages:
   - drizzle-arktype
   - drizzle-seed
   - integration-tests
+  - typeperf-test
   - eslint-plugin-drizzle
 onlyBuiltDependencies:
   - '@contrast/fn-inspect'

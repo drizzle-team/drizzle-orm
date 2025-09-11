@@ -9,5 +9,9 @@
 		"outDir": "dist",
 		"noEmit": true
 	},
-	"include": ["src", "scripts"]
+	"include": [
+		"src",
+		"scripts",
+		"types-bench.ts"
+	]
 }

@@ -1,4 +1,4 @@
-import { relations } from 'drizzle-orm';
+import { relations } from 'drizzle-orm/_relations';
 import { integer, numeric, pgSchema, text, timestamp, varchar } from 'drizzle-orm/pg-core';
 
 export const schema = pgSchema('seeder_lib_pg');

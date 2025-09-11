@@ -1,5 +1,6 @@
 import type { Container } from 'dockerode';
-import { relations, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
+import { relations } from 'drizzle-orm/_relations';
 import type { NodeCockroachDatabase } from 'drizzle-orm/cockroach';
 import { drizzle } from 'drizzle-orm/cockroach';
 import { Client } from 'pg';

@@ -1,34 +1,26 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import type { MySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
-export type MySqlJsonBuilderInitial<TName extends string> = MySqlJsonBuilder<{
-	name: TName;
-	dataType: 'json';
-	columnType: 'MySqlJson';
+export class MySqlJsonBuilder extends MySqlColumnBuilder<{
+	dataType: 'object json';
 	data: unknown;
 	driverParam: string;
-	enumValues: undefined;
-}>;
-
-export class MySqlJsonBuilder<T extends ColumnBuilderBaseConfig<'json', 'MySqlJson'>> extends MySqlColumnBuilder<T> {
+}> {
 	static override readonly [entityKind]: string = 'MySqlJsonBuilder';
 
-	constructor(name: T['name']) {
-		super(name, 'json', 'MySqlJson');
+	constructor(name: string) {
+		super(name, 'object json', 'MySqlJson');
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlJson<MakeColumnConfig<T, TTableName>> {
-		return new MySqlJson<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+	override build(table: MySqlTable) {
+		return new MySqlJson(table, this.config as any);
 	}
 }
 
-export class MySqlJson<T extends ColumnBaseConfig<'json', 'MySqlJson'>> extends MySqlColumn<T> {
+export class MySqlJson<T extends ColumnBaseConfig<'object json'>> extends MySqlColumn<T> {
 	static override readonly [entityKind]: string = 'MySqlJson';
 
 	getSQLType(): string {
@@ -40,8 +32,6 @@ export class MySqlJson<T extends ColumnBaseConfig<'json', 'MySqlJson'>> extends 
 	}
 }
 
-export function json(): MySqlJsonBuilderInitial<''>;
-export function json<TName extends string>(name: TName): MySqlJsonBuilderInitial<TName>;
-export function json(name?: string) {
+export function json(name?: string): MySqlJsonBuilder {
 	return new MySqlJsonBuilder(name ?? '');
 }

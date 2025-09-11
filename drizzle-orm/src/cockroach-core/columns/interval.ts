@@ -1,45 +1,37 @@
 import type { AnyCockroachTable } from '~/cockroach-core/table.ts';
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { CockroachColumn, CockroachColumnWithArrayBuilder } from './common.ts';
 import type { Precision } from './timestamp.ts';
 
-export type CockroachIntervalBuilderInitial<TName extends string> = CockroachIntervalBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'CockroachInterval';
+export class CockroachIntervalBuilder extends CockroachColumnWithArrayBuilder<{
+	dataType: 'string interval';
 	data: string;
 	driverParam: string;
-	enumValues: undefined;
-}>;
-
-export class CockroachIntervalBuilder<T extends ColumnBuilderBaseConfig<'string', 'CockroachInterval'>>
-	extends CockroachColumnWithArrayBuilder<T, { intervalConfig: IntervalConfig }>
-{
+}, { intervalConfig: IntervalConfig }> {
 	static override readonly [entityKind]: string = 'CockroachIntervalBuilder';
 
 	constructor(
-		name: T['name'],
+		name: string,
 		intervalConfig: IntervalConfig,
 	) {
-		super(name, 'string', 'CockroachInterval');
+		super(name, 'string interval', 'CockroachInterval');
 		this.config.intervalConfig = intervalConfig;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyCockroachTable<{ name: TTableName }>,
-	): CockroachInterval<MakeColumnConfig<T, TTableName>> {
-		return new CockroachInterval<MakeColumnConfig<T, TTableName>>(
+	) {
+		return new CockroachInterval(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config,
 		);
 	}
 }
 
-export class CockroachInterval<T extends ColumnBaseConfig<'string', 'CockroachInterval'>>
+export class CockroachInterval<T extends ColumnBaseConfig<'string interval'>>
 	extends CockroachColumn<T, { intervalConfig: IntervalConfig }>
 {
 	static override readonly [entityKind]: string = 'CockroachInterval';
@@ -72,14 +64,13 @@ export interface IntervalConfig {
 	precision?: Precision;
 }
 
-export function interval(): CockroachIntervalBuilderInitial<''>;
 export function interval(
 	config?: IntervalConfig,
-): CockroachIntervalBuilderInitial<''>;
-export function interval<TName extends string>(
-	name: TName,
+): CockroachIntervalBuilder;
+export function interval(
+	name: string,
 	config?: IntervalConfig,
-): CockroachIntervalBuilderInitial<TName>;
+): CockroachIntervalBuilder;
 export function interval(a?: string | IntervalConfig, b: IntervalConfig = {}) {
 	const { name, config } = getColumnNameAndConfig<IntervalConfig>(a, b);
 	return new CockroachIntervalBuilder(name, config);

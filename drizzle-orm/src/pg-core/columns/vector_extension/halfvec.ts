@@ -1,54 +1,39 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '~/pg-core/table.ts';
+import type { PgTable } from '~/pg-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from '../common.ts';
 
-export type PgHalfVectorBuilderInitial<TName extends string, TDimensions extends number> = PgHalfVectorBuilder<{
-	name: TName;
-	dataType: 'array';
-	columnType: 'PgHalfVector';
-	data: number[];
-	driverParam: string;
-	enumValues: undefined;
-	dimensions: TDimensions;
-}>;
-
-export class PgHalfVectorBuilder<T extends ColumnBuilderBaseConfig<'array', 'PgHalfVector'> & { dimensions: number }>
-	extends PgColumnBuilder<
-		T,
-		{ dimensions: T['dimensions'] },
-		{ dimensions: T['dimensions'] }
-	>
-{
+export class PgHalfVectorBuilder extends PgColumnBuilder<
+	{
+		dataType: 'array halfvector';
+		data: number[];
+		driverParam: string;
+	},
+	{ length: number; isLengthExact: true }
+> {
 	static override readonly [entityKind]: string = 'PgHalfVectorBuilder';
 
-	constructor(name: string, config: PgHalfVectorConfig<T['dimensions']>) {
-		super(name, 'array', 'PgHalfVector');
-		this.config.dimensions = config.dimensions;
+	constructor(name: string, config: PgHalfVectorConfig) {
+		super(name, 'array halfvector', 'PgHalfVector');
+		this.config.length = config.dimensions;
+		this.config.isLengthExact = true;
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgHalfVector<MakeColumnConfig<T, TTableName> & { dimensions: T['dimensions'] }> {
-		return new PgHalfVector<MakeColumnConfig<T, TTableName> & { dimensions: T['dimensions'] }>(
+	override build(table: PgTable<any>) {
+		return new PgHalfVector(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
 
-export class PgHalfVector<T extends ColumnBaseConfig<'array', 'PgHalfVector'> & { dimensions: number }>
-	extends PgColumn<T, { dimensions: T['dimensions'] }, { dimensions: T['dimensions'] }>
-{
+export class PgHalfVector<T extends ColumnBaseConfig<'array halfvector'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgHalfVector';
 
-	readonly dimensions: T['dimensions'] = this.config.dimensions;
-
 	getSQLType(): string {
-		return `halfvec(${this.dimensions})`;
+		return `halfvec(${this.length})`;
 	}
 
 	override mapToDriverValue(value: unknown): unknown {
@@ -63,17 +48,17 @@ export class PgHalfVector<T extends ColumnBaseConfig<'array', 'PgHalfVector'> & 
 	}
 }
 
-export interface PgHalfVectorConfig<TDimensions extends number = number> {
-	dimensions: TDimensions;
+export interface PgHalfVectorConfig {
+	dimensions: number;
 }
 
-export function halfvec<D extends number>(
-	config: PgHalfVectorConfig<D>,
-): PgHalfVectorBuilderInitial<'', D>;
-export function halfvec<TName extends string, D extends number>(
-	name: TName,
+export function halfvec(
 	config: PgHalfVectorConfig,
-): PgHalfVectorBuilderInitial<TName, D>;
+): PgHalfVectorBuilder;
+export function halfvec(
+	name: string,
+	config: PgHalfVectorConfig,
+): PgHalfVectorBuilder;
 export function halfvec(a: string | PgHalfVectorConfig, b?: PgHalfVectorConfig) {
 	const { name, config } = getColumnNameAndConfig<PgHalfVectorConfig>(a, b);
 	return new PgHalfVectorBuilder(name, config);

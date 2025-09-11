@@ -1,4 +1,4 @@
-import { relations } from 'drizzle-orm';
+import { relations } from 'drizzle-orm/_relations';
 import type { AnyCockroachColumn } from 'drizzle-orm/cockroach-core';
 import { cockroachTable, foreignKey, int4, string, varchar } from 'drizzle-orm/cockroach-core';
 
