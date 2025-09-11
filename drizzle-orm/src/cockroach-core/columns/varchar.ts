@@ -1,35 +1,24 @@
 import type { AnyCockroachTable } from '~/cockroach-core/table.ts';
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import { getColumnNameAndConfig, type Writable } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { CockroachColumn, CockroachColumnWithArrayBuilder } from './common.ts';
 
-export type CockroachVarcharBuilderInitial<
-	TName extends string,
-	TEnum extends [string, ...string[]],
-	TLength extends number | undefined,
-> = CockroachVarcharBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'CockroachVarchar';
-	data: TEnum[number];
-	driverParam: string;
-	enumValues: TEnum;
-	length: TLength;
-}>;
-
 export class CockroachVarcharBuilder<
-	T extends ColumnBuilderBaseConfig<'string', 'CockroachVarchar'> & { length?: number | undefined },
+	TEnum extends [string, ...string[]],
 > extends CockroachColumnWithArrayBuilder<
-	T,
-	{ length: T['length']; enumValues: T['enumValues'] },
-	{ length: T['length'] }
+	{
+		dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'string enum';
+		data: TEnum[number];
+		driverParam: string;
+		enumValues: TEnum;
+	},
+	{ length: number | undefined; enumValues: TEnum | undefined }
 > {
 	static override readonly [entityKind]: string = 'CockroachVarcharBuilder';
 
-	constructor(name: T['name'], config: CockroachVarcharConfig<T['enumValues'], T['length']>) {
-		super(name, 'string', 'CockroachVarchar');
+	constructor(name: string, config: CockroachVarcharConfig<TEnum>) {
+		super(name, config.enum?.length ? 'string enum' : 'string', 'CockroachVarchar');
 		this.config.length = config.length;
 		this.config.enumValues = config.enum;
 	}
@@ -37,20 +26,19 @@ export class CockroachVarcharBuilder<
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyCockroachTable<{ name: TTableName }>,
-	): CockroachVarchar<MakeColumnConfig<T, TTableName> & { length: T['length'] }> {
-		return new CockroachVarchar<MakeColumnConfig<T, TTableName> & { length: T['length'] }>(
+	) {
+		return new CockroachVarchar(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config,
 		);
 	}
 }
 
 export class CockroachVarchar<
-	T extends ColumnBaseConfig<'string', 'CockroachVarchar'> & { length?: number | undefined },
-> extends CockroachColumn<T, { length: T['length']; enumValues: T['enumValues'] }, { length: T['length'] }> {
+	T extends ColumnBaseConfig<'string' | 'string enum'>,
+> extends CockroachColumn<T, { length: number | undefined; enumValues: T['enumValues'] }> {
 	static override readonly [entityKind]: string = 'CockroachVarchar';
 
-	readonly length = this.config.length;
 	override readonly enumValues = this.config.enumValues;
 
 	getSQLType(): string {
@@ -60,29 +48,24 @@ export class CockroachVarchar<
 
 export interface CockroachVarcharConfig<
 	TEnum extends readonly string[] | string[] | undefined = readonly string[] | string[] | undefined,
-	TLength extends number | undefined = number | undefined,
 > {
 	enum?: TEnum;
-	length?: TLength;
+	length?: number | undefined;
 }
 
-export function varchar(): CockroachVarcharBuilderInitial<'', [string, ...string[]], undefined>;
 export function varchar<
 	U extends string,
 	T extends Readonly<[U, ...U[]]>,
-	L extends number | undefined,
 >(
-	config?: CockroachVarcharConfig<T | Writable<T>, L>,
-): CockroachVarcharBuilderInitial<'', Writable<T>, L>;
+	config?: CockroachVarcharConfig<T | Writable<T>>,
+): CockroachVarcharBuilder<Writable<T>>;
 export function varchar<
-	TName extends string,
 	U extends string,
 	T extends Readonly<[U, ...U[]]>,
-	L extends number | undefined,
 >(
-	name: TName,
-	config?: CockroachVarcharConfig<T | Writable<T>, L>,
-): CockroachVarcharBuilderInitial<TName, Writable<T>, L>;
+	name: string,
+	config?: CockroachVarcharConfig<T | Writable<T>>,
+): CockroachVarcharBuilder<Writable<T>>;
 export function varchar(a?: string | CockroachVarcharConfig, b: CockroachVarcharConfig = {}): any {
 	const { name, config } = getColumnNameAndConfig<CockroachVarcharConfig>(a, b);
 	return new CockroachVarcharBuilder(name, config as any);

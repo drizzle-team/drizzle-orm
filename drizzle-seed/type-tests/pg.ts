@@ -11,38 +11,83 @@ const pgUsers = pgTable('users', {
 	inviteId: integer('invite_id').references((): PgColumn => pgUsers.id),
 });
 
+// node-postgres
 {
 	const db0 = nodePostgresDrizzle('', { schema: { users: pgUsers } });
 
 	await seed(db0, { users: pgUsers });
+	await seed(db0, { users: pgUsers }).refine((funcs) => ({
+		users: {
+			columns: {
+				id: funcs.intPrimaryKey(),
+			},
+		},
+	}));
 	await reset(db0, { users: pgUsers });
 
 	const db1 = nodePostgresDrizzle('');
 
 	await seed(db1, { users: pgUsers });
+	await seed(db1, { users: pgUsers }).refine((funcs) => ({
+		users: {
+			columns: {
+				id: funcs.intPrimaryKey(),
+			},
+		},
+	}));
 	await reset(db1, { users: pgUsers });
 }
 
+// pglite
 {
 	const db0 = pgliteDrizzle('', { schema: { users: pgUsers } });
 
 	await seed(db0, { users: pgUsers });
+	await seed(db0, { users: pgUsers }).refine((funcs) => ({
+		users: {
+			columns: {
+				id: funcs.intPrimaryKey(),
+			},
+		},
+	}));
 	await reset(db0, { users: pgUsers });
 
 	const db1 = pgliteDrizzle('');
 
 	await seed(db1, { users: pgUsers });
+	await seed(db1, { users: pgUsers }).refine((funcs) => ({
+		users: {
+			columns: {
+				id: funcs.intPrimaryKey(),
+			},
+		},
+	}));
 	await reset(db1, { users: pgUsers });
 }
 
+// postgres-js
 {
 	const db0 = postgresJsDrizzle('', { schema: { users: pgUsers } });
 
 	await seed(db0, { users: pgUsers });
+	await seed(db0, { users: pgUsers }).refine((funcs) => ({
+		users: {
+			columns: {
+				id: funcs.intPrimaryKey(),
+			},
+		},
+	}));
 	await reset(db0, { users: pgUsers });
 
 	const db1 = postgresJsDrizzle('');
 
 	await seed(db1, { users: pgUsers });
+	await seed(db1, { users: pgUsers }).refine((funcs) => ({
+		users: {
+			columns: {
+				id: funcs.intPrimaryKey(),
+			},
+		},
+	}));
 	await reset(db1, { users: pgUsers });
 }

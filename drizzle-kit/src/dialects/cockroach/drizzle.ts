@@ -173,7 +173,7 @@ export const defaultFromColumn = (
 		return grammarType.defaultFromDrizzle(def, baseType);
 	}
 
-	throw new Error();
+	throw new Error(`Unhandled type: ${type}`);
 };
 
 /*

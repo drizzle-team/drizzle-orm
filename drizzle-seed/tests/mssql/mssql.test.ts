@@ -1,4 +1,5 @@
-import { relations, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
+import { relations } from 'drizzle-orm/_relations';
 
 import { drizzle } from 'drizzle-orm/node-mssql';
 import mssql from 'mssql';

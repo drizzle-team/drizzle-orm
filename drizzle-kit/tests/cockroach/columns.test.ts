@@ -1,7 +1,9 @@
 import { SQL, sql } from 'drizzle-orm';
 import {
 	bigint,
+	bit,
 	bool,
+	boolean,
 	char,
 	cockroachEnum,
 	cockroachSchema,
@@ -26,6 +28,7 @@ import {
 	timestamp,
 	uniqueIndex,
 	uuid,
+	varbit,
 	varchar,
 } from 'drizzle-orm/cockroach-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
@@ -935,8 +938,14 @@ test('no diffs for all database types', async () => {
 			},
 		),
 		allBools: customSchema.table('all_bools', {
-			columnAll: bool('column_all').default(true).notNull(),
-			column: bool('column'),
+			column1: bool('column1').default(true).notNull(),
+			column2: bool('column2'),
+			column3: boolean('column3').default(true).notNull(),
+			column4: boolean('column4'),
+			column5: bool('column5').default(true).notNull().array(),
+			column6: bool('column6').array(),
+			column7: boolean('column7').default(true).notNull().array(),
+			column8: boolean('column8').array(),
 		}),
 
 		allVarchars: customSchema.table('all_varchars', {
@@ -987,6 +996,17 @@ test('no diffs for all database types', async () => {
 			columnAll: decimal('column_all').default('32').notNull(),
 			column: decimal('column', { precision: 1, scale: 1 }),
 			columnPrimary: decimal('column_primary').primaryKey().notNull(),
+		}),
+
+		allBits: customSchema.table('all_bits', {
+			column1: bit('column1').default('1').notNull(),
+			column2: bit('column2', { length: 10 }),
+			column3: bit('column3').default('1').notNull().array(),
+			column4: bit('column4', { length: 10 }).array(),
+			column5: varbit('column5').notNull(),
+			column6: varbit('column6', { length: 10 }),
+			column7: varbit('column7').notNull().array(),
+			column8: varbit('column8', { length: 10 }).array(),
 		}),
 	};
 

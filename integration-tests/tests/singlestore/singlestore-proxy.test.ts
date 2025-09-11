@@ -4,6 +4,7 @@ import { drizzle as proxyDrizzle } from 'drizzle-orm/singlestore-proxy';
 import * as mysql2 from 'mysql2/promise';
 import { afterAll, beforeAll, beforeEach } from 'vitest';
 import { skipTests } from '~/common';
+import relations from './relations';
 import { createDockerDB, tests } from './singlestore-common';
 
 const ENABLE_LOGGING = false;
@@ -69,7 +70,7 @@ class ServerSimulator {
 	}
 }
 
-let db: SingleStoreRemoteDatabase;
+let db: SingleStoreRemoteDatabase<never, typeof relations>;
 let client: mysql2.Connection;
 let serverSimulator: ServerSimulator;
 
@@ -113,7 +114,7 @@ beforeAll(async () => {
 			console.error('Error from singlestore proxy server:', e.message);
 			throw e;
 		}
-	}, { logger: ENABLE_LOGGING });
+	}, { logger: ENABLE_LOGGING, relations });
 });
 
 afterAll(async () => {
@@ -135,6 +136,14 @@ skipTests([
 	'transaction',
 	'transaction with options (set isolationLevel)',
 	'migrator',
+	'RQB v2 transaction find first - no rows',
+	'RQB v2 transaction find first - multiple rows',
+	'RQB v2 transaction find first - with relation',
+	'RQB v2 transaction find first - placeholders',
+	'RQB v2 transaction find many - no rows',
+	'RQB v2 transaction find many - multiple rows',
+	'RQB v2 transaction find many - with relation',
+	'RQB v2 transaction find many - placeholders',
 ]);
 
 tests();

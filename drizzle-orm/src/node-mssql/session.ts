@@ -1,6 +1,7 @@
 import type { ConnectionPool, IResult, Request } from 'mssql';
 import mssql from 'mssql';
 import { once } from 'node:events';
+import type * as V1 from '~/_relations.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
@@ -16,7 +17,6 @@ import {
 	type PreparedQueryKind,
 	type QueryResultHKT,
 } from '~/mssql-core/session.ts';
-import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
 import { AutoPool } from './pool.ts';
@@ -173,7 +173,7 @@ export interface NodeMsSqlSessionOptions {
 
 export class NodeMsSqlSession<
 	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
+	TSchema extends V1.TablesRelationalConfig,
 > extends MsSqlSession<
 	NodeMsSqlQueryResultHKT,
 	NodeMsSqlPreparedQueryHKT,
@@ -187,7 +187,7 @@ export class NodeMsSqlSession<
 	constructor(
 		private client: NodeMsSqlClient,
 		dialect: MsSqlDialect,
-		private schema: RelationalSchemaConfig<TSchema> | undefined,
+		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private options: NodeMsSqlSessionOptions,
 	) {
 		super(dialect);
@@ -277,7 +277,7 @@ export class NodeMsSqlSession<
 
 export class NodeMsSqlTransaction<
 	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
+	TSchema extends V1.TablesRelationalConfig,
 > extends MsSqlTransaction<
 	NodeMsSqlQueryResultHKT,
 	NodeMsSqlPreparedQueryHKT,

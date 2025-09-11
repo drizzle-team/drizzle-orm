@@ -1,4 +1,4 @@
-import { relations } from 'drizzle-orm';
+import { relations } from 'drizzle-orm/_relations';
 import { cockroachSchema, int4, numeric, string, timestamp, varchar } from 'drizzle-orm/cockroach-core';
 
 export const schema = cockroachSchema('seeder_lib');

@@ -1,46 +1,35 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
+import type { AnyMsSqlTable, MsSqlTable } from '~/mssql-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { MsSqlColumn } from './common.ts';
 import { MsSqlDateColumnBaseBuilder } from './date.common.ts';
 
-export type MsSqlDateBuilderInitial<TName extends string> = MsSqlDateBuilder<
-	{
-		name: TName;
-		dataType: 'date';
-		columnType: 'MsSqlDate';
-		data: Date;
-		driverParam: string | number;
-		enumValues: undefined;
-		generated: undefined;
-	}
->;
-
-export class MsSqlDateBuilder<T extends ColumnBuilderBaseConfig<'date', 'MsSqlDate'>>
-	extends MsSqlDateColumnBaseBuilder<T>
-{
+export class MsSqlDateBuilder extends MsSqlDateColumnBaseBuilder<{
+	dataType: 'object date';
+	data: Date;
+	driverParam: string | number;
+}> {
 	static override readonly [entityKind]: string = 'MsSqlDateBuilder';
 
-	constructor(name: T['name']) {
-		super(name, 'date', 'MsSqlDate');
+	constructor(name: string) {
+		super(name, 'object date', 'MsSqlDate');
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMsSqlTable<{ name: TTableName }>,
-	): MsSqlDate<MakeColumnConfig<T, TTableName>> {
-		return new MsSqlDate<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+	) {
+		return new MsSqlDate(table, this.config);
 	}
 }
 
-export class MsSqlDate<T extends ColumnBaseConfig<'date', 'MsSqlDate'>> extends MsSqlColumn<T> {
+export class MsSqlDate<T extends ColumnBaseConfig<'object date'>> extends MsSqlColumn<T> {
 	static override readonly [entityKind]: string = 'MsSqlDate';
 
 	constructor(
-		table: AnyMsSqlTable<{ name: T['tableName'] }>,
-		config: MsSqlDateBuilder<T>['config'],
+		table: MsSqlTable<any>,
+		config: MsSqlDateBuilder['config'],
 	) {
 		super(table, config);
 	}
@@ -54,44 +43,34 @@ export class MsSqlDate<T extends ColumnBaseConfig<'date', 'MsSqlDate'>> extends 
 	}
 }
 
-export type MsSqlDateStringBuilderInitial<TName extends string> = MsSqlDateStringBuilder<
-	{
-		name: TName;
-		dataType: 'string';
-		columnType: 'MsSqlDateString';
-		data: string;
-		driverParam: string | number;
-		enumValues: undefined;
-		generated: undefined;
-	}
->;
-
-export class MsSqlDateStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'MsSqlDateString'>>
-	extends MsSqlDateColumnBaseBuilder<T>
-{
+export class MsSqlDateStringBuilder extends MsSqlDateColumnBaseBuilder<{
+	dataType: 'string date';
+	data: string;
+	driverParam: string | number;
+}> {
 	static override readonly [entityKind]: string = 'MsSqlDateStringBuilder';
 
-	constructor(name: T['name']) {
-		super(name, 'string', 'MsSqlDateString');
+	constructor(name: string) {
+		super(name, 'string date', 'MsSqlDateString');
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMsSqlTable<{ name: TTableName }>,
-	): MsSqlDateString<MakeColumnConfig<T, TTableName>> {
-		return new MsSqlDateString<MakeColumnConfig<T, TTableName>>(
+	) {
+		return new MsSqlDateString(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config,
 		);
 	}
 }
 
-export class MsSqlDateString<T extends ColumnBaseConfig<'string', 'MsSqlDateString'>> extends MsSqlColumn<T> {
+export class MsSqlDateString<T extends ColumnBaseConfig<'string date'>> extends MsSqlColumn<T> {
 	static override readonly [entityKind]: string = 'MsSqlDateString';
 
 	constructor(
-		table: AnyMsSqlTable<{ name: T['tableName'] }>,
-		config: MsSqlDateStringBuilder<T>['config'],
+		table: MsSqlTable<any>,
+		config: MsSqlDateStringBuilder['config'],
 	) {
 		super(table, config);
 	}
@@ -109,14 +88,13 @@ export interface MsSqlDateConfig<TMode extends 'date' | 'string' = 'date' | 'str
 	mode?: TMode;
 }
 
-export function date(): MsSqlDateBuilderInitial<''>;
 export function date<TMode extends MsSqlDateConfig['mode'] & {}>(
 	config?: MsSqlDateConfig<TMode>,
-): Equal<TMode, 'string'> extends true ? MsSqlDateStringBuilderInitial<''> : MsSqlDateBuilderInitial<''>;
-export function date<TName extends string, TMode extends MsSqlDateConfig['mode'] & {}>(
-	name: TName,
+): Equal<TMode, 'string'> extends true ? MsSqlDateStringBuilder : MsSqlDateBuilder;
+export function date<TMode extends MsSqlDateConfig['mode'] & {}>(
+	name: string,
 	config?: MsSqlDateConfig<TMode>,
-): Equal<TMode, 'string'> extends true ? MsSqlDateStringBuilderInitial<TName> : MsSqlDateBuilderInitial<TName>;
+): Equal<TMode, 'string'> extends true ? MsSqlDateStringBuilder : MsSqlDateBuilder;
 export function date(a?: string | MsSqlDateConfig, b?: MsSqlDateConfig) {
 	const { name, config } = getColumnNameAndConfig<MsSqlDateConfig | undefined>(a, b);
 

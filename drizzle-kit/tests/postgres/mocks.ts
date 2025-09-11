@@ -51,6 +51,7 @@ import { fromDatabaseForDrizzle } from 'src/dialects/postgres/introspect';
 import { ddlToTypeScript } from 'src/dialects/postgres/typescript';
 import { DB } from 'src/utils';
 import 'zx/globals';
+import { prepareTablesFilter } from 'src/cli/commands/pull-common';
 import { upToV8 } from 'src/cli/commands/up-postgres';
 import { serializePg } from 'src/legacy/postgres-v7/serializer';
 import { diff as legacyDiff } from 'src/legacy/postgres-v7/snapshotsDiffer';
@@ -288,16 +289,14 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 		type?: string;
 		default?: string;
 	},
-	filter?: true,
+	tablesFilter?: string[],
+	schemasFilter?: string[],
 ) => {
 	await kit.clear();
 
-	let schemas: string[] | undefined;
-	let tables: string[] | undefined;
-
-	if (filter) {
-		schemas = ['public'];
-		tables = ['table'];
+	let filter: ((_schema: string, tableName: string) => boolean) | undefined;
+	if (tablesFilter?.length) {
+		filter = prepareTablesFilter(tablesFilter);
 	}
 
 	const config = (builder as any).config;
@@ -328,8 +327,8 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 
 	const { db, clear } = kit;
 	if (pre) await push({ db, to: pre });
-	const { sqlStatements: st1 } = await push({ db, to: init, tables, schemas });
-	const { sqlStatements: st2 } = await push({ db, to: init, tables, schemas });
+	const { sqlStatements: st1 } = await push({ db, to: init, tables: tablesFilter, schemas: schemasFilter });
+	const { sqlStatements: st2 } = await push({ db, to: init, tables: tablesFilter, schemas: schemasFilter });
 	const typeSchemaPrefix = typeSchema && typeSchema !== 'public' ? `"${typeSchema}".` : '';
 	const typeValue = typeSchema ? `"${type.replaceAll('[]', '')}"${'[]'.repeat(dimensions)}` : type;
 	const sqlType = `${typeSchemaPrefix}${typeValue}`;
@@ -343,8 +342,8 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	// introspect to schema
 	const schema = await fromDatabaseForDrizzle(
 		db,
-		tables ? (_, it) => tables.indexOf(it) >= 0 : () => true,
-		schemas ? (it) => schemas.indexOf(it) >= 0 : () => true,
+		filter ?? (() => true),
+		schemasFilter ? (it: string) => schemasFilter.some((x) => x === it) : ((_) => true),
 	);
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
@@ -363,6 +362,7 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	if (afterFileSqlStatements.length === 0) {
 		rmSync(path);
 	} else {
+		res.push(`Unexpected diff after reading ts`);
 		console.log(afterFileSqlStatements);
 		console.log(`./${path}`);
 	}
@@ -383,9 +383,9 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 		table: pgTable('table', { column: builder }),
 	};
 
-	if (pre) await push({ db, to: pre, tables, schemas });
-	await push({ db, to: schema1, tables, schemas });
-	const { sqlStatements: st3 } = await push({ db, to: schema2, tables, schemas });
+	if (pre) await push({ db, to: pre, tables: tablesFilter, schemas: schemasFilter });
+	await push({ db, to: schema1, tables: tablesFilter, schemas: schemasFilter });
+	const { sqlStatements: st3 } = await push({ db, to: schema2, tables: tablesFilter, schemas: schemasFilter });
 	const expectedAlter = `ALTER TABLE "table" ALTER COLUMN "column" SET DEFAULT ${expectedDefault};`;
 	if ((st3.length !== 1 || st3[0] !== expectedAlter) && expectedDefault) {
 		res.push(`Unexpected default alter:\n${st3}\n\n${expectedAlter}`);
@@ -403,9 +403,9 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 		table: pgTable('table', { id: serial(), column: builder }),
 	};
 
-	if (pre) await push({ db, to: pre, tables, schemas });
-	await push({ db, to: schema3, tables, schemas });
-	const { sqlStatements: st4 } = await push({ db, to: schema4, tables, schemas });
+	if (pre) await push({ db, to: pre, tables: tablesFilter, schemas: schemasFilter });
+	await push({ db, to: schema3, tables: tablesFilter, schemas: schemasFilter });
+	const { sqlStatements: st4 } = await push({ db, to: schema4, tables: tablesFilter, schemas: schemasFilter });
 
 	const expectedAddColumn = `ALTER TABLE "table" ADD COLUMN "column" ${sqlType}${defaultStatement};`;
 	if (st4.length !== 1 || st4[0] !== expectedAddColumn) {

@@ -1,15 +1,10 @@
 import type mssql from 'mssql';
+import * as V1 from '~/_relations.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { DefaultLogger } from '~/logger.ts';
 import { MsSqlDatabase } from '~/mssql-core/db.ts';
 import { MsSqlDialect } from '~/mssql-core/dialect.ts';
-import {
-	createTableRelationsHelpers,
-	extractTablesRelationalConfig,
-	type RelationalSchemaConfig,
-	type TablesRelationalConfig,
-} from '~/relations.ts';
 import { type DrizzleConfig, isConfig } from '~/utils.ts';
 import { AutoPool } from './pool.ts';
 import type { NodeMsSqlClient, NodeMsSqlPreparedQueryHKT, NodeMsSqlQueryResultHKT } from './session.ts';
@@ -30,8 +25,8 @@ export class NodeMsSqlDriver {
 	}
 
 	createSession(
-		schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined,
-	): NodeMsSqlSession<Record<string, unknown>, TablesRelationalConfig> {
+		schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined,
+	): NodeMsSqlSession<Record<string, unknown>, V1.TablesRelationalConfig> {
 		return new NodeMsSqlSession(this.client, this.dialect, schema, { logger: this.options.logger });
 	}
 }
@@ -66,11 +61,11 @@ function construct<
 		client = client.promise() as any;
 	}
 
-	let schema: RelationalSchemaConfig<TablesRelationalConfig> | undefined;
+	let schema: V1.RelationalSchemaConfig<V1.TablesRelationalConfig> | undefined;
 	if (config.schema) {
-		const tablesConfig = extractTablesRelationalConfig(
+		const tablesConfig = V1.extractTablesRelationalConfig(
 			config.schema,
-			createTableRelationsHelpers,
+			V1.createTableRelationsHelpers,
 		);
 		schema = {
 			fullSchema: config.schema,

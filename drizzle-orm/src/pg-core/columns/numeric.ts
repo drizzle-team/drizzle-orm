@@ -1,21 +1,15 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '~/pg-core/table.ts';
+import type { PgTable } from '~/pg-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export type PgNumericBuilderInitial<TName extends string> = PgNumericBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'PgNumeric';
-	data: string;
-	driverParam: string;
-	enumValues: undefined;
-}>;
-
-export class PgNumericBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgNumeric'>> extends PgColumnBuilder<
-	T,
+export class PgNumericBuilder extends PgColumnBuilder<
+	{
+		dataType: 'string numeric';
+		data: string;
+		driverParam: string;
+	},
 	{
 		precision: number | undefined;
 		scale: number | undefined;
@@ -23,27 +17,25 @@ export class PgNumericBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgNum
 > {
 	static override readonly [entityKind]: string = 'PgNumericBuilder';
 
-	constructor(name: T['name'], precision?: number, scale?: number) {
-		super(name, 'string', 'PgNumeric');
+	constructor(name: string, precision?: number, scale?: number) {
+		super(name, 'string numeric', 'PgNumeric');
 		this.config.precision = precision;
 		this.config.scale = scale;
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgNumeric<MakeColumnConfig<T, TTableName>> {
-		return new PgNumeric<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+	override build(table: PgTable<any>) {
+		return new PgNumeric(table, this.config as any);
 	}
 }
 
-export class PgNumeric<T extends ColumnBaseConfig<'string', 'PgNumeric'>> extends PgColumn<T> {
+export class PgNumeric<T extends ColumnBaseConfig<'string numeric'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgNumeric';
 
 	readonly precision: number | undefined;
 	readonly scale: number | undefined;
 
-	constructor(table: AnyPgTable<{ name: T['tableName'] }>, config: PgNumericBuilder<T>['config']) {
+	constructor(table: PgTable<any>, config: PgNumericBuilder['config']) {
 		super(table, config);
 		this.precision = config.precision;
 		this.scale = config.scale;
@@ -66,50 +58,41 @@ export class PgNumeric<T extends ColumnBaseConfig<'string', 'PgNumeric'>> extend
 	}
 }
 
-export type PgNumericNumberBuilderInitial<TName extends string> = PgNumericNumberBuilder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'PgNumericNumber';
-	data: number;
-	driverParam: string;
-	enumValues: undefined;
-}>;
-
-export class PgNumericNumberBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgNumericNumber'>>
-	extends PgColumnBuilder<
-		T,
-		{
-			precision: number | undefined;
-			scale: number | undefined;
-		}
-	>
-{
+export class PgNumericNumberBuilder extends PgColumnBuilder<
+	{
+		dataType: 'number';
+		data: number;
+		driverParam: string;
+	},
+	{
+		precision: number | undefined;
+		scale: number | undefined;
+	}
+> {
 	static override readonly [entityKind]: string = 'PgNumericNumberBuilder';
 
-	constructor(name: T['name'], precision?: number, scale?: number) {
+	constructor(name: string, precision?: number, scale?: number) {
 		super(name, 'number', 'PgNumericNumber');
 		this.config.precision = precision;
 		this.config.scale = scale;
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgNumericNumber<MakeColumnConfig<T, TTableName>> {
-		return new PgNumericNumber<MakeColumnConfig<T, TTableName>>(
+	override build(table: PgTable<any>) {
+		return new PgNumericNumber(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
 
-export class PgNumericNumber<T extends ColumnBaseConfig<'number', 'PgNumericNumber'>> extends PgColumn<T> {
+export class PgNumericNumber<T extends ColumnBaseConfig<'number'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgNumericNumber';
 
 	readonly precision: number | undefined;
 	readonly scale: number | undefined;
 
-	constructor(table: AnyPgTable<{ name: T['tableName'] }>, config: PgNumericNumberBuilder<T>['config']) {
+	constructor(table: PgTable<any>, config: PgNumericNumberBuilder['config']) {
 		super(table, config);
 		this.precision = config.precision;
 		this.scale = config.scale;
@@ -134,50 +117,41 @@ export class PgNumericNumber<T extends ColumnBaseConfig<'number', 'PgNumericNumb
 	}
 }
 
-export type PgNumericBigIntBuilderInitial<TName extends string> = PgNumericBigIntBuilder<{
-	name: TName;
-	dataType: 'bigint';
-	columnType: 'PgNumericBigInt';
-	data: bigint;
-	driverParam: string;
-	enumValues: undefined;
-}>;
-
-export class PgNumericBigIntBuilder<T extends ColumnBuilderBaseConfig<'bigint', 'PgNumericBigInt'>>
-	extends PgColumnBuilder<
-		T,
-		{
-			precision: number | undefined;
-			scale: number | undefined;
-		}
-	>
-{
+export class PgNumericBigIntBuilder extends PgColumnBuilder<
+	{
+		dataType: 'bigint int64';
+		data: bigint;
+		driverParam: string;
+	},
+	{
+		precision: number | undefined;
+		scale: number | undefined;
+	}
+> {
 	static override readonly [entityKind]: string = 'PgNumericBigIntBuilder';
 
-	constructor(name: T['name'], precision?: number, scale?: number) {
-		super(name, 'bigint', 'PgNumericBigInt');
+	constructor(name: string, precision?: number, scale?: number) {
+		super(name, 'bigint int64', 'PgNumericBigInt');
 		this.config.precision = precision;
 		this.config.scale = scale;
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgNumericBigInt<MakeColumnConfig<T, TTableName>> {
-		return new PgNumericBigInt<MakeColumnConfig<T, TTableName>>(
+	override build(table: PgTable<any>) {
+		return new PgNumericBigInt(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
 
-export class PgNumericBigInt<T extends ColumnBaseConfig<'bigint', 'PgNumericBigInt'>> extends PgColumn<T> {
+export class PgNumericBigInt<T extends ColumnBaseConfig<'bigint int64'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgNumericBigInt';
 
 	readonly precision: number | undefined;
 	readonly scale: number | undefined;
 
-	constructor(table: AnyPgTable<{ name: T['tableName'] }>, config: PgNumericBigIntBuilder<T>['config']) {
+	constructor(table: PgTable<any>, config: PgNumericBigIntBuilder['config']) {
 		super(table, config);
 		this.precision = config.precision;
 		this.scale = config.scale;
@@ -205,15 +179,15 @@ export type PgNumericConfig<T extends 'string' | 'number' | 'bigint' = 'string' 
 
 export function numeric<TMode extends 'string' | 'number' | 'bigint'>(
 	config?: PgNumericConfig<TMode>,
-): Equal<TMode, 'number'> extends true ? PgNumericNumberBuilderInitial<''>
-	: Equal<TMode, 'bigint'> extends true ? PgNumericBigIntBuilderInitial<''>
-	: PgNumericBuilderInitial<''>;
-export function numeric<TName extends string, TMode extends 'string' | 'number' | 'bigint'>(
-	name: TName,
+): Equal<TMode, 'number'> extends true ? PgNumericNumberBuilder
+	: Equal<TMode, 'bigint'> extends true ? PgNumericBigIntBuilder
+	: PgNumericBuilder;
+export function numeric<TMode extends 'string' | 'number' | 'bigint'>(
+	name: string,
 	config?: PgNumericConfig<TMode>,
-): Equal<TMode, 'number'> extends true ? PgNumericNumberBuilderInitial<TName>
-	: Equal<TMode, 'bigint'> extends true ? PgNumericBigIntBuilderInitial<TName>
-	: PgNumericBuilderInitial<TName>;
+): Equal<TMode, 'number'> extends true ? PgNumericNumberBuilder
+	: Equal<TMode, 'bigint'> extends true ? PgNumericBigIntBuilder
+	: PgNumericBuilder;
 export function numeric(a?: string | PgNumericConfig, b?: PgNumericConfig) {
 	const { name, config } = getColumnNameAndConfig<PgNumericConfig>(a, b);
 	const mode = config?.mode;

@@ -1,3 +1,4 @@
+import * as V1 from '~/_relations.ts';
 import { aliasedTable, aliasedTableColumn, mapColumnsInAliasedSQLToAlias, mapColumnsInSQLToAlias } from '~/alias.ts';
 import { CasingCache } from '~/casing.ts';
 import {
@@ -24,18 +25,6 @@ import { Column } from '~/column.ts';
 import { entityKind, is } from '~/entity.ts';
 import { DrizzleError } from '~/errors.ts';
 import type { MigrationConfig, MigrationMeta } from '~/migrator.ts';
-import {
-	type BuildRelationalQueryResult,
-	type DBQueryConfig,
-	getOperators,
-	getOrderByOperators,
-	Many,
-	normalizeRelation,
-	One,
-	type Relation,
-	type TableRelationalConfig,
-	type TablesRelationalConfig,
-} from '~/relations.ts';
 import { and, eq, View } from '~/sql/index.ts';
 import {
 	type DriverValueEncoder,
@@ -1148,16 +1137,16 @@ export class CockroachDialect {
 		joinOn,
 	}: {
 		fullSchema: Record<string, unknown>;
-		schema: TablesRelationalConfig;
+		schema: V1.TablesRelationalConfig;
 		tableNamesMap: Record<string, string>;
 		table: CockroachTable;
-		tableConfig: TableRelationalConfig;
-		queryConfig: true | DBQueryConfig<'many', true>;
+		tableConfig: V1.TableRelationalConfig;
+		queryConfig: true | V1.DBQueryConfig<'many', true>;
 		tableAlias: string;
-		nestedQueryRelation?: Relation;
+		nestedQueryRelation?: V1.Relation;
 		joinOn?: SQL;
-	}): BuildRelationalQueryResult<CockroachTable, CockroachColumn> {
-		let selection: BuildRelationalQueryResult<CockroachTable, CockroachColumn>['selection'] = [];
+	}): V1.BuildRelationalQueryResult<CockroachTable, CockroachColumn> {
+		let selection: V1.BuildRelationalQueryResult<CockroachTable, CockroachColumn>['selection'] = [];
 		let limit, offset, orderBy: NonNullable<CockroachSelectConfig['orderBy']> = [], where;
 		const joins: CockroachSelectJoinConfig[] = [];
 
@@ -1182,7 +1171,7 @@ export class CockroachDialect {
 
 			if (config.where) {
 				const whereSql = typeof config.where === 'function'
-					? config.where(aliasedColumns, getOperators())
+					? config.where(aliasedColumns, V1.getOperators())
 					: config.where;
 				where = whereSql && mapColumnsInSQLToAlias(whereSql, tableAlias);
 			}
@@ -1224,8 +1213,8 @@ export class CockroachDialect {
 
 			let selectedRelations: {
 				tsKey: string;
-				queryConfig: true | DBQueryConfig<'many', false>;
-				relation: Relation;
+				queryConfig: true | V1.DBQueryConfig<'many', false>;
+				relation: V1.Relation;
 			}[] = [];
 
 			// Figure out which relations to select
@@ -1264,7 +1253,7 @@ export class CockroachDialect {
 			}
 
 			let orderByOrig = typeof config.orderBy === 'function'
-				? config.orderBy(aliasedColumns, getOrderByOperators())
+				? config.orderBy(aliasedColumns, V1.getOrderByOperators())
 				: config.orderBy ?? [];
 			if (!Array.isArray(orderByOrig)) {
 				orderByOrig = [orderByOrig];
@@ -1287,7 +1276,7 @@ export class CockroachDialect {
 					relation,
 				} of selectedRelations
 			) {
-				const normalizedRelation = normalizeRelation(schema, tableNamesMap, relation);
+				const normalizedRelation = V1.normalizeRelation(schema, tableNamesMap, relation);
 				const relationTableName = getTableUniqueName(relation.referencedTable);
 				const relationTableTsName = tableNamesMap[relationTableName]!;
 				const relationTableAlias = `${tableAlias}_${selectedRelationTsKey}`;
@@ -1305,7 +1294,7 @@ export class CockroachDialect {
 					tableNamesMap,
 					table: fullSchema[relationTableTsName] as CockroachTable,
 					tableConfig: schema[relationTableTsName]!,
-					queryConfig: is(relation, One)
+					queryConfig: is(relation, V1.One)
 						? (selectedRelationConfigValue === true
 							? { limit: 1 }
 							: { ...selectedRelationConfigValue, limit: 1 })
@@ -1354,7 +1343,7 @@ export class CockroachDialect {
 					sql`, `,
 				)
 			})`;
-			if (is(nestedQueryRelation, Many)) {
+			if (is(nestedQueryRelation, V1.Many)) {
 				field = sql`coalesce(json_agg(${field}${
 					orderBy.length > 0 ? sql` order by ${sql.join(orderBy, sql`, `)}` : undefined
 				}), '[]'::json)`;

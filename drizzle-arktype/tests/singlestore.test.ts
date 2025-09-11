@@ -1,5 +1,5 @@
-import { Type, type } from 'arktype';
-import { type Equal } from 'drizzle-orm';
+import { type Type, type } from 'arktype';
+import type { Equal } from 'drizzle-orm';
 import { customType, int, json, serial, singlestoreSchema, singlestoreTable, text } from 'drizzle-orm/singlestore-core';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
@@ -426,6 +426,10 @@ test('all data types', (t) => {
 			dimensions: 3,
 			elementType: 'F32',
 		}).notNull(),
+		vector2: vector({
+			dimensions: 2,
+			elementType: 'I64',
+		}).notNull(),
 	}));
 
 	const result = createSelectSchema(table);
@@ -434,7 +438,7 @@ test('all data types', (t) => {
 		bigint2: type.bigint.narrow(bigintNarrow),
 		bigint3: type.keywords.number.integer.atLeast(0).atMost(Number.MAX_SAFE_INTEGER),
 		bigint4: type.bigint.narrow(unsignedBigintNarrow),
-		binary: type.string,
+		binary: type(`/^[01]{0,10}$/`).describe(`a string containing ones or zeros while being up to 10 characters long`),
 		boolean: type.boolean,
 		char1: type.string.atMostLength(10),
 		char2: type.enumerated('a', 'b', 'c'),
@@ -471,7 +475,9 @@ test('all data types', (t) => {
 		tinyint2: type.keywords.number.integer.atLeast(0).atMost(CONSTANTS.INT8_UNSIGNED_MAX),
 		varchar1: type.string.atMostLength(10),
 		varchar2: type.enumerated('a', 'b', 'c'),
-		varbinary: type.string,
+		varbinary: type(`/^[01]{0,10}$/`).describe(
+			`a string containing ones or zeros while being up to 10 characters long`,
+		),
 		year: type.keywords.number.integer.atLeast(1901).atMost(2155),
 		longtext1: type.string.atMostLength(CONSTANTS.INT32_UNSIGNED_MAX),
 		longtext2: type.enumerated('a', 'b', 'c'),
@@ -480,6 +486,7 @@ test('all data types', (t) => {
 		tinytext1: type.string.atMostLength(CONSTANTS.INT8_UNSIGNED_MAX),
 		tinytext2: type.enumerated('a', 'b', 'c'),
 		vector: type.number.array().exactlyLength(3),
+		vector2: type.bigint.array().exactlyLength(2),
 	});
 	expectSchemaShape(t, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();

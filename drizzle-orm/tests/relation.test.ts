@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 
+import { createTableRelationsHelpers, extractTablesRelationalConfig } from '~/_relations.ts';
 import { pgSchema, pgTable } from '~/pg-core/index.ts';
-import { createTableRelationsHelpers, extractTablesRelationalConfig } from '~/relations.ts';
 
 test('tables with same name in different schemas', () => {
 	const folder = pgSchema('folder');

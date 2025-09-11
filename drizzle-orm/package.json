@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm",
-	"version": "0.44.3",
+	"version": "1.0.0-beta.1",
 	"description": "Drizzle ORM package for SQL databases",
 	"type": "module",
 	"scripts": {
@@ -62,11 +62,9 @@
 		"@types/sql.js": "*",
 		"@vercel/postgres": ">=0.8.0",
 		"@xata.io/client": "*",
-		"better-sqlite3": ">=7",
+		"better-sqlite3": ">=9.3.0",
 		"bun-types": "*",
 		"expo-sqlite": ">=14.0.0",
-		"knex": "*",
-		"kysely": "*",
 		"mssql": "^11.0.1",
 		"mysql2": ">=2",
 		"pg": ">=8",
@@ -125,12 +123,6 @@
 		"@planetscale/database": {
 			"optional": true
 		},
-		"knex": {
-			"optional": true
-		},
-		"kysely": {
-			"optional": true
-		},
 		"@libsql/client": {
 			"optional": true
 		},
@@ -166,6 +158,7 @@
 		}
 	},
 	"devDependencies": {
+		"@arktype/attest": "^0.46.0",
 		"@aws-sdk/client-rds-data": "^3.549.0",
 		"@cloudflare/workers-types": "^4.20241112.0",
 		"@electric-sql/pglite": "^0.2.12",
@@ -193,8 +186,6 @@
 		"expo-sqlite": "^14.0.0",
 		"gel": "^2.0.0",
 		"glob": "^11.0.1",
-		"knex": "^2.4.2",
-		"kysely": "^0.25.0",
 		"mysql2": "^3.14.1",
 		"pg": "^8.11.0",
 		"postgres": "^3.3.5",
