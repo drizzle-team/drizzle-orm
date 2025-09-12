@@ -1,39 +1,30 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '~/pg-core/table.ts';
+import type { PgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export type PgDoublePrecisionBuilderInitial<TName extends string> = PgDoublePrecisionBuilder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'PgDoublePrecision';
+export class PgDoublePrecisionBuilder extends PgColumnBuilder<{
+	name: string;
+	dataType: 'number double';
 	data: number;
 	driverParam: string | number;
-	enumValues: undefined;
-}>;
-
-export class PgDoublePrecisionBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgDoublePrecision'>>
-	extends PgColumnBuilder<T>
-{
+}> {
 	static override readonly [entityKind]: string = 'PgDoublePrecisionBuilder';
 
-	constructor(name: T['name']) {
-		super(name, 'number', 'PgDoublePrecision');
+	constructor(name: string) {
+		super(name, 'number double', 'PgDoublePrecision');
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgDoublePrecision<MakeColumnConfig<T, TTableName>> {
-		return new PgDoublePrecision<MakeColumnConfig<T, TTableName>>(
+	override build(table: PgTable<any>) {
+		return new PgDoublePrecision(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config,
 		);
 	}
 }
 
-export class PgDoublePrecision<T extends ColumnBaseConfig<'number', 'PgDoublePrecision'>> extends PgColumn<T> {
+export class PgDoublePrecision<T extends ColumnBaseConfig<'number double'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgDoublePrecision';
 
 	getSQLType(): string {
@@ -48,8 +39,6 @@ export class PgDoublePrecision<T extends ColumnBaseConfig<'number', 'PgDoublePre
 	}
 }
 
-export function doublePrecision(): PgDoublePrecisionBuilderInitial<''>;
-export function doublePrecision<TName extends string>(name: TName): PgDoublePrecisionBuilderInitial<TName>;
-export function doublePrecision(name?: string) {
+export function doublePrecision(name?: string): PgDoublePrecisionBuilder {
 	return new PgDoublePrecisionBuilder(name ?? '');
 }

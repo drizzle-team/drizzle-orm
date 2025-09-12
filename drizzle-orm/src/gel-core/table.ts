@@ -1,9 +1,14 @@
-import type { BuildColumns, BuildExtraConfigColumns } from '~/column-builder.ts';
+import type { BuildColumns, BuildExtraConfigColumns, ColumnBuilderBase } from '~/column-builder.ts';
 import { entityKind } from '~/entity.ts';
-import { Table, type TableConfig as TableConfigBase, type UpdateTableConfig } from '~/table.ts';
+import {
+	type InferTableColumnsModels,
+	Table,
+	type TableConfig as TableConfigBase,
+	type UpdateTableConfig,
+} from '~/table.ts';
 import type { CheckBuilder } from './checks.ts';
 import { type GelColumnsBuilders, getGelColumnBuilders } from './columns/all.ts';
-import type { GelColumn, GelColumnBuilder, GelColumnBuilderBase, GelExtraConfigColumn } from './columns/common.ts';
+import type { GelColumn, GelColumnBuilder, GelColumns, GelExtraConfigColumn } from './columns/common.ts';
 import type { ForeignKey, ForeignKeyBuilder } from './foreign-keys.ts';
 import type { AnyIndexBuilder } from './indexes.ts';
 import type { GelPolicy } from './policies.ts';
@@ -23,7 +28,7 @@ export type GelTableExtraConfig = Record<
 	GelTableExtraConfigValue
 >;
 
-export type TableConfig = TableConfigBase<GelColumn>;
+export type TableConfig = TableConfigBase<GelColumns>;
 
 /** @internal */
 export const InlineForeignKeys = Symbol.for('drizzle:GelInlineForeignKeys');
@@ -59,9 +64,8 @@ export type AnyGelTable<TPartial extends Partial<TableConfig> = {}> = GelTable<
 
 export type GelTableWithColumns<T extends TableConfig> =
 	& GelTable<T>
-	& {
-		[Key in keyof T['columns']]: T['columns'][Key];
-	}
+	& T['columns']
+	& InferTableColumnsModels<T['columns']>
 	& {
 		enableRLS: () => Omit<
 			GelTableWithColumns<T>,
@@ -73,7 +77,7 @@ export type GelTableWithColumns<T extends TableConfig> =
 export function gelTableWithSchema<
 	TTableName extends string,
 	TSchemaName extends string | undefined,
-	TColumnsMap extends Record<string, GelColumnBuilderBase>,
+	TColumnsMap extends Record<string, ColumnBuilderBase>,
 >(
 	name: TTableName,
 	columns: TColumnsMap | ((columnTypes: GelColumnsBuilders) => TColumnsMap),
@@ -137,7 +141,7 @@ export function gelTableWithSchema<
 				dialect: 'gel';
 			}>;
 		},
-	});
+	}) as any;
 }
 
 export interface GelTableFn<TSchema extends string | undefined = undefined> {
@@ -165,7 +169,7 @@ export interface GelTableFn<TSchema extends string | undefined = undefined> {
 	 */
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, GelColumnBuilderBase>,
+		TColumnsMap extends Record<string, ColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: TColumnsMap,
@@ -203,7 +207,7 @@ export interface GelTableFn<TSchema extends string | undefined = undefined> {
 	 */
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, GelColumnBuilderBase>,
+		TColumnsMap extends Record<string, ColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: (columnTypes: GelColumnsBuilders) => TColumnsMap,
@@ -217,7 +221,7 @@ export interface GelTableFn<TSchema extends string | undefined = undefined> {
 
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, GelColumnBuilderBase>,
+		TColumnsMap extends Record<string, ColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: TColumnsMap,
@@ -233,7 +237,7 @@ export interface GelTableFn<TSchema extends string | undefined = undefined> {
 
 	<
 		TTableName extends string,
-		TColumnsMap extends Record<string, GelColumnBuilderBase>,
+		TColumnsMap extends Record<string, ColumnBuilderBase>,
 	>(
 		name: TTableName,
 		columns: (columnTypes: GelColumnsBuilders) => TColumnsMap,

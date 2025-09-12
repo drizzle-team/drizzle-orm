@@ -1,6 +1,7 @@
 import retry from 'async-retry';
 import type Docker from 'dockerode';
-import { relations, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
+import { relations } from 'drizzle-orm/_relations';
 import { drizzle, type GelJsDatabase } from 'drizzle-orm/gel';
 import { foreignKey, gelSchema, gelTable, text, timestamptz, uniqueIndex, uuid } from 'drizzle-orm/gel-core';
 import createClient, { type Client } from 'gel';
@@ -127,7 +128,7 @@ describe('extensions tests group', async () => {
 
 		const userResponse = await db.select().from(user);
 		const authResponse = await db.select().from(identityInExtauth);
-		const relationsResponse = await db.query.user.findMany({
+		const relationsResponse = await db._query.user.findMany({
 			columns: {
 				id: false,
 				identityId: false,

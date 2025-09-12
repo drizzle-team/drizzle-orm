@@ -1,42 +1,33 @@
 import type { DateDuration } from 'gel';
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyGelTable } from '~/gel-core/table.ts';
+import type { GelTable } from '~/gel-core/table.ts';
 import { GelColumn, GelColumnBuilder } from './common.ts';
 
-export type GelDateDurationBuilderInitial<TName extends string> = GelDateDurationBuilder<{
-	name: TName;
-	dataType: 'dateDuration';
-	columnType: 'GelDateDuration';
+export class GelDateDurationBuilder extends GelColumnBuilder<{
+	name: string;
+	dataType: 'object dateDuration';
 	data: DateDuration;
 	driverParam: DateDuration;
-	enumValues: undefined;
-}>;
-
-export class GelDateDurationBuilder<T extends ColumnBuilderBaseConfig<'dateDuration', 'GelDateDuration'>>
-	extends GelColumnBuilder<T>
-{
+}> {
 	static override readonly [entityKind]: string = 'GelDateDurationBuilder';
 
 	constructor(
-		name: T['name'],
+		name: string,
 	) {
-		super(name, 'dateDuration', 'GelDateDuration');
+		super(name, 'object dateDuration', 'GelDateDuration');
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyGelTable<{ name: TTableName }>,
-	): GelDateDuration<MakeColumnConfig<T, TTableName>> {
-		return new GelDateDuration<MakeColumnConfig<T, TTableName>>(
+	override build(table: GelTable) {
+		return new GelDateDuration(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
 
-export class GelDateDuration<T extends ColumnBaseConfig<'dateDuration', 'GelDateDuration'>> extends GelColumn<T> {
+export class GelDateDuration<T extends ColumnBaseConfig<'object dateDuration'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelDateDuration';
 
 	getSQLType(): string {
@@ -44,8 +35,6 @@ export class GelDateDuration<T extends ColumnBaseConfig<'dateDuration', 'GelDate
 	}
 }
 
-export function dateDuration(): GelDateDurationBuilderInitial<''>;
-export function dateDuration<TName extends string>(name: TName): GelDateDurationBuilderInitial<TName>;
-export function dateDuration(name?: string) {
+export function dateDuration(name?: string): GelDateDurationBuilder {
 	return new GelDateDurationBuilder(name ?? '');
 }

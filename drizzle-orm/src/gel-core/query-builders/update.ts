@@ -24,7 +24,7 @@ import type { RunnableQuery } from '~/runnable-query.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type Query, SQL, type SQLWrapper } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
-import { Table } from '~/table.ts';
+import { type InferInsertModel, Table } from '~/table.ts';
 import {
 	type Assume,
 	getTableLikeName,
@@ -49,9 +49,12 @@ export interface GelUpdateConfig {
 	withList?: Subquery[];
 }
 
-export type GelUpdateSetSource<TTable extends GelTable> =
+export type GelUpdateSetSource<
+	TTable extends GelTable,
+	TModel extends InferInsertModel<TTable> = InferInsertModel<TTable>,
+> =
 	& {
-		[Key in keyof TTable['$inferInsert']]?:
+		[Key in keyof TModel & string]?:
 			| GetColumnData<TTable['_']['columns'][Key]>
 			| SQL
 			| GelColumn;

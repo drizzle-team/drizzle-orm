@@ -10,7 +10,7 @@ import {
 	One,
 	Relations,
 	TablesRelationalConfig,
-} from 'drizzle-orm';
+} from 'drizzle-orm/_relations';
 import { AnyMySqlTable, getTableConfig as mysqlTableConfig, MySqlTable } from 'drizzle-orm/mysql-core';
 import { AnyPgTable, getTableConfig as pgTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import {
@@ -244,7 +244,7 @@ const getCustomDefaults = <T extends AnyTable<{}>>(schema: Record<string, Record
 			} else if (is(table, SQLiteTable)) {
 				tableConfig = sqliteTableConfig(table);
 			} else {
-				tableConfig = singlestoreTableConfig(table);
+				tableConfig = singlestoreTableConfig(table as SingleStoreTable);
 			}
 
 			tableConfig.columns.map((column) => {

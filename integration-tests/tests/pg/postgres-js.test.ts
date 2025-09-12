@@ -11,10 +11,11 @@ import { skipTests } from '~/common';
 import { randomString } from '~/utils';
 import { createDockerDB, tests, usersMigratorTable, usersTable } from './pg-common';
 import { TestCache, TestGlobalCache, tests as cacheTests } from './pg-common-cache';
+import relations from './relations';
 
 const ENABLE_LOGGING = false;
 
-let db: PostgresJsDatabase;
+let db: PostgresJsDatabase<never, typeof relations>;
 let dbGlobalCached: PostgresJsDatabase;
 let cachedDb: PostgresJsDatabase;
 let client: Sql;
@@ -46,7 +47,7 @@ beforeAll(async () => {
 			client?.end();
 		},
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
 	cachedDb = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestCache() });
 	dbGlobalCached = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 });

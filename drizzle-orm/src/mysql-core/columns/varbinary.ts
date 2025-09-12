@@ -1,47 +1,36 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMySqlTable } from '~/mysql-core/table.ts';
+import type { MySqlTable } from '~/mysql-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
-export type MySqlVarBinaryBuilderInitial<TName extends string> = MySqlVarBinaryBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'MySqlVarBinary';
+export class MySqlVarBinaryBuilder extends MySqlColumnBuilder<{
+	name: string;
+	dataType: 'string binary';
 	data: string;
 	driverParam: string;
-	enumValues: undefined;
-}>;
-
-export class MySqlVarBinaryBuilder<T extends ColumnBuilderBaseConfig<'string', 'MySqlVarBinary'>>
-	extends MySqlColumnBuilder<T, MySqlVarbinaryOptions>
-{
+}, MySqlVarbinaryOptions> {
 	static override readonly [entityKind]: string = 'MySqlVarBinaryBuilder';
 
 	/** @internal */
-	constructor(name: T['name'], config: MySqlVarbinaryOptions) {
-		super(name, 'string', 'MySqlVarBinary');
-		this.config.length = config?.length;
+	constructor(name: string, config: MySqlVarbinaryOptions) {
+		super(name, 'string binary', 'MySqlVarBinary');
+		this.config.length = config.length;
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyMySqlTable<{ name: TTableName }>,
-	): MySqlVarBinary<MakeColumnConfig<T, TTableName>> {
-		return new MySqlVarBinary<MakeColumnConfig<T, TTableName>>(
+	override build(table: MySqlTable) {
+		return new MySqlVarBinary(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
 
 export class MySqlVarBinary<
-	T extends ColumnBaseConfig<'string', 'MySqlVarBinary'>,
+	T extends ColumnBaseConfig<'string binary'>,
 > extends MySqlColumn<T, MySqlVarbinaryOptions> {
 	static override readonly [entityKind]: string = 'MySqlVarBinary';
-
-	length: number | undefined = this.config.length;
 
 	override mapFromDriverValue(value: string | Buffer | Uint8Array): string {
 		if (typeof value === 'string') return value;
@@ -66,11 +55,11 @@ export interface MySqlVarbinaryOptions {
 
 export function varbinary(
 	config: MySqlVarbinaryOptions,
-): MySqlVarBinaryBuilderInitial<''>;
-export function varbinary<TName extends string>(
-	name: TName,
+): MySqlVarBinaryBuilder;
+export function varbinary(
+	name: string,
 	config: MySqlVarbinaryOptions,
-): MySqlVarBinaryBuilderInitial<TName>;
+): MySqlVarBinaryBuilder;
 export function varbinary(a?: string | MySqlVarbinaryOptions, b?: MySqlVarbinaryOptions) {
 	const { name, config } = getColumnNameAndConfig<MySqlVarbinaryOptions>(a, b);
 	return new MySqlVarBinaryBuilder(name, config);

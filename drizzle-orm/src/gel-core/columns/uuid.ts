@@ -1,34 +1,27 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyGelTable } from '~/gel-core/table.ts';
+import type { GelTable } from '~/gel-core/table.ts';
 import { GelColumn, GelColumnBuilder } from './common.ts';
 
-export type GelUUIDBuilderInitial<TName extends string> = GelUUIDBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'GelUUID';
+export class GelUUIDBuilder extends GelColumnBuilder<{
+	name: string;
+	dataType: 'string uuid';
 	data: string;
 	driverParam: string;
-	enumValues: undefined;
-}>;
-
-export class GelUUIDBuilder<T extends ColumnBuilderBaseConfig<'string', 'GelUUID'>> extends GelColumnBuilder<T> {
+}> {
 	static override readonly [entityKind]: string = 'GelUUIDBuilder';
 
-	constructor(name: T['name']) {
-		super(name, 'string', 'GelUUID');
+	constructor(name: string) {
+		super(name, 'string uuid', 'GelUUID');
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyGelTable<{ name: TTableName }>,
-	): GelUUID<MakeColumnConfig<T, TTableName>> {
-		return new GelUUID<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+	override build(table: GelTable) {
+		return new GelUUID(table, this.config as any);
 	}
 }
 
-export class GelUUID<T extends ColumnBaseConfig<'string', 'GelUUID'>> extends GelColumn<T> {
+export class GelUUID<T extends ColumnBaseConfig<'string uuid'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelUUID';
 
 	getSQLType(): string {
@@ -36,8 +29,6 @@ export class GelUUID<T extends ColumnBaseConfig<'string', 'GelUUID'>> extends Ge
 	}
 }
 
-export function uuid(): GelUUIDBuilderInitial<''>;
-export function uuid<TName extends string>(name: TName): GelUUIDBuilderInitial<TName>;
-export function uuid(name?: string) {
+export function uuid(name?: string): GelUUIDBuilder {
 	return new GelUUIDBuilder(name ?? '');
 }

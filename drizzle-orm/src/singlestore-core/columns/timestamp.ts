@@ -1,37 +1,27 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
+import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import { sql } from '~/sql/sql.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreDateBaseColumn, SingleStoreDateColumnBaseBuilder } from './date.common.ts';
 
-export type SingleStoreTimestampBuilderInitial<TName extends string> = SingleStoreTimestampBuilder<{
-	name: TName;
-	dataType: 'date';
-	columnType: 'SingleStoreTimestamp';
+export class SingleStoreTimestampBuilder extends SingleStoreDateColumnBaseBuilder<{
+	name: string;
+	dataType: 'object date';
 	data: Date;
 	driverParam: string | number;
-	enumValues: undefined;
-	generated: undefined;
-}>;
-
-export class SingleStoreTimestampBuilder<T extends ColumnBuilderBaseConfig<'date', 'SingleStoreTimestamp'>>
-	extends SingleStoreDateColumnBaseBuilder<T, SingleStoreTimestampConfig>
-{
+}, SingleStoreTimestampConfig> {
 	static override readonly [entityKind]: string = 'SingleStoreTimestampBuilder';
 
-	constructor(name: T['name']) {
-		super(name, 'date', 'SingleStoreTimestamp');
+	constructor(name: string) {
+		super(name, 'object date', 'SingleStoreTimestamp');
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnySingleStoreTable<{ name: TTableName }>,
-	): SingleStoreTimestamp<MakeColumnConfig<T, TTableName>> {
-		return new SingleStoreTimestamp<MakeColumnConfig<T, TTableName>>(
+	override build(table: SingleStoreTable) {
+		return new SingleStoreTimestamp(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 
@@ -40,7 +30,7 @@ export class SingleStoreTimestampBuilder<T extends ColumnBuilderBaseConfig<'date
 	}
 }
 
-export class SingleStoreTimestamp<T extends ColumnBaseConfig<'date', 'SingleStoreTimestamp'>>
+export class SingleStoreTimestamp<T extends ColumnBaseConfig<'object date'>>
 	extends SingleStoreDateBaseColumn<T, SingleStoreTimestampConfig>
 {
 	static override readonly [entityKind]: string = 'SingleStoreTimestamp';
@@ -58,32 +48,23 @@ export class SingleStoreTimestamp<T extends ColumnBaseConfig<'date', 'SingleStor
 	}
 }
 
-export type SingleStoreTimestampStringBuilderInitial<TName extends string> = SingleStoreTimestampStringBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'SingleStoreTimestampString';
+export class SingleStoreTimestampStringBuilder extends SingleStoreDateColumnBaseBuilder<{
+	name: string;
+	dataType: 'string timestamp';
 	data: string;
 	driverParam: string | number;
-	enumValues: undefined;
-	generated: undefined;
-}>;
-
-export class SingleStoreTimestampStringBuilder<
-	T extends ColumnBuilderBaseConfig<'string', 'SingleStoreTimestampString'>,
-> extends SingleStoreDateColumnBaseBuilder<T, SingleStoreTimestampConfig> {
+}, SingleStoreTimestampConfig> {
 	static override readonly [entityKind]: string = 'SingleStoreTimestampStringBuilder';
 
-	constructor(name: T['name']) {
-		super(name, 'string', 'SingleStoreTimestampString');
+	constructor(name: string) {
+		super(name, 'string timestamp', 'SingleStoreTimestampString');
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnySingleStoreTable<{ name: TTableName }>,
-	): SingleStoreTimestampString<MakeColumnConfig<T, TTableName>> {
-		return new SingleStoreTimestampString<MakeColumnConfig<T, TTableName>>(
+	override build(table: SingleStoreTable) {
+		return new SingleStoreTimestampString(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 
@@ -92,7 +73,7 @@ export class SingleStoreTimestampStringBuilder<
 	}
 }
 
-export class SingleStoreTimestampString<T extends ColumnBaseConfig<'string', 'SingleStoreTimestampString'>>
+export class SingleStoreTimestampString<T extends ColumnBaseConfig<'string timestamp'>>
 	extends SingleStoreDateBaseColumn<T, SingleStoreTimestampConfig>
 {
 	static override readonly [entityKind]: string = 'SingleStoreTimestampString';
@@ -106,16 +87,15 @@ export interface SingleStoreTimestampConfig<TMode extends 'string' | 'date' = 's
 	mode?: TMode;
 }
 
-export function timestamp(): SingleStoreTimestampBuilderInitial<''>;
 export function timestamp<TMode extends SingleStoreTimestampConfig['mode'] & {}>(
 	config?: SingleStoreTimestampConfig<TMode>,
-): Equal<TMode, 'string'> extends true ? SingleStoreTimestampStringBuilderInitial<''>
-	: SingleStoreTimestampBuilderInitial<''>;
-export function timestamp<TName extends string, TMode extends SingleStoreTimestampConfig['mode'] & {}>(
-	name: TName,
+): Equal<TMode, 'string'> extends true ? SingleStoreTimestampStringBuilder
+	: SingleStoreTimestampBuilder;
+export function timestamp<TMode extends SingleStoreTimestampConfig['mode'] & {}>(
+	name: string,
 	config?: SingleStoreTimestampConfig<TMode>,
-): Equal<TMode, 'string'> extends true ? SingleStoreTimestampStringBuilderInitial<TName>
-	: SingleStoreTimestampBuilderInitial<TName>;
+): Equal<TMode, 'string'> extends true ? SingleStoreTimestampStringBuilder
+	: SingleStoreTimestampBuilder;
 export function timestamp(a?: string | SingleStoreTimestampConfig, b: SingleStoreTimestampConfig = {}) {
 	const { name, config } = getColumnNameAndConfig<SingleStoreTimestampConfig | undefined>(a, b);
 	if (config?.mode === 'string') {

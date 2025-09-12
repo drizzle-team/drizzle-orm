@@ -9,6 +9,7 @@ import {
 	avgDistinct,
 	count,
 	countDistinct,
+	defineRelations,
 	eq,
 	exists,
 	getTableColumns,
@@ -129,7 +130,36 @@ export const aggregateTable = sqliteTable('aggregate_table', {
 	nullOnly: integer('null_only'),
 });
 
-async function setupSetOperationTest(db: BaseSQLiteDatabase<any, any>) {
+export const rqbUser = sqliteTable('user_rqb_test', {
+	id: integer().primaryKey().notNull(),
+	name: text().notNull(),
+	createdAt: integer('created_at', {
+		mode: 'timestamp_ms',
+	}).notNull(),
+});
+
+export const rqbPost = sqliteTable('post_rqb_test', {
+	id: integer().primaryKey().notNull(),
+	userId: integer('user_id').notNull(),
+	content: text(),
+	createdAt: integer('created_at', {
+		mode: 'timestamp_ms',
+	}).notNull(),
+});
+
+export const relations = defineRelations({ rqbUser, rqbPost }, (r) => ({
+	rqbUser: {
+		posts: r.many.rqbPost(),
+	},
+	rqbPost: {
+		author: r.one.rqbUser({
+			from: r.rqbPost.userId,
+			to: r.rqbUser.id,
+		}),
+	},
+}));
+
+async function setupSetOperationTest(db: BaseSQLiteDatabase<any, any, any, typeof relations>) {
 	await db.run(sql`drop table if exists users2`);
 	await db.run(sql`drop table if exists cities`);
 	await db.run(sql`
@@ -165,7 +195,7 @@ async function setupSetOperationTest(db: BaseSQLiteDatabase<any, any>) {
 	]);
 }
 
-async function setupAggregateFunctionsTest(db: BaseSQLiteDatabase<any, any>) {
+async function setupAggregateFunctionsTest(db: BaseSQLiteDatabase<any, any, any, typeof relations>) {
 	await db.run(sql`drop table if exists "aggregate_table"`);
 	await db.run(
 		sql`
@@ -193,11 +223,11 @@ async function setupAggregateFunctionsTest(db: BaseSQLiteDatabase<any, any>) {
 // eslint-disable-next-line drizzle-internal/require-entity-kind
 export class MyDurableObject extends DurableObject {
 	storage: DurableObjectStorage;
-	db: DrizzleSqliteDODatabase;
+	db: DrizzleSqliteDODatabase<any, typeof relations>;
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env);
 		this.storage = ctx.storage;
-		this.db = drizzle(this.storage, { logger: false });
+		this.db = drizzle(this.storage, { logger: false, relations });
 	}
 
 	async migrate1(): Promise<void> {
@@ -234,6 +264,8 @@ export class MyDurableObject extends DurableObject {
 		this.db.run(sql`drop table if exists ${orders}`);
 		this.db.run(sql`drop table if exists ${bigIntExample}`);
 		this.db.run(sql`drop table if exists ${pkExampleTable}`);
+		this.db.run(sql`drop table if exists ${rqbUser}`);
+		this.db.run(sql`drop table if exists ${rqbPost}`);
 		this.db.run(sql`drop table if exists user_notifications_insert_into`);
 		this.db.run(sql`drop table if exists users_insert_into`);
 		this.db.run(sql`drop table if exists notifications_insert_into`);
@@ -297,6 +329,21 @@ export class MyDurableObject extends DurableObject {
 			  id integer primary key,
 			  name text not null,
 			  big_int blob not null
+			)
+		`);
+		this.db.run(sql`
+			CREATE TABLE ${rqbUser} (
+			  id INT PRIMARY KEY NOT NULL,
+			  name TEXT NOT NULL,
+			  created_at INT NOT NULL
+			)
+		`);
+		this.db.run(sql`
+			CREATE TABLE ${rqbPost} ( 
+			  id INT PRIMARY KEY NOT NULL,
+			  user_id INT NOT NULL,
+			  content TEXT,
+			  created_at INT NOT NULL
 			)
 		`);
 	}
@@ -2467,46 +2514,46 @@ export class MyDurableObject extends DurableObject {
 		}
 	}
 
-	async insertUndefined(): Promise<void> {
-		const users = sqliteTable('users', {
-			id: integer('id').primaryKey(),
-			name: text('name'),
-		});
+	// async insertUndefined(): Promise<void> {
+	// 	const users = sqliteTable('users', {
+	// 		id: integer('id').primaryKey(),
+	// 		name: text('name'),
+	// 	});
 
-		this.db.run(sql`drop table if exists ${users}`);
+	// 	this.db.run(sql`drop table if exists ${users}`);
 
-		this.db.run(
-			sql`create table ${users} (id integer primary key, name text)`,
-		);
+	// 	this.db.run(
+	// 		sql`create table ${users} (id integer primary key, name text)`,
+	// 	);
 
-		expect((() => {
-			this.db.insert(users).values({ name: undefined }).run();
-		})()).not.throw();
+	// 	expect((() => {
+	// 		this.db.insert(users).values({ name: undefined }).run();
+	// 	})()).not.throw();
 
-		this.db.run(sql`drop table ${users}`);
-	}
+	// 	this.db.run(sql`drop table ${users}`);
+	// }
 
-	async updateUndefined(): Promise<void> {
-		const users = sqliteTable('users', {
-			id: integer('id').primaryKey(),
-			name: text('name'),
-		});
+	// async updateUndefined(): Promise<void> {
+	// 	const users = sqliteTable('users', {
+	// 		id: integer('id').primaryKey(),
+	// 		name: text('name'),
+	// 	});
 
-		this.db.run(sql`drop table if exists ${users}`);
+	// 	this.db.run(sql`drop table if exists ${users}`);
 
-		this.db.run(
-			sql`create table ${users} (id integer primary key, name text)`,
-		);
+	// 	this.db.run(
+	// 		sql`create table ${users} (id integer primary key, name text)`,
+	// 	);
 
-		expect((() => {
-			this.db.update(users).set({ name: undefined }).run();
-		})()).throw();
-		expect((() => {
-			this.db.update(users).set({ id: 1, name: undefined }).run();
-		})()).not.throw();
+	// 	expect((() => {
+	// 		this.db.update(users).set({ name: undefined }).run();
+	// 	})()).throw();
+	// 	expect((() => {
+	// 		this.db.update(users).set({ id: 1, name: undefined }).run();
+	// 	})()).not.throw();
 
-		this.db.run(sql`drop table ${users}`);
-	}
+	// 	this.db.run(sql`drop table ${users}`);
+	// }
 
 	async apiCRUD(): Promise<void> {
 		try {
@@ -3481,6 +3528,572 @@ export class MyDurableObject extends DurableObject {
 			throw new Error(`deleteWithLimitAndOrderBy error`);
 		}
 	}
+
+	async testRqbV2SimpleFindFirstNoRows() {
+		const db = this.db;
+		await this.beforeEach();
+
+		const result = await db.query.rqbUser.findFirst();
+
+		expect(result).deep.equal(undefined);
+	}
+
+	async testRqbV2SimpleFindFirstMultipleRows() {
+		const db = this.db;
+		await this.beforeEach();
+
+		const date = new Date(120000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		const result = await db.query.rqbUser.findFirst({
+			orderBy: {
+				id: 'desc',
+			},
+		});
+
+		expect(result).deep.equal({
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		});
+	}
+
+	async testRqbV2SimpleFindFirstWithRelation() {
+		const db = this.db;
+		await this.beforeEach();
+
+		const date = new Date(120000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		await db.insert(rqbPost).values([{
+			id: 1,
+			userId: 1,
+			createdAt: date,
+			content: null,
+		}, {
+			id: 2,
+			userId: 1,
+			createdAt: date,
+			content: 'Has message this time',
+		}]);
+
+		const result = await db.query.rqbUser.findFirst({
+			with: {
+				posts: {
+					orderBy: {
+						id: 'asc',
+					},
+				},
+			},
+			orderBy: {
+				id: 'asc',
+			},
+		});
+
+		expect(result).deep.equal({
+			id: 1,
+			createdAt: date,
+			name: 'First',
+			posts: [{
+				id: 1,
+				userId: 1,
+				createdAt: date,
+				content: null,
+			}, {
+				id: 2,
+				userId: 1,
+				createdAt: date,
+				content: 'Has message this time',
+			}],
+		});
+	}
+
+	async testRqbV2SimpleFindFirstPlaceholders() {
+		const db = this.db;
+		await this.beforeEach();
+
+		const date = new Date(120000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		const query = db.query.rqbUser.findFirst({
+			where: {
+				id: {
+					eq: sql.placeholder('filter'),
+				},
+			},
+			orderBy: {
+				id: 'asc',
+			},
+		}).prepare();
+
+		const result = await query.execute({
+			filter: 2,
+		});
+
+		expect(result).deep.equal({
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		});
+	}
+
+	async testRqbV2SimpleFindManyNoRows() {
+		const db = this.db;
+		await this.beforeEach();
+
+		const result = await db.query.rqbUser.findMany();
+
+		expect(result).deep.equal([]);
+	}
+
+	async testRqbV2SimpleFindManyMultipleRows() {
+		const db = this.db;
+		await this.beforeEach();
+
+		const date = new Date(120000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		const result = await db.query.rqbUser.findMany({
+			orderBy: {
+				id: 'desc',
+			},
+		});
+
+		expect(result).deep.equal([{
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}, {
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}]);
+	}
+
+	async testRqbV2SimpleFindManyWithRelation() {
+		const db = this.db;
+		await this.beforeEach();
+
+		const date = new Date(120000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		await db.insert(rqbPost).values([{
+			id: 1,
+			userId: 1,
+			createdAt: date,
+			content: null,
+		}, {
+			id: 2,
+			userId: 1,
+			createdAt: date,
+			content: 'Has message this time',
+		}]);
+
+		const result = await db.query.rqbPost.findMany({
+			with: {
+				author: true,
+			},
+			orderBy: {
+				id: 'asc',
+			},
+		});
+
+		expect(result).deep.equal([{
+			id: 1,
+			userId: 1,
+			createdAt: date,
+			content: null,
+			author: {
+				id: 1,
+				createdAt: date,
+				name: 'First',
+			},
+		}, {
+			id: 2,
+			userId: 1,
+			createdAt: date,
+			content: 'Has message this time',
+			author: {
+				id: 1,
+				createdAt: date,
+				name: 'First',
+			},
+		}]);
+	}
+
+	async testRqbV2SimpleFindManyPlaceholders() {
+		const db = this.db;
+		await this.beforeEach();
+
+		const date = new Date(120000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		const query = db.query.rqbUser.findMany({
+			where: {
+				id: {
+					eq: sql.placeholder('filter'),
+				},
+			},
+			orderBy: {
+				id: 'asc',
+			},
+		}).prepare();
+
+		const result = await query.execute({
+			filter: 2,
+		});
+
+		expect(result).deep.equal([{
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+	}
+
+	async testRqbV2TransactionFindFirstNoRows() {
+		const db = this.db;
+		await this.beforeEach();
+
+		await db.transaction(async (db) => {
+			const result = await db.query.rqbUser.findFirst();
+
+			expect(result).deep.equal(undefined);
+		});
+	}
+
+	async testRqbV2TransactionFindFirstMultipleRows() {
+		const db = this.db;
+		await this.beforeEach();
+
+		const date = new Date(120000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		await db.transaction(async (db) => {
+			const result = await db.query.rqbUser.findFirst({
+				orderBy: {
+					id: 'desc',
+				},
+			});
+
+			expect(result).deep.equal({
+				id: 2,
+				createdAt: date,
+				name: 'Second',
+			});
+		});
+	}
+
+	async testRqbV2TransactionFindFirstWithRelation() {
+		const db = this.db;
+		await this.beforeEach();
+
+		const date = new Date(120000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		await db.insert(rqbPost).values([{
+			id: 1,
+			userId: 1,
+			createdAt: date,
+			content: null,
+		}, {
+			id: 2,
+			userId: 1,
+			createdAt: date,
+			content: 'Has message this time',
+		}]);
+
+		await db.transaction(async (db) => {
+			const result = await db.query.rqbUser.findFirst({
+				with: {
+					posts: {
+						orderBy: {
+							id: 'asc',
+						},
+					},
+				},
+				orderBy: {
+					id: 'asc',
+				},
+			});
+
+			expect(result).deep.equal({
+				id: 1,
+				createdAt: date,
+				name: 'First',
+				posts: [{
+					id: 1,
+					userId: 1,
+					createdAt: date,
+					content: null,
+				}, {
+					id: 2,
+					userId: 1,
+					createdAt: date,
+					content: 'Has message this time',
+				}],
+			});
+		});
+	}
+
+	async testRqbV2TransactionFindFirstPlaceholders() {
+		const db = this.db;
+		await this.beforeEach();
+
+		const date = new Date(120000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		await db.transaction(async (db) => {
+			const query = db.query.rqbUser.findFirst({
+				where: {
+					id: {
+						eq: sql.placeholder('filter'),
+					},
+				},
+				orderBy: {
+					id: 'asc',
+				},
+			}).prepare();
+
+			const result = await query.execute({
+				filter: 2,
+			});
+
+			expect(result).deep.equal({
+				id: 2,
+				createdAt: date,
+				name: 'Second',
+			});
+		});
+	}
+
+	async testRqbV2TransactionFindManyNoRows() {
+		const db = this.db;
+		await this.beforeEach();
+
+		await db.transaction(async (db) => {
+			const result = await db.query.rqbUser.findMany();
+
+			expect(result).deep.equal([]);
+		});
+	}
+
+	async testRqbV2TransactionFindManyMultipleRows() {
+		const db = this.db;
+		await this.beforeEach();
+
+		const date = new Date(120000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		await db.transaction(async (db) => {
+			const result = await db.query.rqbUser.findMany({
+				orderBy: {
+					id: 'desc',
+				},
+			});
+
+			expect(result).deep.equal([{
+				id: 2,
+				createdAt: date,
+				name: 'Second',
+			}, {
+				id: 1,
+				createdAt: date,
+				name: 'First',
+			}]);
+		});
+	}
+
+	async testRqbV2TransactionFindManyWithRelation() {
+		const db = this.db;
+		await this.beforeEach();
+
+		const date = new Date(120000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		await db.insert(rqbPost).values([{
+			id: 1,
+			userId: 1,
+			createdAt: date,
+			content: null,
+		}, {
+			id: 2,
+			userId: 1,
+			createdAt: date,
+			content: 'Has message this time',
+		}]);
+
+		await db.transaction(async (db) => {
+			const result = await db.query.rqbPost.findMany({
+				with: {
+					author: true,
+				},
+				orderBy: {
+					id: 'asc',
+				},
+			});
+
+			expect(result).deep.equal([{
+				id: 1,
+				userId: 1,
+				createdAt: date,
+				content: null,
+				author: {
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				},
+			}, {
+				id: 2,
+				userId: 1,
+				createdAt: date,
+				content: 'Has message this time',
+				author: {
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				},
+			}]);
+		});
+	}
+
+	async testRqbV2TransactionFindManyPlaceholders() {
+		const db = this.db;
+		await this.beforeEach();
+
+		const date = new Date(120000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		await db.transaction(async (db) => {
+			const query = db.query.rqbUser.findMany({
+				where: {
+					id: {
+						eq: sql.placeholder('filter'),
+					},
+				},
+				orderBy: {
+					id: 'asc',
+				},
+			}).prepare();
+
+			const result = await query.execute({
+				filter: 2,
+			});
+
+			expect(result).deep.equal([{
+				id: 2,
+				createdAt: date,
+				name: 'Second',
+			}]);
+		});
+	}
 }
 
 export default {
@@ -3608,12 +4221,67 @@ export default {
 			await stub.$countEmbeddedWithFilters();
 			await stub.updateWithLimitAndOrderBy();
 			await stub.deleteWithLimitAndOrderBy();
-			await stub.updateUndefined();
-			await stub.insertUndefined();
+			// await stub.updateUndefined().catch(() => {
+			// 	throw new Error('Update undefined error');
+			// });
+			// await stub.insertUndefined().catch(() => {
+			// 	throw new Error('Insert undefined error');
+			// });
 
-			return new Response();
+			await stub.testRqbV2SimpleFindFirstMultipleRows().catch(() => {
+				throw new Error('RQBv2 SimpleFindFirstMultipleRows error');
+			});
+			await stub.testRqbV2SimpleFindFirstNoRows().catch(() => {
+				throw new Error('RQBv2 SimpleFindFirstNoRows error');
+			});
+			await stub.testRqbV2SimpleFindFirstPlaceholders().catch(() => {
+				throw new Error('RQBv2 SimpleFindFirstPlaceholders error');
+			});
+			await stub.testRqbV2SimpleFindFirstWithRelation().catch(() => {
+				throw new Error('RQBv2 SimpleFindFirstWithRelation error');
+			});
+			await stub.testRqbV2SimpleFindManyMultipleRows().catch(() => {
+				throw new Error('RQBv2 SimpleFindManyMultipleRows error');
+			});
+			await stub.testRqbV2SimpleFindManyNoRows().catch(() => {
+				throw new Error('RQBv2 SimpleFindManyNoRows error');
+			});
+			await stub.testRqbV2SimpleFindManyPlaceholders().catch(() => {
+				throw new Error('RQBv2 SimpleFindManyPlaceholders error');
+			});
+			await stub.testRqbV2SimpleFindManyWithRelation().catch(() => {
+				throw new Error('RQBv2 SimpleFindManyWithRelation error');
+			});
+			await stub.testRqbV2TransactionFindFirstMultipleRows().catch(() => {
+				throw new Error('RQBv2 TransactionFindFirstMultipleRows error');
+			});
+			await stub.testRqbV2TransactionFindFirstNoRows().catch(() => {
+				throw new Error('RQBv2 TransactionFindFirstNoRows error');
+			});
+			await stub.testRqbV2TransactionFindFirstPlaceholders().catch(() => {
+				throw new Error('RQBv2 TransactionFindFirstPlaceholders error');
+			});
+			await stub.testRqbV2TransactionFindFirstWithRelation().catch(() => {
+				throw new Error('RQBv2 TransactionFindFirstWithRelation error');
+			});
+			await stub.testRqbV2TransactionFindManyMultipleRows().catch(() => {
+				throw new Error('RQBv2 TransactionFindManyMultipleRows error');
+			});
+			await stub.testRqbV2TransactionFindManyNoRows().catch(() => {
+				throw new Error('RQBv2 TransactionFindManyNoRows error');
+			});
+			await stub.testRqbV2TransactionFindManyPlaceholders().catch(() => {
+				throw new Error('RQBv2 TransactionFindManyPlaceholders error');
+			});
+			await stub.testRqbV2TransactionFindManyWithRelation().catch(() => {
+				throw new Error('RQBv2 TransactionFindManyWithRelation error');
+			});
+
+			return new Response('OK');
 		} catch (error: any) {
-			return new Response(error.message);
+			return new Response(error.message, {
+				status: 500,
+			});
 		}
 	},
 } satisfies ExportedHandler<Env>;

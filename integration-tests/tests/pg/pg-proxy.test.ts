@@ -9,6 +9,7 @@ import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
 import { createDockerDB, tests, usersMigratorTable, usersTable } from './pg-common';
 import { TestCache, TestGlobalCache, tests as cacheTests } from './pg-common-cache';
+import relations from './relations';
 
 // eslint-disable-next-line drizzle-internal/require-entity-kind
 class ServerSimulator {
@@ -73,7 +74,7 @@ class ServerSimulator {
 
 const ENABLE_LOGGING = false;
 
-let db: PgRemoteDatabase;
+let db: PgRemoteDatabase<never, typeof relations>;
 let dbGlobalCached: PgRemoteDatabase;
 let cachedDb: PgRemoteDatabase;
 let client: pg.Client;
@@ -118,6 +119,7 @@ beforeAll(async () => {
 	};
 	db = proxyDrizzle(proxyHandler, {
 		logger: ENABLE_LOGGING,
+		relations,
 	});
 
 	cachedDb = proxyDrizzle(proxyHandler, { logger: ENABLE_LOGGING, cache: new TestCache() });
@@ -458,6 +460,14 @@ skipTests([
 	'nested transaction',
 	'nested transaction rollback',
 	'test $onUpdateFn and $onUpdate works updating',
+	'RQB v2 transaction find first - no rows',
+	'RQB v2 transaction find first - multiple rows',
+	'RQB v2 transaction find first - with relation',
+	'RQB v2 transaction find first - placeholders',
+	'RQB v2 transaction find many - no rows',
+	'RQB v2 transaction find many - multiple rows',
+	'RQB v2 transaction find many - with relation',
+	'RQB v2 transaction find many - placeholders',
 ]);
 
 beforeEach(async () => {

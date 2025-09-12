@@ -1,51 +1,39 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
+import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoIncrement } from './common.ts';
 
-export type SingleStoreRealBuilderInitial<TName extends string> = SingleStoreRealBuilder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'SingleStoreReal';
-	data: number;
-	driverParam: number | string;
-	enumValues: undefined;
-	generated: undefined;
-}>;
-
-export class SingleStoreRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'SingleStoreReal'>>
-	extends SingleStoreColumnBuilderWithAutoIncrement<
-		T,
-		SingleStoreRealConfig
-	>
-{
+export class SingleStoreRealBuilder extends SingleStoreColumnBuilderWithAutoIncrement<
+	{
+		name: string;
+		dataType: 'number double';
+		data: number;
+		driverParam: number | string;
+	},
+	SingleStoreRealConfig
+> {
 	static override readonly [entityKind]: string = 'SingleStoreRealBuilder';
 
-	constructor(name: T['name'], config: SingleStoreRealConfig | undefined) {
-		super(name, 'number', 'SingleStoreReal');
+	constructor(name: string, config: SingleStoreRealConfig | undefined) {
+		super(name, 'number double', 'SingleStoreReal');
 		this.config.precision = config?.precision;
 		this.config.scale = config?.scale;
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnySingleStoreTable<{ name: TTableName }>,
-	): SingleStoreReal<MakeColumnConfig<T, TTableName>> {
-		return new SingleStoreReal<MakeColumnConfig<T, TTableName>>(
+	override build(table: SingleStoreTable) {
+		return new SingleStoreReal(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
 
-export class SingleStoreReal<T extends ColumnBaseConfig<'number', 'SingleStoreReal'>>
-	extends SingleStoreColumnWithAutoIncrement<
-		T,
-		SingleStoreRealConfig
-	>
-{
+export class SingleStoreReal<T extends ColumnBaseConfig<'number double'>> extends SingleStoreColumnWithAutoIncrement<
+	T,
+	SingleStoreRealConfig
+> {
 	static override readonly [entityKind]: string = 'SingleStoreReal';
 
 	precision: number | undefined = this.config.precision;
@@ -67,14 +55,13 @@ export interface SingleStoreRealConfig {
 	scale?: number;
 }
 
-export function real(): SingleStoreRealBuilderInitial<''>;
 export function real(
 	config?: SingleStoreRealConfig,
-): SingleStoreRealBuilderInitial<''>;
-export function real<TName extends string>(
-	name: TName,
+): SingleStoreRealBuilder;
+export function real(
+	name: string,
 	config?: SingleStoreRealConfig,
-): SingleStoreRealBuilderInitial<TName>;
+): SingleStoreRealBuilder;
 export function real(a?: string | SingleStoreRealConfig, b: SingleStoreRealConfig = {}) {
 	const { name, config } = getColumnNameAndConfig<SingleStoreRealConfig>(a, b);
 	return new SingleStoreRealBuilder(name, config);

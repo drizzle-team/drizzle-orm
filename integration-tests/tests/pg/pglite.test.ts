@@ -6,17 +6,18 @@ import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';
 import { tests, usersMigratorTable, usersTable } from './pg-common';
 import { TestCache, TestGlobalCache, tests as cacheTests } from './pg-common-cache';
+import relations from './relations';
 
 const ENABLE_LOGGING = false;
 
-let db: PgliteDatabase;
+let db: PgliteDatabase<never, typeof relations>;
 let dbGlobalCached: PgliteDatabase;
 let cachedDb: PgliteDatabase;
 let client: PGlite;
 
 beforeAll(async () => {
 	client = new PGlite();
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
 	cachedDb = drizzle(client, {
 		logger: ENABLE_LOGGING,
 		cache: new TestCache(),

@@ -16,8 +16,8 @@ import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Param, SQL, sql } from '~/sql/sql.ts';
-import type { InferModelFromColumns } from '~/table.ts';
-import { Columns, Table } from '~/table.ts';
+import type { InferInsertModel, InferModelFromColumns } from '~/table.ts';
+import { Table, TableColumns } from '~/table.ts';
 import { haveSameKeys, mapUpdateSet } from '~/utils.ts';
 import type { AnyMySqlColumn } from '../columns/common.ts';
 import { extractUsedTable } from '../utils.ts';
@@ -36,14 +36,20 @@ export interface MySqlInsertConfig<TTable extends MySqlTable = MySqlTable> {
 
 export type AnyMySqlInsertConfig = MySqlInsertConfig<MySqlTable>;
 
-export type MySqlInsertValue<TTable extends MySqlTable> =
+export type MySqlInsertValue<
+	TTable extends MySqlTable,
+	TModel extends InferInsertModel<TTable> = InferInsertModel<TTable>,
+> =
 	& {
-		[Key in keyof TTable['$inferInsert']]: TTable['$inferInsert'][Key] | SQL | Placeholder;
+		[Key in keyof TModel]: TModel[Key] | SQL | Placeholder;
 	}
 	& {};
 
-export type MySqlInsertSelectQueryBuilder<TTable extends MySqlTable> = TypedQueryBuilder<
-	{ [K in keyof TTable['$inferInsert']]: AnyMySqlColumn | SQL | SQL.Aliased | TTable['$inferInsert'][K] }
+export type MySqlInsertSelectQueryBuilder<
+	TTable extends MySqlTable,
+	TModel extends InferInsertModel<TTable> = InferInsertModel<TTable>,
+> = TypedQueryBuilder<
+	{ [K in keyof TModel]: AnyMySqlColumn | SQL | SQL.Aliased | TModel[K] }
 >;
 
 export class MySqlInsertBuilder<
@@ -104,7 +110,7 @@ export class MySqlInsertBuilder<
 
 		if (
 			!is(select, SQL)
-			&& !haveSameKeys(this.table[Columns], select._.selectedFields)
+			&& !haveSameKeys(this.table[TableColumns], select._.selectedFields)
 		) {
 			throw new Error(
 				'Insert select error: selected fields are not the same or are in a different order compared to the table definition',

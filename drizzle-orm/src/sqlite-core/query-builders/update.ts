@@ -9,7 +9,7 @@ import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import type { SQLitePreparedQuery, SQLiteSession } from '~/sqlite-core/session.ts';
 import { SQLiteTable } from '~/sqlite-core/table.ts';
 import { Subquery } from '~/subquery.ts';
-import { Table } from '~/table.ts';
+import { type InferInsertModel, Table } from '~/table.ts';
 import {
 	type DrizzleTypeError,
 	getTableLikeName,
@@ -36,9 +36,12 @@ export interface SQLiteUpdateConfig {
 	withList?: Subquery[];
 }
 
-export type SQLiteUpdateSetSource<TTable extends SQLiteTable> =
+export type SQLiteUpdateSetSource<
+	TTable extends SQLiteTable,
+	TModel extends InferInsertModel<TTable> = InferInsertModel<TTable>,
+> =
 	& {
-		[Key in keyof TTable['$inferInsert']]?:
+		[Key in keyof TModel & string]?:
 			| GetColumnData<TTable['_']['columns'][Key], 'query'>
 			| SQL
 			| SQLiteColumn
@@ -59,7 +62,7 @@ export class SQLiteUpdateBuilder<
 
 	constructor(
 		protected table: TTable,
-		protected session: SQLiteSession<any, any, any, any>,
+		protected session: SQLiteSession<any, any, any, any, any>,
 		protected dialect: SQLiteDialect,
 		private withList?: Subquery[],
 	) {}
@@ -244,7 +247,7 @@ export class SQLiteUpdateBase<
 	constructor(
 		table: TTable,
 		set: UpdateSet,
-		private session: SQLiteSession<any, any, any, any>,
+		private session: SQLiteSession<any, any, any, any, any>,
 		private dialect: SQLiteDialect,
 		withList?: Subquery[],
 	) {

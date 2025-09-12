@@ -1,24 +1,19 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '~/pg-core/table.ts';
+import type { PgTable } from '~/pg-core/table.ts';
 import { sql } from '~/sql/sql.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export type PgUUIDBuilderInitial<TName extends string> = PgUUIDBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'PgUUID';
+export class PgUUIDBuilder extends PgColumnBuilder<{
+	name: string;
+	dataType: 'string uuid';
 	data: string;
 	driverParam: string;
-	enumValues: undefined;
-}>;
-
-export class PgUUIDBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgUUID'>> extends PgColumnBuilder<T> {
+}> {
 	static override readonly [entityKind]: string = 'PgUUIDBuilder';
 
-	constructor(name: T['name']) {
-		super(name, 'string', 'PgUUID');
+	constructor(name: string) {
+		super(name, 'string uuid', 'PgUUID');
 	}
 
 	/**
@@ -29,14 +24,12 @@ export class PgUUIDBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgUUID'>
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgUUID<MakeColumnConfig<T, TTableName>> {
-		return new PgUUID<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+	override build(table: PgTable<any>) {
+		return new PgUUID(table, this.config as any);
 	}
 }
 
-export class PgUUID<T extends ColumnBaseConfig<'string', 'PgUUID'>> extends PgColumn<T> {
+export class PgUUID<T extends ColumnBaseConfig<'string uuid'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgUUID';
 
 	getSQLType(): string {
@@ -44,8 +37,6 @@ export class PgUUID<T extends ColumnBaseConfig<'string', 'PgUUID'>> extends PgCo
 	}
 }
 
-export function uuid(): PgUUIDBuilderInitial<''>;
-export function uuid<TName extends string>(name: TName): PgUUIDBuilderInitial<TName>;
-export function uuid(name?: string) {
+export function uuid(name?: string): PgUUIDBuilder {
 	return new PgUUIDBuilder(name ?? '');
 }

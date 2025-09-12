@@ -1,48 +1,39 @@
 import type { LocalDateTime } from 'gel';
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyGelTable } from '~/gel-core/table.ts';
+import type { AnyGelTable, GelTable } from '~/gel-core/table.ts';
 import { GelColumn } from './common.ts';
 import { GelLocalDateColumnBaseBuilder } from './date.common.ts';
 
-export type GelTimestampBuilderInitial<TName extends string> = GelTimestampBuilder<{
-	name: TName;
-	dataType: 'localDateTime';
-	columnType: 'GelTimestamp';
-	data: LocalDateTime;
-	driverParam: LocalDateTime;
-	enumValues: undefined;
-}>;
-
-export class GelTimestampBuilder<T extends ColumnBuilderBaseConfig<'localDateTime', 'GelTimestamp'>>
-	extends GelLocalDateColumnBaseBuilder<
-		T
-	>
-{
+export class GelTimestampBuilder extends GelLocalDateColumnBaseBuilder<
+	{
+		name: string;
+		dataType: 'object localDateTime';
+		data: LocalDateTime;
+		driverParam: LocalDateTime;
+	}
+> {
 	static override readonly [entityKind]: string = 'GelTimestampBuilder';
 
 	constructor(
-		name: T['name'],
+		name: string,
 	) {
-		super(name, 'localDateTime', 'GelTimestamp');
+		super(name, 'object localDateTime', 'GelTimestamp');
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyGelTable<{ name: TTableName }>,
-	): GelTimestamp<MakeColumnConfig<T, TTableName>> {
-		return new GelTimestamp<MakeColumnConfig<T, TTableName>>(
+	override build(table: GelTable) {
+		return new GelTimestamp(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
 
-export class GelTimestamp<T extends ColumnBaseConfig<'localDateTime', 'GelTimestamp'>> extends GelColumn<T> {
+export class GelTimestamp<T extends ColumnBaseConfig<'object localDateTime'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelTimestamp';
 
-	constructor(table: AnyGelTable<{ name: T['tableName'] }>, config: GelTimestampBuilder<T>['config']) {
+	constructor(table: AnyGelTable<{ name: T['tableName'] }>, config: GelTimestampBuilder['config']) {
 		super(table, config);
 	}
 
@@ -51,10 +42,6 @@ export class GelTimestamp<T extends ColumnBaseConfig<'localDateTime', 'GelTimest
 	}
 }
 
-export function timestamp(): GelTimestampBuilderInitial<''>;
-export function timestamp<TName extends string>(
-	name: TName,
-): GelTimestampBuilderInitial<TName>;
-export function timestamp(name?: string) {
+export function timestamp(name?: string): GelTimestampBuilder {
 	return new GelTimestampBuilder(name ?? '');
 }

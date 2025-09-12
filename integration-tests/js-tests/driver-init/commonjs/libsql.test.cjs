@@ -22,7 +22,7 @@ describe('libsql', async (it) => {
 
 		await db.$client.close();
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({connection: string, ...config})', async () => {
@@ -35,7 +35,7 @@ describe('libsql', async (it) => {
 
 		await db.$client.close();
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({connection: params, ...config})', async () => {
@@ -50,7 +50,7 @@ describe('libsql', async (it) => {
 
 		await db.$client.close();
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle(client)', async () => {
@@ -76,7 +76,7 @@ describe('libsql', async (it) => {
 
 		await db.$client.close();
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({client, ...config})', async () => {
@@ -92,6 +92,6 @@ describe('libsql', async (it) => {
 
 		await db.$client.close();
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 });

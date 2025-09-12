@@ -1,39 +1,30 @@
 import type { Duration } from 'gel';
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyGelTable } from '~/gel-core/table.ts';
+import type { GelTable } from '~/gel-core/table.ts';
 import { GelColumn, GelColumnBuilder } from './common.ts';
 
-export type GelDurationBuilderInitial<TName extends string> = GelDurationBuilder<{
-	name: TName;
-	dataType: 'duration';
-	columnType: 'GelDuration';
+export class GelDurationBuilder extends GelColumnBuilder<{
+	name: string;
+	dataType: 'object duration';
 	data: Duration;
 	driverParam: Duration;
-	enumValues: undefined;
-}>;
-
-export class GelDurationBuilder<T extends ColumnBuilderBaseConfig<'duration', 'GelDuration'>>
-	extends GelColumnBuilder<T>
-{
+}> {
 	static override readonly [entityKind]: string = 'GelDurationBuilder';
 
 	constructor(
-		name: T['name'],
+		name: string,
 	) {
-		super(name, 'duration', 'GelDuration');
+		super(name, 'object duration', 'GelDuration');
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyGelTable<{ name: TTableName }>,
-	): GelDuration<MakeColumnConfig<T, TTableName>> {
-		return new GelDuration<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+	override build(table: GelTable) {
+		return new GelDuration(table, this.config as any);
 	}
 }
 
-export class GelDuration<T extends ColumnBaseConfig<'duration', 'GelDuration'>> extends GelColumn<T> {
+export class GelDuration<T extends ColumnBaseConfig<'object duration'>> extends GelColumn<T> {
 	static override readonly [entityKind]: string = 'GelDuration';
 
 	getSQLType(): string {
@@ -41,8 +32,6 @@ export class GelDuration<T extends ColumnBaseConfig<'duration', 'GelDuration'>> 
 	}
 }
 
-export function duration(): GelDurationBuilderInitial<''>;
-export function duration<TName extends string>(name: TName): GelDurationBuilderInitial<TName>;
-export function duration(name?: string) {
+export function duration(name?: string): GelDurationBuilder {
 	return new GelDurationBuilder(name ?? '');
 }

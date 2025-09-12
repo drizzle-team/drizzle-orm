@@ -458,7 +458,7 @@ test('all data types', (t) => {
 		bigint2: z.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
 		bigserial1: z.int().gte(Number.MIN_SAFE_INTEGER).lte(Number.MAX_SAFE_INTEGER),
 		bigserial2: z.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
-		bit: z.string().regex(/^[01]+$/).max(5),
+		bit: z.string().regex(/^[01]*$/).length(5),
 		boolean: z.boolean(),
 		date1: z.date(),
 		date2: z.string(),

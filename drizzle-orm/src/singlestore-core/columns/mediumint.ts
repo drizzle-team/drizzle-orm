@@ -1,43 +1,35 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
-import { getColumnNameAndConfig } from '~/utils.ts';
+import type { SingleStoreTable } from '~/singlestore-core/table.ts';
+import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoIncrement } from './common.ts';
 import type { SingleStoreIntConfig } from './int.ts';
 
-export type SingleStoreMediumIntBuilderInitial<TName extends string> = SingleStoreMediumIntBuilder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'SingleStoreMediumInt';
-	data: number;
-	driverParam: number | string;
-	enumValues: undefined;
-	generated: undefined;
-}>;
-
-export class SingleStoreMediumIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'SingleStoreMediumInt'>>
-	extends SingleStoreColumnBuilderWithAutoIncrement<T, SingleStoreIntConfig>
+export class SingleStoreMediumIntBuilder<TUnsigned extends boolean | undefined>
+	extends SingleStoreColumnBuilderWithAutoIncrement<{
+		name: string;
+		dataType: Equal<TUnsigned, true> extends true ? 'number uint24' : 'number int24';
+		data: number;
+		driverParam: number | string;
+	}, SingleStoreIntConfig>
 {
 	static override readonly [entityKind]: string = 'SingleStoreMediumIntBuilder';
 
-	constructor(name: T['name'], config?: SingleStoreIntConfig) {
-		super(name, 'number', 'SingleStoreMediumInt');
+	constructor(name: string, config?: SingleStoreIntConfig) {
+		super(name, config?.unsigned ? 'number uint24' : 'number int24' as any, 'SingleStoreMediumInt');
 		this.config.unsigned = config ? config.unsigned : false;
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnySingleStoreTable<{ name: TTableName }>,
-	): SingleStoreMediumInt<MakeColumnConfig<T, TTableName>> {
-		return new SingleStoreMediumInt<MakeColumnConfig<T, TTableName>>(
+	override build(table: SingleStoreTable) {
+		return new SingleStoreMediumInt(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
 
-export class SingleStoreMediumInt<T extends ColumnBaseConfig<'number', 'SingleStoreMediumInt'>>
+export class SingleStoreMediumInt<T extends ColumnBaseConfig<'number int24' | 'number uint24'>>
 	extends SingleStoreColumnWithAutoIncrement<T, SingleStoreIntConfig>
 {
 	static override readonly [entityKind]: string = 'SingleStoreMediumInt';
@@ -54,14 +46,13 @@ export class SingleStoreMediumInt<T extends ColumnBaseConfig<'number', 'SingleSt
 	}
 }
 
-export function mediumint(): SingleStoreMediumIntBuilderInitial<''>;
-export function mediumint(
-	config?: SingleStoreIntConfig,
-): SingleStoreMediumIntBuilderInitial<''>;
-export function mediumint<TName extends string>(
-	name: TName,
-	config?: SingleStoreIntConfig,
-): SingleStoreMediumIntBuilderInitial<TName>;
+export function mediumint<TUnsigned extends boolean | undefined>(
+	config?: SingleStoreIntConfig<TUnsigned>,
+): SingleStoreMediumIntBuilder<TUnsigned>;
+export function mediumint<TUnsigned extends boolean | undefined>(
+	name: string,
+	config?: SingleStoreIntConfig<TUnsigned>,
+): SingleStoreMediumIntBuilder<TUnsigned>;
 export function mediumint(a?: string | SingleStoreIntConfig, b?: SingleStoreIntConfig) {
 	const { name, config } = getColumnNameAndConfig<SingleStoreIntConfig>(a, b);
 	return new SingleStoreMediumIntBuilder(name, config);

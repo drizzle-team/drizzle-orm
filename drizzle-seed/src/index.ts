@@ -1,18 +1,11 @@
 /* eslint-disable drizzle-internal/require-entity-kind */
-import {
-	createTableRelationsHelpers,
-	extractTablesRelationalConfig,
-	getTableName,
-	is,
-	One,
-	Relations,
-	sql,
-} from 'drizzle-orm';
+import { Column as DrizzleOrmColumn, getColumnTable, getTableName, is, sql } from 'drizzle-orm';
+import { createTableRelationsHelpers, extractTablesRelationalConfig, One, Relations } from 'drizzle-orm/_relations';
 
 import type { MySqlColumn, MySqlSchema } from 'drizzle-orm/mysql-core';
 import { getTableConfig as getMysqlTableConfig, MySqlDatabase, MySqlTable } from 'drizzle-orm/mysql-core';
 
-import type { PgArray, PgColumn, PgSchema } from 'drizzle-orm/pg-core';
+import { PgArray, PgColumn, PgSchema } from 'drizzle-orm/pg-core';
 import { getTableConfig as getPgTableConfig, PgDatabase, PgTable } from 'drizzle-orm/pg-core';
 
 import type { SQLiteColumn } from 'drizzle-orm/sqlite-core';
@@ -27,13 +20,13 @@ import type { Column, Relation, RelationWithReferences, Table } from './types/ta
 
 type InferCallbackType<
 	DB extends
-		| PgDatabase<any, any>
-		| MySqlDatabase<any, any>
-		| BaseSQLiteDatabase<any, any>,
+		| PgDatabase<any, any, any, any>
+		| MySqlDatabase<any, any, any, any, any>
+		| BaseSQLiteDatabase<any, any, any, any, any>,
 	SCHEMA extends {
 		[key: string]: PgTable | PgSchema | MySqlTable | MySqlSchema | SQLiteTable | Relations;
 	},
-> = DB extends PgDatabase<any, any> ? SCHEMA extends {
+> = DB extends PgDatabase<any, any, any, any> ? SCHEMA extends {
 		[key: string]:
 			| PgTable
 			| PgSchema
@@ -66,7 +59,7 @@ type InferCallbackType<
 			};
 		}
 	: {}
-	: DB extends MySqlDatabase<any, any> ? SCHEMA extends {
+	: DB extends MySqlDatabase<any, any, any, any, any> ? SCHEMA extends {
 			[key: string]:
 				| PgTable
 				| PgSchema
@@ -99,7 +92,7 @@ type InferCallbackType<
 				};
 			}
 		: {}
-	: DB extends BaseSQLiteDatabase<any, any> ? SCHEMA extends {
+	: DB extends BaseSQLiteDatabase<any, any, any, any, any> ? SCHEMA extends {
 			[key: string]:
 				| PgTable
 				| PgSchema
@@ -136,9 +129,9 @@ type InferCallbackType<
 
 class SeedPromise<
 	DB extends
-		| PgDatabase<any, any>
-		| MySqlDatabase<any, any>
-		| BaseSQLiteDatabase<any, any>,
+		| PgDatabase<any, any, any, any>
+		| MySqlDatabase<any, any, any, any, any>
+		| BaseSQLiteDatabase<any, any, any, any, any>,
 	SCHEMA extends {
 		[key: string]: PgTable | PgSchema | MySqlTable | MySqlSchema | SQLiteTable | Relations;
 	},
@@ -345,9 +338,9 @@ export async function seedForDrizzleStudio(
  */
 export function seed<
 	DB extends
-		| PgDatabase<any, any>
-		| MySqlDatabase<any, any, any, any>
-		| BaseSQLiteDatabase<any, any>,
+		| PgDatabase<any, any, any, any>
+		| MySqlDatabase<any, any, any, any, any>
+		| BaseSQLiteDatabase<any, any, any, any, any>,
 	SCHEMA extends {
 		[key: string]:
 			| PgTable
@@ -364,7 +357,10 @@ export function seed<
 }
 
 const seedFunc = async (
-	db: PgDatabase<any, any> | MySqlDatabase<any, any> | BaseSQLiteDatabase<any, any>,
+	db:
+		| PgDatabase<any, any, any, any>
+		| MySqlDatabase<any, any, any, any, any>
+		| BaseSQLiteDatabase<any, any, any, any, any>,
 	schema: {
 		[key: string]:
 			| PgTable
@@ -383,11 +379,11 @@ const seedFunc = async (
 		version = Number(options?.version);
 	}
 
-	if (is(db, PgDatabase<any, any>)) {
+	if (is(db, PgDatabase<any, any, any, any>)) {
 		await seedPostgres(db, schema, { ...options, version }, refinements);
-	} else if (is(db, MySqlDatabase<any, any>)) {
+	} else if (is(db, MySqlDatabase<any, any, any, any, any>)) {
 		await seedMySql(db, schema, { ...options, version }, refinements);
-	} else if (is(db, BaseSQLiteDatabase<any, any>)) {
+	} else if (is(db, BaseSQLiteDatabase<any, any, any, any, any>)) {
 		await seedSqlite(db, schema, { ...options, version }, refinements);
 	} else {
 		throw new Error(
@@ -440,9 +436,9 @@ const seedFunc = async (
  */
 export async function reset<
 	DB extends
-		| PgDatabase<any, any>
-		| MySqlDatabase<any, any, any, any>
-		| BaseSQLiteDatabase<any, any>,
+		| PgDatabase<any, any, any, any>
+		| MySqlDatabase<any, any, any, any, any>
+		| BaseSQLiteDatabase<any, any, any, any, any>,
 	SCHEMA extends {
 		[key: string]:
 			| PgTable
@@ -453,19 +449,19 @@ export async function reset<
 			| any;
 	},
 >(db: DB, schema: SCHEMA) {
-	if (is(db, PgDatabase<any, any>)) {
+	if (is(db, PgDatabase<any, any, any, any>)) {
 		const { pgTables } = filterPgSchema(schema);
 
 		if (Object.entries(pgTables).length > 0) {
 			await resetPostgres(db, pgTables);
 		}
-	} else if (is(db, MySqlDatabase<any, any>)) {
+	} else if (is(db, MySqlDatabase<any, any, any, any, any>)) {
 		const { mysqlTables } = filterMysqlTables(schema);
 
 		if (Object.entries(mysqlTables).length > 0) {
 			await resetMySql(db, mysqlTables);
 		}
-	} else if (is(db, BaseSQLiteDatabase<any, any>)) {
+	} else if (is(db, BaseSQLiteDatabase<any, any, any, any, any>)) {
 		const { sqliteTables } = filterSqliteTables(schema);
 
 		if (Object.entries(sqliteTables).length > 0) {
@@ -480,7 +476,7 @@ export async function reset<
 
 // Postgres-----------------------------------------------------------------------------------------------------------
 const resetPostgres = async (
-	db: PgDatabase<any, any>,
+	db: PgDatabase<any, any, any, any>,
 	pgTables: { [key: string]: PgTable },
 ) => {
 	const tablesToTruncate = Object.entries(pgTables).map(([_, table]) => {
@@ -517,7 +513,7 @@ const filterPgSchema = (schema: {
 };
 
 const seedPostgres = async (
-	db: PgDatabase<any, any>,
+	db: PgDatabase<any, any, any, any>,
 	schema: {
 		[key: string]:
 			| PgTable
@@ -595,8 +591,9 @@ const getPostgresInfo = (
 		}
 
 		const tableConfig = getPgTableConfig(table);
-		for (const [tsCol, col] of Object.entries(tableConfig.columns[0]!.table)) {
-			dbToTsColumnNamesMap[col.name] = tsCol;
+		for (const [tsCol, col] of Object.entries(getColumnTable(tableConfig.columns[0]!))) {
+			// dbToTsColumnNamesMap[col.name] = tsCol;
+			if (is(col, DrizzleOrmColumn)) dbToTsColumnNamesMap[col.name] = tsCol;
 		}
 		dbToTsColumnNamesMapGlobal[tableName] = dbToTsColumnNamesMap;
 
@@ -625,7 +622,7 @@ const getPostgresInfo = (
 				const tableDbName = tableConfig.name;
 				const tableTsName = schemaConfig.tableNamesMap[`${tableDbSchema}.${tableDbName}`] ?? tableDbName;
 
-				const dbToTsColumnNamesMap = getDbToTsColumnNamesMap(drizzleRel.sourceTable);
+				const dbToTsColumnNamesMap = getDbToTsColumnNamesMap(drizzleRel.sourceTable as PgTable);
 				const columns = drizzleRel.config?.fields.map((field) => dbToTsColumnNamesMap[field.name] as string)
 					?? [];
 
@@ -635,7 +632,7 @@ const getPostgresInfo = (
 				const refTableTsName = schemaConfig.tableNamesMap[`${refTableDbSchema}.${refTableDbName}`]
 					?? refTableDbName;
 
-				const dbToTsColumnNamesMapForRefTable = getDbToTsColumnNamesMap(drizzleRel.referencedTable);
+				const dbToTsColumnNamesMapForRefTable = getDbToTsColumnNamesMap(drizzleRel.referencedTable as PgTable);
 				const refColumns = drizzleRel.config?.references.map((ref) =>
 					dbToTsColumnNamesMapForRefTable[ref.name] as string
 				)
@@ -679,10 +676,7 @@ const getPostgresInfo = (
 	for (const table of Object.values(pgTables)) {
 		tableConfig = getPgTableConfig(table);
 
-		dbToTsColumnNamesMap = {};
-		for (const [tsCol, col] of Object.entries(tableConfig.columns[0]!.table)) {
-			dbToTsColumnNamesMap[col.name] = tsCol;
-		}
+		dbToTsColumnNamesMap = getDbToTsColumnNamesMap(table);
 
 		// might be empty list
 		const newRelations = tableConfig.foreignKeys.map((fk) => {
@@ -727,8 +721,8 @@ const getPostgresInfo = (
 				name: baseColumn.name,
 				columnType: baseColumn.getSQLType(),
 				typeParams: getTypeParams(baseColumn.getSQLType()),
-				dataType: baseColumn.dataType,
-				size: (baseColumn as PgArray<any, any>).size,
+				dataType: baseColumn.dataType.split(' ')[0]!,
+				size: (baseColumn as PgArray<any, any>).length,
 				hasDefault: baseColumn.hasDefault,
 				enumValues: baseColumn.enumValues,
 				default: baseColumn.default,
@@ -789,8 +783,8 @@ const getPostgresInfo = (
 				name: dbToTsColumnNamesMap[column.name] as string,
 				columnType: column.getSQLType(),
 				typeParams: getTypeParams(column.getSQLType()),
-				dataType: column.dataType,
-				size: (column as PgArray<any, any>).size,
+				dataType: column.dataType.split(' ')[0]!,
+				size: (column as PgArray<any, any>).length,
 				hasDefault: column.hasDefault,
 				default: column.default,
 				enumValues: column.enumValues,
@@ -865,7 +859,7 @@ const isRelationCyclic = (
 
 // MySql-----------------------------------------------------------------------------------------------------
 const resetMySql = async (
-	db: MySqlDatabase<any, any>,
+	db: MySqlDatabase<any, any, any, any, any>,
 	schema: { [key: string]: MySqlTable },
 ) => {
 	const tablesToTruncate = Object.entries(schema).map(([_tsTableName, table]) => {
@@ -909,7 +903,7 @@ const filterMysqlTables = (schema: {
 };
 
 const seedMySql = async (
-	db: MySqlDatabase<any, any>,
+	db: MySqlDatabase<any, any, any, any, any>,
 	schema: {
 		[key: string]:
 			| PgTable
@@ -988,8 +982,8 @@ const getMySqlInfo = (
 		}
 
 		const tableConfig = getMysqlTableConfig(table);
-		for (const [tsCol, col] of Object.entries(tableConfig.columns[0]!.table)) {
-			dbToTsColumnNamesMap[col.name] = tsCol;
+		for (const [tsCol, col] of Object.entries(getColumnTable(tableConfig.columns[0]!))) {
+			if (is(col, DrizzleOrmColumn)) dbToTsColumnNamesMap[col.name] = tsCol;
 		}
 		dbToTsColumnNamesMapGlobal[tableName] = dbToTsColumnNamesMap;
 
@@ -1072,10 +1066,7 @@ const getMySqlInfo = (
 	for (const table of Object.values(mysqlTables)) {
 		tableConfig = getMysqlTableConfig(table);
 
-		dbToTsColumnNamesMap = {};
-		for (const [tsCol, col] of Object.entries(tableConfig.columns[0]!.table)) {
-			dbToTsColumnNamesMap[col.name] = tsCol;
-		}
+		dbToTsColumnNamesMap = getDbToTsColumnNamesMap(table);
 
 		const newRelations = tableConfig.foreignKeys.map((fk) => {
 			const table = dbToTsTableNamesMap[tableConfig.name] as string;
@@ -1146,7 +1137,7 @@ const getMySqlInfo = (
 				name: dbToTsColumnNamesMap[column.name] as string,
 				columnType: column.getSQLType(),
 				typeParams: getTypeParams(column.getSQLType()),
-				dataType: column.dataType,
+				dataType: column.dataType.split(' ')[0]!,
 				hasDefault: column.hasDefault,
 				default: column.default,
 				enumValues: column.enumValues,
@@ -1186,7 +1177,7 @@ const getMySqlInfo = (
 
 // Sqlite------------------------------------------------------------------------------------------------------------------------
 const resetSqlite = async (
-	db: BaseSQLiteDatabase<any, any>,
+	db: BaseSQLiteDatabase<any, any, any, any, any>,
 	schema: { [key: string]: SQLiteTable },
 ) => {
 	const tablesToTruncate = Object.entries(schema).map(([_tsTableName, table]) => {
@@ -1230,7 +1221,7 @@ const filterSqliteTables = (schema: {
 };
 
 const seedSqlite = async (
-	db: BaseSQLiteDatabase<any, any>,
+	db: BaseSQLiteDatabase<any, any, any, any, any>,
 	schema: {
 		[key: string]:
 			| PgTable
@@ -1309,8 +1300,8 @@ const getSqliteInfo = (
 		}
 
 		const tableConfig = getSqliteTableConfig(table);
-		for (const [tsCol, col] of Object.entries(tableConfig.columns[0]!.table)) {
-			dbToTsColumnNamesMap[col.name] = tsCol;
+		for (const [tsCol, col] of Object.entries(getColumnTable(tableConfig.columns[0]!))) {
+			if (is(col, DrizzleOrmColumn)) dbToTsColumnNamesMap[col.name] = tsCol;
 		}
 		dbToTsColumnNamesMapGlobal[tableName] = dbToTsColumnNamesMap;
 
@@ -1392,10 +1383,7 @@ const getSqliteInfo = (
 	for (const table of Object.values(sqliteTables)) {
 		tableConfig = getSqliteTableConfig(table);
 
-		dbToTsColumnNamesMap = {};
-		for (const [tsCol, col] of Object.entries(tableConfig.columns[0]!.table)) {
-			dbToTsColumnNamesMap[col.name] = tsCol;
-		}
+		dbToTsColumnNamesMap = getDbToTsColumnNamesMap(table);
 
 		const newRelations = tableConfig.foreignKeys.map((fk) => {
 			const table = dbToTsTableNamesMap[tableConfig.name] as string;
@@ -1463,7 +1451,7 @@ const getSqliteInfo = (
 				name: dbToTsColumnNamesMap[column.name] as string,
 				columnType: column.getSQLType(),
 				typeParams: getTypeParams(column.getSQLType()),
-				dataType: column.dataType,
+				dataType: column.dataType.split(' ')[0]!,
 				hasDefault: column.hasDefault,
 				default: column.default,
 				enumValues: column.enumValues,

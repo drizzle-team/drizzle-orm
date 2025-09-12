@@ -1,34 +1,27 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '~/pg-core/table.ts';
+import type { PgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
-export type PgBooleanBuilderInitial<TName extends string> = PgBooleanBuilder<{
-	name: TName;
+export class PgBooleanBuilder extends PgColumnBuilder<{
+	name: string;
 	dataType: 'boolean';
-	columnType: 'PgBoolean';
 	data: boolean;
 	driverParam: boolean;
-	enumValues: undefined;
-}>;
-
-export class PgBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean', 'PgBoolean'>> extends PgColumnBuilder<T> {
+}> {
 	static override readonly [entityKind]: string = 'PgBooleanBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'boolean', 'PgBoolean');
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgBoolean<MakeColumnConfig<T, TTableName>> {
-		return new PgBoolean<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+	override build(table: PgTable<any>) {
+		return new PgBoolean(table, this.config as any);
 	}
 }
 
-export class PgBoolean<T extends ColumnBaseConfig<'boolean', 'PgBoolean'>> extends PgColumn<T> {
+export class PgBoolean<T extends ColumnBaseConfig<'boolean'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgBoolean';
 
 	getSQLType(): string {
@@ -36,8 +29,6 @@ export class PgBoolean<T extends ColumnBaseConfig<'boolean', 'PgBoolean'>> exten
 	}
 }
 
-export function boolean(): PgBooleanBuilderInitial<''>;
-export function boolean<TName extends string>(name: TName): PgBooleanBuilderInitial<TName>;
-export function boolean(name?: string) {
+export function boolean(name?: string): PgBooleanBuilder {
 	return new PgBooleanBuilder(name ?? '');
 }

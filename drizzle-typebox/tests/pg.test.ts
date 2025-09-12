@@ -457,7 +457,7 @@ test('all data types', (tc) => {
 		bigint2: t.BigInt({ minimum: CONSTANTS.INT64_MIN, maximum: CONSTANTS.INT64_MAX }),
 		bigserial1: t.Integer({ minimum: Number.MIN_SAFE_INTEGER, maximum: Number.MAX_SAFE_INTEGER }),
 		bigserial2: t.BigInt({ minimum: CONSTANTS.INT64_MIN, maximum: CONSTANTS.INT64_MAX }),
-		bit: t.RegExp(/^[01]+$/, { maxLength: 5 }),
+		bit: t.RegExp(/^[01]*$/, { minLength: 5, maxLength: 5 }),
 		boolean: t.Boolean(),
 		date1: t.Date(),
 		date2: t.String(),

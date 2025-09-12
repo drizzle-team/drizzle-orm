@@ -1,7 +1,8 @@
+import type * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import type { Logger } from '~/logger.ts';
 import { NoopLogger } from '~/logger.ts';
-import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations } from '~/relations.ts';
 import { fillPlaceholders, type Query } from '~/sql/sql.ts';
 import { type SQLiteSyncDialect, SQLiteTransaction } from '~/sqlite-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/sqlite-core/query-builders/select.types.ts';
@@ -20,14 +21,17 @@ export interface SQLiteDOSessionOptions {
 
 type PreparedQueryConfig = Omit<PreparedQueryConfigBase, 'statement' | 'run'>;
 
-export class SQLiteDOSession<TFullSchema extends Record<string, unknown>, TSchema extends TablesRelationalConfig>
-	extends SQLiteSession<
-		'sync',
-		SqlStorageCursor<Record<string, SqlStorageValue>>,
-		TFullSchema,
-		TSchema
-	>
-{
+export class SQLiteDOSession<
+	TFullSchema extends Record<string, unknown>,
+	TRelations extends AnyRelations,
+	TSchema extends V1.TablesRelationalConfig,
+> extends SQLiteSession<
+	'sync',
+	SqlStorageCursor<Record<string, SqlStorageValue>>,
+	TFullSchema,
+	TRelations,
+	TSchema
+> {
 	static override readonly [entityKind]: string = 'SQLiteDOSession';
 
 	private logger: Logger;
@@ -35,7 +39,8 @@ export class SQLiteDOSession<TFullSchema extends Record<string, unknown>, TSchem
 	constructor(
 		private client: DurableObjectStorage,
 		dialect: SQLiteSyncDialect,
-		private schema: RelationalSchemaConfig<TSchema> | undefined,
+		private relations: TRelations,
+		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		options: SQLiteDOSessionOptions = {},
 	) {
 		super(dialect);
@@ -60,13 +65,37 @@ export class SQLiteDOSession<TFullSchema extends Record<string, unknown>, TSchem
 		);
 	}
 
+	prepareRelationalQuery<T extends Omit<PreparedQueryConfig, 'run'>>(
+		query: Query,
+		fields: SelectedFieldsOrdered | undefined,
+		executeMethod: SQLiteExecuteMethod,
+		customResultMapper: (rows: Record<string, unknown>[]) => unknown,
+	): SQLiteDOPreparedQuery<T, true> {
+		return new SQLiteDOPreparedQuery(
+			this.client,
+			query,
+			this.logger,
+			fields,
+			executeMethod,
+			false,
+			customResultMapper,
+			true,
+		);
+	}
+
 	override transaction<T>(
 		transaction: (
-			tx: SQLiteTransaction<'sync', SqlStorageCursor<Record<string, SqlStorageValue>>, TFullSchema, TSchema>,
+			tx: SQLiteTransaction<
+				'sync',
+				SqlStorageCursor<Record<string, SqlStorageValue>>,
+				TFullSchema,
+				TRelations,
+				TSchema
+			>,
 		) => T,
 		_config?: SQLiteTransactionConfig,
 	): T {
-		const tx = new SQLiteDOTransaction('sync', this.dialect, this, this.schema);
+		const tx = new SQLiteDOTransaction('sync', this.dialect, this, this.relations, this.schema, undefined, false, true);
 		this.client.transactionSync(() => {
 			transaction(tx);
 		});
@@ -74,25 +103,42 @@ export class SQLiteDOSession<TFullSchema extends Record<string, unknown>, TSchem
 	}
 }
 
-export class SQLiteDOTransaction<TFullSchema extends Record<string, unknown>, TSchema extends TablesRelationalConfig>
-	extends SQLiteTransaction<
-		'sync',
-		SqlStorageCursor<Record<string, SqlStorageValue>>,
-		TFullSchema,
-		TSchema
-	>
-{
+export class SQLiteDOTransaction<
+	TFullSchema extends Record<string, unknown>,
+	TRelations extends AnyRelations,
+	TSchema extends V1.TablesRelationalConfig,
+> extends SQLiteTransaction<
+	'sync',
+	SqlStorageCursor<Record<string, SqlStorageValue>>,
+	TFullSchema,
+	TRelations,
+	TSchema
+> {
 	static override readonly [entityKind]: string = 'SQLiteDOTransaction';
 
-	override transaction<T>(transaction: (tx: SQLiteDOTransaction<TFullSchema, TSchema>) => T): T {
-		const tx = new SQLiteDOTransaction('sync', this.dialect, this.session, this.schema, this.nestedIndex + 1);
+	override transaction<T>(
+		transaction: (tx: SQLiteDOTransaction<TFullSchema, TRelations, TSchema>) => T,
+	): T {
+		const tx = new SQLiteDOTransaction(
+			'sync',
+			this.dialect,
+			this.session,
+			this.relations,
+			this.schema,
+			this.nestedIndex + 1,
+			false,
+			true,
+		);
 		this.session.transaction(() => transaction(tx));
 
 		return {} as any;
 	}
 }
 
-export class SQLiteDOPreparedQuery<T extends PreparedQueryConfig = PreparedQueryConfig> extends PreparedQueryBase<{
+export class SQLiteDOPreparedQuery<
+	T extends PreparedQueryConfig = PreparedQueryConfig,
+	TIsRqbV2 extends boolean = false,
+> extends PreparedQueryBase<{
 	type: 'sync';
 	run: void;
 	all: T['all'];
@@ -109,7 +155,10 @@ export class SQLiteDOPreparedQuery<T extends PreparedQueryConfig = PreparedQuery
 		private fields: SelectedFieldsOrdered | undefined,
 		executeMethod: SQLiteExecuteMethod,
 		private _isResponseInArrayMode: boolean,
-		private customResultMapper?: (rows: unknown[][]) => unknown,
+		private customResultMapper?: (
+			rows: TIsRqbV2 extends true ? Record<string, unknown>[] : unknown[][],
+		) => unknown,
+		private isRqbV2Query?: TIsRqbV2,
 	) {
 		// 3-6 params are for cache. As long as we don't support sync cache - it will be skipped here
 		super('sync', executeMethod, query, undefined, undefined, undefined);
@@ -123,6 +172,8 @@ export class SQLiteDOPreparedQuery<T extends PreparedQueryConfig = PreparedQuery
 	}
 
 	all(placeholderValues?: Record<string, unknown>): T['all'] {
+		if (this.isRqbV2Query) return this.allRqbV2(placeholderValues);
+
 		const { fields, joinsNotNullableMap, query, logger, client, customResultMapper } = this;
 		if (!fields && !customResultMapper) {
 			const params = fillPlaceholders(query.params, placeholderValues ?? {});
@@ -134,13 +185,28 @@ export class SQLiteDOPreparedQuery<T extends PreparedQueryConfig = PreparedQuery
 		const rows = this.values(placeholderValues) as unknown[][];
 
 		if (customResultMapper) {
-			return customResultMapper(rows) as T['all'];
+			return (customResultMapper as (rows: unknown[][]) => unknown)(rows) as T['all'];
 		}
 
 		return rows.map((row) => mapResultRow(fields!, row, joinsNotNullableMap));
 	}
 
+	private allRqbV2(placeholderValues?: Record<string, unknown>): T['all'] {
+		const { query, logger, client, customResultMapper } = this;
+
+		const params = fillPlaceholders(query.params, placeholderValues ?? {});
+		logger.logQuery(query.sql, params);
+
+		const rows = params.length > 0
+			? client.sql.exec(query.sql, ...params).toArray()
+			: client.sql.exec(query.sql).toArray();
+
+		return (customResultMapper as (rows: Record<string, unknown>[]) => unknown)(rows);
+	}
+
 	get(placeholderValues?: Record<string, unknown>): T['get'] {
+		if (this.isRqbV2Query) return this.getRqbV2(placeholderValues);
+
 		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
 		this.logger.logQuery(this.query.sql, params);
 
@@ -157,10 +223,25 @@ export class SQLiteDOPreparedQuery<T extends PreparedQueryConfig = PreparedQuery
 		}
 
 		if (customResultMapper) {
-			return customResultMapper(rows) as T['get'];
+			return (customResultMapper as (rows: unknown[][]) => unknown)(rows) as T['get'];
 		}
 
 		return mapResultRow(fields!, row, joinsNotNullableMap);
+	}
+
+	private getRqbV2(placeholderValues?: Record<string, unknown>): T['get'] {
+		const params = fillPlaceholders(this.query.params, placeholderValues ?? {});
+		this.logger.logQuery(this.query.sql, params);
+
+		const { client, customResultMapper, query } = this;
+
+		const row = (params.length > 0 ? client.sql.exec(query.sql, ...params) : client.sql.exec(query.sql)).next().value;
+
+		if (!row) {
+			return undefined;
+		}
+
+		return (customResultMapper as (rows: Record<string, unknown>[]) => unknown)([row]) as T['get'];
 	}
 
 	values(placeholderValues?: Record<string, unknown>): T['values'] {

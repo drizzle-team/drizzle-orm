@@ -1,62 +1,17 @@
-import type { Column, ColumnBaseConfig } from 'drizzle-orm';
-import type {
-	MySqlBigInt53,
-	MySqlChar,
-	MySqlDouble,
-	MySqlFloat,
-	MySqlInt,
-	MySqlMediumInt,
-	MySqlReal,
-	MySqlSerial,
-	MySqlSmallInt,
-	MySqlText,
-	MySqlTinyInt,
-	MySqlVarChar,
-	MySqlYear,
-} from 'drizzle-orm/mysql-core';
-import type {
-	PgArray,
-	PgBigInt53,
-	PgBigSerial53,
-	PgBinaryVector,
-	PgChar,
-	PgDoublePrecision,
-	PgGeometry,
-	PgGeometryObject,
-	PgHalfVector,
-	PgInteger,
-	PgLineABC,
-	PgLineTuple,
-	PgPointObject,
-	PgPointTuple,
-	PgReal,
-	PgSerial,
-	PgSmallInt,
-	PgSmallSerial,
-	PgUUID,
-	PgVarchar,
-	PgVector,
-} from 'drizzle-orm/pg-core';
-import type {
-	SingleStoreBigInt53,
-	SingleStoreChar,
-	SingleStoreDouble,
-	SingleStoreFloat,
-	SingleStoreInt,
-	SingleStoreMediumInt,
-	SingleStoreReal,
-	SingleStoreSerial,
-	SingleStoreSmallInt,
-	SingleStoreText,
-	SingleStoreTinyInt,
-	SingleStoreVarChar,
-	SingleStoreYear,
-} from 'drizzle-orm/singlestore-core';
-import type { SQLiteInteger, SQLiteReal, SQLiteText } from 'drizzle-orm/sqlite-core';
+import {
+	type Column,
+	type ColumnDataArrayConstraint,
+	type ColumnDataBigIntConstraint,
+	type ColumnDataNumberConstraint,
+	type ColumnDataObjectConstraint,
+	type ColumnDataStringConstraint,
+	extractExtendedColumnType,
+	getColumnTable,
+	getTableName,
+} from 'drizzle-orm';
 import { z as zod } from 'zod/v4';
 import { CONSTANTS } from './constants.ts';
-import type { CreateSchemaFactoryOptions } from './schema.types.ts';
-import { isColumnType, isWithEnum } from './utils.ts';
+import type { CoerceOptions, FactoryOptions } from './schema.types.ts';
 import type { Json } from './utils.ts';
 
 export const literalSchema = zod.union([zod.string(), zod.number(), zod.boolean(), zod.null()]);
@@ -70,65 +25,46 @@ export const bufferSchema: zod.ZodType<Buffer> = zod.custom<Buffer>((v) => v ins
 export function columnToSchema(
 	column: Column,
 	factory:
-		| CreateSchemaFactoryOptions<
-			Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined
-		>
+		| FactoryOptions
 		| undefined,
 ): zod.ZodType {
 	const z: typeof zod = factory?.zodInstance ?? zod;
 	const coerce = factory?.coerce ?? {};
 	let schema!: zod.ZodType;
+	const { type, constraint } = extractExtendedColumnType(column);
 
-	if (isWithEnum(column)) {
-		schema = column.enumValues.length ? z.enum(column.enumValues) : z.string();
-	}
-
-	if (!schema) {
-		// Handle specific types
-		if (isColumnType<PgGeometry<any> | PgPointTuple<any>>(column, ['PgGeometry', 'PgPointTuple'])) {
-			schema = z.tuple([z.number(), z.number()]);
-		} else if (
-			isColumnType<PgPointObject<any> | PgGeometryObject<any>>(column, ['PgGeometryObject', 'PgPointObject'])
-		) {
-			schema = z.object({ x: z.number(), y: z.number() });
-		} else if (isColumnType<PgHalfVector<any> | PgVector<any>>(column, ['PgHalfVector', 'PgVector'])) {
-			schema = z.array(z.number());
-			schema = column.dimensions ? (schema as zod.ZodArray<any>).length(column.dimensions) : schema;
-		} else if (isColumnType<PgLineTuple<any>>(column, ['PgLine'])) {
-			schema = z.tuple([z.number(), z.number(), z.number()]);
-		} else if (isColumnType<PgLineABC<any>>(column, ['PgLineABC'])) {
-			schema = z.object({
-				a: z.number(),
-				b: z.number(),
-				c: z.number(),
-			});
-		} // Handle other types
-		else if (isColumnType<PgArray<any, any>>(column, ['PgArray'])) {
-			schema = z.array(columnToSchema(column.baseColumn, factory));
-			schema = column.size ? (schema as zod.ZodArray<any>).length(column.size) : schema;
-		} else if (column.dataType === 'array') {
-			schema = z.array(z.any());
-		} else if (column.dataType === 'number') {
-			schema = numberColumnToSchema(column, z, coerce);
-		} else if (column.dataType === 'bigint') {
-			schema = bigintColumnToSchema(column, z, coerce);
-		} else if (column.dataType === 'boolean') {
-			schema = coerce === true || coerce.boolean ? z.coerce.boolean() : z.boolean();
-		} else if (column.dataType === 'date') {
-			schema = coerce === true || coerce.date ? z.coerce.date() : z.date();
-		} else if (column.dataType === 'string') {
-			schema = stringColumnToSchema(column, z, coerce);
-		} else if (column.dataType === 'json') {
-			schema = jsonSchema;
-		} else if (column.dataType === 'custom') {
-			schema = z.any();
-		} else if (column.dataType === 'buffer') {
-			schema = bufferSchema;
+	switch (type) {
+		case 'array': {
+			schema = arrayColumnToSchema(column, constraint, z, coerce);
+			break;
 		}
-	}
-
-	if (!schema) {
-		schema = z.any();
+		case 'object': {
+			schema = objectColumnToSchema(column, constraint, z, coerce);
+			break;
+		}
+		case 'number': {
+			schema = numberColumnToSchema(column, constraint, z, coerce);
+			break;
+		}
+		case 'bigint': {
+			schema = bigintColumnToSchema(column, constraint, z, coerce);
+			break;
+		}
+		case 'boolean': {
+			schema = coerce === true || coerce.boolean ? z.coerce.boolean() : z.boolean();
+			break;
+		}
+		case 'string': {
+			schema = stringColumnToSchema(column, constraint, z, coerce);
+			break;
+		}
+		case 'custom': {
+			schema = z.any();
+			break;
+		}
+		default: {
+			schema = z.any();
+		}
 	}
 
 	return schema;
@@ -136,112 +72,110 @@ export function columnToSchema(
 
 function numberColumnToSchema(
 	column: Column,
+	constraint: ColumnDataNumberConstraint | undefined,
 	z: typeof zod,
-	coerce: CreateSchemaFactoryOptions<
-		Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined
-	>['coerce'],
+	coerce: CoerceOptions,
 ): zod.ZodType {
-	let unsigned = column.getSQLType().includes('unsigned');
 	let min!: number;
 	let max!: number;
 	let integer = false;
 
-	if (isColumnType<MySqlTinyInt<any> | SingleStoreTinyInt<any>>(column, ['MySqlTinyInt', 'SingleStoreTinyInt'])) {
-		min = unsigned ? 0 : CONSTANTS.INT8_MIN;
-		max = unsigned ? CONSTANTS.INT8_UNSIGNED_MAX : CONSTANTS.INT8_MAX;
-		integer = true;
-	} else if (
-		isColumnType<PgSmallInt<any> | PgSmallSerial<any> | MySqlSmallInt<any> | SingleStoreSmallInt<any>>(column, [
-			'PgSmallInt',
-			'PgSmallSerial',
-			'MySqlSmallInt',
-			'SingleStoreSmallInt',
-		])
-	) {
-		min = unsigned ? 0 : CONSTANTS.INT16_MIN;
-		max = unsigned ? CONSTANTS.INT16_UNSIGNED_MAX : CONSTANTS.INT16_MAX;
-		integer = true;
-	} else if (
-		isColumnType<
-			PgReal<any> | MySqlFloat<any> | MySqlMediumInt<any> | SingleStoreMediumInt<any> | SingleStoreFloat<any>
-		>(column, [
-			'PgReal',
-			'MySqlFloat',
-			'MySqlMediumInt',
-			'SingleStoreMediumInt',
-			'SingleStoreFloat',
-		])
-	) {
-		min = unsigned ? 0 : CONSTANTS.INT24_MIN;
-		max = unsigned ? CONSTANTS.INT24_UNSIGNED_MAX : CONSTANTS.INT24_MAX;
-		integer = isColumnType(column, ['MySqlMediumInt', 'SingleStoreMediumInt']);
-	} else if (
-		isColumnType<PgInteger<any> | PgSerial<any> | MySqlInt<any> | SingleStoreInt<any>>(column, [
-			'PgInteger',
-			'PgSerial',
-			'MySqlInt',
-			'SingleStoreInt',
-		])
-	) {
-		min = unsigned ? 0 : CONSTANTS.INT32_MIN;
-		max = unsigned ? CONSTANTS.INT32_UNSIGNED_MAX : CONSTANTS.INT32_MAX;
-		integer = true;
-	} else if (
-		isColumnType<
-			| PgDoublePrecision<any>
-			| MySqlReal<any>
-			| MySqlDouble<any>
-			| SingleStoreReal<any>
-			| SingleStoreDouble<any>
-			| SQLiteReal<any>
-		>(column, [
-			'PgDoublePrecision',
-			'MySqlReal',
-			'MySqlDouble',
-			'SingleStoreReal',
-			'SingleStoreDouble',
-			'SQLiteReal',
-		])
-	) {
-		min = unsigned ? 0 : CONSTANTS.INT48_MIN;
-		max = unsigned ? CONSTANTS.INT48_UNSIGNED_MAX : CONSTANTS.INT48_MAX;
-	} else if (
-		isColumnType<
-			| PgBigInt53<any>
-			| PgBigSerial53<any>
-			| MySqlBigInt53<any>
-			| MySqlSerial<any>
-			| SingleStoreBigInt53<any>
-			| SingleStoreSerial<any>
-			| SQLiteInteger<any>
-		>(
-			column,
-			[
-				'PgBigInt53',
-				'PgBigSerial53',
-				'MySqlBigInt53',
-				'MySqlSerial',
-				'SingleStoreBigInt53',
-				'SingleStoreSerial',
-				'SQLiteInteger',
-			],
-		)
-	) {
-		unsigned = unsigned || isColumnType(column, ['MySqlSerial', 'SingleStoreSerial']);
-		min = unsigned ? 0 : Number.MIN_SAFE_INTEGER;
-		max = Number.MAX_SAFE_INTEGER;
-		integer = true;
-	} else if (isColumnType<MySqlYear<any> | SingleStoreYear<any>>(column, ['MySqlYear', 'SingleStoreYear'])) {
-		min = 1901;
-		max = 2155;
-		integer = true;
-	} else {
-		min = Number.MIN_SAFE_INTEGER;
-		max = Number.MAX_SAFE_INTEGER;
+	switch (constraint) {
+		case 'int8': {
+			min = CONSTANTS.INT8_MIN;
+			max = CONSTANTS.INT8_MAX;
+			integer = true;
+			break;
+		}
+		case 'uint8': {
+			min = 0;
+			max = CONSTANTS.INT8_UNSIGNED_MAX;
+			integer = true;
+			break;
+		}
+		case 'int16': {
+			min = CONSTANTS.INT16_MIN;
+			max = CONSTANTS.INT16_MAX;
+			integer = true;
+			break;
+		}
+		case 'uint16': {
+			min = 0;
+			max = CONSTANTS.INT16_UNSIGNED_MAX;
+			integer = true;
+			break;
+		}
+		case 'int24': {
+			min = CONSTANTS.INT24_MIN;
+			max = CONSTANTS.INT24_MAX;
+			integer = true;
+			break;
+		}
+		case 'uint24': {
+			min = 0;
+			max = CONSTANTS.INT24_UNSIGNED_MAX;
+			integer = true;
+			break;
+		}
+		case 'int32': {
+			min = CONSTANTS.INT32_MIN;
+			max = CONSTANTS.INT32_MAX;
+			integer = true;
+			break;
+		}
+		case 'uint32': {
+			min = 0;
+			max = CONSTANTS.INT32_UNSIGNED_MAX;
+			integer = true;
+			break;
+		}
+		case 'int53': {
+			min = Number.MIN_SAFE_INTEGER;
+			max = Number.MAX_SAFE_INTEGER;
+			integer = true;
+			break;
+		}
+		case 'uint53': {
+			min = 0;
+			max = Number.MAX_SAFE_INTEGER;
+			integer = true;
+			break;
+		}
+		case 'float': {
+			min = CONSTANTS.INT24_MIN;
+			max = CONSTANTS.INT24_MAX;
+			break;
+		}
+		case 'ufloat': {
+			min = 0;
+			max = CONSTANTS.INT24_UNSIGNED_MAX;
+			break;
+		}
+		case 'double': {
+			min = CONSTANTS.INT48_MIN;
+			max = CONSTANTS.INT48_MAX;
+			break;
+		}
+		case 'udouble': {
+			min = 0;
+			max = CONSTANTS.INT48_UNSIGNED_MAX;
+			break;
+		}
+		case 'year': {
+			min = 1901;
+			max = 2155;
+			integer = true;
+			break;
+		}
+		default: {
+			min = Number.MIN_SAFE_INTEGER;
+			max = Number.MAX_SAFE_INTEGER;
+			break;
+		}
 	}
 
 	let schema = coerce === true || coerce?.number
-		? integer ? z.coerce.number() : z.coerce.number().int()
+		? integer ? z.coerce.number().int() : z.coerce.number()
 		: integer
 		? z.int()
 		: z.number();
@@ -251,69 +185,131 @@ function numberColumnToSchema(
 
 function bigintColumnToSchema(
 	column: Column,
+	constraint: ColumnDataBigIntConstraint | undefined,
 	z: typeof zod,
-	coerce: CreateSchemaFactoryOptions<
-		Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined
-	>['coerce'],
+	coerce: CoerceOptions,
 ): zod.ZodType {
-	const unsigned = column.getSQLType().includes('unsigned');
-	const min = unsigned ? 0n : CONSTANTS.INT64_MIN;
-	const max = unsigned ? CONSTANTS.INT64_UNSIGNED_MAX : CONSTANTS.INT64_MAX;
+	let min!: bigint | undefined;
+	let max!: bigint | undefined;
 
-	const schema = coerce === true || coerce?.bigint ? z.coerce.bigint() : z.bigint();
-	return schema.gte(min).lte(max);
-}
-
-function stringColumnToSchema(
-	column: Column,
-	z: typeof zod,
-	coerce: CreateSchemaFactoryOptions<
-		Partial<Record<'bigint' | 'boolean' | 'date' | 'number' | 'string', true>> | true | undefined
-	>['coerce'],
-): zod.ZodType {
-	if (isColumnType<PgUUID<ColumnBaseConfig<'string', 'PgUUID'>>>(column, ['PgUUID'])) {
-		return z.uuid();
-	}
-
-	let max: number | undefined;
-	let regex: RegExp | undefined;
-	let fixed = false;
-
-	if (isColumnType<PgVarchar<any> | SQLiteText<any>>(column, ['PgVarchar', 'SQLiteText'])) {
-		max = column.length;
-	} else if (
-		isColumnType<MySqlVarChar<any> | SingleStoreVarChar<any>>(column, ['MySqlVarChar', 'SingleStoreVarChar'])
-	) {
-		max = column.length ?? CONSTANTS.INT16_UNSIGNED_MAX;
-	} else if (isColumnType<MySqlText<any> | SingleStoreText<any>>(column, ['MySqlText', 'SingleStoreText'])) {
-		if (column.textType === 'longtext') {
-			max = CONSTANTS.INT32_UNSIGNED_MAX;
-		} else if (column.textType === 'mediumtext') {
-			max = CONSTANTS.INT24_UNSIGNED_MAX;
-		} else if (column.textType === 'text') {
-			max = CONSTANTS.INT16_UNSIGNED_MAX;
-		} else {
-			max = CONSTANTS.INT8_UNSIGNED_MAX;
+	switch (constraint) {
+		case 'int64': {
+			min = CONSTANTS.INT64_MIN;
+			max = CONSTANTS.INT64_MAX;
+			break;
+		}
+		case 'uint64': {
+			min = 0n;
+			max = CONSTANTS.INT64_UNSIGNED_MAX;
+			break;
 		}
 	}
 
-	if (
-		isColumnType<PgChar<any> | MySqlChar<any> | SingleStoreChar<any>>(column, [
-			'PgChar',
-			'MySqlChar',
-			'SingleStoreChar',
-		])
-	) {
-		max = column.length;
-		fixed = true;
-	}
+	let schema = coerce === true || coerce?.bigint ? z.coerce.bigint() : z.bigint();
 
-	if (isColumnType<PgBinaryVector<any>>(column, ['PgBinaryVector'])) {
-		regex = /^[01]+$/;
-		max = column.dimensions;
+	if (min !== undefined) schema = schema.min(min);
+	if (max !== undefined) schema = schema.max(max);
+	return schema;
+}
+
+function arrayColumnToSchema(
+	column: Column,
+	constraint: ColumnDataArrayConstraint | undefined,
+	z: typeof zod,
+	coerce: CoerceOptions,
+): zod.ZodType {
+	switch (constraint) {
+		case 'geometry':
+		case 'point': {
+			return z.tuple([z.number(), z.number()]);
+		}
+		case 'line': {
+			return z.tuple([z.number(), z.number(), z.number()]);
+		}
+		case 'vector':
+		case 'halfvector': {
+			const length = column.length;
+			return length
+				? z.array(z.number()).length(length)
+				: z.array(z.number());
+		}
+		case 'basecolumn': {
+			const length = column.length;
+			const schema = (<{ baseColumn?: Column }> column).baseColumn
+				? z.array(columnToSchema((<{ baseColumn?: Column }> column).baseColumn!, {
+					zodInstance: z,
+					coerce,
+				}))
+				: z.array(z.any());
+			if (length) return schema.length(length);
+			return schema;
+		}
+		default: {
+			return z.array(z.any());
+		}
+	}
+}
+
+function objectColumnToSchema(
+	column: Column,
+	constraint: ColumnDataObjectConstraint | undefined,
+	z: typeof zod,
+	coerce: CoerceOptions,
+): zod.ZodType {
+	switch (constraint) {
+		case 'buffer': {
+			return bufferSchema;
+		}
+		case 'date': {
+			return coerce === true || coerce?.date ? z.coerce.date() : z.date();
+		}
+		case 'geometry':
+		case 'point': {
+			return z.object({
+				x: z.number(),
+				y: z.number(),
+			});
+		}
+		case 'json': {
+			return jsonSchema;
+		}
+		case 'line': {
+			return z.object({
+				a: z.number(),
+				b: z.number(),
+				c: z.number(),
+			});
+		}
+		default: {
+			return z.looseObject({});
+		}
+	}
+}
+
+function stringColumnToSchema(
+	column: Column<any>,
+	constraint: ColumnDataStringConstraint | undefined,
+	z: typeof zod,
+	coerce: CoerceOptions,
+): zod.ZodType {
+	const { name: columnName, length, isLengthExact } = column;
+	let regex: RegExp | undefined;
+
+	if (constraint === 'binary') {
+		regex = /^[01]*$/;
+	}
+	if (constraint === 'uuid') return z.uuid();
+	if (constraint === 'enum') {
+		const enumValues = column.enumValues;
+		if (!enumValues) {
+			throw new Error(
+				`Column "${getTableName(getColumnTable(column))}"."${columnName}" is of 'enum' type, but lacks enum values`,
+			);
+		}
+		return z.enum(enumValues);
 	}
 
 	let schema = coerce === true || coerce?.string ? z.coerce.string() : z.string();
 	schema = regex ? schema.regex(regex) : schema;
-	return max && fixed ? schema.length(max) : max ? schema.max(max) : schema;
+	return length && isLengthExact ? schema.length(length) : length ? schema.max(length) : schema;
 }

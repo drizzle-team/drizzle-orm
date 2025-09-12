@@ -965,6 +965,37 @@ function prepareRoles(entities?: {
 	return { useRoles, includeRoles, excludeRoles };
 }
 
+function parsePgArray(input: string): string[] {
+	// Remove surrounding braces
+	const content = input.slice(1, -1);
+
+	const result = [];
+	let current = '';
+	let inQuotes = false;
+
+	for (let i = 0; i < content.length; i++) {
+		const char = content[i];
+
+		if (char === '"') {
+			if (inQuotes && content[i + 1] === '"') {
+				// Escaped quote inside quoted string
+				current += '"';
+				i++; // skip next quote
+			} else {
+				inQuotes = !inQuotes;
+			}
+		} else if (char === ',' && !inQuotes) {
+			result.push(current);
+			current = '';
+		} else {
+			current += char;
+		}
+	}
+	result.push(current);
+
+	return result.map((item) => item.trim());
+}
+
 export const fromDatabase = async (
 	db: DB,
 	tablesFilter: (table: string) => boolean = () => true,
@@ -1266,42 +1297,54 @@ WHERE
 
 					const tableForeignKeys = await db.query(
 						`SELECT
-            con.contype AS constraint_type,
-            nsp.nspname AS constraint_schema,
-            con.conname AS constraint_name,
-            rel.relname AS table_name,
-            att.attname AS column_name,
-            fnsp.nspname AS foreign_table_schema,
-            frel.relname AS foreign_table_name,
-            fatt.attname AS foreign_column_name,
-            CASE con.confupdtype
-              WHEN 'a' THEN 'NO ACTION'
-              WHEN 'r' THEN 'RESTRICT'
-              WHEN 'n' THEN 'SET NULL'
-              WHEN 'c' THEN 'CASCADE'
-              WHEN 'd' THEN 'SET DEFAULT'
-            END AS update_rule,
-            CASE con.confdeltype
-              WHEN 'a' THEN 'NO ACTION'
-              WHEN 'r' THEN 'RESTRICT'
-              WHEN 'n' THEN 'SET NULL'
-              WHEN 'c' THEN 'CASCADE'
-              WHEN 'd' THEN 'SET DEFAULT'
-            END AS delete_rule
-          FROM
-            pg_catalog.pg_constraint con
-            JOIN pg_catalog.pg_class rel ON rel.oid = con.conrelid
-            JOIN pg_catalog.pg_namespace nsp ON nsp.oid = con.connamespace
-            LEFT JOIN pg_catalog.pg_attribute att ON att.attnum = ANY (con.conkey)
-              AND att.attrelid = con.conrelid
-            LEFT JOIN pg_catalog.pg_class frel ON frel.oid = con.confrelid
-            LEFT JOIN pg_catalog.pg_namespace fnsp ON fnsp.oid = frel.relnamespace
-            LEFT JOIN pg_catalog.pg_attribute fatt ON fatt.attnum = ANY (con.confkey)
-              AND fatt.attrelid = con.confrelid
-          WHERE
-            nsp.nspname = '${tableSchema}'
-            AND rel.relname = '${tableName}'
-            AND con.contype IN ('f');`,
+    con.contype::text AS constraint_type,
+    nsp.nspname AS constraint_schema,
+    con.conname AS constraint_name,
+    rel.relname AS table_name,
+    pg_get_constraintdef(con.oid) AS expression,
+    fnsp.nspname AS foreign_table_schema,
+    frel.relname AS foreign_table_name,
+    -- Aggregate the local column names in order
+    array_agg(att.attname ORDER BY gs.n) AS column_names,
+    -- Aggregate the column order numbers (which will be 1,2,...)
+    array_agg(gs.n ORDER BY gs.n) AS column_positions,
+    -- Aggregate the foreign (referenced) column names in order
+    array_agg(fatt.attname ORDER BY gs.n) AS foreign_column_names,
+    CASE con.confupdtype
+         WHEN 'a' THEN 'NO ACTION'
+         WHEN 'r' THEN 'RESTRICT'
+         WHEN 'n' THEN 'SET NULL'
+         WHEN 'c' THEN 'CASCADE'
+         WHEN 'd' THEN 'SET DEFAULT'
+    END AS update_rule,
+    CASE con.confdeltype
+         WHEN 'a' THEN 'NO ACTION'
+         WHEN 'r' THEN 'RESTRICT'
+         WHEN 'n' THEN 'SET NULL'
+         WHEN 'c' THEN 'CASCADE'
+         WHEN 'd' THEN 'SET DEFAULT'
+    END AS delete_rule
+FROM pg_constraint con
+JOIN pg_namespace nsp ON nsp.oid = con.connamespace
+JOIN pg_class rel ON rel.oid = con.conrelid
+-- Unnest the array of referencing column numbers with ordinality
+JOIN LATERAL unnest(con.conkey) WITH ORDINALITY AS gs(attnum, n) ON true
+JOIN pg_attribute att 
+       ON att.attrelid = con.conrelid 
+      AND att.attnum = gs.attnum
+LEFT JOIN pg_class frel ON frel.oid = con.confrelid
+LEFT JOIN pg_namespace fnsp ON fnsp.oid = frel.relnamespace
+-- Unnest the array of referenced column numbers in the same order
+JOIN LATERAL unnest(con.confkey) WITH ORDINALITY AS gs2(attnum, n) ON gs.n = gs2.n
+JOIN pg_attribute fatt 
+       ON fatt.attrelid = con.confrelid 
+      AND fatt.attnum = gs2.attnum
+WHERE con.contype = 'f'
+  AND rel.relname = '${tableName}'
+  AND nsp.nspname = '${tableSchema}'
+GROUP BY con.oid, nsp.nspname, con.conname, rel.relname, fnsp.nspname, frel.relname,
+         con.contype, con.confupdtype, con.confdeltype
+ORDER BY con.conname;`,
 					);
 
 					foreignKeysCount += tableForeignKeys.length;
@@ -1309,36 +1352,24 @@ WHERE
 						progressCallback('fks', foreignKeysCount, 'fetching');
 					}
 					for (const fk of tableForeignKeys) {
-						// const tableFrom = fk.table_name;
-						const columnFrom: string = fk.column_name;
+						const columnsFrom: string[] = parsePgArray(fk.column_names);
 						const tableTo = fk.foreign_table_name;
-						const columnTo: string = fk.foreign_column_name;
+						const columnsTo: string[] = parsePgArray(fk.foreign_column_names);
 						const schemaTo: string = fk.foreign_table_schema;
 						const foreignKeyName = fk.constraint_name;
 						const onUpdate = fk.update_rule?.toLowerCase();
 						const onDelete = fk.delete_rule?.toLowerCase();
 
-						if (typeof foreignKeysToReturn[foreignKeyName] !== 'undefined') {
-							foreignKeysToReturn[foreignKeyName].columnsFrom.push(columnFrom);
-							foreignKeysToReturn[foreignKeyName].columnsTo.push(columnTo);
-						} else {
-							foreignKeysToReturn[foreignKeyName] = {
-								name: foreignKeyName,
-								tableFrom: tableName,
-								tableTo,
-								schemaTo,
-								columnsFrom: [columnFrom],
-								columnsTo: [columnTo],
-								onDelete,
-								onUpdate,
-							};
-						}
-
-						foreignKeysToReturn[foreignKeyName].columnsFrom = [
-							...new Set(foreignKeysToReturn[foreignKeyName].columnsFrom),
-						];
-
-						foreignKeysToReturn[foreignKeyName].columnsTo = [...new Set(foreignKeysToReturn[foreignKeyName].columnsTo)];
+						foreignKeysToReturn[foreignKeyName] = {
+							name: foreignKeyName,
+							tableFrom: tableName,
+							tableTo,
+							schemaTo,
+							columnsFrom: columnsFrom,
+							columnsTo: columnsTo,
+							onDelete,
+							onUpdate,
+						};
 					}
 
 					const uniqueConstrainsRows = tableConstraints.filter((mapRow) => mapRow.constraint_type === 'UNIQUE');

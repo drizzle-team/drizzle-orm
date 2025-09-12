@@ -1,42 +1,34 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
-import { getColumnNameAndConfig } from '~/utils.ts';
+import type { SingleStoreTable } from '~/singlestore-core/table.ts';
+import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoIncrement } from './common.ts';
 
-export type SingleStoreIntBuilderInitial<TName extends string> = SingleStoreIntBuilder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'SingleStoreInt';
-	data: number;
-	driverParam: number | string;
-	enumValues: undefined;
-	generated: undefined;
-}>;
-
-export class SingleStoreIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'SingleStoreInt'>>
-	extends SingleStoreColumnBuilderWithAutoIncrement<T, SingleStoreIntConfig>
+export class SingleStoreIntBuilder<TUnsigned extends boolean | undefined>
+	extends SingleStoreColumnBuilderWithAutoIncrement<{
+		name: string;
+		dataType: Equal<TUnsigned, true> extends true ? 'number uint32' : 'number int32';
+		data: number;
+		driverParam: number | string;
+	}, SingleStoreIntConfig>
 {
 	static override readonly [entityKind]: string = 'SingleStoreIntBuilder';
 
-	constructor(name: T['name'], config?: SingleStoreIntConfig) {
-		super(name, 'number', 'SingleStoreInt');
+	constructor(name: string, config?: SingleStoreIntConfig) {
+		super(name, config?.unsigned ? 'number uint32' : 'number int32' as any, 'SingleStoreInt');
 		this.config.unsigned = config ? config.unsigned : false;
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnySingleStoreTable<{ name: TTableName }>,
-	): SingleStoreInt<MakeColumnConfig<T, TTableName>> {
-		return new SingleStoreInt<MakeColumnConfig<T, TTableName>>(
+	override build(table: SingleStoreTable) {
+		return new SingleStoreInt(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
 
-export class SingleStoreInt<T extends ColumnBaseConfig<'number', 'SingleStoreInt'>>
+export class SingleStoreInt<T extends ColumnBaseConfig<'number int32' | 'number uint32'>>
 	extends SingleStoreColumnWithAutoIncrement<T, SingleStoreIntConfig>
 {
 	static override readonly [entityKind]: string = 'SingleStoreInt';
@@ -53,18 +45,17 @@ export class SingleStoreInt<T extends ColumnBaseConfig<'number', 'SingleStoreInt
 	}
 }
 
-export interface SingleStoreIntConfig {
-	unsigned?: boolean;
+export interface SingleStoreIntConfig<TUnsigned extends boolean | undefined = boolean | undefined> {
+	unsigned?: TUnsigned;
 }
 
-export function int(): SingleStoreIntBuilderInitial<''>;
-export function int(
-	config?: SingleStoreIntConfig,
-): SingleStoreIntBuilderInitial<''>;
-export function int<TName extends string>(
-	name: TName,
-	config?: SingleStoreIntConfig,
-): SingleStoreIntBuilderInitial<TName>;
+export function int<TUnsigned extends boolean | undefined>(
+	config?: SingleStoreIntConfig<TUnsigned>,
+): SingleStoreIntBuilder<TUnsigned>;
+export function int<TUnsigned extends boolean | undefined>(
+	name: string,
+	config?: SingleStoreIntConfig<TUnsigned>,
+): SingleStoreIntBuilder<TUnsigned>;
 export function int(a?: string | SingleStoreIntConfig, b?: SingleStoreIntConfig) {
 	const { name, config } = getColumnNameAndConfig<SingleStoreIntConfig>(a, b);
 	return new SingleStoreIntBuilder(name, config);

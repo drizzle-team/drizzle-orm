@@ -1,42 +1,33 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '~/pg-core/table.ts';
+import type { PgTable } from '~/pg-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 import type { Precision } from './timestamp.ts';
 
-export type PgIntervalBuilderInitial<TName extends string> = PgIntervalBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'PgInterval';
+export class PgIntervalBuilder extends PgColumnBuilder<{
+	name: string;
+	dataType: 'string interval';
 	data: string;
 	driverParam: string;
-	enumValues: undefined;
-}>;
-
-export class PgIntervalBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgInterval'>>
-	extends PgColumnBuilder<T, { intervalConfig: IntervalConfig }>
-{
+}, { intervalConfig: IntervalConfig }> {
 	static override readonly [entityKind]: string = 'PgIntervalBuilder';
 
 	constructor(
-		name: T['name'],
+		name: string,
 		intervalConfig: IntervalConfig,
 	) {
-		super(name, 'string', 'PgInterval');
+		super(name, 'string interval', 'PgInterval');
 		this.config.intervalConfig = intervalConfig;
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgInterval<MakeColumnConfig<T, TTableName>> {
-		return new PgInterval<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+	override build(table: PgTable<any>) {
+		return new PgInterval(table, this.config as any);
 	}
 }
 
-export class PgInterval<T extends ColumnBaseConfig<'string', 'PgInterval'>>
+export class PgInterval<T extends ColumnBaseConfig<'string interval'>>
 	extends PgColumn<T, { intervalConfig: IntervalConfig }>
 {
 	static override readonly [entityKind]: string = 'PgInterval';
@@ -69,14 +60,13 @@ export interface IntervalConfig {
 	precision?: Precision;
 }
 
-export function interval(): PgIntervalBuilderInitial<''>;
 export function interval(
 	config?: IntervalConfig,
-): PgIntervalBuilderInitial<''>;
-export function interval<TName extends string>(
-	name: TName,
+): PgIntervalBuilder;
+export function interval(
+	name: string,
 	config?: IntervalConfig,
-): PgIntervalBuilderInitial<TName>;
+): PgIntervalBuilder;
 export function interval(a?: string | IntervalConfig, b: IntervalConfig = {}) {
 	const { name, config } = getColumnNameAndConfig<IntervalConfig>(a, b);
 	return new PgIntervalBuilder(name, config);

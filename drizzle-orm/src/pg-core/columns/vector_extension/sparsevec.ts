@@ -1,44 +1,35 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '~/pg-core/table.ts';
+import type { PgTable } from '~/pg-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { PgColumn, PgColumnBuilder } from '../common.ts';
 
-export type PgSparseVectorBuilderInitial<TName extends string> = PgSparseVectorBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'PgSparseVector';
-	data: string;
-	driverParam: string;
-	enumValues: undefined;
-}>;
-
-export class PgSparseVectorBuilder<T extends ColumnBuilderBaseConfig<'string', 'PgSparseVector'>>
-	extends PgColumnBuilder<
-		T,
-		{ dimensions: number | undefined }
-	>
-{
+export class PgSparseVectorBuilder extends PgColumnBuilder<
+	{
+		name: string;
+		dataType: 'string sparsevec';
+		data: string;
+		driverParam: string;
+	},
+	{ dimensions: number | undefined }
+> {
 	static override readonly [entityKind]: string = 'PgSparseVectorBuilder';
 
 	constructor(name: string, config: PgSparseVectorConfig) {
-		super(name, 'string', 'PgSparseVector');
+		super(name, 'string sparsevec', 'PgSparseVector');
 		this.config.dimensions = config.dimensions;
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgSparseVector<MakeColumnConfig<T, TTableName>> {
-		return new PgSparseVector<MakeColumnConfig<T, TTableName>>(
+	override build(table: PgTable<any>) {
+		return new PgSparseVector(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
 
-export class PgSparseVector<T extends ColumnBaseConfig<'string', 'PgSparseVector'>>
+export class PgSparseVector<T extends ColumnBaseConfig<'string sparsevec'>>
 	extends PgColumn<T, { dimensions: number | undefined }>
 {
 	static override readonly [entityKind]: string = 'PgSparseVector';
@@ -56,11 +47,11 @@ export interface PgSparseVectorConfig {
 
 export function sparsevec(
 	config: PgSparseVectorConfig,
-): PgSparseVectorBuilderInitial<''>;
-export function sparsevec<TName extends string>(
-	name: TName,
+): PgSparseVectorBuilder;
+export function sparsevec(
+	name: string,
 	config: PgSparseVectorConfig,
-): PgSparseVectorBuilderInitial<TName>;
+): PgSparseVectorBuilder;
 export function sparsevec(a: string | PgSparseVectorConfig, b?: PgSparseVectorConfig) {
 	const { name, config } = getColumnNameAndConfig<PgSparseVectorConfig>(a, b);
 	return new PgSparseVectorBuilder(name, config);
