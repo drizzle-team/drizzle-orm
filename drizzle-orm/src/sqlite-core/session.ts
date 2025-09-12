@@ -48,7 +48,7 @@ export abstract class SQLitePreparedQuery<T extends PreparedQueryConfig> impleme
 
 	constructor(
 		private mode: 'sync' | 'async',
-		private executeMethod: SQLiteExecuteMethod,
+		protected executeMethod: SQLiteExecuteMethod,
 		protected query: Query,
 		private cache?: Cache,
 		// per query related metadata
