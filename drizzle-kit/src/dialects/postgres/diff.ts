@@ -1,4 +1,3 @@
-import { createHash } from 'crypto';
 import { parse, stringify } from 'src/utils/when-json-met-bigint';
 import { prepareMigrationRenames, trimChar } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
@@ -741,7 +740,7 @@ export const ddlDiff = async (
 		) {
 			if (it.default.from !== null && it.default.to !== null) {
 				const left = stringify(parse(trimChar(it.default.from.value, "'")));
-				const right = stringify(parse(trimChar(it.default.from.value, "'")));
+				const right = stringify(parse(trimChar(it.default.to.value, "'")));
 				if (left === right) {
 					delete it.default;
 				}

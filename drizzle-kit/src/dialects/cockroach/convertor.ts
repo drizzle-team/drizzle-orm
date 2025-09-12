@@ -89,7 +89,13 @@ const createTableConvertor = convertor('create_table', (st) => {
 
 		const defaultStatement = column.default ? ` DEFAULT ${defaultToSQL(column)}` : '';
 
-		const type = column.type;
+		const schemaPrefix = column.typeSchema && column.typeSchema !== 'public'
+			? `"${column.typeSchema}".`
+			: '';
+		let type = column.typeSchema
+			? `"${column.type}"`
+			: column.type;
+		type = `${schemaPrefix}${type}${'[]'.repeat(column.dimensions)}`;
 
 		const generated = column.generated;
 
@@ -176,7 +182,13 @@ const addColumnConvertor = convertor('add_column', (st) => {
 
 	const defaultStatement = column.default ? ` DEFAULT ${defaultToSQL(column)}` : '';
 
-	const type = column.type;
+	const schemaPrefix = column.typeSchema && column.typeSchema !== 'public'
+		? `"${column.typeSchema}".`
+		: '';
+	const type = column.typeSchema
+		? `"${column.type}"`
+		: column.type;
+	let fixedType = `${schemaPrefix}${type}${'[]'.repeat(column.dimensions)}`;
 
 	const notNullStatement = column.notNull && !identity && !generated ? ' NOT NULL' : '';
 
@@ -192,7 +204,7 @@ const addColumnConvertor = convertor('add_column', (st) => {
 
 	const generatedStatement = column.generated ? ` GENERATED ALWAYS AS (${column.generated.as}) STORED` : '';
 
-	return `ALTER TABLE ${tableNameWithSchema} ADD COLUMN "${name}" ${type}${primaryKeyStatement}${defaultStatement}${generatedStatement}${notNullStatement}${identityStatement};`;
+	return `ALTER TABLE ${tableNameWithSchema} ADD COLUMN "${name}" ${fixedType}${primaryKeyStatement}${defaultStatement}${generatedStatement}${notNullStatement}${identityStatement};`;
 });
 
 const dropColumnConvertor = convertor('drop_column', (st) => {
@@ -233,9 +245,23 @@ const alterColumnConvertor = convertor('alter_column', (st) => {
 	}
 
 	if (diff.type) {
-		const type = column.type;
+		const typeSchema = column.typeSchema && column.typeSchema !== 'public' ? `"${column.typeSchema}".` : '';
+		const textProxy = wasEnum && isEnum ? 'text::' : ''; // using enum1::text::enum2
+		const suffix = isEnum
+			? ` USING "${column.name}"::${textProxy}${typeSchema}"${column.type}"${'[]'.repeat(column.dimensions)}`
+			: '';
 
-		statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${type};`);
+		const type = diff.typeSchema?.to && diff.typeSchema.to !== 'public'
+			? `"${diff.typeSchema.to}"."${diff.type.to}"`
+			: isEnum
+			? `"${diff.type.to}"`
+			: diff.type.to;
+
+		statements.push(
+			`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DATA TYPE ${type}${
+				'[]'.repeat(column.dimensions)
+			}${suffix};`,
+		);
 
 		if (recreateDefault) {
 			statements.push(`ALTER TABLE ${key} ALTER COLUMN "${column.name}" SET DEFAULT ${defaultToSQL(column)};`);

@@ -58,8 +58,8 @@ test.each([
 
 test('wrap chars', () => {
 	expect.soft(wrapWith('10:20:30', "'")).toBe("'10:20:30'");
-	expect.soft(wrapWith("10:20:30'", "'")).toBe("10:20:30'");
-	expect.soft(wrapWith("'10:20:30", "'")).toBe("'10:20:30");
+	expect.soft(wrapWith("10:20:30'", "'")).toBe("'10:20:30''");
+	expect.soft(wrapWith("'10:20:30", "'")).toBe("''10:20:30'");
 });
 
 test('is time', () => {
