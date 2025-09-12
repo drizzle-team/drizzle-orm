@@ -3,8 +3,6 @@ import type { SqlError } from '@effect/sql/SqlError';
 import type { Effect } from 'effect';
 import { effectWrap } from '~/effect/effect-wrapper.ts';
 import { entityKind, is } from '~/entity.ts';
-import type { Assume } from '~/index.ts';
-import { getTableColumns } from '~/index.ts';
 import type {
 	BuildSubquerySelection,
 	GetSelectTableName,
@@ -15,19 +13,21 @@ import type {
 } from '~/query-builders/select.types.ts';
 import type { ColumnsSelection } from '~/sql/sql.ts';
 import { SQL } from '~/sql/sql.ts';
-import type { SQLiteSelectExecute, SQLiteSelectQueryBuilderBase } from '~/sqlite-core';
 import type { SQLiteDialect } from '~/sqlite-core/dialect.ts';
 import { SQLiteSelectBase } from '~/sqlite-core/query-builders/select.ts';
+import type { SQLiteSelectQueryBuilderBase } from '~/sqlite-core/query-builders/select.ts';
 import type {
 	AnySQLiteSelect,
 	SelectedFields,
+	SQLiteSelectExecute,
 	SQLiteSelectQueryBuilderHKT,
 } from '~/sqlite-core/query-builders/select.types.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import { SQLiteViewBase } from '~/sqlite-core/view-base.ts';
 import { Subquery } from '~/subquery.ts';
+import { type Assume, getTableColumns } from '~/utils.ts';
 import { ViewBaseConfig } from '~/view-common.ts';
-import type { EffectSQLitePreparedQuery, EffectSQLiteSession } from '../session';
+import type { EffectSQLitePreparedQuery, EffectSQLiteSession } from '../session.ts';
 
 export type CreateEffectSQLiteSelectFromBuilderMode<
 	TBuilderMode extends 'db' | 'qb',
