@@ -106,7 +106,7 @@ test('check imports postgres-studio', () => {
 	const issues = analyzeImports({
 		basePath: '.',
 		localPaths: ['src'],
-		whiteList: ['camelcase', 'ohm-js'],
+		whiteList: ['camelcase', 'ohm-js', '@js-temporal/polyfill'],
 		entry: 'src/ext/studio-postgres.ts',
 		logger: true,
 		ignoreTypes: true,
@@ -125,7 +125,7 @@ test('check imports postgres-mover', () => {
 	const issues = analyzeImports({
 		basePath: '.',
 		localPaths: ['src'],
-		whiteList: ['camelcase', 'ohm-js'],
+		whiteList: ['camelcase', 'ohm-js', '@js-temporal/polyfill'],
 		entry: 'src/ext/mover-postgres.ts',
 		logger: true,
 		ignoreTypes: true,
