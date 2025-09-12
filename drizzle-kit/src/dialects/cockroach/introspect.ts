@@ -67,7 +67,7 @@ function prepareRoles(entities?: {
 // TODO: since we by default only introspect public
 export const fromDatabase = async (
 	db: DB,
-	tablesFilter: (table: string) => boolean = () => true,
+	tablesFilter: (schema: string, table: string) => boolean = () => true,
 	schemaFilter: (schema: string) => boolean = () => true,
 	entities?: Entities,
 	progressCallback: (stage: IntrospectStage, count: number, status: IntrospectStatus) => void = () => {},
@@ -152,14 +152,14 @@ export const fromDatabase = async (
 	);
 
 	const filteredNamespaces = other.filter((it) => schemaFilter(it.name));
-	const filteredNamespacesIds = filteredNamespaces.map((it) => it.oid);
+	const filteredNamespacesStringForSQL = filteredNamespaces.map((ns) => `'${ns.name}'`).join(',');
 
 	schemas.push(...filteredNamespaces.map<Schema>((it) => ({ entityType: 'schemas', name: it.name })));
 
 	const tablesList = await db
 		.query<{
 			oid: number;
-			schemaId: number;
+			schema: string;
 			name: string;
 
 			/* r - table, v - view, m - materialized view */
@@ -172,26 +172,26 @@ export const fromDatabase = async (
 		}>(
 			`
 			SELECT
-				oid,
-				relnamespace AS "schemaId",
+				pg_class.oid,
+				nspname as "schema",
 				relname AS "name",
 				relkind AS "kind",
 				relam as "accessMethod",
 				reloptions::text[] as "options",
 				reltablespace as "tablespaceid",
 				relrowsecurity AS "rlsEnabled",
-				case 
-					when relkind = 'v' or relkind = 'm'
-						then pg_get_viewdef(oid, true)
-					else null 
-				end as "definition"
+				CASE
+					WHEN relkind OPERATOR(pg_catalog.=) 'v' OR relkind OPERATOR(pg_catalog.=) 'm'
+						THEN pg_catalog.pg_get_viewdef(pg_class.oid, true)
+					ELSE null
+				END as "definition"
 			FROM
-				pg_class
+				pg_catalog.pg_class
+			JOIN pg_catalog.pg_namespace ON pg_namespace.oid OPERATOR(pg_catalog.=) relnamespace
 			WHERE
-				relkind IN ('r', 'v', 'm')
-				AND relnamespace IN (${filteredNamespacesIds.join(', ')})
-			ORDER BY relnamespace, lower(relname)
-		;`,
+				relkind IN ('r', 'p', 'v', 'm')
+				AND nspname IN (${filteredNamespacesStringForSQL})
+			ORDER BY pg_catalog.lower(nspname), pg_catalog.lower(relname);`,
 		)
 		.then((rows) => {
 			queryCallback('tables', rows, null);
@@ -205,12 +205,11 @@ export const fromDatabase = async (
 	const viewsList = tablesList.filter((it) => it.kind === 'v' || it.kind === 'm');
 
 	const filteredTables = tablesList
-		.filter((it) => it.kind === 'r' && tablesFilter(it.name))
+		.filter((it) => it.kind === 'r' && tablesFilter(it.schema, it.name))
 		.map((it) => {
-			const schema = filteredNamespaces.find((ns) => ns.oid === it.schemaId)!;
 			return {
 				...it,
-				schema: trimChar(schema.name, '"'), // when camel case name e.x. mySchema -> it gets wrapped to "mySchema"
+				schema: trimChar(it.schema, '"'), // when camel case name e.x. mySchema -> it gets wrapped to "mySchema"
 			};
 		});
 	const filteredTableIds = filteredTables.map((it) => it.oid);
@@ -274,25 +273,26 @@ export const fromDatabase = async (
 		.query<{
 			oid: number;
 			name: string;
-			schemaId: number;
+			schema: string;
 			arrayTypeId: number;
 			ordinality: number;
 			value: string;
 		}>(
 			`SELECT
-					pg_type.oid as "oid",
-					typname as "name",
-					typnamespace as "schemaId",
-					pg_type.typarray as "arrayTypeId",
-					pg_enum.enumsortorder AS "ordinality",
-					pg_enum.enumlabel AS "value"
-				FROM
-					pg_type
-				JOIN pg_enum on pg_enum.enumtypid=pg_type.oid
-				WHERE
-					pg_type.typtype = 'e'
-					AND typnamespace IN (${filteredNamespacesIds.join(',')})
-				ORDER BY pg_type.oid, pg_enum.enumsortorder
+				pg_type.oid as "oid",
+				typname as "name",
+				nspname as "schema",
+				pg_type.typarray as "arrayTypeId",
+				pg_enum.enumsortorder AS "ordinality",
+				pg_enum.enumlabel AS "value"
+			FROM
+				pg_catalog.pg_type
+			JOIN pg_catalog.pg_enum ON pg_enum.enumtypid OPERATOR(pg_catalog.=) pg_type.oid
+			JOIN pg_catalog.pg_namespace ON pg_namespace.oid OPERATOR(pg_catalog.=) pg_type.typnamespace
+			WHERE
+				pg_type.typtype OPERATOR(pg_catalog.=) 'e'
+				AND nspname IN (${filteredNamespacesStringForSQL})
+			ORDER BY pg_type.oid, pg_enum.enumsortorder
 		`,
 		)
 		.then((rows) => {
@@ -306,7 +306,7 @@ export const fromDatabase = async (
 
 	const sequencesQuery = db
 		.query<{
-			schemaId: number;
+			schema: string;
 			oid: number;
 			name: string;
 			startWith: string;
@@ -317,23 +317,24 @@ export const fromDatabase = async (
 			cacheSize: string;
 		}>(
 			`SELECT 
-    pg_class.relnamespace as "schemaId",
-    pg_class.relname as "name",
-    pg_sequence.seqrelid as "oid",
-    pg_sequence.seqstart as "startWith", 
-    pg_sequence.seqmin as "minValue", 
-    pg_sequence.seqmax as "maxValue", 
-    pg_sequence.seqincrement as "incrementBy", 
-    pg_sequence.seqcycle as "cycle", 
-    COALESCE(pgs.cache_size, pg_sequence.seqcache) as "cacheSize"
-FROM pg_sequence
-LEFT JOIN pg_class ON pg_sequence.seqrelid = pg_class.oid
-LEFT JOIN pg_sequences pgs ON (
-    pgs.sequencename = pg_class.relname 
-    AND pgs.schemaname = pg_class.relnamespace::regnamespace::text
-)
-WHERE relnamespace IN (${filteredNamespacesIds.join(',')})
-ORDER BY pg_class.relnamespace, lower(pg_class.relname)
+			nspname as "schema",
+			relname as "name",
+			seqrelid as "oid",
+			seqstart as "startWith", 
+			seqmin as "minValue", 
+			seqmax as "maxValue", 
+			seqincrement as "incrementBy", 
+			seqcycle as "cycle", 
+			COALESCE(pgs.cache_size, pg_sequence.seqcache) as "cacheSize"
+		FROM pg_catalog.pg_sequence
+		JOIN pg_catalog.pg_class ON pg_sequence.seqrelid OPERATOR(pg_catalog.=) pg_class.oid
+		JOIN pg_catalog.pg_namespace ON pg_namespace.oid OPERATOR(pg_catalog.=) pg_class.relnamespace
+		LEFT JOIN pg_sequences pgs ON (
+		    pgs.sequencename = pg_class.relname 
+    		AND pgs.schemaname = pg_class.relnamespace::regnamespace::text
+		)
+		WHERE nspname IN (${filteredNamespacesStringForSQL})
+		ORDER BY pg_catalog.lower(nspname), pg_catalog.lower(relname);
 ;`,
 		)
 		.then((rows) => {
@@ -515,7 +516,10 @@ ORDER BY pg_class.relnamespace, lower(pg_class.relname)
 						FROM
 							(
 								SELECT
-									pg_get_serial_sequence("table_schema" || '.' || "table_name", "attname")::regclass::oid as "seqId",
+									pg_get_serial_sequence(
+										quote_ident("table_schema") || '.' || quote_ident("table_name"), 
+										"attname"
+									)::regclass::oid as "seqId",
 									"identity_generation" AS generation,
 									"identity_start" AS "start",
 									"identity_increment" AS "increment",
@@ -607,10 +611,9 @@ ORDER BY pg_class.relnamespace, lower(pg_class.relname)
 	const groupedEnums = enumsList.reduce(
 		(acc, it) => {
 			if (!(it.oid in acc)) {
-				const schemaName = filteredNamespaces.find((sch) => sch.oid === it.schemaId)!.name;
 				acc[it.oid] = {
 					oid: it.oid,
-					schema: schemaName,
+					schema: it.schema,
 					name: it.name,
 					values: [it.value],
 				};
@@ -625,10 +628,9 @@ ORDER BY pg_class.relnamespace, lower(pg_class.relname)
 	const groupedArrEnums = enumsList.reduce(
 		(acc, it) => {
 			if (!(it.arrayTypeId in acc)) {
-				const schemaName = filteredNamespaces.find((sch) => sch.oid === it.schemaId)!.name;
 				acc[it.arrayTypeId] = {
 					oid: it.oid,
-					schema: schemaName,
+					schema: it.schema,
 					name: it.name,
 					values: [it.value],
 				};
@@ -668,7 +670,7 @@ ORDER BY pg_class.relnamespace, lower(pg_class.relname)
 
 		sequences.push({
 			entityType: 'sequences',
-			schema: namespaces.find((ns) => ns.oid === seq.schemaId)?.name!,
+			schema: seq.schema,
 			name: seq.name,
 			startWith: parseIdentityProperty(seq.startWith),
 			minValue: parseIdentityProperty(seq.minValue),
@@ -713,9 +715,8 @@ ORDER BY pg_class.relnamespace, lower(pg_class.relname)
 
 	for (const column of columnsList.filter((x) => x.kind === 'r' && !x.isHidden)) {
 		const table = tablesList.find((it) => it.oid === column.tableId)!;
-		const schema = namespaces.find((it) => it.oid === table.schemaId)!;
 		const extraColumnConfig = extraColumnDataTypesList.find((it) =>
-			it.column_name === column.name && it.table_name === table.name && it.table_schema === schema.name
+			it.column_name === column.name && it.table_name === table.name && it.table_schema === table.schema
 		)!;
 
 		// supply enums
@@ -726,23 +727,14 @@ ORDER BY pg_class.relnamespace, lower(pg_class.relname)
 			: null;
 
 		let columnTypeMapped;
-		// // if you create string(200), in pg system tables this will be stored as text(204)
-		// const unintrospectedPrecisions = ["vector", "interval", "text"];
-		// if (enumType) {
-		//   columnTypeMapped = enumType.name;
-		// } else if (unintrospectedPrecisions.find((it) => extraColumnConfig.data_type.startsWith(it))) {
-		//   columnTypeMapped = extraColumnConfig.data_type;
-		// }  else {
-		//   columnTypeMapped = column.type;
-		// }
 
-		columnTypeMapped = extraColumnConfig.data_type;
+		columnTypeMapped = enumType
+			? enumType.name
+			: extraColumnConfig.data_type.replace('character', 'char').replace('float8', 'float').replace(
+				'float4',
+				'real',
+			).replaceAll('[]', '');
 		const columnDimensions = Number(column.dimensions);
-
-		columnTypeMapped = columnTypeMapped.replace('character', 'char').replace('float8', 'float').replace(
-			'float4',
-			'real',
-		);
 
 		columnTypeMapped = trimChar(columnTypeMapped, '"');
 
@@ -770,7 +762,7 @@ ORDER BY pg_class.relnamespace, lower(pg_class.relname)
 		const metadata = column.metadata;
 		if (column.generatedType === 's' && (!metadata || !metadata.expression)) {
 			throw new Error(
-				`Generated ${schema.name}.${table.name}.${column.name} columns missing expression: \n${
+				`Generated ${table.schema}.${table.name}.${column.name} columns missing expression: \n${
 					JSON.stringify(column.metadata)
 				}`,
 			);
@@ -778,7 +770,7 @@ ORDER BY pg_class.relnamespace, lower(pg_class.relname)
 
 		if (column.identityType !== '' && !metadata) {
 			throw new Error(
-				`Identity ${schema.name}.${table.name}.${column.name} columns missing metadata: \n${
+				`Identity ${table.schema}.${table.name}.${column.name} columns missing metadata: \n${
 					JSON.stringify(column.metadata)
 				}`,
 			);
@@ -788,11 +780,11 @@ ORDER BY pg_class.relnamespace, lower(pg_class.relname)
 
 		columns.push({
 			entityType: 'columns',
-			schema: schema.name,
+			schema: table.schema,
 			table: table.name,
 			name: column.name,
 			type: columnTypeMapped,
-			typeSchema: enumType?.schema ?? null,
+			typeSchema: enumType ? enumType.schema ?? 'public' : null,
 			dimensions: columnDimensions,
 			default: column.generatedType === 's' || column.identityType ? null : defaultValue,
 			unique: !!unique,
@@ -1068,7 +1060,6 @@ ORDER BY pg_class.relnamespace, lower(pg_class.relname)
 
 	for (const it of columnsList.filter((x) => (x.kind === 'm' || x.kind === 'v') && !x.isHidden)) {
 		const view = viewsList.find((x) => x.oid === it.tableId)!;
-		const schema = namespaces.find((x) => x.oid === view.schemaId)!;
 
 		const enumType = it.typeId in groupedEnums
 			? groupedEnums[it.typeId]
@@ -1092,7 +1083,7 @@ ORDER BY pg_class.relnamespace, lower(pg_class.relname)
 			.replace('smallint', 'int2');
 
 		viewColumns.push({
-			schema: schema.name,
+			schema: view.schema,
 			view: view.name,
 			name: it.name,
 			type: columnTypeMapped,
@@ -1104,13 +1095,13 @@ ORDER BY pg_class.relnamespace, lower(pg_class.relname)
 
 	for (const view of viewsList) {
 		const viewName = view.name;
-		if (!tablesFilter(viewName)) continue;
+		if (!tablesFilter(view.schema, viewName)) continue;
 
 		const definition = parseViewDefinition(view.definition);
 
 		views.push({
 			entityType: 'views',
-			schema: namespaces.find((it) => it.oid === view.schemaId)!.name,
+			schema: view.schema,
 			name: view.name,
 			definition,
 			materialized: view.kind === 'm',
@@ -1144,7 +1135,7 @@ ORDER BY pg_class.relnamespace, lower(pg_class.relname)
 
 export const fromDatabaseForDrizzle = async (
 	db: DB,
-	tableFilter: (it: string) => boolean = () => true,
+	tableFilter: (schema: string, it: string) => boolean = () => true,
 	schemaFilters: (it: string) => boolean = () => true,
 	entities?: Entities,
 	progressCallback: (stage: IntrospectStage, count: number, status: IntrospectStatus) => void = () => {},

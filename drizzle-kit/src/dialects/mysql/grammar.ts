@@ -2,7 +2,7 @@ import { assertUnreachable, trimChar } from '../../utils';
 import { parse, stringify } from '../../utils/when-json-met-bigint';
 import { escapeForSqlDefault, escapeForTsLiteral, parseParams, unescapeFromSqlDefault } from '../utils';
 import { Column, ForeignKey } from './ddl';
-import { Import } from './typescript';
+import type { Import } from './typescript';
 
 /*
 	TODO: revise handling of float/double in both orm and kit

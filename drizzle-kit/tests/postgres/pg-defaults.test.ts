@@ -9,6 +9,7 @@ import {
 	doublePrecision,
 	geometry,
 	halfvec,
+	inet,
 	integer,
 	interval,
 	json,
@@ -1579,6 +1580,24 @@ test('geometry + geometry arrays', async () => {
 
 	await postgisDb.clear();
 	await postgisDb.close();
+});
+
+test('inet + inet arrays', async () => {
+	const res1 = await diffDefault(_, inet().default('127.0.0.1'), `'127.0.0.1'`);
+	const res2 = await diffDefault(_, inet().default('::ffff:192.168.0.1/96'), `'::ffff:192.168.0.1/96'`);
+
+	const res1_1 = await diffDefault(_, inet().array().default(['127.0.0.1']), `'{127.0.0.1}'::inet[]`);
+	const res2_1 = await diffDefault(
+		_,
+		inet().array().default(['::ffff:192.168.0.1/96']),
+		`'{::ffff:192.168.0.1/96}'::inet[]`,
+	);
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+
+	expect.soft(res1_1).toStrictEqual([]);
+	expect.soft(res2_1).toStrictEqual([]);
 });
 
 test.skip('corner cases', async () => {

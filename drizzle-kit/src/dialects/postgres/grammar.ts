@@ -1,5 +1,3 @@
-import { parseEWKB } from 'drizzle-orm/pg-core/columns/postgis_extension/utils';
-
 import { Temporal } from '@js-temporal/polyfill';
 import { parse, stringify } from 'src/utils/when-json-met-bigint';
 import {
@@ -7,6 +5,7 @@ import {
 	isDate,
 	isTime,
 	isTimestamp,
+	parseEWKB,
 	parseIntervalFields,
 	possibleIntervals,
 	stringifyArray,
@@ -1976,10 +1975,10 @@ export const defaultToSQL = (
 
 	if (typeSchema) {
 		const schemaPrefix = typeSchema && typeSchema !== 'public' ? `"${typeSchema}".` : '';
-		return `${value}::${schemaPrefix}"${columnType.replaceAll('[]', '')}"${dimensions > 0 ? '[]' : ''}`;
+		return `${value}::${schemaPrefix}"${columnType}"${dimensions > 0 ? '[]' : ''}`;
 	}
 
-	const suffix = dimensions > 0 ? `::${columnType.replaceAll('[]', '')}[]` : '';
+	const suffix = dimensions > 0 ? `::${columnType}[]` : '';
 
 	const defaultValue = it.default.value ?? '';
 	return `${defaultValue}${suffix}`;

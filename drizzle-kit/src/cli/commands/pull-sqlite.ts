@@ -14,7 +14,7 @@ import { Casing, Prefix } from '../validations/common';
 import type { SqliteCredentials } from '../validations/sqlite';
 import { IntrospectProgress, type IntrospectStage, type IntrospectStatus } from '../views';
 import { writeResult } from './generate-common';
-import { prepareTablesFilter, relationsToTypeScript } from './pull-common';
+import { prepareTablesFilterWithoutSchema, relationsToTypeScript } from './pull-common';
 
 export const handle = async (
 	casing: Casing,
@@ -101,7 +101,7 @@ export const introspect = async (
 		status: IntrospectStatus,
 	) => void = () => {},
 ) => {
-	const filter = prepareTablesFilter(filters);
+	const filter = prepareTablesFilterWithoutSchema(filters);
 
 	const schema = await renderWithTask(taskView, fromDatabaseForDrizzle(db, filter, progressCallback));
 	const res = interimToDDL(schema);
