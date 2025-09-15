@@ -318,7 +318,7 @@ jobs:
       matrix:
         package:
           - drizzle-orm
-          # - drizzle-kit
+          - drizzle-kit
           - drizzle-zod
           - drizzle-seed
           - drizzle-typebox
