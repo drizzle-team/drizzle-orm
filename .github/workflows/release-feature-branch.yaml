@@ -156,13 +156,13 @@ jobs:
 
             gel)
               if [[ -z "$SKIP_EXTERNAL_DB_TESTS" ]]; then
-                pnpm vitest run tests/gel
+                pnpm --stream --aggregate-output vitest --reporter=verbose --silent=false run tests/gel
               fi
             ;;
 
             planetscale)
               if [[ -z "$SKIP_EXTERNAL_DB_TESTS" ]]; then
-                pnpm vitest run \
+                pnpm --stream --aggregate-output vitest --reporter=verbose --silent=false run \
                   tests/mysql/mysql-planetscale.test.ts \
                   tests/relational/mysql.planetscale-v1.test.ts \
                   tests/relational/mysql.planetscale.test.ts
@@ -170,37 +170,37 @@ jobs:
             ;;
 
             singlestore-core)
-              pnpm vitest run tests/singlestore/singlestore.test.ts
+              pnpm --stream --aggregate-output vitest --reporter=verbose --silent=false run tests/singlestore/singlestore.test.ts
             ;;
 
             singlestore-proxy)
-              pnpm vitest run tests/singlestore/singlestore-proxy.test.ts
+              pnpm --stream --aggregate-output vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-proxy.test.ts
             ;;
 
             singlestore-prefixed)
-              pnpm vitest run tests/singlestore/singlestore-prefixed.test.ts
+              pnpm --stream --aggregate-output vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-prefixed.test.ts
             ;;
 
             singlestore-custom)
-              pnpm vitest run tests/singlestore/singlestore-custom.test.ts
+              pnpm --stream --aggregate-output vitest --reporter=verbose --silent=false run tests/singlestore/singlestore-custom.test.ts
             ;;
 
             neon-http)
               if [[ -z "$SKIP_EXTERNAL_DB_TESTS" ]]; then
-                pnpm vitest run tests/pg/neon-http.test.ts tests/pg/neon-http-batch.test.ts
+                pnpm --stream --aggregate-output vitest --reporter=verbose --silent=false run tests/pg/neon-http.test.ts tests/pg/neon-http-batch.test.ts
               fi
             ;;
 
             neon-serverless)
               docker compose -f docker-neon.yml up -d
-              pnpm vitest run --config=./vitest-ci.config.ts tests/pg/neon-serverless.test.ts
+              pnpm --stream --aggregate-output vitest --reporter=verbose --silent=false run --config=./vitest-ci.config.ts tests/pg/neon-serverless.test.ts
               docker compose -f docker-neon.yml down
             ;;
 
             drizzle-kit)
               cd ../drizzle-kit
               pnpm test:types
-              pnpm vitest run
+              pnpm --stream --aggregate-output vitest --reporter=verbose --silent=false run
             ;;
 
             drizzle-orm|drizzle-zod|drizzle-seed|drizzle-typebox|drizzle-valibot|drizzle-arktype)
@@ -208,7 +208,7 @@ jobs:
             ;;
 
             other)
-              pnpm vitest run \
+              pnpm --stream --aggregate-output vitest --reporter=verbose --silent=false run \
                 --exclude tests/gel \
                 --exclude tests/mysql/mysql-planetscale.test.ts \
                 --exclude tests/relational/mysql.planetscale-v1.test.ts \
