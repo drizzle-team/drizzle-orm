@@ -60,7 +60,7 @@ export const pullDiff = async (
 	const { ddl: ddl1, errors: e1 } = interimToDDL(schema);
 
 	const filePath = `tests/singlestore/tmp/${testName}.ts`;
-	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel');
+	const file = ddlToTypeScript(ddl1, schema.viewColumns, 'camel', 'singlestore');
 	writeFileSync(filePath, file.file);
 
 	const typeCheckResult = await $`pnpm exec tsc --noEmit --skipLibCheck ${filePath}`.nothrow();
