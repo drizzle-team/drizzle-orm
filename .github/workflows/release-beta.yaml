@@ -4,14 +4,11 @@ on:
   push:
     branches-ignore:
       - beta
-  pull_request: 
-    branches: 
-      - beta
 
 jobs:
   test:
-    # only run on all pushes or pull requests from forks
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
+    # only run on all pushes
+    if: github.event_name == 'push'
     strategy:
       matrix:
         shard:
