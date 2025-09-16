@@ -2,7 +2,7 @@ name: Release (beta)
 
 on:
   push:
-    branches-ignore:
+    branches:
       - beta
 
 jobs:
