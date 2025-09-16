@@ -1,9 +1,17 @@
-name: Release (latest)
+name: Release (beta)
 
-on: workflow_dispatch
+on:
+  push:
+    branches-ignore:
+      - beta
+  pull_request: 
+    branches: 
+      - beta
 
 jobs:
   test:
+    # only run on all pushes or pull requests from forks
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
     strategy:
       matrix:
         shard:
@@ -16,7 +24,7 @@ jobs:
           - neon-http
           - neon-serverless
           - drizzle-orm
-          - drizzle-kit
+          - drizzle-kit 
           - drizzle-zod
           - drizzle-seed
           - drizzle-typebox
@@ -139,19 +147,28 @@ jobs:
           LIBSQL_REMOTE_URL: ${{ secrets.LIBSQL_REMOTE_URL }}
           LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
           SINGLESTORE_CONNECTION_STRING: singlestore://root:singlestore@localhost:33307/
+          TEST_CONFIG_PATH_PREFIX: ./tests/cli/
         working-directory: integration-tests
         run: |
+          if [[ ${{ github.event_name }} != "push" && "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
+            export SKIP_EXTERNAL_DB_TESTS=1
+          fi
+
           case ${{ matrix.shard }} in
 
             gel)
-              pnpm --stream vitest --reporter=verbose --silent=false run tests/gel
+              if [[ -z "$SKIP_EXTERNAL_DB_TESTS" ]]; then
+                pnpm --stream vitest --reporter=verbose --silent=false run tests/gel
+              fi
             ;;
 
             planetscale)
-              pnpm --stream vitest --reporter=verbose --silent=false run \
-                tests/mysql/mysql-planetscale.test.ts \
-                tests/relational/mysql.planetscale-v1.test.ts \
-                tests/relational/mysql.planetscale.test.ts
+              if [[ -z "$SKIP_EXTERNAL_DB_TESTS" ]]; then
+                pnpm --stream vitest --reporter=verbose --silent=false run \
+                  tests/mysql/mysql-planetscale.test.ts \
+                  tests/relational/mysql.planetscale-v1.test.ts \
+                  tests/relational/mysql.planetscale.test.ts
+              fi
             ;;
 
             singlestore-core)
@@ -171,16 +188,24 @@ jobs:
             ;;
 
             neon-http)
-              pnpm --stream vitest --reporter=verbose --silent=false run tests/pg/neon-http.test.ts tests/pg/neon-http-batch.test.ts
+              if [[ -z "$SKIP_EXTERNAL_DB_TESTS" ]]; then
+                pnpm --stream vitest --reporter=verbose --silent=false run tests/pg/neon-http.test.ts tests/pg/neon-http-batch.test.ts
+              fi
             ;;
 
             neon-serverless)
               docker compose -f docker-neon.yml up -d
-              pnpm --stream vitest --reporter=verbose --silent=false run tests/pg/neon-serverless.test.ts
+              pnpm --stream vitest --reporter=verbose --silent=false run --config=./vitest-ci.config.ts tests/pg/neon-serverless.test.ts
               docker compose -f docker-neon.yml down
             ;;
 
-            drizzle-orm|drizzle-kit|drizzle-zod|drizzle-seed|drizzle-typebox|drizzle-valibot|drizzle-arktype)
+            drizzle-kit)
+              cd ../drizzle-kit
+              pnpm test:types
+              pnpm --stream vitest --reporter=verbose --silent=false run
+            ;;
+
+            drizzle-orm|drizzle-zod|drizzle-seed|drizzle-typebox|drizzle-valibot|drizzle-arktype)
               (cd .. && pnpm test --filter ${{ matrix.shard }})
             ;;
 
@@ -202,6 +227,8 @@ jobs:
           esac
 
   attw:
+    # only run on all pushes or pull requests from forks
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
     strategy:
       matrix:
         package:
@@ -219,7 +246,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '18.18'
+          node-version: '22'
           registry-url: 'https://registry.npmjs.org'
 
       - uses: pnpm/action-setup@v3
@@ -254,15 +281,20 @@ jobs:
         shell: bash
         working-directory: ${{ matrix.package }}
         run: |
-          latest="$(npm view --json ${{ matrix.package }} dist-tags.latest | jq -r)"
-          version="$(jq -r .version package.json)"
+          old_version="$(jq -r .version package.json)"
+          version="$old_version-$(git rev-parse --short HEAD)"
+          npm version $version
+          tag="${{ github.ref_name }}"
           is_version_published="$(npm view ${{ matrix.package }} versions --json | jq -r '.[] | select(. == "'$version'") | . == "'$version'"')"
 
-          if [[ "$is_version_published" == "false" && "$latest" != "$version" ]]; then
+          if [[ "$is_version_published" == "true" ]]; then
+            echo "\`${{ matrix.package }}$version\` already published, adding tag \`$tag\`" >> $GITHUB_STEP_SUMMARY
+            npm dist-tag add ${{ matrix.package }}@$version $tag
+          else
             {
               echo "version=$version"
+              echo "tag=$tag"
               echo "has_new_release=true"
-              echo "changelog_path=$changelogPath"
             } >> $GITHUB_OUTPUT
           fi
 
@@ -283,15 +315,15 @@ jobs:
       - name: Run @arethetypeswrong/cli
         if: steps.checks.outputs.has_new_release == 'true'
         working-directory: ${{ matrix.package }}
-        run: bunx attw package.tgz
+        run: bunx --bun attw package.tgz
 
   release:
-    permissions: write-all
+    # only run on all pushes or pull requests from forks
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
     needs:
       - test
       - attw
     strategy:
-      fail-fast: false
       matrix:
         package:
           - drizzle-orm
@@ -303,58 +335,9 @@ jobs:
           - drizzle-arktype
           - eslint-plugin-drizzle
     runs-on: ubuntu-22.04
-    services:
-      postgres-postgis:
-        image: postgis/postgis:16-3.4
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: drizzle
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 54322:5432
-      postgres-vector:
-        image: pgvector/pgvector:pg16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: drizzle
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 54321:5432
-      postgres:
-        image: postgres:14
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: drizzle
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 55433:5432
-      mysql:
-        image: mysql:8
-        env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: drizzle
-        options: >-
-          --health-cmd "mysqladmin ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 33306:3306
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -392,35 +375,24 @@ jobs:
         shell: bash
         working-directory: ${{ matrix.package }}
         run: |
-          latest="$(npm view --json ${{ matrix.package }} dist-tags.latest | jq -r)"
-          version="$(jq -r .version package.json)"
+          old_version="$(jq -r .version package.json)"
+          version="$old_version-$(git rev-parse --short HEAD)"
+          npm version $version
+          tag="${{ github.ref_name }}"
           is_version_published="$(npm view ${{ matrix.package }} versions --json | jq -r '.[] | select(. == "'$version'") | . == "'$version'"')"
 
           if [[ "$is_version_published" == "true" ]]; then
-            echo "\`${{ matrix.package }}@$version\` already published, adding tag \`latest\`" >> $GITHUB_STEP_SUMMARY
-            npm dist-tag add ${{ matrix.package }}@$version latest
-          elif [[ "$latest" != "$version" ]]; then
-            echo "Latest:  $latest"
-            echo "Current: $version"
-
-            changelogPath=$(node -e "console.log(require('path').resolve('..', 'changelogs', '${{ matrix.package }}', '$version.md'))")
-            if [[ ! -f "$changelogPath" ]]; then
-              echo "::error::Changelog for version $version not found: $changelogPath"
-              exit 1
-            fi
-
+            echo "\`${{ matrix.package }}$version\` already published, adding tag \`$tag\`" >> $GITHUB_STEP_SUMMARY
+            npm dist-tag add ${{ matrix.package }}@$version $tag
+          else
             {
               echo "version=$version"
+              echo "tag=$tag"
               echo "has_new_release=true"
-              echo "changelog_path=$changelogPath"
             } >> $GITHUB_OUTPUT
-          else
-            echo "Already up to date: $version"
-            echo "\`$version\` is already latest on NPM" >> $GITHUB_STEP_SUMMARY
           fi
 
       - name: Build Prisma client
-        if: steps.checks.outputs.has_new_release == 'true'
         working-directory: drizzle-orm
         run: pnpm prisma generate --schema src/prisma/schema.prisma
 
@@ -437,82 +409,19 @@ jobs:
         run: npm run pack
 
       - name: Publish
-        if: steps.checks.outputs.has_new_release == 'true'
+        if: github.event_name == 'push' && steps.checks.outputs.has_new_release == 'true'
+        run: |
+          tag="${{ steps.checks.outputs.tag }}"
+          version="${{ steps.checks.outputs.version }}"
+
+          echo "Publishing ${{ matrix.package }}@$tag using version $version"
+          npm run publish -- --tag $tag
+
+          echo "npm: \`${{ matrix.package }}@$tag | ${{ matrix.package }}@$version\`" >> $GITHUB_STEP_SUMMARY
+
+          # Post release message to Discord
+          # curl -X POST -H "Content-Type: application/json" -d "{\"embeds\": [{\"title\": \"New \`${{ matrix.package }}\` release! 🎉\", \"url\": \"https://www.npmjs.com/package/${{ matrix.package }}/v/$version\", \"color\": \"12907856\", \"fields\": [{\"name\": \"Version\", \"value\": \"\`$version\`\"}, {\"name\": \"Tag\", \"value\": \"\`$tag\`\"}]}]}" ${{ secrets.DISCORD_DEV_RELEASE_WEBHOOK_URL }}
         working-directory: ${{ matrix.package }}
         shell: bash
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
-        run: |
-          version="${{ steps.checks.outputs.version }}"
-
-          echo "Publishing ${{ matrix.package }}@$version"
-          npm run publish
-
-          echo "npm: \`+ ${{ matrix.package }}@$version\`" >> $GITHUB_STEP_SUMMARY
-
-          # Post release message to Discord
-          # curl -X POST -H "Content-Type: application/json" -d "{\"embeds\": [{\"title\": \"New \`${{ matrix.package }}\` release! 🎉\", \"url\": \"https://www.npmjs.com/package/${{ matrix.package }}\", \"color\": \"12907856\", \"fields\": [{\"name\": \"Tag\", \"value\": \"\`$tag\`\"}]}]}" ${{ secrets.DISCORD_RELEASE_WEBHOOK_URL }}
-
-      - name: Create GitHub release for ORM package
-        uses: actions/github-script@v6
-        if: matrix.package == 'drizzle-orm' && steps.checks.outputs.has_new_release == 'true'
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            try {
-              const fs = require("fs");
-              const path = require("path");
-
-              const version = "${{ steps.checks.outputs.version }}";
-              const changelog = fs.readFileSync("${{ steps.checks.outputs.changelog_path }}", "utf8");
-
-              const release = await github.rest.repos.createRelease({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                tag_name: `${version}`,
-                name: `${version}`,
-                body: changelog,
-              });
-
-              await github.rest.repos.uploadReleaseAsset({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                release_id: release.data.id,
-                name: `${{ matrix.package }}-${version}-dist.tgz`,
-                data: fs.readFileSync(path.resolve("${{ matrix.package }}", "package.tgz")),
-              });
-            } catch (e) {
-              core.setFailed(e.message);
-            }
-
-      - name: Create GitHub release for KIT package
-        uses: actions/github-script@v6
-        if: matrix.package == 'drizzle-kit' && steps.checks.outputs.has_new_release == 'true'
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            try {
-              const fs = require("fs");
-              const path = require("path");
-
-              const version = "${{ steps.checks.outputs.version }}";
-              const changelog = fs.readFileSync("${{ steps.checks.outputs.changelog_path }}", "utf8");
-
-              const release = await github.rest.repos.createRelease({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                tag_name: `drizzle-kit@${version}`,
-                name: `drizzle-kit@${version}`,
-                body: changelog,
-              });
-
-              await github.rest.repos.uploadReleaseAsset({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                release_id: release.data.id,
-                name: `${{ matrix.package }}-${version}-dist.tgz`,
-                data: fs.readFileSync(path.resolve("${{ matrix.package }}", "package.tgz")),
-              });
-            } catch (e) {
-              core.setFailed(e.message);
-            }
