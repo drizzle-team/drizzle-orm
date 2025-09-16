@@ -136,6 +136,7 @@ export type Config =
 			dbCredentials: {
 				url: string;
 				authToken?: string;
+				headers?: Record<string, string>;
 			};
 		}
 		| {
