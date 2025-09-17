@@ -94,7 +94,7 @@ jobs:
         ports:
           - 1433:1433
       cockroachdb:
-        image: shermanidze/drizzle-tests-cockroach:v25.2.0
+        image: sukairo02/cockroachdb-launched:latest
         ports:
           - 26257:26257
     steps:
