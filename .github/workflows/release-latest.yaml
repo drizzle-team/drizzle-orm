@@ -94,7 +94,7 @@ jobs:
         ports:
           - 1433:1433
       cockroachdb:
-        image: timveil/cockroachdb-single-node:latest
+        image: shermanidze/drizzle-tests-cockroach:v25.2.0
         ports:
           - 26257:26257
     steps:
@@ -251,7 +251,6 @@ jobs:
     strategy:
       matrix:
         package:
-          - drizzle-orm
           - drizzle-kit
           - drizzle-zod
           - drizzle-seed
