@@ -23,12 +23,14 @@ import {
 	prepareMigrateConfig,
 	preparePullConfig,
 	preparePushConfig,
+	prepareSquashConfig,
 	prepareStudioConfig,
 } from './commands/utils';
 import { assertOrmCoreVersion, assertPackages, assertStudioNodeVersion, ormVersionGt } from './utils';
 import { assertCollisions, drivers, prefixes } from './validations/common';
 import { withStyle } from './validations/outputs';
 import { error, grey, MigrateProgress } from './views';
+import { squashMigrations } from './commands/squash';
 
 const optionDialect = string('dialect')
 	.enum(...dialects)
@@ -852,3 +854,37 @@ export const exportRaw = command({
 		}
 	},
 });
+
+export const squash = command({
+	name: 'squash',
+	desc: 'Combine a range of consecutive migrations into a single migration file',
+	options: {
+		config: optionConfig,
+		dialect: optionDialect,
+		out: optionOut,
+		prefix: string()
+			.enum(...prefixes)
+			.default('index'),
+		start: number()
+			.int()
+			.min(0).required(),
+		end: number()
+			.int()
+			.min(0).required(),
+	},
+	transform: async (opts) => {
+		const from = assertCollisions(
+			'squash',
+			opts,
+			['start', 'end', 'prefix'],
+			['out', 'dialect'],
+		);
+		return prepareSquashConfig(opts, from);
+	},
+	handler: async (opts) => {
+		await assertOrmCoreVersion();
+		await assertPackages('drizzle-orm');
+		
+		await squashMigrations(opts);
+	}
+})
