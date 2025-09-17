@@ -4,11 +4,7 @@ on:
   push:
     branches-ignore:
       - main
-      - beta
-  pull_request: 
-    branches-ignore: 
-      - main
-      - beta
+  pull_request: {}
 
 jobs:
   test:
@@ -27,6 +23,8 @@ jobs:
           - neon-serverless
           - drizzle-orm
           - drizzle-kit 
+          - drizzle-kit-cockroach 
+          - drizzle-kit-mssql 
           - drizzle-zod
           - drizzle-seed
           - drizzle-typebox
@@ -209,6 +207,16 @@ jobs:
               --exclude tests/mssql
             ;;
 
+            drizzle-kit-cockroach)
+              cd ../drizzle-kit
+              pnpm --stream vitest --reporter=verbose --silent=false run tests/cockroach
+            ;;
+
+            drizzle-kit-mssql)
+              cd ../drizzle-kit
+              pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql
+            ;;
+
             drizzle-orm|drizzle-zod|drizzle-seed|drizzle-typebox|drizzle-valibot|drizzle-arktype)
               (cd .. && pnpm test --filter ${{ matrix.shard }})
             ;;
@@ -319,7 +327,7 @@ jobs:
       - name: Run @arethetypeswrong/cli
         if: steps.checks.outputs.has_new_release == 'true'
         working-directory: ${{ matrix.package }}
-        run: bunx attw package.tgz
+        run: bun --bun run ../attw-fork/src/run.ts package.tgz
 
   release:
     # only run on all pushes or pull requests from forks
