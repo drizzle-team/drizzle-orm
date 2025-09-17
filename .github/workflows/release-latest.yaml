@@ -91,20 +91,10 @@ jobs:
         env:
           ACCEPT_EULA: 1
           MSSQL_SA_PASSWORD: drizzle123PASSWORD!
-        options: >-
-          --health-cmd "curl -f http://localhost:1433"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
         ports:
           - 1433:1433
       cockroachdb:
-        image: shermanidze/drizzle-tests-cockroach:v25.2.0
-        options: >-
-          --health-cmd "curl -f http://localhost:8080/health"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+        image: timveil/cockroachdb-single-node:latest
         ports:
           - 26257:26257
     steps:
