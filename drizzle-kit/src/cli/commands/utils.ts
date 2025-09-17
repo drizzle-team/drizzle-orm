@@ -247,36 +247,41 @@ export const prepareExportConfig = async (
 };
 
 export const prepareSquashConfig = async (
-	options: {
-		config?: string;
-		dialect?: Dialect;
-		out?: string;
-		prefix?: Prefix;
-		start: number;
-		end: number;
-	},
-	from: 'config' | 'cli',
+  options: {
+    config?: string;
+    dialect?: Dialect;
+    out?: string;
+    prefix?: Prefix;
+    start: number;
+    end: number;
+  },
+  from: "config" | "cli",
 ): Promise<SquashConfig> => {
-	const config = from === 'config' ? await drizzleConfigFromFile(options.config, true) : options;
+  const config =
+    from === "config"
+      ? await drizzleConfigFromFile(options.config, true)
+      : options;
 
-	const { dialect, out } = config;
+  const { dialect, out } = config;
 
-	if (!dialect) {
-		console.log(error('Please provide required params:'));
-		console.log(wrapParam('dialect', dialect));
-		process.exit(1);
-	}
+  if (!dialect) {
+    console.log(error("Please provide required params:"));
+    console.log(wrapParam("dialect", dialect));
+    process.exit(1);
+  }
 
-	const prefix = ('migrations' in config ? (config as any).migrations?.prefix : config.prefix as Prefix | undefined)
-		|| 'index';
+  const prefix =
+    ("migrations" in config
+      ? config.migrations?.prefix
+      : (config.prefix as Prefix | undefined)) || "index";
 
-	return {
-		dialect,
-		out: out || 'drizzle',
-		prefix,
-		start: options.start,
-		end: options.end,
-	};
+  return {
+    dialect,
+    out: out || "drizzle",
+    prefix,
+    start: options.start,
+    end: options.end,
+  };
 };
 
 export const flattenDatabaseCredentials = (config: any) => {
