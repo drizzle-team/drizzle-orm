@@ -87,7 +87,7 @@ jobs:
         ports:
           - 33307:3306
       mssql:
-        image: mysql:8
+        image: mcr.microsoft.com/azure-sql-edge
         env:
           ACCEPT_EULA: 1
           MSSQL_SA_PASSWORD: drizzle123PASSWORD!
