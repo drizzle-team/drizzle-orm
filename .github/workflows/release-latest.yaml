@@ -15,6 +15,8 @@ jobs:
           - singlestore-custom
           - neon-http
           - neon-serverless
+          - cockroach
+          - mssql
           - drizzle-orm
           - drizzle-kit
           - drizzle-kit-cockroach 
@@ -84,6 +86,27 @@ jobs:
           ROOT_PASSWORD: singlestore
         ports:
           - 33307:3306
+      mssql:
+        image: mysql:8
+        env:
+          ACCEPT_EULA: 1
+          MSSQL_SA_PASSWORD: drizzle123PASSWORD!
+        options: >-
+          --health-cmd "curl -f http://localhost:1433"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 1433:1433
+      cockroachdb:
+        image: shermanidze/drizzle-tests-cockroach:v25.2.0
+        options: >-
+          --health-cmd "curl -f http://localhost:8080/health"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 26257:26257
     steps:
       - uses: actions/checkout@v4
 
@@ -141,6 +164,9 @@ jobs:
           LIBSQL_REMOTE_URL: ${{ secrets.LIBSQL_REMOTE_URL }}
           LIBSQL_REMOTE_TOKEN: ${{ secrets.LIBSQL_REMOTE_TOKEN }}
           SINGLESTORE_CONNECTION_STRING: singlestore://root:singlestore@localhost:33307/
+          COCKROACH_CONNECTION_STRING: postgresql://root@127.0.0.1:26257/defaultdb?sslmode=disable
+          MSSQL_CONNECTION_STRING: Server=localhost,1433;User Id=SA;Password=drizzle123PASSWORD!;TrustServerCertificate=True;
+          TEST_CONFIG_PATH_PREFIX: ./tests/cli/
         working-directory: integration-tests
         run: |
           case ${{ matrix.shard }} in
@@ -182,6 +208,14 @@ jobs:
               docker compose -f docker-neon.yml down
             ;;
 
+            cockroach)
+              pnpm --stream vitest --reporter=verbose --silent=false run tests/cockroach
+            ;;
+
+            mssql)
+              pnpm --stream vitest --reporter=verbose --silent=false run tests/mssql
+            ;;
+
             drizzle-kit)
               cd ../drizzle-kit
               pnpm test:types
@@ -216,7 +250,9 @@ jobs:
                 --exclude tests/singlestore/singlestore-custom.test.ts \
                 --exclude tests/pg/neon-http.test.ts \
                 --exclude tests/pg/neon-http-batch.test.ts \
-                --exclude tests/pg/neon-serverless.test.ts
+                --exclude tests/pg/neon-serverless.test.ts \
+                --exclude tests/cockroach \
+                --exclude tests/mssql
             ;;
 
           esac
@@ -305,11 +341,98 @@ jobs:
         working-directory: ${{ matrix.package }}
         run: bun --bun run ../attw-fork/src/run.ts package.tgz
 
+
+  attw-orm:
+    strategy:
+      matrix:
+        shard:
+          - node10
+          - node16-cjs
+          - node16-esm
+          - bundler
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - uses: pnpm/action-setup@v3
+        name: Install pnpm
+        id: pnpm-install
+        with:
+          version: latest
+          run_install: false
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - uses: actions/cache@v4
+        name: Setup pnpm cache
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Check preconditions
+        id: checks
+        shell: bash
+        working-directory: drizzle-orm
+        run: |
+          old_version="$(jq -r .version package.json)"
+          version="$old_version-$(git rev-parse --short HEAD)"
+          npm version $version
+          tag="${{ github.ref_name }}"
+          is_version_published="$(npm view drizzle-orm versions --json | jq -r '.[] | select(. == "'$version'") | . == "'$version'"')"
+
+          if [[ "$is_version_published" == "true" ]]; then
+            echo "\`drizzle-orm$version\` already published, adding tag \`$tag\`" >> $GITHUB_STEP_SUMMARY
+            npm dist-tag add drizzle-orm@$version $tag
+          else
+            {
+              echo "version=$version"
+              echo "tag=$tag"
+              echo "has_new_release=true"
+            } >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build Prisma client
+        if: steps.checks.outputs.has_new_release == 'true'
+        working-directory: drizzle-orm
+        run: pnpm prisma generate --schema src/prisma/schema.prisma
+
+      - name: Build
+        if: steps.checks.outputs.has_new_release == 'true'
+        run: pnpm build
+      
+      - name: Pack
+        if: steps.checks.outputs.has_new_release == 'true'
+        working-directory: drizzle-orm
+        run: npm run pack
+  
+      - name: Run @arethetypeswrong/cli
+        if: steps.checks.outputs.has_new_release == 'true'
+        working-directory: drizzle-orm
+        run: bun --bun run ../attw-fork/src/run.ts package.tgz ${{ matrix.shard }}
+
   release:
     permissions: write-all
     needs:
       - test
       - attw
+      - attw-orm
     strategy:
       fail-fast: false
       matrix:
@@ -323,58 +446,6 @@ jobs:
           - drizzle-arktype
           - eslint-plugin-drizzle
     runs-on: ubuntu-22.04
-    services:
-      postgres-postgis:
-        image: postgis/postgis:16-3.4
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: drizzle
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 54322:5432
-      postgres-vector:
-        image: pgvector/pgvector:pg16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: drizzle
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 54321:5432
-      postgres:
-        image: postgres:14
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: drizzle
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 55433:5432
-      mysql:
-        image: mysql:8
-        env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: drizzle
-        options: >-
-          --health-cmd "mysqladmin ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 33306:3306
     steps:
       - uses: actions/checkout@v4
 
