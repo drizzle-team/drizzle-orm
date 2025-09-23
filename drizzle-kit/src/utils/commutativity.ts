@@ -1,555 +1,778 @@
-import { dirname } from 'path';
 import { existsSync, readFileSync } from 'fs';
+import { dirname } from 'path';
 import { originUUID } from '../utils';
 import type { Dialect } from './schemaValidator';
 
 // Postgres-only imports
 import { createDDL, type PostgresDDL } from '../dialects/postgres/ddl';
 import { ddlDiffDry } from '../dialects/postgres/diff';
-import type { PostgresSnapshot } from '../dialects/postgres/snapshot';
+import { drySnapshot, type PostgresSnapshot } from '../dialects/postgres/snapshot';
 import type { JsonStatement } from '../dialects/postgres/statements';
 
 export type BranchConflict = {
-  parentId: string;
-  parentPath?: string;
-  branchA: { headId: string; path: string; statements: JsonStatement[] };
-  branchB: { headId: string; path: string; statements: JsonStatement[] };
-  reasons: string[];
+	parentId: string;
+	parentPath?: string;
+	branchA: { headId: string; path: string; statements: JsonStatement[] };
+	branchB: { headId: string; path: string; statements: JsonStatement[] };
+	reasons: string[];
 };
 
 export type NonCommutativityReport = {
-  conflicts: BranchConflict[];
+	conflicts: BranchConflict[];
 };
 
 type SnapshotNode<TSnapshot extends { id: string; prevId: string }> = {
-  id: string;
-  prevId: string;
-  path: string; // full path to snapshot.json
-  folderPath: string; // folder containing snapshot.json
-  raw: TSnapshot;
+	id: string;
+	prevId: string;
+	path: string; // full path to snapshot.json
+	folderPath: string; // folder containing snapshot.json
+	raw: TSnapshot;
 };
 
+const footprintMap: Record<JsonStatement['type'], JsonStatement['type'][]> = {
+	// Table operations
+	create_table: [
+		'create_table',
+		'drop_table',
+		'rename_table',
+		'recreate_table',
+		'move_table',
+		'remove_from_schema',
+		'set_new_schema',
+	],
+	drop_table: [
+		'create_table',
+		'drop_table',
+		'rename_table',
+		'recreate_table',
+		'move_table',
+		'remove_from_schema',
+		'set_new_schema',
+		'add_column',
+		'drop_column',
+		'alter_column',
+		'recreate_column',
+		'rename_column',
+		'alter_rls',
+	],
+	rename_table: [
+		'create_table',
+		'drop_table',
+		'rename_table',
+		'recreate_table',
+		'move_table',
+		'remove_from_schema',
+		'set_new_schema',
+	],
+	recreate_table: [
+		'create_table',
+		'drop_table',
+		'rename_table',
+		'recreate_table',
+		'move_table',
+		'remove_from_schema',
+		'set_new_schema',
+	],
+	move_table: [
+		'create_table',
+		'drop_table',
+		'rename_table',
+		'recreate_table',
+		'move_table',
+		'remove_from_schema',
+		'set_new_schema',
+	],
+	remove_from_schema: [
+		'create_table',
+		'drop_table',
+		'rename_table',
+		'recreate_table',
+		'move_table',
+		'remove_from_schema',
+		'set_new_schema',
+	],
+	set_new_schema: [
+		'create_table',
+		'drop_table',
+		'rename_table',
+		'recreate_table',
+		'move_table',
+		'remove_from_schema',
+		'set_new_schema',
+	],
+
+	// Column operations
+	add_column: ['add_column', 'alter_column', 'drop_column', 'rename_column', 'recreate_column'],
+	drop_column: ['add_column', 'drop_column', 'alter_column', 'rename_column', 'recreate_column'],
+	alter_column: ['add_column', 'drop_column', 'alter_column', 'rename_column', 'recreate_column'],
+	recreate_column: ['add_column', 'drop_column', 'alter_column', 'recreate_column', 'rename_column'],
+	rename_column: ['add_column', 'drop_column', 'alter_column', 'recreate_column', 'rename_column'],
+
+	// Index operations
+	create_index: ['create_index', 'drop_index', 'rename_index'],
+	drop_index: ['create_index', 'drop_index', 'rename_index'],
+	rename_index: ['create_index', 'drop_index', 'rename_index'],
+
+	// Primary key operations
+	add_pk: ['add_pk', 'drop_pk', 'alter_pk'],
+	drop_pk: ['add_pk', 'drop_pk', 'alter_pk'],
+	alter_pk: ['add_pk', 'drop_pk', 'alter_pk'],
+
+	// Foreign key operations
+	create_fk: ['create_fk', 'drop_fk', 'recreate_fk'],
+	drop_fk: ['create_fk', 'drop_fk', 'recreate_fk'],
+	recreate_fk: ['create_fk', 'drop_fk', 'recreate_fk'],
+
+	// Unique constraint operations
+	add_unique: ['add_unique', 'drop_unique', 'alter_unique'],
+	drop_unique: ['add_unique', 'drop_unique', 'alter_unique'],
+	alter_unique: ['add_unique', 'drop_unique', 'alter_unique'],
+
+	// Check constraint operations
+	add_check: ['add_check', 'drop_check', 'alter_check'],
+	drop_check: ['add_check', 'drop_check', 'alter_check'],
+	alter_check: ['add_check', 'drop_check', 'alter_check'],
+
+	// Constraint operations
+	rename_constraint: [
+		'rename_constraint',
+		'add_pk',
+		'drop_pk',
+		'alter_pk',
+		'add_unique',
+		'drop_unique',
+		'alter_unique',
+		'add_check',
+		'drop_check',
+		'alter_check',
+		'create_fk',
+		'drop_fk',
+		'recreate_fk',
+	],
+
+	// Enum operations
+	create_enum: ['create_enum', 'drop_enum', 'rename_enum', 'alter_enum', 'recreate_enum', 'move_enum'],
+	drop_enum: [
+		'create_enum',
+		'drop_enum',
+		'rename_enum',
+		'alter_enum',
+		'recreate_enum',
+		'move_enum',
+		'alter_type_drop_value',
+	],
+	rename_enum: ['create_enum', 'drop_enum', 'rename_enum', 'alter_enum', 'recreate_enum', 'move_enum'],
+	alter_enum: [
+		'create_enum',
+		'drop_enum',
+		'rename_enum',
+		'alter_enum',
+		'recreate_enum',
+		'move_enum',
+		'alter_type_drop_value',
+	],
+	recreate_enum: ['create_enum', 'drop_enum', 'rename_enum', 'alter_enum', 'recreate_enum', 'move_enum'],
+	move_enum: ['create_enum', 'drop_enum', 'rename_enum', 'alter_enum', 'recreate_enum', 'move_enum'],
+	alter_type_drop_value: ['drop_enum', 'alter_enum', 'alter_type_drop_value'],
+
+	// Sequence operations
+	create_sequence: ['create_sequence', 'drop_sequence', 'rename_sequence', 'alter_sequence', 'move_sequence'],
+	drop_sequence: ['create_sequence', 'drop_sequence', 'rename_sequence', 'alter_sequence', 'move_sequence'],
+	rename_sequence: ['create_sequence', 'drop_sequence', 'rename_sequence', 'alter_sequence', 'move_sequence'],
+	alter_sequence: ['create_sequence', 'drop_sequence', 'rename_sequence', 'alter_sequence', 'move_sequence'],
+	move_sequence: ['create_sequence', 'drop_sequence', 'rename_sequence', 'alter_sequence', 'move_sequence'],
+
+	// View operations
+	create_view: ['create_view', 'drop_view', 'rename_view', 'alter_view', 'recreate_view', 'move_view'],
+	drop_view: ['create_view', 'drop_view', 'rename_view', 'alter_view', 'recreate_view', 'move_view'],
+	rename_view: ['create_view', 'drop_view', 'rename_view', 'alter_view', 'recreate_view', 'move_view'],
+	alter_view: ['create_view', 'drop_view', 'rename_view', 'alter_view', 'recreate_view', 'move_view'],
+	recreate_view: ['create_view', 'drop_view', 'rename_view', 'alter_view', 'recreate_view', 'move_view'],
+	move_view: ['create_view', 'drop_view', 'rename_view', 'alter_view', 'recreate_view', 'move_view'],
+
+	// Schema operations
+	create_schema: ['create_schema', 'drop_schema', 'rename_schema'],
+	drop_schema: ['create_schema', 'drop_schema', 'rename_schema'],
+	rename_schema: ['create_schema', 'drop_schema', 'rename_schema'],
+
+	// Policy operations
+	create_policy: ['create_policy', 'drop_policy', 'rename_policy', 'alter_policy', 'recreate_policy'],
+	drop_policy: ['create_policy', 'drop_policy', 'rename_policy', 'alter_policy', 'recreate_policy'],
+	rename_policy: ['create_policy', 'drop_policy', 'rename_policy', 'alter_policy', 'recreate_policy'],
+	alter_policy: ['create_policy', 'drop_policy', 'rename_policy', 'alter_policy', 'recreate_policy'],
+	recreate_policy: ['create_policy', 'drop_policy', 'rename_policy', 'alter_policy', 'recreate_policy'],
+
+	// RLS operations
+	alter_rls: ['alter_rls', 'create_policy', 'drop_policy', 'alter_policy', 'recreate_policy'],
+
+	// Role operations
+	create_role: ['create_role', 'drop_role', 'rename_role', 'alter_role'],
+	drop_role: [
+		'create_role',
+		'drop_role',
+		'rename_role',
+		'alter_role',
+		'grant_privilege',
+		'revoke_privilege',
+		'regrant_privilege',
+	],
+	rename_role: ['create_role', 'drop_role', 'rename_role', 'alter_role'],
+	alter_role: ['create_role', 'drop_role', 'rename_role', 'alter_role'],
+
+	// Privilege operations
+	grant_privilege: ['grant_privilege', 'revoke_privilege', 'regrant_privilege'],
+	revoke_privilege: ['grant_privilege', 'revoke_privilege', 'regrant_privilege'],
+	regrant_privilege: ['grant_privilege', 'revoke_privilege', 'regrant_privilege'],
+};
+
+function formatFootprint(action: string, schema: string, objectName: string, columnName: string): string {
+	return `${action};${schema};${objectName};${columnName}`;
+}
+
+function extractStatementInfo(
+	statement: JsonStatement,
+): { action: string; schema: string; objectName: string; columnName: string } {
+	const action = statement.type;
+	let schema = '';
+	let objectName = '';
+	let columnName = '';
+
+	switch (statement.type) {
+		// Table operations
+		case 'create_table':
+		case 'drop_table':
+		case 'recreate_table':
+			schema = statement.table.schema;
+			objectName = statement.table.name;
+			break;
+		case 'rename_table':
+			schema = statement.schema;
+			objectName = statement.from;
+			break;
+		case 'move_table':
+			schema = statement.from;
+			objectName = statement.name;
+			break;
+		case 'remove_from_schema':
+			schema = statement.schema;
+			objectName = statement.table;
+			break;
+		case 'set_new_schema':
+			schema = statement.from;
+			objectName = statement.table;
+			break;
+
+		// Column operations
+		case 'add_column':
+		case 'drop_column':
+		case 'recreate_column':
+			schema = statement.column.schema;
+			objectName = statement.column.table;
+			columnName = statement.column.name;
+			break;
+		case 'alter_column':
+			schema = statement.to.schema;
+			objectName = statement.to.table;
+			columnName = statement.to.name;
+			break;
+		case 'rename_column':
+			schema = statement.from.schema;
+			objectName = statement.from.table;
+			columnName = statement.from.name;
+			break;
+
+		// Index operations
+		case 'create_index':
+		case 'drop_index':
+			schema = statement.index.schema;
+			objectName = statement.index.name;
+			break;
+		case 'rename_index':
+			schema = statement.schema;
+			objectName = statement.from;
+			break;
+
+		// Primary key operations
+		case 'add_pk':
+		case 'drop_pk':
+		case 'alter_pk':
+			schema = statement.pk.schema;
+			objectName = statement.pk.table;
+			break;
+
+		// Foreign key operations
+		case 'create_fk':
+		case 'drop_fk':
+		case 'recreate_fk':
+			schema = statement.fk.schema;
+			objectName = statement.fk.table;
+			break;
+
+		// Unique constraint operations
+		case 'add_unique':
+		case 'drop_unique':
+			schema = statement.unique.schema;
+			objectName = statement.unique.table;
+			break;
+		case 'alter_unique':
+			schema = (statement as any).diff.schema;
+			objectName = (statement as any).diff.table;
+			break;
+
+		// Check constraint operations
+		case 'add_check':
+		case 'drop_check':
+		case 'alter_check':
+			schema = statement.check.schema;
+			objectName = statement.check.table;
+			break;
+
+		// Constraint operations
+		case 'rename_constraint':
+			schema = statement.schema;
+			objectName = statement.table;
+			break;
+
+		// Enum operations
+		case 'create_enum':
+		case 'drop_enum':
+		case 'alter_enum':
+			schema = statement.enum.schema;
+			objectName = statement.enum.name;
+			break;
+		case 'recreate_enum':
+			schema = statement.to.schema;
+			objectName = statement.to.name;
+			break;
+		case 'rename_enum':
+			schema = statement.schema;
+			objectName = statement.from;
+			break;
+		case 'move_enum':
+			schema = statement.from.schema || 'public';
+			objectName = statement.from.name;
+			break;
+		case 'alter_type_drop_value':
+			schema = statement.enum.schema;
+			objectName = statement.enum.name;
+			break;
+
+		// Sequence operations
+		case 'create_sequence':
+		case 'drop_sequence':
+		case 'alter_sequence':
+			schema = statement.sequence.schema;
+			objectName = statement.sequence.name;
+			break;
+		case 'rename_sequence':
+			schema = statement.from.schema;
+			objectName = statement.from.name;
+			break;
+		case 'move_sequence':
+			schema = statement.from.schema || 'public';
+			objectName = statement.from.name;
+			break;
+
+		// View operations
+		case 'create_view':
+		case 'drop_view':
+			schema = statement.view.schema;
+			objectName = statement.view.name;
+			break;
+		case 'alter_view':
+			schema = statement.view.schema;
+			objectName = statement.view.name;
+			break;
+		case 'recreate_view':
+			schema = statement.to.schema;
+			objectName = statement.to.name;
+			break;
+		case 'rename_view':
+			schema = statement.from.schema;
+			objectName = statement.from.name;
+			break;
+		case 'move_view':
+			schema = statement.fromSchema;
+			objectName = statement.view.name;
+			break;
+
+		// Schema operations
+		case 'create_schema':
+		case 'drop_schema':
+			objectName = statement.name;
+			break;
+		case 'rename_schema':
+			objectName = statement.from.name;
+			break;
+
+		// Policy operations
+		case 'create_policy':
+		case 'drop_policy':
+		case 'alter_policy':
+		case 'recreate_policy':
+			schema = statement.policy.schema;
+			objectName = statement.policy.table;
+			break;
+		case 'rename_policy':
+			schema = statement.from.schema;
+			objectName = statement.from.table;
+			break;
+
+		// RLS operations
+		case 'alter_rls':
+			schema = (statement as any).schema;
+			objectName = (statement as any).name;
+			break;
+
+		// Role operations
+		case 'create_role':
+		case 'drop_role':
+		case 'alter_role':
+			objectName = statement.role.name;
+			break;
+		case 'rename_role':
+			objectName = statement.from.name;
+			break;
+
+		// Privilege operations
+		case 'grant_privilege':
+		case 'revoke_privilege':
+		case 'regrant_privilege':
+			schema = statement.privilege.schema || '';
+			objectName = statement.privilege.table || '';
+			break;
+
+		default:
+			break;
+	}
+
+	return { action, schema, objectName, columnName };
+}
+
+export function footprint(statement: JsonStatement, snapshot?: PostgresSnapshot): [string[], string[]] {
+	const info = extractStatementInfo(statement);
+	const conflictingTypes = footprintMap[statement.type];
+
+	const statementFootprint = [formatFootprint(statement.type, info.schema, info.objectName, info.columnName)];
+
+	let conflictFootprints = conflictingTypes.map((conflictType) =>
+		formatFootprint(conflictType, info.schema, info.objectName, info.columnName)
+	);
+
+	if (snapshot) {
+		const expandedFootprints = expandFootprintsFromSnapshot(statement, info, conflictingTypes, snapshot);
+		conflictFootprints = [...conflictFootprints, ...expandedFootprints];
+	}
+
+	return [statementFootprint, conflictFootprints];
+}
+
+function getFolderNameFromNodeId(node: SnapshotNode<any>): string {
+	// path pattern: "path/to/folder/snapshot.json"
+	const folderPath = dirname(node.path);
+	return folderPath.split('/').pop() || '';
+}
+
+function generateLeafFootprints(statements: JsonStatement[], folderName: string, snapshot?: PostgresSnapshot): {
+	statementHashes: Array<{ hash: string; statement: JsonStatement; statementId: string }>;
+	conflictFootprints: Array<{ hash: string; statement: JsonStatement; statementId: string }>;
+} {
+	const statementHashes: Array<{ hash: string; statement: JsonStatement; statementId: string }> = [];
+	const conflictFootprints: Array<{ hash: string; statement: JsonStatement; statementId: string }> = [];
+
+	for (let i = 0; i < statements.length; i++) {
+		const statement = statements[i];
+		const [hashes, conflicts] = footprint(statement, snapshot);
+
+		for (const hash of hashes) {
+			statementHashes.push({ hash, statement, statementId: folderName });
+		}
+
+		for (const conflict of conflicts) {
+			conflictFootprints.push({ hash: conflict, statement, statementId: folderName });
+		}
+	}
+
+	return { statementHashes, conflictFootprints };
+}
+
+function expandFootprintsFromSnapshot(
+	statement: JsonStatement,
+	info: { action: string; schema: string; objectName: string; columnName: string },
+	conflictingTypes: JsonStatement['type'][],
+	snapshot: PostgresSnapshot,
+): string[] {
+	const expandedFootprints: string[] = [];
+
+	// For schemas - include all tables/views/enums/sequences in that schema
+	if (statement.type === 'drop_schema' || statement.type === 'rename_schema') {
+		const childEntities = findChildEntitiesInSchemaFromSnapshot(info.objectName, snapshot);
+		for (const entity of childEntities) {
+			for (const conflictType of conflictingTypes) {
+				expandedFootprints.push(formatFootprint(conflictType, entity.schema, entity.objectName, entity.columnName));
+			}
+		}
+	} // For tables - include all columns/indexes/constraints in that table
+	else if (
+		statement.type === 'drop_table' || statement.type === 'rename_table' || statement.type === 'recreate_table'
+	) {
+		const childEntities = findChildEntitiesInTableFromSnapshot(info.schema, info.objectName, snapshot);
+		for (const entity of childEntities) {
+			for (const conflictType of conflictingTypes) {
+				expandedFootprints.push(formatFootprint(conflictType, entity.schema, entity.objectName, entity.columnName));
+			}
+		}
+	}
+
+	return expandedFootprints;
+}
+
+function findChildEntitiesInSchemaFromSnapshot(
+	schemaName: string,
+	snapshot: PostgresSnapshot,
+): Array<{ schema: string; objectName: string; columnName: string }> {
+	const entities: Array<{ schema: string; objectName: string; columnName: string }> = [];
+
+	for (const entity of snapshot.ddl) {
+		if (entity.entityType === 'tables' && entity.schema === schemaName) {
+			entities.push({ schema: entity.schema, objectName: entity.name, columnName: '' });
+		} else if (entity.entityType === 'columns' && entity.schema === schemaName) {
+			entities.push({ schema: entity.schema, objectName: entity.table, columnName: entity.name });
+		} else if (entity.entityType === 'views' && entity.schema === schemaName) {
+			entities.push({ schema: entity.schema, objectName: entity.name, columnName: '' });
+		} else if (entity.entityType === 'enums' && entity.schema === schemaName) {
+			entities.push({ schema: entity.schema, objectName: entity.name, columnName: '' });
+		} else if (entity.entityType === 'sequences' && entity.schema === schemaName) {
+			entities.push({ schema: entity.schema, objectName: entity.name, columnName: '' });
+		} else if (entity.entityType === 'indexes' && entity.schema === schemaName) {
+			entities.push({ schema: entity.schema, objectName: entity.name, columnName: '' });
+		} else if (entity.entityType === 'pks' && entity.schema === schemaName) {
+			entities.push({ schema: entity.schema, objectName: entity.table, columnName: '' });
+		} else if (entity.entityType === 'fks' && entity.schema === schemaName) {
+			entities.push({ schema: entity.schema, objectName: entity.table, columnName: '' });
+		} else if (entity.entityType === 'uniques' && entity.schema === schemaName) {
+			entities.push({ schema: entity.schema, objectName: entity.table, columnName: '' });
+		} else if (entity.entityType === 'checks' && entity.schema === schemaName) {
+			entities.push({ schema: entity.schema, objectName: entity.table, columnName: '' });
+		}
+	}
+
+	return entities;
+}
+
+function findChildEntitiesInTableFromSnapshot(
+	schemaName: string,
+	tableName: string,
+	snapshot: PostgresSnapshot,
+): Array<{ schema: string; objectName: string; columnName: string }> {
+	const entities: Array<{ schema: string; objectName: string; columnName: string }> = [];
+
+	for (const entity of snapshot.ddl) {
+		if (entity.entityType === 'columns' && entity.schema === schemaName && entity.table === tableName) {
+			entities.push({ schema: entity.schema, objectName: entity.table, columnName: entity.name });
+		} else if (entity.entityType === 'indexes' && entity.schema === schemaName && entity.table === tableName) {
+			entities.push({ schema: entity.schema, objectName: entity.name, columnName: '' });
+		} else if (entity.entityType === 'pks' && entity.schema === schemaName && entity.table === tableName) {
+			entities.push({ schema: entity.schema, objectName: entity.table, columnName: '' });
+		} else if (entity.entityType === 'fks' && entity.schema === schemaName && entity.table === tableName) {
+			entities.push({ schema: entity.schema, objectName: entity.table, columnName: '' });
+		} else if (entity.entityType === 'uniques' && entity.schema === schemaName && entity.table === tableName) {
+			entities.push({ schema: entity.schema, objectName: entity.table, columnName: '' });
+		} else if (entity.entityType === 'checks' && entity.schema === schemaName && entity.table === tableName) {
+			entities.push({ schema: entity.schema, objectName: entity.table, columnName: '' });
+		}
+	}
+
+	return entities;
+}
+
+function findFootprintIntersections(
+	branchAHashes: Array<{ hash: string; statement: JsonStatement; statementId: string }>,
+	branchAConflicts: Array<{ hash: string; statement: JsonStatement; statementId: string }>,
+	branchBHashes: Array<{ hash: string; statement: JsonStatement; statementId: string }>,
+	branchBConflicts: Array<{ hash: string; statement: JsonStatement; statementId: string }>,
+	leafAId: string,
+	leafBId: string,
+): string[] {
+	const reasons: string[] = [];
+
+	// Check if any statement hash from branch A intersects with conflict footprints from branch B
+	for (const hashInfoA of branchAHashes) {
+		for (const conflictInfoB of branchBConflicts) {
+			if (hashInfoA.hash === conflictInfoB.hash) {
+				reasons.push(
+					`Statement conflict: Branch A statement ${hashInfoA.statementId} (${hashInfoA.statement.type}) `
+						+ `conflicts with Branch B statement ${conflictInfoB.statementId} (${conflictInfoB.statement.type}) `
+						+ `on resource: ${hashInfoA.hash} (A: ${leafAId}, B: ${leafBId})`,
+				);
+			}
+		}
+	}
+
+	// Check if any statement hash from branch B intersects with conflict footprints from branch A
+	for (const hashInfoB of branchBHashes) {
+		for (const conflictInfoA of branchAConflicts) {
+			if (hashInfoB.hash === conflictInfoA.hash) {
+				reasons.push(
+					`Statement conflict: Branch B statement ${hashInfoB.statementId} (${hashInfoB.statement.type}) `
+						+ `conflicts with Branch A statement ${conflictInfoA.statementId} (${conflictInfoA.statement.type}) `
+						+ `on resource: ${hashInfoB.hash} (A: ${leafAId}, B: ${leafBId})`,
+				);
+			}
+		}
+	}
+
+	return reasons;
+}
+
 export const detectNonCommutative = async (
-  snapshotsPaths: string[],
-  dialect: Dialect,
+	snapshotsPaths: string[],
+	dialect: Dialect,
 ): Promise<NonCommutativityReport> => {
- // temp solution for now, should remove it for other dialects
-  if (dialect !== 'postgresql') {
-    return { conflicts: [] };
-  }
+	// temp solution for now, should remove it for other dialects
+	if (dialect !== 'postgresql') {
+		return { conflicts: [] };
+	}
 
-  const nodes = buildSnapshotGraph<PostgresSnapshot>(snapshotsPaths);
+	const nodes = buildSnapshotGraph<PostgresSnapshot>(snapshotsPaths);
 
-  const prevToChildren: Record<string, string[]> = {};
-  for (const node of Object.values(nodes)) {
-    const arr = prevToChildren[node.prevId] ?? [];
-    arr.push(node.id);
-    prevToChildren[node.prevId] = arr;
-  }
+	const prevToChildren: Record<string, string[]> = {};
+	for (const node of Object.values(nodes)) {
+		const arr = prevToChildren[node.prevId] ?? [];
+		arr.push(node.id);
+		prevToChildren[node.prevId] = arr;
+	}
 
-  const conflicts: BranchConflict[] = [];
+	const conflicts: BranchConflict[] = [];
 
-  // For each branching point (prevId with >1 children)
-  for (const [prevId, childIds] of Object.entries(prevToChildren)) {
-    if (childIds.length <= 1) continue;
+	// For each branching point (prevId with >1 children)
+	for (const [prevId, childIds] of Object.entries(prevToChildren)) {
+		if (childIds.length <= 1) continue;
 
-    const parentNode = nodes[prevId];
+		const parentNode = nodes[prevId];
 
-    // For each child group, collect all leaf heads reachable from that child
-    const childToLeaves: Record<string, string[]> = {};
-    for (const childId of childIds) {
-      childToLeaves[childId] = collectLeaves(nodes, childId);
-    }
+		// For each child group, collect all leaf heads reachable from that child
+		const childToLeaves: Record<string, string[]> = {};
+		for (const childId of childIds) {
+			childToLeaves[childId] = collectLeaves(nodes, childId);
+		}
 
-    // Precompute branch statements for each leaf from parent -> leaf
-    const leafStatements: Record<string, { statements: JsonStatement[]; path: string }> = {};
-    for (const leaves of Object.values(childToLeaves)) {
-      for (const leafId of leaves) {
-        const leafNode = nodes[leafId]!;
-        const parentSnapshot = parentNode ? parentNode.raw : makeDryPostgresSnapshot();
-        const { statements } = await diffPostgres(parentSnapshot, leafNode.raw);
-        leafStatements[leafId] = { statements, path: leafNode.folderPath };
-      }
-    }
+		// Precompute branch statements for each leaf from parent -> leaf
+		const leafStatements: Record<string, { statements: JsonStatement[]; path: string }> = {};
+		for (const leaves of Object.values(childToLeaves)) {
+			for (const leafId of leaves) {
+				const leafNode = nodes[leafId]!;
+				const parentSnapshot = parentNode ? parentNode.raw : drySnapshot;
+				const { statements } = await diffPostgres(parentSnapshot, leafNode.raw);
+				leafStatements[leafId] = { statements, path: leafNode.folderPath };
+			}
+		}
 
-    // Compare only across different initial children
-    for (let i = 0; i < childIds.length; i++) {
-      for (let j = i + 1; j < childIds.length; j++) {
-        const groupA = childToLeaves[childIds[i]] ?? [];
-        const groupB = childToLeaves[childIds[j]] ?? [];
-        for (const aId of groupA) {
-          for (const bId of groupB) {
-            const aStatements = leafStatements[aId]!.statements;
-            const bStatements = leafStatements[bId]!.statements;
-            // TODO: if there are >1 reasons then we need to make them as separate conflicts? Or make the first one and then show another?
-            const reasons = explainConflicts(aStatements, bStatements);
-            if (reasons.length > 0) {
-              conflicts.push({
-                parentId: prevId,
-                parentPath: parentNode?.folderPath,
-                branchA: { headId: aId, path: leafStatements[aId]!.path, statements: aStatements },
-                branchB: { headId: bId, path: leafStatements[bId]!.path, statements: bStatements },
-                reasons,
-              });
-            }
-          }
-        }
-      }
-    }
-  }
+		// Compare only across different initial children using footprint-based detection
+		for (let i = 0; i < childIds.length; i++) {
+			for (let j = i + 1; j < childIds.length; j++) {
+				const groupA = childToLeaves[childIds[i]] ?? [];
+				const groupB = childToLeaves[childIds[j]] ?? [];
+				for (const aId of groupA) {
+					for (const bId of groupB) {
+						const aStatements = leafStatements[aId]!.statements;
+						const bStatements = leafStatements[bId]!.statements;
 
-  return { conflicts };
+						// Generate footprints for both branches using parent snapshot as the initial state
+						const parentSnapshot = parentNode ? parentNode.raw : drySnapshot;
+						const branchAFootprints = generateLeafFootprints(aStatements, getFolderNameFromNodeId(nodes[aId]), parentSnapshot);
+						const branchBFootprints = generateLeafFootprints(bStatements, getFolderNameFromNodeId(nodes[bId]), parentSnapshot);
+
+						// Find footprint intersections
+						const reasons = findFootprintIntersections(
+							branchAFootprints.statementHashes,
+							branchAFootprints.conflictFootprints,
+							branchBFootprints.statementHashes,
+							branchBFootprints.conflictFootprints,
+							aId,
+							bId,
+						);
+
+						if (reasons.length > 0) {
+							conflicts.push({
+								parentId: prevId,
+								parentPath: parentNode?.folderPath,
+								branchA: { headId: aId, path: leafStatements[aId]!.path, statements: aStatements },
+								branchB: { headId: bId, path: leafStatements[bId]!.path, statements: bStatements },
+								reasons: reasons,
+							});
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return { conflicts };
 };
 
 function buildSnapshotGraph<TSnapshot extends { id: string; prevId: string }>(
-  snapshotFiles: string[],
+	snapshotFiles: string[],
 ): Record<string, SnapshotNode<TSnapshot>> {
-  const byId: Record<string, SnapshotNode<TSnapshot>> = {};
-  for (const file of snapshotFiles) {
-    if (!existsSync(file)) continue;
-    const raw = JSON.parse(readFileSync(file, 'utf8')) as TSnapshot;
-    const node: SnapshotNode<TSnapshot> = {
-      id: raw.id,
-      prevId: raw.prevId,
-      path: file,
-      folderPath: dirname(file),
-      raw,
-    };
-    byId[node.id] = node;
-  }
-  return byId;
+	const byId: Record<string, SnapshotNode<TSnapshot>> = {};
+	for (const file of snapshotFiles) {
+		if (!existsSync(file)) continue;
+		const raw = JSON.parse(readFileSync(file, 'utf8')) as TSnapshot;
+		const node: SnapshotNode<TSnapshot> = {
+			id: raw.id,
+			prevId: raw.prevId,
+			path: file,
+			folderPath: dirname(file),
+			raw,
+		};
+		byId[node.id] = node;
+	}
+	return byId;
 }
 
 function collectLeaves<TSnapshot extends { id: string; prevId: string }>(
-  graph: Record<string, SnapshotNode<TSnapshot>>,
-  startId: string,
+	graph: Record<string, SnapshotNode<TSnapshot>>,
+	startId: string,
 ): string[] {
-  const leaves: string[] = [];
-  const stack: string[] = [startId];
-  // Build reverse edges prevId -> children lazily
-  const prevToChildren: Record<string, string[]> = {};
-  for (const node of Object.values(graph)) {
-    const arr = prevToChildren[node.prevId] ?? [];
-    arr.push(node.id);
-    prevToChildren[node.prevId] = arr;
-  }
+	const leaves: string[] = [];
+	const stack: string[] = [startId];
+	// Build reverse edges prevId -> children lazily
+	const prevToChildren: Record<string, string[]> = {};
+	for (const node of Object.values(graph)) {
+		const arr = prevToChildren[node.prevId] ?? [];
+		arr.push(node.id);
+		prevToChildren[node.prevId] = arr;
+	}
 
-  while (stack.length) {
-    const id = stack.pop()!;
-    const children = prevToChildren[id] ?? [];
-    if (children.length === 0) {
-      leaves.push(id);
-    } else {
-      for (const c of children) stack.push(c);
-    }
-  }
-  return leaves;
+	while (stack.length) {
+		const id = stack.pop()!;
+		const children = prevToChildren[id] ?? [];
+		if (children.length === 0) {
+			leaves.push(id);
+		} else {
+			for (const c of children) stack.push(c);
+		}
+	}
+	return leaves;
 }
 
-async function diffPostgres(fromSnap: PostgresSnapshot | 'dry', toSnap: PostgresSnapshot): Promise<{ statements: JsonStatement[] }>
-async function diffPostgres(fromSnap: PostgresSnapshot, toSnap: PostgresSnapshot): Promise<{ statements: JsonStatement[] }>
+async function diffPostgres(
+	fromSnap: PostgresSnapshot | 'dry',
+	toSnap: PostgresSnapshot,
+): Promise<{ statements: JsonStatement[] }>;
+async function diffPostgres(
+	fromSnap: PostgresSnapshot,
+	toSnap: PostgresSnapshot,
+): Promise<{ statements: JsonStatement[] }>;
 async function diffPostgres(fromSnap: any, toSnap: any): Promise<{ statements: JsonStatement[] }> {
-  const fromDDL: PostgresDDL = createDDL();
-  const toDDL: PostgresDDL = createDDL();
+	const fromDDL: PostgresDDL = createDDL();
+	const toDDL: PostgresDDL = createDDL();
 
-  if (fromSnap !== 'dry') {
-    for (const e of fromSnap.ddl) fromDDL.entities.push(e);
-  }
-  for (const e of toSnap.ddl) toDDL.entities.push(e);
+	if (fromSnap !== 'dry') {
+		for (const e of fromSnap.ddl) fromDDL.entities.push(e);
+	}
+	for (const e of toSnap.ddl) toDDL.entities.push(e);
 
-  const { statements } = await ddlDiffDry(fromDDL, toDDL, 'default');
-  return { statements };
+	const { statements } = await ddlDiffDry(fromDDL, toDDL, 'default');
+	return { statements };
 }
-
-function makeDryPostgresSnapshot(): PostgresSnapshot {
-  return {
-    version: '8',
-    dialect: 'postgres',
-    id: originUUID,
-    prevId: originUUID,
-    ddl: [],
-    renames: [],
-  } as unknown as PostgresSnapshot;
-}
-
-// Conflict detection logic based on resource operations derived from JsonStatements
-
-export const conflictRulesDescription: Record<string, string> = {
-  'same-resource-different-op': 'Two different operations on the same resource are not commutative',
-  'same-resource-same-op': 'Two identical operations on the same resource conflict (e.g., duplicate changes)',
-  'table-drop-vs-child': 'Dropping a table conflicts with any operation on its columns, indexes, constraints, or policies',
-};
-
-type ResourceOp = {
-  key: string; // resource key e.g., table:schema.name, column:schema.name.col
-  type: 'table' | 'column' | 'index' | 'view' | 'enum' | 'sequence' | 'policy' | 'role' | 'privilege' | 'schema' | 'rls' | 'constraint';
-  op: 'create' | 'drop' | 'alter' | 'rename' | 'recreate' | 'move' | 'grant' | 'revoke';
-  raw: JsonStatement;
-};
-
-export function explainConflicts(a: JsonStatement[], b: JsonStatement[]): string[] {
-  const opsA = flattenResourceOps(a);
-  const opsB = flattenResourceOps(b);
-  const reasons: string[] = [];
-
-  // Direct same-resource conflicts
-  const mapB = new Map<string, ResourceOp[]>();
-  for (const op of opsB) {
-    const list = mapB.get(op.key) ?? [];
-    list.push(op);
-    mapB.set(op.key, list);
-  }
-
-  for (const opA of opsA) {
-    const hits = mapB.get(opA.key) ?? [];
-    for (const opB of hits) {
-      const rule = conflictRuleName(opA, opB);
-      if (rule) {
-        console.log('opA', opA)
-        console.log('opB', opB)
-        console.log('rule', rule)
-        const desc = conflictRulesDescription[rule] ?? rule;
-        reasons.push(`${desc}: ${renderOps(opA, opB)}`);
-      }
-    }
-  }
-
-  // Any movable resource was moved to another schema
-  // if one of the branches moves the resource and another branch did anything with it(alter, delete, etc)
-  // we need to handle it as conflic
-
-  // Table drop vs child ops conflicts
-  const tableDropsA = opsA.filter((o) => o.type === 'table' && o.op === 'drop');
-  const tableDropsB = opsB.filter((o) => o.type === 'table' && o.op === 'drop');
-
-  for (const drop of tableDropsA) {
-    for (const child of opsB) {
-      if (belongsToTable(child.key, drop.key)) {
-        reasons.push(`${conflictRulesDescription['table-drop-vs-child']}: drop=${drop.key}, child=${child.key}`);
-      }
-    }
-  }
-  for (const drop of tableDropsB) {
-    for (const child of opsA) {
-      if (belongsToTable(child.key, drop.key)) {
-        reasons.push(`${conflictRulesDescription['table-drop-vs-child']}: drop=${drop.key}, child=${child.key}`);
-      }
-    }
-  }
-
-  // Schema drop vs children
-  const schemaDropsA = opsA.filter((o) => o.type === 'schema' && o.op === 'drop');
-  const schemaDropsB = opsB.filter((o) => o.type === 'schema' && o.op === 'drop');
-  for (const drop of schemaDropsA) {
-    const schema = drop.key.substring('schema:'.length);
-    for (const child of opsB) {
-      if (belongsToSchema(child.key, schema)) {
-        reasons.push(`Dropping a schema conflicts with operations on its entities: drop=${drop.key}, child=${child.key}`);
-      }
-    }
-  }
-  for (const drop of schemaDropsB) {
-    const schema = drop.key.substring('schema:'.length);
-    for (const child of opsA) {
-      if (belongsToSchema(child.key, schema)) {
-        reasons.push(`Dropping a schema conflicts with operations on its entities: drop=${drop.key}, child=${child.key}`);
-      }
-    }
-  }
-
-  return Array.from(new Set(reasons));
-}
-
-function renderOps(a: ResourceOp, b: ResourceOp): string {
-  return `${a.key} (${a.op}) vs ${b.key} (${b.op})`;
-}
-
-function conflictRuleName(a: ResourceOp, b: ResourceOp): string | null {
-  if (a.key !== b.key) return null;
-  if (a.type !== b.type) return null;
-
-  if (a.op !== b.op) return 'same-resource-different-op';
-  return 'same-resource-same-op';
-}
-
-function belongsToTable(resourceKey: string, tableKey: string): boolean {
-  // tableKey is like table:schema.name
-  const base = tableKey.slice('table:'.length);
-  return resourceKey.startsWith(`column:${base}.`)
-    || resourceKey.startsWith(`index:${base.split('.')[0]}.`)
-    || resourceKey.startsWith(`constraint:${base}.`);
-}
-
-function belongsToSchema(resourceKey: string, schema: string): boolean {
-  return resourceKey.startsWith(`table:${schema}.`)
-    || resourceKey.startsWith(`view:${schema}.`)
-    || resourceKey.startsWith(`enum:${schema}.`)
-    || resourceKey.startsWith(`sequence:${schema}.`)
-    || resourceKey.startsWith(`index:${schema}.`)
-    || resourceKey.startsWith(`pk:${schema}.`)
-    || resourceKey.startsWith(`unique:${schema}.`)
-    || resourceKey.startsWith(`fk:${schema}.`)
-    || resourceKey.startsWith(`role:${schema}.`)
-    || resourceKey.startsWith(`check:${schema}.`)
-    || resourceKey.startsWith(`policy:${schema}.`);
-}
-
-function hashStatement(statement: JsonStatement): string {
-  if (statement.type === 'drop_table'){
-    return `${statement.table.schema}:${statement.table.name}`;
-  }
-  if (statement.type === 'add_column'){
-    return `${statement.column.schema}:${statement.column.table}`;
-  }
-  return ''
-}
-
-function flattenResourceOps(statements: JsonStatement[]): ResourceOp[] {
-  const res: ResourceOp[] = [];
-  for (const st of statements) {
-    switch (st.type) {
-      case 'create_table':
-        res.push({ key: tableKey(st.table.schema, st.table.name), type: 'table', op: 'create', raw: st });
-        break;
-      case 'drop_table':
-        res.push({ key: tableKey(st.table.schema, st.table.name), type: 'table', op: 'drop', raw: st });
-        break;
-      case 'rename_table':
-        res.push({ key: tableKey(st.schema, st.from), type: 'table', op: 'rename', raw: st });
-        res.push({ key: tableKey(st.schema, st.to), type: 'table', op: 'rename', raw: st });
-        break;
-      case 'recreate_table':
-        res.push({ key: tableKey(st.table.schema, st.table.name), type: 'table', op: 'recreate', raw: st });
-        break;
-      case 'move_table': {
-        // Treat move as a drop from old schema and create in new schema for conflict detection
-        res.push({ key: tableKey(st.from, st.name), type: 'table', op: 'drop', raw: st });
-        res.push({ key: tableKey(st.to, st.name), type: 'table', op: 'create', raw: st });
-        break;
-      }
-      case 'remove_from_schema': {
-        res.push({ key: tableKey(st.schema, st.table), type: 'table', op: 'move', raw: st });
-        break;
-      }
-      case 'set_new_schema': {
-        res.push({ key: tableKey(st.from, st.table), type: 'table', op: 'move', raw: st });
-        res.push({ key: tableKey(st.to, st.table), type: 'table', op: 'move', raw: st });
-        break;
-      }
-
-      case 'add_column':
-        res.push({ key: columnKey(st.column.schema, st.column.table, st.column.name), type: 'column', op: 'create', raw: st });
-        break;
-      case 'drop_column':
-        res.push({ key: columnKey(st.column.schema, st.column.table, st.column.name), type: 'column', op: 'drop', raw: st });
-        break;
-      case 'rename_column':
-        res.push({ key: columnKey(st.from.schema, st.from.table, st.from.name), type: 'column', op: 'rename', raw: st });
-        res.push({ key: columnKey(st.to.schema, st.to.table, st.to.name), type: 'column', op: 'rename', raw: st });
-        break;
-      case 'alter_column': {
-        const c = st.to;
-        res.push({ key: columnKey(c.schema, c.table, c.name), type: 'column', op: 'alter', raw: st });
-        break;
-      }
-      case 'recreate_column': {
-        const c = st.column;
-        res.push({ key: columnKey(c.schema, c.table, c.name), type: 'column', op: 'recreate', raw: st });
-        break;
-      }
-      // Note: more granular alter_column_* statements are not part of JsonStatement union; handled via alter_column/recreate_column
-
-      case 'create_index':
-        res.push({ key: indexKeyBySchemaName(st.index.schema, st.index.name), type: 'index', op: 'create', raw: st });
-        break;
-      case 'drop_index':
-        res.push({ key: indexKeyBySchemaName(st.index.schema, st.index.name), type: 'index', op: 'drop', raw: st });
-        break;
-      case 'rename_index':
-        res.push({ key: indexKeyBySchemaName(st.schema, st.from), type: 'index', op: 'rename', raw: st });
-        res.push({ key: indexKeyBySchemaName(st.schema, st.to), type: 'index', op: 'rename', raw: st });
-        break;
-
-      case 'add_pk':
-        res.push({ key: constraintKey(st.pk.schema, st.pk.table, st.pk.name), type: 'constraint', op: 'create', raw: st });
-        break;
-      case 'drop_pk':
-        res.push({ key: constraintKey(st.pk.schema, st.pk.table, st.pk.name), type: 'constraint', op: 'drop', raw: st });
-        break;
-      case 'alter_pk':
-        res.push({ key: constraintKey(st.pk.schema, st.pk.table, st.pk.name), type: 'constraint', op: 'alter', raw: st });
-        break;
-
-      case 'add_unique':
-        res.push({ key: constraintKey(st.unique.schema, st.unique.table, st.unique.name), type: 'constraint', op: 'create', raw: st });
-        break;
-      case 'drop_unique':
-        res.push({ key: constraintKey(st.unique.schema, st.unique.table, st.unique.name), type: 'constraint', op: 'drop', raw: st });
-        break;
-      case 'alter_unique':
-        res.push({ key: constraintKey((st as any).diff.schema, (st as any).diff.table, (st as any).diff.name), type: 'constraint', op: 'alter', raw: st });
-        break;
-
-      case 'create_fk':
-      case 'drop_fk':
-      case 'recreate_fk': {
-        const fk = st.fk;
-        const op = st.type === 'create_fk' ? 'create' : st.type === 'drop_fk' ? 'drop' : 'recreate';
-        res.push({ key: constraintKey(fk.schema, fk.table, fk.name), type: 'constraint', op, raw: st });
-        break;
-      }
-
-      case 'add_check':
-        res.push({ key: constraintKey(st.check.schema, st.check.table, st.check.name), type: 'constraint', op: 'create', raw: st });
-        break;
-      case 'drop_check':
-        res.push({ key: constraintKey(st.check.schema, st.check.table, st.check.name), type: 'constraint', op: 'drop', raw: st });
-        break;
-      case 'alter_check':
-        res.push({ key: constraintKey(st.check.schema, st.check.table, st.check.name), type: 'constraint', op: 'alter', raw: st });
-        break;
-
-      case 'create_view':
-        res.push({ key: viewKey(st.view.schema, st.view.name), type: 'view', op: 'create', raw: st });
-        break;
-      case 'drop_view':
-        res.push({ key: viewKey(st.view.schema, st.view.name), type: 'view', op: 'drop', raw: st });
-        break;
-      case 'rename_view':
-        res.push({ key: viewKey(st.from.schema, st.from.name), type: 'view', op: 'rename', raw: st });
-        res.push({ key: viewKey(st.to.schema, st.to.name), type: 'view', op: 'rename', raw: st });
-        break;
-      case 'alter_view': {
-        const v = st.view;
-        res.push({ key: viewKey(v.schema, v.name), type: 'view', op: 'alter', raw: st });
-        break;
-      }
-      case 'recreate_view': {
-        const v = st.to;
-        res.push({ key: viewKey(v.schema, v.name), type: 'view', op: 'recreate', raw: st });
-        break;
-      }
-      case 'move_view': {
-        // Treat move as a drop from old schema and create in new schema for conflict detection
-        res.push({ key: viewKey(st.fromSchema, st.view.name), type: 'view', op: 'drop', raw: st });
-        res.push({ key: viewKey(st.toSchema, st.view.name), type: 'view', op: 'create', raw: st });
-        break;
-      }
-
-      case 'create_enum':
-      case 'drop_enum':
-      case 'rename_enum':
-      case 'alter_enum':
-      case 'recreate_enum': {
-        const schema = (st as any).enum?.schema ?? (st as any).to?.schema ?? (st as any).schema;
-        const name = (st as any).enum?.name ?? (st as any).to?.name ?? (st as any).from ?? (st as any).enum?.name;
-        const op: ResourceOp['op'] = st.type === 'create_enum' ? 'create' : st.type === 'drop_enum' ? 'drop' : st.type === 'rename_enum' ? 'rename' : st.type === 'alter_enum' ? 'alter' : 'recreate';
-        res.push({ key: enumKey(schema, name), type: 'enum', op, raw: st });
-        break;
-      }
-      case 'move_enum': {
-        // Treat move as a drop from old schema and create in new schema for conflict detection
-        res.push({ key: enumKey(st.from.schema ?? 'public', st.from.name), type: 'enum', op: 'drop', raw: st as any });
-        res.push({ key: enumKey(st.to.schema ?? 'public', st.to.name), type: 'enum', op: 'create', raw: st as any });
-        break;
-      }
-
-      case 'create_sequence':
-      case 'drop_sequence':
-      case 'alter_sequence':
-      case 'rename_sequence': {
-        const seq = (st as any).sequence ?? (st as any).to ?? (st as any).from;
-        const schema = seq?.schema ?? (st as any).to?.schema ?? (st as any).from?.schema ?? (st as any).diff?.schema;
-        const name = seq?.name ?? (st as any).to?.name ?? (st as any).from?.name ?? (st as any).diff?.name;
-        const op: ResourceOp['op'] = st.type === 'create_sequence' ? 'create' : st.type === 'drop_sequence' ? 'drop' : st.type === 'alter_sequence' ? 'alter' : st.type === 'rename_sequence' ? 'rename' : 'move';
-        res.push({ key: sequenceKey(schema, name), type: 'sequence', op, raw: st });
-        break;
-      }
-      case 'move_sequence': {
-        // Treat move as a drop from old schema and create in new schema for conflict detection
-        res.push({ key: sequenceKey(st.from.schema ?? 'public', st.from.name), type: 'sequence', op: 'drop', raw: st });
-        res.push({ key: sequenceKey(st.to.schema ?? 'public', st.to.name), type: 'sequence', op: 'create', raw: st });
-        break;
-      }
-
-      case 'create_policy':
-      case 'drop_policy':
-      case 'alter_policy':
-      case 'rename_policy':
-      case 'recreate_policy': {
-        const pol = (st as any).policy ?? (st as any).to ?? (st as any).from;
-        const schema = pol.schema;
-        const table = pol.table;
-        const name = pol.name;
-        const op: ResourceOp['op'] = st.type === 'create_policy' ? 'create' : st.type === 'drop_policy' ? 'drop' : st.type === 'alter_policy' ? 'alter' : st.type === 'rename_policy' ? 'rename' : 'recreate';
-        res.push({ key: policyKey(schema, table, name), type: 'policy', op, raw: st });
-        break;
-      }
-
-      case 'alter_rls': {
-        const schema = (st as any).schema;
-        const name = (st as any).name;
-        res.push({ key: tableKey(schema, name), type: 'table', op: 'alter', raw: st });
-        break;
-      }
-
-      case 'rename_schema': {
-        const from = (st as any).from?.name;
-        const to = (st as any).to?.name;
-        if (from) res.push({ key: schemaKey(from), type: 'schema', op: 'rename', raw: st });
-        if (to) res.push({ key: schemaKey(to), type: 'schema', op: 'rename', raw: st });
-        break;
-      }
-
-      case 'create_schema':
-        res.push({ key: schemaKey((st as any).name), type: 'schema', op: 'create', raw: st });
-        break;
-      case 'drop_schema':
-        res.push({ key: schemaKey((st as any).name), type: 'schema', op: 'drop', raw: st });
-        break;
-
-      case 'rename_role':
-      case 'create_role':
-      case 'drop_role':
-      case 'alter_role': {
-        const role = (st as any).role ?? (st as any).to ?? (st as any).from;
-        const name = role?.name ?? (st as any).to?.name ?? (st as any).from?.name;
-        const op: ResourceOp['op'] = st.type === 'create_role' ? 'create' : st.type === 'drop_role' ? 'drop' : st.type === 'alter_role' ? 'alter' : 'rename';
-        res.push({ key: roleKey(name), type: 'role', op, raw: st });
-        break;
-      }
-
-      case 'grant_privilege':
-        res.push({ key: privilegeKey(st.privilege.schema, st.privilege.table, st.privilege.type, st.privilege.grantee), type: 'privilege', op: 'grant', raw: st });
-        break;
-      case 'revoke_privilege':
-        res.push({ key: privilegeKey(st.privilege.schema, st.privilege.table, st.privilege.type, st.privilege.grantee), type: 'privilege', op: 'revoke', raw: st });
-        break;
-      case 'regrant_privilege':
-        res.push({ key: privilegeKey(st.privilege.schema, st.privilege.table, st.privilege.type, st.privilege.grantee), type: 'privilege', op: 'alter', raw: st });
-        break;
-
-      case 'rename_constraint': {
-        res.push({ key: constraintKey(st.schema, st.table, st.from), type: 'constraint', op: 'drop', raw: st });
-        res.push({ key: constraintKey(st.schema, st.table, st.to), type: 'constraint', op: 'create', raw: st });
-        break;
-      }
-
-      default:
-        break;
-    }
-  }
-  return res;
-}
-
-const tableKey = (schema: string, name: string) => `table:${schema}.${name}`;
-const columnKey = (schema: string, table: string, column: string) => `column:${schema}.${table}.${column}`;
-const indexKeyBySchemaName = (schema: string, name: string) => `index:${schema}.${name}`;
-const viewKey = (schema: string, name: string) => `view:${schema}.${name}`;
-const enumKey = (schema: string, name: string) => `enum:${schema}.${name}`;
-const sequenceKey = (schema: string, name: string) => `sequence:${schema}.${name}`;
-const policyKey = (schema: string, table: string, name: string) => `policy:${schema}.${table}.${name}`;
-const schemaKey = (name: string) => `schema:${name}`;
-const roleKey = (name: string) => `role:${name}`;
-const privilegeKey = (schema: string | null, table: string | null, type: string, grantee: string) => `privilege:${schema ?? '*'}.${table ?? '*'}.${type}.${grantee}`;
-const constraintKey = (schema: string, table: string, name: string) => `constraint:${schema}.${table}.${name}`; 

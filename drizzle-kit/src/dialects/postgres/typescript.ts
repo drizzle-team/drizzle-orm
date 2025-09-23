@@ -46,7 +46,7 @@ const imports = [
 	'serial',
 	'smallserial',
 	'bigserial',
-	
+
 	'time',
 	'timestamp',
 	'date',

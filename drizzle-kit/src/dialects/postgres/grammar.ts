@@ -433,11 +433,11 @@ export const Time: SqlType = {
 		const options: any = {};
 		const [precision] = parseParams(type);
 		if (precision) options['precision'] = Number(precision);
-		if(/with time zone/i.test(type)) options["withTimezone"] = true;
+		if (/with time zone/i.test(type)) options['withTimezone'] = true;
 
 		if (!value) return { options, default: '' };
-		const trimmed = trimChar(value, "'")
-		if(!isTime(trimmed)) return {options, default: `sql\`${value}\``}
+		const trimmed = trimChar(value, "'");
+		if (!isTime(trimmed)) return { options, default: `sql\`${value}\`` };
 
 		return { options, default: value };
 	},
@@ -445,7 +445,7 @@ export const Time: SqlType = {
 		const options: any = {};
 		const [precision] = parseParams(type);
 		if (precision) options['precision'] = Number(precision);
-		if(/with time zone/i.test(type)) options["withTimezone"] = true;
+		if (/with time zone/i.test(type)) options['withTimezone'] = true;
 
 		if (!value) return { options, default: '' };
 
@@ -455,10 +455,10 @@ export const Time: SqlType = {
 			return {
 				options,
 				default: stringifyArray(res, 'ts', (v) => {
-					const trimmed= trimChar(v, "'");
-					const check = new Date(trimmed)
-					if(!isNaN(check.getTime()))	return `new Date("${check}")`;
-					return `sql\`${trimmed}\``
+					const trimmed = trimChar(v, "'");
+					const check = new Date(trimmed);
+					if (!isNaN(check.getTime())) return `new Date("${check}")`;
+					return `sql\`${trimmed}\``;
 				}),
 			};
 		} catch {
@@ -471,22 +471,21 @@ export const Timestamp: SqlType = {
 	is: (type: string) => /^\s*timestamp(?:[\s(].*)*\s*$/i.test(type),
 	drizzleImport: () => 'timestamp',
 	defaultFromDrizzle: (value) => {
-		if(typeof value === 'string') return { value: wrapWith(value, "'"), type: 'unknown' };
-		if(!(value instanceof Date)) throw new Error('Timestamp default value must be instance of Date or String');
-		
-		const mapped = value.toISOString().replace('T', ' ').replace('Z', ' ').slice(0, 23) 
+		if (typeof value === 'string') return { value: wrapWith(value, "'"), type: 'unknown' };
+		if (!(value instanceof Date)) throw new Error('Timestamp default value must be instance of Date or String');
+
+		const mapped = value.toISOString().replace('T', ' ').replace('Z', ' ').slice(0, 23);
 		return { value: wrapWith(mapped, "'"), type: 'unknown' };
 	},
 	defaultArrayFromDrizzle: (value) => {
 		const res = stringifyArray(value, 'sql', (v) => {
-			if(typeof v === "string")return v;
-			if(v instanceof Date) return v.toISOString().replace('T', ' ').replace('Z', ' ').slice(0, 23)
-				throw new Error("Unexpected default value for Timestamp, must be String or Date")
+			if (typeof v === 'string') return v;
+			if (v instanceof Date) return v.toISOString().replace('T', ' ').replace('Z', ' ').slice(0, 23);
+			throw new Error('Unexpected default value for Timestamp, must be String or Date');
 		});
 		return { value: wrapWith(res, "'"), type: 'unknown' };
 	},
 	defaultFromIntrospect: (value) => {
-
 		return { value: value, type: 'unknown' };
 	},
 	defaultArrayFromIntrospect: (value) => {
@@ -496,15 +495,15 @@ export const Timestamp: SqlType = {
 		const options: any = {};
 		const [precision] = parseParams(type);
 		if (precision) options['precision'] = Number(precision);
-		if(/with time zone/i.test(type)) options["withTimezone"] = true;
+		if (/with time zone/i.test(type)) options['withTimezone'] = true;
 
 		if (!value) return { options, default: '' };
-		let patched = trimChar(value, "'")
-		patched = patched.includes('T') ? patched : patched.replace(' ', 'T') + "Z";
+		let patched = trimChar(value, "'");
+		patched = patched.includes('T') ? patched : patched.replace(' ', 'T') + 'Z';
 
 		const test = new Date(patched);
 
-		if(isNaN(test.getTime())) return {options, default: `sql\`${value}\``}
+		if (isNaN(test.getTime())) return { options, default: `sql\`${value}\`` };
 
 		return { options, default: `new Date('${patched}')` };
 	},
@@ -512,7 +511,7 @@ export const Timestamp: SqlType = {
 		const options: any = {};
 		const [precision] = parseParams(type);
 		if (precision) options['precision'] = Number(precision);
-		if(/with time zone/i.test(type)) options["withTimezone"] = true;
+		if (/with time zone/i.test(type)) options['withTimezone'] = true;
 
 		if (!value) return { options, default: '' };
 
@@ -522,10 +521,10 @@ export const Timestamp: SqlType = {
 			return {
 				options,
 				default: stringifyArray(res, 'ts', (v) => {
-					const trimmed= trimChar(v, "'");
-					const check = new Date(trimmed)
-					if(!isNaN(check.getTime()))	return `new Date("${check}")`;
-					return `sql\`${trimmed}\``
+					const trimmed = trimChar(v, "'");
+					const check = new Date(trimmed);
+					if (!isNaN(check.getTime())) return `new Date("${check}")`;
+					return `sql\`${trimmed}\``;
 				}),
 			};
 		} catch {
@@ -901,7 +900,7 @@ export const defaultForColumn = (
 		return grammarType.defaultFromIntrospect(String(value));
 	}
 
-	throw new Error("unexpected type" + type)
+	throw new Error('unexpected type' + type);
 
 	// trim ::type and []
 

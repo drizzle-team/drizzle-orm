@@ -58,7 +58,6 @@ export const checkHandler = async (out: string, dialect: Dialect) => {
 			}
 		}
 	} catch (e) {
-		
 	}
 
 	const abort = report.malformed.length!! || collisionEntries.length > 0;

@@ -27,7 +27,7 @@ function writeTempSnapshot(dir: string, tag: string, snap: PostgresSnapshot) {
 }
 
 describe('commutativity detector (postgres)', () => {
-    test('Parent not empty: detects conflict when first migration of branch A has a conflict with the last migration of branch B', async () => {
+	test('Parent not empty: detects conflict when first migration of branch A has a conflict with the last migration of branch B', async () => {
 		const parentDDL = createDDL();
 		parentDDL.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' });
 		parentDDL.columns.push({
@@ -62,7 +62,7 @@ describe('commutativity detector (postgres)', () => {
 		} as any);
 		const leafA = makeSnapshot('a1', 'p1', A.entities.list());
 
-        const A2 = createDDL();
+		const A2 = createDDL();
 		A2.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' });
 		A2.columns.push({
 			schema: 'public',
@@ -79,8 +79,8 @@ describe('commutativity detector (postgres)', () => {
 		} as any);
 		const leafA2 = makeSnapshot('a2', 'a1', A2.entities.list());
 
-        const B = createDDL();
-        B.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' });
+		const B = createDDL();
+		B.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' });
 		B.columns.push({
 			schema: 'public',
 			table: 'users',
@@ -94,7 +94,7 @@ describe('commutativity detector (postgres)', () => {
 			generated: null,
 			identity: null,
 		} as any);
-        B.tables.push({ schema: 'public', isRlsEnabled: false, name: 'posts' });
+		B.tables.push({ schema: 'public', isRlsEnabled: false, name: 'posts' });
 		B.columns.push({
 			schema: 'public',
 			table: 'posts',
@@ -110,8 +110,8 @@ describe('commutativity detector (postgres)', () => {
 		} as any);
 		const leafB = makeSnapshot('b1', 'p1', B.entities.list());
 
-        const B2 = createDDL();
-        B2.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' });
+		const B2 = createDDL();
+		B2.tables.push({ schema: 'public', isRlsEnabled: false, name: 'users' });
 		B2.columns.push({
 			schema: 'public',
 			table: 'users',
@@ -125,7 +125,7 @@ describe('commutativity detector (postgres)', () => {
 			generated: null,
 			identity: null,
 		} as any);
-        B2.tables.push({ schema: 'public', isRlsEnabled: false, name: 'posts' });
+		B2.tables.push({ schema: 'public', isRlsEnabled: false, name: 'posts' });
 		B2.columns.push({
 			schema: 'public',
 			table: 'posts',
@@ -141,8 +141,8 @@ describe('commutativity detector (postgres)', () => {
 		} as any);
 		const leafB2 = makeSnapshot('b2', 'b1', B2.entities.list());
 
-        const B3 = createDDL();
-        B3.tables.push({ schema: 'public', isRlsEnabled: false, name: 'posts' });
+		const B3 = createDDL();
+		B3.tables.push({ schema: 'public', isRlsEnabled: false, name: 'posts' });
 		B3.columns.push({
 			schema: 'public',
 			table: 'posts',
@@ -162,10 +162,10 @@ describe('commutativity detector (postgres)', () => {
 		const tmp = require('fs').mkdtempSync(require('path').join(os.tmpdir(), 'dk-comm-'));
 		const pPath = writeTempSnapshot(tmp, '000_parent', parent);
 		const aPath = writeTempSnapshot(tmp, '001_leafA', leafA);
-        const a2Path = writeTempSnapshot(tmp, '001_leafA2', leafA2);
+		const a2Path = writeTempSnapshot(tmp, '001_leafA2', leafA2);
 		const bPath = writeTempSnapshot(tmp, '002_leafB', leafB);
-        const b2Path = writeTempSnapshot(tmp, '002_leafB2', leafB2);
-        const b3Path = writeTempSnapshot(tmp, '002_leafB3', leafB3);
+		const b2Path = writeTempSnapshot(tmp, '002_leafB2', leafB2);
+		const b3Path = writeTempSnapshot(tmp, '002_leafB3', leafB3);
 
 		const report = await detectNonCommutative([pPath, aPath, bPath, b2Path, b3Path, a2Path], 'postgresql');
 		expect(report.conflicts.length).toBeGreaterThan(0);
@@ -192,7 +192,7 @@ describe('commutativity detector (postgres)', () => {
 		} as any);
 		const leafA = makeSnapshot('a1', 'p1', A.entities.list());
 
-        const A2 = createDDL();
+		const A2 = createDDL();
 		A2.tables.push({ schema: 'public', isRlsEnabled: false, name: 'posts' });
 		A2.columns.push({
 			schema: 'public',
@@ -226,7 +226,7 @@ describe('commutativity detector (postgres)', () => {
 		} as any);
 		const leafB = makeSnapshot('b1', 'p1', B.entities.list());
 
-        const B2 = createDDL();
+		const B2 = createDDL();
 		B2.tables.push({ schema: 'public', isRlsEnabled: false, name: 'posts' });
 		B2.columns.push({
 			schema: 'public',
@@ -243,8 +243,8 @@ describe('commutativity detector (postgres)', () => {
 		} as any);
 		const leafB2 = makeSnapshot('b2', 'b1', B2.entities.list());
 
-        const B3 = createDDL();
-        B3.tables.push({ schema: 'public', isRlsEnabled: false, name: 'posts' });
+		const B3 = createDDL();
+		B3.tables.push({ schema: 'public', isRlsEnabled: false, name: 'posts' });
 		B3.columns.push({
 			schema: 'public',
 			table: 'users',
@@ -278,10 +278,10 @@ describe('commutativity detector (postgres)', () => {
 		const tmp = require('fs').mkdtempSync(require('path').join(os.tmpdir(), 'dk-comm-'));
 		const pPath = writeTempSnapshot(tmp, '000_parent', parent);
 		const aPath = writeTempSnapshot(tmp, '001_leafA', leafA);
-        const a2Path = writeTempSnapshot(tmp, '002_leafA2', leafA2);
+		const a2Path = writeTempSnapshot(tmp, '002_leafA2', leafA2);
 		const bPath = writeTempSnapshot(tmp, '002_leafB', leafB);
-        const b2Path = writeTempSnapshot(tmp, '003_leafB2', leafB2);
-        const b3Path = writeTempSnapshot(tmp, '004_leafB3', leafB3);
+		const b2Path = writeTempSnapshot(tmp, '003_leafB2', leafB2);
+		const b3Path = writeTempSnapshot(tmp, '004_leafB3', leafB3);
 
 		const report = await detectNonCommutative([pPath, aPath, a2Path, bPath, b2Path, b3Path], 'postgresql');
 		expect(report.conflicts.length).toBeGreaterThan(0);
@@ -666,7 +666,11 @@ describe('conflict rule coverage (statement pairs)', () => {
 	});
 
 	test('schema: rename vs create (old name/new name collision)', () => {
-		const renameSchema: JsonStatement = { type: 'rename_schema', from: { name: 'old_s' } as any, to: { name: 'new_s' } as any } as any;
+		const renameSchema: JsonStatement = {
+			type: 'rename_schema',
+			from: { name: 'old_s' } as any,
+			to: { name: 'new_s' } as any,
+		} as any;
 		const createSchema: JsonStatement = { type: 'create_schema', name: 'old_s' } as any;
 		const reasons = explainConflicts([renameSchema], [createSchema]);
 		expect(reasons.length).toBeGreaterThan(0);
