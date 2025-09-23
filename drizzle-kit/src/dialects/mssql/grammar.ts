@@ -2,7 +2,7 @@ import { parse, stringify } from 'src/utils/when-json-met-bigint';
 import { assertUnreachable, trimChar } from '../../utils';
 import { escapeForSqlDefault, escapeForTsLiteral, parseParams, unescapeFromSqlDefault } from '../utils';
 import { DefaultConstraint, MssqlEntities } from './ddl';
-import { Import } from './typescript';
+import type { Import } from './typescript';
 import { hash } from './utils';
 
 const getDefaultOptions = (x: keyof typeof defaults.options): string | null => {
@@ -135,9 +135,7 @@ export const bufferToBinary = (str: Buffer) => {
 
 export const parseDefault = (type: string, def: string) => {
 	const grammarType = typeFor(type);
-	if (grammarType) return grammarType.defaultFromIntrospect(def);
-
-	throw Error(`Unknown default ${type} ${def}`);
+	return grammarType.defaultFromIntrospect(def);
 };
 
 const commutativeTypes = [
@@ -200,8 +198,6 @@ const checkNumber = (it: string) => {
 	return 'bigint';
 };
 
-// TODO probably we can remove `defaultFromIntrospect` since it is just `return value`
-// MSSQL stores all defaults in (), no matter if this is literal or expression
 export interface SqlType {
 	is(type: string): boolean;
 	drizzleImport(): Import;
@@ -210,7 +206,7 @@ export interface SqlType {
 	toTs(
 		type: string,
 		value: DefaultConstraint['default'],
-	): { options?: Record<string, unknown>; default: string };
+	): { options?: Record<string, unknown>; default: string; customType?: string };
 }
 
 export const Int: SqlType = {
@@ -223,7 +219,11 @@ export const Int: SqlType = {
 		return `((${stringified}))`;
 	},
 	defaultFromIntrospect: (value: string) => {
-		return value;
+		// mssql stores values that are bigger than `int` with dots
+		const tmp = value.replace('.))', '))');
+		const checked = checkNumber(trimChar(trimChar(tmp, ['(', ')']), ['(', ')']));
+		if (checked === 'NaN') return value;
+		return tmp;
 	},
 	toTs: (_type, value) => {
 		if (!value) return { default: '' };
@@ -231,10 +231,9 @@ export const Int: SqlType = {
 		// cases from introspect:
 		// int DEFAULT '10' --> ('10')
 		// int DEFAULT 10  --> ((10))
-		// int DEFAULT 10.  --> ((10.))
 		value = value.substring(1, value.length - 1);
 
-		const trimmed = trimChar(trimChar(value, '('), ')');
+		const trimmed = trimChar(value, ['(', ')']);
 
 		const numType = checkNumber(trimmed);
 		if (numType === 'NaN') return { default: `sql\`${value}\`` };
@@ -259,10 +258,6 @@ export const BigInt: SqlType = {
 	is: (type: string) => type === 'bigint',
 	drizzleImport: () => 'bigint',
 	defaultFromDrizzle: (value: unknown) => {
-		// const res = Number(value);
-
-		// mssql stores values that are bigger than `int` with dots
-		// if (res > defaults.max_int_value || res < defaults.min_int_value) return `((${String(value)}.))`;
 		return `((${String(value)}))`;
 	},
 	defaultFromIntrospect: Int.defaultFromIntrospect,
@@ -278,11 +273,11 @@ export const BigInt: SqlType = {
 		value = value.substring(1, value.length - 1);
 
 		const tmp = value.replaceAll('.)', ')');
-		const trimmed = trimChar(trimChar(tmp, '('), ')');
+		const trimmed = trimChar(tmp, ['(', ')']);
 
 		const numType = checkNumber(trimmed);
 
-		if (numType === 'NaN') return { options: { mode: 'number' }, default: `sql\`${value}\`` };
+		if (numType === 'NaN') return { options: { mode: 'bigint' }, default: `sql\`${value}\`` };
 		if (numType === 'number') return { options: { mode: 'number' }, default: trimmed };
 		if (numType === 'bigint') return { options: { mode: 'bigint' }, default: `${trimmed}n` };
 		assertUnreachable(numType);
@@ -432,7 +427,7 @@ export const NVarchar: SqlType = {
 
 			return {
 				default: stringify(parsed, undefined, undefined, true)!,
-				options: { mode: 'json' },
+				options: { mode: 'json', ...optionsToSet },
 			};
 		} catch {}
 
@@ -463,13 +458,14 @@ export const Decimal: SqlType = {
 	is: (type: string) => type === 'decimal' || type.startsWith('decimal('),
 	drizzleImport: () => 'decimal',
 	defaultFromDrizzle: (value) => {
-		// const res = Number(value);
-
-		// if (res > defaults.max_int_value || res < defaults.min_int_value) return `((${String(value)}.))`;
 		return `((${String(value)}))`;
 	},
 	defaultFromIntrospect: (value) => {
-		return value;
+		// mssql stores values that are bigger than `int` with dots
+		const tmp = value.replace('.))', '))');
+		const checked = checkNumber(trimChar(trimChar(tmp, ['(', ')']), ['(', ')']));
+		if (checked === 'NaN') return value;
+		return tmp;
 	},
 	toTs: (type, value) => {
 		const optionsToSet: any = {};
@@ -482,22 +478,19 @@ export const Decimal: SqlType = {
 		}
 
 		if (!value) return { options: optionsToSet, default: '' };
-
 		// cases:
 		// [column] decimal DEFAULT '6.32' --> ('6.32') -> edge case
 		// [column1] decimal DEFAULT '6.' --> ('6.') -> edge case
 		// [column2] decimal DEFAULT '6' --> ('6') -> edge case
 		// [column3] decimal DEFAULT 6.32 --> ((6.32))
-		// [column4] decimal DEFAULT 6. --> ((6.))
 		// [column5] decimal DEFAULT 6 --> ((6))
 		value = value.substring(1, value.length - 1);
 
-		const tmp = value.replaceAll('.)', ')');
-		const trimmed = trimChar(trimChar(tmp, '('), ')');
+		const trimmed = trimChar(value, ['(', ')']);
 
 		const numType = checkNumber(trimmed);
 
-		if (numType === 'NaN') return { options: { ...optionsToSet, mode: 'number' }, default: `sql\`${value}\`` };
+		if (numType === 'NaN') return { options: { ...optionsToSet, mode: 'bigint' }, default: `sql\`${value}\`` };
 		if (numType === 'number') return { options: { ...optionsToSet, mode: 'number' }, default: trimmed };
 		if (numType === 'bigint') return { options: { ...optionsToSet, mode: 'bigint' }, default: `${trimmed}n` };
 		assertUnreachable(numType);
@@ -515,13 +508,14 @@ export const Float: SqlType = {
 	is: (type: string) => type === 'float' || type.startsWith('float('),
 	drizzleImport: () => 'float',
 	defaultFromDrizzle: (value) => {
-		// const res = Number(value);
-
-		// if (res > defaults.max_int_value || res < defaults.min_int_value) return `((${String(value)}.))`;
 		return `((${String(value)}))`;
 	},
 	defaultFromIntrospect: (value) => {
-		return value;
+		// mssql stores values that are bigger than `int` with dots
+		const tmp = value.replace('.))', '))');
+		const checked = checkNumber(trimChar(trimChar(tmp, ['(', ')']), ['(', ')']));
+		if (checked === 'NaN') return value;
+		return tmp;
 	},
 	toTs: (type, value) => {
 		const param = parseParams(type)[0];
@@ -530,20 +524,17 @@ export const Float: SqlType = {
 		if (!value) return { default: '', options: optionsToSet };
 
 		// cases:
-		// [column] float DEFAULT '6.32' --> ('6.32') -> edge case
-		// [column1] float DEFAULT '6.' --> ('6.') -> edge case
-		// [column2] float DEFAULT '6' --> ('6') -> edge case
+		// [column] float DEFAULT '6.32' --> ('6.32') -> mapped to ((6.32))
+		// [column2] float DEFAULT '6' --> ('6') -> mapped to ((6))
 		// [column3] float DEFAULT 6.32 --> ((6.32))
-		// [column4] float DEFAULT 6. --> ((6.))
 		// [column5] float DEFAULT 6 --> ((6))
 		value = value.substring(1, value.length - 1);
 
-		const tmp = value.replaceAll('.)', ')');
-		const trimmed = trimChar(trimChar(tmp, '('), ')');
+		const trimmed = trimChar(value, ['(', ')']);
 
 		const numType = checkNumber(trimmed);
 
-		if (numType === 'NaN') return { options: { ...optionsToSet, mode: 'number' }, default: `sql\`${value}\`` };
+		if (numType === 'NaN') return { options: { ...optionsToSet, mode: 'bigint' }, default: `sql\`${value}\`` };
 		if (numType === 'number') return { options: { ...optionsToSet, mode: 'number' }, default: trimmed };
 		if (numType === 'bigint') return { options: { ...optionsToSet, mode: 'bigint' }, default: `${trimmed}n` };
 		assertUnreachable(numType);
@@ -562,12 +553,10 @@ export const Real: SqlType = {
 		// [column1] float DEFAULT '6.' --> ('6.') -> edge case
 		// [column2] float DEFAULT '6' --> ('6') -> edge case
 		// [column3] float DEFAULT 6.32 --> ((6.32))
-		// [column4] float DEFAULT 6. --> ((6.))
 		// [column5] float DEFAULT 6 --> ((6))
 		value = value.substring(1, value.length - 1);
 
-		const tmp = value.replaceAll('.)', ')');
-		const trimmed = trimChar(trimChar(tmp, '('), ')');
+		const trimmed = trimChar(value, ['(', ')']);
 
 		const numType = checkNumber(trimmed);
 		if (numType === 'NaN') return { default: `sql\`${value}\`` };
@@ -748,7 +737,23 @@ export const Varbinary: SqlType = {
 	toTs: Binary.toTs,
 };
 
-export const typeFor = (sqlType: string): SqlType | null => {
+export const Custom: SqlType = {
+	is: () => {
+		throw Error('Mocked');
+	},
+	drizzleImport: () => 'customType',
+	defaultFromDrizzle: (value) => {
+		return `('${String(value)}')`;
+	},
+	defaultFromIntrospect: (value) => {
+		return value;
+	},
+	toTs: (type, value) => {
+		return { default: `sql\`${value}\``, customType: type };
+	},
+};
+
+export const typeFor = (sqlType: string): SqlType => {
 	if (Int.is(sqlType)) return Int;
 	if (TinyInt.is(sqlType)) return TinyInt;
 	if (SmallInt.is(sqlType)) return SmallInt;
@@ -771,5 +776,5 @@ export const typeFor = (sqlType: string): SqlType | null => {
 	if (Time.is(sqlType)) return Time;
 	if (Binary.is(sqlType)) return Binary;
 	if (Varbinary.is(sqlType)) return Varbinary;
-	return null;
+	return Custom;
 };

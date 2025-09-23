@@ -1,12 +1,10 @@
 import { ColumnBuilder } from '~/column-builder.ts';
 import type {
-	ColumnBuilderBase,
 	ColumnBuilderBaseConfig,
 	ColumnBuilderExtraConfig,
 	ColumnBuilderRuntimeConfig,
-	ColumnDataType,
+	ColumnType,
 	HasGenerated,
-	MakeColumnConfig,
 	NotNull,
 } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
@@ -18,6 +16,8 @@ import type { AnyMsSqlTable, MsSqlTable } from '~/mssql-core/table.ts';
 import type { SQL } from '~/sql/index.ts';
 import type { Update } from '~/utils.ts';
 
+export type MsSqlColumns = Record<string, MsSqlColumn<any>>;
+
 export interface ReferenceConfig {
 	ref: () => MsSqlColumn;
 	actions: {
@@ -26,25 +26,15 @@ export interface ReferenceConfig {
 	};
 }
 
-export interface MsSqlColumnBuilderBase<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string>,
-	TTypeConfig extends object = object,
-> extends ColumnBuilderBase<T, TTypeConfig & { dialect: 'mssql' }> {}
-
 export interface MsSqlGeneratedColumnConfig {
 	mode?: 'virtual' | 'persisted';
 }
 
 export abstract class MsSqlColumnBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<ColumnDataType, string> & {
-		data: any;
-	},
+	T extends ColumnBuilderBaseConfig<ColumnType> = ColumnBuilderBaseConfig<ColumnType>,
 	TRuntimeConfig extends object = object,
-	TTypeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
-> extends ColumnBuilder<T, TRuntimeConfig, TTypeConfig & { dialect: 'mssql' }, TExtraConfig>
-	implements MsSqlColumnBuilderBase<T, TTypeConfig>
-{
+> extends ColumnBuilder<T, TRuntimeConfig, TExtraConfig> {
 	static override readonly [entityKind]: string = 'MsSqlColumnBuilder';
 
 	private foreignKeyConfigs: ReferenceConfig[] = [];
@@ -96,22 +86,25 @@ export abstract class MsSqlColumnBuilder<
 	/** @internal */
 	abstract build<TTableName extends string>(
 		table: AnyMsSqlTable<{ name: TTableName }>,
-	): MsSqlColumn<MakeColumnConfig<T, TTableName>>;
+	): MsSqlColumn<any>;
 }
 
 // To understand how to use `MsSqlColumn` and `AnyMsSqlColumn`, see `Column` and `AnyColumn` documentation.
 export abstract class MsSqlColumn<
-	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<ColumnDataType, string>,
+	T extends ColumnBaseConfig<ColumnType> = ColumnBaseConfig<ColumnType>,
 	TRuntimeConfig extends object = object,
-	TTypeConfig extends object = {},
-> extends Column<T, TRuntimeConfig, TTypeConfig & { dialect: 'mssql' }> {
+> extends Column<T, TRuntimeConfig> {
 	static override readonly [entityKind]: string = 'MsSqlColumn';
 
+	/** @internal */
+	override readonly table: MsSqlTable;
+
 	constructor(
-		override readonly table: MsSqlTable,
-		config: ColumnBuilderRuntimeConfig<T['data'], TRuntimeConfig>,
+		table: MsSqlTable,
+		config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig,
 	) {
 		super(table, config);
+		this.table = table;
 	}
 
 	/** @internal */
@@ -120,8 +113,8 @@ export abstract class MsSqlColumn<
 	}
 }
 
-export type AnyMsSqlColumn<TPartial extends Partial<ColumnBaseConfig<ColumnDataType, string>> = {}> = MsSqlColumn<
-	Required<Update<ColumnBaseConfig<ColumnDataType, string>, TPartial>>
+export type AnyMsSqlColumn<TPartial extends Partial<ColumnBaseConfig<ColumnType>> = {}> = MsSqlColumn<
+	Required<Update<ColumnBaseConfig<ColumnType>, TPartial>>
 >;
 
 export interface MsSqlColumnWithIdentityConfig {
@@ -129,16 +122,15 @@ export interface MsSqlColumnWithIdentityConfig {
 }
 
 export abstract class MsSqlColumnBuilderWithIdentity<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string> = ColumnBuilderBaseConfig<
-		ColumnDataType,
-		string
+	T extends ColumnBuilderBaseConfig<ColumnType> = ColumnBuilderBaseConfig<
+		ColumnType
 	>,
 	TRuntimeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
 > extends MsSqlColumnBuilder<T, TRuntimeConfig & MsSqlColumnWithIdentityConfig, TExtraConfig> {
 	static override readonly [entityKind]: string = 'MsSqlColumnBuilderWithAutoIncrement';
 
-	constructor(name: NonNullable<T['name']>, dataType: T['dataType'], columnType: T['columnType']) {
+	constructor(name: string, dataType: T['dataType'], columnType: string) {
 		super(name, dataType, columnType);
 	}
 
@@ -156,10 +148,7 @@ export abstract class MsSqlColumnBuilderWithIdentity<
 }
 
 export abstract class MsSqlColumnWithIdentity<
-	T extends ColumnBaseConfig<ColumnDataType, string> = ColumnBaseConfig<
-		ColumnDataType,
-		string
-	>,
+	T extends ColumnBaseConfig<ColumnType> = ColumnBaseConfig<ColumnType>,
 	TRuntimeConfig extends object = object,
 > extends MsSqlColumn<T, MsSqlColumnWithIdentityConfig & TRuntimeConfig> {
 	static override readonly [entityKind]: string = 'MsSqlColumnWithAutoIncrement';

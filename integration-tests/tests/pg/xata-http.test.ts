@@ -10,10 +10,11 @@ import { randomString } from '~/utils';
 import { getXataClient } from '../xata/xata.ts';
 import { tests, tests as cacheTests, usersMigratorTable, usersTable } from './pg-common';
 import { TestCache, TestGlobalCache } from './pg-common-cache.ts';
+import relations from './relations.ts';
 
 const ENABLE_LOGGING = false;
 
-let db: XataHttpDatabase;
+let db: XataHttpDatabase<never, typeof relations>;
 let dbGlobalCached: XataHttpDatabase;
 let cachedDb: XataHttpDatabase;
 let client: XataHttpClient;
@@ -34,7 +35,7 @@ beforeAll(async () => {
 		maxTimeout: 250,
 		randomize: false,
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
 	cachedDb = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestCache() });
 	dbGlobalCached = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 });

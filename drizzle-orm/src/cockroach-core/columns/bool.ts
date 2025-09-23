@@ -1,39 +1,31 @@
 import type { AnyCockroachTable } from '~/cockroach-core/table.ts';
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { CockroachColumn, CockroachColumnWithArrayBuilder } from './common.ts';
 
-export type CockroachBooleanBuilderInitial<TName extends string> = CockroachBooleanBuilder<{
-	name: TName;
+export class CockroachBooleanBuilder extends CockroachColumnWithArrayBuilder<{
 	dataType: 'boolean';
-	columnType: 'CockroachBoolean';
 	data: boolean;
 	driverParam: boolean;
-	enumValues: undefined;
-}>;
-
-export class CockroachBooleanBuilder<T extends ColumnBuilderBaseConfig<'boolean', 'CockroachBoolean'>>
-	extends CockroachColumnWithArrayBuilder<T>
-{
+}> {
 	static override readonly [entityKind]: string = 'CockroachBooleanBuilder';
 
-	constructor(name: T['name']) {
+	constructor(name: string) {
 		super(name, 'boolean', 'CockroachBoolean');
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyCockroachTable<{ name: TTableName }>,
-	): CockroachBoolean<MakeColumnConfig<T, TTableName>> {
-		return new CockroachBoolean<MakeColumnConfig<T, TTableName>>(
+	) {
+		return new CockroachBoolean(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config,
 		);
 	}
 }
 
-export class CockroachBoolean<T extends ColumnBaseConfig<'boolean', 'CockroachBoolean'>> extends CockroachColumn<T> {
+export class CockroachBoolean<T extends ColumnBaseConfig<'boolean'>> extends CockroachColumn<T> {
 	static override readonly [entityKind]: string = 'CockroachBoolean';
 
 	getSQLType(): string {
@@ -41,8 +33,8 @@ export class CockroachBoolean<T extends ColumnBaseConfig<'boolean', 'CockroachBo
 	}
 }
 
-export function bool(): CockroachBooleanBuilderInitial<''>;
-export function bool<TName extends string>(name: TName): CockroachBooleanBuilderInitial<TName>;
 export function bool(name?: string) {
 	return new CockroachBooleanBuilder(name ?? '');
 }
+
+export const boolean = bool;

@@ -1,53 +1,5 @@
-import { splitExpressions, trimDefaultValueSuffix } from 'src/dialects/cockroach/grammar';
+import { splitSqlType, trimDefaultValueSuffix } from 'src/dialects/cockroach/grammar';
 import { expect, test } from 'vitest';
-
-test.each([
-	['lower(name)', ['lower(name)']],
-	['lower(name), upper(name)', ['lower(name)', 'upper(name)']],
-	['lower(name), lower(name)', ['lower(name)', 'lower(name)']],
-	[`((name || ','::text) || name1)`, [`((name || ','::text) || name1)`]],
-	["((name || ','::text) || name1), SUBSTRING(name1 FROM 1 FOR 3)", [
-		"((name || ','::text) || name1)",
-		'SUBSTRING(name1 FROM 1 FOR 3)',
-	]],
-	[`((name || ','::text) || name1), COALESCE("name", '"default", value'::text)`, [
-		`((name || ','::text) || name1)`,
-		`COALESCE("name", '"default", value'::text)`,
-	]],
-	["COALESCE(name, 'default,'' value'''::text), SUBSTRING(name1 FROM 1 FOR 3)", [
-		"COALESCE(name, 'default,'' value'''::text)",
-		'SUBSTRING(name1 FROM 1 FOR 3)',
-	]],
-	["COALESCE(name, 'default,value'''::text), SUBSTRING(name1 FROM 1 FOR 3)", [
-		"COALESCE(name, 'default,value'''::text)",
-		'SUBSTRING(name1 FROM 1 FOR 3)',
-	]],
-	["COALESCE(name, 'default,''value'::text), SUBSTRING(name1 FROM 1 FOR 3)", [
-		"COALESCE(name, 'default,''value'::text)",
-		'SUBSTRING(name1 FROM 1 FOR 3)',
-	]],
-	["COALESCE(name, 'default,value'::text), SUBSTRING(name1 FROM 1 FOR 3)", [
-		"COALESCE(name, 'default,value'::text)",
-		'SUBSTRING(name1 FROM 1 FOR 3)',
-	]],
-	["COALESCE(name, 'default, value'::text), SUBSTRING(name1 FROM 1 FOR 3)", [
-		"COALESCE(name, 'default, value'::text)",
-		'SUBSTRING(name1 FROM 1 FOR 3)',
-	]],
-	[`COALESCE("name", '"default", value'::text), SUBSTRING("name1" FROM 1 FOR 3)`, [
-		`COALESCE("name", '"default", value'::text)`,
-		`SUBSTRING("name1" FROM 1 FOR 3)`,
-	]],
-	[`COALESCE("namewithcomma,", '"default", value'::text), SUBSTRING("name1" FROM 1 FOR 3)`, [
-		`COALESCE("namewithcomma,", '"default", value'::text)`,
-		`SUBSTRING("name1" FROM 1 FOR 3)`,
-	]],
-	["((lower(first_name) || ', '::text) || lower(last_name))", [
-		"((lower(first_name) || ', '::text) || lower(last_name))",
-	]],
-])('split expression %#: %s', (it, expected) => {
-	expect(splitExpressions(it)).toStrictEqual(expected);
-});
 
 test.each([
 	["'a'::my_enum", "'a'"],
@@ -66,6 +18,8 @@ test.each([
 	[`'{a,b}'::my_enum[]`, `'{a,b}'`],
 	[`'{10,20}'::smallint[]`, `'{10,20}'`],
 	[`'{10,20}'::integer[]`, `'{10,20}'`],
+	[`'{99.9,88.8}'::some::string[]`, `'{99.9,88.8}'`],
+	[`'{99.9,88.8}'::some::string(3)[]`, `'{99.9,88.8}'`],
 	[`'{99.9,88.8}'::numeric[]`, `'{99.9,88.8}'`],
 	[`'{100,200}'::bigint[]`, `'{100,200}'`],
 	[`'{t,f}'::boolean[]`, `'{t,f}'`],
@@ -102,4 +56,21 @@ test.each([
 	[`'{"1 day 01:00:00","1 day 02:00:00"}'::interval[]`, `'{"1 day 01:00:00","1 day 02:00:00"}'`],
 ])('trim default suffix %#: %s', (it, expected) => {
 	expect(trimDefaultValueSuffix(it)).toBe(expected);
+});
+
+test('split sql type', () => {
+	expect.soft(splitSqlType('numeric')).toStrictEqual({ type: 'numeric', options: null });
+	expect.soft(splitSqlType('numeric(10)')).toStrictEqual({ type: 'numeric', options: '10' });
+	expect.soft(splitSqlType('numeric(10,0)')).toStrictEqual({ type: 'numeric', options: '10,0' });
+	expect.soft(splitSqlType('numeric(10,2)')).toStrictEqual({ type: 'numeric', options: '10,2' });
+
+	expect.soft(splitSqlType('numeric[]')).toStrictEqual({ type: 'numeric', options: null });
+	expect.soft(splitSqlType('numeric(10)[]')).toStrictEqual({ type: 'numeric', options: '10' });
+	expect.soft(splitSqlType('numeric(10,0)[]')).toStrictEqual({ type: 'numeric', options: '10,0' });
+	expect.soft(splitSqlType('numeric(10,2)[]')).toStrictEqual({ type: 'numeric', options: '10,2' });
+
+	expect.soft(splitSqlType('numeric[][]')).toStrictEqual({ type: 'numeric', options: null });
+	expect.soft(splitSqlType('numeric(10)[][]')).toStrictEqual({ type: 'numeric', options: '10' });
+	expect.soft(splitSqlType('numeric(10,0)[][]')).toStrictEqual({ type: 'numeric', options: '10,0' });
+	expect.soft(splitSqlType('numeric(10,2)[][]')).toStrictEqual({ type: 'numeric', options: '10,2' });
 });

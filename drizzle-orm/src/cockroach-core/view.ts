@@ -1,11 +1,11 @@
-import type { BuildColumns } from '~/column-builder.ts';
+import type { BuildColumns, ColumnBuilderBase } from '~/column-builder.ts';
 import { entityKind, is } from '~/entity.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
 import type { AddAliasToSelection } from '~/query-builders/select.types.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { ColumnsSelection, SQL } from '~/sql/sql.ts';
 import { getTableColumns } from '~/utils.ts';
-import type { CockroachColumn, CockroachColumnBuilderBase } from './columns/common.ts';
+import type { CockroachColumn } from './columns/common.ts';
 import { QueryBuilder } from './query-builders/query-builder.ts';
 import { cockroachTable } from './table.ts';
 import { CockroachViewBase } from './view-base.ts';
@@ -56,7 +56,7 @@ export class ViewBuilder<TName extends string = string> extends DefaultViewBuild
 
 export class ManualViewBuilder<
 	TName extends string = string,
-	TColumns extends Record<string, CockroachColumnBuilderBase> = Record<string, CockroachColumnBuilderBase>,
+	TColumns extends Record<string, ColumnBuilderBase> = Record<string, ColumnBuilderBase>,
 > extends DefaultViewBuilderCore<{ name: TName; columns: TColumns }> {
 	static override readonly [entityKind]: string = 'CockroachManualViewBuilder';
 
@@ -178,7 +178,7 @@ export class MaterializedViewBuilder<TName extends string = string>
 
 export class ManualMaterializedViewBuilder<
 	TName extends string = string,
-	TColumns extends Record<string, CockroachColumnBuilderBase> = Record<string, CockroachColumnBuilderBase>,
+	TColumns extends Record<string, ColumnBuilderBase> = Record<string, ColumnBuilderBase>,
 > extends MaterializedViewBuilderCore<{ name: TName; columns: TColumns }> {
 	static override readonly [entityKind]: string = 'CockroachManualMaterializedViewBuilder';
 
@@ -303,7 +303,7 @@ export type CockroachMaterializedViewWithSelection<
 /** @internal */
 export function cockroachViewWithSchema(
 	name: string,
-	selection: Record<string, CockroachColumnBuilderBase> | undefined,
+	selection: Record<string, ColumnBuilderBase> | undefined,
 	schema: string | undefined,
 ): ViewBuilder | ManualViewBuilder {
 	if (selection) {
@@ -315,7 +315,7 @@ export function cockroachViewWithSchema(
 /** @internal */
 export function cockroachMaterializedViewWithSchema(
 	name: string,
-	selection: Record<string, CockroachColumnBuilderBase> | undefined,
+	selection: Record<string, ColumnBuilderBase> | undefined,
 	schema: string | undefined,
 ): MaterializedViewBuilder | ManualMaterializedViewBuilder {
 	if (selection) {
@@ -325,13 +325,13 @@ export function cockroachMaterializedViewWithSchema(
 }
 
 export function cockroachView<TName extends string>(name: TName): ViewBuilder<TName>;
-export function cockroachView<TName extends string, TColumns extends Record<string, CockroachColumnBuilderBase>>(
+export function cockroachView<TName extends string, TColumns extends Record<string, ColumnBuilderBase>>(
 	name: TName,
 	columns: TColumns,
 ): ManualViewBuilder<TName, TColumns>;
 export function cockroachView(
 	name: string,
-	columns?: Record<string, CockroachColumnBuilderBase>,
+	columns?: Record<string, ColumnBuilderBase>,
 ): ViewBuilder | ManualViewBuilder {
 	return cockroachViewWithSchema(name, columns, undefined);
 }
@@ -339,14 +339,14 @@ export function cockroachView(
 export function cockroachMaterializedView<TName extends string>(name: TName): MaterializedViewBuilder<TName>;
 export function cockroachMaterializedView<
 	TName extends string,
-	TColumns extends Record<string, CockroachColumnBuilderBase>,
+	TColumns extends Record<string, ColumnBuilderBase>,
 >(
 	name: TName,
 	columns: TColumns,
 ): ManualMaterializedViewBuilder<TName, TColumns>;
 export function cockroachMaterializedView(
 	name: string,
-	columns?: Record<string, CockroachColumnBuilderBase>,
+	columns?: Record<string, ColumnBuilderBase>,
 ): MaterializedViewBuilder | ManualMaterializedViewBuilder {
 	return cockroachMaterializedViewWithSchema(name, columns, undefined);
 }

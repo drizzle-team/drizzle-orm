@@ -1,6 +1,8 @@
 import { SQL, sql } from 'drizzle-orm';
 import {
 	bigint,
+	bit,
+	bool,
 	boolean,
 	char,
 	cockroachEnum,
@@ -26,6 +28,7 @@ import {
 	timestamp,
 	uniqueIndex,
 	uuid,
+	varbit,
 	varchar,
 } from 'drizzle-orm/cockroach-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
@@ -507,8 +510,8 @@ test('varchar and text default values escape single quotes', async () => {
 	});
 
 	const st0 = [
-		`ALTER TABLE "table" ADD COLUMN "text" string DEFAULT 'escape''s quotes';`,
-		`ALTER TABLE "table" ADD COLUMN "varchar" varchar DEFAULT 'escape''s quotes';`,
+		`ALTER TABLE "table" ADD COLUMN "text" string DEFAULT e'escape\\'s quotes';`,
+		`ALTER TABLE "table" ADD COLUMN "varchar" varchar DEFAULT e'escape\\'s quotes';`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -529,8 +532,8 @@ test('add columns with defaults', async () => {
 			int1: int4().default(10),
 			int2: int4().default(0),
 			int3: int4().default(-10),
-			bool1: boolean().default(true),
-			bool2: boolean().default(false),
+			bool1: bool().default(true),
+			bool2: bool().default(false),
 		}),
 	};
 
@@ -548,8 +551,8 @@ test('add columns with defaults', async () => {
 		'ALTER TABLE "table" ADD COLUMN "int1" int4 DEFAULT 10;',
 		'ALTER TABLE "table" ADD COLUMN "int2" int4 DEFAULT 0;',
 		'ALTER TABLE "table" ADD COLUMN "int3" int4 DEFAULT -10;',
-		'ALTER TABLE "table" ADD COLUMN "bool1" boolean DEFAULT true;',
-		'ALTER TABLE "table" ADD COLUMN "bool2" boolean DEFAULT false;',
+		'ALTER TABLE "table" ADD COLUMN "bool1" bool DEFAULT true;',
+		'ALTER TABLE "table" ADD COLUMN "bool2" bool DEFAULT false;',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -935,8 +938,14 @@ test('no diffs for all database types', async () => {
 			},
 		),
 		allBools: customSchema.table('all_bools', {
-			columnAll: boolean('column_all').default(true).notNull(),
-			column: boolean('column'),
+			column1: bool('column1').default(true).notNull(),
+			column2: bool('column2'),
+			column3: boolean('column3').default(true).notNull(),
+			column4: boolean('column4'),
+			column5: bool('column5').default(true).notNull().array(),
+			column6: bool('column6').array(),
+			column7: boolean('column7').default(true).notNull().array(),
+			column8: boolean('column8').array(),
 		}),
 
 		allVarchars: customSchema.table('all_varchars', {
@@ -952,8 +961,8 @@ test('no diffs for all database types', async () => {
 		allChars: customSchema.table('all_chars', {
 			columnAll: char('column_all', { length: 1 }).default('text').notNull(),
 			column: char('column', { length: 1 }),
+			columnArr: char('column_arr', { length: 1 }).array(),
 		}),
-
 		allDoublePrecision: customSchema.table('all_double_precision', {
 			columnAll: doublePrecision('column_all').default(33.2).notNull(),
 			column: doublePrecision('column'),
@@ -987,6 +996,17 @@ test('no diffs for all database types', async () => {
 			columnAll: decimal('column_all').default('32').notNull(),
 			column: decimal('column', { precision: 1, scale: 1 }),
 			columnPrimary: decimal('column_primary').primaryKey().notNull(),
+		}),
+
+		allBits: customSchema.table('all_bits', {
+			column1: bit('column1').default('1').notNull(),
+			column2: bit('column2', { length: 10 }),
+			column3: bit('column3').default('1').notNull().array(),
+			column4: bit('column4', { length: 10 }).array(),
+			column5: varbit('column5').notNull(),
+			column6: varbit('column6', { length: 10 }),
+			column7: varbit('column7').notNull().array(),
+			column8: varbit('column8', { length: 10 }).array(),
 		}),
 	};
 

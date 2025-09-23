@@ -850,9 +850,9 @@ export const ddlDiff = async (
 				const numbers = ['bigint', 'decimal', 'numeric', 'real', 'float'];
 
 				// When user defined value in drizzle sql that is bigger than `max mssql integer` it will be stored with dot
-				// 1. === 1 (same values for mssql)
+				// 1. === 1 (same values in mssql)
 				// For commutativity replace all this
-				// For .default this will be added automatically, but this is for drizzlesql cases
+				// For .default this will be handled automatically via introspection, but this is for drizzlesql cases
 				if (numbers.find((it) => column.type.startsWith(it)) && it.default.from && it.default.to) {
 					it.default.from = it.default.from.replace('.)', ')').replace(".'", "'");
 					it.default.to = it.default.to.replace('.)', ')').replace(".'", "'");

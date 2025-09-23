@@ -1,40 +1,28 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyGelTable } from '~/gel-core/table.ts';
+import type { GelTable } from '~/gel-core/table.ts';
 import { GelColumn, GelColumnBuilder } from './common.ts';
 
-type GelTextBuilderInitial<TName extends string> = GelTextBuilder<{
-	name: TName;
+export class GelTextBuilder extends GelColumnBuilder<{
 	dataType: 'string';
-	columnType: 'GelText';
 	data: string;
 	driverParam: string;
-	enumValues: undefined;
-}>;
-
-export class GelTextBuilder<
-	T extends ColumnBuilderBaseConfig<'string', 'GelText'>,
-> extends GelColumnBuilder<T> {
+}> {
 	static override readonly [entityKind]: string = 'GelTextBuilder';
 
 	constructor(
-		name: T['name'],
+		name: string,
 	) {
 		super(name, 'string', 'GelText');
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyGelTable<{ name: TTableName }>,
-	): GelText<MakeColumnConfig<T, TTableName>> {
-		return new GelText<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+	override build(table: GelTable) {
+		return new GelText(table, this.config as any);
 	}
 }
 
-export class GelText<T extends ColumnBaseConfig<'string', 'GelText'>>
-	extends GelColumn<T, { enumValues: T['enumValues'] }>
-{
+export class GelText<T extends ColumnBaseConfig<'string'>> extends GelColumn<T, { enumValues: T['enumValues'] }> {
 	static override readonly [entityKind]: string = 'GelText';
 
 	override readonly enumValues = this.config.enumValues;
@@ -44,8 +32,6 @@ export class GelText<T extends ColumnBaseConfig<'string', 'GelText'>>
 	}
 }
 
-export function text(): GelTextBuilderInitial<''>;
-export function text<TName extends string>(name: TName): GelTextBuilderInitial<TName>;
-export function text(name?: string): any {
+export function text(name?: string): GelTextBuilder {
 	return new GelTextBuilder(name ?? '');
 }

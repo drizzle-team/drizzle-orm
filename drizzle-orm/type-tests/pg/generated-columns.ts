@@ -100,7 +100,7 @@ const users = pgTable(
 {
 	const db = drizzle({} as any, { schema: { users } });
 
-	const dbUser = await db.query.users.findFirst();
+	const dbUser = await db._query.users.findFirst();
 
 	Expect<
 		Equal<
@@ -120,7 +120,7 @@ const users = pgTable(
 {
 	const db = drizzle({} as any, { schema: { users } });
 
-	const dbUser = await db.query.users.findMany();
+	const dbUser = await db._query.users.findMany();
 
 	Expect<
 		Equal<

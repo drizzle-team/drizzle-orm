@@ -1,53 +1,42 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
+import type { AnyMsSqlTable, MsSqlTable } from '~/mssql-core/table.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { MsSqlColumn } from './common.ts';
 import type { MsSqlDatetimeConfig } from './date.common.ts';
 import { MsSqlDateColumnBaseBuilder } from './date.common.ts';
 
-export type MsSqlDateTimeOffsetBuilderInitial<TName extends string> = MsSqlDateTimeOffsetBuilder<
-	{
-		name: TName;
-		dataType: 'date';
-		columnType: 'MsSqlDateTimeOffset';
-		data: Date;
-		driverParam: string | Date;
-		enumValues: undefined;
-		generated: undefined;
-	}
->;
-
-export class MsSqlDateTimeOffsetBuilder<T extends ColumnBuilderBaseConfig<'date', 'MsSqlDateTimeOffset'>>
-	extends MsSqlDateColumnBaseBuilder<T, MsSqlDatetimeConfig>
-{
+export class MsSqlDateTimeOffsetBuilder extends MsSqlDateColumnBaseBuilder<{
+	dataType: 'object date';
+	data: Date;
+	driverParam: string | Date;
+}, MsSqlDatetimeConfig> {
 	static override readonly [entityKind]: string = 'MsSqlDateTimeOffsetBuilder';
 
-	constructor(name: T['name'], config: MsSqlDatetimeConfig | undefined) {
-		super(name, 'date', 'MsSqlDateTimeOffset');
+	constructor(name: string, config: MsSqlDatetimeConfig | undefined) {
+		super(name, 'object date', 'MsSqlDateTimeOffset');
 		this.config.precision = config?.precision;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMsSqlTable<{ name: TTableName }>,
-	): MsSqlDateTimeOffset<MakeColumnConfig<T, TTableName>> {
-		return new MsSqlDateTimeOffset<MakeColumnConfig<T, TTableName>>(
+	) {
+		return new MsSqlDateTimeOffset(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config,
 		);
 	}
 }
 
-export class MsSqlDateTimeOffset<T extends ColumnBaseConfig<'date', 'MsSqlDateTimeOffset'>> extends MsSqlColumn<T> {
+export class MsSqlDateTimeOffset<T extends ColumnBaseConfig<'object date'>> extends MsSqlColumn<T> {
 	static override readonly [entityKind]: string = 'MsSqlDateTimeOffset';
 
 	readonly precision: number | undefined;
 
 	constructor(
-		table: AnyMsSqlTable<{ name: T['tableName'] }>,
-		config: MsSqlDateTimeOffsetBuilder<T>['config'],
+		table: MsSqlTable<any>,
+		config: MsSqlDateTimeOffsetBuilder['config'],
 	) {
 		super(table, config);
 		this.precision = config.precision;
@@ -59,49 +48,37 @@ export class MsSqlDateTimeOffset<T extends ColumnBaseConfig<'date', 'MsSqlDateTi
 	}
 }
 
-export type MsSqlDateTimeOffsetStringBuilderInitial<TName extends string> = MsSqlDateTimeOffsetStringBuilder<
-	{
-		name: TName;
-		dataType: 'string';
-		columnType: 'MsSqlDateTimeOffsetString';
-		data: string;
-		driverParam: string | Date;
-		enumValues: undefined;
-		generated: undefined;
-	}
->;
-
-export class MsSqlDateTimeOffsetStringBuilder<T extends ColumnBuilderBaseConfig<'string', 'MsSqlDateTimeOffsetString'>>
-	extends MsSqlDateColumnBaseBuilder<T, MsSqlDatetimeConfig>
-{
+export class MsSqlDateTimeOffsetStringBuilder extends MsSqlDateColumnBaseBuilder<{
+	dataType: 'string datetime';
+	data: string;
+	driverParam: string | Date;
+}, MsSqlDatetimeConfig> {
 	static override readonly [entityKind]: string = 'MsSqlDateTimeOffsetStringBuilder';
 
-	constructor(name: T['name'], config: MsSqlDatetimeConfig | undefined) {
-		super(name, 'string', 'MsSqlDateTimeOffsetString');
+	constructor(name: string, config: MsSqlDatetimeConfig | undefined) {
+		super(name, 'string datetime', 'MsSqlDateTimeOffsetString');
 		this.config.precision = config?.precision;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMsSqlTable<{ name: TTableName }>,
-	): MsSqlDateTimeOffsetString<MakeColumnConfig<T, TTableName>> {
-		return new MsSqlDateTimeOffsetString<MakeColumnConfig<T, TTableName>>(
+	) {
+		return new MsSqlDateTimeOffsetString(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config,
 		);
 	}
 }
 
-export class MsSqlDateTimeOffsetString<T extends ColumnBaseConfig<'string', 'MsSqlDateTimeOffsetString'>>
-	extends MsSqlColumn<T>
-{
+export class MsSqlDateTimeOffsetString<T extends ColumnBaseConfig<'string datetime'>> extends MsSqlColumn<T> {
 	static override readonly [entityKind]: string = 'MsSqlDateTimeOffsetString';
 
 	readonly precision: number | undefined;
 
 	constructor(
-		table: AnyMsSqlTable<{ name: T['tableName'] }>,
-		config: MsSqlDateTimeOffsetStringBuilder<T>['config'],
+		table: MsSqlTable<any>,
+		config: MsSqlDateTimeOffsetStringBuilder['config'],
 	) {
 		super(table, config);
 		this.precision = config.precision;
@@ -117,16 +94,16 @@ export class MsSqlDateTimeOffsetString<T extends ColumnBaseConfig<'string', 'MsS
 	}
 }
 
-export function datetimeoffset(): MsSqlDateTimeOffsetBuilderInitial<''>;
+export function datetimeoffset(): MsSqlDateTimeOffsetBuilder;
 export function datetimeoffset<TMode extends MsSqlDatetimeConfig['mode'] & {}>(
 	config?: MsSqlDatetimeConfig<TMode>,
-): Equal<TMode, 'string'> extends true ? MsSqlDateTimeOffsetStringBuilderInitial<''>
-	: MsSqlDateTimeOffsetBuilderInitial<''>;
-export function datetimeoffset<TName extends string, TMode extends MsSqlDatetimeConfig['mode'] & {}>(
-	name: TName,
+): Equal<TMode, 'string'> extends true ? MsSqlDateTimeOffsetStringBuilder
+	: MsSqlDateTimeOffsetBuilder;
+export function datetimeoffset<TMode extends MsSqlDatetimeConfig['mode'] & {}>(
+	name: string,
 	config?: MsSqlDatetimeConfig<TMode>,
-): Equal<TMode, 'string'> extends true ? MsSqlDateTimeOffsetStringBuilderInitial<TName>
-	: MsSqlDateTimeOffsetBuilderInitial<TName>;
+): Equal<TMode, 'string'> extends true ? MsSqlDateTimeOffsetStringBuilder
+	: MsSqlDateTimeOffsetBuilder;
 export function datetimeoffset(a?: string | MsSqlDatetimeConfig, b?: MsSqlDatetimeConfig) {
 	const { name, config } = getColumnNameAndConfig<MsSqlDatetimeConfig | undefined>(a, b);
 	if (config?.mode === 'string') {

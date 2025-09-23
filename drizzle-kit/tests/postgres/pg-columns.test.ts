@@ -6,6 +6,7 @@ import {
 	char,
 	date,
 	doublePrecision,
+	geometry,
 	index,
 	integer,
 	interval,
@@ -27,7 +28,7 @@ import {
 	varchar,
 } from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
+import { diff, preparePostgisTestDatabase, prepareTestDatabase, push, TestDatabase } from './mocks';
 
 // @vitest-environment-options {"max-concurrency":1}
 let _: TestDatabase;
@@ -815,6 +816,103 @@ test('drop generated constraint from a column', async () => {
 
 	const st0: string[] = [
 		'ALTER TABLE "users" ALTER COLUMN "gen_name" DROP EXPRESSION;',
+	];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('geometry point with srid', async () => {
+	const postgisDb = await preparePostgisTestDatabase();
+
+	try {
+		const schema1 = {
+			users: pgTable('users', {
+				id1: geometry('id1'),
+				id2: geometry('id2', { srid: 0 }),
+				id3: geometry('id3', { srid: 10 }),
+				id4: geometry('id4'),
+			}),
+		};
+		const schema2 = {
+			users: pgTable('users', {
+				id1: geometry('id1', { srid: 0 }),
+				id2: geometry('id2'),
+				id3: geometry('id3', { srid: 12 }),
+				id4: geometry('id4'),
+			}),
+		};
+
+		const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+		await push({
+			db: postgisDb.db,
+			to: schema1,
+			tables: ['users'],
+			schemas: ['public'],
+		});
+		const { sqlStatements: pst } = await push({
+			db: postgisDb.db,
+			to: schema2,
+			tables: ['users'],
+			schemas: ['public'],
+		});
+
+		const st0: string[] = [
+			'ALTER TABLE "users" ALTER COLUMN "id3" SET DATA TYPE geometry(point,12);',
+		];
+
+		expect(st).toStrictEqual(st0);
+		expect(pst).toStrictEqual(st0);
+	} catch (error) {
+		await postgisDb.clear();
+		await postgisDb.close();
+		throw error;
+	}
+
+	await postgisDb.clear();
+	await postgisDb.close();
+});
+
+test('defaults: timestamptz with precision', async () => {
+	const schema1 = {
+		users: pgTable('users', {
+			time: timestamp('time', { withTimezone: true, precision: 6, mode: 'string' }).default(
+				'2023-12-12 13:00:00.123456',
+			),
+			time2: timestamp('time2', { withTimezone: true, precision: 6, mode: 'string' }).default(
+				'2023-12-12 13:00:00.123456',
+			),
+		}),
+	};
+	const schema2 = {
+		users: pgTable('users', {
+			time: timestamp('time', { withTimezone: true, precision: 6, mode: 'string' }).default(
+				'2023-12-12 13:00:00.123455',
+			),
+			time2: timestamp('time2', { withTimezone: true, precision: 6, mode: 'string' }).default(
+				'2023-12-12 13:00:00.123456',
+			),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(schema1, schema2, []);
+
+	await push({
+		db: db,
+		to: schema1,
+		tables: ['users'],
+		schemas: ['public'],
+	});
+	const { sqlStatements: pst } = await push({
+		db: db,
+		to: schema2,
+		tables: ['users'],
+		schemas: ['public'],
+	});
+
+	const st0: string[] = [
+		`ALTER TABLE "users" ALTER COLUMN "time" SET DEFAULT '2023-12-12 13:00:00.123455+00';`,
 	];
 
 	expect(st).toStrictEqual(st0);

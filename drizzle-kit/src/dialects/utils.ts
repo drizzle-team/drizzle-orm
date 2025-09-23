@@ -105,8 +105,11 @@ export const escapeForSqlDefault = (input: string, mode: 'default' | 'pg-arr' = 
 	return value;
 };
 
-export const unescapeFromSqlDefault = (input: string) => {
-	return input.replace(/''/g, "'").replace(/\\\\/g, '\\');
+export const unescapeFromSqlDefault = (input: string, mode: 'default' | 'arr' = 'default') => {
+	let res = input.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+
+	if (mode === 'arr') return res;
+	return res.replace(/''/g, "'");
 };
 
 export const escapeForTsLiteral = (input: string) => {

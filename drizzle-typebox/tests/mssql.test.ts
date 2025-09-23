@@ -1,10 +1,10 @@
-import { type Static, Type as t } from '@sinclair/typebox';
+import { Type as t } from '@sinclair/typebox';
 import { type Equal, sql } from 'drizzle-orm';
 import { customType, int, mssqlSchema, mssqlTable, mssqlView, text } from 'drizzle-orm/mssql-core';
 import { test } from 'vitest';
 import { bigintStringModeSchema, bufferSchema } from '~/column.ts';
 import { CONSTANTS } from '~/constants.ts';
-import { createInsertSchema, createSelectSchema, createUpdateSchema, type GenericSchema } from '../src/index.ts';
+import { createInsertSchema, createSelectSchema, createUpdateSchema } from '../src/index.ts';
 import { Expect, expectSchemaShape } from './utils.ts';
 
 const integerSchema = t.Integer({

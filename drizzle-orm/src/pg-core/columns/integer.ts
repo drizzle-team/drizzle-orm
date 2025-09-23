@@ -1,37 +1,27 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnyPgTable } from '../table.ts';
+import type { PgTable } from '../table.ts';
 import { PgColumn } from './common.ts';
 import { PgIntColumnBaseBuilder } from './int.common.ts';
 
-export type PgIntegerBuilderInitial<TName extends string> = PgIntegerBuilder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'PgInteger';
+export class PgIntegerBuilder extends PgIntColumnBaseBuilder<{
+	dataType: 'number int32';
 	data: number;
 	driverParam: number | string;
-	enumValues: undefined;
-}>;
-
-export class PgIntegerBuilder<T extends ColumnBuilderBaseConfig<'number', 'PgInteger'>>
-	extends PgIntColumnBaseBuilder<T>
-{
+}> {
 	static override readonly [entityKind]: string = 'PgIntegerBuilder';
 
-	constructor(name: T['name']) {
-		super(name, 'number', 'PgInteger');
+	constructor(name: string) {
+		super(name, 'number int32', 'PgInteger');
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnyPgTable<{ name: TTableName }>,
-	): PgInteger<MakeColumnConfig<T, TTableName>> {
-		return new PgInteger<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+	override build(table: PgTable<any>) {
+		return new PgInteger(table, this.config as any);
 	}
 }
 
-export class PgInteger<T extends ColumnBaseConfig<'number', 'PgInteger'>> extends PgColumn<T> {
+export class PgInteger<T extends ColumnBaseConfig<'number int32'>> extends PgColumn<T> {
 	static override readonly [entityKind]: string = 'PgInteger';
 
 	getSQLType(): string {
@@ -45,9 +35,6 @@ export class PgInteger<T extends ColumnBaseConfig<'number', 'PgInteger'>> extend
 		return value;
 	}
 }
-
-export function integer(): PgIntegerBuilderInitial<''>;
-export function integer<TName extends string>(name: TName): PgIntegerBuilderInitial<TName>;
-export function integer(name?: string) {
+export function integer(name?: string): PgIntegerBuilder {
 	return new PgIntegerBuilder(name ?? '');
 }

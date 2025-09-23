@@ -39,6 +39,7 @@ import type {
 	AnyCockroachSelect,
 	CockroachCreateSetOperatorFn,
 	CockroachSelectConfig,
+	CockroachSelectCrossJoinFn,
 	CockroachSelectDynamic,
 	CockroachSelectHKT,
 	CockroachSelectHKTBase,
@@ -218,7 +219,9 @@ export abstract class CockroachSelectQueryBuilderBase<
 	>(
 		joinType: TJoinType,
 		lateral: TIsLateral,
-	): CockroachSelectJoinFn<this, TDynamic, TJoinType, TIsLateral> {
+	): 'cross' extends TJoinType ? CockroachSelectCrossJoinFn<this, TDynamic, TIsLateral>
+		: CockroachSelectJoinFn<this, TDynamic, TJoinType, TIsLateral>
+	{
 		return ((
 			table: TIsLateral extends true ? Subquery | SQL : CockroachTable | Subquery | CockroachViewBase | SQL,
 			on?: ((aliases: TSelection) => SQL | undefined) | SQL | undefined,

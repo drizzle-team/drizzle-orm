@@ -1,7 +1,7 @@
 import camelcase from 'camelcase';
 import type { Entities } from '../../cli/validations/cli';
 import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
-import { type DB, trimChar } from '../../utils';
+import { type DB, splitExpressions, trimChar } from '../../utils';
 import type {
 	CheckConstraint,
 	Enum,
@@ -28,8 +28,6 @@ import {
 	isSystemNamespace,
 	parseOnType,
 	parseViewDefinition,
-	splitExpressions,
-	splitSqlType,
 	stringFromDatabaseIdentityProperty as parseIdentityProperty,
 	wrapRecord,
 } from './grammar';
@@ -817,6 +815,7 @@ export const fromDatabase = async (
 			columnTypeMapped,
 			columnDefault?.expression,
 			column.dimensions,
+			Boolean(enumType),
 		);
 
 		const unique = constraintsList.find((it) => {

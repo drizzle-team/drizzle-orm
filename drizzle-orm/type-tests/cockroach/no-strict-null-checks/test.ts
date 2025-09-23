@@ -22,12 +22,12 @@ const db = drizzle.mock();
 
 db.update(test)
 	.set({
-		// // @ts-expect-error
-		// id: '1',
-		// name: 'name',
-		// title: 'title',
-		// description: 'desc',
-		// dbdef: 'upddef',
+		// @ts-expect-error
+		id: '1',
+		name: 'name',
+		title: 'title',
+		description: 'desc',
+		dbdef: 'upddef',
 	});
 
 db.update(test)

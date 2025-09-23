@@ -16,7 +16,7 @@ import { QueryPromise } from '~/query-promise.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import type { Placeholder, Query, SQL, SQLWrapper } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
-import { Table } from '~/table.ts';
+import { type InferInsertModel, Table } from '~/table.ts';
 import { mapUpdateSet, type UpdateSet, type ValueOrArray } from '~/utils.ts';
 import type { MySqlColumn } from '../columns/common.ts';
 import { extractUsedTable } from '../utils.ts';
@@ -32,9 +32,12 @@ export interface MySqlUpdateConfig {
 	withList?: Subquery[];
 }
 
-export type MySqlUpdateSetSource<TTable extends MySqlTable> =
+export type MySqlUpdateSetSource<
+	TTable extends MySqlTable,
+	TModel extends Record<string, any> = InferInsertModel<TTable>,
+> =
 	& {
-		[Key in keyof TTable['$inferInsert']]?:
+		[Key in keyof TModel & string]?:
 			| GetColumnData<TTable['_']['columns'][Key], 'query'>
 			| SQL
 			| undefined;

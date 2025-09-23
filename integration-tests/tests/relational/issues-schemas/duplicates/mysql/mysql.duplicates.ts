@@ -1,4 +1,5 @@
-import { relations, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
+import { relations } from 'drizzle-orm/_relations';
 import { boolean, date, index, int, mysqlEnum, mysqlTable, serial, timestamp, varchar } from 'drizzle-orm/mysql-core';
 
 export const artists = mysqlTable(

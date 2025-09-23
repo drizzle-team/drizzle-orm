@@ -37,7 +37,7 @@ export interface CockroachSelectJoinConfig {
 
 export type BuildAliasTable<TTable extends CockroachTable | View, TAlias extends string> = TTable extends Table
 	? CockroachTableWithColumns<
-		UpdateTableConfig<TTable['_']['config'], {
+		UpdateTableConfig<TTable['_'], {
 			name: TAlias;
 			columns: MapColumnsToTableAlias<TTable['_']['columns'], TAlias, 'cockroach'>;
 		}>
@@ -117,27 +117,30 @@ export type CockroachSelectJoinFn<
 	TDynamic extends boolean,
 	TJoinType extends JoinType,
 	TIsLateral extends boolean,
-> = 'cross' extends TJoinType ? <
-		TJoinedTable
-			extends (TIsLateral extends true ? Subquery | SQL : CockroachTable | Subquery | CockroachViewBase | SQL),
-		TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
-	>(
-		table: TableLikeHasEmptySelection<TJoinedTable> extends true ? DrizzleTypeError<
-				"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
-			>
-			: TJoinedTable,
-	) => CockroachSelectJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>
-	: <
-		TJoinedTable
-			extends (TIsLateral extends true ? Subquery | SQL : CockroachTable | Subquery | CockroachViewBase | SQL),
-		TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
-	>(
-		table: TableLikeHasEmptySelection<TJoinedTable> extends true ? DrizzleTypeError<
-				"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
-			>
-			: TJoinedTable,
-		on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
-	) => CockroachSelectJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
+> = <
+	TJoinedTable extends (TIsLateral extends true ? Subquery | SQL : CockroachTable | Subquery | CockroachViewBase | SQL),
+	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
+>(
+	table: TableLikeHasEmptySelection<TJoinedTable> extends true ? DrizzleTypeError<
+			"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
+		>
+		: TJoinedTable,
+	on: ((aliases: T['_']['selection']) => SQL | undefined) | SQL | undefined,
+) => CockroachSelectJoin<T, TDynamic, TJoinType, TJoinedTable, TJoinedName>;
+
+export type CockroachSelectCrossJoinFn<
+	T extends AnyCockroachSelectQueryBuilder,
+	TDynamic extends boolean,
+	TIsLateral extends boolean,
+> = <
+	TJoinedTable extends (TIsLateral extends true ? Subquery | SQL : CockroachTable | Subquery | CockroachViewBase | SQL),
+	TJoinedName extends GetSelectTableName<TJoinedTable> = GetSelectTableName<TJoinedTable>,
+>(
+	table: TableLikeHasEmptySelection<TJoinedTable> extends true ? DrizzleTypeError<
+			"Cannot reference a data-modifying statement subquery if it doesn't contain a `returning` clause"
+		>
+		: TJoinedTable,
+) => CockroachSelectJoin<T, TDynamic, 'cross', TJoinedTable, TJoinedName>;
 
 export type SelectedFieldsFlat = SelectedFieldsFlatBase<CockroachColumn>;
 

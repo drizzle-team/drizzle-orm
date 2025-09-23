@@ -1,42 +1,31 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
 import { MsSqlColumnBuilderWithIdentity, MsSqlColumnWithIdentity } from './common.ts';
 
-export type MsSqlTinyIntBuilderInitial<TName extends string> = MsSqlTinyIntBuilder<
-	{
-		name: TName;
-		dataType: 'number';
-		columnType: 'MsSqlTinyInt';
-		data: number;
-		driverParam: number | string;
-		enumValues: undefined;
-		generated: undefined;
-	}
->;
-
-export class MsSqlTinyIntBuilder<T extends ColumnBuilderBaseConfig<'number', 'MsSqlTinyInt'>>
-	extends MsSqlColumnBuilderWithIdentity<T>
-{
+export class MsSqlTinyIntBuilder extends MsSqlColumnBuilderWithIdentity<{
+	dataType: 'number uint8';
+	data: number;
+	driverParam: number | string;
+}> {
 	static override readonly [entityKind]: string = 'MsSqlTinyIntBuilder';
 
-	constructor(name: T['name']) {
-		super(name, 'number', 'MsSqlTinyInt');
+	constructor(name: string) {
+		super(name, 'number uint8', 'MsSqlTinyInt');
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMsSqlTable<{ name: TTableName }>,
-	): MsSqlTinyInt<MakeColumnConfig<T, TTableName>> {
-		return new MsSqlTinyInt<MakeColumnConfig<T, TTableName>>(
+	) {
+		return new MsSqlTinyInt(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config,
 		);
 	}
 }
 
-export class MsSqlTinyInt<T extends ColumnBaseConfig<'number', 'MsSqlTinyInt'>> extends MsSqlColumnWithIdentity<T> {
+export class MsSqlTinyInt<T extends ColumnBaseConfig<'number uint8'>> extends MsSqlColumnWithIdentity<T> {
 	static override readonly [entityKind]: string = 'MsSqlTinyInt';
 
 	getSQLType(): string {
@@ -51,8 +40,6 @@ export class MsSqlTinyInt<T extends ColumnBaseConfig<'number', 'MsSqlTinyInt'>> 
 	}
 }
 
-export function tinyint(): MsSqlTinyIntBuilderInitial<''>;
-export function tinyint<TName extends string>(name: TName): MsSqlTinyIntBuilderInitial<TName>;
 export function tinyint(name?: string) {
 	return new MsSqlTinyIntBuilder(name ?? '');
 }

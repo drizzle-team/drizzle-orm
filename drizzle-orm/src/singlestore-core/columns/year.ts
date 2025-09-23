@@ -1,51 +1,44 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
-import type { AnySingleStoreTable } from '~/singlestore-core/table.ts';
+import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
-export type SingleStoreYearBuilderInitial<TName extends string> = SingleStoreYearBuilder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'SingleStoreYear';
+export class SingleStoreYearBuilder extends SingleStoreColumnBuilder<{
+	dataType: 'number year';
 	data: number;
 	driverParam: number;
-	enumValues: undefined;
-	generated: undefined;
-}>;
-
-export class SingleStoreYearBuilder<T extends ColumnBuilderBaseConfig<'number', 'SingleStoreYear'>>
-	extends SingleStoreColumnBuilder<T>
-{
+}> {
 	static override readonly [entityKind]: string = 'SingleStoreYearBuilder';
 
-	constructor(name: T['name']) {
-		super(name, 'number', 'SingleStoreYear');
+	constructor(name: string) {
+		super(name, 'number year', 'SingleStoreYear');
 	}
 
 	/** @internal */
-	override build<TTableName extends string>(
-		table: AnySingleStoreTable<{ name: TTableName }>,
-	): SingleStoreYear<MakeColumnConfig<T, TTableName>> {
-		return new SingleStoreYear<MakeColumnConfig<T, TTableName>>(
+	override build(table: SingleStoreTable) {
+		return new SingleStoreYear(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config as any,
 		);
 	}
 }
 
 export class SingleStoreYear<
-	T extends ColumnBaseConfig<'number', 'SingleStoreYear'>,
+	T extends ColumnBaseConfig<'number year'>,
 > extends SingleStoreColumn<T> {
 	static override readonly [entityKind]: string = 'SingleStoreYear';
 
 	getSQLType(): string {
 		return `year`;
 	}
+
+	override mapFromDriverValue(value: unknown): number {
+		if (typeof value !== 'number') return Number(value);
+
+		return value;
+	}
 }
 
-export function year(): SingleStoreYearBuilderInitial<''>;
-export function year<TName extends string>(name: TName): SingleStoreYearBuilderInitial<TName>;
-export function year(name?: string) {
+export function year(name?: string): SingleStoreYearBuilder {
 	return new SingleStoreYearBuilder(name ?? '');
 }

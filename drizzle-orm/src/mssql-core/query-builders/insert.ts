@@ -14,7 +14,7 @@ import type { SelectResultFields } from '~/query-builders/select.types.ts';
 import { QueryPromise } from '~/query-promise.ts';
 import type { Placeholder, Query, SQLWrapper } from '~/sql/sql.ts';
 import { Param, SQL } from '~/sql/sql.ts';
-import { Table } from '~/table.ts';
+import { type InferInsertModel, type InferSelectModel, Table } from '~/table.ts';
 import { orderSelectedFields } from '~/utils.ts';
 import type { MsSqlColumn } from '../columns/common.ts';
 import type { SelectedFieldsFlat, SelectedFieldsOrdered } from './select.types.ts';
@@ -25,9 +25,12 @@ export interface MsSqlInsertConfig<TTable extends MsSqlTable = MsSqlTable> {
 	output?: SelectedFieldsOrdered;
 }
 
-export type MsSqlInsertValue<TTable extends MsSqlTable> =
+export type MsSqlInsertValue<
+	TTable extends MsSqlTable,
+	TModel extends Record<string, any> = InferInsertModel<TTable>,
+> =
 	& {
-		[Key in keyof TTable['$inferInsert']]: TTable['$inferInsert'][Key] | SQL | Placeholder;
+		[Key in keyof TModel]: TModel[Key] | SQL | Placeholder;
 	}
 	& {};
 
@@ -103,7 +106,7 @@ export class MsSqlInsertBuilder<
 	 *   .values({ brand: 'BMW' })
 	 * ```
 	 */
-	output(): Omit<MsSqlInsertBuilder<TTable, TQueryResult, TPreparedQueryHKT, TTable['$inferSelect']>, 'output'>;
+	output(): Omit<MsSqlInsertBuilder<TTable, TQueryResult, TPreparedQueryHKT, InferSelectModel<TTable>>, 'output'>;
 	output<SelectedFields extends SelectedFieldsFlat>(
 		fields: SelectedFields,
 	): Omit<MsSqlInsertBuilder<TTable, TQueryResult, TPreparedQueryHKT, SelectResultFields<SelectedFields>>, 'output'>;

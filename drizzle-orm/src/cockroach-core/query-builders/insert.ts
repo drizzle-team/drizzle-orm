@@ -18,7 +18,7 @@ import type { ColumnsSelection, Placeholder, Query, SQLWrapper } from '~/sql/sql
 import { Param, SQL, sql } from '~/sql/sql.ts';
 import type { Subquery } from '~/subquery.ts';
 import type { InferInsertModel } from '~/table.ts';
-import { Columns, getTableName, Table } from '~/table.ts';
+import { getTableName, Table, TableColumns } from '~/table.ts';
 import { tracer } from '~/tracing.ts';
 import { haveSameKeys, mapUpdateSet, type NeonAuthToken, orderSelectedFields } from '~/utils.ts';
 import type { AnyCockroachColumn, CockroachColumn } from '../columns/common.ts';
@@ -36,17 +36,24 @@ export interface CockroachInsertConfig<TTable extends CockroachTable = Cockroach
 	select?: boolean;
 }
 
-export type CockroachInsertValue<TTable extends CockroachTable<TableConfig>, OverrideT extends boolean = false> =
+export type CockroachInsertValue<
+	TTable extends CockroachTable<TableConfig>,
+	OverrideT extends boolean = false,
+	TModel extends Record<string, any> = InferInsertModel<TTable, { dbColumnNames: false; override: OverrideT }>,
+> =
 	& {
-		[Key in keyof InferInsertModel<TTable, { dbColumnNames: false; override: OverrideT }>]:
-			| InferInsertModel<TTable, { dbColumnNames: false; override: OverrideT }>[Key]
+		[Key in keyof TModel]:
+			| TModel[Key]
 			| SQL
 			| Placeholder;
 	}
 	& {};
 
-export type CockroachInsertSelectQueryBuilder<TTable extends CockroachTable> = TypedQueryBuilder<
-	{ [K in keyof TTable['$inferInsert']]: AnyCockroachColumn | SQL | SQL.Aliased | TTable['$inferInsert'][K] }
+export type CockroachInsertSelectQueryBuilder<
+	TTable extends CockroachTable,
+	TModel extends Record<string, any> = InferInsertModel<TTable>,
+> = TypedQueryBuilder<
+	{ [K in keyof TModel]: AnyCockroachColumn | SQL | SQL.Aliased | TModel[K] }
 >;
 
 export class CockroachInsertBuilder<
@@ -108,7 +115,7 @@ export class CockroachInsertBuilder<
 
 		if (
 			!is(select, SQL)
-			&& !haveSameKeys(this.table[Columns], select._.selectedFields)
+			&& !haveSameKeys(this.table[TableColumns], select._.selectedFields)
 		) {
 			throw new Error(
 				'Insert select error: selected fields are not the same or are in a different order compared to the table definition',

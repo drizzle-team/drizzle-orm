@@ -1,12 +1,12 @@
 import { SQL, sql } from 'drizzle-orm';
 import {
 	bigint,
-	boolean,
+	bit,
+	bool,
 	char,
 	check,
 	cockroachEnum,
 	cockroachMaterializedView,
-	cockroachPolicy,
 	cockroachRole,
 	cockroachSchema,
 	cockroachTable,
@@ -15,6 +15,7 @@ import {
 	decimal,
 	doublePrecision,
 	float,
+	geometry,
 	index,
 	inet,
 	int4,
@@ -28,6 +29,7 @@ import {
 	time,
 	timestamp,
 	uuid,
+	varbit,
 	varchar,
 } from 'drizzle-orm/cockroach-core';
 import fs from 'fs';
@@ -248,8 +250,8 @@ test('introspect all column types', async () => {
 		enum_: myEnum,
 		columns: cockroachTable('columns', {
 			bigint: bigint('bigint', { mode: 'number' }).default(100),
-			// bit
-			boolean: boolean('boolean').default(true),
+			bool: bool('bool').default(true),
+			geometry: geometry({ srid: 213, mode: 'tuple' }),
 			char: char('char', { length: 3 }).default('abc'),
 			date1: date('date1').default('2024-01-01'),
 			date2: date('date2').defaultNow(),
@@ -261,7 +263,8 @@ test('introspect all column types', async () => {
 			decimal2: decimal('decimal2', { precision: 1, scale: 1 }).default('0.9'),
 			decimal3: decimal('decimal3').default('99.9'),
 			enum: myEnum('my_enum').default('a'),
-			// geometry
+			bit: bit('bit').default('1'),
+			varit: varbit('varbit').default('1'),
 			float: float('float').default(100),
 			doublePrecision: doublePrecision('doublePrecision').default(100),
 			inet: inet('inet').default('127.0.0.1'),
@@ -290,8 +293,8 @@ test('introspect all column types', async () => {
 		'introspect-all-columns-types',
 	);
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('introspect all column array types', async () => {
@@ -300,8 +303,10 @@ test('introspect all column array types', async () => {
 		enum_: myEnum,
 		columns: cockroachTable('columns', {
 			bigint: bigint('bigint', { mode: 'number' }).default(100).array(),
-			// bit
-			boolean: boolean('boolean').default(true).array(),
+			bit: bit().array(),
+			varbit: varbit().array(),
+			geometry: geometry().array(),
+			bool: bool('bool').default(true).array(),
 			char: char('char', { length: 3 }).default('abc').array(),
 			date1: date('date1').default('2024-01-01').array(),
 			date2: date('date2').defaultNow().array(),
@@ -313,7 +318,6 @@ test('introspect all column array types', async () => {
 			decimal2: decimal('decimal2', { precision: 1, scale: 1 }).default('0.9').array(),
 			decimal3: decimal('decimal3').default('99.9').array(),
 			enum: myEnum('my_enum').default('a').array(),
-			// geometry
 			float: float('float').default(100).array(),
 			doublePrecision: doublePrecision('doublePrecision').default(100).array(),
 			inet: inet('inet').default('127.0.0.1').array(),
@@ -687,6 +691,27 @@ test('role with a few properties', async () => {
 		'roles-with-few-properties',
 		['public'],
 		{ roles: { include: ['user'] } },
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('case sensitive schema name + identity column', async () => {
+	const mySchema = cockroachSchema('CaseSensitiveSchema');
+	const schema = {
+		mySchema,
+		users: mySchema.table('users', {
+			id: int4('id').primaryKey().generatedAlwaysAsIdentity(),
+			name: text('name'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffIntrospect(
+		db,
+		schema,
+		'case-sensitive-schema-name',
+		['CaseSensitiveSchema'],
 	);
 
 	expect(statements.length).toBe(0);

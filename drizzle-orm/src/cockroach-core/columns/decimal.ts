@@ -1,32 +1,24 @@
-import type { AnyCockroachTable } from '~/cockroach-core/table.ts';
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { AnyCockroachTable, CockroachTable } from '~/cockroach-core/table.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
 import { CockroachColumn, CockroachColumnWithArrayBuilder } from './common.ts';
 
-export type CockroachDecimalBuilderInitial<TName extends string> = CockroachDecimalBuilder<{
-	name: TName;
-	dataType: 'string';
-	columnType: 'CockroachDecimal';
-	data: string;
-	driverParam: string;
-	enumValues: undefined;
-}>;
-
-export class CockroachDecimalBuilder<T extends ColumnBuilderBaseConfig<'string', 'CockroachDecimal'>>
-	extends CockroachColumnWithArrayBuilder<
-		T,
-		{
-			precision: number | undefined;
-			scale: number | undefined;
-		}
-	>
-{
+export class CockroachDecimalBuilder extends CockroachColumnWithArrayBuilder<
+	{
+		dataType: 'string numeric';
+		data: string;
+		driverParam: string;
+	},
+	{
+		precision: number | undefined;
+		scale: number | undefined;
+	}
+> {
 	static override readonly [entityKind]: string = 'CockroachDecimalBuilder';
 
-	constructor(name: T['name'], precision?: number, scale?: number) {
-		super(name, 'string', 'CockroachDecimal');
+	constructor(name: string, precision?: number, scale?: number) {
+		super(name, 'string numeric', 'CockroachDecimal');
 		this.config.precision = precision;
 		this.config.scale = scale;
 	}
@@ -34,21 +26,21 @@ export class CockroachDecimalBuilder<T extends ColumnBuilderBaseConfig<'string',
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyCockroachTable<{ name: TTableName }>,
-	): CockroachDecimal<MakeColumnConfig<T, TTableName>> {
-		return new CockroachDecimal<MakeColumnConfig<T, TTableName>>(
+	) {
+		return new CockroachDecimal(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config,
 		);
 	}
 }
 
-export class CockroachDecimal<T extends ColumnBaseConfig<'string', 'CockroachDecimal'>> extends CockroachColumn<T> {
+export class CockroachDecimal<T extends ColumnBaseConfig<'string numeric'>> extends CockroachColumn<T> {
 	static override readonly [entityKind]: string = 'CockroachDecimal';
 
 	readonly precision: number | undefined;
 	readonly scale: number | undefined;
 
-	constructor(table: AnyCockroachTable<{ name: T['tableName'] }>, config: CockroachDecimalBuilder<T>['config']) {
+	constructor(table: CockroachTable<any>, config: CockroachDecimalBuilder['config']) {
 		super(table, config);
 		this.precision = config.precision;
 		this.scale = config.scale;
@@ -71,27 +63,20 @@ export class CockroachDecimal<T extends ColumnBaseConfig<'string', 'CockroachDec
 	}
 }
 
-export type CockroachDecimalNumberBuilderInitial<TName extends string> = CockroachDecimalNumberBuilder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'CockroachDecimalNumber';
-	data: number;
-	driverParam: string;
-	enumValues: undefined;
-}>;
-
-export class CockroachDecimalNumberBuilder<T extends ColumnBuilderBaseConfig<'number', 'CockroachDecimalNumber'>>
-	extends CockroachColumnWithArrayBuilder<
-		T,
-		{
-			precision: number | undefined;
-			scale: number | undefined;
-		}
-	>
-{
+export class CockroachDecimalNumberBuilder extends CockroachColumnWithArrayBuilder<
+	{
+		dataType: 'number';
+		data: number;
+		driverParam: string;
+	},
+	{
+		precision: number | undefined;
+		scale: number | undefined;
+	}
+> {
 	static override readonly [entityKind]: string = 'CockroachDecimalNumberBuilder';
 
-	constructor(name: T['name'], precision?: number, scale?: number) {
+	constructor(name: string, precision?: number, scale?: number) {
 		super(name, 'number', 'CockroachDecimalNumber');
 		this.config.precision = precision;
 		this.config.scale = scale;
@@ -100,25 +85,23 @@ export class CockroachDecimalNumberBuilder<T extends ColumnBuilderBaseConfig<'nu
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyCockroachTable<{ name: TTableName }>,
-	): CockroachDecimalNumber<MakeColumnConfig<T, TTableName>> {
-		return new CockroachDecimalNumber<MakeColumnConfig<T, TTableName>>(
+	) {
+		return new CockroachDecimalNumber(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config,
 		);
 	}
 }
 
-export class CockroachDecimalNumber<T extends ColumnBaseConfig<'number', 'CockroachDecimalNumber'>>
-	extends CockroachColumn<T>
-{
+export class CockroachDecimalNumber<T extends ColumnBaseConfig<'number'>> extends CockroachColumn<T> {
 	static override readonly [entityKind]: string = 'CockroachDecimalNumber';
 
 	readonly precision: number | undefined;
 	readonly scale: number | undefined;
 
 	constructor(
-		table: AnyCockroachTable<{ name: T['tableName'] }>,
-		config: CockroachDecimalNumberBuilder<T>['config'],
+		table: CockroachTable<any>,
+		config: CockroachDecimalNumberBuilder['config'],
 	) {
 		super(table, config);
 		this.precision = config.precision;
@@ -144,28 +127,21 @@ export class CockroachDecimalNumber<T extends ColumnBaseConfig<'number', 'Cockro
 	}
 }
 
-export type CockroachDecimalBigIntBuilderInitial<TName extends string> = CockroachDecimalBigIntBuilder<{
-	name: TName;
-	dataType: 'bigint';
-	columnType: 'CockroachDecimalBigInt';
-	data: bigint;
-	driverParam: string;
-	enumValues: undefined;
-}>;
-
-export class CockroachDecimalBigIntBuilder<T extends ColumnBuilderBaseConfig<'bigint', 'CockroachDecimalBigInt'>>
-	extends CockroachColumnWithArrayBuilder<
-		T,
-		{
-			precision: number | undefined;
-			scale: number | undefined;
-		}
-	>
-{
+export class CockroachDecimalBigIntBuilder extends CockroachColumnWithArrayBuilder<
+	{
+		dataType: 'bigint int64';
+		data: bigint;
+		driverParam: string;
+	},
+	{
+		precision: number | undefined;
+		scale: number | undefined;
+	}
+> {
 	static override readonly [entityKind]: string = 'CockroachDecimalBigIntBuilder';
 
-	constructor(name: T['name'], precision?: number, scale?: number) {
-		super(name, 'bigint', 'CockroachDecimalBigInt');
+	constructor(name: string, precision?: number, scale?: number) {
+		super(name, 'bigint int64', 'CockroachDecimalBigInt');
 		this.config.precision = precision;
 		this.config.scale = scale;
 	}
@@ -173,25 +149,23 @@ export class CockroachDecimalBigIntBuilder<T extends ColumnBuilderBaseConfig<'bi
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyCockroachTable<{ name: TTableName }>,
-	): CockroachDecimalBigInt<MakeColumnConfig<T, TTableName>> {
-		return new CockroachDecimalBigInt<MakeColumnConfig<T, TTableName>>(
+	) {
+		return new CockroachDecimalBigInt(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config,
 		);
 	}
 }
 
-export class CockroachDecimalBigInt<T extends ColumnBaseConfig<'bigint', 'CockroachDecimalBigInt'>>
-	extends CockroachColumn<T>
-{
+export class CockroachDecimalBigInt<T extends ColumnBaseConfig<'bigint int64'>> extends CockroachColumn<T> {
 	static override readonly [entityKind]: string = 'CockroachDecimalBigInt';
 
 	readonly precision: number | undefined;
 	readonly scale: number | undefined;
 
 	constructor(
-		table: AnyCockroachTable<{ name: T['tableName'] }>,
-		config: CockroachDecimalBigIntBuilder<T>['config'],
+		table: CockroachTable<any>,
+		config: CockroachDecimalBigIntBuilder['config'],
 	) {
 		super(table, config);
 		this.precision = config.precision;
@@ -213,22 +187,24 @@ export class CockroachDecimalBigInt<T extends ColumnBaseConfig<'bigint', 'Cockro
 	}
 }
 
-export type CockroachDecimalConfig<T extends 'string' | 'number' | 'bigint' = 'string' | 'number' | 'bigint'> =
+export type CockroachDecimalConfig<
+	T extends 'string' | 'number' | 'bigint' = 'string' | 'number' | 'bigint',
+> =
 	| { precision: number; scale?: number; mode?: T }
 	| { precision?: number; scale: number; mode?: T }
 	| { precision?: number; scale?: number; mode: T };
 
 export function decimal<TMode extends 'string' | 'number' | 'bigint'>(
 	config?: CockroachDecimalConfig<TMode>,
-): Equal<TMode, 'number'> extends true ? CockroachDecimalNumberBuilderInitial<''>
-	: Equal<TMode, 'bigint'> extends true ? CockroachDecimalBigIntBuilderInitial<''>
-	: CockroachDecimalBuilderInitial<''>;
-export function decimal<TName extends string, TMode extends 'string' | 'number' | 'bigint'>(
-	name: TName,
+): Equal<TMode, 'number'> extends true ? CockroachDecimalNumberBuilder
+	: Equal<TMode, 'bigint'> extends true ? CockroachDecimalBigIntBuilder
+	: CockroachDecimalBuilder;
+export function decimal<TMode extends 'string' | 'number' | 'bigint'>(
+	name: string,
 	config?: CockroachDecimalConfig<TMode>,
-): Equal<TMode, 'number'> extends true ? CockroachDecimalNumberBuilderInitial<TName>
-	: Equal<TMode, 'bigint'> extends true ? CockroachDecimalBigIntBuilderInitial<TName>
-	: CockroachDecimalBuilderInitial<TName>;
+): Equal<TMode, 'number'> extends true ? CockroachDecimalNumberBuilder
+	: Equal<TMode, 'bigint'> extends true ? CockroachDecimalBigIntBuilder
+	: CockroachDecimalBuilder;
 export function decimal(a?: string | CockroachDecimalConfig, b?: CockroachDecimalConfig) {
 	const { name, config } = getColumnNameAndConfig<CockroachDecimalConfig>(a, b);
 	const mode = config?.mode;

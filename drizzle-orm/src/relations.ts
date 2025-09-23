@@ -1,9 +1,14 @@
-import { type AnyTable, getTableUniqueName, type InferModelFromColumns, Table } from '~/table.ts';
+import { IsAlias, OriginalName, Table, TableColumns, TableSchema } from '~/table.ts';
+import { aliasedTable } from './alias.ts';
+import type { CasingCache } from './casing.ts';
 import { type AnyColumn, Column } from './column.ts';
 import { entityKind, is } from './entity.ts';
-import { PrimaryKeyBuilder } from './pg-core/primary-keys.ts';
+import { DrizzleError } from './errors.ts';
 import {
 	and,
+	arrayContained,
+	arrayContains,
+	arrayOverlaps,
 	asc,
 	between,
 	desc,
@@ -27,370 +32,675 @@ import {
 	notLike,
 	or,
 } from './sql/expressions/index.ts';
-import { type Placeholder, SQL, sql } from './sql/sql.ts';
-import type { Assume, ColumnsWithTable, Equal, Simplify, ValueOrArray } from './utils.ts';
+import { Placeholder, SQL, sql, type SQLWrapper, View } from './sql/sql.ts';
+import type { Assume, DrizzleTypeError, Equal, Simplify, ValueOrArray } from './utils.ts';
 
-export abstract class Relation<TTableName extends string = string> {
-	static readonly [entityKind]: string = 'Relation';
+export type FilteredSchemaEntry = Table<any> | View<string, boolean, FieldSelection>;
 
-	declare readonly $brand: 'Relation';
-	readonly referencedTableName: TTableName;
-	fieldName!: string;
+export type SchemaEntry = Table<any> | View<string, boolean, any>;
 
-	constructor(
-		readonly sourceTable: Table,
-		readonly referencedTable: AnyTable<{ name: TTableName }>,
-		readonly relationName: string | undefined,
-	) {
-		this.referencedTableName = referencedTable[Table.Symbol.Name] as TTableName;
+export type Schema = Record<string, SchemaEntry>;
+
+export type GetTableViewColumns<T extends SchemaEntry> = T extends View<string, boolean, any> ? T['_']['selectedFields']
+	: T extends Table<any> ? T['_']['columns']
+	: never;
+
+export type GetTableViewFieldSelection<T extends SchemaEntry> = T extends View<string, boolean, FieldSelection>
+	? T['_']['selectedFields']
+	: T extends Table<any> ? T['_']['columns']
+	: never;
+
+export type FieldValue =
+	| Column<any>
+	| SQLWrapper
+	| SQL.Aliased
+	| SQL;
+
+export type FieldSelection = Record<string, FieldValue>;
+
+export function processRelations(tablesConfig: TablesRelationalConfig, tables: Schema) {
+	for (const tableConfig of Object.values(tablesConfig)) {
+		for (const [relationFieldName, relation] of Object.entries(tableConfig.relations)) {
+			if (!is(relation, Relation)) {
+				continue;
+			}
+
+			relation.sourceTable = tableConfig.table;
+			relation.fieldName = relationFieldName;
+		}
 	}
 
-	abstract withFieldName(fieldName: string): Relation<TTableName>;
+	for (const [sourceTableName, tableConfig] of Object.entries(tablesConfig)) {
+		for (const [relationFieldName, relation] of Object.entries(tableConfig.relations)) {
+			if (!is(relation, Relation)) {
+				continue;
+			}
+
+			let reverseRelation: Relation | undefined;
+			const {
+				targetTableName,
+				alias,
+				sourceColumns,
+				targetColumns,
+				throughTable,
+				sourceTable,
+				through,
+				targetTable,
+				where,
+				sourceColumnTableNames,
+				targetColumnTableNames,
+			} = relation;
+			const relationPrintName = `relations -> ${tableConfig.name}: { ${relationFieldName}: r.${
+				is(relation, One) ? 'one' : 'many'
+			}.${targetTableName}(...) }`;
+
+			if (typeof alias === 'string' && !alias) {
+				throw new Error(`${relationPrintName}: "alias" cannot be an empty string - omit it if you don't need it`);
+			}
+
+			if (sourceColumns?.length === 0) {
+				throw new Error(`${relationPrintName}: "from" cannot be empty`);
+			}
+
+			if (targetColumns?.length === 0) {
+				throw new Error(`${relationPrintName}: "to" cannot be empty`);
+			}
+
+			if (sourceColumns && targetColumns) {
+				if (sourceColumns.length !== targetColumns.length && !throughTable) {
+					throw new Error(
+						`${relationPrintName}: "from" and "to" fields without "through" must have the same length`,
+					);
+				}
+
+				for (const sName of sourceColumnTableNames) {
+					if (sName !== sourceTableName) {
+						throw new Error(
+							`${relationPrintName}: all "from" columns must belong to table "${sourceTableName}", found column of table "${sName}"`,
+						);
+					}
+				}
+				for (const tName of targetColumnTableNames) {
+					if (tName !== targetTableName) {
+						throw new Error(
+							`${relationPrintName}: all "to" columns must belong to table "${targetTable}", found column of table "${tName}"`,
+						);
+					}
+				}
+
+				if (through) {
+					if (
+						through.source.length !== sourceColumns.length
+						|| through.target.length !== targetColumns.length
+					) {
+						throw new Error(
+							`${relationPrintName}: ".through(column)" must be used either on all columns in "from" and "to" or not defined on any of them`,
+						);
+					}
+
+					for (const column of through.source) {
+						if (tables[column._.tableName] !== throughTable) {
+							throw new Error(
+								`${relationPrintName}: ".through(column)" must be used on the same table by all columns of the relation`,
+							);
+						}
+					}
+
+					for (const column of through.target) {
+						if (tables[column._.tableName] !== throughTable) {
+							throw new Error(
+								`${relationPrintName}: ".through(column)" must be used on the same table by all columns of the relation`,
+							);
+						}
+					}
+				}
+
+				continue;
+			}
+
+			if (sourceColumns || targetColumns) {
+				throw new Error(
+					`${relationPrintName}: relation must have either both "from" and "to" defined, or none of them`,
+				);
+			}
+
+			const reverseTableConfig = tablesConfig[targetTableName];
+			if (!reverseTableConfig) {
+				throw new Error(
+					`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and no reverse relations of table "${targetTableName}" were found"`,
+				);
+			}
+			if (alias) {
+				const reverseRelations = Object.values(reverseTableConfig.relations).filter((it): it is Relation =>
+					is(it, Relation) && it.alias === alias && it !== relation
+				);
+				if (reverseRelations.length > 1) {
+					throw new Error(
+						`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and multiple relations with alias "${alias}" found in table "${targetTableName}": ${
+							reverseRelations.map((it) => `"${it.fieldName}"`).join(', ')
+						}`,
+					);
+				}
+				reverseRelation = reverseRelations[0];
+				if (!reverseRelation) {
+					throw new Error(
+						`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and there is no reverse relation of table "${targetTableName}" with alias "${alias}"`,
+					);
+				}
+			} else {
+				const reverseRelations = Object.values(reverseTableConfig.relations).filter((it): it is Relation =>
+					is(it, Relation) && it.targetTable === sourceTable && !it.alias && it !== relation
+				);
+				if (reverseRelations.length > 1) {
+					throw new Error(
+						`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and multiple relations between "${targetTableName}" and "${sourceTableName}" were found.\nHint: you can specify "alias" on both sides of the relation with the same value`,
+					);
+				}
+				reverseRelation = reverseRelations[0];
+				if (!reverseRelation) {
+					throw new Error(
+						`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and no reverse relation of table "${targetTableName}" with target table "${sourceTableName}" was found`,
+					);
+				}
+			}
+			if (!reverseRelation.sourceColumns || !reverseRelation.targetColumns) {
+				throw new Error(
+					`${relationPrintName}: not enough data provided to build the relation - "from"/"to" are not defined, and reverse relation "${targetTableName}.${reverseRelation.fieldName}" does not have "from"/"to" defined`,
+				);
+			}
+
+			relation.sourceColumns = reverseRelation.targetColumns;
+			relation.targetColumns = reverseRelation.sourceColumns;
+			relation.through = reverseRelation.through
+				? {
+					source: reverseRelation.through.target,
+					target: reverseRelation.through.source,
+				}
+				: undefined;
+			relation.throughTable = reverseRelation.throughTable;
+			relation.isReversed = !where;
+			relation.where = where ?? reverseRelation.where;
+		}
+	}
+
+	return tablesConfig;
 }
 
-export class Relations<
-	TTableName extends string = string,
-	TConfig extends Record<string, Relation> = Record<string, Relation>,
-> {
-	static readonly [entityKind]: string = 'Relations';
+/** Builds relational config for every table in schema */
+export function buildRelations<TTables extends Schema, TConfig extends AnyRelationsBuilderConfig>(
+	tables: TTables,
+	config: TConfig,
+): ExtractTablesWithRelations<TConfig, TTables> {
+	const tablesConfig = {} as TablesRelationalConfig;
 
-	declare readonly $brand: 'Relations';
+	for (const [tsName, table] of Object.entries(tables)) {
+		tablesConfig[tsName] = {
+			table,
+			name: tsName,
+			relations: config[tsName] ?? {},
+		};
+	}
+
+	return processRelations(tablesConfig, tables) as any;
+}
+
+/** Builds relational config only for tables present in relational config */
+export function buildRelationsParts<TTables extends Schema, TConfig extends AnyRelationsBuilderConfig>(
+	tables: TTables,
+	config: TConfig,
+): ExtractTablesWithRelationsParts<TConfig, TTables> {
+	const tablesConfig = {} as TablesRelationalConfig;
+
+	for (const [tsName, relations] of Object.entries(config)) {
+		if (!relations || !tables[tsName]) continue;
+		tablesConfig[tsName] = {
+			table: tables[tsName],
+			name: tsName,
+			relations,
+		};
+	}
+
+	return processRelations(tablesConfig, tables) as any;
+}
+
+export type RelationsRecord = Record<string, AnyRelation>;
+export type EmptyRelations = {};
+export type AnyRelations = TablesRelationalConfig;
+
+export abstract class Relation<
+	TTargetTableName extends string = string,
+> {
+	static readonly [entityKind]: string = 'RelationV2';
+	declare readonly $brand: 'RelationV2';
+	declare public readonly relationType: 'many' | 'one';
+
+	fieldName!: string;
+	sourceColumns!: Column<any>[];
+	targetColumns!: Column<any>[];
+	alias: string | undefined;
+	where: AnyTableFilter | undefined;
+	sourceTable!: SchemaEntry;
+	targetTable: SchemaEntry;
+	through?: {
+		source: RelationsBuilderColumnBase[];
+		target: RelationsBuilderColumnBase[];
+	};
+	throughTable?: SchemaEntry;
+	isReversed?: boolean;
+
+	/** @internal */
+	sourceColumnTableNames: string[] = [];
+	/** @internal */
+	targetColumnTableNames: string[] = [];
 
 	constructor(
-		readonly table: AnyTable<{ name: TTableName }>,
-		readonly config: (helpers: TableRelationsHelpers<TTableName>) => TConfig,
-	) {}
+		targetTable: SchemaEntry,
+		readonly targetTableName: TTargetTableName,
+	) {
+		this.targetTable = targetTable;
+	}
 }
+
+export type AnyRelation = Relation<string>;
 
 export class One<
-	TTableName extends string = string,
-	TIsNullable extends boolean = boolean,
-> extends Relation<TTableName> {
-	static override readonly [entityKind]: string = 'One';
+	TTargetTableName extends string,
+	TOptional extends boolean = boolean,
+> extends Relation<TTargetTableName> {
+	static override readonly [entityKind]: string = 'OneV2';
+	declare protected $relationBrand: 'OneV2';
 
-	declare protected $relationBrand: 'One';
+	public override readonly relationType = 'one' as const;
+
+	readonly optional: TOptional;
 
 	constructor(
-		sourceTable: Table,
-		referencedTable: AnyTable<{ name: TTableName }>,
-		readonly config:
-			| RelationConfig<
-				TTableName,
-				string,
-				AnyColumn<{ tableName: TTableName }>[]
-			>
-			| undefined,
-		readonly isNullable: TIsNullable,
+		tables: Schema,
+		targetTable: SchemaEntry,
+		targetTableName: TTargetTableName,
+		config: AnyOneConfig | undefined,
 	) {
-		super(sourceTable, referencedTable, config?.relationName);
-	}
+		super(targetTable, targetTableName);
+		this.alias = config?.alias;
+		this.where = config?.where;
+		if (config?.from) {
+			this.sourceColumns = ((Array.isArray(config.from)
+				? config.from
+				: [config.from]) as RelationsBuilderColumnBase[]).map((it: RelationsBuilderColumnBase) => {
+					this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as SchemaEntry : undefined;
+					this.sourceColumnTableNames.push(it._.tableName);
+					return it._.column as Column;
+				});
+		}
+		if (config?.to) {
+			this.targetColumns = (Array.isArray(config.to)
+				? config.to
+				: [config.to]).map((it: RelationsBuilderColumnBase) => {
+					this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as SchemaEntry : undefined;
+					this.targetColumnTableNames.push(it._.tableName);
+					return it._.column as Column;
+				});
+		}
 
-	withFieldName(fieldName: string): One<TTableName> {
-		const relation = new One(
-			this.sourceTable,
-			this.referencedTable,
-			this.config,
-			this.isNullable,
-		);
-		relation.fieldName = fieldName;
-		return relation;
+		if (this.throughTable) {
+			this.through = {
+				source: (Array.isArray(config?.from) ? config.from : config?.from ? [config.from] : []).map((
+					c,
+				) => c._.through!),
+				target: (Array.isArray(config?.to) ? config.to : config?.to ? [config.to] : []).map((c) => c._.through!),
+			};
+		}
+		this.optional = (config?.optional ?? true) as TOptional;
 	}
 }
 
-export class Many<TTableName extends string> extends Relation<TTableName> {
-	static override readonly [entityKind]: string = 'Many';
+export type AnyOne = One<string, boolean>;
 
-	declare protected $relationBrand: 'Many';
+export class Many<TTargetTableName extends string> extends Relation<TTargetTableName> {
+	static override readonly [entityKind]: string = 'ManyV2';
+	declare protected $relationBrand: 'ManyV2';
+
+	public override readonly relationType = 'many' as const;
 
 	constructor(
-		sourceTable: Table,
-		referencedTable: AnyTable<{ name: TTableName }>,
-		readonly config: { relationName: string } | undefined,
+		tables: Schema,
+		targetTable: SchemaEntry,
+		targetTableName: TTargetTableName,
+		readonly config: AnyManyConfig | undefined,
 	) {
-		super(sourceTable, referencedTable, config?.relationName);
-	}
-
-	withFieldName(fieldName: string): Many<TTableName> {
-		const relation = new Many(
-			this.sourceTable,
-			this.referencedTable,
-			this.config,
-		);
-		relation.fieldName = fieldName;
-		return relation;
+		super(targetTable, targetTableName);
+		this.alias = config?.alias;
+		this.where = config?.where;
+		if (config?.from) {
+			this.sourceColumns = ((Array.isArray(config.from)
+				? config.from
+				: [config.from]) as RelationsBuilderColumnBase[]).map((it: RelationsBuilderColumnBase) => {
+					this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as SchemaEntry : undefined;
+					this.sourceColumnTableNames.push(it._.tableName);
+					return it._.column as Column;
+				});
+		}
+		if (config?.to) {
+			this.targetColumns = (Array.isArray(config.to)
+				? config.to
+				: [config.to]).map((it: RelationsBuilderColumnBase) => {
+					this.throughTable ??= it._.through ? tables[it._.through._.tableName]! as SchemaEntry : undefined;
+					this.targetColumnTableNames.push(it._.tableName);
+					return it._.column as Column;
+				});
+		}
+		if (this.throughTable) {
+			this.through = {
+				source: (Array.isArray(config?.from) ? config.from : config?.from ? [config.from] : []).map((
+					c,
+				) => c._.through!),
+				target: (Array.isArray(config?.to) ? config.to : config?.to ? [config.to] : []).map((c) => c._.through!),
+			};
+		}
 	}
 }
 
-export type TableRelationsKeysOnly<
-	TSchema extends Record<string, unknown>,
-	TTableName extends string,
-	K extends keyof TSchema,
-> = TSchema[K] extends Relations<TTableName> ? K : never;
+export type AnyMany = Many<string>;
 
-export type ExtractTableRelationsFromSchema<
-	TSchema extends Record<string, unknown>,
-	TTableName extends string,
-> = ExtractObjectValues<
-	{
-		[
-			K in keyof TSchema as TableRelationsKeysOnly<
-				TSchema,
-				TTableName,
-				K
-			>
-		]: TSchema[K] extends Relations<TTableName, infer TConfig> ? TConfig : never;
+export abstract class AggregatedField<T = unknown> implements SQLWrapper<T> {
+	static readonly [entityKind]: string = 'AggregatedField';
+
+	declare readonly $brand: 'AggregatedField';
+
+	declare readonly _: {
+		readonly data: T;
+	};
+
+	protected table: SchemaEntry | undefined;
+
+	onTable(table: SchemaEntry) {
+		this.table = table;
+
+		return this;
 	}
->;
+
+	abstract getSQL(): SQL<T>;
+}
+
+export class Count extends AggregatedField<number> {
+	static override readonly [entityKind]: string = 'AggregatedFieldCount';
+
+	declare protected $aggregatedFieldBrand: 'Count';
+
+	private query: SQL<number> | undefined;
+
+	getSQL(): SQL<number> {
+		if (!this.query) {
+			if (!this.table) throw new Error('Table must be set before building aggregate field');
+			this.query = sql`select count(*) as ${sql.identifier('r')} from ${getTableAsAliasSQL(this.table)}`
+				.mapWith(Number);
+		}
+
+		return this.query;
+	}
+}
 
 export type ExtractObjectValues<T> = T[keyof T];
 
-export type ExtractRelationsFromTableExtraConfigSchema<
-	TConfig extends unknown[],
-> = ExtractObjectValues<
-	{
-		[
-			K in keyof TConfig as TConfig[K] extends Relations<any> ? K
-				: never
-		]: TConfig[K] extends Relations<infer TRelationConfig> ? TRelationConfig
-			: never;
-	}
->;
+export const operators = {
+	and,
+	between,
+	eq,
+	exists,
+	gt,
+	gte,
+	ilike,
+	inArray,
+	arrayContains,
+	arrayContained,
+	arrayOverlaps,
+	isNull,
+	isNotNull,
+	like,
+	lt,
+	lte,
+	ne,
+	not,
+	notBetween,
+	notExists,
+	notLike,
+	notIlike,
+	notInArray,
+	or,
+	sql,
+};
 
-export function getOperators() {
-	return {
-		and,
-		between,
-		eq,
-		exists,
-		gt,
-		gte,
-		ilike,
-		inArray,
-		isNull,
-		isNotNull,
-		like,
-		lt,
-		lte,
-		ne,
-		not,
-		notBetween,
-		notExists,
-		notLike,
-		notIlike,
-		notInArray,
-		or,
-		sql,
-	};
+export type Operators = typeof operators;
+
+export const orderByOperators = {
+	sql,
+	asc,
+	desc,
+};
+
+export type OrderByOperators = typeof orderByOperators;
+
+export function getOrderByOperators(): OrderByOperators {
+	return orderByOperators;
 }
 
-export type Operators = ReturnType<typeof getOperators>;
+export type FindTargetTableInRelationalConfig<
+	TConfig extends TablesRelationalConfig,
+	TRelation extends AnyRelation,
+> = TConfig[TRelation['targetTableName']];
 
-export function getOrderByOperators() {
-	return {
-		sql,
-		asc,
-		desc,
-	};
+export interface SQLOperator {
+	sql: Operators['sql'];
 }
 
-export type OrderByOperators = ReturnType<typeof getOrderByOperators>;
+export type DBQueryConfigColumns<TColumns extends FieldSelection> = {
+	[K in keyof TColumns]?: boolean | undefined;
+};
 
-export type FindTableByDBName<
-	TSchema extends TablesRelationalConfig,
-	TTableName extends string,
-> = ExtractObjectValues<
-	{
-		[
-			K in keyof TSchema as TSchema[K]['dbName'] extends TTableName ? K
-				: never
-		]: TSchema[K];
-	}
+export type DBQueryConfigExtras<TTable extends SchemaEntry> = Record<
+	string,
+	| SQLWrapper
+	| ((
+		table: TTable,
+		operators: SQLOperator,
+	) => SQLWrapper)
 >;
+
+export type DBQueryConfigOrderByCallback<TTable extends SchemaEntry> = (
+	table: TTable,
+	operators: OrderByOperators,
+) => ValueOrArray<AnyColumn | SQL>;
+
+export type DBQueryConfigOrderByObject<TColumns extends FieldSelection> = {
+	[K in keyof TColumns]?: 'asc' | 'desc' | undefined;
+};
+
+export type DBQueryConfigOrderBy<TTable extends SchemaEntry, TColumns extends FieldSelection> =
+	| DBQueryConfigOrderByCallback<TTable>
+	| DBQueryConfigOrderByObject<TColumns>;
+
+export type DBQueryConfigWith<TSchema extends TablesRelationalConfig, TRelations extends RelationsRecord> = {
+	[K in keyof TRelations]?:
+		| boolean
+		| (DBQueryConfig<
+			TRelations[K]['relationType'],
+			TSchema,
+			FindTargetTableInRelationalConfig<TSchema, TRelations[K]>
+		>)
+		| undefined;
+};
 
 export type DBQueryConfig<
 	TRelationType extends 'one' | 'many' = 'one' | 'many',
-	TIsRoot extends boolean = boolean,
 	TSchema extends TablesRelationalConfig = TablesRelationalConfig,
 	TTableConfig extends TableRelationalConfig = TableRelationalConfig,
 > =
+	& (TTableConfig['relations'] extends Record<string, never> ? {}
+		: {
+			with?:
+				| DBQueryConfigWith<TSchema, TTableConfig['relations']>
+				| undefined;
+		})
 	& {
-		columns?:
-			| {
-				[K in keyof TTableConfig['columns']]?: boolean;
-			}
-			| undefined;
-		with?:
-			| {
-				[K in keyof TTableConfig['relations']]?:
-					| true
-					| DBQueryConfig<
-						TTableConfig['relations'][K] extends One ? 'one' : 'many',
-						false,
-						TSchema,
-						FindTableByDBName<
-							TSchema,
-							TTableConfig['relations'][K]['referencedTableName']
-						>
-					>
-					| undefined;
-			}
-			| undefined;
+		columns?: DBQueryConfigColumns<GetTableViewFieldSelection<TTableConfig['table']>> | undefined;
+		where?: RelationsFilter<TTableConfig, TSchema> | undefined;
 		extras?:
-			| Record<string, SQL.Aliased>
-			| ((
-				fields: Simplify<
-					[TTableConfig['columns']] extends [never] ? {}
-						: TTableConfig['columns']
-				>,
-				operators: { sql: Operators['sql'] },
-			) => Record<string, SQL.Aliased>)
+			| DBQueryConfigExtras<TTableConfig['table']>
 			| undefined;
+		orderBy?:
+			| DBQueryConfigOrderBy<TTableConfig['table'], GetTableViewFieldSelection<TTableConfig['table']>>
+			| undefined;
+		offset?: number | Placeholder | undefined;
 	}
-	& (TRelationType extends 'many' ?
-			& {
-				where?:
-					| SQL
-					| undefined
-					| ((
-						fields: Simplify<
-							[TTableConfig['columns']] extends [never] ? {}
-								: TTableConfig['columns']
-						>,
-						operators: Operators,
-					) => SQL | undefined);
-				orderBy?:
-					| ValueOrArray<AnyColumn | SQL>
-					| ((
-						fields: Simplify<
-							[TTableConfig['columns']] extends [never] ? {}
-								: TTableConfig['columns']
-						>,
-						operators: OrderByOperators,
-					) => ValueOrArray<AnyColumn | SQL>)
-					| undefined;
-				limit?: number | Placeholder | undefined;
-			}
-			& (TIsRoot extends true ? {
-					offset?: number | Placeholder | undefined;
-				}
-				: {})
+	& (TRelationType extends 'many' ? {
+			limit?: number | Placeholder | undefined;
+		}
 		: {});
 
+export type AnyDBQueryConfig = {
+	columns?:
+		| DBQueryConfigColumns<GetTableViewFieldSelection<TableRelationalConfig['table']>>
+		| undefined;
+	where?: RelationsFilter<TableRelationalConfig, TablesRelationalConfig> | undefined;
+	extras?:
+		| DBQueryConfigExtras<TableRelationalConfig['table']>
+		| undefined;
+	with?:
+		| Record<string, AnyDBQueryConfig>
+		| undefined;
+	orderBy?:
+		| DBQueryConfigOrderBy<TableRelationalConfig['table'], GetTableViewFieldSelection<TableRelationalConfig['table']>>
+		| undefined;
+	offset?: number | Placeholder | undefined;
+	limit?: number | Placeholder | undefined;
+};
+
 export interface TableRelationalConfig {
-	tsName: string;
-	dbName: string;
-	columns: Record<string, Column>;
-	relations: Record<string, Relation>;
-	primaryKey: AnyColumn[];
-	schema?: string;
+	table: SchemaEntry;
+	name: string;
+	relations: RelationsRecord;
 }
 
 export type TablesRelationalConfig = Record<string, TableRelationalConfig>;
 
-export interface RelationalSchemaConfig<
-	TSchema extends TablesRelationalConfig,
-> {
-	fullSchema: Record<string, unknown>;
-	schema: TSchema;
-	tableNamesMap: Record<string, string>;
-}
-
 export type ExtractTablesWithRelations<
-	TSchema extends Record<string, unknown>,
+	TConfig extends AnyRelationsBuilderConfig,
+	TTables extends Schema,
 > = {
-	[
-		K in keyof TSchema as TSchema[K] extends Table ? K
-			: never
-	]: TSchema[K] extends Table ? {
-			tsName: K & string;
-			dbName: TSchema[K]['_']['name'];
-			columns: TSchema[K]['_']['columns'];
-			relations: ExtractTableRelationsFromSchema<
-				TSchema,
-				TSchema[K]['_']['name']
-			>;
-			primaryKey: AnyColumn[];
-		}
-		: never;
+	[K in keyof TTables]: {
+		table: TTables[K];
+		name: K & string;
+		relations: TConfig extends { [CK in K]: Record<string, any> } ? TConfig[K] : {};
+	};
+};
+
+export type ExtractTablesWithRelationsParts<
+	TConfig extends AnyRelationsBuilderConfig,
+	TTables extends Schema,
+> = {
+	[K in NonUndefinedKeysOnly<TConfig> & keyof TTables]: {
+		table: TTables[K & string];
+		name: K & string;
+		relations: TConfig[K] extends Record<string, any> ? TConfig[K] : {};
+	};
 };
 
 export type ReturnTypeOrValue<T> = T extends (...args: any[]) => infer R ? R
 	: T;
 
+export type RelationResultKind<TResult, TInclude, TRelation extends AnyRelation> = TRelation extends AnyOne ? (
+		| TResult
+		| (Equal<TRelation['optional'], true> extends true ? null
+			: TInclude extends Record<string, unknown> ? TInclude['where'] extends Record<string, any> ? null
+				: never
+			: never)
+	)
+	: TResult[];
+
 export type BuildRelationResult<
-	TSchema extends TablesRelationalConfig,
+	TConfig extends TablesRelationalConfig,
 	TInclude,
-	TRelations extends Record<string, Relation>,
+	TRelations extends RelationsRecord,
 > = {
 	[
 		K in
-			& NonUndefinedKeysOnly<TInclude>
+			& TruthyKeysOnly<TInclude>
 			& keyof TRelations
-	]: TRelations[K] extends infer TRel extends Relation ? BuildQueryResult<
-			TSchema,
-			FindTableByDBName<TSchema, TRel['referencedTableName']>,
-			Assume<TInclude[K], true | Record<string, unknown>>
-		> extends infer TResult ? TRel extends One ?
-					| TResult
-					| (Equal<TRel['isNullable'], false> extends true ? null : never)
-			: TResult[]
-		: never
+	]: TRelations[K] extends infer TRel extends AnyRelation ? RelationResultKind<
+			BuildQueryResult<
+				TConfig,
+				FindTargetTableInRelationalConfig<TConfig, TRel>,
+				Assume<TInclude[K], true | Record<string, unknown>>
+			>,
+			TInclude[K],
+			TRel
+		>
+		: TRelations[K] extends AggregatedField<infer TData> ? TData
 		: never;
 };
 
-export type NonUndefinedKeysOnly<T> =
-	& ExtractObjectValues<
-		{
-			[K in keyof T as T[K] extends undefined ? never : K]: K;
-		}
-	>
-	& keyof T;
+export type NonUndefinedKeysOnly<T> = {
+	[K in keyof T]: T[K] extends undefined ? never : K;
+}[keyof T];
+
+export type TruthyKeysOnly<T> = {
+	[K in keyof T]: T[K] extends undefined | false ? never : K;
+}[keyof T];
+
+export type InferRelationalQueryTableResult<
+	TRawSelection extends Record<string, unknown>,
+	TSelectedFields extends Record<string, unknown> | 'Full' = 'Full',
+> = TSelectedFields extends 'Full' ? TRawSelection : {
+	[
+		K in Equal<
+			Exclude<
+				TSelectedFields[
+					& keyof TSelectedFields
+					& keyof TRawSelection
+				],
+				undefined
+			>,
+			false
+		> extends true ? Exclude<
+				keyof TRawSelection,
+				NonUndefinedKeysOnly<TSelectedFields>
+			>
+			:
+				& {
+					[K in keyof TSelectedFields]: Equal<
+						TSelectedFields[K],
+						true
+					> extends true ? K
+						: never;
+				}[keyof TSelectedFields]
+				& keyof TRawSelection
+	]: TRawSelection[K];
+};
 
 export type BuildQueryResult<
 	TSchema extends TablesRelationalConfig,
 	TTableConfig extends TableRelationalConfig,
 	TFullSelection extends true | Record<string, unknown>,
-> = Equal<TFullSelection, true> extends true ? InferModelFromColumns<TTableConfig['columns']>
+	TModel extends Record<string, unknown> = Assume<
+		TTableConfig['table'],
+		{ $inferSelect: Record<string, unknown> }
+	>['$inferSelect'],
+> = Equal<TFullSelection, true> extends true ? Simplify<InferRelationalQueryTableResult<TModel>>
 	: TFullSelection extends Record<string, unknown> ? Simplify<
-			& (TFullSelection['columns'] extends Record<string, unknown> ? InferModelFromColumns<
-					{
-						[
-							K in Equal<
-								Exclude<
-									TFullSelection['columns'][
-										& keyof TFullSelection['columns']
-										& keyof TTableConfig['columns']
-									],
-									undefined
-								>,
-								false
-							> extends true ? Exclude<
-									keyof TTableConfig['columns'],
-									NonUndefinedKeysOnly<TFullSelection['columns']>
-								>
-								:
-									& {
-										[K in keyof TFullSelection['columns']]: Equal<
-											TFullSelection['columns'][K],
-											true
-										> extends true ? K
-											: never;
-									}[keyof TFullSelection['columns']]
-									& keyof TTableConfig['columns']
-						]: TTableConfig['columns'][K];
-					}
-				>
-				: InferModelFromColumns<TTableConfig['columns']>)
-			& (TFullSelection['extras'] extends
-				| Record<string, unknown>
-				| ((...args: any[]) => Record<string, unknown>) ? {
+			& (InferRelationalQueryTableResult<
+				TModel,
+				TFullSelection['columns'] extends Record<string, unknown> ? TFullSelection['columns'] : 'Full'
+			>)
+			& (TFullSelection['extras'] extends Record<string, SQLWrapper | ((...args: any[]) => SQLWrapper)> ? {
 					[
 						K in NonUndefinedKeysOnly<
 							ReturnTypeOrValue<TFullSelection['extras']>
 						>
-					]: Assume<
-						ReturnTypeOrValue<TFullSelection['extras']>[K],
-						SQL.Aliased
+					]: ReturnType<
+						Assume<
+							ReturnTypeOrValue<TFullSelection['extras'][K & string]>,
+							SQLWrapper
+						>['getSQL']
 					>['_']['type'];
 				}
 				: {})
@@ -403,388 +713,883 @@ export type BuildQueryResult<
 		>
 	: never;
 
-export interface RelationConfig<
-	TTableName extends string,
-	TForeignTableName extends string,
-	TColumns extends AnyColumn<{ tableName: TTableName }>[],
-> {
-	relationName?: string;
-	fields: TColumns;
-	references: ColumnsWithTable<TTableName, TForeignTableName, TColumns>;
-}
-
-export function extractTablesRelationalConfig<
-	TTables extends TablesRelationalConfig,
->(
-	schema: Record<string, unknown>,
-	configHelpers: (table: Table) => any,
-): { tables: TTables; tableNamesMap: Record<string, string> } {
-	if (
-		Object.keys(schema).length === 1
-		&& 'default' in schema
-		&& !is(schema['default'], Table)
-	) {
-		schema = schema['default'] as Record<string, unknown>;
-	}
-
-	// table DB name -> schema table key
-	const tableNamesMap: Record<string, string> = {};
-	// Table relations found before their tables - need to buffer them until we know the schema table key
-	const relationsBuffer: Record<
-		string,
-		{ relations: Record<string, Relation>; primaryKey?: AnyColumn[] }
-	> = {};
-	const tablesConfig: TablesRelationalConfig = {};
-	for (const [key, value] of Object.entries(schema)) {
-		if (is(value, Table)) {
-			const dbName = getTableUniqueName(value);
-			const bufferedRelations = relationsBuffer[dbName];
-			tableNamesMap[dbName] = key;
-			tablesConfig[key] = {
-				tsName: key,
-				dbName: value[Table.Symbol.Name],
-				schema: value[Table.Symbol.Schema],
-				columns: value[Table.Symbol.Columns],
-				relations: bufferedRelations?.relations ?? {},
-				primaryKey: bufferedRelations?.primaryKey ?? [],
-			};
-
-			// Fill in primary keys
-			for (
-				const column of Object.values(
-					(value as Table)[Table.Symbol.Columns],
-				)
-			) {
-				if (column.primary) {
-					tablesConfig[key]!.primaryKey.push(column);
-				}
-			}
-
-			const extraConfig = value[Table.Symbol.ExtraConfigBuilder]?.((value as Table)[Table.Symbol.ExtraConfigColumns]);
-			if (extraConfig) {
-				for (const configEntry of Object.values(extraConfig)) {
-					if (is(configEntry, PrimaryKeyBuilder)) {
-						tablesConfig[key]!.primaryKey.push(...configEntry.columns);
-					}
-				}
-			}
-		} else if (is(value, Relations)) {
-			const dbName = getTableUniqueName(value.table);
-			const tableName = tableNamesMap[dbName];
-			const relations: Record<string, Relation> = value.config(
-				configHelpers(value.table),
-			);
-			let primaryKey: AnyColumn[] | undefined;
-
-			for (const [relationName, relation] of Object.entries(relations)) {
-				if (tableName) {
-					const tableConfig = tablesConfig[tableName]!;
-					tableConfig.relations[relationName] = relation;
-					if (primaryKey) {
-						tableConfig.primaryKey.push(...primaryKey);
-					}
-				} else {
-					if (!(dbName in relationsBuffer)) {
-						relationsBuffer[dbName] = {
-							relations: {},
-							primaryKey,
-						};
-					}
-					relationsBuffer[dbName]!.relations[relationName] = relation;
-				}
-			}
-		}
-	}
-
-	return { tables: tablesConfig as TTables, tableNamesMap };
-}
-
-export function relations<
-	TTableName extends string,
-	TRelations extends Record<string, Relation<any>>,
->(
-	table: AnyTable<{ name: TTableName }>,
-	relations: (helpers: TableRelationsHelpers<TTableName>) => TRelations,
-): Relations<TTableName, TRelations> {
-	return new Relations<TTableName, TRelations>(
-		table,
-		(helpers: TableRelationsHelpers<TTableName>) =>
-			Object.fromEntries(
-				Object.entries(relations(helpers)).map(([key, value]) => [
-					key,
-					value.withFieldName(key),
-				]),
-			) as TRelations,
-	);
-}
-
-export function createOne<TTableName extends string>(sourceTable: Table) {
-	return function one<
-		TForeignTable extends Table,
-		TColumns extends [
-			AnyColumn<{ tableName: TTableName }>,
-			...AnyColumn<{ tableName: TTableName }>[],
-		],
-	>(
-		table: TForeignTable,
-		config?: RelationConfig<TTableName, TForeignTable['_']['name'], TColumns>,
-	): One<
-		TForeignTable['_']['name'],
-		Equal<TColumns[number]['_']['notNull'], true>
-	> {
-		return new One(
-			sourceTable,
-			table,
-			config,
-			(config?.fields.reduce<boolean>((res, f) => res && f.notNull, true)
-				?? false) as Equal<TColumns[number]['_']['notNull'], true>,
-		);
-	};
-}
-
-export function createMany(sourceTable: Table) {
-	return function many<TForeignTable extends Table>(
-		referencedTable: TForeignTable,
-		config?: { relationName: string },
-	): Many<TForeignTable['_']['name']> {
-		return new Many(sourceTable, referencedTable, config);
-	};
-}
-
-export interface NormalizedRelation {
-	fields: AnyColumn[];
-	references: AnyColumn[];
-}
-
-export function normalizeRelation(
-	schema: TablesRelationalConfig,
-	tableNamesMap: Record<string, string>,
-	relation: Relation,
-): NormalizedRelation {
-	if (is(relation, One) && relation.config) {
-		return {
-			fields: relation.config.fields,
-			references: relation.config.references,
-		};
-	}
-
-	const referencedTableTsName = tableNamesMap[getTableUniqueName(relation.referencedTable)];
-	if (!referencedTableTsName) {
-		throw new Error(
-			`Table "${relation.referencedTable[Table.Symbol.Name]}" not found in schema`,
-		);
-	}
-
-	const referencedTableConfig = schema[referencedTableTsName];
-	if (!referencedTableConfig) {
-		throw new Error(`Table "${referencedTableTsName}" not found in schema`);
-	}
-
-	const sourceTable = relation.sourceTable;
-	const sourceTableTsName = tableNamesMap[getTableUniqueName(sourceTable)];
-	if (!sourceTableTsName) {
-		throw new Error(
-			`Table "${sourceTable[Table.Symbol.Name]}" not found in schema`,
-		);
-	}
-
-	const reverseRelations: Relation[] = [];
-	for (
-		const referencedTableRelation of Object.values(
-			referencedTableConfig.relations,
-		)
-	) {
-		if (
-			(relation.relationName
-				&& relation !== referencedTableRelation
-				&& referencedTableRelation.relationName === relation.relationName)
-			|| (!relation.relationName
-				&& referencedTableRelation.referencedTable === relation.sourceTable)
-		) {
-			reverseRelations.push(referencedTableRelation);
-		}
-	}
-
-	if (reverseRelations.length > 1) {
-		throw relation.relationName
-			? new Error(
-				`There are multiple relations with name "${relation.relationName}" in table "${referencedTableTsName}"`,
-			)
-			: new Error(
-				`There are multiple relations between "${referencedTableTsName}" and "${
-					relation.sourceTable[Table.Symbol.Name]
-				}". Please specify relation name`,
-			);
-	}
-
-	if (
-		reverseRelations[0]
-		&& is(reverseRelations[0], One)
-		&& reverseRelations[0].config
-	) {
-		return {
-			fields: reverseRelations[0].config.references,
-			references: reverseRelations[0].config.fields,
-		};
-	}
-
-	throw new Error(
-		`There is not enough information to infer relation "${sourceTableTsName}.${relation.fieldName}"`,
-	);
-}
-
-export function createTableRelationsHelpers<TTableName extends string>(
-	sourceTable: AnyTable<{ name: TTableName }>,
-) {
-	return {
-		one: createOne<TTableName>(sourceTable),
-		many: createMany(sourceTable),
-	};
-}
-
-export type TableRelationsHelpers<TTableName extends string> = ReturnType<
-	typeof createTableRelationsHelpers<TTableName>
->;
-
-export interface BuildRelationalQueryResult<
-	TTable extends Table = Table,
-	TColumn extends Column = Column,
-> {
-	tableTsKey: string;
+export interface BuildRelationalQueryResult {
 	selection: {
-		dbKey: string;
-		tsKey: string;
-		field: TColumn | SQL | SQL.Aliased;
-		relationTableTsKey: string | undefined;
-		isJson: boolean;
-		isExtra?: boolean;
-		selection: BuildRelationalQueryResult<TTable>['selection'];
+		key: string;
+		field: Column<any> | Table | SQL | SQL.Aliased | SQLWrapper | AggregatedField;
+		isArray?: boolean;
+		selection?: BuildRelationalQueryResult['selection'];
+		isOptional?: boolean;
 	}[];
-	sql: TTable | SQL;
+	sql: SQL;
 }
 
 export function mapRelationalRow(
-	tablesConfig: TablesRelationalConfig,
-	tableConfig: TableRelationalConfig,
-	row: unknown[],
+	row: Record<string, unknown>,
 	buildQueryResultSelection: BuildRelationalQueryResult['selection'],
 	mapColumnValue: (value: unknown) => unknown = (value) => value,
+	/** Needed for SQLite as it returns JSON values as strings */
+	parseJson: boolean = false,
+	/** Needed for SingleStore as it returns JSON arrays as strings */
+	parseJsonIfString: boolean = false,
+	path?: string,
 ): Record<string, unknown> {
-	const result: Record<string, unknown> = {};
-
 	for (
-		const [
-			selectionItemIndex,
-			selectionItem,
-		] of buildQueryResultSelection.entries()
+		const selectionItem of buildQueryResultSelection
 	) {
-		if (selectionItem.isJson) {
-			const relation = tableConfig.relations[selectionItem.tsKey]!;
-			const rawSubRows = row[selectionItemIndex] as
-				| unknown[]
-				| null
-				| [null]
-				| string;
-			const subRows = typeof rawSubRows === 'string'
-				? (JSON.parse(rawSubRows) as unknown[])
-				: rawSubRows;
-			result[selectionItem.tsKey] = is(relation, One)
-				? subRows
-					&& mapRelationalRow(
-						tablesConfig,
-						tablesConfig[selectionItem.relationTableTsKey!]!,
-						subRows,
-						selectionItem.selection,
-						mapColumnValue,
-					)
-				: (subRows as unknown[][]).map((subRow) =>
-					mapRelationalRow(
-						tablesConfig,
-						tablesConfig[selectionItem.relationTableTsKey!]!,
-						subRow,
-						selectionItem.selection,
-						mapColumnValue,
-					)
-				);
-		} else {
-			const value = mapColumnValue(row[selectionItemIndex]);
-			const field = selectionItem.field!;
-			let decoder;
-			if (is(field, Column)) {
-				decoder = field;
-			} else if (is(field, SQL)) {
-				decoder = field.decoder;
-			} else {
-				decoder = field.sql.decoder;
+		if (selectionItem.selection) {
+			const currentPath = `${path ? `${path}.` : ''}${selectionItem.key}`;
+
+			if (row[selectionItem.key] === null) continue;
+
+			if (parseJson) row[selectionItem.key] = JSON.parse(row[selectionItem.key] as string);
+			if (parseJsonIfString && typeof row[selectionItem.key] === 'string') {
+				row[selectionItem.key] = JSON.parse(row[selectionItem.key] as string);
 			}
-			result[selectionItem.tsKey] = value === null ? null : decoder.mapFromDriverValue(value);
+
+			if (selectionItem.isArray) {
+				for (const item of (row[selectionItem.key] as Array<Record<string, unknown>>)) {
+					mapRelationalRow(
+						item,
+						selectionItem.selection!,
+						mapColumnValue,
+						false,
+						parseJsonIfString,
+						currentPath,
+					);
+				}
+
+				continue;
+			}
+
+			mapRelationalRow(
+				row[selectionItem.key] as Record<string, unknown>,
+				selectionItem.selection!,
+				mapColumnValue,
+				false,
+				parseJsonIfString,
+				currentPath,
+			);
+
+			continue;
 		}
+
+		const field = selectionItem.field!;
+		const value = mapColumnValue(row[selectionItem.key]);
+		if (value === null) continue;
+
+		let decoder;
+		if (is(field, Column)) {
+			decoder = field;
+		} else if (is(field, SQL)) {
+			decoder = field.decoder;
+		} else if (is(field, SQL.Aliased)) {
+			decoder = field.sql.decoder;
+		} else {
+			decoder = field.getSQL().decoder;
+		}
+
+		row[selectionItem.key] = 'mapFromJsonValue' in decoder
+			? (<(value: unknown) => unknown> decoder.mapFromJsonValue)(value)
+			: decoder.mapFromDriverValue(value);
 	}
 
-	return result;
+	return row;
 }
 
-export function mapRelationalRowFromObj(
-	tablesConfig: TablesRelationalConfig,
-	tableConfig: TableRelationalConfig,
-	row: unknown[],
-	buildQueryResultSelection: BuildRelationalQueryResult['selection'],
-	mapColumnValue: (value: unknown) => unknown = (value) => value,
-): Record<string, unknown> {
-	const result: Record<string, unknown> = {};
+export class RelationsBuilderTable<TTableName extends string = string> {
+	static readonly [entityKind]: string = 'RelationsBuilderTable';
 
-	for (
-		const [
-			selectionItemIndex,
-			selectionItem,
-		] of buildQueryResultSelection.entries()
+	protected readonly _: {
+		readonly name: TTableName;
+		readonly table: SchemaEntry;
+	};
+
+	constructor(table: SchemaEntry, name: TTableName) {
+		this._ = {
+			name,
+			table,
+		};
+	}
+}
+
+export interface RelationsBuilderColumnConfig<
+	TTableName extends string = string,
+> {
+	readonly tableName: TTableName;
+	readonly column: FieldValue;
+	readonly through?: RelationsBuilderColumnBase;
+	readonly key: string;
+}
+
+export interface RelationsBuilderColumnBase<
+	TTableName extends string = string,
+> {
+	_: RelationsBuilderColumnConfig<TTableName>;
+}
+
+export class RelationsBuilderColumn<
+	TTableName extends string = string,
+> implements RelationsBuilderColumnBase<TTableName> {
+	static readonly [entityKind]: string = 'RelationsBuilderColumn';
+
+	readonly _: {
+		readonly tableName: TTableName;
+		readonly column: FieldValue;
+		readonly key: string;
+	};
+
+	constructor(
+		column: FieldValue,
+		tableName: TTableName,
+		key: string,
 	) {
-		if (selectionItem.isJson) {
-			const relation = tableConfig.relations[selectionItem.tsKey]!;
-			const isOne = is(relation, One);
-			const rawSubRows = row[selectionItemIndex] as unknown[] | null | [null] | string;
+		this._ = {
+			tableName: tableName,
+			column,
+			key,
+		};
+	}
 
-			let subRows = rawSubRows as unknown[] | null;
-			if (subRows || Array.isArray(subRows)) {
-				subRows = (typeof rawSubRows === 'string' ? JSON.parse(rawSubRows) : rawSubRows) as unknown[];
+	through(column: RelationsBuilderColumn): RelationsBuilderJunctionColumn<TTableName> {
+		return new RelationsBuilderJunctionColumn(
+			this._.column,
+			this._.tableName,
+			this._.key,
+			column,
+		);
+	}
+}
 
-				subRows = isOne
-					? subRows.flatMap((r) => Array.isArray(r) ? r : Object.values(r as any))
-					: subRows.map((r) => Array.isArray(r) ? r : Object.values(r as any));
+export class RelationsBuilderJunctionColumn<
+	TTableName extends string = string,
+> implements RelationsBuilderColumnBase<TTableName> {
+	static readonly [entityKind]: string = 'RelationsBuilderColumn';
+
+	readonly _: {
+		readonly tableName: TTableName;
+		readonly column: FieldValue;
+		readonly through: RelationsBuilderColumnBase;
+		readonly key: string;
+	};
+
+	constructor(
+		column: FieldValue,
+		tableName: TTableName,
+		key: string,
+		through: RelationsBuilderColumnBase,
+	) {
+		this._ = {
+			tableName: tableName,
+			column,
+			through,
+			key,
+		};
+	}
+}
+
+export interface RelationFieldsFilterInternals<T> {
+	eq?: T | Placeholder | undefined;
+	ne?: T | Placeholder | undefined;
+	gt?: T | Placeholder | undefined;
+	gte?: T | Placeholder | undefined;
+	lt?: T | Placeholder | undefined;
+	lte?: T | Placeholder | undefined;
+	in?: (T | Placeholder)[] | Placeholder | undefined;
+	notIn?: (T | Placeholder)[] | Placeholder | undefined;
+	arrayContains?: (T extends Array<infer E> ? (E | Placeholder)[] : (T | Placeholder)[]) | Placeholder | undefined;
+	arrayContained?: (T extends Array<infer E> ? (E | Placeholder)[] : (T | Placeholder)[]) | Placeholder | undefined;
+	arrayOverlaps?: (T extends Array<infer E> ? (E | Placeholder)[] : (T | Placeholder)[]) | Placeholder | undefined;
+	like?: string | Placeholder | undefined;
+	ilike?: string | Placeholder | undefined;
+	notLike?: string | Placeholder | undefined;
+	notIlike?: string | Placeholder | undefined;
+	isNull?: true | undefined;
+	isNotNull?: true | undefined;
+	NOT?: RelationsFieldFilter<T> | undefined;
+	OR?: RelationsFieldFilter<T>[] | undefined;
+	AND?: RelationsFieldFilter<T>[] | undefined;
+}
+
+export type RelationsFieldFilter<T = unknown> =
+	| RelationFieldsFilterInternals<T>
+	| (
+		unknown extends T ? never : T extends object ? never : T
+	)
+	// Bleeds into filters - discuss removal
+	| Placeholder;
+
+export interface RelationsFilterCommons<
+	TTable extends TableRelationalConfig = TableRelationalConfig,
+	TSchema extends TablesRelationalConfig = TablesRelationalConfig,
+> {
+	OR?: RelationsFilter<TTable, TSchema>[] | undefined;
+	NOT?: RelationsFilter<TTable, TSchema> | undefined;
+	AND?: RelationsFilter<TTable, TSchema>[] | undefined;
+	RAW?:
+		| SQLWrapper
+		| ((
+			table: TTable['table'],
+			operators: Operators,
+		) => SQL)
+		| undefined;
+}
+
+export type RelationsFilterColumns<
+	TColumns extends Record<string, unknown>,
+> = {
+	[K in keyof TColumns]?:
+		| (TColumns[K] extends { _: { data: infer Data } } ? RelationsFieldFilter<Data>
+			: RelationsFieldFilter<unknown>)
+		| undefined;
+};
+
+export type RelationsFilterRelations<
+	TTable extends TableRelationalConfig,
+	TSchema extends TablesRelationalConfig,
+	TRelations extends RelationsRecord = TTable['relations'],
+> = {
+	[K in keyof TRelations]?:
+		| boolean
+		| RelationsFilter<FindTargetTableInRelationalConfig<TSchema, TRelations[K]>, TSchema>
+		| undefined;
+};
+
+export type RelationsFilter<
+	TTable extends TableRelationalConfig,
+	TSchema extends TablesRelationalConfig,
+	TColumns extends FieldSelection = GetTableViewFieldSelection<TTable['table']>,
+> = TTable['relations'] extends Record<string, never> ? TableFilter<TTable['table']>
+	:
+		& RelationsFilterColumns<TColumns>
+		& RelationsFilterRelations<TTable, TSchema>
+		& RelationsFilterCommons<TTable, TSchema>;
+
+export interface TableFilterCommons<
+	TTable extends SchemaEntry = SchemaEntry,
+	TColumns extends Record<string, unknown> = GetTableViewColumns<TTable>,
+> {
+	OR?: TableFilter<TTable, TColumns>[] | undefined;
+	NOT?: TableFilter<TTable, TColumns> | undefined;
+	AND?: TableFilter<TTable, TColumns>[] | undefined;
+	RAW?:
+		| SQLWrapper
+		| ((
+			table: TTable,
+			operators: Operators,
+		) => SQL)
+		| undefined;
+}
+
+export type TableFilterColumns<
+	TColumns extends Record<string, unknown>,
+> = {
+	[K in keyof TColumns]?:
+		| (TColumns[K] extends { _: { data: infer Data } } ? RelationsFieldFilter<Data>
+			: RelationsFieldFilter<unknown>)
+		| undefined;
+};
+
+export type TableFilter<
+	TTable extends SchemaEntry = SchemaEntry,
+	TColumns extends Record<string, unknown> = GetTableViewColumns<TTable>,
+> =
+	& TableFilterColumns<TColumns>
+	& TableFilterCommons<TTable, TColumns>;
+
+export type AnyRelationsFilter = RelationsFilter<
+	TableRelationalConfig,
+	TablesRelationalConfig,
+	FieldSelection
+>;
+
+export type AnyTableFilter = TableFilter<
+	SchemaEntry,
+	FieldSelection
+>;
+
+export interface OneConfig<TTargetTable extends SchemaEntry, TOptional extends boolean> {
+	from?: RelationsBuilderColumnBase | [RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]];
+	to?: RelationsBuilderColumnBase | [RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]];
+	where?: TableFilter<TTargetTable>;
+	optional?: TOptional;
+	alias?: string;
+}
+
+export type AnyOneConfig = OneConfig<
+	SchemaEntry,
+	boolean
+>;
+
+export interface ManyConfig<TTargetTable extends SchemaEntry> {
+	from?: RelationsBuilderColumnBase | [RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]];
+	to?: RelationsBuilderColumnBase | [RelationsBuilderColumnBase, ...RelationsBuilderColumnBase[]];
+	where?: TableFilter<TTargetTable>;
+	alias?: string;
+}
+
+export type AnyManyConfig = ManyConfig<SchemaEntry>;
+
+export interface OneFn<TTargetTable extends SchemaEntry, TTargetTableName extends string> {
+	<TOptional extends boolean = true>(config?: OneConfig<TTargetTable, TOptional>): One<TTargetTableName, TOptional>;
+}
+
+export interface ManyFn<TTargetTable extends SchemaEntry, TTargetTableName extends string> {
+	(config?: ManyConfig<TTargetTable>): Many<TTargetTableName>;
+}
+
+export class RelationsHelperStatic<TTables extends Schema> {
+	static readonly [entityKind]: string = 'RelationsHelperStatic';
+	// declare readonly $brand: 'RelationsHelperStatic';
+
+	private readonly _: {
+		readonly tables: TTables;
+	};
+
+	constructor(tables: TTables) {
+		this._ = {
+			tables,
+		};
+
+		const one: Record<string, OneFn<TTables[string], string>> = {};
+		const many: Record<string, ManyFn<TTables[string], string>> = {};
+
+		for (const [tableName, table] of Object.entries(tables)) {
+			one[tableName] = (config) => {
+				return new One(tables, table, tableName, config as unknown as AnyOneConfig);
+			};
+
+			many[tableName] = (config) => {
+				return new Many(tables, table, tableName, config as AnyManyConfig);
+			};
+		}
+
+		this.one = one as any as this['one'];
+		this.many = many as any as this['many'];
+	}
+
+	one: {
+		[K in keyof TTables]: TTables[K] extends FilteredSchemaEntry ? OneFn<TTables[K], K & string>
+			: DrizzleTypeError<'Views with nested selections are not supported by the relational query builder'>;
+	};
+
+	many: {
+		[K in keyof TTables]: TTables[K] extends FilteredSchemaEntry ? ManyFn<TTables[K], K & string>
+			: DrizzleTypeError<'Views with nested selections are not supported by the relational query builder'>;
+	};
+
+	/** @internal - to be reworked */
+	aggs = {
+		count(): Count {
+			return new Count();
+		},
+	};
+}
+
+export type RelationsBuilderColumns<TTable extends SchemaEntry, TTableName extends string> = {
+	[
+		TColumnName in keyof GetTableViewColumns<TTable>
+	]: RelationsBuilderColumn<
+		TTableName
+	>;
+};
+
+export type RelationsBuilderTables<TSchema extends Schema> = {
+	[TTableName in keyof TSchema]: TSchema[TTableName] extends FilteredSchemaEntry ? (
+			& RelationsBuilderColumns<TSchema[TTableName], TTableName & string>
+			& RelationsBuilderTable<TTableName & string>
+		)
+		: DrizzleTypeError<'Views with nested selections are not supported by the relational query builder'>;
+};
+
+export type RelationsBuilder<TSchema extends Schema> =
+	& RelationsBuilderTables<TSchema>
+	& RelationsHelperStatic<TSchema>;
+
+export type RelationsBuilderConfigValue =
+	| RelationsRecord
+	| undefined;
+
+export type RelationsBuilderConfig<TTables extends Schema> = {
+	[TTableName in keyof TTables]?: RelationsBuilderConfigValue;
+};
+
+export type AnyRelationsBuilderConfig = Record<string, RelationsBuilderConfigValue>;
+
+export type ExtractTablesFromSchema<TSchema extends Record<string, unknown>> = Assume<
+	{
+		[K in keyof TSchema as TSchema[K] extends SchemaEntry ? K extends string ? K : never : never]: TSchema[K];
+	},
+	Schema
+>;
+
+export function createRelationsHelper<
+	TTables extends Schema,
+>(tables: TTables): RelationsBuilder<TTables> {
+	const helperStatic = new RelationsHelperStatic(tables);
+	const relationsTables = Object.entries(tables).reduce<Record<string, RelationsBuilderTable>>((acc, [tKey, value]) => {
+		const rTable = new RelationsBuilderTable(value, tKey);
+		const columns = Object.entries(value[TableColumns]).reduce<
+			Record<string, RelationsBuilderColumnBase>
+		>(
+			(acc, [cKey, column]) => {
+				const rbColumn = new RelationsBuilderColumn(column as FieldValue, tKey, cKey);
+				acc[cKey] = rbColumn;
+				return acc;
+			},
+			{},
+		);
+
+		acc[tKey] = Object.assign(rTable, columns);
+
+		return acc;
+	}, {});
+
+	return Object.assign(helperStatic, relationsTables) as any;
+}
+
+export function extractTablesFromSchema<TSchema extends Record<string, unknown>>(
+	schema: TSchema,
+): ExtractTablesFromSchema<TSchema> {
+	return Object.fromEntries(
+		Object.entries(schema).filter(([_, e]) => is(e, Table) || is(e, View)),
+	) as ExtractTablesFromSchema<TSchema>;
+}
+
+export type IncludeEveryTable<TTables extends Schema> = { [K in keyof TTables]: {} };
+
+/** Builds relational config for every table in schema */
+export function defineRelations<
+	TSchema extends Record<string, unknown>,
+	TTables extends Schema = ExtractTablesFromSchema<TSchema>,
+>(
+	schema: TSchema,
+): ExtractTablesWithRelations<{}, TTables>;
+/** Builds relational config for every table in schema */
+export function defineRelations<
+	TSchema extends Record<string, unknown>,
+	TConfig extends RelationsBuilderConfig<TTables>,
+	TTables extends Schema = ExtractTablesFromSchema<TSchema>,
+>(
+	schema: TSchema,
+	relations: (helpers: RelationsBuilder<TTables>) => TConfig,
+): ExtractTablesWithRelations<TConfig, TTables>;
+export function defineRelations(
+	schema: Record<string, unknown>,
+	relations?: (helpers: RelationsBuilder<Schema>) => AnyRelationsBuilderConfig,
+): TablesRelationalConfig {
+	const tables = extractTablesFromSchema(schema);
+	const config = relations
+		? relations(
+			createRelationsHelper(tables) as RelationsBuilder<Schema>,
+		)
+		: {};
+
+	return buildRelations(tables, config);
+}
+
+/** Builds relational config for every table in schema */
+export function defineRelationsPart<
+	TSchema extends Record<string, unknown>,
+	TTables extends Schema = ExtractTablesFromSchema<TSchema>,
+>(
+	schema: TSchema,
+): ExtractTablesWithRelationsParts<IncludeEveryTable<TTables>, TTables>;
+/** Builds relational config only for tables present in relational config */
+export function defineRelationsPart<
+	TSchema extends Record<string, unknown>,
+	TConfig extends RelationsBuilderConfig<TTables>,
+	TTables extends Schema = ExtractTablesFromSchema<TSchema>,
+>(
+	schema: TSchema,
+	relations: (helpers: RelationsBuilder<TTables>) => TConfig,
+): ExtractTablesWithRelationsParts<TConfig, TTables>;
+export function defineRelationsPart(
+	schema: Record<string, unknown>,
+	relations?: (helpers: RelationsBuilder<Schema>) => AnyRelationsBuilderConfig,
+): TablesRelationalConfig {
+	const tables = extractTablesFromSchema(schema);
+	const config = relations
+		? relations(
+			createRelationsHelper(tables) as RelationsBuilder<Schema>,
+		)
+		: Object.fromEntries(Object.keys(tables).map((k) => [k, {}])) as AnyRelationsBuilderConfig;
+
+	return buildRelationsParts(tables, config);
+}
+
+export interface WithContainer {
+	with?: Record<string, boolean | AnyDBQueryConfig | undefined>;
+}
+
+export interface ColumnWithTSName {
+	column: Column<any> | SQL | SQLWrapper | SQL.Aliased;
+	tsName: string;
+}
+
+export type RelationsOrder<TColumns extends FieldSelection> = {
+	[K in keyof TColumns]?: 'asc' | 'desc';
+};
+
+export type OrderBy = Exclude<AnyDBQueryConfig['orderBy'], undefined>;
+
+export type Extras = Exclude<AnyDBQueryConfig['extras'], undefined>;
+
+/** @internal */
+export function fieldSelectionToSQL(table: SchemaEntry, target: string) {
+	const field = table[TableColumns][target];
+
+	return field
+		? is(field, Column)
+			? field
+			: is(field, SQL.Aliased)
+			? sql`${table}.${sql.identifier(field.fieldAlias)}`
+			: sql`${table}.${sql.identifier(target)}`
+		: sql`${table}.${sql.identifier(target)}`;
+}
+
+function relationsFieldFilterToSQL(column: SQLWrapper, filter: RelationsFieldFilter<unknown>): SQL | undefined {
+	if (typeof filter !== 'object' || is(filter, Placeholder)) return eq(column, filter);
+
+	const entries = Object.entries(filter as RelationFieldsFilterInternals<unknown>);
+	if (!entries.length) return undefined;
+
+	const parts: (SQL)[] = [];
+	for (const [target, value] of entries) {
+		if (value === undefined) continue;
+
+		switch (target as keyof RelationFieldsFilterInternals<unknown>) {
+			case 'NOT': {
+				const res = relationsFieldFilterToSQL(column, value as RelationsFieldFilter<unknown>);
+				if (!res) continue;
+
+				parts.push(not(res));
+
+				continue;
 			}
 
-			result[selectionItem.tsKey] = isOne
-				? subRows
-					&& mapRelationalRowFromObj(
-						tablesConfig,
-						tablesConfig[selectionItem.relationTableTsKey!]!,
-						subRows,
-						selectionItem.selection,
-						mapColumnValue,
-					)
-				: ((subRows ?? []) as unknown[][]).map((subRow) =>
-					mapRelationalRowFromObj(
-						tablesConfig,
-						tablesConfig[selectionItem.relationTableTsKey!]!,
-						subRow,
-						selectionItem.selection,
-						mapColumnValue,
-					)
+			case 'OR': {
+				if (!(value as RelationsFieldFilter<unknown>[]).length) continue;
+
+				parts.push(
+					or(
+						...(value as AnyRelationsFilter[]).map((subFilter) => relationsFieldFilterToSQL(column, subFilter)),
+					)!,
 				);
-		} else {
-			const value = mapColumnValue(row[selectionItemIndex]);
-			const field = selectionItem.field!;
-			let decoder;
-			if (is(field, Column)) {
-				decoder = field;
-			} else if (is(field, SQL)) {
-				decoder = field.decoder;
-			} else {
-				decoder = field.sql.decoder;
+
+				continue;
 			}
-			result[selectionItem.tsKey] = value === null ? null : decoder.mapFromDriverValue(value);
+
+			case 'AND': {
+				if (!(value as RelationsFieldFilter<unknown>[]).length) continue;
+
+				parts.push(
+					and(
+						...(value as AnyRelationsFilter[]).map((subFilter) => relationsFieldFilterToSQL(column, subFilter)),
+					)!,
+				);
+
+				continue;
+			}
+
+			case 'isNotNull':
+			case 'isNull': {
+				if (!value) continue;
+
+				parts.push(operators[target as 'isNull' | 'isNotNull'](column));
+
+				continue;
+			}
+
+			case 'in': {
+				parts.push(operators.inArray(column, value as any[] | Placeholder));
+
+				continue;
+			}
+
+			case 'notIn': {
+				parts.push(operators.notInArray(column, value as any[] | Placeholder));
+
+				continue;
+			}
+
+			default: {
+				parts.push(
+					(operators[target as keyof typeof operators] as ((col: SQLWrapper, data: any) => SQL | undefined))(
+						column,
+						value,
+					)!,
+				);
+
+				continue;
+			}
 		}
 	}
 
-	return result;
+	if (!parts.length) return undefined;
+
+	return and(...parts);
+}
+
+export function relationsFilterToSQL(
+	table: SchemaEntry,
+	filter: AnyRelationsFilter | AnyTableFilter,
+): SQL | undefined;
+export function relationsFilterToSQL(
+	table: SchemaEntry,
+	filter: AnyRelationsFilter | AnyTableFilter,
+	tableRelations: RelationsRecord,
+	tablesRelations: TablesRelationalConfig,
+	casing: CasingCache,
+	depth?: number,
+): SQL | undefined;
+export function relationsFilterToSQL(
+	table: SchemaEntry,
+	filter: AnyRelationsFilter | AnyTableFilter,
+	tableRelations: RelationsRecord = {},
+	tablesRelations: TablesRelationalConfig = {},
+	casing?: CasingCache,
+	depth: number = 0,
+): SQL | undefined {
+	const entries = Object.entries(filter);
+	if (!entries.length) return undefined;
+
+	const parts: SQL[] = [];
+	for (const [target, value] of entries) {
+		if (value === undefined) continue;
+
+		switch (target) {
+			case 'RAW': {
+				const processed = typeof value === 'function'
+					? (value as unknown as (table: FieldSelection, operators: Operators) => SQL)(table as any, operators)
+					: (value as SQLWrapper).getSQL();
+
+				parts.push(processed);
+
+				continue;
+			}
+			case 'OR': {
+				if (!(value as AnyRelationsFilter[] | undefined)?.length) continue;
+
+				parts.push(
+					or(
+						...(value as AnyRelationsFilter[]).map((subFilter) =>
+							relationsFilterToSQL(table, subFilter, tableRelations, tablesRelations, casing!, depth)
+						),
+					)!,
+				);
+
+				continue;
+			}
+			case 'AND': {
+				if (!(value as AnyRelationsFilter[] | undefined)?.length) continue;
+
+				parts.push(
+					and(
+						...(value as AnyRelationsFilter[]).map((subFilter) =>
+							relationsFilterToSQL(table, subFilter, tableRelations, tablesRelations, casing!, depth)
+						),
+					)!,
+				);
+
+				continue;
+			}
+			case 'NOT': {
+				if (value === undefined) continue;
+
+				const built = relationsFilterToSQL(
+					table,
+					value as AnyRelationsFilter,
+					tableRelations,
+					tablesRelations,
+					casing!,
+					depth,
+				);
+				if (!built) continue;
+
+				parts.push(not(built));
+
+				continue;
+			}
+			default: {
+				if (table[TableColumns][target]) {
+					const column = fieldSelectionToSQL(table, target);
+
+					const colFilter = relationsFieldFilterToSQL(
+						column,
+						value as RelationsFieldFilter,
+					);
+					if (colFilter) parts.push(colFilter);
+
+					continue;
+				}
+
+				const relation = tableRelations[target];
+				if (!relation) {
+					// Should never trigger unless the types've been violated
+					throw new DrizzleError({
+						message: `Unknown relational filter field: "${target}"`,
+					});
+				}
+
+				const targetTable = aliasedTable(relation.targetTable, `f${depth}`);
+				const throughTable = relation.throughTable ? aliasedTable(relation.throughTable, `ft${depth}`) : undefined;
+				const targetConfig = tablesRelations[relation.targetTableName]!;
+
+				const {
+					filter: relationFilter,
+					joinCondition,
+				} = relationToSQL(casing!, relation, table, targetTable, throughTable);
+				const subfilter = typeof value === 'boolean' ? undefined : relationsFilterToSQL(
+					targetTable,
+					value as AnyRelationsFilter,
+					targetConfig.relations,
+					tablesRelations,
+					casing!,
+					depth + 1,
+				);
+				const filter = and(
+					relationFilter,
+					subfilter,
+				);
+
+				const subquery = throughTable
+					? sql`(select * from ${getTableAsAliasSQL(targetTable)} inner join ${
+						getTableAsAliasSQL(throughTable)
+					} on ${joinCondition}${sql` where ${filter}`.if(filter)} limit 1)`
+					: sql`(select * from ${getTableAsAliasSQL(targetTable)}${sql` where ${filter}`.if(filter)} limit 1)`;
+				if (filter) parts.push((value ? exists : notExists)(subquery));
+			}
+		}
+	}
+
+	return and(...parts)!;
+}
+
+export function relationsOrderToSQL(
+	table: SchemaEntry,
+	orders: OrderBy,
+): SQL | undefined {
+	if (typeof orders === 'function') {
+		const data = orders(table as any, orderByOperators);
+
+		return is(data, SQL)
+			? data
+			: Array.isArray(data)
+			? data.length
+				? sql.join(data.map((o) => is(o, SQL) ? o : asc(o)), sql`, `)
+				: undefined
+			: is(data, Column)
+			? asc(data)
+			: undefined;
+	}
+
+	const entries = Object.entries(orders).filter(([_, value]) => value);
+	if (!entries.length) return undefined;
+
+	return sql.join(
+		entries.map(([target, value]) => (value === 'asc' ? asc : desc)(fieldSelectionToSQL(table, target))),
+		sql`, `,
+	);
+}
+
+export function relationExtrasToSQL(
+	table: SchemaEntry,
+	extras: Extras,
+) {
+	const subqueries: SQL[] = [];
+	const selection: BuildRelationalQueryResult['selection'] = [];
+
+	for (
+		const [key, field] of Object.entries(extras)
+	) {
+		if (!field) continue;
+		const extra = typeof field === 'function' ? field(table as any, { sql: operators.sql }) : field;
+
+		const query = sql`(${extra.getSQL()}) as ${sql.identifier(key)}`;
+
+		query.decoder = extra.getSQL().decoder;
+
+		subqueries.push(query);
+		selection.push({
+			key,
+			field: query,
+		});
+	}
+
+	return {
+		sql: subqueries.length ? sql.join(subqueries, sql`, `) : undefined,
+		selection,
+	};
+}
+
+export interface BuiltRelationFilters {
+	filter?: SQL;
+	joinCondition?: SQL;
+}
+
+export function relationToSQL(
+	casing: CasingCache,
+	relation: Relation,
+	sourceTable: SchemaEntry,
+	targetTable: SchemaEntry,
+	throughTable?: SchemaEntry,
+): BuiltRelationFilters {
+	if (relation.through) {
+		const outerColumnWhere = relation.sourceColumns.map((s, i) => {
+			const t = relation.through!.source[i]!;
+
+			return eq(
+				sql`${sourceTable}.${sql.identifier(casing.getColumnCasing(s))}`,
+				sql`${throughTable!}.${sql.identifier(is(t._.column, Column) ? casing.getColumnCasing(t._.column) : t._.key)}`,
+			);
+		});
+
+		const innerColumnWhere = relation.targetColumns.map((s, i) => {
+			const t = relation.through!.target[i]!;
+
+			return eq(
+				sql`${throughTable!}.${sql.identifier(is(t._.column, Column) ? casing.getColumnCasing(t._.column) : t._.key)}`,
+				sql`${targetTable}.${sql.identifier(casing.getColumnCasing(s))}`,
+			);
+		});
+
+		return {
+			filter: and(
+				relation.where
+					? relationsFilterToSQL(relation.isReversed ? sourceTable : targetTable, relation.where)
+					: undefined,
+				...outerColumnWhere,
+			),
+			joinCondition: and(...innerColumnWhere),
+		};
+	}
+
+	const columnWhere = relation.sourceColumns.map((s, i) => {
+		const t = relation.targetColumns[i]!;
+
+		return eq(
+			sql`${sourceTable}.${sql.identifier(casing.getColumnCasing(s))}`,
+			sql`${targetTable}.${sql.identifier(casing.getColumnCasing(t))}`,
+		);
+	});
+
+	const fullWhere = and(
+		...columnWhere,
+		relation.where
+			? relationsFilterToSQL(relation.isReversed ? sourceTable : targetTable, relation.where)
+			: undefined,
+	)!;
+
+	return { filter: fullWhere };
+}
+
+export function getTableAsAliasSQL(table: SchemaEntry) {
+	return sql`${
+		table[IsAlias]
+			? sql`${sql`${sql.identifier(table[TableSchema] ?? '')}.`.if(table[TableSchema])}${
+				sql.identifier(table[OriginalName])
+			} as ${table}`
+			: table
+	}`;
 }

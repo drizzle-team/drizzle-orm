@@ -1,6 +1,6 @@
-import { Column, SchemaV4, SchemaV5, Table } from '../../dialects/mysql/snapshot';
-import { existsSync, writeFileSync, readFileSync, unlinkSync, rmSync } from 'fs';
+import { existsSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import { Column, SchemaV4, SchemaV5, Table } from '../../dialects/mysql/snapshot';
 import { Journal } from '../../utils';
 
 export const upMysqlHandler = (out: string) => {
@@ -9,7 +9,7 @@ export const upMysqlHandler = (out: string) => {
 	const journalPath = join(metaPath, '_journal.json');
 	if (existsSync(metaPath) && existsSync(journalPath)) {
 		const journal: Journal = JSON.parse(readFileSync(journalPath).toString());
-		if (Number(journal.version) < 8) {			
+		if (Number(journal.version) < 8) {
 			for (const entry of journal.entries) {
 				const snapshotPrefix = entry.tag.split('_')[0];
 				const oldSnapshot = readFileSync(join(metaPath, `${snapshotPrefix}_snapshot.json`));

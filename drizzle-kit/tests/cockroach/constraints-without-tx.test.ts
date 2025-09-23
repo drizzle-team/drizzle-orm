@@ -19,6 +19,8 @@ let _: TestDatabase;
 let db: TestDatabase['db'];
 
 beforeAll(async () => {
+	// TODO can be improved
+	// these tests are failing when using "tx" in prepareTestDatabase
 	_ = await prepareTestDatabase(false);
 	db = _.db;
 });

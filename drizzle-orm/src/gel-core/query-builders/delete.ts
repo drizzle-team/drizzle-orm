@@ -203,7 +203,7 @@ export class GelDeleteBase<
 	): GelDeleteReturning<this, TDynamic, TSelectedFields>;
 	returning(
 		fields: SelectedFieldsFlat = this.config.table[Table.Symbol.Columns],
-	): GelDeleteReturning<this, TDynamic, any> {
+	): GelDeleteReturning<this, TDynamic, any> | GelDeleteReturningAll<this, TDynamic> {
 		this.config.returning = orderSelectedFields<GelColumn>(fields);
 		return this as any;
 	}

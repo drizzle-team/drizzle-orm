@@ -27,7 +27,7 @@ describe('pglite', async (it) => {
 		await db.$client.exec('SELECT 1;');
 		await db.$client.close();
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({connection: {}, ...config})', async () => {
@@ -39,7 +39,7 @@ describe('pglite', async (it) => {
 		await db.$client.exec('SELECT 1;');
 		await db.$client.close();
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({...config})', async () => {
@@ -50,7 +50,7 @@ describe('pglite', async (it) => {
 		await db.$client.exec('SELECT 1;');
 		await db.$client.close();
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle(client)', async () => {
@@ -70,7 +70,7 @@ describe('pglite', async (it) => {
 		await db.$client.exec('SELECT 1;');
 		await db.$client.close();
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 
 	it('drizzle({client, ...config})', async () => {
@@ -83,6 +83,6 @@ describe('pglite', async (it) => {
 		await db.$client.exec('SELECT 1;');
 		await db.$client.close();
 
-		expect(db.query.User).not.toStrictEqual(undefined);
+		expect(db._query.User).not.toStrictEqual(undefined);
 	});
 });

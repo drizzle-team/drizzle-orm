@@ -14,6 +14,7 @@ tests/**/tmp/
 !.gitignore
 !package.json
 !tsconfig.json
+!tsconfig.typetest.json
 !tsconfig.cli-types.json
 !tsconfig.build.json
 !pnpm-lock.yaml

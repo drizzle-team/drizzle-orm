@@ -1,46 +1,38 @@
-import type { AnyCockroachTable } from '~/cockroach-core/table.ts';
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { AnyCockroachTable, CockroachTable } from '~/cockroach-core/table.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { CockroachColumn, CockroachColumnWithArrayBuilder } from './common.ts';
 
-export type CockroachRealBuilderInitial<TName extends string> = CockroachRealBuilder<{
-	name: TName;
-	dataType: 'number';
-	columnType: 'CockroachReal';
-	data: number;
-	driverParam: string | number;
-	enumValues: undefined;
-}>;
-
-export class CockroachRealBuilder<T extends ColumnBuilderBaseConfig<'number', 'CockroachReal'>>
-	extends CockroachColumnWithArrayBuilder<
-		T,
-		{ length: number | undefined }
-	>
-{
+export class CockroachRealBuilder extends CockroachColumnWithArrayBuilder<
+	{
+		dataType: 'number float';
+		data: number;
+		driverParam: string | number;
+	},
+	{ length: number | undefined }
+> {
 	static override readonly [entityKind]: string = 'CockroachRealBuilder';
 
-	constructor(name: T['name'], length?: number) {
-		super(name, 'number', 'CockroachReal');
+	constructor(name: string, length?: number) {
+		super(name, 'number float', 'CockroachReal');
 		this.config.length = length;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyCockroachTable<{ name: TTableName }>,
-	): CockroachReal<MakeColumnConfig<T, TTableName>> {
-		return new CockroachReal<MakeColumnConfig<T, TTableName>>(
+	) {
+		return new CockroachReal(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config,
 		);
 	}
 }
 
-export class CockroachReal<T extends ColumnBaseConfig<'number', 'CockroachReal'>> extends CockroachColumn<T> {
+export class CockroachReal<T extends ColumnBaseConfig<'number float'>> extends CockroachColumn<T> {
 	static override readonly [entityKind]: string = 'CockroachReal';
 
-	constructor(table: AnyCockroachTable<{ name: T['tableName'] }>, config: CockroachRealBuilder<T>['config']) {
+	constructor(table: CockroachTable<any>, config: CockroachRealBuilder['config']) {
 		super(table, config);
 	}
 
@@ -56,8 +48,6 @@ export class CockroachReal<T extends ColumnBaseConfig<'number', 'CockroachReal'>
 	};
 }
 
-export function real(): CockroachRealBuilderInitial<''>;
-export function real<TName extends string>(name: TName): CockroachRealBuilderInitial<TName>;
 export function real(name?: string) {
 	return new CockroachRealBuilder(name ?? '');
 }

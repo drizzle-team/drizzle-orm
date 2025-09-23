@@ -1,18 +1,11 @@
-import {
-	createTableRelationsHelpers,
-	extractTablesRelationalConfig,
-	getTableName,
-	is,
-	One,
-	Relations,
-	sql,
-} from 'drizzle-orm';
+import { is, sql } from 'drizzle-orm';
+import { Relations } from 'drizzle-orm/_relations';
 import type { MsSqlDatabase, MsSqlInt, MsSqlSchema } from 'drizzle-orm/mssql-core';
 import { getTableConfig, MsSqlTable } from 'drizzle-orm/mssql-core';
+import { getSchemaInfo } from '../common.ts';
 import { SeedService } from '../SeedService.ts';
 import type { RefinementsType } from '../types/seedService.ts';
-import type { Column, RelationWithReferences, Table } from '../types/tables.ts';
-import { isRelationCyclic } from '../utils.ts';
+import type { Column, Table, TableConfigT } from '../types/tables.ts';
 
 type TableRelatedFkConstraintsT = {
 	[fkName: string]: {
@@ -176,7 +169,7 @@ export const seedMsSql = async (
 	refinements?: RefinementsType,
 ) => {
 	const { mssqlSchema, mssqlTables } = filterMsSqlTables(schema);
-	const { tables, relations } = getMsSqlInfo(mssqlSchema, mssqlTables);
+	const { tables, relations } = getSchemaInfo(mssqlSchema, mssqlTables, mapMsSqlTable);
 
 	const seedService = new SeedService();
 
@@ -212,227 +205,58 @@ export const seedMsSql = async (
 	);
 };
 
-const getMsSqlInfo = (
-	mssqlSchema: { [key: string]: MsSqlTable | Relations },
-	mssqlTables: { [key: string]: MsSqlTable },
-) => {
-	let tableConfig: ReturnType<typeof getTableConfig>;
-	let dbToTsColumnNamesMap: { [key: string]: string };
+const mapMsSqlTable = (
+	tableConfig: TableConfigT,
+	dbToTsTableNamesMap: { [key: string]: string },
+	dbToTsColumnNamesMap: { [key: string]: string },
+): Table => {
+	// TODO: rewrite
+	const getTypeParams = (sqlType: string) => {
+		// get type params and set only type
+		const typeParams: Column['typeParams'] = {};
 
-	const dbToTsTableNamesMap: { [key: string]: string } = Object.fromEntries(
-		Object.entries(mssqlTables).map(([key, value]) => [getTableName(value), key]),
-	);
-
-	const tables: Table[] = [];
-	const relations: RelationWithReferences[] = [];
-	const dbToTsColumnNamesMapGlobal: {
-		[tableName: string]: { [dbColumnName: string]: string };
-	} = {};
-	const tableRelations: { [tableName: string]: RelationWithReferences[] } = {};
-
-	const getDbToTsColumnNamesMap = (table: MsSqlTable) => {
-		let dbToTsColumnNamesMap: { [dbColName: string]: string } = {};
-
-		const tableName = getTableName(table);
-		if (Object.hasOwn(dbToTsColumnNamesMapGlobal, tableName)) {
-			dbToTsColumnNamesMap = dbToTsColumnNamesMapGlobal[tableName]!;
-			return dbToTsColumnNamesMap;
+		if (
+			sqlType.startsWith('decimal')
+			|| sqlType.startsWith('real')
+			|| sqlType.startsWith('float')
+		) {
+			const match = sqlType.match(/\((\d+), *(\d+)\)/);
+			if (match) {
+				typeParams['precision'] = Number(match[1]);
+				typeParams['scale'] = Number(match[2]);
+			}
+		} else if (
+			sqlType.startsWith('char')
+			|| sqlType.startsWith('varchar')
+			|| sqlType.startsWith('binary')
+			|| sqlType.startsWith('varbinary')
+		) {
+			const match = sqlType.match(/\((\d+)\)/);
+			if (match) {
+				typeParams['length'] = Number(match[1]);
+			}
 		}
 
-		const tableConfig = getTableConfig(table);
-		for (const [tsCol, col] of Object.entries(tableConfig.columns[0]!.table)) {
-			dbToTsColumnNamesMap[col.name] = tsCol;
-		}
-		dbToTsColumnNamesMapGlobal[tableName] = dbToTsColumnNamesMap;
-
-		return dbToTsColumnNamesMap;
+		return typeParams;
 	};
 
-	const transformFromDrizzleRelation = (
-		schema: Record<string, MsSqlTable | Relations>,
-		getDbToTsColumnNamesMap: (table: MsSqlTable) => {
-			[dbColName: string]: string;
-		},
-		tableRelations: {
-			[tableName: string]: RelationWithReferences[];
-		},
-	) => {
-		const schemaConfig = extractTablesRelationalConfig(schema, createTableRelationsHelpers);
-		const relations: RelationWithReferences[] = [];
-		for (const table of Object.values(schemaConfig.tables)) {
-			if (table.relations === undefined) continue;
-
-			for (const drizzleRel of Object.values(table.relations)) {
-				if (!is(drizzleRel, One)) continue;
-
-				const tableConfig = getTableConfig(drizzleRel.sourceTable as MsSqlTable);
-				const tableDbSchema = tableConfig.schema ?? 'public';
-				const tableDbName = tableConfig.name;
-				const tableTsName = schemaConfig.tableNamesMap[`${tableDbSchema}.${tableDbName}`] ?? tableDbName;
-
-				const dbToTsColumnNamesMap = getDbToTsColumnNamesMap(drizzleRel.sourceTable as MsSqlTable);
-				const columns = drizzleRel.config?.fields.map((field) => dbToTsColumnNamesMap[field.name] as string)
-					?? [];
-
-				const refTableConfig = getTableConfig(drizzleRel.referencedTable as MsSqlTable);
-				const refTableDbSchema = refTableConfig.schema ?? 'public';
-				const refTableDbName = refTableConfig.name;
-				const refTableTsName = schemaConfig.tableNamesMap[`${refTableDbSchema}.${refTableDbName}`]
-					?? refTableDbName;
-
-				const dbToTsColumnNamesMapForRefTable = getDbToTsColumnNamesMap(drizzleRel.referencedTable as MsSqlTable);
-				const refColumns = drizzleRel.config?.references.map((ref) =>
-					dbToTsColumnNamesMapForRefTable[ref.name] as string
-				)
-					?? [];
-
-				if (tableRelations[refTableTsName] === undefined) {
-					tableRelations[refTableTsName] = [];
-				}
-
-				const relation: RelationWithReferences = {
-					table: tableTsName,
-					columns,
-					refTable: refTableTsName,
-					refColumns,
-					refTableRels: tableRelations[refTableTsName],
-					type: 'one',
-				};
-
-				// do not add duplicate relation
-				if (
-					tableRelations[tableTsName]?.some((rel) =>
-						rel.table === relation.table
-						&& rel.refTable === relation.refTable
-					)
-				) {
-					console.warn(
-						`You are providing a one-to-many relation between the '${relation.refTable}' and '${relation.table}' tables,\n`
-							+ `while the '${relation.table}' table object already has foreign key constraint in the schema referencing '${relation.refTable}' table.\n`
-							+ `In this case, the foreign key constraint will be used.\n`,
-					);
-					continue;
-				}
-
-				relations.push(relation);
-				tableRelations[tableTsName]!.push(relation);
-			}
-		}
-		return relations;
+	return {
+		name: dbToTsTableNamesMap[tableConfig.name] as string,
+		columns: tableConfig.columns.map((column) => ({
+			name: dbToTsColumnNamesMap[column.name] as string,
+			columnType: column.getSQLType(),
+			typeParams: getTypeParams(column.getSQLType()),
+			dataType: column.dataType.split(' ')[0]!,
+			hasDefault: column.hasDefault,
+			default: column.default,
+			enumValues: column.enumValues,
+			isUnique: column.isUnique,
+			notNull: column.notNull,
+			primary: column.primary,
+			identity: (column as MsSqlInt<any>).identity ? true : false,
+		})),
+		primaryKeys: tableConfig.columns
+			.filter((column) => column.primary)
+			.map((column) => dbToTsColumnNamesMap[column.name] as string),
 	};
-
-	for (const table of Object.values(mssqlTables)) {
-		tableConfig = getTableConfig(table);
-
-		dbToTsColumnNamesMap = {};
-		for (const [tsCol, col] of Object.entries(tableConfig.columns[0]!.table)) {
-			dbToTsColumnNamesMap[col.name] = tsCol;
-		}
-
-		const newRelations = tableConfig.foreignKeys.map((fk) => {
-			const table = dbToTsTableNamesMap[tableConfig.name] as string;
-			const refTable = dbToTsTableNamesMap[getTableName(fk.reference().foreignTable)] as string;
-			const dbToTsColumnNamesMapForRefTable = getDbToTsColumnNamesMap(
-				fk.reference().foreignTable,
-			);
-
-			if (tableRelations[refTable] === undefined) {
-				tableRelations[refTable] = [];
-			}
-			return {
-				table,
-				columns: fk
-					.reference()
-					.columns.map((col) => dbToTsColumnNamesMap[col.name] as string),
-				refTable,
-				refColumns: fk
-					.reference()
-					.foreignColumns.map(
-						(fCol) => dbToTsColumnNamesMapForRefTable[fCol.name] as string,
-					),
-				refTableRels: tableRelations[refTable],
-			};
-		});
-		relations.push(
-			...newRelations,
-		);
-
-		if (tableRelations[dbToTsTableNamesMap[tableConfig.name] as string] === undefined) {
-			tableRelations[dbToTsTableNamesMap[tableConfig.name] as string] = [];
-		}
-		tableRelations[dbToTsTableNamesMap[tableConfig.name] as string]!.push(...newRelations);
-
-		// TODO: rewrite
-		const getTypeParams = (sqlType: string) => {
-			// get type params and set only type
-			const typeParams: Column['typeParams'] = {};
-
-			if (
-				sqlType.startsWith('decimal')
-				|| sqlType.startsWith('real')
-				|| sqlType.startsWith('float')
-			) {
-				const match = sqlType.match(/\((\d+), *(\d+)\)/);
-				if (match) {
-					typeParams['precision'] = Number(match[1]);
-					typeParams['scale'] = Number(match[2]);
-				}
-			} else if (
-				sqlType.startsWith('char')
-				|| sqlType.startsWith('varchar')
-				|| sqlType.startsWith('binary')
-				|| sqlType.startsWith('varbinary')
-			) {
-				const match = sqlType.match(/\((\d+)\)/);
-				if (match) {
-					typeParams['length'] = Number(match[1]);
-				}
-			}
-
-			return typeParams;
-		};
-
-		tables.push({
-			name: dbToTsTableNamesMap[tableConfig.name] as string,
-			columns: tableConfig.columns.map((column) => ({
-				name: dbToTsColumnNamesMap[column.name] as string,
-				columnType: column.getSQLType(),
-				typeParams: getTypeParams(column.getSQLType()),
-				dataType: column.dataType,
-				hasDefault: column.hasDefault,
-				default: column.default,
-				enumValues: column.enumValues,
-				isUnique: column.isUnique,
-				notNull: column.notNull,
-				primary: column.primary,
-				identity: (column as MsSqlInt<any>).identity ? true : false,
-			})),
-			primaryKeys: tableConfig.columns
-				.filter((column) => column.primary)
-				.map((column) => dbToTsColumnNamesMap[column.name] as string),
-		});
-	}
-
-	const transformedDrizzleRelations = transformFromDrizzleRelation(
-		mssqlSchema,
-		getDbToTsColumnNamesMap,
-		tableRelations,
-	);
-	relations.push(
-		...transformedDrizzleRelations,
-	);
-
-	const modifiedRelations = relations.map(
-		(relI) => {
-			const tableRel = tableRelations[relI.table]!.find((relJ) => relJ.refTable === relI.refTable)!;
-			if (isRelationCyclic(relI)) {
-				tableRel['isCyclic'] = true;
-				return { ...relI, isCyclic: true };
-			}
-			tableRel['isCyclic'] = false;
-			return { ...relI, isCyclic: false };
-		},
-	);
-
-	return { tables, relations: modifiedRelations, tableRelations };
 };

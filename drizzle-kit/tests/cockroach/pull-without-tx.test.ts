@@ -1,35 +1,5 @@
-import { SQL, sql } from 'drizzle-orm';
-import {
-	bigint,
-	boolean,
-	char,
-	check,
-	cockroachEnum,
-	cockroachMaterializedView,
-	cockroachPolicy,
-	cockroachRole,
-	cockroachSchema,
-	cockroachTable,
-	cockroachView,
-	date,
-	decimal,
-	doublePrecision,
-	float,
-	index,
-	inet,
-	int4,
-	interval,
-	jsonb,
-	numeric,
-	real,
-	smallint,
-	string,
-	text,
-	time,
-	timestamp,
-	uuid,
-	varchar,
-} from 'drizzle-orm/cockroach-core';
+import { sql } from 'drizzle-orm';
+import { cockroachPolicy, cockroachRole, cockroachTable, int4 } from 'drizzle-orm/cockroach-core';
 import fs from 'fs';
 import { DB } from 'src/utils';
 import { diffIntrospect, prepareTestDatabase, TestDatabase } from 'tests/cockroach/mocks';
@@ -45,6 +15,8 @@ let _: TestDatabase;
 let db: DB;
 
 beforeAll(async () => {
+	// TODO can be improved
+	// these tests are failing when using "tx" in prepareTestDatabase
 	_ = await prepareTestDatabase(false);
 	db = _.db;
 });

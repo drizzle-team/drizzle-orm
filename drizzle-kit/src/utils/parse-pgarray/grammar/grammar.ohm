@@ -1,4 +1,20 @@
-PGArray {    
+PGArrayExpression {    
+    Array = "ARRAY[" ListOf<ArrayItem, ","> "]"
+
+    ArrayItem = stringLiteral | Array | quotelessString  | nullLiteral
+
+    stringLiteral = "\"" ((~("\"" | escapedSymbol) any) | escapedSymbol)* "\""
+    
+    quotelessString = (~forbiddenSymbolForQuoteless any)+
+
+	escapedSymbol = "\\" any
+
+    nullLiteral = "NULL"
+
+	forbiddenSymbolForQuoteless = "[" | "]" | " , " | "\""  | nullLiteral
+}
+
+PGArrayLiteral {    
     Array = "{" ListOf<ArrayItem, ","> "}"
 
     ArrayItem = stringLiteral | quotelessString | nullLiteral | Array

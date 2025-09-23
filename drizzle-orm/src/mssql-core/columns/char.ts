@@ -1,31 +1,21 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
-import { getColumnNameAndConfig, type Writable } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig, type Writable } from '~/utils.ts';
 import { MsSqlColumn, MsSqlColumnBuilder } from './common.ts';
 
-export type MsSqlCharBuilderInitial<TName extends string, TEnum extends [string, ...string[]]> = MsSqlCharBuilder<
-	{
-		name: TName;
-		dataType: 'string';
-		columnType: 'MsSqlChar';
-		data: TEnum[number];
-		driverParam: number | string;
-		enumValues: TEnum;
-		generated: undefined;
-	}
->;
-
-export class MsSqlCharBuilder<T extends ColumnBuilderBaseConfig<'string', 'MsSqlChar'>>
-	extends MsSqlColumnBuilder<T, MsSqlCharConfig<T['enumValues']>>
-{
+export class MsSqlCharBuilder<TEnum extends [string, ...string[]]> extends MsSqlColumnBuilder<{
+	dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'string enum';
+	data: TEnum[number];
+	driverParam: number | string;
+	enumValues: TEnum;
+}, MsSqlCharConfig<TEnum>> {
 	static override readonly [entityKind]: string = 'MsSqlCharBuilder';
 
 	/** @internal */
-	constructor(name: T['name'], config: MsSqlCharConfig<T['enumValues']>) {
-		super(name, 'string', 'MsSqlChar');
-		this.config.length = config.length;
+	constructor(name: string, config: MsSqlCharConfig<TEnum>) {
+		super(name, config.enum?.length ? 'string enum' : 'string', 'MsSqlChar');
+		this.config.length = config.length ?? 1;
 		this.config.enum = config.enum;
 		this.config.nonUnicode = config.nonUnicode;
 	}
@@ -33,20 +23,18 @@ export class MsSqlCharBuilder<T extends ColumnBuilderBaseConfig<'string', 'MsSql
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMsSqlTable<{ name: TTableName }>,
-	): MsSqlChar<MakeColumnConfig<T, TTableName> & { enumValues: T['enumValues'] }> {
-		return new MsSqlChar<MakeColumnConfig<T, TTableName> & { enumValues: T['enumValues'] }>(
+	) {
+		return new MsSqlChar(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config,
 		);
 	}
 }
 
-export class MsSqlChar<T extends ColumnBaseConfig<'string', 'MsSqlChar'>>
+export class MsSqlChar<T extends ColumnBaseConfig<'string' | 'string enum'>>
 	extends MsSqlColumn<T, MsSqlCharConfig<T['enumValues']>>
 {
 	static override readonly [entityKind]: string = 'MsSqlChar';
-
-	readonly length: number | undefined = this.config.length;
 
 	override readonly enumValues = this.config.enum;
 
@@ -74,14 +62,13 @@ export type MsSqlCharConfigInitial<
 	enum?: TEnum;
 };
 
-export function char(): MsSqlCharBuilderInitial<'', [string, ...string[]]>;
 export function char<U extends string, T extends Readonly<[U, ...U[]]>>(
 	config?: MsSqlCharConfigInitial<T | Writable<T>>,
-): MsSqlCharBuilderInitial<'', Writable<T>>;
-export function char<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
-	name: TName,
+): MsSqlCharBuilder<Writable<T>>;
+export function char<U extends string, T extends Readonly<[U, ...U[]]>>(
+	name: string,
 	config?: MsSqlCharConfigInitial<T | Writable<T>>,
-): MsSqlCharBuilderInitial<TName, Writable<T>>;
+): MsSqlCharBuilder<Writable<T>>;
 export function char(
 	a?: string | MsSqlCharConfigInitial,
 	b?: MsSqlCharConfigInitial,
@@ -91,14 +78,13 @@ export function char(
 	return new MsSqlCharBuilder(name, { ...config, nonUnicode: false } as any);
 }
 
-export function nchar(): MsSqlCharBuilderInitial<'', [string, ...string[]]>;
 export function nchar<U extends string, T extends Readonly<[U, ...U[]]>>(
 	config?: MsSqlCharConfigInitial<T | Writable<T>>,
-): MsSqlCharBuilderInitial<'', Writable<T>>;
-export function nchar<TName extends string, U extends string, T extends Readonly<[U, ...U[]]>>(
-	name: TName,
+): MsSqlCharBuilder<Writable<T>>;
+export function nchar<U extends string, T extends Readonly<[U, ...U[]]>>(
+	name: string,
 	config?: MsSqlCharConfigInitial<T | Writable<T>>,
-): MsSqlCharBuilderInitial<TName, Writable<T>>;
+): MsSqlCharBuilder<Writable<T>>;
 export function nchar(
 	a?: string | MsSqlCharConfigInitial,
 	b?: MsSqlCharConfigInitial,
