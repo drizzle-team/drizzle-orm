@@ -857,7 +857,6 @@ test('time + time arrays', async () => {
 		`'{{15:50:33.123}}'::time[]`,
 	);
 
-	
 	// const res4 = await diffDefault(_, time({precision:6, withTimezone: true}).default("'10:20:30+00'"), "'10:20:30+00'",null, {type:"time(6) with time zone"} );
 
 	expect.soft(res1).toStrictEqual([]);

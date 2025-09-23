@@ -295,7 +295,7 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	const config = (builder as any).config;
 	const def = config['default'];
 	const column = pgTable('table', { column: builder }).column;
-	const { dimensions, typeSchema, sqlType:sqlt } = unwrapColumn(column);
+	const { dimensions, typeSchema, sqlType: sqlt } = unwrapColumn(column);
 
 	const type = override?.type ?? sqlt.replace(', ', ','); // real(6, 3)->real(6,3)
 
