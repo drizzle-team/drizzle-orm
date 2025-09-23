@@ -680,8 +680,16 @@ export const detectNonCommutative = async (
 
 						// Generate footprints for both branches using parent snapshot as the initial state
 						const parentSnapshot = parentNode ? parentNode.raw : drySnapshot;
-						const branchAFootprints = generateLeafFootprints(aStatements, getFolderNameFromNodeId(nodes[aId]), parentSnapshot);
-						const branchBFootprints = generateLeafFootprints(bStatements, getFolderNameFromNodeId(nodes[bId]), parentSnapshot);
+						const branchAFootprints = generateLeafFootprints(
+							aStatements,
+							getFolderNameFromNodeId(nodes[aId]),
+							parentSnapshot,
+						);
+						const branchBFootprints = generateLeafFootprints(
+							bStatements,
+							getFolderNameFromNodeId(nodes[bId]),
+							parentSnapshot,
+						);
 
 						// Find footprint intersections
 						const reasons = findFootprintIntersections(

@@ -1,5 +1,6 @@
-import type { Column } from '~/column.ts';
-import { entityKind } from './entity.ts';
+import { Column } from '~/column.ts';
+import { entityKind, is } from './entity.ts';
+import type { View } from './sql/index.ts';
 import { Table } from './table.ts';
 import type { Casing } from './utils.ts';
 
@@ -55,13 +56,15 @@ export class CasingCache {
 		return this.cache[key]!;
 	}
 
-	private cacheTable(table: Table) {
+	private cacheTable(table: Table | View) {
 		const schema = table[Table.Symbol.Schema] ?? 'public';
 		const tableName = table[Table.Symbol.OriginalName];
 		const tableKey = `${schema}.${tableName}`;
 
 		if (!this.cachedTables[tableKey]) {
 			for (const column of Object.values(table[Table.Symbol.Columns])) {
+				if (!is(column, Column)) continue;
+
 				const columnKey = `${tableKey}.${column.name}`;
 				this.cache[columnKey] = this.convert(column.name);
 			}

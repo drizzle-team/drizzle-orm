@@ -1,6 +1,6 @@
 import type { Assume, Column, DrizzleTypeError, SelectedFieldsFlat, Simplify, Table, View } from 'drizzle-orm';
 import type * as v from 'valibot';
-import type { ExtractAdditionalProperties, GetValibotType, HandleColumn, HasBaseColumn } from './column.types.ts';
+import type { GetValibotTypeFromColumn, HandleColumn } from './column.types.ts';
 import type { ColumnIsGeneratedAlwaysAs, GetSelection } from './utils.ts';
 
 export interface Conditions {
@@ -14,18 +14,15 @@ type BuildRefineField<T> = T extends v.GenericSchema ? ((schema: T) => v.Generic
 export type BuildRefine<
 	TColumns extends Record<string, any>,
 > = {
-	[K in keyof TColumns as TColumns[K] extends Column | SelectedFieldsFlat<Column> | Table | View ? K : never]?:
-		TColumns[K] extends Column ? BuildRefineField<
-				GetValibotType<
-					TColumns[K]['_']['data'],
-					TColumns[K]['_']['dataType'],
-					TColumns[K]['_']['columnType'],
-					TColumns[K]['_']['enumValues'],
-					HasBaseColumn<TColumns[K]> extends true ? Assume<TColumns[K]['_']['baseColumn'], Column> : undefined,
-					ExtractAdditionalProperties<TColumns[K]>
-				>
+	[
+		K in keyof TColumns as TColumns[K] extends Column | SelectedFieldsFlat<Column> | Table | View ? K
+			: never
+	]?: TColumns[K] extends Column ? BuildRefineField<
+			GetValibotTypeFromColumn<
+				TColumns[K]
 			>
-			: BuildRefine<GetSelection<TColumns[K]>>;
+		>
+		: BuildRefine<GetSelection<TColumns[K]>>;
 };
 
 type HandleRefinement<

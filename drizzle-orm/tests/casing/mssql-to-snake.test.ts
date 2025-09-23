@@ -1,13 +1,18 @@
 import mssql from 'mssql';
 import { beforeEach, describe, it } from 'vitest';
+import { relations } from '~/_relations';
 import { alias, bit, int, mssqlSchema, mssqlTable, text, union } from '~/mssql-core';
 import { drizzle } from '~/node-mssql';
-import { relations } from '~/relations';
 import { asc, eq, sql } from '~/sql';
 
 const testSchema = mssqlSchema('test');
 const users = mssqlTable('users', {
-	id: int().primaryKey().identity(1, 1),
+	// TODO: Investigate reasons for existence of next commented line
+	// id: int().primaryKey().identity(1, 1),
+	id: int().primaryKey().identity({
+		seed: 1,
+		increment: 1,
+	}),
 	firstName: text().notNull(),
 	lastName: text().notNull(),
 	// Test that custom aliases remain
@@ -17,7 +22,9 @@ const usersRelations = relations(users, ({ one }) => ({
 	developers: one(developers),
 }));
 const developers = testSchema.table('developers', {
-	userId: int().primaryKey().references('name1', () => users.id),
+	// TODO: Investigate reasons for existence of next commented line
+	// userId: int().primaryKey().references('name1', () => users.id),
+	userId: int().primaryKey().references(() => users.id),
 	usesDrizzleORM: bit().notNull(),
 });
 const developersRelations = relations(developers, ({ one }) => ({

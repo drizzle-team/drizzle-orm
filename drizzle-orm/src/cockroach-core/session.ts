@@ -1,6 +1,6 @@
+import type * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { TransactionRollbackError } from '~/errors.ts';
-import type { TablesRelationalConfig } from '~/relations.ts';
 import type { PreparedQuery } from '~/session.ts';
 import { type Query, type SQL, sql } from '~/sql/index.ts';
 import { tracer } from '~/tracing.ts';
@@ -61,7 +61,7 @@ export interface CockroachTransactionConfig {
 export abstract class CockroachSession<
 	TQueryResult extends CockroachQueryResultHKT = CockroachQueryResultHKT,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
-	TSchema extends TablesRelationalConfig = Record<string, never>,
+	TSchema extends V1.TablesRelationalConfig = Record<string, never>,
 > {
 	static readonly [entityKind]: string = 'CockroachSession';
 
@@ -124,7 +124,7 @@ export abstract class CockroachSession<
 export abstract class CockroachTransaction<
 	TQueryResult extends CockroachQueryResultHKT,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
-	TSchema extends TablesRelationalConfig = Record<string, never>,
+	TSchema extends V1.TablesRelationalConfig = Record<string, never>,
 > extends CockroachDatabase<TQueryResult, TFullSchema, TSchema> {
 	static override readonly [entityKind]: string = 'CockroachTransaction';
 

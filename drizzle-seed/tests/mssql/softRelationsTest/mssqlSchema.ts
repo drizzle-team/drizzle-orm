@@ -1,4 +1,4 @@
-import { relations } from 'drizzle-orm';
+import { relations } from 'drizzle-orm/_relations';
 import { datetime, float, int, mssqlTable, text, varchar } from 'drizzle-orm/mssql-core';
 
 export const customers = mssqlTable('customer', {

@@ -5,16 +5,20 @@ import { beforeAll, beforeEach } from 'vitest';
 import { skipTests } from '~/common';
 import { tests } from './mysql-common';
 import { TestCache, TestGlobalCache, tests as cacheTests } from './mysql-common-cache';
+import relations from './relations';
 
 const ENABLE_LOGGING = false;
 
-let db: PlanetScaleDatabase;
+let db: PlanetScaleDatabase<never, typeof relations>;
 let dbGlobalCached: PlanetScaleDatabase;
 let cachedDb: PlanetScaleDatabase;
 
 beforeAll(async () => {
 	const client = new Client({ url: process.env['PLANETSCALE_CONNECTION_STRING']! });
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, {
+		logger: ENABLE_LOGGING,
+		relations,
+	});
 	cachedDb = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestCache() });
 	dbGlobalCached = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 });

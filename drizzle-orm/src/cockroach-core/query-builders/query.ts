@@ -1,5 +1,3 @@
-import { entityKind } from '~/entity.ts';
-import { QueryPromise } from '~/query-promise.ts';
 import {
 	type BuildQueryResult,
 	type BuildRelationalQueryResult,
@@ -7,7 +5,9 @@ import {
 	mapRelationalRow,
 	type TableRelationalConfig,
 	type TablesRelationalConfig,
-} from '~/relations.ts';
+} from '~/_relations.ts';
+import { entityKind } from '~/entity.ts';
+import { QueryPromise } from '~/query-promise.ts';
 import type { RunnableQuery } from '~/runnable-query.ts';
 import type { Query, QueryWithTypings, SQL, SQLWrapper } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';

@@ -210,8 +210,8 @@ export const selectGeneratorForCockroachColumn = (
 			return generator;
 		}
 
-		// BOOLEAN
-		if (col.columnType === 'boolean') {
+		// BOOL
+		if (col.columnType === 'bool') {
 			const generator = new generatorsMap.GenerateBoolean[0]();
 
 			return generator;

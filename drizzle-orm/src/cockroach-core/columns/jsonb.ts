@@ -1,42 +1,34 @@
-import type { AnyCockroachTable } from '~/cockroach-core/table.ts';
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
+import type { AnyCockroachTable, CockroachTable } from '~/cockroach-core/table.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { CockroachColumn, CockroachColumnBuilder } from './common.ts';
 
-export type CockroachJsonbBuilderInitial<TName extends string> = CockroachJsonbBuilder<{
-	name: TName;
-	dataType: 'json';
-	columnType: 'CockroachJsonb';
+export class CockroachJsonbBuilder extends CockroachColumnBuilder<{
+	dataType: 'object json';
 	data: unknown;
 	driverParam: unknown;
-	enumValues: undefined;
-}>;
-
-export class CockroachJsonbBuilder<T extends ColumnBuilderBaseConfig<'json', 'CockroachJsonb'>>
-	extends CockroachColumnBuilder<T>
-{
+}> {
 	static override readonly [entityKind]: string = 'CockroachJsonbBuilder';
 
-	constructor(name: T['name']) {
-		super(name, 'json', 'CockroachJsonb');
+	constructor(name: string) {
+		super(name, 'object json', 'CockroachJsonb');
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyCockroachTable<{ name: TTableName }>,
-	): CockroachJsonb<MakeColumnConfig<T, TTableName>> {
-		return new CockroachJsonb<MakeColumnConfig<T, TTableName>>(
+	) {
+		return new CockroachJsonb(
 			table,
-			this.config as ColumnBuilderRuntimeConfig<any, any>,
+			this.config,
 		);
 	}
 }
 
-export class CockroachJsonb<T extends ColumnBaseConfig<'json', 'CockroachJsonb'>> extends CockroachColumn<T> {
+export class CockroachJsonb<T extends ColumnBaseConfig<'object json'>> extends CockroachColumn<T> {
 	static override readonly [entityKind]: string = 'CockroachJsonb';
 
-	constructor(table: AnyCockroachTable<{ name: T['tableName'] }>, config: CockroachJsonbBuilder<T>['config']) {
+	constructor(table: CockroachTable<any>, config: CockroachJsonbBuilder['config']) {
 		super(table, config);
 	}
 
@@ -60,8 +52,6 @@ export class CockroachJsonb<T extends ColumnBaseConfig<'json', 'CockroachJsonb'>
 	}
 }
 
-export function jsonb(): CockroachJsonbBuilderInitial<''>;
-export function jsonb<TName extends string>(name: TName): CockroachJsonbBuilderInitial<TName>;
 export function jsonb(name?: string) {
 	return new CockroachJsonbBuilder(name ?? '');
 }

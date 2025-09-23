@@ -1,51 +1,43 @@
-import type { ColumnBuilderBaseConfig, ColumnBuilderRuntimeConfig, MakeColumnConfig } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { AnyMsSqlTable } from '~/mssql-core/table.ts';
 import { getColumnNameAndConfig } from '~/utils.ts';
 import { MsSqlColumn, MsSqlColumnBuilder } from './common.ts';
 
-export type MsSqlBinaryBuilderInitial<TName extends string> = MsSqlBinaryBuilder<
+export class MsSqlBinaryBuilder extends MsSqlColumnBuilder<
 	{
-		name: TName;
-		dataType: 'buffer';
-		columnType: 'MsSqlBinary';
+		dataType: 'object buffer';
 		data: Buffer;
 		driverParam: Buffer;
-		enumValues: undefined;
-		generated: undefined;
+	},
+	MsSqlBinaryConfig & {
+		setLength: boolean;
 	}
->;
-
-export class MsSqlBinaryBuilder<T extends ColumnBuilderBaseConfig<'buffer', 'MsSqlBinary'>> extends MsSqlColumnBuilder<
-	T,
-	MsSqlBinaryConfig
 > {
 	static override readonly [entityKind]: string = 'MsSqlBinaryBuilder';
 
-	constructor(name: T['name'], length: number | undefined) {
-		super(name, 'buffer', 'MsSqlBinary');
-		this.config.length = length;
+	constructor(name: string, length: number | undefined) {
+		super(name, 'object buffer', 'MsSqlBinary');
+		this.config.length = length ?? 1;
+		this.config.setLength = length !== undefined;
 	}
 
 	/** @internal */
 	override build<TTableName extends string>(
 		table: AnyMsSqlTable<{ name: TTableName }>,
-	): MsSqlBinary<MakeColumnConfig<T, TTableName>> {
-		return new MsSqlBinary<MakeColumnConfig<T, TTableName>>(table, this.config as ColumnBuilderRuntimeConfig<any, any>);
+	) {
+		return new MsSqlBinary(table, this.config);
 	}
 }
 
-export class MsSqlBinary<T extends ColumnBaseConfig<'buffer', 'MsSqlBinary'>> extends MsSqlColumn<
+export class MsSqlBinary<T extends ColumnBaseConfig<'object buffer'>> extends MsSqlColumn<
 	T,
-	MsSqlBinaryConfig
+	MsSqlBinaryConfig & { setLength: boolean }
 > {
 	static override readonly [entityKind]: string = 'MsSqlBinary';
 
-	length: number | undefined = this.config.length;
-
 	getSQLType(): string {
-		return this.length === undefined ? `binary` : `binary(${this.length})`;
+		return this.config.setLength ? `binary(${this.length})` : `binary`;
 	}
 }
 
@@ -53,14 +45,13 @@ export interface MsSqlBinaryConfig {
 	length?: number;
 }
 
-export function binary(): MsSqlBinaryBuilderInitial<''>;
 export function binary(
 	config?: MsSqlBinaryConfig,
-): MsSqlBinaryBuilderInitial<''>;
-export function binary<TName extends string>(
-	name: TName,
+): MsSqlBinaryBuilder;
+export function binary(
+	name: string,
 	config?: MsSqlBinaryConfig,
-): MsSqlBinaryBuilderInitial<TName>;
+): MsSqlBinaryBuilder;
 export function binary(a?: string | MsSqlBinaryConfig, b: MsSqlBinaryConfig = {}) {
 	const { name, config } = getColumnNameAndConfig<MsSqlBinaryConfig>(a, b);
 	return new MsSqlBinaryBuilder(name, config.length);

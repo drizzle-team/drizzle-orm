@@ -45,7 +45,7 @@ import { hash } from 'src/dialects/common';
 import { DB } from 'src/utils';
 import { v4 as uuidV4 } from 'uuid';
 import 'zx/globals';
-import { measure } from 'tests/utils';
+import { measure, tsc } from 'tests/utils';
 
 mkdirSync('tests/cockroach/tmp', { recursive: true });
 
@@ -101,15 +101,17 @@ export const drizzleToDDL = (schema: CockroachDBSchema, casing?: CasingType | un
 // 2 schemas -> 2 ddls -> diff
 export const diff = async (
 	left: CockroachDBSchema | CockroachDDL,
-	right: CockroachDBSchema,
+	right: CockroachDBSchema | CockroachDDL,
 	renamesArr: string[],
 	casing?: CasingType | undefined,
 ) => {
 	const { ddl: ddl1, errors: err1 } = 'entities' in left && '_' in left
 		? { ddl: left as CockroachDDL, errors: [] }
 		: drizzleToDDL(left, casing);
+	const { ddl: ddl2, errors: err2 } = 'entities' in right && '_' in right
+		? { ddl: right as CockroachDDL, errors: [] }
+		: drizzleToDDL(right, casing);
 
-	const { ddl: ddl2, errors: err2 } = drizzleToDDL(right, casing);
 	if (err1.length > 0 || err2.length > 0) {
 		throw new MockError([...err1, ...err2]);
 	}
@@ -344,8 +346,9 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 	const config = (builder as any).config;
 	const def = config['default'];
 	const column = cockroachTable('table', { column: builder }).column;
+	const { dimensions, typeSchema, sqlType: sqlt } = unwrapColumn(column);
+	const type = sqlt.replaceAll('[]', '');
 
-	const { dimensions, baseType, options, typeSchema, sqlType: type } = unwrapColumn(column);
 	const columnDefault = defaultFromColumn(column, column.default, dimensions, new CockroachDialect());
 
 	const defaultSql = defaultToSQL({
@@ -371,17 +374,19 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 	const { sqlStatements: st2 } = await push({ db, to: init });
 
 	const typeSchemaPrefix = typeSchema && typeSchema !== 'public' ? `"${typeSchema}".` : '';
-	const typeValue = typeSchema ? `"${baseType}"` : baseType;
-	const sqlType = `${typeSchemaPrefix}${typeValue}${options ? `(${options})` : ''}${'[]'.repeat(dimensions)}`;
+	const typeValue = typeSchema ? `"${type}"` : type;
+	const sqlType = `${typeSchemaPrefix}${typeValue}${'[]'.repeat(dimensions)}`;
 	const expectedInit = `CREATE TABLE "table" (\n\t"column" ${sqlType} DEFAULT ${expectedDefault}\n);\n`;
 
 	if (st1.length !== 1 || st1[0] !== expectedInit) res.push(`Unexpected init:\n${st1}\n\n${expectedInit}`);
 	if (st2.length > 0) res.push(`Unexpected subsequent init:\n${st2}`);
 
-	await db.query('INSERT INTO "table" ("column") VALUES (default);').catch((error) => {
+	try {
+		await db.query('INSERT INTO "table" ("column") VALUES (default);');
+	} catch (error) {
 		if (!expectError) throw error;
 		res.push(`Insert default failed`);
-	});
+	}
 
 	// introspect to schema
 	// console.time();
@@ -394,6 +399,7 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 
 	if (existsSync(path)) rmSync(path);
 	writeFileSync(path, file.file);
+	await tsc(path);
 
 	const response = await prepareFromSchemaFiles([path]);
 	const { schema: sch } = fromDrizzleSchema(response, 'camelCase');
@@ -494,7 +500,7 @@ export async function createDockerDB() {
 }
 
 export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatabase> => {
-	const envUrl = process.env.COCKROACH_URL;
+	const envUrl = process.env.COCKROACH_CONNECTION_STRING;
 	const { url, container } = envUrl ? { url: envUrl, container: null } : await createDockerDB();
 
 	let client: PoolClient;
@@ -510,14 +516,16 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 			await client.query('SET autocommit_before_ddl = OFF;'); // for transactions to work
 			await client.query(`SET CLUSTER SETTING feature.vector_index.enabled = true;`);
 
+			// await client.query(`SET TIME ZONE '+01';`);
+
 			if (tx) {
 				await client.query('BEGIN');
 			}
 
 			const clear = async () => {
 				if (tx) {
-					await client.query('ROLLBACK;');
-					await client.query('BEGIN;');
+					await client.query('ROLLBACK');
+					await client.query('BEGIN');
 					return;
 				}
 

@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
 	bigint,
+	bigserial,
 	bit,
 	boolean,
 	char,
@@ -8,16 +9,21 @@ import {
 	doublePrecision,
 	geometry,
 	halfvec,
+	inet,
 	integer,
 	interval,
 	json,
 	jsonb,
 	line,
+	macaddr,
+	macaddr8,
 	numeric,
 	pgEnum,
 	point,
 	real,
+	serial,
 	smallint,
+	smallserial,
 	sparsevec,
 	text,
 	time,
@@ -207,6 +213,18 @@ test('bigint arrays', async () => {
 	expect.soft(res15).toStrictEqual([]);
 });
 
+test('serials', async () => {
+	const res1 = await diffDefault(_, serial(), '');
+	const res2 = await diffDefault(_, smallserial(), '');
+	const res3 = await diffDefault(_, bigserial({ mode: 'number' }), '');
+	const res4 = await diffDefault(_, bigserial({ mode: 'bigint' }), '');
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
+});
+
 test('numeric', async () => {
 	const res1 = await diffDefault(_, numeric().default('10.123'), "'10.123'");
 
@@ -250,19 +268,19 @@ test('numeric arrays', async () => {
 	const res2 = await diffDefault(
 		_,
 		numeric({ mode: 'number', precision: 4, scale: 2 }).array().default([]),
-		"'{}'::numeric[]",
+		"'{}'::numeric(4,2)[]",
 	);
 	const res3 = await diffDefault(_, numeric({ mode: 'bigint' }).array().default([]), "'{}'::numeric[]");
 	const res4 = await diffDefault(
 		_,
 		numeric({ mode: 'bigint', precision: 4 }).array().default([]),
-		"'{}'::numeric[]",
+		"'{}'::numeric(4)[]",
 	);
 	const res5 = await diffDefault(_, numeric({ mode: 'string' }).array().default([]), "'{}'::numeric[]");
 	const res6 = await diffDefault(
 		_,
 		numeric({ mode: 'string', precision: 4, scale: 2 }).array().default([]),
-		"'{}'::numeric[]",
+		"'{}'::numeric(4,2)[]",
 	);
 
 	const res7 = await diffDefault(
@@ -274,7 +292,7 @@ test('numeric arrays', async () => {
 	const res8 = await diffDefault(
 		_,
 		numeric({ mode: 'number', precision: 6, scale: 2 }).array().default([10.123, 123.10]),
-		"'{10.123,123.1}'::numeric[]", // .1 due to number->string conversion
+		"'{10.123,123.1}'::numeric(6,2)[]", // .1 due to number->string conversion
 	);
 	const res9 = await diffDefault(
 		_,
@@ -284,7 +302,7 @@ test('numeric arrays', async () => {
 	const res10 = await diffDefault(
 		_,
 		numeric({ mode: 'bigint', precision: 19 }).array().default([9223372036854775807n, 9223372036854775806n]),
-		"'{9223372036854775807,9223372036854775806}'::numeric[]",
+		"'{9223372036854775807,9223372036854775806}'::numeric(19)[]",
 	);
 	const res11 = await diffDefault(
 		_,
@@ -294,26 +312,26 @@ test('numeric arrays', async () => {
 	const res12 = await diffDefault(
 		_,
 		numeric({ mode: 'string', precision: 6, scale: 2 }).array().default(['10.123', '123.10']),
-		"'{10.123,123.10}'::numeric[]",
+		"'{10.123,123.10}'::numeric(6,2)[]",
 	);
 
 	const res13 = await diffDefault(_, numeric({ mode: 'string' }).array().array().default([]), "'{}'::numeric[]");
 	const res14 = await diffDefault(
 		_,
 		numeric({ mode: 'string', precision: 4, scale: 2 }).array().array().default([]),
-		"'{}'::numeric[]",
+		"'{}'::numeric(4,2)[]",
 	);
 	const res15 = await diffDefault(_, numeric({ mode: 'number' }).array().array().default([]), "'{}'::numeric[]");
 	const res16 = await diffDefault(
 		_,
 		numeric({ mode: 'number', precision: 4, scale: 2 }).array().array().default([]),
-		"'{}'::numeric[]",
+		"'{}'::numeric(4,2)[]",
 	);
 	const res17 = await diffDefault(_, numeric({ mode: 'bigint' }).array().array().default([]), "'{}'::numeric[]");
 	const res18 = await diffDefault(
 		_,
 		numeric({ mode: 'bigint', precision: 4 }).array().array().default([]),
-		"'{}'::numeric[]",
+		"'{}'::numeric(4)[]",
 	);
 	const res19 = await diffDefault(
 		_,
@@ -326,7 +344,7 @@ test('numeric arrays', async () => {
 			'10.123',
 			'123.10',
 		]]),
-		"'{{10.123,123.10},{10.123,123.10}}'::numeric[]",
+		"'{{10.123,123.10},{10.123,123.10}}'::numeric(6,2)[]",
 	);
 
 	const res23 = await diffDefault(
@@ -343,7 +361,7 @@ test('numeric arrays', async () => {
 			9223372036854775807n,
 			9223372036854775806n,
 		]]),
-		"'{{9223372036854775807,9223372036854775806},{9223372036854775807,9223372036854775806}}'::numeric[]",
+		"'{{9223372036854775807,9223372036854775806},{9223372036854775807,9223372036854775806}}'::numeric(19)[]",
 	);
 
 	expect.soft(res1).toStrictEqual([]);
@@ -451,38 +469,38 @@ test('char + char arrays', async () => {
 		`'mo''''\",\\\\\`}{od'`,
 	);
 
-	const res7 = await diffDefault(_, char({ length: 15 }).array().default([]), `'{}'::char[]`);
-	const res8 = await diffDefault(_, char({ length: 15 }).array().default(['text']), `'{text}'::char[]`);
+	const res7 = await diffDefault(_, char({ length: 15 }).array().default([]), `'{}'::char(15)[]`);
+	const res8 = await diffDefault(_, char({ length: 15 }).array().default(['text']), `'{text}'::char(15)[]`);
 	// raw default sql for the line below: '{text''\\text}'::char(15)[];
 	const res9 = await diffDefault(
 		_,
 		char({ length: 15 }).array().default(['\\']),
-		`'{"\\\\"}'::char[]`,
+		`'{"\\\\"}'::char(15)[]`,
 	);
 	const res10 = await diffDefault(
 		_,
 		char({ length: 15 }).array().default(["'"]),
-		`'{''}'::char[]`,
+		`'{''}'::char(15)[]`,
 	);
 	const res11 = await diffDefault(
 		_,
 		char({ length: 15, enum: ['one', 'two', 'three'] }).array().default(['one']),
-		`'{one}'::char[]`,
+		`'{one}'::char(15)[]`,
 	);
 	const res12 = await diffDefault(
 		_,
 		char({ length: 15, enum: ['one', 'two', 'three', `no,''"\`rm`, `mo''",\`}{od`, 'mo,\`od'] }).array().default(
 			[`mo''",\`}{od`],
 		),
-		`'{"mo''''\\\",\`\}\{od"}'::char[]`,
+		`'{"mo''''\\\",\`\}\{od"}'::char(15)[]`,
 	);
 
-	const res13 = await diffDefault(_, char({ length: 15 }).array().array().default([]), `'{}'::char[]`);
+	const res13 = await diffDefault(_, char({ length: 15 }).array().array().default([]), `'{}'::char(15)[]`);
 	// raw default sql for the line below: '{{text\\},{text}}'::text[]
 	const res14 = await diffDefault(
 		_,
 		char({ length: 15 }).array().array().default([['text\\'], ['text']]),
-		`'{{"text\\\\"},{text}}'::char[]`,
+		`'{{"text\\\\"},{text}}'::char(15)[]`,
 	);
 	const res15 = await diffDefault(
 		_,
@@ -490,7 +508,7 @@ test('char + char arrays', async () => {
 			.default(
 				[[`mo''",\`}{od`], [`mo''",\`}{od`]],
 			),
-		`'{{"mo''''\\\",\`\}\{od"},{"mo''''\\\",\`\}\{od"}}'::char[]`,
+		`'{{"mo''''\\\",\`\}\{od"},{"mo''''\\\",\`\}\{od"}}'::char(15)[]`,
 	);
 
 	expect.soft(res1).toStrictEqual([]);
@@ -526,38 +544,38 @@ test('varchar + varchar arrays', async () => {
 		`'mo''''",\\\\\`}{od'`,
 	);
 
-	const res7 = await diffDefault(_, varchar({ length: 256 }).array().default([]), `'{}'::varchar[]`);
-	const res8 = await diffDefault(_, varchar({ length: 256 }).array().default(['text']), `'{text}'::varchar[]`);
+	const res7 = await diffDefault(_, varchar({ length: 256 }).array().default([]), `'{}'::varchar(256)[]`);
+	const res8 = await diffDefault(_, varchar({ length: 256 }).array().default(['text']), `'{text}'::varchar(256)[]`);
 	// raw default sql for the line below: '{text''\\text}'::varchar[];
 	const res9 = await diffDefault(
 		_,
 		varchar({ length: 256 }).array().default(["text'\\text"]),
-		`'{"text''\\\\text"}'::varchar[]`,
+		`'{"text''\\\\text"}'::varchar(256)[]`,
 	);
 	const res10 = await diffDefault(
 		_,
 		varchar({ length: 256 }).array().default(['text\'text"']),
-		`'{"text''text\\\""}'::varchar[]`,
+		`'{"text''text\\\""}'::varchar(256)[]`,
 	);
 	const res11 = await diffDefault(
 		_,
 		varchar({ length: 256, enum: ['one', 'two', 'three'] }).array().default(['one']),
-		`'{one}'::varchar[]`,
+		`'{one}'::varchar(256)[]`,
 	);
 	const res12 = await diffDefault(
 		_,
 		varchar({ length: 256, enum: ['one', 'two', 'three', `no,''"\`rm`, `mo''",\`}{od`, 'mo,\`od'] }).array().default(
 			[`mo''",\`}{od`],
 		),
-		`'{"mo''''\\\",\`\}\{od"}'::varchar[]`,
+		`'{"mo''''\\\",\`\}\{od"}'::varchar(256)[]`,
 	);
 
-	const res13 = await diffDefault(_, varchar({ length: 256 }).array().array().default([]), `'{}'::varchar[]`);
+	const res13 = await diffDefault(_, varchar({ length: 256 }).array().array().default([]), `'{}'::varchar(256)[]`);
 	// raw default sql for the line below: '{{text\\},{text}}'::varchar[]
 	const res14 = await diffDefault(
 		_,
 		varchar({ length: 256 }).array().array().default([['text\\'], ['text']]),
-		`'{{"text\\\\"},{text}}'::varchar[]`,
+		`'{{"text\\\\"},{text}}'::varchar(256)[]`,
 	);
 	const res15 = await diffDefault(
 		_,
@@ -565,7 +583,7 @@ test('varchar + varchar arrays', async () => {
 			.default(
 				[[`mo''",\`}{od`], [`mo''",\`}{od`]],
 			),
-		`'{{"mo''''\\\",\`\}\{od"},{"mo''''\\\",\`\}\{od"}}'::varchar[]`,
+		`'{{"mo''''\\\",\`\}\{od"},{"mo''''\\\",\`\}\{od"}}'::varchar(256)[]`,
 	);
 
 	expect.soft(res1).toStrictEqual([]);
@@ -679,7 +697,7 @@ test('json + json arrays', async () => {
 test('jsonb + jsonb arrays', async () => {
 	const res1 = await diffDefault(_, jsonb().default({}), `'{}'`);
 	const res2 = await diffDefault(_, jsonb().default([]), `'[]'`);
-	const res3 = await diffDefault(_, jsonb().default([1, 2, 3]), `'[1, 2, 3]'`);
+	const res3 = await diffDefault(_, jsonb().default([1, 2, 3]), `'[1,2,3]'`);
 	const res4 = await diffDefault(_, jsonb().default({ key: 'value' }), `'{"key":"value"}'`);
 	const res5 = await diffDefault(_, jsonb().default({ key: "val'ue" }), `'{"key":"val''ue"}'`);
 	const res6 = await diffDefault(_, jsonb().default({ key: `mo''",\`}{od` }), `'{"key":"mo''''\\\",\`}{od"}'`);
@@ -699,7 +717,7 @@ test('jsonb + jsonb arrays', async () => {
 	expect.soft(res12).toStrictEqual([]);
 });
 
-test.only('timestamp + timestamp arrays', async () => {
+test('timestamp + timestamp arrays', async () => {
 	const res1 = await diffDefault(
 		_,
 		timestamp({ mode: 'date' }).default(new Date('2025-05-23T12:53:53.115Z')),
@@ -708,7 +726,7 @@ test.only('timestamp + timestamp arrays', async () => {
 	const res2 = await diffDefault(
 		_,
 		timestamp({ mode: 'date', precision: 3, withTimezone: true }).default(new Date('2025-05-23T12:53:53.115Z')),
-		`'2025-05-23 12:53:53.115'`,
+		`'2025-05-23 12:53:53.115+00'`,
 	);
 	const res3 = await diffDefault(
 		_,
@@ -718,7 +736,7 @@ test.only('timestamp + timestamp arrays', async () => {
 	const res4 = await diffDefault(
 		_,
 		timestamp({ mode: 'string', precision: 3, withTimezone: true }).default('2025-05-23 12:53:53.115'),
-		`'2025-05-23 12:53:53.115'`,
+		`'2025-05-23 12:53:53.115+00'`,
 	);
 	const res5 = await diffDefault(_, timestamp().defaultNow(), `now()`);
 	const res6 = await diffDefault(
@@ -731,26 +749,26 @@ test.only('timestamp + timestamp arrays', async () => {
 	const res8 = await diffDefault(
 		_,
 		timestamp({ mode: 'date', precision: 3, withTimezone: true }).array().default([]),
-		`'{}'::timestamp[]`,
+		`'{}'::timestamp(3) with time zone[]`,
 	);
 	const res9 = await diffDefault(
 		_,
-		timestamp({ mode: 'date' }).array().default([new Date('2025-05-23T12:53:53.115Z')]),
-		`'{"2025-05-23 12:53:53.115"}'::timestamp[]`,
+		timestamp({ mode: 'date', precision: 5 }).array().default([new Date('2025-05-23T12:53:53.115Z')]),
+		`'{"2025-05-23 12:53:53.115"}'::timestamp(5)[]`,
 	);
 	const res10 = await diffDefault(
 		_,
 		timestamp({ mode: 'date', precision: 3, withTimezone: true }).array().default([
 			new Date('2025-05-23T12:53:53.115Z'),
 		]),
-		`'{"2025-05-23 12:53:53.115"}'::timestamp[]`,
+		`'{"2025-05-23 12:53:53.115+00"}'::timestamp(3) with time zone[]`,
 	);
 
 	const res11 = await diffDefault(_, timestamp({ mode: 'string' }).array().default([]), `'{}'::timestamp[]`);
 	const res12 = await diffDefault(
 		_,
 		timestamp({ mode: 'string', precision: 3, withTimezone: true }).array().default([]),
-		`'{}'::timestamp[]`,
+		`'{}'::timestamp(3) with time zone[]`,
 	);
 	const res13 = await diffDefault(
 		_,
@@ -759,15 +777,20 @@ test.only('timestamp + timestamp arrays', async () => {
 	);
 	const res14 = await diffDefault(
 		_,
-		timestamp({ mode: 'string', precision: 3, withTimezone: true }).array().default(['2025-05-23 12:53:53.115']),
-		`'{"2025-05-23 12:53:53.115"}'::timestamp[]`,
+		timestamp({ mode: 'string', precision: 4, withTimezone: true }).array().default(['2025-05-23 12:53:53.115+03:00']),
+		`'{"2025-05-23 12:53:53.115+03:00"}'::timestamp(4) with time zone[]`,
+	);
+	const res14_1 = await diffDefault(
+		_,
+		timestamp({ mode: 'string', precision: 4, withTimezone: true }).default('2025-05-23 12:53:53.115+03:00'),
+		`'2025-05-23 12:53:53.115+03:00'`,
 	);
 
 	const res15 = await diffDefault(_, timestamp({ mode: 'date' }).array().array().default([]), `'{}'::timestamp[]`);
 	const res16 = await diffDefault(
 		_,
 		timestamp({ mode: 'date', precision: 3, withTimezone: true }).array().array().default([]),
-		`'{}'::timestamp[]`,
+		`'{}'::timestamp(3) with time zone[]`,
 	);
 	const res17 = await diffDefault(
 		_,
@@ -779,14 +802,14 @@ test.only('timestamp + timestamp arrays', async () => {
 		timestamp({ mode: 'date', precision: 3, withTimezone: true }).array().array().default([[
 			new Date('2025-05-23T12:53:53.115Z'),
 		]]),
-		`'{{"2025-05-23 12:53:53.115"}}'::timestamp[]`,
+		`'{{"2025-05-23 12:53:53.115+00"}}'::timestamp(3) with time zone[]`,
 	);
 
 	const res19 = await diffDefault(_, timestamp({ mode: 'string' }).array().array().default([]), `'{}'::timestamp[]`);
 	const res20 = await diffDefault(
 		_,
 		timestamp({ mode: 'string', precision: 3, withTimezone: true }).array().array().default([]),
-		`'{}'::timestamp[]`,
+		`'{}'::timestamp(3) with time zone[]`,
 	);
 	const res21 = await diffDefault(
 		_,
@@ -798,7 +821,7 @@ test.only('timestamp + timestamp arrays', async () => {
 		timestamp({ mode: 'string', precision: 3, withTimezone: true }).array().array().default([[
 			'2025-05-23 12:53:53.115',
 		]]),
-		`'{{"2025-05-23 12:53:53.115"}}'::timestamp[]`,
+		`'{{"2025-05-23 12:53:53.115+00"}}'::timestamp(3) with time zone[]`,
 	);
 
 	expect.soft(res1).toStrictEqual([]);
@@ -815,6 +838,7 @@ test.only('timestamp + timestamp arrays', async () => {
 	expect.soft(res12).toStrictEqual([]);
 	expect.soft(res13).toStrictEqual([]);
 	expect.soft(res14).toStrictEqual([]);
+	expect.soft(res14_1).toStrictEqual([]);
 	expect.soft(res15).toStrictEqual([]);
 	expect.soft(res16).toStrictEqual([]);
 	expect.soft(res17).toStrictEqual([]);
@@ -832,32 +856,44 @@ test('time + time arrays', async () => {
 		time({ precision: 3, withTimezone: true }).default('15:50:33.123+00'),
 		`'15:50:33.123+00'`,
 	);
-	const res3 = await diffDefault(_, time().defaultNow(), `now()`);
-	const res4 = await diffDefault(_, time({ precision: 3, withTimezone: true }).defaultNow(), `now()`);
+	const res3 = await diffDefault(
+		_,
+		time({ precision: 3, withTimezone: true }).default('15:50:33.123'),
+		`'15:50:33.123+00'`,
+	);
+	const res4 = await diffDefault(
+		_,
+		time({ precision: 3, withTimezone: true }).default('15:50:33.123+03'),
+		`'15:50:33.123+03'`,
+	);
+	const res5 = await diffDefault(_, time().defaultNow(), `now()`);
+	const res6 = await diffDefault(_, time({ precision: 3, withTimezone: true }).defaultNow(), `now()`);
 
-	const res5 = await diffDefault(_, time().array().default([]), `'{}'::time[]`);
-	const res6 = await diffDefault(_, time({ precision: 3, withTimezone: true }).array().default([]), `'{}'::time[]`);
-	const res7 = await diffDefault(_, time().array().default(['15:50:33']), `'{15:50:33}'::time[]`);
+	const res7 = await diffDefault(_, time().array().default([]), `'{}'::time[]`);
 	const res8 = await diffDefault(
 		_,
-		time({ precision: 3, withTimezone: true }).array().default(['15:50:33.123']),
-		`'{15:50:33.123}'::time[]`,
+		time({ precision: 3, withTimezone: true }).array().default([]),
+		`'{}'::time(3) with time zone[]`,
 	);
-
-	const res9 = await diffDefault(_, time().array().array().default([]), `'{}'::time[]`);
+	const res9 = await diffDefault(_, time({ precision: 3 }).array().default(['15:50:33']), `'{15:50:33}'::time(3)[]`);
 	const res10 = await diffDefault(
 		_,
-		time({ precision: 3, withTimezone: true }).array().array().default([]),
-		`'{}'::time[]`,
-	);
-	const res11 = await diffDefault(_, time().array().array().default([['15:50:33']]), `'{{15:50:33}}'::time[]`);
-	const res12 = await diffDefault(
-		_,
-		time({ precision: 3, withTimezone: true }).array().array().default([['15:50:33.123']]),
-		`'{{15:50:33.123}}'::time[]`,
+		time({ precision: 3, withTimezone: true }).array().default(['15:50:33.123']),
+		`'{15:50:33.123+00}'::time(3) with time zone[]`,
 	);
 
-	// const res4 = await diffDefault(_, time({precision:6, withTimezone: true}).default("'10:20:30+00'"), "'10:20:30+00'",null, {type:"time(6) with time zone"} );
+	const res11 = await diffDefault(_, time().array().array().default([]), `'{}'::time[]`);
+	const res12 = await diffDefault(
+		_,
+		time({ precision: 3, withTimezone: true }).array().array().default([]),
+		`'{}'::time(3) with time zone[]`,
+	);
+	const res13 = await diffDefault(_, time().array().array().default([['15:50:33']]), `'{{15:50:33}}'::time[]`);
+	const res14 = await diffDefault(
+		_,
+		time({ precision: 3, withTimezone: true }).array().array().default([['15:50:33.123']]),
+		`'{{15:50:33.123+00}}'::time(3) with time zone[]`,
+	);
 
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
@@ -871,6 +907,8 @@ test('time + time arrays', async () => {
 	expect.soft(res10).toStrictEqual([]);
 	expect.soft(res11).toStrictEqual([]);
 	expect.soft(res12).toStrictEqual([]);
+	expect.soft(res13).toStrictEqual([]);
+	expect.soft(res14).toStrictEqual([]);
 });
 
 test('date + date arrays', async () => {
@@ -932,28 +970,28 @@ test('interval + interval arrays', async () => {
 	const res20 = await diffDefault(
 		_,
 		interval({ fields: 'day to second', precision: 3 }).array().default([]),
-		`'{}'::interval day to second[]`,
+		`'{}'::interval day to second(3)[]`,
 	);
 
 	const res3 = await diffDefault(_, interval().array().default(['1 day']), `'{"1 day"}'::interval[]`);
 	const res30 = await diffDefault(
 		_,
 		interval({ fields: 'day to second', precision: 3 }).array().default(['1 day 3 second']),
-		`'{"1 day 3 second"}'::interval day to second[]`,
+		`'{"1 day 3 second"}'::interval day to second(3)[]`,
 	);
 
 	const res4 = await diffDefault(_, interval().array().array().default([]), `'{}'::interval[]`);
 	const res40 = await diffDefault(
 		_,
 		interval({ fields: 'day to second', precision: 3 }).array().array().default([]),
-		`'{}'::interval day to second[]`,
+		`'{}'::interval day to second(3)[]`,
 	);
 
 	const res5 = await diffDefault(_, interval().array().array().default([['1 day']]), `'{{"1 day"}}'::interval[]`);
 	const res50 = await diffDefault(
 		_,
 		interval({ fields: 'day to second', precision: 3 }).array().array().default([['1 day 3 second']]),
-		`'{{"1 day 3 second"}}'::interval day to second[]`,
+		`'{{"1 day 3 second"}}'::interval day to second(3)[]`,
 	);
 
 	expect.soft(res1).toStrictEqual([]);
@@ -1049,23 +1087,39 @@ test('line + line arrays', async () => {
 });
 
 test('enum + enum arrays', async () => {
-	const moodEnum = pgEnum('mood_enum', ['sad', 'ok', 'happy', `text'text"`, `no,''"\`rm`, `mo''",\\\`}{od`, 'mo,\`od']);
+	const moodEnum = pgEnum('mood_enum', [
+		'sad',
+		'ok',
+		'ha\\ppy',
+		`text'text"`,
+		`no,''"\`rm`,
+		"mo''\",\\`}{od",
+		'mo\`od',
+	]);
 	const pre = { moodEnum };
 
 	const res1 = await diffDefault(_, moodEnum().default('ok'), `'ok'::"mood_enum"`, pre);
+	const res2 = await diffDefault(_, moodEnum().default('ha\\ppy'), `'ha\\ppy'::"mood_enum"`, pre);
+	const res3 = await diffDefault(_, moodEnum().default(`mo''",\\\`}{od`), `'mo''''",\\\`}{od'::"mood_enum"`, pre);
+	const res4 = await diffDefault(_, moodEnum().default(`text'text"`), `'text''text"'::"mood_enum"`, pre);
 
-	const res4 = await diffDefault(_, moodEnum().array().default([]), `'{}'::"mood_enum"[]`, pre);
-	const res5 = await diffDefault(_, moodEnum().array().default(['ok']), `'{ok}'::"mood_enum"[]`, pre);
-
-	const res8 = await diffDefault(_, moodEnum().array().array().default([]), `'{}'::"mood_enum"[]`, pre);
-	const res9 = await diffDefault(_, moodEnum().array().array().default([['ok']]), `'{{ok}}'::"mood_enum"[]`, pre);
+	const res5 = await diffDefault(_, moodEnum().array().default([]), `'{}'::"mood_enum"[]`, pre);
+	const res6 = await diffDefault(_, moodEnum().array().default(['ok']), `'{ok}'::"mood_enum"[]`, pre);
+	const res7 = await diffDefault(_, moodEnum().array().default(['ha\\ppy']), `'{"ha\\\\ppy"}'::"mood_enum"[]`, pre);
+	const res8 = await diffDefault(_, moodEnum().array().default(['mo\`od']), `'{mo\`od}'::"mood_enum"[]`, pre);
+	const res9 = await diffDefault(_, moodEnum().array().array().default([]), `'{}'::"mood_enum"[]`, pre);
+	const res10 = await diffDefault(_, moodEnum().array().array().default([['ok']]), `'{{ok}}'::"mood_enum"[]`, pre);
 
 	expect.soft(res1).toStrictEqual([]);
-
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
 	expect.soft(res4).toStrictEqual([]);
 	expect.soft(res5).toStrictEqual([]);
+	expect.soft(res6).toStrictEqual([]);
+	expect.soft(res7).toStrictEqual([]);
 	expect.soft(res8).toStrictEqual([]);
 	expect.soft(res9).toStrictEqual([]);
+	expect.soft(res10).toStrictEqual([]);
 });
 
 test('uuid + uuid arrays', async () => {
@@ -1074,25 +1128,42 @@ test('uuid + uuid arrays', async () => {
 		uuid().default('550e8400-e29b-41d4-a716-446655440000'),
 		`'550e8400-e29b-41d4-a716-446655440000'`,
 	);
+	const res2 = await diffDefault(_, uuid().defaultRandom(), `gen_random_uuid()`);
 
-	const res4 = await diffDefault(
+	const res3 = await diffDefault(_, uuid().array().default([]), `'{}'::uuid[]`);
+	const res4 = await diffDefault(_, uuid().array().array().default([]), `'{}'::uuid[]`);
+
+	const res5 = await diffDefault(
 		_,
 		uuid().array().default(['550e8400-e29b-41d4-a716-446655440000']),
 		`'{550e8400-e29b-41d4-a716-446655440000}'::uuid[]`,
 	);
 
-	const res5 = await diffDefault(_, uuid().array().array().default([]), `'{}'::uuid[]`);
 	const res6 = await diffDefault(
 		_,
 		uuid().array().array().default([['550e8400-e29b-41d4-a716-446655440000']]),
 		`'{{550e8400-e29b-41d4-a716-446655440000}}'::uuid[]`,
 	);
 
-	expect.soft(res1).toStrictEqual([]);
+	const res7 = await diffDefault(
+		_,
+		uuid()
+			.default(sql`'550e8400-e29b-41d4-a716-446655440001'`),
+		`'550e8400-e29b-41d4-a716-446655440001'`,
+	);
 
+	const res8 = await diffDefault(_, uuid().defaultRandom(), `gen_random_uuid()`);
+	const res9 = await diffDefault(_, uuid().array().default([]), `'{}'::uuid[]`);
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
 	expect.soft(res4).toStrictEqual([]);
 	expect.soft(res5).toStrictEqual([]);
 	expect.soft(res6).toStrictEqual([]);
+	expect.soft(res7).toStrictEqual([]);
+	expect.soft(res8).toStrictEqual([]);
+	expect.soft(res9).toStrictEqual([]);
 });
 
 // pgvector extension
@@ -1102,13 +1173,13 @@ test('bit + bit arrays', async () => {
 	const res2 = await diffDefault(_, bit({ dimensions: 3 }).default(sql`'101'`), `'101'`);
 
 	const res3 = await diffDefault(_, bit({ dimensions: 3 }).array().default([]), `'{}'::bit(3)[]`);
-	const res4 = await diffDefault(_, bit({ dimensions: 3 }).array().default([`101`]), `'{"101"}'::bit(3)[]`);
+	const res4 = await diffDefault(_, bit({ dimensions: 3 }).array().default([`101`]), `'{101}'::bit(3)[]`);
 
 	const res5 = await diffDefault(_, bit({ dimensions: 3 }).array().array().default([]), `'{}'::bit(3)[]`);
 	const res6 = await diffDefault(
 		_,
 		bit({ dimensions: 3 }).array().array().default([[`101`], [`101`]]),
-		`'{{"101"},{"101"}}'::bit(3)[]`,
+		`'{{101},{101}}'::bit(3)[]`,
 	);
 
 	expect.soft(res1).toStrictEqual([]);
@@ -1121,22 +1192,12 @@ test('bit + bit arrays', async () => {
 
 test('halfvec + halfvec arrays', async () => {
 	const res1 = await diffDefault(_, halfvec({ dimensions: 3 }).default([0, -2, 3]), `'[0,-2,3]'`);
-	const res2 = await diffDefault(
-		_,
-		halfvec({ dimensions: 3 }).default([0, -2.123456789, 3.123456789]),
-		`'[0,-2.123456789,3.123456789]'`,
-	);
 
 	const res3 = await diffDefault(_, halfvec({ dimensions: 3 }).array().default([]), `'{}'::halfvec(3)[]`);
 	const res4 = await diffDefault(
 		_,
 		halfvec({ dimensions: 3 }).array().default([[0, -2, 3]]),
 		`'{"[0,-2,3]"}'::halfvec(3)[]`,
-	);
-	const res5 = await diffDefault(
-		_,
-		halfvec({ dimensions: 3 }).array().default([[0, -2.123456789, 3.123456789]]),
-		`'{"[0,-2.123456789,3.123456789]"}'::halfvec(3)[]`,
 	);
 
 	const res6 = await diffDefault(_, halfvec({ dimensions: 3 }).array().array().default([]), `'{}'::halfvec(3)[]`);
@@ -1145,32 +1206,44 @@ test('halfvec + halfvec arrays', async () => {
 		halfvec({ dimensions: 3 }).array().array().default([[[0, -2, 3]], [[1, 2, 3]]]),
 		`'{{"[0,-2,3]"},{"[1,2,3]"}}'::halfvec(3)[]`,
 	);
-	const res8 = await diffDefault(
-		_,
-		halfvec({ dimensions: 3 }).array().array().default([[[0, -2.123456789, 3.123456789]], [[
-			1.123456789,
-			2.123456789,
-			3.123456789,
-		]]]),
-		`'{{"[0,-2.123456789,3.123456789]"},{"[1.123456789,2.123456789,3.123456789]"}}'::halfvec(3)[]`,
-	);
+
+	// TODO strange rounding
+	// looks like extension or postgres makes this
+
+	// const res2 = await diffDefault(
+	// 	_,
+	// 	halfvec({ dimensions: 3 }).default([0, -2.123456789, 3.123456789]),
+	// 	`'[0,-2.123456789,3.123456789]'`,
+	// );
+	// const res5 = await diffDefault(
+	// 	_,
+	// 	halfvec({ dimensions: 3 }).array().default([[0, -2.3, 3.123456789]]),
+	// 	`'{"[0,-2.123456789,3.123456789]"}'::halfvec(3)[]`,
+	// );
+	// const res8 = await diffDefault(
+	// 	_,
+	// 	//                                                 [[[0, -2.1230469,3.1230469      ]],[[1.1230469,2.1230469,3.1230469]]]
+	// 	halfvec({ dimensions: 3 }).array().array().default([[[0, -2.123456, 3.123456]], [[1.123456, 2.123456, 3.123456]]]),
+	// 	`'{{"[0,-2.123456789,3.123456789]"},{"[1.123456789,2.123456789,3.123456789]"}}'::halfvec(3)[]`,
+	// );
 
 	expect.soft(res1).toStrictEqual([]);
-	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
 	expect.soft(res4).toStrictEqual([]);
-	expect.soft(res5).toStrictEqual([]);
 	expect.soft(res6).toStrictEqual([]);
 	expect.soft(res7).toStrictEqual([]);
-	expect.soft(res8).toStrictEqual([]);
+
+	// expect.soft(res2).toStrictEqual([]);
+	// expect.soft(res5).toStrictEqual([]);
+	// expect.soft(res8).toStrictEqual([]);
 });
 
 test('sparsevec + sparsevec arrays', async () => {
 	const res1 = await diffDefault(_, sparsevec({ dimensions: 5 }).default(`{1:-1,3:2,5:3}/5`), `'{1:-1,3:2,5:3}/5'`);
 	const res2 = await diffDefault(
 		_,
-		sparsevec({ dimensions: 5 }).default(`{1:-1.123456789,3:2.123456789,5:3.123456789}/5`),
-		`'{1:-1.123456789,3:2.123456789,5:3.123456789}/5'`,
+		sparsevec({ dimensions: 5 }).default(`{1:-1.1234567,3:2.1234567,5:3.1234567}/5`),
+		`'{1:-1.1234567,3:2.1234567,5:3.1234567}/5'`,
 	);
 
 	const res3 = await diffDefault(_, sparsevec({ dimensions: 5 }).array().default([]), `'{}'::sparsevec(5)[]`);
@@ -1181,8 +1254,8 @@ test('sparsevec + sparsevec arrays', async () => {
 	);
 	const res5 = await diffDefault(
 		_,
-		sparsevec({ dimensions: 5 }).array().default(['{1:-1.123456789,3:2.123456789,5:3.123456789}/5']),
-		`'{"{1:-1.123456789,3:2.123456789,5:3.123456789}/5"}'::sparsevec(5)[]`,
+		sparsevec({ dimensions: 5 }).array().default(['{1:-1.1234567,3:2.1234567,5:3.1234567}/5']),
+		`'{"{1:-1.1234567,3:2.1234567,5:3.1234567}/5"}'::sparsevec(5)[]`,
 	);
 
 	const res6 = await diffDefault(_, sparsevec({ dimensions: 5 }).array().array().default([]), `'{}'::sparsevec(5)[]`);
@@ -1193,10 +1266,10 @@ test('sparsevec + sparsevec arrays', async () => {
 	);
 	const res8 = await diffDefault(
 		_,
-		sparsevec({ dimensions: 5 }).array().array().default([['{1:-1.123456789,3:2.123456789,5:3.123456789}/5'], [
-			'{1:-1.123456789,3:2.123456789,5:3.123456789}/5',
+		sparsevec({ dimensions: 5 }).array().array().default([['{1:-1.1234567,3:2.1234567,5:3.1234567}/5'], [
+			'{1:-1.1234567,3:2.1234567,5:3.1234567}/5',
 		]]),
-		`'{{"{1:-1.123456789,3:2.123456789,5:3.123456789}/5"},{"{1:-1.123456789,3:2.123456789,5:3.123456789}/5"}}'::sparsevec(5)[]`,
+		`'{{"{1:-1.1234567,3:2.1234567,5:3.1234567}/5"},{"{1:-1.1234567,3:2.1234567,5:3.1234567}/5"}}'::sparsevec(5)[]`,
 	);
 
 	expect.soft(res1).toStrictEqual([]);
@@ -1209,6 +1282,51 @@ test('sparsevec + sparsevec arrays', async () => {
 	expect.soft(res8).toStrictEqual([]);
 });
 
+test('macaddr + macaddr arrays', async () => {
+	const res1 = await diffDefault(_, macaddr().default('08:00:2b:01:02:03'), `'08:00:2b:01:02:03'`);
+	const res2 = await diffDefault(_, macaddr().default('ff:ff:ff:ff:ff:ff'), `'ff:ff:ff:ff:ff:ff'`);
+
+	const res3 = await diffDefault(_, macaddr().array().default([]), `'{}'::macaddr[]`);
+	const res4 = await diffDefault(
+		_,
+		macaddr().array().default(['08:00:2b:01:02:03']),
+		`'{08:00:2b:01:02:03}'::macaddr[]`,
+	);
+	const res5 = await diffDefault(
+		_,
+		macaddr().array().array().default([['08:00:2b:01:02:03'], ['ff:ff:ff:ff:ff:ff']]),
+		`'{{08:00:2b:01:02:03},{ff:ff:ff:ff:ff:ff}}'::macaddr[]`,
+	);
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
+	expect.soft(res5).toStrictEqual([]);
+});
+test('macaddr8 + macaddr8 arrays', async () => {
+	const res1 = await diffDefault(_, macaddr8().default('08:00:2b:01:02:03:04:05'), `'08:00:2b:01:02:03:04:05'`);
+	const res2 = await diffDefault(_, macaddr8().default('ff:ff:ff:ff:ff:ff:ff:ff'), `'ff:ff:ff:ff:ff:ff:ff:ff'`);
+
+	const res3 = await diffDefault(_, macaddr8().array().default([]), `'{}'::macaddr8[]`);
+	const res4 = await diffDefault(
+		_,
+		macaddr8().array().default(['08:00:2b:01:02:03:04:05']),
+		`'{08:00:2b:01:02:03:04:05}'::macaddr8[]`,
+	);
+	const res5 = await diffDefault(
+		_,
+		macaddr8().array().array().default([['08:00:2b:01:02:03:04:05'], ['ff:ff:ff:ff:ff:ff:ff:ff']]),
+		`'{{08:00:2b:01:02:03:04:05},{ff:ff:ff:ff:ff:ff:ff:ff}}'::macaddr8[]`,
+	);
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
+	expect.soft(res5).toStrictEqual([]);
+});
+
 test('vector + vector arrays', async () => {
 	const res1 = await diffDefault(_, vector({ dimensions: 3 }).default([0, -2, 3]), `'[0,-2,3]'`);
 	const res2 = await diffDefault(
@@ -1217,33 +1335,33 @@ test('vector + vector arrays', async () => {
 		`'[0,-2.1234567,3.1234567]'`,
 	);
 
-	const res3 = await diffDefault(_, vector({ dimensions: 3 }).array().default([]), `'{}'::vector[]`);
+	const res3 = await diffDefault(_, vector({ dimensions: 3 }).array().default([]), `'{}'::vector(3)[]`);
 	const res4 = await diffDefault(
 		_,
 		vector({ dimensions: 3 }).array().default([[0, -2, 3]]),
-		`'{"[0,-2,3]"}'::vector[]`,
+		`'{"[0,-2,3]"}'::vector(3)[]`,
 	);
 	const res5 = await diffDefault(
 		_,
 		vector({ dimensions: 3 }).array().default([[0, -2.1234567, 3.1234567]]),
-		`'{"[0,-2.1234567,3.1234567]"}'::vector[]`,
+		`'{"[0,-2.1234567,3.1234567]"}'::vector(3)[]`,
 	);
 
-	const res6 = await diffDefault(_, vector({ dimensions: 3 }).array().array().default([]), `'{}'::vector[]`);
+	const res6 = await diffDefault(_, vector({ dimensions: 3 }).array().array().default([]), `'{}'::vector(3)[]`);
 	const res7 = await diffDefault(
 		_,
 		vector({ dimensions: 3 }).array().array().default([[[0, -2, 3]], [[1, 2, 3]]]),
-		`'{{"[0,-2,3]"},{"[1,2,3]"}}'::vector[]`,
+		`'{{"[0,-2,3]"},{"[1,2,3]"}}'::vector(3)[]`,
 	);
 	const res8 = await diffDefault(
 		_,
 		vector({ dimensions: 3 }).array().array().default([[
 			[0, -2.1234567, 3.1234567],
 		], [[1.1234567, 2.1234567, 3.1234567]]]),
-		`'{{"[0,-2.1234567,3.1234567]"},{"[1.1234567,2.1234567,3.1234567]"}}'::vector[]`,
+		`'{{"[0,-2.1234567,3.1234567]"},{"[1.1234567,2.1234567,3.1234567]"}}'::vector(3)[]`,
 	);
 
-	const res9 = await diffDefault(_, vector({ dimensions: 2 }).default([0, -2]), `'[0,-2,0]'`);
+	const res9 = await diffDefault(_, vector({ dimensions: 2 }).default([0, -2]), `'[0,-2]'`);
 	const res10 = await diffDefault(_, vector({ dimensions: 5 }).default([0, -2, 0, 0, 0]), `'[0,-2,0,0,0]'`);
 
 	expect.soft(res1).toStrictEqual([]);
@@ -1260,6 +1378,7 @@ test('vector + vector arrays', async () => {
 
 // postgis extension
 // SRID=4326 -> these coordinates are longitude/latitude values
+// Default is 0 or undefined
 test('geometry + geometry arrays', async () => {
 	const postgisDb = await preparePostgisTestDatabase();
 
@@ -1267,41 +1386,69 @@ test('geometry + geometry arrays', async () => {
 		const res1 = await diffDefault(
 			postgisDb,
 			geometry({ srid: 4326, mode: 'tuple', type: 'point' }).default([30.5234, 50.4501]),
-			`'SRID=4326;POINT(30.7233 46.4825)'`,
+			`'SRID=4326;POINT(30.5234 50.4501)'`,
+			undefined,
+			undefined,
+			['table'],
+			['public'],
 		);
 
 		const res2 = await diffDefault(
 			postgisDb,
 			geometry({ srid: 4326, mode: 'xy', type: 'point' }).default({ x: 30.5234, y: 50.4501 }),
-			`'SRID=4326;POINT(30.7233 46.4825)'`,
+			`'SRID=4326;POINT(30.5234 50.4501)'`,
+			undefined,
+			undefined,
+			['table'],
+			['public'],
 		);
 
 		const res3 = await diffDefault(
 			postgisDb,
 			geometry({ srid: 4326, mode: 'tuple', type: 'point' }).array().default([]),
-			`'{}'::geometry(point, 4326)[]`,
+			`'{}'::geometry(point,4326)[]`,
+			undefined,
+			undefined,
+			['table'],
+			['public'],
 		);
 		const res4 = await diffDefault(
 			postgisDb,
 			geometry({ srid: 4326, mode: 'tuple', type: 'point' }).array().default([[30.5234, 50.4501]]),
-			`'{"SRID=4326;POINT(30.7233 46.4825)"}'::geometry(point, 4326)[]`,
+			`ARRAY['SRID=4326;POINT(30.5234 50.4501)']::geometry(point,4326)[]`,
+			undefined,
+			undefined,
+			['table'],
+			['public'],
 		);
 
 		const res5 = await diffDefault(
 			postgisDb,
 			geometry({ srid: 4326, mode: 'xy', type: 'point' }).array().default([]),
-			`'{}'::geometry(point, 4326)[]`,
+			`'{}'::geometry(point,4326)[]`,
+			undefined,
+			undefined,
+			['table'],
+			['public'],
 		);
 		const res6 = await diffDefault(
 			postgisDb,
 			geometry({ srid: 4326, mode: 'xy', type: 'point' }).array().default([{ x: 30.5234, y: 50.4501 }]),
-			`'{"SRID=4326;POINT(30.7233 46.4825)"}'::geometry(point, 4326)[]`,
+			`ARRAY['SRID=4326;POINT(30.5234 50.4501)']::geometry(point,4326)[]`,
+			undefined,
+			undefined,
+			['table'],
+			['public'],
 		);
 
 		const res7 = await diffDefault(
 			postgisDb,
 			geometry({ srid: 4326, mode: 'tuple', type: 'point' }).array().array().default([]),
-			`'{}'::geometry(point, 4326)[]`,
+			`'{}'::geometry(point,4326)[]`,
+			undefined,
+			undefined,
+			['table'],
+			['public'],
 		);
 		const res8 = await diffDefault(
 			postgisDb,
@@ -1309,21 +1456,103 @@ test('geometry + geometry arrays', async () => {
 				30.5234,
 				50.4501,
 			]]]),
-			`ARRAY[ARRAY['SRID=4326;POINT(30.5234 50.4501)'],ARRAY['SRID=4326;POINT(30.5234 50.4501)']]::geometry(Point,4326)[]`,
+			`ARRAY[ARRAY['SRID=4326;POINT(30.5234 50.4501)'],ARRAY['SRID=4326;POINT(30.5234 50.4501)']]::geometry(point,4326)[]`,
+			undefined,
+			undefined,
+			['table'],
+			['public'],
 		);
 
 		const res9 = await diffDefault(
 			postgisDb,
 			geometry({ srid: 4326, mode: 'xy', type: 'point' }).array().array().default([]),
-			`'{}'::geometry(point, 4326)[]`,
+			`'{}'::geometry(point,4326)[]`,
+			undefined,
+			undefined,
+			['table'],
+			['public'],
 		);
+
 		const res10 = await diffDefault(
 			postgisDb,
 			geometry({ srid: 4326, mode: 'xy', type: 'point' }).array().array().default([[{ x: 30.5234, y: 50.4501 }], [{
 				x: 30.5234,
 				y: 50.4501,
 			}]]),
-			`ARRAY[ARRAY['SRID=4326;POINT(30.5234 50.4501)'],ARRAY['SRID=4326;POINT(30.5234 50.4501)']]::geometry(Point,4326)[]`,
+			`ARRAY[ARRAY['SRID=4326;POINT(30.5234 50.4501)'],ARRAY['SRID=4326;POINT(30.5234 50.4501)']]::geometry(point,4326)[]`,
+			undefined,
+			undefined,
+			['table'],
+			['public'],
+		);
+
+		const res11 = await diffDefault(
+			postgisDb,
+			geometry({ mode: 'xy', type: 'point' }).default({ x: 30.5234, y: 50.4501 }),
+			`'POINT(30.5234 50.4501)'`,
+			undefined,
+			undefined,
+			['table'],
+			['public'],
+		);
+
+		const res12 = await diffDefault(
+			postgisDb,
+			geometry({ mode: 'xy', type: 'point' }).default(sql`'SRID=4326;POINT(10 10)'`),
+			`'SRID=4326;POINT(10 10)'`,
+			undefined,
+			undefined,
+			['table'],
+			['public'],
+		);
+		// const res12_1 = await diffDefault(
+		// 	postgisDb,
+		// 	geometry().default(sql`'SRID=0;POINT(12.1 12.1)'`),
+		// 	`'SRID=0;POINT(12.1 12.1)'`,
+		// 	undefined,
+		// 	undefined,
+		// 	true,
+		// );
+
+		const res13 = await diffDefault(
+			postgisDb,
+			geometry({ mode: 'xy', type: 'point' }).array().default([{ x: 13, y: 13 }]),
+			`ARRAY['POINT(13 13)']::geometry(point)[]`,
+			undefined,
+			undefined,
+			['table'],
+			['public'],
+		);
+
+		// this will result diffs on push only
+		// i believe we should not handle this since will be log in console for user about diff and this is sql``
+		// const res14 = await diffDefault(
+		// 	postgisDb,
+		// 	geometry({ mode: 'xy', type: 'point' }).array().default(sql`'{SRID=4326;POINT(14 14)}'::geometry(point)[]`),
+		// 	`'{SRID=4326;POINT(14 14)}'::geometry(point)[]`,
+		// 	undefined,
+		// 	undefined,
+		// 	true,
+		// );
+
+		const res15 = await diffDefault(
+			postgisDb,
+			geometry({ mode: 'xy', type: 'point' }).array().default(sql`ARRAY['SRID=4326;POINT(15 15)']::geometry(point)[]`),
+			`ARRAY['SRID=4326;POINT(15 15)']::geometry(point)[]`,
+			undefined,
+			undefined,
+			['table'],
+			['public'],
+		);
+
+		const res16 = await diffDefault(
+			postgisDb,
+			geometry({ mode: 'xy', type: 'point' }).array().default(sql`ARRAY['POINT(16 16)']::geometry(point)[]`),
+			`ARRAY['POINT(16 16)']::geometry(point)[]`,
+			undefined,
+			undefined,
+			['table'],
+			['public'],
 		);
 
 		expect.soft(res1).toStrictEqual([]);
@@ -1334,6 +1563,15 @@ test('geometry + geometry arrays', async () => {
 		expect.soft(res6).toStrictEqual([]);
 		expect.soft(res7).toStrictEqual([]);
 		expect.soft(res8).toStrictEqual([]);
+		expect.soft(res9).toStrictEqual([]);
+		expect.soft(res10).toStrictEqual([]);
+		expect.soft(res11).toStrictEqual([]);
+		expect.soft(res12).toStrictEqual([]);
+		// expect.soft(res12_1).toStrictEqual([]);
+		expect.soft(res13).toStrictEqual([]);
+		// expect.soft(res14).toStrictEqual([]);
+		expect.soft(res15).toStrictEqual([]);
+		expect.soft(res16).toStrictEqual([]);
 	} catch (error) {
 		await postgisDb.clear();
 		await postgisDb.close();
@@ -1342,6 +1580,24 @@ test('geometry + geometry arrays', async () => {
 
 	await postgisDb.clear();
 	await postgisDb.close();
+});
+
+test('inet + inet arrays', async () => {
+	const res1 = await diffDefault(_, inet().default('127.0.0.1'), `'127.0.0.1'`);
+	const res2 = await diffDefault(_, inet().default('::ffff:192.168.0.1/96'), `'::ffff:192.168.0.1/96'`);
+
+	const res1_1 = await diffDefault(_, inet().array().default(['127.0.0.1']), `'{127.0.0.1}'::inet[]`);
+	const res2_1 = await diffDefault(
+		_,
+		inet().array().default(['::ffff:192.168.0.1/96']),
+		`'{::ffff:192.168.0.1/96}'::inet[]`,
+	);
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+
+	expect.soft(res1_1).toStrictEqual([]);
+	expect.soft(res2_1).toStrictEqual([]);
 });
 
 test.skip('corner cases', async () => {
@@ -1374,11 +1630,6 @@ test.skip('corner cases', async () => {
 		`'{"mo''''\\\",\`\}\{od"}'::"mood_enum"[]`,
 		pre,
 	);
-
-	diffDefault(_, uuid().defaultRandom(), `gen_random_uuid()`);
-	diffDefault(_, uuid().array().default([]), `'{}'::uuid[]`);
-	diffDefault(_, moodEnum().default(`mo''",\`}{od`), `'mo''''",\`}{od'::"mood_enum"`, pre);
-	diffDefault(_, moodEnum().default(`text'text"`), `'text''text"'::"mood_enum"`, pre);
 
 	// const res_10 = await diffDefault(
 	// 	_,

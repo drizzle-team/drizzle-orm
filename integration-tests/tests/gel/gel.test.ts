@@ -82,13 +82,15 @@ import { Expect } from '~/utils';
 import 'zx/globals';
 import { TestCache, TestGlobalCache } from './cache';
 import { createDockerDB } from './createInstance';
+import relations from './relations';
+import { rqbPost, rqbUser } from './schema';
 
 $.quiet = true;
 
 const ENABLE_LOGGING = false;
 
 let client: Client;
-let db: GelJsDatabase;
+let db: GelJsDatabase<never, typeof relations>;
 let dbGlobalCached: GelJsDatabase;
 let cachedDb: GelJsDatabase;
 const tlsSecurity: string = 'insecure';
@@ -102,7 +104,7 @@ function sleep(ms: number) {
 declare module 'vitest' {
 	interface TestContext {
 		gel: {
-			db: GelJsDatabase;
+			db: GelJsDatabase<never, typeof relations>;
 		};
 		cachedGel: {
 			db: GelJsDatabase;
@@ -234,7 +236,7 @@ beforeAll(async () => {
 			client?.close();
 		},
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
 	cachedDb = drizzle(client, {
 		logger: ENABLE_LOGGING,
 		cache: new TestCache(),
@@ -281,7 +283,6 @@ describe('some', async () => {
           SET default := datetime_of_statement();
       };
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
 		await $`gel query "CREATE TYPE default::users_with_cities {
     create property id1: int16 {
         create constraint exclusive;
@@ -289,7 +290,6 @@ describe('some', async () => {
     create required property name: str;
     create required property cityId: int32;
     };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
 		await $`gel query "CREATE TYPE default::users_with_undefined {
         create property id1: int16 {
             create constraint exclusive;
@@ -305,7 +305,6 @@ describe('some', async () => {
             };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 
 		await $`gel query "CREATE MODULE mySchema;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
-
 		await $`gel query "CREATE TYPE mySchema::users {
             create property id1: int16;
             create required property name: str;
@@ -540,6 +539,22 @@ describe('some', async () => {
         create required property age: int32;
         create required property city: str;
         };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+
+		await $`gel query "CREATE TYPE default::user_rqb_test {
+        create property custom_id: int32 {
+            create constraint exclusive;
+        };
+        create property name: str;
+  		create required property created_at -> datetime;
+    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "CREATE TYPE default::post_rqb_test {
+        create property custom_id: int32 {
+            create constraint exclusive;
+        };
+        create required property user_id: int32;
+        create property content: str;
+  		create required property created_at -> datetime;
+    };" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 	});
 
 	afterEach(async () => {
@@ -555,6 +570,8 @@ describe('some', async () => {
 		await $`gel query "DELETE default::users1;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 		await $`gel query "DELETE default::users2;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 		await $`gel query "DELETE default::jsontest;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DELETE default::user_rqb_test" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DELETE default::post_rqb_test" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 	});
 
 	afterAll(async () => {
@@ -601,9 +618,11 @@ describe('some', async () => {
 		await $`gel query "DROP TYPE default::users_with_names" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 		await $`gel query "DROP MODULE mySchema;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 		await $`gel query "DROP TYPE users_with_age;" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::user_rqb_test" --tls-security=${tlsSecurity} --dsn=${dsn}`;
+		await $`gel query "DROP TYPE default::post_rqb_test" --tls-security=${tlsSecurity} --dsn=${dsn}`;
 	});
 
-	async function setupSetOperationTest(db: GelJsDatabase) {
+	async function setupSetOperationTest(db: GelJsDatabase<any, any>) {
 		await db.insert(cities2Table).values([
 			{ id1: 1, name: 'New York' },
 			{ id1: 2, name: 'London' },
@@ -622,7 +641,7 @@ describe('some', async () => {
 		]);
 	}
 
-	async function setupAggregateFunctionsTest(db: GelJsDatabase) {
+	async function setupAggregateFunctionsTest(db: GelJsDatabase<any, any>) {
 		await db.insert(aggregateTable).values([
 			{ id1: 1, name: 'value 1', a: 5, b: 10, c: 20 },
 			{ id1: 2, name: 'value 1', a: 5, b: 20, c: 30 },
@@ -4997,6 +5016,580 @@ describe('some', async () => {
 				.returning({ id1: usersTable.id1, name: usersTable.name }),
 		);
 		expect(inserted).toEqual([{ id1: 1, name: 'John' }]);
+	});
+
+	test('RQB v2 simple find first - no rows', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const result = await db.query.rqbUser.findFirst();
+
+		expect(result).toStrictEqual(undefined);
+	});
+
+	test('RQB v2 simple find first - multiple rows', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const date = new Date(12000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		const result = await db.query.rqbUser.findFirst({
+			orderBy: {
+				id: 'desc',
+			},
+		});
+
+		expect(result).toStrictEqual({
+			_id: expect.stringMatching(/(.*)/),
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		});
+	});
+
+	test('RQB v2 simple find first - with relation', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const date = new Date(12000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		await db.insert(rqbPost).values([{
+			id: 1,
+			userId: 1,
+			createdAt: date,
+			content: null,
+		}, {
+			id: 2,
+			userId: 1,
+			createdAt: date,
+			content: 'Has message this time',
+		}]);
+
+		const result = await db.query.rqbUser.findFirst({
+			with: {
+				posts: {
+					orderBy: {
+						id: 'asc',
+					},
+				},
+			},
+			orderBy: {
+				id: 'asc',
+			},
+		});
+
+		expect(result).toStrictEqual({
+			_id: expect.stringMatching(/(.*)/),
+			id: 1,
+			createdAt: date,
+			name: 'First',
+			posts: [{
+				_id: expect.stringMatching(/(.*)/),
+				id: 1,
+				userId: 1,
+				createdAt: date,
+				content: null,
+			}, {
+				_id: expect.stringMatching(/(.*)/),
+				id: 2,
+				userId: 1,
+				createdAt: date,
+				content: 'Has message this time',
+			}],
+		});
+	});
+
+	test('RQB v2 simple find first - placeholders', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const date = new Date(12000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		const query = db.query.rqbUser.findFirst({
+			where: {
+				id: {
+					eq: sql.placeholder('filter'),
+				},
+			},
+			orderBy: {
+				id: 'asc',
+			},
+		}).prepare('rqb_v2_find_first_placeholders');
+
+		const result = await query.execute({
+			filter: 2,
+		});
+
+		expect(result).toStrictEqual({
+			_id: expect.stringMatching(/(.*)/),
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		});
+	});
+
+	test('RQB v2 simple find many - no rows', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const result = await db.query.rqbUser.findMany();
+
+		expect(result).toStrictEqual([]);
+	});
+
+	test('RQB v2 simple find many - multiple rows', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const date = new Date(12000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		const result = await db.query.rqbUser.findMany({
+			orderBy: {
+				id: 'desc',
+			},
+		});
+
+		expect(result).toStrictEqual([{
+			_id: expect.stringMatching(/(.*)/),
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}, {
+			_id: expect.stringMatching(/(.*)/),
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}]);
+	});
+
+	test('RQB v2 simple find many - with relation', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const date = new Date(12000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		await db.insert(rqbPost).values([{
+			id: 1,
+			userId: 1,
+			createdAt: date,
+			content: null,
+		}, {
+			id: 2,
+			userId: 1,
+			createdAt: date,
+			content: 'Has message this time',
+		}]);
+
+		const result = await db.query.rqbPost.findMany({
+			with: {
+				author: true,
+			},
+			orderBy: {
+				id: 'asc',
+			},
+		});
+
+		expect(result).toStrictEqual([{
+			_id: expect.stringMatching(/(.*)/),
+			id: 1,
+			userId: 1,
+			createdAt: date,
+			content: null,
+			author: {
+				_id: expect.stringMatching(/(.*)/),
+				id: 1,
+				createdAt: date,
+				name: 'First',
+			},
+		}, {
+			_id: expect.stringMatching(/(.*)/),
+			id: 2,
+			userId: 1,
+			createdAt: date,
+			content: 'Has message this time',
+			author: {
+				_id: expect.stringMatching(/(.*)/),
+				id: 1,
+				createdAt: date,
+				name: 'First',
+			},
+		}]);
+	});
+
+	test('RQB v2 simple find many - placeholders', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const date = new Date(12000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		const query = db.query.rqbUser.findMany({
+			where: {
+				id: {
+					eq: sql.placeholder('filter'),
+				},
+			},
+			orderBy: {
+				id: 'asc',
+			},
+		}).prepare('rqb_v2_find_many_placeholders');
+
+		const result = await query.execute({
+			filter: 2,
+		});
+
+		expect(result).toStrictEqual([{
+			_id: expect.stringMatching(/(.*)/),
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+	});
+
+	test('RQB v2 transaction find first - no rows', async (ctx) => {
+		const { db } = ctx.gel;
+
+		await db.transaction(async (db) => {
+			const result = await db.query.rqbUser.findFirst();
+
+			expect(result).toStrictEqual(undefined);
+		});
+	});
+
+	test('RQB v2 transaction find first - multiple rows', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const date = new Date(12000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		await db.transaction(async (db) => {
+			const result = await db.query.rqbUser.findFirst({
+				orderBy: {
+					id: 'desc',
+				},
+			});
+
+			expect(result).toStrictEqual({
+				_id: expect.stringMatching(/(.*)/),
+				id: 2,
+				createdAt: date,
+				name: 'Second',
+			});
+		});
+	});
+
+	test('RQB v2 transaction find first - with relation', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const date = new Date(12000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		await db.insert(rqbPost).values([{
+			id: 1,
+			userId: 1,
+			createdAt: date,
+			content: null,
+		}, {
+			id: 2,
+			userId: 1,
+			createdAt: date,
+			content: 'Has message this time',
+		}]);
+
+		await db.transaction(async (db) => {
+			const result = await db.query.rqbUser.findFirst({
+				with: {
+					posts: {
+						orderBy: {
+							id: 'asc',
+						},
+					},
+				},
+				orderBy: {
+					id: 'asc',
+				},
+			});
+
+			expect(result).toStrictEqual({
+				_id: expect.stringMatching(/(.*)/),
+				id: 1,
+				createdAt: date,
+				name: 'First',
+				posts: [{
+					_id: expect.stringMatching(/(.*)/),
+					id: 1,
+					userId: 1,
+					createdAt: date,
+					content: null,
+				}, {
+					_id: expect.stringMatching(/(.*)/),
+					id: 2,
+					userId: 1,
+					createdAt: date,
+					content: 'Has message this time',
+				}],
+			});
+		});
+	});
+
+	test('RQB v2 transaction find first - placeholders', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const date = new Date(12000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		await db.transaction(async (db) => {
+			const query = db.query.rqbUser.findFirst({
+				where: {
+					id: {
+						eq: sql.placeholder('filter'),
+					},
+				},
+				orderBy: {
+					id: 'asc',
+				},
+			}).prepare('rqb_v2_find_first_tx_placeholders');
+
+			const result = await query.execute({
+				filter: 2,
+			});
+
+			expect(result).toStrictEqual({
+				_id: expect.stringMatching(/(.*)/),
+				id: 2,
+				createdAt: date,
+				name: 'Second',
+			});
+		});
+	});
+
+	test('RQB v2 transaction find many - no rows', async (ctx) => {
+		const { db } = ctx.gel;
+
+		await db.transaction(async (db) => {
+			const result = await db.query.rqbUser.findMany();
+
+			expect(result).toStrictEqual([]);
+		});
+	});
+
+	test('RQB v2 transaction find many - multiple rows', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const date = new Date(12000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		await db.transaction(async (db) => {
+			const result = await db.query.rqbUser.findMany({
+				orderBy: {
+					id: 'desc',
+				},
+			});
+
+			expect(result).toStrictEqual([{
+				_id: expect.stringMatching(/(.*)/),
+				id: 2,
+				createdAt: date,
+				name: 'Second',
+			}, {
+				_id: expect.stringMatching(/(.*)/),
+				id: 1,
+				createdAt: date,
+				name: 'First',
+			}]);
+		});
+	});
+
+	test('RQB v2 transaction find many - with relation', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const date = new Date(12000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		await db.insert(rqbPost).values([{
+			id: 1,
+			userId: 1,
+			createdAt: date,
+			content: null,
+		}, {
+			id: 2,
+			userId: 1,
+			createdAt: date,
+			content: 'Has message this time',
+		}]);
+
+		await db.transaction(async (db) => {
+			const result = await db.query.rqbPost.findMany({
+				with: {
+					author: true,
+				},
+				orderBy: {
+					id: 'asc',
+				},
+			});
+
+			expect(result).toStrictEqual([{
+				_id: expect.stringMatching(/(.*)/),
+				id: 1,
+				userId: 1,
+				createdAt: date,
+				content: null,
+				author: {
+					_id: expect.stringMatching(/(.*)/),
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				},
+			}, {
+				_id: expect.stringMatching(/(.*)/),
+				id: 2,
+				userId: 1,
+				createdAt: date,
+				content: 'Has message this time',
+				author: {
+					_id: expect.stringMatching(/(.*)/),
+					id: 1,
+					createdAt: date,
+					name: 'First',
+				},
+			}]);
+		});
+	});
+
+	test('RQB v2 transaction find many - placeholders', async (ctx) => {
+		const { db } = ctx.gel;
+
+		const date = new Date(12000);
+
+		await db.insert(rqbUser).values([{
+			id: 1,
+			createdAt: date,
+			name: 'First',
+		}, {
+			id: 2,
+			createdAt: date,
+			name: 'Second',
+		}]);
+
+		await db.transaction(async (db) => {
+			const query = db.query.rqbUser.findMany({
+				where: {
+					id: {
+						eq: sql.placeholder('filter'),
+					},
+				},
+				orderBy: {
+					id: 'asc',
+				},
+			}).prepare('rqb_v2_find_many_placeholders');
+
+			const result = await query.execute({
+				filter: 2,
+			});
+
+			expect(result).toStrictEqual([{
+				_id: expect.stringMatching(/(.*)/),
+				id: 2,
+				createdAt: date,
+				name: 'Second',
+			}]);
+		});
 	});
 
 	test('test force invalidate', async (ctx) => {

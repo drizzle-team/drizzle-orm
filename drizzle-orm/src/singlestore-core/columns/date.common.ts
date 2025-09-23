@@ -1,9 +1,4 @@
-import type {
-	ColumnBuilderBaseConfig,
-	ColumnBuilderExtraConfig,
-	ColumnDataType,
-	HasDefault,
-} from '~/column-builder.ts';
+import type { ColumnBuilderBaseConfig, ColumnBuilderExtraConfig, ColumnType, HasDefault } from '~/column-builder.ts';
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import { sql } from '~/sql/sql.ts';
@@ -14,7 +9,7 @@ export interface SingleStoreDateColumnBaseConfig {
 }
 
 export abstract class SingleStoreDateColumnBaseBuilder<
-	T extends ColumnBuilderBaseConfig<ColumnDataType, string>,
+	T extends ColumnBuilderBaseConfig<ColumnType>,
 	TRuntimeConfig extends object = object,
 	TExtraConfig extends ColumnBuilderExtraConfig = ColumnBuilderExtraConfig,
 > extends SingleStoreColumnBuilder<T, TRuntimeConfig & SingleStoreDateColumnBaseConfig, TExtraConfig> {
@@ -32,7 +27,7 @@ export abstract class SingleStoreDateColumnBaseBuilder<
 }
 
 export abstract class SingleStoreDateBaseColumn<
-	T extends ColumnBaseConfig<ColumnDataType, string>,
+	T extends ColumnBaseConfig<ColumnType>,
 	TRuntimeConfig extends object = object,
 > extends SingleStoreColumn<T, SingleStoreDateColumnBaseConfig & TRuntimeConfig> {
 	static override readonly [entityKind]: string = 'SingleStoreDateColumn';

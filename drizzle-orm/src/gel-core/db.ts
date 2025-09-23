@@ -1,3 +1,4 @@
+import type * as V1 from '~/_relations.ts';
 import type { Cache } from '~/cache/core/cache.ts';
 import { entityKind } from '~/entity.ts';
 import type { GelDialect } from '~/gel-core/dialect.ts';
@@ -11,12 +12,13 @@ import {
 import type { GelQueryResultHKT, GelSession, GelTransaction, PreparedQueryConfig } from '~/gel-core/session.ts';
 import type { GelTable } from '~/gel-core/table.ts';
 import type { TypedQueryBuilder } from '~/query-builders/query-builder.ts';
-import type { ExtractTablesWithRelations, RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
+import type { AnyRelations, EmptyRelations } from '~/relations.ts';
 import { SelectionProxyHandler } from '~/selection-proxy.ts';
 import { type ColumnsSelection, type SQL, sql, type SQLWrapper } from '~/sql/sql.ts';
 import { WithSubquery } from '~/subquery.ts';
 import type { DrizzleTypeError } from '~/utils.ts';
 import type { GelColumn } from './columns/index.ts';
+import { _RelationalQueryBuilder } from './query-builders/_query.ts';
 import { GelCountBuilder } from './query-builders/count.ts';
 import { RelationalQueryBuilder } from './query-builders/query.ts';
 import { GelRaw } from './query-builders/raw.ts';
@@ -27,7 +29,8 @@ import type { GelViewBase } from './view-base.ts';
 export class GelDatabase<
 	TQueryResult extends GelQueryResultHKT,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
-	TSchema extends TablesRelationalConfig = ExtractTablesWithRelations<TFullSchema>,
+	TRelations extends AnyRelations = EmptyRelations,
+	TSchema extends V1.TablesRelationalConfig = V1.ExtractTablesWithRelations<TFullSchema>,
 > {
 	static readonly [entityKind]: string = 'GelDatabase';
 
@@ -35,48 +38,77 @@ export class GelDatabase<
 		readonly schema: TSchema | undefined;
 		readonly fullSchema: TFullSchema;
 		readonly tableNamesMap: Record<string, string>;
-		readonly session: GelSession<TQueryResult, TFullSchema, TSchema>;
+		readonly relations: TRelations;
+		readonly session: GelSession<TQueryResult, TFullSchema, TRelations, TSchema>;
 	};
 
-	query: TFullSchema extends Record<string, never>
+	/** @deprecated */
+	_query: TFullSchema extends Record<string, never>
 		? DrizzleTypeError<'Seems like the schema generic is missing - did you forget to add it to your DB type?'>
 		: {
-			[K in keyof TSchema]: RelationalQueryBuilder<TSchema, TSchema[K]>;
+			[K in keyof TSchema]: _RelationalQueryBuilder<TSchema, TSchema[K]>;
 		};
+
+	// TO-DO: Figure out how to pass DrizzleTypeError without breaking withReplicas
+	query: {
+		[K in keyof TRelations]: RelationalQueryBuilder<
+			TRelations,
+			TRelations[K]
+		>;
+	};
 
 	constructor(
 		/** @internal */
 		readonly dialect: GelDialect,
 		/** @internal */
-		readonly session: GelSession<any, any, any>,
-		schema: RelationalSchemaConfig<TSchema> | undefined,
+		readonly session: GelSession<any, any, any, any>,
+		relations: TRelations,
+		schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 	) {
 		this._ = schema
 			? {
 				schema: schema.schema,
 				fullSchema: schema.fullSchema as TFullSchema,
 				tableNamesMap: schema.tableNamesMap,
+				relations: relations,
 				session,
 			}
 			: {
 				schema: undefined,
 				fullSchema: {} as TFullSchema,
 				tableNamesMap: {},
+				relations: relations,
 				session,
 			};
-		this.query = {} as typeof this['query'];
+		this._query = {} as typeof this['_query'];
 		if (this._.schema) {
 			for (const [tableName, columns] of Object.entries(this._.schema)) {
-				(this.query as GelDatabase<TQueryResult, Record<string, any>>['query'])[tableName] = new RelationalQueryBuilder(
-					schema!.fullSchema,
-					this._.schema,
-					this._.tableNamesMap,
-					schema!.fullSchema[tableName] as GelTable,
-					columns,
-					dialect,
-					session,
-				);
+				(this._query as GelDatabase<TQueryResult, Record<string, any>>['_query'])[tableName] =
+					new _RelationalQueryBuilder(
+						schema!.fullSchema,
+						this._.schema,
+						this._.tableNamesMap,
+						schema!.fullSchema[tableName] as GelTable,
+						columns,
+						dialect,
+						session,
+					);
 			}
+		}
+		this.query = {} as typeof this['query'];
+		for (const [tableName, relation] of Object.entries(relations)) {
+			(this.query as GelDatabase<
+				TQueryResult,
+				TSchema,
+				AnyRelations,
+				V1.TablesRelationalConfig
+			>['query'])[tableName] = new RelationalQueryBuilder(
+				relations,
+				relations[relation.name]!.table as GelTable,
+				relation,
+				dialect,
+				session,
+			);
 		}
 
 		this.$cache = { invalidate: async (_params: any) => {} };
@@ -616,7 +648,7 @@ export class GelDatabase<
 	}
 
 	transaction<T>(
-		transaction: (tx: GelTransaction<TQueryResult, TFullSchema, TSchema>) => Promise<T>,
+		transaction: (tx: GelTransaction<TQueryResult, TFullSchema, TRelations, TSchema>) => Promise<T>,
 	): Promise<T> {
 		return this.session.transaction(transaction);
 	}
@@ -627,11 +659,13 @@ export type GelWithReplicas<Q> = Q & { $primary: Q };
 export const withReplicas = <
 	HKT extends GelQueryResultHKT,
 	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
+	TRelations extends AnyRelations,
+	TSchema extends V1.TablesRelationalConfig,
 	Q extends GelDatabase<
 		HKT,
 		TFullSchema,
-		TSchema extends Record<string, unknown> ? ExtractTablesWithRelations<TFullSchema> : TSchema
+		TRelations,
+		TSchema extends Record<string, unknown> ? V1.ExtractTablesWithRelations<TFullSchema> : TSchema
 	>,
 >(
 	primary: Q,
@@ -666,6 +700,9 @@ export const withReplicas = <
 		selectDistinctOn,
 		$with,
 		with: _with,
+		get _query() {
+			return getReplica(replicas)._query;
+		},
 		get query() {
 			return getReplica(replicas).query;
 		},

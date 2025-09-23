@@ -1,4 +1,4 @@
-import { Type, type } from 'arktype';
+import { type Type, type } from 'arktype';
 import { Column, getTableColumns, getViewSelectedFields, is, isTable, isView, SQL } from 'drizzle-orm';
 import type { Table, View } from 'drizzle-orm';
 import type { PgEnum } from 'drizzle-orm/pg-core';

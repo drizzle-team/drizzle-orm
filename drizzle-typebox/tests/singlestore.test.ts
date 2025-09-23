@@ -1,5 +1,5 @@
 import { type Static, Type as t } from '@sinclair/typebox';
-import { type Equal } from 'drizzle-orm';
+import type { Equal } from 'drizzle-orm';
 import { customType, int, json, serial, singlestoreSchema, singlestoreTable, text } from 'drizzle-orm/singlestore-core';
 import type { TopLevelCondition } from 'json-rules-engine';
 import { test } from 'vitest';
@@ -433,6 +433,10 @@ test('all data types', (tc) => {
 			dimensions: 3,
 			elementType: 'F32',
 		}).notNull(),
+		vector2: vector({
+			dimensions: 2,
+			elementType: 'I64',
+		}).notNull(),
 	}));
 
 	const result = createSelectSchema(table);
@@ -441,7 +445,7 @@ test('all data types', (tc) => {
 		bigint2: t.BigInt({ minimum: CONSTANTS.INT64_MIN, maximum: CONSTANTS.INT64_MAX }),
 		bigint3: t.Integer({ minimum: 0, maximum: Number.MAX_SAFE_INTEGER }),
 		bigint4: t.BigInt({ minimum: 0n, maximum: CONSTANTS.INT64_UNSIGNED_MAX }),
-		binary: t.String(),
+		binary: t.RegExp(/^[01]*$/, { maxLength: 10 }),
 		boolean: t.Boolean(),
 		char1: t.String({ maxLength: 10 }),
 		char2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
@@ -478,7 +482,7 @@ test('all data types', (tc) => {
 		tinyint2: t.Integer({ minimum: 0, maximum: CONSTANTS.INT8_UNSIGNED_MAX }),
 		varchar1: t.String({ maxLength: 10 }),
 		varchar2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
-		varbinary: t.String(),
+		varbinary: t.RegExp(/^[01]*$/, { maxLength: 10 }),
 		year: t.Integer({ minimum: 1901, maximum: 2155 }),
 		longtext1: t.String({ maxLength: CONSTANTS.INT32_UNSIGNED_MAX }),
 		longtext2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
@@ -487,6 +491,10 @@ test('all data types', (tc) => {
 		tinytext1: t.String({ maxLength: CONSTANTS.INT8_UNSIGNED_MAX }),
 		tinytext2: t.Enum({ a: 'a', b: 'b', c: 'c' }),
 		vector: t.Array(t.Number(), { minItems: 3, maxItems: 3 }),
+		vector2: t.Array(t.BigInt({ minimum: CONSTANTS.INT64_MIN, maximum: CONSTANTS.INT64_MAX }), {
+			minItems: 2,
+			maxItems: 2,
+		}),
 	});
 	expectSchemaShape(tc, expected).from(result);
 	Expect<Equal<typeof result, typeof expected>>();

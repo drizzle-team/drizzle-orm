@@ -15,6 +15,8 @@ import {
 	PgDialect,
 	PgEnum,
 	PgEnumColumn,
+	PgGeometry,
+	PgGeometryObject,
 	PgLineABC,
 	PgLineTuple,
 	PgMaterializedView,
@@ -55,13 +57,14 @@ import type {
 	UniqueConstraint,
 } from './ddl';
 import {
-	buildArrayString,
-	defaultForVector,
 	defaultNameForFK,
 	defaultNameForPK,
+	GeometryPoint,
 	indexName,
+	Line,
 	maxRangeForIdentityBasedOn,
 	minRangeForIdentityBasedOn,
+	Point,
 	splitSqlType,
 	stringFromIdentityProperty,
 	trimDefaultValueSuffix,
@@ -106,7 +109,7 @@ export const policyFrom = (policy: PgPolicy | GelPolicy, dialect: PgDialect | Ge
 	};
 };
 
-export const unwrapColumn = (column: AnyPgColumn) => {
+export const unwrapColumn = (column: AnyPgColumn | AnyGelColumn) => {
 	const { baseColumn, dimensions } = is(column, PgArray)
 		? unwrapArray(column)
 		: { baseColumn: column, dimensions: 0 };
@@ -183,137 +186,36 @@ export const defaultFromColumn = (
 		};
 	}
 
-	const { type } = splitSqlType(base.getSQLType());
-	const grammarType = typeFor(type);
-	if (grammarType) {
-		// if (dimensions > 0 && !Array.isArray(def)) return { value: String(def), type: 'unknown' };
-		if (dimensions > 0 && Array.isArray(def)) {
-			if (def.flat(5).length === 0) return { value: "'{}'", type: 'unknown' };
-			return grammarType.defaultArrayFromDrizzle(def, dimensions);
-		}
-		return grammarType.defaultFromDrizzle(def);
+	const { baseColumn, isEnum } = unwrapColumn(base);
+	const grammarType = typeFor(base.getSQLType(), isEnum);
+	if (is(baseColumn, PgPointTuple) || is(baseColumn, PgPointObject)) {
+		return dimensions > 0 && Array.isArray(def)
+			? def.flat(5).length === 0
+				? { value: "'{}'", type: 'unknown' }
+				: Point.defaultArrayFromDrizzle(def, dimensions, baseColumn.mode)
+			: Point.defaultFromDrizzle(def, baseColumn.mode);
+	}
+	if (is(baseColumn, PgLineABC) || is(baseColumn, PgLineTuple)) {
+		return dimensions > 0 && Array.isArray(def)
+			? def.flat(5).length === 0
+				? { value: "'{}'", type: 'unknown' }
+				: Line.defaultArrayFromDrizzle(def, dimensions, baseColumn.mode)
+			: Line.defaultFromDrizzle(def, baseColumn.mode);
+	}
+	if (is(baseColumn, PgGeometry) || is(baseColumn, PgGeometryObject)) {
+		return dimensions > 0 && Array.isArray(def)
+			? def.flat(5).length === 0
+				? { value: "'{}'", type: 'unknown' }
+				: GeometryPoint.defaultArrayFromDrizzle(def, dimensions, baseColumn.mode, baseColumn.srid)
+			: GeometryPoint.defaultFromDrizzle(def, baseColumn.mode, baseColumn.srid);
+	}
+	if (dimensions > 0 && Array.isArray(def)) {
+		if (def.flat(5).length === 0) return { value: "'{}'", type: 'unknown' };
+
+		return grammarType.defaultArrayFromDrizzle(def, dimensions);
 	}
 
-	const sqlTypeLowered = base.getSQLType().toLowerCase();
-
-	throw new Error();
-
-	if (is(base, PgLineABC)) {
-		return {
-			value: stringifyArray(def, 'sql', (x: { a: number; b: number; c: number }, depth: number) => {
-				const res = `{${x.a},${x.b},${x.c}}`;
-				return depth === 0 ? res : `"${res}"`;
-			}),
-			type: 'string',
-		};
-	}
-
-	if (is(base, PgLineTuple)) {
-		return {
-			value: stringifyTuplesArray(def as any, 'sql', (x: number[], depth: number) => {
-				const res = x.length > 0 ? `{${x[0]},${x[1]},${x[2]}}` : '{}';
-				return depth === 0 ? res : `"${res}"`;
-			}),
-			type: 'string',
-		};
-	}
-
-	if (is(base, PgPointTuple)) {
-		return {
-			value: stringifyTuplesArray(def as any, 'sql', (x: number[], depth: number) => {
-				const res = x.length > 0 ? `(${x[0]},${x[1]})` : '{}';
-				return depth === 0 ? res : `"${res}"`;
-			}),
-			type: 'string',
-		};
-	}
-
-	if (is(base, PgPointObject)) {
-		return {
-			value: stringifyArray(def, 'sql', (x: { x: number; y: number }, depth: number) => {
-				const res = `(${x.x},${x.y})`;
-				return depth === 0 ? res : `"${res}"`;
-			}),
-			type: 'string',
-		};
-	}
-
-	if (is(base, PgVector)) {
-		return defaultForVector(def as any);
-	}
-
-	if (sqlTypeLowered === 'jsonb' || sqlTypeLowered === 'json') {
-		const value = dimensions > 0 && Array.isArray(def) ? buildArrayString(def, sqlTypeLowered) : JSON.stringify(def);
-		return {
-			value: value,
-			type: 'json',
-		};
-	}
-
-	if (typeof def === 'string') {
-		const value = dimensions > 0 && Array.isArray(def)
-			? buildArrayString(def, sqlTypeLowered)
-			: def.replaceAll("'", "''");
-		return {
-			value: value,
-			type: 'string',
-		};
-	}
-
-	if (typeof def === 'boolean') {
-		const value = dimensions > 0 && Array.isArray(def)
-			? buildArrayString(def, sqlTypeLowered)
-			: (def ? 'true' : 'false');
-		return {
-			value: value,
-			type: 'boolean',
-		};
-	}
-
-	if (typeof def === 'number') {
-		const value = dimensions > 0 && Array.isArray(def) ? buildArrayString(def, sqlTypeLowered) : String(def);
-		return {
-			value: value,
-			type: 'number',
-		};
-	}
-
-	if (def instanceof Date) {
-		if (sqlTypeLowered === 'date') {
-			const value = dimensions > 0 && Array.isArray(def)
-				? buildArrayString(def, sqlTypeLowered)
-				: def.toISOString().split('T')[0];
-			return {
-				value: value,
-				type: 'string',
-			};
-		}
-		if (sqlTypeLowered === 'timestamp') {
-			const value = dimensions > 0 && Array.isArray(def)
-				? buildArrayString(def, sqlTypeLowered)
-				: def.toISOString().replace('T', ' ').replace('Z', ' ').slice(0, 23);
-			return {
-				value: value,
-				type: 'string',
-			};
-		}
-		const value = dimensions > 0 && Array.isArray(def)
-			? buildArrayString(def, sqlTypeLowered)
-			: def.toISOString().replace('T', ' ').replace('Z', '');
-		return {
-			value: value,
-			type: 'string',
-		};
-	}
-
-	const value = dimensions > 0 && Array.isArray(def)
-		? buildArrayString(def, sqlTypeLowered)
-		: String(def);
-
-	return {
-		value: value,
-		type: 'string',
-	};
+	return grammarType.defaultFromDrizzle(def);
 };
 
 /*
@@ -496,7 +398,7 @@ export const fromDrizzleSchema = (
 					schema: schema,
 					table: tableName,
 					name,
-					type: sqlType,
+					type: sqlType.replaceAll('[]', ''),
 					typeSchema: typeSchema ?? null,
 					dimensions: dimensions,
 					pk: column.primary,

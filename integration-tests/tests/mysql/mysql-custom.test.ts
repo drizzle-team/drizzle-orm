@@ -24,10 +24,11 @@ import { v4 as uuid } from 'uuid';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { toLocalDate } from '~/utils';
 import { createDockerDB } from './mysql-common';
+import relations from './relations';
 
 const ENABLE_LOGGING = false;
 
-let db: MySql2Database;
+let db: MySql2Database<never, typeof relations>;
 let client: mysql.Connection;
 let container: Docker.Container | undefined;
 
@@ -54,7 +55,7 @@ beforeAll(async () => {
 			client?.end();
 		},
 	});
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
 });
 
 afterAll(async () => {

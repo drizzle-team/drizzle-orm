@@ -8,10 +8,11 @@ import { skipTests } from '~/common';
 import { randomString } from '~/utils';
 import { createDockerDB, tests, tests as cacheTests, usersMigratorTable, usersTable } from './pg-common';
 import { TestCache, TestGlobalCache } from './pg-common-cache';
+import relations from './relations';
 
 const ENABLE_LOGGING = false;
 
-let db: VercelPgDatabase;
+let db: VercelPgDatabase<never, typeof relations>;
 let dbGlobalCached: VercelPgDatabase;
 let cachedDb: VercelPgDatabase;
 let client: VercelClient;
@@ -48,7 +49,7 @@ beforeAll(async () => {
 		// await pgContainer?.stop().catch(console.error);
 		throw lastError;
 	}
-	db = drizzle(client, { logger: ENABLE_LOGGING });
+	db = drizzle(client, { logger: ENABLE_LOGGING, relations });
 	cachedDb = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestCache() });
 	dbGlobalCached = drizzle(client, { logger: ENABLE_LOGGING, cache: new TestGlobalCache() });
 });

@@ -227,7 +227,7 @@ export class CockroachDeleteBase<
 	): CockroachDeleteReturning<this, TDynamic, TSelectedFields>;
 	returning(
 		fields: SelectedFieldsFlat = this.config.table[Table.Symbol.Columns],
-	): CockroachDeleteReturning<this, TDynamic, any> {
+	): CockroachDeleteReturning<this, TDynamic, any> | CockroachDeleteReturningAll<this, TDynamic> {
 		this.config.returningFields = fields;
 		this.config.returning = orderSelectedFields<CockroachColumn>(fields);
 		return this as any;

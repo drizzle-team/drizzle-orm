@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-kit",
-	"version": "0.31.4",
+	"version": "1.0.0-beta.1",
 	"homepage": "https://orm.drizzle.team",
 	"keywords": [
 		"drizzle",
@@ -35,7 +35,8 @@
 		"api": "tsx ./dev/api.ts",
 		"migrate:old": "drizzle-kit generate:mysql",
 		"cli": "tsx ./src/cli/index.ts",
-		"test": "pnpm tsc && TEST_CONFIG_PATH_PREFIX=./tests/cli/ vitest",
+		"test": "TEST_CONFIG_PATH_PREFIX=./tests/cli/ vitest",
+		"test:types": "pnpm tsc -p ./tsconfig.typetest.json",
 		"build": "rm -rf ./dist && tsx build.ts && cp package.json dist/ && attw --pack dist",
 		"build:cli": "rm -rf ./dist && tsx build.cli.ts && cp package.json dist/ && attw --pack dist",
 		"build:dev": "rm -rf ./dist && tsx build.dev.ts && tsc -p tsconfig.cli-types.json && chmod +x ./dist/index.cjs",
@@ -112,7 +113,7 @@
 		"semver": "^7.7.2",
 		"tsup": "^8.3.5",
 		"tsx": "^3.12.1",
-		"typescript": "^5.6.3",
+		"typescript": "^5.9.2",
 		"uuid": "^9.0.1",
 		"vite-tsconfig-paths": "^4.3.2",
 		"vitest": "^3.1.3",

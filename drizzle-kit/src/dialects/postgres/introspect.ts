@@ -1,7 +1,7 @@
 import camelcase from 'camelcase';
 import type { Entities } from '../../cli/validations/cli';
 import type { IntrospectStage, IntrospectStatus } from '../../cli/views';
-import { type DB, trimChar } from '../../utils';
+import { type DB, splitExpressions, trimChar } from '../../utils';
 import type {
 	CheckConstraint,
 	Enum,
@@ -28,8 +28,6 @@ import {
 	isSystemNamespace,
 	parseOnType,
 	parseViewDefinition,
-	splitExpressions,
-	splitSqlType,
 	stringFromDatabaseIdentityProperty as parseIdentityProperty,
 	wrapRecord,
 } from './grammar';
@@ -800,7 +798,8 @@ export const fromDatabase = async (
 			.replace(' without time zone', '')
 			// .replace(' with time zone', '')
 			// .replace("timestamp without time zone", "timestamp")
-			.replace('character', 'char');
+			.replace('character', 'char')
+			.replace('geometry(Point', 'geometry(point');
 
 		columnTypeMapped = trimChar(columnTypeMapped, '"');
 
@@ -812,6 +811,7 @@ export const fromDatabase = async (
 			columnTypeMapped,
 			columnDefault?.expression,
 			column.dimensions,
+			Boolean(enumType),
 		);
 
 		const unique = constraintsList.find((it) => {
@@ -842,8 +842,6 @@ export const fromDatabase = async (
 		}
 
 		const sequence = metadata?.seqId ? sequencesList.find((it) => it.oid === Number(metadata.seqId)) ?? null : null;
-
-		columnTypeMapped += '[]'.repeat(column.dimensions);
 
 		columns.push({
 			entityType: 'columns',
@@ -1151,7 +1149,8 @@ export const fromDatabase = async (
 			.replace('character varying', 'varchar')
 			.replace(' without time zone', '')
 			// .replace("timestamp without time zone", "timestamp")
-			.replace('character', 'char');
+			.replace('character', 'char')
+			.replace('geometry(Point)', 'geometry(point)');
 
 		columnTypeMapped += '[]'.repeat(it.dimensions);
 
@@ -1259,7 +1258,7 @@ export const fromDatabase = async (
 
 export const fromDatabaseForDrizzle = async (
 	db: DB,
-	tableFilter: (it: string) => boolean = () => true,
+	tableFilter: (schema: string, table: string) => boolean = () => true,
 	schemaFilters: (it: string) => boolean = () => true,
 	entities?: Entities,
 	progressCallback: (

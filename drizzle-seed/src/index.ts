@@ -1,6 +1,6 @@
 /* eslint-disable drizzle-internal/require-entity-kind */
-import type { Relations } from 'drizzle-orm';
 import { is } from 'drizzle-orm';
+import type { Relations } from 'drizzle-orm/_relations';
 
 import type { MySqlColumn, MySqlSchema, MySqlTable } from 'drizzle-orm/mysql-core';
 import { MySqlDatabase } from 'drizzle-orm/mysql-core';
@@ -16,8 +16,10 @@ import { MsSqlDatabase } from 'drizzle-orm/mssql-core';
 
 import type { CockroachColumn, CockroachSchema, CockroachTable } from 'drizzle-orm/cockroach-core';
 import { CockroachDatabase } from 'drizzle-orm/cockroach-core';
+
 import type { SingleStoreColumn, SingleStoreSchema, SingleStoreTable } from 'drizzle-orm/singlestore-core';
 import { SingleStoreDatabase } from 'drizzle-orm/singlestore-core';
+
 import { filterCockroachSchema, resetCockroach, seedCockroach } from './cockroach-core/index.ts';
 import { generatorsFuncs, generatorsFuncsV2 } from './generators/GeneratorFuncs.ts';
 import type { AbstractGenerator } from './generators/Generators.ts';
@@ -46,173 +48,45 @@ type SchemaValuesType =
 	| Relations
 	| any;
 
+type RefineTypes<SCHEMA, TableT, ColumnT> = SCHEMA extends {
+	[key: string]: SchemaValuesType;
+} ? {
+		// iterates through schema fields. example -> schema: {"tableName": PgTable}
+		[
+			fieldName in keyof SCHEMA as SCHEMA[fieldName] extends TableT ? fieldName
+				: never
+		]?: {
+			count?: number;
+			columns?: {
+				// iterates through table fields. example -> table: {"columnName": PgColumn}
+				[
+					column in keyof SCHEMA[fieldName] as SCHEMA[fieldName][column] extends ColumnT ? column
+						: never
+				]?: AbstractGenerator<any>;
+			};
+			with?: {
+				[
+					refTable in keyof SCHEMA as SCHEMA[refTable] extends TableT ? refTable
+						: never
+				]?:
+					| number
+					| { weight: number; count: number | number[] }[];
+			};
+		};
+	}
+	: {};
+
 type InferCallbackType<
 	DB extends DbType,
 	SCHEMA extends {
 		[key: string]: SchemaValuesType;
 	},
-> = DB extends PgDatabase<any, any> ? SCHEMA extends {
-		[key: string]: SchemaValuesType;
-	} ? {
-			// iterates through schema fields. example -> schema: {"tableName": PgTable}
-			[
-				table in keyof SCHEMA as SCHEMA[table] extends PgTable ? table
-					: never
-			]?: {
-				count?: number;
-				columns?: {
-					// iterates through table fields. example -> table: {"columnName": PgColumn}
-					[
-						column in keyof SCHEMA[table] as SCHEMA[table][column] extends PgColumn ? column
-							: never
-					]?: AbstractGenerator<any>;
-				};
-				with?: {
-					[
-						refTable in keyof SCHEMA as SCHEMA[refTable] extends PgTable ? refTable
-							: never
-					]?:
-						| number
-						| { weight: number; count: number | number[] }[];
-				};
-			};
-		}
-	: {}
-	: DB extends MySqlDatabase<any, any> ? SCHEMA extends {
-			[key: string]: SchemaValuesType;
-		} ? {
-				// iterates through schema fields. example -> schema: {"tableName": MySqlTable}
-				[
-					table in keyof SCHEMA as SCHEMA[table] extends MySqlTable ? table
-						: never
-				]?: {
-					count?: number;
-					columns?: {
-						// iterates through table fields. example -> table: {"columnName": MySqlColumn}
-						[
-							column in keyof SCHEMA[table] as SCHEMA[table][column] extends MySqlColumn ? column
-								: never
-						]?: AbstractGenerator<any>;
-					};
-					with?: {
-						[
-							refTable in keyof SCHEMA as SCHEMA[refTable] extends MySqlTable ? refTable
-								: never
-						]?:
-							| number
-							| { weight: number; count: number | number[] }[];
-					};
-				};
-			}
-		: {}
-	: DB extends BaseSQLiteDatabase<any, any> ? SCHEMA extends {
-			[key: string]: SchemaValuesType;
-		} ? {
-				// iterates through schema fields. example -> schema: {"tableName": SQLiteTable}
-				[
-					table in keyof SCHEMA as SCHEMA[table] extends SQLiteTable ? table
-						: never
-				]?: {
-					count?: number;
-					columns?: {
-						// iterates through table fields. example -> table: {"columnName": SQLiteColumn}
-						[
-							column in keyof SCHEMA[table] as SCHEMA[table][column] extends SQLiteColumn ? column
-								: never
-						]?: AbstractGenerator<any>;
-					};
-					with?: {
-						[
-							refTable in keyof SCHEMA as SCHEMA[refTable] extends SQLiteTable ? refTable
-								: never
-						]?:
-							| number
-							| { weight: number; count: number | number[] }[];
-					};
-				};
-			}
-		: {}
-	: DB extends MsSqlDatabase<any, any> ? SCHEMA extends {
-			[key: string]: SchemaValuesType;
-		} ? {
-				// iterates through schema fields. example -> schema: {"tableName": PgTable}
-				[
-					table in keyof SCHEMA as SCHEMA[table] extends MsSqlTable ? table
-						: never
-				]?: {
-					count?: number;
-					columns?: {
-						// iterates through table fields. example -> table: {"columnName": PgColumn}
-						[
-							column in keyof SCHEMA[table] as SCHEMA[table][column] extends MsSqlColumn ? column
-								: never
-						]?: AbstractGenerator<any>;
-					};
-					with?: {
-						[
-							refTable in keyof SCHEMA as SCHEMA[refTable] extends MsSqlTable ? refTable
-								: never
-						]?:
-							| number
-							| { weight: number; count: number | number[] }[];
-					};
-				};
-			}
-		: {}
-	: DB extends CockroachDatabase<any, any> ? SCHEMA extends {
-			[key: string]: SchemaValuesType;
-		} ? {
-				// iterates through schema fields. example -> schema: {"tableName": PgTable}
-				[
-					table in keyof SCHEMA as SCHEMA[table] extends CockroachTable ? table
-						: never
-				]?: {
-					count?: number;
-					columns?: {
-						// iterates through table fields. example -> table: {"columnName": PgColumn}
-						[
-							column in keyof SCHEMA[table] as SCHEMA[table][column] extends CockroachColumn ? column
-								: never
-						]?: AbstractGenerator<any>;
-					};
-					with?: {
-						[
-							refTable in keyof SCHEMA as SCHEMA[refTable] extends CockroachTable ? refTable
-								: never
-						]?:
-							| number
-							| { weight: number; count: number | number[] }[];
-					};
-				};
-			}
-		: {}
-	: DB extends SingleStoreDatabase<any, any> ? SCHEMA extends {
-			[key: string]: SchemaValuesType;
-		} ? {
-				// iterates through schema fields. example -> schema: {"tableName": PgTable}
-				[
-					table in keyof SCHEMA as SCHEMA[table] extends SingleStoreTable ? table
-						: never
-				]?: {
-					count?: number;
-					columns?: {
-						// iterates through table fields. example -> table: {"columnName": PgColumn}
-						[
-							column in keyof SCHEMA[table] as SCHEMA[table][column] extends SingleStoreColumn ? column
-								: never
-						]?: AbstractGenerator<any>;
-					};
-					with?: {
-						[
-							refTable in keyof SCHEMA as SCHEMA[refTable] extends SingleStoreTable ? refTable
-								: never
-						]?:
-							| number
-							| { weight: number; count: number | number[] }[];
-					};
-				};
-			}
-		: {}
+> = DB extends PgDatabase<any, any> ? RefineTypes<SCHEMA, PgTable, PgColumn>
+	: DB extends MySqlDatabase<any, any> ? RefineTypes<SCHEMA, MySqlTable, MySqlColumn>
+	: DB extends BaseSQLiteDatabase<any, any> ? RefineTypes<SCHEMA, SQLiteTable, SQLiteColumn>
+	: DB extends MsSqlDatabase<any, any> ? RefineTypes<SCHEMA, MsSqlTable, MsSqlColumn>
+	: DB extends CockroachDatabase<any, any> ? RefineTypes<SCHEMA, CockroachTable, CockroachColumn>
+	: DB extends SingleStoreDatabase<any, any> ? RefineTypes<SCHEMA, SingleStoreTable, SingleStoreColumn>
 	: {};
 
 class SeedPromise<

@@ -1,4 +1,5 @@
 packages:
+  - attw-fork
   - drizzle-orm
   - drizzle-kit
   - drizzle-zod
@@ -7,6 +8,7 @@ packages:
   - drizzle-arktype
   - drizzle-seed
   - integration-tests
+  - typeperf-test
   - eslint-plugin-drizzle
 onlyBuiltDependencies:
   - '@contrast/fn-inspect'

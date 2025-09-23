@@ -1,5 +1,5 @@
-import { createHash } from 'crypto';
-import { prepareMigrationRenames } from '../../utils';
+import { parse, stringify } from 'src/utils/when-json-met-bigint';
+import { prepareMigrationRenames, trimChar } from '../../utils';
 import { mockResolver } from '../../utils/mocks';
 import { diffStringArrays } from '../../utils/sequence-matcher';
 import type { Resolver } from '../common';
@@ -27,7 +27,7 @@ import {
 	UniqueConstraint,
 	View,
 } from './ddl';
-import { defaults } from './grammar';
+import { defaults, defaultsCommutative } from './grammar';
 import { JsonStatement, prepareStatement } from './statements';
 
 export const ddlDiffDry = async (ddlFrom: PostgresDDL, ddlTo: PostgresDDL, mode: 'default' | 'push') => {
@@ -733,36 +733,40 @@ export const ddlDiff = async (
 	);
 
 	const columnAlters = alters.filter((it) => it.entityType === 'columns').filter((it) => {
-		/*
-			from: { value: '2023-02-28 16:18:31.18', type: 'string' },
-			to: { value: "'2023-02-28 16:18:31.18'", type: 'unknown' }
-	 	*/
 		if (
 			it.default
-			&& it.default.from?.type === 'string'
-			&& it.default.to?.type === 'unknown'
-			&& `'${it.default.from.value}'` === it.default.to.value
+			&& ((it.$left.type === 'json' && it.$right.type === 'json')
+				|| (it.$left.type === 'jsonb' && it.$right.type === 'jsonb'))
 		) {
+			if (it.default.from !== null && it.default.to !== null) {
+				const left = stringify(parse(trimChar(it.default.from.value, "'")));
+				const right = stringify(parse(trimChar(it.default.to.value, "'")));
+				if (left === right) {
+					delete it.default;
+				}
+			}
+		}
+
+		if (!it.type && it.default && defaultsCommutative(it.default, it.$right.type, it.$right.dimensions)) {
 			delete it.default;
 		}
 
-		if (
-			it.default
-			&& it.default.from?.type === 'unknown'
-			&& it.default.to?.type === 'string'
-			&& `'${it.default.to.value}'` === it.default.from.value
-		) {
-			delete it.default;
-		}
+		// geometry
+		if (it.type && it.$right.type.startsWith('geometry(point') && it.$left.type.startsWith('geometry(point')) {
+			// geometry(point,0)
+			const leftSrid = it.$left.type.split(',')[1]?.replace(')', '');
+			const rightSrid = it.$right.type.split(',')[1]?.replace(')', '');
 
-		if (it.default && it.default.from?.value === it.default.to?.value) {
-			delete it.default;
+			// undefined or 0 are defaults srids
+			if (typeof leftSrid === 'undefined' && rightSrid === '0') delete it.type;
+			if (typeof rightSrid === 'undefined' && leftSrid === '0') delete it.type;
 		}
 
 		// numeric(19) === numeric(19,0)
 		if (it.type && it.type.from.replace(',0)', ')') === it.type.to) {
 			delete it.type;
 		}
+
 		return ddl2.columns.hasDiff(it);
 	});
 

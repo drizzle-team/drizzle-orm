@@ -1,6 +1,6 @@
+import type * as V1 from '~/_relations.ts';
 import { entityKind } from '~/entity.ts';
 import { TransactionRollbackError } from '~/errors.ts';
-import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { type Query, type SQL, sql } from '~/sql/sql.ts';
 import type { Assume, Equal } from '~/utils.ts';
 import { MsSqlDatabase } from './db.ts';
@@ -58,7 +58,7 @@ export abstract class MsSqlSession<
 	TQueryResult extends QueryResultHKT = QueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase = PreparedQueryHKTBase,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
-	TSchema extends TablesRelationalConfig = Record<string, never>,
+	TSchema extends V1.TablesRelationalConfig = Record<string, never>,
 > {
 	static readonly [entityKind]: string = 'MsSqlSession';
 
@@ -103,14 +103,14 @@ export abstract class MsSqlTransaction<
 	TQueryResult extends QueryResultHKT,
 	TPreparedQueryHKT extends PreparedQueryHKTBase,
 	TFullSchema extends Record<string, unknown> = Record<string, never>,
-	TSchema extends TablesRelationalConfig = Record<string, never>,
+	TSchema extends V1.TablesRelationalConfig = Record<string, never>,
 > extends MsSqlDatabase<TQueryResult, TPreparedQueryHKT, TFullSchema, TSchema> {
 	static override readonly [entityKind]: string = 'MsSqlTransaction';
 
 	constructor(
 		dialect: MsSqlDialect,
 		session: MsSqlSession,
-		protected schema: RelationalSchemaConfig<TSchema> | undefined,
+		protected schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		protected readonly nestedIndex: number,
 	) {
 		super(dialect, session, schema);

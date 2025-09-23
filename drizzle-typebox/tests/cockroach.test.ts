@@ -395,7 +395,7 @@ test('all data types', (tc) => {
 	const table = cockroachTable('test', ({
 		bigint,
 		bit,
-		boolean,
+		bool,
 		char,
 		date,
 		decimal,
@@ -421,8 +421,8 @@ test('all data types', (tc) => {
 	}) => ({
 		bigint1: bigint({ mode: 'number' }).notNull(),
 		bigint2: bigint({ mode: 'bigint' }).notNull(),
-		bit: bit({ dimensions: 5 }).notNull(),
-		boolean: boolean().notNull(),
+		bit: bit({ length: 5 }).notNull(),
+		boolean: bool().notNull(),
 		char1: char({ length: 10 }).notNull(),
 		char2: char({ length: 1, enum: ['a', 'b', 'c'] }).notNull(),
 		date1: date({ mode: 'date' }).notNull(),
@@ -464,7 +464,7 @@ test('all data types', (tc) => {
 	const expected = t.Object({
 		bigint1: t.Integer({ minimum: Number.MIN_SAFE_INTEGER, maximum: Number.MAX_SAFE_INTEGER }),
 		bigint2: t.BigInt({ minimum: CONSTANTS.INT64_MIN, maximum: CONSTANTS.INT64_MAX }),
-		bit: t.RegExp(/^[01]+$/, { maxLength: 5 }),
+		bit: t.RegExp(/^[01]*$/, { minLength: 5, maxLength: 5 }),
 		boolean: t.Boolean(),
 		char1: t.String({ maxLength: 10 }),
 		char2: t.Enum({ a: 'a', b: 'b', c: 'c' }),

@@ -1,8 +1,7 @@
 import PGArray from './grammar/grammar.ohm-bundle';
 
-const semantics = PGArray.createSemantics();
-
-semantics.addOperation('parseArray', {
+const literalArraySemantics = PGArray.PGArrayLiteral.createSemantics();
+literalArraySemantics.addOperation('parseArray', {
 	Array(lBracket, argList, rBracket) {
 		return argList['parseArray']();
 	},
@@ -40,16 +39,65 @@ semantics.addOperation('parseArray', {
 	},
 });
 
+const expressionArraySemantics = PGArray.PGArrayExpression.createSemantics();
+expressionArraySemantics.addOperation('parseExpressionArray', {
+	Array(lBracket, argList, rBracket) {
+		return argList['parseExpressionArray']();
+	},
+
+	ArrayItem(arg0) {
+		return arg0['parseExpressionArray']();
+	},
+
+	NonemptyListOf(arg0, arg1, arg2) {
+		return [arg0['parseExpressionArray'](), ...arg1['parseExpressionArray'](), ...arg2['parseExpressionArray']()];
+	},
+
+	EmptyListOf() {
+		return [];
+	},
+
+	_iter(...children) {
+		return children.map((c) => c['parseExpressionArray']()).filter((e) => e !== undefined);
+	},
+
+	_terminal() {
+		return undefined;
+	},
+
+	stringLiteral(lQuote, string, rQuote) {
+		return JSON.parse('"' + string.sourceString.replaceAll("''", "'") + '"');
+	},
+
+	quotelessString(string) {
+		return string.sourceString.replaceAll("''", "'");
+	},
+
+	nullLiteral(_) {
+		return null;
+	},
+});
+
 export type ArrayValue = string | null | ArrayValue[];
 
-/*
-	every value will be a string
- */
+// '{}'
+// every value will be a string
 export function parseArray(array: string) {
-	const match = PGArray.match(array, 'Array');
+	const match = PGArray.PGArrayLiteral.match(array, 'Array');
 
 	if (match.failed()) throw new Error(`Failed to parse array: '${array}'`);
 
-	const res = semantics(match)['parseArray']();
+	const res = literalArraySemantics(match)['parseArray']();
+	return res as ArrayValue[];
+}
+
+// ARRAY[]
+// every value will be a string
+export function parseExpressionArray(array: string) {
+	const match = PGArray.PGArrayExpression.match(array, 'Array');
+
+	if (match.failed()) throw new Error(`Failed to parse array: '${array}'`);
+
+	const res = expressionArraySemantics(match)['parseExpressionArray']();
 	return res as ArrayValue[];
 }

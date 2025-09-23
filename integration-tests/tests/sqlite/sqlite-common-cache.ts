@@ -5,6 +5,7 @@ import type { CacheConfig } from 'drizzle-orm/cache/core/types';
 import { alias, type BaseSQLiteDatabase, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import Keyv from 'keyv';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
+import type relations from './relations';
 
 // eslint-disable-next-line drizzle-internal/require-entity-kind
 export class TestGlobalCache extends Cache {
@@ -81,7 +82,7 @@ declare module 'vitest' {
 			dbGlobalCached: BaseSQLiteDatabase<any, any>;
 		};
 		sqlite: {
-			db: BaseSQLiteDatabase<'async' | 'sync', any, Record<string, never>>;
+			db: BaseSQLiteDatabase<'async' | 'sync', any, Record<string, never>, typeof relations>;
 		};
 	}
 }

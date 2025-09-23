@@ -1,5 +1,6 @@
 import type { Client, PoolClient, QueryArrayConfig, QueryConfig, QueryResult, QueryResultRow } from 'pg';
 import pg from 'pg';
+import type * as V1 from '~/_relations.ts';
 import type { CockroachDialect } from '~/cockroach-core/dialect.ts';
 import { CockroachTransaction } from '~/cockroach-core/index.ts';
 import type { SelectedFieldsOrdered } from '~/cockroach-core/query-builders/select.types.ts';
@@ -11,7 +12,6 @@ import type {
 import { CockroachPreparedQuery, CockroachSession } from '~/cockroach-core/session.ts';
 import { entityKind } from '~/entity.ts';
 import { type Logger, NoopLogger } from '~/logger.ts';
-import type { RelationalSchemaConfig, TablesRelationalConfig } from '~/relations.ts';
 import { fillPlaceholders, type Query, type SQL, sql } from '~/sql/sql.ts';
 import { tracer } from '~/tracing.ts';
 import { type Assume, mapResultRow } from '~/utils.ts';
@@ -189,7 +189,7 @@ export interface NodeCockroachSessionOptions {
 
 export class NodeCockroachSession<
 	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
+	TSchema extends V1.TablesRelationalConfig,
 > extends CockroachSession<NodeCockroachQueryResultHKT, TFullSchema, TSchema> {
 	static override readonly [entityKind]: string = 'NodeCockroachSession';
 
@@ -198,7 +198,7 @@ export class NodeCockroachSession<
 	constructor(
 		private client: NodeCockroachClient,
 		dialect: CockroachDialect,
-		private schema: RelationalSchemaConfig<TSchema> | undefined,
+		private schema: V1.RelationalSchemaConfig<TSchema> | undefined,
 		private options: NodeCockroachSessionOptions = {},
 	) {
 		super(dialect);
@@ -257,7 +257,7 @@ export class NodeCockroachSession<
 
 export class NodeCockroachTransaction<
 	TFullSchema extends Record<string, unknown>,
-	TSchema extends TablesRelationalConfig,
+	TSchema extends V1.TablesRelationalConfig,
 > extends CockroachTransaction<NodeCockroachQueryResultHKT, TFullSchema, TSchema> {
 	static override readonly [entityKind]: string = 'NodeCockroachTransaction';
 
