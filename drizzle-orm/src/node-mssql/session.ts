@@ -244,7 +244,11 @@ export class NodeMsSqlSession<
 		transaction: (tx: NodeMsSqlTransaction<TFullSchema, TSchema>) => Promise<T>,
 		config?: MsSqlTransactionConfig,
 	): Promise<T> {
-		const mssqlTransaction = (this.client as ConnectionPool).transaction();
+		let queryClient = this.client as ConnectionPool;
+		if (is(this.client, AutoPool)) {
+			queryClient = await this.client.$instance();
+		}
+		const mssqlTransaction = queryClient.transaction();
 		const session = new NodeMsSqlSession(
 			mssqlTransaction,
 			this.dialect,
