@@ -622,7 +622,7 @@ export class GelDatabase<
 	}
 }
 
-export type GelWithReplicas<Q> = Q & { $primary: Q };
+export type GelWithReplicas<Q> = Q & { $primary: Q, $replicas: Q[] };
 
 export const withReplicas = <
 	HKT extends GelQueryResultHKT,
@@ -661,6 +661,7 @@ export const withReplicas = <
 		transaction,
 		// refreshMaterializedView,
 		$primary: primary,
+		$replicas: replicas,
 		select,
 		selectDistinct,
 		selectDistinctOn,

@@ -641,7 +641,7 @@ export class PgDatabase<
 	}
 }
 
-export type PgWithReplicas<Q> = Q & { $primary: Q };
+export type PgWithReplicas<Q> = Q & { $primary: Q, $replicas: Q[] };
 
 export const withReplicas = <
 	HKT extends PgQueryResultHKT,
@@ -681,6 +681,7 @@ export const withReplicas = <
 		transaction,
 		refreshMaterializedView,
 		$primary: primary,
+		$replicas: replicas,
 		select,
 		selectDistinct,
 		selectDistinctOn,
