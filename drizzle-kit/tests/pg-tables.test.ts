@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
 	AnyPgColumn,
+	comment,
 	foreignKey,
 	geometry,
 	index,
@@ -39,6 +40,7 @@ test('add table #1', async () => {
 		checkConstraints: [],
 		isRLSEnabled: false,
 		compositePkName: '',
+		comment: undefined,
 	});
 });
 
@@ -70,6 +72,7 @@ test('add table #2', async () => {
 		uniqueConstraints: [],
 		checkConstraints: [],
 		compositePkName: '',
+		comment: undefined,
 	});
 });
 
@@ -112,6 +115,7 @@ test('add table #3', async () => {
 		isRLSEnabled: false,
 		checkConstraints: [],
 		compositePkName: 'users_pk',
+		comment: undefined,
 	});
 });
 
@@ -135,6 +139,7 @@ test('add table #4', async () => {
 		checkConstraints: [],
 		isRLSEnabled: false,
 		compositePkName: '',
+		comment: undefined,
 	});
 	expect(statements[1]).toStrictEqual({
 		type: 'create_table',
@@ -147,6 +152,7 @@ test('add table #4', async () => {
 		uniqueConstraints: [],
 		checkConstraints: [],
 		compositePkName: '',
+		comment: undefined,
 	});
 });
 
@@ -175,6 +181,7 @@ test('add table #5', async () => {
 		compositePkName: '',
 		checkConstraints: [],
 		isRLSEnabled: false,
+		comment: undefined,
 	});
 });
 
@@ -201,6 +208,7 @@ test('add table #6', async () => {
 		compositePkName: '',
 		checkConstraints: [],
 		isRLSEnabled: false,
+		comment: undefined,
 	});
 	expect(statements[1]).toStrictEqual({
 		type: 'drop_table',
@@ -236,6 +244,7 @@ test('add table #7', async () => {
 		compositePkName: '',
 		isRLSEnabled: false,
 		checkConstraints: [],
+		comment: undefined,
 	});
 	expect(statements[1]).toStrictEqual({
 		type: 'rename_table',
@@ -262,6 +271,43 @@ test('add table #8: geometry types', async () => {
 
 	expect(sqlStatements).toStrictEqual([
 		`CREATE TABLE "users" (\n\t"geom" geometry(point) NOT NULL,\n\t"geom1" geometry(point) NOT NULL\n);\n`,
+	]);
+});
+
+test('add table #9: with comment', async () => {
+	const to = {
+		users: pgTable('users', {
+			id: serial('id').primaryKey(),
+		}, () => [comment('users table')]),
+	};
+
+	const { sqlStatements, statements } = await diffTestSchemas({}, to, []);
+
+	expect(statements.length).toBe(1);
+	expect(statements[0]).toStrictEqual({
+		type: 'create_table',
+		tableName: 'users',
+		schema: '',
+		columns: [
+			{
+				name: 'id',
+				notNull: true,
+				primaryKey: true,
+				type: 'serial',
+			},
+		],
+		compositePKs: [],
+		policies: [],
+		uniqueConstraints: [],
+		checkConstraints: [],
+		isRLSEnabled: false,
+		compositePkName: '',
+		comment: 'users table',
+	});
+
+	expect(sqlStatements).toStrictEqual([
+		'CREATE TABLE "users" (\n\t"id" serial PRIMARY KEY NOT NULL\n);\n',
+		'COMMENT ON TABLE "users" IS \'users table\';',
 	]);
 });
 
@@ -295,6 +341,7 @@ test('multiproject schema add table #1', async () => {
 		isRLSEnabled: false,
 		uniqueConstraints: [],
 		checkConstraints: [],
+		comment: undefined,
 	});
 });
 
@@ -347,7 +394,7 @@ test('multiproject schema alter table name #1', async () => {
 	});
 });
 
-test('add table #8: column with pgvector', async () => {
+test('add table #10: column with pgvector', async () => {
 	const from = {};
 
 	const to = {
@@ -392,6 +439,7 @@ test('add schema + table #1', async () => {
 		uniqueConstraints: [],
 		compositePkName: '',
 		checkConstraints: [],
+		comment: undefined,
 	});
 });
 
@@ -954,4 +1002,24 @@ test('optional db aliases (camel case)', async () => {
 	const st7 = `CREATE INDEX "t1Idx" ON "t1" USING btree ("t1Idx") WHERE "t1"."t1Idx" > 0;`;
 
 	expect(sqlStatements).toStrictEqual([st1, st2, st3, st4, st5, st6, st7]);
+});
+
+test('alter table set comment', async () => {
+	const from = {
+		users: pgTable('users', {
+			id: serial('id').primaryKey(),
+		}),
+	};
+	const to = {
+		users: pgTable('users', {
+			id: serial('id').primaryKey(),
+		}, () => [comment('users table')]),
+	};
+
+	const { sqlStatements } = await diffTestSchemas(from, to, []);
+
+	expect(sqlStatements.length).toBe(1);
+	expect(sqlStatements[0]).toStrictEqual(
+		`COMMENT ON TABLE "users" IS 'users table';`,
+	);
 });
