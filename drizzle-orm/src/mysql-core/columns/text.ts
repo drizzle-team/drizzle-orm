@@ -8,7 +8,6 @@ export type MySqlTextColumnType = 'tinytext' | 'text' | 'mediumtext' | 'longtext
 
 export class MySqlTextBuilder<TEnum extends [string, ...string[]]> extends MySqlColumnBuilder<
 	{
-		name: string;
 		dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'string enum';
 		data: TEnum[number];
 		driverParam: string;

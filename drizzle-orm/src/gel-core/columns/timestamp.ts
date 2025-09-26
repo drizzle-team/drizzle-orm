@@ -7,7 +7,6 @@ import { GelLocalDateColumnBaseBuilder } from './date.common.ts';
 
 export class GelTimestampBuilder extends GelLocalDateColumnBaseBuilder<
 	{
-		name: string;
 		dataType: 'object localDateTime';
 		data: LocalDateTime;
 		driverParam: LocalDateTime;

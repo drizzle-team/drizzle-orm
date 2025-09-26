@@ -4,7 +4,6 @@ import type { PgTable } from '~/pg-core/table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export class PgJsonbBuilder extends PgColumnBuilder<{
-	name: string;
 	dataType: 'object json';
 	data: unknown;
 	driverParam: unknown;

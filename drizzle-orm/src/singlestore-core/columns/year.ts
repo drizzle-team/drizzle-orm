@@ -4,7 +4,6 @@ import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import { SingleStoreColumn, SingleStoreColumnBuilder } from './common.ts';
 
 export class SingleStoreYearBuilder extends SingleStoreColumnBuilder<{
-	name: string;
 	dataType: 'number year';
 	data: number;
 	driverParam: number;

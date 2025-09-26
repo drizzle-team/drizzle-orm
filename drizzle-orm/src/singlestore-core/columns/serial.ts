@@ -4,7 +4,6 @@ import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import { SingleStoreColumnBuilderWithAutoIncrement, SingleStoreColumnWithAutoIncrement } from './common.ts';
 
 export class SingleStoreSerialBuilder extends SingleStoreColumnBuilderWithAutoIncrement<{
-	name: string;
 	dataType: 'number uint53';
 	data: number;
 	driverParam: number;

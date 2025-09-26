@@ -33,7 +33,7 @@ export interface SingleStoreUpdateConfig {
 
 export type SingleStoreUpdateSetSource<
 	TTable extends SingleStoreTable,
-	TModel extends InferInsertModel<TTable> = InferInsertModel<TTable>,
+	TModel extends Record<string, any> = InferInsertModel<TTable>,
 > =
 	& {
 		[Key in keyof TModel & string]?:

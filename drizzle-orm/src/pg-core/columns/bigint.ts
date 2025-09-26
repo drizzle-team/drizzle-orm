@@ -6,7 +6,6 @@ import { PgColumn } from './common.ts';
 import { PgIntColumnBaseBuilder } from './int.common.ts';
 
 export class PgBigInt53Builder extends PgIntColumnBaseBuilder<{
-	name: string;
 	dataType: 'number int53';
 	data: number;
 	driverParam: number | string;
@@ -39,7 +38,6 @@ export class PgBigInt53<T extends ColumnBaseConfig<'number int53'>> extends PgCo
 }
 
 export class PgBigInt64Builder extends PgIntColumnBaseBuilder<{
-	name: string;
 	dataType: 'bigint int64';
 	data: bigint;
 	driverParam: string;

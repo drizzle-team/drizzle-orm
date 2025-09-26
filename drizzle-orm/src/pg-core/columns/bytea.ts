@@ -4,7 +4,6 @@ import type { PgTable } from '../table.ts';
 import { PgColumn, PgColumnBuilder } from './common.ts';
 
 export class PgByteaBuilder extends PgColumnBuilder<{
-	name: string;
 	dataType: 'object buffer';
 	data: Buffer;
 	driverParam: Buffer;

@@ -5,7 +5,6 @@ import type { NonArray, Writable } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export class MySqlEnumColumnBuilder<TEnum extends [string, ...string[]]> extends MySqlColumnBuilder<{
-	name: string;
 	dataType: 'string enum';
 	data: TEnum[number];
 	driverParam: string;
@@ -41,7 +40,6 @@ export class MySqlEnumColumn<T extends ColumnBaseConfig<'string enum'>>
 
 // enum as ts enum
 export class MySqlEnumObjectColumnBuilder<TEnum extends object> extends MySqlColumnBuilder<{
-	name: string;
 	dataType: 'string enum';
 	data: TEnum[keyof TEnum];
 	driverParam: string;

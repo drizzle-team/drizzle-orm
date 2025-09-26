@@ -6,7 +6,6 @@ import { PgColumn, PgColumnBuilder } from './common.ts';
 import type { Precision } from './timestamp.ts';
 
 export class PgIntervalBuilder extends PgColumnBuilder<{
-	name: string;
 	dataType: 'string interval';
 	data: string;
 	driverParam: string;

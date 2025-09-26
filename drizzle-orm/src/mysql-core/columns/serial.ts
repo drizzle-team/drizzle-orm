@@ -4,7 +4,6 @@ import type { MySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumnBuilderWithAutoIncrement, MySqlColumnWithAutoIncrement } from './common.ts';
 
 export class MySqlSerialBuilder extends MySqlColumnBuilderWithAutoIncrement<{
-	name: string;
 	dataType: 'number uint53';
 	data: number;
 	driverParam: number;

@@ -7,8 +7,7 @@ import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 export class MySqlVarCharBuilder<
 	TEnum extends [string, ...string[]],
 > extends MySqlColumnBuilder<{
-	name: string;
-	dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string text' : 'string enum';
+	dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'string enum';
 	data: TEnum[number];
 	driverParam: number | string;
 	enumValues: TEnum;
@@ -17,7 +16,7 @@ export class MySqlVarCharBuilder<
 
 	/** @internal */
 	constructor(name: string, config: MySqlVarCharConfig<TEnum>) {
-		super(name, config.enum?.length ? 'string enum' : 'string text', 'MySqlVarChar');
+		super(name, config.enum?.length ? 'string enum' : 'string', 'MySqlVarChar');
 		this.config.length = config.length;
 		this.config.enum = config.enum;
 	}

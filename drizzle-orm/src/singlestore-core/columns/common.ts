@@ -91,7 +91,7 @@ export abstract class SingleStoreColumnBuilderWithAutoIncrement<
 > extends SingleStoreColumnBuilder<T, TRuntimeConfig & SingleStoreColumnWithAutoIncrementConfig, TExtraConfig> {
 	static override readonly [entityKind]: string = 'SingleStoreColumnBuilderWithAutoIncrement';
 
-	constructor(name: NonNullable<T['name']>, dataType: T['dataType'], columnType: string) {
+	constructor(name: string, dataType: T['dataType'], columnType: string) {
 		super(name, dataType, columnType);
 		this.config.autoIncrement = false;
 	}

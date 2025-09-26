@@ -167,6 +167,11 @@ function numberColumnToSchema(
 			integer = true;
 			break;
 		}
+		case 'unsigned': {
+			min = 0;
+			max = Number.MAX_SAFE_INTEGER;
+			break;
+		}
 		default: {
 			min = Number.MIN_SAFE_INTEGER;
 			max = Number.MAX_SAFE_INTEGER;
@@ -182,6 +187,11 @@ function numberColumnToSchema(
 	schema = schema.gte(min).lte(max);
 	return schema;
 }
+
+/** @internal */
+export const bigintStringModeSchema = zod.string().regex(/^-?\d+$/).transform(BigInt).pipe(
+	zod.bigint().gte(CONSTANTS.INT64_MIN).lte(CONSTANTS.INT64_MAX),
+).transform(String);
 
 function bigintColumnToSchema(
 	column: Column,
@@ -232,6 +242,12 @@ function arrayColumnToSchema(
 			return length
 				? z.array(z.number()).length(length)
 				: z.array(z.number());
+		}
+		case 'int64vector': {
+			const length = column.length;
+			return length
+				? z.array(z.bigint().min(CONSTANTS.INT64_MIN).max(CONSTANTS.INT64_MAX)).length(length)
+				: z.array(z.bigint().min(CONSTANTS.INT64_MIN).max(CONSTANTS.INT64_MAX));
 		}
 		case 'basecolumn': {
 			const length = column.length;
@@ -307,6 +323,9 @@ function stringColumnToSchema(
 			);
 		}
 		return z.enum(enumValues);
+	}
+	if (constraint === 'int64') {
+		return bigintStringModeSchema;
 	}
 
 	let schema = coerce === true || coerce?.string ? z.coerce.string() : z.string();

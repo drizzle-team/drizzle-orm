@@ -31,6 +31,7 @@ export interface JSImportsActionDict<T> extends BaseActionDict<T> {
 		arg2: IterationNode,
 		arg3: TerminalNode,
 	) => T;
+	ImportInner_AllTypes?: (this: NonterminalNode, arg0: TerminalNode, arg1: TerminalNode) => T;
 	ImportInner_Extended?: (
 		this: NonterminalNode,
 		arg0: TerminalNode,
@@ -62,7 +63,7 @@ export interface JSImportsActionDict<T> extends BaseActionDict<T> {
 		arg2: IterationNode,
 		arg3: IterationNode,
 	) => T;
-	identifier?: (this: NonterminalNode, arg0: NonterminalNode, arg1: IterationNode) => T;
+	identifier?: (this: NonterminalNode, arg0: NonterminalNode | TerminalNode, arg1: IterationNode) => T;
 	quote?: (this: NonterminalNode, arg0: TerminalNode) => T;
 	notQuote?: (this: NonterminalNode, arg0: NonterminalNode) => T;
 	importSource?: (this: NonterminalNode, arg0: TerminalNode, arg1: IterationNode, arg2: TerminalNode) => T;

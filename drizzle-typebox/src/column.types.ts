@@ -1,5 +1,6 @@
 import type * as t from '@sinclair/typebox';
 import type { Assume, Column, ColumnTypeData, ExtractColumnTypeData } from 'drizzle-orm';
+import type { bigintStringModeSchema } from './column.ts';
 import type { BufferSchema, JsonSchema } from './utils.ts';
 
 export type EnumValuesToEnum<TEnumValues extends [string, ...string[]]> = { [K in TEnumValues[number]]: K };
@@ -17,6 +18,7 @@ export type GetTypeboxType<
 	: TType['constraint'] extends 'geometry' | 'point' ? t.TTuple<[t.TNumber, t.TNumber]>
 	: TType['constraint'] extends 'line' ? t.TTuple<[t.TNumber, t.TNumber, t.TNumber]>
 	: TType['constraint'] extends 'vector' | 'halfvector' ? t.TArray<t.TNumber>
+	: TType['constraint'] extends 'int64vector' ? t.TArray<t.TBigInt>
 	: t.TArray<t.TAny>
 	: TType['type'] extends 'object'
 		? TType['constraint'] extends 'geometry' | 'point' ? t.TObject<{ x: t.TNumber; y: t.TNumber }>
@@ -35,6 +37,7 @@ export type GetTypeboxType<
 	: TType['type'] extends 'bigint' ? t.TBigInt
 	: TType['type'] extends 'boolean' ? t.TBoolean
 	: TType['type'] extends 'string' ? TType['constraint'] extends 'binary' | 'varbinary' ? t.TRegExp
+		: TType['constraint'] extends 'int64' ? typeof bigintStringModeSchema
 		: TType['constraint'] extends 'enum' ? t.TEnum<{ [K in Assume<TColumn['_']['enumValues'], string[]>[number]]: K }>
 		: t.TString
 	: t.TAny;

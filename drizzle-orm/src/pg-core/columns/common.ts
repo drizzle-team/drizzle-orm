@@ -23,7 +23,8 @@ export type PgColumns = Record<string, PgColumn<any>>;
 
 export interface ReferenceConfig {
 	ref: () => PgColumn;
-	actions: {
+	config: {
+		name?: string;
 		onUpdate?: UpdateDeleteAction;
 		onDelete?: UpdateDeleteAction;
 	};
@@ -54,9 +55,9 @@ export abstract class PgColumnBuilder<
 
 	references(
 		ref: ReferenceConfig['ref'],
-		actions: ReferenceConfig['actions'] = {},
+		config: ReferenceConfig['config'] = {},
 	): this {
-		this.foreignKeyConfigs.push({ ref, actions });
+		this.foreignKeyConfigs.push({ ref, config });
 		return this;
 	}
 
@@ -67,6 +68,7 @@ export abstract class PgColumnBuilder<
 		this.config.isUnique = true;
 		this.config.uniqueName = name;
 		this.config.uniqueType = config?.nulls;
+		this.config.uniqueNameExplicit = name ? true : false;
 		return this;
 	}
 
@@ -85,23 +87,23 @@ export abstract class PgColumnBuilder<
 
 	/** @internal */
 	buildForeignKeys(column: PgColumn, table: PgTable): ForeignKey[] {
-		return this.foreignKeyConfigs.map(({ ref, actions }) => {
+		return this.foreignKeyConfigs.map(({ ref, config }) => {
 			return iife(
-				(ref, actions) => {
+				(ref, config) => {
 					const builder = new ForeignKeyBuilder(() => {
 						const foreignColumn = ref();
-						return { columns: [column], foreignColumns: [foreignColumn] };
+						return { name: config.name, columns: [column], foreignColumns: [foreignColumn] };
 					});
-					if (actions.onUpdate) {
-						builder.onUpdate(actions.onUpdate);
+					if (config.onUpdate) {
+						builder.onUpdate(config.onUpdate);
 					}
-					if (actions.onDelete) {
-						builder.onDelete(actions.onDelete);
+					if (config.onDelete) {
+						builder.onDelete(config.onDelete);
 					}
 					return builder.build(table);
 				},
 				ref,
-				actions,
+				config,
 			);
 		});
 	}
