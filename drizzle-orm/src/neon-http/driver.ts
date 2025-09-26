@@ -130,7 +130,7 @@ function construct<
 ): NeonHttpDatabase<TSchema> & {
 	$client: TClient;
 } {
-	const dialect = new PgDialect({ casing: config.casing });
+	const dialect = new PgDialect({ casing: config.casing, safeMutations: config.safeMutations });
 	let logger;
 	if (config.logger === true) {
 		logger = new DefaultLogger();
