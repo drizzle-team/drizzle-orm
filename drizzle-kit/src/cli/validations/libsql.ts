@@ -1,16 +1,18 @@
 import { softAssertUnreachable } from 'src/global';
-import { object, string, TypeOf } from 'zod';
+import { object, record, string, TypeOf } from 'zod';
 import { error } from '../views';
 import { wrapParam } from './common';
 
 export const libSQLCredentials = object({
 	url: string().min(1),
 	authToken: string().min(1).optional(),
+	headers: record(string().min(1)).optional(),
 });
 
 export type LibSQLCredentials = {
 	url: string;
 	authToken?: string;
+	headers?: Record<string, string>;
 };
 
 const _: LibSQLCredentials = {} as TypeOf<typeof libSQLCredentials>;
@@ -23,5 +25,6 @@ export const printConfigConnectionIssues = (
 	console.log(error(text));
 	console.log(wrapParam('url', options.url));
 	console.log(wrapParam('authToken', options.authToken, true, 'secret'));
+	console.log(wrapParam('headers', options.headers, true));
 	process.exit(1);
 };

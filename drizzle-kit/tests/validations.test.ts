@@ -22,6 +22,18 @@ test('turso #2', () => {
 });
 
 test('turso #3', () => {
+	sqliteCredentials.parse({
+		dialect: 'sqlite',
+		driver: 'turso',
+		url: 'https://turso.tech',
+		authToken: 'token',
+		headers: {
+			'x-namespace': 'prod',
+		},
+	});
+});
+
+test('turso #4', () => {
 	expect(() =>
 		sqliteCredentials.parse({
 			dialect: 'sqlite',
@@ -32,7 +44,7 @@ test('turso #3', () => {
 	).toThrowError();
 });
 
-test('turso #4', () => {
+test('turso #5', () => {
 	expect(() => {
 		sqliteCredentials.parse({
 			dialect: 'sqlite',
@@ -43,13 +55,25 @@ test('turso #4', () => {
 	}).toThrowError();
 });
 
-test('turso #5', () => {
+test('turso #6', () => {
 	expect(() => {
 		sqliteCredentials.parse({
 			dialect: 'sqlite',
 			driver: 'turso',
 			url: '',
 			authToken: '',
+		});
+	}).toThrowError();
+});
+
+test('turso #7', () => {
+	expect(() => {
+		sqliteCredentials.parse({
+			dialect: 'sqlite',
+			driver: 'turso',
+			url: '',
+			authToken: '',
+			headers: {},
 		});
 	}).toThrowError();
 });
