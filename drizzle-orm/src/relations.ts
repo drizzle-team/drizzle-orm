@@ -94,6 +94,12 @@ export function processRelations(tablesConfig: TablesRelationalConfig, tables: S
 				is(relation, One) ? 'one' : 'many'
 			}.${targetTableName}(...) }`;
 
+			if (relationFieldName in tableConfig.table[TableColumns]) {
+				throw new Error(
+					`${relationPrintName}: relation name collides with column "${relationFieldName}" of table "${tableConfig.name}"`,
+				);
+			}
+
 			if (typeof alias === 'string' && !alias) {
 				throw new Error(`${relationPrintName}: "alias" cannot be an empty string - omit it if you don't need it`);
 			}
