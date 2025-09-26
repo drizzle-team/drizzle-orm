@@ -1,10 +1,12 @@
 import { serve } from '@hono/node-server';
 import { zValidator } from '@hono/zod-validator';
 import { createHash } from 'crypto';
-import { AnyColumn, AnyTable, is } from 'drizzle-orm';
 import {
+	AnyColumn,
+	AnyTable,
 	createTableRelationsHelpers,
 	extractTablesRelationalConfig,
+	is,
 	Many,
 	normalizeRelation,
 	One,
@@ -24,6 +26,7 @@ import { Hono } from 'hono';
 import { compress } from 'hono/compress';
 import { cors } from 'hono/cors';
 import { createServer } from 'node:https';
+import { CasingType } from 'src/cli/validations/common';
 import { LibSQLCredentials } from 'src/cli/validations/libsql';
 import { assertUnreachable } from 'src/global';
 import { z } from 'zod';
@@ -34,6 +37,7 @@ import type { SingleStoreCredentials } from '../cli/validations/singlestore';
 import type { SqliteCredentials } from '../cli/validations/sqlite';
 import type { Proxy, TransactionProxy } from '../utils';
 import { prepareFilenames } from '.';
+import { getColumnCasing } from './utils';
 
 type CustomDefault = {
 	schema: string;
@@ -70,6 +74,7 @@ export type Setup = {
 	customDefaults: CustomDefault[];
 	schema: Record<string, Record<string, AnyTable<any>>>;
 	relations: Record<string, Relations>;
+	casing?: CasingType;
 	schemaFiles?: SchemaFile[];
 };
 
@@ -193,7 +198,10 @@ export const prepareSQLiteSchema = async (path: string | string[]) => {
 
 export const prepareSingleStoreSchema = async (path: string | string[]) => {
 	const imports = prepareFilenames(path);
-	const singlestoreSchema: Record<string, Record<string, AnySingleStoreTable>> = {
+	const singlestoreSchema: Record<
+		string,
+		Record<string, AnySingleStoreTable>
+	> = {
 		public: {},
 	};
 	const relations: Record<string, Relations> = {};
@@ -228,7 +236,10 @@ export const prepareSingleStoreSchema = async (path: string | string[]) => {
 	return { schema: singlestoreSchema, relations, files };
 };
 
-const getCustomDefaults = <T extends AnyTable<{}>>(schema: Record<string, Record<string, T>>): CustomDefault[] => {
+const getCustomDefaults = <T extends AnyTable<{}>>(
+	schema: Record<string, Record<string, T>>,
+	casing?: CasingType,
+): CustomDefault[] => {
 	const customDefaults: CustomDefault[] = [];
 
 	Object.entries(schema).map(([schema, tables]) => {
@@ -252,7 +263,7 @@ const getCustomDefaults = <T extends AnyTable<{}>>(schema: Record<string, Record
 					customDefaults.push({
 						schema,
 						table: tableConfig.name,
-						column: column.name,
+						column: getColumnCasing(column, casing),
 						func: column.defaultFn,
 					});
 				}
@@ -268,10 +279,11 @@ export const drizzleForPostgres = async (
 	pgSchema: Record<string, Record<string, AnyPgTable>>,
 	relations: Record<string, Relations>,
 	schemaFiles?: SchemaFile[],
+	casing?: CasingType,
 ): Promise<Setup> => {
 	const { preparePostgresDB } = await import('../cli/connections');
 	const db = await preparePostgresDB(credentials);
-	const customDefaults = getCustomDefaults(pgSchema);
+	const customDefaults = getCustomDefaults(pgSchema, casing);
 
 	let dbUrl: string;
 
@@ -304,6 +316,7 @@ export const drizzleForPostgres = async (
 		schema: pgSchema,
 		relations,
 		schemaFiles,
+		casing,
 	};
 };
 
@@ -312,11 +325,12 @@ export const drizzleForMySQL = async (
 	mysqlSchema: Record<string, Record<string, AnyMySqlTable>>,
 	relations: Record<string, Relations>,
 	schemaFiles?: SchemaFile[],
+	casing?: CasingType,
 ): Promise<Setup> => {
 	const { connectToMySQL } = await import('../cli/connections');
 	const { proxy, transactionProxy, database, packageName } = await connectToMySQL(credentials);
 
-	const customDefaults = getCustomDefaults(mysqlSchema);
+	const customDefaults = getCustomDefaults(mysqlSchema, casing);
 
 	let dbUrl: string;
 
@@ -340,6 +354,7 @@ export const drizzleForMySQL = async (
 		schema: mysqlSchema,
 		relations,
 		schemaFiles,
+		casing,
 	};
 };
 
@@ -348,11 +363,12 @@ export const drizzleForSQLite = async (
 	sqliteSchema: Record<string, Record<string, AnySQLiteTable>>,
 	relations: Record<string, Relations>,
 	schemaFiles?: SchemaFile[],
+	casing?: CasingType,
 ): Promise<Setup> => {
 	const { connectToSQLite } = await import('../cli/connections');
 
 	const sqliteDB = await connectToSQLite(credentials);
-	const customDefaults = getCustomDefaults(sqliteSchema);
+	const customDefaults = getCustomDefaults(sqliteSchema, casing);
 
 	let dbUrl: string;
 
@@ -380,6 +396,7 @@ export const drizzleForSQLite = async (
 		schema: sqliteSchema,
 		relations,
 		schemaFiles,
+		casing,
 	};
 };
 export const drizzleForLibSQL = async (
@@ -387,11 +404,12 @@ export const drizzleForLibSQL = async (
 	sqliteSchema: Record<string, Record<string, AnySQLiteTable>>,
 	relations: Record<string, Relations>,
 	schemaFiles?: SchemaFile[],
+	casing?: CasingType,
 ): Promise<Setup> => {
 	const { connectToLibSQL } = await import('../cli/connections');
 
 	const sqliteDB = await connectToLibSQL(credentials);
-	const customDefaults = getCustomDefaults(sqliteSchema);
+	const customDefaults = getCustomDefaults(sqliteSchema, casing);
 
 	let dbUrl: string = `turso://${credentials.url}/${credentials.authToken}`;
 
@@ -408,6 +426,7 @@ export const drizzleForLibSQL = async (
 		schema: sqliteSchema,
 		relations,
 		schemaFiles,
+		casing,
 	};
 };
 
@@ -416,11 +435,12 @@ export const drizzleForSingleStore = async (
 	singlestoreSchema: Record<string, Record<string, AnySingleStoreTable>>,
 	relations: Record<string, Relations>,
 	schemaFiles?: SchemaFile[],
+	casing?: CasingType,
 ): Promise<Setup> => {
 	const { connectToSingleStore } = await import('../cli/connections');
 	const { proxy, transactionProxy, database, packageName } = await connectToSingleStore(credentials);
 
-	const customDefaults = getCustomDefaults(singlestoreSchema);
+	const customDefaults = getCustomDefaults(singlestoreSchema, casing);
 
 	let dbUrl: string;
 
@@ -444,6 +464,7 @@ export const drizzleForSingleStore = async (
 		schema: singlestoreSchema,
 		relations,
 		schemaFiles,
+		casing,
 	};
 };
 
@@ -458,10 +479,13 @@ type Relation = {
 	refColumns: string[];
 };
 
-export const extractRelations = (tablesConfig: {
-	tables: TablesRelationalConfig;
-	tableNamesMap: Record<string, string>;
-}): Relation[] => {
+export const extractRelations = (
+	tablesConfig: {
+		tables: TablesRelationalConfig;
+		tableNamesMap: Record<string, string>;
+	},
+	casing?: CasingType,
+): Relation[] => {
 	const relations = Object.values(tablesConfig.tables)
 		.map((it) =>
 			Object.entries(it.relations).map(([name, relation]) => {
@@ -474,8 +498,12 @@ export const extractRelations = (tablesConfig: {
 					const rel = relation;
 					const refTableName = rel.referencedTableName;
 					const refTable = rel.referencedTable;
-					const fields = normalized.fields.map((it) => it.name).flat();
-					const refColumns = normalized.references.map((it) => it.name).flat();
+					const fields = normalized.fields
+						.map((it) => getColumnCasing(it, casing))
+						.flat();
+					const refColumns = normalized.references
+						.map((it) => getColumnCasing(it, casing))
+						.flat();
 
 					let refSchema: string | undefined;
 					if (is(refTable, PgTable)) {
@@ -533,7 +561,13 @@ const proxySchema = z.object({
 		params: z.array(z.any()).optional(),
 		typings: z.string().array().optional(),
 		mode: z.enum(['array', 'object']).default('object'),
-		method: z.union([z.literal('values'), z.literal('get'), z.literal('all'), z.literal('run'), z.literal('execute')]),
+		method: z.union([
+			z.literal('values'),
+			z.literal('get'),
+			z.literal('all'),
+			z.literal('run'),
+			z.literal('execute'),
+		]),
 	}),
 });
 
@@ -542,7 +576,14 @@ const transactionProxySchema = z.object({
 	data: z
 		.object({
 			sql: z.string(),
-			method: z.union([z.literal('values'), z.literal('get'), z.literal('all'), z.literal('run'), z.literal('execute')])
+			method: z
+				.union([
+					z.literal('values'),
+					z.literal('get'),
+					z.literal('all'),
+					z.literal('run'),
+					z.literal('execute'),
+				])
 				.optional(),
 		})
 		.array(),
@@ -561,7 +602,12 @@ const defaultsSchema = z.object({
 		.min(1),
 });
 
-const schema = z.union([init, proxySchema, transactionProxySchema, defaultsSchema]);
+const schema = z.union([
+	init,
+	proxySchema,
+	transactionProxySchema,
+	defaultsSchema,
+]);
 
 const jsonStringify = (data: any) => {
 	return JSON.stringify(data, (_key, value) => {
@@ -579,7 +625,11 @@ const jsonStringify = (data: any) => {
 
 		// Convert Buffer and ArrayBuffer to base64
 		if (
-			(value && typeof value === 'object' && 'type' in value && 'data' in value && value.type === 'Buffer')
+			(value
+				&& typeof value === 'object'
+				&& 'type' in value
+				&& 'data' in value
+				&& value.type === 'Buffer')
 			|| value instanceof ArrayBuffer
 			|| value instanceof Buffer
 		) {
@@ -612,6 +662,7 @@ export const prepareServer = async (
 		schema: drizzleSchema,
 		relations,
 		dbHash,
+		casing,
 		schemaFiles,
 	}: Setup,
 	app?: Hono,
@@ -639,9 +690,11 @@ export const prepareServer = async (
 			Object.entries(drizzleSchema)
 				.map(([schemaName, schema]) => {
 					// have unique keys across schemas
-					const mappedTableEntries = Object.entries(schema).map(([tableName, table]) => {
-						return [`__${schemaName}__.${tableName}`, table];
-					});
+					const mappedTableEntries = Object.entries(schema).map(
+						([tableName, table]) => {
+							return [`__${schemaName}__.${tableName}`, table];
+						},
+					);
 
 					return mappedTableEntries;
 				})
@@ -650,7 +703,10 @@ export const prepareServer = async (
 		...relations,
 	};
 
-	const relationsConfig = extractTablesRelationalConfig(relationalSchema, createTableRelationsHelpers);
+	const relationsConfig = extractTablesRelationalConfig(
+		relationalSchema,
+		createTableRelationsHelpers,
+	);
 
 	app.post('/', zValidator('json', schema), async (c) => {
 		const body = c.req.valid('json');
@@ -667,11 +723,17 @@ export const prepareServer = async (
 			// Attempt to extract relations from the relational config.
 			// An error may occur if the relations are ambiguous or misconfigured.
 			try {
-				relations = extractRelations(relationsConfig);
+				relations = extractRelations(relationsConfig, casing);
 			} catch (error) {
-				console.warn('Failed to extract relations. This is likely due to ambiguous or misconfigured relations.');
-				console.warn('Please check your schema and ensure that all relations are correctly defined.');
-				console.warn('See: https://orm.drizzle.team/docs/relations#disambiguating-relations');
+				console.warn(
+					'Failed to extract relations. This is likely due to ambiguous or misconfigured relations.',
+				);
+				console.warn(
+					'Please check your schema and ensure that all relations are correctly defined.',
+				);
+				console.warn(
+					'See: https://orm.drizzle.team/docs/relations#disambiguating-relations',
+				);
 				console.warn('Error message:', (error as Error).message);
 			}
 
@@ -706,11 +768,17 @@ export const prepareServer = async (
 
 			const result = columns.map((column) => {
 				const found = customDefaults.find((d) => {
-					return d.schema === column.schema && d.table === column.table && d.column === column.column;
+					return (
+						d.schema === column.schema
+						&& d.table === column.table
+						&& d.column === column.column
+					);
 				});
 
 				if (!found) {
-					throw new Error(`Custom default not found for ${column.schema}.${column.table}.${column.column}`);
+					throw new Error(
+						`Custom default not found for ${column.schema}.${column.table}.${column.column}`,
+					);
 				}
 
 				const value = found.func();
