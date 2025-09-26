@@ -983,8 +983,11 @@ export const fromDatabase = async (
 	) => void,
 	tsSchema?: PgSchemaInternal,
 ): Promise<PgSchemaInternal> => {
-	const result: Record<string, Table> = {};
-	const views: Record<string, View> = {};
+	// To maintain the order of the result(tables) and views variables, the keys are initialized with an undefined
+	// value prior to the main processing loop. If there are any undefined records at the end of the process an
+	// error will throw with details.
+	const result: Record<string, Table | undefined> = {};
+	const views: Record<string, View | undefined> = {};
 	const policies: Record<string, Policy> = {};
 	const internals: PgKitInternals = { tables: {} };
 
@@ -1006,9 +1009,9 @@ JOIN
     pg_catalog.pg_namespace n ON n.oid = c.relnamespace
 WHERE 
 	c.relkind IN ('r', 'v', 'm') 
-    ${where === '' ? '' : ` AND ${where}`};`,
+    ${where === '' ? '' : ` AND ${where}`}
+		ORDER BY n.nspname, c.relname;`,
 	);
-
 	const schemas = new Set(allTables.map((it) => it.table_schema));
 	schemas.delete('public');
 
@@ -1042,7 +1045,8 @@ WHERE
 	const allSequences = await db.query(
 		`select schemaname, sequencename, start_value, min_value, max_value, increment_by, cycle, cache_size from pg_sequences as seq${
 			seqWhere === '' ? '' : ` WHERE ${seqWhere}`
-		};`,
+		}
+		order by schemaname, sequencename;`,
 	);
 
 	for (const dbSeq of allSequences) {
@@ -1107,7 +1111,7 @@ WHERE
 	const allRoles = await db.query<
 		{ rolname: string; rolinherit: boolean; rolcreatedb: boolean; rolcreaterole: boolean }
 	>(
-		`SELECT rolname, rolinherit, rolcreatedb, rolcreaterole FROM pg_roles;`,
+		`SELECT rolname, rolinherit, rolcreatedb, rolcreaterole FROM pg_roles order by rolname;`,
 	);
 
 	const rolesToReturn: Record<string, Role> = {};
@@ -1166,26 +1170,28 @@ WHERE
 		}
 	>(`SELECT schemaname, tablename, policyname as name, permissive as "as", roles as to, cmd as for, qual as using, with_check as "withCheck" FROM pg_policies${
 		wherePolicies === '' ? '' : ` WHERE ${wherePolicies}`
-	};`);
-
+	}
+	order by schemaname, tablename, policyname;`);
 	for (const dbPolicy of allPolicies) {
 		const { tablename, schemaname, to, withCheck, using, ...rest } = dbPolicy;
-		const tableForPolicy = policiesByTable[`${schemaname}.${tablename}`];
 
 		const parsedTo = typeof to === 'string' ? to.slice(1, -1).split(',') : to;
 
 		const parsedWithCheck = withCheck === null ? undefined : withCheck;
 		const parsedUsing = using === null ? undefined : using;
 
-		if (tableForPolicy) {
-			tableForPolicy[dbPolicy.name] = { ...rest, to: parsedTo } as Policy;
-		} else {
-			policiesByTable[`${schemaname}.${tablename}`] = {
-				[dbPolicy.name]: { ...rest, to: parsedTo, withCheck: parsedWithCheck, using: parsedUsing } as Policy,
-			};
-		}
+		// policiesByTable is added to the result variable, which is returned from this function on the `tables` property
+		policiesByTable[`${schemaname}.${tablename}`] ??= {};
+		policiesByTable[`${schemaname}.${tablename}`][dbPolicy.name] = {
+			...rest,
+			to: parsedTo,
+			withCheck: parsedWithCheck,
+			using: parsedUsing,
+		} as Policy;
 
 		if (tsSchema?.policies[dbPolicy.name]) {
+			// policies is returned from this function in the `policies` property. It seems to be copy of the
+			// policiesByTable object with an additional `on` property taken from the passed in schema.
 			policies[dbPolicy.name] = {
 				...rest,
 				to: parsedTo,
@@ -1211,6 +1217,9 @@ WHERE
 	const all = allTables
 		.filter((it) => it.type === 'table')
 		.map((row) => {
+			// initialise before the starting async processing so that the order the properties are initialized in is deterministic.
+			// ES6 will iterate in the order the keys were defined. https://exploringjs.com/es6/ch_oop-besides-classes.html#_traversal-order-of-properties
+			result[`${row.table_schema}.${row.table_name}`] = undefined;
 			return new Promise(async (res, rej) => {
 				const tableName = row.table_name as string;
 				if (!tablesFilter(tableName)) return res('');
@@ -1226,14 +1235,27 @@ WHERE
 					const checkConstraints: Record<string, CheckConstraint> = {};
 
 					const tableResponse = await getColumnsInfoQuery({ schema: tableSchema, table: tableName, db });
-
+					// use kcu.ordinal_position to guarantee the correctness of the order of the resulting data.
 					const tableConstraints = await db.query(
-						`SELECT c.column_name, c.data_type, constraint_type, constraint_name, constraint_schema
-      FROM information_schema.table_constraints tc
-      JOIN information_schema.constraint_column_usage AS ccu USING (constraint_schema, constraint_name)
-      JOIN information_schema.columns AS c ON c.table_schema = tc.constraint_schema
-        AND tc.table_name = c.table_name AND ccu.column_name = c.column_name
-      WHERE tc.table_name = '${tableName}' and constraint_schema = '${tableSchema}';`,
+						`SELECT
+							 kcu.column_name,
+							 c.data_type,
+							 tc.constraint_type,
+							 tc.constraint_name,
+							 tc.constraint_schema
+						 FROM
+							 information_schema.table_constraints AS tc
+								 JOIN
+							 information_schema.key_column_usage AS kcu
+							 ON tc.constraint_name = kcu.constraint_name
+								 AND tc.constraint_schema = kcu.constraint_schema
+								 JOIN
+							 information_schema.columns AS c
+							 ON kcu.table_schema = c.table_schema
+								 AND kcu.table_name = c.table_name
+								 AND kcu.column_name = c.column_name
+      WHERE tc.table_name = '${tableName}' and tc.constraint_schema = '${tableSchema}'
+						 ORDER BY tc.constraint_name, kcu.ordinal_position;`,
 					);
 
 					const tableChecks = await db.query(`SELECT 
@@ -1257,7 +1279,8 @@ WHERE
 					WHERE 
 						tc.table_name = '${tableName}'
 						AND tc.constraint_schema = '${tableSchema}'
-						AND tc.constraint_type = 'CHECK';`);
+						AND tc.constraint_type = 'CHECK'
+						ORDER BY tc.constraint_name;`);
 
 					columnsCount += tableResponse.length;
 					if (progressCallback) {
@@ -1288,20 +1311,24 @@ WHERE
               WHEN 'c' THEN 'CASCADE'
               WHEN 'd' THEN 'SET DEFAULT'
             END AS delete_rule
-          FROM
-            pg_catalog.pg_constraint con
-            JOIN pg_catalog.pg_class rel ON rel.oid = con.conrelid
-            JOIN pg_catalog.pg_namespace nsp ON nsp.oid = con.connamespace
-            LEFT JOIN pg_catalog.pg_attribute att ON att.attnum = ANY (con.conkey)
-              AND att.attrelid = con.conrelid
-            LEFT JOIN pg_catalog.pg_class frel ON frel.oid = con.confrelid
-            LEFT JOIN pg_catalog.pg_namespace fnsp ON fnsp.oid = frel.relnamespace
-            LEFT JOIN pg_catalog.pg_attribute fatt ON fatt.attnum = ANY (con.confkey)
-              AND fatt.attrelid = con.confrelid
+						 FROM
+							 pg_catalog.pg_constraint AS con
+								 -- the ordering of the conkey and confkey data is ensured with the ORDINALITY operator. 
+								 JOIN unnest(con.conkey) WITH ORDINALITY AS c(attnum, ord) ON true
+								 JOIN unnest(con.confkey) WITH ORDINALITY AS fc(attnum, ord) ON c.ord = fc.ord
+									-- Join to get table and schema metadata
+								 JOIN pg_catalog.pg_class AS rel ON rel.oid = con.conrelid
+								 JOIN pg_catalog.pg_namespace AS nsp ON nsp.oid = rel.relnamespace
+								 JOIN pg_catalog.pg_class AS frel ON frel.oid = con.confrelid
+								 JOIN pg_catalog.pg_namespace AS fnsp ON fnsp.oid = frel.relnamespace
+									-- Join to get the column names using the unnested attnums
+								 JOIN pg_catalog.pg_attribute AS att ON att.attrelid = con.conrelid AND att.attnum = c.attnum
+								 JOIN pg_catalog.pg_attribute AS fatt ON fatt.attrelid = con.confrelid AND fatt.attnum = fc.attnum
           WHERE
             nsp.nspname = '${tableSchema}'
             AND rel.relname = '${tableName}'
-            AND con.contype IN ('f');`,
+            AND con.contype = 'f'
+					ORDER BY con.conname, c.ord`,
 					);
 
 					foreignKeysCount += tableForeignKeys.length;
@@ -1537,68 +1564,96 @@ WHERE
 							columnToReturn[columnName].default = defaultValue;
 						}
 					}
-
-					const dbIndexes = await db.query(
-						`SELECT  DISTINCT ON (t.relname, ic.relname, k.i) t.relname as table_name, ic.relname AS indexname,
-        k.i AS index_order,
-        i.indisunique as is_unique,
-        am.amname as method,
-        ic.reloptions as with,
-        coalesce(a.attname, pg_get_indexdef(i.indexrelid, k.i, false)) AS column_name,
-          CASE
-        WHEN pg_get_expr(i.indexprs, i.indrelid) IS NOT NULL THEN 1
-        ELSE 0
-    END AS is_expression,
-        i.indoption[k.i-1] & 1 = 1 AS descending,
-        i.indoption[k.i-1] & 2 = 2 AS nulls_first,
-        pg_get_expr(
-                              i.indpred,
-                              i.indrelid
-                          ) as where,
-         opc.opcname
-      FROM pg_class t
-          LEFT JOIN pg_index i ON t.oid = i.indrelid
-          LEFT JOIN pg_class ic ON ic.oid = i.indexrelid
-		  CROSS JOIN LATERAL (SELECT unnest(i.indkey), generate_subscripts(i.indkey, 1) + 1) AS k(attnum, i)
-          LEFT JOIN pg_attribute AS a
-            ON i.indrelid = a.attrelid AND k.attnum = a.attnum
-          JOIN pg_namespace c on c.oid = t.relnamespace
-        LEFT JOIN pg_am AS am ON ic.relam = am.oid
-        JOIN pg_opclass opc ON opc.oid = ANY(i.indclass)
-      WHERE
-      c.nspname = '${tableSchema}' AND
-      t.relname = '${tableName}';`,
-					);
-
-					const dbIndexFromConstraint = await db.query(
+					// This replaces a cartesian join that was making it so the opcname was randmoly chosen in composite keys.
+					// also renamed some of the columns to avoid ambiguity with reserved words.
+					const dbIndexes: {
+						table_name: string;
+						index_name: string;
+						index_order: number;
+						is_unique: boolean;
+						method: string;
+						index_with_options: string[];
+						column_name: string;
+						is_expression: boolean;
+						is_descending: boolean;
+						nulls_first: boolean;
+						partial_predicate: string;
+						operator_class: string;
+					}[] = await db.query(
 						`SELECT
-          idx.indexrelname AS index_name,
-          idx.relname AS table_name,
-          schemaname,
-          CASE WHEN con.conname IS NOT NULL THEN 1 ELSE 0 END AS generated_by_constraint
-        FROM
-          pg_stat_user_indexes idx
-        LEFT JOIN
-          pg_constraint con ON con.conindid = idx.indexrelid
-        WHERE idx.relname = '${tableName}' and schemaname = '${tableSchema}'
-        group by index_name, table_name,schemaname, generated_by_constraint;`,
+							 t.relname AS table_name,
+							 ic.relname AS index_name,
+							 k.i AS index_order,
+							 i.indisunique AS is_unique,
+							 am.amname AS method,
+							 ic.reloptions AS index_with_options,
+							 -- If k.attnum is 0, it's an expression, so we decompile it. Otherwise, get the column name.
+							 coalesce(a.attname, pg_get_indexdef(i.indexrelid, k.i::integer, false)) AS column_name,
+							 -- A value of 0 in the indkey array indicates an expression.
+							 (k.attnum = 0) AS is_expression,
+							 -- Use bitwise operators on the indoption array to get flags. indoption is 0-indexed.
+							 (i.indoption[k.i - 1] & 1) = 1 AS is_descending,
+							 (i.indoption[k.i - 1] & 2) = 2 AS nulls_first,
+							 pg_get_expr(i.indpred, i.indrelid) AS partial_predicate,
+							 -- Get the operator class name. If a specific opclass is defined, use it.
+							 -- Otherwise, find the default opclass for the column's type and index method.
+							 COALESCE(opc.opcname, (
+								 SELECT def_opc.opcname
+								 FROM pg_opclass AS def_opc
+								 WHERE def_opc.opcintype = ia.atttypid -- Type of the index column/expression
+									 AND def_opc.opcmethod = ic.relam    -- OID of the index access method
+									 AND def_opc.opcdefault = true
+								 LIMIT 1 -- Ensure single row to prevent subquery errors
+							 )) AS operator_class
+						 FROM
+							 pg_class AS t
+								 JOIN pg_index AS i ON t.oid = i.indrelid
+								 JOIN pg_class AS ic ON ic.oid = i.indexrelid
+								 JOIN pg_namespace AS c ON c.oid = t.relnamespace
+								 JOIN pg_am AS am ON ic.relam = am.oid
+								 -- Use unnest WITH ORDINALITY to correctly pivot the array of index columns into rows. k.i is 1-based.
+								 CROSS JOIN LATERAL unnest(i.indkey) WITH ORDINALITY AS k(attnum, i)
+								 -- Left join to get column name, which will be NULL for expressions (where k.attnum = 0).
+								 LEFT JOIN pg_attribute AS a ON a.attrelid = t.oid AND a.attnum = k.attnum
+								 -- Left join to get the type of the index's attribute. This works for both columns and expressions.
+								 LEFT JOIN pg_attribute AS ia ON ia.attrelid = i.indexrelid AND ia.attnum = k.i
+								 -- Correctly join to get the operator class using 0-based index.
+								 LEFT JOIN pg_opclass AS opc ON opc.oid = i.indclass[k.i - 1]
+						 WHERE
+							 c.nspname = '${tableSchema}' AND
+							 t.relname = '${tableName}'
+						 ORDER BY
+							 ic.relname, k.i;`,
 					);
 
-					const idxsInConsteraint = dbIndexFromConstraint.filter((it) => it.generated_by_constraint === 1).map((it) =>
-						it.index_name
+					// This has been refactored to only select the required data instead of filtering in JS.
+					const dbIndexFromConstraint: { index_name: string }[] = await db.query(
+						`SELECT
+									 idx.indexrelname AS index_name
+								 FROM
+									 pg_stat_user_indexes idx
+								 WHERE
+									 idx.relname = '${tableName}' AND idx.schemaname = '${tableSchema}'
+									 AND EXISTS (
+										 SELECT 1
+										 FROM pg_constraint con
+										 WHERE con.conindid = idx.indexrelid
+									 );`,
 					);
+
+					const idxsInConstraint = dbIndexFromConstraint.map((it) => it.index_name);
 
 					for (const dbIndex of dbIndexes) {
-						const indexName: string = dbIndex.indexname;
+						const indexName: string = dbIndex.index_name;
 						const indexColumnName: string = dbIndex.column_name;
 						const indexIsUnique = dbIndex.is_unique;
 						const indexMethod = dbIndex.method;
-						const indexWith: string[] = dbIndex.with;
-						const indexWhere: string = dbIndex.where;
-						const opclass: string = dbIndex.opcname;
-						const isExpression = dbIndex.is_expression === 1;
+						const indexWith: string[] = dbIndex.index_with_options;
+						const indexWhere: string = dbIndex.partial_predicate;
+						const opclass: string = dbIndex.operator_class;
+						const isExpression = dbIndex.is_expression;
 
-						const desc: boolean = dbIndex.descending;
+						const desc: boolean = dbIndex.is_descending;
 						const nullsFirst: boolean = dbIndex.nulls_first;
 
 						const mappedWith: Record<string, string> = {};
@@ -1612,8 +1667,7 @@ WHERE
 									mappedWith[splitted[0]] = splitted[1];
 								});
 						}
-
-						if (idxsInConsteraint.includes(indexName)) continue;
+						if (idxsInConstraint.includes(indexName)) continue;
 
 						if (typeof indexToReturn[indexName] !== 'undefined') {
 							indexToReturn[indexName].columns.push({
@@ -1679,6 +1733,9 @@ WHERE
 	const allViews = allTables
 		.filter((it) => it.type === 'view' || it.type === 'materialized_view')
 		.map((row) => {
+			// initialise before the starting async processing so that the order the properties are initialized in is deterministic.
+			// ES6 will iterate in the order the keys were defined. https://exploringjs.com/es6/ch_oop-besides-classes.html#_traversal-order-of-properties
+			views[`${row.table_schema}.${row.table_name}`] = undefined;
 			return new Promise(async (res, rej) => {
 				const viewName = row.table_name as string;
 				if (!tablesFilter(viewName)) return res('');
@@ -1854,7 +1911,9 @@ LEFT JOIN
 WHERE
     (c.relkind = 'm' OR c.relkind = 'v')
     AND n.nspname = '${viewSchema}'
-    AND c.relname = '${viewName}';`);
+    AND c.relname = '${viewName}'
+					ORDER BY schema_name, view_name
+					;`);
 
 					const resultWith: { [key: string]: string | boolean | number } = {};
 					if (viewInfo.options) {
@@ -1915,7 +1974,10 @@ WHERE
 	}
 
 	const schemasObject = Object.fromEntries([...schemas].map((it) => [it, it]));
-
+	// Use a type guard to ensure that there are no undefined values, which would presumably be an error
+	// and reshape the object to fit the return type.
+	assertNoUndefinedValues(result);
+	assertNoUndefinedValues(views);
 	return {
 		version: '7',
 		dialect: 'postgresql',
@@ -2091,6 +2153,37 @@ WHERE
     AND ns.nspname = '${schema}'  -- Filter by schema
     AND cls.relname = '${table}'  -- Filter by table name
 ORDER BY 
-    a.attnum;  -- Order by column number`,
+    ns.nspname, table_name, column_name;  -- Order by column number`,
 	);
 };
+
+/**
+ * Asserts that an object has no undefined property values.
+ * Collects all keys with undefined values and throws a single
+ * Error if any are found.
+ *
+ * Narrows the object's type to exclude undefined from its property values.
+ *
+ * @param obj The object to check.
+ */
+function assertNoUndefinedValues<T>(
+	obj: Record<string, T | undefined>,
+): asserts obj is Record<string, T> {
+	const undefinedKeys: string[] = [];
+
+	for (const key in obj) {
+		// We only check the object's own properties
+		if (Object.prototype.hasOwnProperty.call(obj, key)) {
+			if (obj[key] === undefined) {
+				undefinedKeys.push(key);
+			}
+		}
+	}
+
+	// If we found any keys with undefined values, throw an error.
+	if (undefinedKeys.length > 0) {
+		throw new Error(
+			`Object contains undefined values for the following keys: ${undefinedKeys.join(', ')}`,
+		);
+	}
+}
