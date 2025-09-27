@@ -37,6 +37,8 @@ import type { MySqlSession } from './session.ts';
 import { MySqlTable } from './table.ts';
 import { MySqlViewBase } from './view-base.ts';
 
+const LIMIT_ONE = sql.raw('1') as unknown as Placeholder;
+
 export interface MySqlDialectConfig {
 	casing?: Casing;
 }
@@ -1022,8 +1024,8 @@ export class MySqlDialect {
 					tableConfig: schema[relationTableTsName]!,
 					queryConfig: is(relation, One)
 						? (selectedRelationConfigValue === true
-							? { limit: 1 }
-							: { ...selectedRelationConfigValue, limit: 1 })
+							? { limit: LIMIT_ONE }
+							: { ...selectedRelationConfigValue, limit: LIMIT_ONE })
 						: selectedRelationConfigValue,
 					tableAlias: relationTableAlias,
 					joinOn,
