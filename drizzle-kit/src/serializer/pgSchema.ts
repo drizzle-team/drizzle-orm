@@ -746,10 +746,9 @@ export const PgSquasher = {
 		return `${check.name};${check.value}`;
 	},
 	unsquashCheck: (input: string): CheckConstraint => {
-		const [
-			name,
-			value,
-		] = input.split(';');
+		const i = input.indexOf(";");
+		const name = input.substring(0, i);
+		const value = input.substring(i + 1);
 
 		return { name, value };
 	},
