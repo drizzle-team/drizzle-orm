@@ -645,19 +645,16 @@ export const detectNonCommutative = async (
 
 	const conflicts: BranchConflict[] = [];
 
-	// For each branching point (prevId with >1 children)
 	for (const [prevId, childIds] of Object.entries(prevToChildren)) {
 		if (childIds.length <= 1) continue;
 
 		const parentNode = nodes[prevId];
 
-		// For each child group, collect all leaf heads reachable from that child
 		const childToLeaves: Record<string, string[]> = {};
 		for (const childId of childIds) {
 			childToLeaves[childId] = collectLeaves(nodes, childId);
 		}
 
-		// Precompute branch statements for each leaf from parent -> leaf
 		const leafStatements: Record<string, { statements: JsonStatement[]; path: string }> = {};
 		for (const leaves of Object.values(childToLeaves)) {
 			for (const leafId of leaves) {
@@ -668,7 +665,6 @@ export const detectNonCommutative = async (
 			}
 		}
 
-		// Compare only across different initial children using footprint-based detection
 		for (let i = 0; i < childIds.length; i++) {
 			for (let j = i + 1; j < childIds.length; j++) {
 				const groupA = childToLeaves[childIds[i]] ?? [];
@@ -678,7 +674,6 @@ export const detectNonCommutative = async (
 						const aStatements = leafStatements[aId]!.statements;
 						const bStatements = leafStatements[bId]!.statements;
 
-						// Generate footprints for both branches using parent snapshot as the initial state
 						const parentSnapshot = parentNode ? parentNode.raw : drySnapshot;
 						const branchAFootprints = generateLeafFootprints(
 							aStatements,
@@ -691,7 +686,6 @@ export const detectNonCommutative = async (
 							parentSnapshot,
 						);
 
-						// Find footprint intersections
 						const reasons = findFootprintIntersections(
 							branchAFootprints.statementHashes,
 							branchAFootprints.conflictFootprints,
