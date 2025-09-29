@@ -15,7 +15,7 @@ import { CasingType } from 'src/cli/validations/common';
 import { safeRegister } from '../../utils/utils-node';
 import { getColumnCasing, sqlToStr } from '../drizzle';
 import { Column, InterimSchema } from './ddl';
-import { typeFor } from './grammar';
+import { nameForIndex, typeFor } from './grammar';
 
 export const defaultFromColumn = (
 	column: AnyMySqlColumn,
@@ -154,7 +154,7 @@ export const fromDrizzleSchema = (
 				return { value: getColumnCasing(c, casing), isExpression: false };
 			});
 
-			const name = unique.name ?? uniqueKeyName(table, unique.columns.filter((c) => !is(c, SQL)).map((c) => c.name));
+			const name = unique.name ?? nameForIndex(tableName, unique.columns.filter((c) => !is(c, SQL)).map((c) => c.name));
 
 			result.indexes.push({
 				entityType: 'indexes',

@@ -371,6 +371,7 @@ export const fromEntities = (entities: PostgresEntity[]) => {
 
 	return ddl;
 };
+
 export const interimToDDL = (
 	schema: InterimSchema,
 ): { ddl: PostgresDDL; errors: SchemaError[] } => {
