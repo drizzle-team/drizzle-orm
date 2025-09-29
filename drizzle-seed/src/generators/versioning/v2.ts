@@ -2,7 +2,7 @@
 import prand from 'pure-rand';
 import { AbstractGenerator } from '../Generators.ts';
 
-export class GenerateUniqueIntervalV2 extends AbstractGenerator<{
+export type GenerateUniqueIntervalV2T = {
 	fields?:
 		| 'year'
 		| 'month'
@@ -18,7 +18,8 @@ export class GenerateUniqueIntervalV2 extends AbstractGenerator<{
 		| 'hour to second'
 		| 'minute to second';
 	isUnique?: boolean;
-}> {
+};
+export class GenerateUniqueIntervalV2 extends AbstractGenerator<GenerateUniqueIntervalV2T> {
 	static override readonly 'entityKind': string = 'GenerateUniqueInterval';
 	static override readonly version: number = 2;
 
@@ -27,7 +28,9 @@ export class GenerateUniqueIntervalV2 extends AbstractGenerator<{
 		fieldsToGenerate: string[];
 		intervalSet: Set<string>;
 	} | undefined;
-	public override isUnique = true;
+	public override isGeneratorUnique = true;
+	public override maxUniqueCount: number;
+
 	private config: { [key: string]: { from: number; to: number } } = {
 		year: {
 			from: 0,
@@ -55,32 +58,38 @@ export class GenerateUniqueIntervalV2 extends AbstractGenerator<{
 		},
 	};
 
-	override init({ count, seed }: { count: number; seed: number }) {
+	public fieldsToGenerate: string[];
+
+	constructor(params?: GenerateUniqueIntervalV2T) {
+		super(params);
+
 		const allFields = ['year', 'month', 'day', 'hour', 'minute', 'second'];
-		let fieldsToGenerate: string[] = allFields;
+		this.fieldsToGenerate = allFields;
 
 		if (this.params.fields !== undefined && this.params.fields?.includes(' to ')) {
 			const tokens = this.params.fields.split(' to ');
 			const endIdx = allFields.indexOf(tokens[1]!);
-			fieldsToGenerate = allFields.slice(0, endIdx + 1);
+			this.fieldsToGenerate = allFields.slice(0, endIdx + 1);
 		} else if (this.params.fields !== undefined) {
 			const endIdx = allFields.indexOf(this.params.fields);
-			fieldsToGenerate = allFields.slice(0, endIdx + 1);
+			this.fieldsToGenerate = allFields.slice(0, endIdx + 1);
 		}
 
-		let maxUniqueIntervalsNumber = 1;
-		for (const field of fieldsToGenerate) {
+		this.maxUniqueCount = 1;
+		for (const field of this.fieldsToGenerate) {
 			const from = this.config[field]!.from, to = this.config[field]!.to;
-			maxUniqueIntervalsNumber *= from - to + 1;
+			this.maxUniqueCount *= from - to + 1;
 		}
+	}
 
-		if (count > maxUniqueIntervalsNumber) {
-			throw new RangeError(`count exceeds max number of unique intervals(${maxUniqueIntervalsNumber})`);
+	override init({ count, seed }: { count: number; seed: number }) {
+		if (count > this.maxUniqueCount) {
+			throw new RangeError(`count exceeds max number of unique intervals(${this.maxUniqueCount})`);
 		}
 
 		const rng = prand.xoroshiro128plus(seed);
 		const intervalSet = new Set<string>();
-		this.state = { rng, fieldsToGenerate, intervalSet };
+		this.state = { rng, fieldsToGenerate: this.fieldsToGenerate, intervalSet };
 	}
 
 	generate() {
@@ -109,6 +118,7 @@ export class GenerateUniqueIntervalV2 extends AbstractGenerator<{
 	}
 }
 
+// TODO need to rework this generator
 export class GenerateStringV2 extends AbstractGenerator<{
 	isUnique?: boolean;
 	arraySize?: number;
@@ -179,26 +189,34 @@ export class GenerateUniqueStringV2 extends AbstractGenerator<{ isUnique?: boole
 		minStringLength: number;
 		maxStringLength: number;
 	} | undefined;
-	public override isUnique = true;
+	public override isGeneratorUnique = true;
+	public maxStringLength: number = 20;
+	public minStringLength: number = 7;
+
+	override getMaxUniqueCount(): number {
+		if (this.maxUniqueCount >= 0) return this.maxUniqueCount;
+
+		this.maxStringLength = this.typeParams?.length ?? this.maxStringLength;
+		this.maxUniqueCount = Number.parseInt('f'.repeat(this.maxStringLength), 16);
+		return this.maxUniqueCount;
+	}
 
 	override init({ seed, count }: { seed: number; count: number }) {
 		const rng = prand.xoroshiro128plus(seed);
 
-		let minStringLength = 7;
-		let maxStringLength = 20;
 		// TODO: revise later
-		if (this.typeParams?.length !== undefined) {
-			maxStringLength = this.typeParams?.length;
-			if (maxStringLength === 1 || maxStringLength < minStringLength) minStringLength = maxStringLength;
+		this.maxStringLength = this.typeParams?.length ?? this.maxStringLength;
+		if (this.maxStringLength === 1 || this.maxStringLength < this.minStringLength) {
+			this.minStringLength = this.maxStringLength;
 		}
 
-		if (maxStringLength < count.toString(16).length) {
+		if (count > this.getMaxUniqueCount()) {
 			throw new Error(
-				`You can't generate ${count} unique strings, with a maximum string length of ${maxStringLength}.`,
+				`You can't generate ${count} unique strings, with a maximum string length of ${this.maxStringLength}.`,
 			);
 		}
 
-		this.state = { rng, minStringLength, maxStringLength };
+		this.state = { rng, minStringLength: this.minStringLength, maxStringLength: this.maxStringLength };
 	}
 
 	generate({ i }: { i: number }) {
