@@ -10,6 +10,7 @@ export const createDDL = () => {
 			autoIncrement: 'boolean',
 			default: 'string?',
 			onUpdateNow: 'boolean',
+			onUpdateNowFsp: 'number?',
 			generated: {
 				type: ['stored', 'virtual'],
 				as: 'string',

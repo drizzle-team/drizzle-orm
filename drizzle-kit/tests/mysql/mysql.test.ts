@@ -478,6 +478,207 @@ test('add table #14', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+test('add table #15. timestamp + fsp + on update now + fsp', async () => {
+	const to = {
+		users: mysqlTable('table', {
+			createdAt: timestamp({ fsp: 4 }).onUpdateNow({ fsp: 4 }),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
+		'CREATE TABLE `table` (\n\t`createdAt` timestamp(4) ON UPDATE CURRENT_TIMESTAMP(4)\n);\n',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('add table #16. timestamp + on update now + fsp', async () => {
+	const to = {
+		users: mysqlTable('table', {
+			createdAt: timestamp().onUpdateNow({ fsp: 4 }),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+
+	const st0: string[] = [
+		'CREATE TABLE `table` (\n\t`createdAt` timestamp ON UPDATE CURRENT_TIMESTAMP(4)\n);\n',
+	];
+
+	expect(st).toStrictEqual(st0);
+	await expect(push({ db, to })).rejects.toThrowError();
+});
+
+test('add table #17. timestamp + fsp + on update now', async () => {
+	const to = {
+		users: mysqlTable('table', {
+			createdAt: timestamp({ fsp: 4 }).onUpdateNow(),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+
+	const st0: string[] = [
+		'CREATE TABLE `table` (\n\t`createdAt` timestamp(4) ON UPDATE CURRENT_TIMESTAMP\n);\n',
+	];
+
+	expect(st).toStrictEqual(st0);
+	await expect(push({ db, to })).rejects.toThrowError();
+});
+
+test('add column #1. timestamp + fsp + on update now + fsp', async () => {
+	const from = {
+		users: mysqlTable('table', {
+			id: int(),
+		}),
+	};
+	const to = {
+		users: mysqlTable('table', {
+			id: int(),
+			createdAt: timestamp({ fsp: 4 }).onUpdateNow({ fsp: 4 }),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
+		'ALTER TABLE `table` ADD `createdAt` timestamp(4) ON UPDATE CURRENT_TIMESTAMP(4);',
+	];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('add column #2. timestamp + on update now + fsp', async () => {
+	const from = {
+		users: mysqlTable('table', {
+			id: int(),
+		}),
+	};
+	const to = {
+		users: mysqlTable('table', {
+			id: int(),
+			createdAt: timestamp().onUpdateNow({ fsp: 4 }),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+	await push({ db, to: from });
+
+	const st0: string[] = [
+		'ALTER TABLE `table` ADD `createdAt` timestamp ON UPDATE CURRENT_TIMESTAMP(4);',
+	];
+
+	expect(st).toStrictEqual(st0);
+	await expect(push({ db, to })).rejects.toThrowError();
+});
+
+test('add column #3. timestamp + fsp + on update now', async () => {
+	const from = {
+		users: mysqlTable('table', {
+			id: int(),
+		}),
+	};
+	const to = {
+		users: mysqlTable('table', {
+			id: int(),
+			createdAt: timestamp({ fsp: 4 }).onUpdateNow(),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+	await push({ db, to: from });
+
+	const st0: string[] = [
+		'ALTER TABLE `table` ADD `createdAt` timestamp(4) ON UPDATE CURRENT_TIMESTAMP;',
+	];
+
+	expect(st).toStrictEqual(st0);
+	await expect(push({ db, to })).rejects.toThrowError();
+});
+
+test('modify on update now fsp #1', async () => {
+	const from = {
+		users: mysqlTable('table', {
+			id: int(),
+			createdAt: timestamp({ fsp: 4 }).onUpdateNow({ fsp: 4 }),
+		}),
+	};
+	const to = {
+		users: mysqlTable('table', {
+			id: int(),
+			createdAt: timestamp().onUpdateNow(),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+	const { sqlStatements: pst } = await diff(from, to, []);
+
+	const st0: string[] = [
+		'ALTER TABLE `table` MODIFY COLUMN `createdAt` timestamp ON UPDATE CURRENT_TIMESTAMP;',
+	];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('modify on update now fsp #2', async () => {
+	const from = {
+		users: mysqlTable('table', {
+			id: int(),
+			createdAt: timestamp().onUpdateNow(),
+		}),
+	};
+	const to = {
+		users: mysqlTable('table', {
+			id: int(),
+			createdAt: timestamp({ fsp: 4 }).onUpdateNow({ fsp: 4 }),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
+		'ALTER TABLE `table` MODIFY COLUMN `createdAt` timestamp(4) ON UPDATE CURRENT_TIMESTAMP(4);',
+	];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('modify on update now fsp #3', async () => {
+	const from = {
+		users: mysqlTable('table', {
+			id: int(),
+			createdAt: timestamp({ fsp: 2 }).onUpdateNow({ fsp: 2 }),
+		}),
+	};
+	const to = {
+		users: mysqlTable('table', {
+			id: int(),
+			createdAt: timestamp({ fsp: 4 }).onUpdateNow({ fsp: 4 }),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
+		'ALTER TABLE `table` MODIFY COLUMN `createdAt` timestamp(4) ON UPDATE CURRENT_TIMESTAMP(4);',
+	];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
 test('drop index', async () => {
 	const from = {
 		users: mysqlTable('table', {

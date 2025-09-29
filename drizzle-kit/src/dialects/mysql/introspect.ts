@@ -1,5 +1,6 @@
 import type { IntrospectStage, IntrospectStatus } from 'src/cli/views';
 import { DB } from '../../utils';
+import { parseParams } from '../utils';
 import { ForeignKey, Index, InterimSchema, PrimaryKey } from './ddl';
 import { parseDefaultValue } from './grammar';
 
@@ -128,6 +129,7 @@ export const fromDatabase = async (
 		const numericScale = column['NUMERIC_SCALE'];
 		const isAutoincrement = extra === 'auto_increment';
 		const onUpdateNow = extra.includes('on update CURRENT_TIMESTAMP');
+		const onUpdateNowFsp = onUpdateNow ? Number(parseParams(extra)[0]) : null;
 
 		let changedType = columnType.replace('decimal(10,0)', 'decimal');
 
@@ -154,6 +156,7 @@ export const fromDatabase = async (
 			notNull: !isNullable,
 			autoIncrement: isAutoincrement,
 			onUpdateNow,
+			onUpdateNowFsp,
 			default: def,
 			generated: geenratedExpression
 				? {

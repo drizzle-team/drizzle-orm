@@ -34,7 +34,7 @@ const createTable = convertor('create_table', (st) => {
 		const defaultStatement = column.default !== null ? ` DEFAULT ${column.default}` : '';
 
 		const onUpdateStatement = column.onUpdateNow
-			? ` ON UPDATE CURRENT_TIMESTAMP`
+			? ` ON UPDATE CURRENT_TIMESTAMP` + `${column.onUpdateNowFsp ? '(' + column.onUpdateNowFsp + ')' : ''}`
 			: '';
 
 		const autoincrementStatement = column.autoIncrement && column.type !== 'serial'
@@ -100,6 +100,7 @@ const addColumn = convertor('add_column', (st) => {
 		onUpdateNow,
 		autoIncrement,
 		generated,
+		onUpdateNowFsp,
 	} = column;
 
 	const defaultStatement = column.default !== null ? ` DEFAULT ${column.default}` : '';
@@ -107,7 +108,9 @@ const addColumn = convertor('add_column', (st) => {
 	const notNullStatement = `${notNull ? ' NOT NULL' : ''}`;
 	const primaryKeyStatement = `${isPK ? ' PRIMARY KEY' : ''}`;
 	const autoincrementStatement = `${autoIncrement ? ' AUTO_INCREMENT' : ''}`;
-	const onUpdateStatement = `${onUpdateNow ? ' ON UPDATE CURRENT_TIMESTAMP' : ''}`;
+	const onUpdateStatement = `${
+		onUpdateNow ? ' ON UPDATE CURRENT_TIMESTAMP' + `${onUpdateNowFsp ? '(' + onUpdateNowFsp + ')' : ''}` : ''
+	}`;
 
 	const generatedStatement = generated
 		? ` GENERATED ALWAYS AS (${generated?.as}) ${generated?.type.toUpperCase()}`
@@ -132,7 +135,11 @@ const alterColumn = convertor('alter_column', (st) => {
 	const notNullStatement = `${column.notNull ? ' NOT NULL' : ''}`;
 	const primaryKeyStatement = `${isPK ? ' PRIMARY KEY' : ''}`;
 	const autoincrementStatement = `${column.autoIncrement ? ' AUTO_INCREMENT' : ''}`;
-	const onUpdateStatement = `${column.onUpdateNow ? ' ON UPDATE CURRENT_TIMESTAMP' : ''}`;
+	const onUpdateStatement = `${
+		column.onUpdateNow
+			? ' ON UPDATE CURRENT_TIMESTAMP' + `${column.onUpdateNowFsp ? '(' + column.onUpdateNowFsp + ')' : ''}`
+			: ''
+	}`;
 
 	const generatedStatement = column.generated
 		? ` GENERATED ALWAYS AS (${column.generated.as}) ${column.generated.type.toUpperCase()}`

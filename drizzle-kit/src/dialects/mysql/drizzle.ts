@@ -8,6 +8,7 @@ import {
 	MySqlDialect,
 	MySqlEnumColumn,
 	MySqlTable,
+	MySqlTimestamp,
 	MySqlView,
 	uniqueKeyName,
 } from 'drizzle-orm/mysql-core';
@@ -110,6 +111,12 @@ export const fromDrizzleSchema = (
 				? `enum(${column.enumValues?.map((it) => `'${it.replaceAll("'", "''")}'`).join(',')})`
 				: sqlType;
 
+			let onUpdateNow: boolean = false;
+			let onUpdateNowFsp: number | null = null;
+			if (is(column, MySqlTimestamp)) {
+				onUpdateNow = column.hasOnUpdateNow;
+				onUpdateNowFsp = column.onUpdateNowFsp ?? null;
+			}
 			result.columns.push({
 				entityType: 'columns',
 				table: tableName,
@@ -117,7 +124,8 @@ export const fromDrizzleSchema = (
 				type,
 				notNull,
 				autoIncrement,
-				onUpdateNow: (column as any).hasOnUpdateNow ?? false, // TODO: ??
+				onUpdateNow,
+				onUpdateNowFsp,
 				generated,
 				isPK: column.primary,
 				isUnique: column.isUnique,
