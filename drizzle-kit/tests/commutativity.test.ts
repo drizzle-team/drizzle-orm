@@ -1,7 +1,7 @@
 import { createDDL } from 'src/dialects/postgres/ddl';
 import { type PostgresSnapshot } from 'src/dialects/postgres/snapshot';
 import type { JsonStatement } from 'src/dialects/postgres/statements';
-import { detectNonCommutative, explainConflicts } from 'src/utils/commutativity';
+import { detectNonCommutative } from 'src/utils/commutativity';
 import { describe, expect, test } from 'vitest';
 
 const baseId = '00000000-0000-0000-0000-000000000000';
