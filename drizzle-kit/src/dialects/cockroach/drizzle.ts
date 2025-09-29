@@ -6,6 +6,8 @@ import {
 	CockroachDialect,
 	CockroachEnum,
 	CockroachEnumColumn,
+	CockroachGeometry,
+	CockroachGeometryObject,
 	CockroachMaterializedView,
 	CockroachPolicy,
 	CockroachRole,
@@ -48,6 +50,7 @@ import {
 	defaultNameForPK,
 	defaultNameForUnique,
 	defaults,
+	GeometryPoint,
 	indexName,
 	maxRangeForIdentityBasedOn,
 	minRangeForIdentityBasedOn,
@@ -159,21 +162,28 @@ export const defaultFromColumn = (
 			type: 'unknown',
 		};
 	}
-	const baseType = base.getSQLType();
-	const { type } = splitSqlType(baseType);
+	const { baseColumn, isEnum } = unwrapColumn(base);
+	const grammarType = typeFor(base.getSQLType(), isEnum);
 
-	const grammarType = typeFor(type);
-
-	if (grammarType) {
-		// if (dimensions > 0 && !Array.isArray(def)) return { value: String(def), type: 'unknown' };
-		if (dimensions > 0 && Array.isArray(def)) {
-			if (def.flat(5).length === 0) return { value: "'{}'", type: 'unknown' };
-			return grammarType.defaultArrayFromDrizzle(def, baseType);
-		}
-		return grammarType.defaultFromDrizzle(def, baseType);
+	if (is(baseColumn, CockroachGeometry) || is(baseColumn, CockroachGeometryObject)) {
+		return (dimensions > 0 && Array.isArray(def))
+			? def.flat(5).length === 0
+				? { value: "'{}'", type: 'unknown' }
+				: GeometryPoint.defaultArrayFromDrizzle(def, baseColumn.mode, baseColumn.srid)
+			: GeometryPoint.defaultFromDrizzle(def, baseColumn.mode, baseColumn.srid);
 	}
 
-	throw new Error(`Unhandled type: ${type}`);
+	if (grammarType) {
+		if (dimensions > 0 && Array.isArray(def)) {
+			if (def.flat(5).length === 0) return { value: "'{}'", type: 'unknown' };
+
+			return grammarType.defaultArrayFromDrizzle(def);
+		}
+
+		return grammarType.defaultFromDrizzle(def);
+	}
+
+	throw new Error(`Unhandled type: ${base.getSQLType()}`);
 };
 
 /*
@@ -336,16 +346,16 @@ export const fromDrizzleSchema = (
 					}
 					: null;
 
-				const { dimensions, sqlType, typeSchema } = unwrapColumn(column);
+				const { dimensions, sqlType, typeSchema, baseColumn } = unwrapColumn(column);
 
-				const columnDefault = defaultFromColumn(column, column.default, dimensions, dialect);
+				const columnDefault = defaultFromColumn(baseColumn, column.default, dimensions, dialect);
 				const isPartOfPk = drizzlePKs.find((it) => it.columns.map((it) => it.name).includes(column.name));
 				return {
 					entityType: 'columns',
 					schema: schema,
 					table: tableName,
 					name,
-					type: sqlType,
+					type: sqlType.replaceAll('[]', ''),
 					typeSchema: typeSchema ?? null,
 					dimensions: dimensions,
 					pk: column.primary,

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { toCamelCase } from 'drizzle-orm/casing';
 import { Casing } from 'src/cli/validations/common';
 import { assertUnreachable } from '../../utils';

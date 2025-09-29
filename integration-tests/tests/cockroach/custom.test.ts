@@ -109,7 +109,7 @@ const usersTable = cockroachTable('users', {
 });
 
 const usersMigratorTable = cockroachTable('users12', {
-	id: int4('id').primaryKey().generatedByDefaultAsIdentity(),
+	id: int4('id').primaryKey().generatedAlwaysAsIdentity(),
 	name: text('name').notNull(),
 	email: text('email').notNull(),
 });

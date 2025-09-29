@@ -6,7 +6,7 @@ import { parseDefaultValue } from './grammar';
 export const fromDatabaseForDrizzle = async (
 	db: DB,
 	schema: string,
-	tablesFilter: (table: string) => boolean = (table) => true,
+	tablesFilter: (schema: string, table: string) => boolean = (table) => true,
 	progressCallback: (
 		stage: IntrospectStage,
 		count: number,
@@ -25,7 +25,7 @@ export const fromDatabaseForDrizzle = async (
 export const fromDatabase = async (
 	db: DB,
 	schema: string,
-	tablesFilter: (table: string) => boolean = (table) => true,
+	tablesFilter: (schema: string, table: string) => boolean = () => true,
 	progressCallback: (
 		stage: IntrospectStage,
 		count: number,
@@ -58,7 +58,7 @@ export const fromDatabase = async (
 		ORDER BY lower(TABLE_NAME);
 	`).then((rows) => {
 		queryCallback('tables', rows, null);
-		return rows.filter((it) => tablesFilter(it.name));
+		return rows.filter((it) => tablesFilter(schema, it.name));
 	}).catch((err) => {
 		queryCallback('tables', [], err);
 		throw err;
@@ -72,7 +72,7 @@ export const fromDatabase = async (
 		ORDER BY lower(table_name), ordinal_position;
 	`).then((rows) => {
 		queryCallback('columns', rows, null);
-		return rows.filter((it) => tablesFilter(it['TABLE_NAME']));
+		return rows.filter((it) => tablesFilter(schema, it['TABLE_NAME']));
 	}).catch((err) => {
 		queryCallback('columns', [], err);
 		throw err;
@@ -87,7 +87,7 @@ export const fromDatabase = async (
 		ORDER BY lower(INDEX_NAME);
 	`).then((rows) => {
 		queryCallback('indexes', rows, null);
-		return rows.filter((it) => tablesFilter(it['TABLE_NAME']));
+		return rows.filter((it) => tablesFilter(schema, it['TABLE_NAME']));
 	}).catch((err) => {
 		queryCallback('indexes', [], err);
 		throw err;
