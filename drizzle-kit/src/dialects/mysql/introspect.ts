@@ -17,6 +17,8 @@ export const fromDatabaseForDrizzle = async (
 	res.indexes = res.indexes.filter((x) => {
 		let skip = x.isUnique === true && x.columns.length === 1 && x.columns[0].isExpression === false;
 		skip &&= res.columns.some((c) => c.type === 'serial' && c.table === x.table && c.name === x.columns[0].value);
+
+		skip ||= res.fks.some((fk) => x.table === fk.table && x.name === fk.name);
 		return !skip;
 	});
 	return res;
@@ -235,7 +237,8 @@ export const fromDatabase = async (
 		throw err;
 	});
 
-	const groupedFKs = fks.filter((it) => tables.some((x) => x === it['TABLE_NAME'])).reduce<Record<string, ForeignKey>>(
+	const filteredFKs = fks.filter((it) => tables.some((x) => x === it['TABLE_NAME']));
+	const groupedFKs = filteredFKs.reduce<Record<string, ForeignKey>>(
 		(acc, it) => {
 			const name = it['CONSTRAINT_NAME'];
 			const table: string = it['TABLE_NAME'];
@@ -245,12 +248,15 @@ export const fromDatabase = async (
 			const updateRule: string = it['UPDATE_RULE'];
 			const deleteRule: string = it['DELETE_RULE'];
 
-			if (table in acc) {
-				const entry = acc[table];
+			const key = `${table}:${name}`
+
+
+			if (key in acc) {
+				const entry = acc[key];
 				entry.columns.push(column);
 				entry.columnsTo.push(refColumn);
 			} else {
-				acc[table] = {
+				acc[key] = {
 					entityType: 'fks',
 					name,
 					table,
@@ -281,14 +287,16 @@ export const fromDatabase = async (
 		const isUnique = it['NON_UNIQUE'] === 0;
 		const expression = it['EXPRESSION'];
 
-		if (name in acc) {
-			const entry = acc[name];
+		const key = `${table}:${name}`
+
+		if (key in acc) {
+			const entry = acc[key];
 			entry.columns.push({
 				value: expression ? expression : column,
 				isExpression: !!expression,
 			});
 		} else {
-			acc[name] = {
+			acc[key] = {
 				entityType: 'indexes',
 				table,
 				name,

@@ -54,7 +54,7 @@ import 'zx/globals';
 import { prepareTablesFilter } from 'src/cli/commands/pull-common';
 import { upToV8 } from 'src/cli/commands/up-postgres';
 import { serializePg } from 'src/legacy/postgres-v7/serializer';
-import { diff as legacyDiff } from 'src/legacy/postgres-v7/snapshotsDiffer';
+import { diff as legacyDiff } from 'src/legacy/postgres-v7/pgDiff';
 import { tsc } from 'tests/utils';
 
 mkdirSync(`tests/postgres/tmp/`, { recursive: true });

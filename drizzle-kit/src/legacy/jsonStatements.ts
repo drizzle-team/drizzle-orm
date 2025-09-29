@@ -1,3 +1,5 @@
+import type { MySqlView } from 'drizzle-orm/mysql-core/view';
+import { MySqlSchema, MySqlSquasher } from './mysql-v5/mysqlSchema';
 import {
 	Index,
 	MatViewWithOption,
@@ -8,8 +10,9 @@ import {
 	Role,
 	View as PgView,
 	ViewWithOption,
-} from './pgSchema';
+} from './postgres-v7/pgSchema';
 import { AlteredColumn, Column, Sequence, Table } from './snapshotsDiffer';
+import { JsonCreateViewStatement } from 'src/dialects/sqlite/statements';
 
 export interface JsonCreateTableStatement {
 	type: 'create_table';
@@ -312,6 +315,10 @@ export interface JsonDeleteUniqueConstraint {
 	constraintName?: string;
 }
 
+export type JsonAlterMySqlViewStatement = {
+	type: 'alter_mysql_view';
+} & Omit<MySqlView, 'isExisting'>;
+
 export interface JsonAlterUniqueConstraint {
 	type: 'alter_unique_constraint';
 	tableName: string;
@@ -381,6 +388,16 @@ export interface JsonAlterTableSetNewSchema {
 	from: string;
 	to: string;
 }
+
+export type JsonCreateMySqlViewStatement = {
+	type: 'mysql_create_view';
+	replace: boolean;
+	name: string;
+	definition: string;
+	algorithm: "undefined" | "merge" | "temptable",
+	sqlSecurity: "definer" | "invoker",
+	withCheckOption: "local" | "cascaded" | undefined
+};
 
 export interface JsonCreateReferenceStatement extends JsonReferenceStatement {
 	type: 'create_reference';
@@ -815,7 +832,8 @@ export type JsonStatement =
 	| JsonIndRenamePolicyStatement
 	| JsonDropIndPolicyStatement
 	| JsonCreateIndPolicyStatement
-	| JsonAlterIndPolicyStatement;
+	| JsonAlterIndPolicyStatement
+	| JsonCreateMySqlViewStatement
 
 export const preparePgCreateTableJson = (
 	table: Table,
@@ -1881,6 +1899,70 @@ export const prepareDeleteUniqueConstraintPg = (
 	});
 };
 
+export const prepareAddCompositePrimaryKeyMySql = (
+	tableName: string,
+	pks: Record<string, string>,
+	// TODO: remove?
+	json1: MySqlSchema,
+	json2: MySqlSchema,
+): JsonCreateCompositePK[] => {
+	const res: JsonCreateCompositePK[] = [];
+	for (const it of Object.values(pks)) {
+		const unsquashed = MySqlSquasher.unsquashPK(it);
+
+		if (
+			unsquashed.columns.length === 1
+			&& json1.tables[tableName]?.columns[unsquashed.columns[0]]?.primaryKey
+		) {
+			continue;
+		}
+
+		res.push({
+			type: 'create_composite_pk',
+			tableName,
+			data: it,
+			constraintName: unsquashed.name,
+		} as JsonCreateCompositePK);
+	}
+	return res;
+};
+
+export const prepareDeleteCompositePrimaryKeyMySql = (
+	tableName: string,
+	pks: Record<string, string>,
+): JsonDeleteCompositePK[] => {
+	return Object.values(pks).map((it) => {
+		return {
+			type: 'delete_composite_pk',
+			tableName,
+			data: it,
+		} as JsonDeleteCompositePK;
+	});
+};
+
+export const prepareAlterCompositePrimaryKeyMySql = (
+	tableName: string,
+	pks: Record<string, { __old: string; __new: string }>,
+	// TODO: remove?
+	json1: MySqlSchema,
+	json2: MySqlSchema,
+): JsonAlterCompositePK[] => {
+	return Object.values(pks).map((it) => {
+		return {
+			type: 'alter_composite_pk',
+			tableName,
+			old: it.__old,
+			new: it.__new,
+			oldConstraintName: json1.tables[tableName].compositePrimaryKeys[
+				MySqlSquasher.unsquashPK(it.__old).name
+			].name,
+			newConstraintName: json2.tables[tableName].compositePrimaryKeys[
+				MySqlSquasher.unsquashPK(it.__new).name
+			].name,
+		} as JsonAlterCompositePK;
+	});
+};
+
 export const prepareAddCheckConstraint = (
 	tableName: string,
 	schema: string,
@@ -2008,6 +2090,47 @@ export const prepareRenameViewJson = (
 	if (materialized) resObject['materialized'] = materialized;
 
 	return resObject;
+};
+
+export const prepareMySqlCreateTableJson = (
+	table: Table,
+	json2: MySqlSchema,
+): JsonCreateTableStatement => {
+	const { name, schema, columns, compositePrimaryKeys, uniqueConstraints, checkConstraints } = table;
+
+	return {
+		type: 'create_table',
+		tableName: name,
+		schema,
+		columns: Object.values(columns),
+		compositePKs: Object.values(compositePrimaryKeys),
+		compositePkName: Object.values(compositePrimaryKeys).length > 0
+			? json2.tables[name].compositePrimaryKeys[
+				MySqlSquasher.unsquashPK(Object.values(compositePrimaryKeys)[0])
+					.name
+			].name
+			: '',
+		uniqueConstraints: Object.values(uniqueConstraints),
+		checkConstraints: Object.values(checkConstraints),
+	};
+};
+
+export const prepareMySqlCreateViewJson = (
+	name: string,
+	definition: string,
+	meta: string,
+	replace: boolean = false,
+): JsonCreateMySqlViewStatement => {
+	const { algorithm, sqlSecurity, withCheckOption } = MySqlSquasher.unsquashView(meta);
+	return {
+		type: 'mysql_create_view',
+		name: name,
+		definition: definition,
+		algorithm,
+		sqlSecurity,
+		withCheckOption,
+		replace,
+	};
 };
 
 export const preparePgAlterViewAlterSchemaJson = (
