@@ -5,7 +5,7 @@ import { getTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import { getSchemaInfo } from '../common.ts';
 import { SeedService } from '../SeedService.ts';
 import type { RefinementsType } from '../types/seedService.ts';
-import type { Column, Table, TableConfigT } from '../types/tables.ts';
+import type { Column, TableConfigT } from '../types/tables.ts';
 
 // Postgres-----------------------------------------------------------------------------------------------------------
 export const resetPostgres = async (
@@ -58,7 +58,7 @@ export const seedPostgres = async (
 
 	const { pgSchema, pgTables } = filterPgSchema(schema);
 
-	const { tables, relations } = getSchemaInfo(pgSchema, pgTables, mapPgTable);
+	const { tables, relations } = getSchemaInfo(pgSchema, pgTables, mapPgColumns);
 	// const { tables, relations } = getPostgresInfo(pgSchema, pgTables);
 	const generatedTablesGenerators = seedService.generatePossibleGenerators(
 		'postgresql',
@@ -92,11 +92,10 @@ export const seedPostgres = async (
 	);
 };
 
-export const mapPgTable = (
+export const mapPgColumns = (
 	tableConfig: TableConfigT,
-	dbToTsTableNamesMap: { [key: string]: string },
 	dbToTsColumnNamesMap: { [key: string]: string },
-): Table => {
+): Column[] => {
 	const getAllBaseColumns = (
 		baseColumn: PgArray<any, any>['baseColumn'] & { baseColumn?: PgArray<any, any>['baseColumn'] },
 	): Column['baseColumn'] => {
@@ -160,27 +159,23 @@ export const mapPgTable = (
 		return typeParams;
 	};
 
-	return {
-		name: dbToTsTableNamesMap[tableConfig.name] as string,
-		columns: tableConfig.columns.map((column) => ({
-			name: dbToTsColumnNamesMap[column.name] as string,
-			columnType: column.getSQLType(),
-			typeParams: getTypeParams(column.getSQLType()),
-			dataType: column.dataType.split(' ')[0]!,
-			size: (column as PgArray<any, any>).length,
-			hasDefault: column.hasDefault,
-			default: column.default,
-			enumValues: column.enumValues,
-			isUnique: column.isUnique,
-			notNull: column.notNull,
-			primary: column.primary,
-			generatedIdentityType: column.generatedIdentity?.type,
-			baseColumn: ((column as PgArray<any, any>).baseColumn === undefined)
-				? undefined
-				: getAllBaseColumns((column as PgArray<any, any>).baseColumn),
-		})),
-		primaryKeys: tableConfig.columns
-			.filter((column) => column.primary)
-			.map((column) => dbToTsColumnNamesMap[column.name] as string),
-	};
+	const mappedColumns: Column[] = tableConfig.columns.map((column) => ({
+		name: dbToTsColumnNamesMap[column.name] as string,
+		columnType: column.getSQLType(),
+		typeParams: getTypeParams(column.getSQLType()),
+		dataType: column.dataType.split(' ')[0]!,
+		size: (column as PgArray<any, any>).length,
+		hasDefault: column.hasDefault,
+		default: column.default,
+		enumValues: column.enumValues,
+		isUnique: column.isUnique,
+		notNull: column.notNull,
+		primary: column.primary,
+		generatedIdentityType: column.generatedIdentity?.type,
+		baseColumn: ((column as PgArray<any, any>).baseColumn === undefined)
+			? undefined
+			: getAllBaseColumns((column as PgArray<any, any>).baseColumn),
+	}));
+
+	return mappedColumns;
 };

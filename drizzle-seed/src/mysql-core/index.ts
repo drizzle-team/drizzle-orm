@@ -5,7 +5,7 @@ import { MySqlTable } from 'drizzle-orm/mysql-core';
 import { getSchemaInfo } from '../common.ts';
 import { SeedService } from '../SeedService.ts';
 import type { RefinementsType } from '../types/seedService.ts';
-import type { Column, Table, TableConfigT } from '../types/tables.ts';
+import type { Column, TableConfigT } from '../types/tables.ts';
 
 // MySql-----------------------------------------------------------------------------------------------------
 export const resetMySql = async (
@@ -63,7 +63,7 @@ export const seedMySql = async (
 	refinements?: RefinementsType,
 ) => {
 	const { mysqlSchema, mysqlTables } = filterMysqlTables(schema);
-	const { tables, relations } = getSchemaInfo(mysqlSchema, mysqlTables, mapMySqlTable);
+	const { tables, relations } = getSchemaInfo(mysqlSchema, mysqlTables, mapMySqlColumns);
 
 	const seedService = new SeedService();
 
@@ -99,11 +99,10 @@ export const seedMySql = async (
 	);
 };
 
-export const mapMySqlTable = (
+export const mapMySqlColumns = (
 	tableConfig: TableConfigT,
-	dbToTsTableNamesMap: { [key: string]: string },
 	dbToTsColumnNamesMap: { [key: string]: string },
-): Table => {
+): Column[] => {
 	const getTypeParams = (sqlType: string) => {
 		// get type params and set only type
 		const typeParams: Column['typeParams'] = {};
@@ -134,22 +133,18 @@ export const mapMySqlTable = (
 		return typeParams;
 	};
 
-	return {
-		name: dbToTsTableNamesMap[tableConfig.name] as string,
-		columns: tableConfig.columns.map((column) => ({
-			name: dbToTsColumnNamesMap[column.name] as string,
-			columnType: column.getSQLType(),
-			typeParams: getTypeParams(column.getSQLType()),
-			dataType: column.dataType.split(' ')[0]!,
-			hasDefault: column.hasDefault,
-			default: column.default,
-			enumValues: column.enumValues,
-			isUnique: column.isUnique,
-			notNull: column.notNull,
-			primary: column.primary,
-		})),
-		primaryKeys: tableConfig.columns
-			.filter((column) => column.primary)
-			.map((column) => dbToTsColumnNamesMap[column.name] as string),
-	};
+	const mappedColumns = tableConfig.columns.map((column) => ({
+		name: dbToTsColumnNamesMap[column.name] as string,
+		columnType: column.getSQLType(),
+		typeParams: getTypeParams(column.getSQLType()),
+		dataType: column.dataType.split(' ')[0]!,
+		hasDefault: column.hasDefault,
+		default: column.default,
+		enumValues: column.enumValues,
+		isUnique: column.isUnique,
+		notNull: column.notNull,
+		primary: column.primary,
+	}));
+
+	return mappedColumns;
 };

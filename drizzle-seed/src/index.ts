@@ -208,6 +208,7 @@ export async function seedForDrizzleStudio(
 					name: tableName,
 					columns,
 					primaryKeys: drizzleStudioColumns.filter((col) => col.primaryKey === true).map((col) => col.name),
+					uniqueConstraints: [], // TODO change later
 				},
 			);
 		}

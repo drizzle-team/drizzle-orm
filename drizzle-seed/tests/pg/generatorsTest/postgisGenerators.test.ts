@@ -74,6 +74,16 @@ beforeAll(async () => {
 			);
 		`,
 	);
+
+	await db.execute(
+		sql`
+			CREATE TABLE IF NOT EXISTS "seeder_lib_pg"."composite_unique_key_table" (
+			"id" integer,
+			"geometry_point" geometry(point, 0),
+			CONSTRAINT "custom_name" UNIQUE("id","geometry_point")
+			);
+		`,
+	);
 });
 
 afterAll(async () => {
@@ -162,6 +172,24 @@ test('geometry array generator test', async () => {
 	}));
 
 	const data = await db.select().from(schema.geometryArrayTable);
+	// every value in each row does not equal undefined.
+	const predicate = data.length !== 0
+		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));
+	expect(predicate).toBe(true);
+});
+
+test('composite unique key generator test', async () => {
+	await reset(db, { compositeUniqueKeyTable: schema.compositeUniqueKeyTable });
+	await seed(db, { compositeUniqueKeyTable: schema.compositeUniqueKeyTable }, { count: 10000 }).refine((funcs) => ({
+		compositeUniqueKeyTable: {
+			columns: {
+				id: funcs.int(),
+				geometryPoint: funcs.geometry({ type: 'point', srid: 4326 }),
+			},
+		},
+	}));
+
+	const data = await db.select().from(schema.compositeUniqueKeyTable);
 	// every value in each row does not equal undefined.
 	const predicate = data.length !== 0
 		&& data.every((row) => Object.values(row).every((val) => val !== undefined && val !== null));

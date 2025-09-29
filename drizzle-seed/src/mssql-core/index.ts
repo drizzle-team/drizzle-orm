@@ -5,7 +5,7 @@ import { getTableConfig, MsSqlTable } from 'drizzle-orm/mssql-core';
 import { getSchemaInfo } from '../common.ts';
 import { SeedService } from '../SeedService.ts';
 import type { RefinementsType } from '../types/seedService.ts';
-import type { Column, Table, TableConfigT } from '../types/tables.ts';
+import type { Column, TableConfigT } from '../types/tables.ts';
 
 type TableRelatedFkConstraintsT = {
 	[fkName: string]: {
@@ -169,7 +169,7 @@ export const seedMsSql = async (
 	refinements?: RefinementsType,
 ) => {
 	const { mssqlSchema, mssqlTables } = filterMsSqlTables(schema);
-	const { tables, relations } = getSchemaInfo(mssqlSchema, mssqlTables, mapMsSqlTable);
+	const { tables, relations } = getSchemaInfo(mssqlSchema, mssqlTables, mapMsSqlColumns);
 
 	const seedService = new SeedService();
 
@@ -205,11 +205,10 @@ export const seedMsSql = async (
 	);
 };
 
-const mapMsSqlTable = (
+const mapMsSqlColumns = (
 	tableConfig: TableConfigT,
-	dbToTsTableNamesMap: { [key: string]: string },
 	dbToTsColumnNamesMap: { [key: string]: string },
-): Table => {
+): Column[] => {
 	// TODO: rewrite
 	const getTypeParams = (sqlType: string) => {
 		// get type params and set only type
@@ -240,23 +239,19 @@ const mapMsSqlTable = (
 		return typeParams;
 	};
 
-	return {
-		name: dbToTsTableNamesMap[tableConfig.name] as string,
-		columns: tableConfig.columns.map((column) => ({
-			name: dbToTsColumnNamesMap[column.name] as string,
-			columnType: column.getSQLType(),
-			typeParams: getTypeParams(column.getSQLType()),
-			dataType: column.dataType.split(' ')[0]!,
-			hasDefault: column.hasDefault,
-			default: column.default,
-			enumValues: column.enumValues,
-			isUnique: column.isUnique,
-			notNull: column.notNull,
-			primary: column.primary,
-			identity: (column as MsSqlInt<any>).identity ? true : false,
-		})),
-		primaryKeys: tableConfig.columns
-			.filter((column) => column.primary)
-			.map((column) => dbToTsColumnNamesMap[column.name] as string),
-	};
+	const mappedColumns = tableConfig.columns.map((column) => ({
+		name: dbToTsColumnNamesMap[column.name] as string,
+		columnType: column.getSQLType(),
+		typeParams: getTypeParams(column.getSQLType()),
+		dataType: column.dataType.split(' ')[0]!,
+		hasDefault: column.hasDefault,
+		default: column.default,
+		enumValues: column.enumValues,
+		isUnique: column.isUnique,
+		notNull: column.notNull,
+		primary: column.primary,
+		identity: (column as MsSqlInt<any>).identity ? true : false,
+	}));
+
+	return mappedColumns;
 };
