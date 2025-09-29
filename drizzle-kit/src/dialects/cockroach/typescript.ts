@@ -1,17 +1,7 @@
-import { getTableName, is } from 'drizzle-orm';
-import { AnyCockroachTable } from 'drizzle-orm/cockroach-core';
-import {
-	createTableRelationsHelpers,
-	extractTablesRelationalConfig,
-	Many,
-	One,
-	Relation,
-	Relations,
-} from 'drizzle-orm/relations';
 import '../../@types/utils';
 import { toCamelCase } from 'drizzle-orm/casing';
 import { Casing } from '../../cli/validations/common';
-import { assertUnreachable, stringifyArray, trimChar } from '../../utils';
+import { assertUnreachable, possibleIntervals, trimChar } from '../../utils';
 import { inspect } from '../utils';
 import {
 	CheckConstraint,
@@ -52,6 +42,7 @@ const imports = [
 	'string',
 	'text',
 	'varbit',
+	'customType',
 ] as const;
 export type Import = (typeof imports)[number];
 
@@ -68,34 +59,6 @@ const objToStatement2 = (json: { [s: string]: unknown }) => {
 	statement += ' }';
 	return statement;
 };
-
-const timeConfig = (json: { [s: string]: unknown }) => {
-	json = Object.fromEntries(Object.entries(json).filter((it) => it[1]));
-
-	const keys = Object.keys(json);
-	if (keys.length === 0) return;
-
-	let statement = '{ ';
-	statement += keys.map((it) => `${it}: ${json[it]}`).join(', ');
-	statement += ' }';
-	return statement;
-};
-
-const possibleIntervals = [
-	'year',
-	'month',
-	'day',
-	'hour',
-	'minute',
-	'second',
-	'year to month',
-	'day to hour',
-	'day to minute',
-	'day to second',
-	'hour to minute',
-	'hour to second',
-	'minute to second',
-];
 
 const intervalStrToObj = (str: string) => {
 	if (str.startsWith('interval(')) {
@@ -122,41 +85,6 @@ const intervalStrToObj = (str: string) => {
 	}
 	return {};
 };
-
-const intervalConfig = (str: string) => {
-	const json = intervalStrToObj(str);
-	// json = Object.fromEntries(Object.entries(json).filter((it) => it[1]));
-
-	const keys = Object.keys(json);
-	if (keys.length === 0) return;
-
-	let statement = '{ ';
-	statement += keys.map((it: keyof typeof json) => `${it}: ${json[it]}`).join(', ');
-	statement += ' }';
-	return statement;
-};
-
-const mapColumnDefault = (def: Exclude<Column['default'], null>) => {
-	if (def.type === 'unknown' || def.type === 'func') {
-		return `sql\`${def.value}\``;
-	}
-	if (def.type === 'bigint') {
-		return `${def.value}n`;
-	}
-	if (def.type === 'string') {
-		return `"${def.value.replaceAll("''", "'").replaceAll('"', '\\"')}"`;
-	}
-
-	return def.value;
-};
-
-const importsPatch = {
-	'timestamp without time zone': 'timestamp',
-	'timestamp with time zone': 'timestamp',
-	'time without time zone': 'time',
-	'time with time zone': 'time',
-	'character varying': 'varchar',
-} as Record<string, string>;
 
 const relations = new Set<string>();
 
@@ -189,92 +117,92 @@ const dbColumnName = ({ name, casing, withMode = false }: { name: string; casing
 	assertUnreachable(casing);
 };
 
-export const relationsToTypeScriptForStudio = (
-	schema: Record<string, Record<string, AnyCockroachTable<{}>>>,
-	relations: Record<string, Relations<string, Record<string, Relation<string>>>>,
-) => {
-	const relationalSchema: Record<string, unknown> = {
-		...Object.fromEntries(
-			Object.entries(schema)
-				.map(([key, val]) => {
-					// have unique keys across schemas
-					const mappedTableEntries = Object.entries(val).map((tableEntry) => {
-						return [`__${key}__.${tableEntry[0]}`, tableEntry[1]];
-					});
+// export const relationsToTypeScriptForStudio = (
+// 	schema: Record<string, Record<string, AnyCockroachTable<{}>>>,
+// 	relations: Record<string, Relations<string, Relations<string, Record<string, Relation<string>>>>>,
+// ) => {
+// 	const relationalSchema: Record<string, unknown> = {
+// 		...Object.fromEntries(
+// 			Object.entries(schema)
+// 				.map(([key, val]) => {
+// 					// have unique keys across schemas
+// 					const mappedTableEntries = Object.entries(val).map((tableEntry) => {
+// 						return [`__${key}__.${tableEntry[0]}`, tableEntry[1]];
+// 					});
 
-					return mappedTableEntries;
-				})
-				.flat(),
-		),
-		...relations,
-	};
+// 					return mappedTableEntries;
+// 				})
+// 				.flat(),
+// 		),
+// 		...relations,
+// 	};
 
-	const relationsConfig = extractTablesRelationalConfig(relationalSchema, createTableRelationsHelpers);
+// 	const relationsConfig = extractTablesRelationalConfig(relationalSchema, createTableRelationsHelpers);
 
-	let result = '';
+// 	let result = '';
 
-	function findColumnKey(table: AnyCockroachTable, columnName: string) {
-		for (const tableEntry of Object.entries(table)) {
-			const key = tableEntry[0];
-			const value = tableEntry[1];
+// 	function findColumnKey(table: AnyCockroachTable, columnName: string) {
+// 		for (const tableEntry of Object.entries(table)) {
+// 			const key = tableEntry[0];
+// 			const value = tableEntry[1];
 
-			if (value.name === columnName) {
-				return key;
-			}
-		}
-	}
+// 			if (value.name === columnName) {
+// 				return key;
+// 			}
+// 		}
+// 	}
 
-	Object.values(relationsConfig.tables).forEach((table) => {
-		const tableName = table.tsName.split('.')[1];
-		const relations = table.relations;
-		let hasRelations = false;
-		let relationsObjAsStr = '';
-		let hasOne = false;
-		let hasMany = false;
+// 	Object.values(relationsConfig.tables).forEach((table) => {
+// 		const tableName = table.tsName.split('.')[1];
+// 		const relations = table.relations;
+// 		let hasRelations = false;
+// 		let relationsObjAsStr = '';
+// 		let hasOne = false;
+// 		let hasMany = false;
 
-		Object.values(relations).forEach((relation) => {
-			hasRelations = true;
+// 		Object.values(relations).forEach((relation) => {
+// 			hasRelations = true;
 
-			if (is(relation, Many)) {
-				hasMany = true;
-				relationsObjAsStr += `\t\t${relation.fieldName}: many(${
-					relationsConfig.tableNamesMap[relation.referencedTableName].split('.')[1]
-				}${typeof relation.relationName !== 'undefined' ? `, { relationName: "${relation.relationName}"}` : ''}),`;
-			}
+// 			if (is(relation, Many)) {
+// 				hasMany = true;
+// 				relationsObjAsStr += `\t\t${relation.fieldName}: many(${
+// 					relationsConfig.tableNamesMap[relation.referencedTableName].split('.')[1]
+// 				}${typeof relation.relationName !== 'undefined' ? `, { relationName: "${relation.relationName}"}` : ''}),`;
+// 			}
 
-			if (is(relation, One)) {
-				hasOne = true;
-				relationsObjAsStr += `\t\t${relation.fieldName}: one(${
-					relationsConfig.tableNamesMap[relation.referencedTableName].split('.')[1]
-				}, { fields: [${
-					relation.config?.fields.map(
-						(c) =>
-							`${relationsConfig.tableNamesMap[getTableName(relation.sourceTable)].split('.')[1]}.${
-								findColumnKey(relation.sourceTable, c.name)
-							}`,
-					)
-				}], references: [${
-					relation.config?.references.map(
-						(c) =>
-							`${relationsConfig.tableNamesMap[getTableName(relation.referencedTable)].split('.')[1]}.${
-								findColumnKey(relation.referencedTable, c.name)
-							}`,
-					)
-				}]${typeof relation.relationName !== 'undefined' ? `, relationName: "${relation.relationName}"` : ''}}),`;
-			}
-		});
+// 			if (is(relation, One)) {
+// 				hasOne = true;
+// 				relationsObjAsStr += `\t\t${relation.fieldName}: one(${
+// 					relationsConfig.tableNamesMap[relation.referencedTableName].split('.')[1]
+// 				}, { fields: [${
+// 					relation.config?.fields.map(
+// 						(c) =>
+// 							`${relationsConfig.tableNamesMap[getTableName(relation.sourceTable)].split('.')[1]}.${
+// 								findColumnKey(relation.sourceTable, c.name)
+// 							}`,
+// 					)
+// 				}], references: [${
+// 					relation.config?.references.map(
+// 						(c) =>
+// 							`${relationsConfig.tableNamesMap[getTableName(relation.referencedTable)].split('.')[1]}.${
+// 								findColumnKey(relation.referencedTable, c.name)
+// 							}`,
+// 					)
+// 				}]${typeof relation.relationName !== 'undefined' ? `, relationName: "${relation.relationName}"` : ''}}),`;
+// 			}
+// 		});
 
-		if (hasRelations) {
-			result += `export const ${tableName}Relation = relations(${tableName}, ({${hasOne ? 'one' : ''}${
-				hasOne && hasMany ? ', ' : ''
-			}${hasMany ? 'many' : ''}}) => ({
-        ${relationsObjAsStr}
-      }));\n`;
-		}
-	});
+// 		if (hasRelations) {
+// 			result += `export const ${tableName}Relation = relations(${tableName}, ({${hasOne ? 'one' : ''}${
+// 				hasOne && hasMany ? ', ' : ''
+// 			}${hasMany ? 'many' : ''}}) => ({
+//         ${relationsObjAsStr}
+//       }));\n`;
+// 		}
+// 	});
 
-	return result;
-};
+// 	return result;
+// };
 
 function generateIdentityParams(column: Column) {
 	if (column.identity === null) return '';
@@ -307,7 +235,6 @@ export const paramNameFor = (name: string, schema: string | null) => {
 	return `${name}${schemaSuffix}`;
 };
 
-// prev: schemaToTypeScript
 export const ddlToTypeScript = (ddl: CockroachDDL, columnsForViews: ViewColumn[], casing: Casing) => {
 	const tableFn = `cockroachTable`;
 	for (const fk of ddl.fks.list()) {
@@ -352,7 +279,8 @@ export const ddlToTypeScript = (ddl: CockroachDDL, columnsForViews: ViewColumn[]
 
 		if (x.entityType === 'columns' || x.entityType === 'viewColumns') {
 			let patched = x.type.replace('[]', '');
-			const grammarType = typeFor(x.type);
+			const isEnum = Boolean(x.typeSchema);
+			const grammarType = typeFor(x.type, isEnum);
 			if (grammarType) imports.add(grammarType.drizzleImport());
 			if (cockroachImportsList.has(patched)) imports.add(patched);
 		}
@@ -412,20 +340,18 @@ export const ddlToTypeScript = (ddl: CockroachDDL, columnsForViews: ViewColumn[]
 		.join('');
 
 	const rolesNameToTsKey: Record<string, string> = {};
-	const rolesStatements = ddl.roles
-		.list()
-		.map((it) => {
-			const identifier = withCasing(it.name, casing);
-			rolesNameToTsKey[it.name] = identifier;
+	const rolesStatements = ddl.roles.list().map((it) => {
+		const identifier = withCasing(it.name, casing);
+		rolesNameToTsKey[it.name] = identifier;
+		const params = {
+			...(it.createDb ? { createDb: true } : {}),
+			...(it.createRole ? { createRole: true } : {}),
+		};
+		const paramsString = inspect(params);
+		const comma = paramsString ? ', ' : '';
 
-			const params = !it.createDb && !it.createRole
-				? ''
-				: `${
-					trimChar(`, { ${it.createDb ? `createDb: true,` : ''}${it.createRole ? ` createRole: true,` : ''}`, ',')
-				}	}`;
-
-			return `export const ${identifier} = cockroachRole("${it.name}", ${params});\n`;
-		})
+		return `export const ${identifier} = cockroachRole("${it.name}"${comma}${paramsString});\n`;
+	})
 		.join('');
 
 	const tableStatements = ddl.tables.list().map((it) => {
@@ -440,8 +366,7 @@ export const ddlToTypeScript = (ddl: CockroachDDL, columnsForViews: ViewColumn[]
 		statement += createTableColumns(columns, table.pk, fks, enumTypes, schemas, casing);
 		statement += '}';
 
-		// more than 2 fields or self reference or cyclic
-		// Andrii: I switched this one off until we will get custom names in .references()
+		// copied from pg
 		const filteredFKs = table.fks.filter((it) => {
 			return it.columns.length > 1 || isSelf(it);
 		});
@@ -529,36 +454,43 @@ const isSelf = (fk: ForeignKey) => {
 	return fk.table === fk.tableTo;
 };
 
-const column = (type: string, dimensions: number, name: string, casing: Casing, def: Column['default']) => {
-	const lowered = type.toLowerCase();
+const column = (
+	type: string,
+	dimensions: number,
+	name: string,
+	typeSchema: string | null,
+	casing: Casing,
+	def: Column['default'],
+) => {
+	const isEnum = Boolean(typeSchema);
+	const grammarType = typeFor(type, isEnum);
 
-	const grammarType = typeFor(lowered);
-
-	if (!grammarType) throw new Error(`Unsupported type: ${type}`);
-
-	const { options: optionsToSet, default: defToSet } = dimensions > 0
+	const { options, default: defaultValue, customType } = dimensions > 0
 		? grammarType.toArrayTs(type, def?.value ?? null)
 		: grammarType.toTs(type, def?.value ?? null);
 
 	const dbName = dbColumnName({ name, casing });
-	const opts = inspect(optionsToSet);
-	const comma = dbName && opts ? ', ' : '';
+	const opts = inspect(options);
+	const comma = (dbName && opts) ? ', ' : '';
 
-	let col = `${withCasing(name, casing)}: ${grammarType.drizzleImport()}(${dbName}${comma}${opts})`;
-	col += '.array()'.repeat(dimensions);
+	let columnStatement = `${withCasing(name, casing)}: ${
+		isEnum ? withCasing(paramNameFor(type, typeSchema), casing) : grammarType.drizzleImport()
+	}${customType ? `({ dataType: () => '${customType}' })` : ''}(${dbName}${comma}${opts})`;
+	columnStatement += '.array()'.repeat(dimensions);
 
-	if (defToSet) col += defToSet.startsWith('.') ? defToSet : `.default(${defToSet})`;
-	return col;
+	if (defaultValue) columnStatement += `.default(${defaultValue})`;
+	return columnStatement;
 };
 
 const createViewColumns = (columns: ViewColumn[], enumTypes: Set<string>, casing: Casing) => {
 	let statement = '';
 
 	columns.forEach((it) => {
-		const columnStatement = column(it.type, it.dimensions, it.name, casing, null);
+		const columnStatement = column(it.type, it.dimensions, it.name, it.typeSchema, casing, null);
 		statement += '\t';
 		statement += columnStatement;
 		// Provide just this in column function
+		statement += '.array()'.repeat(it.dimensions);
 		statement += it.notNull ? '.notNull()' : '';
 		statement += ',\n';
 	});
@@ -592,19 +524,37 @@ const createTableColumns = (
 		{} as Record<string, ForeignKey[]>,
 	);
 
-	columns.forEach((it) => {
-		const columnStatement = column(it.type, it.dimensions, it.name, casing, it.default);
-		const pk = primaryKey && primaryKey.columns.length === 1 && primaryKey.columns[0] === it.name ? primaryKey : null;
+	for (const it of columns) {
+		const { name, type, dimensions, default: def, identity, generated, typeSchema } = it;
+		const stripped = type.replaceAll('[]', '');
+		const isEnum = Boolean(typeSchema);
+		const grammarType = typeFor(stripped, isEnum);
+
+		const { options, default: defaultValue, customType } = dimensions > 0
+			? grammarType.toArrayTs(type, def?.value ?? null)
+			: grammarType.toTs(type, def?.value ?? null);
+
+		const dbName = dbColumnName({ name, casing });
+		const opts = inspect(options);
+		const comma = (dbName && opts) ? ', ' : '';
+
+		const pk = primaryKey && primaryKey.columns.length === 1 && primaryKey.columns[0] === it.name
+			? primaryKey
+			: null;
+
+		let columnStatement = `${withCasing(name, casing)}: ${
+			isEnum ? withCasing(paramNameFor(type, typeSchema), casing) : grammarType.drizzleImport()
+		}${customType ? `({ dataType: () => '${customType}' })` : ''}(${dbName}${comma}${opts})`;
+		columnStatement += '.array()'.repeat(dimensions);
+		if (defaultValue) columnStatement += defaultValue.startsWith('.') ? defaultValue : `.default(${defaultValue})`;
+		if (pk) columnStatement += '.primaryKey()';
+		if (it.notNull && !it.identity && !pk) columnStatement += '.notNull()';
+		if (identity) columnStatement += generateIdentityParams(it);
+		if (generated) columnStatement += `.generatedAlwaysAs(sql\`${generated.as}\`)`;
 
 		statement += '\t';
 		statement += columnStatement;
 		// Provide just this in column function
-		statement += pk ? '.primaryKey()' : '';
-		statement += it.notNull && !it.identity && !pk ? '.notNull()' : '';
-
-		statement += it.identity ? generateIdentityParams(it) : '';
-
-		statement += it.generated ? `.generatedAlwaysAs(sql\`${it.generated.as}\`)` : '';
 
 		const fks = fkByColumnName[it.name];
 		// Andrii: I switched it off until we will get a custom naem setting in references
@@ -621,20 +571,26 @@ const createTableColumns = (
 					const tableSchema = schemas[it.schemaTo || ''];
 					const paramName = paramNameFor(it.tableTo, tableSchema);
 					if (paramsStr) {
-						return `.references(()${typeSuffix} => ${withCasing(paramName, casing)}.${
-							withCasing(it.columnsTo[0], casing)
-						}, ${paramsStr} )`;
+						return `.references(()${typeSuffix} => ${
+							withCasing(
+								paramName,
+								casing,
+							)
+						}.${withCasing(it.columnsTo[0], casing)}, ${paramsStr} )`;
 					}
-					return `.references(()${typeSuffix} => ${withCasing(paramName, casing)}.${
-						withCasing(it.columnsTo[0], casing)
-					})`;
+					return `.references(()${typeSuffix} => ${
+						withCasing(
+							paramName,
+							casing,
+						)
+					}.${withCasing(it.columnsTo[0], casing)})`;
 				})
 				.join('');
 			statement += fksStatement;
 		}
 
 		statement += ',\n';
-	});
+	}
 
 	return statement;
 };

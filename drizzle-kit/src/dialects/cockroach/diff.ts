@@ -23,7 +23,7 @@ import {
 	tableFromDDL,
 	View,
 } from './ddl';
-import { defaultsCommutative } from './grammar';
+import { defaultsCommutative, typesCommutative } from './grammar';
 import { JsonStatement, prepareStatement } from './statements';
 
 export const ddlDiffDry = async (ddlFrom: CockroachDDL, ddlTo: CockroachDDL, mode: 'default' | 'push') => {
@@ -627,6 +627,8 @@ export const ddlDiff = async (
 			isPK: ddl2.pks.one({ schema: it.schema, table: it.table, columns: [it.name] }) !== null,
 		})
 	);
+
+	// defaults
 	const columnAlters = alters
 		.filter((it) => it.entityType === 'columns')
 		.filter((it) => {
@@ -635,7 +637,13 @@ export const ddlDiff = async (
 				delete it.type;
 			}
 
-			if (!it.type && it.default && defaultsCommutative(it.default, it.$right.type)) delete it.default;
+			if (
+				!it.type && it.default
+				&& defaultsCommutative(it.default, it.$right.type, it.$right.dimensions, Boolean(it.$right.typeSchema))
+				&& mode === 'push' // TODO check on push only??
+			) {
+				delete it.default;
+			}
 
 			return ddl2.columns.hasDiff(it);
 		});
@@ -896,6 +904,10 @@ export const ddlDiff = async (
 				delete it.default;
 			}
 
+			if (it.type && typesCommutative(it.type.from, it.type.to)) {
+				delete it.type;
+			}
+
 			if (it.notNull && it.notNull.to && (it.$right.generated || it.$right.identity)) {
 				delete it.notNull;
 			}
@@ -907,6 +919,10 @@ export const ddlDiff = async (
 			// }
 
 			const pkIn1 = ddl1.pks.one({ schema: it.schema, table: it.table, columns: { CONTAINS: it.name } });
+			if (it.notNull && it.notNull.from && pkIn1 && !pkIn2) {
+				delete it.notNull;
+			}
+
 			if (it.notNull && it.notNull.from && pkIn1 && !pkIn2) {
 				delete it.notNull;
 			}

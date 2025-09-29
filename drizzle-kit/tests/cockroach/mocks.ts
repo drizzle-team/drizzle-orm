@@ -346,8 +346,9 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 	const config = (builder as any).config;
 	const def = config['default'];
 	const column = cockroachTable('table', { column: builder }).column;
+	const { dimensions, typeSchema, sqlType: sqlt } = unwrapColumn(column);
+	const type = sqlt.replaceAll('[]', '');
 
-	const { dimensions, baseType, options, typeSchema, sqlType: type } = unwrapColumn(column);
 	const columnDefault = defaultFromColumn(column, column.default, dimensions, new CockroachDialect());
 
 	const defaultSql = defaultToSQL({
@@ -373,17 +374,19 @@ export const diffDefault = async <T extends CockroachColumnBuilder>(
 	const { sqlStatements: st2 } = await push({ db, to: init });
 
 	const typeSchemaPrefix = typeSchema && typeSchema !== 'public' ? `"${typeSchema}".` : '';
-	const typeValue = typeSchema ? `"${baseType}"` : baseType;
-	const sqlType = `${typeSchemaPrefix}${typeValue}${options ? `(${options})` : ''}${'[]'.repeat(dimensions)}`;
+	const typeValue = typeSchema ? `"${type}"` : type;
+	const sqlType = `${typeSchemaPrefix}${typeValue}${'[]'.repeat(dimensions)}`;
 	const expectedInit = `CREATE TABLE "table" (\n\t"column" ${sqlType} DEFAULT ${expectedDefault}\n);\n`;
 
 	if (st1.length !== 1 || st1[0] !== expectedInit) res.push(`Unexpected init:\n${st1}\n\n${expectedInit}`);
 	if (st2.length > 0) res.push(`Unexpected subsequent init:\n${st2}`);
 
-	await db.query('INSERT INTO "table" ("column") VALUES (default);').catch((error) => {
+	try {
+		await db.query('INSERT INTO "table" ("column") VALUES (default);');
+	} catch (error) {
 		if (!expectError) throw error;
 		res.push(`Insert default failed`);
-	});
+	}
 
 	// introspect to schema
 	// console.time();
@@ -497,7 +500,7 @@ export async function createDockerDB() {
 }
 
 export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatabase> => {
-	const envUrl = process.env.COCKROACH_URL;
+	const envUrl = process.env.COCKROACH_CONNECTION_STRING;
 	const { url, container } = envUrl ? { url: envUrl, container: null } : await createDockerDB();
 
 	let client: PoolClient;
@@ -513,14 +516,16 @@ export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatab
 			await client.query('SET autocommit_before_ddl = OFF;'); // for transactions to work
 			await client.query(`SET CLUSTER SETTING feature.vector_index.enabled = true;`);
 
+			// await client.query(`SET TIME ZONE '+01';`);
+
 			if (tx) {
 				await client.query('BEGIN');
 			}
 
 			const clear = async () => {
 				if (tx) {
-					await client.query('ROLLBACK;');
-					await client.query('BEGIN;');
+					await client.query('ROLLBACK');
+					await client.query('BEGIN');
 					return;
 				}
 

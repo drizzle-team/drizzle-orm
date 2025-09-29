@@ -450,7 +450,7 @@ test('alter options multistep', async () => {
 	};
 
 	const { sqlStatements: st, next: n1 } = await diff(from, to, []);
-	await push({ db, to: from, log: 'statements' });
+	await push({ db, to: from });
 	const { sqlStatements: pst } = await push({ db, to: to });
 
 	const st0 = [`ALTER VIEW [some_view] AS (select [id] from [users]);`];

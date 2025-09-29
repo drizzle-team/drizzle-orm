@@ -84,6 +84,61 @@ importers:
         specifier: 5.9.2
         version: 5.9.2
 
+  attw-fork:
+    dependencies:
+      '@andrewbranch/untar.js':
+        specifier: ^1.0.3
+        version: 1.0.3
+      '@loaderkit/resolve':
+        specifier: ^1.0.2
+        version: 1.0.4
+      chalk:
+        specifier: ^4.1.2
+        version: 4.1.2
+      cjs-module-lexer:
+        specifier: ^1.2.3
+        version: 1.4.3
+      cli-table3:
+        specifier: ^0.6.3
+        version: 0.6.5
+      fflate:
+        specifier: ^0.8.2
+        version: 0.8.2
+      lru-cache:
+        specifier: ^11.0.1
+        version: 11.1.0
+      marked:
+        specifier: 9.1.2
+        version: 9.1.2
+      marked-terminal:
+        specifier: 7.1.0
+        version: 7.1.0(marked@9.1.2)
+      semver:
+        specifier: ^7.5.4
+        version: 7.7.2
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+      validate-npm-package-name:
+        specifier: ^5.0.0
+        version: 5.0.1
+    devDependencies:
+      '@types/marked-terminal':
+        specifier: 3.1.3
+        version: 3.1.3
+      '@types/node':
+        specifier: ^24.5.0
+        version: 24.5.1
+      '@types/semver':
+        specifier: ^7.5.0
+        version: 7.7.0
+      '@types/validate-npm-package-name':
+        specifier: ^4.0.0
+        version: 4.0.2
+      ts-expose-internals:
+        specifier: 5.6.3
+        version: 5.6.3
+
   drizzle-arktype:
     devDependencies:
       '@ark/attest':
@@ -1669,6 +1724,9 @@ packages:
   '@balena/dockerignore@1.0.2':
     resolution: {integrity: sha512-wMue2Sy4GAVTk6Ic4tJVcnfdau+gx2EnG7S+uAEe+TWJFqE4YoWN4/H8MSLj4eYJKxGg26lZwboEniNiNwZQ6Q==}
 
+  '@braidai/lang@1.1.2':
+    resolution: {integrity: sha512-qBcknbBufNHlui137Hft8xauQMTZDKdophmLFv05r2eNmdIv/MlPuP4TdUknHG68UdWLgVZwgxVe735HzJNIwA==}
+
   '@cloudflare/workers-types@4.20250604.0':
     resolution: {integrity: sha512-//sQvI1x8wfd23o41QLF3z1Kj2ULAoUJ59zhIOCNjRRyaVoed/vtSVGo3porvTHXWz7C6E5f3duquCfElIqzKQ==}
 
@@ -2447,6 +2505,9 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@loaderkit/resolve@1.0.4':
+    resolution: {integrity: sha512-rJzYKVcV4dxJv+vW6jlvagF8zvGxHJ2+HTr1e2qOejfmGhAApgJHl8Aog4mMszxceTRiKTTbnpgmTO1bEZHV/A==}
+
   '@miniflare/core@2.14.4':
     resolution: {integrity: sha512-FMmZcC1f54YpF4pDWPtdQPIO8NXfgUxCoR9uyrhxKJdZu7M6n8QKopPVNuaxR40jcsdxb7yKoQoFWnHfzJD9GQ==}
     engines: {node: '>=16.13'}
@@ -3106,6 +3167,12 @@ packages:
   '@types/jsonfile@6.1.4':
     resolution: {integrity: sha512-D5qGUYwjvnNNextdU59/+fI+spnwtTFmyQP0h+PfIOSkNfpU6AOICUOkm4i0OnSk+NyjdPJrxCDro0sJsWlRpQ==}
 
+  '@types/marked-terminal@3.1.3':
+    resolution: {integrity: sha512-dKgOLKlI5zFb2jTbRcyQqbdrHxeU74DCOkVIZtsoB2sc1ctXZ1iB2uxG2jjAuzoLdvwHP065ijN6Q8HecWdWYg==}
+
+  '@types/marked@3.0.4':
+    resolution: {integrity: sha512-fzrd0O45A0hZl3+Fs3+BcuD3SF+kEkV0KHBXrSPi1B73PnDJI9wcUkpA8JoujFKqgyOijeKgIllFYsgJFhNB5g==}
+
   '@types/micromatch@4.0.9':
     resolution: {integrity: sha512-7V+8ncr22h4UoYRLnLXSpTxjQrNUXtWHGeMPRJt1nULXI57G9bIcpyrHlmrQ7QK24EyyuXvYcSSWAM8GA9nqCg==}
 
@@ -3126,6 +3193,9 @@ packages:
 
   '@types/node@22.15.29':
     resolution: {integrity: sha512-LNdjOkUDlU1RZb8e1kOIUpN1qQUlzGkEtbVNo53vbrwDg5om6oduhm4SiUaPW5ASTXhAiP0jInWG8Qx9fVlOeQ==}
+
+  '@types/node@24.5.1':
+    resolution: {integrity: sha512-/SQdmUP2xa+1rdx7VwB9yPq8PaKej8TD5cQ+XfKDPWWC+VDJU4rvVVagXqKUzhKjtFoNA8rXDJAkCxQPAe00+Q==}
 
   '@types/normalize-package-data@2.4.4':
     resolution: {integrity: sha512-37i+OaWTh9qeK4LSHPsyRC7NahnGotNuZvjLSgcPzblpHB3rrCJxAOgI5gCdKm7coonsaX1Of0ILiTcnZjbfxA==}
@@ -3174,6 +3244,9 @@ packages:
 
   '@types/uuid@9.0.8':
     resolution: {integrity: sha512-jg+97EGIcY9AGHJJRaaPVgetKDsrTgbRjQ5Msgjh/DQKEFl0DtyRr/VCOyD1T2R1MNeWPK/u7JoGhlDZnKBAfA==}
+
+  '@types/validate-npm-package-name@4.0.2':
+    resolution: {integrity: sha512-lrpDziQipxCEeK5kWxvljWYhUvOiB2A9izZd9B2AFarYAkqZshb4lPbRs7zKEic6eGtH8V/2qJW+dPp9OtF6bw==}
 
   '@types/which@3.0.4':
     resolution: {integrity: sha512-liyfuo/106JdlgSchJzXEQCVArk0CvevqPote8F8HgWgJ3dRCcTHgJIsLDuee0kxk/mhbInzIZk3QWSZJ8R+2w==}
@@ -6246,14 +6319,14 @@ packages:
     peerDependencies:
       marked: '>=1 <12'
 
-  marked-terminal@7.3.0:
-    resolution: {integrity: sha512-t4rBvPsHc57uE/2nJOLmMbZCQ4tgAccAED3ngXQqW6g+TxA488JzJ+FK3lQkzBQOI1mRV/r/Kq+1ZlJ4D0owQw==}
+  marked-terminal@7.1.0:
+    resolution: {integrity: sha512-+pvwa14KZL74MVXjYdPR3nSInhGhNvPce/3mqLVZT2oUvt654sL1XImFuLZ1pkA866IYZ3ikDTOFUIC7XzpZZg==}
     engines: {node: '>=16.0.0'}
     peerDependencies:
-      marked: '>=1 <16'
+      marked: '>=1 <14'
 
-  marked@9.1.6:
-    resolution: {integrity: sha512-jcByLnIFkd5gSXZmjNvS1TlmRhCXZjIzHYlaGkPlLIekG55JDR2Z4va9tZwCiP+/RDERiNhMOFu01xd6O5ct1Q==}
+  marked@9.1.2:
+    resolution: {integrity: sha512-qoKMJqK0w6vkLk8+KnKZAH6neUZSNaQqVZ/h2yZ9S7CbLuFHyS2viB0jnqcWF9UKjwsAbMrQtnQhdmdvOVOw9w==}
     engines: {node: '>= 16'}
     hasBin: true
 
@@ -7991,6 +8064,9 @@ packages:
   ts-expose-internals-conditionally@1.0.0-empty.0:
     resolution: {integrity: sha512-F8m9NOF6ZhdOClDVdlM8gj3fDCav4ZIFSs/EI3ksQbAAXVSCN/Jh5OCJDDZWBuBy9psFc6jULGDlPwjMYMhJDw==}
 
+  ts-expose-internals@5.6.3:
+    resolution: {integrity: sha512-reb+7TXGaC0odGjywnLocM4f2i8mBhSEjc3gnKqdM21wDy8FcGGVjKbtMNjn17hka34CrwvqNREs0R7CGIeH3w==}
+
   ts-interface-checker@0.1.13:
     resolution: {integrity: sha512-Y/arvbn+rrz3JCKl9C4kVNfTfSm2/mEp5FSz5EsZSANGPSlQrpRI5M4PKF+mJnE52jOO90PnPSc3Ur3bTQw0gA==}
 
@@ -8197,6 +8273,9 @@ packages:
 
   undici-types@6.21.0:
     resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
+
+  undici-types@7.12.0:
+    resolution: {integrity: sha512-goOacqME2GYyOZZfb5Lgtu+1IDmAlAEu5xnD3+xTzS10hT0vzpf0SPjkXwAw9Jm+4n/mQGDP3LO8CPbYROeBfQ==}
 
   undici@5.28.4:
     resolution: {integrity: sha512-72RFADWFqKmUb2hmmvNODKL3p9hcB6Gt2DOQMis1SEBaV6a4MH8soBvzg+95CYhCKPFedut2JY9bMfrDl9D23g==}
@@ -8671,8 +8750,8 @@ snapshots:
       chalk: 4.1.2
       cli-table3: 0.6.5
       commander: 10.0.1
-      marked: 9.1.6
-      marked-terminal: 6.2.0(marked@9.1.6)
+      marked: 9.1.2
+      marked-terminal: 6.2.0(marked@9.1.2)
       semver: 7.7.2
 
   '@arethetypeswrong/cli@0.16.4':
@@ -8681,8 +8760,8 @@ snapshots:
       chalk: 4.1.2
       cli-table3: 0.6.5
       commander: 10.0.1
-      marked: 9.1.6
-      marked-terminal: 7.3.0(marked@9.1.6)
+      marked: 9.1.2
+      marked-terminal: 7.1.0(marked@9.1.2)
       semver: 7.7.2
 
   '@arethetypeswrong/core@0.15.1':
@@ -9901,6 +9980,8 @@ snapshots:
 
   '@balena/dockerignore@1.0.2': {}
 
+  '@braidai/lang@1.1.2': {}
+
   '@cloudflare/workers-types@4.20250604.0': {}
 
   '@colors/colors@1.5.0':
@@ -10666,6 +10747,10 @@ snapshots:
   '@libsql/win32-x64-msvc@0.4.7':
     optional: true
 
+  '@loaderkit/resolve@1.0.4':
+    dependencies:
+      '@braidai/lang': 1.1.2
+
   '@miniflare/core@2.14.4':
     dependencies:
       '@iarna/toml': 2.2.5
@@ -11391,7 +11476,7 @@ snapshots:
 
   '@types/better-sqlite3@7.6.13':
     dependencies:
-      '@types/node': 18.19.110
+      '@types/node': 24.5.1
 
   '@types/braces@3.0.5': {}
 
@@ -11403,13 +11488,13 @@ snapshots:
 
   '@types/docker-modem@3.0.6':
     dependencies:
-      '@types/node': 18.19.110
+      '@types/node': 20.17.57
       '@types/ssh2': 1.15.5
 
   '@types/dockerode@3.3.39':
     dependencies:
       '@types/docker-modem': 3.0.6
-      '@types/node': 18.19.110
+      '@types/node': 20.17.57
       '@types/ssh2': 1.15.5
 
   '@types/emscripten@1.40.1': {}
@@ -11419,12 +11504,12 @@ snapshots:
   '@types/fs-extra@11.0.4':
     dependencies:
       '@types/jsonfile': 6.1.4
-      '@types/node': 18.19.110
+      '@types/node': 20.17.57
 
   '@types/glob@8.1.0':
     dependencies:
       '@types/minimatch': 5.1.2
-      '@types/node': 18.19.110
+      '@types/node': 20.17.57
 
   '@types/graceful-fs@4.1.9':
     dependencies:
@@ -11448,7 +11533,14 @@ snapshots:
 
   '@types/jsonfile@6.1.4':
     dependencies:
-      '@types/node': 18.19.110
+      '@types/node': 20.17.57
+
+  '@types/marked-terminal@3.1.3':
+    dependencies:
+      '@types/marked': 3.0.4
+      chalk: 2.4.2
+
+  '@types/marked@3.0.4': {}
 
   '@types/micromatch@4.0.9':
     dependencies:
@@ -11460,7 +11552,7 @@ snapshots:
 
   '@types/mssql@9.1.7':
     dependencies:
-      '@types/node': 18.19.110
+      '@types/node': 20.17.57
       tarn: 3.0.2
       tedious: 18.6.1
     transitivePeerDependencies:
@@ -11478,23 +11570,27 @@ snapshots:
     dependencies:
       undici-types: 6.21.0
 
+  '@types/node@24.5.1':
+    dependencies:
+      undici-types: 7.12.0
+
   '@types/normalize-package-data@2.4.4': {}
 
   '@types/pg@8.11.6':
     dependencies:
-      '@types/node': 18.19.110
+      '@types/node': 24.5.1
       pg-protocol: 1.10.0
       pg-types: 4.0.2
 
   '@types/pg@8.15.4':
     dependencies:
-      '@types/node': 18.19.110
+      '@types/node': 24.5.1
       pg-protocol: 1.10.0
       pg-types: 2.2.0
 
   '@types/pg@8.6.6':
     dependencies:
-      '@types/node': 18.19.110
+      '@types/node': 24.5.1
       pg-protocol: 1.10.0
       pg-types: 2.2.0
 
@@ -11520,7 +11616,7 @@ snapshots:
   '@types/sql.js@1.4.9':
     dependencies:
       '@types/emscripten': 1.40.1
-      '@types/node': 20.17.57
+      '@types/node': 24.5.1
 
   '@types/ssh2@1.15.5':
     dependencies:
@@ -11532,11 +11628,13 @@ snapshots:
 
   '@types/uuid@9.0.8': {}
 
+  '@types/validate-npm-package-name@4.0.2': {}
+
   '@types/which@3.0.4': {}
 
   '@types/ws@8.18.1':
     dependencies:
-      '@types/node': 18.19.110
+      '@types/node': 24.5.1
 
   '@types/yargs-parser@21.0.3': {}
 
@@ -15013,28 +15111,27 @@ snapshots:
 
   map-stream@0.1.0: {}
 
-  marked-terminal@6.2.0(marked@9.1.6):
+  marked-terminal@6.2.0(marked@9.1.2):
     dependencies:
       ansi-escapes: 6.2.1
       cardinal: 2.1.1
       chalk: 5.4.1
       cli-table3: 0.6.5
-      marked: 9.1.6
+      marked: 9.1.2
       node-emoji: 2.2.0
       supports-hyperlinks: 3.2.0
 
-  marked-terminal@7.3.0(marked@9.1.6):
+  marked-terminal@7.1.0(marked@9.1.2):
     dependencies:
       ansi-escapes: 7.0.0
-      ansi-regex: 6.1.0
       chalk: 5.4.1
       cli-highlight: 2.1.11
       cli-table3: 0.6.5
-      marked: 9.1.6
+      marked: 9.1.2
       node-emoji: 2.2.0
       supports-hyperlinks: 3.2.0
 
-  marked@9.1.6: {}
+  marked@9.1.2: {}
 
   marky@1.3.0: {}
 
@@ -16015,7 +16112,7 @@ snapshots:
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.0
-      '@types/node': 18.19.110
+      '@types/node': 20.17.57
       long: 5.3.2
 
   proxy-addr@2.0.7:
@@ -17018,6 +17115,8 @@ snapshots:
 
   ts-expose-internals-conditionally@1.0.0-empty.0: {}
 
+  ts-expose-internals@5.6.3: {}
+
   ts-interface-checker@0.1.13: {}
 
   ts-morph@25.0.1:
@@ -17254,6 +17353,8 @@ snapshots:
   undici-types@6.19.8: {}
 
   undici-types@6.21.0: {}
+
+  undici-types@7.12.0: {}
 
   undici@5.28.4:
     dependencies:
