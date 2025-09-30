@@ -19,6 +19,9 @@ beforeEach(async () => {
 	await _.clear();
 });
 
+// TODO
+// author: @AlexSherman
+// @AlexBlokh - I have added new fields in ddl. Just in case ping you
 test('s01', async (t) => {
 	const res = await diffSnapshotV5(db, s01);
 	expect(res.all).toStrictEqual([]);
