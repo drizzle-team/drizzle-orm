@@ -118,7 +118,8 @@ export const fromDatabase = async (
 		const isNullable = column['IS_NULLABLE'] === 'YES'; // 'YES', 'NO'
 		const columnType = column['COLUMN_TYPE']; // varchar(256)
 		const columnDefault: string = column['COLUMN_DEFAULT'] ?? null;
-		const collation: string = column['CHARACTER_SET_NAME'];
+		const collation: string = column['COLLATION_NAME'];
+		const charSet: string = column['CHARACTER_SET_NAME'];
 		const geenratedExpression: string = column['GENERATION_EXPRESSION'];
 
 		const extra = column['EXTRA'] ?? '';
@@ -128,8 +129,14 @@ export const fromDatabase = async (
 		const numericPrecision = column['NUMERIC_PRECISION'];
 		const numericScale = column['NUMERIC_SCALE'];
 		const isAutoincrement = extra === 'auto_increment';
-		const onUpdateNow = extra.includes('on update CURRENT_TIMESTAMP');
-		const onUpdateNowFsp = onUpdateNow ? Number(parseParams(extra)[0]) : null;
+		const onUpdateNow: boolean = extra.includes('on update CURRENT_TIMESTAMP');
+
+		const onUpdateNowFspMatch = typeof extra === 'string'
+			? extra.match(/\bON\s+UPDATE\s+CURRENT_TIMESTAMP(?:\((\d+)\))?/i)
+			: null;
+		const onUpdateNowFsp = onUpdateNow && onUpdateNowFspMatch && onUpdateNowFspMatch[1]
+			? Number(onUpdateNowFspMatch[1])
+			: null;
 
 		let changedType = columnType.replace('decimal(10,0)', 'decimal');
 
@@ -145,7 +152,7 @@ export const fromDatabase = async (
 			}
 		}
 
-		const def = parseDefaultValue(changedType, columnDefault, collation);
+		const def = parseDefaultValue(changedType, columnDefault, charSet);
 
 		res.columns.push({
 			entityType: 'columns',
@@ -155,6 +162,8 @@ export const fromDatabase = async (
 			isPK: isPrimary, // isPK is an interim flag we use in Drizzle Schema and ignore in database introspect
 			notNull: !isNullable,
 			autoIncrement: isAutoincrement,
+			collation,
+			charSet,
 			onUpdateNow,
 			onUpdateNowFsp,
 			default: def,

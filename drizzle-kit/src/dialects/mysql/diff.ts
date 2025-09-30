@@ -4,7 +4,7 @@ import { diff } from '../dialect';
 import { groupDiffs } from '../utils';
 import { fromJson } from './convertor';
 import { Column, DiffEntities, fullTableFromDDL, Index, MysqlDDL, Table, View } from './ddl';
-import { nameForForeignKey, typesCommutative } from './grammar';
+import { charSetAndCollationCommutative, nameForForeignKey, typesCommutative } from './grammar';
 import { prepareStatement } from './statements';
 import { JsonStatement } from './statements';
 
@@ -213,8 +213,6 @@ export const ddlDiff = async (
 
 	const alters = diff.alters(ddl1, ddl2);
 
-	const jsonStatements: JsonStatement[] = [];
-
 	const createTableStatements = createdTables.map((it) => {
 		const full = fullTableFromDDL(it, ddl2);
 		if (createdTables.length > 1) full.fks = []; // fks have to be created after all tables created
@@ -339,6 +337,17 @@ export const ddlDiff = async (
 				delete it.generated;
 			}
 
+			if (
+				mode === 'push' && (it.charSet || it.collation)
+				&& charSetAndCollationCommutative(
+					{ charSet: it.$left.charSet ?? null, collation: it.$left.collation ?? null },
+					{ charSet: it.$right.charSet ?? null, collation: it.$right.collation ?? null },
+				)
+			) {
+				delete it.charSet;
+				delete it.collation;
+			}
+
 			return ddl2.columns.hasDiff(it) && alterColumnPredicate(it);
 		}).map((it) => {
 			const column = ddl2.columns.one({ name: it.name, table: it.table })!;
@@ -389,7 +398,7 @@ export const ddlDiff = async (
 	const res = fromJson(statements);
 
 	return {
-		statements: jsonStatements,
+		statements: statements,
 		sqlStatements: res.sqlStatements,
 		groupedStatements: res.groupedStatements,
 		renames: [],

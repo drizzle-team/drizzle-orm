@@ -45,8 +45,11 @@ const createTable = convertor('create_table', (st) => {
 			? ` GENERATED ALWAYS AS (${column.generated?.as}) ${column.generated?.type.toUpperCase()}`
 			: '';
 
+		const charSetStatement = column.charSet ? ` CHARACTER SET ${column.charSet}` : '';
+		const collationStatement = column.collation ? ` COLLATE ${column.collation}` : '';
+
 		statement += '\t'
-			+ `\`${column.name}\` ${column.type}${autoincrementStatement}${primaryKeyStatement}${generatedStatement}${notNullStatement}${defaultStatement}${onUpdateStatement}`;
+			+ `\`${column.name}\` ${column.type}${autoincrementStatement}${primaryKeyStatement}${generatedStatement}${notNullStatement}${defaultStatement}${onUpdateStatement}${charSetStatement}${collationStatement}`;
 		statement += i === columns.length - 1 ? '' : ',\n';
 	}
 
@@ -116,7 +119,10 @@ const addColumn = convertor('add_column', (st) => {
 		? ` GENERATED ALWAYS AS (${generated?.as}) ${generated?.type.toUpperCase()}`
 		: '';
 
-	return `ALTER TABLE \`${table}\` ADD \`${name}\` ${type}${primaryKeyStatement}${autoincrementStatement}${defaultStatement}${generatedStatement}${notNullStatement}${onUpdateStatement};`;
+	const charSetStatement = column.charSet ? ` CHARACTER SET ${column.charSet}` : '';
+	const collationStatement = column.collation ? ` COLLATE ${column.collation}` : '';
+
+	return `ALTER TABLE \`${table}\` ADD \`${name}\` ${type}${primaryKeyStatement}${autoincrementStatement}${defaultStatement}${generatedStatement}${notNullStatement}${onUpdateStatement}${charSetStatement}${collationStatement};`;
 });
 
 const dropColumn = convertor('drop_column', (st) => {
@@ -145,7 +151,10 @@ const alterColumn = convertor('alter_column', (st) => {
 		? ` GENERATED ALWAYS AS (${column.generated.as}) ${column.generated.type.toUpperCase()}`
 		: '';
 
-	return `ALTER TABLE \`${column.table}\` MODIFY COLUMN \`${column.name}\` ${column.type}${primaryKeyStatement}${autoincrementStatement}${defaultStatement}${generatedStatement}${notNullStatement}${onUpdateStatement};`;
+	const charSetStatement = column.charSet ? ` CHARACTER SET ${column.charSet}` : '';
+	const collationStatement = column.collation ? ` COLLATE ${column.collation}` : '';
+
+	return `ALTER TABLE \`${column.table}\` MODIFY COLUMN \`${column.name}\` ${column.type}${primaryKeyStatement}${autoincrementStatement}${defaultStatement}${generatedStatement}${notNullStatement}${onUpdateStatement}${charSetStatement}${collationStatement};`;
 });
 
 const recreateColumn = convertor('recreate_column', (st) => {

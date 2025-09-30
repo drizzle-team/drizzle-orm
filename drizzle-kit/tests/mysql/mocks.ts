@@ -125,8 +125,9 @@ export const push = async (config: {
 	to: MysqlSchema | MysqlDDL;
 	renames?: string[];
 	casing?: CasingType;
+	log?: 'statements';
 }) => {
-	const { db, to } = config;
+	const { db, to, log } = config;
 	const casing = config.casing ?? 'camelCase';
 
 	const { schema } = await introspect({ db, database: 'drizzle', tablesFilter: [], progress: new EmptyProgressView() });
@@ -162,7 +163,7 @@ export const push = async (config: {
 	const { hints, truncates } = await suggestions(db, statements);
 
 	for (const sql of sqlStatements) {
-		// if (log === 'statements') console.log(sql);
+		if (log === 'statements') console.log(sql);
 		await db.query(sql);
 	}
 
