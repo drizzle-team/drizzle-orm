@@ -56,16 +56,16 @@ export const drizzleToDDL = (sch: MysqlSchema, casing?: CasingType | undefined) 
 
 export const diff = async (
 	left: MysqlSchema | MysqlDDL,
-	right: MysqlSchema| MysqlDDL,
+	right: MysqlSchema | MysqlDDL,
 	renamesArr: string[],
 	casing?: CasingType | undefined,
 ) => {
-		const { ddl: ddl1, errors: err1 } = 'entities' in left && '_' in left
-			? { ddl: left as MysqlDDL, errors: [] }
-			: drizzleToDDL(left, casing);
-		const { ddl: ddl2, errors: err2 } = 'entities' in right && '_' in right
-			? { ddl: right as MysqlDDL, errors: [] }
-			: drizzleToDDL(right, casing);
+	const { ddl: ddl1, errors: err1 } = 'entities' in left && '_' in left
+		? { ddl: left as MysqlDDL, errors: [] }
+		: drizzleToDDL(left, casing);
+	const { ddl: ddl2, errors: err2 } = 'entities' in right && '_' in right
+		? { ddl: right as MysqlDDL, errors: [] }
+		: drizzleToDDL(right, casing);
 
 	const renames = new Set(renamesArr);
 
@@ -140,7 +140,7 @@ export const push = async (config: {
 	to: MysqlSchema | MysqlDDL;
 	renames?: string[];
 	casing?: CasingType;
-	log?: "statements"
+	log?: 'statements';
 }) => {
 	const { db, to, log } = config;
 	const casing = config.casing ?? 'camelCase';
