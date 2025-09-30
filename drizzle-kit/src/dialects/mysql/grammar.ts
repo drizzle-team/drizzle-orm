@@ -1,5 +1,6 @@
 import { assertUnreachable, trimChar } from '../../utils';
 import { parse, stringify } from '../../utils/when-json-met-bigint';
+import { hash } from '../common';
 import { escapeForSqlDefault, escapeForTsLiteral, parseParams, unescapeFromSqlDefault } from '../utils';
 import { Column, ForeignKey } from './ddl';
 import type { Import } from './typescript';
@@ -546,8 +547,14 @@ export const checkDefault = (value: string, type: string): InvalidDefault | null
 	return null;
 };
 
-export const nameForForeignKey = (fk: Pick<ForeignKey, 'table' | 'columns' | 'tableTo' | 'columnsTo'>) => {
-	return `fk_${fk.table}_${fk.columns.join('_')}_${fk.tableTo}_${fk.columnsTo.join('_')}_fk`;
+export const defaultNameForFK = (table: string, columns: string[], tableTo: string, columnsTo: string[]) => {
+	const desired = `${table}_${columns.join('_')}_${tableTo}_${columnsTo.join('_')}_fkey`;
+	const res = desired.length > 63
+		? table.length < 63 - 18 // _{hash(12)}_fkey
+			? `${table}_${hash(desired)}_fkey`
+			: `${hash(desired)}_fkey` // 1/~3e21 collision chance within single schema, it's fine
+		: desired;
+	return res;
 };
 
 export const nameForIndex = (tableName: string, columns: string[]) => {
@@ -577,39 +584,6 @@ export const parseDefaultValue = (
 
 	const grammarType = typeFor(columnType);
 	if (grammarType) return grammarType.defaultFromIntrospect(value);
-
-	// if (
-	// 	columnType.startsWith('binary') || columnType.startsWith('varbinary')
-	// 	|| columnType === 'text' || columnType === 'tinytext' || columnType === 'longtext' || columnType === 'mediumtext'
-	// ) {
-	// 	if (/^'(?:[^']|'')*'$/.test(value)) {
-	// 		return { value: trimChar(value, "'").replaceAll("''", "'"), type: 'text' };
-	// 	}
-
-	// 	const wrapped = value.startsWith('(') && value.endsWith(')') ? value : `(${value})`;
-	// 	return { value: wrapped, type: 'unknown' };
-	// }
-
-	// if (columnType.startsWith('enum') || columnType.startsWith('varchar') || columnType.startsWith('char')) {
-	// 	return { value, type: 'string' };
-	// }
-
-	// if (columnType === 'json') {
-	// 	return { value: trimChar(value, "'").replaceAll("''", "'"), type: 'json' };
-	// }
-
-	// if (
-	// 	columnType === 'date' || columnType.startsWith('datetime') || columnType.startsWith('timestamp')
-	// 	|| columnType.startsWith('time')
-	// ) {
-	// 	return { value: value, type: 'string' };
-	// }
-
-	// if (/^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(value)) {
-	// 	const num = Number(value);
-	// 	const big = num > Number.MAX_SAFE_INTEGER || num < Number.MIN_SAFE_INTEGER;
-	// 	return { value: value, type: big ? 'bigint' : 'number' };
-	// }
 
 	console.error(`unknown default: ${columnType} ${value}`);
 	return null;

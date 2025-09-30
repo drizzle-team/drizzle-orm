@@ -1,5 +1,5 @@
 import { any, array, boolean, enum as enumType, literal, number, object, record, string, TypeOf, union } from 'zod';
-import { mapValues, originUUID, snapshotVersion } from './global';
+import { mapValues, originUUID, snapshotVersion } from '../global';
 
 const indexV2 = object({
 	name: string(),

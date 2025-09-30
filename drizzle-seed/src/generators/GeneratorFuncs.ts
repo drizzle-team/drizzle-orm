@@ -5,6 +5,7 @@ import {
 	GenerateBoolean,
 	GenerateCity,
 	GenerateCompanyName,
+	GenerateCompositeUniqueKey,
 	GenerateCountry,
 	GenerateDate,
 	GenerateDatetime,
@@ -1074,5 +1075,8 @@ export const generatorsMap = {
 	],
 	GenerateUniqueVector: [
 		GenerateUniqueVector,
+	],
+	GenerateCompositeUniqueKey: [
+		GenerateCompositeUniqueKey,
 	],
 } as const;
