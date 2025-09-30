@@ -433,3 +433,35 @@ test('index with sort', async () => {
 	expect(st).toStrictEqual(expectedSt);
 	expect(pst).toStrictEqual(expectedSt);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4221
+test('fk on char column', async () => {
+	function column1() {
+		return char('column1', { length: 24 }).primaryKey().$defaultFn(() => '1');
+	}
+	const table1 = mysqlTable(
+		'table1',
+		{
+			column1: column1(),
+		},
+	);
+	const table2 = mysqlTable(
+		'table2',
+		{
+			column1: column1(),
+			column2: char('column2', { length: 24 }).references(() => table1.column1).notNull(),
+		},
+	);
+	const to = { table1, table2 };
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+	const expectedSt: string[] = [
+		'CREATE TABLE `table1` (\n\t`column1` char(24) PRIMARY KEY\n);\n',
+		'CREATE TABLE `table2` (\n\t`column1` char(24) PRIMARY KEY,\n\t`column2` char(24) NOT NULL\n);\n',
+		'ALTER TABLE `table2` ADD CONSTRAINT `table2_column2_table1_column1_fk` FOREIGN KEY (`column2`) REFERENCES `table1`(`column1`);',
+	];
+
+	expect(st).toStrictEqual(expectedSt);
+	expect(pst).toStrictEqual(expectedSt);
+});
