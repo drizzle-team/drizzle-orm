@@ -2,20 +2,26 @@ import 'dotenv/config';
 import { SQL, sql } from 'drizzle-orm';
 import {
 	bigint,
+	boolean,
 	char,
 	check,
 	decimal,
 	double,
 	float,
+	foreignKey,
 	int,
+	longtext,
 	mediumint,
+	mediumtext,
 	mysqlEnum,
 	mysqlTable,
 	mysqlView,
+	primaryKey,
 	serial,
 	smallint,
 	text,
 	tinyint,
+	tinytext,
 	varchar,
 } from 'drizzle-orm/mysql-core';
 import * as fs from 'fs';
@@ -103,6 +109,41 @@ test('Default value of character type column: varchar', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'default-value-varchar');
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4786
+test('Default value of character type column: enum', async () => {
+	const schema = {
+		users: mysqlTable('users', {
+			id: int('id'),
+			status: mysqlEnum(['0', '1', '2']).default('0'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'default-value-enum');
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4713
+test('Default value of empty string column: enum, char, varchar, text, tinytext, mediumtext, longtext', async () => {
+	const schema = {
+		table1: mysqlTable('table1', {
+			column1: mysqlEnum(['0', '1', '2', '']).default(''),
+			column2: char({ length: 50 }).default(''),
+			column3: varchar({ length: 50 }).default(''),
+			column4: text().default(''),
+			column5: tinytext().default(''),
+			column6: mediumtext().default(''),
+			column7: longtext().default(''),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'default-value-of-empty-string');
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
@@ -205,6 +246,65 @@ test('instrospect strings with single quotes', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'strings-with-single-quotes');
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4653
+test('introspect bigint, mediumint, int, smallint, tinyint', async () => {
+	const schema = {
+		columns: mysqlTable('columns', {
+			column1: tinyint(),
+			column2: smallint(),
+			column3: int(),
+			column4: mediumint(),
+			column5: bigint({ mode: 'bigint' }),
+			column6: bigint({ mode: 'number' }),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'introspect-int');
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4602
+test('introspect table with primary key and check', async () => {
+	const schema = {
+		table1: mysqlTable('table1', {
+			column1: int().primaryKey(),
+		}),
+		table2: mysqlTable('table2', {
+			column1: int(),
+			column2: int(),
+		}, (table) => [
+			primaryKey({ columns: [table.column1, table.column2] }),
+			check('age_check1', sql`${table.column1} > 21`),
+		]),
+	};
+
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'table-with-primary-key-and-check');
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4415
+test('introspect table with fk', async () => {
+	const table1 = mysqlTable('table1', {
+		column1: int().primaryKey(),
+	});
+	const table2 = mysqlTable('table2', {
+		column1: int(),
+		column2: int().references(() => table1.column1),
+	}, (table) => [
+		foreignKey({ columns: [table.column1], foreignColumns: [table1.column1], name: 'custom_fk' }),
+	]);
+	const schema = { table1, table2 };
+
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'table-with-fk');
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
