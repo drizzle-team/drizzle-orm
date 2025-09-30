@@ -1,12 +1,12 @@
 import chalk from 'chalk';
+import { SQL } from 'drizzle-orm';
+import { CasingCache, toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { parse } from 'url';
+import { CasingType } from './common';
 import { assertUnreachable, snapshotVersion } from './global';
 import type { Dialect } from './schemaValidator';
-import { CasingType } from './common';
-import { CasingCache, toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
-import { SQL } from 'drizzle-orm';
 
 export type DB = {
 	query: <T extends any = any>(sql: string, params?: any[]) => Promise<T[]>;

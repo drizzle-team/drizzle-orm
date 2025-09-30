@@ -62,7 +62,14 @@ import {
 	viewsResolver,
 } from '../snapshotsDiffer';
 import { copy } from '../utils';
-import { dryMySql, MySqlSchema, MySqlSchemaSquashed, MySqlSquasher, squashMysqlScheme, ViewSquashed } from './mysqlSchema';
+import {
+	dryMySql,
+	MySqlSchema,
+	MySqlSchemaSquashed,
+	MySqlSquasher,
+	squashMysqlScheme,
+	ViewSquashed,
+} from './mysqlSchema';
 
 export const diff = async (opts: {
 	left?: MySqlSchema;
@@ -593,7 +600,7 @@ export const _diff = async (
 		}
 
 		if (alteredView.alteredMeta) {
-			throw new Error("unexpected")
+			throw new Error('unexpected');
 		}
 	}
 

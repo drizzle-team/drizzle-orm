@@ -13,8 +13,7 @@ export const upToV6 = (it: Record<string, any>): MysqlSnapshot => {
 	for (const table of Object.values(json.tables)) {
 		ddl.tables.push({ name: table.name });
 
-		for(const column of Object.values(table.columns)){
-
+		for (const column of Object.values(table.columns)) {
 		}
 	}
 
