@@ -547,11 +547,11 @@ export const checkDefault = (value: string, type: string): InvalidDefault | null
 	return null;
 };
 
-export const defaultNameForFK = (table: string, columns: string[], tableTo: string, columnsTo: string[]) => {
-	const desired = `${table}_${columns.join('_')}_${tableTo}_${columnsTo.join('_')}_fkey`;
+export const defaultNameForFK = (fk: Pick<ForeignKey, 'table' | 'columns' | 'tableTo' | 'columnsTo'>) => {
+	const desired = `${fk.table}_${fk.columns.join('_')}_${fk.tableTo}_${fk.columnsTo.join('_')}_fkey`;
 	const res = desired.length > 63
-		? table.length < 63 - 18 // _{hash(12)}_fkey
-			? `${table}_${hash(desired)}_fkey`
+		? fk.table.length < 63 - 18 // _{hash(12)}_fkey
+			? `${fk.table}_${hash(desired)}_fkey`
 			: `${hash(desired)}_fkey` // 1/~3e21 collision chance within single schema, it's fine
 		: desired;
 	return res;
