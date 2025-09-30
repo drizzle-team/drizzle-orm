@@ -8,7 +8,9 @@ import {
 	double,
 	float,
 	int,
+	longtext,
 	mediumint,
+	mediumtext,
 	mysqlEnum,
 	mysqlTable,
 	mysqlView,
@@ -16,6 +18,7 @@ import {
 	smallint,
 	text,
 	tinyint,
+	tinytext,
 	varchar,
 } from 'drizzle-orm/mysql-core';
 import * as fs from 'fs';
@@ -205,6 +208,25 @@ test('instrospect strings with single quotes', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'strings-with-single-quotes');
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('charSet and collate', async () => {
+	const schema = {
+		columns: mysqlTable('columns', {
+			name1: varchar('name1', { length: 1 }).charSet('big5').collate('big5_chinese_ci'),
+			name2: char('name2').charSet('big5').collate('big5_chinese_ci'),
+			name3: text('name3').charSet('big5').collate('big5_chinese_ci'),
+			name4: tinytext('name4').charSet('big5').collate('big5_chinese_ci'),
+			name5: mediumtext('name5').charSet('big5').collate('big5_chinese_ci'),
+			name6: longtext('name6').charSet('big5').collate('big5_chinese_ci'),
+			name7: mysqlEnum('test_enum', ['1', '2']).charSet('big5').collate('big5_chinese_ci'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'charSet_and_collate');
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);

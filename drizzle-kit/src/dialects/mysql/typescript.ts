@@ -243,6 +243,8 @@ const column = (
 	autoincrement: boolean,
 	onUpdateNow: Column['onUpdateNow'],
 	onUpdateNowFsp: Column['onUpdateNowFsp'],
+	collation: Column['collation'],
+	charSet: Column['charSet'],
 	vendor: 'mysql' | 'singlestore',
 ) => {
 	let lowered = type.startsWith('enum(') ? type : type.toLowerCase();
@@ -252,6 +254,9 @@ const column = (
 
 		const { default: def } = Enum.toTs('', defaultValue) as any;
 		out += def ? `.default(${def})` : '';
+		out += charSet ? `.charSet("${charSet}")` : '';
+		out += collation ? `.collate("${collation}")` : '';
+
 		return out;
 	}
 
@@ -276,6 +281,8 @@ const column = (
 	res += autoincrement ? `.autoincrement()` : '';
 	res += defaultStatement;
 	res += onUpdateNow ? `.onUpdateNow(${onUpdateNowFsp ? '{ fsp: ' + onUpdateNowFsp + ' }' : ''})` : '';
+	res += charSet ? `.charSet("${charSet}")` : '';
+	res += collation ? `.collate("${collation}")` : '';
 
 	return res;
 };
@@ -303,6 +310,8 @@ const createTableColumns = (
 			it.autoIncrement,
 			it.onUpdateNow,
 			it.onUpdateNowFsp,
+			it.collation,
+			it.charSet,
 			vendor,
 		);
 
@@ -357,7 +366,7 @@ const createViewColumns = (
 
 	for (const it of columns) {
 		statement += '\n';
-		statement += column(it.type, it.name, casing, rawCasing, null, false, false, null, vendor);
+		statement += column(it.type, it.name, casing, rawCasing, null, false, false, null, null, null, vendor);
 		statement += it.notNull ? '.notNull()' : '';
 		statement += ',\n';
 	}

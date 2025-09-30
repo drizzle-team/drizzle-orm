@@ -12,7 +12,9 @@ import {
 	index,
 	int,
 	json,
+	longtext,
 	mediumint,
+	mediumtext,
 	mysqlEnum,
 	mysqlSchema,
 	mysqlTable,
@@ -23,6 +25,7 @@ import {
 	time,
 	timestamp,
 	tinyint,
+	tinytext,
 	unique,
 	uniqueIndex,
 	varbinary,
@@ -1299,5 +1302,277 @@ test('drop primary key', async () => {
 		'ALTER TABLE `table` MODIFY COLUMN `id` int;',
 	];
 	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test(`create table with char set and collate`, async () => {
+	const to = {
+		table: mysqlTable('table', {
+			id: int(),
+			name1: varchar('name1', { length: 1 }).charSet('big5').collate('big5_bin'),
+			name2: char('name2').charSet('big5').collate('big5_bin'),
+			name3: text('name3').charSet('big5').collate('big5_bin'),
+			name4: tinytext('name4').charSet('big5').collate('big5_bin'),
+			name5: mediumtext('name5').charSet('big5').collate('big5_bin'),
+			name6: longtext('name6').charSet('big5').collate('big5_bin'),
+			name7: mysqlEnum('test_enum', ['1', '2']).charSet('big5').collate('big5_bin'),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
+		`CREATE TABLE \`table\` (
+	\`id\` int,
+	\`name1\` varchar(1) CHARACTER SET big5 COLLATE big5_bin,
+	\`name2\` char CHARACTER SET big5 COLLATE big5_bin,
+	\`name3\` text CHARACTER SET big5 COLLATE big5_bin,
+	\`name4\` tinytext CHARACTER SET big5 COLLATE big5_bin,
+	\`name5\` mediumtext CHARACTER SET big5 COLLATE big5_bin,
+	\`name6\` longtext CHARACTER SET big5 COLLATE big5_bin,
+	\`test_enum\` enum('1','2') CHARACTER SET big5 COLLATE big5_bin
+);\n`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test(`add column with char set and collate`, async () => {
+	const from = {
+		table: mysqlTable('table', {
+			id: int(),
+		}),
+	};
+	const to = {
+		table: mysqlTable('table', {
+			id: int(),
+			name1: varchar('name1', { length: 1 }).charSet('big5').collate('big5_bin'),
+			name2: char('name2').charSet('big5').collate('big5_bin'),
+			name3: text('name3').charSet('big5').collate('big5_bin'),
+			name4: tinytext('name4').charSet('big5').collate('big5_bin'),
+			name5: mediumtext('name5').charSet('big5').collate('big5_bin'),
+			name6: longtext('name6').charSet('big5').collate('big5_bin'),
+			name7: mysqlEnum('test_enum', ['1', '2']).charSet('big5').collate('big5_bin'),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
+		'ALTER TABLE `table` ADD `name1` varchar(1) CHARACTER SET big5 COLLATE big5_bin;',
+		'ALTER TABLE `table` ADD `name2` char CHARACTER SET big5 COLLATE big5_bin;',
+		'ALTER TABLE `table` ADD `name3` text CHARACTER SET big5 COLLATE big5_bin;',
+		'ALTER TABLE `table` ADD `name4` tinytext CHARACTER SET big5 COLLATE big5_bin;',
+		'ALTER TABLE `table` ADD `name5` mediumtext CHARACTER SET big5 COLLATE big5_bin;',
+		'ALTER TABLE `table` ADD `name6` longtext CHARACTER SET big5 COLLATE big5_bin;',
+		"ALTER TABLE `table` ADD `test_enum` enum('1','2') CHARACTER SET big5 COLLATE big5_bin;",
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test(`update char set and collate`, async () => {
+	const from = {
+		table: mysqlTable('table', {
+			id: int(),
+			name1: varchar('name1', { length: 1 }).charSet('big5').collate('big5_bin'),
+			name2: char('name2').charSet('big5').collate('big5_bin'),
+			name3: text('name3').charSet('big5').collate('big5_bin'),
+			name4: tinytext('name4').charSet('big5').collate('big5_bin'),
+			name5: mediumtext('name5').charSet('big5').collate('big5_bin'),
+			name6: longtext('name6').charSet('big5').collate('big5_bin'),
+			name7: mysqlEnum('test_enum', ['1', '2']).charSet('big5').collate('big5_bin'),
+		}),
+	};
+	const to = {
+		table: mysqlTable('table', {
+			id: int(),
+			name1: varchar('name1', { length: 1 }).charSet('cp1250').collate('cp1250_bin'),
+			name2: char('name2').charSet('cp1250').collate('cp1250_bin'),
+			name3: text('name3').charSet('cp1250').collate('cp1250_bin'),
+			name4: tinytext('name4').charSet('cp1250').collate('cp1250_bin'),
+			name5: mediumtext('name5').charSet('cp1250').collate('cp1250_bin'),
+			name6: longtext('name6').charSet('cp1250').collate('cp1250_bin'),
+			name7: mysqlEnum('test_enum', ['1', '2']).charSet('cp1250').collate('cp1250_bin'),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
+		'ALTER TABLE `table` MODIFY COLUMN `name1` varchar(1) CHARACTER SET cp1250 COLLATE cp1250_bin;',
+		'ALTER TABLE `table` MODIFY COLUMN `name2` char CHARACTER SET cp1250 COLLATE cp1250_bin;',
+		'ALTER TABLE `table` MODIFY COLUMN `name3` text CHARACTER SET cp1250 COLLATE cp1250_bin;',
+		'ALTER TABLE `table` MODIFY COLUMN `name4` tinytext CHARACTER SET cp1250 COLLATE cp1250_bin;',
+		'ALTER TABLE `table` MODIFY COLUMN `name5` mediumtext CHARACTER SET cp1250 COLLATE cp1250_bin;',
+		'ALTER TABLE `table` MODIFY COLUMN `name6` longtext CHARACTER SET cp1250 COLLATE cp1250_bin;',
+		"ALTER TABLE `table` MODIFY COLUMN `test_enum` enum('1','2') CHARACTER SET cp1250 COLLATE cp1250_bin;",
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test(`update collate`, async () => {
+	const from = {
+		table: mysqlTable('table', {
+			id: int(),
+			name1: varchar('name1', { length: 1 }).charSet('big5').collate('big5_bin'),
+			name2: char('name2').charSet('big5').collate('big5_bin'),
+			name3: text('name3').charSet('big5').collate('big5_bin'),
+			name4: tinytext('name4').charSet('big5').collate('big5_bin'),
+			name5: mediumtext('name5').charSet('big5').collate('big5_bin'),
+			name6: longtext('name6').charSet('big5').collate('big5_bin'),
+			name7: mysqlEnum('test_enum', ['1', '2']).charSet('big5').collate('big5_bin'),
+		}),
+	};
+	const to = {
+		table: mysqlTable('table', {
+			id: int(),
+			name1: varchar('name1', { length: 1 }).charSet('big5').collate('big5_chinese_ci'),
+			name2: char('name2').charSet('big5').collate('big5_chinese_ci'),
+			name3: text('name3').charSet('big5').collate('big5_chinese_ci'),
+			name4: tinytext('name4').charSet('big5').collate('big5_chinese_ci'),
+			name5: mediumtext('name5').charSet('big5').collate('big5_chinese_ci'),
+			name6: longtext('name6').charSet('big5').collate('big5_chinese_ci'),
+			name7: mysqlEnum('test_enum', ['1', '2']).charSet('big5').collate('big5_chinese_ci'),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
+		'ALTER TABLE `table` MODIFY COLUMN `name1` varchar(1) CHARACTER SET big5 COLLATE big5_chinese_ci;',
+		'ALTER TABLE `table` MODIFY COLUMN `name2` char CHARACTER SET big5 COLLATE big5_chinese_ci;',
+		'ALTER TABLE `table` MODIFY COLUMN `name3` text CHARACTER SET big5 COLLATE big5_chinese_ci;',
+		'ALTER TABLE `table` MODIFY COLUMN `name4` tinytext CHARACTER SET big5 COLLATE big5_chinese_ci;',
+		'ALTER TABLE `table` MODIFY COLUMN `name5` mediumtext CHARACTER SET big5 COLLATE big5_chinese_ci;',
+		'ALTER TABLE `table` MODIFY COLUMN `name6` longtext CHARACTER SET big5 COLLATE big5_chinese_ci;',
+		"ALTER TABLE `table` MODIFY COLUMN `test_enum` enum('1','2') CHARACTER SET big5 COLLATE big5_chinese_ci;",
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test(`push-push: only char set is specified (default collation used for char set)`, async () => {
+	const to = {
+		table: mysqlTable('table', {
+			id: int(),
+			name1: varchar('name1', { length: 1 }).charSet('big5'),
+			name2: char('name2').charSet('big5'),
+			name3: text('name3').charSet('big5'),
+			name4: tinytext('name4').charSet('big5'),
+			name5: mediumtext('name5').charSet('big5'),
+			name6: longtext('name6').charSet('big5'),
+			name7: mysqlEnum('test_enum', ['1', '2']).charSet('big5'),
+		}),
+	};
+
+	await push({ db, to });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [];
+	expect(pst).toStrictEqual(st0);
+});
+
+test(`push-push: only collation is specified (char set that is linked to this collation used)`, async () => {
+	const to = {
+		table: mysqlTable('table', {
+			id: int(),
+			name1: varchar('name1', { length: 1 }).collate('utf8mb3_slovak_ci'),
+			name2: char('name2').collate('ascii_bin'),
+			name3: text('name3').collate('cp1250_general_ci'),
+			name4: tinytext('name4').collate('cp1256_bin'),
+			name5: mediumtext('name5').collate('koi8u_bin'),
+			name6: longtext('name6').collate('utf16_danish_ci'),
+			name7: mysqlEnum('test_enum', ['1', '2']).collate('utf16_danish_ci'),
+		}),
+	};
+
+	await push({ db, to });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [];
+	expect(pst).toStrictEqual(st0);
+});
+
+test(`push-push: no collation + no char set (db stores as collation: 'utf8mb4_0900_ai_ci', charSet: 'utf8mb4')`, async () => {
+	const to = {
+		table: mysqlTable('table', {
+			id: int(),
+			name1: varchar('name1', { length: 1 }),
+			name2: char('name2'),
+			name3: text('name3'),
+			name4: tinytext('name4'),
+			name5: mediumtext('name5'),
+			name6: longtext('name6'),
+			name7: mysqlEnum('test_enum', ['1', '2']),
+		}),
+	};
+
+	await push({ db, to });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [];
+	expect(pst).toStrictEqual(st0);
+});
+
+test(`push-push: collation char set`, async () => {
+	const to = {
+		table: mysqlTable('table', {
+			id: int(),
+			name1: varchar('name1', { length: 1 }).charSet('big5').collate('big5_chinese_ci'),
+			name2: char('name2').charSet('big5').collate('big5_chinese_ci'),
+			name3: text('name3').charSet('big5').collate('big5_chinese_ci'),
+			name4: tinytext('name4').charSet('big5').collate('big5_chinese_ci'),
+			name5: mediumtext('name5').charSet('big5').collate('big5_chinese_ci'),
+			name6: longtext('name6').charSet('big5').collate('big5_chinese_ci'),
+			name7: mysqlEnum('test_enum', ['1', '2']).charSet('big5').collate('big5_chinese_ci'),
+		}),
+	};
+
+	await push({ db, to });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [];
+	expect(pst).toStrictEqual(st0);
+});
+
+test(`push-push: check on update now with fsp #1`, async () => {
+	const to = {
+		table: mysqlTable('table', {
+			id: int(),
+			created_at: timestamp().onUpdateNow(),
+		}),
+	};
+
+	await push({ db, to });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [];
+	expect(pst).toStrictEqual(st0);
+});
+
+test(`push-push: check on update now with fsp #2`, async () => {
+	const to = {
+		table: mysqlTable('table', {
+			id: int(),
+			created_at: timestamp({ fsp: 3 }).onUpdateNow({ fsp: 3 }),
+		}),
+	};
+
+	await push({ db, to });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [];
 	expect(pst).toStrictEqual(st0);
 });

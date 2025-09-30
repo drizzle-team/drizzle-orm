@@ -4,11 +4,14 @@ import {
 	AnyMySqlTable,
 	getTableConfig,
 	getViewConfig,
+	MySqlChar,
 	MySqlColumn,
 	MySqlDialect,
 	MySqlEnumColumn,
 	MySqlTable,
+	MySqlText,
 	MySqlTimestamp,
+	MySqlVarChar,
 	MySqlView,
 	uniqueKeyName,
 } from 'drizzle-orm/mysql-core';
@@ -114,9 +117,17 @@ export const fromDrizzleSchema = (
 			let onUpdateNow: boolean = false;
 			let onUpdateNowFsp: number | null = null;
 			if (is(column, MySqlTimestamp)) {
-				onUpdateNow = column.hasOnUpdateNow;
+				onUpdateNow = column.hasOnUpdateNow ?? false; // TODO
 				onUpdateNowFsp = column.onUpdateNowFsp ?? null;
 			}
+
+			let charSet: string | null = null;
+			let collation: string | null = null;
+			if (is(column, MySqlChar) || is(column, MySqlVarChar) || is(column, MySqlText) || is(column, MySqlEnumColumn)) {
+				charSet = column.charSet;
+				collation = column.collation ?? null;
+			}
+
 			result.columns.push({
 				entityType: 'columns',
 				table: tableName,
@@ -126,6 +137,8 @@ export const fromDrizzleSchema = (
 				autoIncrement,
 				onUpdateNow,
 				onUpdateNowFsp,
+				charSet,
+				collation,
 				generated,
 				isPK: column.primary,
 				isUnique: column.isUnique,

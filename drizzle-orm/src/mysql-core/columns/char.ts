@@ -2,11 +2,11 @@ import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
 import { type Equal, getColumnNameAndConfig, type Writable } from '~/utils.ts';
-import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
+import { MySqlStringBaseColumn, MySqlStringColumnBaseBuilder } from './string.common.ts';
 
 export class MySqlCharBuilder<
 	TEnum extends [string, ...string[]],
-> extends MySqlColumnBuilder<
+> extends MySqlStringColumnBaseBuilder<
 	{
 		dataType: Equal<TEnum, [string, ...string[]]> extends true ? 'string' : 'string enum';
 		data: TEnum[number];
@@ -34,7 +34,7 @@ export class MySqlCharBuilder<
 }
 
 export class MySqlChar<T extends ColumnBaseConfig<'string' | 'string enum'>>
-	extends MySqlColumn<T, { enum?: T['enumValues']; length: number; setLength: boolean }>
+	extends MySqlStringBaseColumn<T, { enum?: T['enumValues']; length: number; setLength: boolean }>
 {
 	static override readonly [entityKind]: string = 'MySqlChar';
 
