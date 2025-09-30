@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import type { AnyColumn } from '~/column';
 import { date, integer, pgTable, text } from '~/pg-core';
-import { relationsFilterToSQL, relationsOrderToSQL } from '~/relations';
+import { defineRelations, relationsFilterToSQL, relationsOrderToSQL } from '~/relations';
 import type { OrderBy, OrderByOperators, TableFilter } from '~/relations';
 import {
 	and,
@@ -281,15 +281,15 @@ describe('Filters', () => {
 	});
 });
 
-const buildOrder = <TTable extends Table, TTableConfig extends TTable['_']['config'] = TTable['_']['config']>(
+const buildOrder = <TTable extends Table>(
 	table: TTable,
 	order:
 		| {
-			[K in keyof TTableConfig['columns']]?: 'asc' | 'desc' | undefined;
+			[K in keyof TTable['_']['columns']]?: 'asc' | 'desc' | undefined;
 		}
 		| ((
 			fields: Simplify<
-				AnyTable<TTableConfig> & TTableConfig['columns']
+				AnyTable<TTable['_']> & TTable['_']['columns']
 			>,
 			operators: OrderByOperators,
 		) => ValueOrArray<AnyColumn | SQL>),
@@ -327,4 +327,16 @@ describe('Orders', () => {
 	test('Empty object', () => {
 		expect(buildOrder(table, {})).toStrictEqual(undefined);
 	});
+});
+
+test('Relation & colum names collision', () => {
+	expect(() =>
+		defineRelations({ table }, (r) => ({
+			table: {
+				string: r.one.table(),
+			},
+		}))
+	).toThrowError(
+		`relations -> table: { string: r.one.table(...) }: relation name collides with column "string" of table "table"`,
+	);
 });

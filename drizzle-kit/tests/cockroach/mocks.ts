@@ -500,7 +500,7 @@ export async function createDockerDB() {
 }
 
 export const prepareTestDatabase = async (tx: boolean = true): Promise<TestDatabase> => {
-	const envUrl = process.env.COCKROACH_URL;
+	const envUrl = process.env.COCKROACH_CONNECTION_STRING;
 	const { url, container } = envUrl ? { url: envUrl, container: null } : await createDockerDB();
 
 	let client: PoolClient;

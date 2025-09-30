@@ -5,7 +5,7 @@ import { SingleStoreTable } from 'drizzle-orm/singlestore-core';
 import { getSchemaInfo } from '../common.ts';
 import { SeedService } from '../SeedService.ts';
 import type { RefinementsType } from '../types/seedService.ts';
-import type { Column, Table, TableConfigT } from '../types/tables.ts';
+import type { Column, TableConfigT } from '../types/tables.ts';
 
 // SingleStore-----------------------------------------------------------------------------------------------------
 export const resetSingleStore = async (
@@ -63,7 +63,7 @@ export const seedSingleStore = async (
 	refinements?: RefinementsType,
 ) => {
 	const { singleStoreSchema, singleStoreTables } = filterSingleStoreTables(schema);
-	const { tables, relations } = getSchemaInfo(singleStoreSchema, singleStoreTables, mapSingleStoreTable);
+	const { tables, relations } = getSchemaInfo(singleStoreSchema, singleStoreTables, mapSingleStoreColumns);
 
 	const seedService = new SeedService();
 
@@ -99,11 +99,10 @@ export const seedSingleStore = async (
 	);
 };
 
-export const mapSingleStoreTable = (
+export const mapSingleStoreColumns = (
 	tableConfig: TableConfigT,
-	dbToTsTableNamesMap: { [key: string]: string },
 	dbToTsColumnNamesMap: { [key: string]: string },
-): Table => {
+): Column[] => {
 	const getTypeParams = (sqlType: string) => {
 		// get type params and set only type
 		const typeParams: Column['typeParams'] = {};
@@ -122,6 +121,7 @@ export const mapSingleStoreTable = (
 		} else if (
 			sqlType.startsWith('char')
 			|| sqlType.startsWith('varchar')
+			|| sqlType.startsWith('text')
 			|| sqlType.startsWith('binary')
 			|| sqlType.startsWith('varbinary')
 		) {
@@ -140,22 +140,18 @@ export const mapSingleStoreTable = (
 		return typeParams;
 	};
 
-	return {
-		name: dbToTsTableNamesMap[tableConfig.name] as string,
-		columns: tableConfig.columns.map((column) => ({
-			name: dbToTsColumnNamesMap[column.name] as string,
-			columnType: column.getSQLType(),
-			typeParams: getTypeParams(column.getSQLType()),
-			dataType: column.dataType.split(' ')[0]!,
-			hasDefault: column.hasDefault,
-			default: column.default,
-			enumValues: column.enumValues,
-			isUnique: column.isUnique,
-			notNull: column.notNull,
-			primary: column.primary,
-		})),
-		primaryKeys: tableConfig.columns
-			.filter((column) => column.primary)
-			.map((column) => dbToTsColumnNamesMap[column.name] as string),
-	};
+	const mappedColumns = tableConfig.columns.map((column) => ({
+		name: dbToTsColumnNamesMap[column.name] as string,
+		columnType: column.getSQLType(),
+		typeParams: getTypeParams(column.getSQLType()),
+		dataType: column.dataType.split(' ')[0]!,
+		hasDefault: column.hasDefault,
+		default: column.default,
+		enumValues: column.enumValues,
+		isUnique: column.isUnique,
+		notNull: column.notNull,
+		primary: column.primary,
+	}));
+
+	return mappedColumns;
 };

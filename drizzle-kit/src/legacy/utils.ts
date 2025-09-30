@@ -4,6 +4,9 @@ import { join } from 'path';
 import { parse } from 'url';
 import { assertUnreachable, snapshotVersion } from './global';
 import type { Dialect } from './schemaValidator';
+import { CasingType } from './common';
+import { CasingCache, toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
+import { SQL } from 'drizzle-orm';
 
 export type DB = {
 	query: <T extends any = any>(sql: string, params?: any[]) => Promise<T[]>;
@@ -180,3 +183,30 @@ export function unescapeSingleQuotes(str: string, ignoreFirstAndLastChar: boolea
 	const regex = ignoreFirstAndLastChar ? /(?<!^)'(?!$)/g : /'/g;
 	return str.replace(/''/g, "'").replace(regex, "\\'");
 }
+
+export function getColumnCasing(
+	column: { keyAsName: boolean; name: string | undefined },
+	casing: CasingType | undefined,
+) {
+	if (!column.name) return '';
+	return !column.keyAsName || casing === undefined
+		? column.name
+		: casing === 'camelCase'
+		? toCamelCase(column.name)
+		: toSnakeCase(column.name);
+}
+
+export const sqlToStr = (sql: SQL, casing: CasingType | undefined) => {
+	return sql.toQuery({
+		escapeName: () => {
+			throw new Error("we don't support params for `sql` default values");
+		},
+		escapeParam: () => {
+			throw new Error("we don't support params for `sql` default values");
+		},
+		escapeString: () => {
+			throw new Error("we don't support params for `sql` default values");
+		},
+		casing: new CasingCache(casing),
+	}).sql;
+};

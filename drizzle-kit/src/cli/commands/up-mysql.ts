@@ -1,98 +1,29 @@
-import { Column, SchemaV4, SchemaV5, Table } from '../../dialects/mysql/snapshot';
+import { createDDL } from 'src/dialects/mysql/ddl';
+import type { MysqlSchema, MysqlSnapshot } from '../../dialects/mysql/snapshot';
 
 export const upMysqlHandler = (out: string) => {};
 
-export const upMySqlHandlerV4toV5 = (obj: SchemaV4): SchemaV5 => {
-	const mappedTables: Record<string, Table> = {};
+export const upToV6 = (it: Record<string, any>): MysqlSnapshot => {
+	const json = it as MysqlSchema;
 
-	for (const [key, table] of Object.entries(obj.tables)) {
-		const mappedColumns: Record<string, Column> = {};
-		for (const [ckey, column] of Object.entries(table.columns)) {
-			let newDefault: any = column.default;
-			let newType: string = column.type;
-			let newAutoIncrement: boolean | undefined = column.autoincrement;
+	const hints = [] as string[];
 
-			if (column.type.toLowerCase().startsWith('datetime')) {
-				if (typeof column.default !== 'undefined') {
-					if (column.default.startsWith("'") && column.default.endsWith("'")) {
-						newDefault = `'${
-							column.default
-								.substring(1, column.default.length - 1)
-								.replace('T', ' ')
-								.slice(0, 23)
-						}'`;
-					} else {
-						newDefault = column.default.replace('T', ' ').slice(0, 23);
-					}
-				}
+	const ddl = createDDL();
 
-				newType = column.type.toLowerCase().replace('datetime (', 'datetime(');
-			} else if (column.type.toLowerCase() === 'date') {
-				if (typeof column.default !== 'undefined') {
-					if (column.default.startsWith("'") && column.default.endsWith("'")) {
-						newDefault = `'${
-							column.default
-								.substring(1, column.default.length - 1)
-								.split('T')[0]
-						}'`;
-					} else {
-						newDefault = column.default.split('T')[0];
-					}
-				}
-				newType = column.type.toLowerCase().replace('date (', 'date(');
-			} else if (column.type.toLowerCase().startsWith('timestamp')) {
-				if (typeof column.default !== 'undefined') {
-					if (column.default.startsWith("'") && column.default.endsWith("'")) {
-						newDefault = `'${
-							column.default
-								.substring(1, column.default.length - 1)
-								.replace('T', ' ')
-								.slice(0, 23)
-						}'`;
-					} else {
-						newDefault = column.default.replace('T', ' ').slice(0, 23);
-					}
-				}
-				newType = column.type
-					.toLowerCase()
-					.replace('timestamp (', 'timestamp(');
-			} else if (column.type.toLowerCase().startsWith('time')) {
-				newType = column.type.toLowerCase().replace('time (', 'time(');
-			} else if (column.type.toLowerCase().startsWith('decimal')) {
-				newType = column.type.toLowerCase().replace(', ', ',');
-			} else if (column.type.toLowerCase().startsWith('enum')) {
-				newType = column.type.toLowerCase();
-			} else if (column.type.toLowerCase().startsWith('serial')) {
-				newAutoIncrement = true;
-			}
-			mappedColumns[ckey] = {
-				...column,
-				default: newDefault,
-				type: newType,
-				autoincrement: newAutoIncrement,
-			};
+	for (const table of Object.values(json.tables)) {
+		ddl.tables.push({ name: table.name });
+
+		for(const column of Object.values(table.columns)){
+
 		}
-
-		mappedTables[key] = {
-			...table,
-			columns: mappedColumns,
-			compositePrimaryKeys: {},
-			uniqueConstraints: {},
-			checkConstraint: {},
-		};
 	}
 
 	return {
-		version: '5',
-		dialect: obj.dialect,
-		id: obj.id,
-		prevId: obj.prevId,
-		tables: mappedTables,
-		schemas: obj.schemas,
-		_meta: {
-			schemas: {} as Record<string, string>,
-			tables: {} as Record<string, string>,
-			columns: {} as Record<string, string>,
-		},
+		version: '6',
+		id: json.id,
+		prevId: json.prevId,
+		dialect: 'mysql',
+		ddl: ddl.entities.list(),
+		renames: [],
 	};
 };

@@ -213,10 +213,11 @@ export const mysqlSchemaV3 = schemaV3;
 export const mysqlSchemaV4 = schemaV4;
 export const mysqlSchemaV5 = schemaV5;
 export const mysqlSchemaSquashed = schemaSquashed;
+export type MysqlSchema = TypeOf<typeof schemaV5>
 
 const ddl = createDDL();
 export const snapshotValidator = validator({
-	version: ['5'],
+	version: ['6'],
 	dialect: ['mysql'],
 	id: 'string',
 	prevId: 'string',
@@ -227,12 +228,12 @@ export const snapshotValidator = validator({
 export type MysqlSnapshot = typeof snapshotValidator.shape;
 
 export const toJsonSnapshot = (ddl: MysqlDDL, prevId: string, renames: string[]): MysqlSnapshot => {
-	return { dialect: 'mysql', id: randomUUID(), prevId, version: '5', ddl: ddl.entities.list(), renames };
+	return { dialect: 'mysql', id: randomUUID(), prevId, version: '6', ddl: ddl.entities.list(), renames };
 };
 
 export const drySnapshot = snapshotValidator.strict(
 	{
-		version: '5',
+		version: '6',
 		dialect: 'mysql',
 		id: originUUID,
 		prevId: '',

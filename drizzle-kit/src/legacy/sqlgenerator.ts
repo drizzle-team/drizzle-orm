@@ -77,7 +77,7 @@ import {
 	JsonRenameViewStatement,
 	JsonStatement,
 } from './jsonStatements';
-import { PgSquasher } from './pgSchema';
+import { PgSquasher } from './postgres-v7/pgSchema';
 import { Dialect } from './schemaValidator';
 
 export const BREAKPOINT = '--> statement-breakpoint\n';
