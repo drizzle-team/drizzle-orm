@@ -328,3 +328,35 @@ test('introspect table with fk', async () => {
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
 });
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4115
+test('introspect fk name with onDelete, onUpdate set', async () => {
+	const table1 = mysqlTable('table1', {
+		column1: int().primaryKey(),
+	});
+	const table2 = mysqlTable('table2', {
+		column1: int(),
+	}, (table) => [
+		foreignKey({ columns: [table.column1], foreignColumns: [table1.column1], name: 'custom_fk' }),
+	]);
+	const schema = { table1, table2 };
+
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'fk-with-on-delete-and-on-update');
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4110
+test('introspect table with boolean(tinyint(1))', async () => {
+	const schema = {
+		table1: mysqlTable('table1', {
+			column1: boolean(),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'table-with-boolean');
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
