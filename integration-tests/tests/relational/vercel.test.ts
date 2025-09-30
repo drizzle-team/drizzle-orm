@@ -968,6 +968,32 @@ test('[Find Many] Get users with posts in rollbacked transaction', async (t) => 
 		});
 	})).rejects.toThrowError(new TransactionRollbackError());
 
+	await expect(db.transaction(async (tx) => {
+		await tx.insert(usersTable).values([
+			{ id: 1, name: 'Dan' },
+			{ id: 2, name: 'Andrew' },
+			{ id: 3, name: 'Alex' },
+		]);
+
+		await tx.insert(postsTable).values([
+			{ ownerId: 1, content: 'Post1' },
+			{ ownerId: 1, content: 'Post1.1' },
+			{ ownerId: 2, content: 'Post2' },
+			{ ownerId: 3, content: 'Post3' },
+		]);
+
+		tx.rollback(new Error("my custom error"));
+
+		usersWithPosts = await tx.query.usersTable.findMany({
+			where: (({ id }, { eq }) => eq(id, 1)),
+			with: {
+				posts: {
+					where: (({ id }, { eq }) => eq(id, 1)),
+				},
+			},
+		});
+	})).rejects.toThrowError(new Error("my custom error"));
+
 	expectTypeOf(usersWithPosts).toEqualTypeOf<{
 		id: number;
 		name: string;
