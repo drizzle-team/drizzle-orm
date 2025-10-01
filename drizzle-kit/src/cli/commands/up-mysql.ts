@@ -22,7 +22,7 @@ export const upToV6 = (it: Record<string, any>): MysqlSnapshot => {
 				notNull: column.notNull,
 				default: column.default,
 				autoIncrement: column.autoincrement ?? false,
-				onUpdateNow: column.onUpdate,
+				onUpdateNow: column.onUpdate ?? false,
 				generated: column.generated,
 				// TODO: @AleksandrSherman check
 				charSet: null,

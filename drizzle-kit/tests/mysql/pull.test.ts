@@ -66,8 +66,8 @@ test('generated always column: link to another column', async () => {
 
 	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'generated-link');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('generated always column virtual: link to another column', async () => {
@@ -84,8 +84,8 @@ test('generated always column virtual: link to another column', async () => {
 
 	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'generated-link-virtual');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('Default value of character type column: char', async () => {
@@ -98,8 +98,8 @@ test('Default value of character type column: char', async () => {
 
 	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'default-value-char');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('Default value of character type column: varchar', async () => {
@@ -112,8 +112,8 @@ test('Default value of character type column: varchar', async () => {
 
 	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'default-value-varchar');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4786
@@ -127,8 +127,8 @@ test('Default value of character type column: enum', async () => {
 
 	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'default-value-enum');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/3559
@@ -148,8 +148,8 @@ test('Default value of empty string column: enum, char, varchar, text, tinytext,
 
 	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'default-value-of-empty-string');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('introspect checks', async () => {
@@ -163,8 +163,8 @@ test('introspect checks', async () => {
 
 	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'checks');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('view #1', async () => {
@@ -180,8 +180,8 @@ test('view #1', async () => {
 
 	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'view-1');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('view #2', async () => {
@@ -197,8 +197,8 @@ test('view #2', async () => {
 
 	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'view-2');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('handle float type', async () => {
@@ -212,8 +212,8 @@ test('handle float type', async () => {
 
 	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'float-type');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('handle unsigned numerical types', async () => {
@@ -235,8 +235,8 @@ test('handle unsigned numerical types', async () => {
 
 	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'unsigned-numerical-types');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('instrospect strings with single quotes', async () => {
@@ -250,8 +250,8 @@ test('instrospect strings with single quotes', async () => {
 
 	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'strings-with-single-quotes');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 test('charSet and collate', async () => {
@@ -269,8 +269,8 @@ test('charSet and collate', async () => {
 
 	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'charSet_and_collate');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/2988
@@ -289,8 +289,8 @@ test('introspect bigint, mediumint, int, smallint, tinyint', async () => {
 
 	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'introspect-int');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/3552
@@ -311,8 +311,8 @@ test('introspect table with primary key and check', async () => {
 
 	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'table-with-primary-key-and-check');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4415
@@ -330,8 +330,8 @@ test('introspect table with fk', async () => {
 
 	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'table-with-fk');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4115
@@ -348,8 +348,8 @@ test('introspect fk name with onDelete, onUpdate set', async () => {
 
 	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'fk-with-on-delete-and-on-update');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/4110
@@ -362,8 +362,8 @@ test('introspect table with boolean(tinyint(1))', async () => {
 
 	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'table-with-boolean');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/3046
@@ -381,6 +381,6 @@ test('introspect index on json', async () => {
 
 	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'index-on-json');
 
-	expect(statements.length).toBe(0);
-	expect(sqlStatements.length).toBe(0);
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
 });

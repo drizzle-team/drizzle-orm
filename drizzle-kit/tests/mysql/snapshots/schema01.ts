@@ -10,10 +10,7 @@ import {
 	varchar,
 } from 'drizzle-orm/mysql-core';
 
-enum E {
-	value = 'value',
-}
-
+// TODO: extend massively cc: @OleksiiKH0240
 export const users = mysqlTable('users', {
 	id: serial().primaryKey(),
 	text: varchar({ length: 100 }).unique(),

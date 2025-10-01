@@ -176,6 +176,7 @@ export const fromDatabase = async (
 				}
 				: null,
 			isUnique: false,
+			uniqueName: null,
 		});
 	}
 
@@ -274,8 +275,8 @@ export const fromDatabase = async (
 					tableTo: refTable,
 					columns: [column],
 					columnsTo: [refColumn],
-					onDelete: deleteRule?.toLowerCase() as ForeignKey['onUpdate'] ?? 'NO ACTION',
-					onUpdate: updateRule?.toLowerCase() as ForeignKey['onUpdate'] ?? 'NO ACTION',
+					onDelete: deleteRule?.toUpperCase() as ForeignKey['onUpdate'] ?? 'NO ACTION',
+					onUpdate: updateRule?.toUpperCase() as ForeignKey['onUpdate'] ?? 'NO ACTION',
 					nameExplicit: true,
 				} satisfies ForeignKey;
 			}

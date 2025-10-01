@@ -127,7 +127,9 @@ export const fromDrizzleSchema = (
 				charSet = column.charSet;
 				collation = column.collation ?? null;
 			}
-
+			
+			// TODO: @AleksandrSherman remove
+			const nameExplicitTemp = `${tableName}_${column.name}_unique`!==column.uniqueName
 			result.columns.push({
 				entityType: 'columns',
 				table: tableName,
@@ -142,6 +144,7 @@ export const fromDrizzleSchema = (
 				generated,
 				isPK: column.primary,
 				isUnique: column.isUnique,
+				uniqueName: nameExplicitTemp ? column.uniqueName! : null,
 				default: defaultValue,
 			});
 		}

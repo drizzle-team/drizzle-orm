@@ -73,7 +73,7 @@ export type PrimaryKey = MysqlEntities['pks'];
 export type CheckConstraint = MysqlEntities['checks'];
 export type View = MysqlEntities['views'];
 
-export type InterimColumn = Column & { isPK: boolean; isUnique: boolean };
+export type InterimColumn = Column & { isPK: boolean; isUnique: boolean; uniqueName: string | null };
 export type ViewColumn = {
 	view: string;
 	name: string;
@@ -138,7 +138,7 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: S
 	}
 
 	for (const column of interim.columns) {
-		const { isPK, isUnique, ...rest } = column;
+		const { isPK, isUnique, uniqueName, ...rest } = column;
 		const res = ddl.columns.push(rest);
 		if (res.status === 'CONFLICT') {
 			errors.push({ type: 'column_name_conflict', table: column.table, name: column.name });
@@ -179,8 +179,8 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: S
 	}
 
 	for (const column of interim.columns.filter((it) => it.isUnique)) {
-		const name = nameForIndex(column.table, [column.name]);
-		ddl.indexes.push({
+		const name = column.uniqueName ?? nameForIndex(column.table, [column.name]);
+		const res = ddl.indexes.push({
 			table: column.table,
 			name,
 			columns: [{ value: column.name, isExpression: false }],
@@ -190,6 +190,10 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: S
 			lock: null,
 			nameExplicit: false,
 		});
+
+		if (res.status === 'CONFLICT') {
+			throw new Error(`Index unique conflict: ${name}`);
+		}
 	}
 
 	for (const index of interim.indexes) {
@@ -218,6 +222,17 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: S
 		if (res.status === 'CONFLICT') {
 			throw new Error(`View conflict: ${JSON.stringify(view)}`);
 		}
+	}
+
+	// TODO: add to other dialects, though potentially we should check on push
+	for (const it of ddl.entities.list()) {
+		let err = false;
+
+		if (!ddl.entities.validate(it)) {
+			console.log('invalid entity:', it);
+			err = true;
+		}
+		if (err) throw new Error();
 	}
 
 	return { ddl, errors };

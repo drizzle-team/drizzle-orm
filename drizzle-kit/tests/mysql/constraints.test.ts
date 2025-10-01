@@ -53,6 +53,7 @@ beforeEach(async () => {
 	await _.clear();
 });
 
+// TODO: add simple .unique(), etc. To discuss with @OleksiiKH0240
 test('#1', async () => {
 	const users3 = mysqlTable('users3', {
 		c1: varchar({ length: 100 }),
