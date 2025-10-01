@@ -833,7 +833,6 @@ export type JsonStatement =
 	| JsonDropIndPolicyStatement
 	| JsonCreateIndPolicyStatement
 	| JsonAlterIndPolicyStatement
-	| JsonCreateMySqlViewStatement
 	| JsonAlterMySqlViewStatement
 	| JsonCreateMySqlViewStatement;
 
