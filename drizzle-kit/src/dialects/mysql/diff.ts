@@ -4,7 +4,7 @@ import { diff } from '../dialect';
 import { groupDiffs, preserveEntityNames } from '../utils';
 import { fromJson } from './convertor';
 import { Column, DiffEntities, fullTableFromDDL, Index, MysqlDDL, Table, View } from './ddl';
-import { defaultNameForFK, typesCommutative } from './grammar';
+import { charSetAndCollationCommutative, defaultNameForFK, typesCommutative } from './grammar';
 import { prepareStatement } from './statements';
 import { JsonStatement } from './statements';
 
@@ -79,7 +79,7 @@ export const ddlDiff = async (
 		// preserve name for foreign keys
 		const renamedFKs = [...selfRefs.data, ...froms.data, ...tos.data];
 		for (const fk of renamedFKs) {
-			const name = defaultNameForFK(fk.name, fk.columns, fk.tableTo, fk.columnsTo);
+			const name = defaultNameForFK(fk);
 			ddl2.fks.update({
 				set: {
 					name: fk.name,
@@ -217,8 +217,6 @@ export const ddlDiff = async (
 
 	const alters = diff.alters(ddl1, ddl2);
 
-	const jsonStatements: JsonStatement[] = [];
-
 	const createTableStatements = createdTables.map((it) => {
 		const full = fullTableFromDDL(it, ddl2);
 		if (createdTables.length > 1) full.fks = []; // fks have to be created after all tables created
@@ -347,6 +345,17 @@ export const ddlDiff = async (
 			if (it.notNull && !!ddl2.pks.one({ table: it.table, columns: { CONTAINS: it.name } })) {
 				delete it.notNull;
 			}
+			
+			if (
+				mode === 'push' && (it.charSet || it.collation)
+				&& charSetAndCollationCommutative(
+					{ charSet: it.$left.charSet ?? null, collation: it.$left.collation ?? null },
+					{ charSet: it.$right.charSet ?? null, collation: it.$right.collation ?? null },
+				)
+			) {
+				delete it.charSet;
+				delete it.collation;
+			}
 
 			return ddl2.columns.hasDiff(it) && alterColumnPredicate(it);
 		}).map((it) => {
@@ -398,7 +407,7 @@ export const ddlDiff = async (
 	const res = fromJson(statements);
 
 	return {
-		statements: jsonStatements,
+		statements: statements,
 		sqlStatements: res.sqlStatements,
 		groupedStatements: res.groupedStatements,
 		renames: [],

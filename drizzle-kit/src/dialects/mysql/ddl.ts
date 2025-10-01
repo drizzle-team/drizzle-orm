@@ -11,6 +11,9 @@ export const createDDL = () => {
 			autoIncrement: 'boolean',
 			default: 'string?',
 			onUpdateNow: 'boolean',
+			onUpdateNowFsp: 'number?',
+			charSet: 'string?',
+			collation: 'string?',
 			generated: {
 				type: ['stored', 'virtual'],
 				as: 'string',

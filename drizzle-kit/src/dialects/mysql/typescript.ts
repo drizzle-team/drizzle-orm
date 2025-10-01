@@ -241,6 +241,10 @@ const column = (
 	rawCasing: Casing,
 	defaultValue: Column['default'],
 	autoincrement: boolean,
+	onUpdateNow: Column['onUpdateNow'],
+	onUpdateNowFsp: Column['onUpdateNowFsp'],
+	collation: Column['collation'],
+	charSet: Column['charSet'],
 	vendor: 'mysql' | 'singlestore',
 ) => {
 	let lowered = type.startsWith('enum(') ? type : type.toLowerCase();
@@ -250,6 +254,9 @@ const column = (
 
 		const { default: def } = Enum.toTs('', defaultValue) as any;
 		out += def ? `.default(${def})` : '';
+		out += charSet ? `.charSet("${charSet}")` : '';
+		out += collation ? `.collate("${collation}")` : '';
+
 		return out;
 	}
 
@@ -273,6 +280,10 @@ const column = (
 	}(${columnName}${comma}${paramsString})`;
 	res += autoincrement ? `.autoincrement()` : '';
 	res += defaultStatement;
+	res += onUpdateNow ? `.onUpdateNow(${onUpdateNowFsp ? '{ fsp: ' + onUpdateNowFsp + ' }' : ''})` : '';
+	res += charSet ? `.charSet("${charSet}")` : '';
+	res += collation ? `.collate("${collation}")` : '';
+
 	return res;
 };
 
@@ -290,7 +301,19 @@ const createTableColumns = (
 		const isPK = pk && pk.columns.length === 1 && pk.columns[0] === it.name;
 
 		statement += '\t';
-		statement += column(it.type, it.name, casing, rawCasing, it.default, it.autoIncrement, vendor);
+		statement += column(
+			it.type,
+			it.name,
+			casing,
+			rawCasing,
+			it.default,
+			it.autoIncrement,
+			it.onUpdateNow,
+			it.onUpdateNowFsp,
+			it.collation,
+			it.charSet,
+			vendor,
+		);
 
 		statement += isPK ? '.primaryKey()' : '';
 		statement += it.notNull && !isPK ? '.notNull()' : '';
@@ -343,7 +366,7 @@ const createViewColumns = (
 
 	for (const it of columns) {
 		statement += '\n';
-		statement += column(it.type, it.name, casing, rawCasing, null, false, vendor);
+		statement += column(it.type, it.name, casing, rawCasing, null, false, false, null, null, null, vendor);
 		statement += it.notNull ? '.notNull()' : '';
 		statement += ',\n';
 	}

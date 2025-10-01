@@ -89,7 +89,9 @@ export class MySqlCustomColumn<T extends ColumnBaseConfig<'custom'>> extends MyS
 
 		switch (type) {
 			case 'binary':
-			case 'varbinary':
+			case 'varbinary': {
+				return sql`hex(${identifier})`;
+			}
 			case 'time':
 			case 'datetime':
 			case 'decimal':
