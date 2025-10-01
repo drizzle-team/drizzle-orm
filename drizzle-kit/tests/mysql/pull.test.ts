@@ -9,7 +9,9 @@ import {
 	double,
 	float,
 	foreignKey,
+	index,
 	int,
+	json,
 	longtext,
 	mediumint,
 	mediumtext,
@@ -129,6 +131,7 @@ test('Default value of character type column: enum', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3559
 // https://github.com/drizzle-team/drizzle-orm/issues/4713
 test('Default value of empty string column: enum, char, varchar, text, tinytext, mediumtext, longtext', async () => {
 	const schema = {
@@ -270,6 +273,7 @@ test('charSet and collate', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/2988
 // https://github.com/drizzle-team/drizzle-orm/issues/4653
 test('introspect bigint, mediumint, int, smallint, tinyint', async () => {
 	const schema = {
@@ -289,6 +293,7 @@ test('introspect bigint, mediumint, int, smallint, tinyint', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3552
 // https://github.com/drizzle-team/drizzle-orm/issues/4602
 test('introspect table with primary key and check', async () => {
 	const schema = {
@@ -356,6 +361,25 @@ test('introspect table with boolean(tinyint(1))', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'table-with-boolean');
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3046
+// TODO: revise: seems like drizzle-kit can't do this right now
+test('introspect index on json', async () => {
+	const schema = {
+		table1: mysqlTable('table1', {
+			column1: json(),
+		}, (table) => [
+			index('custom_json_index').on(
+				sql`(((cast(json_unquote(json_extract(${table.column1}, _utf8mb4'$.data.nestedJsonProperty.')) as char(30) charset utf8mb4) collate utf8mb4_bin)))`,
+			),
+		]),
+	};
+
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'index-on-json');
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);

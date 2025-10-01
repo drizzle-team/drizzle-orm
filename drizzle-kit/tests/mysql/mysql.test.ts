@@ -165,6 +165,7 @@ test('add table #6', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3539
 test('add table #7', async () => {
 	const from = {
 		users1: mysqlTable('users1', { id: int() }),
@@ -532,6 +533,26 @@ test('add table #17. timestamp + fsp + on update now', async () => {
 	await expect(push({ db, to })).rejects.toThrowError();
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/2815
+test('add table #18. table already exists', async () => {
+	const schema = {
+		table1: mysqlTable('table1', {
+			column1: int(),
+		}),
+	};
+
+	const { next: n1 } = await diff({}, schema, []);
+	await push({ db, to: schema });
+
+	const { sqlStatements: st } = await diff(n1, schema, []);
+	const { sqlStatements: pst } = await push({ db, to: schema });
+
+	const st0: string[] = [];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
 test('add column #1. timestamp + fsp + on update now + fsp', async () => {
 	const from = {
 		users: mysqlTable('table', {
@@ -880,6 +901,7 @@ test('rename table with composite primary key', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3329
 test('add column before creating unique constraint', async () => {
 	const from = {
 		table: mysqlTable('table', {
