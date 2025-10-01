@@ -151,6 +151,7 @@ export const fromDrizzleSchema = (
 				algorithm: null,
 				lock: null,
 				using: null,
+				nameExplicit: !!unique.name
 			});
 		}
 
@@ -174,6 +175,7 @@ export const fromDrizzleSchema = (
 				lock: index.config.lock ?? null,
 				isUnique: index.config.unique ?? false,
 				using: index.config.using ?? null,
+				nameExplicit: true
 			});
 		}
 	}

@@ -1235,7 +1235,7 @@ export const ddlDiff = async (
 	};
 };
 
-const preserveEntityNames = <C extends PostgresDDL['uniques' | 'fks' | 'pks' | 'indexes']>(
+export const preserveEntityNames = <C extends PostgresDDL['uniques' | 'fks' | 'pks' | 'indexes']>(
 	collection1: C,
 	collection2: C,
 	mode: 'push' | 'default',

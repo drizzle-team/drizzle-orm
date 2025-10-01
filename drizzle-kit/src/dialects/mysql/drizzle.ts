@@ -165,14 +165,12 @@ export const fromDrizzleSchema = (
 				algorithm: null,
 				lock: null,
 				using: null,
+				nameExplicit: !!unique.name,
 			});
 		}
 
 		for (const fk of foreignKeys) {
-			const onDelete = fk.onDelete ?? 'NO';
-			const onUpdate = fk.onUpdate ?? 'no action';
 			const reference = fk.reference();
-
 			const referenceFT = reference.foreignTable;
 
 			// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
@@ -202,6 +200,7 @@ export const fromDrizzleSchema = (
 				columnsTo,
 				onUpdate: upper(fk.onUpdate) ?? 'NO ACTION',
 				onDelete: upper(fk.onDelete) ?? 'NO ACTION',
+				nameExplicit: true,
 			});
 		}
 
@@ -225,6 +224,7 @@ export const fromDrizzleSchema = (
 				lock: index.config.lock ?? null,
 				isUnique: index.config.unique ?? false,
 				using: index.config.using ?? null,
+				nameExplicit: true,
 			});
 		}
 

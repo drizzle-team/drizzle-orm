@@ -28,6 +28,7 @@ export const createDDL = () => {
 			columnsTo: 'string[]',
 			onUpdate: ['NO ACTION', 'RESTRICT', 'SET NULL', 'CASCADE', 'SET DEFAULT', null],
 			onDelete: ['NO ACTION', 'RESTRICT', 'SET NULL', 'CASCADE', 'SET DEFAULT', null],
+			nameExplicit: 'boolean',
 		},
 		indexes: {
 			table: 'required',
@@ -39,6 +40,7 @@ export const createDDL = () => {
 			using: ['btree', 'hash', null],
 			algorithm: ['default', 'inplace', 'copy', null],
 			lock: ['default', 'none', 'shared', 'exclusive', null],
+			nameExplicit: 'boolean',
 		},
 		checks: {
 			table: 'required',
@@ -183,6 +185,7 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: S
 			using: null,
 			algorithm: null,
 			lock: null,
+			nameExplicit: false,
 		});
 	}
 

@@ -265,6 +265,7 @@ export const fromDatabase = async (
 					columnsTo: [refColumn],
 					onDelete: deleteRule?.toLowerCase() as ForeignKey['onUpdate'] ?? 'NO ACTION',
 					onUpdate: updateRule?.toLowerCase() as ForeignKey['onUpdate'] ?? 'NO ACTION',
+					nameExplicit: true,
 				} satisfies ForeignKey;
 			}
 			return acc;
@@ -308,6 +309,7 @@ export const fromDatabase = async (
 				algorithm: null,
 				lock: null,
 				using: null,
+				nameExplicit: true,
 			} satisfies Index;
 		}
 		return acc;
