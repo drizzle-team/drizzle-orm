@@ -1,10 +1,10 @@
 import { mockResolver } from '../../utils/mocks';
 import { Resolver } from '../common';
 import { diff } from '../dialect';
-import { groupDiffs } from '../utils';
+import { groupDiffs, preserveEntityNames } from '../utils';
 import { fromJson } from './convertor';
 import { Column, DiffEntities, fullTableFromDDL, Index, MysqlDDL, Table, View } from './ddl';
-import { nameForForeignKey, typesCommutative } from './grammar';
+import { defaultNameForFK, typesCommutative } from './grammar';
 import { prepareStatement } from './statements';
 import { JsonStatement } from './statements';
 
@@ -79,7 +79,7 @@ export const ddlDiff = async (
 		// preserve name for foreign keys
 		const renamedFKs = [...selfRefs.data, ...froms.data, ...tos.data];
 		for (const fk of renamedFKs) {
-			const name = nameForForeignKey(fk);
+			const name = defaultNameForFK(fk.name, fk.columns, fk.tableTo, fk.columnsTo);
 			ddl2.fks.update({
 				set: {
 					name: fk.name,
@@ -183,6 +183,10 @@ export const ddlDiff = async (
 		ddl1.pks.update(update4);
 		ddl2.pks.update(update4);
 	}
+
+	preserveEntityNames(ddl1.fks, ddl2.fks, mode);
+	preserveEntityNames(ddl1.pks, ddl2.pks, mode);
+	preserveEntityNames(ddl1.indexes, ddl2.indexes, mode);
 
 	const viewsDiff = diff(ddl1, ddl2, 'views');
 
@@ -337,6 +341,11 @@ export const ddlDiff = async (
 				&& it.generated.from.as !== it.generated.to.as
 			) {
 				delete it.generated;
+			}
+
+			// if there's a change in notnull but column is a part of a pk - we don't care
+			if (it.notNull && !!ddl2.pks.one({ table: it.table, columns: { CONTAINS: it.name } })) {
+				delete it.notNull;
 			}
 
 			return ddl2.columns.hasDiff(it) && alterColumnPredicate(it);

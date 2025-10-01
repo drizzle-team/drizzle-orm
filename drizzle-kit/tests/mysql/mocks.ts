@@ -56,17 +56,18 @@ export const drizzleToDDL = (sch: MysqlSchema, casing?: CasingType | undefined) 
 
 export const diff = async (
 	left: MysqlSchema | MysqlDDL,
-	right: MysqlSchema| MysqlDDL,
+	right: MysqlSchema | MysqlDDL,
 	renamesArr: string[],
 	casing?: CasingType | undefined,
 ) => {
-		const { ddl: ddl1, errors: err1 } = 'entities' in left && '_' in left
-			? { ddl: left as MysqlDDL, errors: [] }
-			: drizzleToDDL(left, casing);
-		const { ddl: ddl2, errors: err2 } = 'entities' in right && '_' in right
-			? { ddl: right as MysqlDDL, errors: [] }
-			: drizzleToDDL(right, casing);
+	const { ddl: ddl1, errors: err1 } = 'entities' in left && '_' in left
+		? { ddl: left as MysqlDDL, errors: [] }
+		: drizzleToDDL(left, casing);
+	const { ddl: ddl2, errors: err2 } = 'entities' in right && '_' in right
+		? { ddl: right as MysqlDDL, errors: [] }
+		: drizzleToDDL(right, casing);
 
+		console.log(ddl1.indexes.list({table:"users2"}))
 	const renames = new Set(renamesArr);
 
 	const { sqlStatements, statements } = await ddlDiff(
@@ -77,6 +78,7 @@ export const diff = async (
 		mockResolver(renames),
 		'default',
 	);
+
 	return { sqlStatements, statements, next: ddl2 };
 };
 
@@ -140,7 +142,7 @@ export const push = async (config: {
 	to: MysqlSchema | MysqlDDL;
 	renames?: string[];
 	casing?: CasingType;
-	log?: "statements"
+	log?: 'statements';
 }) => {
 	const { db, to, log } = config;
 	const casing = config.casing ?? 'camelCase';
@@ -378,9 +380,22 @@ export const diffSnapshotV5 = async (db: DB, schema: MysqlSchema) => {
 	const snapshot = upToV6(res);
 	const ddl = fromEntities(snapshot.ddl);
 
-	const { sqlStatements: st, next } = await diff(ddl, schema, []);
-	const { sqlStatements: pst } = await push({ db, to: schema });
-	const { sqlStatements: st1 } = await diff(next, schema, []);
+
+	const a = [...Object.values(res.tables["users2"].indexes),...Object.values(res.tables["users2"].uniqueConstraints)];
+	for(const idx of a){
+		console.log(idx)
+	}
+	
+	console.log("---")
+	for(const idx of ddl.indexes.list()){
+		console.log(idx.table, idx.name)
+	}
+	console.log("---")
+
+	const { sqlStatements: st, next } = await diff(schema, ddl , []);
+	console.log(st)
+	const { sqlStatements: pst } = await push({ db, to: schema});
+	const { sqlStatements: st1 } = await diff(next, ddl, []);
 	const { sqlStatements: pst1 } = await push({ db, to: schema });
 
 	return {
