@@ -22,6 +22,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { CasingType } from '../common';
 import { withStyle } from '../outputs';
+import { escapeSingleQuotes, isPgArrayType } from '../utils';
 import type {
 	CheckConstraint,
 	Column,
@@ -38,7 +39,6 @@ import type {
 	UniqueConstraint,
 	View,
 } from './pgSchema';
-import { escapeSingleQuotes, isPgArrayType } from '../utils';
 import { vectorOps } from './vector';
 
 export function getColumnCasing(

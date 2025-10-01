@@ -24,6 +24,10 @@ export const upToV6 = (it: Record<string, any>): MysqlSnapshot => {
 				autoIncrement: column.autoincrement ?? false,
 				onUpdateNow: column.onUpdate,
 				generated: column.generated,
+				// TODO: @AleksandrSherman check
+				charSet: null,
+				collation: null,
+				onUpdateNowFsp: null
 			});
 		}
 	}

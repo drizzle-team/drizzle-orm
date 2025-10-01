@@ -1,11 +1,22 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
 import { ResolveColumnSelect, ResolveSchemasSelect, ResolveSelect, ResolveSelectNamed } from 'src/cli/views';
-import { any, array, boolean, enum as enumType, literal, never, object, record, string, TypeOf, union, ZodTypeAny } from 'zod';
 import {
-	_prepareAddColumns,
-	_prepareDropColumns,
-} from './jsonStatements';
+	any,
+	array,
+	boolean,
+	enum as enumType,
+	literal,
+	never,
+	object,
+	record,
+	string,
+	TypeOf,
+	union,
+	ZodTypeAny,
+} from 'zod';
+import { _prepareAddColumns, _prepareDropColumns } from './jsonStatements';
+import { ViewSquashed } from './mysql-v5/mysqlSchema';
 import {
 	mergedViewWithOption,
 	Policy,
@@ -15,7 +26,6 @@ import {
 	sequenceSquashed,
 	View,
 } from './postgres-v7/pgSchema';
-import { ViewSquashed } from './mysql-v5/mysqlSchema';
 
 export type Named = { name: string };
 export type NamedWithSchema = {
@@ -284,7 +294,6 @@ export type AlteredTable = TypeOf<typeof alteredTableScheme>;
 export type DiffResult = TypeOf<typeof diffResultScheme>;
 
 export type DiffResultMysql = TypeOf<typeof diffResultSchemeMysql>;
-
 
 export interface ResolverInput<T extends { name: string }> {
 	created: T[];
