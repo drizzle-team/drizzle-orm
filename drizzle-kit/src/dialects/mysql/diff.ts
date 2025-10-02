@@ -274,7 +274,7 @@ export const ddlDiff = async (
 
 	const dropFKStatements = fksDiff.filter((it) => it.$diffType === 'drop')
 		.filter((it) => !deletedTables.some((x) => x.name === it.table))
-		.map((it) => prepareStatement('drop_fk', { fk: it }));
+		.map((it) => prepareStatement('drop_constraint', { table: it.table, constraint: it.name }));
 
 	const dropPKStatements = pksDiff.filter((it) => it.$diffType === 'drop')
 		.filter((it) => !deletedTables.some((x) => x.name === it.table))
@@ -291,7 +291,6 @@ export const ddlDiff = async (
 	const createFKsStatements = fksDiff.filter((it) => it.$diffType === 'create')
 		.filter((x) => createdTables.length >= 2 || !createdTables.some((it) => it.name === x.table))
 		.map((it) => prepareStatement('create_fk', { fk: it }));
-
 	const createPKStatements = pksDiff.filter((it) => it.$diffType === 'create')
 		.filter((it) => !createdTables.some((x) => x.name === it.table))
 		.map((it) => prepareStatement('create_pk', { pk: it }));
@@ -345,7 +344,7 @@ export const ddlDiff = async (
 			if (it.notNull && !!ddl2.pks.one({ table: it.table, columns: { CONTAINS: it.name } })) {
 				delete it.notNull;
 			}
-			
+
 			if (
 				mode === 'push' && (it.charSet || it.collation)
 				&& charSetAndCollationCommutative(
@@ -360,9 +359,9 @@ export const ddlDiff = async (
 			return ddl2.columns.hasDiff(it) && alterColumnPredicate(it);
 		}).map((it) => {
 			const column = ddl2.columns.one({ name: it.name, table: it.table })!;
-			const pk = ddl2.pks.one({ table: it.table });
-			const isPK = pk && pk.columns.length === 1 && pk.columns[0] === column.name;
-			return prepareStatement('alter_column', { diff: it, column, isPK: isPK ?? false });
+			const isPK = !!ddl2.pks.one({ table: it.table, columns: [it.name] });
+			const wasPK = !!ddl1.pks.one({ table: it.table, columns: [it.name] });
+			return prepareStatement('alter_column', { diff: it, column, isPK: isPK, wasPK });
 		});
 
 	const columnRecreateStatatements = alters.filter((it) => it.entityType === 'columns').filter((it) =>
@@ -396,8 +395,8 @@ export const ddlDiff = async (
 		...createPKStatements,
 
 		...addColumnsStatemets,
-		...createFKsStatements,
 		...createIndexesStatements,
+		...createFKsStatements,
 		...createCheckStatements,
 
 		...dropColumnStatements,

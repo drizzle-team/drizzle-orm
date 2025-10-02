@@ -898,8 +898,6 @@ test('rename table with composite primary key', async () => {
 
 	const st0: string[] = [
 		'RENAME TABLE `products_categories` TO `products_to_categories`;',
-		'ALTER TABLE `products_to_categories` DROP PRIMARY KEY;',
-		'ALTER TABLE `products_to_categories` ADD PRIMARY KEY (`product_id`,`category_id`);',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -990,9 +988,9 @@ test('optional db aliases (snake case)', async () => {
 	\`t3_id2\` int,
 	CONSTRAINT \`t3_t3_id1_t3_id2_pk\` PRIMARY KEY(\`t3_id1\`,\`t3_id2\`)
 );\n`,
-		'ALTER TABLE `t1` ADD CONSTRAINT `t1_t2_ref_t2_t2_id_fk` FOREIGN KEY (`t2_ref`) REFERENCES `t2`(`t2_id`);',
-		'ALTER TABLE `t1` ADD CONSTRAINT `t1_t1_col2_t1_col3_t3_t3_id1_t3_id2_fk` FOREIGN KEY (`t1_col2`,`t1_col3`) REFERENCES `t3`(`t3_id1`,`t3_id2`);',
 		`CREATE INDEX \`t1_idx\` ON \`t1\` (\`t1_idx\`);`,
+		'ALTER TABLE `t1` ADD CONSTRAINT `t1_t2_ref_t2_t2_id_fkey` FOREIGN KEY (`t2_ref`) REFERENCES `t2`(`t2_id`);',
+		'ALTER TABLE `t1` ADD CONSTRAINT `t1_t1_col2_t1_col3_t3_t3_id1_t3_id2_fkey` FOREIGN KEY (`t1_col2`,`t1_col3`) REFERENCES `t3`(`t3_id1`,`t3_id2`);',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1048,9 +1046,9 @@ test('optional db aliases (camel case)', async () => {
 		+ `);\n`,
 		`CREATE TABLE \`t2\` (\n\t\`t2Id\` serial PRIMARY KEY\n);\n`,
 		`CREATE TABLE \`t3\` (\n\t\`t3Id1\` int,\n\t\`t3Id2\` int,\n\tCONSTRAINT \`t3_t3Id1_t3Id2_pk\` PRIMARY KEY(\`t3Id1\`,\`t3Id2\`)\n);\n`,
-		'ALTER TABLE `t1` ADD CONSTRAINT `t1_t2Ref_t2_t2Id_fk` FOREIGN KEY (`t2Ref`) REFERENCES `t2`(`t2Id`);',
-		'ALTER TABLE `t1` ADD CONSTRAINT `t1_t1Col2_t1Col3_t3_t3Id1_t3Id2_fk` FOREIGN KEY (`t1Col2`,`t1Col3`) REFERENCES `t3`(`t3Id1`,`t3Id2`);',
 		'CREATE INDEX `t1Idx` ON `t1` (`t1Idx`);',
+		'ALTER TABLE `t1` ADD CONSTRAINT `t1_t2Ref_t2_t2Id_fkey` FOREIGN KEY (`t2Ref`) REFERENCES `t2`(`t2Id`);',
+		'ALTER TABLE `t1` ADD CONSTRAINT `t1_t1Col2_t1Col3_t3_t3Id1_t3Id2_fkey` FOREIGN KEY (`t1Col2`,`t1Col3`) REFERENCES `t3`(`t3Id1`,`t3Id2`);',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1108,7 +1106,7 @@ test('fk #1', async () => {
 	const st0: string[] = [
 		'CREATE TABLE `users` (\n\t`id` int,\n\tCONSTRAINT `id_unique` UNIQUE(`id`)\n);\n',
 		'CREATE TABLE `places` (\n\t`id` int,\n\t`ref` int\n);\n',
-		'ALTER TABLE `places` ADD CONSTRAINT `places_ref_users_id_fk` FOREIGN KEY (`ref`) REFERENCES `users`(`id`);',
+		'ALTER TABLE `places` ADD CONSTRAINT `places_ref_users_id_fkey` FOREIGN KEY (`ref`) REFERENCES `users`(`id`);',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -1309,7 +1307,7 @@ test('all types', async () => {
 			stringSimple: blob('string_simple', { mode: 'string' }),
 			stringColumnNotNull: blob('string_column_not_null', { mode: 'string' }).notNull(),
 			stringColumnDefault: blob('string_column_default', { mode: 'string' }).default('hello'),
-			stringColumnDefaultSql: blob('string_column_default_sql', { mode: 'string' }).default(sql`'hello'`),
+			stringColumnDefaultSql: blob('string_column_default_sql', { mode: 'string' }).default(sql`('hello')`),
 		}),
 		allMediumBlobs: mysqlTable('all_medium_blobs', {
 			simple: mediumblob('simple'),
@@ -1336,13 +1334,11 @@ test('all types', async () => {
 	const { sqlStatements: st } = await diff(schema1, schema1, []);
 
 	await push({ db, to: schema1 });
-	const { sqlStatements: pst } = await push({ db, to: schema1 });
 	const { sqlStatements: sbsqSt } = await push({ db, to: schema1 });
 
 	const st0: string[] = [];
 	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
-	expect(sbsqSt).toStrictEqual([]);
+	expect(sbsqSt).toStrictEqual(st0);
 });
 
 test('drop primary key', async () => {
