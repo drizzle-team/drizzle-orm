@@ -60,4 +60,8 @@ export class PrimaryKey {
 		return this.name
 			?? `${this.table[MySqlTable.Symbol.Name]}_${this.columns.map((column) => column.name).join('_')}_pk`;
 	}
+
+	isNameExplicit(): boolean {
+		return this.name ? true : false;
+	}
 }
