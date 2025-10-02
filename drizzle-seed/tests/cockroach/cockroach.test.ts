@@ -35,7 +35,7 @@ beforeAll(async () => {
 		}
 	} while (timeLeft > 0);
 	if (!connected) {
-		console.error('Cannot connect to MsSQL');
+		console.error('Cannot connect to Cockroach');
 		await client?.end().catch(console.error);
 		await cockroachContainer?.stop().catch(console.error);
 		throw lastError;

@@ -14,7 +14,7 @@ import {
 	PgTable,
 	PgView,
 } from 'drizzle-orm/pg-core';
-import { CasingType } from './common';
+import { CasingType } from '../common';
 import type { PgSchema as SCHEMA } from './pgSchema';
 import { generatePgSnapshot } from './pgSerializer';
 

@@ -4,10 +4,14 @@ import {
 	AnyMySqlTable,
 	getTableConfig,
 	getViewConfig,
+	MySqlChar,
 	MySqlColumn,
 	MySqlDialect,
 	MySqlEnumColumn,
 	MySqlTable,
+	MySqlText,
+	MySqlTimestamp,
+	MySqlVarChar,
 	MySqlView,
 	uniqueKeyName,
 } from 'drizzle-orm/mysql-core';
@@ -15,7 +19,7 @@ import { CasingType } from 'src/cli/validations/common';
 import { safeRegister } from '../../utils/utils-node';
 import { getColumnCasing, sqlToStr } from '../drizzle';
 import { Column, InterimSchema } from './ddl';
-import { typeFor } from './grammar';
+import { nameForIndex, typeFor } from './grammar';
 
 export const defaultFromColumn = (
 	column: AnyMySqlColumn,
@@ -110,6 +114,22 @@ export const fromDrizzleSchema = (
 				? `enum(${column.enumValues?.map((it) => `'${it.replaceAll("'", "''")}'`).join(',')})`
 				: sqlType;
 
+			let onUpdateNow: boolean = false;
+			let onUpdateNowFsp: number | null = null;
+			if (is(column, MySqlTimestamp)) {
+				onUpdateNow = column.hasOnUpdateNow ?? false; // TODO
+				onUpdateNowFsp = column.onUpdateNowFsp ?? null;
+			}
+
+			let charSet: string | null = null;
+			let collation: string | null = null;
+			if (is(column, MySqlChar) || is(column, MySqlVarChar) || is(column, MySqlText) || is(column, MySqlEnumColumn)) {
+				charSet = column.charSet;
+				collation = column.collation ?? null;
+			}
+			
+			// TODO: @AleksandrSherman remove
+			const nameExplicitTemp = `${tableName}_${column.name}_unique`!==column.uniqueName
 			result.columns.push({
 				entityType: 'columns',
 				table: tableName,
@@ -117,10 +137,14 @@ export const fromDrizzleSchema = (
 				type,
 				notNull,
 				autoIncrement,
-				onUpdateNow: (column as any).hasOnUpdateNow ?? false, // TODO: ??
+				onUpdateNow,
+				onUpdateNowFsp,
+				charSet,
+				collation,
 				generated,
 				isPK: column.primary,
 				isUnique: column.isUnique,
+				uniqueName: nameExplicitTemp ? column.uniqueName! : null,
 				default: defaultValue,
 			});
 		}
@@ -154,7 +178,7 @@ export const fromDrizzleSchema = (
 				return { value: getColumnCasing(c, casing), isExpression: false };
 			});
 
-			const name = unique.name ?? uniqueKeyName(table, unique.columns.filter((c) => !is(c, SQL)).map((c) => c.name));
+			const name = unique.name ?? nameForIndex(tableName, unique.columns.filter((c) => !is(c, SQL)).map((c) => c.name));
 
 			result.indexes.push({
 				entityType: 'indexes',
@@ -165,14 +189,12 @@ export const fromDrizzleSchema = (
 				algorithm: null,
 				lock: null,
 				using: null,
+				nameExplicit: !!unique.name,
 			});
 		}
 
 		for (const fk of foreignKeys) {
-			const onDelete = fk.onDelete ?? 'NO';
-			const onUpdate = fk.onUpdate ?? 'no action';
 			const reference = fk.reference();
-
 			const referenceFT = reference.foreignTable;
 
 			// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
@@ -202,6 +224,7 @@ export const fromDrizzleSchema = (
 				columnsTo,
 				onUpdate: upper(fk.onUpdate) ?? 'NO ACTION',
 				onDelete: upper(fk.onDelete) ?? 'NO ACTION',
+				nameExplicit: true,
 			});
 		}
 
@@ -225,6 +248,7 @@ export const fromDrizzleSchema = (
 				lock: index.config.lock ?? null,
 				isUnique: index.config.unique ?? false,
 				using: index.config.using ?? null,
+				nameExplicit: true,
 			});
 		}
 

@@ -1,5 +1,6 @@
 import type { IntrospectStage, IntrospectStatus } from 'src/cli/views';
 import { DB } from '../../utils';
+import { parseParams } from '../utils';
 import { ForeignKey, Index, InterimSchema, PrimaryKey } from './ddl';
 import { parseDefaultValue } from './grammar';
 
@@ -17,6 +18,8 @@ export const fromDatabaseForDrizzle = async (
 	res.indexes = res.indexes.filter((x) => {
 		let skip = x.isUnique === true && x.columns.length === 1 && x.columns[0].isExpression === false;
 		skip &&= res.columns.some((c) => c.type === 'serial' && c.table === x.table && c.name === x.columns[0].value);
+
+		skip ||= res.fks.some((fk) => x.table === fk.table && x.name === fk.name);
 		return !skip;
 	});
 	return res;
@@ -117,7 +120,8 @@ export const fromDatabase = async (
 		const isNullable = column['IS_NULLABLE'] === 'YES'; // 'YES', 'NO'
 		const columnType = column['COLUMN_TYPE']; // varchar(256)
 		const columnDefault: string = column['COLUMN_DEFAULT'] ?? null;
-		const collation: string = column['CHARACTER_SET_NAME'];
+		const collation: string = column['COLLATION_NAME'];
+		const charSet: string = column['CHARACTER_SET_NAME'];
 		const geenratedExpression: string = column['GENERATION_EXPRESSION'];
 
 		const extra = column['EXTRA'] ?? '';
@@ -127,7 +131,14 @@ export const fromDatabase = async (
 		const numericPrecision = column['NUMERIC_PRECISION'];
 		const numericScale = column['NUMERIC_SCALE'];
 		const isAutoincrement = extra === 'auto_increment';
-		const onUpdateNow = extra.includes('on update CURRENT_TIMESTAMP');
+		const onUpdateNow: boolean = extra.includes('on update CURRENT_TIMESTAMP');
+
+		const onUpdateNowFspMatch = typeof extra === 'string'
+			? extra.match(/\bON\s+UPDATE\s+CURRENT_TIMESTAMP(?:\((\d+)\))?/i)
+			: null;
+		const onUpdateNowFsp = onUpdateNow && onUpdateNowFspMatch && onUpdateNowFspMatch[1]
+			? Number(onUpdateNowFspMatch[1])
+			: null;
 
 		let changedType = columnType.replace('decimal(10,0)', 'decimal');
 
@@ -143,7 +154,7 @@ export const fromDatabase = async (
 			}
 		}
 
-		const def = parseDefaultValue(changedType, columnDefault, collation);
+		const def = parseDefaultValue(changedType, columnDefault, charSet);
 
 		res.columns.push({
 			entityType: 'columns',
@@ -153,7 +164,10 @@ export const fromDatabase = async (
 			isPK: isPrimary, // isPK is an interim flag we use in Drizzle Schema and ignore in database introspect
 			notNull: !isNullable,
 			autoIncrement: isAutoincrement,
+			collation,
+			charSet,
 			onUpdateNow,
+			onUpdateNowFsp,
 			default: def,
 			generated: geenratedExpression
 				? {
@@ -162,6 +176,7 @@ export const fromDatabase = async (
 				}
 				: null,
 			isUnique: false,
+			uniqueName: null,
 		});
 	}
 
@@ -235,7 +250,8 @@ export const fromDatabase = async (
 		throw err;
 	});
 
-	const groupedFKs = fks.filter((it) => tables.some((x) => x === it['TABLE_NAME'])).reduce<Record<string, ForeignKey>>(
+	const filteredFKs = fks.filter((it) => tables.some((x) => x === it['TABLE_NAME']));
+	const groupedFKs = filteredFKs.reduce<Record<string, ForeignKey>>(
 		(acc, it) => {
 			const name = it['CONSTRAINT_NAME'];
 			const table: string = it['TABLE_NAME'];
@@ -245,20 +261,23 @@ export const fromDatabase = async (
 			const updateRule: string = it['UPDATE_RULE'];
 			const deleteRule: string = it['DELETE_RULE'];
 
-			if (table in acc) {
-				const entry = acc[table];
+			const key = `${table}:${name}`;
+
+			if (key in acc) {
+				const entry = acc[key];
 				entry.columns.push(column);
 				entry.columnsTo.push(refColumn);
 			} else {
-				acc[table] = {
+				acc[key] = {
 					entityType: 'fks',
 					name,
 					table,
 					tableTo: refTable,
 					columns: [column],
 					columnsTo: [refColumn],
-					onDelete: deleteRule?.toLowerCase() as ForeignKey['onUpdate'] ?? 'NO ACTION',
-					onUpdate: updateRule?.toLowerCase() as ForeignKey['onUpdate'] ?? 'NO ACTION',
+					onDelete: deleteRule?.toUpperCase() as ForeignKey['onUpdate'] ?? 'NO ACTION',
+					onUpdate: updateRule?.toUpperCase() as ForeignKey['onUpdate'] ?? 'NO ACTION',
+					nameExplicit: true,
 				} satisfies ForeignKey;
 			}
 			return acc;
@@ -281,14 +300,16 @@ export const fromDatabase = async (
 		const isUnique = it['NON_UNIQUE'] === 0;
 		const expression = it['EXPRESSION'];
 
-		if (name in acc) {
-			const entry = acc[name];
+		const key = `${table}:${name}`;
+
+		if (key in acc) {
+			const entry = acc[key];
 			entry.columns.push({
 				value: expression ? expression : column,
 				isExpression: !!expression,
 			});
 		} else {
-			acc[name] = {
+			acc[key] = {
 				entityType: 'indexes',
 				table,
 				name,
@@ -300,6 +321,7 @@ export const fromDatabase = async (
 				algorithm: null,
 				lock: null,
 				using: null,
+				nameExplicit: true,
 			} satisfies Index;
 		}
 		return acc;

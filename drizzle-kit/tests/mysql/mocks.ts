@@ -14,16 +14,19 @@ import getPort from 'get-port';
 import { Connection, createConnection } from 'mysql2/promise';
 import { introspect } from 'src/cli/commands/pull-mysql';
 import { suggestions } from 'src/cli/commands/push-mysql';
+import { upToV6 } from 'src/cli/commands/up-mysql';
 import { CasingType } from 'src/cli/validations/common';
 import { EmptyProgressView } from 'src/cli/views';
 import { hash } from 'src/dialects/common';
-import { MysqlDDL } from 'src/dialects/mysql/ddl';
+import { MysqlDDL, MysqlEntity } from 'src/dialects/mysql/ddl';
 import { createDDL, interimToDDL } from 'src/dialects/mysql/ddl';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/mysql/diff';
 import { defaultFromColumn } from 'src/dialects/mysql/drizzle';
 import { fromDrizzleSchema, prepareFromSchemaFiles } from 'src/dialects/mysql/drizzle';
 import { fromDatabaseForDrizzle } from 'src/dialects/mysql/introspect';
 import { ddlToTypeScript } from 'src/dialects/mysql/typescript';
+import { diff as legacyDiff } from 'src/legacy/mysql-v5/mysqlDiff';
+import { serializeMysql } from 'src/legacy/mysql-v5/serializer';
 import { DB } from 'src/utils';
 import { mockResolver } from 'src/utils/mocks';
 import { tsc } from 'tests/utils';
@@ -37,6 +40,14 @@ export type MysqlSchema = Record<
 	MySqlTable<any> | MySqlSchema | MySqlView
 >;
 
+export const fromEntities = (entities: MysqlEntity[]) => {
+	const ddl = createDDL();
+	for (const it of entities) {
+		ddl.entities.push(it);
+	}
+	return ddl;
+};
+
 export const drizzleToDDL = (sch: MysqlSchema, casing?: CasingType | undefined) => {
 	const tables = Object.values(sch).filter((it) => is(it, MySqlTable)) as MySqlTable[];
 	const views = Object.values(sch).filter((it) => is(it, MySqlView)) as MySqlView[];
@@ -44,13 +55,17 @@ export const drizzleToDDL = (sch: MysqlSchema, casing?: CasingType | undefined) 
 };
 
 export const diff = async (
-	left: MysqlSchema,
-	right: MysqlSchema,
+	left: MysqlSchema | MysqlDDL,
+	right: MysqlSchema | MysqlDDL,
 	renamesArr: string[],
 	casing?: CasingType | undefined,
 ) => {
-	const { ddl: ddl1 } = drizzleToDDL(left, casing);
-	const { ddl: ddl2 } = drizzleToDDL(right, casing);
+	const { ddl: ddl1, errors: err1 } = 'entities' in left && '_' in left
+		? { ddl: left as MysqlDDL, errors: [] }
+		: drizzleToDDL(left, casing);
+	const { ddl: ddl2, errors: err2 } = 'entities' in right && '_' in right
+		? { ddl: right as MysqlDDL, errors: [] }
+		: drizzleToDDL(right, casing);
 
 	const renames = new Set(renamesArr);
 
@@ -62,7 +77,8 @@ export const diff = async (
 		mockResolver(renames),
 		'default',
 	);
-	return { sqlStatements, statements };
+
+	return { sqlStatements, statements, next: ddl2 };
 };
 
 export const diffIntrospect = async (
@@ -125,8 +141,9 @@ export const push = async (config: {
 	to: MysqlSchema | MysqlDDL;
 	renames?: string[];
 	casing?: CasingType;
+	log?: 'statements';
 }) => {
-	const { db, to } = config;
+	const { db, to, log } = config;
 	const casing = config.casing ?? 'camelCase';
 
 	const { schema } = await introspect({ db, database: 'drizzle', tablesFilter: [], progress: new EmptyProgressView() });
@@ -162,7 +179,7 @@ export const push = async (config: {
 	const { hints, truncates } = await suggestions(db, statements);
 
 	for (const sql of sqlStatements) {
-		// if (log === 'statements') console.log(sql);
+		if (log === 'statements') console.log(sql);
 		await db.query(sql);
 	}
 
@@ -349,4 +366,29 @@ export const prepareTestDatabase = async (): Promise<TestDatabase> => {
 	} while (timeLeft > 0);
 
 	throw new Error();
+};
+
+export const diffSnapshotV5 = async (db: DB, schema: MysqlSchema) => {
+	const res = await serializeMysql(schema, 'camelCase');
+	const { sqlStatements } = await legacyDiff({ right: res });
+
+	for (const st of sqlStatements) {
+		await db.query(st);
+	}
+
+	const snapshot = upToV6(res);
+	const ddl = fromEntities(snapshot.ddl);
+
+	const { sqlStatements: st, next } = await diff(schema, ddl , []);
+	const { sqlStatements: pst } = await push({ db, to: schema});
+	const { sqlStatements: st1 } = await diff(next, ddl, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema });
+
+	return {
+		step1: st,
+		step2: pst,
+		step3: st1,
+		step4: pst1,
+		all: [...st, ...pst, ...st1, ...pst1],
+	};
 };

@@ -1,7 +1,9 @@
 import { existsSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import { Column, SchemaV4, SchemaV5, Table } from '../../dialects/mysql/snapshot';
 import { Journal } from '../../utils';
+import { createDDL } from 'src/dialects/mysql/ddl';
+import { trimChar } from 'src/utils';
+import type { MysqlSchema, MysqlSnapshot } from '../../dialects/mysql/snapshot';
 
 export const upMysqlHandler = (out: string) => {
 	// if there is meta folder - and there is a journal - it's version <8
@@ -26,97 +28,154 @@ export const upMysqlHandler = (out: string) => {
 	}
 };
 
-export const upMySqlHandlerV4toV5 = (obj: SchemaV4): SchemaV5 => {
-	const mappedTables: Record<string, Table> = {};
+export const upToV6 = (it: Record<string, any>): MysqlSnapshot => {
+	const json = it as MysqlSchema;
 
-	for (const [key, table] of Object.entries(obj.tables)) {
-		const mappedColumns: Record<string, Column> = {};
-		for (const [ckey, column] of Object.entries(table.columns)) {
-			let newDefault: any = column.default;
-			let newType: string = column.type;
-			let newAutoIncrement: boolean | undefined = column.autoincrement;
+	const hints = [] as string[];
 
-			if (column.type.toLowerCase().startsWith('datetime')) {
-				if (typeof column.default !== 'undefined') {
-					if (column.default.startsWith("'") && column.default.endsWith("'")) {
-						newDefault = `'${
-							column.default
-								.substring(1, column.default.length - 1)
-								.replace('T', ' ')
-								.slice(0, 23)
-						}'`;
-					} else {
-						newDefault = column.default.replace('T', ' ').slice(0, 23);
-					}
-				}
+	const ddl = createDDL();
 
-				newType = column.type.toLowerCase().replace('datetime (', 'datetime(');
-			} else if (column.type.toLowerCase() === 'date') {
-				if (typeof column.default !== 'undefined') {
-					if (column.default.startsWith("'") && column.default.endsWith("'")) {
-						newDefault = `'${
-							column.default
-								.substring(1, column.default.length - 1)
-								.split('T')[0]
-						}'`;
-					} else {
-						newDefault = column.default.split('T')[0];
-					}
-				}
-				newType = column.type.toLowerCase().replace('date (', 'date(');
-			} else if (column.type.toLowerCase().startsWith('timestamp')) {
-				if (typeof column.default !== 'undefined') {
-					if (column.default.startsWith("'") && column.default.endsWith("'")) {
-						newDefault = `'${
-							column.default
-								.substring(1, column.default.length - 1)
-								.replace('T', ' ')
-								.slice(0, 23)
-						}'`;
-					} else {
-						newDefault = column.default.replace('T', ' ').slice(0, 23);
-					}
-				}
-				newType = column.type
-					.toLowerCase()
-					.replace('timestamp (', 'timestamp(');
-			} else if (column.type.toLowerCase().startsWith('time')) {
-				newType = column.type.toLowerCase().replace('time (', 'time(');
-			} else if (column.type.toLowerCase().startsWith('decimal')) {
-				newType = column.type.toLowerCase().replace(', ', ',');
-			} else if (column.type.toLowerCase().startsWith('enum')) {
-				newType = column.type.toLowerCase();
-			} else if (column.type.toLowerCase().startsWith('serial')) {
-				newAutoIncrement = true;
-			}
-			mappedColumns[ckey] = {
-				...column,
-				default: newDefault,
-				type: newType,
-				autoincrement: newAutoIncrement,
-			};
+	for (const table of Object.values(json.tables)) {
+		ddl.tables.push({ name: table.name });
+
+		for (const column of Object.values(table.columns)) {
+			ddl.columns.push({
+				table: table.name,
+				name: column.name,
+				type: column.type,
+				notNull: column.notNull,
+				default: column.default,
+				autoIncrement: column.autoincrement ?? false,
+				onUpdateNow: column.onUpdate ?? false,
+				generated: column.generated,
+				// TODO: @AleksandrSherman check
+				charSet: null,
+				collation: null,
+				onUpdateNowFsp: null
+			});
+		}
+	}
+	for (const table of Object.values(json.tables)) {
+		for (const index of Object.values(table.indexes)) {
+			/* legacy columns mapper
+				const uniqueString = unsquashedUnique.columns
+					.map((it) => {
+						return internals?.indexes
+							? internals?.indexes[unsquashedUnique.name]?.columns[it]
+									?.isExpression
+								? it
+								: `\`${it}\``
+							: `\`${it}\``;
+					})
+					.join(',');
+			 */
+
+			const columns = index.columns.map((x) => {
+				const nameToCheck = trimChar(x, '`');
+				const isColumn = !!ddl.columns.one({ table: table.name, name: nameToCheck });
+				return { value: x, isExpression: !isColumn };
+			});
+
+			ddl.indexes.push({
+				table: table.name,
+				name: index.name,
+				columns,
+				algorithm: index.algorithm ?? null,
+				isUnique: index.isUnique,
+				lock: index.lock ?? null,
+				using: index.using ?? null,
+				nameExplicit: true,
+			});
 		}
 
-		mappedTables[key] = {
-			...table,
-			columns: mappedColumns,
-			compositePrimaryKeys: {},
-			uniqueConstraints: {},
-			checkConstraint: {},
-		};
+		for (const unique of Object.values(table.uniqueConstraints)) {
+			/* legacy columns mapper
+				const uniqueString = unsquashedUnique.columns
+					.map((it) => {
+						return internals?.indexes
+							? internals?.indexes[unsquashedUnique.name]?.columns[it]
+									?.isExpression
+								? it
+								: `\`${it}\``
+							: `\`${it}\``;
+					})
+					.join(',');
+			 */
+			const columns = unique.columns.map((x) => {
+				const nameToCheck = trimChar(x, '`');
+				const isColumn = !!ddl.columns.one({ table: table.name, name: nameToCheck });
+				return { value: x, isExpression: !isColumn };
+			});
+
+			const nameImplicit = `${table.name}_${unique.columns.join('_')}_unique` === unique.name
+				|| `${table.name}_${unique.columns.join('_')}` === unique.name;
+
+			ddl.indexes.push({
+				table: table.name,
+				name: unique.name,
+				columns,
+				algorithm: null,
+				isUnique: true,
+				lock: null,
+				using: null,
+				nameExplicit: !nameImplicit,
+			});
+		}
+
+		for (const fk of Object.values(table.foreignKeys)) {
+			const isNameImplicit =
+				`${fk.tableFrom}_${fk.columnsFrom.join('_')}_${fk.tableTo}_${fk.columnsTo.join('_')}_fk` === fk.name;
+
+			ddl.fks.push({
+				table: table.name,
+				name: fk.name,
+				columns: fk.columnsFrom,
+				columnsTo: fk.columnsTo,
+				tableTo: fk.tableTo,
+				onUpdate: fk.onUpdate?.toUpperCase() as any ?? null,
+				onDelete: fk.onDelete?.toUpperCase() as any ?? null,
+				nameExplicit: !isNameImplicit,
+			});
+		}
+
+		for (const check of Object.values(table.checkConstraint)) {
+			ddl.checks.push({
+				table: table.name,
+				name: check.name,
+				value: check.value,
+				nameExplicit: true,
+			});
+		}
+
+		for (const pk of Object.values(table.compositePrimaryKeys)) {
+			const nameImplicit = `${table.name}_${pk.columns.join('_')}_pk` === pk.name
+				|| `${table.name}_${pk.columns.join('_')}` === pk.name;
+
+			ddl.pks.push({
+				table: table.name,
+				name: pk.name,
+				columns: pk.columns,
+				nameExplicit: !nameImplicit,
+			});
+		}
+	}
+
+	for (const view of Object.values(json.views)) {
+		ddl.views.push({
+			name: view.name,
+			algorithm: view.algorithm ?? null,
+			sqlSecurity: view.sqlSecurity ?? null,
+			withCheckOption: view.withCheckOption ?? null,
+			definition: view.definition!,
+		});
 	}
 
 	return {
-		version: '5',
-		dialect: obj.dialect,
-		id: obj.id,
-		prevId: obj.prevId,
-		tables: mappedTables,
-		schemas: obj.schemas,
-		_meta: {
-			schemas: {} as Record<string, string>,
-			tables: {} as Record<string, string>,
-			columns: {} as Record<string, string>,
-		},
+		version: '6',
+		id: json.id,
+		prevId: json.prevId,
+		dialect: 'mysql',
+		ddl: ddl.entities.list(),
+		renames: [],
 	};
 };
