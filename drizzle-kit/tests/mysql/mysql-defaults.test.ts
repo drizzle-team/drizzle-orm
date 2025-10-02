@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import {
 	bigint,
 	binary,
+	blob,
 	boolean,
 	char,
 	date,
@@ -11,7 +12,9 @@ import {
 	float,
 	int,
 	json,
+	longblob,
 	longtext,
+	mediumblob,
 	mediumint,
 	mediumtext,
 	mysqlEnum,
@@ -21,6 +24,7 @@ import {
 	text,
 	time,
 	timestamp,
+	tinyblob,
 	tinyint,
 	tinytext,
 	varbinary,
@@ -368,6 +372,134 @@ test('longtext', async () => {
 	expect.soft(res1).toStrictEqual([]);
 	expect.soft(res2).toStrictEqual([]);
 	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
+});
+
+test('tinyblob', async () => {
+	const res1 = await diffDefault(_, tinyblob({ mode: 'string' }).default('text'), `('text')`);
+	const res1_1 = await diffDefault(
+		_,
+		tinyblob().default(Buffer.from('text')),
+		`(0x${Buffer.from('text').toString('hex')})`,
+	);
+	const res2 = await diffDefault(_, tinyblob({ mode: 'string' }).default("text'text"), `('text''text')`);
+	const res2_1 = await diffDefault(
+		_,
+		tinyblob().default(Buffer.from("text't")),
+		`(0x${Buffer.from("text't").toString('hex')})`,
+	);
+	const res3 = await diffDefault(_, tinyblob({ mode: 'string' }).default('text\'text"'), `('text''text"')`);
+	const res3_1 = await diffDefault(
+		_,
+		tinyblob().default(Buffer.from('text\'t"')),
+		`(0x${Buffer.from('text\'t"').toString('hex')})`,
+	);
+
+	// expressions
+	const res4 = await diffDefault(_, tinyblob().default(sql`('hello' + ' world')`), "('hello' + ' world')");
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res1_1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res2_1).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res3_1).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
+});
+
+test('mediumblob', async () => {
+	const res1 = await diffDefault(_, mediumblob({ mode: 'string' }).default('text'), `('text')`);
+	const res1_1 = await diffDefault(
+		_,
+		mediumblob().default(Buffer.from('text')),
+		`(0x${Buffer.from('text').toString('hex')})`,
+	);
+	const res2 = await diffDefault(_, mediumblob({ mode: 'string' }).default("text'text"), `('text''text')`);
+	const res2_1 = await diffDefault(
+		_,
+		mediumblob().default(Buffer.from("text'text")),
+		`(0x${Buffer.from("text'text").toString('hex')})`,
+	);
+	const res3 = await diffDefault(_, mediumblob({ mode: 'string' }).default('text\'text"'), `('text''text"')`);
+	const res3_1 = await diffDefault(
+		_,
+		mediumblob().default(Buffer.from('text\'text"')),
+		`(0x${Buffer.from('text\'text"').toString('hex')})`,
+	);
+
+	// expressions
+	const res4 = await diffDefault(_, mediumblob().default(sql`('hello' + ' world')`), "('hello' + ' world')");
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res1_1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res2_1).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res3_1).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
+});
+
+test('blob', async () => {
+	const res1 = await diffDefault(_, blob({ mode: 'string' }).default('text'), `('text')`);
+	const res1_1 = await diffDefault(
+		_,
+		blob().default(Buffer.from('text')),
+		`(0x${Buffer.from('text').toString('hex')})`,
+	);
+	const res2 = await diffDefault(_, blob({ mode: 'string' }).default("text'text"), `('text''text')`);
+	const res2_1 = await diffDefault(
+		_,
+		blob().default(Buffer.from("text'text")),
+		`(0x${Buffer.from("text'text").toString('hex')})`,
+	);
+	const res3 = await diffDefault(_, blob({ mode: 'string' }).default('text\'text"'), `('text''text"')`);
+	const res3_1 = await diffDefault(
+		_,
+		blob().default(Buffer.from('text\'text"')),
+		`(0x${Buffer.from('text\'text"').toString('hex')})`,
+	);
+
+	// expressions
+	const res4 = await diffDefault(_, blob().default(sql`('hello' + ' world')`), "('hello' + ' world')");
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res1_1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res2_1).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res3_1).toStrictEqual([]);
+	expect.soft(res4).toStrictEqual([]);
+});
+
+test('longblob', async () => {
+	const res1 = await diffDefault(_, longblob({ mode: 'string' }).default('text'), `('text')`);
+	const res1_1 = await diffDefault(
+		_,
+		longblob().default(Buffer.from('text')),
+		`(0x${Buffer.from('text').toString('hex')})`,
+	);
+	const res2 = await diffDefault(_, longblob({ mode: 'string' }).default("text'text"), `('text''text')`);
+	const res2_1 = await diffDefault(
+		_,
+		longblob().default(Buffer.from("text'text")),
+		`(0x${Buffer.from("text'text").toString('hex')})`,
+	);
+	const res3 = await diffDefault(_, longblob({ mode: 'string' }).default('text\'text"'), `('text''text"')`);
+	const res3_1 = await diffDefault(
+		_,
+		longblob().default(Buffer.from('text\'text"')),
+		`(0x${Buffer.from('text\'text"').toString('hex')})`,
+	);
+
+	// expressions
+	const res4 = await diffDefault(_, longblob().default(sql`('hello' + ' world')`), "('hello' + ' world')");
+
+	expect.soft(res1).toStrictEqual([]);
+	expect.soft(res1_1).toStrictEqual([]);
+	expect.soft(res2).toStrictEqual([]);
+	expect.soft(res2_1).toStrictEqual([]);
+	expect.soft(res3).toStrictEqual([]);
+	expect.soft(res3_1).toStrictEqual([]);
 	expect.soft(res4).toStrictEqual([]);
 });
 

@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { SQL, sql } from 'drizzle-orm';
 import {
 	bigint,
+	blob,
 	boolean,
 	char,
 	check,
@@ -12,7 +13,9 @@ import {
 	index,
 	int,
 	json,
+	longblob,
 	longtext,
+	mediumblob,
 	mediumint,
 	mediumtext,
 	mysqlEnum,
@@ -22,6 +25,7 @@ import {
 	serial,
 	smallint,
 	text,
+	tinyblob,
 	tinyint,
 	tinytext,
 	varchar,
@@ -383,4 +387,21 @@ test('introspect index on json', async () => {
 
 	expect(statements).toStrictEqual([]);
 	expect(sqlStatements).toStrictEqual([]);
+});
+
+test('introspect blob, tinyblob, mediumblob, longblob', async () => {
+	const schema = {
+		columns: mysqlTable('columns', {
+			column1: tinyblob(),
+			column2: mediumblob(),
+			column3: blob(),
+			column4: mediumblob(),
+			column5: longblob(),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'introspect-blobs');
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
 });

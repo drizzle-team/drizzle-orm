@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import {
 	bigint,
 	binary,
+	blob,
 	char,
 	date,
 	datetime,
@@ -12,7 +13,9 @@ import {
 	index,
 	int,
 	json,
+	longblob,
 	longtext,
+	mediumblob,
 	mediumint,
 	mediumtext,
 	mysqlEnum,
@@ -24,6 +27,7 @@ import {
 	text,
 	time,
 	timestamp,
+	tinyblob,
 	tinyint,
 	tinytext,
 	unique,
@@ -1286,16 +1290,59 @@ test('all types', async () => {
 			columnNotNull: binary('column_not_null', { length: 1 }).notNull(),
 			columnDefault: binary('column_default', { length: 12 }).default(sql`(uuid_to_bin(uuid()))`),
 		}),
+
+		allTinyBlobs: mysqlTable('all_tiny_blobs', {
+			simple: tinyblob('simple'),
+			columnNotNull: tinyblob('column_not_null').notNull(),
+			columnDefault: tinyblob('column_default').default(Buffer.from('hello')),
+			columnDefaultSql: tinyblob('column_default_sql').default(sql`'hello'`),
+			stringSimple: tinyblob('string_simple', { mode: 'string' }),
+			stringColumnNotNull: tinyblob('string_column_not_null', { mode: 'string' }).notNull(),
+			stringColumnDefault: tinyblob('string_column_default', { mode: 'string' }).default('hello'),
+			stringColumnDefaultSql: tinyblob('string_column_default_sql', { mode: 'string' }).default(sql`'hello'`),
+		}),
+		allBlobs: mysqlTable('all_blobs', {
+			simple: blob('simple'),
+			columnNotNull: blob('column_not_null').notNull(),
+			columnDefault: blob('column_default').default(Buffer.from('hello')),
+			columnDefaultSql: blob('column_default_sql').default(sql`'hello'`),
+			stringSimple: blob('string_simple', { mode: 'string' }),
+			stringColumnNotNull: blob('string_column_not_null', { mode: 'string' }).notNull(),
+			stringColumnDefault: blob('string_column_default', { mode: 'string' }).default('hello'),
+			stringColumnDefaultSql: blob('string_column_default_sql', { mode: 'string' }).default(sql`'hello'`),
+		}),
+		allMediumBlobs: mysqlTable('all_medium_blobs', {
+			simple: mediumblob('simple'),
+			columnNotNull: mediumblob('column_not_null').notNull(),
+			columnDefault: mediumblob('column_default').default(Buffer.from('hello')),
+			columnDefaultSql: mediumblob('column_default_sql').default(sql`'hello'`),
+			stringSimple: mediumblob('string_simple', { mode: 'string' }),
+			stringColumnNotNull: mediumblob('string_column_not_null', { mode: 'string' }).notNull(),
+			stringColumnDefault: mediumblob('string_column_default', { mode: 'string' }).default('hello'),
+			stringColumnDefaultSql: mediumblob('string_column_default_sql', { mode: 'string' }).default(sql`'hello'`),
+		}),
+		allLongBlobs: mysqlTable('all_long_blobs', {
+			simple: longblob('simple'),
+			columnNotNull: longblob('column_not_null').notNull(),
+			columnDefault: longblob('column_default').default(Buffer.from('hello')),
+			columnDefaultSql: longblob('column_default_sql').default(sql`'hello'`),
+			stringSimple: longblob('string_simple', { mode: 'string' }),
+			stringColumnNotNull: longblob('string_column_not_null', { mode: 'string' }).notNull(),
+			stringColumnDefault: longblob('string_column_default', { mode: 'string' }).default('hello'),
+			stringColumnDefaultSql: longblob('string_column_default_sql', { mode: 'string' }).default(sql`'hello'`),
+		}),
 	};
 
 	const { sqlStatements: st } = await diff(schema1, schema1, []);
 
 	await push({ db, to: schema1 });
 	const { sqlStatements: pst } = await push({ db, to: schema1 });
+	const { sqlStatements: sbsqSt } = await push({ db, to: schema1 });
 
 	const st0: string[] = [];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+	expect(sbsqSt).toStrictEqual([]);
 });
 
 test('drop primary key', async () => {
