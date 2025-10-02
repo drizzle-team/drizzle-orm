@@ -1,5 +1,7 @@
 import { eq, sql } from 'drizzle-orm';
+import { decimal } from 'drizzle-orm/cockroach-core';
 import {
+	AnyPgColumn,
 	bigint,
 	bigserial,
 	boolean,
@@ -27,6 +29,8 @@ import {
 	uniqueIndex,
 	uuid,
 } from 'drizzle-orm/pg-core';
+
+// generated with AI and updated manually in some places
 
 export const core = pgSchema('core');
 export const analytics = pgSchema('analytics');
@@ -328,7 +332,7 @@ export const pipelinesInCore = core.table('pipelines', {
 export const pipelineRunsInAnalytics = analytics.table('pipeline_runs', {
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	pipelineId: uuid('pipeline_id').notNull(),
-	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
+
 	runNumber: bigint('run_number', { mode: 'number' }).notNull(),
 	state: jobState().default('queued').notNull(),
 	startedAt: timestamp('started_at', { withTimezone: true, mode: 'string' }),
@@ -388,7 +392,7 @@ export const objectsInCore = core.table('objects', {
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	bucketId: uuid('bucket_id').notNull(),
 	path: text().notNull(),
-	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
+
 	size: bigint({ mode: 'number' }).default(0).notNull(),
 	contentType: text('content_type'),
 	metadata: jsonb(),
@@ -564,6 +568,7 @@ export const paymentsInBilling = billing.table('payments', {
 	invoiceId: uuid('invoice_id').notNull(),
 	paidAt: timestamp('paid_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	amount: numeric({ precision: 12, scale: 2 }).notNull(),
+	amount2: decimal({ precision: 12, scale: 2 }).notNull(),
 	method: paymentMethod().notNull(),
 	transactionRef: text('transaction_ref'),
 	metadata: jsonb(),
@@ -582,7 +587,7 @@ export const couponsInBilling = billing.table('coupons', {
 	discountPercent: smallint('discount_percent'),
 	redeemableFrom: timestamp('redeemable_from', { withTimezone: true, mode: 'string' }),
 	redeemableTo: timestamp('redeemable_to', { withTimezone: true, mode: 'string' }),
-	maxRedemptions: integer('max_redemptions').default(0),
+	maxRedemptions: integer('max_redemptions').generatedAlwaysAsIdentity(),
 	metadata: jsonb(),
 }, (table) => [
 	unique('coupons_code_key').on(table.code),
@@ -740,8 +745,8 @@ export const rateLimitsInCore = core.table('rate_limits', {
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	apiKeyId: uuid('api_key_id').notNull(),
 	windowStart: timestamp('window_start', { withTimezone: true, mode: 'string' }).notNull(),
-	requests: integer().default(0).notNull().array(),
-	limit: integer().default(1000).notNull(),
+	requests: integer().generatedByDefaultAsIdentity().notNull().array(),
+	limit: integer().generatedAlwaysAs(() => sql`1`).notNull(),
 }, (table) => [
 	foreignKey({
 		columns: [table.apiKeyId],
@@ -835,7 +840,7 @@ export const servicesInCore = core.table('services', {
 	kind: text(),
 	ownerId: uuid('owner_id'),
 	metadata: jsonb(),
-	createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	createdAt: timestamp('created_at', { withTimezone: true, mode: 'string', precision: 6 }).defaultNow().notNull(),
 }, (table) => [
 	foreignKey({
 		columns: [table.organizationId],
@@ -853,7 +858,7 @@ export const servicesInCore = core.table('services', {
 export const locksInCore = core.table('locks', {
 	name: text().primaryKey().notNull(),
 	owner: text(),
-	expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'string' }),
+	expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'string', precision: 2 }),
 });
 
 export const entitiesInCore = core.table('entities', {
@@ -899,8 +904,8 @@ export const invoicesInBilling = billing.table('invoices', {
 }, (table) => [
 	index('billing_invoices_status_idx').using('btree', table.status.asc().nullsLast().op('enum_ops')),
 	foreignKey({
-		columns: [table.customerId],
-		foreignColumns: [customersInBilling.id],
+		columns: [table.customerId, table.number],
+		foreignColumns: [customersInBilling.id, customersInBilling.name],
 		name: 'invoices_customer_id_fkey',
 	}).onDelete('cascade'),
 	unique('invoices_customer_id_number_key').on(table.customerId, table.number),
@@ -921,6 +926,12 @@ export const aliasesInCore = core.table('aliases', {
 	}).onUpdate('cascade'),
 	unique('aliases_object_type_object_id_alias_key').on(table.objectType, table.objectId, table.alias),
 ]);
+
+export const selfRef = core.table('self_ref', {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	objectType: text('object_type').notNull().unique().references((): AnyPgColumn => selfRef.organizationId),
+	organizationId: text('organization_id').notNull().unique(),
+});
 
 export const couponRedemptionsInBilling = billing.table('coupon_redemptions', {
 	couponId: uuid('coupon_id').notNull(),
@@ -1014,6 +1025,8 @@ export const reactionsInCore = core.table('reactions', {
 	}).onDelete('cascade'),
 	primaryKey({ columns: [table.messageId, table.userId, table.reaction], name: 'reactions_pkey' }),
 ]);
+
+// views
 export const projectSearchInAnalytics = analytics.materializedView('project_search', {
 	id: uuid(),
 	name: text(),
@@ -1041,8 +1054,8 @@ export const vActiveUsersInCore = core.view('v_active_users').as((qb) =>
 );
 export const vActiveUsersInCore2 = core.view('v_active_users2', {}).existing();
 
+// polices
 export const rls = pgSchema('rls');
-
 export const documentsInRls = rls.table('documents', {
 	docId: uuid('doc_id').defaultRandom().primaryKey().notNull(),
 	ownerId: uuid('owner_id').notNull(),
