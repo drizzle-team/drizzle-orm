@@ -1,10 +1,10 @@
 import { mockResolver } from '../../utils/mocks';
 import { Resolver } from '../common';
 import { diff } from '../dialect';
-import { groupDiffs } from '../utils';
+import { groupDiffs, preserveEntityNames } from '../utils';
 import { fromJson } from './convertor';
 import { Column, DiffEntities, fullTableFromDDL, Index, MysqlDDL, Table, View } from './ddl';
-import { nameForForeignKey, typesCommutative } from './grammar';
+import { charSetAndCollationCommutative, defaultNameForFK, typesCommutative } from './grammar';
 import { prepareStatement } from './statements';
 import { JsonStatement } from './statements';
 
@@ -79,7 +79,7 @@ export const ddlDiff = async (
 		// preserve name for foreign keys
 		const renamedFKs = [...selfRefs.data, ...froms.data, ...tos.data];
 		for (const fk of renamedFKs) {
-			const name = nameForForeignKey(fk);
+			const name = defaultNameForFK(fk);
 			ddl2.fks.update({
 				set: {
 					name: fk.name,
@@ -184,6 +184,10 @@ export const ddlDiff = async (
 		ddl2.pks.update(update4);
 	}
 
+	preserveEntityNames(ddl1.fks, ddl2.fks, mode);
+	preserveEntityNames(ddl1.pks, ddl2.pks, mode);
+	preserveEntityNames(ddl1.indexes, ddl2.indexes, mode);
+
 	const viewsDiff = diff(ddl1, ddl2, 'views');
 
 	const {
@@ -212,8 +216,6 @@ export const ddlDiff = async (
 	const pksDiff = diff(ddl1, ddl2, 'pks');
 
 	const alters = diff.alters(ddl1, ddl2);
-
-	const jsonStatements: JsonStatement[] = [];
 
 	const createTableStatements = createdTables.map((it) => {
 		const full = fullTableFromDDL(it, ddl2);
@@ -339,6 +341,22 @@ export const ddlDiff = async (
 				delete it.generated;
 			}
 
+			// if there's a change in notnull but column is a part of a pk - we don't care
+			if (it.notNull && !!ddl2.pks.one({ table: it.table, columns: { CONTAINS: it.name } })) {
+				delete it.notNull;
+			}
+			
+			if (
+				mode === 'push' && (it.charSet || it.collation)
+				&& charSetAndCollationCommutative(
+					{ charSet: it.$left.charSet ?? null, collation: it.$left.collation ?? null },
+					{ charSet: it.$right.charSet ?? null, collation: it.$right.collation ?? null },
+				)
+			) {
+				delete it.charSet;
+				delete it.collation;
+			}
+
 			return ddl2.columns.hasDiff(it) && alterColumnPredicate(it);
 		}).map((it) => {
 			const column = ddl2.columns.one({ name: it.name, table: it.table })!;
@@ -389,7 +407,7 @@ export const ddlDiff = async (
 	const res = fromJson(statements);
 
 	return {
-		statements: jsonStatements,
+		statements: statements,
 		sqlStatements: res.sqlStatements,
 		groupedStatements: res.groupedStatements,
 		renames: [],

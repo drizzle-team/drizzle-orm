@@ -11,7 +11,7 @@ import { getTableConfig as getMySqlTableConfig, MySqlTable } from 'drizzle-orm/m
 import { getTableConfig as getPgTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import { getTableConfig as getSingleStoreTableConfig } from 'drizzle-orm/singlestore-core';
 import { getTableConfig as getSQLiteTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
-import type { DrizzleTable, RelationWithReferences, Table, TableConfigT } from './types/tables.ts';
+import type { Column, DrizzleTable, RelationWithReferences, Table, TableConfigT } from './types/tables.ts';
 import { isRelationCyclic } from './utils.ts';
 
 const getTableConfig = (
@@ -99,11 +99,10 @@ const transformFromDrizzleRelation = (
 export const getSchemaInfo = (
 	drizzleTablesAndRelations: { [key: string]: DrizzleTable | Relations },
 	drizzleTables: { [key: string]: DrizzleTable },
-	mapTable: (
+	mapColumns: (
 		tableConfig: TableConfigT,
-		dbToTsTableNamesMap: { [key: string]: string },
 		dbToTsColumnNamesMap: { [key: string]: string },
-	) => Table,
+	) => Column[],
 ) => {
 	let tableConfig: ReturnType<typeof getTableConfig>;
 	let dbToTsColumnNamesMap: { [key: string]: string };
@@ -177,8 +176,27 @@ export const getSchemaInfo = (
 		}
 		tableRelations[dbToTsTableNamesMap[tableConfig.name] as string]!.push(...newRelations);
 
-		// console.log(tableConfig.columns);
-		tables.push(mapTable(tableConfig, dbToTsTableNamesMap, dbToTsColumnNamesMap));
+		const stringsSet: string[] = [];
+		const uniqueConstraints: string[][] = [];
+		for (const uniCon of tableConfig.uniqueConstraints) {
+			const uniConColumns = uniCon.columns.map((col) => dbToTsColumnNamesMap[col.name] as string);
+			const uniConColumnsStr = JSON.stringify(uniConColumns);
+
+			if (!stringsSet.includes(uniConColumnsStr)) {
+				stringsSet.push(uniConColumnsStr);
+				uniqueConstraints.push(uniConColumns);
+			}
+		}
+
+		const mappedTable: Table = {
+			name: dbToTsTableNamesMap[tableConfig.name] as string,
+			uniqueConstraints,
+			primaryKeys: tableConfig.columns
+				.filter((column) => column.primary)
+				.map((column) => dbToTsColumnNamesMap[column.name] as string),
+			columns: mapColumns(tableConfig, dbToTsColumnNamesMap),
+		};
+		tables.push(mappedTable);
 	}
 
 	const transformedDrizzleRelations = transformFromDrizzleRelation(

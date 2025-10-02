@@ -168,6 +168,7 @@ export type Table = TypeOf<typeof table>;
 export type Column = TypeOf<typeof column>;
 export type SchemaV4 = TypeOf<typeof schemaV4>;
 export type SchemaV5 = TypeOf<typeof schemaV5>;
+export type Schema = TypeOf<typeof schema>;
 
 const tableSquashedV4 = object({
 	name: string(),
@@ -213,10 +214,11 @@ export const mysqlSchemaV3 = schemaV3;
 export const mysqlSchemaV4 = schemaV4;
 export const mysqlSchemaV5 = schemaV5;
 export const mysqlSchemaSquashed = schemaSquashed;
+export type MysqlSchema = Schema
 
 const ddl = createDDL();
 export const snapshotValidator = validator({
-	version: ['5'],
+	version: ['6'],
 	dialect: ['mysql'],
 	id: 'string',
 	prevId: 'string',
@@ -227,12 +229,12 @@ export const snapshotValidator = validator({
 export type MysqlSnapshot = typeof snapshotValidator.shape;
 
 export const toJsonSnapshot = (ddl: MysqlDDL, prevId: string, renames: string[]): MysqlSnapshot => {
-	return { dialect: 'mysql', id: randomUUID(), prevId, version: '5', ddl: ddl.entities.list(), renames };
+	return { dialect: 'mysql', id: randomUUID(), prevId, version: '6', ddl: ddl.entities.list(), renames };
 };
 
 export const drySnapshot = snapshotValidator.strict(
 	{
-		version: '5',
+		version: '6',
 		dialect: 'mysql',
 		id: originUUID,
 		prevId: '',

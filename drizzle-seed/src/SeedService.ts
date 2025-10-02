@@ -7,7 +7,12 @@ import { PgDatabase } from 'drizzle-orm/pg-core';
 import type { SQLiteTable, SQLiteTableWithColumns } from 'drizzle-orm/sqlite-core';
 import { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
 import { generatorsMap } from './generators/GeneratorFuncs.ts';
-import type { AbstractGenerator, GenerateArray, GenerateWeightedCount } from './generators/Generators.ts';
+import type {
+	AbstractGenerator,
+	GenerateArray,
+	GenerateCompositeUniqueKey,
+	GenerateWeightedCount,
+} from './generators/Generators.ts';
 import type {
 	DbType,
 	GeneratedValueType,
@@ -92,6 +97,7 @@ export class SeedService {
 		}));
 
 		for (const [i, table] of tables.entries()) {
+			const compositeUniqueKeyGenMap: { [key: string]: GenerateCompositeUniqueKey } = {};
 			// get foreignKey columns relations
 			const foreignKeyColumns: {
 				[columnName: string]: { table: string; column: string };
@@ -295,9 +301,59 @@ export class SeedService {
 				}
 
 				columnPossibleGenerator.generator.isUnique = col.isUnique;
+
+				// composite unique keys handling
+				let compositeKeyColumnNames = table.uniqueConstraints.filter((colNames) => colNames.includes(col.name));
+				if (compositeKeyColumnNames.some((colNames) => colNames.length === 1)) {
+					// composite unique key contains only one column, therefore it equals to just unique column
+					columnPossibleGenerator.generator.isUnique = true;
+				}
+
+				// removing column from composite unique keys if current column is unique
+				if (columnPossibleGenerator.generator.isUnique && compositeKeyColumnNames.length > 0) {
+					const newUniqueConstraints: string[][] = [];
+					for (const colNames of table.uniqueConstraints) {
+						if (colNames.includes(col.name)) {
+							const newColNames = colNames.filter((colName) => colName !== col.name);
+							if (newColNames.length === 0) continue;
+							newUniqueConstraints.push(newColNames);
+						} else {
+							newUniqueConstraints.push(colNames);
+						}
+					}
+
+					table.uniqueConstraints = newUniqueConstraints;
+				}
+
+				compositeKeyColumnNames = table.uniqueConstraints.filter((colNames) => colNames.includes(col.name));
+				if (compositeKeyColumnNames.length > 1) {
+					throw new Error('Currently, multiple composite unique keys that share the same column are not supported.');
+				}
+
+				// to handle composite unique key generation, I will need a unique generator for each column in the composite key
+				if (compositeKeyColumnNames.length === 1) {
+					if (columnPossibleGenerator.generator.params.isUnique === false) {
+						throw new Error(
+							`To handle the composite unique key on columns: ${compositeKeyColumnNames[0]}, `
+								+ `column: ${col.name} should either be assigned a generator with isUnique set to true, or have isUnique omitted.`,
+						);
+					}
+					columnPossibleGenerator.generator.params.isUnique = true;
+				}
+
 				const uniqueGen = columnPossibleGenerator.generator.replaceIfUnique();
 				if (uniqueGen !== undefined) {
 					columnPossibleGenerator.generator = uniqueGen;
+				}
+
+				if (
+					compositeKeyColumnNames.length === 1 && !columnPossibleGenerator.generator.isGeneratorUnique
+					&& !(columnPossibleGenerator.generator.getEntityKind() === 'GenerateValuesFromArray')
+				) {
+					throw new Error(
+						`To handle the composite unique key on columns: ${compositeKeyColumnNames[0]}, `
+							+ `column: ${col.name} should be assigned a generator with its own unique version.`,
+					);
 				}
 
 				// selecting version of generator
@@ -306,7 +362,20 @@ export class SeedService {
 				// TODO: for now only GenerateValuesFromArray support notNull property
 				columnPossibleGenerator.generator.notNull = col.notNull;
 				columnPossibleGenerator.generator.dataType = col.dataType;
-				// columnPossibleGenerator.generator.stringLength = col.typeParams.length;
+
+				// assigning composite key generator
+				if (compositeKeyColumnNames.length === 1) {
+					const key = compositeKeyColumnNames[0]!.join('_');
+					if (compositeUniqueKeyGenMap[key] === undefined) {
+						let compositeUniqueKeyGen = new generatorsMap.GenerateCompositeUniqueKey[0]();
+						compositeUniqueKeyGen.uniqueKey = key;
+						compositeUniqueKeyGen = this.selectVersionOfGenerator(compositeUniqueKeyGen) as GenerateCompositeUniqueKey;
+						compositeUniqueKeyGenMap[key] = compositeUniqueKeyGen;
+					}
+
+					compositeUniqueKeyGenMap[key].addGenerator(col.name, columnPossibleGenerator.generator);
+					columnPossibleGenerator.generator = compositeUniqueKeyGenMap[key];
+				}
 
 				tablePossibleGenerators.columnsPossibleGenerators.push(
 					columnPossibleGenerator,
@@ -348,6 +417,7 @@ export class SeedService {
 		newGenerator.dataType = generator.dataType;
 		// newGenerator.stringLength = generator.stringLength;
 		newGenerator.typeParams = generator.typeParams ?? newGenerator.typeParams;
+		newGenerator.uniqueKey = generator.uniqueKey;
 
 		return newGenerator;
 	};
@@ -611,10 +681,11 @@ export class SeedService {
 				const columnRelations = filteredRelations.filter((rel) => rel.columns.includes(col.columnName));
 				pRNGSeed = (columnRelations.length !== 0
 						&& columnRelations[0]!.columns.length >= 2)
-					? (customSeed + generateHashFromString(
-						`${columnRelations[0]!.table}.${columnRelations[0]!.columns.join('_')}`,
-					))
-					: (customSeed + generateHashFromString(`${table.tableName}.${col.columnName}`));
+					? (customSeed
+						+ generateHashFromString(`${columnRelations[0]!.table}.${columnRelations[0]!.columns.join('_')}`))
+					: col.generator?.uniqueKey === undefined
+					? (customSeed + generateHashFromString(`${table.tableName}.${col.columnName}`))
+					: (customSeed + generateHashFromString(col.generator.uniqueKey));
 
 				tableGenerators[col.columnName] = {
 					pRNGSeed,
@@ -857,11 +928,7 @@ export class SeedService {
 			generatedValues.push(row);
 
 			for (const columnName of Object.keys(columnsGenerators)) {
-				// generatedValue = columnsGenerators[columnName].next().value as
-				//   | string
-				//   | number
-				//   | boolean;
-				generatedValue = columnsGenerators[columnName]!.generate({ i }) as
+				generatedValue = columnsGenerators[columnName]!.generate({ i, columnName }) as
 					| string
 					| number
 					| boolean;

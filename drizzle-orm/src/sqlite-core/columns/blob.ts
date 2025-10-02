@@ -9,9 +9,9 @@ type BlobMode = 'buffer' | 'json' | 'bigint';
 function hexToText(hexString: string) {
 	let result = '';
 	for (let i = 0; i < hexString.length; i += 2) {
-		const hexPair = hexString.substring(i, i + 2);
-		const decimalValue = parseInt(hexPair, 16);
-		result += String.fromCharCode(decimalValue);
+		const hexPair = hexString.slice(i, i + 2);
+		const decimalValue = Number.parseInt(hexPair, 16);
+		result += String.fromCodePoint(decimalValue);
 	}
 	return result;
 }

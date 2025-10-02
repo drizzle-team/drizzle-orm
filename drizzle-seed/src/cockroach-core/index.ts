@@ -5,7 +5,7 @@ import { CockroachTable, getTableConfig } from 'drizzle-orm/cockroach-core';
 import { getSchemaInfo } from '../common.ts';
 import { SeedService } from '../SeedService.ts';
 import type { RefinementsType } from '../types/seedService.ts';
-import type { Column, Table, TableConfigT } from '../types/tables.ts';
+import type { Column, TableConfigT } from '../types/tables.ts';
 
 // Cockroach-----------------------------------------------------------------------------------------------------------
 export const resetCockroach = async (
@@ -57,7 +57,7 @@ export const seedCockroach = async (
 	const seedService = new SeedService();
 
 	const { cockroachSchema, cockroachTables } = filterCockroachSchema(schema);
-	const { tables, relations } = getSchemaInfo(cockroachSchema, cockroachTables, mapCockroachTable);
+	const { tables, relations } = getSchemaInfo(cockroachSchema, cockroachTables, mapCockroachColumns);
 
 	const generatedTablesGenerators = seedService.generatePossibleGenerators(
 		'cockroach',
@@ -91,11 +91,10 @@ export const seedCockroach = async (
 	);
 };
 
-export const mapCockroachTable = (
+export const mapCockroachColumns = (
 	tableConfig: TableConfigT,
-	dbToTsTableNamesMap: { [key: string]: string },
 	dbToTsColumnNamesMap: { [key: string]: string },
-): Table => {
+): Column[] => {
 	const getAllBaseColumns = (
 		baseColumn: CockroachArray<any, any>['baseColumn'] & { baseColumn?: CockroachArray<any, any>['baseColumn'] },
 	): Column['baseColumn'] => {
@@ -158,28 +157,23 @@ export const mapCockroachTable = (
 		return typeParams;
 	};
 
-	// console.log(tableConfig.columns);
-	return {
-		name: dbToTsTableNamesMap[tableConfig.name] as string,
-		columns: tableConfig.columns.map((column) => ({
-			name: dbToTsColumnNamesMap[column.name] as string,
-			columnType: column.getSQLType(),
-			typeParams: getTypeParams(column.getSQLType()),
-			dataType: column.dataType.split(' ')[0]!,
-			size: (column as CockroachArray<any, any>).length,
-			hasDefault: column.hasDefault,
-			default: column.default,
-			enumValues: column.enumValues,
-			isUnique: column.isUnique,
-			notNull: column.notNull,
-			primary: column.primary,
-			generatedIdentityType: column.generatedIdentity?.type,
-			baseColumn: ((column as CockroachArray<any, any>).baseColumn === undefined)
-				? undefined
-				: getAllBaseColumns((column as CockroachArray<any, any>).baseColumn),
-		})),
-		primaryKeys: tableConfig.columns
-			.filter((column) => column.primary)
-			.map((column) => dbToTsColumnNamesMap[column.name] as string),
-	};
+	const mappedColumns = tableConfig.columns.map((column) => ({
+		name: dbToTsColumnNamesMap[column.name] as string,
+		columnType: column.getSQLType(),
+		typeParams: getTypeParams(column.getSQLType()),
+		dataType: column.dataType.split(' ')[0]!,
+		size: (column as CockroachArray<any, any>).length,
+		hasDefault: column.hasDefault,
+		default: column.default,
+		enumValues: column.enumValues,
+		isUnique: column.isUnique,
+		notNull: column.notNull,
+		primary: column.primary,
+		generatedIdentityType: column.generatedIdentity?.type,
+		baseColumn: ((column as CockroachArray<any, any>).baseColumn === undefined)
+			? undefined
+			: getAllBaseColumns((column as CockroachArray<any, any>).baseColumn),
+	}));
+
+	return mappedColumns;
 };

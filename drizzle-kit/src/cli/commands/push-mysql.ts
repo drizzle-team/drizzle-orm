@@ -218,6 +218,14 @@ export const suggestions = async (db: DB, statements: JsonStatement[]) => {
 	return { hints, truncates };
 
 	// TODO: update and implement
+
+	// Potential improvement:
+	// ON UPDATE NOW() has an FSP (fractional seconds precision)
+	// It cannot be added if it differs from the column TIMESTAMP FSP
+	// Warn the user if it differs
+	// Possibly add warn for generate command
+	// @AlexSherman added this
+
 	// for (const statement of statements) {
 	// 	if (statement.type === 'drop_table') {
 	// 		const res = await db.query(`select 1 from \`${statement.table}\` limit 1`);

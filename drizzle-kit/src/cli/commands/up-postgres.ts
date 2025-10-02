@@ -1,15 +1,7 @@
 import chalk from 'chalk';
 import { writeFileSync } from 'fs';
 import { createDDL, Index } from '../../dialects/postgres/ddl';
-import {
-	defaultForColumn,
-	defaultNameForFK,
-	defaultNameForIndex,
-	defaultNameForPK,
-	defaultNameForUnique,
-	defaults,
-	splitSqlType,
-} from '../../dialects/postgres/grammar';
+import { defaultNameForIndex, defaultNameForPK, defaultNameForUnique, defaults } from '../../dialects/postgres/grammar';
 import {
 	Column,
 	Index as LegacyIndex,
