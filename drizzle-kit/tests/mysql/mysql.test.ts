@@ -1309,7 +1309,7 @@ test('all types', async () => {
 			stringSimple: blob('string_simple', { mode: 'string' }),
 			stringColumnNotNull: blob('string_column_not_null', { mode: 'string' }).notNull(),
 			stringColumnDefault: blob('string_column_default', { mode: 'string' }).default('hello'),
-			stringColumnDefaultSql: blob('string_column_default_sql', { mode: 'string' }).default(sql`'hello'`),
+			stringColumnDefaultSql: blob('string_column_default_sql', { mode: 'string' }).default(sql`('hello')`),
 		}),
 		allMediumBlobs: mysqlTable('all_medium_blobs', {
 			simple: mediumblob('simple'),
@@ -1336,13 +1336,11 @@ test('all types', async () => {
 	const { sqlStatements: st } = await diff(schema1, schema1, []);
 
 	await push({ db, to: schema1 });
-	const { sqlStatements: pst } = await push({ db, to: schema1 });
 	const { sqlStatements: sbsqSt } = await push({ db, to: schema1 });
 
 	const st0: string[] = [];
 	expect(st).toStrictEqual(st0);
-	expect(pst).toStrictEqual(st0);
-	expect(sbsqSt).toStrictEqual([]);
+	expect(sbsqSt).toStrictEqual(st0);
 });
 
 test('drop primary key', async () => {
