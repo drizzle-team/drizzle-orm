@@ -39,6 +39,7 @@ export interface AlterColumn {
 	diff: DiffEntities['columns'];
 	column: Column;
 	isPK: boolean;
+	wasPK: boolean
 }
 
 export interface RecreateColumn {
