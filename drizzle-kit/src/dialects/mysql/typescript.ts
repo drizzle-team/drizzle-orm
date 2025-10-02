@@ -34,8 +34,11 @@ export const imports = [
 	'mysqlEnum',
 	'singlestoreEnum',
 	'customType',
+	'mediumblob',
+	'blob',
+	'tinyblob',
+	'longblob',
 	// TODO: add new type BSON
-	// TODO: add new type Blob
 	// TODO: add new type UUID
 	// TODO: add new type GUID
 	// TODO: add new type Vector

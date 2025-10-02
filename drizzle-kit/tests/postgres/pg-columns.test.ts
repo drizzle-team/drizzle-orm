@@ -1098,3 +1098,33 @@ test('no diffs for all database types', async () => {
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
+
+test('column with not null was renamed and dropped not null', async () => {
+	const from = {
+		users: pgTable('users', {
+			id: serial().primaryKey(),
+			name: varchar('name').notNull(),
+		}),
+	};
+	const to = {
+		users: pgTable('users', {
+			id: serial().primaryKey(),
+			name: varchar('name2'),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, ['public.users.name->public.users.name2']);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to: to, renames: ['public.users.name->public.users.name2'] });
+	const { sqlStatements: sbsqSt } = await push({ db, to: to });
+
+	const st0: string[] = [
+		`ALTER TABLE "users" RENAME COLUMN "name" TO "name2";`,
+		`ALTER TABLE "users" ALTER COLUMN "name2" DROP NOT NULL;`,
+	];
+
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+	expect(sbsqSt).toStrictEqual([]);
+});
