@@ -13,13 +13,12 @@ import {
 	MySqlTimestamp,
 	MySqlVarChar,
 	MySqlView,
-	uniqueKeyName,
 } from 'drizzle-orm/mysql-core';
 import { CasingType } from 'src/cli/validations/common';
 import { safeRegister } from '../../utils/utils-node';
 import { getColumnCasing, sqlToStr } from '../drizzle';
 import { Column, InterimSchema } from './ddl';
-import { nameForIndex, typeFor } from './grammar';
+import { defaultNameForFK, nameForUnique, typeFor } from './grammar';
 
 export const defaultFromColumn = (
 	column: AnyMySqlColumn,
@@ -127,9 +126,9 @@ export const fromDrizzleSchema = (
 				charSet = column.charSet;
 				collation = column.collation ?? null;
 			}
-			
+
 			// TODO: @AleksandrSherman remove
-			const nameExplicitTemp = `${tableName}_${column.name}_unique`!==column.uniqueName
+			const nameExplicitTemp = `${tableName}_${column.name}_unique` !== column.uniqueName;
 			result.columns.push({
 				entityType: 'columns',
 				table: tableName,
@@ -178,7 +177,9 @@ export const fromDrizzleSchema = (
 				return { value: getColumnCasing(c, casing), isExpression: false };
 			});
 
-			const name = unique.name ?? nameForIndex(tableName, unique.columns.filter((c) => !is(c, SQL)).map((c) => c.name));
+			const name = unique.explicitName
+				? unique.name!
+				: nameForUnique(tableName, unique.columns.filter((c) => !is(c, SQL)).map((c) => c.name));
 
 			result.indexes.push({
 				entityType: 'indexes',
@@ -200,20 +201,12 @@ export const fromDrizzleSchema = (
 			// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
 			const tableTo = getTableName(referenceFT);
 
-			const originalColumnsFrom = reference.columns.map((it) => it.name);
 			const columnsFrom = reference.columns.map((it) => getColumnCasing(it, casing));
-			const originalColumnsTo = reference.foreignColumns.map((it) => it.name);
 			const columnsTo = reference.foreignColumns.map((it) => getColumnCasing(it, casing));
 
-			let name = fk.getName();
-			if (casing !== undefined) {
-				for (let i = 0; i < originalColumnsFrom.length; i++) {
-					name = name.replace(originalColumnsFrom[i], columnsFrom[i]);
-				}
-				for (let i = 0; i < originalColumnsTo.length; i++) {
-					name = name.replace(originalColumnsTo[i], columnsTo[i]);
-				}
-			}
+			let name = fk.isNameExplicit()
+				? fk.getName()
+				: defaultNameForFK({ table: tableName, columns: columnsFrom, tableTo, columnsTo });
 
 			result.fks.push({
 				entityType: 'fks',

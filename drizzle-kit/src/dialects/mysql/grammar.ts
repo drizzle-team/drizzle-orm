@@ -302,7 +302,7 @@ export const TinyBlob: SqlType = {
 	drizzleImport: () => 'tinyblob',
 	defaultFromDrizzle: (value) => {
 		if (typeof Buffer !== 'undefined' && typeof Buffer.isBuffer === 'function' && Buffer.isBuffer(value)) {
-			return `(0x${value.toString('hex').toUpperCase()})`;
+			return `(0x${value.toString('hex').toLowerCase()})`;
 		}
 		if (Array.isArray(value) || typeof value === 'object' || typeof value === 'string') {
 			return Text.defaultFromDrizzle(value);
@@ -615,8 +615,8 @@ export const defaultNameForFK = (fk: Pick<ForeignKey, 'table' | 'columns' | 'tab
 	return res;
 };
 
-export const nameForIndex = (tableName: string, columns: string[]) => {
-	return `${tableName}_${columns.join('_')}_index`;
+export const nameForUnique = (tableName: string, columns: string[]) => {
+	return `${columns.join('_')}_unique`;
 };
 
 const stripCollation = (defaultValue: string, collation?: string): string => {
