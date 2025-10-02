@@ -52,7 +52,7 @@ beforeEach(async () => {
 	await _.clear();
 });
 
-test.only('add table #1', async () => {
+test('add table #1', async () => {
 	const to = {
 		users: mysqlTable('users', { id: int() }),
 	};
