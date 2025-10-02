@@ -214,7 +214,7 @@ export const mysqlSchemaV3 = schemaV3;
 export const mysqlSchemaV4 = schemaV4;
 export const mysqlSchemaV5 = schemaV5;
 export const mysqlSchemaSquashed = schemaSquashed;
-export type MysqlSchema = Schema
+export type MysqlSchema = Schema;
 
 const ddl = createDDL();
 export const snapshotValidator = validator({

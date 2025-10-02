@@ -197,7 +197,7 @@ test('foreign key constraint errors #1', async () => {
 });
 
 test('foreign key constraint errors #2', async () => {
-		// postpone
+	// postpone
 	if (Date.now() < +new Date('10/5/2025')) return;
 
 	const table1 = mysqlTable('table1', {
