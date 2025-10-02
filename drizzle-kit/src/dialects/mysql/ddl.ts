@@ -1,5 +1,5 @@
 import { create } from '../dialect';
-import { nameForIndex } from './grammar';
+import { nameForUnique } from './grammar';
 
 export const createDDL = () => {
 	return create({
@@ -179,7 +179,7 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: S
 	}
 
 	for (const column of interim.columns.filter((it) => it.isUnique)) {
-		const name = column.uniqueName ?? nameForIndex(column.table, [column.name]);
+		const name = column.uniqueName ?? nameForUnique(column.table, [column.name]);
 		const res = ddl.indexes.push({
 			table: column.table,
 			name,
