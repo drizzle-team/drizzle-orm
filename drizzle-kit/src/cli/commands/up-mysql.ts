@@ -1,9 +1,9 @@
 import { existsSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import { Journal } from '../../utils';
 import { createDDL } from 'src/dialects/mysql/ddl';
 import { trimChar } from 'src/utils';
 import type { MysqlSchema, MysqlSnapshot } from '../../dialects/mysql/snapshot';
+import { Journal } from '../../utils';
 
 export const upMysqlHandler = (out: string) => {
 	// if there is meta folder - and there is a journal - it's version <8
@@ -51,7 +51,7 @@ export const upToV6 = (it: Record<string, any>): MysqlSnapshot => {
 				// TODO: @AleksandrSherman check
 				charSet: null,
 				collation: null,
-				onUpdateNowFsp: null
+				onUpdateNowFsp: null,
 			});
 		}
 	}

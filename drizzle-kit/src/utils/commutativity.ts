@@ -12,9 +12,8 @@ import type { JsonStatement } from '../dialects/postgres/statements';
 export type BranchConflict = {
 	parentId: string;
 	parentPath?: string;
-	branchA: { headId: string; path: string; statements: JsonStatement[] };
-	branchB: { headId: string; path: string; statements: JsonStatement[] };
-	reasons: string[];
+	branchA: { headId: string; path: string; statement: JsonStatement };
+	branchB: { headId: string; path: string; statement: JsonStatement };
 };
 
 export type NonCommutativityReport = {
@@ -473,23 +472,23 @@ function getFolderNameFromNodeId(node: SnapshotNode<any>): string {
 	return folderPath.split('/').pop() || '';
 }
 
-function generateLeafFootprints(statements: JsonStatement[], folderName: string, snapshot?: PostgresSnapshot): {
-	statementHashes: Array<{ hash: string; statement: JsonStatement; statementId: string }>;
-	conflictFootprints: Array<{ hash: string; statement: JsonStatement; statementId: string }>;
+function generateLeafFootprints(statements: JsonStatement[], snapshot?: PostgresSnapshot): {
+	statementHashes: Array<{ hash: string; statement: JsonStatement }>;
+	conflictFootprints: Array<{ hash: string; statement: JsonStatement }>;
 } {
-	const statementHashes: Array<{ hash: string; statement: JsonStatement; statementId: string }> = [];
-	const conflictFootprints: Array<{ hash: string; statement: JsonStatement; statementId: string }> = [];
+	const statementHashes: Array<{ hash: string; statement: JsonStatement }> = [];
+	const conflictFootprints: Array<{ hash: string; statement: JsonStatement }> = [];
 
 	for (let i = 0; i < statements.length; i++) {
 		const statement = statements[i];
 		const [hashes, conflicts] = footprint(statement, snapshot);
 
 		for (const hash of hashes) {
-			statementHashes.push({ hash, statement, statementId: folderName });
+			statementHashes.push({ hash, statement });
 		}
 
 		for (const conflict of conflicts) {
-			conflictFootprints.push({ hash: conflict, statement, statementId: folderName });
+			conflictFootprints.push({ hash: conflict, statement });
 		}
 	}
 
@@ -587,43 +586,54 @@ function findChildEntitiesInTableFromSnapshot(
 }
 
 function findFootprintIntersections(
-	branchAHashes: Array<{ hash: string; statement: JsonStatement; statementId: string }>,
-	branchAConflicts: Array<{ hash: string; statement: JsonStatement; statementId: string }>,
-	branchBHashes: Array<{ hash: string; statement: JsonStatement; statementId: string }>,
-	branchBConflicts: Array<{ hash: string; statement: JsonStatement; statementId: string }>,
-	leafAId: string,
-	leafBId: string,
-): string[] {
-	const reasons: string[] = [];
+	branchAHashes: Array<{ hash: string; statement: JsonStatement }>,
+	branchAConflicts: Array<{ hash: string; statement: JsonStatement }>,
+	branchBHashes: Array<{ hash: string; statement: JsonStatement }>,
+	branchBConflicts: Array<{ hash: string; statement: JsonStatement }>,
+) {
+	// const intersections: { leftStatement: string; rightStatement: string }[] = [];
 
-	// Check if any statement hash from branch A intersects with conflict footprints from branch B
 	for (const hashInfoA of branchAHashes) {
 		for (const conflictInfoB of branchBConflicts) {
 			if (hashInfoA.hash === conflictInfoB.hash) {
-				reasons.push(
-					`Statement conflict: Branch A statement ${hashInfoA.statementId} (${hashInfoA.statement.type}) `
-						+ `conflicts with Branch B statement ${conflictInfoB.statementId} (${conflictInfoB.statement.type}) `
-						+ `on resource: ${hashInfoA.hash} (A: ${leafAId}, B: ${leafBId})`,
-				);
+				// Decided to return a first issue. You should run check and fix them until you have 0
+				// intersections.push({ leftStatement: hashInfoA.hash, rightStatement: conflictInfoB.hash });
+				return { leftStatement: hashInfoA.statement, rightStatement: conflictInfoB.statement };
 			}
 		}
 	}
 
-	// Check if any statement hash from branch B intersects with conflict footprints from branch A
 	for (const hashInfoB of branchBHashes) {
 		for (const conflictInfoA of branchAConflicts) {
 			if (hashInfoB.hash === conflictInfoA.hash) {
-				reasons.push(
-					`Statement conflict: Branch B statement ${hashInfoB.statementId} (${hashInfoB.statement.type}) `
-						+ `conflicts with Branch A statement ${conflictInfoA.statementId} (${conflictInfoA.statement.type}) `
-						+ `on resource: ${hashInfoB.hash} (A: ${leafAId}, B: ${leafBId})`,
-				);
+				// Decided to return a first issue. You should run check and fix them until you have 0
+				// intersections.push({ leftStatement: hashInfoB.hash, rightStatement: conflictInfoA.hash });
+				return { leftStatement: hashInfoB.statement, rightStatement: conflictInfoA.statement };
 			}
 		}
 	}
 
-	return reasons;
+	// return intersections;
 }
+
+// export const getReasonsFromStatements = async (aStatements: JsonStatement[], bStatements: JsonStatement[], snapshot?: PostgresSnapshot) => {
+// 	const parentSnapshot = snapshot ?? drySnapshot;
+// 						const branchAFootprints = generateLeafFootprints(
+// 							aStatements,
+// 							parentSnapshot,
+// 						);
+// 						const branchBFootprints = generateLeafFootprints(
+// 							bStatements,
+// 							parentSnapshot,
+// 						);
+
+// 						const reasons = findFootprintIntersections(
+// 							branchAFootprints.statementHashes,
+// 							branchAFootprints.conflictFootprints,
+// 							branchBFootprints.statementHashes,
+// 							branchBFootprints.conflictFootprints,
+// 						);
+// }
 
 export const detectNonCommutative = async (
 	snapshotsPaths: string[],
@@ -677,31 +687,27 @@ export const detectNonCommutative = async (
 						const parentSnapshot = parentNode ? parentNode.raw : drySnapshot;
 						const branchAFootprints = generateLeafFootprints(
 							aStatements,
-							getFolderNameFromNodeId(nodes[aId]),
 							parentSnapshot,
 						);
 						const branchBFootprints = generateLeafFootprints(
 							bStatements,
-							getFolderNameFromNodeId(nodes[bId]),
 							parentSnapshot,
 						);
 
-						const reasons = findFootprintIntersections(
+						const intersectedHashed = findFootprintIntersections(
 							branchAFootprints.statementHashes,
 							branchAFootprints.conflictFootprints,
 							branchBFootprints.statementHashes,
 							branchBFootprints.conflictFootprints,
-							aId,
-							bId,
 						);
 
-						if (reasons.length > 0) {
+						if (intersectedHashed) {
+							// parentId and parentPath is a head of a branched leaves
 							conflicts.push({
 								parentId: prevId,
 								parentPath: parentNode?.folderPath,
-								branchA: { headId: aId, path: leafStatements[aId]!.path, statements: aStatements },
-								branchB: { headId: bId, path: leafStatements[bId]!.path, statements: bStatements },
-								reasons: reasons,
+								branchA: { headId: aId, path: leafStatements[aId]!.path, statement: intersectedHashed.leftStatement },
+								branchB: { headId: bId, path: leafStatements[bId]!.path, statement: intersectedHashed.rightStatement },
 							});
 						}
 					}

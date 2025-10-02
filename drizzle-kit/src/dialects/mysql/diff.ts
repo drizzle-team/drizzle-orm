@@ -345,7 +345,7 @@ export const ddlDiff = async (
 			if (it.notNull && !!ddl2.pks.one({ table: it.table, columns: { CONTAINS: it.name } })) {
 				delete it.notNull;
 			}
-			
+
 			if (
 				mode === 'push' && (it.charSet || it.collation)
 				&& charSetAndCollationCommutative(

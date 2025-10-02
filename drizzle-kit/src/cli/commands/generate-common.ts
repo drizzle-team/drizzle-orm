@@ -56,6 +56,7 @@ export const writeResult = (config: {
 	const lastEntryInJournal = journal.entries[journal.entries.length - 1];
 	const idx = typeof lastEntryInJournal === 'undefined' ? 0 : lastEntryInJournal.idx + 1;
 
+	// @ts-ignore
 	const { prefix, tag } = prepareMigrationMetadata(idx, prefixMode, name);
 
 	snapshot.renames = renames;

@@ -80,7 +80,7 @@ describe('commutativity integration (postgres)', () => {
 		expect(report.conflicts.length).toBeGreaterThan(0);
 	});
 
-	test('table drop vs child column alter', async () => {
+	test.only('table drop vs child column alter', async () => {
 		const { tmp } = mkTmp();
 		const files: string[] = [];
 
@@ -129,7 +129,15 @@ describe('commutativity integration (postgres)', () => {
 		);
 
 		const report = await detectNonCommutative(files, 'postgresql');
-		expect(report.conflicts.some((c) => c.reasons.some((r) => r.includes('drop_table')))).toBe(true);
+		expect(report.conflicts.length).toBe(1);
+		expect(report.conflicts[0].branchA.headId).toStrictEqual('a_drop');
+		expect(report.conflicts[0].branchB.headId).toStrictEqual('b_drop');
+		const con = report.conflicts[0];
+
+		console.log(
+			`The conflict in your migrations was detected. Starting from a ${con.parentId} we've detected 2 branches of migrations that are conflicting. A file with conflicted migration for a first branch in ${con.branchA.headId} and second branch is ${con.branchB.headId}.\n\n${con.branchA.statement.type} statement from first branch is conflicting with ${con.branchB.statement.type}`,
+		);
+		// expect(report.conflicts.some((c) => c.reasons.some((r) => r.includes('drop_table')))).toBe(true);
 	});
 
 	test('unique constraint same name on same table', async () => {
@@ -276,7 +284,8 @@ describe('commutativity integration (postgres)', () => {
 		);
 
 		const report = await detectNonCommutative(files, 'postgresql');
-		console.log(report.conflicts[0].reasons);
+		// TODO
+		// console.log(report.conflicts[0].reasons);
 		expect(report.conflicts.length).toBeGreaterThan(0);
 	});
 

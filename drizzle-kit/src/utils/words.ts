@@ -12,7 +12,6 @@ export const prepareMigrationMetadata = (
 	const HH = pad(d.getHours());
 	const mm = pad(d.getMinutes());
 	const ss = pad(d.getSeconds());
-
 	const prefix = `${yyyy}${MM}${dd}${HH}${mm}${ss}`;
 
 	const suffix = name || `${adjectives.random()}_${heroes.random()}`;
