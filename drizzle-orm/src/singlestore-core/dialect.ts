@@ -38,6 +38,7 @@ import { SingleStoreTable } from './table.ts';
 
 export interface SingleStoreDialectConfig {
 	casing?: Casing;
+	safeMutations?: boolean;
 }
 
 export class SingleStoreDialect {
@@ -46,8 +47,11 @@ export class SingleStoreDialect {
 	/** @internal */
 	readonly casing: CasingCache;
 
+	safeMutations: boolean;
+
 	constructor(config?: SingleStoreDialectConfig) {
 		this.casing = new CasingCache(config?.casing);
+		this.safeMutations = config?.safeMutations ?? false;
 	}
 
 	async migrate(
@@ -117,6 +121,10 @@ export class SingleStoreDialect {
 	}
 
 	buildDeleteQuery({ table, where, returning, withList, limit, orderBy }: SingleStoreDeleteConfig): SQL {
+		if (this.safeMutations && !where) {
+			throw new Error('Delete query must have a "where" clause');
+		}
+		
 		const withSql = this.buildWithCTE(withList);
 
 		const returningSql = returning
@@ -154,6 +162,10 @@ export class SingleStoreDialect {
 	}
 
 	buildUpdateQuery({ table, set, where, returning, withList, limit, orderBy }: SingleStoreUpdateConfig): SQL {
+		if (this.safeMutations && !where) {
+			throw new Error('Update query must have a "where" clause');
+		}
+
 		const withSql = this.buildWithCTE(withList);
 
 		const setSql = this.buildUpdateSet(table, set);

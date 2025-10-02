@@ -42,6 +42,7 @@ import { SQLiteViewBase } from './view-base.ts';
 
 export interface SQLiteDialectConfig {
 	casing?: Casing;
+	safeMutations?: boolean;
 }
 
 export abstract class SQLiteDialect {
@@ -50,8 +51,11 @@ export abstract class SQLiteDialect {
 	/** @internal */
 	readonly casing: CasingCache;
 
+	safeMutations: boolean;
+
 	constructor(config?: SQLiteDialectConfig) {
 		this.casing = new CasingCache(config?.casing);
+		this.safeMutations = config?.safeMutations ?? false;
 	}
 
 	escapeName(name: string): string {
@@ -81,6 +85,10 @@ export abstract class SQLiteDialect {
 	}
 
 	buildDeleteQuery({ table, where, returning, withList, limit, orderBy }: SQLiteDeleteConfig): SQL {
+		if (this.safeMutations && !where) {
+			throw new Error('Delete query must have a "where" clause');
+		}
+
 		const withSql = this.buildWithCTE(withList);
 
 		const returningSql = returning
@@ -118,6 +126,10 @@ export abstract class SQLiteDialect {
 	}
 
 	buildUpdateQuery({ table, set, where, returning, withList, joins, from, limit, orderBy }: SQLiteUpdateConfig): SQL {
+		if (this.safeMutations && !where) {
+			throw new Error('Update query must have a "where" clause');
+		}
+
 		const withSql = this.buildWithCTE(withList);
 
 		const setSql = this.buildUpdateSet(table, set);
