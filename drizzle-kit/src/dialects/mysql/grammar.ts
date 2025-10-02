@@ -302,7 +302,7 @@ export const TinyBlob: SqlType = {
 	drizzleImport: () => 'tinyblob',
 	defaultFromDrizzle: (value) => {
 		if (typeof Buffer !== 'undefined' && typeof Buffer.isBuffer === 'function' && Buffer.isBuffer(value)) {
-			return `(0x${value.toString('hex').toUpperCase()})`;
+			return `(0x${value.toString('hex').toLowerCase()})`;
 		}
 		if (Array.isArray(value) || typeof value === 'object' || typeof value === 'string') {
 			return Text.defaultFromDrizzle(value);

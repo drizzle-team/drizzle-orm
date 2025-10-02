@@ -274,7 +274,7 @@ export const ddlDiff = async (
 
 	const dropFKStatements = fksDiff.filter((it) => it.$diffType === 'drop')
 		.filter((it) => !deletedTables.some((x) => x.name === it.table))
-		.map((it) => prepareStatement('drop_constraint', { table:it.table, constraint: it.name }));
+		.map((it) => prepareStatement('drop_constraint', { table: it.table, constraint: it.name }));
 
 	const dropPKStatements = pksDiff.filter((it) => it.$diffType === 'drop')
 		.filter((it) => !deletedTables.some((x) => x.name === it.table))
