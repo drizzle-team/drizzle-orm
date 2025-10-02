@@ -205,6 +205,30 @@ export function diffPolicies(left, right) {
 	return alteredTables;
 }
 
+export function diffFunctions(left, right) {
+	left = JSON.parse(JSON.stringify(left ?? {}));
+	right = JSON.parse(JSON.stringify(right ?? {}));
+
+	const result = Object.entries(diff(left, right) ?? {});
+
+	const added = result
+		.filter((it) => it[0].endsWith('__added'))
+		.map((it) => it[1]);
+	const deleted = result
+		.filter((it) => it[0].endsWith('__deleted'))
+		.map((it) => it[1]);
+
+	// If a function changes, we can just drop and recreate it
+	const changedKeys = result
+		.filter((it) => !it[0].endsWith('__deleted') && !it[0].endsWith('__added')).map((it) => it[0]);
+	for (const key of changedKeys) {
+		deleted.push(left[key]);
+		added.push(right[key]);
+	}
+
+	return { added, deleted };
+}
+
 export function applyJsonDiff(json1, json2) {
 	json1 = JSON.parse(JSON.stringify(json1));
 	json2 = JSON.parse(JSON.stringify(json2));

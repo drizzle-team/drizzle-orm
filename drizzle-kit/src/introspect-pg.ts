@@ -25,6 +25,7 @@ import {
 } from './serializer/pgSchema';
 import { indexName } from './serializer/pgSerializer';
 import { unescapeSingleQuotes } from './utils';
+import { createHash } from 'crypto';
 
 const pgImportsList = new Set([
 	'pgTable',
@@ -601,7 +602,35 @@ export const schemaToTypeScript = (schema: PgSchemaInternal, casing: Casing) => 
 		})
 		.join('\n\n');
 
-	const uniquePgImports = ['pgTable', ...new Set(imports.pg)];
+		const functionsImports = new Set<string>();
+		const functionsStatements = Object.values(schema.functions)
+			.map((it) => {
+				const schema = schemas[it.schema];
+
+				// Functions can be overloaded, and they are identified by their args
+				// In order to uniquely identify them, we create a suffix based on the args
+				const functionSuffix = createHash('sha256').update(it.args ?? '').digest('hex').slice(0, 8);
+				const paramName = paramNameFor(it.name, schema) + `_${functionSuffix}`;
+
+				const func = `pgFunction`;
+				functionsImports.add(func);
+
+				let statement = `export const ${withCasing(paramName, casing)} = ${func}("${it.name}", ${JSON.stringify({
+					schema: it.schema,
+					language: it.language,
+					args: it.args,
+					returns: it.returns,
+					stability: it.stability,
+					security: it.security,
+					params: it.params,
+					body: it.body,
+				})});`;
+
+				return statement;
+			})
+			.join('\n\n');
+
+	const uniquePgImports = ['pgTable', ...new Set(imports.pg), ...functionsImports];
 
 	const importsTs = `import { ${
 		uniquePgImports.join(
@@ -618,6 +647,8 @@ import { sql } from "drizzle-orm"\n\n`;
 	decalrations += tableStatements.join('\n\n');
 	decalrations += '\n';
 	decalrations += viewsStatements;
+	decalrations += '\n';
+	decalrations += functionsStatements;
 
 	const file = importsTs + decalrations;
 

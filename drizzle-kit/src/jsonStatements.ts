@@ -4,6 +4,7 @@ import { warning } from './cli/views';
 import { CommonSquashedSchema } from './schemaValidator';
 import { MySqlKitInternals, MySqlSchema, MySqlSquasher, View as MySqlView } from './serializer/mysqlSchema';
 import {
+	Function,
 	Index,
 	MatViewWithOption,
 	PgSchema,
@@ -251,6 +252,19 @@ export interface JsonCreatePolicyStatement {
 	schema: string;
 }
 
+export interface JsonCreateFunctionStatement {
+	type: 'create_function';
+	name: string;
+	schema: string;
+	args?: string;
+	returns?: string;
+	language?: 'sql' | 'plpgsql';
+	body?: string;
+	stability?: 'immutable' | 'volatile' | 'stable';
+	security?: 'invoker' | 'definer';
+	params?: Record<string, string>;
+}
+
 export interface JsonCreateIndPolicyStatement {
 	type: 'create_ind_policy';
 	tableName: string;
@@ -262,6 +276,13 @@ export interface JsonDropPolicyStatement {
 	tableName: string;
 	data: Policy;
 	schema: string;
+}
+
+export interface JsonDropFunctionStatement {
+	type: 'drop_function';
+	name: string;
+	schema: string;
+	args?: string;
 }
 
 export interface JsonDropIndPolicyStatement {
@@ -863,6 +884,8 @@ export type JsonStatement =
 	| JsonCreatePolicyStatement
 	| JsonAlterPolicyStatement
 	| JsonRenamePolicyStatement
+	| JsonCreateFunctionStatement
+	| JsonDropFunctionStatement
 	| JsonEnableRLSStatement
 	| JsonDisableRLSStatement
 	| JsonRenameRoleStatement
@@ -2847,6 +2870,34 @@ export const prepareDropIndPolicyJsons = (
 			data: it,
 		};
 	});
+};
+
+export const preparePgCreateFunctionJson = (
+	fn: Function,
+): JsonCreateFunctionStatement => {
+	return {
+		type: 'create_function',
+		name: fn.name,
+		schema: fn.schema ?? 'public',
+		args: fn.args,
+		returns: fn.returns,
+		language: fn.language,
+		body: fn.body,
+		stability: fn.stability,
+		security: fn.security,
+		params: fn.params,
+	};
+};
+
+export const preparePgDropFunctionJson = (
+	fn: Function,
+): JsonDropFunctionStatement => {
+	return {
+		type: 'drop_function',
+		name: fn.name,
+		schema: fn.schema ?? 'public',
+		args: fn.args,
+	};
 };
 
 export const prepareAlterPolicyJson = (

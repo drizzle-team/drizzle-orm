@@ -19,6 +19,7 @@ import {
 	macaddr8,
 	numeric,
 	pgEnum,
+	pgFunction,
 	pgMaterializedView,
 	pgPolicy,
 	pgRole,
@@ -921,6 +922,104 @@ test('multiple policies with roles from schema', async () => {
 		'multiple-policies-with-roles-from-schema',
 		['public'],
 		{ roles: { include: ['user_role'] } },
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+
+test('single function', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		uppercase: pgFunction('uppercase', {
+			schema: 'public',
+			args: 'input_text text',
+			language: 'sql',
+			returns: 'text',
+			stability: 'stable',
+			security: 'invoker',
+			body: 'SELECT UPPER(input_text)',
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'single-function',
+		['public'],
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('two functions with same name in 2 schemas', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		privateSchema: pgSchema('private'),
+		uppercase: pgFunction('uppercase', {
+			schema: 'public',
+			args: 'input_text text',
+			language: 'sql',
+			returns: 'text',
+			stability: 'stable',
+			security: 'invoker',
+			body: 'SELECT UPPER(input_text)',
+		}),
+		uppercasePrivate: pgFunction('uppercase', {
+			schema: 'private',
+			args: 'input_text text',
+			language: 'sql',
+			returns: 'text',
+			stability: 'stable',
+			security: 'invoker',
+			body: 'SELECT UPPER(input_text)',
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'two-functions-with-same-name-in-2-schemas',
+		['public'],
+	);
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+test('overloaded function', async () => {
+	const client = new PGlite();
+
+	const schema = {
+		uppercase: pgFunction('uppercase', {
+			schema: 'public',
+			args: 'input_text text',
+			language: 'sql',
+			returns: 'text',
+			stability: 'stable',
+			security: 'invoker',
+			body: 'SELECT UPPER(input_text)',
+		}),
+		uppercase2: pgFunction('uppercase', {
+			schema: 'public',
+			args: 'input_text varchar',
+			language: 'sql',
+			returns: 'varchar',
+			stability: 'stable',
+			security: 'invoker',
+			body: 'SELECT UPPER(input_text)',
+		}),
+	};
+
+	const { statements, sqlStatements } = await introspectPgToFile(
+		client,
+		schema,
+		'overloaded-function',
+		['public'],
 	);
 
 	expect(statements.length).toBe(0);
