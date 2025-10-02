@@ -1,7 +1,7 @@
 import { mockResolver } from '../../utils/mocks';
 import { Resolver } from '../common';
 import { diff } from '../dialect';
-import { groupDiffs } from '../utils';
+import { groupDiffs, preserveEntityNames } from '../utils';
 import { fromJson } from './convertor';
 import { Column, DiffEntities, fullTableFromDDL, Index, MysqlDDL, Table, View } from './ddl';
 import { charSetAndCollationCommutative, defaultNameForFK, typesCommutative } from './grammar';
@@ -184,6 +184,10 @@ export const ddlDiff = async (
 		ddl2.pks.update(update4);
 	}
 
+	preserveEntityNames(ddl1.fks, ddl2.fks, mode);
+	preserveEntityNames(ddl1.pks, ddl2.pks, mode);
+	preserveEntityNames(ddl1.indexes, ddl2.indexes, mode);
+
 	const viewsDiff = diff(ddl1, ddl2, 'views');
 
 	const {
@@ -337,6 +341,11 @@ export const ddlDiff = async (
 				delete it.generated;
 			}
 
+			// if there's a change in notnull but column is a part of a pk - we don't care
+			if (it.notNull && !!ddl2.pks.one({ table: it.table, columns: { CONTAINS: it.name } })) {
+				delete it.notNull;
+			}
+			
 			if (
 				mode === 'push' && (it.charSet || it.collation)
 				&& charSetAndCollationCommutative(

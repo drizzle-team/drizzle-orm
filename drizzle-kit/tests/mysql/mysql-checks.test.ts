@@ -61,7 +61,7 @@ test('add check constraint to existing table #1', async (t) => {
 		]),
 	};
 
-	const { sqlStatements: st } = await diff(from, to, []);
+	const { sqlStatements: st, next } = await diff(from, to, []);
 
 	await push({ db, to: from });
 	const { sqlStatements: pst } = await push({ db, to });
@@ -71,6 +71,7 @@ test('add check constraint to existing table #1', async (t) => {
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+	expect(next).toStrictEqual([]);
 });
 
 test('add check constraint to existing table #2', async () => {

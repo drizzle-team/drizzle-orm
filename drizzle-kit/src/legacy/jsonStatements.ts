@@ -1,4 +1,5 @@
 import type { MySqlView } from 'drizzle-orm/mysql-core/view';
+import { JsonCreateViewStatement } from 'src/dialects/sqlite/statements';
 import { MySqlSchema, MySqlSquasher } from './mysql-v5/mysqlSchema';
 import {
 	Index,
@@ -12,7 +13,6 @@ import {
 	ViewWithOption,
 } from './postgres-v7/pgSchema';
 import { AlteredColumn, Column, Sequence, Table } from './snapshotsDiffer';
-import { JsonCreateViewStatement } from 'src/dialects/sqlite/statements';
 
 export interface JsonCreateTableStatement {
 	type: 'create_table';
@@ -394,9 +394,9 @@ export type JsonCreateMySqlViewStatement = {
 	replace: boolean;
 	name: string;
 	definition: string;
-	algorithm: "undefined" | "merge" | "temptable",
-	sqlSecurity: "definer" | "invoker",
-	withCheckOption: "local" | "cascaded" | undefined
+	algorithm: 'undefined' | 'merge' | 'temptable';
+	sqlSecurity: 'definer' | 'invoker';
+	withCheckOption: 'local' | 'cascaded' | undefined;
 };
 
 export interface JsonCreateReferenceStatement extends JsonReferenceStatement {
@@ -833,7 +833,8 @@ export type JsonStatement =
 	| JsonDropIndPolicyStatement
 	| JsonCreateIndPolicyStatement
 	| JsonAlterIndPolicyStatement
-	| JsonCreateMySqlViewStatement
+	| JsonAlterMySqlViewStatement
+	| JsonCreateMySqlViewStatement;
 
 export const preparePgCreateTableJson = (
 	table: Table,

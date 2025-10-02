@@ -168,6 +168,7 @@ export type Table = TypeOf<typeof table>;
 export type Column = TypeOf<typeof column>;
 export type SchemaV4 = TypeOf<typeof schemaV4>;
 export type SchemaV5 = TypeOf<typeof schemaV5>;
+export type Schema = TypeOf<typeof schema>;
 
 const tableSquashedV4 = object({
 	name: string(),
@@ -213,7 +214,7 @@ export const mysqlSchemaV3 = schemaV3;
 export const mysqlSchemaV4 = schemaV4;
 export const mysqlSchemaV5 = schemaV5;
 export const mysqlSchemaSquashed = schemaSquashed;
-export type MysqlSchema = TypeOf<typeof schemaV5>
+export type MysqlSchema = Schema
 
 const ddl = createDDL();
 export const snapshotValidator = validator({

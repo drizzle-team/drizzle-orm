@@ -53,6 +53,7 @@ beforeEach(async () => {
 	await _.clear();
 });
 
+// TODO: add simple .unique(), etc. To discuss with @OleksiiKH0240
 test('#1', async () => {
 	const users3 = mysqlTable('users3', {
 		c1: varchar({ length: 100 }),
@@ -428,6 +429,198 @@ test('index with sort', async () => {
 	const expectedSt = [
 		'CREATE TABLE `table` (\n\t`column1` int,\n\t`column2` int,\n\t`column3` int\n);\n',
 		'CREATE INDEX `table_composite_idx` ON `table` (`column1`,`column2`,`column3` desc);',
+	];
+
+	expect(st).toStrictEqual(expectedSt);
+	expect(pst).toStrictEqual(expectedSt);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/4221
+test('fk on char column', async () => {
+	function column1() {
+		return char('column1', { length: 24 }).primaryKey().$defaultFn(() => '1');
+	}
+	const table1 = mysqlTable(
+		'table1',
+		{
+			column1: column1(),
+		},
+	);
+	const table2 = mysqlTable(
+		'table2',
+		{
+			column1: column1(),
+			column2: char('column2', { length: 24 }).references(() => table1.column1).notNull(),
+		},
+	);
+	const to = { table1, table2 };
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+	const expectedSt: string[] = [
+		'CREATE TABLE `table1` (\n\t`column1` char(24) PRIMARY KEY\n);\n',
+		'CREATE TABLE `table2` (\n\t`column1` char(24) PRIMARY KEY,\n\t`column2` char(24) NOT NULL\n);\n',
+		'ALTER TABLE `table2` ADD CONSTRAINT `table2_column2_table1_column1_fk` FOREIGN KEY (`column2`) REFERENCES `table1`(`column1`);',
+	];
+
+	expect(st).toStrictEqual(expectedSt);
+	expect(pst).toStrictEqual(expectedSt);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3244
+test('fk name is too long', async () => {
+	const table1 = mysqlTable(
+		'table1_loooooong',
+		{
+			column1: int('column1_looooong').primaryKey(),
+		},
+	);
+	const table2 = mysqlTable(
+		'table2_loooooong',
+		{
+			column1: int('column1_looooong').references(() => table1.column1).notNull(),
+		},
+	);
+	const to = { table1, table2 };
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+	const expectedSt: string[] = [
+		'CREATE TABLE `table1` (\n\t`column1` int PRIMARY KEY\n);\n',
+		'CREATE TABLE `table2` (\n\t`column1` int NOT NULL\n);\n',
+		'ALTER TABLE `table2` ADD CONSTRAINT `table2_column1_table1_column1_fk` FOREIGN KEY (`column1`) REFERENCES `table1`(`column1`);',
+	];
+
+	expect(st).toStrictEqual(expectedSt);
+	expect(pst).toStrictEqual(expectedSt);
+});
+
+test('adding autoincrement to table with pk #1', async () => {
+	const schema1 = {
+		table1: mysqlTable('table1', {
+			column1: int().primaryKey(),
+		}),
+	};
+
+	const { next: n1, sqlStatements: st1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+	const expectedSt1: string[] = [
+		'CREATE TABLE `table1` (\n\t`column1` int PRIMARY KEY\n);\n',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const schema2 = {
+		table1: mysqlTable('table1', {
+			column1: int().autoincrement().primaryKey(),
+		}),
+	};
+
+	const { sqlStatements: st2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+
+	const expectedSt2: string[] = [
+		'ALTER TABLE `table1` MODIFY COLUMN `column1` int AUTO_INCREMENT NOT NULL;',
+	];
+
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+test('adding autoincrement to table with pk #2', async () => {
+	// TODO: revise: I can successfully run all the queries manually, but somehow it throws error in the test
+	const schema1 = {
+		table1: mysqlTable('table1', {
+			column1: int().notNull(),
+			column2: int(),
+		}, (table) => [
+			primaryKey({ columns: [table.column1, table.column2] }),
+		]),
+	};
+
+	const { next: n1, sqlStatements: st1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+	const expectedSt1: string[] = [
+		'CREATE TABLE `table1` (\n\t`column1` int NOT NULL,\n\t`column2` int,\n\tCONSTRAINT `table1_column1_column2_pk` PRIMARY KEY(`column1`,`column2`)\n);\n',
+	];
+
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const schema2 = {
+		table1: mysqlTable('table1', {
+			column1: int().notNull().autoincrement(),
+			column2: int().default(1),
+		}, (table) => [
+			primaryKey({ columns: [table.column1, table.column2] }),
+		]),
+	};
+
+	const { sqlStatements: st2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+
+	const expectedSt2: string[] = [
+		'ALTER TABLE `table1` MODIFY COLUMN `column1` int AUTO_INCREMENT NOT NULL;',
+	];
+
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+test('adding autoincrement to table with unique #1', async () => {
+	const schema1 = {
+		table1: mysqlTable('table1', {
+			column1: int().unique(),
+		}),
+	};
+
+	const { next: n1 } = await diff({}, schema1, []);
+	await push({ db, to: schema1 });
+
+	const schema2 = {
+		table1: mysqlTable('table1', {
+			column1: int().autoincrement().unique(),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff(n1, schema2, []);
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	const expectedSt: string[] = [
+		'ALTER TABLE `table1` MODIFY COLUMN `column1` int AUTO_INCREMENT;',
+	];
+
+	expect(st).toStrictEqual(expectedSt);
+	expect(pst).toStrictEqual(expectedSt);
+});
+
+test('adding autoincrement to table with unique #2', async () => {
+	const schema1 = {
+		table1: mysqlTable('table1', {
+			column1: int(),
+			column2: int(),
+		}, (table) => [
+			unique().on(table.column1, table.column2),
+		]),
+	};
+
+	const { next: n1 } = await diff({}, schema1, []);
+	await push({ db, to: schema1 });
+
+	const schema2 = {
+		table1: mysqlTable('table1', {
+			column1: int().autoincrement(),
+			column2: int(),
+		}, (table) => [
+			unique().on(table.column1, table.column2),
+		]),
+	};
+
+	const { sqlStatements: st } = await diff(n1, schema2, []);
+	const { sqlStatements: pst } = await push({ db, to: schema2 });
+
+	const expectedSt: string[] = [
+		'ALTER TABLE `table1` MODIFY COLUMN `column1` int AUTO_INCREMENT;',
 	];
 
 	expect(st).toStrictEqual(expectedSt);
