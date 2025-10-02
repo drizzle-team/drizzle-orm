@@ -61,10 +61,6 @@ export interface CreateFK {
 	type: 'create_fk';
 	fk: ForeignKey;
 }
-export interface DropFK {
-	type: 'drop_fk';
-	fk: ForeignKey;
-}
 
 export interface CreatePK {
 	type: 'create_pk';
@@ -132,7 +128,6 @@ export type JsonStatement =
 	| CreateIndex
 	| DropIndex
 	| CreateFK
-	| DropFK
 	| CreatePK
 	| DropPK
 	| RecreatePK
