@@ -134,12 +134,12 @@ const renameColumn = convertor('rename_column', (st) => {
 });
 
 const alterColumn = convertor('alter_column', (st) => {
-	const { diff, column, isPK } = st;
+	const { diff, column, isPK, wasPK } = st;
 
 	const defaultStatement = column.default !== null ? ` DEFAULT ${column.default}` : '';
 
 	const notNullStatement = `${column.notNull ? ' NOT NULL' : ''}`;
-	const primaryKeyStatement = `${isPK ? ' PRIMARY KEY' : ''}`;
+	const primaryKeyStatement = `${isPK && !wasPK ? ' PRIMARY KEY' : ''}`;
 	const autoincrementStatement = `${column.autoIncrement ? ' AUTO_INCREMENT' : ''}`;
 	const onUpdateStatement = `${
 		column.onUpdateNow
@@ -288,7 +288,7 @@ export function fromJson(
 			});
 
 			const convertor = filtered.length === 1 ? filtered[0] : undefined;
-			if (!convertor) throw new Error(`No convertor for: ${statement.type} statement`)
+			if (!convertor) throw new Error(`No convertor for: ${statement.type} statement`);
 
 			const sqlStatements = convertor.convert(statement as any);
 			const statements = typeof sqlStatements === 'string' ? [sqlStatements] : sqlStatements;

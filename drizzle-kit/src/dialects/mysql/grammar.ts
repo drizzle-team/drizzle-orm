@@ -615,8 +615,8 @@ export const defaultNameForFK = (fk: Pick<ForeignKey, 'table' | 'columns' | 'tab
 	return res;
 };
 
-export const nameForIndex = (tableName: string, columns: string[]) => {
-	return `${tableName}_${columns.join('_')}_index`;
+export const nameForUnique = (tableName: string, columns: string[]) => {
+	return `${columns.join('_')}_unique`;
 };
 
 const stripCollation = (defaultValue: string, collation?: string): string => {

@@ -111,6 +111,7 @@ export const diffIntrospect = async (
 		response.views,
 		casing,
 	);
+
 	const { ddl: ddl2, errors: e3 } = interimToDDL(interim);
 
 	// TODO: handle errors

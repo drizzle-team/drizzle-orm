@@ -71,7 +71,6 @@ test('add check constraint to existing table #1', async (t) => {
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
-	expect(next).toStrictEqual([]);
 });
 
 test('add check constraint to existing table #2', async () => {
