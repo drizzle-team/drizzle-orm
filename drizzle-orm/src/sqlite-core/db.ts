@@ -594,7 +594,7 @@ export class BaseSQLiteDatabase<
 	}
 }
 
-export type SQLiteWithReplicas<Q> = Q & { $primary: Q, $replicas: Q[] };
+export type SQLiteWithReplicas<Q> = Q & { $primary: Q; $replicas: Q[] };
 
 export const withReplicas = <
 	TResultKind extends 'sync' | 'async',

@@ -641,7 +641,7 @@ export class PgDatabase<
 	}
 }
 
-export type PgWithReplicas<Q> = Q & { $primary: Q, $replicas: Q[] };
+export type PgWithReplicas<Q> = Q & { $primary: Q; $replicas: Q[] };
 
 export const withReplicas = <
 	HKT extends PgQueryResultHKT,
