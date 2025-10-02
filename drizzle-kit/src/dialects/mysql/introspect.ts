@@ -176,6 +176,7 @@ export const fromDatabase = async (
 				}
 				: null,
 			isUnique: false,
+			uniqueName: null,
 		});
 	}
 
@@ -260,8 +261,7 @@ export const fromDatabase = async (
 			const updateRule: string = it['UPDATE_RULE'];
 			const deleteRule: string = it['DELETE_RULE'];
 
-			const key = `${table}:${name}`
-
+			const key = `${table}:${name}`;
 
 			if (key in acc) {
 				const entry = acc[key];
@@ -275,8 +275,9 @@ export const fromDatabase = async (
 					tableTo: refTable,
 					columns: [column],
 					columnsTo: [refColumn],
-					onDelete: deleteRule?.toLowerCase() as ForeignKey['onUpdate'] ?? 'NO ACTION',
-					onUpdate: updateRule?.toLowerCase() as ForeignKey['onUpdate'] ?? 'NO ACTION',
+					onDelete: deleteRule?.toUpperCase() as ForeignKey['onUpdate'] ?? 'NO ACTION',
+					onUpdate: updateRule?.toUpperCase() as ForeignKey['onUpdate'] ?? 'NO ACTION',
+					nameExplicit: true,
 				} satisfies ForeignKey;
 			}
 			return acc;
@@ -299,7 +300,7 @@ export const fromDatabase = async (
 		const isUnique = it['NON_UNIQUE'] === 0;
 		const expression = it['EXPRESSION'];
 
-		const key = `${table}:${name}`
+		const key = `${table}:${name}`;
 
 		if (key in acc) {
 			const entry = acc[key];
@@ -320,6 +321,7 @@ export const fromDatabase = async (
 				algorithm: null,
 				lock: null,
 				using: null,
+				nameExplicit: true,
 			} satisfies Index;
 		}
 		return acc;
