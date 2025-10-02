@@ -58,7 +58,7 @@ export const allDataTypes = mysqlTable('all_data_types', {
 	decimal: decimal('decimal').default('10.123'),
 	decimalPrecision: decimal('decimal_precision', { precision: 6 }).default('10.123'),
 	decimalPrecisionScale: decimal('decimal_precision_scale', { precision: 6, scale: 2 }).default('10.123'),
-	decimalBigint: decimal('decimal_bigint', { mode: 'bigint' }).default(9223372036854775807n),
+	decimalBigint: decimal('decimal_bigint', { mode: 'bigint', precision: 19 }).default(9223372036854775807n),
 	double: double('double').default(10.123),
 	doublePrecisionScale: double('double_precision_scale', { precision: 6, scale: 2 }).default(10.123),
 	doubleUnsigned: double('double_unsigned', { unsigned: true }).default(10.123),
