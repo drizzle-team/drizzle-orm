@@ -27,7 +27,7 @@ export const upToV6 = (it: Record<string, any>): MysqlSnapshot => {
 				// TODO: @AleksandrSherman check
 				charSet: null,
 				collation: null,
-				onUpdateNowFsp: null
+				onUpdateNowFsp: null,
 			});
 		}
 	}
