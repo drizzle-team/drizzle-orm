@@ -379,8 +379,8 @@ export const diffSnapshotV5 = async (db: DB, schema: MysqlSchema) => {
 	const snapshot = upToV6(res);
 	const ddl = fromEntities(snapshot.ddl);
 
-	const { sqlStatements: st, next } = await diff(schema, ddl , []);
-	const { sqlStatements: pst } = await push({ db, to: schema});
+	const { sqlStatements: st, next } = await diff(schema, ddl, []);
+	const { sqlStatements: pst } = await push({ db, to: schema });
 	const { sqlStatements: st1 } = await diff(next, ddl, []);
 	const { sqlStatements: pst1 } = await push({ db, to: schema });
 

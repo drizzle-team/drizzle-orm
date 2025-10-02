@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
-import { pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, serial, timestamp, withReplicas } from 'drizzle-orm/pg-core';
 import { Client } from 'pg';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { skipTests } from '~/common';

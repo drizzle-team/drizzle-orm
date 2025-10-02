@@ -47,6 +47,7 @@ export const dropMigration = async ({
 	if (bundle) {
 		fs.writeFileSync(
 			join(out, `migrations.js`),
+			// @ts-ignore
 			embeddedMigrations([]),
 		);
 	}

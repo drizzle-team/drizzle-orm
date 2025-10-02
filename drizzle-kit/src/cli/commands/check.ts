@@ -54,7 +54,7 @@ export const checkHandler = async (out: string, dialect: Dialect) => {
 				console.log(`- Parent ${c.parentId}${c.parentPath ? ` (${c.parentPath})` : ''}`);
 				console.log(`  A: ${c.branchA.headId} (${c.branchA.path})`);
 				console.log(`  B: ${c.branchB.headId} (${c.branchB.path})`);
-				for (const r of c.reasons) console.log(`    • ${r}`);
+				// for (const r of c.reasons) console.log(`    • ${r}`);
 			}
 		}
 	} catch (e) {

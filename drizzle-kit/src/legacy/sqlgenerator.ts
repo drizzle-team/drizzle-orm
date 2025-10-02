@@ -2123,7 +2123,7 @@ export function fromJson(
 
 			const convertor = filtered.length === 1 ? filtered[0] : undefined;
 
-			if (!convertor) throw new Error(`Unexpected json statement: ${statement.type} ${dialect}`)
+			if (!convertor) throw new Error(`Unexpected json statement: ${statement.type} ${dialect}`);
 
 			return convertor.convert(statement, action);
 		})

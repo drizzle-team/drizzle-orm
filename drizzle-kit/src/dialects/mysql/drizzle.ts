@@ -127,9 +127,9 @@ export const fromDrizzleSchema = (
 				charSet = column.charSet;
 				collation = column.collation ?? null;
 			}
-			
+
 			// TODO: @AleksandrSherman remove
-			const nameExplicitTemp = `${tableName}_${column.name}_unique`!==column.uniqueName
+			const nameExplicitTemp = `${tableName}_${column.name}_unique` !== column.uniqueName;
 			result.columns.push({
 				entityType: 'columns',
 				table: tableName,

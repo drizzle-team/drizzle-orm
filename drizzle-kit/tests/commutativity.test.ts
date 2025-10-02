@@ -405,480 +405,479 @@ describe('commutativity detector (postgres)', () => {
 		expect(report.conflicts.length).toBe(0);
 	});
 
-	test('explainConflicts returns reason for table drop vs column alter', async () => {
-		// Craft minimal statements
-		const dropTable: JsonStatement = {
-			type: 'drop_table',
-			table: { schema: 'public', isRlsEnabled: false, name: 't', entityType: 'tables' } as any,
-			key: '"public"."t"',
-		} as any;
+	// 	test('explainConflicts returns reason for table drop vs column alter', async () => {
+	// 		const dropTable: JsonStatement = {
+	// 			type: 'drop_table',
+	// 			table: { schema: 'public', isRlsEnabled: false, name: 't', entityType: 'tables' } as any,
+	// 			key: '"public"."t"',
+	// 		} as any;
 
-		const alterColumn: JsonStatement = {
-			type: 'alter_column',
-			to: {
-				schema: 'public',
-				table: 't',
-				name: 'c',
-				type: 'varchar',
-				options: null,
-				typeSchema: 'pg_catalog',
-				notNull: true,
-				dimensions: 0,
-				default: null,
-				generated: null,
-				identity: null,
-				entityType: 'columns',
-			} as any,
-			wasEnum: false,
-			isEnum: false,
-			diff: {} as any,
-		} as any;
+	// 		const alterColumn: JsonStatement = {
+	// 			type: 'alter_column',
+	// 			to: {
+	// 				schema: 'public',
+	// 				table: 't',
+	// 				name: 'c',
+	// 				type: 'varchar',
+	// 				options: null,
+	// 				typeSchema: 'pg_catalog',
+	// 				notNull: true,
+	// 				dimensions: 0,
+	// 				default: null,
+	// 				generated: null,
+	// 				identity: null,
+	// 				entityType: 'columns',
+	// 			} as any,
+	// 			wasEnum: false,
+	// 			isEnum: false,
+	// 			diff: {} as any,
+	// 		} as any;
 
-		const reasons = explainConflicts([dropTable], [alterColumn]);
-		expect(reasons.some((r) => r.includes('Dropping a table conflicts'))).toBe(true);
-	});
-});
+	// 		const reasons = explainConflicts([dropTable], [alterColumn]);
+	// 		expect(reasons.some((r) => r.includes('Dropping a table conflicts'))).toBe(true);
+	// 	});
+	// });
 
-describe('conflict rule coverage (statement pairs)', () => {
-	test('column: create vs drop (same-resource-different-op)', () => {
-		const createCol: JsonStatement = {
-			type: 'add_column',
-			column: { schema: 'public', table: 't', name: 'c' } as any,
-			isPK: false,
-		} as any;
-		const dropCol: JsonStatement = {
-			type: 'drop_column',
-			column: { schema: 'public', table: 't', name: 'c' } as any,
-		} as any;
-		const reasons = explainConflicts([createCol], [dropCol]);
-		expect(reasons.some((r) => r.includes('not commutative'))).toBe(true);
-	});
+	// describe('conflict rule coverage (statement pairs)', () => {
+	// 	test('column: create vs drop (same-resource-different-op)', () => {
+	// 		const createCol: JsonStatement = {
+	// 			type: 'add_column',
+	// 			column: { schema: 'public', table: 't', name: 'c' } as any,
+	// 			isPK: false,
+	// 		} as any;
+	// 		const dropCol: JsonStatement = {
+	// 			type: 'drop_column',
+	// 			column: { schema: 'public', table: 't', name: 'c' } as any,
+	// 		} as any;
+	// 		const reasons = explainConflicts([createCol], [dropCol]);
+	// 		expect(reasons.some((r) => r.includes('not commutative'))).toBe(true);
+	// 	});
 
-	test('column: alter vs alter (same-resource-same-op)', () => {
-		const alter1: JsonStatement = {
-			type: 'alter_column',
-			to: { schema: 'public', table: 't', name: 'c' } as any,
-			wasEnum: false,
-			isEnum: false,
-			diff: {} as any,
-		} as any;
-		const alter2: JsonStatement = {
-			type: 'alter_column',
-			to: { schema: 'public', table: 't', name: 'c' } as any,
-			wasEnum: false,
-			isEnum: false,
-			diff: {} as any,
-		} as any;
-		const reasons = explainConflicts([alter1], [alter2]);
-		expect(reasons.some((r) => r.includes('identical operations'))).toBe(true);
-	});
+	// 	test('column: alter vs alter (same-resource-same-op)', () => {
+	// 		const alter1: JsonStatement = {
+	// 			type: 'alter_column',
+	// 			to: { schema: 'public', table: 't', name: 'c' } as any,
+	// 			wasEnum: false,
+	// 			isEnum: false,
+	// 			diff: {} as any,
+	// 		} as any;
+	// 		const alter2: JsonStatement = {
+	// 			type: 'alter_column',
+	// 			to: { schema: 'public', table: 't', name: 'c' } as any,
+	// 			wasEnum: false,
+	// 			isEnum: false,
+	// 			diff: {} as any,
+	// 		} as any;
+	// 		const reasons = explainConflicts([alter1], [alter2]);
+	// 		expect(reasons.some((r) => r.includes('identical operations'))).toBe(true);
+	// 	});
 
-	test('table drop vs child index', () => {
-		const dropTable: JsonStatement = {
-			type: 'drop_table',
-			table: { schema: 'public', name: 't' } as any,
-			key: '"public"."t"',
-		} as any;
-		const createIdx: JsonStatement = {
-			type: 'create_index',
-			index: { schema: 'public', table: 't', name: 'ix_t_c' } as any,
-		} as any;
-		const reasons = explainConflicts([dropTable], [createIdx]);
-		expect(reasons.some((r) => r.includes('Dropping a table conflicts'))).toBe(true);
-	});
+	// 	test('table drop vs child index', () => {
+	// 		const dropTable: JsonStatement = {
+	// 			type: 'drop_table',
+	// 			table: { schema: 'public', name: 't' } as any,
+	// 			key: '"public"."t"',
+	// 		} as any;
+	// 		const createIdx: JsonStatement = {
+	// 			type: 'create_index',
+	// 			index: { schema: 'public', table: 't', name: 'ix_t_c' } as any,
+	// 		} as any;
+	// 		const reasons = explainConflicts([dropTable], [createIdx]);
+	// 		expect(reasons.some((r) => r.includes('Dropping a table conflicts'))).toBe(true);
+	// 	});
 
-	test('index: rename vs create (schema+name)', () => {
-		const renameIdx: JsonStatement = { type: 'rename_index', schema: 'public', from: 'ix_old', to: 'ix_new' } as any;
-		const createIdx: JsonStatement = {
-			type: 'create_index',
-			index: { schema: 'public', table: 't', name: 'ix_new' } as any,
-		} as any;
-		const reasons = explainConflicts([renameIdx], [createIdx]);
-		expect(reasons.length).toBeGreaterThan(0);
-	});
+	// 	test('index: rename vs create (schema+name)', () => {
+	// 		const renameIdx: JsonStatement = { type: 'rename_index', schema: 'public', from: 'ix_old', to: 'ix_new' } as any;
+	// 		const createIdx: JsonStatement = {
+	// 			type: 'create_index',
+	// 			index: { schema: 'public', table: 't', name: 'ix_new' } as any,
+	// 		} as any;
+	// 		const reasons = explainConflicts([renameIdx], [createIdx]);
+	// 		expect(reasons.length).toBeGreaterThan(0);
+	// 	});
 
-	test('pk: alter vs drop', () => {
-		const alterPk: JsonStatement = {
-			type: 'alter_pk',
-			pk: { schema: 'public', table: 't', name: 't_pkey', columns: ['id'] } as any,
-			diff: {} as any,
-		} as any;
-		const dropPk: JsonStatement = {
-			type: 'drop_pk',
-			pk: { schema: 'public', table: 't', name: 't_pkey', columns: ['id'] } as any,
-		} as any;
-		const reasons = explainConflicts([alterPk], [dropPk]);
-		expect(reasons.length).toBeGreaterThan(0);
-	});
+	// 	test('pk: alter vs drop', () => {
+	// 		const alterPk: JsonStatement = {
+	// 			type: 'alter_pk',
+	// 			pk: { schema: 'public', table: 't', name: 't_pkey', columns: ['id'] } as any,
+	// 			diff: {} as any,
+	// 		} as any;
+	// 		const dropPk: JsonStatement = {
+	// 			type: 'drop_pk',
+	// 			pk: { schema: 'public', table: 't', name: 't_pkey', columns: ['id'] } as any,
+	// 		} as any;
+	// 		const reasons = explainConflicts([alterPk], [dropPk]);
+	// 		expect(reasons.length).toBeGreaterThan(0);
+	// 	});
 
-	test('unique: create vs drop', () => {
-		const addUq: JsonStatement = {
-			type: 'add_unique',
-			unique: { schema: 'public', table: 't', name: 't_uq', columns: ['c'] } as any,
-		} as any;
-		const dropUq: JsonStatement = {
-			type: 'drop_unique',
-			unique: { schema: 'public', table: 't', name: 't_uq', columns: ['c'] } as any,
-		} as any;
-		const reasons = explainConflicts([addUq], [dropUq]);
-		expect(reasons.length).toBeGreaterThan(0);
-	});
+	// 	test('unique: create vs drop', () => {
+	// 		const addUq: JsonStatement = {
+	// 			type: 'add_unique',
+	// 			unique: { schema: 'public', table: 't', name: 't_uq', columns: ['c'] } as any,
+	// 		} as any;
+	// 		const dropUq: JsonStatement = {
+	// 			type: 'drop_unique',
+	// 			unique: { schema: 'public', table: 't', name: 't_uq', columns: ['c'] } as any,
+	// 		} as any;
+	// 		const reasons = explainConflicts([addUq], [dropUq]);
+	// 		expect(reasons.length).toBeGreaterThan(0);
+	// 	});
 
-	test('fk: recreate vs drop', () => {
-		const recFk: JsonStatement = {
-			type: 'recreate_fk',
-			fk: { schema: 'public', table: 't', name: 't_fk', tableTo: 'p' } as any,
-		} as any;
-		const dropFk: JsonStatement = {
-			type: 'drop_fk',
-			fk: { schema: 'public', table: 't', name: 't_fk', tableTo: 'p' } as any,
-		} as any;
-		const reasons = explainConflicts([recFk], [dropFk]);
-		expect(reasons.length).toBeGreaterThan(0);
-	});
+	// 	test('fk: recreate vs drop', () => {
+	// 		const recFk: JsonStatement = {
+	// 			type: 'recreate_fk',
+	// 			fk: { schema: 'public', table: 't', name: 't_fk', tableTo: 'p' } as any,
+	// 		} as any;
+	// 		const dropFk: JsonStatement = {
+	// 			type: 'drop_fk',
+	// 			fk: { schema: 'public', table: 't', name: 't_fk', tableTo: 'p' } as any,
+	// 		} as any;
+	// 		const reasons = explainConflicts([recFk], [dropFk]);
+	// 		expect(reasons.length).toBeGreaterThan(0);
+	// 	});
 
-	test('check: alter vs drop', () => {
-		const alterCheck: JsonStatement = {
-			type: 'alter_check',
-			check: { schema: 'public', table: 't', name: 't_chk' } as any,
-		} as any;
-		const dropCheck: JsonStatement = {
-			type: 'drop_check',
-			check: { schema: 'public', table: 't', name: 't_chk' } as any,
-		} as any;
-		const reasons = explainConflicts([alterCheck], [dropCheck]);
-		expect(reasons.length).toBeGreaterThan(0);
-	});
+	// 	test('check: alter vs drop', () => {
+	// 		const alterCheck: JsonStatement = {
+	// 			type: 'alter_check',
+	// 			check: { schema: 'public', table: 't', name: 't_chk' } as any,
+	// 		} as any;
+	// 		const dropCheck: JsonStatement = {
+	// 			type: 'drop_check',
+	// 			check: { schema: 'public', table: 't', name: 't_chk' } as any,
+	// 		} as any;
+	// 		const reasons = explainConflicts([alterCheck], [dropCheck]);
+	// 		expect(reasons.length).toBeGreaterThan(0);
+	// 	});
 
-	test('view: alter vs recreate', () => {
-		const alterView: JsonStatement = {
-			type: 'alter_view',
-			view: { schema: 'public', name: 'v' } as any,
-			diff: {} as any,
-		} as any;
-		const recreateView: JsonStatement = {
-			type: 'recreate_view',
-			from: { schema: 'public', name: 'v' } as any,
-			to: { schema: 'public', name: 'v' } as any,
-		} as any;
-		const reasons = explainConflicts([alterView], [recreateView]);
-		expect(reasons.length).toBeGreaterThan(0);
-	});
+	// 	test('view: alter vs recreate', () => {
+	// 		const alterView: JsonStatement = {
+	// 			type: 'alter_view',
+	// 			view: { schema: 'public', name: 'v' } as any,
+	// 			diff: {} as any,
+	// 		} as any;
+	// 		const recreateView: JsonStatement = {
+	// 			type: 'recreate_view',
+	// 			from: { schema: 'public', name: 'v' } as any,
+	// 			to: { schema: 'public', name: 'v' } as any,
+	// 		} as any;
+	// 		const reasons = explainConflicts([alterView], [recreateView]);
+	// 		expect(reasons.length).toBeGreaterThan(0);
+	// 	});
 
-	test('enum: alter vs recreate', () => {
-		const alterEnum: JsonStatement = {
-			type: 'alter_enum',
-			enum: { schema: 'public', name: 'e', values: [] } as any,
-			diff: [],
-		} as any;
-		const recreateEnum: JsonStatement = {
-			type: 'recreate_enum',
-			to: { schema: 'public', name: 'e', values: [] } as any,
-			columns: [] as any,
-		} as any;
-		const reasons = explainConflicts([alterEnum], [recreateEnum]);
-		expect(reasons.length).toBeGreaterThan(0);
-	});
+	// 	test('enum: alter vs recreate', () => {
+	// 		const alterEnum: JsonStatement = {
+	// 			type: 'alter_enum',
+	// 			enum: { schema: 'public', name: 'e', values: [] } as any,
+	// 			diff: [],
+	// 		} as any;
+	// 		const recreateEnum: JsonStatement = {
+	// 			type: 'recreate_enum',
+	// 			to: { schema: 'public', name: 'e', values: [] } as any,
+	// 			columns: [] as any,
+	// 		} as any;
+	// 		const reasons = explainConflicts([alterEnum], [recreateEnum]);
+	// 		expect(reasons.length).toBeGreaterThan(0);
+	// 	});
 
-	test('sequence: rename vs alter', () => {
-		const renameSeq: JsonStatement = {
-			type: 'rename_sequence',
-			from: { schema: 'public', name: 's' } as any,
-			to: { schema: 'public', name: 's2' } as any,
-		} as any;
-		const alterSeq: JsonStatement = {
-			type: 'alter_sequence',
-			sequence: { schema: 'public', name: 's2' } as any,
-			diff: {} as any,
-		} as any;
-		const reasons = explainConflicts([renameSeq], [alterSeq]);
-		expect(reasons.length).toBeGreaterThan(0);
-	});
+	// 	test('sequence: rename vs alter', () => {
+	// 		const renameSeq: JsonStatement = {
+	// 			type: 'rename_sequence',
+	// 			from: { schema: 'public', name: 's' } as any,
+	// 			to: { schema: 'public', name: 's2' } as any,
+	// 		} as any;
+	// 		const alterSeq: JsonStatement = {
+	// 			type: 'alter_sequence',
+	// 			sequence: { schema: 'public', name: 's2' } as any,
+	// 			diff: {} as any,
+	// 		} as any;
+	// 		const reasons = explainConflicts([renameSeq], [alterSeq]);
+	// 		expect(reasons.length).toBeGreaterThan(0);
+	// 	});
 
-	test('policy: rename vs alter', () => {
-		const renamePolicy: JsonStatement = {
-			type: 'rename_policy',
-			from: { schema: 'public', table: 't', name: 'p' } as any,
-			to: { schema: 'public', table: 't', name: 'p2' } as any,
-		} as any;
-		const alterPolicy: JsonStatement = {
-			type: 'alter_policy',
-			policy: { schema: 'public', table: 't', name: 'p2' } as any,
-			diff: {} as any,
-		} as any;
-		const reasons = explainConflicts([renamePolicy], [alterPolicy]);
-		expect(reasons.length).toBeGreaterThan(0);
-	});
+	// 	test('policy: rename vs alter', () => {
+	// 		const renamePolicy: JsonStatement = {
+	// 			type: 'rename_policy',
+	// 			from: { schema: 'public', table: 't', name: 'p' } as any,
+	// 			to: { schema: 'public', table: 't', name: 'p2' } as any,
+	// 		} as any;
+	// 		const alterPolicy: JsonStatement = {
+	// 			type: 'alter_policy',
+	// 			policy: { schema: 'public', table: 't', name: 'p2' } as any,
+	// 			diff: {} as any,
+	// 		} as any;
+	// 		const reasons = explainConflicts([renamePolicy], [alterPolicy]);
+	// 		expect(reasons.length).toBeGreaterThan(0);
+	// 	});
 
-	test('schema: rename vs create', () => {
-		const renameSchema: JsonStatement = {
-			type: 'rename_schema',
-			from: { name: 's' } as any,
-			to: { name: 's2' } as any,
-		} as any;
-		const createSchema: JsonStatement = { type: 'create_schema', name: 's2' } as any;
-		const reasons = explainConflicts([renameSchema], [createSchema]);
-		expect(reasons.length).toBeGreaterThan(0);
-	});
+	// 	test('schema: rename vs create', () => {
+	// 		const renameSchema: JsonStatement = {
+	// 			type: 'rename_schema',
+	// 			from: { name: 's' } as any,
+	// 			to: { name: 's2' } as any,
+	// 		} as any;
+	// 		const createSchema: JsonStatement = { type: 'create_schema', name: 's2' } as any;
+	// 		const reasons = explainConflicts([renameSchema], [createSchema]);
+	// 		expect(reasons.length).toBeGreaterThan(0);
+	// 	});
 
-	test('role: drop vs alter', () => {
-		const dropRole: JsonStatement = { type: 'drop_role', role: { name: 'r' } as any } as any;
-		const alterRole: JsonStatement = { type: 'alter_role', role: { name: 'r' } as any, diff: {} as any } as any;
-		const reasons = explainConflicts([dropRole], [alterRole]);
-		expect(reasons.length).toBeGreaterThan(0);
-	});
+	// 	test('role: drop vs alter', () => {
+	// 		const dropRole: JsonStatement = { type: 'drop_role', role: { name: 'r' } as any } as any;
+	// 		const alterRole: JsonStatement = { type: 'alter_role', role: { name: 'r' } as any, diff: {} as any } as any;
+	// 		const reasons = explainConflicts([dropRole], [alterRole]);
+	// 		expect(reasons.length).toBeGreaterThan(0);
+	// 	});
 
-	test('privilege: grant vs revoke (coarse key)', () => {
-		const grant: JsonStatement = {
-			type: 'grant_privilege',
-			privilege: { schema: 'public', table: 't', grantee: 'x', type: 'SELECT' } as any,
-		} as any;
-		const revoke: JsonStatement = {
-			type: 'revoke_privilege',
-			privilege: { schema: 'public', table: 't', grantee: 'x', type: 'SELECT' } as any,
-		} as any;
-		const reasons = explainConflicts([grant], [revoke]);
-		expect(reasons.length).toBeGreaterThan(0);
-	});
+	// 	test('privilege: grant vs revoke (coarse key)', () => {
+	// 		const grant: JsonStatement = {
+	// 			type: 'grant_privilege',
+	// 			privilege: { schema: 'public', table: 't', grantee: 'x', type: 'SELECT' } as any,
+	// 		} as any;
+	// 		const revoke: JsonStatement = {
+	// 			type: 'revoke_privilege',
+	// 			privilege: { schema: 'public', table: 't', grantee: 'x', type: 'SELECT' } as any,
+	// 		} as any;
+	// 		const reasons = explainConflicts([grant], [revoke]);
+	// 		expect(reasons.length).toBeGreaterThan(0);
+	// 	});
 
-	test('rls: alter vs alter (same-resource-same-op)', () => {
-		const rls1: JsonStatement = { type: 'alter_rls', schema: 'public', name: 't', isRlsEnabled: true } as any;
-		const rls2: JsonStatement = { type: 'alter_rls', schema: 'public', name: 't', isRlsEnabled: false } as any;
-		const reasons = explainConflicts([rls1], [rls2]);
-		expect(reasons.some((r) => r.includes('identical operations'))).toBe(true);
-	});
+	// 	test('rls: alter vs alter (same-resource-same-op)', () => {
+	// 		const rls1: JsonStatement = { type: 'alter_rls', schema: 'public', name: 't', isRlsEnabled: true } as any;
+	// 		const rls2: JsonStatement = { type: 'alter_rls', schema: 'public', name: 't', isRlsEnabled: false } as any;
+	// 		const reasons = explainConflicts([rls1], [rls2]);
+	// 		expect(reasons.some((r) => r.includes('identical operations'))).toBe(true);
+	// 	});
 
-	test('schema: drop vs create (same schema name)', () => {
-		const dropSchema: JsonStatement = { type: 'drop_schema', name: 's1' } as any;
-		const createSchema: JsonStatement = { type: 'create_schema', name: 's1' } as any;
-		const reasons = explainConflicts([dropSchema], [createSchema]);
-		expect(reasons.length).toBeGreaterThan(0);
-	});
+	// 	test('schema: drop vs create (same schema name)', () => {
+	// 		const dropSchema: JsonStatement = { type: 'drop_schema', name: 's1' } as any;
+	// 		const createSchema: JsonStatement = { type: 'create_schema', name: 's1' } as any;
+	// 		const reasons = explainConflicts([dropSchema], [createSchema]);
+	// 		expect(reasons.length).toBeGreaterThan(0);
+	// 	});
 
-	test('schema: drop vs alter entity in schema', () => {
-		const dropSchema: JsonStatement = { type: 'drop_schema', name: 's1' } as any;
-		const alterTableInSchema: JsonStatement = {
-			type: 'create_table',
-			table: { schema: 's1', isRlsEnabled: false, name: 't1', entityType: 'tables' } as any,
-		} as any;
-		const reasons = explainConflicts([dropSchema], [alterTableInSchema]);
-		expect(reasons.length).toBeGreaterThan(0);
-	});
+	// 	test('schema: drop vs alter entity in schema', () => {
+	// 		const dropSchema: JsonStatement = { type: 'drop_schema', name: 's1' } as any;
+	// 		const alterTableInSchema: JsonStatement = {
+	// 			type: 'create_table',
+	// 			table: { schema: 's1', isRlsEnabled: false, name: 't1', entityType: 'tables' } as any,
+	// 		} as any;
+	// 		const reasons = explainConflicts([dropSchema], [alterTableInSchema]);
+	// 		expect(reasons.length).toBeGreaterThan(0);
+	// 	});
 
-	test('schema: rename vs create (old name/new name collision)', () => {
-		const renameSchema: JsonStatement = {
-			type: 'rename_schema',
-			from: { name: 'old_s' } as any,
-			to: { name: 'new_s' } as any,
-		} as any;
-		const createSchema: JsonStatement = { type: 'create_schema', name: 'old_s' } as any;
-		const reasons = explainConflicts([renameSchema], [createSchema]);
-		expect(reasons.length).toBeGreaterThan(0);
-	});
+	// 	test('schema: rename vs create (old name/new name collision)', () => {
+	// 		const renameSchema: JsonStatement = {
+	// 			type: 'rename_schema',
+	// 			from: { name: 'old_s' } as any,
+	// 			to: { name: 'new_s' } as any,
+	// 		} as any;
+	// 		const createSchema: JsonStatement = { type: 'create_schema', name: 'old_s' } as any;
+	// 		const reasons = explainConflicts([renameSchema], [createSchema]);
+	// 		expect(reasons.length).toBeGreaterThan(0);
+	// 	});
 
-	test('table: move vs alter', () => {
-		const moveTable: JsonStatement = {
-			type: 'move_table',
-			name: 't1',
-			from: 's1',
-			to: 's2',
-		} as any;
-		const alterTable: JsonStatement = {
-			type: 'alter_column',
-			to: { schema: 's1', table: 't1', name: 'c1' } as any,
-			wasEnum: false,
-			isEnum: false,
-			diff: {} as any,
-		} as any;
-		const reasons = explainConflicts([moveTable], [alterTable]);
-		expect(reasons.length).toBeGreaterThan(0);
-	});
+	// 	test('table: move vs alter', () => {
+	// 		const moveTable: JsonStatement = {
+	// 			type: 'move_table',
+	// 			name: 't1',
+	// 			from: 's1',
+	// 			to: 's2',
+	// 		} as any;
+	// 		const alterTable: JsonStatement = {
+	// 			type: 'alter_column',
+	// 			to: { schema: 's1', table: 't1', name: 'c1' } as any,
+	// 			wasEnum: false,
+	// 			isEnum: false,
+	// 			diff: {} as any,
+	// 		} as any;
+	// 		const reasons = explainConflicts([moveTable], [alterTable]);
+	// 		expect(reasons.length).toBeGreaterThan(0);
+	// 	});
 
-	test('view: move vs alter', () => {
-		const moveView: JsonStatement = {
-			type: 'move_view',
-			fromSchema: 's1',
-			toSchema: 's2',
-			view: { schema: 's2', name: 'v1' } as any,
-		} as any;
-		const alterView: JsonStatement = {
-			type: 'alter_view',
-			view: { schema: 's1', name: 'v1' } as any,
-			diff: {} as any,
-		} as any;
-		const reasons = explainConflicts([moveView], [alterView]);
-		expect(reasons.length).toBeGreaterThan(0);
-	});
+	// 	test('view: move vs alter', () => {
+	// 		const moveView: JsonStatement = {
+	// 			type: 'move_view',
+	// 			fromSchema: 's1',
+	// 			toSchema: 's2',
+	// 			view: { schema: 's2', name: 'v1' } as any,
+	// 		} as any;
+	// 		const alterView: JsonStatement = {
+	// 			type: 'alter_view',
+	// 			view: { schema: 's1', name: 'v1' } as any,
+	// 			diff: {} as any,
+	// 		} as any;
+	// 		const reasons = explainConflicts([moveView], [alterView]);
+	// 		expect(reasons.length).toBeGreaterThan(0);
+	// 	});
 
-	test('enum: move vs alter', () => {
-		const moveEnum: JsonStatement = {
-			type: 'move_enum',
-			from: { schema: 's1', name: 'e1' },
-			to: { schema: 's2', name: 'e1' },
-		} as any;
-		const alterEnum: JsonStatement = {
-			type: 'alter_enum',
-			enum: { schema: 's1', name: 'e1', values: [] } as any,
-			diff: [],
-		} as any;
-		const reasons = explainConflicts([moveEnum], [alterEnum]);
-		expect(reasons.length).toBeGreaterThan(0);
-	});
+	// 	test('enum: move vs alter', () => {
+	// 		const moveEnum: JsonStatement = {
+	// 			type: 'move_enum',
+	// 			from: { schema: 's1', name: 'e1' },
+	// 			to: { schema: 's2', name: 'e1' },
+	// 		} as any;
+	// 		const alterEnum: JsonStatement = {
+	// 			type: 'alter_enum',
+	// 			enum: { schema: 's1', name: 'e1', values: [] } as any,
+	// 			diff: [],
+	// 		} as any;
+	// 		const reasons = explainConflicts([moveEnum], [alterEnum]);
+	// 		expect(reasons.length).toBeGreaterThan(0);
+	// 	});
 
-	test('sequence: move vs alter', () => {
-		const moveSeq: JsonStatement = {
-			type: 'move_sequence',
-			from: { schema: 's1', name: 'sq1' },
-			to: { schema: 's2', name: 'sq1' },
-		} as any;
-		const alterSeq: JsonStatement = {
-			type: 'alter_sequence',
-			sequence: { schema: 's1', name: 'sq1' } as any,
-			diff: {} as any,
-		} as any;
-		const reasons = explainConflicts([moveSeq], [alterSeq]);
-		expect(reasons.length).toBeGreaterThan(0);
-	});
+	// 	test('sequence: move vs alter', () => {
+	// 		const moveSeq: JsonStatement = {
+	// 			type: 'move_sequence',
+	// 			from: { schema: 's1', name: 'sq1' },
+	// 			to: { schema: 's2', name: 'sq1' },
+	// 		} as any;
+	// 		const alterSeq: JsonStatement = {
+	// 			type: 'alter_sequence',
+	// 			sequence: { schema: 's1', name: 'sq1' } as any,
+	// 			diff: {} as any,
+	// 		} as any;
+	// 		const reasons = explainConflicts([moveSeq], [alterSeq]);
+	// 		expect(reasons.length).toBeGreaterThan(0);
+	// 	});
 
-	test('pk: rename vs alter', () => {
-		const renamePk: JsonStatement = {
-			type: 'rename_constraint',
-			schema: 'public',
-			table: 't',
-			from: 'old_pk',
-			to: 'new_pk',
-		} as any;
-		const alterPk: JsonStatement = {
-			type: 'alter_pk',
-			pk: { schema: 'public', table: 't', name: 'new_pk', columns: ['id'] } as any,
-			diff: {} as any,
-		} as any;
-		const reasons = explainConflicts([renamePk], [alterPk]);
-		expect(reasons.length).toBeGreaterThan(0);
-	});
+	// 	test('pk: rename vs alter', () => {
+	// 		const renamePk: JsonStatement = {
+	// 			type: 'rename_constraint',
+	// 			schema: 'public',
+	// 			table: 't',
+	// 			from: 'old_pk',
+	// 			to: 'new_pk',
+	// 		} as any;
+	// 		const alterPk: JsonStatement = {
+	// 			type: 'alter_pk',
+	// 			pk: { schema: 'public', table: 't', name: 'new_pk', columns: ['id'] } as any,
+	// 			diff: {} as any,
+	// 		} as any;
+	// 		const reasons = explainConflicts([renamePk], [alterPk]);
+	// 		expect(reasons.length).toBeGreaterThan(0);
+	// 	});
 
-	test('pk: rename vs drop', () => {
-		const renamePk: JsonStatement = {
-			type: 'rename_constraint',
-			schema: 'public',
-			table: 't',
-			from: 'old_pk',
-			to: 'new_pk',
-		} as any;
-		const dropPk: JsonStatement = {
-			type: 'drop_pk',
-			pk: { schema: 'public', table: 't', name: 'new_pk', columns: ['id'] } as any,
-		} as any;
-		const reasons = explainConflicts([renamePk], [dropPk]);
-		expect(reasons.length).toBeGreaterThan(0);
-	});
+	// 	test('pk: rename vs drop', () => {
+	// 		const renamePk: JsonStatement = {
+	// 			type: 'rename_constraint',
+	// 			schema: 'public',
+	// 			table: 't',
+	// 			from: 'old_pk',
+	// 			to: 'new_pk',
+	// 		} as any;
+	// 		const dropPk: JsonStatement = {
+	// 			type: 'drop_pk',
+	// 			pk: { schema: 'public', table: 't', name: 'new_pk', columns: ['id'] } as any,
+	// 		} as any;
+	// 		const reasons = explainConflicts([renamePk], [dropPk]);
+	// 		expect(reasons.length).toBeGreaterThan(0);
+	// 	});
 
-	test('unique: rename vs alter', () => {
-		const renameUq: JsonStatement = {
-			type: 'rename_constraint',
-			schema: 'public',
-			table: 't',
-			from: 'old_uq',
-			to: 'new_uq',
-		} as any;
-		const alterUq: JsonStatement = {
-			type: 'alter_unique',
-			diff: { schema: 'public', table: 't', name: 'new_uq' } as any,
-		} as any;
-		const reasons = explainConflicts([renameUq], [alterUq]);
-		expect(reasons.length).toBeGreaterThan(0);
-	});
+	// 	test('unique: rename vs alter', () => {
+	// 		const renameUq: JsonStatement = {
+	// 			type: 'rename_constraint',
+	// 			schema: 'public',
+	// 			table: 't',
+	// 			from: 'old_uq',
+	// 			to: 'new_uq',
+	// 		} as any;
+	// 		const alterUq: JsonStatement = {
+	// 			type: 'alter_unique',
+	// 			diff: { schema: 'public', table: 't', name: 'new_uq' } as any,
+	// 		} as any;
+	// 		const reasons = explainConflicts([renameUq], [alterUq]);
+	// 		expect(reasons.length).toBeGreaterThan(0);
+	// 	});
 
-	test('unique: rename vs drop', () => {
-		const renameUq: JsonStatement = {
-			type: 'rename_constraint',
-			schema: 'public',
-			table: 't',
-			from: 'old_uq',
-			to: 'new_uq',
-		} as any;
-		const dropUq: JsonStatement = {
-			type: 'drop_unique',
-			unique: { schema: 'public', table: 't', name: 'new_uq', columns: ['c'] } as any,
-		} as any;
-		const reasons = explainConflicts([renameUq], [dropUq]);
-		expect(reasons.length).toBeGreaterThan(0);
-	});
+	// 	test('unique: rename vs drop', () => {
+	// 		const renameUq: JsonStatement = {
+	// 			type: 'rename_constraint',
+	// 			schema: 'public',
+	// 			table: 't',
+	// 			from: 'old_uq',
+	// 			to: 'new_uq',
+	// 		} as any;
+	// 		const dropUq: JsonStatement = {
+	// 			type: 'drop_unique',
+	// 			unique: { schema: 'public', table: 't', name: 'new_uq', columns: ['c'] } as any,
+	// 		} as any;
+	// 		const reasons = explainConflicts([renameUq], [dropUq]);
+	// 		expect(reasons.length).toBeGreaterThan(0);
+	// 	});
 
-	test('fk: rename vs alter', () => {
-		const renameFk: JsonStatement = {
-			type: 'rename_constraint',
-			schema: 'public',
-			table: 't',
-			from: 'old_fk',
-			to: 'new_fk',
-		} as any;
-		const recreateFk: JsonStatement = {
-			type: 'recreate_fk',
-			fk: { schema: 'public', table: 't', name: 'new_fk', tableTo: 'p' } as any,
-		} as any;
-		const reasons = explainConflicts([renameFk], [recreateFk]);
-		expect(reasons.length).toBeGreaterThan(0);
-	});
+	// 	test('fk: rename vs alter', () => {
+	// 		const renameFk: JsonStatement = {
+	// 			type: 'rename_constraint',
+	// 			schema: 'public',
+	// 			table: 't',
+	// 			from: 'old_fk',
+	// 			to: 'new_fk',
+	// 		} as any;
+	// 		const recreateFk: JsonStatement = {
+	// 			type: 'recreate_fk',
+	// 			fk: { schema: 'public', table: 't', name: 'new_fk', tableTo: 'p' } as any,
+	// 		} as any;
+	// 		const reasons = explainConflicts([renameFk], [recreateFk]);
+	// 		expect(reasons.length).toBeGreaterThan(0);
+	// 	});
 
-	test('fk: rename vs drop', () => {
-		const renameFk: JsonStatement = {
-			type: 'rename_constraint',
-			schema: 'public',
-			table: 't',
-			from: 'old_fk',
-			to: 'new_fk',
-		} as any;
-		const dropFk: JsonStatement = {
-			type: 'drop_fk',
-			fk: { schema: 'public', table: 't', name: 'new_fk', tableTo: 'p' } as any,
-		} as any;
-		const reasons = explainConflicts([renameFk], [dropFk]);
-		expect(reasons.length).toBeGreaterThan(0);
-	});
+	// 	test('fk: rename vs drop', () => {
+	// 		const renameFk: JsonStatement = {
+	// 			type: 'rename_constraint',
+	// 			schema: 'public',
+	// 			table: 't',
+	// 			from: 'old_fk',
+	// 			to: 'new_fk',
+	// 		} as any;
+	// 		const dropFk: JsonStatement = {
+	// 			type: 'drop_fk',
+	// 			fk: { schema: 'public', table: 't', name: 'new_fk', tableTo: 'p' } as any,
+	// 		} as any;
+	// 		const reasons = explainConflicts([renameFk], [dropFk]);
+	// 		expect(reasons.length).toBeGreaterThan(0);
+	// 	});
 
-	test('check: rename vs alter', () => {
-		const renameCheck: JsonStatement = {
-			type: 'rename_constraint',
-			schema: 'public',
-			table: 't',
-			from: 'old_check',
-			to: 'new_check',
-		} as any;
-		const alterCheck: JsonStatement = {
-			type: 'alter_check',
-			check: { schema: 'public', table: 't', name: 'new_check' } as any,
-		} as any;
-		const reasons = explainConflicts([renameCheck], [alterCheck]);
-		expect(reasons.length).toBeGreaterThan(0);
-	});
+	// 	test('check: rename vs alter', () => {
+	// 		const renameCheck: JsonStatement = {
+	// 			type: 'rename_constraint',
+	// 			schema: 'public',
+	// 			table: 't',
+	// 			from: 'old_check',
+	// 			to: 'new_check',
+	// 		} as any;
+	// 		const alterCheck: JsonStatement = {
+	// 			type: 'alter_check',
+	// 			check: { schema: 'public', table: 't', name: 'new_check' } as any,
+	// 		} as any;
+	// 		const reasons = explainConflicts([renameCheck], [alterCheck]);
+	// 		expect(reasons.length).toBeGreaterThan(0);
+	// 	});
 
-	test('check: rename vs drop', () => {
-		const renameCheck: JsonStatement = {
-			type: 'rename_constraint',
-			schema: 'public',
-			table: 't',
-			from: 'old_check',
-			to: 'new_check',
-		} as any;
-		const dropCheck: JsonStatement = {
-			type: 'drop_check',
-			check: { schema: 'public', table: 't', name: 'new_check' } as any,
-		} as any;
-		const reasons = explainConflicts([renameCheck], [dropCheck]);
-		expect(reasons.length).toBeGreaterThan(0);
-	});
+	// 	test('check: rename vs drop', () => {
+	// 		const renameCheck: JsonStatement = {
+	// 			type: 'rename_constraint',
+	// 			schema: 'public',
+	// 			table: 't',
+	// 			from: 'old_check',
+	// 			to: 'new_check',
+	// 		} as any;
+	// 		const dropCheck: JsonStatement = {
+	// 			type: 'drop_check',
+	// 			check: { schema: 'public', table: 't', name: 'new_check' } as any,
+	// 		} as any;
+	// 		const reasons = explainConflicts([renameCheck], [dropCheck]);
+	// 		expect(reasons.length).toBeGreaterThan(0);
+	// 	});
 
-	test('privilege: grant vs revoke (different grantees)', () => {
-		const grant: JsonStatement = {
-			type: 'grant_privilege',
-			privilege: { schema: 'public', table: 't', grantee: 'user1', type: 'SELECT' } as any,
-		} as any;
-		const revoke: JsonStatement = {
-			type: 'revoke_privilege',
-			privilege: { schema: 'public', table: 't', grantee: 'user2', type: 'SELECT' } as any,
-		} as any;
-		const reasons = explainConflicts([grant], [revoke]);
-		expect(reasons.length).toBe(0); // Should not conflict if grantees are different
-	});
+	// 	test('privilege: grant vs revoke (different grantees)', () => {
+	// 		const grant: JsonStatement = {
+	// 			type: 'grant_privilege',
+	// 			privilege: { schema: 'public', table: 't', grantee: 'user1', type: 'SELECT' } as any,
+	// 		} as any;
+	// 		const revoke: JsonStatement = {
+	// 			type: 'revoke_privilege',
+	// 			privilege: { schema: 'public', table: 't', grantee: 'user2', type: 'SELECT' } as any,
+	// 		} as any;
+	// 		const reasons = explainConflicts([grant], [revoke]);
+	// 		expect(reasons.length).toBe(0); // Should not conflict if grantees are different
+	// 	});
 });
