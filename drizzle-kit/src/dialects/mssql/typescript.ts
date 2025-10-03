@@ -433,7 +433,7 @@ const createTableIndexes = (tableName: string, idxs: Index[], casing: Casing): s
 		// 	it.columns.map((it) => it.value),
 		// );
 
-		const name = it.nameExplicit ? it.name : '';
+		const name = it.name;
 		// const escapedIndexName = indexGeneratedName === it.name ? '' : `"${it.name}"`;
 
 		statement += it.isUnique ? '\tuniqueIndex(' : '\tindex(';

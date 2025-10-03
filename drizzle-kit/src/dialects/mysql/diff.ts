@@ -185,7 +185,6 @@ export const ddlDiff = async (
 	}
 
 	preserveEntityNames(ddl1.fks, ddl2.fks, mode);
-	preserveEntityNames(ddl1.pks, ddl2.pks, mode);
 	preserveEntityNames(ddl1.indexes, ddl2.indexes, mode);
 
 	const viewsDiff = diff(ddl1, ddl2, 'views');

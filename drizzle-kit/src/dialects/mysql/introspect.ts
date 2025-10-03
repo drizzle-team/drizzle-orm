@@ -408,7 +408,6 @@ export const fromDatabase = async (
 			table,
 			name,
 			value,
-			nameExplicit: true,
 		});
 	}
 

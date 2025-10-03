@@ -91,10 +91,10 @@ test('add table #3', async () => {
 	const to = {
 		users: mysqlTable('users', {
 			id: serial('id'),
+			test: varchar('test', { length: 1 }),
 		}, (t) => [
 			primaryKey({
-				name: 'users_pk',
-				columns: [t.id],
+				columns: [t.id, t.test],
 			}),
 		]),
 	};
@@ -103,7 +103,7 @@ test('add table #3', async () => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		'CREATE TABLE `users` (\n\t`id` serial PRIMARY KEY\n);\n',
+		'CREATE TABLE `users` (\n\t`id` serial,\n\t`test` varchar(1),\n\tCONSTRAINT `PRIMARY` PRIMARY KEY(`id`,`test`)\n);\n',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);

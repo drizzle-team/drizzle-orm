@@ -37,7 +37,6 @@ export const createDDL = () => {
 			onDelete: ['NO ACTION', 'CASCADE', 'SET NULL', 'SET DEFAULT'],
 		},
 		indexes: {
-			nameExplicit: 'boolean',
 			schema: 'required',
 			table: 'required',
 			columns: 'string[]', // does not supported indexing expressions
@@ -53,13 +52,13 @@ export const createDDL = () => {
 		checks: {
 			schema: 'required',
 			table: 'required',
-			nameExplicit: 'boolean',
 			value: 'string',
 		},
 		defaults: {
 			schema: 'required',
 			table: 'required',
 			column: 'string',
+			// this field will be required for name preserving
 			nameExplicit: 'boolean',
 			default: 'string?',
 		},

@@ -38,10 +38,12 @@ export class PrimaryKey {
 
 	readonly columns: AnyCockroachColumn<{}>[];
 	readonly name?: string;
+	readonly isNameExplicit: boolean;
 
 	constructor(readonly table: CockroachTable, columns: AnyCockroachColumn<{}>[], name?: string) {
 		this.columns = columns;
 		this.name = name;
+		this.isNameExplicit = !!name;
 	}
 
 	getName(): string | undefined {
