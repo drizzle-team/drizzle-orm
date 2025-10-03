@@ -48,8 +48,10 @@ export class MySqlDateTime<T extends ColumnBaseConfig<'object date'>> extends My
 		return value.toISOString().replace('T', ' ').replace('Z', '');
 	}
 
-	override mapFromDriverValue(value: string): Date {
-		return new Date(value.replace(' ', 'T') + 'Z');
+	override mapFromDriverValue(value: string | Date): Date {
+		if (typeof value === 'string') return new Date(value.replace(' ', 'T') + 'Z');
+
+		return value;
 	}
 }
 
@@ -91,6 +93,12 @@ export class MySqlDateTimeString<T extends ColumnBaseConfig<'string datetime'>> 
 	getSQLType(): string {
 		const precision = this.fsp === undefined ? '' : `(${this.fsp})`;
 		return `datetime${precision}`;
+	}
+
+	override mapFromDriverValue(value: Date | string): string {
+		if (typeof value === 'string') return value;
+
+		return value.toISOString().slice(0, -5).replace('T', ' ');
 	}
 }
 

@@ -1,5 +1,5 @@
 import { entityKind } from '~/entity.ts';
-import type { Table } from '~/index.ts';
+import type { Table } from '~/table.ts';
 import type { CacheConfig } from './types.ts';
 
 export abstract class Cache {

@@ -38,8 +38,10 @@ export class MySqlTimestamp<T extends ColumnBaseConfig<'object date'>>
 		return `timestamp${precision}`;
 	}
 
-	override mapFromDriverValue(value: string): Date {
-		return new Date(value + '+0000');
+	override mapFromDriverValue(value: Date | string): Date {
+		if (typeof value === 'string') return new Date(value + '+0000');
+
+		return value;
 	}
 
 	override mapToDriverValue(value: Date): string {
@@ -79,6 +81,15 @@ export class MySqlTimestampString<T extends ColumnBaseConfig<'string timestamp'>
 	getSQLType(): string {
 		const precision = this.fsp === undefined ? '' : `(${this.fsp})`;
 		return `timestamp${precision}`;
+	}
+
+	override mapFromDriverValue(value: Date | string): string {
+		if (typeof value === 'string') return value;
+
+		const shortened = value.toISOString().slice(0, -1).replace('T', ' ');
+		if (shortened.endsWith('.000')) return shortened.slice(0, -4);
+
+		return shortened;
 	}
 }
 

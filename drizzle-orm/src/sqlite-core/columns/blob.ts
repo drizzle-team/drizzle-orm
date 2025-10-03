@@ -59,7 +59,7 @@ export class SQLiteBigInt<T extends ColumnBaseConfig<'bigint int64'>> extends SQ
 			return BigInt(buf.toString('utf8'));
 		}
 
-		return BigInt(textDecoder!.decode(value));
+		return BigInt(textDecoder!.decode(value as ArrayBuffer));
 	}
 
 	override mapToDriverValue(value: bigint): Buffer {
@@ -113,7 +113,7 @@ export class SQLiteBlobJson<T extends ColumnBaseConfig<'object json'>> extends S
 			return JSON.parse(buf.toString('utf8'));
 		}
 
-		return JSON.parse(textDecoder!.decode(value));
+		return JSON.parse(textDecoder!.decode(value as ArrayBuffer));
 	}
 
 	override mapToDriverValue(value: T['data']): Buffer {

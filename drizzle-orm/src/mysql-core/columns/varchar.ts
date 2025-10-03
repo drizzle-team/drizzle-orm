@@ -60,7 +60,7 @@ export function varchar<
 	name: string,
 	config: MySqlVarCharConfig<T | Writable<T>>,
 ): MySqlVarCharBuilder<Writable<T>>;
-export function varchar(a?: string | MySqlVarCharConfig, b?: MySqlVarCharConfig): any {
+export function varchar(a: string | MySqlVarCharConfig, b?: MySqlVarCharConfig): any {
 	const { name, config } = getColumnNameAndConfig<MySqlVarCharConfig>(a, b);
 	return new MySqlVarCharBuilder(name, config as any);
 }
