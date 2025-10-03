@@ -79,6 +79,10 @@ export class ForeignKey {
 		const { name } = this.reference();
 		return name;
 	}
+
+	isNameExplicit() {
+		return !!this.reference().name;
+	}
 }
 
 type ColumnsWithTable<

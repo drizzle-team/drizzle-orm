@@ -26,8 +26,3 @@ test('s01', async (t) => {
 	const res = await diffSnapshotV5(db, s01);
 	expect(res.all).toStrictEqual([]);
 });
-
-// test('s02', async (t) => {
-// 	const res = await diffSnapshotV5(db, s02);
-// 	expect(res.all).toStrictEqual([]);
-// });

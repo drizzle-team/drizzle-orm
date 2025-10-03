@@ -1,4 +1,6 @@
 import type { Simplify } from '../utils';
+import { CockroachDDL } from './cockroach/ddl';
+import { MssqlDDL } from './mssql/ddl';
 import type { MysqlDDL } from './mysql/ddl';
 import type { PostgresDDL } from './postgres/ddl';
 
@@ -139,7 +141,11 @@ export function inspect(it: any): string {
 }
 
 export const preserveEntityNames = <
-	C extends PostgresDDL['uniques' | 'fks' | 'pks' | 'indexes'] | MysqlDDL['indexes' | 'pks' | 'fks'],
+	C extends
+		| PostgresDDL['uniques' | 'fks' | 'pks' | 'indexes']
+		| MysqlDDL['indexes' | 'fks']
+		| MssqlDDL['uniques' | 'fks' | 'pks' | 'defaults']
+		| CockroachDDL['fks' | 'pks' | 'indexes'],
 >(
 	collection1: C,
 	collection2: C,

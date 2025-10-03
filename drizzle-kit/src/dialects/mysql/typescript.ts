@@ -123,7 +123,7 @@ export const ddlToTypeScript = (
 	for (const it of [...ddl.entities.list(), ...viewEntities]) {
 		if (it.entityType === 'indexes') imports.add(it.isUnique ? 'uniqueIndex' : 'index');
 		if (it.entityType === 'fks') imports.add('foreignKey');
-		if (it.entityType === 'pks' && (it.columns.length > 1 || it.nameExplicit)) imports.add('primaryKey');
+		if (it.entityType === 'pks' && (it.columns.length > 1)) imports.add('primaryKey');
 		if (it.entityType === 'checks') imports.add('check');
 		if (it.entityType === 'views') imports.add(vendor === 'mysql' ? 'mysqlView' : 'singlestoreView');
 
@@ -407,8 +407,7 @@ const createTableChecks = (
 
 const createTablePK = (pk: PrimaryKey, casing: (value: string) => string): string => {
 	const columns = pk.columns.map((x) => `table.${casing(x)}`).join(', ');
-	let statement = `\tprimaryKey({ columns: [${columns}]`;
-	statement += `${pk.nameExplicit ? `, name: "${pk.name}"` : ''}}),\n`;
+	let statement = `\tprimaryKey({ columns: [${columns}] }),`;
 	return statement;
 };
 

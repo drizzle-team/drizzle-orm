@@ -210,7 +210,6 @@ export const fromDatabase = async (
 					entityType: 'pks',
 					table,
 					name: it['CONSTRAINT_NAME'],
-					nameExplicit: true,
 					columns: [column],
 				};
 			}
@@ -409,7 +408,6 @@ export const fromDatabase = async (
 			table,
 			name,
 			value,
-			nameExplicit: true,
 		});
 	}
 
