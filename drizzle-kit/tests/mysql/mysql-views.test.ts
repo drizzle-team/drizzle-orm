@@ -198,12 +198,16 @@ test('rename view and alter meta options', async () => {
 
 	const from = {
 		users: users,
-		view: mysqlView('some_view', {}).algorithm('merge').sqlSecurity('definer')
+		view1: mysqlView('view1', {}).algorithm('merge').sqlSecurity('definer')
+			.withCheckOption('cascaded').as(sql`SELECT * FROM ${users}`),
+		view2: mysqlView('view2', {}).algorithm('undefined').sqlSecurity('definer')
 			.withCheckOption('cascaded').as(sql`SELECT * FROM ${users}`),
 	};
 	const to = {
 		users: users,
-		view: mysqlView('new_some_view', {}).sqlSecurity('definer')
+		view: mysqlView('view1new', {}).sqlSecurity('definer')
+			.withCheckOption('cascaded').as(sql`SELECT * FROM ${users}`),
+		view2: mysqlView('view2new', {}).algorithm('merge').sqlSecurity('definer')
 			.withCheckOption('cascaded').as(sql`SELECT * FROM ${users}`),
 	};
 
@@ -213,9 +217,16 @@ test('rename view and alter meta options', async () => {
 	await push({ db, to: from });
 	const { sqlStatements: pst } = await push({ db, to, renames });
 
+	/*
+		UNDEFINED lets the server pick at execution time (often it still runs as a merge if the query is “mergeable”).
+		Specifying MERGE when it’s not possible causes MySQL to store UNDEFINED with a warning,
+		but the reverse (forcing UNDEFINED to overwrite MERGE) doesn’t happen via ALTER.
+
+		https://dev.mysql.com/doc/refman/8.4/en/view-algorithms.html
+	*/
 	const st0: string[] = [
 		`RENAME TABLE \`some_view\` TO \`new_some_view\`;`,
-		`ALTER ALGORITHM = undefined SQL SECURITY definer VIEW \`new_some_view\` AS SELECT * FROM \`users\` WITH cascaded CHECK OPTION;`,
+		`ALTER ALGORITHM = merge SQL SECURITY definer VIEW \`view2new\` AS SELECT * FROM \`users\` WITH cascaded CHECK OPTION;`,
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);

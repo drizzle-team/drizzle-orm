@@ -127,8 +127,6 @@ export const fromDrizzleSchema = (
 				collation = column.collation ?? null;
 			}
 
-			// TODO: @AleksandrSherman remove
-			const nameExplicitTemp = `${tableName}_${column.name}_unique` !== column.uniqueName;
 			result.columns.push({
 				entityType: 'columns',
 				table: tableName,
@@ -143,7 +141,7 @@ export const fromDrizzleSchema = (
 				generated,
 				isPK: column.primary,
 				isUnique: column.isUnique,
-				uniqueName: nameExplicitTemp ? column.uniqueName! : null,
+				uniqueName: column.uniqueNameExplicit ? column.uniqueName! : null,
 				default: defaultValue,
 			});
 		}
@@ -257,45 +255,45 @@ export const fromDrizzleSchema = (
 				nameExplicit: false,
 			});
 		}
+	}
 
-		for (const view of views) {
-			const cfg = getViewConfig(view);
-			const {
-				isExisting,
-				name,
-				query,
-				schema,
-				selectedFields,
-				algorithm,
-				sqlSecurity,
-				withCheckOption,
-			} = cfg;
+	for (const view of views) {
+		const cfg = getViewConfig(view);
+		const {
+			isExisting,
+			name,
+			query,
+			schema,
+			selectedFields,
+			algorithm,
+			sqlSecurity,
+			withCheckOption,
+		} = cfg;
 
-			if (isExisting) continue;
+		if (isExisting) continue;
 
-			for (const key in selectedFields) {
-				if (is(selectedFields[key], MySqlColumn)) {
-					const column = selectedFields[key];
-					const notNull: boolean = column.notNull;
+		for (const key in selectedFields) {
+			if (is(selectedFields[key], MySqlColumn)) {
+				const column = selectedFields[key];
+				const notNull: boolean = column.notNull;
 
-					result.viewColumns.push({
-						view: name,
-						name: column.name,
-						type: column.getSQLType(),
-						notNull: notNull,
-					});
-				}
+				result.viewColumns.push({
+					view: name,
+					name: column.name,
+					type: column.getSQLType(),
+					notNull: notNull,
+				});
 			}
-
-			result.views.push({
-				entityType: 'views',
-				name,
-				definition: query ? dialect.sqlToQuery(query).sql : '',
-				withCheckOption: withCheckOption ?? null,
-				algorithm: algorithm ?? 'undefined', // set default values
-				sqlSecurity: sqlSecurity ?? 'definer', // set default values
-			});
 		}
+
+		result.views.push({
+			entityType: 'views',
+			name,
+			definition: query ? dialect.sqlToQuery(query).sql : '',
+			withCheckOption: withCheckOption ?? null,
+			algorithm: algorithm ?? 'undefined', // set default values
+			sqlSecurity: sqlSecurity ?? 'definer', // set default values
+		});
 	}
 
 	return result;
