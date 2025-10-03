@@ -1641,3 +1641,19 @@ test(`push-push: check on update now with fsp #2`, async () => {
 	const st0: string[] = [];
 	expect(pst).toStrictEqual(st0);
 });
+
+test('weird serial non-pk', async () => {
+	// old kit was generating serials with autoincrements which is wrong
+	db.query('create table `table`(c1 int not null, c2 serial auto_increment, CONSTRAINT `PRIMARY` PRIMARY KEY(`c1`));');
+
+	const table = mysqlTable('table', {
+		c1: int().primaryKey(),
+		c2: serial(),
+	});
+
+	const res1 = await push({ db, to: { table } });
+	const res2 = await push({ db, to: { table } });
+
+	expect(res1.sqlStatements).toStrictEqual([]);
+	expect(res2.sqlStatements).toStrictEqual([]);
+});

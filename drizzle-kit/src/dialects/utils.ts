@@ -145,6 +145,7 @@ export const preserveEntityNames = <
 	collection2: C,
 	mode: 'push' | 'default',
 ) => {
+
 	const items = collection1.list().filter((x) => mode === 'push' || !x.nameExplicit);
 	for (const left of items) {
 		const { entityType: _, name, nameExplicit, ...filter } = left;
@@ -153,6 +154,7 @@ export const preserveEntityNames = <
 
 		if (match.length !== 1 || match[0].name === left.name) continue;
 
+		console.log("preserving:", left.name)
 		collection2.update({
 			set: { name: left.name },
 			where: {
