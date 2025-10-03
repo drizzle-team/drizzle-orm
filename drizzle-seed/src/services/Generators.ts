@@ -1537,7 +1537,7 @@ export class GenerateUUID extends AbstractGenerator<{
 		const strLength = 36;
 
 		// uuid v4
-		const uuidTemplate = '########-####-4###-####-############';
+		const uuidTemplate = '########-####-4###-N###-############';
 		currStr = '';
 		for (let i = 0; i < strLength; i++) {
 			[idx, this.state.rng] = prand.uniformIntDistribution(
@@ -1548,6 +1548,10 @@ export class GenerateUUID extends AbstractGenerator<{
 
 			if (uuidTemplate[i] === '#') {
 				currStr += stringChars[idx];
+				continue;
+			}
+			if (uuidTemplate[i] === 'N') {
+				currStr += '89ab'[idx % 4];
 				continue;
 			}
 			currStr += uuidTemplate[i];
