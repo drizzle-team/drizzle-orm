@@ -1,7 +1,7 @@
 import { Database } from 'bun:sqlite';
 import { beforeAll, beforeEach, expect, test } from 'bun:test';
 import { sql } from 'drizzle-orm';
-import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
+import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 import { blob, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
@@ -11,10 +11,10 @@ const usersTable = sqliteTable('users', {
 	verified: integer('verified').notNull().default(0),
 	json: blob('json', { mode: 'json' }).$type<string[]>(),
 	bigInt: blob('big_int', { mode: 'bigint' }),
-	createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().default(sql`strftime('%s', 'now')`),
+	createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`strftime('%s', 'now')`),
 });
 
-let db: BunSQLiteDatabase;
+let db: SQLiteBunDatabase;
 
 beforeAll(async () => {
 	try {
@@ -59,7 +59,7 @@ test('select all fields', () => {
 	const result = db.select().from(usersTable).all()[0]!;
 
 	expect(result.createdAt).toBeInstanceOf(Date);
-	expect(Math.abs(result.createdAt.getTime() - now)).toBeLessThan(100);
+	expect(Math.abs(result.createdAt.getTime() - now)).toBeLessThan(1000);
 	expect(result).toEqual({ id: 1, name: 'John', verified: 0, json: null, createdAt: result.createdAt, bigInt: null });
 });
 

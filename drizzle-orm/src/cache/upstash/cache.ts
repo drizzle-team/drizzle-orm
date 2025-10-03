@@ -2,7 +2,7 @@ import { Redis } from '@upstash/redis';
 import type { MutationOption } from '~/cache/core/index.ts';
 import { Cache } from '~/cache/core/index.ts';
 import { entityKind, is } from '~/entity.ts';
-import { OriginalName, Table } from '~/index.ts';
+import { OriginalName, Table } from '~/table.ts';
 import type { CacheConfig } from '../core/types.ts';
 
 const getByTagScript = `
