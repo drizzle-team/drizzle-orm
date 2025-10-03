@@ -1,7 +1,7 @@
 import type { ColumnBaseConfig } from '~/column.ts';
 import { entityKind } from '~/entity.ts';
 import type { MySqlTable } from '~/mysql-core/table.ts';
-import { type Equal, getColumnNameAndConfig } from '~/utils.ts';
+import { type Equal, getColumnNameAndConfig, textDecoder } from '~/utils.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export type MySqlBlobColumnType = 'tinyblob' | 'blob' | 'mediumblob' | 'longblob';
@@ -56,8 +56,20 @@ export class MySqlStringBlob<T extends ColumnBaseConfig<'string'>>
 		return this.blobType;
 	}
 
-	override mapFromDriverValue(value: Buffer): string {
-		return value.toString();
+	override mapFromDriverValue(value: Buffer | Uint8Array | ArrayBuffer): T['data'] {
+		if (typeof Buffer !== 'undefined' && Buffer.from) {
+			const buf = Buffer.isBuffer(value)
+				? value
+				// eslint-disable-next-line no-instanceof/no-instanceof
+				: value instanceof ArrayBuffer
+				? Buffer.from(value)
+				: value.buffer
+				? Buffer.from(value.buffer, value.byteOffset, value.byteLength)
+				: Buffer.from(value);
+			return buf.toString('utf8');
+		}
+
+		return textDecoder!.decode(value as ArrayBuffer);
 	}
 }
 
@@ -108,6 +120,14 @@ export class MySqlBufferBlob<T extends ColumnBaseConfig<'object buffer'>>
 
 	getSQLType(): string {
 		return this.blobType;
+	}
+
+	override mapFromDriverValue(value: Buffer | Uint8Array | ArrayBuffer): T['data'] {
+		if (Buffer.isBuffer(value)) {
+			return value;
+		}
+
+		return Buffer.from(value as Uint8Array);
 	}
 }
 

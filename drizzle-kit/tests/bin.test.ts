@@ -87,7 +87,7 @@ test('check imports sqlite-studio', () => {
 	const issues = analyzeImports({
 		basePath: '.',
 		localPaths: ['src'],
-		whiteList: [],
+		whiteList: ['@js-temporal/polyfill', 'ohm-js'],
 		entry: 'src/ext/studio-sqlite.ts',
 		logger: true,
 		ignoreTypes: true,
@@ -144,7 +144,7 @@ test('check imports mysql-mover', () => {
 	const issues = analyzeImports({
 		basePath: '.',
 		localPaths: ['src'],
-		whiteList: [],
+		whiteList: ['@js-temporal/polyfill', 'ohm-js'],
 		entry: 'src/ext/mover-mysql.ts',
 		logger: true,
 		ignoreTypes: true,

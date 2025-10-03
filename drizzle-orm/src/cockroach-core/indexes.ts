@@ -151,9 +151,11 @@ export class Index {
 	static readonly [entityKind]: string = 'CockroachIndex';
 
 	readonly config: IndexConfig & { table: CockroachTable };
+	readonly isNameExplicit: boolean;
 
 	constructor(config: IndexConfig, table: CockroachTable) {
 		this.config = { ...config, table };
+		this.isNameExplicit = !!config.name;
 	}
 }
 

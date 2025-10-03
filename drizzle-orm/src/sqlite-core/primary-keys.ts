@@ -53,10 +53,12 @@ export class PrimaryKey {
 
 	readonly columns: SQLiteColumn[];
 	readonly name?: string;
+	readonly isNameExplicit: boolean;
 
 	constructor(readonly table: SQLiteTable, columns: SQLiteColumn[], name?: string) {
 		this.columns = columns;
 		this.name = name;
+		this.isNameExplicit = !!name;
 	}
 
 	getName(): string {

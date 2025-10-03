@@ -91,10 +91,10 @@ test('add table #3', async () => {
 	const to = {
 		users: mysqlTable('users', {
 			id: serial('id'),
+			test: varchar('test', { length: 1 }),
 		}, (t) => [
 			primaryKey({
-				name: 'users_pk',
-				columns: [t.id],
+				columns: [t.id, t.test],
 			}),
 		]),
 	};
@@ -103,7 +103,7 @@ test('add table #3', async () => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		'CREATE TABLE `users` (\n\t`id` serial,\n\tCONSTRAINT `users_pk` PRIMARY KEY(`id`)\n);\n',
+		'CREATE TABLE `users` (\n\t`id` serial,\n\t`test` varchar(1),\n\tCONSTRAINT `PRIMARY` PRIMARY KEY(`id`,`test`)\n);\n',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -839,7 +839,7 @@ test('composite primary key #1', async () => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		'CREATE TABLE `works_to_creators` (\n\t`workId` int NOT NULL,\n\t`creatorId` int NOT NULL,\n\t`classification` varchar(10) NOT NULL,\n\tCONSTRAINT `works_to_creators_workId_creatorId_classification_pk` PRIMARY KEY(`workId`,`creatorId`,`classification`)\n);\n',
+		'CREATE TABLE `works_to_creators` (\n\t`workId` int NOT NULL,\n\t`creatorId` int NOT NULL,\n\t`classification` varchar(10) NOT NULL,\n\tCONSTRAINT `PRIMARY` PRIMARY KEY(`workId`,`creatorId`,`classification`)\n);\n',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -865,7 +865,7 @@ test('composite primary key #2', async () => {
 	const { sqlStatements: pst } = await push({ db, to: schema2 });
 
 	const st0: string[] = [
-		'CREATE TABLE `table` (\n\t`col1` int NOT NULL,\n\t`col2` int NOT NULL,\n\tCONSTRAINT `table_col1_col2_pk` PRIMARY KEY(`col1`,`col2`)\n);\n',
+		'CREATE TABLE `table` (\n\t`col1` int NOT NULL,\n\t`col2` int NOT NULL,\n\tCONSTRAINT `PRIMARY` PRIMARY KEY(`col1`,`col2`)\n);\n',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -986,7 +986,7 @@ test('optional db aliases (snake case)', async () => {
 		`CREATE TABLE \`t3\` (
 	\`t3_id1\` int,
 	\`t3_id2\` int,
-	CONSTRAINT \`t3_t3_id1_t3_id2_pk\` PRIMARY KEY(\`t3_id1\`,\`t3_id2\`)
+	CONSTRAINT \`PRIMARY\` PRIMARY KEY(\`t3_id1\`,\`t3_id2\`)
 );\n`,
 		`CREATE INDEX \`t1_idx\` ON \`t1\` (\`t1_idx\`);`,
 		'ALTER TABLE `t1` ADD CONSTRAINT `t1_t2_ref_t2_t2_id_fkey` FOREIGN KEY (`t2_ref`) REFERENCES `t2`(`t2_id`);',
@@ -1045,7 +1045,7 @@ test('optional db aliases (camel case)', async () => {
 		+ `\tCONSTRAINT \`t1UniIdx\` UNIQUE(\`t1UniIdx\`)\n`
 		+ `);\n`,
 		`CREATE TABLE \`t2\` (\n\t\`t2Id\` serial PRIMARY KEY\n);\n`,
-		`CREATE TABLE \`t3\` (\n\t\`t3Id1\` int,\n\t\`t3Id2\` int,\n\tCONSTRAINT \`t3_t3Id1_t3Id2_pk\` PRIMARY KEY(\`t3Id1\`,\`t3Id2\`)\n);\n`,
+		`CREATE TABLE \`t3\` (\n\t\`t3Id1\` int,\n\t\`t3Id2\` int,\n\tCONSTRAINT \`PRIMARY\` PRIMARY KEY(\`t3Id1\`,\`t3Id2\`)\n);\n`,
 		'CREATE INDEX `t1Idx` ON `t1` (`t1Idx`);',
 		'ALTER TABLE `t1` ADD CONSTRAINT `t1_t2Ref_t2_t2Id_fkey` FOREIGN KEY (`t2Ref`) REFERENCES `t2`(`t2Id`);',
 		'ALTER TABLE `t1` ADD CONSTRAINT `t1_t1Col2_t1Col3_t3_t3Id1_t3Id2_fkey` FOREIGN KEY (`t1Col2`,`t1Col3`) REFERENCES `t3`(`t3Id1`,`t3Id2`);',
