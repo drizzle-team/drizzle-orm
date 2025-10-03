@@ -84,7 +84,7 @@ export const booleanArrayTable = schema.table('boolean_array_table', {
 });
 
 export const dateTable = schema.table('date_table', {
-	date: date('date'),
+	date: date('date', { mode: 'date' }),
 });
 
 // TODO: add tests for data type with different modes
