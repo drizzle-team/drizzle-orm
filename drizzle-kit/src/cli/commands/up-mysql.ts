@@ -119,14 +119,13 @@ export const upToV6 = (it: Record<string, any>): MysqlSnapshot => {
 				table: table.name,
 				name: check.name,
 				value: check.value,
-				nameExplicit: true,
 			});
 		}
 
 		for (const pk of Object.values(table.compositePrimaryKeys)) {
 			ddl.pks.push({
 				table: table.name,
-				name: "PRIMARY",
+				name: 'PRIMARY',
 				columns: pk.columns,
 			});
 		}

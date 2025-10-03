@@ -183,6 +183,7 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: S
 	}
 
 	for (const index of interim.indexes) {
+		console.log(index.name, index.nameExplicit)
 		const res = ddl.indexes.push(index);
 		if (res.status === 'CONFLICT') {
 			throw new Error(`Index conflict: ${JSON.stringify(index)}`);

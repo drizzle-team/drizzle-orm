@@ -211,7 +211,7 @@ test('rename view and alter meta options', async () => {
 			.withCheckOption('cascaded').as(sql`SELECT * FROM ${users}`),
 	};
 
-	const renames = ['some_view->new_some_view'];
+	const renames = ['view1->view1new', 'view2->view2new'];
 	const { sqlStatements: st } = await diff(from, to, renames);
 
 	await push({ db, to: from });
@@ -225,7 +225,8 @@ test('rename view and alter meta options', async () => {
 		https://dev.mysql.com/doc/refman/8.4/en/view-algorithms.html
 	*/
 	const st0: string[] = [
-		`RENAME TABLE \`some_view\` TO \`new_some_view\`;`,
+		'RENAME TABLE `view1` TO `view1new`;',
+		'RENAME TABLE `view2` TO `view2new`;',
 		`ALTER ALGORITHM = merge SQL SECURITY definer VIEW \`view2new\` AS SELECT * FROM \`users\` WITH cascaded CHECK OPTION;`,
 	];
 	expect(st).toStrictEqual(st0);

@@ -100,14 +100,14 @@ import {
 // unique
 export const uniqueTable = mysqlTable('unique_table', {
 	column1: int().primaryKey(),
-	column2: serial(),
+	// column2: serial(),
 	column3: int().unique(),
 	column4: int().unique('column4_custom_unique_name'),
-	column5: int(),
-	column6: int(),
+	// column5: int(),
+	// column6: int(),
 }, (table) => [
-	unique().on(table.column5),
-	unique('custom_unique').on(table.column5, table.column6),
+	// unique().on(table.column5),
+	// unique('custom_unique').on(table.column5, table.column6),
 ]);
 
 // primary
