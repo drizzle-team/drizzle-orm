@@ -144,24 +144,13 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: S
 	}
 
 	for (const pk of interim.pks) {
-		const res = ddl.pks.push(pk);
+		const res = ddl.pks.push({ table: pk.table, name: 'PRIMARY', columns: pk.columns });
 		if (res.status === 'CONFLICT') {
 			throw new Error(`PK conflict: ${JSON.stringify(pk)}`);
 		}
 	}
 
 	for (const column of interim.columns.filter((it) => it.isPK)) {
-		// const res = ddl.pks.push({
-		// 	table: column.table,
-		// 	name: 'PRIMARY', // database default
-		// 	nameExplicit: false,
-		// 	columns: [column.name],
-		// });
-
-		// if (res.status === 'CONFLICT') {
-		// 	throw new Error(`PK conflict: ${JSON.stringify(column)}`);
-		// }
-
 		const exists = ddl.pks.one({
 			table: column.table,
 			name: 'PRIMARY', // database default
