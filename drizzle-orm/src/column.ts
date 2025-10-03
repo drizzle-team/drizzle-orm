@@ -58,7 +58,6 @@ export abstract class Column<
 	readonly isUnique: boolean;
 	readonly uniqueName: string | undefined;
 	readonly uniqueType: string | undefined;
-	readonly uniqueNameExplicit: boolean | undefined;
 	readonly dataType: T['dataType'];
 	readonly columnType: string;
 	readonly enumValues: T['enumValues'] = undefined;
