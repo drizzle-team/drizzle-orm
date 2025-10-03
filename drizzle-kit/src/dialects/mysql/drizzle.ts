@@ -127,6 +127,8 @@ export const fromDrizzleSchema = (
 				collation = column.collation ?? null;
 			}
 
+			console.log(column.name, column.uniqueNameExplicit,column.uniqueName)
+
 			result.columns.push({
 				entityType: 'columns',
 				table: tableName,
