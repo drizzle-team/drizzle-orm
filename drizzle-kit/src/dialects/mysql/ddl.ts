@@ -185,7 +185,7 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: S
 			using: null,
 			algorithm: null,
 			lock: null,
-			nameExplicit: false,
+			nameExplicit: !!column.uniqueName,
 		});
 
 		if (res.status === 'CONFLICT') {
