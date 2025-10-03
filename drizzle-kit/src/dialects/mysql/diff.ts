@@ -256,9 +256,9 @@ export const ddlDiff = async (
 			// TODO: We should probably print a CLI hint for the user too
 			if (it.definition && mode === 'push') delete it.definition;
 
-			/* 
-				UNDEFINED lets the server pick at execution time (often it still runs as a merge if the query is “mergeable”). 
-				Specifying MERGE when it’s not possible causes MySQL to store UNDEFINED with a warning, 
+			/*
+				UNDEFINED lets the server pick at execution time (often it still runs as a merge if the query is “mergeable”).
+				Specifying MERGE when it’s not possible causes MySQL to store UNDEFINED with a warning,
 				but the reverse (forcing UNDEFINED to overwrite MERGE) doesn’t happen via ALTER.
 
 				https://dev.mysql.com/doc/refman/8.4/en/view-algorithms.html

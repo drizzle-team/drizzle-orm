@@ -85,7 +85,7 @@ export const upToV6 = (it: Record<string, any>): MysqlSnapshot => {
 
 			let nameImplicit = `${table.name}_${unique.columns.join('_')}_unique` === unique.name
 				|| `${table.name}_${unique.columns.join('_')}` === unique.name;
-			
+
 			ddl.indexes.push({
 				table: table.name,
 				name: unique.name,
