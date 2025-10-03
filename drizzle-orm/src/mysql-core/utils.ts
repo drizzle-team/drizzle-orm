@@ -1,5 +1,5 @@
 import { is } from '~/entity.ts';
-import { SQL } from '~/index.ts';
+import { SQL } from '~/sql/sql.ts';
 import { Subquery } from '~/subquery.ts';
 import { Table } from '~/table.ts';
 import { ViewBaseConfig } from '~/view-common.ts';

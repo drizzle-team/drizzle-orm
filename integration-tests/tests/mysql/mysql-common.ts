@@ -1075,8 +1075,8 @@ export function tests(driver?: string) {
 				.values({ name: 'John' });
 
 			await expect((async () => {
-				db.insert(usersTable).values({ id: 1, name: 'John1' });
-			})()).resolves.not.toThrowError();
+				await db.insert(usersTable).values({ id: 1, name: 'John1' });
+			})()).rejects.toThrowError();
 		});
 
 		test('insert conflict with ignore', async (ctx) => {
