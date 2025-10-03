@@ -6,6 +6,7 @@ import {
 	boolean,
 	char,
 	check,
+	customType,
 	decimal,
 	double,
 	float,
@@ -106,6 +107,7 @@ test('Default value of character type column: char', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/1754
 test('Default value of character type column: varchar', async () => {
 	const schema = {
 		users: mysqlTable('users', {
@@ -258,6 +260,23 @@ test('instrospect strings with single quotes', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3297
+test('introspect varchar with \r\n in default, column name starts with number', async () => {
+	// TODO: revise: seems like corner case
+	const schema = {
+		table1: mysqlTable('table1', {
+			column1: varchar({ length: 24 }).notNull().default(' aaa\r\nbbbb'),
+			'2column_': tinyint('2column_').default(0).notNull(),
+			column3: decimal({ precision: 2, scale: 1, unsigned: true }).notNull(),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'introspect-varchar-with-breakline');
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
 test('charSet and collate', async () => {
 	const schema = {
 		columns: mysqlTable('columns', {
@@ -297,14 +316,20 @@ test('introspect bigint, mediumint, int, smallint, tinyint', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/1428
 // https://github.com/drizzle-team/drizzle-orm/issues/3552
 // https://github.com/drizzle-team/drizzle-orm/issues/4602
 test('introspect table with primary key and check', async () => {
 	const schema = {
 		table1: mysqlTable('table1', {
-			column1: int().primaryKey(),
+			column1: int().autoincrement().primaryKey(),
 		}),
 		table2: mysqlTable('table2', {
+			column1: int().autoincrement(),
+		}, (table) => [
+			primaryKey({ columns: [table.column1] }),
+		]),
+		table3: mysqlTable('table3', {
 			column1: int(),
 			column2: int(),
 		}, (table) => [
@@ -401,6 +426,21 @@ test('introspect blob, tinyblob, mediumblob, longblob', async () => {
 	};
 
 	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'introspect-blobs');
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3480
+test('introspect bit(1); custom type', async () => {
+	const schema = {
+		table1: mysqlTable('table1', {
+			column1: customType({ dataType: () => 'bit(1)' })().default("b'1'"), // this fails
+			column2: customType({ dataType: () => 'bit(1)' })().default(sql`b'1'`), // this works fine
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'introspect-bit(1)');
 
 	expect(statements.length).toBe(0);
 	expect(sqlStatements.length).toBe(0);
