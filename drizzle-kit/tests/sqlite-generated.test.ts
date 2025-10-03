@@ -154,6 +154,7 @@ test('generated as callback: add generated constraint to an exisiting column as 
 	expect(statements).toStrictEqual([
 		{
 			columnAutoIncrement: false,
+			columnComment: undefined,
 			columnDefault: undefined,
 			columnGenerated: {
 				as: '("name" || \'to add\')',
@@ -205,6 +206,7 @@ test('generated as callback: drop generated constraint as stored', async () => {
 	expect(statements).toStrictEqual([
 		{
 			columnAutoIncrement: false,
+			columnComment: undefined,
 			columnDefault: undefined,
 			columnGenerated: undefined,
 			columnName: 'gen_name',
@@ -253,6 +255,7 @@ test('generated as callback: drop generated constraint as virtual', async () => 
 	expect(statements).toStrictEqual([
 		{
 			columnAutoIncrement: false,
+			columnComment: undefined,
 			columnDefault: undefined,
 			columnGenerated: undefined,
 			columnName: 'gen_name',
@@ -339,6 +342,7 @@ test('generated as callback: change generated constraint type from stored to vir
 	expect(statements).toStrictEqual([
 		{
 			columnAutoIncrement: false,
+			columnComment: undefined,
 			columnDefault: undefined,
 			columnGenerated: {
 				as: '("name" || \'hello\')',
@@ -426,6 +430,7 @@ test('generated as callback: change virtual generated constraint', async () => {
 	expect(statements).toStrictEqual([
 		{
 			columnAutoIncrement: false,
+			columnComment: undefined,
 			columnDefault: undefined,
 			columnGenerated: {
 				as: '("name" || \'hello\')',
@@ -729,6 +734,7 @@ test('generated as sql: add generated constraint to an exisiting column as virtu
 	expect(statements).toStrictEqual([
 		{
 			columnAutoIncrement: false,
+			columnComment: undefined,
 			columnDefault: undefined,
 			columnGenerated: {
 				as: '("users"."name" || \'to add\')',
@@ -780,6 +786,7 @@ test('generated as sql: drop generated constraint as stored', async () => {
 	expect(statements).toStrictEqual([
 		{
 			columnAutoIncrement: false,
+			columnComment: undefined,
 			columnDefault: undefined,
 			columnGenerated: undefined,
 			columnName: 'gen_name',
@@ -828,6 +835,7 @@ test('generated as sql: drop generated constraint as virtual', async () => {
 	expect(statements).toStrictEqual([
 		{
 			columnAutoIncrement: false,
+			columnComment: undefined,
 			columnDefault: undefined,
 			columnGenerated: undefined,
 			columnName: 'gen_name',
@@ -912,6 +920,7 @@ test('generated as sql: change generated constraint type from stored to virtual'
 	expect(statements).toStrictEqual([
 		{
 			columnAutoIncrement: false,
+			columnComment: undefined,
 			columnDefault: undefined,
 			columnGenerated: {
 				as: '("users"."name" || \'hello\')',
@@ -996,6 +1005,7 @@ test('generated as sql: change virtual generated constraint', async () => {
 	expect(statements).toStrictEqual([
 		{
 			columnAutoIncrement: false,
+			columnComment: undefined,
 			columnDefault: undefined,
 			columnGenerated: {
 				as: '("users"."name" || \'hello\')',
@@ -1299,6 +1309,7 @@ test('generated as string: add generated constraint to an exisiting column as vi
 	expect(statements).toStrictEqual([
 		{
 			columnAutoIncrement: false,
+			columnComment: undefined,
 			columnDefault: undefined,
 			columnGenerated: {
 				as: '("users"."name" || \'to add\')',
@@ -1350,6 +1361,7 @@ test('generated as string: drop generated constraint as stored', async () => {
 	expect(statements).toStrictEqual([
 		{
 			columnAutoIncrement: false,
+			columnComment: undefined,
 			columnDefault: undefined,
 			columnGenerated: undefined,
 			columnName: 'gen_name',
@@ -1398,6 +1410,7 @@ test('generated as string: drop generated constraint as virtual', async () => {
 	expect(statements).toStrictEqual([
 		{
 			columnAutoIncrement: false,
+			columnComment: undefined,
 			columnDefault: undefined,
 			columnGenerated: undefined,
 			columnName: 'gen_name',
@@ -1482,6 +1495,7 @@ test('generated as string: change generated constraint type from stored to virtu
 	expect(statements).toStrictEqual([
 		{
 			columnAutoIncrement: false,
+			columnComment: undefined,
 			columnDefault: undefined,
 			columnGenerated: {
 				as: '("users"."name" || \'hello\')',
@@ -1566,6 +1580,7 @@ test('generated as string: change virtual generated constraint', async () => {
 	expect(statements).toStrictEqual([
 		{
 			columnAutoIncrement: false,
+			columnComment: undefined,
 			columnDefault: undefined,
 			columnGenerated: {
 				as: '("users"."name" || \'hello\')',
