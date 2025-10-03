@@ -50,10 +50,12 @@ export class PrimaryKey {
 
 	readonly columns: SingleStoreColumn[];
 	readonly name?: string;
+	readonly isNameExplicit: boolean;
 
 	constructor(readonly table: SingleStoreTable, columns: SingleStoreColumn[], name?: string) {
 		this.columns = columns;
 		this.name = name;
+		this.isNameExplicit = !!name;
 	}
 
 	getName(): string {

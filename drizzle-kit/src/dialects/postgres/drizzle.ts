@@ -419,14 +419,13 @@ export const fromDrizzleSchema = (
 				const columnNames = pk.columns.map((c) => getColumnCasing(c, casing));
 
 				const name = pk.name || defaultNameForPK(tableName);
-				const isNameExplicit = !!pk.name;
 				return {
 					entityType: 'pks',
 					schema: schema,
 					table: tableName,
 					name: name,
 					columns: columnNames,
-					nameExplicit: isNameExplicit,
+					nameExplicit: pk.isNameExplicit,
 				};
 			}),
 		);
@@ -440,7 +439,7 @@ export const fromDrizzleSchema = (
 					schema: schema,
 					table: tableName,
 					name,
-					nameExplicit: !!unq.isNameExplicit(),
+					nameExplicit: unq.isNameExplicit,
 					nullsNotDistinct: unq.nullsNotDistinct,
 					columns: columnNames,
 				} satisfies UniqueConstraint;
@@ -517,10 +516,7 @@ export const fromDrizzleSchema = (
 					return name;
 				});
 
-				const name = value.config.name
-					? value.config.name
-					: indexName(tableName, indexColumnNames);
-				const nameExplicit = !!value.config.name;
+				const name = value.config.name ?? indexName(tableName, indexColumnNames);
 
 				let indexColumns = columns.map((it) => {
 					if (is(it, SQL)) {
@@ -564,7 +560,7 @@ export const fromDrizzleSchema = (
 					schema,
 					table: tableName,
 					name,
-					nameExplicit,
+					nameExplicit: value.isNameExplicit,
 					columns: indexColumns,
 					isUnique: value.config.unique,
 					where: where ? where : null,

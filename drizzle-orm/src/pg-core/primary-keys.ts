@@ -50,17 +50,15 @@ export class PrimaryKey {
 
 	readonly columns: AnyPgColumn<{}>[];
 	readonly name?: string;
+	readonly isNameExplicit: boolean;
 
 	constructor(readonly table: PgTable, columns: AnyPgColumn<{}>[], name?: string) {
 		this.columns = columns;
 		this.name = name;
+		this.isNameExplicit = !!name;
 	}
 
 	getName(): string {
 		return this.name ?? `${this.table[PgTable.Symbol.Name]}_${this.columns.map((column) => column.name).join('_')}_pk`;
-	}
-
-	isNameExplicit(): boolean {
-		return this.name ? true : false;
 	}
 }
