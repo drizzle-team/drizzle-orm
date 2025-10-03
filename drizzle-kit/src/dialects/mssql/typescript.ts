@@ -480,7 +480,7 @@ const createTableUniques = (
 		statement += '\tunique(';
 		statement += it.nameExplicit ? `"${it.name}")` : ')';
 		statement += `.on(${it.columns.map((it) => `table.${withCasing(it, casing)}`).join(', ')})`;
-		statement += index === unqs.length - 1 ? `\n` : ',\n';
+		statement += ',\n';
 	});
 
 	return statement;
