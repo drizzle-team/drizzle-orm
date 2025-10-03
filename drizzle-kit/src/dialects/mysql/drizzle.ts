@@ -141,7 +141,7 @@ export const fromDrizzleSchema = (
 				generated,
 				isPK: column.primary,
 				isUnique: column.isUnique,
-				uniqueName: column.uniqueNameExplicit ? column.uniqueName! : null,
+				uniqueName: column.uniqueName ?? null,
 				default: defaultValue,
 			});
 		}
