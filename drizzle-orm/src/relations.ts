@@ -748,7 +748,10 @@ export function mapRelationalRow(
 
 			if (row[selectionItem.key] === null) continue;
 
-			if (parseJson) row[selectionItem.key] = JSON.parse(row[selectionItem.key] as string);
+			if (parseJson) {
+				row[selectionItem.key] = JSON.parse(row[selectionItem.key] as string);
+				if (row[selectionItem.key] === null) continue;
+			}
 			if (parseJsonIfString && typeof row[selectionItem.key] === 'string') {
 				row[selectionItem.key] = JSON.parse(row[selectionItem.key] as string);
 			}

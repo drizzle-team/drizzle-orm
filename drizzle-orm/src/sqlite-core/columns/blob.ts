@@ -9,9 +9,9 @@ type BlobMode = 'buffer' | 'json' | 'bigint';
 function hexToText(hexString: string) {
 	let result = '';
 	for (let i = 0; i < hexString.length; i += 2) {
-		const hexPair = hexString.substring(i, i + 2);
-		const decimalValue = parseInt(hexPair, 16);
-		result += String.fromCharCode(decimalValue);
+		const hexPair = hexString.slice(i, i + 2);
+		const decimalValue = Number.parseInt(hexPair, 16);
+		result += String.fromCodePoint(decimalValue);
 	}
 	return result;
 }
@@ -59,7 +59,7 @@ export class SQLiteBigInt<T extends ColumnBaseConfig<'bigint int64'>> extends SQ
 			return BigInt(buf.toString('utf8'));
 		}
 
-		return BigInt(textDecoder!.decode(value));
+		return BigInt(textDecoder!.decode(value as ArrayBuffer));
 	}
 
 	override mapToDriverValue(value: bigint): Buffer {
@@ -113,7 +113,7 @@ export class SQLiteBlobJson<T extends ColumnBaseConfig<'object json'>> extends S
 			return JSON.parse(buf.toString('utf8'));
 		}
 
-		return JSON.parse(textDecoder!.decode(value));
+		return JSON.parse(textDecoder!.decode(value as ArrayBuffer));
 	}
 
 	override mapToDriverValue(value: T['data']): Buffer {
