@@ -186,7 +186,6 @@ export interface ColumnBuilderRuntimeConfig<TData> {
 	primaryKey: boolean;
 	isUnique: boolean;
 	uniqueName: string | undefined;
-	uniqueNameExplicit: boolean | undefined;
 	uniqueType: string | undefined;
 	dataType: string;
 	columnType: string;

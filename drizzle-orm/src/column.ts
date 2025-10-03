@@ -95,7 +95,6 @@ export abstract class Column<
 		this.isUnique = config.isUnique;
 		this.uniqueName = config.uniqueName;
 		this.uniqueType = config.uniqueType;
-		this.uniqueNameExplicit = config.uniqueNameExplicit;
 		this.dataType = config.dataType as T['dataType'];
 		this.columnType = config.columnType;
 		this.generated = config.generated;
