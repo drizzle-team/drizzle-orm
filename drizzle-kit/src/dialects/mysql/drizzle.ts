@@ -143,7 +143,7 @@ export const fromDrizzleSchema = (
 				generated,
 				isPK: column.primary,
 				isUnique: column.isUnique,
-				uniqueName: column.uniqueNameExplicit ? column.uniqueName! : null,
+				uniqueName: column.uniqueName ?? null,
 				default: defaultValue,
 			});
 		}
@@ -169,9 +169,9 @@ export const fromDrizzleSchema = (
 			});
 
 			const name = unique.isNameExplicit
-				? unique.name!
+				? unique.name
 				: nameForUnique(tableName, unique.columns.filter((c) => !is(c, SQL)).map((c) => c.name));
-				
+
 			result.indexes.push({
 				entityType: 'indexes',
 				table: tableName,

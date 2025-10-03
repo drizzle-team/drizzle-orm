@@ -407,7 +407,7 @@ export const fromDrizzleSchema = (
 					default: columnDefault,
 					generated: generatedValue,
 					unique: column.isUnique,
-					uniqueName: column.uniqueNameExplicit ? column.uniqueName ?? null : null,
+					uniqueName: column.uniqueName ?? null,
 					uniqueNullsNotDistinct: column.uniqueType === 'not distinct',
 					identity: identityValue,
 				} satisfies InterimColumn;

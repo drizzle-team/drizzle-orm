@@ -58,7 +58,6 @@ export abstract class Column<
 	readonly isUnique: boolean;
 	readonly uniqueName: string | undefined;
 	readonly uniqueType: string | undefined;
-	readonly uniqueNameExplicit: boolean | undefined;
 	readonly dataType: T['dataType'];
 	readonly columnType: string;
 	readonly enumValues: T['enumValues'] = undefined;
@@ -95,7 +94,6 @@ export abstract class Column<
 		this.isUnique = config.isUnique;
 		this.uniqueName = config.uniqueName;
 		this.uniqueType = config.uniqueType;
-		this.uniqueNameExplicit = config.uniqueNameExplicit;
 		this.dataType = config.dataType as T['dataType'];
 		this.columnType = config.columnType;
 		this.generated = config.generated;
