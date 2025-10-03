@@ -184,6 +184,30 @@ export const push = async (config: {
 		await db.query(sql);
 	}
 
+	// subsequent push
+	{
+		const { schema } = await introspect({
+			db,
+			database: 'drizzle',
+			tablesFilter: [],
+			progress: new EmptyProgressView(),
+		});
+		const { ddl: ddl1, errors: err3 } = interimToDDL(schema);
+		const { sqlStatements, statements } = await ddlDiff(
+			ddl1,
+			ddl2,
+			mockResolver(renames),
+			mockResolver(renames),
+			mockResolver(renames),
+			'push',
+		);
+		if (sqlStatements.length > 0) {
+			console.error('---- subsequent push is not empty ----');
+			console.log(sqlStatements.join('\n'));
+			throw new Error();
+		}
+	}
+
 	return { sqlStatements, statements, hints, truncates };
 };
 
@@ -374,13 +398,14 @@ export const diffSnapshotV5 = async (db: DB, schema: MysqlSchema) => {
 	const { sqlStatements } = await legacyDiff({ right: res });
 
 	for (const st of sqlStatements) {
+		console.log(st);
 		await db.query(st);
 	}
 
 	const snapshot = upToV6(res);
 	const ddl = fromEntities(snapshot.ddl);
 
-	const { sqlStatements: st, next } = await diff(schema, ddl, []);
+	const { sqlStatements: st, next } = await diff(ddl, schema, []);
 	const { sqlStatements: pst } = await push({ db, to: schema });
 	const { sqlStatements: st1 } = await diff(next, ddl, []);
 	const { sqlStatements: pst1 } = await push({ db, to: schema });
