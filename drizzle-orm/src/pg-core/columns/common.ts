@@ -68,7 +68,6 @@ export abstract class PgColumnBuilder<
 		this.config.isUnique = true;
 		this.config.uniqueName = name;
 		this.config.uniqueType = config?.nulls;
-		this.config.uniqueNameExplicit = name ? true : false;
 		return this;
 	}
 
