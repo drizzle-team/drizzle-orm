@@ -48,10 +48,12 @@ export class UniqueConstraint {
 	readonly columns: MsSqlColumn[];
 	readonly name?: string;
 	readonly nullsNotDistinct: boolean = false;
+	readonly isNameExplicit: boolean;
 
 	constructor(readonly table: MsSqlTable, columns: MsSqlColumn[], name?: string) {
 		this.columns = columns;
 		this.name = name;
+		this.isNameExplicit = !!name;
 	}
 
 	getName() {

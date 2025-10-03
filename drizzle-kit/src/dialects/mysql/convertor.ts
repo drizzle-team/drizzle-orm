@@ -28,7 +28,7 @@ const createTable = convertor('create_table', (st) => {
 	for (let i = 0; i < columns.length; i++) {
 		const column = columns[i];
 
-		const isPK = pk && !pk.nameExplicit && pk.columns.length === 1 && pk.columns[0] === column.name;
+		const isPK = pk && pk.columns.length === 1 && pk.columns[0] === column.name;
 		const primaryKeyStatement = isPK ? ' PRIMARY KEY' : '';
 		const notNullStatement = column.notNull && !isPK ? ' NOT NULL' : '';
 		const defaultStatement = column.default !== null ? ` DEFAULT ${column.default}` : '';
@@ -53,7 +53,7 @@ const createTable = convertor('create_table', (st) => {
 		statement += i === columns.length - 1 ? '' : ',\n';
 	}
 
-	if (pk && (pk.columns.length > 1 || pk.nameExplicit)) {
+	if (pk && (pk.columns.length > 1)) {
 		statement += ',\n';
 		statement += `\tCONSTRAINT \`${pk.name}\` PRIMARY KEY(\`${pk.columns.join(`\`,\``)}\`)`;
 	}

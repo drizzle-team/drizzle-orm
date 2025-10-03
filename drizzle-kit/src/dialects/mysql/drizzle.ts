@@ -147,21 +147,12 @@ export const fromDrizzleSchema = (
 		}
 
 		for (const pk of primaryKeys) {
-			const originalColumnNames = pk.columns.map((c) => c.name);
 			const columnNames = pk.columns.map((c: any) => getColumnCasing(c, casing));
-
-			let name = pk.getName();
-			if (casing !== undefined) {
-				for (let i = 0; i < originalColumnNames.length; i++) {
-					name = name.replace(originalColumnNames[i], columnNames[i]);
-				}
-			}
 
 			result.pks.push({
 				entityType: 'pks',
 				table: tableName,
-				name: name,
-				nameExplicit: !!pk.name,
+				name: 'PRIMARY',
 				columns: columnNames,
 			});
 		}
@@ -175,9 +166,8 @@ export const fromDrizzleSchema = (
 				return { value: getColumnCasing(c, casing), isExpression: false };
 			});
 
-			const name = unique.explicitName
-				? unique.name!
-				: nameForUnique(tableName, unique.columns.filter((c) => !is(c, SQL)).map((c) => c.name));
+			const name = unique.name
+				?? nameForUnique(tableName, unique.columns.filter((c) => !is(c, SQL)).map((c) => c.name));
 
 			result.indexes.push({
 				entityType: 'indexes',
@@ -188,7 +178,7 @@ export const fromDrizzleSchema = (
 				algorithm: null,
 				lock: null,
 				using: null,
-				nameExplicit: !!unique.name,
+				nameExplicit: unique.isNameExplicit,
 			});
 		}
 
@@ -215,7 +205,7 @@ export const fromDrizzleSchema = (
 				columnsTo,
 				onUpdate: upper(fk.onUpdate) ?? 'NO ACTION',
 				onDelete: upper(fk.onDelete) ?? 'NO ACTION',
-				nameExplicit: true,
+				nameExplicit: fk.isNameExplicit(),
 			});
 		}
 
@@ -239,7 +229,7 @@ export const fromDrizzleSchema = (
 				lock: index.config.lock ?? null,
 				isUnique: index.config.unique ?? false,
 				using: index.config.using ?? null,
-				nameExplicit: true,
+				nameExplicit: index.isNameExplicit,
 			});
 		}
 
@@ -252,7 +242,6 @@ export const fromDrizzleSchema = (
 				table: tableName,
 				name,
 				value: dialect.sqlToQuery(value).sql,
-				nameExplicit: false,
 			});
 		}
 	}

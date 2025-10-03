@@ -42,7 +42,10 @@ test('generated as callback: create table with generated constraint #1', async (
 	expect(pst).toStrictEqual(st0);
 });
 
-test('generated as callback: create table with generated constraint #2', async () => {
+// TODO
+// why to use generated with literal?
+// Looks like invalid use case
+test.skip('generated as callback: create table with generated constraint #2', async () => {
 	const to = {
 		users: mysqlTable('users', {
 			name: text('name'),

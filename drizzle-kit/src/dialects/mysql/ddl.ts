@@ -42,11 +42,10 @@ export const createDDL = () => {
 			using: ['btree', 'hash', null],
 			algorithm: ['default', 'inplace', 'copy', null],
 			lock: ['default', 'none', 'shared', 'exclusive', null],
-			nameExplicit: 'boolean',
+			nameExplicit: 'boolean', // needed because uniques name can be not specified
 		},
 		checks: {
 			table: 'required',
-			nameExplicit: 'boolean',
 			value: 'string',
 		},
 		views: {

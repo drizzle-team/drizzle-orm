@@ -3,7 +3,7 @@ import { mockResolver } from '../../utils/mocks';
 import { diffStringArrays } from '../../utils/sequence-matcher';
 import type { Resolver } from '../common';
 import { diff } from '../dialect';
-import { groupDiffs } from '../utils';
+import { groupDiffs, preserveEntityNames } from '../utils';
 import { fromJson } from './convertor';
 import {
 	CheckConstraint,
@@ -1095,27 +1095,4 @@ export const ddlDiff = async (
 		groupedStatements: groupedStatements,
 		renames: renames,
 	};
-};
-
-const preserveEntityNames = <C extends CockroachDDL['fks' | 'pks' | 'indexes']>(
-	collection1: C,
-	collection2: C,
-	mode: 'push' | 'default',
-) => {
-	const items = collection1.list().filter((x) => mode === 'push' || !x.nameExplicit);
-	for (const left of items) {
-		const { entityType: _, name, nameExplicit, ...filter } = left;
-
-		const match = collection2.list({ ...filter, nameExplicit: false } as any);
-
-		if (match.length !== 1 || match[0].name === left.name) continue;
-
-		collection2.update({
-			set: { name: left.name },
-			where: {
-				...filter,
-				nameExplicit: false,
-			} as any,
-		});
-	}
 };

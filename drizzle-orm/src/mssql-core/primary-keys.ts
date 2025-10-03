@@ -38,10 +38,12 @@ export class PrimaryKey {
 
 	readonly columns: MsSqlColumn[];
 	readonly name?: string;
+	readonly isNameExplicit: boolean;
 
 	constructor(readonly table: MsSqlTable, columns: MsSqlColumn[], name?: string) {
 		this.columns = columns;
 		this.name = name;
+		this.isNameExplicit = !!name;
 	}
 
 	getName() {
