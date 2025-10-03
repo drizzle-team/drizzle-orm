@@ -124,14 +124,10 @@ export const upToV6 = (it: Record<string, any>): MysqlSnapshot => {
 		}
 
 		for (const pk of Object.values(table.compositePrimaryKeys)) {
-			const nameImplicit = `${table.name}_${pk.columns.join('_')}_pk` === pk.name
-				|| `${table.name}_${pk.columns.join('_')}` === pk.name;
-
 			ddl.pks.push({
 				table: table.name,
-				name: pk.name,
+				name: "PRIMARY",
 				columns: pk.columns,
-				nameExplicit: !nameImplicit,
 			});
 		}
 	}

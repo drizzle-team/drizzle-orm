@@ -257,9 +257,9 @@ export const ddlDiff = async (
 			// TODO: We should probably print a CLI hint for the user too
 			if (it.definition && mode === 'push') delete it.definition;
 
-			/* 
-				UNDEFINED lets the server pick at execution time (often it still runs as a merge if the query is “mergeable”). 
-				Specifying MERGE when it’s not possible causes MySQL to store UNDEFINED with a warning, 
+			/*
+				UNDEFINED lets the server pick at execution time (often it still runs as a merge if the query is “mergeable”).
+				Specifying MERGE when it’s not possible causes MySQL to store UNDEFINED with a warning,
 				but the reverse (forcing UNDEFINED to overwrite MERGE) doesn’t happen via ALTER.
 
 				https://dev.mysql.com/doc/refman/8.4/en/view-algorithms.html
@@ -290,6 +290,14 @@ export const ddlDiff = async (
 
 	const dropPKStatements = pksDiff.filter((it) => it.$diffType === 'drop')
 		.filter((it) => !deletedTables.some((x) => x.name === it.table))
+		/* 
+			we can't do `create table a(id int auto_increment);`
+			but when you do `ALTER TABLE `table1` MODIFY COLUMN `column1` int AUTO_INCREMENT`
+			database implicitly makes column a Primary Key
+		 */
+		.filter((it) =>
+			it.columns.length === 1 && !ddl2.columns.one({ table: it.table, name: it.columns[0] })?.autoIncrement
+		)
 		.map((it) => prepareStatement('drop_pk', { pk: it }));
 
 	const createCheckStatements = checksDiff.filter((it) => it.$diffType === 'create')
@@ -335,7 +343,7 @@ export const ddlDiff = async (
 			}
 
 			if (it.autoIncrement && it.autoIncrement.to && it.$right.type === 'serial') delete it.autoIncrement;
-			if (it.notNull && it.notNull.from && it.$right.type === 'serial') delete it.notNull;
+			if (it.notNull && it.notNull.from && (it.$right.type === 'serial' || it.$right.autoIncrement)) delete it.notNull;
 
 			if (it.default) {
 				let deleteDefault = false;
