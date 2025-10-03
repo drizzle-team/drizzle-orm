@@ -51,7 +51,7 @@ export class UniqueConstraint {
 	static readonly [entityKind]: string = 'MySqlUniqueConstraint';
 
 	readonly columns: MySqlColumn[];
-	readonly name?: string;
+	readonly name: string;
 	readonly isNameExplicit: boolean;
 	readonly nullsNotDistinct: boolean = false;
 
