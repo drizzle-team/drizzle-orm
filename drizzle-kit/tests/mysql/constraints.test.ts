@@ -567,7 +567,7 @@ test('adding autoincrement to table with pk #2', async () => {
 	const { next: n1, sqlStatements: st1 } = await diff({}, schema1, []);
 	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
 	const expectedSt1: string[] = [
-		'CREATE TABLE `table1` (\n\t`column1` int NOT NULL,\n\t`column2` int,\n\tCONSTRAINT `table1_column1_column2_pk` PRIMARY KEY(`column1`,`column2`)\n);\n',
+		'CREATE TABLE `table1` (\n\t`column1` int NOT NULL,\n\t`column2` int,\n\tCONSTRAINT `PRIMARY` PRIMARY KEY(`column1`,`column2`)\n);\n',
 	];
 
 	expect(st1).toStrictEqual(expectedSt1);
