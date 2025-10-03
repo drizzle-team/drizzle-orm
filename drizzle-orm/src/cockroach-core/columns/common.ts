@@ -48,7 +48,6 @@ export abstract class CockroachColumnBuilder<
 	): this {
 		this.config.isUnique = true;
 		this.config.uniqueName = name;
-		this.config.uniqueNameExplicit = name ? true : false;
 		return this;
 	}
 

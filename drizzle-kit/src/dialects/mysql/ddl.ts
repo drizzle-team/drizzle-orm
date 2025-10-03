@@ -21,7 +21,6 @@ export const createDDL = () => {
 		},
 		pks: {
 			table: 'required',
-			nameExplicit: 'boolean',
 			columns: 'string[]',
 		},
 		fks: {
@@ -43,11 +42,10 @@ export const createDDL = () => {
 			using: ['btree', 'hash', null],
 			algorithm: ['default', 'inplace', 'copy', null],
 			lock: ['default', 'none', 'shared', 'exclusive', null],
-			nameExplicit: 'boolean',
+			nameExplicit: 'boolean', // needed because uniques name can be not specified
 		},
 		checks: {
 			table: 'required',
-			nameExplicit: 'boolean',
 			value: 'string',
 		},
 		views: {
@@ -146,24 +144,13 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: S
 	}
 
 	for (const pk of interim.pks) {
-		const res = ddl.pks.push(pk);
+		const res = ddl.pks.push({ table: pk.table, name: 'PRIMARY', columns: pk.columns });
 		if (res.status === 'CONFLICT') {
 			throw new Error(`PK conflict: ${JSON.stringify(pk)}`);
 		}
 	}
 
 	for (const column of interim.columns.filter((it) => it.isPK)) {
-		// const res = ddl.pks.push({
-		// 	table: column.table,
-		// 	name: 'PRIMARY', // database default
-		// 	nameExplicit: false,
-		// 	columns: [column.name],
-		// });
-
-		// if (res.status === 'CONFLICT') {
-		// 	throw new Error(`PK conflict: ${JSON.stringify(column)}`);
-		// }
-
 		const exists = ddl.pks.one({
 			table: column.table,
 			name: 'PRIMARY', // database default
@@ -173,7 +160,6 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: S
 		ddl.pks.push({
 			table: column.table,
 			name: 'PRIMARY', // database default
-			nameExplicit: false,
 			columns: [column.name],
 		});
 	}
@@ -188,7 +174,7 @@ export const interimToDDL = (interim: InterimSchema): { ddl: MysqlDDL; errors: S
 			using: null,
 			algorithm: null,
 			lock: null,
-			nameExplicit: false,
+			nameExplicit: !!column.uniqueName,
 		});
 
 		if (res.status === 'CONFLICT') {

@@ -185,7 +185,6 @@ export const ddlDiff = async (
 	}
 
 	preserveEntityNames(ddl1.fks, ddl2.fks, mode);
-	preserveEntityNames(ddl1.pks, ddl2.pks, mode);
 	preserveEntityNames(ddl1.indexes, ddl2.indexes, mode);
 
 	const viewsDiff = diff(ddl1, ddl2, 'views');
@@ -254,7 +253,19 @@ export const ddlDiff = async (
 
 	const alterViewStatements = alters.filter((it) => it.entityType === 'views')
 		.map((it) => {
+			// TODO: We should probably print a CLI hint for the user too
 			if (it.definition && mode === 'push') delete it.definition;
+
+			/*
+				UNDEFINED lets the server pick at execution time (often it still runs as a merge if the query is “mergeable”).
+				Specifying MERGE when it’s not possible causes MySQL to store UNDEFINED with a warning,
+				but the reverse (forcing UNDEFINED to overwrite MERGE) doesn’t happen via ALTER.
+
+				https://dev.mysql.com/doc/refman/8.4/en/view-algorithms.html
+
+				TODO: We should probably print a hint in CLI for the user
+			*/
+			if (it.algorithm && it.algorithm.to === 'undefined') delete it.algorithm;
 			return it;
 		})
 		.filter((it) => ddl2.views.hasDiff(it))
@@ -278,6 +289,14 @@ export const ddlDiff = async (
 
 	const dropPKStatements = pksDiff.filter((it) => it.$diffType === 'drop')
 		.filter((it) => !deletedTables.some((x) => x.name === it.table))
+		/* 
+			we can't do `create table a(id int auto_increment);`
+			but when you do `ALTER TABLE `table1` MODIFY COLUMN `column1` int AUTO_INCREMENT`
+			database implicitly makes column a Primary Key
+		 */
+		.filter((it) =>
+			it.columns.length === 1 && !ddl2.columns.one({ table: it.table, name: it.columns[0] })?.autoIncrement
+		)
 		.map((it) => prepareStatement('drop_pk', { pk: it }));
 
 	const createCheckStatements = checksDiff.filter((it) => it.$diffType === 'create')
@@ -322,9 +341,11 @@ export const ddlDiff = async (
 				delete it.type;
 			}
 
+			if (it.autoIncrement && it.autoIncrement.to && it.$right.type === 'serial') delete it.autoIncrement;
+			if (it.notNull && it.notNull.from && (it.$right.type === 'serial' || it.$right.autoIncrement)) delete it.notNull;
+
 			if (it.default) {
-				let deleteDefault =
-					!!(it.default.from && it.default.to && typesCommutative(it.default.from, it.default.to, mode));
+				let deleteDefault = false;
 				deleteDefault ||= it.default.from === it.default.to;
 				deleteDefault ||= it.default.from === `(${it.default.to})`;
 				deleteDefault ||= it.default.to === `(${it.default.from})`;

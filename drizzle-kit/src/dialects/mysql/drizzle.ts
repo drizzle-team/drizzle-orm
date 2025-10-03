@@ -127,8 +127,6 @@ export const fromDrizzleSchema = (
 				collation = column.collation ?? null;
 			}
 
-			// TODO: @AleksandrSherman remove
-			const nameExplicitTemp = `${tableName}_${column.name}_unique` !== column.uniqueName;
 			result.columns.push({
 				entityType: 'columns',
 				table: tableName,
@@ -143,27 +141,18 @@ export const fromDrizzleSchema = (
 				generated,
 				isPK: column.primary,
 				isUnique: column.isUnique,
-				uniqueName: nameExplicitTemp ? column.uniqueName! : null,
+				uniqueName: column.uniqueName ?? null,
 				default: defaultValue,
 			});
 		}
 
 		for (const pk of primaryKeys) {
-			const originalColumnNames = pk.columns.map((c) => c.name);
 			const columnNames = pk.columns.map((c: any) => getColumnCasing(c, casing));
-
-			let name = pk.getName();
-			if (casing !== undefined) {
-				for (let i = 0; i < originalColumnNames.length; i++) {
-					name = name.replace(originalColumnNames[i], columnNames[i]);
-				}
-			}
 
 			result.pks.push({
 				entityType: 'pks',
 				table: tableName,
-				name: name,
-				nameExplicit: !!pk.name,
+				name: 'PRIMARY',
 				columns: columnNames,
 			});
 		}
@@ -177,8 +166,8 @@ export const fromDrizzleSchema = (
 				return { value: getColumnCasing(c, casing), isExpression: false };
 			});
 
-			const name = unique.explicitName
-				? unique.name!
+			const name = unique.isNameExplicit
+				? unique.name
 				: nameForUnique(tableName, unique.columns.filter((c) => !is(c, SQL)).map((c) => c.name));
 
 			result.indexes.push({
@@ -190,7 +179,7 @@ export const fromDrizzleSchema = (
 				algorithm: null,
 				lock: null,
 				using: null,
-				nameExplicit: !!unique.name,
+				nameExplicit: unique.isNameExplicit,
 			});
 		}
 
@@ -217,7 +206,7 @@ export const fromDrizzleSchema = (
 				columnsTo,
 				onUpdate: upper(fk.onUpdate) ?? 'NO ACTION',
 				onDelete: upper(fk.onDelete) ?? 'NO ACTION',
-				nameExplicit: true,
+				nameExplicit: fk.isNameExplicit(),
 			});
 		}
 
@@ -241,7 +230,7 @@ export const fromDrizzleSchema = (
 				lock: index.config.lock ?? null,
 				isUnique: index.config.unique ?? false,
 				using: index.config.using ?? null,
-				nameExplicit: true,
+				nameExplicit: index.isNameExplicit,
 			});
 		}
 
@@ -254,48 +243,47 @@ export const fromDrizzleSchema = (
 				table: tableName,
 				name,
 				value: dialect.sqlToQuery(value).sql,
-				nameExplicit: false,
 			});
 		}
+	}
 
-		for (const view of views) {
-			const cfg = getViewConfig(view);
-			const {
-				isExisting,
-				name,
-				query,
-				schema,
-				selectedFields,
-				algorithm,
-				sqlSecurity,
-				withCheckOption,
-			} = cfg;
+	for (const view of views) {
+		const cfg = getViewConfig(view);
+		const {
+			isExisting,
+			name,
+			query,
+			schema,
+			selectedFields,
+			algorithm,
+			sqlSecurity,
+			withCheckOption,
+		} = cfg;
 
-			if (isExisting) continue;
+		if (isExisting) continue;
 
-			for (const key in selectedFields) {
-				if (is(selectedFields[key], MySqlColumn)) {
-					const column = selectedFields[key];
-					const notNull: boolean = column.notNull;
+		for (const key in selectedFields) {
+			if (is(selectedFields[key], MySqlColumn)) {
+				const column = selectedFields[key];
+				const notNull: boolean = column.notNull;
 
-					result.viewColumns.push({
-						view: name,
-						name: column.name,
-						type: column.getSQLType(),
-						notNull: notNull,
-					});
-				}
+				result.viewColumns.push({
+					view: name,
+					name: column.name,
+					type: column.getSQLType(),
+					notNull: notNull,
+				});
 			}
-
-			result.views.push({
-				entityType: 'views',
-				name,
-				definition: query ? dialect.sqlToQuery(query).sql : '',
-				withCheckOption: withCheckOption ?? null,
-				algorithm: algorithm ?? 'undefined', // set default values
-				sqlSecurity: sqlSecurity ?? 'definer', // set default values
-			});
 		}
+
+		result.views.push({
+			entityType: 'views',
+			name,
+			definition: query ? dialect.sqlToQuery(query).sql : '',
+			withCheckOption: withCheckOption ?? null,
+			algorithm: algorithm ?? 'undefined', // set default values
+			sqlSecurity: sqlSecurity ?? 'definer', // set default values
+		});
 	}
 
 	return result;

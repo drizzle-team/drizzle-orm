@@ -81,6 +81,10 @@ export class ForeignKey {
 
 		return name;
 	}
+
+	isNameExplicit() {
+		return !!this.reference().name;
+	}
 }
 
 type ColumnsWithTable<

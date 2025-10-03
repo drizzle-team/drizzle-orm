@@ -126,7 +126,6 @@ export const fromDrizzleSchema = (
 				entityType: 'pks',
 				table: tableName,
 				name: name,
-				nameExplicit: !!pk.name,
 				columns: columnNames,
 			});
 		}

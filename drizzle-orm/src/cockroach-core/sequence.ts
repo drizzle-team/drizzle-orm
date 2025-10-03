@@ -12,7 +12,7 @@ export class CockroachSequence {
 	static readonly [entityKind]: string = 'CockroachSequence';
 
 	constructor(
-		public readonly seqName: string | undefined,
+		public readonly seqName: string,
 		public readonly seqOptions: CockroachSequenceOptions | undefined,
 		public readonly schema: string | undefined,
 	) {
