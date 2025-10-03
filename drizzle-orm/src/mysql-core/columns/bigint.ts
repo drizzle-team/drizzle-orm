@@ -72,8 +72,14 @@ export class MySqlBigInt64<T extends ColumnBaseConfig<'bigint int64' | 'bigint u
 		return `bigint${this.config.unsigned ? ' unsigned' : ''}`;
 	}
 
+	override mapToDriverValue(value: bigint): string {
+		return value.toString();
+	}
+
 	// eslint-disable-next-line unicorn/prefer-native-coercion-functions
-	override mapFromDriverValue(value: string): bigint {
+	override mapFromDriverValue(value: bigint | string): bigint {
+		if (typeof value === 'bigint') return value;
+
 		return BigInt(value);
 	}
 }

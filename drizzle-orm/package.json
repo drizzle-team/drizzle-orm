@@ -60,19 +60,19 @@
 		"@types/mssql": "^9.1.4",
 		"@types/pg": "*",
 		"@types/sql.js": "*",
+		"@upstash/redis": ">=1.34.7",
 		"@vercel/postgres": ">=0.8.0",
 		"@xata.io/client": "*",
 		"better-sqlite3": ">=9.3.0",
 		"bun-types": "*",
 		"expo-sqlite": ">=14.0.0",
+		"gel": ">=2",
 		"mssql": "^11.0.1",
 		"mysql2": ">=2",
 		"pg": ">=8",
 		"postgres": ">=3",
 		"sql.js": ">=1",
-		"sqlite3": ">=5",
-		"gel": ">=2",
-		"@upstash/redis": ">=1.34.7"
+		"sqlite3": ">=5"
 	},
 	"peerDependenciesMeta": {
 		"mysql2": {
@@ -181,7 +181,7 @@
 		"@vercel/postgres": "^0.8.0",
 		"@xata.io/client": "^0.29.3",
 		"better-sqlite3": "^11.9.1",
-		"bun-types": "^1.2.0",
+		"bun-types": "^1.2.23",
 		"cpy": "^10.1.0",
 		"expo-sqlite": "^14.0.0",
 		"gel": "^2.0.0",

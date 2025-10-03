@@ -10,14 +10,14 @@ import { SQLiteSyncDialect } from '~/sqlite-core/dialect.ts';
 import { type DrizzleConfig, isConfig } from '~/utils.ts';
 import { SQLiteBunSession } from './session.ts';
 
-export class BunSQLiteDatabase<
+export class SQLiteBunDatabase<
 	TSchema extends Record<string, unknown> = Record<string, never>,
 	TRelations extends AnyRelations = EmptyRelations,
 > extends BaseSQLiteDatabase<'sync', void, TSchema, TRelations> {
-	static override readonly [entityKind]: string = 'BunSQLiteDatabase';
+	static override readonly [entityKind]: string = 'SQLiteBunDatabase';
 }
 
-type DrizzleBunSqliteDatabaseOptions = {
+type DrizzleSqliteBunDatabaseOptions = {
 	/**
 	 * Open the database as read-only (no write operations, no create).
 	 *
@@ -41,7 +41,7 @@ type DrizzleBunSqliteDatabaseOptions = {
 export type DrizzleBunSqliteDatabaseConfig =
 	| ({
 		source?: string;
-	} & DrizzleBunSqliteDatabaseOptions)
+	} & DrizzleSqliteBunDatabaseOptions)
 	| string
 	| undefined;
 
@@ -51,7 +51,7 @@ function construct<
 >(
 	client: Database,
 	config: DrizzleConfig<TSchema, TRelations> = {},
-): BunSQLiteDatabase<TSchema, TRelations> & {
+): SQLiteBunDatabase<TSchema, TRelations> & {
 	$client: Database;
 } {
 	const dialect = new SQLiteSyncDialect({ casing: config.casing });
@@ -81,13 +81,13 @@ function construct<
 		TRelations,
 		V1.ExtractTablesWithRelations<TSchema>
 	>(client, dialect, relations, schema as V1.RelationalSchemaConfig<any>, { logger });
-	const db = new BunSQLiteDatabase(
+	const db = new SQLiteBunDatabase(
 		'sync',
 		dialect,
 		session,
 		relations,
 		schema as V1.RelationalSchemaConfig<any>,
-	) as BunSQLiteDatabase<
+	) as SQLiteBunDatabase<
 		TSchema,
 		TRelations
 	>;
@@ -120,7 +120,7 @@ export function drizzle<
 				})
 			),
 		]
-): BunSQLiteDatabase<TSchema, TRelations> & {
+): SQLiteBunDatabase<TSchema, TRelations> & {
 	$client: TClient;
 } {
 	if (params[0] === undefined || typeof params[0] === 'string') {
@@ -163,7 +163,7 @@ export namespace drizzle {
 		TRelations extends AnyRelations = EmptyRelations,
 	>(
 		config?: DrizzleConfig<TSchema, TRelations>,
-	): BunSQLiteDatabase<TSchema, TRelations> & {
+	): SQLiteBunDatabase<TSchema, TRelations> & {
 		$client: '$client is not available on drizzle.mock()';
 	} {
 		return construct({} as any, config) as any;
