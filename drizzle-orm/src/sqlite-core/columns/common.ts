@@ -14,7 +14,6 @@ import type { ForeignKey, UpdateDeleteAction } from '~/sqlite-core/foreign-keys.
 import { ForeignKeyBuilder } from '~/sqlite-core/foreign-keys.ts';
 import type { SQLiteTable } from '~/sqlite-core/table.ts';
 import type { Update } from '~/utils.ts';
-import { uniqueKeyName } from '../unique-constraint.ts';
 
 export type SQLiteColumns = Record<string, SQLiteColumn<any>>;
 
@@ -103,9 +102,6 @@ export abstract class SQLiteColumn<
 		table: SQLiteTable,
 		config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig,
 	) {
-		if (!config.uniqueName) {
-			config.uniqueName = uniqueKeyName(table, [config.name]);
-		}
 		super(table, config);
 		this.table = table;
 	}

@@ -5,8 +5,20 @@ export function expectSchemaShape<T extends z.ZodObject<z.ZodRawShape>>(t: TaskC
 	return {
 		from(actual: T) {
 			expect(Object.keys(actual.shape)).toStrictEqual(Object.keys(expected.shape));
-			for (const key in Object.keys(actual.shape)) {
-				expect(actual.shape[key]?._zod.def).toStrictEqual(expected.shape[key]?._zod.def);
+
+			for (const key of Object.keys(actual.shape)) {
+				const actualDef = actual.shape[key]?._zod.def;
+				const expectedDef = expected.shape[key]?._zod.def;
+
+				expect({
+					key,
+					type: actualDef?.type,
+					checks: actualDef?.checks?.map((check) => check._zod.def),
+				}).toStrictEqual({
+					key,
+					type: expectedDef?.type,
+					checks: expectedDef?.checks?.map((check) => check._zod.def),
+				});
 			}
 		},
 	};
@@ -15,7 +27,7 @@ export function expectSchemaShape<T extends z.ZodObject<z.ZodRawShape>>(t: TaskC
 export function expectEnumValues<T extends z.ZodEnum<any>>(t: TaskContext, expected: T) {
 	return {
 		from(actual: T) {
-			expect(actual.def).toStrictEqual(expected.def);
+			expect(actual.def).toStrictEqual(expected.def as any);
 		},
 	};
 }

@@ -1,6 +1,8 @@
 import {
+	bit,
 	boolean,
 	date,
+	inet,
 	integer,
 	interval,
 	json,
@@ -11,8 +13,10 @@ import {
 	text,
 	time,
 	timestamp,
+	unique,
 	uuid,
 	varchar,
+	vector,
 } from 'drizzle-orm/pg-core';
 
 export const schema = pgSchema('seeder_lib_pg');
@@ -320,3 +324,81 @@ export const uuidTable = schema.table('uuid_table', {
 export const uuidArrayTable = schema.table('uuid_array_table', {
 	uuid: uuid('uuid').array(),
 });
+
+export const bitStringTable = schema.table('bit_string_table', {
+	bit: bit('bit', { dimensions: 12 }),
+});
+export const bitStringUniqueTable = schema.table('bit_string_unique_table', {
+	bit: bit('bit', { dimensions: 12 }).unique(),
+});
+export const bitStringArrayTable = schema.table('bit_string_array_table', {
+	bit: bit('bit', { dimensions: 12 }).array(),
+});
+
+export const inetTable = schema.table('inet_table', {
+	inet: inet('inet'),
+});
+export const inetUniqueTable = schema.table('inet_unique_table', {
+	inet: inet('inet').unique(),
+});
+export const inetArrayTable = schema.table('inet_array_table', {
+	inet: inet('inet').array(),
+});
+
+export const vectorTable = schema.table('vector_table', {
+	vector: vector('vector', { dimensions: 12 }),
+});
+export const vectorUniqueTable = schema.table('vector_unique_table', {
+	vector: vector('vector', { dimensions: 12 }).unique(),
+});
+export const vectorArrayTable = schema.table('vector_array_table', {
+	vector: vector('vector', { dimensions: 12 }).array(),
+});
+
+export const compositeUniqueKeyTable = schema.table('composite_unique_key_table', {
+	number: real('number'),
+	int: integer('int'),
+	interval: interval('interval'),
+	string: varchar('string', { length: 256 }),
+	firstName: varchar('first_name', { length: 256 }),
+	lastName: varchar('last_name', { length: 256 }),
+	fullName: varchar('full_name', { length: 256 }),
+	country: varchar('country', { length: 256 }),
+	city: varchar('city', { length: 256 }),
+	streetAddress: varchar('street_address', { length: 256 }),
+	postcode: varchar('postcode', { length: 256 }),
+	companyName: varchar('company_name', { length: 256 }),
+	phoneNumber: varchar('phone_number', { length: 256 }),
+	email: varchar('email', { length: 256 }),
+	uuid: uuid('uuid'),
+	bit: bit('bit', { dimensions: 12 }),
+	inet: inet('inet'),
+	vector: vector('vector', { dimensions: 12 }),
+	valuesFromArray: varchar('values_from_array', { length: 256 }),
+	// point: point('point'),
+	// line: line('line'),
+}, (table) => [
+	unique().on(
+		table.number,
+		table.int,
+		table.interval,
+		table.string,
+		table.firstName,
+		table.lastName,
+		table.fullName,
+		table.country,
+		table.city,
+		table.streetAddress,
+		table.postcode,
+		table.companyName,
+		table.phoneNumber,
+		table.email,
+		table.uuid,
+		table.bit,
+		table.inet,
+		table.vector,
+		table.valuesFromArray,
+		// table.point,
+		// table.line,
+	),
+]);

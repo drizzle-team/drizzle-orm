@@ -4,7 +4,6 @@ import type { MySqlTable } from '~/mysql-core/table.ts';
 import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export class MySqlYearBuilder extends MySqlColumnBuilder<{
-	name: string;
 	dataType: 'number year';
 	data: number;
 	driverParam: number;

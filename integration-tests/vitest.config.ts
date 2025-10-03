@@ -5,6 +5,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
 	test: {
 		include: [
+			'tests/mssql/**/*.test.ts',
 			'tests/seeder/**/*.test.ts',
 			'tests/extensions/postgis/**/*',
 			'tests/relational/**/*.test.ts',
@@ -21,6 +22,7 @@ export default defineConfig({
 			'js-tests/driver-init/commonjs/*.test.cjs',
 			'js-tests/driver-init/module/*.test.mjs',
 			'tests/gel/**/*.test.ts',
+			'tests/cockroach/**/*.test.ts',
 		],
 		exclude: [
 			...(process.env.SKIP_EXTERNAL_DB_TESTS

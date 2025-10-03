@@ -8,7 +8,6 @@ import type { Precision } from './timestamp.ts';
 
 export class PgTimeBuilder extends PgDateColumnBaseBuilder<
 	{
-		name: string;
 		dataType: 'string time';
 		data: string;
 		driverParam: string;

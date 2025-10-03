@@ -8,7 +8,6 @@ import { MySqlColumn, MySqlColumnBuilder } from './common.ts';
 
 export type ConvertCustomConfig<T extends Partial<CustomTypeValues>> =
 	& {
-		name: string;
 		dataType: 'custom';
 		data: T['data'];
 		driverParam: T['driverData'];
@@ -363,6 +362,6 @@ export function customType<T extends CustomTypeValues = CustomTypeValues>(
 		b?: T['config'],
 	): MySqlCustomColumnBuilder<ConvertCustomConfig<T>> => {
 		const { name, config } = getColumnNameAndConfig<T['config']>(a, b);
-		return new MySqlCustomColumnBuilder(name as ConvertCustomConfig<T>['name'], config, customTypeParams);
+		return new MySqlCustomColumnBuilder(name, config, customTypeParams);
 	};
 }

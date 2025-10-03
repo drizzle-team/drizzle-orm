@@ -6,7 +6,6 @@ import { PgColumn, PgColumnBuilder } from '../common.ts';
 
 export class PgBinaryVectorBuilder extends PgColumnBuilder<
 	{
-		name: string;
 		dataType: 'string binary';
 		data: string;
 		driverParam: string;

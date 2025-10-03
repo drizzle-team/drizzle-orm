@@ -31,6 +31,7 @@ import {
 	alias,
 	bigint,
 	binary,
+	blob,
 	boolean,
 	char,
 	date,
@@ -48,6 +49,8 @@ import {
 	intersect,
 	intersectAll,
 	json,
+	longblob,
+	mediumblob,
 	mediumint,
 	mysqlEnum,
 	mysqlSchema,
@@ -61,6 +64,7 @@ import {
 	text,
 	time,
 	timestamp,
+	tinyblob,
 	tinyint,
 	union,
 	unionAll,
@@ -152,6 +156,14 @@ const allTypesTable = mysqlTable('all_types', {
 	}),
 	year: year('year'),
 	enum: mysqlEnum('enum', ['enV1', 'enV2']),
+	blob: blob('blob'),
+	tinyblob: tinyblob('tinyblob'),
+	mediumblob: mediumblob('mediumblob'),
+	longblob: longblob('longblob'),
+	stringblob: blob('stringblob', { mode: 'string' }),
+	stringtinyblob: tinyblob('stringtinyblob', { mode: 'string' }),
+	stringmediumblob: mediumblob('stringmediumblob', { mode: 'string' }),
+	stringlongblob: longblob('stringlongblob', { mode: 'string' }),
 });
 
 const usersTable = mysqlTable('userstest', {
@@ -216,11 +228,7 @@ const usersMigratorTable = mysqlTable('users12', {
 	id: serial('id').primaryKey(),
 	name: text('name').notNull(),
 	email: text('email').notNull(),
-}, (table) => {
-	return {
-		name: uniqueIndex('').on(table.name).using('btree'),
-	};
-});
+}, (table) => [uniqueIndex('').on(table.name).using('btree')]);
 
 // To test aggregate functions
 const aggregateTable = mysqlTable('aggregate_table', {
@@ -501,9 +509,7 @@ export function tests(driver?: string) {
 				id: serial('id').primaryKey(),
 				name: text('name').notNull(),
 				state: text('state'),
-			}, (t) => ({
-				f: foreignKey({ foreignColumns: [t.id], columns: [t.id], name: 'custom_fk' }),
-			}));
+			}, (t) => [foreignKey({ foreignColumns: [t.id], columns: [t.id], name: 'custom_fk' })]);
 
 			const tableConfig = getTableConfig(table);
 
@@ -516,9 +522,7 @@ export function tests(driver?: string) {
 				id: serial('id').primaryKey(),
 				name: text('name').notNull(),
 				state: text('state'),
-			}, (t) => ({
-				f: primaryKey({ columns: [t.id, t.name], name: 'custom_pk' }),
-			}));
+			}, (t) => [primaryKey({ columns: [t.id, t.name], name: 'custom_pk' })]);
 
 			const tableConfig = getTableConfig(table);
 
@@ -531,10 +535,7 @@ export function tests(driver?: string) {
 				id: serial('id').primaryKey(),
 				name: text('name').notNull(),
 				state: text('state'),
-			}, (t) => ({
-				f: unique('custom_name').on(t.name, t.state),
-				f1: unique('custom_name1').on(t.name, t.state),
-			}));
+			}, (t) => [unique('custom_name').on(t.name, t.state), unique('custom_name1').on(t.name, t.state)]);
 
 			const tableConfig = getTableConfig(cities1Table);
 
@@ -4962,7 +4963,15 @@ export function tests(driver?: string) {
 						\`varbin\` varbinary(16),
 						\`varchar\` varchar(255),
 						\`year\` year,
-						\`enum\` enum('enV1','enV2')
+						\`enum\` enum('enV1','enV2'),
+						\`blob\` blob,
+						\`tinyblob\` tinyblob,
+						\`mediumblob\` mediumblob,
+						\`longblob\` longblob,
+						\`stringblob\` blob,
+						\`stringtinyblob\` tinyblob,
+						\`stringmediumblob\` mediumblob,
+						\`stringlongblob\` longblob
 					);
 			`);
 
@@ -4999,6 +5008,14 @@ export function tests(driver?: string) {
 				varbin: '1010110101001101',
 				varchar: 'VCHAR',
 				year: 2025,
+				blob: Buffer.from('string'),
+				longblob: Buffer.from('string'),
+				mediumblob: Buffer.from('string'),
+				tinyblob: Buffer.from('string'),
+				stringblob: 'string',
+				stringlongblob: 'string',
+				stringmediumblob: 'string',
+				stringtinyblob: 'string',
 			});
 
 			const rawRes = await db.select().from(allTypesTable);
@@ -5033,6 +5050,14 @@ export function tests(driver?: string) {
 				varchar: string | null;
 				year: number | null;
 				enum: 'enV1' | 'enV2' | null;
+				blob: Buffer | null;
+				tinyblob: Buffer | null;
+				mediumblob: Buffer | null;
+				longblob: Buffer | null;
+				stringblob: string | null;
+				stringtinyblob: string | null;
+				stringmediumblob: string | null;
+				stringlongblob: string | null;
 			}[];
 
 			const expectedRes: ExpectedType = [
@@ -5066,6 +5091,14 @@ export function tests(driver?: string) {
 					varchar: 'VCHAR',
 					year: 2025,
 					enum: 'enV1',
+					blob: Buffer.from('string'),
+					longblob: Buffer.from('string'),
+					mediumblob: Buffer.from('string'),
+					tinyblob: Buffer.from('string'),
+					stringblob: 'string',
+					stringlongblob: 'string',
+					stringmediumblob: 'string',
+					stringtinyblob: 'string',
 				},
 			];
 
@@ -5089,9 +5122,7 @@ export function tests(driver?: string) {
 		const userNotications = mysqlTable('user_notifications', {
 			userId: int('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
 			notificationId: int('notification_id').notNull().references(() => notifications.id, { onDelete: 'cascade' }),
-		}, (t) => ({
-			pk: primaryKey({ columns: [t.userId, t.notificationId] }),
-		}));
+		}, (t) => [primaryKey({ columns: [t.userId, t.notificationId] })]);
 
 		await db.execute(sql`drop table if exists ${notifications}`);
 		await db.execute(sql`drop table if exists ${users}`);

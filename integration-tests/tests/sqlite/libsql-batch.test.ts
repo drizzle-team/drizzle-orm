@@ -45,9 +45,7 @@ export const usersToGroupsTable = sqliteTable(
 			() => groupsTable.id,
 		),
 	},
-	(t) => ({
-		pk: primaryKey({ columns: [t.userId, t.groupId] }),
-	}),
+	(t) => [primaryKey({ columns: [t.userId, t.groupId] })],
 );
 export const usersToGroupsConfig = relations(usersToGroupsTable, ({ one }) => ({
 	group: one(groupsTable, {
