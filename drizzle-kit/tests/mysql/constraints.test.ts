@@ -342,6 +342,52 @@ test('unique, fk constraints order #2', async () => {
 	expect(pst2).toStrictEqual(expectedSt2);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/2236
+// https://github.com/drizzle-team/drizzle-orm/issues/3329
+test('add column before creating unique constraint', async () => {
+	const schema1 = {
+		table1: mysqlTable('table1', {
+			column1: int(),
+		}),
+		table2: mysqlTable('table2', {
+			column1: int(),
+		}),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+	const expectedSt1 = [
+		'CREATE TABLE `table1` (\n\t`column1` int\n);\n',
+		'CREATE TABLE `table2` (\n\t`column1` int\n);\n',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const schema2 = {
+		table1: mysqlTable('table1', {
+			column1: int(),
+			column2: varchar({ length: 256 }),
+		}, (table) => [
+			unique().on(table.column1, table.column2),
+		]),
+		table2: mysqlTable('table2', {
+			column1: int(),
+			column2: varchar({ length: 256 }).unique(),
+		}),
+	};
+
+	const { sqlStatements: st2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+	const expectedSt2 = [
+		'ALTER TABLE `table1` ADD `column2` varchar(256);',
+		'ALTER TABLE `table2` ADD `column2` varchar(256);',
+		'CREATE UNIQUE INDEX `column2_unique` ON `table2` (`column2`);',
+		'CREATE UNIQUE INDEX `column1_column2_unique` ON `table1` (`column1`,`column2`);',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
 test('primary key, fk constraint order #1', async () => {
 	const schema1 = {
 		table1: mysqlTable('table1', {
@@ -521,6 +567,54 @@ test('fk name is too long', async () => {
 	expect(pst).toStrictEqual(expectedSt);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3293
+// https://github.com/drizzle-team/drizzle-orm/issues/2018
+test('adding on delete to 2 fks', async () => {
+	const table1 = mysqlTable('table1', {
+		column1: int().primaryKey(),
+	});
+	const table2 = mysqlTable('table2', {
+		column1: int().primaryKey(),
+		column2: int().references(() => table1.column1).notNull(),
+		column3: int().references(() => table1.column1).notNull(),
+	});
+	const schema1 = { table1, table2 };
+
+	const { next: n1, sqlStatements: st1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+	const expectedSt1: string[] = [
+		'CREATE TABLE `table1` (\n\t`column1` int PRIMARY KEY\n);\n',
+		'CREATE TABLE `table2` (\n\t`column1` int PRIMARY KEY,\n\t`column2` int NOT NULL,\n\t`column3` int NOT NULL\n);\n',
+		'ALTER TABLE `table2` ADD CONSTRAINT `table2_column2_table1_column1_fkey` FOREIGN KEY (`column2`) REFERENCES `table1`(`column1`);',
+		'ALTER TABLE `table2` ADD CONSTRAINT `table2_column3_table1_column1_fkey` FOREIGN KEY (`column3`) REFERENCES `table1`(`column1`);',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const table3 = mysqlTable('table1', {
+		column1: int().primaryKey(),
+	});
+	const table4 = mysqlTable('table2', {
+		column1: int().primaryKey(),
+		column2: int().references(() => table1.column1, { onDelete: 'cascade' }).notNull(),
+		column3: int().references(() => table1.column1, { onDelete: 'cascade' }).notNull(),
+	});
+	const schema2 = { table3, table4 };
+
+	const { sqlStatements: st2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+
+	const expectedSt2: string[] = [
+		'ALTER TABLE `table2` DROP FOREIGN KEY `table2_column2_table1_column1_fkey`;',
+		'ALTER TABLE `table2` ADD CONSTRAINT `table2_column2_table1_column1_fkey` FOREIGN KEY (`column2`) REFERENCES `table1`(`column1`) ON DELETE cascade ON UPDATE no action;',
+		'ALTER TABLE `table2` DROP FOREIGN KEY `table2_column3_table1_column1_fkey`;',
+		'ALTER TABLE `table2` ADD CONSTRAINT `table2_column3_table1_column1_fkey` FOREIGN KEY (`column3`) REFERENCES `table1`(`column1`) ON DELETE cascade ON UPDATE no action;',
+	];
+
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
 test('adding autoincrement to table with pk #1', async () => {
 	const schema1 = {
 		table1: mysqlTable('table1', {
@@ -652,4 +746,85 @@ test('adding autoincrement to table with unique #2', async () => {
 
 	expect(st).toStrictEqual(expectedSt);
 	expect(pst).toStrictEqual(expectedSt);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3471
+test('drop column with pk and add pk to another column #1', async () => {
+	const schema1 = {
+		table1: mysqlTable('table1', {
+			column1: varchar({ length: 256 }).primaryKey(),
+			column2: varchar({ length: 256 }).notNull(),
+		}),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+	const expectedSt1 = [
+		'CREATE TABLE `table1` (\n\t`column1` varchar(256) PRIMARY KEY,\n\t`column2` varchar(256) NOT NULL\n);\n',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const schema2 = {
+		table1: mysqlTable('table1', {
+			column2: varchar({ length: 256 }).primaryKey(),
+		}),
+	};
+
+	const { sqlStatements: st2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+
+	const expectedSt2: string[] = [
+		'ALTER TABLE `table1` DROP PRIMARY KEY;',
+		'ALTER TABLE `table1` ADD PRIMARY KEY (`column2`);',
+		'ALTER TABLE `table1` DROP COLUMN `column1`;',
+	];
+
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+test('drop column with pk and add pk to another column #2', async () => {
+	const schema1 = {
+		table1: mysqlTable('table1', {
+			column1: varchar({ length: 256 }),
+			column2: varchar({ length: 256 }),
+			column3: varchar({ length: 256 }).notNull(),
+			column4: varchar({ length: 256 }).notNull(),
+		}, (table) => [
+			primaryKey({ columns: [table.column1, table.column2] }),
+		]),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+	const expectedSt1 = [
+		'CREATE TABLE `table1` (\n\t`column1` varchar(256),\n\t`column2` varchar(256),'
+		+ '\n\t`column3` varchar(256) NOT NULL,\n\t`column4` varchar(256) NOT NULL,'
+		+ '\n\tCONSTRAINT `table1_column1_column2_pk` PRIMARY KEY(`column1`,`column2`)\n);\n',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const schema2 = {
+		table1: mysqlTable('table1', {
+			column3: varchar({ length: 256 }),
+			column4: varchar({ length: 256 }),
+		}, (table) => [
+			primaryKey({ columns: [table.column3, table.column4] }),
+		]),
+	};
+
+	const { sqlStatements: st2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+
+	const expectedSt2: string[] = [
+		'ALTER TABLE `table1` DROP PRIMARY KEY;',
+		'ALTER TABLE `table1` ADD PRIMARY KEY (`column3`,`column4`);',
+		'ALTER TABLE `table1` DROP COLUMN `column1`;',
+		'ALTER TABLE `table1` DROP COLUMN `column2`;',
+	];
+
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
 });
