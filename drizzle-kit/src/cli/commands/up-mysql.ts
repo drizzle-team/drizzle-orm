@@ -1,4 +1,5 @@
 import { createDDL } from 'src/dialects/mysql/ddl';
+import { Binary, Varbinary } from 'src/dialects/mysql/grammar';
 import { trimChar } from 'src/utils';
 import type { MysqlSchema, MysqlSnapshot } from '../../dialects/mysql/snapshot';
 
@@ -15,12 +16,26 @@ export const upToV6 = (it: Record<string, any>): MysqlSnapshot => {
 		ddl.tables.push({ name: table.name });
 
 		for (const column of Object.values(table.columns)) {
+			let def = typeof column.default === 'undefined' ? null : String(column.default);
+			if (def !== null) {
+				if (column.type.startsWith('decimal')) def = `(${trimChar(def, "'")})`;
+				if (column.type.startsWith('binary')) {
+					const trimmed = trimChar(def, "'");
+					if (trimmed !== def) def = Binary.defaultFromDrizzle(trimmed)!;
+				}
+				if (column.type.startsWith('varbinary')) {
+					const trimmed = trimChar(def, "'");
+					// check if it's not an expression
+					if (trimmed !== def) def = Varbinary.defaultFromDrizzle(trimmed);
+				}
+			}
+
 			ddl.columns.push({
 				table: table.name,
 				name: column.name,
 				type: column.type,
 				notNull: column.notNull,
-				default: column.default,
+				default: def,
 				autoIncrement: column.autoincrement ?? false,
 				onUpdateNow: column.onUpdate ?? false,
 				generated: column.generated,

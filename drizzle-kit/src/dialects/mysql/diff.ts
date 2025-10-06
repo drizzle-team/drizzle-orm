@@ -1,3 +1,4 @@
+import { trimChar } from 'src/utils';
 import { mockResolver } from '../../utils/mocks';
 import { Resolver } from '../common';
 import { diff } from '../dialect';
@@ -289,7 +290,7 @@ export const ddlDiff = async (
 
 	const dropPKStatements = pksDiff.filter((it) => it.$diffType === 'drop')
 		.filter((it) => !deletedTables.some((x) => x.name === it.table))
-		/* 
+		/*
 			we can't do `create table a(id int auto_increment);`
 			but when you do `ALTER TABLE `table1` MODIFY COLUMN `column1` int AUTO_INCREMENT`
 			database implicitly makes column a Primary Key
@@ -349,6 +350,11 @@ export const ddlDiff = async (
 				deleteDefault ||= it.default.from === it.default.to;
 				deleteDefault ||= it.default.from === `(${it.default.to})`;
 				deleteDefault ||= it.default.to === `(${it.default.from})`;
+
+				// varbinary
+				deleteDefault ||= it.default.from === `(${it.default.to?.toLowerCase()})`;
+				deleteDefault ||= it.default.to === `(${it.default.from?.toLowerCase()})`;
+
 				if (deleteDefault) {
 					delete it.default;
 				}
@@ -362,7 +368,12 @@ export const ddlDiff = async (
 			}
 
 			// if there's a change in notnull but column is a part of a pk - we don't care
-			if (it.notNull && !!ddl2.pks.one({ table: it.table, columns: { CONTAINS: it.name } })) {
+			if (
+				it.notNull && (
+					!!ddl2.pks.one({ table: it.table, columns: { CONTAINS: it.name } })
+					|| !!ddl1.pks.one({ table: it.table, columns: { CONTAINS: it.name } })
+				)
+			) {
 				delete it.notNull;
 			}
 
@@ -375,6 +386,15 @@ export const ddlDiff = async (
 			) {
 				delete it.charSet;
 				delete it.collation;
+			}
+
+			if (
+				mode === 'push' && !it.type && it.default && it.default.from && it.default.to
+				&& (it.$right.type === 'datetime' || it.$right.type === 'timestamp')
+			) {
+				const c1 = Date.parse(trimChar(it.default.from, "'"));
+				const c2 = Date.parse(trimChar(it.default.to, "'"));
+				if (c1 === c2) delete it.default;
 			}
 
 			return ddl2.columns.hasDiff(it) && alterColumnPredicate(it);

@@ -355,7 +355,13 @@ export const Binary: SqlType = {
 	is: (type) => /^(?:binary)(?:[\s(].*)?$/i.test(type),
 	drizzleImport: () => 'binary',
 	defaultFromDrizzle: TinyText.defaultFromDrizzle,
-	defaultFromIntrospect: TinyText.defaultFromIntrospect,
+	defaultFromIntrospect: (value) => {
+		// when you do `binary default 'text'` instead of `default ('text')`
+		if (value.startsWith('0x')) {
+			return `'${Buffer.from(value.slice(2), 'hex').toString('utf-8')}'`;
+		}
+		return value;
+	},
 	toTs: TinyText.toTs,
 };
 
@@ -661,6 +667,10 @@ export const typesCommutative = (left: string, right: string, mode: 'push' | 'de
 
 		if (leftIn && rightIn) return true;
 	}
+
+	const leftPatched = left.replace(', ', ',');
+	const rightPatched = right.replace(', ', ',');
+	if (leftPatched === rightPatched) return true;
 
 	if (mode === 'push') {
 		if (left === 'double' && right === 'real') return true;

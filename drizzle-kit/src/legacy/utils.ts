@@ -1,6 +1,6 @@
 import chalk from 'chalk';
-import { SQL } from 'drizzle-orm';
-import { CasingCache, toCamelCase, toSnakeCase } from 'drizzle-orm/casing';
+import { SQL } from 'drizzle-orm-legacy';
+import { CasingCache, toCamelCase, toSnakeCase } from 'drizzle-orm-legacy/casing';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { parse } from 'url';

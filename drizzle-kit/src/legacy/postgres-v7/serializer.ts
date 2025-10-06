@@ -1,4 +1,4 @@
-import { is } from 'drizzle-orm';
+import { is } from 'drizzle-orm-legacy';
 import {
 	isPgEnum,
 	isPgMaterializedView,
@@ -13,7 +13,7 @@ import {
 	PgSequence,
 	PgTable,
 	PgView,
-} from 'drizzle-orm/pg-core';
+} from 'drizzle-orm-legacy/pg-core';
 import { CasingType } from '../common';
 import type { PgSchema as SCHEMA } from './pgSchema';
 import { generatePgSnapshot } from './pgSerializer';
