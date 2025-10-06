@@ -107,6 +107,7 @@ test('Default value of character type column: char', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3318
 // https://github.com/drizzle-team/drizzle-orm/issues/1754
 test('Default value of character type column: varchar', async () => {
 	const schema = {
