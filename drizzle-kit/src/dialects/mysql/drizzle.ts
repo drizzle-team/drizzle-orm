@@ -127,8 +127,6 @@ export const fromDrizzleSchema = (
 				collation = column.collation ?? null;
 			}
 
-			console.log(column.name, column.uniqueNameExplicit,column.uniqueName)
-
 			result.columns.push({
 				entityType: 'columns',
 				table: tableName,
@@ -168,9 +166,8 @@ export const fromDrizzleSchema = (
 				return { value: getColumnCasing(c, casing), isExpression: false };
 			});
 
-			const name = unique.isNameExplicit
-				? unique.name
-				: nameForUnique(tableName, unique.columns.filter((c) => !is(c, SQL)).map((c) => c.name));
+			const name = unique.name
+				?? nameForUnique(tableName, unique.columns.filter((c) => !is(c, SQL)).map((c) => c.name));
 
 			result.indexes.push({
 				entityType: 'indexes',
