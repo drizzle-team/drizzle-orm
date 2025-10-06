@@ -25,7 +25,11 @@ beforeEach(async () => {
 // @AlexBlokh - I have added new fields in ddl. Just in case ping you
 test('s01', async (t) => {
 	const res = await diffSnapshotV5(db, s01, s01old);
+
+	// previous kit did generate `default '10.123'` for decimals which results in introspected '10' trimmed value
 	expect(res.all).toStrictEqual([
-		
+		'ALTER TABLE `all_data_types` MODIFY COLUMN `decimal` decimal DEFAULT (10.123);',
+		'ALTER TABLE `all_data_types` MODIFY COLUMN `decimal_precision` decimal(6) DEFAULT (10.123);',
+		'ALTER TABLE `all_data_types` MODIFY COLUMN `decimal_precision_scale` decimal(6,2) DEFAULT (10.123);',
 	]);
 });
