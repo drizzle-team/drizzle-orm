@@ -3,6 +3,7 @@ import {
 	bigint,
 	binary,
 	blob,
+	boolean,
 	char,
 	customType,
 	date,
@@ -1870,4 +1871,55 @@ test('add pk', async () => {
 	];
 	expect(st2).toStrictEqual(expectedSt2);
 	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/2795
+test('add not null to column with default', async () => {
+	const schema1 = {
+		table1: mysqlTable('table1', {
+			column1: int().primaryKey(),
+			column2: boolean().default(true),
+		}),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+	const expectedSt1 = [
+		'CREATE TABLE `table1` (\n\t`column1` int PRIMARY KEY,\n\t`column2` boolean DEFAULT true\n);\n',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const schema2 = {
+		table1: mysqlTable('table1', {
+			column1: int().primaryKey(),
+			column2: boolean().default(true),
+			column3: boolean().default(false),
+		}),
+	};
+
+	const { sqlStatements: st2, next: n2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+	const expectedSt2 = [
+		'ALTER TABLE `table1` ADD `column3` boolean DEFAULT false;',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+
+	const schema3 = {
+		table1: mysqlTable('table1', {
+			column1: int().primaryKey(),
+			column2: boolean().default(true).notNull(),
+			column3: boolean().default(false).notNull(),
+		}),
+	};
+
+	const { sqlStatements: st3 } = await diff(n2, schema3, []);
+	const { sqlStatements: pst3 } = await push({ db, to: schema3 });
+	const expectedSt3 = [
+		'ALTER TABLE `table1` MODIFY COLUMN `column2` boolean DEFAULT true NOT NULL;',
+		'ALTER TABLE `table1` MODIFY COLUMN `column3` boolean DEFAULT false NOT NULL;',
+	];
+	expect(st3).toStrictEqual(expectedSt3);
+	expect(pst3).toStrictEqual(expectedSt3);
 });

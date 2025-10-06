@@ -29,6 +29,8 @@ import {
 	tinyblob,
 	tinyint,
 	tinytext,
+	unique,
+	uniqueIndex,
 	varchar,
 } from 'drizzle-orm/mysql-core';
 import * as fs from 'fs';
@@ -123,6 +125,7 @@ test('Default value of character type column: varchar', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/4620
 // https://github.com/drizzle-team/drizzle-orm/issues/4786
 test('Default value of character type column: enum', async () => {
 	const schema = {
@@ -223,6 +226,7 @@ test('handle float type', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/2950
 test('handle unsigned numerical types', async () => {
 	const schema = {
 		table: mysqlTable('table', {
@@ -297,6 +301,7 @@ test('charSet and collate', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/2950
 // https://github.com/drizzle-team/drizzle-orm/issues/2988
 // https://github.com/drizzle-team/drizzle-orm/issues/4653
 test('introspect bigint, mediumint, int, smallint, tinyint', async () => {
@@ -413,6 +418,44 @@ test('introspect index on json', async () => {
 
 	expect(statements).toStrictEqual([]);
 	expect(sqlStatements).toStrictEqual([]);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/2525
+test('introspect index', async () => {
+	const entity = mysqlTable('Entity', {
+		id: int('id').autoincrement().notNull(),
+		name: varchar('name', { length: 191 }).notNull(),
+	}, (table) => {
+		return {
+			entityId: primaryKey({ columns: [table.id], name: 'Entity_id' }),
+		};
+	});
+
+	const entityTag = mysqlTable('EntityTag', {
+		id: int('id').autoincrement().notNull(),
+		name: varchar('name', { length: 191 }).notNull(),
+	}, (table) => {
+		return {
+			entityTagId: primaryKey({ columns: [table.id], name: 'EntityTag_id' }),
+		};
+	});
+
+	const entityToEntityTag = mysqlTable('_EntityToEntityTag', {
+		a: int('A').notNull().references(() => entity.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+		b: int('B').notNull().references(() => entityTag.id, { onDelete: 'cascade', onUpdate: 'cascade' }),
+	}, (table) => {
+		return {
+			bIdx: index('_EntityToEntityTag_B_index').on(table.b),
+			entityToEntityTagAbUnique: uniqueIndex('_EntityToEntityTag_AB_unique').on(table.a, table.b),
+		};
+	});
+
+	const schema = { entity, entityTag, entityToEntityTag };
+
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'introspect-index');
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
 });
 
 test('introspect blob, tinyblob, mediumblob, longblob', async () => {
