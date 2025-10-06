@@ -4,6 +4,7 @@ import {
 	binary,
 	blob,
 	char,
+	customType,
 	date,
 	datetime,
 	decimal,
@@ -486,10 +487,16 @@ test('add table #14', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add table #15. timestamp + fsp + on update now + fsp', async () => {
+// https://github.com/drizzle-team/drizzle-orm/issues/472
+// https://github.com/drizzle-team/drizzle-orm/issues/3373
+test('add table #15. timestamp + fsp + default now + on update now + fsp', async () => {
+	// TODO: revise: maybe .onUpdateNow should be able to get fsp from timestamp config.
+	// Because fsp in timestamp config and onUpdateNow config should be the same for query to run successfully.
+	// It might also be helpfull to add fsp field to .defaultNow config,
+	// since setting now() as default without specifying fsp caused an error on PlanetScale (issue 472).
 	const to = {
 		users: mysqlTable('table', {
-			createdAt: timestamp({ fsp: 4 }).onUpdateNow({ fsp: 4 }),
+			createdAt: timestamp({ fsp: 4 }).defaultNow().onUpdateNow({ fsp: 4 }),
 		}),
 	};
 
@@ -497,7 +504,7 @@ test('add table #15. timestamp + fsp + on update now + fsp', async () => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		'CREATE TABLE `table` (\n\t`createdAt` timestamp(4) ON UPDATE CURRENT_TIMESTAMP(4)\n);\n',
+		'CREATE TABLE `table` (\n\t`createdAt` timestamp(4) DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP(4)\n);\n',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
@@ -510,6 +517,7 @@ test('add table #16. timestamp + on update now + fsp', async () => {
 		}),
 	};
 
+	// TODO: revise: shouldn't diff also throw an error?
 	const { sqlStatements: st } = await diff({}, to, []);
 
 	const st0: string[] = [
@@ -527,6 +535,7 @@ test('add table #17. timestamp + fsp + on update now', async () => {
 		}),
 	};
 
+	// TODO: revise: shouldn't diff also throw an error?
 	const { sqlStatements: st } = await diff({}, to, []);
 
 	const st0: string[] = [
@@ -560,9 +569,10 @@ test('add table#18. serial + primary key, timestamp + default with sql``', async
 	expect(pst).toStrictEqual(expectedSt);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/1413
 // https://github.com/drizzle-team/drizzle-orm/issues/3473
 // https://github.com/drizzle-team/drizzle-orm/issues/2815
-test('add table #19. table already exists', async () => {
+test('add table #19. table already exists; multiple pk defined', async () => {
 	const schema = {
 		table1: mysqlTable('table1', {
 			column1: int().autoincrement().primaryKey(),
@@ -628,6 +638,60 @@ test('add table #20. table with hyphen in identifiers', async () => {
 	const expectedSt2: string[] = [
 		'ALTER TABLE `table-1` MODIFY COLUMN `column-1` int NOT NULL;',
 	];
+
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/818
+test('add table #21. custom type; default', async () => {
+	interface Semver {
+		major: number;
+		minor: number;
+		patch: number;
+	}
+	const semver = customType<{
+		data: Semver;
+		driverData: string;
+		config: { length: number };
+		configRequired: true;
+	}>({
+		dataType(config) {
+			return `varchar(${config.length})`;
+		},
+		fromDriver(value: string): Semver {
+			const [major, minor, patch] = value.split('.');
+			if (!major || !minor || !patch) {
+				throw new Error(`Invalid semver: ${value}`);
+			}
+			return {
+				major: parseInt(major),
+				minor: parseInt(minor),
+				patch: parseInt(patch),
+			};
+		},
+		toDriver(value: Semver): string {
+			return `${value.major}.${value.minor}.${value.patch}`;
+		},
+	});
+	const schema = {
+		table1: mysqlTable('table1', {
+			column1: semver({ length: 12 }).default({ major: 0, minor: 0, patch: 0 }),
+		}),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema });
+	const expectedSt1 = [
+		"CREATE TABLE `table1` (\n\t`column1` varchar(12) DEFAULT '0.0.0'\n);\n",
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const { sqlStatements: st2 } = await diff(n1, schema, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema });
+
+	const expectedSt2: string[] = [];
 
 	expect(st2).toStrictEqual(expectedSt2);
 	expect(pst2).toStrictEqual(expectedSt2);
@@ -1725,7 +1789,7 @@ test('rename column with pk on another column', async () => {
 	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
 	const expectedSt1 = [
 		'CREATE TABLE `table1` (\n\t`column1` int PRIMARY KEY,\n\t`column2` int\n);\n',
-		'CREATE TABLE `table2` (\n\t`column1` int,\n\t`column2` int,\n\t`column3` int,\n\tCONSTRAINT `table2_column1_column2_pk` PRIMARY KEY(`column1`,`column2`)\n);\n',
+		'CREATE TABLE `table2` (\n\t`column1` int,\n\t`column2` int,\n\t`column3` int,\n\tCONSTRAINT `PRIMARY` PRIMARY KEY(`column1`,`column2`)\n);\n',
 	];
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);
@@ -1755,6 +1819,54 @@ test('rename column with pk on another column', async () => {
 		'ALTER TABLE `table2` RENAME COLUMN `column3` TO `column3_renamed`;',
 		'ALTER TABLE `table1` MODIFY COLUMN `column2_renamed` int NOT NULL;',
 		'ALTER TABLE `table2` MODIFY COLUMN `column3_renamed` int NOT NULL;',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/706
+test('add pk', async () => {
+	const schema1 = {
+		table1: mysqlTable('table1', {
+			column1: int(),
+		}),
+		table2: mysqlTable('table2', {
+			column1: int().unique(),
+		}),
+		table3: mysqlTable('table3', {
+			column1: int().unique(),
+		}),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+	const expectedSt1 = [
+		'CREATE TABLE `table1` (\n\t`column1` int\n);\n',
+		'CREATE TABLE `table2` (\n\t`column1` int,\n\tCONSTRAINT `table2_column1_unique` UNIQUE(`column1`)\n);\n',
+		'CREATE TABLE `table3` (\n\t`column1` int,\n\tCONSTRAINT `table3_column1_unique` UNIQUE(`column1`)\n);\n',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const schema2 = {
+		table1: mysqlTable('table1', {
+			column1: int().primaryKey(),
+		}),
+		table2: mysqlTable('table2', {
+			column1: int().unique().primaryKey(),
+		}),
+		table3: mysqlTable('table3', {
+			column1: int().primaryKey(),
+		}),
+	};
+
+	const { sqlStatements: st2 } = await diff(n1, schema2, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+	const expectedSt2 = [
+		'DROP INDEX `table3_column1_unique` ON `table3`;',
+		'ALTER TABLE `table1` ADD PRIMARY KEY (`column1`);',
+		'ALTER TABLE `table2` ADD PRIMARY KEY (`column1`);',
+		'ALTER TABLE `table3` ADD PRIMARY KEY (`column1`);',
 	];
 	expect(st2).toStrictEqual(expectedSt2);
 	expect(pst2).toStrictEqual(expectedSt2);
