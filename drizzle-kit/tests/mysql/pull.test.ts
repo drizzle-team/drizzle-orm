@@ -162,6 +162,23 @@ test('Default value of empty string column: enum, char, varchar, text, tinytext,
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/1402
+test('introspect default with escaped value', async () => {
+	const table1 = mysqlTable('table1', {
+		id: int().primaryKey(),
+		url: text().notNull(),
+		// TODO: revise: would be nice to use .default like below
+		// hash: char({ length: 32 }).charSet('utf8mb4').collate('utf8mb4_0900_ai_ci').notNull().default(() =>sql`md5(${table1.url})`),
+		hash: char({ length: 32 }).charSet('utf8mb4').collate('utf8mb4_0900_ai_ci').notNull().default(sql`md5(\`url\`)`),
+	});
+	const schema = { table1 };
+
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'default-value-of-empty-string');
+
+	expect(statements).toStrictEqual([]);
+	expect(sqlStatements).toStrictEqual([]);
+});
+
 test('introspect checks', async () => {
 	const schema = {
 		users: mysqlTable('users', {
@@ -226,6 +243,7 @@ test('handle float type', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/1675
 // https://github.com/drizzle-team/drizzle-orm/issues/2950
 test('handle unsigned numerical types', async () => {
 	const schema = {
@@ -282,6 +300,21 @@ test('introspect varchar with \r\n in default, column name starts with number', 
 	expect(sqlStatements.length).toBe(0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/1928
+test('introspect column with colon/semicolon in its name', async () => {
+	const schema = {
+		table1: mysqlTable('table1', {
+			'column:1': text('column:1'),
+			'column;2': text('column;1'),
+		}),
+	};
+
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'introspect-column-with-colon');
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
+
 test('charSet and collate', async () => {
 	const schema = {
 		columns: mysqlTable('columns', {
@@ -292,6 +325,7 @@ test('charSet and collate', async () => {
 			name5: mediumtext('name5').charSet('big5').collate('big5_chinese_ci'),
 			name6: longtext('name6').charSet('big5').collate('big5_chinese_ci'),
 			name7: mysqlEnum('test_enum', ['1', '2']).charSet('big5').collate('big5_chinese_ci'),
+			name8: text('name:first').charSet('utf8mb4').collate('utf8mb4_0900_ai_ci'),
 		}),
 	};
 
@@ -301,6 +335,8 @@ test('charSet and collate', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3457
+// https://github.com/drizzle-team/drizzle-orm/issues/1871
 // https://github.com/drizzle-team/drizzle-orm/issues/2950
 // https://github.com/drizzle-team/drizzle-orm/issues/2988
 // https://github.com/drizzle-team/drizzle-orm/issues/4653
@@ -322,6 +358,7 @@ test('introspect bigint, mediumint, int, smallint, tinyint', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3290
 // https://github.com/drizzle-team/drizzle-orm/issues/1428
 // https://github.com/drizzle-team/drizzle-orm/issues/3552
 // https://github.com/drizzle-team/drizzle-orm/issues/4602
@@ -420,6 +457,8 @@ test('introspect index on json', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/1512
+// https://github.com/drizzle-team/drizzle-orm/issues/1870
 // https://github.com/drizzle-team/drizzle-orm/issues/2525
 test('introspect index', async () => {
 	const entity = mysqlTable('Entity', {
