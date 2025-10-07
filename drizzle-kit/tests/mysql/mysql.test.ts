@@ -898,7 +898,8 @@ test('drop unique constraint', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
-test('add table with indexes', async () => {
+// https://github.com/drizzle-team/drizzle-orm/issues/1888
+test.only('add table with indexes', async () => {
 	const from = {};
 
 	const to = {
@@ -906,6 +907,7 @@ test('add table with indexes', async () => {
 			id: serial().primaryKey(),
 			name: varchar({ length: 100 }),
 			email: varchar({ length: 100 }),
+			column4: varchar({ length: 100 }),
 		}, (t) => [
 			uniqueIndex('uniqueExpr').on(sql`(lower(${t.email}))`),
 			index('indexExpr').on(sql`(lower(${t.email}))`),
@@ -914,6 +916,7 @@ test('add table with indexes', async () => {
 			index('indexCol').on(t.email),
 			index('indexColMultiple').on(t.email, t.name),
 			index('indexColExpr').on(sql`(lower(${t.email}))`, t.email),
+			index('indexCol4Hash').on(sql`(lower(${t.column4}))`).using('hash'),
 		]),
 	};
 
@@ -921,7 +924,9 @@ test('add table with indexes', async () => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		`CREATE TABLE \`users\` (\n\t\`id\` serial PRIMARY KEY,\n\t\`name\` varchar(100),\n\t\`email\` varchar(100),\n\tCONSTRAINT \`uniqueExpr\` UNIQUE((lower(\`email\`))),\n\tCONSTRAINT \`uniqueCol\` UNIQUE(\`email\`)\n);\n`,
+		`CREATE TABLE \`users\` (\n\t\`id\` serial PRIMARY KEY,`
+		+ `\n\t\`name\` varchar(100),\n\t\`email\` varchar(100),\n\t\`column4\` varchar(100),`
+		+ `\n\tCONSTRAINT \`uniqueExpr\` UNIQUE((lower(\`email\`))),\n\tCONSTRAINT \`uniqueCol\` UNIQUE(\`email\`)\n);\n`,
 		'CREATE INDEX `indexExpr` ON `users` ((lower(`email`)));',
 		'CREATE INDEX `indexExprMultiple` ON `users` ((lower(`email`)),(lower(`email`)));',
 		'CREATE INDEX `indexCol` ON `users` (`email`);',
@@ -932,6 +937,7 @@ test('add table with indexes', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/2122
 test('varchar and text default values escape single quotes', async (t) => {
 	const schema1 = {
 		table: mysqlTable('table', {
