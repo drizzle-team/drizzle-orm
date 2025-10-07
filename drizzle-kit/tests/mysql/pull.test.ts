@@ -167,7 +167,7 @@ test('introspect default with escaped value', async () => {
 	const table1 = mysqlTable('table1', {
 		id: int().primaryKey(),
 		url: text().notNull(),
-		// TODO: revise: would be nice to use .default like below
+		// TODO: revise: it would be nice to use .default like below
 		// hash: char({ length: 32 }).charSet('utf8mb4').collate('utf8mb4_0900_ai_ci').notNull().default(() =>sql`md5(${table1.url})`),
 		hash: char({ length: 32 }).charSet('utf8mb4').collate('utf8mb4_0900_ai_ci').notNull().default(sql`md5(\`url\`)`),
 	});
@@ -466,7 +466,7 @@ test('introspect index', async () => {
 		name: varchar('name', { length: 191 }).notNull(),
 	}, (table) => {
 		return {
-			entityId: primaryKey({ columns: [table.id], name: 'Entity_id' }),
+			entityId: primaryKey({ columns: [table.id] }),
 		};
 	});
 
@@ -475,7 +475,7 @@ test('introspect index', async () => {
 		name: varchar('name', { length: 191 }).notNull(),
 	}, (table) => {
 		return {
-			entityTagId: primaryKey({ columns: [table.id], name: 'EntityTag_id' }),
+			entityTagId: primaryKey({ columns: [table.id] }),
 		};
 	});
 
