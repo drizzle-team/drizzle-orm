@@ -56,6 +56,9 @@
 		"@planetscale/database": ">=1.13",
 		"@prisma/client": "*",
 		"@tidbcloud/serverless": "*",
+		"@tursodatabase/database": ">=0.2.1",
+		"@tursodatabase/database-common": ">=0.2.1",
+		"@tursodatabase/database-wasm": ">=0.2.1",
 		"@types/better-sqlite3": "*",
 		"@types/pg": "*",
 		"@types/sql.js": "*",
@@ -151,6 +154,15 @@
 		"@prisma/client": {
 			"optional": true
 		},
+		"@tursodatabase/database": {
+			"optional": true
+		},
+		"@tursodatabase/database-wasm": {
+			"optional": true
+		},
+		"@tursodatabase/database-common": {
+			"optional": true
+		},
 		"@upstash/redis": {
 			"optional": true
 		}
@@ -158,7 +170,7 @@
 	"devDependencies": {
 		"@arktype/attest": "^0.46.0",
 		"@aws-sdk/client-rds-data": "^3.549.0",
-		"@cloudflare/workers-types": "^4.20241112.0",
+		"@cloudflare/workers-types": "^4.20251004.0",
 		"@electric-sql/pglite": "^0.2.12",
 		"@libsql/client": "^0.10.0",
 		"@libsql/client-wasm": "^0.10.0",
@@ -170,6 +182,9 @@
 		"@planetscale/database": "^1.16.0",
 		"@prisma/client": "5.14.0",
 		"@tidbcloud/serverless": "^0.1.1",
+		"@tursodatabase/database": "0.2.1",
+		"@tursodatabase/database-common": "^0.2.1",
+		"@tursodatabase/database-wasm": "^0.2.1",
 		"@types/better-sqlite3": "^7.6.12",
 		"@types/node": "^20.2.5",
 		"@types/pg": "^8.10.1",

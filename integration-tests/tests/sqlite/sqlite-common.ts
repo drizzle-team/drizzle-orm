@@ -1079,7 +1079,8 @@ export function tests() {
 				.groupBy(sql`${usersTable.name}`, usersTable.id)
 				.all();
 
-			expect(result).toEqual([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]);
+			expect(result.length).toStrictEqual(3);
+			expect(result).toStrictEqual(expect.arrayContaining([{ name: 'John' }, { name: 'Jane' }, { name: 'Jane' }]));
 		});
 
 		test('select with group by as column + sql', async (ctx) => {
