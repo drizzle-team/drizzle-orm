@@ -1,4 +1,8 @@
 import type { Simplify } from '../utils';
+import { CockroachDDL } from './cockroach/ddl';
+import { MssqlDDL } from './mssql/ddl';
+import type { MysqlDDL } from './mysql/ddl';
+import type { PostgresDDL } from './postgres/ddl';
 
 export type Named = {
 	name: string;
@@ -135,3 +139,32 @@ export function inspect(it: any): string {
 
 	return `{ ${pairs.join(', ')} }`;
 }
+
+export const preserveEntityNames = <
+	C extends
+		| PostgresDDL['uniques' | 'fks' | 'pks' | 'indexes']
+		| MysqlDDL['indexes' | 'fks']
+		| MssqlDDL['uniques' | 'fks' | 'pks' | 'defaults']
+		| CockroachDDL['fks' | 'pks' | 'indexes'],
+>(
+	collection1: C,
+	collection2: C,
+	mode: 'push' | 'default',
+) => {
+	const items = collection1.list().filter((x) => mode === 'push' || !x.nameExplicit);
+	for (const left of items) {
+		const { entityType: _, name, nameExplicit, ...filter } = left;
+
+		const match = collection2.list({ ...filter, nameExplicit: false } as any);
+
+		if (match.length !== 1 || match[0].name === left.name) continue;
+
+		collection2.update({
+			set: { name: left.name },
+			where: {
+				...filter,
+				nameExplicit: false,
+			} as any,
+		});
+	}
+};

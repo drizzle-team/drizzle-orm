@@ -833,6 +833,7 @@ export type JsonStatement =
 	| JsonDropIndPolicyStatement
 	| JsonCreateIndPolicyStatement
 	| JsonAlterIndPolicyStatement
+	| JsonAlterMySqlViewStatement
 	| JsonCreateMySqlViewStatement;
 
 export const preparePgCreateTableJson = (

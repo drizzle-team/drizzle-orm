@@ -91,7 +91,7 @@ export class ForeignKey {
 	}
 
 	isNameExplicit(): boolean {
-		return this.reference().name ? true : false;
+		return !!this.reference().name;
 	}
 }
 

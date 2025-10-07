@@ -364,7 +364,7 @@ export const fromDrizzleSchema = (
 					default: columnDefault,
 					generated: generatedValue,
 					unique: column.isUnique,
-					uniqueName: column.uniqueNameExplicit ? (column.uniqueName ?? null) : null,
+					uniqueName: column.uniqueName ?? null,
 					identity: identityValue,
 				} satisfies InterimColumn;
 			}),
@@ -375,14 +375,13 @@ export const fromDrizzleSchema = (
 				const columnNames = pk.columns.map((c) => getColumnCasing(c, casing));
 
 				const name = pk.name || defaultNameForPK(tableName);
-				const isNameExplicit = !!pk.name;
 				return {
 					entityType: 'pks',
 					schema: schema,
 					table: tableName,
 					name: name,
 					columns: columnNames,
-					nameExplicit: isNameExplicit,
+					nameExplicit: pk.isNameExplicit,
 				};
 			}),
 		);
@@ -406,7 +405,7 @@ export const fromDrizzleSchema = (
 					schema: schema,
 					table: tableName,
 					name,
-					nameExplicit: !!fk.getName(),
+					nameExplicit: fk.isNameExplicit(),
 					tableTo,
 					schemaTo,
 					columns: columnsFrom,
@@ -422,7 +421,7 @@ export const fromDrizzleSchema = (
 			for (const column of columns) {
 				if (is(column, IndexedColumn) && column.type !== 'CockroachVector') continue;
 
-				if (is(column, SQL) && !index.config.name) {
+				if (is(column, SQL) && !index.isNameExplicit) {
 					errors.push({
 						type: 'index_no_name',
 						schema: schema,
@@ -452,7 +451,7 @@ export const fromDrizzleSchema = (
 				forPK: false,
 				isUnique: true,
 				method: defaults.index.method,
-				nameExplicit: !!unique.name,
+				nameExplicit: unique.isNameExplicit,
 				name: name,
 				schema: schema,
 				table: tableName,
@@ -469,8 +468,11 @@ export const fromDrizzleSchema = (
 					return name;
 				});
 
-				const name = value.config.name ? value.config.name : indexName(tableName, indexColumnNames);
-				const nameExplicit = !!value.config.name;
+				const name = value.config.name
+					?? (value.config.unique
+						? defaultNameForUnique(tableName, ...indexColumnNames)
+						: indexName(tableName, indexColumnNames));
+				const nameExplicit = value.isNameExplicit;
 
 				let indexColumns = columns.map((it) => {
 					if (is(it, SQL)) {

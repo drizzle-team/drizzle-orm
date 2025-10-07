@@ -1,5 +1,6 @@
 import { bigint } from './bigint.ts';
 import { binary } from './binary.ts';
+import { blob, longblob, mediumblob, tinyblob } from './blob.ts';
 import { boolean } from './boolean.ts';
 import { char } from './char.ts';
 import { customType } from './custom.ts';
@@ -52,6 +53,10 @@ export function getMySqlColumnBuilders() {
 		longtext,
 		mediumtext,
 		tinytext,
+		blob,
+		longblob,
+		mediumblob,
+		tinyblob,
 	};
 }
 

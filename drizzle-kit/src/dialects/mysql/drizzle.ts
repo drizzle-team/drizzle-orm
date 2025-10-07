@@ -13,13 +13,12 @@ import {
 	MySqlTimestamp,
 	MySqlVarChar,
 	MySqlView,
-	uniqueKeyName,
 } from 'drizzle-orm/mysql-core';
 import { CasingType } from 'src/cli/validations/common';
 import { safeRegister } from '../../utils/utils-node';
 import { getColumnCasing, sqlToStr } from '../drizzle';
 import { Column, InterimSchema } from './ddl';
-import { nameForIndex, typeFor } from './grammar';
+import { defaultNameForFK, nameForUnique, typeFor } from './grammar';
 
 export const defaultFromColumn = (
 	column: AnyMySqlColumn,
@@ -142,26 +141,18 @@ export const fromDrizzleSchema = (
 				generated,
 				isPK: column.primary,
 				isUnique: column.isUnique,
+				uniqueName: column.uniqueName ?? null,
 				default: defaultValue,
 			});
 		}
 
 		for (const pk of primaryKeys) {
-			const originalColumnNames = pk.columns.map((c) => c.name);
 			const columnNames = pk.columns.map((c: any) => getColumnCasing(c, casing));
-
-			let name = pk.getName();
-			if (casing !== undefined) {
-				for (let i = 0; i < originalColumnNames.length; i++) {
-					name = name.replace(originalColumnNames[i], columnNames[i]);
-				}
-			}
 
 			result.pks.push({
 				entityType: 'pks',
 				table: tableName,
-				name: name,
-				nameExplicit: !!pk.name,
+				name: 'PRIMARY',
 				columns: columnNames,
 			});
 		}
@@ -175,7 +166,8 @@ export const fromDrizzleSchema = (
 				return { value: getColumnCasing(c, casing), isExpression: false };
 			});
 
-			const name = unique.name ?? nameForIndex(tableName, unique.columns.filter((c) => !is(c, SQL)).map((c) => c.name));
+			const name = unique.name
+				?? nameForUnique(tableName, unique.columns.filter((c) => !is(c, SQL)).map((c) => c.name));
 
 			result.indexes.push({
 				entityType: 'indexes',
@@ -186,33 +178,23 @@ export const fromDrizzleSchema = (
 				algorithm: null,
 				lock: null,
 				using: null,
+				nameExplicit: unique.isNameExplicit,
 			});
 		}
 
 		for (const fk of foreignKeys) {
-			const onDelete = fk.onDelete ?? 'NO';
-			const onUpdate = fk.onUpdate ?? 'no action';
 			const reference = fk.reference();
-
 			const referenceFT = reference.foreignTable;
 
 			// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
 			const tableTo = getTableName(referenceFT);
 
-			const originalColumnsFrom = reference.columns.map((it) => it.name);
 			const columnsFrom = reference.columns.map((it) => getColumnCasing(it, casing));
-			const originalColumnsTo = reference.foreignColumns.map((it) => it.name);
 			const columnsTo = reference.foreignColumns.map((it) => getColumnCasing(it, casing));
 
-			let name = fk.getName();
-			if (casing !== undefined) {
-				for (let i = 0; i < originalColumnsFrom.length; i++) {
-					name = name.replace(originalColumnsFrom[i], columnsFrom[i]);
-				}
-				for (let i = 0; i < originalColumnsTo.length; i++) {
-					name = name.replace(originalColumnsTo[i], columnsTo[i]);
-				}
-			}
+			let name = fk.isNameExplicit()
+				? fk.getName()
+				: defaultNameForFK({ table: tableName, columns: columnsFrom, tableTo, columnsTo });
 
 			result.fks.push({
 				entityType: 'fks',
@@ -223,6 +205,7 @@ export const fromDrizzleSchema = (
 				columnsTo,
 				onUpdate: upper(fk.onUpdate) ?? 'NO ACTION',
 				onDelete: upper(fk.onDelete) ?? 'NO ACTION',
+				nameExplicit: fk.isNameExplicit(),
 			});
 		}
 
@@ -246,6 +229,7 @@ export const fromDrizzleSchema = (
 				lock: index.config.lock ?? null,
 				isUnique: index.config.unique ?? false,
 				using: index.config.using ?? null,
+				nameExplicit: index.isNameExplicit,
 			});
 		}
 
@@ -258,48 +242,47 @@ export const fromDrizzleSchema = (
 				table: tableName,
 				name,
 				value: dialect.sqlToQuery(value).sql,
-				nameExplicit: false,
 			});
 		}
+	}
 
-		for (const view of views) {
-			const cfg = getViewConfig(view);
-			const {
-				isExisting,
-				name,
-				query,
-				schema,
-				selectedFields,
-				algorithm,
-				sqlSecurity,
-				withCheckOption,
-			} = cfg;
+	for (const view of views) {
+		const cfg = getViewConfig(view);
+		const {
+			isExisting,
+			name,
+			query,
+			schema,
+			selectedFields,
+			algorithm,
+			sqlSecurity,
+			withCheckOption,
+		} = cfg;
 
-			if (isExisting) continue;
+		if (isExisting) continue;
 
-			for (const key in selectedFields) {
-				if (is(selectedFields[key], MySqlColumn)) {
-					const column = selectedFields[key];
-					const notNull: boolean = column.notNull;
+		for (const key in selectedFields) {
+			if (is(selectedFields[key], MySqlColumn)) {
+				const column = selectedFields[key];
+				const notNull: boolean = column.notNull;
 
-					result.viewColumns.push({
-						view: name,
-						name: column.name,
-						type: column.getSQLType(),
-						notNull: notNull,
-					});
-				}
+				result.viewColumns.push({
+					view: name,
+					name: column.name,
+					type: column.getSQLType(),
+					notNull: notNull,
+				});
 			}
-
-			result.views.push({
-				entityType: 'views',
-				name,
-				definition: query ? dialect.sqlToQuery(query).sql : '',
-				withCheckOption: withCheckOption ?? null,
-				algorithm: algorithm ?? 'undefined', // set default values
-				sqlSecurity: sqlSecurity ?? 'definer', // set default values
-			});
 		}
+
+		result.views.push({
+			entityType: 'views',
+			name,
+			definition: query ? dialect.sqlToQuery(query).sql : '',
+			withCheckOption: withCheckOption ?? null,
+			algorithm: algorithm ?? 'undefined', // set default values
+			sqlSecurity: sqlSecurity ?? 'definer', // set default values
+		});
 	}
 
 	return result;

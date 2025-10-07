@@ -91,6 +91,10 @@ export class ForeignKey {
 		];
 		return name ?? `${chunks.join('_')}_fk`;
 	}
+
+	isNameExplicit() {
+		return !!this.reference().name;
+	}
 }
 
 type ColumnsWithTable<

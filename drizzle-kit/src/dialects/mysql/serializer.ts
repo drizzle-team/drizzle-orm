@@ -58,7 +58,7 @@ export const prepareSnapshot = async (
 	const prevId = prevSnapshot.id;
 
 	const snapshot = {
-		version: '5',
+		version: '6',
 		dialect: 'mysql',
 		id,
 		prevId,
