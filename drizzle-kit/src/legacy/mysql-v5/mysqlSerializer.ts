@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { getTableName, is, SQL } from 'drizzle-orm';
+import { getTableName, is, SQL } from 'drizzle-orm-legacy';
 import {
 	AnyMySqlTable,
 	getTableConfig,
@@ -9,7 +9,7 @@ import {
 	MySqlView,
 	type PrimaryKey as PrimaryKeyORM,
 	uniqueKeyName,
-} from 'drizzle-orm/mysql-core';
+} from 'drizzle-orm-legacy/mysql-core';
 import { CasingType } from 'src/cli/validations/common';
 import { withStyle } from '../outputs';
 import { escapeSingleQuotes } from '../utils';

@@ -61,7 +61,7 @@ test('add check constraint to existing table #1', async (t) => {
 		]),
 	};
 
-	const { sqlStatements: st } = await diff(from, to, []);
+	const { sqlStatements: st, next } = await diff(from, to, []);
 
 	await push({ db, to: from });
 	const { sqlStatements: pst } = await push({ db, to });

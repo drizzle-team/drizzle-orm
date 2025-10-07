@@ -522,7 +522,6 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 			name: index.name,
 			columns,
 			where: index.has_filter ? index.filter_definition : null,
-			nameExplicit: true,
 			isUnique: index.is_unique,
 		});
 	}
@@ -605,7 +604,6 @@ ${filterByTableAndViewIds ? ` AND col.object_id IN ${filterByTableAndViewIds}` :
 			table: table.name,
 			name: check.name,
 			value: check.definition,
-			nameExplicit: true,
 		});
 	}
 

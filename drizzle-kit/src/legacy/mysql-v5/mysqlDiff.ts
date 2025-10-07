@@ -1,5 +1,5 @@
 import { applyJsonDiff, diffColumns, diffSchemasOrTables } from '../jsonDiffer';
-import { fromJson } from '../sqlgenerator';
+import { fromJson } from '../sqlgenerator2';
 
 import {
 	_prepareAddColumns,
@@ -544,7 +544,6 @@ export const _diff = async (
 	const createViews: JsonCreateMySqlViewStatement[] = [];
 	const dropViews: JsonDropViewStatement[] = [];
 	const renameViews: JsonRenameViewStatement[] = [];
-	const alterViews: JsonAlterMySqlViewStatement[] = [];
 
 	createViews.push(
 		...createdViews.filter((it) => !it.isExisting).map((it) => {
@@ -649,20 +648,13 @@ export const _diff = async (
 
 	const sqlStatements = fromJson(jsonStatements, 'mysql');
 
-	const uniqueSqlStatements: string[] = [];
-	sqlStatements.forEach((ss) => {
-		if (!uniqueSqlStatements.includes(ss)) {
-			uniqueSqlStatements.push(ss);
-		}
-	});
-
 	const rTables = renamedTables.map((it) => {
 		return { from: it.from, to: it.to };
 	});
 
 	return {
 		statements: jsonStatements,
-		sqlStatements: uniqueSqlStatements,
+		sqlStatements,
 		_meta: { columns: [], schemas: [], tables: [] },
 	};
 };

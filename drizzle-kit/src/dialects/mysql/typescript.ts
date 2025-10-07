@@ -34,8 +34,11 @@ export const imports = [
 	'mysqlEnum',
 	'singlestoreEnum',
 	'customType',
+	'mediumblob',
+	'blob',
+	'tinyblob',
+	'longblob',
 	// TODO: add new type BSON
-	// TODO: add new type Blob
 	// TODO: add new type UUID
 	// TODO: add new type GUID
 	// TODO: add new type Vector
@@ -120,7 +123,7 @@ export const ddlToTypeScript = (
 	for (const it of [...ddl.entities.list(), ...viewEntities]) {
 		if (it.entityType === 'indexes') imports.add(it.isUnique ? 'uniqueIndex' : 'index');
 		if (it.entityType === 'fks') imports.add('foreignKey');
-		if (it.entityType === 'pks' && (it.columns.length > 1 || it.nameExplicit)) imports.add('primaryKey');
+		if (it.entityType === 'pks' && (it.columns.length > 1)) imports.add('primaryKey');
 		if (it.entityType === 'checks') imports.add('check');
 		if (it.entityType === 'views') imports.add(vendor === 'mysql' ? 'mysqlView' : 'singlestoreView');
 
@@ -151,7 +154,7 @@ export const ddlToTypeScript = (
 
 		// more than 2 fields or self reference or cyclic
 		const filteredFKs = fks.filter((it) => {
-			return it.columns.length > 1 || isSelf(it) || isCyclic(it);
+			return it.columns.length > 1 || isSelf(it) || isCyclic(it) || it.nameExplicit;
 		});
 
 		const hasIndexes = indexes.length > 0;
@@ -327,7 +330,8 @@ const createTableColumns = (
 			}\`, { mode: "${it.generated.type}" })`
 			: '';
 
-		const columnFKs = fks.filter((x) => x.columns.length > 1 && x.columns[0] === it.name);
+		const columnFKs = fks.filter((x) => !x.nameExplicit && x.columns.length === 1 && x.columns[0] === it.name);
+
 		for (const fk of columnFKs) {
 			const onDelete = fk.onDelete !== 'NO ACTION' ? fk.onDelete : null;
 			const onUpdate = fk.onUpdate !== 'NO ACTION' ? fk.onUpdate : null;
@@ -379,7 +383,9 @@ const createTableIndexes = (
 ): string => {
 	let statement = '';
 	for (const it of idxs) {
-		const columns = it.columns.map((x) => x.isExpression ? `sql\`${x.value}\`` : `table.${casing(x.value)}`).join(', ');
+		const columns = it.columns.map((x) =>
+			x.isExpression ? `sql\`${x.value.replaceAll('`', '\\`')}\`` : `table.${casing(x.value)}`
+		).join(', ');
 		statement += it.isUnique ? '\tuniqueIndex(' : '\tindex(';
 		statement += `"${it.name}")`;
 		statement += `.on(${columns}),\n`;
@@ -401,8 +407,7 @@ const createTableChecks = (
 
 const createTablePK = (pk: PrimaryKey, casing: (value: string) => string): string => {
 	const columns = pk.columns.map((x) => `table.${casing(x)}`).join(', ');
-	let statement = `\tprimaryKey({ columns: [${columns}]`;
-	statement += `${pk.nameExplicit ? `, name: "${pk.name}"` : ''}}),\n`;
+	let statement = `\tprimaryKey({ columns: [${columns}] }),`;
 	return statement;
 };
 
@@ -415,7 +420,7 @@ const createTableFKs = (
 	for (const it of fks) {
 		const tableTo = isSelf(it) ? 'table' : `${casing(it.tableTo)}`;
 		const columnsFrom = it.columns.map((x) => `table.${casing(x)}`).join(', ');
-		const columnsTo = it.columns.map((x) => `${tableTo}.${casing(x)}`).join(', ');
+		const columnsTo = it.columnsTo.map((x) => `${tableTo}.${casing(x)}`).join(', ');
 		statement += `\tforeignKey({\n`;
 		statement += `\t\tcolumns: [${columnsFrom}],\n`;
 		statement += `\t\tforeignColumns: [${columnsTo}],\n`;

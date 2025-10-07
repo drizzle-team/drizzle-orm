@@ -14,7 +14,6 @@ import { entityKind } from '~/entity.ts';
 import type { SingleStoreTable } from '~/singlestore-core/table.ts';
 import type { SQL } from '~/sql/sql.ts';
 import type { Update } from '~/utils.ts';
-import { uniqueKeyName } from '../unique-constraint.ts';
 
 export type SingleStoreColumns = Record<string, SingleStoreColumn<any>>;
 
@@ -68,9 +67,6 @@ export abstract class SingleStoreColumn<
 		table: SingleStoreTable,
 		config: ColumnBuilderRuntimeConfig<T['data']> & TRuntimeConfig,
 	) {
-		if (!config.uniqueName) {
-			config.uniqueName = uniqueKeyName(table, [config.name]);
-		}
 		super(table, config);
 		this.table = table;
 	}

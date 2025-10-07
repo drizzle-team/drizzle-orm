@@ -39,7 +39,7 @@ export interface SqlType<MODE = unknown> {
 	toTs(
 		type: string,
 		value: Column['default'],
-	): { options?: Record<string, unknown>; default: string; customType?: string } | string; // customType for Custom
+	): { options?: Record<string, unknown>; default: string; customType?: string }; // customType for Custom
 }
 
 const IntOps: Pick<SqlType, 'defaultFromDrizzle' | 'defaultFromIntrospect'> = {
@@ -77,7 +77,7 @@ export const Boolean: SqlType = {
 		return value === '1' || value === 'true' ? 'true' : 'false';
 	},
 	toTs: (_, value) => {
-		return value ?? '';
+		return { default: value ?? '' };
 	},
 };
 
@@ -297,11 +297,71 @@ export const LongText: SqlType = {
 	toTs: TinyText.toTs,
 };
 
+export const TinyBlob: SqlType = {
+	is: (type) => /^\s*tinyblob\s*$/i.test(type),
+	drizzleImport: () => 'tinyblob',
+	defaultFromDrizzle: (value) => {
+		if (typeof Buffer !== 'undefined' && typeof Buffer.isBuffer === 'function' && Buffer.isBuffer(value)) {
+			return `(0x${value.toString('hex').toLowerCase()})`;
+		}
+		if (Array.isArray(value) || typeof value === 'object' || typeof value === 'string') {
+			return Text.defaultFromDrizzle(value);
+		}
+		throw new Error('unexpected');
+	},
+	defaultFromIntrospect: (value) => {
+		return value;
+	},
+	toTs: (type, value) => {
+		if (value === null) return { default: '' };
+
+		if (typeof Buffer !== 'undefined' && value.startsWith('0x')) {
+			const parsed = Buffer.from(value.slice(2, value.length), 'hex').toString('utf-8');
+			const escaped = parsed.replaceAll('\\', '\\\\').replace('"', '\\"');
+			return { options: { mode: 'buffer' }, default: `Buffer.from("${escaped}")` };
+		}
+
+		const { default: stringDef } = Text.toTs(type, value);
+
+		return { default: stringDef, options: { mode: 'string' } };
+	},
+};
+
+export const MediumBlob: SqlType = {
+	is: (type) => /^\s*mediumblob\s*$/i.test(type),
+	drizzleImport: () => 'mediumblob',
+	defaultFromDrizzle: TinyBlob.defaultFromDrizzle,
+	defaultFromIntrospect: TinyBlob.defaultFromIntrospect,
+	toTs: TinyBlob.toTs,
+};
+
+export const LongBlob: SqlType = {
+	is: (type) => /^\s*longblob\s*$/i.test(type),
+	drizzleImport: () => 'longblob',
+	defaultFromDrizzle: TinyBlob.defaultFromDrizzle,
+	defaultFromIntrospect: TinyBlob.defaultFromIntrospect,
+	toTs: TinyBlob.toTs,
+};
+
+export const Blob: SqlType = {
+	is: (type) => /^\s*blob\s*$/i.test(type),
+	drizzleImport: () => 'blob',
+	defaultFromDrizzle: TinyBlob.defaultFromDrizzle,
+	defaultFromIntrospect: TinyBlob.defaultFromIntrospect,
+	toTs: TinyBlob.toTs,
+};
+
 export const Binary: SqlType = {
 	is: (type) => /^(?:binary)(?:[\s(].*)?$/i.test(type),
 	drizzleImport: () => 'binary',
 	defaultFromDrizzle: TinyText.defaultFromDrizzle,
-	defaultFromIntrospect: TinyText.defaultFromIntrospect,
+	defaultFromIntrospect: (value) => {
+		// when you do `binary default 'text'` instead of `default ('text')`
+		if (value.startsWith('0x')) {
+			return `'${Buffer.from(value.slice(2), 'hex').toString('utf-8')}'`;
+		}
+		return value;
+	},
 	toTs: TinyText.toTs,
 };
 
@@ -313,7 +373,7 @@ export const Varbinary: SqlType = {
 	},
 	defaultFromIntrospect: (value) => value,
 	toTs: (type, value) => {
-		if (!value) return '';
+		if (!value) return { default: '' };
 
 		const options: any = {};
 		const [length] = parseParams(type);
@@ -528,6 +588,10 @@ export const typeFor = (sqlType: string): SqlType => {
 	if (Time.is(sqlType)) return Time;
 	if (Year.is(sqlType)) return Year;
 	if (Enum.is(sqlType)) return Enum;
+	if (TinyBlob.is(sqlType)) return TinyBlob;
+	if (MediumBlob.is(sqlType)) return MediumBlob;
+	if (LongBlob.is(sqlType)) return LongBlob;
+	if (Blob.is(sqlType)) return Blob;
 	return Custom;
 };
 
@@ -557,8 +621,8 @@ export const defaultNameForFK = (fk: Pick<ForeignKey, 'table' | 'columns' | 'tab
 	return res;
 };
 
-export const nameForIndex = (tableName: string, columns: string[]) => {
-	return `${tableName}_${columns.join('_')}_index`;
+export const nameForUnique = (tableName: string, columns: string[]) => {
+	return `${columns.join('_')}_unique`;
 };
 
 const stripCollation = (defaultValue: string, collation?: string): string => {
@@ -603,6 +667,10 @@ export const typesCommutative = (left: string, right: string, mode: 'push' | 'de
 
 		if (leftIn && rightIn) return true;
 	}
+
+	const leftPatched = left.replace(', ', ',');
+	const rightPatched = right.replace(', ', ',');
+	if (leftPatched === rightPatched) return true;
 
 	if (mode === 'push') {
 		if (left === 'double' && right === 'real') return true;

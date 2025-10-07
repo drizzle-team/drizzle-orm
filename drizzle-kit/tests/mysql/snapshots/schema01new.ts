@@ -1,4 +1,4 @@
-import { eq, SQL, sql } from 'drizzle-orm-legacy';
+import { eq, SQL, sql } from 'drizzle-orm';
 import {
 	AnyMySqlColumn,
 	bigint,
@@ -36,7 +36,7 @@ import {
 	varbinary,
 	varchar,
 	year,
-} from 'drizzle-orm-legacy/mysql-core';
+} from 'drizzle-orm/mysql-core';
 
 // TODO: extend massively cc: @OleksiiKH0240
 export const allDataTypes = mysqlTable('all_data_types', {
@@ -54,7 +54,7 @@ export const allDataTypes = mysqlTable('all_data_types', {
 	decimal: decimal('decimal').default('10.123'),
 	decimalPrecision: decimal('decimal_precision', { precision: 6 }).default('10.123'),
 	decimalPrecisionScale: decimal('decimal_precision_scale', { precision: 6, scale: 2 }).default('10.123'),
-	decimalBigint: decimal('decimal_bigint', { precision: 19 }).default(sql`'9223372036854775807'`),
+	decimalBigint: decimal('decimal_bigint', { precision: 19, mode: 'bigint' }).default(9223372036854775807n),
 	double: double('double').default(10.123),
 	doublePrecisionScale: double('double_precision_scale', { precision: 6, scale: 2 }).default(10.12),
 	doubleUnsigned: double('double_unsigned', { unsigned: true }).default(10.123),
@@ -117,7 +117,7 @@ export const compositePrimaryKeyCustomName = mysqlTable('composite_primary_key_c
 	column1: int(),
 	column2: varchar({ length: 10 }),
 }, (table) => [
-	primaryKey({ columns: [table.column1, table.column2], name: 'composite_primary_key_custom_name_' }),
+	primaryKey({ columns: [table.column1, table.column2] }),
 ]);
 
 // references

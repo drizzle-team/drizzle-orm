@@ -31,6 +31,7 @@ import {
 	alias,
 	bigint,
 	binary,
+	blob,
 	boolean,
 	char,
 	date,
@@ -48,6 +49,8 @@ import {
 	intersect,
 	intersectAll,
 	json,
+	longblob,
+	mediumblob,
 	mediumint,
 	mysqlEnum,
 	mysqlSchema,
@@ -61,6 +64,7 @@ import {
 	text,
 	time,
 	timestamp,
+	tinyblob,
 	tinyint,
 	union,
 	unionAll,
@@ -152,6 +156,14 @@ const allTypesTable = mysqlTable('all_types', {
 	}),
 	year: year('year'),
 	enum: mysqlEnum('enum', ['enV1', 'enV2']),
+	blob: blob('blob'),
+	tinyblob: tinyblob('tinyblob'),
+	mediumblob: mediumblob('mediumblob'),
+	longblob: longblob('longblob'),
+	stringblob: blob('stringblob', { mode: 'string' }),
+	stringtinyblob: tinyblob('stringtinyblob', { mode: 'string' }),
+	stringmediumblob: mediumblob('stringmediumblob', { mode: 'string' }),
+	stringlongblob: longblob('stringlongblob', { mode: 'string' }),
 });
 
 const usersTable = mysqlTable('userstest', {
@@ -4951,7 +4963,15 @@ export function tests(driver?: string) {
 						\`varbin\` varbinary(16),
 						\`varchar\` varchar(255),
 						\`year\` year,
-						\`enum\` enum('enV1','enV2')
+						\`enum\` enum('enV1','enV2'),
+						\`blob\` blob,
+						\`tinyblob\` tinyblob,
+						\`mediumblob\` mediumblob,
+						\`longblob\` longblob,
+						\`stringblob\` blob,
+						\`stringtinyblob\` tinyblob,
+						\`stringmediumblob\` mediumblob,
+						\`stringlongblob\` longblob
 					);
 			`);
 
@@ -4988,6 +5008,14 @@ export function tests(driver?: string) {
 				varbin: '1010110101001101',
 				varchar: 'VCHAR',
 				year: 2025,
+				blob: Buffer.from('string'),
+				longblob: Buffer.from('string'),
+				mediumblob: Buffer.from('string'),
+				tinyblob: Buffer.from('string'),
+				stringblob: 'string',
+				stringlongblob: 'string',
+				stringmediumblob: 'string',
+				stringtinyblob: 'string',
 			});
 
 			const rawRes = await db.select().from(allTypesTable);
@@ -5022,6 +5050,14 @@ export function tests(driver?: string) {
 				varchar: string | null;
 				year: number | null;
 				enum: 'enV1' | 'enV2' | null;
+				blob: Buffer | null;
+				tinyblob: Buffer | null;
+				mediumblob: Buffer | null;
+				longblob: Buffer | null;
+				stringblob: string | null;
+				stringtinyblob: string | null;
+				stringmediumblob: string | null;
+				stringlongblob: string | null;
 			}[];
 
 			const expectedRes: ExpectedType = [
@@ -5055,6 +5091,14 @@ export function tests(driver?: string) {
 					varchar: 'VCHAR',
 					year: 2025,
 					enum: 'enV1',
+					blob: Buffer.from('string'),
+					longblob: Buffer.from('string'),
+					mediumblob: Buffer.from('string'),
+					tinyblob: Buffer.from('string'),
+					stringblob: 'string',
+					stringlongblob: 'string',
+					stringmediumblob: 'string',
+					stringtinyblob: 'string',
 				},
 			];
 

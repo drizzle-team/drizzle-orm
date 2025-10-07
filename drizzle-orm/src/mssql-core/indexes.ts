@@ -67,9 +67,11 @@ export class Index {
 	static readonly [entityKind]: string = 'MsSqlIndex';
 
 	readonly config: IndexConfig & { table: MsSqlTable };
+	readonly isNameExplicit: boolean;
 
 	constructor(config: IndexConfig, table: MsSqlTable) {
 		this.config = { ...config, table };
+		this.isNameExplicit = !!config.name;
 	}
 }
 

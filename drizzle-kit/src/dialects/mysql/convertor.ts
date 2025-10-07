@@ -28,7 +28,7 @@ const createTable = convertor('create_table', (st) => {
 	for (let i = 0; i < columns.length; i++) {
 		const column = columns[i];
 
-		const isPK = pk && !pk.nameExplicit && pk.columns.length === 1 && pk.columns[0] === column.name;
+		const isPK = pk && pk.columns.length === 1 && pk.columns[0] === column.name;
 		const primaryKeyStatement = isPK ? ' PRIMARY KEY' : '';
 		const notNullStatement = column.notNull && !isPK ? ' NOT NULL' : '';
 		const defaultStatement = column.default !== null ? ` DEFAULT ${column.default}` : '';
@@ -53,7 +53,7 @@ const createTable = convertor('create_table', (st) => {
 		statement += i === columns.length - 1 ? '' : ',\n';
 	}
 
-	if (pk && (pk.columns.length > 1 || pk.nameExplicit)) {
+	if (pk && (pk.columns.length > 1)) {
 		statement += ',\n';
 		statement += `\tCONSTRAINT \`${pk.name}\` PRIMARY KEY(\`${pk.columns.join(`\`,\``)}\`)`;
 	}
@@ -134,12 +134,12 @@ const renameColumn = convertor('rename_column', (st) => {
 });
 
 const alterColumn = convertor('alter_column', (st) => {
-	const { diff, column, isPK } = st;
+	const { diff, column, isPK, wasPK } = st;
 
 	const defaultStatement = column.default !== null ? ` DEFAULT ${column.default}` : '';
 
 	const notNullStatement = `${column.notNull ? ' NOT NULL' : ''}`;
-	const primaryKeyStatement = `${isPK ? ' PRIMARY KEY' : ''}`;
+	const primaryKeyStatement = `${isPK && !wasPK ? ' PRIMARY KEY' : ''}`;
 	const autoincrementStatement = `${column.autoIncrement ? ' AUTO_INCREMENT' : ''}`;
 	const onUpdateStatement = `${
 		column.onUpdateNow
@@ -288,10 +288,7 @@ export function fromJson(
 			});
 
 			const convertor = filtered.length === 1 ? filtered[0] : undefined;
-			if (!convertor) {
-				console.error('cant:', statement.type);
-				return null;
-			}
+			if (!convertor) throw new Error(`No convertor for: ${statement.type} statement`);
 
 			const sqlStatements = convertor.convert(statement as any);
 			const statements = typeof sqlStatements === 'string' ? [sqlStatements] : sqlStatements;
