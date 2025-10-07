@@ -548,7 +548,7 @@ test('add table #17. timestamp + fsp + on update now', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/2180
-test('add table#18. serial + primary key, timestamp + default with sql``', async () => {
+test('add table #18. serial + primary key, timestamp + default with sql``', async () => {
 	const to = {
 		table1: mysqlTable('table1', {
 			column1: serial().primaryKey(),
@@ -570,10 +570,31 @@ test('add table#18. serial + primary key, timestamp + default with sql``', async
 	expect(pst).toStrictEqual(expectedSt);
 });
 
+test('add table #19. timestamp + default with sql``', async () => {
+	const to = {
+		table1: mysqlTable('table1', {
+			column1: timestamp().notNull().defaultNow().onUpdateNow(),
+			column2: timestamp().notNull().default(sql`(CURRENT_TIMESTAMP)`).onUpdateNow(),
+			// column3: timestamp().notNull().default(sql`CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`),
+		}),
+	};
+
+	// TODO: revise: the sql`` passed to .default() may not need parentheses
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+	const expectedSt = [
+		'CREATE TABLE `table1` (\n\t'
+		+ '`column1` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n\t'
+		+ '`column2` timestamp NOT NULL DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP\n);\n',
+	];
+	expect(st).toStrictEqual(expectedSt);
+	expect(pst).toStrictEqual(expectedSt);
+});
+
 // https://github.com/drizzle-team/drizzle-orm/issues/1413
 // https://github.com/drizzle-team/drizzle-orm/issues/3473
 // https://github.com/drizzle-team/drizzle-orm/issues/2815
-test('add table #19. table already exists; multiple pk defined', async () => {
+test('add table #20. table already exists; multiple pk defined', async () => {
 	const schema = {
 		table1: mysqlTable('table1', {
 			column1: int().autoincrement().primaryKey(),
@@ -612,7 +633,7 @@ test('add table #19. table already exists; multiple pk defined', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/1742
-test('add table #20. table with hyphen in identifiers', async () => {
+test('add table #21. table with hyphen in identifiers', async () => {
 	const schema1 = {
 		'table-1': mysqlTable('table-1', {
 			'column-1': int('column-1'),
@@ -645,7 +666,7 @@ test('add table #20. table with hyphen in identifiers', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/818
-test('add table #21. custom type; default', async () => {
+test('add table #22. custom type; default', async () => {
 	interface Semver {
 		major: number;
 		minor: number;
@@ -899,7 +920,7 @@ test('drop unique constraint', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/1888
-test.only('add table with indexes', async () => {
+test('add table with indexes', async () => {
 	const from = {};
 
 	const to = {
@@ -932,6 +953,7 @@ test.only('add table with indexes', async () => {
 		'CREATE INDEX `indexCol` ON `users` (`email`);',
 		'CREATE INDEX `indexColMultiple` ON `users` (`email`,`name`);',
 		'CREATE INDEX `indexColExpr` ON `users` ((lower(`email`)),`email`);',
+		'CREATE INDEX `indexCol4Hash` ON `users` ((lower(`column4`)));',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
