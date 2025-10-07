@@ -457,6 +457,7 @@ test('introspect index on json', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/1306
 // https://github.com/drizzle-team/drizzle-orm/issues/1512
 // https://github.com/drizzle-team/drizzle-orm/issues/1870
 // https://github.com/drizzle-team/drizzle-orm/issues/2525
