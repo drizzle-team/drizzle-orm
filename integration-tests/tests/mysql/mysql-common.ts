@@ -517,19 +517,6 @@ export function tests(driver?: string) {
 			expect(tableConfig.foreignKeys[0]!.getName()).toBe('custom_fk');
 		});
 
-		test('table config: primary keys name', async () => {
-			const table = mysqlTable('cities', {
-				id: serial('id').primaryKey(),
-				name: text('name').notNull(),
-				state: text('state'),
-			}, (t) => [primaryKey({ columns: [t.id, t.name], name: 'custom_pk' })]);
-
-			const tableConfig = getTableConfig(table);
-
-			expect(tableConfig.primaryKeys).toHaveLength(1);
-			expect(tableConfig.primaryKeys[0]!.getName()).toBe('custom_pk');
-		});
-
 		test('table configs: unique third param', async () => {
 			const cities1Table = mysqlTable('cities1', {
 				id: serial('id').primaryKey(),
@@ -4010,7 +3997,7 @@ export function tests(driver?: string) {
 				id: int(),
 			}, (t) => [
 				index('name').on(t.id),
-				primaryKey({ columns: [t.id], name: 'custom' }),
+				primaryKey({ columns: [t.id] }),
 			]);
 
 			const { indexes, primaryKeys } = getTableConfig(table);
@@ -4025,7 +4012,7 @@ export function tests(driver?: string) {
 			const table = mysqlTable('name', {
 				id: int(),
 			}, (t) => [
-				[index('name').on(t.id), primaryKey({ columns: [t.id], name: 'custom' })],
+				[index('name').on(t.id), primaryKey({ columns: [t.id] })],
 			]);
 
 			const { indexes, primaryKeys } = getTableConfig(table);
