@@ -131,10 +131,10 @@ export const schemaInternal = object({
 	internal: kitInternals,
 }).strict();
 
-export const schemaV3 = schemaInternalV3.merge(schemaHash).strict();
-export const schemaV4 = schemaInternalV4.merge(schemaHash).strict();
-export const schemaV5 = schemaInternalV5.merge(schemaHash).strict();
-export const schema = schemaInternal.merge(schemaHash).strict();
+export const schemaV3 = schemaInternalV3.extend(schemaHash.shape).strict();
+export const schemaV4 = schemaInternalV4.extend(schemaHash.shape).strict();
+export const schemaV5 = schemaInternalV5.extend(schemaHash.shape).strict();
+export const schema = schemaInternal.extend(schemaHash.shape).strict();
 
 const tableSquashed = object({
 	name: string(),

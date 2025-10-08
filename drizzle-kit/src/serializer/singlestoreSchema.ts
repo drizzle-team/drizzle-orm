@@ -54,7 +54,7 @@ const viewMeta = object({
 	columns: record(string(), column),
 	definition: string().optional(),
 	isExisting: boolean(),
-}).strict().merge(viewMeta);
+}).extend(viewMeta.shape).strict();
 type SquasherViewMeta = Omit<TypeOf<typeof viewMeta>, 'definer'>; */
 
 export const kitInternals = object({
@@ -98,7 +98,7 @@ export const schemaInternal = object({
 	internal: kitInternals,
 }).strict();
 
-export const schema = schemaInternal.merge(schemaHash);
+export const schema = schemaInternal.extend(schemaHash.shape);
 
 const tableSquashed = object({
 	name: string(),

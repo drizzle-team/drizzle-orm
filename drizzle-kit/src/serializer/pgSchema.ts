@@ -187,7 +187,7 @@ const column = object({
 		as: string(),
 	}).optional(),
 	identity: sequenceSchema
-		.merge(object({ type: enumType(['always', 'byDefault']) }))
+		.extend({ type: enumType(['always', 'byDefault']) })
 		.optional(),
 }).strict();
 
@@ -274,7 +274,7 @@ const matViewWithOption = object({
 	userCatalogTable: boolean().optional(),
 }).strict();
 
-export const mergedViewWithOption = viewWithOption.merge(matViewWithOption).strict();
+export const mergedViewWithOption = viewWithOption.extend(matViewWithOption.shape).strict();
 
 export const view = object({
 	name: string(),
@@ -501,12 +501,12 @@ export const pgSchemaSquashed = object({
 	policies: record(string(), policySquashed).default({}),
 }).strict();
 
-export const pgSchemaV3 = pgSchemaInternalV3.merge(schemaHash);
-export const pgSchemaV4 = pgSchemaInternalV4.merge(schemaHash);
-export const pgSchemaV5 = pgSchemaInternalV5.merge(schemaHash);
-export const pgSchemaV6 = pgSchemaInternalV6.merge(schemaHash);
-export const pgSchemaV7 = pgSchemaInternalV7.merge(schemaHash);
-export const pgSchema = pgSchemaInternal.merge(schemaHash);
+export const pgSchemaV3 = pgSchemaInternalV3.extend(schemaHash.shape);
+export const pgSchemaV4 = pgSchemaInternalV4.extend(schemaHash.shape);
+export const pgSchemaV5 = pgSchemaInternalV5.extend(schemaHash.shape);
+export const pgSchemaV6 = pgSchemaInternalV6.extend(schemaHash.shape);
+export const pgSchemaV7 = pgSchemaInternalV7.extend(schemaHash.shape);
+export const pgSchema = pgSchemaInternal.extend(schemaHash.shape);
 
 export type Enum = TypeOf<typeof enumSchema>;
 export type Sequence = TypeOf<typeof sequenceSchema>;

@@ -349,37 +349,33 @@ const alteredViewCommon = object({
 	}).strict().optional(),
 });
 
-export const alteredPgViewSchema = alteredViewCommon.merge(
-	object({
-		schema: string(),
-		deletedWithOption: mergedViewWithOption.optional(),
-		addedWithOption: mergedViewWithOption.optional(),
-		addedWith: mergedViewWithOption.optional(),
-		deletedWith: mergedViewWithOption.optional(),
-		alteredWith: mergedViewWithOption.optional(),
-		alteredSchema: object({
-			__old: string(),
-			__new: string(),
-		}).strict().optional(),
-		alteredTablespace: object({
-			__old: string(),
-			__new: string(),
-		}).strict().optional(),
-		alteredUsing: object({
-			__old: string(),
-			__new: string(),
-		}).strict().optional(),
-	}).strict(),
-);
+export const alteredPgViewSchema = alteredViewCommon.extend({
+	schema: string(),
+	deletedWithOption: mergedViewWithOption.optional(),
+	addedWithOption: mergedViewWithOption.optional(),
+	addedWith: mergedViewWithOption.optional(),
+	deletedWith: mergedViewWithOption.optional(),
+	alteredWith: mergedViewWithOption.optional(),
+	alteredSchema: object({
+		__old: string(),
+		__new: string(),
+	}).strict().optional(),
+	alteredTablespace: object({
+		__old: string(),
+		__new: string(),
+	}).strict().optional(),
+	alteredUsing: object({
+		__old: string(),
+		__new: string(),
+	}).strict().optional(),
+}).strict();
 
-const alteredMySqlViewSchema = alteredViewCommon.merge(
-	object({
-		alteredMeta: object({
-			__old: string(),
-			__new: string(),
-		}).strict().optional(),
-	}).strict(),
-);
+const alteredMySqlViewSchema = alteredViewCommon.extend({
+	alteredMeta: object({
+		__old: string(),
+		__new: string(),
+	}).strict().optional(),
+}).strict();
 
 export const diffResultScheme = object({
 	alteredTablesWithColumns: alteredTableScheme.array(),
