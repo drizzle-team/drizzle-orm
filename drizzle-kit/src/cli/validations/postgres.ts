@@ -1,4 +1,4 @@
-import { boolean, coerce, literal, object, string, TypeOf, undefined, union } from 'zod/v3';
+import { boolean, coerce, literal, object, string, TypeOf, undefined, union } from 'zod';
 import { error } from '../views';
 import { wrapParam } from './common';
 

@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
 import { fromJson } from 'src/sqlgenerator';
-import { TypeOf } from 'zod/v3';
+import { TypeOf } from 'zod';
 import { JsonAlterColumnTypeStatement, JsonStatement } from '../../jsonStatements';
 import { Column, SingleStoreSchemaSquashed, SingleStoreSquasher } from '../../serializer/singlestoreSchema';
 import { singlestoreSchema } from '../../serializer/singlestoreSchema';

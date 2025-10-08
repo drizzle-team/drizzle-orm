@@ -1,12 +1,11 @@
-import { coerce, intersection, object, string, TypeOf, union } from 'zod/v3';
+import { coerce, intersection, object, string, TypeOf, union } from 'zod';
 import { dialect } from '../../schemaValidator';
 import { mysqlCredentials } from './mysql';
 import { postgresCredentials } from './postgres';
 import { sqliteCredentials } from './sqlite';
 
 export const credentials = intersection(
-	postgresCredentials,
-	mysqlCredentials,
+	intersection(postgresCredentials, mysqlCredentials),
 	sqliteCredentials,
 );
 

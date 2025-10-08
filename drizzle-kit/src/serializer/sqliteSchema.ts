@@ -1,4 +1,4 @@
-import { any, boolean, enum as enumType, literal, object, record, string, TypeOf, union } from 'zod/v3';
+import { any, boolean, enum as enumType, literal, object, record, string, TypeOf, union } from 'zod';
 import { customMapEntries, mapValues, originUUID } from '../global';
 
 // ------- V3 --------

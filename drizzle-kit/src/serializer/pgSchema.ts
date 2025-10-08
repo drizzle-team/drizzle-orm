@@ -1,6 +1,6 @@
 import { mapValues, originUUID, snapshotVersion } from '../global';
 
-import { any, array, boolean, enum as enumType, literal, number, object, record, string, TypeOf, union } from 'zod/v3';
+import { any, array, boolean, enum as enumType, literal, number, object, record, string, TypeOf, union } from 'zod';
 
 const indexV2 = object({
 	name: string(),
