@@ -54,7 +54,7 @@ export const allDataTypes = mysqlTable('all_data_types', {
 	decimal: decimal('decimal').default('10.123'),
 	decimalPrecision: decimal('decimal_precision', { precision: 6 }).default('10.123'),
 	decimalPrecisionScale: decimal('decimal_precision_scale', { precision: 6, scale: 2 }).default('10.123'),
-	decimalBigint: decimal('decimal_bigint', { precision: 19, mode: "bigint" }).default(9223372036854775807n),
+	decimalBigint: decimal('decimal_bigint', { precision: 19, mode: 'bigint' }).default(9223372036854775807n),
 	double: double('double').default(10.123),
 	doublePrecisionScale: double('double_precision_scale', { precision: 6, scale: 2 }).default(10.12),
 	doubleUnsigned: double('double_unsigned', { unsigned: true }).default(10.123),
@@ -146,7 +146,9 @@ export const referencingTable = mysqlTable('referencing_table', {
 // generatedAlwaysAs, check, index, not null, auto increment
 export const table1 = mysqlTable('table1', {
 	column1: varchar({ length: 256 }).generatedAlwaysAs("'Default'"),
-	column2: varchar({ length: 256 }).generatedAlwaysAs((): SQL => sql`(concat(${table1.column1}, 'hello'))`, { mode: 'stored' }),
+	column2: varchar({ length: 256 }).generatedAlwaysAs((): SQL => sql`(concat(${table1.column1}, 'hello'))`, {
+		mode: 'stored',
+	}),
 	column3: varchar({ length: 256 }).generatedAlwaysAs((): SQL => sql`(concat(${table1.column1}, 'hello'))`, {
 		mode: 'virtual',
 	}),

@@ -1,5 +1,6 @@
 import { expect, type TaskContext } from 'vitest';
 import type { z } from 'zod/v4';
+import type { $ZodEnumDef } from 'zod/v4/core';
 
 export function expectSchemaShape<T extends z.ZodObject<z.ZodRawShape>>(t: TaskContext, expected: T) {
 	return {
@@ -27,7 +28,7 @@ export function expectSchemaShape<T extends z.ZodObject<z.ZodRawShape>>(t: TaskC
 export function expectEnumValues<T extends z.ZodEnum<any>>(t: TaskContext, expected: T) {
 	return {
 		from(actual: T) {
-			expect(actual.def).toStrictEqual(expected.def as any);
+			expect(actual.def).toStrictEqual(expected.def as $ZodEnumDef<any>);
 		},
 	};
 }

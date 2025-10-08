@@ -146,7 +146,9 @@ export const referencingTable = mysqlTable('referencing_table', {
 // generatedAlwaysAs, check, index, not null, auto increment
 export const table1 = mysqlTable('table1', {
 	column1: varchar({ length: 256 }).generatedAlwaysAs("'Default'"),
-	column2: varchar({ length: 256 }).generatedAlwaysAs((): SQL => sql`(concat(${table1.column1}, 'hello'))`, { mode: 'stored' }),
+	column2: varchar({ length: 256 }).generatedAlwaysAs((): SQL => sql`(concat(${table1.column1}, 'hello'))`, {
+		mode: 'stored',
+	}),
 	column3: varchar({ length: 256 }).generatedAlwaysAs((): SQL => sql`(concat(${table1.column1}, 'hello'))`, {
 		mode: 'virtual',
 	}),
