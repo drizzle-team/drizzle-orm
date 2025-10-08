@@ -560,7 +560,7 @@ test('add table #18. serial + primary key, timestamp + default with sql``', asyn
 	const { sqlStatements: st } = await diff({}, to, []);
 	const { sqlStatements: pst } = await push({ db, to });
 	const expectedSt = [
-		'CREATE TABLE `table1` (\n\t`column1` serial PRIMARY KEY,\n\t`column2` timestamp NOT NULL DEFAULT (CURRENT_TIMESTAMP)\n);\n'
+		'CREATE TABLE `table1` (\n\t`column1` serial PRIMARY KEY,\n\t`column2` timestamp NOT NULL DEFAULT (CURRENT_TIMESTAMP)\n);\n',
 	];
 	expect(st).toStrictEqual(expectedSt);
 	expect(pst).toStrictEqual(expectedSt);
