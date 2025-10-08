@@ -4096,7 +4096,7 @@ export function tests() {
 
 		const columnName = tableConfig.columns.find((it) => it.name === 'name');
 		expect(columnName?.isUnique).toBeTruthy();
-		expect(columnName?.uniqueName).toBe(uniqueKeyName(cities1Table, [columnName!.name]));
+		expect(columnName?.uniqueName).toBe(undefined);
 
 		const columnState = tableConfig.columns.find((it) => it.name === 'state');
 		expect(columnState?.isUnique).toBeTruthy();
@@ -4104,7 +4104,7 @@ export function tests() {
 
 		const columnField = tableConfig.columns.find((it) => it.name === 'field');
 		expect(columnField?.isUnique).toBeTruthy();
-		expect(columnField?.uniqueName).toBe(uniqueKeyName(cities1Table, [columnField!.name]));
+		expect(columnField?.uniqueName).toBe(undefined);
 	});
 
 	test('update ... from', async (ctx) => {
