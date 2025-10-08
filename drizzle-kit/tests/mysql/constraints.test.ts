@@ -539,6 +539,7 @@ test('fk on char column', async () => {
 	expect(pst).toStrictEqual(expectedSt);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/486
 // https://github.com/drizzle-team/drizzle-orm/issues/3244
 test('fk name is too long', async () => {
 	const table1 = mysqlTable(
@@ -567,6 +568,7 @@ test('fk name is too long', async () => {
 	expect(pst).toStrictEqual(expectedSt);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/265
 // https://github.com/drizzle-team/drizzle-orm/issues/3293
 // https://github.com/drizzle-team/drizzle-orm/issues/2018
 test('adding on delete to 2 fks', async () => {
