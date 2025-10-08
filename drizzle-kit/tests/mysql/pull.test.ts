@@ -267,7 +267,6 @@ test('instrospect strings with single quotes', async () => {
 
 // https://github.com/drizzle-team/drizzle-orm/issues/3297
 test('introspect varchar with \r\n in default, column name starts with number', async () => {
-	// TODO: revise: seems like corner case
 	const schema = {
 		table1: mysqlTable('table1', {
 			column1: varchar({ length: 24 }).notNull().default(' aaa\r\nbbbb'),
@@ -425,20 +424,16 @@ test('introspect index', async () => {
 	const entity = mysqlTable('Entity', {
 		id: int('id').autoincrement().notNull(),
 		name: varchar('name', { length: 191 }).notNull(),
-	}, (table) => {
-		return {
-			entityId: primaryKey({ columns: [table.id], name: 'Entity_id' }),
-		};
-	});
+	}, (table) => [
+		primaryKey({ columns: [table.id] }),
+	]);
 
 	const entityTag = mysqlTable('EntityTag', {
 		id: int('id').autoincrement().notNull(),
 		name: varchar('name', { length: 191 }).notNull(),
-	}, (table) => {
-		return {
-			entityTagId: primaryKey({ columns: [table.id], name: 'EntityTag_id' }),
-		};
-	});
+	}, (table) => [
+		primaryKey({ columns: [table.id] }),
+	]);
 
 	const entityToEntityTag = mysqlTable('_EntityToEntityTag', {
 		a: int('A').notNull().references(() => entity.id, { onDelete: 'cascade', onUpdate: 'cascade' }),

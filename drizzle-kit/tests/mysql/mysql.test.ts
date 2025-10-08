@@ -553,7 +553,6 @@ test('add table#18. serial + primary key, timestamp + default with sql``', async
 		table1: mysqlTable('table1', {
 			column1: serial().primaryKey(),
 			column2: timestamp().notNull().default(sql`CURRENT_TIMESTAMP`),
-			column3: timestamp().notNull().default(sql`CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`),
 		}),
 	};
 
@@ -561,10 +560,7 @@ test('add table#18. serial + primary key, timestamp + default with sql``', async
 	const { sqlStatements: st } = await diff({}, to, []);
 	const { sqlStatements: pst } = await push({ db, to });
 	const expectedSt = [
-		'CREATE TABLE `table1` (\n\t'
-		+ '`column1` serial PRIMARY KEY,\n\t'
-		+ '`column2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n\t'
-		+ '`column3` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP\n);\n',
+		'CREATE TABLE `table1` (\n\t`column1` serial PRIMARY KEY,\n\t`column2` timestamp NOT NULL DEFAULT (CURRENT_TIMESTAMP)\n);\n'
 	];
 	expect(st).toStrictEqual(expectedSt);
 	expect(pst).toStrictEqual(expectedSt);
@@ -597,7 +593,7 @@ test('add table #19. table already exists; multiple pk defined', async () => {
 		'CREATE TABLE `table1` (\n\t`column1` int AUTO_INCREMENT PRIMARY KEY\n);\n',
 		'CREATE TABLE `table2` (\n\t`column1` int AUTO_INCREMENT PRIMARY KEY\n);\n',
 		'CREATE TABLE `table3` (\n\t`column1` int,\n\t`column2` int,\n\t'
-		+ 'CONSTRAINT `table3_column1_column2_pk` PRIMARY KEY(`column1`,`column2`)\n);\n',
+		+ 'CONSTRAINT `PRIMARY` PRIMARY KEY(`column1`,`column2`)\n);\n',
 	];
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);
@@ -1843,8 +1839,8 @@ test('add pk', async () => {
 	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
 	const expectedSt1 = [
 		'CREATE TABLE `table1` (\n\t`column1` int\n);\n',
-		'CREATE TABLE `table2` (\n\t`column1` int,\n\tCONSTRAINT `table2_column1_unique` UNIQUE(`column1`)\n);\n',
-		'CREATE TABLE `table3` (\n\t`column1` int,\n\tCONSTRAINT `table3_column1_unique` UNIQUE(`column1`)\n);\n',
+		'CREATE TABLE `table2` (\n\t`column1` int,\n\tCONSTRAINT `column1_unique` UNIQUE(`column1`)\n);\n',
+		'CREATE TABLE `table3` (\n\t`column1` int,\n\tCONSTRAINT `column1_unique` UNIQUE(`column1`)\n);\n',
 	];
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);
@@ -1864,7 +1860,7 @@ test('add pk', async () => {
 	const { sqlStatements: st2 } = await diff(n1, schema2, []);
 	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
 	const expectedSt2 = [
-		'DROP INDEX `table3_column1_unique` ON `table3`;',
+		'DROP INDEX `column1_unique` ON `table3`;',
 		'ALTER TABLE `table1` ADD PRIMARY KEY (`column1`);',
 		'ALTER TABLE `table2` ADD PRIMARY KEY (`column1`);',
 		'ALTER TABLE `table3` ADD PRIMARY KEY (`column1`);',

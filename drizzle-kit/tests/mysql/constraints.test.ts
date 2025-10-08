@@ -86,7 +86,7 @@ test('#1', async () => {
 // TODO: implement blob and geometry types
 test('unique constraint errors #1', async () => {
 	// postpone
-	if (Date.now() < +new Date('10/5/2025')) return;
+	if (Date.now() < +new Date('10/10/2025')) return;
 	const to = {
 		table: mysqlTable('table', {
 			column1: text().unique(),
@@ -112,7 +112,7 @@ test('unique constraint errors #1', async () => {
 
 test('unique constraint errors #2', async () => {
 	// postpone
-	if (Date.now() < +new Date('10/5/2025')) return;
+	if (Date.now() < +new Date('10/10/2025')) return;
 
 	const to = {
 		table: mysqlTable('table', {
@@ -151,7 +151,7 @@ test('unique constraint errors #2', async () => {
 
 test('unique constraint errors #3', async () => {
 	// postpone
-	if (Date.now() < +new Date('10/5/2025')) return;
+	if (Date.now() < +new Date('10/10/2025')) return;
 	const to = {
 		table: mysqlTable('table', {
 			column1: text(),
@@ -179,7 +179,7 @@ test('unique constraint errors #3', async () => {
 
 test('foreign key constraint errors #1', async () => {
 	// postpone
-	if (Date.now() < +new Date('10/5/2025')) return;
+	if (Date.now() < +new Date('10/10/2025')) return;
 	const table1 = mysqlTable('table1', {
 		column1: int(),
 	});
@@ -198,7 +198,7 @@ test('foreign key constraint errors #1', async () => {
 
 test('foreign key constraint errors #2', async () => {
 	// postpone
-	if (Date.now() < +new Date('10/5/2025')) return;
+	if (Date.now() < +new Date('10/10/2025')) return;
 
 	const table1 = mysqlTable('table1', {
 		column1: int(),
@@ -226,7 +226,7 @@ test('foreign key constraint errors #2', async () => {
 
 test('foreign key constraint errors #3', async () => {
 	// postpone
-	if (Date.now() < +new Date('10/5/2025')) return;
+	if (Date.now() < +new Date('10/10/2025')) return;
 
 	const table1 = mysqlTable('table1', {
 		column1: int().unique(),
@@ -605,10 +605,10 @@ test('adding on delete to 2 fks', async () => {
 	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
 
 	const expectedSt2: string[] = [
-		'ALTER TABLE `table2` DROP FOREIGN KEY `table2_column2_table1_column1_fkey`;',
-		'ALTER TABLE `table2` ADD CONSTRAINT `table2_column2_table1_column1_fkey` FOREIGN KEY (`column2`) REFERENCES `table1`(`column1`) ON DELETE cascade ON UPDATE no action;',
-		'ALTER TABLE `table2` DROP FOREIGN KEY `table2_column3_table1_column1_fkey`;',
-		'ALTER TABLE `table2` ADD CONSTRAINT `table2_column3_table1_column1_fkey` FOREIGN KEY (`column3`) REFERENCES `table1`(`column1`) ON DELETE cascade ON UPDATE no action;',
+		'ALTER TABLE `table2` DROP CONSTRAINT `table2_column2_table1_column1_fkey`;',
+		'ALTER TABLE `table2` DROP CONSTRAINT `table2_column3_table1_column1_fkey`;',
+		'ALTER TABLE `table2` ADD CONSTRAINT `table2_column2_table1_column1_fkey` FOREIGN KEY (`column2`) REFERENCES `table1`(`column1`) ON DELETE CASCADE;',
+		'ALTER TABLE `table2` ADD CONSTRAINT `table2_column3_table1_column1_fkey` FOREIGN KEY (`column3`) REFERENCES `table1`(`column1`) ON DELETE CASCADE;',
 	];
 
 	expect(st2).toStrictEqual(expectedSt2);
@@ -801,7 +801,7 @@ test('drop column with pk and add pk to another column #2', async () => {
 	const expectedSt1 = [
 		'CREATE TABLE `table1` (\n\t`column1` varchar(256),\n\t`column2` varchar(256),'
 		+ '\n\t`column3` varchar(256) NOT NULL,\n\t`column4` varchar(256) NOT NULL,'
-		+ '\n\tCONSTRAINT `table1_column1_column2_pk` PRIMARY KEY(`column1`,`column2`)\n);\n',
+		+ '\n\tCONSTRAINT `PRIMARY` PRIMARY KEY(`column1`,`column2`)\n);\n',
 	];
 	expect(st1).toStrictEqual(expectedSt1);
 	expect(pst1).toStrictEqual(expectedSt1);

@@ -169,9 +169,8 @@ export const table1View2 = mysqlView('table1_view2', {
 	sql`select column4 from ${table1} where ${eq(table1.column4, 3)}`,
 );
 
-// cross-schema
 export const users = mysqlTable('users1', {
-	id: int().primaryKey(),
+	id: int().unique(),
 	id1: int(),
 	id2: int(),
 }, (t) => [

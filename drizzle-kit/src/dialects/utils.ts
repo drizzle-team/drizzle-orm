@@ -1,4 +1,4 @@
-import type { Simplify } from '../utils';
+import { type Simplify } from '../utils';
 import { CockroachDDL } from './cockroach/ddl';
 import { MssqlDDL } from './mssql/ddl';
 import type { MysqlDDL } from './mysql/ddl';
@@ -117,7 +117,7 @@ export const unescapeFromSqlDefault = (input: string, mode: 'default' | 'arr' = 
 };
 
 export const escapeForTsLiteral = (input: string) => {
-	return input.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+	return JSON.stringify(input);
 };
 
 export function inspect(it: any): string {
