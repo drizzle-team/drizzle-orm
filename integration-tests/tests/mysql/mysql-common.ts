@@ -70,7 +70,6 @@ import {
 	unionAll,
 	unique,
 	uniqueIndex,
-	uniqueKeyName,
 	varbinary,
 	varchar,
 	year,
@@ -546,7 +545,7 @@ export function tests(driver?: string) {
 			const tableConfig = getTableConfig(cities1Table);
 
 			const columnName = tableConfig.columns.find((it) => it.name === 'name');
-			expect(columnName?.uniqueName).toBe(uniqueKeyName(cities1Table, [columnName!.name]));
+			expect(columnName?.uniqueName).toBe(undefined);
 			expect(columnName?.isUnique).toBeTruthy();
 
 			const columnState = tableConfig.columns.find((it) => it.name === 'state');
