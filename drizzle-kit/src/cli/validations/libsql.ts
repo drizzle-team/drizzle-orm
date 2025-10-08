@@ -1,5 +1,5 @@
 import { softAssertUnreachable } from 'src/global';
-import { object, string, TypeOf } from 'zod';
+import { object, string, TypeOf } from 'zod/v3';
 import { error } from '../views';
 import { wrapParam } from './common';
 

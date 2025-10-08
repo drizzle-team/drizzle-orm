@@ -1,4 +1,4 @@
-import { enum as enumType, TypeOf, union } from 'zod';
+import { enum as enumType, TypeOf, union } from 'zod/v3';
 import { mysqlSchema, mysqlSchemaSquashed } from './serializer/mysqlSchema';
 import { pgSchema, pgSchemaSquashed } from './serializer/pgSchema';
 import { singlestoreSchema, singlestoreSchemaSquashed } from './serializer/singlestoreSchema';

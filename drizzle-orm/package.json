@@ -1,6 +1,6 @@
 {
 	"name": "drizzle-orm",
-	"version": "0.39.0",
+	"version": "0.40.0",
 	"description": "Drizzle ORM package for SQL databases",
 	"type": "module",
 	"scripts": {
@@ -201,7 +201,7 @@
 		"tsx": "^3.12.7",
 		"vite-tsconfig-paths": "^4.3.2",
 		"vitest": "^1.6.0",
-		"zod": "^3.20.2",
+		"zod": "^4.0.0",
 		"zx": "^7.2.2"
 	}
 }

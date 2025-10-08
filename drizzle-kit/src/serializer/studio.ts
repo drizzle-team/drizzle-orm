@@ -29,7 +29,7 @@ import { createServer } from 'node:https';
 import { LibSQLCredentials } from 'src/cli/validations/libsql';
 import { assertUnreachable } from 'src/global';
 import superjson from 'superjson';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { safeRegister } from '../cli/commands/utils';
 import type { MysqlCredentials } from '../cli/validations/mysql';
 import type { PostgresCredentials } from '../cli/validations/postgres';
@@ -514,7 +514,7 @@ const defaultsSchema = z.object({
 		.min(1),
 });
 
-const schema = z.union([init, proxySchema, defaultsSchema]);
+const schema = z.union([init, proxySchema, defaultsSchema]) as any; // Type assertion for @hono/zod-validator compatibility with zod v4
 
 superjson.registerCustom<Buffer, number[]>(
 	{
@@ -645,7 +645,7 @@ export const prepareServer = async (
 		if (type === 'defaults') {
 			const columns = body.data;
 
-			const result = columns.map((column) => {
+			const result = columns.map((column: { schema: string; table: string; column: string }) => {
 				const found = customDefaults.find((d) => {
 					return (
 						d.schema === column.schema

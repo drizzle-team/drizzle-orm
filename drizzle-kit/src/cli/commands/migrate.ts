@@ -14,7 +14,7 @@ import chalk from 'chalk';
 import { render } from 'hanji';
 import path, { join } from 'path';
 import { SingleStoreSchema, singlestoreSchema, squashSingleStoreScheme } from 'src/serializer/singlestoreSchema';
-import { TypeOf } from 'zod';
+import { TypeOf } from 'zod/v3';
 import type { CommonSchema } from '../../schemaValidator';
 import { MySqlSchema, mysqlSchema, squashMysqlScheme, ViewSquashed } from '../../serializer/mysqlSchema';
 import { PgSchema, pgSchema, Policy, Role, squashPgScheme, View } from '../../serializer/pgSchema';

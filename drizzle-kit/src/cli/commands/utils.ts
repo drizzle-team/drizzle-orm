@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import { existsSync } from 'fs';
 import { render } from 'hanji';
 import { join, resolve } from 'path';
-import { object, string } from 'zod';
+import { object, string } from 'zod/v3';
 import { getTablesFilterByExtensions } from '../../extensions/getTablesFilterByExtensions';
 import { assertUnreachable } from '../../global';
 import { type Dialect, dialect } from '../../schemaValidator';

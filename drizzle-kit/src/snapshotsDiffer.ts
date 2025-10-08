@@ -11,7 +11,7 @@ import {
 	TypeOf,
 	union,
 	ZodTypeAny,
-} from 'zod';
+} from 'zod/v3';
 import { applyJsonDiff, diffColumns, diffIndPolicies, diffPolicies, diffSchemasOrTables } from './jsonDiffer';
 import { fromJson } from './sqlgenerator';
 

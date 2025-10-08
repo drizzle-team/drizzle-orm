@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import { render } from 'hanji';
-import { TypeOf } from 'zod';
+import { TypeOf } from 'zod/v3';
 import { JsonAlterColumnTypeStatement, JsonStatement } from '../../jsonStatements';
 import { mysqlSchema, MySqlSquasher } from '../../serializer/mysqlSchema';
 import type { DB } from '../../utils';

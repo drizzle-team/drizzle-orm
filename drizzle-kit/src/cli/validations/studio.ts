@@ -1,4 +1,4 @@
-import { coerce, intersection, object, string, TypeOf, union } from 'zod';
+import { coerce, intersection, object, string, TypeOf, union } from 'zod/v3';
 import { dialect } from '../../schemaValidator';
 import { mysqlCredentials } from './mysql';
 import { postgresCredentials } from './postgres';
