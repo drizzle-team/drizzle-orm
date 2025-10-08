@@ -505,7 +505,7 @@ export class SingleStoreDatabase<
 	}
 }
 
-export type SingleStoreWithReplicas<Q> = Q & { $primary: Q };
+export type SingleStoreWithReplicas<Q> = Q & { $primary: Q; $replicas: Q[] };
 
 export const withReplicas = <
 	Q extends SingleStoreDriverDatabase,
@@ -533,6 +533,7 @@ export const withReplicas = <
 		execute,
 		transaction,
 		$primary: primary,
+		$replicas: replicas,
 		select,
 		selectDistinct,
 		$count,

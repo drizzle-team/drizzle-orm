@@ -635,7 +635,7 @@ export class BaseSQLiteDatabase<
 	}
 }
 
-export type SQLiteWithReplicas<Q> = Q & { $primary: Q };
+export type SQLiteWithReplicas<Q> = Q & { $primary: Q; $replicas: Q[] };
 
 export const withReplicas = <
 	TResultKind extends 'sync' | 'async',
@@ -680,6 +680,7 @@ export const withReplicas = <
 		values,
 		transaction,
 		$primary: primary,
+		$replicas: replicas,
 		select,
 		selectDistinct,
 		$count,
