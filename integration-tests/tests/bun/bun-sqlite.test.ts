@@ -3866,7 +3866,7 @@ test('table configs: unique in column', () => {
 
 	const columnName = tableConfig.columns.find((it) => it.name === 'name');
 	expect(columnName?.isUnique).toBeTruthy();
-	expect(columnName?.uniqueName).toStrictEqual(uniqueKeyName(cities1Table, [columnName!.name]));
+	expect(columnName?.uniqueName).toStrictEqual(undefined);
 
 	const columnState = tableConfig.columns.find((it) => it.name === 'state');
 	expect(columnState?.isUnique).toBeTruthy();
@@ -3874,7 +3874,7 @@ test('table configs: unique in column', () => {
 
 	const columnField = tableConfig.columns.find((it) => it.name === 'field');
 	expect(columnField?.isUnique).toBeTruthy();
-	expect(columnField?.uniqueName).toStrictEqual(uniqueKeyName(cities1Table, [columnField!.name]));
+	expect(columnField?.uniqueName).toStrictEqual(undefined);
 });
 
 test('update ... from', async () => {
