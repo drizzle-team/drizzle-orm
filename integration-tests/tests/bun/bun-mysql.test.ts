@@ -79,7 +79,6 @@ import {
 	unionAll,
 	unique,
 	uniqueIndex,
-	uniqueKeyName,
 	varbinary,
 	varchar,
 	year,
@@ -612,7 +611,7 @@ describe('common', () => {
 		const tableConfig = getTableConfig(cities1Table);
 
 		const columnName = tableConfig.columns.find((it) => it.name === 'name');
-		expect(columnName?.uniqueName).toStrictEqual(uniqueKeyName(cities1Table, [columnName!.name]));
+		expect(columnName?.uniqueName).toStrictEqual(undefined);
 		expect(columnName?.isUnique).toBeTruthy();
 
 		const columnState = tableConfig.columns.find((it) => it.name === 'state');

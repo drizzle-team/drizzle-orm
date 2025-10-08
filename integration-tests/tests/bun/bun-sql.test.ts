@@ -80,7 +80,6 @@ import {
 	union,
 	unionAll,
 	unique,
-	uniqueKeyName,
 	varchar,
 } from 'drizzle-orm/pg-core';
 import relations from '~/pg/relations';
@@ -470,7 +469,7 @@ test('table configs: unique in column', async () => {
 
 	const columnName = tableConfig.columns.find((it) => it.name === 'name');
 
-	expect(columnName?.uniqueName).toBe(uniqueKeyName(cities1Table, [columnName!.name]));
+	expect(columnName?.uniqueName).toBe(undefined);
 	expect(columnName?.isUnique).toBe(true);
 
 	const columnState = tableConfig.columns.find((it) => it.name === 'state');

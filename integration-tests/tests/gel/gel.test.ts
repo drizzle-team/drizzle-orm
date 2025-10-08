@@ -64,7 +64,6 @@ import {
 	union,
 	unionAll,
 	unique,
-	uniqueKeyName,
 	uuid as gelUuid,
 } from 'drizzle-orm/gel-core';
 import createClient, {
@@ -689,7 +688,7 @@ describe('some', async () => {
 
 		const columnName = tableConfig.columns.find((it) => it.name === 'name');
 
-		expect(columnName?.uniqueName).toBe(uniqueKeyName(cities1Table, [columnName!.name]));
+		expect(columnName?.uniqueName).toBe(undefined);
 		expect(columnName?.isUnique).toBe(true);
 
 		const columnState = tableConfig.columns.find((it) => it.name === 'state');
