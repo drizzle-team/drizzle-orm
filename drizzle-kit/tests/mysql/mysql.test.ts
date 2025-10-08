@@ -548,7 +548,7 @@ test('add table #17. timestamp + fsp + on update now', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/2180
-test('add table#18. serial + primary key, timestamp + default with sql``', async () => {
+test('add table #18. serial + primary key, timestamp + default with sql``', async () => {
 	const to = {
 		table1: mysqlTable('table1', {
 			column1: serial().primaryKey(),
@@ -566,10 +566,32 @@ test('add table#18. serial + primary key, timestamp + default with sql``', async
 	expect(pst).toStrictEqual(expectedSt);
 });
 
+test('add table #19. timestamp + default with sql``', async () => {
+	const to = {
+		table1: mysqlTable('table1', {
+			column1: timestamp().notNull().defaultNow().onUpdateNow(),
+			column2: timestamp().notNull().default(sql`(CURRENT_TIMESTAMP)`).onUpdateNow(),
+			// column3: timestamp().notNull().default(sql`CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`),
+		}),
+	};
+
+	// TODO: revise: the sql`` passed to .default() may not need parentheses
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+	const expectedSt = [
+		'CREATE TABLE `table1` (\n\t'
+		+ '`column1` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n\t'
+		+ '`column2` timestamp NOT NULL DEFAULT (CURRENT_TIMESTAMP) ON UPDATE CURRENT_TIMESTAMP\n);\n',
+	];
+	expect(st).toStrictEqual(expectedSt);
+	expect(pst).toStrictEqual(expectedSt);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/3359
 // https://github.com/drizzle-team/drizzle-orm/issues/1413
 // https://github.com/drizzle-team/drizzle-orm/issues/3473
 // https://github.com/drizzle-team/drizzle-orm/issues/2815
-test('add table #19. table already exists; multiple pk defined', async () => {
+test('add table #20. table already exists; multiple pk defined', async () => {
 	const schema = {
 		table1: mysqlTable('table1', {
 			column1: int().autoincrement().primaryKey(),
@@ -608,7 +630,7 @@ test('add table #19. table already exists; multiple pk defined', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/1742
-test('add table #20. table with hyphen in identifiers', async () => {
+test('add table #21. table with hyphen in identifiers', async () => {
 	const schema1 = {
 		'table-1': mysqlTable('table-1', {
 			'column-1': int('column-1'),
@@ -641,7 +663,7 @@ test('add table #20. table with hyphen in identifiers', async () => {
 });
 
 // https://github.com/drizzle-team/drizzle-orm/issues/818
-test('add table #21. custom type; default', async () => {
+test('add table #22. custom type; default', async () => {
 	interface Semver {
 		major: number;
 		minor: number;
@@ -894,6 +916,7 @@ test('drop unique constraint', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/1888
 test('add table with indexes', async () => {
 	const from = {};
 
@@ -902,6 +925,7 @@ test('add table with indexes', async () => {
 			id: serial().primaryKey(),
 			name: varchar({ length: 100 }),
 			email: varchar({ length: 100 }),
+			column4: varchar({ length: 100 }),
 		}, (t) => [
 			uniqueIndex('uniqueExpr').on(sql`(lower(${t.email}))`),
 			index('indexExpr').on(sql`(lower(${t.email}))`),
@@ -910,6 +934,7 @@ test('add table with indexes', async () => {
 			index('indexCol').on(t.email),
 			index('indexColMultiple').on(t.email, t.name),
 			index('indexColExpr').on(sql`(lower(${t.email}))`, t.email),
+			index('indexCol4Hash').on(sql`(lower(${t.column4}))`).using('hash'),
 		]),
 	};
 
@@ -917,17 +942,21 @@ test('add table with indexes', async () => {
 	const { sqlStatements: pst } = await push({ db, to });
 
 	const st0: string[] = [
-		`CREATE TABLE \`users\` (\n\t\`id\` serial PRIMARY KEY,\n\t\`name\` varchar(100),\n\t\`email\` varchar(100),\n\tCONSTRAINT \`uniqueExpr\` UNIQUE((lower(\`email\`))),\n\tCONSTRAINT \`uniqueCol\` UNIQUE(\`email\`)\n);\n`,
+		`CREATE TABLE \`users\` (\n\t\`id\` serial PRIMARY KEY,`
+		+ `\n\t\`name\` varchar(100),\n\t\`email\` varchar(100),\n\t\`column4\` varchar(100),`
+		+ `\n\tCONSTRAINT \`uniqueExpr\` UNIQUE((lower(\`email\`))),\n\tCONSTRAINT \`uniqueCol\` UNIQUE(\`email\`)\n);\n`,
 		'CREATE INDEX `indexExpr` ON `users` ((lower(`email`)));',
 		'CREATE INDEX `indexExprMultiple` ON `users` ((lower(`email`)),(lower(`email`)));',
 		'CREATE INDEX `indexCol` ON `users` (`email`);',
 		'CREATE INDEX `indexColMultiple` ON `users` (`email`,`name`);',
 		'CREATE INDEX `indexColExpr` ON `users` ((lower(`email`)),`email`);',
+		'CREATE INDEX `indexCol4Hash` ON `users` ((lower(`column4`)));',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/2122
 test('varchar and text default values escape single quotes', async (t) => {
 	const schema1 = {
 		table: mysqlTable('table', {
