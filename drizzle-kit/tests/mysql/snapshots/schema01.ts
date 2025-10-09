@@ -1,4 +1,4 @@
-import { eq, SQL, sql } from 'drizzle-orm-legacy';
+import { eq, SQL, sql } from 'orm044';
 import {
 	AnyMySqlColumn,
 	bigint,
@@ -36,7 +36,7 @@ import {
 	varbinary,
 	varchar,
 	year,
-} from 'drizzle-orm-legacy/mysql-core';
+} from 'orm044/mysql-core';
 
 // TODO: extend massively cc: @OleksiiKH0240
 export const allDataTypes = mysqlTable('all_data_types', {
