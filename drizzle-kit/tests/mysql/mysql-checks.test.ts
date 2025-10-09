@@ -279,6 +279,30 @@ test('create checks with same names', async (t) => {
 	await expect(push({ db, to })).rejects.toThrowError();
 });
 
+test('create checks on serail or autoincrement', async (t) => {
+	const schema1 = {
+		table1: mysqlTable('table1', {
+			column1: serial(),
+		}, (table) => [
+			check('some_check_name1', sql`${table.column1} > 21`),
+		]),
+	};
+
+	await expect(diff({}, schema1, [])).rejects.toThrowError();
+	await expect(push({ db, to: schema1 })).rejects.toThrowError();
+
+	const schema2 = {
+		table1: mysqlTable('table1', {
+			columnй: int().autoincrement(),
+		}, (table) => [
+			check('some_check_name2', sql`${table.columnй} > 21`),
+		]),
+	};
+
+	await expect(diff({}, schema2, [])).rejects.toThrowError();
+	await expect(push({ db, to: schema2 })).rejects.toThrowError();
+});
+
 test('db has checks. Push with same names', async () => {
 	const schema1 = {
 		test: mysqlTable('test', {

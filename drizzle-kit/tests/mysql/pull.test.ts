@@ -501,6 +501,21 @@ test('introspect index and fk with action', async () => {
 	expect(sqlStatements.length).toBe(0);
 });
 
+test('introspect hash index', async () => {
+	const schema = {
+		table1: mysqlTable('table1', {
+			column1: int(),
+			column2: varchar({ length: 100 }),
+		}, (table) => [
+			index('idx_name').on(table.column2).using('hash'),
+		]),
+	};
+
+	const { statements, sqlStatements } = await diffIntrospect(db, schema, 'introspect-hash-index');
+
+	expect(statements.length).toBe(0);
+	expect(sqlStatements.length).toBe(0);
+});
 test('introspect blob, tinyblob, mediumblob, longblob', async () => {
 	const schema = {
 		columns: mysqlTable('columns', {

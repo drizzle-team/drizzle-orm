@@ -196,6 +196,48 @@ test('add table #7', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/2599
+test('drop + add table', async () => {
+	const schema1 = {
+		table1: mysqlTable('table1', {
+			column1: int().primaryKey(),
+			column2: int(),
+		}, (table) => [
+			index('unique-index1').on(table.column2),
+		]),
+	};
+
+	const schema2 = {
+		table2: mysqlTable('table2', {
+			column1: int().primaryKey(),
+			column2: int(),
+		}, (table) => [
+			index('unique-index2').on(table.column2),
+		]),
+	};
+
+	const { sqlStatements: st1, next: n1 } = await diff({}, schema1, []);
+	const { sqlStatements: pst1 } = await push({ db, to: schema1 });
+	const expectedSt1 = [
+		'CREATE TABLE `table1` (\n\t`column1` int PRIMARY KEY,\n\t`column2` int\n);\n',
+		'CREATE INDEX `unique-index1` ON `table1` (`column2`);',
+	];
+	expect(st1).toStrictEqual(expectedSt1);
+	expect(pst1).toStrictEqual(expectedSt1);
+
+	const { sqlStatements: st2 } = await diff(n1, schema1, []);
+	const { sqlStatements: pst2 } = await push({ db, to: schema2 });
+
+	const expectedSt2 = [
+		'DROP INDEX `unique-index1` ON `table1`',
+		'DROP TABLE `table1`;',
+		'CREATE TABLE `table2` (\n\t`column1` int PRIMARY KEY,\n\t`column2` int\n);\n',
+		'CREATE INDEX `unique-index2` ON `table2` (`column2`);',
+	];
+	expect(st2).toStrictEqual(expectedSt2);
+	expect(pst2).toStrictEqual(expectedSt2);
+});
+
 test('add schema + table #1', async () => {
 	const schema = mysqlSchema('folder');
 
@@ -587,6 +629,7 @@ test('add table #19. timestamp + default with sql``', async () => {
 	expect(pst).toStrictEqual(expectedSt);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/2458
 // https://github.com/drizzle-team/drizzle-orm/issues/3359
 // https://github.com/drizzle-team/drizzle-orm/issues/1413
 // https://github.com/drizzle-team/drizzle-orm/issues/3473
@@ -987,6 +1030,26 @@ test('varchar and text default values escape single quotes', async (t) => {
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
+});
+
+test('default on serail or autoincrement', async (t) => {
+	const schema1 = {
+		table1: mysqlTable('table1', {
+			column1: serial().default(1),
+		}),
+	};
+
+	await expect(diff({}, schema1, [])).rejects.toThrowError();
+	await expect(push({ db, to: schema1 })).rejects.toThrowError();
+
+	const schema2 = {
+		table1: mysqlTable('table1', {
+			columnй: int().autoincrement().default(1),
+		}),
+	};
+
+	await expect(diff({}, schema2, [])).rejects.toThrowError();
+	await expect(push({ db, to: schema2 })).rejects.toThrowError();
 });
 
 test('composite primary key #1', async () => {
