@@ -7,7 +7,9 @@ import { error, info } from '../cli/views';
 import { snapshotValidator as cockroachValidator } from '../dialects/cockroach/snapshot';
 import { snapshotValidator as mssqlValidatorSnapshot } from '../dialects/mssql/snapshot';
 import { mysqlSchemaV5 } from '../dialects/mysql/snapshot';
-import { snapshotValidator } from '../dialects/postgres/snapshot';
+import { snapshotValidator as pgSnapshotValidator } from '../dialects/postgres/snapshot';
+import { snapshotValidator as mysqlSnapshotValidator } from '../dialects/mysql/snapshot';
+import { snapshotValidator as sqliteStapshotValidator } from '../dialects/sqlite/snapshot';
 import { assertUnreachable } from '.';
 import { Journal } from '.';
 import type { Dialect } from './schemaValidator';
@@ -133,7 +135,7 @@ const postgresValidator = (snapshot: Object): ValidationResult => {
 	const versionError = assertVersion(snapshot, 8);
 	if (versionError) return { status: versionError };
 
-	const res = snapshotValidator.parse(snapshot);
+	const res = pgSnapshotValidator.parse(snapshot);
 	if (!res.success) {
 		return { status: 'malformed', errors: res.errors ?? [] };
 	}
@@ -153,10 +155,10 @@ const cockroachSnapshotValidator = (snapshot: Object): ValidationResult => {
 	return { status: 'valid' };
 };
 
-const mysqlSnapshotValidator = (
+const mysqlValidator = (
 	snapshot: Object,
 ): ValidationResult => {
-	const versionError = assertVersion(snapshot, 5);
+	const versionError = assertVersion(snapshot, 6);
 	if (versionError) return { status: versionError };
 
 	const { success } = mysqlSchemaV5.safeParse(snapshot);
@@ -177,13 +179,13 @@ const mssqlSnapshotValidator = (
 	return { status: 'valid' };
 };
 
-const sqliteSnapshotValidator = (
+const sqliteValidator = (
 	snapshot: Object,
 ): ValidationResult => {
 	const versionError = assertVersion(snapshot, 7);
 	if (versionError) return { status: versionError };
 
-	const { success } = snapshotValidator.parse(snapshot);
+	const { success } = sqliteStapshotValidator.parse(snapshot);
 	if (!success) {
 		return { status: 'malformed', errors: [] };
 	}
@@ -210,11 +212,11 @@ export const validatorForDialect = (dialect: Dialect): (snapshot: Object) => Val
 		case 'postgresql':
 			return postgresValidator;
 		case 'sqlite':
-			return sqliteSnapshotValidator;
+			return sqliteValidator;
 		case 'turso':
-			return sqliteSnapshotValidator;
+			return sqliteValidator;
 		case 'mysql':
-			return mysqlSnapshotValidator;
+			return mysqlValidator;
 		case 'singlestore':
 			return singlestoreSnapshotValidator;
 		case 'mssql':

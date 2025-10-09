@@ -1,5 +1,5 @@
 // src/db/schema.ts
-import { sql } from 'orm044';
+import { sql } from 'drizzle-orm';
 import {
 	bigint,
 	bigserial,
@@ -44,7 +44,7 @@ import {
 	uuid,
 	varchar,
 	vector,
-} from 'orm044/pg-core';
+} from 'drizzle-orm/pg-core';
 
 export const citext = customType<{ data: string }>({
 	dataType() {
@@ -236,6 +236,7 @@ export const allNumericsCustom = customSchema.table('all_numerics_custom', {
 	column: numeric('column'),
 	columnPrimary: numeric('column_primary').primaryKey().notNull(),
 });
+
 
 export const allCidrCustom = customSchema.table('all_cidr_custom', {
 	columnAll: cidr('column_all').notNull().array().generatedAlwaysAs(['0.0.0.0/0']),

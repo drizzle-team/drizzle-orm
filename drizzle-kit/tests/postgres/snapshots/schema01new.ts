@@ -9,7 +9,7 @@ import {
 	serial,
 	text,
 	unique,
-} from 'orm044/pg-core';
+} from 'drizzle-orm/pg-core';
 
 enum E {
 	value = 'value',

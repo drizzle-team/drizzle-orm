@@ -1,5 +1,5 @@
-import { is } from 'drizzle-orm-legacy';
-import { MySqlTable, MySqlView } from 'drizzle-orm-legacy/mysql-core';
+import { is } from 'orm044';
+import { MySqlTable, MySqlView } from 'orm044/mysql-core';
 import type { CasingType } from '../common';
 import type { MySqlSchema as SCHEMA } from './mysqlSchema';
 import { generateMySqlSnapshot } from './mysqlSerializer';
