@@ -629,7 +629,6 @@ test('add table #19. timestamp + default with sql``', async () => {
 	expect(pst).toStrictEqual(expectedSt);
 });
 
-// https://github.com/drizzle-team/drizzle-orm/issues/2458
 // https://github.com/drizzle-team/drizzle-orm/issues/3359
 // https://github.com/drizzle-team/drizzle-orm/issues/1413
 // https://github.com/drizzle-team/drizzle-orm/issues/3473
