@@ -1,5 +1,5 @@
-import { sql } from 'drizzle-orm';
-import { int, mysqlTable, mysqlView } from 'drizzle-orm/mysql-core';
+import { eq, sql } from 'drizzle-orm';
+import { int, mysqlTable, mysqlView, text } from 'drizzle-orm/mysql-core';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { diff, prepareTestDatabase, push, TestDatabase } from './mocks';
 
@@ -57,6 +57,38 @@ test('create view #2', async () => {
 		users: users,
 		view: mysqlView('some_view', {}).algorithm('merge').sqlSecurity('definer')
 			.withCheckOption('cascaded').as(sql`SELECT * FROM ${users}`),
+	};
+
+	const { sqlStatements: st } = await diff(from, to, []);
+
+	await push({ db, to: from });
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
+		`CREATE ALGORITHM = merge SQL SECURITY definer VIEW \`some_view\` AS (SELECT * FROM \`users\`) WITH cascaded CHECK OPTION;`,
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+test('create view #3', async () => {
+	const users = mysqlTable('users', {
+		id: int().primaryKey().notNull(),
+		name: text(),
+	});
+	const posts = mysqlTable('posts', {
+		id: int().primaryKey(),
+		content: text(),
+		userId: int().references(() => users.id),
+	});
+
+	const from = { users, posts };
+	const to = {
+		users,
+		posts,
+		view: mysqlView('some_view').as((qb) => {
+			return qb.select({ userId: users.id, postId: posts.id }).from(users).leftJoin(posts, eq(posts.userId, users.id));
+		}),
 	};
 
 	const { sqlStatements: st } = await diff(from, to, []);
