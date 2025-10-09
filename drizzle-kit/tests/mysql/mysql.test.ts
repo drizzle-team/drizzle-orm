@@ -716,6 +716,7 @@ test('add table #22. custom type; default', async () => {
 	expect(pst2).toStrictEqual(expectedSt2);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/364
 test('add column #1. timestamp + fsp + on update now + fsp', async () => {
 	const from = {
 		users: mysqlTable('table', {
@@ -866,6 +867,7 @@ test('modify on update now fsp #3', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/998
 test('drop index', async () => {
 	const from = {
 		users: mysqlTable('table', {
@@ -1069,6 +1071,7 @@ test('rename table with composite primary key', async () => {
 	expect(pst).toStrictEqual(st0);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/367
 test('optional db aliases (snake case)', async () => {
 	const from = {};
 
@@ -1244,6 +1247,31 @@ test('fk #1', async () => {
 		'CREATE TABLE `users` (\n\t`id` int,\n\tCONSTRAINT `id_unique` UNIQUE(`id`)\n);\n',
 		'CREATE TABLE `places` (\n\t`id` int,\n\t`ref` int\n);\n',
 		'ALTER TABLE `places` ADD CONSTRAINT `places_ref_users_id_fkey` FOREIGN KEY (`ref`) REFERENCES `users`(`id`);',
+	];
+	expect(st).toStrictEqual(st0);
+	expect(pst).toStrictEqual(st0);
+});
+
+// https://github.com/drizzle-team/drizzle-orm/issues/367
+test('fk #2', async () => {
+	const table1 = mysqlTable('table1', {
+		column1: serial().primaryKey(),
+	});
+	const to = {
+		table1,
+		table2: mysqlTable('table2', {
+			column1: serial().primaryKey(),
+			column2: bigint({ mode: 'number', unsigned: true }).references(() => table1.column1).notNull(),
+		}),
+	};
+
+	const { sqlStatements: st } = await diff({}, to, []);
+	const { sqlStatements: pst } = await push({ db, to });
+
+	const st0: string[] = [
+		'CREATE TABLE `table1` (\n\t`column1` serial PRIMARY KEY\n);\n',
+		'CREATE TABLE `table2` (\n\t`column1` serial PRIMARY KEY,\n\t`column2` bigint unsigned NOT NULL\n);\n',
+		'ALTER TABLE `table2` ADD CONSTRAINT `table2_column2_table1_column1_fkey` FOREIGN KEY (`column2`) REFERENCES `table1`(`column1`);',
 	];
 	expect(st).toStrictEqual(st0);
 	expect(pst).toStrictEqual(st0);
