@@ -1,4 +1,5 @@
-import { eq, sql } from 'orm044';
+import { eq, sql } from 'drizzle-orm';
+import { decimal } from 'drizzle-orm/cockroach-core';
 import {
 	AnyPgColumn,
 	bigint,
@@ -6,7 +7,6 @@ import {
 	boolean,
 	char,
 	check,
-	decimal,
 	doublePrecision,
 	foreignKey,
 	index,
@@ -28,7 +28,7 @@ import {
 	unique,
 	uniqueIndex,
 	uuid,
-} from 'orm044/pg-core';
+} from 'drizzle-orm/pg-core';
 
 // generated with AI and updated manually in some places
 
@@ -160,7 +160,7 @@ export const apiKeysInCore = core.table('api_keys', {
 	keyHash: text('key_hash').notNull(),
 	revoked: boolean().default(false).notNull(),
 	expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'string' }),
-	metadata: jsonb().generatedAlwaysAs(sql`'{"some":"test"}'`),
+	metadata: jsonb().generatedAlwaysAs({ some: 'test' }),
 	createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
 	index('core_apikey_org_idx').using('btree', table.organizationId.asc().nullsLast().op('uuid_ops')).where(

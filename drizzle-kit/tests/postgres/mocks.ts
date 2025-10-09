@@ -1,6 +1,5 @@
-import { ColumnBuilder, is, SQL } from 'drizzle-orm';
+import { is } from 'drizzle-orm';
 import {
-	AnyPgColumn,
 	isPgEnum,
 	isPgMaterializedView,
 	isPgSequence,
@@ -19,6 +18,17 @@ import {
 	PgView,
 	serial,
 } from 'drizzle-orm/pg-core';
+import {
+	PgEnum as PgEnumOld,
+	PgEnumObject as PgEnumObjectOld,
+	PgMaterializedView as PgMaterializedViewOld,
+	PgPolicy as PgPolicyOld,
+	PgRole as PgRoleOld,
+	PgSchema as PgSchemaOld,
+	PgSequence as PgSequenceOld,
+	PgTable as PgTableOld,
+	PgView as PgViewOld,
+} from 'orm044/pg-core';
 import { CasingType } from 'src/cli/validations/common';
 import { createDDL, fromEntities, interimToDDL, PostgresDDL, SchemaError } from 'src/dialects/postgres/ddl';
 import { ddlDiff, ddlDiffDry } from 'src/dialects/postgres/diff';
@@ -74,6 +84,21 @@ export type PostgresSchema = Record<
 	| PgPolicy
 	| unknown
 >;
+
+export type PostgresSchemaOld = Record<
+	string,
+	| PgTableOld<any>
+	| PgEnumOld<any>
+	| PgEnumObjectOld<any>
+	| PgSchemaOld
+	| PgSequenceOld
+	| PgViewOld
+	| PgMaterializedViewOld
+	| PgRoleOld
+	| PgPolicyOld
+	| unknown
+>;
+
 
 class MockError extends Error {
 	constructor(readonly errors: SchemaError[]) {
@@ -420,8 +445,8 @@ export const diffDefault = async <T extends PgColumnBuilder>(
 	return res;
 };
 
-export const diffSnapshotV7 = async (db: DB, schema: PostgresSchema) => {
-	const res = await serializePg(schema, 'camelCase');
+export const diffSnapshotV7 = async (db: DB, schema: PostgresSchema, schemaOld: PostgresSchemaOld) => {
+	const res = await serializePg(schemaOld, 'camelCase');
 	const { sqlStatements } = await legacyDiff({ right: res });
 
 	for (const st of sqlStatements) {

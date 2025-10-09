@@ -1,6 +1,6 @@
 import chalk from 'chalk';
-import { getTableName, is, SQL } from 'drizzle-orm-legacy';
-import { CasingCache, toCamelCase, toSnakeCase } from 'drizzle-orm-legacy/casing';
+import { getTableName, is, SQL } from 'orm044';
+import { CasingCache, toCamelCase, toSnakeCase } from 'orm044/casing';
 import {
 	AnyPgTable,
 	getMaterializedViewConfig,
@@ -19,7 +19,7 @@ import {
 	PgSequence,
 	PgView,
 	uniqueKeyName,
-} from 'drizzle-orm-legacy/pg-core';
+} from 'orm044/pg-core';
 import { CasingType } from '../common';
 import { withStyle } from '../outputs';
 import { escapeSingleQuotes, isPgArrayType } from '../utils';

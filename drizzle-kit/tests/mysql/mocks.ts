@@ -6,8 +6,7 @@ import {
 	MySqlSchema as MySqlSchemaOld,
 	MySqlTable as MysqlTableOld,
 	MySqlView as MysqlViewOld,
-} from 'drizzle-orm-legacy/mysql-core';
-
+} from 'orm044/mysql-core';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import getPort from 'get-port';
 import { Connection, createConnection } from 'mysql2/promise';
