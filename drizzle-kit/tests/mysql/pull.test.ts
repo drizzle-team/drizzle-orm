@@ -231,6 +231,7 @@ test('view #2', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/3285
 test('handle float type', async () => {
 	const schema = {
 		table: mysqlTable('table', {
@@ -246,6 +247,7 @@ test('handle float type', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/258
 // https://github.com/drizzle-team/drizzle-orm/issues/1675
 // https://github.com/drizzle-team/drizzle-orm/issues/2950
 test('handle unsigned numerical types', async () => {
@@ -339,6 +341,7 @@ test('charSet and collate', async () => {
 	expect(sqlStatements).toStrictEqual([]);
 });
 
+// https://github.com/drizzle-team/drizzle-orm/issues/1020
 // https://github.com/drizzle-team/drizzle-orm/issues/3457
 // https://github.com/drizzle-team/drizzle-orm/issues/1871
 // https://github.com/drizzle-team/drizzle-orm/issues/2950
@@ -465,7 +468,7 @@ test('introspect index on json', async () => {
 // https://github.com/drizzle-team/drizzle-orm/issues/1512
 // https://github.com/drizzle-team/drizzle-orm/issues/1870
 // https://github.com/drizzle-team/drizzle-orm/issues/2525
-test('introspect index', async () => {
+test('introspect index and fk with action', async () => {
 	const entity = mysqlTable('Entity', {
 		id: int('id').autoincrement().notNull(),
 		name: varchar('name', { length: 191 }).notNull(),
