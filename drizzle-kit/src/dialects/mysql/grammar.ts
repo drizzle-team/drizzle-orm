@@ -890,7 +890,7 @@ const commutativeCharSetAndCollation: { charSet: string; collation: string; isDe
 	{ collation: 'utf8mb3_unicode_520_ci', charSet: 'utf8mb3', isDefault: false },
 	{ collation: 'utf8mb3_unicode_ci', charSet: 'utf8mb3', isDefault: false },
 	{ collation: 'utf8mb3_vietnamese_ci', charSet: 'utf8mb3', isDefault: false },
-	{ collation: 'utf8mb4_0900_ai_ci', charSet: 'utf8mb4', isDefault: true }, // This is default value if not specified
+	{ collation: 'utf8mb4_0900_ai_ci', charSet: 'utf8mb4', isDefault: true },
 	{ collation: 'utf8mb4_0900_as_ci', charSet: 'utf8mb4', isDefault: false },
 	{ collation: 'utf8mb4_0900_as_cs', charSet: 'utf8mb4', isDefault: false },
 	{ collation: 'utf8mb4_0900_bin', charSet: 'utf8mb4', isDefault: false },
@@ -1004,11 +1004,6 @@ export const charSetAndCollationCommutative = (
 		if (charSet && collation) {
 			const match = commutativeCharSetAndCollation.find((x) => x.charSet === charSet && x.collation === collation);
 			if (!match) return null; // invalid combination
-		}
-
-		if (!charSet && !collation) {
-			charSet = 'utf8mb4';
-			collation = 'utf8mb4_0900_ai_ci';
 		}
 
 		return { charSet, collation };

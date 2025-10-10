@@ -516,6 +516,18 @@ export function tests(driver?: string) {
 			expect(tableConfig.foreignKeys[0]!.getName()).toBe('custom_fk');
 		});
 
+		test('table config: primary keys name', async () => {
+			const table = mysqlTable('cities', {
+				id: serial('id').primaryKey(),
+				name: text('name').notNull(),
+				state: text('state'),
+			}, (t) => [primaryKey({ columns: [t.id, t.name] })]);
+
+			const tableConfig = getTableConfig(table);
+
+			expect(tableConfig.primaryKeys).toHaveLength(1);
+		});
+
 		test('table configs: unique third param', async () => {
 			const cities1Table = mysqlTable('cities1', {
 				id: serial('id').primaryKey(),
@@ -6008,5 +6020,19 @@ export function tests(driver?: string) {
 
 		expect(result1).toEqual([{ userId: 1, data: { name: 'John' } }]);
 		expect(result2).toEqual([{ userId: 2, data: { name: 'Jane' } }]);
+	});
+
+	test('contraint names config', async (ctx) => {
+		const { db } = ctx.mysql;
+
+		const users = mysqlTable('users', {
+			id: int('id').unique(),
+			id1: int('id1').unique('custom_name'),
+		});
+
+		const tableConf = getTableConfig(users);
+
+		expect(tableConf.columns.find((it) => it.name === 'id')!.uniqueName).toBe(undefined);
+		expect(tableConf.columns.find((it) => it.name === 'id1')!.uniqueName).toBe('custom_name');
 	});
 }
